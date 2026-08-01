@@ -120,13 +120,30 @@ function fractionInColumn(iso, col) {
   return Math.min(1, Math.max(0, pos / span));
 }
 
+function sortActivities(list) {
+  return list.slice().sort((a, b) => {
+    if (a.date && b.date) return a.date.localeCompare(b.date);
+    if (a.date) return -1;
+    if (b.date) return 1;
+    return a.month - b.month;
+  });
+}
+
+function buildOrderMap(sortedList) {
+  const map = {};
+  sortedList.forEach((a, i) => { map[a.id] = i + 1; });
+  return map;
+}
+
 export default function App() {
   const [sessionChecked, setSessionChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [projects, setProjects] = useState([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [users, setUsers] = useState([]);
-  const [activeProjectId, setActiveProjectId] = useState(null);
+  const [selectedProjectIds, setSelectedProjectIds] = useState([]);
+  const [companySelectionConfirmed, setCompanySelectionConfirmed] = useState(false);
+  const [phasesEditingProjectId, setPhasesEditingProjectId] = useState(null);
   const [usersLog, setUsersLog] = useState([]);
   const [loginError, setLoginError] = useState(null);
   const [usersPanelError, setUsersPanelError] = useState('');
@@ -151,7 +168,6 @@ export default function App() {
       const raw = window.localStorage.getItem(LOCAL_PREFS_KEY);
       if (raw) {
         const prefs = JSON.parse(raw);
-        if (prefs.activeProjectId) setActiveProjectId(prefs.activeProjectId);
         if (prefs.usersLog) setUsersLog(prefs.usersLog);
       }
     } catch (e) { /* nada salvo ainda */ }
@@ -169,9 +185,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    try { window.localStorage.setItem(LOCAL_PREFS_KEY, JSON.stringify({ activeProjectId, usersLog })); }
+    try { window.localStorage.setItem(LOCAL_PREFS_KEY, JSON.stringify({ usersLog })); }
     catch (e) { /* ignora */ }
-  }, [activeProjectId, usersLog]);
+  }, [usersLog]);
 
   useEffect(() => {
     if (!currentUser) { setProjects([]); setProjectsLoaded(false); return; }
@@ -187,6 +203,12 @@ export default function App() {
       }
     })();
   }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!projectsLoaded || !currentUser || currentUser.role !== 'cliente') return;
+    setSelectedProjectIds(projects.map((p) => p.id));
+    setCompanySelectionConfirmed(true);
+  }, [projectsLoaded, currentUser?.id]);
 
   useEffect(() => {
     if (showUsers && currentUser && currentUser.role === 'master') {
@@ -213,7 +235,8 @@ export default function App() {
     setCurrentUser(null);
     setProjects([]);
     setProjectsLoaded(false);
-    setActiveProjectId(null);
+    setSelectedProjectIds([]);
+    setCompanySelectionConfirmed(false);
   }
 
   function persistProjectDebounced(pid, projectData) {
@@ -238,10 +261,6 @@ export default function App() {
     });
   }
 
-  const visibleProjects = projects;
-  const effectiveProjectId = visibleProjects.find((p) => p.id === activeProjectId) ? activeProjectId : (visibleProjects[0] && visibleProjects[0].id);
-  const activeProject = projects.find((p) => p.id === effectiveProjectId) || null;
-
   if (!sessionChecked) {
     return <LoadingScreen />;
   }
@@ -255,6 +274,31 @@ export default function App() {
   }
 
   const registeredProjects = projects.filter((p) => p.company.cnpj);
+  const canPickCompanies = currentUser.role === 'master' || currentUser.role === 'pricetax';
+
+  if (canPickCompanies && !companySelectionConfirmed) {
+    return (
+      <>
+        <CompanySelectorScreen
+          projects={projects}
+          initialSelected={selectedProjectIds}
+          onConfirm={(ids) => { setSelectedProjectIds(ids); setCompanySelectionConfirmed(true); }}
+          onLogout={handleLogout}
+          onCreateNew={() => setShowCreateCompany(true)}
+        />
+        {showCreateCompany && (
+          <CreateCompanyModal
+            onClose={() => setShowCreateCompany(false)}
+            onCreate={async (company) => {
+              const newId = await createCompany(company);
+              setSelectedProjectIds((prev) => [...prev, newId]);
+              setShowCreateCompany(false);
+            }}
+          />
+        )}
+      </>
+    );
+  }
 
   if (showUsers && currentUser.role === 'master') {
     return (
@@ -275,80 +319,91 @@ export default function App() {
     );
   }
 
-  if (!activeProject) {
+  const selectedProjects = projects.filter((p) => selectedProjectIds.includes(p.id));
+  const isMulti = selectedProjects.length > 1;
+  const activeProject = selectedProjects.length === 1 ? selectedProjects[0] : null;
+
+  if (!activeProject && !isMulti) {
     return <NoAccessScreen user={currentUser} onLogout={handleLogout} />;
   }
 
-  const pid = activeProject.id;
+  const pid = activeProject ? activeProject.id : null;
 
-  function addLog(action) {
-    mutateProject(pid, (p) => p, action);
+  function addLog(targetPid, action) {
+    mutateProject(targetPid, (p) => p, action);
   }
 
-  function updateActivity(id, patch, logMsg) {
-    mutateProject(pid, (p) => ({ ...p, activities: p.activities.map((a) => (a.id === id ? { ...a, ...patch } : a)) }), logMsg);
+  function updateActivity(targetPid, id, patch, logMsg) {
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => (a.id === id ? { ...a, ...patch } : a)) }), logMsg);
   }
 
-  function addActivity() {
-    const activities = activeProject.activities;
+  function addActivity(targetPid) {
+    const project = projects.find((p) => p.id === targetPid);
+    if (!project) return;
+    const activities = project.activities;
     const nextMonth = activities.length ? Math.max(...activities.map((a) => a.month)) + 1 : 1;
-    const phasesList = activeProject.phases;
+    const phasesList = project.phases;
     const defaultPhaseId = phasesList.length ? phasesList[phasesList.length - 1].id : 1;
-    const na = { id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '', responsible: activeProject.team[0] || 'PRICETAX', date: '', endDate: '', status: 'nao-iniciado', required: false, subactivities: [], notes: '', attachments: [], comments: [], transcript: '' };
-    mutateProject(pid, (p) => ({ ...p, activities: [...p.activities, na] }), `Atividade criada: "${na.title}"`);
+    const na = { id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '', responsible: project.team[0] || 'PRICETAX', date: '', endDate: '', status: 'nao-iniciado', required: false, subactivities: [], notes: '', attachments: [], comments: [], transcript: '' };
+    mutateProject(targetPid, (p) => ({ ...p, activities: [...p.activities, na] }), `Atividade criada: "${na.title}"`);
   }
 
-  function deleteActivity(id) {
-    const a = activeProject.activities.find((x) => x.id === id);
-    mutateProject(pid, (p) => ({ ...p, activities: p.activities.filter((x) => x.id !== id) }), a ? `Atividade removida: "${a.title}"` : undefined);
+  function deleteActivity(targetPid, id) {
+    const project = projects.find((p) => p.id === targetPid);
+    const a = project && project.activities.find((x) => x.id === id);
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.filter((x) => x.id !== id) }), a ? `Atividade removida: "${a.title}"` : undefined);
   }
 
-  function addSub(actId) {
-    const act = activeProject.activities.find((a) => a.id === actId);
-    mutateProject(pid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, subactivities: [...(a.subactivities || []), { id: uid('s'), title: 'Nova subatividade', done: false }] }) }), act ? `Subatividade adicionada em "${act.title}"` : undefined);
+  function addSub(targetPid, actId) {
+    const project = projects.find((p) => p.id === targetPid);
+    const act = project && project.activities.find((a) => a.id === actId);
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, subactivities: [...(a.subactivities || []), { id: uid('s'), title: 'Nova subatividade', done: false }] }) }), act ? `Subatividade adicionada em "${act.title}"` : undefined);
     setExpanded((e) => ({ ...e, [actId]: true }));
   }
 
-  function updateSub(actId, subId, patch) {
-    mutateProject(pid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, subactivities: (a.subactivities || []).map((s) => s.id === subId ? { ...s, ...patch } : s) }) }));
+  function updateSub(targetPid, actId, subId, patch) {
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, subactivities: (a.subactivities || []).map((s) => s.id === subId ? { ...s, ...patch } : s) }) }));
   }
 
-  function deleteSub(actId, subId) {
-    mutateProject(pid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, subactivities: (a.subactivities || []).filter((s) => s.id !== subId) }) }));
+  function deleteSub(targetPid, actId, subId) {
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, subactivities: (a.subactivities || []).filter((s) => s.id !== subId) }) }));
   }
 
-  function addAttachment(actId, file) {
+  function addAttachment(targetPid, actId, file) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
       const att = { id: uid('att'), name: file.name, size: file.size, dataUrl: reader.result };
-      const act = activeProject.activities.find((a) => a.id === actId);
-      mutateProject(pid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, attachments: [...(a.attachments || []), att] }) }), `Anexo adicionado em "${act ? act.title : ''}": ${file.name}`);
+      const project = projects.find((p) => p.id === targetPid);
+      const act = project && project.activities.find((a) => a.id === actId);
+      mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, attachments: [...(a.attachments || []), att] }) }), `Anexo adicionado em "${act ? act.title : ''}": ${file.name}`);
     };
     reader.readAsDataURL(file);
   }
 
-  function removeAttachment(actId, attId) {
-    const act = activeProject.activities.find((a) => a.id === actId);
+  function removeAttachment(targetPid, actId, attId) {
+    const project = projects.find((p) => p.id === targetPid);
+    const act = project && project.activities.find((a) => a.id === actId);
     const att = act && (act.attachments || []).find((x) => x.id === attId);
-    mutateProject(pid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, attachments: (a.attachments || []).filter((x) => x.id !== attId) }) }), att ? `Anexo removido em "${act.title}": ${att.name}` : undefined);
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, attachments: (a.attachments || []).filter((x) => x.id !== attId) }) }), att ? `Anexo removido em "${act.title}": ${att.name}` : undefined);
   }
 
-  function addComment(actId, text) {
+  function addComment(targetPid, actId, text) {
     const v = (text || '').trim();
     if (!v) return;
     const c = { id: uid('cm'), text: v, ts: new Date().toISOString() };
-    const act = activeProject.activities.find((a) => a.id === actId);
-    mutateProject(pid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, comments: [...(a.comments || []), c] }) }), `Comentário adicionado em "${act ? act.title : ''}"`);
+    const project = projects.find((p) => p.id === targetPid);
+    const act = project && project.activities.find((a) => a.id === actId);
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, comments: [...(a.comments || []), c] }) }), `Comentário adicionado em "${act ? act.title : ''}"`);
   }
 
-  function removeComment(actId, commentId) {
-    mutateProject(pid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, comments: (a.comments || []).filter((c) => c.id !== commentId) }) }));
+  function removeComment(targetPid, actId, commentId) {
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, comments: (a.comments || []).filter((c) => c.id !== commentId) }) }));
   }
 
   function addMember() {
     const v = newMember.trim();
-    if (!v || activeProject.team.includes(v)) return;
+    if (!v || !activeProject || activeProject.team.includes(v)) return;
     mutateProject(pid, (p) => ({ ...p, team: [...p.team, v] }), `Responsável adicionado à equipe: ${v}`);
     setNewMember('');
   }
@@ -367,36 +422,39 @@ export default function App() {
   }
 
   function commitAreaRow(id) {
-    const row = (activeProject.company.areas || []).find((r) => r.id === id);
+    const row = activeProject && (activeProject.company.areas || []).find((r) => r.id === id);
     if (!row) return;
-    addLog(`Área cadastrada: ${row.area || '(sem nome)'} — ${row.name || 'sem responsável'}${row.email ? ` <${row.email}>` : ''}`);
+    addLog(pid, `Área cadastrada: ${row.area || '(sem nome)'} — ${row.name || 'sem responsável'}${row.email ? ` <${row.email}>` : ''}`);
     if (row.name && !activeProject.team.includes(row.name)) {
       mutateProject(pid, (p) => ({ ...p, team: [...p.team, row.name] }));
     }
   }
 
   function removeAreaRow(id) {
-    const row = (activeProject.company.areas || []).find((r) => r.id === id);
+    const row = activeProject && (activeProject.company.areas || []).find((r) => r.id === id);
     mutateProject(pid, (p) => ({ ...p, company: { ...p.company, areas: (p.company.areas || []).filter((r) => r.id !== id) } }), row ? `Área removida: ${row.area || '(sem nome)'}` : undefined);
   }
 
   function addPhase() {
-    const phasesList = activeProject.phases;
+    const target = projects.find((p) => p.id === phasesEditingProjectId);
+    if (!target) return;
+    const phasesList = target.phases;
     const nextId = phasesList.length ? Math.max(...phasesList.map((p2) => p2.id)) + 1 : 1;
     const color = PHASE_COLORS[phasesList.length % PHASE_COLORS.length];
     const np = { id: nextId, name: 'Nova fase', sub: '', color };
-    mutateProject(pid, (p) => ({ ...p, phases: [...p.phases, np] }), `Fase criada: "${np.name}"`);
+    mutateProject(phasesEditingProjectId, (p) => ({ ...p, phases: [...p.phases, np] }), `Fase criada: "${np.name}"`);
   }
 
   function updatePhase(id, patch, logMsg) {
-    mutateProject(pid, (p) => ({ ...p, phases: p.phases.map((ph) => (ph.id === id ? { ...ph, ...patch } : ph)) }), logMsg);
+    mutateProject(phasesEditingProjectId, (p) => ({ ...p, phases: p.phases.map((ph) => (ph.id === id ? { ...ph, ...patch } : ph)) }), logMsg);
   }
 
   function deletePhase(id) {
-    if (activeProject.phases.length <= 1) return;
-    const p0 = activeProject.phases.find((x) => x.id === id);
-    const fallback = activeProject.phases.find((x) => x.id !== id);
-    mutateProject(pid, (p) => ({
+    const target = projects.find((p) => p.id === phasesEditingProjectId);
+    if (!target || target.phases.length <= 1) return;
+    const p0 = target.phases.find((x) => x.id === id);
+    const fallback = target.phases.find((x) => x.id !== id);
+    mutateProject(phasesEditingProjectId, (p) => ({
       ...p,
       activities: p.activities.map((a) => (a.phase === id ? { ...a, phase: fallback.id } : a)),
       phases: p.phases.filter((x) => x.id !== id),
@@ -416,7 +474,7 @@ export default function App() {
   async function createCompany(company) {
     const res = await apiPost('/api/projects', { company });
     setProjects((prev) => [...prev, res.project]);
-    setActiveProjectId(res.project.id);
+    return res.project.id;
   }
 
   async function loadUsers() {
@@ -514,6 +572,28 @@ export default function App() {
   }
 
   function exportExcel() {
+    if (isMulti) {
+      const rows = multiActivities.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).map((a) => ({
+        Empresa: a._companyName,
+        Nº: a._order,
+        Fase: (a._phases.find((p) => p.id === a.phase) || {}).name || '',
+        Atividade: a.title,
+        Descrição: a.desc,
+        Responsável: a.responsible,
+        Início: fmtDate(a.date),
+        Fim: fmtDate(a.endDate || a.date),
+        Obrigatória: a.required ? 'Sim' : 'Não',
+        Status: STATUS_META[a.status]?.label || a.status,
+        Subatividades: (a.subactivities || []).map((s) => `${s.done ? '[x]' : '[ ]'} ${s.title}`).join(' | '),
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [{ wch: 22 }, { wch: 6 }, { wch: 22 }, { wch: 26 }, { wch: 40 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 50 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Cronograma');
+      XLSX.writeFile(wb, 'cronograma-visao-geral.xlsx');
+      selectedProjects.forEach((p) => addLog(p.id, 'Cronograma exportado para Excel (visão geral)'));
+      return;
+    }
     const activities = activeProject.activities;
     const rows = activities.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).map((a) => ({
       Nº: orderMap[a.id],
@@ -533,22 +613,37 @@ export default function App() {
     XLSX.utils.book_append_sheet(wb, ws, 'Cronograma');
     const fname = `cronograma-${(activeProject.company.name || 'reforma-tributaria').toLowerCase().replace(/\s+/g, '-')}.xlsx`;
     XLSX.writeFile(wb, fname);
-    addLog('Cronograma exportado para Excel');
+    addLog(pid, 'Cronograma exportado para Excel');
   }
 
   function exportPdf() {
-    addLog('Cronograma exportado para PDF');
+    if (isMulti) selectedProjects.forEach((p) => addLog(p.id, 'Cronograma exportado para PDF (visão geral)'));
+    else addLog(pid, 'Cronograma exportado para PDF');
     window.print();
   }
 
-  const activitiesSorted = activeProject.activities.slice().sort((a, b) => {
-    if (a.date && b.date) return a.date.localeCompare(b.date);
-    if (a.date) return -1;
-    if (b.date) return 1;
-    return a.month - b.month;
-  });
-  const orderMap = {};
-  activitiesSorted.forEach((a, i) => { orderMap[a.id] = i + 1; });
+  const activitiesSorted = activeProject ? sortActivities(activeProject.activities) : [];
+  const orderMap = buildOrderMap(activitiesSorted);
+
+  const perCompanySorted = {};
+  const perCompanyOrderMap = {};
+  if (isMulti) {
+    selectedProjects.forEach((p) => {
+      const sorted = sortActivities(p.activities);
+      perCompanySorted[p.id] = sorted;
+      perCompanyOrderMap[p.id] = buildOrderMap(sorted);
+    });
+  }
+  const multiActivities = isMulti ? selectedProjects.flatMap((p) => perCompanySorted[p.id].map((a) => ({
+    ...a,
+    _pid: p.id,
+    _companyName: p.company.name || 'Empresa sem nome',
+    _companyColor: p.company.color || '#F5C400',
+    _companyLogo: p.company.logo || '',
+    _phases: p.phases,
+    _team: p.team,
+    _order: perCompanyOrderMap[p.id][a.id],
+  }))) : [];
 
   return (
     <div style={S.page}>
@@ -573,29 +668,60 @@ export default function App() {
 
       <div className="no-print" style={S.topbar}>
         <div style={S.brandRow}>
-          {activeProject.company.logo ? <img src={activeProject.company.logo} alt="logo" style={S.logoImg} /> : <div style={S.logoPlaceholder}><Building2 size={18} color="#F5C400" /></div>}
-          <div>
-            {visibleProjects.length > 1 ? (
-              <select value={activeProject.id} onChange={(e) => setActiveProjectId(e.target.value)} style={S.projectSwitch}>
-                {visibleProjects.map((p) => <option key={p.id} value={p.id}>{p.company.name || 'Cliente sem nome'}{p.company.cnpj ? ` — ${p.company.cnpj}` : ''}</option>)}
-              </select>
-            ) : (
-              <div style={S.brandName}>{activeProject.company.name || 'Cliente não cadastrado'}</div>
-            )}
-            <div style={S.brandCnpj}>{activeProject.company.cnpj ? `CNPJ ${activeProject.company.cnpj}` : 'CNPJ não informado'}</div>
-          </div>
-          <button style={S.iconBtn} onClick={() => setShowSettings(true)}><Settings size={15} /> Empresa</button>
+          {isMulti ? (
+            <>
+              <div style={S.logoPlaceholder}><LayoutGrid size={18} color="#F5C400" /></div>
+              <div>
+                <div style={S.brandName}>Visão geral — {selectedProjects.length} empresas</div>
+                <div style={S.multiCompanyChips}>
+                  {selectedProjects.map((p) => (
+                    <span key={p.id} style={{ ...S.multiCompanyChip, borderColor: p.company.color || '#333' }}>
+                      <span style={{ ...S.companyColorDot, background: p.company.color || '#555' }} />
+                      {p.company.name || 'Sem nome'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {activeProject.company.logo ? <img src={activeProject.company.logo} alt="logo" style={S.logoImg} /> : <div style={S.logoPlaceholder}><Building2 size={18} color={activeProject.company.color || '#F5C400'} /></div>}
+              <div>
+                <div style={S.brandName}>{activeProject.company.name || 'Cliente não cadastrado'}</div>
+                <div style={S.brandCnpj}>{activeProject.company.cnpj ? `CNPJ ${activeProject.company.cnpj}` : 'CNPJ não informado'}</div>
+              </div>
+              <button style={S.iconBtn} onClick={() => setShowSettings(true)}><Settings size={15} /> Empresa</button>
+            </>
+          )}
+          {canPickCompanies && (
+            <button style={S.iconBtn} onClick={() => setCompanySelectionConfirmed(false)}><Building2 size={15} /> Trocar empresas</button>
+          )}
         </div>
         <div style={S.actionsRow}>
           {(currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowCreateCompany(true)}><Plus size={15} /> Cadastrar empresa</button>
           )}
           {currentUser.role === 'master' && <button style={S.iconBtn} onClick={() => setShowUsers(true)}><UserCog size={15} /> Usuários</button>}
-          <button style={S.iconBtn} onClick={() => setShowPhases(true)}><LayoutGrid size={15} /> Fases</button>
-          <button style={S.iconBtn} onClick={() => setShowLog(true)}><Clock size={15} /> Log ({(activeProject.log || []).length})</button>
+          {!isMulti && (
+            <button style={S.iconBtn} onClick={() => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); }}><LayoutGrid size={15} /> Fases</button>
+          )}
+          {!isMulti && (
+            <button style={S.iconBtn} onClick={() => setShowLog(true)}><Clock size={15} /> Log ({(activeProject.log || []).length})</button>
+          )}
           <button style={S.iconBtn} onClick={exportExcel}><FileSpreadsheet size={15} /> Excel</button>
           <button style={S.iconBtn} onClick={exportPdf}><FileText size={15} /> PDF</button>
-          <button style={S.primaryBtn} onClick={addActivity}><Plus size={15} /> Nova atividade</button>
+          {isMulti ? (
+            <select
+              style={{ ...S.iconBtn, cursor: 'pointer', appearance: 'auto' }}
+              value=""
+              onChange={(e) => { if (e.target.value) addActivity(e.target.value); e.target.value = ''; }}
+            >
+              <option value="">+ Nova atividade em...</option>
+              {selectedProjects.map((p) => <option key={p.id} value={p.id}>{p.company.name || 'Sem nome'}</option>)}
+            </select>
+          ) : (
+            <button style={S.primaryBtn} onClick={() => addActivity(activeProject.id)}><Plus size={15} /> Nova atividade</button>
+          )}
           <div style={S.userBadge}>
             <span style={{ ...S.roleTag, color: ROLE_META[currentUser.role].color, borderColor: ROLE_META[currentUser.role].color }}>{ROLE_META[currentUser.role].label}</span>
             <span style={S.userName}>{currentUser.name}</span>
@@ -621,7 +747,7 @@ export default function App() {
       </div>
 
       <main style={S.main}>
-        {view === 'timeline' && (
+        {!isMulti && view === 'timeline' && (
           <TimelineView
             activities={activitiesSorted}
             phases={activeProject.phases}
@@ -631,12 +757,13 @@ export default function App() {
             setWindowAnchor={setWindowAnchor}
           />
         )}
-        {view === 'table' && (
+        {!isMulti && view === 'table' && (
           <TableView
             activities={activitiesSorted}
             orderMap={orderMap}
             phases={activeProject.phases}
             team={activeProject.team}
+            pid={activeProject.id}
             expanded={expanded}
             setExpanded={setExpanded}
             updateActivity={updateActivity}
@@ -646,27 +773,79 @@ export default function App() {
             deleteSub={deleteSub}
             addAttachment={addAttachment}
             removeAttachment={removeAttachment}
-            openDetail={setOpenActivityId}
+            openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
           />
         )}
-        {view === 'phases' && <PhasesView activities={activitiesSorted} orderMap={orderMap} phases={activeProject.phases} updateActivity={updateActivity} openDetail={setOpenActivityId} />}
-        {view === 'kanban' && (
+        {!isMulti && view === 'phases' && (
+          <PhasesView activities={activitiesSorted} orderMap={orderMap} phases={activeProject.phases} pid={activeProject.id} updateActivity={updateActivity} openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })} />
+        )}
+        {!isMulti && view === 'kanban' && (
           <KanbanView
             activities={activitiesSorted}
             orderMap={orderMap}
             phases={activeProject.phases}
+            pid={activeProject.id}
             dragId={dragId}
             setDragId={setDragId}
             updateActivity={updateActivity}
-            addActivity={addActivity}
-            openDetail={setOpenActivityId}
+            addActivity={() => addActivity(activeProject.id)}
+            openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
+          />
+        )}
+
+        {isMulti && view === 'timeline' && selectedProjects.map((p) => (
+          <div key={p.id} style={S.companySection}>
+            <CompanySectionHeader project={p} onEditPhases={() => { setPhasesEditingProjectId(p.id); setShowPhases(true); }} />
+            <TimelineView
+              activities={perCompanySorted[p.id]}
+              phases={p.phases}
+              granularity={granularity}
+              setGranularity={setGranularity}
+              windowAnchor={windowAnchor}
+              setWindowAnchor={setWindowAnchor}
+            />
+          </div>
+        ))}
+        {isMulti && view === 'table' && (
+          <TableView
+            activities={multiActivities}
+            expanded={expanded}
+            setExpanded={setExpanded}
+            updateActivity={updateActivity}
+            deleteActivity={deleteActivity}
+            addSub={addSub}
+            updateSub={updateSub}
+            deleteSub={deleteSub}
+            addAttachment={addAttachment}
+            removeAttachment={removeAttachment}
+            openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
+            multiMode
+          />
+        )}
+        {isMulti && view === 'phases' && selectedProjects.map((p) => (
+          <div key={p.id} style={S.companySection}>
+            <CompanySectionHeader project={p} onEditPhases={() => { setPhasesEditingProjectId(p.id); setShowPhases(true); }} />
+            <PhasesView activities={perCompanySorted[p.id]} orderMap={perCompanyOrderMap[p.id]} phases={p.phases} pid={p.id} updateActivity={updateActivity} openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })} />
+            <button style={{ ...S.iconBtn, marginTop: 8 }} onClick={() => addActivity(p.id)}><Plus size={14} /> Nova atividade em {p.company.name || 'empresa'}</button>
+          </div>
+        ))}
+        {isMulti && view === 'kanban' && (
+          <KanbanView
+            activities={multiActivities}
+            dragId={dragId}
+            setDragId={setDragId}
+            updateActivity={updateActivity}
+            openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
+            multiMode
           />
         )}
       </main>
 
-      <div className="no-print" style={S.hint}>Alterações são salvas automaticamente e registradas no log. Você está vendo o projeto de {activeProject.company.name || 'um cliente sem nome cadastrado'}.</div>
+      <div className="no-print" style={S.hint}>
+        Alterações são salvas automaticamente e registradas no log. {isMulti ? `Você está vendo a visão geral de ${selectedProjects.length} empresas.` : `Você está vendo o projeto de ${activeProject.company.name || 'um cliente sem nome cadastrado'}.`}
+      </div>
 
-      {showLog && (
+      {showLog && activeProject && (
         <SidePanel title="Log de alterações" onClose={() => setShowLog(false)}>
           {(activeProject.log || []).length === 0 && <div style={S.emptyMuted}>Nenhuma alteração registrada ainda.</div>}
           {(activeProject.log || []).map((l, i) => (
@@ -678,7 +857,7 @@ export default function App() {
         </SidePanel>
       )}
 
-      {showSettings && (
+      {showSettings && activeProject && (
         <SidePanel title="Empresa e equipe" onClose={() => setShowSettings(false)}>
           <div style={S.settingsBlock}>
             <div style={S.settingsLabel}>Logotipo do cliente</div>
@@ -690,13 +869,21 @@ export default function App() {
           </div>
 
           <div style={S.settingsBlock}>
+            <div style={S.settingsLabel}>Cor master da empresa</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input type="color" value={activeProject.company.color || '#F5C400'} onChange={(e) => { const v = e.target.value; mutateProject(pid, (p) => ({ ...p, company: { ...p.company, color: v } }), 'Cor da empresa atualizada'); }} style={S.colorInput} />
+              <div style={S.fieldHint}>Usada pra identificar essa empresa quando várias estiverem selecionadas na visão geral.</div>
+            </div>
+          </div>
+
+          <div style={S.settingsBlock}>
             <div style={S.settingsLabel}>Nome da empresa</div>
-            <input type="text" value={activeProject.company.name} onChange={(e) => { const v = e.target.value; mutateProject(pid, (p) => ({ ...p, company: { ...p.company, name: v } })); }} onBlur={() => addLog(`Nome da empresa atualizado: ${activeProject.company.name}`)} placeholder="Razão social" />
+            <input type="text" value={activeProject.company.name} onChange={(e) => { const v = e.target.value; mutateProject(pid, (p) => ({ ...p, company: { ...p.company, name: v } })); }} onBlur={() => addLog(pid, `Nome da empresa atualizado: ${activeProject.company.name}`)} placeholder="Razão social" />
           </div>
 
           <div style={S.settingsBlock}>
             <div style={S.settingsLabel}>CNPJ</div>
-            <input type="text" value={activeProject.company.cnpj} onChange={(e) => { const v = e.target.value; mutateProject(pid, (p) => ({ ...p, company: { ...p.company, cnpj: v } })); }} onBlur={() => addLog(`CNPJ atualizado: ${activeProject.company.cnpj}`)} placeholder="00.000.000/0000-00" />
+            <input type="text" value={activeProject.company.cnpj} onChange={(e) => { const v = e.target.value; mutateProject(pid, (p) => ({ ...p, company: { ...p.company, cnpj: v } })); }} onBlur={() => addLog(pid, `CNPJ atualizado: ${activeProject.company.cnpj}`)} placeholder="00.000.000/0000-00" />
             <div style={S.fieldHint}>Alterar o CNPJ não atualiza sozinho quem já tem acesso — ajuste em "Usuários" se precisar.</div>
           </div>
 
@@ -764,50 +951,65 @@ export default function App() {
         </SidePanel>
       )}
 
-      {showPhases && (
-        <SidePanel title="Fases do projeto" onClose={() => setShowPhases(false)}>
-          <div style={S.emptyMuted}>As fases agrupam as atividades nas visões Gantt, Fases e no Quadro. Cada uma tem nome, cor e uma linha de descrição.</div>
-          <div style={{ marginTop: 16 }}>
-            {activeProject.phases.map((p) => (
-              <div key={p.id} style={S.phaseEditRow}>
-                <input type="color" value={p.color} onChange={(e) => updatePhase(p.id, { color: e.target.value }, `Cor da fase "${p.name}" alterada`)} style={S.colorInput} />
-                <div style={{ flex: 1 }}>
-                  <input type="text" value={p.name} onChange={(e) => updatePhase(p.id, { name: e.target.value })} onBlur={() => addLog(`Fase renomeada: "${p.name}"`)} placeholder="Nome da fase" />
-                  <input type="text" value={p.sub} onChange={(e) => updatePhase(p.id, { sub: e.target.value })} onBlur={() => addLog(`Descrição da fase "${p.name}" alterada`)} placeholder="Descrição curta" style={{ marginTop: 6, opacity: .85 }} />
+      {showPhases && (() => {
+        const target = projects.find((p) => p.id === phasesEditingProjectId);
+        if (!target) return null;
+        return (
+          <SidePanel title={`Fases — ${target.company.name || 'projeto'}`} onClose={() => setShowPhases(false)}>
+            <div style={S.emptyMuted}>As fases agrupam as atividades nas visões Gantt, Fases e no Quadro. Cada uma tem nome, cor e uma linha de descrição.</div>
+            <div style={{ marginTop: 16 }}>
+              {target.phases.map((p) => (
+                <div key={p.id} style={S.phaseEditRow}>
+                  <input type="color" value={p.color} onChange={(e) => updatePhase(p.id, { color: e.target.value }, `Cor da fase "${p.name}" alterada`)} style={S.colorInput} />
+                  <div style={{ flex: 1 }}>
+                    <input type="text" value={p.name} onChange={(e) => updatePhase(p.id, { name: e.target.value })} onBlur={() => addLog(phasesEditingProjectId, `Fase renomeada: "${p.name}"`)} placeholder="Nome da fase" />
+                    <input type="text" value={p.sub} onChange={(e) => updatePhase(p.id, { sub: e.target.value })} onBlur={() => addLog(phasesEditingProjectId, `Descrição da fase "${p.name}" alterada`)} placeholder="Descrição curta" style={{ marginTop: 6, opacity: .85 }} />
+                  </div>
+                  <button style={S.iconBtnGhost} onClick={() => deletePhase(p.id)} disabled={target.phases.length <= 1} title={target.phases.length <= 1 ? 'Deixe pelo menos uma fase' : 'Excluir fase'}>
+                    <Trash2 size={14} color={target.phases.length <= 1 ? '#444' : '#888'} />
+                  </button>
                 </div>
-                <button style={S.iconBtnGhost} onClick={() => deletePhase(p.id)} disabled={activeProject.phases.length <= 1} title={activeProject.phases.length <= 1 ? 'Deixe pelo menos uma fase' : 'Excluir fase'}>
-                  <Trash2 size={14} color={activeProject.phases.length <= 1 ? '#444' : '#888'} />
-                </button>
-              </div>
-            ))}
-          </div>
-          <button style={{ ...S.iconBtn, marginTop: 4 }} onClick={addPhase}><Plus size={14} /> Nova fase</button>
-        </SidePanel>
-      )}
+              ))}
+            </div>
+            <button style={{ ...S.iconBtn, marginTop: 4 }} onClick={addPhase}><Plus size={14} /> Nova fase</button>
+          </SidePanel>
+        );
+      })()}
 
-      {openActivityId && activeProject.activities.find((a) => a.id === openActivityId) && (
-        <ActivityDetailModal
-          activity={activeProject.activities.find((a) => a.id === openActivityId)}
-          orderMap={orderMap}
-          phases={activeProject.phases}
-          team={activeProject.team}
-          onClose={() => setOpenActivityId(null)}
-          updateActivity={updateActivity}
-          deleteActivity={(id) => { deleteActivity(id); setOpenActivityId(null); }}
-          addSub={addSub}
-          updateSub={updateSub}
-          deleteSub={deleteSub}
-          addAttachment={addAttachment}
-          removeAttachment={removeAttachment}
-          addComment={addComment}
-          removeComment={removeComment}
-        />
-      )}
+      {openActivityId && (() => {
+        const project = projects.find((p) => p.id === openActivityId.pid);
+        const activity = project && project.activities.find((a) => a.id === openActivityId.id);
+        if (!project || !activity) return null;
+        const om = buildOrderMap(sortActivities(project.activities));
+        return (
+          <ActivityDetailModal
+            activity={activity}
+            orderMap={om}
+            phases={project.phases}
+            team={project.team}
+            pid={project.id}
+            onClose={() => setOpenActivityId(null)}
+            updateActivity={updateActivity}
+            deleteActivity={(tPid, id) => { deleteActivity(tPid, id); setOpenActivityId(null); }}
+            addSub={addSub}
+            updateSub={updateSub}
+            deleteSub={deleteSub}
+            addAttachment={addAttachment}
+            removeAttachment={removeAttachment}
+            addComment={addComment}
+            removeComment={removeComment}
+          />
+        );
+      })()}
 
       {showCreateCompany && (
         <CreateCompanyModal
           onClose={() => setShowCreateCompany(false)}
-          onCreate={async (company) => { await createCompany(company); setShowCreateCompany(false); }}
+          onCreate={async (company) => {
+            const newId = await createCompany(company);
+            setSelectedProjectIds((prev) => [...prev, newId]);
+            setShowCreateCompany(false);
+          }}
         />
       )}
     </div>
@@ -1157,7 +1359,15 @@ function CreateCompanyModal({ onClose, onCreate }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [fetched, setFetched] = useState(null);
-  const [form, setForm] = useState({ name: '', nomeFantasia: '' });
+  const [form, setForm] = useState({ name: '', nomeFantasia: '', color: PHASE_COLORS[0], logo: '' });
+
+  function handleLogoPick(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setForm((f) => ({ ...f, logo: reader.result }));
+    reader.readAsDataURL(file);
+  }
 
   async function buscar() {
     if (!cnpj.trim()) return;
@@ -1168,10 +1378,10 @@ function CreateCompanyModal({ onClose, onCreate }) {
       const res = await apiPost('/api/cnpj/lookup', { cnpj });
       if (res.erro) {
         setError(res.erro);
-        setForm({ name: '', nomeFantasia: '' });
+        setForm((f) => ({ ...f, name: '', nomeFantasia: '' }));
       } else {
         setFetched(res);
-        setForm({ name: res.razaoSocial || '', nomeFantasia: res.nomeFantasia || '' });
+        setForm((f) => ({ ...f, name: res.razaoSocial || '', nomeFantasia: res.nomeFantasia || '' }));
       }
     } catch (e) {
       setError(e.message);
@@ -1188,6 +1398,8 @@ function CreateCompanyModal({ onClose, onCreate }) {
         cnpj: (fetched && fetched.cnpjFormatado) || cnpj,
         name: form.name,
         nomeFantasia: form.nomeFantasia,
+        color: form.color,
+        logo: form.logo,
         regimeTributario: fetched ? fetched.regimeTributario : '',
         porte: fetched ? fetched.porte : '',
         uf: fetched ? fetched.uf : '',
@@ -1236,6 +1448,20 @@ function CreateCompanyModal({ onClose, onCreate }) {
             <div style={S.subSectionLabel}>Nome fantasia</div>
             <input type="text" value={form.nomeFantasia} onChange={(e) => setForm((f) => ({ ...f, nomeFantasia: e.target.value }))} placeholder="Nome fantasia" />
 
+            <div style={S.subSectionLabel}>Cor master da empresa</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input type="color" value={form.color} onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))} style={S.colorInput} />
+              <div style={S.fieldHint}>Usada pra identificar essa empresa na visão de várias empresas.</div>
+            </div>
+
+            <div style={S.subSectionLabel}>Logotipo</div>
+            <div style={S.logoRow}>
+              {form.logo ? <img src={form.logo} alt="logo" style={S.logoPreview} /> : <div style={S.logoPreviewEmpty}><Building2 size={22} color="#666" /></div>}
+              <label style={S.iconBtn}><Upload size={14} /> Enviar logo
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoPick} />
+              </label>
+            </div>
+
             {fetched && (
               <div style={S.accessBlock}>
                 <div style={S.settingsLabel}>Dados da Receita</div>
@@ -1268,6 +1494,96 @@ function CreateCompanyModal({ onClose, onCreate }) {
 
             <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={saving || !form.name.trim()}>
               {saving ? 'Criando...' : 'Criar empresa'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CompanyBadge({ name, color, logo, small }) {
+  return (
+    <div style={small ? S.companyBadgeSmall : S.companyBadge}>
+      {logo ? <img src={logo} alt="" style={S.companyBadgeLogo} /> : <span style={{ ...S.companyColorDot, background: color || '#555' }} />}
+      <span style={S.companyBadgeName}>{name}</span>
+    </div>
+  );
+}
+
+function CompanySectionHeader({ project, onEditPhases }) {
+  const c = project.company;
+  return (
+    <div style={S.companySectionHeader}>
+      {c.logo ? <img src={c.logo} alt="" style={S.companySectionLogo} /> : <div style={{ ...S.companySectionLogoEmpty, background: c.color || '#1c1c1c' }}><Building2 size={16} color="#111" /></div>}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={S.companySectionName}>{c.name || 'Empresa sem nome'}</div>
+        <div style={S.companySectionCnpj}>{c.cnpj || 'CNPJ não informado'}</div>
+      </div>
+      <span style={{ ...S.companyColorDot, background: c.color || '#555' }} />
+      <button style={S.iconBtnGhost} title="Editar fases desta empresa" onClick={onEditPhases}><LayoutGrid size={14} /></button>
+    </div>
+  );
+}
+
+function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew }) {
+  const [selected, setSelected] = useState(() => new Set(initialSelected));
+
+  function toggle(id) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    setSelected((prev) => (prev.size === projects.length ? new Set() : new Set(projects.map((p) => p.id))));
+  }
+
+  const allChecked = projects.length > 0 && selected.size === projects.length;
+
+  return (
+    <div style={S.page}>
+      <style>{`
+        * { box-sizing: border-box; }
+        input, select, textarea, button { font-family: 'Inter', sans-serif; }
+        input[type=checkbox]{ accent-color:#F5C400; width:16px; height:16px; }
+      `}</style>
+      <div style={S.companySelectorWrap}>
+        <div style={S.companySelectorHeader}>
+          <img src={pricetaxLogoBranco} alt="PriceTax" style={{ ...S.loginLogo, marginBottom: 0 }} />
+          <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={16} /></button>
+        </div>
+        <h1 style={S.loginTitle}>Quais empresas você quer acompanhar?</h1>
+        <p style={S.loginSub}>Escolha uma, várias, ou marque "Selecionar todas" pra ter a visão geral. Dá pra trocar depois clicando em "Trocar empresas".</p>
+
+        {projects.length === 0 ? (
+          <div style={S.companyEmptyState}>
+            <div style={S.emptyMuted}>Nenhuma empresa cadastrada ainda.</div>
+            <button style={{ ...S.primaryBtn, marginTop: 12 }} onClick={onCreateNew}><Plus size={14} /> Cadastrar empresa</button>
+          </div>
+        ) : (
+          <>
+            <label style={S.companySelectAllRow}>
+              <input type="checkbox" checked={allChecked} onChange={toggleAll} />
+              Selecionar todas ({projects.length})
+            </label>
+            <div style={S.companyList}>
+              {projects.map((p) => (
+                <label key={p.id} style={{ ...S.companyCard, borderColor: selected.has(p.id) ? (p.company.color || '#F5C400') : '#2c2c2c' }}>
+                  <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} />
+                  {p.company.logo ? <img src={p.company.logo} alt="" style={S.companyCardLogo} /> : <div style={{ ...S.companyCardLogoEmpty, background: p.company.color || '#1c1c1c' }}><Building2 size={16} color="#111" /></div>}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={S.companyCardName}>{p.company.name || 'Empresa sem nome'}</div>
+                    <div style={S.companyCardCnpj}>{p.company.cnpj || 'CNPJ não informado'}</div>
+                  </div>
+                  <span style={{ ...S.companyColorDot, background: p.company.color || '#555' }} />
+                </label>
+              ))}
+            </div>
+            <button style={{ ...S.iconBtn, marginTop: 10 }} onClick={onCreateNew}><Plus size={14} /> Cadastrar nova empresa</button>
+            <button style={{ ...S.primaryBtn, marginTop: 16, width: '100%', justifyContent: 'center' }} disabled={selected.size === 0} onClick={() => onConfirm(Array.from(selected))}>
+              Continuar {selected.size > 0 ? `(${selected.size} selecionada${selected.size === 1 ? '' : 's'})` : ''}
             </button>
           </>
         )}
@@ -1317,13 +1633,13 @@ function StatusPill({ status, onClick }) {
   );
 }
 
-function ActivityDetailModal({ activity: a, orderMap, phases, team, onClose, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, addComment, removeComment }) {
+function ActivityDetailModal({ activity: a, orderMap, phases, team, pid, onClose, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, addComment, removeComment }) {
   const [commentDraft, setCommentDraft] = useState('');
   const phase = phases.find((p) => p.id === a.phase);
 
   function submitComment() {
     if (!commentDraft.trim()) return;
-    addComment(a.id, commentDraft);
+    addComment(pid, a.id, commentDraft);
     setCommentDraft('');
   }
 
@@ -1341,24 +1657,24 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, onClose, upd
         <input
           type="text"
           value={a.title}
-          onChange={(e) => updateActivity(a.id, { title: e.target.value })}
-          onBlur={() => updateActivity(a.id, {}, `Título alterado: "${a.title}"`)}
+          onChange={(e) => updateActivity(pid, a.id, { title: e.target.value })}
+          onBlur={() => updateActivity(pid, a.id, {}, `Título alterado: "${a.title}"`)}
           style={S.detailTitleInput}
         />
 
         <div style={S.detailGrid}>
           <div style={S.detailMain}>
             <div style={S.subSectionLabel}>Descrição</div>
-            <textarea value={a.desc} onChange={(e) => updateActivity(a.id, { desc: e.target.value })} onBlur={() => updateActivity(a.id, {}, `Descrição alterada em "${a.title}"`)} rows={2} style={S.notesArea} />
+            <textarea value={a.desc} onChange={(e) => updateActivity(pid, a.id, { desc: e.target.value })} onBlur={() => updateActivity(pid, a.id, {}, `Descrição alterada em "${a.title}"`)} rows={2} style={S.notesArea} />
 
             <div style={S.subSectionLabel}>Observações</div>
-            <textarea value={a.notes || ''} onChange={(e) => updateActivity(a.id, { notes: e.target.value })} onBlur={() => updateActivity(a.id, {}, `Observação alterada em "${a.title}"`)} rows={3} placeholder="Comentários, contexto, decisões desta atividade..." style={S.notesArea} />
+            <textarea value={a.notes || ''} onChange={(e) => updateActivity(pid, a.id, { notes: e.target.value })} onBlur={() => updateActivity(pid, a.id, {}, `Observação alterada em "${a.title}"`)} rows={3} placeholder="Comentários, contexto, decisões desta atividade..." style={S.notesArea} />
 
             <div style={S.subSectionLabel}><Mic size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Transcrição de reunião</div>
             <textarea
               value={a.transcript || ''}
-              onChange={(e) => updateActivity(a.id, { transcript: e.target.value })}
-              onBlur={() => updateActivity(a.id, {}, `Transcrição de reunião atualizada em "${a.title}"`)}
+              onChange={(e) => updateActivity(pid, a.id, { transcript: e.target.value })}
+              onBlur={() => updateActivity(pid, a.id, {}, `Transcrição de reunião atualizada em "${a.title}"`)}
               rows={6}
               placeholder="Cole aqui a transcrição da reunião..."
               style={{ ...S.notesArea, fontFamily: 'monospace', fontSize: 11.5 }}
@@ -1372,7 +1688,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, onClose, upd
                   <div style={S.commentText}>{c.text}</div>
                   <div style={S.commentMeta}>
                     <span>{fmtTs(c.ts)}</span>
-                    <button style={S.commentDel} onClick={() => removeComment(a.id, c.id)}><X size={11} /></button>
+                    <button style={S.commentDel} onClick={() => removeComment(pid, a.id, c.id)}><X size={11} /></button>
                   </div>
                 </div>
               ))}
@@ -1385,39 +1701,39 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, onClose, upd
 
           <div style={S.detailSide}>
             <div style={S.subSectionLabel}>Fase</div>
-            <select value={a.phase} onChange={(e) => { const id = Number(e.target.value); updateActivity(a.id, { phase: id }, `Fase alterada em "${a.title}": ${phases.find((p) => p.id === id)?.name}`); }}>
+            <select value={a.phase} onChange={(e) => { const id = Number(e.target.value); updateActivity(pid, a.id, { phase: id }, `Fase alterada em "${a.title}": ${phases.find((p) => p.id === id)?.name}`); }}>
               {phases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
 
             <div style={S.subSectionLabel}>Responsável</div>
-            <select value={a.responsible} onChange={(e) => updateActivity(a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)}>
+            <select value={a.responsible} onChange={(e) => updateActivity(pid, a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)}>
               {team.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
 
             <div style={S.subSectionLabel}>Início</div>
-            <input type="date" value={a.date} onChange={(e) => { const v = e.target.value; const patch = { date: v }; if (!a.endDate || a.endDate < v) patch.endDate = v; updateActivity(a.id, patch, `Início alterado em "${a.title}": ${fmtDate(v)}`); }} />
+            <input type="date" value={a.date} onChange={(e) => { const v = e.target.value; const patch = { date: v }; if (!a.endDate || a.endDate < v) patch.endDate = v; updateActivity(pid, a.id, patch, `Início alterado em "${a.title}": ${fmtDate(v)}`); }} />
 
             <div style={S.subSectionLabel}>Fim</div>
-            <input type="date" value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
+            <input type="date" value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(pid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
 
             <div style={{ ...S.subSectionLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input type="checkbox" checked={a.required} onChange={(e) => updateActivity(a.id, { required: e.target.checked }, `Obrigatoriedade alterada em "${a.title}"`)} /> Obrigatória
+              <input type="checkbox" checked={a.required} onChange={(e) => updateActivity(pid, a.id, { required: e.target.checked }, `Obrigatoriedade alterada em "${a.title}"`)} /> Obrigatória
             </div>
 
             <div style={S.subSectionLabel}>Status</div>
-            <select value={a.status} onChange={(e) => updateActivity(a.id, { status: e.target.value }, `Status alterado em "${a.title}": ${STATUS_META[e.target.value].label}`)} style={{ color: STATUS_META[a.status].color }}>
+            <select value={a.status} onChange={(e) => updateActivity(pid, a.id, { status: e.target.value }, `Status alterado em "${a.title}": ${STATUS_META[e.target.value].label}`)} style={{ color: STATUS_META[a.status].color }}>
               {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
             </select>
 
             <div style={S.subSectionLabel}>Subatividades</div>
             {(a.subactivities || []).map((s) => (
               <div key={s.id} style={S.subRow}>
-                <input type="checkbox" checked={s.done} onChange={(e) => updateSub(a.id, s.id, { done: e.target.checked })} />
-                <input type="text" value={s.title} onChange={(e) => updateSub(a.id, s.id, { title: e.target.value })} style={{ textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
-                <button style={S.iconBtnGhost} onClick={() => deleteSub(a.id, s.id)}><X size={13} /></button>
+                <input type="checkbox" checked={s.done} onChange={(e) => updateSub(pid, a.id, s.id, { done: e.target.checked })} />
+                <input type="text" value={s.title} onChange={(e) => updateSub(pid, a.id, s.id, { title: e.target.value })} style={{ textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
+                <button style={S.iconBtnGhost} onClick={() => deleteSub(pid, a.id, s.id)}><X size={13} /></button>
               </div>
             ))}
-            <button style={S.addSubBtn} onClick={() => addSub(a.id)}><Plus size={12} /> Subatividade</button>
+            <button style={S.addSubBtn} onClick={() => addSub(pid, a.id)}><Plus size={12} /> Subatividade</button>
 
             <div style={S.subSectionLabel}>Anexos {(a.attachments || []).length > 0 ? `(${(a.attachments || []).length})` : ''}</div>
             <div style={S.attachList}>
@@ -1425,14 +1741,14 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, onClose, upd
                 <div key={att.id} style={S.attachRow}>
                   <a href={att.dataUrl} download={att.name} style={S.attachLink}>{att.name}</a>
                   <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
-                  <button style={S.iconBtnGhost} onClick={() => removeAttachment(a.id, att.id)}><X size={12} /></button>
+                  <button style={S.iconBtnGhost} onClick={() => removeAttachment(pid, a.id, att.id)}><X size={12} /></button>
                 </div>
               ))}
             </div>
             <label htmlFor={`file-detail-${a.id}`} style={S.addSubBtn}><Upload size={12} /> Anexar arquivo</label>
-            <input id={`file-detail-${a.id}`} type="file" style={{ display: 'none' }} onChange={(e) => { addAttachment(a.id, e.target.files && e.target.files[0]); e.target.value = ''; }} />
+            <input id={`file-detail-${a.id}`} type="file" style={{ display: 'none' }} onChange={(e) => { addAttachment(pid, a.id, e.target.files && e.target.files[0]); e.target.value = ''; }} />
 
-            <button style={{ ...S.iconBtn, marginTop: 20, color: '#e2574c', borderColor: '#4a2422' }} onClick={() => deleteActivity(a.id)}><Trash2 size={14} /> Excluir atividade</button>
+            <button style={{ ...S.iconBtn, marginTop: 20, color: '#e2574c', borderColor: '#4a2422' }} onClick={() => deleteActivity(pid, a.id)}><Trash2 size={14} /> Excluir atividade</button>
           </div>
         </div>
       </div>
@@ -1440,12 +1756,13 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, onClose, upd
   );
 }
 
-function TableView({ activities, orderMap, phases, team, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, openDetail }) {
+function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, openDetail, multiMode }) {
   return (
     <div style={S.tableWrap}>
       <div style={S.tableHeaderRow}>
         <div style={{ ...S.th, width: 68 }}></div>
         <div style={{ ...S.th, width: 46 }}>Ordem</div>
+        {multiMode && <div style={{ ...S.th, width: 150 }}>Empresa</div>}
         <div style={{ ...S.th, flex: 2 }}>Atividade</div>
         <div style={{ ...S.th, width: 140 }}>Fase</div>
         <div style={{ ...S.th, width: 130 }}>Responsável</div>
@@ -1457,21 +1774,30 @@ function TableView({ activities, orderMap, phases, team, expanded, setExpanded, 
       </div>
 
       {activities.map((a) => {
-        const isOpen = !!expanded[a.id];
+        const rowPid = pid || a._pid;
+        const rowPhases = phases || a._phases;
+        const rowTeam = team || a._team;
+        const rowOrder = orderMap ? orderMap[a.id] : a._order;
+        const isOpen = !!expanded[`${rowPid}-${a.id}`];
         const doneSubs = (a.subactivities || []).filter((s) => s.done).length;
         return (
-          <div key={a.id} style={S.tableGroup}>
+          <div key={`${rowPid}-${a.id}`} style={S.tableGroup}>
             <div style={S.tableRow}>
-              <button style={S.expandBtn} onClick={() => setExpanded((e) => ({ ...e, [a.id]: !e[a.id] }))}>
+              <button style={S.expandBtn} onClick={() => setExpanded((e) => ({ ...e, [`${rowPid}-${a.id}`]: !e[`${rowPid}-${a.id}`] }))}>
                 <ChevronDown size={14} style={{ transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .12s' }} />
               </button>
-              <button style={S.expandBtn} title="Abrir em tela cheia" onClick={() => openDetail(a.id)}>
+              <button style={S.expandBtn} title="Abrir em tela cheia" onClick={() => openDetail(rowPid, a.id)}>
                 <Maximize2 size={13} />
               </button>
-              <div style={{ width: 46 }}><span style={S.monthBadgeSm}>#{orderMap[a.id]}</span></div>
+              <div style={{ width: 46 }}><span style={S.monthBadgeSm}>#{rowOrder}</span></div>
+              {multiMode && (
+                <div style={{ width: 150 }}>
+                  <CompanyBadge name={a._companyName} color={a._companyColor} logo={a._companyLogo} />
+                </div>
+              )}
               <div style={{ flex: 2, minWidth: 0 }}>
-                <input type="text" value={a.title} onChange={(e) => updateActivity(a.id, { title: e.target.value })} onBlur={() => updateActivity(a.id, {}, `Título alterado: "${a.title}"`)} />
-                <input type="text" value={a.desc} onChange={(e) => updateActivity(a.id, { desc: e.target.value })} onBlur={() => updateActivity(a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 4, opacity: .8 }} />
+                <input type="text" value={a.title} onChange={(e) => updateActivity(rowPid, a.id, { title: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} />
+                <input type="text" value={a.desc} onChange={(e) => updateActivity(rowPid, a.id, { desc: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 4, opacity: .8 }} />
                 {(a.subactivities || []).length > 0 && <div style={S.subCounter}>{doneSubs}/{(a.subactivities || []).length} subatividades concluídas</div>}
               </div>
               <div style={{ width: 140 }}>
@@ -1479,17 +1805,17 @@ function TableView({ activities, orderMap, phases, team, expanded, setExpanded, 
                   value={a.phase}
                   onChange={(e) => {
                     const newPhaseId = Number(e.target.value);
-                    const phaseName = phases.find((p) => p.id === newPhaseId)?.name || '';
-                    updateActivity(a.id, { phase: newPhaseId }, `Fase alterada em "${a.title}": ${phaseName}`);
+                    const phaseName = rowPhases.find((p) => p.id === newPhaseId)?.name || '';
+                    updateActivity(rowPid, a.id, { phase: newPhaseId }, `Fase alterada em "${a.title}": ${phaseName}`);
                   }}
-                  style={{ color: phases.find((p) => p.id === a.phase)?.color }}
+                  style={{ color: rowPhases.find((p) => p.id === a.phase)?.color }}
                 >
-                  {phases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {rowPhases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div style={{ width: 130 }}>
-                <select value={a.responsible} onChange={(e) => updateActivity(a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)}>
-                  {team.map((m) => <option key={m} value={m}>{m}</option>)}
+                <select value={a.responsible} onChange={(e) => updateActivity(rowPid, a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)}>
+                  {rowTeam.map((m) => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div style={{ width: 105 }}>
@@ -1497,22 +1823,22 @@ function TableView({ activities, orderMap, phases, team, expanded, setExpanded, 
                   const v = e.target.value;
                   const patch = { date: v };
                   if (!a.endDate || a.endDate < v) patch.endDate = v;
-                  updateActivity(a.id, patch, `Início alterado em "${a.title}": ${fmtDate(v)}`);
+                  updateActivity(rowPid, a.id, patch, `Início alterado em "${a.title}": ${fmtDate(v)}`);
                 }} />
               </div>
               <div style={{ width: 105 }}>
-                <input type="date" value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
+                <input type="date" value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(rowPid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
               </div>
               <div style={{ width: 70, textAlign: 'center' }}>
-                <input type="checkbox" checked={a.required} onChange={(e) => updateActivity(a.id, { required: e.target.checked }, `Obrigatoriedade alterada em "${a.title}"`)} />
+                <input type="checkbox" checked={a.required} onChange={(e) => updateActivity(rowPid, a.id, { required: e.target.checked }, `Obrigatoriedade alterada em "${a.title}"`)} />
               </div>
               <div style={{ width: 150 }}>
-                <select value={a.status} onChange={(e) => updateActivity(a.id, { status: e.target.value }, `Status alterado em "${a.title}": ${STATUS_META[e.target.value].label}`)} style={{ color: STATUS_META[a.status].color }}>
+                <select value={a.status} onChange={(e) => updateActivity(rowPid, a.id, { status: e.target.value }, `Status alterado em "${a.title}": ${STATUS_META[e.target.value].label}`)} style={{ color: STATUS_META[a.status].color }}>
                   {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
                 </select>
               </div>
               <div style={{ width: 40 }}>
-                <button style={S.iconBtnGhost} onClick={() => deleteActivity(a.id)}><Trash2 size={14} /></button>
+                <button style={S.iconBtnGhost} onClick={() => deleteActivity(rowPid, a.id)}><Trash2 size={14} /></button>
               </div>
             </div>
 
@@ -1520,18 +1846,18 @@ function TableView({ activities, orderMap, phases, team, expanded, setExpanded, 
               <div style={S.subPanel}>
                 {(a.subactivities || []).map((s) => (
                   <div key={s.id} style={S.subRow}>
-                    <input type="checkbox" checked={s.done} onChange={(e) => updateSub(a.id, s.id, { done: e.target.checked })} />
-                    <input type="text" value={s.title} onChange={(e) => updateSub(a.id, s.id, { title: e.target.value })} style={{ textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
-                    <button style={S.iconBtnGhost} onClick={() => deleteSub(a.id, s.id)}><X size={13} /></button>
+                    <input type="checkbox" checked={s.done} onChange={(e) => updateSub(rowPid, a.id, s.id, { done: e.target.checked })} />
+                    <input type="text" value={s.title} onChange={(e) => updateSub(rowPid, a.id, s.id, { title: e.target.value })} style={{ textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
+                    <button style={S.iconBtnGhost} onClick={() => deleteSub(rowPid, a.id, s.id)}><X size={13} /></button>
                   </div>
                 ))}
-                <button style={S.addSubBtn} onClick={() => addSub(a.id)}><Plus size={12} /> Subatividade</button>
+                <button style={S.addSubBtn} onClick={() => addSub(rowPid, a.id)}><Plus size={12} /> Subatividade</button>
 
                 <div style={S.subSectionLabel}>Observações</div>
                 <textarea
                   value={a.notes || ''}
-                  onChange={(e) => updateActivity(a.id, { notes: e.target.value })}
-                  onBlur={() => updateActivity(a.id, {}, `Observação alterada em "${a.title}"`)}
+                  onChange={(e) => updateActivity(rowPid, a.id, { notes: e.target.value })}
+                  onBlur={() => updateActivity(rowPid, a.id, {}, `Observação alterada em "${a.title}"`)}
                   placeholder="Comentários, contexto, decisões desta atividade..."
                   rows={3}
                   style={S.notesArea}
@@ -1543,12 +1869,12 @@ function TableView({ activities, orderMap, phases, team, expanded, setExpanded, 
                     <div key={att.id} style={S.attachRow}>
                       <a href={att.dataUrl} download={att.name} style={S.attachLink}>{att.name}</a>
                       <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
-                      <button style={S.iconBtnGhost} onClick={() => removeAttachment(a.id, att.id)}><X size={12} /></button>
+                      <button style={S.iconBtnGhost} onClick={() => removeAttachment(rowPid, a.id, att.id)}><X size={12} /></button>
                     </div>
                   ))}
                 </div>
-                <label htmlFor={`file-${a.id}`} style={S.addSubBtn}><Upload size={12} /> Anexar arquivo</label>
-                <input id={`file-${a.id}`} type="file" style={{ display: 'none' }} onChange={(e) => { addAttachment(a.id, e.target.files && e.target.files[0]); e.target.value = ''; }} />
+                <label htmlFor={`file-${rowPid}-${a.id}`} style={S.addSubBtn}><Upload size={12} /> Anexar arquivo</label>
+                <input id={`file-${rowPid}-${a.id}`} type="file" style={{ display: 'none' }} onChange={(e) => { addAttachment(rowPid, a.id, e.target.files && e.target.files[0]); e.target.value = ''; }} />
               </div>
             )}
           </div>
@@ -1558,11 +1884,12 @@ function TableView({ activities, orderMap, phases, team, expanded, setExpanded, 
   );
 }
 
-function PhasesView({ activities, orderMap, phases, updateActivity, openDetail }) {
+function PhasesView({ activities, orderMap, phases, pid, updateActivity, openDetail }) {
   function cycleStatus(a) {
+    const rowPid = pid || a._pid;
     const idx = STATUS_ORDER.indexOf(a.status);
     const next = STATUS_ORDER[(idx + 1) % STATUS_ORDER.length];
-    updateActivity(a.id, { status: next }, `Status alterado em "${a.title}": ${STATUS_META[next].label}`);
+    updateActivity(rowPid, a.id, { status: next }, `Status alterado em "${a.title}": ${STATUS_META[next].label}`);
   }
   return (
     <div>
@@ -1575,30 +1902,35 @@ function PhasesView({ activities, orderMap, phases, updateActivity, openDetail }
               <div style={S.phaseSub}>{p.sub}</div>
             </div>
           </div>
-          {activities.filter((a) => a.phase === p.id).sort((a, b) => (a.date || '').localeCompare(b.date || '')).map((a) => (
-            <div key={a.id} style={{ ...S.phaseRow, cursor: 'pointer' }} onClick={() => openDetail(a.id)}>
-              <div style={{ ...S.monthBadge, background: p.color }}>#{orderMap[a.id]}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={S.phaseActTitle}>{a.title}{a.required && <span style={S.reqDot} title="Obrigatória" />}</div>
-                <div style={S.phaseActDesc}>{a.desc}</div>
+          {activities.filter((a) => a.phase === p.id).sort((a, b) => (a.date || '').localeCompare(b.date || '')).map((a) => {
+            const rowPid = pid || a._pid;
+            const rowOrder = orderMap ? orderMap[a.id] : a._order;
+            return (
+              <div key={a.id} style={{ ...S.phaseRow, cursor: 'pointer' }} onClick={() => openDetail(rowPid, a.id)}>
+                <div style={{ ...S.monthBadge, background: p.color }}>#{rowOrder}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={S.phaseActTitle}>{a.title}{a.required && <span style={S.reqDot} title="Obrigatória" />}</div>
+                  <div style={S.phaseActDesc}>{a.desc}</div>
+                </div>
+                <div style={S.phaseOwner}>{a.responsible}</div>
+                <div style={S.phaseDate}>{fmtDate(a.date)}{a.endDate && a.endDate !== a.date ? ` – ${fmtDate(a.endDate)}` : ''}</div>
+                <StatusPill status={a.status} onClick={(e) => { e.stopPropagation(); cycleStatus(a); }} />
               </div>
-              <div style={S.phaseOwner}>{a.responsible}</div>
-              <div style={S.phaseDate}>{fmtDate(a.date)}{a.endDate && a.endDate !== a.date ? ` – ${fmtDate(a.endDate)}` : ''}</div>
-              <StatusPill status={a.status} onClick={(e) => { e.stopPropagation(); cycleStatus(a); }} />
-            </div>
-          ))}
+            );
+          })}
         </section>
       ))}
     </div>
   );
 }
 
-function KanbanView({ activities, orderMap, phases, dragId, setDragId, updateActivity, addActivity, openDetail }) {
+function KanbanView({ activities, orderMap, phases, pid, dragId, setDragId, updateActivity, addActivity, openDetail, multiMode }) {
+  function keyPid(a) { return pid || a._pid; }
   function onDrop(status) {
     if (!dragId) return;
-    const a = activities.find((x) => x.id === dragId);
+    const a = activities.find((x) => x.id === dragId.id && keyPid(x) === dragId.pid);
     if (a && a.status !== status) {
-      updateActivity(dragId, { status }, `Status alterado em "${a.title}": ${STATUS_META[status].label}`);
+      updateActivity(dragId.pid, a.id, { status }, `Status alterado em "${a.title}": ${STATUS_META[status].label}`);
     }
     setDragId(null);
   }
@@ -1615,13 +1947,17 @@ function KanbanView({ activities, orderMap, phases, dragId, setDragId, updateAct
               <span style={S.kanbanCount}>{items.length}</span>
             </div>
             {items.map((a) => {
-              const phase = phases.find((p) => p.id === a.phase);
+              const rowPid = keyPid(a);
+              const rowPhases = phases && phases.length ? phases : a._phases;
+              const phase = rowPhases && rowPhases.find((p) => p.id === a.phase);
+              const rowOrder = orderMap && orderMap[a.id] ? orderMap[a.id] : a._order;
               return (
-                <div key={a.id} draggable onDragStart={() => setDragId(a.id)} onClick={() => openDetail(a.id)} style={S.kanbanCard}>
+                <div key={`${rowPid}-${a.id}`} draggable onDragStart={() => setDragId({ pid: rowPid, id: a.id })} onClick={() => openDetail(rowPid, a.id)} style={S.kanbanCard}>
                   <div style={S.kanbanCardTop}>
-                    <span style={{ ...S.monthBadgeSm, background: phase?.color }}>#{orderMap[a.id]}</span>
+                    <span style={{ ...S.monthBadgeSm, background: phase?.color }}>#{rowOrder}</span>
                     <GripVertical size={13} color="#555" />
                   </div>
+                  {multiMode && <CompanyBadge name={a._companyName} color={a._companyColor} logo={a._companyLogo} small />}
                   <div style={S.kanbanCardTitle}>{a.title}</div>
                   <div style={S.kanbanCardMeta}>
                     <span>{a.responsible}</span>
@@ -1630,7 +1966,7 @@ function KanbanView({ activities, orderMap, phases, dragId, setDragId, updateAct
                 </div>
               );
             })}
-            {status === 'nao-iniciado' && (
+            {status === 'nao-iniciado' && addActivity && (
               <button style={S.kanbanAdd} onClick={addActivity}><Plus size={13} /> Nova atividade</button>
             )}
           </div>
@@ -1923,4 +2259,31 @@ const S = {
   // cnpj lookup
   cnpjFetchGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px', fontSize: 12.5, color: '#ddd' },
   cnpjListRow: { fontSize: 12.5, color: '#ccc', padding: '4px 0', borderBottom: '1px solid #202020' },
+
+  // multi-company view
+  multiCompanyChips: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  multiCompanyChip: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#ccc', border: '1px solid #333', borderRadius: 999, padding: '2px 8px 2px 6px' },
+  companyColorDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0, display: 'inline-block' },
+  companyBadge: { display: 'flex', alignItems: 'center', gap: 6 },
+  companyBadgeSmall: { display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 },
+  companyBadgeLogo: { width: 16, height: 16, borderRadius: 4, objectFit: 'cover', flexShrink: 0 },
+  companyBadgeName: { fontSize: 11.5, fontWeight: 700, color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  companySection: { marginBottom: 36, border: '1px solid #262626', borderRadius: 10, overflow: 'hidden' },
+  companySectionHeader: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: '#181818', borderBottom: '1px solid #262626' },
+  companySectionLogo: { width: 30, height: 30, borderRadius: 7, objectFit: 'cover', border: '1px solid #333', flexShrink: 0 },
+  companySectionLogoEmpty: { width: 30, height: 30, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  companySectionName: { fontSize: 13.5, fontWeight: 800, color: '#eee' },
+  companySectionCnpj: { fontSize: 11, color: '#888', marginTop: 1 },
+
+  // company selector screen
+  companySelectorWrap: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px' },
+  companySelectorHeader: { width: 'min(640px, 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  companyEmptyState: { width: 'min(640px, 100%)', textAlign: 'center', padding: '40px 20px', border: '1px dashed #333', borderRadius: 12 },
+  companySelectAllRow: { width: 'min(640px, 100%)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: '#ccc', marginBottom: 12 },
+  companyList: { width: 'min(640px, 100%)', display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '46vh', overflowY: 'auto' },
+  companyCard: { display: 'flex', alignItems: 'center', gap: 10, background: '#181818', border: '1px solid #2c2c2c', borderRadius: 10, padding: '10px 14px', cursor: 'pointer' },
+  companyCardLogo: { width: 32, height: 32, borderRadius: 8, objectFit: 'cover', border: '1px solid #333', flexShrink: 0 },
+  companyCardLogoEmpty: { width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  companyCardName: { fontSize: 13, fontWeight: 700, color: '#eee' },
+  companyCardCnpj: { fontSize: 11, color: '#888', marginTop: 1 },
 };
