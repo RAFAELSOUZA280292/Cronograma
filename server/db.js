@@ -36,6 +36,7 @@ function normalizeActivity(a) {
     comments: [],
     transcript: '',
     endDate: a && a.date ? a.date : '',
+    durationDays: '',
     required: false,
     ...a,
   };
