@@ -159,6 +159,7 @@ export default function App() {
   const [newMember, setNewMember] = useState('');
   const [expanded, setExpanded] = useState({});
   const [dragId, setDragId] = useState(null);
+  const [dragPhaseId, setDragPhaseId] = useState(null);
   const [granularity, setGranularity] = useState('mes');
   const [windowAnchor, setWindowAnchor] = useState(new Date());
   const fileInputRef = useRef(null);
@@ -459,6 +460,19 @@ export default function App() {
       activities: p.activities.map((a) => (a.phase === id ? { ...a, phase: fallback.id } : a)),
       phases: p.phases.filter((x) => x.id !== id),
     }), p0 ? `Fase removida: "${p0.name}" (atividades movidas para "${fallback.name}")` : undefined);
+  }
+
+  function reorderPhase(fromId, toId) {
+    if (fromId === toId) return;
+    mutateProject(phasesEditingProjectId, (p) => {
+      const list = p.phases.slice();
+      const fromIdx = list.findIndex((x) => x.id === fromId);
+      const toIdx = list.findIndex((x) => x.id === toId);
+      if (fromIdx === -1 || toIdx === -1) return p;
+      const [moved] = list.splice(fromIdx, 1);
+      list.splice(toIdx, 0, moved);
+      return { ...p, phases: list };
+    }, `Ordem das fases alterada`);
   }
 
   function handleLogoUpload(e) {
@@ -959,7 +973,21 @@ export default function App() {
             <div style={S.emptyMuted}>As fases agrupam as atividades nas visões Gantt, Fases e no Quadro. Cada uma tem nome, cor e uma linha de descrição.</div>
             <div style={{ marginTop: 16 }}>
               {target.phases.map((p) => (
-                <div key={p.id} style={S.phaseEditRow}>
+                <div
+                  key={p.id}
+                  style={{ ...S.phaseEditRow, ...(dragPhaseId === p.id ? S.phaseEditRowDragging : {}) }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => { reorderPhase(dragPhaseId, p.id); setDragPhaseId(null); }}
+                >
+                  <div
+                    style={S.phaseDragHandle}
+                    title="Arraste para reordenar"
+                    draggable
+                    onDragStart={() => setDragPhaseId(p.id)}
+                    onDragEnd={() => setDragPhaseId(null)}
+                  >
+                    <GripVertical size={15} color="#666" />
+                  </div>
                   <input type="color" value={p.color} onChange={(e) => updatePhase(p.id, { color: e.target.value }, `Cor da fase "${p.name}" alterada`)} style={S.colorInput} />
                   <div style={{ flex: 1 }}>
                     <input type="text" value={p.name} onChange={(e) => updatePhase(p.id, { name: e.target.value })} onBlur={() => addLog(phasesEditingProjectId, `Fase renomeada: "${p.name}"`)} placeholder="Nome da fase" />
@@ -2246,6 +2274,8 @@ const S = {
   chipX: { background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', display: 'flex' },
   memberAddRow: { display: 'flex', gap: 6 },
   phaseEditRow: { display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #232323' },
+  phaseEditRowDragging: { opacity: .4 },
+  phaseDragHandle: { display: 'flex', alignItems: 'center', cursor: 'grab', paddingTop: 8, flexShrink: 0 },
   colorInput: { width: 34, height: 34, padding: 0, border: '1px solid #333', borderRadius: 6, background: 'transparent', cursor: 'pointer', flexShrink: 0 },
 
   // users panel
