@@ -66,7 +66,7 @@ function defaultActivities() {
 export function blankProject() {
   return {
     id: uid('proj'),
-    company: { cnpj: '', name: '', logo: '', areas: [] },
+    company: { cnpj: '', name: '', logo: '', color: '', areas: [] },
     phases: defaultPhases(),
     activities: defaultActivities().map(normalizeActivity),
     team: defaultTeam(),
