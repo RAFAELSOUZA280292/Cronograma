@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { pool, blankProject } from './db.js';
 import {
   hashPassword, comparePassword, signToken, setAuthCookie, clearAuthCookie,
-  rowToUser, findUserByUsername, findUserById, requireAuth, requireMaster, toISODateSafe,
+  rowToUser, findUserByUsername, findUserById, requireAuth, requireMaster, requireMasterOrPricetax, toISODateSafe,
 } from './auth.js';
+import { lookupCnpj, cleanCnpj, formatCnpj } from './cnpjLookup.js';
 
 function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
@@ -201,11 +202,36 @@ router.get('/projects', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/projects', requireAuth, requireMaster, async (req, res, next) => {
+router.post('/projects', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
   try {
     const project = blankProject();
+    const company = (req.body && req.body.company) || {};
+    if (company.cnpj) {
+      const digits = cleanCnpj(company.cnpj);
+      company.cnpj = digits.length === 14 ? formatCnpj(digits) : company.cnpj;
+    }
+    project.company = { ...project.company, ...company };
+
     await pool.query('INSERT INTO projects (id, data) VALUES ($1, $2)', [project.id, JSON.stringify(project)]);
+
+    if (req.user.role === 'pricetax' && project.company.cnpj) {
+      const cnpj = project.company.cnpj;
+      const { rows } = await pool.query('SELECT allowed_cnpjs FROM users WHERE id=$1', [req.user.id]);
+      const current = (rows[0] && rows[0].allowed_cnpjs) || [];
+      if (!current.includes(cnpj)) {
+        await pool.query('UPDATE users SET allowed_cnpjs=$1, updated_at=now() WHERE id=$2', [JSON.stringify([...current, cnpj]), req.user.id]);
+      }
+    }
+
     res.status(201).json({ project });
+  } catch (e) { next(e); }
+});
+
+router.post('/cnpj/lookup', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
+  try {
+    const { cnpj } = req.body || {};
+    const result = await lookupCnpj(cnpj);
+    res.json(result);
   } catch (e) { next(e); }
 });
 

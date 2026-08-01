@@ -97,3 +97,10 @@ export function requireMaster(req, res, next) {
   }
   next();
 }
+
+export function requireMasterOrPricetax(req, res, next) {
+  if (!req.user || (req.user.role !== 'master' && req.user.role !== 'pricetax')) {
+    return res.status(403).json({ message: 'Apenas Master ou PRICETAX podem cadastrar empresas.' });
+  }
+  next();
+}
