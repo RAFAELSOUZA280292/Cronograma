@@ -3,7 +3,7 @@ import {
   Plus, Trash2, Download, Upload, Clock, LayoutGrid, Columns3, Building2,
   Users, X, Check, ChevronDown, FileSpreadsheet, FileText, Settings,
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
-  LogOut, UserCog
+  LogOut, UserCog, AlertTriangle
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from './lib/api.js';
@@ -817,7 +817,7 @@ export default function App() {
           />
         )}
         {!isMulti && view === 'phases' && (
-          <PhasesView activities={activitiesSorted} orderMap={orderMap} phases={activeProject.phases} pid={activeProject.id} updateActivity={updateActivity} openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })} />
+          <PhasesView activities={activitiesSorted} orderMap={orderMap} phases={activeProject.phases} pid={activeProject.id} updateActivity={updateActivity} openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })} companyColor={activeProject.company.color} />
         )}
         {!isMulti && view === 'kanban' && (
           <KanbanView
@@ -868,7 +868,7 @@ export default function App() {
         {isMulti && view === 'phases' && selectedProjects.map((p) => (
           <div key={p.id} style={S.companySection}>
             <CompanySectionHeader project={p} onEditPhases={() => { setPhasesEditingProjectId(p.id); setShowPhases(true); }} />
-            <PhasesView activities={perCompanySorted[p.id]} orderMap={perCompanyOrderMap[p.id]} phases={p.phases} pid={p.id} updateActivity={updateActivity} openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })} />
+            <PhasesView activities={perCompanySorted[p.id]} orderMap={perCompanyOrderMap[p.id]} phases={p.phases} pid={p.id} updateActivity={updateActivity} openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })} companyColor={p.company.color} />
             <button style={{ ...S.iconBtn, marginTop: 8 }} onClick={() => addActivity(p.id)}><Plus size={14} /> Nova atividade em {p.company.name || 'empresa'}</button>
           </div>
         ))}
@@ -2052,42 +2052,132 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
   );
 }
 
-function PhasesView({ activities, orderMap, phases, pid, updateActivity, openDetail }) {
+function PhasesView({ activities, orderMap, phases, pid, updateActivity, openDetail, companyColor }) {
+  const accent = companyColor || '#F5C400';
+  const [collapsed, setCollapsed] = useState({});
+  function toggle(id) { setCollapsed((c) => ({ ...c, [id]: !c[id] })); }
+
   function cycleStatus(a) {
     const rowPid = pid || a._pid;
     const idx = STATUS_ORDER.indexOf(a.status);
     const next = STATUS_ORDER[(idx + 1) % STATUS_ORDER.length];
     updateActivity(rowPid, a.id, { status: next }, `Status alterado em "${a.title}": ${STATUS_META[next].label}`);
   }
+
+  const todayISO = toISODate(startOfDay(new Date()));
+  const isOverdue = (a) => a.status !== 'concluido' && (a.endDate || a.date) && (a.endDate || a.date) < todayISO;
+
+  const total = activities.length;
+  const doneCount = activities.filter((a) => a.status === 'concluido').length;
+  const progressPct = total ? Math.round((doneCount / total) * 100) : 0;
+  const overdueCount = activities.filter(isOverdue).length;
+  const collaborators = new Set(activities.map((a) => a.responsible).filter(Boolean));
+  const ends = activities.map((a) => a.endDate || a.date).filter(Boolean);
+  const lastEnd = ends.length ? ends.reduce((mx, d) => (d > mx ? d : mx)) : null;
+  const daysRemaining = lastEnd ? Math.max(0, Math.round((parseDate(lastEnd) - parseDate(todayISO)) / 86400000)) : 0;
+  const statusCounts = STATUS_ORDER.reduce((acc, s) => { acc[s] = activities.filter((a) => a.status === s).length; return acc; }, {});
+  const maxStatusCount = Math.max(1, ...STATUS_ORDER.map((s) => statusCounts[s]));
+  const circumference = 2 * Math.PI * 32;
+
   return (
     <div>
-      {phases.map((p) => (
-        <section key={p.id} style={S.phaseSection}>
-          <div style={S.phaseHead}>
-            <div style={{ ...S.phaseNum, color: p.color }}>0{p.id}</div>
-            <div>
-              <div style={S.phaseTitle}>{p.name}</div>
-              <div style={S.phaseSub}>{p.sub}</div>
-            </div>
+      <div style={S.phasesSummaryCard}>
+        <div style={S.phasesSummaryDonutWrap}>
+          <svg viewBox="0 0 80 80" width="72" height="72">
+            <circle cx="40" cy="40" r="32" fill="none" stroke="#262626" strokeWidth="9" />
+            <circle
+              cx="40" cy="40" r="32" fill="none" stroke={accent} strokeWidth="9" strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - progressPct / 100)}
+              transform="rotate(-90 40 40)"
+            />
+          </svg>
+          <div style={S.phasesSummaryDonutLabel}>{progressPct}%</div>
+        </div>
+        <div style={S.phasesSummaryMid}>
+          <div style={S.phasesSummaryTitle}>Progresso Geral do Projeto</div>
+          <div style={S.phasesSummaryStatBars}>
+            {STATUS_ORDER.map((s) => (
+              <div
+                key={s}
+                title={`${STATUS_META[s].label}: ${statusCounts[s]}`}
+                style={{ ...S.phasesSummaryBar, background: STATUS_META[s].color, height: Math.max(5, (statusCounts[s] / maxStatusCount) * 36) }}
+              />
+            ))}
           </div>
-          {activities.filter((a) => a.phase === p.id).sort((a, b) => (a.date || '').localeCompare(b.date || '')).map((a) => {
-            const rowPid = pid || a._pid;
-            const rowOrder = orderMap ? orderMap[a.id] : a._order;
-            return (
-              <div key={a.id} style={{ ...S.phaseRow, cursor: 'pointer' }} onClick={() => openDetail(rowPid, a.id)}>
-                <div style={{ ...S.monthBadge, background: p.color }}>#{rowOrder}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={S.phaseActTitle}>{a.title}{a.required && <span style={S.reqDot} title="Obrigatória" />}</div>
-                  <div style={S.phaseActDesc}>{a.desc}</div>
-                </div>
-                <div style={S.phaseOwner}>{a.responsible}</div>
-                <div style={S.phaseDate}>{fmtDate(a.date)}{a.endDate && a.endDate !== a.date ? ` – ${fmtDate(a.endDate)}` : ''}</div>
-                <StatusPill status={a.status} onClick={(e) => { e.stopPropagation(); cycleStatus(a); }} />
+        </div>
+        <div style={S.phasesSummaryStats}>
+          <div>
+            <div style={S.phasesSummaryStatNum}>{daysRemaining}</div>
+            <div style={S.phasesSummaryStatLabel}>Dias restantes</div>
+          </div>
+          <div>
+            <div style={{ ...S.phasesSummaryStatNum, color: overdueCount ? '#e2574c' : '#eee' }}>{overdueCount}</div>
+            <div style={S.phasesSummaryStatLabel}>Em atraso</div>
+          </div>
+          <div>
+            <div style={S.phasesSummaryStatNum}>{collaborators.size}</div>
+            <div style={S.phasesSummaryStatLabel}>Colaboradores</div>
+          </div>
+        </div>
+      </div>
+
+      {phases.map((p) => {
+        const phaseActs = activities.filter((a) => a.phase === p.id).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+        const phaseDone = phaseActs.filter((a) => a.status === 'concluido').length;
+        const phasePct = phaseActs.length ? Math.round((phaseDone / phaseActs.length) * 100) : 0;
+        const isCollapsed = !!collapsed[p.id];
+        return (
+          <section key={p.id} style={{ ...S.phaseSection, borderLeft: `3px solid ${accent}` }}>
+            <div style={S.phaseHead2} onClick={() => toggle(p.id)}>
+              <div style={{ ...S.phaseNum, color: p.color }}>0{p.id}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={S.phaseTitle}>{p.name}</div>
+                <div style={S.phaseSub}>{p.sub}</div>
               </div>
-            );
-          })}
-        </section>
-      ))}
+              <div style={S.phaseProgressWrap}>
+                <div style={S.phaseProgressTrack}>
+                  <div style={{ ...S.phaseProgressFill, width: `${phasePct}%`, background: p.color }} />
+                </div>
+                <div style={S.phaseProgressPct}>{phasePct}%</div>
+              </div>
+              <ChevronDown size={16} style={{ color: '#888', transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .12s', flexShrink: 0 }} />
+            </div>
+
+            {!isCollapsed && (
+              <div style={S.phaseCardGrid}>
+                {phaseActs.map((a) => {
+                  const rowPid = pid || a._pid;
+                  const rowOrder = orderMap ? orderMap[a.id] : a._order;
+                  const overdue = isOverdue(a);
+                  return (
+                    <div
+                      key={a.id}
+                      style={{ ...S.phaseCard, borderColor: overdue ? '#e2574c66' : '#262626', borderLeft: `3px solid ${overdue ? '#e2574c' : accent}` }}
+                      onClick={() => openDetail(rowPid, a.id)}
+                    >
+                      <div style={S.phaseCardTop}>
+                        <span style={{ ...S.monthBadgeSm, background: p.color }}>#{rowOrder}</span>
+                        <div style={S.phaseActTitle}>{a.title}{a.required && <span style={S.reqDot} title="Obrigatória" />}</div>
+                        {overdue && <span title="Atrasada" style={S.phaseWarnIcon}><AlertTriangle size={13} /></span>}
+                        <StatusPill status={a.status} onClick={(e) => { e.stopPropagation(); cycleStatus(a); }} />
+                      </div>
+                      {a.desc && <div style={S.phaseActDesc}>{a.desc}</div>}
+                      <div style={S.phaseCardFooter}>
+                        <div style={S.phaseCardOwner}>
+                          <span style={{ ...S.avatarDot, background: accent }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>
+                          {a.responsible}
+                        </div>
+                        <div style={S.phaseDate}>{fmtDate(a.date)}{a.endDate && a.endDate !== a.date ? ` – ${fmtDate(a.endDate)}` : ''}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -2355,19 +2445,42 @@ const S = {
   attachSize: { fontSize: 10.5, color: '#777', flexShrink: 0 },
 
   // phases view
-  phaseSection: { marginBottom: 40 },
+  phasesSummaryCard: { display: 'flex', alignItems: 'center', gap: 26, background: '#161616', border: '1px solid #262626', borderRadius: 12, padding: '18px 24px', marginBottom: 28, flexWrap: 'wrap' },
+  phasesSummaryDonutWrap: { position: 'relative', width: 72, height: 72, flexShrink: 0 },
+  phasesSummaryDonutLabel: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800, color: '#eee' },
+  phasesSummaryMid: { flex: 1, minWidth: 180 },
+  phasesSummaryTitle: { fontSize: 13, fontWeight: 800, color: '#ddd', marginBottom: 10 },
+  phasesSummaryStatBars: { display: 'flex', alignItems: 'flex-end', gap: 5, height: 36 },
+  phasesSummaryBar: { width: 11, borderRadius: 3 },
+  phasesSummaryStats: { display: 'flex', gap: 30, flexShrink: 0 },
+  phasesSummaryStatNum: { fontSize: 22, fontWeight: 900, color: '#eee', lineHeight: 1 },
+  phasesSummaryStatLabel: { fontSize: 10.5, color: '#888', marginTop: 5, textTransform: 'uppercase', letterSpacing: '.03em', whiteSpace: 'nowrap' },
+
+  phaseSection: { marginBottom: 32, paddingLeft: 14, borderRadius: 4 },
   phaseHead: { display: 'flex', gap: 14, alignItems: 'baseline', borderBottom: '1px solid #262626', paddingBottom: 14, marginBottom: 16 },
-  phaseNum: { fontSize: 30, fontWeight: 900, lineHeight: 1 },
-  phaseTitle: { fontSize: 17, fontWeight: 800 },
-  phaseSub: { fontSize: 12.5, color: '#888', marginTop: 2 },
+  phaseHead2: { display: 'flex', gap: 14, alignItems: 'center', borderBottom: '1px solid #262626', paddingBottom: 14, marginBottom: 16, cursor: 'pointer' },
+  phaseNum: { fontSize: 26, fontWeight: 900, lineHeight: 1, flexShrink: 0 },
+  phaseTitle: { fontSize: 16, fontWeight: 800 },
+  phaseSub: { fontSize: 12, color: '#888', marginTop: 2 },
+  phaseProgressWrap: { display: 'flex', alignItems: 'center', gap: 8, width: 140, flexShrink: 0 },
+  phaseProgressTrack: { flex: 1, height: 6, background: '#262626', borderRadius: 999, overflow: 'hidden' },
+  phaseProgressFill: { height: '100%', borderRadius: 999 },
+  phaseProgressPct: { fontSize: 11.5, fontWeight: 800, color: '#ccc', width: 32, textAlign: 'right', flexShrink: 0 },
+  phaseCardGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  phaseCard: { background: '#181818', border: '1px solid #262626', borderRadius: 9, padding: '13px 14px', cursor: 'pointer' },
+  phaseCardTop: { display: 'flex', alignItems: 'center', gap: 8 },
+  phaseCardFooter: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, gap: 10 },
+  phaseCardOwner: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#ccc', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  phaseWarnIcon: { color: '#e2574c', display: 'flex', alignItems: 'center', flexShrink: 0 },
+  avatarDot: { width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#111', flexShrink: 0 },
   phaseRow: { display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px', background: '#181818', border: '1px solid #262626', borderRadius: 9, marginBottom: 9 },
   monthBadge: { fontSize: 12, fontWeight: 900, color: '#111', width: 38, height: 38, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  phaseActTitle: { fontWeight: 700, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 6 },
-  reqDot: { width: 6, height: 6, borderRadius: '50%', background: '#e2574c', display: 'inline-block' },
-  phaseActDesc: { fontSize: 12, color: '#999', marginTop: 2 },
+  phaseActTitle: { fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  reqDot: { width: 6, height: 6, borderRadius: '50%', background: '#e2574c', display: 'inline-block', flexShrink: 0 },
+  phaseActDesc: { fontSize: 12, color: '#999', marginTop: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   phaseOwner: { fontSize: 12, fontWeight: 700, color: '#ccc', width: 110, flexShrink: 0 },
-  phaseDate: { fontSize: 12, color: '#aaa', width: 90, flexShrink: 0 },
-  statusPill: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', padding: '7px 11px', borderRadius: 999, border: '1px solid', textAlign: 'center', width: 128, flexShrink: 0 },
+  phaseDate: { fontSize: 11.5, color: '#aaa', flexShrink: 0, whiteSpace: 'nowrap' },
+  statusPill: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', padding: '5px 9px', borderRadius: 999, border: '1px solid', textAlign: 'center', flexShrink: 0, whiteSpace: 'nowrap' },
 
   // kanban
   kanbanBoard: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 },
