@@ -1429,7 +1429,7 @@ function CreateCompanyModal({ onClose, onCreate }) {
   }
 
   return (
-    <div style={S.detailOverlay} onClick={onClose}>
+    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif" }} onClick={onClose}>
       <style>{`
         input[type=text], input[type=email], input[type=password], select, textarea {
           background:#1c1c1c; border:1px solid #333; color:#eee; border-radius:6px;
