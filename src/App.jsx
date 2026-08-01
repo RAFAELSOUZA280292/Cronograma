@@ -1430,6 +1430,15 @@ function CreateCompanyModal({ onClose, onCreate }) {
 
   return (
     <div style={S.detailOverlay} onClick={onClose}>
+      <style>{`
+        input[type=text], input[type=email], input[type=password], select, textarea {
+          background:#1c1c1c; border:1px solid #333; color:#eee; border-radius:6px;
+          padding:6px 8px; font-size:12.5px; width:100%; font-family:'Inter', sans-serif;
+        }
+        input[type=text]:focus, input[type=email]:focus, input[type=password]:focus, select:focus, textarea:focus {
+          outline:none; border-color:#F5C400;
+        }
+      `}</style>
       <div style={{ ...S.detailBox, width: 'min(560px, 100%)', height: 'auto', maxHeight: '88vh' }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Cadastrar empresa</div>
