@@ -253,6 +253,27 @@ export default function App() {
     return <LoadingScreen />;
   }
 
+  const registeredProjects = projects.filter((p) => p.company.cnpj);
+
+  if (showUsers && currentUser.role === 'master') {
+    return (
+      <UsersManagementScreen
+        users={users}
+        currentUser={currentUser}
+        registeredProjects={registeredProjects}
+        usersPanelError={usersPanelError}
+        onClose={() => setShowUsers(false)}
+        onCreateUser={addUser}
+        onUpdateUser={updateUser}
+        onToggleBlock={toggleUserBlock}
+        onRenew={renewUser}
+        onResetPassword={resetUserPassword}
+        onDeleteUser={deleteUser}
+        onToggleCnpj={toggleUserCnpj}
+      />
+    );
+  }
+
   if (!activeProject) {
     return <NoAccessScreen user={currentUser} onLogout={handleLogout} />;
   }
@@ -532,8 +553,6 @@ export default function App() {
   const orderMap = {};
   activitiesSorted.forEach((a, i) => { orderMap[a.id] = i + 1; });
 
-  const registeredProjects = projects.filter((p) => p.company.cnpj);
-
   return (
     <div style={S.page}>
       <style>{`
@@ -736,97 +755,6 @@ export default function App() {
         </SidePanel>
       )}
 
-      {showUsers && currentUser.role === 'master' && (
-        <SidePanel title="Usuários e permissões" onClose={() => setShowUsers(false)}>
-          <div style={S.emptyMuted}>Master vê tudo. PRICETAX vê só os clientes marcados abaixo. Cliente vê só o projeto do CNPJ vinculado a ele.</div>
-          {usersPanelError && <div style={S.loginBlockedMsg}>{usersPanelError}</div>}
-          <div style={{ marginTop: 16 }}>
-            {users.map((u) => (
-              <div key={u.id} style={S.userEditCard}>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input type="text" value={u.name} onChange={(e) => updateUser(u.id, { name: e.target.value })} placeholder="Nome" />
-                  <select value={u.role} onChange={(e) => updateUser(u.id, { role: e.target.value })} style={{ width: 150, flexShrink: 0 }}>
-                    <option value="master">Master</option>
-                    <option value="pricetax">PRICETAX</option>
-                    <option value="cliente">Cliente</option>
-                  </select>
-                </div>
-                <input type="text" value={u.username} onChange={(e) => updateUser(u.id, { username: e.target.value })} placeholder="Usuário (login)" style={{ marginTop: 6 }} />
-                <input type="email" value={u.email} onChange={(e) => updateUser(u.id, { email: e.target.value })} placeholder="email@pricetax.com.br" style={{ marginTop: 6 }} />
-
-                {u.role === 'cliente' && (
-                  <div style={{ marginTop: 8 }}>
-                    <div style={S.fieldHint}>CNPJ do cliente que este usuário enxerga</div>
-                    <select value={u.cnpj} onChange={(e) => updateUser(u.id, { cnpj: e.target.value })}>
-                      <option value="">— selecione o CNPJ —</option>
-                      {registeredProjects.map((p) => <option key={p.id} value={p.company.cnpj}>{p.company.name || 'Sem nome'} — {p.company.cnpj}</option>)}
-                    </select>
-                  </div>
-                )}
-
-                {u.role === 'pricetax' && (
-                  <div style={{ marginTop: 8 }}>
-                    <div style={S.fieldHint}>Clientes liberados para este usuário</div>
-                    {registeredProjects.length === 0 && <div style={S.emptyMuted}>Nenhum cliente com CNPJ cadastrado ainda.</div>}
-                    <div style={S.cnpjCheckList}>
-                      {registeredProjects.map((p) => (
-                        <label key={p.id} style={S.cnpjCheckRow}>
-                          <input type="checkbox" checked={(u.allowedCnpjs || []).includes(p.company.cnpj)} onChange={() => toggleUserCnpj(u.id, p.company.cnpj)} />
-                          {p.company.name || 'Sem nome'} <span style={{ opacity: .6 }}>— {p.company.cnpj}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {u.role === 'master' && <div style={{ ...S.fieldHint, marginTop: 8 }}>Vê todos os projetos, sem precisar liberar nada.</div>}
-
-                <div style={S.accessBlock}>
-                  <div style={S.settingsLabel}>Acesso</div>
-                  <label style={S.cnpjCheckRow}>
-                    <input type="checkbox" checked={!!u.blocked} onChange={() => toggleUserBlock(u.id)} disabled={u.id === currentUser.id} />
-                    Bloqueado
-                  </label>
-                  {u.blocked && (
-                    <input type="text" value={u.blockReason || ''} onChange={(e) => updateUser(u.id, { blockReason: e.target.value })} placeholder="Motivo do bloqueio" style={{ marginTop: 6 }} />
-                  )}
-                  <div style={{ marginTop: 8 }}>
-                    <div style={S.fieldHint}>Expira em (opcional — em branco nunca expira)</div>
-                    <input type="date" value={u.expiresAt || ''} onChange={(e) => updateUser(u.id, { expiresAt: e.target.value })} />
-                  </div>
-                  {isExpiredNotYetFlagged(u) && (
-                    <div style={S.expireWarning}>
-                      <strong>Validade vencida em {fmtDate(u.expiresAt)}.</strong> Este usuário vai ser bloqueado sozinho na próxima tentativa de entrar.
-                      <button style={S.renewBtn} onClick={() => renewUser(u.id, 30)}>Renovar por +30 dias</button>
-                    </div>
-                  )}
-                  <div style={{ marginTop: 8 }}>
-                    <div style={S.fieldHint}>Redefinir senha</div>
-                    <UserPasswordReset onReset={(pwd) => resetUserPassword(u.id, pwd)} />
-                  </div>
-                </div>
-
-                <button style={{ ...S.iconBtnGhost, marginTop: 8 }} onClick={() => deleteUser(u.id)} disabled={u.id === currentUser.id}>
-                  <Trash2 size={13} color={u.id === currentUser.id ? '#444' : '#888'} /> {u.id === currentUser.id ? ' (é você)' : ' Remover usuário'}
-                </button>
-              </div>
-            ))}
-          </div>
-          <NewUserForm onCreate={addUser} />
-
-          <div style={{ ...S.settingsBlock, marginTop: 28, paddingTop: 16, borderTop: '1px solid #262626' }}>
-            <div style={S.settingsLabel}>Histórico de usuários</div>
-            {usersLog.length === 0 && <div style={S.emptyMuted}>Nenhuma ação registrada ainda.</div>}
-            {usersLog.map((l, i) => (
-              <div key={i} style={S.logRow}>
-                <div style={S.logTs}>{fmtTs(l.ts)}</div>
-                <div style={S.logAction}>{l.action}</div>
-              </div>
-            ))}
-          </div>
-        </SidePanel>
-      )}
-
       {openActivityId && activeProject.activities.find((a) => a.id === openActivityId) && (
         <ActivityDetailModal
           activity={activeProject.activities.find((a) => a.id === openActivityId)}
@@ -906,39 +834,282 @@ function LoginGate({ onLogin, loginError }) {
   );
 }
 
-function NewUserForm({ onCreate }) {
-  const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente' });
-
-  function submit() {
-    if (!draft.username || !draft.password || !draft.name) return;
-    onCreate(draft);
-    setDraft({ username: '', password: '', name: '', role: 'cliente' });
-  }
-
-  return (
-    <div style={S.userEditCard}>
-      <div style={S.settingsLabel}>Novo usuário</div>
-      <input type="text" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} placeholder="Nome" style={{ marginBottom: 6 }} />
-      <div style={{ display: 'flex', gap: 6 }}>
-        <input type="text" value={draft.username} onChange={(e) => setDraft((d) => ({ ...d, username: e.target.value }))} placeholder="Usuário (login)" />
-        <select value={draft.role} onChange={(e) => setDraft((d) => ({ ...d, role: e.target.value }))} style={{ width: 150, flexShrink: 0 }}>
-          <option value="master">Master</option>
-          <option value="pricetax">PRICETAX</option>
-          <option value="cliente">Cliente</option>
-        </select>
-      </div>
-      <input type="password" value={draft.password} onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))} placeholder="Senha inicial" style={{ marginTop: 6 }} />
-      <button style={{ ...S.iconBtn, marginTop: 8 }} onClick={submit}><Plus size={14} /> Criar usuário</button>
-    </div>
-  );
-}
-
 function UserPasswordReset({ onReset }) {
   const [pwd, setPwd] = useState('');
   return (
     <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
       <input type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="Nova senha" />
       <button style={S.iconBtn} onClick={() => { if (pwd) { onReset(pwd); setPwd(''); } }}>Redefinir</button>
+    </div>
+  );
+}
+
+function UsersManagementScreen({
+  users, currentUser, registeredProjects, usersPanelError,
+  onClose, onCreateUser, onUpdateUser, onToggleBlock, onRenew, onResetPassword, onDeleteUser, onToggleCnpj,
+}) {
+  const [search, setSearch] = useState('');
+  const [filterRole, setFilterRole] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [showCreate, setShowCreate] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+
+  const total = users.length;
+  const blocked = users.filter((u) => u.blocked).length;
+  const active = total - blocked;
+  const admins = users.filter((u) => u.role === 'master').length;
+  const editingUser = users.find((u) => u.id === editingId) || null;
+
+  const filtered = users.filter((u) => {
+    if (filterRole !== 'all' && u.role !== filterRole) return false;
+    if (filterStatus === 'ativo' && u.blocked) return false;
+    if (filterStatus === 'bloqueado' && !u.blocked) return false;
+    if (search.trim()) {
+      const s = search.trim().toLowerCase();
+      return (u.name || '').toLowerCase().includes(s) || (u.username || '').toLowerCase().includes(s) || (u.email || '').toLowerCase().includes(s);
+    }
+    return true;
+  });
+
+  return (
+    <div style={S.page}>
+      <style>{`
+        * { box-sizing: border-box; }
+        input, select, textarea, button { font-family: 'Inter', sans-serif; }
+        input[type=text], input[type=date], input[type=email], input[type=password], select, textarea {
+          background:#1c1c1c; border:1px solid #333; color:#eee; border-radius:6px;
+          padding:8px 10px; font-size:13px; width:100%;
+        }
+        input[type=text]:focus, input[type=date]:focus, input[type=email]:focus, input[type=password]:focus, select:focus, textarea:focus {
+          outline:none; border-color:#F5C400;
+        }
+      `}</style>
+
+      <div style={S.usersHeader}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={S.usersHeaderIcon}><UserCog size={20} color="#F5C400" /></div>
+          <div>
+            <div style={S.usersHeaderTitle}>Gestão de Usuários</div>
+            <div style={S.usersHeaderSub}>Logado como <strong>{currentUser.username}</strong> · {total} usuário{total === 1 ? '' : 's'}</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button style={S.primaryBtn} onClick={() => setShowCreate(true)}><Plus size={14} /> Novo usuário</button>
+          <button style={S.iconBtn} onClick={onClose}><X size={14} /> Voltar ao cronograma</button>
+        </div>
+      </div>
+
+      <div style={S.usersStatsRow}>
+        <div style={S.usersStatCard}>
+          <div style={S.usersStatValue}>{total}</div>
+          <div style={S.usersStatLabel}>Total</div>
+        </div>
+        <div style={S.usersStatCard}>
+          <div style={{ ...S.usersStatValue, color: '#3ecf6e' }}>{active}</div>
+          <div style={S.usersStatLabel}>Ativos</div>
+        </div>
+        <div style={S.usersStatCard}>
+          <div style={{ ...S.usersStatValue, color: '#e2574c' }}>{blocked}</div>
+          <div style={S.usersStatLabel}>Bloqueados</div>
+        </div>
+        <div style={S.usersStatCard}>
+          <div style={{ ...S.usersStatValue, color: '#F5C400' }}>{admins}</div>
+          <div style={S.usersStatLabel}>Admins</div>
+        </div>
+      </div>
+
+      <div style={S.usersFilterRow}>
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome, usuário ou e-mail..." style={{ flex: 1 }} />
+        <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} style={{ width: 170, flexShrink: 0 }}>
+          <option value="all">Todos os perfis</option>
+          <option value="master">Master</option>
+          <option value="pricetax">PRICETAX</option>
+          <option value="cliente">Cliente</option>
+        </select>
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ width: 150, flexShrink: 0 }}>
+          <option value="all">Todos os status</option>
+          <option value="ativo">Ativo</option>
+          <option value="bloqueado">Bloqueado</option>
+        </select>
+      </div>
+
+      {usersPanelError && <div style={{ ...S.loginBlockedMsg, margin: '0 24px 16px 24px' }}>{usersPanelError}</div>}
+
+      <div style={S.usersTableOuter}>
+        <div style={S.usersTableWrap}>
+          <div style={S.usersTableHeaderRow}>
+            <div style={{ ...S.th, flex: 2 }}>Nome / Usuário</div>
+            <div style={{ ...S.th, flex: 2 }}>E-mail</div>
+            <div style={{ ...S.th, width: 148 }}>Perfil</div>
+            <div style={{ ...S.th, width: 100 }}>Status</div>
+            <div style={{ ...S.th, width: 110 }}>Licença até</div>
+            <div style={{ ...S.th, width: 80, textAlign: 'right' }}>Ações</div>
+          </div>
+          {filtered.map((u) => (
+            <div key={u.id} style={S.usersTableRow} onClick={() => setEditingId(u.id)}>
+              <div style={{ flex: 2, minWidth: 0 }}>
+                <div style={S.usersRowName}>{u.name}</div>
+                <div style={S.usersRowUsername}>{u.username}</div>
+              </div>
+              <div style={S.usersRowEmail}>{u.email || '—'}</div>
+              <div style={{ width: 148 }}>
+                <span style={{ ...S.roleTag, color: ROLE_META[u.role].color, borderColor: ROLE_META[u.role].color }}>{ROLE_META[u.role].label}</span>
+              </div>
+              <div style={{ width: 100 }}>
+                {u.blocked ? <span style={S.usersStatusBlocked}>Bloqueado</span> : <span style={S.usersStatusActive}>Ativo</span>}
+              </div>
+              <div style={{ width: 110, fontSize: 12.5, color: isExpiredNotYetFlagged(u) ? '#e2574c' : '#bbb' }}>
+                {u.expiresAt ? fmtDate(u.expiresAt) : 'Sem limite'}
+              </div>
+              <div style={{ width: 80, display: 'flex', gap: 2, justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
+                <button style={S.iconBtnGhost} title="Editar" onClick={() => setEditingId(u.id)}><Pencil size={14} /></button>
+                <button
+                  style={S.iconBtnGhost}
+                  title={u.blocked ? 'Desbloquear' : 'Bloquear'}
+                  onClick={() => onToggleBlock(u.id)}
+                  disabled={u.id === currentUser.id}
+                >
+                  {u.blocked ? <Check size={14} color="#3ecf6e" /> : <Trash2 size={14} color={u.id === currentUser.id ? '#444' : '#e2574c'} />}
+                </button>
+              </div>
+            </div>
+          ))}
+          {filtered.length === 0 && <div style={{ ...S.emptyMuted, padding: 24 }}>Nenhum usuário encontrado.</div>}
+        </div>
+      </div>
+
+      {showCreate && (
+        <NewUserModal onCreate={(draft) => { onCreateUser(draft); setShowCreate(false); }} onClose={() => setShowCreate(false)} />
+      )}
+
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          currentUser={currentUser}
+          registeredProjects={registeredProjects}
+          onClose={() => setEditingId(null)}
+          onUpdate={onUpdateUser}
+          onToggleBlock={onToggleBlock}
+          onRenew={onRenew}
+          onResetPassword={onResetPassword}
+          onToggleCnpj={onToggleCnpj}
+          onDelete={(id) => { onDeleteUser(id); setEditingId(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function NewUserModal({ onCreate, onClose }) {
+  const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente' });
+
+  function submit() {
+    if (!draft.username || !draft.password || !draft.name) return;
+    onCreate(draft);
+  }
+
+  return (
+    <div style={S.detailOverlay} onClick={onClose}>
+      <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <div style={S.detailTopBar}>
+          <div style={{ fontSize: 17, fontWeight: 800 }}>Novo usuário</div>
+          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+        </div>
+        <div style={S.subSectionLabel}>Nome</div>
+        <input type="text" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} placeholder="Nome completo" />
+        <div style={S.subSectionLabel}>Usuário (login)</div>
+        <input type="text" value={draft.username} onChange={(e) => setDraft((d) => ({ ...d, username: e.target.value }))} placeholder="Usuário (login)" />
+        <div style={S.subSectionLabel}>Perfil</div>
+        <select value={draft.role} onChange={(e) => setDraft((d) => ({ ...d, role: e.target.value }))}>
+          <option value="master">Master</option>
+          <option value="pricetax">PRICETAX</option>
+          <option value="cliente">Cliente</option>
+        </select>
+        <div style={S.subSectionLabel}>Senha inicial</div>
+        <input type="password" value={draft.password} onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))} placeholder="Senha inicial" />
+        <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit}><Plus size={14} /> Criar usuário</button>
+      </div>
+    </div>
+  );
+}
+
+function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUpdate, onToggleBlock, onRenew, onResetPassword, onToggleCnpj, onDelete }) {
+  const isSelf = u.id === currentUser.id;
+  return (
+    <div style={S.detailOverlay} onClick={onClose}>
+      <div style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '88vh' }} onClick={(e) => e.stopPropagation()}>
+        <div style={S.detailTopBar}>
+          <div style={{ fontSize: 17, fontWeight: 800 }}>{u.name}</div>
+          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input type="text" value={u.name} onChange={(e) => onUpdate(u.id, { name: e.target.value })} placeholder="Nome" />
+          <select value={u.role} onChange={(e) => onUpdate(u.id, { role: e.target.value })} style={{ width: 150, flexShrink: 0 }}>
+            <option value="master">Master</option>
+            <option value="pricetax">PRICETAX</option>
+            <option value="cliente">Cliente</option>
+          </select>
+        </div>
+        <input type="text" value={u.username} onChange={(e) => onUpdate(u.id, { username: e.target.value })} placeholder="Usuário (login)" style={{ marginTop: 6 }} />
+        <input type="email" value={u.email} onChange={(e) => onUpdate(u.id, { email: e.target.value })} placeholder="email@pricetax.com.br" style={{ marginTop: 6 }} />
+
+        {u.role === 'cliente' && (
+          <div style={{ marginTop: 12 }}>
+            <div style={S.fieldHint}>CNPJ do cliente que este usuário enxerga</div>
+            <select value={u.cnpj} onChange={(e) => onUpdate(u.id, { cnpj: e.target.value })}>
+              <option value="">— selecione o CNPJ —</option>
+              {registeredProjects.map((p) => <option key={p.id} value={p.company.cnpj}>{p.company.name || 'Sem nome'} — {p.company.cnpj}</option>)}
+            </select>
+          </div>
+        )}
+
+        {u.role === 'pricetax' && (
+          <div style={{ marginTop: 12 }}>
+            <div style={S.fieldHint}>Clientes liberados para este usuário</div>
+            {registeredProjects.length === 0 && <div style={S.emptyMuted}>Nenhum cliente com CNPJ cadastrado ainda.</div>}
+            <div style={S.cnpjCheckList}>
+              {registeredProjects.map((p) => (
+                <label key={p.id} style={S.cnpjCheckRow}>
+                  <input type="checkbox" checked={(u.allowedCnpjs || []).includes(p.company.cnpj)} onChange={() => onToggleCnpj(u.id, p.company.cnpj)} />
+                  {p.company.name || 'Sem nome'} <span style={{ opacity: .6 }}>— {p.company.cnpj}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {u.role === 'master' && <div style={{ ...S.fieldHint, marginTop: 12 }}>Vê todos os projetos, sem precisar liberar nada.</div>}
+
+        <div style={S.accessBlock}>
+          <div style={S.settingsLabel}>Acesso</div>
+          <label style={S.cnpjCheckRow}>
+            <input type="checkbox" checked={!!u.blocked} onChange={() => onToggleBlock(u.id)} disabled={isSelf} />
+            Bloqueado
+          </label>
+          {u.blocked && (
+            <input type="text" value={u.blockReason || ''} onChange={(e) => onUpdate(u.id, { blockReason: e.target.value })} placeholder="Motivo do bloqueio" style={{ marginTop: 6 }} />
+          )}
+          <div style={{ marginTop: 8 }}>
+            <div style={S.fieldHint}>Expira em (opcional — em branco nunca expira)</div>
+            <input type="date" value={u.expiresAt || ''} onChange={(e) => onUpdate(u.id, { expiresAt: e.target.value })} />
+          </div>
+          {isExpiredNotYetFlagged(u) && (
+            <div style={S.expireWarning}>
+              <strong>Validade vencida em {fmtDate(u.expiresAt)}.</strong> Este usuário vai ser bloqueado sozinho na próxima tentativa de entrar.
+              <button style={S.renewBtn} onClick={() => onRenew(u.id, 30)}>Renovar por +30 dias</button>
+            </div>
+          )}
+          <div style={{ marginTop: 10 }}>
+            <div style={S.fieldHint}>Redefinir senha</div>
+            <UserPasswordReset onReset={(pwd) => onResetPassword(u.id, pwd)} />
+          </div>
+        </div>
+
+        <button style={{ ...S.iconBtnGhost, marginTop: 14 }} onClick={() => onDelete(u.id)} disabled={isSelf}>
+          <Trash2 size={13} color={isSelf ? '#444' : '#888'} /> {isSelf ? ' (é você)' : ' Remover usuário'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -1428,7 +1599,7 @@ const S = {
   hint: { fontSize: 11.5, color: '#5f5f5f', textAlign: 'center', marginTop: 24 },
 
   userBadge: { display: 'flex', alignItems: 'center', gap: 8, marginLeft: 6, paddingLeft: 12, borderLeft: '1px solid #2c2c2c' },
-  roleTag: { fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.03em', border: '1px solid', borderRadius: 999, padding: '3px 8px' },
+  roleTag: { fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.03em', border: '1px solid', borderRadius: 999, padding: '3px 8px', whiteSpace: 'nowrap', display: 'inline-block' },
   userName: { fontSize: 12.5, fontWeight: 600, color: '#ddd' },
 
   // login
@@ -1566,4 +1737,24 @@ const S = {
   renewBtn: { display: 'block', marginTop: 8, background: '#e2574c', border: 'none', color: '#fff', fontWeight: 700, fontSize: 11.5, padding: '6px 11px', borderRadius: 6, cursor: 'pointer' },
   loginBlockedMsg: { background: 'rgba(226,87,76,.12)', border: '1px solid rgba(226,87,76,.4)', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: '#f0a49e', marginBottom: 16 },
   loginBlockedTag: { fontSize: 10, fontWeight: 800, color: '#e2574c', border: '1px solid #e2574c', borderRadius: 999, padding: '2px 7px' },
+
+  // users management screen
+  usersHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '20px 24px', borderBottom: '1px solid #262626', background: '#151515' },
+  usersHeaderIcon: { width: 40, height: 40, borderRadius: 10, background: '#1c1c1c', border: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  usersHeaderTitle: { fontSize: 19, fontWeight: 800 },
+  usersHeaderSub: { fontSize: 12.5, color: '#999', marginTop: 2 },
+  usersStatsRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, padding: '20px 24px 0 24px' },
+  usersStatCard: { background: '#161616', border: '1px solid #262626', borderRadius: 10, padding: '14px 16px' },
+  usersStatValue: { fontSize: 26, fontWeight: 900, color: '#eee', lineHeight: 1.2 },
+  usersStatLabel: { fontSize: 11.5, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.03em', marginTop: 2 },
+  usersFilterRow: { display: 'flex', gap: 10, padding: '20px 24px 0 24px', flexWrap: 'wrap' },
+  usersTableOuter: { padding: '16px 24px 32px 24px' },
+  usersTableWrap: { border: '1px solid #262626', borderRadius: 10, overflow: 'hidden' },
+  usersTableHeaderRow: { display: 'flex', gap: 12, padding: '10px 16px', background: '#181818', borderBottom: '1px solid #262626' },
+  usersTableRow: { display: 'flex', gap: 12, alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid #202020', background: '#141414', cursor: 'pointer' },
+  usersRowName: { fontSize: 13, fontWeight: 700, color: '#eee' },
+  usersRowUsername: { fontSize: 11.5, color: '#888', marginTop: 2 },
+  usersRowEmail: { flex: 2, minWidth: 0, fontSize: 12.5, color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  usersStatusActive: { fontSize: 11, fontWeight: 700, color: '#3ecf6e', background: 'rgba(62,207,110,.12)', border: '1px solid rgba(62,207,110,.4)', borderRadius: 999, padding: '3px 9px' },
+  usersStatusBlocked: { fontSize: 11, fontWeight: 700, color: '#e2574c', background: 'rgba(226,87,76,.12)', border: '1px solid rgba(226,87,76,.4)', borderRadius: 999, padding: '3px 9px' },
 };
