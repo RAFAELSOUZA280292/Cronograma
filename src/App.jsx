@@ -1274,6 +1274,11 @@ function NewUserModal({ onCreate, onClose }) {
 
 function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUpdate, onToggleBlock, onRenew, onResetPassword, onToggleCnpj, onDelete }) {
   const isSelf = u.id === currentUser.id;
+  const [draftName, setDraftName] = useState(u.name);
+  const [draftUsername, setDraftUsername] = useState(u.username);
+  const [draftEmail, setDraftEmail] = useState(u.email);
+  const [draftBlockReason, setDraftBlockReason] = useState(u.blockReason || '');
+
   return (
     <div style={S.detailOverlay} onClick={onClose}>
       <div style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '88vh' }} onClick={(e) => e.stopPropagation()}>
@@ -1283,15 +1288,23 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
         </div>
 
         <div style={{ display: 'flex', gap: 6 }}>
-          <input type="text" value={u.name} onChange={(e) => onUpdate(u.id, { name: e.target.value })} placeholder="Nome" />
-          <select value={u.role} onChange={(e) => onUpdate(u.id, { role: e.target.value })} style={{ width: 150, flexShrink: 0 }}>
-            <option value="master">Master</option>
-            <option value="pricetax">PRICETAX</option>
-            <option value="cliente">Cliente</option>
-          </select>
+          <div style={{ flex: 1 }}>
+            <div style={S.subSectionLabel}>Nome</div>
+            <input type="text" value={draftName} onChange={(e) => setDraftName(e.target.value)} onBlur={() => draftName !== u.name && onUpdate(u.id, { name: draftName })} placeholder="Nome" />
+          </div>
+          <div style={{ width: 150, flexShrink: 0 }}>
+            <div style={S.subSectionLabel}>Perfil</div>
+            <select value={u.role} onChange={(e) => onUpdate(u.id, { role: e.target.value })}>
+              <option value="master">Master</option>
+              <option value="pricetax">PRICETAX</option>
+              <option value="cliente">Cliente</option>
+            </select>
+          </div>
         </div>
-        <input type="text" value={u.username} onChange={(e) => onUpdate(u.id, { username: e.target.value })} placeholder="Usuário (login)" style={{ marginTop: 6 }} />
-        <input type="email" value={u.email} onChange={(e) => onUpdate(u.id, { email: e.target.value })} placeholder="email@pricetax.com.br" style={{ marginTop: 6 }} />
+        <div style={S.subSectionLabel}>Usuário (login)</div>
+        <input type="text" value={draftUsername} onChange={(e) => setDraftUsername(e.target.value)} onBlur={() => draftUsername !== u.username && onUpdate(u.id, { username: draftUsername })} placeholder="Usuário (login)" />
+        <div style={S.subSectionLabel}>E-mail</div>
+        <input type="email" value={draftEmail} onChange={(e) => setDraftEmail(e.target.value)} onBlur={() => draftEmail !== u.email && onUpdate(u.id, { email: draftEmail })} placeholder="email@pricetax.com.br" />
 
         {u.role === 'cliente' && (
           <div style={{ marginTop: 12 }}>
@@ -1327,7 +1340,7 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
             Bloqueado
           </label>
           {u.blocked && (
-            <input type="text" value={u.blockReason || ''} onChange={(e) => onUpdate(u.id, { blockReason: e.target.value })} placeholder="Motivo do bloqueio" style={{ marginTop: 6 }} />
+            <input type="text" value={draftBlockReason} onChange={(e) => setDraftBlockReason(e.target.value)} onBlur={() => draftBlockReason !== (u.blockReason || '') && onUpdate(u.id, { blockReason: draftBlockReason })} placeholder="Motivo do bloqueio" style={{ marginTop: 6 }} />
           )}
           <div style={{ marginTop: 8 }}>
             <div style={S.fieldHint}>Expira em (opcional — em branco nunca expira)</div>
