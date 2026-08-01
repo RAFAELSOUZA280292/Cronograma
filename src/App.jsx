@@ -60,6 +60,20 @@ function calcDeadline(startISO, durationDays) {
   else if (dow === 0) d = addDays(d, 1);
   return toISODate(d);
 }
+function dayAfter(iso) {
+  let d = addDays(parseDate(iso), 1);
+  const dow = d.getDay();
+  if (dow === 6) d = addDays(d, 2);
+  else if (dow === 0) d = addDays(d, 1);
+  return toISODate(d);
+}
+function dayBefore(iso) {
+  let d = addDays(parseDate(iso), -1);
+  const dow = d.getDay();
+  if (dow === 0) d = addDays(d, -2);
+  else if (dow === 6) d = addDays(d, -1);
+  return toISODate(d);
+}
 function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
 function endOfMonth(d) { return addDays(addMonths(startOfMonth(d), 1), -1); }
 function startOfWeek(d) { const x = startOfDay(d); const day = x.getDay(); const diff = day === 0 ? -6 : 1 - day; return addDays(x, diff); }
@@ -778,6 +792,8 @@ export default function App() {
             setGranularity={setGranularity}
             windowAnchor={windowAnchor}
             setWindowAnchor={setWindowAnchor}
+            pid={activeProject.id}
+            updateActivity={updateActivity}
           />
         )}
         {!isMulti && view === 'table' && (
@@ -826,6 +842,8 @@ export default function App() {
               setGranularity={setGranularity}
               windowAnchor={windowAnchor}
               setWindowAnchor={setWindowAnchor}
+              pid={p.id}
+              updateActivity={updateActivity}
             />
           </div>
         ))}
@@ -1837,9 +1855,43 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, pid, onClose
 }
 
 function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, openDetail, multiMode }) {
+  const [dragActId, setDragActId] = useState(null);
+
+  function reorderActivityByDrop(fromId, toId) {
+    const list = activities;
+    const fromIdx = list.findIndex((x) => x.id === fromId);
+    const toIdx = list.findIndex((x) => x.id === toId);
+    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+    const dragged = list[fromIdx];
+    const withoutDragged = list.filter((x) => x.id !== fromId);
+    const targetIdx = withoutDragged.findIndex((x) => x.id === toId);
+    const insertAt = fromIdx < toIdx ? targetIdx + 1 : targetIdx;
+    const prev = insertAt > 0 ? withoutDragged[insertAt - 1] : null;
+    const next = insertAt < withoutDragged.length ? withoutDragged[insertAt] : null;
+
+    let newDate = dragged.date;
+    if (prev && prev.date) newDate = dayAfter(prev.endDate || prev.date);
+    else if (next && next.date) newDate = dayBefore(next.date);
+    if (!newDate) return;
+
+    const oldDate = dragged.date;
+    const oldEnd = dragged.endDate || dragged.date;
+    let newEnd;
+    if (dragged.durationDays) {
+      newEnd = calcDeadline(newDate, dragged.durationDays);
+    } else if (oldDate && oldEnd) {
+      const spanDays = Math.round((parseDate(oldEnd) - parseDate(oldDate)) / 86400000);
+      newEnd = toISODate(addDays(parseDate(newDate), spanDays));
+    } else {
+      newEnd = newDate;
+    }
+    updateActivity(pid, dragged.id, { date: newDate, endDate: newEnd }, `Atividade "${dragged.title}" reordenada: novo início ${fmtDate(newDate)}`);
+  }
+
   return (
     <div style={S.tableWrap}>
       <div style={S.tableHeaderRow}>
+        <div style={{ ...S.th, width: 20 }}></div>
         <div style={{ ...S.th, width: 68 }}></div>
         <div style={{ ...S.th, width: 46 }}>Ordem</div>
         {multiMode && <div style={{ ...S.th, width: 150 }}>Empresa</div>}
@@ -1862,8 +1914,25 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
         const isOpen = !!expanded[`${rowPid}-${a.id}`];
         const doneSubs = (a.subactivities || []).filter((s) => s.done).length;
         return (
-          <div key={`${rowPid}-${a.id}`} style={S.tableGroup}>
+          <div
+            key={`${rowPid}-${a.id}`}
+            style={{ ...S.tableGroup, ...(dragActId === a.id ? S.tableRowDragging : {}) }}
+            onDragOver={(e) => { if (!multiMode) e.preventDefault(); }}
+            onDrop={() => {
+              if (!multiMode && dragActId && dragActId !== a.id) reorderActivityByDrop(dragActId, a.id);
+              setDragActId(null);
+            }}
+          >
             <div style={S.tableRow}>
+              <div
+                style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: multiMode ? 'default' : 'grab', opacity: multiMode ? 0.25 : 1, flexShrink: 0 }}
+                draggable={!multiMode}
+                onDragStart={() => setDragActId(a.id)}
+                onDragEnd={() => setDragActId(null)}
+                title={multiMode ? undefined : 'Arraste para reordenar (ajusta a data de início)'}
+              >
+                <GripVertical size={14} color="#666" />
+              </div>
               <button style={S.expandBtn} onClick={() => setExpanded((e) => ({ ...e, [`${rowPid}-${a.id}`]: !e[`${rowPid}-${a.id}`] }))}>
                 <ChevronDown size={14} style={{ transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .12s' }} />
               </button>
@@ -2073,7 +2142,9 @@ function KanbanView({ activities, orderMap, phases, pid, dragId, setDragId, upda
   );
 }
 
-function TimelineView({ activities, phases, granularity, setGranularity, windowAnchor, setWindowAnchor }) {
+const GANTT_DAYS_PER_COL = { dia: 1, semana: 7, mes: 30.4368, ano: 365.25 };
+
+function TimelineView({ activities, phases, granularity, setGranularity, windowAnchor, setWindowAnchor, pid, updateActivity }) {
   const columns = buildTimelineColumns(granularity, activities, windowAnchor);
   const noDate = activities.filter((a) => !a.date);
   const windowed = granularity === 'dia' || granularity === 'semana';
@@ -2086,6 +2157,35 @@ function TimelineView({ activities, phases, granularity, setGranularity, windowA
   const LABEL_W = 216;
   const colW = granularity === 'dia' ? 34 : granularity === 'semana' ? 70 : granularity === 'ano' ? 120 : 92;
   const totalW = LABEL_W + columns.length * colW;
+  const daysPerCol = GANTT_DAYS_PER_COL[granularity] || 30.4368;
+
+  const [dragBar, setDragBar] = useState(null);
+
+  useEffect(() => {
+    if (!dragBar) return;
+    function onMove(e) {
+      setDragBar((d) => (d ? { ...d, offsetPx: e.clientX - d.startX } : d));
+    }
+    function onUp(e) {
+      setDragBar((d) => {
+        if (d) {
+          const deltaDays = Math.round(((e.clientX - d.startX) / colW) * daysPerCol);
+          if (deltaDays !== 0) {
+            const newDate = toISODate(addDays(parseDate(d.origDate), deltaDays));
+            const newEnd = toISODate(addDays(parseDate(d.origEndDate), deltaDays));
+            updateActivity(pid, d.id, { date: newDate, endDate: newEnd }, `Atividade "${d.title}" reagendada no Gantt: ${fmtDate(newDate)} – ${fmtDate(newEnd)}`);
+          }
+        }
+        return null;
+      });
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [dragBar, colW, daysPerCol, pid, updateActivity]);
 
   const rows = [];
   let r = 1;
@@ -2147,7 +2247,25 @@ function TimelineView({ activities, phases, granularity, setGranularity, windowA
                   <div style={S.ganttLabelMeta}>{row.act.responsible}</div>
                 </div>
                 <div style={{ gridRow: row.row + 1, gridColumn: `${row.sIdx + 2} / ${row.eIdx + 3}`, ...S.ganttBarWrap }}>
-                  <div style={{ ...S.ganttBar, background: STATUS_META[row.act.status].bg, borderColor: row.phase.color }}>
+                  <div
+                    className="no-print"
+                    style={{
+                      ...S.ganttBar,
+                      background: STATUS_META[row.act.status].bg,
+                      borderColor: row.phase.color,
+                      cursor: dragBar && dragBar.id === row.act.id ? 'grabbing' : 'grab',
+                      position: 'relative',
+                      transform: dragBar && dragBar.id === row.act.id ? `translateX(${dragBar.offsetPx}px)` : undefined,
+                      boxShadow: dragBar && dragBar.id === row.act.id ? '0 6px 16px rgba(0,0,0,.5)' : undefined,
+                      zIndex: dragBar && dragBar.id === row.act.id ? 5 : undefined,
+                      userSelect: 'none',
+                    }}
+                    title="Arraste para reagendar"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setDragBar({ id: row.act.id, title: row.act.title, startX: e.clientX, origDate: row.act.date, origEndDate: row.act.endDate || row.act.date, offsetPx: 0 });
+                    }}
+                  >
                     <span style={{ ...S.ganttBarDot, background: STATUS_META[row.act.status].color }} />
                     <span style={S.ganttBarTitle}>{row.act.title}</span>
                   </div>
@@ -2214,6 +2332,7 @@ const S = {
   tableHeaderRow: { display: 'flex', gap: 12, padding: '10px 14px', background: '#181818', borderBottom: '1px solid #262626' },
   th: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#888' },
   tableGroup: { borderBottom: '1px solid #222' },
+  tableRowDragging: { opacity: .4 },
   tableRow: { display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 14px', background: '#141414' },
   expandBtn: { width: 30, background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', display: 'flex', alignItems: 'center', paddingTop: 6 },
   monthBadgeSm: { fontSize: 10.5, fontWeight: 800, background: '#F5C400', color: '#111', padding: '3px 7px', borderRadius: 5 },
