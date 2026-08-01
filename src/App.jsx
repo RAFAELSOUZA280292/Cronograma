@@ -814,6 +814,7 @@ export default function App() {
             addAttachment={addAttachment}
             removeAttachment={removeAttachment}
             openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
+            companyColor={activeProject.company.color}
           />
         )}
         {!isMulti && view === 'phases' && (
@@ -1856,11 +1857,35 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, pid, onClose
   );
 }
 
-function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, openDetail, multiMode }) {
+function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor }) {
   const [dragActId, setDragActId] = useState(null);
+  const [filterPhase, setFilterPhase] = useState('');
+  const [filterResp, setFilterResp] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+
+  function phaseOf(a) {
+    const rp = phases || a._phases;
+    return rp && rp.find((p) => p.id === a.phase);
+  }
+
+  const phaseOptions = [];
+  const seenPhaseNames = new Set();
+  activities.forEach((a) => {
+    const po = phaseOf(a);
+    if (po && !seenPhaseNames.has(po.name)) { seenPhaseNames.add(po.name); phaseOptions.push(po); }
+  });
+  const respOptions = Array.from(new Set(activities.map((a) => a.responsible).filter(Boolean)));
+
+  const filtered = activities.filter((a) => {
+    if (filterPhase && phaseOf(a)?.name !== filterPhase) return false;
+    if (filterResp && a.responsible !== filterResp) return false;
+    if (filterStatus && a.status !== filterStatus) return false;
+    return true;
+  });
+  const filtersActive = !!(filterPhase || filterResp || filterStatus);
 
   function reorderActivityByDrop(fromId, toId) {
-    const list = activities;
+    const list = filtered;
     const fromIdx = list.findIndex((x) => x.id === fromId);
     const toIdx = list.findIndex((x) => x.id === toId);
     if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
@@ -1891,163 +1916,218 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
   }
 
   return (
-    <div style={S.tableWrap}>
-      <div style={S.tableHeaderRow}>
-        <div style={{ ...S.th, width: 20 }}></div>
-        <div style={{ ...S.th, width: 68 }}></div>
-        <div style={{ ...S.th, width: 46 }}>Ordem</div>
-        {multiMode && <div style={{ ...S.th, width: 150 }}>Empresa</div>}
-        <div style={{ ...S.th, flex: 2 }}>Atividade</div>
-        <div style={{ ...S.th, width: 140 }}>Fase</div>
-        <div style={{ ...S.th, width: 130 }}>Responsável</div>
-        <div style={{ ...S.th, width: 105 }}>Início</div>
-        <div style={{ ...S.th, width: 70 }}>Prazo</div>
-        <div style={{ ...S.th, width: 105 }}>Fim</div>
-        <div style={{ ...S.th, width: 70, textAlign: 'center' }}>Obrig.</div>
-        <div style={{ ...S.th, width: 150 }}>Status</div>
-        <div style={{ ...S.th, width: 40 }}></div>
+    <div style={S.tableLayout}>
+      <div style={S.filterSidebar}>
+        <div style={S.filterSidebarTitle}>Filtros rápidos</div>
+        <div style={S.filterGroup}>
+          <div style={S.filterLabel}>Fase</div>
+          <select style={S.filterSelect} value={filterPhase} onChange={(e) => setFilterPhase(e.target.value)}>
+            <option value="">Todas as fases</option>
+            {phaseOptions.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+          </select>
+        </div>
+        <div style={S.filterGroup}>
+          <div style={S.filterLabel}>Responsável</div>
+          <select style={S.filterSelect} value={filterResp} onChange={(e) => setFilterResp(e.target.value)}>
+            <option value="">Todos os responsáveis</option>
+            {respOptions.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+        <div style={S.filterGroup}>
+          <div style={S.filterLabel}>Status</div>
+          <select style={S.filterSelect} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <option value="">Todos os status</option>
+            {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
+          </select>
+        </div>
+        {filtersActive && (
+          <button style={S.filterClearBtn} onClick={() => { setFilterPhase(''); setFilterResp(''); setFilterStatus(''); }}>
+            Limpar filtros
+          </button>
+        )}
       </div>
 
-      {activities.map((a) => {
-        const rowPid = pid || a._pid;
-        const rowPhases = phases || a._phases;
-        const rowTeam = team || a._team;
-        const rowOrder = orderMap ? orderMap[a.id] : a._order;
-        const isOpen = !!expanded[`${rowPid}-${a.id}`];
-        const doneSubs = (a.subactivities || []).filter((s) => s.done).length;
-        return (
-          <div
-            key={`${rowPid}-${a.id}`}
-            style={{ ...S.tableGroup, ...(dragActId === a.id ? S.tableRowDragging : {}) }}
-            onDragOver={(e) => { if (!multiMode) e.preventDefault(); }}
-            onDrop={() => {
-              if (!multiMode && dragActId && dragActId !== a.id) reorderActivityByDrop(dragActId, a.id);
-              setDragActId(null);
-            }}
-          >
-            <div style={S.tableRow}>
-              <div
-                style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: multiMode ? 'default' : 'grab', opacity: multiMode ? 0.25 : 1, flexShrink: 0 }}
-                draggable={!multiMode}
-                onDragStart={() => setDragActId(a.id)}
-                onDragEnd={() => setDragActId(null)}
-                title={multiMode ? undefined : 'Arraste para reordenar (ajusta a data de início)'}
-              >
-                <GripVertical size={14} color="#666" />
-              </div>
-              <button style={S.expandBtn} onClick={() => setExpanded((e) => ({ ...e, [`${rowPid}-${a.id}`]: !e[`${rowPid}-${a.id}`] }))}>
-                <ChevronDown size={14} style={{ transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .12s' }} />
-              </button>
-              <button style={S.expandBtn} title="Abrir em tela cheia" onClick={() => openDetail(rowPid, a.id)}>
-                <Maximize2 size={13} />
-              </button>
-              <div style={{ width: 46 }}><span style={S.monthBadgeSm}>#{rowOrder}</span></div>
-              {multiMode && (
-                <div style={{ width: 150 }}>
-                  <CompanyBadge name={a._companyName} color={a._companyColor} logo={a._companyLogo} />
-                </div>
-              )}
-              <div style={{ flex: 2, minWidth: 0 }}>
-                <input type="text" value={a.title} onChange={(e) => updateActivity(rowPid, a.id, { title: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} />
-                <input type="text" value={a.desc} onChange={(e) => updateActivity(rowPid, a.id, { desc: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 4, opacity: .8 }} />
-                {(a.subactivities || []).length > 0 && <div style={S.subCounter}>{doneSubs}/{(a.subactivities || []).length} subatividades concluídas</div>}
-              </div>
-              <div style={{ width: 140 }}>
-                <select
-                  value={a.phase}
-                  onChange={(e) => {
-                    const newPhaseId = Number(e.target.value);
-                    const phaseName = rowPhases.find((p) => p.id === newPhaseId)?.name || '';
-                    updateActivity(rowPid, a.id, { phase: newPhaseId }, `Fase alterada em "${a.title}": ${phaseName}`);
-                  }}
-                  style={{ color: rowPhases.find((p) => p.id === a.phase)?.color }}
-                >
-                  {rowPhases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-              <div style={{ width: 130 }}>
-                <select value={a.responsible} onChange={(e) => updateActivity(rowPid, a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)}>
-                  {rowTeam.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-              <div style={{ width: 105 }}>
-                <input type="date" value={a.date} onChange={(e) => {
-                  const v = e.target.value;
-                  const patch = { date: v };
-                  if (a.durationDays) patch.endDate = calcDeadline(v, a.durationDays);
-                  else if (!a.endDate || a.endDate < v) patch.endDate = v;
-                  updateActivity(rowPid, a.id, patch, `Início alterado em "${a.title}": ${fmtDate(v)}`);
-                }} />
-              </div>
-              <div style={{ width: 70 }}>
-                <input
-                  type="number"
-                  min={1}
-                  placeholder="dias"
-                  value={a.durationDays || ''}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    const patch = { durationDays: v ? Number(v) : '' };
-                    if (v && a.date) patch.endDate = calcDeadline(a.date, v);
-                    updateActivity(rowPid, a.id, patch);
-                  }}
-                  onBlur={() => updateActivity(rowPid, a.id, {}, `Prazo alterado em "${a.title}": ${a.durationDays ? a.durationDays + ' dias' : 'sem prazo definido'}`)}
-                />
-              </div>
-              <div style={{ width: 105 }}>
-                <input type="date" value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(rowPid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
-              </div>
-              <div style={{ width: 70, textAlign: 'center' }}>
-                <input type="checkbox" checked={a.required} onChange={(e) => updateActivity(rowPid, a.id, { required: e.target.checked }, `Obrigatoriedade alterada em "${a.title}"`)} />
-              </div>
-              <div style={{ width: 150 }}>
-                <select value={a.status} onChange={(e) => updateActivity(rowPid, a.id, { status: e.target.value }, `Status alterado em "${a.title}": ${STATUS_META[e.target.value].label}`)} style={{ color: STATUS_META[a.status].color }}>
-                  {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
-                </select>
-              </div>
-              <div style={{ width: 40 }}>
-                <button style={S.iconBtnGhost} onClick={() => deleteActivity(rowPid, a.id)}><Trash2 size={14} /></button>
-              </div>
-            </div>
-
-            {isOpen && (
-              <div style={S.subPanel}>
-                {(a.subactivities || []).map((s) => (
-                  <div key={s.id} style={S.subRow}>
-                    <input type="checkbox" checked={s.done} onChange={(e) => updateSub(rowPid, a.id, s.id, { done: e.target.checked })} />
-                    <input type="text" value={s.title} onChange={(e) => updateSub(rowPid, a.id, s.id, { title: e.target.value })} style={{ textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
-                    <button style={S.iconBtnGhost} onClick={() => deleteSub(rowPid, a.id, s.id)}><X size={13} /></button>
-                  </div>
-                ))}
-                <button style={S.addSubBtn} onClick={() => addSub(rowPid, a.id)}><Plus size={12} /> Subatividade</button>
-
-                <div style={S.subSectionLabel}>Observações</div>
-                <textarea
-                  value={a.notes || ''}
-                  onChange={(e) => updateActivity(rowPid, a.id, { notes: e.target.value })}
-                  onBlur={() => updateActivity(rowPid, a.id, {}, `Observação alterada em "${a.title}"`)}
-                  placeholder="Comentários, contexto, decisões desta atividade..."
-                  rows={3}
-                  style={S.notesArea}
-                />
-
-                <div style={S.subSectionLabel}>Anexos {(a.attachments || []).length > 0 ? `(${(a.attachments || []).length})` : ''}</div>
-                <div style={S.attachList}>
-                  {(a.attachments || []).map((att) => (
-                    <div key={att.id} style={S.attachRow}>
-                      <a href={att.dataUrl} download={att.name} style={S.attachLink}>{att.name}</a>
-                      <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
-                      <button style={S.iconBtnGhost} onClick={() => removeAttachment(rowPid, a.id, att.id)}><X size={12} /></button>
-                    </div>
-                  ))}
-                </div>
-                <label htmlFor={`file-${rowPid}-${a.id}`} style={S.addSubBtn}><Upload size={12} /> Anexar arquivo</label>
-                <input id={`file-${rowPid}-${a.id}`} type="file" style={{ display: 'none' }} onChange={(e) => { addAttachment(rowPid, a.id, e.target.files && e.target.files[0]); e.target.value = ''; }} />
-              </div>
-            )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={S.tableWrap}>
+          <div style={S.tableHeaderRow}>
+            <div style={{ ...S.th, width: 20 }}></div>
+            <div style={{ ...S.th, width: 46 }}>#</div>
+            {multiMode && <div style={{ ...S.th, width: 150 }}>Empresa</div>}
+            <div style={{ ...S.th, flex: 2, minWidth: 260 }}>Atividade</div>
+            <div style={{ ...S.th, width: 130 }}>Fase</div>
+            <div style={{ ...S.th, width: 170 }}>Responsável</div>
+            <div style={{ ...S.th, width: 235 }}>Prazos</div>
+            <div style={{ ...S.th, width: 60, textAlign: 'center' }}>Obrig.</div>
+            <div style={{ ...S.th, width: 140 }}>Status</div>
+            <div style={{ ...S.th, width: 60 }}></div>
           </div>
-        );
-      })}
+
+          {filtered.length === 0 && (
+            <div style={S.tableEmptyState}>Nenhuma atividade encontrada com esses filtros.</div>
+          )}
+
+          {filtered.map((a) => {
+            const rowPid = pid || a._pid;
+            const rowPhases = phases || a._phases;
+            const rowTeam = team || a._team;
+            const rowAccent = companyColor || a._companyColor || '#F5C400';
+            const rowOrder = orderMap ? orderMap[a.id] : a._order;
+            const isOpen = !!expanded[`${rowPid}-${a.id}`];
+            const subs = a.subactivities || [];
+            const doneSubs = subs.filter((s) => s.done).length;
+            const phaseColor = phaseOf(a)?.color || '#888';
+            return (
+              <div
+                key={`${rowPid}-${a.id}`}
+                style={{ ...S.tableGroup, borderLeft: `3px solid ${rowAccent}`, ...(dragActId === a.id ? S.tableRowDragging : {}) }}
+                onDragOver={(e) => { if (!multiMode) e.preventDefault(); }}
+                onDrop={() => {
+                  if (!multiMode && dragActId && dragActId !== a.id) reorderActivityByDrop(dragActId, a.id);
+                  setDragActId(null);
+                }}
+              >
+                <div style={S.tableRow}>
+                  <div
+                    style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: multiMode ? 'default' : 'grab', opacity: multiMode ? 0.25 : 1, flexShrink: 0 }}
+                    draggable={!multiMode}
+                    onDragStart={() => setDragActId(a.id)}
+                    onDragEnd={() => setDragActId(null)}
+                    title={multiMode ? undefined : 'Arraste para reordenar (ajusta a data de início)'}
+                  >
+                    <GripVertical size={14} color="#666" />
+                  </div>
+                  <div style={{ width: 46, paddingTop: 6 }}><span style={S.monthBadgeSm}>#{rowOrder}</span></div>
+                  {multiMode && (
+                    <div style={{ width: 150 }}>
+                      <CompanyBadge name={a._companyName} color={a._companyColor} logo={a._companyLogo} />
+                    </div>
+                  )}
+                  <div style={{ flex: 2, minWidth: 260 }}>
+                    <input type="text" value={a.title} onChange={(e) => updateActivity(rowPid, a.id, { title: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} />
+                    <input type="text" value={a.desc} onChange={(e) => updateActivity(rowPid, a.id, { desc: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 4, opacity: .8 }} />
+                    <button
+                      style={S.subToggleBtn}
+                      onClick={() => setExpanded((e) => ({ ...e, [`${rowPid}-${a.id}`]: !e[`${rowPid}-${a.id}`] }))}
+                    >
+                      <ChevronDown size={11} style={{ transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .12s' }} />
+                      {subs.length > 0 ? `${doneSubs}/${subs.length} subatividades` : 'Detalhes'}
+                    </button>
+                  </div>
+                  <div style={{ width: 130 }}>
+                    <select
+                      value={a.phase}
+                      onChange={(e) => {
+                        const newPhaseId = Number(e.target.value);
+                        const phaseName = rowPhases.find((p) => p.id === newPhaseId)?.name || '';
+                        updateActivity(rowPid, a.id, { phase: newPhaseId }, `Fase alterada em "${a.title}": ${phaseName}`);
+                      }}
+                      style={{ ...S.pillSelect, background: `${phaseColor}22`, borderColor: `${phaseColor}66`, color: phaseColor }}
+                    >
+                      {rowPhases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ width: 170, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ ...S.avatarDot, background: rowAccent }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>
+                    <select value={a.responsible} onChange={(e) => updateActivity(rowPid, a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)} style={{ flex: 1, minWidth: 0 }}>
+                      {rowTeam.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ width: 235, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <input type="date" style={{ width: 96, flexShrink: 0 }} value={a.date} onChange={(e) => {
+                      const v = e.target.value;
+                      const patch = { date: v };
+                      if (a.durationDays) patch.endDate = calcDeadline(v, a.durationDays);
+                      else if (!a.endDate || a.endDate < v) patch.endDate = v;
+                      updateActivity(rowPid, a.id, patch, `Início alterado em "${a.title}": ${fmtDate(v)}`);
+                    }} />
+                    {a.durationDays ? (
+                      <input
+                        type="number"
+                        min={1}
+                        title="Prazo em dias"
+                        value={a.durationDays}
+                        style={{ ...S.prazoInput, background: `${rowAccent}2a`, color: rowAccent }}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          const patch = { durationDays: v ? Number(v) : '' };
+                          if (v && a.date) patch.endDate = calcDeadline(a.date, v);
+                          updateActivity(rowPid, a.id, patch);
+                        }}
+                        onBlur={() => updateActivity(rowPid, a.id, {}, `Prazo alterado em "${a.title}": ${a.durationDays ? a.durationDays + ' dias' : 'sem prazo definido'}`)}
+                      />
+                    ) : (
+                      <input
+                        type="number"
+                        min={1}
+                        placeholder="→"
+                        title="Definir prazo em dias"
+                        value=""
+                        style={{ ...S.prazoInput, background: 'transparent', color: '#555' }}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          const patch = { durationDays: v ? Number(v) : '' };
+                          if (v && a.date) patch.endDate = calcDeadline(a.date, v);
+                          updateActivity(rowPid, a.id, patch);
+                        }}
+                        onBlur={() => updateActivity(rowPid, a.id, {}, `Prazo alterado em "${a.title}": ${a.durationDays ? a.durationDays + ' dias' : 'sem prazo definido'}`)}
+                      />
+                    )}
+                    <input type="date" style={{ width: 96, flexShrink: 0 }} value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(rowPid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
+                  </div>
+                  <div style={{ width: 60, textAlign: 'center' }}>
+                    <input type="checkbox" checked={a.required} onChange={(e) => updateActivity(rowPid, a.id, { required: e.target.checked }, `Obrigatoriedade alterada em "${a.title}"`)} />
+                  </div>
+                  <div style={{ width: 140 }}>
+                    <select value={a.status} onChange={(e) => updateActivity(rowPid, a.id, { status: e.target.value }, `Status alterado em "${a.title}": ${STATUS_META[e.target.value].label}`)} style={{ ...S.pillSelect, background: STATUS_META[a.status].bg, borderColor: STATUS_META[a.status].border, color: STATUS_META[a.status].color }}>
+                      {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
+                    </select>
+                  </div>
+                  <div style={S.actionsCell}>
+                    <button style={S.iconBtnGhost} title="Abrir em tela cheia" onClick={() => openDetail(rowPid, a.id)}><Maximize2 size={13} /></button>
+                    <button style={S.iconBtnGhost} onClick={() => deleteActivity(rowPid, a.id)}><Trash2 size={14} /></button>
+                  </div>
+                </div>
+
+                {isOpen && (
+                  <div style={S.subPanel}>
+                    {subs.map((s) => (
+                      <div key={s.id} style={S.subRow}>
+                        <input type="checkbox" checked={s.done} onChange={(e) => updateSub(rowPid, a.id, s.id, { done: e.target.checked })} />
+                        <input type="text" value={s.title} onChange={(e) => updateSub(rowPid, a.id, s.id, { title: e.target.value })} style={{ textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
+                        <button style={S.iconBtnGhost} onClick={() => deleteSub(rowPid, a.id, s.id)}><X size={13} /></button>
+                      </div>
+                    ))}
+                    <button style={S.addSubBtn} onClick={() => addSub(rowPid, a.id)}><Plus size={12} /> Subatividade</button>
+
+                    <div style={S.subSectionLabel}>Observações</div>
+                    <textarea
+                      value={a.notes || ''}
+                      onChange={(e) => updateActivity(rowPid, a.id, { notes: e.target.value })}
+                      onBlur={() => updateActivity(rowPid, a.id, {}, `Observação alterada em "${a.title}"`)}
+                      placeholder="Comentários, contexto, decisões desta atividade..."
+                      rows={3}
+                      style={S.notesArea}
+                    />
+
+                    <div style={S.subSectionLabel}>Anexos {(a.attachments || []).length > 0 ? `(${(a.attachments || []).length})` : ''}</div>
+                    <div style={S.attachList}>
+                      {(a.attachments || []).map((att) => (
+                        <div key={att.id} style={S.attachRow}>
+                          <a href={att.dataUrl} download={att.name} style={S.attachLink}>{att.name}</a>
+                          <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
+                          <button style={S.iconBtnGhost} onClick={() => removeAttachment(rowPid, a.id, att.id)}><X size={12} /></button>
+                        </div>
+                      ))}
+                    </div>
+                    <label htmlFor={`file-${rowPid}-${a.id}`} style={S.addSubBtn}><Upload size={12} /> Anexar arquivo</label>
+                    <input id={`file-${rowPid}-${a.id}`} type="file" style={{ display: 'none' }} onChange={(e) => { addAttachment(rowPid, a.id, e.target.files && e.target.files[0]); e.target.value = ''; }} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2425,15 +2505,26 @@ const S = {
   loginMeta: { fontSize: 12, color: '#888' },
 
   // table view
-  tableWrap: { border: '1px solid #262626', borderRadius: 10, overflow: 'hidden' },
+  tableLayout: { display: 'flex', gap: 18, alignItems: 'flex-start' },
+  filterSidebar: { width: 200, flexShrink: 0, background: '#161616', border: '1px solid #262626', borderRadius: 10, padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 16 },
+  filterSidebarTitle: { fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.04em', color: '#888' },
+  filterGroup: { display: 'flex', flexDirection: 'column', gap: 5 },
+  filterLabel: { fontSize: 11, fontWeight: 700, color: '#999' },
+  filterSelect: { fontSize: 12 },
+  filterClearBtn: { fontSize: 11, fontWeight: 700, color: '#F5C400', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 },
+  tableEmptyState: { padding: '24px 16px', textAlign: 'center', color: '#777', fontSize: 12.5, background: '#141414' },
+  tableWrap: { border: '1px solid #262626', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden' },
   tableHeaderRow: { display: 'flex', gap: 12, padding: '10px 14px', background: '#181818', borderBottom: '1px solid #262626' },
   th: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#888' },
   tableGroup: { borderBottom: '1px solid #222' },
   tableRowDragging: { opacity: .4 },
   tableRow: { display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 14px', background: '#141414' },
-  expandBtn: { width: 30, background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', display: 'flex', alignItems: 'center', paddingTop: 6 },
   monthBadgeSm: { fontSize: 10.5, fontWeight: 800, background: '#F5C400', color: '#111', padding: '3px 7px', borderRadius: 5 },
   subCounter: { fontSize: 11, color: '#777', marginTop: 4 },
+  subToggleBtn: { display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 'none', color: '#888', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0, marginTop: 6 },
+  pillSelect: { borderRadius: 999, padding: '5px 10px', fontWeight: 700, fontSize: 11.5, border: '1px solid' },
+  prazoInput: { width: 32, flexShrink: 0, textAlign: 'center', padding: '4px 2px', fontSize: 11.5, fontWeight: 800, borderRadius: 999, border: 'none' },
+  actionsCell: { width: 60, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 },
   subPanel: { padding: '4px 14px 14px 60px', display: 'flex', flexDirection: 'column', gap: 6, background: '#121212' },
   subRow: { display: 'flex', alignItems: 'center', gap: 8 },
   addSubBtn: { display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: '1px dashed #3a3a3a', color: '#999', fontSize: 11.5, padding: '6px 10px', borderRadius: 6, cursor: 'pointer', width: 'fit-content', marginTop: 4 },
