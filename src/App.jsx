@@ -51,6 +51,15 @@ function toISODate(d) { return d.toISOString().slice(0, 10); }
 function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 function addMonths(d, n) { const x = new Date(d); x.setMonth(x.getMonth() + n); return x; }
+function calcDeadline(startISO, durationDays) {
+  const n = Number(durationDays);
+  if (!startISO || !n) return '';
+  let d = addDays(parseDate(startISO), n);
+  const dow = d.getDay();
+  if (dow === 6) d = addDays(d, 2);
+  else if (dow === 0) d = addDays(d, 1);
+  return toISODate(d);
+}
 function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
 function endOfMonth(d) { return addDays(addMonths(startOfMonth(d), 1), -1); }
 function startOfWeek(d) { const x = startOfDay(d); const day = x.getDay(); const diff = day === 0 ? -6 : 1 - day; return addDays(x, diff); }
@@ -345,7 +354,7 @@ export default function App() {
     const nextMonth = activities.length ? Math.max(...activities.map((a) => a.month)) + 1 : 1;
     const phasesList = project.phases;
     const defaultPhaseId = phasesList.length ? phasesList[phasesList.length - 1].id : 1;
-    const na = { id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '', responsible: project.team[0] || 'PRICETAX', date: '', endDate: '', status: 'nao-iniciado', required: false, subactivities: [], notes: '', attachments: [], comments: [], transcript: '' };
+    const na = { id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '', responsible: project.team[0] || 'PRICETAX', date: '', endDate: '', durationDays: '', status: 'nao-iniciado', required: false, subactivities: [], notes: '', attachments: [], comments: [], transcript: '' };
     mutateProject(targetPid, (p) => ({ ...p, activities: [...p.activities, na] }), `Atividade criada: "${na.title}"`);
   }
 
@@ -1761,7 +1770,28 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, pid, onClose
             </select>
 
             <div style={S.subSectionLabel}>Início</div>
-            <input type="date" value={a.date} onChange={(e) => { const v = e.target.value; const patch = { date: v }; if (!a.endDate || a.endDate < v) patch.endDate = v; updateActivity(pid, a.id, patch, `Início alterado em "${a.title}": ${fmtDate(v)}`); }} />
+            <input type="date" value={a.date} onChange={(e) => {
+              const v = e.target.value;
+              const patch = { date: v };
+              if (a.durationDays) patch.endDate = calcDeadline(v, a.durationDays);
+              else if (!a.endDate || a.endDate < v) patch.endDate = v;
+              updateActivity(pid, a.id, patch, `Início alterado em "${a.title}": ${fmtDate(v)}`);
+            }} />
+
+            <div style={S.subSectionLabel}>Prazo (dias)</div>
+            <input
+              type="number"
+              min={1}
+              placeholder="Ex.: 15"
+              value={a.durationDays || ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                const patch = { durationDays: v ? Number(v) : '' };
+                if (v && a.date) patch.endDate = calcDeadline(a.date, v);
+                updateActivity(pid, a.id, patch);
+              }}
+              onBlur={() => updateActivity(pid, a.id, {}, `Prazo alterado em "${a.title}": ${a.durationDays ? a.durationDays + ' dias' : 'sem prazo definido'}`)}
+            />
 
             <div style={S.subSectionLabel}>Fim</div>
             <input type="date" value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(pid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
@@ -1817,6 +1847,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
         <div style={{ ...S.th, width: 140 }}>Fase</div>
         <div style={{ ...S.th, width: 130 }}>Responsável</div>
         <div style={{ ...S.th, width: 105 }}>Início</div>
+        <div style={{ ...S.th, width: 70 }}>Prazo</div>
         <div style={{ ...S.th, width: 105 }}>Fim</div>
         <div style={{ ...S.th, width: 70, textAlign: 'center' }}>Obrig.</div>
         <div style={{ ...S.th, width: 150 }}>Status</div>
@@ -1872,9 +1903,25 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                 <input type="date" value={a.date} onChange={(e) => {
                   const v = e.target.value;
                   const patch = { date: v };
-                  if (!a.endDate || a.endDate < v) patch.endDate = v;
+                  if (a.durationDays) patch.endDate = calcDeadline(v, a.durationDays);
+                  else if (!a.endDate || a.endDate < v) patch.endDate = v;
                   updateActivity(rowPid, a.id, patch, `Início alterado em "${a.title}": ${fmtDate(v)}`);
                 }} />
+              </div>
+              <div style={{ width: 70 }}>
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="dias"
+                  value={a.durationDays || ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const patch = { durationDays: v ? Number(v) : '' };
+                    if (v && a.date) patch.endDate = calcDeadline(a.date, v);
+                    updateActivity(rowPid, a.id, patch);
+                  }}
+                  onBlur={() => updateActivity(rowPid, a.id, {}, `Prazo alterado em "${a.title}": ${a.durationDays ? a.durationDays + ' dias' : 'sem prazo definido'}`)}
+                />
               </div>
               <div style={{ width: 105 }}>
                 <input type="date" value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(rowPid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
