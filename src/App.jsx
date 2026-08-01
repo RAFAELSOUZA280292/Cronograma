@@ -794,6 +794,7 @@ export default function App() {
             setWindowAnchor={setWindowAnchor}
             pid={activeProject.id}
             updateActivity={updateActivity}
+            openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
           />
         )}
         {!isMulti && view === 'table' && (
@@ -844,6 +845,7 @@ export default function App() {
               setWindowAnchor={setWindowAnchor}
               pid={p.id}
               updateActivity={updateActivity}
+              openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
             />
           </div>
         ))}
@@ -2144,7 +2146,7 @@ function KanbanView({ activities, orderMap, phases, pid, dragId, setDragId, upda
 
 const GANTT_DAYS_PER_COL = { dia: 1, semana: 7, mes: 30.4368, ano: 365.25 };
 
-function TimelineView({ activities, phases, granularity, setGranularity, windowAnchor, setWindowAnchor, pid, updateActivity }) {
+function TimelineView({ activities, phases, granularity, setGranularity, windowAnchor, setWindowAnchor, pid, updateActivity, openDetail }) {
   const columns = buildTimelineColumns(granularity, activities, windowAnchor);
   const noDate = activities.filter((a) => !a.date);
   const windowed = granularity === 'dia' || granularity === 'semana';
@@ -2169,11 +2171,16 @@ function TimelineView({ activities, phases, granularity, setGranularity, windowA
     function onUp(e) {
       setDragBar((d) => {
         if (d) {
-          const deltaDays = Math.round(((e.clientX - d.startX) / colW) * daysPerCol);
-          if (deltaDays !== 0) {
-            const newDate = toISODate(addDays(parseDate(d.origDate), deltaDays));
-            const newEnd = toISODate(addDays(parseDate(d.origEndDate), deltaDays));
-            updateActivity(pid, d.id, { date: newDate, endDate: newEnd }, `Atividade "${d.title}" reagendada no Gantt: ${fmtDate(newDate)} – ${fmtDate(newEnd)}`);
+          const pxMoved = e.clientX - d.startX;
+          if (Math.abs(pxMoved) < 4) {
+            openDetail(pid, d.id);
+          } else {
+            const deltaDays = Math.round((pxMoved / colW) * daysPerCol);
+            if (deltaDays !== 0) {
+              const newDate = toISODate(addDays(parseDate(d.origDate), deltaDays));
+              const newEnd = toISODate(addDays(parseDate(d.origEndDate), deltaDays));
+              updateActivity(pid, d.id, { date: newDate, endDate: newEnd }, `Atividade "${d.title}" reagendada no Gantt: ${fmtDate(newDate)} – ${fmtDate(newEnd)}`);
+            }
           }
         }
         return null;
@@ -2185,7 +2192,7 @@ function TimelineView({ activities, phases, granularity, setGranularity, windowA
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [dragBar, colW, daysPerCol, pid, updateActivity]);
+  }, [dragBar, colW, daysPerCol, pid, updateActivity, openDetail]);
 
   const rows = [];
   let r = 1;
@@ -2260,7 +2267,7 @@ function TimelineView({ activities, phases, granularity, setGranularity, windowA
                       zIndex: dragBar && dragBar.id === row.act.id ? 5 : undefined,
                       userSelect: 'none',
                     }}
-                    title="Arraste para reagendar"
+                    title={`${row.act.title}\n${fmtDate(row.act.date)} – ${fmtDate(row.act.endDate || row.act.date)}\nClique para abrir · arraste para reagendar`}
                     onMouseDown={(e) => {
                       e.preventDefault();
                       setDragBar({ id: row.act.id, title: row.act.title, startX: e.clientX, origDate: row.act.date, origEndDate: row.act.endDate || row.act.date, offsetPx: 0 });
