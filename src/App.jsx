@@ -54,7 +54,7 @@ function addMonths(d, n) { const x = new Date(d); x.setMonth(x.getMonth() + n); 
 function calcDeadline(startISO, durationDays) {
   const n = Number(durationDays);
   if (!startISO || !n) return '';
-  let d = addDays(parseDate(startISO), n);
+  let d = addDays(parseDate(startISO), n - 1);
   const dow = d.getDay();
   if (dow === 6) d = addDays(d, 2);
   else if (dow === 0) d = addDays(d, 1);
@@ -687,13 +687,15 @@ export default function App() {
       <style>{`
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
-        input[type=text], input[type=date], input[type=email], input[type=password], select, textarea {
+        input[type=text], input[type=date], input[type=email], input[type=password], input[type=number], select, textarea {
           background:#1c1c1c; border:1px solid #333; color:#eee; border-radius:6px;
           padding:6px 8px; font-size:12.5px; width:100%;
         }
-        input[type=text]:focus, input[type=date]:focus, input[type=email]:focus, input[type=password]:focus, select:focus, textarea:focus {
+        input[type=text]:focus, input[type=date]:focus, input[type=email]:focus, input[type=password]:focus, input[type=number]:focus, select:focus, textarea:focus {
           outline:none; border-color:#F5C400;
         }
+        input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+        input[type=number] { -moz-appearance: textfield; }
         input[type=checkbox]{ accent-color:#F5C400; width:15px; height:15px; }
         ::-webkit-scrollbar{ height:8px; width:8px; }
         ::-webkit-scrollbar-thumb{ background:#333; border-radius:4px; }
@@ -1859,6 +1861,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, pid, onClose
 
 function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor }) {
   const [dragActId, setDragActId] = useState(null);
+  const [dragOverId, setDragOverId] = useState(null);
   const [filterPhase, setFilterPhase] = useState('');
   const [filterResp, setFilterResp] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -1883,6 +1886,21 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
     return true;
   });
   const filtersActive = !!(filterPhase || filterResp || filterStatus);
+
+  function reorderPreview(list, fromId, toId) {
+    const fromIdx = list.findIndex((x) => x.id === fromId);
+    const toIdx = list.findIndex((x) => x.id === toId);
+    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return list;
+    const copy = list.slice();
+    const [moved] = copy.splice(fromIdx, 1);
+    const targetIdx = copy.findIndex((x) => x.id === toId);
+    const insertAt = fromIdx < toIdx ? targetIdx + 1 : targetIdx;
+    copy.splice(insertAt, 0, moved);
+    return copy;
+  }
+  const displayList = (!multiMode && dragActId && dragOverId && dragActId !== dragOverId)
+    ? reorderPreview(filtered, dragActId, dragOverId)
+    : filtered;
 
   function reorderActivityByDrop(fromId, toId) {
     const list = filtered;
@@ -1956,7 +1974,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
             <div style={{ ...S.th, flex: 2, minWidth: 260 }}>Atividade</div>
             <div style={{ ...S.th, width: 130 }}>Fase</div>
             <div style={{ ...S.th, width: 170 }}>Responsável</div>
-            <div style={{ ...S.th, width: 235 }}>Prazos</div>
+            <div style={{ ...S.th, width: 250 }}>Prazos</div>
             <div style={{ ...S.th, width: 60, textAlign: 'center' }}>Obrig.</div>
             <div style={{ ...S.th, width: 140 }}>Status</div>
             <div style={{ ...S.th, width: 60 }}></div>
@@ -1966,7 +1984,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
             <div style={S.tableEmptyState}>Nenhuma atividade encontrada com esses filtros.</div>
           )}
 
-          {filtered.map((a) => {
+          {displayList.map((a) => {
             const rowPid = pid || a._pid;
             const rowPhases = phases || a._phases;
             const rowTeam = team || a._team;
@@ -1976,14 +1994,22 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
             const subs = a.subactivities || [];
             const doneSubs = subs.filter((s) => s.done).length;
             const phaseColor = phaseOf(a)?.color || '#888';
+            const isDropTarget = !multiMode && dragActId && dragOverId === a.id && dragActId !== a.id;
             return (
               <div
                 key={`${rowPid}-${a.id}`}
-                style={{ ...S.tableGroup, borderLeft: `3px solid ${rowAccent}`, ...(dragActId === a.id ? S.tableRowDragging : {}) }}
-                onDragOver={(e) => { if (!multiMode) e.preventDefault(); }}
+                style={{
+                  ...S.tableGroup,
+                  borderLeft: `3px solid ${rowAccent}`,
+                  ...(dragActId === a.id ? S.tableRowDragging : {}),
+                  ...(isDropTarget ? S.tableRowDropTarget : {}),
+                }}
+                onDragEnter={(e) => { if (!multiMode && dragActId) { e.preventDefault(); setDragOverId(a.id); } }}
+                onDragOver={(e) => { if (!multiMode) { e.preventDefault(); if (dragActId) setDragOverId(a.id); } }}
                 onDrop={() => {
                   if (!multiMode && dragActId && dragActId !== a.id) reorderActivityByDrop(dragActId, a.id);
                   setDragActId(null);
+                  setDragOverId(null);
                 }}
               >
                 <div style={S.tableRow}>
@@ -1991,7 +2017,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                     style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: multiMode ? 'default' : 'grab', opacity: multiMode ? 0.25 : 1, flexShrink: 0 }}
                     draggable={!multiMode}
                     onDragStart={() => setDragActId(a.id)}
-                    onDragEnd={() => setDragActId(null)}
+                    onDragEnd={() => { setDragActId(null); setDragOverId(null); }}
                     title={multiMode ? undefined : 'Arraste para reordenar (ajusta a data de início)'}
                   >
                     <GripVertical size={14} color="#666" />
@@ -2032,7 +2058,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                       {rowTeam.map((m) => <option key={m} value={m}>{m}</option>)}
                     </select>
                   </div>
-                  <div style={{ width: 235, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 250, display: 'flex', alignItems: 'center', gap: 5 }}>
                     <input type="date" style={{ width: 96, flexShrink: 0 }} value={a.date} onChange={(e) => {
                       const v = e.target.value;
                       const patch = { date: v };
@@ -2040,38 +2066,21 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                       else if (!a.endDate || a.endDate < v) patch.endDate = v;
                       updateActivity(rowPid, a.id, patch, `Início alterado em "${a.title}": ${fmtDate(v)}`);
                     }} />
-                    {a.durationDays ? (
-                      <input
-                        type="number"
-                        min={1}
-                        title="Prazo em dias"
-                        value={a.durationDays}
-                        style={{ ...S.prazoInput, background: `${rowAccent}2a`, color: rowAccent }}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          const patch = { durationDays: v ? Number(v) : '' };
-                          if (v && a.date) patch.endDate = calcDeadline(a.date, v);
-                          updateActivity(rowPid, a.id, patch);
-                        }}
-                        onBlur={() => updateActivity(rowPid, a.id, {}, `Prazo alterado em "${a.title}": ${a.durationDays ? a.durationDays + ' dias' : 'sem prazo definido'}`)}
-                      />
-                    ) : (
-                      <input
-                        type="number"
-                        min={1}
-                        placeholder="→"
-                        title="Definir prazo em dias"
-                        value=""
-                        style={{ ...S.prazoInput, background: 'transparent', color: '#555' }}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          const patch = { durationDays: v ? Number(v) : '' };
-                          if (v && a.date) patch.endDate = calcDeadline(a.date, v);
-                          updateActivity(rowPid, a.id, patch);
-                        }}
-                        onBlur={() => updateActivity(rowPid, a.id, {}, `Prazo alterado em "${a.title}": ${a.durationDays ? a.durationDays + ' dias' : 'sem prazo definido'}`)}
-                      />
-                    )}
+                    <input
+                      type="number"
+                      min={1}
+                      placeholder="dias"
+                      title="Prazo em dias"
+                      value={a.durationDays || ''}
+                      style={S.prazoInput}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        const patch = { durationDays: v ? Number(v) : '' };
+                        if (v && a.date) patch.endDate = calcDeadline(a.date, v);
+                        updateActivity(rowPid, a.id, patch);
+                      }}
+                      onBlur={() => updateActivity(rowPid, a.id, {}, `Prazo alterado em "${a.title}": ${a.durationDays ? a.durationDays + ' dias' : 'sem prazo definido'}`)}
+                    />
                     <input type="date" style={{ width: 96, flexShrink: 0 }} value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(rowPid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
                   </div>
                   <div style={{ width: 60, textAlign: 'center' }}>
@@ -2518,12 +2527,13 @@ const S = {
   th: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#888' },
   tableGroup: { borderBottom: '1px solid #222' },
   tableRowDragging: { opacity: .4 },
+  tableRowDropTarget: { borderTop: '2px solid #F5C400' },
   tableRow: { display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 14px', background: '#141414' },
   monthBadgeSm: { fontSize: 10.5, fontWeight: 800, background: '#F5C400', color: '#111', padding: '3px 7px', borderRadius: 5 },
   subCounter: { fontSize: 11, color: '#777', marginTop: 4 },
   subToggleBtn: { display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 'none', color: '#888', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0, marginTop: 6 },
   pillSelect: { borderRadius: 999, padding: '5px 10px', fontWeight: 700, fontSize: 11.5, border: '1px solid' },
-  prazoInput: { width: 32, flexShrink: 0, textAlign: 'center', padding: '4px 2px', fontSize: 11.5, fontWeight: 800, borderRadius: 999, border: 'none' },
+  prazoInput: { width: 46, flexShrink: 0, textAlign: 'center', padding: '6px 2px', fontSize: 12 },
   actionsCell: { width: 60, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 },
   subPanel: { padding: '4px 14px 14px 60px', display: 'flex', flexDirection: 'column', gap: 6, background: '#121212' },
   subRow: { display: 'flex', alignItems: 'center', gap: 8 },
