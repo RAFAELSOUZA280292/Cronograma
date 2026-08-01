@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus, Trash2, Download, Upload, Clock, LayoutGrid, Columns3, Building2,
   Users, X, Check, ChevronDown, FileSpreadsheet, FileText, Settings,
@@ -6,10 +6,10 @@ import {
   LogOut, UserCog
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { storage } from './lib/storage.js';
+import { apiGet, apiPost, apiPatch, apiDelete } from './lib/api.js';
+import pricetaxLogoBranco from './assets/brand/pricetax-logo-branco.png';
 
-const STORAGE_KEY = 'pricetax-cronograma-multiprojeto-v1';
-const OLD_STORAGE_KEY = 'pricetax-cronograma-reforma-v1';
+const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
 
 const PHASE_COLORS = ['#F5C400', '#3ea6ff', '#3ecf6e', '#e2574c', '#b98af5', '#ff9f40'];
 
@@ -19,14 +19,6 @@ const ROLE_META = {
   cliente: { label: 'Cliente', color: '#3ecf6e' },
 };
 
-function defaultPhases() {
-  return [
-    { id: 1, name: 'Leitura Real', sub: 'Captura dos documentos e devolução do número geral', color: '#F5C400' },
-    { id: 2, name: 'Mão na Massa por Área', sub: 'Cada mês traduz o número em decisão de uma área', color: '#3ea6ff' },
-    { id: 3, name: 'Consolidação', sub: 'Sistemas ajustados, pendências fechadas, ciclo encerrado', color: '#3ecf6e' },
-  ];
-}
-
 const STATUS_META = {
   'nao-iniciado': { label: 'Não iniciado', color: '#9a9a9a', bg: '#262626', border: '#3a3a3a' },
   'em-andamento': { label: 'Em andamento', color: '#F5C400', bg: 'rgba(245,196,0,.14)', border: 'rgba(245,196,0,.5)' },
@@ -35,80 +27,6 @@ const STATUS_META = {
 const STATUS_ORDER = ['nao-iniciado', 'em-andamento', 'concluido'];
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
-
-function defaultTeam() {
-  return ['PRICETAX', 'Compras', 'Comercial', 'Financeiro', 'Fiscal', 'Jurídico', 'Logística', 'Controladoria', 'TI', 'Diretoria', 'Todas'];
-}
-
-function normalizeActivity(a) {
-  return {
-    subactivities: [],
-    notes: '',
-    attachments: [],
-    comments: [],
-    transcript: '',
-    endDate: a && a.date ? a.date : '',
-    required: false,
-    ...a,
-  };
-}
-
-function defaultActivities() {
-  return [
-    { id: 'm1', month: 1, phase: 1, title: 'Kickoff único no cliente', desc: 'Mapeamento + captura de documentos + validação inicial, tudo em uma só visita', responsible: 'PRICETAX', date: '2026-08-07', endDate: '2026-08-11', status: 'nao-iniciado', required: true, notes: '', attachments: [],
-      subactivities: [
-        { id: uid('s'), title: 'Mapear processos e sistemas', done: false },
-        { id: uid('s'), title: 'Coletar documentos fiscais', done: false },
-        { id: uid('s'), title: 'Validar dados coletados', done: false },
-      ] },
-    { id: 'm2', month: 2, phase: 1, title: 'Retorno com o número geral', desc: 'Impacto real em preço de compra, preço de venda, DRE e caixa', responsible: 'PRICETAX', date: '2026-09-18', endDate: '2026-09-18', status: 'nao-iniciado', required: true, subactivities: [], notes: '', attachments: [] },
-    { id: 'm3', month: 3, phase: 2, title: 'Compras', desc: 'Fornecedores que vão subir e descer de preço, item por item', responsible: 'Compras', date: '2026-10-16', endDate: '2026-10-16', status: 'nao-iniciado', required: true, subactivities: [], notes: '', attachments: [] },
-    { id: 'm4', month: 4, phase: 2, title: 'Vendas', desc: 'Novos preços de venda por produto, cliente e canal', responsible: 'Comercial', date: '2026-11-13', endDate: '2026-11-13', status: 'nao-iniciado', required: true, subactivities: [], notes: '', attachments: [] },
-    { id: 'm5', month: 5, phase: 2, title: 'Financeiro', desc: 'Nota de débito, nota de crédito, adaptação da área financeira e do caixa', responsible: 'Financeiro', date: '2026-12-11', endDate: '2026-12-11', status: 'nao-iniciado', required: true, subactivities: [], notes: '', attachments: [] },
-    { id: 'm6', month: 6, phase: 2, title: 'Fiscal / Tributário', desc: 'cClassTrib e CST — coincide com a virada da CBS plena', responsible: 'Fiscal', date: '2027-01-15', endDate: '2027-01-15', status: 'nao-iniciado', required: true, subactivities: [], notes: '', attachments: [] },
-    { id: 'm7', month: 7, phase: 2, title: 'Jurídico', desc: 'Contratos e cláusulas de repactuação', responsible: 'Jurídico', date: '2027-02-12', endDate: '2027-02-12', status: 'nao-iniciado', required: true, subactivities: [], notes: '', attachments: [] },
-    { id: 'm8', month: 8, phase: 2, title: 'Logística', desc: 'Malha, centros de distribuição e rotas', responsible: 'Logística', date: '2027-03-12', endDate: '2027-03-12', status: 'nao-iniciado', required: true, subactivities: [], notes: '', attachments: [] },
-    { id: 'm9', month: 9, phase: 2, title: 'Controladoria', desc: 'DRE reformada e indicadores executivos', responsible: 'Controladoria', date: '2027-04-09', endDate: '2027-04-09', status: 'nao-iniciado', required: true, subactivities: [], notes: '', attachments: [] },
-    { id: 'm10', month: 10, phase: 3, title: 'Adaptação de sistemas', desc: 'Parametrização e homologação final do ERP', responsible: 'TI', date: '2027-05-14', endDate: '2027-05-14', status: 'nao-iniciado', required: true, subactivities: [], notes: '', attachments: [] },
-    { id: 'm11', month: 11, phase: 3, title: 'Tira-dúvidas geral', desc: 'Todas as áreas juntas para fechar pendências soltas', responsible: 'Todas', date: '2027-06-11', endDate: '2027-06-11', status: 'nao-iniciado', required: false, subactivities: [], notes: '', attachments: [] },
-    { id: 'm12', month: 12, phase: 3, title: 'Encerramento', desc: 'Retrospectiva do ano e plano do Ano 2', responsible: 'Diretoria', date: '2027-07-09', endDate: '2027-07-09', status: 'nao-iniciado', required: true, subactivities: [], notes: '', attachments: [] },
-  ];
-}
-
-function blankProject() {
-  return {
-    id: uid('proj'),
-    company: { cnpj: '', name: '', logo: '', areas: [] },
-    phases: defaultPhases(),
-    activities: defaultActivities().map(normalizeActivity),
-    team: defaultTeam(),
-    log: [],
-  };
-}
-
-function defaultProjects() {
-  const p = blankProject();
-  p.company = { cnpj: '12.345.678/0001-90', name: 'Empresa Demonstração', logo: '', areas: [] };
-  return [p];
-}
-
-function defaultUsers(demoCnpj) {
-  return [
-    { id: 'u-master', name: 'Rafael Souza', email: '', role: 'master', cnpj: '', allowedCnpjs: [], blocked: false, blockReason: '', expiresAt: '' },
-    { id: 'u-pricetax', name: 'Equipe PRICETAX', email: '', role: 'pricetax', cnpj: '', allowedCnpjs: demoCnpj ? [demoCnpj] : [], blocked: false, blockReason: '', expiresAt: '' },
-    { id: 'u-cliente', name: 'Usuário do cliente', email: '', role: 'cliente', cnpj: demoCnpj || '', allowedCnpjs: [], blocked: false, blockReason: '', expiresAt: '' },
-  ];
-}
-
-function canAccessProject(user, project) {
-  if (!user || !project) return false;
-  if (user.role === 'master') return true;
-  const cnpj = project.company && project.company.cnpj;
-  if (!cnpj) return false;
-  if (user.role === 'pricetax') return (user.allowedCnpjs || []).includes(cnpj);
-  if (user.role === 'cliente') return user.cnpj === cnpj;
-  return false;
-}
 
 function todayISOStr() { return toISODate(startOfDay(new Date())); }
 
@@ -203,13 +121,16 @@ function fractionInColumn(iso, col) {
 }
 
 export default function App() {
-  const [loaded, setLoaded] = useState(false);
-  const [users, setUsers] = useState(() => defaultUsers('12.345.678/0001-90'));
-  const [projects, setProjects] = useState(defaultProjects());
-  const [currentUserId, setCurrentUserId] = useState(null);
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
+  const [users, setUsers] = useState([]);
   const [activeProjectId, setActiveProjectId] = useState(null);
   const [usersLog, setUsersLog] = useState([]);
   const [loginError, setLoginError] = useState(null);
+  const [usersPanelError, setUsersPanelError] = useState('');
+  const saveTimers = useRef({});
 
   const [view, setView] = useState('table');
   const [showLog, setShowLog] = useState(false);
@@ -225,91 +146,115 @@ export default function App() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(LOCAL_PREFS_KEY);
+      if (raw) {
+        const prefs = JSON.parse(raw);
+        if (prefs.activeProjectId) setActiveProjectId(prefs.activeProjectId);
+        if (prefs.usersLog) setUsersLog(prefs.usersLog);
+      }
+    } catch (e) { /* nada salvo ainda */ }
+
     (async () => {
       try {
-        const res = await storage.get(STORAGE_KEY);
-        if (res && res.value) {
-          const data = JSON.parse(res.value);
-          if (data.users && data.users.length) setUsers(data.users);
-          if (data.projects && data.projects.length) {
-            setProjects(data.projects.map((p) => ({ ...p, activities: (p.activities || []).map(normalizeActivity) })));
-          }
-          if (data.currentUserId) setCurrentUserId(data.currentUserId);
-          if (data.usersLog) setUsersLog(data.usersLog);
-          if (data.activeProjectId) setActiveProjectId(data.activeProjectId);
-        } else {
-          const oldRes = await storage.get(OLD_STORAGE_KEY);
-          if (oldRes && oldRes.value) {
-            const old = JSON.parse(oldRes.value);
-            const migrated = {
-              id: uid('proj'),
-              company: { areas: [], cnpj: '', name: '', logo: '', ...(old.company || {}) },
-              phases: (old.phases && old.phases.length) ? old.phases : defaultPhases(),
-              activities: (old.activities || []).map(normalizeActivity),
-              team: old.team && old.team.length ? old.team : defaultTeam(),
-              log: old.log || [],
-            };
-            setProjects([migrated]);
-            const mUsers = defaultUsers(migrated.company.cnpj);
-            setUsers(mUsers);
-          }
-        }
-      } catch (e) { /* nada salvo ainda */ }
-      setLoaded(true);
+        const res = await apiGet('/api/auth/me');
+        setCurrentUser(res.user);
+      } catch (e) {
+        setCurrentUser(null);
+      } finally {
+        setSessionChecked(true);
+      }
     })();
   }, []);
 
-  const persist = useCallback(async (next) => {
-    try { await storage.set(STORAGE_KEY, JSON.stringify(next)); }
-    catch (e) { console.error('Falha ao salvar', e); }
-  }, []);
+  useEffect(() => {
+    try { window.localStorage.setItem(LOCAL_PREFS_KEY, JSON.stringify({ activeProjectId, usersLog })); }
+    catch (e) { /* ignora */ }
+  }, [activeProjectId, usersLog]);
 
   useEffect(() => {
-    if (!loaded) return;
-    persist({ users, projects, currentUserId, activeProjectId, usersLog });
-  }, [users, projects, currentUserId, activeProjectId, usersLog, loaded, persist]);
+    if (!currentUser) { setProjects([]); setProjectsLoaded(false); return; }
+    (async () => {
+      try {
+        const res = await apiGet('/api/projects');
+        setProjects(res.projects);
+      } catch (e) {
+        console.error('Falha ao carregar projetos', e);
+        setProjects([]);
+      } finally {
+        setProjectsLoaded(true);
+      }
+    })();
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (showUsers && currentUser && currentUser.role === 'master') {
+      loadUsers();
+    }
+  }, [showUsers, currentUser?.id]);
 
   function addUsersLog(action) {
     setUsersLog((l) => [{ ts: new Date().toISOString(), action }, ...l].slice(0, 300));
   }
 
-  function attemptLogin(userId) {
-    const u = users.find((x) => x.id === userId);
-    if (!u) return;
-    if (isExpiredNotYetFlagged(u)) {
-      setUsers((prev) => prev.map((x) => (x.id === userId ? { ...x, blocked: true, blockReason: 'Acesso expirado' } : x)));
-      addUsersLog(`Login bloqueado por expiração: ${u.name}`);
-      setLoginError({ userId, message: 'Acesso expirado. Fale com um PRICETAX Master para renovar.' });
-      return;
+  async function handleLogin(username, password) {
+    try {
+      const res = await apiPost('/api/auth/login', { username, password });
+      setLoginError(null);
+      setCurrentUser(res.user);
+    } catch (e) {
+      setLoginError({ message: e.message });
     }
-    if (u.blocked) {
-      setLoginError({ userId, message: u.blockReason || 'Acesso bloqueado. Fale com um PRICETAX Master.' });
-      return;
-    }
-    setLoginError(null);
-    setCurrentUserId(userId);
+  }
+
+  async function handleLogout() {
+    try { await apiPost('/api/auth/logout'); } catch (e) { /* ignora */ }
+    setCurrentUser(null);
+    setProjects([]);
+    setProjectsLoaded(false);
+    setActiveProjectId(null);
+  }
+
+  function persistProjectDebounced(pid, projectData) {
+    if (saveTimers.current[pid]) clearTimeout(saveTimers.current[pid]);
+    saveTimers.current[pid] = setTimeout(() => {
+      apiPatch(`/api/projects/${pid}`, { project: projectData }).catch((e) => console.error('Falha ao salvar projeto', e));
+    }, 500);
   }
 
   function mutateProject(pid, updater, logMsg) {
-    setProjects((prev) => prev.map((p) => {
-      if (p.id !== pid) return p;
-      let next = updater(p);
-      if (logMsg) next = { ...next, log: [{ ts: new Date().toISOString(), action: logMsg }, ...(next.log || [])].slice(0, 300) };
-      return next;
-    }));
+    setProjects((prev) => {
+      let saved = null;
+      const nextArr = prev.map((p) => {
+        if (p.id !== pid) return p;
+        let next = updater(p);
+        if (logMsg) next = { ...next, log: [{ ts: new Date().toISOString(), action: logMsg }, ...(next.log || [])].slice(0, 300) };
+        saved = next;
+        return next;
+      });
+      if (saved) persistProjectDebounced(pid, saved);
+      return nextArr;
+    });
   }
 
-  const currentUser = users.find((u) => u.id === currentUserId) || null;
-  const visibleProjects = currentUser ? projects.filter((p) => canAccessProject(currentUser, p)) : [];
+  const visibleProjects = projects;
   const effectiveProjectId = visibleProjects.find((p) => p.id === activeProjectId) ? activeProjectId : (visibleProjects[0] && visibleProjects[0].id);
   const activeProject = projects.find((p) => p.id === effectiveProjectId) || null;
 
+  if (!sessionChecked) {
+    return <LoadingScreen />;
+  }
+
   if (!currentUser) {
-    return <LoginGate users={users} onSelect={attemptLogin} loginError={loginError} />;
+    return <LoginGate onLogin={handleLogin} loginError={loginError} />;
+  }
+
+  if (!projectsLoaded) {
+    return <LoadingScreen />;
   }
 
   if (!activeProject) {
-    return <NoAccessScreen user={currentUser} onLogout={() => setCurrentUserId(null)} />;
+    return <NoAccessScreen user={currentUser} onLogout={handleLogout} />;
   }
 
   const pid = activeProject.id;
@@ -446,53 +391,108 @@ export default function App() {
     reader.readAsDataURL(file);
   }
 
-  function addProject() {
-    const np = blankProject();
-    setProjects((prev) => [...prev, np]);
-    setActiveProjectId(np.id);
+  async function addProject() {
+    try {
+      const res = await apiPost('/api/projects');
+      setProjects((prev) => [...prev, res.project]);
+      setActiveProjectId(res.project.id);
+    } catch (e) {
+      console.error('Falha ao criar projeto', e);
+    }
   }
 
-  function addUser() {
-    const nu = { id: uid('user'), name: 'Novo usuário', email: '', role: 'cliente', cnpj: '', allowedCnpjs: [], blocked: false, blockReason: '', expiresAt: '' };
-    setUsers((prev) => [...prev, nu]);
-    addUsersLog(`Usuário criado: ${nu.name}`);
+  async function loadUsers() {
+    try {
+      const res = await apiGet('/api/users');
+      setUsers(res.users);
+      setUsersPanelError('');
+    } catch (e) {
+      setUsersPanelError(e.message);
+    }
   }
 
-  function updateUser(id, patch) {
-    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)));
+  async function addUser(draft) {
+    try {
+      const res = await apiPost('/api/users', draft);
+      setUsers((prev) => [...prev, res.user]);
+      addUsersLog(`Usuário criado: ${res.user.name}`);
+      setUsersPanelError('');
+    } catch (e) {
+      setUsersPanelError(e.message);
+    }
   }
 
-  function toggleUserBlock(id) {
+  async function updateUser(id, patch) {
+    try {
+      const res = await apiPatch(`/api/users/${id}`, patch);
+      setUsers((prev) => prev.map((u) => (u.id === id ? res.user : u)));
+      setUsersPanelError('');
+    } catch (e) {
+      setUsersPanelError(e.message);
+    }
+  }
+
+  async function toggleUserBlock(id) {
     const u = users.find((x) => x.id === id);
     if (!u) return;
     const nextBlocked = !u.blocked;
-    setUsers((prev) => prev.map((x) => (x.id === id ? { ...x, blocked: nextBlocked, blockReason: nextBlocked ? (x.blockReason || 'Bloqueado manualmente') : '' } : x)));
-    addUsersLog(nextBlocked ? `Usuário bloqueado: ${u.name}` : `Usuário desbloqueado: ${u.name}`);
+    try {
+      const res = await apiPost(`/api/users/${id}/block`, { blocked: nextBlocked, blockReason: u.blockReason });
+      setUsers((prev) => prev.map((x) => (x.id === id ? res.user : x)));
+      addUsersLog(nextBlocked ? `Usuário bloqueado: ${u.name}` : `Usuário desbloqueado: ${u.name}`);
+    } catch (e) {
+      setUsersPanelError(e.message);
+    }
   }
 
-  function renewUser(id, days) {
+  async function renewUser(id, days) {
     const u = users.find((x) => x.id === id);
     if (!u) return;
-    const newDate = toISODate(addDays(startOfDay(new Date()), days || 30));
-    setUsers((prev) => prev.map((x) => (x.id === id ? { ...x, expiresAt: newDate, blocked: false, blockReason: '' } : x)));
-    addUsersLog(`Acesso renovado: ${u.name} até ${fmtDate(newDate)}`);
+    try {
+      const res = await apiPost(`/api/users/${id}/renew`, { days: days || 30 });
+      setUsers((prev) => prev.map((x) => (x.id === id ? res.user : x)));
+      addUsersLog(`Acesso renovado: ${u.name} até ${fmtDate(res.user.expiresAt)}`);
+    } catch (e) {
+      setUsersPanelError(e.message);
+    }
   }
 
-  function toggleUserCnpj(id, cnpj) {
-    setUsers((prev) => prev.map((u) => {
-      if (u.id !== id) return u;
-      const has = (u.allowedCnpjs || []).includes(cnpj);
-      return { ...u, allowedCnpjs: has ? u.allowedCnpjs.filter((c) => c !== cnpj) : [...(u.allowedCnpjs || []), cnpj] };
-    }));
+  async function toggleUserCnpj(id, cnpj) {
+    const u = users.find((x) => x.id === id);
+    if (!u) return;
+    const has = (u.allowedCnpjs || []).includes(cnpj);
+    const nextList = has ? u.allowedCnpjs.filter((c) => c !== cnpj) : [...(u.allowedCnpjs || []), cnpj];
+    try {
+      const res = await apiPatch(`/api/users/${id}`, { allowedCnpjs: nextList });
+      setUsers((prev) => prev.map((x) => (x.id === id ? res.user : x)));
+    } catch (e) {
+      setUsersPanelError(e.message);
+    }
   }
 
-  function deleteUser(id) {
-    if (id === currentUserId) return;
+  async function resetUserPassword(id, newPassword) {
+    try {
+      await apiPost(`/api/users/${id}/reset-password`, { newPassword });
+      const u = users.find((x) => x.id === id);
+      addUsersLog(`Senha redefinida: ${u ? u.name : id}`);
+      setUsersPanelError('');
+    } catch (e) {
+      setUsersPanelError(e.message);
+    }
+  }
+
+  async function deleteUser(id) {
+    if (id === currentUser.id) return;
     const target = users.find((u) => u.id === id);
     const masters = users.filter((u) => u.role === 'master');
     if (target && target.role === 'master' && masters.length <= 1) return;
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-    if (target) addUsersLog(`Usuário removido: ${target.name}`);
+    try {
+      await apiDelete(`/api/users/${id}`);
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+      if (target) addUsersLog(`Usuário removido: ${target.name}`);
+    } catch (e) {
+      setUsersPanelError(e.message);
+    }
   }
 
   function exportExcel() {
@@ -539,11 +539,11 @@ export default function App() {
       <style>{`
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
-        input[type=text], input[type=date], input[type=email], select, textarea {
+        input[type=text], input[type=date], input[type=email], input[type=password], select, textarea {
           background:#1c1c1c; border:1px solid #333; color:#eee; border-radius:6px;
           padding:6px 8px; font-size:12.5px; width:100%;
         }
-        input[type=text]:focus, input[type=date]:focus, input[type=email]:focus, select:focus, textarea:focus {
+        input[type=text]:focus, input[type=date]:focus, input[type=email]:focus, input[type=password]:focus, select:focus, textarea:focus {
           outline:none; border-color:#F5C400;
         }
         input[type=checkbox]{ accent-color:#F5C400; width:15px; height:15px; }
@@ -581,7 +581,7 @@ export default function App() {
           <div style={S.userBadge}>
             <span style={{ ...S.roleTag, color: ROLE_META[currentUser.role].color, borderColor: ROLE_META[currentUser.role].color }}>{ROLE_META[currentUser.role].label}</span>
             <span style={S.userName}>{currentUser.name}</span>
-            <button style={S.iconBtnGhost} title="Sair" onClick={() => setCurrentUserId(null)}><LogOut size={15} /></button>
+            <button style={S.iconBtnGhost} title="Sair" onClick={handleLogout}><LogOut size={15} /></button>
           </div>
         </div>
       </div>
@@ -739,6 +739,7 @@ export default function App() {
       {showUsers && currentUser.role === 'master' && (
         <SidePanel title="Usuários e permissões" onClose={() => setShowUsers(false)}>
           <div style={S.emptyMuted}>Master vê tudo. PRICETAX vê só os clientes marcados abaixo. Cliente vê só o projeto do CNPJ vinculado a ele.</div>
+          {usersPanelError && <div style={S.loginBlockedMsg}>{usersPanelError}</div>}
           <div style={{ marginTop: 16 }}>
             {users.map((u) => (
               <div key={u.id} style={S.userEditCard}>
@@ -750,6 +751,7 @@ export default function App() {
                     <option value="cliente">Cliente</option>
                   </select>
                 </div>
+                <input type="text" value={u.username} onChange={(e) => updateUser(u.id, { username: e.target.value })} placeholder="Usuário (login)" style={{ marginTop: 6 }} />
                 <input type="email" value={u.email} onChange={(e) => updateUser(u.id, { email: e.target.value })} placeholder="email@pricetax.com.br" style={{ marginTop: 6 }} />
 
                 {u.role === 'cliente' && (
@@ -782,7 +784,7 @@ export default function App() {
                 <div style={S.accessBlock}>
                   <div style={S.settingsLabel}>Acesso</div>
                   <label style={S.cnpjCheckRow}>
-                    <input type="checkbox" checked={!!u.blocked} onChange={() => toggleUserBlock(u.id)} disabled={u.id === currentUserId} />
+                    <input type="checkbox" checked={!!u.blocked} onChange={() => toggleUserBlock(u.id)} disabled={u.id === currentUser.id} />
                     Bloqueado
                   </label>
                   {u.blocked && (
@@ -798,15 +800,19 @@ export default function App() {
                       <button style={S.renewBtn} onClick={() => renewUser(u.id, 30)}>Renovar por +30 dias</button>
                     </div>
                   )}
+                  <div style={{ marginTop: 8 }}>
+                    <div style={S.fieldHint}>Redefinir senha</div>
+                    <UserPasswordReset onReset={(pwd) => resetUserPassword(u.id, pwd)} />
+                  </div>
                 </div>
 
-                <button style={{ ...S.iconBtnGhost, marginTop: 8 }} onClick={() => deleteUser(u.id)} disabled={u.id === currentUserId}>
-                  <Trash2 size={13} color={u.id === currentUserId ? '#444' : '#888'} /> {u.id === currentUserId ? ' (é você)' : ' Remover usuário'}
+                <button style={{ ...S.iconBtnGhost, marginTop: 8 }} onClick={() => deleteUser(u.id)} disabled={u.id === currentUser.id}>
+                  <Trash2 size={13} color={u.id === currentUser.id ? '#444' : '#888'} /> {u.id === currentUser.id ? ' (é você)' : ' Remover usuário'}
                 </button>
               </div>
             ))}
           </div>
-          <button style={{ ...S.iconBtn, marginTop: 4 }} onClick={addUser}><Plus size={14} /> Novo usuário</button>
+          <NewUserForm onCreate={addUser} />
 
           <div style={{ ...S.settingsBlock, marginTop: 28, paddingTop: 16, borderTop: '1px solid #262626' }}>
             <div style={S.settingsLabel}>Histórico de usuários</div>
@@ -843,37 +849,96 @@ export default function App() {
   );
 }
 
-function LoginGate({ users, onSelect, loginError }) {
+function LoadingScreen() {
   return (
     <div style={S.page}>
-      <style>{`* { box-sizing: border-box; } input, select, textarea, button { font-family: 'Inter', sans-serif; }`}</style>
       <div style={S.loginWrap}>
         <div style={S.loginBox}>
-          <div style={S.loginEyebrow}>PRICETAX · Cronograma de Reforma Tributária</div>
-          <h1 style={S.loginTitle}>Entrar como</h1>
-          <p style={S.loginSub}>Escolha o usuário para simular o acesso. Isto separa o que cada papel vê — não é um login protegido por senha.</p>
+          <img src={pricetaxLogoBranco} alt="PriceTax" style={S.loginLogo} />
+          <div style={S.loginSub}>Carregando...</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LoginGate({ onLogin, loginError }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!username || !password || submitting) return;
+    setSubmitting(true);
+    await onLogin(username, password);
+    setSubmitting(false);
+  }
+
+  return (
+    <div style={S.page}>
+      <style>{`
+        * { box-sizing: border-box; }
+        input, select, textarea, button { font-family: 'Inter', sans-serif; }
+        input[type=text], input[type=password] {
+          background:#1c1c1c; border:1px solid #333; color:#eee; border-radius:6px;
+          padding:9px 10px; font-size:13px; width:100%;
+        }
+        input[type=text]:focus, input[type=password]:focus { outline:none; border-color:#F5C400; }
+      `}</style>
+      <div style={S.loginWrap}>
+        <div style={S.loginBox}>
+          <img src={pricetaxLogoBranco} alt="PriceTax" style={S.loginLogo} />
+          <div style={S.loginEyebrow}>Cronograma de Reforma Tributária</div>
+          <h1 style={S.loginTitle}>Entrar</h1>
+          <p style={S.loginSub}>Use seu usuário e senha para acessar o cronograma.</p>
           {loginError && (
             <div style={S.loginBlockedMsg}>{loginError.message}</div>
           )}
-          <div style={S.loginList}>
-            {users.map((u) => (
-              <button key={u.id} style={S.loginCard} onClick={() => onSelect(u.id)}>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <span style={{ ...S.roleTag, color: ROLE_META[u.role].color, borderColor: ROLE_META[u.role].color }}>{ROLE_META[u.role].label}</span>
-                  {u.blocked && <span style={S.loginBlockedTag}>Bloqueado</span>}
-                </div>
-                <div style={S.loginName}>{u.name}</div>
-                <div style={S.loginMeta}>
-                  {u.role === 'cliente' && (u.cnpj ? `CNPJ ${u.cnpj}` : 'CNPJ não vinculado ainda')}
-                  {u.role === 'pricetax' && `${(u.allowedCnpjs || []).length} cliente(s) liberado(s)`}
-                  {u.role === 'master' && 'Acesso a todos os projetos'}
-                  {u.expiresAt && !u.blocked && ` · válido até ${fmtDate(u.expiresAt)}`}
-                </div>
-              </button>
-            ))}
-          </div>
+          <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <input type="text" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Usuário" autoComplete="username" />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" autoComplete="current-password" />
+            <button type="submit" style={S.primaryBtn} disabled={submitting}>{submitting ? 'Entrando...' : 'Entrar'}</button>
+          </form>
         </div>
       </div>
+    </div>
+  );
+}
+
+function NewUserForm({ onCreate }) {
+  const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente' });
+
+  function submit() {
+    if (!draft.username || !draft.password || !draft.name) return;
+    onCreate(draft);
+    setDraft({ username: '', password: '', name: '', role: 'cliente' });
+  }
+
+  return (
+    <div style={S.userEditCard}>
+      <div style={S.settingsLabel}>Novo usuário</div>
+      <input type="text" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} placeholder="Nome" style={{ marginBottom: 6 }} />
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input type="text" value={draft.username} onChange={(e) => setDraft((d) => ({ ...d, username: e.target.value }))} placeholder="Usuário (login)" />
+        <select value={draft.role} onChange={(e) => setDraft((d) => ({ ...d, role: e.target.value }))} style={{ width: 150, flexShrink: 0 }}>
+          <option value="master">Master</option>
+          <option value="pricetax">PRICETAX</option>
+          <option value="cliente">Cliente</option>
+        </select>
+      </div>
+      <input type="password" value={draft.password} onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))} placeholder="Senha inicial" style={{ marginTop: 6 }} />
+      <button style={{ ...S.iconBtn, marginTop: 8 }} onClick={submit}><Plus size={14} /> Criar usuário</button>
+    </div>
+  );
+}
+
+function UserPasswordReset({ onReset }) {
+  const [pwd, setPwd] = useState('');
+  return (
+    <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+      <input type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="Nova senha" />
+      <button style={S.iconBtn} onClick={() => { if (pwd) { onReset(pwd); setPwd(''); } }}>Redefinir</button>
     </div>
   );
 }
@@ -1369,6 +1434,7 @@ const S = {
   // login
   loginWrap: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
   loginBox: { width: 'min(520px, 100%)' },
+  loginLogo: { height: 34, marginBottom: 18 },
   loginEyebrow: { fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: '#F5C400', marginBottom: 10 },
   loginTitle: { fontSize: 26, fontWeight: 900, marginBottom: 8 },
   loginSub: { fontSize: 13, color: '#999', lineHeight: 1.6, marginBottom: 24 },
