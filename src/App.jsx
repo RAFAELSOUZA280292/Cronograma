@@ -137,6 +137,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showPhases, setShowPhases] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
+  const [showCreateCompany, setShowCreateCompany] = useState(false);
   const [openActivityId, setOpenActivityId] = useState(null);
   const [newMember, setNewMember] = useState('');
   const [expanded, setExpanded] = useState({});
@@ -412,14 +413,10 @@ export default function App() {
     reader.readAsDataURL(file);
   }
 
-  async function addProject() {
-    try {
-      const res = await apiPost('/api/projects');
-      setProjects((prev) => [...prev, res.project]);
-      setActiveProjectId(res.project.id);
-    } catch (e) {
-      console.error('Falha ao criar projeto', e);
-    }
+  async function createCompany(company) {
+    const res = await apiPost('/api/projects', { company });
+    setProjects((prev) => [...prev, res.project]);
+    setActiveProjectId(res.project.id);
   }
 
   async function loadUsers() {
@@ -590,7 +587,9 @@ export default function App() {
           <button style={S.iconBtn} onClick={() => setShowSettings(true)}><Settings size={15} /> Empresa</button>
         </div>
         <div style={S.actionsRow}>
-          {currentUser.role === 'master' && <button style={S.iconBtn} onClick={addProject}><Plus size={15} /> Novo projeto</button>}
+          {(currentUser.role === 'master' || currentUser.role === 'pricetax') && (
+            <button style={S.iconBtn} onClick={() => setShowCreateCompany(true)}><Plus size={15} /> Cadastrar empresa</button>
+          )}
           {currentUser.role === 'master' && <button style={S.iconBtn} onClick={() => setShowUsers(true)}><UserCog size={15} /> Usuários</button>}
           <button style={S.iconBtn} onClick={() => setShowPhases(true)}><LayoutGrid size={15} /> Fases</button>
           <button style={S.iconBtn} onClick={() => setShowLog(true)}><Clock size={15} /> Log ({(activeProject.log || []).length})</button>
@@ -701,6 +700,37 @@ export default function App() {
             <div style={S.fieldHint}>Alterar o CNPJ não atualiza sozinho quem já tem acesso — ajuste em "Usuários" se precisar.</div>
           </div>
 
+          {(activeProject.company.nomeFantasia || activeProject.company.regimeTributario) && (
+            <div style={S.settingsBlock}>
+              <div style={S.settingsLabel}>Dados da Receita Federal</div>
+              <div style={S.cnpjFetchGrid}>
+                <div><div style={S.fieldHint}>Nome fantasia</div><strong>{activeProject.company.nomeFantasia || '—'}</strong></div>
+                <div><div style={S.fieldHint}>Regime tributário</div><strong>{activeProject.company.regimeTributario || '—'}</strong></div>
+                <div><div style={S.fieldHint}>Porte</div><strong>{activeProject.company.porte || '—'}</strong></div>
+                <div><div style={S.fieldHint}>UF / Município</div><strong>{[activeProject.company.uf, activeProject.company.municipio].filter(Boolean).join(' — ') || '—'}</strong></div>
+                <div style={{ gridColumn: '1 / -1' }}><div style={S.fieldHint}>CNAE principal</div><strong>{activeProject.company.cnaePrincipal ? `${activeProject.company.cnaePrincipal} — ${activeProject.company.descricaoCnae}` : '—'}</strong></div>
+              </div>
+
+              {(activeProject.company.cnaesSecundarios || []).length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={S.fieldHint}>CNAEs secundários</div>
+                  {activeProject.company.cnaesSecundarios.map((c) => (
+                    <div key={c.codigo} style={S.cnpjListRow}>{c.codigo} — {c.descricao}</div>
+                  ))}
+                </div>
+              )}
+
+              {(activeProject.company.qsa || []).length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={S.fieldHint}>Quadro societário</div>
+                  {activeProject.company.qsa.map((s, i) => (
+                    <div key={i} style={S.cnpjListRow}>{s.nome} <span style={{ opacity: .6 }}>— {s.qualificacao}</span></div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={S.settingsBlock}>
             <div style={S.settingsLabel}>Áreas e responsáveis do cliente</div>
             {(activeProject.company.areas || []).map((row) => (
@@ -771,6 +801,13 @@ export default function App() {
           removeAttachment={removeAttachment}
           addComment={addComment}
           removeComment={removeComment}
+        />
+      )}
+
+      {showCreateCompany && (
+        <CreateCompanyModal
+          onClose={() => setShowCreateCompany(false)}
+          onCreate={async (company) => { await createCompany(company); setShowCreateCompany(false); }}
         />
       )}
     </div>
@@ -1109,6 +1146,131 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
         <button style={{ ...S.iconBtnGhost, marginTop: 14 }} onClick={() => onDelete(u.id)} disabled={isSelf}>
           <Trash2 size={13} color={isSelf ? '#444' : '#888'} /> {isSelf ? ' (é você)' : ' Remover usuário'}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function CreateCompanyModal({ onClose, onCreate }) {
+  const [cnpj, setCnpj] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [fetched, setFetched] = useState(null);
+  const [form, setForm] = useState({ name: '', nomeFantasia: '' });
+
+  async function buscar() {
+    if (!cnpj.trim()) return;
+    setLoading(true);
+    setError('');
+    setFetched(null);
+    try {
+      const res = await apiPost('/api/cnpj/lookup', { cnpj });
+      if (res.erro) {
+        setError(res.erro);
+        setForm({ name: '', nomeFantasia: '' });
+      } else {
+        setFetched(res);
+        setForm({ name: res.razaoSocial || '', nomeFantasia: res.nomeFantasia || '' });
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submit() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      await onCreate({
+        cnpj: (fetched && fetched.cnpjFormatado) || cnpj,
+        name: form.name,
+        nomeFantasia: form.nomeFantasia,
+        regimeTributario: fetched ? fetched.regimeTributario : '',
+        porte: fetched ? fetched.porte : '',
+        uf: fetched ? fetched.uf : '',
+        municipio: fetched ? fetched.municipio : '',
+        cnaePrincipal: fetched ? fetched.cnaePrincipal : '',
+        descricaoCnae: fetched ? fetched.descricaoCnae : '',
+        cnaesSecundarios: fetched ? fetched.cnaesSecundarios : [],
+        qsa: fetched ? fetched.qsa : [],
+      });
+    } catch (e) {
+      setError(e.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={S.detailOverlay} onClick={onClose}>
+      <div style={{ ...S.detailBox, width: 'min(560px, 100%)', height: 'auto', maxHeight: '88vh' }} onClick={(e) => e.stopPropagation()}>
+        <div style={S.detailTopBar}>
+          <div style={{ fontSize: 17, fontWeight: 800 }}>Cadastrar empresa</div>
+          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <div style={S.subSectionLabel}>CNPJ</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            type="text"
+            value={cnpj}
+            onChange={(e) => setCnpj(e.target.value)}
+            placeholder="00.000.000/0000-00"
+            onKeyDown={(e) => e.key === 'Enter' && buscar()}
+          />
+          <button style={{ ...S.iconBtn, flexShrink: 0 }} onClick={buscar} disabled={loading}>
+            {loading ? 'Buscando...' : 'Buscar dados'}
+          </button>
+        </div>
+        <div style={S.fieldHint}>Buscamos automaticamente na Receita Federal: razão social, nome fantasia, regime tributário, porte, CNAEs e sócios.</div>
+
+        {error && <div style={{ ...S.loginBlockedMsg, marginTop: 12 }}>{error}</div>}
+
+        {(fetched || error) && (
+          <>
+            <div style={S.subSectionLabel}>Razão social</div>
+            <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Razão social" />
+
+            <div style={S.subSectionLabel}>Nome fantasia</div>
+            <input type="text" value={form.nomeFantasia} onChange={(e) => setForm((f) => ({ ...f, nomeFantasia: e.target.value }))} placeholder="Nome fantasia" />
+
+            {fetched && (
+              <div style={S.accessBlock}>
+                <div style={S.settingsLabel}>Dados da Receita</div>
+                <div style={S.cnpjFetchGrid}>
+                  <div><div style={S.fieldHint}>Regime tributário</div><strong>{fetched.regimeTributario}</strong></div>
+                  <div><div style={S.fieldHint}>Porte</div><strong>{fetched.porte || '—'}</strong></div>
+                  <div><div style={S.fieldHint}>UF / Município</div><strong>{[fetched.uf, fetched.municipio].filter(Boolean).join(' — ') || '—'}</strong></div>
+                  <div><div style={S.fieldHint}>CNAE principal</div><strong>{fetched.cnaePrincipal ? `${fetched.cnaePrincipal} — ${fetched.descricaoCnae}` : '—'}</strong></div>
+                </div>
+
+                {fetched.cnaesSecundarios && fetched.cnaesSecundarios.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={S.fieldHint}>CNAEs secundários</div>
+                    {fetched.cnaesSecundarios.map((c) => (
+                      <div key={c.codigo} style={S.cnpjListRow}>{c.codigo} — {c.descricao}</div>
+                    ))}
+                  </div>
+                )}
+
+                {fetched.qsa && fetched.qsa.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={S.fieldHint}>Quadro societário</div>
+                    {fetched.qsa.map((s, i) => (
+                      <div key={i} style={S.cnpjListRow}>{s.nome} <span style={{ opacity: .6 }}>— {s.qualificacao}</span></div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={saving || !form.name.trim()}>
+              {saving ? 'Criando...' : 'Criar empresa'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1757,4 +1919,8 @@ const S = {
   usersRowEmail: { flex: 2, minWidth: 0, fontSize: 12.5, color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   usersStatusActive: { fontSize: 11, fontWeight: 700, color: '#3ecf6e', background: 'rgba(62,207,110,.12)', border: '1px solid rgba(62,207,110,.4)', borderRadius: 999, padding: '3px 9px' },
   usersStatusBlocked: { fontSize: 11, fontWeight: 700, color: '#e2574c', background: 'rgba(226,87,76,.12)', border: '1px solid rgba(226,87,76,.4)', borderRadius: 999, padding: '3px 9px' },
+
+  // cnpj lookup
+  cnpjFetchGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px', fontSize: 12.5, color: '#ddd' },
+  cnpjListRow: { fontSize: 12.5, color: '#ccc', padding: '4px 0', borderBottom: '1px solid #202020' },
 };

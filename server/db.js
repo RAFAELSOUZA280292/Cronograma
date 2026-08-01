@@ -110,6 +110,13 @@ export async function initDb() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS cnpj_cache (
+      cnpj       TEXT PRIMARY KEY,
+      data       JSONB NOT NULL,
+      fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
 }
 
 export async function seedIfEmpty() {
