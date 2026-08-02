@@ -3,13 +3,27 @@ import {
   Plus, Trash2, Download, Upload, Clock, LayoutGrid, Columns3, Building2,
   Users, X, Check, ChevronDown, FileSpreadsheet, FileText, Settings,
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
-  LogOut, UserCog, AlertTriangle
+  LogOut, UserCog, AlertTriangle, Sun, Moon
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from './lib/api.js';
 import pricetaxLogoBranco from './assets/brand/pricetax-logo-branco.png';
+import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
+const THEME_KEY = 'pricetax-cronograma-theme';
+
+function BrandLogo({ theme, style }) {
+  return <img src={theme === 'light' ? pricetaxLogoPreto : pricetaxLogoBranco} alt="PriceTax" style={style} />;
+}
+
+function ThemeToggleBtn({ theme, onToggle, style }) {
+  return (
+    <button style={style || S.iconBtnGhost} title={theme === 'light' ? 'Mudar para modo escuro' : 'Mudar para modo claro'} onClick={onToggle}>
+      {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
+    </button>
+  );
+}
 
 const PHASE_COLORS = ['#F5C400', '#3ea6ff', '#3ecf6e', '#e2574c', '#b98af5', '#ff9f40'];
 
@@ -27,7 +41,7 @@ const AVATAR_EMOJIS = [
 ];
 
 const STATUS_META = {
-  'nao-iniciado': { label: 'Não iniciado', color: '#9a9a9a', bg: '#262626', border: '#3a3a3a' },
+  'nao-iniciado': { label: 'Não iniciado', color: 'var(--text-4)', bg: 'var(--border-1)', border: 'var(--border-3)' },
   'em-andamento': { label: 'Em andamento', color: '#F5C400', bg: 'rgba(245,196,0,.14)', border: 'rgba(245,196,0,.5)' },
   'concluido': { label: 'Concluído', color: '#3ecf6e', bg: 'rgba(62,207,110,.14)', border: 'rgba(62,207,110,.5)' },
 };
@@ -166,6 +180,15 @@ function buildOrderMap(sortedList) {
 }
 
 export default function App() {
+  const [theme, setTheme] = useState(() => {
+    try { return window.localStorage.getItem(THEME_KEY) || 'dark'; } catch (e) { return 'dark'; }
+  });
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { window.localStorage.setItem(THEME_KEY, theme); } catch (e) { /* ignora */ }
+  }, [theme]);
+  function toggleTheme() { setTheme((t) => (t === 'light' ? 'dark' : 'light')); }
+
   const [sessionChecked, setSessionChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [projects, setProjects] = useState([]);
@@ -300,15 +323,15 @@ export default function App() {
   }
 
   if (!sessionChecked) {
-    return <LoadingScreen />;
+    return <LoadingScreen theme={theme} />;
   }
 
   if (!currentUser) {
-    return <LoginGate onLogin={handleLogin} loginError={loginError} />;
+    return <LoginGate onLogin={handleLogin} loginError={loginError} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   if (!projectsLoaded) {
-    return <LoadingScreen />;
+    return <LoadingScreen theme={theme} />;
   }
 
   const registeredProjects = projects.filter((p) => p.company.cnpj);
@@ -323,6 +346,8 @@ export default function App() {
           onConfirm={(ids) => { setSelectedProjectIds(ids); setCompanySelectionConfirmed(true); }}
           onLogout={handleLogout}
           onCreateNew={() => setShowCreateCompany(true)}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
         {showCreateCompany && (
           <CreateCompanyModal
@@ -353,6 +378,8 @@ export default function App() {
         onResetPassword={resetUserPassword}
         onDeleteUser={deleteUser}
         onToggleCnpj={toggleUserCnpj}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
     );
   }
@@ -362,7 +389,7 @@ export default function App() {
   const activeProject = selectedProjects.length === 1 ? selectedProjects[0] : null;
 
   if (!activeProject && !isMulti) {
-    return <NoAccessScreen user={currentUser} onLogout={handleLogout} />;
+    return <NoAccessScreen user={currentUser} onLogout={handleLogout} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   const pid = activeProject ? activeProject.id : null;
@@ -702,7 +729,7 @@ export default function App() {
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
         input[type=text], input[type=date], input[type=email], input[type=password], input[type=number], select, textarea {
-          background:#1c1c1c; border:1px solid #333; color:#eee; border-radius:6px;
+          background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
           padding:6px 8px; font-size:12.5px; width:100%;
         }
         input[type=text]:focus, input[type=date]:focus, input[type=email]:focus, input[type=password]:focus, input[type=number]:focus, select:focus, textarea:focus {
@@ -712,7 +739,7 @@ export default function App() {
         input[type=number] { -moz-appearance: textfield; }
         input[type=checkbox]{ accent-color:#F5C400; width:15px; height:15px; }
         ::-webkit-scrollbar{ height:8px; width:8px; }
-        ::-webkit-scrollbar-thumb{ background:#333; border-radius:4px; }
+        ::-webkit-scrollbar-thumb{ background:var(--border-3); border-radius:4px; }
         @media print {
           .no-print { display:none !important; }
           body, .page-root { background:#fff !important; color:#111 !important; }
@@ -728,8 +755,8 @@ export default function App() {
                 <div style={S.brandName}>Visão geral — {selectedProjects.length} empresas</div>
                 <div style={S.multiCompanyChips}>
                   {selectedProjects.map((p) => (
-                    <span key={p.id} style={{ ...S.multiCompanyChip, borderColor: p.company.color || '#333' }}>
-                      <span style={{ ...S.companyColorDot, background: p.company.color || '#555' }} />
+                    <span key={p.id} style={{ ...S.multiCompanyChip, borderColor: p.company.color || 'var(--border-3)' }}>
+                      <span style={{ ...S.companyColorDot, background: p.company.color || 'var(--text-8)' }} />
                       {p.company.name || 'Sem nome'}
                     </span>
                   ))}
@@ -755,7 +782,7 @@ export default function App() {
             <button style={S.iconBtn} onClick={() => setShowCreateCompany(true)}><Plus size={15} /> Cadastrar empresa</button>
           )}
           {currentUser.role === 'master' && <button style={S.iconBtn} onClick={() => setShowUsers(true)}><UserCog size={15} /> Usuários</button>}
-          {!isMulti && (
+          {!isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); }}><LayoutGrid size={15} /> Fases</button>
           )}
           {!isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
@@ -775,6 +802,7 @@ export default function App() {
           ) : (
             <button style={S.primaryBtn} onClick={() => addActivity(activeProject.id)}><Plus size={15} /> Nova atividade</button>
           )}
+          <ThemeToggleBtn theme={theme} onToggle={toggleTheme} />
           <div style={S.userBadge}>
             <button style={S.userAvatarBtn} title="Meu perfil" onClick={() => setShowMyProfile(true)}>
               <UserAvatar user={currentUser} size={26} />
@@ -925,7 +953,7 @@ export default function App() {
           <div style={S.settingsBlock}>
             <div style={S.settingsLabel}>Logotipo do cliente</div>
             <div style={S.logoRow}>
-              {activeProject.company.logo ? <img src={activeProject.company.logo} alt="logo" style={S.logoPreview} /> : <div style={S.logoPreviewEmpty}><Building2 size={22} color="#666" /></div>}
+              {activeProject.company.logo ? <img src={activeProject.company.logo} alt="logo" style={S.logoPreview} /> : <div style={S.logoPreviewEmpty}><Building2 size={22} color="var(--text-7)" /></div>}
               <button style={S.iconBtn} onClick={() => fileInputRef.current && fileInputRef.current.click()}><Upload size={14} /> Enviar logo</button>
               <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} />
             </div>
@@ -1014,7 +1042,7 @@ export default function App() {
         </SidePanel>
       )}
 
-      {showPhases && (() => {
+      {showPhases && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (() => {
         const target = projects.find((p) => p.id === phasesEditingProjectId);
         if (!target) return null;
         return (
@@ -1035,7 +1063,7 @@ export default function App() {
                     onDragStart={() => setDragPhaseId(p.id)}
                     onDragEnd={() => setDragPhaseId(null)}
                   >
-                    <GripVertical size={15} color="#666" />
+                    <GripVertical size={15} color="var(--text-7)" />
                   </div>
                   <input type="color" value={p.color} onChange={(e) => updatePhase(p.id, { color: e.target.value }, `Cor da fase "${p.name}" alterada`)} style={S.colorInput} />
                   <div style={{ flex: 1 }}>
@@ -1043,7 +1071,7 @@ export default function App() {
                     <input type="text" value={p.sub} onChange={(e) => updatePhase(p.id, { sub: e.target.value })} onBlur={() => addLog(phasesEditingProjectId, `Descrição da fase "${p.name}" alterada`)} placeholder="Descrição curta" style={{ marginTop: 6, opacity: .85 }} />
                   </div>
                   <button style={S.iconBtnGhost} onClick={() => deletePhase(p.id)} disabled={target.phases.length <= 1} title={target.phases.length <= 1 ? 'Deixe pelo menos uma fase' : 'Excluir fase'}>
-                    <Trash2 size={14} color={target.phases.length <= 1 ? '#444' : '#888'} />
+                    <Trash2 size={14} color={target.phases.length <= 1 ? 'var(--text-8)' : 'var(--text-5)'} />
                   </button>
                 </div>
               ))}
@@ -1101,12 +1129,12 @@ export default function App() {
   );
 }
 
-function LoadingScreen() {
+function LoadingScreen({ theme }) {
   return (
     <div style={S.page}>
       <div style={S.loginWrap}>
         <div style={S.loginBox}>
-          <img src={pricetaxLogoBranco} alt="PriceTax" style={S.loginLogo} />
+          <BrandLogo theme={theme} style={S.loginLogo} />
           <div style={S.loginSub}>Carregando...</div>
         </div>
       </div>
@@ -1114,7 +1142,7 @@ function LoadingScreen() {
   );
 }
 
-function LoginGate({ onLogin, loginError }) {
+function LoginGate({ onLogin, loginError, theme, onToggleTheme }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -1133,14 +1161,17 @@ function LoginGate({ onLogin, loginError }) {
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
         input[type=text], input[type=password] {
-          background:#1c1c1c; border:1px solid #333; color:#eee; border-radius:6px;
+          background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
           padding:9px 10px; font-size:13px; width:100%;
         }
         input[type=text]:focus, input[type=password]:focus { outline:none; border-color:#F5C400; }
       `}</style>
+      <div style={S.themeToggleCorner}>
+        <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
+      </div>
       <div style={S.loginWrap}>
         <div style={S.loginBox}>
-          <img src={pricetaxLogoBranco} alt="PriceTax" style={S.loginLogo} />
+          <BrandLogo theme={theme} style={S.loginLogo} />
           <div style={S.loginEyebrow}>Cronograma de Reforma Tributária</div>
           <h1 style={S.loginTitle}>Entrar</h1>
           <p style={S.loginSub}>Use seu usuário e senha para acessar o cronograma.</p>
@@ -1171,6 +1202,7 @@ function UserPasswordReset({ onReset }) {
 function UsersManagementScreen({
   users, currentUser, registeredProjects, usersPanelError,
   onClose, onCreateUser, onUpdateUser, onToggleBlock, onRenew, onResetPassword, onDeleteUser, onToggleCnpj,
+  theme, onToggleTheme,
 }) {
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('all');
@@ -1201,7 +1233,7 @@ function UsersManagementScreen({
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
         input[type=text], input[type=date], input[type=email], input[type=password], select, textarea {
-          background:#1c1c1c; border:1px solid #333; color:#eee; border-radius:6px;
+          background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
           padding:8px 10px; font-size:13px; width:100%;
         }
         input[type=text]:focus, input[type=date]:focus, input[type=email]:focus, input[type=password]:focus, select:focus, textarea:focus {
@@ -1217,7 +1249,8 @@ function UsersManagementScreen({
             <div style={S.usersHeaderSub}>Logado como <strong>{currentUser.username}</strong> · {total} usuário{total === 1 ? '' : 's'}</div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} style={S.iconBtn} />
           <button style={S.primaryBtn} onClick={() => setShowCreate(true)}><Plus size={14} /> Novo usuário</button>
           <button style={S.iconBtn} onClick={onClose}><X size={14} /> Voltar ao cronograma</button>
         </div>
@@ -1285,7 +1318,7 @@ function UsersManagementScreen({
               <div style={{ width: 100 }}>
                 {u.blocked ? <span style={S.usersStatusBlocked}>Bloqueado</span> : <span style={S.usersStatusActive}>Ativo</span>}
               </div>
-              <div style={{ width: 110, fontSize: 12.5, color: isExpiredNotYetFlagged(u) ? '#e2574c' : '#bbb' }}>
+              <div style={{ width: 110, fontSize: 12.5, color: isExpiredNotYetFlagged(u) ? '#e2574c' : 'var(--text-3)' }}>
                 {u.expiresAt ? fmtDate(u.expiresAt) : 'Sem limite'}
               </div>
               <div style={{ width: 80, display: 'flex', gap: 2, justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
@@ -1296,7 +1329,7 @@ function UsersManagementScreen({
                   onClick={() => onToggleBlock(u.id)}
                   disabled={u.id === currentUser.id}
                 >
-                  {u.blocked ? <Check size={14} color="#3ecf6e" /> : <Trash2 size={14} color={u.id === currentUser.id ? '#444' : '#e2574c'} />}
+                  {u.blocked ? <Check size={14} color="#3ecf6e" /> : <Trash2 size={14} color={u.id === currentUser.id ? 'var(--text-8)' : '#e2574c'} />}
                 </button>
               </div>
             </div>
@@ -1455,7 +1488,7 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
         </div>
 
         <button style={{ ...S.iconBtnGhost, marginTop: 14 }} onClick={() => onDelete(u.id)} disabled={isSelf}>
-          <Trash2 size={13} color={isSelf ? '#444' : '#888'} /> {isSelf ? ' (é você)' : ' Remover usuário'}
+          <Trash2 size={13} color={isSelf ? 'var(--text-8)' : 'var(--text-5)'} /> {isSelf ? ' (é você)' : ' Remover usuário'}
         </button>
       </div>
     </div>
@@ -1557,7 +1590,7 @@ function CreateCompanyModal({ onClose, onCreate }) {
     <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif" }} onClick={onClose}>
       <style>{`
         input[type=text], input[type=email], input[type=password], select, textarea {
-          background:#1c1c1c; border:1px solid #333; color:#eee; border-radius:6px;
+          background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
           padding:6px 8px; font-size:12.5px; width:100%; font-family:'Inter', sans-serif;
         }
         input[type=text]:focus, input[type=email]:focus, input[type=password]:focus, select:focus, textarea:focus {
@@ -1603,7 +1636,7 @@ function CreateCompanyModal({ onClose, onCreate }) {
 
             <div style={S.subSectionLabel}>Logotipo</div>
             <div style={S.logoRow}>
-              {form.logo ? <img src={form.logo} alt="logo" style={S.logoPreview} /> : <div style={S.logoPreviewEmpty}><Building2 size={22} color="#666" /></div>}
+              {form.logo ? <img src={form.logo} alt="logo" style={S.logoPreview} /> : <div style={S.logoPreviewEmpty}><Building2 size={22} color="var(--text-7)" /></div>}
               <label style={S.iconBtn}><Upload size={14} /> Enviar logo
                 <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoPick} />
               </label>
@@ -1650,13 +1683,13 @@ function CreateCompanyModal({ onClose, onCreate }) {
 }
 
 function UserAvatar({ user, size = 32 }) {
-  const color = ROLE_META[user.role]?.color || '#888';
+  const color = ROLE_META[user.role]?.color || 'var(--text-5)';
   const initial = (user.name || user.username || '?').slice(0, 1).toUpperCase();
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%', flexShrink: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: user.avatar ? '#1c1c1c' : `${color}2a`,
+      background: user.avatar ? 'var(--bg-4)' : `${color}2a`,
       border: `1px solid ${color}55`,
       fontSize: size * 0.55,
       fontWeight: 800,
@@ -1688,7 +1721,7 @@ function AvatarPicker({ value, onChange }) {
 function CompanyBadge({ name, color, logo, small }) {
   return (
     <div style={small ? S.companyBadgeSmall : S.companyBadge}>
-      {logo ? <img src={logo} alt="" style={S.companyBadgeLogo} /> : <span style={{ ...S.companyColorDot, background: color || '#555' }} />}
+      {logo ? <img src={logo} alt="" style={S.companyBadgeLogo} /> : <span style={{ ...S.companyColorDot, background: color || 'var(--text-8)' }} />}
       <span style={S.companyBadgeName}>{name}</span>
     </div>
   );
@@ -1698,18 +1731,18 @@ function CompanySectionHeader({ project, onEditPhases }) {
   const c = project.company;
   return (
     <div style={S.companySectionHeader}>
-      {c.logo ? <img src={c.logo} alt="" style={S.companySectionLogo} /> : <div style={{ ...S.companySectionLogoEmpty, background: c.color || '#1c1c1c' }}><Building2 size={16} color="#111" /></div>}
+      {c.logo ? <img src={c.logo} alt="" style={S.companySectionLogo} /> : <div style={{ ...S.companySectionLogoEmpty, background: c.color || 'var(--bg-4)' }}><Building2 size={16} color="#111" /></div>}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={S.companySectionName}>{c.name || 'Empresa sem nome'}</div>
         <div style={S.companySectionCnpj}>{c.cnpj || 'CNPJ não informado'}</div>
       </div>
-      <span style={{ ...S.companyColorDot, background: c.color || '#555' }} />
+      <span style={{ ...S.companyColorDot, background: c.color || 'var(--text-8)' }} />
       <button style={S.iconBtnGhost} title="Editar fases desta empresa" onClick={onEditPhases}><LayoutGrid size={14} /></button>
     </div>
   );
 }
 
-function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew }) {
+function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, theme, onToggleTheme }) {
   const [selected, setSelected] = useState(() => new Set(initialSelected));
 
   function toggle(id) {
@@ -1734,8 +1767,11 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
       `}</style>
       <div style={S.companySelectorWrap}>
         <div style={S.companySelectorHeader}>
-          <img src={pricetaxLogoBranco} alt="PriceTax" style={{ ...S.loginLogo, marginBottom: 0 }} />
-          <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={16} /></button>
+          <BrandLogo theme={theme} style={{ ...S.loginLogo, marginBottom: 0 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
+            <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={16} /></button>
+          </div>
         </div>
         <h1 style={S.loginTitle}>Quais empresas você quer acompanhar?</h1>
         <p style={S.loginSub}>Escolha uma, várias, ou marque "Selecionar todas" pra ter a visão geral. Dá pra trocar depois clicando em "Trocar empresas".</p>
@@ -1753,14 +1789,14 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
             </label>
             <div style={S.companyList}>
               {projects.map((p) => (
-                <label key={p.id} style={{ ...S.companyCard, borderColor: selected.has(p.id) ? (p.company.color || '#F5C400') : '#2c2c2c' }}>
+                <label key={p.id} style={{ ...S.companyCard, borderColor: selected.has(p.id) ? (p.company.color || '#F5C400') : 'var(--border-2)' }}>
                   <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} />
-                  {p.company.logo ? <img src={p.company.logo} alt="" style={S.companyCardLogo} /> : <div style={{ ...S.companyCardLogoEmpty, background: p.company.color || '#1c1c1c' }}><Building2 size={16} color="#111" /></div>}
+                  {p.company.logo ? <img src={p.company.logo} alt="" style={S.companyCardLogo} /> : <div style={{ ...S.companyCardLogoEmpty, background: p.company.color || 'var(--bg-4)' }}><Building2 size={16} color="#111" /></div>}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={S.companyCardName}>{p.company.name || 'Empresa sem nome'}</div>
                     <div style={S.companyCardCnpj}>{p.company.cnpj || 'CNPJ não informado'}</div>
                   </div>
-                  <span style={{ ...S.companyColorDot, background: p.company.color || '#555' }} />
+                  <span style={{ ...S.companyColorDot, background: p.company.color || 'var(--text-8)' }} />
                 </label>
               ))}
             </div>
@@ -1775,9 +1811,12 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   );
 }
 
-function NoAccessScreen({ user, onLogout }) {
+function NoAccessScreen({ user, onLogout, theme, onToggleTheme }) {
   return (
     <div style={S.page}>
+      <div style={S.themeToggleCorner}>
+        <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
+      </div>
       <div style={S.loginWrap}>
         <div style={S.loginBox}>
           <span style={{ ...S.roleTag, color: ROLE_META[user.role].color, borderColor: ROLE_META[user.role].color }}>{ROLE_META[user.role].label}</span>
@@ -1952,7 +1991,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, pid, onClose
             <label htmlFor={`file-detail-${a.id}`} style={S.addSubBtn}><Upload size={12} /> Anexar arquivo</label>
             <input id={`file-detail-${a.id}`} type="file" style={{ display: 'none' }} onChange={(e) => { addAttachment(pid, a.id, e.target.files && e.target.files[0]); e.target.value = ''; }} />
 
-            <button style={{ ...S.iconBtn, marginTop: 20, color: '#e2574c', borderColor: '#4a2422' }} onClick={() => deleteActivity(pid, a.id)}><Trash2 size={14} /> Excluir atividade</button>
+            <button style={{ ...S.iconBtn, marginTop: 20, color: '#e2574c', borderColor: 'rgba(226,87,76,.35)' }} onClick={() => deleteActivity(pid, a.id)}><Trash2 size={14} /> Excluir atividade</button>
           </div>
         </div>
       </div>
@@ -2136,7 +2175,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
             const isOpen = !!expanded[`${rowPid}-${a.id}`];
             const subs = a.subactivities || [];
             const doneSubs = subs.filter((s) => s.done).length;
-            const phaseColor = phaseOf(a)?.color || '#888';
+            const phaseColor = phaseOf(a)?.color || 'var(--text-5)';
             const isDragging = dragActId === a.id;
 
             let rowShift = 0;
@@ -2172,7 +2211,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                     onMouseDown={(e) => startRowDrag(e, a.id)}
                     title={multiMode ? undefined : 'Arraste para reordenar (ajusta a data de início)'}
                   >
-                    <GripVertical size={14} color="#666" />
+                    <GripVertical size={14} color="var(--text-7)" />
                   </div>
                   <div style={{ width: 46, paddingTop: 6 }}><span style={S.monthBadgeSm}>#{rowOrder}</span></div>
                   {multiMode && (
@@ -2325,7 +2364,7 @@ function PhasesView({ activities, orderMap, phases, pid, updateActivity, openDet
       <div style={S.phasesSummaryCard}>
         <div style={S.phasesSummaryDonutWrap}>
           <svg viewBox="0 0 80 80" width="72" height="72">
-            <circle cx="40" cy="40" r="32" fill="none" stroke="#262626" strokeWidth="9" />
+            <circle cx="40" cy="40" r="32" fill="none" stroke="var(--border-1)" strokeWidth="9" />
             <circle
               cx="40" cy="40" r="32" fill="none" stroke={accent} strokeWidth="9" strokeLinecap="round"
               strokeDasharray={circumference}
@@ -2353,7 +2392,7 @@ function PhasesView({ activities, orderMap, phases, pid, updateActivity, openDet
             <div style={S.phasesSummaryStatLabel}>Dias restantes</div>
           </div>
           <div>
-            <div style={{ ...S.phasesSummaryStatNum, color: overdueCount ? '#e2574c' : '#eee' }}>{overdueCount}</div>
+            <div style={{ ...S.phasesSummaryStatNum, color: overdueCount ? '#e2574c' : 'var(--text-1)' }}>{overdueCount}</div>
             <div style={S.phasesSummaryStatLabel}>Em atraso</div>
           </div>
           <div>
@@ -2382,7 +2421,7 @@ function PhasesView({ activities, orderMap, phases, pid, updateActivity, openDet
                 </div>
                 <div style={S.phaseProgressPct}>{phasePct}%</div>
               </div>
-              <ChevronDown size={16} style={{ color: '#888', transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .12s', flexShrink: 0 }} />
+              <ChevronDown size={16} style={{ color: 'var(--text-5)', transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .12s', flexShrink: 0 }} />
             </div>
 
             {!isCollapsed && (
@@ -2394,7 +2433,7 @@ function PhasesView({ activities, orderMap, phases, pid, updateActivity, openDet
                   return (
                     <div
                       key={a.id}
-                      style={{ ...S.phaseCard, borderColor: overdue ? '#e2574c66' : '#262626', borderLeft: `3px solid ${overdue ? '#e2574c' : accent}` }}
+                      style={{ ...S.phaseCard, borderColor: overdue ? '#e2574c66' : 'var(--border-1)', borderLeft: `3px solid ${overdue ? '#e2574c' : accent}` }}
                       onClick={() => openDetail(rowPid, a.id)}
                     >
                       <div style={S.phaseCardTop}>
@@ -2454,7 +2493,7 @@ function KanbanView({ activities, orderMap, phases, pid, dragId, setDragId, upda
                 <div key={`${rowPid}-${a.id}`} draggable onDragStart={() => setDragId({ pid: rowPid, id: a.id })} onClick={() => openDetail(rowPid, a.id)} style={S.kanbanCard}>
                   <div style={S.kanbanCardTop}>
                     <span style={{ ...S.monthBadgeSm, background: phase?.color }}>#{rowOrder}</span>
-                    <GripVertical size={13} color="#555" />
+                    <GripVertical size={13} color="var(--text-8)" />
                   </div>
                   {multiMode && <CompanyBadge name={a._companyName} color={a._companyColor} logo={a._companyLogo} small />}
                   <div style={S.kanbanCardTitle}>{a.title}</div>
@@ -2631,28 +2670,29 @@ function TimelineView({ activities, phases, granularity, setGranularity, windowA
 }
 
 const S = {
-  page: { background: '#111', color: '#eee', fontFamily: "'Inter', sans-serif", minHeight: '100vh', paddingBottom: 40 },
-  topbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '18px 24px', borderBottom: '1px solid #262626', background: '#151515' },
+  page: { background: 'var(--bg-page)', color: 'var(--text-1)', fontFamily: "'Inter', sans-serif", minHeight: '100vh', paddingBottom: 40, position: 'relative' },
+  topbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '18px 24px', borderBottom: '1px solid var(--border-1)', background: 'var(--bg-2)' },
   brandRow: { display: 'flex', alignItems: 'center', gap: 12 },
-  logoImg: { width: 38, height: 38, borderRadius: 8, objectFit: 'cover', border: '1px solid #333' },
-  logoPlaceholder: { width: 38, height: 38, borderRadius: 8, background: '#1c1c1c', border: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  logoImg: { width: 38, height: 38, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border-3)' },
+  logoPlaceholder: { width: 38, height: 38, borderRadius: 8, background: 'var(--bg-4)', border: '1px solid var(--border-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   brandName: { fontWeight: 700, fontSize: 14 },
-  brandCnpj: { fontSize: 11.5, color: '#888' },
-  projectSwitch: { fontWeight: 700, fontSize: 13, background: '#1c1c1c', border: '1px solid #333', color: '#eee', borderRadius: 6, padding: '4px 8px', maxWidth: 260 },
+  brandCnpj: { fontSize: 11.5, color: 'var(--text-5)' },
+  projectSwitch: { fontWeight: 700, fontSize: 13, background: 'var(--bg-4)', border: '1px solid var(--border-3)', color: 'var(--text-1)', borderRadius: 6, padding: '4px 8px', maxWidth: 260 },
   actionsRow: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
-  iconBtn: { display: 'flex', alignItems: 'center', gap: 6, background: '#1c1c1c', border: '1px solid #333', color: '#ddd', fontSize: 12.5, fontWeight: 600, padding: '7px 11px', borderRadius: 7, cursor: 'pointer' },
-  iconBtnGhost: { display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 4 },
+  iconBtn: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-4)', border: '1px solid var(--border-3)', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 600, padding: '7px 11px', borderRadius: 7, cursor: 'pointer' },
+  iconBtnGhost: { display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', color: 'var(--text-5)', cursor: 'pointer', padding: 4 },
   primaryBtn: { display: 'flex', alignItems: 'center', gap: 6, background: '#F5C400', border: 'none', color: '#111', fontSize: 12.5, fontWeight: 800, padding: '7px 13px', borderRadius: 7, cursor: 'pointer' },
   tabs: { display: 'flex', gap: 6, padding: '14px 24px 0 24px' },
-  tab: { display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid #262626', color: '#999', fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: '8px 8px 0 0', cursor: 'pointer' },
-  tabActive: { background: '#181818', color: '#F5C400', borderColor: '#333', borderBottomColor: '#181818' },
+  tab: { display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--border-1)', color: 'var(--text-4)', fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: '8px 8px 0 0', cursor: 'pointer' },
+  tabActive: { background: 'var(--bg-3)', color: '#F5C400', borderColor: 'var(--border-3)', borderBottomColor: 'var(--bg-3)' },
   main: { padding: '20px 24px 0 24px' },
-  hint: { fontSize: 11.5, color: '#5f5f5f', textAlign: 'center', marginTop: 24 },
+  hint: { fontSize: 11.5, color: 'var(--text-7)', textAlign: 'center', marginTop: 24 },
 
-  userBadge: { display: 'flex', alignItems: 'center', gap: 8, marginLeft: 6, paddingLeft: 12, borderLeft: '1px solid #2c2c2c' },
+  userBadge: { display: 'flex', alignItems: 'center', gap: 8, marginLeft: 6, paddingLeft: 12, borderLeft: '1px solid var(--border-2)' },
   userAvatarBtn: { background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', lineHeight: 0 },
+  themeToggleCorner: { position: 'absolute', top: 24, right: 24 },
   roleTag: { fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.03em', border: '1px solid', borderRadius: 999, padding: '3px 8px', whiteSpace: 'nowrap', display: 'inline-block' },
-  userName: { fontSize: 12.5, fontWeight: 600, color: '#ddd' },
+  userName: { fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)' },
 
   // login
   loginWrap: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
@@ -2660,225 +2700,225 @@ const S = {
   loginLogo: { height: 34, marginBottom: 18 },
   loginEyebrow: { fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: '#F5C400', marginBottom: 10 },
   loginTitle: { fontSize: 26, fontWeight: 900, marginBottom: 8 },
-  loginSub: { fontSize: 13, color: '#999', lineHeight: 1.6, marginBottom: 24 },
+  loginSub: { fontSize: 13, color: 'var(--text-4)', lineHeight: 1.6, marginBottom: 24 },
   loginList: { display: 'flex', flexDirection: 'column', gap: 10 },
-  loginCard: { textAlign: 'left', background: '#181818', border: '1px solid #2c2c2c', borderRadius: 10, padding: '14px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' },
-  loginName: { fontSize: 15, fontWeight: 700, color: '#eee' },
-  loginMeta: { fontSize: 12, color: '#888' },
+  loginCard: { textAlign: 'left', background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 10, padding: '14px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' },
+  loginName: { fontSize: 15, fontWeight: 700, color: 'var(--text-1)' },
+  loginMeta: { fontSize: 12, color: 'var(--text-5)' },
 
   // table view
   tableLayout: { display: 'flex', gap: 18, alignItems: 'flex-start' },
-  filterSidebar: { width: 200, flexShrink: 0, background: '#161616', border: '1px solid #262626', borderRadius: 10, padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 16 },
-  filterSidebarTitle: { fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.04em', color: '#888' },
+  filterSidebar: { width: 200, flexShrink: 0, background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 10, padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 16 },
+  filterSidebarTitle: { fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-5)' },
   filterGroup: { display: 'flex', flexDirection: 'column', gap: 5 },
-  filterLabel: { fontSize: 11, fontWeight: 700, color: '#999' },
+  filterLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-4)' },
   filterSelect: { fontSize: 12 },
   filterClearBtn: { fontSize: 11, fontWeight: 700, color: '#F5C400', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 },
-  tableEmptyState: { padding: '24px 16px', textAlign: 'center', color: '#777', fontSize: 12.5, background: '#141414' },
-  tableWrap: { border: '1px solid #262626', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden' },
-  tableHeaderRow: { display: 'flex', gap: 12, padding: '10px 14px', background: '#181818', borderBottom: '1px solid #262626' },
-  th: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#888' },
-  tableGroup: { borderBottom: '1px solid #222' },
+  tableEmptyState: { padding: '24px 16px', textAlign: 'center', color: 'var(--text-6)', fontSize: 12.5, background: 'var(--bg-1)' },
+  tableWrap: { border: '1px solid var(--border-1)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden' },
+  tableHeaderRow: { display: 'flex', gap: 12, padding: '10px 14px', background: 'var(--bg-3)', borderBottom: '1px solid var(--border-1)' },
+  th: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-5)' },
+  tableGroup: { borderBottom: '1px solid var(--border-1)' },
   tableRowDragging: { opacity: .96, boxShadow: '0 10px 24px rgba(0,0,0,.55)' },
-  tableRow: { display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 14px', background: '#141414' },
+  tableRow: { display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 14px', background: 'var(--bg-1)' },
   monthBadgeSm: { fontSize: 10.5, fontWeight: 800, background: '#F5C400', color: '#111', padding: '3px 7px', borderRadius: 5 },
-  subCounter: { fontSize: 11, color: '#777', marginTop: 4 },
-  subToggleBtn: { display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 'none', color: '#888', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0, marginTop: 6 },
+  subCounter: { fontSize: 11, color: 'var(--text-6)', marginTop: 4 },
+  subToggleBtn: { display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 'none', color: 'var(--text-5)', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0, marginTop: 6 },
   pillSelect: { borderRadius: 999, padding: '5px 10px', fontWeight: 700, fontSize: 11.5, border: '1px solid' },
   prazoInput: { width: 46, flexShrink: 0, textAlign: 'center', padding: '6px 2px', fontSize: 12 },
   actionsCell: { width: 60, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 },
-  subPanel: { padding: '4px 14px 14px 60px', display: 'flex', flexDirection: 'column', gap: 6, background: '#121212' },
+  subPanel: { padding: '4px 14px 14px 60px', display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-page)' },
   subRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  addSubBtn: { display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: '1px dashed #3a3a3a', color: '#999', fontSize: 11.5, padding: '6px 10px', borderRadius: 6, cursor: 'pointer', width: 'fit-content', marginTop: 4 },
-  subSectionLabel: { fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#888', marginTop: 14, marginBottom: 6 },
+  addSubBtn: { display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: '1px dashed var(--border-3)', color: 'var(--text-4)', fontSize: 11.5, padding: '6px 10px', borderRadius: 6, cursor: 'pointer', width: 'fit-content', marginTop: 4 },
+  subSectionLabel: { fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-5)', marginTop: 14, marginBottom: 6 },
   notesArea: { resize: 'vertical', minHeight: 60, lineHeight: 1.5 },
   attachList: { display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 6 },
-  attachRow: { display: 'flex', alignItems: 'center', gap: 8, background: '#1a1a1a', border: '1px solid #262626', borderRadius: 6, padding: '6px 9px' },
+  attachRow: { display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-4)', border: '1px solid var(--border-1)', borderRadius: 6, padding: '6px 9px' },
   attachLink: { fontSize: 12, color: '#F5C400', textDecoration: 'none', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  attachSize: { fontSize: 10.5, color: '#777', flexShrink: 0 },
+  attachSize: { fontSize: 10.5, color: 'var(--text-6)', flexShrink: 0 },
 
   // phases view
-  phasesSummaryCard: { display: 'flex', alignItems: 'center', gap: 26, background: '#161616', border: '1px solid #262626', borderRadius: 12, padding: '18px 24px', marginBottom: 28, flexWrap: 'wrap' },
+  phasesSummaryCard: { display: 'flex', alignItems: 'center', gap: 26, background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 12, padding: '18px 24px', marginBottom: 28, flexWrap: 'wrap' },
   phasesSummaryDonutWrap: { position: 'relative', width: 72, height: 72, flexShrink: 0 },
-  phasesSummaryDonutLabel: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800, color: '#eee' },
+  phasesSummaryDonutLabel: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800, color: 'var(--text-1)' },
   phasesSummaryMid: { flex: 1, minWidth: 180 },
-  phasesSummaryTitle: { fontSize: 13, fontWeight: 800, color: '#ddd', marginBottom: 10 },
+  phasesSummaryTitle: { fontSize: 13, fontWeight: 800, color: 'var(--text-2)', marginBottom: 10 },
   phasesSummaryStatBars: { display: 'flex', alignItems: 'flex-end', gap: 5, height: 36 },
   phasesSummaryBar: { width: 11, borderRadius: 3 },
   phasesSummaryStats: { display: 'flex', gap: 30, flexShrink: 0 },
-  phasesSummaryStatNum: { fontSize: 22, fontWeight: 900, color: '#eee', lineHeight: 1 },
-  phasesSummaryStatLabel: { fontSize: 10.5, color: '#888', marginTop: 5, textTransform: 'uppercase', letterSpacing: '.03em', whiteSpace: 'nowrap' },
+  phasesSummaryStatNum: { fontSize: 22, fontWeight: 900, color: 'var(--text-1)', lineHeight: 1 },
+  phasesSummaryStatLabel: { fontSize: 10.5, color: 'var(--text-5)', marginTop: 5, textTransform: 'uppercase', letterSpacing: '.03em', whiteSpace: 'nowrap' },
 
   phaseSection: { marginBottom: 32, paddingLeft: 14, borderRadius: 4 },
-  phaseHead: { display: 'flex', gap: 14, alignItems: 'baseline', borderBottom: '1px solid #262626', paddingBottom: 14, marginBottom: 16 },
-  phaseHead2: { display: 'flex', gap: 14, alignItems: 'center', borderBottom: '1px solid #262626', paddingBottom: 14, marginBottom: 16, cursor: 'pointer' },
+  phaseHead: { display: 'flex', gap: 14, alignItems: 'baseline', borderBottom: '1px solid var(--border-1)', paddingBottom: 14, marginBottom: 16 },
+  phaseHead2: { display: 'flex', gap: 14, alignItems: 'center', borderBottom: '1px solid var(--border-1)', paddingBottom: 14, marginBottom: 16, cursor: 'pointer' },
   phaseNum: { fontSize: 26, fontWeight: 900, lineHeight: 1, flexShrink: 0 },
   phaseTitle: { fontSize: 16, fontWeight: 800 },
-  phaseSub: { fontSize: 12, color: '#888', marginTop: 2 },
+  phaseSub: { fontSize: 12, color: 'var(--text-5)', marginTop: 2 },
   phaseProgressWrap: { display: 'flex', alignItems: 'center', gap: 8, width: 140, flexShrink: 0 },
-  phaseProgressTrack: { flex: 1, height: 6, background: '#262626', borderRadius: 999, overflow: 'hidden' },
+  phaseProgressTrack: { flex: 1, height: 6, background: 'var(--border-1)', borderRadius: 999, overflow: 'hidden' },
   phaseProgressFill: { height: '100%', borderRadius: 999 },
-  phaseProgressPct: { fontSize: 11.5, fontWeight: 800, color: '#ccc', width: 32, textAlign: 'right', flexShrink: 0 },
+  phaseProgressPct: { fontSize: 11.5, fontWeight: 800, color: 'var(--text-3)', width: 32, textAlign: 'right', flexShrink: 0 },
   phaseCardGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
-  phaseCard: { background: '#181818', border: '1px solid #262626', borderRadius: 9, padding: '13px 14px', cursor: 'pointer' },
+  phaseCard: { background: 'var(--bg-3)', border: '1px solid var(--border-1)', borderRadius: 9, padding: '13px 14px', cursor: 'pointer' },
   phaseCardTop: { display: 'flex', alignItems: 'center', gap: 8 },
   phaseCardFooter: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, gap: 10 },
-  phaseCardOwner: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#ccc', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  phaseCardOwner: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-3)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   phaseWarnIcon: { color: '#e2574c', display: 'flex', alignItems: 'center', flexShrink: 0 },
   avatarDot: { width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#111', flexShrink: 0 },
-  phaseRow: { display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px', background: '#181818', border: '1px solid #262626', borderRadius: 9, marginBottom: 9 },
+  phaseRow: { display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px', background: 'var(--bg-3)', border: '1px solid var(--border-1)', borderRadius: 9, marginBottom: 9 },
   monthBadge: { fontSize: 12, fontWeight: 900, color: '#111', width: 38, height: 38, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   phaseActTitle: { fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   reqDot: { width: 6, height: 6, borderRadius: '50%', background: '#e2574c', display: 'inline-block', flexShrink: 0 },
-  phaseActDesc: { fontSize: 12, color: '#999', marginTop: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  phaseOwner: { fontSize: 12, fontWeight: 700, color: '#ccc', width: 110, flexShrink: 0 },
-  phaseDate: { fontSize: 11.5, color: '#aaa', flexShrink: 0, whiteSpace: 'nowrap' },
+  phaseActDesc: { fontSize: 12, color: 'var(--text-4)', marginTop: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  phaseOwner: { fontSize: 12, fontWeight: 700, color: 'var(--text-3)', width: 110, flexShrink: 0 },
+  phaseDate: { fontSize: 11.5, color: 'var(--text-4)', flexShrink: 0, whiteSpace: 'nowrap' },
   statusPill: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', padding: '5px 9px', borderRadius: 999, border: '1px solid', textAlign: 'center', flexShrink: 0, whiteSpace: 'nowrap' },
 
   // kanban
   kanbanBoard: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 },
-  kanbanCol: { background: '#161616', border: '1px solid #262626', borderRadius: 10, padding: 12, minHeight: 200 },
-  kanbanColHead: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 800, marginBottom: 12, color: '#ddd' },
+  kanbanCol: { background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 10, padding: 12, minHeight: 200 },
+  kanbanColHead: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 800, marginBottom: 12, color: 'var(--text-2)' },
   kanbanDot: { width: 8, height: 8, borderRadius: '50%' },
-  kanbanCount: { marginLeft: 'auto', fontSize: 11, color: '#777', background: '#222', padding: '1px 7px', borderRadius: 999 },
-  kanbanCard: { background: '#1e1e1e', border: '1px solid #2c2c2c', borderRadius: 8, padding: '10px 11px', marginBottom: 9, cursor: 'grab' },
+  kanbanCount: { marginLeft: 'auto', fontSize: 11, color: 'var(--text-6)', background: 'var(--border-1)', padding: '1px 7px', borderRadius: 999 },
+  kanbanCard: { background: 'var(--bg-4)', border: '1px solid var(--border-2)', borderRadius: 8, padding: '10px 11px', marginBottom: 9, cursor: 'grab' },
   kanbanCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   kanbanCardTitle: { fontSize: 12.5, fontWeight: 700, marginBottom: 5 },
-  kanbanCardMeta: { display: 'flex', justifyContent: 'space-between', fontSize: 10.5, color: '#8a8a8a' },
-  kanbanAdd: { display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'center', width: '100%', background: 'transparent', border: '1px dashed #333', color: '#888', fontSize: 11.5, padding: '8px', borderRadius: 6, cursor: 'pointer' },
+  kanbanCardMeta: { display: 'flex', justifyContent: 'space-between', fontSize: 10.5, color: 'var(--text-5)' },
+  kanbanAdd: { display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'center', width: '100%', background: 'transparent', border: '1px dashed var(--border-3)', color: 'var(--text-5)', fontSize: 11.5, padding: '8px', borderRadius: 6, cursor: 'pointer' },
 
   // timeline
   timelineToolbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
-  granularityGroup: { display: 'flex', background: '#181818', border: '1px solid #2c2c2c', borderRadius: 8, padding: 3, gap: 2 },
-  granBtn: { background: 'transparent', border: 'none', color: '#999', fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 6, cursor: 'pointer' },
+  granularityGroup: { display: 'flex', background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 8, padding: 3, gap: 2 },
+  granBtn: { background: 'transparent', border: 'none', color: 'var(--text-4)', fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 6, cursor: 'pointer' },
   granBtnActive: { background: '#F5C400', color: '#111' },
   navGroup: { display: 'flex', alignItems: 'center', gap: 8 },
-  navBtn: { background: '#1c1c1c', border: '1px solid #333', color: '#ddd', width: 28, height: 28, borderRadius: 6, cursor: 'pointer', fontSize: 15, lineHeight: 1 },
-  navLabel: { fontSize: 12.5, fontWeight: 700, color: '#ccc', textTransform: 'capitalize', minWidth: 160, textAlign: 'center' },
-  navToday: { background: 'transparent', border: '1px solid #333', color: '#999', fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 6, cursor: 'pointer' },
+  navBtn: { background: 'var(--bg-4)', border: '1px solid var(--border-3)', color: 'var(--text-2)', width: 28, height: 28, borderRadius: 6, cursor: 'pointer', fontSize: 15, lineHeight: 1 },
+  navLabel: { fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)', textTransform: 'capitalize', minWidth: 160, textAlign: 'center' },
+  navToday: { background: 'transparent', border: '1px solid var(--border-3)', color: 'var(--text-4)', fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 6, cursor: 'pointer' },
   timelineLaneDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0, display: 'inline-block' },
   ganttScroll: { overflowX: 'auto', paddingBottom: 10 },
   ganttGrid: { display: 'grid', position: 'relative', columnGap: 0, rowGap: 0 },
-  ganttCornerCell: { position: 'sticky', left: 0, background: '#111', borderBottom: '1px solid #262626', zIndex: 3 },
-  ganttColHeader: { fontSize: 10.5, color: '#888', fontWeight: 700, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px solid #262626', borderLeft: '1px solid #1c1c1c' },
-  ganttPhaseRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, fontWeight: 800, color: '#ccc', background: '#171717', padding: '0 12px', borderTop: '1px solid #262626', borderBottom: '1px solid #262626', position: 'sticky', left: 0, overflow: 'hidden' },
-  ganttLabelCell: { position: 'sticky', left: 0, background: '#141414', borderBottom: '1px solid #232323', borderRight: '1px solid #262626', padding: '5px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2, overflow: 'hidden' },
-  ganttLabelTitle: { fontSize: 11.5, fontWeight: 700, color: '#e8e8e8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 },
-  ganttLabelMeta: { fontSize: 10, color: '#888', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 },
-  ganttBarWrap: { display: 'flex', alignItems: 'center', borderBottom: '1px solid #1c1c1c', padding: '6px 3px', overflow: 'hidden' },
+  ganttCornerCell: { position: 'sticky', left: 0, background: 'var(--bg-page)', borderBottom: '1px solid var(--border-1)', zIndex: 3 },
+  ganttColHeader: { fontSize: 10.5, color: 'var(--text-5)', fontWeight: 700, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px solid var(--border-1)', borderLeft: '1px solid var(--bg-4)' },
+  ganttPhaseRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, fontWeight: 800, color: 'var(--text-3)', background: 'var(--bg-3)', padding: '0 12px', borderTop: '1px solid var(--border-1)', borderBottom: '1px solid var(--border-1)', position: 'sticky', left: 0, overflow: 'hidden' },
+  ganttLabelCell: { position: 'sticky', left: 0, background: 'var(--bg-1)', borderBottom: '1px solid var(--border-1)', borderRight: '1px solid var(--border-1)', padding: '5px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 2, overflow: 'hidden' },
+  ganttLabelTitle: { fontSize: 11.5, fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 },
+  ganttLabelMeta: { fontSize: 10, color: 'var(--text-5)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 },
+  ganttBarWrap: { display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--bg-4)', padding: '6px 3px', overflow: 'hidden' },
   ganttBar: { display: 'flex', alignItems: 'center', gap: 6, width: '100%', height: '100%', border: '1px solid', borderRadius: 6, padding: '0 8px', overflow: 'hidden' },
   ganttBarDot: { width: 6, height: 6, borderRadius: '50%', flexShrink: 0 },
-  ganttBarTitle: { fontSize: 10.5, fontWeight: 700, color: '#eee', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  ganttBarTitle: { fontSize: 10.5, fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   ganttTodayLine: { position: 'absolute', top: 0, width: 2, background: '#e2574c', zIndex: 4, pointerEvents: 'none' },
-  noDateBlock: { marginTop: 20, paddingTop: 16, borderTop: '1px solid #262626' },
-  noDateLabel: { fontSize: 11.5, fontWeight: 700, color: '#999', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.03em' },
+  noDateBlock: { marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border-1)' },
+  noDateLabel: { fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.03em' },
   noDateList: { display: 'flex', flexWrap: 'wrap', gap: 6 },
-  noDateChip: { fontSize: 11.5, background: '#1c1c1c', border: '1px solid #2e2e2e', color: '#bbb', padding: '5px 10px', borderRadius: 999 },
+  noDateChip: { fontSize: 11.5, background: 'var(--bg-4)', border: '1px solid var(--border-2)', color: 'var(--text-3)', padding: '5px 10px', borderRadius: 999 },
 
   // panels
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', justifyContent: 'flex-end', zIndex: 50 },
   detailOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24 },
-  detailBox: { width: 'min(980px, 100%)', height: '92vh', background: '#141414', border: '1px solid #2c2c2c', borderRadius: 14, overflowY: 'auto', padding: '20px 28px 32px 28px' },
+  detailBox: { width: 'min(980px, 100%)', height: '92vh', background: 'var(--bg-1)', border: '1px solid var(--border-2)', borderRadius: 14, overflowY: 'auto', padding: '20px 28px 32px 28px' },
   detailTopBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   detailTopLeft: { display: 'flex', alignItems: 'center', gap: 10 },
-  detailPhaseTag: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#bbb' },
-  detailTitleInput: { fontSize: 22, fontWeight: 800, background: 'transparent', border: 'none', color: '#fff', padding: '4px 0', marginBottom: 18, borderBottom: '1px solid #262626', borderRadius: 0, width: '100%' },
+  detailPhaseTag: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-3)' },
+  detailTitleInput: { fontSize: 22, fontWeight: 800, background: 'transparent', border: 'none', color: 'var(--text-1)', padding: '4px 0', marginBottom: 18, borderBottom: '1px solid var(--border-1)', borderRadius: 0, width: '100%' },
   detailGrid: { display: 'flex', gap: 28, flexWrap: 'wrap' },
   detailMain: { flex: 2, minWidth: 340, display: 'flex', flexDirection: 'column' },
   detailSide: { flex: 1, minWidth: 240, display: 'flex', flexDirection: 'column' },
   commentThread: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10, maxHeight: 260, overflowY: 'auto' },
-  commentBubble: { background: '#1c1c1c', border: '1px solid #262626', borderRadius: 8, padding: '9px 11px' },
-  commentText: { fontSize: 12.5, color: '#e6e6e6', lineHeight: 1.5, whiteSpace: 'pre-wrap' },
-  commentMeta: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, fontSize: 10.5, color: '#777' },
-  commentDel: { background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', display: 'flex' },
+  commentBubble: { background: 'var(--bg-4)', border: '1px solid var(--border-1)', borderRadius: 8, padding: '9px 11px' },
+  commentText: { fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.5, whiteSpace: 'pre-wrap' },
+  commentMeta: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, fontSize: 10.5, color: 'var(--text-6)' },
+  commentDel: { background: 'transparent', border: 'none', color: 'var(--text-7)', cursor: 'pointer', display: 'flex' },
   commentInputRow: { display: 'flex', gap: 8, alignItems: 'flex-end' },
-  panel: { width: 360, maxWidth: '92vw', height: '100%', background: '#161616', borderLeft: '1px solid #2c2c2c', overflowY: 'auto' },
-  panelHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 18px', borderBottom: '1px solid #262626', position: 'sticky', top: 0, background: '#161616' },
+  panel: { width: 360, maxWidth: '92vw', height: '100%', background: 'var(--bg-2)', borderLeft: '1px solid var(--border-2)', overflowY: 'auto' },
+  panelHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 18px', borderBottom: '1px solid var(--border-1)', position: 'sticky', top: 0, background: 'var(--bg-2)' },
   panelTitle: { fontWeight: 800, fontSize: 14.5 },
   panelBody: { padding: '18px' },
-  emptyMuted: { fontSize: 12.5, color: '#777' },
-  logRow: { padding: '9px 0', borderBottom: '1px solid #232323' },
-  logTs: { fontSize: 10.5, color: '#7a7a7a' },
-  logAction: { fontSize: 12.5, color: '#e0e0e0', marginTop: 2 },
+  emptyMuted: { fontSize: 12.5, color: 'var(--text-6)' },
+  logRow: { padding: '9px 0', borderBottom: '1px solid var(--border-1)' },
+  logTs: { fontSize: 10.5, color: 'var(--text-6)' },
+  logAction: { fontSize: 12.5, color: 'var(--text-2)', marginTop: 2 },
 
   settingsBlock: { marginBottom: 20 },
-  areaRow: { background: '#1a1a1a', border: '1px solid #262626', borderRadius: 8, padding: 10, marginBottom: 8 },
-  settingsLabel: { fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#999', marginBottom: 8 },
-  fieldHint: { fontSize: 11, color: '#6f6f6f', marginTop: 5, lineHeight: 1.4 },
+  areaRow: { background: 'var(--bg-4)', border: '1px solid var(--border-1)', borderRadius: 8, padding: 10, marginBottom: 8 },
+  settingsLabel: { fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-4)', marginBottom: 8 },
+  fieldHint: { fontSize: 11, color: 'var(--text-7)', marginTop: 5, lineHeight: 1.4 },
   logoRow: { display: 'flex', alignItems: 'center', gap: 10 },
-  logoPreview: { width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: '1px solid #333' },
-  logoPreviewEmpty: { width: 48, height: 48, borderRadius: 8, background: '#1c1c1c', border: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  logoPreview: { width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border-3)' },
+  logoPreviewEmpty: { width: 48, height: 48, borderRadius: 8, background: 'var(--bg-4)', border: '1px solid var(--border-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   memberList: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-  memberChip: { display: 'flex', alignItems: 'center', gap: 6, background: '#1e1e1e', border: '1px solid #2e2e2e', borderRadius: 999, padding: '5px 6px 5px 11px', fontSize: 12 },
-  chipX: { background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', display: 'flex' },
+  memberChip: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-4)', border: '1px solid var(--border-2)', borderRadius: 999, padding: '5px 6px 5px 11px', fontSize: 12 },
+  chipX: { background: 'transparent', border: 'none', color: 'var(--text-5)', cursor: 'pointer', display: 'flex' },
   memberAddRow: { display: 'flex', gap: 6 },
-  phaseEditRow: { display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #232323' },
+  phaseEditRow: { display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid var(--border-1)' },
   phaseEditRowDragging: { opacity: .4 },
   phaseDragHandle: { display: 'flex', alignItems: 'center', cursor: 'grab', paddingTop: 8, flexShrink: 0 },
-  colorInput: { width: 34, height: 34, padding: 0, border: '1px solid #333', borderRadius: 6, background: 'transparent', cursor: 'pointer', flexShrink: 0 },
-  myProfilePreview: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, paddingBottom: 16, borderBottom: '1px solid #262626' },
+  colorInput: { width: 34, height: 34, padding: 0, border: '1px solid var(--border-3)', borderRadius: 6, background: 'transparent', cursor: 'pointer', flexShrink: 0 },
+  myProfilePreview: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, paddingBottom: 16, borderBottom: '1px solid var(--border-1)' },
   avatarPickerGrid: { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 6, marginTop: 4 },
-  avatarPickerBtn: { width: 34, height: 34, borderRadius: 8, background: '#1c1c1c', border: '1px solid #333', fontSize: 17, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 },
+  avatarPickerBtn: { width: 34, height: 34, borderRadius: 8, background: 'var(--bg-4)', border: '1px solid var(--border-3)', fontSize: 17, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 },
   avatarPickerBtnActive: { borderColor: '#F5C400', background: 'rgba(245,196,0,.14)' },
 
   // users panel
-  userEditCard: { background: '#1a1a1a', border: '1px solid #262626', borderRadius: 8, padding: 12, marginBottom: 10 },
+  userEditCard: { background: 'var(--bg-4)', border: '1px solid var(--border-1)', borderRadius: 8, padding: 12, marginBottom: 10 },
   cnpjCheckList: { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 },
-  cnpjCheckRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#ddd' },
-  accessBlock: { marginTop: 12, paddingTop: 12, borderTop: '1px solid #262626' },
+  cnpjCheckRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-2)' },
+  accessBlock: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-1)' },
   expireWarning: { marginTop: 10, background: 'rgba(226,87,76,.12)', border: '1px solid rgba(226,87,76,.4)', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#f0a49e', lineHeight: 1.5 },
   renewBtn: { display: 'block', marginTop: 8, background: '#e2574c', border: 'none', color: '#fff', fontWeight: 700, fontSize: 11.5, padding: '6px 11px', borderRadius: 6, cursor: 'pointer' },
   loginBlockedMsg: { background: 'rgba(226,87,76,.12)', border: '1px solid rgba(226,87,76,.4)', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: '#f0a49e', marginBottom: 16 },
   loginBlockedTag: { fontSize: 10, fontWeight: 800, color: '#e2574c', border: '1px solid #e2574c', borderRadius: 999, padding: '2px 7px' },
 
   // users management screen
-  usersHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '20px 24px', borderBottom: '1px solid #262626', background: '#151515' },
-  usersHeaderIcon: { width: 40, height: 40, borderRadius: 10, background: '#1c1c1c', border: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  usersHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '20px 24px', borderBottom: '1px solid var(--border-1)', background: 'var(--bg-2)' },
+  usersHeaderIcon: { width: 40, height: 40, borderRadius: 10, background: 'var(--bg-4)', border: '1px solid var(--border-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   usersHeaderTitle: { fontSize: 19, fontWeight: 800 },
-  usersHeaderSub: { fontSize: 12.5, color: '#999', marginTop: 2 },
+  usersHeaderSub: { fontSize: 12.5, color: 'var(--text-4)', marginTop: 2 },
   usersStatsRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, padding: '20px 24px 0 24px' },
-  usersStatCard: { background: '#161616', border: '1px solid #262626', borderRadius: 10, padding: '14px 16px' },
-  usersStatValue: { fontSize: 26, fontWeight: 900, color: '#eee', lineHeight: 1.2 },
-  usersStatLabel: { fontSize: 11.5, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.03em', marginTop: 2 },
+  usersStatCard: { background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 10, padding: '14px 16px' },
+  usersStatValue: { fontSize: 26, fontWeight: 900, color: 'var(--text-1)', lineHeight: 1.2 },
+  usersStatLabel: { fontSize: 11.5, fontWeight: 700, color: 'var(--text-5)', textTransform: 'uppercase', letterSpacing: '.03em', marginTop: 2 },
   usersFilterRow: { display: 'flex', gap: 10, padding: '20px 24px 0 24px', flexWrap: 'wrap' },
   usersTableOuter: { padding: '16px 24px 32px 24px' },
-  usersTableWrap: { border: '1px solid #262626', borderRadius: 10, overflow: 'hidden' },
-  usersTableHeaderRow: { display: 'flex', gap: 12, padding: '10px 16px', background: '#181818', borderBottom: '1px solid #262626' },
-  usersTableRow: { display: 'flex', gap: 12, alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid #202020', background: '#141414', cursor: 'pointer' },
-  usersRowName: { fontSize: 13, fontWeight: 700, color: '#eee' },
-  usersRowUsername: { fontSize: 11.5, color: '#888', marginTop: 2 },
-  usersRowEmail: { flex: 2, minWidth: 0, fontSize: 12.5, color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  usersTableWrap: { border: '1px solid var(--border-1)', borderRadius: 10, overflow: 'hidden' },
+  usersTableHeaderRow: { display: 'flex', gap: 12, padding: '10px 16px', background: 'var(--bg-3)', borderBottom: '1px solid var(--border-1)' },
+  usersTableRow: { display: 'flex', gap: 12, alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border-1)', background: 'var(--bg-1)', cursor: 'pointer' },
+  usersRowName: { fontSize: 13, fontWeight: 700, color: 'var(--text-1)' },
+  usersRowUsername: { fontSize: 11.5, color: 'var(--text-5)', marginTop: 2 },
+  usersRowEmail: { flex: 2, minWidth: 0, fontSize: 12.5, color: 'var(--text-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   usersStatusActive: { fontSize: 11, fontWeight: 700, color: '#3ecf6e', background: 'rgba(62,207,110,.12)', border: '1px solid rgba(62,207,110,.4)', borderRadius: 999, padding: '3px 9px' },
   usersStatusBlocked: { fontSize: 11, fontWeight: 700, color: '#e2574c', background: 'rgba(226,87,76,.12)', border: '1px solid rgba(226,87,76,.4)', borderRadius: 999, padding: '3px 9px' },
 
   // cnpj lookup
-  cnpjFetchGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px', fontSize: 12.5, color: '#ddd' },
-  cnpjListRow: { fontSize: 12.5, color: '#ccc', padding: '4px 0', borderBottom: '1px solid #202020' },
+  cnpjFetchGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px', fontSize: 12.5, color: 'var(--text-2)' },
+  cnpjListRow: { fontSize: 12.5, color: 'var(--text-3)', padding: '4px 0', borderBottom: '1px solid var(--border-1)' },
 
   // multi-company view
   multiCompanyChips: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 },
-  multiCompanyChip: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#ccc', border: '1px solid #333', borderRadius: 999, padding: '2px 8px 2px 6px' },
+  multiCompanyChip: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: 'var(--text-3)', border: '1px solid var(--border-3)', borderRadius: 999, padding: '2px 8px 2px 6px' },
   companyColorDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0, display: 'inline-block' },
   companyBadge: { display: 'flex', alignItems: 'center', gap: 6 },
   companyBadgeSmall: { display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 },
   companyBadgeLogo: { width: 16, height: 16, borderRadius: 4, objectFit: 'cover', flexShrink: 0 },
-  companyBadgeName: { fontSize: 11.5, fontWeight: 700, color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  companySection: { marginBottom: 36, border: '1px solid #262626', borderRadius: 10, overflow: 'hidden' },
-  companySectionHeader: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: '#181818', borderBottom: '1px solid #262626' },
-  companySectionLogo: { width: 30, height: 30, borderRadius: 7, objectFit: 'cover', border: '1px solid #333', flexShrink: 0 },
+  companyBadgeName: { fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  companySection: { marginBottom: 36, border: '1px solid var(--border-1)', borderRadius: 10, overflow: 'hidden' },
+  companySectionHeader: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'var(--bg-3)', borderBottom: '1px solid var(--border-1)' },
+  companySectionLogo: { width: 30, height: 30, borderRadius: 7, objectFit: 'cover', border: '1px solid var(--border-3)', flexShrink: 0 },
   companySectionLogoEmpty: { width: 30, height: 30, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  companySectionName: { fontSize: 13.5, fontWeight: 800, color: '#eee' },
-  companySectionCnpj: { fontSize: 11, color: '#888', marginTop: 1 },
+  companySectionName: { fontSize: 13.5, fontWeight: 800, color: 'var(--text-1)' },
+  companySectionCnpj: { fontSize: 11, color: 'var(--text-5)', marginTop: 1 },
 
   // company selector screen
   companySelectorWrap: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px' },
   companySelectorHeader: { width: 'min(640px, 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  companyEmptyState: { width: 'min(640px, 100%)', textAlign: 'center', padding: '40px 20px', border: '1px dashed #333', borderRadius: 12 },
-  companySelectAllRow: { width: 'min(640px, 100%)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: '#ccc', marginBottom: 12 },
+  companyEmptyState: { width: 'min(640px, 100%)', textAlign: 'center', padding: '40px 20px', border: '1px dashed var(--border-3)', borderRadius: 12 },
+  companySelectAllRow: { width: 'min(640px, 100%)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)', marginBottom: 12 },
   companyList: { width: 'min(640px, 100%)', display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '46vh', overflowY: 'auto' },
-  companyCard: { display: 'flex', alignItems: 'center', gap: 10, background: '#181818', border: '1px solid #2c2c2c', borderRadius: 10, padding: '10px 14px', cursor: 'pointer' },
-  companyCardLogo: { width: 32, height: 32, borderRadius: 8, objectFit: 'cover', border: '1px solid #333', flexShrink: 0 },
+  companyCard: { display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 10, padding: '10px 14px', cursor: 'pointer' },
+  companyCardLogo: { width: 32, height: 32, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border-3)', flexShrink: 0 },
   companyCardLogoEmpty: { width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  companyCardName: { fontSize: 13, fontWeight: 700, color: '#eee' },
-  companyCardCnpj: { fontSize: 11, color: '#888', marginTop: 1 },
+  companyCardName: { fontSize: 13, fontWeight: 700, color: 'var(--text-1)' },
+  companyCardCnpj: { fontSize: 11, color: 'var(--text-5)', marginTop: 1 },
 };
