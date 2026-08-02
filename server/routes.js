@@ -250,6 +250,19 @@ router.post('/cnpj/lookup', requireAuth, requireMasterOrPricetax, async (req, re
   } catch (e) { next(e); }
 });
 
+router.delete('/projects/:id', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await pool.query('SELECT data FROM projects WHERE id=$1', [id]);
+    if (!rows[0]) return res.status(404).json({ message: 'Projeto não encontrado.' });
+    if (!canAccessProject(req.user, rows[0].data)) {
+      return res.status(403).json({ message: 'Sem acesso a este projeto.' });
+    }
+    await pool.query('DELETE FROM projects WHERE id=$1', [id]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 router.patch('/projects/:id', requireAuth, async (req, res, next) => {
   try {
     const { id } = req.params;

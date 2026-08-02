@@ -346,6 +346,8 @@ export default function App() {
           onConfirm={(ids) => { setSelectedProjectIds(ids); setCompanySelectionConfirmed(true); }}
           onLogout={handleLogout}
           onCreateNew={() => setShowCreateCompany(true)}
+          onUpdateCompany={updateCompanyFields}
+          onDeleteCompany={deleteCompany}
           theme={theme}
           onToggleTheme={toggleTheme}
         />
@@ -553,6 +555,18 @@ export default function App() {
     const res = await apiPost('/api/projects', { company });
     setProjects((prev) => [...prev, res.project]);
     return res.project.id;
+  }
+
+  async function deleteCompany(id) {
+    await apiDelete(`/api/projects/${id}`);
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+    setSelectedProjectIds((prev) => prev.filter((pid) => pid !== id));
+  }
+
+  function updateCompanyFields(pid, patch) {
+    const target = projects.find((p) => p.id === pid);
+    const label = patch.name || (target && target.company.name) || 'empresa';
+    mutateProject(pid, (p) => ({ ...p, company: { ...p.company, ...patch } }), `Dados da empresa "${label}" atualizados`);
   }
 
   async function loadUsers() {
@@ -1742,8 +1756,76 @@ function CompanySectionHeader({ project, onEditPhases }) {
   );
 }
 
-function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, theme, onToggleTheme }) {
+function EditCompanyModal({ project, onClose, onSave }) {
+  const c = project.company;
+  const [form, setForm] = useState({ name: c.name || '', nomeFantasia: c.nomeFantasia || '', color: c.color || PHASE_COLORS[0], logo: c.logo || '' });
+  const [saving, setSaving] = useState(false);
+
+  function handleLogoPick(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setForm((f) => ({ ...f, logo: reader.result }));
+    reader.readAsDataURL(file);
+  }
+
+  async function submit() {
+    if (!form.name.trim() || saving) return;
+    setSaving(true);
+    await onSave(form);
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif" }} onClick={onClose}>
+      <style>{`
+        input[type=text], select, textarea {
+          background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
+          padding:6px 8px; font-size:12.5px; width:100%; font-family:'Inter', sans-serif;
+        }
+        input[type=text]:focus { outline:none; border-color:#F5C400; }
+      `}</style>
+      <div style={{ ...S.detailBox, width: 'min(480px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <div style={S.detailTopBar}>
+          <div style={{ fontSize: 17, fontWeight: 800 }}>Editar empresa</div>
+          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <div style={S.subSectionLabel}>CNPJ</div>
+        <div style={{ ...S.fieldHint, marginTop: 0, marginBottom: 8 }}>{c.cnpj || 'Não informado'} (não editável aqui)</div>
+
+        <div style={S.subSectionLabel}>Razão social</div>
+        <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Razão social" />
+
+        <div style={S.subSectionLabel}>Nome fantasia</div>
+        <input type="text" value={form.nomeFantasia} onChange={(e) => setForm((f) => ({ ...f, nomeFantasia: e.target.value }))} placeholder="Nome fantasia" />
+
+        <div style={S.subSectionLabel}>Cor master da empresa</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input type="color" value={form.color} onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))} style={S.colorInput} />
+          <div style={S.fieldHint}>Usada pra identificar essa empresa na visão de várias empresas.</div>
+        </div>
+
+        <div style={S.subSectionLabel}>Logotipo</div>
+        <div style={S.logoRow}>
+          {form.logo ? <img src={form.logo} alt="logo" style={S.logoPreview} /> : <div style={S.logoPreviewEmpty}><Building2 size={22} color="var(--text-7)" /></div>}
+          <label style={S.iconBtn}><Upload size={14} /> Enviar logo
+            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoPick} />
+          </label>
+        </div>
+
+        <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={saving || !form.name.trim()}>
+          {saving ? 'Salvando...' : 'Salvar alterações'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, theme, onToggleTheme }) {
   const [selected, setSelected] = useState(() => new Set(initialSelected));
+  const [editingProject, setEditingProject] = useState(null);
 
   function toggle(id) {
     setSelected((prev) => {
@@ -1754,6 +1836,14 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   }
   function toggleAll() {
     setSelected((prev) => (prev.size === projects.length ? new Set() : new Set(projects.map((p) => p.id))));
+  }
+
+  function handleDelete(e, p) {
+    e.stopPropagation();
+    const name = p.company.name || 'esta empresa';
+    if (window.confirm(`Excluir "${name}" e todo o cronograma dela? Essa ação não pode ser desfeita.`)) {
+      onDeleteCompany(p.id);
+    }
   }
 
   const allChecked = projects.length > 0 && selected.size === projects.length;
@@ -1782,31 +1872,52 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
             <button style={{ ...S.primaryBtn, marginTop: 12 }} onClick={onCreateNew}><Plus size={14} /> Cadastrar empresa</button>
           </div>
         ) : (
-          <>
+          <div style={S.companyPanel}>
             <label style={S.companySelectAllRow}>
               <input type="checkbox" checked={allChecked} onChange={toggleAll} />
               Selecionar todas ({projects.length})
             </label>
             <div style={S.companyList}>
-              {projects.map((p) => (
-                <label key={p.id} style={{ ...S.companyCard, borderColor: selected.has(p.id) ? (p.company.color || '#F5C400') : 'var(--border-2)' }}>
-                  <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} />
-                  {p.company.logo ? <img src={p.company.logo} alt="" style={S.companyCardLogo} /> : <div style={{ ...S.companyCardLogoEmpty, background: p.company.color || 'var(--bg-4)' }}><Building2 size={16} color="#111" /></div>}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={S.companyCardName}>{p.company.name || 'Empresa sem nome'}</div>
-                    <div style={S.companyCardCnpj}>{p.company.cnpj || 'CNPJ não informado'}</div>
+              {projects.map((p) => {
+                const isSelected = selected.has(p.id);
+                const accent = p.company.color || '#F5C400';
+                return (
+                  <div key={p.id} style={{ ...S.companyCard, borderLeft: `3px solid ${isSelected ? accent : 'var(--border-2)'}` }}>
+                    <label style={S.companyCardMain}>
+                      <input type="checkbox" checked={isSelected} onChange={() => toggle(p.id)} />
+                      {p.company.logo ? <img src={p.company.logo} alt="" style={S.companyCardLogo} /> : <div style={{ ...S.companyCardLogoEmpty, background: p.company.color || 'var(--bg-4)' }}><Building2 size={16} color="#111" /></div>}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={S.companyCardName}>{p.company.name || 'Empresa sem nome'}</div>
+                        <div style={S.companyCardCnpj}>{p.company.cnpj || 'CNPJ não informado'}</div>
+                      </div>
+                    </label>
+                    <div style={S.companyCardActions}>
+                      <button style={S.iconBtnGhost} title="Editar empresa" onClick={(e) => { e.stopPropagation(); setEditingProject(p); }}><Pencil size={14} /></button>
+                      <button style={S.iconBtnGhost} title="Excluir empresa" onClick={(e) => handleDelete(e, p)}><Trash2 size={14} color="#e2574c" /></button>
+                      <span style={{ ...S.companyColorDot, background: accent }} />
+                    </div>
                   </div>
-                  <span style={{ ...S.companyColorDot, background: p.company.color || 'var(--text-8)' }} />
-                </label>
-              ))}
+                );
+              })}
             </div>
-            <button style={{ ...S.iconBtn, marginTop: 10 }} onClick={onCreateNew}><Plus size={14} /> Cadastrar nova empresa</button>
-            <button style={{ ...S.primaryBtn, marginTop: 16, width: '100%', justifyContent: 'center' }} disabled={selected.size === 0} onClick={() => onConfirm(Array.from(selected))}>
-              Continuar {selected.size > 0 ? `(${selected.size} selecionada${selected.size === 1 ? '' : 's'})` : ''}
-            </button>
-          </>
+            <button style={{ ...S.iconBtn, marginTop: 12 }} onClick={onCreateNew}><Plus size={14} /> Cadastrar nova empresa</button>
+          </div>
+        )}
+
+        {projects.length > 0 && (
+          <button style={{ ...S.primaryBtn, marginTop: 16, width: 'min(640px, 100%)', justifyContent: 'center' }} disabled={selected.size === 0} onClick={() => onConfirm(Array.from(selected))}>
+            Continuar {selected.size > 0 ? `(${selected.size} selecionada${selected.size === 1 ? '' : 's'})` : ''}
+          </button>
         )}
       </div>
+
+      {editingProject && (
+        <EditCompanyModal
+          project={editingProject}
+          onClose={() => setEditingProject(null)}
+          onSave={async (patch) => onUpdateCompany(editingProject.id, patch)}
+        />
+      )}
     </div>
   );
 }
@@ -2912,13 +3023,16 @@ const S = {
 
   // company selector screen
   companySelectorWrap: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px' },
-  companySelectorHeader: { width: 'min(640px, 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  companyEmptyState: { width: 'min(640px, 100%)', textAlign: 'center', padding: '40px 20px', border: '1px dashed var(--border-3)', borderRadius: 12 },
-  companySelectAllRow: { width: 'min(640px, 100%)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)', marginBottom: 12 },
-  companyList: { width: 'min(640px, 100%)', display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '46vh', overflowY: 'auto' },
-  companyCard: { display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 10, padding: '10px 14px', cursor: 'pointer' },
-  companyCardLogo: { width: 32, height: 32, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border-3)', flexShrink: 0 },
-  companyCardLogoEmpty: { width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  companyCardName: { fontSize: 13, fontWeight: 700, color: 'var(--text-1)' },
-  companyCardCnpj: { fontSize: 11, color: 'var(--text-5)', marginTop: 1 },
+  companySelectorHeader: { width: 'min(680px, 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  companyEmptyState: { width: 'min(680px, 100%)', textAlign: 'center', padding: '40px 20px', border: '1px dashed var(--border-3)', borderRadius: 12 },
+  companyPanel: { width: 'min(680px, 100%)', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 14, padding: 18 },
+  companySelectAllRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border-1)' },
+  companyList: { display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '46vh', overflowY: 'auto', paddingRight: 2 },
+  companyCard: { display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 10, padding: '4px 14px 4px 4px', transition: 'background .12s' },
+  companyCardMain: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '9px 6px', cursor: 'pointer' },
+  companyCardActions: { display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 },
+  companyCardLogo: { width: 36, height: 36, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border-3)', flexShrink: 0 },
+  companyCardLogoEmpty: { width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  companyCardName: { fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)' },
+  companyCardCnpj: { fontSize: 11.5, color: 'var(--text-5)', marginTop: 1 },
 };
