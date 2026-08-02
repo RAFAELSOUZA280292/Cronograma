@@ -1963,6 +1963,10 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, pid, onClose
 function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor }) {
   const [dragActId, setDragActId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
+  const [dragOffsetY, setDragOffsetY] = useState(0);
+  const dragMetaRef = useRef({ orderIds: [], rects: {} });
+  const dragOverIdRef = useRef(null);
+  const rowElRefs = useRef({});
   const [filterPhase, setFilterPhase] = useState('');
   const [filterResp, setFilterResp] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -1988,20 +1992,58 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
   });
   const filtersActive = !!(filterPhase || filterResp || filterStatus);
 
-  function reorderPreview(list, fromId, toId) {
-    const fromIdx = list.findIndex((x) => x.id === fromId);
-    const toIdx = list.findIndex((x) => x.id === toId);
-    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return list;
-    const copy = list.slice();
-    const [moved] = copy.splice(fromIdx, 1);
-    const targetIdx = copy.findIndex((x) => x.id === toId);
-    const insertAt = fromIdx < toIdx ? targetIdx + 1 : targetIdx;
-    copy.splice(insertAt, 0, moved);
-    return copy;
+  useEffect(() => {
+    if (!dragActId) return;
+    function onMove(e) {
+      const meta = dragMetaRef.current;
+      setDragOffsetY(e.clientY - meta.startY);
+      let bestId = dragActId;
+      let bestDist = Infinity;
+      meta.orderIds.forEach((id) => {
+        const r = meta.rects[id];
+        if (!r) return;
+        const mid = r.top + r.height / 2;
+        const dist = Math.abs(e.clientY - mid);
+        if (dist < bestDist) { bestDist = dist; bestId = id; }
+      });
+      dragOverIdRef.current = bestId;
+      setDragOverId(bestId);
+    }
+    function onUp() {
+      const toId = dragOverIdRef.current;
+      if (toId && toId !== dragActId) reorderActivityByDrop(dragActId, toId);
+      setDragActId(null);
+      setDragOverId(null);
+      setDragOffsetY(0);
+      dragOverIdRef.current = null;
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragActId]);
+
+  function startRowDrag(e, id) {
+    if (multiMode) return;
+    e.preventDefault();
+    const orderIds = filtered.map((x) => x.id);
+    const rects = {};
+    orderIds.forEach((rid) => {
+      const el = rowElRefs.current[rid];
+      if (el) {
+        const r = el.getBoundingClientRect();
+        rects[rid] = { top: r.top, height: r.height };
+      }
+    });
+    dragMetaRef.current = { orderIds, rects, startY: e.clientY };
+    dragOverIdRef.current = id;
+    setDragActId(id);
+    setDragOverId(id);
+    setDragOffsetY(0);
   }
-  const displayList = (!multiMode && dragActId && dragOverId && dragActId !== dragOverId)
-    ? reorderPreview(filtered, dragActId, dragOverId)
-    : filtered;
 
   function reorderActivityByDrop(fromId, toId) {
     const list = filtered;
@@ -2085,7 +2127,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
             <div style={S.tableEmptyState}>Nenhuma atividade encontrada com esses filtros.</div>
           )}
 
-          {displayList.map((a) => {
+          {filtered.map((a) => {
             const rowPid = pid || a._pid;
             const rowPhases = phases || a._phases;
             const rowTeam = team || a._team;
@@ -2095,30 +2137,39 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
             const subs = a.subactivities || [];
             const doneSubs = subs.filter((s) => s.done).length;
             const phaseColor = phaseOf(a)?.color || '#888';
-            const isDropTarget = !multiMode && dragActId && dragOverId === a.id && dragActId !== a.id;
+            const isDragging = dragActId === a.id;
+
+            let rowShift = 0;
+            if (dragActId && !isDragging) {
+              const meta = dragMetaRef.current;
+              const fromIdx = meta.orderIds.indexOf(dragActId);
+              const hoverIdx = meta.orderIds.indexOf(dragOverId);
+              const idx = meta.orderIds.indexOf(a.id);
+              const draggedHeight = (meta.rects[dragActId] && meta.rects[dragActId].height) || 0;
+              if (fromIdx !== -1 && hoverIdx !== -1 && idx !== -1) {
+                if (hoverIdx >= fromIdx && idx > fromIdx && idx <= hoverIdx) rowShift = -draggedHeight;
+                else if (hoverIdx < fromIdx && idx < fromIdx && idx >= hoverIdx) rowShift = draggedHeight;
+              }
+            }
+
             return (
               <div
                 key={`${rowPid}-${a.id}`}
+                ref={(el) => { rowElRefs.current[a.id] = el; }}
                 style={{
                   ...S.tableGroup,
                   borderLeft: `3px solid ${rowAccent}`,
-                  ...(dragActId === a.id ? S.tableRowDragging : {}),
-                  ...(isDropTarget ? S.tableRowDropTarget : {}),
-                }}
-                onDragEnter={(e) => { if (!multiMode && dragActId) { e.preventDefault(); setDragOverId(a.id); } }}
-                onDragOver={(e) => { if (!multiMode) { e.preventDefault(); if (dragActId) setDragOverId(a.id); } }}
-                onDrop={() => {
-                  if (!multiMode && dragActId && dragActId !== a.id) reorderActivityByDrop(dragActId, a.id);
-                  setDragActId(null);
-                  setDragOverId(null);
+                  position: 'relative',
+                  transform: isDragging ? `translateY(${dragOffsetY}px)` : (rowShift ? `translateY(${rowShift}px)` : undefined),
+                  transition: isDragging ? 'none' : 'transform .15s ease',
+                  zIndex: isDragging ? 5 : undefined,
+                  ...(isDragging ? S.tableRowDragging : {}),
                 }}
               >
                 <div style={S.tableRow}>
                   <div
-                    style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: multiMode ? 'default' : 'grab', opacity: multiMode ? 0.25 : 1, flexShrink: 0 }}
-                    draggable={!multiMode}
-                    onDragStart={() => setDragActId(a.id)}
-                    onDragEnd={() => { setDragActId(null); setDragOverId(null); }}
+                    style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: multiMode ? 'default' : (isDragging ? 'grabbing' : 'grab'), opacity: multiMode ? 0.25 : 1, flexShrink: 0 }}
+                    onMouseDown={(e) => startRowDrag(e, a.id)}
                     title={multiMode ? undefined : 'Arraste para reordenar (ajusta a data de início)'}
                   >
                     <GripVertical size={14} color="#666" />
@@ -2628,8 +2679,7 @@ const S = {
   tableHeaderRow: { display: 'flex', gap: 12, padding: '10px 14px', background: '#181818', borderBottom: '1px solid #262626' },
   th: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#888' },
   tableGroup: { borderBottom: '1px solid #222' },
-  tableRowDragging: { opacity: .4 },
-  tableRowDropTarget: { borderTop: '2px solid #F5C400' },
+  tableRowDragging: { opacity: .96, boxShadow: '0 10px 24px rgba(0,0,0,.55)' },
   tableRow: { display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 14px', background: '#141414' },
   monthBadgeSm: { fontSize: 10.5, fontWeight: 800, background: '#F5C400', color: '#111', padding: '3px 7px', borderRadius: 5 },
   subCounter: { fontSize: 11, color: '#777', marginTop: 4 },
