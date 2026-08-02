@@ -290,7 +290,7 @@ export default function App() {
       const nextArr = prev.map((p) => {
         if (p.id !== pid) return p;
         let next = updater(p);
-        if (logMsg) next = { ...next, log: [{ ts: new Date().toISOString(), action: logMsg }, ...(next.log || [])].slice(0, 300) };
+        if (logMsg) next = { ...next, log: [{ ts: new Date().toISOString(), action: logMsg, user: currentUser ? currentUser.name : '' }, ...(next.log || [])].slice(0, 300) };
         saved = next;
         return next;
       });
@@ -758,7 +758,7 @@ export default function App() {
           {!isMulti && (
             <button style={S.iconBtn} onClick={() => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); }}><LayoutGrid size={15} /> Fases</button>
           )}
-          {!isMulti && (
+          {!isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowLog(true)}><Clock size={15} /> Log ({(activeProject.log || []).length})</button>
           )}
           <button style={S.iconBtn} onClick={exportExcel}><FileSpreadsheet size={15} /> Excel</button>
@@ -908,12 +908,12 @@ export default function App() {
         Alterações são salvas automaticamente e registradas no log. {isMulti ? `Você está vendo a visão geral de ${selectedProjects.length} empresas.` : `Você está vendo o projeto de ${activeProject.company.name || 'um cliente sem nome cadastrado'}.`}
       </div>
 
-      {showLog && activeProject && (
+      {showLog && activeProject && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
         <SidePanel title="Log de alterações" onClose={() => setShowLog(false)}>
           {(activeProject.log || []).length === 0 && <div style={S.emptyMuted}>Nenhuma alteração registrada ainda.</div>}
           {(activeProject.log || []).map((l, i) => (
             <div key={i} style={S.logRow}>
-              <div style={S.logTs}>{fmtTs(l.ts)}</div>
+              <div style={S.logTs}>{fmtTs(l.ts)}{l.user ? ` · ${l.user}` : ''}</div>
               <div style={S.logAction}>{l.action}</div>
             </div>
           ))}
