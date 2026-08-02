@@ -99,10 +99,12 @@ export async function initDb() {
       blocked       BOOLEAN NOT NULL DEFAULT false,
       block_reason  TEXT NOT NULL DEFAULT '',
       expires_at    DATE,
+      avatar        TEXT NOT NULL DEFAULT '',
       created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT NOT NULL DEFAULT ''`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS projects (
       id         TEXT PRIMARY KEY,

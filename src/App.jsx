@@ -19,6 +19,13 @@ const ROLE_META = {
   cliente: { label: 'Cliente', color: '#3ecf6e' },
 };
 
+const AVATAR_EMOJIS = [
+  '😀', '😎', '🙂', '🤓', '🧐', '😊', '🤝', '💼',
+  '🎯', '📊', '📈', '🚀', '⭐', '🔥', '💡', '🎓',
+  '🦁', '🐼', '🦊', '🐧', '🐢', '🦉', '🐝', '🐱',
+  '☕', '🌵', '🍀', '🎧', '🧩', '🛠️', '🧠', '🏆',
+];
+
 const STATUS_META = {
   'nao-iniciado': { label: 'Não iniciado', color: '#9a9a9a', bg: '#262626', border: '#3a3a3a' },
   'em-andamento': { label: 'Em andamento', color: '#F5C400', bg: 'rgba(245,196,0,.14)', border: 'rgba(245,196,0,.5)' },
@@ -178,6 +185,7 @@ export default function App() {
   const [showPhases, setShowPhases] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [showCreateCompany, setShowCreateCompany] = useState(false);
+  const [showMyProfile, setShowMyProfile] = useState(false);
   const [openActivityId, setOpenActivityId] = useState(null);
   const [newMember, setNewMember] = useState('');
   const [expanded, setExpanded] = useState({});
@@ -261,6 +269,12 @@ export default function App() {
     setProjectsLoaded(false);
     setSelectedProjectIds([]);
     setCompanySelectionConfirmed(false);
+  }
+
+  async function updateMyAvatar(avatar) {
+    const res = await apiPatch('/api/auth/me', { avatar });
+    setCurrentUser(res.user);
+    setUsers((prev) => prev.map((u) => (u.id === res.user.id ? res.user : u)));
   }
 
   function persistProjectDebounced(pid, projectData) {
@@ -762,6 +776,9 @@ export default function App() {
             <button style={S.primaryBtn} onClick={() => addActivity(activeProject.id)}><Plus size={15} /> Nova atividade</button>
           )}
           <div style={S.userBadge}>
+            <button style={S.userAvatarBtn} title="Meu perfil" onClick={() => setShowMyProfile(true)}>
+              <UserAvatar user={currentUser} size={26} />
+            </button>
             <span style={{ ...S.roleTag, color: ROLE_META[currentUser.role].color, borderColor: ROLE_META[currentUser.role].color }}>{ROLE_META[currentUser.role].label}</span>
             <span style={S.userName}>{currentUser.name}</span>
             <button style={S.iconBtnGhost} title="Sair" onClick={handleLogout}><LogOut size={15} /></button>
@@ -1072,6 +1089,14 @@ export default function App() {
           }}
         />
       )}
+
+      {showMyProfile && (
+        <MyProfileModal
+          user={currentUser}
+          onClose={() => setShowMyProfile(false)}
+          onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
+        />
+      )}
     </div>
   );
 }
@@ -1246,9 +1271,12 @@ function UsersManagementScreen({
           </div>
           {filtered.map((u) => (
             <div key={u.id} style={S.usersTableRow} onClick={() => setEditingId(u.id)}>
-              <div style={{ flex: 2, minWidth: 0 }}>
-                <div style={S.usersRowName}>{u.name}</div>
-                <div style={S.usersRowUsername}>{u.username}</div>
+              <div style={{ flex: 2, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <UserAvatar user={u} size={30} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={S.usersRowName}>{u.name}</div>
+                  <div style={S.usersRowUsername}>{u.username}</div>
+                </div>
               </div>
               <div style={S.usersRowEmail}>{u.email || '—'}</div>
               <div style={{ width: 148 }}>
@@ -1300,7 +1328,7 @@ function UsersManagementScreen({
 }
 
 function NewUserModal({ onCreate, onClose }) {
-  const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente' });
+  const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente', avatar: '' });
 
   function submit() {
     if (!draft.username || !draft.password || !draft.name) return;
@@ -1326,6 +1354,8 @@ function NewUserModal({ onCreate, onClose }) {
         </select>
         <div style={S.subSectionLabel}>Senha inicial</div>
         <input type="password" value={draft.password} onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))} placeholder="Senha inicial" />
+        <div style={S.subSectionLabel}>Avatar (opcional)</div>
+        <AvatarPicker value={draft.avatar} onChange={(avatar) => setDraft((d) => ({ ...d, avatar }))} />
         <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit}><Plus size={14} /> Criar usuário</button>
       </div>
     </div>
@@ -1343,7 +1373,10 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
     <div style={S.detailOverlay} onClick={onClose}>
       <div style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '88vh' }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>{u.name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <UserAvatar user={u} size={30} />
+            <div style={{ fontSize: 17, fontWeight: 800 }}>{u.name}</div>
+          </div>
           <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
         </div>
 
@@ -1365,6 +1398,9 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
         <input type="text" value={draftUsername} onChange={(e) => setDraftUsername(e.target.value)} onBlur={() => draftUsername !== u.username && onUpdate(u.id, { username: draftUsername })} placeholder="Usuário (login)" />
         <div style={S.subSectionLabel}>E-mail</div>
         <input type="email" value={draftEmail} onChange={(e) => setDraftEmail(e.target.value)} onBlur={() => draftEmail !== u.email && onUpdate(u.id, { email: draftEmail })} placeholder="email@pricetax.com.br" />
+
+        <div style={S.subSectionLabel}>Avatar</div>
+        <AvatarPicker value={u.avatar} onChange={(avatar) => onUpdate(u.id, { avatar })} />
 
         {u.role === 'cliente' && (
           <div style={{ marginTop: 12 }}>
@@ -1420,6 +1456,35 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
 
         <button style={{ ...S.iconBtnGhost, marginTop: 14 }} onClick={() => onDelete(u.id)} disabled={isSelf}>
           <Trash2 size={13} color={isSelf ? '#444' : '#888'} /> {isSelf ? ' (é você)' : ' Remover usuário'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MyProfileModal({ user, onClose, onSave }) {
+  const [avatar, setAvatar] = useState(user.avatar || '');
+  return (
+    <div style={S.detailOverlay} onClick={onClose}>
+      <div style={{ ...S.detailBox, width: 'min(420px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <div style={S.detailTopBar}>
+          <div style={{ fontSize: 17, fontWeight: 800 }}>Meu perfil</div>
+          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <div style={S.myProfilePreview}>
+          <UserAvatar user={{ ...user, avatar }} size={64} />
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 15 }}>{user.name}</div>
+            <span style={{ ...S.roleTag, color: ROLE_META[user.role].color, borderColor: ROLE_META[user.role].color }}>{ROLE_META[user.role].label}</span>
+          </div>
+        </div>
+
+        <div style={S.subSectionLabel}>Escolha seu avatar</div>
+        <AvatarPicker value={avatar} onChange={setAvatar} />
+
+        <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={() => onSave(avatar)}>
+          Salvar
         </button>
       </div>
     </div>
@@ -1580,6 +1645,42 @@ function CreateCompanyModal({ onClose, onCreate }) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function UserAvatar({ user, size = 32 }) {
+  const color = ROLE_META[user.role]?.color || '#888';
+  const initial = (user.name || user.username || '?').slice(0, 1).toUpperCase();
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: user.avatar ? '#1c1c1c' : `${color}2a`,
+      border: `1px solid ${color}55`,
+      fontSize: size * 0.55,
+      fontWeight: 800,
+      color,
+    }}>
+      {user.avatar || initial}
+    </div>
+  );
+}
+
+function AvatarPicker({ value, onChange }) {
+  return (
+    <div style={S.avatarPickerGrid}>
+      {AVATAR_EMOJIS.map((e) => (
+        <button
+          key={e}
+          type="button"
+          style={{ ...S.avatarPickerBtn, ...(value === e ? S.avatarPickerBtnActive : {}) }}
+          onClick={() => onChange(value === e ? '' : e)}
+          title={value === e ? 'Remover avatar' : e}
+        >
+          {e}
+        </button>
+      ))}
     </div>
   );
 }
@@ -2498,6 +2599,7 @@ const S = {
   hint: { fontSize: 11.5, color: '#5f5f5f', textAlign: 'center', marginTop: 24 },
 
   userBadge: { display: 'flex', alignItems: 'center', gap: 8, marginLeft: 6, paddingLeft: 12, borderLeft: '1px solid #2c2c2c' },
+  userAvatarBtn: { background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', lineHeight: 0 },
   roleTag: { fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.03em', border: '1px solid', borderRadius: 999, padding: '3px 8px', whiteSpace: 'nowrap', display: 'inline-block' },
   userName: { fontSize: 12.5, fontWeight: 600, color: '#ddd' },
 
@@ -2664,6 +2766,10 @@ const S = {
   phaseEditRowDragging: { opacity: .4 },
   phaseDragHandle: { display: 'flex', alignItems: 'center', cursor: 'grab', paddingTop: 8, flexShrink: 0 },
   colorInput: { width: 34, height: 34, padding: 0, border: '1px solid #333', borderRadius: 6, background: 'transparent', cursor: 'pointer', flexShrink: 0 },
+  myProfilePreview: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, paddingBottom: 16, borderBottom: '1px solid #262626' },
+  avatarPickerGrid: { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 6, marginTop: 4 },
+  avatarPickerBtn: { width: 34, height: 34, borderRadius: 8, background: '#1c1c1c', border: '1px solid #333', fontSize: 17, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 },
+  avatarPickerBtnActive: { borderColor: '#F5C400', background: 'rgba(245,196,0,.14)' },
 
   // users panel
   userEditCard: { background: '#1a1a1a', border: '1px solid #262626', borderRadius: 8, padding: 12, marginBottom: 10 },
