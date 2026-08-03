@@ -3,7 +3,7 @@ import {
   Plus, Trash2, Download, Upload, Clock, LayoutGrid, Columns3, Building2,
   Users, X, Check, ChevronDown, FileSpreadsheet, FileText, Settings,
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
-  LogOut, UserCog, AlertTriangle, Sun, Moon
+  LogOut, UserCog, AlertTriangle, Sun, Moon, Copy
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from './lib/api.js';
@@ -208,6 +208,7 @@ export default function App() {
   const [showPhases, setShowPhases] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [showCreateCompany, setShowCreateCompany] = useState(false);
+  const [cloningProject, setCloningProject] = useState(null);
   const [showMyProfile, setShowMyProfile] = useState(false);
   const [openActivityId, setOpenActivityId] = useState(null);
   const [newMember, setNewMember] = useState('');
@@ -348,6 +349,7 @@ export default function App() {
           onCreateNew={() => setShowCreateCompany(true)}
           onUpdateCompany={updateCompanyFields}
           onDeleteCompany={deleteCompany}
+          onCloneCompany={(p) => setCloningProject(p)}
           theme={theme}
           onToggleTheme={toggleTheme}
         />
@@ -358,6 +360,17 @@ export default function App() {
               const newId = await createCompany(company);
               setSelectedProjectIds((prev) => [...prev, newId]);
               setShowCreateCompany(false);
+            }}
+          />
+        )}
+        {cloningProject && (
+          <CreateCompanyModal
+            cloneSource={cloningProject}
+            onClose={() => setCloningProject(null)}
+            onCreate={async (company) => {
+              const newId = await cloneCompany(cloningProject.id, company);
+              setSelectedProjectIds((prev) => [...prev, newId]);
+              setCloningProject(null);
             }}
           />
         )}
@@ -553,6 +566,39 @@ export default function App() {
 
   async function createCompany(company) {
     const res = await apiPost('/api/projects', { company });
+    setProjects((prev) => [...prev, res.project]);
+    return res.project.id;
+  }
+
+  async function cloneCompany(sourceId, company) {
+    const source = projects.find((p) => p.id === sourceId);
+    if (!source) throw new Error('Empresa de origem não encontrada.');
+
+    const sourceDates = source.activities.map((a) => a.date).filter(Boolean);
+    const anchor = sourceDates.length ? sourceDates.reduce((min, d) => (d < min ? d : min)) : null;
+    const deltaDays = anchor ? Math.round((parseDate(todayISOStr()) - parseDate(anchor)) / 86400000) : 0;
+    const shift = (iso) => (iso ? toISODate(addDays(parseDate(iso), deltaDays)) : iso);
+
+    const activities = source.activities.map((a) => ({
+      ...a,
+      id: uid('m'),
+      date: shift(a.date),
+      endDate: shift(a.endDate),
+      status: 'nao-iniciado',
+      notes: '',
+      attachments: [],
+      comments: [],
+      transcript: '',
+      subactivities: (a.subactivities || []).map((s) => ({ ...s, id: uid('s'), done: false })),
+    }));
+
+    const res = await apiPost('/api/projects', {
+      company,
+      activities,
+      phases: source.phases,
+      team: source.team,
+      log: [{ ts: new Date().toISOString(), action: `Cronograma clonado a partir de "${source.company.name || 'empresa sem nome'}"`, user: currentUser ? currentUser.name : '' }],
+    });
     setProjects((prev) => [...prev, res.project]);
     return res.project.id;
   }
@@ -1538,7 +1584,7 @@ function MyProfileModal({ user, onClose, onSave }) {
   );
 }
 
-function CreateCompanyModal({ onClose, onCreate }) {
+function CreateCompanyModal({ onClose, onCreate, cloneSource }) {
   const [cnpj, setCnpj] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1613,9 +1659,15 @@ function CreateCompanyModal({ onClose, onCreate }) {
       `}</style>
       <div style={{ ...S.detailBox, width: 'min(560px, 100%)', height: 'auto', maxHeight: '88vh' }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>Cadastrar empresa</div>
+          <div style={{ fontSize: 17, fontWeight: 800 }}>{cloneSource ? 'Clonar empresa' : 'Cadastrar empresa'}</div>
           <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
         </div>
+
+        {cloneSource && (
+          <div style={{ ...S.fieldHint, marginBottom: 12 }}>
+            As atividades de <strong>{cloneSource.company.name || 'empresa de origem'}</strong> serão copiadas para essa nova empresa. As datas serão recalculadas a partir de hoje ({fmtDate(todayISOStr())}), mantendo o mesmo prazo entre cada atividade.
+          </div>
+        )}
 
         <div style={S.subSectionLabel}>CNPJ</div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -1687,7 +1739,7 @@ function CreateCompanyModal({ onClose, onCreate }) {
             )}
 
             <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={saving || !form.name.trim()}>
-              {saving ? 'Criando...' : 'Criar empresa'}
+              {saving ? (cloneSource ? 'Clonando...' : 'Criando...') : (cloneSource ? 'Clonar empresa' : 'Criar empresa')}
             </button>
           </>
         )}
@@ -1823,7 +1875,7 @@ function EditCompanyModal({ project, onClose, onSave }) {
   );
 }
 
-function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, theme, onToggleTheme }) {
+function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, theme, onToggleTheme }) {
   const [selected, setSelected] = useState(() => new Set(initialSelected));
   const [editingProject, setEditingProject] = useState(null);
 
@@ -1892,6 +1944,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                       </div>
                     </label>
                     <div style={S.companyCardActions}>
+                      <button style={S.iconBtnGhost} title="Clonar atividades para uma nova empresa" onClick={(e) => { e.stopPropagation(); onCloneCompany(p); }}><Copy size={14} /></button>
                       <button style={S.iconBtnGhost} title="Editar empresa" onClick={(e) => { e.stopPropagation(); setEditingProject(p); }}><Pencil size={14} /></button>
                       <button style={S.iconBtnGhost} title="Excluir empresa" onClick={(e) => handleDelete(e, p)}><Trash2 size={14} color="#e2574c" /></button>
                       <span style={{ ...S.companyColorDot, background: accent }} />
