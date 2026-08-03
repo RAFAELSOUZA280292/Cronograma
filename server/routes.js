@@ -227,6 +227,11 @@ router.post('/projects', requireAuth, requireMasterOrPricetax, async (req, res, 
     }
     project.company = { ...project.company, ...company };
 
+    if (Array.isArray(req.body.activities)) project.activities = req.body.activities;
+    if (Array.isArray(req.body.phases)) project.phases = req.body.phases;
+    if (Array.isArray(req.body.team)) project.team = req.body.team;
+    if (Array.isArray(req.body.log)) project.log = req.body.log;
+
     await pool.query('INSERT INTO projects (id, data) VALUES ($1, $2)', [project.id, JSON.stringify(project)]);
 
     if (req.user.role === 'pricetax' && project.company.cnpj) {
