@@ -268,6 +268,24 @@ router.delete('/projects/:id', requireAuth, requireMasterOrPricetax, async (req,
   } catch (e) { next(e); }
 });
 
+router.get('/projects/:id/team-candidates', requireAuth, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await pool.query('SELECT data FROM projects WHERE id=$1', [id]);
+    if (!rows[0]) return res.status(404).json({ message: 'Projeto não encontrado.' });
+    const project = rows[0].data;
+    if (!canAccessProject(req.user, project)) {
+      return res.status(403).json({ message: 'Sem acesso a este projeto.' });
+    }
+    const cnpj = (project.company && project.company.cnpj) || '';
+    const { rows: userRows } = await pool.query(
+      `SELECT id, name, role FROM users WHERE role IN ('master','pricetax') OR (role='cliente' AND cnpj=$1) ORDER BY name ASC`,
+      [cnpj]
+    );
+    res.json({ users: userRows });
+  } catch (e) { next(e); }
+});
+
 router.patch('/projects/:id', requireAuth, async (req, res, next) => {
   try {
     const { id } = req.params;

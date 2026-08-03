@@ -212,6 +212,7 @@ export default function App() {
   const [showMyProfile, setShowMyProfile] = useState(false);
   const [openActivityId, setOpenActivityId] = useState(null);
   const [newMember, setNewMember] = useState('');
+  const [teamCandidates, setTeamCandidates] = useState([]);
   const [expanded, setExpanded] = useState({});
   const [dragId, setDragId] = useState(null);
   const [dragPhaseId, setDragPhaseId] = useState(null);
@@ -271,6 +272,13 @@ export default function App() {
       loadUsers();
     }
   }, [showUsers, currentUser?.id]);
+
+  useEffect(() => {
+    if (!showSettings || selectedProjectIds.length !== 1) { setTeamCandidates([]); return; }
+    apiGet(`/api/projects/${selectedProjectIds[0]}/team-candidates`)
+      .then((res) => setTeamCandidates(res.users))
+      .catch(() => setTeamCandidates([]));
+  }, [showSettings, selectedProjectIds.join(',')]);
 
   function addUsersLog(action) {
     setUsersLog((l) => [{ ts: new Date().toISOString(), action }, ...l].slice(0, 300));
@@ -489,7 +497,21 @@ export default function App() {
   }
 
   function removeMember(name) {
-    mutateProject(pid, (p) => ({ ...p, team: p.team.filter((m) => m !== name) }), `Responsável removido da equipe: ${name}`);
+    mutateProject(pid, (p) => {
+      const links = { ...(p.company.teamLinks || {}) };
+      delete links[name];
+      return { ...p, team: p.team.filter((m) => m !== name), company: { ...p.company, teamLinks: links } };
+    }, `Responsável removido da equipe: ${name}`);
+  }
+
+  function linkMember(user) {
+    if (!activeProject || activeProject.team.includes(user.name)) return;
+    const origin = user.role === 'cliente' ? (activeProject.company.name || 'Cliente') : 'PRICETAX';
+    mutateProject(pid, (p) => ({
+      ...p,
+      team: [...p.team, user.name],
+      company: { ...p.company, teamLinks: { ...(p.company.teamLinks || {}), [user.name]: { userId: user.id, role: user.role } } },
+    }), `Responsável vinculado à equipe: ${user.name} (${origin})`);
   }
 
   function addAreaRow() {
@@ -1087,17 +1109,35 @@ export default function App() {
           <div style={S.settingsBlock}>
             <div style={S.settingsLabel}>Equipe / responsáveis</div>
             <div style={S.memberList}>
-              {activeProject.team.map((m) => (
-                <div key={m} style={S.memberChip}>
-                  <span>{m}</span>
-                  <button style={S.chipX} onClick={() => removeMember(m)}><X size={12} /></button>
-                </div>
-              ))}
+              {activeProject.team.map((m) => {
+                const link = (activeProject.company.teamLinks || {})[m];
+                return (
+                  <div key={m} style={S.memberChip}>
+                    <span>{m}</span>
+                    <TeamLinkBadge link={link} companyName={activeProject.company.name} />
+                    <button style={S.chipX} onClick={() => removeMember(m)}><X size={12} /></button>
+                  </div>
+                );
+              })}
             </div>
             <div style={S.memberAddRow}>
               <input type="text" value={newMember} onChange={(e) => setNewMember(e.target.value)} placeholder="Nome do responsável" onKeyDown={(e) => e.key === 'Enter' && addMember()} />
               <button style={S.iconBtn} onClick={addMember}><Plus size={14} /></button>
             </div>
+            <div style={{ ...S.fieldHint, marginTop: 10 }}>Ou vincule um usuário já cadastrado no sistema — assim fica visível quem é a pessoa e se ela é da PRICETAX ou de {activeProject.company.name || 'cliente'}.</div>
+            <select
+              value=""
+              onChange={(e) => {
+                const u = teamCandidates.find((c) => c.id === e.target.value);
+                if (u) linkMember(u);
+              }}
+              style={{ marginTop: 6 }}
+            >
+              <option value="">Vincular usuário existente...</option>
+              {teamCandidates.filter((u) => !activeProject.team.includes(u.name)).map((u) => (
+                <option key={u.id} value={u.id}>{u.name} — {u.role === 'cliente' ? (activeProject.company.name || 'Cliente') : 'PRICETAX'}</option>
+              ))}
+            </select>
           </div>
         </SidePanel>
       )}
@@ -1152,6 +1192,8 @@ export default function App() {
             orderMap={om}
             phases={project.phases}
             team={project.team}
+            teamLinks={project.company.teamLinks}
+            companyName={project.company.name}
             pid={project.id}
             onClose={() => setOpenActivityId(null)}
             updateActivity={updateActivity}
@@ -1793,6 +1835,14 @@ function CompanyBadge({ name, color, logo, small }) {
   );
 }
 
+function TeamLinkBadge({ link, companyName }) {
+  if (!link) return null;
+  const isClient = link.role === 'cliente';
+  const color = isClient ? '#3ecf6e' : '#3ea6ff';
+  const label = isClient ? (companyName || 'Cliente') : 'PRICETAX';
+  return <span style={{ ...S.teamLinkBadge, color, borderColor: `${color}55`, background: `${color}1a` }}>{label}</span>;
+}
+
 function CompanySectionHeader({ project, onEditPhases }) {
   const c = project.company;
   return (
@@ -2019,7 +2069,7 @@ function StatusPill({ status, onClick }) {
   );
 }
 
-function ActivityDetailModal({ activity: a, orderMap, phases, team, pid, onClose, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, addComment, removeComment }) {
+function ActivityDetailModal({ activity: a, orderMap, phases, team, teamLinks, companyName, pid, onClose, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, addComment, removeComment }) {
   const [commentDraft, setCommentDraft] = useState('');
   const phase = phases.find((p) => p.id === a.phase);
 
@@ -2092,9 +2142,12 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, pid, onClose
             </select>
 
             <div style={S.subSectionLabel}>Responsável</div>
-            <select value={a.responsible} onChange={(e) => updateActivity(pid, a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)}>
-              {team.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <select value={a.responsible} onChange={(e) => updateActivity(pid, a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)} style={{ flex: 1 }}>
+                {team.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <TeamLinkBadge link={(teamLinks || {})[a.responsible]} companyName={companyName} />
+            </div>
 
             <div style={S.subSectionLabel}>Início</div>
             <input type="date" value={a.date} onChange={(e) => {
@@ -3016,6 +3069,7 @@ const S = {
   memberChip: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-4)', border: '1px solid var(--border-2)', borderRadius: 999, padding: '5px 6px 5px 11px', fontSize: 12 },
   chipX: { background: 'transparent', border: 'none', color: 'var(--text-5)', cursor: 'pointer', display: 'flex' },
   memberAddRow: { display: 'flex', gap: 6 },
+  teamLinkBadge: { fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: .3, padding: '2px 6px', borderRadius: 999, border: '1px solid', lineHeight: 1.4, whiteSpace: 'nowrap' },
   phaseEditRow: { display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid var(--border-1)' },
   phaseEditRowDragging: { opacity: .4 },
   phaseDragHandle: { display: 'flex', alignItems: 'center', cursor: 'grab', paddingTop: 8, flexShrink: 0 },
