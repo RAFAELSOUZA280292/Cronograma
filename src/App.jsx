@@ -63,6 +63,13 @@ function normalizeProject(p) {
   return { ...p, team: normalizeTeam(p.team, p.company && p.company.teamLinks) };
 }
 
+function isPricetaxTeamMember(member) {
+  if (!member) return false;
+  if (member.role === 'master' || member.role === 'pricetax') return true;
+  if (!member.role && member.name && member.name.trim().toUpperCase() === 'PRICETAX') return true;
+  return false;
+}
+
 function isExpiredNotYetFlagged(user) {
   return !user.blocked && !!user.expiresAt && user.expiresAt < todayISOStr();
 }
@@ -435,7 +442,37 @@ export default function App() {
     mutateProject(targetPid, (p) => p, action);
   }
 
+  function findDateConflict(targetPid, id, newDate) {
+    const targetProject = projects.find((p) => p.id === targetPid);
+    const targetActivity = targetProject && targetProject.activities.find((a) => a.id === id);
+    if (!targetProject || !targetActivity) return null;
+    const targetMember = targetProject.team.find((m) => m.name === targetActivity.responsible);
+    if (!isPricetaxTeamMember(targetMember)) return null;
+    const targetKey = targetMember.userId || `name:${targetMember.name}`;
+
+    for (const project of projects) {
+      if (project.id === targetPid) continue;
+      for (const act of project.activities) {
+        if (act.id === id || act.date !== newDate) continue;
+        const member = project.team.find((m) => m.name === act.responsible);
+        if (!isPricetaxTeamMember(member)) continue;
+        const key = member.userId || `name:${member.name}`;
+        if (key === targetKey) return { project, activity: act, member: targetMember };
+      }
+    }
+    return null;
+  }
+
   function updateActivity(targetPid, id, patch, logMsg) {
+    if (patch.date && (currentUser.role === 'master' || currentUser.role === 'pricetax')) {
+      const conflict = findDateConflict(targetPid, id, patch.date);
+      if (conflict) {
+        window.alert(
+          `Não é possível remarcar para ${fmtDate(patch.date)}: ${conflict.member.name} já está escalado(a) pela PRICETAX para "${conflict.activity.title}" na empresa "${conflict.project.company.name || 'sem nome'}" nessa mesma data.\n\nSó dá pra confirmar essa mudança se o responsável dessa atividade pela PRICETAX for outra pessoa ou outra equipe.`
+        );
+        return;
+      }
+    }
     mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => (a.id === id ? { ...a, ...patch } : a)) }), logMsg);
   }
 
