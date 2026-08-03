@@ -279,7 +279,7 @@ router.get('/projects/:id/team-candidates', requireAuth, async (req, res, next) 
     }
     const cnpj = (project.company && project.company.cnpj) || '';
     const { rows: userRows } = await pool.query(
-      `SELECT id, name, role FROM users WHERE role IN ('master','pricetax') OR (role='cliente' AND cnpj=$1) ORDER BY name ASC`,
+      `SELECT id, name, role, username FROM users WHERE role IN ('master','pricetax') OR (role='cliente' AND cnpj=$1) ORDER BY name ASC`,
       [cnpj]
     );
     res.json({ users: userRows });
