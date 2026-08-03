@@ -51,6 +51,18 @@ function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
 function todayISOStr() { return toISODate(startOfDay(new Date())); }
 
+function normalizeTeam(team, teamLinks) {
+  return (team || []).map((m) => {
+    if (typeof m !== 'string') return m;
+    const link = (teamLinks || {})[m];
+    return { id: uid('team'), name: m, area: '', userId: link ? link.userId : null, username: null, role: link ? link.role : null };
+  });
+}
+
+function normalizeProject(p) {
+  return { ...p, team: normalizeTeam(p.team, p.company && p.company.teamLinks) };
+}
+
 function isExpiredNotYetFlagged(user) {
   return !user.blocked && !!user.expiresAt && user.expiresAt < todayISOStr();
 }
@@ -213,6 +225,8 @@ export default function App() {
   const [openActivityId, setOpenActivityId] = useState(null);
   const [newMember, setNewMember] = useState('');
   const [teamCandidates, setTeamCandidates] = useState([]);
+  const [linkUserId, setLinkUserId] = useState('');
+  const [linkArea, setLinkArea] = useState('');
   const [expanded, setExpanded] = useState({});
   const [dragId, setDragId] = useState(null);
   const [dragPhaseId, setDragPhaseId] = useState(null);
@@ -251,7 +265,7 @@ export default function App() {
     (async () => {
       try {
         const res = await apiGet('/api/projects');
-        setProjects(res.projects);
+        setProjects(res.projects.map(normalizeProject));
       } catch (e) {
         console.error('Falha ao carregar projetos', e);
         setProjects([]);
@@ -432,7 +446,7 @@ export default function App() {
     const nextMonth = activities.length ? Math.max(...activities.map((a) => a.month)) + 1 : 1;
     const phasesList = project.phases;
     const defaultPhaseId = phasesList.length ? phasesList[phasesList.length - 1].id : 1;
-    const na = { id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '', responsible: project.team[0] || 'PRICETAX', date: '', endDate: '', durationDays: '', status: 'nao-iniciado', required: false, subactivities: [], notes: '', attachments: [], comments: [], transcript: '' };
+    const na = { id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '', responsible: (project.team[0] && project.team[0].name) || 'PRICETAX', date: '', endDate: '', durationDays: '', status: 'nao-iniciado', required: false, subactivities: [], notes: '', attachments: [], comments: [], transcript: '' };
     mutateProject(targetPid, (p) => ({ ...p, activities: [...p.activities, na] }), `Atividade criada: "${na.title}"`);
   }
 
@@ -491,27 +505,32 @@ export default function App() {
 
   function addMember() {
     const v = newMember.trim();
-    if (!v || !activeProject || activeProject.team.includes(v)) return;
-    mutateProject(pid, (p) => ({ ...p, team: [...p.team, v] }), `Responsável adicionado à equipe: ${v}`);
+    if (!v || !activeProject || activeProject.team.some((m) => m.name === v)) return;
+    mutateProject(pid, (p) => ({ ...p, team: [...p.team, { id: uid('team'), name: v, area: '', userId: null, username: null, role: null }] }), `Responsável adicionado à equipe: ${v}`);
     setNewMember('');
   }
 
-  function removeMember(name) {
-    mutateProject(pid, (p) => {
-      const links = { ...(p.company.teamLinks || {}) };
-      delete links[name];
-      return { ...p, team: p.team.filter((m) => m !== name), company: { ...p.company, teamLinks: links } };
-    }, `Responsável removido da equipe: ${name}`);
+  function removeMember(id) {
+    const target = activeProject && activeProject.team.find((m) => m.id === id);
+    mutateProject(pid, (p) => ({ ...p, team: p.team.filter((m) => m.id !== id) }), target ? `Responsável removido da equipe: ${target.name}` : undefined);
   }
 
-  function linkMember(user) {
-    if (!activeProject || activeProject.team.includes(user.name)) return;
+  function linkMember(user, area) {
+    if (!activeProject || activeProject.team.some((m) => m.userId === user.id)) return;
     const origin = user.role === 'cliente' ? (activeProject.company.name || 'Cliente') : 'PRICETAX';
     mutateProject(pid, (p) => ({
       ...p,
-      team: [...p.team, user.name],
-      company: { ...p.company, teamLinks: { ...(p.company.teamLinks || {}), [user.name]: { userId: user.id, role: user.role } } },
-    }), `Responsável vinculado à equipe: ${user.name} (${origin})`);
+      team: [...p.team, { id: uid('team'), name: user.name, area: area || '', userId: user.id, username: user.username, role: user.role }],
+    }), `Responsável vinculado à equipe: ${user.name} (${origin})${area ? ` — área: ${area}` : ''}`);
+  }
+
+  function updateMemberArea(id, area) {
+    mutateProject(pid, (p) => ({ ...p, team: p.team.map((m) => (m.id === id ? { ...m, area } : m)) }));
+  }
+
+  function commitMemberArea(id) {
+    const m = activeProject && activeProject.team.find((t) => t.id === id);
+    if (m) addLog(pid, `Área de "${m.name}" definida como: ${m.area || '(vazio)'}`);
   }
 
   function addAreaRow() {
@@ -527,8 +546,8 @@ export default function App() {
     const row = activeProject && (activeProject.company.areas || []).find((r) => r.id === id);
     if (!row) return;
     addLog(pid, `Área cadastrada: ${row.area || '(sem nome)'} — ${row.name || 'sem responsável'}${row.email ? ` <${row.email}>` : ''}`);
-    if (row.name && !activeProject.team.includes(row.name)) {
-      mutateProject(pid, (p) => ({ ...p, team: [...p.team, row.name] }));
+    if (row.name && !activeProject.team.some((m) => m.name === row.name)) {
+      mutateProject(pid, (p) => ({ ...p, team: [...p.team, { id: uid('team'), name: row.name, area: row.area || '', userId: null, username: null, role: null }] }));
     }
   }
 
@@ -588,7 +607,7 @@ export default function App() {
 
   async function createCompany(company) {
     const res = await apiPost('/api/projects', { company });
-    setProjects((prev) => [...prev, res.project]);
+    setProjects((prev) => [...prev, normalizeProject(res.project)]);
     return res.project.id;
   }
 
@@ -614,14 +633,16 @@ export default function App() {
       subactivities: (a.subactivities || []).map((s) => ({ ...s, id: uid('s'), done: false })),
     }));
 
+    const team = source.team.map((m) => ({ ...m, id: uid('team') }));
+
     const res = await apiPost('/api/projects', {
       company,
       activities,
       phases: source.phases,
-      team: source.team,
+      team,
       log: [{ ts: new Date().toISOString(), action: `Cronograma clonado a partir de "${source.company.name || 'empresa sem nome'}"`, user: currentUser ? currentUser.name : '' }],
     });
-    setProjects((prev) => [...prev, res.project]);
+    setProjects((prev) => [...prev, normalizeProject(res.project)]);
     return res.project.id;
   }
 
@@ -1108,36 +1129,61 @@ export default function App() {
 
           <div style={S.settingsBlock}>
             <div style={S.settingsLabel}>Equipe / responsáveis</div>
-            <div style={S.memberList}>
+            <div style={S.fieldHint}>Cada responsável pode ser só um nome/área genérica, ou pode estar vinculado a um usuário real do sistema — aí dá pra ver o login dele, se é PRICETAX ou {activeProject.company.name || 'do cliente'}, e em qual área ele atua.</div>
+            <div style={{ marginTop: 10 }}>
               {activeProject.team.map((m) => {
-                const link = (activeProject.company.teamLinks || {})[m];
+                const candidate = teamCandidates.find((c) => c.id === m.userId);
+                const username = m.username || (candidate && candidate.username) || '';
+                const empresa = m.role === 'cliente' ? (activeProject.company.name || 'Cliente') : 'PRICETAX';
                 return (
-                  <div key={m} style={S.memberChip}>
-                    <span>{m}</span>
-                    <TeamLinkBadge link={link} companyName={activeProject.company.name} />
-                    <button style={S.chipX} onClick={() => removeMember(m)}><X size={12} /></button>
+                  <div key={m.id} style={S.teamCard}>
+                    <div style={S.teamCardTop}>
+                      <div style={S.teamCardName}>{m.name}</div>
+                      <TeamLinkBadge link={m} companyName={activeProject.company.name} />
+                      <button style={S.chipX} onClick={() => removeMember(m.id)}><X size={13} /></button>
+                    </div>
+                    {m.role && (
+                      <div style={S.teamCardMeta}>{empresa}{username ? ` — usuário: ${username}` : ' — sem login próprio'}</div>
+                    )}
+                    <input
+                      type="text"
+                      value={m.area}
+                      onChange={(e) => updateMemberArea(m.id, e.target.value)}
+                      onBlur={() => commitMemberArea(m.id)}
+                      placeholder="Área (ex: Financeiro)"
+                      style={S.teamAreaInput}
+                    />
                   </div>
                 );
               })}
             </div>
             <div style={S.memberAddRow}>
-              <input type="text" value={newMember} onChange={(e) => setNewMember(e.target.value)} placeholder="Nome do responsável" onKeyDown={(e) => e.key === 'Enter' && addMember()} />
+              <input type="text" value={newMember} onChange={(e) => setNewMember(e.target.value)} placeholder="Nome ou área genérica (sem login)" onKeyDown={(e) => e.key === 'Enter' && addMember()} />
               <button style={S.iconBtn} onClick={addMember}><Plus size={14} /></button>
             </div>
-            <div style={{ ...S.fieldHint, marginTop: 10 }}>Ou vincule um usuário já cadastrado no sistema — assim fica visível quem é a pessoa e se ela é da PRICETAX ou de {activeProject.company.name || 'cliente'}.</div>
-            <select
-              value=""
-              onChange={(e) => {
-                const u = teamCandidates.find((c) => c.id === e.target.value);
-                if (u) linkMember(u);
-              }}
-              style={{ marginTop: 6 }}
-            >
-              <option value="">Vincular usuário existente...</option>
-              {teamCandidates.filter((u) => !activeProject.team.includes(u.name)).map((u) => (
-                <option key={u.id} value={u.id}>{u.name} — {u.role === 'cliente' ? (activeProject.company.name || 'Cliente') : 'PRICETAX'}</option>
-              ))}
-            </select>
+            <div style={{ ...S.fieldHint, marginTop: 10 }}>Ou vincule um usuário já cadastrado no sistema:</div>
+            <div style={S.linkUserRow}>
+              <select value={linkUserId} onChange={(e) => setLinkUserId(e.target.value)}>
+                <option value="">Selecione o usuário...</option>
+                {teamCandidates.filter((u) => !activeProject.team.some((m) => m.userId === u.id)).map((u) => (
+                  <option key={u.id} value={u.id}>{u.name} — {u.role === 'cliente' ? (activeProject.company.name || 'Cliente') : 'PRICETAX'}</option>
+                ))}
+              </select>
+              <input type="text" value={linkArea} onChange={(e) => setLinkArea(e.target.value)} placeholder="Área em que ele atua (ex: Financeiro)" />
+              <button
+                style={{ ...S.iconBtn, justifyContent: 'center' }}
+                disabled={!linkUserId}
+                onClick={() => {
+                  const u = teamCandidates.find((c) => c.id === linkUserId);
+                  if (!u) return;
+                  linkMember(u, linkArea.trim());
+                  setLinkUserId('');
+                  setLinkArea('');
+                }}
+              >
+                <Plus size={14} /> Vincular
+              </button>
+            </div>
           </div>
         </SidePanel>
       )}
@@ -1192,7 +1238,6 @@ export default function App() {
             orderMap={om}
             phases={project.phases}
             team={project.team}
-            teamLinks={project.company.teamLinks}
             companyName={project.company.name}
             pid={project.id}
             onClose={() => setOpenActivityId(null)}
@@ -1836,7 +1881,7 @@ function CompanyBadge({ name, color, logo, small }) {
 }
 
 function TeamLinkBadge({ link, companyName }) {
-  if (!link) return null;
+  if (!link || !link.role) return null;
   const isClient = link.role === 'cliente';
   const color = isClient ? '#3ecf6e' : '#3ea6ff';
   const label = isClient ? (companyName || 'Cliente') : 'PRICETAX';
@@ -2069,7 +2114,7 @@ function StatusPill({ status, onClick }) {
   );
 }
 
-function ActivityDetailModal({ activity: a, orderMap, phases, team, teamLinks, companyName, pid, onClose, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, addComment, removeComment }) {
+function ActivityDetailModal({ activity: a, orderMap, phases, team, companyName, pid, onClose, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, addComment, removeComment }) {
   const [commentDraft, setCommentDraft] = useState('');
   const phase = phases.find((p) => p.id === a.phase);
 
@@ -2144,10 +2189,14 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, teamLinks, c
             <div style={S.subSectionLabel}>Responsável</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <select value={a.responsible} onChange={(e) => updateActivity(pid, a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)} style={{ flex: 1 }}>
-                {team.map((m) => <option key={m} value={m}>{m}</option>)}
+                {team.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
               </select>
-              <TeamLinkBadge link={(teamLinks || {})[a.responsible]} companyName={companyName} />
+              <TeamLinkBadge link={team.find((m) => m.name === a.responsible)} companyName={companyName} />
             </div>
+            {(() => {
+              const rm = team.find((m) => m.name === a.responsible);
+              return rm && rm.area ? <div style={{ ...S.fieldHint, marginTop: 4 }}>Área: {rm.area}</div> : null;
+            })()}
 
             <div style={S.subSectionLabel}>Início</div>
             <input type="date" value={a.date} onChange={(e) => {
@@ -2463,7 +2512,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                   <div style={{ width: 170, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ ...S.avatarDot, background: rowAccent }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>
                     <select value={a.responsible} onChange={(e) => updateActivity(rowPid, a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)} style={{ flex: 1, minWidth: 0 }}>
-                      {rowTeam.map((m) => <option key={m} value={m}>{m}</option>)}
+                      {rowTeam.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
                     </select>
                   </div>
                   <div style={{ width: 250, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -3065,11 +3114,15 @@ const S = {
   logoRow: { display: 'flex', alignItems: 'center', gap: 10 },
   logoPreview: { width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border-3)' },
   logoPreviewEmpty: { width: 48, height: 48, borderRadius: 8, background: 'var(--bg-4)', border: '1px solid var(--border-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  memberList: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-  memberChip: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-4)', border: '1px solid var(--border-2)', borderRadius: 999, padding: '5px 6px 5px 11px', fontSize: 12 },
   chipX: { background: 'transparent', border: 'none', color: 'var(--text-5)', cursor: 'pointer', display: 'flex' },
-  memberAddRow: { display: 'flex', gap: 6 },
+  memberAddRow: { display: 'flex', gap: 6, marginTop: 10 },
   teamLinkBadge: { fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: .3, padding: '2px 6px', borderRadius: 999, border: '1px solid', lineHeight: 1.4, whiteSpace: 'nowrap' },
+  teamCard: { border: '1px solid var(--border-2)', borderRadius: 8, padding: '8px 10px', marginBottom: 8, background: 'var(--bg-3)' },
+  teamCardTop: { display: 'flex', alignItems: 'center', gap: 6 },
+  teamCardName: { fontWeight: 700, fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  teamCardMeta: { fontSize: 11, color: 'var(--text-5)', marginTop: 3 },
+  teamAreaInput: { marginTop: 6, width: '100%', fontSize: 12, padding: '5px 7px' },
+  linkUserRow: { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 },
   phaseEditRow: { display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid var(--border-1)' },
   phaseEditRowDragging: { opacity: .4 },
   phaseDragHandle: { display: 'flex', alignItems: 'center', cursor: 'grab', paddingTop: 8, flexShrink: 0 },
