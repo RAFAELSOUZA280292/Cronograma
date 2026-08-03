@@ -3,7 +3,7 @@ import {
   Plus, Trash2, Download, Upload, Clock, LayoutGrid, Columns3, Building2,
   Users, X, Check, ChevronDown, FileSpreadsheet, FileText, Settings,
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
-  LogOut, UserCog, AlertTriangle, Sun, Moon, Copy
+  LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from './lib/api.js';
@@ -43,9 +43,11 @@ const AVATAR_EMOJIS = [
 const STATUS_META = {
   'nao-iniciado': { label: 'Não iniciado', color: 'var(--text-4)', bg: 'var(--border-1)', border: 'var(--border-3)' },
   'em-andamento': { label: 'Em andamento', color: '#F5C400', bg: 'rgba(245,196,0,.14)', border: 'rgba(245,196,0,.5)' },
+  'pausado': { label: 'Pausado', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
   'concluido': { label: 'Concluído', color: '#3ecf6e', bg: 'rgba(62,207,110,.14)', border: 'rgba(62,207,110,.5)' },
 };
-const STATUS_ORDER = ['nao-iniciado', 'em-andamento', 'concluido'];
+const STATUS_ORDER = ['nao-iniciado', 'em-andamento', 'pausado', 'concluido'];
+const DELETE_CONFIRM_PHRASE = 'Excluir';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -223,6 +225,7 @@ export default function App() {
 
   const [view, setView] = useState('table');
   const [showLog, setShowLog] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showPhases, setShowPhases] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
@@ -490,7 +493,23 @@ export default function App() {
   function deleteActivity(targetPid, id) {
     const project = projects.find((p) => p.id === targetPid);
     const a = project && project.activities.find((x) => x.id === id);
-    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.filter((x) => x.id !== id) }), a ? `Atividade removida: "${a.title}"` : undefined);
+    if (!a) return false;
+    const typed = window.prompt(`Para excluir "${a.title}", digite "${DELETE_CONFIRM_PHRASE}" abaixo:`);
+    if (typed !== DELETE_CONFIRM_PHRASE) return false;
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      activities: p.activities.map((x) => (x.id === id ? { ...x, deleted: true, deletedAt: new Date().toISOString(), deletedBy: currentUser ? currentUser.name : '' } : x)),
+    }), `Atividade excluída: "${a.title}"`);
+    return true;
+  }
+
+  function restoreActivity(targetPid, id) {
+    const project = projects.find((p) => p.id === targetPid);
+    const a = project && project.activities.find((x) => x.id === id);
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      activities: p.activities.map((x) => (x.id === id ? { ...x, deleted: false, deletedAt: '', deletedBy: '' } : x)),
+    }), a ? `Atividade restaurada: "${a.title}"` : undefined);
   }
 
   function addSub(targetPid, actId) {
@@ -812,7 +831,7 @@ export default function App() {
       selectedProjects.forEach((p) => addLog(p.id, 'Cronograma exportado para Excel (visão geral)'));
       return;
     }
-    const activities = activeProject.activities;
+    const activities = activeProject.activities.filter((a) => !a.deleted);
     const rows = activities.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).map((a) => ({
       Nº: orderMap[a.id],
       Fase: activeProject.phases.find((p) => p.id === a.phase)?.name || '',
@@ -840,14 +859,14 @@ export default function App() {
     window.print();
   }
 
-  const activitiesSorted = activeProject ? sortActivities(activeProject.activities) : [];
+  const activitiesSorted = activeProject ? sortActivities(activeProject.activities.filter((a) => !a.deleted)) : [];
   const orderMap = buildOrderMap(activitiesSorted);
 
   const perCompanySorted = {};
   const perCompanyOrderMap = {};
   if (isMulti) {
     selectedProjects.forEach((p) => {
-      const sorted = sortActivities(p.activities);
+      const sorted = sortActivities(p.activities.filter((a) => !a.deleted));
       perCompanySorted[p.id] = sorted;
       perCompanyOrderMap[p.id] = buildOrderMap(sorted);
     });
@@ -927,6 +946,9 @@ export default function App() {
           )}
           {!isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowLog(true)}><Clock size={15} /> Log ({(activeProject.log || []).length})</button>
+          )}
+          {!isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
+            <button style={S.iconBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira ({activeProject.activities.filter((a) => a.deleted).length})</button>
           )}
           <button style={S.iconBtn} onClick={exportExcel}><FileSpreadsheet size={15} /> Excel</button>
           <button style={S.iconBtn} onClick={exportPdf}><FileText size={15} /> PDF</button>
@@ -1087,6 +1109,24 @@ export default function App() {
           ))}
         </SidePanel>
       )}
+
+      {showTrash && activeProject && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (() => {
+        const deletedActivities = activeProject.activities.filter((a) => a.deleted).slice().sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
+        return (
+          <SidePanel title="Lixeira" onClose={() => setShowTrash(false)}>
+            {deletedActivities.length === 0 && <div style={S.emptyMuted}>Nenhuma atividade excluída.</div>}
+            {deletedActivities.map((a) => (
+              <div key={a.id} style={S.trashRow}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={S.trashTitle}>{a.title}</div>
+                  <div style={S.logTs}>Excluída em {fmtTs(a.deletedAt)}{a.deletedBy ? ` · ${a.deletedBy}` : ''}</div>
+                </div>
+                <button style={S.iconBtn} onClick={() => restoreActivity(activeProject.id, a.id)}><Undo2 size={14} /> Restaurar</button>
+              </div>
+            ))}
+          </SidePanel>
+        );
+      })()}
 
       {showSettings && activeProject && (
         <SidePanel title="Empresa e equipe" onClose={() => setShowSettings(false)}>
@@ -1279,7 +1319,7 @@ export default function App() {
             pid={project.id}
             onClose={() => setOpenActivityId(null)}
             updateActivity={updateActivity}
-            deleteActivity={(tPid, id) => { deleteActivity(tPid, id); setOpenActivityId(null); }}
+            deleteActivity={(tPid, id) => { if (deleteActivity(tPid, id)) setOpenActivityId(null); }}
             addSub={addSub}
             updateSub={updateSub}
             deleteSub={deleteSub}
@@ -3079,7 +3119,7 @@ const S = {
   statusPill: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', padding: '5px 9px', borderRadius: 999, border: '1px solid', textAlign: 'center', flexShrink: 0, whiteSpace: 'nowrap' },
 
   // kanban
-  kanbanBoard: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 },
+  kanbanBoard: { display: 'grid', gridTemplateColumns: `repeat(${STATUS_ORDER.length}, 1fr)`, gap: 16 },
   kanbanCol: { background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 10, padding: 12, minHeight: 200 },
   kanbanColHead: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 800, marginBottom: 12, color: 'var(--text-2)' },
   kanbanDot: { width: 8, height: 8, borderRadius: '50%' },
@@ -3143,6 +3183,8 @@ const S = {
   logRow: { padding: '9px 0', borderBottom: '1px solid var(--border-1)' },
   logTs: { fontSize: 10.5, color: 'var(--text-6)' },
   logAction: { fontSize: 12.5, color: 'var(--text-2)', marginTop: 2 },
+  trashRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-1)' },
+  trashTitle: { fontSize: 13, fontWeight: 700, color: 'var(--text-2)' },
 
   settingsBlock: { marginBottom: 20 },
   areaRow: { background: 'var(--bg-4)', border: '1px solid var(--border-1)', borderRadius: 8, padding: 10, marginBottom: 8 },
