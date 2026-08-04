@@ -553,7 +553,29 @@ export default function App() {
   }
 
   function deleteSub(targetPid, actId, subId) {
-    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, subactivities: (a.subactivities || []).filter((s) => s.id !== subId) }) }), undefined, actId);
+    const project = projects.find((p) => p.id === targetPid);
+    const act = project && project.activities.find((a) => a.id === actId);
+    const sub = act && (act.subactivities || []).find((s) => s.id === subId);
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      activities: p.activities.map((a) => a.id !== actId ? a : {
+        ...a,
+        subactivities: (a.subactivities || []).map((s) => s.id === subId ? { ...s, deleted: true, deletedAt: new Date().toISOString(), deletedBy: currentUser ? currentUser.name : '' } : s),
+      }),
+    }), sub ? `Subatividade excluída em "${act.title}": ${sub.title}` : undefined, actId);
+  }
+
+  function restoreSub(targetPid, actId, subId) {
+    const project = projects.find((p) => p.id === targetPid);
+    const act = project && project.activities.find((a) => a.id === actId);
+    const sub = act && (act.subactivities || []).find((s) => s.id === subId);
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      activities: p.activities.map((a) => a.id !== actId ? a : {
+        ...a,
+        subactivities: (a.subactivities || []).map((s) => s.id === subId ? { ...s, deleted: false, deletedAt: '', deletedBy: '' } : s),
+      }),
+    }), sub ? `Subatividade restaurada em "${act.title}": ${sub.title}` : undefined, actId);
   }
 
   function reorderSub(targetPid, actId, fromId, toId) {
@@ -763,7 +785,7 @@ export default function App() {
       attachments: [],
       comments: [],
       transcript: '',
-      subactivities: (a.subactivities || []).map((s) => ({ ...s, id: uid('s'), done: false })),
+      subactivities: (a.subactivities || []).filter((s) => !s.deleted).map((s) => ({ ...s, id: uid('s'), done: false })),
     }));
 
     const team = source.team.map((m) => ({ ...m, id: uid('team') }));
@@ -898,7 +920,7 @@ export default function App() {
         Fim: fmtDate(a.endDate || a.date),
         Obrigatória: a.required ? 'Sim' : 'Não',
         Status: STATUS_META[a.status]?.label || a.status,
-        Subatividades: (a.subactivities || []).map((s) => `${s.done ? '[x]' : '[ ]'} ${s.title}`).join(' | '),
+        Subatividades: (a.subactivities || []).filter((s) => !s.deleted).map((s) => `${s.done ? '[x]' : '[ ]'} ${s.title}`).join(' | '),
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
       ws['!cols'] = [{ wch: 22 }, { wch: 6 }, { wch: 22 }, { wch: 26 }, { wch: 40 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 50 }];
@@ -919,7 +941,7 @@ export default function App() {
       Fim: fmtDate(a.endDate || a.date),
       Obrigatória: a.required ? 'Sim' : 'Não',
       Status: STATUS_META[a.status]?.label || a.status,
-      Subatividades: (a.subactivities || []).map((s) => `${s.done ? '[x]' : '[ ]'} ${s.title}`).join(' | '),
+      Subatividades: (a.subactivities || []).filter((s) => !s.deleted).map((s) => `${s.done ? '[x]' : '[ ]'} ${s.title}`).join(' | '),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [{ wch: 6 }, { wch: 22 }, { wch: 26 }, { wch: 40 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 50 }];
@@ -1039,7 +1061,7 @@ export default function App() {
             <button style={S.iconBtn} onClick={() => setShowLog(true)}><Clock size={15} /> Log ({(activeProject.log || []).length})</button>
           )}
           {!isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
-            <button style={S.iconBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira ({activeProject.activities.filter((a) => a.deleted).length})</button>
+            <button style={S.iconBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira ({activeProject.activities.filter((a) => a.deleted).length + activeProject.activities.reduce((n, a) => n + (a.deleted ? 0 : (a.subactivities || []).filter((s) => s.deleted).length), 0)})</button>
           )}
           <button style={S.iconBtn} onClick={exportExcel}><FileSpreadsheet size={15} /> Excel</button>
           <button style={S.iconBtn} onClick={exportPdf}><FileText size={15} /> PDF</button>
@@ -1212,17 +1234,28 @@ export default function App() {
       )}
 
       {showTrash && activeProject && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (() => {
-        const deletedActivities = activeProject.activities.filter((a) => a.deleted).slice().sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
+        const trashItems = [
+          ...activeProject.activities.filter((a) => a.deleted).map((a) => ({ kind: 'activity', id: a.id, title: a.title, deletedAt: a.deletedAt, deletedBy: a.deletedBy })),
+          ...activeProject.activities.flatMap((a) => a.deleted ? [] : (a.subactivities || []).filter((s) => s.deleted).map((s) => ({ kind: 'sub', id: s.id, activityId: a.id, title: s.title, parentTitle: a.title, deletedAt: s.deletedAt, deletedBy: s.deletedBy }))),
+        ].sort((x, y) => (y.deletedAt || '').localeCompare(x.deletedAt || ''));
         return (
           <SidePanel title="Lixeira" onClose={() => setShowTrash(false)}>
-            {deletedActivities.length === 0 && <div style={S.emptyMuted}>Nenhuma atividade excluída.</div>}
-            {deletedActivities.map((a) => (
-              <div key={a.id} style={S.trashRow}>
+            {trashItems.length === 0 && <div style={S.emptyMuted}>Nada excluído.</div>}
+            {trashItems.map((item) => (
+              <div key={`${item.kind}-${item.id}`} style={S.trashRow}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={S.trashTitle}>{a.title}</div>
-                  <div style={S.logTs}>Excluída em {fmtTs(a.deletedAt)}{a.deletedBy ? ` · ${a.deletedBy}` : ''}</div>
+                  <div style={S.trashTitle}>
+                    {item.title}
+                    {item.kind === 'sub' && <span style={S.trashParent}> — subatividade de "{item.parentTitle}"</span>}
+                  </div>
+                  <div style={S.logTs}>Excluída em {fmtTs(item.deletedAt)}{item.deletedBy ? ` · ${item.deletedBy}` : ''}</div>
                 </div>
-                <button style={S.iconBtn} onClick={() => restoreActivity(activeProject.id, a.id)}><Undo2 size={14} /> Restaurar</button>
+                <button
+                  style={S.iconBtn}
+                  onClick={() => item.kind === 'activity' ? restoreActivity(activeProject.id, item.id) : restoreSub(activeProject.id, item.activityId, item.id)}
+                >
+                  <Undo2 size={14} /> Restaurar
+                </button>
               </div>
             ))}
           </SidePanel>
@@ -2526,7 +2559,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
             </select>
 
             <div style={S.subSectionLabel}>Subatividades</div>
-            {(a.subactivities || []).map((s) => (
+            {(a.subactivities || []).filter((s) => !s.deleted).map((s) => (
               <div
                 key={s.id}
                 style={{ ...S.subRowWrap, ...(dragSubId === s.id ? { opacity: .4 } : {}) }}
@@ -2759,7 +2792,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
             const rowAccent = companyColor || a._companyColor || '#F5C400';
             const rowOrder = orderMap ? orderMap[a.id] : a._order;
             const isOpen = !!expanded[`${rowPid}-${a.id}`];
-            const subs = a.subactivities || [];
+            const subs = (a.subactivities || []).filter((s) => !s.deleted);
             const doneSubs = subs.filter((s) => s.done).length;
             const phaseColor = phaseOf(a)?.color || 'var(--text-5)';
             const isDragging = dragActId === a.id;
@@ -3460,6 +3493,7 @@ const S = {
   logAction: { fontSize: 12.5, color: 'var(--text-2)', marginTop: 2 },
   trashRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-1)' },
   trashTitle: { fontSize: 13, fontWeight: 700, color: 'var(--text-2)' },
+  trashParent: { fontSize: 11.5, fontWeight: 400, color: 'var(--text-5)' },
   mentionRow: { padding: '10px 0', borderBottom: '1px solid var(--border-1)', cursor: 'pointer' },
   mentionActivity: { fontSize: 13, fontWeight: 700, color: 'var(--text-2)', marginTop: 3 },
   mentionText: { fontSize: 12, color: 'var(--text-4)', marginTop: 3, lineHeight: 1.4 },
