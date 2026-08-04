@@ -1119,6 +1119,7 @@ export default function App() {
             addSub={addSub}
             updateSub={updateSub}
             deleteSub={deleteSub}
+            reorderSub={reorderSub}
             addAttachment={addAttachment}
             removeAttachment={removeAttachment}
             openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
@@ -1168,6 +1169,7 @@ export default function App() {
             addSub={addSub}
             updateSub={updateSub}
             deleteSub={deleteSub}
+            reorderSub={reorderSub}
             addAttachment={addAttachment}
             removeAttachment={removeAttachment}
             openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
@@ -2573,7 +2575,8 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
   );
 }
 
-function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor }) {
+function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor }) {
+  const [dragSub, setDragSub] = useState(null);
   const [dragActId, setDragActId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
   const [dragOffsetY, setDragOffsetY] = useState(0);
@@ -2877,10 +2880,27 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                 {isOpen && (
                   <div style={S.subPanel}>
                     {subs.map((s) => (
-                      <div key={s.id} style={S.subRow}>
-                        <input type="checkbox" checked={s.done} onChange={(e) => updateSub(rowPid, a.id, s.id, { done: e.target.checked })} />
-                        <input type="text" value={s.title} onChange={(e) => updateSub(rowPid, a.id, s.id, { title: e.target.value })} style={{ textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
-                        <button style={S.iconBtnGhost} onClick={() => deleteSub(rowPid, a.id, s.id)}><X size={13} /></button>
+                      <div
+                        key={s.id}
+                        style={{ ...S.subRowWrap, ...(dragSub && dragSub.subId === s.id ? { opacity: .4 } : {}) }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => { if (dragSub && dragSub.actId === a.id) reorderSub(rowPid, a.id, dragSub.subId, s.id); setDragSub(null); }}
+                      >
+                        <div style={S.subRow}>
+                          <div draggable onDragStart={() => setDragSub({ actId: a.id, subId: s.id })} onDragEnd={() => setDragSub(null)} style={S.subDragHandle} title="Arraste para reordenar">
+                            <GripVertical size={13} color="var(--text-8)" />
+                          </div>
+                          <input type="checkbox" checked={s.done} onChange={(e) => updateSub(rowPid, a.id, s.id, { done: e.target.checked })} />
+                          <input type="text" value={s.title} onChange={(e) => updateSub(rowPid, a.id, s.id, { title: e.target.value })} style={{ flex: 1, textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
+                          <button style={S.iconBtnGhost} onClick={() => deleteSub(rowPid, a.id, s.id)}><X size={13} /></button>
+                        </div>
+                        <div style={S.subMetaRow}>
+                          <select value={s.responsible || ''} onChange={(e) => updateSub(rowPid, a.id, s.id, { responsible: e.target.value })} style={S.subMiniField} title="Responsável da subatividade">
+                            <option value="">Sem responsável</option>
+                            {rowTeam.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
+                          </select>
+                          <input type="date" value={s.date || ''} onChange={(e) => updateSub(rowPid, a.id, s.id, { date: e.target.value })} style={S.subMiniField} title="Prazo da subatividade" />
+                        </div>
                       </div>
                     ))}
                     <button style={S.addSubBtn} onClick={() => addSub(rowPid, a.id)}><Plus size={12} /> Subatividade</button>
