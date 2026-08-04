@@ -3,7 +3,7 @@ import {
   Plus, Trash2, Download, Upload, Clock, LayoutGrid, Columns3, Building2,
   Users, X, Check, ChevronDown, FileSpreadsheet, FileText, Settings,
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
-  LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2
+  LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from './lib/api.js';
@@ -12,6 +12,7 @@ import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
 const THEME_KEY = 'pricetax-cronograma-theme';
+const MENTIONS_SEEN_KEY = 'pricetax-cronograma-mentions-seen';
 
 function BrandLogo({ theme, style }) {
   return <img src={theme === 'light' ? pricetaxLogoPreto : pricetaxLogoBranco} alt="PriceTax" style={style} />;
@@ -48,6 +49,14 @@ const STATUS_META = {
 };
 const STATUS_ORDER = ['nao-iniciado', 'em-andamento', 'pausado', 'concluido'];
 const DELETE_CONFIRM_PHRASE = 'Excluir';
+const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+
+const PRIORITY_META = {
+  alta: { label: 'Alta', color: '#e2574c', bg: 'rgba(226,87,76,.14)', border: 'rgba(226,87,76,.5)' },
+  media: { label: 'Média', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
+  baixa: { label: 'Baixa', color: 'var(--text-5)', bg: 'var(--border-1)', border: 'var(--border-3)' },
+};
+const PRIORITY_ORDER = ['alta', 'media', 'baixa'];
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -226,6 +235,8 @@ export default function App() {
   const [view, setView] = useState('table');
   const [showLog, setShowLog] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionsSeenAt, setMentionsSeenAt] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showPhases, setShowPhases] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
@@ -269,6 +280,24 @@ export default function App() {
     try { window.localStorage.setItem(LOCAL_PREFS_KEY, JSON.stringify({ usersLog })); }
     catch (e) { /* ignora */ }
   }, [usersLog]);
+
+  useEffect(() => {
+    if (!currentUser) { setMentionsSeenAt(''); return; }
+    try {
+      const raw = JSON.parse(window.localStorage.getItem(MENTIONS_SEEN_KEY) || '{}');
+      setMentionsSeenAt(raw[currentUser.username] || '');
+    } catch (e) { setMentionsSeenAt(''); }
+  }, [currentUser?.id]);
+
+  function markMentionsSeen() {
+    const now = new Date().toISOString();
+    setMentionsSeenAt(now);
+    try {
+      const raw = JSON.parse(window.localStorage.getItem(MENTIONS_SEEN_KEY) || '{}');
+      raw[currentUser.username] = now;
+      window.localStorage.setItem(MENTIONS_SEEN_KEY, JSON.stringify(raw));
+    } catch (e) { /* ignora */ }
+  }
 
   useEffect(() => {
     if (!currentUser) { setProjects([]); setProjectsLoaded(false); return; }
@@ -340,13 +369,13 @@ export default function App() {
     }, 500);
   }
 
-  function mutateProject(pid, updater, logMsg) {
+  function mutateProject(pid, updater, logMsg, activityId) {
     setProjects((prev) => {
       let saved = null;
       const nextArr = prev.map((p) => {
         if (p.id !== pid) return p;
         let next = updater(p);
-        if (logMsg) next = { ...next, log: [{ ts: new Date().toISOString(), action: logMsg, user: currentUser ? currentUser.name : '' }, ...(next.log || [])].slice(0, 300) };
+        if (logMsg) next = { ...next, log: [{ ts: new Date().toISOString(), action: logMsg, user: currentUser ? currentUser.name : '', activityId: activityId || null }, ...(next.log || [])].slice(0, 300) };
         saved = next;
         return next;
       });
@@ -476,7 +505,7 @@ export default function App() {
         return;
       }
     }
-    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => (a.id === id ? { ...a, ...patch } : a)) }), logMsg);
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => (a.id === id ? { ...a, ...patch } : a)) }), logMsg, id);
   }
 
   function addActivity(targetPid) {
@@ -486,8 +515,8 @@ export default function App() {
     const nextMonth = activities.length ? Math.max(...activities.map((a) => a.month)) + 1 : 1;
     const phasesList = project.phases;
     const defaultPhaseId = phasesList.length ? phasesList[phasesList.length - 1].id : 1;
-    const na = { id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '', responsible: (project.team[0] && project.team[0].name) || 'PRICETAX', date: '', endDate: '', durationDays: '', status: 'nao-iniciado', required: false, subactivities: [], notes: '', attachments: [], comments: [], transcript: '' };
-    mutateProject(targetPid, (p) => ({ ...p, activities: [...p.activities, na] }), `Atividade criada: "${na.title}"`);
+    const na = { id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '', responsible: (project.team[0] && project.team[0].name) || 'PRICETAX', priority: '', participants: [], date: '', endDate: '', durationDays: '', status: 'nao-iniciado', required: false, subactivities: [], notes: '', attachments: [], comments: [], links: [], transcript: '' };
+    mutateProject(targetPid, (p) => ({ ...p, activities: [...p.activities, na] }), `Atividade criada: "${na.title}"`, na.id);
   }
 
   function deleteActivity(targetPid, id) {
@@ -499,7 +528,7 @@ export default function App() {
     mutateProject(targetPid, (p) => ({
       ...p,
       activities: p.activities.map((x) => (x.id === id ? { ...x, deleted: true, deletedAt: new Date().toISOString(), deletedBy: currentUser ? currentUser.name : '' } : x)),
-    }), `Atividade excluída: "${a.title}"`);
+    }), `Atividade excluída: "${a.title}"`, id);
     return true;
   }
 
@@ -509,32 +538,53 @@ export default function App() {
     mutateProject(targetPid, (p) => ({
       ...p,
       activities: p.activities.map((x) => (x.id === id ? { ...x, deleted: false, deletedAt: '', deletedBy: '' } : x)),
-    }), a ? `Atividade restaurada: "${a.title}"` : undefined);
+    }), a ? `Atividade restaurada: "${a.title}"` : undefined, id);
   }
 
   function addSub(targetPid, actId) {
     const project = projects.find((p) => p.id === targetPid);
     const act = project && project.activities.find((a) => a.id === actId);
-    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, subactivities: [...(a.subactivities || []), { id: uid('s'), title: 'Nova subatividade', done: false }] }) }), act ? `Subatividade adicionada em "${act.title}"` : undefined);
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, subactivities: [...(a.subactivities || []), { id: uid('s'), title: 'Nova subatividade', done: false, responsible: '', date: '' }] }) }), act ? `Subatividade adicionada em "${act.title}"` : undefined, actId);
     setExpanded((e) => ({ ...e, [actId]: true }));
   }
 
   function updateSub(targetPid, actId, subId, patch) {
-    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, subactivities: (a.subactivities || []).map((s) => s.id === subId ? { ...s, ...patch } : s) }) }));
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, subactivities: (a.subactivities || []).map((s) => s.id === subId ? { ...s, ...patch } : s) }) }), undefined, actId);
   }
 
   function deleteSub(targetPid, actId, subId) {
-    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, subactivities: (a.subactivities || []).filter((s) => s.id !== subId) }) }));
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, subactivities: (a.subactivities || []).filter((s) => s.id !== subId) }) }), undefined, actId);
+  }
+
+  function reorderSub(targetPid, actId, fromId, toId) {
+    if (!fromId || fromId === toId) return;
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      activities: p.activities.map((a) => {
+        if (a.id !== actId) return a;
+        const list = (a.subactivities || []).slice();
+        const fromIdx = list.findIndex((s) => s.id === fromId);
+        const toIdx = list.findIndex((s) => s.id === toId);
+        if (fromIdx === -1 || toIdx === -1) return a;
+        const [moved] = list.splice(fromIdx, 1);
+        list.splice(toIdx, 0, moved);
+        return { ...a, subactivities: list };
+      }),
+    }), undefined, actId);
   }
 
   function addAttachment(targetPid, actId, file) {
     if (!file) return;
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      window.alert(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB.`);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
-      const att = { id: uid('att'), name: file.name, size: file.size, dataUrl: reader.result };
+      const att = { id: uid('att'), name: file.name, size: file.size, type: file.type || '', dataUrl: reader.result };
       const project = projects.find((p) => p.id === targetPid);
       const act = project && project.activities.find((a) => a.id === actId);
-      mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, attachments: [...(a.attachments || []), att] }) }), `Anexo adicionado em "${act ? act.title : ''}": ${file.name}`);
+      mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, attachments: [...(a.attachments || []), att] }) }), `Anexo adicionado em "${act ? act.title : ''}": ${file.name}`, actId);
     };
     reader.readAsDataURL(file);
   }
@@ -543,20 +593,47 @@ export default function App() {
     const project = projects.find((p) => p.id === targetPid);
     const act = project && project.activities.find((a) => a.id === actId);
     const att = act && (act.attachments || []).find((x) => x.id === attId);
-    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, attachments: (a.attachments || []).filter((x) => x.id !== attId) }) }), att ? `Anexo removido em "${act.title}": ${att.name}` : undefined);
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, attachments: (a.attachments || []).filter((x) => x.id !== attId) }) }), att ? `Anexo removido em "${act.title}": ${att.name}` : undefined, actId);
   }
 
-  function addComment(targetPid, actId, text) {
+  function addComment(targetPid, actId, text, mentionIds) {
     const v = (text || '').trim();
     if (!v) return;
-    const c = { id: uid('cm'), text: v, ts: new Date().toISOString() };
+    const c = { id: uid('cm'), text: v, ts: new Date().toISOString(), author: currentUser ? currentUser.name : '', authorId: currentUser ? currentUser.id : '', mentions: mentionIds && mentionIds.length ? mentionIds : [] };
     const project = projects.find((p) => p.id === targetPid);
     const act = project && project.activities.find((a) => a.id === actId);
-    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, comments: [...(a.comments || []), c] }) }), `Comentário adicionado em "${act ? act.title : ''}"`);
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, comments: [...(a.comments || []), c] }) }), `Comentário adicionado em "${act ? act.title : ''}"`, actId);
   }
 
   function removeComment(targetPid, actId, commentId) {
-    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, comments: (a.comments || []).filter((c) => c.id !== commentId) }) }));
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, comments: (a.comments || []).filter((c) => c.id !== commentId) }) }), undefined, actId);
+  }
+
+  function addLink(targetPid, actId, link) {
+    if (!link || !link.url || !link.url.trim()) return;
+    const url = /^https?:\/\//i.test(link.url.trim()) ? link.url.trim() : `https://${link.url.trim()}`;
+    const l = { id: uid('lnk'), label: (link.label || '').trim() || url, url };
+    const project = projects.find((p) => p.id === targetPid);
+    const act = project && project.activities.find((a) => a.id === actId);
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, links: [...(a.links || []), l] }) }), act ? `Link adicionado em "${act.title}": ${l.label}` : undefined, actId);
+  }
+
+  function removeLink(targetPid, actId, linkId) {
+    const project = projects.find((p) => p.id === targetPid);
+    const act = project && project.activities.find((a) => a.id === actId);
+    const l = act && (act.links || []).find((x) => x.id === linkId);
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, links: (a.links || []).filter((x) => x.id !== linkId) }) }), l ? `Link removido em "${act.title}": ${l.label}` : undefined, actId);
+  }
+
+  function toggleParticipant(targetPid, actId, name) {
+    const project = projects.find((p) => p.id === targetPid);
+    const act = project && project.activities.find((a) => a.id === actId);
+    if (!act) return;
+    const has = (act.participants || []).includes(name);
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      activities: p.activities.map((a) => a.id !== actId ? a : { ...a, participants: has ? (a.participants || []).filter((n) => n !== name) : [...(a.participants || []), name] }),
+    }), `${has ? 'Participante removido' : 'Participante adicionado'} em "${act.title}": ${name}`, actId);
   }
 
   function addMember() {
@@ -859,6 +936,20 @@ export default function App() {
     window.print();
   }
 
+  const myMentions = [];
+  projects.forEach((p) => {
+    (p.activities || []).forEach((a) => {
+      if (a.deleted) return;
+      (a.comments || []).forEach((c) => {
+        if ((c.mentions || []).includes(currentUser.id)) {
+          myMentions.push({ pid: p.id, companyName: p.company.name || 'Empresa sem nome', activityId: a.id, activityTitle: a.title, commentId: c.id, text: c.text, ts: c.ts, author: c.author || '' });
+        }
+      });
+    });
+  });
+  myMentions.sort((x, y) => (y.ts || '').localeCompare(x.ts || ''));
+  const unreadMentionsCount = myMentions.filter((m) => m.ts > mentionsSeenAt).length;
+
   const activitiesSorted = activeProject ? sortActivities(activeProject.activities.filter((a) => !a.deleted)) : [];
   const orderMap = buildOrderMap(activitiesSorted);
 
@@ -964,6 +1055,14 @@ export default function App() {
           ) : (
             <button style={S.primaryBtn} onClick={() => addActivity(activeProject.id)}><Plus size={15} /> Nova atividade</button>
           )}
+          <button
+            style={{ ...S.iconBtnGhost, position: 'relative' }}
+            title="Menções"
+            onClick={() => { setShowMentions(true); markMentionsSeen(); }}
+          >
+            <Bell size={16} />
+            {unreadMentionsCount > 0 && <span style={S.mentionBadge}>{unreadMentionsCount > 9 ? '9+' : unreadMentionsCount}</span>}
+          </button>
           <ThemeToggleBtn theme={theme} onToggle={toggleTheme} />
           <div style={S.userBadge}>
             <button style={S.userAvatarBtn} title="Meu perfil" onClick={() => setShowMyProfile(true)}>
@@ -1127,6 +1226,23 @@ export default function App() {
           </SidePanel>
         );
       })()}
+
+      {showMentions && (
+        <SidePanel title="Menções" onClose={() => setShowMentions(false)}>
+          {myMentions.length === 0 && <div style={S.emptyMuted}>Ninguém te mencionou ainda.</div>}
+          {myMentions.map((m) => (
+            <div
+              key={m.commentId}
+              style={S.mentionRow}
+              onClick={() => { setOpenActivityId({ pid: m.pid, id: m.activityId }); setShowMentions(false); }}
+            >
+              <div style={S.logTs}>{m.author || 'Alguém'} · {fmtTs(m.ts)}</div>
+              <div style={S.mentionActivity}>{m.activityTitle} <span style={{ opacity: .6 }}>— {m.companyName}</span></div>
+              <div style={S.mentionText}>{m.text}</div>
+            </div>
+          ))}
+        </SidePanel>
+      )}
 
       {showSettings && activeProject && (
         <SidePanel title="Empresa e equipe" onClose={() => setShowSettings(false)}>
@@ -1315,7 +1431,9 @@ export default function App() {
             orderMap={om}
             phases={project.phases}
             team={project.team}
+            log={project.log}
             companyName={project.company.name}
+            currentUser={currentUser}
             pid={project.id}
             onClose={() => setOpenActivityId(null)}
             updateActivity={updateActivity}
@@ -1323,10 +1441,14 @@ export default function App() {
             addSub={addSub}
             updateSub={updateSub}
             deleteSub={deleteSub}
+            reorderSub={reorderSub}
             addAttachment={addAttachment}
             removeAttachment={removeAttachment}
             addComment={addComment}
             removeComment={removeComment}
+            addLink={addLink}
+            removeLink={removeLink}
+            toggleParticipant={toggleParticipant}
           />
         );
       })()}
@@ -2191,14 +2313,41 @@ function StatusPill({ status, onClick }) {
   );
 }
 
-function ActivityDetailModal({ activity: a, orderMap, phases, team, companyName, pid, onClose, updateActivity, deleteActivity, addSub, updateSub, deleteSub, addAttachment, removeAttachment, addComment, removeComment }) {
+function renderCommentText(text, teamList) {
+  const names = teamList.filter((m) => m.userId).map((m) => m.name).sort((x, y) => y.length - x.length);
+  if (!names.length) return text;
+  const pattern = new RegExp(`(@(?:${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')}))`, 'g');
+  const parts = text.split(pattern);
+  return parts.map((part, i) => (names.some((n) => part === `@${n}`) ? <span key={i} style={S.mentionTag}>{part}</span> : <React.Fragment key={i}>{part}</React.Fragment>));
+}
+
+function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, onClose, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, addComment, removeComment, addLink, removeLink, toggleParticipant }) {
   const [commentDraft, setCommentDraft] = useState('');
+  const [pendingMentions, setPendingMentions] = useState([]);
+  const [dragSubId, setDragSubId] = useState(null);
+  const [linkLabelDraft, setLinkLabelDraft] = useState('');
+  const [linkUrlDraft, setLinkUrlDraft] = useState('');
   const phase = phases.find((p) => p.id === a.phase);
+  const mentionCandidates = team.filter((m) => m.userId);
+  const activityHistory = (log || []).filter((l) => l.activityId === a.id);
+
+  function insertMention(m) {
+    setCommentDraft((d) => `${d}${d && !d.endsWith(' ') ? ' ' : ''}@${m.name} `);
+    setPendingMentions((prev) => (prev.includes(m.userId) ? prev : [...prev, m.userId]));
+  }
 
   function submitComment() {
     if (!commentDraft.trim()) return;
-    addComment(pid, a.id, commentDraft);
+    addComment(pid, a.id, commentDraft, pendingMentions);
     setCommentDraft('');
+    setPendingMentions([]);
+  }
+
+  function submitLink() {
+    if (!linkUrlDraft.trim()) return;
+    addLink(pid, a.id, { label: linkLabelDraft, url: linkUrlDraft });
+    setLinkLabelDraft('');
+    setLinkUrlDraft('');
   }
 
   return (
@@ -2228,6 +2377,21 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, companyName,
             <div style={S.subSectionLabel}>Observações</div>
             <textarea value={a.notes || ''} onChange={(e) => updateActivity(pid, a.id, { notes: e.target.value })} onBlur={() => updateActivity(pid, a.id, {}, `Observação alterada em "${a.title}"`)} rows={3} placeholder="Comentários, contexto, decisões desta atividade..." style={S.notesArea} />
 
+            <div style={S.subSectionLabel}><Link2 size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Links {(a.links || []).length > 0 ? `(${(a.links || []).length})` : ''}</div>
+            <div style={S.attachList}>
+              {(a.links || []).map((l) => (
+                <div key={l.id} style={S.attachRow}>
+                  <a href={l.url} target="_blank" rel="noreferrer" style={S.attachLink}>{l.label}</a>
+                  <button style={S.iconBtnGhost} onClick={() => removeLink(pid, a.id, l.id)}><X size={12} /></button>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input type="text" value={linkLabelDraft} onChange={(e) => setLinkLabelDraft(e.target.value)} placeholder="Nome do link (opcional)" style={{ flex: 1 }} />
+              <input type="text" value={linkUrlDraft} onChange={(e) => setLinkUrlDraft(e.target.value)} placeholder="https://..." style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && submitLink()} />
+              <button style={S.iconBtn} onClick={submitLink}><Plus size={14} /></button>
+            </div>
+
             <div style={S.subSectionLabel}><Mic size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Transcrição de reunião</div>
             <textarea
               value={a.transcript || ''}
@@ -2243,17 +2407,38 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, companyName,
               {(a.comments || []).length === 0 && <div style={S.emptyMuted}>Nenhum comentário ainda.</div>}
               {(a.comments || []).map((c) => (
                 <div key={c.id} style={S.commentBubble}>
-                  <div style={S.commentText}>{c.text}</div>
+                  <div style={S.commentText}>{renderCommentText(c.text, team)}</div>
                   <div style={S.commentMeta}>
-                    <span>{fmtTs(c.ts)}</span>
+                    <span>{c.author ? `${c.author} · ` : ''}{fmtTs(c.ts)}</span>
                     <button style={S.commentDel} onClick={() => removeComment(pid, a.id, c.id)}><X size={11} /></button>
                   </div>
                 </div>
               ))}
             </div>
+            {mentionCandidates.length > 0 && (
+              <select
+                value=""
+                onChange={(e) => { const m = mentionCandidates.find((x) => x.userId === e.target.value); if (m) insertMention(m); }}
+                style={{ marginBottom: 6 }}
+              >
+                <option value="">@ Mencionar alguém...</option>
+                {mentionCandidates.map((m) => <option key={m.userId} value={m.userId}>{m.name}</option>)}
+              </select>
+            )}
             <div style={S.commentInputRow}>
-              <textarea value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} placeholder="Escreva um comentário..." rows={2} style={{ flex: 1 }} />
+              <textarea value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} placeholder="Escreva um comentário... use @ pra mencionar alguém" rows={2} style={{ flex: 1 }} />
               <button style={S.primaryBtn} onClick={submitComment}><Send size={14} /></button>
+            </div>
+
+            <div style={{ ...S.subSectionLabel, marginTop: 18 }}><History size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Histórico desta atividade</div>
+            <div style={S.historyList}>
+              {activityHistory.length === 0 && <div style={S.emptyMuted}>Nenhuma alteração registrada ainda.</div>}
+              {activityHistory.map((l, i) => (
+                <div key={i} style={S.logRow}>
+                  <div style={S.logTs}>{fmtTs(l.ts)}{l.user ? ` · ${l.user}` : ''}</div>
+                  <div style={S.logAction}>{l.action}</div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -2274,6 +2459,33 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, companyName,
               const rm = team.find((m) => m.name === a.responsible);
               return rm && rm.area ? <div style={{ ...S.fieldHint, marginTop: 4 }}>Área: {rm.area}</div> : null;
             })()}
+
+            <div style={S.subSectionLabel}>Participantes</div>
+            <div style={S.participantChips}>
+              {team.filter((m) => m.name !== a.responsible).map((m) => {
+                const active = (a.participants || []).includes(m.name);
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    style={{ ...S.participantChip, ...(active ? S.participantChipActive : {}) }}
+                    onClick={() => toggleParticipant(pid, a.id, m.name)}
+                  >
+                    {m.name}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={S.subSectionLabel}>Prioridade</div>
+            <select
+              value={a.priority || ''}
+              onChange={(e) => updateActivity(pid, a.id, { priority: e.target.value }, `Prioridade alterada em "${a.title}": ${e.target.value ? PRIORITY_META[e.target.value].label : 'sem prioridade'}`)}
+              style={{ color: a.priority ? PRIORITY_META[a.priority].color : undefined }}
+            >
+              <option value="">Sem prioridade</option>
+              {PRIORITY_ORDER.map((p) => <option key={p} value={p}>{PRIORITY_META[p].label}</option>)}
+            </select>
 
             <div style={S.subSectionLabel}>Início</div>
             <input type="date" value={a.date} onChange={(e) => {
@@ -2313,10 +2525,27 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, companyName,
 
             <div style={S.subSectionLabel}>Subatividades</div>
             {(a.subactivities || []).map((s) => (
-              <div key={s.id} style={S.subRow}>
-                <input type="checkbox" checked={s.done} onChange={(e) => updateSub(pid, a.id, s.id, { done: e.target.checked })} />
-                <input type="text" value={s.title} onChange={(e) => updateSub(pid, a.id, s.id, { title: e.target.value })} style={{ textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
-                <button style={S.iconBtnGhost} onClick={() => deleteSub(pid, a.id, s.id)}><X size={13} /></button>
+              <div
+                key={s.id}
+                style={{ ...S.subRowWrap, ...(dragSubId === s.id ? { opacity: .4 } : {}) }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => { reorderSub(pid, a.id, dragSubId, s.id); setDragSubId(null); }}
+              >
+                <div style={S.subRow}>
+                  <div draggable onDragStart={() => setDragSubId(s.id)} onDragEnd={() => setDragSubId(null)} style={S.subDragHandle} title="Arraste para reordenar">
+                    <GripVertical size={13} color="var(--text-8)" />
+                  </div>
+                  <input type="checkbox" checked={s.done} onChange={(e) => updateSub(pid, a.id, s.id, { done: e.target.checked })} />
+                  <input type="text" value={s.title} onChange={(e) => updateSub(pid, a.id, s.id, { title: e.target.value })} style={{ flex: 1, textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
+                  <button style={S.iconBtnGhost} onClick={() => deleteSub(pid, a.id, s.id)}><X size={13} /></button>
+                </div>
+                <div style={S.subMetaRow}>
+                  <select value={s.responsible || ''} onChange={(e) => updateSub(pid, a.id, s.id, { responsible: e.target.value })} style={S.subMiniField} title="Responsável da subatividade">
+                    <option value="">Sem responsável</option>
+                    {team.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
+                  </select>
+                  <input type="date" value={s.date || ''} onChange={(e) => updateSub(pid, a.id, s.id, { date: e.target.value })} style={S.subMiniField} title="Prazo da subatividade" />
+                </div>
               </div>
             ))}
             <button style={S.addSubBtn} onClick={() => addSub(pid, a.id)}><Plus size={12} /> Subatividade</button>
@@ -2325,12 +2554,14 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, companyName,
             <div style={S.attachList}>
               {(a.attachments || []).map((att) => (
                 <div key={att.id} style={S.attachRow}>
+                  {att.type && att.type.startsWith('image/') && <img src={att.dataUrl} alt={att.name} style={S.attachThumb} />}
                   <a href={att.dataUrl} download={att.name} style={S.attachLink}>{att.name}</a>
                   <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
                   <button style={S.iconBtnGhost} onClick={() => removeAttachment(pid, a.id, att.id)}><X size={12} /></button>
                 </div>
               ))}
             </div>
+            <div style={S.fieldHint}>Limite de {MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB por arquivo.</div>
             <label htmlFor={`file-detail-${a.id}`} style={S.addSubBtn}><Upload size={12} /> Anexar arquivo</label>
             <input id={`file-detail-${a.id}`} type="file" style={{ display: 'none' }} onChange={(e) => { addAttachment(pid, a.id, e.target.files && e.target.files[0]); e.target.value = ''; }} />
 
@@ -2352,6 +2583,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
   const [filterPhase, setFilterPhase] = useState('');
   const [filterResp, setFilterResp] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterPriority, setFilterPriority] = useState('');
 
   function phaseOf(a) {
     const rp = phases || a._phases;
@@ -2370,9 +2602,10 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
     if (filterPhase && phaseOf(a)?.name !== filterPhase) return false;
     if (filterResp && a.responsible !== filterResp) return false;
     if (filterStatus && a.status !== filterStatus) return false;
+    if (filterPriority && (a.priority || '') !== filterPriority) return false;
     return true;
   });
-  const filtersActive = !!(filterPhase || filterResp || filterStatus);
+  const filtersActive = !!(filterPhase || filterResp || filterStatus || filterPriority);
 
   useEffect(() => {
     if (!dragActId) return;
@@ -2483,8 +2716,15 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
             {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
           </select>
         </div>
+        <div style={S.filterGroup}>
+          <div style={S.filterLabel}>Prioridade</div>
+          <select style={S.filterSelect} value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
+            <option value="">Todas as prioridades</option>
+            {PRIORITY_ORDER.map((p) => <option key={p} value={p}>{PRIORITY_META[p].label}</option>)}
+          </select>
+        </div>
         {filtersActive && (
-          <button style={S.filterClearBtn} onClick={() => { setFilterPhase(''); setFilterResp(''); setFilterStatus(''); }}>
+          <button style={S.filterClearBtn} onClick={() => { setFilterPhase(''); setFilterResp(''); setFilterStatus(''); setFilterPriority(''); }}>
             Limpar filtros
           </button>
         )}
@@ -2563,7 +2803,10 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                     </div>
                   )}
                   <div style={{ flex: 2, minWidth: 260 }}>
-                    <input type="text" value={a.title} onChange={(e) => updateActivity(rowPid, a.id, { title: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {a.priority && <span title={`Prioridade ${PRIORITY_META[a.priority].label}`} style={{ ...S.priorityDot, background: PRIORITY_META[a.priority].color }} />}
+                      <input type="text" value={a.title} onChange={(e) => updateActivity(rowPid, a.id, { title: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} style={{ flex: 1 }} />
+                    </div>
                     <input type="text" value={a.desc} onChange={(e) => updateActivity(rowPid, a.id, { desc: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 4, opacity: .8 }} />
                     <button
                       style={S.subToggleBtn}
@@ -3024,6 +3267,7 @@ const S = {
   actionsRow: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
   iconBtn: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-4)', border: '1px solid var(--border-3)', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 600, padding: '7px 11px', borderRadius: 7, cursor: 'pointer' },
   iconBtnGhost: { display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', color: 'var(--text-5)', cursor: 'pointer', padding: 4 },
+  mentionBadge: { position: 'absolute', top: -3, right: -5, background: '#e2574c', color: '#fff', fontSize: 9.5, fontWeight: 800, borderRadius: 999, minWidth: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 },
   primaryBtn: { display: 'flex', alignItems: 'center', gap: 6, background: '#F5C400', border: 'none', color: '#111', fontSize: 12.5, fontWeight: 800, padding: '7px 13px', borderRadius: 7, cursor: 'pointer' },
   tabs: { display: 'flex', gap: 6, padding: '14px 24px 0 24px' },
   tab: { display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--border-1)', color: 'var(--text-4)', fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: '8px 8px 0 0', cursor: 'pointer' },
@@ -3072,13 +3316,23 @@ const S = {
   actionsCell: { width: 60, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 },
   subPanel: { padding: '4px 14px 14px 60px', display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-page)' },
   subRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  subRowWrap: { display: 'flex', flexDirection: 'column', gap: 4, padding: '4px 0', borderBottom: '1px solid var(--border-1)' },
+  subDragHandle: { display: 'flex', alignItems: 'center', cursor: 'grab', flexShrink: 0 },
+  subMetaRow: { display: 'flex', gap: 6, paddingLeft: 21 },
+  subMiniField: { flex: 1, fontSize: 10.5, padding: '3px 5px' },
   addSubBtn: { display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: '1px dashed var(--border-3)', color: 'var(--text-4)', fontSize: 11.5, padding: '6px 10px', borderRadius: 6, cursor: 'pointer', width: 'fit-content', marginTop: 4 },
   subSectionLabel: { fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-5)', marginTop: 14, marginBottom: 6 },
   notesArea: { resize: 'vertical', minHeight: 60, lineHeight: 1.5 },
   attachList: { display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 6 },
   attachRow: { display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-4)', border: '1px solid var(--border-1)', borderRadius: 6, padding: '6px 9px' },
+  attachThumb: { width: 28, height: 28, borderRadius: 4, objectFit: 'cover', flexShrink: 0 },
   attachLink: { fontSize: 12, color: '#F5C400', textDecoration: 'none', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   attachSize: { fontSize: 10.5, color: 'var(--text-6)', flexShrink: 0 },
+  mentionTag: { color: '#F5C400', fontWeight: 700 },
+  historyList: { display: 'flex', flexDirection: 'column', maxHeight: 220, overflowY: 'auto', marginBottom: 10 },
+  participantChips: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
+  participantChip: { fontSize: 11, padding: '4px 9px', borderRadius: 999, border: '1px solid var(--border-3)', background: 'var(--bg-4)', color: 'var(--text-4)', cursor: 'pointer' },
+  participantChipActive: { borderColor: '#F5C400', color: '#F5C400', background: 'rgba(245,196,0,.12)' },
 
   // phases view
   phasesSummaryCard: { display: 'flex', alignItems: 'center', gap: 26, background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 12, padding: '18px 24px', marginBottom: 28, flexWrap: 'wrap' },
@@ -3109,6 +3363,7 @@ const S = {
   phaseCardOwner: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-3)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   phaseWarnIcon: { color: '#e2574c', display: 'flex', alignItems: 'center', flexShrink: 0 },
   avatarDot: { width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#111', flexShrink: 0 },
+  priorityDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
   phaseRow: { display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px', background: 'var(--bg-3)', border: '1px solid var(--border-1)', borderRadius: 9, marginBottom: 9 },
   monthBadge: { fontSize: 12, fontWeight: 900, color: '#111', width: 38, height: 38, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   phaseActTitle: { fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
@@ -3185,6 +3440,9 @@ const S = {
   logAction: { fontSize: 12.5, color: 'var(--text-2)', marginTop: 2 },
   trashRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-1)' },
   trashTitle: { fontSize: 13, fontWeight: 700, color: 'var(--text-2)' },
+  mentionRow: { padding: '10px 0', borderBottom: '1px solid var(--border-1)', cursor: 'pointer' },
+  mentionActivity: { fontSize: 13, fontWeight: 700, color: 'var(--text-2)', marginTop: 3 },
+  mentionText: { fontSize: 12, color: 'var(--text-4)', marginTop: 3, lineHeight: 1.4 },
 
   settingsBlock: { marginBottom: 20 },
   areaRow: { background: 'var(--bg-4)', border: '1px solid var(--border-1)', borderRadius: 8, padding: 10, marginBottom: 8 },
