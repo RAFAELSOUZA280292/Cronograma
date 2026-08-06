@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pool, blankProject } from './db.js';
+import { pool, blankProject, blankPersonalBoard } from './db.js';
 import {
   hashPassword, comparePassword, signToken, setAuthCookie, clearAuthCookie,
   rowToUser, findUserByUsername, findUserById, requireAuth, requireMaster, requireMasterOrPricetax, toISODateSafe,
@@ -301,5 +301,30 @@ router.patch('/projects/:id', requireAuth, async (req, res, next) => {
     }
     await pool.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(next_), id]);
     res.json({ project: next_ });
+  } catch (e) { next(e); }
+});
+
+// ---------- Personal board (per-user, not tied to any company) ----------
+
+router.get('/personal-board', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT data FROM personal_boards WHERE user_id=$1', [req.user.id]);
+    if (rows[0]) return res.json({ board: rows[0].data });
+    const board = blankPersonalBoard();
+    await pool.query('INSERT INTO personal_boards (user_id, data) VALUES ($1,$2)', [req.user.id, JSON.stringify(board)]);
+    res.json({ board });
+  } catch (e) { next(e); }
+});
+
+router.patch('/personal-board', requireAuth, async (req, res, next) => {
+  try {
+    const board = req.body && req.body.board;
+    if (!board) return res.status(400).json({ message: 'Payload inválido.' });
+    await pool.query(
+      `INSERT INTO personal_boards (user_id, data) VALUES ($1,$2)
+       ON CONFLICT (user_id) DO UPDATE SET data=$2, updated_at=now()`,
+      [req.user.id, JSON.stringify(board)]
+    );
+    res.json({ board });
   } catch (e) { next(e); }
 });
