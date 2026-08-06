@@ -838,7 +838,8 @@ export default function App() {
 
     const sourceDates = source.activities.map((a) => a.date).filter(Boolean);
     const anchor = sourceDates.length ? sourceDates.reduce((min, d) => (d < min ? d : min)) : null;
-    const deltaDays = anchor ? Math.round((parseDate(todayISOStr()) - parseDate(anchor)) / 86400000) : 0;
+    const newAnchor = toISODate(addDays(parseDate(todayISOStr()), 10));
+    const deltaDays = anchor ? Math.round((parseDate(newAnchor) - parseDate(anchor)) / 86400000) : 0;
     const shift = (iso) => (iso ? toISODate(addDays(parseDate(iso), deltaDays)) : iso);
 
     const activities = source.activities.map((a) => ({
@@ -851,7 +852,7 @@ export default function App() {
       attachments: [],
       comments: [],
       transcript: '',
-      subactivities: (a.subactivities || []).filter((s) => !s.deleted).map((s) => ({ ...s, id: uid('s'), done: false })),
+      subactivities: (a.subactivities || []).filter((s) => !s.deleted).map((s) => ({ ...s, id: uid('s'), done: false, date: shift(s.date) })),
     }));
 
     const team = source.team.map((m) => ({ ...m, id: uid('team') }));
@@ -2053,7 +2054,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource }) {
 
         {cloneSource && (
           <div style={{ ...S.fieldHint, marginBottom: 12 }}>
-            As atividades de <strong>{cloneSource.company.name || 'empresa de origem'}</strong> serão copiadas para essa nova empresa. As datas serão recalculadas a partir de hoje ({fmtDate(todayISOStr())}), mantendo o mesmo prazo entre cada atividade.
+            As atividades de <strong>{cloneSource.company.name || 'empresa de origem'}</strong> serão copiadas para essa nova empresa. A primeira atividade passará a começar em {fmtDate(toISODate(addDays(parseDate(todayISOStr()), 10)))}, e as demais serão recalculadas a partir daí, mantendo exatamente o mesmo espaçamento entre elas.
           </div>
         )}
 
