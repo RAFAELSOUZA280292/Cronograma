@@ -85,6 +85,22 @@ export function nextPhaseColor(count) {
   return PHASE_COLORS[count % PHASE_COLORS.length];
 }
 
+export function blankPersonalBoard() {
+  return {
+    boards: [
+      {
+        id: uid('board'),
+        name: 'Minhas atividades',
+        columns: [
+          { id: uid('col'), name: 'A fazer', cards: [] },
+          { id: uid('col'), name: 'Em andamento', cards: [] },
+          { id: uid('col'), name: 'Concluído', cards: [] },
+        ],
+      },
+    ],
+  };
+}
+
 export async function initDb() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -118,6 +134,13 @@ export async function initDb() {
       cnpj       TEXT PRIMARY KEY,
       data       JSONB NOT NULL,
       fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS personal_boards (
+      user_id    TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      data       JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
 }

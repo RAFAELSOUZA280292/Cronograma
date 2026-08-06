@@ -226,6 +226,10 @@ export default function App() {
   const [users, setUsers] = useState([]);
   const [selectedProjectIds, setSelectedProjectIds] = useState([]);
   const [companySelectionConfirmed, setCompanySelectionConfirmed] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState(null);
+  const [personalBoard, setPersonalBoard] = useState(null);
+  const [personalBoardLoaded, setPersonalBoardLoaded] = useState(false);
+  const personalBoardSaveTimer = useRef(null);
   const [phasesEditingProjectId, setPhasesEditingProjectId] = useState(null);
   const [usersLog, setUsersLog] = useState([]);
   const [loginError, setLoginError] = useState(null);
@@ -321,6 +325,38 @@ export default function App() {
   }, [projectsLoaded, currentUser?.id]);
 
   useEffect(() => {
+    setWorkspaceMode(null);
+    if (!currentUser) { setPersonalBoard(null); setPersonalBoardLoaded(false); return; }
+    setPersonalBoardLoaded(false);
+    (async () => {
+      try {
+        const res = await apiGet('/api/personal-board');
+        setPersonalBoard(res.board);
+      } catch (e) {
+        console.error('Falha ao carregar Gestão de Atividades', e);
+        setPersonalBoard({ boards: [] });
+      } finally {
+        setPersonalBoardLoaded(true);
+      }
+    })();
+  }, [currentUser?.id]);
+
+  function persistPersonalBoardDebounced(board) {
+    if (personalBoardSaveTimer.current) clearTimeout(personalBoardSaveTimer.current);
+    personalBoardSaveTimer.current = setTimeout(() => {
+      apiPatch('/api/personal-board', { board }).catch((e) => console.error('Falha ao salvar Gestão de Atividades', e));
+    }, 500);
+  }
+
+  function mutatePersonalBoard(updater) {
+    setPersonalBoard((prev) => {
+      const next = updater(prev);
+      persistPersonalBoardDebounced(next);
+      return next;
+    });
+  }
+
+  useEffect(() => {
     if (showUsers && currentUser && currentUser.role === 'master') {
       loadUsers();
     }
@@ -394,6 +430,36 @@ export default function App() {
 
   if (!projectsLoaded) {
     return <LoadingScreen theme={theme} />;
+  }
+
+  if (!workspaceMode) {
+    return (
+      <WorkspaceGateScreen
+        user={currentUser}
+        onPickCompany={() => setWorkspaceMode('company')}
+        onPickPersonal={() => setWorkspaceMode('personal')}
+        onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
+
+  if (workspaceMode === 'personal') {
+    if (!personalBoardLoaded || !personalBoard) {
+      return <LoadingScreen theme={theme} />;
+    }
+    return (
+      <PersonalBoardScreen
+        board={personalBoard}
+        onMutate={mutatePersonalBoard}
+        onExit={() => setWorkspaceMode('company')}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
   }
 
   const registeredProjects = projects.filter((p) => p.company.cnpj);
@@ -1048,6 +1114,7 @@ export default function App() {
           {canPickCompanies && (
             <button style={S.iconBtn} onClick={() => setCompanySelectionConfirmed(false)}><Building2 size={15} /> Trocar empresas</button>
           )}
+          <button style={S.iconBtn} onClick={() => setWorkspaceMode('personal')}><Columns3 size={15} /> Gestão de Atividades</button>
         </div>
         <div style={S.actionsRow}>
           {(currentUser.role === 'master' || currentUser.role === 'pricetax') && (
@@ -2304,6 +2371,269 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   );
 }
 
+function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onLogout, theme, onToggleTheme }) {
+  return (
+    <div style={S.page}>
+      <div style={S.companySelectorWrap}>
+        <div style={S.companySelectorHeader}>
+          <BrandLogo theme={theme} style={{ ...S.loginLogo, marginBottom: 0 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
+            <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={16} /></button>
+          </div>
+        </div>
+        <h1 style={S.loginTitle}>Olá, {(user.name || '').split(' ')[0] || user.username}</h1>
+        <p style={S.loginSub}>Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>
+
+        <div style={S.workspaceChoices}>
+          <button style={S.workspaceCard} onClick={onPickCompany}>
+            <Building2 size={26} color="#F5C400" />
+            <div style={S.workspaceCardTitle}>Empresas</div>
+            <div style={S.workspaceCardDesc}>Cronogramas de reforma tributária das empresas que você acompanha.</div>
+          </button>
+          <button style={S.workspaceCard} onClick={onPickPersonal}>
+            <Columns3 size={26} color="#F5C400" />
+            <div style={S.workspaceCardTitle}>Gestão de Atividades</div>
+            <div style={S.workspaceCardDesc}>Seu quadro pessoal — organize tarefas, compromissos e pendências, sem vincular a nenhuma empresa.</div>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, theme, onToggleTheme }) {
+  const [activeBoardId, setActiveBoardId] = useState(board.boards[0] ? board.boards[0].id : null);
+  const [dragBoardId, setDragBoardId] = useState(null);
+  const [dragColId, setDragColId] = useState(null);
+  const [dragCard, setDragCard] = useState(null);
+  const [expandedCard, setExpandedCard] = useState(null);
+
+  useEffect(() => {
+    if (!board.boards.some((b) => b.id === activeBoardId)) {
+      setActiveBoardId(board.boards[0] ? board.boards[0].id : null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board.boards.map((b) => b.id).join(',')]);
+
+  const activeBoard = board.boards.find((b) => b.id === activeBoardId) || null;
+
+  function addBoard() {
+    const nb = { id: uid('board'), name: 'Nova página', columns: [{ id: uid('col'), name: 'A fazer', cards: [] }] };
+    onMutate((prev) => ({ ...prev, boards: [...prev.boards, nb] }));
+    setActiveBoardId(nb.id);
+  }
+
+  function renameBoard(boardId, name) {
+    onMutate((prev) => ({ ...prev, boards: prev.boards.map((b) => (b.id === boardId ? { ...b, name } : b)) }));
+  }
+
+  function deleteBoard(boardId) {
+    const b = board.boards.find((x) => x.id === boardId);
+    if (!b) return;
+    if (!window.confirm(`Excluir a página "${b.name}" e tudo dentro dela? Essa ação não pode ser desfeita.`)) return;
+    onMutate((prev) => ({ ...prev, boards: prev.boards.filter((x) => x.id !== boardId) }));
+  }
+
+  function reorderBoard(fromId, toId) {
+    if (!fromId || fromId === toId) return;
+    onMutate((prev) => {
+      const list = prev.boards.slice();
+      const fromIdx = list.findIndex((x) => x.id === fromId);
+      const toIdx = list.findIndex((x) => x.id === toId);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      const [moved] = list.splice(fromIdx, 1);
+      list.splice(toIdx, 0, moved);
+      return { ...prev, boards: list };
+    });
+  }
+
+  function addColumn() {
+    if (!activeBoard) return;
+    const nc = { id: uid('col'), name: 'Nova coluna', cards: [] };
+    const bid = activeBoard.id;
+    onMutate((prev) => ({ ...prev, boards: prev.boards.map((b) => (b.id === bid ? { ...b, columns: [...b.columns, nc] } : b)) }));
+  }
+
+  function renameColumn(colId, name) {
+    const bid = activeBoard.id;
+    onMutate((prev) => ({ ...prev, boards: prev.boards.map((b) => (b.id !== bid ? b : { ...b, columns: b.columns.map((c) => (c.id === colId ? { ...c, name } : c)) })) }));
+  }
+
+  function deleteColumn(colId) {
+    const col = activeBoard.columns.find((c) => c.id === colId);
+    if (!col) return;
+    if (col.cards.length > 0 && !window.confirm(`Excluir a coluna "${col.name}" e ${col.cards.length} tarefa(s) dentro dela?`)) return;
+    const bid = activeBoard.id;
+    onMutate((prev) => ({ ...prev, boards: prev.boards.map((b) => (b.id !== bid ? b : { ...b, columns: b.columns.filter((c) => c.id !== colId) })) }));
+  }
+
+  function reorderColumn(fromId, toId) {
+    if (!fromId || fromId === toId) return;
+    const bid = activeBoard.id;
+    onMutate((prev) => ({
+      ...prev,
+      boards: prev.boards.map((b) => {
+        if (b.id !== bid) return b;
+        const list = b.columns.slice();
+        const fromIdx = list.findIndex((x) => x.id === fromId);
+        const toIdx = list.findIndex((x) => x.id === toId);
+        if (fromIdx === -1 || toIdx === -1) return b;
+        const [moved] = list.splice(fromIdx, 1);
+        list.splice(toIdx, 0, moved);
+        return { ...b, columns: list };
+      }),
+    }));
+  }
+
+  function addCard(colId) {
+    const nc = { id: uid('card'), title: 'Nova tarefa', desc: '', createdAt: new Date().toISOString() };
+    const bid = activeBoard.id;
+    onMutate((prev) => ({
+      ...prev,
+      boards: prev.boards.map((b) => (b.id !== bid ? b : { ...b, columns: b.columns.map((c) => (c.id === colId ? { ...c, cards: [...c.cards, nc] } : c)) })),
+    }));
+    setExpandedCard(nc.id);
+  }
+
+  function updateCard(colId, cardId, patch) {
+    const bid = activeBoard.id;
+    onMutate((prev) => ({
+      ...prev,
+      boards: prev.boards.map((b) => (b.id !== bid ? b : { ...b, columns: b.columns.map((c) => (c.id !== colId ? c : { ...c, cards: c.cards.map((cd) => (cd.id === cardId ? { ...cd, ...patch } : cd)) })) })),
+    }));
+  }
+
+  function deleteCard(colId, cardId) {
+    const bid = activeBoard.id;
+    onMutate((prev) => ({
+      ...prev,
+      boards: prev.boards.map((b) => (b.id !== bid ? b : { ...b, columns: b.columns.map((c) => (c.id !== colId ? c : { ...c, cards: c.cards.filter((cd) => cd.id !== cardId) })) })),
+    }));
+  }
+
+  function moveCard(cardId, fromColId, toColId) {
+    if (!fromColId || fromColId === toColId) return;
+    const bid = activeBoard.id;
+    onMutate((prev) => ({
+      ...prev,
+      boards: prev.boards.map((b) => {
+        if (b.id !== bid) return b;
+        let moved = null;
+        const columns = b.columns.map((c) => {
+          if (c.id !== fromColId) return c;
+          moved = c.cards.find((cd) => cd.id === cardId) || null;
+          return { ...c, cards: c.cards.filter((cd) => cd.id !== cardId) };
+        });
+        if (!moved) return b;
+        return { ...b, columns: columns.map((c) => (c.id === toColId ? { ...c, cards: [...c.cards, moved] } : c)) };
+      }),
+    }));
+  }
+
+  return (
+    <div style={S.page}>
+      <div className="no-print" style={S.topbar}>
+        <div style={S.brandRow}>
+          <div style={S.logoPlaceholder}><Columns3 size={18} color="#F5C400" /></div>
+          <div>
+            <div style={S.brandName}>Gestão de Atividades</div>
+            <div style={S.brandCnpj}>{currentUser.name}</div>
+          </div>
+          <button style={S.iconBtn} onClick={onExit}><Building2 size={15} /> Ir para Empresas</button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
+          <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>
+        </div>
+      </div>
+
+      <div style={S.personalTabs}>
+        {board.boards.map((b) => (
+          <div
+            key={b.id}
+            draggable
+            onDragStart={() => setDragBoardId(b.id)}
+            onDragEnd={() => setDragBoardId(null)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => { reorderBoard(dragBoardId, b.id); setDragBoardId(null); }}
+            onClick={() => setActiveBoardId(b.id)}
+            style={{ ...S.personalTab, ...(b.id === activeBoardId ? S.personalTabActive : {}) }}
+          >
+            <input value={b.name} onChange={(e) => renameBoard(b.id, e.target.value)} style={S.personalTabInput} />
+            <button style={S.chipX} onClick={(e) => { e.stopPropagation(); deleteBoard(b.id); }}><X size={11} /></button>
+          </div>
+        ))}
+        <button style={S.iconBtnGhost} onClick={addBoard} title="Nova página"><Plus size={16} /></button>
+      </div>
+
+      {!activeBoard && (
+        <div style={S.emptyMuted}>Nenhuma página ainda. Clique no + acima pra criar a primeira.</div>
+      )}
+
+      {activeBoard && (
+        <div style={S.personalBoardArea}>
+          {activeBoard.columns.map((col) => (
+            <div
+              key={col.id}
+              style={S.personalCol}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => { if (dragCard) moveCard(dragCard.cardId, dragCard.colId, col.id); setDragCard(null); }}
+            >
+              <div
+                style={S.personalColHead}
+                draggable
+                onDragStart={() => setDragColId(col.id)}
+                onDragEnd={() => setDragColId(null)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.stopPropagation(); reorderColumn(dragColId, col.id); setDragColId(null); }}
+              >
+                <GripVertical size={13} color="var(--text-8)" />
+                <input value={col.name} onChange={(e) => renameColumn(col.id, e.target.value)} style={S.personalColNameInput} />
+                <span style={S.kanbanCount}>{col.cards.length}</span>
+                <button style={S.iconBtnGhost} onClick={() => deleteColumn(col.id)}><Trash2 size={12} /></button>
+              </div>
+
+              {col.cards.map((card) => (
+                <div
+                  key={card.id}
+                  draggable
+                  onDragStart={() => setDragCard({ colId: col.id, cardId: card.id })}
+                  onDragEnd={() => setDragCard(null)}
+                  style={S.personalCard}
+                  onClick={() => setExpandedCard(expandedCard === card.id ? null : card.id)}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input
+                      value={card.title}
+                      onChange={(e) => updateCard(col.id, card.id, { title: e.target.value })}
+                      onClick={(e) => e.stopPropagation()}
+                      style={S.personalCardTitle}
+                    />
+                    <button style={S.chipX} onClick={(e) => { e.stopPropagation(); deleteCard(col.id, card.id); }}><X size={12} /></button>
+                  </div>
+                  {expandedCard === card.id && (
+                    <textarea
+                      value={card.desc || ''}
+                      onChange={(e) => updateCard(col.id, card.id, { desc: e.target.value })}
+                      onClick={(e) => e.stopPropagation()}
+                      placeholder="Descrição, anotações..."
+                      rows={3}
+                      style={{ ...S.notesArea, marginTop: 8 }}
+                    />
+                  )}
+                </div>
+              ))}
+              <button style={S.addSubBtn} onClick={() => addCard(col.id)}><Plus size={12} /> Tarefa</button>
+            </div>
+          ))}
+          <button style={S.personalAddCol} onClick={addColumn}><Plus size={14} /> Nova coluna</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NoAccessScreen({ user, onLogout, theme, onToggleTheme }) {
   return (
     <div style={S.page}>
@@ -3433,6 +3763,18 @@ const S = {
   kanbanDot: { width: 8, height: 8, borderRadius: '50%' },
   kanbanCount: { marginLeft: 'auto', fontSize: 11, color: 'var(--text-6)', background: 'var(--border-1)', padding: '1px 7px', borderRadius: 999 },
   kanbanCard: { background: 'var(--bg-4)', border: '1px solid var(--border-2)', borderRadius: 8, padding: '10px 11px', marginBottom: 9, cursor: 'grab' },
+
+  personalTabs: { display: 'flex', alignItems: 'center', gap: 6, padding: '10px 24px 0', flexWrap: 'wrap' },
+  personalTab: { display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: '8px 8px 0 0', padding: '7px 6px 7px 12px', cursor: 'pointer' },
+  personalTabActive: { background: 'var(--bg-1)', borderBottomColor: 'var(--bg-1)', boxShadow: '0 -1px 0 #F5C400 inset' },
+  personalTabInput: { background: 'transparent', border: 'none', color: 'var(--text-1)', fontSize: 12.5, fontWeight: 700, width: 110, padding: 0 },
+  personalBoardArea: { display: 'flex', gap: 16, padding: '16px 24px 32px', overflowX: 'auto', alignItems: 'flex-start' },
+  personalCol: { background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 10, padding: 12, minWidth: 270, width: 270, flexShrink: 0 },
+  personalColHead: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, marginBottom: 12, color: 'var(--text-2)', cursor: 'grab' },
+  personalColNameInput: { background: 'transparent', border: 'none', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 800, padding: 0, flex: 1, minWidth: 0 },
+  personalCard: { background: 'var(--bg-4)', border: '1px solid var(--border-2)', borderRadius: 8, padding: '9px 10px', marginBottom: 9, cursor: 'grab' },
+  personalCardTitle: { background: 'transparent', border: 'none', color: 'var(--text-1)', fontSize: 12.5, fontWeight: 600, padding: 0, flex: 1, minWidth: 0 },
+  personalAddCol: { display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: '1px dashed var(--border-3)', color: 'var(--text-4)', fontSize: 12, padding: '10px 16px', borderRadius: 10, cursor: 'pointer', minWidth: 160, height: 'fit-content', flexShrink: 0 },
   kanbanCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   kanbanCardTitle: { fontSize: 12.5, fontWeight: 700, marginBottom: 5 },
   kanbanCardMeta: { display: 'flex', justifyContent: 'space-between', fontSize: 10.5, color: 'var(--text-5)' },
@@ -3575,6 +3917,10 @@ const S = {
   // company selector screen
   companySelectorWrap: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px' },
   companySelectorHeader: { width: 'min(680px, 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  workspaceChoices: { display: 'flex', gap: 16, width: 'min(680px, 100%)', flexWrap: 'wrap' },
+  workspaceCard: { flex: '1 1 260px', textAlign: 'left', background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: 12, padding: '24px 22px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8, color: 'var(--text-1)', fontFamily: "'Inter', sans-serif", transition: 'border-color .12s' },
+  workspaceCardTitle: { fontSize: 16, fontWeight: 800, marginTop: 4 },
+  workspaceCardDesc: { fontSize: 12.5, color: 'var(--text-5)', lineHeight: 1.5 },
   companyEmptyState: { width: 'min(680px, 100%)', textAlign: 'center', padding: '40px 20px', border: '1px dashed var(--border-3)', borderRadius: 12 },
   companyPanel: { width: 'min(680px, 100%)', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 14, padding: 18 },
   companySelectAllRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border-1)' },
