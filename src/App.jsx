@@ -2863,8 +2863,8 @@ function PersonalColumn({
 
   return (
     <div ref={setNodeRef} style={{ ...S.personalCol, background: colorMeta ? colorMeta.container : 'var(--pcol-default-container)', ...style }}>
-      <div style={S.personalColHead}>
-        <span {...attributes} {...listeners} style={S.personalColGrip}><GripVertical size={13} color="var(--text-8)" /></span>
+      <div {...attributes} {...listeners} style={{ ...S.personalColHead, cursor: 'grab' }}>
+        <span style={S.personalColGrip}><GripVertical size={13} color="var(--text-8)" /></span>
         <div style={{ ...S.personalColTag, background: colorMeta ? colorMeta.bg : 'transparent' }}>
           <input
             ref={nameInputRef}
