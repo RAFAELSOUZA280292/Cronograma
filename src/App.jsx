@@ -158,6 +158,21 @@ function fmtTs(iso) {
   return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function projectProgress(p) {
+  const activities = (p.activities || []).filter((a) => !a.deleted);
+  const total = activities.length;
+  const done = activities.filter((a) => a.status === 'concluido').length;
+  return { done, total, pct: total > 0 ? Math.round((done / total) * 100) : 0 };
+}
+function projectNextActivity(p) {
+  const today = todayISOStr();
+  const pending = (p.activities || []).filter((a) => !a.deleted && a.date && a.status !== 'concluido');
+  const upcoming = pending.filter((a) => a.date >= today).sort((a, b) => a.date.localeCompare(b.date));
+  if (upcoming.length > 0) return upcoming[0];
+  const overdue = pending.slice().sort((a, b) => a.date.localeCompare(b.date));
+  return overdue[0] || null;
+}
+
 const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 function parseDate(iso) { return new Date(iso + 'T00:00:00'); }
 function toISODate(d) { return d.toISOString().slice(0, 10); }
@@ -2509,6 +2524,10 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
               {projects.map((p) => {
                 const isSelected = selected.has(p.id);
                 const accent = p.company.color || '#F5C400';
+                const progress = projectProgress(p);
+                const next = projectNextActivity(p);
+                const nextOverdue = next && next.date < todayISOStr();
+                const donutCircumference = 2 * Math.PI * 13;
                 return (
                   <div key={p.id} style={{ ...S.companyCard, borderLeft: `3px solid ${isSelected ? accent : 'var(--border-2)'}` }}>
                     <label style={S.companyCardMain}>
@@ -2533,6 +2552,37 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                         </div>
                       </div>
                     </label>
+                    <div style={S.companyCardProgress}>
+                      <div style={S.companyCardDonutWrap}>
+                        <svg viewBox="0 0 32 32" width="34" height="34">
+                          <circle cx="16" cy="16" r="13" fill="none" stroke="var(--border-1)" strokeWidth="4" />
+                          <circle
+                            cx="16" cy="16" r="13" fill="none" stroke={accent} strokeWidth="4" strokeLinecap="round"
+                            strokeDasharray={donutCircumference}
+                            strokeDashoffset={donutCircumference * (1 - progress.pct / 100)}
+                            transform="rotate(-90 16 16)"
+                          />
+                        </svg>
+                        <div style={S.companyCardDonutLabel}>{progress.pct}%</div>
+                      </div>
+                      <div style={S.companyCardProgressText}>
+                        <div style={S.companyCardProgressNum}>{progress.done}/{progress.total}</div>
+                        atividades
+                      </div>
+                    </div>
+                    <div style={S.companyCardNext}>
+                      <div style={S.companyCardNextLabel}>Próxima atividade</div>
+                      {next ? (
+                        <>
+                          <div style={S.companyCardNextTitle} title={next.title}>{next.title}</div>
+                          <div style={{ ...S.companyCardNextDate, color: nextOverdue ? '#e2574c' : 'var(--text-5)' }}>
+                            {fmtDate(next.date)}{nextOverdue ? ' · atrasada' : ''}
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ ...S.companyCardNextDate, color: 'var(--text-6)', marginTop: 2 }}>Nenhuma pendente</div>
+                      )}
+                    </div>
                     <div style={S.companyCardActions}>
                       <button style={S.iconBtnGhost} title="Clonar atividades para uma nova empresa" onClick={(e) => { e.stopPropagation(); onCloneCompany(p); }}><Copy size={14} /></button>
                       <button style={S.iconBtnGhost} title="Editar empresa" onClick={(e) => { e.stopPropagation(); setEditingProject(p); }}><Pencil size={14} /></button>
@@ -2548,7 +2598,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
         )}
 
         {projects.length > 0 && (
-          <button style={{ ...S.primaryBtn, marginTop: 16, width: 'min(640px, 100%)', justifyContent: 'center' }} disabled={selected.size === 0} onClick={() => onConfirm(Array.from(selected))}>
+          <button style={{ ...S.primaryBtn, marginTop: 16, width: 'min(1240px, 96%)', justifyContent: 'center' }} disabled={selected.size === 0} onClick={() => onConfirm(Array.from(selected))}>
             Continuar {selected.size > 0 ? `(${selected.size} selecionada${selected.size === 1 ? '' : 's'})` : ''}
           </button>
         )}
@@ -5342,22 +5392,31 @@ const S = {
 
   // company selector screen
   companySelectorWrap: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px' },
-  companySelectorHeader: { width: 'min(680px, 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  companySelectorHeader: { width: 'min(1240px, 96%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   workspaceChoices: { display: 'flex', gap: 16, width: 'min(680px, 100%)', flexWrap: 'wrap' },
   workspaceCard: { flex: '1 1 260px', textAlign: 'left', background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: 12, padding: '24px 22px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8, color: 'var(--text-1)', fontFamily: "'Inter', sans-serif", transition: 'border-color .12s' },
   workspaceCardTitle: { fontSize: 16, fontWeight: 800, marginTop: 4 },
   workspaceCardDesc: { fontSize: 12.5, color: 'var(--text-5)', lineHeight: 1.5 },
-  companyEmptyState: { width: 'min(680px, 100%)', textAlign: 'center', padding: '40px 20px', border: '1px dashed var(--border-3)', borderRadius: 12 },
-  companyPanel: { width: 'min(680px, 100%)', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 14, padding: 18 },
+  companyEmptyState: { width: 'min(1240px, 96%)', textAlign: 'center', padding: '40px 20px', border: '1px dashed var(--border-3)', borderRadius: 12 },
+  companyPanel: { width: 'min(1240px, 96%)', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 14, padding: 18 },
   companySelectAllRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border-1)' },
-  companyList: { display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '46vh', overflowY: 'auto', paddingRight: 2 },
-  companyCard: { display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 10, padding: '4px 14px 4px 4px', transition: 'background .12s' },
-  companyCardMain: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '9px 6px', cursor: 'pointer' },
+  companyList: { display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '60vh', overflowY: 'auto', paddingRight: 2 },
+  companyCard: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 10, padding: '4px 14px 4px 4px', transition: 'background .12s' },
+  companyCardMain: { flex: '1 1 280px', minWidth: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '9px 6px', cursor: 'pointer' },
   companyCardActions: { display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 },
   companyCardLogo: { width: 36, height: 36, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border-3)', flexShrink: 0 },
   companyCardLogoEmpty: { width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  companyCardNameRow: { display: 'flex', alignItems: 'center', gap: 6 },
+  companyCardNameRow: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   companyCardName: { fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)' },
   companyCardSecondary: { fontSize: 11, color: 'var(--text-5)', marginTop: 1 },
   companyCardCnpj: { fontSize: 11.5, color: 'var(--text-5)', marginTop: 1 },
+  companyCardProgress: { display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 150px', padding: '4px 10px', borderLeft: '1px solid var(--border-2)' },
+  companyCardDonutWrap: { position: 'relative', width: 34, height: 34, flexShrink: 0 },
+  companyCardDonutLabel: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9.5, fontWeight: 800, color: 'var(--text-1)' },
+  companyCardProgressText: { fontSize: 11, color: 'var(--text-5)', lineHeight: 1.3 },
+  companyCardProgressNum: { fontSize: 12, fontWeight: 700, color: 'var(--text-2)' },
+  companyCardNext: { flex: '1 1 200px', minWidth: 0, padding: '4px 10px', borderLeft: '1px solid var(--border-2)' },
+  companyCardNextLabel: { fontSize: 10, fontWeight: 700, color: 'var(--text-6)', textTransform: 'uppercase', letterSpacing: .3 },
+  companyCardNextTitle: { fontSize: 12, fontWeight: 600, color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 },
+  companyCardNextDate: { fontSize: 11, marginTop: 1 },
 };
