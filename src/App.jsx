@@ -48,6 +48,10 @@ const STATUS_META = {
   'concluido': { label: 'Concluído', color: '#3ecf6e', bg: 'rgba(62,207,110,.14)', border: 'rgba(62,207,110,.5)' },
 };
 const STATUS_ORDER = ['nao-iniciado', 'em-andamento', 'pausado', 'concluido'];
+const COMPANY_STATUS_META = {
+  ativo: { label: 'Ativo', color: '#3ecf6e', bg: 'rgba(62,207,110,.14)', border: 'rgba(62,207,110,.5)' },
+  pausado: { label: 'Pausado', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
+};
 const DELETE_CONFIRM_PHRASE = 'Excluir';
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 
@@ -1096,7 +1100,7 @@ export default function App() {
                   {selectedProjects.map((p) => (
                     <span key={p.id} style={{ ...S.multiCompanyChip, borderColor: p.company.color || 'var(--border-3)' }}>
                       <span style={{ ...S.companyColorDot, background: p.company.color || 'var(--text-8)' }} />
-                      {p.company.name || 'Sem nome'}
+                      {p.company.nomeFantasia || p.company.name || 'Sem nome'}{(p.company.status || 'ativo') === 'pausado' ? ' ⏸' : ''}
                     </span>
                   ))}
                 </div>
@@ -1106,8 +1110,21 @@ export default function App() {
             <>
               {activeProject.company.logo ? <img src={activeProject.company.logo} alt="logo" style={S.logoImg} /> : <div style={S.logoPlaceholder}><Building2 size={18} color={activeProject.company.color || '#F5C400'} /></div>}
               <div>
-                <div style={S.brandName}>{activeProject.company.name || 'Cliente não cadastrado'}</div>
-                <div style={S.brandCnpj}>{activeProject.company.cnpj ? `CNPJ ${activeProject.company.cnpj}` : 'CNPJ não informado'}</div>
+                <div style={S.brandNameRow}>
+                  <div style={S.brandName}>{activeProject.company.nomeFantasia || activeProject.company.name || 'Cliente não cadastrado'}</div>
+                  {(activeProject.company.status || 'ativo') === 'pausado' && (
+                    <span style={{ ...S.companyStatusPill, color: COMPANY_STATUS_META.pausado.color, background: COMPANY_STATUS_META.pausado.bg, borderColor: COMPANY_STATUS_META.pausado.border }}>
+                      Pausado{activeProject.company.resumeDate ? ` · retoma ${fmtDate(activeProject.company.resumeDate)}` : ''}
+                    </span>
+                  )}
+                </div>
+                {activeProject.company.nomeFantasia && activeProject.company.name && activeProject.company.nomeFantasia !== activeProject.company.name && (
+                  <div style={S.brandSecondary}>{activeProject.company.name}</div>
+                )}
+                <div style={S.brandCnpj}>
+                  {activeProject.company.cnpj ? `CNPJ ${activeProject.company.cnpj}` : 'CNPJ não informado'}
+                  {activeProject.company.regimeTributario ? ` · ${activeProject.company.regimeTributario}` : ''}
+                </div>
               </div>
               <button style={S.iconBtn} onClick={() => setShowSettings(true)}><Settings size={15} /> Empresa</button>
             </>
@@ -1372,9 +1389,40 @@ export default function App() {
           </div>
 
           <div style={S.settingsBlock}>
+            <div style={S.settingsLabel}>Nome fantasia</div>
+            <input type="text" value={activeProject.company.nomeFantasia || ''} onChange={(e) => { const v = e.target.value; mutateProject(pid, (p) => ({ ...p, company: { ...p.company, nomeFantasia: v } })); }} onBlur={() => addLog(pid, `Nome fantasia atualizado: ${activeProject.company.nomeFantasia}`)} placeholder="Nome fantasia" />
+            <div style={S.fieldHint}>Usado como identificação principal da empresa nas telas e listagens.</div>
+          </div>
+
+          <div style={S.settingsBlock}>
             <div style={S.settingsLabel}>CNPJ</div>
             <input type="text" value={activeProject.company.cnpj} onChange={(e) => { const v = e.target.value; mutateProject(pid, (p) => ({ ...p, company: { ...p.company, cnpj: v } })); }} onBlur={() => addLog(pid, `CNPJ atualizado: ${activeProject.company.cnpj}`)} placeholder="00.000.000/0000-00" />
             <div style={S.fieldHint}>Alterar o CNPJ não atualiza sozinho quem já tem acesso — ajuste em "Usuários" se precisar.</div>
+          </div>
+
+          <div style={S.settingsBlock}>
+            <div style={S.settingsLabel}>Status da empresa</div>
+            <select
+              value={activeProject.company.status || 'ativo'}
+              onChange={(e) => {
+                const v = e.target.value;
+                mutateProject(pid, (p) => ({ ...p, company: { ...p.company, status: v, resumeDate: v === 'ativo' ? '' : p.company.resumeDate } }), `Status da empresa alterado para: ${COMPANY_STATUS_META[v].label}`);
+              }}
+            >
+              <option value="ativo">Ativo</option>
+              <option value="pausado">Pausado</option>
+            </select>
+            {activeProject.company.status === 'pausado' && (
+              <div style={{ marginTop: 8 }}>
+                <div style={S.fieldHint}>Previsão de retomada (opcional)</div>
+                <input
+                  type="date"
+                  value={activeProject.company.resumeDate || ''}
+                  onChange={(e) => { const v = e.target.value; mutateProject(pid, (p) => ({ ...p, company: { ...p.company, resumeDate: v } })); }}
+                  onBlur={() => addLog(pid, `Previsão de retomada atualizada: ${fmtDate(activeProject.company.resumeDate)}`)}
+                />
+              </div>
+            )}
           </div>
 
           {(activeProject.company.nomeFantasia || activeProject.company.regimeTributario) && (
@@ -2207,7 +2255,7 @@ function CompanySectionHeader({ project, onEditPhases }) {
 
 function EditCompanyModal({ project, onClose, onSave }) {
   const c = project.company;
-  const [form, setForm] = useState({ name: c.name || '', nomeFantasia: c.nomeFantasia || '', color: c.color || PHASE_COLORS[0], logo: c.logo || '' });
+  const [form, setForm] = useState({ name: c.name || '', nomeFantasia: c.nomeFantasia || '', color: c.color || PHASE_COLORS[0], logo: c.logo || '', status: c.status || 'ativo', resumeDate: c.resumeDate || '' });
   const [saving, setSaving] = useState(false);
 
   function handleLogoPick(e) {
@@ -2249,6 +2297,18 @@ function EditCompanyModal({ project, onClose, onSave }) {
 
         <div style={S.subSectionLabel}>Nome fantasia</div>
         <input type="text" value={form.nomeFantasia} onChange={(e) => setForm((f) => ({ ...f, nomeFantasia: e.target.value }))} placeholder="Nome fantasia" />
+
+        <div style={S.subSectionLabel}>Status da empresa</div>
+        <select value={form.status} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, status: v, resumeDate: v === 'ativo' ? '' : f.resumeDate })); }}>
+          <option value="ativo">Ativo</option>
+          <option value="pausado">Pausado</option>
+        </select>
+        {form.status === 'pausado' && (
+          <div style={{ marginTop: 8 }}>
+            <div style={S.fieldHint}>Previsão de retomada (opcional)</div>
+            <input type="date" value={form.resumeDate} onChange={(e) => setForm((f) => ({ ...f, resumeDate: e.target.value }))} />
+          </div>
+        )}
 
         <div style={S.subSectionLabel}>Cor master da empresa</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -2336,8 +2396,19 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                       <input type="checkbox" checked={isSelected} onChange={() => toggle(p.id)} />
                       {p.company.logo ? <img src={p.company.logo} alt="" style={S.companyCardLogo} /> : <div style={{ ...S.companyCardLogoEmpty, background: p.company.color || 'var(--bg-4)' }}><Building2 size={16} color="#111" /></div>}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={S.companyCardName}>{p.company.name || 'Empresa sem nome'}</div>
-                        <div style={S.companyCardCnpj}>{p.company.cnpj || 'CNPJ não informado'}</div>
+                        <div style={S.companyCardNameRow}>
+                          <div style={S.companyCardName}>{p.company.nomeFantasia || p.company.name || 'Empresa sem nome'}</div>
+                          {(p.company.status || 'ativo') === 'pausado' && (
+                            <span style={{ ...S.companyStatusPillSm, color: COMPANY_STATUS_META.pausado.color, background: COMPANY_STATUS_META.pausado.bg, borderColor: COMPANY_STATUS_META.pausado.border }}>Pausado</span>
+                          )}
+                        </div>
+                        {p.company.nomeFantasia && p.company.name && p.company.nomeFantasia !== p.company.name && (
+                          <div style={S.companyCardSecondary}>{p.company.name}</div>
+                        )}
+                        <div style={S.companyCardCnpj}>
+                          {p.company.cnpj || 'CNPJ não informado'}
+                          {p.company.regimeTributario ? ` · ${p.company.regimeTributario}` : ''}
+                        </div>
                       </div>
                     </label>
                     <div style={S.companyCardActions}>
@@ -2771,7 +2842,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
             <div style={S.subSectionLabel}><MessageSquare size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Comentários {(a.comments || []).length > 0 ? `(${(a.comments || []).length})` : ''}</div>
             <div style={S.commentThread}>
               {(a.comments || []).length === 0 && <div style={S.emptyMuted}>Nenhum comentário ainda.</div>}
-              {(a.comments || []).map((c) => (
+              {[...(a.comments || [])].reverse().map((c) => (
                 <div key={c.id} style={S.commentBubble}>
                   <div style={S.commentText}>{renderCommentText(c.text, team)}</div>
                   <div style={S.commentMeta}>
@@ -3645,8 +3716,12 @@ const S = {
   brandRow: { display: 'flex', alignItems: 'center', gap: 12 },
   logoImg: { width: 38, height: 38, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border-3)' },
   logoPlaceholder: { width: 38, height: 38, borderRadius: 8, background: 'var(--bg-4)', border: '1px solid var(--border-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  brandNameRow: { display: 'flex', alignItems: 'center', gap: 8 },
   brandName: { fontWeight: 700, fontSize: 14 },
+  brandSecondary: { fontSize: 11.5, color: 'var(--text-5)', marginTop: 1 },
   brandCnpj: { fontSize: 11.5, color: 'var(--text-5)' },
+  companyStatusPill: { fontSize: 10.5, fontWeight: 700, padding: '1px 8px', borderRadius: 999, border: '1px solid' },
+  companyStatusPillSm: { fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 999, border: '1px solid', flexShrink: 0 },
   projectSwitch: { fontWeight: 700, fontSize: 13, background: 'var(--bg-4)', border: '1px solid var(--border-3)', color: 'var(--text-1)', borderRadius: 6, padding: '4px 8px', maxWidth: 260 },
   actionsRow: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
   iconBtn: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-4)', border: '1px solid var(--border-3)', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 600, padding: '7px 11px', borderRadius: 7, cursor: 'pointer' },
@@ -3931,6 +4006,8 @@ const S = {
   companyCardActions: { display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 },
   companyCardLogo: { width: 36, height: 36, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border-3)', flexShrink: 0 },
   companyCardLogoEmpty: { width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  companyCardNameRow: { display: 'flex', alignItems: 'center', gap: 6 },
   companyCardName: { fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)' },
+  companyCardSecondary: { fontSize: 11, color: 'var(--text-5)', marginTop: 1 },
   companyCardCnpj: { fontSize: 11.5, color: 'var(--text-5)', marginTop: 1 },
 };
