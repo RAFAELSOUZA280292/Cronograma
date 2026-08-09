@@ -4,7 +4,7 @@ import {
   Users, X, Check, ChevronDown, FileSpreadsheet, FileText, Settings,
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
   LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History,
-  MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList
+  MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -3214,6 +3214,8 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
   const [showTrash, setShowTrash] = useState(false);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ priority: [], dueBucket: '', tags: [], completed: 'all' });
+  const [showFilters, setShowFilters] = useState(false);
+  const activeFilterCount = (filters.completed !== 'all' ? 1 : 0) + (filters.priority.length > 0 ? 1 : 0) + (filters.dueBucket ? 1 : 0);
   const [activeDragItem, setActiveDragItem] = useState(null);
   const { toasts, pushUndoToast, dismissToast } = useToasts();
 
@@ -3691,22 +3693,32 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
             <Search size={13} color="var(--text-6)" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar..." style={S.personalSearchInput} />
           </div>
-          <select value={filters.completed} onChange={(e) => setFilters((f) => ({ ...f, completed: e.target.value }))} style={S.personalFilterSelect}>
-            <option value="all">Todas</option>
-            <option value="only">Só concluídas</option>
-            <option value="hide">Ocultar concluídas</option>
-          </select>
-          <select value={filters.priority[0] || ''} onChange={(e) => setFilters((f) => ({ ...f, priority: e.target.value ? [e.target.value] : [] }))} style={S.personalFilterSelect}>
-            <option value="">Toda prioridade</option>
-            {CARD_PRIORITY_ORDER.map((p) => <option key={p} value={p}>{CARD_PRIORITY_META[p].label}</option>)}
-          </select>
-          <select value={filters.dueBucket} onChange={(e) => setFilters((f) => ({ ...f, dueBucket: e.target.value }))} style={S.personalFilterSelect}>
-            <option value="">Todo prazo</option>
-            <option value="overdue">Vencido</option>
-            <option value="today">Hoje</option>
-            <option value="week">Próximos dias</option>
-            <option value="none">Sem prazo</option>
-          </select>
+          <button
+            style={{ ...S.iconBtn, ...(showFilters ? S.personalViewToggleBtnActive : {}) }}
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            <SlidersHorizontal size={13} /> Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+          </button>
+          {showFilters && (
+            <>
+              <select value={filters.completed} onChange={(e) => setFilters((f) => ({ ...f, completed: e.target.value }))} style={S.personalFilterSelect}>
+                <option value="all">Todas</option>
+                <option value="only">Só concluídas</option>
+                <option value="hide">Ocultar concluídas</option>
+              </select>
+              <select value={filters.priority[0] || ''} onChange={(e) => setFilters((f) => ({ ...f, priority: e.target.value ? [e.target.value] : [] }))} style={S.personalFilterSelect}>
+                <option value="">Toda prioridade</option>
+                {CARD_PRIORITY_ORDER.map((p) => <option key={p} value={p}>{CARD_PRIORITY_META[p].label}</option>)}
+              </select>
+              <select value={filters.dueBucket} onChange={(e) => setFilters((f) => ({ ...f, dueBucket: e.target.value }))} style={S.personalFilterSelect}>
+                <option value="">Todo prazo</option>
+                <option value="overdue">Vencido</option>
+                <option value="today">Hoje</option>
+                <option value="week">Próximos dias</option>
+                <option value="none">Sem prazo</option>
+              </select>
+            </>
+          )}
           <select value={viewPrefs.sortMode || 'manual'} onChange={(e) => setViewPrefs({ sortMode: e.target.value })} style={S.personalFilterSelect}>
             <option value="manual">Ordem manual</option>
             {SORT_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
@@ -4967,7 +4979,7 @@ const S = {
   personalViewToggleBtnActive: { background: 'var(--bg-4)', color: 'var(--text-1)' },
   personalSearchWrap: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-4)', border: '1px solid var(--border-3)', borderRadius: 8, padding: '5px 10px', minWidth: 180 },
   personalSearchInput: { background: 'transparent', border: 'none', color: 'var(--text-1)', fontSize: 12, padding: 0, flex: 1, minWidth: 0 },
-  personalFilterSelect: { fontSize: 11.5, padding: '5px 8px', borderRadius: 8 },
+  personalFilterSelect: { fontSize: 11.5, padding: '5px 8px', borderRadius: 8, width: 'auto', flexShrink: 0 },
   personalBoardArea: { display: 'flex', gap: 16, padding: '16px 24px 32px', overflowX: 'auto', alignItems: 'flex-start' },
   personalCol: { background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 10, padding: 10, minWidth: 300, width: 300, flexShrink: 0 },
   personalColHead: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, marginBottom: 10, color: 'var(--text-2)', padding: '6px 6px', borderRadius: 8 },
