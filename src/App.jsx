@@ -78,6 +78,17 @@ const CARD_PRIORITY_META = {
 };
 const CARD_PRIORITY_ORDER = ['urgente', 'alta', 'media', 'baixa'];
 
+const CARD_STATUS_META = {
+  'nao-iniciada': { label: 'Não iniciada', color: 'var(--text-5)', bg: 'var(--border-1)', border: 'var(--border-3)' },
+  'em-andamento': { label: 'Em andamento', color: '#3ea6ff', bg: 'rgba(62,166,255,.16)', border: 'rgba(62,166,255,.5)' },
+  pausada: { label: 'Pausada', color: '#ff9f40', bg: 'rgba(255,159,64,.16)', border: 'rgba(255,159,64,.5)' },
+  concluida: { label: 'Concluída', color: '#3ecf6e', bg: 'rgba(62,207,110,.16)', border: 'rgba(62,207,110,.5)' },
+};
+const CARD_STATUS_ORDER = ['nao-iniciada', 'em-andamento', 'pausada', 'concluida'];
+function cardStatusOf(card) {
+  return card.status || (card.completed ? 'concluida' : 'nao-iniciada');
+}
+
 const COLUMN_COLOR_META = {
   gray: { label: 'Cinza', bg: 'var(--pcol-gray-bg)', text: 'var(--pcol-gray-text)', container: 'var(--pcol-gray-container)' },
   blue: { label: 'Azul', bg: 'var(--pcol-blue-bg)', text: 'var(--pcol-blue-text)', container: 'var(--pcol-blue-container)' },
@@ -2554,9 +2565,12 @@ function sortCards(cards, mode) {
   return list;
 }
 
-function cardMatchesFilters(card, { search, priority, dueBucket, tags, completed }) {
-  if (completed === 'only' && !card.completed) return false;
-  if (completed === 'hide' && card.completed) return false;
+function cardMatchesFilters(card, { search, priority, dueBucket, tags, status }) {
+  if (status) {
+    const cardStat = cardStatusOf(card);
+    if (status === 'nao-concluida' && cardStat === 'concluida') return false;
+    if (status !== 'nao-concluida' && cardStat !== status) return false;
+  }
   if (priority && priority.length && !priority.includes(card.priority || '')) return false;
   if (tags && tags.length && !tags.every((t) => (card.tags || []).includes(t))) return false;
   if (dueBucket) {
@@ -2664,6 +2678,22 @@ function PriorityPicker({ value, onChange }) {
   );
 }
 
+function StatusPicker({ value, onChange }) {
+  return (
+    <div style={S.priorityPickerRow}>
+      {CARD_STATUS_ORDER.map((s) => (
+        <button
+          key={s}
+          style={{ ...S.priorityPickerChip, color: CARD_STATUS_META[s].color, background: value === s ? CARD_STATUS_META[s].bg : 'transparent', borderColor: value === s ? CARD_STATUS_META[s].border : 'var(--border-3)' }}
+          onClick={() => onChange(s)}
+        >
+          {CARD_STATUS_META[s].label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function TagEditor({ tags, onChange, suggestions }) {
   const [draft, setDraft] = useState('');
   function commit() {
@@ -2734,19 +2764,29 @@ function PersonalColumnMenu({ column, canMoveLeft, canMoveRight, onClose, onAddC
   );
 }
 
-function PersonalCardMenu({ card, otherColumns, onClose, onOpen, onSetPriority, onToggleComplete, onMoveTo, onDuplicate, onDelete }) {
+function PersonalCardMenu({ card, otherColumns, onClose, onOpen, onSetPriority, onSetStatus, onToggleComplete, onMoveTo, onDuplicate, onDelete }) {
   const [mode, setMode] = useState('root');
+  const status = cardStatusOf(card);
   return (
     <div style={S.dropdownMenu} onClick={(e) => e.stopPropagation()}>
       {mode === 'root' && (
         <>
           <button style={S.dropdownItem} onClick={() => { onOpen(); onClose(); }}><Maximize2 size={13} /> Abrir atividade</button>
           <button style={S.dropdownItem} onClick={() => setMode('move')}><ArrowLeftRight size={13} /> Mover para...</button>
+          <button style={S.dropdownItem} onClick={() => setMode('status')}><Clock size={13} /> Alterar status</button>
           <button style={S.dropdownItem} onClick={() => setMode('priority')}><AlertTriangle size={13} /> Alterar prioridade</button>
           <button style={S.dropdownItem} onClick={() => { onToggleComplete(); onClose(); }}><Check size={13} /> {card.completed ? 'Reabrir' : 'Marcar como concluída'}</button>
           <button style={S.dropdownItem} onClick={() => { onDuplicate(); onClose(); }}><Copy size={13} /> Duplicar</button>
           <div style={S.dropdownDivider} />
           <button style={{ ...S.dropdownItem, color: '#e2574c' }} onClick={() => { onDelete(); onClose(); }}><Trash2 size={13} /> Excluir</button>
+        </>
+      )}
+      {mode === 'status' && (
+        <>
+          <button style={S.dropdownItem} onClick={() => setMode('root')}>← Voltar</button>
+          {CARD_STATUS_ORDER.map((s) => (
+            <button key={s} style={{ ...S.dropdownItem, color: CARD_STATUS_META[s].color, fontWeight: s === status ? 700 : 400 }} onClick={() => { onSetStatus(s); onClose(); }}>{CARD_STATUS_META[s].label}</button>
+          ))}
         </>
       )}
       {mode === 'move' && (
@@ -2771,14 +2811,16 @@ function PersonalCardMenu({ card, otherColumns, onClose, onOpen, onSetPriority, 
   );
 }
 
-function PersonalCard({ card, columnId, disabled, otherColumns, onOpen, onToggleComplete, onDelete, onDuplicate, onSetPriority, onMoveTo }) {
+function PersonalCard({ card, columnId, disabled, otherColumns, onOpen, onToggleComplete, onDelete, onDuplicate, onSetPriority, onSetStatus, onMoveTo }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id, data: { type: 'card', columnId }, disabled });
   const style = { transform: DndCSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   const tone = dueDateTone(card);
   const doneCount = (card.checklist || []).filter((i) => i.done).length;
   const priorityMeta = card.priority ? CARD_PRIORITY_META[card.priority] : null;
-  const hasMeta = !!priorityMeta || !!card.dueDate || (card.comments || []).length > 0 || (card.checklist || []).length > 0;
+  const status = cardStatusOf(card);
+  const showStatusBadge = status === 'em-andamento' || status === 'pausada';
+  const hasMeta = !!priorityMeta || showStatusBadge || !!card.dueDate || (card.comments || []).length > 0 || (card.checklist || []).length > 0;
 
   return (
     <div
@@ -2803,6 +2845,7 @@ function PersonalCard({ card, columnId, disabled, otherColumns, onOpen, onToggle
               onClose={() => setMenuOpen(false)}
               onOpen={onOpen}
               onSetPriority={onSetPriority}
+              onSetStatus={onSetStatus}
               onToggleComplete={onToggleComplete}
               onMoveTo={onMoveTo}
               onDuplicate={onDuplicate}
@@ -2813,6 +2856,7 @@ function PersonalCard({ card, columnId, disabled, otherColumns, onOpen, onToggle
       </div>
       {hasMeta && (
         <div style={S.personalCardMeta}>
+          {showStatusBadge && <span style={{ ...S.personalCardBadge, color: CARD_STATUS_META[status].color, background: CARD_STATUS_META[status].bg }}>{CARD_STATUS_META[status].label}</span>}
           {priorityMeta && <span style={{ ...S.personalCardBadge, color: priorityMeta.color, background: priorityMeta.bg }}>● {priorityMeta.label}</span>}
           {card.dueDate && (
             <span style={{ ...S.personalCardBadge, ...(tone === 'overdue' ? S.dueOverdue : tone === 'today' ? S.dueToday : tone === 'soon' ? S.dueSoon : {}) }}>
@@ -2835,7 +2879,7 @@ function PersonalCard({ card, columnId, disabled, otherColumns, onOpen, onToggle
 
 function PersonalColumn({
   column, cardsToRender, totalVisibleCount, dragDisabled, canMoveLeft, canMoveRight, otherColumns,
-  onAddCard, onOpenCard, onToggleComplete, onDeleteCard, onDuplicateCard, onSetPriority, onMoveCardTo,
+  onAddCard, onOpenCard, onToggleComplete, onDeleteCard, onDuplicateCard, onSetPriority, onSetStatus, onMoveCardTo,
   onRenameColumn, onColorChange, onToggleHideCompleted, onMoveLeft, onMoveRight, onDuplicateColumn, onSortColumnNow, onDeleteColumn,
 }) {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -2910,6 +2954,7 @@ function PersonalColumn({
               onDelete={() => onDeleteCard(column.id, card.id)}
               onDuplicate={() => onDuplicateCard(column.id, card.id)}
               onSetPriority={(p) => onSetPriority(column.id, card.id, p)}
+              onSetStatus={(s) => onSetStatus(column.id, card.id, s)}
               onMoveTo={(targetColId) => onMoveCardTo(column.id, card.id, targetColId)}
             />
           ))}
@@ -2938,7 +2983,7 @@ function PersonalColumn({
   );
 }
 
-function PersonalCardDetailModal({ card, columnName, boardName, allTags, currentUserId, onClose, onUpdate, onDelete, onToggleComplete, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onRemoveChecklistItem }) {
+function PersonalCardDetailModal({ card, columnName, boardName, allTags, currentUserId, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onRemoveChecklistItem }) {
   const [commentDraft, setCommentDraft] = useState('');
   const [checklistDraft, setChecklistDraft] = useState('');
   const [editingCommentId, setEditingCommentId] = useState(null);
@@ -2981,6 +3026,11 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
             onBlur={() => onUpdate({}, 'Título atualizado')}
             style={{ ...S.personalDetailTitleInput, ...(card.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}
           />
+        </div>
+
+        <div>
+          <div style={S.fieldHint}>Status</div>
+          <StatusPicker value={cardStatusOf(card)} onChange={onSetStatus} />
         </div>
 
         <div style={S.cardPropsGrid}>
@@ -3131,6 +3181,7 @@ function PersonalListView({ board, filterFn, onOpenCard, onToggleComplete }) {
             <th style={S.personalListTh}></th>
             <th style={S.personalListTh} onClick={() => toggleSort('title')}>Título</th>
             <th style={S.personalListTh} onClick={() => toggleSort('column')}>Coluna</th>
+            <th style={S.personalListTh}>Status</th>
             <th style={S.personalListTh} onClick={() => toggleSort('priority')}>Prioridade</th>
             <th style={S.personalListTh} onClick={() => toggleSort('dueDate')}>Prazo</th>
             <th style={S.personalListTh}>Tags</th>
@@ -3146,6 +3197,7 @@ function PersonalListView({ board, filterFn, onOpenCard, onToggleComplete }) {
                 <td style={S.personalListTd}><input type="checkbox" checked={r.completed} onClick={(e) => e.stopPropagation()} onChange={() => onToggleComplete(r._colId, r.id)} /></td>
                 <td style={{ ...S.personalListTd, ...(r.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{r.title}</td>
                 <td style={S.personalListTd}>{r._colName}</td>
+                <td style={S.personalListTd}><span style={{ color: CARD_STATUS_META[cardStatusOf(r)].color }}>{CARD_STATUS_META[cardStatusOf(r)].label}</span></td>
                 <td style={S.personalListTd}>{priorityMeta ? <span style={{ color: priorityMeta.color }}>{priorityMeta.label}</span> : '—'}</td>
                 <td style={{ ...S.personalListTd, ...(tone === 'overdue' ? S.dueOverdue : tone === 'today' ? S.dueToday : {}) }}>{r.dueDate ? fmtDate(r.dueDate) : '—'}</td>
                 <td style={S.personalListTd}>{(r.tags || []).join(', ') || '—'}</td>
@@ -3154,7 +3206,7 @@ function PersonalListView({ board, filterFn, onOpenCard, onToggleComplete }) {
             );
           })}
           {rows.length === 0 && (
-            <tr><td colSpan={7} style={S.emptyMuted}>Nenhum resultado com os filtros atuais.</td></tr>
+            <tr><td colSpan={8} style={S.emptyMuted}>Nenhum resultado com os filtros atuais.</td></tr>
           )}
         </tbody>
       </table>
@@ -3216,9 +3268,9 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
   const [reassignColumn, setReassignColumn] = useState(null);
   const [showTrash, setShowTrash] = useState(false);
   const [search, setSearch] = useState('');
-  const [filters, setFilters] = useState({ priority: [], dueBucket: '', tags: [], completed: 'all' });
+  const [filters, setFilters] = useState({ priority: [], dueBucket: '', tags: [], status: '' });
   const [showFilters, setShowFilters] = useState(false);
-  const activeFilterCount = (filters.completed !== 'all' ? 1 : 0) + (filters.priority.length > 0 ? 1 : 0) + (filters.dueBucket ? 1 : 0);
+  const activeFilterCount = (filters.status ? 1 : 0) + (filters.priority.length > 0 ? 1 : 0) + (filters.dueBucket ? 1 : 0);
   const [activeDragItem, setActiveDragItem] = useState(null);
   const { toasts, pushUndoToast, dismissToast } = useToasts();
 
@@ -3375,7 +3427,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
     const now = new Date().toISOString();
     const nc = {
       id: uid('card'), title: t, desc: '',
-      priority: '', dueDate: '', tags: [], checklist: [],
+      status: 'nao-iniciada', priority: '', dueDate: '', tags: [], checklist: [],
       completed: false, completedAt: '', completedBy: '',
       comments: [], history: [{ ts: now, action: 'Tarefa criada', user: currentUser.name }],
       deleted: false, deletedAt: '', deletedBy: '',
@@ -3391,6 +3443,20 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
       if (historyMsg) next.history = [{ ts: now, action: historyMsg, user: currentUser.name }, ...(cd.history || [])].slice(0, 200);
       return next;
     });
+  }
+  function setCardStatus(colId, cardId, status) {
+    const col = activeBoard.columns.find((c) => c.id === colId);
+    const card = col && col.cards.find((cd) => cd.id === cardId);
+    if (!card) return;
+    const now = new Date().toISOString();
+    const wasCompleted = !!card.completed;
+    const willComplete = status === 'concluida';
+    updateCard(colId, cardId, {
+      status,
+      completed: willComplete,
+      completedAt: willComplete ? (wasCompleted ? card.completedAt : now) : '',
+      completedBy: willComplete ? (wasCompleted ? card.completedBy : currentUser.name) : '',
+    }, `Status alterado: ${CARD_STATUS_META[status].label}`);
   }
   function undoDeleteCard(colId, cardId) {
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, deleted: false, deletedAt: '', deletedBy: '' }));
@@ -3412,13 +3478,8 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
     const col = activeBoard.columns.find((c) => c.id === colId);
     const card = col && col.cards.find((cd) => cd.id === cardId);
     if (!card) return;
-    const now = new Date().toISOString();
     const willComplete = !card.completed;
-    updateCard(colId, cardId, {
-      completed: willComplete,
-      completedAt: willComplete ? now : '',
-      completedBy: willComplete ? currentUser.name : '',
-    }, willComplete ? 'Marcada como concluída' : 'Reaberta');
+    setCardStatus(colId, cardId, willComplete ? 'concluida' : 'em-andamento');
     pushUndoToast(
       willComplete ? `Tarefa "${card.title}" concluída.` : `Tarefa "${card.title}" reaberta.`,
       () => toggleCardComplete(colId, cardId)
@@ -3432,7 +3493,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
     const clone = {
       ...card, id: uid('card'), title: `${card.title} (cópia)`, comments: [],
       history: [{ ts: now, action: 'Tarefa duplicada', user: currentUser.name }],
-      completed: false, completedAt: '', completedBy: '',
+      status: 'nao-iniciada', completed: false, completedAt: '', completedBy: '',
       createdAt: now, createdBy: currentUser.name, updatedAt: now, updatedBy: currentUser.name,
     };
     mutateColumnTree(activeBoard.id, colId, (c) => {
@@ -3628,7 +3689,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
   }, [activeBoard]);
 
   function cardMatches(card) {
-    return cardMatchesFilters(card, { search, priority: filters.priority, dueBucket: filters.dueBucket, tags: filters.tags, completed: filters.completed });
+    return cardMatchesFilters(card, { search, priority: filters.priority, dueBucket: filters.dueBucket, tags: filters.tags, status: filters.status });
   }
 
   const columnIds = activeBoard ? activeBoard.columns.map((c) => c.id) : [];
@@ -3744,10 +3805,10 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
           </button>
           {showFilters && (
             <>
-              <select value={filters.completed} onChange={(e) => setFilters((f) => ({ ...f, completed: e.target.value }))} style={S.personalFilterSelect}>
-                <option value="all">Todas</option>
-                <option value="only">Só concluídas</option>
-                <option value="hide">Ocultar concluídas</option>
+              <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))} style={S.personalFilterSelect}>
+                <option value="">Todo status</option>
+                <option value="nao-concluida">Ocultar concluídas</option>
+                {CARD_STATUS_ORDER.map((s) => <option key={s} value={s}>{CARD_STATUS_META[s].label}</option>)}
               </select>
               <select value={filters.priority[0] || ''} onChange={(e) => setFilters((f) => ({ ...f, priority: e.target.value ? [e.target.value] : [] }))} style={S.personalFilterSelect}>
                 <option value="">Toda prioridade</option>
@@ -3798,6 +3859,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
                     onDeleteCard={deleteCard}
                     onDuplicateCard={duplicateCard}
                     onSetPriority={(colId, cardId, p) => updateCard(colId, cardId, { priority: p }, `Prioridade alterada: ${p ? CARD_PRIORITY_META[p].label : 'sem prioridade'}`)}
+                    onSetStatus={setCardStatus}
                     onMoveCardTo={(colId, cardId, targetColId) => moveCardToIndex(cardId, colId, targetColId, null)}
                     onRenameColumn={renameColumn}
                     onColorChange={setColumnColor}
@@ -3850,6 +3912,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
             onUpdate={(patch, historyMsg) => updateCard(col.id, card.id, patch, historyMsg)}
             onDelete={() => { deleteCard(col.id, card.id); setOpenCard(null); }}
             onToggleComplete={() => toggleCardComplete(col.id, card.id)}
+            onSetStatus={(s) => setCardStatus(col.id, card.id, s)}
             onAddComment={(text) => addCardComment(col.id, card.id, text)}
             onUpdateComment={(id, text) => updateCardComment(col.id, card.id, id, text)}
             onRemoveComment={(id) => removeCardComment(col.id, card.id, id)}
