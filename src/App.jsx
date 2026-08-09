@@ -78,12 +78,6 @@ function normalizeProject(p) {
   return { ...p, team: normalizeTeam(p.team, p.company && p.company.teamLinks) };
 }
 
-function isPricetaxTeamMember(member) {
-  if (!member) return false;
-  if (member.role === 'master' || member.role === 'pricetax') return true;
-  if (!member.role && member.name && member.name.trim().toUpperCase() === 'PRICETAX') return true;
-  return false;
-}
 
 function isExpiredNotYetFlagged(user) {
   return !user.blocked && !!user.expiresAt && user.expiresAt < todayISOStr();
@@ -544,35 +538,37 @@ export default function App() {
     mutateProject(targetPid, (p) => p, action);
   }
 
-  function findDateConflict(targetPid, id, newDate) {
-    const targetProject = projects.find((p) => p.id === targetPid);
-    const targetActivity = targetProject && targetProject.activities.find((a) => a.id === id);
-    if (!targetProject || !targetActivity) return null;
-    const targetMember = targetProject.team.find((m) => m.name === targetActivity.responsible);
-    if (!isPricetaxTeamMember(targetMember)) return null;
-    const targetKey = targetMember.userId || `name:${targetMember.name}`;
-
+  function findCrossCompanyDateConflicts(targetPid, id, checkDates) {
+    const dates = [...new Set(checkDates.filter(Boolean))];
+    if (dates.length === 0) return [];
+    const conflicts = [];
     for (const project of projects) {
       if (project.id === targetPid) continue;
       for (const act of project.activities) {
-        if (act.id === id || act.date !== newDate) continue;
-        const member = project.team.find((m) => m.name === act.responsible);
-        if (!isPricetaxTeamMember(member)) continue;
-        const key = member.userId || `name:${member.name}`;
-        if (key === targetKey) return { project, activity: act, member: targetMember };
+        if (act.id === id || act.deleted || !act.date) continue;
+        const start = act.date;
+        const end = act.endDate || act.date;
+        if (dates.some((d) => d >= start && d <= end)) conflicts.push({ project, activity: act });
       }
     }
-    return null;
+    return conflicts;
   }
 
   function updateActivity(targetPid, id, patch, logMsg) {
-    if (patch.date && (currentUser.role === 'master' || currentUser.role === 'pricetax')) {
-      const conflict = findDateConflict(targetPid, id, patch.date);
-      if (conflict) {
-        window.alert(
-          `Não é possível remarcar para ${fmtDate(patch.date)}: ${conflict.member.name} já está escalado(a) pela PRICETAX para "${conflict.activity.title}" na empresa "${conflict.project.company.name || 'sem nome'}" nessa mesma data.\n\nSó dá pra confirmar essa mudança se o responsável dessa atividade pela PRICETAX for outra pessoa ou outra equipe.`
-        );
-        return;
+    if (patch.date !== undefined || patch.endDate !== undefined) {
+      const targetProject = projects.find((p) => p.id === targetPid);
+      const targetActivity = targetProject && targetProject.activities.find((a) => a.id === id);
+      if (targetActivity) {
+        const finalDate = patch.date !== undefined ? patch.date : targetActivity.date;
+        const finalEndDate = patch.endDate !== undefined ? patch.endDate : (targetActivity.endDate || targetActivity.date);
+        const conflicts = findCrossCompanyDateConflicts(targetPid, id, [finalDate, finalEndDate]);
+        if (conflicts.length > 0) {
+          const companies = [...new Set(conflicts.map((c) => c.project.company.name || 'empresa sem nome'))].join(', ');
+          const ok = window.confirm(
+            `Atenção: já existem atividades de outras empresas (${companies}) iniciando, em execução ou sendo finalizadas nesta data.\n\nDeseja continuar mesmo assim?`
+          );
+          if (!ok) return;
+        }
       }
     }
     mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => (a.id === id ? { ...a, ...patch } : a)) }), logMsg, id);
