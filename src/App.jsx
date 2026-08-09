@@ -2535,7 +2535,13 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                       {p.company.logo ? <img src={p.company.logo} alt="" style={S.companyCardLogo} /> : <div style={{ ...S.companyCardLogoEmpty, background: p.company.color || 'var(--bg-4)' }}><Building2 size={16} color="#111" /></div>}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={S.companyCardNameRow}>
-                          <div style={S.companyCardName}>{p.company.nomeFantasia || p.company.name || 'Empresa sem nome'}</div>
+                          <div
+                            style={{ ...S.companyCardName, cursor: 'pointer' }}
+                            title="Duplo clique para entrar direto nessa empresa"
+                            onDoubleClick={(e) => { e.preventDefault(); onConfirm([p.id]); }}
+                          >
+                            {p.company.nomeFantasia || p.company.name || 'Empresa sem nome'}
+                          </div>
                           {p.company.clientType && CLIENT_TYPE_META[p.company.clientType] && (
                             <span style={{ ...S.companyStatusPillSm, color: CLIENT_TYPE_META[p.company.clientType].color, background: CLIENT_TYPE_META[p.company.clientType].bg, borderColor: CLIENT_TYPE_META[p.company.clientType].border }}>{CLIENT_TYPE_META[p.company.clientType].short}</span>
                           )}
