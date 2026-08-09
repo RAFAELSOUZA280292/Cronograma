@@ -1,11 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Plus, Trash2, Download, Upload, Clock, LayoutGrid, Columns3, Building2,
   Users, X, Check, ChevronDown, FileSpreadsheet, FileText, Settings,
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
-  LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History
+  LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History,
+  MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import {
+  DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors, closestCorners, useDroppable,
+} from '@dnd-kit/core';
+import {
+  SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy, useSortable, arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { apiGet, apiPost, apiPatch, apiDelete } from './lib/api.js';
 import pricetaxLogoBranco from './assets/brand/pricetax-logo-branco.png';
 import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
@@ -61,6 +69,46 @@ const PRIORITY_META = {
   baixa: { label: 'Baixa', color: 'var(--text-5)', bg: 'var(--border-1)', border: 'var(--border-3)' },
 };
 const PRIORITY_ORDER = ['alta', 'media', 'baixa'];
+
+const CARD_PRIORITY_META = {
+  urgente: { label: 'Urgente', color: '#e2574c', bg: 'rgba(226,87,76,.16)', border: 'rgba(226,87,76,.5)' },
+  alta: { label: 'Alta', color: '#ff9f40', bg: 'rgba(255,159,64,.16)', border: 'rgba(255,159,64,.5)' },
+  media: { label: 'Média', color: '#F5C400', bg: 'rgba(245,196,0,.16)', border: 'rgba(245,196,0,.5)' },
+  baixa: { label: 'Baixa', color: '#3ea6ff', bg: 'rgba(62,166,255,.16)', border: 'rgba(62,166,255,.5)' },
+};
+const CARD_PRIORITY_ORDER = ['urgente', 'alta', 'media', 'baixa'];
+
+const COLUMN_COLOR_META = {
+  gray: { label: 'Cinza', bg: 'rgba(140,140,150,.16)', text: 'var(--text-2)' },
+  blue: { label: 'Azul', bg: 'rgba(62,166,255,.16)', text: '#3ea6ff' },
+  green: { label: 'Verde', bg: 'rgba(62,207,110,.16)', text: '#3ecf6e' },
+  yellow: { label: 'Amarelo', bg: 'rgba(245,196,0,.16)', text: '#c99a00' },
+  orange: { label: 'Laranja', bg: 'rgba(255,159,64,.16)', text: '#e07d20' },
+  red: { label: 'Vermelho', bg: 'rgba(226,87,76,.16)', text: '#e2574c' },
+  pink: { label: 'Rosa', bg: 'rgba(226,76,158,.16)', text: '#e24c9e' },
+  purple: { label: 'Roxo', bg: 'rgba(155,122,245,.16)', text: '#9b7af5' },
+  brown: { label: 'Marrom', bg: 'rgba(160,120,90,.18)', text: '#a0785a' },
+};
+const COLUMN_COLOR_ORDER = ['gray', 'blue', 'green', 'yellow', 'orange', 'red', 'pink', 'purple', 'brown'];
+
+const CARD_DELETE_CONFIRM_PHRASE = 'Excluir';
+
+function initials(name) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function dueDateTone(card) {
+  if (!card.dueDate || card.completed) return 'none';
+  const today = todayISOStr();
+  if (card.dueDate < today) return 'overdue';
+  if (card.dueDate === today) return 'today';
+  const soon = toISODate(addDays(parseDate(today), 3));
+  if (card.dueDate <= soon) return 'soon';
+  return 'normal';
+}
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -227,7 +275,9 @@ export default function App() {
   const [workspaceMode, setWorkspaceMode] = useState(null);
   const [personalBoard, setPersonalBoard] = useState(null);
   const [personalBoardLoaded, setPersonalBoardLoaded] = useState(false);
+  const [personalBoardSaveState, setPersonalBoardSaveState] = useState('idle');
   const personalBoardSaveTimer = useRef(null);
+  const lastGoodPersonalBoardRef = useRef(null);
   const [phasesEditingProjectId, setPhasesEditingProjectId] = useState(null);
   const [usersLog, setUsersLog] = useState([]);
   const [loginError, setLoginError] = useState(null);
@@ -330,9 +380,12 @@ export default function App() {
       try {
         const res = await apiGet('/api/personal-board');
         setPersonalBoard(res.board);
+        lastGoodPersonalBoardRef.current = res.board;
+        setPersonalBoardSaveState('idle');
       } catch (e) {
         console.error('Falha ao carregar Gestão de Atividades', e);
         setPersonalBoard({ boards: [] });
+        lastGoodPersonalBoardRef.current = { boards: [] };
       } finally {
         setPersonalBoardLoaded(true);
       }
@@ -341,8 +394,18 @@ export default function App() {
 
   function persistPersonalBoardDebounced(board) {
     if (personalBoardSaveTimer.current) clearTimeout(personalBoardSaveTimer.current);
+    setPersonalBoardSaveState('saving');
     personalBoardSaveTimer.current = setTimeout(() => {
-      apiPatch('/api/personal-board', { board }).catch((e) => console.error('Falha ao salvar Gestão de Atividades', e));
+      apiPatch('/api/personal-board', { board })
+        .then(() => {
+          lastGoodPersonalBoardRef.current = board;
+          setPersonalBoardSaveState('saved');
+        })
+        .catch((e) => {
+          console.error('Falha ao salvar Gestão de Atividades', e);
+          setPersonalBoardSaveState('error');
+          setPersonalBoard(lastGoodPersonalBoardRef.current);
+        });
     }, 500);
   }
 
@@ -445,7 +508,7 @@ export default function App() {
 
   if (workspaceMode === 'personal') {
     if (!personalBoardLoaded || !personalBoard) {
-      return <LoadingScreen theme={theme} />;
+      return <PersonalBoardSkeleton theme={theme} />;
     }
     return (
       <PersonalBoardScreen
@@ -456,6 +519,7 @@ export default function App() {
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
+        saveState={personalBoardSaveState}
       />
     );
   }
@@ -2470,12 +2534,693 @@ function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onLogout, th
   );
 }
 
-function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, theme, onToggleTheme }) {
+const SORT_OPTIONS = [
+  { value: 'priority', label: 'Prioridade' },
+  { value: 'dueDate', label: 'Prazo' },
+  { value: 'createdAt', label: 'Data de criação' },
+  { value: 'updatedAt', label: 'Última atualização' },
+  { value: 'name', label: 'Nome' },
+];
+
+function sortCards(cards, mode) {
+  if (!mode || mode === 'manual') return cards;
+  const list = cards.slice();
+  const priorityRank = (c) => { const i = CARD_PRIORITY_ORDER.indexOf(c.priority); return i === -1 ? CARD_PRIORITY_ORDER.length : i; };
+  if (mode === 'priority') return list.sort((a, b) => priorityRank(a) - priorityRank(b));
+  if (mode === 'dueDate') return list.sort((a, b) => (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99'));
+  if (mode === 'createdAt') return list.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  if (mode === 'updatedAt') return list.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  if (mode === 'name') return list.sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
+  return list;
+}
+
+function cardMatchesFilters(card, { search, priority, dueBucket, tags, completed }) {
+  if (completed === 'only' && !card.completed) return false;
+  if (completed === 'hide' && card.completed) return false;
+  if (priority && priority.length && !priority.includes(card.priority || '')) return false;
+  if (tags && tags.length && !tags.every((t) => (card.tags || []).includes(t))) return false;
+  if (dueBucket) {
+    const tone = dueDateTone(card);
+    if (dueBucket === 'overdue' && tone !== 'overdue') return false;
+    if (dueBucket === 'today' && tone !== 'today') return false;
+    if (dueBucket === 'week' && tone !== 'today' && tone !== 'soon') return false;
+    if (dueBucket === 'none' && card.dueDate) return false;
+  }
+  if (search) {
+    const q = search.toLowerCase();
+    const hay = `${card.title} ${card.desc || ''} ${(card.tags || []).join(' ')}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+function useToasts() {
+  const [toasts, setToasts] = useState([]);
+  function dismissToast(id) { setToasts((t) => t.filter((x) => x.id !== id)); }
+  function pushToast({ message, actionLabel, onAction, ttlMs = 5000 }) {
+    const id = uid('toast');
+    setToasts((t) => [...t, { id, message, actionLabel, onAction }]);
+    if (ttlMs) setTimeout(() => dismissToast(id), ttlMs);
+    return id;
+  }
+  function pushUndoToast(message, undoFn, ttlMs = 6000) {
+    return pushToast({ message, actionLabel: 'Desfazer', onAction: undoFn, ttlMs });
+  }
+  return { toasts, pushToast, pushUndoToast, dismissToast };
+}
+
+function ToastStack({ toasts, onDismiss }) {
+  if (toasts.length === 0) return null;
+  return (
+    <div style={S.toastStack}>
+      {toasts.map((t) => (
+        <div key={t.id} style={S.toast}>
+          <span>{t.message}</span>
+          {t.actionLabel && <button style={S.toastAction} onClick={() => { t.onAction && t.onAction(); onDismiss(t.id); }}>{t.actionLabel}</button>}
+          <button style={S.chipX} onClick={() => onDismiss(t.id)}><X size={12} /></button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FadingSavedBadge() {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    setVisible(true);
+    const t = setTimeout(() => setVisible(false), 2000);
+    return () => clearTimeout(t);
+  }, []);
+  if (!visible) return null;
+  return <span style={S.saveStateBadge}>Salvo</span>;
+}
+
+function PersonalBoardSkeleton({ theme }) {
+  return (
+    <div style={S.page}>
+      <div className="no-print" style={S.topbar}>
+        <div style={S.brandRow}>
+          <div style={S.logoPlaceholder}><Columns3 size={18} color="#F5C400" /></div>
+          <div style={{ ...S.skeletonBlock, width: 160, height: 16 }} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 16, padding: '16px 24px' }}>
+        {[0, 1, 2].map((i) => (
+          <div key={i} style={{ ...S.personalCol, width: 300 }}>
+            <div style={{ ...S.skeletonBlock, width: '60%', height: 14, marginBottom: 14 }} />
+            {[0, 1].map((j) => <div key={j} style={{ ...S.skeletonBlock, height: 52, marginBottom: 9, borderRadius: 8 }} />)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ColorSwatchGrid({ value, onChange }) {
+  return (
+    <div style={S.colorSwatchGrid}>
+      <button title="Sem cor" style={{ ...S.colorSwatch, background: 'transparent', border: '1px dashed var(--border-3)' }} onClick={() => onChange('')} />
+      {COLUMN_COLOR_ORDER.map((key) => (
+        <button key={key} title={COLUMN_COLOR_META[key].label} style={{ ...S.colorSwatch, background: COLUMN_COLOR_META[key].bg, borderColor: COLUMN_COLOR_META[key].text, ...(value === key ? { boxShadow: `0 0 0 2px ${COLUMN_COLOR_META[key].text}` } : {}) }} onClick={() => onChange(key)} />
+      ))}
+    </div>
+  );
+}
+
+function PriorityPicker({ value, onChange }) {
+  return (
+    <div style={S.priorityPickerRow}>
+      <button style={{ ...S.priorityPickerChip, ...(value === '' ? S.priorityPickerChipActive : {}) }} onClick={() => onChange('')}>Sem prioridade</button>
+      {CARD_PRIORITY_ORDER.map((p) => (
+        <button
+          key={p}
+          style={{ ...S.priorityPickerChip, color: CARD_PRIORITY_META[p].color, background: value === p ? CARD_PRIORITY_META[p].bg : 'transparent', borderColor: value === p ? CARD_PRIORITY_META[p].border : 'var(--border-3)' }}
+          onClick={() => onChange(p)}
+        >
+          {CARD_PRIORITY_META[p].label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TagEditor({ tags, onChange, suggestions }) {
+  const [draft, setDraft] = useState('');
+  function commit() {
+    const v = draft.trim();
+    if (v && !tags.includes(v)) onChange([...tags, v]);
+    setDraft('');
+  }
+  return (
+    <div>
+      <div style={S.tagEditorChips}>
+        {tags.map((t) => (
+          <span key={t} style={S.personalCardTag}>
+            {t} <button style={S.chipX} onClick={() => onChange(tags.filter((x) => x !== t))}><X size={10} /></button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit(); } if (e.key === 'Escape') setDraft(''); }}
+          onBlur={commit}
+          placeholder="+ tag"
+          list="personal-tag-suggestions"
+          style={S.tagEditorInput}
+        />
+      </div>
+      {suggestions && suggestions.length > 0 && (
+        <datalist id="personal-tag-suggestions">{suggestions.map((s) => <option key={s} value={s} />)}</datalist>
+      )}
+    </div>
+  );
+}
+
+function PersonalColumnMenu({ column, canMoveLeft, canMoveRight, onClose, onAddCard, onRename, onColorChange, onToggleHideCompleted, onMoveLeft, onMoveRight, onDuplicate, onSortNow, onDelete }) {
+  const [mode, setMode] = useState('root');
+  return (
+    <div style={S.dropdownMenu} onClick={(e) => e.stopPropagation()}>
+      {mode === 'root' && (
+        <>
+          <button style={S.dropdownItem} onClick={() => { onAddCard(); onClose(); }}><Plus size={13} /> Adicionar atividade</button>
+          <button style={S.dropdownItem} onClick={() => { onRename(); onClose(); }}><Pencil size={13} /> Renomear</button>
+          <button style={S.dropdownItem} onClick={() => setMode('color')}><Palette size={13} /> Alterar cor</button>
+          <button style={S.dropdownItem} onClick={() => setMode('sort')}><ArrowLeftRight size={13} /> Ordenar</button>
+          <button style={{ ...S.dropdownItem, opacity: canMoveLeft ? 1 : .4 }} disabled={!canMoveLeft} onClick={() => { onMoveLeft(); onClose(); }}>← Mover para esquerda</button>
+          <button style={{ ...S.dropdownItem, opacity: canMoveRight ? 1 : .4 }} disabled={!canMoveRight} onClick={() => { onMoveRight(); onClose(); }}>→ Mover para direita</button>
+          <button style={S.dropdownItem} onClick={() => { onDuplicate(); onClose(); }}><Copy size={13} /> Duplicar coluna</button>
+          <label style={S.dropdownItem}>
+            <input type="checkbox" checked={!!column.hideCompleted} onChange={onToggleHideCompleted} /> Ocultar concluídas
+          </label>
+          <div style={S.dropdownDivider} />
+          <button style={{ ...S.dropdownItem, color: '#e2574c' }} onClick={() => { onDelete(); onClose(); }}><Trash2 size={13} /> Excluir coluna</button>
+        </>
+      )}
+      {mode === 'color' && (
+        <>
+          <button style={S.dropdownItem} onClick={() => setMode('root')}>← Voltar</button>
+          <ColorSwatchGrid value={column.color} onChange={(c) => { onColorChange(c); onClose(); }} />
+        </>
+      )}
+      {mode === 'sort' && (
+        <>
+          <button style={S.dropdownItem} onClick={() => setMode('root')}>← Voltar</button>
+          {SORT_OPTIONS.map((opt) => (
+            <button key={opt.value} style={S.dropdownItem} onClick={() => { onSortNow(opt.value); onClose(); }}>{opt.label}</button>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+function PersonalCardMenu({ card, otherColumns, onClose, onOpen, onSetPriority, onToggleComplete, onMoveTo, onDuplicate, onDelete }) {
+  const [mode, setMode] = useState('root');
+  return (
+    <div style={S.dropdownMenu} onClick={(e) => e.stopPropagation()}>
+      {mode === 'root' && (
+        <>
+          <button style={S.dropdownItem} onClick={() => { onOpen(); onClose(); }}><Maximize2 size={13} /> Abrir atividade</button>
+          <button style={S.dropdownItem} onClick={() => setMode('move')}><ArrowLeftRight size={13} /> Mover para...</button>
+          <button style={S.dropdownItem} onClick={() => setMode('priority')}><AlertTriangle size={13} /> Alterar prioridade</button>
+          <button style={S.dropdownItem} onClick={() => { onToggleComplete(); onClose(); }}><Check size={13} /> {card.completed ? 'Reabrir' : 'Marcar como concluída'}</button>
+          <button style={S.dropdownItem} onClick={() => { onDuplicate(); onClose(); }}><Copy size={13} /> Duplicar</button>
+          <div style={S.dropdownDivider} />
+          <button style={{ ...S.dropdownItem, color: '#e2574c' }} onClick={() => { onDelete(); onClose(); }}><Trash2 size={13} /> Excluir</button>
+        </>
+      )}
+      {mode === 'move' && (
+        <>
+          <button style={S.dropdownItem} onClick={() => setMode('root')}>← Voltar</button>
+          {otherColumns.length === 0 && <div style={{ ...S.emptyMuted, padding: '4px 10px' }}>Nenhuma outra coluna.</div>}
+          {otherColumns.map((c) => (
+            <button key={c.id} style={S.dropdownItem} onClick={() => { onMoveTo(c.id); onClose(); }}>{c.name}</button>
+          ))}
+        </>
+      )}
+      {mode === 'priority' && (
+        <>
+          <button style={S.dropdownItem} onClick={() => setMode('root')}>← Voltar</button>
+          <button style={S.dropdownItem} onClick={() => { onSetPriority(''); onClose(); }}>Sem prioridade</button>
+          {CARD_PRIORITY_ORDER.map((p) => (
+            <button key={p} style={{ ...S.dropdownItem, color: CARD_PRIORITY_META[p].color }} onClick={() => { onSetPriority(p); onClose(); }}>{CARD_PRIORITY_META[p].label}</button>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+function PersonalCard({ card, columnId, disabled, otherColumns, onOpen, onToggleComplete, onDelete, onDuplicate, onSetPriority, onMoveTo }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id, data: { type: 'card', columnId }, disabled });
+  const style = { transform: DndCSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
+  const tone = dueDateTone(card);
+  const doneCount = (card.checklist || []).filter((i) => i.done).length;
+  const priorityMeta = card.priority ? CARD_PRIORITY_META[card.priority] : null;
+  const hasMeta = !!priorityMeta || !!card.dueDate || (card.comments || []).length > 0 || (card.checklist || []).length > 0;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ ...S.personalCard, ...style, ...(disabled ? {} : { cursor: 'grab' }), ...(card.completed ? S.personalCardDone : {}) }}
+      {...attributes}
+      {...listeners}
+      onClick={onOpen}
+    >
+      <div style={S.personalCardTop}>
+        <button style={S.personalCardCheck} onClick={(e) => { e.stopPropagation(); onToggleComplete(); }} title={card.completed ? 'Reabrir' : 'Marcar como concluída'}>
+          {card.completed ? <Check size={13} /> : <span style={S.personalCardCheckEmpty} />}
+        </button>
+        <div style={{ ...S.personalCardTitleText, ...(card.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{card.title}</div>
+        <div style={{ position: 'relative' }}>
+          <button style={S.iconBtnGhost} onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}><MoreHorizontal size={13} /></button>
+          {menuOpen && (
+            <PersonalCardMenu
+              card={card}
+              otherColumns={otherColumns}
+              onClose={() => setMenuOpen(false)}
+              onOpen={onOpen}
+              onSetPriority={onSetPriority}
+              onToggleComplete={onToggleComplete}
+              onMoveTo={onMoveTo}
+              onDuplicate={onDuplicate}
+              onDelete={onDelete}
+            />
+          )}
+        </div>
+      </div>
+      {hasMeta && (
+        <div style={S.personalCardMeta}>
+          {priorityMeta && <span style={{ ...S.personalCardBadge, color: priorityMeta.color, background: priorityMeta.bg }}>● {priorityMeta.label}</span>}
+          {card.dueDate && (
+            <span style={{ ...S.personalCardBadge, ...(tone === 'overdue' ? S.dueOverdue : tone === 'today' ? S.dueToday : tone === 'soon' ? S.dueSoon : {}) }}>
+              📅 {fmtDate(card.dueDate)}
+            </span>
+          )}
+          {(card.comments || []).length > 0 && <span style={S.personalCardBadge}>💬 {card.comments.length}</span>}
+          {(card.checklist || []).length > 0 && <span style={S.personalCardBadge}>✓ {doneCount}/{card.checklist.length}</span>}
+        </div>
+      )}
+      {(card.tags || []).length > 0 && (
+        <div style={S.personalCardTags}>
+          {card.tags.slice(0, 3).map((t) => <span key={t} style={S.personalCardTag}>{t}</span>)}
+          {card.tags.length > 3 && <span style={S.personalCardTag}>+{card.tags.length - 3}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PersonalColumn({
+  column, cardsToRender, totalVisibleCount, dragDisabled, canMoveLeft, canMoveRight, otherColumns,
+  onAddCard, onOpenCard, onToggleComplete, onDeleteCard, onDuplicateCard, onSetPriority, onMoveCardTo,
+  onRenameColumn, onColorChange, onToggleHideCompleted, onMoveLeft, onMoveRight, onDuplicateColumn, onSortColumnNow, onDeleteColumn,
+}) {
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const inputRef = useRef(null);
+  const nameInputRef = useRef(null);
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column.id, data: { type: 'column' } });
+  const { setNodeRef: setDropRef } = useDroppable({ id: `coldrop-${column.id}`, data: { type: 'coldrop', columnId: column.id } });
+  const style = { transform: DndCSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  const colorMeta = column.color ? COLUMN_COLOR_META[column.color] : null;
+  const cardIds = cardsToRender.map((c) => c.id);
+
+  function submitQuickAdd() {
+    const t = draft.trim();
+    if (t) {
+      onAddCard(column.id, t);
+      setDraft('');
+      if (inputRef.current) inputRef.current.focus();
+    } else {
+      setShowQuickAdd(false);
+    }
+  }
+
+  return (
+    <div ref={setNodeRef} style={{ ...S.personalCol, ...style }}>
+      <div style={{ ...S.personalColHead, background: colorMeta ? colorMeta.bg : 'transparent' }}>
+        <span {...attributes} {...listeners} style={S.personalColGrip}><GripVertical size={13} color="var(--text-8)" /></span>
+        <input
+          ref={nameInputRef}
+          value={column.name}
+          onChange={(e) => onRenameColumn(column.id, e.target.value)}
+          style={{ ...S.personalColNameInput, color: colorMeta ? colorMeta.text : 'var(--text-2)' }}
+        />
+        <span style={S.kanbanCount}>{totalVisibleCount}</span>
+        <div style={{ position: 'relative' }}>
+          <button style={S.iconBtnGhost} onClick={() => setMenuOpen((v) => !v)}><MoreHorizontal size={14} /></button>
+          {menuOpen && (
+            <PersonalColumnMenu
+              column={column}
+              canMoveLeft={canMoveLeft}
+              canMoveRight={canMoveRight}
+              onClose={() => setMenuOpen(false)}
+              onAddCard={() => setShowQuickAdd(true)}
+              onRename={() => nameInputRef.current && nameInputRef.current.focus()}
+              onColorChange={(color) => onColorChange(column.id, color)}
+              onToggleHideCompleted={() => onToggleHideCompleted(column.id)}
+              onMoveLeft={onMoveLeft}
+              onMoveRight={onMoveRight}
+              onDuplicate={onDuplicateColumn}
+              onSortNow={onSortColumnNow}
+              onDelete={onDeleteColumn}
+            />
+          )}
+        </div>
+      </div>
+
+      <div ref={setDropRef} style={S.personalColBody}>
+        <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
+          {cardsToRender.map((card) => (
+            <PersonalCard
+              key={card.id}
+              card={card}
+              columnId={column.id}
+              disabled={dragDisabled}
+              otherColumns={otherColumns}
+              onOpen={() => onOpenCard(column.id, card.id)}
+              onToggleComplete={() => onToggleComplete(column.id, card.id)}
+              onDelete={() => onDeleteCard(column.id, card.id)}
+              onDuplicate={() => onDuplicateCard(column.id, card.id)}
+              onSetPriority={(p) => onSetPriority(column.id, card.id, p)}
+              onMoveTo={(targetColId) => onMoveCardTo(column.id, card.id, targetColId)}
+            />
+          ))}
+        </SortableContext>
+        {cardsToRender.length === 0 && <div style={S.personalColEmpty}>Nenhuma tarefa aqui.</div>}
+      </div>
+
+      {showQuickAdd ? (
+        <input
+          ref={inputRef}
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); submitQuickAdd(); }
+            if (e.key === 'Escape') { e.preventDefault(); setDraft(''); setShowQuickAdd(false); }
+          }}
+          onBlur={() => { if (!draft.trim()) setShowQuickAdd(false); }}
+          placeholder="Digite o nome da atividade..."
+          style={S.personalQuickAddInput}
+        />
+      ) : (
+        <button style={S.addSubBtn} onClick={() => setShowQuickAdd(true)}><Plus size={12} /> Nova atividade</button>
+      )}
+    </div>
+  );
+}
+
+function PersonalCardDetailModal({ card, columnName, boardName, allTags, currentUserId, onClose, onUpdate, onDelete, onToggleComplete, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onRemoveChecklistItem }) {
+  const [commentDraft, setCommentDraft] = useState('');
+  const [checklistDraft, setChecklistDraft] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingCommentText, setEditingCommentText] = useState('');
+
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  function submitComment() {
+    if (!commentDraft.trim()) return;
+    onAddComment(commentDraft);
+    setCommentDraft('');
+  }
+  function submitChecklist() {
+    if (!checklistDraft.trim()) return;
+    onAddChecklistItem(checklistDraft);
+    setChecklistDraft('');
+  }
+
+  const doneCount = (card.checklist || []).filter((i) => i.done).length;
+
+  return (
+    <div style={S.detailOverlay} onClick={onClose}>
+      <div style={{ ...S.detailBox, width: 'min(760px, 100%)' }} onClick={(e) => e.stopPropagation()}>
+        <div style={S.detailTopBar}>
+          <div style={S.fieldHint}>{boardName} / {columnName}</div>
+          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+          <button style={S.personalCardCheck} onClick={onToggleComplete} title={card.completed ? 'Reabrir' : 'Marcar como concluída'}>
+            {card.completed ? <Check size={16} /> : <span style={S.personalCardCheckEmptyLg} />}
+          </button>
+          <input
+            value={card.title}
+            onChange={(e) => onUpdate({ title: e.target.value })}
+            onBlur={() => onUpdate({}, 'Título atualizado')}
+            style={{ ...S.personalDetailTitleInput, ...(card.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}
+          />
+        </div>
+
+        <div style={S.cardPropsGrid}>
+          <div>
+            <div style={S.fieldHint}>Prioridade</div>
+            <PriorityPicker value={card.priority || ''} onChange={(p) => onUpdate({ priority: p }, `Prioridade alterada: ${p ? CARD_PRIORITY_META[p].label : 'sem prioridade'}`)} />
+          </div>
+          <div>
+            <div style={S.fieldHint}>Prazo</div>
+            <input type="date" value={card.dueDate || ''} onChange={(e) => onUpdate({ dueDate: e.target.value }, e.target.value ? `Prazo alterado: ${fmtDate(e.target.value)}` : 'Prazo removido')} />
+          </div>
+        </div>
+
+        <div style={S.subSectionLabel}><Tag size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Tags</div>
+        <TagEditor tags={card.tags || []} onChange={(tags) => onUpdate({ tags }, 'Tags atualizadas')} suggestions={allTags} />
+
+        <div style={S.subSectionLabel}>Descrição</div>
+        <textarea
+          value={card.desc || ''}
+          onChange={(e) => onUpdate({ desc: e.target.value })}
+          onBlur={() => onUpdate({}, 'Descrição atualizada')}
+          rows={4}
+          placeholder="Descrição, anotações..."
+          style={S.notesArea}
+        />
+
+        <div style={S.subSectionLabel}><ListChecks size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Checklist {card.checklist && card.checklist.length > 0 ? `(${doneCount}/${card.checklist.length})` : ''}</div>
+        <div style={S.checklistList}>
+          {(card.checklist || []).map((item) => (
+            <div key={item.id} style={S.checklistRow}>
+              <input type="checkbox" checked={item.done} onChange={() => onToggleChecklistItem(item.id)} />
+              <span style={{ flex: 1, ...(item.done ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{item.text}</span>
+              <button style={S.chipX} onClick={() => onRemoveChecklistItem(item.id)}><X size={12} /></button>
+            </div>
+          ))}
+        </div>
+        <div style={S.commentInputRow}>
+          <input
+            value={checklistDraft}
+            onChange={(e) => setChecklistDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitChecklist(); } }}
+            placeholder="Adicionar item..."
+            style={{ flex: 1 }}
+          />
+          <button style={S.iconBtn} onClick={submitChecklist}><Plus size={13} /></button>
+        </div>
+
+        <div style={{ ...S.subSectionLabel, marginTop: 18 }}><MessageSquare size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Comentários {(card.comments || []).length > 0 ? `(${card.comments.length})` : ''}</div>
+        <div style={S.commentThread}>
+          {(card.comments || []).length === 0 && <div style={S.emptyMuted}>Nenhum comentário ainda.</div>}
+          {[...(card.comments || [])].reverse().map((c) => {
+            const isOwn = c.authorId === currentUserId;
+            return (
+              <div key={c.id} style={S.commentBubble}>
+                <div style={S.commentAuthorRow}>
+                  <span style={S.commentAvatar}>{initials(c.author)}</span>
+                  <span style={S.commentAuthorName}>{c.author}</span>
+                  <span style={S.commentAuthorTs}>{fmtTs(c.ts)}{c.editedAt ? ' · editado' : ''}</span>
+                </div>
+                {editingCommentId === c.id ? (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    <input value={editingCommentText} onChange={(e) => setEditingCommentText(e.target.value)} style={{ flex: 1 }} autoFocus />
+                    <button style={S.iconBtn} onClick={() => { onUpdateComment(c.id, editingCommentText); setEditingCommentId(null); }}><Check size={13} /></button>
+                    <button style={S.iconBtnGhost} onClick={() => setEditingCommentId(null)}><X size={13} /></button>
+                  </div>
+                ) : (
+                  <div style={S.commentText}>{c.text}</div>
+                )}
+                {isOwn && editingCommentId !== c.id && (
+                  <div style={S.commentMeta}>
+                    <span />
+                    <span style={{ display: 'flex', gap: 8 }}>
+                      <button style={S.commentDel} onClick={() => { setEditingCommentId(c.id); setEditingCommentText(c.text); }}><Pencil size={11} /></button>
+                      <button style={S.commentDel} onClick={() => onRemoveComment(c.id)}><X size={11} /></button>
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div style={S.commentInputRow}>
+          <textarea
+            value={commentDraft}
+            onChange={(e) => setCommentDraft(e.target.value)}
+            onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); submitComment(); } }}
+            placeholder="Escreva um comentário... (Cmd/Ctrl+Enter para enviar)"
+            rows={2}
+            style={{ flex: 1 }}
+          />
+          <button style={S.primaryBtn} onClick={submitComment}><Send size={14} /></button>
+        </div>
+
+        <div style={{ ...S.subSectionLabel, marginTop: 18 }}><History size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Histórico</div>
+        <div style={S.historyList}>
+          {(card.history || []).length === 0 && <div style={S.emptyMuted}>Nenhuma alteração registrada ainda.</div>}
+          {(card.history || []).map((l, i) => (
+            <div key={i} style={S.logRow}>
+              <div style={S.logTs}>{fmtTs(l.ts)}{l.user ? ` · ${l.user}` : ''}</div>
+              <div style={S.logAction}>{l.action}</div>
+            </div>
+          ))}
+        </div>
+
+        <button style={{ ...S.iconBtn, marginTop: 20, color: '#e2574c' }} onClick={onDelete}><Trash2 size={14} /> Excluir tarefa</button>
+      </div>
+    </div>
+  );
+}
+
+function PersonalListView({ board, filterFn, onOpenCard, onToggleComplete }) {
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState(1);
+
+  const rows = useMemo(() => {
+    const flat = [];
+    board.columns.forEach((col, colIdx) => {
+      col.cards.forEach((cd) => {
+        if (cd.deleted) return;
+        if (!filterFn(cd)) return;
+        flat.push({ ...cd, _colId: col.id, _colName: col.name, _colIdx: colIdx });
+      });
+    });
+    if (!sortKey) return flat;
+    const cmp = {
+      title: (a, b) => a.title.localeCompare(b.title, 'pt-BR'),
+      column: (a, b) => a._colIdx - b._colIdx,
+      priority: (a, b) => {
+        const rank = (c) => { const i = CARD_PRIORITY_ORDER.indexOf(c.priority); return i === -1 ? 99 : i; };
+        return rank(a) - rank(b);
+      },
+      dueDate: (a, b) => (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99'),
+      updatedAt: (a, b) => (a.updatedAt || '').localeCompare(b.updatedAt || ''),
+    }[sortKey];
+    return cmp ? flat.slice().sort((a, b) => cmp(a, b) * sortDir) : flat;
+  }, [board, filterFn, sortKey, sortDir]);
+
+  function toggleSort(key) {
+    if (sortKey === key) setSortDir((d) => -d);
+    else { setSortKey(key); setSortDir(1); }
+  }
+
+  return (
+    <div style={S.personalListWrap}>
+      <table style={S.personalListTable}>
+        <thead>
+          <tr>
+            <th style={S.personalListTh}></th>
+            <th style={S.personalListTh} onClick={() => toggleSort('title')}>Título</th>
+            <th style={S.personalListTh} onClick={() => toggleSort('column')}>Coluna</th>
+            <th style={S.personalListTh} onClick={() => toggleSort('priority')}>Prioridade</th>
+            <th style={S.personalListTh} onClick={() => toggleSort('dueDate')}>Prazo</th>
+            <th style={S.personalListTh}>Tags</th>
+            <th style={S.personalListTh} onClick={() => toggleSort('updatedAt')}>Atualizado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const tone = dueDateTone(r);
+            const priorityMeta = r.priority ? CARD_PRIORITY_META[r.priority] : null;
+            return (
+              <tr key={r.id} style={S.personalListRow} onClick={() => onOpenCard(r._colId, r.id)}>
+                <td style={S.personalListTd}><input type="checkbox" checked={r.completed} onClick={(e) => e.stopPropagation()} onChange={() => onToggleComplete(r._colId, r.id)} /></td>
+                <td style={{ ...S.personalListTd, ...(r.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{r.title}</td>
+                <td style={S.personalListTd}>{r._colName}</td>
+                <td style={S.personalListTd}>{priorityMeta ? <span style={{ color: priorityMeta.color }}>{priorityMeta.label}</span> : '—'}</td>
+                <td style={{ ...S.personalListTd, ...(tone === 'overdue' ? S.dueOverdue : tone === 'today' ? S.dueToday : {}) }}>{r.dueDate ? fmtDate(r.dueDate) : '—'}</td>
+                <td style={S.personalListTd}>{(r.tags || []).join(', ') || '—'}</td>
+                <td style={S.personalListTd}>{r.updatedAt ? fmtTs(r.updatedAt) : '—'}</td>
+              </tr>
+            );
+          })}
+          {rows.length === 0 && (
+            <tr><td colSpan={7} style={S.emptyMuted}>Nenhum resultado com os filtros atuais.</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ReassignCardsModal({ column, otherColumns, onConfirm, onCancel }) {
+  const [targetColId, setTargetColId] = useState(otherColumns[0] ? otherColumns[0].id : '');
+  const [alsoDelete, setAlsoDelete] = useState(false);
+  const activeCount = column.cards.filter((c) => !c.deleted).length;
+  return (
+    <div style={S.detailOverlay} onClick={onCancel}>
+      <div style={{ ...S.detailBox, width: 'min(460px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <div style={S.detailTopBar}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>Excluir coluna "{column.name}"</div>
+          <button style={S.iconBtnGhost} onClick={onCancel}><X size={18} /></button>
+        </div>
+        <div style={S.fieldHint}>Esta coluna tem {activeCount} tarefa(s). Para onde deseja movê-las?</div>
+        <select value={targetColId} onChange={(e) => setTargetColId(e.target.value)} style={{ marginTop: 10 }}>
+          {otherColumns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 12.5 }}>
+          <input type="checkbox" checked={alsoDelete} onChange={(e) => setAlsoDelete(e.target.checked)} />
+          Excluir as tarefas também (vão para a Lixeira)
+        </label>
+        <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+          <button style={S.iconBtn} onClick={onCancel}>Cancelar</button>
+          <button style={S.primaryBtn} onClick={() => onConfirm(targetColId, alsoDelete)} disabled={!targetColId}>Mover e excluir coluna</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PersonalTrashPanel({ trashItems, onClose, onRestore, onHardDelete }) {
+  return (
+    <SidePanel title="Lixeira" onClose={onClose}>
+      {trashItems.length === 0 && <div style={S.emptyMuted}>Nada excluído.</div>}
+      {trashItems.map((item) => (
+        <div key={item.card.id} style={S.trashRow}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={S.trashTitle}>{item.card.title}</div>
+            <div style={S.trashParent}>{item.card.deletedFromBoardName || item.boardName} — coluna "{item.card.deletedFromColumnName || '—'}"</div>
+            <div style={S.logTs}>Excluída em {fmtTs(item.card.deletedAt)}{item.card.deletedBy ? ` · ${item.card.deletedBy}` : ''}</div>
+          </div>
+          <button style={S.iconBtn} onClick={() => onRestore(item)}><Undo2 size={14} /> Restaurar</button>
+          <button style={S.iconBtnGhost} onClick={() => onHardDelete(item)}><Trash2 size={14} color="#e2574c" /></button>
+        </div>
+      ))}
+    </SidePanel>
+  );
+}
+
+function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, theme, onToggleTheme, saveState }) {
   const [activeBoardId, setActiveBoardId] = useState(board.boards[0] ? board.boards[0].id : null);
   const [dragBoardId, setDragBoardId] = useState(null);
-  const [dragColId, setDragColId] = useState(null);
-  const [dragCard, setDragCard] = useState(null);
-  const [expandedCard, setExpandedCard] = useState(null);
+  const [openCard, setOpenCard] = useState(null);
+  const [reassignColumn, setReassignColumn] = useState(null);
+  const [showTrash, setShowTrash] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState({ priority: [], dueBucket: '', tags: [], completed: 'all' });
+  const [activeDragItem, setActiveDragItem] = useState(null);
+  const { toasts, pushUndoToast, dismissToast } = useToasts();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor)
+  );
 
   useEffect(() => {
     if (!board.boards.some((b) => b.id === activeBoardId)) {
@@ -2485,25 +3230,34 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
   }, [board.boards.map((b) => b.id).join(',')]);
 
   const activeBoard = board.boards.find((b) => b.id === activeBoardId) || null;
+  const viewPrefs = (activeBoard && activeBoard.viewPrefs) || { view: 'kanban', sortMode: 'manual' };
 
+  function mutateBoardTree(bid, updater) {
+    onMutate((prev) => ({ ...prev, boards: prev.boards.map((b) => (b.id !== bid ? b : updater(b))) }));
+  }
+  function mutateColumnTree(bid, colId, updater) {
+    mutateBoardTree(bid, (b) => ({ ...b, columns: b.columns.map((c) => (c.id !== colId ? c : updater(c))) }));
+  }
+  function mutateCardTree(bid, colId, cardId, updater) {
+    mutateColumnTree(bid, colId, (c) => ({ ...c, cards: c.cards.map((cd) => (cd.id !== cardId ? cd : updater(cd))) }));
+  }
+
+  // ---- boards (pages) ----
   function addBoard() {
-    const nb = { id: uid('board'), name: 'Nova página', columns: [{ id: uid('col'), name: 'A fazer', cards: [] }] };
+    const nb = { id: uid('board'), name: 'Nova página', viewPrefs: { view: 'kanban', sortMode: 'manual' }, columns: [{ id: uid('col'), name: 'A fazer', color: '', hideCompleted: false, cards: [] }] };
     onMutate((prev) => ({ ...prev, boards: [...prev.boards, nb] }));
     setActiveBoardId(nb.id);
   }
-
   function renameBoard(boardId, name) {
     onMutate((prev) => ({ ...prev, boards: prev.boards.map((b) => (b.id === boardId ? { ...b, name } : b)) }));
   }
-
   function deleteBoard(boardId) {
     const b = board.boards.find((x) => x.id === boardId);
     if (!b) return;
     if (!window.confirm(`Excluir a página "${b.name}" e tudo dentro dela? Essa ação não pode ser desfeita.`)) return;
     onMutate((prev) => ({ ...prev, boards: prev.boards.filter((x) => x.id !== boardId) }));
   }
-
-  function reorderBoard(fromId, toId) {
+  function reorderBoards(fromId, toId) {
     if (!fromId || fromId === toId) return;
     onMutate((prev) => {
       const list = prev.boards.slice();
@@ -2515,92 +3269,370 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
       return { ...prev, boards: list };
     });
   }
+  function setViewPrefs(patch) {
+    if (!activeBoard) return;
+    mutateBoardTree(activeBoard.id, (b) => ({ ...b, viewPrefs: { ...(b.viewPrefs || {}), ...patch } }));
+  }
 
+  // ---- columns ----
   function addColumn() {
     if (!activeBoard) return;
-    const nc = { id: uid('col'), name: 'Nova coluna', cards: [] };
-    const bid = activeBoard.id;
-    onMutate((prev) => ({ ...prev, boards: prev.boards.map((b) => (b.id === bid ? { ...b, columns: [...b.columns, nc] } : b)) }));
+    const nc = { id: uid('col'), name: 'Nova coluna', color: '', hideCompleted: false, cards: [] };
+    mutateBoardTree(activeBoard.id, (b) => ({ ...b, columns: [...b.columns, nc] }));
   }
-
   function renameColumn(colId, name) {
-    const bid = activeBoard.id;
-    onMutate((prev) => ({ ...prev, boards: prev.boards.map((b) => (b.id !== bid ? b : { ...b, columns: b.columns.map((c) => (c.id === colId ? { ...c, name } : c)) })) }));
+    mutateColumnTree(activeBoard.id, colId, (c) => ({ ...c, name }));
   }
-
-  function deleteColumn(colId) {
+  function setColumnColor(colId, color) {
+    mutateColumnTree(activeBoard.id, colId, (c) => ({ ...c, color }));
+  }
+  function toggleColumnHideCompleted(colId) {
+    mutateColumnTree(activeBoard.id, colId, (c) => ({ ...c, hideCompleted: !c.hideCompleted }));
+  }
+  function reorderColumns(fromId, toId) {
+    if (!fromId || fromId === toId || !activeBoard) return;
+    mutateBoardTree(activeBoard.id, (b) => {
+      const fromIdx = b.columns.findIndex((x) => x.id === fromId);
+      const toIdx = b.columns.findIndex((x) => x.id === toId);
+      if (fromIdx === -1 || toIdx === -1) return b;
+      return { ...b, columns: arrayMove(b.columns, fromIdx, toIdx) };
+    });
+  }
+  function moveColumn(colId, dir) {
+    const list = activeBoard.columns;
+    const idx = list.findIndex((c) => c.id === colId);
+    const newIdx = idx + dir;
+    if (idx === -1 || newIdx < 0 || newIdx >= list.length) return;
+    reorderColumns(colId, list[newIdx].id);
+  }
+  function duplicateColumn(colId) {
     const col = activeBoard.columns.find((c) => c.id === colId);
     if (!col) return;
-    if (col.cards.length > 0 && !window.confirm(`Excluir a coluna "${col.name}" e ${col.cards.length} tarefa(s) dentro dela?`)) return;
-    const bid = activeBoard.id;
-    onMutate((prev) => ({ ...prev, boards: prev.boards.map((b) => (b.id !== bid ? b : { ...b, columns: b.columns.filter((c) => c.id !== colId) })) }));
+    const now = new Date().toISOString();
+    const clone = {
+      ...col,
+      id: uid('col'),
+      name: `${col.name} (cópia)`,
+      cards: col.cards.filter((cd) => !cd.deleted).map((cd) => ({
+        ...cd, id: uid('card'), comments: [],
+        history: [{ ts: now, action: 'Tarefa duplicada', user: currentUser.name }],
+        createdAt: now, createdBy: currentUser.name, updatedAt: now, updatedBy: currentUser.name,
+      })),
+    };
+    mutateBoardTree(activeBoard.id, (b) => {
+      const list = b.columns.slice();
+      const idx = list.findIndex((c) => c.id === colId);
+      list.splice(idx + 1, 0, clone);
+      return { ...b, columns: list };
+    });
+  }
+  function sortColumnNow(colId, mode) {
+    mutateColumnTree(activeBoard.id, colId, (c) => ({ ...c, cards: sortCards(c.cards, mode) }));
+  }
+  function requestDeleteColumn(colId) {
+    const col = activeBoard.columns.find((c) => c.id === colId);
+    if (!col) return;
+    if (activeBoard.columns.length <= 1) {
+      window.alert('Esta é a única coluna da página. Crie outra coluna antes de excluir esta.');
+      return;
+    }
+    const activeCount = col.cards.filter((cd) => !cd.deleted).length;
+    if (activeCount === 0) {
+      if (!window.confirm(`Excluir a coluna "${col.name}"?`)) return;
+      mutateBoardTree(activeBoard.id, (b) => ({ ...b, columns: b.columns.filter((c) => c.id !== colId) }));
+      return;
+    }
+    setReassignColumn(col);
+  }
+  function confirmDeleteColumn(targetColId, alsoDeleteCards) {
+    const col = reassignColumn;
+    if (!col || !activeBoard) return;
+    const now = new Date().toISOString();
+    mutateBoardTree(activeBoard.id, (b) => {
+      const cardsToMove = col.cards.map((cd) => {
+        if (cd.deleted || !alsoDeleteCards) return cd;
+        return {
+          ...cd, deleted: true, deletedAt: now, deletedBy: currentUser.name,
+          deletedFromColumnId: col.id, deletedFromColumnName: col.name,
+          deletedFromBoardId: activeBoard.id, deletedFromBoardName: activeBoard.name,
+        };
+      });
+      const withoutCol = b.columns.filter((c) => c.id !== col.id);
+      return { ...b, columns: withoutCol.map((c) => (c.id === targetColId ? { ...c, cards: [...c.cards, ...cardsToMove] } : c)) };
+    });
+    setReassignColumn(null);
   }
 
-  function reorderColumn(fromId, toId) {
-    if (!fromId || fromId === toId) return;
-    const bid = activeBoard.id;
-    onMutate((prev) => ({
-      ...prev,
-      boards: prev.boards.map((b) => {
-        if (b.id !== bid) return b;
-        const list = b.columns.slice();
-        const fromIdx = list.findIndex((x) => x.id === fromId);
-        const toIdx = list.findIndex((x) => x.id === toId);
-        if (fromIdx === -1 || toIdx === -1) return b;
-        const [moved] = list.splice(fromIdx, 1);
-        list.splice(toIdx, 0, moved);
-        return { ...b, columns: list };
-      }),
-    }));
+  // ---- cards ----
+  function addCard(colId, title) {
+    const t = (title || '').trim();
+    if (!t || !activeBoard) return;
+    const now = new Date().toISOString();
+    const nc = {
+      id: uid('card'), title: t, desc: '',
+      priority: '', dueDate: '', tags: [], checklist: [],
+      completed: false, completedAt: '', completedBy: '',
+      comments: [], history: [{ ts: now, action: 'Tarefa criada', user: currentUser.name }],
+      deleted: false, deletedAt: '', deletedBy: '',
+      deletedFromColumnId: '', deletedFromColumnName: '', deletedFromBoardId: '', deletedFromBoardName: '',
+      createdAt: now, createdBy: currentUser.name, updatedAt: now, updatedBy: currentUser.name,
+    };
+    mutateColumnTree(activeBoard.id, colId, (c) => ({ ...c, cards: [...c.cards, nc] }));
   }
-
-  function addCard(colId) {
-    const nc = { id: uid('card'), title: 'Nova tarefa', desc: '', createdAt: new Date().toISOString() };
-    const bid = activeBoard.id;
-    onMutate((prev) => ({
-      ...prev,
-      boards: prev.boards.map((b) => (b.id !== bid ? b : { ...b, columns: b.columns.map((c) => (c.id === colId ? { ...c, cards: [...c.cards, nc] } : c)) })),
-    }));
-    setExpandedCard(nc.id);
+  function updateCard(colId, cardId, patch, historyMsg) {
+    const now = new Date().toISOString();
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => {
+      const next = { ...cd, ...patch, updatedAt: now, updatedBy: currentUser.name };
+      if (historyMsg) next.history = [{ ts: now, action: historyMsg, user: currentUser.name }, ...(cd.history || [])].slice(0, 200);
+      return next;
+    });
   }
-
-  function updateCard(colId, cardId, patch) {
-    const bid = activeBoard.id;
-    onMutate((prev) => ({
-      ...prev,
-      boards: prev.boards.map((b) => (b.id !== bid ? b : { ...b, columns: b.columns.map((c) => (c.id !== colId ? c : { ...c, cards: c.cards.map((cd) => (cd.id === cardId ? { ...cd, ...patch } : cd)) })) })),
-    }));
+  function undoDeleteCard(colId, cardId) {
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, deleted: false, deletedAt: '', deletedBy: '' }));
   }
-
   function deleteCard(colId, cardId) {
-    const bid = activeBoard.id;
-    onMutate((prev) => ({
-      ...prev,
-      boards: prev.boards.map((b) => (b.id !== bid ? b : { ...b, columns: b.columns.map((c) => (c.id !== colId ? c : { ...c, cards: c.cards.filter((cd) => cd.id !== cardId) })) })),
+    const col = activeBoard.columns.find((c) => c.id === colId);
+    const card = col && col.cards.find((cd) => cd.id === cardId);
+    if (!card) return;
+    const now = new Date().toISOString();
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({
+      ...cd, deleted: true, deletedAt: now, deletedBy: currentUser.name,
+      deletedFromColumnId: col.id, deletedFromColumnName: col.name,
+      deletedFromBoardId: activeBoard.id, deletedFromBoardName: activeBoard.name,
     }));
+    pushUndoToast(`Tarefa "${card.title}" excluída.`, () => undoDeleteCard(colId, cardId));
+    setOpenCard((prev) => (prev && prev.cardId === cardId ? null : prev));
+  }
+  function toggleCardComplete(colId, cardId) {
+    const col = activeBoard.columns.find((c) => c.id === colId);
+    const card = col && col.cards.find((cd) => cd.id === cardId);
+    if (!card) return;
+    const now = new Date().toISOString();
+    const willComplete = !card.completed;
+    updateCard(colId, cardId, {
+      completed: willComplete,
+      completedAt: willComplete ? now : '',
+      completedBy: willComplete ? currentUser.name : '',
+    }, willComplete ? 'Marcada como concluída' : 'Reaberta');
+    pushUndoToast(
+      willComplete ? `Tarefa "${card.title}" concluída.` : `Tarefa "${card.title}" reaberta.`,
+      () => toggleCardComplete(colId, cardId)
+    );
+  }
+  function duplicateCard(colId, cardId) {
+    const col = activeBoard.columns.find((c) => c.id === colId);
+    const card = col && col.cards.find((cd) => cd.id === cardId);
+    if (!card) return;
+    const now = new Date().toISOString();
+    const clone = {
+      ...card, id: uid('card'), title: `${card.title} (cópia)`, comments: [],
+      history: [{ ts: now, action: 'Tarefa duplicada', user: currentUser.name }],
+      completed: false, completedAt: '', completedBy: '',
+      createdAt: now, createdBy: currentUser.name, updatedAt: now, updatedBy: currentUser.name,
+    };
+    mutateColumnTree(activeBoard.id, colId, (c) => {
+      const idx = c.cards.findIndex((cd) => cd.id === cardId);
+      const cards = c.cards.slice();
+      cards.splice(idx + 1, 0, clone);
+      return { ...c, cards };
+    });
+  }
+  function moveCardToIndex(cardId, fromColId, toColId, toIndex) {
+    if (!fromColId || !toColId || !activeBoard) return;
+    const now = new Date().toISOString();
+    let moved = null;
+    mutateBoardTree(activeBoard.id, (b) => {
+      if (fromColId === toColId) {
+        return {
+          ...b,
+          columns: b.columns.map((c) => {
+            if (c.id !== fromColId) return c;
+            const fromIndex = c.cards.findIndex((cd) => cd.id === cardId);
+            if (fromIndex === -1) return c;
+            moved = c.cards[fromIndex];
+            const clampedTo = (toIndex === null || toIndex === undefined) ? c.cards.length - 1 : Math.min(toIndex, c.cards.length - 1);
+            return { ...c, cards: arrayMove(c.cards, fromIndex, clampedTo) };
+          }),
+        };
+      }
+      const toColName = (b.columns.find((c) => c.id === toColId) || {}).name || '';
+      let fromColName = '';
+      const columns = b.columns.map((c) => {
+        if (c.id !== fromColId) return c;
+        moved = c.cards.find((cd) => cd.id === cardId) || null;
+        fromColName = c.name;
+        return { ...c, cards: c.cards.filter((cd) => cd.id !== cardId) };
+      });
+      if (!moved) return b;
+      const stamped = {
+        ...moved, updatedAt: now, updatedBy: currentUser.name,
+        history: [{ ts: now, action: `Movida de "${fromColName}" para "${toColName}"`, user: currentUser.name }, ...(moved.history || [])].slice(0, 200),
+      };
+      return {
+        ...b,
+        columns: columns.map((c) => {
+          if (c.id !== toColId) return c;
+          const cards = c.cards.slice();
+          const insertAt = (toIndex === null || toIndex === undefined) ? cards.length : Math.min(toIndex, cards.length);
+          cards.splice(insertAt, 0, stamped);
+          return { ...c, cards };
+        }),
+      };
+    });
+    if (fromColId !== toColId && moved) {
+      const movedTitle = moved.title;
+      pushUndoToast(`Tarefa "${movedTitle}" movida para outra coluna.`, () => moveCardToIndex(cardId, toColId, fromColId, null));
+    }
   }
 
-  function moveCard(cardId, fromColId, toColId) {
-    if (!fromColId || fromColId === toColId) return;
-    const bid = activeBoard.id;
+  // ---- comments ----
+  function addCardComment(colId, cardId, text) {
+    const v = (text || '').trim();
+    if (!v) return;
+    const now = new Date().toISOString();
+    const c = { id: uid('cm'), text: v, ts: now, author: currentUser.name, authorId: currentUser.id };
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({
+      ...cd, comments: [...(cd.comments || []), c], updatedAt: now, updatedBy: currentUser.name,
+      history: [{ ts: now, action: 'Comentário adicionado', user: currentUser.name }, ...(cd.history || [])].slice(0, 200),
+    }));
+  }
+  function updateCardComment(colId, cardId, commentId, text) {
+    const v = (text || '').trim();
+    if (!v) return;
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({
+      ...cd, comments: (cd.comments || []).map((c) => (c.id === commentId ? { ...c, text: v, editedAt: new Date().toISOString() } : c)),
+    }));
+  }
+  function removeCardComment(colId, cardId, commentId) {
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, comments: (cd.comments || []).filter((c) => c.id !== commentId) }));
+  }
+
+  // ---- checklist ----
+  function addChecklistItem(colId, cardId, text) {
+    const v = (text || '').trim();
+    if (!v) return;
+    const item = { id: uid('chk'), text: v, done: false };
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: [...(cd.checklist || []), item], updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
+  }
+  function toggleChecklistItem(colId, cardId, itemId) {
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).map((i) => (i.id === itemId ? { ...i, done: !i.done } : i)), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
+  }
+  function removeChecklistItem(colId, cardId, itemId) {
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).filter((i) => i.id !== itemId), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
+  }
+
+  // ---- trash (cross-board) ----
+  const trashItems = useMemo(() => {
+    const items = [];
+    for (const b of board.boards) {
+      for (const c of b.columns) {
+        for (const cd of c.cards) {
+          if (cd.deleted) items.push({ boardId: b.id, boardName: b.name, colId: c.id, card: cd });
+        }
+      }
+    }
+    return items.sort((a, b) => (b.card.deletedAt || '').localeCompare(a.card.deletedAt || ''));
+  }, [board]);
+
+  function restoreTrashedCard(item) {
     onMutate((prev) => ({
       ...prev,
       boards: prev.boards.map((b) => {
-        if (b.id !== bid) return b;
-        let moved = null;
-        const columns = b.columns.map((c) => {
-          if (c.id !== fromColId) return c;
-          moved = c.cards.find((cd) => cd.id === cardId) || null;
-          return { ...c, cards: c.cards.filter((cd) => cd.id !== cardId) };
+        if (b.id !== item.boardId) return b;
+        const originalColExists = b.columns.some((c) => c.id === item.card.deletedFromColumnId);
+        const targetColId = originalColExists ? item.card.deletedFromColumnId : item.colId;
+        let removed = null;
+        const withoutCard = b.columns.map((c) => {
+          if (c.id !== item.colId) return c;
+          removed = c.cards.find((cd) => cd.id === item.card.id);
+          return { ...c, cards: c.cards.filter((cd) => cd.id !== item.card.id) };
         });
-        if (!moved) return b;
-        return { ...b, columns: columns.map((c) => (c.id === toColId ? { ...c, cards: [...c.cards, moved] } : c)) };
+        if (!removed) return b;
+        const restored = { ...removed, deleted: false, deletedAt: '', deletedBy: '' };
+        return { ...b, columns: withoutCard.map((c) => (c.id === targetColId ? { ...c, cards: [...c.cards, restored] } : c)) };
       }),
     }));
   }
+  function hardDeleteTrashedCard(item) {
+    const typed = window.prompt(`Para excluir definitivamente "${item.card.title}", digite "${CARD_DELETE_CONFIRM_PHRASE}" abaixo:`);
+    if (typed !== CARD_DELETE_CONFIRM_PHRASE) return;
+    onMutate((prev) => ({
+      ...prev,
+      boards: prev.boards.map((b) => (b.id !== item.boardId ? b : {
+        ...b,
+        columns: b.columns.map((c) => (c.id !== item.colId ? c : { ...c, cards: c.cards.filter((cd) => cd.id !== item.card.id) })),
+      })),
+    }));
+  }
+
+  // ---- drag and drop ----
+  function findCardById(id) {
+    if (!activeBoard) return null;
+    for (const c of activeBoard.columns) {
+      const found = c.cards.find((cd) => cd.id === id);
+      if (found) return found;
+    }
+    return null;
+  }
+  function handleDragStart(event) {
+    const { active } = event;
+    if (active.data.current?.type === 'column') {
+      const col = activeBoard.columns.find((c) => c.id === active.id);
+      setActiveDragItem(col ? { type: 'column', column: col } : null);
+    } else {
+      const card = findCardById(active.id);
+      setActiveDragItem(card ? { type: 'card', card } : null);
+    }
+  }
+  function handleDragEnd(event) {
+    const { active, over } = event;
+    setActiveDragItem(null);
+    if (!over || !activeBoard) return;
+    if (active.data.current?.type === 'column') {
+      if (active.id !== over.id) reorderColumns(active.id, over.id);
+      return;
+    }
+    const fromColId = active.data.current?.columnId;
+    if (!fromColId) return;
+    let toColId, toIndex = null;
+    if (over.data.current?.type === 'card') {
+      toColId = over.data.current.columnId;
+      const toCol = activeBoard.columns.find((c) => c.id === toColId);
+      toIndex = toCol ? toCol.cards.findIndex((cd) => cd.id === over.id) : null;
+    } else if (over.data.current?.type === 'coldrop') {
+      toColId = over.data.current.columnId;
+    } else if (over.data.current?.type === 'column') {
+      toColId = over.id;
+    } else {
+      toColId = fromColId;
+    }
+    if (fromColId === toColId && toIndex !== null) {
+      const col = activeBoard.columns.find((c) => c.id === fromColId);
+      const fromIndex = col ? col.cards.findIndex((cd) => cd.id === active.id) : -1;
+      if (fromIndex === toIndex) return;
+    }
+    moveCardToIndex(active.id, fromColId, toColId, toIndex);
+  }
+
+  // ---- filters ----
+  const allTags = useMemo(() => {
+    if (!activeBoard) return [];
+    const set = new Set();
+    activeBoard.columns.forEach((c) => c.cards.forEach((cd) => (cd.tags || []).forEach((t) => set.add(t))));
+    return [...set];
+  }, [activeBoard]);
+
+  function cardMatches(card) {
+    return cardMatchesFilters(card, { search, priority: filters.priority, dueBucket: filters.dueBucket, tags: filters.tags, completed: filters.completed });
+  }
+
+  const columnIds = activeBoard ? activeBoard.columns.map((c) => c.id) : [];
 
   return (
     <div style={S.page}>
+      <style>{`
+        @keyframes personalSkeletonPulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
+      `}</style>
       <div className="no-print" style={S.topbar}>
         <div style={S.brandRow}>
           <div style={S.logoPlaceholder}><Columns3 size={18} color="#F5C400" /></div>
@@ -2609,8 +3641,12 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
             <div style={S.brandCnpj}>{currentUser.name}</div>
           </div>
           <button style={S.iconBtn} onClick={onExit}><Building2 size={15} /> Ir para Empresas</button>
+          <button style={S.iconBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira{trashItems.length > 0 ? ` (${trashItems.length})` : ''}</button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {saveState === 'saving' && <span style={S.saveStateBadge}>Salvando…</span>}
+          {saveState === 'saved' && <FadingSavedBadge />}
+          {saveState === 'error' && <span style={{ ...S.saveStateBadge, color: '#e2574c' }}>Falha ao salvar — desfeito</span>}
           <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
           <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>
         </div>
@@ -2624,7 +3660,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
             onDragStart={() => setDragBoardId(b.id)}
             onDragEnd={() => setDragBoardId(null)}
             onDragOver={(e) => e.preventDefault()}
-            onDrop={() => { reorderBoard(dragBoardId, b.id); setDragBoardId(null); }}
+            onDrop={() => { reorderBoards(dragBoardId, b.id); setDragBoardId(null); }}
             onClick={() => setActiveBoardId(b.id)}
             style={{ ...S.personalTab, ...(b.id === activeBoardId ? S.personalTabActive : {}) }}
           >
@@ -2635,69 +3671,144 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
         <button style={S.iconBtnGhost} onClick={addBoard} title="Nova página"><Plus size={16} /></button>
       </div>
 
+      {activeBoard && (
+        <div style={S.personalToolbar}>
+          <div style={S.personalViewToggle}>
+            <button style={{ ...S.personalViewToggleBtn, ...(viewPrefs.view !== 'list' ? S.personalViewToggleBtnActive : {}) }} onClick={() => setViewPrefs({ view: 'kanban' })}><Columns3 size={13} /> Quadro</button>
+            <button style={{ ...S.personalViewToggleBtn, ...(viewPrefs.view === 'list' ? S.personalViewToggleBtnActive : {}) }} onClick={() => setViewPrefs({ view: 'list' })}><LayoutList size={13} /> Lista</button>
+          </div>
+          <div style={S.personalSearchWrap}>
+            <Search size={13} color="var(--text-6)" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar..." style={S.personalSearchInput} />
+          </div>
+          <select value={filters.completed} onChange={(e) => setFilters((f) => ({ ...f, completed: e.target.value }))} style={S.personalFilterSelect}>
+            <option value="all">Todas</option>
+            <option value="only">Só concluídas</option>
+            <option value="hide">Ocultar concluídas</option>
+          </select>
+          <select value={filters.priority[0] || ''} onChange={(e) => setFilters((f) => ({ ...f, priority: e.target.value ? [e.target.value] : [] }))} style={S.personalFilterSelect}>
+            <option value="">Toda prioridade</option>
+            {CARD_PRIORITY_ORDER.map((p) => <option key={p} value={p}>{CARD_PRIORITY_META[p].label}</option>)}
+          </select>
+          <select value={filters.dueBucket} onChange={(e) => setFilters((f) => ({ ...f, dueBucket: e.target.value }))} style={S.personalFilterSelect}>
+            <option value="">Todo prazo</option>
+            <option value="overdue">Vencido</option>
+            <option value="today">Hoje</option>
+            <option value="week">Próximos dias</option>
+            <option value="none">Sem prazo</option>
+          </select>
+          <select value={viewPrefs.sortMode || 'manual'} onChange={(e) => setViewPrefs({ sortMode: e.target.value })} style={S.personalFilterSelect}>
+            <option value="manual">Ordem manual</option>
+            {SORT_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </div>
+      )}
+
       {!activeBoard && (
         <div style={S.emptyMuted}>Nenhuma página ainda. Clique no + acima pra criar a primeira.</div>
       )}
 
-      {activeBoard && (
-        <div style={S.personalBoardArea}>
-          {activeBoard.columns.map((col) => (
-            <div
-              key={col.id}
-              style={S.personalCol}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => { if (dragCard) moveCard(dragCard.cardId, dragCard.colId, col.id); setDragCard(null); }}
-            >
-              <div
-                style={S.personalColHead}
-                draggable
-                onDragStart={() => setDragColId(col.id)}
-                onDragEnd={() => setDragColId(null)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => { e.stopPropagation(); reorderColumn(dragColId, col.id); setDragColId(null); }}
-              >
-                <GripVertical size={13} color="var(--text-8)" />
-                <input value={col.name} onChange={(e) => renameColumn(col.id, e.target.value)} style={S.personalColNameInput} />
-                <span style={S.kanbanCount}>{col.cards.length}</span>
-                <button style={S.iconBtnGhost} onClick={() => deleteColumn(col.id)}><Trash2 size={12} /></button>
-              </div>
-
-              {col.cards.map((card) => (
-                <div
-                  key={card.id}
-                  draggable
-                  onDragStart={() => setDragCard({ colId: col.id, cardId: card.id })}
-                  onDragEnd={() => setDragCard(null)}
-                  style={S.personalCard}
-                  onClick={() => setExpandedCard(expandedCard === card.id ? null : card.id)}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <input
-                      value={card.title}
-                      onChange={(e) => updateCard(col.id, card.id, { title: e.target.value })}
-                      onClick={(e) => e.stopPropagation()}
-                      style={S.personalCardTitle}
-                    />
-                    <button style={S.chipX} onClick={(e) => { e.stopPropagation(); deleteCard(col.id, card.id); }}><X size={12} /></button>
-                  </div>
-                  {expandedCard === card.id && (
-                    <textarea
-                      value={card.desc || ''}
-                      onChange={(e) => updateCard(col.id, card.id, { desc: e.target.value })}
-                      onClick={(e) => e.stopPropagation()}
-                      placeholder="Descrição, anotações..."
-                      rows={3}
-                      style={{ ...S.notesArea, marginTop: 8 }}
-                    />
-                  )}
-                </div>
-              ))}
-              <button style={S.addSubBtn} onClick={() => addCard(col.id)}><Plus size={12} /> Tarefa</button>
+      {activeBoard && viewPrefs.view !== 'list' && (
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
+            <div style={S.personalBoardArea}>
+              {activeBoard.columns.map((col, idx) => {
+                const visible = sortCards(
+                  col.cards.filter((cd) => !cd.deleted && !(col.hideCompleted && cd.completed) && cardMatches(cd)),
+                  viewPrefs.sortMode
+                );
+                return (
+                  <PersonalColumn
+                    key={col.id}
+                    column={col}
+                    cardsToRender={visible}
+                    totalVisibleCount={visible.length}
+                    dragDisabled={(viewPrefs.sortMode || 'manual') !== 'manual'}
+                    canMoveLeft={idx > 0}
+                    canMoveRight={idx < activeBoard.columns.length - 1}
+                    otherColumns={activeBoard.columns.filter((c) => c.id !== col.id)}
+                    onAddCard={addCard}
+                    onOpenCard={(colId, cardId) => setOpenCard({ colId, cardId })}
+                    onToggleComplete={toggleCardComplete}
+                    onDeleteCard={deleteCard}
+                    onDuplicateCard={duplicateCard}
+                    onSetPriority={(colId, cardId, p) => updateCard(colId, cardId, { priority: p }, `Prioridade alterada: ${p ? CARD_PRIORITY_META[p].label : 'sem prioridade'}`)}
+                    onMoveCardTo={(colId, cardId, targetColId) => moveCardToIndex(cardId, colId, targetColId, null)}
+                    onRenameColumn={renameColumn}
+                    onColorChange={setColumnColor}
+                    onToggleHideCompleted={toggleColumnHideCompleted}
+                    onMoveLeft={() => moveColumn(col.id, -1)}
+                    onMoveRight={() => moveColumn(col.id, 1)}
+                    onDuplicateColumn={() => duplicateColumn(col.id)}
+                    onSortColumnNow={(mode) => sortColumnNow(col.id, mode)}
+                    onDeleteColumn={() => requestDeleteColumn(col.id)}
+                  />
+                );
+              })}
+              <button style={S.personalAddCol} onClick={addColumn}><Plus size={14} /> Nova coluna</button>
             </div>
-          ))}
-          <button style={S.personalAddCol} onClick={addColumn}><Plus size={14} /> Nova coluna</button>
-        </div>
+          </SortableContext>
+          <DragOverlay>
+            {activeDragItem && activeDragItem.type === 'card' && (
+              <div style={{ ...S.personalCard, boxShadow: '0 8px 24px rgba(0,0,0,.35)' }}>
+                <div style={S.personalCardTop}>
+                  <span style={S.personalCardCheckEmpty} />
+                  <div style={S.personalCardTitleText}>{activeDragItem.card.title}</div>
+                </div>
+              </div>
+            )}
+            {activeDragItem && activeDragItem.type === 'column' && (
+              <div style={{ ...S.personalCol, boxShadow: '0 8px 24px rgba(0,0,0,.35)', opacity: .95 }}>
+                <div style={S.personalColHead}>{activeDragItem.column.name}</div>
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
       )}
+
+      {activeBoard && viewPrefs.view === 'list' && (
+        <PersonalListView board={activeBoard} filterFn={cardMatches} onOpenCard={(colId, cardId) => setOpenCard({ colId, cardId })} onToggleComplete={toggleCardComplete} />
+      )}
+
+      {openCard && activeBoard && (() => {
+        const col = activeBoard.columns.find((c) => c.id === openCard.colId);
+        const card = col && col.cards.find((cd) => cd.id === openCard.cardId);
+        if (!card) return null;
+        return (
+          <PersonalCardDetailModal
+            card={card}
+            columnName={col.name}
+            boardName={activeBoard.name}
+            allTags={allTags}
+            currentUserId={currentUser.id}
+            onClose={() => setOpenCard(null)}
+            onUpdate={(patch, historyMsg) => updateCard(col.id, card.id, patch, historyMsg)}
+            onDelete={() => { deleteCard(col.id, card.id); setOpenCard(null); }}
+            onToggleComplete={() => toggleCardComplete(col.id, card.id)}
+            onAddComment={(text) => addCardComment(col.id, card.id, text)}
+            onUpdateComment={(id, text) => updateCardComment(col.id, card.id, id, text)}
+            onRemoveComment={(id) => removeCardComment(col.id, card.id, id)}
+            onAddChecklistItem={(text) => addChecklistItem(col.id, card.id, text)}
+            onToggleChecklistItem={(id) => toggleChecklistItem(col.id, card.id, id)}
+            onRemoveChecklistItem={(id) => removeChecklistItem(col.id, card.id, id)}
+          />
+        );
+      })()}
+
+      {reassignColumn && activeBoard && (
+        <ReassignCardsModal
+          column={reassignColumn}
+          otherColumns={activeBoard.columns.filter((c) => c.id !== reassignColumn.id)}
+          onConfirm={confirmDeleteColumn}
+          onCancel={() => setReassignColumn(null)}
+        />
+      )}
+
+      {showTrash && (
+        <PersonalTrashPanel trashItems={trashItems} onClose={() => setShowTrash(false)} onRestore={restoreTrashedCard} onHardDelete={hardDeleteTrashedCard} />
+      )}
+
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
@@ -3840,13 +4951,73 @@ const S = {
   personalTab: { display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: '8px 8px 0 0', padding: '7px 6px 7px 12px', cursor: 'pointer' },
   personalTabActive: { background: 'var(--bg-1)', borderBottomColor: 'var(--bg-1)', boxShadow: '0 -1px 0 #F5C400 inset' },
   personalTabInput: { background: 'transparent', border: 'none', color: 'var(--text-1)', fontSize: 12.5, fontWeight: 700, width: 110, padding: 0 },
+  personalToolbar: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 24px', flexWrap: 'wrap', borderBottom: '1px solid var(--border-1)' },
+  personalViewToggle: { display: 'flex', background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: 8, padding: 2, gap: 2 },
+  personalViewToggleBtn: { display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: 'none', color: 'var(--text-5)', fontSize: 11.5, fontWeight: 600, padding: '5px 10px', borderRadius: 6, cursor: 'pointer' },
+  personalViewToggleBtnActive: { background: 'var(--bg-4)', color: 'var(--text-1)' },
+  personalSearchWrap: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-4)', border: '1px solid var(--border-3)', borderRadius: 8, padding: '5px 10px', minWidth: 180 },
+  personalSearchInput: { background: 'transparent', border: 'none', color: 'var(--text-1)', fontSize: 12, padding: 0, flex: 1, minWidth: 0 },
+  personalFilterSelect: { fontSize: 11.5, padding: '5px 8px', borderRadius: 8 },
   personalBoardArea: { display: 'flex', gap: 16, padding: '16px 24px 32px', overflowX: 'auto', alignItems: 'flex-start' },
-  personalCol: { background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 10, padding: 12, minWidth: 270, width: 270, flexShrink: 0 },
-  personalColHead: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, marginBottom: 12, color: 'var(--text-2)', cursor: 'grab' },
+  personalCol: { background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 10, padding: 10, minWidth: 300, width: 300, flexShrink: 0 },
+  personalColHead: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, marginBottom: 10, color: 'var(--text-2)', padding: '6px 6px', borderRadius: 8 },
+  personalColGrip: { display: 'flex', cursor: 'grab', flexShrink: 0 },
   personalColNameInput: { background: 'transparent', border: 'none', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 800, padding: 0, flex: 1, minWidth: 0 },
-  personalCard: { background: 'var(--bg-4)', border: '1px solid var(--border-2)', borderRadius: 8, padding: '9px 10px', marginBottom: 9, cursor: 'grab' },
-  personalCardTitle: { background: 'transparent', border: 'none', color: 'var(--text-1)', fontSize: 12.5, fontWeight: 600, padding: 0, flex: 1, minWidth: 0 },
+  personalColBody: { minHeight: 12 },
+  personalColEmpty: { fontSize: 11.5, color: 'var(--text-7)', padding: '10px 4px', textAlign: 'center' },
+  personalQuickAddInput: { width: '100%', fontSize: 12.5, padding: '8px 10px', borderRadius: 8, marginTop: 2 },
+  personalCard: { background: 'var(--bg-4)', border: '1px solid var(--border-2)', borderRadius: 8, padding: '9px 10px', marginBottom: 8 },
+  personalCardDone: { opacity: .72 },
+  personalCardTop: { display: 'flex', alignItems: 'flex-start', gap: 6 },
+  personalCardCheck: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 17, height: 17, borderRadius: '50%', border: '1.5px solid var(--border-3)', background: 'transparent', color: '#3ecf6e', cursor: 'pointer', flexShrink: 0, marginTop: 1, padding: 0 },
+  personalCardCheckEmpty: { display: 'block', width: 9, height: 9 },
+  personalCardCheckEmptyLg: { display: 'block', width: 12, height: 12 },
+  personalCardTitleText: { fontSize: 12.5, fontWeight: 600, color: 'var(--text-1)', flex: 1, minWidth: 0, lineHeight: 1.4, wordBreak: 'break-word' },
+  personalCardMeta: { display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 7 },
+  personalCardBadge: { fontSize: 10.5, fontWeight: 600, color: 'var(--text-5)', background: 'var(--border-1)', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap' },
+  dueOverdue: { color: '#e2574c', background: 'rgba(226,87,76,.14)' },
+  dueToday: { color: '#F5C400', background: 'rgba(245,196,0,.18)' },
+  dueSoon: { color: '#ff9f40', background: 'rgba(255,159,64,.14)' },
+  personalCardTags: { display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 },
+  personalCardTag: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: 'var(--text-4)', background: 'var(--border-1)', padding: '2px 7px', borderRadius: 5 },
   personalAddCol: { display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: '1px dashed var(--border-3)', color: 'var(--text-4)', fontSize: 12, padding: '10px 16px', borderRadius: 10, cursor: 'pointer', minWidth: 160, height: 'fit-content', flexShrink: 0 },
+
+  dropdownMenu: { position: 'absolute', top: '100%', right: 0, zIndex: 20, background: 'var(--bg-1)', border: '1px solid var(--border-2)', borderRadius: 8, padding: 4, minWidth: 200, boxShadow: '0 8px 24px rgba(0,0,0,.35)', display: 'flex', flexDirection: 'column' },
+  dropdownItem: { display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 'none', color: 'var(--text-2)', fontSize: 12, padding: '7px 8px', borderRadius: 6, cursor: 'pointer', textAlign: 'left', width: '100%' },
+  dropdownDivider: { height: 1, background: 'var(--border-1)', margin: '4px 0' },
+  colorSwatchGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, padding: '6px 8px' },
+  colorSwatch: { width: 22, height: 22, borderRadius: 6, border: '1px solid var(--border-3)', cursor: 'pointer', padding: 0 },
+
+  priorityPickerRow: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  priorityPickerChip: { fontSize: 11.5, fontWeight: 600, padding: '5px 10px', borderRadius: 999, border: '1px solid var(--border-3)', background: 'transparent', color: 'var(--text-4)', cursor: 'pointer' },
+  priorityPickerChipActive: { background: 'var(--border-1)', color: 'var(--text-1)' },
+
+  tagEditorChips: { display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 4 },
+  tagEditorInput: { fontSize: 12, padding: '4px 8px', borderRadius: 6, width: 90 },
+
+  checklistList: { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6, marginBottom: 8 },
+  checklistRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-2)' },
+
+  personalDetailTitleInput: { flex: 1, fontSize: 20, fontWeight: 800, background: 'transparent', border: 'none', color: 'var(--text-1)', padding: 0 },
+  cardPropsGrid: { display: 'grid', gridTemplateColumns: '1fr 160px', gap: 16, marginTop: 14 },
+
+  commentAuthorRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  commentAvatar: { width: 22, height: 22, borderRadius: '50%', background: 'var(--border-2)', color: 'var(--text-2)', fontSize: 9.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  commentAuthorName: { fontSize: 12, fontWeight: 700, color: 'var(--text-1)' },
+  commentAuthorTs: { fontSize: 10.5, color: 'var(--text-6)', marginLeft: 'auto' },
+
+  personalListWrap: { padding: '16px 24px 32px', overflowX: 'auto' },
+  personalListTable: { width: '100%', borderCollapse: 'collapse', fontSize: 12.5 },
+  personalListTh: { textAlign: 'left', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: 'var(--text-6)', padding: '8px 10px', borderBottom: '1px solid var(--border-2)', cursor: 'pointer', whiteSpace: 'nowrap' },
+  personalListRow: { cursor: 'pointer' },
+  personalListTd: { padding: '9px 10px', borderBottom: '1px solid var(--border-1)', color: 'var(--text-2)', whiteSpace: 'nowrap' },
+
+  saveStateBadge: { fontSize: 11, color: 'var(--text-6)', marginRight: 4 },
+  toastStack: { position: 'fixed', bottom: 20, right: 20, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 80 },
+  toast: { display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-1)', border: '1px solid var(--border-2)', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: 'var(--text-2)', boxShadow: '0 8px 24px rgba(0,0,0,.35)', minWidth: 220 },
+  toastAction: { background: 'transparent', border: 'none', color: '#F5C400', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap' },
+
+  skeletonBlock: { background: 'var(--border-1)', borderRadius: 6, animation: 'personalSkeletonPulse 1.4s ease-in-out infinite' },
   kanbanCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   kanbanCardTitle: { fontSize: 12.5, fontWeight: 700, marginBottom: 5 },
   kanbanCardMeta: { display: 'flex', justifyContent: 'space-between', fontSize: 10.5, color: 'var(--text-5)' },
