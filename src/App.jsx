@@ -60,6 +60,11 @@ const COMPANY_STATUS_META = {
   ativo: { label: 'Ativo', color: '#3ecf6e', bg: 'rgba(62,207,110,.14)', border: 'rgba(62,207,110,.5)' },
   pausado: { label: 'Pausado', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
 };
+const CLIENT_TYPE_META = {
+  diagnostico: { label: 'Diagnóstico', short: 'Diagnóstico', color: '#3ea6ff', bg: 'rgba(62,166,255,.14)', border: 'rgba(62,166,255,.5)' },
+  'diagnostico-consultoria': { label: 'Diagnóstico e Consultoria Contínua', short: 'Consultoria Contínua', color: '#9b7af5', bg: 'rgba(155,122,245,.14)', border: 'rgba(155,122,245,.5)' },
+};
+const CLIENT_TYPE_ORDER = ['diagnostico', 'diagnostico-consultoria'];
 const DELETE_CONFIRM_PHRASE = 'Excluir';
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 
@@ -1129,7 +1134,7 @@ export default function App() {
   const multiActivities = isMulti ? selectedProjects.flatMap((p) => perCompanySorted[p.id].map((a) => ({
     ...a,
     _pid: p.id,
-    _companyName: p.company.name || 'Empresa sem nome',
+    _companyName: p.company.nomeFantasia || p.company.name || 'Empresa sem nome',
     _companyColor: p.company.color || '#F5C400',
     _companyLogo: p.company.logo || '',
     _phases: p.phases,
@@ -1171,7 +1176,9 @@ export default function App() {
                   {selectedProjects.map((p) => (
                     <span key={p.id} style={{ ...S.multiCompanyChip, borderColor: p.company.color || 'var(--border-3)' }}>
                       <span style={{ ...S.companyColorDot, background: p.company.color || 'var(--text-8)' }} />
-                      {p.company.nomeFantasia || p.company.name || 'Sem nome'}{(p.company.status || 'ativo') === 'pausado' ? ' ⏸' : ''}
+                      {p.company.nomeFantasia || p.company.name || 'Sem nome'}
+                      {p.company.clientType && CLIENT_TYPE_META[p.company.clientType] ? ` · ${CLIENT_TYPE_META[p.company.clientType].short}` : ''}
+                      {(p.company.status || 'ativo') === 'pausado' ? ' ⏸' : ''}
                     </span>
                   ))}
                 </div>
@@ -1183,6 +1190,11 @@ export default function App() {
               <div>
                 <div style={S.brandNameRow}>
                   <div style={S.brandName}>{activeProject.company.nomeFantasia || activeProject.company.name || 'Cliente não cadastrado'}</div>
+                  {activeProject.company.clientType && CLIENT_TYPE_META[activeProject.company.clientType] && (
+                    <span style={{ ...S.companyStatusPill, color: CLIENT_TYPE_META[activeProject.company.clientType].color, background: CLIENT_TYPE_META[activeProject.company.clientType].bg, borderColor: CLIENT_TYPE_META[activeProject.company.clientType].border }}>
+                      {CLIENT_TYPE_META[activeProject.company.clientType].label}
+                    </span>
+                  )}
                   {(activeProject.company.status || 'ativo') === 'pausado' && (
                     <span style={{ ...S.companyStatusPill, color: COMPANY_STATUS_META.pausado.color, background: COMPANY_STATUS_META.pausado.bg, borderColor: COMPANY_STATUS_META.pausado.border }}>
                       Pausado{activeProject.company.resumeDate ? ` · retoma ${fmtDate(activeProject.company.resumeDate)}` : ''}
@@ -1228,7 +1240,7 @@ export default function App() {
               onChange={(e) => { if (e.target.value) addActivity(e.target.value); e.target.value = ''; }}
             >
               <option value="">+ Nova atividade em...</option>
-              {selectedProjects.map((p) => <option key={p.id} value={p.id}>{p.company.name || 'Sem nome'}</option>)}
+              {selectedProjects.map((p) => <option key={p.id} value={p.id}>{p.company.nomeFantasia || p.company.name || 'Sem nome'}</option>)}
             </select>
           ) : (
             <button style={S.primaryBtn} onClick={() => addActivity(activeProject.id)}><Plus size={15} /> Nova atividade</button>
@@ -1463,6 +1475,20 @@ export default function App() {
             <div style={S.settingsLabel}>Nome fantasia</div>
             <input type="text" value={activeProject.company.nomeFantasia || ''} onChange={(e) => { const v = e.target.value; mutateProject(pid, (p) => ({ ...p, company: { ...p.company, nomeFantasia: v } })); }} onBlur={() => addLog(pid, `Nome fantasia atualizado: ${activeProject.company.nomeFantasia}`)} placeholder="Nome fantasia" />
             <div style={S.fieldHint}>Usado como identificação principal da empresa nas telas e listagens.</div>
+          </div>
+
+          <div style={S.settingsBlock}>
+            <div style={S.settingsLabel}>Tipo de cliente</div>
+            <select
+              value={activeProject.company.clientType || ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                mutateProject(pid, (p) => ({ ...p, company: { ...p.company, clientType: v } }), `Tipo de cliente alterado para: ${v ? CLIENT_TYPE_META[v].label : 'não definido'}`);
+              }}
+            >
+              <option value="">Não definido</option>
+              {CLIENT_TYPE_ORDER.map((t) => <option key={t} value={t}>{CLIENT_TYPE_META[t].label}</option>)}
+            </select>
           </div>
 
           <div style={S.settingsBlock}>
@@ -2098,7 +2124,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [fetched, setFetched] = useState(null);
-  const [form, setForm] = useState({ name: '', nomeFantasia: '', color: PHASE_COLORS[0], logo: '' });
+  const [form, setForm] = useState({ name: '', nomeFantasia: '', color: PHASE_COLORS[0], logo: '', clientType: '' });
 
   function handleLogoPick(e) {
     const file = e.target.files && e.target.files[0];
@@ -2130,13 +2156,14 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource }) {
   }
 
   async function submit() {
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || !form.clientType) return;
     setSaving(true);
     try {
       await onCreate({
         cnpj: (fetched && fetched.cnpjFormatado) || cnpj,
         name: form.name,
         nomeFantasia: form.nomeFantasia,
+        clientType: form.clientType,
         color: form.color,
         logo: form.logo,
         regimeTributario: fetched ? fetched.regimeTributario : '',
@@ -2202,7 +2229,22 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource }) {
             <div style={S.subSectionLabel}>Nome fantasia</div>
             <input type="text" value={form.nomeFantasia} onChange={(e) => setForm((f) => ({ ...f, nomeFantasia: e.target.value }))} placeholder="Nome fantasia" />
 
-            <div style={S.subSectionLabel}>Cor master da empresa</div>
+            <div style={S.subSectionLabel}>Tipo de cliente</div>
+            <div style={S.priorityPickerRow}>
+              {CLIENT_TYPE_ORDER.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  style={{ ...S.priorityPickerChip, color: CLIENT_TYPE_META[t].color, background: form.clientType === t ? CLIENT_TYPE_META[t].bg : 'transparent', borderColor: form.clientType === t ? CLIENT_TYPE_META[t].border : 'var(--border-3)' }}
+                  onClick={() => setForm((f) => ({ ...f, clientType: t }))}
+                >
+                  {CLIENT_TYPE_META[t].label}
+                </button>
+              ))}
+            </div>
+            {!form.clientType && <div style={{ ...S.fieldHint, color: '#e2574c', marginTop: 4 }}>Selecione o tipo de cliente pra continuar.</div>}
+
+            <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Cor master da empresa</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <input type="color" value={form.color} onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))} style={S.colorInput} />
               <div style={S.fieldHint}>Usada pra identificar essa empresa na visão de várias empresas.</div>
@@ -2246,7 +2288,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource }) {
               </div>
             )}
 
-            <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={saving || !form.name.trim()}>
+            <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={saving || !form.name.trim() || !form.clientType}>
               {saving ? (cloneSource ? 'Clonando...' : 'Criando...') : (cloneSource ? 'Clonar empresa' : 'Criar empresa')}
             </button>
           </>
@@ -2326,7 +2368,7 @@ function CompanySectionHeader({ project, onEditPhases }) {
 
 function EditCompanyModal({ project, onClose, onSave }) {
   const c = project.company;
-  const [form, setForm] = useState({ name: c.name || '', nomeFantasia: c.nomeFantasia || '', color: c.color || PHASE_COLORS[0], logo: c.logo || '', status: c.status || 'ativo', resumeDate: c.resumeDate || '' });
+  const [form, setForm] = useState({ name: c.name || '', nomeFantasia: c.nomeFantasia || '', color: c.color || PHASE_COLORS[0], logo: c.logo || '', status: c.status || 'ativo', resumeDate: c.resumeDate || '', clientType: c.clientType || '' });
   const [saving, setSaving] = useState(false);
 
   function handleLogoPick(e) {
@@ -2368,6 +2410,12 @@ function EditCompanyModal({ project, onClose, onSave }) {
 
         <div style={S.subSectionLabel}>Nome fantasia</div>
         <input type="text" value={form.nomeFantasia} onChange={(e) => setForm((f) => ({ ...f, nomeFantasia: e.target.value }))} placeholder="Nome fantasia" />
+
+        <div style={S.subSectionLabel}>Tipo de cliente</div>
+        <select value={form.clientType} onChange={(e) => setForm((f) => ({ ...f, clientType: e.target.value }))}>
+          <option value="">Não definido</option>
+          {CLIENT_TYPE_ORDER.map((t) => <option key={t} value={t}>{CLIENT_TYPE_META[t].label}</option>)}
+        </select>
 
         <div style={S.subSectionLabel}>Status da empresa</div>
         <select value={form.status} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, status: v, resumeDate: v === 'ativo' ? '' : f.resumeDate })); }}>
@@ -2469,6 +2517,9 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={S.companyCardNameRow}>
                           <div style={S.companyCardName}>{p.company.nomeFantasia || p.company.name || 'Empresa sem nome'}</div>
+                          {p.company.clientType && CLIENT_TYPE_META[p.company.clientType] && (
+                            <span style={{ ...S.companyStatusPillSm, color: CLIENT_TYPE_META[p.company.clientType].color, background: CLIENT_TYPE_META[p.company.clientType].bg, borderColor: CLIENT_TYPE_META[p.company.clientType].border }}>{CLIENT_TYPE_META[p.company.clientType].short}</span>
+                          )}
                           {(p.company.status || 'ativo') === 'pausado' && (
                             <span style={{ ...S.companyStatusPillSm, color: COMPANY_STATUS_META.pausado.color, background: COMPANY_STATUS_META.pausado.bg, borderColor: COMPANY_STATUS_META.pausado.border }}>Pausado</span>
                           )}
@@ -4951,7 +5002,7 @@ const S = {
   brandRow: { display: 'flex', alignItems: 'center', gap: 12 },
   logoImg: { width: 38, height: 38, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border-3)' },
   logoPlaceholder: { width: 38, height: 38, borderRadius: 8, background: 'var(--bg-4)', border: '1px solid var(--border-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  brandNameRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  brandNameRow: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   brandName: { fontWeight: 700, fontSize: 14 },
   brandSecondary: { fontSize: 11.5, color: 'var(--text-5)', marginTop: 1 },
   brandCnpj: { fontSize: 11.5, color: 'var(--text-5)' },
