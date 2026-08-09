@@ -79,15 +79,15 @@ const CARD_PRIORITY_META = {
 const CARD_PRIORITY_ORDER = ['urgente', 'alta', 'media', 'baixa'];
 
 const COLUMN_COLOR_META = {
-  gray: { label: 'Cinza', bg: 'rgba(140,140,150,.16)', text: 'var(--text-2)' },
-  blue: { label: 'Azul', bg: 'rgba(62,166,255,.16)', text: '#3ea6ff' },
-  green: { label: 'Verde', bg: 'rgba(62,207,110,.16)', text: '#3ecf6e' },
-  yellow: { label: 'Amarelo', bg: 'rgba(245,196,0,.16)', text: '#c99a00' },
-  orange: { label: 'Laranja', bg: 'rgba(255,159,64,.16)', text: '#e07d20' },
-  red: { label: 'Vermelho', bg: 'rgba(226,87,76,.16)', text: '#e2574c' },
-  pink: { label: 'Rosa', bg: 'rgba(226,76,158,.16)', text: '#e24c9e' },
-  purple: { label: 'Roxo', bg: 'rgba(155,122,245,.16)', text: '#9b7af5' },
-  brown: { label: 'Marrom', bg: 'rgba(160,120,90,.18)', text: '#a0785a' },
+  gray: { label: 'Cinza', bg: 'var(--pcol-gray-bg)', text: 'var(--pcol-gray-text)' },
+  blue: { label: 'Azul', bg: 'var(--pcol-blue-bg)', text: 'var(--pcol-blue-text)' },
+  green: { label: 'Verde', bg: 'var(--pcol-green-bg)', text: 'var(--pcol-green-text)' },
+  yellow: { label: 'Amarelo', bg: 'var(--pcol-yellow-bg)', text: 'var(--pcol-yellow-text)' },
+  orange: { label: 'Laranja', bg: 'var(--pcol-orange-bg)', text: 'var(--pcol-orange-text)' },
+  red: { label: 'Vermelho', bg: 'var(--pcol-red-bg)', text: 'var(--pcol-red-text)' },
+  pink: { label: 'Rosa', bg: 'var(--pcol-pink-bg)', text: 'var(--pcol-pink-text)' },
+  purple: { label: 'Roxo', bg: 'var(--pcol-purple-bg)', text: 'var(--pcol-purple-text)' },
+  brown: { label: 'Marrom', bg: 'var(--pcol-brown-bg)', text: 'var(--pcol-brown-text)' },
 };
 const COLUMN_COLOR_ORDER = ['gray', 'blue', 'green', 'yellow', 'orange', 'red', 'pink', 'purple', 'brown'];
 
@@ -2783,13 +2783,14 @@ function PersonalCard({ card, columnId, disabled, otherColumns, onOpen, onToggle
   return (
     <div
       ref={setNodeRef}
+      className="pb-card"
       style={{ ...S.personalCard, ...style, ...(disabled ? {} : { cursor: 'grab' }), ...(card.completed ? S.personalCardDone : {}) }}
       {...attributes}
       {...listeners}
       onClick={onOpen}
     >
       <div style={S.personalCardTop}>
-        <button style={S.personalCardCheck} onClick={(e) => { e.stopPropagation(); onToggleComplete(); }} title={card.completed ? 'Reabrir' : 'Marcar como concluída'}>
+        <button className="pb-check" style={S.personalCardCheck} onClick={(e) => { e.stopPropagation(); onToggleComplete(); }} title={card.completed ? 'Reabrir' : 'Marcar como concluída'}>
           {card.completed ? <Check size={13} /> : <span style={S.personalCardCheckEmpty} />}
         </button>
         <div style={{ ...S.personalCardTitleText, ...(card.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{card.title}</div>
@@ -2862,14 +2863,16 @@ function PersonalColumn({
 
   return (
     <div ref={setNodeRef} style={{ ...S.personalCol, ...style }}>
-      <div style={{ ...S.personalColHead, background: colorMeta ? colorMeta.bg : 'transparent' }}>
+      <div style={S.personalColHead}>
         <span {...attributes} {...listeners} style={S.personalColGrip}><GripVertical size={13} color="var(--text-8)" /></span>
-        <input
-          ref={nameInputRef}
-          value={column.name}
-          onChange={(e) => onRenameColumn(column.id, e.target.value)}
-          style={{ ...S.personalColNameInput, color: colorMeta ? colorMeta.text : 'var(--text-2)' }}
-        />
+        <div style={{ ...S.personalColTag, background: colorMeta ? colorMeta.bg : 'transparent' }}>
+          <input
+            ref={nameInputRef}
+            value={column.name}
+            onChange={(e) => onRenameColumn(column.id, e.target.value)}
+            style={{ ...S.personalColNameInput, color: colorMeta ? colorMeta.text : 'var(--text-2)' }}
+          />
+        </div>
         <span style={S.kanbanCount}>{totalVisibleCount}</span>
         <div style={{ position: 'relative' }}>
           <button style={S.iconBtnGhost} onClick={() => setMenuOpen((v) => !v)}><MoreHorizontal size={14} /></button>
@@ -2929,7 +2932,7 @@ function PersonalColumn({
           style={S.personalQuickAddInput}
         />
       ) : (
-        <button style={S.addSubBtn} onClick={() => setShowQuickAdd(true)}><Plus size={12} /> Nova atividade</button>
+        <button className="pb-addbtn" style={S.personalAddCard} onClick={() => setShowQuickAdd(true)}><Plus size={12} /> Nova atividade</button>
       )}
     </div>
   );
@@ -3637,13 +3640,50 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
         input[type=text], input[type=date], input[type=email], input[type=password], input[type=number], select, textarea {
-          background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
+          background:var(--bg-3); border:1px solid var(--border-2); color:var(--text-1); border-radius:6px;
           padding:6px 8px; font-size:12.5px; width:100%;
         }
         input[type=text]:focus, input[type=date]:focus, input[type=email]:focus, input[type=password]:focus, input[type=number]:focus, select:focus, textarea:focus {
           outline:none; border-color:#F5C400;
         }
         input[type=checkbox]{ accent-color:#F5C400; width:15px; height:15px; }
+
+        :root {
+          --pb-shadow-soft: 0 1px 2px rgba(15,15,15,.04);
+          --pb-shadow-hover: 0 2px 8px rgba(15,15,15,.16);
+          --pb-shadow-drag: 0 8px 20px rgba(15,15,15,.24);
+          --pcol-gray-bg: rgba(255,255,255,.06); --pcol-gray-text: var(--text-3);
+          --pcol-brown-bg: rgba(160,120,90,.22); --pcol-brown-text: #c9a488;
+          --pcol-orange-bg: rgba(217,115,13,.20); --pcol-orange-text: #e8a463;
+          --pcol-yellow-bg: rgba(203,145,47,.20); --pcol-yellow-text: #e0b968;
+          --pcol-green-bg: rgba(68,131,97,.22); --pcol-green-text: #7fc79c;
+          --pcol-blue-bg: rgba(51,126,169,.22); --pcol-blue-text: #7ec2e8;
+          --pcol-purple-bg: rgba(144,101,176,.22); --pcol-purple-text: #c6a4e0;
+          --pcol-pink-bg: rgba(193,76,138,.22); --pcol-pink-text: #ea9dc4;
+          --pcol-red-bg: rgba(212,76,71,.22); --pcol-red-text: #f08f8a;
+        }
+        html[data-theme="light"] {
+          --pb-shadow-soft: 0 1px 2px rgba(15,15,15,.04);
+          --pb-shadow-hover: 0 2px 6px rgba(15,15,15,.06);
+          --pb-shadow-drag: 0 8px 20px rgba(15,15,15,.10);
+          --pcol-gray-bg: #EDECE9; --pcol-gray-text: #55534E;
+          --pcol-brown-bg: #EEE0DA; --pcol-brown-text: #64473A;
+          --pcol-orange-bg: #FADEC9; --pcol-orange-text: #D9730D;
+          --pcol-yellow-bg: #FDECC8; --pcol-yellow-text: #CB912F;
+          --pcol-green-bg: #DBEDDB; --pcol-green-text: #448361;
+          --pcol-blue-bg: #D3E5EF; --pcol-blue-text: #337EA9;
+          --pcol-purple-bg: #E8DEEE; --pcol-purple-text: #9065B0;
+          --pcol-pink-bg: #F5E0E9; --pcol-pink-text: #C14C8A;
+          --pcol-red-bg: #FFE2DD; --pcol-red-text: #D44C47;
+        }
+        .pb-card { transition: background .14s ease, border-color .14s ease, box-shadow .14s ease, transform .14s ease; }
+        .pb-card:hover { background: var(--bg-3); border-color: var(--border-2); box-shadow: var(--pb-shadow-hover); transform: translateY(-1px); }
+        .pb-check { transition: background .12s ease; }
+        .pb-check:hover { background: var(--bg-3); }
+        .pb-ghost { transition: background .12s ease, border-color .12s ease; }
+        .pb-ghost:hover { background: var(--bg-3); }
+        .pb-addbtn { transition: background .12s ease, color .12s ease; }
+        .pb-addbtn:hover { background: var(--bg-3); color: var(--text-2); }
       `}</style>
       <div className="no-print" style={S.topbar}>
         <div style={S.brandRow}>
@@ -3652,8 +3692,8 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
             <div style={S.brandName}>Gestão de Atividades</div>
             <div style={S.brandCnpj}>{currentUser.name}</div>
           </div>
-          <button style={S.iconBtn} onClick={onExit}><Building2 size={15} /> Ir para Empresas</button>
-          <button style={S.iconBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira{trashItems.length > 0 ? ` (${trashItems.length})` : ''}</button>
+          <button className="pb-ghost" style={S.pbGhostBtn} onClick={onExit}><Building2 size={15} /> Ir para Empresas</button>
+          <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira{trashItems.length > 0 ? ` (${trashItems.length})` : ''}</button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {saveState === 'saving' && <span style={S.saveStateBadge}>Salvando…</span>}
@@ -3694,7 +3734,8 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar..." style={S.personalSearchInput} />
           </div>
           <button
-            style={{ ...S.iconBtn, ...(showFilters ? S.personalViewToggleBtnActive : {}) }}
+            className="pb-ghost"
+            style={{ ...S.pbGhostBtn, ...(showFilters ? S.pbGhostBtnActive : {}) }}
             onClick={() => setShowFilters((v) => !v)}
           >
             <SlidersHorizontal size={13} /> Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
@@ -3767,12 +3808,12 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
                   />
                 );
               })}
-              <button style={S.personalAddCol} onClick={addColumn}><Plus size={14} /> Nova coluna</button>
+              <button className="pb-addbtn" style={S.personalAddCol} onClick={addColumn}><Plus size={14} /> Nova coluna</button>
             </div>
           </SortableContext>
           <DragOverlay>
             {activeDragItem && activeDragItem.type === 'card' && (
-              <div style={{ ...S.personalCard, boxShadow: '0 8px 24px rgba(0,0,0,.35)' }}>
+              <div style={{ ...S.personalCard, boxShadow: 'var(--pb-shadow-drag)', opacity: .92 }}>
                 <div style={S.personalCardTop}>
                   <span style={S.personalCardCheckEmpty} />
                   <div style={S.personalCardTitleText}>{activeDragItem.card.title}</div>
@@ -3780,7 +3821,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
               </div>
             )}
             {activeDragItem && activeDragItem.type === 'column' && (
-              <div style={{ ...S.personalCol, boxShadow: '0 8px 24px rgba(0,0,0,.35)', opacity: .95 }}>
+              <div style={{ ...S.personalCol, background: 'var(--bg-1)', border: '1px solid var(--border-1)', boxShadow: 'var(--pb-shadow-drag)', opacity: .92 }}>
                 <div style={S.personalColHead}>{activeDragItem.column.name}</div>
               </div>
             )}
@@ -4976,22 +5017,23 @@ const S = {
   personalToolbar: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 24px', flexWrap: 'wrap', borderBottom: '1px solid var(--border-1)' },
   personalViewToggle: { display: 'flex', background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: 8, padding: 2, gap: 2 },
   personalViewToggleBtn: { display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: 'none', color: 'var(--text-5)', fontSize: 11.5, fontWeight: 600, padding: '5px 10px', borderRadius: 6, cursor: 'pointer' },
-  personalViewToggleBtnActive: { background: 'var(--bg-4)', color: 'var(--text-1)' },
-  personalSearchWrap: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-4)', border: '1px solid var(--border-3)', borderRadius: 8, padding: '5px 10px', minWidth: 180 },
+  personalViewToggleBtnActive: { background: 'var(--bg-3)', color: 'var(--text-1)' },
+  personalSearchWrap: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 8, padding: '5px 10px', minWidth: 180 },
   personalSearchInput: { background: 'transparent', border: 'none', color: 'var(--text-1)', fontSize: 12, padding: 0, flex: 1, minWidth: 0 },
   personalFilterSelect: { fontSize: 11.5, padding: '5px 8px', borderRadius: 8, width: 'auto', flexShrink: 0 },
   personalBoardArea: { display: 'flex', gap: 16, padding: '16px 24px 32px', overflowX: 'auto', alignItems: 'flex-start' },
-  personalCol: { background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 10, padding: 10, minWidth: 300, width: 300, flexShrink: 0 },
-  personalColHead: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, marginBottom: 10, color: 'var(--text-2)', padding: '6px 6px', borderRadius: 8 },
-  personalColGrip: { display: 'flex', cursor: 'grab', flexShrink: 0 },
-  personalColNameInput: { background: 'transparent', border: 'none', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 800, padding: 0, flex: 1, minWidth: 0 },
+  personalCol: { background: 'transparent', border: 'none', borderRadius: 10, padding: '2px 2px', minWidth: 300, width: 300, flexShrink: 0 },
+  personalColHead: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 650, marginBottom: 10, color: 'var(--text-2)', padding: '4px 2px' },
+  personalColTag: { display: 'flex', alignItems: 'center', flex: 1, minWidth: 0, padding: '3px 9px', borderRadius: 6 },
+  personalColGrip: { display: 'flex', cursor: 'grab', flexShrink: 0, opacity: .5 },
+  personalColNameInput: { background: 'transparent', border: 'none', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 650, padding: 0, flex: 1, minWidth: 0 },
   personalColBody: { minHeight: 12 },
   personalColEmpty: { fontSize: 11.5, color: 'var(--text-7)', padding: '10px 4px', textAlign: 'center' },
   personalQuickAddInput: { width: '100%', fontSize: 12.5, padding: '8px 10px', borderRadius: 8, marginTop: 2 },
-  personalCard: { background: 'var(--bg-4)', border: '1px solid var(--border-2)', borderRadius: 8, padding: '9px 10px', marginBottom: 8 },
+  personalCard: { background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 8, padding: '10px 12px', marginBottom: 8, boxShadow: 'var(--pb-shadow-soft)' },
   personalCardDone: { opacity: .72 },
   personalCardTop: { display: 'flex', alignItems: 'flex-start', gap: 6 },
-  personalCardCheck: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 17, height: 17, borderRadius: '50%', border: '1.5px solid var(--border-3)', background: 'transparent', color: '#3ecf6e', cursor: 'pointer', flexShrink: 0, marginTop: 1, padding: 0 },
+  personalCardCheck: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 17, height: 17, borderRadius: '50%', border: '1.5px solid var(--border-2)', background: 'transparent', color: '#3ecf6e', cursor: 'pointer', flexShrink: 0, marginTop: 1, padding: 0 },
   personalCardCheckEmpty: { display: 'block', width: 9, height: 9 },
   personalCardCheckEmptyLg: { display: 'block', width: 12, height: 12 },
   personalCardTitleText: { fontSize: 12.5, fontWeight: 600, color: 'var(--text-1)', flex: 1, minWidth: 0, lineHeight: 1.4, wordBreak: 'break-word' },
@@ -5002,9 +5044,12 @@ const S = {
   dueSoon: { color: '#ff9f40', background: 'rgba(255,159,64,.14)' },
   personalCardTags: { display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 },
   personalCardTag: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: 'var(--text-4)', background: 'var(--border-1)', padding: '2px 7px', borderRadius: 5 },
-  personalAddCol: { display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: '1px dashed var(--border-3)', color: 'var(--text-4)', fontSize: 12, padding: '10px 16px', borderRadius: 10, cursor: 'pointer', minWidth: 160, height: 'fit-content', flexShrink: 0 },
+  personalAddCol: { display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: 'none', color: 'var(--text-5)', fontSize: 12, padding: '10px 14px', borderRadius: 8, cursor: 'pointer', minWidth: 160, height: 'fit-content', flexShrink: 0 },
+  personalAddCard: { display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: 'none', color: 'var(--text-5)', fontSize: 11.5, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', width: 'fit-content', marginTop: 4 },
+  pbGhostBtn: { display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--border-1)', color: 'var(--text-3)', fontSize: 12.5, fontWeight: 600, padding: '7px 11px', borderRadius: 7, cursor: 'pointer' },
+  pbGhostBtnActive: { background: 'var(--bg-3)', color: 'var(--text-1)', borderColor: 'var(--border-2)' },
 
-  dropdownMenu: { position: 'absolute', top: '100%', right: 0, zIndex: 20, background: 'var(--bg-1)', border: '1px solid var(--border-2)', borderRadius: 8, padding: 4, minWidth: 200, boxShadow: '0 8px 24px rgba(0,0,0,.35)', display: 'flex', flexDirection: 'column' },
+  dropdownMenu: { position: 'absolute', top: '100%', right: 0, zIndex: 20, background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 8, padding: 4, minWidth: 200, boxShadow: 'var(--pb-shadow-drag)', display: 'flex', flexDirection: 'column' },
   dropdownItem: { display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 'none', color: 'var(--text-2)', fontSize: 12, padding: '7px 8px', borderRadius: 6, cursor: 'pointer', textAlign: 'left', width: '100%' },
   dropdownDivider: { height: 1, background: 'var(--border-1)', margin: '4px 0' },
   colorSwatchGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, padding: '6px 8px' },
@@ -5036,7 +5081,7 @@ const S = {
 
   saveStateBadge: { fontSize: 11, color: 'var(--text-6)', marginRight: 4 },
   toastStack: { position: 'fixed', bottom: 20, right: 20, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 80 },
-  toast: { display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-1)', border: '1px solid var(--border-2)', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: 'var(--text-2)', boxShadow: '0 8px 24px rgba(0,0,0,.35)', minWidth: 220 },
+  toast: { display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: 'var(--text-2)', boxShadow: 'var(--pb-shadow-drag)', minWidth: 220 },
   toastAction: { background: 'transparent', border: 'none', color: '#F5C400', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap' },
 
   skeletonBlock: { background: 'var(--border-1)', borderRadius: 6, animation: 'personalSkeletonPulse 1.4s ease-in-out infinite' },
