@@ -79,15 +79,15 @@ const CARD_PRIORITY_META = {
 const CARD_PRIORITY_ORDER = ['urgente', 'alta', 'media', 'baixa'];
 
 const COLUMN_COLOR_META = {
-  gray: { label: 'Cinza', bg: 'var(--pcol-gray-bg)', text: 'var(--pcol-gray-text)' },
-  blue: { label: 'Azul', bg: 'var(--pcol-blue-bg)', text: 'var(--pcol-blue-text)' },
-  green: { label: 'Verde', bg: 'var(--pcol-green-bg)', text: 'var(--pcol-green-text)' },
-  yellow: { label: 'Amarelo', bg: 'var(--pcol-yellow-bg)', text: 'var(--pcol-yellow-text)' },
-  orange: { label: 'Laranja', bg: 'var(--pcol-orange-bg)', text: 'var(--pcol-orange-text)' },
-  red: { label: 'Vermelho', bg: 'var(--pcol-red-bg)', text: 'var(--pcol-red-text)' },
-  pink: { label: 'Rosa', bg: 'var(--pcol-pink-bg)', text: 'var(--pcol-pink-text)' },
-  purple: { label: 'Roxo', bg: 'var(--pcol-purple-bg)', text: 'var(--pcol-purple-text)' },
-  brown: { label: 'Marrom', bg: 'var(--pcol-brown-bg)', text: 'var(--pcol-brown-text)' },
+  gray: { label: 'Cinza', bg: 'var(--pcol-gray-bg)', text: 'var(--pcol-gray-text)', container: 'var(--pcol-gray-container)' },
+  blue: { label: 'Azul', bg: 'var(--pcol-blue-bg)', text: 'var(--pcol-blue-text)', container: 'var(--pcol-blue-container)' },
+  green: { label: 'Verde', bg: 'var(--pcol-green-bg)', text: 'var(--pcol-green-text)', container: 'var(--pcol-green-container)' },
+  yellow: { label: 'Amarelo', bg: 'var(--pcol-yellow-bg)', text: 'var(--pcol-yellow-text)', container: 'var(--pcol-yellow-container)' },
+  orange: { label: 'Laranja', bg: 'var(--pcol-orange-bg)', text: 'var(--pcol-orange-text)', container: 'var(--pcol-orange-container)' },
+  red: { label: 'Vermelho', bg: 'var(--pcol-red-bg)', text: 'var(--pcol-red-text)', container: 'var(--pcol-red-container)' },
+  pink: { label: 'Rosa', bg: 'var(--pcol-pink-bg)', text: 'var(--pcol-pink-text)', container: 'var(--pcol-pink-container)' },
+  purple: { label: 'Roxo', bg: 'var(--pcol-purple-bg)', text: 'var(--pcol-purple-text)', container: 'var(--pcol-purple-container)' },
+  brown: { label: 'Marrom', bg: 'var(--pcol-brown-bg)', text: 'var(--pcol-brown-text)', container: 'var(--pcol-brown-container)' },
 };
 const COLUMN_COLOR_ORDER = ['gray', 'blue', 'green', 'yellow', 'orange', 'red', 'pink', 'purple', 'brown'];
 
@@ -2862,7 +2862,7 @@ function PersonalColumn({
   }
 
   return (
-    <div ref={setNodeRef} style={{ ...S.personalCol, ...style }}>
+    <div ref={setNodeRef} style={{ ...S.personalCol, background: colorMeta ? colorMeta.container : 'var(--pcol-default-container)', ...style }}>
       <div style={S.personalColHead}>
         <span {...attributes} {...listeners} style={S.personalColGrip}><GripVertical size={13} color="var(--text-8)" /></span>
         <div style={{ ...S.personalColTag, background: colorMeta ? colorMeta.bg : 'transparent' }}>
@@ -2932,7 +2932,7 @@ function PersonalColumn({
           style={S.personalQuickAddInput}
         />
       ) : (
-        <button className="pb-addbtn" style={S.personalAddCard} onClick={() => setShowQuickAdd(true)}><Plus size={12} /> Nova atividade</button>
+        <button className="pb-addbtn" style={{ ...S.personalAddCard, color: colorMeta ? colorMeta.text : 'var(--text-5)' }} onClick={() => setShowQuickAdd(true)}><Plus size={12} /> Nova atividade</button>
       )}
     </div>
   );
@@ -3652,32 +3652,34 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
           --pb-shadow-soft: 0 1px 2px rgba(15,15,15,.04);
           --pb-shadow-hover: 0 2px 8px rgba(15,15,15,.16);
           --pb-shadow-drag: 0 8px 20px rgba(15,15,15,.24);
-          --pcol-gray-bg: rgba(255,255,255,.06); --pcol-gray-text: var(--text-3);
-          --pcol-brown-bg: rgba(160,120,90,.22); --pcol-brown-text: #c9a488;
-          --pcol-orange-bg: rgba(217,115,13,.20); --pcol-orange-text: #e8a463;
-          --pcol-yellow-bg: rgba(203,145,47,.20); --pcol-yellow-text: #e0b968;
-          --pcol-green-bg: rgba(68,131,97,.22); --pcol-green-text: #7fc79c;
-          --pcol-blue-bg: rgba(51,126,169,.22); --pcol-blue-text: #7ec2e8;
-          --pcol-purple-bg: rgba(144,101,176,.22); --pcol-purple-text: #c6a4e0;
-          --pcol-pink-bg: rgba(193,76,138,.22); --pcol-pink-text: #ea9dc4;
-          --pcol-red-bg: rgba(212,76,71,.22); --pcol-red-text: #f08f8a;
+          --pcol-gray-bg: rgba(255,255,255,.06); --pcol-gray-text: var(--text-3); --pcol-gray-container: rgba(255,255,255,.03);
+          --pcol-brown-bg: rgba(160,120,90,.22); --pcol-brown-text: #c9a488; --pcol-brown-container: rgba(160,120,90,.08);
+          --pcol-orange-bg: rgba(217,115,13,.20); --pcol-orange-text: #e8a463; --pcol-orange-container: rgba(217,115,13,.07);
+          --pcol-yellow-bg: rgba(203,145,47,.20); --pcol-yellow-text: #e0b968; --pcol-yellow-container: rgba(203,145,47,.07);
+          --pcol-green-bg: rgba(68,131,97,.22); --pcol-green-text: #7fc79c; --pcol-green-container: rgba(68,131,97,.08);
+          --pcol-blue-bg: rgba(51,126,169,.22); --pcol-blue-text: #7ec2e8; --pcol-blue-container: rgba(51,126,169,.08);
+          --pcol-purple-bg: rgba(144,101,176,.22); --pcol-purple-text: #c6a4e0; --pcol-purple-container: rgba(144,101,176,.08);
+          --pcol-pink-bg: rgba(193,76,138,.22); --pcol-pink-text: #ea9dc4; --pcol-pink-container: rgba(193,76,138,.08);
+          --pcol-red-bg: rgba(212,76,71,.22); --pcol-red-text: #f08f8a; --pcol-red-container: rgba(212,76,71,.08);
+          --pcol-default-container: rgba(255,255,255,.02);
         }
         html[data-theme="light"] {
           --pb-shadow-soft: 0 1px 2px rgba(15,15,15,.04);
           --pb-shadow-hover: 0 2px 6px rgba(15,15,15,.06);
           --pb-shadow-drag: 0 8px 20px rgba(15,15,15,.10);
-          --pcol-gray-bg: #EDECE9; --pcol-gray-text: #55534E;
-          --pcol-brown-bg: #EEE0DA; --pcol-brown-text: #64473A;
-          --pcol-orange-bg: #FADEC9; --pcol-orange-text: #D9730D;
-          --pcol-yellow-bg: #FDECC8; --pcol-yellow-text: #CB912F;
-          --pcol-green-bg: #DBEDDB; --pcol-green-text: #448361;
-          --pcol-blue-bg: #D3E5EF; --pcol-blue-text: #337EA9;
-          --pcol-purple-bg: #E8DEEE; --pcol-purple-text: #9065B0;
-          --pcol-pink-bg: #F5E0E9; --pcol-pink-text: #C14C8A;
-          --pcol-red-bg: #FFE2DD; --pcol-red-text: #D44C47;
+          --pcol-gray-bg: #EDECE9; --pcol-gray-text: #55534E; --pcol-gray-container: #F7F7F6;
+          --pcol-brown-bg: #EEE0DA; --pcol-brown-text: #64473A; --pcol-brown-container: #F8F2EF;
+          --pcol-orange-bg: #FADEC9; --pcol-orange-text: #D9730D; --pcol-orange-container: #FDF2E8;
+          --pcol-yellow-bg: #FDECC8; --pcol-yellow-text: #CB912F; --pcol-yellow-container: #FEF9EB;
+          --pcol-green-bg: #DBEDDB; --pcol-green-text: #448361; --pcol-green-container: #EFF8EF;
+          --pcol-blue-bg: #D3E5EF; --pcol-blue-text: #337EA9; --pcol-blue-container: #EFF5F9;
+          --pcol-purple-bg: #E8DEEE; --pcol-purple-text: #9065B0; --pcol-purple-container: #F6F2F9;
+          --pcol-pink-bg: #F5E0E9; --pcol-pink-text: #C14C8A; --pcol-pink-container: #FBF2F6;
+          --pcol-red-bg: #FFE2DD; --pcol-red-text: #D44C47; --pcol-red-container: #FFF3F1;
+          --pcol-default-container: #F7F7F5;
         }
-        .pb-card { transition: background .14s ease, border-color .14s ease, box-shadow .14s ease, transform .14s ease; }
-        .pb-card:hover { background: var(--bg-3); border-color: var(--border-2); box-shadow: var(--pb-shadow-hover); transform: translateY(-1px); }
+        .pb-card { transition: box-shadow .14s ease, transform .14s ease; }
+        .pb-card:hover { box-shadow: var(--pb-shadow-hover); transform: translateY(-1px); }
         .pb-check { transition: background .12s ease; }
         .pb-check:hover { background: var(--bg-3); }
         .pb-ghost { transition: background .12s ease, border-color .12s ease; }
@@ -5022,7 +5024,7 @@ const S = {
   personalSearchInput: { background: 'transparent', border: 'none', color: 'var(--text-1)', fontSize: 12, padding: 0, flex: 1, minWidth: 0 },
   personalFilterSelect: { fontSize: 11.5, padding: '5px 8px', borderRadius: 8, width: 'auto', flexShrink: 0 },
   personalBoardArea: { display: 'flex', gap: 16, padding: '16px 24px 32px', overflowX: 'auto', alignItems: 'flex-start' },
-  personalCol: { background: 'transparent', border: 'none', borderRadius: 10, padding: '2px 2px', minWidth: 300, width: 300, flexShrink: 0 },
+  personalCol: { border: 'none', borderRadius: 14, padding: 10, minWidth: 300, width: 300, flexShrink: 0, transition: 'background .16s ease' },
   personalColHead: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 650, marginBottom: 10, color: 'var(--text-2)', padding: '4px 2px' },
   personalColTag: { display: 'flex', alignItems: 'center', flex: 1, minWidth: 0, padding: '3px 9px', borderRadius: 6 },
   personalColGrip: { display: 'flex', cursor: 'grab', flexShrink: 0, opacity: .5 },
@@ -5030,7 +5032,7 @@ const S = {
   personalColBody: { minHeight: 12 },
   personalColEmpty: { fontSize: 11.5, color: 'var(--text-7)', padding: '10px 4px', textAlign: 'center' },
   personalQuickAddInput: { width: '100%', fontSize: 12.5, padding: '8px 10px', borderRadius: 8, marginTop: 2 },
-  personalCard: { background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 8, padding: '10px 12px', marginBottom: 8, boxShadow: 'var(--pb-shadow-soft)' },
+  personalCard: { background: 'var(--bg-1)', border: 'none', borderRadius: 8, padding: '10px 12px', marginBottom: 8, boxShadow: 'var(--pb-shadow-soft)' },
   personalCardDone: { opacity: .72 },
   personalCardTop: { display: 'flex', alignItems: 'flex-start', gap: 6 },
   personalCardCheck: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 17, height: 17, borderRadius: '50%', border: '1.5px solid var(--border-2)', background: 'transparent', color: '#3ecf6e', cursor: 'pointer', flexShrink: 0, marginTop: 1, padding: 0 },
