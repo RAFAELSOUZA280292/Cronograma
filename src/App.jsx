@@ -2999,9 +2999,9 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
           value={card.desc || ''}
           onChange={(e) => onUpdate({ desc: e.target.value })}
           onBlur={() => onUpdate({}, 'Descrição atualizada')}
-          rows={4}
+          rows={6}
           placeholder="Descrição, anotações..."
-          style={S.notesArea}
+          style={{ ...S.notesArea, minHeight: 120, fontSize: 13.5, padding: '10px 12px' }}
         />
 
         <div style={S.subSectionLabel}><ListChecks size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Checklist {card.checklist && card.checklist.length > 0 ? `(${doneCount}/${card.checklist.length})` : ''}</div>
@@ -3632,6 +3632,16 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
     <div style={S.page}>
       <style>{`
         @keyframes personalSkeletonPulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
+        * { box-sizing: border-box; }
+        input, select, textarea, button { font-family: 'Inter', sans-serif; }
+        input[type=text], input[type=date], input[type=email], input[type=password], input[type=number], select, textarea {
+          background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
+          padding:6px 8px; font-size:12.5px; width:100%;
+        }
+        input[type=text]:focus, input[type=date]:focus, input[type=email]:focus, input[type=password]:focus, input[type=number]:focus, select:focus, textarea:focus {
+          outline:none; border-color:#F5C400;
+        }
+        input[type=checkbox]{ accent-color:#F5C400; width:15px; height:15px; }
       `}</style>
       <div className="no-print" style={S.topbar}>
         <div style={S.brandRow}>
