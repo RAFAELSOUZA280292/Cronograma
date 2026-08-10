@@ -82,16 +82,19 @@ Componentes de tela/modal (nome → linha → responsabilidade):
 | 2155 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) |
 | 2403 | `EditCompanyModal` | Edição de empresa já criada |
 | **2488** | **`CompanySelectorScreen`** | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, atalho p/ Gestão de Atividades |
-| 2682 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades |
-| 2818–3410 | **Gestão de Atividades pessoal** (Kanban) | `ColorSwatchGrid`, `PriorityPicker`, `StatusPicker`, `TagEditor`, `PersonalColumnMenu`, `PersonalCardMenu`, `PersonalCard`, `PersonalColumn`, `PersonalCardDetailModal`, `PersonalListView`, `ReassignCardsModal`, `PersonalTrashPanel` |
-| **3429** | **`PersonalBoardScreen`** | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros) |
-| 4127 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
-| **4161** | **`ActivityDetailModal`** | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários, histórico |
-| **4417** | **`TableView`** | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) |
-| 4784 | `PhasesView` | View "Fases" |
-| 4914 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
-| 4968 | `TimelineView` | View "Gantt" |
-| 5121 | `const S = {...}` | Objeto de estilos inline (~380 linhas) |
+| 2779 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades |
+| 2915–3577 | **Gestão de Atividades pessoal** (Kanban) | `ColorSwatchGrid`, `PriorityPicker`, `StatusPicker`, `TagEditor`, `PersonalColumnMenu`, `PersonalCardMenu`, `PersonalCard`, `PersonalColumn`, `PersonalCardDetailModal`, `PersonalListView`, `ReassignCardsModal`, `PersonalTrashPanel` |
+| 3549 | `BoardShareModal` | Modal de visibilidade da página (Privado/Público por link, copiar/gerar link) |
+| 3603 | `BoardActivityLogModal` | Painel de histórico do quadro — agrega `board.log` + `card.history` de todas as colunas |
+| **3626** | **`PersonalBoardScreen`** | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros, `publicMode`/`readOnly` props) |
+| **4386** | **`PublicBoardScreen`** | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
+| 4480 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
+| **4515** | **`ActivityDetailModal`** | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários, histórico |
+| **4773** | **`TableView`** | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) |
+| 5251 | `PhasesView` | View "Fases" |
+| 5381 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
+| 5436 | `TimelineView` | View "Gantt" |
+| 5589 | `const S = {...}` | Objeto de estilos inline (~380 linhas) |
 
 ### 3.1 Responsividade / mobile
 
@@ -125,12 +128,20 @@ usam `S.detailBox`.
 - Dependências: `xlsx` (export Excel), `window.print` (export PDF, sem lib).
 
 ### Gestão de Atividades (quadro pessoal, dnd-kit)
-- Telas: `WorkspaceGateScreen` (L2682, entrada), `PersonalBoardScreen` (L3429).
+- Telas: `WorkspaceGateScreen` (L2779, entrada), `PersonalBoardScreen` (L3626),
+  `PublicBoardScreen` (L4386, embed de uma página via link público).
 - Componentes: `PersonalColumn`, `PersonalCard`, `PersonalCardDetailModal`,
   `PersonalListView`, `PersonalColumnMenu`, `PersonalCardMenu`,
-  `ReassignCardsModal`, `PersonalTrashPanel`, `ToastStack`.
-- APIs: `GET/PATCH /personal-board`.
-- Modelo: tabela `personal_boards` (JSONB, 1 linha por usuário) — `boards[].columns[].cards[]`.
+  `ReassignCardsModal`, `PersonalTrashPanel`, `ToastStack`, `BoardShareModal`,
+  `BoardActivityLogModal`.
+- APIs: `GET/PATCH /personal-board` (dono, autenticado); `GET/PATCH
+  /public-board/:token` (link público — GET com `optionalAuth`, PATCH com
+  `requireAuth` mas sem checar dono).
+- Modelo: tabela `personal_boards` (JSONB, 1 linha por usuário) —
+  `boards[].columns[].cards[]`; cada board tem `visibility`
+  (`private`|`public`), `shareToken`, `log[]` (eventos estruturais — o board
+  público some no `BoardActivityLogModal` junto com `card.history`
+  agregado).
 - Dependência: `@dnd-kit/core` + `@dnd-kit/sortable` (só usado aqui).
 
 ### Usuários (admin)
@@ -203,6 +214,8 @@ Sem migrations formais — `initDb()` roda `CREATE TABLE IF NOT EXISTS` +
 | POST /cnpj/lookup | Consulta CNPJ (cache/BrasilAPI/ReceitaWS) | routes.js → cnpjLookup.js |
 | GET /personal-board | Busca (ou cria) quadro pessoal do usuário | routes.js |
 | PATCH /personal-board | Salva quadro pessoal inteiro | routes.js |
+| GET /public-board/:token | Busca UMA página pública por token (sem auth; `optionalAuth` preenche `canEdit`) | routes.js |
+| PATCH /public-board/:token | Salva UMA página pública (`requireAuth`, qualquer usuário logado — token é a autorização) | routes.js |
 
 ## 8. Dependências entre módulos (maior impacto lateral)
 
