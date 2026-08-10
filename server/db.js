@@ -91,6 +91,9 @@ export function blankPersonalBoard() {
       {
         id: uid('board'),
         name: 'Minhas atividades',
+        visibility: 'private',
+        shareToken: '',
+        log: [],
         columns: [
           { id: uid('col'), name: 'A fazer', cards: [] },
           { id: uid('col'), name: 'Em andamento', cards: [] },

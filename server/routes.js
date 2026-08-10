@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool, blankProject, blankPersonalBoard } from './db.js';
 import {
   hashPassword, comparePassword, signToken, setAuthCookie, clearAuthCookie,
-  rowToUser, findUserByUsername, findUserById, requireAuth, requireMaster, requireMasterOrPricetax, toISODateSafe,
+  rowToUser, findUserByUsername, findUserById, requireAuth, requireMaster, requireMasterOrPricetax, optionalAuth, toISODateSafe,
 } from './auth.js';
 import { lookupCnpj, cleanCnpj, formatCnpj } from './cnpjLookup.js';
 
@@ -327,5 +327,57 @@ router.patch('/personal-board', requireAuth, async (req, res, next) => {
       [req.user.id, JSON.stringify(board)]
     );
     res.json({ board });
+  } catch (e) { next(e); }
+});
+
+// ---------- Public board sharing (per-board link; anonymous = read-only, logged-in = full edit) ----------
+// Nenhuma tabela nova: cada board dentro do JSONB carrega seu próprio shareToken/visibility.
+// A busca abaixo varre todas as linhas de personal_boards (poucas dezenas de usuários hoje) —
+// não escala pra milhares de usuários, mas evita criar um índice relacional só pra isso.
+
+async function findBoardByShareToken(token) {
+  const { rows } = await pool.query('SELECT user_id, data FROM personal_boards');
+  for (const row of rows) {
+    const boards = (row.data && row.data.boards) || [];
+    const idx = boards.findIndex((b) => b.shareToken && b.shareToken === token);
+    if (idx !== -1) return { ownerId: row.user_id, ownerData: row.data, boardIndex: idx, board: boards[idx] };
+  }
+  return null;
+}
+
+router.get('/public-board/:token', optionalAuth, async (req, res, next) => {
+  try {
+    const found = await findBoardByShareToken(req.params.token);
+    if (!found || found.board.visibility !== 'public') {
+      return res.status(404).json({ message: 'Link inválido ou o quadro não é mais público.' });
+    }
+    let ownerName = '';
+    if (req.user && req.user.id === found.ownerId) {
+      ownerName = req.user.name;
+    } else {
+      const ownerRow = await findUserById(found.ownerId);
+      ownerName = ownerRow ? ownerRow.name : '';
+    }
+    res.json({ board: found.board, canEdit: !!req.user, ownerName });
+  } catch (e) { next(e); }
+});
+
+router.patch('/public-board/:token', requireAuth, async (req, res, next) => {
+  try {
+    const patchedBoard = req.body && req.body.board;
+    if (!patchedBoard) return res.status(400).json({ message: 'Payload inválido.' });
+    const found = await findBoardByShareToken(req.params.token);
+    if (!found || found.board.visibility !== 'public') {
+      return res.status(404).json({ message: 'Link inválido ou o quadro não é mais público.' });
+    }
+    if (patchedBoard.id !== found.board.id) {
+      return res.status(400).json({ message: 'Quadro inválido.' });
+    }
+    const nextData = {
+      ...found.ownerData,
+      boards: found.ownerData.boards.map((b, i) => (i === found.boardIndex ? patchedBoard : b)),
+    };
+    await pool.query('UPDATE personal_boards SET data=$1, updated_at=now() WHERE user_id=$2', [JSON.stringify(nextData), found.ownerId]);
+    res.json({ board: patchedBoard });
   } catch (e) { next(e); }
 });

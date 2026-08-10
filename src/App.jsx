@@ -4,7 +4,8 @@ import {
   Users, X, Check, ChevronDown, FileSpreadsheet, FileText, Settings,
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
   LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History,
-  MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal
+  MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal,
+  Globe, Lock, RefreshCw,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -145,6 +146,7 @@ function dueDateTone(card) {
 }
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
+function genShareToken() { return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
 function todayISOStr() { return toISODate(startOfDay(new Date())); }
 
@@ -551,6 +553,11 @@ export default function App() {
       if (saved) persistProjectDebounced(pid, saved);
       return nextArr;
     });
+  }
+
+  const publicBoardMatch = window.location.pathname.match(/^\/quadro\/([A-Za-z0-9_-]+)/);
+  if (publicBoardMatch) {
+    return <PublicBoardScreen token={publicBoardMatch[1]} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   if (!sessionChecked) {
@@ -3066,9 +3073,9 @@ function PersonalCardMenu({ card, otherColumns, onClose, onOpen, onSetPriority, 
   );
 }
 
-function PersonalCard({ card, columnId, disabled, otherColumns, onOpen, onToggleComplete, onDelete, onDuplicate, onSetPriority, onSetStatus, onMoveTo }) {
+function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen, onToggleComplete, onDelete, onDuplicate, onSetPriority, onSetStatus, onMoveTo }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id, data: { type: 'card', columnId }, disabled });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id, data: { type: 'card', columnId }, disabled: disabled || readOnly });
   const style = { transform: DndCSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   const tone = dueDateTone(card);
   const doneCount = (card.checklist || []).filter((i) => i.done).length;
@@ -3081,33 +3088,35 @@ function PersonalCard({ card, columnId, disabled, otherColumns, onOpen, onToggle
     <div
       ref={setNodeRef}
       className="pb-card"
-      style={{ ...S.personalCard, ...style, ...(disabled ? {} : { cursor: 'grab', touchAction: 'none' }), ...(card.completed ? S.personalCardDone : {}) }}
+      style={{ ...S.personalCard, ...style, ...(disabled || readOnly ? {} : { cursor: 'grab', touchAction: 'none' }), ...(card.completed ? S.personalCardDone : {}) }}
       {...attributes}
-      {...listeners}
+      {...(readOnly ? {} : listeners)}
       onClick={onOpen}
     >
       <div style={S.personalCardTop}>
-        <button className="pb-check" style={S.personalCardCheck} onClick={(e) => { e.stopPropagation(); onToggleComplete(); }} title={card.completed ? 'Reabrir' : 'Marcar como concluída'}>
+        <button className="pb-check" style={S.personalCardCheck} onClick={(e) => { e.stopPropagation(); if (!readOnly) onToggleComplete(); }} title={card.completed ? 'Reabrir' : 'Marcar como concluída'}>
           {card.completed ? <Check size={13} /> : <span style={S.personalCardCheckEmpty} />}
         </button>
         <div style={{ ...S.personalCardTitleText, ...(card.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{card.title}</div>
-        <div style={{ position: 'relative' }}>
-          <button style={S.iconBtnGhost} onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}><MoreHorizontal size={13} /></button>
-          {menuOpen && (
-            <PersonalCardMenu
-              card={card}
-              otherColumns={otherColumns}
-              onClose={() => setMenuOpen(false)}
-              onOpen={onOpen}
-              onSetPriority={onSetPriority}
-              onSetStatus={onSetStatus}
-              onToggleComplete={onToggleComplete}
-              onMoveTo={onMoveTo}
-              onDuplicate={onDuplicate}
-              onDelete={onDelete}
-            />
-          )}
-        </div>
+        {!readOnly && (
+          <div style={{ position: 'relative' }}>
+            <button style={S.iconBtnGhost} onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}><MoreHorizontal size={13} /></button>
+            {menuOpen && (
+              <PersonalCardMenu
+                card={card}
+                otherColumns={otherColumns}
+                onClose={() => setMenuOpen(false)}
+                onOpen={onOpen}
+                onSetPriority={onSetPriority}
+                onSetStatus={onSetStatus}
+                onToggleComplete={onToggleComplete}
+                onMoveTo={onMoveTo}
+                onDuplicate={onDuplicate}
+                onDelete={onDelete}
+              />
+            )}
+          </div>
+        )}
       </div>
       {hasMeta && (
         <div style={S.personalCardMeta}>
@@ -3133,7 +3142,7 @@ function PersonalCard({ card, columnId, disabled, otherColumns, onOpen, onToggle
 }
 
 function PersonalColumn({
-  column, cardsToRender, totalVisibleCount, dragDisabled, canMoveLeft, canMoveRight, otherColumns,
+  column, cardsToRender, totalVisibleCount, dragDisabled, readOnly, canMoveLeft, canMoveRight, otherColumns,
   onAddCard, onOpenCard, onToggleComplete, onDeleteCard, onDuplicateCard, onSetPriority, onSetStatus, onMoveCardTo,
   onRenameColumn, onColorChange, onToggleHideCompleted, onMoveLeft, onMoveRight, onDuplicateColumn, onSortColumnNow, onDeleteColumn,
 }) {
@@ -3143,7 +3152,7 @@ function PersonalColumn({
   const inputRef = useRef(null);
   const nameInputRef = useRef(null);
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column.id, data: { type: 'column' } });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column.id, data: { type: 'column' }, disabled: readOnly });
   const { setNodeRef: setDropRef } = useDroppable({ id: `coldrop-${column.id}`, data: { type: 'coldrop', columnId: column.id } });
   const isMobile = useIsMobile();
   const style = { transform: DndCSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, ...(isMobile ? S.personalColMobile : null) };
@@ -3163,37 +3172,40 @@ function PersonalColumn({
 
   return (
     <div ref={setNodeRef} style={{ ...S.personalCol, background: colorMeta ? colorMeta.container : 'var(--pcol-default-container)', ...style }}>
-      <div {...attributes} {...listeners} style={{ ...S.personalColHead, cursor: 'grab', touchAction: 'none' }}>
-        <span style={S.personalColGrip}><GripVertical size={13} color="var(--text-8)" /></span>
+      <div {...(readOnly ? {} : { ...attributes, ...listeners })} style={{ ...S.personalColHead, ...(readOnly ? {} : { cursor: 'grab', touchAction: 'none' }) }}>
+        {!readOnly && <span style={S.personalColGrip}><GripVertical size={13} color="var(--text-8)" /></span>}
         <div style={{ ...S.personalColTag, background: colorMeta ? colorMeta.bg : 'transparent' }}>
           <input
             ref={nameInputRef}
             value={column.name}
+            readOnly={readOnly}
             onChange={(e) => onRenameColumn(column.id, e.target.value)}
             style={{ ...S.personalColNameInput, color: colorMeta ? colorMeta.text : 'var(--text-2)' }}
           />
         </div>
         <span style={S.kanbanCount}>{totalVisibleCount}</span>
-        <div style={{ position: 'relative' }}>
-          <button style={S.iconBtnGhost} onClick={() => setMenuOpen((v) => !v)}><MoreHorizontal size={14} /></button>
-          {menuOpen && (
-            <PersonalColumnMenu
-              column={column}
-              canMoveLeft={canMoveLeft}
-              canMoveRight={canMoveRight}
-              onClose={() => setMenuOpen(false)}
-              onAddCard={() => setShowQuickAdd(true)}
-              onRename={() => nameInputRef.current && nameInputRef.current.focus()}
-              onColorChange={(color) => onColorChange(column.id, color)}
-              onToggleHideCompleted={() => onToggleHideCompleted(column.id)}
-              onMoveLeft={onMoveLeft}
-              onMoveRight={onMoveRight}
-              onDuplicate={onDuplicateColumn}
-              onSortNow={onSortColumnNow}
-              onDelete={onDeleteColumn}
-            />
-          )}
-        </div>
+        {!readOnly && (
+          <div style={{ position: 'relative' }}>
+            <button style={S.iconBtnGhost} onClick={() => setMenuOpen((v) => !v)}><MoreHorizontal size={14} /></button>
+            {menuOpen && (
+              <PersonalColumnMenu
+                column={column}
+                canMoveLeft={canMoveLeft}
+                canMoveRight={canMoveRight}
+                onClose={() => setMenuOpen(false)}
+                onAddCard={() => setShowQuickAdd(true)}
+                onRename={() => nameInputRef.current && nameInputRef.current.focus()}
+                onColorChange={(color) => onColorChange(column.id, color)}
+                onToggleHideCompleted={() => onToggleHideCompleted(column.id)}
+                onMoveLeft={onMoveLeft}
+                onMoveRight={onMoveRight}
+                onDuplicate={onDuplicateColumn}
+                onSortNow={onSortColumnNow}
+                onDelete={onDeleteColumn}
+              />
+            )}
+          </div>
+        )}
       </div>
 
       <div ref={setDropRef} style={S.personalColBody}>
@@ -3204,6 +3216,7 @@ function PersonalColumn({
               card={card}
               columnId={column.id}
               disabled={dragDisabled}
+              readOnly={readOnly}
               otherColumns={otherColumns}
               onOpen={() => onOpenCard(column.id, card.id)}
               onToggleComplete={() => onToggleComplete(column.id, card.id)}
@@ -3218,7 +3231,7 @@ function PersonalColumn({
         {cardsToRender.length === 0 && <div style={S.personalColEmpty}>Nenhuma tarefa aqui.</div>}
       </div>
 
-      {showQuickAdd ? (
+      {!readOnly && (showQuickAdd ? (
         <input
           ref={inputRef}
           autoFocus
@@ -3234,12 +3247,12 @@ function PersonalColumn({
         />
       ) : (
         <button className="pb-addbtn" style={{ ...S.personalAddCard, color: colorMeta ? colorMeta.text : 'var(--text-5)' }} onClick={() => setShowQuickAdd(true)}><Plus size={12} /> Nova atividade</button>
-      )}
+      ))}
     </div>
   );
 }
 
-function PersonalCardDetailModal({ card, columnName, boardName, allTags, currentUserId, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onRemoveChecklistItem }) {
+function PersonalCardDetailModal({ card, columnName, boardName, allTags, currentUserId, readOnly, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onRemoveChecklistItem }) {
   const [commentDraft, setCommentDraft] = useState('');
   const [checklistDraft, setChecklistDraft] = useState('');
   const [editingCommentId, setEditingCommentId] = useState(null);
@@ -3273,66 +3286,78 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
           <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-          <button style={S.personalCardCheck} onClick={onToggleComplete} title={card.completed ? 'Reabrir' : 'Marcar como concluída'}>
-            {card.completed ? <Check size={16} /> : <span style={S.personalCardCheckEmptyLg} />}
-          </button>
-          <input
-            value={card.title}
-            onChange={(e) => onUpdate({ title: e.target.value })}
-            onBlur={() => onUpdate({}, 'Título atualizado')}
-            style={{ ...S.personalDetailTitleInput, ...(card.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}
-          />
-        </div>
-
-        <div>
-          <div style={S.fieldHint}>Status</div>
-          <StatusPicker value={cardStatusOf(card)} onChange={onSetStatus} />
-        </div>
-
-        <div style={S.cardPropsGrid}>
-          <div>
-            <div style={S.fieldHint}>Prioridade</div>
-            <PriorityPicker value={card.priority || ''} onChange={(p) => onUpdate({ priority: p }, `Prioridade alterada: ${p ? CARD_PRIORITY_META[p].label : 'sem prioridade'}`)} />
+        {readOnly && (
+          <div style={{ ...S.fieldHint, background: 'var(--bg-3)', padding: '6px 10px', borderRadius: 6, marginBottom: 8 }}>
+            👁️ Somente visualização — você está vendo pelo link público
           </div>
-          <div>
-            <div style={S.fieldHint}>Prazo</div>
-            <input type="date" value={card.dueDate || ''} onChange={(e) => onUpdate({ dueDate: e.target.value }, e.target.value ? `Prazo alterado: ${fmtDate(e.target.value)}` : 'Prazo removido')} />
+        )}
+
+        <div style={{ pointerEvents: readOnly ? 'none' : 'auto', opacity: readOnly ? .85 : 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <button style={S.personalCardCheck} onClick={onToggleComplete} title={card.completed ? 'Reabrir' : 'Marcar como concluída'}>
+              {card.completed ? <Check size={16} /> : <span style={S.personalCardCheckEmptyLg} />}
+            </button>
+            <input
+              value={card.title}
+              readOnly={readOnly}
+              onChange={(e) => onUpdate({ title: e.target.value })}
+              onBlur={() => onUpdate({}, 'Título atualizado')}
+              style={{ ...S.personalDetailTitleInput, ...(card.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}
+            />
           </div>
-        </div>
 
-        <div style={S.subSectionLabel}><Tag size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Tags</div>
-        <TagEditor tags={card.tags || []} onChange={(tags) => onUpdate({ tags }, 'Tags atualizadas')} suggestions={allTags} />
+          <div>
+            <div style={S.fieldHint}>Status</div>
+            <StatusPicker value={cardStatusOf(card)} onChange={onSetStatus} />
+          </div>
 
-        <div style={S.subSectionLabel}>Descrição</div>
-        <textarea
-          value={card.desc || ''}
-          onChange={(e) => onUpdate({ desc: e.target.value })}
-          onBlur={() => onUpdate({}, 'Descrição atualizada')}
-          rows={6}
-          placeholder="Descrição, anotações..."
-          style={{ ...S.notesArea, minHeight: 120, fontSize: 13.5, padding: '10px 12px' }}
-        />
-
-        <div style={S.subSectionLabel}><ListChecks size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Checklist {card.checklist && card.checklist.length > 0 ? `(${doneCount}/${card.checklist.length})` : ''}</div>
-        <div style={S.checklistList}>
-          {(card.checklist || []).map((item) => (
-            <div key={item.id} style={S.checklistRow}>
-              <input type="checkbox" checked={item.done} onChange={() => onToggleChecklistItem(item.id)} />
-              <span style={{ flex: 1, ...(item.done ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{item.text}</span>
-              <button style={S.chipX} onClick={() => onRemoveChecklistItem(item.id)}><X size={12} /></button>
+          <div style={S.cardPropsGrid}>
+            <div>
+              <div style={S.fieldHint}>Prioridade</div>
+              <PriorityPicker value={card.priority || ''} onChange={(p) => onUpdate({ priority: p }, `Prioridade alterada: ${card.priority ? CARD_PRIORITY_META[card.priority].label : 'sem prioridade'} → ${p ? CARD_PRIORITY_META[p].label : 'sem prioridade'}`)} />
             </div>
-          ))}
-        </div>
-        <div style={S.commentInputRow}>
-          <input
-            value={checklistDraft}
-            onChange={(e) => setChecklistDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitChecklist(); } }}
-            placeholder="Adicionar item..."
-            style={{ flex: 1 }}
+            <div>
+              <div style={S.fieldHint}>Prazo</div>
+              <input type="date" value={card.dueDate || ''} onChange={(e) => onUpdate({ dueDate: e.target.value }, e.target.value ? `Prazo alterado: ${fmtDate(e.target.value)}` : 'Prazo removido')} />
+            </div>
+          </div>
+
+          <div style={S.subSectionLabel}><Tag size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Tags</div>
+          <TagEditor tags={card.tags || []} onChange={(tags) => onUpdate({ tags }, 'Tags atualizadas')} suggestions={allTags} />
+
+          <div style={S.subSectionLabel}>Descrição</div>
+          <textarea
+            value={card.desc || ''}
+            readOnly={readOnly}
+            onChange={(e) => onUpdate({ desc: e.target.value })}
+            onBlur={() => onUpdate({}, 'Descrição atualizada')}
+            rows={6}
+            placeholder="Descrição, anotações..."
+            style={{ ...S.notesArea, minHeight: 120, fontSize: 13.5, padding: '10px 12px' }}
           />
-          <button style={S.iconBtn} onClick={submitChecklist}><Plus size={13} /></button>
+
+          <div style={S.subSectionLabel}><ListChecks size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Checklist {card.checklist && card.checklist.length > 0 ? `(${doneCount}/${card.checklist.length})` : ''}</div>
+          <div style={S.checklistList}>
+            {(card.checklist || []).map((item) => (
+              <div key={item.id} style={S.checklistRow}>
+                <input type="checkbox" checked={item.done} onChange={() => onToggleChecklistItem(item.id)} />
+                <span style={{ flex: 1, ...(item.done ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{item.text}</span>
+                <button style={S.chipX} onClick={() => onRemoveChecklistItem(item.id)}><X size={12} /></button>
+              </div>
+            ))}
+          </div>
+          {!readOnly && (
+            <div style={S.commentInputRow}>
+              <input
+                value={checklistDraft}
+                onChange={(e) => setChecklistDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitChecklist(); } }}
+                placeholder="Adicionar item..."
+                style={{ flex: 1 }}
+              />
+              <button style={S.iconBtn} onClick={submitChecklist}><Plus size={13} /></button>
+            </div>
+          )}
         </div>
 
         <div style={{ ...S.subSectionLabel, marginTop: 18 }}><MessageSquare size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Comentários {(card.comments || []).length > 0 ? `(${card.comments.length})` : ''}</div>
@@ -3356,7 +3381,7 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
                 ) : (
                   <div style={S.commentText}>{c.text}</div>
                 )}
-                {isOwn && editingCommentId !== c.id && (
+                {!readOnly && isOwn && editingCommentId !== c.id && (
                   <div style={S.commentMeta}>
                     <span />
                     <span style={{ display: 'flex', gap: 8 }}>
@@ -3369,17 +3394,19 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
             );
           })}
         </div>
-        <div style={S.commentInputRow}>
-          <textarea
-            value={commentDraft}
-            onChange={(e) => setCommentDraft(e.target.value)}
-            onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); submitComment(); } }}
-            placeholder="Escreva um comentário... (Cmd/Ctrl+Enter para enviar)"
-            rows={2}
-            style={{ flex: 1 }}
-          />
-          <button style={S.primaryBtn} onClick={submitComment}><Send size={14} /></button>
-        </div>
+        {!readOnly && (
+          <div style={S.commentInputRow}>
+            <textarea
+              value={commentDraft}
+              onChange={(e) => setCommentDraft(e.target.value)}
+              onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); submitComment(); } }}
+              placeholder="Escreva um comentário... (Cmd/Ctrl+Enter para enviar)"
+              rows={2}
+              style={{ flex: 1 }}
+            />
+            <button style={S.primaryBtn} onClick={submitComment}><Send size={14} /></button>
+          </div>
+        )}
 
         <div style={{ ...S.subSectionLabel, marginTop: 18 }}><History size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Histórico</div>
         <div style={S.historyList}>
@@ -3392,13 +3419,13 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
           ))}
         </div>
 
-        <button style={{ ...S.iconBtn, marginTop: 20, color: '#e2574c' }} onClick={onDelete}><Trash2 size={14} /> Excluir tarefa</button>
+        {!readOnly && <button style={{ ...S.iconBtn, marginTop: 20, color: '#e2574c' }} onClick={onDelete}><Trash2 size={14} /> Excluir tarefa</button>}
       </div>
     </div>
   );
 }
 
-function PersonalListView({ board, filterFn, onOpenCard, onToggleComplete }) {
+function PersonalListView({ board, filterFn, onOpenCard, onToggleComplete, readOnly }) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState(1);
 
@@ -3451,7 +3478,7 @@ function PersonalListView({ board, filterFn, onOpenCard, onToggleComplete }) {
             const priorityMeta = r.priority ? CARD_PRIORITY_META[r.priority] : null;
             return (
               <tr key={r.id} style={S.personalListRow} onClick={() => onOpenCard(r._colId, r.id)}>
-                <td style={S.personalListTd}><input type="checkbox" checked={r.completed} onClick={(e) => e.stopPropagation()} onChange={() => onToggleComplete(r._colId, r.id)} /></td>
+                <td style={S.personalListTd}><input type="checkbox" checked={r.completed} disabled={readOnly} onClick={(e) => e.stopPropagation()} onChange={() => onToggleComplete(r._colId, r.id)} /></td>
                 <td style={{ ...S.personalListTd, ...(r.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{r.title}</td>
                 <td style={S.personalListTd}>{r._colName}</td>
                 <td style={S.personalListTd}><span style={{ color: CARD_STATUS_META[cardStatusOf(r)].color }}>{CARD_STATUS_META[cardStatusOf(r)].label}</span></td>
@@ -3519,7 +3546,84 @@ function PersonalTrashPanel({ trashItems, onClose, onRestore, onHardDelete }) {
   );
 }
 
-function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, theme, onToggleTheme, saveState }) {
+function BoardShareModal({ board, onClose, onSetVisibility, onRegenerateLink }) {
+  const [copied, setCopied] = useState(false);
+  const isPublic = board.visibility === 'public';
+  const publicUrl = isPublic && board.shareToken ? `${window.location.origin}/quadro/${board.shareToken}` : '';
+
+  function copyLink() {
+    if (!publicUrl) return;
+    navigator.clipboard.writeText(publicUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }).catch(() => {});
+  }
+
+  return (
+    <div style={S.detailOverlay} onClick={onClose}>
+      <div style={{ ...S.detailBox, width: 'min(480px, 100%)' }} onClick={(e) => e.stopPropagation()}>
+        <div style={S.detailTopBar}>
+          <div style={S.subSectionLabel}>Visibilidade da página "{board.name}"</div>
+          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 }}>
+          <label style={S.cnpjCheckRow}>
+            <input type="radio" name="board-visibility" checked={!isPublic} onChange={() => onSetVisibility('private')} />
+            <Lock size={13} style={{ verticalAlign: -2, marginRight: 4 }} /> Privado — só você pode ver e editar
+          </label>
+          <label style={S.cnpjCheckRow}>
+            <input type="radio" name="board-visibility" checked={isPublic} onChange={() => onSetVisibility('public')} />
+            <Globe size={13} style={{ verticalAlign: -2, marginRight: 4 }} /> Público por link — qualquer pessoa com o link pode ver
+          </label>
+        </div>
+        {isPublic && (
+          <>
+            <div style={{ ...S.fieldHint, marginTop: 12, lineHeight: 1.5 }}>
+              Quem tiver o link e <b>não estiver logado</b> só consegue visualizar (não pode criar, editar, mover, comentar ou excluir nada).
+              Quem <b>estiver logado</b> na plataforma pode colaborar normalmente, e cada ação fica registrada no histórico do quadro.
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <input value={publicUrl} readOnly onFocus={(e) => e.target.select()} style={{ flex: 1 }} />
+              <button style={S.primaryBtn} onClick={copyLink}>{copied ? 'Copiado!' : 'Copiar link'}</button>
+            </div>
+            <button
+              className="pb-ghost"
+              style={{ ...S.pbGhostBtn, marginTop: 10 }}
+              onClick={() => { if (window.confirm('Gerar um novo link público? O link atual deixará de funcionar imediatamente.')) onRegenerateLink(); }}
+            >
+              <RefreshCw size={13} /> Gerar novo link
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BoardActivityLogModal({ board, onClose }) {
+  const feed = useMemo(() => {
+    const items = [];
+    (board.log || []).forEach((l) => items.push({ ts: l.ts, user: l.user, action: l.action }));
+    (board.columns || []).forEach((c) => (c.cards || []).forEach((cd) => (cd.history || []).forEach((h) => {
+      items.push({ ts: h.ts, user: h.user, action: `"${cd.title}" — ${h.action}` });
+    })));
+    return items.sort((a, b) => (b.ts || '').localeCompare(a.ts || '')).slice(0, 300);
+  }, [board]);
+
+  return (
+    <SidePanel title={`Histórico do quadro "${board.name}"`} onClose={onClose}>
+      {feed.length === 0 && <div style={S.emptyMuted}>Nenhuma atividade registrada ainda.</div>}
+      {feed.map((l, i) => (
+        <div key={i} style={S.logRow}>
+          <div style={S.logTs}>{fmtTs(l.ts)}{l.user ? ` · ${l.user}` : ''}</div>
+          <div style={S.logAction}>{l.action}</div>
+        </div>
+      ))}
+    </SidePanel>
+  );
+}
+
+function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName }) {
   const [activeBoardId, setActiveBoardId] = useState(board.boards[0] ? board.boards[0].id : null);
   const [dragBoardId, setDragBoardId] = useState(null);
   const [openCard, setOpenCard] = useState(null);
@@ -3528,6 +3632,8 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ priority: [], dueBucket: '', tags: [], status: '' });
   const [showFilters, setShowFilters] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showActivityLog, setShowActivityLog] = useState(false);
   const activeFilterCount = (filters.status ? 1 : 0) + (filters.priority.length > 0 ? 1 : 0) + (filters.dueBucket ? 1 : 0);
   const [activeDragItem, setActiveDragItem] = useState(null);
   const { toasts, pushUndoToast, dismissToast } = useToasts();
@@ -3548,21 +3654,52 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
   const activeBoard = board.boards.find((b) => b.id === activeBoardId) || null;
   const viewPrefs = (activeBoard && activeBoard.viewPrefs) || { view: 'kanban', sortMode: 'manual' };
 
-  function mutateBoardTree(bid, updater) {
-    onMutate((prev) => ({ ...prev, boards: prev.boards.map((b) => (b.id !== bid ? b : updater(b))) }));
+  function mutateBoardTree(bid, updater, logMsg) {
+    onMutate((prev) => ({
+      ...prev,
+      boards: prev.boards.map((b) => {
+        if (b.id !== bid) return b;
+        let next = updater(b);
+        if (logMsg && next.visibility === 'public') {
+          next = { ...next, log: [{ ts: new Date().toISOString(), action: logMsg, user: currentUser.name }, ...(next.log || [])].slice(0, 300) };
+        }
+        return next;
+      }),
+    }));
   }
-  function mutateColumnTree(bid, colId, updater) {
-    mutateBoardTree(bid, (b) => ({ ...b, columns: b.columns.map((c) => (c.id !== colId ? c : updater(c))) }));
+  function mutateColumnTree(bid, colId, updater, logMsg) {
+    mutateBoardTree(bid, (b) => ({ ...b, columns: b.columns.map((c) => (c.id !== colId ? c : updater(c))) }), logMsg);
   }
-  function mutateCardTree(bid, colId, cardId, updater) {
-    mutateColumnTree(bid, colId, (c) => ({ ...c, cards: c.cards.map((cd) => (cd.id !== cardId ? cd : updater(cd))) }));
+  function mutateCardTree(bid, colId, cardId, updater, logMsg) {
+    mutateColumnTree(bid, colId, (c) => ({ ...c, cards: c.cards.map((cd) => (cd.id !== cardId ? cd : updater(cd))) }), logMsg);
   }
 
   // ---- boards (pages) ----
   function addBoard() {
-    const nb = { id: uid('board'), name: 'Nova página', viewPrefs: { view: 'kanban', sortMode: 'manual' }, columns: [{ id: uid('col'), name: 'A fazer', color: '', hideCompleted: false, cards: [] }] };
+    const nb = { id: uid('board'), name: 'Nova página', visibility: 'private', shareToken: '', log: [], viewPrefs: { view: 'kanban', sortMode: 'manual' }, columns: [{ id: uid('col'), name: 'A fazer', color: '', hideCompleted: false, cards: [] }] };
     onMutate((prev) => ({ ...prev, boards: [...prev.boards, nb] }));
     setActiveBoardId(nb.id);
+  }
+  function setBoardVisibility(boardId, visibility) {
+    onMutate((prev) => ({
+      ...prev,
+      boards: prev.boards.map((b) => {
+        if (b.id !== boardId) return b;
+        const next = { ...b, visibility, shareToken: visibility === 'public' && !b.shareToken ? genShareToken() : b.shareToken };
+        const msg = visibility === 'public' ? 'Quadro tornado público por link' : 'Quadro tornado privado';
+        return { ...next, log: [{ ts: new Date().toISOString(), action: msg, user: currentUser.name }, ...(next.log || [])].slice(0, 300) };
+      }),
+    }));
+  }
+  function regenerateShareLink(boardId) {
+    onMutate((prev) => ({
+      ...prev,
+      boards: prev.boards.map((b) => {
+        if (b.id !== boardId) return b;
+        const next = { ...b, shareToken: genShareToken() };
+        return { ...next, log: [{ ts: new Date().toISOString(), action: 'Link público regenerado (link anterior invalidado)', user: currentUser.name }, ...(next.log || [])].slice(0, 300) };
+      }),
+    }));
   }
   function renameBoard(boardId, name) {
     onMutate((prev) => ({ ...prev, boards: prev.boards.map((b) => (b.id === boardId ? { ...b, name } : b)) }));
@@ -3586,7 +3723,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
     });
   }
   function setViewPrefs(patch) {
-    if (!activeBoard) return;
+    if (!activeBoard || readOnly) return;
     mutateBoardTree(activeBoard.id, (b) => ({ ...b, viewPrefs: { ...(b.viewPrefs || {}), ...patch } }));
   }
 
@@ -3594,7 +3731,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
   function addColumn() {
     if (!activeBoard) return;
     const nc = { id: uid('col'), name: 'Nova coluna', color: '', hideCompleted: false, cards: [] };
-    mutateBoardTree(activeBoard.id, (b) => ({ ...b, columns: [...b.columns, nc] }));
+    mutateBoardTree(activeBoard.id, (b) => ({ ...b, columns: [...b.columns, nc] }), 'Coluna criada: "Nova coluna"');
   }
   function renameColumn(colId, name) {
     mutateColumnTree(activeBoard.id, colId, (c) => ({ ...c, name }));
@@ -3655,7 +3792,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
     const activeCount = col.cards.filter((cd) => !cd.deleted).length;
     if (activeCount === 0) {
       if (!window.confirm(`Excluir a coluna "${col.name}"?`)) return;
-      mutateBoardTree(activeBoard.id, (b) => ({ ...b, columns: b.columns.filter((c) => c.id !== colId) }));
+      mutateBoardTree(activeBoard.id, (b) => ({ ...b, columns: b.columns.filter((c) => c.id !== colId) }), `Coluna excluída: "${col.name}"`);
       return;
     }
     setReassignColumn(col);
@@ -3675,7 +3812,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
       });
       const withoutCol = b.columns.filter((c) => c.id !== col.id);
       return { ...b, columns: withoutCol.map((c) => (c.id === targetColId ? { ...c, cards: [...c.cards, ...cardsToMove] } : c)) };
-    });
+    }, `Coluna excluída: "${col.name}"`);
     setReassignColumn(null);
   }
 
@@ -3693,15 +3830,16 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
       deletedFromColumnId: '', deletedFromColumnName: '', deletedFromBoardId: '', deletedFromBoardName: '',
       createdAt: now, createdBy: currentUser.name, updatedAt: now, updatedBy: currentUser.name,
     };
-    mutateColumnTree(activeBoard.id, colId, (c) => ({ ...c, cards: [...c.cards, nc] }));
+    mutateColumnTree(activeBoard.id, colId, (c) => ({ ...c, cards: [...c.cards, nc] }), `Tarefa criada: "${t}"`);
   }
   function updateCard(colId, cardId, patch, historyMsg) {
     const now = new Date().toISOString();
+    const cardBefore = findCardById(cardId);
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => {
       const next = { ...cd, ...patch, updatedAt: now, updatedBy: currentUser.name };
       if (historyMsg) next.history = [{ ts: now, action: historyMsg, user: currentUser.name }, ...(cd.history || [])].slice(0, 200);
       return next;
-    });
+    }, historyMsg && cardBefore ? `"${cardBefore.title}" — ${historyMsg}` : null);
   }
   function setCardStatus(colId, cardId, status) {
     const col = activeBoard.columns.find((c) => c.id === colId);
@@ -3710,12 +3848,13 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
     const now = new Date().toISOString();
     const wasCompleted = !!card.completed;
     const willComplete = status === 'concluida';
+    const oldLabel = CARD_STATUS_META[cardStatusOf(card)].label;
     updateCard(colId, cardId, {
       status,
       completed: willComplete,
       completedAt: willComplete ? (wasCompleted ? card.completedAt : now) : '',
       completedBy: willComplete ? (wasCompleted ? card.completedBy : currentUser.name) : '',
-    }, `Status alterado: ${CARD_STATUS_META[status].label}`);
+    }, `Status alterado: ${oldLabel} → ${CARD_STATUS_META[status].label}`);
   }
   function undoDeleteCard(colId, cardId) {
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, deleted: false, deletedAt: '', deletedBy: '' }));
@@ -3729,7 +3868,8 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
       ...cd, deleted: true, deletedAt: now, deletedBy: currentUser.name,
       deletedFromColumnId: col.id, deletedFromColumnName: col.name,
       deletedFromBoardId: activeBoard.id, deletedFromBoardName: activeBoard.name,
-    }));
+      history: [{ ts: now, action: 'Tarefa excluída', user: currentUser.name }, ...(cd.history || [])].slice(0, 200),
+    }), `Tarefa excluída: "${card.title}"`);
     pushUndoToast(`Tarefa "${card.title}" excluída.`, () => undoDeleteCard(colId, cardId));
     setOpenCard((prev) => (prev && prev.cardId === cardId ? null : prev));
   }
@@ -3766,6 +3906,10 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
     if (!fromColId || !toColId || !activeBoard) return;
     const now = new Date().toISOString();
     let moved = null;
+    const cardBeforeMove = fromColId !== toColId ? findCardById(cardId) : null;
+    const fromColNameOuter = (activeBoard.columns.find((c) => c.id === fromColId) || {}).name || '';
+    const toColNameOuter = (activeBoard.columns.find((c) => c.id === toColId) || {}).name || '';
+    const moveLogMsg = cardBeforeMove ? `"${cardBeforeMove.title}" movida de "${fromColNameOuter}" para "${toColNameOuter}"` : null;
     mutateBoardTree(activeBoard.id, (b) => {
       if (fromColId === toColId) {
         return {
@@ -3803,7 +3947,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
           return { ...c, cards };
         }),
       };
-    });
+    }, moveLogMsg);
     if (fromColId !== toColId && moved) {
       const movedTitle = moved.title;
       pushUndoToast(`Tarefa "${movedTitle}" movida para outra coluna.`, () => moveCardToIndex(cardId, toColId, fromColId, null));
@@ -3816,10 +3960,11 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
     if (!v) return;
     const now = new Date().toISOString();
     const c = { id: uid('cm'), text: v, ts: now, author: currentUser.name, authorId: currentUser.id };
+    const cardBefore = findCardById(cardId);
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({
       ...cd, comments: [...(cd.comments || []), c], updatedAt: now, updatedBy: currentUser.name,
       history: [{ ts: now, action: 'Comentário adicionado', user: currentUser.name }, ...(cd.history || [])].slice(0, 200),
-    }));
+    }), cardBefore ? `Comentário em "${cardBefore.title}"` : null);
   }
   function updateCardComment(colId, cardId, commentId, text) {
     const v = (text || '').trim();
@@ -4012,38 +4157,49 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
           <div style={S.logoPlaceholder}><Columns3 size={18} color="#F5C400" /></div>
           <div>
             <div style={S.brandName}>Gestão de Atividades</div>
-            <div style={S.brandCnpj}>{currentUser.name}</div>
+            <div style={S.brandCnpj}>{publicMode ? (publicOwnerName ? `Quadro de ${publicOwnerName}` : 'Quadro compartilhado') : currentUser.name}</div>
           </div>
           {onExit && <button className="pb-ghost" style={S.pbGhostBtn} onClick={onExit}><Building2 size={15} /> Ir para Empresas</button>}
-          <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira{trashItems.length > 0 ? ` (${trashItems.length})` : ''}</button>
+          {!readOnly && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira{trashItems.length > 0 ? ` (${trashItems.length})` : ''}</button>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {saveState === 'saving' && <span style={S.saveStateBadge}>Salvando…</span>}
           {saveState === 'saved' && <FadingSavedBadge />}
           {saveState === 'error' && <span style={{ ...S.saveStateBadge, color: '#e2574c' }}>Falha ao salvar — desfeito</span>}
           <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
-          <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>
+          {onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
         </div>
       </div>
 
-      <div style={S.personalTabs}>
-        {board.boards.map((b) => (
-          <div
-            key={b.id}
-            draggable
-            onDragStart={() => setDragBoardId(b.id)}
-            onDragEnd={() => setDragBoardId(null)}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => { reorderBoards(dragBoardId, b.id); setDragBoardId(null); }}
-            onClick={() => setActiveBoardId(b.id)}
-            style={{ ...S.personalTab, ...(b.id === activeBoardId ? S.personalTabActive : {}) }}
-          >
-            <input value={b.name} onChange={(e) => renameBoard(b.id, e.target.value)} style={S.personalTabInput} />
-            <button style={S.chipX} onClick={(e) => { e.stopPropagation(); deleteBoard(b.id); }}><X size={11} /></button>
+      {publicMode ? (
+        <div style={S.personalTabs}>
+          <div style={{ ...S.personalTab, ...S.personalTabActive, cursor: 'default' }}>
+            <span style={S.personalTabInput}>{activeBoard ? activeBoard.name : ''}</span>
+            <span style={S.publicBadge}><Globe size={11} /> Público por link</span>
           </div>
-        ))}
-        <button style={S.iconBtnGhost} onClick={addBoard} title="Nova página"><Plus size={16} /></button>
-      </div>
+          {readOnly && <div style={{ ...S.fieldHint, alignSelf: 'center', marginLeft: 8 }}>Somente visualização — <a href="/" style={{ color: '#F5C400' }}>faça login</a> para colaborar</div>}
+        </div>
+      ) : (
+        <div style={S.personalTabs}>
+          {board.boards.map((b) => (
+            <div
+              key={b.id}
+              draggable
+              onDragStart={() => setDragBoardId(b.id)}
+              onDragEnd={() => setDragBoardId(null)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => { reorderBoards(dragBoardId, b.id); setDragBoardId(null); }}
+              onClick={() => setActiveBoardId(b.id)}
+              style={{ ...S.personalTab, ...(b.id === activeBoardId ? S.personalTabActive : {}) }}
+            >
+              <input value={b.name} onChange={(e) => renameBoard(b.id, e.target.value)} style={S.personalTabInput} />
+              {b.visibility === 'public' && <span style={S.publicBadge}><Globe size={11} /></span>}
+              <button style={S.chipX} onClick={(e) => { e.stopPropagation(); deleteBoard(b.id); }}><X size={11} /></button>
+            </div>
+          ))}
+          <button style={S.iconBtnGhost} onClick={addBoard} title="Nova página"><Plus size={16} /></button>
+        </div>
+      )}
 
       {activeBoard && (
         <div style={S.personalToolbar}>
@@ -4062,6 +4218,14 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
           >
             <SlidersHorizontal size={13} /> Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
           </button>
+          {!publicMode && (
+            <button className="pb-ghost" style={{ ...S.pbGhostBtn, ...(activeBoard.visibility === 'public' ? { color: '#3ea6ff', borderColor: '#3ea6ff' } : {}) }} onClick={() => setShowShareModal(true)}>
+              {activeBoard.visibility === 'public' ? <Globe size={13} /> : <Lock size={13} />} {activeBoard.visibility === 'public' ? 'Público por link' : 'Compartilhar'}
+            </button>
+          )}
+          {activeBoard.visibility === 'public' && !readOnly && (
+            <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowActivityLog(true)}><History size={13} /> Histórico</button>
+          )}
           {showFilters && (
             <>
               <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))} style={S.personalFilterSelect}>
@@ -4109,6 +4273,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
                     cardsToRender={visible}
                     totalVisibleCount={visible.length}
                     dragDisabled={(viewPrefs.sortMode || 'manual') !== 'manual'}
+                    readOnly={readOnly}
                     canMoveLeft={idx > 0}
                     canMoveRight={idx < activeBoard.columns.length - 1}
                     otherColumns={activeBoard.columns.filter((c) => c.id !== col.id)}
@@ -4117,7 +4282,11 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
                     onToggleComplete={toggleCardComplete}
                     onDeleteCard={deleteCard}
                     onDuplicateCard={duplicateCard}
-                    onSetPriority={(colId, cardId, p) => updateCard(colId, cardId, { priority: p }, `Prioridade alterada: ${p ? CARD_PRIORITY_META[p].label : 'sem prioridade'}`)}
+                    onSetPriority={(colId, cardId, p) => {
+                      const prevCard = findCardById(cardId);
+                      const prevLabel = prevCard && prevCard.priority ? CARD_PRIORITY_META[prevCard.priority].label : 'sem prioridade';
+                      updateCard(colId, cardId, { priority: p }, `Prioridade alterada: ${prevLabel} → ${p ? CARD_PRIORITY_META[p].label : 'sem prioridade'}`);
+                    }}
                     onSetStatus={setCardStatus}
                     onMoveCardTo={(colId, cardId, targetColId) => moveCardToIndex(cardId, colId, targetColId, null)}
                     onRenameColumn={renameColumn}
@@ -4131,7 +4300,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
                   />
                 );
               })}
-              <button className="pb-addbtn" style={S.personalAddCol} onClick={addColumn}><Plus size={14} /> Nova coluna</button>
+              {!readOnly && <button className="pb-addbtn" style={S.personalAddCol} onClick={addColumn}><Plus size={14} /> Nova coluna</button>}
             </div>
           </SortableContext>
           <DragOverlay>
@@ -4153,7 +4322,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
       )}
 
       {activeBoard && viewPrefs.view === 'list' && (
-        <PersonalListView board={activeBoard} filterFn={cardMatches} onOpenCard={(colId, cardId) => setOpenCard({ colId, cardId })} onToggleComplete={toggleCardComplete} />
+        <PersonalListView board={activeBoard} filterFn={cardMatches} onOpenCard={(colId, cardId) => setOpenCard({ colId, cardId })} onToggleComplete={toggleCardComplete} readOnly={readOnly} />
       )}
 
       {openCard && activeBoard && (() => {
@@ -4167,6 +4336,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
             boardName={activeBoard.name}
             allTags={allTags}
             currentUserId={currentUser.id}
+            readOnly={readOnly}
             onClose={() => setOpenCard(null)}
             onUpdate={(patch, historyMsg) => updateCard(col.id, card.id, patch, historyMsg)}
             onDelete={() => { deleteCard(col.id, card.id); setOpenCard(null); }}
@@ -4195,8 +4365,97 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
         <PersonalTrashPanel trashItems={trashItems} onClose={() => setShowTrash(false)} onRestore={restoreTrashedCard} onHardDelete={hardDeleteTrashedCard} />
       )}
 
+      {showShareModal && activeBoard && (
+        <BoardShareModal
+          board={activeBoard}
+          onClose={() => setShowShareModal(false)}
+          onSetVisibility={(v) => setBoardVisibility(activeBoard.id, v)}
+          onRegenerateLink={() => regenerateShareLink(activeBoard.id)}
+        />
+      )}
+
+      {showActivityLog && activeBoard && (
+        <BoardActivityLogModal board={activeBoard} onClose={() => setShowActivityLog(false)} />
+      )}
+
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
+  );
+}
+
+function PublicBoardScreen({ token, theme, onToggleTheme }) {
+  const [state, setState] = useState({ loading: true, error: '', board: null, canEdit: false, ownerName: '' });
+  const [viewerUser, setViewerUser] = useState(null);
+  const [saveState, setSaveState] = useState('idle');
+  const saveTimer = useRef(null);
+  const lastGoodRef = useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      let me = null;
+      try { me = await apiGet('/api/auth/me'); } catch (e) { me = null; }
+      if (me && me.user) setViewerUser(me.user);
+      try {
+        const res = await apiGet(`/api/public-board/${token}`);
+        setState({ loading: false, error: '', board: res.board, canEdit: !!res.canEdit, ownerName: res.ownerName || '' });
+        lastGoodRef.current = res.board;
+      } catch (e) {
+        setState({ loading: false, error: e.message || 'Link inválido.', board: null, canEdit: false, ownerName: '' });
+      }
+    })();
+  }, [token]);
+
+  function persistDebounced(nextBoard) {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setSaveState('saving');
+    saveTimer.current = setTimeout(() => {
+      apiPatch(`/api/public-board/${token}`, { board: nextBoard })
+        .then(() => { lastGoodRef.current = nextBoard; setSaveState('saved'); })
+        .catch(() => { setSaveState('error'); setState((s) => ({ ...s, board: lastGoodRef.current })); });
+    }, 500);
+  }
+  function mutateBoard(updater) {
+    setState((prev) => {
+      const nextWrapped = updater({ boards: [prev.board] });
+      const nextBoard = nextWrapped.boards[0];
+      persistDebounced(nextBoard);
+      return { ...prev, board: nextBoard };
+    });
+  }
+
+  if (state.loading) return <LoadingScreen theme={theme} />;
+
+  if (state.error || !state.board) {
+    return (
+      <div style={S.page}>
+        <div style={S.loginWrap}>
+          <div style={S.loginBox}>
+            <h1 style={S.loginTitle}>Link indisponível</h1>
+            <p style={S.loginSub}>{state.error || 'Este link não existe mais ou o quadro deixou de ser público.'}</p>
+            <a href="/" style={S.primaryBtn}>Ir para o início</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const wrappedBoard = { boards: [state.board] };
+  const viewer = viewerUser || { id: null, name: 'Visitante' };
+
+  return (
+    <PersonalBoardScreen
+      board={wrappedBoard}
+      onMutate={mutateBoard}
+      onExit={null}
+      currentUser={viewer}
+      onLogout={viewerUser ? () => { apiPost('/api/auth/logout').finally(() => { window.location.href = '/'; }); } : null}
+      theme={theme}
+      onToggleTheme={onToggleTheme}
+      saveState={state.canEdit ? saveState : 'idle'}
+      publicMode
+      readOnly={!state.canEdit}
+      publicOwnerName={state.ownerName}
+    />
   );
 }
 
@@ -5479,6 +5738,7 @@ const S = {
   personalTab: { display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: '8px 8px 0 0', padding: '7px 6px 7px 12px', cursor: 'pointer' },
   personalTabActive: { background: 'var(--bg-1)', borderBottomColor: 'var(--bg-1)', boxShadow: '0 -1px 0 #F5C400 inset' },
   personalTabInput: { background: 'transparent', border: 'none', color: 'var(--text-1)', fontSize: 12.5, fontWeight: 700, width: 110, padding: 0 },
+  publicBadge: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 700, color: '#3ea6ff', background: 'rgba(62,166,255,.14)', borderRadius: 5, padding: '2px 6px', marginLeft: 4 },
   personalToolbar: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 24px', flexWrap: 'wrap', borderBottom: '1px solid var(--border-1)' },
   personalViewToggle: { display: 'flex', background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: 8, padding: 2, gap: 2 },
   personalViewToggleBtn: { display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: 'none', color: 'var(--text-5)', fontSize: 11.5, fontWeight: 600, padding: '5px 10px', borderRadius: 6, cursor: 'pointer' },
