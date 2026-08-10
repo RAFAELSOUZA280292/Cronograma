@@ -145,6 +145,25 @@ function dueDateTone(card) {
   return 'normal';
 }
 
+function daysSinceCardMovement(card) {
+  const ref = card.updatedAt || card.createdAt;
+  if (!ref) return 0;
+  const then = new Date(ref).getTime();
+  if (Number.isNaN(then)) return 0;
+  return Math.max(0, Math.floor((Date.now() - then) / 86400000));
+}
+function staleTone(days) {
+  if (days >= 7) return 'critical';
+  if (days >= 3) return 'warn';
+  return 'fresh';
+}
+function fmtDateOnly(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('pt-BR');
+}
+
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 function genShareToken() { return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
@@ -3082,7 +3101,10 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
   const priorityMeta = card.priority ? CARD_PRIORITY_META[card.priority] : null;
   const status = cardStatusOf(card);
   const showStatusBadge = status === 'em-andamento' || status === 'pausada';
-  const hasMeta = !!priorityMeta || showStatusBadge || !!card.dueDate || (card.comments || []).length > 0 || (card.checklist || []).length > 0;
+  const staleDays = daysSinceCardMovement(card);
+  const stale = staleTone(staleDays);
+  const showStaleBadge = !card.completed;
+  const hasMeta = !!priorityMeta || showStatusBadge || !!card.dueDate || (card.comments || []).length > 0 || (card.checklist || []).length > 0 || showStaleBadge;
 
   return (
     <div
@@ -3129,6 +3151,14 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
           )}
           {(card.comments || []).length > 0 && <span style={S.personalCardBadge}>💬 {card.comments.length}</span>}
           {(card.checklist || []).length > 0 && <span style={S.personalCardBadge}>✓ {doneCount}/{card.checklist.length}</span>}
+          {showStaleBadge && (
+            <span
+              title={`Sem movimentação há ${staleDays} dia${staleDays === 1 ? '' : 's'} (última: ${fmtDateOnly(card.updatedAt || card.createdAt)})`}
+              style={{ ...S.personalCardBadge, ...(stale === 'critical' ? S.dueOverdue : stale === 'warn' ? S.dueSoon : {}) }}
+            >
+              ⏱ {staleDays}d
+            </span>
+          )}
         </div>
       )}
       {(card.tags || []).length > 0 && (
@@ -3277,6 +3307,8 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
 
   const doneCount = (card.checklist || []).filter((i) => i.done).length;
   const isMobile = useIsMobile();
+  const staleDays = daysSinceCardMovement(card);
+  const stale = staleTone(staleDays);
 
   return (
     <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
@@ -3291,6 +3323,16 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
             👁️ Somente visualização — você está vendo pelo link público
           </div>
         )}
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginBottom: 10 }}>
+          <span style={S.fieldHint}>Criada em: {fmtDateOnly(card.createdAt)}</span>
+          <span style={S.fieldHint}>Última movimentação: {fmtDateOnly(card.updatedAt || card.createdAt)}</span>
+          {!card.completed && (
+            <span style={{ ...S.fieldHint, fontWeight: 700, color: stale === 'critical' ? '#e2574c' : stale === 'warn' ? '#ff9f40' : 'var(--text-6)' }}>
+              ⏱ Parada há {staleDays} dia{staleDays === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
 
         <div style={{ pointerEvents: readOnly ? 'none' : 'auto', opacity: readOnly ? .85 : 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
