@@ -99,10 +99,13 @@ projeto em `canAccessProject()` (`server/routes.js`).
   (`allowedCnpjs`); Master vê tudo.
 - Cadastro de empresa exige escolher tipo de cliente (Diagnóstico /
   Diagnóstico e Consultoria Contínua) — obrigatório só na criação.
-- Conflito de datas: alerta (não bloqueia) quando um membro da equipe PRICETAX
-  já tem atividade em outra empresa na mesma data.
+- Sem checagem de conflito de datas entre empresas — removida a pedido
+  explícito (2026-08); datas de atividades são livres, sem aviso nenhum.
 - Exclusão de atividade/subatividade/usuário-master-único tem guarda (frase de
   confirmação ou bloqueio de "não pode remover o último admin").
+- Usuário pode ter `personalOnly=true` (checkbox "Acesso apenas à Gestão de
+  Atividades"): ao logar, pula a tela de escolha de módulo e a de empresas,
+  entra direto no quadro pessoal, sem botão para voltar a Empresas.
 
 Antes de alterar qualquer funcionalidade, **abra e confira os arquivos
 envolvidos** — o `PROJECT_MAP.md` serve para localizar, não substitui ler o
