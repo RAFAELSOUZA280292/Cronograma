@@ -5,7 +5,7 @@ import {
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
   LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History,
   MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal,
-  Globe, Lock, RefreshCw, Pause,
+  Globe, Lock, RefreshCw, Pause, Play,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -2977,6 +2977,16 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                       )}
                     </div>
                     <div className={isMobile ? undefined : 'company-card-actions'} style={{ ...S.companyCardActions, ...(isMobile ? S.companyCardActionsMobile : null) }}>
+                      <button
+                        style={{ ...S.iconBtnGhost, ...(isPaused ? { color: COMPANY_STATUS_META.ativo.color } : { color: COMPANY_STATUS_META.pausado.color }) }}
+                        title={isPaused ? 'Retomar projeto (1 clique) — reativa as atividades pausadas' : 'Pausar projeto (1 clique) — pausa todas as atividades em andamento'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUpdateCompany(p.id, isPaused ? { status: 'ativo', resumeDate: '' } : { status: 'pausado' });
+                        }}
+                      >
+                        {isPaused ? <Play size={14} /> : <Pause size={14} />}
+                      </button>
                       <button style={S.iconBtnGhost} title="Clonar atividades para uma nova empresa" onClick={(e) => { e.stopPropagation(); onCloneCompany(p); }}><Copy size={14} /></button>
                       <button style={S.iconBtnGhost} title="Editar empresa" onClick={(e) => { e.stopPropagation(); setEditingProject(p); }}><Pencil size={14} /></button>
                       <button style={S.iconBtnGhost} title="Excluir empresa" onClick={(e) => handleDelete(e, p)}><Trash2 size={14} color="#e2574c" /></button>
