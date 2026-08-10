@@ -14,14 +14,20 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function canAccessProject(user, project) {
+function canAccessProject(user, project, orgId) {
   if (!user || !project) return false;
+  if (user.isSuperAdmin) return true;
+  if (user.orgId !== orgId) return false;
   if (user.role === 'master') return true;
   const cnpj = project.company && project.company.cnpj;
   if (!cnpj) return false;
   if (user.role === 'pricetax') return (user.allowedCnpjs || []).includes(cnpj);
   if (user.role === 'cliente') return user.cnpj === cnpj;
   return false;
+}
+
+function sameOrg(req, targetOrgId) {
+  return req.user.isSuperAdmin || req.user.orgId === targetOrgId;
 }
 
 export const router = Router();
@@ -84,7 +90,11 @@ router.patch('/auth/me', requireAuth, async (req, res, next) => {
 
 router.get('/users', requireAuth, requireMaster, async (req, res, next) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM users ORDER BY created_at ASC');
+    const sql = req.user.isSuperAdmin
+      ? 'SELECT * FROM users ORDER BY created_at ASC'
+      : 'SELECT * FROM users WHERE org_id=$1 ORDER BY created_at ASC';
+    const params = req.user.isSuperAdmin ? [] : [req.user.orgId];
+    const { rows } = await pool.query(sql, params);
     res.json({ users: rows.map(rowToUser) });
   } catch (e) { next(e); }
 });
@@ -101,9 +111,9 @@ router.post('/users', requireAuth, requireMaster, async (req, res, next) => {
     const hash = await hashPassword(password);
     const id = uid('user');
     const { rows } = await pool.query(
-      `INSERT INTO users (id, username, password_hash, name, email, role, cnpj, allowed_cnpjs, avatar, personal_only)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-      [id, username, hash, name, email || '', role, cnpj || '', JSON.stringify(allowedCnpjs || []), avatar || '', !!personalOnly]
+      `INSERT INTO users (id, username, password_hash, name, email, role, cnpj, allowed_cnpjs, avatar, personal_only, org_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [id, username, hash, name, email || '', role, cnpj || '', JSON.stringify(allowedCnpjs || []), avatar || '', !!personalOnly, req.user.orgId]
     );
     res.status(201).json({ user: rowToUser(rows[0]) });
   } catch (e) { next(e); }
@@ -114,7 +124,7 @@ router.patch('/users/:id', requireAuth, requireMaster, async (req, res, next) =>
     const { id } = req.params;
     const patch = req.body || {};
     const target = await findUserById(id);
-    if (!target) return res.status(404).json({ message: 'Usuário não encontrado.' });
+    if (!target || !sameOrg(req, target.org_id)) return res.status(404).json({ message: 'Usuário não encontrado.' });
 
     if (patch.username && patch.username !== target.username) {
       const dup = await findUserByUsername(patch.username);
@@ -148,11 +158,12 @@ router.post('/users/:id/block', requireAuth, requireMaster, async (req, res, nex
     if (id === req.user.id && blocked) {
       return res.status(400).json({ message: 'Você não pode bloquear a si mesmo.' });
     }
+    const target = await findUserById(id);
+    if (!target || !sameOrg(req, target.org_id)) return res.status(404).json({ message: 'Usuário não encontrado.' });
     const { rows } = await pool.query(
       `UPDATE users SET blocked=$1, block_reason=$2, updated_at=now() WHERE id=$3 RETURNING *`,
       [!!blocked, blocked ? (blockReason || 'Bloqueado manualmente') : '', id]
     );
-    if (!rows[0]) return res.status(404).json({ message: 'Usuário não encontrado.' });
     res.json({ user: rowToUser(rows[0]) });
   } catch (e) { next(e); }
 });
@@ -160,6 +171,8 @@ router.post('/users/:id/block', requireAuth, requireMaster, async (req, res, nex
 router.post('/users/:id/renew', requireAuth, requireMaster, async (req, res, next) => {
   try {
     const { id } = req.params;
+    const target = await findUserById(id);
+    if (!target || !sameOrg(req, target.org_id)) return res.status(404).json({ message: 'Usuário não encontrado.' });
     const days = Number(req.body && req.body.days) || 30;
     const newDate = new Date();
     newDate.setDate(newDate.getDate() + days);
@@ -168,7 +181,6 @@ router.post('/users/:id/renew', requireAuth, requireMaster, async (req, res, nex
       `UPDATE users SET expires_at=$1, blocked=false, block_reason='', updated_at=now() WHERE id=$2 RETURNING *`,
       [iso, id]
     );
-    if (!rows[0]) return res.status(404).json({ message: 'Usuário não encontrado.' });
     res.json({ user: rowToUser(rows[0]) });
   } catch (e) { next(e); }
 });
@@ -180,12 +192,13 @@ router.post('/users/:id/reset-password', requireAuth, requireMaster, async (req,
     if (!newPassword || newPassword.length < 4) {
       return res.status(400).json({ message: 'Senha muito curta.' });
     }
+    const target = await findUserById(id);
+    if (!target || !sameOrg(req, target.org_id)) return res.status(404).json({ message: 'Usuário não encontrado.' });
     const hash = await hashPassword(newPassword);
-    const { rowCount } = await pool.query(
+    await pool.query(
       `UPDATE users SET password_hash=$1, updated_at=now() WHERE id=$2`,
       [hash, id]
     );
-    if (!rowCount) return res.status(404).json({ message: 'Usuário não encontrado.' });
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
@@ -196,10 +209,10 @@ router.delete('/users/:id', requireAuth, requireMaster, async (req, res, next) =
     if (id === req.user.id) return res.status(400).json({ message: 'Você não pode remover a si mesmo.' });
 
     const target = await findUserById(id);
-    if (!target) return res.status(404).json({ message: 'Usuário não encontrado.' });
+    if (!target || !sameOrg(req, target.org_id)) return res.status(404).json({ message: 'Usuário não encontrado.' });
 
     if (target.role === 'master') {
-      const { rows } = await pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE role='master'`);
+      const { rows } = await pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE role='master' AND org_id=$1`, [target.org_id]);
       if (rows[0].n <= 1) return res.status(400).json({ message: 'Deixe pelo menos um administrador.' });
     }
     await pool.query('DELETE FROM users WHERE id=$1', [id]);
@@ -211,9 +224,12 @@ router.delete('/users/:id', requireAuth, requireMaster, async (req, res, next) =
 
 router.get('/projects', requireAuth, async (req, res, next) => {
   try {
-    const { rows } = await pool.query('SELECT data FROM projects ORDER BY created_at ASC');
-    const all = rows.map((r) => r.data);
-    const visible = all.filter((p) => canAccessProject(req.user, p));
+    const sql = req.user.isSuperAdmin
+      ? 'SELECT data, org_id FROM projects ORDER BY created_at ASC'
+      : 'SELECT data, org_id FROM projects WHERE org_id=$1 ORDER BY created_at ASC';
+    const params = req.user.isSuperAdmin ? [] : [req.user.orgId];
+    const { rows } = await pool.query(sql, params);
+    const visible = rows.filter((r) => canAccessProject(req.user, r.data, r.org_id)).map((r) => r.data);
     res.json({ projects: visible });
   } catch (e) { next(e); }
 });
@@ -233,7 +249,7 @@ router.post('/projects', requireAuth, requireMasterOrPricetax, async (req, res, 
     if (Array.isArray(req.body.team)) project.team = req.body.team;
     if (Array.isArray(req.body.log)) project.log = req.body.log;
 
-    await pool.query('INSERT INTO projects (id, data) VALUES ($1, $2)', [project.id, JSON.stringify(project)]);
+    await pool.query('INSERT INTO projects (id, data, org_id) VALUES ($1, $2, $3)', [project.id, JSON.stringify(project), req.user.orgId]);
 
     if (req.user.role === 'pricetax' && project.company.cnpj) {
       const cnpj = project.company.cnpj;
@@ -259,9 +275,9 @@ router.post('/cnpj/lookup', requireAuth, requireMasterOrPricetax, async (req, re
 router.delete('/projects/:id', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { rows } = await pool.query('SELECT data FROM projects WHERE id=$1', [id]);
+    const { rows } = await pool.query('SELECT data, org_id FROM projects WHERE id=$1', [id]);
     if (!rows[0]) return res.status(404).json({ message: 'Projeto não encontrado.' });
-    if (!canAccessProject(req.user, rows[0].data)) {
+    if (!canAccessProject(req.user, rows[0].data, rows[0].org_id)) {
       return res.status(403).json({ message: 'Sem acesso a este projeto.' });
     }
     await pool.query('DELETE FROM projects WHERE id=$1', [id]);
@@ -272,16 +288,16 @@ router.delete('/projects/:id', requireAuth, requireMasterOrPricetax, async (req,
 router.get('/projects/:id/team-candidates', requireAuth, async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { rows } = await pool.query('SELECT data FROM projects WHERE id=$1', [id]);
+    const { rows } = await pool.query('SELECT data, org_id FROM projects WHERE id=$1', [id]);
     if (!rows[0]) return res.status(404).json({ message: 'Projeto não encontrado.' });
     const project = rows[0].data;
-    if (!canAccessProject(req.user, project)) {
+    if (!canAccessProject(req.user, project, rows[0].org_id)) {
       return res.status(403).json({ message: 'Sem acesso a este projeto.' });
     }
     const cnpj = (project.company && project.company.cnpj) || '';
     const { rows: userRows } = await pool.query(
-      `SELECT id, name, role, username FROM users WHERE role IN ('master','pricetax') OR (role='cliente' AND cnpj=$1) ORDER BY name ASC`,
-      [cnpj]
+      `SELECT id, name, role, username FROM users WHERE org_id=$1 AND (role IN ('master','pricetax') OR (role='cliente' AND cnpj=$2)) ORDER BY name ASC`,
+      [rows[0].org_id, cnpj]
     );
     res.json({ users: userRows });
   } catch (e) { next(e); }
@@ -290,10 +306,10 @@ router.get('/projects/:id/team-candidates', requireAuth, async (req, res, next) 
 router.patch('/projects/:id', requireAuth, async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { rows } = await pool.query('SELECT data FROM projects WHERE id=$1', [id]);
+    const { rows } = await pool.query('SELECT data, org_id FROM projects WHERE id=$1', [id]);
     if (!rows[0]) return res.status(404).json({ message: 'Projeto não encontrado.' });
     const current = rows[0].data;
-    if (!canAccessProject(req.user, current)) {
+    if (!canAccessProject(req.user, current, rows[0].org_id)) {
       return res.status(403).json({ message: 'Sem acesso a este projeto.' });
     }
     const next_ = req.body && req.body.project;
