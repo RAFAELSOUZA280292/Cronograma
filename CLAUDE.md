@@ -115,6 +115,15 @@ projeto em `canAccessProject()` (`server/routes.js`).
   checagem `visibility==='public'` no backend (não apaga nem regenera o
   token). Toda ação vira entrada em `board.log` (mistura eventos estruturais
   do board com `card.history` agregado) — ver `BoardActivityLogModal`.
+- Pausar uma empresa (`company.status='pausado'`, em `updateCompanyFields`,
+  2026-08) põe em cascata `status='pausado'` em toda atividade não excluída
+  e não concluída, guardando o status anterior em `activity.statusBeforePause`
+  pra restaurar exatamente ao religar (`status='ativo'`). Atividade que já
+  estava `pausado` manualmente antes da empresa pausar (sem
+  `statusBeforePause`) fica intocada nos dois sentidos — não é considerada
+  parte do cascade. Atividades concluídas nunca são pausadas pelo cascade
+  (preserva `projectProgress()`). Refletido como selo "⏸ Pausado" na
+  `CompanySelectorScreen` e no topbar da empresa.
 
 Antes de alterar qualquer funcionalidade, **abra e confira os arquivos
 envolvidos** — o `PROJECT_MAP.md` serve para localizar, não substitui ler o

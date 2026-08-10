@@ -5,7 +5,7 @@ import {
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
   LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History,
   MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal,
-  Globe, Lock, RefreshCw,
+  Globe, Lock, RefreshCw, Pause,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -1008,7 +1008,28 @@ export default function App() {
   function updateCompanyFields(pid, patch) {
     const target = projects.find((p) => p.id === pid);
     const label = patch.name || (target && target.company.name) || 'empresa';
-    mutateProject(pid, (p) => ({ ...p, company: { ...p.company, ...patch } }), `Dados da empresa "${label}" atualizados`);
+    const prevStatus = target ? (target.company.status || 'ativo') : 'ativo';
+    const nextStatus = patch.status !== undefined ? patch.status : prevStatus;
+    const statusChanging = patch.status !== undefined && nextStatus !== prevStatus;
+    mutateProject(pid, (p) => {
+      let activities = p.activities;
+      if (statusChanging && nextStatus === 'pausado') {
+        // Pausa em cascata: guarda o status anterior de cada atividade ativa (não concluída,
+        // não excluída, ainda não pausada individualmente) pra poder restaurar exatamente ao retomar.
+        activities = p.activities.map((a) => (
+          a.deleted || a.status === 'pausado' || a.status === 'concluido'
+            ? a
+            : { ...a, statusBeforePause: a.status || 'nao-iniciado', status: 'pausado' }
+        ));
+      } else if (statusChanging && nextStatus === 'ativo') {
+        activities = p.activities.map((a) => (
+          a.statusBeforePause ? { ...a, status: a.statusBeforePause, statusBeforePause: '' } : a
+        ));
+      }
+      return { ...p, company: { ...p.company, ...patch }, activities };
+    }, statusChanging
+      ? `Status da empresa alterado para: ${COMPANY_STATUS_META[nextStatus].label}${nextStatus === 'pausado' ? ' — atividades em andamento pausadas' : ' — atividades pausadas retomadas'}`
+      : `Dados da empresa "${label}" atualizados`);
   }
 
   async function loadUsers() {
@@ -1263,8 +1284,8 @@ export default function App() {
                     </span>
                   )}
                   {(activeProject.company.status || 'ativo') === 'pausado' && (
-                    <span style={{ ...S.companyStatusPill, color: COMPANY_STATUS_META.pausado.color, background: COMPANY_STATUS_META.pausado.bg, borderColor: COMPANY_STATUS_META.pausado.border }}>
-                      Pausado{activeProject.company.resumeDate ? ` · retoma ${fmtDate(activeProject.company.resumeDate)}` : ''}
+                    <span style={{ ...S.companyStatusPill, display: 'inline-flex', alignItems: 'center', gap: 4, color: COMPANY_STATUS_META.pausado.color, background: COMPANY_STATUS_META.pausado.bg, borderColor: COMPANY_STATUS_META.pausado.border }}>
+                      <Pause size={10} /> Pausado{activeProject.company.resumeDate ? ` · retoma ${fmtDate(activeProject.company.resumeDate)}` : ''}
                     </span>
                   )}
                 </div>
@@ -1589,7 +1610,7 @@ export default function App() {
               value={activeProject.company.status || 'ativo'}
               onChange={(e) => {
                 const v = e.target.value;
-                mutateProject(pid, (p) => ({ ...p, company: { ...p.company, status: v, resumeDate: v === 'ativo' ? '' : p.company.resumeDate } }), `Status da empresa alterado para: ${COMPANY_STATUS_META[v].label}`);
+                updateCompanyFields(pid, { status: v, resumeDate: v === 'ativo' ? '' : activeProject.company.resumeDate });
               }}
             >
               <option value="ativo">Ativo</option>
@@ -2702,8 +2723,9 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                 const next = projectNextActivity(p);
                 const nextOverdue = next && next.date < todayISOStr();
                 const donutCircumference = 2 * Math.PI * 13;
+                const isPaused = (p.company.status || 'ativo') === 'pausado';
                 return (
-                  <div key={p.id} className="company-card" style={{ ...S.companyCard, ...(isMobile ? S.companyCardMobile : null), borderLeft: `3px solid ${isSelected ? accent : 'var(--border-2)'}` }}>
+                  <div key={p.id} className="company-card" style={{ ...S.companyCard, ...(isMobile ? S.companyCardMobile : null), borderLeft: `3px solid ${isPaused ? COMPANY_STATUS_META.pausado.color : isSelected ? accent : 'var(--border-2)'}`, ...(isPaused ? { opacity: .78 } : {}) }}>
                     <label style={{ ...S.companyCardMain, ...(isMobile ? S.companyCardMainMobile : null) }}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggle(p.id)} />
                       {p.company.logo ? <img src={p.company.logo} alt="" style={S.companyCardLogo} /> : <div style={{ ...S.companyCardLogoEmpty, background: p.company.color || 'var(--bg-4)' }}><Building2 size={16} color="#111" /></div>}
@@ -2719,8 +2741,13 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                           {p.company.clientType && CLIENT_TYPE_META[p.company.clientType] && (
                             <span style={{ ...S.companyStatusPillSm, color: CLIENT_TYPE_META[p.company.clientType].color, background: CLIENT_TYPE_META[p.company.clientType].bg, borderColor: CLIENT_TYPE_META[p.company.clientType].border }}>{CLIENT_TYPE_META[p.company.clientType].short}</span>
                           )}
-                          {(p.company.status || 'ativo') === 'pausado' && (
-                            <span style={{ ...S.companyStatusPillSm, color: COMPANY_STATUS_META.pausado.color, background: COMPANY_STATUS_META.pausado.bg, borderColor: COMPANY_STATUS_META.pausado.border }}>Pausado</span>
+                          {isPaused && (
+                            <span
+                              style={{ ...S.companyStatusPillSm, display: 'inline-flex', alignItems: 'center', gap: 3, color: COMPANY_STATUS_META.pausado.color, background: COMPANY_STATUS_META.pausado.bg, borderColor: COMPANY_STATUS_META.pausado.border }}
+                              title={p.company.resumeDate ? `Previsão de retomada: ${fmtDate(p.company.resumeDate)}` : 'Projeto pausado'}
+                            >
+                              <Pause size={9} /> Pausado{p.company.resumeDate ? ` · ${fmtDate(p.company.resumeDate)}` : ''}
+                            </span>
                           )}
                         </div>
                         {p.company.nomeFantasia && p.company.name && p.company.nomeFantasia !== p.company.name && (
