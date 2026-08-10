@@ -4798,6 +4798,8 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
   const [dragSubId, setDragSubId] = useState(null);
   const [linkLabelDraft, setLinkLabelDraft] = useState('');
   const [linkUrlDraft, setLinkUrlDraft] = useState('');
+  const [showNotesBox, setShowNotesBox] = useState(!!a.notes);
+  const [showTranscriptBox, setShowTranscriptBox] = useState(!!a.transcript);
   const phase = phases.find((p) => p.id === a.phase);
   const mentionCandidates = team.filter((m) => m.userId);
   const activityHistory = (log || []).filter((l) => l.activityId === a.id);
@@ -4848,8 +4850,13 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
             <div style={S.subSectionLabel}>Descrição</div>
             <textarea value={a.desc} onChange={(e) => updateActivity(pid, a.id, { desc: e.target.value })} onBlur={() => updateActivity(pid, a.id, {}, `Descrição alterada em "${a.title}"`)} rows={2} style={S.notesArea} />
 
-            <div style={S.subSectionLabel}>Observações</div>
-            <textarea value={a.notes || ''} onChange={(e) => updateActivity(pid, a.id, { notes: e.target.value })} onBlur={() => updateActivity(pid, a.id, {}, `Observação alterada em "${a.title}"`)} rows={3} placeholder="Comentários, contexto, decisões desta atividade..." style={S.notesArea} />
+            <div style={{ ...S.subSectionLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
+              Observações
+              {!showNotesBox && <button style={S.iconBtnGhost} onClick={() => setShowNotesBox('focus')} title="Adicionar observação"><Plus size={12} /></button>}
+            </div>
+            {!!showNotesBox && (
+              <textarea value={a.notes || ''} onChange={(e) => updateActivity(pid, a.id, { notes: e.target.value })} onBlur={() => updateActivity(pid, a.id, {}, `Observação alterada em "${a.title}"`)} rows={3} placeholder="Comentários, contexto, decisões desta atividade..." style={S.notesArea} autoFocus={showNotesBox === 'focus'} />
+            )}
 
             <div style={S.subSectionLabel}><Link2 size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Links {(a.links || []).length > 0 ? `(${(a.links || []).length})` : ''}</div>
             <div style={S.attachList}>
@@ -4866,15 +4873,21 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
               <button style={S.iconBtn} onClick={submitLink}><Plus size={14} /></button>
             </div>
 
-            <div style={S.subSectionLabel}><Mic size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Transcrição de reunião</div>
-            <textarea
-              value={a.transcript || ''}
-              onChange={(e) => updateActivity(pid, a.id, { transcript: e.target.value })}
-              onBlur={() => updateActivity(pid, a.id, {}, `Transcrição de reunião atualizada em "${a.title}"`)}
-              rows={6}
-              placeholder="Cole aqui a transcrição da reunião..."
-              style={{ ...S.notesArea, fontFamily: 'monospace', fontSize: 11.5 }}
-            />
+            <div style={{ ...S.subSectionLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Mic size={12} style={{ verticalAlign: -2 }} />Transcrição de reunião
+              {!showTranscriptBox && <button style={S.iconBtnGhost} onClick={() => setShowTranscriptBox('focus')} title="Adicionar transcrição"><Plus size={12} /></button>}
+            </div>
+            {!!showTranscriptBox && (
+              <textarea
+                value={a.transcript || ''}
+                onChange={(e) => updateActivity(pid, a.id, { transcript: e.target.value })}
+                onBlur={() => updateActivity(pid, a.id, {}, `Transcrição de reunião atualizada em "${a.title}"`)}
+                rows={6}
+                placeholder="Cole aqui a transcrição da reunião..."
+                style={{ ...S.notesArea, fontFamily: 'monospace', fontSize: 11.5 }}
+                autoFocus={showTranscriptBox === 'focus'}
+              />
+            )}
 
             <div style={S.subSectionLabel}><MessageSquare size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Comentários {(a.comments || []).length > 0 ? `(${(a.comments || []).length})` : ''}</div>
             <div style={S.commentThread}>
