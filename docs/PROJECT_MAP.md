@@ -224,6 +224,14 @@ migration manual.
 | PATCH /personal-board | Salva quadro pessoal inteiro | routes.js |
 | GET /public-board/:token | Busca UMA página pública por token (sem auth; `optionalAuth` preenche `canEdit`) | routes.js |
 | PATCH /public-board/:token | Salva UMA página pública (`requireAuth`, qualquer usuário logado — token é a autorização) | routes.js |
+| GET /organizations | Lista organizações + contagem de usuários/empresas (`requireSuperAdmin`) | routes.js |
+| POST /organizations | Cria organização (slug gerado do nome, `requireSuperAdmin`) | routes.js |
+| PATCH /organizations/:id | Atualiza organização (status, branding — `requireSuperAdmin`) | routes.js |
+
+`GET/POST /projects` e `GET/POST /users` aceitam `?asOrg=<orgId>` — só
+respeitado quando `req.user.isSuperAdmin` (`effectiveOrgId()` em
+routes.js); é como o Super Admin "entra" numa organização pra ver/criar
+dados nela sem precisar de rota dedicada por recurso.
 
 ## 8. Dependências entre módulos (maior impacto lateral)
 

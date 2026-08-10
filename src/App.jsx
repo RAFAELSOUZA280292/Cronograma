@@ -385,6 +385,10 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showPhases, setShowPhases] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
+  const [showOrgAdmin, setShowOrgAdmin] = useState(false);
+  const [organizations, setOrganizations] = useState([]);
+  const [orgAdminError, setOrgAdminError] = useState('');
+  const [actingOrg, setActingOrg] = useState(null);
   const [showCreateCompany, setShowCreateCompany] = useState(false);
   const [cloningProject, setCloningProject] = useState(null);
   const [showMyProfile, setShowMyProfile] = useState(false);
@@ -444,11 +448,18 @@ export default function App() {
     } catch (e) { /* ignora */ }
   }
 
+  function withActingOrg(path) {
+    if (!actingOrg) return path;
+    const sep = path.includes('?') ? '&' : '?';
+    return `${path}${sep}asOrg=${encodeURIComponent(actingOrg.id)}`;
+  }
+
   useEffect(() => {
     if (!currentUser) { setProjects([]); setProjectsLoaded(false); return; }
+    setProjectsLoaded(false);
     (async () => {
       try {
-        const res = await apiGet('/api/projects');
+        const res = await apiGet(withActingOrg('/api/projects'));
         setProjects(res.projects.map(normalizeProject));
       } catch (e) {
         console.error('Falha ao carregar projetos', e);
@@ -457,7 +468,7 @@ export default function App() {
         setProjectsLoaded(true);
       }
     })();
-  }, [currentUser?.id]);
+  }, [currentUser?.id, actingOrg?.id]);
 
   useEffect(() => {
     if (!projectsLoaded || !currentUser || currentUser.role !== 'cliente') return;
@@ -514,7 +525,13 @@ export default function App() {
     if (showUsers && currentUser && currentUser.role === 'master') {
       loadUsers();
     }
-  }, [showUsers, currentUser?.id]);
+  }, [showUsers, currentUser?.id, actingOrg?.id]);
+
+  useEffect(() => {
+    if (showOrgAdmin && currentUser && currentUser.isSuperAdmin) {
+      loadOrganizations();
+    }
+  }, [showOrgAdmin, currentUser?.id]);
 
   useEffect(() => {
     if (!showSettings || selectedProjectIds.length !== 1) { setTeamCandidates([]); return; }
@@ -681,6 +698,21 @@ export default function App() {
         onResetPassword={resetUserPassword}
         onDeleteUser={deleteUser}
         onToggleCnpj={toggleUserCnpj}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
+
+  if (showOrgAdmin && currentUser.isSuperAdmin) {
+    return (
+      <SuperAdminScreen
+        organizations={organizations}
+        error={orgAdminError}
+        onClose={() => setShowOrgAdmin(false)}
+        onCreate={createOrganization}
+        onSetStatus={updateOrganizationStatus}
+        onEnter={enterOrganization}
         theme={theme}
         onToggleTheme={toggleTheme}
       />
@@ -958,7 +990,7 @@ export default function App() {
   }
 
   async function createCompany(company) {
-    const res = await apiPost('/api/projects', { company });
+    const res = await apiPost(withActingOrg('/api/projects'), { company });
     setProjects((prev) => [...prev, normalizeProject(res.project)]);
     return res.project.id;
   }
@@ -988,7 +1020,7 @@ export default function App() {
 
     const team = source.team.map((m) => ({ ...m, id: uid('team') }));
 
-    const res = await apiPost('/api/projects', {
+    const res = await apiPost(withActingOrg('/api/projects'), {
       company,
       activities,
       phases: source.phases,
@@ -1034,7 +1066,7 @@ export default function App() {
 
   async function loadUsers() {
     try {
-      const res = await apiGet('/api/users');
+      const res = await apiGet(withActingOrg('/api/users'));
       setUsers(res.users);
       setUsersPanelError('');
     } catch (e) {
@@ -1044,13 +1076,59 @@ export default function App() {
 
   async function addUser(draft) {
     try {
-      const res = await apiPost('/api/users', draft);
+      const res = await apiPost(withActingOrg('/api/users'), draft);
       setUsers((prev) => [...prev, res.user]);
       addUsersLog(`Usuário criado: ${res.user.name}`);
       setUsersPanelError('');
     } catch (e) {
       setUsersPanelError(e.message);
     }
+  }
+
+  async function loadOrganizations() {
+    try {
+      const res = await apiGet('/api/organizations');
+      setOrganizations(res.organizations);
+      setOrgAdminError('');
+    } catch (e) {
+      setOrgAdminError(e.message);
+    }
+  }
+
+  async function createOrganization(data) {
+    try {
+      const res = await apiPost('/api/organizations', data);
+      setOrganizations((prev) => [...prev, { ...res.organization, userCount: 0, projectCount: 0 }]);
+      setOrgAdminError('');
+      return res.organization;
+    } catch (e) {
+      setOrgAdminError(e.message);
+      return null;
+    }
+  }
+
+  async function updateOrganizationStatus(id, status) {
+    try {
+      const res = await apiPatch(`/api/organizations/${id}`, { status });
+      setOrganizations((prev) => prev.map((o) => (o.id === id ? res.organization : o)));
+      setOrgAdminError('');
+    } catch (e) {
+      setOrgAdminError(e.message);
+    }
+  }
+
+  function enterOrganization(org) {
+    setActingOrg({ id: org.id, name: org.displayName || org.name });
+    setShowOrgAdmin(false);
+    setCompanySelectionConfirmed(false);
+    setSelectedProjectIds([]);
+    setWorkspaceMode('company');
+  }
+
+  function exitOrganization() {
+    setActingOrg(null);
+    setCompanySelectionConfirmed(false);
+    setSelectedProjectIds([]);
   }
 
   async function updateUser(id, patch) {
@@ -1223,6 +1301,7 @@ export default function App() {
     { icon: Columns3, label: 'Gestão de Atividades', onClick: () => setWorkspaceMode('personal') },
     (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Plus, label: 'Cadastrar empresa', onClick: () => setShowCreateCompany(true) },
     currentUser.role === 'master' && { icon: UserCog, label: 'Usuários', onClick: () => setShowUsers(true) },
+    currentUser.isSuperAdmin && { icon: Building2, label: 'Organizações', onClick: () => setShowOrgAdmin(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: LayoutGrid, label: 'Fases', onClick: () => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); } },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Clock, label: `Log (${(activeProject.log || []).length})`, onClick: () => setShowLog(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Trash2, label: 'Lixeira', onClick: () => setShowTrash(true) },
@@ -1252,6 +1331,13 @@ export default function App() {
           body, .page-root { background:#fff !important; color:#111 !important; }
         }
       `}</style>
+
+      {actingOrg && (
+        <div className="no-print" style={S.actingOrgBanner}>
+          <Building2 size={13} /> Super Admin — visualizando como <strong>{actingOrg.name}</strong>
+          <button style={S.actingOrgExitBtn} onClick={exitOrganization}>Sair da organização</button>
+        </div>
+      )}
 
       <div className="no-print" style={S.topbar}>
         <div style={S.brandRow}>
@@ -1329,6 +1415,7 @@ export default function App() {
             <button style={S.iconBtn} onClick={() => setShowCreateCompany(true)}><Plus size={15} /> Cadastrar empresa</button>
           )}
           {!isMobile && currentUser.role === 'master' && <button style={S.iconBtn} onClick={() => setShowUsers(true)}><UserCog size={15} /> Usuários</button>}
+          {!isMobile && currentUser.isSuperAdmin && <button style={S.iconBtn} onClick={() => setShowOrgAdmin(true)}><Building2 size={15} /> Organizações</button>}
           {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); }}><LayoutGrid size={15} /> Fases</button>
           )}
@@ -1896,6 +1983,105 @@ function UserPasswordReset({ onReset }) {
     <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
       <input type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="Nova senha" />
       <button style={S.iconBtn} onClick={() => { if (pwd) { onReset(pwd); setPwd(''); } }}>Redefinir</button>
+    </div>
+  );
+}
+
+const ORG_STATUS_META = {
+  active: { label: 'Ativa', color: '#3ecf6e', bg: 'rgba(62,207,110,.14)', border: 'rgba(62,207,110,.5)' },
+  suspended: { label: 'Suspensa', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
+  blocked: { label: 'Bloqueada', color: '#e2574c', bg: 'rgba(226,87,76,.14)', border: 'rgba(226,87,76,.5)' },
+};
+
+function SuperAdminScreen({ organizations, error, onClose, onCreate, onSetStatus, onEnter, theme, onToggleTheme }) {
+  const [showCreate, setShowCreate] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const isMobile = useIsMobile();
+
+  async function submitCreate() {
+    if (!draftName.trim() || creating) return;
+    setCreating(true);
+    const org = await onCreate({ name: draftName.trim() });
+    setCreating(false);
+    if (org) { setDraftName(''); setShowCreate(false); }
+  }
+
+  return (
+    <div style={S.page}>
+      <style>{`
+        * { box-sizing: border-box; }
+        input, select, button { font-family: 'Inter', sans-serif; }
+        input[type=text], select {
+          background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
+          padding:8px 10px; font-size:13px; width:100%;
+        }
+        input[type=text]:focus, select:focus { outline:none; border-color:#F5C400; }
+      `}</style>
+
+      <div style={S.usersHeader}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={S.usersHeaderIcon}><Building2 size={20} color="#F5C400" /></div>
+          <div>
+            <div style={S.usersHeaderTitle}>Organizações (Super Admin)</div>
+            <div style={S.usersHeaderSub}>{organizations.length} organiza{organizations.length === 1 ? 'ção' : 'ções'} na plataforma</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} style={S.iconBtn} />
+          <button style={S.primaryBtn} onClick={() => setShowCreate((v) => !v)}><Plus size={14} /> Nova organização</button>
+          <button style={S.iconBtn} onClick={onClose}><X size={14} /> Voltar ao cronograma</button>
+        </div>
+      </div>
+
+      {error && <div style={{ ...S.fieldHint, color: '#e2574c', padding: '8px 20px' }}>{error}</div>}
+
+      {showCreate && (
+        <div style={{ ...S.settingsBlock, margin: '0 20px 16px', maxWidth: 420 }}>
+          <div style={S.settingsLabel}>Nome da organização</div>
+          <input
+            type="text"
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') submitCreate(); }}
+            placeholder="Ex: Escritório Contábil XPTO"
+            autoFocus
+          />
+          <div style={S.fieldHint}>O identificador de URL (slug) é gerado automaticamente a partir do nome.</div>
+          <button style={{ ...S.primaryBtn, marginTop: 10 }} onClick={submitCreate} disabled={creating}>
+            {creating ? 'Criando...' : 'Criar organização'}
+          </button>
+        </div>
+      )}
+
+      <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {organizations.map((org) => {
+          const statusMeta = ORG_STATUS_META[org.status] || ORG_STATUS_META.active;
+          return (
+            <div key={org.id} style={{ ...S.companyCard, ...(isMobile ? S.companyCardMobile : null), borderLeft: `3px solid ${statusMeta.color}` }}>
+              <div style={{ ...S.companyCardMain, ...(isMobile ? S.companyCardMainMobile : null) }}>
+                <div style={{ ...S.companyCardLogoEmpty, background: org.primaryColor || 'var(--bg-4)' }}><Building2 size={16} color="#111" /></div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={S.companyCardNameRow}>
+                    <div style={S.companyCardName}>{org.displayName || org.name}</div>
+                    <span style={{ ...S.companyStatusPillSm, color: statusMeta.color, background: statusMeta.bg, borderColor: statusMeta.border }}>{statusMeta.label}</span>
+                  </div>
+                  <div style={S.companyCardCnpj}>/{org.slug} · {org.userCount} usuário{org.userCount === 1 ? '' : 's'} · {org.projectCount} empresa{org.projectCount === 1 ? '' : 's'}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                <select value={org.status} onChange={(e) => onSetStatus(org.id, e.target.value)} style={{ width: 130 }}>
+                  <option value="active">Ativa</option>
+                  <option value="suspended">Suspensa</option>
+                  <option value="blocked">Bloqueada</option>
+                </select>
+                <button style={S.iconBtn} onClick={() => onEnter(org)}><Building2 size={14} /> Entrar</button>
+              </div>
+            </div>
+          );
+        })}
+        {organizations.length === 0 && <div style={S.emptyMuted}>Nenhuma organização carregada ainda.</div>}
+      </div>
     </div>
   );
 }
@@ -5667,6 +5853,8 @@ const S = {
   brandCnpj: { fontSize: 11.5, color: 'var(--text-5)' },
   companyStatusPill: { fontSize: 10.5, fontWeight: 700, padding: '1px 8px', borderRadius: 999, border: '1px solid' },
   companyStatusPillSm: { fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 999, border: '1px solid', flexShrink: 0 },
+  actingOrgBanner: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, color: '#F5C400', background: 'rgba(245,196,0,.12)', borderBottom: '1px solid rgba(245,196,0,.3)', padding: '7px 20px' },
+  actingOrgExitBtn: { marginLeft: 'auto', background: 'transparent', border: '1px solid rgba(245,196,0,.5)', color: '#F5C400', fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 6, cursor: 'pointer' },
   projectSwitch: { fontWeight: 700, fontSize: 13, background: 'var(--bg-4)', border: '1px solid var(--border-3)', color: 'var(--text-1)', borderRadius: 6, padding: '4px 8px', maxWidth: 260 },
   actionsRow: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
   iconBtn: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-4)', border: '1px solid var(--border-3)', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 600, padding: '7px 11px', borderRadius: 7, cursor: 'pointer' },
