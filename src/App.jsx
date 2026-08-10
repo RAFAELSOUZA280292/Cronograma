@@ -588,6 +588,7 @@ export default function App() {
           onUpdateCompany={updateCompanyFields}
           onDeleteCompany={deleteCompany}
           onCloneCompany={(p) => setCloningProject(p)}
+          onGoPersonal={() => setWorkspaceMode('personal')}
           theme={theme}
           onToggleTheme={toggleTheme}
         />
@@ -2484,9 +2485,10 @@ function EditCompanyModal({ project, onClose, onSave }) {
   );
 }
 
-function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, theme, onToggleTheme }) {
+function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, theme, onToggleTheme }) {
   const [selected, setSelected] = useState(() => new Set(initialSelected));
   const [editingProject, setEditingProject] = useState(null);
+  const [search, setSearch] = useState('');
 
   function toggle(id) {
     setSelected((prev) => {
@@ -2495,8 +2497,24 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
       return next;
     });
   }
+
+  const term = search.trim().toLowerCase();
+  const filteredProjects = term
+    ? projects.filter((p) => {
+        const c = p.company;
+        return [c.nomeFantasia, c.name, c.cnpj].filter(Boolean).some((v) => v.toLowerCase().includes(term));
+      })
+    : projects;
+
   function toggleAll() {
-    setSelected((prev) => (prev.size === projects.length ? new Set() : new Set(projects.map((p) => p.id))));
+    const ids = filteredProjects.map((p) => p.id);
+    const allVisibleSelected = ids.length > 0 && ids.every((id) => selected.has(id));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
   }
 
   function handleDelete(e, p) {
@@ -2507,7 +2525,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
     }
   }
 
-  const allChecked = projects.length > 0 && selected.size === projects.length;
+  const allChecked = filteredProjects.length > 0 && filteredProjects.every((p) => selected.has(p.id));
 
   return (
     <div style={S.page}>
@@ -2515,11 +2533,18 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
         input[type=checkbox]{ accent-color:#F5C400; width:16px; height:16px; }
+        .company-card .company-card-actions { opacity: .4; transition: opacity .12s; }
+        .company-card:hover .company-card-actions { opacity: 1; }
       `}</style>
       <div style={S.companySelectorWrap}>
         <div style={S.companySelectorHeader}>
           <BrandLogo theme={theme} style={{ ...S.loginLogo, marginBottom: 0 }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {onGoPersonal && (
+              <button style={S.companyHeaderShortcut} onClick={onGoPersonal} title="Ir para o seu quadro pessoal de tarefas">
+                <Columns3 size={14} /> Gestão de Atividades
+              </button>
+            )}
             <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
             <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={16} /></button>
           </div>
@@ -2534,12 +2559,27 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
           </div>
         ) : (
           <div style={S.companyPanel}>
+            {projects.length > 6 && (
+              <div style={S.companySearchWrap}>
+                <Search size={14} color="var(--text-6)" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar por nome ou CNPJ..."
+                  style={S.companySearchInput}
+                />
+              </div>
+            )}
             <label style={S.companySelectAllRow}>
               <input type="checkbox" checked={allChecked} onChange={toggleAll} />
-              Selecionar todas ({projects.length})
+              {term ? `Selecionar todas as encontradas (${filteredProjects.length})` : `Selecionar todas (${projects.length})`}
             </label>
+            {filteredProjects.length === 0 && (
+              <div style={S.emptyMuted}>Nenhuma empresa encontrada para "{search}".</div>
+            )}
             <div style={S.companyList}>
-              {projects.map((p) => {
+              {filteredProjects.map((p) => {
                 const isSelected = selected.has(p.id);
                 const accent = p.company.color || '#F5C400';
                 const progress = projectProgress(p);
@@ -2547,7 +2587,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                 const nextOverdue = next && next.date < todayISOStr();
                 const donutCircumference = 2 * Math.PI * 13;
                 return (
-                  <div key={p.id} style={{ ...S.companyCard, borderLeft: `3px solid ${isSelected ? accent : 'var(--border-2)'}` }}>
+                  <div key={p.id} className="company-card" style={{ ...S.companyCard, borderLeft: `3px solid ${isSelected ? accent : 'var(--border-2)'}` }}>
                     <label style={S.companyCardMain}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggle(p.id)} />
                       {p.company.logo ? <img src={p.company.logo} alt="" style={S.companyCardLogo} /> : <div style={{ ...S.companyCardLogoEmpty, background: p.company.color || 'var(--bg-4)' }}><Building2 size={16} color="#111" /></div>}
@@ -2607,12 +2647,12 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                         <div style={{ ...S.companyCardNextDate, color: 'var(--text-6)', marginTop: 2 }}>Nenhuma pendente</div>
                       )}
                     </div>
-                    <div style={S.companyCardActions}>
+                    <div className="company-card-actions" style={S.companyCardActions}>
                       <button style={S.iconBtnGhost} title="Clonar atividades para uma nova empresa" onClick={(e) => { e.stopPropagation(); onCloneCompany(p); }}><Copy size={14} /></button>
                       <button style={S.iconBtnGhost} title="Editar empresa" onClick={(e) => { e.stopPropagation(); setEditingProject(p); }}><Pencil size={14} /></button>
                       <button style={S.iconBtnGhost} title="Excluir empresa" onClick={(e) => handleDelete(e, p)}><Trash2 size={14} color="#e2574c" /></button>
-                      <span style={{ ...S.companyColorDot, background: accent }} />
                     </div>
+                    <span style={{ ...S.companyColorDot, background: accent }} />
                   </div>
                 );
               })}
@@ -5428,6 +5468,9 @@ const S = {
   // company selector screen
   companySelectorWrap: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px' },
   companySelectorHeader: { width: 'min(1240px, 96%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  companyHeaderShortcut: { display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--border-2)', color: 'var(--text-3)', fontSize: 12.5, fontWeight: 600, padding: '7px 12px', borderRadius: 999, cursor: 'pointer' },
+  companySearchWrap: { display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-3)', border: '1px solid var(--border-1)', borderRadius: 8, padding: '8px 12px', marginBottom: 14 },
+  companySearchInput: { flex: 1, background: 'transparent', border: 'none', padding: 0, fontSize: 13 },
   workspaceChoices: { display: 'flex', gap: 16, width: 'min(680px, 100%)', flexWrap: 'wrap' },
   workspaceCard: { flex: '1 1 260px', textAlign: 'left', background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: 12, padding: '24px 22px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8, color: 'var(--text-1)', fontFamily: "'Inter', sans-serif", transition: 'border-color .12s' },
   workspaceCardTitle: { fontSize: 16, fontWeight: 800, marginTop: 4 },
