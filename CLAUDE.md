@@ -86,28 +86,46 @@ npm start         # node server/index.js (produção, serve dist/ + API)
 Postgres, 5 tabelas: `organizations`, `users`, `projects` (JSONB), `cnpj_cache`,
 `personal_boards` (JSONB). Detalhes em `docs/PROJECT_MAP.md`.
 
-## Multi-tenant (2026-08, Fase 1 — fundação)
+## Multi-tenant (2026-08, Fases 1 e 2)
 
 A aplicação está em migração pra multi-tenant/white-label (múltiplas
-organizações usando a mesma app, dados isolados). **Fase 1 concluída**: toda
-`user`/`project` tem `org_id` (coluna relacional, não JSONB); todo dado
-existente foi migrado automaticamente pra organização `pricetax`
-(`server/db.js` `migrateToPricetaxOrg()`, roda toda vez que o servidor sobe,
-idempotente). Um único usuário (`SEED_ADMIN_USERNAME`) virou
-`is_super_admin=true` — vê todas as organizações sem filtro; os demais
-usuários `master` continuam administradores completos, só que agora
-escopados à própria organização (não veem outras). Toda rota de
-`users`/`projects` filtra por `org_id` **no SQL**, não só em JS
-(`canAccessProject()`/`sameOrg()` em `server/routes.js`) — tentar acessar
-um recurso de outra organização por ID direto retorna 404/403, mesmo pra
-quem sabe o ID exato. `cnpj_cache` e o scan de `shareToken` de
-`personal_boards` (`/api/public-board/:token`) **não** são escopados por
-organização de propósito — são dado compartilhado/publicamente
-acessível por design, não vazamento.
+organizações usando a mesma app, dados isolados).
 
-Ainda **não implementado** (fases seguintes, roadmap): painel de Super
-Admin, criação de organização pela UI, roteamento/branding por organização
-(`/o/:slug/login`), planos/limites/cobrança. Colunas de schema pra isso já
+**Fase 1 (fundação)**: toda `user`/`project` tem `org_id` (coluna
+relacional, não JSONB); todo dado existente foi migrado automaticamente pra
+organização `pricetax` (`server/db.js` `migrateToPricetaxOrg()`, roda toda
+vez que o servidor sobe, idempotente). Um único usuário
+(`SEED_ADMIN_USERNAME`) virou `is_super_admin=true` — vê todas as
+organizações sem filtro; os demais usuários `master` continuam
+administradores completos, só que agora escopados à própria organização
+(não veem outras). Toda rota de `users`/`projects` filtra por `org_id`
+**no SQL**, não só em JS (`canAccessProject()`/`sameOrg()` em
+`server/routes.js`) — tentar acessar um recurso de outra organização por ID
+direto retorna 404/403, mesmo pra quem sabe o ID exato. `cnpj_cache` e o
+scan de `shareToken` de `personal_boards` (`/api/public-board/:token`)
+**não** são escopados por organização de propósito — são dado
+compartilhado/publicamente acessível por design, não vazamento.
+
+**Fase 2 (painel de Super Admin)**: tela "Organizações" (`SuperAdminScreen`
+em `src/App.jsx`, atrás de `currentUser.isSuperAdmin`, botão no topbar ao
+lado de "Usuários") lista organizações com contagem de usuários/empresas,
+cria novas (`POST /api/organizations`, slug gerado automaticamente do
+nome) e alterna status ativa/suspensa/bloqueada
+(`PATCH /api/organizations/:id`) — status ainda não bloqueia login/acesso
+de fato, é só rótulo por enquanto (enforcement fica pra fase futura). Super
+Admin "entra" numa organização (`enterOrganization()`) que passa a
+acompanhar todas as chamadas de `/api/projects` e `/api/users` com
+`?asOrg=<id>` (`effectiveOrgId()` em `server/routes.js` — só respeitado
+quando `isSuperAdmin`); a partir daí as telas normais de Empresas/Usuários
+funcionam idênticas, só que escopadas pra organização escolhida, sem
+nenhum componente novo. `exitOrganization()` volta pro próprio contexto.
+Banner "Super Admin — visualizando como X" aparece no topbar principal
+enquanto atuando fora da própria org (não aparece ainda na
+`CompanySelectorScreen`, limitação conhecida).
+
+Ainda **não implementado** (fases seguintes, roadmap): roteamento/branding
+por organização (`/o/:slug/login`), enforcement de status
+suspensa/bloqueada, planos/limites/cobrança. Colunas de schema pra isso já
 existem (`organizations.plan/max_users/max_companies/settings`) mas nada
 lê ou aplica ainda.
 

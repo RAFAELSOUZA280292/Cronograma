@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool, blankProject, blankPersonalBoard } from './db.js';
 import {
   hashPassword, comparePassword, signToken, setAuthCookie, clearAuthCookie,
-  rowToUser, findUserByUsername, findUserById, requireAuth, requireMaster, requireMasterOrPricetax, optionalAuth, toISODateSafe,
+  rowToUser, findUserByUsername, findUserById, requireAuth, requireMaster, requireMasterOrPricetax, requireSuperAdmin, optionalAuth, toISODateSafe,
 } from './auth.js';
 import { lookupCnpj, cleanCnpj, formatCnpj } from './cnpjLookup.js';
 
@@ -28,6 +28,13 @@ function canAccessProject(user, project, orgId) {
 
 function sameOrg(req, targetOrgId) {
   return req.user.isSuperAdmin || req.user.orgId === targetOrgId;
+}
+
+// Super Admin pode "entrar" numa organização específica passando ?asOrg=<id>
+// (só respeitado quando isSuperAdmin — qualquer outro usuário sempre usa a própria org).
+function effectiveOrgId(req) {
+  if (req.user.isSuperAdmin && req.query.asOrg) return req.query.asOrg;
+  return req.user.orgId;
 }
 
 export const router = Router();
@@ -90,10 +97,11 @@ router.patch('/auth/me', requireAuth, async (req, res, next) => {
 
 router.get('/users', requireAuth, requireMaster, async (req, res, next) => {
   try {
-    const sql = req.user.isSuperAdmin
+    const orgId = effectiveOrgId(req);
+    const sql = req.user.isSuperAdmin && !orgId
       ? 'SELECT * FROM users ORDER BY created_at ASC'
       : 'SELECT * FROM users WHERE org_id=$1 ORDER BY created_at ASC';
-    const params = req.user.isSuperAdmin ? [] : [req.user.orgId];
+    const params = req.user.isSuperAdmin && !orgId ? [] : [orgId];
     const { rows } = await pool.query(sql, params);
     res.json({ users: rows.map(rowToUser) });
   } catch (e) { next(e); }
@@ -113,7 +121,7 @@ router.post('/users', requireAuth, requireMaster, async (req, res, next) => {
     const { rows } = await pool.query(
       `INSERT INTO users (id, username, password_hash, name, email, role, cnpj, allowed_cnpjs, avatar, personal_only, org_id)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [id, username, hash, name, email || '', role, cnpj || '', JSON.stringify(allowedCnpjs || []), avatar || '', !!personalOnly, req.user.orgId]
+      [id, username, hash, name, email || '', role, cnpj || '', JSON.stringify(allowedCnpjs || []), avatar || '', !!personalOnly, effectiveOrgId(req)]
     );
     res.status(201).json({ user: rowToUser(rows[0]) });
   } catch (e) { next(e); }
@@ -224,10 +232,11 @@ router.delete('/users/:id', requireAuth, requireMaster, async (req, res, next) =
 
 router.get('/projects', requireAuth, async (req, res, next) => {
   try {
-    const sql = req.user.isSuperAdmin
+    const orgId = effectiveOrgId(req);
+    const sql = req.user.isSuperAdmin && !orgId
       ? 'SELECT data, org_id FROM projects ORDER BY created_at ASC'
       : 'SELECT data, org_id FROM projects WHERE org_id=$1 ORDER BY created_at ASC';
-    const params = req.user.isSuperAdmin ? [] : [req.user.orgId];
+    const params = req.user.isSuperAdmin && !orgId ? [] : [orgId];
     const { rows } = await pool.query(sql, params);
     const visible = rows.filter((r) => canAccessProject(req.user, r.data, r.org_id)).map((r) => r.data);
     res.json({ projects: visible });
@@ -249,7 +258,7 @@ router.post('/projects', requireAuth, requireMasterOrPricetax, async (req, res, 
     if (Array.isArray(req.body.team)) project.team = req.body.team;
     if (Array.isArray(req.body.log)) project.log = req.body.log;
 
-    await pool.query('INSERT INTO projects (id, data, org_id) VALUES ($1, $2, $3)', [project.id, JSON.stringify(project), req.user.orgId]);
+    await pool.query('INSERT INTO projects (id, data, org_id) VALUES ($1, $2, $3)', [project.id, JSON.stringify(project), effectiveOrgId(req)]);
 
     if (req.user.role === 'pricetax' && project.company.cnpj) {
       const cnpj = project.company.cnpj;
@@ -395,5 +404,97 @@ router.patch('/public-board/:token', requireAuth, async (req, res, next) => {
     };
     await pool.query('UPDATE personal_boards SET data=$1, updated_at=now() WHERE user_id=$2', [JSON.stringify(nextData), found.ownerId]);
     res.json({ board: patchedBoard });
+  } catch (e) { next(e); }
+});
+
+// ---------- Organizations (Super Admin only) ----------
+
+function rowToOrg(row) {
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    displayName: row.display_name,
+    logoLight: row.logo_light,
+    logoDark: row.logo_dark,
+    favicon: row.favicon,
+    primaryColor: row.primary_color,
+    secondaryColor: row.secondary_color,
+    loginBackground: row.login_background,
+    status: row.status,
+    plan: row.plan,
+    maxUsers: row.max_users,
+    maxCompanies: row.max_companies,
+    createdAt: row.created_at,
+  };
+}
+
+function slugify(s) {
+  return (s || '')
+    .toString()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
+
+router.get('/organizations', requireAuth, requireSuperAdmin, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT o.*,
+        (SELECT COUNT(*)::int FROM users WHERE org_id = o.id) AS user_count,
+        (SELECT COUNT(*)::int FROM projects WHERE org_id = o.id) AS project_count
+      FROM organizations o ORDER BY created_at ASC
+    `);
+    res.json({ organizations: rows.map((r) => ({ ...rowToOrg(r), userCount: r.user_count, projectCount: r.project_count })) });
+  } catch (e) { next(e); }
+});
+
+router.post('/organizations', requireAuth, requireSuperAdmin, async (req, res, next) => {
+  try {
+    const { name, slug } = req.body || {};
+    if (!name || !name.trim()) return res.status(400).json({ message: 'Nome da organização é obrigatório.' });
+    const finalSlug = slugify(slug || name);
+    if (!finalSlug) return res.status(400).json({ message: 'Não foi possível gerar um identificador (slug) válido.' });
+    const { rows: dup } = await pool.query('SELECT id FROM organizations WHERE slug=$1', [finalSlug]);
+    if (dup[0]) return res.status(409).json({ message: 'Já existe uma organização com esse identificador.' });
+    const { rows } = await pool.query(
+      `INSERT INTO organizations (id, slug, name, display_name) VALUES ($1,$2,$3,$4) RETURNING *`,
+      [uid('org'), finalSlug, name.trim(), name.trim()]
+    );
+    res.status(201).json({ organization: rowToOrg(rows[0]) });
+  } catch (e) { next(e); }
+});
+
+router.patch('/organizations/:id', requireAuth, requireSuperAdmin, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rows: existingRows } = await pool.query('SELECT * FROM organizations WHERE id=$1', [id]);
+    const target = existingRows[0];
+    if (!target) return res.status(404).json({ message: 'Organização não encontrada.' });
+    const patch = req.body || {};
+    const next_ = {
+      name: patch.name !== undefined ? patch.name : target.name,
+      display_name: patch.displayName !== undefined ? patch.displayName : target.display_name,
+      logo_light: patch.logoLight !== undefined ? patch.logoLight : target.logo_light,
+      logo_dark: patch.logoDark !== undefined ? patch.logoDark : target.logo_dark,
+      favicon: patch.favicon !== undefined ? patch.favicon : target.favicon,
+      primary_color: patch.primaryColor !== undefined ? patch.primaryColor : target.primary_color,
+      secondary_color: patch.secondaryColor !== undefined ? patch.secondaryColor : target.secondary_color,
+      login_background: patch.loginBackground !== undefined ? patch.loginBackground : target.login_background,
+      status: patch.status !== undefined ? patch.status : target.status,
+    };
+    if (!['active', 'suspended', 'blocked'].includes(next_.status)) {
+      return res.status(400).json({ message: 'Status inválido.' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE organizations SET name=$1, display_name=$2, logo_light=$3, logo_dark=$4, favicon=$5,
+        primary_color=$6, secondary_color=$7, login_background=$8, status=$9, updated_at=now()
+       WHERE id=$10 RETURNING *`,
+      [next_.name, next_.display_name, next_.logo_light, next_.logo_dark, next_.favicon,
+        next_.primary_color, next_.secondary_color, next_.login_background, next_.status, id]
+    );
+    res.json({ organization: rowToOrg(rows[0]) });
   } catch (e) { next(e); }
 });
