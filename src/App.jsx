@@ -336,7 +336,6 @@ export default function App() {
   function toggleTheme() { setTheme((t) => (t === 'light' ? 'dark' : 'light')); }
   const isMobile = useIsMobile();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const { toasts, pushToast, dismissToast } = useToasts();
 
   const [sessionChecked, setSessionChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -676,41 +675,7 @@ export default function App() {
     mutateProject(targetPid, (p) => p, action);
   }
 
-  function findCrossCompanyDateConflicts(targetPid, id, checkDates) {
-    const dates = [...new Set(checkDates.filter(Boolean))];
-    if (dates.length === 0) return [];
-    const conflicts = [];
-    for (const project of projects) {
-      if (project.id === targetPid) continue;
-      for (const act of project.activities) {
-        if (act.id === id || act.deleted || !act.date) continue;
-        const start = act.date;
-        const end = act.endDate || act.date;
-        if (dates.some((d) => d >= start && d <= end)) conflicts.push({ project, activity: act });
-      }
-    }
-    return conflicts;
-  }
-
   function updateActivity(targetPid, id, patch, logMsg) {
-    if (patch.date !== undefined || patch.endDate !== undefined) {
-      const targetProject = projects.find((p) => p.id === targetPid);
-      const targetActivity = targetProject && targetProject.activities.find((a) => a.id === id);
-      if (targetActivity) {
-        const finalDate = patch.date !== undefined ? patch.date : targetActivity.date;
-        const finalEndDate = patch.endDate !== undefined ? patch.endDate : (targetActivity.endDate || targetActivity.date);
-        const conflicts = findCrossCompanyDateConflicts(targetPid, id, [finalDate, finalEndDate]);
-        if (conflicts.length > 0) {
-          const companies = [...new Set(conflicts.map((c) => c.project.company.name || 'empresa sem nome'))].join(', ');
-          pushToast({
-            message: `Atenção: outra(s) empresa(s) (${companies}) já tem atividade nesta mesma data.`,
-            actionLabel: 'OK, entendi',
-            onAction: () => {},
-            ttlMs: 8000,
-          });
-        }
-      }
-    }
     mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => (a.id === id ? { ...a, ...patch } : a)) }), logMsg, id);
   }
 
@@ -1814,8 +1779,6 @@ export default function App() {
           onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
         />
       )}
-
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
