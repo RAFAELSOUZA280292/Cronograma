@@ -64,8 +64,9 @@ const COMPANY_STATUS_META = {
 const CLIENT_TYPE_META = {
   diagnostico: { label: 'Diagnóstico', short: 'Diagnóstico', color: '#3ea6ff', bg: 'rgba(62,166,255,.14)', border: 'rgba(62,166,255,.5)' },
   'diagnostico-consultoria': { label: 'Diagnóstico e Consultoria Contínua', short: 'Consultoria Contínua', color: '#9b7af5', bg: 'rgba(155,122,245,.14)', border: 'rgba(155,122,245,.5)' },
+  'poc-demo': { label: 'POC / Demonstração', short: 'POC/Demo', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
 };
-const CLIENT_TYPE_ORDER = ['diagnostico', 'diagnostico-consultoria'];
+const CLIENT_TYPE_ORDER = ['diagnostico', 'diagnostico-consultoria', 'poc-demo'];
 const DELETE_CONFIRM_PHRASE = 'Excluir';
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 
@@ -2824,6 +2825,9 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   const [selected, setSelected] = useState(() => new Set(initialSelected));
   const [editingProject, setEditingProject] = useState(null);
   const [search, setSearch] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterRegime, setFilterRegime] = useState('');
   const isMobile = useIsMobile();
 
   function toggle(id) {
@@ -2834,13 +2838,18 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
     });
   }
 
+  const regimeOptions = Array.from(new Set(projects.map((p) => p.company.regimeTributario).filter(Boolean))).sort();
+  const filtersActive = !!(filterType || filterStatus || filterRegime);
+
   const term = search.trim().toLowerCase();
-  const filteredProjects = term
-    ? projects.filter((p) => {
-        const c = p.company;
-        return [c.nomeFantasia, c.name, c.cnpj].filter(Boolean).some((v) => v.toLowerCase().includes(term));
-      })
-    : projects;
+  const filteredProjects = projects.filter((p) => {
+    const c = p.company;
+    if (term && ![c.nomeFantasia, c.name, c.cnpj].filter(Boolean).some((v) => v.toLowerCase().includes(term))) return false;
+    if (filterType && c.clientType !== filterType) return false;
+    if (filterStatus && (c.status || 'ativo') !== filterStatus) return false;
+    if (filterRegime && c.regimeTributario !== filterRegime) return false;
+    return true;
+  });
 
   function toggleAll() {
     const ids = filteredProjects.map((p) => p.id);
@@ -2868,6 +2877,11 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
       <style>{`
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
+        select {
+          background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
+          padding:6px 8px; font-size:12.5px;
+        }
+        select:focus { outline:none; border-color:#F5C400; }
         input[type=checkbox]{ accent-color:#F5C400; width:16px; height:16px; }
         .company-card .company-card-actions { opacity: .4; transition: opacity .12s; }
         .company-card:hover .company-card-actions { opacity: 1; }
@@ -2907,12 +2921,36 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                 />
               </div>
             )}
+            {projects.length > 1 && (
+              <div style={S.companyFilterRow}>
+                <select style={S.companyFilterSelect} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                  <option value="">Todos os tipos</option>
+                  {CLIENT_TYPE_ORDER.map((t) => <option key={t} value={t}>{CLIENT_TYPE_META[t].label}</option>)}
+                </select>
+                <select style={S.companyFilterSelect} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                  <option value="">Todos os status</option>
+                  <option value="ativo">Em andamento</option>
+                  <option value="pausado">Pausado</option>
+                </select>
+                {regimeOptions.length > 0 && (
+                  <select style={S.companyFilterSelect} value={filterRegime} onChange={(e) => setFilterRegime(e.target.value)}>
+                    <option value="">Todos os regimes</option>
+                    {regimeOptions.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                )}
+                {filtersActive && (
+                  <button style={S.filterClearBtn} onClick={() => { setFilterType(''); setFilterStatus(''); setFilterRegime(''); }}>
+                    Limpar filtros
+                  </button>
+                )}
+              </div>
+            )}
             <label style={S.companySelectAllRow}>
               <input type="checkbox" checked={allChecked} onChange={toggleAll} />
-              {term ? `Selecionar todas as encontradas (${filteredProjects.length})` : `Selecionar todas (${projects.length})`}
+              {term || filtersActive ? `Selecionar todas as encontradas (${filteredProjects.length})` : `Selecionar todas (${projects.length})`}
             </label>
             {filteredProjects.length === 0 && (
-              <div style={S.emptyMuted}>Nenhuma empresa encontrada para "{search}".</div>
+              <div style={S.emptyMuted}>{term ? `Nenhuma empresa encontrada para "${search}".` : 'Nenhuma empresa encontrada para os filtros selecionados.'}</div>
             )}
             <div style={S.companyList}>
               {filteredProjects.map((p) => {
@@ -6288,6 +6326,8 @@ const S = {
   companyHeaderShortcut: { display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--border-2)', color: 'var(--text-3)', fontSize: 12.5, fontWeight: 600, padding: '7px 12px', borderRadius: 999, cursor: 'pointer' },
   companySearchWrap: { display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-3)', border: '1px solid var(--border-1)', borderRadius: 8, padding: '8px 12px', marginBottom: 14 },
   companySearchInput: { flex: 1, background: 'transparent', border: 'none', padding: 0, fontSize: 13 },
+  companyFilterRow: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  companyFilterSelect: { flex: '1 1 160px', minWidth: 140, maxWidth: 240 },
   workspaceChoices: { display: 'flex', gap: 16, width: 'min(680px, 100%)', flexWrap: 'wrap' },
   workspaceCard: { flex: '1 1 260px', textAlign: 'left', background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: 12, padding: '24px 22px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8, color: 'var(--text-1)', fontFamily: "'Inter', sans-serif", transition: 'border-color .12s' },
   workspaceCardTitle: { fontSize: 16, fontWeight: 800, marginTop: 4 },
