@@ -93,6 +93,27 @@ export async function requireAuth(req, res, next) {
   }
 }
 
+export async function optionalAuth(req, res, next) {
+  try {
+    const token = req.cookies && req.cookies[COOKIE_NAME];
+    if (!token) return next();
+    let payload;
+    try {
+      payload = jwt.verify(token, requireSecret());
+    } catch {
+      return next();
+    }
+    const row = await findUserById(payload.sub);
+    if (row) {
+      req.userRow = row;
+      req.user = rowToUser(row);
+    }
+    next();
+  } catch (e) {
+    next(e);
+  }
+}
+
 export function requireMaster(req, res, next) {
   if (!req.user || req.user.role !== 'master') {
     return res.status(403).json({ message: 'Apenas administradores podem fazer isso.' });
