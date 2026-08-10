@@ -57,6 +57,7 @@ function rowToUser(row) {
     blockReason: row.block_reason,
     expiresAt: toISODateSafe(row.expires_at) || '',
     avatar: row.avatar || '',
+    personalOnly: !!row.personal_only,
   };
 }
 

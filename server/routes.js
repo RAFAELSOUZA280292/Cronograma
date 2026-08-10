@@ -91,7 +91,7 @@ router.get('/users', requireAuth, requireMaster, async (req, res, next) => {
 
 router.post('/users', requireAuth, requireMaster, async (req, res, next) => {
   try {
-    const { username, password, name, email, role, cnpj, allowedCnpjs, avatar } = req.body || {};
+    const { username, password, name, email, role, cnpj, allowedCnpjs, avatar, personalOnly } = req.body || {};
     if (!username || !password || !name || !role) {
       return res.status(400).json({ message: 'Usuário, senha, nome e papel são obrigatórios.' });
     }
@@ -101,9 +101,9 @@ router.post('/users', requireAuth, requireMaster, async (req, res, next) => {
     const hash = await hashPassword(password);
     const id = uid('user');
     const { rows } = await pool.query(
-      `INSERT INTO users (id, username, password_hash, name, email, role, cnpj, allowed_cnpjs, avatar)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [id, username, hash, name, email || '', role, cnpj || '', JSON.stringify(allowedCnpjs || []), avatar || '']
+      `INSERT INTO users (id, username, password_hash, name, email, role, cnpj, allowed_cnpjs, avatar, personal_only)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [id, username, hash, name, email || '', role, cnpj || '', JSON.stringify(allowedCnpjs || []), avatar || '', !!personalOnly]
     );
     res.status(201).json({ user: rowToUser(rows[0]) });
   } catch (e) { next(e); }
@@ -130,11 +130,12 @@ router.patch('/users/:id', requireAuth, requireMaster, async (req, res, next) =>
       allowed_cnpjs: JSON.stringify(patch.allowedCnpjs !== undefined ? patch.allowedCnpjs : (target.allowed_cnpjs || [])),
       expires_at: patch.expiresAt !== undefined ? (patch.expiresAt || null) : target.expires_at,
       avatar: patch.avatar !== undefined ? patch.avatar : target.avatar,
+      personal_only: patch.personalOnly !== undefined ? !!patch.personalOnly : target.personal_only,
     };
     const { rows } = await pool.query(
-      `UPDATE users SET username=$1, name=$2, email=$3, role=$4, cnpj=$5, allowed_cnpjs=$6, expires_at=$7, avatar=$8, updated_at=now()
-       WHERE id=$9 RETURNING *`,
-      [next_.username, next_.name, next_.email, next_.role, next_.cnpj, next_.allowed_cnpjs, next_.expires_at, next_.avatar, id]
+      `UPDATE users SET username=$1, name=$2, email=$3, role=$4, cnpj=$5, allowed_cnpjs=$6, expires_at=$7, avatar=$8, personal_only=$9, updated_at=now()
+       WHERE id=$10 RETURNING *`,
+      [next_.username, next_.name, next_.email, next_.role, next_.cnpj, next_.allowed_cnpjs, next_.expires_at, next_.avatar, next_.personal_only, id]
     );
     res.json({ user: rowToUser(rows[0]) });
   } catch (e) { next(e); }
