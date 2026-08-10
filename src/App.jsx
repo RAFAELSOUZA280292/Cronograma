@@ -566,7 +566,7 @@ export default function App() {
     return <LoadingScreen theme={theme} />;
   }
 
-  if (!workspaceMode) {
+  if (!workspaceMode && !currentUser.personalOnly) {
     return (
       <WorkspaceGateScreen
         user={currentUser}
@@ -579,7 +579,7 @@ export default function App() {
     );
   }
 
-  if (workspaceMode === 'personal') {
+  if (workspaceMode === 'personal' || currentUser.personalOnly) {
     if (!personalBoardLoaded || !personalBoard) {
       return <PersonalBoardSkeleton theme={theme} />;
     }
@@ -587,7 +587,7 @@ export default function App() {
       <PersonalBoardScreen
         board={personalBoard}
         onMutate={mutatePersonalBoard}
-        onExit={() => setWorkspaceMode('company')}
+        onExit={currentUser.personalOnly ? null : () => setWorkspaceMode('company')}
         currentUser={currentUser}
         onLogout={handleLogout}
         theme={theme}
@@ -2086,7 +2086,7 @@ function UsersManagementScreen({
 }
 
 function NewUserModal({ onCreate, onClose }) {
-  const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente', avatar: '' });
+  const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente', avatar: '', personalOnly: false });
   const isMobile = useIsMobile();
 
   function submit() {
@@ -2115,6 +2115,10 @@ function NewUserModal({ onCreate, onClose }) {
         <input type="password" value={draft.password} onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))} placeholder="Senha inicial" />
         <div style={S.subSectionLabel}>Avatar (opcional)</div>
         <AvatarPicker value={draft.avatar} onChange={(avatar) => setDraft((d) => ({ ...d, avatar }))} />
+        <label style={{ ...S.cnpjCheckRow, marginTop: 14 }}>
+          <input type="checkbox" checked={draft.personalOnly} onChange={(e) => setDraft((d) => ({ ...d, personalOnly: e.target.checked }))} />
+          Acesso apenas à Gestão de Atividades (sem acesso a Empresas)
+        </label>
         <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit}><Plus size={14} /> Criar usuário</button>
       </div>
     </div>
@@ -2176,6 +2180,16 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
           <div style={{ marginTop: 12 }}>
             <div style={S.fieldHint}>Clientes liberados para este usuário</div>
             {registeredProjects.length === 0 && <div style={S.emptyMuted}>Nenhum cliente com CNPJ cadastrado ainda.</div>}
+            {registeredProjects.length > 0 && (() => {
+              const allCnpjs = registeredProjects.map((p) => p.company.cnpj).filter(Boolean);
+              const allSelected = allCnpjs.length > 0 && allCnpjs.every((c) => (u.allowedCnpjs || []).includes(c));
+              return (
+                <label style={{ ...S.cnpjCheckRow, fontWeight: 700, borderBottom: '1px solid var(--border-1)', paddingBottom: 6, marginBottom: 4 }}>
+                  <input type="checkbox" checked={allSelected} onChange={() => onUpdate(u.id, { allowedCnpjs: allSelected ? [] : allCnpjs })} />
+                  Selecionar todas
+                </label>
+              );
+            })()}
             <div style={S.cnpjCheckList}>
               {registeredProjects.map((p) => (
                 <label key={p.id} style={S.cnpjCheckRow}>
@@ -2188,6 +2202,16 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
         )}
 
         {u.role === 'master' && <div style={{ ...S.fieldHint, marginTop: 12 }}>Vê todos os projetos, sem precisar liberar nada.</div>}
+
+        <div style={{ marginTop: 12 }}>
+          <label style={S.cnpjCheckRow}>
+            <input type="checkbox" checked={!!u.personalOnly} onChange={(e) => onUpdate(u.id, { personalOnly: e.target.checked })} />
+            Acesso apenas à Gestão de Atividades (sem acesso a Empresas)
+          </label>
+          {u.personalOnly && (
+            <div style={S.fieldHint}>Ao entrar, este usuário vai direto para o quadro pessoal — não vê a tela de empresas.</div>
+          )}
+        </div>
 
         <div style={S.accessBlock}>
           <div style={S.settingsLabel}>Acesso</div>
@@ -4027,7 +4051,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
             <div style={S.brandName}>Gestão de Atividades</div>
             <div style={S.brandCnpj}>{currentUser.name}</div>
           </div>
-          <button className="pb-ghost" style={S.pbGhostBtn} onClick={onExit}><Building2 size={15} /> Ir para Empresas</button>
+          {onExit && <button className="pb-ghost" style={S.pbGhostBtn} onClick={onExit}><Building2 size={15} /> Ir para Empresas</button>}
           <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira{trashItems.length > 0 ? ` (${trashItems.length})` : ''}</button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
