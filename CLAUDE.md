@@ -106,6 +106,15 @@ projeto em `canAccessProject()` (`server/routes.js`).
 - Usuário pode ter `personalOnly=true` (checkbox "Acesso apenas à Gestão de
   Atividades"): ao logar, pula a tela de escolha de módulo e a de empresas,
   entra direto no quadro pessoal, sem botão para voltar a Empresas.
+- Cada página da Gestão de Atividades tem `visibility` (`private`|`public`) +
+  `shareToken` (2026-08). Pública: `/quadro/:shareToken` é a única rota sem
+  `requireAuth` do app — visitante sem sessão só visualiza (nenhum botão de
+  mutação renderiza); visitante logado (dono ou não) colabora normalmente via
+  `PATCH /api/public-board/:token` (`requireAuth`, sem checar dono — o token é
+  a autorização). Alternar pra Privado invalida o link na hora só pela
+  checagem `visibility==='public'` no backend (não apaga nem regenera o
+  token). Toda ação vira entrada em `board.log` (mistura eventos estruturais
+  do board com `card.history` agregado) — ver `BoardActivityLogModal`.
 
 Antes de alterar qualquer funcionalidade, **abra e confira os arquivos
 envolvidos** — o `PROJECT_MAP.md` serve para localizar, não substitui ler o
