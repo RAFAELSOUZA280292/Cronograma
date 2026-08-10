@@ -336,6 +336,7 @@ export default function App() {
   function toggleTheme() { setTheme((t) => (t === 'light' ? 'dark' : 'light')); }
   const isMobile = useIsMobile();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const { toasts, pushToast, dismissToast } = useToasts();
 
   const [sessionChecked, setSessionChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -701,10 +702,12 @@ export default function App() {
         const conflicts = findCrossCompanyDateConflicts(targetPid, id, [finalDate, finalEndDate]);
         if (conflicts.length > 0) {
           const companies = [...new Set(conflicts.map((c) => c.project.company.name || 'empresa sem nome'))].join(', ');
-          const ok = window.confirm(
-            `Atenção: já existem atividades de outras empresas (${companies}) iniciando, em execução ou sendo finalizadas nesta data.\n\nDeseja continuar mesmo assim?`
-          );
-          if (!ok) return;
+          pushToast({
+            message: `Atenção: outra(s) empresa(s) (${companies}) já tem atividade nesta mesma data.`,
+            actionLabel: 'OK, entendi',
+            onAction: () => {},
+            ttlMs: 8000,
+          });
         }
       }
     }
@@ -1811,6 +1814,8 @@ export default function App() {
           onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
         />
       )}
+
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
@@ -5557,7 +5562,7 @@ const S = {
 
   saveStateBadge: { fontSize: 11, color: 'var(--text-6)', marginRight: 4 },
   toastStack: { position: 'fixed', bottom: 20, right: 20, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 80 },
-  toast: { display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: 'var(--text-2)', boxShadow: 'var(--pb-shadow-drag)', minWidth: 220 },
+  toast: { display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: 'var(--text-2)', boxShadow: 'var(--pb-shadow-drag)', minWidth: 220, maxWidth: 'calc(100vw - 40px)' },
   toastAction: { background: 'transparent', border: 'none', color: '#F5C400', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap' },
 
   skeletonBlock: { background: 'var(--border-1)', borderRadius: 6, animation: 'personalSkeletonPulse 1.4s ease-in-out infinite' },
