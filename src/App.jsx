@@ -75,6 +75,24 @@ const PRIORITY_META = {
 };
 const PRIORITY_ORDER = ['alta', 'media', 'baixa'];
 
+const SUB_ROW_CSS = `
+  .sub-row-card { transition:border-color .12s, box-shadow .12s; }
+  .sub-row-card:hover { border-color:var(--border-3); box-shadow:0 1px 5px rgba(0,0,0,.10); }
+  .sub-row-card .sub-drag-handle { opacity:.3; transition:opacity .12s; }
+  .sub-row-card:hover .sub-drag-handle { opacity:.9; }
+  .sub-row-card .sub-del-btn { opacity:.4; transition:opacity .12s, color .12s; }
+  .sub-row-card:hover .sub-del-btn { opacity:1; }
+  .sub-row-card .sub-del-btn:hover { color:#e5484d; }
+  .sub-row-card .sub-title-input { background:transparent; border:1px solid transparent; padding:4px 6px; font-size:13px; border-radius:5px; }
+  .sub-row-card .sub-title-input:hover { background:var(--bg-3); }
+  .sub-row-card .sub-title-input:focus { background:var(--bg-4); border-color:#F5C400; }
+  .sub-row-card .sub-meta-select, .sub-row-card .sub-meta-date {
+    font-size:11px; padding:4px 7px; border-radius:6px; background:var(--bg-3); border:1px solid var(--border-1); color:var(--text-4);
+  }
+  .sub-row-card .sub-meta-select:hover, .sub-row-card .sub-meta-date:hover { color:var(--text-2); border-color:var(--border-3); }
+  .sub-row-card input[type=checkbox] { width:16px; height:16px; cursor:pointer; flex-shrink:0; }
+`;
+
 const CARD_PRIORITY_META = {
   urgente: { label: 'Urgente', color: '#e2574c', bg: 'rgba(226,87,76,.16)', border: 'rgba(226,87,76,.5)' },
   alta: { label: 'Alta', color: '#ff9f40', bg: 'rgba(255,159,64,.16)', border: 'rgba(255,159,64,.5)' },
@@ -4131,6 +4149,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
 
   return (
     <div className="no-print" style={S.detailOverlay} onClick={onClose}>
+      <style>{SUB_ROW_CSS}</style>
       <div style={S.detailBox} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={S.detailTopLeft}>
@@ -4303,30 +4322,33 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
             </select>
 
             <div style={S.subSectionLabel}>Subatividades</div>
-            {(a.subactivities || []).filter((s) => !s.deleted).map((s) => (
-              <div
-                key={s.id}
-                style={{ ...S.subRowWrap, ...(dragSubId === s.id ? { opacity: .4 } : {}) }}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => { reorderSub(pid, a.id, dragSubId, s.id); setDragSubId(null); }}
-              >
-                <div style={S.subRow}>
-                  <div draggable onDragStart={() => setDragSubId(s.id)} onDragEnd={() => setDragSubId(null)} style={S.subDragHandle} title="Arraste para reordenar">
-                    <GripVertical size={13} color="var(--text-8)" />
+            <div style={S.subList}>
+              {(a.subactivities || []).filter((s) => !s.deleted).map((s) => (
+                <div
+                  key={s.id}
+                  className="sub-row-card"
+                  style={{ ...S.subRowWrap, ...(dragSubId === s.id ? { opacity: .4 } : {}) }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => { reorderSub(pid, a.id, dragSubId, s.id); setDragSubId(null); }}
+                >
+                  <div style={S.subRow}>
+                    <div className="sub-drag-handle" draggable onDragStart={() => setDragSubId(s.id)} onDragEnd={() => setDragSubId(null)} style={S.subDragHandle} title="Arraste para reordenar">
+                      <GripVertical size={13} color="var(--text-8)" />
+                    </div>
+                    <input type="checkbox" checked={s.done} onChange={(e) => updateSub(pid, a.id, s.id, { done: e.target.checked })} />
+                    <input type="text" className="sub-title-input" value={s.title} onChange={(e) => updateSub(pid, a.id, s.id, { title: e.target.value })} style={{ ...S.subTitleInput, textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
+                    <button className="sub-del-btn" style={S.iconBtnGhost} onClick={() => deleteSub(pid, a.id, s.id)}><X size={13} /></button>
                   </div>
-                  <input type="checkbox" checked={s.done} onChange={(e) => updateSub(pid, a.id, s.id, { done: e.target.checked })} />
-                  <input type="text" value={s.title} onChange={(e) => updateSub(pid, a.id, s.id, { title: e.target.value })} style={{ flex: 1, textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
-                  <button style={S.iconBtnGhost} onClick={() => deleteSub(pid, a.id, s.id)}><X size={13} /></button>
+                  <div style={S.subMetaRow}>
+                    <select className="sub-meta-select" value={s.responsible || ''} onChange={(e) => updateSub(pid, a.id, s.id, { responsible: e.target.value })} style={S.subMetaSelect} title="Responsável da subatividade">
+                      <option value="">Sem responsável</option>
+                      {team.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
+                    </select>
+                    <input type="date" className="sub-meta-date" value={s.date || ''} onChange={(e) => updateSub(pid, a.id, s.id, { date: e.target.value })} style={S.subMetaDate} title="Prazo da subatividade" />
+                  </div>
                 </div>
-                <div style={S.subMetaRow}>
-                  <select value={s.responsible || ''} onChange={(e) => updateSub(pid, a.id, s.id, { responsible: e.target.value })} style={S.subMiniField} title="Responsável da subatividade">
-                    <option value="">Sem responsável</option>
-                    {team.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
-                  </select>
-                  <input type="date" value={s.date || ''} onChange={(e) => updateSub(pid, a.id, s.id, { date: e.target.value })} style={S.subMiniField} title="Prazo da subatividade" />
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
             <button style={S.addSubBtn} onClick={() => addSub(pid, a.id)}><Plus size={12} /> Subatividade</button>
 
             <div style={S.subSectionLabel}>Anexos {(a.attachments || []).length > 0 ? `(${(a.attachments || []).length})` : ''}</div>
@@ -4473,6 +4495,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
 
   return (
     <div style={S.tableLayout}>
+      <style>{SUB_ROW_CSS}</style>
       <div style={S.filterSidebar}>
         <div style={S.filterSidebarTitle}>Filtros rápidos</div>
         <div style={S.filterGroup}>
@@ -4656,30 +4679,33 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
 
                 {isOpen && (
                   <div style={S.subPanel}>
-                    {subs.map((s) => (
-                      <div
-                        key={s.id}
-                        style={{ ...S.subRowWrap, ...(dragSub && dragSub.subId === s.id ? { opacity: .4 } : {}) }}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => { if (dragSub && dragSub.actId === a.id) reorderSub(rowPid, a.id, dragSub.subId, s.id); setDragSub(null); }}
-                      >
-                        <div style={S.subRow}>
-                          <div draggable onDragStart={() => setDragSub({ actId: a.id, subId: s.id })} onDragEnd={() => setDragSub(null)} style={S.subDragHandle} title="Arraste para reordenar">
-                            <GripVertical size={13} color="var(--text-8)" />
+                    <div style={S.subList}>
+                      {subs.map((s) => (
+                        <div
+                          key={s.id}
+                          className="sub-row-card"
+                          style={{ ...S.subRowWrap, ...(dragSub && dragSub.subId === s.id ? { opacity: .4 } : {}) }}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => { if (dragSub && dragSub.actId === a.id) reorderSub(rowPid, a.id, dragSub.subId, s.id); setDragSub(null); }}
+                        >
+                          <div style={S.subRow}>
+                            <div className="sub-drag-handle" draggable onDragStart={() => setDragSub({ actId: a.id, subId: s.id })} onDragEnd={() => setDragSub(null)} style={S.subDragHandle} title="Arraste para reordenar">
+                              <GripVertical size={13} color="var(--text-8)" />
+                            </div>
+                            <input type="checkbox" checked={s.done} onChange={(e) => updateSub(rowPid, a.id, s.id, { done: e.target.checked })} />
+                            <input type="text" className="sub-title-input" value={s.title} onChange={(e) => updateSub(rowPid, a.id, s.id, { title: e.target.value })} style={{ ...S.subTitleInput, textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
+                            <button className="sub-del-btn" style={S.iconBtnGhost} onClick={() => deleteSub(rowPid, a.id, s.id)}><X size={13} /></button>
                           </div>
-                          <input type="checkbox" checked={s.done} onChange={(e) => updateSub(rowPid, a.id, s.id, { done: e.target.checked })} />
-                          <input type="text" value={s.title} onChange={(e) => updateSub(rowPid, a.id, s.id, { title: e.target.value })} style={{ flex: 1, textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
-                          <button style={S.iconBtnGhost} onClick={() => deleteSub(rowPid, a.id, s.id)}><X size={13} /></button>
+                          <div style={S.subMetaRow}>
+                            <select className="sub-meta-select" value={s.responsible || ''} onChange={(e) => updateSub(rowPid, a.id, s.id, { responsible: e.target.value })} style={S.subMetaSelect} title="Responsável da subatividade">
+                              <option value="">Sem responsável</option>
+                              {rowTeam.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
+                            </select>
+                            <input type="date" className="sub-meta-date" value={s.date || ''} onChange={(e) => updateSub(rowPid, a.id, s.id, { date: e.target.value })} style={S.subMetaDate} title="Prazo da subatividade" />
+                          </div>
                         </div>
-                        <div style={S.subMetaRow}>
-                          <select value={s.responsible || ''} onChange={(e) => updateSub(rowPid, a.id, s.id, { responsible: e.target.value })} style={S.subMiniField} title="Responsável da subatividade">
-                            <option value="">Sem responsável</option>
-                            {rowTeam.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
-                          </select>
-                          <input type="date" value={s.date || ''} onChange={(e) => updateSub(rowPid, a.id, s.id, { date: e.target.value })} style={S.subMiniField} title="Prazo da subatividade" />
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                     <button style={S.addSubBtn} onClick={() => addSub(rowPid, a.id)}><Plus size={12} /> Subatividade</button>
 
                     <div style={S.subSectionLabel}>Observações</div>
@@ -5116,11 +5142,14 @@ const S = {
   prazoInput: { width: 46, flexShrink: 0, textAlign: 'center', padding: '6px 2px', fontSize: 12 },
   actionsCell: { width: 60, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 },
   subPanel: { padding: '4px 14px 14px 60px', display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-page)' },
-  subRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  subRowWrap: { display: 'flex', flexDirection: 'column', gap: 4, padding: '4px 0', borderBottom: '1px solid var(--border-1)' },
+  subList: { display: 'flex', flexDirection: 'column', gap: 6 },
+  subRowWrap: { display: 'flex', flexDirection: 'column', gap: 5, padding: '6px 8px 7px 5px', borderRadius: 8, background: 'var(--bg-2)', border: '1px solid var(--border-1)' },
+  subRow: { display: 'flex', alignItems: 'center', gap: 7 },
+  subMetaRow: { display: 'flex', gap: 6, paddingLeft: 34 },
   subDragHandle: { display: 'flex', alignItems: 'center', cursor: 'grab', flexShrink: 0 },
-  subMetaRow: { display: 'flex', gap: 6, paddingLeft: 21 },
-  subMiniField: { flex: 1, fontSize: 10.5, padding: '3px 5px' },
+  subTitleInput: { flex: 1, minWidth: 60 },
+  subMetaSelect: { flex: '0 1 160px', minWidth: 0 },
+  subMetaDate: { flex: '0 1 130px', minWidth: 0 },
   addSubBtn: { display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: '1px dashed var(--border-3)', color: 'var(--text-4)', fontSize: 11.5, padding: '6px 10px', borderRadius: 6, cursor: 'pointer', width: 'fit-content', marginTop: 4 },
   subSectionLabel: { fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-5)', marginTop: 14, marginBottom: 6 },
   notesArea: { resize: 'vertical', minHeight: 60, lineHeight: 1.5 },
