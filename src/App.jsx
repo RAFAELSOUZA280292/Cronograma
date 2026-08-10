@@ -860,6 +860,18 @@ export default function App() {
     mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, comments: (a.comments || []).filter((c) => c.id !== commentId) }) }), undefined, actId);
   }
 
+  function updateComment(targetPid, actId, commentId, text) {
+    const v = (text || '').trim();
+    if (!v) return;
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      activities: p.activities.map((a) => a.id !== actId ? a : {
+        ...a,
+        comments: (a.comments || []).map((c) => c.id === commentId ? { ...c, text: v, editedAt: new Date().toISOString() } : c),
+      }),
+    }), undefined, actId);
+  }
+
   function addLink(targetPid, actId, link) {
     if (!link || !link.url || !link.url.trim()) return;
     const url = /^https?:\/\//i.test(link.url.trim()) ? link.url.trim() : `https://${link.url.trim()}`;
@@ -1888,6 +1900,7 @@ export default function App() {
             removeAttachment={removeAttachment}
             addComment={addComment}
             removeComment={removeComment}
+            updateComment={updateComment}
             addLink={addLink}
             removeLink={removeLink}
             toggleParticipant={toggleParticipant}
@@ -4777,7 +4790,9 @@ function renderCommentText(text, teamList) {
   return parts.map((part, i) => (names.some((n) => part === `@${n}`) ? <span key={i} style={S.mentionTag}>{part}</span> : <React.Fragment key={i}>{part}</React.Fragment>));
 }
 
-function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, onClose, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, addComment, removeComment, addLink, removeLink, toggleParticipant }) {
+function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, onClose, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant }) {
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingCommentText, setEditingCommentText] = useState('');
   const [commentDraft, setCommentDraft] = useState('');
   const [pendingMentions, setPendingMentions] = useState([]);
   const [dragSubId, setDragSubId] = useState(null);
@@ -4866,10 +4881,32 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
               {(a.comments || []).length === 0 && <div style={S.emptyMuted}>Nenhum comentário ainda.</div>}
               {[...(a.comments || [])].reverse().map((c) => (
                 <div key={c.id} style={S.commentBubble}>
-                  <div style={S.commentText}>{renderCommentText(c.text, team)}</div>
+                  {editingCommentId === c.id ? (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input
+                        value={editingCommentText}
+                        onChange={(e) => setEditingCommentText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { updateComment(pid, a.id, c.id, editingCommentText); setEditingCommentId(null); }
+                          if (e.key === 'Escape') setEditingCommentId(null);
+                        }}
+                        style={{ flex: 1 }}
+                        autoFocus
+                      />
+                      <button style={S.iconBtn} onClick={() => { updateComment(pid, a.id, c.id, editingCommentText); setEditingCommentId(null); }}><Check size={13} /></button>
+                      <button style={S.iconBtnGhost} onClick={() => setEditingCommentId(null)}><X size={13} /></button>
+                    </div>
+                  ) : (
+                    <div style={S.commentText}>{renderCommentText(c.text, team)}</div>
+                  )}
                   <div style={S.commentMeta}>
-                    <span>{c.author ? `${c.author} · ` : ''}{fmtTs(c.ts)}</span>
-                    <button style={S.commentDel} onClick={() => removeComment(pid, a.id, c.id)}><X size={11} /></button>
+                    <span>{c.author ? `${c.author} · ` : ''}{fmtTs(c.ts)}{c.editedAt ? ' · editado' : ''}</span>
+                    {editingCommentId !== c.id && (
+                      <span style={{ display: 'flex', gap: 8 }}>
+                        <button style={S.commentDel} onClick={() => { setEditingCommentId(c.id); setEditingCommentText(c.text); }}><Pencil size={11} /></button>
+                        <button style={S.commentDel} onClick={() => removeComment(pid, a.id, c.id)}><X size={11} /></button>
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
