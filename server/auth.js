@@ -58,6 +58,8 @@ function rowToUser(row) {
     expiresAt: toISODateSafe(row.expires_at) || '',
     avatar: row.avatar || '',
     personalOnly: !!row.personal_only,
+    orgId: row.org_id || null,
+    isSuperAdmin: !!row.is_super_admin,
   };
 }
 
@@ -124,6 +126,13 @@ export function requireMaster(req, res, next) {
 export function requireMasterOrPricetax(req, res, next) {
   if (!req.user || (req.user.role !== 'master' && req.user.role !== 'pricetax')) {
     return res.status(403).json({ message: 'Apenas Master ou PRICETAX podem cadastrar empresas.' });
+  }
+  next();
+}
+
+export function requireSuperAdmin(req, res, next) {
+  if (!req.user || !req.user.isSuperAdmin) {
+    return res.status(403).json({ message: 'Apenas o Super Administrador pode fazer isso.' });
   }
   next();
 }

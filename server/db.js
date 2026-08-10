@@ -106,6 +106,27 @@ export function blankPersonalBoard() {
 
 export async function initDb() {
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS organizations (
+      id               TEXT PRIMARY KEY,
+      slug             TEXT UNIQUE NOT NULL,
+      name             TEXT NOT NULL,
+      display_name     TEXT NOT NULL DEFAULT '',
+      logo_light       TEXT NOT NULL DEFAULT '',
+      logo_dark        TEXT NOT NULL DEFAULT '',
+      favicon          TEXT NOT NULL DEFAULT '',
+      primary_color    TEXT NOT NULL DEFAULT '#F5C400',
+      secondary_color  TEXT NOT NULL DEFAULT '',
+      login_background TEXT NOT NULL DEFAULT '',
+      status           TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','blocked')),
+      plan             TEXT NOT NULL DEFAULT 'default',
+      max_users        INT,
+      max_companies    INT,
+      settings         JSONB NOT NULL DEFAULT '{}',
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id            TEXT PRIMARY KEY,
       username      TEXT UNIQUE NOT NULL,
@@ -125,6 +146,8 @@ export async function initDb() {
   `);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT NOT NULL DEFAULT ''`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS personal_only BOOLEAN NOT NULL DEFAULT false`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS org_id TEXT REFERENCES organizations(id)`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAULT false`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS projects (
       id         TEXT PRIMARY KEY,
@@ -133,6 +156,7 @@ export async function initDb() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS org_id TEXT REFERENCES organizations(id)`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS cnpj_cache (
       cnpj       TEXT PRIMARY KEY,
@@ -147,6 +171,26 @@ export async function initDb() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+}
+
+export const PRICETAX_ORG_SLUG = 'pricetax';
+
+export async function migrateToPricetaxOrg() {
+  const { rows } = await pool.query(
+    `INSERT INTO organizations (id, slug, name, display_name, primary_color)
+     VALUES ($1, $2, 'PRICETAX', 'PRICETAX', '#F5C400')
+     ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug
+     RETURNING id`,
+    [uid('org'), PRICETAX_ORG_SLUG]
+  );
+  const orgId = rows[0].id;
+  await pool.query('UPDATE users SET org_id = $1 WHERE org_id IS NULL', [orgId]);
+  await pool.query('UPDATE projects SET org_id = $1 WHERE org_id IS NULL', [orgId]);
+  const seedUsername = process.env.SEED_ADMIN_USERNAME;
+  if (seedUsername) {
+    await pool.query('UPDATE users SET is_super_admin = true WHERE username = $1', [seedUsername]);
+  }
+  return orgId;
 }
 
 export async function seedIfEmpty() {

@@ -2,7 +2,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initDb, seedIfEmpty } from './db.js';
+import { initDb, seedIfEmpty, migrateToPricetaxOrg } from './db.js';
 import { router as apiRouter } from './routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -30,6 +30,7 @@ const port = process.env.PORT || 3001;
 async function start() {
   await initDb();
   await seedIfEmpty();
+  await migrateToPricetaxOrg();
   app.listen(port, () => {
     console.log(`Cronograma server ouvindo na porta ${port}`);
   });

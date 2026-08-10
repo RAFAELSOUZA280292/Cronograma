@@ -12,8 +12,10 @@ depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
   Todo o app (telas, modais, estilos) está em `src/App.jsx`.
 - **Backend**: Express (`server/`), API REST sob `/api/*`. Serve também os
   estáticos de `dist/` e faz fallback de SPA (`app.get('*', ...)`).
-- **Banco**: Postgres, driver `pg` puro (sem ORM/query builder). 4 tabelas —
-  ver seção 6.
+- **Banco**: Postgres, driver `pg` puro (sem ORM/query builder). 5 tabelas —
+  ver seção 6. Multi-tenant desde 2026-08 (Fase 1): `users`/`projects` têm
+  `org_id` (FK pra `organizations`), toda query filtra por ele — ver
+  CLAUDE.md seção "Multi-tenant".
 - **APIs**: só a própria API interna (`server/routes.js`) + 2 APIs públicas de
   terceiros para lookup de CNPJ (BrasilAPI, fallback ReceitaWS), com cache em
   `cnpj_cache`.
@@ -183,13 +185,19 @@ anexos são base64 inline no PATCH do projeto (ver §9, ponto de atenção).
 
 | Tabela | Finalidade | Relacionamentos |
 |---|---|---|
-| `users` | Conta de login, papel (master/pricetax/cliente), CNPJs liberados | `personal_boards.user_id` referencia `users.id` (CASCADE) |
-| `projects` | 1 linha = 1 empresa/cronograma inteiro, tudo em `data JSONB` (company, phases, activities, team, log) | Vínculo com `users` é lógico via `company.cnpj` / `allowed_cnpjs`, não FK |
-| `cnpj_cache` | Cache de 60 dias das respostas de lookup de CNPJ | Nenhum |
-| `personal_boards` | 1 linha por usuário, `data JSONB` = quadro Kanban pessoal | FK `user_id → users.id` |
+| `organizations` | Tenant/organização (2026-08). Colunas: `slug`, `name`, `display_name`, `logo_light/dark`, `favicon`, `primary_color`, `secondary_color`, `login_background`, `status` (active/suspended/blocked), `plan`, `max_users`, `max_companies`, `settings` JSONB | `users.org_id`/`projects.org_id` referenciam `organizations.id` |
+| `users` | Conta de login, papel (master/pricetax/cliente), CNPJs liberados, `org_id`, `is_super_admin` | `personal_boards.user_id` referencia `users.id` (CASCADE); `org_id → organizations.id` |
+| `projects` | 1 linha = 1 empresa/cronograma inteiro, tudo em `data JSONB` (company, phases, activities, team, log) + coluna relacional `org_id` | Vínculo com `users` é lógico via `company.cnpj` / `allowed_cnpjs`, não FK; `org_id → organizations.id` |
+| `cnpj_cache` | Cache de 60 dias das respostas de lookup de CNPJ — **não** tem `org_id`, é compartilhado entre organizações de propósito | Nenhum |
+| `personal_boards` | 1 linha por usuário, `data JSONB` = quadro Kanban pessoal — **não** tem `org_id` (sempre buscado por `user_id`; o scan de `shareToken` público é cross-org de propósito) | FK `user_id → users.id` |
 
 Sem migrations formais — `initDb()` roda `CREATE TABLE IF NOT EXISTS` +
 `ALTER TABLE ADD COLUMN IF NOT EXISTS` a cada boot do servidor.
+`migrateToPricetaxOrg()` (`server/db.js`) roda logo em seguida, também a
+cada boot: cria a organização `pricetax` se não existir e faz
+`UPDATE ... SET org_id = <pricetax> WHERE org_id IS NULL` em `users` e
+`projects` — é assim que dados pré-multi-tenant continuam funcionando sem
+migration manual.
 
 ## 7. APIs
 
