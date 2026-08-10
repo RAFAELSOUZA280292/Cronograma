@@ -148,6 +148,27 @@ function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
 function todayISOStr() { return toISODate(startOfDay(new Date())); }
 
+// Breakpoints únicos do app — não crie outros. MOBILE_BP = celular (layout empilhado/cards).
+// TABLET_BP = ponto em que sidebars/painéis fixos deixam de caber confortavelmente ao lado do conteúdo.
+const MOBILE_BP = 768;
+const TABLET_BP = 1024;
+
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() => (typeof window !== 'undefined' ? window.matchMedia(query).matches : false));
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const handler = (e) => setMatches(e.matches);
+    handler(mq);
+    if (mq.addEventListener) mq.addEventListener('change', handler);
+    else mq.addListener(handler);
+    return () => { if (mq.removeEventListener) mq.removeEventListener('change', handler); else mq.removeListener(handler); };
+  }, [query]);
+  return matches;
+}
+
+function useIsMobile() { return useMediaQuery(`(max-width: ${MOBILE_BP - 1}px)`); }
+function useIsCompact() { return useMediaQuery(`(max-width: ${TABLET_BP - 1}px)`); }
+
 function normalizeTeam(team, teamLinks) {
   return (team || []).map((m) => {
     if (typeof m !== 'string') return m;
@@ -313,6 +334,8 @@ export default function App() {
     try { window.localStorage.setItem(THEME_KEY, theme); } catch (e) { /* ignora */ }
   }, [theme]);
   function toggleTheme() { setTheme((t) => (t === 'light' ? 'dark' : 'light')); }
+  const isMobile = useIsMobile();
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const [sessionChecked, setSessionChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -1176,6 +1199,22 @@ export default function App() {
     _order: perCompanyOrderMap[p.id][a.id],
   }))) : [];
 
+  // Ações secundárias do topbar — mesma lista de condições usada pelos botões desktop (linha a linha
+  // logo abaixo), só que declarativa, para poder ser renderizada também dentro do menu "Mais" no mobile
+  // sem duplicar a lógica de onClick/visibilidade.
+  const moreMenuItems = [
+    !isMulti && { icon: Settings, label: 'Empresa', onClick: () => setShowSettings(true) },
+    canPickCompanies && { icon: Building2, label: 'Trocar empresas', onClick: () => setCompanySelectionConfirmed(false) },
+    { icon: Columns3, label: 'Gestão de Atividades', onClick: () => setWorkspaceMode('personal') },
+    (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Plus, label: 'Cadastrar empresa', onClick: () => setShowCreateCompany(true) },
+    currentUser.role === 'master' && { icon: UserCog, label: 'Usuários', onClick: () => setShowUsers(true) },
+    !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: LayoutGrid, label: 'Fases', onClick: () => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); } },
+    !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Clock, label: `Log (${(activeProject.log || []).length})`, onClick: () => setShowLog(true) },
+    !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Trash2, label: 'Lixeira', onClick: () => setShowTrash(true) },
+    { icon: FileSpreadsheet, label: 'Excel', onClick: exportExcel },
+    { icon: FileText, label: 'PDF', onClick: exportPdf },
+  ].filter(Boolean);
+
   return (
     <div style={S.page}>
       <style>{`
@@ -1243,30 +1282,49 @@ export default function App() {
                   {activeProject.company.regimeTributario ? ` · ${activeProject.company.regimeTributario}` : ''}
                 </div>
               </div>
-              <button style={S.iconBtn} onClick={() => setShowSettings(true)}><Settings size={15} /> Empresa</button>
+              {!isMobile && <button style={S.iconBtn} onClick={() => setShowSettings(true)}><Settings size={15} /> Empresa</button>}
             </>
           )}
-          {canPickCompanies && (
+          {!isMobile && canPickCompanies && (
             <button style={S.iconBtn} onClick={() => setCompanySelectionConfirmed(false)}><Building2 size={15} /> Trocar empresas</button>
           )}
-          <button style={S.iconBtn} onClick={() => setWorkspaceMode('personal')}><Columns3 size={15} /> Gestão de Atividades</button>
+          {!isMobile && (
+            <button style={S.iconBtn} onClick={() => setWorkspaceMode('personal')}><Columns3 size={15} /> Gestão de Atividades</button>
+          )}
         </div>
         <div style={S.actionsRow}>
-          {(currentUser.role === 'master' || currentUser.role === 'pricetax') && (
+          {isMobile && moreMenuItems.length > 0 && (
+            <div style={{ position: 'relative' }}>
+              <button style={S.iconBtn} onClick={() => setShowMoreMenu((v) => !v)}><MoreHorizontal size={15} /> Mais</button>
+              {showMoreMenu && (
+                <>
+                  <div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => setShowMoreMenu(false)} />
+                  <div style={{ ...S.dropdownMenu, left: 0, right: 'auto' }}>
+                    {moreMenuItems.map((item, i) => (
+                      <button key={i} style={S.dropdownItem} onClick={() => { setShowMoreMenu(false); item.onClick(); }}>
+                        <item.icon size={14} /> {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {!isMobile && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowCreateCompany(true)}><Plus size={15} /> Cadastrar empresa</button>
           )}
-          {currentUser.role === 'master' && <button style={S.iconBtn} onClick={() => setShowUsers(true)}><UserCog size={15} /> Usuários</button>}
-          {!isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
+          {!isMobile && currentUser.role === 'master' && <button style={S.iconBtn} onClick={() => setShowUsers(true)}><UserCog size={15} /> Usuários</button>}
+          {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); }}><LayoutGrid size={15} /> Fases</button>
           )}
-          {!isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
+          {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowLog(true)}><Clock size={15} /> Log ({(activeProject.log || []).length})</button>
           )}
-          {!isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
+          {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira ({activeProject.activities.filter((a) => a.deleted).length + activeProject.activities.reduce((n, a) => n + (a.deleted ? 0 : (a.subactivities || []).filter((s) => s.deleted).length), 0)})</button>
           )}
-          <button style={S.iconBtn} onClick={exportExcel}><FileSpreadsheet size={15} /> Excel</button>
-          <button style={S.iconBtn} onClick={exportPdf}><FileText size={15} /> PDF</button>
+          {!isMobile && <button style={S.iconBtn} onClick={exportExcel}><FileSpreadsheet size={15} /> Excel</button>}
+          {!isMobile && <button style={S.iconBtn} onClick={exportPdf}><FileText size={15} /> PDF</button>}
           {isMulti ? (
             <select
               style={{ ...S.iconBtn, cursor: 'pointer', appearance: 'auto' }}
@@ -1289,11 +1347,11 @@ export default function App() {
           </button>
           <ThemeToggleBtn theme={theme} onToggle={toggleTheme} />
           <div style={S.userBadge}>
-            <button style={S.userAvatarBtn} title="Meu perfil" onClick={() => setShowMyProfile(true)}>
+            <button style={S.userAvatarBtn} title={`Meu perfil — ${currentUser.name}`} onClick={() => setShowMyProfile(true)}>
               <UserAvatar user={currentUser} size={26} />
             </button>
-            <span style={{ ...S.roleTag, color: ROLE_META[currentUser.role].color, borderColor: ROLE_META[currentUser.role].color }}>{ROLE_META[currentUser.role].label}</span>
-            <span style={S.userName}>{currentUser.name}</span>
+            {!isMobile && <span style={{ ...S.roleTag, color: ROLE_META[currentUser.role].color, borderColor: ROLE_META[currentUser.role].color }}>{ROLE_META[currentUser.role].label}</span>}
+            {!isMobile && <span style={S.userName}>{currentUser.name}</span>}
             <button style={S.iconBtnGhost} title="Sair" onClick={handleLogout}><LogOut size={15} /></button>
           </div>
         </div>
@@ -1315,7 +1373,7 @@ export default function App() {
         })}
       </div>
 
-      <main style={S.main}>
+      <main style={{ ...S.main, ...(isMobile ? { padding: '14px 12px 0 12px' } : null) }}>
         {!isMulti && view === 'timeline' && (
           <TimelineView
             activities={activitiesSorted}
@@ -1837,6 +1895,7 @@ function UsersManagementScreen({
   const [filterStatus, setFilterStatus] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const isMobile = useIsMobile();
 
   const total = users.length;
   const blocked = users.filter((u) => u.blocked).length;
@@ -1922,6 +1981,7 @@ function UsersManagementScreen({
 
       <div style={S.usersTableOuter}>
         <div style={S.usersTableWrap}>
+          {!isMobile && (
           <div style={S.usersTableHeaderRow}>
             <div style={{ ...S.th, flex: 2 }}>Nome / Usuário</div>
             <div style={{ ...S.th, flex: 2 }}>E-mail</div>
@@ -1930,7 +1990,9 @@ function UsersManagementScreen({
             <div style={{ ...S.th, width: 110 }}>Licença até</div>
             <div style={{ ...S.th, width: 80, textAlign: 'right' }}>Ações</div>
           </div>
+          )}
           {filtered.map((u) => (
+            !isMobile ? (
             <div key={u.id} style={S.usersTableRow} onClick={() => setEditingId(u.id)}>
               <div style={{ flex: 2, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <UserAvatar user={u} size={30} />
@@ -1961,6 +2023,36 @@ function UsersManagementScreen({
                 </button>
               </div>
             </div>
+            ) : (
+            <div key={u.id} style={S.usersMobileRow} onClick={() => setEditingId(u.id)}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <UserAvatar user={u} size={34} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={S.usersRowName}>{u.name}</div>
+                  <div style={S.usersRowUsername}>{u.username}</div>
+                  <div style={{ ...S.usersRowEmail, marginTop: 2 }}>{u.email || '—'}</div>
+                </div>
+              </div>
+              <div style={S.usersMobileBadgeRow}>
+                <span style={{ ...S.roleTag, color: ROLE_META[u.role].color, borderColor: ROLE_META[u.role].color }}>{ROLE_META[u.role].label}</span>
+                {u.blocked ? <span style={S.usersStatusBlocked}>Bloqueado</span> : <span style={S.usersStatusActive}>Ativo</span>}
+                <span style={{ fontSize: 12, color: isExpiredNotYetFlagged(u) ? '#e2574c' : 'var(--text-5)' }}>
+                  {u.expiresAt ? `Até ${fmtDate(u.expiresAt)}` : 'Sem limite'}
+                </span>
+              </div>
+              <div style={S.usersMobileActionsRow} onClick={(e) => e.stopPropagation()}>
+                <button style={S.mobileIconBtn} title="Editar" onClick={() => setEditingId(u.id)}><Pencil size={16} /></button>
+                <button
+                  style={S.mobileIconBtn}
+                  title={u.blocked ? 'Desbloquear' : 'Bloquear'}
+                  onClick={() => onToggleBlock(u.id)}
+                  disabled={u.id === currentUser.id}
+                >
+                  {u.blocked ? <Check size={16} color="#3ecf6e" /> : <Trash2 size={16} color={u.id === currentUser.id ? 'var(--text-8)' : '#e2574c'} />}
+                </button>
+              </div>
+            </div>
+            )
           ))}
           {filtered.length === 0 && <div style={{ ...S.emptyMuted, padding: 24 }}>Nenhum usuário encontrado.</div>}
         </div>
@@ -1990,6 +2082,7 @@ function UsersManagementScreen({
 
 function NewUserModal({ onCreate, onClose }) {
   const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente', avatar: '' });
+  const isMobile = useIsMobile();
 
   function submit() {
     if (!draft.username || !draft.password || !draft.name) return;
@@ -1997,8 +2090,8 @@ function NewUserModal({ onCreate, onClose }) {
   }
 
   return (
-    <div style={S.detailOverlay} onClick={onClose}>
-      <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+      <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Novo usuário</div>
           <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
@@ -2029,10 +2122,11 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
   const [draftUsername, setDraftUsername] = useState(u.username);
   const [draftEmail, setDraftEmail] = useState(u.email);
   const [draftBlockReason, setDraftBlockReason] = useState(u.blockReason || '');
+  const isMobile = useIsMobile();
 
   return (
-    <div style={S.detailOverlay} onClick={onClose}>
-      <div style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '88vh' }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+      <div style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '88vh', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <UserAvatar user={u} size={30} />
@@ -2125,9 +2219,10 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
 
 function MyProfileModal({ user, onClose, onSave }) {
   const [avatar, setAvatar] = useState(user.avatar || '');
+  const isMobile = useIsMobile();
   return (
-    <div style={S.detailOverlay} onClick={onClose}>
-      <div style={{ ...S.detailBox, width: 'min(420px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+      <div style={{ ...S.detailBox, width: 'min(420px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Meu perfil</div>
           <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
@@ -2159,6 +2254,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource }) {
   const [error, setError] = useState('');
   const [fetched, setFetched] = useState(null);
   const [form, setForm] = useState({ name: '', nomeFantasia: '', color: PHASE_COLORS[0], logo: '', clientType: '' });
+  const isMobile = useIsMobile();
 
   function handleLogoPick(e) {
     const file = e.target.files && e.target.files[0];
@@ -2216,7 +2312,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource }) {
   }
 
   return (
-    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif" }} onClick={onClose}>
+    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
       <style>{`
         input[type=text], input[type=email], input[type=password], select, textarea {
           background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
@@ -2226,7 +2322,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource }) {
           outline:none; border-color:#F5C400;
         }
       `}</style>
-      <div style={{ ...S.detailBox, width: 'min(560px, 100%)', height: 'auto', maxHeight: '88vh' }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...S.detailBox, width: 'min(560px, 100%)', height: 'auto', maxHeight: '88vh', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>{cloneSource ? 'Clonar empresa' : 'Cadastrar empresa'}</div>
           <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
@@ -2404,6 +2500,7 @@ function EditCompanyModal({ project, onClose, onSave }) {
   const c = project.company;
   const [form, setForm] = useState({ name: c.name || '', nomeFantasia: c.nomeFantasia || '', color: c.color || PHASE_COLORS[0], logo: c.logo || '', status: c.status || 'ativo', resumeDate: c.resumeDate || '', clientType: c.clientType || '' });
   const [saving, setSaving] = useState(false);
+  const isMobile = useIsMobile();
 
   function handleLogoPick(e) {
     const file = e.target.files && e.target.files[0];
@@ -2422,7 +2519,7 @@ function EditCompanyModal({ project, onClose, onSave }) {
   }
 
   return (
-    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif" }} onClick={onClose}>
+    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
       <style>{`
         input[type=text], select, textarea {
           background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
@@ -2430,7 +2527,7 @@ function EditCompanyModal({ project, onClose, onSave }) {
         }
         input[type=text]:focus { outline:none; border-color:#F5C400; }
       `}</style>
-      <div style={{ ...S.detailBox, width: 'min(480px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...S.detailBox, width: 'min(480px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Editar empresa</div>
           <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
@@ -2489,6 +2586,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   const [selected, setSelected] = useState(() => new Set(initialSelected));
   const [editingProject, setEditingProject] = useState(null);
   const [search, setSearch] = useState('');
+  const isMobile = useIsMobile();
 
   function toggle(id) {
     setSelected((prev) => {
@@ -2587,8 +2685,8 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                 const nextOverdue = next && next.date < todayISOStr();
                 const donutCircumference = 2 * Math.PI * 13;
                 return (
-                  <div key={p.id} className="company-card" style={{ ...S.companyCard, borderLeft: `3px solid ${isSelected ? accent : 'var(--border-2)'}` }}>
-                    <label style={S.companyCardMain}>
+                  <div key={p.id} className="company-card" style={{ ...S.companyCard, ...(isMobile ? S.companyCardMobile : null), borderLeft: `3px solid ${isSelected ? accent : 'var(--border-2)'}` }}>
+                    <label style={{ ...S.companyCardMain, ...(isMobile ? S.companyCardMainMobile : null) }}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggle(p.id)} />
                       {p.company.logo ? <img src={p.company.logo} alt="" style={S.companyCardLogo} /> : <div style={{ ...S.companyCardLogoEmpty, background: p.company.color || 'var(--bg-4)' }}><Building2 size={16} color="#111" /></div>}
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -2616,7 +2714,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                         </div>
                       </div>
                     </label>
-                    <div style={S.companyCardProgress}>
+                    <div style={{ ...S.companyCardProgress, ...(isMobile ? S.companyCardProgressMobile : null) }}>
                       <div style={S.companyCardDonutWrap}>
                         <svg viewBox="0 0 32 32" width="34" height="34">
                           <circle cx="16" cy="16" r="13" fill="none" stroke="var(--border-1)" strokeWidth="4" />
@@ -2634,7 +2732,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                         atividades
                       </div>
                     </div>
-                    <div style={S.companyCardNext}>
+                    <div style={{ ...S.companyCardNext, ...(isMobile ? S.companyCardNextMobile : null) }}>
                       <div style={S.companyCardNextLabel}>Próxima atividade</div>
                       {next ? (
                         <>
@@ -2647,7 +2745,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                         <div style={{ ...S.companyCardNextDate, color: 'var(--text-6)', marginTop: 2 }}>Nenhuma pendente</div>
                       )}
                     </div>
-                    <div className="company-card-actions" style={S.companyCardActions}>
+                    <div className={isMobile ? undefined : 'company-card-actions'} style={{ ...S.companyCardActions, ...(isMobile ? S.companyCardActionsMobile : null) }}>
                       <button style={S.iconBtnGhost} title="Clonar atividades para uma nova empresa" onClick={(e) => { e.stopPropagation(); onCloneCompany(p); }}><Copy size={14} /></button>
                       <button style={S.iconBtnGhost} title="Editar empresa" onClick={(e) => { e.stopPropagation(); setEditingProject(p); }}><Pencil size={14} /></button>
                       <button style={S.iconBtnGhost} title="Excluir empresa" onClick={(e) => handleDelete(e, p)}><Trash2 size={14} color="#e2574c" /></button>
@@ -2991,7 +3089,7 @@ function PersonalCard({ card, columnId, disabled, otherColumns, onOpen, onToggle
     <div
       ref={setNodeRef}
       className="pb-card"
-      style={{ ...S.personalCard, ...style, ...(disabled ? {} : { cursor: 'grab' }), ...(card.completed ? S.personalCardDone : {}) }}
+      style={{ ...S.personalCard, ...style, ...(disabled ? {} : { cursor: 'grab', touchAction: 'none' }), ...(card.completed ? S.personalCardDone : {}) }}
       {...attributes}
       {...listeners}
       onClick={onOpen}
@@ -3055,7 +3153,8 @@ function PersonalColumn({
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column.id, data: { type: 'column' } });
   const { setNodeRef: setDropRef } = useDroppable({ id: `coldrop-${column.id}`, data: { type: 'coldrop', columnId: column.id } });
-  const style = { transform: DndCSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  const isMobile = useIsMobile();
+  const style = { transform: DndCSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, ...(isMobile ? S.personalColMobile : null) };
   const colorMeta = column.color ? COLUMN_COLOR_META[column.color] : null;
   const cardIds = cardsToRender.map((c) => c.id);
 
@@ -3072,7 +3171,7 @@ function PersonalColumn({
 
   return (
     <div ref={setNodeRef} style={{ ...S.personalCol, background: colorMeta ? colorMeta.container : 'var(--pcol-default-container)', ...style }}>
-      <div {...attributes} {...listeners} style={{ ...S.personalColHead, cursor: 'grab' }}>
+      <div {...attributes} {...listeners} style={{ ...S.personalColHead, cursor: 'grab', touchAction: 'none' }}>
         <span style={S.personalColGrip}><GripVertical size={13} color="var(--text-8)" /></span>
         <div style={{ ...S.personalColTag, background: colorMeta ? colorMeta.bg : 'transparent' }}>
           <input
@@ -3172,10 +3271,11 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
   }
 
   const doneCount = (card.checklist || []).filter((i) => i.done).length;
+  const isMobile = useIsMobile();
 
   return (
-    <div style={S.detailOverlay} onClick={onClose}>
-      <div style={{ ...S.detailBox, width: 'min(760px, 100%)' }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+      <div style={{ ...S.detailBox, width: 'min(760px, 100%)', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={S.fieldHint}>{boardName} / {columnName}</div>
           <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
@@ -3383,9 +3483,10 @@ function ReassignCardsModal({ column, otherColumns, onConfirm, onCancel }) {
   const [targetColId, setTargetColId] = useState(otherColumns[0] ? otherColumns[0].id : '');
   const [alsoDelete, setAlsoDelete] = useState(false);
   const activeCount = column.cards.filter((c) => !c.deleted).length;
+  const isMobile = useIsMobile();
   return (
-    <div style={S.detailOverlay} onClick={onCancel}>
-      <div style={{ ...S.detailBox, width: 'min(460px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onCancel}>
+      <div style={{ ...S.detailBox, width: 'min(460px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 16, fontWeight: 800 }}>Excluir coluna "{column.name}"</div>
           <button style={S.iconBtnGhost} onClick={onCancel}><X size={18} /></button>
@@ -3438,6 +3539,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
   const activeFilterCount = (filters.status ? 1 : 0) + (filters.priority.length > 0 ? 1 : 0) + (filters.dueBucket ? 1 : 0);
   const [activeDragItem, setActiveDragItem] = useState(null);
   const { toasts, pushUndoToast, dismissToast } = useToasts();
+  const isMobile = useIsMobile();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -4125,9 +4227,10 @@ function NoAccessScreen({ user, onLogout, theme, onToggleTheme }) {
 }
 
 function SidePanel({ title, onClose, children }) {
+  const isMobile = useIsMobile();
   return (
     <div className="no-print" style={S.overlay} onClick={onClose}>
-      <div style={S.panel} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...S.panel, ...(isMobile ? S.panelMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.panelHead}>
           <div style={S.panelTitle}>{title}</div>
           <button style={S.iconBtnGhost} onClick={onClose}><X size={16} /></button>
@@ -4187,10 +4290,12 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
     setLinkUrlDraft('');
   }
 
+  const isMobile = useIsMobile();
+
   return (
-    <div className="no-print" style={S.detailOverlay} onClick={onClose}>
+    <div className="no-print" style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
       <style>{SUB_ROW_CSS}</style>
-      <div style={S.detailBox} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...S.detailBox, ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={S.detailTopLeft}>
             <span style={{ ...S.monthBadgeSm, background: phase?.color }}>#{orderMap[a.id]}</span>
@@ -4208,7 +4313,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
         />
 
         <div style={S.detailGrid}>
-          <div style={S.detailMain}>
+          <div style={{ ...S.detailMain, ...(isMobile ? S.detailMainMobile : null) }}>
             <div style={S.subSectionLabel}>Descrição</div>
             <textarea value={a.desc} onChange={(e) => updateActivity(pid, a.id, { desc: e.target.value })} onBlur={() => updateActivity(pid, a.id, {}, `Descrição alterada em "${a.title}"`)} rows={2} style={S.notesArea} />
 
@@ -4280,7 +4385,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
             </div>
           </div>
 
-          <div style={S.detailSide}>
+          <div style={{ ...S.detailSide, ...(isMobile ? S.detailSideMobile : null) }}>
             <div style={S.subSectionLabel}>Fase</div>
             <select value={a.phase} onChange={(e) => { const id = Number(e.target.value); updateActivity(pid, a.id, { phase: id }, `Fase alterada em "${a.title}": ${phases.find((p) => p.id === id)?.name}`); }}>
               {phases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -4415,6 +4520,9 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
 }
 
 function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor }) {
+  const isMobile = useIsMobile();
+  const isCompact = useIsCompact();
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [dragSub, setDragSub] = useState(null);
   const [dragActId, setDragActId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
@@ -4534,9 +4642,15 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
   }
 
   return (
-    <div style={S.tableLayout}>
+    <div style={{ ...S.tableLayout, ...(isCompact ? S.tableLayoutCompact : null) }}>
       <style>{SUB_ROW_CSS}</style>
-      <div style={S.filterSidebar}>
+      {isCompact && (
+        <button style={S.filterToggleBtn} onClick={() => setShowMobileFilters((v) => !v)}>
+          <SlidersHorizontal size={14} /> Filtros{filtersActive ? ' •' : ''} {showMobileFilters ? '▲' : '▼'}
+        </button>
+      )}
+      {(!isCompact || showMobileFilters) && (
+      <div style={{ ...S.filterSidebar, ...(isCompact ? S.filterSidebarCompact : null) }}>
         <div style={S.filterSidebarTitle}>Filtros rápidos</div>
         <div style={S.filterGroup}>
           <div style={S.filterLabel}>Fase</div>
@@ -4572,9 +4686,11 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
           </button>
         )}
       </div>
+      )}
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={S.tableWrap}>
+          {!isMobile && (
           <div style={S.tableHeaderRow}>
             <div style={{ ...S.th, width: 20 }}></div>
             <div style={{ ...S.th, width: 46 }}>#</div>
@@ -4587,6 +4703,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
             <div style={{ ...S.th, width: 140 }}>Status</div>
             <div style={{ ...S.th, width: 60 }}></div>
           </div>
+          )}
 
           {filtered.length === 0 && (
             <div style={S.tableEmptyState}>Nenhuma atividade encontrada com esses filtros.</div>
@@ -4631,6 +4748,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                   ...(isDragging ? S.tableRowDragging : {}),
                 }}
               >
+                {!isMobile && (
                 <div style={S.tableRow}>
                   <div
                     style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: multiMode ? 'default' : (isDragging ? 'grabbing' : 'grab'), opacity: multiMode ? 0.25 : 1, flexShrink: 0 }}
@@ -4716,6 +4834,104 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                     <button style={S.iconBtnGhost} onClick={() => deleteActivity(rowPid, a.id)}><Trash2 size={14} /></button>
                   </div>
                 </div>
+                )}
+
+                {isMobile && (
+                  <div style={S.mobileActCard}>
+                    <div style={S.mobileActTopRow}>
+                      <span style={S.monthBadgeSm}>#{rowOrder}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {a.priority && <span title={`Prioridade ${PRIORITY_META[a.priority].label}`} style={{ ...S.priorityDot, background: PRIORITY_META[a.priority].color, flexShrink: 0 }} />}
+                          <input type="text" value={a.title} onChange={(e) => updateActivity(rowPid, a.id, { title: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} style={{ flex: 1, fontWeight: 700 }} />
+                        </div>
+                        {multiMode && <div style={{ marginTop: 6 }}><CompanyBadge name={a._companyName} color={a._companyColor} logo={a._companyLogo} /></div>}
+                        <input type="text" value={a.desc} onChange={(e) => updateActivity(rowPid, a.id, { desc: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 6, opacity: .8 }} />
+                      </div>
+                    </div>
+
+                    <div style={S.mobileFieldGroup}>
+                      <div>
+                        <div style={S.mobileFieldLabel}>Fase</div>
+                        <select
+                          value={a.phase}
+                          onChange={(e) => {
+                            const newPhaseId = Number(e.target.value);
+                            const phaseName = rowPhases.find((p) => p.id === newPhaseId)?.name || '';
+                            updateActivity(rowPid, a.id, { phase: newPhaseId }, `Fase alterada em "${a.title}": ${phaseName}`);
+                          }}
+                          style={{ ...S.pillSelect, background: `${phaseColor}22`, borderColor: `${phaseColor}66`, color: phaseColor }}
+                        >
+                          {rowPhases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={S.mobileFieldLabel}>Responsável</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ ...S.avatarDot, background: rowAccent }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>
+                          <select value={a.responsible} onChange={(e) => updateActivity(rowPid, a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)} style={{ flex: 1, minWidth: 0 }}>
+                            {rowTeam.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <div style={S.mobileFieldLabel}>Status</div>
+                        <select value={a.status} onChange={(e) => updateActivity(rowPid, a.id, { status: e.target.value }, `Status alterado em "${a.title}": ${STATUS_META[e.target.value].label}`)} style={{ ...S.pillSelect, background: STATUS_META[a.status].bg, borderColor: STATUS_META[a.status].border, color: STATUS_META[a.status].color }}>
+                          {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={S.mobileFieldLabel}>Início</div>
+                          <input type="date" value={a.date} onChange={(e) => {
+                            const v = e.target.value;
+                            const patch = { date: v };
+                            if (a.durationDays) patch.endDate = calcDeadline(v, a.durationDays);
+                            else if (!a.endDate || a.endDate < v) patch.endDate = v;
+                            updateActivity(rowPid, a.id, patch, `Início alterado em "${a.title}": ${fmtDate(v)}`);
+                          }} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={S.mobileFieldLabel}>Fim</div>
+                          <input type="date" value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(rowPid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
+                        </div>
+                      </div>
+                      <div>
+                        <div style={S.mobileFieldLabel}>Prazo (dias)</div>
+                        <input
+                          type="number"
+                          min={1}
+                          placeholder="dias"
+                          value={a.durationDays || ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const patch = { durationDays: v ? Number(v) : '' };
+                            if (v && a.date) patch.endDate = calcDeadline(a.date, v);
+                            updateActivity(rowPid, a.id, patch);
+                          }}
+                          onBlur={() => updateActivity(rowPid, a.id, {}, `Prazo alterado em "${a.title}": ${a.durationDays ? a.durationDays + ' dias' : 'sem prazo definido'}`)}
+                        />
+                      </div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-3)' }}>
+                        <input type="checkbox" checked={a.required} onChange={(e) => updateActivity(rowPid, a.id, { required: e.target.checked }, `Obrigatoriedade alterada em "${a.title}"`)} /> Obrigatória
+                      </label>
+                    </div>
+
+                    <div style={S.mobileActionsRow}>
+                      <button
+                        style={S.subToggleBtn}
+                        onClick={() => setExpanded((e) => ({ ...e, [`${rowPid}-${a.id}`]: !e[`${rowPid}-${a.id}`] }))}
+                      >
+                        <ChevronDown size={11} style={{ transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .12s' }} />
+                        {subs.length > 0 ? `${doneSubs}/${subs.length} subatividades` : 'Detalhes'}
+                      </button>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button style={S.mobileIconBtn} title="Abrir em tela cheia" onClick={() => openDetail(rowPid, a.id)}><Maximize2 size={16} /></button>
+                        <button style={S.mobileIconBtn} onClick={() => deleteActivity(rowPid, a.id)}><Trash2 size={16} /></button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {isOpen && (
                   <div style={S.subPanel}>
@@ -4912,6 +5128,7 @@ function PhasesView({ activities, orderMap, phases, pid, updateActivity, openDet
 }
 
 function KanbanView({ activities, orderMap, phases, pid, dragId, setDragId, updateActivity, addActivity, openDetail, multiMode }) {
+  const isMobile = useIsMobile();
   function keyPid(a) { return pid || a._pid; }
   function onDrop(status) {
     if (!dragId) return;
@@ -4922,12 +5139,12 @@ function KanbanView({ activities, orderMap, phases, pid, dragId, setDragId, upda
     setDragId(null);
   }
   return (
-    <div style={S.kanbanBoard}>
+    <div style={{ ...S.kanbanBoard, ...(isMobile ? S.kanbanBoardMobile : null) }}>
       {STATUS_ORDER.map((status) => {
         const meta = STATUS_META[status];
         const items = activities.filter((a) => a.status === status);
         return (
-          <div key={status} style={S.kanbanCol} onDragOver={(e) => e.preventDefault()} onDrop={() => onDrop(status)}>
+          <div key={status} style={{ ...S.kanbanCol, ...(isMobile ? S.kanbanColMobile : null) }} onDragOver={(e) => e.preventDefault()} onDrop={() => onDrop(status)}>
             <div style={S.kanbanColHead}>
               <span style={{ ...S.kanbanDot, background: meta.color }} />
               <span>{meta.label}</span>
@@ -5119,9 +5336,9 @@ function TimelineView({ activities, phases, granularity, setGranularity, windowA
 }
 
 const S = {
-  page: { background: 'var(--bg-page)', color: 'var(--text-1)', fontFamily: "'Inter', sans-serif", minHeight: '100vh', paddingBottom: 40, position: 'relative' },
+  page: { background: 'var(--bg-page)', color: 'var(--text-1)', fontFamily: "'Inter', sans-serif", minHeight: '100dvh', paddingBottom: 40, position: 'relative' },
   topbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '18px 24px', borderBottom: '1px solid var(--border-1)', background: 'var(--bg-2)' },
-  brandRow: { display: 'flex', alignItems: 'center', gap: 12 },
+  brandRow: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   logoImg: { width: 38, height: 38, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border-3)' },
   logoPlaceholder: { width: 38, height: 38, borderRadius: 8, background: 'var(--bg-4)', border: '1px solid var(--border-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   brandNameRow: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
@@ -5136,7 +5353,7 @@ const S = {
   iconBtnGhost: { display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', color: 'var(--text-5)', cursor: 'pointer', padding: 4 },
   mentionBadge: { position: 'absolute', top: -3, right: -5, background: '#e2574c', color: '#fff', fontSize: 9.5, fontWeight: 800, borderRadius: 999, minWidth: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 },
   primaryBtn: { display: 'flex', alignItems: 'center', gap: 6, background: '#F5C400', border: 'none', color: '#111', fontSize: 12.5, fontWeight: 800, padding: '7px 13px', borderRadius: 7, cursor: 'pointer' },
-  tabs: { display: 'flex', gap: 6, padding: '14px 24px 0 24px' },
+  tabs: { display: 'flex', gap: 6, padding: '14px 24px 0 24px', overflowX: 'auto' },
   tab: { display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--border-1)', color: 'var(--text-4)', fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: '8px 8px 0 0', cursor: 'pointer' },
   tabActive: { background: 'var(--bg-3)', color: '#F5C400', borderColor: 'var(--border-3)', borderBottomColor: 'var(--bg-3)' },
   main: { padding: '20px 24px 0 24px' },
@@ -5149,7 +5366,7 @@ const S = {
   userName: { fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)' },
 
   // login
-  loginWrap: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  loginWrap: { minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
   loginBox: { width: 'min(520px, 100%)' },
   loginLogo: { height: 34, marginBottom: 18 },
   loginEyebrow: { fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: '#F5C400', marginBottom: 10 },
@@ -5162,7 +5379,10 @@ const S = {
 
   // table view
   tableLayout: { display: 'flex', gap: 18, alignItems: 'flex-start' },
+  tableLayoutCompact: { flexDirection: 'column' },
   filterSidebar: { width: 200, flexShrink: 0, background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 10, padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 16 },
+  filterSidebarCompact: { width: '100%', position: 'static' },
+  filterToggleBtn: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-3)', border: '1px solid var(--border-2)', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 600, padding: '9px 14px', borderRadius: 8, cursor: 'pointer', width: '100%', justifyContent: 'center' },
   filterSidebarTitle: { fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-5)' },
   filterGroup: { display: 'flex', flexDirection: 'column', gap: 5 },
   filterLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-4)' },
@@ -5175,6 +5395,14 @@ const S = {
   tableGroup: { borderBottom: '1px solid var(--border-1)' },
   tableRowDragging: { opacity: .96, boxShadow: '0 10px 24px rgba(0,0,0,.55)' },
   tableRow: { display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 14px', background: 'var(--bg-1)' },
+  // Layout alternativo em card usado só quando isMobile — mesma linha de dados do tableRow,
+  // reorganizada em coluna única porque uma linha horizontal de ~10 campos não cabe num celular.
+  mobileActCard: { display: 'flex', flexDirection: 'column', gap: 12, padding: '14px', background: 'var(--bg-1)' },
+  mobileActTopRow: { display: 'flex', alignItems: 'flex-start', gap: 10 },
+  mobileFieldGroup: { display: 'flex', flexDirection: 'column', gap: 12 },
+  mobileFieldLabel: { fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-5)', marginBottom: 4 },
+  mobileActionsRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2, paddingTop: 10, borderTop: '1px solid var(--border-1)' },
+  mobileIconBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 38, height: 38, background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 8, color: 'var(--text-3)', cursor: 'pointer' },
   monthBadgeSm: { fontSize: 10.5, fontWeight: 800, background: '#F5C400', color: '#111', padding: '3px 7px', borderRadius: 5 },
   subCounter: { fontSize: 11, color: 'var(--text-6)', marginTop: 4 },
   subToggleBtn: { display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 'none', color: 'var(--text-5)', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0, marginTop: 6 },
@@ -5245,7 +5473,11 @@ const S = {
 
   // kanban
   kanbanBoard: { display: 'grid', gridTemplateColumns: `repeat(${STATUS_ORDER.length}, 1fr)`, gap: 16 },
+  // No celular a grade de 4 colunas fica espremida demais — vira uma fileira com rolagem
+  // horizontal (mesmo padrão do Quadro pessoal), cada coluna com largura mínima confortável.
+  kanbanBoardMobile: { display: 'flex', overflowX: 'auto', gridTemplateColumns: 'none' },
   kanbanCol: { background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 10, padding: 12, minHeight: 200 },
+  kanbanColMobile: { minWidth: '82vw', flexShrink: 0 },
   kanbanColHead: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 800, marginBottom: 12, color: 'var(--text-2)' },
   kanbanDot: { width: 8, height: 8, borderRadius: '50%' },
   kanbanCount: { marginLeft: 'auto', fontSize: 11, color: 'var(--text-6)', background: 'var(--border-1)', padding: '1px 7px', borderRadius: 999 },
@@ -5264,6 +5496,9 @@ const S = {
   personalFilterSelect: { fontSize: 11.5, padding: '5px 8px', borderRadius: 8, width: 'auto', flexShrink: 0 },
   personalBoardArea: { display: 'flex', gap: 16, padding: '16px 24px 32px', overflowX: 'auto', alignItems: 'flex-start' },
   personalCol: { border: 'none', borderRadius: 14, padding: 10, minWidth: 300, width: 300, flexShrink: 0, transition: 'background .16s ease' },
+  // No celular cada coluna ocupa quase a largura toda da tela (padrão Trello mobile: rola
+  // horizontalmente uma coluna por vez, com uma pequena borda da próxima aparecendo).
+  personalColMobile: { minWidth: '86vw', width: '86vw' },
   personalColHead: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 650, marginBottom: 10, color: 'var(--text-2)', padding: '4px 2px' },
   personalColTag: { display: 'flex', alignItems: 'center', flex: 1, minWidth: 0, padding: '3px 9px', borderRadius: 6 },
   personalColGrip: { display: 'flex', cursor: 'grab', flexShrink: 0, opacity: .5 },
@@ -5362,7 +5597,16 @@ const S = {
   // panels
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', justifyContent: 'flex-end', zIndex: 50 },
   detailOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24 },
+  detailOverlayMobile: { padding: 0, alignItems: 'stretch' },
   detailBox: { width: 'min(980px, 100%)', height: '92vh', background: 'var(--bg-1)', border: '1px solid var(--border-2)', borderRadius: 14, overflowY: 'auto', padding: '20px 28px 32px 28px' },
+  // Aplicado via spread condicional (isMobile ? S.detailBoxMobile : {}) nos ~9 modais que usam detailBox —
+  // não altera detailBox em si, então o desktop fica byte-a-byte igual.
+  detailBoxMobile: {
+    width: '100%', maxWidth: '100%', height: '100dvh', maxHeight: '100dvh', borderRadius: 0,
+    padding: 'calc(14px + var(--safe-top)) 16px calc(20px + var(--safe-bottom)) 16px',
+  },
+  detailMainMobile: { minWidth: '100%' },
+  detailSideMobile: { minWidth: '100%' },
   detailTopBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   detailTopLeft: { display: 'flex', alignItems: 'center', gap: 10 },
   detailPhaseTag: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-3)' },
@@ -5377,6 +5621,7 @@ const S = {
   commentDel: { background: 'transparent', border: 'none', color: 'var(--text-7)', cursor: 'pointer', display: 'flex' },
   commentInputRow: { display: 'flex', gap: 8, alignItems: 'flex-end' },
   panel: { width: 360, maxWidth: '92vw', height: '100%', background: 'var(--bg-2)', borderLeft: '1px solid var(--border-2)', overflowY: 'auto' },
+  panelMobile: { width: '100vw', maxWidth: '100vw' },
   panelHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 18px', borderBottom: '1px solid var(--border-1)', position: 'sticky', top: 0, background: 'var(--bg-2)' },
   panelTitle: { fontWeight: 800, fontSize: 14.5 },
   panelBody: { padding: '18px' },
@@ -5440,6 +5685,9 @@ const S = {
   usersTableWrap: { border: '1px solid var(--border-1)', borderRadius: 10, overflow: 'hidden' },
   usersTableHeaderRow: { display: 'flex', gap: 12, padding: '10px 16px', background: 'var(--bg-3)', borderBottom: '1px solid var(--border-1)' },
   usersTableRow: { display: 'flex', gap: 12, alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border-1)', background: 'var(--bg-1)', cursor: 'pointer' },
+  usersMobileRow: { display: 'flex', flexDirection: 'column', gap: 10, padding: '14px 16px', borderBottom: '1px solid var(--border-1)', background: 'var(--bg-1)', cursor: 'pointer' },
+  usersMobileBadgeRow: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  usersMobileActionsRow: { display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid var(--border-1)' },
   usersRowName: { fontSize: 13, fontWeight: 700, color: 'var(--text-1)' },
   usersRowUsername: { fontSize: 11.5, color: 'var(--text-5)', marginTop: 2 },
   usersRowEmail: { flex: 2, minWidth: 0, fontSize: 12.5, color: 'var(--text-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
@@ -5466,8 +5714,8 @@ const S = {
   companySectionCnpj: { fontSize: 11, color: 'var(--text-5)', marginTop: 1 },
 
   // company selector screen
-  companySelectorWrap: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px' },
-  companySelectorHeader: { width: 'min(1240px, 96%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  companySelectorWrap: { minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px' },
+  companySelectorHeader: { width: 'min(1240px, 96%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 },
   companyHeaderShortcut: { display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--border-2)', color: 'var(--text-3)', fontSize: 12.5, fontWeight: 600, padding: '7px 12px', borderRadius: 999, cursor: 'pointer' },
   companySearchWrap: { display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-3)', border: '1px solid var(--border-1)', borderRadius: 8, padding: '8px 12px', marginBottom: 14 },
   companySearchInput: { flex: 1, background: 'transparent', border: 'none', padding: 0, fontSize: 13 },
@@ -5480,8 +5728,13 @@ const S = {
   companySelectAllRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border-1)' },
   companyList: { display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '60vh', overflowY: 'auto', paddingRight: 2 },
   companyCard: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 10, padding: '4px 14px 4px 4px', transition: 'background .12s' },
+  // Overrides aplicados via spread condicional (isMobile ? S.xMobile : {}) — o card vira um bloco
+  // empilhado em vez da linha horizontal do desktop; nenhuma chave acima é alterada.
+  companyCardMobile: { flexWrap: 'wrap', alignItems: 'stretch', padding: '10px 12px' },
   companyCardMain: { flex: '1 1 280px', minWidth: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '9px 6px', cursor: 'pointer' },
+  companyCardMainMobile: { flex: '1 1 100%' },
   companyCardActions: { display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 },
+  companyCardActionsMobile: { flex: '1 1 100%', justifyContent: 'flex-end', borderTop: '1px solid var(--border-2)', paddingTop: 8, marginTop: 4, opacity: 1 },
   companyCardLogo: { width: 36, height: 36, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border-3)', flexShrink: 0 },
   companyCardLogoEmpty: { width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   companyCardNameRow: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
@@ -5489,11 +5742,13 @@ const S = {
   companyCardSecondary: { fontSize: 11, color: 'var(--text-5)', marginTop: 1 },
   companyCardCnpj: { fontSize: 11.5, color: 'var(--text-5)', marginTop: 1 },
   companyCardProgress: { display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 150px', padding: '4px 10px', borderLeft: '1px solid var(--border-2)' },
+  companyCardProgressMobile: { flex: '1 1 45%', borderLeft: 'none', borderTop: '1px solid var(--border-2)', paddingTop: 8 },
   companyCardDonutWrap: { position: 'relative', width: 34, height: 34, flexShrink: 0 },
   companyCardDonutLabel: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9.5, fontWeight: 800, color: 'var(--text-1)' },
   companyCardProgressText: { fontSize: 11, color: 'var(--text-5)', lineHeight: 1.3 },
   companyCardProgressNum: { fontSize: 12, fontWeight: 700, color: 'var(--text-2)' },
   companyCardNext: { flex: '1 1 200px', minWidth: 0, padding: '4px 10px', borderLeft: '1px solid var(--border-2)' },
+  companyCardNextMobile: { flex: '1 1 45%', borderLeft: 'none', borderTop: '1px solid var(--border-2)', paddingTop: 8 },
   companyCardNextLabel: { fontSize: 10, fontWeight: 700, color: 'var(--text-6)', textTransform: 'uppercase', letterSpacing: .3 },
   companyCardNextTitle: { fontSize: 12, fontWeight: 600, color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 },
   companyCardNextDate: { fontSize: 11, marginTop: 1 },

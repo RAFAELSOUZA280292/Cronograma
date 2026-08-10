@@ -1,0 +1,280 @@
+# PROJECT_MAP.md — Índice técnico (PRICETAX Cronograma)
+
+Mapa de localização, não documentação completa. Números de linha são
+aproximados no momento da escrita (2026-08) — se o arquivo tiver sido editado
+depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
+`Read` com `offset`. Fonte da verdade é sempre o código.
+
+## 1. Arquitetura geral
+
+- **Frontend**: SPA React 18 (Vite), sem roteador — navegação é 100% estado
+  em memória (`view`, `workspaceMode`, `openActivityId`, etc. em `App()`).
+  Todo o app (telas, modais, estilos) está em `src/App.jsx`.
+- **Backend**: Express (`server/`), API REST sob `/api/*`. Serve também os
+  estáticos de `dist/` e faz fallback de SPA (`app.get('*', ...)`).
+- **Banco**: Postgres, driver `pg` puro (sem ORM/query builder). 4 tabelas —
+  ver seção 6.
+- **APIs**: só a própria API interna (`server/routes.js`) + 2 APIs públicas de
+  terceiros para lookup de CNPJ (BrasilAPI, fallback ReceitaWS), com cache em
+  `cnpj_cache`.
+- **Autenticação**: JWT em cookie httpOnly, ver `server/auth.js`.
+- **Armazenamento de arquivos**: não há storage externo (S3 etc.) — anexos de
+  atividade são salvos como **base64 inline dentro do JSONB** do projeto
+  (`activity.attachments[].dataUrl`), limitados a 8MB por arquivo
+  (`MAX_ATTACHMENT_BYTES` em `App.jsx`). Isso não escala bem — ver §9.
+- **Processamento assíncrono / filas**: não existe. Tudo é request/response
+  síncrono. Debounce de autosave é client-side (`setTimeout`), não é uma fila
+  real.
+- **Integrações externas**: BrasilAPI e ReceitaWS (consulta de CNPJ, com
+  retry + timeout + cache de 60 dias em `server/cnpjLookup.js`).
+- **Infra/deploy**: Railway, auto-deploy on push para `main` do repo GitHub
+  `RAFAELSOUZA280292/Cronograma`. `npm run build` gera `dist/`, `npm start`
+  serve tudo num único processo Node.
+
+## 2. Estrutura de diretórios
+
+```
+src/App.jsx        Frontend inteiro: componentes, telas, estilos (S), lógica de estado.
+src/main.jsx        Bootstrap do React (ReactDOM.createRoot).
+src/lib/api.js        Wrapper fetch (apiGet/apiPost/apiPatch/apiDelete), credentials:'include'.
+src/assets/brand/       Logos PNG da PRICETAX (preto = tema claro, branco = tema escuro).
+
+server/index.js       Bootstrap Express: initDb, seedIfEmpty, monta /api, serve dist/.
+server/db.js           Pool pg, criação de tabelas (initDb), seed inicial, defaults de projeto novo.
+server/auth.js         JWT/bcrypt, cookie de sessão, middlewares requireAuth/requireMaster*.
+server/routes.js        Todas as rotas REST (auth, users, projects, personal-board, cnpj).
+server/cnpjLookup.js     Cliente BrasilAPI/ReceitaWS + normalização + cache.
+
+index.html            Shell HTML, variáveis CSS de tema (light/dark) em :root.
+vite.config.js         Proxy /api -> localhost:3001 em dev.
+```
+
+Não há `server/routes/`, `server/models/`, `src/components/` — tudo é flat.
+
+## 3. Índice de componentes (`src/App.jsx`)
+
+Helpers/constantes de topo: linhas 1–307 (formatação de data, `STATUS_META`,
+`PRIORITY_META`, `CARD_*_META`, `S` fica no fim do arquivo, ~L5121).
+
+`App()` — componente raiz, **linha 307 a ~1759**. Contém todo o estado global
+e todas as funções de mutação (ver §7 e §8 para os fluxos). Sub-blocos
+principais dentro de `App()`:
+- L307–360: estado (useState/useRef) — auth, projects, workspace, personal board, UI toggles.
+- L360–470: efeitos de bootstrap (sessão, fetch de projetos/board, atalhos de teclado).
+- ~L470–520: `handleLogin/handleLogout/updateMyAvatar`, persistência de board pessoal.
+- ~L520–730: mutações de atividade/subatividade/comentário/link (`updateActivity` … `toggleParticipant`).
+- ~L730–900: equipe, fases, upload de logo, empresa (create/clone/delete/update).
+- ~L900–990: usuários (CRUD admin).
+- ~L1090–1160: export Excel/PDF.
+- ~L1290+: `return (...)` com o roteamento por estado (login → workspace gate → seleção de empresa → workspace).
+
+Componentes de tela/modal (nome → linha → responsabilidade):
+
+| Linha | Componente | Responsabilidade |
+|---|---|---|
+| 25 | `BrandLogo` | Logo PRICETAX, troca PNG conforme tema |
+| 29 | `ThemeToggleBtn` | Botão sol/lua |
+| 1760 | `LoadingScreen` | Tela de carregamento inicial |
+| 1773 | `LoginGate` | Formulário de login |
+| 1830 | `UsersManagementScreen` | Painel admin de usuários (master) |
+| 1991/2026 | `NewUserModal` / `EditUserModal` | Criar/editar usuário |
+| 2126 | `MyProfileModal` | Avatar do usuário logado |
+| 2155 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) |
+| 2403 | `EditCompanyModal` | Edição de empresa já criada |
+| **2488** | **`CompanySelectorScreen`** | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, atalho p/ Gestão de Atividades |
+| 2682 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades |
+| 2818–3410 | **Gestão de Atividades pessoal** (Kanban) | `ColorSwatchGrid`, `PriorityPicker`, `StatusPicker`, `TagEditor`, `PersonalColumnMenu`, `PersonalCardMenu`, `PersonalCard`, `PersonalColumn`, `PersonalCardDetailModal`, `PersonalListView`, `ReassignCardsModal`, `PersonalTrashPanel` |
+| **3429** | **`PersonalBoardScreen`** | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros) |
+| 4127 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
+| **4161** | **`ActivityDetailModal`** | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários, histórico |
+| **4417** | **`TableView`** | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) |
+| 4784 | `PhasesView` | View "Fases" |
+| 4914 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
+| 4968 | `TimelineView` | View "Gantt" |
+| 5121 | `const S = {...}` | Objeto de estilos inline (~380 linhas) |
+
+### 3.1 Responsividade / mobile
+
+Detalhes completos em **`docs/RESPONSIVE_ARCHITECTURE.md`** — não repita aqui.
+Resumo: dois hooks (`useIsMobile()` <768px, `useIsCompact()` <1024px) definidos
+perto de `todayISOStr` (topo do arquivo); toda variante mobile é uma chave
+`S.algoMobile` nova espalhada condicionalmente (nunca sobrescreve a chave
+desktop). Componentes com lógica mobile própria: topbar de `App()`
+(menu "Mais"), `TableView`, `UsersManagementScreen`, `KanbanView`,
+`CompanySelectorScreen`, `PersonalColumn`/`PersonalCard`, e os ~9 modais que
+usam `S.detailBox`.
+
+## 4. Funcionalidades por módulo
+
+### Autenticação / sessão
+- Tela: `LoginGate` (L1773). Fluxo completo em §7.
+- API: `POST /auth/login`, `GET /auth/me`, `POST /auth/logout`.
+- Modelo: tabela `users`.
+
+### Empresas (Cronograma de Reforma Tributária)
+- Telas: `CompanySelectorScreen` (L2488), `CreateCompanyModal` (L2155),
+  `EditCompanyModal` (L2403), workspace principal dentro de `App()` (views
+  Tabela/Fases/Quadro/Gantt).
+- Componentes principais: `TableView`, `PhasesView`, `KanbanView`,
+  `TimelineView`, `ActivityDetailModal`, `UsersManagementScreen`.
+- APIs: `GET/POST/PATCH/DELETE /projects`, `GET /projects/:id/team-candidates`,
+  `POST /cnpj/lookup`.
+- Services: `server/cnpjLookup.js`.
+- Modelo: tabela `projects` (JSONB) — `company`, `phases`, `activities`,
+  `team`, `log`.
+- Dependências: `xlsx` (export Excel), `window.print` (export PDF, sem lib).
+
+### Gestão de Atividades (quadro pessoal, dnd-kit)
+- Telas: `WorkspaceGateScreen` (L2682, entrada), `PersonalBoardScreen` (L3429).
+- Componentes: `PersonalColumn`, `PersonalCard`, `PersonalCardDetailModal`,
+  `PersonalListView`, `PersonalColumnMenu`, `PersonalCardMenu`,
+  `ReassignCardsModal`, `PersonalTrashPanel`, `ToastStack`.
+- APIs: `GET/PATCH /personal-board`.
+- Modelo: tabela `personal_boards` (JSONB, 1 linha por usuário) — `boards[].columns[].cards[]`.
+- Dependência: `@dnd-kit/core` + `@dnd-kit/sortable` (só usado aqui).
+
+### Usuários (admin)
+- Tela: `UsersManagementScreen` (L1830) + modais `NewUserModal`/`EditUserModal`.
+- APIs: `GET/POST/PATCH/DELETE /users`, `POST /users/:id/block|renew|reset-password`.
+- Modelo: tabela `users`.
+- Regra: só `master` acessa (`requireMaster`).
+
+## 5. Fluxos críticos
+
+```
+LOGIN
+Usuário → LoginGate → POST /auth/login → auth.js (bcrypt.compare, signToken) → cookie JWT → GET /auth/me (App bootstrap) → WorkspaceGateScreen
+
+CRIAÇÃO DE EMPRESA
+Usuário → CreateCompanyModal → POST /cnpj/lookup → cnpjLookup.js (cache → BrasilAPI → fallback ReceitaWS) → preenche form
+        → confirma → POST /projects → routes.js (blankProject + merge company) → INSERT projects → CompanySelectorScreen atualizado
+
+EDIÇÃO DE ATIVIDADE (autosave)
+Usuário edita campo → updateActivity() em App() → mutateProject() (atualiza estado local + debounce) → PATCH /projects/:id (payload = projeto inteiro) → routes.js valida canAccessProject → UPDATE projects.data
+
+EXCLUSÃO / LIXEIRA
+Usuário → deleteActivity()/deleteSub() → seta deleted/deletedAt/deletedBy (soft delete) → some da view normal, aparece em SidePanel "Lixeira" → restoreActivity()/restoreSub() limpa as flags. Exclusão definitiva de projeto/usuário é DELETE SQL real.
+
+EXPORTAÇÃO EXCEL
+Usuário → botão "Excel" → exportExcel() em App() (client-side, usa lib `xlsx`) → gera .xlsx no browser, sem round-trip ao backend.
+
+EXPORTAÇÃO PDF
+Usuário → botão "PDF" → exportPdf() em App() → window.print() com CSS @media print (classe .no-print oculta UI) → sem backend envolvido.
+
+QUADRO PESSOAL — AUTOSAVE COM ROLLBACK
+Usuário arrasta/edita card → mutatePersonalBoard() (update otimista) → persistPersonalBoardDebounced() → PATCH /personal-board → se falhar, reverte para lastGoodPersonalBoardRef e mostra "Falha ao salvar".
+```
+
+Não há upload de arquivo para storage externo, nem job assíncrono, nem fila —
+anexos são base64 inline no PATCH do projeto (ver §9, ponto de atenção).
+
+## 6. Banco de dados
+
+| Tabela | Finalidade | Relacionamentos |
+|---|---|---|
+| `users` | Conta de login, papel (master/pricetax/cliente), CNPJs liberados | `personal_boards.user_id` referencia `users.id` (CASCADE) |
+| `projects` | 1 linha = 1 empresa/cronograma inteiro, tudo em `data JSONB` (company, phases, activities, team, log) | Vínculo com `users` é lógico via `company.cnpj` / `allowed_cnpjs`, não FK |
+| `cnpj_cache` | Cache de 60 dias das respostas de lookup de CNPJ | Nenhum |
+| `personal_boards` | 1 linha por usuário, `data JSONB` = quadro Kanban pessoal | FK `user_id → users.id` |
+
+Sem migrations formais — `initDb()` roda `CREATE TABLE IF NOT EXISTS` +
+`ALTER TABLE ADD COLUMN IF NOT EXISTS` a cada boot do servidor.
+
+## 7. APIs
+
+| Método + rota | Finalidade | Arquivo |
+|---|---|---|
+| POST /auth/login | Login, seta cookie JWT | routes.js |
+| POST /auth/logout | Limpa cookie | routes.js |
+| GET /auth/me | Sessão atual | routes.js |
+| PATCH /auth/me | Trocar avatar | routes.js |
+| GET /users | Listar usuários (master) | routes.js |
+| POST /users | Criar usuário (master) | routes.js |
+| PATCH /users/:id | Editar usuário (master) | routes.js |
+| POST /users/:id/block | Bloquear/desbloquear (master) | routes.js |
+| POST /users/:id/renew | Renovar acesso expirado (master) | routes.js |
+| POST /users/:id/reset-password | Reset de senha (master) | routes.js |
+| DELETE /users/:id | Remover usuário (master, guarda último admin) | routes.js |
+| GET /projects | Lista projetos visíveis ao usuário logado | routes.js (`canAccessProject`) |
+| POST /projects | Cria empresa/projeto | routes.js |
+| PATCH /projects/:id | Salva projeto inteiro (autosave) | routes.js |
+| DELETE /projects/:id | Remove projeto | routes.js |
+| GET /projects/:id/team-candidates | Usuários elegíveis como responsável | routes.js |
+| POST /cnpj/lookup | Consulta CNPJ (cache/BrasilAPI/ReceitaWS) | routes.js → cnpjLookup.js |
+| GET /personal-board | Busca (ou cria) quadro pessoal do usuário | routes.js |
+| PATCH /personal-board | Salva quadro pessoal inteiro | routes.js |
+
+## 8. Dependências entre módulos (maior impacto lateral)
+
+**`mutateProject()` (App.jsx)**
+Usado por: `updateActivity`, `addActivity`, `deleteActivity`, `addSub`,
+`updateSub`, `deleteSub`, `reorderSub`, `addComment`, `addLink`,
+`toggleParticipant`, equipe (`addMember`/`removeMember`/`linkMember`), fases
+(`addPhase`/`updatePhase`/`deletePhase`), empresa (`updateCompanyFields`).
+→ Qualquer mudança nessa função afeta **todo** o módulo Empresas.
+
+**`S` (objeto de estilos, App.jsx L5121+)**
+Usado por todos os componentes do arquivo. Renomear ou remover uma chave
+quebra silenciosamente (React ignora `style={undefined}`) — sempre `grep` o
+nome da chave antes de remover.
+
+**`canAccessProject()` (routes.js)**
+Usado por: GET/PATCH/DELETE /projects, GET /projects/:id/team-candidates.
+→ Mudar essa regra afeta visibilidade de dados para os 3 papéis de uma vez.
+
+**`projectProgress()` / `projectNextActivity()` (App.jsx, topo)**
+Usados por: `CompanySelectorScreen` (donut de progresso, próxima atividade).
+Se o schema de `activity.status`/`activity.date` mudar, essas funções quebram.
+
+**`cardStatusOf()` (App.jsx, topo)**
+Usado por: `PersonalCard`, `PersonalListView`, filtros de status, badge de
+status — fonte única de verdade do status derivado de `card.completed`.
+
+## 9. Arquivos críticos
+
+- **CRÍTICO**: `src/App.jsx` — app inteiro, 5500 linhas, um único componente
+  `App()` de ~1450 linhas. Qualquer edição tem alto risco de afetar outra
+  tela por compartilhar `S`, estado ou funções de mutação.
+- **CRÍTICO**: `server/routes.js` — toda a superfície de API e as regras de
+  autorização (`canAccessProject`, `requireMaster*`).
+- **CRÍTICO**: `server/db.js` — schema do banco; mudança aqui é a única que
+  precisa rodar em produção antes do frontend usar o campo novo (só se for
+  coluna relacional nova — campo dentro do JSONB não precisa).
+- **IMPORTANTE**: `server/auth.js` — sessão/JWT; bug aqui derruba login geral.
+- **IMPORTANTE**: `server/cnpjLookup.js` — dependência de 2 APIs externas
+  instáveis; já tem retry/timeout/cache, mas é ponto único de falha do
+  cadastro de empresa.
+- **IMPORTANTE**: `index.html` — variáveis CSS de tema; usadas em todo `S`.
+- **LOCAL**: `src/lib/api.js`, `src/main.jsx`, `vite.config.js` — pequenos,
+  baixo risco, poucas dependências.
+
+## 10. Problemas técnicos conhecidos
+
+- **Arquivo excessivamente grande**: `src/App.jsx` (5500 linhas, um único
+  componente `App()` com ~50 funções internas e ~30 componentes no mesmo
+  arquivo). Qualquer leitura completa consome muito contexto — use os números
+  de linha da seção 3 e `Read` com `offset`/`limit`, ou `grep` por nome de
+  função/componente.
+- **Anexos em base64 dentro do JSONB**: `activity.attachments[].dataUrl` guarda
+  o arquivo inteiro codificado dentro do projeto (limite 8MB/arquivo, sem
+  limite de total). Em projetos com muitos anexos, o payload do
+  `PATCH /projects/:id` (autosave, que reenvia o projeto inteiro a cada
+  edição) cresce e fica mais lento. Não há storage externo (S3/etc).
+- **Autosave reenvia o objeto inteiro**: tanto `PATCH /projects/:id` quanto
+  `PATCH /personal-board` recebem o payload completo (não diffs), então o
+  custo de rede/serialização cresce com o tamanho do projeto/board.
+- **README.md desatualizado**: ainda descreve a versão antiga (localStorage,
+  sem backend/login real) — não reflete a arquitetura atual com Postgres/JWT
+  descrita aqui. Não fixado nesta rodada (fora do escopo, é só documentação).
+- **Sem testes automatizados nem lint configurado**: verificação de
+  regressão é manual (build limpo + teste no browser).
+- Nenhum outro gargalo, duplicação relevante ou risco de concorrência foi
+  identificado na exploração desta rodada.
+
+## 11. Estratégia de economia de contexto (lembrete)
+
+1. Consulte este mapa antes de explorar.
+2. Não faça busca ampla se o mapa já indica o arquivo/linha.
+3. Leia só o trecho necessário (`Read` com `offset`/`limit`), não o arquivo inteiro.
+4. Valide com o código antes de alterar — o mapa localiza, não substitui a leitura pontual.
+5. Atualize este arquivo só quando descobrir algo estrutural novo (não para mudanças triviais).

@@ -2,7 +2,11 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#111111" />
     <title>PRICETAX — Cronograma de Reforma Tributária</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
@@ -49,6 +53,21 @@
         --scrollbar: #d7d3c8;
       }
       html, body { background: var(--bg-page); }
+      html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+      html, body { overflow-x: hidden; max-width: 100%; }
+      :root {
+        --safe-top: env(safe-area-inset-top, 0px);
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-left: env(safe-area-inset-left, 0px);
+        --safe-right: env(safe-area-inset-right, 0px);
+      }
+      /* Evita zoom automático do iOS ao focar campos (exige fonte >= 16px). Só em telas pequenas — desktop mantém o tamanho de fonte de cada componente. */
+      @media (max-width: 767px) {
+        input[type=text], input[type=email], input[type=password], input[type=number],
+        input[type=date], input[type=tel], input[type=search], select, textarea {
+          font-size: 16px !important;
+        }
+      }
     </style>
   </head>
   <body>
