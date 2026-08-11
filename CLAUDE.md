@@ -134,15 +134,18 @@ usuário de simplificar o roadmap original (nada de `/o/:slug/login` nem
 branding por org) — em vez disso, o Super Admin escolhe diretamente a
 organização/base de um novo usuário ou empresa **no próprio formulário de
 criação**, sem precisar "Entrar" na org primeiro. Campo "Organização
-(base)" em `NewUserModal` e `CreateCompanyModal` (`src/App.jsx`), visível só
+(base)" em `NewUserModal` e `CreateCompanyModal` (`src/App.jsx`) — o mesmo
+`CreateCompanyModal` cobre tanto "Cadastrar empresa" quanto "Clonar
+empresa" (`cloneSource`), o seletor aparece nos dois modos — visível só
 quando `isSuperAdmin` — default "Sua organização atual" (usa `actingOrg`
 normal); escolher outra organização usa `withActingOrg(path, orgIdOverride)`
 (App.jsx) só pra aquela chamada, sem trocar o `actingOrg` da sessão inteira.
-Quando o recurso criado é de outra organização (não a que está sendo
-visualizada), ele **não** entra no estado local (`users`/`projects`) —
-ficaria inconsistente com o filtro por org — e um `window.alert()` confirma
-em qual organização caiu. Testado via SQL direto (org de teste,
-cross-org de user e de project, depois removidos).
+`createCompany()` e `cloneCompany()` seguem o mesmo padrão de retorno
+`{id, crossOrg, orgName}`. Quando o recurso criado é de outra organização
+(não a que está sendo visualizada), ele **não** entra no estado local
+(`users`/`projects`) — ficaria inconsistente com o filtro por org — e um
+`window.alert()` confirma em qual organização caiu. Testado via SQL direto
+(org de teste, cross-org de user, de project e de clone, depois removidos).
 
 **Fluxo de entrada do Super Admin (2026-08)**: em `App()`, a ordem dos
 gates de renderização pós-login importa. Pra super admin, clicar em
