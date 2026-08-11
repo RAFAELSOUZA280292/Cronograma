@@ -695,11 +695,14 @@ export default function App() {
         {cloningProject && (
           <CreateCompanyModal
             cloneSource={cloningProject}
+            isSuperAdmin={currentUser.isSuperAdmin}
+            organizations={organizations}
             onClose={() => setCloningProject(null)}
             onCreate={async (company) => {
-              const newId = await cloneCompany(cloningProject.id, company);
-              setSelectedProjectIds((prev) => [...prev, newId]);
+              const { id, crossOrg, orgName } = await cloneCompany(cloningProject.id, company);
+              if (!crossOrg) setSelectedProjectIds((prev) => [...prev, id]);
               setCloningProject(null);
+              if (crossOrg) window.alert(`Empresa clonada na organização "${orgName}".`);
             }}
           />
         )}
@@ -1063,15 +1066,21 @@ export default function App() {
 
     const team = source.team.map((m) => ({ ...m, id: uid('team') }));
 
-    const res = await apiPost(withActingOrg('/api/projects'), {
-      company,
+    const { orgId, ...companyBody } = company;
+    const res = await apiPost(withActingOrg('/api/projects', orgId), {
+      company: companyBody,
       activities,
       phases: source.phases,
       team,
       log: [{ ts: new Date().toISOString(), action: `Cronograma clonado a partir de "${source.company.name || 'empresa sem nome'}"`, user: currentUser ? currentUser.name : '' }],
     });
-    setProjects((prev) => [...prev, normalizeProject(res.project)]);
-    return res.project.id;
+    const currentOrgId = actingOrg ? actingOrg.id : currentUser.orgId;
+    const crossOrg = !!orgId && orgId !== currentOrgId;
+    if (!crossOrg) {
+      setProjects((prev) => [...prev, normalizeProject(res.project)]);
+    }
+    const org = orgId && organizations.find((o) => o.id === orgId);
+    return { id: res.project.id, crossOrg, orgName: org ? org.name : null };
   }
 
   async function deleteCompany(id) {
@@ -2636,7 +2645,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
           </div>
         )}
 
-        {isSuperAdmin && !cloneSource && (
+        {isSuperAdmin && (
           <>
             <div style={S.subSectionLabel}>Organização (base)</div>
             <select value={form.orgId} onChange={(e) => setForm((f) => ({ ...f, orgId: e.target.value }))}>
