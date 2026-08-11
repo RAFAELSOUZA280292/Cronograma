@@ -644,6 +644,23 @@ export default function App() {
   const registeredProjects = projects.filter((p) => p.company.cnpj);
   const canPickCompanies = currentUser.role === 'master' || currentUser.role === 'pricetax';
 
+  if (canPickCompanies && currentUser.isSuperAdmin && !actingOrg && !companySelectionConfirmed) {
+    return (
+      <SuperAdminScreen
+        organizations={organizations}
+        error={orgAdminError}
+        onClose={() => setWorkspaceMode(null)}
+        closeLabel="Voltar"
+        onLogout={handleLogout}
+        onCreate={createOrganization}
+        onSetStatus={updateOrganizationStatus}
+        onEnter={enterOrganization}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
+
   if (canPickCompanies && !companySelectionConfirmed) {
     return (
       <>
@@ -657,6 +674,8 @@ export default function App() {
           onDeleteCompany={deleteCompany}
           onCloneCompany={(p) => setCloningProject(p)}
           onGoPersonal={() => setWorkspaceMode('personal')}
+          actingOrg={actingOrg}
+          onSwitchOrg={currentUser.isSuperAdmin ? exitOrganization : undefined}
           theme={theme}
           onToggleTheme={toggleTheme}
         />
@@ -2028,7 +2047,7 @@ const ORG_STATUS_META = {
   blocked: { label: 'Bloqueada', color: '#e2574c', bg: 'rgba(226,87,76,.14)', border: 'rgba(226,87,76,.5)' },
 };
 
-function SuperAdminScreen({ organizations, error, onClose, onCreate, onSetStatus, onEnter, theme, onToggleTheme }) {
+function SuperAdminScreen({ organizations, error, onClose, closeLabel, onLogout, onCreate, onSetStatus, onEnter, theme, onToggleTheme }) {
   const [showCreate, setShowCreate] = useState(false);
   const [draftName, setDraftName] = useState('');
   const [creating, setCreating] = useState(false);
@@ -2065,7 +2084,8 @@ function SuperAdminScreen({ organizations, error, onClose, onCreate, onSetStatus
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} style={S.iconBtn} />
           <button style={S.primaryBtn} onClick={() => setShowCreate((v) => !v)}><Plus size={14} /> Nova organização</button>
-          <button style={S.iconBtn} onClick={onClose}><X size={14} /> Voltar ao cronograma</button>
+          <button style={S.iconBtn} onClick={onClose}><X size={14} /> {closeLabel || 'Voltar ao cronograma'}</button>
+          {onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={16} /></button>}
         </div>
       </div>
 
@@ -2875,7 +2895,7 @@ function EditCompanyModal({ project, onClose, onSave }) {
   );
 }
 
-function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, theme, onToggleTheme }) {
+function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, actingOrg, onSwitchOrg, theme, onToggleTheme }) {
   const [selected, setSelected] = useState(() => new Set(initialSelected));
   const [editingProject, setEditingProject] = useState(null);
   const [search, setSearch] = useState('');
@@ -2955,6 +2975,13 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
         </div>
         <h1 style={S.loginTitle}>Quais empresas você quer acompanhar?</h1>
         <p style={S.loginSub}>Escolha uma, várias, ou marque "Selecionar todas" pra ter a visão geral. Dá pra trocar depois clicando em "Trocar empresas".</p>
+
+        {actingOrg && (
+          <div style={S.companyActingOrgRow}>
+            <Building2 size={13} /> Organização: <strong>{actingOrg.name}</strong>
+            {onSwitchOrg && <button style={S.companySwitchOrgBtn} onClick={onSwitchOrg}>Trocar organização</button>}
+          </div>
+        )}
 
         {projects.length === 0 ? (
           <div style={S.companyEmptyState}>
@@ -6378,6 +6405,8 @@ const S = {
   companySelectorWrap: { minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px' },
   companySelectorHeader: { width: 'min(1240px, 96%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 },
   companyHeaderShortcut: { display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--border-2)', color: 'var(--text-3)', fontSize: 12.5, fontWeight: 600, padding: '7px 12px', borderRadius: 999, cursor: 'pointer' },
+  companyActingOrgRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, color: '#F5C400', marginTop: -12, marginBottom: 22 },
+  companySwitchOrgBtn: { background: 'transparent', border: '1px solid rgba(245,196,0,.5)', color: '#F5C400', fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, cursor: 'pointer' },
   companySearchWrap: { display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-3)', border: '1px solid var(--border-1)', borderRadius: 8, padding: '8px 12px', marginBottom: 14 },
   companySearchInput: { flex: 1, background: 'transparent', border: 'none', padding: 0, fontSize: 13 },
   companyFilterRow: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
