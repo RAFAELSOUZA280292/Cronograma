@@ -449,10 +449,11 @@ export default function App() {
     } catch (e) { /* ignora */ }
   }
 
-  function withActingOrg(path) {
-    if (!actingOrg) return path;
+  function withActingOrg(path, orgIdOverride) {
+    const org = orgIdOverride || (actingOrg && actingOrg.id);
+    if (!org) return path;
     const sep = path.includes('?') ? '&' : '?';
-    return `${path}${sep}asOrg=${encodeURIComponent(actingOrg.id)}`;
+    return `${path}${sep}asOrg=${encodeURIComponent(org)}`;
   }
 
   useEffect(() => {
@@ -529,10 +530,10 @@ export default function App() {
   }, [showUsers, currentUser?.id, actingOrg?.id]);
 
   useEffect(() => {
-    if (showOrgAdmin && currentUser && currentUser.isSuperAdmin) {
+    if (currentUser && currentUser.isSuperAdmin) {
       loadOrganizations();
     }
-  }, [showOrgAdmin, currentUser?.id]);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     if (!showSettings || selectedProjectIds.length !== 1) { setTeamCandidates([]); return; }
@@ -661,11 +662,14 @@ export default function App() {
         />
         {showCreateCompany && (
           <CreateCompanyModal
+            isSuperAdmin={currentUser.isSuperAdmin}
+            organizations={organizations}
             onClose={() => setShowCreateCompany(false)}
             onCreate={async (company) => {
-              const newId = await createCompany(company);
-              setSelectedProjectIds((prev) => [...prev, newId]);
+              const { id, crossOrg, orgName } = await createCompany(company);
+              if (!crossOrg) setSelectedProjectIds((prev) => [...prev, id]);
               setShowCreateCompany(false);
+              if (crossOrg) window.alert(`Empresa cadastrada na organização "${orgName}".`);
             }}
           />
         )}
@@ -691,6 +695,7 @@ export default function App() {
         currentUser={currentUser}
         registeredProjects={registeredProjects}
         usersPanelError={usersPanelError}
+        organizations={organizations}
         onClose={() => setShowUsers(false)}
         onCreateUser={addUser}
         onUpdateUser={updateUser}
@@ -1003,9 +1008,15 @@ export default function App() {
   }
 
   async function createCompany(company) {
-    const res = await apiPost(withActingOrg('/api/projects'), { company });
-    setProjects((prev) => [...prev, normalizeProject(res.project)]);
-    return res.project.id;
+    const { orgId, ...companyBody } = company;
+    const res = await apiPost(withActingOrg('/api/projects', orgId), { company: companyBody });
+    const currentOrgId = actingOrg ? actingOrg.id : currentUser.orgId;
+    const crossOrg = !!orgId && orgId !== currentOrgId;
+    if (!crossOrg) {
+      setProjects((prev) => [...prev, normalizeProject(res.project)]);
+    }
+    const org = orgId && organizations.find((o) => o.id === orgId);
+    return { id: res.project.id, crossOrg, orgName: org ? org.name : null };
   }
 
   async function cloneCompany(sourceId, company) {
@@ -1088,13 +1099,20 @@ export default function App() {
   }
 
   async function addUser(draft) {
+    const { orgId, ...body } = draft;
     try {
-      const res = await apiPost(withActingOrg('/api/users'), draft);
-      setUsers((prev) => [...prev, res.user]);
-      addUsersLog(`Usuário criado: ${res.user.name}`);
+      const res = await apiPost(withActingOrg('/api/users', orgId), body);
+      const currentOrgId = actingOrg ? actingOrg.id : currentUser.orgId;
+      if (!orgId || orgId === currentOrgId) {
+        setUsers((prev) => [...prev, res.user]);
+      }
+      const org = orgId && organizations.find((o) => o.id === orgId);
+      addUsersLog(`Usuário criado: ${res.user.name}${org ? ` (organização ${org.name})` : ''}`);
       setUsersPanelError('');
+      return { crossOrg: !!orgId && orgId !== currentOrgId, orgName: org ? org.name : null };
     } catch (e) {
       setUsersPanelError(e.message);
+      return null;
     }
   }
 
@@ -1911,11 +1929,14 @@ export default function App() {
 
       {showCreateCompany && (
         <CreateCompanyModal
+          isSuperAdmin={currentUser.isSuperAdmin}
+          organizations={organizations}
           onClose={() => setShowCreateCompany(false)}
           onCreate={async (company) => {
-            const newId = await createCompany(company);
-            setSelectedProjectIds((prev) => [...prev, newId]);
+            const { id, crossOrg, orgName } = await createCompany(company);
+            if (!crossOrg) setSelectedProjectIds((prev) => [...prev, id]);
             setShowCreateCompany(false);
+            if (crossOrg) window.alert(`Empresa cadastrada na organização "${orgName}".`);
           }}
         />
       )}
@@ -2101,7 +2122,7 @@ function SuperAdminScreen({ organizations, error, onClose, onCreate, onSetStatus
 }
 
 function UsersManagementScreen({
-  users, currentUser, registeredProjects, usersPanelError,
+  users, currentUser, registeredProjects, usersPanelError, organizations,
   onClose, onCreateUser, onUpdateUser, onToggleBlock, onRenew, onResetPassword, onDeleteUser, onToggleCnpj,
   theme, onToggleTheme,
 }) {
@@ -2274,7 +2295,18 @@ function UsersManagementScreen({
       </div>
 
       {showCreate && (
-        <NewUserModal onCreate={(draft) => { onCreateUser(draft); setShowCreate(false); }} onClose={() => setShowCreate(false)} />
+        <NewUserModal
+          isSuperAdmin={currentUser.isSuperAdmin}
+          organizations={organizations}
+          onCreate={async (draft) => {
+            const result = await onCreateUser(draft);
+            setShowCreate(false);
+            if (result && result.crossOrg) {
+              window.alert(`Usuário criado na organização "${result.orgName}".`);
+            }
+          }}
+          onClose={() => setShowCreate(false)}
+        />
       )}
 
       {editingUser && (
@@ -2295,8 +2327,8 @@ function UsersManagementScreen({
   );
 }
 
-function NewUserModal({ onCreate, onClose }) {
-  const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente', avatar: '', personalOnly: false });
+function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations }) {
+  const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente', avatar: '', personalOnly: false, orgId: '' });
   const isMobile = useIsMobile();
 
   function submit() {
@@ -2321,6 +2353,16 @@ function NewUserModal({ onCreate, onClose }) {
           <option value="pricetax">PRICETAX</option>
           <option value="cliente">Cliente</option>
         </select>
+        {isSuperAdmin && (
+          <>
+            <div style={S.subSectionLabel}>Organização (base)</div>
+            <select value={draft.orgId} onChange={(e) => setDraft((d) => ({ ...d, orgId: e.target.value }))}>
+              <option value="">Sua organização atual</option>
+              {(organizations || []).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+            <div style={S.fieldHint}>Define a base que esse usuário vai enxergar. Ele não terá acesso a nenhuma outra.</div>
+          </>
+        )}
         <div style={S.subSectionLabel}>Senha inicial</div>
         <input type="password" value={draft.password} onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))} placeholder="Senha inicial" />
         <div style={S.subSectionLabel}>Avatar (opcional)</div>
@@ -2486,13 +2528,13 @@ function MyProfileModal({ user, onClose, onSave }) {
   );
 }
 
-function CreateCompanyModal({ onClose, onCreate, cloneSource }) {
+function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, organizations }) {
   const [cnpj, setCnpj] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [fetched, setFetched] = useState(null);
-  const [form, setForm] = useState({ name: '', nomeFantasia: '', color: PHASE_COLORS[0], logo: '', clientType: '' });
+  const [form, setForm] = useState({ name: '', nomeFantasia: '', color: PHASE_COLORS[0], logo: '', clientType: '', orgId: '' });
   const isMobile = useIsMobile();
 
   function handleLogoPick(e) {
@@ -2535,6 +2577,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource }) {
         clientType: form.clientType,
         color: form.color,
         logo: form.logo,
+        orgId: form.orgId,
         regimeTributario: fetched ? fetched.regimeTributario : '',
         porte: fetched ? fetched.porte : '',
         uf: fetched ? fetched.uf : '',
@@ -2571,6 +2614,17 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource }) {
           <div style={{ ...S.fieldHint, marginBottom: 12 }}>
             As atividades de <strong>{cloneSource.company.name || 'empresa de origem'}</strong> serão copiadas para essa nova empresa. A primeira atividade passará a começar em {fmtDate(toISODate(addDays(parseDate(todayISOStr()), 10)))}, e as demais serão recalculadas a partir daí, mantendo exatamente o mesmo espaçamento entre elas.
           </div>
+        )}
+
+        {isSuperAdmin && !cloneSource && (
+          <>
+            <div style={S.subSectionLabel}>Organização (base)</div>
+            <select value={form.orgId} onChange={(e) => setForm((f) => ({ ...f, orgId: e.target.value }))}>
+              <option value="">Sua organização atual</option>
+              {(organizations || []).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+            <div style={{ ...S.fieldHint, marginBottom: 12 }}>Define em qual base essa empresa vai entrar.</div>
+          </>
         )}
 
         <div style={S.subSectionLabel}>CNPJ</div>

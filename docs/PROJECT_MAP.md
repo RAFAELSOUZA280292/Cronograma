@@ -78,12 +78,12 @@ Componentes de tela/modal (nome → linha → responsabilidade):
 | 29 | `ThemeToggleBtn` | Botão sol/lua |
 | 1760 | `LoadingScreen` | Tela de carregamento inicial |
 | 1773 | `LoginGate` | Formulário de login |
-| 1830 | `UsersManagementScreen` | Painel admin de usuários (master) |
-| 1991/2026 | `NewUserModal` / `EditUserModal` | Criar/editar usuário |
-| 2126 | `MyProfileModal` | Avatar do usuário logado |
-| 2155 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) |
-| 2403 | `EditCompanyModal` | Edição de empresa já criada |
-| **2488** | **`CompanySelectorScreen`** | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, atalho p/ Gestão de Atividades |
+| 2124 | `UsersManagementScreen` | Painel admin de usuários (master) |
+| 2330/2380 | `NewUserModal` / `EditUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| 2501 | `MyProfileModal` | Avatar do usuário logado |
+| 2531 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| 2792 | `EditCompanyModal` | Edição de empresa já criada |
+| **2878** | **`CompanySelectorScreen`** | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, filtros por Tipo/Status/Regime (2026-08), atalho p/ Gestão de Atividades |
 | 2779 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades |
 | 2915–3577 | **Gestão de Atividades pessoal** (Kanban) | `ColorSwatchGrid`, `PriorityPicker`, `StatusPicker`, `TagEditor`, `PersonalColumnMenu`, `PersonalCardMenu`, `PersonalCard`, `PersonalColumn`, `PersonalCardDetailModal`, `PersonalListView`, `ReassignCardsModal`, `PersonalTrashPanel` |
 | 3549 | `BoardShareModal` | Modal de visibilidade da página (Privado/Público por link, copiar/gerar link) |

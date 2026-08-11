@@ -86,10 +86,16 @@ npm start         # node server/index.js (produção, serve dist/ + API)
 Postgres, 5 tabelas: `organizations`, `users`, `projects` (JSONB), `cnpj_cache`,
 `personal_boards` (JSONB). Detalhes em `docs/PROJECT_MAP.md`.
 
-## Multi-tenant (2026-08, Fases 1 e 2)
+## Multi-tenant (2026-08, Fases 1-3)
 
-A aplicação está em migração pra multi-tenant/white-label (múltiplas
-organizações usando a mesma app, dados isolados).
+A aplicação é multi-tenant: múltiplas organizações ("bases") usando a mesma
+app e o mesmo domínio da PRICETAX, dados isolados por `org_id` no mesmo
+banco (isolamento lógico, não banco físico separado — decisão explícita,
+ver Fase 3 abaixo). **Não há** roteamento/URL/branding por organização —
+decisão explícita do usuário: tudo fica dentro do login/domínio único da
+PRICETAX, sem ocultar a marca PRICETAX. O controle de acesso é 100%
+por usuário: todo usuário pertence a uma organização (`org_id`) e só
+enxerga a base dele.
 
 **Fase 1 (fundação)**: toda `user`/`project` tem `org_id` (coluna
 relacional, não JSONB); todo dado existente foi migrado automaticamente pra
@@ -123,11 +129,25 @@ Banner "Super Admin — visualizando como X" aparece no topbar principal
 enquanto atuando fora da própria org (não aparece ainda na
 `CompanySelectorScreen`, limitação conhecida).
 
-Ainda **não implementado** (fases seguintes, roadmap): roteamento/branding
-por organização (`/o/:slug/login`), enforcement de status
-suspensa/bloqueada, planos/limites/cobrança. Colunas de schema pra isso já
-existem (`organizations.plan/max_users/max_companies/settings`) mas nada
-lê ou aplica ainda.
+**Fase 3 (atribuição de organização na criação)**: pedido explícito do
+usuário de simplificar o roadmap original (nada de `/o/:slug/login` nem
+branding por org) — em vez disso, o Super Admin escolhe diretamente a
+organização/base de um novo usuário ou empresa **no próprio formulário de
+criação**, sem precisar "Entrar" na org primeiro. Campo "Organização
+(base)" em `NewUserModal` e `CreateCompanyModal` (`src/App.jsx`), visível só
+quando `isSuperAdmin` — default "Sua organização atual" (usa `actingOrg`
+normal); escolher outra organização usa `withActingOrg(path, orgIdOverride)`
+(App.jsx) só pra aquela chamada, sem trocar o `actingOrg` da sessão inteira.
+Quando o recurso criado é de outra organização (não a que está sendo
+visualizada), ele **não** entra no estado local (`users`/`projects`) —
+ficaria inconsistente com o filtro por org — e um `window.alert()` confirma
+em qual organização caiu. Testado via SQL direto (org de teste,
+cross-org de user e de project, depois removidos).
+
+Ainda **não implementado** (roadmap, sem pedido de construir agora):
+enforcement de status suspensa/bloqueada, planos/limites/cobrança. Colunas
+de schema pra isso já existem (`organizations.plan/max_users/max_companies/
+settings`) mas nada lê ou aplica ainda.
 
 ## Autenticação
 
@@ -144,7 +164,11 @@ Multi-tenant acima). JWT carrega só o id do usuário; `role`/`orgId`/
 - Cliente só vê o projeto do próprio CNPJ; PRICETAX só vê CNPJs liberados
   (`allowedCnpjs`); Master vê tudo.
 - Cadastro de empresa exige escolher tipo de cliente (Diagnóstico /
-  Diagnóstico e Consultoria Contínua) — obrigatório só na criação.
+  Diagnóstico e Consultoria Contínua / POC-Demonstração,
+  `CLIENT_TYPE_META` em `src/App.jsx`) — obrigatório só na criação. A tela
+  "Quais empresas você quer acompanhar?" tem filtros por Tipo, Status
+  (Em andamento/Pausado) e Regime Tributário, combináveis com a busca por
+  nome/CNPJ (2026-08).
 - Sem checagem de conflito de datas entre empresas — removida a pedido
   explícito (2026-08); datas de atividades são livres, sem aviso nenhum.
 - Exclusão de atividade/subatividade/usuário-master-único tem guarda (frase de
