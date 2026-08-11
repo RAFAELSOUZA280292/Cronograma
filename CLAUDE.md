@@ -144,6 +144,24 @@ ficaria inconsistente com o filtro por org — e um `window.alert()` confirma
 em qual organização caiu. Testado via SQL direto (org de teste,
 cross-org de user e de project, depois removidos).
 
+**Fluxo de entrada do Super Admin (2026-08)**: em `App()`, a ordem dos
+gates de renderização pós-login importa. Pra super admin, clicar em
+"Empresas" no `WorkspaceGateScreen` **não** vai direto pro
+`CompanySelectorScreen` — primeiro passa pelo `SuperAdminScreen`
+("Organizações"), que agora funciona como seletor de organização
+obrigatório: `if (canPickCompanies && currentUser.isSuperAdmin && !actingOrg
+&& !companySelectionConfirmed) return <SuperAdminScreen .../>` vem **antes**
+do gate do `CompanySelectorScreen`. Só depois de "Entrar" numa organização
+(`enterOrganization()`, que seta `actingOrg`) é que cai no
+`CompanySelectorScreen`, já escopado pra ela — que agora mostra uma linha
+"Organização: X · Trocar organização" quando `actingOrg` existe (prop
+`onSwitchOrg`, reaproveita `exitOrganization()`). Pra usuário comum
+(`!isSuperAdmin`), esse gate nunca ativa — "Empresas" vai direto pro
+`CompanySelectorScreen` de sempre, escopado à própria org via
+`effectiveOrgId()`. "Gestão de Atividades" não muda pra ninguém. O botão
+"Organizações" no topbar (`showOrgAdmin`) continua existindo à parte, pra
+trocar de organização em qualquer momento sem precisar sair do workspace.
+
 Ainda **não implementado** (roadmap, sem pedido de construir agora):
 enforcement de status suspensa/bloqueada, planos/limites/cobrança. Colunas
 de schema pra isso já existem (`organizations.plan/max_users/max_companies/
