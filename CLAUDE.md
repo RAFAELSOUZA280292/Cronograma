@@ -1,9 +1,13 @@
 # CLAUDE.md — PRICETAX Cronograma
 
-Regras permanentes de trabalho. Leia `docs/PROJECT_MAP.md` **antes** de explorar o
-projeto — ele indica onde cada funcionalidade mora (com números de linha em
-`App.jsx`). Só faça busca ampla (`grep`/Explore agent) se o mapa não cobrir o
-que você precisa, e atualize o mapa se descobrir algo estrutural novo.
+Regras permanentes de trabalho. Leia **`PROJECT_CONTEXT.md`** (raiz do
+projeto) **primeiro**, antes de qualquer exploração — é a memória técnica
+oficial (arquitetura, banco, deploy, regras de negócio, pendências).
+Depois, se precisar localizar código por linha em `App.jsx`, use
+`docs/PROJECT_MAP.md`. Só faça busca ampla (`grep`/Explore agent) se nenhum
+dos dois cobrir o que você precisa. Atualize `PROJECT_CONTEXT.md` sempre que
+fizer uma alteração relevante (nova tabela/coluna, integração, regra de
+negócio, decisão técnica) e o mapa quando descobrir algo estrutural novo.
 
 ## Stack
 
