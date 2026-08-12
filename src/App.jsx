@@ -5,7 +5,7 @@ import {
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
   LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History,
   MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal,
-  Globe, Lock, RefreshCw, Pause, Play,
+  Globe, Lock, RefreshCw, Pause, Play, Archive,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -3208,7 +3208,11 @@ function sortCards(cards, mode) {
   if (!mode || mode === 'manual') return cards;
   const list = cards.slice();
   const priorityRank = (c) => { const i = CARD_PRIORITY_ORDER.indexOf(c.priority); return i === -1 ? CARD_PRIORITY_ORDER.length : i; };
-  if (mode === 'priority') return list.sort((a, b) => priorityRank(a) - priorityRank(b));
+  if (mode === 'priority') return list.sort((a, b) => {
+    const aDone = a.completed ? 1 : 0, bDone = b.completed ? 1 : 0;
+    if (aDone !== bDone) return aDone - bDone;
+    return priorityRank(a) - priorityRank(b);
+  });
   if (mode === 'dueDate') return list.sort((a, b) => (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99'));
   if (mode === 'createdAt') return list.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
   if (mode === 'updatedAt') return list.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
@@ -3845,7 +3849,7 @@ function PersonalListView({ board, filterFn, onOpenCard, onToggleComplete, readO
     const flat = [];
     board.columns.forEach((col, colIdx) => {
       col.cards.forEach((cd) => {
-        if (cd.deleted) return;
+        if (cd.deleted || cd.archived) return;
         if (!filterFn(cd)) return;
         flat.push({ ...cd, _colId: col.id, _colName: col.name, _colIdx: colIdx });
       });
@@ -3958,6 +3962,24 @@ function PersonalTrashPanel({ trashItems, onClose, onRestore, onHardDelete }) {
   );
 }
 
+function PersonalArchivePanel({ archiveItems, onClose, onRestore }) {
+  return (
+    <SidePanel title="Concluídas" onClose={onClose}>
+      {archiveItems.length === 0 && <div style={S.emptyMuted}>Nenhuma tarefa arquivada ainda.</div>}
+      {archiveItems.map((item) => (
+        <div key={item.card.id} style={S.trashRow}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={S.trashTitle}>{item.card.title}</div>
+            <div style={S.trashParent}>{item.card.archivedFromBoardName || item.boardName} — coluna "{item.card.archivedFromColumnName || '—'}"</div>
+            <div style={S.logTs}>Arquivada em {fmtTs(item.card.archivedAt)}</div>
+          </div>
+          <button style={S.iconBtn} onClick={() => onRestore(item)}><Undo2 size={14} /> Restaurar</button>
+        </div>
+      ))}
+    </SidePanel>
+  );
+}
+
 function BoardShareModal({ board, onClose, onSetVisibility, onRegenerateLink }) {
   const [copied, setCopied] = useState(false);
   const isPublic = board.visibility === 'public';
@@ -4041,6 +4063,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
   const [openCard, setOpenCard] = useState(null);
   const [reassignColumn, setReassignColumn] = useState(null);
   const [showTrash, setShowTrash] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ priority: [], dueBucket: '', tags: [], status: '' });
   const [showFilters, setShowFilters] = useState(false);
@@ -4240,6 +4263,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
       comments: [], history: [{ ts: now, action: 'Tarefa criada', user: currentUser.name }],
       deleted: false, deletedAt: '', deletedBy: '',
       deletedFromColumnId: '', deletedFromColumnName: '', deletedFromBoardId: '', deletedFromBoardName: '',
+      archived: false, archivedAt: '', archivedFromColumnId: '', archivedFromColumnName: '', archivedFromBoardId: '', archivedFromBoardName: '',
       createdAt: now, createdBy: currentUser.name, updatedAt: now, updatedBy: currentUser.name,
     };
     mutateColumnTree(activeBoard.id, colId, (c) => ({ ...c, cards: [...c.cards, nc] }), `Tarefa criada: "${t}"`);
@@ -4261,12 +4285,26 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
     const wasCompleted = !!card.completed;
     const willComplete = status === 'concluida';
     const oldLabel = CARD_STATUS_META[cardStatusOf(card)].label;
-    updateCard(colId, cardId, {
+    const patch = {
       status,
       completed: willComplete,
       completedAt: willComplete ? (wasCompleted ? card.completedAt : now) : '',
       completedBy: willComplete ? (wasCompleted ? card.completedBy : currentUser.name) : '',
-    }, `Status alterado: ${oldLabel} → ${CARD_STATUS_META[status].label}`);
+    };
+    const historyMsg = `Status alterado: ${oldLabel} → ${CARD_STATUS_META[status].label}`;
+    if (willComplete && !wasCompleted) {
+      mutateColumnTree(activeBoard.id, colId, (c) => {
+        const idx = c.cards.findIndex((cd) => cd.id === cardId);
+        if (idx === -1) return c;
+        const updated = {
+          ...c.cards[idx], ...patch, updatedAt: now, updatedBy: currentUser.name,
+          history: [{ ts: now, action: historyMsg, user: currentUser.name }, ...(c.cards[idx].history || [])].slice(0, 200),
+        };
+        return { ...c, cards: [...c.cards.filter((cd) => cd.id !== cardId), updated] };
+      }, `"${card.title}" — ${historyMsg}`);
+    } else {
+      updateCard(colId, cardId, patch, historyMsg);
+    }
   }
   function undoDeleteCard(colId, cardId) {
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, deleted: false, deletedAt: '', deletedBy: '' }));
@@ -4447,6 +4485,56 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
     }));
   }
 
+  // ---- archive (cross-board, concluídas) ----
+  const archiveItems = useMemo(() => {
+    const items = [];
+    for (const b of board.boards) {
+      for (const c of b.columns) {
+        for (const cd of c.cards) {
+          if (cd.archived && !cd.deleted) items.push({ boardId: b.id, boardName: b.name, colId: c.id, card: cd });
+        }
+      }
+    }
+    return items.sort((a, b) => (b.card.archivedAt || '').localeCompare(a.card.archivedAt || ''));
+  }, [board]);
+
+  function restoreArchivedCard(item) {
+    onMutate((prev) => ({
+      ...prev,
+      boards: prev.boards.map((b) => (b.id !== item.boardId ? b : {
+        ...b,
+        columns: b.columns.map((c) => (c.id !== item.colId ? c : {
+          ...c,
+          cards: c.cards.map((cd) => (cd.id !== item.card.id ? cd : { ...cd, archived: false, archivedAt: '', archivedFromColumnId: '', archivedFromColumnName: '', archivedFromBoardId: '', archivedFromBoardName: '' })),
+        })),
+      })),
+    }));
+  }
+
+  useEffect(() => {
+    if (publicMode || readOnly) return;
+    const now = new Date();
+    const dayIdx = now.getDay();
+    const sinceMonday = dayIdx === 0 ? 6 : dayIdx - 1;
+    const mostRecentMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - sinceMonday);
+    if (board.lastCompletedArchiveAt && new Date(board.lastCompletedArchiveAt) >= mostRecentMonday) return;
+    const ts = now.toISOString();
+    onMutate((prev) => ({
+      ...prev,
+      lastCompletedArchiveAt: ts,
+      boards: prev.boards.map((b) => ({
+        ...b,
+        columns: b.columns.map((c) => ({
+          ...c,
+          cards: c.cards.map((cd) => (cd.completed && !cd.archived && !cd.deleted ? {
+            ...cd, archived: true, archivedAt: ts,
+            archivedFromColumnId: c.id, archivedFromColumnName: c.name, archivedFromBoardId: b.id, archivedFromBoardName: b.name,
+          } : cd)),
+        })),
+      })),
+    }));
+  }, [board.boards, board.lastCompletedArchiveAt, publicMode, readOnly]);
+
   // ---- drag and drop ----
   function findCardById(id) {
     if (!activeBoard) return null;
@@ -4573,6 +4661,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
           </div>
           {onExit && <button className="pb-ghost" style={S.pbGhostBtn} onClick={onExit}><Building2 size={15} /> Ir para Empresas</button>}
           {!readOnly && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira{trashItems.length > 0 ? ` (${trashItems.length})` : ''}</button>}
+          {!readOnly && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowArchive(true)}><Archive size={15} /> Concluídas{archiveItems.length > 0 ? ` (${archiveItems.length})` : ''}</button>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {saveState === 'saving' && <span style={S.saveStateBadge}>Salvando…</span>}
@@ -4675,7 +4764,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
             <div style={S.personalBoardArea}>
               {activeBoard.columns.map((col, idx) => {
                 const visible = sortCards(
-                  col.cards.filter((cd) => !cd.deleted && !(col.hideCompleted && cd.completed) && cardMatches(cd)),
+                  col.cards.filter((cd) => !cd.deleted && !cd.archived && !(col.hideCompleted && cd.completed) && cardMatches(cd)),
                   viewPrefs.sortMode
                 );
                 return (
@@ -4775,6 +4864,10 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
 
       {showTrash && (
         <PersonalTrashPanel trashItems={trashItems} onClose={() => setShowTrash(false)} onRestore={restoreTrashedCard} onHardDelete={hardDeleteTrashedCard} />
+      )}
+
+      {showArchive && (
+        <PersonalArchivePanel archiveItems={archiveItems} onClose={() => setShowArchive(false)} onRestore={restoreArchivedCard} />
       )}
 
       {showShareModal && activeBoard && (

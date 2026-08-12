@@ -218,6 +218,20 @@ Multi-tenant acima). JWT carrega só o id do usuário; `role`/`orgId`/
   checagem `visibility==='public'` no backend (não apaga nem regenera o
   token). Toda ação vira entrada em `board.log` (mistura eventos estruturais
   do board com `card.history` agregado) — ver `BoardActivityLogModal`.
+- Gestão de Atividades (2026-08): concluir um card (`setCardStatus`) move ele
+  imediatamente para o final do array `cards` da coluna, além de marcar
+  `completed` — vale mesmo em ordem manual. `sortCards()` no modo
+  `'priority'` sempre joga cards `completed` pro final, independente do
+  rank de prioridade. Toda segunda-feira (checado no carregamento do board,
+  comparando `board.lastCompletedArchiveAt` contra a segunda-feira mais
+  recente — roda também em qualquer acesso depois de uma segunda perdida,
+  não só exatamente na segunda) todo card `completed` e ainda não
+  arquivado vira `archived=true` automaticamente, some do quadro/lista
+  principal e aparece no painel "Concluídas" (`PersonalArchivePanel`,
+  botão ao lado de "Lixeira") — mesmo padrão soft-delete/flag da Lixeira,
+  só com "Restaurar" (sem exclusão definitiva). Mover card entre colunas
+  ("Mover para..." no menu do card, ou arrastar quando `sortMode==='manual'`)
+  já existia antes e continua igual nos dois sentidos.
 - Pausar uma empresa (`company.status='pausado'`, em `updateCompanyFields`,
   2026-08) põe em cascata `status='pausado'` em toda atividade não excluída
   e não concluída, guardando o status anterior em `activity.statusBeforePause`
