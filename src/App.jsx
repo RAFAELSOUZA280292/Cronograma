@@ -661,6 +661,28 @@ export default function App() {
     );
   }
 
+  if (showUsers && currentUser.role === 'master') {
+    return (
+      <UsersManagementScreen
+        users={users}
+        currentUser={currentUser}
+        registeredProjects={registeredProjects}
+        usersPanelError={usersPanelError}
+        organizations={organizations}
+        onClose={() => setShowUsers(false)}
+        onCreateUser={addUser}
+        onUpdateUser={updateUser}
+        onToggleBlock={toggleUserBlock}
+        onRenew={renewUser}
+        onResetPassword={resetUserPassword}
+        onDeleteUser={deleteUser}
+        onToggleCnpj={toggleUserCnpj}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
+
   if (canPickCompanies && !companySelectionConfirmed) {
     return (
       <>
@@ -674,6 +696,7 @@ export default function App() {
           onDeleteCompany={deleteCompany}
           onCloneCompany={(p) => setCloningProject(p)}
           onGoPersonal={() => setWorkspaceMode('personal')}
+          onGoUsers={currentUser.role === 'master' ? () => setShowUsers(true) : undefined}
           actingOrg={actingOrg}
           onSwitchOrg={currentUser.isSuperAdmin ? exitOrganization : undefined}
           theme={theme}
@@ -707,28 +730,6 @@ export default function App() {
           />
         )}
       </>
-    );
-  }
-
-  if (showUsers && currentUser.role === 'master') {
-    return (
-      <UsersManagementScreen
-        users={users}
-        currentUser={currentUser}
-        registeredProjects={registeredProjects}
-        usersPanelError={usersPanelError}
-        organizations={organizations}
-        onClose={() => setShowUsers(false)}
-        onCreateUser={addUser}
-        onUpdateUser={updateUser}
-        onToggleBlock={toggleUserBlock}
-        onRenew={renewUser}
-        onResetPassword={resetUserPassword}
-        onDeleteUser={deleteUser}
-        onToggleCnpj={toggleUserCnpj}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-      />
     );
   }
 
@@ -2904,7 +2905,7 @@ function EditCompanyModal({ project, onClose, onSave }) {
   );
 }
 
-function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, actingOrg, onSwitchOrg, theme, onToggleTheme }) {
+function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, onGoUsers, actingOrg, onSwitchOrg, theme, onToggleTheme }) {
   const [selected, setSelected] = useState(() => new Set(initialSelected));
   const [editingProject, setEditingProject] = useState(null);
   const [search, setSearch] = useState('');
@@ -2976,6 +2977,11 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
             {onGoPersonal && (
               <button style={S.companyHeaderShortcut} onClick={onGoPersonal} title="Ir para o seu quadro pessoal de tarefas">
                 <Columns3 size={14} /> Gestão de Atividades
+              </button>
+            )}
+            {onGoUsers && (
+              <button style={S.companyHeaderShortcut} onClick={onGoUsers} title="Gerenciar usuários">
+                <UserCog size={14} /> Gestão de Usuários
               </button>
             )}
             <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />

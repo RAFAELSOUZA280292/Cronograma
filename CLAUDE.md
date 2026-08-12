@@ -165,6 +165,18 @@ do gate do `CompanySelectorScreen`. Só depois de "Entrar" numa organização
 "Organizações" no topbar (`showOrgAdmin`) continua existindo à parte, pra
 trocar de organização em qualquer momento sem precisar sair do workspace.
 
+`CompanySelectorScreen` também tem um atalho "Gestão de Usuários" (prop
+`onGoUsers`, visível só pra `role === 'master'`) ao lado de "Gestão de
+Atividades" — mesmo destino que o botão "Usuários" do topbar principal
+(`UsersManagementScreen`). Pra isso funcionar antes da empresa ser
+selecionada, o gate `if (showUsers && role === 'master') return
+<UsersManagementScreen .../>` foi movido pra **antes** do gate do
+`CompanySelectorScreen` em `App()` (era só depois) — assim `showUsers`
+funciona tanto nessa tela quanto no fluxo antigo (dentro do workspace),
+sem duplicar o bloco. "Voltar ao cronograma" nesse modal sempre volta pra
+onde você estava (`companySelectionConfirmed` não muda), sem tratamento
+especial.
+
 Ainda **não implementado** (roadmap, sem pedido de construir agora):
 enforcement de status suspensa/bloqueada, planos/limites/cobrança. Colunas
 de schema pra isso já existem (`organizations.plan/max_users/max_companies/
