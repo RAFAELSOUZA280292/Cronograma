@@ -230,8 +230,17 @@ Multi-tenant acima). JWT carrega só o id do usuário; `role`/`orgId`/
   principal e aparece no painel "Concluídas" (`PersonalArchivePanel`,
   botão ao lado de "Lixeira") — mesmo padrão soft-delete/flag da Lixeira,
   só com "Restaurar" (sem exclusão definitiva). Mover card entre colunas
-  ("Mover para..." no menu do card, ou arrastar quando `sortMode==='manual'`)
-  já existia antes e continua igual nos dois sentidos.
+  funciona por dois caminhos: "Mover para..." no menu do card (sempre,
+  qualquer `sortMode`) e arrastar o card (`handleDragEnd`, dnd-kit) — o
+  arraste **entre colunas diferentes sempre funciona**, mesmo fora de
+  "Ordem manual"; só a reordenação **dentro da mesma coluna** via arraste
+  é ignorada quando `sortMode !== 'manual'` (a posição ali é recalculada
+  pelo critério de ordenação, então o `handleDragEnd` faz early-return
+  nesse caso específico — `dragDisabled` no `PersonalColumn` foi removido,
+  card nunca fica com o drag totalmente travado). Antes disso (bug real,
+  2026-08-11) o drag inteiro — inclusive entre colunas — ficava desativado
+  fora de "Ordem manual", o que impedia mover cards enquanto ordenado por
+  prioridade/prazo/etc.
 - Pausar uma empresa (`company.status='pausado'`, em `updateCompanyFields`,
   2026-08) põe em cascata `status='pausado'` em toda atividade não excluída
   e não concluída, guardando o status anterior em `activity.statusBeforePause`

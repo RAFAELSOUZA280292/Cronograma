@@ -4576,10 +4576,13 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
     } else {
       toColId = fromColId;
     }
-    if (fromColId === toColId && toIndex !== null) {
-      const col = activeBoard.columns.find((c) => c.id === fromColId);
-      const fromIndex = col ? col.cards.findIndex((cd) => cd.id === active.id) : -1;
-      if (fromIndex === toIndex) return;
+    if (fromColId === toColId) {
+      if ((viewPrefs.sortMode || 'manual') !== 'manual') return;
+      if (toIndex !== null) {
+        const col = activeBoard.columns.find((c) => c.id === fromColId);
+        const fromIndex = col ? col.cards.findIndex((cd) => cd.id === active.id) : -1;
+        if (fromIndex === toIndex) return;
+      }
     }
     moveCardToIndex(active.id, fromColId, toColId, toIndex);
   }
@@ -4773,7 +4776,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
                     column={col}
                     cardsToRender={visible}
                     totalVisibleCount={visible.length}
-                    dragDisabled={(viewPrefs.sortMode || 'manual') !== 'manual'}
+                    dragDisabled={false}
                     readOnly={readOnly}
                     canMoveLeft={idx > 0}
                     canMoveRight={idx < activeBoard.columns.length - 1}
