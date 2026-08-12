@@ -10,7 +10,9 @@
 > integração, mudança de regra de negócio, decisão técnica, item resolvido do
 > roadmap) deve ser refletida aqui na mesma sessão.
 
-Última validação completa: 2026-08-12.
+Última validação completa: 2026-08-12 (revisão profunda — `server/routes.js`,
+`server/db.js`, `server/auth.js`, `src/lib/api.js` lidos por inteiro;
+`src/App.jsx` verificado em pontos-chave de regra de negócio).
 
 ## 1. O que é
 
@@ -103,8 +105,24 @@ fora do JSONB) é rara/sensível — só fazer se pedido explicitamente.
 
 Nenhuma outra API externa. Sem storage externo (S3 etc.) — anexos de
 atividade são base64 inline em `activity.attachments[].dataUrl` (limite 8MB/
-arquivo, ver §9). Sem filas/jobs assíncronos — tudo é request/response
-síncrono; debounce de autosave é `setTimeout` client-side.
+arquivo, ver §13). `avatar` do usuário **não** é imagem — é 1 emoji de uma
+lista fixa (`AVATAR_EMOJIS`, `src/App.jsx`), validado no backend como string
+≤16 chars (`PATCH /auth/me`).
+
+**Sem workers/jobs/filas — nenhum agendador real existe no servidor.** O
+único comportamento "agendado" do sistema é 100% client-side: o
+arquivamento semanal de cards concluídos na Gestão de Atividades roda dentro
+de um `useEffect` de `PersonalBoardScreen`, disparado quando a tela carrega
+(compara `board.lastCompletedArchiveAt` contra a segunda-feira mais recente).
+**Se o usuário nunca abrir essa tela, o arquivamento nunca roda** — não há
+cron/worker no backend garantindo isso. Debounce de autosave também é
+`setTimeout` no cliente, não fila real.
+
+Link público de quadro (`shareToken`) é resolvido varrendo **todas** as
+linhas de `personal_boards` a cada request (`findBoardByShareToken` em
+`server/routes.js`) — decisão consciente, documentada no próprio código:
+não escala para milhares de usuários, mas evita criar índice/rota dedicada
+para um caso de uso raro (poucas dezenas de usuários hoje).
 
 ## 7. Autenticação e autorização
 
@@ -120,6 +138,23 @@ síncrono; debounce de autosave é `setTimeout` client-side.
 - `canAccessProject()`/`sameOrg()` (`server/routes.js`) checam `org_id`
   **no SQL**, não só em JS — acesso cross-org por ID direto retorna 404/403
   mesmo sabendo o ID exato.
+- **Expiração é preguiçosa (lazy)**: `expires_at` só é checado dentro de
+  `POST /auth/login` — se vencido, o usuário é bloqueado (`blocked=true,
+  block_reason='Acesso expirado'`) **naquele momento**, não antes. Um usuário
+  vencido que não tenta logar continua aparecendo como "não bloqueado" na
+  lista de usuários até a próxima tentativa de login dele.
+- Guardas em `DELETE/PATCH /users/:id` e `POST /users/:id/block`: ninguém
+  pode bloquear/excluir a si mesmo; excluir o último `role='master'` **da
+  mesma org** é bloqueado (`COUNT(*) <= 1`). Super Admin ignora o filtro de
+  org nesses updates via `sameOrg()` (retorna `true` se `isSuperAdmin`).
+- `POST /projects` (criar empresa): se quem cria é `role='pricetax'`, o CNPJ
+  da empresa criada é **automaticamente adicionado** ao `allowedCnpjs` de
+  quem criou — não precisa de passo manual de liberação depois.
+- `GET /users`/`GET /projects` quando `isSuperAdmin && !?asOrg` (nenhuma org
+  selecionada): retornam **todos os registros de todas as organizações sem
+  filtro nenhum**. Isso só é seguro porque só o `SuperAdminScreen` (tela de
+  "Organizações") chama essas rotas nesse estado — qualquer nova tela que
+  reusar essas rotas precisa lembrar dessa exceção.
 
 ## 8. Superfície de API (`/api/*`, `server/routes.js`)
 
@@ -167,6 +202,12 @@ Decisões estruturais fixas:
   subatividade, card pessoal) — flags `deleted/deletedAt/deletedBy`, filtradas
   nas views, restauráveis. Exceção: linhas de tabela SQL (projetos, usuários)
   têm `DELETE` real.
+- **Rota pública sem roteador de verdade**: `/quadro/:token` é detectada por
+  regex direto em `window.location.pathname`
+  (`/^\/quadro\/([A-Za-z0-9_-]+)/`) **dentro do corpo de `App()`, antes de
+  qualquer gate de sessão** (`sessionChecked`/`currentUser`) — por isso
+  funciona sem login. Não existe React Router nem qualquer lib de rota; é a
+  única exceção a "navegação 100% por estado em memória".
 
 ## 10. Fluxos principais
 
@@ -271,7 +312,103 @@ rejeitada a ideia de white-label `/o/:slug/login`).
   `CompanySelectorScreen` (só no topbar principal) — limitação conhecida.
 - `README.md` não atualizado (fora de escopo até pedido explícito).
 
-## 15. Onde procurar mais detalhe
+## 15. Padrões obrigatórios ao desenvolver novas funcionalidades
+
+- Nunca `setProjects`/`setPersonalBoard` direto pra editar dado existente —
+  sempre `mutateProject(pid, updater, logMsg, activityId)` ou
+  `mutatePersonalBoard(updater)` (debounce + persistência + log/rollback já
+  embutidos).
+- Campo novo em `projects.data`/`personal_boards.data` = só editar o
+  frontend, sempre com fallback (`campo || default`) pra não quebrar
+  registros antigos. Coluna relacional nova (fora do JSONB) só se a tarefa
+  pedir explicitamente — schema é `server/db.js`, sensível, afeta produção.
+- Uma única fonte de verdade por dado derivado — nunca escrever dois campos
+  que representam o mesmo estado de forma independente (ex.: `cardStatusOf()`
+  deriva status de `card.completed`, não o contrário).
+- Exclusão de item (atividade/subatividade/card) é **sempre** soft-delete
+  (`deleted/deletedAt/deletedBy`) + filtro nas views + Lixeira/restore.
+  Exceção: linhas de tabela SQL (projeto, usuário) usam `DELETE` real.
+  Padrão de campo de arquivamento (`archived/archivedAt/...`, painel
+  "Concluídas") segue a mesma lógica — nunca remover o item de verdade do
+  array, só marcar e filtrar.
+- Toda tela nova precisa injetar seu próprio bloco `<style>` com as regras
+  base de `input/select/textarea` (tema light/dark depende disso — sem isso
+  os campos ficam sem estilo).
+- Toda variante mobile é uma chave **nova** `S.algoMobile` aplicada
+  condicionalmente — nunca sobrescrever a chave desktop, nunca media query
+  por cima de inline style.
+- Nova rota/query em `users`/`projects` precisa do mesmo filtro `org_id` /
+  `canAccessProject()` / `sameOrg()` que as rotas existentes já usam — nunca
+  confiar só em checagem de `role` no frontend (backend é a fonte de
+  verdade de autorização).
+- Ação de mutação relevante deve virar entrada de log/histórico seguindo o
+  padrão já existente (`project.log`, `card.history`, `board.log`).
+- Antes de remover/renomear uma chave do objeto `S` (~380 linhas, usado por
+  todos os componentes), `grep` o nome no arquivo inteiro — React ignora
+  `style={undefined}` silenciosamente, quebra sem erro visível no console.
+- Sem abstração/dependência/camada nova "pra generalizar" sem pedido
+  explícito — o arquivo já é grande, prefira repetir 3 linhas parecidas a
+  criar um helper novo pra um caso só.
+
+## 16. Bugs já resolvidos — não reintroduzir
+
+Confirmados nesta sessão (causa raiz verificada e corrigida ao vivo):
+
+- **Drag-and-drop bloqueado entre colunas fora de "Ordem manual"**
+  (Gestão de Atividades): `dragDisabled` desativava **todo** o arraste
+  (inclusive mudar de coluna) sempre que `sortMode !== 'manual'`, não só a
+  reordenação dentro da coluna. Corrigido: `dragDisabled` fixo em `false`;
+  `handleDragEnd` só ignora o drop quando `fromColId === toColId` **e**
+  `sortMode !== 'manual'` (reordenar dentro da coluna nesse modo é um
+  no-op, já que a posição é recalculada pelo critério de ordenação).
+- **`sortCards()` modo `'priority'` não considerava `completed`**: card
+  concluído com prioridade Urgente aparecia antes de um card ativo de
+  prioridade baixa. Corrigido: sort agora compara `completed` primeiro,
+  prioridade só como desempate.
+- **Concluir um card não movia ele pro fim da coluna**: `setCardStatus()`
+  só fazia `updateCard()` (mantém posição no array). Corrigido: ao marcar
+  `completed`, o card é removido e reinserido no fim do array `cards` na
+  mesma mutação.
+- **Fluxo de entrada do Super Admin**: clicar "Empresas" ia direto pra
+  `CompanySelectorScreen` misturando empresas de **todas** as organizações
+  numa lista só (sem indicar de qual org era cada uma) — `SuperAdminScreen`
+  só existia atrás de um botão no topbar, dentro de um workspace que já
+  exigia ter escolhido uma empresa. Corrigido movendo o gate de
+  `SuperAdminScreen` pra **antes** do gate de `CompanySelectorScreen` em
+  `App()` (só afeta `isSuperAdmin`).
+- **Gate `showUsers` sem efeito antes de escolher empresa**: o bloco
+  `if (showUsers...) return <UsersManagementScreen/>` estava posicionado
+  **depois** do gate de `CompanySelectorScreen` em `App()` — setar
+  `showUsers=true` de dentro do seletor de empresas não fazia nada, porque
+  o gate anterior já tinha "vencido" o `return`. Corrigido movendo o bloco
+  pra antes (gate único, não duplicado). **Lição estrutural**: em `App()`,
+  a ordem dos `if (...) return <Tela/>` sequenciais importa — só o primeiro
+  que casar renderiza; setar um state novo não adianta se um gate anterior
+  ainda intercepta.
+- **Org picker escondido no modo "Clonar empresa"**: `CreateCompanyModal`
+  já tinha o seletor "Organização (base)", mas só aparecia em modo criação
+  (`!cloneSource`). Corrigido removendo essa restrição — mesmo seletor
+  funciona nos dois modos.
+- **Risco de vazamento de estado cross-org**: ao criar/clonar recurso numa
+  organização diferente da que está sendo visualizada, o retorno não pode
+  entrar em `users`/`projects` do estado local (esses arrays são
+  implicitamente assumidos como escopados à org atual pelo resto da UI).
+  Padrão adotado: `createCompany()`/`cloneCompany()` retornam `{id,
+  crossOrg, orgName}`; chamador só faz `setState` local quando `!crossOrg`,
+  e mostra `window.alert()` avisando em qual org o recurso caiu.
+
+Do histórico do projeto (título do commit é a única fonte disponível —
+confiança menor, mas mantido como sinal de "área sensível"):
+
+- Wrapper de exclusão em `ActivityDetailModal` não respeitava corretamente
+  um delete cancelado/bloqueado (frase de confirmação) — atenção redobrada
+  ao mexer no fluxo de exclusão de atividade.
+- Subatividades excluídas não apareciam na Lixeira (soft-delete não estava
+  sendo aplicado a elas) — atenção ao adicionar novo tipo de item excluível
+  pra garantir que ele segue o mesmo padrão de `deleted/deletedAt/deletedBy`
+  + filtro de view + entrada na Lixeira.
+
+## 17. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
 |---|---|
