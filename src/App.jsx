@@ -234,6 +234,17 @@ function projectNextActivity(p) {
   return overdue[0] || null;
 }
 
+// Grupo Empresarial: o Master é sua própria raiz de grupo (isGroupMaster=true,
+// sem precisar de groupId apontando pra si mesmo); filhas têm company.groupId = id do Master.
+function groupRootId(company, ownId) {
+  if (!company) return null;
+  return company.isGroupMaster ? ownId : (company.groupId || null);
+}
+function groupMembers(projects, rootId) {
+  if (!rootId) return [];
+  return projects.filter((p) => groupRootId(p.company, p.id) === rootId);
+}
+
 const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 function parseDate(iso) { return new Date(iso + 'T00:00:00'); }
 function toISODate(d) { return d.toISOString().slice(0, 10); }
@@ -392,6 +403,7 @@ export default function App() {
   const [actingOrg, setActingOrg] = useState(null);
   const [showCreateCompany, setShowCreateCompany] = useState(false);
   const [cloningProject, setCloningProject] = useState(null);
+  const [showGroupActivityModal, setShowGroupActivityModal] = useState(false);
   const [showMyProfile, setShowMyProfile] = useState(false);
   const [openActivityId, setOpenActivityId] = useState(null);
   const [newMember, setNewMember] = useState('');
@@ -708,10 +720,8 @@ export default function App() {
             organizations={organizations}
             onClose={() => setShowCreateCompany(false)}
             onCreate={async (company) => {
-              const { id, crossOrg, orgName } = await createCompany(company);
-              if (!crossOrg) setSelectedProjectIds((prev) => [...prev, id]);
+              await handleCreateCompanyPayload(company);
               setShowCreateCompany(false);
-              if (crossOrg) window.alert(`Empresa cadastrada na organização "${orgName}".`);
             }}
           />
         )}
@@ -751,6 +761,8 @@ export default function App() {
   const selectedProjects = projects.filter((p) => selectedProjectIds.includes(p.id));
   const isMulti = selectedProjects.length > 1;
   const activeProject = selectedProjects.length === 1 ? selectedProjects[0] : null;
+  const selectedGroupRoots = isMulti ? selectedProjects.map((p) => groupRootId(p.company, p.id)) : [];
+  const isGroupView = isMulti && selectedGroupRoots.every((r) => r && r === selectedGroupRoots[0]);
 
   if (!activeProject && !isMulti) {
     return <NoAccessScreen user={currentUser} onLogout={handleLogout} theme={theme} onToggleTheme={toggleTheme} />;
@@ -763,7 +775,30 @@ export default function App() {
   }
 
   function updateActivity(targetPid, id, patch, logMsg) {
+    const sourceProject = projects.find((p) => p.id === targetPid);
+    const sourceActivity = sourceProject && sourceProject.activities.find((a) => a.id === id);
+
     mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => (a.id === id ? { ...a, ...patch } : a)) }), logMsg, id);
+
+    // Atividade de grupo: título/descrição/datas/fase/obrigatoriedade ficam sincronizados
+    // entre as cópias irmãs; status/responsável/comentários/etc. continuam independentes.
+    if (sourceActivity && sourceActivity.groupActivityId) {
+      const GROUP_SYNC_FIELDS = ['title', 'desc', 'date', 'endDate', 'durationDays', 'phase', 'required'];
+      const syncPatch = {};
+      let hasSyncField = false;
+      GROUP_SYNC_FIELDS.forEach((f) => {
+        if (Object.prototype.hasOwnProperty.call(patch, f)) { syncPatch[f] = patch[f]; hasSyncField = true; }
+      });
+      if (hasSyncField) {
+        projects.forEach((p) => {
+          if (p.id === targetPid) return;
+          const sibling = p.activities.find((a) => a.groupActivityId === sourceActivity.groupActivityId);
+          if (sibling) {
+            mutateProject(p.id, (pr) => ({ ...pr, activities: pr.activities.map((a) => (a.id === sibling.id ? { ...a, ...syncPatch } : a)) }), 'Sincronizado do grupo', sibling.id);
+          }
+        });
+      }
+    }
   }
 
   function addActivity(targetPid) {
@@ -775,6 +810,27 @@ export default function App() {
     const defaultPhaseId = phasesList.length ? phasesList[phasesList.length - 1].id : 1;
     const na = { id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '', responsible: (project.team[0] && project.team[0].name) || 'PRICETAX', priority: '', participants: [], date: '', endDate: '', durationDays: '', status: 'nao-iniciado', required: false, subactivities: [], notes: '', attachments: [], comments: [], links: [], transcript: '' };
     mutateProject(targetPid, (p) => ({ ...p, activities: [...p.activities, na] }), `Atividade criada: "${na.title}"`, na.id);
+  }
+
+  function addGroupActivity(pids, scopeType) {
+    if (!pids || pids.length === 0) return;
+    const groupActivityId = uid('gact');
+    pids.forEach((targetPid) => {
+      const project = projects.find((p) => p.id === targetPid);
+      if (!project) return;
+      const activities = project.activities;
+      const nextMonth = activities.length ? Math.max(...activities.map((a) => a.month)) + 1 : 1;
+      const phasesList = project.phases;
+      const defaultPhaseId = phasesList.length ? phasesList[phasesList.length - 1].id : 1;
+      const na = {
+        id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '',
+        responsible: (project.team[0] && project.team[0].name) || 'PRICETAX', priority: '', participants: [],
+        date: '', endDate: '', durationDays: '', status: 'nao-iniciado', required: false, subactivities: [],
+        notes: '', attachments: [], comments: [], links: [], transcript: '',
+        groupActivityId, groupScopeType: scopeType,
+      };
+      mutateProject(targetPid, (p) => ({ ...p, activities: [...p.activities, na] }), `Atividade de grupo criada: "${na.title}"`, na.id);
+    });
   }
 
   function deleteActivity(targetPid, id) {
@@ -1040,6 +1096,36 @@ export default function App() {
     }
     const org = orgId && organizations.find((o) => o.id === orgId);
     return { id: res.project.id, crossOrg, orgName: org ? org.name : null };
+  }
+
+  async function createCompanyGroup({ master, children, groupName }) {
+    const masterRes = await createCompany({ ...master, isGroupMaster: true, groupName });
+    const masterId = masterRes.id;
+    const childIds = [];
+    for (const child of children) {
+      const childRes = await createCompany({ ...child, groupId: masterId });
+      childIds.push(childRes.id);
+    }
+    return { ids: [masterId, ...childIds], crossOrg: masterRes.crossOrg, orgName: masterRes.orgName };
+  }
+
+  async function handleCreateCompanyPayload(payload) {
+    if (payload && payload.structureType === 'grupo') {
+      const { ids, crossOrg, orgName } = await createCompanyGroup(payload);
+      if (!crossOrg) {
+        setSelectedProjectIds((prev) => [...prev, ...ids]);
+        // Tela de seleção de empresas mantém seleção própria (Set local) que não
+        // resincroniza sozinha após o mount — confirmar aqui garante que o usuário
+        // caia direto na visão consolidada do grupo recém-criado (sem isso, ficaria
+        // preso na tela de seleção com os checkboxes desatualizados).
+        setCompanySelectionConfirmed(true);
+      }
+      if (crossOrg) window.alert(`Grupo cadastrado na organização "${orgName}".`);
+      return;
+    }
+    const { id, crossOrg, orgName } = await createCompany(payload);
+    if (!crossOrg) setSelectedProjectIds((prev) => [...prev, id]);
+    if (crossOrg) window.alert(`Empresa cadastrada na organização "${orgName}".`);
   }
 
   async function cloneCompany(sourceId, company) {
@@ -1487,7 +1573,9 @@ export default function App() {
           )}
           {!isMobile && <button style={S.iconBtn} onClick={exportExcel}><FileSpreadsheet size={15} /> Excel</button>}
           {!isMobile && <button style={S.iconBtn} onClick={exportPdf}><FileText size={15} /> PDF</button>}
-          {isMulti ? (
+          {isGroupView ? (
+            <button style={S.primaryBtn} onClick={() => setShowGroupActivityModal(true)}><Plus size={15} /> Nova atividade</button>
+          ) : isMulti ? (
             <select
               style={{ ...S.iconBtn, cursor: 'pointer', appearance: 'auto' }}
               value=""
@@ -1962,10 +2050,8 @@ export default function App() {
           organizations={organizations}
           onClose={() => setShowCreateCompany(false)}
           onCreate={async (company) => {
-            const { id, crossOrg, orgName } = await createCompany(company);
-            if (!crossOrg) setSelectedProjectIds((prev) => [...prev, id]);
+            await handleCreateCompanyPayload(company);
             setShowCreateCompany(false);
-            if (crossOrg) window.alert(`Empresa cadastrada na organização "${orgName}".`);
           }}
         />
       )}
@@ -1975,6 +2061,17 @@ export default function App() {
           user={currentUser}
           onClose={() => setShowMyProfile(false)}
           onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
+        />
+      )}
+
+      {showGroupActivityModal && (
+        <GroupActivityScopeModal
+          companies={selectedProjects}
+          onClose={() => setShowGroupActivityModal(false)}
+          onCreate={(scope, targetIds) => {
+            if (scope === 'single') addActivity(targetIds[0]);
+            else addGroupActivity(targetIds, scope);
+          }}
         />
       )}
     </div>
@@ -2564,8 +2661,10 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [fetched, setFetched] = useState(null);
-  const [form, setForm] = useState({ name: '', nomeFantasia: '', color: PHASE_COLORS[0], logo: '', clientType: '', orgId: '' });
+  const [form, setForm] = useState({ name: '', nomeFantasia: '', color: PHASE_COLORS[0], logo: '', clientType: '', orgId: '', structureType: 'individual', groupName: '' });
+  const [children, setChildren] = useState([]);
   const isMobile = useIsMobile();
+  const isGroup = form.structureType === 'grupo' && !cloneSource;
 
   function handleLogoPick(e) {
     const file = e.target.files && e.target.files[0];
@@ -2596,27 +2695,66 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
     }
   }
 
+  function addChildRow() {
+    setChildren((prev) => [...prev, { id: uid('child'), cnpj: '', name: '', nomeFantasia: '', fetched: null, loading: false, error: '' }]);
+  }
+  function removeChildRow(id) {
+    setChildren((prev) => prev.filter((c) => c.id !== id));
+  }
+  function updateChildCnpj(id, value) {
+    setChildren((prev) => prev.map((c) => (c.id === id ? { ...c, cnpj: value } : c)));
+  }
+  async function buscarChild(id) {
+    const child = children.find((c) => c.id === id);
+    if (!child || !child.cnpj.trim()) return;
+    setChildren((prev) => prev.map((c) => (c.id === id ? { ...c, loading: true, error: '' } : c)));
+    try {
+      const res = await apiPost('/api/cnpj/lookup', { cnpj: child.cnpj });
+      if (res.erro) {
+        setChildren((prev) => prev.map((c) => (c.id === id ? { ...c, loading: false, error: res.erro } : c)));
+      } else {
+        setChildren((prev) => prev.map((c) => (c.id === id ? { ...c, loading: false, fetched: res, name: res.razaoSocial || '', nomeFantasia: res.nomeFantasia || '' } : c)));
+      }
+    } catch (e) {
+      setChildren((prev) => prev.map((c) => (c.id === id ? { ...c, loading: false, error: e.message } : c)));
+    }
+  }
+
+  function buildCompanyPayload(base, fetchedData) {
+    return {
+      cnpj: (fetchedData && fetchedData.cnpjFormatado) || base.cnpj,
+      name: base.name,
+      nomeFantasia: base.nomeFantasia,
+      clientType: form.clientType,
+      color: form.color,
+      logo: base.logo || '',
+      orgId: form.orgId,
+      regimeTributario: fetchedData ? fetchedData.regimeTributario : '',
+      porte: fetchedData ? fetchedData.porte : '',
+      uf: fetchedData ? fetchedData.uf : '',
+      municipio: fetchedData ? fetchedData.municipio : '',
+      cnaePrincipal: fetchedData ? fetchedData.cnaePrincipal : '',
+      descricaoCnae: fetchedData ? fetchedData.descricaoCnae : '',
+      cnaesSecundarios: fetchedData ? fetchedData.cnaesSecundarios : [],
+      qsa: fetchedData ? fetchedData.qsa : [],
+    };
+  }
+
   async function submit() {
     if (!form.name.trim() || !form.clientType) return;
     setSaving(true);
     try {
-      await onCreate({
-        cnpj: (fetched && fetched.cnpjFormatado) || cnpj,
-        name: form.name,
-        nomeFantasia: form.nomeFantasia,
-        clientType: form.clientType,
-        color: form.color,
-        logo: form.logo,
-        orgId: form.orgId,
-        regimeTributario: fetched ? fetched.regimeTributario : '',
-        porte: fetched ? fetched.porte : '',
-        uf: fetched ? fetched.uf : '',
-        municipio: fetched ? fetched.municipio : '',
-        cnaePrincipal: fetched ? fetched.cnaePrincipal : '',
-        descricaoCnae: fetched ? fetched.descricaoCnae : '',
-        cnaesSecundarios: fetched ? fetched.cnaesSecundarios : [],
-        qsa: fetched ? fetched.qsa : [],
-      });
+      if (isGroup) {
+        const validChildren = children.filter((c) => c.name.trim());
+        await onCreate({
+          structureType: 'grupo',
+          groupName: form.groupName.trim() || form.name,
+          master: buildCompanyPayload({ cnpj, name: form.name, nomeFantasia: form.nomeFantasia, logo: form.logo }, fetched),
+          children: validChildren.map((c) => buildCompanyPayload(c, c.fetched)),
+        });
+      } else {
+        await onCreate(buildCompanyPayload({ cnpj, name: form.name, nomeFantasia: form.nomeFantasia, logo: form.logo }, fetched));
+      }
     } catch (e) {
       setError(e.message);
       setSaving(false);
@@ -2646,6 +2784,40 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
           </div>
         )}
 
+        {!cloneSource && (
+          <>
+            <div style={S.subSectionLabel}>Tipo de estrutura</div>
+            <div style={S.priorityPickerRow}>
+              <button
+                type="button"
+                style={{ ...S.priorityPickerChip, color: '#3ea6ff', background: form.structureType === 'individual' ? 'rgba(62,166,255,.14)' : 'transparent', borderColor: form.structureType === 'individual' ? 'rgba(62,166,255,.5)' : 'var(--border-3)' }}
+                onClick={() => setForm((f) => ({ ...f, structureType: 'individual' }))}
+              >
+                Empresa Individual
+              </button>
+              <button
+                type="button"
+                style={{ ...S.priorityPickerChip, color: '#9b7af5', background: form.structureType === 'grupo' ? 'rgba(155,122,245,.14)' : 'transparent', borderColor: form.structureType === 'grupo' ? 'rgba(155,122,245,.5)' : 'var(--border-3)' }}
+                onClick={() => setForm((f) => ({ ...f, structureType: 'grupo' }))}
+              >
+                Grupo Empresarial
+              </button>
+            </div>
+            <div style={{ ...S.fieldHint, marginBottom: 12 }}>
+              {form.structureType === 'grupo'
+                ? 'Um CNPJ Master com várias empresas do mesmo grupo econômico vinculadas a ele.'
+                : 'Uma única empresa/CNPJ, com dados totalmente isolados das demais.'}
+            </div>
+          </>
+        )}
+
+        {isGroup && (
+          <>
+            <div style={S.subSectionLabel}>Nome do grupo</div>
+            <input type="text" value={form.groupName} onChange={(e) => setForm((f) => ({ ...f, groupName: e.target.value }))} placeholder={form.name || 'Nome do grupo empresarial'} />
+          </>
+        )}
+
         {isSuperAdmin && (
           <>
             <div style={S.subSectionLabel}>Organização (base)</div>
@@ -2657,7 +2829,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
           </>
         )}
 
-        <div style={S.subSectionLabel}>CNPJ</div>
+        <div style={S.subSectionLabel}>{isGroup ? 'CNPJ Master' : 'CNPJ'}</div>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             type="text"
@@ -2741,8 +2913,46 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
               </div>
             )}
 
+            {isGroup && (
+              <>
+                <div style={{ ...S.subSectionLabel, marginTop: 18 }}>Empresas do grupo (filiais)</div>
+                <div style={S.fieldHint}>
+                  Adicione o CNPJ de cada empresa que pertence a este grupo — nome e dados são
+                  buscados na Receita. Elas herdam o tipo de cliente e a cor do grupo; dá pra
+                  ajustar individualmente depois, na tela da própria empresa. Pode deixar sem
+                  nenhuma e adicionar depois também.
+                </div>
+                {children.map((c) => (
+                  <div key={c.id} style={{ ...S.accessBlock, marginTop: 10 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div style={{ flex: 1 }}>
+                        <input
+                          type="text"
+                          value={c.cnpj}
+                          onChange={(e) => updateChildCnpj(c.id, e.target.value)}
+                          placeholder="00.000.000/0000-00"
+                          onKeyDown={(e) => e.key === 'Enter' && buscarChild(c.id)}
+                        />
+                      </div>
+                      <button style={{ ...S.iconBtn, flexShrink: 0 }} onClick={() => buscarChild(c.id)} disabled={c.loading}>
+                        {c.loading ? 'Buscando...' : 'Buscar dados'}
+                      </button>
+                      <button style={S.iconBtnGhost} onClick={() => removeChildRow(c.id)}><X size={16} /></button>
+                    </div>
+                    {c.error && <div style={{ ...S.loginBlockedMsg, marginTop: 8 }}>{c.error}</div>}
+                    {(c.name || c.nomeFantasia) && (
+                      <div style={{ marginTop: 8, fontSize: 12.5, fontWeight: 700 }}>{c.nomeFantasia || c.name}</div>
+                    )}
+                  </div>
+                ))}
+                <button style={{ ...S.iconBtn, marginTop: 10 }} onClick={addChildRow}><Plus size={14} /> Adicionar empresa</button>
+              </>
+            )}
+
             <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={saving || !form.name.trim() || !form.clientType}>
-              {saving ? (cloneSource ? 'Clonando...' : 'Criando...') : (cloneSource ? 'Clonar empresa' : 'Criar empresa')}
+              {saving
+                ? (cloneSource ? 'Clonando...' : (isGroup ? 'Criando grupo...' : 'Criando...'))
+                : (cloneSource ? 'Clonar empresa' : (isGroup ? 'Criar grupo' : 'Criar empresa'))}
             </button>
           </>
         )}
@@ -2819,11 +3029,18 @@ function CompanySectionHeader({ project, onEditPhases }) {
   );
 }
 
-function EditCompanyModal({ project, onClose, onSave }) {
+function EditCompanyModal({ project, projects, onClose, onSave }) {
   const c = project.company;
   const [form, setForm] = useState({ name: c.name || '', nomeFantasia: c.nomeFantasia || '', color: c.color || PHASE_COLORS[0], logo: c.logo || '', status: c.status || 'ativo', resumeDate: c.resumeDate || '', clientType: c.clientType || '' });
   const [saving, setSaving] = useState(false);
+  const [linkTargetId, setLinkTargetId] = useState('');
   const isMobile = useIsMobile();
+
+  const isMaster = !!c.isGroupMaster;
+  const isChild = !isMaster && !!c.groupId;
+  const availableMasters = (projects || []).filter((p) => p.id !== project.id && p.company.isGroupMaster);
+  const groupChildren = isMaster ? groupMembers(projects || [], project.id).filter((p) => p.id !== project.id) : [];
+  const parentGroup = isChild ? (projects || []).find((p) => p.id === c.groupId) : null;
 
   function handleLogoPick(e) {
     const file = e.target.files && e.target.files[0];
@@ -2837,6 +3054,29 @@ function EditCompanyModal({ project, onClose, onSave }) {
     if (!form.name.trim() || saving) return;
     setSaving(true);
     await onSave(form);
+    setSaving(false);
+    onClose();
+  }
+
+  async function becomeMaster() {
+    const groupName = window.prompt('Nome do grupo:', c.name || form.name || '');
+    if (groupName === null || saving) return;
+    setSaving(true);
+    await onSave({ isGroupMaster: true, groupId: '', groupName: groupName.trim() || form.name, structureType: 'grupo' });
+    setSaving(false);
+    onClose();
+  }
+  async function linkAsChild() {
+    if (!linkTargetId || saving) return;
+    setSaving(true);
+    await onSave({ isGroupMaster: false, groupId: linkTargetId, structureType: 'grupo' });
+    setSaving(false);
+    onClose();
+  }
+  async function unlinkFromGroup() {
+    if (saving || !window.confirm('Desvincular esta empresa do grupo?')) return;
+    setSaving(true);
+    await onSave({ isGroupMaster: false, groupId: '', groupName: '', structureType: 'individual' });
     setSaving(false);
     onClose();
   }
@@ -2897,8 +3137,136 @@ function EditCompanyModal({ project, onClose, onSave }) {
           </label>
         </div>
 
+        <div style={{ ...S.subSectionLabel, marginTop: 18 }}>Estrutura</div>
+        {isMaster ? (
+          <div style={S.fieldHint}>
+            Esta empresa é o <strong>CNPJ Master</strong> de um grupo
+            {groupChildren.length > 0 ? ` com ${groupChildren.length} empresa${groupChildren.length === 1 ? '' : 's'} vinculada${groupChildren.length === 1 ? '' : 's'}:` : ' (ainda sem filiais vinculadas).'}
+            {groupChildren.length > 0 && (
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {groupChildren.map((ch) => <li key={ch.id}>{ch.company.nomeFantasia || ch.company.name}</li>)}
+              </ul>
+            )}
+          </div>
+        ) : isChild ? (
+          <>
+            <div style={S.fieldHint}>
+              Esta empresa é filial do grupo <strong>{(parentGroup && (parentGroup.company.groupName || parentGroup.company.name)) || 'grupo'}</strong>.
+            </div>
+            <button style={{ ...S.iconBtn, marginTop: 8 }} onClick={unlinkFromGroup} disabled={saving}>Desvincular do grupo</button>
+          </>
+        ) : (
+          <>
+            <div style={S.fieldHint}>Empresa individual — não faz parte de nenhum grupo.</div>
+            <button style={{ ...S.iconBtn, marginTop: 8 }} onClick={becomeMaster} disabled={saving}>Transformar em Grupo (Master)</button>
+            {availableMasters.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <div style={S.fieldHint}>Ou vincular como filial de um grupo existente:</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <select value={linkTargetId} onChange={(e) => setLinkTargetId(e.target.value)}>
+                    <option value="">Selecione o grupo</option>
+                    {availableMasters.map((m) => <option key={m.id} value={m.id}>{m.company.groupName || m.company.name}</option>)}
+                  </select>
+                  <button style={{ ...S.iconBtn, flexShrink: 0 }} onClick={linkAsChild} disabled={saving || !linkTargetId}>Vincular</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
         <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={saving || !form.name.trim()}>
           {saving ? 'Salvando...' : 'Salvar alterações'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function GroupActivityScopeModal({ companies, onCreate, onClose }) {
+  const [scope, setScope] = useState('single');
+  const [singleId, setSingleId] = useState((companies[0] && companies[0].id) || '');
+  const [multiIds, setMultiIds] = useState(() => new Set());
+  const isMobile = useIsMobile();
+
+  function toggleMulti(id) {
+    setMultiIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function confirm() {
+    if (scope === 'single') {
+      if (!singleId) return;
+      onCreate('single', [singleId]);
+    } else if (scope === 'multi') {
+      if (multiIds.size === 0) return;
+      onCreate('multi', Array.from(multiIds));
+    } else {
+      onCreate('all', companies.map((c) => c.id));
+    }
+    onClose();
+  }
+
+  const scopeOptions = [
+    { value: 'single', label: 'Uma empresa' },
+    { value: 'multi', label: 'Várias empresas' },
+    { value: 'all', label: 'Todas as empresas do grupo' },
+  ];
+  const confirmDisabled = (scope === 'single' && !singleId) || (scope === 'multi' && multiIds.size === 0);
+
+  return (
+    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+      <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
+        <div style={S.detailTopBar}>
+          <div style={{ fontSize: 17, fontWeight: 800 }}>Nova atividade</div>
+          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <div style={S.subSectionLabel}>Aplicável a</div>
+        <div style={S.priorityPickerRow}>
+          {scopeOptions.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              style={{ ...S.priorityPickerChip, color: '#9b7af5', background: scope === opt.value ? 'rgba(155,122,245,.14)' : 'transparent', borderColor: scope === opt.value ? 'rgba(155,122,245,.5)' : 'var(--border-3)' }}
+              onClick={() => setScope(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {scope === 'single' && (
+          <>
+            <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Empresa</div>
+            <select value={singleId} onChange={(e) => setSingleId(e.target.value)}>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.company.nomeFantasia || c.company.name || 'Sem nome'}</option>)}
+            </select>
+          </>
+        )}
+
+        {scope === 'multi' && (
+          <>
+            <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Empresas</div>
+            {companies.map((c) => (
+              <label key={c.id} style={S.cnpjCheckRow}>
+                <input type="checkbox" checked={multiIds.has(c.id)} onChange={() => toggleMulti(c.id)} />
+                {c.company.nomeFantasia || c.company.name || 'Sem nome'}
+              </label>
+            ))}
+          </>
+        )}
+
+        {scope === 'all' && (
+          <div style={{ ...S.fieldHint, marginTop: 10 }}>
+            Vai criar uma cópia da atividade nas {companies.length} empresas do grupo selecionadas.
+          </div>
+        )}
+
+        <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={confirm} disabled={confirmDisabled}>
+          Criar atividade
         </button>
       </div>
     </div>
@@ -2915,9 +3283,13 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   const isMobile = useIsMobile();
 
   function toggle(id) {
+    const p = projects.find((pr) => pr.id === id);
+    const groupIds = p && p.company.isGroupMaster ? groupMembers(projects, id).map((m) => m.id) : [id];
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      const turningOn = !next.has(id);
+      if (turningOn) groupIds.forEach((gid) => next.add(gid));
+      else groupIds.forEach((gid) => next.delete(gid));
       return next;
     });
   }
@@ -3066,11 +3438,19 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                         <div style={S.companyCardNameRow}>
                           <div
                             style={{ ...S.companyCardName, cursor: 'pointer' }}
-                            title="Duplo clique para entrar direto nessa empresa"
-                            onDoubleClick={(e) => { e.preventDefault(); onConfirm([p.id]); }}
+                            title={p.company.isGroupMaster ? 'Duplo clique para entrar direto no grupo (todas as empresas vinculadas)' : 'Duplo clique para entrar direto nessa empresa'}
+                            onDoubleClick={(e) => {
+                              e.preventDefault();
+                              onConfirm(p.company.isGroupMaster ? groupMembers(projects, p.id).map((m) => m.id) : [p.id]);
+                            }}
                           >
                             {p.company.nomeFantasia || p.company.name || 'Empresa sem nome'}
                           </div>
+                          {p.company.isGroupMaster && (
+                            <span style={{ ...S.companyStatusPillSm, color: '#9b7af5', background: 'rgba(155,122,245,.14)', borderColor: 'rgba(155,122,245,.5)' }}>
+                              Grupo · {groupMembers(projects, p.id).length} empresa{groupMembers(projects, p.id).length === 1 ? '' : 's'}
+                            </span>
+                          )}
                           {p.company.clientType && CLIENT_TYPE_META[p.company.clientType] && (
                             <span style={{ ...S.companyStatusPillSm, color: CLIENT_TYPE_META[p.company.clientType].color, background: CLIENT_TYPE_META[p.company.clientType].bg, borderColor: CLIENT_TYPE_META[p.company.clientType].border }}>{CLIENT_TYPE_META[p.company.clientType].short}</span>
                           )}
@@ -3157,6 +3537,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
       {editingProject && (
         <EditCompanyModal
           project={editingProject}
+          projects={projects}
           onClose={() => setEditingProject(null)}
           onSave={async (patch) => onUpdateCompany(editingProject.id, patch)}
         />
@@ -5330,6 +5711,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
   const [filterResp, setFilterResp] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
+  const [filterCompany, setFilterCompany] = useState('');
 
   function phaseOf(a) {
     const rp = phases || a._phases;
@@ -5343,15 +5725,17 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
     if (po && !seenPhaseNames.has(po.name)) { seenPhaseNames.add(po.name); phaseOptions.push(po); }
   });
   const respOptions = Array.from(new Set(activities.map((a) => a.responsible).filter(Boolean)));
+  const companyOptions = multiMode ? Array.from(new Set(activities.map((a) => a._companyName).filter(Boolean))) : [];
 
   const filtered = activities.filter((a) => {
     if (filterPhase && phaseOf(a)?.name !== filterPhase) return false;
     if (filterResp && a.responsible !== filterResp) return false;
     if (filterStatus && a.status !== filterStatus) return false;
     if (filterPriority && (a.priority || '') !== filterPriority) return false;
+    if (filterCompany && a._companyName !== filterCompany) return false;
     return true;
   });
-  const filtersActive = !!(filterPhase || filterResp || filterStatus || filterPriority);
+  const filtersActive = !!(filterPhase || filterResp || filterStatus || filterPriority || filterCompany);
 
   useEffect(() => {
     if (!dragActId) return;
@@ -5476,8 +5860,17 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
             {PRIORITY_ORDER.map((p) => <option key={p} value={p}>{PRIORITY_META[p].label}</option>)}
           </select>
         </div>
+        {multiMode && companyOptions.length > 0 && (
+          <div style={S.filterGroup}>
+            <div style={S.filterLabel}>Empresa</div>
+            <select style={S.filterSelect} value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}>
+              <option value="">Todas as empresas</option>
+              {companyOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+        )}
         {filtersActive && (
-          <button style={S.filterClearBtn} onClick={() => { setFilterPhase(''); setFilterResp(''); setFilterStatus(''); setFilterPriority(''); }}>
+          <button style={S.filterClearBtn} onClick={() => { setFilterPhase(''); setFilterResp(''); setFilterStatus(''); setFilterPriority(''); setFilterCompany(''); }}>
             Limpar filtros
           </button>
         )}
@@ -5557,6 +5950,11 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                   {multiMode && (
                     <div style={{ width: 150 }}>
                       <CompanyBadge name={a._companyName} color={a._companyColor} logo={a._companyLogo} />
+                      {a.groupActivityId && (
+                        <span title={a.groupScopeType === 'all' ? 'Atividade do grupo inteiro' : 'Atividade vinculada a várias empresas do grupo'} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: '#9b7af5', marginTop: 3 }}>
+                          <Users size={10} /> {a.groupScopeType === 'all' ? 'Grupo inteiro' : 'Várias empresas'}
+                        </span>
+                      )}
                     </div>
                   )}
                   <div style={{ flex: 2, minWidth: 260 }}>
@@ -5641,7 +6039,16 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                           {a.priority && <span title={`Prioridade ${PRIORITY_META[a.priority].label}`} style={{ ...S.priorityDot, background: PRIORITY_META[a.priority].color, flexShrink: 0 }} />}
                           <input type="text" value={a.title} onChange={(e) => updateActivity(rowPid, a.id, { title: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} style={{ flex: 1, fontWeight: 700 }} />
                         </div>
-                        {multiMode && <div style={{ marginTop: 6 }}><CompanyBadge name={a._companyName} color={a._companyColor} logo={a._companyLogo} /></div>}
+                        {multiMode && (
+                          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <CompanyBadge name={a._companyName} color={a._companyColor} logo={a._companyLogo} />
+                            {a.groupActivityId && (
+                              <span title={a.groupScopeType === 'all' ? 'Atividade do grupo inteiro' : 'Atividade vinculada a várias empresas do grupo'} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: '#9b7af5' }}>
+                                <Users size={10} /> {a.groupScopeType === 'all' ? 'Grupo inteiro' : 'Várias empresas'}
+                              </span>
+                            )}
+                          </div>
+                        )}
                         <input type="text" value={a.desc} onChange={(e) => updateActivity(rowPid, a.id, { desc: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 6, opacity: .8 }} />
                       </div>
                     </div>
@@ -5958,6 +6365,11 @@ function KanbanView({ activities, orderMap, phases, pid, dragId, setDragId, upda
                     <GripVertical size={13} color="var(--text-8)" />
                   </div>
                   {multiMode && <CompanyBadge name={a._companyName} color={a._companyColor} logo={a._companyLogo} small />}
+                  {multiMode && a.groupActivityId && (
+                    <span title={a.groupScopeType === 'all' ? 'Atividade do grupo inteiro' : 'Atividade vinculada a várias empresas do grupo'} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: '#9b7af5', marginTop: 3 }}>
+                      <Users size={10} /> {a.groupScopeType === 'all' ? 'Grupo inteiro' : 'Várias empresas'}
+                    </span>
+                  )}
                   <div style={S.kanbanCardTitle}>{a.title}</div>
                   <div style={S.kanbanCardMeta}>
                     <span>{a.responsible}</span>

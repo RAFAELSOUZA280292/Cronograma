@@ -10,9 +10,9 @@
 > integração, mudança de regra de negócio, decisão técnica, item resolvido do
 > roadmap) deve ser refletida aqui na mesma sessão.
 
-Última validação completa: 2026-08-12 (revisão profunda — `server/routes.js`,
-`server/db.js`, `server/auth.js`, `src/lib/api.js` lidos por inteiro;
-`src/App.jsx` verificado em pontos-chave de regra de negócio).
+Última validação completa: 2026-08-12 (feature Grupo Empresarial —
+planejada, implementada e testada ao vivo em Postgres local nesta sessão;
+2 bugs reais encontrados e corrigidos durante o teste, ver §17).
 
 ## 1. O que é
 
@@ -26,7 +26,7 @@ domínio, isolamento lógico por `org_id`.
 
 | Camada | Tecnologia |
 |---|---|
-| Frontend | React 18 + Vite, SPA sem roteador. **Um único arquivo** `src/App.jsx` (~6558 linhas) |
+| Frontend | React 18 + Vite, SPA sem roteador. **Um único arquivo** `src/App.jsx` (~6970 linhas) |
 | Backend | Express (Node ESM, `"type": "module"`), API REST em `/api/*` |
 | Banco | Postgres via `pg` puro, **sem ORM**, sem migrations formais |
 | Auth | JWT em cookie httpOnly + bcrypt |
@@ -105,7 +105,7 @@ fora do JSONB) é rara/sensível — só fazer se pedido explicitamente.
 
 Nenhuma outra API externa. Sem storage externo (S3 etc.) — anexos de
 atividade são base64 inline em `activity.attachments[].dataUrl` (limite 8MB/
-arquivo, ver §13). `avatar` do usuário **não** é imagem — é 1 emoji de uma
+arquivo, ver §14). `avatar` do usuário **não** é imagem — é 1 emoji de uma
 lista fixa (`AVATAR_EMOJIS`, `src/App.jsx`), validado no backend como string
 ≤16 chars (`PATCH /auth/me`).
 
@@ -173,7 +173,7 @@ para um caso de uso raro (poucas dezenas de usuários hoje).
 `GET/POST /projects` e `/users` aceitam `?asOrg=<id>` — só respeitado se
 `isSuperAdmin` (`effectiveOrgId()`), é como o Super Admin "entra" numa org.
 
-## 9. Arquitetura do frontend (`src/App.jsx`, ~6558 linhas)
+## 9. Arquitetura do frontend (`src/App.jsx`, ~6970 linhas)
 
 Um único componente `App()` (~1450 linhas) com todo o estado
 (`useState`/`useEffect`), sem Redux/Context/roteador — navegação é 100% estado
@@ -259,7 +259,78 @@ rejeitada a ideia de white-label `/o/:slug/login`).
 - **Não implementado** (roadmap): enforcement de `status` suspensa/bloqueada,
   planos/limites/cobrança — colunas de schema já existem, nada lê/aplica.
 
-## 12. Regras de negócio (resumo)
+## 12. Grupo Empresarial (2026-08)
+
+Segunda camada de estrutura, **dentro** de uma organização: um CNPJ Master +
+várias empresas filhas do mesmo grupo econômico, com visão consolidada no
+Master. Reaproveita 100% a infraestrutura de multi-seleção que já existia
+(`selectedProjectIds`, `isMulti`, `multiActivities` — ver §9/§10) — nenhuma
+tabela nova, nenhuma rota nova.
+
+**Modelo de dados (tudo em `company`/`activity`, JSONB, zero migration)**:
+- `company.structureType`: `'individual' | 'grupo'` (fallback `|| 'individual'`).
+- `company.isGroupMaster: boolean` — só `true` no projeto Master.
+- `company.groupId: string` — só nas **filhas**, aponta pro `id` do projeto
+  Master. O Master **não** tem `groupId` setado nele mesmo (evita round-trip
+  de PATCH pra auto-referenciar um id que só existe depois do INSERT).
+  Helper `groupRootId(company, ownId)` (topo do `App.jsx`) resolve a raiz do
+  grupo pra qualquer membro (Master ou filha) de forma uniforme;
+  `groupMembers(projects, rootId)` retorna todos os membros.
+- `company.groupName: string` — nome de exibição do grupo, só no Master.
+- `activity.groupActivityId: string` (`uid('gact')`) — presente só quando a
+  atividade nasceu vinculada a várias/todas as empresas do grupo. Mesmo
+  valor em todas as cópias irmãs.
+- `activity.groupScopeType: 'multi' | 'all'` — gravado uma vez na criação,
+  usado só pro selo "Grupo inteiro"/"Várias empresas" (não recalculado).
+
+**Atividade de grupo = cópia por empresa, não entidade compartilhada.**
+Criar uma atividade "Várias empresas"/"Todas as empresas do grupo"
+(`addGroupActivity()`) gera uma cópia independente em cada projeto-alvo,
+todas com o mesmo `groupActivityId`. Ao editar `title/desc/date/endDate/
+durationDays/phase/required` de uma cópia, `updateActivity()` propaga o
+mesmo patch pras cópias irmãs (busca por `groupActivityId` nos projetos que
+compartilham o mesmo grupo). `status/responsible/participants/priority/
+subactivities/comments/attachments/links/histórico` **não** propagam — cada
+empresa mantém esses dados 100% independentes, por decisão explícita
+(reflete "cada empresa mantém seus próprios dados e análises").
+
+**Fluxos principais**:
+- Criar grupo do zero: `CreateCompanyModal` ganha passo "Tipo de estrutura"
+  (Individual/Grupo) + sub-formulário de filhas (CNPJ + lookup cada uma);
+  `createCompanyGroup()` em `App()` chama `createCompany()` em loop (Master
+  primeiro, filhas depois com `groupId=masterId`) — não duplica a lógica de
+  POST. Ao criar um grupo pela tela de seleção de empresas (`CompanySelectorScreen`),
+  `handleCreateCompanyPayload()` também chama `setCompanySelectionConfirmed(true)`
+  explicitamente — necessário porque o `Set` local de seleção da tela **não
+  resincroniza sozinho** depois do mount (ver bug em §17).
+- Converter depois: `EditCompanyModal` ganha seção "Estrutura" — empresa
+  individual pode "Transformar em Grupo (Master)" ou "Vincular como filial
+  de um grupo existente"; filha pode "Desvincular do grupo". Crescimento do
+  grupo depois de criado acontece só por essa conversão (sem tela dedicada
+  de "adicionar membro" no Master).
+- Entrar no grupo: `CompanySelectorScreen` mostra selo "Grupo · N empresas"
+  no Master; clicar o checkbox do Master ou dar duplo-clique nele
+  auto-seleciona todos os membros (`toggle()` estendido) e leva direto pra
+  visão consolidada (`isMulti`).
+- Visão consolidada: **sem mudança em `TableView`/`PhasesView`/`KanbanView`/
+  `TimelineView`** além de um filtro novo "Empresa" (Tabela/Quadro, só
+  quando `multiMode`) e o selo "Grupo inteiro"/"Várias empresas" nos cards/
+  linhas com `groupActivityId`. Fases/Gantt continuam empilhados por
+  empresa (decisão explícita — fundir de verdade fica pra uma v2, não
+  pedido agora).
+- Nova atividade com escolha de empresas: só aparece quando `isGroupView`
+  (todas as empresas selecionadas compartilham o mesmo `groupRootId`) —
+  `GroupActivityScopeModal` oferece Uma empresa / Várias / Todas. Seleção
+  ad-hoc de empresas não relacionadas mantém o dropdown antigo, intocado.
+
+**Fora do escopo desta versão** (documentado, não esquecer): Fases/Gantt
+fundidos entre empresas; tela de gerenciar membros no Master; backfill
+retroativo de atividades "gerais do grupo" pra empresa que entra depois no
+grupo (só ativa daí pra frente); `cliente` nunca vê a visão consolidada
+(só `master`/`pricetax` — comportamento correto por design, `canAccessProject`
+não muda).
+
+## 13. Regras de negócio (resumo)
 
 - Cliente só vê o projeto do próprio CNPJ; PRICETAX vê CNPJs liberados
   (`allowedCnpjs`); Master vê tudo (dentro da própria org).
@@ -286,9 +357,9 @@ rejeitada a ideia de white-label `/o/:slug/login`).
   concluídas, guardando `statusBeforePause` pra restaurar exato ao religar;
   atividades já pausadas manualmente ou já concluídas ficam fora do cascade.
 
-## 13. Problemas técnicos conhecidos
+## 14. Problemas técnicos conhecidos
 
-- `src/App.jsx` é muito grande (~6558 linhas, um componente `App()` de
+- `src/App.jsx` é muito grande (~6970 linhas, um componente `App()` de
   ~1450 linhas) — leitura completa é cara em contexto; usar
   `docs/PROJECT_MAP.md` + `grep`/`Read offset` sempre.
 - Anexos em base64 dentro do JSONB (`activity.attachments[].dataUrl`, até
@@ -302,7 +373,7 @@ rejeitada a ideia de white-label `/o/:slug/login`).
 - `cnpjLookup.js` depende de 2 APIs externas instáveis — já tem retry/
   timeout/cache, mas é ponto único de falha do cadastro de empresa.
 
-## 14. Pendências / roadmap conhecido
+## 15. Pendências / roadmap conhecido
 
 - Enforcement de `organizations.status` (suspensa/bloqueada não bloqueia
   login/acesso ainda, é só rótulo).
@@ -312,7 +383,7 @@ rejeitada a ideia de white-label `/o/:slug/login`).
   `CompanySelectorScreen` (só no topbar principal) — limitação conhecida.
 - `README.md` não atualizado (fora de escopo até pedido explícito).
 
-## 15. Padrões obrigatórios ao desenvolver novas funcionalidades
+## 16. Padrões obrigatórios ao desenvolver novas funcionalidades
 
 - Nunca `setProjects`/`setPersonalBoard` direto pra editar dado existente —
   sempre `mutateProject(pid, updater, logMsg, activityId)` ou
@@ -350,7 +421,7 @@ rejeitada a ideia de white-label `/o/:slug/login`).
   explícito — o arquivo já é grande, prefira repetir 3 linhas parecidas a
   criar um helper novo pra um caso só.
 
-## 16. Bugs já resolvidos — não reintroduzir
+## 17. Bugs já resolvidos — não reintroduzir
 
 Confirmados nesta sessão (causa raiz verificada e corrigida ao vivo):
 
@@ -396,6 +467,29 @@ Confirmados nesta sessão (causa raiz verificada e corrigida ao vivo):
   Padrão adotado: `createCompany()`/`cloneCompany()` retornam `{id,
   crossOrg, orgName}`; chamador só faz `setState` local quando `!crossOrg`,
   e mostra `window.alert()` avisando em qual org o recurso caiu.
+- **`createCompanyGroup()` descartava `groupName` silenciosamente**: a
+  função desestruturava só `{ master, children }` do payload, nunca
+  `groupName` — o Master era criado sem nome de grupo (campo vazio no
+  banco), sem erro nenhum visível na tela. Corrigido incluindo `groupName`
+  na desestruturação e passando pra `createCompany({ ...master,
+  isGroupMaster: true, groupName })`. **Lição**: quando uma função recebe
+  um objeto e só usa parte dele, sobra fácil de passar despercebido — testar
+  criando o dado de verdade e checando no banco (`psql`), não só olhando o
+  código, pegou isso que uma leitura visual não pegaria.
+- **`CompanySelectorScreen` não reflete `selectedProjectIds` após criar
+  empresa/grupo**: o `Set` local de seleção da tela (`useState(() => new
+  Set(initialSelected))`) só lê `initialSelected` **uma vez, no mount** —
+  atualizar `selectedProjectIds` no `App()` depois que a tela já está
+  montada (ex.: criar um grupo pela tela de seleção) não reflete nos
+  checkboxes nem no botão "Continuar" (que usa o `Set` local, não a prop).
+  Isso já existia antes pra criação de empresa individual (nunca foi
+  perceptível porque ninguém contava com auto-seleção ali); virou bug
+  visível quando o Grupo Empresarial prometeu "cair direto na visão
+  consolidada". Corrigido **sem** mexer no componente compartilhado (evita
+  risco de quebrar o fluxo de empresa individual): `handleCreateCompanyPayload()`
+  chama `setCompanySelectionConfirmed(true)` diretamente depois de criar um
+  grupo, pulando a tela de seleção por completo em vez de tentar sincronizar
+  o estado dela.
 
 Do histórico do projeto (título do commit é a única fonte disponível —
 confiança menor, mas mantido como sinal de "área sensível"):
@@ -408,7 +502,7 @@ confiança menor, mas mantido como sinal de "área sensível"):
   pra garantir que ele segue o mesmo padrão de `deleted/deletedAt/deletedBy`
   + filtro de view + entrada na Lixeira.
 
-## 17. Onde procurar mais detalhe
+## 18. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
 |---|---|
