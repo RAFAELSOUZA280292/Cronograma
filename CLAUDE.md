@@ -15,7 +15,7 @@ Antes de qualquer tarefa nova, siga esta ordem:
    `docs/PROJECT_MAP.md`) sempre que uma alteração mudar arquitetura, regra
    de negócio, infraestrutura ou comportamento relevante — na mesma sessão.
 6. Evite carregar arquivos grandes ou módulos não relacionados no contexto
-   (`src/App.jsx` tem ~6558 linhas — leia com `offset`/`limit` ou `grep`,
+   (`src/App.jsx` tem ~6970 linhas — leia com `offset`/`limit` ou `grep`,
    nunca o arquivo inteiro sem motivo).
 7. Investigue progressivamente: **documentação → arquivos relacionados →
    dependências necessárias**. Só amplie a busca (`grep` livre / Explore
@@ -57,7 +57,7 @@ teste manual no browser.
 - Sem comentários desnecessários; sem abstração prematura.
 - Lista completa de padrões obrigatórios (mutação de estado, soft delete,
   CSS/tema, mobile, autorização por `org_id`) está em `PROJECT_CONTEXT.md`
-  §15 — não duplicar aqui.
+  §16 — não duplicar aqui.
 
 Antes de alterar qualquer funcionalidade, **abra e confira os arquivos
 envolvidos** — a documentação localiza e dá contexto, não substitui ler o
