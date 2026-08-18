@@ -62,6 +62,12 @@ export const XFLOW_TRANSITIONS = {
   editar_prazo_proxima_acao: { from: null, to: null, permission: 'editar_prazo_proxima_acao' },
   comentar: { from: null, to: null, permission: 'comment' },
   anexar: { from: null, to: null, permission: 'attach_evidence' },
+  remover_anexo: { from: null, to: null, permission: 'attach_evidence' },
+  // Sugestão original do solicitante — pode ser preenchida depois se o
+  // ticket não tinha (ex.: criado antes desse campo existir), mas só uma
+  // vez: uma vez definida, fica imutável (ver xflow.js, guarda extra além
+  // da permissão).
+  definir_prioridade_sugerida: { from: null, to: null, permission: 'edit_content' },
 };
 
 const CLOSURE_REASON_TO_STATUS = {

@@ -3,7 +3,7 @@ import DOMPurify from 'dompurify';
 import {
   X, Plus, MessageSquare, Clock, Paperclip, ChevronDown, LogOut,
   Upload, Archive, Ban, Trash2, Bold, Italic, Underline as UnderlineIcon,
-  AlignLeft, AlignCenter, AlignRight, List, Quote,
+  AlignLeft, AlignCenter, AlignRight, List, Quote, Building2, Columns3,
 } from 'lucide-react';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn } from '../App.jsx';
@@ -350,9 +350,14 @@ function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, pla
   );
 }
 
+const XFLOW_TASK_TYPES = [
+  { value: 'bug', label: 'BUG', desc: 'Algo quebrado ou funcionando errado.' },
+  { value: 'melhoria', label: 'Melhoria', desc: 'Sugestão de algo novo ou melhor do que já existe.' },
+];
+
 function blankTicketForm() {
   return {
-    title: '', product: '', clientType: '', module: '', affectedUser: '', affectedCompany: '',
+    type: 'bug', title: '', product: '', clientType: '', module: '', affectedUser: '', affectedCompany: '',
     environment: 'producao', description: '', expectedResult: '', reproSteps: '',
     impact: '', frequency: '', occurredAt: '', priority: '', evidence: [],
   };
@@ -398,7 +403,7 @@ function NewTicketModal({ onClose, onCreate }) {
       <div style={{ ...S.detailBox, width: 'min(660px, 100%)', maxHeight: '90vh', overflowY: 'auto', padding: isMobile ? undefined : '24px 30px 30px 30px', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={{ ...S.detailTopBar, alignItems: 'flex-start', marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 19, fontWeight: 800 }}>Novo BUG</div>
+            <div style={{ fontSize: 19, fontWeight: 800 }}>Nova TASK</div>
             <div style={{ fontSize: 12, color: 'var(--text-5)', marginTop: 3 }}>
               Só o essencial pra abrir agora — dá pra completar o resto depois.
             </div>
@@ -406,10 +411,27 @@ function NewTicketModal({ onClose, onCreate }) {
           <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
         </div>
 
-        <div style={S.subSectionLabel}>Título do BUG</div>
+        <div style={S.subSectionLabel}>Tipo</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {XFLOW_TASK_TYPES.map((t) => (
+            <button
+              key={t.value} type="button" onClick={() => set({ type: t.value })}
+              style={{
+                flex: 1, textAlign: 'left', padding: '10px 12px', borderRadius: 9, cursor: 'pointer',
+                border: `1.5px solid ${form.type === t.value ? '#F5C400' : 'var(--border-3)'}`,
+                background: form.type === t.value ? 'rgba(245,196,0,.12)' : 'var(--bg-4)',
+              }}
+            >
+              <div style={{ fontWeight: 800, fontSize: 13, color: form.type === t.value ? '#F5C400' : 'var(--text-1)' }}>{t.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-5)', marginTop: 2 }}>{t.desc}</div>
+            </button>
+          ))}
+        </div>
+
+        <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Título {form.type === 'melhoria' ? 'da melhoria' : 'do BUG'}</div>
         <input
           type="text" value={form.title} onChange={(e) => set({ title: e.target.value })}
-          placeholder='Ex.: "Erro ao calcular aderência após upload do SPED"'
+          placeholder={form.type === 'melhoria' ? 'Ex.: "Adicionar filtro por responsável na lista"' : 'Ex.: "Erro ao calcular aderência após upload do SPED"'}
           style={{ fontSize: 17, fontWeight: 600, padding: '13px 14px', borderRadius: 9 }}
         />
 
@@ -439,7 +461,7 @@ function NewTicketModal({ onClose, onCreate }) {
         </div>
 
         <div style={{ marginTop: 14 }}>
-          <div style={S.subSectionLabel}>Descrição do problema</div>
+          <div style={S.subSectionLabel}>Descrição {form.type === 'melhoria' ? 'da melhoria' : 'do problema'}</div>
           <RichTextEditor
             value={form.description}
             onChange={(html) => set({ description: html })}
@@ -531,7 +553,7 @@ function NewTicketModal({ onClose, onCreate }) {
         {error && <div style={{ ...S.loginBlockedMsg, marginTop: 10 }}>{error}</div>}
 
         <button style={{ ...S.primaryBtn, marginTop: 18, width: '100%', justifyContent: 'center', padding: '12px 16px', fontSize: 13.5, borderRadius: 9 }} onClick={submit} disabled={!requiredOk || saving}>
-          {saving ? 'Enviando...' : 'Abrir BUG'}
+          {saving ? 'Enviando...' : form.type === 'melhoria' ? 'Registrar melhoria' : 'Abrir BUG'}
         </button>
       </div>
     </div>
@@ -823,6 +845,9 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12 }}>
                 {ev.type && ev.type.startsWith('image/') ? <img src={ev.dataUrl} alt={ev.name} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} /> : <Paperclip size={12} />}
                 <a href={ev.dataUrl} download={ev.name}>{ev.name}</a>
+                {canDoClient('attach_evidence', currentUser, ticket) && (
+                  <button style={S.iconBtnGhost} title="Remover anexo" onClick={() => runAction('remover_anexo', { evidenceId: ev.id })}><X size={12} /></button>
+                )}
               </div>
             ))}
 
@@ -1084,12 +1109,73 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             <input type="date" value={ticket.dueDate || ''} disabled={!canEditOps} onChange={(e) => runAction('editar_prazo_proxima_acao', { dueDate: e.target.value })} />
 
             <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Dados capturados</div>
-            <div style={S.fieldHint}>Produto: {ticket.product || '—'} · Módulo: {ticket.module || '—'}</div>
-            <div style={S.fieldHint}>Tipo de cliente: {ticket.clientType || '—'} · Empresa afetada: {ticket.affectedCompany || '—'}</div>
-            <div style={S.fieldHint}>Ambiente: {ticket.environment || '—'}</div>
-            <div style={S.fieldHint}>Impacto: {metaLabel(XFLOW_IMPACT_META, ticket.impact)} · Frequência: {metaLabel(XFLOW_FREQUENCY_META, ticket.frequency)}</div>
-            {ticket.occurredAt && <div style={S.fieldHint}>Data da ocorrência: {fmtDate(ticket.occurredAt)}</div>}
-            {ticket.capturedUrl && <div style={{ ...S.fieldHint, wordBreak: 'break-all' }}>URL: {ticket.capturedUrl}</div>}
+            <div style={S.fieldHint}>Produto: {ticket.product || '—'} · Ambiente: {ticket.environment || '—'}</div>
+            <div style={{ ...S.fieldHint, marginTop: 4 }}>
+              Campos que faltaram na abertura podem ser preenchidos aqui — toda alteração fica registrada na timeline.
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 140px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Módulo / Tela</div>
+                <ContentField as="input" value={ticket.module} disabled={!canEditContent} placeholder="Ex.: Upload, Aderência" onCommit={(v) => runAction('editar_campo', { field: 'module', value: v })} />
+              </div>
+              <div style={{ flex: '1 1 140px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Tipo de cliente</div>
+                <select value={ticket.clientType || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'clientType', value: e.target.value })}>
+                  <option value="">Selecione</option>
+                  {XFLOW_CLIENT_TYPES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 140px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Usuário afetado</div>
+                <ContentField as="input" value={ticket.affectedUser} disabled={!canEditContent} placeholder="Quem encontrou o problema" onCommit={(v) => runAction('editar_campo', { field: 'affectedUser', value: v })} />
+              </div>
+              <div style={{ flex: '1 1 140px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Empresa/Cliente afetado</div>
+                <ContentField as="input" value={ticket.affectedCompany} disabled={!canEditContent} onCommit={(v) => runAction('editar_campo', { field: 'affectedCompany', value: v })} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 140px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Impacto</div>
+                <select value={ticket.impact || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'impact', value: e.target.value })}>
+                  <option value="">Selecione</option>
+                  {XFLOW_IMPACT_ORDER.map((k) => <option key={k} value={k}>{XFLOW_IMPACT_META[k]}</option>)}
+                </select>
+              </div>
+              <div style={{ flex: '1 1 140px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Frequência</div>
+                <select value={ticket.frequency || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'frequency', value: e.target.value })}>
+                  <option value="">Selecione</option>
+                  {XFLOW_FREQUENCY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_FREQUENCY_META[k]}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 140px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Data da ocorrência</div>
+                <input type="date" value={ticket.occurredAt || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'occurredAt', value: e.target.value })} />
+              </div>
+              <div style={{ flex: '1 1 140px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Prioridade sugerida</div>
+                <select
+                  value={ticket.suggestedPriority || ''}
+                  disabled={!canEditContent || !!ticket.suggestedPriority}
+                  onChange={(e) => runAction('definir_prioridade_sugerida', { value: e.target.value })}
+                >
+                  <option value="">Selecione</option>
+                  {XFLOW_PRIORITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_PRIORITY_META[k].label}</option>)}
+                </select>
+                {ticket.suggestedPriority && <div style={S.fieldHint}>Definida — não pode ser alterada depois.</div>}
+              </div>
+            </div>
+
+            {ticket.capturedUrl && <div style={{ ...S.fieldHint, marginTop: 10, wordBreak: 'break-all' }}>URL: {ticket.capturedUrl}</div>}
           </div>
         </div>
       </div>
@@ -1459,7 +1545,7 @@ function LixeiraView({ tickets, teamById, filters, setFilters, onOpen, onRestore
   );
 }
 
-export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onToggleTheme }) {
+export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPersonal, onLogout, theme, onToggleTheme }) {
   const [tickets, setTickets] = useState([]);
   const [team, setTeam] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -1563,6 +1649,8 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
             <div style={{ fontWeight: 800 }}>XFlow</div>
             <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{currentUser.name} · {XFLOW_ROLE_META[effRole] ? XFLOW_ROLE_META[effRole].label : currentUser.xflowRole}</div>
           </div>
+          {onGoCompany && <button style={S.iconBtnGhost} onClick={onGoCompany}><Building2 size={14} /> Ir para Empresas</button>}
+          {onGoPersonal && <button style={S.iconBtnGhost} onClick={onGoPersonal}><Columns3 size={14} /> Ir para Gestão de Atividades</button>}
           {onExit && <button style={S.iconBtnGhost} onClick={onExit}>Sair do XFlow</button>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1576,7 +1664,7 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
               <Trash2 size={13} /> Lixeira
             </button>
           )}
-          <button style={S.primaryBtn} onClick={() => setShowNew(true)}><Plus size={15} /> Novo BUG</button>
+          <button style={S.primaryBtn} onClick={() => setShowNew(true)}><Plus size={15} /> Nova TASK</button>
           <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
           {onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
         </div>

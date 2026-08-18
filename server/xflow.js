@@ -250,7 +250,10 @@ router.post('/tickets', requireAuth, requireXflowAccess, async (req, res, next) 
   } catch (e) { next(e); }
 });
 
-const EDITABLE_CONTENT_FIELDS = ['title', 'description', 'expectedResult', 'reproSteps', 'module', 'affectedUser', 'affectedCompany', 'environment', 'solution', 'whatToTest'];
+const EDITABLE_CONTENT_FIELDS = [
+  'title', 'description', 'expectedResult', 'reproSteps', 'module', 'affectedUser', 'affectedCompany',
+  'environment', 'solution', 'whatToTest', 'impact', 'frequency', 'occurredAt', 'clientType',
+];
 
 router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, next) => {
   const client = await pool.connect();
@@ -497,6 +500,26 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         }
         data.evidence = [...(data.evidence || []), payload.evidence];
         historyNote = `Anexo adicionado: "${payload.evidence.name}"`;
+        break;
+      }
+      case 'remover_anexo': {
+        const evId = payload && payload.evidenceId;
+        const found = (data.evidence || []).find((e) => e.id === evId);
+        if (!found) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ message: 'Anexo não encontrado.' });
+        }
+        data.evidence = (data.evidence || []).filter((e) => e.id !== evId);
+        historyNote = `Anexo removido: "${found.name}"`;
+        break;
+      }
+      case 'definir_prioridade_sugerida': {
+        if (row.suggested_priority) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ message: 'A prioridade sugerida já foi definida e não pode ser alterada.' });
+        }
+        rel.suggested_priority = payload.value || '';
+        historyNote = `Prioridade sugerida definida: ${payload.value || 'sem prioridade'}`;
         break;
       }
       default:
