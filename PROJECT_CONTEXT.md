@@ -36,6 +36,7 @@ domínio, isolamento lógico por `org_id`.
 | Drag-and-drop | `@dnd-kit/core` + `@dnd-kit/sortable` (só na Gestão de Atividades) |
 | Export | `xlsx` (Excel), `window.print()` (PDF, sem lib) |
 | Ícones | `lucide-react` |
+| Rich text (só XFlow → Descrição) | `contentEditable` + `execCommand` (sem lib de editor); sanitização com `dompurify` (frontend) + `sanitize-html` (backend) |
 | Deploy | Railway, auto-build/deploy a cada push em `main` |
 
 Sem test runner, sem linter configurado (`package.json` não tem `test`/`lint`).
@@ -638,6 +639,26 @@ completo (arquitetura de dados, matriz de permissões, matriz de transições).
   de card do quadro pessoal em `App.jsx`). PATCH em qualquer ticket já
   excluído é bloqueado no backend (só aceita `restaurar`) — proteção real,
   não só ausência de botão na tela.
+- **Descrição é rich text** (`RichTextEditor` em `XFlow.jsx`): negrito,
+  itálico, sublinhado, fonte (padrão/serifada/monoespaçada), alinhamento,
+  lista, citação — via `document.execCommand` num `contentEditable`
+  (sem lib de editor; único campo do XFlow com essa tratativa, os outros
+  continuam textarea plana via `ContentField`). `value` só resincroniza o
+  `innerHTML` quando o campo **não está em foco** (`document.activeElement`),
+  senão o cursor pula a cada tecla — truque padrão pra contentEditable
+  controlado. Colar print/imagem no meio do texto insere inline **e**
+  adiciona em Evidências ao mesmo tempo (mesmo limite de 8MB dos anexos
+  normais). Guardamos HTML agora, não texto puro — **sanitização em duas
+  camadas**, nenhuma confia só na outra: DOMPurify no frontend
+  (`sanitizeRichText`, allow-list de tags/atributos, hook customizado
+  garantindo que todo `<img>` sem `src` começando literalmente em
+  `data:image/` é removido — o filtro de esquema do DOMPurify sozinho não
+  pega uma URI sem `://`, tipo `src="x"`) e `sanitize-html` no backend
+  (`sanitizeDescriptionHtml` em `server/xflow.js`, mesma allow-list +
+  `exclusiveFilter` equivalente — aplicado tanto em `POST /tickets` quanto
+  em `editar_campo`). Testado com payload malicioso real (`<script>`,
+  `onerror`, `<iframe>`, `href="javascript:"`, `img` remoto) via curl —
+  tudo removido, só a formatação e imagem `data:` legítimas sobrevivem.
 - **Fora do escopo ainda** (não pedido/não decidido): calendário útil no
   SLA (hoje é tempo corrido), notificação de @menção via o sino do
   Cronograma (comentários do XFlow ainda não aparecem lá), BUGs

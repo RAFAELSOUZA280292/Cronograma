@@ -1,12 +1,64 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import DOMPurify from 'dompurify';
 import {
   X, Plus, MessageSquare, Clock, Paperclip, ChevronDown, LogOut,
-  Upload, Archive, Ban, Trash2,
+  Upload, Archive, Ban, Trash2, Bold, Italic, Underline as UnderlineIcon,
+  AlignLeft, AlignCenter, AlignRight, List, Quote,
 } from 'lucide-react';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn } from '../App.jsx';
 
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
+
+// Descrição do BUG é rich text (editor próprio, ver RichTextEditor). HTML
+// nunca vai pra tela sem passar por aqui — mesmo conteúdo já sanitizado no
+// backend ao salvar (defesa em profundidade, server/xflow.js
+// sanitizeDescriptionHtml — não confia só no cliente).
+const RICH_TEXT_ALLOWED_TAGS = ['b', 'strong', 'i', 'em', 'u', 'font', 'p', 'div', 'br', 'ul', 'ol', 'li', 'blockquote', 'span', 'img'];
+// ALLOWED_URI_REGEXP só pega valores que "parecem" uma URI com esquema —
+// um src sem "://" (ex.: "x") escapa dessa checagem. Hook fecha a brecha:
+// qualquer <img> cujo src não comece literalmente com "data:image/" é
+// removido, sem exceção (mesma regra do sanitizeDescriptionHtml no backend).
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.tagName === 'IMG') {
+    const src = node.getAttribute('src') || '';
+    if (!src.startsWith('data:image/')) node.remove();
+  }
+});
+function sanitizeRichText(html) {
+  return DOMPurify.sanitize(html || '', {
+    ALLOWED_TAGS: RICH_TEXT_ALLOWED_TAGS,
+    ALLOWED_ATTR: ['style', 'face', 'src', 'alt'],
+    ALLOWED_URI_REGEXP: /^data:image\//,
+  });
+}
+function richTextIsBlank(html) {
+  if (!html) return true;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return !tmp.textContent.trim() && !tmp.querySelector('img');
+}
+
+const RICH_TEXT_FONTS = [
+  { value: '', label: 'Fonte padrão' },
+  { value: 'Georgia, serif', label: 'Serifada' },
+  { value: '"Courier New", monospace', label: 'Monoespaçada' },
+];
+
+const RICH_TEXT_CSS = `
+  .xflow-rte-toolbar { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; padding: 4px; background: var(--bg-3); border: 1px solid var(--border-3); border-bottom: none; border-radius: 6px 6px 0 0; }
+  .xflow-rte-btn { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: transparent; border: none; border-radius: 4px; color: var(--text-3); cursor: pointer; }
+  .xflow-rte-btn:hover { background: var(--bg-4); color: var(--text-1); }
+  .xflow-rte-sep { width: 1px; height: 18px; background: var(--border-2); margin: 0 3px; }
+  .xflow-rte-font { font-size: 11.5px; background: var(--bg-4); border: 1px solid var(--border-3); color: var(--text-2); border-radius: 4px; padding: 3px 4px; }
+  .xflow-rte-body { min-height: 90px; max-height: 320px; overflow-y: auto; background: var(--bg-4); border: 1px solid var(--border-3); border-radius: 0 0 6px 6px; padding: 8px 10px; font-size: 12.5px; color: var(--text-1); line-height: 1.5; }
+  .xflow-rte-body:focus { outline: none; border-color: #F5C400; }
+  .xflow-rte-body:empty:before { content: attr(data-placeholder); color: var(--text-6); }
+  .xflow-rte-body blockquote { margin: 6px 0; padding: 2px 10px; border-left: 3px solid var(--border-3); color: var(--text-4); }
+  .xflow-rte-body ul, .xflow-rte-body ol { margin: 6px 0; padding-left: 22px; }
+  .xflow-rte-body img { max-width: 100%; border-radius: 4px; margin: 4px 0; display: block; }
+  .xflow-rte-body[contenteditable=false] { cursor: default; }
+`;
 
 function hexToRgba(hex, alpha) {
   const h = hex.replace('#', '');
@@ -209,6 +261,95 @@ function Badge({ meta, small }) {
   );
 }
 
+// Editor rich text da Descrição do problema — negrito/itálico/sublinhado,
+// fonte, alinhamento, lista, citação, e colar print/imagem direto no texto
+// (que também vira anexo, ver onPasteImage). `value` continua controlado
+// pelo pai, mas só re-sincroniza o innerHTML quando o campo NÃO está em
+// foco (senão o cursor pula a cada tecla) — truque padrão pra contentEditable
+// controlado. `onChange` é local/vivo (sem custo de rede); `onCommit` é o
+// que efetivamente salva (onBlur), mesmo espírito do ContentField acima.
+function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, placeholder }) {
+  const editorRef = useRef(null);
+
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    if (document.activeElement === el) return;
+    const html = sanitizeRichText(value || '');
+    if (el.innerHTML !== html) el.innerHTML = html;
+  }, [value]);
+
+  function currentHtml() {
+    return sanitizeRichText(editorRef.current ? editorRef.current.innerHTML : '');
+  }
+  function handleInput() {
+    if (onChange) onChange(currentHtml());
+  }
+  function handleBlur() {
+    if (onCommit) onCommit(currentHtml());
+  }
+  function exec(cmd, arg) {
+    if (disabled || !editorRef.current) return;
+    editorRef.current.focus();
+    document.execCommand(cmd, false, arg);
+    handleInput();
+  }
+  function handlePaste(e) {
+    const items = Array.from((e.clipboardData && e.clipboardData.items) || []);
+    const imageItem = items.find((it) => it.type && it.type.startsWith('image/'));
+    if (!imageItem) return;
+    e.preventDefault();
+    const file = imageItem.getAsFile();
+    if (!file) return;
+    if (file.size > MAX_EVIDENCE_BYTES) {
+      window.alert(`A imagem colada tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite é ${MAX_EVIDENCE_BYTES / (1024 * 1024)} MB.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      document.execCommand('insertImage', false, reader.result);
+      handleInput();
+      handleBlur();
+      if (onPasteImage) onPasteImage({ id: uid('ev'), name: `print-${Date.now()}.png`, size: file.size, type: file.type, dataUrl: reader.result });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div>
+      <style>{RICH_TEXT_CSS}</style>
+      {!disabled && (
+        <div className="xflow-rte-toolbar">
+          <button type="button" className="xflow-rte-btn" title="Negrito" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('bold')}><Bold size={13} /></button>
+          <button type="button" className="xflow-rte-btn" title="Itálico" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('italic')}><Italic size={13} /></button>
+          <button type="button" className="xflow-rte-btn" title="Sublinhado" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('underline')}><UnderlineIcon size={13} /></button>
+          <div className="xflow-rte-sep" />
+          <select className="xflow-rte-font" title="Fonte" defaultValue="" onMouseDown={(e) => e.preventDefault()} onChange={(e) => { exec('fontName', e.target.value || 'inherit'); e.target.value = ''; }}>
+            {RICH_TEXT_FONTS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+          </select>
+          <div className="xflow-rte-sep" />
+          <button type="button" className="xflow-rte-btn" title="Alinhar à esquerda" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('justifyLeft')}><AlignLeft size={13} /></button>
+          <button type="button" className="xflow-rte-btn" title="Centralizar" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('justifyCenter')}><AlignCenter size={13} /></button>
+          <button type="button" className="xflow-rte-btn" title="Alinhar à direita" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('justifyRight')}><AlignRight size={13} /></button>
+          <div className="xflow-rte-sep" />
+          <button type="button" className="xflow-rte-btn" title="Lista" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('insertUnorderedList')}><List size={13} /></button>
+          <button type="button" className="xflow-rte-btn" title="Citação" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('formatBlock', 'blockquote')}><Quote size={13} /></button>
+        </div>
+      )}
+      <div
+        ref={editorRef}
+        className="xflow-rte-body"
+        contentEditable={!disabled}
+        suppressContentEditableWarning
+        data-placeholder={placeholder || ''}
+        onInput={handleInput}
+        onBlur={handleBlur}
+        onPaste={handlePaste}
+      />
+    </div>
+  );
+}
+
 function blankTicketForm() {
   return {
     title: '', product: '', clientType: '', module: '', affectedUser: '', affectedCompany: '',
@@ -239,7 +380,7 @@ function NewTicketModal({ onClose, onCreate }) {
   }
   function removeEvidence(id) { setForm((f) => ({ ...f, evidence: f.evidence.filter((ev) => ev.id !== id) })); }
 
-  const requiredOk = form.title.trim() && form.product && form.description.trim() && form.environment;
+  const requiredOk = form.title.trim() && form.product && !richTextIsBlank(form.description) && form.environment;
 
   async function submit() {
     if (!requiredOk || saving) return;
@@ -299,7 +440,12 @@ function NewTicketModal({ onClose, onCreate }) {
 
         <div style={{ marginTop: 14 }}>
           <div style={S.subSectionLabel}>Descrição do problema</div>
-          <textarea rows={4} value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="O que aconteceu" />
+          <RichTextEditor
+            value={form.description}
+            onChange={(html) => set({ description: html })}
+            onPasteImage={(ev) => setForm((f) => ({ ...f, evidence: [...f.evidence, ev] }))}
+            placeholder="O que aconteceu"
+          />
         </div>
 
         <div style={{ ...S.fieldHint, marginTop: 10 }}>
@@ -653,7 +799,13 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
         <div style={{ display: 'flex', gap: 20, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
           <div style={{ flex: 2, minWidth: 0 }}>
             <div style={S.subSectionLabel}>Descrição</div>
-            <ContentField value={ticket.description} disabled={!canEditContent} rows={3} onCommit={(v) => runAction('editar_campo', { field: 'description', value: v })} />
+            <RichTextEditor
+              value={ticket.description}
+              disabled={!canEditContent}
+              onCommit={(html) => runAction('editar_campo', { field: 'description', value: html })}
+              onPasteImage={(ev) => runAction('anexar', { evidence: ev })}
+              placeholder="O que aconteceu"
+            />
 
             <div style={{ ...S.subSectionLabel, marginTop: 12 }}>Resultado esperado</div>
             <ContentField value={ticket.expectedResult} disabled={!canEditContent} rows={2} onCommit={(v) => runAction('editar_campo', { field: 'expectedResult', value: v })} />

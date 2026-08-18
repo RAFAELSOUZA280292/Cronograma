@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import sanitizeHtml from 'sanitize-html';
 import { pool, blankXflowTicketData } from './db.js';
 import { requireAuth, requireXflowAccess } from './auth.js';
 import { effectiveXflowRole, canDo } from './xflowPermissions.js';
@@ -6,6 +7,36 @@ import { checkTransition, XFLOW_TERMINAL_STATUSES } from './xflowTransitions.js'
 
 function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
+}
+
+// Descrição do BUG agora é rich text (editor no frontend) — guardamos HTML,
+// não texto puro. Segunda camada de sanitização (a primeira é no frontend,
+// DOMPurify) — nunca confia só no cliente pra isso, é o mesmo espírito de
+// "autorização real no backend" do resto do XFlow v2. Allow-list restrita:
+// só formatação básica + imagem colada em data: URI (nunca URL remota —
+// evita vazamento tipo tracking pixel e a superfície de ataque de src
+// externo).
+function sanitizeDescriptionHtml(html) {
+  if (!html) return '';
+  return sanitizeHtml(html, {
+    allowedTags: ['b', 'strong', 'i', 'em', 'u', 'font', 'p', 'div', 'br', 'ul', 'ol', 'li', 'blockquote', 'span', 'img'],
+    allowedAttributes: { font: ['face'], span: ['style'], img: ['src', 'alt', 'style'], '*': [] },
+    allowedStyles: {
+      '*': {
+        'text-align': [/^left$|^center$|^right$/],
+        'font-family': [/^[\w\s,'"-]+$/],
+        'font-weight': [/^bold$|^normal$/],
+        'font-style': [/^italic$|^normal$/],
+        'text-decoration': [/^underline$|^none$/],
+      },
+    },
+    allowedSchemesByTag: { img: ['data'] },
+    // allowedSchemesByTag só barra src com esquema reconhecido explícito
+    // (ex.: "https://..."); um src sem "://" (ex.: "x", "/algo") passa reto.
+    // ExclusiveFilter fecha essa brecha de vez — qualquer <img> cujo src não
+    // comece literalmente com "data:image/" é descartado, sem exceção.
+    exclusiveFilter: (frame) => frame.tag === 'img' && !(frame.attribs && frame.attribs.src && frame.attribs.src.startsWith('data:image/')),
+  });
 }
 
 // Buckets de tempo reportáveis (dashboard/gargalos) — cada status ativo
@@ -204,6 +235,7 @@ router.post('/tickets', requireAuth, requireXflowAccess, async (req, res, next) 
     if (!title) return res.status(400).json({ message: 'Título é obrigatório.' });
     const id = uid('xtk');
     const data = { ...blankXflowTicketData(), ...splitData(body) };
+    if (data.description) data.description = sanitizeDescriptionHtml(data.description);
     const priority = body.priority || '';
     const slaConfig = await getSlaConfig(pool, req.user.orgId);
     const firstResponseTarget = priority && slaConfig.byPriority[priority];
@@ -411,7 +443,13 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
           await client.query('ROLLBACK');
           return res.status(400).json({ message: 'Campo inválido para edição.' });
         }
-        if (field === 'title') { rel.title = payload.value; } else { data[field] = payload.value; }
+        if (field === 'title') {
+          rel.title = payload.value;
+        } else if (field === 'description') {
+          data.description = sanitizeDescriptionHtml(payload.value);
+        } else {
+          data[field] = payload.value;
+        }
         historyNote = field === 'title' ? `Título alterado: "${payload.value}"` : `Campo "${field}" atualizado`;
         break;
       }
