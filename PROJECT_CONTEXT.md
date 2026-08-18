@@ -523,7 +523,7 @@ confiança menor, mas mantido como sinal de "área sensível"):
 ## 18. XFlow — módulo de gestão de BUGs (2026-08, v2)
 
 Módulo de acesso restrito para rastrear BUGs dos produtos internos PRICETAX
-(TINTAX, XPED, XCheck, XClass — não é sobre clientes do Cronograma). Filosofia:
+(X da Questão, XClass, XPED — não é sobre clientes do Cronograma). Filosofia:
 BUG tem ciclo de vida próprio, não é uma TASK comum. **v1** entregou o ciclo
 de vida básico (tela); uma auditoria funcional encontrou que toda regra de
 negócio vivia só na interface, sem proteção real no backend. **v2** (este
@@ -614,6 +614,15 @@ completo (arquitetura de dados, matriz de permissões, matriz de transições).
   três Homes e no `ArchivedView`. Arquivamento tem aba própria
   (`ArchivedView`) com busca e desarquivar — v1 arquivava mas não tinha
   como ver de novo pela tela.
+- **Formulário de abertura** (`NewTicketModal`): só 4 obrigatórios (título/
+  produto/descrição/ambiente), resto fica num `<details>` colapsável
+  opcional. Título usa input maior (destaque visual). `product` é um dos
+  três produtos internos reais (`XFLOW_PRODUCTS`: "X da Questão", "XClass",
+  "XPED") + "Outro" — não confundir com `clientType` (novo campo,
+  `XFLOW_CLIENT_TYPES`: PRICETAX/TINTAX), que é o cliente PRICETAX afetado
+  pelo BUG, não o produto. Ambos os campos ficam em `data` JSONB (não são
+  coluna relacional — não precisam ser filtráveis em SQL hoje).
+  `occurredAt` (data da ocorrência) é **só data**, sem hora.
 - **Fora do escopo ainda** (não pedido/não decidido): calendário útil no
   SLA (hoje é tempo corrido), notificação de @menção via o sino do
   Cronograma (comentários do XFlow ainda não aparecem lá), BUGs
