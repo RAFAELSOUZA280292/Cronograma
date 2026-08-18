@@ -48,6 +48,7 @@ const RULES = {
   pause: (role) => isAtLeast(role, 'dev'),
   resume: (role) => isAtLeast(role, 'dev'),
   homologar: (role) => isAtLeast(role, 'gestao'),
+  resolver_gerencia: (role) => isAtLeast(role, 'gestao'),
   publicar: (role, user, ticket) => (role === 'dev' ? isAssignee(user, ticket) : isAtLeast(role, 'gestao')),
   enviar_validacao: (role, user, ticket) => (role === 'dev' ? isAssignee(user, ticket) : isAtLeast(role, 'gestao')),
   aprovar_validacao: (role, user, ticket) => (role === 'reporter' ? isOwner(user, ticket) : isAtLeast(role, 'gestao')),

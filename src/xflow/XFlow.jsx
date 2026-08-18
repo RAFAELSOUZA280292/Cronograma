@@ -26,9 +26,8 @@ export const XFLOW_ROLE_META = {
 export const XFLOW_ROLE_ORDER = ['reporter', 'dev', 'gestao'];
 
 const XFLOW_LATERAL_STATUSES = [
-  'aguardando_informacoes', 'pausada', 'bloqueada', 'aguardando_usuario',
-  'aguardando_gerencia', 'aguardando_terceiro', 'duplicada', 'nao_reproduzida',
-  'nao_e_bug', 'descartada',
+  'pausada', 'bloqueada', 'aguardando_gerencia', 'aguardando_terceiro',
+  'duplicada', 'nao_reproduzida', 'nao_e_bug', 'descartada',
 ];
 const XFLOW_TERMINAL_STATUSES = ['concluida', 'duplicada', 'nao_reproduzida', 'nao_e_bug', 'descartada'];
 
@@ -42,13 +41,12 @@ const XFLOW_STATUS_META = {
   em_revisao: { label: 'Em revisão', ...tone('#9b7af5') },
   pronta_para_teste: { label: 'Pronta para teste', ...tone('#F5C400') },
   em_homologacao: { label: 'Em homologação', ...tone('#ff9f40') },
+  pronta_para_publicacao: { label: 'Pronta para publicação', ...tone('#3ecf6e') },
   publicada: { label: 'Publicada', ...tone('#3ecf6e') },
   aguardando_validacao_solicitante: { label: 'Aguardando validação do solicitante', ...tone('#ff9f40') },
   concluida: { label: 'Concluída', ...tone('#3ecf6e') },
-  aguardando_informacoes: { label: 'Aguardando informações', ...tone('#999999') },
   pausada: { label: 'Pausada', ...tone('#ff9f40') },
   bloqueada: { label: 'Bloqueada', ...tone('#e2574c') },
-  aguardando_usuario: { label: 'Aguardando usuário/cliente', ...tone('#999999') },
   aguardando_gerencia: { label: 'Aguardando gerência', ...tone('#999999') },
   aguardando_terceiro: { label: 'Aguardando terceiro', ...tone('#999999') },
   duplicada: { label: 'Duplicada', ...tone('#999999') },
@@ -72,6 +70,13 @@ const XFLOW_PRIORITY_META = {
   baixa: { label: 'Baixa', ...tone('#3ea6ff') },
 };
 const XFLOW_PRIORITY_ORDER = ['urgente', 'alta', 'normal', 'baixa'];
+
+const XFLOW_SLA_STATE_META = {
+  vencido: { label: 'SLA vencido', ...tone('#e2574c') },
+  proximo_vencer: { label: 'SLA próximo de vencer', ...tone('#ff9f40') },
+  dentro_prazo: { label: 'Dentro do SLA', ...tone('#3ecf6e') },
+  cumprido: { label: 'SLA cumprido', ...tone('#999999') },
+};
 
 const XFLOW_IMPACT_META = {
   bloqueia: 'Bloqueia operação', parcial: 'Parcial', visual: 'Visual', melhoria: 'Melhoria',
@@ -150,12 +155,15 @@ function canDoClient(action, user, ticket, payload) {
   return !!rule(role, user, ticket, payload);
 }
 
+const WAITING_ON_LABEL = { solicitante: 'Solicitante', cliente: 'Cliente', terceiro: 'Terceiro' };
+
 function whoHasTheBall(ticket, teamById) {
   if (ticket.ballHolderType === 'none') return '—';
   if (ticket.ballHolderType === 'triage_queue') return 'Fila de triagem (dev/gestão)';
+  if (ticket.ballHolderType === 'reporter' && ticket.status === 'aguardando_terceiro') return WAITING_ON_LABEL[ticket.waitingOnType] || 'Solicitante';
   if (ticket.ballHolderType === 'reporter') return 'Solicitante';
   if (ticket.ballHolderType === 'gestao') return 'Gestão';
-  if (ticket.ballHolderType === 'terceiro') return 'Terceiro';
+  if (ticket.ballHolderType === 'terceiro') return WAITING_ON_LABEL[ticket.waitingOnType] || 'Terceiro';
   if (ticket.ballHolderType === 'dev' && ticket.ballHolderUserId && teamById[ticket.ballHolderUserId]) return teamById[ticket.ballHolderUserId].name;
   return 'Ninguém atribuído';
 }
@@ -419,6 +427,17 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   const [redirectProduct, setRedirectProduct] = useState('');
   const [redirectModule, setRedirectModule] = useState('');
   const [redirectAssignee, setRedirectAssignee] = useState('');
+  const [showWaitForm, setShowWaitForm] = useState(false);
+  const [waitOnType, setWaitOnType] = useState('solicitante');
+  const [waitNote, setWaitNote] = useState('');
+  const [showGerenciaForm, setShowGerenciaForm] = useState(false);
+  const [gerenciaNote, setGerenciaNote] = useState('');
+  const [showHomologRejectForm, setShowHomologRejectForm] = useState(false);
+  const [homologRejectNote, setHomologRejectNote] = useState('');
+  const [showPublishForm, setShowPublishForm] = useState(false);
+  const [publishVersion, setPublishVersion] = useState('');
+  const [publishBuild, setPublishBuild] = useState('');
+  const [publishRelease, setPublishRelease] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -442,13 +461,40 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
 
   function triageAction(key) {
     if (key === 'aceitar') runAction('aceitar');
-    else if (key === 'pedir_infos') runAction('pedir_infos');
+    else if (key === 'pedir_infos') setShowWaitForm(true);
     else if (key === 'nao_reproduziu') setShowReproduceForm(true);
     else if (key === 'marcar_duplicado') setShowDupForm(true);
     else if (key === 'classificar_nao_bug') runAction('classificar_nao_bug');
     else if (key === 'escalar_gerencia') runAction('escalar_gerencia');
     else if (key === 'redirecionar') setShowRedirectForm(true);
     else if (key === 'iniciar_dev_direto') runAction('iniciar_dev_direto');
+  }
+
+  function confirmWait() {
+    runAction('pedir_infos', { waitingOnType: waitOnType, note: waitNote.trim() || undefined });
+    setShowWaitForm(false);
+    setWaitNote('');
+  }
+  function confirmResolverGerencia() {
+    if (!gerenciaNote.trim()) return;
+    runAction('resolver_gerencia', { note: gerenciaNote.trim() });
+    setShowGerenciaForm(false);
+    setGerenciaNote('');
+  }
+  function confirmHomologReject() {
+    if (!homologRejectNote.trim()) return;
+    runAction('homolog_reprovar', { note: homologRejectNote.trim() });
+    setShowHomologRejectForm(false);
+    setHomologRejectNote('');
+  }
+  function confirmPublish() {
+    const payload = {};
+    if (publishVersion.trim()) payload.version = publishVersion.trim();
+    if (publishBuild.trim()) payload.build = publishBuild.trim();
+    if (publishRelease.trim()) payload.release = publishRelease.trim();
+    runAction('publicar', payload);
+    setShowPublishForm(false);
+    setPublishVersion(''); setPublishBuild(''); setPublishRelease('');
   }
 
   function confirmReproduce() {
@@ -547,6 +593,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
           <Badge meta={XFLOW_STATUS_META[ticket.status]} />
           <Badge meta={XFLOW_SEVERITY_META[ticket.severity]} />
           <Badge meta={XFLOW_PRIORITY_META[ticket.priority]} />
+          {ticket.slaResolutionState && <Badge meta={XFLOW_SLA_STATE_META[ticket.slaResolutionState]} />}
           {ticket.archived && <Badge meta={{ label: 'Arquivado', ...tone('#999999') }} />}
         </div>
 
@@ -613,6 +660,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             <div style={{ ...S.accessBlock, marginBottom: 12 }}>
               <div style={S.settingsLabel}>Quem está com a bola</div>
               <div style={{ fontWeight: 800, fontSize: 13 }}>{ball}</div>
+              {ticket.flaggedReturned && <div style={{ ...S.fieldHint, marginTop: 4, color: '#ff9f40', fontWeight: 700 }}>↩ Voltou para você</div>}
               {ticket.nextAction && <div style={{ ...S.fieldHint, marginTop: 4 }}>Próxima ação: {ticket.nextAction}</div>}
               {ticket.dueDate && <div style={{ ...S.fieldHint, marginTop: 2 }}>Prazo: {fmtDate(ticket.dueDate)}</div>}
             </div>
@@ -651,6 +699,19 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                 <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmRedirect}>Confirmar redirecionamento</button>
               </div>
             )}
+            {showWaitForm && (
+              <div style={{ ...S.accessBlock, marginBottom: 10 }}>
+                <div style={S.fieldHint}>Aguardar resposta de</div>
+                <select value={waitOnType} onChange={(e) => setWaitOnType(e.target.value)}>
+                  <option value="solicitante">Solicitante</option>
+                  <option value="cliente">Cliente</option>
+                  <option value="terceiro">Terceiro</option>
+                </select>
+                <div style={{ ...S.fieldHint, marginTop: 6 }}>O que está faltando (opcional)</div>
+                <textarea rows={2} value={waitNote} onChange={(e) => setWaitNote(e.target.value)} />
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmWait}>Confirmar</button>
+              </div>
+            )}
 
             {ticket.status === 'atribuida' && canDoClient('advance_dev_pipeline', currentUser, ticket) && (
               <button style={{ ...S.primaryBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => runAction('iniciar_desenvolvimento')}>Iniciar desenvolvimento</button>
@@ -665,9 +726,45 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => runAction('enviar_homologacao')}>Enviar para homologação</button>
             )}
             {ticket.status === 'em_homologacao' && (
-              canDoClient('homologar', currentUser, ticket)
-                ? <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => runAction('publicar')}>Publicar</button>
-                : <div style={{ ...S.fieldHint, marginBottom: 8 }}>Em homologação — só gestão/admin aprova e publica.</div>
+              canDoClient('homologar', currentUser, ticket) ? (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <button style={{ ...S.primaryBtn, flex: 1, justifyContent: 'center' }} onClick={() => runAction('homolog_aprovar')}>Aprovar</button>
+                  <button style={{ ...S.iconBtn, flex: 1, justifyContent: 'center' }} onClick={() => setShowHomologRejectForm(true)}>Reprovar</button>
+                </div>
+              ) : <div style={{ ...S.fieldHint, marginBottom: 8 }}>Em homologação — só gestão/admin aprova ou reprova.</div>
+            )}
+            {showHomologRejectForm && (
+              <div style={{ ...S.accessBlock, marginBottom: 10 }}>
+                <div style={S.fieldHint}>Motivo da reprovação (obrigatório)</div>
+                <textarea rows={2} value={homologRejectNote} onChange={(e) => setHomologRejectNote(e.target.value)} />
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmHomologReject} disabled={!homologRejectNote.trim()}>Confirmar reprovação</button>
+              </div>
+            )}
+            {ticket.status === 'pronta_para_publicacao' && canDoClient('publicar', currentUser, ticket) && (
+              <button style={{ ...S.primaryBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => setShowPublishForm(true)}>Publicar</button>
+            )}
+            {showPublishForm && (
+              <div style={{ ...S.accessBlock, marginBottom: 10 }}>
+                <div style={S.fieldHint}>Versão (opcional)</div>
+                <input type="text" value={publishVersion} onChange={(e) => setPublishVersion(e.target.value)} />
+                <div style={{ ...S.fieldHint, marginTop: 6 }}>Build (opcional)</div>
+                <input type="text" value={publishBuild} onChange={(e) => setPublishBuild(e.target.value)} />
+                <div style={{ ...S.fieldHint, marginTop: 6 }}>Release (opcional)</div>
+                <input type="text" value={publishRelease} onChange={(e) => setPublishRelease(e.target.value)} />
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmPublish}>Confirmar publicação</button>
+              </div>
+            )}
+            {ticket.status === 'aguardando_gerencia' && (
+              canDoClient('resolver_gerencia', currentUser, ticket)
+                ? <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => setShowGerenciaForm(true)}>Resolver e devolver ao dev</button>
+                : <div style={{ ...S.fieldHint, marginBottom: 8 }}>Aguardando decisão da gestão.</div>
+            )}
+            {showGerenciaForm && (
+              <div style={{ ...S.accessBlock, marginBottom: 10 }}>
+                <div style={S.fieldHint}>Decisão (obrigatória)</div>
+                <textarea rows={2} value={gerenciaNote} onChange={(e) => setGerenciaNote(e.target.value)} />
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmResolverGerencia} disabled={!gerenciaNote.trim()}>Confirmar decisão</button>
+              </div>
             )}
             {ticket.status === 'publicada' && canDoClient('enviar_validacao', currentUser, ticket) && (
               <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => runAction('enviar_validacao')}>Enviar para validação do solicitante</button>
@@ -697,8 +794,11 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                 <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmBlock} disabled={!blockReasonDraft}>Confirmar bloqueio</button>
               </div>
             )}
-            {!terminal && ticket.status !== 'bloqueada' && canDoClient(ticket.status === 'pausada' ? 'resume' : 'pause', currentUser, ticket) && (
-              <button style={{ ...S.iconBtnGhost, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={() => runAction(ticket.status === 'pausada' ? 'retomar' : 'pausar')}>{ticket.status === 'pausada' ? 'Retomar' : 'Pausar'}</button>
+            {!terminal && ['pausada', 'aguardando_terceiro'].includes(ticket.status) && canDoClient('resume', currentUser, ticket) && (
+              <button style={{ ...S.iconBtnGhost, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={() => runAction('retomar')}>Retomar</button>
+            )}
+            {!terminal && !['bloqueada', 'pausada', 'aguardando_terceiro', 'aguardando_gerencia'].includes(ticket.status) && canDoClient('pause', currentUser, ticket) && (
+              <button style={{ ...S.iconBtnGhost, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={() => runAction('pausar')}>Pausar</button>
             )}
             {!terminal && canDoClient('fechar_sem_desenvolver', currentUser, ticket) && (
               <button style={{ ...S.iconBtnGhost, width: '100%', justifyContent: 'center', marginBottom: 6, color: '#e2574c' }} onClick={() => setShowCloseForm((v) => !v)}>Fechar sem desenvolver</button>
@@ -773,13 +873,348 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   );
 }
 
+// ---- Agregações compartilhadas pelas três Homes (busca/filtros/aging/ordenação) ----
+
+function isToday(iso) {
+  if (!iso) return false;
+  const d = new Date(iso);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
+function daysSince(iso) {
+  if (!iso) return null;
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
+}
+function agingBucketOf(days) {
+  if (days == null) return '';
+  if (days <= 1) return '0-1';
+  if (days <= 3) return '2-3';
+  if (days <= 7) return '4-7';
+  if (days <= 15) return '8-15';
+  return '15+';
+}
+const AGING_BUCKET_ORDER = ['0-1', '2-3', '4-7', '8-15', '15+'];
+const AGING_BUCKET_LABEL = { '0-1': '0–1 dia', '2-3': '2–3 dias', '4-7': '4–7 dias', '8-15': '8–15 dias', '15+': '15+ dias' };
+
+const BLANK_FILTERS = { search: '', status: '', product: '', severity: '', priority: '', assigneeId: '', slaState: '', agingBucket: '' };
+
+function matchesFilters(t, filters) {
+  if (filters.search) {
+    const q = filters.search.toLowerCase();
+    const hay = `#${t.number} ${t.title} ${t.affectedCompany || ''} ${t.affectedUser || ''} ${t.module || ''} ${t.product || ''}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  if (filters.status && t.status !== filters.status) return false;
+  if (filters.product && t.product !== filters.product) return false;
+  if (filters.severity && t.severity !== filters.severity) return false;
+  if (filters.priority && t.priority !== filters.priority) return false;
+  if (filters.assigneeId && t.assigneeId !== filters.assigneeId) return false;
+  if (filters.slaState && t.slaResolutionState !== filters.slaState) return false;
+  if (filters.agingBucket && agingBucketOf(daysSince(t.createdAt)) !== filters.agingBucket) return false;
+  return true;
+}
+function hasActiveFilters(filters) { return Object.values(filters).some(Boolean); }
+
+const DEV_SORT_PRIORITY_RANK = { urgente: 0, alta: 1, normal: 2, baixa: 3, '': 4 };
+const DEV_SORT_SEVERITY_RANK = { s1: 0, s2: 1, s3: 2, s4: 3, '': 4 };
+function smartDevSort(a, b) {
+  const av = a.slaResolutionState === 'vencido' ? 0 : 1;
+  const bv = b.slaResolutionState === 'vencido' ? 0 : 1;
+  if (av !== bv) return av - bv;
+  const ap = DEV_SORT_PRIORITY_RANK[a.priority] ?? 4;
+  const bp = DEV_SORT_PRIORITY_RANK[b.priority] ?? 4;
+  if (ap !== bp) return ap - bp;
+  const as = DEV_SORT_SEVERITY_RANK[a.severity] ?? 4;
+  const bs = DEV_SORT_SEVERITY_RANK[b.severity] ?? 4;
+  if (as !== bs) return as - bs;
+  const apv = a.slaResolutionState === 'proximo_vencer' ? 0 : 1;
+  const bpv = b.slaResolutionState === 'proximo_vencer' ? 0 : 1;
+  if (apv !== bpv) return apv - bpv;
+  return (a.createdAt || '').localeCompare(b.createdAt || '');
+}
+
+function fmtHours(seconds) {
+  const h = (seconds || 0) / 3600;
+  if (h < 1) return `${Math.round(h * 60)}min`;
+  if (h < 48) return `${h.toFixed(1)}h`;
+  return `${(h / 24).toFixed(1)}d`;
+}
+
+function StatCard({ label, count, active, onClick, tone: cardTone }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        ...S.accessBlock, cursor: 'pointer', textAlign: 'left', minWidth: 118, flex: '1 1 118px',
+        border: active ? '1px solid #F5C400' : undefined, background: active ? 'rgba(245,196,0,.08)' : undefined,
+      }}
+    >
+      <div style={{ fontSize: 22, fontWeight: 800, color: cardTone || 'var(--text-1)' }}>{count}</div>
+      <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 2 }}>{label}</div>
+    </button>
+  );
+}
+
+function TicketRow({ t, teamById, onOpen }) {
+  const days = daysSince(t.createdAt);
+  return (
+    <div style={{ ...S.accessBlock, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }} onClick={() => onOpen(t.id)}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-5)', width: 56 }}>#{t.number}</div>
+      <div style={{ flex: 1, minWidth: 160, fontWeight: 700 }}>
+        {t.flaggedReturned && <span style={{ color: '#ff9f40', marginRight: 5 }}>↩</span>}
+        {t.title}
+      </div>
+      <Badge meta={XFLOW_STATUS_META[t.status]} small />
+      <Badge meta={XFLOW_SEVERITY_META[t.severity]} small />
+      <Badge meta={XFLOW_PRIORITY_META[t.priority]} small />
+      {(t.slaResolutionState === 'vencido' || t.slaResolutionState === 'proximo_vencer') && (
+        <Badge meta={XFLOW_SLA_STATE_META[t.slaResolutionState]} small />
+      )}
+      <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{t.product}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{whoHasTheBall(t, teamById)}</div>
+      <div style={{ fontSize: 10.5, color: 'var(--text-6)' }}>{days == null ? '' : `há ${days}d`}</div>
+    </div>
+  );
+}
+
+function TicketList({ list, teamById, onOpen, emptyLabel }) {
+  if (!list.length) return <div style={{ ...S.emptyMuted, marginTop: 10 }}>{emptyLabel || 'Nenhum BUG aqui.'}</div>;
+  return (
+    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {list.map((t) => <TicketRow key={t.id} t={t} teamById={teamById} onOpen={onOpen} />)}
+    </div>
+  );
+}
+
+function FilterBar({ filters, setFilters, team }) {
+  function set(patch) { setFilters((f) => ({ ...f, ...patch })); }
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '14px 0' }}>
+      <input type="text" placeholder="Buscar por ID, título, empresa, usuário..." value={filters.search} onChange={(e) => set({ search: e.target.value })} style={{ flex: '1 1 220px', minWidth: 180 }} />
+      <select value={filters.status} onChange={(e) => set({ status: e.target.value })} style={{ width: 'auto' }}>
+        <option value="">Todos os status</option>
+        {Object.keys(XFLOW_STATUS_META).map((k) => <option key={k} value={k}>{XFLOW_STATUS_META[k].label}</option>)}
+      </select>
+      <select value={filters.product} onChange={(e) => set({ product: e.target.value })} style={{ width: 'auto' }}>
+        <option value="">Todos os produtos</option>
+        {XFLOW_PRODUCTS.map((p) => <option key={p} value={p}>{p}</option>)}
+      </select>
+      <select value={filters.severity} onChange={(e) => set({ severity: e.target.value })} style={{ width: 'auto' }}>
+        <option value="">Toda severidade</option>
+        {XFLOW_SEVERITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_SEVERITY_META[k].label}</option>)}
+      </select>
+      <select value={filters.priority} onChange={(e) => set({ priority: e.target.value })} style={{ width: 'auto' }}>
+        <option value="">Toda prioridade</option>
+        {XFLOW_PRIORITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_PRIORITY_META[k].label}</option>)}
+      </select>
+      {team && team.length > 0 && (
+        <select value={filters.assigneeId} onChange={(e) => set({ assigneeId: e.target.value })} style={{ width: 'auto' }}>
+          <option value="">Todo responsável</option>
+          {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+      )}
+      <select value={filters.slaState} onChange={(e) => set({ slaState: e.target.value })} style={{ width: 'auto' }}>
+        <option value="">Todo SLA</option>
+        {Object.keys(XFLOW_SLA_STATE_META).map((k) => <option key={k} value={k}>{XFLOW_SLA_STATE_META[k].label}</option>)}
+      </select>
+      <select value={filters.agingBucket} onChange={(e) => set({ agingBucket: e.target.value })} style={{ width: 'auto' }}>
+        <option value="">Toda idade</option>
+        {AGING_BUCKET_ORDER.map((k) => <option key={k} value={k}>{AGING_BUCKET_LABEL[k]}</option>)}
+      </select>
+      {hasActiveFilters(filters) && (
+        <button style={S.iconBtnGhost} onClick={() => setFilters(BLANK_FILTERS)}>Limpar filtros</button>
+      )}
+    </div>
+  );
+}
+
+function ReporterHome({ tickets, currentUser, teamById, filters, setFilters, onOpen }) {
+  const [quick, setQuick] = useState('abertos');
+  const cards = [
+    { key: 'abertos', label: 'Abertos', pred: (t) => !isTerminal(t.status) },
+    { key: 'em_analise', label: 'Em análise', pred: (t) => t.status === 'aberta' },
+    { key: 'em_desenvolvimento', label: 'Em desenvolvimento', pred: (t) => ['atribuida', 'em_desenvolvimento', 'em_revisao', 'pronta_para_teste'].includes(t.status) },
+    { key: 'dependem_de_voce', label: 'Dependem de você', pred: (t) => t.ballHolderType === 'reporter' && !isTerminal(t.status) },
+    { key: 'em_validacao', label: 'Em validação', pred: (t) => t.status === 'aguardando_validacao_solicitante' },
+    { key: 'concluidos', label: 'Concluídos', pred: (t) => t.status === 'concluida' },
+  ];
+  const active = cards.find((c) => c.key === quick);
+  const base = active ? tickets.filter((t) => active.pred(t) && !t.archived) : tickets.filter((t) => !t.archived);
+  const list = base.filter((t) => matchesFilters(t, filters)).sort((a, b) => (b.statusEnteredAt || '').localeCompare(a.statusEnteredAt || ''));
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {cards.map((c) => (
+          <StatCard key={c.key} label={c.label} count={tickets.filter((t) => c.pred(t) && !t.archived).length} active={quick === c.key} onClick={() => setQuick(quick === c.key ? null : c.key)} />
+        ))}
+      </div>
+      <FilterBar filters={filters} setFilters={setFilters} />
+      <TicketList list={list} teamById={teamById} onOpen={onOpen} />
+    </>
+  );
+}
+
+function DevHome({ tickets, currentUser, teamById, filters, setFilters, onOpen }) {
+  const mine = tickets.filter((t) => t.assigneeId === currentUser.id && !(isTerminal(t.status) && t.archived));
+  const fila = tickets.filter((t) => t.status === 'aberta' && !t.assigneeId);
+  const filteredMine = mine.filter((t) => matchesFilters(t, filters));
+  const sections = [
+    { key: 'sla_vencido', label: 'SLA vencido', pred: (t) => t.slaResolutionState === 'vencido' },
+    { key: 'urgentes', label: 'Urgentes / Críticos', pred: (t) => t.priority === 'urgente' || t.severity === 's1' },
+    { key: 'voltaram', label: 'Voltaram para você', pred: (t) => t.flaggedReturned },
+    { key: 'bloqueados', label: 'Bloqueados', pred: (t) => t.status === 'bloqueada' },
+    { key: 'aguardando_sua_acao', label: 'Aguardando sua ação', pred: (t) => t.ballHolderType === 'dev' && t.ballHolderUserId === currentUser.id },
+    { key: 'em_desenvolvimento', label: 'Em desenvolvimento', pred: (t) => ['atribuida', 'em_desenvolvimento', 'em_revisao', 'pronta_para_teste', 'em_homologacao', 'pronta_para_publicacao', 'publicada'].includes(t.status) },
+  ];
+  return (
+    <>
+      <FilterBar filters={filters} setFilters={setFilters} />
+      {fila.length > 0 && (
+        <div style={{ marginTop: 4 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-4)', marginBottom: 2 }}>Fila de triagem ({fila.length})</div>
+          <TicketList list={fila.filter((t) => matchesFilters(t, filters))} teamById={teamById} onOpen={onOpen} />
+        </div>
+      )}
+      {sections.map((s) => {
+        const items = filteredMine.filter(s.pred).sort(smartDevSort);
+        if (!items.length) return null;
+        return (
+          <div key={s.key} style={{ marginTop: 18 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-4)', marginBottom: 2 }}>{s.label} ({items.length})</div>
+            <TicketList list={items} teamById={teamById} onOpen={onOpen} />
+          </div>
+        );
+      })}
+      {filteredMine.length === 0 && fila.length === 0 && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Nenhum BUG aguardando você.</div>}
+    </>
+  );
+}
+
+function GestorHome({ tickets, team, teamById, filters, setFilters, onOpen }) {
+  const [quick, setQuick] = useState(null);
+  const [expandedProduct, setExpandedProduct] = useState(null);
+  const active = tickets.filter((t) => !(isTerminal(t.status) && t.archived));
+
+  const cards = [
+    { key: 'abertos', label: 'Abertos', pred: (t) => !isTerminal(t.status) },
+    { key: 'criticos', label: 'Críticos', pred: (t) => t.severity === 's1' },
+    { key: 'novos_hoje', label: 'Novos hoje', pred: (t) => isToday(t.createdAt) },
+    { key: 'resolvidos_hoje', label: 'Resolvidos hoje', pred: (t) => t.status === 'concluida' && isToday(t.slaResolutionMetAt) },
+    { key: 'sla_vencido', label: 'SLA vencido', pred: (t) => t.slaResolutionState === 'vencido' },
+    { key: 'bloqueados', label: 'Bloqueados', pred: (t) => t.status === 'bloqueada' },
+    { key: 'aguardando_usuario', label: 'Aguardando usuário', pred: (t) => t.status === 'aguardando_terceiro' },
+    { key: 'aguardando_gestao', label: 'Aguardando gestão', pred: (t) => t.status === 'aguardando_gerencia' },
+    { key: 'em_homologacao', label: 'Em homologação', pred: (t) => ['em_homologacao', 'pronta_para_publicacao'].includes(t.status) },
+    { key: 'reabertos', label: 'Reabertos', pred: (t) => (t.reopenCount || 0) > 0 },
+  ];
+  const activeCard = cards.find((c) => c.key === quick);
+  const base = activeCard ? active.filter(activeCard.pred) : active;
+  const list = base.filter((t) => matchesFilters(t, filters));
+
+  const bottleneck = {};
+  active.forEach((t) => { Object.entries(t.timeBreakdown || {}).forEach(([k, v]) => { bottleneck[k] = (bottleneck[k] || 0) + v; }); });
+  const BOTTLENECK_LABEL = { dev: 'Em desenvolvimento', aguardando_usuario: 'Aguardando usuário', aguardando_gestao: 'Aguardando gestão', bloqueado: 'Bloqueado', pausado: 'Pausado', homologacao: 'Homologação', aguardando_validacao: 'Aguardando validação' };
+
+  const byProduct = {};
+  active.forEach((t) => {
+    const p = t.product || 'Sem produto';
+    byProduct[p] = byProduct[p] || { count: 0, modules: {} };
+    byProduct[p].count += 1;
+    const m = t.module || 'Sem módulo';
+    byProduct[p].modules[m] = (byProduct[p].modules[m] || 0) + 1;
+  });
+
+  const byDev = {};
+  active.forEach((t) => {
+    if (!t.assigneeId) return;
+    byDev[t.assigneeId] = byDev[t.assigneeId] || { count: 0, devSeconds: 0 };
+    byDev[t.assigneeId].count += 1;
+    byDev[t.assigneeId].devSeconds += (t.timeBreakdown && t.timeBreakdown.dev) || 0;
+  });
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {cards.map((c) => (
+          <StatCard key={c.key} label={c.label} count={active.filter(c.pred).length} active={quick === c.key} onClick={() => setQuick(quick === c.key ? null : c.key)} />
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 18 }}>
+        <div style={{ ...S.accessBlock, flex: '1 1 260px' }}>
+          <div style={S.settingsLabel}>Gargalos — tempo acumulado (tickets ativos)</div>
+          {Object.keys(BOTTLENECK_LABEL).map((k) => (
+            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginTop: 6 }}>
+              <span style={{ color: 'var(--text-4)' }}>{BOTTLENECK_LABEL[k]}</span>
+              <span style={{ fontWeight: 700 }}>{fmtHours(bottleneck[k])}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ ...S.accessBlock, flex: '1 1 260px' }}>
+          <div style={S.settingsLabel}>Por produto / módulo</div>
+          {Object.entries(byProduct).sort((a, b) => b[1].count - a[1].count).map(([p, info]) => (
+            <div key={p} style={{ marginTop: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, cursor: 'pointer' }} onClick={() => setExpandedProduct(expandedProduct === p ? null : p)}>
+                <span>{p}</span>
+                <span style={{ fontWeight: 700 }}>{info.count}</span>
+              </div>
+              {expandedProduct === p && Object.entries(info.modules).sort((a, b) => b[1] - a[1]).map(([m, n]) => (
+                <div key={m} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-5)', paddingLeft: 12, marginTop: 3 }}>
+                  <span>→ {m}</span><span>{n}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ ...S.accessBlock, flex: '1 1 260px' }}>
+          <div style={S.settingsLabel}>Por DEV (carga ativa)</div>
+          {Object.entries(byDev).sort((a, b) => b[1].count - a[1].count).map(([devId, info]) => (
+            <div key={devId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginTop: 6 }}>
+              <span>{(teamById[devId] && teamById[devId].name) || devId}</span>
+              <span style={{ color: 'var(--text-5)' }}>{info.count} tickets · {fmtHours(info.devSeconds)} em dev</span>
+            </div>
+          ))}
+          {Object.keys(byDev).length === 0 && <div style={S.emptyMuted}>Nenhum ticket atribuído.</div>}
+        </div>
+      </div>
+
+      <FilterBar filters={filters} setFilters={setFilters} team={team} />
+      <TicketList list={list} teamById={teamById} onOpen={onOpen} />
+    </>
+  );
+}
+
+function ArchivedView({ tickets, teamById, filters, setFilters, onOpen, onUnarchive, canUnarchive }) {
+  const archived = tickets.filter((t) => t.archived);
+  const list = archived.filter((t) => matchesFilters(t, filters));
+  return (
+    <>
+      <FilterBar filters={filters} setFilters={setFilters} />
+      {list.length === 0 && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Nenhum BUG arquivado.</div>}
+      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {list.map((t) => (
+          <div key={t.id} style={{ ...S.accessBlock, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-5)', width: 56 }}>#{t.number}</div>
+            <div style={{ flex: 1, minWidth: 160, fontWeight: 700, cursor: 'pointer' }} onClick={() => onOpen(t.id)}>{t.title}</div>
+            <Badge meta={XFLOW_STATUS_META[t.status]} small />
+            {canUnarchive && <button style={S.iconBtnGhost} onClick={() => onUnarchive(t.id)}>Desarquivar</button>}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onToggleTheme }) {
   const [tickets, setTickets] = useState([]);
   const [team, setTeam] = useState([]);
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState('meus');
   const [showNew, setShowNew] = useState(false);
   const [openTicketId, setOpenTicketId] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [filters, setFilters] = useState(BLANK_FILTERS);
 
   useEffect(() => {
     Promise.all([apiGet('/api/xflow/tickets'), apiGet('/api/xflow/team')])
@@ -816,35 +1251,16 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
   }
 
   const openTicket = tickets.find((t) => t.id === openTicketId);
-
-  const role = currentUser.xflowRole;
-  const meusBugs = tickets.filter((t) => {
-    if (isTerminal(t.status) && t.archived) return false;
-    if (role === 'reporter') return t.reporterId === currentUser.id;
-    if (role === 'dev') return t.assigneeId === currentUser.id;
-    if (role === 'gestao') return t.status === 'aguardando_gerencia' || t.assigneeId === currentUser.id || t.reporterId === currentUser.id;
-    return false;
-  });
-  const dependemDeVoce = meusBugs.filter((t) => {
-    if (role === 'reporter') return t.status === 'aguardando_informacoes' || t.status === 'aguardando_validacao_solicitante';
-    if (role === 'dev') return t.assigneeId === currentUser.id && !isTerminal(t.status) && (t.status === 'atribuida' || t.status === 'em_desenvolvimento' || t.status === 'em_revisao');
-    if (role === 'gestao') return t.status === 'aguardando_gerencia';
-    return false;
-  });
-  const fila = tickets.filter((t) => (t.status === 'aberta' || t.status === 'triagem') && !t.assigneeId);
-  const escalados = tickets.filter((t) => t.status === 'aguardando_gerencia');
-  const todos = tickets.filter((t) => !(isTerminal(t.status) && t.archived));
-
-  const TABS = [
-    { key: 'meus', label: 'Meus BUGs', list: meusBugs },
-    ...(role === 'dev' || role === 'gestao' ? [{ key: 'fila', label: 'Fila', list: fila }] : []),
-    ...(role === 'gestao' ? [{ key: 'todos', label: 'Todos os BUGs', list: todos }] : []),
-    ...(role === 'gestao' ? [{ key: 'escalados', label: 'Escalados', list: escalados }] : []),
-  ];
-  const activeList = (TABS.find((t) => t.key === tab) || TABS[0]).list;
-
-  const isMobile = useIsMobile();
   const effRole = effectiveXflowRole(currentUser);
+  const canArchiveTier = effRole === 'gestao' || effRole === 'admin';
+
+  const dependemDeVoceCount = tickets.filter((t) => {
+    if (isTerminal(t.status) && t.archived) return false;
+    if (effRole === 'reporter') return t.reporterId === currentUser.id && (t.status === 'aguardando_terceiro' || t.status === 'aguardando_validacao_solicitante');
+    if (effRole === 'dev') return t.assigneeId === currentUser.id && (t.flaggedReturned || t.status === 'atribuida');
+    if (effRole === 'gestao' || effRole === 'admin') return t.status === 'aguardando_gerencia';
+    return false;
+  }).length;
 
   return (
     <div style={S.page}>
@@ -853,48 +1269,48 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
           <BrandLogo theme={theme} style={S.logoImg} />
           <div>
             <div style={{ fontWeight: 800 }}>XFlow</div>
-            <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{currentUser.name} · {XFLOW_ROLE_META[effRole] ? XFLOW_ROLE_META[effRole].label : role}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{currentUser.name} · {XFLOW_ROLE_META[effRole] ? XFLOW_ROLE_META[effRole].label : currentUser.xflowRole}</div>
           </div>
           {onExit && <button style={S.iconBtnGhost} onClick={onExit}>Sair do XFlow</button>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {canArchiveTier && (
+            <button style={{ ...S.pbGhostBtn, ...(showArchived ? S.pbGhostBtnActive : {}) }} onClick={() => setShowArchived((v) => !v)}>
+              <Archive size={13} /> Arquivados
+            </button>
+          )}
           <button style={S.primaryBtn} onClick={() => setShowNew(true)}><Plus size={15} /> Novo BUG</button>
           <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
           {onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
         </div>
       </div>
 
-      <div style={{ padding: '0 24px' }}>
-        {dependemDeVoce.length > 0 && (
+      <div style={{ padding: '0 24px', paddingBottom: 40 }}>
+        {dependemDeVoceCount > 0 && !showArchived && (
           <div style={{ ...S.loginBlockedMsg, marginTop: 16, background: 'rgba(255,159,64,.14)', color: '#ff9f40', borderColor: 'rgba(255,159,64,.5)' }}>
-            ⚠ {dependemDeVoce.length} BUG{dependemDeVoce.length === 1 ? '' : 's'} dependendo de você
+            ⚠ {dependemDeVoceCount} BUG{dependemDeVoceCount === 1 ? '' : 's'} dependendo de você
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
-          {TABS.map((t) => (
-            <button key={t.key} style={{ ...S.pbGhostBtn, ...(tab === t.key ? S.pbGhostBtnActive : {}) }} onClick={() => setTab(t.key)}>
-              {t.label} ({t.list.length})
-            </button>
-          ))}
-        </div>
-
         {!loaded && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Carregando...</div>}
-        {loaded && activeList.length === 0 && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Nenhum BUG aqui.</div>}
 
-        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 40 }}>
-          {activeList.map((t) => (
-            <div key={t.id} style={{ ...S.accessBlock, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }} onClick={() => setOpenTicketId(t.id)}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-5)', width: 56 }}>#{t.number}</div>
-              <div style={{ flex: 1, minWidth: 160, fontWeight: 700 }}>{t.title}</div>
-              <Badge meta={XFLOW_STATUS_META[t.status]} small />
-              <Badge meta={XFLOW_SEVERITY_META[t.severity]} small />
-              <Badge meta={XFLOW_PRIORITY_META[t.priority]} small />
-              <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{t.product}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{whoHasTheBall(t, teamById)}</div>
-            </div>
-          ))}
-        </div>
+        {loaded && showArchived && (
+          <ArchivedView
+            tickets={tickets} teamById={teamById} filters={filters} setFilters={setFilters}
+            onOpen={setOpenTicketId} onUnarchive={(id) => performAction(id, 'desarquivar', {})}
+            canUnarchive={canArchiveTier}
+          />
+        )}
+
+        {loaded && !showArchived && effRole === 'reporter' && (
+          <ReporterHome tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={setOpenTicketId} />
+        )}
+        {loaded && !showArchived && effRole === 'dev' && (
+          <DevHome tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={setOpenTicketId} />
+        )}
+        {loaded && !showArchived && (effRole === 'gestao' || effRole === 'admin') && (
+          <GestorHome tickets={tickets} team={team} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={setOpenTicketId} />
+        )}
       </div>
 
       {showNew && <NewTicketModal onClose={() => setShowNew(false)} onCreate={createTicket} />}

@@ -3,33 +3,40 @@
 // ela exige — o backend nunca aceita um PATCH que solte o ticket direto num
 // status arbitrário.
 //
-// Reflete o fluxo v1 hoje em produção (Homologação → Publicada em 1 passo
-// só). O bloco P1.10 do plano ativo reformula isso: separa Homologação de
-// Publicação em dois passos e consolida os status de espera em
-// `aguardando_terceiro` — quando isso acontecer, esta tabela muda junto.
+// Fluxo v2 (P1.10): aguardando_informacoes/aguardando_usuario/aguardando_terceiro
+// foram consolidados num único status `aguardando_terceiro` + sub-campo
+// `waiting_on_type` (solicitante/cliente/terceiro) — os três nunca foram, na
+// prática, distintos. Homologação e Publicação viraram dois passos
+// (`em_homologacao` → aprovar → `pronta_para_publicacao` → publicar →
+// `publicada`), permitindo registrar versão/build/release só no momento em
+// que a correção realmente sobe pra produção, que pode ser bem depois da
+// aprovação técnica.
 
 export const XFLOW_TERMINAL_STATUSES = ['concluida', 'duplicada', 'nao_reproduzida', 'nao_e_bug', 'descartada'];
 
 const NON_TERMINAL_ACTIVE = [
   'aberta', 'atribuida', 'em_desenvolvimento', 'em_revisao', 'pronta_para_teste',
-  'em_homologacao', 'publicada', 'aguardando_validacao_solicitante',
-  'aguardando_informacoes', 'aguardando_usuario', 'aguardando_terceiro', 'aguardando_gerencia',
+  'em_homologacao', 'pronta_para_publicacao', 'publicada', 'aguardando_validacao_solicitante',
+  'aguardando_terceiro', 'aguardando_gerencia',
 ];
 
 export const XFLOW_TRANSITIONS = {
   aceitar: { from: ['aberta'], to: 'atribuida', permission: 'triage' },
-  pedir_infos: { from: ['aberta', 'atribuida', 'em_desenvolvimento', 'em_revisao', 'pronta_para_teste'], to: 'aguardando_informacoes', permission: 'triage' },
+  pedir_infos: { from: ['aberta', 'atribuida', 'em_desenvolvimento', 'em_revisao', 'pronta_para_teste'], to: 'aguardando_terceiro', permission: 'triage' },
   nao_reproduziu: { from: ['aberta', 'atribuida', 'em_desenvolvimento'], to: 'nao_reproduzida', permission: 'triage', requiresFields: ['closureJustification'] },
   marcar_duplicado: { from: ['aberta', 'atribuida', 'em_desenvolvimento'], to: 'duplicada', permission: 'triage', requiresFields: ['duplicateOfTicketId'] },
   classificar_nao_bug: { from: ['aberta'], to: 'nao_e_bug', permission: 'triage' },
   escalar_gerencia: { from: ['aberta', 'atribuida', 'em_desenvolvimento'], to: 'aguardando_gerencia', permission: 'triage' },
+  resolver_gerencia: { from: ['aguardando_gerencia'], to: null, permission: 'resolver_gerencia', requiresFields: ['note'] },
   redirecionar: { from: ['aberta', 'atribuida'], to: null, permission: 'triage', requiresFields: [] },
   iniciar_dev_direto: { from: ['aberta'], to: 'em_desenvolvimento', permission: 'triage' },
   iniciar_desenvolvimento: { from: ['atribuida'], to: 'em_desenvolvimento', permission: 'advance_dev_pipeline' },
   enviar_revisao: { from: ['em_desenvolvimento'], to: 'em_revisao', permission: 'advance_dev_pipeline' },
   marcar_pronta_teste: { from: ['em_revisao'], to: 'pronta_para_teste', permission: 'advance_dev_pipeline' },
   enviar_homologacao: { from: ['pronta_para_teste'], to: 'em_homologacao', permission: 'advance_dev_pipeline' },
-  publicar: { from: ['em_homologacao'], to: 'publicada', permission: 'homologar' },
+  homolog_aprovar: { from: ['em_homologacao'], to: 'pronta_para_publicacao', permission: 'homologar' },
+  homolog_reprovar: { from: ['em_homologacao'], to: 'em_desenvolvimento', permission: 'homologar', requiresFields: ['note'] },
+  publicar: { from: ['pronta_para_publicacao'], to: 'publicada', permission: 'publicar' },
   enviar_validacao: { from: ['publicada'], to: 'aguardando_validacao_solicitante', permission: 'enviar_validacao' },
   aprovar_validacao: { from: ['aguardando_validacao_solicitante'], to: 'concluida', permission: 'aprovar_validacao' },
   reprovar_validacao: { from: ['aguardando_validacao_solicitante'], to: 'em_desenvolvimento', permission: 'reprovar_validacao' },
@@ -37,7 +44,7 @@ export const XFLOW_TRANSITIONS = {
   bloquear: { from: NON_TERMINAL_ACTIVE, to: 'bloqueada', permission: 'block', requiresFields: ['blockedReason'], savesPrevStatus: true },
   desbloquear: { from: ['bloqueada'], to: null, permission: 'unblock' },
   pausar: { from: NON_TERMINAL_ACTIVE, to: 'pausada', permission: 'pause', savesPrevStatus: true },
-  retomar: { from: ['pausada'], to: null, permission: 'resume' },
+  retomar: { from: ['pausada', 'aguardando_terceiro'], to: null, permission: 'resume' },
   fechar_sem_desenvolver: { from: [...NON_TERMINAL_ACTIVE, 'bloqueada', 'pausada'], to: null, permission: 'fechar_sem_desenvolver', requiresFields: ['closureReason', 'closureJustification'] },
   arquivar: { from: XFLOW_TERMINAL_STATUSES, to: null, permission: 'arquivar' },
   desarquivar: { from: XFLOW_TERMINAL_STATUSES, to: null, permission: 'desarquivar' },
