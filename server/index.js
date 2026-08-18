@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initDb, seedIfEmpty, migrateToPricetaxOrg } from './db.js';
 import { router as apiRouter } from './routes.js';
+import { router as xflowRouter } from './xflow.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '..', 'dist');
@@ -13,6 +14,7 @@ app.use(express.json({ limit: '15mb' }));
 app.use(cookieParser());
 
 app.use('/api', apiRouter);
+app.use('/api/xflow', xflowRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use('/api', (err, req, res, next) => {

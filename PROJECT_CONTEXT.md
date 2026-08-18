@@ -10,9 +10,11 @@
 > integração, mudança de regra de negócio, decisão técnica, item resolvido do
 > roadmap) deve ser refletida aqui na mesma sessão.
 
-Última validação completa: 2026-08-12 (feature Grupo Empresarial —
-planejada, implementada e testada ao vivo em Postgres local nesta sessão;
-2 bugs reais encontrados e corrigidos durante o teste, ver §17).
+Última validação completa: 2026-08-18 (módulo XFlow — planejado, implementado
+e testado ao vivo em Postgres local nesta sessão; 1 bug real encontrado e
+corrigido durante o teste — campos "Solução aplicada"/"O que testar" só
+apareciam depois de já terem conteúdo, sem forma de preenchê-los pela
+primeira vez; ver §18).
 
 ## 1. O que é
 
@@ -75,7 +77,7 @@ Fonte da verdade: `.env` local (não commitado, `.gitignore`) + Railway env vars
 Local: `set -a && source .env && set +a` antes de rodar, ou script wrapper com
 `export VAR="..."` (sandbox bloqueia `source .env` em alguns ambientes).
 
-## 5. Banco de dados (Postgres, 5 tabelas, sem ORM)
+## 5. Banco de dados (Postgres, 6 tabelas, sem ORM)
 
 `initDb()` roda `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ADD COLUMN IF NOT
 EXISTS` a cada boot (idempotente, sem migration tool). `migrateToPricetaxOrg()`
@@ -84,10 +86,11 @@ roda logo depois, também todo boot.
 | Tabela | Colunas-chave | Observação |
 |---|---|---|
 | `organizations` | `id, slug, name, display_name, logo_light/dark, favicon, primary_color, secondary_color, login_background, status(active/suspended/blocked), plan, max_users, max_companies, settings JSONB` | `status`/`plan`/limites existem no schema mas **não são aplicados** ainda (roadmap) |
-| `users` | `id, username, password_hash, name, email, role(master/pricetax/cliente), cnpj, allowed_cnpjs JSONB, blocked, block_reason, expires_at, avatar, personal_only, org_id FK, is_super_admin` | |
+| `users` | `id, username, password_hash, name, email, role(master/pricetax/cliente), cnpj, allowed_cnpjs JSONB, blocked, block_reason, expires_at, avatar, personal_only, org_id FK, is_super_admin, xflow_role('' / reporter / dev / gestao)` | |
 | `projects` | `id, data JSONB(company/phases/activities/team/log), org_id FK` | 1 linha = 1 empresa/cronograma inteiro; **schemaless** dentro de `data` |
 | `cnpj_cache` | `cnpj PK, data JSONB, fetched_at` | Cache de 60 dias; **sem** `org_id` de propósito (dado público compartilhado) |
 | `personal_boards` | `user_id PK/FK CASCADE, data JSONB(boards[].columns[].cards[], lastCompletedArchiveAt), updated_at` | 1 linha por usuário; **sem** `org_id` (sempre por `user_id`; scan de `shareToken` público é cross-org de propósito) |
+| `xflow_tickets` | `id, ticket_number SERIAL, org_id FK, title, status, severity, priority, product, reporter_id FK, assignee_id FK, data JSONB, created_at, updated_at` | 1 linha = 1 BUG/ticket do módulo XFlow (§18); `status` **sem** `CHECK` de propósito (lista evolui sem migration) |
 
 **Regra de ouro**: `projects.data` e `personal_boards.data` são JSONB sem
 whitelist no backend (`PATCH` aceita o objeto inteiro) → **campo novo em uma
@@ -169,6 +172,8 @@ para um caso de uso raro (poucas dezenas de usuários hoje).
 | GET `/public-board/:token` | `optionalAuth` | única rota sem auth obrigatória do app |
 | PATCH `/public-board/:token` | `requireAuth` | qualquer logado — token é a autorização, sem checar dono |
 | GET/POST/PATCH `/organizations`, `/organizations/:id` | `requireSuperAdmin` | painel Super Admin |
+| GET `/xflow/team` | `requireXflowAccess` | lista usuários da org com `xflow_role` não vazio (nomes p/ atribuir/mencionar) |
+| GET/POST/PATCH `/xflow/tickets`, `/xflow/tickets/:id` | `requireXflowAccess` | router próprio `server/xflow.js`, montado em `/api/xflow`; `PATCH` recebe o ticket **inteiro** (mesmo padrão de `/projects`); `reporter_id` nunca é alterável via `PATCH` |
 
 `GET/POST /projects` e `/users` aceitam `?asOrg=<id>` — só respeitado se
 `isSuperAdmin` (`effectiveOrgId()`), é como o Super Admin "entra" numa org.
@@ -208,6 +213,14 @@ Decisões estruturais fixas:
   qualquer gate de sessão** (`sessionChecked`/`currentUser`) — por isso
   funciona sem login. Não existe React Router nem qualquer lib de rota; é a
   única exceção a "navegação 100% por estado em memória".
+- **Exceção ao arquivo único**: `src/xflow/XFlow.jsx` (módulo XFlow, §18) é o
+  primeiro pedaço de frontend fora de `App.jsx` — decisão deliberada porque
+  XFlow não compartilha lógica de mutação com Empresas/Gestão de Atividades.
+  `App.jsx` exporta primitivas compartilhadas (`S`, `uid`, `fmtDate`, `fmtTs`,
+  `useIsMobile`, `useIsCompact`, `BrandLogo`, `ThemeToggleBtn`) que
+  `XFlow.jsx` importa de volta — import circular entre os dois arquivos,
+  seguro porque nenhum dos dois lê essas bindings no top-level do módulo
+  (só dentro de corpos de função/componente, depois de ambos carregados).
 
 ## 10. Fluxos principais
 
@@ -502,7 +515,57 @@ confiança menor, mas mantido como sinal de "área sensível"):
   pra garantir que ele segue o mesmo padrão de `deleted/deletedAt/deletedBy`
   + filtro de view + entrada na Lixeira.
 
-## 18. Onde procurar mais detalhe
+## 18. XFlow — módulo de gestão de BUGs (2026-08)
+
+Módulo de acesso restrito para rastrear BUGs dos produtos internos PRICETAX
+(TINTAX, XPED, XCheck, XClass — não é sobre clientes do Cronograma). Filosofia:
+BUG tem ciclo de vida próprio, não é uma TASK comum.
+
+- **Acesso**: campo `users.xflow_role` (`''` = sem acesso; `reporter`/`dev`/
+  `gestao` = tem acesso com aquele papel). Card "XFlow" só aparece no
+  `WorkspaceGateScreen` quando `currentUser.xflowRole` é truthy. Gate em
+  `App()` (`workspaceMode === 'xflow'`) fica **antes** do gate de
+  `CompanySelectorScreen`, mesma lição de ordenação de gates do §17.
+- **Escopo**: por organização (`xflow_tickets.org_id`), como o resto do
+  multi-tenant — não é global.
+- **Fluxo de estados**: principal `aberta → triagem → validada_como_bug →
+  priorizada → atribuida → em_desenvolvimento → em_revisao →
+  pronta_para_teste → em_homologacao → publicada →
+  aguardando_validacao_solicitante → concluida`; laterais (`statusBeforeBlock`
+  guarda de onde saiu, mesmo padrão do pause de empresa do §13):
+  `aguardando_informacoes, pausada, bloqueada, aguardando_usuario,
+  aguardando_gerencia, aguardando_terceiro, duplicada, nao_reproduzida,
+  nao_e_bug, descartada`. Severidade (S1-S4) e Prioridade
+  (urgente/alta/normal/baixa) são campos independentes, nunca um deriva do
+  outro.
+- **Regras de transição** (só no frontend, mesmo nível de rigor do resto do
+  app — backend só valida org/acesso): triagem (`dev`/`gestao`) via menu com
+  8 ações; `em_desenvolvimento`→`em_revisao`→`pronta_para_teste` **exige**
+  `solution`+`whatToTest` preenchidos antes de liberar o botão; só
+  `reporter_id` do ticket ou `gestao` pode Aprovar/Reprovar a partir de
+  `aguardando_validacao_solicitante` — dev nunca conclui sozinho; "Fechar sem
+  desenvolver" exige `closureReason` (10 motivos) + justificativa texto;
+  motivo `melhoria` cria automaticamente um segundo ticket
+  (`data.originatedFromTicketId`) via uma segunda chamada interna a
+  `POST /xflow/tickets`; "Arquivar" só em `concluida`, é filtro de UI
+  (`data.archived=true`), nunca fecha o ticket de verdade.
+- **"Quem está com a bola"**: campo derivado (não armazenado), calculado em
+  `whoHasTheBall()` (`src/xflow/XFlow.jsx`) a partir do `status` — estados
+  `aguardando_*` apontam pra quem se está esperando, senão é `assignee_id`.
+  Sempre visível no topo da coluna lateral do `TicketDetailModal`.
+- **Telas**: tudo em `src/xflow/XFlow.jsx` (exceção ao arquivo único, ver §9)
+  — `XFlowScreen` (abas por papel: Meus BUGs sempre, Fila e Todos os BUGs/
+  Escalados só `dev`/`gestao`/`gestao`), `NewTicketModal` (todos os campos
+  obrigatórios do relato + metadados automáticos via `navigator`/
+  `window.location`/`screen`), `TicketDetailModal` (dois-colunas: descrição/
+  evidências/comentários com @mentions/timeline à esquerda, status/
+  transições/campos derivados à direita).
+- **Fora do escopo desta fase** (Fase 2, não esquecer se o Rafael pedir):
+  relógio de SLA por estado, dashboard de gestão com métricas/reincidência,
+  auto-arquivamento por tempo (hoje é manual), validação de transição no
+  backend.
+
+## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
 |---|---|

@@ -148,6 +148,7 @@ export async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS personal_only BOOLEAN NOT NULL DEFAULT false`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS org_id TEXT REFERENCES organizations(id)`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAULT false`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS xflow_role TEXT NOT NULL DEFAULT ''`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS projects (
       id         TEXT PRIMARY KEY,
@@ -171,6 +172,41 @@ export async function initDb() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS xflow_tickets (
+      id            TEXT PRIMARY KEY,
+      ticket_number SERIAL,
+      org_id        TEXT NOT NULL REFERENCES organizations(id),
+      title         TEXT NOT NULL,
+      status        TEXT NOT NULL DEFAULT 'aberta',
+      severity      TEXT NOT NULL DEFAULT '',
+      priority      TEXT NOT NULL DEFAULT '',
+      product       TEXT NOT NULL DEFAULT '',
+      reporter_id   TEXT REFERENCES users(id),
+      assignee_id   TEXT REFERENCES users(id),
+      data          JSONB NOT NULL DEFAULT '{}',
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+}
+
+export function blankXflowTicketData() {
+  return {
+    module: '', affectedUser: '', affectedCompany: '', environment: '',
+    description: '', expectedResult: '', reproSteps: '', impact: '', frequency: '',
+    occurredAt: '', evidence: [],
+    capturedUrl: '', browser: '', os: '', appVersion: '', screenRes: '', sessionId: '',
+    blockedReason: '', statusBeforeBlock: '',
+    duplicateOfTicketId: '', spawnedFeatureTicketId: '', originatedFromTicketId: '',
+    closureReason: '', closureJustification: '',
+    solution: '', whatToTest: '',
+    nextAction: '', dueDate: '',
+    type: 'bug',
+    archived: false,
+    comments: [],
+    history: [],
+  };
 }
 
 export const PRICETAX_ORG_SLUG = 'pricetax';
