@@ -691,6 +691,18 @@ completo (arquitetura de dados, matriz de permissões, matriz de transições).
   tipo escolhido. Botão do topbar "Novo BUG" → "Nova TASK" (só o rótulo do
   botão — não é um rename geral de "BUG" pra "TASK" na tela toda, isso
   continua fora do escopo).
+- **Bug de CSS corrigido**: `XFlowScreen` nunca injetava o `<style>` base
+  de `input[type=text]/select/textarea` (background/borda/`width:100%`) —
+  esse bloco só existe dentro do render principal de `App()` (padrão do
+  projeto: cada tela top-level solta da árvore de `App()`, tipo
+  `PersonalBoardScreen`, injeta sua própria cópia — `XFlowScreen` tinha
+  ficado sem a dela desde a v1). Na prática, todo `<input type="text">`
+  puro do XFlow (Título do BUG, Módulo, Usuário/Empresa afetados, etc.)
+  renderizava no tamanho/estilo padrão do navegador — foi isso que causou
+  a reclamação de "título com largura curta", não um problema de layout
+  do modal. Corrigido injetando o mesmo bloco de CSS (copiado de
+  `App.jsx`) no topo do `XFlowScreen`. `NewTicketModal` também ficou mais
+  largo (`min(1100px, 94vw)`, era `min(660px, 100%)`) a pedido do Rafael.
 - **Fora do escopo ainda** (não pedido/não decidido): calendário útil no
   SLA (hoje é tempo corrido), notificação de @menção via o sino do
   Cronograma (comentários do XFlow ainda não aparecem lá), BUGs
