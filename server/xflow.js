@@ -13,19 +13,64 @@ function uid(p) {
 // (ex.: 'aberta', que ainda não tem um "tipo de espera" definido).
 const STATUS_TO_BUCKET = {
   em_desenvolvimento: 'dev', em_revisao: 'dev', pronta_para_teste: 'dev',
-  aguardando_informacoes: 'aguardando_usuario', aguardando_usuario: 'aguardando_usuario', aguardando_terceiro: 'aguardando_usuario',
+  aguardando_terceiro: 'aguardando_usuario',
   aguardando_gerencia: 'aguardando_gestao',
   bloqueada: 'bloqueado',
   pausada: 'pausado',
-  em_homologacao: 'homologacao',
+  em_homologacao: 'homologacao', pronta_para_publicacao: 'homologacao',
   aguardando_validacao_solicitante: 'aguardando_validacao',
 };
+
+// SLA default (usado se a organização não tiver `settings.xflowSla` próprio).
+// Resolução é dirigida por severidade (tamanho técnico do problema); primeira
+// resposta é dirigida por prioridade (urgência de atenção) — perguntas
+// diferentes, cada uma alimentada pelo campo que já responde essa pergunta.
+const DEFAULT_SLA = {
+  bySeverity: {
+    s1: { resolutionMinutes: 480 }, s2: { resolutionMinutes: 1440 },
+    s3: { resolutionMinutes: 4320 }, s4: { resolutionMinutes: 10080 },
+  },
+  byPriority: {
+    urgente: { firstResponseMinutes: 30 }, alta: { firstResponseMinutes: 120 },
+    normal: { firstResponseMinutes: 480 }, baixa: { firstResponseMinutes: 1440 },
+  },
+};
+
+async function getSlaConfig(queryable, orgId) {
+  const { rows } = await queryable.query('SELECT settings FROM organizations WHERE id=$1', [orgId]);
+  const custom = (rows[0] && rows[0].settings && rows[0].settings.xflowSla) || {};
+  return {
+    bySeverity: { ...DEFAULT_SLA.bySeverity, ...(custom.bySeverity || {}) },
+    byPriority: { ...DEFAULT_SLA.byPriority, ...(custom.byPriority || {}) },
+  };
+}
+
+// Status em que o ticket não está sob controle direto do dev — o relógio de
+// SLA de resolução fica pausado enquanto o ticket estiver em qualquer um
+// destes (consolidação vem no bloco de fluxo revisado — ver PROJECT_CONTEXT).
+const PAUSING_STATUSES = ['aguardando_terceiro', 'aguardando_gerencia', 'pausada', 'bloqueada'];
+
+function computeSlaState(createdAt, dueAt, metAt, pausedSeconds, pausedAt) {
+  if (!dueAt) return null;
+  if (metAt) return 'cumprido';
+  const now = Date.now();
+  const totalPausedMs = (pausedSeconds || 0) * 1000 + (pausedAt ? Math.max(0, now - new Date(pausedAt).getTime()) : 0);
+  const effectiveDueMs = new Date(dueAt).getTime() + totalPausedMs;
+  const remainingMs = effectiveDueMs - now;
+  if (remainingMs < 0) return 'vencido';
+  const originalWindowMs = new Date(dueAt).getTime() - new Date(createdAt).getTime();
+  const thresholdMs = Math.max(originalWindowMs * 0.25, 2 * 60 * 60 * 1000);
+  if (remainingMs < thresholdMs) return 'proximo_vencer';
+  return 'dentro_prazo';
+}
 
 function computeBallHolder(status, ticket) {
   if (XFLOW_TERMINAL_STATUSES.includes(status)) return { type: 'none', userId: null };
   if (status === 'bloqueada' || status === 'pausada') return { type: 'none', userId: null };
-  if (status === 'aguardando_informacoes' || status === 'aguardando_usuario') return { type: 'reporter', userId: ticket.reporter_id };
-  if (status === 'aguardando_terceiro') return { type: 'terceiro', userId: null };
+  if (status === 'aguardando_terceiro') {
+    if (ticket.waiting_on_type === 'cliente' || ticket.waiting_on_type === 'terceiro') return { type: 'terceiro', userId: null };
+    return { type: 'reporter', userId: ticket.reporter_id };
+  }
   if (status === 'aguardando_gerencia') return { type: 'gestao', userId: null };
   if (status === 'aguardando_validacao_solicitante') return { type: 'reporter', userId: ticket.reporter_id };
   return ticket.assignee_id ? { type: 'dev', userId: ticket.assignee_id } : { type: 'triage_queue', userId: null };
@@ -78,6 +123,8 @@ function rowToTicket(row) {
     slaResolutionMetAt: row.sla_resolution_met_at,
     slaPausedAt: row.sla_paused_at,
     slaPausedSeconds: row.sla_paused_seconds,
+    slaFirstResponseState: computeSlaState(row.created_at, row.sla_first_response_due_at, row.sla_first_response_met_at, 0, null),
+    slaResolutionState: computeSlaState(row.created_at, row.sla_resolution_due_at, row.sla_resolution_met_at, row.sla_paused_seconds, row.sla_paused_at),
     ...row.data,
   };
 }
@@ -151,10 +198,13 @@ router.post('/tickets', requireAuth, requireXflowAccess, async (req, res, next) 
     const id = uid('xtk');
     const data = { ...blankXflowTicketData(), ...splitData(body) };
     const priority = body.priority || '';
+    const slaConfig = await getSlaConfig(pool, req.user.orgId);
+    const firstResponseTarget = priority && slaConfig.byPriority[priority];
+    const firstResponseDueAt = firstResponseTarget ? new Date(Date.now() + firstResponseTarget.firstResponseMinutes * 60000) : null;
     const { rows } = await pool.query(
-      `INSERT INTO xflow_tickets (id, org_id, title, status, severity, priority, suggested_priority, product, reporter_id, assignee_id, data)
-       VALUES ($1,$2,$3,'aberta',$4,$5,$6,$7,$8,NULL,$9) RETURNING *`,
-      [id, req.user.orgId, title, '', priority, priority, body.product || '', req.user.id, JSON.stringify(data)]
+      `INSERT INTO xflow_tickets (id, org_id, title, status, severity, priority, suggested_priority, product, reporter_id, assignee_id, data, sla_first_response_due_at)
+       VALUES ($1,$2,$3,'aberta',$4,$5,$6,$7,$8,NULL,$9,$10) RETURNING *`,
+      [id, req.user.orgId, title, '', priority, priority, body.product || '', req.user.id, JSON.stringify(data), firstResponseDueAt]
     );
     await logEvent(pool, id, req.user.orgId, 'status_change', 'status', null, 'aberta', req.user.id, `${req.user.name} abriu o BUG`);
     res.status(201).json({ ticket: rowToTicket(rows[0]) });
@@ -205,10 +255,14 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         rel.assignee_id = req.user.id;
         historyNote = `${userName} aceitou o BUG`;
         break;
-      case 'pedir_infos':
+      case 'pedir_infos': {
         data.statusBeforeBlock = row.status;
-        historyNote = 'Solicitadas mais informações ao solicitante';
+        const waitingOn = ['solicitante', 'cliente', 'terceiro'].includes(payload && payload.waitingOnType) ? payload.waitingOnType : 'solicitante';
+        rel.waiting_on_type = waitingOn;
+        const waitingLabel = { solicitante: 'solicitante', cliente: 'cliente', terceiro: 'terceiro' }[waitingOn];
+        historyNote = `Aguardando resposta de ${waitingLabel}${payload && payload.note ? ` — ${payload.note}` : ''}`;
         break;
+      }
       case 'nao_reproduziu':
         data.closureJustification = payload.closureJustification;
         historyNote = 'Marcado como não reproduzido';
@@ -223,8 +277,12 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         historyNote = 'Classificado como não sendo BUG';
         break;
       case 'escalar_gerencia':
-        rel.assignee_id = null;
+        data.statusBeforeBlock = row.status;
         historyNote = 'Escalado para gerência/PO';
+        break;
+      case 'resolver_gerencia':
+        data.gerenciaDecision = payload.note;
+        historyNote = `Decisão da gerência: ${payload.note}`;
         break;
       case 'redirecionar': {
         const changes = [];
@@ -243,6 +301,7 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         historyNote = 'Desenvolvimento iniciado';
         break;
       case 'enviar_revisao':
+        data.flaggedReturned = false;
         historyNote = 'Enviado para revisão';
         break;
       case 'marcar_pronta_teste':
@@ -255,9 +314,24 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
       case 'enviar_homologacao':
         historyNote = 'Enviado para homologação';
         break;
-      case 'publicar':
-        historyNote = 'Publicado';
+      case 'homolog_aprovar':
+        historyNote = 'Homologação aprovada — pronta para publicação';
         break;
+      case 'homolog_reprovar':
+        rel.homolog_reject_count = (row.homolog_reject_count || 0) + 1;
+        data.flaggedReturned = true;
+        data.homologRejectReason = payload.note;
+        historyNote = `Homologação reprovada — ${payload.note}`;
+        break;
+      case 'publicar': {
+        const parts = [];
+        if (payload && payload.version) { data.publishVersion = payload.version; parts.push(`versão ${payload.version}`); }
+        if (payload && payload.build) { data.publishBuild = payload.build; parts.push(`build ${payload.build}`); }
+        if (payload && payload.release) { data.publishRelease = payload.release; parts.push(`release ${payload.release}`); }
+        data.publishedAt = new Date().toISOString();
+        historyNote = `Publicado${parts.length ? ` — ${parts.join(', ')}` : ''}`;
+        break;
+      }
       case 'enviar_validacao':
         historyNote = 'Enviado para validação do solicitante';
         break;
@@ -265,11 +339,13 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         historyNote = `${userName} aprovou a solução`;
         break;
       case 'reprovar_validacao':
+        data.flaggedReturned = true;
         historyNote = `${userName} reprovou a solução — voltou para desenvolvimento`;
         break;
       case 'reabrir':
         data.reopenReason = payload.note;
         rel.reopen_count = (row.reopen_count || 0) + 1;
+        rel.sla_resolution_met_at = null;
         historyNote = `${userName} reabriu o BUG — ${payload.note}`;
         break;
       case 'bloquear':
@@ -285,6 +361,7 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         historyNote = 'Pausado';
         break;
       case 'retomar':
+        rel.waiting_on_type = '';
         historyNote = 'Retomado';
         break;
       case 'fechar_sem_desenvolver':
@@ -311,14 +388,24 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         historyNote = field === 'title' ? `Título alterado: "${payload.value}"` : `Campo "${field}" atualizado`;
         break;
       }
-      case 'mudar_severidade':
+      case 'mudar_severidade': {
         rel.severity = payload.severity || '';
         historyNote = `Severidade alterada para ${payload.severity || 'sem severidade'}`;
+        const slaConfig = await getSlaConfig(client, row.org_id);
+        const target = rel.severity && slaConfig.bySeverity[rel.severity];
+        rel.sla_resolution_due_at = target ? new Date(new Date(row.created_at).getTime() + target.resolutionMinutes * 60000) : null;
         break;
-      case 'mudar_prioridade':
+      }
+      case 'mudar_prioridade': {
         rel.priority = payload.priority || '';
         historyNote = `Prioridade alterada para ${payload.priority || 'sem prioridade'}`;
+        if (!row.sla_first_response_met_at) {
+          const slaConfig = await getSlaConfig(client, row.org_id);
+          const target = rel.priority && slaConfig.byPriority[rel.priority];
+          rel.sla_first_response_due_at = target ? new Date(new Date(row.created_at).getTime() + target.firstResponseMinutes * 60000) : null;
+        }
         break;
+      }
       case 'reatribuir':
         rel.assignee_id = payload.assigneeId || null;
         historyNote = 'Responsável alterado';
@@ -360,6 +447,9 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
     } else if (action === 'retomar') {
       finalStatus = data.statusBeforeBlock || 'aberta';
       data.statusBeforeBlock = '';
+    } else if (action === 'resolver_gerencia') {
+      finalStatus = data.statusBeforeBlock || 'em_desenvolvimento';
+      data.statusBeforeBlock = '';
     } else if (transition.toStatus) {
       finalStatus = transition.toStatus;
     }
@@ -375,10 +465,28 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
       rel.time_breakdown = nextBreakdown;
       rel.status_entered_at = new Date();
       rel.status = finalStatus;
+
+      if (row.status === 'aberta' && !row.sla_first_response_met_at) {
+        rel.sla_first_response_met_at = new Date();
+      }
+      if (finalStatus === 'concluida' && rel.sla_resolution_met_at === undefined && !row.sla_resolution_met_at) {
+        rel.sla_resolution_met_at = new Date();
+      }
+
+      const wasPausing = PAUSING_STATUSES.includes(row.status);
+      const willPause = PAUSING_STATUSES.includes(finalStatus);
+      if (willPause && !wasPausing && !row.sla_paused_at) {
+        rel.sla_paused_at = new Date();
+      } else if (!willPause && wasPausing && row.sla_paused_at) {
+        const pausedMs = Date.now() - new Date(row.sla_paused_at).getTime();
+        rel.sla_paused_seconds = (row.sla_paused_seconds || 0) + Math.max(0, Math.round(pausedMs / 1000));
+        rel.sla_paused_at = null;
+      }
     }
     if (statusChanged || assigneeChanged) {
       const effectiveAssignee = assigneeChanged ? rel.assignee_id : row.assignee_id;
-      const ball = computeBallHolder(finalStatus, { reporter_id: row.reporter_id, assignee_id: effectiveAssignee });
+      const effectiveWaitingOn = rel.waiting_on_type !== undefined ? rel.waiting_on_type : row.waiting_on_type;
+      const ball = computeBallHolder(finalStatus, { reporter_id: row.reporter_id, assignee_id: effectiveAssignee, waiting_on_type: effectiveWaitingOn });
       rel.ball_holder_type = ball.type;
       rel.ball_holder_user_id = ball.userId;
     }

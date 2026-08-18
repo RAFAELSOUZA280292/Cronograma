@@ -51,7 +51,9 @@ server/index.js       Bootstrap Express: initDb, seedIfEmpty, monta /api e /api/
 server/db.js           Pool pg, criação de tabelas (initDb), seed inicial, defaults de projeto novo.
 server/auth.js         JWT/bcrypt, cookie de sessão, middlewares requireAuth/requireMaster*/requireXflowAccess.
 server/routes.js        Rotas REST de auth, users, projects, personal-board, cnpj, organizations.
-server/xflow.js         Rotas REST do módulo XFlow (team, tickets) — router próprio montado em /api/xflow.
+server/xflow.js         Rotas REST do módulo XFlow (team, tickets, events) — router próprio montado em /api/xflow.
+server/xflowPermissions.js  Papel efetivo (reporter/dev/gestao/admin) + canDo() — matriz de "quem pode o quê" do XFlow.
+server/xflowTransitions.js  Matriz de transições de status do XFlow — de onde cada ação pode partir e pra onde vai.
 server/cnpjLookup.js     Cliente BrasilAPI/ReceitaWS + normalização + cache.
 
 index.html            Shell HTML, variáveis CSS de tema (light/dark) em :root.
@@ -159,16 +161,25 @@ usam `S.detailBox`.
 - Modelo: tabela `users`.
 - Regra: só `master` acessa (`requireMaster`).
 
-### XFlow (gestão de BUGs, 2026-08)
+### XFlow (gestão de BUGs, 2026-08, v2)
 - Arquivo próprio: `src/xflow/XFlow.jsx` (não em `App.jsx`) — `XFlowScreen`
-  (entrada, abas por papel), `NewTicketModal`, `TicketDetailModal`.
+  (entrada, três Homes por papel: `ReporterHome`/`DevHome`/`GestorHome`),
+  `NewTicketModal`, `TicketDetailModal`, `FilterBar`, `ArchivedView`.
 - Acesso: card "XFlow" no `WorkspaceGateScreen`, visível só se
   `currentUser.xflowRole` (reporter/dev/gestao) — controlado em
-  `NewUserModal`/`EditUserModal`.
-- APIs: `server/xflow.js` — `GET /xflow/team`, `GET/POST/PATCH /xflow/tickets`
-  (montadas em `/api/xflow`, todas atrás de `requireXflowAccess`).
-- Modelo: tabela `xflow_tickets`. Detalhe completo do fluxo de estados,
-  regras de transição e "quem está com a bola" em `PROJECT_CONTEXT.md` §18.
+  `NewUserModal`/`EditUserModal`. Papel efetivo (inclui `admin`) calculado em
+  `effectiveXflowRole()`, duplicado em `server/xflowPermissions.js` e
+  `src/xflow/XFlow.jsx`.
+- APIs: `server/xflow.js` — `GET /xflow/team`, `GET /xflow/tickets`,
+  `GET /xflow/tickets/:id/events`, `POST /xflow/tickets`,
+  `PATCH /xflow/tickets/:id` (recebe `{action, payload}`, validado por
+  `server/xflowPermissions.js` + `server/xflowTransitions.js` — não aceita
+  mais o ticket inteiro solto). Montadas em `/api/xflow`, atrás de
+  `requireXflowAccess`.
+- Modelo: tabelas `xflow_tickets` + `xflow_events` (log estruturado da
+  timeline). Detalhe completo do fluxo de estados, matriz de permissões/
+  transições, tempo por status, SLA e "quem está com a bola" em
+  `PROJECT_CONTEXT.md` §18.
 
 ## 5. Fluxos críticos
 

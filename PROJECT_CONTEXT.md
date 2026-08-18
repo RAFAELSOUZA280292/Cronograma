@@ -10,11 +10,12 @@
 > integração, mudança de regra de negócio, decisão técnica, item resolvido do
 > roadmap) deve ser refletida aqui na mesma sessão.
 
-Última validação completa: 2026-08-18 (módulo XFlow — planejado, implementado
-e testado ao vivo em Postgres local nesta sessão; 1 bug real encontrado e
-corrigido durante o teste — campos "Solução aplicada"/"O que testar" só
-apareciam depois de já terem conteúdo, sem forma de preenchê-los pela
-primeira vez; ver §18).
+Última validação completa: 2026-08-18 (XFlow v2 — auditoria funcional do v1
+encontrou que toda regra de negócio vivia só na interface; v2 adicionou
+autorização real e matriz de transições no backend, tempo por status, SLA
+com pausa, log de eventos estruturado e as três Homes por papel — planejado
+e testado ao vivo em Postgres local + `curl` direto na API nesta sessão;
+2 bugs reais encontrados e corrigidos durante os testes — ver §18).
 
 ## 1. O que é
 
@@ -77,7 +78,7 @@ Fonte da verdade: `.env` local (não commitado, `.gitignore`) + Railway env vars
 Local: `set -a && source .env && set +a` antes de rodar, ou script wrapper com
 `export VAR="..."` (sandbox bloqueia `source .env` em alguns ambientes).
 
-## 5. Banco de dados (Postgres, 6 tabelas, sem ORM)
+## 5. Banco de dados (Postgres, 7 tabelas, sem ORM)
 
 `initDb()` roda `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ADD COLUMN IF NOT
 EXISTS` a cada boot (idempotente, sem migration tool). `migrateToPricetaxOrg()`
@@ -90,7 +91,8 @@ roda logo depois, também todo boot.
 | `projects` | `id, data JSONB(company/phases/activities/team/log), org_id FK` | 1 linha = 1 empresa/cronograma inteiro; **schemaless** dentro de `data` |
 | `cnpj_cache` | `cnpj PK, data JSONB, fetched_at` | Cache de 60 dias; **sem** `org_id` de propósito (dado público compartilhado) |
 | `personal_boards` | `user_id PK/FK CASCADE, data JSONB(boards[].columns[].cards[], lastCompletedArchiveAt), updated_at` | 1 linha por usuário; **sem** `org_id` (sempre por `user_id`; scan de `shareToken` público é cross-org de propósito) |
-| `xflow_tickets` | `id, ticket_number SERIAL, org_id FK, title, status, severity, priority, product, reporter_id FK, assignee_id FK, data JSONB, created_at, updated_at` | 1 linha = 1 BUG/ticket do módulo XFlow (§18); `status` **sem** `CHECK` de propósito (lista evolui sem migration) |
+| `xflow_tickets` | `id, ticket_number SERIAL, org_id FK, title, status, severity, priority, suggested_priority, product, reporter_id FK, assignee_id FK, data JSONB, created_at, updated_at, status_entered_at, time_breakdown JSONB, ball_holder_type/user_id, waiting_on_type, reopen_count, homolog_reject_count, sla_first_response_due_at/met_at, sla_resolution_due_at/met_at, sla_paused_at, sla_paused_seconds` | 1 linha = 1 BUG/ticket do módulo XFlow (§18); `status` **sem** `CHECK` de propósito (lista evolui sem migration) |
+| `xflow_events` | `id, ticket_id FK CASCADE, org_id FK, type, field, old_value, new_value, note, user_id FK, created_at` | Log estruturado de toda ação do XFlow — fonte de verdade da timeline (§18), substitui o `data.history[]` de texto livre da v1 (mantido só como fallback de leitura pra tickets antigos) |
 
 **Regra de ouro**: `projects.data` e `personal_boards.data` são JSONB sem
 whitelist no backend (`PATCH` aceita o objeto inteiro) → **campo novo em uma
@@ -173,7 +175,10 @@ para um caso de uso raro (poucas dezenas de usuários hoje).
 | PATCH `/public-board/:token` | `requireAuth` | qualquer logado — token é a autorização, sem checar dono |
 | GET/POST/PATCH `/organizations`, `/organizations/:id` | `requireSuperAdmin` | painel Super Admin |
 | GET `/xflow/team` | `requireXflowAccess` | lista usuários da org com `xflow_role` não vazio (nomes p/ atribuir/mencionar) |
-| GET/POST/PATCH `/xflow/tickets`, `/xflow/tickets/:id` | `requireXflowAccess` | router próprio `server/xflow.js`, montado em `/api/xflow`; `PATCH` recebe o ticket **inteiro** (mesmo padrão de `/projects`); `reporter_id` nunca é alterável via `PATCH` |
+| GET `/xflow/tickets` | `requireXflowAccess` | reporter só recebe os próprios (`WHERE reporter_id=$user`); dev/gestão/admin recebem todos os da org |
+| GET `/xflow/tickets/:id/events` | `requireXflowAccess` | log estruturado de um ticket (timeline) |
+| POST `/xflow/tickets` | `requireXflowAccess` | `reporter_id` sempre `req.user.id`; status sempre `aberta`, ignora o que o cliente mandar |
+| PATCH `/xflow/tickets/:id` | `requireXflowAccess` + `xflowPermissions.canDo()` + `xflowTransitions.checkTransition()` | router próprio `server/xflow.js`, montado em `/api/xflow`; recebe `{action, payload}` (não mais o ticket inteiro) — toda ação valida papel e transição de status antes de gravar, 403/400 reais |
 
 `GET/POST /projects` e `/users` aceitam `?asOrg=<id>` — só respeitado se
 `isSuperAdmin` (`effectiveOrgId()`), é como o Super Admin "entra" numa org.
@@ -515,55 +520,105 @@ confiança menor, mas mantido como sinal de "área sensível"):
   pra garantir que ele segue o mesmo padrão de `deleted/deletedAt/deletedBy`
   + filtro de view + entrada na Lixeira.
 
-## 18. XFlow — módulo de gestão de BUGs (2026-08)
+## 18. XFlow — módulo de gestão de BUGs (2026-08, v2)
 
 Módulo de acesso restrito para rastrear BUGs dos produtos internos PRICETAX
 (TINTAX, XPED, XCheck, XClass — não é sobre clientes do Cronograma). Filosofia:
-BUG tem ciclo de vida próprio, não é uma TASK comum.
+BUG tem ciclo de vida próprio, não é uma TASK comum. **v1** entregou o ciclo
+de vida básico (tela); uma auditoria funcional encontrou que toda regra de
+negócio vivia só na interface, sem proteção real no backend. **v2** (este
+texto) corrigiu isso e adicionou tempo/SLA/dashboards — ver
+`/Users/rafaelsouza/.claude/plans/clever-soaring-kitten.md` para o desenho
+completo (arquitetura de dados, matriz de permissões, matriz de transições).
 
 - **Acesso**: campo `users.xflow_role` (`''` = sem acesso; `reporter`/`dev`/
-  `gestao` = tem acesso com aquele papel). Card "XFlow" só aparece no
-  `WorkspaceGateScreen` quando `currentUser.xflowRole` é truthy. Gate em
-  `App()` (`workspaceMode === 'xflow'`) fica **antes** do gate de
-  `CompanySelectorScreen`, mesma lição de ordenação de gates do §17.
-- **Escopo**: por organização (`xflow_tickets.org_id`), como o resto do
-  multi-tenant — não é global.
-- **Fluxo de estados**: principal `aberta → triagem → validada_como_bug →
-  priorizada → atribuida → em_desenvolvimento → em_revisao →
-  pronta_para_teste → em_homologacao → publicada →
-  aguardando_validacao_solicitante → concluida`; laterais (`statusBeforeBlock`
-  guarda de onde saiu, mesmo padrão do pause de empresa do §13):
-  `aguardando_informacoes, pausada, bloqueada, aguardando_usuario,
-  aguardando_gerencia, aguardando_terceiro, duplicada, nao_reproduzida,
-  nao_e_bug, descartada`. Severidade (S1-S4) e Prioridade
-  (urgente/alta/normal/baixa) são campos independentes, nunca um deriva do
-  outro.
-- **Regras de transição** (só no frontend, mesmo nível de rigor do resto do
-  app — backend só valida org/acesso): triagem (`dev`/`gestao`) via menu com
-  8 ações; `em_desenvolvimento`→`em_revisao`→`pronta_para_teste` **exige**
-  `solution`+`whatToTest` preenchidos antes de liberar o botão; só
-  `reporter_id` do ticket ou `gestao` pode Aprovar/Reprovar a partir de
-  `aguardando_validacao_solicitante` — dev nunca conclui sozinho; "Fechar sem
-  desenvolver" exige `closureReason` (10 motivos) + justificativa texto;
-  motivo `melhoria` cria automaticamente um segundo ticket
-  (`data.originatedFromTicketId`) via uma segunda chamada interna a
-  `POST /xflow/tickets`; "Arquivar" só em `concluida`, é filtro de UI
-  (`data.archived=true`), nunca fecha o ticket de verdade.
-- **"Quem está com a bola"**: campo derivado (não armazenado), calculado em
-  `whoHasTheBall()` (`src/xflow/XFlow.jsx`) a partir do `status` — estados
-  `aguardando_*` apontam pra quem se está esperando, senão é `assignee_id`.
-  Sempre visível no topo da coluna lateral do `TicketDetailModal`.
-- **Telas**: tudo em `src/xflow/XFlow.jsx` (exceção ao arquivo único, ver §9)
-  — `XFlowScreen` (abas por papel: Meus BUGs sempre, Fila e Todos os BUGs/
-  Escalados só `dev`/`gestao`/`gestao`), `NewTicketModal` (todos os campos
-  obrigatórios do relato + metadados automáticos via `navigator`/
-  `window.location`/`screen`), `TicketDetailModal` (dois-colunas: descrição/
-  evidências/comentários com @mentions/timeline à esquerda, status/
-  transições/campos derivados à direita).
-- **Fora do escopo desta fase** (Fase 2, não esquecer se o Rafael pedir):
-  relógio de SLA por estado, dashboard de gestão com métricas/reincidência,
-  auto-arquivamento por tempo (hoje é manual), validação de transição no
-  backend.
+  `gestao` = tem acesso com aquele papel). Papel **efetivo** calculado em
+  `effectiveXflowRole()` (`server/xflowPermissions.js` no backend,
+  duplicado no frontend em `src/xflow/XFlow.jsx` — mudou num lado, muda no
+  outro): `admin` é um upgrade automático de quem já tem `xflow_role` E é
+  `role='master'`/`isSuperAdmin` no Cronograma — não dá acesso a quem nunca
+  teve `xflow_role`. Card "XFlow" no `WorkspaceGateScreen` e gate em `App()`
+  (`workspaceMode === 'xflow'`, antes do gate de `CompanySelectorScreen`,
+  lição do §17) inalterados da v1.
+- **Escopo**: por organização (`xflow_tickets.org_id`). `GET /xflow/tickets`
+  restringe `reporter` aos próprios tickets no **backend** (não só na tela)
+  — mudança da v2, fechou uma exposição real entre solicitantes diferentes.
+- **Autorização real no backend** (o núcleo da v2): `PATCH
+  /xflow/tickets/:id` não aceita mais o ticket inteiro solto — exige
+  `{action, payload}`. Toda ação passa por `checkTransition()`
+  (`server/xflowTransitions.js`, valida status de origem) e `canDo()`
+  (`server/xflowPermissions.js`, valida papel — reporter/dev/gestão/admin,
+  com casos "dono do ticket" e "responsável do ticket" tratados à parte).
+  Uma ação proibida ou uma transição inválida nunca chega a gravar — 403/400
+  reais, testados via `curl` direto, não só ausência de botão na tela.
+- **Fluxo de estados v2**: principal `aberta → atribuida →
+  em_desenvolvimento → em_revisao → pronta_para_teste → em_homologacao →
+  pronta_para_publicacao → publicada → aguardando_validacao_solicitante →
+  concluida` (concluída é terminal mas **reabrível** — `reabrir`, qualquer
+  terminal, incrementa `reopen_count`, registra motivo/quem/quando,
+  preserva histórico). `triagem`/`validada_como_bug`/`priorizada` da v1
+  eram inatingíveis (nenhuma ação os produzia) — removidos. Homologação e
+  Publicação viraram **dois passos** (`homolog_aprovar`/`homolog_reprovar`
+  → `publicar`, com campos opcionais de versão/build/release), permitindo
+  registrar a publicação num momento diferente da aprovação técnica.
+  `aguardando_informacoes`/`aguardando_usuario`/`aguardando_terceiro` da v1
+  nunca foram, na prática, distintos — consolidados num único
+  `aguardando_terceiro` + sub-campo `waiting_on_type`
+  (`solicitante`/`cliente`/`terceiro`). `aguardando_gerencia` preserva o
+  `assignee_id` (não zera mais) e tem ação própria de retorno
+  (`resolver_gerencia`, só gestão/admin) — o dev nunca perde a atribuição
+  só por uma pergunta ter sido escalada.
+- **Severidade × Prioridade**: campos independentes; `suggested_priority`
+  guarda a sugestão original do solicitante (imutável), `priority` é o
+  campo de trabalho que só dev/gestão/admin altera — reporter nunca altera
+  severidade nem prioridade (v1 permitia, v2 corrigiu).
+- **Tempo por status**: `xflow_tickets.time_breakdown` (JSONB, segundos por
+  bucket: `dev`, `aguardando_usuario`, `aguardando_gestao`, `bloqueado`,
+  `pausado`, `homologacao`, `aguardando_validacao`) — incrementado a cada
+  troca de status, na mesma transação da ação (`server/xflow.js`, mapa
+  `STATUS_TO_BUCKET`). Suporta múltiplas entradas/saídas do mesmo status
+  (soma cada passagem). `status_entered_at` guarda quando entrou no status
+  atual. "Tempo total" é sempre `now() - created_at`, calculado ao vivo,
+  nunca armazenado.
+- **SLA**: dois relógios — primeira resposta (alvo por prioridade) e
+  resolução (alvo por severidade), config em `organizations.settings.
+  xflowSla` com fallback pro default embutido em `server/xflow.js`
+  (`DEFAULT_SLA`). SLA de resolução **pausa** enquanto o ticket está em
+  `aguardando_terceiro`/`aguardando_gerencia`/`pausada`/`bloqueada`
+  (`sla_paused_at`/`sla_paused_seconds`) — o tempo de espera não conta
+  contra o dev. Estado computado (`vencido`/`proximo_vencer`/
+  `dentro_prazo`/`cumprido`) exposto em `ticket.slaResolutionState`,
+  calculado na leitura (`computeSlaState()`), não armazenado.
+- **Log de eventos estruturado**: tabela `xflow_events` (não mais texto
+  livre em `data.history[]` — esse campo continua existindo só pra
+  continuidade visual de tickets pré-v2, lido como fallback). Toda ação
+  grava uma linha (`type`, `field`, `old_value`, `new_value`, `note`,
+  `user_id`, `created_at`) — é a fonte de verdade pra timeline
+  (`GET /xflow/tickets/:id/events`) e pra qualquer métrica futura que
+  precise agregar em SQL.
+- **"Quem está com a bola"**: agora **calculado e armazenado** no backend
+  (`ball_holder_type`/`ball_holder_user_id`, via `computeBallHolder()` em
+  `server/xflow.js`) a cada ação — não é mais só derivado no frontend.
+  `aberta` sem responsável mostra "Fila de triagem", nunca "ninguém".
+- **Telas**: tudo em `src/xflow/XFlow.jsx` (exceção ao arquivo único, ver
+  §9). Três Homes por papel (`ReporterHome`/`DevHome`/`GestorHome`) em vez
+  de abas genéricas — reporter tem cards clicáveis que filtram a lista
+  (Abertos/Em análise/Em desenvolvimento/Dependem de você/Em validação/
+  Concluídos); dev tem seções fixas ordenadas (SLA vencido → urgente/crítico
+  → severidade → mais próximo de vencer → data, `smartDevSort()`), não uma
+  lista genérica por `created_at`; gestão tem dashboard com 10 cards
+  clicáveis + gargalos (tempo acumulado por bucket) + por produto/módulo
+  (drill-down) + por DEV (carga = tickets ativos + tempo só do bucket
+  `dev`, nunca soma espera de terceiros). `FilterBar` (busca + status/
+  produto/severidade/prioridade/responsável/SLA/aging) reaproveitada nas
+  três Homes e no `ArchivedView`. Arquivamento tem aba própria
+  (`ArchivedView`) com busca e desarquivar — v1 arquivava mas não tinha
+  como ver de novo pela tela.
+- **Fora do escopo ainda** (não pedido/não decidido): calendário útil no
+  SLA (hoje é tempo corrido), notificação de @menção via o sino do
+  Cronograma (comentários do XFlow ainda não aparecem lá), BUGs
+  recorrentes/reincidência por módulo, subtarefas, dependência estruturada
+  entre tickets (duplicidade é só um id de texto livre, não bidirecional).
 
 ## 19. Onde procurar mais detalhe
 
