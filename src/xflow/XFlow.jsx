@@ -107,6 +107,11 @@ const XFLOW_STATUS_META = {
   descartada: { label: 'Descartada', ...tone('#e2574c') },
 };
 
+const XFLOW_TYPE_META = {
+  bug: { label: 'BUG', ...tone('#e2574c') },
+  melhoria: { label: 'Melhoria', ...tone('#9b7af5') },
+};
+
 const XFLOW_SEVERITY_META = {
   s1: { label: 'S1 — Crítico', ...tone('#e2574c') },
   s2: { label: 'S2 — Alto', ...tone('#ff9f40') },
@@ -448,7 +453,7 @@ function blankTicketForm() {
   return {
     type: 'bug', title: '', product: '', clientType: '', module: '', affectedUser: '', affectedCompany: '',
     environment: 'producao', description: '', expectedResult: '', reproSteps: '',
-    impact: '', frequency: '', occurredAt: '', priority: '', evidence: [],
+    impact: '', frequency: '', occurredAt: '', priority: '', evidence: [], expectedCompletionAt: '',
   };
 }
 
@@ -616,6 +621,10 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
               <div style={{ flex: '1 1 160px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Data da ocorrência</div>
                 <input type="date" value={form.occurredAt} onChange={(e) => set({ occurredAt: e.target.value })} />
+              </div>
+              <div style={{ flex: '1 1 160px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Previsão de conclusão</div>
+                <input type="date" value={form.expectedCompletionAt} onChange={(e) => set({ expectedCompletionAt: e.target.value })} />
               </div>
               <div style={{ flex: '1 1 160px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Prioridade sugerida</div>
@@ -890,11 +899,15 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
           <div>
             <div style={{ fontSize: 12, color: 'var(--text-5)', fontWeight: 700 }}>BUG #{ticket.number}</div>
             <ContentField as="input" value={ticket.title} disabled={!canEditContent} onCommit={(v) => runAction('editar_campo', { field: 'title', value: v })} />
+            <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 4 }}>
+              Aberto em {fmtDateFromTs(ticket.createdAt)}
+            </div>
           </div>
           <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
         </div>
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+          <Badge meta={XFLOW_TYPE_META[ticket.type] || XFLOW_TYPE_META.bug} />
           <Badge meta={XFLOW_STATUS_META[ticket.status]} />
           <Badge meta={XFLOW_SEVERITY_META[ticket.severity]} />
           <Badge meta={XFLOW_PRIORITY_META[ticket.priority]} />
@@ -902,6 +915,11 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
           {ticket.archived && <Badge meta={{ label: 'Arquivado', ...tone('#999999') }} />}
           {ticket.deleted && <Badge meta={{ label: 'Na Lixeira', ...tone('#e2574c') }} />}
         </div>
+        {ticket.expectedCompletionAt && (
+          <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: -8, marginBottom: 14 }}>
+            Previsão de conclusão: <strong style={{ color: 'var(--text-2)' }}>{fmtDate(ticket.expectedCompletionAt)}</strong>
+          </div>
+        )}
 
         {ticket.deleted && (
           <div style={{ ...S.loginBlockedMsg, marginBottom: 14 }}>
@@ -1202,6 +1220,10 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Prazo</div>
             <input type="date" value={ticket.dueDate || ''} disabled={!canEditOps} onChange={(e) => runAction('editar_prazo_proxima_acao', { dueDate: e.target.value })} />
 
+            <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Previsão de conclusão</div>
+            <input type="date" value={ticket.expectedCompletionAt || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'expectedCompletionAt', value: e.target.value })} />
+            <div style={S.fieldHint}>Estimativa de quem abriu a TASK — visível para solicitante, dev e gestão.</div>
+
             <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Dados capturados</div>
             <div style={S.fieldHint}>Produto: {ticket.product || '—'} · Ambiente: {ticket.environment || '—'}</div>
             <div style={{ ...S.fieldHint, marginTop: 4 }}>
@@ -1294,6 +1316,12 @@ function daysSince(iso) {
   if (!iso) return null;
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
 }
+function fmtDateFromTs(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('pt-BR');
+}
 function agingBucketOf(days) {
   if (days == null) return '';
   if (days <= 1) return '0-1';
@@ -1369,6 +1397,7 @@ function TicketRow({ t, teamById, onOpen }) {
   return (
     <div style={{ ...S.accessBlock, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }} onClick={() => onOpen(t.id)}>
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-5)', width: 56 }}>#{t.number}</div>
+      <Badge meta={XFLOW_TYPE_META[t.type] || XFLOW_TYPE_META.bug} small />
       <div style={{ flex: 1, minWidth: 160, fontWeight: 700 }}>
         {t.flaggedReturned && <span style={{ color: '#ff9f40', marginRight: 5 }}>↩</span>}
         {t.title}
@@ -1381,7 +1410,14 @@ function TicketRow({ t, teamById, onOpen }) {
       )}
       <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{t.product}</div>
       <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{whoHasTheBall(t, teamById)}</div>
-      <div style={{ fontSize: 10.5, color: 'var(--text-6)' }}>{days == null ? '' : `há ${days}d`}</div>
+      <div style={{ fontSize: 10.5, color: 'var(--text-6)' }} title="Data de abertura">
+        Aberto {fmtDateFromTs(t.createdAt)}{days != null ? ` · há ${days}d` : ''}
+      </div>
+      {t.expectedCompletionAt && (
+        <div style={{ fontSize: 10.5, color: 'var(--text-6)' }} title="Previsão de conclusão">
+          Previsão: {fmtDate(t.expectedCompletionAt)}
+        </div>
+      )}
     </div>
   );
 }
