@@ -727,6 +727,29 @@ completo (arquitetura de dados, matriz de permissões, matriz de transições).
   commit(e.target.value)}` — lendo direto do DOM, não do estado React, pra
   não correr risco de closure desatualizada) — mesmo espírito do
   `ContentField`, evita PATCH a cada tecla no caso do `TicketDetailModal`.
+- **Clareza visual do painel (Tipo/Data de abertura/Previsão de conclusão)**:
+  `data.type` (`bug`/`melhoria`) já existia desde a v1 mas nunca era exibido
+  em lugar nenhum — só influenciava textos do formulário. Adicionado
+  `XFLOW_TYPE_META` (mesmo padrão de `XFLOW_STATUS_META`/`tone()`) e um
+  badge de Tipo tanto em `TicketRow` (toda listagem — Home do reporter/dev/
+  gestor, Arquivados, Lixeira) quanto no topo do `TicketDetailModal`. Data
+  de abertura (`createdAt`, timestamptz — por isso usa `fmtDateFromTs()`,
+  não o `fmtDate()` de `App.jsx`, que espera string `YYYY-MM-DD` pura) agora
+  aparece direto embaixo do título no modal e em toda linha do painel, sem
+  precisar abrir o ticket. Campo novo **Previsão de conclusão**
+  (`data.expectedCompletionAt`, formato `YYYY-MM-DD`) é distinto do já
+  existente **Prazo** (`dueDate`): `dueDate` é um compromisso operacional
+  editável só por dev responsável/gestão (`editar_prazo_proxima_acao`,
+  reporter não mexe); Previsão de conclusão é a estimativa de quem abriu o
+  ticket, por isso reaproveita a permissão `edit_content` (reporter edita
+  enquanto o ticket está aberto/aguardando terceiro; dev/gestão editam
+  sempre) — vai em `EDITABLE_CONTENT_FIELDS` no backend, sem coluna SQL
+  nova (heurística do CLAUDE.md: só vira coluna relacional se precisar de
+  filtro/agregação em SQL, o que não é o caso aqui). Editável em
+  `NewTicketModal` (dentro do `<details>` opcional, ao lado de "Data da
+  ocorrência") e em `TicketDetailModal` (ao lado de "Prazo", com o hint
+  "Estimativa de quem abriu a TASK — visível para solicitante, dev e
+  gestão."); exibido no painel só quando preenchido.
 - **Fora do escopo ainda** (não pedido/não decidido): calendário útil no
   SLA (hoje é tempo corrido), notificação de @menção via o sino do
   Cronograma (comentários do XFlow ainda não aparecem lá), BUGs

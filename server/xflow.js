@@ -273,6 +273,7 @@ router.post('/tickets', requireAuth, requireXflowAccess, async (req, res, next) 
 const EDITABLE_CONTENT_FIELDS = [
   'title', 'description', 'expectedResult', 'reproSteps', 'module', 'affectedUser', 'affectedCompany',
   'environment', 'solution', 'whatToTest', 'impact', 'frequency', 'occurredAt', 'clientType',
+  'expectedCompletionAt',
 ];
 
 router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, next) => {
