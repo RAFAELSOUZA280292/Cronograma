@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   X, Plus, MessageSquare, Clock, Paperclip, ChevronDown, LogOut,
   Upload, Archive, Ban,
@@ -416,16 +416,31 @@ function TriageMenu({ onAction }) {
   );
 }
 
+const CONTENT_FIELD_MAX_H = 320;
+
+function autosize(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, CONTENT_FIELD_MAX_H) + 'px';
+}
+
 function ContentField({ as: Tag = 'textarea', value, onCommit, disabled, rows, placeholder, type }) {
   const [draft, setDraft] = useState(value || '');
+  const taRef = useRef(null);
   useEffect(() => { setDraft(value || ''); }, [value]);
+  useEffect(() => { autosize(taRef.current); }, [draft]);
   const common = {
     value: draft, disabled, placeholder,
     onChange: (e) => setDraft(e.target.value),
     onBlur: () => { if (draft !== (value || '')) onCommit(draft); },
   };
   if (Tag === 'input') return <input type={type || 'text'} {...common} />;
-  return <textarea rows={rows || 2} {...common} />;
+  return (
+    <textarea
+      ref={taRef} rows={rows || 2} {...common}
+      style={{ resize: 'none', overflowY: 'auto', maxHeight: CONTENT_FIELD_MAX_H }}
+    />
+  );
 }
 
 function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCreateSpinoff }) {
@@ -433,6 +448,8 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   const role = effectiveXflowRole(currentUser);
   const [events, setEvents] = useState([]);
   const [commentDraft, setCommentDraft] = useState('');
+  const commentRef = useRef(null);
+  useEffect(() => { autosize(commentRef.current); }, [commentDraft]);
   const [pendingMentions, setPendingMentions] = useState([]);
   const [showBlockForm, setShowBlockForm] = useState(false);
   const [blockReasonDraft, setBlockReasonDraft] = useState('');
@@ -652,7 +669,11 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             )}
 
             <div style={{ ...S.subSectionLabel, marginTop: 16 }}><MessageSquare size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Comentários</div>
-            <textarea rows={2} value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} placeholder="Escreva um comentário... use @ pra mencionar alguém" />
+            <textarea
+              ref={commentRef} rows={2} value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)}
+              placeholder="Escreva um comentário... use @ pra mencionar alguém"
+              style={{ resize: 'none', overflowY: 'auto', maxHeight: CONTENT_FIELD_MAX_H }}
+            />
             {team && team.length > 0 && (
               <select value="" onChange={(e) => { const m = team.find((t) => t.id === e.target.value); if (m) insertMention(m); }} style={{ marginTop: 6, width: 'auto' }}>
                 <option value="">+ Mencionar...</option>
@@ -1237,6 +1258,7 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
   const [openTicketId, setOpenTicketId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   const [filters, setFilters] = useState(BLANK_FILTERS);
+  const [toastMsg, setToastMsg] = useState('');
 
   useEffect(() => {
     Promise.all([apiGet('/api/xflow/tickets'), apiGet('/api/xflow/team')])
@@ -1254,6 +1276,9 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
     const res = await apiPost('/api/xflow/tickets', form);
     setTickets((prev) => [res.ticket, ...prev]);
     setShowNew(false);
+    setOpenTicketId(res.ticket.id);
+    setToastMsg(`BUG #${res.ticket.number} criado`);
+    setTimeout(() => setToastMsg(''), 4500);
   }
 
   async function createSpinoff(originalTicket) {
@@ -1345,6 +1370,11 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
           onAction={performAction}
           onCreateSpinoff={createSpinoff}
         />
+      )}
+      {toastMsg && (
+        <div style={S.toastStack}>
+          <div style={S.toast}>{toastMsg}</div>
+        </div>
       )}
     </div>
   );
