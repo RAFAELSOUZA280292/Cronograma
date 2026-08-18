@@ -21,6 +21,7 @@ export const XFLOW_ROLE_META = {
   reporter: { label: 'Reporter' },
   dev: { label: 'Dev' },
   gestao: { label: 'Gestão' },
+  admin: { label: 'Admin' },
 };
 export const XFLOW_ROLE_ORDER = ['reporter', 'dev', 'gestao'];
 
@@ -96,12 +97,6 @@ const XFLOW_CLOSURE_REASON_META = {
   resolvido_anteriormente: 'Resolvido anteriormente', descartado_gestao: 'Descartado pela gestão',
 };
 const XFLOW_CLOSURE_REASON_ORDER = Object.keys(XFLOW_CLOSURE_REASON_META);
-const CLOSURE_REASON_TO_STATUS = {
-  duplicado: 'duplicada', nao_reproduzido: 'nao_reproduzida', comportamento_esperado: 'nao_e_bug',
-  erro_configuracao: 'nao_e_bug', erro_usuario: 'nao_e_bug', melhoria: 'nao_e_bug',
-  problema_externo: 'descartada', nao_aplicavel: 'descartada',
-  resolvido_anteriormente: 'duplicada', descartado_gestao: 'descartada',
-};
 
 const XFLOW_PRODUCTS = ['TINTAX', 'XPED', 'XCheck', 'XClass', 'Outro'];
 
@@ -110,22 +105,59 @@ function metaLabel(map, key) { return (map[key] && (map[key].label || map[key]))
 function isTerminal(status) { return XFLOW_TERMINAL_STATUSES.includes(status); }
 function isLateral(status) { return XFLOW_LATERAL_STATUSES.includes(status); }
 
-function whoHasTheBall(ticket, teamById) {
-  if (isTerminal(ticket.status)) return '—';
-  const LATERAL_OWNER = {
-    aguardando_informacoes: 'Solicitante', aguardando_usuario: 'Solicitante',
-    aguardando_gerencia: 'Gestão', aguardando_terceiro: 'Terceiro',
-    pausada: 'Ninguém (pausada)',
-  };
-  if (ticket.status === 'bloqueada') return `Ninguém (bloqueada — ${metaLabel(XFLOW_BLOCK_REASON_META, ticket.blockedReason)})`;
-  if (LATERAL_OWNER[ticket.status]) return LATERAL_OWNER[ticket.status];
-  if (ticket.status === 'aguardando_validacao_solicitante') return 'Solicitante';
-  if (ticket.assigneeId && teamById[ticket.assigneeId]) return teamById[ticket.assigneeId].name;
-  return 'Ninguém atribuído';
+// ---- Permissões (espelha server/xflowPermissions.js — mudou lá, muda aqui) ----
+const XFLOW_RANK = { reporter: 0, dev: 1, gestao: 2, admin: 3 };
+
+export function effectiveXflowRole(user) {
+  if (!user || !user.xflowRole) return null;
+  if (user.role === 'master' || user.isSuperAdmin) return 'admin';
+  return user.xflowRole;
+}
+function isAtLeast(role, min) { return XFLOW_RANK[role] >= XFLOW_RANK[min]; }
+function isOwner(user, ticket) { return !!ticket && ticket.reporterId === user.id; }
+function isAssignee(user, ticket) { return !!ticket && ticket.assigneeId === user.id; }
+
+const XFLOW_RULES = {
+  attach_evidence: (role, user, ticket) => (role === 'reporter' ? isOwner(user, ticket) : true),
+  edit_content: (role, user, ticket) => {
+    if (role === 'reporter') return isOwner(user, ticket) && ['aberta', 'aguardando_informacoes', 'aguardando_terceiro', 'aguardando_usuario'].includes(ticket.status);
+    return isAtLeast(role, 'dev');
+  },
+  triage: (role) => isAtLeast(role, 'dev'),
+  reassign: (role) => role === 'dev' || isAtLeast(role, 'gestao'),
+  change_severity: (role) => isAtLeast(role, 'dev'),
+  change_priority: (role) => isAtLeast(role, 'dev'),
+  advance_dev_pipeline: (role, user, ticket) => (role === 'dev' ? isAssignee(user, ticket) : isAtLeast(role, 'gestao')),
+  block: (role) => isAtLeast(role, 'dev'),
+  unblock: (role) => isAtLeast(role, 'dev'),
+  pause: (role) => isAtLeast(role, 'dev'),
+  resume: (role) => isAtLeast(role, 'dev'),
+  homologar: (role) => isAtLeast(role, 'gestao'),
+  enviar_validacao: (role, user, ticket) => (role === 'dev' ? isAssignee(user, ticket) : isAtLeast(role, 'gestao')),
+  aprovar_validacao: (role, user, ticket) => (role === 'reporter' ? isOwner(user, ticket) : isAtLeast(role, 'gestao')),
+  reprovar_validacao: (role, user, ticket) => (role === 'reporter' ? isOwner(user, ticket) : isAtLeast(role, 'gestao')),
+  reabrir: (role, user, ticket) => (role === 'reporter' ? isOwner(user, ticket) : isAtLeast(role, 'gestao')),
+  fechar_sem_desenvolver: (role, user, ticket) => (role === 'reporter' ? isOwner(user, ticket) : isAtLeast(role, 'dev')),
+  fechar_motivo_gestao: (role) => isAtLeast(role, 'gestao'),
+  editar_prazo_proxima_acao: (role, user, ticket) => (role === 'dev' ? isAssignee(user, ticket) : isAtLeast(role, 'gestao')),
+  arquivar: (role) => isAtLeast(role, 'gestao'),
+};
+function canDoClient(action, user, ticket, payload) {
+  const role = effectiveXflowRole(user);
+  if (!role) return false;
+  const rule = XFLOW_RULES[action];
+  if (!rule) return true;
+  return !!rule(role, user, ticket, payload);
 }
 
-function historyEntry(action, userName) {
-  return { ts: new Date().toISOString(), action, user: userName };
+function whoHasTheBall(ticket, teamById) {
+  if (ticket.ballHolderType === 'none') return '—';
+  if (ticket.ballHolderType === 'triage_queue') return 'Fila de triagem (dev/gestão)';
+  if (ticket.ballHolderType === 'reporter') return 'Solicitante';
+  if (ticket.ballHolderType === 'gestao') return 'Gestão';
+  if (ticket.ballHolderType === 'terceiro') return 'Terceiro';
+  if (ticket.ballHolderType === 'dev' && ticket.ballHolderUserId && teamById[ticket.ballHolderUserId]) return teamById[ticket.ballHolderUserId].name;
+  return 'Ninguém atribuído';
 }
 
 function captureMetadata() {
@@ -194,9 +226,7 @@ function NewTicketModal({ onClose, onCreate }) {
   }
   function removeEvidence(id) { setForm((f) => ({ ...f, evidence: f.evidence.filter((ev) => ev.id !== id) })); }
 
-  const requiredOk = form.title.trim() && form.product && form.module.trim() && form.affectedUser.trim()
-    && form.affectedCompany.trim() && form.environment && form.description.trim() && form.expectedResult.trim()
-    && form.reproSteps.trim() && form.impact && form.frequency && form.occurredAt && form.priority;
+  const requiredOk = form.title.trim() && form.product && form.description.trim() && form.environment;
 
   async function submit() {
     if (!requiredOk || saving) return;
@@ -229,29 +259,13 @@ function NewTicketModal({ onClose, onCreate }) {
             </select>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={S.subSectionLabel}>Módulo / Tela</div>
-            <input type="text" value={form.module} onChange={(e) => set({ module: e.target.value })} placeholder="Ex.: Upload, Aderência, Dashboard" />
+            <div style={S.subSectionLabel}>Ambiente</div>
+            <select value={form.environment} onChange={(e) => set({ environment: e.target.value })}>
+              <option value="producao">Produção</option>
+              <option value="homologacao">Homologação</option>
+              <option value="desenvolvimento">Desenvolvimento</option>
+            </select>
           </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-          <div style={{ flex: 1 }}>
-            <div style={S.subSectionLabel}>Usuário afetado</div>
-            <input type="text" value={form.affectedUser} onChange={(e) => set({ affectedUser: e.target.value })} placeholder="Quem encontrou o problema" />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={S.subSectionLabel}>Empresa/Cliente afetado</div>
-            <input type="text" value={form.affectedCompany} onChange={(e) => set({ affectedCompany: e.target.value })} />
-          </div>
-        </div>
-
-        <div style={{ marginTop: 10 }}>
-          <div style={S.subSectionLabel}>Ambiente</div>
-          <select value={form.environment} onChange={(e) => set({ environment: e.target.value })}>
-            <option value="producao">Produção</option>
-            <option value="homologacao">Homologação</option>
-            <option value="desenvolvimento">Desenvolvimento</option>
-          </select>
         </div>
 
         <div style={{ marginTop: 10 }}>
@@ -259,62 +273,80 @@ function NewTicketModal({ onClose, onCreate }) {
           <textarea rows={3} value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="O que aconteceu" />
         </div>
 
-        <div style={{ marginTop: 10 }}>
-          <div style={S.subSectionLabel}>Resultado esperado</div>
-          <textarea rows={2} value={form.expectedResult} onChange={(e) => set({ expectedResult: e.target.value })} placeholder="O que deveria acontecer" />
+        <div style={{ ...S.fieldHint, marginTop: 10 }}>
+          O resto pode ser preenchido depois de aberto: módulo, usuário/empresa afetados,
+          resultado esperado, passo a passo, impacto, frequência e prioridade sugerida.
         </div>
 
-        <div style={{ marginTop: 10 }}>
-          <div style={S.subSectionLabel}>Passo a passo para reproduzir</div>
-          <textarea rows={4} value={form.reproSteps} onChange={(e) => set({ reproSteps: e.target.value })} placeholder={'1. Entrou em...\n2. Clicou em...\n3. Fez upload...'} />
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-          <div style={{ flex: 1 }}>
-            <div style={S.subSectionLabel}>Impacto</div>
-            <select value={form.impact} onChange={(e) => set({ impact: e.target.value })}>
-              <option value="">Selecione</option>
-              {XFLOW_IMPACT_ORDER.map((k) => <option key={k} value={k}>{XFLOW_IMPACT_META[k]}</option>)}
-            </select>
+        <details style={{ marginTop: 10 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 12.5, color: 'var(--text-4)' }}>Adicionar mais detalhes agora (opcional)</summary>
+          <div style={{ marginTop: 10 }}>
+            <div style={S.subSectionLabel}>Módulo / Tela</div>
+            <input type="text" value={form.module} onChange={(e) => set({ module: e.target.value })} placeholder="Ex.: Upload, Aderência, Dashboard" />
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={S.subSectionLabel}>Frequência</div>
-            <select value={form.frequency} onChange={(e) => set({ frequency: e.target.value })}>
-              <option value="">Selecione</option>
-              {XFLOW_FREQUENCY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_FREQUENCY_META[k]}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-          <div style={{ flex: 1 }}>
-            <div style={S.subSectionLabel}>Data e hora da ocorrência</div>
-            <input type="datetime-local" value={form.occurredAt} onChange={(e) => set({ occurredAt: e.target.value })} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={S.subSectionLabel}>Prioridade sugerida</div>
-            <select value={form.priority} onChange={(e) => set({ priority: e.target.value })}>
-              <option value="">Selecione</option>
-              {XFLOW_PRIORITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_PRIORITY_META[k].label}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div style={{ marginTop: 10 }}>
-          <div style={S.subSectionLabel}>Evidência (print, vídeo, arquivo, mensagem de erro)</div>
-          <label style={S.iconBtn}><Upload size={14} /> Anexar evidência
-            <input type="file" multiple style={{ display: 'none' }} onChange={handleEvidencePick} />
-          </label>
-          {form.evidence.map((ev) => (
-            <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12 }}>
-              <Paperclip size={12} /> {ev.name}
-              <button style={S.iconBtnGhost} onClick={() => removeEvidence(ev.id)}><X size={12} /></button>
+          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+            <div style={{ flex: 1 }}>
+              <div style={S.subSectionLabel}>Usuário afetado</div>
+              <input type="text" value={form.affectedUser} onChange={(e) => set({ affectedUser: e.target.value })} placeholder="Quem encontrou o problema" />
             </div>
-          ))}
-        </div>
+            <div style={{ flex: 1 }}>
+              <div style={S.subSectionLabel}>Empresa/Cliente afetado</div>
+              <input type="text" value={form.affectedCompany} onChange={(e) => set({ affectedCompany: e.target.value })} />
+            </div>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <div style={S.subSectionLabel}>Resultado esperado</div>
+            <textarea rows={2} value={form.expectedResult} onChange={(e) => set({ expectedResult: e.target.value })} placeholder="O que deveria acontecer" />
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <div style={S.subSectionLabel}>Passo a passo para reproduzir</div>
+            <textarea rows={4} value={form.reproSteps} onChange={(e) => set({ reproSteps: e.target.value })} placeholder={'1. Entrou em...\n2. Clicou em...\n3. Fez upload...'} />
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+            <div style={{ flex: 1 }}>
+              <div style={S.subSectionLabel}>Impacto</div>
+              <select value={form.impact} onChange={(e) => set({ impact: e.target.value })}>
+                <option value="">Selecione</option>
+                {XFLOW_IMPACT_ORDER.map((k) => <option key={k} value={k}>{XFLOW_IMPACT_META[k]}</option>)}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={S.subSectionLabel}>Frequência</div>
+              <select value={form.frequency} onChange={(e) => set({ frequency: e.target.value })}>
+                <option value="">Selecione</option>
+                {XFLOW_FREQUENCY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_FREQUENCY_META[k]}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+            <div style={{ flex: 1 }}>
+              <div style={S.subSectionLabel}>Data e hora da ocorrência</div>
+              <input type="datetime-local" value={form.occurredAt} onChange={(e) => set({ occurredAt: e.target.value })} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={S.subSectionLabel}>Prioridade sugerida</div>
+              <select value={form.priority} onChange={(e) => set({ priority: e.target.value })}>
+                <option value="">Selecione</option>
+                {XFLOW_PRIORITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_PRIORITY_META[k].label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <div style={S.subSectionLabel}>Evidência (print, vídeo, arquivo, mensagem de erro)</div>
+            <label style={S.iconBtn}><Upload size={14} /> Anexar evidência
+              <input type="file" multiple style={{ display: 'none' }} onChange={handleEvidencePick} />
+            </label>
+            {form.evidence.map((ev) => (
+              <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12 }}>
+                <Paperclip size={12} /> {ev.name}
+                <button style={S.iconBtnGhost} onClick={() => removeEvidence(ev.id)}><X size={12} /></button>
+              </div>
+            ))}
+          </div>
+        </details>
 
         <div style={{ ...S.fieldHint, marginTop: 10 }}>
-          Capturado automaticamente ao enviar: URL atual, navegador, sistema operacional, resolução da tela e sessão.
+          Capturado automaticamente ao enviar: URL atual, navegador, sistema operacional, resolução da tela e sessão — do ambiente de quem está preenchendo este formulário, não necessariamente de quem sofreu o problema.
         </div>
 
         {error && <div style={{ ...S.loginBlockedMsg, marginTop: 10 }}>{error}</div>}
@@ -331,13 +363,13 @@ function TriageMenu({ onAction }) {
   const [open, setOpen] = useState(false);
   const items = [
     { key: 'aceitar', label: 'Aceitar BUG' },
-    { key: 'infos', label: 'Solicitar mais informações' },
+    { key: 'pedir_infos', label: 'Solicitar mais informações' },
     { key: 'nao_reproduziu', label: 'Não consegui reproduzir' },
-    { key: 'duplicado', label: 'Marcar como duplicado' },
-    { key: 'nao_e_bug', label: 'Classificar como não sendo BUG' },
-    { key: 'escalar', label: 'Escalar para gerência/PO' },
+    { key: 'marcar_duplicado', label: 'Marcar como duplicado' },
+    { key: 'classificar_nao_bug', label: 'Classificar como não sendo BUG' },
+    { key: 'escalar_gerencia', label: 'Escalar para gerência/PO' },
     { key: 'redirecionar', label: 'Redirecionar' },
-    { key: 'iniciar', label: 'Iniciar desenvolvimento' },
+    { key: 'iniciar_dev_direto', label: 'Iniciar desenvolvimento' },
   ];
   return (
     <div style={{ position: 'relative' }}>
@@ -355,8 +387,22 @@ function TriageMenu({ onAction }) {
   );
 }
 
-function TicketDetailModal({ ticket, team, currentUser, onClose, onUpdate, onCreateSpinoff }) {
+function ContentField({ as: Tag = 'textarea', value, onCommit, disabled, rows, placeholder, type }) {
+  const [draft, setDraft] = useState(value || '');
+  useEffect(() => { setDraft(value || ''); }, [value]);
+  const common = {
+    value: draft, disabled, placeholder,
+    onChange: (e) => setDraft(e.target.value),
+    onBlur: () => { if (draft !== (value || '')) onCommit(draft); },
+  };
+  if (Tag === 'input') return <input type={type || 'text'} {...common} />;
+  return <textarea rows={rows || 2} {...common} />;
+}
+
+function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCreateSpinoff }) {
   const isMobile = useIsMobile();
+  const role = effectiveXflowRole(currentUser);
+  const [events, setEvents] = useState([]);
   const [commentDraft, setCommentDraft] = useState('');
   const [pendingMentions, setPendingMentions] = useState([]);
   const [showBlockForm, setShowBlockForm] = useState(false);
@@ -369,6 +415,16 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onUpdate, onCre
   const [dupIdDraft, setDupIdDraft] = useState('');
   const [reproduceNoteDraft, setReproduceNoteDraft] = useState('');
   const [showReproduceForm, setShowReproduceForm] = useState(false);
+  const [showRedirectForm, setShowRedirectForm] = useState(false);
+  const [redirectProduct, setRedirectProduct] = useState('');
+  const [redirectModule, setRedirectModule] = useState('');
+  const [redirectAssignee, setRedirectAssignee] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    apiGet(`/api/xflow/tickets/${ticket.id}/events`).then((res) => { if (!cancelled) setEvents(res.events); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [ticket.id, ticket.updatedAt]);
 
   const teamById = useMemo(() => {
     const m = {};
@@ -376,63 +432,62 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onUpdate, onCre
     return m;
   }, [team]);
 
-  const isReporter = ticket.reporterId === currentUser.id;
-  const canTriage = currentUser.xflowRole === 'dev' || currentUser.xflowRole === 'gestao';
-  const canValidateClosure = isReporter || currentUser.xflowRole === 'gestao';
-
-  function patch(fields, action) {
-    const next = { ...ticket, ...fields };
-    if (action) next.history = [historyEntry(action, currentUser.name), ...(ticket.history || [])].slice(0, 300);
-    onUpdate(next);
+  async function runAction(action, payload) {
+    try {
+      await onAction(ticket.id, action, payload || {});
+    } catch (e) {
+      window.alert(e.message);
+    }
   }
 
   function triageAction(key) {
-    if (key === 'aceitar') patch({ status: 'atribuida', assigneeId: currentUser.id }, `${currentUser.name} aceitou o BUG`);
-    else if (key === 'infos') patch({ status: 'aguardando_informacoes', statusBeforeBlock: ticket.status }, 'Solicitadas mais informações ao solicitante');
+    if (key === 'aceitar') runAction('aceitar');
+    else if (key === 'pedir_infos') runAction('pedir_infos');
     else if (key === 'nao_reproduziu') setShowReproduceForm(true);
-    else if (key === 'duplicado') setShowDupForm(true);
-    else if (key === 'nao_e_bug') patch({ status: 'nao_e_bug', closureReason: 'comportamento_esperado' }, 'Classificado como não sendo BUG');
-    else if (key === 'escalar') patch({ status: 'aguardando_gerencia', assigneeId: null }, 'Escalado para gerência/PO');
-    else if (key === 'redirecionar') window.alert('Abra o BUG e ajuste o campo Produto/Responsável pra redirecionar.');
-    else if (key === 'iniciar') patch({ status: 'em_desenvolvimento', assigneeId: currentUser.id }, 'Desenvolvimento iniciado');
+    else if (key === 'marcar_duplicado') setShowDupForm(true);
+    else if (key === 'classificar_nao_bug') runAction('classificar_nao_bug');
+    else if (key === 'escalar_gerencia') runAction('escalar_gerencia');
+    else if (key === 'redirecionar') setShowRedirectForm(true);
+    else if (key === 'iniciar_dev_direto') runAction('iniciar_dev_direto');
   }
 
   function confirmReproduce() {
     if (!reproduceNoteDraft.trim()) return;
-    patch({ status: 'nao_reproduzida', closureJustification: reproduceNoteDraft.trim() }, 'Marcado como não reproduzido');
+    runAction('nao_reproduziu', { closureJustification: reproduceNoteDraft.trim() });
     setShowReproduceForm(false);
     setReproduceNoteDraft('');
   }
   function confirmDuplicate() {
     if (!dupIdDraft.trim()) return;
-    patch({ status: 'duplicada', duplicateOfTicketId: dupIdDraft.trim(), closureReason: 'duplicado' }, `Marcado como duplicado do BUG #${dupIdDraft.trim()}`);
+    runAction('marcar_duplicado', { duplicateOfTicketId: dupIdDraft.trim() });
     setShowDupForm(false);
     setDupIdDraft('');
   }
+  function confirmRedirect() {
+    const payload = {};
+    if (redirectProduct) payload.product = redirectProduct;
+    if (redirectModule.trim()) payload.module = redirectModule.trim();
+    if (redirectAssignee) payload.assigneeId = redirectAssignee;
+    if (!payload.product && !payload.module && !payload.assigneeId) return;
+    runAction('redirecionar', payload);
+    setShowRedirectForm(false);
+    setRedirectProduct(''); setRedirectModule(''); setRedirectAssignee('');
+  }
 
-  function startBlock() { setShowBlockForm(true); }
   function confirmBlock() {
     if (!blockReasonDraft) return;
-    patch({ status: 'bloqueada', blockedReason: blockReasonDraft, statusBeforeBlock: ticket.status }, `Bloqueado — ${metaLabel(XFLOW_BLOCK_REASON_META, blockReasonDraft)}`);
+    runAction('bloquear', { blockedReason: blockReasonDraft });
     setShowBlockForm(false);
     setBlockReasonDraft('');
-  }
-  function unblock() {
-    patch({ status: ticket.statusBeforeBlock || 'em_desenvolvimento', blockedReason: '', statusBeforeBlock: '' }, 'Desbloqueado');
-  }
-  function togglePause() {
-    if (ticket.status === 'pausada') patch({ status: ticket.statusBeforeBlock || 'aberta', statusBeforeBlock: '' }, 'Retomado');
-    else patch({ status: 'pausada', statusBeforeBlock: ticket.status }, 'Pausado');
   }
 
   async function confirmClose() {
     if (!closeReasonDraft || !closeJustDraft.trim()) return;
     if (closeReasonDraft === 'duplicado' && !closeDupIdDraft.trim()) return;
-    const nextStatus = CLOSURE_REASON_TO_STATUS[closeReasonDraft];
-    patch({
-      status: nextStatus, closureReason: closeReasonDraft, closureJustification: closeJustDraft.trim(),
-      duplicateOfTicketId: closeReasonDraft === 'duplicado' ? closeDupIdDraft.trim() : ticket.duplicateOfTicketId,
-    }, `Encerrado sem desenvolvimento — ${metaLabel(XFLOW_CLOSURE_REASON_META, closeReasonDraft)}`);
+    await runAction('fechar_sem_desenvolver', {
+      closureReason: closeReasonDraft, closureJustification: closeJustDraft.trim(),
+      duplicateOfTicketId: closeReasonDraft === 'duplicado' ? closeDupIdDraft.trim() : undefined,
+    });
     if (closeReasonDraft === 'melhoria' && onCreateSpinoff) {
       await onCreateSpinoff(ticket);
     }
@@ -440,23 +495,10 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onUpdate, onCre
     setCloseReasonDraft(''); setCloseJustDraft(''); setCloseDupIdDraft('');
   }
 
-  function sendToReview() { patch({ status: 'em_revisao' }, 'Enviado para revisão'); }
-  function markReadyForTest() {
-    if (!ticket.solution || !ticket.whatToTest) { window.alert('Preencha "Solução aplicada" e "O que testar" antes.'); return; }
-    patch({ status: 'pronta_para_teste' }, 'Marcado pronto para teste');
-  }
-  function sendToHomolog() { patch({ status: 'em_homologacao' }, 'Enviado para homologação'); }
-  function publish() { patch({ status: 'publicada' }, 'Publicado'); }
-  function sendToValidation() { patch({ status: 'aguardando_validacao_solicitante' }, 'Enviado para validação do solicitante'); }
-  function approve() { patch({ status: 'concluida' }, `${currentUser.name} aprovou a solução`); }
-  function reject() { patch({ status: 'em_desenvolvimento' }, `${currentUser.name} reprovou a solução — voltou para desenvolvimento`); }
-  function archive() { patch({ archived: true }, 'Arquivado'); }
-
   function submitComment() {
     const text = commentDraft.trim();
     if (!text) return;
-    const comment = { id: uid('xc'), text, ts: new Date().toISOString(), author: currentUser.name, authorId: currentUser.id, mentions: pendingMentions };
-    patch({ comments: [comment, ...(ticket.comments || [])] }, 'Comentário adicionado');
+    runAction('comentar', { text, mentions: pendingMentions });
     setCommentDraft('');
     setPendingMentions([]);
   }
@@ -473,13 +515,22 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onUpdate, onCre
         return;
       }
       const reader = new FileReader();
-      reader.onload = () => patch({ evidence: [...(ticket.evidence || []), { id: uid('ev'), name: file.name, size: file.size, type: file.type, dataUrl: reader.result }] }, `Anexo adicionado: "${file.name}"`);
+      reader.onload = () => runAction('anexar', { evidence: { id: uid('ev'), name: file.name, size: file.size, type: file.type, dataUrl: reader.result } });
       reader.readAsDataURL(file);
     });
   }
 
   const ball = whoHasTheBall(ticket, teamById);
   const terminal = isTerminal(ticket.status);
+  const canEditContent = canDoClient('edit_content', currentUser, ticket);
+  const canEditOps = canDoClient('editar_prazo_proxima_acao', currentUser, ticket);
+  const closureReasonOptions = XFLOW_CLOSURE_REASON_ORDER.filter((k) => k !== 'descartado_gestao' || canDoClient('fechar_motivo_gestao', currentUser, ticket));
+
+  const legacyHistory = (ticket.history || []).map((h, i) => ({ id: `legacy-${i}`, createdAt: h.ts, note: h.action, userName: h.user }));
+  const structuredHistory = events
+    .filter((e) => e.type !== 'comment')
+    .map((e) => ({ id: e.id, createdAt: e.createdAt, note: e.note, userName: (teamById[e.userId] && teamById[e.userId].name) || '' }));
+  const timeline = [...structuredHistory, ...legacyHistory].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
   return (
     <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
@@ -487,7 +538,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onUpdate, onCre
         <div style={S.detailTopBar}>
           <div>
             <div style={{ fontSize: 12, color: 'var(--text-5)', fontWeight: 700 }}>BUG #{ticket.number}</div>
-            <input type="text" value={ticket.title} onChange={(e) => patch({ title: e.target.value })} onBlur={() => patch({}, `Título alterado: "${ticket.title}"`)} style={{ fontSize: 17, fontWeight: 800, border: 'none', background: 'transparent', padding: 0 }} />
+            <ContentField as="input" value={ticket.title} disabled={!canEditContent} onCommit={(v) => runAction('editar_campo', { field: 'title', value: v })} />
           </div>
           <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
         </div>
@@ -502,18 +553,20 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onUpdate, onCre
         <div style={{ display: 'flex', gap: 20, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
           <div style={{ flex: 2, minWidth: 0 }}>
             <div style={S.subSectionLabel}>Descrição</div>
-            <textarea rows={3} value={ticket.description} onChange={(e) => patch({ description: e.target.value })} />
+            <ContentField value={ticket.description} disabled={!canEditContent} rows={3} onCommit={(v) => runAction('editar_campo', { field: 'description', value: v })} />
 
             <div style={{ ...S.subSectionLabel, marginTop: 12 }}>Resultado esperado</div>
-            <textarea rows={2} value={ticket.expectedResult} onChange={(e) => patch({ expectedResult: e.target.value })} />
+            <ContentField value={ticket.expectedResult} disabled={!canEditContent} rows={2} onCommit={(v) => runAction('editar_campo', { field: 'expectedResult', value: v })} />
 
             <div style={{ ...S.subSectionLabel, marginTop: 12 }}>Passo a passo para reproduzir</div>
-            <textarea rows={4} value={ticket.reproSteps} onChange={(e) => patch({ reproSteps: e.target.value })} />
+            <ContentField value={ticket.reproSteps} disabled={!canEditContent} rows={4} onCommit={(v) => runAction('editar_campo', { field: 'reproSteps', value: v })} />
 
             <div style={{ ...S.subSectionLabel, marginTop: 12 }}>Evidências</div>
-            <label style={S.iconBtn}><Upload size={14} /> Anexar
-              <input type="file" multiple style={{ display: 'none' }} onChange={handleEvidencePick} />
-            </label>
+            {canDoClient('attach_evidence', currentUser, ticket) && (
+              <label style={S.iconBtn}><Upload size={14} /> Anexar
+                <input type="file" multiple style={{ display: 'none' }} onChange={handleEvidencePick} />
+              </label>
+            )}
             {(ticket.evidence || []).map((ev) => (
               <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12 }}>
                 {ev.type && ev.type.startsWith('image/') ? <img src={ev.dataUrl} alt={ev.name} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} /> : <Paperclip size={12} />}
@@ -524,9 +577,9 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onUpdate, onCre
             {(ticket.solution || ticket.whatToTest || ['em_desenvolvimento', 'em_revisao', 'pronta_para_teste', 'em_homologacao', 'publicada', 'aguardando_validacao_solicitante', 'concluida'].includes(ticket.status)) && (
               <>
                 <div style={{ ...S.subSectionLabel, marginTop: 12 }}>Solução aplicada</div>
-                <textarea rows={2} value={ticket.solution || ''} onChange={(e) => patch({ solution: e.target.value })} placeholder="O que foi feito para corrigir" />
+                <ContentField value={ticket.solution} disabled={!canEditContent} rows={2} placeholder="O que foi feito para corrigir" onCommit={(v) => runAction('editar_campo', { field: 'solution', value: v })} />
                 <div style={{ ...S.subSectionLabel, marginTop: 12 }}>O que testar</div>
-                <textarea rows={2} value={ticket.whatToTest || ''} onChange={(e) => patch({ whatToTest: e.target.value })} placeholder="Passos pra validar a correção" />
+                <ContentField value={ticket.whatToTest} disabled={!canEditContent} rows={2} placeholder="Passos pra validar a correção" onCommit={(v) => runAction('editar_campo', { field: 'whatToTest', value: v })} />
               </>
             )}
 
@@ -547,11 +600,11 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onUpdate, onCre
             ))}
 
             <div style={{ ...S.subSectionLabel, marginTop: 16 }}><Clock size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Timeline</div>
-            {(ticket.history || []).length === 0 && <div style={S.emptyMuted}>Nenhum evento ainda.</div>}
-            {(ticket.history || []).map((h, i) => (
-              <div key={i} style={S.logRow}>
-                <div style={S.logTs}>{fmtTs(h.ts)}{h.user ? ` · ${h.user}` : ''}</div>
-                <div style={S.logAction}>{h.action}</div>
+            {timeline.length === 0 && <div style={S.emptyMuted}>Nenhum evento ainda.</div>}
+            {timeline.map((h) => (
+              <div key={h.id} style={S.logRow}>
+                <div style={S.logTs}>{fmtTs(h.createdAt)}{h.userName ? ` · ${h.userName}` : ''}</div>
+                <div style={S.logAction}>{h.note}</div>
               </div>
             ))}
           </div>
@@ -564,7 +617,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onUpdate, onCre
               {ticket.dueDate && <div style={{ ...S.fieldHint, marginTop: 2 }}>Prazo: {fmtDate(ticket.dueDate)}</div>}
             </div>
 
-            {!terminal && (ticket.status === 'aberta' || ticket.status === 'triagem') && canTriage && (
+            {!terminal && (ticket.status === 'aberta' || ticket.status === 'triagem') && canDoClient('triage', currentUser, ticket) && (
               <div style={{ marginBottom: 10 }}><TriageMenu onAction={triageAction} /></div>
             )}
             {showReproduceForm && (
@@ -581,27 +634,58 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onUpdate, onCre
                 <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmDuplicate} disabled={!dupIdDraft.trim()}>Vincular e marcar duplicado</button>
               </div>
             )}
+            {showRedirectForm && (
+              <div style={{ ...S.accessBlock, marginBottom: 10 }}>
+                <div style={S.fieldHint}>Novo produto (opcional)</div>
+                <select value={redirectProduct} onChange={(e) => setRedirectProduct(e.target.value)}>
+                  <option value="">Manter</option>
+                  {XFLOW_PRODUCTS.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <div style={{ ...S.fieldHint, marginTop: 6 }}>Novo módulo (opcional)</div>
+                <input type="text" value={redirectModule} onChange={(e) => setRedirectModule(e.target.value)} />
+                <div style={{ ...S.fieldHint, marginTop: 6 }}>Novo responsável (opcional)</div>
+                <select value={redirectAssignee} onChange={(e) => setRedirectAssignee(e.target.value)}>
+                  <option value="">Manter</option>
+                  {(team || []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmRedirect}>Confirmar redirecionamento</button>
+              </div>
+            )}
 
-            {ticket.status === 'atribuida' && <button style={{ ...S.primaryBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => patch({ status: 'em_desenvolvimento' }, 'Desenvolvimento iniciado')}>Iniciar desenvolvimento</button>}
-            {ticket.status === 'em_desenvolvimento' && <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={sendToReview}>Enviar para revisão</button>}
-            {ticket.status === 'em_revisao' && <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={markReadyForTest}>Marcar pronta para teste</button>}
-            {ticket.status === 'pronta_para_teste' && <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={sendToHomolog}>Enviar para homologação</button>}
-            {ticket.status === 'em_homologacao' && <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={publish}>Publicar</button>}
-            {ticket.status === 'publicada' && <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={sendToValidation}>Enviar para validação do solicitante</button>}
+            {ticket.status === 'atribuida' && canDoClient('advance_dev_pipeline', currentUser, ticket) && (
+              <button style={{ ...S.primaryBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => runAction('iniciar_desenvolvimento')}>Iniciar desenvolvimento</button>
+            )}
+            {ticket.status === 'em_desenvolvimento' && canDoClient('advance_dev_pipeline', currentUser, ticket) && (
+              <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => runAction('enviar_revisao')}>Enviar para revisão</button>
+            )}
+            {ticket.status === 'em_revisao' && canDoClient('advance_dev_pipeline', currentUser, ticket) && (
+              <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => runAction('marcar_pronta_teste')}>Marcar pronta para teste</button>
+            )}
+            {ticket.status === 'pronta_para_teste' && canDoClient('advance_dev_pipeline', currentUser, ticket) && (
+              <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => runAction('enviar_homologacao')}>Enviar para homologação</button>
+            )}
+            {ticket.status === 'em_homologacao' && (
+              canDoClient('homologar', currentUser, ticket)
+                ? <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => runAction('publicar')}>Publicar</button>
+                : <div style={{ ...S.fieldHint, marginBottom: 8 }}>Em homologação — só gestão/admin aprova e publica.</div>
+            )}
+            {ticket.status === 'publicada' && canDoClient('enviar_validacao', currentUser, ticket) && (
+              <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => runAction('enviar_validacao')}>Enviar para validação do solicitante</button>
+            )}
             {ticket.status === 'aguardando_validacao_solicitante' && (
-              canValidateClosure ? (
+              canDoClient('aprovar_validacao', currentUser, ticket) ? (
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                  <button style={{ ...S.primaryBtn, flex: 1, justifyContent: 'center' }} onClick={approve}>Aprovar</button>
-                  <button style={{ ...S.iconBtn, flex: 1, justifyContent: 'center' }} onClick={reject}>Reprovar</button>
+                  <button style={{ ...S.primaryBtn, flex: 1, justifyContent: 'center' }} onClick={() => runAction('aprovar_validacao')}>Aprovar</button>
+                  <button style={{ ...S.iconBtn, flex: 1, justifyContent: 'center' }} onClick={() => runAction('reprovar_validacao')}>Reprovar</button>
                 </div>
               ) : <div style={{ ...S.fieldHint, marginBottom: 8 }}>Aguardando validação do solicitante — DEV não pode concluir sozinho.</div>
             )}
 
-            {!terminal && ticket.status !== 'bloqueada' && (
-              <button style={{ ...S.iconBtnGhost, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={startBlock}><Ban size={13} /> Bloquear</button>
+            {!terminal && ticket.status !== 'bloqueada' && canDoClient('block', currentUser, ticket) && (
+              <button style={{ ...S.iconBtnGhost, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={() => setShowBlockForm(true)}><Ban size={13} /> Bloquear</button>
             )}
-            {ticket.status === 'bloqueada' && (
-              <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={unblock}>Desbloquear</button>
+            {ticket.status === 'bloqueada' && canDoClient('unblock', currentUser, ticket) && (
+              <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={() => runAction('desbloquear')}>Desbloquear</button>
             )}
             {showBlockForm && (
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
@@ -613,10 +697,10 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onUpdate, onCre
                 <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmBlock} disabled={!blockReasonDraft}>Confirmar bloqueio</button>
               </div>
             )}
-            {!terminal && ticket.status !== 'bloqueada' && (
-              <button style={{ ...S.iconBtnGhost, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={togglePause}>{ticket.status === 'pausada' ? 'Retomar' : 'Pausar'}</button>
+            {!terminal && ticket.status !== 'bloqueada' && canDoClient(ticket.status === 'pausada' ? 'resume' : 'pause', currentUser, ticket) && (
+              <button style={{ ...S.iconBtnGhost, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={() => runAction(ticket.status === 'pausada' ? 'retomar' : 'pausar')}>{ticket.status === 'pausada' ? 'Retomar' : 'Pausar'}</button>
             )}
-            {!terminal && (
+            {!terminal && canDoClient('fechar_sem_desenvolver', currentUser, ticket) && (
               <button style={{ ...S.iconBtnGhost, width: '100%', justifyContent: 'center', marginBottom: 6, color: '#e2574c' }} onClick={() => setShowCloseForm((v) => !v)}>Fechar sem desenvolver</button>
             )}
             {showCloseForm && (
@@ -624,7 +708,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onUpdate, onCre
                 <div style={S.fieldHint}>Motivo do encerramento</div>
                 <select value={closeReasonDraft} onChange={(e) => setCloseReasonDraft(e.target.value)}>
                   <option value="">Selecione</option>
-                  {XFLOW_CLOSURE_REASON_ORDER.map((k) => <option key={k} value={k}>{XFLOW_CLOSURE_REASON_META[k]}</option>)}
+                  {closureReasonOptions.map((k) => <option key={k} value={k}>{XFLOW_CLOSURE_REASON_META[k]}</option>)}
                 </select>
                 {closeReasonDraft === 'duplicado' && (
                   <input type="text" style={{ marginTop: 6 }} placeholder="ID/número do BUG original" value={closeDupIdDraft} onChange={(e) => setCloseDupIdDraft(e.target.value)} />
@@ -635,33 +719,46 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onUpdate, onCre
                 <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmClose} disabled={!closeReasonDraft || !closeJustDraft.trim() || (closeReasonDraft === 'duplicado' && !closeDupIdDraft.trim())}>Confirmar encerramento</button>
               </div>
             )}
-            {ticket.status === 'concluida' && !ticket.archived && (
-              <button style={{ ...S.iconBtnGhost, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={archive}><Archive size={13} /> Arquivar</button>
+            {terminal && !ticket.archived && canDoClient('reabrir', currentUser, ticket) && (
+              <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={() => {
+                const note = window.prompt('Motivo da reabertura (obrigatório):');
+                if (note && note.trim()) runAction('reabrir', { note: note.trim() });
+              }}>Reabrir BUG</button>
+            )}
+            {ticket.status === 'concluida' && !ticket.archived && canDoClient('arquivar', currentUser, ticket) && (
+              <button style={{ ...S.iconBtnGhost, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={() => runAction('arquivar')}><Archive size={13} /> Arquivar</button>
             )}
 
             <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Severidade</div>
-            <select value={ticket.severity || ''} onChange={(e) => patch({ severity: e.target.value }, `Severidade alterada para ${metaLabel(XFLOW_SEVERITY_META, e.target.value)}`)}>
+            <select value={ticket.severity || ''} disabled={!canDoClient('change_severity', currentUser, ticket)} onChange={(e) => runAction('mudar_severidade', { severity: e.target.value })}>
               <option value="">Sem severidade</option>
               {XFLOW_SEVERITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_SEVERITY_META[k].label}</option>)}
             </select>
 
             <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Prioridade</div>
-            <select value={ticket.priority || ''} onChange={(e) => patch({ priority: e.target.value }, `Prioridade alterada para ${metaLabel(XFLOW_PRIORITY_META, e.target.value)}`)}>
+            <select value={ticket.priority || ''} disabled={!canDoClient('change_priority', currentUser, ticket)} onChange={(e) => runAction('mudar_prioridade', { priority: e.target.value })}>
               <option value="">Sem prioridade</option>
               {XFLOW_PRIORITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_PRIORITY_META[k].label}</option>)}
             </select>
+            {ticket.suggestedPriority && <div style={S.fieldHint}>Sugestão original do solicitante: {metaLabel(XFLOW_PRIORITY_META, ticket.suggestedPriority)}</div>}
 
             <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Responsável atual</div>
-            <select value={ticket.assigneeId || ''} onChange={(e) => patch({ assigneeId: e.target.value || null }, 'Responsável alterado')}>
-              <option value="">Ninguém</option>
-              {(team || []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
+            {(role === 'gestao' || role === 'admin') ? (
+              <select value={ticket.assigneeId || ''} onChange={(e) => runAction('reatribuir', { assigneeId: e.target.value || null })}>
+                <option value="">Ninguém</option>
+                {(team || []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            ) : role === 'dev' && ticket.assigneeId !== currentUser.id ? (
+              <button style={S.iconBtn} onClick={() => runAction('reatribuir', { assigneeId: currentUser.id })}>Assumir para mim</button>
+            ) : (
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{(teamById[ticket.assigneeId] && teamById[ticket.assigneeId].name) || 'Ninguém'}</div>
+            )}
 
             <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Próxima ação</div>
-            <input type="text" value={ticket.nextAction || ''} onChange={(e) => patch({ nextAction: e.target.value })} />
+            <ContentField as="input" value={ticket.nextAction} disabled={!canEditOps} onCommit={(v) => runAction('editar_prazo_proxima_acao', { nextAction: v })} />
 
             <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Prazo</div>
-            <input type="date" value={ticket.dueDate || ''} onChange={(e) => patch({ dueDate: e.target.value })} />
+            <input type="date" value={ticket.dueDate || ''} disabled={!canEditOps} onChange={(e) => runAction('editar_prazo_proxima_acao', { dueDate: e.target.value })} />
 
             <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Dados capturados</div>
             <div style={S.fieldHint}>Produto: {ticket.product || '—'} · Módulo: {ticket.module || '—'}</div>
@@ -708,19 +805,14 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
       product: originalTicket.product, module: originalTicket.module,
       description: originalTicket.description, type: 'melhoria',
       originatedFromTicketId: String(originalTicket.number),
-      status: 'aberta',
+      environment: originalTicket.environment || 'producao',
     });
     setTickets((prev) => [res.ticket, ...prev]);
   }
 
-  async function updateTicket(nextTicket) {
-    setTickets((prev) => prev.map((t) => (t.id === nextTicket.id ? nextTicket : t)));
-    try {
-      const res = await apiPatch(`/api/xflow/tickets/${nextTicket.id}`, { ticket: nextTicket });
-      setTickets((prev) => prev.map((t) => (t.id === res.ticket.id ? res.ticket : t)));
-    } catch (e) {
-      window.alert('Falha ao salvar: ' + e.message);
-    }
+  async function performAction(ticketId, action, payload) {
+    const res = await apiPatch(`/api/xflow/tickets/${ticketId}`, { action, payload });
+    setTickets((prev) => prev.map((t) => (t.id === res.ticket.id ? res.ticket : t)));
   }
 
   const openTicket = tickets.find((t) => t.id === openTicketId);
@@ -735,6 +827,7 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
   });
   const dependemDeVoce = meusBugs.filter((t) => {
     if (role === 'reporter') return t.status === 'aguardando_informacoes' || t.status === 'aguardando_validacao_solicitante';
+    if (role === 'dev') return t.assigneeId === currentUser.id && !isTerminal(t.status) && (t.status === 'atribuida' || t.status === 'em_desenvolvimento' || t.status === 'em_revisao');
     if (role === 'gestao') return t.status === 'aguardando_gerencia';
     return false;
   });
@@ -751,6 +844,7 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
   const activeList = (TABS.find((t) => t.key === tab) || TABS[0]).list;
 
   const isMobile = useIsMobile();
+  const effRole = effectiveXflowRole(currentUser);
 
   return (
     <div style={S.page}>
@@ -759,7 +853,7 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
           <BrandLogo theme={theme} style={S.logoImg} />
           <div>
             <div style={{ fontWeight: 800 }}>XFlow</div>
-            <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{currentUser.name} · {XFLOW_ROLE_META[role] ? XFLOW_ROLE_META[role].label : role}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{currentUser.name} · {XFLOW_ROLE_META[effRole] ? XFLOW_ROLE_META[effRole].label : role}</div>
           </div>
           {onExit && <button style={S.iconBtnGhost} onClick={onExit}>Sair do XFlow</button>}
         </div>
@@ -810,7 +904,7 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
           team={team}
           currentUser={currentUser}
           onClose={() => setOpenTicketId(null)}
-          onUpdate={updateTicket}
+          onAction={performAction}
           onCreateSpinoff={createSpinoff}
         />
       )}
