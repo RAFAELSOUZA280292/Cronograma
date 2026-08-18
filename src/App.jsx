@@ -642,6 +642,8 @@ export default function App() {
       <XFlowScreen
         currentUser={currentUser}
         onExit={() => setWorkspaceMode(null)}
+        onGoCompany={currentUser.personalOnly ? null : () => setWorkspaceMode('company')}
+        onGoPersonal={() => setWorkspaceMode('personal')}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -658,6 +660,7 @@ export default function App() {
         board={personalBoard}
         onMutate={mutatePersonalBoard}
         onExit={currentUser.personalOnly ? null : () => setWorkspaceMode('company')}
+        onGoXFlow={currentUser.xflowRole ? () => setWorkspaceMode('xflow') : null}
         currentUser={currentUser}
         onLogout={handleLogout}
         theme={theme}
@@ -1459,6 +1462,7 @@ export default function App() {
     !isMulti && { icon: Settings, label: 'Empresa', onClick: () => setShowSettings(true) },
     canPickCompanies && { icon: Building2, label: 'Trocar empresas', onClick: () => setCompanySelectionConfirmed(false) },
     { icon: Columns3, label: 'Gestão de Atividades', onClick: () => setWorkspaceMode('personal') },
+    currentUser.xflowRole && { icon: Bug, label: 'XFlow', onClick: () => setWorkspaceMode('xflow') },
     (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Plus, label: 'Cadastrar empresa', onClick: () => setShowCreateCompany(true) },
     currentUser.role === 'master' && { icon: UserCog, label: 'Usuários', onClick: () => setShowUsers(true) },
     currentUser.isSuperAdmin && { icon: Building2, label: 'Organizações', onClick: () => setShowOrgAdmin(true) },
@@ -1551,6 +1555,9 @@ export default function App() {
           )}
           {!isMobile && (
             <button style={S.iconBtn} onClick={() => setWorkspaceMode('personal')}><Columns3 size={15} /> Gestão de Atividades</button>
+          )}
+          {!isMobile && currentUser.xflowRole && (
+            <button style={S.iconBtn} onClick={() => setWorkspaceMode('xflow')}><Bug size={15} /> XFlow</button>
           )}
         </div>
         <div style={S.actionsRow}>
@@ -4476,7 +4483,7 @@ function BoardActivityLogModal({ board, onClose }) {
   );
 }
 
-function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName }) {
+function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName }) {
   const [activeBoardId, setActiveBoardId] = useState(board.boards[0] ? board.boards[0].id : null);
   const [dragBoardId, setDragBoardId] = useState(null);
   const [openCard, setOpenCard] = useState(null);
@@ -5082,6 +5089,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, currentUser, onLogout, t
             <div style={S.brandCnpj}>{publicMode ? (publicOwnerName ? `Quadro de ${publicOwnerName}` : 'Quadro compartilhado') : currentUser.name}</div>
           </div>
           {onExit && <button className="pb-ghost" style={S.pbGhostBtn} onClick={onExit}><Building2 size={15} /> Ir para Empresas</button>}
+          {onGoXFlow && <button className="pb-ghost" style={S.pbGhostBtn} onClick={onGoXFlow}><Bug size={15} /> Ir para XFlow</button>}
           {!readOnly && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira{trashItems.length > 0 ? ` (${trashItems.length})` : ''}</button>}
           {!readOnly && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowArchive(true)}><Archive size={15} /> Concluídas{archiveItems.length > 0 ? ` (${archiveItems.length})` : ''}</button>}
         </div>

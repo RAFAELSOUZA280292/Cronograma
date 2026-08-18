@@ -659,6 +659,38 @@ completo (arquitetura de dados, matriz de permissões, matriz de transições).
   em `editar_campo`). Testado com payload malicioso real (`<script>`,
   `onerror`, `<iframe>`, `href="javascript:"`, `img` remoto) via curl —
   tudo removido, só a formatação e imagem `data:` legítimas sobrevivem.
+- **Campos complementares preenchíveis depois**: `EDITABLE_CONTENT_FIELDS`
+  em `server/xflow.js` inclui `module`/`affectedUser`/`affectedCompany`/
+  `impact`/`frequency`/`occurredAt`/`clientType` (além dos já existentes) —
+  qualquer um pode ser adicionado num ticket que não tinha, via a mesma
+  ação genérica `editar_campo`, cada mudança vira um evento na timeline
+  automaticamente (nenhum código novo de log precisou ser escrito, é o
+  mecanismo genérico já existente). Renderizado como bloco editável
+  "Dados capturados" no `TicketDetailModal` (era só texto read-only antes).
+  `suggestedPriority` é o único caso especial: ação própria
+  (`definir_prioridade_sugerida`) que só aceita gravar se o campo ainda
+  está vazio — depois de definida (na criação ou depois), fica travada pra
+  sempre (o backend rejeita com 400; o `<select>` fica desabilitado no
+  frontend) — preserva a regra original de "sugestão do solicitante é
+  imutável" mesmo permitindo preencher tardiamente. Evidências ganharam
+  `remover_anexo` (mesma permissão de `anexar`) — antes só dava pra
+  adicionar anexo num ticket existente, nunca remover.
+- **Navegação entre os três módulos**: de qualquer um dos três
+  (Empresas/Gestão de Atividades/XFlow), dá pra ir direto pros outros dois
+  sem passar pelo `WorkspaceGateScreen` — botões nos respectivos topbars
+  (`onGoCompany`/`onGoPersonal` novos em `XFlowScreen`, `onGoXFlow` novo em
+  `PersonalBoardScreen`, botão "XFlow" novo no topbar de Empresas em
+  `App.jsx`), sempre condicionados ao acesso real do usuário
+  (`xflowRole`/`!personalOnly`) — nunca aparece um link pra um módulo que o
+  usuário não pode entrar.
+- **Tipo de TASK (BUG/Melhoria)**: `data.type` já existia desde a v1
+  (default `'bug'`, `createSpinoff` já usava `'melhoria'`) mas nunca era
+  perguntado — sempre `'bug'` silencioso. Agora é a primeira pergunta do
+  `NewTicketModal` (dois cartões clicáveis, BUG selecionado por padrão),
+  e os textos ao redor (título/descrição/botão de enviar) se adaptam ao
+  tipo escolhido. Botão do topbar "Novo BUG" → "Nova TASK" (só o rótulo do
+  botão — não é um rename geral de "BUG" pra "TASK" na tela toda, isso
+  continua fora do escopo).
 - **Fora do escopo ainda** (não pedido/não decidido): calendário útil no
   SLA (hoje é tempo corrido), notificação de @menção via o sino do
   Cronograma (comentários do XFlow ainda não aparecem lá), BUGs
