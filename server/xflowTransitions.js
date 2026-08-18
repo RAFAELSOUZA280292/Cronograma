@@ -48,6 +48,12 @@ export const XFLOW_TRANSITIONS = {
   fechar_sem_desenvolver: { from: [...NON_TERMINAL_ACTIVE, 'bloqueada', 'pausada'], to: null, permission: 'fechar_sem_desenvolver', requiresFields: ['closureReason', 'closureJustification'] },
   arquivar: { from: XFLOW_TERMINAL_STATUSES, to: null, permission: 'arquivar' },
   desarquivar: { from: XFLOW_TERMINAL_STATUSES, to: null, permission: 'desarquivar' },
+  // Soft-delete: de qualquer status (não só terminal, ao contrário de
+  // arquivar) — um ticket aberto por engano também precisa poder ir pra
+  // Lixeira. purgar (apagar de vez) não passa por aqui — é DELETE direto,
+  // ver router.delete('/tickets/:id') em xflow.js.
+  excluir: { from: null, to: null, permission: 'excluir' },
+  restaurar: { from: null, to: null, permission: 'restaurar' },
   // Ações que não mudam status — só validam permissão sobre o ticket atual.
   editar_campo: { from: null, to: null, permission: 'edit_content' },
   mudar_severidade: { from: null, to: null, permission: 'change_severity' },

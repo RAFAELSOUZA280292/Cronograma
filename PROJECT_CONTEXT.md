@@ -623,6 +623,21 @@ completo (arquitetura de dados, matriz de permissões, matriz de transições).
   pelo BUG, não o produto. Ambos os campos ficam em `data` JSONB (não são
   coluna relacional — não precisam ser filtráveis em SQL hoje).
   `occurredAt` (data da ocorrência) é **só data**, sem hora.
+- **Exclusão (soft-delete) + Lixeira**: nenhum BUG é apagado de verdade por
+  quem não é admin. `excluir` (colunas `deleted`/`deleted_at`/`deleted_by`
+  em `xflow_tickets`) tira o ticket de `GET /xflow/tickets` na hora — dono
+  (reporter) pode excluir o próprio, dev/gestão/admin excluem qualquer um.
+  `GET /xflow/tickets?trash=1` (só gestão/admin — `LixeiraView` no
+  frontend) lista os excluídos, com todo o histórico (`xflow_events`)
+  preservado; `restaurar` (gestão/admin) devolve pro fluxo normal.
+  `purgar` é **a única exclusão de verdade** — `DELETE /xflow/tickets/:id`,
+  hard delete (cascade em `xflow_events`), restrito a `role === 'admin'`
+  (master/superAdmin do Cronograma com `xflow_role`) e só a partir de um
+  ticket que já está na Lixeira; no frontend exige digitar
+  `XFLOW_PURGE_CONFIRM_PHRASE` (`window.prompt`, mesmo padrão do hard-delete
+  de card do quadro pessoal em `App.jsx`). PATCH em qualquer ticket já
+  excluído é bloqueado no backend (só aceita `restaurar`) — proteção real,
+  não só ausência de botão na tela.
 - **Fora do escopo ainda** (não pedido/não decidido): calendário útil no
   SLA (hoje é tempo corrido), notificação de @menção via o sino do
   Cronograma (comentários do XFlow ainda não aparecem lá), BUGs

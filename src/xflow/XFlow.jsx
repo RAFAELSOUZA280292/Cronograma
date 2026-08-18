@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   X, Plus, MessageSquare, Clock, Paperclip, ChevronDown, LogOut,
-  Upload, Archive, Ban,
+  Upload, Archive, Ban, Trash2,
 } from 'lucide-react';
-import { apiGet, apiPost, apiPatch } from '../lib/api.js';
+import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn } from '../App.jsx';
 
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
@@ -147,6 +147,9 @@ const XFLOW_RULES = {
   fechar_motivo_gestao: (role) => isAtLeast(role, 'gestao'),
   editar_prazo_proxima_acao: (role, user, ticket) => (role === 'dev' ? isAssignee(user, ticket) : isAtLeast(role, 'gestao')),
   arquivar: (role) => isAtLeast(role, 'gestao'),
+  excluir: (role, user, ticket) => (role === 'reporter' ? isOwner(user, ticket) : isAtLeast(role, 'dev')),
+  restaurar: (role) => isAtLeast(role, 'gestao'),
+  purgar: (role) => role === 'admin',
 };
 function canDoClient(action, user, ticket, payload) {
   const role = effectiveXflowRole(user);
@@ -157,6 +160,7 @@ function canDoClient(action, user, ticket, payload) {
 }
 
 const WAITING_ON_LABEL = { solicitante: 'Solicitante', cliente: 'Cliente', terceiro: 'Terceiro' };
+const XFLOW_PURGE_CONFIRM_PHRASE = 'APAGAR DE VEZ';
 
 function whoHasTheBall(ticket, teamById) {
   if (ticket.ballHolderType === 'none') return '—';
@@ -459,6 +463,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   const [closeDupIdDraft, setCloseDupIdDraft] = useState('');
   const [showDupForm, setShowDupForm] = useState(false);
   const [dupIdDraft, setDupIdDraft] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [reproduceNoteDraft, setReproduceNoteDraft] = useState('');
   const [showReproduceForm, setShowReproduceForm] = useState(false);
   const [showRedirectForm, setShowRedirectForm] = useState(false);
@@ -633,7 +638,17 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
           <Badge meta={XFLOW_PRIORITY_META[ticket.priority]} />
           {ticket.slaResolutionState && <Badge meta={XFLOW_SLA_STATE_META[ticket.slaResolutionState]} />}
           {ticket.archived && <Badge meta={{ label: 'Arquivado', ...tone('#999999') }} />}
+          {ticket.deleted && <Badge meta={{ label: 'Na Lixeira', ...tone('#e2574c') }} />}
         </div>
+
+        {ticket.deleted && (
+          <div style={{ ...S.loginBlockedMsg, marginBottom: 14 }}>
+            Este BUG está na Lixeira{ticket.deletedBy && teamById[ticket.deletedBy] ? ` (excluído por ${teamById[ticket.deletedBy].name})` : ''}.
+            {canDoClient('restaurar', currentUser, ticket) && (
+              <button style={{ ...S.iconBtn, marginLeft: 10 }} onClick={() => runAction('restaurar')}>Restaurar</button>
+            )}
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 20, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
           <div style={{ flex: 2, minWidth: 0 }}>
@@ -869,6 +884,20 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             )}
             {ticket.status === 'concluida' && !ticket.archived && canDoClient('arquivar', currentUser, ticket) && (
               <button style={{ ...S.iconBtnGhost, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={() => runAction('arquivar')}><Archive size={13} /> Arquivar</button>
+            )}
+            {!ticket.deleted && canDoClient('excluir', currentUser, ticket) && (
+              <button style={{ ...S.iconBtnGhost, width: '100%', justifyContent: 'center', marginBottom: 6, color: '#e2574c' }} onClick={() => setShowDeleteConfirm((v) => !v)}>
+                <Trash2 size={13} /> Excluir
+              </button>
+            )}
+            {!ticket.deleted && showDeleteConfirm && (
+              <div style={{ ...S.accessBlock, marginBottom: 10 }}>
+                <div style={S.fieldHint}>
+                  O BUG vai para a Lixeira — nada é apagado de verdade. Fica lá com todo o
+                  histórico até alguém da gestão restaurar (ou o admin apagar de vez).
+                </div>
+                <button style={{ ...S.iconBtn, marginTop: 6, color: '#e2574c' }} onClick={() => runAction('excluir')}>Confirmar exclusão</button>
+              </div>
             )}
 
             <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Severidade</div>
@@ -1250,6 +1279,34 @@ function ArchivedView({ tickets, teamById, filters, setFilters, onOpen, onUnarch
   );
 }
 
+function LixeiraView({ tickets, teamById, filters, setFilters, onOpen, onRestore, onPurge, canRestore, canPurge }) {
+  const list = tickets.filter((t) => matchesFilters(t, filters));
+  return (
+    <>
+      <div style={{ ...S.fieldHint, marginTop: 10 }}>
+        BUGs excluídos nunca somem de verdade — ficam aqui com todo o histórico até
+        alguém da gestão restaurar, ou o admin apagar de vez.
+      </div>
+      <FilterBar filters={filters} setFilters={setFilters} />
+      {list.length === 0 && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Lixeira vazia.</div>}
+      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {list.map((t) => (
+          <div key={t.id} style={{ ...S.accessBlock, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-5)', width: 56 }}>#{t.number}</div>
+            <div style={{ flex: 1, minWidth: 160, fontWeight: 700, cursor: 'pointer' }} onClick={() => onOpen(t.id)}>{t.title}</div>
+            <Badge meta={XFLOW_STATUS_META[t.status]} small />
+            <div style={{ fontSize: 11, color: 'var(--text-6)' }}>
+              Excluído {fmtTs(t.deletedAt)}{t.deletedBy && teamById[t.deletedBy] ? ` · ${teamById[t.deletedBy].name}` : ''}
+            </div>
+            {canRestore && <button style={S.iconBtnGhost} onClick={() => onRestore(t.id)}>Restaurar</button>}
+            {canPurge && <button style={{ ...S.iconBtnGhost, color: '#e2574c' }} onClick={() => onPurge(t.id, t.title)}>Apagar de vez</button>}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onToggleTheme }) {
   const [tickets, setTickets] = useState([]);
   const [team, setTeam] = useState([]);
@@ -1257,6 +1314,9 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
   const [showNew, setShowNew] = useState(false);
   const [openTicketId, setOpenTicketId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashTickets, setTrashTickets] = useState([]);
+  const [trashLoaded, setTrashLoaded] = useState(false);
   const [filters, setFilters] = useState(BLANK_FILTERS);
   const [toastMsg, setToastMsg] = useState('');
 
@@ -1265,6 +1325,13 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
       .then(([t, tm]) => { setTickets(t.tickets); setTeam(tm.team); setLoaded(true); })
       .catch(() => setLoaded(true));
   }, []);
+
+  useEffect(() => {
+    if (!showTrash) return;
+    apiGet('/api/xflow/tickets?trash=1')
+      .then((t) => { setTrashTickets(t.tickets); setTrashLoaded(true); })
+      .catch(() => setTrashLoaded(true));
+  }, [showTrash]);
 
   const teamById = useMemo(() => {
     const m = {};
@@ -1294,12 +1361,38 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
 
   async function performAction(ticketId, action, payload) {
     const res = await apiPatch(`/api/xflow/tickets/${ticketId}`, { action, payload });
+    if (action === 'excluir') {
+      setTickets((prev) => prev.filter((t) => t.id !== res.ticket.id));
+      setTrashTickets((prev) => (trashLoaded ? [res.ticket, ...prev] : prev));
+      setToastMsg(`BUG #${res.ticket.number} movido para a Lixeira`);
+      setTimeout(() => setToastMsg(''), 4500);
+      return;
+    }
+    if (action === 'restaurar') {
+      setTrashTickets((prev) => prev.filter((t) => t.id !== res.ticket.id));
+      setTickets((prev) => [res.ticket, ...prev]);
+      setToastMsg(`BUG #${res.ticket.number} restaurado`);
+      setTimeout(() => setToastMsg(''), 4500);
+      return;
+    }
     setTickets((prev) => prev.map((t) => (t.id === res.ticket.id ? res.ticket : t)));
   }
 
-  const openTicket = tickets.find((t) => t.id === openTicketId);
+  async function purgeTicket(ticketId, title) {
+    const typed = window.prompt(`Para apagar "${title}" de vez (sem volta), digite "${XFLOW_PURGE_CONFIRM_PHRASE}" abaixo:`);
+    if (typed !== XFLOW_PURGE_CONFIRM_PHRASE) return;
+    await apiDelete(`/api/xflow/tickets/${ticketId}`);
+    setTrashTickets((prev) => prev.filter((t) => t.id !== ticketId));
+    if (openTicketId === ticketId) setOpenTicketId(null);
+    setToastMsg('BUG apagado de vez');
+    setTimeout(() => setToastMsg(''), 4500);
+  }
+
+  const openTicket = tickets.find((t) => t.id === openTicketId) || trashTickets.find((t) => t.id === openTicketId);
   const effRole = effectiveXflowRole(currentUser);
   const canArchiveTier = effRole === 'gestao' || effRole === 'admin';
+  const canRestoreTier = effRole === 'gestao' || effRole === 'admin';
+  const canPurgeTier = effRole === 'admin';
 
   const dependemDeVoceCount = tickets.filter((t) => {
     if (isTerminal(t.status) && t.archived) return false;
@@ -1322,8 +1415,13 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {canArchiveTier && (
-            <button style={{ ...S.pbGhostBtn, ...(showArchived ? S.pbGhostBtnActive : {}) }} onClick={() => setShowArchived((v) => !v)}>
+            <button style={{ ...S.pbGhostBtn, ...(showArchived ? S.pbGhostBtnActive : {}) }} onClick={() => { setShowArchived((v) => !v); setShowTrash(false); }}>
               <Archive size={13} /> Arquivados
+            </button>
+          )}
+          {canRestoreTier && (
+            <button style={{ ...S.pbGhostBtn, ...(showTrash ? S.pbGhostBtnActive : {}) }} onClick={() => { setShowTrash((v) => !v); setShowArchived(false); }}>
+              <Trash2 size={13} /> Lixeira
             </button>
           )}
           <button style={S.primaryBtn} onClick={() => setShowNew(true)}><Plus size={15} /> Novo BUG</button>
@@ -1333,7 +1431,7 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
       </div>
 
       <div style={{ padding: '0 24px', paddingBottom: 40 }}>
-        {dependemDeVoceCount > 0 && !showArchived && (
+        {dependemDeVoceCount > 0 && !showArchived && !showTrash && (
           <div style={{ ...S.loginBlockedMsg, marginTop: 16, background: 'rgba(255,159,64,.14)', color: '#ff9f40', borderColor: 'rgba(255,159,64,.5)' }}>
             ⚠ {dependemDeVoceCount} BUG{dependemDeVoceCount === 1 ? '' : 's'} dependendo de você
           </div>
@@ -1341,7 +1439,17 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
 
         {!loaded && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Carregando...</div>}
 
-        {loaded && showArchived && (
+        {loaded && showTrash && (
+          !trashLoaded ? <div style={{ ...S.emptyMuted, marginTop: 20 }}>Carregando...</div> : (
+            <LixeiraView
+              tickets={trashTickets} teamById={teamById} filters={filters} setFilters={setFilters}
+              onOpen={setOpenTicketId} onRestore={(id) => performAction(id, 'restaurar', {})}
+              onPurge={purgeTicket} canRestore={canRestoreTier} canPurge={canPurgeTier}
+            />
+          )
+        )}
+
+        {loaded && showArchived && !showTrash && (
           <ArchivedView
             tickets={tickets} teamById={teamById} filters={filters} setFilters={setFilters}
             onOpen={setOpenTicketId} onUnarchive={(id) => performAction(id, 'desarquivar', {})}
@@ -1349,13 +1457,13 @@ export default function XFlowScreen({ currentUser, onExit, onLogout, theme, onTo
           />
         )}
 
-        {loaded && !showArchived && effRole === 'reporter' && (
+        {loaded && !showArchived && !showTrash && effRole === 'reporter' && (
           <ReporterHome tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={setOpenTicketId} />
         )}
-        {loaded && !showArchived && effRole === 'dev' && (
+        {loaded && !showArchived && !showTrash && effRole === 'dev' && (
           <DevHome tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={setOpenTicketId} />
         )}
-        {loaded && !showArchived && (effRole === 'gestao' || effRole === 'admin') && (
+        {loaded && !showArchived && !showTrash && (effRole === 'gestao' || effRole === 'admin') && (
           <GestorHome tickets={tickets} team={team} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={setOpenTicketId} />
         )}
       </div>

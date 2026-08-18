@@ -59,6 +59,14 @@ const RULES = {
   editar_prazo_proxima_acao: (role, user, ticket) => (role === 'dev' ? isAssignee(user, ticket) : isAtLeast(role, 'gestao')),
   arquivar: (role) => isAtLeast(role, 'gestao'),
   desarquivar: (role) => isAtLeast(role, 'gestao'),
+  // Soft-delete (vai pra Lixeira, nunca some de fato): reporter só do próprio
+  // ticket, dev/gestão/admin de qualquer um. Restaurar/purgar são ações da
+  // Lixeira em si, não do ticket normal — por isso ficam mais restritas.
+  excluir: (role, user, ticket) => (role === 'reporter' ? isOwner(user, ticket) : isAtLeast(role, 'dev')),
+  restaurar: (role) => isAtLeast(role, 'gestao'),
+  // Apagar de vez (sem volta) — só admin (master/superAdmin do Cronograma
+  // com xflow_role setado). Ver PROJECT_CONTEXT.md §18.
+  purgar: (role) => role === 'admin',
   editar_sla_config: (role) => role === 'admin',
 };
 
