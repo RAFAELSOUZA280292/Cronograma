@@ -400,7 +400,7 @@ function NewTicketModal({ onClose, onCreate }) {
 
   return (
     <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
-      <div style={{ ...S.detailBox, width: 'min(660px, 100%)', maxHeight: '90vh', overflowY: 'auto', padding: isMobile ? undefined : '24px 30px 30px 30px', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...S.detailBox, width: 'min(1100px, 94vw)', maxHeight: '90vh', overflowY: 'auto', padding: isMobile ? undefined : '24px 30px 30px 30px', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={{ ...S.detailTopBar, alignItems: 'flex-start', marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 19, fontWeight: 800 }}>Nova TASK</div>
@@ -1642,6 +1642,20 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
 
   return (
     <div style={S.page}>
+      <style>{`
+        * { box-sizing: border-box; }
+        input, select, textarea, button { font-family: 'Inter', sans-serif; }
+        input[type=text], input[type=date], input[type=email], input[type=password], input[type=number], select, textarea {
+          background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
+          padding:6px 8px; font-size:12.5px; width:100%;
+        }
+        input[type=text]:focus, input[type=date]:focus, input[type=email]:focus, input[type=password]:focus, input[type=number]:focus, select:focus, textarea:focus {
+          outline:none; border-color:#F5C400;
+        }
+        input[type=checkbox]{ accent-color:#F5C400; width:15px; height:15px; }
+        ::-webkit-scrollbar{ height:8px; width:8px; }
+        ::-webkit-scrollbar-thumb{ background:var(--border-3); border-radius:4px; }
+      `}</style>
       <div style={S.topbar}>
         <div style={S.brandRow}>
           <BrandLogo theme={theme} style={S.logoImg} />
