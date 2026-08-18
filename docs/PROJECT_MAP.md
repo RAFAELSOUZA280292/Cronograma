@@ -9,13 +9,18 @@ depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
 
 - **Frontend**: SPA React 18 (Vite), sem roteador — navegação é 100% estado
   em memória (`view`, `workspaceMode`, `openActivityId`, etc. em `App()`).
-  Todo o app (telas, modais, estilos) está em `src/App.jsx`.
-- **Backend**: Express (`server/`), API REST sob `/api/*`. Serve também os
-  estáticos de `dist/` e faz fallback de SPA (`app.get('*', ...)`).
-- **Banco**: Postgres, driver `pg` puro (sem ORM/query builder). 5 tabelas —
-  ver seção 6. Multi-tenant desde 2026-08 (Fase 1): `users`/`projects` têm
-  `org_id` (FK pra `organizations`), toda query filtra por ele — ver
-  CLAUDE.md seção "Multi-tenant".
+  Quase todo o app (telas, modais, estilos) está em `src/App.jsx`. Exceção:
+  o módulo XFlow (`src/xflow/XFlow.jsx`, ver seção 2 e 4) — importa primitivas
+  compartilhadas (`S`, `uid`, `fmtDate`, `fmtTs`, `useIsMobile`,
+  `useIsCompact`, `BrandLogo`, `ThemeToggleBtn`) exportadas de `App.jsx`.
+- **Backend**: Express (`server/`), API REST sob `/api/*`. Rotas de usuários/
+  projetos/etc. em `server/routes.js`; rotas do XFlow num router próprio,
+  `server/xflow.js`, montado em `/api/xflow`. Serve também os estáticos de
+  `dist/` e faz fallback de SPA (`app.get('*', ...)`).
+- **Banco**: Postgres, driver `pg` puro (sem ORM/query builder). 6 tabelas —
+  ver seção 6. Multi-tenant desde 2026-08 (Fase 1): `users`/`projects`/
+  `xflow_tickets` têm `org_id` (FK pra `organizations`), toda query filtra
+  por ele — ver CLAUDE.md seção "Multi-tenant".
 - **APIs**: só a própria API interna (`server/routes.js`) + 2 APIs públicas de
   terceiros para lookup de CNPJ (BrasilAPI, fallback ReceitaWS), com cache em
   `cnpj_cache`.
@@ -36,15 +41,17 @@ depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
 ## 2. Estrutura de diretórios
 
 ```
-src/App.jsx        Frontend inteiro: componentes, telas, estilos (S), lógica de estado.
+src/App.jsx        Frontend principal: componentes, telas, estilos (S), lógica de estado. Exporta primitivas usadas por xflow/.
+src/xflow/XFlow.jsx     Módulo XFlow (gestão de BUGs) — telas, constantes de status/severidade/prioridade, helpers.
 src/main.jsx        Bootstrap do React (ReactDOM.createRoot).
 src/lib/api.js        Wrapper fetch (apiGet/apiPost/apiPatch/apiDelete), credentials:'include'.
 src/assets/brand/       Logos PNG da PRICETAX (preto = tema claro, branco = tema escuro).
 
-server/index.js       Bootstrap Express: initDb, seedIfEmpty, monta /api, serve dist/.
+server/index.js       Bootstrap Express: initDb, seedIfEmpty, monta /api e /api/xflow, serve dist/.
 server/db.js           Pool pg, criação de tabelas (initDb), seed inicial, defaults de projeto novo.
-server/auth.js         JWT/bcrypt, cookie de sessão, middlewares requireAuth/requireMaster*.
-server/routes.js        Todas as rotas REST (auth, users, projects, personal-board, cnpj).
+server/auth.js         JWT/bcrypt, cookie de sessão, middlewares requireAuth/requireMaster*/requireXflowAccess.
+server/routes.js        Rotas REST de auth, users, projects, personal-board, cnpj, organizations.
+server/xflow.js         Rotas REST do módulo XFlow (team, tickets) — router próprio montado em /api/xflow.
 server/cnpjLookup.js     Cliente BrasilAPI/ReceitaWS + normalização + cache.
 
 index.html            Shell HTML, variáveis CSS de tema (light/dark) em :root.
@@ -151,6 +158,17 @@ usam `S.detailBox`.
 - APIs: `GET/POST/PATCH/DELETE /users`, `POST /users/:id/block|renew|reset-password`.
 - Modelo: tabela `users`.
 - Regra: só `master` acessa (`requireMaster`).
+
+### XFlow (gestão de BUGs, 2026-08)
+- Arquivo próprio: `src/xflow/XFlow.jsx` (não em `App.jsx`) — `XFlowScreen`
+  (entrada, abas por papel), `NewTicketModal`, `TicketDetailModal`.
+- Acesso: card "XFlow" no `WorkspaceGateScreen`, visível só se
+  `currentUser.xflowRole` (reporter/dev/gestao) — controlado em
+  `NewUserModal`/`EditUserModal`.
+- APIs: `server/xflow.js` — `GET /xflow/team`, `GET/POST/PATCH /xflow/tickets`
+  (montadas em `/api/xflow`, todas atrás de `requireXflowAccess`).
+- Modelo: tabela `xflow_tickets`. Detalhe completo do fluxo de estados,
+  regras de transição e "quem está com a bola" em `PROJECT_CONTEXT.md` §18.
 
 ## 5. Fluxos críticos
 

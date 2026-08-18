@@ -5,7 +5,7 @@ import {
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
   LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History,
   MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal,
-  Globe, Lock, RefreshCw, Pause, Play, Archive,
+  Globe, Lock, RefreshCw, Pause, Play, Archive, Bug,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -18,16 +18,17 @@ import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { apiGet, apiPost, apiPatch, apiDelete } from './lib/api.js';
 import pricetaxLogoBranco from './assets/brand/pricetax-logo-branco.png';
 import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
+import XFlowScreen from './xflow/XFlow.jsx';
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
 const THEME_KEY = 'pricetax-cronograma-theme';
 const MENTIONS_SEEN_KEY = 'pricetax-cronograma-mentions-seen';
 
-function BrandLogo({ theme, style }) {
+export function BrandLogo({ theme, style }) {
   return <img src={theme === 'light' ? pricetaxLogoPreto : pricetaxLogoBranco} alt="PriceTax" style={style} />;
 }
 
-function ThemeToggleBtn({ theme, onToggle, style }) {
+export function ThemeToggleBtn({ theme, onToggle, style }) {
   return (
     <button style={style || S.iconBtnGhost} title={theme === 'light' ? 'Mudar para modo escuro' : 'Mudar para modo claro'} onClick={onToggle}>
       {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
@@ -165,7 +166,7 @@ function fmtDateOnly(iso) {
   return d.toLocaleDateString('pt-BR');
 }
 
-function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
+export function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 function genShareToken() { return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
 function todayISOStr() { return toISODate(startOfDay(new Date())); }
@@ -188,8 +189,8 @@ function useMediaQuery(query) {
   return matches;
 }
 
-function useIsMobile() { return useMediaQuery(`(max-width: ${MOBILE_BP - 1}px)`); }
-function useIsCompact() { return useMediaQuery(`(max-width: ${TABLET_BP - 1}px)`); }
+export function useIsMobile() { return useMediaQuery(`(max-width: ${MOBILE_BP - 1}px)`); }
+export function useIsCompact() { return useMediaQuery(`(max-width: ${TABLET_BP - 1}px)`); }
 
 function normalizeTeam(team, teamLinks) {
   return (team || []).map((m) => {
@@ -208,13 +209,13 @@ function isExpiredNotYetFlagged(user) {
   return !user.blocked && !!user.expiresAt && user.expiresAt < todayISOStr();
 }
 
-function fmtDate(iso) {
+export function fmtDate(iso) {
   if (!iso) return '—';
   const [y, m, d] = iso.split('-');
   if (!y) return '—';
   return `${d}/${m}/${y}`;
 }
-function fmtTs(iso) {
+export function fmtTs(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
@@ -628,6 +629,19 @@ export default function App() {
         user={currentUser}
         onPickCompany={() => setWorkspaceMode('company')}
         onPickPersonal={() => setWorkspaceMode('personal')}
+        onPickXFlow={currentUser.xflowRole ? () => setWorkspaceMode('xflow') : undefined}
+        onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
+
+  if (workspaceMode === 'xflow' && currentUser.xflowRole) {
+    return (
+      <XFlowScreen
+        currentUser={currentUser}
+        onExit={() => setWorkspaceMode(null)}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -2455,7 +2469,7 @@ function UsersManagementScreen({
 }
 
 function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations }) {
-  const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente', avatar: '', personalOnly: false, orgId: '' });
+  const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente', avatar: '', personalOnly: false, orgId: '', xflowRole: '' });
   const isMobile = useIsMobile();
 
   function submit() {
@@ -2498,6 +2512,13 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations }) {
           <input type="checkbox" checked={draft.personalOnly} onChange={(e) => setDraft((d) => ({ ...d, personalOnly: e.target.checked }))} />
           Acesso apenas à Gestão de Atividades (sem acesso a Empresas)
         </label>
+        <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Acesso ao XFlow</div>
+        <select value={draft.xflowRole} onChange={(e) => setDraft((d) => ({ ...d, xflowRole: e.target.value }))}>
+          <option value="">Sem acesso</option>
+          <option value="reporter">Reporter</option>
+          <option value="dev">Dev</option>
+          <option value="gestao">Gestão</option>
+        </select>
         <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit}><Plus size={14} /> Criar usuário</button>
       </div>
     </div>
@@ -2590,6 +2611,16 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
           {u.personalOnly && (
             <div style={S.fieldHint}>Ao entrar, este usuário vai direto para o quadro pessoal — não vê a tela de empresas.</div>
           )}
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          <div style={S.subSectionLabel}>Acesso ao XFlow</div>
+          <select value={u.xflowRole || ''} onChange={(e) => onUpdate(u.id, { xflowRole: e.target.value })}>
+            <option value="">Sem acesso</option>
+            <option value="reporter">Reporter</option>
+            <option value="dev">Dev</option>
+            <option value="gestao">Gestão</option>
+          </select>
         </div>
 
         <div style={S.accessBlock}>
@@ -3546,7 +3577,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   );
 }
 
-function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onLogout, theme, onToggleTheme }) {
+function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onLogout, theme, onToggleTheme }) {
   return (
     <div style={S.page}>
       <div style={S.companySelectorWrap}>
@@ -3571,6 +3602,13 @@ function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onLogout, th
             <div style={S.workspaceCardTitle}>Gestão de Atividades</div>
             <div style={S.workspaceCardDesc}>Seu quadro pessoal — organize tarefas, compromissos e pendências, sem vincular a nenhuma empresa.</div>
           </button>
+          {onPickXFlow && (
+            <button style={S.workspaceCard} onClick={onPickXFlow}>
+              <Bug size={26} color="#F5C400" />
+              <div style={S.workspaceCardTitle}>XFlow</div>
+              <div style={S.workspaceCardDesc}>Rastreamento de BUGs dos produtos internos — ciclo de vida próprio, do relato à validação.</div>
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -6543,7 +6581,7 @@ function TimelineView({ activities, phases, granularity, setGranularity, windowA
   );
 }
 
-const S = {
+export const S = {
   page: { background: 'var(--bg-page)', color: 'var(--text-1)', fontFamily: "'Inter', sans-serif", minHeight: '100dvh', paddingBottom: 40, position: 'relative' },
   topbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '18px 24px', borderBottom: '1px solid var(--border-1)', background: 'var(--bg-2)' },
   brandRow: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' },

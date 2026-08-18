@@ -60,6 +60,7 @@ function rowToUser(row) {
     personalOnly: !!row.personal_only,
     orgId: row.org_id || null,
     isSuperAdmin: !!row.is_super_admin,
+    xflowRole: row.xflow_role || '',
   };
 }
 
@@ -133,6 +134,13 @@ export function requireMasterOrPricetax(req, res, next) {
 export function requireSuperAdmin(req, res, next) {
   if (!req.user || !req.user.isSuperAdmin) {
     return res.status(403).json({ message: 'Apenas o Super Administrador pode fazer isso.' });
+  }
+  next();
+}
+
+export function requireXflowAccess(req, res, next) {
+  if (!req.user || !req.user.xflowRole) {
+    return res.status(403).json({ message: 'Você não tem acesso ao XFlow.' });
   }
   next();
 }
