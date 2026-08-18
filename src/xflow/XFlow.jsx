@@ -103,7 +103,8 @@ const XFLOW_CLOSURE_REASON_META = {
 };
 const XFLOW_CLOSURE_REASON_ORDER = Object.keys(XFLOW_CLOSURE_REASON_META);
 
-const XFLOW_PRODUCTS = ['TINTAX', 'XPED', 'XCheck', 'XClass', 'Outro'];
+const XFLOW_PRODUCTS = ['X da Questão', 'XClass', 'XPED', 'Outro'];
+const XFLOW_CLIENT_TYPES = ['PRICETAX', 'TINTAX'];
 
 function metaLabel(map, key) { return (map[key] && (map[key].label || map[key])) || key || '—'; }
 
@@ -206,7 +207,7 @@ function Badge({ meta, small }) {
 
 function blankTicketForm() {
   return {
-    title: '', product: '', module: '', affectedUser: '', affectedCompany: '',
+    title: '', product: '', clientType: '', module: '', affectedUser: '', affectedCompany: '',
     environment: 'producao', description: '', expectedResult: '', reproSteps: '',
     impact: '', frequency: '', occurredAt: '', priority: '', evidence: [],
   };
@@ -249,24 +250,40 @@ function NewTicketModal({ onClose, onCreate }) {
 
   return (
     <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
-      <div style={{ ...S.detailBox, width: 'min(640px, 100%)', maxHeight: '90vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.detailTopBar}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>Novo BUG</div>
+      <div style={{ ...S.detailBox, width: 'min(660px, 100%)', maxHeight: '90vh', overflowY: 'auto', padding: isMobile ? undefined : '24px 30px 30px 30px', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ ...S.detailTopBar, alignItems: 'flex-start', marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 19, fontWeight: 800 }}>Novo BUG</div>
+            <div style={{ fontSize: 12, color: 'var(--text-5)', marginTop: 3 }}>
+              Só o essencial pra abrir agora — dá pra completar o resto depois.
+            </div>
+          </div>
           <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
         </div>
 
         <div style={S.subSectionLabel}>Título do BUG</div>
-        <input type="text" value={form.title} onChange={(e) => set({ title: e.target.value })} placeholder='Ex.: "Erro ao calcular aderência após upload do SPED"' />
+        <input
+          type="text" value={form.title} onChange={(e) => set({ title: e.target.value })}
+          placeholder='Ex.: "Erro ao calcular aderência após upload do SPED"'
+          style={{ fontSize: 17, fontWeight: 600, padding: '13px 14px', borderRadius: 9 }}
+        />
 
-        <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-          <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 160px' }}>
             <div style={S.subSectionLabel}>Produto / Plataforma</div>
             <select value={form.product} onChange={(e) => set({ product: e.target.value })}>
               <option value="">Selecione</option>
               {XFLOW_PRODUCTS.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: '1 1 160px' }}>
+            <div style={S.subSectionLabel}>Tipo de cliente</div>
+            <select value={form.clientType} onChange={(e) => set({ clientType: e.target.value })}>
+              <option value="">Selecione</option>
+              {XFLOW_CLIENT_TYPES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: '1 1 160px' }}>
             <div style={S.subSectionLabel}>Ambiente</div>
             <select value={form.environment} onChange={(e) => set({ environment: e.target.value })}>
               <option value="producao">Produção</option>
@@ -276,90 +293,94 @@ function NewTicketModal({ onClose, onCreate }) {
           </div>
         </div>
 
-        <div style={{ marginTop: 10 }}>
+        <div style={{ marginTop: 14 }}>
           <div style={S.subSectionLabel}>Descrição do problema</div>
-          <textarea rows={3} value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="O que aconteceu" />
+          <textarea rows={4} value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="O que aconteceu" />
         </div>
 
         <div style={{ ...S.fieldHint, marginTop: 10 }}>
           O resto pode ser preenchido depois de aberto: módulo, usuário/empresa afetados,
-          resultado esperado, passo a passo, impacto, frequência e prioridade sugerida.
+          resultado esperado, passo a passo, impacto, frequência, data da ocorrência e prioridade sugerida.
         </div>
 
-        <details style={{ marginTop: 10 }}>
-          <summary style={{ cursor: 'pointer', fontSize: 12.5, color: 'var(--text-4)' }}>Adicionar mais detalhes agora (opcional)</summary>
-          <div style={{ marginTop: 10 }}>
-            <div style={S.subSectionLabel}>Módulo / Tela</div>
-            <input type="text" value={form.module} onChange={(e) => set({ module: e.target.value })} placeholder="Ex.: Upload, Aderência, Dashboard" />
-          </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-            <div style={{ flex: 1 }}>
-              <div style={S.subSectionLabel}>Usuário afetado</div>
-              <input type="text" value={form.affectedUser} onChange={(e) => set({ affectedUser: e.target.value })} placeholder="Quem encontrou o problema" />
+        <details style={{ marginTop: 14 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)', padding: '9px 0', userSelect: 'none' }}>
+            Adicionar mais detalhes agora (opcional)
+          </summary>
+          <div style={{ marginTop: 4, padding: '16px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Módulo / Tela</div>
+              <input type="text" value={form.module} onChange={(e) => set({ module: e.target.value })} placeholder="Ex.: Upload, Aderência, Dashboard" />
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={S.subSectionLabel}>Empresa/Cliente afetado</div>
-              <input type="text" value={form.affectedCompany} onChange={(e) => set({ affectedCompany: e.target.value })} />
-            </div>
-          </div>
-          <div style={{ marginTop: 10 }}>
-            <div style={S.subSectionLabel}>Resultado esperado</div>
-            <textarea rows={2} value={form.expectedResult} onChange={(e) => set({ expectedResult: e.target.value })} placeholder="O que deveria acontecer" />
-          </div>
-          <div style={{ marginTop: 10 }}>
-            <div style={S.subSectionLabel}>Passo a passo para reproduzir</div>
-            <textarea rows={4} value={form.reproSteps} onChange={(e) => set({ reproSteps: e.target.value })} placeholder={'1. Entrou em...\n2. Clicou em...\n3. Fez upload...'} />
-          </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-            <div style={{ flex: 1 }}>
-              <div style={S.subSectionLabel}>Impacto</div>
-              <select value={form.impact} onChange={(e) => set({ impact: e.target.value })}>
-                <option value="">Selecione</option>
-                {XFLOW_IMPACT_ORDER.map((k) => <option key={k} value={k}>{XFLOW_IMPACT_META[k]}</option>)}
-              </select>
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={S.subSectionLabel}>Frequência</div>
-              <select value={form.frequency} onChange={(e) => set({ frequency: e.target.value })}>
-                <option value="">Selecione</option>
-                {XFLOW_FREQUENCY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_FREQUENCY_META[k]}</option>)}
-              </select>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-            <div style={{ flex: 1 }}>
-              <div style={S.subSectionLabel}>Data e hora da ocorrência</div>
-              <input type="datetime-local" value={form.occurredAt} onChange={(e) => set({ occurredAt: e.target.value })} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={S.subSectionLabel}>Prioridade sugerida</div>
-              <select value={form.priority} onChange={(e) => set({ priority: e.target.value })}>
-                <option value="">Selecione</option>
-                {XFLOW_PRIORITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_PRIORITY_META[k].label}</option>)}
-              </select>
-            </div>
-          </div>
-          <div style={{ marginTop: 10 }}>
-            <div style={S.subSectionLabel}>Evidência (print, vídeo, arquivo, mensagem de erro)</div>
-            <label style={S.iconBtn}><Upload size={14} /> Anexar evidência
-              <input type="file" multiple style={{ display: 'none' }} onChange={handleEvidencePick} />
-            </label>
-            {form.evidence.map((ev) => (
-              <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12 }}>
-                <Paperclip size={12} /> {ev.name}
-                <button style={S.iconBtnGhost} onClick={() => removeEvidence(ev.id)}><X size={12} /></button>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 160px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Usuário afetado</div>
+                <input type="text" value={form.affectedUser} onChange={(e) => set({ affectedUser: e.target.value })} placeholder="Quem encontrou o problema" />
               </div>
-            ))}
+              <div style={{ flex: '1 1 160px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Empresa/Cliente afetado</div>
+                <input type="text" value={form.affectedCompany} onChange={(e) => set({ affectedCompany: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Resultado esperado</div>
+              <textarea rows={2} value={form.expectedResult} onChange={(e) => set({ expectedResult: e.target.value })} placeholder="O que deveria acontecer" />
+            </div>
+            <div>
+              <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Passo a passo para reproduzir</div>
+              <textarea rows={4} value={form.reproSteps} onChange={(e) => set({ reproSteps: e.target.value })} placeholder={'1. Entrou em...\n2. Clicou em...\n3. Fez upload...'} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 160px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Impacto</div>
+                <select value={form.impact} onChange={(e) => set({ impact: e.target.value })}>
+                  <option value="">Selecione</option>
+                  {XFLOW_IMPACT_ORDER.map((k) => <option key={k} value={k}>{XFLOW_IMPACT_META[k]}</option>)}
+                </select>
+              </div>
+              <div style={{ flex: '1 1 160px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Frequência</div>
+                <select value={form.frequency} onChange={(e) => set({ frequency: e.target.value })}>
+                  <option value="">Selecione</option>
+                  {XFLOW_FREQUENCY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_FREQUENCY_META[k]}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 160px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Data da ocorrência</div>
+                <input type="date" value={form.occurredAt} onChange={(e) => set({ occurredAt: e.target.value })} />
+              </div>
+              <div style={{ flex: '1 1 160px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Prioridade sugerida</div>
+                <select value={form.priority} onChange={(e) => set({ priority: e.target.value })}>
+                  <option value="">Selecione</option>
+                  {XFLOW_PRIORITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_PRIORITY_META[k].label}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Evidência (print, vídeo, arquivo, mensagem de erro)</div>
+              <label style={S.iconBtn}><Upload size={14} /> Anexar evidência
+                <input type="file" multiple style={{ display: 'none' }} onChange={handleEvidencePick} />
+              </label>
+              {form.evidence.map((ev) => (
+                <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12 }}>
+                  <Paperclip size={12} /> {ev.name}
+                  <button style={S.iconBtnGhost} onClick={() => removeEvidence(ev.id)}><X size={12} /></button>
+                </div>
+              ))}
+            </div>
           </div>
         </details>
 
-        <div style={{ ...S.fieldHint, marginTop: 10 }}>
+        <div style={{ ...S.fieldHint, marginTop: 14 }}>
           Capturado automaticamente ao enviar: URL atual, navegador, sistema operacional, resolução da tela e sessão — do ambiente de quem está preenchendo este formulário, não necessariamente de quem sofreu o problema.
         </div>
 
         {error && <div style={{ ...S.loginBlockedMsg, marginTop: 10 }}>{error}</div>}
 
-        <button style={{ ...S.primaryBtn, marginTop: 16, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={!requiredOk || saving}>
+        <button style={{ ...S.primaryBtn, marginTop: 18, width: '100%', justifyContent: 'center', padding: '12px 16px', fontSize: 13.5, borderRadius: 9 }} onClick={submit} disabled={!requiredOk || saving}>
           {saving ? 'Enviando...' : 'Abrir BUG'}
         </button>
       </div>
@@ -862,9 +883,10 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
 
             <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Dados capturados</div>
             <div style={S.fieldHint}>Produto: {ticket.product || '—'} · Módulo: {ticket.module || '—'}</div>
-            <div style={S.fieldHint}>Empresa afetada: {ticket.affectedCompany || '—'}</div>
+            <div style={S.fieldHint}>Tipo de cliente: {ticket.clientType || '—'} · Empresa afetada: {ticket.affectedCompany || '—'}</div>
             <div style={S.fieldHint}>Ambiente: {ticket.environment || '—'}</div>
             <div style={S.fieldHint}>Impacto: {metaLabel(XFLOW_IMPACT_META, ticket.impact)} · Frequência: {metaLabel(XFLOW_FREQUENCY_META, ticket.frequency)}</div>
+            {ticket.occurredAt && <div style={S.fieldHint}>Data da ocorrência: {fmtDate(ticket.occurredAt)}</div>}
             {ticket.capturedUrl && <div style={{ ...S.fieldHint, wordBreak: 'break-all' }}>URL: {ticket.capturedUrl}</div>}
           </div>
         </div>
