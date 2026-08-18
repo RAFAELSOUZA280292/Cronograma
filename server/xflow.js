@@ -92,7 +92,7 @@ const RELATIONAL_FIELDS = [
   'statusEnteredAt', 'timeBreakdown', 'ballHolderType', 'ballHolderUserId', 'waitingOnType',
   'reopenCount', 'homologRejectCount',
   'slaFirstResponseDueAt', 'slaFirstResponseMetAt', 'slaResolutionDueAt', 'slaResolutionMetAt',
-  'slaPausedAt', 'slaPausedSeconds',
+  'slaPausedAt', 'slaPausedSeconds', 'deleted', 'deletedAt', 'deletedBy',
 ];
 
 function rowToTicket(row) {
@@ -123,6 +123,9 @@ function rowToTicket(row) {
     slaResolutionMetAt: row.sla_resolution_met_at,
     slaPausedAt: row.sla_paused_at,
     slaPausedSeconds: row.sla_paused_seconds,
+    deleted: row.deleted,
+    deletedAt: row.deleted_at,
+    deletedBy: row.deleted_by,
     slaFirstResponseState: computeSlaState(row.created_at, row.sla_first_response_due_at, row.sla_first_response_met_at, 0, null),
     slaResolutionState: computeSlaState(row.created_at, row.sla_resolution_due_at, row.sla_resolution_met_at, row.sla_paused_seconds, row.sla_paused_at),
     ...row.data,
@@ -163,13 +166,17 @@ router.get('/team', requireAuth, requireXflowAccess, async (req, res, next) => {
 router.get('/tickets', requireAuth, requireXflowAccess, async (req, res, next) => {
   try {
     const role = effectiveXflowRole(req.user);
+    const wantsTrash = req.query.trash === '1';
+    if (wantsTrash && !canDo('restaurar', req.user, null)) {
+      return res.status(403).json({ message: 'Só gestão/admin pode ver a Lixeira.' });
+    }
     const params = [req.user.orgId];
-    let sql = 'SELECT * FROM xflow_tickets WHERE org_id=$1';
+    let sql = `SELECT * FROM xflow_tickets WHERE org_id=$1 AND deleted=${wantsTrash ? 'true' : 'false'}`;
     if (role === 'reporter') {
       sql += ' AND reporter_id=$2';
       params.push(req.user.id);
     }
-    sql += ' ORDER BY created_at DESC';
+    sql += wantsTrash ? ' ORDER BY deleted_at DESC' : ' ORDER BY created_at DESC';
     const { rows } = await pool.query(sql, params);
     res.json({ tickets: rows.map(rowToTicket) });
   } catch (e) { next(e); }
@@ -230,6 +237,14 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
     if (role === 'reporter' && row.reporter_id !== req.user.id) {
       await client.query('ROLLBACK');
       return res.status(403).json({ message: 'Sem acesso a este ticket.' });
+    }
+    if (row.deleted && action !== 'restaurar') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Este BUG está na Lixeira — restaure antes de agir sobre ele.' });
+    }
+    if (!row.deleted && action === 'restaurar') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Este BUG não está na Lixeira.' });
     }
 
     const transition = checkTransition(action, row.status, payload || {});
@@ -378,6 +393,18 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         data.archived = false;
         historyNote = 'Desarquivado';
         break;
+      case 'excluir':
+        rel.deleted = true;
+        rel.deleted_at = new Date();
+        rel.deleted_by = req.user.id;
+        historyNote = `${userName} moveu o BUG para a Lixeira`;
+        break;
+      case 'restaurar':
+        rel.deleted = false;
+        rel.deleted_at = null;
+        rel.deleted_by = null;
+        historyNote = `${userName} restaurou o BUG da Lixeira`;
+        break;
       case 'editar_campo': {
         const field = payload && payload.field;
         if (!EDITABLE_CONTENT_FIELDS.includes(field) || payload.value === undefined) {
@@ -516,4 +543,24 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
   } finally {
     client.release();
   }
+});
+
+// Apagar de vez — sem volta, sem log (o próprio ticket deixa de existir).
+// Só quem já está na Lixeira pode ser purgado (força passar por excluir
+// antes), e só admin (master/superAdmin do Cronograma com xflow_role) pode
+// fazer isso — ver xflowPermissions.js.
+router.delete('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await pool.query('SELECT * FROM xflow_tickets WHERE id=$1', [id]);
+    if (!rows[0]) return res.status(404).json({ message: 'Ticket não encontrado.' });
+    const row = rows[0];
+    if (row.org_id !== req.user.orgId) return res.status(403).json({ message: 'Sem acesso a este ticket.' });
+    if (!row.deleted) return res.status(400).json({ message: 'Só é possível apagar de vez um BUG que já está na Lixeira.' });
+    if (!canDo('purgar', req.user, rowToTicket(row))) {
+      return res.status(403).json({ message: 'Só o admin pode apagar um BUG de vez.' });
+    }
+    await pool.query('DELETE FROM xflow_tickets WHERE id=$1', [id]);
+    res.status(204).end();
+  } catch (e) { next(e); }
 });

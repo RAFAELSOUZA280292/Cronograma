@@ -212,6 +212,10 @@ export async function initDb() {
   await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS sla_resolution_met_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS sla_paused_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS sla_paused_seconds INT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS deleted BOOLEAN NOT NULL DEFAULT false`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS deleted_by TEXT REFERENCES users(id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS xflow_tickets_deleted_idx ON xflow_tickets(org_id, deleted)`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS xflow_events (
