@@ -355,6 +355,95 @@ const XFLOW_TASK_TYPES = [
   { value: 'melhoria', label: 'Melhoria', desc: 'Sugestão de algo novo ou melhor do que já existe.' },
 ];
 
+// Autocomplete de Empresa/Cliente afetado — "banco" de clientes é o
+// próprio histórico de tickets da org (server/xflow.js GET
+// /affected-companies), atualizado localmente na hora (sem esperar reload)
+// quando um nome novo é usado. Busca por substring em qualquer parte do
+// nome, não só prefixo — cobre "Raf"/"Sou"/"Rafael S" tudo do mesmo jeito.
+function normalizeForSearch(s) {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+function AffectedCompanyField({ value, options, disabled, onCommit, placeholder }) {
+  const [draft, setDraft] = useState(value || '');
+  const [open, setOpen] = useState(false);
+  useEffect(() => { setDraft(value || ''); }, [value]);
+
+  const q = normalizeForSearch(draft);
+  const list = options || [];
+
+  const matches = q
+    ? list
+      .filter((o) => normalizeForSearch(o).includes(q) && normalizeForSearch(o) !== q)
+      .sort((a, b) => {
+        const an = normalizeForSearch(a), bn = normalizeForSearch(b);
+        const aStarts = an.startsWith(q) ? 0 : 1;
+        const bStarts = bn.startsWith(q) ? 0 : 1;
+        if (aStarts !== bStarts) return aStarts - bStarts;
+        return a.length - b.length;
+      })
+      .slice(0, 8)
+    : [];
+
+  const exactMatch = list.some((o) => normalizeForSearch(o) === q);
+  const similar = !exactMatch && q.length >= 3
+    ? list.find((o) => {
+      const on = normalizeForSearch(o);
+      if (on === q) return false;
+      const dist = levenshtein(q, on);
+      return dist > 0 && dist <= Math.max(1, Math.floor(Math.min(q.length, on.length) * 0.3));
+    })
+    : null;
+
+  function commit(v) {
+    const val = v !== undefined ? v : draft;
+    setDraft(val);
+    setOpen(false);
+    if (val !== (value || '')) onCommit(val);
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        type="text" value={draft} disabled={disabled} placeholder={placeholder}
+        onChange={(e) => { setDraft(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}
+      />
+      {open && matches.length > 0 && (
+        <div style={{ ...S.dropdownMenu, position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, maxHeight: 200, overflowY: 'auto', zIndex: 10 }}>
+          {matches.map((m) => (
+            <button key={m} type="button" style={S.dropdownItem} onMouseDown={(e) => { e.preventDefault(); commit(m); }}>{m}</button>
+          ))}
+        </div>
+      )}
+      {similar && (
+        <div style={{ ...S.fieldHint, marginTop: 4, color: '#ff9f40' }}>
+          Já existe um registro parecido: <b>{similar}</b>.{' '}
+          <button type="button" style={{ ...S.iconBtnGhost, padding: '2px 6px', fontSize: 11, textDecoration: 'underline' }} onMouseDown={(e) => { e.preventDefault(); commit(similar); }}>
+            Usar esse
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function blankTicketForm() {
   return {
     type: 'bug', title: '', product: '', clientType: '', module: '', affectedUser: '', affectedCompany: '',
@@ -363,7 +452,7 @@ function blankTicketForm() {
   };
 }
 
-function NewTicketModal({ onClose, onCreate }) {
+function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
   const [form, setForm] = useState(blankTicketForm());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -385,7 +474,7 @@ function NewTicketModal({ onClose, onCreate }) {
   }
   function removeEvidence(id) { setForm((f) => ({ ...f, evidence: f.evidence.filter((ev) => ev.id !== id) })); }
 
-  const requiredOk = form.title.trim() && form.product && !richTextIsBlank(form.description) && form.environment;
+  const requiredOk = form.title.trim() && form.product && form.clientType && !richTextIsBlank(form.description) && form.environment;
 
   async function submit() {
     if (!requiredOk || saving) return;
@@ -428,7 +517,7 @@ function NewTicketModal({ onClose, onCreate }) {
           ))}
         </div>
 
-        <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Título {form.type === 'melhoria' ? 'da melhoria' : 'do BUG'}</div>
+        <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Título {form.type === 'melhoria' ? 'da melhoria' : 'do BUG'} <span style={{ color: '#e2574c' }}>*</span></div>
         <input
           type="text" value={form.title} onChange={(e) => set({ title: e.target.value })}
           placeholder={form.type === 'melhoria' ? 'Ex.: "Adicionar filtro por responsável na lista"' : 'Ex.: "Erro ao calcular aderência após upload do SPED"'}
@@ -437,14 +526,14 @@ function NewTicketModal({ onClose, onCreate }) {
 
         <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 160px' }}>
-            <div style={S.subSectionLabel}>Produto / Plataforma</div>
+            <div style={S.subSectionLabel}>Produto / Plataforma <span style={{ color: '#e2574c' }}>*</span></div>
             <select value={form.product} onChange={(e) => set({ product: e.target.value })}>
               <option value="">Selecione</option>
               {XFLOW_PRODUCTS.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
           <div style={{ flex: '1 1 160px' }}>
-            <div style={S.subSectionLabel}>Tipo de cliente</div>
+            <div style={S.subSectionLabel}>Tipo de cliente <span style={{ color: '#e2574c' }}>*</span></div>
             <select value={form.clientType} onChange={(e) => set({ clientType: e.target.value })}>
               <option value="">Selecione</option>
               {XFLOW_CLIENT_TYPES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -461,7 +550,7 @@ function NewTicketModal({ onClose, onCreate }) {
         </div>
 
         <div style={{ marginTop: 14 }}>
-          <div style={S.subSectionLabel}>Descrição {form.type === 'melhoria' ? 'da melhoria' : 'do problema'}</div>
+          <div style={S.subSectionLabel}>Descrição {form.type === 'melhoria' ? 'da melhoria' : 'do problema'} <span style={{ color: '#e2574c' }}>*</span></div>
           <RichTextEditor
             value={form.description}
             onChange={(html) => set({ description: html })}
@@ -491,7 +580,12 @@ function NewTicketModal({ onClose, onCreate }) {
               </div>
               <div style={{ flex: '1 1 160px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Empresa/Cliente afetado</div>
-                <input type="text" value={form.affectedCompany} onChange={(e) => set({ affectedCompany: e.target.value })} />
+                <AffectedCompanyField
+                  value={form.affectedCompany}
+                  options={affectedCompanies}
+                  onCommit={(v) => set({ affectedCompany: v })}
+                  placeholder="Comece a digitar..."
+                />
               </div>
             </div>
             <div>
@@ -615,7 +709,7 @@ function ContentField({ as: Tag = 'textarea', value, onCommit, disabled, rows, p
   );
 }
 
-function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCreateSpinoff }) {
+function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCreateSpinoff, affectedCompanies }) {
   const isMobile = useIsMobile();
   const role = effectiveXflowRole(currentUser);
   const [events, setEvents] = useState([]);
@@ -1135,7 +1229,12 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               </div>
               <div style={{ flex: '1 1 140px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Empresa/Cliente afetado</div>
-                <ContentField as="input" value={ticket.affectedCompany} disabled={!canEditContent} onCommit={(v) => runAction('editar_campo', { field: 'affectedCompany', value: v })} />
+                <AffectedCompanyField
+                  value={ticket.affectedCompany}
+                  options={affectedCompanies}
+                  disabled={!canEditContent}
+                  onCommit={(v) => runAction('editar_campo', { field: 'affectedCompany', value: v })}
+                />
               </div>
             </div>
 
@@ -1557,12 +1656,19 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
   const [trashLoaded, setTrashLoaded] = useState(false);
   const [filters, setFilters] = useState(BLANK_FILTERS);
   const [toastMsg, setToastMsg] = useState('');
+  const [affectedCompanies, setAffectedCompanies] = useState([]);
 
   useEffect(() => {
-    Promise.all([apiGet('/api/xflow/tickets'), apiGet('/api/xflow/team')])
-      .then(([t, tm]) => { setTickets(t.tickets); setTeam(tm.team); setLoaded(true); })
+    Promise.all([apiGet('/api/xflow/tickets'), apiGet('/api/xflow/team'), apiGet('/api/xflow/affected-companies')])
+      .then(([t, tm, ac]) => { setTickets(t.tickets); setTeam(tm.team); setAffectedCompanies(ac.affectedCompanies); setLoaded(true); })
       .catch(() => setLoaded(true));
   }, []);
+
+  function registerAffectedCompany(name) {
+    const trimmed = (name || '').trim();
+    if (!trimmed) return;
+    setAffectedCompanies((prev) => (prev.some((n) => n.toLowerCase() === trimmed.toLowerCase()) ? prev : [trimmed, ...prev]));
+  }
 
   useEffect(() => {
     if (!showTrash) return;
@@ -1580,6 +1686,7 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
   async function createTicket(form) {
     const res = await apiPost('/api/xflow/tickets', form);
     setTickets((prev) => [res.ticket, ...prev]);
+    registerAffectedCompany(res.ticket.affectedCompany);
     setShowNew(false);
     setOpenTicketId(res.ticket.id);
     setToastMsg(`BUG #${res.ticket.number} criado`);
@@ -1612,6 +1719,9 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
       setToastMsg(`BUG #${res.ticket.number} restaurado`);
       setTimeout(() => setToastMsg(''), 4500);
       return;
+    }
+    if (action === 'editar_campo' && payload && payload.field === 'affectedCompany') {
+      registerAffectedCompany(payload.value);
     }
     setTickets((prev) => prev.map((t) => (t.id === res.ticket.id ? res.ticket : t)));
   }
@@ -1722,12 +1832,13 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
         )}
       </div>
 
-      {showNew && <NewTicketModal onClose={() => setShowNew(false)} onCreate={createTicket} />}
+      {showNew && <NewTicketModal onClose={() => setShowNew(false)} onCreate={createTicket} affectedCompanies={affectedCompanies} />}
       {openTicket && (
         <TicketDetailModal
           ticket={openTicket}
           team={team}
           currentUser={currentUser}
+          affectedCompanies={affectedCompanies}
           onClose={() => setOpenTicketId(null)}
           onAction={performAction}
           onCreateSpinoff={createSpinoff}
