@@ -189,6 +189,75 @@ export async function initDb() {
       updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+
+  // v2: colunas de operação (tempo, SLA, quem-está-com-a-bola, contadores).
+  // Detecta se é a primeira vez que essas colunas são adicionadas para poder
+  // rodar o backfill de status_entered_at/ball_holder_* só uma vez (ver abaixo).
+  const { rows: xflowV2Check } = await pool.query(
+    `SELECT column_name FROM information_schema.columns WHERE table_name='xflow_tickets' AND column_name='status_entered_at'`
+  );
+  const xflowV2AlreadyMigrated = xflowV2Check.length > 0;
+
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS suggested_priority TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS status_entered_at TIMESTAMPTZ NOT NULL DEFAULT now()`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS time_breakdown JSONB NOT NULL DEFAULT '{}'`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS ball_holder_type TEXT NOT NULL DEFAULT 'triage_queue'`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS ball_holder_user_id TEXT REFERENCES users(id)`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS waiting_on_type TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS reopen_count INT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS homolog_reject_count INT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS sla_first_response_due_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS sla_first_response_met_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS sla_resolution_due_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS sla_resolution_met_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS sla_paused_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS sla_paused_seconds INT NOT NULL DEFAULT 0`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS xflow_events (
+      id          TEXT PRIMARY KEY,
+      ticket_id   TEXT NOT NULL REFERENCES xflow_tickets(id) ON DELETE CASCADE,
+      org_id      TEXT NOT NULL REFERENCES organizations(id),
+      type        TEXT NOT NULL,
+      field       TEXT,
+      old_value   TEXT,
+      new_value   TEXT,
+      note        TEXT,
+      user_id     TEXT REFERENCES users(id),
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS xflow_events_ticket_idx ON xflow_events(ticket_id, created_at)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS xflow_events_org_idx ON xflow_events(org_id, created_at)`);
+
+  if (!xflowV2AlreadyMigrated) {
+    // Backfill único: tickets já existentes não tinham status_entered_at nem
+    // ball_holder_* — aproxima com o que dá pra inferir do estado atual, sem
+    // tentar reconstruir tempo histórico (time_breakdown fica vazio, só passa
+    // a acumular daqui pra frente, ver PROJECT_CONTEXT.md §18).
+    await pool.query(`UPDATE xflow_tickets SET status_entered_at = updated_at`);
+    await pool.query(`
+      UPDATE xflow_tickets SET
+        ball_holder_type = CASE
+          WHEN status IN ('concluida','duplicada','nao_reproduzida','nao_e_bug','descartada') THEN 'none'
+          WHEN status = 'bloqueada' THEN 'none'
+          WHEN status = 'pausada' THEN 'none'
+          WHEN status IN ('aguardando_informacoes','aguardando_usuario') THEN 'reporter'
+          WHEN status = 'aguardando_terceiro' THEN 'terceiro'
+          WHEN status = 'aguardando_gerencia' THEN 'gestao'
+          WHEN status = 'aguardando_validacao_solicitante' THEN 'reporter'
+          WHEN status IN ('aberta','triagem') AND assignee_id IS NULL THEN 'triage_queue'
+          WHEN assignee_id IS NOT NULL THEN 'dev'
+          ELSE 'triage_queue'
+        END,
+        ball_holder_user_id = CASE
+          WHEN status = 'aguardando_validacao_solicitante' THEN reporter_id
+          WHEN status IN ('aguardando_informacoes','aguardando_usuario') THEN reporter_id
+          WHEN assignee_id IS NOT NULL AND status NOT IN ('concluida','duplicada','nao_reproduzida','nao_e_bug','descartada','bloqueada','pausada','aguardando_gerencia','aguardando_terceiro') THEN assignee_id
+          ELSE NULL
+        END
+    `);
+  }
 }
 
 export function blankXflowTicketData() {
