@@ -703,6 +703,30 @@ completo (arquitetura de dados, matriz de permissões, matriz de transições).
   do modal. Corrigido injetando o mesmo bloco de CSS (copiado de
   `App.jsx`) no topo do `XFlowScreen`. `NewTicketModal` também ficou mais
   largo (`min(1100px, 94vw)`, era `min(660px, 100%)`) a pedido do Rafael.
+- **Campos obrigatórios na abertura**: Título, Produto/Plataforma, Tipo de
+  cliente e Descrição — os 4 já eram os únicos campos visíveis fora do
+  `<details>` colapsável, só faltava `clientType` entrar de fato no cálculo
+  de `requiredOk` (as outras três já eram validadas desde a v2). Marcador
+  visual (`*` vermelho) ao lado dos 4 labels.
+- **Autocomplete de Empresa/Cliente afetado**: sem tabela nova — o "banco"
+  de clientes é literalmente o histórico de `xflow_tickets.data->>
+  'affectedCompany'` da própria org (`GET /xflow/affected-companies`,
+  `GROUP BY` + `COUNT` pra ordenar por uso, `LIMIT 300`). Buscado uma vez
+  no mount do `XFlowScreen` (mesmo padrão do `team`), atualizado
+  localmente (sem novo fetch) toda vez que um nome novo é usado —
+  `registerAffectedCompany()`, chamado em `createTicket` e em
+  `performAction` quando a ação é `editar_campo` no campo
+  `affectedCompany`. Componente `AffectedCompanyField` (usado em
+  `NewTicketModal` e no bloco "Dados capturados" do `TicketDetailModal`):
+  busca por substring normalizado (sem acento, minúsculo) em qualquer
+  posição do nome — não só prefixo, cobre "Raf"/"Sou"/"Rafael S" igual —
+  nunca bloqueia digitar um nome novo, sugestão é só atalho. Aviso de
+  possível duplicidade (Levenshtein, distância ≤ 30% do tamanho da menor
+  string) aparece como texto informativo com um botão "Usar esse", nunca
+  impede submeter o nome digitado. Commit só no blur (`onBlur={(e) =>
+  commit(e.target.value)}` — lendo direto do DOM, não do estado React, pra
+  não correr risco de closure desatualizada) — mesmo espírito do
+  `ContentField`, evita PATCH a cada tecla no caso do `TicketDetailModal`.
 - **Fora do escopo ainda** (não pedido/não decidido): calendário útil no
   SLA (hoje é tempo corrido), notificação de @menção via o sino do
   Cronograma (comentários do XFlow ainda não aparecem lá), BUGs

@@ -194,6 +194,26 @@ router.get('/team', requireAuth, requireXflowAccess, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Autocomplete de "Empresa/Cliente afetado" — não é um cadastro à parte,
+// é o próprio histórico de tickets da org (todo affectedCompany já usado
+// vira sugestão pra próxima vez, sem precisar de tabela nova). Ordenado
+// por frequência de uso — quem aparece mais costuma ser quem o usuário
+// mais quer digitar de novo.
+router.get('/affected-companies', requireAuth, requireXflowAccess, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT data->>'affectedCompany' AS name, COUNT(*) AS cnt
+       FROM xflow_tickets
+       WHERE org_id=$1 AND trim(coalesce(data->>'affectedCompany', '')) != ''
+       GROUP BY data->>'affectedCompany'
+       ORDER BY cnt DESC, name ASC
+       LIMIT 300`,
+      [req.user.orgId]
+    );
+    res.json({ affectedCompanies: rows.map((r) => r.name) });
+  } catch (e) { next(e); }
+});
+
 router.get('/tickets', requireAuth, requireXflowAccess, async (req, res, next) => {
   try {
     const role = effectiveXflowRole(req.user);
