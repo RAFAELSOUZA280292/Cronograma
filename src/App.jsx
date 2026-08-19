@@ -245,6 +245,15 @@ function groupMembers(projects, rootId) {
   if (!rootId) return [];
   return projects.filter((p) => groupRootId(p.company, p.id) === rootId);
 }
+// Selo "Empresas envolvidas" (v2) — só pra atividades do Master com o campo
+// novo definido (involvedCompanyIds !== undefined); distinto do selo legado
+// "Grupo inteiro"/"Várias empresas" (groupActivityId, mecanismo de cópia v1).
+function involvedCompaniesLabel(a, groupInfo) {
+  if (a.involvedCompanyIds === undefined || !groupInfo) return null;
+  if (a.involvedCompanyIds.length === 0) return 'Geral do Grupo';
+  const names = groupInfo.children.filter((c) => a.involvedCompanyIds.includes(c.id)).map((c) => c.name);
+  return names.length ? names.join(', ') : 'Geral do Grupo';
+}
 
 const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 function parseDate(iso) { return new Date(iso + 'T00:00:00'); }
@@ -829,25 +838,25 @@ export default function App() {
     mutateProject(targetPid, (p) => ({ ...p, activities: [...p.activities, na] }), `Atividade criada: "${na.title}"`, na.id);
   }
 
-  function addGroupActivity(pids, scopeType) {
-    if (!pids || pids.length === 0) return;
-    const groupActivityId = uid('gact');
-    pids.forEach((targetPid) => {
-      const project = projects.find((p) => p.id === targetPid);
-      if (!project) return;
-      const activities = project.activities;
-      const nextMonth = activities.length ? Math.max(...activities.map((a) => a.month)) + 1 : 1;
-      const phasesList = project.phases;
-      const defaultPhaseId = phasesList.length ? phasesList[phasesList.length - 1].id : 1;
-      const na = {
-        id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '',
-        responsible: (project.team[0] && project.team[0].name) || 'PRICETAX', priority: '', participants: [],
-        date: '', endDate: '', durationDays: '', status: 'nao-iniciado', required: false, subactivities: [],
-        notes: '', attachments: [], comments: [], links: [], transcript: '',
-        groupActivityId, groupScopeType: scopeType,
-      };
-      mutateProject(targetPid, (p) => ({ ...p, activities: [...p.activities, na] }), `Atividade de grupo criada: "${na.title}"`, na.id);
-    });
+  // Atividade "de grupo" (v2): registro único no projeto do Master, marcado com
+  // as empresas-filhas envolvidas (involvedCompanyIds vazio = "Geral do Grupo").
+  // Substitui o mecanismo antigo de cópia por empresa (groupActivityId) — cópias
+  // já existentes continuam funcionando via o bloco de sync em updateActivity().
+  function addGroupWideActivity(masterPid, involvedCompanyIds) {
+    const project = projects.find((p) => p.id === masterPid);
+    if (!project) return;
+    const activities = project.activities;
+    const nextMonth = activities.length ? Math.max(...activities.map((a) => a.month)) + 1 : 1;
+    const phasesList = project.phases;
+    const defaultPhaseId = phasesList.length ? phasesList[phasesList.length - 1].id : 1;
+    const na = {
+      id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '',
+      responsible: (project.team[0] && project.team[0].name) || 'PRICETAX', priority: '', participants: [],
+      date: '', endDate: '', durationDays: '', status: 'nao-iniciado', required: false, subactivities: [],
+      notes: '', attachments: [], comments: [], links: [], transcript: '',
+      involvedCompanyIds: involvedCompanyIds || [],
+    };
+    mutateProject(masterPid, (p) => ({ ...p, activities: [...p.activities, na] }), `Atividade de grupo criada: "${na.title}"`, na.id);
   }
 
   function deleteActivity(targetPid, id) {
@@ -1454,6 +1463,10 @@ export default function App() {
     _team: p.team,
     _order: perCompanyOrderMap[p.id][a.id],
   }))) : [];
+  const groupInfo = isGroupView ? {
+    masterId: selectedGroupRoots[0],
+    children: selectedProjects.filter((p) => p.id !== selectedGroupRoots[0]).map((p) => ({ id: p.id, name: p.company.nomeFantasia || p.company.name || 'Sem nome' })),
+  } : null;
 
   // Ações secundárias do topbar — mesma lista de condições usada pelos botões desktop (linha a linha
   // logo abaixo), só que declarativa, para poder ser renderizada também dentro do menu "Mais" no mobile
@@ -1727,6 +1740,7 @@ export default function App() {
             removeAttachment={removeAttachment}
             openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
             multiMode
+            groupInfo={groupInfo}
           />
         )}
         {isMulti && view === 'phases' && selectedProjects.map((p) => (
@@ -1744,6 +1758,7 @@ export default function App() {
             updateActivity={updateActivity}
             openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
             multiMode
+            groupInfo={groupInfo}
           />
         )}
       </main>
@@ -2046,6 +2061,7 @@ export default function App() {
             companyName={project.company.name}
             currentUser={currentUser}
             pid={project.id}
+            groupChildren={project.company.isGroupMaster ? groupMembers(projects, project.id).filter((p) => p.id !== project.id).map((p) => ({ id: p.id, name: p.company.nomeFantasia || p.company.name || 'Sem nome' })) : []}
             onClose={() => setOpenActivityId(null)}
             updateActivity={updateActivity}
             deleteActivity={(tPid, id) => { if (deleteActivity(tPid, id)) setOpenActivityId(null); }}
@@ -2086,13 +2102,10 @@ export default function App() {
       )}
 
       {showGroupActivityModal && (
-        <GroupActivityScopeModal
-          companies={selectedProjects}
+        <GroupActivityCompaniesModal
+          groupChildren={selectedProjects.filter((p) => p.id !== selectedGroupRoots[0]).map((p) => ({ id: p.id, name: p.company.nomeFantasia || p.company.name || 'Sem nome' }))}
           onClose={() => setShowGroupActivityModal(false)}
-          onCreate={(scope, targetIds) => {
-            if (scope === 'single') addActivity(targetIds[0]);
-            else addGroupActivity(targetIds, scope);
-          }}
+          onCreate={(involvedCompanyIds) => addGroupWideActivity(selectedGroupRoots[0], involvedCompanyIds)}
         />
       )}
     </div>
@@ -3112,7 +3125,13 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
     onClose();
   }
   async function unlinkFromGroup() {
-    if (saving || !window.confirm('Desvincular esta empresa do grupo?')) return;
+    if (saving) return;
+    const blocking = parentGroup ? (parentGroup.activities || []).filter((act) => !act.deleted && act.status !== 'concluido' && (act.involvedCompanyIds || []).includes(project.id)) : [];
+    if (blocking.length > 0) {
+      window.alert(`Não é possível desvincular: ${blocking.length} atividade${blocking.length === 1 ? '' : 's'} em aberto no grupo ainda envolve${blocking.length === 1 ? '' : 'm'} esta empresa ("${blocking.slice(0, 3).map((act) => act.title).join('", "')}"${blocking.length > 3 ? ', ...' : ''}). Remova a empresa dessas atividades (ou conclua-as) antes de desvincular.`);
+      return;
+    }
+    if (!window.confirm('Desvincular esta empresa do grupo?')) return;
     setSaving(true);
     await onSave({ isGroupMaster: false, groupId: '', groupName: '', structureType: 'individual' });
     setSaving(false);
@@ -3220,14 +3239,12 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
   );
 }
 
-function GroupActivityScopeModal({ companies, onCreate, onClose }) {
-  const [scope, setScope] = useState('single');
-  const [singleId, setSingleId] = useState((companies[0] && companies[0].id) || '');
-  const [multiIds, setMultiIds] = useState(() => new Set());
+function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }) {
+  const [involvedIds, setInvolvedIds] = useState(() => new Set());
   const isMobile = useIsMobile();
 
-  function toggleMulti(id) {
-    setMultiIds((prev) => {
+  function toggle(id) {
+    setInvolvedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
@@ -3235,75 +3252,30 @@ function GroupActivityScopeModal({ companies, onCreate, onClose }) {
   }
 
   function confirm() {
-    if (scope === 'single') {
-      if (!singleId) return;
-      onCreate('single', [singleId]);
-    } else if (scope === 'multi') {
-      if (multiIds.size === 0) return;
-      onCreate('multi', Array.from(multiIds));
-    } else {
-      onCreate('all', companies.map((c) => c.id));
-    }
+    onCreate(Array.from(involvedIds));
     onClose();
   }
-
-  const scopeOptions = [
-    { value: 'single', label: 'Uma empresa' },
-    { value: 'multi', label: 'Várias empresas' },
-    { value: 'all', label: 'Todas as empresas do grupo' },
-  ];
-  const confirmDisabled = (scope === 'single' && !singleId) || (scope === 'multi' && multiIds.size === 0);
 
   return (
     <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
       <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>Nova atividade</div>
+          <div style={{ fontSize: 17, fontWeight: 800 }}>Nova atividade do grupo</div>
           <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
         </div>
 
-        <div style={S.subSectionLabel}>Aplicável a</div>
-        <div style={S.priorityPickerRow}>
-          {scopeOptions.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              style={{ ...S.priorityPickerChip, color: '#9b7af5', background: scope === opt.value ? 'rgba(155,122,245,.14)' : 'transparent', borderColor: scope === opt.value ? 'rgba(155,122,245,.5)' : 'var(--border-3)' }}
-              onClick={() => setScope(opt.value)}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div style={S.subSectionLabel}>Empresas envolvidas</div>
+        <div style={{ ...S.fieldHint, marginTop: 0, marginBottom: 8 }}>
+          Deixe tudo desmarcado para uma demanda geral do grupo, sem empresa específica.
         </div>
+        {groupChildren.map((c) => (
+          <label key={c.id} style={S.cnpjCheckRow}>
+            <input type="checkbox" checked={involvedIds.has(c.id)} onChange={() => toggle(c.id)} />
+            {c.name}
+          </label>
+        ))}
 
-        {scope === 'single' && (
-          <>
-            <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Empresa</div>
-            <select value={singleId} onChange={(e) => setSingleId(e.target.value)}>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.company.nomeFantasia || c.company.name || 'Sem nome'}</option>)}
-            </select>
-          </>
-        )}
-
-        {scope === 'multi' && (
-          <>
-            <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Empresas</div>
-            {companies.map((c) => (
-              <label key={c.id} style={S.cnpjCheckRow}>
-                <input type="checkbox" checked={multiIds.has(c.id)} onChange={() => toggleMulti(c.id)} />
-                {c.company.nomeFantasia || c.company.name || 'Sem nome'}
-              </label>
-            ))}
-          </>
-        )}
-
-        {scope === 'all' && (
-          <div style={{ ...S.fieldHint, marginTop: 10 }}>
-            Vai criar uma cópia da atividade nas {companies.length} empresas do grupo selecionadas.
-          </div>
-        )}
-
-        <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={confirm} disabled={confirmDisabled}>
+        <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={confirm}>
           Criar atividade
         </button>
       </div>
@@ -3318,7 +3290,18 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterRegime, setFilterRegime] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set());
   const isMobile = useIsMobile();
+
+  function toggleGroupExpanded(e, id) {
+    e.preventDefault();
+    e.stopPropagation();
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   function toggle(id) {
     const p = projects.find((pr) => pr.id === id);
@@ -3485,9 +3468,14 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                             {p.company.nomeFantasia || p.company.name || 'Empresa sem nome'}
                           </div>
                           {p.company.isGroupMaster && (
-                            <span style={{ ...S.companyStatusPillSm, color: '#9b7af5', background: 'rgba(155,122,245,.14)', borderColor: 'rgba(155,122,245,.5)' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => toggleGroupExpanded(e, p.id)}
+                              style={{ ...S.companyStatusPillSm, color: '#9b7af5', background: 'rgba(155,122,245,.14)', borderColor: 'rgba(155,122,245,.5)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                            >
                               Grupo · {groupMembers(projects, p.id).length} empresa{groupMembers(projects, p.id).length === 1 ? '' : 's'}
-                            </span>
+                              <ChevronDown size={11} style={{ transform: expandedGroups.has(p.id) ? 'rotate(180deg)' : 'none', transition: 'transform .12s' }} />
+                            </button>
                           )}
                           {p.company.clientType && CLIENT_TYPE_META[p.company.clientType] && (
                             <span style={{ ...S.companyStatusPillSm, color: CLIENT_TYPE_META[p.company.clientType].color, background: CLIENT_TYPE_META[p.company.clientType].bg, borderColor: CLIENT_TYPE_META[p.company.clientType].border }}>{CLIENT_TYPE_META[p.company.clientType].short}</span>
@@ -3508,6 +3496,13 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                           {p.company.cnpj || 'CNPJ não informado'}
                           {p.company.regimeTributario ? ` · ${p.company.regimeTributario}` : ''}
                         </div>
+                        {p.company.isGroupMaster && expandedGroups.has(p.id) && (
+                          <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 11.5, color: 'var(--text-5)' }}>
+                            {groupMembers(projects, p.id).filter((m) => m.id !== p.id).map((m) => (
+                              <li key={m.id}>{m.company.nomeFantasia || m.company.name || 'Empresa sem nome'}</li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     </label>
                     <div style={{ ...S.companyCardProgress, ...(isMobile ? S.companyCardProgressMobile : null) }}>
@@ -5447,7 +5442,7 @@ function renderCommentText(text, teamList) {
   return parts.map((part, i) => (names.some((n) => part === `@${n}`) ? <span key={i} style={S.mentionTag}>{part}</span> : <React.Fragment key={i}>{part}</React.Fragment>));
 }
 
-function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, onClose, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant }) {
+function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant }) {
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState('');
   const [commentDraft, setCommentDraft] = useState('');
@@ -5614,6 +5609,33 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
               {phases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
 
+            {groupChildren && groupChildren.length > 0 && (
+              <>
+                <div style={S.subSectionLabel}>Empresas envolvidas</div>
+                <div style={{ ...S.fieldHint, marginTop: 0, marginBottom: 6 }}>
+                  Deixe tudo desmarcado para atividade geral do grupo.
+                </div>
+                {groupChildren.map((c) => {
+                  const involved = a.involvedCompanyIds || [];
+                  const checked = involved.includes(c.id);
+                  return (
+                    <label key={c.id} style={S.cnpjCheckRow}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          const next = checked ? involved.filter((id) => id !== c.id) : [...involved, c.id];
+                          const names = groupChildren.filter((gc) => next.includes(gc.id)).map((gc) => gc.name);
+                          updateActivity(pid, a.id, { involvedCompanyIds: next }, `Empresas envolvidas alteradas em "${a.title}": ${names.length ? names.join(', ') : 'Geral do Grupo'}`);
+                        }}
+                      />
+                      {c.name}
+                    </label>
+                  );
+                })}
+              </>
+            )}
+
             <div style={S.subSectionLabel}>Responsável</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <select value={a.responsible} onChange={(e) => updateActivity(pid, a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)} style={{ flex: 1 }}>
@@ -5742,7 +5764,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
   );
 }
 
-function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor }) {
+function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor, groupInfo }) {
   const isMobile = useIsMobile();
   const isCompact = useIsCompact();
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -5771,14 +5793,22 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
     if (po && !seenPhaseNames.has(po.name)) { seenPhaseNames.add(po.name); phaseOptions.push(po); }
   });
   const respOptions = Array.from(new Set(activities.map((a) => a.responsible).filter(Boolean)));
-  const companyOptions = multiMode ? Array.from(new Set(activities.map((a) => a._companyName).filter(Boolean))) : [];
+  const companyOptions = (multiMode && !groupInfo) ? Array.from(new Set(activities.map((a) => a._companyName).filter(Boolean))) : [];
 
   const filtered = activities.filter((a) => {
     if (filterPhase && phaseOf(a)?.name !== filterPhase) return false;
     if (filterResp && a.responsible !== filterResp) return false;
     if (filterStatus && a.status !== filterStatus) return false;
     if (filterPriority && (a.priority || '') !== filterPriority) return false;
-    if (filterCompany && a._companyName !== filterCompany) return false;
+    if (groupInfo) {
+      if (filterCompany === '__geral__') {
+        if (!(a._pid === groupInfo.masterId && (!a.involvedCompanyIds || a.involvedCompanyIds.length === 0))) return false;
+      } else if (filterCompany) {
+        const matchesNative = a._pid === filterCompany;
+        const matchesTag = a._pid === groupInfo.masterId && (a.involvedCompanyIds || []).includes(filterCompany);
+        if (!matchesNative && !matchesTag) return false;
+      }
+    } else if (filterCompany && a._companyName !== filterCompany) return false;
     return true;
   });
   const filtersActive = !!(filterPhase || filterResp || filterStatus || filterPriority || filterCompany);
@@ -5906,7 +5936,16 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
             {PRIORITY_ORDER.map((p) => <option key={p} value={p}>{PRIORITY_META[p].label}</option>)}
           </select>
         </div>
-        {multiMode && companyOptions.length > 0 && (
+        {groupInfo ? (
+          <div style={S.filterGroup}>
+            <div style={S.filterLabel}>Empresa do grupo</div>
+            <select style={S.filterSelect} value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}>
+              <option value="">Todas as atividades</option>
+              <option value="__geral__">Geral do Grupo</option>
+              {groupInfo.children.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        ) : multiMode && companyOptions.length > 0 && (
           <div style={S.filterGroup}>
             <div style={S.filterLabel}>Empresa</div>
             <select style={S.filterSelect} value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}>
@@ -6001,6 +6040,11 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                           <Users size={10} /> {a.groupScopeType === 'all' ? 'Grupo inteiro' : 'Várias empresas'}
                         </span>
                       )}
+                      {involvedCompaniesLabel(a, groupInfo) && (
+                        <span title="Empresas envolvidas nesta atividade" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: '#9b7af5', marginTop: 3 }}>
+                          <Building2 size={10} /> {involvedCompaniesLabel(a, groupInfo)}
+                        </span>
+                      )}
                     </div>
                   )}
                   <div style={{ flex: 2, minWidth: 260 }}>
@@ -6091,6 +6135,11 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                             {a.groupActivityId && (
                               <span title={a.groupScopeType === 'all' ? 'Atividade do grupo inteiro' : 'Atividade vinculada a várias empresas do grupo'} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: '#9b7af5' }}>
                                 <Users size={10} /> {a.groupScopeType === 'all' ? 'Grupo inteiro' : 'Várias empresas'}
+                              </span>
+                            )}
+                            {involvedCompaniesLabel(a, groupInfo) && (
+                              <span title="Empresas envolvidas nesta atividade" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: '#9b7af5' }}>
+                                <Building2 size={10} /> {involvedCompaniesLabel(a, groupInfo)}
                               </span>
                             )}
                           </div>
@@ -6376,8 +6425,9 @@ function PhasesView({ activities, orderMap, phases, pid, updateActivity, openDet
   );
 }
 
-function KanbanView({ activities, orderMap, phases, pid, dragId, setDragId, updateActivity, addActivity, openDetail, multiMode }) {
+function KanbanView({ activities, orderMap, phases, pid, dragId, setDragId, updateActivity, addActivity, openDetail, multiMode, groupInfo }) {
   const isMobile = useIsMobile();
+  const [filterCompany, setFilterCompany] = useState('');
   function keyPid(a) { return pid || a._pid; }
   function onDrop(status) {
     if (!dragId) return;
@@ -6387,11 +6437,31 @@ function KanbanView({ activities, orderMap, phases, pid, dragId, setDragId, upda
     }
     setDragId(null);
   }
+  const visibleActivities = !groupInfo ? activities : activities.filter((a) => {
+    if (filterCompany === '__geral__') return a._pid === groupInfo.masterId && (!a.involvedCompanyIds || a.involvedCompanyIds.length === 0);
+    if (filterCompany) {
+      const matchesNative = a._pid === filterCompany;
+      const matchesTag = a._pid === groupInfo.masterId && (a.involvedCompanyIds || []).includes(filterCompany);
+      return matchesNative || matchesTag;
+    }
+    return true;
+  });
   return (
-    <div style={{ ...S.kanbanBoard, ...(isMobile ? S.kanbanBoardMobile : null) }}>
+    <div>
+      {groupInfo && (
+        <div style={S.filterGroup}>
+          <div style={S.filterLabel}>Empresa do grupo</div>
+          <select style={S.filterSelect} value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}>
+            <option value="">Todas as atividades</option>
+            <option value="__geral__">Geral do Grupo</option>
+            {groupInfo.children.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
+      <div style={{ ...S.kanbanBoard, ...(isMobile ? S.kanbanBoardMobile : null) }}>
       {STATUS_ORDER.map((status) => {
         const meta = STATUS_META[status];
-        const items = activities.filter((a) => a.status === status);
+        const items = visibleActivities.filter((a) => a.status === status);
         return (
           <div key={status} style={{ ...S.kanbanCol, ...(isMobile ? S.kanbanColMobile : null) }} onDragOver={(e) => e.preventDefault()} onDrop={() => onDrop(status)}>
             <div style={S.kanbanColHead}>
@@ -6416,6 +6486,11 @@ function KanbanView({ activities, orderMap, phases, pid, dragId, setDragId, upda
                       <Users size={10} /> {a.groupScopeType === 'all' ? 'Grupo inteiro' : 'Várias empresas'}
                     </span>
                   )}
+                  {involvedCompaniesLabel(a, groupInfo) && (
+                    <span title="Empresas envolvidas nesta atividade" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: '#9b7af5', marginTop: 3 }}>
+                      <Building2 size={10} /> {involvedCompaniesLabel(a, groupInfo)}
+                    </span>
+                  )}
                   <div style={S.kanbanCardTitle}>{a.title}</div>
                   <div style={S.kanbanCardMeta}>
                     <span>{a.responsible}</span>
@@ -6430,6 +6505,7 @@ function KanbanView({ activities, orderMap, phases, pid, dragId, setDragId, upda
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
