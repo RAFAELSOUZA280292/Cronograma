@@ -759,26 +759,72 @@ completo (arquitetura de dados, matriz de permissões, matriz de transições).
   de card do quadro pessoal em `App.jsx`). PATCH em qualquer ticket já
   excluído é bloqueado no backend (só aceita `restaurar`) — proteção real,
   não só ausência de botão na tela.
-- **Descrição é rich text** (`RichTextEditor` em `XFlow.jsx`): negrito,
-  itálico, sublinhado, fonte (padrão/serifada/monoespaçada), alinhamento,
-  lista, citação — via `document.execCommand` num `contentEditable`
-  (sem lib de editor; único campo do XFlow com essa tratativa, os outros
-  continuam textarea plana via `ContentField`). `value` só resincroniza o
-  `innerHTML` quando o campo **não está em foco** (`document.activeElement`),
-  senão o cursor pula a cada tecla — truque padrão pra contentEditable
-  controlado. Colar print/imagem no meio do texto insere inline **e**
-  adiciona em Evidências ao mesmo tempo (mesmo limite de 8MB dos anexos
-  normais). Guardamos HTML agora, não texto puro — **sanitização em duas
-  camadas**, nenhuma confia só na outra: DOMPurify no frontend
-  (`sanitizeRichText`, allow-list de tags/atributos, hook customizado
-  garantindo que todo `<img>` sem `src` começando literalmente em
-  `data:image/` é removido — o filtro de esquema do DOMPurify sozinho não
-  pega uma URI sem `://`, tipo `src="x"`) e `sanitize-html` no backend
-  (`sanitizeDescriptionHtml` em `server/xflow.js`, mesma allow-list +
-  `exclusiveFilter` equivalente — aplicado tanto em `POST /tickets` quanto
-  em `editar_campo`). Testado com payload malicioso real (`<script>`,
-  `onerror`, `<iframe>`, `href="javascript:"`, `img` remoto) via curl —
-  tudo removido, só a formatação e imagem `data:` legítimas sobrevivem.
+- **Descrição é rich text — editor Tiptap (2026-08)**: `RichTextEditor`
+  em `XFlow.jsx` era um `contentEditable` caseiro via `document.execCommand`
+  (API depreciada, comportamento inconsistente entre navegadores, "rígido"
+  na palavra do Rafael) — trocado por um editor real usando Tiptap
+  (`@tiptap/react` + `@tiptap/starter-kit` + extensões pequenas —
+  `underline`/`text-style`/`font-family`/`text-align`/`link`/`placeholder`/
+  `image`, MIT, headless — mesma filosofia do `@dnd-kit/*` que o projeto
+  já usa, traz sua própria UI). Contrato externo do componente
+  (`value`/`onChange`/`onCommit`/`onPasteImage`/`disabled`/`placeholder`)
+  não mudou — `NewTicketModal`/`TicketDetailModal` continuam chamando
+  `<RichTextEditor .../>` sem alteração. Toolbar em grupos: desfazer/
+  refazer, título/subtítulo (H2/H3), negrito/itálico/sublinhado/tachado,
+  fonte+tamanho, alinhamento (esq./centro/dir./justificado), lista com
+  marcadores/numerada + recuo (aumentar/diminuir, só por botão — não
+  amarra Tab/Shift+Tab pra não brigar com o sink/lift nativo de listas do
+  StarterKit), citação/bloco de código/linha horizontal, link (via
+  `window.prompt`, mesmo padrão leve já usado em outros pontos do app) e
+  emoji (popover simples de unicode, sem lib nova). Atalhos de teclado
+  (Ctrl+B/I/U, Ctrl+Z/Shift+Z, `- `→lista, `> `→citação, `` ``` ``→código)
+  e desfazer/refazer real vêm de graça do StarterKit (ProseMirror por
+  baixo). Duas extensões pequenas escritas na mão (padrão documentado
+  pelo próprio Tiptap, não é reinventar o editor): `FontSize` (mark sobre
+  `textStyle`, já que Tiptap não empacota tamanho de fonte oficialmente) e
+  `Indent` (recuo via `margin-left` em parágrafo/título). Sincronização
+  controlada (`useEffect` só chama `editor.commands.setContent(value)`
+  quando o editor **não está em foco** e o HTML mudou de verdade) e
+  callbacks (`onChange`/`onCommit`/`onPasteImage`) guardados em `useRef` —
+  as opções do `useEditor` só são lidas na criação do editor, sem os refs
+  um callback novo a cada render (comum quando o pai passa arrow function
+  inline) ficaria "congelado" na primeira versão. Colar print/imagem no
+  meio do texto continua inserindo inline **e** adicionando em Evidências
+  ao mesmo tempo (mesmo limite de 8MB dos anexos normais), agora via
+  `editorProps.handlePaste`. Conteúdo legado (`<font face>` de antes da
+  troca) não tem regra de parse dedicada no Tiptap — degrada de forma
+  segura (perde só a fonte customizada, texto/formatação continuam
+  100% intactos), decisão consciente pra não adicionar uma extensão
+  frágil só por causa de um detalhe cosmético de tickets antigos.
+  Guardamos HTML, não texto puro — **sanitização em duas camadas**,
+  nenhuma confia só na outra: DOMPurify no frontend (`sanitizeRichText`,
+  allow-list ampliada — `h2`/`h3`/`s`/`a`/`hr`/`pre`/`code` além do que já
+  existia — hook customizado garantindo que todo `<img>` sem `src`
+  começando literalmente em `data:image/` é removido, e que todo `<a>`
+  só sobrevive com esquema `http`/`https`/`mailto`, sempre com
+  `target`/`rel` seguros forçados) e `sanitize-html` no backend
+  (`sanitizeDescriptionHtml` em `server/xflow.js`, mesma allow-list
+  ampliada + `allowedStyles` ganhando `font-size`/`margin-left` com regex
+  numérico + `transformTags` forçando `target="_blank" rel="noopener
+  noreferrer nofollow"` em todo `<a>` que sobrevive — **nunca confia no
+  rel/target que veio do client**). Testado com payload malicioso real via
+  curl direto no `PATCH /xflow/tickets/:id` (`<script>`, `onmouseover`,
+  `href="javascript:"`, `img` remoto, link legítimo misturado) — tudo
+  malicioso removido, o link legítimo sobrevive com `target`/`rel`
+  forçados corretamente. **Bug real encontrado e corrigido nesse teste**:
+  o `transformTags` adicionava `target`/`rel` mas o `allowedAttributes`
+  do `sanitize-html` só listava `a: ['href']` — o próprio filtro de
+  atributos removia de volta o que o `transformTags` acabara de forçar
+  (a ordem de execução do `sanitize-html` é `transformTags` primeiro,
+  filtro de atributos depois); corrigido incluindo `target`/`rel` em
+  `allowedAttributes.a` também. **Segundo bug encontrado e corrigido**:
+  os `<select>` de fonte/tamanho tinham `onMouseDown={(e) =>
+  e.preventDefault()}` copiado do padrão dos botões da toolbar (que existe
+  pra manter o foco/seleção no editor ao clicar um botão de formatação) —
+  em um `<select>` isso não faz sentido (o `<select>` precisa do
+  mousedown padrão pra abrir/focar) e impedia o `onChange` de disparar de
+  forma confiável; removido dos 2 selects (mantido nos botões, onde é
+  necessário).
 - **Campos complementares preenchíveis depois**: `EDITABLE_CONTENT_FIELDS`
   em `server/xflow.js` inclui `module`/`affectedUser`/`affectedCompany`/
   `impact`/`frequency`/`occurredAt`/`clientType` (além dos já existentes) —

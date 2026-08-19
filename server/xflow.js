@@ -9,33 +9,48 @@ function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
 }
 
-// Descrição do BUG agora é rich text (editor no frontend) — guardamos HTML,
-// não texto puro. Segunda camada de sanitização (a primeira é no frontend,
-// DOMPurify) — nunca confia só no cliente pra isso, é o mesmo espírito de
-// "autorização real no backend" do resto do XFlow v2. Allow-list restrita:
-// só formatação básica + imagem colada em data: URI (nunca URL remota —
-// evita vazamento tipo tracking pixel e a superfície de ataque de src
-// externo).
+// Descrição do BUG agora é rich text (editor Tiptap no frontend, ver
+// PROJECT_CONTEXT.md §18) — guardamos HTML, não texto puro. Segunda
+// camada de sanitização (a primeira é no frontend, DOMPurify) — nunca
+// confia só no cliente pra isso, é o mesmo espírito de "autorização real
+// no backend" do resto do XFlow v2. Allow-list ampliada (títulos/tachado/
+// link/separador/código, além do que já existia) mas continua restrita:
+// nada de tag/atributo/estilo fora dessa lista, imagem só em data: URI
+// (nunca URL remota — evita vazamento tipo tracking pixel), link só com
+// esquema http/https/mailto e sempre com target/rel seguros forçados
+// pelo servidor (nunca confia no rel/target que veio do client).
 function sanitizeDescriptionHtml(html) {
   if (!html) return '';
   return sanitizeHtml(html, {
-    allowedTags: ['b', 'strong', 'i', 'em', 'u', 'font', 'p', 'div', 'br', 'ul', 'ol', 'li', 'blockquote', 'span', 'img'],
-    allowedAttributes: { font: ['face'], span: ['style'], img: ['src', 'alt', 'style'], '*': [] },
+    allowedTags: ['b', 'strong', 'i', 'em', 'u', 's', 'font', 'p', 'div', 'br', 'h2', 'h3', 'ul', 'ol', 'li', 'blockquote', 'span', 'img', 'a', 'hr', 'pre', 'code'],
+    allowedAttributes: { font: ['face'], span: ['style'], img: ['src', 'alt', 'style'], a: ['href', 'target', 'rel'], '*': [] },
     allowedStyles: {
       '*': {
-        'text-align': [/^left$|^center$|^right$/],
+        'text-align': [/^left$|^center$|^right$|^justify$/],
         'font-family': [/^[\w\s,'"-]+$/],
         'font-weight': [/^bold$|^normal$/],
         'font-style': [/^italic$|^normal$/],
         'text-decoration': [/^underline$|^none$/],
+        'font-size': [/^\d+(\.\d+)?(px|em|rem)$/],
+        'margin-left': [/^\d+(\.\d+)?(px|em|rem)$/],
       },
     },
-    allowedSchemesByTag: { img: ['data'] },
-    // allowedSchemesByTag só barra src com esquema reconhecido explícito
-    // (ex.: "https://..."); um src sem "://" (ex.: "x", "/algo") passa reto.
-    // ExclusiveFilter fecha essa brecha de vez — qualquer <img> cujo src não
-    // comece literalmente com "data:image/" é descartado, sem exceção.
+    allowedSchemesByTag: { img: ['data'], a: ['http', 'https', 'mailto'] },
+    // allowedSchemesByTag só barra src/href com esquema reconhecido
+    // explícito (ex.: "https://..."); um valor sem "://" (ex.: "x",
+    // "/algo") passa reto. ExclusiveFilter fecha a brecha da imagem —
+    // qualquer <img> cujo src não comece literalmente com "data:image/" é
+    // descartado, sem exceção.
     exclusiveFilter: (frame) => frame.tag === 'img' && !(frame.attribs && frame.attribs.src && frame.attribs.src.startsWith('data:image/')),
+    // target/rel de link nunca vêm do client — forçados aqui sempre que
+    // sobrevive um href válido, pra nunca depender do que o Tiptap (ou um
+    // payload manipulado) mandou.
+    transformTags: {
+      a: (tagName, attribs) => ({
+        tagName: 'a',
+        attribs: attribs.href ? { href: attribs.href, target: '_blank', rel: 'noopener noreferrer nofollow' } : {},
+      }),
+    },
   });
 }
 

@@ -2,37 +2,59 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import DOMPurify from 'dompurify';
 import {
   X, Plus, MessageSquare, Clock, Paperclip, ChevronDown, LogOut,
-  Upload, Archive, Ban, Trash2, Bold, Italic, Underline as UnderlineIcon,
-  AlignLeft, AlignCenter, AlignRight, List, Quote, Building2, Columns3, LayoutGrid, LayoutList,
+  Upload, Archive, Ban, Trash2, Bold, Italic, Underline as UnderlineIcon, Strikethrough,
+  AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Quote, Building2, Columns3, LayoutGrid, LayoutList,
+  Undo2, Redo2, Heading2, Heading3, Indent as IndentIcon, Outdent, Code, Minus as MinusIcon, Link2, Smile,
 } from 'lucide-react';
 import {
   DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable,
 } from '@dnd-kit/core';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
+import { useEditor, EditorContent, Extension } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Underline from '@tiptap/extension-underline';
+import TextStyle from '@tiptap/extension-text-style';
+import FontFamily from '@tiptap/extension-font-family';
+import TextAlign from '@tiptap/extension-text-align';
+import Link from '@tiptap/extension-link';
+import Placeholder from '@tiptap/extension-placeholder';
+import TiptapImage from '@tiptap/extension-image';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel } from '../App.jsx';
 
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
 
-// Descrição do BUG é rich text (editor próprio, ver RichTextEditor). HTML
+// Descrição do BUG é rich text (editor Tiptap, ver RichTextEditor). HTML
 // nunca vai pra tela sem passar por aqui — mesmo conteúdo já sanitizado no
 // backend ao salvar (defesa em profundidade, server/xflow.js
-// sanitizeDescriptionHtml — não confia só no cliente).
-const RICH_TEXT_ALLOWED_TAGS = ['b', 'strong', 'i', 'em', 'u', 'font', 'p', 'div', 'br', 'ul', 'ol', 'li', 'blockquote', 'span', 'img'];
+// sanitizeDescriptionHtml — não confia só no cliente). Allow-list espelha
+// (ampliada) a do backend — mudou lá, considerar mudar aqui.
+const RICH_TEXT_ALLOWED_TAGS = [
+  'b', 'strong', 'i', 'em', 'u', 's', 'font', 'p', 'div', 'br',
+  'h2', 'h3', 'ul', 'ol', 'li', 'blockquote', 'span', 'img', 'a', 'hr', 'pre', 'code',
+];
+const RICH_TEXT_LINK_SCHEME = /^(https?:|mailto:)/i;
 // ALLOWED_URI_REGEXP só pega valores que "parecem" uma URI com esquema —
 // um src sem "://" (ex.: "x") escapa dessa checagem. Hook fecha a brecha:
 // qualquer <img> cujo src não comece literalmente com "data:image/" é
-// removido, sem exceção (mesma regra do sanitizeDescriptionHtml no backend).
+// removido, sem exceção (mesma regra do sanitizeDescriptionHtml no
+// backend); <a> passa pela mesma lógica pro esquema do href (nunca
+// javascript:), e ganha rel/target seguros sempre que abre em nova aba.
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   if (node.tagName === 'IMG') {
     const src = node.getAttribute('src') || '';
     if (!src.startsWith('data:image/')) node.remove();
   }
+  if (node.tagName === 'A') {
+    const href = node.getAttribute('href') || '';
+    if (!RICH_TEXT_LINK_SCHEME.test(href)) node.removeAttribute('href');
+    else { node.setAttribute('target', '_blank'); node.setAttribute('rel', 'noopener noreferrer nofollow'); }
+  }
 });
 function sanitizeRichText(html) {
   return DOMPurify.sanitize(html || '', {
     ALLOWED_TAGS: RICH_TEXT_ALLOWED_TAGS,
-    ALLOWED_ATTR: ['style', 'face', 'src', 'alt'],
+    ALLOWED_ATTR: ['style', 'face', 'src', 'alt', 'href', 'target', 'rel'],
     ALLOWED_URI_REGEXP: /^data:image\//,
   });
 }
@@ -48,20 +70,47 @@ const RICH_TEXT_FONTS = [
   { value: 'Georgia, serif', label: 'Serifada' },
   { value: '"Courier New", monospace', label: 'Monoespaçada' },
 ];
+const RICH_TEXT_SIZES = [
+  { value: '', label: 'Tamanho' },
+  { value: '11px', label: 'Pequeno' },
+  { value: '12.5px', label: 'Normal' },
+  { value: '15px', label: 'Grande' },
+  { value: '19px', label: 'Enorme' },
+];
+const RICH_TEXT_EMOJIS = [
+  '😀', '😂', '😉', '😍', '🤔', '😅', '😬', '😢', '😡', '👍', '👎', '🙏', '👏', '🎉', '🔥', '💡',
+  '⚠️', '✅', '❌', '❓', '❗', '🐛', '🚀', '📌', '📎', '🕒', '💬', '👀',
+];
 
+// Estilos do editor: pareado com o `contentEditable` do Tiptap via
+// `editorProps.attributes.class` — a classe `.xflow-rte-body` continua indo
+// direto no elemento editável de verdade, então a maior parte do CSS de
+// antes (contenteditable caseiro) segue valendo sem mudança.
 const RICH_TEXT_CSS = `
   .xflow-rte-toolbar { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; padding: 4px; background: var(--bg-3); border: 1px solid var(--border-3); border-bottom: none; border-radius: 6px 6px 0 0; }
   .xflow-rte-btn { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: transparent; border: none; border-radius: 4px; color: var(--text-3); cursor: pointer; }
   .xflow-rte-btn:hover { background: var(--bg-4); color: var(--text-1); }
+  .xflow-rte-btn:disabled { opacity: .35; cursor: default; }
+  .xflow-rte-btn.active { background: rgba(245,196,0,.16); color: #F5C400; }
   .xflow-rte-sep { width: 1px; height: 18px; background: var(--border-2); margin: 0 3px; }
-  .xflow-rte-font { font-size: 11.5px; background: var(--bg-4); border: 1px solid var(--border-3); color: var(--text-2); border-radius: 4px; padding: 3px 4px; }
-  .xflow-rte-body { min-height: 90px; max-height: 320px; overflow-y: auto; background: var(--bg-4); border: 1px solid var(--border-3); border-radius: 0 0 6px 6px; padding: 8px 10px; font-size: 12.5px; color: var(--text-1); line-height: 1.5; }
+  .xflow-rte-font { font-size: 11.5px; background: var(--bg-4); border: 1px solid var(--border-3); color: var(--text-2); border-radius: 4px; padding: 3px 4px; width: auto; }
+  .xflow-rte-body { min-height: 110px; max-height: 380px; overflow-y: auto; background: var(--bg-4); border: 1px solid var(--border-3); border-radius: 0 0 6px 6px; padding: 10px 12px; font-size: 12.5px; color: var(--text-1); line-height: 1.6; }
   .xflow-rte-body:focus { outline: none; border-color: #F5C400; }
-  .xflow-rte-body:empty:before { content: attr(data-placeholder); color: var(--text-6); }
+  .xflow-rte-body .is-editor-empty:first-child::before { content: attr(data-placeholder); color: var(--text-6); float: left; height: 0; pointer-events: none; }
+  .xflow-rte-body h2 { font-size: 17px; font-weight: 800; margin: 10px 0 4px; }
+  .xflow-rte-body h3 { font-size: 14.5px; font-weight: 800; margin: 8px 0 4px; }
   .xflow-rte-body blockquote { margin: 6px 0; padding: 2px 10px; border-left: 3px solid var(--border-3); color: var(--text-4); }
   .xflow-rte-body ul, .xflow-rte-body ol { margin: 6px 0; padding-left: 22px; }
   .xflow-rte-body img { max-width: 100%; border-radius: 4px; margin: 4px 0; display: block; }
+  .xflow-rte-body hr { border: none; border-top: 1px solid var(--border-3); margin: 10px 0; }
+  .xflow-rte-body a { color: #3ea6ff; text-decoration: underline; }
+  .xflow-rte-body pre { background: var(--bg-3); border: 1px solid var(--border-3); border-radius: 6px; padding: 8px 10px; overflow-x: auto; font-size: 11.5px; }
+  .xflow-rte-body code { font-family: "Courier New", monospace; background: var(--bg-3); border-radius: 3px; padding: 1px 4px; font-size: 11.5px; }
+  .xflow-rte-body pre code { background: none; padding: 0; }
   .xflow-rte-body[contenteditable=false] { cursor: default; }
+  .xflow-rte-emoji-panel { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 6px; background: var(--bg-1); border: 1px solid var(--border-1); border-radius: 8px; box-shadow: var(--pb-shadow-drag, 0 8px 24px rgba(0,0,0,.3)); }
+  .xflow-rte-emoji-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; font-size: 16px; background: transparent; border: none; border-radius: 5px; cursor: pointer; }
+  .xflow-rte-emoji-btn:hover { background: var(--bg-4); }
 `;
 
 function hexToRgba(hex, alpha) {
@@ -359,58 +408,164 @@ function Badge({ meta, small }) {
   );
 }
 
-// Editor rich text da Descrição do problema — negrito/itálico/sublinhado,
-// fonte, alinhamento, lista, citação, e colar print/imagem direto no texto
-// (que também vira anexo, ver onPasteImage). `value` continua controlado
-// pelo pai, mas só re-sincroniza o innerHTML quando o campo NÃO está em
-// foco (senão o cursor pula a cada tecla) — truque padrão pra contentEditable
-// controlado. `onChange` é local/vivo (sem custo de rede); `onCommit` é o
-// que efetivamente salva (onBlur), mesmo espírito do ContentField acima.
+// Tamanho de fonte — Tiptap não empacota isso oficialmente, é o padrão
+// documentado pela própria lib: uma Extension que só adiciona um atributo
+// global (`fontSize`) ao mark `textStyle` que o extension-text-style já
+// registra, igual o extension-font-family faz pra `fontFamily`.
+const FontSize = Extension.create({
+  name: 'fontSize',
+  addOptions() { return { types: ['textStyle'] }; },
+  addGlobalAttributes() {
+    return [{
+      types: this.options.types,
+      attributes: {
+        fontSize: {
+          default: null,
+          parseHTML: (element) => element.style.fontSize || null,
+          renderHTML: (attributes) => (attributes.fontSize ? { style: `font-size: ${attributes.fontSize}` } : {}),
+        },
+      },
+    }];
+  },
+  addCommands() {
+    return {
+      setFontSize: (fontSize) => ({ chain }) => chain().setMark('textStyle', { fontSize }).run(),
+      unsetFontSize: () => ({ chain }) => chain().setMark('textStyle', { fontSize: null }).run(),
+    };
+  },
+});
+
+// Recuo — só via botões da toolbar (não amarra Tab/Shift+Tab pra não
+// brigar com o sink/lift nativo de listas que o StarterKit já usa nessas
+// teclas). Guarda o nível em `margin-left` no próprio parágrafo/título.
+const RTE_INDENT_STEP = 24;
+const RTE_INDENT_MAX = 8;
+const Indent = Extension.create({
+  name: 'indent',
+  addOptions() { return { types: ['paragraph', 'heading'] }; },
+  addGlobalAttributes() {
+    return [{
+      types: this.options.types,
+      attributes: {
+        indent: {
+          default: 0,
+          parseHTML: (element) => {
+            const ml = parseInt(element.style.marginLeft || '0', 10);
+            return Number.isFinite(ml) && ml > 0 ? Math.round(ml / RTE_INDENT_STEP) : 0;
+          },
+          renderHTML: (attributes) => (attributes.indent ? { style: `margin-left: ${attributes.indent * RTE_INDENT_STEP}px` } : {}),
+        },
+      },
+    }];
+  },
+  addCommands() {
+    function shiftIndent(delta) {
+      return () => ({ tr, state, dispatch }) => {
+        const { types } = this.options;
+        let changed = false;
+        state.doc.nodesBetween(state.selection.from, state.selection.to, (node, pos) => {
+          if (types.includes(node.type.name)) {
+            const next = Math.max(0, Math.min(RTE_INDENT_MAX, (node.attrs.indent || 0) + delta));
+            if (next !== (node.attrs.indent || 0)) {
+              tr.setNodeMarkup(pos, undefined, { ...node.attrs, indent: next });
+              changed = true;
+            }
+          }
+        });
+        if (changed && dispatch) dispatch(tr);
+        return changed;
+      };
+    }
+    return { indent: shiftIndent(1).bind(this), outdent: shiftIndent(-1).bind(this) };
+  },
+});
+
+// Extensão da Descrição do problema (BUG/melhoria/TASK) — editor real via
+// Tiptap (ver PROJECT_CONTEXT.md §18). `value`/`onChange`/`onCommit`/
+// `onPasteImage`/`disabled`/`placeholder` mantêm exatamente o mesmo
+// contrato do editor caseiro anterior, então quem usa o componente
+// (NewTicketModal, TicketDetailModal) não precisou mudar nada. `onChange`
+// é local/vivo (sem custo de rede); `onCommit` é o que efetivamente salva
+// (onBlur), mesmo espírito do ContentField acima. Callbacks ficam em refs
+// (padrão recomendado pelo próprio Tiptap) porque as opções do
+// `useEditor` só são lidas na criação do editor — sem isso, um `onChange`/
+// `onPasteImage` novo a cada render (comum quando o pai passa uma arrow
+// function inline) ficaria "congelado" na primeira versão.
 function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, placeholder }) {
-  const editorRef = useRef(null);
+  const onChangeRef = useRef(onChange);
+  const onCommitRef = useRef(onCommit);
+  const onPasteImageRef = useRef(onPasteImage);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  useEffect(() => { onCommitRef.current = onCommit; }, [onCommit]);
+  useEffect(() => { onPasteImageRef.current = onPasteImage; }, [onPasteImage]);
+  const [showEmoji, setShowEmoji] = useState(false);
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ heading: { levels: [2, 3] } }),
+      Underline,
+      TextStyle,
+      FontFamily,
+      FontSize,
+      Indent,
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      Link.configure({ openOnClick: true, autolink: true, HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer nofollow' } }),
+      TiptapImage,
+      Placeholder.configure({ placeholder: placeholder || '' }),
+    ],
+    content: sanitizeRichText(value || ''),
+    editable: !disabled,
+    editorProps: {
+      attributes: { class: 'xflow-rte-body' },
+      handlePaste: (view, event) => {
+        const items = Array.from((event.clipboardData && event.clipboardData.items) || []);
+        const imageItem = items.find((it) => it.type && it.type.startsWith('image/'));
+        if (!imageItem) return false;
+        const file = imageItem.getAsFile();
+        if (!file) return false;
+        if (file.size > MAX_EVIDENCE_BYTES) {
+          window.alert(`A imagem colada tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite é ${MAX_EVIDENCE_BYTES / (1024 * 1024)} MB.`);
+          return true;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const { schema } = view.state;
+          const node = schema.nodes.image.create({ src: reader.result });
+          view.dispatch(view.state.tr.replaceSelectionWith(node));
+          if (onPasteImageRef.current) onPasteImageRef.current({ id: uid('ev'), name: `print-${Date.now()}.png`, size: file.size, type: file.type, dataUrl: reader.result });
+        };
+        reader.readAsDataURL(file);
+        return true;
+      },
+    },
+    onUpdate: ({ editor: ed }) => { if (onChangeRef.current) onChangeRef.current(sanitizeRichText(ed.getHTML())); },
+    onBlur: ({ editor: ed }) => { if (onCommitRef.current) onCommitRef.current(sanitizeRichText(ed.getHTML())); },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => { if (editor) editor.setEditable(!disabled); }, [editor, disabled]);
 
   useEffect(() => {
-    const el = editorRef.current;
-    if (!el) return;
-    if (document.activeElement === el) return;
+    if (!editor || editor.isFocused) return;
     const html = sanitizeRichText(value || '');
-    if (el.innerHTML !== html) el.innerHTML = html;
-  }, [value]);
+    if (sanitizeRichText(editor.getHTML()) !== html) editor.commands.setContent(html, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, editor]);
 
-  function currentHtml() {
-    return sanitizeRichText(editorRef.current ? editorRef.current.innerHTML : '');
+  if (!editor) return null;
+
+  function btnCls(active) { return `xflow-rte-btn${active ? ' active' : ''}`; }
+  function insertLink() {
+    const prev = editor.getAttributes('link').href || '';
+    const url = window.prompt('URL do link:', prev);
+    if (url === null) return;
+    const chain = editor.chain().focus().extendMarkRange('link');
+    if (url.trim()) chain.setLink({ href: url.trim() }).run();
+    else chain.unsetLink().run();
   }
-  function handleInput() {
-    if (onChange) onChange(currentHtml());
-  }
-  function handleBlur() {
-    if (onCommit) onCommit(currentHtml());
-  }
-  function exec(cmd, arg) {
-    if (disabled || !editorRef.current) return;
-    editorRef.current.focus();
-    document.execCommand(cmd, false, arg);
-    handleInput();
-  }
-  function handlePaste(e) {
-    const items = Array.from((e.clipboardData && e.clipboardData.items) || []);
-    const imageItem = items.find((it) => it.type && it.type.startsWith('image/'));
-    if (!imageItem) return;
-    e.preventDefault();
-    const file = imageItem.getAsFile();
-    if (!file) return;
-    if (file.size > MAX_EVIDENCE_BYTES) {
-      window.alert(`A imagem colada tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite é ${MAX_EVIDENCE_BYTES / (1024 * 1024)} MB.`);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      document.execCommand('insertImage', false, reader.result);
-      handleInput();
-      handleBlur();
-      if (onPasteImage) onPasteImage({ id: uid('ev'), name: `print-${Date.now()}.png`, size: file.size, type: file.type, dataUrl: reader.result });
-    };
-    reader.readAsDataURL(file);
+  function insertEmoji(emoji) {
+    editor.chain().focus().insertContent(emoji).run();
+    setShowEmoji(false);
   }
 
   return (
@@ -418,32 +573,52 @@ function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, pla
       <style>{RICH_TEXT_CSS}</style>
       {!disabled && (
         <div className="xflow-rte-toolbar">
-          <button type="button" className="xflow-rte-btn" title="Negrito" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('bold')}><Bold size={13} /></button>
-          <button type="button" className="xflow-rte-btn" title="Itálico" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('italic')}><Italic size={13} /></button>
-          <button type="button" className="xflow-rte-btn" title="Sublinhado" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('underline')}><UnderlineIcon size={13} /></button>
+          <button type="button" className="xflow-rte-btn" title="Desfazer (Ctrl+Z)" disabled={!editor.can().undo()} onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().undo().run()}><Undo2 size={13} /></button>
+          <button type="button" className="xflow-rte-btn" title="Refazer (Ctrl+Shift+Z)" disabled={!editor.can().redo()} onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().redo().run()}><Redo2 size={13} /></button>
           <div className="xflow-rte-sep" />
-          <select className="xflow-rte-font" title="Fonte" defaultValue="" onMouseDown={(e) => e.preventDefault()} onChange={(e) => { exec('fontName', e.target.value || 'inherit'); e.target.value = ''; }}>
+          <button type="button" className={btnCls(editor.isActive('heading', { level: 2 }))} title="Título" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive('heading', { level: 3 }))} title="Subtítulo" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}><Heading3 size={13} /></button>
+          <div className="xflow-rte-sep" />
+          <button type="button" className={btnCls(editor.isActive('bold'))} title="Negrito (Ctrl+B)" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()}><Bold size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive('italic'))} title="Itálico (Ctrl+I)" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive('underline'))} title="Sublinhado (Ctrl+U)" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive('strike'))} title="Tachado" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough size={13} /></button>
+          <div className="xflow-rte-sep" />
+          <select className="xflow-rte-font" title="Fonte" value={editor.getAttributes('textStyle').fontFamily || ''} onChange={(e) => { const v = e.target.value; if (v) editor.chain().focus().setFontFamily(v).run(); else editor.chain().focus().unsetFontFamily().run(); }}>
             {RICH_TEXT_FONTS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
           </select>
+          <select className="xflow-rte-font" title="Tamanho" value={editor.getAttributes('textStyle').fontSize || ''} onChange={(e) => { const v = e.target.value; if (v) editor.chain().focus().setFontSize(v).run(); else editor.chain().focus().unsetFontSize().run(); }}>
+            {RICH_TEXT_SIZES.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+          </select>
           <div className="xflow-rte-sep" />
-          <button type="button" className="xflow-rte-btn" title="Alinhar à esquerda" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('justifyLeft')}><AlignLeft size={13} /></button>
-          <button type="button" className="xflow-rte-btn" title="Centralizar" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('justifyCenter')}><AlignCenter size={13} /></button>
-          <button type="button" className="xflow-rte-btn" title="Alinhar à direita" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('justifyRight')}><AlignRight size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive({ textAlign: 'left' }))} title="Alinhar à esquerda" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('left').run()}><AlignLeft size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive({ textAlign: 'center' }))} title="Centralizar" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('center').run()}><AlignCenter size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive({ textAlign: 'right' }))} title="Alinhar à direita" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('right').run()}><AlignRight size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive({ textAlign: 'justify' }))} title="Justificar" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('justify').run()}><AlignJustify size={13} /></button>
           <div className="xflow-rte-sep" />
-          <button type="button" className="xflow-rte-btn" title="Lista" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('insertUnorderedList')}><List size={13} /></button>
-          <button type="button" className="xflow-rte-btn" title="Citação" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('formatBlock', 'blockquote')}><Quote size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive('bulletList'))} title="Lista com marcadores" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBulletList().run()}><List size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive('orderedList'))} title="Lista numerada" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered size={13} /></button>
+          <button type="button" className="xflow-rte-btn" title="Diminuir recuo" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().outdent().run()}><Outdent size={13} /></button>
+          <button type="button" className="xflow-rte-btn" title="Aumentar recuo" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().indent().run()}><IndentIcon size={13} /></button>
+          <div className="xflow-rte-sep" />
+          <button type="button" className={btnCls(editor.isActive('blockquote'))} title="Citação" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive('codeBlock'))} title="Bloco de código" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleCodeBlock().run()}><Code size={13} /></button>
+          <button type="button" className="xflow-rte-btn" title="Linha horizontal" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setHorizontalRule().run()}><MinusIcon size={13} /></button>
+          <div className="xflow-rte-sep" />
+          <button type="button" className={btnCls(editor.isActive('link'))} title="Link" onMouseDown={(e) => e.preventDefault()} onClick={insertLink}><Link2 size={13} /></button>
+          <div style={{ position: 'relative' }}>
+            <button type="button" className="xflow-rte-btn" title="Emoji" onMouseDown={(e) => e.preventDefault()} onClick={() => setShowEmoji((v) => !v)}><Smile size={13} /></button>
+            {showEmoji && (
+              <div className="xflow-rte-emoji-panel" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10, marginTop: 4 }}>
+                {RICH_TEXT_EMOJIS.map((em) => (
+                  <button key={em} type="button" className="xflow-rte-emoji-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => insertEmoji(em)}>{em}</button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
-      <div
-        ref={editorRef}
-        className="xflow-rte-body"
-        contentEditable={!disabled}
-        suppressContentEditableWarning
-        data-placeholder={placeholder || ''}
-        onInput={handleInput}
-        onBlur={handleBlur}
-        onPaste={handlePaste}
-      />
+      <EditorContent editor={editor} />
     </div>
   );
 }
