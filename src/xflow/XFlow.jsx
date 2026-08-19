@@ -3,8 +3,12 @@ import DOMPurify from 'dompurify';
 import {
   X, Plus, MessageSquare, Clock, Paperclip, ChevronDown, LogOut,
   Upload, Archive, Ban, Trash2, Bold, Italic, Underline as UnderlineIcon,
-  AlignLeft, AlignCenter, AlignRight, List, Quote, Building2, Columns3,
+  AlignLeft, AlignCenter, AlignRight, List, Quote, Building2, Columns3, LayoutGrid, LayoutList,
 } from 'lucide-react';
+import {
+  DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable,
+} from '@dnd-kit/core';
+import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel } from '../App.jsx';
 
@@ -214,6 +218,95 @@ function canDoClient(action, user, ticket, payload) {
   const rule = XFLOW_RULES[action];
   if (!rule) return true;
   return !!rule(role, user, ticket, payload);
+}
+
+// ---- Quadro (Kanban) — mapeamento de arrastar-e-soltar pras ações
+// nomeadas de status. server/xflowTransitions.js é a fonte da verdade (o
+// backend sempre valida de novo); isso aqui só decide o que a UI oferece
+// ou recusa visualmente durante o drag — mudou lá, considerar mudar aqui,
+// mesmo espírito de XFLOW_RULES acima.
+const XFLOW_BOARD_COLUMNS = [
+  { id: 'aberta', label: 'Aberta', statuses: ['aberta'] },
+  { id: 'atribuida', label: 'Atribuída', statuses: ['atribuida'] },
+  { id: 'em_desenvolvimento', label: 'Em Desenvolvimento', statuses: ['em_desenvolvimento'] },
+  { id: 'em_revisao', label: 'Em Revisão', statuses: ['em_revisao'] },
+  { id: 'pronta_para_teste', label: 'Pronta p/ Teste', statuses: ['pronta_para_teste'] },
+  { id: 'em_homologacao', label: 'Em Homologação', statuses: ['em_homologacao'] },
+  { id: 'pronta_para_publicacao', label: 'Pronta p/ Publicação', statuses: ['pronta_para_publicacao'] },
+  { id: 'publicada', label: 'Publicada', statuses: ['publicada'] },
+  { id: 'aguardando_validacao_solicitante', label: 'Aguard. Validação do Solicitante', statuses: ['aguardando_validacao_solicitante'] },
+  { id: 'concluida', label: 'Concluída', statuses: ['concluida'], terminal: true },
+  { id: 'pausada', label: 'Pausada', statuses: ['pausada'] },
+  { id: 'bloqueada', label: 'Bloqueada', statuses: ['bloqueada'] },
+  { id: 'aguardando_terceiro', label: 'Aguardando Terceiro', statuses: ['aguardando_terceiro'] },
+  { id: 'aguardando_gerencia', label: 'Aguardando Gerência', statuses: ['aguardando_gerencia'] },
+  { id: 'encerrada', label: 'Encerrada', statuses: ['duplicada', 'nao_reproduzida', 'nao_e_bug', 'descartada'], terminal: true, closedGroup: true },
+];
+const XFLOW_STATUS_TO_COLUMN = {};
+XFLOW_BOARD_COLUMNS.forEach((col) => col.statuses.forEach((s) => { XFLOW_STATUS_TO_COLUMN[s] = col.id; }));
+
+// Espelha NON_TERMINAL_ACTIVE de server/xflowTransitions.js.
+const XFLOW_NON_TERMINAL_ACTIVE = [
+  'aberta', 'atribuida', 'em_desenvolvimento', 'em_revisao', 'pronta_para_teste',
+  'em_homologacao', 'pronta_para_publicacao', 'publicada', 'aguardando_validacao_solicitante',
+  'aguardando_terceiro', 'aguardando_gerencia',
+];
+
+// tier 1 = PATCH direto, sem campo extra. tier 2 = pede 1 campo antes de
+// confirmar (blockedReason/nota), via DragFieldPromptModal.
+const XFLOW_BOARD_DRAG_RULES = [
+  { from: ['aberta'], toColumn: 'atribuida', action: 'aceitar', permission: 'triage', tier: 1 },
+  { from: ['aberta'], toColumn: 'em_desenvolvimento', action: 'iniciar_dev_direto', permission: 'triage', tier: 1 },
+  { from: ['atribuida'], toColumn: 'em_desenvolvimento', action: 'iniciar_desenvolvimento', permission: 'advance_dev_pipeline', tier: 1 },
+  { from: ['em_desenvolvimento'], toColumn: 'em_revisao', action: 'enviar_revisao', permission: 'advance_dev_pipeline', tier: 1 },
+  { from: ['em_revisao'], toColumn: 'pronta_para_teste', action: 'marcar_pronta_teste', permission: 'advance_dev_pipeline', tier: 1 },
+  { from: ['pronta_para_teste'], toColumn: 'em_homologacao', action: 'enviar_homologacao', permission: 'advance_dev_pipeline', tier: 1 },
+  { from: ['em_homologacao'], toColumn: 'pronta_para_publicacao', action: 'homolog_aprovar', permission: 'homologar', tier: 1 },
+  { from: ['pronta_para_publicacao'], toColumn: 'publicada', action: 'publicar', permission: null, tier: 1 },
+  { from: ['publicada'], toColumn: 'aguardando_validacao_solicitante', action: 'enviar_validacao', permission: 'enviar_validacao', tier: 1 },
+  { from: ['aguardando_validacao_solicitante'], toColumn: 'concluida', action: 'aprovar_validacao', permission: 'aprovar_validacao', tier: 1 },
+  { from: ['aguardando_validacao_solicitante'], toColumn: 'em_desenvolvimento', action: 'reprovar_validacao', permission: 'reprovar_validacao', tier: 1 },
+  { from: ['aberta', 'atribuida', 'em_desenvolvimento'], toColumn: 'aguardando_gerencia', action: 'escalar_gerencia', permission: 'triage', tier: 1 },
+  { from: ['aberta', 'atribuida', 'em_desenvolvimento', 'em_revisao', 'pronta_para_teste'], toColumn: 'aguardando_terceiro', action: 'pedir_infos', permission: 'triage', tier: 1 },
+  { from: XFLOW_NON_TERMINAL_ACTIVE, toColumn: 'pausada', action: 'pausar', permission: 'pause', tier: 1 },
+  {
+    from: XFLOW_NON_TERMINAL_ACTIVE, toColumn: 'bloqueada', action: 'bloquear', permission: 'block', tier: 2,
+    promptField: { name: 'blockedReason', label: 'Motivo do bloqueio', type: 'select', options: XFLOW_BLOCK_REASON_ORDER.map((k) => ({ value: k, label: XFLOW_BLOCK_REASON_META[k] })) },
+  },
+  {
+    from: ['em_homologacao'], toColumn: 'em_desenvolvimento', action: 'homolog_reprovar', permission: 'homologar', tier: 2,
+    promptField: { name: 'note', label: 'Motivo da reprovação na homologação', type: 'textarea' },
+  },
+];
+
+// Sair de uma coluna lateral sempre chama a ação de retomada — o status
+// real de destino é decidido pelo servidor (statusBeforeBlock), não pela
+// coluna onde o card foi solto.
+const XFLOW_BOARD_RESUME_RULES = {
+  pausada: { action: 'retomar', permission: 'resume', tier: 1, actionLabel: 'Retomar' },
+  bloqueada: { action: 'desbloquear', permission: 'unblock', tier: 1, actionLabel: 'Desbloquear' },
+  aguardando_terceiro: { action: 'retomar', permission: 'resume', tier: 1, actionLabel: 'Retomar' },
+  aguardando_gerencia: {
+    action: 'resolver_gerencia', permission: 'resolver_gerencia', tier: 2, actionLabel: 'Resolver com a gerência',
+    promptField: { name: 'note', label: 'Decisão da gerência', type: 'textarea' },
+  },
+};
+
+// Retorna null (soltou na própria coluna, nada a fazer), { blocked, reason }
+// ou a regra a executar. currentUser/ticket só entram pra checar
+// canDoClient — a validação de verdade é sempre repetida no backend.
+function resolveDrag(fromStatus, targetColumnId, currentUser, ticket) {
+  const fromColumnId = XFLOW_STATUS_TO_COLUMN[fromStatus];
+  if (fromColumnId === targetColumnId) return null;
+  const resumeRule = XFLOW_BOARD_RESUME_RULES[fromStatus];
+  if (resumeRule) {
+    if (!canDoClient(resumeRule.permission, currentUser, ticket)) return { blocked: true, reason: 'Você não tem permissão para essa ação.' };
+    return resumeRule;
+  }
+  const rule = XFLOW_BOARD_DRAG_RULES.find((r) => r.toColumn === targetColumnId && r.from.includes(fromStatus));
+  if (!rule) return { blocked: true, reason: 'Não é possível mover essa TASK direto para essa coluna — abra o card pra ver as ações disponíveis.' };
+  if (!canDoClient(rule.permission, currentUser, ticket)) return { blocked: true, reason: 'Você não tem permissão para essa ação.' };
+  return rule;
 }
 
 const WAITING_ON_LABEL = { solicitante: 'Solicitante', cliente: 'Cliente', terceiro: 'Terceiro' };
@@ -1714,6 +1807,202 @@ function LixeiraView({ tickets, teamById, filters, setFilters, onOpen, onRestore
   );
 }
 
+// Modal pequeno pro nível 2 do drag do Quadro — pede o único campo que a
+// ação exige (motivo do bloqueio / nota) antes de confirmar. Mesmo padrão
+// visual de modal pequeno de ConfirmDiscardModal.
+function DragFieldPromptModal({ title, field, saving, onConfirm, onCancel }) {
+  const [value, setValue] = useState('');
+  const valid = value.trim().length > 0;
+  return (
+    <div style={S.detailOverlay} onClick={onCancel}>
+      <div style={{ ...S.detailBox, width: 'min(420px, 100%)' }} onClick={(e) => e.stopPropagation()}>
+        <div style={S.detailTopBar}>
+          <div style={{ fontWeight: 700, fontSize: 13.5 }}>{title}</div>
+          <button style={S.iconBtnGhost} onClick={onCancel}><X size={16} /></button>
+        </div>
+        <div style={S.subSectionLabel}>{field.label}</div>
+        {field.type === 'select' ? (
+          <select value={value} onChange={(e) => setValue(e.target.value)} autoFocus>
+            <option value="">Selecione...</option>
+            {field.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        ) : (
+          <textarea value={value} onChange={(e) => setValue(e.target.value)} rows={3} autoFocus placeholder="Descreva..." />
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+          <button style={S.iconBtnGhost} onClick={onCancel} disabled={saving}>Cancelar</button>
+          <button style={S.primaryBtn} onClick={() => valid && onConfirm(value)} disabled={!valid || saving}>{saving ? 'Salvando...' : 'Confirmar'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function XflowBoardCard({ ticket, teamById, columnTerminal, showRealStatus, onOpen }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: ticket.id, data: { ticket }, disabled: columnTerminal,
+  });
+  const days = daysSince(ticket.createdAt);
+  const style = { transform: DndCSS.Translate.toString(transform), opacity: isDragging ? 0.35 : 1 };
+  return (
+    <div
+      ref={setNodeRef}
+      {...(columnTerminal ? {} : { ...attributes, ...listeners })}
+      style={{ ...S.personalCard, ...style, cursor: columnTerminal ? 'pointer' : 'grab', touchAction: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}
+      onClick={onOpen}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-5)' }}>#{ticket.number}</span>
+        <Badge meta={XFLOW_TYPE_META[ticket.type] || XFLOW_TYPE_META.bug} small />
+        {showRealStatus && <Badge meta={XFLOW_STATUS_META[ticket.status]} small />}
+      </div>
+      <div style={{ fontWeight: 700, fontSize: 12.5, lineHeight: 1.3 }}>
+        {ticket.flaggedReturned && <span style={{ color: '#ff9f40', marginRight: 5 }}>↩</span>}
+        {ticket.title}
+      </div>
+      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+        <Badge meta={XFLOW_SEVERITY_META[ticket.severity]} small />
+        <Badge meta={XFLOW_PRIORITY_META[ticket.priority]} small />
+        {(ticket.slaResolutionState === 'vencido' || ticket.slaResolutionState === 'proximo_vencer') && (
+          <Badge meta={XFLOW_SLA_STATE_META[ticket.slaResolutionState]} small />
+        )}
+      </div>
+      <div style={{ fontSize: 10.5, color: 'var(--text-5)' }}>{whoHasTheBall(ticket, teamById)}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-6)' }}>Aberto{days != null ? ` há ${days}d` : ''}</div>
+    </div>
+  );
+}
+
+function XflowBoardColumn({ column, tickets, teamById, dimmed, onOpen }) {
+  const { setNodeRef, isOver } = useDroppable({ id: column.id, data: { column } });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ ...S.personalCol, background: isOver ? 'var(--bg-3)' : 'var(--bg-2)', opacity: dimmed ? 0.4 : 1, transition: 'opacity .12s ease, background .12s ease' }}
+    >
+      <div style={S.personalColHead}>
+        <span>{column.label}</span>
+        <span style={S.kanbanCount}>{tickets.length}</span>
+      </div>
+      <div style={{ ...S.personalColBody, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {tickets.map((t) => (
+          <XflowBoardCard
+            key={t.id}
+            ticket={t}
+            teamById={teamById}
+            columnTerminal={!!column.terminal}
+            showRealStatus={!!column.closedGroup}
+            onOpen={() => onOpen(t.id)}
+          />
+        ))}
+        {tickets.length === 0 && <div style={S.personalColEmpty}>Nenhuma TASK aqui.</div>}
+      </div>
+    </div>
+  );
+}
+
+// Visão "Quadro" — mesmas TASKs/filtros já visíveis pra cada papel (o
+// backend já restringe reporter aos próprios tickets), só reorganizadas
+// em colunas por status real. Arrastar-e-soltar passa por resolveDrag()
+// (ver bloco XFLOW_BOARD_* acima) — nunca seta status livre, sempre chama
+// uma ação nomeada existente, com o mesmo caminho de PATCH que os botões
+// do TicketDetailModal já usam. Sem otimismo local: como a coluna de cada
+// card é 100% derivada do status real (`tickets` prop, atualizado pelo
+// XFlowScreen a partir da resposta do servidor), uma ação que falhar
+// simplesmente não move nada — sem necessidade de reverter estado.
+function XflowBoardView({ tickets, currentUser, teamById, filters, setFilters, onOpen, onAction, showToast }) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor)
+  );
+  const [activeTicket, setActiveTicket] = useState(null);
+  const [validColumnIds, setValidColumnIds] = useState(null);
+  const [pendingDrop, setPendingDrop] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const visible = tickets.filter((t) => !t.archived && matchesFilters(t, filters));
+  const byColumn = {};
+  XFLOW_BOARD_COLUMNS.forEach((c) => { byColumn[c.id] = []; });
+  visible.forEach((t) => {
+    const colId = XFLOW_STATUS_TO_COLUMN[t.status];
+    if (byColumn[colId]) byColumn[colId].push(t);
+  });
+  XFLOW_BOARD_COLUMNS.forEach((c) => { byColumn[c.id].sort(smartDevSort); });
+
+  function handleDragStart(event) {
+    const ticket = event.active.data.current && event.active.data.current.ticket;
+    if (!ticket) return;
+    setActiveTicket(ticket);
+    const valid = new Set([XFLOW_STATUS_TO_COLUMN[ticket.status]]);
+    XFLOW_BOARD_COLUMNS.forEach((col) => {
+      const result = resolveDrag(ticket.status, col.id, currentUser, ticket);
+      if (result && !result.blocked) valid.add(col.id);
+    });
+    setValidColumnIds(valid);
+  }
+
+  async function runDrag(ticket, rule, payload) {
+    setBusy(true);
+    try {
+      await onAction(ticket.id, rule.action, payload || {});
+      setPendingDrop(null);
+    } catch (err) {
+      showToast(err.message || 'Não foi possível mover a TASK.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleDragEnd(event) {
+    const ticket = activeTicket;
+    setActiveTicket(null);
+    setValidColumnIds(null);
+    if (!ticket || !event.over) return;
+    const targetColumnId = event.over.id;
+    const result = resolveDrag(ticket.status, targetColumnId, currentUser, ticket);
+    if (!result) return;
+    if (result.blocked) { showToast(result.reason); return; }
+    if (result.promptField) { setPendingDrop({ ticket, rule: result }); return; }
+    runDrag(ticket, result);
+  }
+
+  return (
+    <>
+      <FilterBar filters={filters} setFilters={setFilters} />
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div style={S.personalBoardArea}>
+          {XFLOW_BOARD_COLUMNS.map((col) => (
+            <XflowBoardColumn
+              key={col.id}
+              column={col}
+              tickets={byColumn[col.id]}
+              teamById={teamById}
+              onOpen={onOpen}
+              dimmed={!!validColumnIds && !validColumnIds.has(col.id)}
+            />
+          ))}
+        </div>
+        <DragOverlay>
+          {activeTicket && (
+            <div style={{ ...S.personalCard, boxShadow: 'var(--pb-shadow-drag)', opacity: .92, fontWeight: 700, fontSize: 12.5 }}>
+              #{activeTicket.number} {activeTicket.title}
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
+      {pendingDrop && (
+        <DragFieldPromptModal
+          title={`${pendingDrop.rule.actionLabel || `Mover #${pendingDrop.ticket.number} para ${(XFLOW_BOARD_COLUMNS.find((c) => c.id === pendingDrop.rule.toColumn) || {}).label || ''}`}`}
+          field={pendingDrop.rule.promptField}
+          saving={busy}
+          onCancel={() => setPendingDrop(null)}
+          onConfirm={(value) => runDrag(pendingDrop.ticket, pendingDrop.rule, { [pendingDrop.rule.promptField.name]: value })}
+        />
+      )}
+    </>
+  );
+}
+
 export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPersonal, onLogout, theme, onToggleTheme }) {
   const [tickets, setTickets] = useState([]);
   const [team, setTeam] = useState([]);
@@ -1727,6 +2016,9 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
   const [filters, setFilters] = useState(BLANK_FILTERS);
   const [toastMsg, setToastMsg] = useState('');
   const [affectedCompanies, setAffectedCompanies] = useState([]);
+  const [viewMode, setViewMode] = useState('quadro');
+
+  function showToast(msg) { setToastMsg(msg); setTimeout(() => setToastMsg(''), 4500); }
 
   useEffect(() => {
     Promise.all([apiGet('/api/xflow/tickets'), apiGet('/api/xflow/team'), apiGet('/api/xflow/affected-companies')])
@@ -1848,6 +2140,16 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
           {onExit && <button style={S.iconBtnGhost} onClick={onExit}>Sair do XFlow</button>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {!showArchived && !showTrash && (
+            <div style={{ display: 'flex', gap: 4, background: 'var(--bg-3)', padding: 3, borderRadius: 8 }}>
+              <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'quadro' ? S.pbGhostBtnActive : {}) }} onClick={() => setViewMode('quadro')}>
+                <LayoutGrid size={13} /> Quadro
+              </button>
+              <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'lista' ? S.pbGhostBtnActive : {}) }} onClick={() => setViewMode('lista')}>
+                <LayoutList size={13} /> Lista
+              </button>
+            </div>
+          )}
           {canArchiveTier && (
             <button style={{ ...S.pbGhostBtn, ...(showArchived ? S.pbGhostBtnActive : {}) }} onClick={() => { setShowArchived((v) => !v); setShowTrash(false); }}>
               <Archive size={13} /> Arquivados
@@ -1891,13 +2193,19 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
           />
         )}
 
-        {loaded && !showArchived && !showTrash && effRole === 'reporter' && (
+        {loaded && !showArchived && !showTrash && viewMode === 'quadro' && (
+          <XflowBoardView
+            tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters}
+            onOpen={setOpenTicketId} onAction={performAction} showToast={showToast}
+          />
+        )}
+        {loaded && !showArchived && !showTrash && viewMode === 'lista' && effRole === 'reporter' && (
           <ReporterHome tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={setOpenTicketId} />
         )}
-        {loaded && !showArchived && !showTrash && effRole === 'dev' && (
+        {loaded && !showArchived && !showTrash && viewMode === 'lista' && effRole === 'dev' && (
           <DevHome tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={setOpenTicketId} />
         )}
-        {loaded && !showArchived && !showTrash && (effRole === 'gestao' || effRole === 'admin') && (
+        {loaded && !showArchived && !showTrash && viewMode === 'lista' && (effRole === 'gestao' || effRole === 'admin') && (
           <GestorHome tickets={tickets} team={team} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={setOpenTicketId} />
         )}
       </div>

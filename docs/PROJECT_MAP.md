@@ -161,10 +161,17 @@ usam `S.detailBox`.
 - Modelo: tabela `users`.
 - Regra: só `master` acessa (`requireMaster`).
 
-### XFlow (gestão de BUGs, 2026-08, v2)
+### XFlow (gestão de BUGs, 2026-08, v2 + Quadro)
 - Arquivo próprio: `src/xflow/XFlow.jsx` (não em `App.jsx`) — `XFlowScreen`
-  (entrada, três Homes por papel: `ReporterHome`/`DevHome`/`GestorHome`),
+  (entrada, `viewMode` Quadro/Lista, abre em Quadro por padrão; Lista =
+  três Homes por papel: `ReporterHome`/`DevHome`/`GestorHome`),
   `NewTicketModal`, `TicketDetailModal`, `FilterBar`, `ArchivedView`.
+  Quadro (Kanban, 2026-08): `XflowBoardView`/`XflowBoardColumn`/
+  `XflowBoardCard` — 15 colunas fixas (uma por status real do fluxo +
+  "Encerrada" agregando os 4 encerramentos antecipados), arrastar-e-soltar
+  mapeado pra ações nomeadas via `resolveDrag()`/`XFLOW_BOARD_DRAG_RULES`/
+  `XFLOW_BOARD_RESUME_RULES` (nunca seta status livre). Detalhe completo em
+  `PROJECT_CONTEXT.md` §18.
 - Acesso: card "XFlow" no `WorkspaceGateScreen`, visível só se
   `currentUser.xflowRole` (reporter/dev/gestao) — controlado em
   `NewUserModal`/`EditUserModal`. Papel efetivo (inclui `admin`) calculado em

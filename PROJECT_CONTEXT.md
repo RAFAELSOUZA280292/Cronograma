@@ -876,6 +876,94 @@ completo (arquitetura de dados, matriz de permissões, matriz de transições).
   recorrentes/reincidência por módulo, subtarefas, dependência estruturada
   entre tickets (duplicidade é só um id de texto livre, não bidirecional).
 
+### 18.1 Quadro (Kanban) + Lista (2026-08)
+
+Rafael pediu uma segunda visão pro XFlow, no espírito do quadro Kanban já
+existente na Gestão de Atividades Individual (`PersonalBoardScreen`,
+dnd-kit): "Quadro" vira a visão principal (abre por padrão ao entrar no
+XFlow), "Lista" é a visão antiga (dashboards por papel +
+`TicketList`, renomeada, conteúdo 100% intocado). Alternar entre as duas
+não perde filtro/busca — `filters` continua um único estado em
+`XFlowScreen`, compartilhado pelas duas visões.
+
+**Diferença central do quadro pessoal**: lá o drag seta `card.status`
+livre. No XFlow isso não existe — toda mudança de status passa por uma
+ação nomeada com regra de origem/permissão/campo obrigatório real
+(`server/xflowTransitions.js`/`xflowPermissions.js`, ver §18). Arrastar
+um card no Quadro tinha que respeitar isso, então o mecanismo mapeia
+drag → ação nomeada, nunca escreve status direto.
+
+**Colunas** (`XFLOW_BOARD_COLUMNS`, fixas — sem reordenar/customizar,
+diferente do quadro pessoal): uma por status real do fluxo principal
+(Aberta → ... → Concluída, 10), mais as 4 laterais (Pausada/Bloqueada/
+Aguardando Terceiro/Aguardando Gerência), mais uma última "Encerrada" que
+agrega os 4 encerramentos antecipados (`duplicada`/`nao_reproduzida`/
+`nao_e_bug`/`descartada` — só existem via ação com justificativa
+obrigatória, por isso viram uma coluna só, sem drag pra dentro dela;
+motivo real aparece como badge extra no card). Decisões confirmadas com o
+Rafael antes de implementar: 1 coluna por status real (não um board
+reduzido/agrupado); Encerrada como coluna única; mesmo board pros 3
+perfis (reporter só vê os próprios tickets, isso já é travado no
+backend — sem filtro padrão diferente por papel).
+
+**Arrastar-e-soltar — 3 níveis**, mapeados a partir de
+`XFLOW_TRANSITIONS` (curadoria em `XFLOW_BOARD_DRAG_RULES`/
+`XFLOW_BOARD_RESUME_RULES`, mesmo espírito de "espelha o server" que
+`XFLOW_RULES` já usa pra permissões — mudou lá, considerar mudar aqui):
+- **Nível 1 — instantâneo**: ação sem campo obrigatório e permitida pro
+  papel (`canDoClient`) → PATCH direto (`aceitar`, `iniciar_dev_direto`,
+  `iniciar_desenvolvimento`, `enviar_revisao`, `marcar_pronta_teste`,
+  `enviar_homologacao`, `homolog_aprovar`, `publicar`, `enviar_validacao`,
+  `aprovar_validacao`, `reprovar_validacao`, `escalar_gerencia`,
+  `pedir_infos`, `pausar`).
+- **Nível 2 — confirmação rápida**: ação exige 1 campo → soltar abre
+  `DragFieldPromptModal` (select ou textarea) pedindo só esse campo antes
+  de confirmar — `bloquear` (motivo do bloqueio) e `homolog_reprovar`
+  (nota da reprovação).
+- **Nível 3 — retomada, alvo dinâmico**: arrastar um card **pra fora**
+  de Pausada/Bloqueada/Aguardando Terceiro chama `retomar`/`desbloquear`
+  (sem campo) **ignorando a coluna onde foi solto** — o servidor decide o
+  status real (`statusBeforeBlock`) e o card se recoloca sozinho lá assim
+  que a resposta chega. Pra fora de Aguardando Gerência chama
+  `resolver_gerencia`, que exige nota (nível 2). Verificado ao vivo:
+  pausar um ticket em "Em Desenvolvimento", arrastar pra fora da coluna
+  Pausada soltando **em cima de Bloqueada** → não fica em Bloqueada
+  (`bloquear` nem aceita partir de `pausada`), chama `retomar` e o card
+  volta certinho pra "Em Desenvolvimento".
+- **Bloqueado, sem drag**: entrar em Encerrada (sempre exige motivo —
+  usa o fluxo já existente dentro do ticket); sair de Concluída/Encerrada
+  (`reabrir` exige justificativa — `useDraggable` vem com `disabled: true`
+  pra essas duas colunas, nem inicia o drag); qualquer par origem/destino
+  sem ação correspondente (`resolveDrag()` retorna `{blocked:true,
+  reason}`, mostra toast, nenhum PATCH é enviado).
+
+**Sem otimismo local, e por quê isso é mais simples aqui**: a coluna de
+cada card é 100% derivada do `status` real (prop `tickets`, atualizado só
+pela resposta do servidor via `performAction`/`onAction`) — diferente do
+quadro pessoal, não existe um "estado local de coluna" separado pra
+reverter se der erro. Uma ação que falhar simplesmente não move nada;
+`XflowBoardView` só mostra o toast com a mensagem do backend
+(`err.message`, vindo de `apiPatch`). Verificado ao vivo com
+`marcar_pronta_teste` (que exige `solution`/`whatToTest` já preenchidos,
+regra só no backend — `server/xflow.js`, não duplicada no client): arrastar
+sem preencher esses campos recusa com o toast `Preencha "Solução
+aplicada" e "O que testar" antes.`, card intocado; preenchendo os campos
+e repetindo o drag, move normal.
+
+**Onde vive** (`src/xflow/XFlow.jsx`, sem mudança de backend/schema):
+`XFLOW_BOARD_COLUMNS`/`XFLOW_STATUS_TO_COLUMN`/`XFLOW_NON_TERMINAL_ACTIVE`/
+`XFLOW_BOARD_DRAG_RULES`/`XFLOW_BOARD_RESUME_RULES`/`resolveDrag()`
+(dados + regra), `DragFieldPromptModal` (nível 2), `XflowBoardCard`/
+`XflowBoardColumn` (mesmos campos do `TicketRow` já existente, layout
+vertical; reaproveita `S.personalCol*`/`S.kanbanCount` de `App.jsx`),
+`XflowBoardView` (`DndContext` com os mesmos sensores do quadro pessoal —
+`PointerSensor distance:4` + `KeyboardSensor` — `useDraggable`/
+`useDroppable`, sem `useSortable`/`SortableContext` porque não há
+reordenação dentro da coluna). `XFlowScreen` ganhou `viewMode`
+(`useState('quadro')`) e o toggle Quadro/Lista no topbar (reaproveita
+`S.pbGhostBtn`/`S.pbGhostBtnActive`, mesmo estilo dos botões Arquivados/
+Lixeira).
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
