@@ -349,6 +349,62 @@ grupo (só ativa daí pra frente); `cliente` nunca vê a visão consolidada
 (só `master`/`pricetax` — comportamento correto por design, `canAccessProject`
 não muda).
 
+### 12.1 "Empresas envolvidas" por atividade (v2, 2026-08)
+
+Evolução pedida pelo Rafael: uma atividade de grupo deixa de ser tratada
+como cópia por empresa (mecanismo v1 acima, mantido intacto pras cópias já
+existentes) e passa a ser **um registro único, mutável**, com um campo que
+lista quais empresas-filhas do grupo ela envolve — editável depois, com a
+alteração registrada no histórico. Só faz sentido como registro único
+porque o pedido era "alterar posteriormente quais empresas estão
+vinculadas, mantendo o histórico dessa alteração" — cópias não suportam
+isso sem ambiguidade (qual cópia editar?).
+
+**Modelo de dados**: `activity.involvedCompanyIds: string[]` — ids de
+projetos-filhas do mesmo grupo. Vive **só no projeto do CNPJ Master**
+(nunca duplicado). Array vazio ou campo ausente = **"Geral do Grupo"**
+(demanda do grupo como um todo, sem empresa específica) — por isso as
+atividades que o Master já tinha antes de virar grupo continuam
+exatamente como estavam e já caem em "Geral do Grupo" sem precisar de
+nenhum backfill.
+
+**Onde vive cada coisa**: criado só a partir da visão consolidada do
+Grupo (`isGroupView`) via `GroupActivityCompaniesModal` → `addGroupWideActivity(masterPid,
+involvedCompanyIds)` — substituiu o antigo `GroupActivityScopeModal`/
+`addGroupActivity` (mecanismo "Uma empresa/Várias/Todas" que copiava a
+atividade). Editar `involvedCompanyIds` depois de criada: seção "Empresas
+envolvidas" no `ActivityDetailModal` (só aparece quando `pid` é um Master
+com filhas — prop `groupChildren`), grava via `updateActivity(pid, id,
+{ involvedCompanyIds }, logMsg)` — histórico vem de graça do mecanismo já
+existente de log por atividade.
+
+**Filtro na visão consolidada**: `TableView`/`KanbanView` ganharam prop
+`groupInfo = { masterId, children }` (só passada quando `isGroupView`);
+substitui o dropdown simples "Empresa" (por `_companyName`, mecanismo v1)
+por um filtro **Todas as atividades | Geral do Grupo | <empresa-filha>**
+quando presente — filtra por id: atividade de uma filha = nativa dela
+(`_pid === filha.id`) OU do Master com `involvedCompanyIds` incluindo seu
+id; "Geral do Grupo" = do Master com `involvedCompanyIds` vazio/ausente.
+Sem `groupInfo` (seleção ad-hoc de empresas não relacionadas), dropdown
+antigo continua intocado. Selo visual novo (`involvedCompaniesLabel()`)
+ao lado do selo legado "Grupo inteiro"/"Várias empresas" nos 3 pontos que
+já mostravam esse selo.
+
+**Desvincular empresa do grupo bloqueado se houver pendência**:
+`EditCompanyModal.unlinkFromGroup()` varre as atividades do Master por
+alguma não `deleted`/não `concluido` que marque a empresa em
+`involvedCompanyIds`; se achar, `alert()` com os títulos e aborta — sem
+perda silenciosa de referência (decisão explícita do Rafael, preferiu
+bloquear a limpar automaticamente ou remover a atividade).
+
+**Decisão explícita**: atividades de grupo (com `involvedCompanyIds`)
+só aparecem na visão consolidada do Grupo — abrir uma empresa-filha
+sozinha (fora do multi-select) mostra só as atividades nativas dela,
+nunca as do Master. Igual à v1, Fases/Gantt continuam por empresa sem
+fusão. Cópias antigas (`groupActivityId`) não são migradas — convivem
+lado a lado com o novo modelo, cada uma renderizada pelo próprio
+mecanismo.
+
 ## 13. Regras de negócio (resumo)
 
 - Cliente só vê o projeto do próprio CNPJ; PRICETAX vê CNPJs liberados
