@@ -20,7 +20,7 @@ import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import TiptapImage from '@tiptap/extension-image';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
-import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel } from '../App.jsx';
+import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel, COLUMN_COLOR_META } from '../App.jsx';
 
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
 
@@ -274,22 +274,27 @@ function canDoClient(action, user, ticket, payload) {
 // backend sempre valida de novo); isso aqui só decide o que a UI oferece
 // ou recusa visualmente durante o drag — mudou lá, considerar mudar aqui,
 // mesmo espírito de XFLOW_RULES acima.
+// Cor de cada coluna — mesma paleta pastel do quadro pessoal
+// (COLUMN_COLOR_META/App.jsx), fixa por status (não editável pelo
+// usuário, diferente do quadro pessoal). Escolhida só pra nenhuma coluna
+// vizinha repetir cor (o quadro rola horizontalmente, colunas não-vizinhas
+// nunca ficam lado a lado) — não é uma codificação de severidade.
 const XFLOW_BOARD_COLUMNS = [
-  { id: 'aberta', label: 'Aberta', statuses: ['aberta'] },
-  { id: 'atribuida', label: 'Atribuída', statuses: ['atribuida'] },
-  { id: 'em_desenvolvimento', label: 'Em Desenvolvimento', statuses: ['em_desenvolvimento'] },
-  { id: 'em_revisao', label: 'Em Revisão', statuses: ['em_revisao'] },
-  { id: 'pronta_para_teste', label: 'Pronta p/ Teste', statuses: ['pronta_para_teste'] },
-  { id: 'em_homologacao', label: 'Em Homologação', statuses: ['em_homologacao'] },
-  { id: 'pronta_para_publicacao', label: 'Pronta p/ Publicação', statuses: ['pronta_para_publicacao'] },
-  { id: 'publicada', label: 'Publicada', statuses: ['publicada'] },
-  { id: 'aguardando_validacao_solicitante', label: 'Aguard. Validação do Solicitante', statuses: ['aguardando_validacao_solicitante'] },
-  { id: 'concluida', label: 'Concluída', statuses: ['concluida'], terminal: true },
-  { id: 'pausada', label: 'Pausada', statuses: ['pausada'] },
-  { id: 'bloqueada', label: 'Bloqueada', statuses: ['bloqueada'] },
-  { id: 'aguardando_terceiro', label: 'Aguardando Terceiro', statuses: ['aguardando_terceiro'] },
-  { id: 'aguardando_gerencia', label: 'Aguardando Gerência', statuses: ['aguardando_gerencia'] },
-  { id: 'encerrada', label: 'Encerrada', statuses: ['duplicada', 'nao_reproduzida', 'nao_e_bug', 'descartada'], terminal: true, closedGroup: true },
+  { id: 'aberta', label: 'Aberta', statuses: ['aberta'], color: 'gray' },
+  { id: 'atribuida', label: 'Atribuída', statuses: ['atribuida'], color: 'blue' },
+  { id: 'em_desenvolvimento', label: 'Em Desenvolvimento', statuses: ['em_desenvolvimento'], color: 'purple' },
+  { id: 'em_revisao', label: 'Em Revisão', statuses: ['em_revisao'], color: 'pink' },
+  { id: 'pronta_para_teste', label: 'Pronta p/ Teste', statuses: ['pronta_para_teste'], color: 'yellow' },
+  { id: 'em_homologacao', label: 'Em Homologação', statuses: ['em_homologacao'], color: 'orange' },
+  { id: 'pronta_para_publicacao', label: 'Pronta p/ Publicação', statuses: ['pronta_para_publicacao'], color: 'green' },
+  { id: 'publicada', label: 'Publicada', statuses: ['publicada'], color: 'brown' },
+  { id: 'aguardando_validacao_solicitante', label: 'Aguard. Validação do Solicitante', statuses: ['aguardando_validacao_solicitante'], color: 'blue' },
+  { id: 'concluida', label: 'Concluída', statuses: ['concluida'], terminal: true, color: 'green' },
+  { id: 'pausada', label: 'Pausada', statuses: ['pausada'], color: 'yellow' },
+  { id: 'bloqueada', label: 'Bloqueada', statuses: ['bloqueada'], color: 'red' },
+  { id: 'aguardando_terceiro', label: 'Aguardando Terceiro', statuses: ['aguardando_terceiro'], color: 'orange' },
+  { id: 'aguardando_gerencia', label: 'Aguardando Gerência', statuses: ['aguardando_gerencia'], color: 'purple' },
+  { id: 'encerrada', label: 'Encerrada', statuses: ['duplicada', 'nao_reproduzida', 'nao_e_bug', 'descartada'], terminal: true, closedGroup: true, color: 'gray' },
 ];
 const XFLOW_STATUS_TO_COLUMN = {};
 XFLOW_BOARD_COLUMNS.forEach((col) => col.statuses.forEach((s) => { XFLOW_STATUS_TO_COLUMN[s] = col.id; }));
@@ -2051,13 +2056,16 @@ function XflowBoardCard({ ticket, teamById, columnTerminal, showRealStatus, onOp
 
 function XflowBoardColumn({ column, tickets, teamById, dimmed, onOpen }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id, data: { column } });
+  const colorMeta = COLUMN_COLOR_META[column.color];
   return (
     <div
       ref={setNodeRef}
-      style={{ ...S.personalCol, background: isOver ? 'var(--bg-3)' : 'var(--bg-2)', opacity: dimmed ? 0.4 : 1, transition: 'opacity .12s ease, background .12s ease' }}
+      style={{ ...S.personalCol, background: isOver ? colorMeta.bg : colorMeta.container, opacity: dimmed ? 0.4 : 1, transition: 'opacity .12s ease, background .12s ease' }}
     >
       <div style={S.personalColHead}>
-        <span>{column.label}</span>
+        <div style={{ ...S.personalColTag, background: colorMeta.bg, color: colorMeta.text, fontWeight: 700 }}>
+          {column.label}
+        </div>
         <span style={S.kanbanCount}>{tickets.length}</span>
       </div>
       <div style={{ ...S.personalColBody, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2303,6 +2311,30 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
         input[type=checkbox]{ accent-color:#F5C400; width:15px; height:15px; }
         ::-webkit-scrollbar{ height:8px; width:8px; }
         ::-webkit-scrollbar-thumb{ background:var(--border-3); border-radius:4px; }
+        :root {
+          --pcol-gray-bg: rgba(255,255,255,.06); --pcol-gray-text: var(--text-3); --pcol-gray-container: rgba(255,255,255,.03);
+          --pcol-brown-bg: rgba(160,120,90,.22); --pcol-brown-text: #c9a488; --pcol-brown-container: rgba(160,120,90,.08);
+          --pcol-orange-bg: rgba(217,115,13,.20); --pcol-orange-text: #e8a463; --pcol-orange-container: rgba(217,115,13,.07);
+          --pcol-yellow-bg: rgba(203,145,47,.20); --pcol-yellow-text: #e0b968; --pcol-yellow-container: rgba(203,145,47,.07);
+          --pcol-green-bg: rgba(68,131,97,.22); --pcol-green-text: #7fc79c; --pcol-green-container: rgba(68,131,97,.08);
+          --pcol-blue-bg: rgba(51,126,169,.22); --pcol-blue-text: #7ec2e8; --pcol-blue-container: rgba(51,126,169,.08);
+          --pcol-purple-bg: rgba(144,101,176,.22); --pcol-purple-text: #c6a4e0; --pcol-purple-container: rgba(144,101,176,.08);
+          --pcol-pink-bg: rgba(193,76,138,.22); --pcol-pink-text: #ea9dc4; --pcol-pink-container: rgba(193,76,138,.08);
+          --pcol-red-bg: rgba(212,76,71,.22); --pcol-red-text: #f08f8a; --pcol-red-container: rgba(212,76,71,.08);
+          --pcol-default-container: rgba(255,255,255,.02);
+        }
+        html[data-theme="light"] {
+          --pcol-gray-bg: #EDECE9; --pcol-gray-text: #55534E; --pcol-gray-container: #F7F7F6;
+          --pcol-brown-bg: #EEE0DA; --pcol-brown-text: #64473A; --pcol-brown-container: #F8F2EF;
+          --pcol-orange-bg: #FADEC9; --pcol-orange-text: #D9730D; --pcol-orange-container: #FDF2E8;
+          --pcol-yellow-bg: #FDECC8; --pcol-yellow-text: #CB912F; --pcol-yellow-container: #FEF9EB;
+          --pcol-green-bg: #DBEDDB; --pcol-green-text: #448361; --pcol-green-container: #EFF8EF;
+          --pcol-blue-bg: #D3E5EF; --pcol-blue-text: #337EA9; --pcol-blue-container: #EFF5F9;
+          --pcol-purple-bg: #E8DEEE; --pcol-purple-text: #9065B0; --pcol-purple-container: #F6F2F9;
+          --pcol-pink-bg: #F5E0E9; --pcol-pink-text: #C14C8A; --pcol-pink-container: #FBF2F6;
+          --pcol-red-bg: #FFE2DD; --pcol-red-text: #D44C47; --pcol-red-container: #FFF3F1;
+          --pcol-default-container: #F7F7F5;
+        }
       `}</style>
       <div style={S.topbar}>
         <div style={S.brandRow}>
