@@ -4211,7 +4211,14 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
                 </div>
                 {editingCommentId === c.id ? (
                   <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                    <input value={editingCommentText} onChange={(e) => setEditingCommentText(e.target.value)} style={{ flex: 1 }} autoFocus />
+                    <textarea
+                      value={editingCommentText}
+                      onChange={(e) => setEditingCommentText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Escape') setEditingCommentId(null); }}
+                      rows={3}
+                      style={{ ...S.notesArea, flex: 1 }}
+                      autoFocus
+                    />
                     <button style={S.iconBtn} onClick={() => { onUpdateComment(c.id, editingCommentText); setEditingCommentId(null); }}><Check size={13} /></button>
                     <button style={S.iconBtnGhost} onClick={() => setEditingCommentId(null)}><X size={13} /></button>
                   </div>
@@ -5548,14 +5555,14 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
                 <div key={c.id} style={S.commentBubble}>
                   {editingCommentId === c.id ? (
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <input
+                      <textarea
                         value={editingCommentText}
                         onChange={(e) => setEditingCommentText(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') { updateComment(pid, a.id, c.id, editingCommentText); setEditingCommentId(null); }
                           if (e.key === 'Escape') setEditingCommentId(null);
                         }}
-                        style={{ flex: 1 }}
+                        rows={3}
+                        style={{ ...S.notesArea, flex: 1 }}
                         autoFocus
                       />
                       <button style={S.iconBtn} onClick={() => { updateComment(pid, a.id, c.id, editingCommentText); setEditingCommentId(null); }}><Check size={13} /></button>
