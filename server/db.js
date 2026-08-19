@@ -149,6 +149,12 @@ export async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS org_id TEXT REFERENCES organizations(id)`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAULT false`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS xflow_role TEXT NOT NULL DEFAULT ''`);
+  // 3 acessos independentes (Empresas/Gestão de Atividades/XFlow, 2026-08)
+  // — substitui o acesso a empresas implícito no `role`. `personal_only`
+  // e `cnpj` ficam no banco sem uso, migrados pra cá (ver migrateAccessModel).
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS companies_access BOOLEAN NOT NULL DEFAULT false`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS all_companies_access BOOLEAN NOT NULL DEFAULT false`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS personal_access BOOLEAN NOT NULL DEFAULT true`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS projects (
       id         TEXT PRIMARY KEY,
@@ -300,6 +306,20 @@ export async function migrateToPricetaxOrg() {
     await pool.query('UPDATE users SET is_super_admin = true WHERE username = $1', [seedUsername]);
   }
   return orgId;
+}
+
+// Migra o acesso a empresas implícito no `role` (Master via todas,
+// PRICETAX via `allowed_cnpjs`, Cliente via `cnpj` único) pro modelo de 3
+// acessos independentes (2026-08, ver PROJECT_CONTEXT.md). Idempotente —
+// as condições WHERE já refletem o estado pós-migração, seguro rodar em
+// todo boot igual as outras migrações deste arquivo.
+export async function migrateAccessModel() {
+  await pool.query(`UPDATE users SET companies_access = true WHERE personal_only = false AND companies_access = false`);
+  await pool.query(`UPDATE users SET all_companies_access = true WHERE role = 'master' AND companies_access = true AND all_companies_access = false`);
+  await pool.query(`
+    UPDATE users SET allowed_cnpjs = allowed_cnpjs || jsonb_build_array(cnpj)
+    WHERE role = 'cliente' AND cnpj != '' AND NOT (allowed_cnpjs @> jsonb_build_array(cnpj))
+  `);
 }
 
 export async function seedIfEmpty() {

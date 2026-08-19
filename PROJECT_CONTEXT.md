@@ -88,7 +88,7 @@ roda logo depois, também todo boot.
 | Tabela | Colunas-chave | Observação |
 |---|---|---|
 | `organizations` | `id, slug, name, display_name, logo_light/dark, favicon, primary_color, secondary_color, login_background, status(active/suspended/blocked), plan, max_users, max_companies, settings JSONB` | `status`/`plan`/limites existem no schema mas **não são aplicados** ainda (roadmap) |
-| `users` | `id, username, password_hash, name, email, role(master/pricetax/cliente), cnpj, allowed_cnpjs JSONB, blocked, block_reason, expires_at, avatar, personal_only, org_id FK, is_super_admin, xflow_role('' / reporter / dev / gestao)` | |
+| `users` | `id, username, password_hash, name, email, role(master/pricetax/cliente), cnpj, allowed_cnpjs JSONB, blocked, block_reason, expires_at, avatar, personal_only, org_id FK, is_super_admin, xflow_role('' / reporter / dev / gestao), companies_access, all_companies_access, personal_access` | `cnpj`/`personal_only` mortas (não lidas/escritas) desde os "3 acessos independentes" (§13) — ver §7 |
 | `projects` | `id, data JSONB(company/phases/activities/team/log), org_id FK` | 1 linha = 1 empresa/cronograma inteiro; **schemaless** dentro de `data` |
 | `cnpj_cache` | `cnpj PK, data JSONB, fetched_at` | Cache de 60 dias; **sem** `org_id` de propósito (dado público compartilhado) |
 | `personal_boards` | `user_id PK/FK CASCADE, data JSONB(boards[].columns[].cards[], lastCompletedArchiveAt), updated_at` | 1 linha por usuário; **sem** `org_id` (sempre por `user_id`; scan de `shareToken` público é cross-org de propósito) |
@@ -138,12 +138,20 @@ para um caso de uso raro (poucas dezenas de usuários hoje).
 - Middlewares (`server/auth.js`): `requireAuth`, `optionalAuth` (usado na rota
   pública de board), `requireMaster`, `requireMasterOrPricetax`,
   `requireSuperAdmin`.
-- 3 papéis: `master` (admin completo, escopado à própria org), `pricetax`
-  (vê CNPJs liberados via `allowedCnpjs`), `cliente` (só o próprio CNPJ).
+- 3 papéis: `master` (admin completo, escopado à própria org), `pricetax`,
+  `cliente`. **Desde os "3 acessos independentes" (2026-08, ver §13)**, o
+  papel só decide permissão administrativa (quem gerencia usuários,
+  cadastra empresa nova, vê Fases/Log/Lixeira — `requireMaster`/
+  `requireMasterOrPricetax` e os `role==='master'||role==='pricetax'`
+  espalhados em `App.jsx`, tudo inalterado). **Não decide mais
+  visibilidade de empresa** — isso vem 100% de `companies_access`/
+  `all_companies_access`/`allowed_cnpjs`, independente do papel.
   `is_super_admin`: só o usuário seed inicial, cross-org total.
 - `canAccessProject()`/`sameOrg()` (`server/routes.js`) checam `org_id`
   **no SQL**, não só em JS — acesso cross-org por ID direto retorna 404/403
-  mesmo sabendo o ID exato.
+  mesmo sabendo o ID exato. `canAccessProject()` não olha mais `role`:
+  `!companiesAccess` → nada; `allCompaniesAccess` → tudo da org; senão,
+  `allowedCnpjs.includes(cnpj)`.
 - **Expiração é preguiçosa (lazy)**: `expires_at` só é checado dentro de
   `POST /auth/login` — se vencido, o usuário é bloqueado (`blocked=true,
   block_reason='Acesso expirado'`) **naquele momento**, não antes. Um usuário
@@ -153,9 +161,10 @@ para um caso de uso raro (poucas dezenas de usuários hoje).
   pode bloquear/excluir a si mesmo; excluir o último `role='master'` **da
   mesma org** é bloqueado (`COUNT(*) <= 1`). Super Admin ignora o filtro de
   org nesses updates via `sameOrg()` (retorna `true` se `isSuperAdmin`).
-- `POST /projects` (criar empresa): se quem cria é `role='pricetax'`, o CNPJ
-  da empresa criada é **automaticamente adicionado** ao `allowedCnpjs` de
-  quem criou — não precisa de passo manual de liberação depois.
+- `POST /projects` (criar empresa): se quem cria tem `companiesAccess` mas
+  não `allCompaniesAccess` (lista específica, não papel), o CNPJ da empresa
+  criada é **automaticamente adicionado** ao `allowedCnpjs` de quem criou —
+  não precisa de passo manual de liberação depois.
 - `GET /users`/`GET /projects` quando `isSuperAdmin && !?asOrg` (nenhuma org
   selecionada): retornam **todos os registros de todas as organizações sem
   filtro nenhum**. Isso só é seguro porque só o `SuperAdminScreen` (tela de
@@ -423,8 +432,35 @@ mecanismo.
 
 ## 13. Regras de negócio (resumo)
 
-- Cliente só vê o projeto do próprio CNPJ; PRICETAX vê CNPJs liberados
-  (`allowedCnpjs`); Master vê tudo (dentro da própria org).
+- **3 acessos independentes (2026-08)** — Empresas / Gestão de Atividades /
+  XFlow, cada um ligado/desligado por conta própria em
+  `NewUserModal`/`EditUserModal` (`App.jsx`), **substituindo** o modelo
+  anterior de acesso a empresa implícito no papel (Master via todas,
+  PRICETAX via `allowedCnpjs`, Cliente via `cnpj` único) e o checkbox único
+  "Acesso apenas à Gestão de Atividades". Campos: `companiesAccess`
+  (liga o módulo Empresas) + `allCompaniesAccess` (todas da org, ignora a
+  lista) + reaproveita `allowedCnpjs` como lista de empresas específicas
+  pra **qualquer papel** agora (não só PRICETAX); `personalAccess` liga
+  Gestão de Atividades — **hoje é opcional de verdade** (antes, todo mundo
+  tinha por padrão, sem exceção). `xflowRole` sem mudança. Migração
+  (`migrateAccessModel()` em `server/db.js`, idempotente, roda todo boot)
+  preservou exatamente o acesso efetivo que cada usuário já tinha: Master →
+  `allCompaniesAccess=true`; PRICETAX → mesma lista; Cliente → `cnpj` único
+  migrado pra dentro de `allowedCnpjs`; quem tinha `personalOnly=true` →
+  só `personalAccess=true`. Colunas antigas (`cnpj`, `personal_only`)
+  ficam no banco sem uso, não removidas.
+- `App()` calcula `availableModes` (quais dos 3 o usuário tem) a cada
+  render: 0 → `NoAccessScreen` (mensagem genérica agora, cobre "nenhum dos
+  3" além do caso antigo "nenhuma empresa liberada"); 1 → pula
+  `WorkspaceGateScreen`, entra direto nesse módulo, sem botão de voltar;
+  2+ → `WorkspaceGateScreen` só com os cards disponíveis (os cards de
+  Empresas/Atividades, antes incondicionais, agora só renderizam se a prop
+  existir — mesmo padrão que o card do XFlow já usava). Dentro de
+  Empresas, `canPickCompanies` (mostra a tela de escolha múltipla vs. entra
+  direto numa única) virou `companiesAccess && projects.length > 1` — não
+  depende mais de papel; o efeito que auto-seleciona e pula a tela (antes
+  só pra `role==='cliente'`) generalizou pra qualquer usuário com 0-1
+  empresa visível.
 - Cadastro de empresa exige tipo de cliente (Diagnóstico / Diagnóstico e
   Consultoria Contínua / POC-Demonstração) só na criação. Filtros por
   Tipo/Status/Regime Tributário na tela de seleção de empresas.
@@ -432,8 +468,6 @@ mecanismo.
   explícito) — datas de atividade são livres.
 - Exclusão de atividade/subatividade/usuário-master-único tem guarda (frase
   de confirmação ou bloqueio de "não pode remover o último admin").
-- `personalOnly=true` no usuário: pula seleção de módulo/empresa, entra
-  direto no quadro pessoal, sem botão de voltar.
 - Quadro pessoal tem `visibility` (`private`|`public`) + `shareToken` por
   página; ação vira entrada em `board.log`.
 - **Gestão de Atividades (2026-08)**: concluir um card move ele pro final da
@@ -847,7 +881,7 @@ completo (arquitetura de dados, matriz de permissões, matriz de transições).
   (`onGoCompany`/`onGoPersonal` novos em `XFlowScreen`, `onGoXFlow` novo em
   `PersonalBoardScreen`, botão "XFlow" novo no topbar de Empresas em
   `App.jsx`), sempre condicionados ao acesso real do usuário
-  (`xflowRole`/`!personalOnly`) — nunca aparece um link pra um módulo que o
+  (`hasXflow`/`hasCompanies`/`hasPersonal`, ver §13) — nunca aparece um link pra um módulo que o
   usuário não pode entrar. **Atalho na tela de seleção de empresas**
   (2026-08): `CompanySelectorScreen` (tela "Quais empresas você quer
   acompanhar?", antes de qualquer empresa escolhida) ganhou um terceiro

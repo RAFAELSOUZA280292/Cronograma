@@ -554,7 +554,7 @@ export default function App() {
   }, [currentUser?.id, actingOrg?.id]);
 
   useEffect(() => {
-    if (!projectsLoaded || !currentUser || currentUser.role !== 'cliente') return;
+    if (!projectsLoaded || !currentUser || !currentUser.companiesAccess || projects.length > 1) return;
     setSelectedProjectIds(projects.map((p) => p.id));
     setCompanySelectionConfirmed(true);
   }, [projectsLoaded, currentUser?.id]);
@@ -691,13 +691,23 @@ export default function App() {
     return <LoadingScreen theme={theme} />;
   }
 
-  if (!workspaceMode && !currentUser.personalOnly) {
+  const hasCompanies = currentUser.companiesAccess;
+  const hasPersonal = currentUser.personalAccess;
+  const hasXflow = !!currentUser.xflowRole;
+  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow'].filter(Boolean);
+  const effectiveMode = workspaceMode || (availableModes.length === 1 ? availableModes[0] : null);
+
+  if (availableModes.length === 0) {
+    return <NoAccessScreen user={currentUser} onLogout={handleLogout} theme={theme} onToggleTheme={toggleTheme} />;
+  }
+
+  if (!effectiveMode) {
     return (
       <WorkspaceGateScreen
         user={currentUser}
-        onPickCompany={() => setWorkspaceMode('company')}
-        onPickPersonal={() => setWorkspaceMode('personal')}
-        onPickXFlow={currentUser.xflowRole ? () => setWorkspaceMode('xflow') : undefined}
+        onPickCompany={hasCompanies ? () => setWorkspaceMode('company') : undefined}
+        onPickPersonal={hasPersonal ? () => setWorkspaceMode('personal') : undefined}
+        onPickXFlow={hasXflow ? () => setWorkspaceMode('xflow') : undefined}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -705,13 +715,13 @@ export default function App() {
     );
   }
 
-  if (workspaceMode === 'xflow' && currentUser.xflowRole) {
+  if (effectiveMode === 'xflow') {
     return (
       <XFlowScreen
         currentUser={currentUser}
-        onExit={() => setWorkspaceMode(null)}
-        onGoCompany={currentUser.personalOnly ? null : () => setWorkspaceMode('company')}
-        onGoPersonal={() => setWorkspaceMode('personal')}
+        onExit={availableModes.length > 1 ? () => setWorkspaceMode(null) : null}
+        onGoCompany={hasCompanies ? () => setWorkspaceMode('company') : null}
+        onGoPersonal={hasPersonal ? () => setWorkspaceMode('personal') : null}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -719,7 +729,7 @@ export default function App() {
     );
   }
 
-  if (workspaceMode === 'personal' || currentUser.personalOnly) {
+  if (effectiveMode === 'personal') {
     if (!personalBoardLoaded || !personalBoard) {
       return <PersonalBoardSkeleton theme={theme} />;
     }
@@ -727,8 +737,8 @@ export default function App() {
       <PersonalBoardScreen
         board={personalBoard}
         onMutate={mutatePersonalBoard}
-        onExit={currentUser.personalOnly ? null : () => setWorkspaceMode('company')}
-        onGoXFlow={currentUser.xflowRole ? () => setWorkspaceMode('xflow') : null}
+        onExit={availableModes.length > 1 ? () => setWorkspaceMode(null) : null}
+        onGoXFlow={hasXflow ? () => setWorkspaceMode('xflow') : null}
         currentUser={currentUser}
         onLogout={handleLogout}
         theme={theme}
@@ -739,7 +749,7 @@ export default function App() {
   }
 
   const registeredProjects = projects.filter((p) => p.company.cnpj);
-  const canPickCompanies = currentUser.role === 'master' || currentUser.role === 'pricetax';
+  const canPickCompanies = currentUser.companiesAccess && projects.length > 1;
 
   if (canPickCompanies && currentUser.isSuperAdmin && !actingOrg && !companySelectionConfirmed) {
     return (
@@ -792,9 +802,9 @@ export default function App() {
           onUpdateCompany={updateCompanyFields}
           onDeleteCompany={deleteCompany}
           onCloneCompany={(p) => setCloningProject(p)}
-          onGoPersonal={() => setWorkspaceMode('personal')}
+          onGoPersonal={hasPersonal ? () => setWorkspaceMode('personal') : undefined}
           onGoUsers={currentUser.role === 'master' ? () => setShowUsers(true) : undefined}
-          onGoXFlow={currentUser.xflowRole ? () => setWorkspaceMode('xflow') : undefined}
+          onGoXFlow={hasXflow ? () => setWorkspaceMode('xflow') : undefined}
           actingOrg={actingOrg}
           onSwitchOrg={currentUser.isSuperAdmin ? exitOrganization : undefined}
           theme={theme}
@@ -2522,6 +2532,7 @@ function UsersManagementScreen({
         <NewUserModal
           isSuperAdmin={currentUser.isSuperAdmin}
           organizations={organizations}
+          registeredProjects={registeredProjects}
           onCreate={async (draft) => {
             const result = await onCreateUser(draft);
             setShowCreate(false);
@@ -2551,12 +2562,19 @@ function UsersManagementScreen({
   );
 }
 
-function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations }) {
-  const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente', avatar: '', personalOnly: false, orgId: '', xflowRole: '' });
+function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations, registeredProjects }) {
+  const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente', avatar: '', orgId: '', xflowRole: '', companiesAccess: false, allCompaniesAccess: false, allowedCnpjs: [], personalAccess: true });
   const isMobile = useIsMobile();
   const isDirty = useDirtyForm(draft);
   const [showGuard, setShowGuard] = useState(false);
   function requestClose() { if (isDirty) setShowGuard(true); else onClose(); }
+
+  function toggleCnpj(cnpj) {
+    setDraft((d) => {
+      const has = d.allowedCnpjs.includes(cnpj);
+      return { ...d, allowedCnpjs: has ? d.allowedCnpjs.filter((c) => c !== cnpj) : [...d.allowedCnpjs, cnpj] };
+    });
+  }
 
   function submit() {
     if (!draft.username || !draft.password || !draft.name) return;
@@ -2565,7 +2583,7 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations }) {
 
   return (
     <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
-      <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', maxHeight: '88vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Novo usuário</div>
           <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
@@ -2594,9 +2612,37 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations }) {
         <input type="password" value={draft.password} onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))} placeholder="Senha inicial" />
         <div style={S.subSectionLabel}>Avatar (opcional)</div>
         <AvatarPicker value={draft.avatar} onChange={(avatar) => setDraft((d) => ({ ...d, avatar }))} />
+        <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Acesso à Empresas</div>
+        <label style={S.cnpjCheckRow}>
+          <input type="checkbox" checked={draft.companiesAccess} onChange={(e) => setDraft((d) => ({ ...d, companiesAccess: e.target.checked }))} />
+          Liberar acesso a empresas
+        </label>
+        {draft.companiesAccess && (
+          <div style={{ marginLeft: 4, marginTop: 4 }}>
+            <label style={S.cnpjCheckRow}>
+              <input type="radio" name="newUserCompaniesScope" checked={draft.allCompaniesAccess} onChange={() => setDraft((d) => ({ ...d, allCompaniesAccess: true }))} />
+              Todas as empresas
+            </label>
+            <label style={S.cnpjCheckRow}>
+              <input type="radio" name="newUserCompaniesScope" checked={!draft.allCompaniesAccess} onChange={() => setDraft((d) => ({ ...d, allCompaniesAccess: false }))} />
+              Empresas específicas
+            </label>
+            {!draft.allCompaniesAccess && (
+              <div style={S.cnpjCheckList}>
+                {(registeredProjects || []).length === 0 && <div style={S.emptyMuted}>Nenhuma empresa com CNPJ cadastrado ainda.</div>}
+                {(registeredProjects || []).map((p) => (
+                  <label key={p.id} style={S.cnpjCheckRow}>
+                    <input type="checkbox" checked={draft.allowedCnpjs.includes(p.company.cnpj)} onChange={() => toggleCnpj(p.company.cnpj)} />
+                    {p.company.name || 'Sem nome'} <span style={{ opacity: .6 }}>— {p.company.cnpj}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <label style={{ ...S.cnpjCheckRow, marginTop: 14 }}>
-          <input type="checkbox" checked={draft.personalOnly} onChange={(e) => setDraft((d) => ({ ...d, personalOnly: e.target.checked }))} />
-          Acesso apenas à Gestão de Atividades (sem acesso a Empresas)
+          <input type="checkbox" checked={draft.personalAccess} onChange={(e) => setDraft((d) => ({ ...d, personalAccess: e.target.checked }))} />
+          Acesso à Gestão de Atividades
         </label>
         <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Acesso ao XFlow</div>
         <select value={draft.xflowRole} onChange={(e) => setDraft((d) => ({ ...d, xflowRole: e.target.value }))}>
@@ -2659,51 +2705,54 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
         <div style={S.subSectionLabel}>Avatar</div>
         <AvatarPicker value={u.avatar} onChange={(avatar) => onUpdate(u.id, { avatar })} />
 
-        {u.role === 'cliente' && (
-          <div style={{ marginTop: 12 }}>
-            <div style={S.fieldHint}>CNPJ do cliente que este usuário enxerga</div>
-            <select value={u.cnpj} onChange={(e) => onUpdate(u.id, { cnpj: e.target.value })}>
-              <option value="">— selecione o CNPJ —</option>
-              {registeredProjects.map((p) => <option key={p.id} value={p.company.cnpj}>{p.company.name || 'Sem nome'} — {p.company.cnpj}</option>)}
-            </select>
-          </div>
-        )}
-
-        {u.role === 'pricetax' && (
-          <div style={{ marginTop: 12 }}>
-            <div style={S.fieldHint}>Clientes liberados para este usuário</div>
-            {registeredProjects.length === 0 && <div style={S.emptyMuted}>Nenhum cliente com CNPJ cadastrado ainda.</div>}
-            {registeredProjects.length > 0 && (() => {
-              const allCnpjs = registeredProjects.map((p) => p.company.cnpj).filter(Boolean);
-              const allSelected = allCnpjs.length > 0 && allCnpjs.every((c) => (u.allowedCnpjs || []).includes(c));
-              return (
-                <label style={{ ...S.cnpjCheckRow, fontWeight: 700, borderBottom: '1px solid var(--border-1)', paddingBottom: 6, marginBottom: 4 }}>
-                  <input type="checkbox" checked={allSelected} onChange={() => onUpdate(u.id, { allowedCnpjs: allSelected ? [] : allCnpjs })} />
-                  Selecionar todas
-                </label>
-              );
-            })()}
-            <div style={S.cnpjCheckList}>
-              {registeredProjects.map((p) => (
-                <label key={p.id} style={S.cnpjCheckRow}>
-                  <input type="checkbox" checked={(u.allowedCnpjs || []).includes(p.company.cnpj)} onChange={() => onToggleCnpj(u.id, p.company.cnpj)} />
-                  {p.company.name || 'Sem nome'} <span style={{ opacity: .6 }}>— {p.company.cnpj}</span>
-                </label>
-              ))}
+        <div style={{ marginTop: 12 }}>
+          <div style={S.subSectionLabel}>Acesso à Empresas</div>
+          <label style={S.cnpjCheckRow}>
+            <input type="checkbox" checked={!!u.companiesAccess} onChange={(e) => onUpdate(u.id, { companiesAccess: e.target.checked })} />
+            Liberar acesso a empresas
+          </label>
+          {u.companiesAccess && (
+            <div style={{ marginLeft: 4, marginTop: 4 }}>
+              <label style={S.cnpjCheckRow}>
+                <input type="radio" name={`companiesScope-${u.id}`} checked={!!u.allCompaniesAccess} onChange={() => onUpdate(u.id, { allCompaniesAccess: true })} />
+                Todas as empresas
+              </label>
+              <label style={S.cnpjCheckRow}>
+                <input type="radio" name={`companiesScope-${u.id}`} checked={!u.allCompaniesAccess} onChange={() => onUpdate(u.id, { allCompaniesAccess: false })} />
+                Empresas específicas
+              </label>
+              {!u.allCompaniesAccess && (
+                <>
+                  {registeredProjects.length === 0 && <div style={S.emptyMuted}>Nenhuma empresa com CNPJ cadastrado ainda.</div>}
+                  {registeredProjects.length > 0 && (() => {
+                    const allCnpjs = registeredProjects.map((p) => p.company.cnpj).filter(Boolean);
+                    const allSelected = allCnpjs.length > 0 && allCnpjs.every((c) => (u.allowedCnpjs || []).includes(c));
+                    return (
+                      <label style={{ ...S.cnpjCheckRow, fontWeight: 700, borderBottom: '1px solid var(--border-1)', paddingBottom: 6, marginBottom: 4 }}>
+                        <input type="checkbox" checked={allSelected} onChange={() => onUpdate(u.id, { allowedCnpjs: allSelected ? [] : allCnpjs })} />
+                        Selecionar todas
+                      </label>
+                    );
+                  })()}
+                  <div style={S.cnpjCheckList}>
+                    {registeredProjects.map((p) => (
+                      <label key={p.id} style={S.cnpjCheckRow}>
+                        <input type="checkbox" checked={(u.allowedCnpjs || []).includes(p.company.cnpj)} onChange={() => onToggleCnpj(u.id, p.company.cnpj)} />
+                        {p.company.name || 'Sem nome'} <span style={{ opacity: .6 }}>— {p.company.cnpj}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
-          </div>
-        )}
-
-        {u.role === 'master' && <div style={{ ...S.fieldHint, marginTop: 12 }}>Vê todos os projetos, sem precisar liberar nada.</div>}
+          )}
+        </div>
 
         <div style={{ marginTop: 12 }}>
           <label style={S.cnpjCheckRow}>
-            <input type="checkbox" checked={!!u.personalOnly} onChange={(e) => onUpdate(u.id, { personalOnly: e.target.checked })} />
-            Acesso apenas à Gestão de Atividades (sem acesso a Empresas)
+            <input type="checkbox" checked={!!u.personalAccess} onChange={(e) => onUpdate(u.id, { personalAccess: e.target.checked })} />
+            Acesso à Gestão de Atividades
           </label>
-          {u.personalOnly && (
-            <div style={S.fieldHint}>Ao entrar, este usuário vai direto para o quadro pessoal — não vê a tela de empresas.</div>
-          )}
         </div>
 
         <div style={{ marginTop: 12 }}>
@@ -3731,16 +3780,20 @@ function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow,
         <p style={S.loginSub}>Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>
 
         <div style={S.workspaceChoices}>
-          <button style={S.workspaceCard} onClick={onPickCompany}>
-            <Building2 size={26} color="#F5C400" />
-            <div style={S.workspaceCardTitle}>Empresas</div>
-            <div style={S.workspaceCardDesc}>Cronogramas de reforma tributária das empresas que você acompanha.</div>
-          </button>
-          <button style={S.workspaceCard} onClick={onPickPersonal}>
-            <Columns3 size={26} color="#F5C400" />
-            <div style={S.workspaceCardTitle}>Gestão de Atividades</div>
-            <div style={S.workspaceCardDesc}>Seu quadro pessoal — organize tarefas, compromissos e pendências, sem vincular a nenhuma empresa.</div>
-          </button>
+          {onPickCompany && (
+            <button style={S.workspaceCard} onClick={onPickCompany}>
+              <Building2 size={26} color="#F5C400" />
+              <div style={S.workspaceCardTitle}>Empresas</div>
+              <div style={S.workspaceCardDesc}>Cronogramas de reforma tributária das empresas que você acompanha.</div>
+            </button>
+          )}
+          {onPickPersonal && (
+            <button style={S.workspaceCard} onClick={onPickPersonal}>
+              <Columns3 size={26} color="#F5C400" />
+              <div style={S.workspaceCardTitle}>Gestão de Atividades</div>
+              <div style={S.workspaceCardDesc}>Seu quadro pessoal — organize tarefas, compromissos e pendências, sem vincular a nenhuma empresa.</div>
+            </button>
+          )}
           {onPickXFlow && (
             <button style={S.workspaceCard} onClick={onPickXFlow}>
               <Bug size={26} color="#F5C400" />
@@ -5555,6 +5608,11 @@ function PublicBoardScreen({ token, theme, onToggleTheme }) {
 }
 
 function NoAccessScreen({ user, onLogout, theme, onToggleTheme }) {
+  const hasAnyAccess = user.companiesAccess || user.personalAccess || !!user.xflowRole;
+  const title = hasAnyAccess ? 'Nenhuma empresa liberada' : 'Nenhum acesso liberado';
+  const message = hasAnyAccess
+    ? `${user.name}, você ainda não tem acesso a nenhuma empresa. Peça para um PRICETAX Master liberar o CNPJ correspondente em "Usuários".`
+    : `${user.name}, você ainda não tem acesso a nenhum módulo (Empresas, Gestão de Atividades ou XFlow). Peça para um PRICETAX Master liberar o acesso em "Usuários".`;
   return (
     <div style={S.page}>
       <div style={S.themeToggleCorner}>
@@ -5563,8 +5621,8 @@ function NoAccessScreen({ user, onLogout, theme, onToggleTheme }) {
       <div style={S.loginWrap}>
         <div style={S.loginBox}>
           <span style={{ ...S.roleTag, color: ROLE_META[user.role].color, borderColor: ROLE_META[user.role].color }}>{ROLE_META[user.role].label}</span>
-          <h1 style={S.loginTitle}>Nenhum projeto liberado</h1>
-          <p style={S.loginSub}>{user.name}, você ainda não tem acesso a nenhum cliente. Peça para um PRICETAX Master liberar o CNPJ correspondente em "Usuários".</p>
+          <h1 style={S.loginTitle}>{title}</h1>
+          <p style={S.loginSub}>{message}</p>
           <button style={S.primaryBtn} onClick={onLogout}><LogOut size={14} /> Trocar de usuário</button>
         </div>
       </div>
