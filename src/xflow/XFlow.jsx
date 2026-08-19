@@ -546,7 +546,7 @@ function blankTicketForm() {
   return {
     type: 'bug', title: '', product: '', clientType: '', module: '', affectedUser: '', affectedCompany: '',
     environment: 'producao', description: '', expectedResult: '', reproSteps: '',
-    impact: '', frequency: '', occurredAt: '', priority: '', evidence: [], expectedCompletionAt: '',
+    impact: '', frequency: '', occurredAt: new Date().toISOString().slice(0, 10), priority: '', evidence: [], expectedCompletionAt: '',
   };
 }
 
@@ -575,7 +575,7 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
   }
   function removeEvidence(id) { setForm((f) => ({ ...f, evidence: f.evidence.filter((ev) => ev.id !== id) })); }
 
-  const requiredOk = form.title.trim() && form.product && form.clientType && !richTextIsBlank(form.description) && form.environment;
+  const requiredOk = form.title.trim() && form.product && form.clientType && !richTextIsBlank(form.description) && form.environment && form.occurredAt;
 
   async function submit() {
     if (!requiredOk || saving) return;
@@ -650,6 +650,24 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
           </div>
         </div>
 
+        <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 160px' }}>
+            <div style={S.subSectionLabel}>Data da ocorrência <span style={{ color: '#e2574c' }}>*</span></div>
+            <input type="date" value={form.occurredAt} onChange={(e) => set({ occurredAt: e.target.value })} />
+          </div>
+          <div style={{ flex: '1 1 160px' }}>
+            <div style={S.subSectionLabel}>Previsão de conclusão</div>
+            <input type="date" value={form.expectedCompletionAt} onChange={(e) => set({ expectedCompletionAt: e.target.value })} />
+          </div>
+          <div style={{ flex: '1 1 160px' }}>
+            <div style={S.subSectionLabel}>Prioridade sugerida</div>
+            <select value={form.priority} onChange={(e) => set({ priority: e.target.value })}>
+              <option value="">Selecione</option>
+              {XFLOW_PRIORITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_PRIORITY_META[k].label}</option>)}
+            </select>
+          </div>
+        </div>
+
         <div style={{ marginTop: 14 }}>
           <div style={S.subSectionLabel}>Descrição {form.type === 'melhoria' ? 'da melhoria' : 'do problema'} <span style={{ color: '#e2574c' }}>*</span></div>
           <RichTextEditor
@@ -662,7 +680,7 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
 
         <div style={{ ...S.fieldHint, marginTop: 10 }}>
           O resto pode ser preenchido depois de aberto: módulo, usuário/empresa afetados,
-          resultado esperado, passo a passo, impacto, frequência, data da ocorrência e prioridade sugerida.
+          resultado esperado, passo a passo, impacto e frequência.
         </div>
 
         <details style={{ marginTop: 14 }}>
@@ -710,23 +728,6 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
                 <select value={form.frequency} onChange={(e) => set({ frequency: e.target.value })}>
                   <option value="">Selecione</option>
                   {XFLOW_FREQUENCY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_FREQUENCY_META[k]}</option>)}
-                </select>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 160px' }}>
-                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Data da ocorrência</div>
-                <input type="date" value={form.occurredAt} onChange={(e) => set({ occurredAt: e.target.value })} />
-              </div>
-              <div style={{ flex: '1 1 160px' }}>
-                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Previsão de conclusão</div>
-                <input type="date" value={form.expectedCompletionAt} onChange={(e) => set({ expectedCompletionAt: e.target.value })} />
-              </div>
-              <div style={{ flex: '1 1 160px' }}>
-                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Prioridade sugerida</div>
-                <select value={form.priority} onChange={(e) => set({ priority: e.target.value })}>
-                  <option value="">Selecione</option>
-                  {XFLOW_PRIORITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_PRIORITY_META[k].label}</option>)}
                 </select>
               </div>
             </div>

@@ -830,10 +830,26 @@ completo (arquitetura de dados, matriz de permissões, matriz de transições).
   `App.jsx`) no topo do `XFlowScreen`. `NewTicketModal` também ficou mais
   largo (`min(1100px, 94vw)`, era `min(660px, 100%)`) a pedido do Rafael.
 - **Campos obrigatórios na abertura**: Título, Produto/Plataforma, Tipo de
-  cliente e Descrição — os 4 já eram os únicos campos visíveis fora do
-  `<details>` colapsável, só faltava `clientType` entrar de fato no cálculo
-  de `requiredOk` (as outras três já eram validadas desde a v2). Marcador
-  visual (`*` vermelho) ao lado dos 4 labels.
+  cliente, Data da ocorrência e Descrição — os 2 primeiros já eram os
+  únicos campos visíveis fora do `<details>` colapsável, só faltava
+  `clientType` entrar de fato no cálculo de `requiredOk` (as outras já
+  eram validadas desde a v2). Marcador visual (`*` vermelho) ao lado dos
+  labels.
+- **Reordenação do formulário (2026-08)**: a pedido do Rafael, "Data da
+  ocorrência", "Previsão de conclusão" e "Prioridade sugerida" saíram de
+  dentro do `<details>` opcional e subiram pro corpo principal do
+  formulário — mesma linha de 3 colunas, logo abaixo de Produto/Tipo de
+  cliente/Ambiente, antes da Descrição. "Data da ocorrência" virou
+  obrigatória (antes era só um campo opcional dentro do `<details>`) e
+  passou a vir pré-preenchida com a data de hoje
+  (`blankTicketForm()`) — o usuário só mexe se a ocorrência foi em outro
+  dia. "Previsão de conclusão" e "Prioridade sugerida" continuam
+  opcionais, só mudaram de lugar (mais visíveis, sem exigir abrir o
+  `<details>`). O texto de dica abaixo da Descrição ("o resto pode ser
+  preenchido depois") foi ajustado pra não citar mais esses dois campos
+  como pendentes, já que agora aparecem sempre. Resto do `<details>`
+  (Módulo/Tela, Usuário/Empresa afetados, Resultado esperado, Passo a
+  passo, Impacto, Frequência, Evidência) sem mudança.
 - **Autocomplete de Empresa/Cliente afetado**: sem tabela nova — o "banco"
   de clientes é literalmente o histórico de `xflow_tickets.data->>
   'affectedCompany'` da própria org (`GET /xflow/affected-companies`,
