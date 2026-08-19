@@ -18,12 +18,10 @@ function canAccessProject(user, project, orgId) {
   if (!user || !project) return false;
   if (user.isSuperAdmin) return true;
   if (user.orgId !== orgId) return false;
-  if (user.role === 'master') return true;
+  if (!user.companiesAccess) return false;
+  if (user.allCompaniesAccess) return true;
   const cnpj = project.company && project.company.cnpj;
-  if (!cnpj) return false;
-  if (user.role === 'pricetax') return (user.allowedCnpjs || []).includes(cnpj);
-  if (user.role === 'cliente') return user.cnpj === cnpj;
-  return false;
+  return !!cnpj && (user.allowedCnpjs || []).includes(cnpj);
 }
 
 function sameOrg(req, targetOrgId) {
@@ -109,7 +107,7 @@ router.get('/users', requireAuth, requireMaster, async (req, res, next) => {
 
 router.post('/users', requireAuth, requireMaster, async (req, res, next) => {
   try {
-    const { username, password, name, email, role, cnpj, allowedCnpjs, avatar, personalOnly, xflowRole } = req.body || {};
+    const { username, password, name, email, role, cnpj, allowedCnpjs, avatar, personalOnly, xflowRole, companiesAccess, allCompaniesAccess, personalAccess } = req.body || {};
     if (!username || !password || !name || !role) {
       return res.status(400).json({ message: 'Usuário, senha, nome e papel são obrigatórios.' });
     }
@@ -119,9 +117,9 @@ router.post('/users', requireAuth, requireMaster, async (req, res, next) => {
     const hash = await hashPassword(password);
     const id = uid('user');
     const { rows } = await pool.query(
-      `INSERT INTO users (id, username, password_hash, name, email, role, cnpj, allowed_cnpjs, avatar, personal_only, org_id, xflow_role)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-      [id, username, hash, name, email || '', role, cnpj || '', JSON.stringify(allowedCnpjs || []), avatar || '', !!personalOnly, effectiveOrgId(req), xflowRole || '']
+      `INSERT INTO users (id, username, password_hash, name, email, role, cnpj, allowed_cnpjs, avatar, personal_only, org_id, xflow_role, companies_access, all_companies_access, personal_access)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+      [id, username, hash, name, email || '', role, cnpj || '', JSON.stringify(allowedCnpjs || []), avatar || '', !!personalOnly, effectiveOrgId(req), xflowRole || '', !!companiesAccess, !!allCompaniesAccess, personalAccess !== undefined ? !!personalAccess : true]
     );
     res.status(201).json({ user: rowToUser(rows[0]) });
   } catch (e) { next(e); }
@@ -150,11 +148,14 @@ router.patch('/users/:id', requireAuth, requireMaster, async (req, res, next) =>
       avatar: patch.avatar !== undefined ? patch.avatar : target.avatar,
       personal_only: patch.personalOnly !== undefined ? !!patch.personalOnly : target.personal_only,
       xflow_role: patch.xflowRole !== undefined ? (patch.xflowRole || '') : target.xflow_role,
+      companies_access: patch.companiesAccess !== undefined ? !!patch.companiesAccess : target.companies_access,
+      all_companies_access: patch.allCompaniesAccess !== undefined ? !!patch.allCompaniesAccess : target.all_companies_access,
+      personal_access: patch.personalAccess !== undefined ? !!patch.personalAccess : target.personal_access,
     };
     const { rows } = await pool.query(
-      `UPDATE users SET username=$1, name=$2, email=$3, role=$4, cnpj=$5, allowed_cnpjs=$6, expires_at=$7, avatar=$8, personal_only=$9, xflow_role=$10, updated_at=now()
-       WHERE id=$11 RETURNING *`,
-      [next_.username, next_.name, next_.email, next_.role, next_.cnpj, next_.allowed_cnpjs, next_.expires_at, next_.avatar, next_.personal_only, next_.xflow_role, id]
+      `UPDATE users SET username=$1, name=$2, email=$3, role=$4, cnpj=$5, allowed_cnpjs=$6, expires_at=$7, avatar=$8, personal_only=$9, xflow_role=$10, companies_access=$11, all_companies_access=$12, personal_access=$13, updated_at=now()
+       WHERE id=$14 RETURNING *`,
+      [next_.username, next_.name, next_.email, next_.role, next_.cnpj, next_.allowed_cnpjs, next_.expires_at, next_.avatar, next_.personal_only, next_.xflow_role, next_.companies_access, next_.all_companies_access, next_.personal_access, id]
     );
     res.json({ user: rowToUser(rows[0]) });
   } catch (e) { next(e); }
@@ -261,7 +262,7 @@ router.post('/projects', requireAuth, requireMasterOrPricetax, async (req, res, 
 
     await pool.query('INSERT INTO projects (id, data, org_id) VALUES ($1, $2, $3)', [project.id, JSON.stringify(project), effectiveOrgId(req)]);
 
-    if (req.user.role === 'pricetax' && project.company.cnpj) {
+    if (req.user.companiesAccess && !req.user.allCompaniesAccess && project.company.cnpj) {
       const cnpj = project.company.cnpj;
       const { rows } = await pool.query('SELECT allowed_cnpjs FROM users WHERE id=$1', [req.user.id]);
       const current = (rows[0] && rows[0].allowed_cnpjs) || [];

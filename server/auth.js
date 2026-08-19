@@ -61,6 +61,9 @@ function rowToUser(row) {
     orgId: row.org_id || null,
     isSuperAdmin: !!row.is_super_admin,
     xflowRole: row.xflow_role || '',
+    companiesAccess: !!row.companies_access,
+    allCompaniesAccess: !!row.all_companies_access,
+    personalAccess: !!row.personal_access,
   };
 }
 

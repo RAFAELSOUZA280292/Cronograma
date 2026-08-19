@@ -2,7 +2,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initDb, seedIfEmpty, migrateToPricetaxOrg } from './db.js';
+import { initDb, seedIfEmpty, migrateToPricetaxOrg, migrateAccessModel } from './db.js';
 import { router as apiRouter } from './routes.js';
 import { router as xflowRouter } from './xflow.js';
 
@@ -33,6 +33,7 @@ async function start() {
   await initDb();
   await seedIfEmpty();
   await migrateToPricetaxOrg();
+  await migrateAccessModel();
   app.listen(port, () => {
     console.log(`Cronograma server ouvindo na porta ${port}`);
   });
