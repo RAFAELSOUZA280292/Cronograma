@@ -802,7 +802,13 @@ completo (arquitetura de dados, matriz de permissões, matriz de transições).
   `PersonalBoardScreen`, botão "XFlow" novo no topbar de Empresas em
   `App.jsx`), sempre condicionados ao acesso real do usuário
   (`xflowRole`/`!personalOnly`) — nunca aparece um link pra um módulo que o
-  usuário não pode entrar.
+  usuário não pode entrar. **Atalho na tela de seleção de empresas**
+  (2026-08): `CompanySelectorScreen` (tela "Quais empresas você quer
+  acompanhar?", antes de qualquer empresa escolhida) ganhou um terceiro
+  atalho "XFlow" ao lado de "Gestão de Atividades"/"Gestão de Usuários"
+  (`onGoXFlow` novo nessa tela, mesmo gate `currentUser.xflowRole` dos
+  outros pontos de entrada) — antes só dava pra chegar no XFlow depois de
+  já estar dentro do workspace de uma empresa.
 - **Tipo de TASK (BUG/Melhoria)**: `data.type` já existia desde a v1
   (default `'bug'`, `createSpinoff` já usava `'melhoria'`) mas nunca era
   perguntado — sempre `'bug'` silencioso. Agora é a primeira pergunta do

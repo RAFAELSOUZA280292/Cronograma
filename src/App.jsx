@@ -794,6 +794,7 @@ export default function App() {
           onCloneCompany={(p) => setCloningProject(p)}
           onGoPersonal={() => setWorkspaceMode('personal')}
           onGoUsers={currentUser.role === 'master' ? () => setShowUsers(true) : undefined}
+          onGoXFlow={currentUser.xflowRole ? () => setWorkspaceMode('xflow') : undefined}
           actingOrg={actingOrg}
           onSwitchOrg={currentUser.isSuperAdmin ? exitOrganization : undefined}
           theme={theme}
@@ -3414,7 +3415,7 @@ function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }) {
   );
 }
 
-function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, onGoUsers, actingOrg, onSwitchOrg, theme, onToggleTheme }) {
+function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, onGoUsers, onGoXFlow, actingOrg, onSwitchOrg, theme, onToggleTheme }) {
   const [selected, setSelected] = useState(() => new Set(initialSelected));
   const [editingProject, setEditingProject] = useState(null);
   const [search, setSearch] = useState('');
@@ -3506,6 +3507,11 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
             {onGoUsers && (
               <button style={S.companyHeaderShortcut} onClick={onGoUsers} title="Gerenciar usuários">
                 <UserCog size={14} /> Gestão de Usuários
+              </button>
+            )}
+            {onGoXFlow && (
+              <button style={S.companyHeaderShortcut} onClick={onGoXFlow} title="Ir para o XFlow">
+                <Bug size={14} /> XFlow
               </button>
             )}
             <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
