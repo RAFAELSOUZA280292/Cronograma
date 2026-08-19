@@ -7,8 +7,9 @@ import {
   Undo2, Redo2, Heading2, Heading3, Indent as IndentIcon, Outdent, Code, Minus as MinusIcon, Link2, Smile,
 } from 'lucide-react';
 import {
-  DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable,
+  DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors, closestCenter, useDroppable,
 } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { useEditor, EditorContent, Extension } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -260,6 +261,7 @@ const XFLOW_RULES = {
   excluir: (role, user, ticket) => (role === 'reporter' ? isOwner(user, ticket) : isAtLeast(role, 'dev')),
   restaurar: (role) => isAtLeast(role, 'gestao'),
   purgar: (role) => role === 'admin',
+  reorder: () => true,
 };
 function canDoClient(action, user, ticket, payload) {
   const role = effectiveXflowRole(user);
@@ -1678,6 +1680,29 @@ function smartDevSort(a, b) {
   return (a.createdAt || '').localeCompare(b.createdAt || '');
 }
 
+// Ordenação do Quadro — mesmo modelo de "atalhos + ordem manual" do
+// quadro pessoal (SORT_OPTIONS/sortCards em App.jsx), adaptado: lá a
+// ordem manual é a posição no array JSONB do board; aqui os tickets são
+// linhas relacionais, então usam o campo próprio `boardOrder` (número
+// fracionário, recalculado no cliente a cada arraste — ver
+// XflowBoardView). Só o modo `manual` lê/escreve `boardOrder`; os outros
+// são puramente calculados a cada render, sem persistir nada.
+const XFLOW_SORT_OPTIONS = [
+  { value: 'priority', label: 'Prioridade' },
+  { value: 'oldest', label: 'Mais antiga' },
+  { value: 'assignee', label: 'Responsável' },
+  { value: 'product', label: 'Produto/Plataforma' },
+  { value: 'manual', label: 'Ordem manual' },
+];
+function sortXflowTickets(tickets, mode, teamById) {
+  const list = tickets.slice();
+  if (mode === 'manual') return list.sort((a, b) => (a.boardOrder || 0) - (b.boardOrder || 0));
+  if (mode === 'oldest') return list.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  if (mode === 'assignee') return list.sort((a, b) => whoHasTheBall(a, teamById).localeCompare(whoHasTheBall(b, teamById), 'pt-BR'));
+  if (mode === 'product') return list.sort((a, b) => (a.product || '').localeCompare(b.product || '', 'pt-BR'));
+  return list.sort(smartDevSort);
+}
+
 function fmtHours(seconds) {
   const h = (seconds || 0) / 3600;
   if (h < 1) return `${Math.round(h * 60)}min`;
@@ -2019,12 +2044,12 @@ function DragFieldPromptModal({ title, field, saving, onConfirm, onCancel }) {
   );
 }
 
-function XflowBoardCard({ ticket, teamById, columnTerminal, showRealStatus, onOpen }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: ticket.id, data: { ticket }, disabled: columnTerminal,
+function XflowBoardCard({ ticket, teamById, columnId, columnTerminal, showRealStatus, onOpen }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: ticket.id, data: { type: 'card', ticket, columnId }, disabled: columnTerminal,
   });
   const days = daysSince(ticket.createdAt);
-  const style = { transform: DndCSS.Translate.toString(transform), opacity: isDragging ? 0.35 : 1 };
+  const style = { transform: DndCSS.Transform.toString(transform), transition, opacity: isDragging ? 0.35 : 1 };
   return (
     <div
       ref={setNodeRef}
@@ -2069,16 +2094,19 @@ function XflowBoardColumn({ column, tickets, teamById, dimmed, onOpen }) {
         <span style={S.kanbanCount}>{tickets.length}</span>
       </div>
       <div style={{ ...S.personalColBody, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {tickets.map((t) => (
-          <XflowBoardCard
-            key={t.id}
-            ticket={t}
-            teamById={teamById}
-            columnTerminal={!!column.terminal}
-            showRealStatus={!!column.closedGroup}
-            onOpen={() => onOpen(t.id)}
-          />
-        ))}
+        <SortableContext items={tickets.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+          {tickets.map((t) => (
+            <XflowBoardCard
+              key={t.id}
+              ticket={t}
+              teamById={teamById}
+              columnId={column.id}
+              columnTerminal={!!column.terminal}
+              showRealStatus={!!column.closedGroup}
+              onOpen={() => onOpen(t.id)}
+            />
+          ))}
+        </SortableContext>
         {tickets.length === 0 && <div style={S.personalColEmpty}>Nenhuma TASK aqui.</div>}
       </div>
     </div>
@@ -2103,6 +2131,7 @@ function XflowBoardView({ tickets, currentUser, teamById, filters, setFilters, o
   const [validColumnIds, setValidColumnIds] = useState(null);
   const [pendingDrop, setPendingDrop] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [sortMode, setSortMode] = useState('priority');
 
   const visible = tickets.filter((t) => !t.archived && matchesFilters(t, filters));
   const byColumn = {};
@@ -2111,7 +2140,7 @@ function XflowBoardView({ tickets, currentUser, teamById, filters, setFilters, o
     const colId = XFLOW_STATUS_TO_COLUMN[t.status];
     if (byColumn[colId]) byColumn[colId].push(t);
   });
-  XFLOW_BOARD_COLUMNS.forEach((c) => { byColumn[c.id].sort(smartDevSort); });
+  XFLOW_BOARD_COLUMNS.forEach((c) => { byColumn[c.id] = sortXflowTickets(byColumn[c.id], sortMode, teamById); });
 
   function handleDragStart(event) {
     const ticket = event.active.data.current && event.active.data.current.ticket;
@@ -2137,12 +2166,41 @@ function XflowBoardView({ tickets, currentUser, teamById, filters, setFilters, o
     }
   }
 
+  // Ponto médio fracionário entre os dois vizinhos no ponto de soltura
+  // (padrão Trello/Linear) — evita ter que reescrever a ordem de todo
+  // mundo a cada arraste. `overCardId` null significa "soltou na área
+  // vazia da coluna", ou seja, vai pro fim.
+  function computeReorderBoardOrder(ticket, columnId, overCardId) {
+    const colTickets = byColumn[columnId] || [];
+    const withoutDragged = colTickets.filter((t) => t.id !== ticket.id);
+    const rawIndex = overCardId ? withoutDragged.findIndex((t) => t.id === overCardId) : -1;
+    const insertIndex = rawIndex === -1 ? withoutDragged.length : rawIndex;
+    const prev = withoutDragged[insertIndex - 1];
+    const next = withoutDragged[insertIndex];
+    const prevOrder = prev ? (prev.boardOrder || 0) : (next ? (next.boardOrder || 0) - 1000 : 0);
+    const nextOrder = next ? (next.boardOrder || 0) : (prev ? (prev.boardOrder || 0) + 1000 : 1000);
+    if (Math.abs(nextOrder - prevOrder) < 1e-9) return null;
+    return (prevOrder + nextOrder) / 2;
+  }
+
   function handleDragEnd(event) {
     const ticket = activeTicket;
     setActiveTicket(null);
     setValidColumnIds(null);
     if (!ticket || !event.over) return;
-    const targetColumnId = event.over.id;
+    const overData = event.over.data.current;
+    const overIsCard = overData && overData.type === 'card';
+    const targetColumnId = overIsCard ? overData.columnId : event.over.id;
+    const fromColumnId = XFLOW_STATUS_TO_COLUMN[ticket.status];
+
+    if (targetColumnId === fromColumnId) {
+      if (sortMode !== 'manual') return;
+      const newOrder = computeReorderBoardOrder(ticket, fromColumnId, overIsCard ? event.over.id : null);
+      if (newOrder === null) return;
+      onAction(ticket.id, 'reordenar', { boardOrder: newOrder }).catch((err) => showToast(err.message || 'Não foi possível reordenar.'));
+      return;
+    }
+
     const result = resolveDrag(ticket.status, targetColumnId, currentUser, ticket);
     if (!result) return;
     if (result.blocked) { showToast(result.reason); return; }
@@ -2153,6 +2211,13 @@ function XflowBoardView({ tickets, currentUser, teamById, filters, setFilters, o
   return (
     <>
       <FilterBar filters={filters} setFilters={setFilters} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <span style={{ fontSize: 11.5, color: 'var(--text-5)', fontWeight: 600 }}>Ordenar por</span>
+        <select value={sortMode} onChange={(e) => setSortMode(e.target.value)} style={{ ...S.personalFilterSelect, width: 'auto' }}>
+          {XFLOW_SORT_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+        {sortMode === 'manual' && <span style={S.fieldHint}>Arraste os cards dentro da coluna pra reorganizar.</span>}
+      </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div style={S.personalBoardArea}>
           {XFLOW_BOARD_COLUMNS.map((col) => (

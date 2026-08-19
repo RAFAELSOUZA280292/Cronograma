@@ -28,6 +28,7 @@ export function isAssignee(user, ticket) {
 const RULES = {
   create_ticket: () => true,
   comment: () => true,
+  reorder: () => true,
   attach_evidence: (role, user, ticket) => (role === 'reporter' ? isOwner(user, ticket) : true),
   edit_content: (role, user, ticket) => {
     if (role === 'reporter') {
