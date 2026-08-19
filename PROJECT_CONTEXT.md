@@ -495,6 +495,42 @@ mecanismo.
 - Sem abstração/dependência/camada nova "pra generalizar" sem pedido
   explícito — o arquivo já é grande, prefira repetir 3 linhas parecidas a
   criar um helper novo pra um caso só.
+- **Todo modal que edita dado do usuário precisa da guarda de "alterações
+  não salvas"** (2026-08, pedido explícito do Rafael, padronizado em
+  Empresas/Gestão de Atividades/XFlow) — nunca deixar clicar fora ou no X
+  descartar informação em silêncio. Dois hooks + um componente
+  compartilhados em `src/App.jsx` (exportados, `XFlow.jsx` importa de
+  `../App.jsx` no mesmo padrão já usado pra `S`/`fmtDate`/etc.):
+  - `useDirtyForm(currentValue)` — pra modal "rascunho" (guarda tudo em
+    `useState(form)` local, só grava no submit: `CreateCompanyModal`,
+    `EditCompanyModal`, `NewUserModal`, `MyProfileModal`,
+    `GroupActivityCompaniesModal`, `NewTicketModal` do XFlow). Compara
+    `JSON.stringify` contra o snapshot do primeiro render; também registra
+    `beforeunload` enquanto sujo (cobre fechar/atualizar a aba).
+  - `useAutosaveTimestamp(record)` — pra modal onde cada campo já grava
+    sozinho no `onChange`/`onBlur` (`ActivityDetailModal`,
+    `PersonalCardDetailModal`, `TicketDetailModal` do XFlow). Observa a
+    prop que already muda quando um autosave acontece (`activity`/`card`/
+    `ticket`) e cronometra — não precisa instrumentar cada handler.
+    Nesses modais o que falta salvar são só os "rascunhos menores" com
+    submit próprio (comentário não enviado, formulário de link/checklist
+    não adicionado, edição de comentário em andamento, ação com formulário
+    parcial no XFlow) — o `hasDraft` desses modais é o OR desses estados
+    específicos, não do dado inteiro.
+  - `ConfirmDiscardModal({ onSaveAndExit, onDiscard, onCancel, saving })`
+    — "Salvar e sair" / "Sair sem salvar" / "Continuar editando".
+    `onSaveAndExit` é **opcional**: omitir quando não existe uma ação de
+    salvar parcial válida pro rascunho pendente (ex.: `TicketDetailModal`
+    com só um formulário de bloqueio/redirecionamento preenchido, sem
+    comentário — nesse caso só "Sair sem salvar"/"Continuar editando").
+  - Todo modal: overlay (`onClick`) e botão X chamam uma função local
+    `requestClose()` (não `onClose` direto) que decide entre fechar na
+    hora ou abrir o `ConfirmDiscardModal`. Indicador de texto perto do
+    título: "Alterações não salvas" (laranja) / "Salvo automaticamente às
+    HH:MM" / "Todas as alterações estão salvas" via helper
+    `savedStatusLabel(hasDraft, lastSavedAt)`.
+  - Novo modal de edição = seguir um dos dois padrões acima, nunca inventar
+    um terceiro.
 
 ## 17. Bugs já resolvidos — não reintroduzir
 

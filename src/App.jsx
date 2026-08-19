@@ -192,6 +192,65 @@ function useMediaQuery(query) {
 export function useIsMobile() { return useMediaQuery(`(max-width: ${MOBILE_BP - 1}px)`); }
 export function useIsCompact() { return useMediaQuery(`(max-width: ${TABLET_BP - 1}px)`); }
 
+// Guarda de "alterações não salvas" — padrão único reusado em todo modal de
+// formulário-rascunho (useDirtyForm) e em todo modal autosave-por-campo
+// (useAutosaveTimestamp), pra nunca fechar e perder informação em silêncio.
+// currentValue precisa ser algo serializável (objeto/string) — comparado por
+// JSON.stringify contra o snapshot do primeiro render.
+export function useDirtyForm(currentValue) {
+  const initialRef = useRef(currentValue);
+  const isDirty = JSON.stringify(currentValue) !== JSON.stringify(initialRef.current);
+  useEffect(() => {
+    if (!isDirty) return;
+    function onBeforeUnload(e) { e.preventDefault(); e.returnValue = ''; }
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [isDirty]);
+  return isDirty;
+}
+
+// record = a prop vinda do pai (activity/ticket/card) que já muda sozinha
+// toda vez que um autosave de campo grava — não precisa instrumentar cada
+// handler individual, só observa o resultado.
+export function useAutosaveTimestamp(record) {
+  const [lastSavedAt, setLastSavedAt] = useState(null);
+  const snapRef = useRef(JSON.stringify(record));
+  useEffect(() => {
+    const snap = JSON.stringify(record);
+    if (snap !== snapRef.current) {
+      snapRef.current = snap;
+      setLastSavedAt(new Date());
+    }
+  }, [record]);
+  return lastSavedAt;
+}
+
+export function ConfirmDiscardModal({ onSaveAndExit, onDiscard, onCancel, saving }) {
+  return (
+    <div style={{ ...S.detailOverlay, zIndex: 200 }} onClick={onCancel}>
+      <div style={{ ...S.detailBox, width: 'min(420px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontSize: 16, fontWeight: 800 }}>Você tem alterações não salvas</div>
+        <div style={{ ...S.fieldHint, marginTop: 8, fontSize: 12.5 }}>Deseja salvar antes de sair?</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 18 }}>
+          {onSaveAndExit && (
+            <button style={{ ...S.primaryBtn, justifyContent: 'center' }} onClick={onSaveAndExit} disabled={saving}>
+              {saving ? 'Salvando...' : 'Salvar e sair'}
+            </button>
+          )}
+          <button style={{ ...S.iconBtn, justifyContent: 'center' }} onClick={onDiscard} disabled={saving}>Sair sem salvar</button>
+          <button style={{ ...S.iconBtnGhost, justifyContent: 'center' }} onClick={onCancel}>Continuar editando</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function savedStatusLabel(hasDraft, lastSavedAt) {
+  if (hasDraft) return 'Alterações não salvas';
+  if (lastSavedAt) return `Salvo automaticamente às ${lastSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  return 'Todas as alterações estão salvas';
+}
+
 function normalizeTeam(team, teamLinks) {
   return (team || []).map((m) => {
     if (typeof m !== 'string') return m;
@@ -2491,6 +2550,9 @@ function UsersManagementScreen({
 function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations }) {
   const [draft, setDraft] = useState({ username: '', password: '', name: '', role: 'cliente', avatar: '', personalOnly: false, orgId: '', xflowRole: '' });
   const isMobile = useIsMobile();
+  const isDirty = useDirtyForm(draft);
+  const [showGuard, setShowGuard] = useState(false);
+  function requestClose() { if (isDirty) setShowGuard(true); else onClose(); }
 
   function submit() {
     if (!draft.username || !draft.password || !draft.name) return;
@@ -2498,11 +2560,11 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations }) {
   }
 
   return (
-    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
       <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Novo usuário</div>
-          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
         </div>
         <div style={S.subSectionLabel}>Nome</div>
         <input type="text" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} placeholder="Nome completo" />
@@ -2541,6 +2603,13 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations }) {
         </select>
         <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit}><Plus size={14} /> Criar usuário</button>
       </div>
+      {showGuard && (
+        <ConfirmDiscardModal
+          onSaveAndExit={submit}
+          onDiscard={onClose}
+          onCancel={() => setShowGuard(false)}
+        />
+      )}
     </div>
   );
 }
@@ -2679,12 +2748,15 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
 function MyProfileModal({ user, onClose, onSave }) {
   const [avatar, setAvatar] = useState(user.avatar || '');
   const isMobile = useIsMobile();
+  const isDirty = useDirtyForm(avatar);
+  const [showGuard, setShowGuard] = useState(false);
+  function requestClose() { if (isDirty) setShowGuard(true); else onClose(); }
   return (
-    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
       <div style={{ ...S.detailBox, width: 'min(420px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Meu perfil</div>
-          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
         </div>
 
         <div style={S.myProfilePreview}>
@@ -2702,6 +2774,13 @@ function MyProfileModal({ user, onClose, onSave }) {
           Salvar
         </button>
       </div>
+      {showGuard && (
+        <ConfirmDiscardModal
+          onSaveAndExit={() => onSave(avatar)}
+          onDiscard={onClose}
+          onCancel={() => setShowGuard(false)}
+        />
+      )}
     </div>
   );
 }
@@ -2716,6 +2795,9 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
   const [children, setChildren] = useState([]);
   const isMobile = useIsMobile();
   const isGroup = form.structureType === 'grupo' && !cloneSource;
+  const isDirty = useDirtyForm({ cnpj, form, children });
+  const [showGuard, setShowGuard] = useState(false);
+  function requestClose() { if (isDirty) setShowGuard(true); else onClose(); }
 
   function handleLogoPick(e) {
     const file = e.target.files && e.target.files[0];
@@ -2813,7 +2895,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
   }
 
   return (
-    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
       <style>{`
         input[type=text], input[type=email], input[type=password], select, textarea {
           background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
@@ -2826,7 +2908,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
       <div style={{ ...S.detailBox, width: 'min(560px, 100%)', height: 'auto', maxHeight: '88vh', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>{cloneSource ? 'Clonar empresa' : 'Cadastrar empresa'}</div>
-          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
         </div>
 
         {cloneSource && (
@@ -3008,6 +3090,14 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
           </>
         )}
       </div>
+      {showGuard && (
+        <ConfirmDiscardModal
+          onSaveAndExit={form.name.trim() && form.clientType ? submit : undefined}
+          onDiscard={onClose}
+          onCancel={() => setShowGuard(false)}
+          saving={saving}
+        />
+      )}
     </div>
   );
 }
@@ -3086,6 +3176,9 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
   const [linkTargetId, setLinkTargetId] = useState('');
   const isMobile = useIsMobile();
+  const isDirty = useDirtyForm(form);
+  const [showGuard, setShowGuard] = useState(false);
+  function requestClose() { if (isDirty) setShowGuard(true); else onClose(); }
 
   const isMaster = !!c.isGroupMaster;
   const isChild = !isMaster && !!c.groupId;
@@ -3139,7 +3232,7 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
   }
 
   return (
-    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
       <style>{`
         input[type=text], select, textarea {
           background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
@@ -3150,7 +3243,7 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
       <div style={{ ...S.detailBox, width: 'min(480px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Editar empresa</div>
-          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
         </div>
 
         <div style={S.subSectionLabel}>CNPJ</div>
@@ -3235,6 +3328,14 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
           {saving ? 'Salvando...' : 'Salvar alterações'}
         </button>
       </div>
+      {showGuard && (
+        <ConfirmDiscardModal
+          onSaveAndExit={form.name.trim() ? submit : undefined}
+          onDiscard={onClose}
+          onCancel={() => setShowGuard(false)}
+          saving={saving}
+        />
+      )}
     </div>
   );
 }
@@ -3242,6 +3343,9 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
 function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }) {
   const [involvedIds, setInvolvedIds] = useState(() => new Set());
   const isMobile = useIsMobile();
+  const isDirty = useDirtyForm(Array.from(involvedIds));
+  const [showGuard, setShowGuard] = useState(false);
+  function requestClose() { if (isDirty) setShowGuard(true); else onClose(); }
 
   function toggle(id) {
     setInvolvedIds((prev) => {
@@ -3257,11 +3361,11 @@ function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }) {
   }
 
   return (
-    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
       <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Nova atividade do grupo</div>
-          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
         </div>
 
         <div style={S.subSectionLabel}>Empresas envolvidas</div>
@@ -3279,6 +3383,13 @@ function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }) {
           Criar atividade
         </button>
       </div>
+      {showGuard && (
+        <ConfirmDiscardModal
+          onSaveAndExit={confirm}
+          onDiscard={onClose}
+          onCancel={() => setShowGuard(false)}
+        />
+      )}
     </div>
   );
 }
@@ -4082,12 +4193,23 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
   const [checklistDraft, setChecklistDraft] = useState('');
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState('');
+  const [showGuard, setShowGuard] = useState(false);
+  const lastSavedAt = useAutosaveTimestamp(card);
+  const hasDraft = !readOnly && (!!commentDraft.trim() || !!checklistDraft.trim() || editingCommentId !== null);
+  function requestClose() { if (hasDraft) setShowGuard(true); else onClose(); }
+  function saveDraftsAndClose() {
+    if (editingCommentId !== null) { onUpdateComment(editingCommentId, editingCommentText); setEditingCommentId(null); }
+    if (commentDraft.trim()) submitComment();
+    if (checklistDraft.trim()) submitChecklist();
+    onClose();
+  }
 
   useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') onClose(); }
+    function onKey(e) { if (e.key === 'Escape') requestClose(); }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasDraft]);
 
   function submitComment() {
     if (!commentDraft.trim()) return;
@@ -4106,11 +4228,14 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
   const stale = staleTone(staleDays);
 
   return (
-    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
       <div style={{ ...S.detailBox, width: 'min(760px, 100%)', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
-          <div style={S.fieldHint}>{boardName} / {columnName}</div>
-          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={S.fieldHint}>{boardName} / {columnName}</div>
+            {!readOnly && <span style={{ fontSize: 11, color: hasDraft ? '#ff9f40' : 'var(--text-6)' }}>{savedStatusLabel(hasDraft, lastSavedAt)}</span>}
+          </div>
+          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
         </div>
 
         {readOnly && (
@@ -4265,6 +4390,13 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
 
         {!readOnly && <button style={{ ...S.iconBtn, marginTop: 20, color: '#e2574c' }} onClick={onDelete}><Trash2 size={14} /> Excluir tarefa</button>}
       </div>
+      {showGuard && (
+        <ConfirmDiscardModal
+          onSaveAndExit={saveDraftsAndClose}
+          onDiscard={onClose}
+          onCancel={() => setShowGuard(false)}
+        />
+      )}
     </div>
   );
 }
@@ -5483,17 +5615,28 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
   }
 
   const isMobile = useIsMobile();
+  const lastSavedAt = useAutosaveTimestamp(a);
+  const hasDraft = !!commentDraft.trim() || !!linkLabelDraft.trim() || !!linkUrlDraft.trim() || editingCommentId !== null;
+  const [showGuard, setShowGuard] = useState(false);
+  function requestClose() { if (hasDraft) setShowGuard(true); else onClose(); }
+  function saveDraftsAndClose() {
+    if (editingCommentId !== null) { updateComment(pid, a.id, editingCommentId, editingCommentText); setEditingCommentId(null); }
+    if (commentDraft.trim()) submitComment();
+    if (linkUrlDraft.trim()) submitLink();
+    onClose();
+  }
 
   return (
-    <div className="no-print" style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+    <div className="no-print" style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
       <style>{SUB_ROW_CSS}</style>
       <div style={{ ...S.detailBox, ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={S.detailTopLeft}>
             <span style={{ ...S.monthBadgeSm, background: phase?.color }}>#{orderMap[a.id]}</span>
             <span style={S.detailPhaseTag}><span style={{ ...S.timelineLaneDot, background: phase?.color }} />{phase?.name}</span>
+            <span style={{ fontSize: 11, color: hasDraft ? '#ff9f40' : 'var(--text-6)' }}>{savedStatusLabel(hasDraft, lastSavedAt)}</span>
           </div>
-          <button style={S.iconBtnGhost} onClick={onClose}><X size={20} /></button>
+          <button style={S.iconBtnGhost} onClick={requestClose}><X size={20} /></button>
         </div>
 
         <input
@@ -5767,6 +5910,13 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
           </div>
         </div>
       </div>
+      {showGuard && (
+        <ConfirmDiscardModal
+          onSaveAndExit={saveDraftsAndClose}
+          onDiscard={onClose}
+          onCancel={() => setShowGuard(false)}
+        />
+      )}
     </div>
   );
 }

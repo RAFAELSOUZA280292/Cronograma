@@ -6,7 +6,7 @@ import {
   AlignLeft, AlignCenter, AlignRight, List, Quote, Building2, Columns3,
 } from 'lucide-react';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
-import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn } from '../App.jsx';
+import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel } from '../App.jsx';
 
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
 
@@ -462,6 +462,9 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const isMobile = useIsMobile();
+  const isDirty = useDirtyForm(form);
+  const [showGuard, setShowGuard] = useState(false);
+  function requestClose() { if (isDirty) setShowGuard(true); else onClose(); }
 
   function set(patch) { setForm((f) => ({ ...f, ...patch })); }
 
@@ -493,7 +496,7 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
   }
 
   return (
-    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
       <div style={{ ...S.detailBox, width: 'min(1100px, 94vw)', maxHeight: '90vh', overflowY: 'auto', padding: isMobile ? undefined : '24px 30px 30px 30px', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={{ ...S.detailTopBar, alignItems: 'flex-start', marginBottom: 20 }}>
           <div>
@@ -502,7 +505,7 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
               Só o essencial pra abrir agora — dá pra completar o resto depois.
             </div>
           </div>
-          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
         </div>
 
         <div style={S.subSectionLabel}>Tipo</div>
@@ -659,6 +662,14 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
           {saving ? 'Enviando...' : form.type === 'melhoria' ? 'Registrar melhoria' : 'Abrir BUG'}
         </button>
       </div>
+      {showGuard && (
+        <ConfirmDiscardModal
+          onSaveAndExit={requiredOk ? submit : undefined}
+          onDiscard={onClose}
+          onCancel={() => setShowGuard(false)}
+          saving={saving}
+        />
+      )}
     </div>
   );
 }
@@ -752,6 +763,21 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   const [publishVersion, setPublishVersion] = useState('');
   const [publishBuild, setPublishBuild] = useState('');
   const [publishRelease, setPublishRelease] = useState('');
+  const [showGuard, setShowGuard] = useState(false);
+
+  const lastSavedAt = useAutosaveTimestamp(ticket);
+  const hasCommentDraft = !!commentDraft.trim() || pendingMentions.length > 0;
+  const hasActionDraft = [
+    blockReasonDraft, closeReasonDraft, closeJustDraft, closeDupIdDraft, dupIdDraft, reproduceNoteDraft,
+    redirectProduct, redirectModule, redirectAssignee, waitNote, gerenciaNote, homologRejectNote,
+    publishVersion, publishBuild, publishRelease,
+  ].some((v) => v && v.trim());
+  const hasDraft = hasCommentDraft || hasActionDraft;
+  function requestClose() { if (hasDraft) setShowGuard(true); else onClose(); }
+  function saveDraftsAndClose() {
+    if (hasCommentDraft) submitComment();
+    onClose();
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -893,7 +919,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   const timeline = [...structuredHistory, ...legacyHistory].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
   return (
-    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
       <div style={{ ...S.detailBox, width: 'min(1000px, 100%)', maxHeight: '92vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div>
@@ -902,8 +928,9 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 4 }}>
               Aberto em {fmtDateFromTs(ticket.createdAt)}
             </div>
+            <div style={{ fontSize: 11, color: hasDraft ? '#ff9f40' : 'var(--text-6)', marginTop: 2 }}>{savedStatusLabel(hasDraft, lastSavedAt)}</div>
           </div>
-          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
         </div>
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -1300,6 +1327,13 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
           </div>
         </div>
       </div>
+      {showGuard && (
+        <ConfirmDiscardModal
+          onSaveAndExit={hasCommentDraft ? saveDraftsAndClose : undefined}
+          onDiscard={onClose}
+          onCancel={() => setShowGuard(false)}
+        />
+      )}
     </div>
   );
 }
