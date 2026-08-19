@@ -1066,6 +1066,24 @@ reordenação dentro da coluna). `XFlowScreen` ganhou `viewMode`
 `S.pbGhostBtn`/`S.pbGhostBtnActive`, mesmo estilo dos botões Arquivados/
 Lixeira).
 
+**Cor por coluna (2026-08)**: a pedido do Rafael, o Quadro do XFlow ganhou
+a mesma linguagem visual do quadro pessoal (Gestão de Atividades) —
+cada coluna com uma cor pastel de fundo + uma etiqueta colorida no
+cabeçalho, cards brancos/`--bg-1` "encaixados" por cima (antes, todas as
+colunas eram um cinza plano igual, sem separação visual real entre
+colunas — exatamente o "tudo emendado numa folha só" que ele reportou).
+Reaproveita a paleta já existente do quadro pessoal
+(`COLUMN_COLOR_META`/`App.jsx`, 9 cores Notion-like, agora **exportado**
+pra `XFlow.jsx` importar) — mas, diferente do quadro pessoal, a cor de
+cada coluna do XFlow é **fixa por status** (`color` em cada entrada de
+`XFLOW_BOARD_COLUMNS`), não editável pelo usuário, escolhida só pra
+nenhuma coluna vizinha repetir cor (não é codificação de severidade).
+As variáveis CSS `--pcol-*` (definidas hoje só dentro do `<style>` do
+`PersonalBoardScreen`, então inexistentes fora dele) foram **duplicadas**
+no `<style>` do próprio `XFlowScreen` — mesmo padrão já documentado
+acima ("Bug de CSS corrigido") de cada tela top-level levar sua própria
+cópia do CSS base que precisa.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

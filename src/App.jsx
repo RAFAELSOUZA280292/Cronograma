@@ -115,7 +115,7 @@ function cardStatusOf(card) {
   return card.status || (card.completed ? 'concluida' : 'nao-iniciada');
 }
 
-const COLUMN_COLOR_META = {
+export const COLUMN_COLOR_META = {
   gray: { label: 'Cinza', bg: 'var(--pcol-gray-bg)', text: 'var(--pcol-gray-text)', container: 'var(--pcol-gray-container)' },
   blue: { label: 'Azul', bg: 'var(--pcol-blue-bg)', text: 'var(--pcol-blue-text)', container: 'var(--pcol-blue-container)' },
   green: { label: 'Verde', bg: 'var(--pcol-green-bg)', text: 'var(--pcol-green-text)', container: 'var(--pcol-green-container)' },
