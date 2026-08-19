@@ -213,7 +213,7 @@ const XFLOW_CLOSURE_REASON_META = {
 };
 const XFLOW_CLOSURE_REASON_ORDER = Object.keys(XFLOW_CLOSURE_REASON_META);
 
-const XFLOW_PRODUCTS = ['X da Questão', 'XClass', 'XPED', 'Outro'];
+const XFLOW_PRODUCTS = ['X da Questão', 'XClass', 'XPED', 'Gestão Projetos - Empresas', 'XFlow', 'Gestão de Atividades', 'Outro'];
 const XFLOW_CLIENT_TYPES = ['PRICETAX', 'TINTAX'];
 
 function metaLabel(map, key) { return (map[key] && (map[key].label || map[key])) || key || '—'; }
