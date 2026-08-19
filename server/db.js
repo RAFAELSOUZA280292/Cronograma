@@ -221,6 +221,11 @@ export async function initDb() {
   await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS deleted BOOLEAN NOT NULL DEFAULT false`);
   await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS deleted_by TEXT REFERENCES users(id)`);
+  // Posição manual no Quadro (2026-08) — número fracionário (padrão
+  // Trello/Linear), recalculado no cliente a cada arraste, servidor só
+  // grava. Backfill em migrateXflowBoardOrder() dá a ordem inicial
+  // (ordem de criação) pros tickets que ainda estão em 0 (nunca tocados).
+  await pool.query(`ALTER TABLE xflow_tickets ADD COLUMN IF NOT EXISTS board_order DOUBLE PRECISION NOT NULL DEFAULT 0`);
   await pool.query(`CREATE INDEX IF NOT EXISTS xflow_tickets_deleted_idx ON xflow_tickets(org_id, deleted)`);
 
   await pool.query(`
@@ -319,6 +324,17 @@ export async function migrateAccessModel() {
   await pool.query(`
     UPDATE users SET allowed_cnpjs = allowed_cnpjs || jsonb_build_array(cnpj)
     WHERE role = 'cliente' AND cnpj != '' AND NOT (allowed_cnpjs @> jsonb_build_array(cnpj))
+  `);
+}
+
+// Ordem manual inicial do Quadro do XFlow (2026-08) = ordem de criação.
+// Só toca tickets que ainda estão em board_order=0 (nunca reorganizados
+// manualmente nem criados depois dessa migração) — idempotente.
+export async function migrateXflowBoardOrder() {
+  await pool.query(`
+    UPDATE xflow_tickets t SET board_order = sub.rn
+    FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY org_id ORDER BY created_at ASC) AS rn FROM xflow_tickets) sub
+    WHERE t.id = sub.id AND t.board_order = 0
   `);
 }
 

@@ -63,6 +63,10 @@ export const XFLOW_TRANSITIONS = {
   comentar: { from: null, to: null, permission: 'comment' },
   anexar: { from: null, to: null, permission: 'attach_evidence' },
   remover_anexo: { from: null, to: null, permission: 'attach_evidence' },
+  // Reorganizar a posição manual no Quadro — não muda status, mesmo
+  // espírito liberal de `comentar` (qualquer um que vê o quadro pode
+  // reorganizar o que já vê).
+  reordenar: { from: null, to: null, permission: 'reorder' },
   // Sugestão original do solicitante — pode ser preenchida depois se o
   // ticket não tinha (ex.: criado antes desse campo existir), mas só uma
   // vez: uma vez definida, fica imutável (ver xflow.js, guarda extra além

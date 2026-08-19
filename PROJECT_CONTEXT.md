@@ -1084,6 +1084,38 @@ no `<style>` do próprio `XFlowScreen` — mesmo padrão já documentado
 acima ("Bug de CSS corrigido") de cada tela top-level levar sua própria
 cópia do CSS base que precisa.
 
+**Ordenação + reordenação manual (2026-08)**: cada coluna do Quadro tem
+um seletor "Ordenar por" (`XFLOW_SORT_OPTIONS`/`sortXflowTickets()` em
+`XFlow.jsx`) com 5 modos — Prioridade (padrão, reaproveita
+`smartDevSort()` já existente), Mais antiga (`createdAt` crescente),
+Responsável (`whoHasTheBall()` alfabético), Produto/Plataforma
+(alfabético) e Ordem manual. `sortMode` é estado local da sessão/aba
+(não persiste no servidor, cada usuário escolhe o dele, mesmo espírito
+dos `filters`). Só o modo **Ordem manual** lê/escreve o campo
+`board_order` (novo, `DOUBLE PRECISION` em `xflow_tickets` — número
+fracionário estilo Trello/Linear, recalculado no **client** a cada
+arraste como o ponto médio entre os dois vizinhos, servidor só grava via
+a nova ação `reordenar`, `{from:null, to:null, permission:'reorder'}` em
+`xflowTransitions.js` + `reorder: () => true` em `xflowPermissions.js`
+— mesmo espírito liberal de `comentar`, qualquer um que vê o quadro pode
+reorganizar o que já vê). Migração `migrateXflowBoardOrder()`
+(`server/db.js`, idempotente) dá a ordem inicial = ordem de criação pros
+tickets que nunca foram tocados; ticket novo sempre nasce com
+`board_order` = maior valor da org + 1 (fim da fila). **Arquitetura do
+drag**: `XflowBoardCard` virou `useSortable` (era `useDraggable`) e cada
+coluna ganhou `<SortableContext>` ao redor dos cards — mesmo padrão de
+`PersonalColumn`/`App.jsx`. `XflowBoardView.handleDragEnd` resolve a
+coluna de destino do mesmo jeito que o quadro pessoal já faz
+(`over.data.current?.type === 'card' ? columnId do card : over.id`, já
+que agora um card também pode ser alvo de soltura, não só a coluna) e
+ramifica: **mesma coluna + modo manual** → calcula o `board_order` novo
+e chama `reordenar`; **mesma coluna + outro modo** → não faz nada (sem
+toast, mesmo silêncio que o quadro pessoal já tem pro caso idêntico);
+**coluna diferente** → comportamento de mudança de status **inalterado**
+(`resolveDrag`/tiers 1-3, ver acima) — arrastar entre colunas continua
+funcionando igual em qualquer modo de ordenação, é uma lógica
+inteiramente à parte.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

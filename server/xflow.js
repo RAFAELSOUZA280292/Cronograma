@@ -138,7 +138,7 @@ const RELATIONAL_FIELDS = [
   'statusEnteredAt', 'timeBreakdown', 'ballHolderType', 'ballHolderUserId', 'waitingOnType',
   'reopenCount', 'homologRejectCount',
   'slaFirstResponseDueAt', 'slaFirstResponseMetAt', 'slaResolutionDueAt', 'slaResolutionMetAt',
-  'slaPausedAt', 'slaPausedSeconds', 'deleted', 'deletedAt', 'deletedBy',
+  'slaPausedAt', 'slaPausedSeconds', 'deleted', 'deletedAt', 'deletedBy', 'boardOrder',
 ];
 
 function rowToTicket(row) {
@@ -172,6 +172,7 @@ function rowToTicket(row) {
     deleted: row.deleted,
     deletedAt: row.deleted_at,
     deletedBy: row.deleted_by,
+    boardOrder: row.board_order,
     slaFirstResponseState: computeSlaState(row.created_at, row.sla_first_response_due_at, row.sla_first_response_met_at, 0, null),
     slaResolutionState: computeSlaState(row.created_at, row.sla_resolution_due_at, row.sla_resolution_met_at, row.sla_paused_seconds, row.sla_paused_at),
     ...row.data,
@@ -276,8 +277,10 @@ router.post('/tickets', requireAuth, requireXflowAccess, async (req, res, next) 
     const firstResponseTarget = priority && slaConfig.byPriority[priority];
     const firstResponseDueAt = firstResponseTarget ? new Date(Date.now() + firstResponseTarget.firstResponseMinutes * 60000) : null;
     const { rows } = await pool.query(
-      `INSERT INTO xflow_tickets (id, org_id, title, status, severity, priority, suggested_priority, product, reporter_id, assignee_id, data, sla_first_response_due_at)
-       VALUES ($1,$2,$3,'aberta',$4,$5,$6,$7,$8,NULL,$9,$10) RETURNING *`,
+      `INSERT INTO xflow_tickets (id, org_id, title, status, severity, priority, suggested_priority, product, reporter_id, assignee_id, data, sla_first_response_due_at, board_order)
+       VALUES ($1,$2,$3,'aberta',$4,$5,$6,$7,$8,NULL,$9,$10,
+         (SELECT COALESCE(MAX(board_order),0)+1 FROM xflow_tickets WHERE org_id=$2))
+       RETURNING *`,
       [id, req.user.orgId, title, '', priority, priority, body.product || '', req.user.id, JSON.stringify(data), firstResponseDueAt]
     );
     await logEvent(pool, id, req.user.orgId, 'status_change', 'status', null, 'aberta', req.user.id, `${req.user.name} abriu o BUG`);
@@ -556,6 +559,16 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         }
         rel.suggested_priority = payload.value || '';
         historyNote = `Prioridade sugerida definida: ${payload.value || 'sem prioridade'}`;
+        break;
+      }
+      case 'reordenar': {
+        const boardOrder = payload && Number(payload.boardOrder);
+        if (!Number.isFinite(boardOrder)) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ message: 'Posição inválida.' });
+        }
+        rel.board_order = boardOrder;
+        historyNote = 'Posição no quadro reorganizada';
         break;
       }
       default:
