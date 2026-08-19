@@ -566,6 +566,18 @@ Confirmados nesta sessão (causa raiz verificada e corrigida ao vivo):
   grupo, pulando a tela de seleção por completo em vez de tentar sincronizar
   o estado dela.
 
+- **Editar comentário de atividade perdia as quebras de linha** (Empresas >
+  Atividades e Gestão de Atividades): o modo de edição usava `<input
+  type="text">` (linha única, `Enter` submetia o comentário) enquanto a
+  exibição (`S.commentText`, `white-space: pre-wrap`) e a caixa de criar
+  comentário sempre foram `<textarea>` — texto com `\n` virava um textão
+  corrido ao entrar em modo de edição, sem forma de reinserir as quebras.
+  Corrigido nos dois lugares (`ActivityDetailModal` e
+  `PersonalCardDetailModal`): edição agora usa `<textarea rows={3}
+  style={S.notesArea}>` igual à composição; `Enter` volta a ser quebra de
+  linha normal (só `Escape` cancela — salvar é só pelo botão ✓, igual à
+  criação).
+
 Do histórico do projeto (título do commit é a única fonte disponível —
 confiança menor, mas mantido como sinal de "área sensível"):
 
