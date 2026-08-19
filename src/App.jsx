@@ -803,6 +803,7 @@ export default function App() {
           <CreateCompanyModal
             isSuperAdmin={currentUser.isSuperAdmin}
             organizations={organizations}
+            projects={projects}
             onClose={() => setShowCreateCompany(false)}
             onCreate={async (company) => {
               await handleCreateCompanyPayload(company);
@@ -815,6 +816,7 @@ export default function App() {
             cloneSource={cloningProject}
             isSuperAdmin={currentUser.isSuperAdmin}
             organizations={organizations}
+            projects={projects}
             onClose={() => setCloningProject(null)}
             onCreate={async (company) => {
               const { id, crossOrg, orgName } = await cloneCompany(cloningProject.id, company);
@@ -2144,6 +2146,7 @@ export default function App() {
         <CreateCompanyModal
           isSuperAdmin={currentUser.isSuperAdmin}
           organizations={organizations}
+          projects={projects}
           onClose={() => setShowCreateCompany(false)}
           onCreate={async (company) => {
             await handleCreateCompanyPayload(company);
@@ -2785,7 +2788,7 @@ function MyProfileModal({ user, onClose, onSave }) {
   );
 }
 
-function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, organizations }) {
+function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, organizations, projects }) {
   const [cnpj, setCnpj] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -2793,9 +2796,11 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
   const [fetched, setFetched] = useState(null);
   const [form, setForm] = useState({ name: '', nomeFantasia: '', color: PHASE_COLORS[0], logo: '', clientType: '', orgId: '', structureType: 'individual', groupName: '' });
   const [children, setChildren] = useState([]);
+  const [linkGroupId, setLinkGroupId] = useState('');
   const isMobile = useIsMobile();
   const isGroup = form.structureType === 'grupo' && !cloneSource;
-  const isDirty = useDirtyForm({ cnpj, form, children });
+  const availableGroups = (projects || []).filter((p) => p.company.isGroupMaster);
+  const isDirty = useDirtyForm({ cnpj, form, children, linkGroupId });
   const [showGuard, setShowGuard] = useState(false);
   function requestClose() { if (isDirty) setShowGuard(true); else onClose(); }
 
@@ -2886,7 +2891,9 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
           children: validChildren.map((c) => buildCompanyPayload(c, c.fetched)),
         });
       } else {
-        await onCreate(buildCompanyPayload({ cnpj, name: form.name, nomeFantasia: form.nomeFantasia, logo: form.logo }, fetched));
+        const payload = buildCompanyPayload({ cnpj, name: form.name, nomeFantasia: form.nomeFantasia, logo: form.logo }, fetched);
+        if (linkGroupId) payload.groupId = linkGroupId;
+        await onCreate(payload);
       }
     } catch (e) {
       setError(e.message);
@@ -2948,6 +2955,19 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
           <>
             <div style={S.subSectionLabel}>Nome do grupo</div>
             <input type="text" value={form.groupName} onChange={(e) => setForm((f) => ({ ...f, groupName: e.target.value }))} placeholder={form.name || 'Nome do grupo empresarial'} />
+          </>
+        )}
+
+        {!isGroup && !cloneSource && !form.orgId && availableGroups.length > 0 && (
+          <>
+            <div style={S.subSectionLabel}>Vincular a um grupo existente (opcional)</div>
+            <select value={linkGroupId} onChange={(e) => setLinkGroupId(e.target.value)}>
+              <option value="">Não vincular — empresa avulsa</option>
+              {availableGroups.map((g) => <option key={g.id} value={g.id}>{g.company.groupName || g.company.name}</option>)}
+            </select>
+            <div style={{ ...S.fieldHint, marginBottom: 12 }}>
+              Já cadastra essa empresa como filial do grupo escolhido, sem precisar editar depois.
+            </div>
           </>
         )}
 
