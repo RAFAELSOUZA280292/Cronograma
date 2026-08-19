@@ -327,6 +327,22 @@ empresa mantém esses dados 100% independentes, por decisão explícita
   de um grupo existente"; filha pode "Desvincular do grupo". Crescimento do
   grupo depois de criado acontece só por essa conversão (sem tela dedicada
   de "adicionar membro" no Master).
+- Vincular a grupo já na criação (2026-08): `CreateCompanyModal` ganha um
+  seletor "Vincular a um grupo existente (opcional)" — só aparece pra
+  cadastro de empresa individual avulsa (`!isGroup && !cloneSource`), e só
+  quando não há um `orgId` alternativo selecionado (super admin mirando
+  outra org veria uma lista de grupos que não pertence a essa org, já que
+  `projects` só reflete a org atualmente ativa). Lista os `projects` com
+  `company.isGroupMaster`; ao escolher um, o `submit()` do modal seta
+  `payload.groupId = <id do master>` diretamente — **nunca**
+  `payload.structureType = 'grupo'` nesse caminho, porque essa string é o
+  flag reservado que `handleCreateCompanyPayload()` usa pra rotear pro
+  `createCompanyGroup()` (que espera `{master, children, groupName}` e
+  quebraria aqui). Mesmo mecanismo que `createCompanyGroup()` já usa pras
+  filhas (`createCompany({...child, groupId: masterId})`) — zero mudança
+  de schema/backend, `createCompany()`/`POST /api/projects` já repassa
+  qualquer campo extra do payload. Elimina o passo de criar avulsa e depois
+  editar pra vincular.
 - Entrar no grupo: `CompanySelectorScreen` mostra selo "Grupo · N empresas"
   no Master; clicar o checkbox do Master ou dar duplo-clique nele
   auto-seleciona todos os membros (`toggle()` estendido) e leva direto pra
