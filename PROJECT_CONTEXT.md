@@ -500,18 +500,48 @@ mecanismo.
   o `<main>`, que antes não tinha essa classe (era por isso que a
   exportação em PDF antiga imprimia a view crua da tela, Tabela/Fases/
   Quadro/Gantt, sem nenhum layout dedicado). `@page { size: landscape }`
-  força paisagem. Cores do relatório são **literais** (`PRINT_STATUS_META`
-  própria, não reaproveita `STATUS_META`) — nunca `var(--...)`, porque o
-  relatório sempre imprime em fundo branco independente do tema
-  claro/escuro ativo no momento. Funciona tanto pra uma empresa quanto pra
-  "visão geral" (`isMulti`): uma página por empresa (`.pr-page`,
-  `page-break-after`). **Bug pré-existente corrigido junto**: a regra
-  `@media print { body, .page-root {...} }` já existia antes, mas
+  força paisagem. Cores do relatório são **literais** (`PRINT_STATUS_META`/
+  `PRINT_COUNTDOWN_TONE_META` próprias, não reaproveitam `STATUS_META`/
+  `COUNTDOWN_TONE_META` da tela) — nunca `var(--...)`. Funciona tanto pra
+  uma empresa quanto pra "visão geral" (`isMulti`): uma página por empresa
+  (`.pr-page`, `page-break-after`). **Bug pré-existente corrigido junto**:
+  a regra `@media print { body, .page-root {...} }` já existia antes, mas
   `.page-root` nunca bateu em nada — o `<div style={S.page}>` raiz de toda
   tela não tinha essa `className` (só o nome da chave do objeto de estilo
   coincidia). Corrigido adicionando `className="page-root"` a esse `<div>`
-  em todas as telas que o usam — sem isso, o fundo escuro do tema nunca
-  era forçado pra branco na impressão.
+  em todas as telas que o usam.
+  - **Identidade visual PRICETAX (2026-08, v2)**: Rafael mandou o deck
+    oficial da PRICETAX (`.pptx`) como referência e o relatório foi
+    redesenhado pra bater com a marca de verdade — **fundo navy escuro**
+    (`#0B0E1A` página / `#161B2E` cards / `#1D2338` linha de cabeçalho de
+    tabela), **amarelo da marca `#FEDC04`** (não é o `#F5C400` usado no
+    resto do app — extraído pixel a pixel dos PNGs oficiais em
+    `src/assets/brand/`, é o hex correto de verdade), texto branco/cinza
+    claro (`#B8BCC8`), verde `#3DDC84` (positivo/concluído), coral
+    `#FF6B6B` (atraso/negativo) — paleta extraída diretamente das cores
+    `srgbClr` usadas nos 14 slides do deck (`ppt/slides/slideN.xml`), não
+    do tema OOXML (que só tinha o azul/vermelho genérico padrão do
+    Office, nunca customizado). Fonte trocada pra `Arial` (primeira da
+    pilha, com `Inter` como fallback) — é a fonte real usada no deck.
+    Cantos passaram de 10-12px pra 4px (o deck usa retângulos praticamente
+    sem arredondar). Logo `PriceTax` branca (`pricetaxLogoBranco`, mesmo
+    import de `BrandLogo`) agora aparece no canto superior direito do
+    relatório — antes só tinha o texto "PRICETAX" como eyebrow. Logo da
+    **empresa cliente** (`company.logo`, cor arbitrária, pode ser qualquer
+    coisa que o usuário fez upload) ganhou um chip de fundo branco
+    (`.pr-header-logo-chip`) atrás pra garantir contraste em qualquer
+    logo, já que o fundo do relatório agora é escuro. **Crítico pro fundo
+    escuro funcionar de verdade na impressão**: navegadores por padrão
+    **omitem cor de fundo ao imprimir** pra economizar tinta — adicionado
+    `-webkit-print-color-adjust:exact` / `print-color-adjust:exact` no
+    `@media print` (no `<style>` topo de `App()`, fora do componente) sem
+    isso o relatório sairia com fundo branco e texto branco invisível.
+    `PrintActivityTable` ganhou a coluna **Contagem** (reaproveita
+    `resumoCountdown()`/`resumoDateLabel()` já criados pra aba RESUMO,
+    ver abaixo — mesmo "D-N/Amanhã/Hoje/Atrasado N dias" da tela, cores
+    próprias em `PRINT_COUNTDOWN_TONE_META`) e a ordem de colunas virou
+    igual à do RESUMO (Atividade/Responsável/Fase/Data/Contagem/Status) —
+    pedido explícito de consistência entre a aba e o PDF exportado dela.
 - **Aba RESUMO (2026-08)** — quinta aba do workspace de Empresas
   (`ResumoView`, `App.jsx`, antes de `TableView`; ícone `Gauge`), só em
   `!isMulti` (mesma restrição de `PhasesView`/`KanbanView` — visão de uma
