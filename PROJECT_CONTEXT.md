@@ -542,6 +542,16 @@ mecanismo.
     próprias em `PRINT_COUNTDOWN_TONE_META`) e a ordem de colunas virou
     igual à do RESUMO (Atividade/Responsável/Fase/Data/Contagem/Status) —
     pedido explícito de consistência entre a aba e o PDF exportado dela.
+  - **Ordem = mesma da Tabela (2026-08)**: `overdue`/`upcoming` em
+    `PrintReport` passaram a chamar `sortActivities()` diretamente (a
+    mesma função que gera `activitiesSorted` em `App()`, fonte da ordem
+    da Tabela) em vez de um `.sort()` ad-hoc por `a.date` — a versão
+    ad-hoc tratava atividade sem data como `''` no `localeCompare`, o
+    que jogava ela pro **início** da lista; `sortActivities()` já trata
+    esse caso corretamente (sem data sempre por último). Atrasadas +
+    próximas, nessa ordem, reproduzem a mesma sequência cronológica que
+    a Tabela mostra (ver também "Ordenação padrão" da aba RESUMO acima,
+    mesmo pedido do Rafael, mesma correção).
 - **Aba RESUMO (2026-08)** — quinta aba do workspace de Empresas
   (`ResumoView`, `App.jsx`, antes de `TableView`; ícone `Gauge`), só em
   `!isMulti` (mesma restrição de `PhasesView`/`KanbanView` — visão de uma
@@ -573,12 +583,23 @@ mecanismo.
     automático, sem tocar no campo.
   - **Filtros combináveis**: chips rápidos (Todas/Atrasadas/Hoje/Próx. 7
     e 30 dias/Em andamento/Não iniciadas/Concluídas) + selects de
-    Responsável/Fase/Status/Mês, todos com AND entre si. Ordenação
-    própria (`resumoBucketRank()`: atrasada → hoje → próx. 7 dias →
-    demais futuras → concluída, desempate por data) com override manual
-    por Data/Atividade/Responsável/Fase/Status. "Agrupar por mês" é
-    colapsável por mês (`collapsedMonths`, mesmo padrão de
+    Responsável/Fase/Status/Mês, todos com AND entre si. "Agrupar por
+    mês" é colapsável por mês (`collapsedMonths`, mesmo padrão de
     `PhasesView`/`XflowBoardColumn`).
+  - **Ordenação padrão = ordem da Tabela (2026-08, pedido explícito)**:
+    o modo "Ordenar: como na Tabela" (`sortMode === 'auto'`, default)
+    **não reordena nada** — só filtra (`.filter()` preserva ordem
+    relativa) em cima do array `activities` que já chega pronto de
+    `App()` como `activitiesSorted` (`sortActivities()`, a mesma fonte
+    que a aba Tabela usa pra numerar `#1, #2, #3...`). Uma primeira
+    versão tinha uma ordenação "inteligente" própria
+    (`resumoBucketRank()`: atrasada → hoje → próx. 7 dias → demais
+    futuras → concluída) que **empurrava concluídas pro final** — Rafael
+    pediu explicitamente pra respeitar a mesma ordem da Tabela em vez
+    disso (uma atividade concluída fica na posição cronológica dela, não
+    no fim), então essa função foi removida. Os outros modos
+    (Data/Atividade/Responsável/Fase/Status) continuam como override
+    manual explícito do usuário, sem mudança.
   - **Responsivo sem media query**: `.rs-kpis` usa
     `grid-template-columns: repeat(auto-fit, minmax(112px,1fr))` (reflui
     sozinho, sem breakpoint); tabela vs. cards (`ResumoTable`/

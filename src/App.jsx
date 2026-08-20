@@ -6160,8 +6160,13 @@ function PrintReport({ projects, generatedAt }) {
         const emAndamentoCount = activities.filter((a) => a.status === 'em-andamento').length;
         const pct = total ? Math.round((doneCount / total) * 100) : 0;
         const isOverdue = (a) => a.status !== 'concluido' && (a.endDate || a.date) && (a.endDate || a.date) < todayISO;
-        const overdue = activities.filter(isOverdue).sort((a, b) => (a.endDate || a.date || '').localeCompare(b.endDate || b.date || ''));
-        const upcoming = activities.filter((a) => !isOverdue(a) && a.status !== 'concluido').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+        // sortActivities() é a mesma função usada pra montar activitiesSorted
+        // em App() (fonte da ordem da aba Tabela) — reaproveitada aqui ao
+        // pé da letra, não só "parecida", pra garantir que atrasadas +
+        // próximas em sequência reproduzam exatamente a ordem da Tabela
+        // (inclusive a regra de sem-data ir sempre por último).
+        const overdue = sortActivities(activities.filter(isOverdue));
+        const upcoming = sortActivities(activities.filter((a) => !isOverdue(a) && a.status !== 'concluido'));
         const companyName = p.company.nomeFantasia || p.company.name || 'Empresa sem nome';
         return (
           <div className="pr-page" key={p.id}>
@@ -6298,17 +6303,6 @@ function resumoDateLabel(a) {
   if (!a.date && !a.endDate) return '—';
   if (a.date && a.endDate && a.endDate !== a.date) return `${fmtDayFull(parseDate(a.date))} → ${fmtDayFull(parseDate(a.endDate))}`;
   return fmtDate(a.endDate || a.date);
-}
-
-function resumoBucketRank(a, todayISO) {
-  if (a.status === 'concluido') return 4;
-  const deadline = a.endDate || a.date;
-  if (!deadline) return 3;
-  const diff = Math.round((parseDate(deadline) - parseDate(todayISO)) / 86400000);
-  if (diff < 0) return 0;
-  if (diff === 0) return 1;
-  if (diff <= 7) return 2;
-  return 3;
 }
 
 const RESUMO_CSS = `
@@ -6509,17 +6503,19 @@ function ResumoView({ activities, orderMap, phases, pid, openDetail, companyColo
     return true;
   });
 
-  filtered = filtered.slice().sort((a, b) => {
-    if (sortMode === 'data') return (a.endDate || a.date || '').localeCompare(b.endDate || b.date || '');
-    if (sortMode === 'atividade') return a.title.localeCompare(b.title, 'pt-BR');
-    if (sortMode === 'responsavel') return (a.responsible || '').localeCompare(b.responsible || '', 'pt-BR');
-    if (sortMode === 'fase') return phaseName(a.phase).localeCompare(phaseName(b.phase), 'pt-BR');
-    if (sortMode === 'status') return STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
-    const ra = resumoBucketRank(a, todayISO);
-    const rb = resumoBucketRank(b, todayISO);
-    if (ra !== rb) return ra - rb;
-    return (a.endDate || a.date || '').localeCompare(b.endDate || b.date || '');
-  });
+  // 'auto' não reordena — `activities` já chega na mesma ordem exibida na
+  // aba Tabela (sortActivities() em App()), e o filter acima preserva essa
+  // ordem relativa. Pedido explícito do Rafael: a ordem da Tabela é a
+  // referência, tanto aqui quanto no relatório em PDF (ver PrintReport).
+  if (sortMode !== 'auto') {
+    filtered = filtered.slice().sort((a, b) => {
+      if (sortMode === 'data') return (a.endDate || a.date || '').localeCompare(b.endDate || b.date || '');
+      if (sortMode === 'atividade') return a.title.localeCompare(b.title, 'pt-BR');
+      if (sortMode === 'responsavel') return (a.responsible || '').localeCompare(b.responsible || '', 'pt-BR');
+      if (sortMode === 'fase') return phaseName(a.phase).localeCompare(phaseName(b.phase), 'pt-BR');
+      return STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
+    });
+  }
 
   const groups = groupByMonth ? (() => {
     const map = {};
@@ -6586,7 +6582,7 @@ function ResumoView({ activities, orderMap, phases, pid, openDetail, companyColo
             {monthOptions.map((m) => <option key={m} value={m}>{resumoMonthLabel(m)}</option>)}
           </select>
           <select value={sortMode} onChange={(e) => setSortMode(e.target.value)}>
-            <option value="auto">Ordenar: automático</option>
+            <option value="auto">Ordenar: como na Tabela</option>
             <option value="data">Ordenar: data</option>
             <option value="atividade">Ordenar: atividade</option>
             <option value="responsavel">Ordenar: responsável</option>
