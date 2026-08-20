@@ -101,13 +101,16 @@ Componentes de tela/modal (nome → linha → responsabilidade):
 | **5541** | **`PublicBoardScreen`** | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
 | 5640 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
 | **5675** | **`ActivityDetailModal`** | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários, histórico, campo opcional `meetingTime` (2026-08, "Horário da reunião") |
-| 6074 | `PrintActivityTable` | Tabela de atividades do relatório em PDF (usada em "Em atraso" e "Próximas etapas") |
-| **6114** | **`PrintReport`** | Relatório em PDF dedicado (2026-08) — KPIs/progresso/próximas etapas, `display:none` na tela, só aparece em `@media print` — ver `PROJECT_CONTEXT.md` §13 |
-| **6207** | **`TableView`** | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) |
-| 6738 | `PhasesView` | View "Fases" |
-| 6868 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
-| 6955 | `TimelineView` | View "Gantt" |
-| 7108 | `export const S = {...}` | Objeto de estilos inline |
+| 6085 | `PrintActivityTable` | Tabela de atividades do relatório em PDF (usada em "Em atraso" e "Próximas etapas") |
+| **6125** | **`PrintReport`** | Relatório em PDF dedicado (2026-08) — KPIs/progresso/próximas etapas, `display:none` na tela, só aparece em `@media print` — ver `PROJECT_CONTEXT.md` §13 |
+| 6339 | `ResumoTable` | Tabela desktop da aba Resumo (2026-08) |
+| 6388 | `ResumoCard` | Card mobile da aba Resumo (2026-08) — mesmos dados de `ResumoTable`, layout empilhado |
+| **6417** | **`ResumoView`** | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
+| **6597** | **`TableView`** | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) |
+| 7128 | `PhasesView` | View "Fases" |
+| 7258 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
+| 7345 | `TimelineView` | View "Gantt" |
+| 7498 | `export const S = {...}` | Objeto de estilos inline |
 
 ### 3.1 Responsividade / mobile
 
@@ -123,15 +126,17 @@ usam `S.detailBox`.
 ## 4. Funcionalidades por módulo
 
 ### Autenticação / sessão
-- Tela: `LoginGate` (L1773). Fluxo completo em §7.
+- Tela: `LoginGate` (L2208). Fluxo completo em §7.
 - API: `POST /auth/login`, `GET /auth/me`, `POST /auth/logout`.
 - Modelo: tabela `users`.
 
 ### Empresas (Cronograma de Reforma Tributária)
-- Telas: `CompanySelectorScreen` (L2488), `CreateCompanyModal` (L2155),
-  `EditCompanyModal` (L2403), workspace principal dentro de `App()` (views
-  Tabela/Fases/Quadro/Gantt).
-- Componentes principais: `TableView`, `PhasesView`, `KanbanView`,
+- Telas: `CompanySelectorScreen` (L3474), `CreateCompanyModal` (L2848),
+  `EditCompanyModal` (L3250), workspace principal dentro de `App()` (views
+  Resumo/Tabela/Fases/Quadro/Gantt — "Resumo" e "Fases"/"Quadro" só em
+  empresa única, não em "visão geral"/`isMulti`).
+- Componentes principais: `ResumoView`/`ResumoTable`/`ResumoCard` (aba
+  Resumo, 2026-08), `TableView`, `PhasesView`, `KanbanView`,
   `TimelineView`, `ActivityDetailModal`, `UsersManagementScreen`,
   `PrintReport`/`PrintActivityTable` (relatório em PDF, 2026-08).
 - APIs: `GET/POST/PATCH/DELETE /projects`, `GET /projects/:id/team-candidates`,

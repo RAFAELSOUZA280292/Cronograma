@@ -5,7 +5,7 @@ import {
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
   LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History,
   MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal,
-  Globe, Lock, RefreshCw, Pause, Play, Archive, Bug,
+  Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -1720,11 +1720,12 @@ export default function App() {
 
       <div className="no-print" style={S.tabs}>
         {[
+          !isMulti && { id: 'resumo', label: 'Resumo', icon: Gauge },
           { id: 'timeline', label: 'Gantt', icon: CalendarDays },
           { id: 'table', label: 'Tabela', icon: List },
           { id: 'phases', label: 'Fases', icon: LayoutGrid },
           { id: 'kanban', label: 'Quadro', icon: Columns3 },
-        ].map((t) => {
+        ].filter(Boolean).map((t) => {
           const Icon = t.icon;
           return (
             <button key={t.id} onClick={() => setView(t.id)} style={{ ...S.tab, ...(view === t.id ? S.tabActive : {}) }}>
@@ -1735,6 +1736,16 @@ export default function App() {
       </div>
 
       <main className="no-print" style={{ ...S.main, ...(isMobile ? { padding: '14px 12px 0 12px' } : null) }}>
+        {!isMulti && view === 'resumo' && (
+          <ResumoView
+            activities={activitiesSorted}
+            orderMap={orderMap}
+            phases={activeProject.phases}
+            pid={activeProject.id}
+            openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
+            companyColor={activeProject.company.color}
+          />
+        )}
         {!isMulti && view === 'timeline' && (
           <TimelineView
             activities={activitiesSorted}
@@ -6200,6 +6211,385 @@ function PrintReport({ projects, generatedAt }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Aba RESUMO (2026-08) — visão executiva de consulta/acompanhamento, não de
+// edição. Reaproveita 100% do modelo de dados já existente (activity/phase/
+// responsible/status/subactivities) — nenhum campo novo, nenhuma tabela nova.
+// "Atrasado" aqui é sempre derivado de data x hoje, nunca um status gravado
+// (mesmo espírito do isOverdue() do PhasesView/PrintReport) — abrir a
+// atividade continua usando o mesmo ActivityDetailModal de sempre via
+// openDetail(), sem nenhuma edição própria nessa tela.
+const COUNTDOWN_TONE_META = {
+  ok: { color: '#3ecf6e', bg: 'rgba(62,207,110,.14)' },
+  warn: { color: '#c9a227', bg: 'rgba(201,162,39,.16)' },
+  soon: { color: '#ff9f40', bg: 'rgba(255,159,64,.16)' },
+  today: { color: '#3ea6ff', bg: 'rgba(62,166,255,.20)' },
+  overdue: { color: '#e2574c', bg: 'rgba(226,87,76,.16)' },
+  done: { color: 'var(--text-5)', bg: 'var(--border-1)' },
+  none: { color: 'var(--text-6)', bg: 'var(--border-1)' },
+};
+
+const RESUMO_QUICK_FILTERS = [
+  { value: 'todas', label: 'Todas' },
+  { value: 'atrasadas', label: 'Atrasadas' },
+  { value: 'hoje', label: 'Hoje' },
+  { value: 'proximos7', label: 'Próximos 7 dias' },
+  { value: 'proximos30', label: 'Próximos 30 dias' },
+  { value: 'em-andamento', label: 'Em andamento' },
+  { value: 'nao-iniciado', label: 'Não iniciadas' },
+  { value: 'concluidas', label: 'Concluídas' },
+];
+
+const RESUMO_MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+function resumoMonthLabel(key) {
+  if (!key) return 'Sem data definida';
+  const [y, m] = key.split('-').map(Number);
+  return `${RESUMO_MONTH_NAMES[m - 1]}/${y}`;
+}
+
+function resumoCountdown(a, todayISO) {
+  if (a.status === 'concluido') return { label: 'Concluído', tone: 'done' };
+  const deadline = a.endDate || a.date;
+  if (!deadline) return { label: 'Sem prazo', tone: 'none' };
+  const diff = Math.round((parseDate(deadline) - parseDate(todayISO)) / 86400000);
+  if (diff < 0) return { label: `Atrasado ${Math.abs(diff)} dia${Math.abs(diff) === 1 ? '' : 's'}`, tone: 'overdue' };
+  if (diff === 0) return { label: 'Hoje', tone: 'today' };
+  if (diff === 1) return { label: 'Amanhã', tone: 'soon' };
+  if (diff <= 6) return { label: `D-${diff}`, tone: 'soon' };
+  if (diff <= 15) return { label: `D-${diff}`, tone: 'warn' };
+  return { label: `D-${diff}`, tone: 'ok' };
+}
+
+function resumoDateLabel(a) {
+  if (!a.date && !a.endDate) return '—';
+  if (a.date && a.endDate && a.endDate !== a.date) return `${fmtDayFull(parseDate(a.date))} → ${fmtDayFull(parseDate(a.endDate))}`;
+  return fmtDate(a.endDate || a.date);
+}
+
+function resumoBucketRank(a, todayISO) {
+  if (a.status === 'concluido') return 4;
+  const deadline = a.endDate || a.date;
+  if (!deadline) return 3;
+  const diff = Math.round((parseDate(deadline) - parseDate(todayISO)) / 86400000);
+  if (diff < 0) return 0;
+  if (diff === 0) return 1;
+  if (diff <= 7) return 2;
+  return 3;
+}
+
+const RESUMO_CSS = `
+  .resumo-view { padding-bottom: 24px; }
+  .rs-title { font-size: 22px; font-weight: 800; letter-spacing: .02em; margin: 0 0 16px; color: var(--text-1); }
+  .rs-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .rs-kpi { background: var(--bg-2); border: 1px solid var(--border-1); border-radius: 10px; padding: 12px 14px; }
+  .rs-kpi-num { font-size: 22px; font-weight: 800; color: var(--text-1); line-height: 1; }
+  .rs-kpi-label { font-size: 10.5px; color: var(--text-5); margin-top: 6px; }
+  .rs-kpi-next { cursor: pointer; background: var(--bg-3); min-width: 168px; }
+  .rs-kpi-next-label { font-size: 10px; color: var(--text-5); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+  .rs-kpi-next-title { font-size: 12.5px; font-weight: 700; color: var(--text-1); margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rs-kpi-next-meta { font-size: 11px; color: var(--text-5); margin-top: 3px; }
+  .rs-empty-inline { font-size: 11.5px; color: var(--text-6); margin-top: 6px; }
+  .rs-progress-block { margin-bottom: 20px; }
+  .rs-progress-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--text-2); margin-bottom: 6px; }
+  .rs-progress-pct { font-weight: 800; }
+  .rs-progress-track { height: 10px; background: var(--border-1); border-radius: 999px; overflow: hidden; }
+  .rs-progress-fill { height: 100%; border-radius: 999px; }
+  .rs-toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+  .rs-quickfilters { display: flex; flex-wrap: wrap; gap: 6px; }
+  .rs-chip { font-size: 11.5px; font-weight: 600; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border-2); background: var(--bg-2); color: var(--text-4); cursor: pointer; }
+  .rs-chip-active { background: var(--text-1); color: var(--bg-1); border-color: var(--text-1); }
+  .rs-selects { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .rs-selects select { font-size: 11.5px; width: auto; }
+  .rs-group-toggle { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-4); cursor: pointer; }
+  .rs-table-wrap { overflow-x: auto; border: 1px solid var(--border-1); border-radius: 10px; }
+  .rs-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .rs-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-6); padding: 10px 12px; border-bottom: 1px solid var(--border-1); background: var(--bg-2); white-space: nowrap; }
+  .rs-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-1); vertical-align: top; }
+  .rs-row { cursor: pointer; }
+  .rs-row:hover { background: var(--bg-3); }
+  .rs-td-activity { display: flex; gap: 8px; max-width: 340px; }
+  .rs-activity-num { font-size: 10.5px; color: var(--text-6); font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  .rs-activity-main { min-width: 0; }
+  .rs-activity-title { font-weight: 700; color: var(--text-1); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .rs-activity-desc { font-size: 11px; color: var(--text-5); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .rs-activity-subs { font-size: 10.5px; color: var(--text-6); margin-top: 3px; }
+  .rs-resp { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+  .rs-avatar { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: #111; flex-shrink: 0; }
+  .rs-phase-tag { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+  .rs-date-cell { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+  .rs-countdown-pill { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .rs-status-pill { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+  .rs-empty-row td { text-align: center; color: var(--text-6); font-style: italic; }
+  .rs-month-group { margin-bottom: 14px; }
+  .rs-month-head { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: none; border: none; padding: 8px 4px; font-size: 12px; font-weight: 800; letter-spacing: .04em; color: var(--text-4); cursor: pointer; text-transform: uppercase; }
+  .rs-month-count { margin-left: auto; font-size: 10.5px; color: var(--text-6); font-weight: 600; text-transform: none; }
+  .rs-cards { display: flex; flex-direction: column; gap: 8px; }
+  .rs-card { background: var(--bg-2); border: 1px solid var(--border-1); border-radius: 10px; padding: 12px; cursor: pointer; }
+  .rs-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .rs-card-title-wrap { display: flex; gap: 6px; min-width: 0; }
+  .rs-card-title { font-weight: 700; font-size: 13px; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rs-card-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+  .rs-card-secondary { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-1); }
+  .rs-empty { text-align: center; padding: 40px 0; color: var(--text-6); font-size: 13px; }
+`;
+
+function ResumoTable({ rows, orderMap, phases, accent, todayISO, onOpen }) {
+  return (
+    <div className="rs-table-wrap">
+      <table className="rs-table">
+        <thead>
+          <tr>
+            <th>Atividade</th>
+            <th>Responsável</th>
+            <th>Fase</th>
+            <th>Data</th>
+            <th>Contagem</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 && <tr className="rs-empty-row"><td colSpan={6}>Nenhuma atividade encontrada com esses filtros.</td></tr>}
+          {rows.map((a) => {
+            const phase = phases.find((p) => p.id === a.phase);
+            const cd = resumoCountdown(a, todayISO);
+            const tone = COUNTDOWN_TONE_META[cd.tone];
+            const statusMeta = STATUS_META[a.status];
+            const subs = (a.subactivities || []).filter((s) => !s.deleted);
+            const doneSubs = subs.filter((s) => s.done).length;
+            return (
+              <tr key={a.id} className="rs-row" onClick={() => onOpen(a.id)}>
+                <td>
+                  <div className="rs-td-activity">
+                    <div className="rs-activity-num">#{orderMap[a.id]}</div>
+                    <div className="rs-activity-main">
+                      <div className="rs-activity-title" title={a.title}>{a.title}</div>
+                      {a.desc ? <div className="rs-activity-desc" title={a.desc}>{a.desc}</div> : null}
+                      {subs.length > 0 && <div className="rs-activity-subs">{doneSubs}/{subs.length} subatividades</div>}
+                    </div>
+                  </div>
+                </td>
+                <td><div className="rs-resp"><span className="rs-avatar" style={{ background: accent }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>{a.responsible || '—'}</div></td>
+                <td>{phase ? <span className="rs-phase-tag" style={{ borderColor: phase.color, color: phase.color }}>{phase.name}</span> : '—'}</td>
+                <td className="rs-date-cell">{resumoDateLabel(a)}</td>
+                <td><span className="rs-countdown-pill" style={{ color: tone.color, background: tone.bg }}>{cd.label}</span></td>
+                <td><span className="rs-status-pill" style={{ color: statusMeta.color, background: statusMeta.bg, borderColor: statusMeta.border }}>{statusMeta.label}</span></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ResumoCard({ a, orderMap, phases, accent, todayISO, onOpen }) {
+  const phase = phases.find((p) => p.id === a.phase);
+  const cd = resumoCountdown(a, todayISO);
+  const tone = COUNTDOWN_TONE_META[cd.tone];
+  const statusMeta = STATUS_META[a.status];
+  const subs = (a.subactivities || []).filter((s) => !s.deleted);
+  const doneSubs = subs.filter((s) => s.done).length;
+  return (
+    <div className="rs-card" onClick={onOpen}>
+      <div className="rs-card-top">
+        <div className="rs-card-title-wrap">
+          <span className="rs-activity-num">#{orderMap[a.id]}</span>
+          <span className="rs-card-title">{a.title}</span>
+        </div>
+        <span className="rs-countdown-pill" style={{ color: tone.color, background: tone.bg }}>{cd.label}</span>
+      </div>
+      {subs.length > 0 && <div className="rs-activity-subs">{doneSubs}/{subs.length} subatividades</div>}
+      <div className="rs-card-bottom">
+        <span className="rs-date-cell">{resumoDateLabel(a)}</span>
+        <span className="rs-status-pill" style={{ color: statusMeta.color, background: statusMeta.bg, borderColor: statusMeta.border }}>{statusMeta.label}</span>
+      </div>
+      <div className="rs-card-secondary">
+        <span className="rs-resp"><span className="rs-avatar" style={{ background: accent }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>{a.responsible || '—'}</span>
+        {phase && <span className="rs-phase-tag" style={{ borderColor: phase.color, color: phase.color }}>{phase.name}</span>}
+      </div>
+    </div>
+  );
+}
+
+function ResumoView({ activities, orderMap, phases, pid, openDetail, companyColor }) {
+  const isMobile = useIsMobile();
+  const accent = companyColor || '#F5C400';
+  const todayISO = toISODate(startOfDay(new Date()));
+
+  const [quickFilter, setQuickFilter] = useState('todas');
+  const [filterResp, setFilterResp] = useState('');
+  const [filterPhase, setFilterPhase] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
+  const [sortMode, setSortMode] = useState('auto');
+  const [groupByMonth, setGroupByMonth] = useState(false);
+  const [collapsedMonths, setCollapsedMonths] = useState({});
+
+  const total = activities.length;
+  const concluidas = activities.filter((a) => a.status === 'concluido').length;
+  const emAndamento = activities.filter((a) => a.status === 'em-andamento').length;
+  const naoIniciadas = activities.filter((a) => a.status === 'nao-iniciado').length;
+  const pausadas = activities.filter((a) => a.status === 'pausado').length;
+  const atrasadas = activities.filter((a) => a.status !== 'concluido' && (a.endDate || a.date) && (a.endDate || a.date) < todayISO).length;
+  const proximas7 = activities.filter((a) => {
+    if (a.status === 'concluido') return false;
+    const d = a.endDate || a.date;
+    if (!d) return false;
+    const diff = Math.round((parseDate(d) - parseDate(todayISO)) / 86400000);
+    return diff >= 0 && diff <= 7;
+  }).length;
+  const progress = total ? Math.round((concluidas / total) * 100) : 0;
+
+  const nextActivity = (() => {
+    const pending = activities.filter((a) => (a.date || a.endDate) && a.status !== 'concluido');
+    const upcoming = pending.filter((a) => (a.endDate || a.date) >= todayISO).sort((a, b) => (a.endDate || a.date).localeCompare(b.endDate || b.date));
+    if (upcoming.length) return upcoming[0];
+    return pending.slice().sort((a, b) => (a.endDate || a.date).localeCompare(b.endDate || b.date))[0] || null;
+  })();
+
+  const respOptions = Array.from(new Set(activities.map((a) => a.responsible).filter(Boolean)));
+  const monthOptions = Array.from(new Set(activities.map((a) => (a.date || a.endDate || '').slice(0, 7)).filter(Boolean))).sort();
+  const phaseName = (id) => (phases.find((p) => p.id === id) || {}).name || '';
+
+  function matchesQuickFilter(a) {
+    const deadline = a.endDate || a.date;
+    const diff = deadline ? Math.round((parseDate(deadline) - parseDate(todayISO)) / 86400000) : null;
+    switch (quickFilter) {
+      case 'atrasadas': return a.status !== 'concluido' && diff !== null && diff < 0;
+      case 'hoje': return a.status !== 'concluido' && diff === 0;
+      case 'proximos7': return a.status !== 'concluido' && diff !== null && diff >= 0 && diff <= 7;
+      case 'proximos30': return a.status !== 'concluido' && diff !== null && diff >= 0 && diff <= 30;
+      case 'em-andamento': return a.status === 'em-andamento';
+      case 'nao-iniciado': return a.status === 'nao-iniciado';
+      case 'concluidas': return a.status === 'concluido';
+      default: return true;
+    }
+  }
+
+  let filtered = activities.filter((a) => {
+    if (!matchesQuickFilter(a)) return false;
+    if (filterResp && a.responsible !== filterResp) return false;
+    if (filterPhase && a.phase !== filterPhase) return false;
+    if (filterStatus && a.status !== filterStatus) return false;
+    if (filterMonth && (a.date || a.endDate || '').slice(0, 7) !== filterMonth) return false;
+    return true;
+  });
+
+  filtered = filtered.slice().sort((a, b) => {
+    if (sortMode === 'data') return (a.endDate || a.date || '').localeCompare(b.endDate || b.date || '');
+    if (sortMode === 'atividade') return a.title.localeCompare(b.title, 'pt-BR');
+    if (sortMode === 'responsavel') return (a.responsible || '').localeCompare(b.responsible || '', 'pt-BR');
+    if (sortMode === 'fase') return phaseName(a.phase).localeCompare(phaseName(b.phase), 'pt-BR');
+    if (sortMode === 'status') return STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
+    const ra = resumoBucketRank(a, todayISO);
+    const rb = resumoBucketRank(b, todayISO);
+    if (ra !== rb) return ra - rb;
+    return (a.endDate || a.date || '').localeCompare(b.endDate || b.date || '');
+  });
+
+  const groups = groupByMonth ? (() => {
+    const map = {};
+    filtered.forEach((a) => {
+      const key = (a.date || a.endDate || '').slice(0, 7);
+      (map[key] || (map[key] = [])).push(a);
+    });
+    return Object.keys(map).sort().map((key) => ({ key, items: map[key] }));
+  })() : null;
+
+  return (
+    <div className="resumo-view">
+      <style>{RESUMO_CSS}</style>
+      <div className="rs-title">RESUMO</div>
+
+      <div className="rs-kpis">
+        <div className="rs-kpi"><div className="rs-kpi-num">{total}</div><div className="rs-kpi-label">Total de atividades</div></div>
+        <div className="rs-kpi"><div className="rs-kpi-num" style={{ color: '#3ecf6e' }}>{concluidas}</div><div className="rs-kpi-label">Concluídas</div></div>
+        <div className="rs-kpi"><div className="rs-kpi-num" style={{ color: '#F5C400' }}>{emAndamento}</div><div className="rs-kpi-label">Em andamento</div></div>
+        <div className="rs-kpi"><div className="rs-kpi-num">{naoIniciadas}</div><div className="rs-kpi-label">Não iniciadas</div></div>
+        <div className="rs-kpi"><div className="rs-kpi-num" style={{ color: '#ff9f40' }}>{pausadas}</div><div className="rs-kpi-label">Pausadas</div></div>
+        <div className="rs-kpi"><div className="rs-kpi-num" style={{ color: atrasadas ? '#e2574c' : 'var(--text-1)' }}>{atrasadas}</div><div className="rs-kpi-label">Atrasadas</div></div>
+        <div className="rs-kpi"><div className="rs-kpi-num" style={{ color: '#3ea6ff' }}>{proximas7}</div><div className="rs-kpi-label">Próx. 7 dias</div></div>
+        {nextActivity ? (
+          <div className="rs-kpi rs-kpi-next" onClick={() => openDetail(pid, nextActivity.id)}>
+            <div className="rs-kpi-next-label">Próxima atividade</div>
+            <div className="rs-kpi-next-title" title={nextActivity.title}>{nextActivity.title}</div>
+            <div className="rs-kpi-next-meta">{resumoDateLabel(nextActivity)} · {resumoCountdown(nextActivity, todayISO).label}</div>
+          </div>
+        ) : (
+          <div className="rs-kpi rs-kpi-next">
+            <div className="rs-kpi-next-label">Próxima atividade</div>
+            <div className="rs-empty-inline">Nenhuma pendente</div>
+          </div>
+        )}
+      </div>
+
+      <div className="rs-progress-block">
+        <div className="rs-progress-head"><span>Progresso geral</span><span className="rs-progress-pct">{progress}%</span></div>
+        <div className="rs-progress-track"><div className="rs-progress-fill" style={{ width: `${progress}%`, background: accent }} /></div>
+      </div>
+
+      <div className="rs-toolbar">
+        <div className="rs-quickfilters">
+          {RESUMO_QUICK_FILTERS.map((opt) => (
+            <button key={opt.value} className={`rs-chip${quickFilter === opt.value ? ' rs-chip-active' : ''}`} onClick={() => setQuickFilter(opt.value)}>{opt.label}</button>
+          ))}
+        </div>
+        <div className="rs-selects">
+          <select value={filterResp} onChange={(e) => setFilterResp(e.target.value)}>
+            <option value="">Responsável: todos</option>
+            {respOptions.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <select value={filterPhase} onChange={(e) => setFilterPhase(e.target.value)}>
+            <option value="">Fase: todas</option>
+            {phases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <option value="">Status: todos</option>
+            {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
+          </select>
+          <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}>
+            <option value="">Mês: todos</option>
+            {monthOptions.map((m) => <option key={m} value={m}>{resumoMonthLabel(m)}</option>)}
+          </select>
+          <select value={sortMode} onChange={(e) => setSortMode(e.target.value)}>
+            <option value="auto">Ordenar: automático</option>
+            <option value="data">Ordenar: data</option>
+            <option value="atividade">Ordenar: atividade</option>
+            <option value="responsavel">Ordenar: responsável</option>
+            <option value="fase">Ordenar: fase</option>
+            <option value="status">Ordenar: status</option>
+          </select>
+          <label className="rs-group-toggle">
+            <input type="checkbox" checked={groupByMonth} onChange={(e) => setGroupByMonth(e.target.checked)} /> Agrupar por mês
+          </label>
+        </div>
+      </div>
+
+      {groupByMonth ? (
+        groups.length === 0 ? (
+          <div className="rs-empty">Nenhuma atividade encontrada com esses filtros.</div>
+        ) : groups.map((g) => (
+          <div className="rs-month-group" key={g.key || 'sem-data'}>
+            <button className="rs-month-head" onClick={() => setCollapsedMonths((c) => ({ ...c, [g.key]: !c[g.key] }))}>
+              <ChevronDown size={14} style={{ transform: collapsedMonths[g.key] ? 'rotate(-90deg)' : 'none', transition: 'transform .12s' }} />
+              {resumoMonthLabel(g.key)}
+              <span className="rs-month-count">{g.items.length}</span>
+            </button>
+            {!collapsedMonths[g.key] && (
+              isMobile
+                ? <div className="rs-cards">{g.items.map((a) => <ResumoCard key={a.id} a={a} orderMap={orderMap} phases={phases} accent={accent} todayISO={todayISO} onOpen={() => openDetail(pid, a.id)} />)}</div>
+                : <ResumoTable rows={g.items} orderMap={orderMap} phases={phases} accent={accent} todayISO={todayISO} onOpen={(id) => openDetail(pid, id)} />
+            )}
+          </div>
+        ))
+      ) : (
+        isMobile
+          ? <div className="rs-cards">{filtered.map((a) => <ResumoCard key={a.id} a={a} orderMap={orderMap} phases={phases} accent={accent} todayISO={todayISO} onOpen={() => openDetail(pid, a.id)} />)}</div>
+          : <ResumoTable rows={filtered} orderMap={orderMap} phases={phases} accent={accent} todayISO={todayISO} onOpen={(id) => openDetail(pid, id)} />
+      )}
     </div>
   );
 }
