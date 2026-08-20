@@ -512,6 +512,51 @@ mecanismo.
   coincidia). Corrigido adicionando `className="page-root"` a esse `<div>`
   em todas as telas que o usam — sem isso, o fundo escuro do tema nunca
   era forçado pra branco na impressão.
+- **Aba RESUMO (2026-08)** — quinta aba do workspace de Empresas
+  (`ResumoView`, `App.jsx`, antes de `TableView`; ícone `Gauge`), só em
+  `!isMulti` (mesma restrição de `PhasesView`/`KanbanView` — visão de uma
+  empresa por vez, não da "visão geral"). É **consulta/acompanhamento, não
+  edição** — clicar numa linha/card abre o mesmo `ActivityDetailModal` de
+  sempre via `openDetail()`, sem nenhuma edição própria na tela. Não criou
+  campo nem tabela nova; deriva tudo de `activity.{title,desc,phase,
+  responsible,date,endDate,status,subactivities}` já existentes.
+  - **KPIs** (total/concluídas/em andamento/não iniciadas/pausadas/
+    atrasadas/próx. 7 dias) + card "Próxima atividade" (clicável) +
+    barra de progresso geral — mesma lógica de `projectProgress()`/
+    `isOverdue` já usada em `PhasesView`/`PrintReport`, sem duplicar
+    cálculo novo.
+  - **Coluna Contagem** (`resumoCountdown()`): rótulo sempre relativo a
+    hoje — `D-N` (>1 dia), `Amanhã` (1 dia), `Hoje`, `Atrasado N dia(s)`
+    (passou do prazo) ou `Concluído`. Cor em semáforo própria
+    (`COUNTDOWN_TONE_META`, cores literais tipo `STATUS_META`) — **não**
+    existe status "Atrasado" gravado; é sempre condição derivada de data
+    x hoje, igual ao `isOverdue()` do resto do app (pedido explícito do
+    Rafael pra não criar um 5º status manual).
+  - **Status continua sendo só os 4 que já existem**
+    (`STATUS_ORDER`/`STATUS_META`: não iniciado/em andamento/pausado/
+    concluído) — a lista maior de status sugerida no pedido original
+    (Agendado/Aguardando cliente/Bloqueado/Cancelado etc.) **não foi
+    implementada de propósito**: exigiria mexer no modelo de dados e em
+    todo lugar que lê `status` (Quadro, Gantt, filtros, `cycleStatus`),
+    contra a instrução explícita de não alterar a lógica existente de
+    atividades. O "atraso" cobre o mesmo caso de uso como indicador
+    automático, sem tocar no campo.
+  - **Filtros combináveis**: chips rápidos (Todas/Atrasadas/Hoje/Próx. 7
+    e 30 dias/Em andamento/Não iniciadas/Concluídas) + selects de
+    Responsável/Fase/Status/Mês, todos com AND entre si. Ordenação
+    própria (`resumoBucketRank()`: atrasada → hoje → próx. 7 dias →
+    demais futuras → concluída, desempate por data) com override manual
+    por Data/Atividade/Responsável/Fase/Status. "Agrupar por mês" é
+    colapsável por mês (`collapsedMonths`, mesmo padrão de
+    `PhasesView`/`XflowBoardColumn`).
+  - **Responsivo sem media query**: `.rs-kpis` usa
+    `grid-template-columns: repeat(auto-fit, minmax(112px,1fr))` (reflui
+    sozinho, sem breakpoint); tabela vs. cards (`ResumoTable`/
+    `ResumoCard`) trocam via `useIsMobile()`, mesmo padrão já
+    estabelecido no resto do app.
+  - Todo o estado de filtro/ordenação/agrupamento é local
+    (`useState` dentro de `ResumoView`) — reseta ao trocar de aba, mesmo
+    espírito de `sortMode` no Quadro do XFlow/quadro pessoal.
 
 ## 14. Problemas técnicos conhecidos
 
