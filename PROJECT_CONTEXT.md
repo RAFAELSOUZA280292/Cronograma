@@ -257,7 +257,7 @@ LIXEIRA
 delete*() seta deleted/deletedAt/deletedBy → some da view → SidePanel "Lixeira" → restore*() limpa flags
 (exceção: projeto/usuário = DELETE SQL real)
 
-EXPORT Excel/PDF
+EXPORT Excel (planilha de trabalho) / PDF (relatório executivo — ver §13)
 100% client-side (lib xlsx / window.print()), sem round-trip ao backend
 
 QUADRO PÚBLICO (link compartilhável)
@@ -481,6 +481,37 @@ mecanismo.
 - Pausar empresa cascateia `status='pausado'` em atividades não excluídas/
   concluídas, guardando `statusBeforePause` pra restaurar exato ao religar;
   atividades já pausadas manualmente ou já concluídas ficam fora do cascade.
+- **Horário da reunião (2026-08)**: campo opcional `activity.meetingTime`
+  (`<input type="time">`, `ActivityDetailModal`, logo abaixo de "Início") —
+  puramente informativo, não valida contra nada, não é obrigatório pra
+  salvar a atividade. Aparece formatado como "18/09/2026 às 14:30" na
+  tabela "Próximas etapas" do relatório em PDF (abaixo) quando preenchido.
+- **Relatório em PDF (2026-08)** — deixou de ser "o que está na tela agora"
+  impresso via CSS. `exportPdf()` continua chamando `window.print()` (sem
+  lib nova), mas agora existe um componente dedicado (`PrintReport` +
+  `PrintActivityTable`, `App.jsx`, antes de `TableView`) com layout
+  próprio — cabeçalho (empresa/CNPJ/tipo de cliente), KPIs (total/
+  concluídas/em andamento/em atraso), progresso geral, progresso por fase
+  e tabela "Próximas etapas" (+ "Em atraso" em destaque quando existe
+  alguma) — pensado pra ser entregue ao gestor do cliente, não pra uso
+  interno tipo planilha. Fica `display:none` na tela o tempo todo, só
+  aparece dentro de `@media print` (`PRINT_REPORT_CSS`, injetado no
+  próprio componente) enquanto `.no-print` esconde a UI normal — inclusive
+  o `<main>`, que antes não tinha essa classe (era por isso que a
+  exportação em PDF antiga imprimia a view crua da tela, Tabela/Fases/
+  Quadro/Gantt, sem nenhum layout dedicado). `@page { size: landscape }`
+  força paisagem. Cores do relatório são **literais** (`PRINT_STATUS_META`
+  própria, não reaproveita `STATUS_META`) — nunca `var(--...)`, porque o
+  relatório sempre imprime em fundo branco independente do tema
+  claro/escuro ativo no momento. Funciona tanto pra uma empresa quanto pra
+  "visão geral" (`isMulti`): uma página por empresa (`.pr-page`,
+  `page-break-after`). **Bug pré-existente corrigido junto**: a regra
+  `@media print { body, .page-root {...} }` já existia antes, mas
+  `.page-root` nunca bateu em nada — o `<div style={S.page}>` raiz de toda
+  tela não tinha essa `className` (só o nome da chave do objeto de estilo
+  coincidia). Corrigido adicionando `className="page-root"` a esse `<div>`
+  em todas as telas que o usam — sem isso, o fundo escuro do tema nunca
+  era forçado pra branco na impressão.
 
 ## 14. Problemas técnicos conhecidos
 
@@ -663,6 +694,25 @@ Confirmados nesta sessão (causa raiz verificada e corrigida ao vivo):
   style={S.notesArea}>` igual à composição; `Enter` volta a ser quebra de
   linha normal (só `Escape` cancela — salvar é só pelo botão ✓, igual à
   criação).
+
+- **Botão "Gestão de Atividades" aparecia sem `personalAccess`** (topbar
+  do workspace de Empresas + item do menu "Mais" no mobile): desde o
+  commit dos "3 acessos independentes" (`f6d6e7c`), os outros pontos de
+  gate (checkboxes, `availableModes`, cards do `WorkspaceGateScreen`)
+  ganharam a checagem de `currentUser.personalAccess`, mas esses dois
+  ficaram sem — renderizavam pra **qualquer** usuário não-mobile, mesmo
+  com o acesso desmarcado no cadastro. Descoberto ao vivo em produção
+  (usuário cliente Alcast via `alcast@pricetax.com.br`) comparando o
+  bundle JS publicado com o código-fonte local: o fix já existia no
+  working dir (não commitado) mas nunca tinha sido de fato publicado —
+  o deploy anterior (`259b567`, ordenação do Quadro) foi um `rsync`
+  completo e ainda assim não carregou essa correção porque ela só foi
+  escrita depois daquele deploy. Corrigido e publicado (`1d09d6d`).
+  **Lição**: quando um bug relatado em produção não bate com a leitura
+  do código-fonte local, comparar o bundle JS realmente servido
+  (`fetch` do `.js` + busca de string) contra o commit atual do
+  repositório antes de assumir que é dado/configuração — pode ser
+  simplesmente um deploy que ficou pra trás.
 
 Do histórico do projeto (título do commit é a única fonte disponível —
 confiança menor, mas mantido como sinal de "área sensível"):

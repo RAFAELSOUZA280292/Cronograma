@@ -644,6 +644,7 @@ export default function App() {
     setProjectsLoaded(false);
     setSelectedProjectIds([]);
     setCompanySelectionConfirmed(false);
+    setActingOrg(null);
   }
 
   async function updateMyAvatar(avatar) {
@@ -1496,7 +1497,11 @@ export default function App() {
   function exportPdf() {
     if (isMulti) selectedProjects.forEach((p) => addLog(p.id, 'Cronograma exportado para PDF (visão geral)'));
     else addLog(pid, 'Cronograma exportado para PDF');
+    const prevTitle = document.title;
+    const companyLabel = isMulti ? 'visao-geral' : (activeProject.company.nomeFantasia || activeProject.company.name || 'cronograma');
+    document.title = `Relatorio PRICETAX - ${companyLabel} - ${fmtDate(todayISOStr())}`;
     window.print();
+    document.title = prevTitle;
   }
 
   const myMentions = [];
@@ -1559,7 +1564,7 @@ export default function App() {
   ].filter(Boolean);
 
   return (
-    <div style={S.page}>
+    <div className="page-root" style={S.page}>
       <style>{`
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
@@ -1729,7 +1734,7 @@ export default function App() {
         })}
       </div>
 
-      <main style={{ ...S.main, ...(isMobile ? { padding: '14px 12px 0 12px' } : null) }}>
+      <main className="no-print" style={{ ...S.main, ...(isMobile ? { padding: '14px 12px 0 12px' } : null) }}>
         {!isMulti && view === 'timeline' && (
           <TimelineView
             activities={activitiesSorted}
@@ -1834,6 +1839,8 @@ export default function App() {
           />
         )}
       </main>
+
+      <PrintReport projects={isMulti ? selectedProjects : [activeProject]} generatedAt={fmtDate(todayISOStr())} />
 
       <div className="no-print" style={S.hint}>
         Alterações são salvas automaticamente e registradas no log. {isMulti ? `Você está vendo a visão geral de ${selectedProjects.length} empresas.` : `Você está vendo o projeto de ${activeProject.company.name || 'um cliente sem nome cadastrado'}.`}
@@ -2187,7 +2194,7 @@ export default function App() {
 
 function LoadingScreen({ theme }) {
   return (
-    <div style={S.page}>
+    <div className="page-root" style={S.page}>
       <div style={S.loginWrap}>
         <div style={S.loginBox}>
           <BrandLogo theme={theme} style={S.loginLogo} />
@@ -2212,7 +2219,7 @@ function LoginGate({ onLogin, loginError, theme, onToggleTheme }) {
   }
 
   return (
-    <div style={S.page}>
+    <div className="page-root" style={S.page}>
       <style>{`
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
@@ -2276,7 +2283,7 @@ function SuperAdminScreen({ organizations, error, onClose, closeLabel, onLogout,
   }
 
   return (
-    <div style={S.page}>
+    <div className="page-root" style={S.page}>
       <style>{`
         * { box-sizing: border-box; }
         input, select, button { font-family: 'Inter', sans-serif; }
@@ -2385,7 +2392,7 @@ function UsersManagementScreen({
   });
 
   return (
-    <div style={S.page}>
+    <div className="page-root" style={S.page}>
       <style>{`
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
@@ -3531,7 +3538,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   const allChecked = filteredProjects.length > 0 && filteredProjects.every((p) => selected.has(p.id));
 
   return (
-    <div style={S.page}>
+    <div className="page-root" style={S.page}>
       <style>{`
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
@@ -3767,7 +3774,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
 
 function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onLogout, theme, onToggleTheme }) {
   return (
-    <div style={S.page}>
+    <div className="page-root" style={S.page}>
       <div style={S.companySelectorWrap}>
         <div style={S.companySelectorHeader}>
           <BrandLogo theme={theme} style={{ ...S.loginLogo, marginBottom: 0 }} />
@@ -3897,7 +3904,7 @@ function FadingSavedBadge() {
 
 function PersonalBoardSkeleton({ theme }) {
   return (
-    <div style={S.page}>
+    <div className="page-root" style={S.page}>
       <div className="no-print" style={S.topbar}>
         <div style={S.brandRow}>
           <div style={S.logoPlaceholder}><Columns3 size={18} color="#F5C400" /></div>
@@ -5241,7 +5248,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
   const columnIds = activeBoard ? activeBoard.columns.map((c) => c.id) : [];
 
   return (
-    <div style={S.page}>
+    <div className="page-root" style={S.page}>
       <style>{`
         @keyframes personalSkeletonPulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
         * { box-sizing: border-box; }
@@ -5575,7 +5582,7 @@ function PublicBoardScreen({ token, theme, onToggleTheme }) {
 
   if (state.error || !state.board) {
     return (
-      <div style={S.page}>
+      <div className="page-root" style={S.page}>
         <div style={S.loginWrap}>
           <div style={S.loginBox}>
             <h1 style={S.loginTitle}>Link indisponível</h1>
@@ -5614,7 +5621,7 @@ function NoAccessScreen({ user, onLogout, theme, onToggleTheme }) {
     ? `${user.name}, você ainda não tem acesso a nenhuma empresa. Peça para um PRICETAX Master liberar o CNPJ correspondente em "Usuários".`
     : `${user.name}, você ainda não tem acesso a nenhum módulo (Empresas, Gestão de Atividades ou XFlow). Peça para um PRICETAX Master liberar o acesso em "Usuários".`;
   return (
-    <div style={S.page}>
+    <div className="page-root" style={S.page}>
       <div style={S.themeToggleCorner}>
         <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
       </div>
@@ -5918,6 +5925,14 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
               updateActivity(pid, a.id, patch, `Início alterado em "${a.title}": ${fmtDate(v)}`);
             }} />
 
+            <div style={S.subSectionLabel}>Horário da reunião (opcional)</div>
+            <input
+              type="time"
+              value={a.meetingTime || ''}
+              onChange={(e) => updateActivity(pid, a.id, { meetingTime: e.target.value })}
+              onBlur={() => updateActivity(pid, a.id, {}, `Horário da reunião alterado em "${a.title}": ${a.meetingTime || 'sem horário definido'}`)}
+            />
+
             <div style={S.subSectionLabel}>Prazo (dias)</div>
             <input
               type="number"
@@ -6001,6 +6016,190 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
           onCancel={() => setShowGuard(false)}
         />
       )}
+    </div>
+  );
+}
+
+// Cores fixas (não usam var(--...)) porque o relatório sempre imprime em fundo
+// branco, independente do tema claro/escuro que o usuário estiver usando.
+const PRINT_STATUS_META = {
+  'nao-iniciado': { label: 'Não iniciado', color: '#6b7280', bg: '#eef0f2' },
+  'em-andamento': { label: 'Em andamento', color: '#9a6a00', bg: '#fdf1d6' },
+  pausado: { label: 'Pausado', color: '#b35c00', bg: '#fde9d8' },
+  concluido: { label: 'Concluído', color: '#1f8a49', bg: '#e1f6e8' },
+};
+
+const PRINT_REPORT_CSS = `
+  .print-report { display: none; }
+  @media print {
+    @page { size: landscape; margin: 12mm; }
+    .print-report { display: block !important; }
+    body, .page-root { background: #ffffff !important; color: #16181d !important; }
+  }
+  .print-report, .print-report * { box-sizing: border-box; }
+  .print-report { font-family: 'Inter', sans-serif; color: #16181d; }
+  .pr-page { page-break-after: always; }
+  .pr-page:last-child { page-break-after: auto; }
+  .pr-header { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 2px solid #F5C400; padding-bottom: 10px; margin-bottom: 16px; }
+  .pr-header-left { display: flex; align-items: center; gap: 12px; }
+  .pr-header-logo { width: 36px; height: 36px; object-fit: contain; }
+  .pr-eyebrow { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #8a8f9a; font-weight: 700; }
+  .pr-company-name { font-size: 21px; font-weight: 800; margin-top: 2px; }
+  .pr-company-meta { font-size: 11px; color: #5a606b; margin-top: 3px; }
+  .pr-header-right { text-align: right; font-size: 10.5px; color: #8a8f9a; white-space: nowrap; }
+  .pr-block { margin-bottom: 18px; page-break-inside: avoid; }
+  .pr-block-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 9px; }
+  .pr-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .pr-kpi { border: 1px solid #e4e2da; border-radius: 10px; padding: 10px 14px; }
+  .pr-kpi-num { font-size: 27px; font-weight: 800; line-height: 1; }
+  .pr-kpi-label { font-size: 10.5px; color: #5a606b; margin-top: 5px; }
+  .pr-progress-row { display: flex; align-items: center; gap: 12px; }
+  .pr-progress-track { flex: 1; height: 14px; background: #eeece4; border-radius: 999px; overflow: hidden; }
+  .pr-progress-fill { height: 100%; background: #F5C400; border-radius: 999px; }
+  .pr-progress-pct { font-size: 17px; font-weight: 800; width: 56px; text-align: right; }
+  .pr-phases-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 28px; }
+  .pr-phase-row { display: flex; align-items: center; gap: 10px; font-size: 11px; }
+  .pr-phase-name { width: 160px; flex-shrink: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pr-phase-track { flex: 1; height: 8px; background: #eeece4; border-radius: 999px; overflow: hidden; }
+  .pr-phase-fill { height: 100%; border-radius: 999px; }
+  .pr-phase-pct { width: 34px; text-align: right; font-weight: 700; font-size: 10.5px; }
+  .pr-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  .pr-table th { text-align: left; font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; color: #8a8f9a; border-bottom: 1px solid #e4e2da; padding: 5px 8px; }
+  .pr-table td { padding: 6px 8px; border-bottom: 1px solid #f0efe9; vertical-align: top; }
+  .pr-status-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 9.5px; font-weight: 700; white-space: nowrap; }
+  .pr-empty-row td { color: #9aa0aa; font-style: italic; }
+  .pr-footer { margin-top: 6px; padding-top: 8px; border-top: 1px solid #e4e2da; font-size: 9.5px; color: #9aa0aa; display: flex; justify-content: space-between; }
+`;
+
+function PrintActivityTable({ rows, phases }) {
+  return (
+    <table className="pr-table">
+      <thead>
+        <tr>
+          <th>Atividade</th>
+          <th>Fase</th>
+          <th>Responsável</th>
+          <th>Prazo</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.length === 0 && (
+          <tr className="pr-empty-row"><td colSpan={5}>Nenhuma atividade nesta lista.</td></tr>
+        )}
+        {rows.map((a) => {
+          const phase = phases.find((p) => p.id === a.phase);
+          const deadline = a.endDate || a.date;
+          const meta = PRINT_STATUS_META[a.status] || PRINT_STATUS_META['nao-iniciado'];
+          return (
+            <tr key={a.id}>
+              <td>{a.title}</td>
+              <td>{phase ? phase.name : '—'}</td>
+              <td>{a.responsible || '—'}</td>
+              <td>{deadline ? fmtDate(deadline) : '—'}{a.meetingTime ? ` às ${a.meetingTime}` : ''}</td>
+              <td><span className="pr-status-pill" style={{ background: meta.bg, color: meta.color }}>{meta.label}</span></td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+// Relatório dedicado para exportação em PDF (window.print(), modo paisagem) —
+// não é "o que está na tela agora": tem seu próprio layout de KPIs/progresso/
+// próximas etapas, pensado pra ser mostrado ao gestor do cliente. Fica
+// display:none na tela o tempo todo, só aparece dentro de @media print
+// (ver PRINT_REPORT_CSS) enquanto o resto da UI (.no-print) some.
+function PrintReport({ projects, generatedAt }) {
+  const todayISO = toISODate(startOfDay(new Date()));
+  return (
+    <div className="print-report">
+      <style>{PRINT_REPORT_CSS}</style>
+      {projects.map((p, i) => {
+        const activities = (p.activities || []).filter((a) => !a.deleted);
+        const total = activities.length;
+        const doneCount = activities.filter((a) => a.status === 'concluido').length;
+        const emAndamentoCount = activities.filter((a) => a.status === 'em-andamento').length;
+        const pct = total ? Math.round((doneCount / total) * 100) : 0;
+        const isOverdue = (a) => a.status !== 'concluido' && (a.endDate || a.date) && (a.endDate || a.date) < todayISO;
+        const overdue = activities.filter(isOverdue).sort((a, b) => (a.endDate || a.date || '').localeCompare(b.endDate || b.date || ''));
+        const upcoming = activities.filter((a) => !isOverdue(a) && a.status !== 'concluido').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+        const companyName = p.company.nomeFantasia || p.company.name || 'Empresa sem nome';
+        return (
+          <div className="pr-page" key={p.id}>
+            <div className="pr-header">
+              <div className="pr-header-left">
+                {p.company.logo && <img className="pr-header-logo" src={p.company.logo} alt="" />}
+                <div>
+                  <div className="pr-eyebrow">Relatório de acompanhamento — PRICETAX</div>
+                  <div className="pr-company-name">{companyName}</div>
+                  <div className="pr-company-meta">
+                    {p.company.cnpj ? `CNPJ ${p.company.cnpj}` : 'CNPJ não informado'}
+                    {p.company.regimeTributario ? ` · ${p.company.regimeTributario}` : ''}
+                    {p.company.clientType && CLIENT_TYPE_META[p.company.clientType] ? ` · ${CLIENT_TYPE_META[p.company.clientType].label}` : ''}
+                  </div>
+                </div>
+              </div>
+              <div className="pr-header-right">
+                Gerado em {generatedAt}
+                {projects.length > 1 ? <div>{i + 1} de {projects.length}</div> : null}
+              </div>
+            </div>
+
+            <div className="pr-block">
+              <div className="pr-kpis">
+                <div className="pr-kpi"><div className="pr-kpi-num">{total}</div><div className="pr-kpi-label">Atividades no total</div></div>
+                <div className="pr-kpi"><div className="pr-kpi-num" style={{ color: '#1f8a49' }}>{doneCount}</div><div className="pr-kpi-label">Concluídas</div></div>
+                <div className="pr-kpi"><div className="pr-kpi-num" style={{ color: '#9a6a00' }}>{emAndamentoCount}</div><div className="pr-kpi-label">Em andamento</div></div>
+                <div className="pr-kpi"><div className="pr-kpi-num" style={{ color: overdue.length ? '#c0392b' : '#16181d' }}>{overdue.length}</div><div className="pr-kpi-label">Em atraso</div></div>
+              </div>
+            </div>
+
+            <div className="pr-block">
+              <div className="pr-block-title">Progresso geral</div>
+              <div className="pr-progress-row">
+                <div className="pr-progress-track"><div className="pr-progress-fill" style={{ width: `${pct}%` }} /></div>
+                <div className="pr-progress-pct">{pct}%</div>
+              </div>
+            </div>
+
+            <div className="pr-block">
+              <div className="pr-block-title">Progresso por fase</div>
+              <div className="pr-phases-grid">
+                {p.phases.map((ph) => {
+                  const phaseActs = activities.filter((a) => a.phase === ph.id);
+                  const phasePct = phaseActs.length ? Math.round((phaseActs.filter((a) => a.status === 'concluido').length / phaseActs.length) * 100) : 0;
+                  return (
+                    <div className="pr-phase-row" key={ph.id}>
+                      <div className="pr-phase-name">{ph.name}</div>
+                      <div className="pr-phase-track"><div className="pr-phase-fill" style={{ width: `${phasePct}%`, background: ph.color || '#F5C400' }} /></div>
+                      <div className="pr-phase-pct">{phasePct}%</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {overdue.length > 0 && (
+              <div className="pr-block">
+                <div className="pr-block-title" style={{ color: '#c0392b' }}>Em atraso ({overdue.length})</div>
+                <PrintActivityTable rows={overdue} phases={p.phases} />
+              </div>
+            )}
+
+            <div className="pr-block">
+              <div className="pr-block-title">Próximas etapas</div>
+              <PrintActivityTable rows={upcoming} phases={p.phases} />
+            </div>
+
+            <div className="pr-footer">
+              <span>PRICETAX · Cronograma de Reforma Tributária</span>
+              <span>{companyName}</span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
