@@ -1582,7 +1582,8 @@ export default function App() {
         ::-webkit-scrollbar-thumb{ background:var(--border-3); border-radius:4px; }
         @media print {
           .no-print { display:none !important; }
-          body, .page-root { background:#fff !important; color:#111 !important; }
+          body, .page-root { background:#0B0E1A !important; color:#FFFFFF !important; }
+          * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
         }
       `}</style>
 
@@ -6031,96 +6032,121 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
   );
 }
 
-// Cores fixas (não usam var(--...)) porque o relatório sempre imprime em fundo
-// branco, independente do tema claro/escuro que o usuário estiver usando.
+// Cores literais fixas — nunca var(--...) — porque o relatório sempre
+// imprime no padrão visual PRICETAX (fundo navy + amarelo da marca),
+// independente do tema claro/escuro ativo na tela. Paleta extraída direto
+// dos materiais oficiais da PRICETAX (deck de apresentação/kit de marca):
+// navy #0B0E1A/#161B2E/#1D2338, amarelo #FEDC04, verde #3DDC84 (positivo),
+// coral #FF6B6B (negativo/atraso), azul #5B8DEF (informativo).
 const PRINT_STATUS_META = {
-  'nao-iniciado': { label: 'Não iniciado', color: '#6b7280', bg: '#eef0f2' },
-  'em-andamento': { label: 'Em andamento', color: '#9a6a00', bg: '#fdf1d6' },
-  pausado: { label: 'Pausado', color: '#b35c00', bg: '#fde9d8' },
-  concluido: { label: 'Concluído', color: '#1f8a49', bg: '#e1f6e8' },
+  'nao-iniciado': { label: 'Não iniciado', color: '#B8BCC8', bg: 'rgba(184,188,200,.14)' },
+  'em-andamento': { label: 'Em andamento', color: '#FEDC04', bg: 'rgba(254,220,4,.16)' },
+  pausado: { label: 'Pausado', color: '#F0954D', bg: 'rgba(240,149,77,.16)' },
+  concluido: { label: 'Concluído', color: '#3DDC84', bg: 'rgba(61,220,132,.16)' },
+};
+
+const PRINT_COUNTDOWN_TONE_META = {
+  ok: { color: '#3DDC84', bg: 'rgba(61,220,132,.14)' },
+  warn: { color: '#FEDC04', bg: 'rgba(254,220,4,.16)' },
+  soon: { color: '#F0954D', bg: 'rgba(240,149,77,.16)' },
+  today: { color: '#5B8DEF', bg: 'rgba(91,141,239,.20)' },
+  overdue: { color: '#FF6B6B', bg: 'rgba(255,107,107,.16)' },
+  done: { color: '#B8BCC8', bg: 'rgba(184,188,200,.12)' },
+  none: { color: '#7B8098', bg: 'rgba(123,128,152,.12)' },
 };
 
 const PRINT_REPORT_CSS = `
   .print-report { display: none; }
   @media print {
-    @page { size: landscape; margin: 12mm; }
+    @page { size: landscape; margin: 10mm; }
     .print-report { display: block !important; }
-    body, .page-root { background: #ffffff !important; color: #16181d !important; }
+    body, .page-root { background: #0B0E1A !important; color: #FFFFFF !important; }
   }
   .print-report, .print-report * { box-sizing: border-box; }
-  .print-report { font-family: 'Inter', sans-serif; color: #16181d; }
-  .pr-page { page-break-after: always; }
+  .print-report { font-family: 'Arial', 'Helvetica', 'Inter', sans-serif; color: #FFFFFF; background: #0B0E1A; }
+  .pr-page { page-break-after: always; background: #0B0E1A; padding: 6mm; }
   .pr-page:last-child { page-break-after: auto; }
-  .pr-header { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 2px solid #F5C400; padding-bottom: 10px; margin-bottom: 16px; }
+  .pr-header { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 2px solid #FEDC04; padding-bottom: 12px; margin-bottom: 18px; }
   .pr-header-left { display: flex; align-items: center; gap: 12px; }
-  .pr-header-logo { width: 36px; height: 36px; object-fit: contain; }
-  .pr-eyebrow { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #8a8f9a; font-weight: 700; }
-  .pr-company-name { font-size: 21px; font-weight: 800; margin-top: 2px; }
-  .pr-company-meta { font-size: 11px; color: #5a606b; margin-top: 3px; }
-  .pr-header-right { text-align: right; font-size: 10.5px; color: #8a8f9a; white-space: nowrap; }
-  .pr-block { margin-bottom: 18px; page-break-inside: avoid; }
-  .pr-block-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 9px; }
+  .pr-header-logo-chip { background: #FFFFFF; border-radius: 4px; padding: 5px 9px; display: flex; align-items: center; }
+  .pr-header-logo { width: 34px; height: 34px; object-fit: contain; display: block; }
+  .pr-eyebrow { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #FEDC04; font-weight: 700; }
+  .pr-company-name { font-size: 22px; font-weight: 800; margin-top: 3px; color: #FFFFFF; }
+  .pr-company-meta { font-size: 11px; color: #B8BCC8; margin-top: 3px; }
+  .pr-header-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .pr-header-brand { height: 20px; object-fit: contain; }
+  .pr-header-meta { font-size: 10.5px; color: #B8BCC8; white-space: nowrap; }
+  .pr-block { margin-bottom: 16px; page-break-inside: avoid; }
+  .pr-block-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 9px; color: #FFFFFF; }
   .pr-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  .pr-kpi { border: 1px solid #e4e2da; border-radius: 10px; padding: 10px 14px; }
-  .pr-kpi-num { font-size: 27px; font-weight: 800; line-height: 1; }
-  .pr-kpi-label { font-size: 10.5px; color: #5a606b; margin-top: 5px; }
+  .pr-kpi { background: #161B2E; border: 1px solid #262C46; border-radius: 4px; padding: 11px 14px; }
+  .pr-kpi-num { font-size: 26px; font-weight: 800; line-height: 1; }
+  .pr-kpi-label { font-size: 10px; color: #B8BCC8; margin-top: 5px; text-transform: uppercase; letter-spacing: .03em; }
   .pr-progress-row { display: flex; align-items: center; gap: 12px; }
-  .pr-progress-track { flex: 1; height: 14px; background: #eeece4; border-radius: 999px; overflow: hidden; }
-  .pr-progress-fill { height: 100%; background: #F5C400; border-radius: 999px; }
-  .pr-progress-pct { font-size: 17px; font-weight: 800; width: 56px; text-align: right; }
-  .pr-phases-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 28px; }
+  .pr-progress-track { flex: 1; height: 12px; background: #1D2338; border-radius: 3px; overflow: hidden; }
+  .pr-progress-fill { height: 100%; background: #FEDC04; }
+  .pr-progress-pct { font-size: 17px; font-weight: 800; width: 56px; text-align: right; color: #FEDC04; }
+  .pr-phases-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 28px; }
   .pr-phase-row { display: flex; align-items: center; gap: 10px; font-size: 11px; }
-  .pr-phase-name { width: 160px; flex-shrink: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pr-phase-track { flex: 1; height: 8px; background: #eeece4; border-radius: 999px; overflow: hidden; }
-  .pr-phase-fill { height: 100%; border-radius: 999px; }
-  .pr-phase-pct { width: 34px; text-align: right; font-weight: 700; font-size: 10.5px; }
+  .pr-phase-name { width: 160px; flex-shrink: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #FFFFFF; }
+  .pr-phase-track { flex: 1; height: 7px; background: #1D2338; border-radius: 3px; overflow: hidden; }
+  .pr-phase-fill { height: 100%; }
+  .pr-phase-pct { width: 34px; text-align: right; font-weight: 700; font-size: 10.5px; color: #B8BCC8; }
+  .pr-table-wrap { border: 1px solid #262C46; border-radius: 4px; overflow: hidden; }
   .pr-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
-  .pr-table th { text-align: left; font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; color: #8a8f9a; border-bottom: 1px solid #e4e2da; padding: 5px 8px; }
-  .pr-table td { padding: 6px 8px; border-bottom: 1px solid #f0efe9; vertical-align: top; }
-  .pr-status-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 9.5px; font-weight: 700; white-space: nowrap; }
-  .pr-empty-row td { color: #9aa0aa; font-style: italic; }
-  .pr-footer { margin-top: 6px; padding-top: 8px; border-top: 1px solid #e4e2da; font-size: 9.5px; color: #9aa0aa; display: flex; justify-content: space-between; }
+  .pr-table th { text-align: left; font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; color: #B8BCC8; border-bottom: 1px solid #262C46; padding: 7px 10px; background: #1D2338; }
+  .pr-table td { padding: 7px 10px; border-bottom: 1px solid #1D2338; vertical-align: top; color: #FFFFFF; }
+  .pr-table tr:last-child td { border-bottom: none; }
+  .pr-status-pill, .pr-countdown-pill { display: inline-block; padding: 2px 9px; border-radius: 3px; font-size: 9.5px; font-weight: 700; white-space: nowrap; }
+  .pr-empty-row td { color: #7B8098; font-style: italic; }
+  .pr-footer { margin-top: 8px; padding-top: 10px; border-top: 1px solid #262C46; font-size: 9.5px; color: #7B8098; display: flex; justify-content: space-between; }
 `;
 
 function PrintActivityTable({ rows, phases }) {
   return (
-    <table className="pr-table">
-      <thead>
-        <tr>
-          <th>Atividade</th>
-          <th>Fase</th>
-          <th>Responsável</th>
-          <th>Prazo</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.length === 0 && (
-          <tr className="pr-empty-row"><td colSpan={5}>Nenhuma atividade nesta lista.</td></tr>
-        )}
-        {rows.map((a) => {
-          const phase = phases.find((p) => p.id === a.phase);
-          const deadline = a.endDate || a.date;
-          const meta = PRINT_STATUS_META[a.status] || PRINT_STATUS_META['nao-iniciado'];
-          return (
-            <tr key={a.id}>
-              <td>{a.title}</td>
-              <td>{phase ? phase.name : '—'}</td>
-              <td>{a.responsible || '—'}</td>
-              <td>{deadline ? fmtDate(deadline) : '—'}{a.meetingTime ? ` às ${a.meetingTime}` : ''}</td>
-              <td><span className="pr-status-pill" style={{ background: meta.bg, color: meta.color }}>{meta.label}</span></td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div className="pr-table-wrap">
+      <table className="pr-table">
+        <thead>
+          <tr>
+            <th>Atividade</th>
+            <th>Responsável</th>
+            <th>Fase</th>
+            <th>Data</th>
+            <th>Contagem</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 && (
+            <tr className="pr-empty-row"><td colSpan={6}>Nenhuma atividade nesta lista.</td></tr>
+          )}
+          {rows.map((a) => {
+            const phase = phases.find((p) => p.id === a.phase);
+            const statusMeta = PRINT_STATUS_META[a.status] || PRINT_STATUS_META['nao-iniciado'];
+            const cd = resumoCountdown(a, toISODate(startOfDay(new Date())));
+            const tone = PRINT_COUNTDOWN_TONE_META[cd.tone];
+            return (
+              <tr key={a.id}>
+                <td>{a.title}</td>
+                <td>{a.responsible || '—'}</td>
+                <td>{phase ? phase.name : '—'}</td>
+                <td>{resumoDateLabel(a)}{a.meetingTime ? ` às ${a.meetingTime}` : ''}</td>
+                <td><span className="pr-countdown-pill" style={{ background: tone.bg, color: tone.color }}>{cd.label}</span></td>
+                <td><span className="pr-status-pill" style={{ background: statusMeta.bg, color: statusMeta.color }}>{statusMeta.label}</span></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
 // Relatório dedicado para exportação em PDF (window.print(), modo paisagem) —
 // não é "o que está na tela agora": tem seu próprio layout de KPIs/progresso/
-// próximas etapas, pensado pra ser mostrado ao gestor do cliente. Fica
-// display:none na tela o tempo todo, só aparece dentro de @media print
+// próximas etapas, no padrão visual PRICETAX (navy + amarelo da marca, ver
+// PRINT_STATUS_META acima), pensado pra ser mostrado ao gestor do cliente.
+// Fica display:none na tela o tempo todo, só aparece dentro de @media print
 // (ver PRINT_REPORT_CSS) enquanto o resto da UI (.no-print) some.
 function PrintReport({ projects, generatedAt }) {
   const todayISO = toISODate(startOfDay(new Date()));
@@ -6141,9 +6167,11 @@ function PrintReport({ projects, generatedAt }) {
           <div className="pr-page" key={p.id}>
             <div className="pr-header">
               <div className="pr-header-left">
-                {p.company.logo && <img className="pr-header-logo" src={p.company.logo} alt="" />}
+                {p.company.logo && (
+                  <div className="pr-header-logo-chip"><img className="pr-header-logo" src={p.company.logo} alt="" /></div>
+                )}
                 <div>
-                  <div className="pr-eyebrow">Relatório de acompanhamento — PRICETAX</div>
+                  <div className="pr-eyebrow">Relatório de acompanhamento</div>
                   <div className="pr-company-name">{companyName}</div>
                   <div className="pr-company-meta">
                     {p.company.cnpj ? `CNPJ ${p.company.cnpj}` : 'CNPJ não informado'}
@@ -6153,17 +6181,20 @@ function PrintReport({ projects, generatedAt }) {
                 </div>
               </div>
               <div className="pr-header-right">
-                Gerado em {generatedAt}
-                {projects.length > 1 ? <div>{i + 1} de {projects.length}</div> : null}
+                <img className="pr-header-brand" src={pricetaxLogoBranco} alt="PriceTax" />
+                <div className="pr-header-meta">
+                  Gerado em {generatedAt}
+                  {projects.length > 1 ? <div>{i + 1} de {projects.length}</div> : null}
+                </div>
               </div>
             </div>
 
             <div className="pr-block">
               <div className="pr-kpis">
-                <div className="pr-kpi"><div className="pr-kpi-num">{total}</div><div className="pr-kpi-label">Atividades no total</div></div>
-                <div className="pr-kpi"><div className="pr-kpi-num" style={{ color: '#1f8a49' }}>{doneCount}</div><div className="pr-kpi-label">Concluídas</div></div>
-                <div className="pr-kpi"><div className="pr-kpi-num" style={{ color: '#9a6a00' }}>{emAndamentoCount}</div><div className="pr-kpi-label">Em andamento</div></div>
-                <div className="pr-kpi"><div className="pr-kpi-num" style={{ color: overdue.length ? '#c0392b' : '#16181d' }}>{overdue.length}</div><div className="pr-kpi-label">Em atraso</div></div>
+                <div className="pr-kpi"><div className="pr-kpi-num" style={{ color: '#FEDC04' }}>{total}</div><div className="pr-kpi-label">Atividades no total</div></div>
+                <div className="pr-kpi"><div className="pr-kpi-num" style={{ color: '#3DDC84' }}>{doneCount}</div><div className="pr-kpi-label">Concluídas</div></div>
+                <div className="pr-kpi"><div className="pr-kpi-num" style={{ color: '#B8BCC8' }}>{emAndamentoCount}</div><div className="pr-kpi-label">Em andamento</div></div>
+                <div className="pr-kpi"><div className="pr-kpi-num" style={{ color: overdue.length ? '#FF6B6B' : '#FFFFFF' }}>{overdue.length}</div><div className="pr-kpi-label">Em atraso</div></div>
               </div>
             </div>
 
@@ -6184,7 +6215,7 @@ function PrintReport({ projects, generatedAt }) {
                   return (
                     <div className="pr-phase-row" key={ph.id}>
                       <div className="pr-phase-name">{ph.name}</div>
-                      <div className="pr-phase-track"><div className="pr-phase-fill" style={{ width: `${phasePct}%`, background: ph.color || '#F5C400' }} /></div>
+                      <div className="pr-phase-track"><div className="pr-phase-fill" style={{ width: `${phasePct}%`, background: ph.color || '#FEDC04' }} /></div>
                       <div className="pr-phase-pct">{phasePct}%</div>
                     </div>
                   );
@@ -6194,7 +6225,7 @@ function PrintReport({ projects, generatedAt }) {
 
             {overdue.length > 0 && (
               <div className="pr-block">
-                <div className="pr-block-title" style={{ color: '#c0392b' }}>Em atraso ({overdue.length})</div>
+                <div className="pr-block-title" style={{ color: '#FF6B6B' }}>Em atraso ({overdue.length})</div>
                 <PrintActivityTable rows={overdue} phases={p.phases} />
               </div>
             )}
