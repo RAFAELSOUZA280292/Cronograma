@@ -1546,7 +1546,7 @@ export default function App() {
   const moreMenuItems = [
     !isMulti && { icon: Settings, label: 'Empresa', onClick: () => setShowSettings(true) },
     canPickCompanies && { icon: Building2, label: 'Trocar empresas', onClick: () => setCompanySelectionConfirmed(false) },
-    { icon: Columns3, label: 'Gestão de Atividades', onClick: () => setWorkspaceMode('personal') },
+    currentUser.personalAccess && { icon: Columns3, label: 'Gestão de Atividades', onClick: () => setWorkspaceMode('personal') },
     currentUser.xflowRole && { icon: Bug, label: 'XFlow', onClick: () => setWorkspaceMode('xflow') },
     (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Plus, label: 'Cadastrar empresa', onClick: () => setShowCreateCompany(true) },
     currentUser.role === 'master' && { icon: UserCog, label: 'Usuários', onClick: () => setShowUsers(true) },
@@ -1638,7 +1638,7 @@ export default function App() {
           {!isMobile && canPickCompanies && (
             <button style={S.iconBtn} onClick={() => setCompanySelectionConfirmed(false)}><Building2 size={15} /> Trocar empresas</button>
           )}
-          {!isMobile && (
+          {!isMobile && currentUser.personalAccess && (
             <button style={S.iconBtn} onClick={() => setWorkspaceMode('personal')}><Columns3 size={15} /> Gestão de Atividades</button>
           )}
           {!isMobile && currentUser.xflowRole && (
