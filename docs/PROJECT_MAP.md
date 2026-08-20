@@ -85,27 +85,29 @@ Componentes de tela/modal (nome → linha → responsabilidade):
 |---|---|---|
 | 25 | `BrandLogo` | Logo PRICETAX, troca PNG conforme tema |
 | 29 | `ThemeToggleBtn` | Botão sol/lua |
-| 1760 | `LoadingScreen` | Tela de carregamento inicial |
-| 1773 | `LoginGate` | Formulário de login |
-| 2124 | `UsersManagementScreen` | Painel admin de usuários (master) |
-| 2330/2380 | `NewUserModal` / `EditUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
-| 2501 | `MyProfileModal` | Avatar do usuário logado |
-| 2531 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
-| 2792 | `EditCompanyModal` | Edição de empresa já criada |
-| **2878** | **`CompanySelectorScreen`** | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, filtros por Tipo/Status/Regime (2026-08), atalho p/ Gestão de Atividades |
-| 2779 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades |
-| 2915–3577 | **Gestão de Atividades pessoal** (Kanban) | `ColorSwatchGrid`, `PriorityPicker`, `StatusPicker`, `TagEditor`, `PersonalColumnMenu`, `PersonalCardMenu`, `PersonalCard`, `PersonalColumn`, `PersonalCardDetailModal`, `PersonalListView`, `ReassignCardsModal`, `PersonalTrashPanel` |
-| 3549 | `BoardShareModal` | Modal de visibilidade da página (Privado/Público por link, copiar/gerar link) |
-| 3603 | `BoardActivityLogModal` | Painel de histórico do quadro — agrega `board.log` + `card.history` de todas as colunas |
-| **3626** | **`PersonalBoardScreen`** | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros, `publicMode`/`readOnly` props) |
-| **4386** | **`PublicBoardScreen`** | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
-| 4480 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
-| **4515** | **`ActivityDetailModal`** | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários, histórico |
-| **4773** | **`TableView`** | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) |
-| 5251 | `PhasesView` | View "Fases" |
-| 5381 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
-| 5436 | `TimelineView` | View "Gantt" |
-| 5589 | `const S = {...}` | Objeto de estilos inline (~380 linhas) |
+| ~1760 | `LoadingScreen` | Tela de carregamento inicial |
+| 2208 | `LoginGate` | Formulário de login |
+| ~2124 | `UsersManagementScreen` | Painel admin de usuários (master) |
+| ~2330/2380 | `NewUserModal` / `EditUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| ~2501 | `MyProfileModal` | Avatar do usuário logado |
+| 2848 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| 3250 | `EditCompanyModal` | Edição de empresa já criada |
+| **3474** | **`CompanySelectorScreen`** | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, filtros por Tipo/Status/Regime (2026-08), atalho p/ Gestão de Atividades |
+| 3775 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades |
+| ~3800–4629 | **Gestão de Atividades pessoal** (Kanban) | `ColorSwatchGrid`, `PriorityPicker`, `StatusPicker`, `TagEditor`, `PersonalColumnMenu`, `PersonalCardMenu`, `PersonalCard`, `PersonalColumn`, `PersonalCardDetailModal`, `PersonalListView`, `ReassignCardsModal`, `PersonalTrashPanel` |
+| 4629 | `BoardShareModal` | Modal de visibilidade da página (Privado/Público por link, copiar/gerar link) |
+| 4683 | `BoardActivityLogModal` | Painel de histórico do quadro — agrega `board.log` + `card.history` de todas as colunas |
+| **4706** | **`PersonalBoardScreen`** | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros, `publicMode`/`readOnly` props) |
+| **5541** | **`PublicBoardScreen`** | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
+| 5640 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
+| **5675** | **`ActivityDetailModal`** | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários, histórico, campo opcional `meetingTime` (2026-08, "Horário da reunião") |
+| 6074 | `PrintActivityTable` | Tabela de atividades do relatório em PDF (usada em "Em atraso" e "Próximas etapas") |
+| **6114** | **`PrintReport`** | Relatório em PDF dedicado (2026-08) — KPIs/progresso/próximas etapas, `display:none` na tela, só aparece em `@media print` — ver `PROJECT_CONTEXT.md` §13 |
+| **6207** | **`TableView`** | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) |
+| 6738 | `PhasesView` | View "Fases" |
+| 6868 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
+| 6955 | `TimelineView` | View "Gantt" |
+| 7108 | `export const S = {...}` | Objeto de estilos inline |
 
 ### 3.1 Responsividade / mobile
 
@@ -130,13 +132,16 @@ usam `S.detailBox`.
   `EditCompanyModal` (L2403), workspace principal dentro de `App()` (views
   Tabela/Fases/Quadro/Gantt).
 - Componentes principais: `TableView`, `PhasesView`, `KanbanView`,
-  `TimelineView`, `ActivityDetailModal`, `UsersManagementScreen`.
+  `TimelineView`, `ActivityDetailModal`, `UsersManagementScreen`,
+  `PrintReport`/`PrintActivityTable` (relatório em PDF, 2026-08).
 - APIs: `GET/POST/PATCH/DELETE /projects`, `GET /projects/:id/team-candidates`,
   `POST /cnpj/lookup`.
 - Services: `server/cnpjLookup.js`.
 - Modelo: tabela `projects` (JSONB) — `company`, `phases`, `activities`,
-  `team`, `log`.
-- Dependências: `xlsx` (export Excel), `window.print` (export PDF, sem lib).
+  `team`, `log`. Atividade tem campo opcional `meetingTime` (2026-08).
+- Dependências: `xlsx` (export Excel, planilha de trabalho), `window.print`
+  (export PDF, sem lib — desde 2026-08 imprime um relatório executivo
+  dedicado, `PrintReport`, não mais a view crua da tela).
 
 ### Gestão de Atividades (quadro pessoal, dnd-kit)
 - Telas: `WorkspaceGateScreen` (L2779, entrada), `PersonalBoardScreen` (L3626),
@@ -207,8 +212,8 @@ Usuário → deleteActivity()/deleteSub() → seta deleted/deletedAt/deletedBy (
 EXPORTAÇÃO EXCEL
 Usuário → botão "Excel" → exportExcel() em App() (client-side, usa lib `xlsx`) → gera .xlsx no browser, sem round-trip ao backend.
 
-EXPORTAÇÃO PDF
-Usuário → botão "PDF" → exportPdf() em App() → window.print() com CSS @media print (classe .no-print oculta UI) → sem backend envolvido.
+EXPORTAÇÃO PDF (relatório executivo, 2026-08)
+Usuário → botão "PDF" → exportPdf() em App() → window.print() → CSS @media print troca o que aparece: .no-print (UI normal, inclusive <main>) some, .print-report (componente PrintReport, dedicado, já pronto no DOM mas display:none na tela) aparece, @page force paisagem → sem backend envolvido.
 
 QUADRO PESSOAL — AUTOSAVE COM ROLLBACK
 Usuário arrasta/edita card → mutatePersonalBoard() (update otimista) → persistPersonalBoardDebounced() → PATCH /personal-board → se falhar, reverte para lastGoodPersonalBoardRef e mostra "Falha ao salvar".
