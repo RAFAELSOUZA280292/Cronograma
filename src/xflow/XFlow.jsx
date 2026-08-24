@@ -1783,9 +1783,17 @@ function TicketList({ list, teamById, onOpen, emptyLabel }) {
   );
 }
 
-function FilterBar({ filters, setFilters, team, teamById }) {
+function FilterBar({ filters, setFilters, team, teamById, tickets }) {
   function set(patch) { setFilters((f) => ({ ...f, ...patch })); }
-  const devs = teamById ? Object.values(teamById).filter((m) => m.xflowRole === 'dev').sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')) : [];
+  // "Responsável atual" só lista quem de fato está com a bola em algum
+  // ticket agora (2026-08, pedido do Rafael) — não é "todo mundo com papel
+  // de dev", é exatamente o valor visto no campo "Quem está com a bola" de
+  // cada ticket. Um dev sem nenhum ticket na mão (ex.: usuário que só abre
+  // TASK) simplesmente não aparece na lista.
+  const presentBallHolders = new Set((tickets || []).map(ballHolderKey).filter((k) => k !== 'none'));
+  const devs = teamById
+    ? Object.values(teamById).filter((m) => m.xflowRole === 'dev' && presentBallHolders.has(`dev:${m.id}`)).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+    : [];
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '14px 0' }}>
       <input type="text" placeholder="Buscar por ID, título, empresa, usuário..." value={filters.search} onChange={(e) => set({ search: e.target.value })} style={{ flex: '1 1 220px', minWidth: 180 }} />
@@ -1815,10 +1823,10 @@ function FilterBar({ filters, setFilters, team, teamById }) {
         <select value={filters.ballHolder} onChange={(e) => set({ ballHolder: e.target.value })} style={{ width: 'auto' }} title="Quem precisa agir agora, não a atribuição fixa">
           <option value="">Responsável atual: todos</option>
           {devs.map((m) => <option key={m.id} value={`dev:${m.id}`}>{m.name}</option>)}
-          <option value="gestao">Gestão</option>
-          <option value="reporter">Solicitante</option>
-          <option value="terceiro">Terceiro</option>
-          <option value="triage_queue">Fila de triagem</option>
+          {presentBallHolders.has('gestao') && <option value="gestao">Gestão</option>}
+          {presentBallHolders.has('reporter') && <option value="reporter">Solicitante</option>}
+          {presentBallHolders.has('terceiro') && <option value="terceiro">Terceiro</option>}
+          {presentBallHolders.has('triage_queue') && <option value="triage_queue">Fila de triagem</option>}
         </select>
       )}
       <select value={filters.slaState} onChange={(e) => set({ slaState: e.target.value })} style={{ width: 'auto' }}>
@@ -1856,7 +1864,7 @@ function ReporterHome({ tickets, currentUser, teamById, filters, setFilters, onO
           <StatCard key={c.key} label={c.label} count={tickets.filter((t) => c.pred(t) && !t.archived).length} active={quick === c.key} onClick={() => setQuick(quick === c.key ? null : c.key)} />
         ))}
       </div>
-      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} />
+      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} tickets={tickets} />
       <TicketList list={list} teamById={teamById} onOpen={onOpen} />
     </>
   );
@@ -1876,7 +1884,7 @@ function DevHome({ tickets, currentUser, teamById, filters, setFilters, onOpen }
   ];
   return (
     <>
-      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} />
+      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} tickets={tickets} />
       {fila.length > 0 && (
         <div style={{ marginTop: 4 }}>
           <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-4)', marginBottom: 2 }}>Fila de triagem ({fila.length})</div>
@@ -2018,7 +2026,7 @@ function GestorHome({ tickets, team, teamById, filters, setFilters, onOpen }) {
         </div>
       </div>
 
-      <FilterBar filters={filters} setFilters={setFilters} team={team} teamById={teamById} />
+      <FilterBar filters={filters} setFilters={setFilters} team={team} teamById={teamById} tickets={tickets} />
       <TicketList list={list} teamById={teamById} onOpen={onOpen} />
     </>
   );
@@ -2029,7 +2037,7 @@ function ArchivedView({ tickets, teamById, filters, setFilters, onOpen, onUnarch
   const list = archived.filter((t) => matchesFilters(t, filters));
   return (
     <>
-      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} />
+      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} tickets={tickets} />
       {list.length === 0 && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Nenhum BUG arquivado.</div>}
       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {list.map((t) => (
@@ -2053,7 +2061,7 @@ function LixeiraView({ tickets, teamById, filters, setFilters, onOpen, onRestore
         BUGs excluídos nunca somem de verdade — ficam aqui com todo o histórico até
         alguém da gestão restaurar, ou o admin apagar de vez.
       </div>
-      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} />
+      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} tickets={tickets} />
       {list.length === 0 && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Lixeira vazia.</div>}
       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {list.map((t) => (
@@ -2270,7 +2278,7 @@ function XflowBoardView({ tickets, currentUser, teamById, filters, setFilters, o
 
   return (
     <>
-      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} />
+      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} tickets={tickets} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
         <span style={{ fontSize: 11.5, color: 'var(--text-5)', fontWeight: 600 }}>Ordenar por</span>
         <select value={sortMode} onChange={(e) => setSortMode(e.target.value)} style={{ ...S.personalFilterSelect, width: 'auto' }}>
