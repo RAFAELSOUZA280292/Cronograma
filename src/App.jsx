@@ -2914,9 +2914,31 @@ function MyProfileModal({ user, onClose, onSave }) {
   const isDirty = useDirtyForm(avatar);
   const [showGuard, setShowGuard] = useState(false);
   function requestClose() { if (isDirty) setShowGuard(true); else onClose(); }
+
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
+
+  async function submitPassword() {
+    setPwError('');
+    setPwSuccess(false);
+    if (!currentPassword || !newPassword) { setPwError('Preencha a senha atual e a nova senha.'); return; }
+    if (newPassword.length < 4) { setPwError('A nova senha precisa ter pelo menos 4 caracteres.'); return; }
+    if (newPassword !== confirmPassword) { setPwError('A confirmação não confere com a nova senha.'); return; }
+    setPwSaving(true);
+    try {
+      await apiPost('/api/auth/change-password', { currentPassword, newPassword });
+      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+      setPwSuccess(true);
+    } catch (e) { setPwError(e.message); } finally { setPwSaving(false); }
+  }
+
   return (
     <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
-      <div style={{ ...S.detailBox, width: 'min(420px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...S.detailBox, width: 'min(420px, 100%)', height: 'auto', maxHeight: '88vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Meu perfil</div>
           <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
@@ -2935,6 +2957,16 @@ function MyProfileModal({ user, onClose, onSave }) {
 
         <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={() => onSave(avatar)}>
           Salvar
+        </button>
+
+        <div style={{ ...S.subSectionLabel, marginTop: 26, paddingTop: 20, borderTop: '1px solid var(--border-1)' }}>Trocar senha</div>
+        <input type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Senha atual" />
+        <input type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Nova senha" style={{ marginTop: 8 }} />
+        <input type="password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirmar nova senha" style={{ marginTop: 8 }} />
+        {pwError && <div style={{ ...S.loginBlockedMsg, marginTop: 12, marginBottom: 0 }}>{pwError}</div>}
+        {pwSuccess && <div style={{ ...S.fieldHint, color: '#3ddc84', marginTop: 8 }}>Senha alterada com sucesso.</div>}
+        <button style={{ ...S.iconBtn, marginTop: 12, width: '100%', justifyContent: 'center' }} disabled={pwSaving} onClick={submitPassword}>
+          {pwSaving ? 'Salvando...' : 'Alterar senha'}
         </button>
       </div>
       {showGuard && (

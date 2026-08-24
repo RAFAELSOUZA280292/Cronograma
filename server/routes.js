@@ -91,6 +91,21 @@ router.patch('/auth/me', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.post('/auth/change-password', requireAuth, async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!newPassword || newPassword.length < 4) {
+      return res.status(400).json({ message: 'A nova senha precisa ter pelo menos 4 caracteres.' });
+    }
+    const row = await findUserById(req.user.id);
+    const ok = await comparePassword(currentPassword || '', row.password_hash);
+    if (!ok) return res.status(401).json({ message: 'Senha atual incorreta.' });
+    const hash = await hashPassword(newPassword);
+    await pool.query(`UPDATE users SET password_hash=$1, updated_at=now() WHERE id=$2`, [hash, req.user.id]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 // ---------- Users (master only) ----------
 
 router.get('/users', requireAuth, requireMaster, async (req, res, next) => {

@@ -89,7 +89,7 @@ Componentes de tela/modal (nome → linha → responsabilidade):
 | 2208 | `LoginGate` | Formulário de login |
 | ~2124 | `UsersManagementScreen` | Painel admin de usuários (master) |
 | ~2330/2380 | `NewUserModal` / `EditUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
-| ~2501 | `MyProfileModal` | Avatar do usuário logado |
+| ~2911 | `MyProfileModal` | Avatar do usuário logado + seção "Trocar senha" (2026-08, `POST /api/auth/change-password`) |
 | 2848 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
 | 3250 | `EditCompanyModal` | Edição de empresa já criada |
 | **3474** | **`CompanySelectorScreen`** | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, filtros por Tipo/Status/Regime (2026-08), atalho p/ Gestão de Atividades |
