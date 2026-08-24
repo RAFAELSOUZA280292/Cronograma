@@ -2948,7 +2948,9 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
   }
 
   async function submit() {
-    if (!form.name.trim() || !form.clientType) return;
+    if (!form.name.trim()) { setError('Preencha a razão social antes de continuar.'); return; }
+    if (!form.clientType) { setError('Selecione o tipo de cliente antes de continuar.'); return; }
+    setError('');
     setSaving(true);
     try {
       if (isGroup) {
@@ -3171,7 +3173,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
               </>
             )}
 
-            <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={saving || !form.name.trim() || !form.clientType}>
+            <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={saving}>
               {saving
                 ? (cloneSource ? 'Clonando...' : (isGroup ? 'Criando grupo...' : 'Criando...'))
                 : (cloneSource ? 'Clonar empresa' : (isGroup ? 'Criar grupo' : 'Criar empresa'))}
