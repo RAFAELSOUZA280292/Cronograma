@@ -227,7 +227,26 @@ Decisões estruturais fixas:
   (`/^\/quadro\/([A-Za-z0-9_-]+)/`) **dentro do corpo de `App()`, antes de
   qualquer gate de sessão** (`sessionChecked`/`currentUser`) — por isso
   funciona sem login. Não existe React Router nem qualquer lib de rota; é a
-  única exceção a "navegação 100% por estado em memória".
+  única exceção onde a **URL** importa pra navegação.
+- **Histórico do navegador sem roteador (2026-08, Nível 1)**: o botão
+  Voltar do navegador simplesmente saía do site (nenhuma navegação dentro
+  do app virava entrada de histórico) — reportado pelo Rafael. Corrigido
+  sem introduzir rota nenhuma: `history.pushState({navTag}, '', mesma URL)`
+  em cada troca de **módulo** (Empresas/Gestão de Atividades/XFlow) e das
+  telas de admin (Usuários/Organizações), via 3 helpers em `App()`
+  (`goToWorkspace(mode)`, `goToUsers(open)`, `goToOrgAdmin(open)` —
+  **todo** call site que antes chamava `setWorkspaceMode`/`setShowUsers`/
+  `setShowOrgAdmin` direto agora passa por eles, exceto `handleLogout()` e
+  o reset inicial dentro de `enterOrganization()`, que empurra o próprio
+  `pushLocation('company')` no final). Um `popstate` listener
+  (`applyLocationTag()`) refaz o estado quando o usuário navega pelo
+  histórico. A URL **nunca muda** — só o `state` da entrada — então não
+  colide com a rota pública `/quadro/:token` acima. **De propósito não
+  cobre** troca de aba (Resumo/Gantt/Tabela/Fases/Quadro), filtros, ou
+  modais de edição — só os "módulos" listados; ver PROJECT_CONTEXT.md
+  (este arquivo) se for estender pra um Nível 2 (sub-navegação: escolher
+  empresa, Quadro↔Lista do XFlow) ou Nível 3 (abrir/fechar
+  `ActivityDetailModal`/`TicketDetailModal` como "voltar fecha").
 - **Exceção ao arquivo único**: `src/xflow/XFlow.jsx` (módulo XFlow, §18) é o
   primeiro pedaço de frontend fora de `App.jsx` — decisão deliberada porque
   XFlow não compartilha lógica de mutação com Empresas/Gestão de Atividades.
