@@ -185,7 +185,7 @@ para um caso de uso raro (poucas dezenas de usuários hoje).
 | PATCH `/public-board/:token` | `requireAuth` | qualquer logado — token é a autorização, sem checar dono |
 | GET/POST/PATCH `/organizations`, `/organizations/:id` | `requireSuperAdmin` | painel Super Admin |
 | GET `/xflow/team` | `requireXflowAccess` | lista usuários da org com `xflow_role` não vazio (nomes p/ atribuir/mencionar) |
-| GET `/xflow/tickets` | `requireXflowAccess` | reporter só recebe os próprios (`WHERE reporter_id=$user`); dev/gestão/admin recebem todos os da org |
+| GET `/xflow/tickets` | `requireXflowAccess` | todos os papéis recebem todos os tickets da org (2026-08 — visibilidade não é mais por dono, ver §18) |
 | GET `/xflow/tickets/:id/events` | `requireXflowAccess` | log estruturado de um ticket (timeline) |
 | POST `/xflow/tickets` | `requireXflowAccess` | `reporter_id` sempre `req.user.id`; status sempre `aberta`, ignora o que o cliente mandar |
 | PATCH `/xflow/tickets/:id` | `requireXflowAccess` + `xflowPermissions.canDo()` + `xflowTransitions.checkTransition()` | router próprio `server/xflow.js`, montado em `/api/xflow`; recebe `{action, payload}` (não mais o ticket inteiro) — toda ação valida papel e transição de status antes de gravar, 403/400 reais |
@@ -937,9 +937,24 @@ completo (arquitetura de dados, matriz de permissões, matriz de transições).
   teve `xflow_role`. Card "XFlow" no `WorkspaceGateScreen` e gate em `App()`
   (`workspaceMode === 'xflow'`, antes do gate de `CompanySelectorScreen`,
   lição do §17) inalterados da v1.
-- **Escopo**: por organização (`xflow_tickets.org_id`). `GET /xflow/tickets`
-  restringe `reporter` aos próprios tickets no **backend** (não só na tela)
-  — mudança da v2, fechou uma exposição real entre solicitantes diferentes.
+- **Escopo**: por organização (`xflow_tickets.org_id`) — dentro da mesma
+  org, **todo mundo vê todas as TASKs**, `reporter` incluído (2026-08,
+  pedido explícito do Rafael: "as TASKS do XFLOW precisa aparecer para
+  todos usuários"). A v2 original tinha ido na direção oposta (reporter só
+  via os próprios tickets, tanto em `GET /xflow/tickets` quanto em
+  `GET /xflow/tickets/:id/events` e no `PATCH /xflow/tickets/:id`) — essa
+  restrição de **visibilidade** foi removida dos três pontos; o que
+  continua de pé é a autorização de **ação** (linha abaixo) — `canDo()` já
+  usava `isOwner()` pros casos onde só o dono-reporter pode agir (editar
+  conteúdo enquanto aberta, aprovar/reprovar validação, reabrir, fechar sem
+  desenvolver, excluir), então tirar o filtro de visibilidade não abriu
+  brecha de ação nenhuma: um reporter agora vê e comenta (`comentar` já
+  era `() => true` pra todo mundo) em TASK de outro solicitante, mas as
+  ações restritas ao dono continuam invisíveis/bloqueadas pra ele. Testado
+  localmente com 2 usuários `reporter` disponíveis (`xtest-rep-a`/`b`,
+  descartados depois do teste): A cria, B vê no Quadro e na Lista, B
+  comenta com sucesso, B não vê "Fechar sem desenvolver"/"Excluir" (ações
+  de dono) no ticket de A.
 - **Autorização real no backend** (o núcleo da v2): `PATCH
   /xflow/tickets/:id` não aceita mais o ticket inteiro solto — exige
   `{action, payload}`. Toda ação passa por `checkTransition()`
