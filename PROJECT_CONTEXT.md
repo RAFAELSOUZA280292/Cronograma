@@ -228,16 +228,16 @@ Decisões estruturais fixas:
   qualquer gate de sessão** (`sessionChecked`/`currentUser`) — por isso
   funciona sem login. Não existe React Router nem qualquer lib de rota; é a
   única exceção onde a **URL** importa pra navegação.
-- **Histórico do navegador sem roteador (2026-08, Níveis 1 e 2)**: o botão
-  Voltar do navegador simplesmente saía do site (nenhuma navegação dentro
-  do app virava entrada de histórico) — reportado pelo Rafael. Corrigido
-  sem introduzir rota nenhuma: `history.pushState({navTag}, '', mesma URL)`
-  a cada navegação "reconhecível" — a URL **nunca muda** (só o `state` da
-  entrada), então não colide com a rota pública `/quadro/:token` acima.
-  **De propósito não cobre** troca de aba (Resumo/Gantt/Tabela/Fases/
-  Quadro), filtros, ou modais de edição — só os pontos listados abaixo.
-  Falta só o Nível 3 (abrir/fechar `ActivityDetailModal`/`TicketDetailModal`
-  como "voltar fecha").
+- **Histórico do navegador sem roteador (2026-08, Níveis 1, 2 e 3 —
+  completo)**: o botão Voltar do navegador simplesmente saía do site
+  (nenhuma navegação dentro do app virava entrada de histórico) —
+  reportado pelo Rafael. Corrigido sem introduzir rota nenhuma:
+  `history.pushState({navTag}, '', mesma URL)` a cada navegação
+  "reconhecível" — a URL **nunca muda** (só o `state` da entrada), então
+  não colide com a rota pública `/quadro/:token` acima. **De propósito
+  não cobre** troca de aba (Resumo/Gantt/Tabela/Fases/Quadro), filtros, ou
+  modais de edição (Editar empresa, Novo usuário etc.) — só os pontos
+  listados abaixo.
   - **Nível 1 — troca de módulo** (`App.jsx`): Empresas/Gestão de
     Atividades/XFlow + telas de admin (Usuários/Organizações), via 3
     helpers (`goToWorkspace(mode)`, `goToUsers(open)`, `goToOrgAdmin(open)`)
@@ -282,6 +282,34 @@ Decisões estruturais fixas:
       (`'xflow'`/`'personal'`) — se for outro módulo, quem cuida é o
       listener do Nível 1 em `App.jsx` (o componente filho já vai
       desmontar).
+  - **Nível 3 — abrir/fechar modal de detalhe** (empilha em cima do
+    `state` atual, sem trocar `navTag` nem os campos de Nível 2 — só soma
+    um campo novo): `ActivityDetailModal` (`detailActivity: {pid, id}`,
+    `App.jsx`), `TicketDetailModal` (`detailTicket: id`, `XFlow.jsx`,
+    local a `XFlowScreen`) e `PersonalCardDetailModal` (`detailCard:
+    {colId, cardId}`, `App.jsx`, local a `PersonalBoardScreen` — nunca
+    ativo em `publicMode`, mesma exceção do Nível 2). Cada um tem um par
+    `open*Detail()`/`close*Detail()`: abrir sempre faz `pushState` com o
+    `state` atual espalhado (`{...cur, detailX: ...}`) — preserva
+    `navTag`/`xflowSub`/`personalSub` de quem quer que seja o módulo
+    atual; fechar (`close*Detail()`) chama `history.back()` **em vez de**
+    limpar o estado direto (só cai pro `setX(null)` direto se por algum
+    motivo não tinha `detailX` no `state`, ex.: modal aberto antes desse
+    código existir) — assim o botão X, clicar fora e apertar Voltar
+    físico chegam todos no mesmo resultado, e Avançar continua
+    funcionando pra reabrir. O `popstate` listener de cada módulo (o
+    mesmo do Nível 2, sem listener novo) ganhou mais uma linha lendo o
+    campo `detailX` do `state` recebido. **Todo** call site de abrir
+    (inclusive criar atividade/TASK/card e já abrir o detalhe, e o clique
+    a partir de Menções) passa pelos helpers; exclusão bem-sucedida
+    também fecha via `close*Detail()` (não `set*(null)` direto), pra não
+    deixar uma entrada de histórico apontando pra um item que acabou de
+    ser excluído. **Limitação conhecida e aceita**: apertar o botão
+    físico Voltar do navegador com edição não salva no modal **não**
+    dispara o `ConfirmDiscardModal` (o `popstate` já aconteceu quando o
+    código roda, não dá pra interceptar antes) — só fechar pelo X/clicar
+    fora passa pela guarda de rascunho, porque só nesses casos o
+    `requestClose()` de cada modal roda antes do `history.back()`.
 - **Exceção ao arquivo único**: `src/xflow/XFlow.jsx` (módulo XFlow, §18) é o
   primeiro pedaço de frontend fora de `App.jsx` — decisão deliberada porque
   XFlow não compartilha lógica de mutação com Empresas/Gestão de Atividades.

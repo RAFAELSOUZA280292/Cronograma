@@ -542,9 +542,33 @@ export default function App() {
     else if (tag === 'xflow') { setWorkspaceMode('xflow'); setShowUsers(false); setShowOrgAdmin(false); }
     else { setWorkspaceMode(null); setShowUsers(false); setShowOrgAdmin(false); }
   }
+  // Nível 3 (2026-08): abrir ActivityDetailModal empilha em cima do state
+  // atual (preserva navTag/etc., só soma detailActivity) — Voltar fecha o
+  // modal em vez de sair do site. Fechar pelo X/overlay chama
+  // closeActivityDetail() (que faz history.back() se foi aberto via push),
+  // não limpa o estado direto — assim front/back ficam sincronizados. Não
+  // cobre o caso de apertar Voltar físico com edição não salva (o
+  // ConfirmDiscardModal só intercepta fechamento pelo X — ver
+  // PROJECT_CONTEXT.md §9).
+  function openActivityDetail(pid, id) {
+    setOpenActivityId({ pid, id });
+    try {
+      const cur = window.history.state || {};
+      window.history.pushState({ ...cur, detailActivity: { pid, id } }, '', window.location.href);
+    } catch (e) { /* ignora */ }
+  }
+  function closeActivityDetail() {
+    try {
+      if (window.history.state && window.history.state.detailActivity) { window.history.back(); return; }
+    } catch (e) { /* ignora */ }
+    setOpenActivityId(null);
+  }
   useEffect(() => {
     try { window.history.replaceState({ navTag: locationTag(workspaceMode, showUsers, showOrgAdmin, companySelectionConfirmed) }, '', window.location.href); } catch (e) { /* ignora */ }
-    function onPopState(e) { applyLocationTag((e.state && e.state.navTag) || 'gate'); }
+    function onPopState(e) {
+      applyLocationTag((e.state && e.state.navTag) || 'gate');
+      setOpenActivityId((e.state && e.state.detailActivity) || null);
+    }
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1810,7 +1834,7 @@ export default function App() {
             orderMap={orderMap}
             phases={activeProject.phases}
             pid={activeProject.id}
-            openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
+            openDetail={openActivityDetail}
             companyColor={activeProject.company.color}
           />
         )}
@@ -1824,7 +1848,7 @@ export default function App() {
             setWindowAnchor={setWindowAnchor}
             pid={activeProject.id}
             updateActivity={updateActivity}
-            openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
+            openDetail={openActivityDetail}
           />
         )}
         {!isMulti && view === 'table' && (
@@ -1844,12 +1868,12 @@ export default function App() {
             reorderSub={reorderSub}
             addAttachment={addAttachment}
             removeAttachment={removeAttachment}
-            openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
+            openDetail={openActivityDetail}
             companyColor={activeProject.company.color}
           />
         )}
         {!isMulti && view === 'phases' && (
-          <PhasesView activities={activitiesSorted} orderMap={orderMap} phases={activeProject.phases} pid={activeProject.id} updateActivity={updateActivity} openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })} companyColor={activeProject.company.color} />
+          <PhasesView activities={activitiesSorted} orderMap={orderMap} phases={activeProject.phases} pid={activeProject.id} updateActivity={updateActivity} openDetail={openActivityDetail} companyColor={activeProject.company.color} />
         )}
         {!isMulti && view === 'kanban' && (
           <KanbanView
@@ -1861,7 +1885,7 @@ export default function App() {
             setDragId={setDragId}
             updateActivity={updateActivity}
             addActivity={() => addActivity(activeProject.id)}
-            openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
+            openDetail={openActivityDetail}
           />
         )}
 
@@ -1877,7 +1901,7 @@ export default function App() {
               setWindowAnchor={setWindowAnchor}
               pid={p.id}
               updateActivity={updateActivity}
-              openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
+              openDetail={openActivityDetail}
             />
           </div>
         ))}
@@ -1894,7 +1918,7 @@ export default function App() {
             reorderSub={reorderSub}
             addAttachment={addAttachment}
             removeAttachment={removeAttachment}
-            openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
+            openDetail={openActivityDetail}
             multiMode
             groupInfo={groupInfo}
           />
@@ -1902,7 +1926,7 @@ export default function App() {
         {isMulti && view === 'phases' && selectedProjects.map((p) => (
           <div key={p.id} style={S.companySection}>
             <CompanySectionHeader project={p} onEditPhases={() => { setPhasesEditingProjectId(p.id); setShowPhases(true); }} />
-            <PhasesView activities={perCompanySorted[p.id]} orderMap={perCompanyOrderMap[p.id]} phases={p.phases} pid={p.id} updateActivity={updateActivity} openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })} companyColor={p.company.color} />
+            <PhasesView activities={perCompanySorted[p.id]} orderMap={perCompanyOrderMap[p.id]} phases={p.phases} pid={p.id} updateActivity={updateActivity} openDetail={openActivityDetail} companyColor={p.company.color} />
             <button style={{ ...S.iconBtn, marginTop: 8 }} onClick={() => addActivity(p.id)}><Plus size={14} /> Nova atividade em {p.company.name || 'empresa'}</button>
           </div>
         ))}
@@ -1912,7 +1936,7 @@ export default function App() {
             dragId={dragId}
             setDragId={setDragId}
             updateActivity={updateActivity}
-            openDetail={(tPid, id) => setOpenActivityId({ pid: tPid, id })}
+            openDetail={openActivityDetail}
             multiMode
             groupInfo={groupInfo}
           />
@@ -1973,7 +1997,7 @@ export default function App() {
             <div
               key={m.commentId}
               style={S.mentionRow}
-              onClick={() => { setOpenActivityId({ pid: m.pid, id: m.activityId }); setShowMentions(false); }}
+              onClick={() => { openActivityDetail(m.pid, m.activityId); setShowMentions(false); }}
             >
               <div style={S.logTs}>{m.author || 'Alguém'} · {fmtTs(m.ts)}</div>
               <div style={S.mentionActivity}>{m.activityTitle} <span style={{ opacity: .6 }}>— {m.companyName}</span></div>
@@ -2220,9 +2244,9 @@ export default function App() {
             currentUser={currentUser}
             pid={project.id}
             groupChildren={project.company.isGroupMaster ? groupMembers(projects, project.id).filter((p) => p.id !== project.id).map((p) => ({ id: p.id, name: p.company.nomeFantasia || p.company.name || 'Sem nome' })) : []}
-            onClose={() => setOpenActivityId(null)}
+            onClose={closeActivityDetail}
             updateActivity={updateActivity}
-            deleteActivity={(tPid, id) => { if (deleteActivity(tPid, id)) setOpenActivityId(null); }}
+            deleteActivity={(tPid, id) => { if (deleteActivity(tPid, id)) closeActivityDetail(); }}
             addSub={addSub}
             updateSub={updateSub}
             deleteSub={deleteSub}
@@ -4822,6 +4846,25 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
     if (publicMode) return;
     try { window.history.pushState({ navTag: 'personal', personalSub: boardId }, '', window.location.href); } catch (e) { /* ignora */ }
   }
+  // Nível 3 (2026-08): abrir PersonalCardDetailModal empilha detailCard em
+  // cima do state atual — Voltar fecha o card em vez de sair do quadro.
+  // Igual às outras exceções de publicMode, nunca ativo lá.
+  function openCardDetail(colId, cardId) {
+    setOpenCard({ colId, cardId });
+    if (publicMode) return;
+    try {
+      const cur = window.history.state || {};
+      window.history.pushState({ ...cur, detailCard: { colId, cardId } }, '', window.location.href);
+    } catch (e) { /* ignora */ }
+  }
+  function closeCardDetail() {
+    if (!publicMode) {
+      try {
+        if (window.history.state && window.history.state.detailCard) { window.history.back(); return; }
+      } catch (e) { /* ignora */ }
+    }
+    setOpenCard(null);
+  }
 
   useEffect(() => {
     if (publicMode) return;
@@ -4835,6 +4878,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
       const state = e.state;
       if (!state || state.navTag !== 'personal' || !state.personalSub) return;
       if (board.boards.some((b) => b.id === state.personalSub)) setActiveBoardId(state.personalSub);
+      setOpenCard(state.detailCard || null);
     }
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -5545,7 +5589,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
                     canMoveRight={idx < activeBoard.columns.length - 1}
                     otherColumns={activeBoard.columns.filter((c) => c.id !== col.id)}
                     onAddCard={addCard}
-                    onOpenCard={(colId, cardId) => setOpenCard({ colId, cardId })}
+                    onOpenCard={openCardDetail}
                     onToggleComplete={toggleCardComplete}
                     onDeleteCard={deleteCard}
                     onDuplicateCard={duplicateCard}
@@ -5589,7 +5633,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
       )}
 
       {activeBoard && viewPrefs.view === 'list' && (
-        <PersonalListView board={activeBoard} filterFn={cardMatches} onOpenCard={(colId, cardId) => setOpenCard({ colId, cardId })} onToggleComplete={toggleCardComplete} readOnly={readOnly} />
+        <PersonalListView board={activeBoard} filterFn={cardMatches} onOpenCard={openCardDetail} onToggleComplete={toggleCardComplete} readOnly={readOnly} />
       )}
 
       {openCard && activeBoard && (() => {
@@ -5604,9 +5648,9 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
             allTags={allTags}
             currentUserId={currentUser.id}
             readOnly={readOnly}
-            onClose={() => setOpenCard(null)}
+            onClose={closeCardDetail}
             onUpdate={(patch, historyMsg) => updateCard(col.id, card.id, patch, historyMsg)}
-            onDelete={() => { deleteCard(col.id, card.id); setOpenCard(null); }}
+            onDelete={() => { deleteCard(col.id, card.id); closeCardDetail(); }}
             onToggleComplete={() => toggleCardComplete(col.id, card.id)}
             onSetStatus={(s) => setCardStatus(col.id, card.id, s)}
             onAddComment={(text) => addCardComment(col.id, card.id, text)}

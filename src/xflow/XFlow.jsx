@@ -2368,6 +2368,22 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
     setShowArchived(false);
     pushXflowSub(opening ? 'trash' : viewMode);
   }
+  // Nível 3 (2026-08): abrir TicketDetailModal empilha detailTicket em cima
+  // do state atual (mesmo padrão de openActivityDetail em App.jsx) — Voltar
+  // fecha o modal em vez de sair do XFlow.
+  function openTicketDetail(id) {
+    setOpenTicketId(id);
+    try {
+      const cur = window.history.state || {};
+      window.history.pushState({ ...cur, detailTicket: id }, '', window.location.href);
+    } catch (e) { /* ignora */ }
+  }
+  function closeTicketDetail() {
+    try {
+      if (window.history.state && window.history.state.detailTicket) { window.history.back(); return; }
+    } catch (e) { /* ignora */ }
+    setOpenTicketId(null);
+  }
   useEffect(() => {
     try {
       const cur = window.history.state;
@@ -2378,6 +2394,7 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
     function onPopState(e) {
       const state = e.state;
       if (!state || state.navTag !== 'xflow') return; // troca de módulo — App.jsx cuida
+      setOpenTicketId(state.detailTicket || null);
       const sub = state.xflowSub || 'quadro';
       if (sub === 'trash') { setShowTrash(true); setShowArchived(false); }
       else if (sub === 'archived') { setShowArchived(true); setShowTrash(false); }
@@ -2420,7 +2437,7 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
     setTickets((prev) => [res.ticket, ...prev]);
     registerAffectedCompany(res.ticket.affectedCompany);
     setShowNew(false);
-    setOpenTicketId(res.ticket.id);
+    openTicketDetail(res.ticket.id);
     setToastMsg(`BUG #${res.ticket.number} criado`);
     setTimeout(() => setToastMsg(''), 4500);
   }
@@ -2573,7 +2590,7 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
           !trashLoaded ? <div style={{ ...S.emptyMuted, marginTop: 20 }}>Carregando...</div> : (
             <LixeiraView
               tickets={trashTickets} teamById={teamById} filters={filters} setFilters={setFilters}
-              onOpen={setOpenTicketId} onRestore={(id) => performAction(id, 'restaurar', {})}
+              onOpen={openTicketDetail} onRestore={(id) => performAction(id, 'restaurar', {})}
               onPurge={purgeTicket} canRestore={canRestoreTier} canPurge={canPurgeTier}
             />
           )
@@ -2582,7 +2599,7 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
         {loaded && showArchived && !showTrash && (
           <ArchivedView
             tickets={tickets} teamById={teamById} filters={filters} setFilters={setFilters}
-            onOpen={setOpenTicketId} onUnarchive={(id) => performAction(id, 'desarquivar', {})}
+            onOpen={openTicketDetail} onUnarchive={(id) => performAction(id, 'desarquivar', {})}
             canUnarchive={canArchiveTier}
           />
         )}
@@ -2590,17 +2607,17 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
         {loaded && !showArchived && !showTrash && viewMode === 'quadro' && (
           <XflowBoardView
             tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters}
-            onOpen={setOpenTicketId} onAction={performAction} showToast={showToast}
+            onOpen={openTicketDetail} onAction={performAction} showToast={showToast}
           />
         )}
         {loaded && !showArchived && !showTrash && viewMode === 'lista' && effRole === 'reporter' && (
-          <ReporterHome tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={setOpenTicketId} />
+          <ReporterHome tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={openTicketDetail} />
         )}
         {loaded && !showArchived && !showTrash && viewMode === 'lista' && effRole === 'dev' && (
-          <DevHome tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={setOpenTicketId} />
+          <DevHome tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={openTicketDetail} />
         )}
         {loaded && !showArchived && !showTrash && viewMode === 'lista' && (effRole === 'gestao' || effRole === 'admin') && (
-          <GestorHome tickets={tickets} team={team} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={setOpenTicketId} />
+          <GestorHome tickets={tickets} team={team} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={openTicketDetail} />
         )}
       </div>
 
@@ -2611,7 +2628,7 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
           team={team}
           currentUser={currentUser}
           affectedCompanies={affectedCompanies}
-          onClose={() => setOpenTicketId(null)}
+          onClose={closeTicketDetail}
           onAction={performAction}
           onCreateSpinoff={createSpinoff}
         />
