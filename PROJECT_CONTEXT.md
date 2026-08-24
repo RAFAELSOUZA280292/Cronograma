@@ -1299,6 +1299,20 @@ mundo (não só dev) e refletindo o estado atual, não a atribuição fixa;
 cada linha é clicável e aplica/limpa o filtro (toggle), sem precisar
 abrir o select.
 
+**Ajuste (2026-08, mesmo dia, pedido explícito do Rafael)**: a lista do
+select **não é mais "todo mundo com papel de dev"** — vira exatamente
+quem aparece hoje no campo "Quem está com a bola" de algum ticket. Um
+dev sem nenhum ticket na mão (usuário ativo que só abre TASK, ex. dado
+no pedido: "Eduarda") não deve aparecer. Implementado com
+`presentBallHolders = new Set(tickets.map(ballHolderKey))` dentro do
+próprio `FilterBar` (novo prop `tickets`, passado nos mesmos 6 pontos
+que já passam `teamById`) — filtra tanto a lista de devs quanto os 4
+baldes fixos (`gestao`/`reporter`/`terceiro`/`triage_queue`), todos só
+aparecem se tiverem pelo menos 1 ticket agora. Testado localmente com
+`psql` direto (criar/apagar ticket de teste com `ball_holder_user_id`
+apontando pro dev) — confirmado que o nome só aparece/some junto com o
+ticket.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
