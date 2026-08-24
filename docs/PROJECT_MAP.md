@@ -86,7 +86,7 @@ Componentes de tela/modal (nome → linha → responsabilidade):
 | 25 | `BrandLogo` | Logo PRICETAX, troca PNG conforme tema |
 | 29 | `ThemeToggleBtn` | Botão sol/lua |
 | ~1760 | `LoadingScreen` | Tela de carregamento inicial |
-| 2208 | `LoginGate` | Formulário de login |
+| ~2321 | `LoginGate` | Formulário de login + modo "Trocar senha" (2026-08, `POST /api/auth/change-password-login`) |
 | ~2124 | `UsersManagementScreen` | Painel admin de usuários (master) |
 | ~2330/2380 | `NewUserModal` / `EditUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
 | ~2911 | `MyProfileModal` | Avatar do usuário logado + seção "Trocar senha" (2026-08, `POST /api/auth/change-password`) |
@@ -126,8 +126,12 @@ usam `S.detailBox`.
 ## 4. Funcionalidades por módulo
 
 ### Autenticação / sessão
-- Tela: `LoginGate` (L2208). Fluxo completo em §7.
-- API: `POST /auth/login`, `GET /auth/me`, `POST /auth/logout`.
+- Tela: `LoginGate` (~L2321) — modo login normal + modo "Trocar senha"
+  (usuário + senha atual + nova 2x, troca e já loga, sem `requireAuth`
+  já que ainda não há sessão nesse ponto). Fluxo completo em §7.
+- API: `POST /auth/login`, `POST /auth/change-password-login`,
+  `GET /auth/me`, `POST /auth/logout`, `POST /auth/change-password`
+  (autenticado, dentro de "Meu perfil" — `MyProfileModal`).
 - Modelo: tabela `users`.
 
 ### Empresas (Cronograma de Reforma Tributária)
