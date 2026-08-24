@@ -486,6 +486,55 @@ export default function App() {
   const [windowAnchor, setWindowAnchor] = useState(new Date());
   const fileInputRef = useRef(null);
 
+  // Histórico do navegador — Nível 1 (2026-08): só troca de módulo
+  // (Empresas/Gestão de Atividades/XFlow/Usuários/Organizações), não view
+  // interna, filtro, nem modal de edição — ver PROJECT_CONTEXT.md §9. Não
+  // muda a URL (app não tem roteador, exceção única é /quadro/:token
+  // resolvida por regex antes de qualquer coisa aqui); pushState só carrega
+  // um "navTag" no state pra o botão Voltar do navegador saber pra onde ir.
+  function locationTag(mode, users, orgAdmin) {
+    if (!mode) return 'gate';
+    if (mode === 'xflow') return 'xflow';
+    if (mode === 'personal') return 'personal';
+    if (users) return 'company:users';
+    if (orgAdmin) return 'company:orgadmin';
+    return 'company';
+  }
+  function pushLocation(tag) {
+    try { window.history.pushState({ navTag: tag }, '', window.location.href); } catch (e) { /* ignora (ex.: sandbox) */ }
+  }
+  function goToWorkspace(mode) {
+    setShowUsers(false);
+    setShowOrgAdmin(false);
+    setWorkspaceMode(mode);
+    pushLocation(locationTag(mode, false, false));
+  }
+  function goToUsers(open) {
+    setShowUsers(open);
+    if (open) setShowOrgAdmin(false);
+    pushLocation(locationTag('company', open, false));
+  }
+  function goToOrgAdmin(open) {
+    setShowOrgAdmin(open);
+    if (open) setShowUsers(false);
+    pushLocation(locationTag('company', false, open));
+  }
+  function applyLocationTag(tag) {
+    if (tag === 'company:users') { setWorkspaceMode('company'); setShowUsers(true); setShowOrgAdmin(false); }
+    else if (tag === 'company:orgadmin') { setWorkspaceMode('company'); setShowOrgAdmin(true); setShowUsers(false); }
+    else if (tag === 'company') { setWorkspaceMode('company'); setShowUsers(false); setShowOrgAdmin(false); }
+    else if (tag === 'personal') { setWorkspaceMode('personal'); setShowUsers(false); setShowOrgAdmin(false); }
+    else if (tag === 'xflow') { setWorkspaceMode('xflow'); setShowUsers(false); setShowOrgAdmin(false); }
+    else { setWorkspaceMode(null); setShowUsers(false); setShowOrgAdmin(false); }
+  }
+  useEffect(() => {
+    try { window.history.replaceState({ navTag: locationTag(workspaceMode, showUsers, showOrgAdmin) }, '', window.location.href); } catch (e) { /* ignora */ }
+    function onPopState(e) { applyLocationTag((e.state && e.state.navTag) || 'gate'); }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(LOCAL_PREFS_KEY);
@@ -706,9 +755,9 @@ export default function App() {
     return (
       <WorkspaceGateScreen
         user={currentUser}
-        onPickCompany={hasCompanies ? () => setWorkspaceMode('company') : undefined}
-        onPickPersonal={hasPersonal ? () => setWorkspaceMode('personal') : undefined}
-        onPickXFlow={hasXflow ? () => setWorkspaceMode('xflow') : undefined}
+        onPickCompany={hasCompanies ? () => goToWorkspace('company') : undefined}
+        onPickPersonal={hasPersonal ? () => goToWorkspace('personal') : undefined}
+        onPickXFlow={hasXflow ? () => goToWorkspace('xflow') : undefined}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -720,9 +769,9 @@ export default function App() {
     return (
       <XFlowScreen
         currentUser={currentUser}
-        onExit={availableModes.length > 1 ? () => setWorkspaceMode(null) : null}
-        onGoCompany={hasCompanies ? () => setWorkspaceMode('company') : null}
-        onGoPersonal={hasPersonal ? () => setWorkspaceMode('personal') : null}
+        onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
+        onGoCompany={hasCompanies ? () => goToWorkspace('company') : null}
+        onGoPersonal={hasPersonal ? () => goToWorkspace('personal') : null}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -738,8 +787,8 @@ export default function App() {
       <PersonalBoardScreen
         board={personalBoard}
         onMutate={mutatePersonalBoard}
-        onExit={availableModes.length > 1 ? () => setWorkspaceMode(null) : null}
-        onGoXFlow={hasXflow ? () => setWorkspaceMode('xflow') : null}
+        onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
+        onGoXFlow={hasXflow ? () => goToWorkspace('xflow') : null}
         currentUser={currentUser}
         onLogout={handleLogout}
         theme={theme}
@@ -757,7 +806,7 @@ export default function App() {
       <SuperAdminScreen
         organizations={organizations}
         error={orgAdminError}
-        onClose={() => setWorkspaceMode(null)}
+        onClose={() => goToWorkspace(null)}
         closeLabel="Voltar"
         onLogout={handleLogout}
         onCreate={createOrganization}
@@ -777,7 +826,7 @@ export default function App() {
         registeredProjects={registeredProjects}
         usersPanelError={usersPanelError}
         organizations={organizations}
-        onClose={() => setShowUsers(false)}
+        onClose={() => goToUsers(false)}
         onCreateUser={addUser}
         onUpdateUser={updateUser}
         onToggleBlock={toggleUserBlock}
@@ -803,9 +852,9 @@ export default function App() {
           onUpdateCompany={updateCompanyFields}
           onDeleteCompany={deleteCompany}
           onCloneCompany={(p) => setCloningProject(p)}
-          onGoPersonal={hasPersonal ? () => setWorkspaceMode('personal') : undefined}
-          onGoUsers={currentUser.role === 'master' ? () => setShowUsers(true) : undefined}
-          onGoXFlow={hasXflow ? () => setWorkspaceMode('xflow') : undefined}
+          onGoPersonal={hasPersonal ? () => goToWorkspace('personal') : undefined}
+          onGoUsers={currentUser.role === 'master' ? () => goToUsers(true) : undefined}
+          onGoXFlow={hasXflow ? () => goToWorkspace('xflow') : undefined}
           actingOrg={actingOrg}
           onSwitchOrg={currentUser.isSuperAdmin ? exitOrganization : undefined}
           theme={theme}
@@ -847,7 +896,7 @@ export default function App() {
       <SuperAdminScreen
         organizations={organizations}
         error={orgAdminError}
-        onClose={() => setShowOrgAdmin(false)}
+        onClose={() => goToOrgAdmin(false)}
         onCreate={createOrganization}
         onSetStatus={updateOrganizationStatus}
         onEnter={enterOrganization}
@@ -1368,6 +1417,7 @@ export default function App() {
     setCompanySelectionConfirmed(false);
     setSelectedProjectIds([]);
     setWorkspaceMode('company');
+    pushLocation('company');
   }
 
   function exitOrganization() {
@@ -1551,11 +1601,11 @@ export default function App() {
   const moreMenuItems = [
     !isMulti && { icon: Settings, label: 'Empresa', onClick: () => setShowSettings(true) },
     canPickCompanies && { icon: Building2, label: 'Trocar empresas', onClick: () => setCompanySelectionConfirmed(false) },
-    currentUser.personalAccess && { icon: Columns3, label: 'Gestão de Atividades', onClick: () => setWorkspaceMode('personal') },
-    currentUser.xflowRole && { icon: Bug, label: 'XFlow', onClick: () => setWorkspaceMode('xflow') },
+    currentUser.personalAccess && { icon: Columns3, label: 'Gestão de Atividades', onClick: () => goToWorkspace('personal') },
+    currentUser.xflowRole && { icon: Bug, label: 'XFlow', onClick: () => goToWorkspace('xflow') },
     (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Plus, label: 'Cadastrar empresa', onClick: () => setShowCreateCompany(true) },
-    currentUser.role === 'master' && { icon: UserCog, label: 'Usuários', onClick: () => setShowUsers(true) },
-    currentUser.isSuperAdmin && { icon: Building2, label: 'Organizações', onClick: () => setShowOrgAdmin(true) },
+    currentUser.role === 'master' && { icon: UserCog, label: 'Usuários', onClick: () => goToUsers(true) },
+    currentUser.isSuperAdmin && { icon: Building2, label: 'Organizações', onClick: () => goToOrgAdmin(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: LayoutGrid, label: 'Fases', onClick: () => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); } },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Clock, label: `Log (${(activeProject.log || []).length})`, onClick: () => setShowLog(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Trash2, label: 'Lixeira', onClick: () => setShowTrash(true) },
@@ -1645,10 +1695,10 @@ export default function App() {
             <button style={S.iconBtn} onClick={() => setCompanySelectionConfirmed(false)}><Building2 size={15} /> Trocar empresas</button>
           )}
           {!isMobile && currentUser.personalAccess && (
-            <button style={S.iconBtn} onClick={() => setWorkspaceMode('personal')}><Columns3 size={15} /> Gestão de Atividades</button>
+            <button style={S.iconBtn} onClick={() => goToWorkspace('personal')}><Columns3 size={15} /> Gestão de Atividades</button>
           )}
           {!isMobile && currentUser.xflowRole && (
-            <button style={S.iconBtn} onClick={() => setWorkspaceMode('xflow')}><Bug size={15} /> XFlow</button>
+            <button style={S.iconBtn} onClick={() => goToWorkspace('xflow')}><Bug size={15} /> XFlow</button>
           )}
         </div>
         <div style={S.actionsRow}>
@@ -1672,8 +1722,8 @@ export default function App() {
           {!isMobile && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowCreateCompany(true)}><Plus size={15} /> Cadastrar empresa</button>
           )}
-          {!isMobile && currentUser.role === 'master' && <button style={S.iconBtn} onClick={() => setShowUsers(true)}><UserCog size={15} /> Usuários</button>}
-          {!isMobile && currentUser.isSuperAdmin && <button style={S.iconBtn} onClick={() => setShowOrgAdmin(true)}><Building2 size={15} /> Organizações</button>}
+          {!isMobile && currentUser.role === 'master' && <button style={S.iconBtn} onClick={() => goToUsers(true)}><UserCog size={15} /> Usuários</button>}
+          {!isMobile && currentUser.isSuperAdmin && <button style={S.iconBtn} onClick={() => goToOrgAdmin(true)}><Building2 size={15} /> Organizações</button>}
           {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); }}><LayoutGrid size={15} /> Fases</button>
           )}
