@@ -1554,6 +1554,148 @@ Testado localmente: senha atual errada barra com a mensagem certa;
 senha certa troca e entra direto no workspace, sem precisar digitar a
 senha nova de novo numa tela de login separada.
 
+## 20. Central de Notificações (2026-08)
+
+Pedido do Rafael: sino 🔔 global (mesmo contador/lista nas 3 telas —
+Empresas, Gestão de Atividades, XFlow), notificação sempre que o usuário
+for citado/mencionado/vinculado em qualquer ponto do sistema, painel
+clicável que leva direto pro lugar exato, marcar lida/não lida/todas
+lidas, contador dinâmico, e log de "quem visualizou" em cada TASK do
+XFlow. Substituiu por completo o mecanismo antigo de "Menções" (bell só
+em Empresas, cutoff `mentionsSeenAt` salvo em `localStorage`, sem estado
+por notificação — abrir o painel já marcava tudo como visto).
+
+### Schema e leitura
+
+Tabela nova `notifications` (`server/db.js`) — relacional porque precisa
+de leitura/escrita por linha (marcar uma de cada vez) e índice por
+usuário+lida, o que um blob JSONB não faria bem:
+`id, org_id, user_id, type, title, body, actor_name, target (JSONB), read, created_at`.
+`target` carrega o suficiente pra navegar direto pro lugar exato (não tem
+router real, ver §9) — dois formatos hoje: `{kind:'xflow_ticket',
+ticketId}` e `{kind:'activity', projectId, activityId}`. Helper de escrita
+compartilhado em `server/notifications.js` (`createNotification()`,
+usado tanto por `xflow.js` quanto por `routes.js`). Rotas de leitura/
+estado em `server/routes.js`: `GET /notifications` (últimas 200, mais
+recente primeiro), `PATCH /notifications/:id` `{read}`,
+`POST /notifications/read-all`, e `POST /notifications/mark-read-for-target`
+(usada quando o usuário **acessa** a ocorrência, não só quando marca
+manualmente — ver regra abaixo).
+
+### Geração — XFlow (`server/xflow.js`)
+
+Dentro do mesmo `PATCH /tickets/:id` que já processa a ação (uma lista
+`notificationsToCreate` é preenchida durante o `switch` e inserida no fim,
+antes do `COMMIT`, mesma transação):
+- `comentar`: pra cada `mentions[]` do comentário, exceto o próprio autor
+  — `type: 'xflow_mention'`.
+- `reatribuir` / `redirecionar` (quando muda `assigneeId` pra alguém
+  diferente de quem já estava e diferente de quem agiu): `type:
+  'xflow_assigned'`. `aceitar`/`iniciar_dev_direto` (auto-atribuição) não
+  geram nada — não faz sentido notificar alguém de uma ação que ele
+  mesmo tomou.
+
+### Geração — Empresas (`server/routes.js`, `notifyActivityChanges()`)
+
+Diferente do XFlow (ações discretas), atividade é salva como o **projeto
+inteiro** de uma vez (autosave, `PATCH /projects/:id` recebe o blob
+completo). A única forma de saber o que mudou de fato é comparar
+antes/depois — a rota já tinha `current` (lido do banco antes do UPDATE)
+e `next_` (payload recebido), então o diff acontece ali mesmo, na mesma
+requisição, antes de responder:
+- **Comentário novo com menção**: por atividade, `id` de comentário que
+  existe em `next_` mas não em `current` → `mentions[]` dele vira
+  `type: 'activity_mention'`.
+- **Responsável definido**: `a.responsible` mudou → se o novo valor bate
+  (case-insensitive, comparado contra `users.name` da org) com um
+  usuário real → `type: 'activity_assigned'`.
+- **Vinculado a atividade**: nome novo em `a.participants` (que não
+  estava lá antes) que bate com um usuário real → `type:
+  'activity_linked'`.
+- Em todos os casos: nunca notifica o próprio ator, e atividade nova
+  (sem `before`) só passa pelo caminho de menção em comentário (não tem
+  "antes" pra comparar responsible/participants contra).
+
+**Limitação conhecida e aceita**: `responsible`/`participants` de uma
+atividade são **texto livre** (nome de papel/departamento dentro de
+`project.team`, ex. "Financeiro", "Fiscal" — não uma referência a
+`users.id`, ver `defaultTeam()` em `db.js`). A notificação só dispara
+quando esse texto **bate exatamente** (case-insensitive) com o nome de
+algum usuário real logado da mesma org — um "Financeiro" que não
+corresponde a ninguém logado simplesmente não notifica ninguém (esperado,
+não é bug). Não foi criado um campo novo de vínculo usuário↔papel pra
+isso — mapear por nome já cobre o caso descrito pelo Rafael sem mudar o
+modelo de dados de Empresas.
+
+### Registro de leitura da TASK ("quem abriu, quando")
+
+`POST /xflow/tickets/:id/view` (`server/xflow.js`) — chamado pelo cliente
+toda vez que o `TicketDetailModal` abre (`useEffect` em `[ticket.id]`,
+não em `ticket.updatedAt` — senão bateria a cada ação, não só ao abrir).
+Grava um evento `type: 'view'` em `xflow_events` com nota
+`"<Nome> visualizou esta TASK"` — aparece na timeline igual qualquer
+outro evento, de graça (a timeline já renderiza qualquer `type !==
+'comment'` genericamente). **Dedup**: não grava de novo se o MESMO
+usuário já tem um `view` pra essa TASK nos últimos 5 minutos — evita
+spam de abrir/fechar repetido. A mesma chamada também marca como lida
+qualquer notificação pendente apontando pra essa TASK (`target->>'kind'=
+'xflow_ticket' AND target->>'ticketId'=id`) — é o "acessar a ocorrência"
+da regra abaixo.
+
+### Regra de leitura (explícita do Rafael)
+
+Abrir o **painel** do sino NUNCA marca nada como lido sozinho — só três
+coisas tiram uma notificação da contagem: (1) botão "Marcar lida" no
+item, (2) botão "Marcar todas como lidas" no topo do painel, ou (3) o
+usuário **acessar de fato** a ocorrência (abrir a TASK ou a atividade
+referida — clicar na notificação já faz isso, mas abrir o mesmo item por
+qualquer outro caminho, ex. um link `#N` direto, também conta). "Marcar
+não lida" existe e funciona ao contrário — testado manualmente.
+
+### Frontend — componente compartilhado
+
+`NotificationBell` (`App.jsx`, exportado, importado em `XFlow.jsx` do
+mesmo jeito que `S`/`uid`/`fmtDate` já eram) — um só componente, mesma
+lista/contador, renderizado em 3 lugares: barra da Tabela de Empresas
+(`App()`), header do `PersonalBoardScreen` (só quando `!publicMode` — o
+quadro compartilhado por link não tem sino, é anônimo), e header do
+`XflowScreen`. Estado (`notifications`, polling a cada 45s — sem
+websocket na stack) mora em `App()` porque é o único componente que fica
+montado o tempo todo, sobrevivendo à troca de `workspaceMode` — as 3
+telas recebem os mesmos dados/callbacks via props, não têm estado
+próprio de notificação.
+
+**Navegação entre abas ao clicar numa notificação** (`goToNotificationTarget()`
+em `App.jsx`): se o alvo é uma TASK do XFlow, seta `pendingXflowOpen` +
+troca pro workspace `xflow` — dentro do `XflowScreen`, um efeito
+(`pendingOpenTicketId`) espera os tickets carregarem e só então chama
+`openTicketDetail()`, limpando o pendente depois (mesmo padrão do
+`hashOpenDone` do link permanente por TASK, §18.2). Se o alvo é uma
+atividade, é mais direto — `App()` já tem `projects`/`openActivityDetail()`
+na mão — troca pro workspace `company`, chama `confirmCompanySelection([projectId])`
+(seleciona só aquela empresa, mesmo se o usuário estivesse vendo outra) e
+abre a atividade. Empilha 2-3 entradas de histórico de uma vez (Nível
+1+2+3 juntos) — aceitável, é uma navegação deliberada de "me leva lá".
+
+**Não incluído** (fora do que foi pedido/coberto pelo modelo de dados
+atual): sino no `WorkspaceGateScreen` (tela "Olá, Nome" entre os 3
+módulos) e no `CompanySelectorScreen` ("Quais empresas você quer
+acompanhar") — são telas de trânsito, não uma das "3 abas"; e em
+`UsersManagementScreen`/`SuperAdminScreen` (painéis administrativos, fora
+do fluxo normal de trabalho).
+
+Testado localmente com 5 usuários de teste (papéis XFlow + 2 usuários
+"Empresas" com nome batendo em `responsible`/`participants`, todos
+descartados depois): menção em comentário do XFlow, atribuição de
+responsável no XFlow, menção em comentário de atividade, atividade
+"responsável" e "vinculado" por nome — todos os 4 tipos geraram
+notificação corretamente; clique em cada um navegou pro lugar certo
+(inclusive trocando de empresa selecionada automaticamente); "marcar
+lida"/"marcar não lida"/"marcar todas lidas" e o contador dinâmico do
+sino funcionaram; abrir o painel sozinho não mexeu na contagem; abrir a
+TASK/atividade referida marcou só aquela notificação como lida; visualizar
+uma TASK duas vezes em seguida não duplicou o registro na timeline.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

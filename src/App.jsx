@@ -22,7 +22,6 @@ import XFlowScreen from './xflow/XFlow.jsx';
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
 const THEME_KEY = 'pricetax-cronograma-theme';
-const MENTIONS_SEEN_KEY = 'pricetax-cronograma-mentions-seen';
 
 export function BrandLogo({ theme, style }) {
   return <img src={theme === 'light' ? pricetaxLogoPreto : pricetaxLogoBranco} alt="PriceTax" style={style} />;
@@ -461,8 +460,9 @@ export default function App() {
   const [view, setView] = useState('table');
   const [showLog, setShowLog] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
-  const [showMentions, setShowMentions] = useState(false);
-  const [mentionsSeenAt, setMentionsSeenAt] = useState('');
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [pendingXflowOpen, setPendingXflowOpen] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showPhases, setShowPhases] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
@@ -552,6 +552,7 @@ export default function App() {
   // PROJECT_CONTEXT.md §9).
   function openActivityDetail(pid, id) {
     setOpenActivityId({ pid, id });
+    markNotificationsReadForTarget({ kind: 'activity', projectId: pid, activityId: id });
     try {
       const cur = window.history.state || {};
       window.history.pushState({ ...cur, detailActivity: { pid, id } }, '', window.location.href);
@@ -600,22 +601,64 @@ export default function App() {
     catch (e) { /* ignora */ }
   }, [usersLog]);
 
+  // Central de Notificações (2026-08) — carrega ao logar e faz polling (sem
+  // websocket na stack, ver PROJECT_CONTEXT.md §9) pra contador ficar
+  // "dinâmico" (pedido do Rafael) sem precisar recarregar a página. Estado
+  // mora aqui (não em cada tela) porque as 3 abas (Empresas/Gestão de
+  // Atividades/XFlow) precisam mostrar o MESMO contador/lista — só App()
+  // fica montado o tempo todo, sobrevivendo à troca de workspaceMode.
   useEffect(() => {
-    if (!currentUser) { setMentionsSeenAt(''); return; }
-    try {
-      const raw = JSON.parse(window.localStorage.getItem(MENTIONS_SEEN_KEY) || '{}');
-      setMentionsSeenAt(raw[currentUser.username] || '');
-    } catch (e) { setMentionsSeenAt(''); }
+    if (!currentUser) { setNotifications([]); return; }
+    let cancelled = false;
+    function load() {
+      apiGet('/api/notifications').then((res) => { if (!cancelled) setNotifications(res.notifications); }).catch(() => {});
+    }
+    load();
+    const interval = setInterval(load, 45000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [currentUser?.id]);
 
-  function markMentionsSeen() {
-    const now = new Date().toISOString();
-    setMentionsSeenAt(now);
-    try {
-      const raw = JSON.parse(window.localStorage.getItem(MENTIONS_SEEN_KEY) || '{}');
-      raw[currentUser.username] = now;
-      window.localStorage.setItem(MENTIONS_SEEN_KEY, JSON.stringify(raw));
-    } catch (e) { /* ignora */ }
+  async function markNotificationRead(id, read) {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read } : n)));
+    try { await apiPatch(`/api/notifications/${id}`, { read }); } catch (e) { /* próximo poll corrige */ }
+  }
+  async function markAllNotificationsRead() {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try { await apiPost('/api/notifications/read-all'); } catch (e) { /* próximo poll corrige */ }
+  }
+  async function markNotificationsReadForTarget(target) {
+    try { await apiPost('/api/notifications/mark-read-for-target', target); } catch (e) { /* ignora */ }
+    setNotifications((prev) => prev.map((n) => {
+      const t = n.target || {};
+      if (t.kind !== target.kind) return n;
+      if (target.ticketId && t.ticketId !== target.ticketId) return n;
+      if (target.activityId && t.activityId !== target.activityId) return n;
+      return { ...n, read: true };
+    }));
+  }
+  // Igual acima, mas só localmente — usado quando o servidor JÁ marcou
+  // como lida como efeito colateral de outra rota (o POST .../view do
+  // XFlow já faz isso no visualizar-TASK), então só falta refletir na tela
+  // sem bater a rota de novo.
+  function markTicketNotificationsReadLocally(ticketId) {
+    setNotifications((prev) => prev.map((n) => (
+      n.target && n.target.kind === 'xflow_ticket' && n.target.ticketId === ticketId ? { ...n, read: true } : n
+    )));
+  }
+  // Clicar numa notificação leva pro lugar exato (regra do Rafael: abrir o
+  // painel sozinho NÃO marca como lida — só isso aqui, que é o usuário de
+  // fato acessando a ocorrência, ou o botão explícito "marcar como lida").
+  function goToNotificationTarget(n) {
+    const t = n.target || {};
+    setShowNotifications(false);
+    if (t.kind === 'xflow_ticket') {
+      setPendingXflowOpen(t.ticketId);
+      if (workspaceMode !== 'xflow') goToWorkspace('xflow');
+    } else if (t.kind === 'activity') {
+      goToWorkspace('company');
+      confirmCompanySelection([t.projectId]);
+      openActivityDetail(t.projectId, t.activityId);
+    }
   }
 
   function withActingOrg(path, orgIdOverride) {
@@ -842,6 +885,10 @@ export default function App() {
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
+        notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
+        onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
+        pendingOpenTicketId={pendingXflowOpen} onPendingOpenConsumed={() => setPendingXflowOpen(null)}
+        onTicketViewed={markTicketNotificationsReadLocally}
       />
     );
   }
@@ -861,6 +908,8 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         saveState={personalBoardSaveState}
+        notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
+        onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
       />
     );
   }
@@ -1623,20 +1672,6 @@ export default function App() {
     document.title = prevTitle;
   }
 
-  const myMentions = [];
-  projects.forEach((p) => {
-    (p.activities || []).forEach((a) => {
-      if (a.deleted) return;
-      (a.comments || []).forEach((c) => {
-        if ((c.mentions || []).includes(currentUser.id)) {
-          myMentions.push({ pid: p.id, companyName: p.company.name || 'Empresa sem nome', activityId: a.id, activityTitle: a.title, commentId: c.id, text: c.text, ts: c.ts, author: c.author || '' });
-        }
-      });
-    });
-  });
-  myMentions.sort((x, y) => (y.ts || '').localeCompare(x.ts || ''));
-  const unreadMentionsCount = myMentions.filter((m) => m.ts > mentionsSeenAt).length;
-
   const activitiesSorted = activeProject ? sortActivities(activeProject.activities.filter((a) => !a.deleted)) : [];
   const orderMap = buildOrderMap(activitiesSorted);
 
@@ -1818,14 +1853,10 @@ export default function App() {
           ) : (
             <button style={S.primaryBtn} onClick={() => addActivity(activeProject.id)}><Plus size={15} /> Nova atividade</button>
           )}
-          <button
-            style={{ ...S.iconBtnGhost, position: 'relative' }}
-            title="Menções"
-            onClick={() => { setShowMentions(true); markMentionsSeen(); }}
-          >
-            <Bell size={16} />
-            {unreadMentionsCount > 0 && <span style={S.mentionBadge}>{unreadMentionsCount > 9 ? '9+' : unreadMentionsCount}</span>}
-          </button>
+          <NotificationBell
+            notifications={notifications} show={showNotifications} onToggle={() => setShowNotifications((v) => !v)}
+            onOpenItem={goToNotificationTarget} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead}
+          />
           <ThemeToggleBtn theme={theme} onToggle={toggleTheme} />
           <div style={S.userBadge}>
             <button style={S.userAvatarBtn} title={`Meu perfil — ${currentUser.name}`} onClick={() => setShowMyProfile(true)}>
@@ -2018,22 +2049,6 @@ export default function App() {
         );
       })()}
 
-      {showMentions && (
-        <SidePanel title="Menções" onClose={() => setShowMentions(false)}>
-          {myMentions.length === 0 && <div style={S.emptyMuted}>Ninguém te mencionou ainda.</div>}
-          {myMentions.map((m) => (
-            <div
-              key={m.commentId}
-              style={S.mentionRow}
-              onClick={() => { openActivityDetail(m.pid, m.activityId); setShowMentions(false); }}
-            >
-              <div style={S.logTs}>{m.author || 'Alguém'} · {fmtTs(m.ts)}</div>
-              <div style={S.mentionActivity}>{m.activityTitle} <span style={{ opacity: .6 }}>— {m.companyName}</span></div>
-              <div style={S.mentionText}>{m.text}</div>
-            </div>
-          ))}
-        </SidePanel>
-      )}
 
       {showSettings && activeProject && (
         <SidePanel title="Empresa e equipe" onClose={() => setShowSettings(false)}>
@@ -4908,7 +4923,7 @@ function BoardActivityLogModal({ board, onClose }) {
   );
 }
 
-function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName }) {
+function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
   // Histórico do navegador — Nível 2 (2026-08): trocar de página do quadro
   // pessoal. Nunca ativo em publicMode (/quadro/:token é a única rota que
   // usa URL de verdade — ver PROJECT_CONTEXT.md §9, não mexer nisso aqui).
@@ -5577,6 +5592,12 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
           {saveState === 'saving' && <span style={S.saveStateBadge}>Salvando…</span>}
           {saveState === 'saved' && <FadingSavedBadge />}
           {saveState === 'error' && <span style={{ ...S.saveStateBadge, color: '#e2574c' }}>Falha ao salvar — desfeito</span>}
+          {!publicMode && (
+            <NotificationBell
+              notifications={notifications} show={showNotifications} onToggle={onToggleNotifications}
+              onOpenItem={onOpenNotification} onMarkRead={onMarkNotificationRead} onMarkAllRead={onMarkAllNotificationsRead}
+            />
+          )}
           <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
           {onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
         </div>
@@ -5908,6 +5929,59 @@ function SidePanel({ title, onClose, children }) {
         </div>
         <div style={S.panelBody}>{children}</div>
       </div>
+    </div>
+  );
+}
+
+// Central de Notificações (2026-08) — componente compartilhado, usado nas
+// 3 telas (Empresas em App(), Gestão de Atividades em PersonalBoardScreen,
+// XFlow em XflowScreen) via o mesmo estado/lista levantados em App(), pra
+// contador e lista serem sempre os mesmos independente de onde o usuário
+// está navegando. Abrir o painel NÃO marca nada como lido (regra
+// explícita do Rafael) — só marca ao clicar em "marcar como lida", "marcar
+// todas como lidas", ou ao efetivamente abrir a TASK/atividade referida
+// (isso acontece no callback `onOpenItem`, fora daqui).
+export function NotificationBell({ notifications, show, onToggle, onOpenItem, onMarkRead, onMarkAllRead }) {
+  const unreadCount = notifications.filter((n) => !n.read).length;
+  return (
+    <div style={{ position: 'relative' }}>
+      <button style={{ ...S.iconBtnGhost, position: 'relative' }} title="Notificações" onClick={onToggle}>
+        <Bell size={16} />
+        {unreadCount > 0 && <span style={S.mentionBadge}>{unreadCount > 9 ? '9+' : unreadCount}</span>}
+      </button>
+      {show && (
+        <div className="no-print" style={S.overlay} onClick={onToggle}>
+          <div style={S.panel} onClick={(e) => e.stopPropagation()}>
+            <div style={S.panelHead}>
+              <div style={S.panelTitle}>{unreadCount > 0 ? `${unreadCount} notifica${unreadCount === 1 ? 'ção' : 'ções'}` : 'Notificações'}</div>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                {unreadCount > 0 && <button style={S.filterClearBtn} onClick={onMarkAllRead}>Marcar todas como lidas</button>}
+                <button style={S.iconBtnGhost} onClick={onToggle}><X size={16} /></button>
+              </div>
+            </div>
+            <div style={S.panelBody}>
+              {notifications.length === 0 && <div style={S.emptyMuted}>Nenhuma notificação ainda.</div>}
+              {notifications.map((n) => (
+                <div key={n.id} style={{ ...S.mentionRow, ...(n.read ? null : S.notificationUnread) }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }} onClick={() => onOpenItem(n)}>
+                      <div style={S.logTs}>{n.actorName ? `${n.actorName} · ` : ''}{fmtTs(n.createdAt)}</div>
+                      <div style={S.mentionActivity}>{n.title}</div>
+                      <div style={S.mentionText}>{n.body}</div>
+                    </div>
+                    <button
+                      style={{ ...S.filterClearBtn, whiteSpace: 'nowrap' }}
+                      onClick={(e) => { e.stopPropagation(); onMarkRead(n.id, !n.read); }}
+                    >
+                      {n.read ? 'Marcar não lida' : 'Marcar lida'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -8070,9 +8144,10 @@ export const S = {
   trashRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-1)' },
   trashTitle: { fontSize: 13, fontWeight: 700, color: 'var(--text-2)' },
   trashParent: { fontSize: 11.5, fontWeight: 400, color: 'var(--text-5)' },
-  mentionRow: { padding: '10px 0', borderBottom: '1px solid var(--border-1)', cursor: 'pointer' },
+  mentionRow: { padding: '10px 10px', borderBottom: '1px solid var(--border-1)', cursor: 'pointer', borderRadius: 8 },
   mentionActivity: { fontSize: 13, fontWeight: 700, color: 'var(--text-2)', marginTop: 3 },
   mentionText: { fontSize: 12, color: 'var(--text-4)', marginTop: 3, lineHeight: 1.4 },
+  notificationUnread: { background: 'rgba(245,196,0,.09)', borderLeft: '3px solid #F5C400', paddingLeft: 7 },
 
   settingsBlock: { marginBottom: 20 },
   areaRow: { background: 'var(--bg-4)', border: '1px solid var(--border-1)', borderRadius: 8, padding: 10, marginBottom: 8 },

@@ -5,6 +5,7 @@ import {
   rowToUser, findUserByUsername, findUserById, requireAuth, requireMaster, requireMasterOrPricetax, requireSuperAdmin, optionalAuth, toISODateSafe,
 } from './auth.js';
 import { lookupCnpj, cleanCnpj, formatCnpj } from './cnpjLookup.js';
+import { createNotification, rowToNotification } from './notifications.js';
 
 function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
@@ -22,6 +23,70 @@ function canAccessProject(user, project, orgId) {
   if (user.allCompaniesAccess) return true;
   const cnpj = project.company && project.company.cnpj;
   return !!cnpj && (user.allowedCnpjs || []).includes(cnpj);
+}
+
+// Central de Notificações — geração pro lado Empresas (2026-08). Ao
+// contrário do XFlow (ações discretas), atividade é salva como o
+// projeto INTEIRO de uma vez (autosave), então a única forma de saber
+// "o que mudou de fato" é comparar o estado antes/depois aqui, no
+// momento do PATCH. `responsible`/`participants` são nomes de texto
+// livre (papel/departamento na empresa, ver PROJECT_CONTEXT.md §20) —
+// só vira notificação quando o nome bate exatamente com o de algum
+// usuário real da org (case-insensitive); não bate com nenhum usuário,
+// não notifica ninguém (comportamento normal pra papéis como
+// "Financeiro"/"Fiscal" que não são uma pessoa logada).
+async function notifyActivityChanges(req, projectId, projectName, current, next_) {
+  try {
+    const currentById = new Map((current.activities || []).map((a) => [a.id, a]));
+    const { rows: orgUsers } = await pool.query('SELECT id, name FROM users WHERE org_id=$1', [req.user.orgId]);
+    if (!orgUsers.length) return;
+    const byName = new Map(orgUsers.map((u) => [u.name.trim().toLowerCase(), u]));
+    const actorName = req.user.name;
+    for (const a of (next_.activities || [])) {
+      if (a.deleted) continue;
+      const before = currentById.get(a.id);
+      const beforeCommentIds = new Set(((before && before.comments) || []).map((c) => c.id));
+      for (const c of (a.comments || [])) {
+        if (beforeCommentIds.has(c.id)) continue;
+        for (const mentionedId of (c.mentions || [])) {
+          if (!mentionedId || mentionedId === req.user.id) continue;
+          await createNotification(pool, {
+            orgId: req.user.orgId, userId: mentionedId, type: 'activity_mention',
+            title: `${a.title} — ${projectName}`,
+            body: `${actorName} mencionou você em um comentário: "${(c.text || '').length > 140 ? `${c.text.slice(0, 140)}…` : (c.text || '')}"`,
+            actorName, target: { kind: 'activity', projectId, activityId: a.id },
+          });
+        }
+      }
+      if (!before) continue;
+      if (a.responsible && a.responsible !== before.responsible) {
+        const u = byName.get(a.responsible.trim().toLowerCase());
+        if (u && u.id !== req.user.id) {
+          await createNotification(pool, {
+            orgId: req.user.orgId, userId: u.id, type: 'activity_assigned',
+            title: `${a.title} — ${projectName}`,
+            body: `${actorName} te definiu como responsável por esta atividade.`,
+            actorName, target: { kind: 'activity', projectId, activityId: a.id },
+          });
+        }
+      }
+      const beforeParticipants = new Set((before.participants || []));
+      for (const name of (a.participants || [])) {
+        if (beforeParticipants.has(name)) continue;
+        const u = byName.get((name || '').trim().toLowerCase());
+        if (u && u.id !== req.user.id) {
+          await createNotification(pool, {
+            orgId: req.user.orgId, userId: u.id, type: 'activity_linked',
+            title: `${a.title} — ${projectName}`,
+            body: `${actorName} te vinculou a esta atividade.`,
+            actorName, target: { kind: 'activity', projectId, activityId: a.id },
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Falha ao gerar notificações de atividade', e);
+  }
 }
 
 function sameOrg(req, targetOrgId) {
@@ -384,6 +449,8 @@ router.patch('/projects/:id', requireAuth, async (req, res, next) => {
       return res.status(400).json({ message: 'Payload de projeto inválido.' });
     }
     await pool.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(next_), id]);
+    const projectName = (next_.company && (next_.company.nomeFantasia || next_.company.name)) || 'Empresa';
+    await notifyActivityChanges(req, id, projectName, current, next_);
     res.json({ project: next_ });
   } catch (e) { next(e); }
 });
@@ -410,6 +477,59 @@ router.patch('/personal-board', requireAuth, async (req, res, next) => {
       [req.user.id, JSON.stringify(board)]
     );
     res.json({ board });
+  } catch (e) { next(e); }
+});
+
+// ---------- Notificações (2026-08) ----------
+// Central global — mesma lista/contador nas 3 telas (Empresas, Gestão de
+// Atividades, XFlow), ver PROJECT_CONTEXT.md §20. Geração acontece perto
+// de cada evento (server/xflow.js pra TASK, notifyActivityChanges() acima
+// pra atividade de empresa); aqui só é leitura/estado (lida/não lida).
+
+router.get('/notifications', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 200',
+      [req.user.id]
+    );
+    res.json({ notifications: rows.map(rowToNotification) });
+  } catch (e) { next(e); }
+});
+
+router.patch('/notifications/:id', requireAuth, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { read } = req.body || {};
+    const { rows } = await pool.query(
+      'UPDATE notifications SET read=$1 WHERE id=$2 AND user_id=$3 RETURNING *',
+      [!!read, id, req.user.id]
+    );
+    if (!rows[0]) return res.status(404).json({ message: 'Notificação não encontrada.' });
+    res.json({ notification: rowToNotification(rows[0]) });
+  } catch (e) { next(e); }
+});
+
+router.post('/notifications/read-all', requireAuth, async (req, res, next) => {
+  try {
+    await pool.query('UPDATE notifications SET read=true WHERE user_id=$1 AND read=false', [req.user.id]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// Chamado quando o usuário efetivamente acessa a ocorrência (abre a
+// atividade) — regra do Rafael: só sai do contador quando lida OU quando
+// acessada, nunca só por abrir o painel do sino.
+router.post('/notifications/mark-read-for-target', requireAuth, async (req, res, next) => {
+  try {
+    const { kind, ticketId, projectId, activityId } = req.body || {};
+    if (!kind) return res.status(400).json({ message: 'kind é obrigatório.' });
+    const conds = ['user_id=$1', 'read=false', "target->>'kind'=$2"];
+    const params = [req.user.id, kind];
+    if (ticketId) { params.push(ticketId); conds.push(`target->>'ticketId'=$${params.length}`); }
+    if (projectId) { params.push(projectId); conds.push(`target->>'projectId'=$${params.length}`); }
+    if (activityId) { params.push(activityId); conds.push(`target->>'activityId'=$${params.length}`); }
+    await pool.query(`UPDATE notifications SET read=true WHERE ${conds.join(' AND ')}`, params);
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
