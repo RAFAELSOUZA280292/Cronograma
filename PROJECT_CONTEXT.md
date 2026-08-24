@@ -228,25 +228,60 @@ Decisões estruturais fixas:
   qualquer gate de sessão** (`sessionChecked`/`currentUser`) — por isso
   funciona sem login. Não existe React Router nem qualquer lib de rota; é a
   única exceção onde a **URL** importa pra navegação.
-- **Histórico do navegador sem roteador (2026-08, Nível 1)**: o botão
+- **Histórico do navegador sem roteador (2026-08, Níveis 1 e 2)**: o botão
   Voltar do navegador simplesmente saía do site (nenhuma navegação dentro
   do app virava entrada de histórico) — reportado pelo Rafael. Corrigido
   sem introduzir rota nenhuma: `history.pushState({navTag}, '', mesma URL)`
-  em cada troca de **módulo** (Empresas/Gestão de Atividades/XFlow) e das
-  telas de admin (Usuários/Organizações), via 3 helpers em `App()`
-  (`goToWorkspace(mode)`, `goToUsers(open)`, `goToOrgAdmin(open)` —
-  **todo** call site que antes chamava `setWorkspaceMode`/`setShowUsers`/
-  `setShowOrgAdmin` direto agora passa por eles, exceto `handleLogout()` e
-  o reset inicial dentro de `enterOrganization()`, que empurra o próprio
-  `pushLocation('company')` no final). Um `popstate` listener
-  (`applyLocationTag()`) refaz o estado quando o usuário navega pelo
-  histórico. A URL **nunca muda** — só o `state` da entrada — então não
-  colide com a rota pública `/quadro/:token` acima. **De propósito não
-  cobre** troca de aba (Resumo/Gantt/Tabela/Fases/Quadro), filtros, ou
-  modais de edição — só os "módulos" listados; ver PROJECT_CONTEXT.md
-  (este arquivo) se for estender pra um Nível 2 (sub-navegação: escolher
-  empresa, Quadro↔Lista do XFlow) ou Nível 3 (abrir/fechar
-  `ActivityDetailModal`/`TicketDetailModal` como "voltar fecha").
+  a cada navegação "reconhecível" — a URL **nunca muda** (só o `state` da
+  entrada), então não colide com a rota pública `/quadro/:token` acima.
+  **De propósito não cobre** troca de aba (Resumo/Gantt/Tabela/Fases/
+  Quadro), filtros, ou modais de edição — só os pontos listados abaixo.
+  Falta só o Nível 3 (abrir/fechar `ActivityDetailModal`/`TicketDetailModal`
+  como "voltar fecha").
+  - **Nível 1 — troca de módulo** (`App.jsx`): Empresas/Gestão de
+    Atividades/XFlow + telas de admin (Usuários/Organizações), via 3
+    helpers (`goToWorkspace(mode)`, `goToUsers(open)`, `goToOrgAdmin(open)`)
+    que substituem **todo** call site que antes chamava
+    `setWorkspaceMode`/`setShowUsers`/`setShowOrgAdmin` direto (exceção:
+    `handleLogout()` e o reset automático de `workspaceMode` no
+    `useEffect` de troca de `currentUser`/`actingOrg` — ambos são resets
+    automáticos, não navegação de usuário). Um `popstate` listener
+    (`applyLocationTag()`) refaz o estado ao navegar pelo histórico.
+  - **Nível 2 — sub-navegação dentro do módulo**: cada módulo tem seu
+    próprio esquema, todos seguindo o mesmo padrão (tag + `pushState` +
+    `popstate` local, sem interferir no listener de Nível 1 porque a tag
+    de módulo — `navTag` — nunca muda dentro do mesmo `pushState`, só o
+    campo extra):
+    - **Empresas**: `locationTag()` ganhou um 4º parâmetro (`selected`,
+      = `companySelectionConfirmed`) — `'company:select'` (seletor de
+      empresas) vs `'company'` (workspace confirmado). Helpers
+      `goToCompanySelector()`/`confirmCompanySelection(ids)` substituem os
+      `setCompanySelectionConfirmed` diretos nos botões "Trocar empresas"
+      e "Continuar"; `enterOrganization()`/`exitOrganization()` (Super
+      Admin) e a criação de Grupo Empresarial (que auto-confirma a seleção)
+      também empurram a tag certa. O efeito que auto-confirma pra quem tem
+      0-1 empresa **não** empurra nada (nunca existiu seletor pra
+      "desfazer").
+    - **XFlow** (`XFlow.jsx`, local a `XFlowScreen`): um segundo campo no
+      mesmo `state`, `xflowSub` (`'quadro'`/`'lista'`/`'archived'`/
+      `'trash'`), somado ao `navTag:'xflow'` que o Nível 1 já põe.
+      `goToXflowView(mode)`/`toggleXflowArchived()`/`toggleXflowTrash()`
+      substituem os `setViewMode`/`setShowArchived`/`setShowTrash` diretos.
+      Estado inicial é lido direto de `window.history.state` no mount (não
+      dá pra confiar só no `popstate` — se `XFlowScreen` **monta** por
+      causa de um Voltar/Avançar que troca de módulo, o listener dela
+      ainda nem existia quando o evento disparou).
+    - **Gestão de Atividades** (`App.jsx`, local a `PersonalBoardScreen`):
+      mesmo padrão, campo `personalSub` = id da página/board ativa.
+      `goToBoardPage(boardId)` substitui os `setActiveBoardId` diretos (aba
+      clicada e `addBoard()`). **Nunca ativo em `publicMode`** (a tela
+      pública de `/quadro/:token` reaproveita este mesmo componente, mas
+      não deve tocar em `window.history` — é a exceção de URL real).
+    - Todos os três seguem a mesma regra de ouro do Nível 1: o `popstate`
+      handler de cada um só reage se `state.navTag` for o dele
+      (`'xflow'`/`'personal'`) — se for outro módulo, quem cuida é o
+      listener do Nível 1 em `App.jsx` (o componente filho já vai
+      desmontar).
 - **Exceção ao arquivo único**: `src/xflow/XFlow.jsx` (módulo XFlow, §18) é o
   primeiro pedaço de frontend fora de `App.jsx` — decisão deliberada porque
   XFlow não compartilha lógica de mutação com Empresas/Gestão de Atividades.

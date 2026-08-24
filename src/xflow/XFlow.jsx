@@ -2321,19 +2321,72 @@ function XflowBoardView({ tickets, currentUser, teamById, filters, setFilters, o
 }
 
 export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPersonal, onLogout, theme, onToggleTheme }) {
+  // Histórico do navegador — Nível 2 (2026-08): sub-navegação local do
+  // XFlow (Quadro/Lista/Arquivados/Lixeira), em cima da entrada de Nível 1
+  // que App.jsx já empurra ao entrar no módulo ("navTag":"xflow"). Lido uma
+  // vez no mount (cobre o caso de montar via Voltar/Avançar, quando o
+  // history.state já chega com o sub certo) — ver PROJECT_CONTEXT.md §9.
+  const initXflowSub = (() => {
+    try {
+      const s = window.history.state;
+      if (s && s.navTag === 'xflow' && s.xflowSub) return s.xflowSub;
+    } catch (e) { /* ignora */ }
+    return 'quadro';
+  })();
   const [tickets, setTickets] = useState([]);
   const [team, setTeam] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [openTicketId, setOpenTicketId] = useState(null);
-  const [showArchived, setShowArchived] = useState(false);
-  const [showTrash, setShowTrash] = useState(false);
+  const [showArchived, setShowArchived] = useState(initXflowSub === 'archived');
+  const [showTrash, setShowTrash] = useState(initXflowSub === 'trash');
   const [trashTickets, setTrashTickets] = useState([]);
   const [trashLoaded, setTrashLoaded] = useState(false);
   const [filters, setFilters] = useState(BLANK_FILTERS);
   const [toastMsg, setToastMsg] = useState('');
   const [affectedCompanies, setAffectedCompanies] = useState([]);
-  const [viewMode, setViewMode] = useState('quadro');
+  const [viewMode, setViewMode] = useState(initXflowSub === 'lista' ? 'lista' : 'quadro');
+
+  function pushXflowSub(sub) {
+    try { window.history.pushState({ navTag: 'xflow', xflowSub: sub }, '', window.location.href); } catch (e) { /* ignora */ }
+  }
+  function goToXflowView(mode) {
+    setShowArchived(false);
+    setShowTrash(false);
+    setViewMode(mode);
+    pushXflowSub(mode);
+  }
+  function toggleXflowArchived() {
+    const opening = !showArchived;
+    setShowArchived(opening);
+    setShowTrash(false);
+    pushXflowSub(opening ? 'archived' : viewMode);
+  }
+  function toggleXflowTrash() {
+    const opening = !showTrash;
+    setShowTrash(opening);
+    setShowArchived(false);
+    pushXflowSub(opening ? 'trash' : viewMode);
+  }
+  useEffect(() => {
+    try {
+      const cur = window.history.state;
+      if (!cur || cur.navTag !== 'xflow' || !cur.xflowSub) {
+        window.history.replaceState({ navTag: 'xflow', xflowSub: initXflowSub }, '', window.location.href);
+      }
+    } catch (e) { /* ignora */ }
+    function onPopState(e) {
+      const state = e.state;
+      if (!state || state.navTag !== 'xflow') return; // troca de módulo — App.jsx cuida
+      const sub = state.xflowSub || 'quadro';
+      if (sub === 'trash') { setShowTrash(true); setShowArchived(false); }
+      else if (sub === 'archived') { setShowArchived(true); setShowTrash(false); }
+      else { setShowTrash(false); setShowArchived(false); setViewMode(sub === 'lista' ? 'lista' : 'quadro'); }
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function showToast(msg) { setToastMsg(msg); setTimeout(() => setToastMsg(''), 4500); }
 
@@ -2483,21 +2536,21 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {!showArchived && !showTrash && (
             <div style={{ display: 'flex', gap: 4, background: 'var(--bg-3)', padding: 3, borderRadius: 8 }}>
-              <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'quadro' ? S.pbGhostBtnActive : {}) }} onClick={() => setViewMode('quadro')}>
+              <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'quadro' ? S.pbGhostBtnActive : {}) }} onClick={() => goToXflowView('quadro')}>
                 <LayoutGrid size={13} /> Quadro
               </button>
-              <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'lista' ? S.pbGhostBtnActive : {}) }} onClick={() => setViewMode('lista')}>
+              <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'lista' ? S.pbGhostBtnActive : {}) }} onClick={() => goToXflowView('lista')}>
                 <LayoutList size={13} /> Lista
               </button>
             </div>
           )}
           {canArchiveTier && (
-            <button style={{ ...S.pbGhostBtn, ...(showArchived ? S.pbGhostBtnActive : {}) }} onClick={() => { setShowArchived((v) => !v); setShowTrash(false); }}>
+            <button style={{ ...S.pbGhostBtn, ...(showArchived ? S.pbGhostBtnActive : {}) }} onClick={toggleXflowArchived}>
               <Archive size={13} /> Arquivados
             </button>
           )}
           {canRestoreTier && (
-            <button style={{ ...S.pbGhostBtn, ...(showTrash ? S.pbGhostBtnActive : {}) }} onClick={() => { setShowTrash((v) => !v); setShowArchived(false); }}>
+            <button style={{ ...S.pbGhostBtn, ...(showTrash ? S.pbGhostBtnActive : {}) }} onClick={toggleXflowTrash}>
               <Trash2 size={13} /> Lixeira
             </button>
           )}
