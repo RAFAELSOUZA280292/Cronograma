@@ -1425,6 +1425,25 @@ confirmação não confere) aparecem inline no modal; sucesso mostra
 atual errada barra corretamente, senha certa troca e permite login
 imediato com a nova senha.
 
+**Trocar senha direto na tela de login (2026-08, pedido do Rafael)**:
+`LoginGate` ganhou um segundo modo (link "Trocar senha" abaixo do botão
+Entrar) — pra quem só tem a senha antiga em mãos, sem precisar logar
+primeiro e depois abrir "Meu perfil". Formulário pede usuário + senha
+atual + nova senha (2x); ao confirmar, troca a senha **e já loga**, sem
+etapa extra. Endpoint próprio `POST /api/auth/change-password-login`
+(`server/routes.js`, sem `requireAuth` — ainda não existe sessão nesse
+ponto) espelha exatamente a validação de `/auth/login` (usuário
+existe, não bloqueado, não expirado) antes de conferir a senha atual
+com `comparePassword()`; se tudo bate, grava o hash novo, assina o JWT
+e seta o cookie igual ao login normal — front só troca `setCurrentUser`,
+não tem uma segunda chamada de login depois. Mensagens deliberadamente
+assimétricas com o login normal (usuário inexistente → "Usuário ou
+senha inválidos.", senha atual errada → "Senha atual incorreta.") —
+mesmo padrão já usado no `POST /api/auth/change-password` autenticado.
+Testado localmente: senha atual errada barra com a mensagem certa;
+senha certa troca e entra direto no workspace, sem precisar digitar a
+senha nova de novo numa tela de login separada.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

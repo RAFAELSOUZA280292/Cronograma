@@ -68,6 +68,47 @@ router.post('/auth/login', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Trocar senha direto na tela de login (2026-08, pedido do Rafael) — pra
+// quando o usuário só quer trocar a senha antiga sem precisar entrar
+// primeiro e depois abrir "Meu perfil". Mesma checagem de bloqueio/
+// expiração do login normal antes de aceitar a troca.
+router.post('/auth/change-password-login', async (req, res, next) => {
+  try {
+    const { username, currentPassword, newPassword } = req.body || {};
+    if (!username || !currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Preencha usuário, senha atual e nova senha.' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ message: 'A nova senha precisa ter pelo menos 4 caracteres.' });
+    }
+    const row = await findUserByUsername(username);
+    if (!row) return res.status(401).json({ message: 'Usuário ou senha inválidos.' });
+
+    if (!row.blocked && row.expires_at && toISODateSafe(row.expires_at) < todayISO()) {
+      await pool.query(
+        `UPDATE users SET blocked = true, block_reason = 'Acesso expirado', updated_at = now() WHERE id = $1`,
+        [row.id]
+      );
+      return res.status(403).json({ message: 'Acesso expirado. Fale com um PRICETAX Master para renovar.' });
+    }
+    if (row.blocked) {
+      return res.status(403).json({ message: row.block_reason || 'Acesso bloqueado. Fale com um PRICETAX Master.' });
+    }
+
+    const ok = await comparePassword(currentPassword, row.password_hash);
+    if (!ok) return res.status(401).json({ message: 'Senha atual incorreta.' });
+
+    const hash = await hashPassword(newPassword);
+    const { rows } = await pool.query(
+      `UPDATE users SET password_hash=$1, updated_at=now() WHERE id=$2 RETURNING *`,
+      [hash, row.id]
+    );
+    const token = signToken(row.id);
+    setAuthCookie(res, token);
+    res.json({ user: rowToUser(rows[0]) });
+  } catch (e) { next(e); }
+});
+
 router.post('/auth/logout', (req, res) => {
   clearAuthCookie(res);
   res.json({});

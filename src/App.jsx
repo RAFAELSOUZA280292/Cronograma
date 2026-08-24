@@ -725,6 +725,16 @@ export default function App() {
     }
   }
 
+  async function handleChangePasswordAndLogin(username, currentPassword, newPassword) {
+    try {
+      const res = await apiPost('/api/auth/change-password-login', { username, currentPassword, newPassword });
+      setLoginError(null);
+      setCurrentUser(res.user);
+    } catch (e) {
+      setLoginError({ message: e.message });
+    }
+  }
+
   async function handleLogout() {
     try { await apiPost('/api/auth/logout'); } catch (e) { /* ignora */ }
     setCurrentUser(null);
@@ -773,7 +783,7 @@ export default function App() {
   }
 
   if (!currentUser) {
-    return <LoginGate onLogin={handleLogin} loginError={loginError} theme={theme} onToggleTheme={toggleTheme} />;
+    return <LoginGate onLogin={handleLogin} onChangePasswordAndLogin={handleChangePasswordAndLogin} loginError={loginError} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   if (!projectsLoaded) {
@@ -2308,16 +2318,38 @@ function LoadingScreen({ theme }) {
   );
 }
 
-function LoginGate({ onLogin, loginError, theme, onToggleTheme }) {
+function LoginGate({ onLogin, onChangePasswordAndLogin, loginError, theme, onToggleTheme }) {
+  const [mode, setMode] = useState('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [localError, setLocalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  function switchMode(next) {
+    setMode(next);
+    setLocalError('');
+    setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+  }
 
   async function submit(e) {
     e.preventDefault();
-    if (!username || !password || submitting) return;
+    if (submitting) return;
+    if (mode === 'login') {
+      if (!username || !password) return;
+      setSubmitting(true);
+      await onLogin(username, password);
+      setSubmitting(false);
+      return;
+    }
+    setLocalError('');
+    if (!username || !currentPassword || !newPassword) { setLocalError('Preencha usuário, senha atual e nova senha.'); return; }
+    if (newPassword.length < 4) { setLocalError('A nova senha precisa ter pelo menos 4 caracteres.'); return; }
+    if (newPassword !== confirmPassword) { setLocalError('A confirmação não confere com a nova senha.'); return; }
     setSubmitting(true);
-    await onLogin(username, password);
+    await onChangePasswordAndLogin(username, currentPassword, newPassword);
     setSubmitting(false);
   }
 
@@ -2339,16 +2371,34 @@ function LoginGate({ onLogin, loginError, theme, onToggleTheme }) {
         <div style={S.loginBox}>
           <BrandLogo theme={theme} style={S.loginLogo} />
           <div style={S.loginEyebrow}>Cronograma de Reforma Tributária</div>
-          <h1 style={S.loginTitle}>Entrar</h1>
-          <p style={S.loginSub}>Use seu usuário e senha para acessar o cronograma.</p>
-          {loginError && (
-            <div style={S.loginBlockedMsg}>{loginError.message}</div>
+          <h1 style={S.loginTitle}>{mode === 'login' ? 'Entrar' : 'Trocar senha'}</h1>
+          <p style={S.loginSub}>
+            {mode === 'login' ? 'Use seu usuário e senha para acessar o cronograma.' : 'Informe seu usuário, a senha atual e a nova senha. Você já entra em seguida.'}
+          </p>
+          {loginError && <div style={S.loginBlockedMsg}>{loginError.message}</div>}
+          {localError && <div style={S.loginBlockedMsg}>{localError}</div>}
+          {mode === 'login' ? (
+            <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <input type="text" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Usuário" autoComplete="username" />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" autoComplete="current-password" />
+              <button type="submit" style={S.primaryBtn} disabled={submitting}>{submitting ? 'Entrando...' : 'Entrar'}</button>
+            </form>
+          ) : (
+            <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <input type="text" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Usuário" autoComplete="username" />
+              <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Senha atual" autoComplete="current-password" />
+              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Nova senha" autoComplete="new-password" />
+              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirmar nova senha" autoComplete="new-password" />
+              <button type="submit" style={S.primaryBtn} disabled={submitting}>{submitting ? 'Trocando...' : 'Trocar senha e entrar'}</button>
+            </form>
           )}
-          <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <input type="text" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Usuário" autoComplete="username" />
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" autoComplete="current-password" />
-            <button type="submit" style={S.primaryBtn} disabled={submitting}>{submitting ? 'Entrando...' : 'Entrar'}</button>
-          </form>
+          <button
+            type="button"
+            onClick={() => switchMode(mode === 'login' ? 'changePassword' : 'login')}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-5)', fontSize: 12, cursor: 'pointer', marginTop: 14, textAlign: 'center', textDecoration: 'underline' }}
+          >
+            {mode === 'login' ? 'Trocar senha' : 'Voltar para o login'}
+          </button>
         </div>
       </div>
     </div>
