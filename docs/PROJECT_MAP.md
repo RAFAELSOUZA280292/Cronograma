@@ -180,8 +180,12 @@ usam `S.detailBox`.
   `XflowBoardCard` — 15 colunas fixas (uma por status real do fluxo +
   "Encerrada" agregando os 4 encerramentos antecipados), arrastar-e-soltar
   mapeado pra ações nomeadas via `resolveDrag()`/`XFLOW_BOARD_DRAG_RULES`/
-  `XFLOW_BOARD_RESUME_RULES` (nunca seta status livre). Detalhe completo em
-  `PROJECT_CONTEXT.md` §18.
+  `XFLOW_BOARD_RESUME_RULES` (nunca seta status livre). Filtro/contagem
+  por "Responsável atual" (2026-08): `ballHolderKey()`/
+  `ballHolderLabelForKey()`, novo select em `FilterBar` (prop `teamById`,
+  hoje em todo lugar que renderiza `FilterBar`), painel "Por responsável
+  atual" em `GestorHome` (clicável, aplica o filtro). Detalhe completo em
+  `PROJECT_CONTEXT.md` §18.1.
 - Acesso: card "XFlow" no `WorkspaceGateScreen`, visível só se
   `currentUser.xflowRole` (reporter/dev/gestao) — controlado em
   `NewUserModal`/`EditUserModal`. Papel efetivo (inclui `admin`) calculado em

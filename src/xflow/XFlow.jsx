@@ -379,6 +379,24 @@ function whoHasTheBall(ticket, teamById) {
   return 'Ninguém atribuído';
 }
 
+// Chave normalizada de "quem está com a bola" — usada pra filtro e contagem
+// (2026-08). Diferente de whoHasTheBall(): não fragmenta por waitingOnType
+// (senão "Solicitante"/"Aguardando resposta do financeiro"/etc. viravam
+// grupos separados) — cada tipo de dono vira um balde único e estável.
+function ballHolderKey(t) {
+  if (t.ballHolderType === 'dev' && t.ballHolderUserId) return `dev:${t.ballHolderUserId}`;
+  if (t.ballHolderType === 'reporter') return 'reporter';
+  if (t.ballHolderType === 'gestao') return 'gestao';
+  if (t.ballHolderType === 'terceiro') return 'terceiro';
+  if (t.ballHolderType === 'triage_queue') return 'triage_queue';
+  return 'none';
+}
+const BALL_HOLDER_BUCKET_LABEL = { gestao: 'Gestão', reporter: 'Solicitante', terceiro: 'Terceiro', triage_queue: 'Fila de triagem', none: 'Ninguém' };
+function ballHolderLabelForKey(key, teamById) {
+  if (key.startsWith('dev:')) return (teamById[key.slice(4)] && teamById[key.slice(4)].name) || key.slice(4);
+  return BALL_HOLDER_BUCKET_LABEL[key] || key;
+}
+
 function captureMetadata() {
   let sessionId = '';
   try {
@@ -1643,7 +1661,7 @@ function agingBucketOf(days) {
 const AGING_BUCKET_ORDER = ['0-1', '2-3', '4-7', '8-15', '15+'];
 const AGING_BUCKET_LABEL = { '0-1': '0–1 dia', '2-3': '2–3 dias', '4-7': '4–7 dias', '8-15': '8–15 dias', '15+': '15+ dias' };
 
-const BLANK_FILTERS = { search: '', status: '', product: '', severity: '', priority: '', assigneeId: '', slaState: '', agingBucket: '' };
+const BLANK_FILTERS = { search: '', status: '', product: '', severity: '', priority: '', assigneeId: '', slaState: '', agingBucket: '', ballHolder: '' };
 
 function matchesFilters(t, filters) {
   if (filters.search) {
@@ -1656,6 +1674,7 @@ function matchesFilters(t, filters) {
   if (filters.severity && t.severity !== filters.severity) return false;
   if (filters.priority && t.priority !== filters.priority) return false;
   if (filters.assigneeId && t.assigneeId !== filters.assigneeId) return false;
+  if (filters.ballHolder && ballHolderKey(t) !== filters.ballHolder) return false;
   if (filters.slaState && t.slaResolutionState !== filters.slaState) return false;
   if (filters.agingBucket && agingBucketOf(daysSince(t.createdAt)) !== filters.agingBucket) return false;
   return true;
@@ -1764,8 +1783,9 @@ function TicketList({ list, teamById, onOpen, emptyLabel }) {
   );
 }
 
-function FilterBar({ filters, setFilters, team }) {
+function FilterBar({ filters, setFilters, team, teamById }) {
   function set(patch) { setFilters((f) => ({ ...f, ...patch })); }
+  const devs = teamById ? Object.values(teamById).filter((m) => m.xflowRole === 'dev').sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')) : [];
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '14px 0' }}>
       <input type="text" placeholder="Buscar por ID, título, empresa, usuário..." value={filters.search} onChange={(e) => set({ search: e.target.value })} style={{ flex: '1 1 220px', minWidth: 180 }} />
@@ -1787,8 +1807,18 @@ function FilterBar({ filters, setFilters, team }) {
       </select>
       {team && team.length > 0 && (
         <select value={filters.assigneeId} onChange={(e) => set({ assigneeId: e.target.value })} style={{ width: 'auto' }}>
-          <option value="">Todo responsável</option>
+          <option value="">Atribuído a: todos</option>
           {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+      )}
+      {teamById && (
+        <select value={filters.ballHolder} onChange={(e) => set({ ballHolder: e.target.value })} style={{ width: 'auto' }} title="Quem precisa agir agora, não a atribuição fixa">
+          <option value="">Responsável atual: todos</option>
+          {devs.map((m) => <option key={m.id} value={`dev:${m.id}`}>{m.name}</option>)}
+          <option value="gestao">Gestão</option>
+          <option value="reporter">Solicitante</option>
+          <option value="terceiro">Terceiro</option>
+          <option value="triage_queue">Fila de triagem</option>
         </select>
       )}
       <select value={filters.slaState} onChange={(e) => set({ slaState: e.target.value })} style={{ width: 'auto' }}>
@@ -1826,7 +1856,7 @@ function ReporterHome({ tickets, currentUser, teamById, filters, setFilters, onO
           <StatCard key={c.key} label={c.label} count={tickets.filter((t) => c.pred(t) && !t.archived).length} active={quick === c.key} onClick={() => setQuick(quick === c.key ? null : c.key)} />
         ))}
       </div>
-      <FilterBar filters={filters} setFilters={setFilters} />
+      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} />
       <TicketList list={list} teamById={teamById} onOpen={onOpen} />
     </>
   );
@@ -1846,7 +1876,7 @@ function DevHome({ tickets, currentUser, teamById, filters, setFilters, onOpen }
   ];
   return (
     <>
-      <FilterBar filters={filters} setFilters={setFilters} />
+      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} />
       {fila.length > 0 && (
         <div style={{ marginTop: 4 }}>
           <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-4)', marginBottom: 2 }}>Fila de triagem ({fila.length})</div>
@@ -1910,6 +1940,17 @@ function GestorHome({ tickets, team, teamById, filters, setFilters, onOpen }) {
     byDev[t.assigneeId].devSeconds += (t.timeBreakdown && t.timeBreakdown.dev) || 0;
   });
 
+  // "Responsável atual" (quem está com a bola agora) — diferente de byDev
+  // acima, que é a atribuição fixa. Aqui cobre todo mundo (dev/gestão/
+  // solicitante/terceiro/fila), não só dev, e reflete pra onde o ticket
+  // está de fato esperando ação neste momento (2026-08, pedido do Rafael).
+  const byBallHolder = {};
+  active.forEach((t) => {
+    const key = ballHolderKey(t);
+    if (key === 'none') return;
+    byBallHolder[key] = (byBallHolder[key] || 0) + 1;
+  });
+
   return (
     <>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -1956,9 +1997,28 @@ function GestorHome({ tickets, team, teamById, filters, setFilters, onOpen }) {
           ))}
           {Object.keys(byDev).length === 0 && <div style={S.emptyMuted}>Nenhum ticket atribuído.</div>}
         </div>
+
+        <div style={{ ...S.accessBlock, flex: '1 1 260px' }}>
+          <div style={S.settingsLabel}>Por responsável atual</div>
+          <div style={{ fontSize: 10.5, color: 'var(--text-6)', marginTop: -4, marginBottom: 6 }}>Quem precisa agir agora — clique pra filtrar</div>
+          {Object.entries(byBallHolder).sort((a, b) => b[1] - a[1]).map(([key, count]) => {
+            const isActive = filters.ballHolder === key;
+            return (
+              <div
+                key={key}
+                style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginTop: 6, cursor: 'pointer' }}
+                onClick={() => setFilters((f) => ({ ...f, ballHolder: f.ballHolder === key ? '' : key }))}
+              >
+                <span style={{ color: isActive ? 'var(--text-1)' : 'var(--text-4)', fontWeight: isActive ? 700 : 400 }}>{ballHolderLabelForKey(key, teamById)}</span>
+                <span style={{ fontWeight: 700 }}>{count}</span>
+              </div>
+            );
+          })}
+          {Object.keys(byBallHolder).length === 0 && <div style={S.emptyMuted}>Nada em aberto.</div>}
+        </div>
       </div>
 
-      <FilterBar filters={filters} setFilters={setFilters} team={team} />
+      <FilterBar filters={filters} setFilters={setFilters} team={team} teamById={teamById} />
       <TicketList list={list} teamById={teamById} onOpen={onOpen} />
     </>
   );
@@ -1969,7 +2029,7 @@ function ArchivedView({ tickets, teamById, filters, setFilters, onOpen, onUnarch
   const list = archived.filter((t) => matchesFilters(t, filters));
   return (
     <>
-      <FilterBar filters={filters} setFilters={setFilters} />
+      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} />
       {list.length === 0 && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Nenhum BUG arquivado.</div>}
       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {list.map((t) => (
@@ -1993,7 +2053,7 @@ function LixeiraView({ tickets, teamById, filters, setFilters, onOpen, onRestore
         BUGs excluídos nunca somem de verdade — ficam aqui com todo o histórico até
         alguém da gestão restaurar, ou o admin apagar de vez.
       </div>
-      <FilterBar filters={filters} setFilters={setFilters} />
+      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} />
       {list.length === 0 && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Lixeira vazia.</div>}
       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {list.map((t) => (
@@ -2210,7 +2270,7 @@ function XflowBoardView({ tickets, currentUser, teamById, filters, setFilters, o
 
   return (
     <>
-      <FilterBar filters={filters} setFilters={setFilters} />
+      <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
         <span style={{ fontSize: 11.5, color: 'var(--text-5)', fontWeight: 600 }}>Ordenar por</span>
         <select value={sortMode} onChange={(e) => setSortMode(e.target.value)} style={{ ...S.personalFilterSelect, width: 'auto' }}>

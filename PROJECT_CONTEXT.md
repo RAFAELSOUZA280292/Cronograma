@@ -809,6 +809,20 @@ Confirmados nesta sessão (causa raiz verificada e corrigida ao vivo):
   (`fetch` do `.js` + busca de string) contra o commit atual do
   repositório antes de assumir que é dado/configuração — pode ser
   simplesmente um deploy que ficou pra trás.
+- **"Clonar empresa"/"Cadastrar empresa" travava sem nenhum aviso**
+  (`CreateCompanyModal`, `App.jsx`): o botão de submit tinha
+  `disabled={saving || !form.name.trim() || !form.clientType}` — sem
+  `clientType` selecionado (ou `name` vazio), o botão de HTML fica
+  desabilitado e o clique **nem chega a disparar o evento**, sem nenhum
+  toast/erro. Havia uma dica discreta abaixo dos chips de tipo de
+  cliente, mas era fácil rolar a tela e não perceber por que o clique
+  "não fazia nada". Corrigido: botão só desabilita durante `saving`
+  (evita duplo-clique); a validação virou parte de `submit()`, que
+  agora sempre mostra uma mensagem de erro clara (`setError(...)`, a
+  mesma caixa vermelha já usada pra erro de rede) explicando
+  exatamente o que falta preencher. **Lição**: `disabled` baseado em
+  validação de formulário é sempre um risco de "clique morto" — prefira
+  deixar o botão clicável e mostrar o erro dentro do próprio handler.
 
 Do histórico do projeto (título do commit é a única fonte disponível —
 confiança menor, mas mantido como sinal de "área sensível"):
@@ -1261,6 +1275,29 @@ toast, mesmo silêncio que o quadro pessoal já tem pro caso idêntico);
 (`resolveDrag`/tiers 1-3, ver acima) — arrastar entre colunas continua
 funcionando igual em qualquer modo de ordenação, é uma lógica
 inteiramente à parte.
+
+**Filtro + contagem por "Responsável atual" (2026-08)**: pedido do Rafael
+pra ele e outras pessoas verem "quais atividades estão com quem" e
+"quantas cada um tem". **Não é o mesmo que `assigneeId`** (atribuição
+fixa a um dev, já existia como filtro "Atribuído a", renomeado do antigo
+"Todo responsável" pra não confundir os dois) — é o **ball holder**
+(`ballHolderType`/`ballHolderUserId`, quem precisa agir *agora*, muda
+sozinho conforme o ticket anda no fluxo, ver `whoHasTheBall()`). Nova
+função `ballHolderKey(t)` (`XFlow.jsx`) normaliza isso numa chave estável
+pra filtro/contagem — `dev:<userId>` pra um dev específico, ou um balde
+fixo (`gestao`/`reporter`/`terceiro`/`triage_queue`) pros outros tipos;
+existe separada de `whoHasTheBall()` porque o rótulo de exibição pra
+`reporter` varia com `waitingOnType` (fragmentaria a contagem em vários
+grupos minúsculos se fosse usado como chave). `FilterBar` ganhou o select
+"Responsável atual" (novo prop `teamById`, hoje passado em **todos** os 6
+pontos que renderizam `FilterBar` — Quadro, as três Homes, Arquivados e
+Lixeira — antes só `GestorHome` recebia `team` pro filtro de atribuição);
+opções são os devs (`xflowRole==='dev'` em `teamById`) + os 4 baldes
+fixos. `GestorHome` ganhou um painel "Por responsável atual" ao lado do
+já existente "Por DEV (carga ativa)" — mesma contagem mas cobrindo todo
+mundo (não só dev) e refletindo o estado atual, não a atribuição fixa;
+cada linha é clicável e aplica/limpa o filtro (toggle), sem precisar
+abrir o select.
 
 ## 19. Onde procurar mais detalhe
 
