@@ -20,6 +20,8 @@ import TextAlign from '@tiptap/extension-text-align';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import TiptapImage from '@tiptap/extension-image';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel, COLUMN_COLOR_META } from '../App.jsx';
 
@@ -112,6 +114,7 @@ const RICH_TEXT_CSS = `
   .xflow-rte-emoji-panel { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 6px; background: var(--bg-1); border: 1px solid var(--border-1); border-radius: 8px; box-shadow: var(--pb-shadow-drag, 0 8px 24px rgba(0,0,0,.3)); }
   .xflow-rte-emoji-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; font-size: 16px; background: transparent; border: none; border-radius: 5px; cursor: pointer; }
   .xflow-rte-emoji-btn:hover { background: var(--bg-4); }
+  .xflow-ticket-ref { color: #F5C400; font-weight: 700; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; }
 `;
 
 function hexToRgba(hex, alpha) {
@@ -416,12 +419,40 @@ function captureMetadata() {
   };
 }
 
-function renderCommentText(text, team) {
+// Reconhece @menção (nomes do time) e #N (referência a outra TASK, 2026-08)
+// num único passe — #N só vira link se o número existir de fato em
+// `ticketsByNumber`; senão fica como texto puro (ex.: "#3 parafusos" num
+// comentário qualquer não deve virar link morto).
+function renderCommentText(text, team, ticketsByNumber, onOpenTicketRef) {
   const names = (team || []).map((m) => m.name).filter(Boolean).sort((a, b) => b.length - a.length);
-  if (names.length === 0) return text;
-  const pattern = new RegExp(`@(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g');
-  const parts = text.split(pattern);
-  return parts.map((part, i) => (names.includes(part) ? <span key={i} style={S.mentionTag}>@{part}</span> : part));
+  const namePart = names.length ? `@(?:${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})` : null;
+  const pattern = new RegExp(`(${[namePart, '#\\d+'].filter(Boolean).join('|')})`, 'g');
+  const out = [];
+  let lastIndex = 0;
+  let m;
+  let key = 0;
+  while ((m = pattern.exec(text))) {
+    if (m.index > lastIndex) out.push(text.slice(lastIndex, m.index));
+    const token = m[0];
+    if (token.startsWith('@')) {
+      out.push(<span key={key++} style={S.mentionTag}>{token}</span>);
+    } else {
+      const number = token.slice(1);
+      const t = ticketsByNumber && ticketsByNumber[number];
+      if (t && onOpenTicketRef) {
+        out.push(
+          <a key={key++} href="#" onClick={(e) => { e.preventDefault(); onOpenTicketRef(number); }} style={{ color: '#F5C400', fontWeight: 700, textDecoration: 'none' }}>
+            {token}
+          </a>
+        );
+      } else {
+        out.push(token);
+      }
+    }
+    lastIndex = pattern.lastIndex;
+  }
+  if (lastIndex < text.length) out.push(text.slice(lastIndex));
+  return out;
 }
 
 function Badge({ meta, small }) {
@@ -505,6 +536,55 @@ const Indent = Extension.create({
   },
 });
 
+// Linkifica "#30" dentro da Descrição, transformando em referência
+// clicável pra outra TASK (2026-08) — via Decoration do ProseMirror, não
+// altera o HTML salvo (o "#30" digitado continua sendo texto puro no
+// documento; só o RENDER ganha o link). `getState()` é lido a cada
+// decorations()/handleClick porque `extensions` só é montado uma vez
+// (useEditor com deps `[]`) — sem isso o clique sempre veria o primeiro
+// conjunto de tickets/callback da primeira renderização (mesmo motivo dos
+// onChangeRef/onCommitRef logo abaixo).
+const TicketRefExtension = Extension.create({
+  name: 'ticketRef',
+  addOptions() { return { getState: () => ({ byNumber: null, onOpen: null }) }; },
+  addProseMirrorPlugins() {
+    const { getState } = this.options;
+    return [
+      new Plugin({
+        key: new PluginKey('ticketRef'),
+        props: {
+          decorations(state) {
+            const { byNumber } = getState();
+            if (!byNumber || byNumber.size === 0) return null;
+            const decos = [];
+            state.doc.descendants((node, pos) => {
+              if (!node.isText) return;
+              const re = /#(\d+)/g;
+              let m;
+              while ((m = re.exec(node.text))) {
+                if (byNumber.has(m[1])) {
+                  decos.push(Decoration.inline(pos + m.index, pos + m.index + m[0].length, { class: 'xflow-ticket-ref', 'data-ticket-number': m[1] }));
+                }
+              }
+            });
+            return decos.length ? DecorationSet.create(state.doc, decos) : null;
+          },
+          handleClick(_view, _pos, event) {
+            const target = event.target;
+            if (target && target.classList && target.classList.contains('xflow-ticket-ref')) {
+              const number = target.getAttribute('data-ticket-number');
+              const { byNumber, onOpen } = getState();
+              const t = byNumber && byNumber.get(number);
+              if (t && onOpen) { onOpen(number); return true; }
+            }
+            return false;
+          },
+        },
+      }),
+    ];
+  },
+});
+
 // Extensão da Descrição do problema (BUG/melhoria/TASK) — editor real via
 // Tiptap (ver PROJECT_CONTEXT.md §18). `value`/`onChange`/`onCommit`/
 // `onPasteImage`/`disabled`/`placeholder` mantêm exatamente o mesmo
@@ -516,7 +596,7 @@ const Indent = Extension.create({
 // `useEditor` só são lidas na criação do editor — sem isso, um `onChange`/
 // `onPasteImage` novo a cada render (comum quando o pai passa uma arrow
 // function inline) ficaria "congelado" na primeira versão.
-function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, placeholder }) {
+function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, placeholder, ticketsByNumber, onOpenTicketRef }) {
   const onChangeRef = useRef(onChange);
   const onCommitRef = useRef(onCommit);
   const onPasteImageRef = useRef(onPasteImage);
@@ -524,6 +604,17 @@ function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, pla
   useEffect(() => { onCommitRef.current = onCommit; }, [onCommit]);
   useEffect(() => { onPasteImageRef.current = onPasteImage; }, [onPasteImage]);
   const [showEmoji, setShowEmoji] = useState(false);
+
+  // Ver TicketRefExtension acima — byNumber precisa ser Map (não o objeto
+  // plano `ticketsByNumber`) pra decorations() checar presença em O(1).
+  const ticketRefStateRef = useRef({ byNumber: null, onOpen: null });
+  const editorRef = useRef(null);
+  useEffect(() => {
+    const byNumber = new Map(Object.entries(ticketsByNumber || {}));
+    ticketRefStateRef.current = { byNumber, onOpen: onOpenTicketRef };
+    if (editorRef.current) editorRef.current.view.dispatch(editorRef.current.state.tr);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticketsByNumber, onOpenTicketRef]);
 
   const editor = useEditor({
     extensions: [
@@ -537,6 +628,7 @@ function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, pla
       Link.configure({ openOnClick: true, autolink: true, HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer nofollow' } }),
       TiptapImage,
       Placeholder.configure({ placeholder: placeholder || '' }),
+      TicketRefExtension.configure({ getState: () => ticketRefStateRef.current }),
     ],
     content: sanitizeRichText(value || ''),
     editable: !disabled,
@@ -567,6 +659,7 @@ function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, pla
     onBlur: ({ editor: ed }) => { if (onCommitRef.current) onCommitRef.current(sanitizeRichText(ed.getHTML())); },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  editorRef.current = editor;
 
   useEffect(() => { if (editor) editor.setEditable(!disabled); }, [editor, disabled]);
 
@@ -1023,7 +1116,7 @@ function ContentField({ as: Tag = 'textarea', value, onCommit, disabled, rows, p
   );
 }
 
-function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCreateSpinoff, affectedCompanies }) {
+function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCreateSpinoff, affectedCompanies, allTickets, onOpenTicket }) {
   const isMobile = useIsMobile();
   const role = effectiveXflowRole(currentUser);
   const [events, setEvents] = useState([]);
@@ -1058,6 +1151,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   const [publishBuild, setPublishBuild] = useState('');
   const [publishRelease, setPublishRelease] = useState('');
   const [showGuard, setShowGuard] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const lastSavedAt = useAutosaveTimestamp(ticket);
   const hasCommentDraft = !!commentDraft.trim() || pendingMentions.length > 0;
@@ -1084,6 +1178,33 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
     (team || []).forEach((t) => { m[t.id] = t; });
     return m;
   }, [team]);
+
+  // Vínculo entre TASKs (2026-08, pedido do Rafael) — mapa por número pra
+  // resolver referências "#30" citadas na descrição/comentários, e pra
+  // montar a lista "TASKs vinculadas" a partir de linkedTicketIds.
+  const ticketsByNumber = useMemo(() => {
+    const m = {};
+    (allTickets || []).forEach((t) => { m[String(t.number)] = t; });
+    return m;
+  }, [allTickets]);
+  const ticketsById = useMemo(() => {
+    const m = {};
+    (allTickets || []).forEach((t) => { m[t.id] = t; });
+    return m;
+  }, [allTickets]);
+  const linkedTickets = (ticket.linkedTicketIds || []).map((lid) => ticketsById[lid]).filter(Boolean);
+  const [linkQuery, setLinkQuery] = useState('');
+  const linkMatches = linkQuery.trim()
+    ? (allTickets || [])
+        .filter((t) => t.id !== ticket.id
+          && !(ticket.linkedTicketIds || []).includes(t.id)
+          && (String(t.number).includes(linkQuery.trim()) || t.title.toLowerCase().includes(linkQuery.trim().toLowerCase())))
+        .slice(0, 8)
+    : [];
+  function openTicketRefByNumber(number) {
+    const t = ticketsByNumber[String(number)];
+    if (t && onOpenTicket) onOpenTicket(t.id);
+  }
 
   async function runAction(action, payload) {
     try {
@@ -1224,7 +1345,17 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             </div>
             <div style={{ fontSize: 11, color: hasDraft ? '#ff9f40' : 'var(--text-6)', marginTop: 2 }}>{savedStatusLabel(hasDraft, lastSavedAt)}</div>
           </div>
-          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {linkCopied && <span style={{ fontSize: 11, color: 'var(--text-5)' }}>Link copiado!</span>}
+            <button
+              style={S.iconBtnGhost} title="Copiar link permanente desta TASK"
+              onClick={() => {
+                const url = `${window.location.origin}${window.location.pathname}${window.location.search}#${ticket.number}`;
+                navigator.clipboard.writeText(url).then(() => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2500); });
+              }}
+            ><Link2 size={16} /></button>
+            <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -1259,6 +1390,8 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               disabled={!canEditContent}
               onCommit={(html) => runAction('editar_campo', { field: 'description', value: html })}
               onPasteImage={(ev) => runAction('anexar', { evidence: ev })}
+              ticketsByNumber={ticketsByNumber}
+              onOpenTicketRef={openTicketRefByNumber}
               placeholder="O que aconteceu"
             />
 
@@ -1283,6 +1416,35 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                 )}
               </div>
             ))}
+
+            <div style={{ ...S.subSectionLabel, marginTop: 12 }}><Link2 size={12} style={{ verticalAlign: -2, marginRight: 4 }} />TASKs vinculadas</div>
+            {linkedTickets.length === 0 && <div style={S.fieldHint}>Nenhuma TASK vinculada ainda.</div>}
+            {linkedTickets.map((lt) => (
+              <div key={lt.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                <a href="#" onClick={(e) => { e.preventDefault(); if (onOpenTicket) onOpenTicket(lt.id); }} style={{ fontSize: 12.5, fontWeight: 700, color: '#F5C400', textDecoration: 'none', flex: '0 1 auto' }}>
+                  #{lt.number} — {lt.title}
+                </a>
+                <Badge meta={XFLOW_STATUS_META[lt.status]} small />
+                <button style={S.iconBtnGhost} title="Remover vínculo" onClick={() => runAction('desvincular_ticket', { linkedTicketId: lt.id })}><X size={12} /></button>
+              </div>
+            ))}
+            <input
+              type="text" placeholder="Vincular TASK — busque por número, título ou palavra-chave"
+              value={linkQuery} onChange={(e) => setLinkQuery(e.target.value)} style={{ marginTop: 8 }}
+            />
+            {linkMatches.length > 0 && (
+              <div style={{ border: '1px solid var(--border-2)', borderRadius: 8, marginTop: 4, overflow: 'hidden' }}>
+                {linkMatches.map((m) => (
+                  <button
+                    key={m.id} type="button"
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', background: 'var(--bg-3)', border: 'none', borderBottom: '1px solid var(--border-1)', cursor: 'pointer', fontSize: 12.5, color: 'var(--text-2)' }}
+                    onClick={() => { runAction('vincular_ticket', { linkedTicketId: m.id }); setLinkQuery(''); }}
+                  >
+                    #{m.number} — {m.title}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {(ticket.solution || ticket.whatToTest || ['em_desenvolvimento', 'em_revisao', 'pronta_para_teste', 'em_homologacao', 'publicada', 'aguardando_validacao_solicitante', 'concluida'].includes(ticket.status)) && (
               <>
@@ -1309,7 +1471,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             {(ticket.comments || []).map((c) => (
               <div key={c.id} style={{ ...S.logRow, marginTop: 10 }}>
                 <div style={S.logTs}>{fmtTs(c.ts)} · {c.author}</div>
-                <div>{renderCommentText(c.text, team)}</div>
+                <div>{renderCommentText(c.text, team, ticketsByNumber, openTicketRefByNumber)}</div>
               </div>
             ))}
 
@@ -1539,10 +1701,10 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             <ContentField as="input" value={ticket.nextAction} disabled={!canEditOps} onCommit={(v) => runAction('editar_prazo_proxima_acao', { nextAction: v })} />
 
             <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Prazo</div>
-            <input type="date" value={ticket.dueDate || ''} disabled={!canEditOps} onChange={(e) => runAction('editar_prazo_proxima_acao', { dueDate: e.target.value })} />
+            <ContentField as="input" type="date" value={ticket.dueDate} disabled={!canEditOps} onCommit={(v) => runAction('editar_prazo_proxima_acao', { dueDate: v })} />
 
             <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Previsão de conclusão</div>
-            <input type="date" value={ticket.expectedCompletionAt || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'expectedCompletionAt', value: e.target.value })} />
+            <ContentField as="input" type="date" value={ticket.expectedCompletionAt} disabled={!canEditContent} onCommit={(v) => runAction('editar_campo', { field: 'expectedCompletionAt', value: v })} />
             <div style={S.fieldHint}>Estimativa de quem abriu a TASK — visível para solicitante, dev e gestão.</div>
 
             <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Dados capturados</div>
@@ -1601,7 +1763,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 140px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Data da ocorrência</div>
-                <input type="date" value={ticket.occurredAt || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'occurredAt', value: e.target.value })} />
+                <ContentField as="input" type="date" value={ticket.occurredAt} disabled={!canEditContent} onCommit={(v) => runAction('editar_campo', { field: 'occurredAt', value: v })} />
               </div>
               <div style={{ flex: '1 1 140px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Prioridade sugerida</div>
@@ -2381,12 +2543,17 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
   }
   // Nível 3 (2026-08): abrir TicketDetailModal empilha detailTicket em cima
   // do state atual (mesmo padrão de openActivityDetail em App.jsx) — Voltar
-  // fecha o modal em vez de sair do XFlow.
+  // fecha o modal em vez de sair do XFlow. A URL ganha #<número> (2026-08,
+  // pedido do Rafael de link permanente por TASK) — vira parte da mesma
+  // entrada de histórico, então Voltar já desfaz o hash de graça junto com
+  // o resto.
   function openTicketDetail(id) {
     setOpenTicketId(id);
     try {
+      const t = tickets.find((tk) => tk.id === id) || trashTickets.find((tk) => tk.id === id);
       const cur = window.history.state || {};
-      window.history.pushState({ ...cur, detailTicket: id }, '', window.location.href);
+      const url = t ? `${window.location.pathname}${window.location.search}#${t.number}` : window.location.href;
+      window.history.pushState({ ...cur, detailTicket: id }, '', url);
     } catch (e) { /* ignora */ }
   }
   function closeTicketDetail() {
@@ -2394,6 +2561,7 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
       if (window.history.state && window.history.state.detailTicket) { window.history.back(); return; }
     } catch (e) { /* ignora */ }
     setOpenTicketId(null);
+    try { window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search); } catch (e) { /* ignora */ }
   }
   useEffect(() => {
     try {
@@ -2423,6 +2591,21 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
       .then(([t, tm, ac]) => { setTickets(t.tickets); setTeam(tm.team); setAffectedCompanies(ac.affectedCompanies); setLoaded(true); })
       .catch(() => setLoaded(true));
   }, []);
+
+  // Link permanente por TASK (2026-08): "#30" na URL abre direto o BUG #30
+  // assim que a lista carrega — só roda uma vez (hashOpenDone), senão fica
+  // reabrindo o mesmo ticket toda vez que `tickets` muda depois.
+  const hashOpenDone = useRef(false);
+  useEffect(() => {
+    if (!loaded || hashOpenDone.current) return;
+    hashOpenDone.current = true;
+    const m = /^#(\d+)$/.exec(window.location.hash);
+    if (!m) return;
+    const t = tickets.find((tk) => String(tk.number) === m[1]);
+    if (t) openTicketDetail(t.id);
+    else showToast(`TASK #${m[1]} não encontrada.`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
 
   function registerAffectedCompany(name) {
     const trimmed = (name || '').trim();
@@ -2483,7 +2666,11 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
     if (action === 'editar_campo' && payload && payload.field === 'affectedCompany') {
       registerAffectedCompany(payload.value);
     }
-    setTickets((prev) => prev.map((t) => (t.id === res.ticket.id ? res.ticket : t)));
+    setTickets((prev) => prev.map((t) => {
+      if (t.id === res.ticket.id) return res.ticket;
+      if (res.relatedTicket && t.id === res.relatedTicket.id) return res.relatedTicket;
+      return t;
+    }));
   }
 
   async function purgeTicket(ticketId, title) {
@@ -2639,9 +2826,11 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
           team={team}
           currentUser={currentUser}
           affectedCompanies={affectedCompanies}
+          allTickets={tickets}
           onClose={closeTicketDetail}
           onAction={performAction}
           onCreateSpinoff={createSpinoff}
+          onOpenTicket={openTicketDetail}
         />
       )}
       {toastMsg && (

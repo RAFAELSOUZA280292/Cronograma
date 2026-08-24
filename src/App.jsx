@@ -667,6 +667,24 @@ export default function App() {
     })();
   }, [currentUser?.id]);
 
+  // Link permanente por TASK do XFlow (2026-08, pedido do Rafael): um link
+  // tipo ".../#30" precisa cair direto dentro do XFlow (não só no gate),
+  // pra XFlowScreen então abrir o BUG #30 específico (ver hashOpenDone lá).
+  // Precisa rodar DEPOIS do efeito logo acima (que reseta workspaceMode pra
+  // null a cada troca de currentUser) — senão o reset ganha e desfaz esse
+  // goToWorkspace('xflow'), porque os dois dependem de currentUser e efeitos
+  // rodam na ordem em que aparecem no componente. Só dispara uma vez: se
+  // disparasse de novo a cada render, qualquer troca de módulo posterior
+  // pro usuário voltaria pro XFlow enquanto o hash antigo ainda estivesse
+  // na URL.
+  const hashXflowNavDone = useRef(false);
+  useEffect(() => {
+    if (hashXflowNavDone.current || !currentUser) return;
+    hashXflowNavDone.current = true;
+    if (/^#\d+$/.test(window.location.hash) && currentUser.xflowRole) goToWorkspace('xflow');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
+
   function persistPersonalBoardDebounced(board) {
     if (personalBoardSaveTimer.current) clearTimeout(personalBoardSaveTimer.current);
     setPersonalBoardSaveState('saving');

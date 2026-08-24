@@ -67,6 +67,10 @@ export const XFLOW_TRANSITIONS = {
   // espírito liberal de `comentar` (qualquer um que vê o quadro pode
   // reorganizar o que já vê).
   reordenar: { from: null, to: null, permission: 'reorder' },
+  // Vincular TASKs relacionadas (dependência, duplicidade, causa/efeito,
+  // etc.) — vínculo genérico e bidirecional, ver server/xflow.js.
+  vincular_ticket: { from: null, to: null, permission: 'link_tickets' },
+  desvincular_ticket: { from: null, to: null, permission: 'link_tickets' },
   // Sugestão original do solicitante — pode ser preenchida depois se o
   // ticket não tinha (ex.: criado antes desse campo existir), mas só uma
   // vez: uma vez definida, fica imutável (ver xflow.js, guarda extra além

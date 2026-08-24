@@ -1422,6 +1422,101 @@ como caso especial (exige `ballHolderKey(t)==='triage_queue'` **e**
 `ballHolderKey()` como as outras — é um recorte dentro do balde
 `triage_queue`, não um balde novo.
 
+### 18.2 Vínculo entre TASKs, citação automática e link permanente (2026-08)
+
+Pedido do Rafael: uma TASK precisa poder referenciar/se vincular a outra,
+cada TASK precisa de URL própria e permanente, e citar "#30" em qualquer
+texto precisa virar link clicável.
+
+- **Vínculo genérico bidirecional**: novo campo `linkedTicketIds` (array
+  de ids, dentro do `data` JSONB — não é campo relacional, `db.js` só
+  ganhou uma entrada nova em `blankXflowTicketData()`). Duas ações novas
+  (`vincular_ticket`/`desvincular_ticket`, permissão `link_tickets: () =>
+  true`, mesmo espírito liberal de `comentar`/`reordenar` — não é dono
+  de conteúdo, é metadado organizacional). `server/xflow.js` grava dos
+  **dois lados** dentro da mesma transação (`SELECT ... FOR UPDATE` do
+  ticket alvo, atualiza o `data` dele também, loga evento nos dois) —
+  resposta do PATCH inclui `relatedTicket` além de `ticket`, e
+  `performAction()` (`XFlow.jsx`) mescla os dois no estado local, sem
+  precisar recarregar a lista inteira. UI: seção "TASKs vinculadas" no
+  `TicketDetailModal` — lista as já vinculadas (nome + status + botão de
+  remover) e um campo de busca por número/título/palavra-chave (filtra o
+  `allTickets` já carregado em memória — visibilidade já é org-wide desde
+  §18.1, então a busca sempre acha qualquer TASK da org). Clicar numa
+  vinculada chama `onOpenTicket(id)` (mesmo `openTicketDetail` do Nível 3
+  de histórico) — empilha no histórico, Voltar retorna pra TASK anterior.
+- **Citação automática "#30" → link clicável**: em **comentários**,
+  `renderCommentText()` (já tratava `@menção`) ganhou um segundo padrão
+  `#\d+` no mesmo passe de tokenização — só vira `<a>` se o número
+  existir em `ticketsByNumber` (mapa por número montado a partir de
+  `allTickets`), senão fica texto puro (não cria link morto). Na
+  **Descrição** (Tiptap), como o HTML salvo não pode ganhar marcação
+  extra a cada render (senão o "#30" digitado vira permanentemente um
+  link fixo no documento, e uma citação a um número que passa a existir
+  depois nunca seria reconhecida), a solução foi uma
+  **Decoration do ProseMirror** (`TicketRefExtension`, novo pacote
+  `@tiptap/pm` adicionado): decorations são só de exibição, nunca tocam o
+  documento armazenado. O extension lê o mapa de tickets válidos e o
+  callback de abrir via uma função `getState()` passada em
+  `.configure()` que sempre lê de um `ref` atualizado por `useEffect`
+  (mesmo motivo do `onChangeRef`/`onCommitRef` já usados no
+  `RichTextEditor` — `useEditor` só lê `extensions` na criação, então sem
+  ref o clique sempre veria o primeiro conjunto de tickets). Testado:
+  digitar "#46" já sublinha ao vivo (antes mesmo do blur/save), e o clique
+  abre a TASK certa.
+- **Link permanente por TASK**: `openTicketDetail()` (`XFlow.jsx`) agora
+  soma `#<número>` na URL dentro do mesmo `pushState` que já empilha o
+  Nível 3 — Voltar desfaz os dois juntos, de graça. Botão "Copiar link"
+  (ícone ao lado do X, no topo do `TicketDetailModal`) monta
+  `origin+pathname+search+#numero` e usa `navigator.clipboard`. Pra abrir
+  um link desses num carregamento novo (não só navegando dentro do app já
+  aberto): `App.jsx` ganhou um efeito (`hashXflowNavDone`, roda uma vez
+  quando `currentUser` aparece) que salta pro workspace XFlow se a URL já
+  chega com `#<dígitos>` — **precisa estar declarado depois** do efeito
+  que zera `workspaceMode` a cada troca de `currentUser` (ordem de
+  `useEffect` importa: dois efeitos com a mesma dependência rodam na
+  ordem em que aparecem no componente; declarado antes, o reset ganhava e
+  desfazia o salto — bug real encontrado e corrigido durante o teste).
+  Dentro do `XFlowScreen`, outro efeito (`hashOpenDone`, roda uma vez
+  quando `loaded` vira `true`) acha a TASK pelo número e chama
+  `openTicketDetail` — número que não existe na org mostra toast "TASK
+  não encontrada" em vez de falhar silenciosamente. Testado numa aba nova
+  (carregamento real, não troca de hash dentro do app já montado — isso
+  não dispara o efeito por dependência de `currentUser`/`loaded`, só uma
+  montagem nova do zero): `.../#46` loga automaticamente, entra direto no
+  XFlow e abre o BUG #46.
+
+**Dois bugs reais corrigidos durante esse trabalho (não pedidos
+originalmente nesse texto, mas achados investigando os itens acima e o
+pedido de reatribuição/calendário abaixo):**
+
+- **Responsável "voltando" pra quem não devia** (pedido do Rafael: "quando
+  a Amanda ou alguém trocar o responsável... não fique retornando"):
+  reproduzido via API — `redirecionar` atribuía a TASK a um dev enquanto
+  ainda `aberta`; a ação `aceitar` (disparada também ao **arrastar** o
+  card de "Aberta" pra "Atribuída" no Quadro, e alcançável por
+  dev/gestão) sobrescrevia incondicionalmente `assignee_id` pra quem
+  clicou/arrastou, mesmo já havendo um responsável definido. Corrigido em
+  `server/xflow.js` (`aceitar`/`iniciar_dev_direto`): só auto-atribui pra
+  quem agiu quando **ninguém** estava atribuído ainda
+  (`row.assignee_id || req.user.id`); se já tinha responsável, preserva.
+- **Calendário "bugado" (ano virando 0026 em vez de 2026)**: reproduzido
+  digitando ano dígito a dígito nos campos Prazo/Previsão de
+  conclusão/Data da ocorrência do `TicketDetailModal` — eram
+  `<input type="date">` controlados direto por `onChange`, disparando
+  `PATCH` a **cada tecla**; a resposta do servidor re-renderizava o
+  `value` do input nativo **enquanto o usuário ainda digitava o ano**,
+  resetando o estado interno do campo (o navegador então preenchia o ano
+  parcial com zero à esquerda, e podia até apagar dia/mês já digitados).
+  Corrigido trocando os três `<input type="date">` por
+  `<ContentField as="input" type="date" .../>` — mesmo componente que já
+  existia pra outros campos, com rascunho local e `onCommit` só no
+  `blur` (só salva quando o usuário termina de digitar e sai do campo,
+  nunca no meio). Não foi construído um calendário customizado (widget de
+  navegação por mês/ano) — o defeito relatado era a corrupção do valor,
+  já resolvida; o calendário nativo do navegador (ícone 📅) segue sendo o
+  mesmo, agora sem nada interrompendo ele no meio da digitação.
+
 ## 19a. Autoatendimento de conta (2026-08)
 
 `MyProfileModal` (`App.jsx`, aberto pelo avatar no topo — "Meu perfil")

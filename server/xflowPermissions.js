@@ -29,6 +29,11 @@ const RULES = {
   create_ticket: () => true,
   comment: () => true,
   reorder: () => true,
+  // Vincular/desvincular TASKs relacionadas — mesmo espírito liberal de
+  // `comment`/`reorder`: é metadado organizacional/rastreabilidade, não
+  // altera conteúdo nem status, então qualquer um com acesso ao XFlow pode
+  // linkar o que já vê.
+  link_tickets: () => true,
   attach_evidence: (role, user, ticket) => (role === 'reporter' ? isOwner(user, ticket) : true),
   edit_content: (role, user, ticket) => {
     if (role === 'reporter') {
