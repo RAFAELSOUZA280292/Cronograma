@@ -2,7 +2,7 @@ import { Router } from 'express';
 import sanitizeHtml from 'sanitize-html';
 import { pool, blankXflowTicketData } from './db.js';
 import { requireAuth, requireXflowAccess } from './auth.js';
-import { effectiveXflowRole, canDo } from './xflowPermissions.js';
+import { canDo } from './xflowPermissions.js';
 import { checkTransition, XFLOW_TERMINAL_STATUSES } from './xflowTransitions.js';
 
 function uid(p) {
@@ -232,19 +232,17 @@ router.get('/affected-companies', requireAuth, requireXflowAccess, async (req, r
 
 router.get('/tickets', requireAuth, requireXflowAccess, async (req, res, next) => {
   try {
-    const role = effectiveXflowRole(req.user);
     const wantsTrash = req.query.trash === '1';
     if (wantsTrash && !canDo('restaurar', req.user, null)) {
       return res.status(403).json({ message: 'Só gestão/admin pode ver a Lixeira.' });
     }
-    const params = [req.user.orgId];
-    let sql = `SELECT * FROM xflow_tickets WHERE org_id=$1 AND deleted=${wantsTrash ? 'true' : 'false'}`;
-    if (role === 'reporter') {
-      sql += ' AND reporter_id=$2';
-      params.push(req.user.id);
-    }
-    sql += wantsTrash ? ' ORDER BY deleted_at DESC' : ' ORDER BY created_at DESC';
-    const { rows } = await pool.query(sql, params);
+    // Visibilidade é da org inteira, não por papel (2026-08, pedido do
+    // Rafael) — um reporter precisa ver as TASKS abertas por outros
+    // usuários também, não só as próprias. O que continua restrito por
+    // isOwner()/papel são as AÇÕES sobre o ticket (editar, aprovar,
+    // fechar etc.), checadas à parte em xflowPermissions.js.
+    const sql = `SELECT * FROM xflow_tickets WHERE org_id=$1 AND deleted=${wantsTrash ? 'true' : 'false'} ORDER BY ${wantsTrash ? 'deleted_at' : 'created_at'} DESC`;
+    const { rows } = await pool.query(sql, [req.user.orgId]);
     res.json({ tickets: rows.map(rowToTicket) });
   } catch (e) { next(e); }
 });
@@ -252,13 +250,9 @@ router.get('/tickets', requireAuth, requireXflowAccess, async (req, res, next) =
 router.get('/tickets/:id/events', requireAuth, requireXflowAccess, async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { rows: ticketRows } = await pool.query('SELECT org_id, reporter_id FROM xflow_tickets WHERE id=$1', [id]);
+    const { rows: ticketRows } = await pool.query('SELECT org_id FROM xflow_tickets WHERE id=$1', [id]);
     if (!ticketRows[0]) return res.status(404).json({ message: 'Ticket não encontrado.' });
     if (ticketRows[0].org_id !== req.user.orgId) return res.status(403).json({ message: 'Sem acesso a este ticket.' });
-    const role = effectiveXflowRole(req.user);
-    if (role === 'reporter' && ticketRows[0].reporter_id !== req.user.id) {
-      return res.status(403).json({ message: 'Sem acesso a este ticket.' });
-    }
     const { rows } = await pool.query('SELECT * FROM xflow_events WHERE ticket_id=$1 ORDER BY created_at ASC', [id]);
     res.json({ events: rows.map(rowToEvent) });
   } catch (e) { next(e); }
@@ -307,11 +301,9 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
     const row = rows[0];
     if (row.org_id !== req.user.orgId) { await client.query('ROLLBACK'); return res.status(403).json({ message: 'Sem acesso a este ticket.' }); }
 
-    const role = effectiveXflowRole(req.user);
-    if (role === 'reporter' && row.reporter_id !== req.user.id) {
-      await client.query('ROLLBACK');
-      return res.status(403).json({ message: 'Sem acesso a este ticket.' });
-    }
+    // Visibilidade é da org inteira (ver GET /tickets) — só a ação em si
+    // continua checada por dono/papel, abaixo em canDo() (isOwner() em
+    // xflowPermissions.js pros casos onde reporter só mexe no próprio).
     if (row.deleted && action !== 'restaurar') {
       await client.query('ROLLBACK');
       return res.status(400).json({ message: 'Este BUG está na Lixeira — restaure antes de agir sobre ele.' });
