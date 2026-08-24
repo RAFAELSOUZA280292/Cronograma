@@ -486,18 +486,23 @@ export default function App() {
   const [windowAnchor, setWindowAnchor] = useState(new Date());
   const fileInputRef = useRef(null);
 
-  // Histórico do navegador — Nível 1 (2026-08): só troca de módulo
-  // (Empresas/Gestão de Atividades/XFlow/Usuários/Organizações), não view
-  // interna, filtro, nem modal de edição — ver PROJECT_CONTEXT.md §9. Não
-  // muda a URL (app não tem roteador, exceção única é /quadro/:token
-  // resolvida por regex antes de qualquer coisa aqui); pushState só carrega
-  // um "navTag" no state pra o botão Voltar do navegador saber pra onde ir.
-  function locationTag(mode, users, orgAdmin) {
+  // Histórico do navegador — Nível 1 (2026-08): troca de módulo (Empresas/
+  // Gestão de Atividades/XFlow/Usuários/Organizações). Nível 2 (2026-08):
+  // sub-navegação dentro do módulo Empresas (seletor de empresas ↔
+  // workspace confirmado — "company:select" vs "company"); XFlow e Gestão
+  // de Atividades têm o próprio Nível 2 local (viewMode/Arquivados/Lixeira
+  // e página do quadro), ver PROJECT_CONTEXT.md §9. Nunca view interna,
+  // filtro, nem modal de edição. Não muda a URL (app não tem roteador,
+  // exceção única é /quadro/:token resolvida por regex antes de qualquer
+  // coisa aqui); pushState só carrega um "navTag" no state pra o botão
+  // Voltar do navegador saber pra onde ir.
+  function locationTag(mode, users, orgAdmin, selected) {
     if (!mode) return 'gate';
     if (mode === 'xflow') return 'xflow';
     if (mode === 'personal') return 'personal';
     if (users) return 'company:users';
     if (orgAdmin) return 'company:orgadmin';
+    if (selected === false) return 'company:select';
     return 'company';
   }
   function pushLocation(tag) {
@@ -507,7 +512,7 @@ export default function App() {
     setShowUsers(false);
     setShowOrgAdmin(false);
     setWorkspaceMode(mode);
-    pushLocation(locationTag(mode, false, false));
+    pushLocation(locationTag(mode, false, false, mode === 'company' ? companySelectionConfirmed : true));
   }
   function goToUsers(open) {
     setShowUsers(open);
@@ -519,16 +524,26 @@ export default function App() {
     if (open) setShowUsers(false);
     pushLocation(locationTag('company', false, open));
   }
+  function goToCompanySelector() {
+    setCompanySelectionConfirmed(false);
+    pushLocation('company:select');
+  }
+  function confirmCompanySelection(ids) {
+    setSelectedProjectIds(ids);
+    setCompanySelectionConfirmed(true);
+    pushLocation('company');
+  }
   function applyLocationTag(tag) {
     if (tag === 'company:users') { setWorkspaceMode('company'); setShowUsers(true); setShowOrgAdmin(false); }
     else if (tag === 'company:orgadmin') { setWorkspaceMode('company'); setShowOrgAdmin(true); setShowUsers(false); }
-    else if (tag === 'company') { setWorkspaceMode('company'); setShowUsers(false); setShowOrgAdmin(false); }
+    else if (tag === 'company:select') { setWorkspaceMode('company'); setShowUsers(false); setShowOrgAdmin(false); setCompanySelectionConfirmed(false); }
+    else if (tag === 'company') { setWorkspaceMode('company'); setShowUsers(false); setShowOrgAdmin(false); setCompanySelectionConfirmed(true); }
     else if (tag === 'personal') { setWorkspaceMode('personal'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'xflow') { setWorkspaceMode('xflow'); setShowUsers(false); setShowOrgAdmin(false); }
     else { setWorkspaceMode(null); setShowUsers(false); setShowOrgAdmin(false); }
   }
   useEffect(() => {
-    try { window.history.replaceState({ navTag: locationTag(workspaceMode, showUsers, showOrgAdmin) }, '', window.location.href); } catch (e) { /* ignora */ }
+    try { window.history.replaceState({ navTag: locationTag(workspaceMode, showUsers, showOrgAdmin, companySelectionConfirmed) }, '', window.location.href); } catch (e) { /* ignora */ }
     function onPopState(e) { applyLocationTag((e.state && e.state.navTag) || 'gate'); }
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -846,7 +861,7 @@ export default function App() {
         <CompanySelectorScreen
           projects={projects}
           initialSelected={selectedProjectIds}
-          onConfirm={(ids) => { setSelectedProjectIds(ids); setCompanySelectionConfirmed(true); }}
+          onConfirm={confirmCompanySelection}
           onLogout={handleLogout}
           onCreateNew={() => setShowCreateCompany(true)}
           onUpdateCompany={updateCompanyFields}
@@ -1267,6 +1282,7 @@ export default function App() {
         // caia direto na visão consolidada do grupo recém-criado (sem isso, ficaria
         // preso na tela de seleção com os checkboxes desatualizados).
         setCompanySelectionConfirmed(true);
+        pushLocation('company');
       }
       if (crossOrg) window.alert(`Grupo cadastrado na organização "${orgName}".`);
       return;
@@ -1417,13 +1433,14 @@ export default function App() {
     setCompanySelectionConfirmed(false);
     setSelectedProjectIds([]);
     setWorkspaceMode('company');
-    pushLocation('company');
+    pushLocation('company:select');
   }
 
   function exitOrganization() {
     setActingOrg(null);
     setCompanySelectionConfirmed(false);
     setSelectedProjectIds([]);
+    pushLocation('company:select');
   }
 
   async function updateUser(id, patch) {
@@ -1600,7 +1617,7 @@ export default function App() {
   // sem duplicar a lógica de onClick/visibilidade.
   const moreMenuItems = [
     !isMulti && { icon: Settings, label: 'Empresa', onClick: () => setShowSettings(true) },
-    canPickCompanies && { icon: Building2, label: 'Trocar empresas', onClick: () => setCompanySelectionConfirmed(false) },
+    canPickCompanies && { icon: Building2, label: 'Trocar empresas', onClick: () => goToCompanySelector() },
     currentUser.personalAccess && { icon: Columns3, label: 'Gestão de Atividades', onClick: () => goToWorkspace('personal') },
     currentUser.xflowRole && { icon: Bug, label: 'XFlow', onClick: () => goToWorkspace('xflow') },
     (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Plus, label: 'Cadastrar empresa', onClick: () => setShowCreateCompany(true) },
@@ -1692,7 +1709,7 @@ export default function App() {
             </>
           )}
           {!isMobile && canPickCompanies && (
-            <button style={S.iconBtn} onClick={() => setCompanySelectionConfirmed(false)}><Building2 size={15} /> Trocar empresas</button>
+            <button style={S.iconBtn} onClick={() => goToCompanySelector()}><Building2 size={15} /> Trocar empresas</button>
           )}
           {!isMobile && currentUser.personalAccess && (
             <button style={S.iconBtn} onClick={() => goToWorkspace('personal')}><Columns3 size={15} /> Gestão de Atividades</button>
@@ -4768,7 +4785,18 @@ function BoardActivityLogModal({ board, onClose }) {
 }
 
 function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName }) {
-  const [activeBoardId, setActiveBoardId] = useState(board.boards[0] ? board.boards[0].id : null);
+  // Histórico do navegador — Nível 2 (2026-08): trocar de página do quadro
+  // pessoal. Nunca ativo em publicMode (/quadro/:token é a única rota que
+  // usa URL de verdade — ver PROJECT_CONTEXT.md §9, não mexer nisso aqui).
+  const initPersonalSub = (() => {
+    if (publicMode) return null;
+    try {
+      const s = window.history.state;
+      if (s && s.navTag === 'personal' && s.personalSub) return s.personalSub;
+    } catch (e) { /* ignora */ }
+    return null;
+  })();
+  const [activeBoardId, setActiveBoardId] = useState(initPersonalSub || (board.boards[0] ? board.boards[0].id : null));
   const [dragBoardId, setDragBoardId] = useState(null);
   const [openCard, setOpenCard] = useState(null);
   const [reassignColumn, setReassignColumn] = useState(null);
@@ -4788,6 +4816,30 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor)
   );
+
+  function goToBoardPage(boardId) {
+    setActiveBoardId(boardId);
+    if (publicMode) return;
+    try { window.history.pushState({ navTag: 'personal', personalSub: boardId }, '', window.location.href); } catch (e) { /* ignora */ }
+  }
+
+  useEffect(() => {
+    if (publicMode) return;
+    try {
+      const cur = window.history.state;
+      if (!cur || cur.navTag !== 'personal' || !cur.personalSub) {
+        window.history.replaceState({ navTag: 'personal', personalSub: activeBoardId }, '', window.location.href);
+      }
+    } catch (e) { /* ignora */ }
+    function onPopState(e) {
+      const state = e.state;
+      if (!state || state.navTag !== 'personal' || !state.personalSub) return;
+      if (board.boards.some((b) => b.id === state.personalSub)) setActiveBoardId(state.personalSub);
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!board.boards.some((b) => b.id === activeBoardId)) {
@@ -4823,7 +4875,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
   function addBoard() {
     const nb = { id: uid('board'), name: 'Nova página', visibility: 'private', shareToken: '', log: [], viewPrefs: { view: 'kanban', sortMode: 'manual' }, columns: [{ id: uid('col'), name: 'A fazer', color: '', hideCompleted: false, cards: [] }] };
     onMutate((prev) => ({ ...prev, boards: [...prev.boards, nb] }));
-    setActiveBoardId(nb.id);
+    goToBoardPage(nb.id);
   }
   function setBoardVisibility(boardId, visibility) {
     onMutate((prev) => ({
@@ -5404,7 +5456,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
               onDragEnd={() => setDragBoardId(null)}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => { reorderBoards(dragBoardId, b.id); setDragBoardId(null); }}
-              onClick={() => setActiveBoardId(b.id)}
+              onClick={() => goToBoardPage(b.id)}
               style={{ ...S.personalTab, ...(b.id === activeBoardId ? S.personalTabActive : {}) }}
             >
               <input value={b.name} onChange={(e) => renameBoard(b.id, e.target.value)} style={S.personalTabInput} />
