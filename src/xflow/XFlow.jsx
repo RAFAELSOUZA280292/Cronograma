@@ -1674,7 +1674,11 @@ function matchesFilters(t, filters) {
   if (filters.severity && t.severity !== filters.severity) return false;
   if (filters.priority && t.priority !== filters.priority) return false;
   if (filters.assigneeId && t.assigneeId !== filters.assigneeId) return false;
-  if (filters.ballHolder && ballHolderKey(t) !== filters.ballHolder) return false;
+  if (filters.ballHolder) {
+    if (filters.ballHolder.startsWith('triageReporter:')) {
+      if (ballHolderKey(t) !== 'triage_queue' || t.reporterId !== filters.ballHolder.slice('triageReporter:'.length)) return false;
+    } else if (ballHolderKey(t) !== filters.ballHolder) return false;
+  }
   if (filters.slaState && t.slaResolutionState !== filters.slaState) return false;
   if (filters.agingBucket && agingBucketOf(daysSince(t.createdAt)) !== filters.agingBucket) return false;
   return true;
@@ -1794,6 +1798,12 @@ function FilterBar({ filters, setFilters, team, teamById, tickets }) {
   const devs = teamById
     ? Object.values(teamById).filter((m) => m.xflowRole === 'dev' && presentBallHolders.has(`dev:${m.id}`)).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
     : [];
+  // Solicitantes com atividade parada na fila de triagem (2026-08, pedido do
+  // Rafael) — "Fila de triagem" sozinha não dizia de quem é a task, então
+  // some por nome de quem abriu, igual já acontece com dev.
+  const triageReporters = teamById
+    ? [...new Map((tickets || []).filter((t) => ballHolderKey(t) === 'triage_queue' && t.reporterId && teamById[t.reporterId]).map((t) => [t.reporterId, teamById[t.reporterId]])).values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+    : [];
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '14px 0' }}>
       <input type="text" placeholder="Buscar por ID, título, empresa, usuário..." value={filters.search} onChange={(e) => set({ search: e.target.value })} style={{ flex: '1 1 220px', minWidth: 180 }} />
@@ -1826,7 +1836,8 @@ function FilterBar({ filters, setFilters, team, teamById, tickets }) {
           {presentBallHolders.has('gestao') && <option value="gestao">Gestão</option>}
           {presentBallHolders.has('reporter') && <option value="reporter">Solicitante</option>}
           {presentBallHolders.has('terceiro') && <option value="terceiro">Terceiro</option>}
-          {presentBallHolders.has('triage_queue') && <option value="triage_queue">Fila de triagem</option>}
+          {presentBallHolders.has('triage_queue') && <option value="triage_queue">Fila de triagem: todos</option>}
+          {triageReporters.map((r) => <option key={r.id} value={`triageReporter:${r.id}`}>Fila de triagem: {r.name}</option>)}
         </select>
       )}
       <select value={filters.slaState} onChange={(e) => set({ slaState: e.target.value })} style={{ width: 'auto' }}>

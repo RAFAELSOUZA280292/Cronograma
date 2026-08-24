@@ -1395,6 +1395,36 @@ aparecem se tiverem pelo menos 1 ticket agora. Testado localmente com
 apontando pro dev) — confirmado que o nome só aparece/some junto com o
 ticket.
 
+**Ajuste (2026-08, pedido do Rafael): nomes dentro da "Fila de
+triagem"**. O balde `triage_queue` sozinho não dizia de quem era a task
+parada — agora o select também lista, por baixo de "Fila de triagem:
+todos", um item por solicitante (`reporterId`) que tem pelo menos 1
+ticket parado em `triage_queue` no momento (`triageReporters` em
+`FilterBar`, mesmo `Map`-por-id + sort alfabético que os devs já usam).
+Valor do filtro é `triageReporter:<userId>`; `matchesFilters()` trata
+como caso especial (exige `ballHolderKey(t)==='triage_queue'` **e**
+`t.reporterId` igual ao escolhido) porque não é uma chave estável de
+`ballHolderKey()` como as outras — é um recorte dentro do balde
+`triage_queue`, não um balde novo.
+
+## 19a. Autoatendimento de conta (2026-08)
+
+`MyProfileModal` (`App.jsx`, aberto pelo avatar no topo — "Meu perfil")
+já existia pra trocar o emoji de avatar (`PATCH /api/auth/me`); ganhou
+uma seção "Trocar senha" logo abaixo do botão Salvar do avatar, com 3
+campos (senha atual, nova, confirmar) e botão próprio — ação imediata,
+não passa pelo guard de "descartar alterações" do avatar (`isDirty` só
+rastreia o avatar, senha nunca fica em rascunho). Novo endpoint
+`POST /api/auth/change-password` (`server/routes.js`, `requireAuth`,
+qualquer usuário logado — não é rota de master) confere `currentPassword`
+com `comparePassword()` contra o próprio hash antes de gravar o novo
+(`bcrypt`, mesma validação de tamanho mínimo — 4 caracteres — do reset
+de senha do admin). Erros ("Senha atual incorreta", senha curta,
+confirmação não confere) aparecem inline no modal; sucesso mostra
+"Senha alterada com sucesso." e limpa os campos. Testado localmente: senha
+atual errada barra corretamente, senha certa troca e permite login
+imediato com a nova senha.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
