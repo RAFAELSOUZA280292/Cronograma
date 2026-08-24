@@ -4,6 +4,7 @@ import { pool, blankXflowTicketData } from './db.js';
 import { requireAuth, requireXflowAccess } from './auth.js';
 import { canDo } from './xflowPermissions.js';
 import { checkTransition, XFLOW_TERMINAL_STATUSES } from './xflowTransitions.js';
+import { createNotification } from './notifications.js';
 
 function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
@@ -258,6 +259,35 @@ router.get('/tickets/:id/events', requireAuth, requireXflowAccess, async (req, r
   } catch (e) { next(e); }
 });
 
+// Registro de leitura (2026-08, pedido do Rafael: "quem abriu essa TASK e
+// quando"). Chamado pelo cliente sempre que o TicketDetailModal abre.
+// Dedup: não loga de novo se o MESMO usuário já tem um 'view' nos últimos
+// 5 minutos pra essa TASK — evita spam de reabrir/fechar repetido.
+// Também marca como lida qualquer notificação pendente apontando pra essa
+// TASK (regra do Rafael: só some do contador quando lida OU quando o
+// usuário efetivamente acessa a ocorrência).
+router.post('/tickets/:id/view', requireAuth, requireXflowAccess, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rows: ticketRows } = await pool.query('SELECT org_id FROM xflow_tickets WHERE id=$1', [id]);
+    if (!ticketRows[0]) return res.status(404).json({ message: 'Ticket não encontrado.' });
+    if (ticketRows[0].org_id !== req.user.orgId) return res.status(403).json({ message: 'Sem acesso a este ticket.' });
+
+    const { rows: recent } = await pool.query(
+      `SELECT id FROM xflow_events WHERE ticket_id=$1 AND user_id=$2 AND type='view' AND created_at > now() - interval '5 minutes' LIMIT 1`,
+      [id, req.user.id]
+    );
+    if (!recent[0]) {
+      await logEvent(pool, id, req.user.orgId, 'view', null, null, null, req.user.id, `${req.user.name} visualizou esta TASK`);
+    }
+    await pool.query(
+      `UPDATE notifications SET read=true WHERE user_id=$1 AND read=false AND target->>'kind'='xflow_ticket' AND target->>'ticketId'=$2`,
+      [req.user.id, id]
+    );
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 router.post('/tickets', requireAuth, requireXflowAccess, async (req, res, next) => {
   try {
     const body = req.body || {};
@@ -330,7 +360,9 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
     const rel = {};
     let historyNote = null;
     let relatedTicketRow = null;
+    const notificationsToCreate = [];
     const userName = req.user.name;
+    const ticketLabel = `TASK #${row.ticket_number} — ${row.title}`;
 
     switch (action) {
       case 'aceitar':
@@ -376,7 +408,17 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         const changes = [];
         if (payload.product && payload.product !== row.product) { rel.product = payload.product; changes.push(`produto → ${payload.product}`); }
         if (payload.module !== undefined && payload.module !== data.module) { data.module = payload.module; changes.push(`módulo → ${payload.module}`); }
-        if (payload.assigneeId !== undefined && payload.assigneeId !== row.assignee_id) { rel.assignee_id = payload.assigneeId || null; changes.push('responsável alterado'); }
+        if (payload.assigneeId !== undefined && payload.assigneeId !== row.assignee_id) {
+          rel.assignee_id = payload.assigneeId || null;
+          changes.push('responsável alterado');
+          if (payload.assigneeId && payload.assigneeId !== req.user.id) {
+            notificationsToCreate.push({
+              userId: payload.assigneeId, type: 'xflow_assigned', title: ticketLabel,
+              body: `${userName} te definiu como responsável por esta TASK.`,
+              actorName: userName, target: { kind: 'xflow_ticket', ticketId: id },
+            });
+          }
+        }
         if (!changes.length) { await client.query('ROLLBACK'); return res.status(400).json({ message: 'Informe ao menos um campo para redirecionar (produto, módulo ou responsável).' }); }
         historyNote = `Redirecionado — ${changes.join(', ')}`;
         break;
@@ -514,10 +556,19 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         }
         break;
       }
-      case 'reatribuir':
-        rel.assignee_id = payload.assigneeId || null;
+      case 'reatribuir': {
+        const newAssignee = payload.assigneeId || null;
+        rel.assignee_id = newAssignee;
         historyNote = 'Responsável alterado';
+        if (newAssignee && newAssignee !== row.assignee_id && newAssignee !== req.user.id) {
+          notificationsToCreate.push({
+            userId: newAssignee, type: 'xflow_assigned', title: ticketLabel,
+            body: `${userName} te definiu como responsável por esta TASK.`,
+            actorName: userName, target: { kind: 'xflow_ticket', ticketId: id },
+          });
+        }
         break;
+      }
       case 'editar_prazo_proxima_acao':
         if (payload.dueDate !== undefined) data.dueDate = payload.dueDate;
         if (payload.nextAction !== undefined) data.nextAction = payload.nextAction;
@@ -528,9 +579,20 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
           await client.query('ROLLBACK');
           return res.status(400).json({ message: 'Comentário vazio.' });
         }
-        const comment = { id: uid('xc'), text: payload.text.trim(), ts: new Date().toISOString(), author: userName, authorId: req.user.id, mentions: payload.mentions || [] };
+        const commentText = payload.text.trim();
+        const comment = { id: uid('xc'), text: commentText, ts: new Date().toISOString(), author: userName, authorId: req.user.id, mentions: payload.mentions || [] };
         data.comments = [comment, ...(data.comments || [])];
-        historyNote = payload.text.trim();
+        historyNote = commentText;
+        const preview = commentText.length > 140 ? `${commentText.slice(0, 140)}…` : commentText;
+        (payload.mentions || []).forEach((mentionedId) => {
+          if (mentionedId && mentionedId !== req.user.id) {
+            notificationsToCreate.push({
+              userId: mentionedId, type: 'xflow_mention', title: ticketLabel,
+              body: `${userName} mencionou você em um comentário: "${preview}"`,
+              actorName: userName, target: { kind: 'xflow_ticket', ticketId: id },
+            });
+          }
+        });
         break;
       }
       case 'anexar': {
@@ -689,6 +751,10 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
 
     const eventType = statusChanged ? 'status_change' : (action === 'comentar' ? 'comment' : (action === 'anexar' ? 'attachment_added' : 'field_change'));
     await logEvent(client, id, req.user.orgId, eventType, statusChanged ? 'status' : action, statusChanged ? row.status : null, statusChanged ? finalStatus : null, req.user.id, historyNote);
+
+    for (const n of notificationsToCreate) {
+      await createNotification(client, { orgId: req.user.orgId, ...n });
+    }
 
     await client.query('COMMIT');
     res.json({ ticket: rowToTicket(updated[0]), relatedTicket: relatedTicketRow ? rowToTicket(relatedTicketRow) : null });

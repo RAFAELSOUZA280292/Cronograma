@@ -23,7 +23,7 @@ import TiptapImage from '@tiptap/extension-image';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
-import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel, COLUMN_COLOR_META } from '../App.jsx';
+import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel, COLUMN_COLOR_META, NotificationBell } from '../App.jsx';
 
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
 
@@ -1116,7 +1116,7 @@ function ContentField({ as: Tag = 'textarea', value, onCommit, disabled, rows, p
   );
 }
 
-function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCreateSpinoff, affectedCompanies, allTickets, onOpenTicket }) {
+function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCreateSpinoff, affectedCompanies, allTickets, onOpenTicket, onViewed }) {
   const isMobile = useIsMobile();
   const role = effectiveXflowRole(currentUser);
   const [events, setEvents] = useState([]);
@@ -1172,6 +1172,16 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
     apiGet(`/api/xflow/tickets/${ticket.id}/events`).then((res) => { if (!cancelled) setEvents(res.events); }).catch(() => {});
     return () => { cancelled = true; };
   }, [ticket.id, ticket.updatedAt]);
+
+  // Registro de leitura (2026-08, pedido do Rafael) — dispara só ao abrir
+  // (não em `ticket.updatedAt`, que muda a cada ação; o dedup de 5min é
+  // no servidor mas não faz sentido bater essa rota a cada edição). Também
+  // marca como lida qualquer notificação pendente apontando pra essa TASK.
+  useEffect(() => {
+    apiPost(`/api/xflow/tickets/${ticket.id}/view`, {}).catch(() => {});
+    if (onViewed) onViewed(ticket.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket.id]);
 
   const teamById = useMemo(() => {
     const m = {};
@@ -2493,7 +2503,11 @@ function XflowBoardView({ tickets, currentUser, teamById, filters, setFilters, o
   );
 }
 
-export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPersonal, onLogout, theme, onToggleTheme }) {
+export default function XFlowScreen({
+  currentUser, onExit, onGoCompany, onGoPersonal, onLogout, theme, onToggleTheme,
+  notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead,
+  pendingOpenTicketId, onPendingOpenConsumed, onTicketViewed,
+}) {
   // Histórico do navegador — Nível 2 (2026-08): sub-navegação local do
   // XFlow (Quadro/Lista/Arquivados/Lixeira), em cima da entrada de Nível 1
   // que App.jsx já empurra ao entrar no módulo ("navTag":"xflow"). Lido uma
@@ -2606,6 +2620,18 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
     else showToast(`TASK #${m[1]} não encontrada.`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
+
+  // Clique numa notificação (Central de Notificações, 2026-08) de fora do
+  // XFlow: App.jsx seta `pendingOpenTicketId` e troca o workspace; aqui só
+  // abre assim que os tickets estiverem carregados e limpa o pendente (senão
+  // ficaria reabrindo sozinho depois que o usuário já fechou o modal).
+  useEffect(() => {
+    if (!pendingOpenTicketId || !loaded) return;
+    const t = tickets.find((tk) => tk.id === pendingOpenTicketId);
+    if (t) openTicketDetail(t.id);
+    if (onPendingOpenConsumed) onPendingOpenConsumed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingOpenTicketId, loaded]);
 
   function registerAffectedCompany(name) {
     const trimmed = (name || '').trim();
@@ -2770,6 +2796,10 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
             </button>
           )}
           <button style={S.primaryBtn} onClick={() => setShowNew(true)}><Plus size={15} /> Nova TASK</button>
+          <NotificationBell
+            notifications={notifications} show={showNotifications} onToggle={onToggleNotifications}
+            onOpenItem={onOpenNotification} onMarkRead={onMarkNotificationRead} onMarkAllRead={onMarkAllNotificationsRead}
+          />
           <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
           {onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
         </div>
@@ -2831,6 +2861,7 @@ export default function XFlowScreen({ currentUser, onExit, onGoCompany, onGoPers
           onAction={performAction}
           onCreateSpinoff={createSpinoff}
           onOpenTicket={openTicketDetail}
+          onViewed={onTicketViewed}
         />
       )}
       {toastMsg && (

@@ -50,8 +50,9 @@ src/assets/brand/       Logos PNG da PRICETAX (preto = tema claro, branco = tema
 server/index.js       Bootstrap Express: initDb, seedIfEmpty, monta /api e /api/xflow, serve dist/.
 server/db.js           Pool pg, criação de tabelas (initDb), seed inicial, defaults de projeto novo.
 server/auth.js         JWT/bcrypt, cookie de sessão, middlewares requireAuth/requireMaster*/requireXflowAccess.
-server/routes.js        Rotas REST de auth, users, projects, personal-board, cnpj, organizations.
-server/xflow.js         Rotas REST do módulo XFlow (team, tickets, events) — router próprio montado em /api/xflow.
+server/routes.js        Rotas REST de auth, users, projects, personal-board, cnpj, organizations, notifications.
+server/xflow.js         Rotas REST do módulo XFlow (team, tickets, events, view) — router próprio montado em /api/xflow.
+server/notifications.js    Central de Notificações (2026-08) — createNotification()/rowToNotification(), usado por xflow.js e routes.js.
 server/xflowPermissions.js  Papel efetivo (reporter/dev/gestao/admin) + canDo() — matriz de "quem pode o quê" do XFlow.
 server/xflowTransitions.js  Matriz de transições de status do XFlow — de onde cada ação pode partir e pra onde vai.
 server/cnpjLookup.js     Cliente BrasilAPI/ReceitaWS + normalização + cache.
@@ -216,6 +217,26 @@ usam `S.detailBox`.
   timeline). Detalhe completo do fluxo de estados, matriz de permissões/
   transições, tempo por status, SLA e "quem está com a bola" em
   `PROJECT_CONTEXT.md` §18.
+
+### Central de Notificações (2026-08)
+- Sino 🔔 global — mesmo componente `NotificationBell` (`App.jsx`,
+  exportado) renderizado nas 3 telas (Tabela de Empresas, header do
+  `PersonalBoardScreen`, header do `XflowScreen`); estado
+  (`notifications`, polling 45s) mora em `App()`, único componente que
+  sobrevive à troca de `workspaceMode`.
+- Geração: `server/xflow.js` (menção em comentário — `comentar` — e
+  definição de responsável — `reatribuir`/`redirecionar`) e
+  `notifyActivityChanges()` em `server/routes.js` (menção em comentário
+  de atividade, responsável/vinculado por nome batendo com usuário real
+  — ver limitação do modelo de dados em `PROJECT_CONTEXT.md` §20).
+  Helper de escrita comum em `server/notifications.js`.
+- Leitura: `GET/PATCH /notifications`, `POST /notifications/read-all`,
+  `POST /notifications/mark-read-for-target` (usada quando o usuário
+  acessa a ocorrência, não só ao marcar manualmente — regra explícita:
+  abrir o painel sozinho nunca marca como lido).
+- Log de leitura de TASK: `POST /xflow/tickets/:id/view` — grava evento
+  `type:'view'` (dedup 5min) e marca notificações daquela TASK como
+  lidas. Detalhe completo em `PROJECT_CONTEXT.md` §20.
 
 ## 5. Fluxos críticos
 

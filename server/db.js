@@ -273,6 +273,30 @@ export async function initDb() {
         END
     `);
   }
+
+  // Central de Notificações (2026-08) — @menção/citação/vínculo em
+  // qualquer ponto do sistema (TASK do XFlow, atividade de empresa) gera
+  // uma linha aqui. `target` guarda o suficiente pra navegar direto pro
+  // lugar exato (não tem router real, ver PROJECT_CONTEXT.md §9) — formato
+  // varia por `kind`: {kind:'xflow_ticket', ticketId} ou
+  // {kind:'activity', projectId, activityId}. Relacional porque precisa de
+  // leitura/escrita por linha (marcar lida uma a uma) e índice por
+  // usuário+lida — não dá pra fazer isso bem com um blob JSONB.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id          TEXT PRIMARY KEY,
+      org_id      TEXT NOT NULL REFERENCES organizations(id),
+      user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type        TEXT NOT NULL,
+      title       TEXT NOT NULL,
+      body        TEXT NOT NULL,
+      actor_name  TEXT NOT NULL DEFAULT '',
+      target      JSONB NOT NULL DEFAULT '{}',
+      read        BOOLEAN NOT NULL DEFAULT false,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications(user_id, read, created_at DESC)`);
 }
 
 export function blankXflowTicketData() {
