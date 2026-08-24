@@ -190,16 +190,27 @@ usam `S.detailBox`.
   hoje em todo lugar que renderiza `FilterBar`), painel "Por responsável
   atual" em `GestorHome` (clicável, aplica o filtro). Detalhe completo em
   `PROJECT_CONTEXT.md` §18.1.
+- Vínculo entre TASKs + citação automática + link permanente (2026-08):
+  `linkedTicketIds` (dentro do `data` JSONB), ações `vincular_ticket`/
+  `desvincular_ticket` (`link_tickets` em `xflowPermissions.js`), seção
+  "TASKs vinculadas" + busca no `TicketDetailModal`. `renderCommentText()`
+  e o novo `TicketRefExtension` (Tiptap, usa `@tiptap/pm`) linkificam
+  "#N" em comentário/descrição. `openTicketDetail()` soma `#<número>` na
+  URL; `App.jsx` (efeito `hashXflowNavDone`) e `XFlowScreen` (efeito
+  `hashOpenDone`) abrem a TASK certa quando a página carrega já com esse
+  hash. Detalhe completo em `PROJECT_CONTEXT.md` §18.2.
 - Acesso: card "XFlow" no `WorkspaceGateScreen`, visível só se
   `currentUser.xflowRole` (reporter/dev/gestao) — controlado em
   `NewUserModal`/`EditUserModal`. Papel efetivo (inclui `admin`) calculado em
   `effectiveXflowRole()`, duplicado em `server/xflowPermissions.js` e
   `src/xflow/XFlow.jsx`.
-- APIs: `server/xflow.js` — `GET /xflow/team`, `GET /xflow/tickets`,
-  `GET /xflow/tickets/:id/events`, `POST /xflow/tickets`,
-  `PATCH /xflow/tickets/:id` (recebe `{action, payload}`, validado por
-  `server/xflowPermissions.js` + `server/xflowTransitions.js` — não aceita
-  mais o ticket inteiro solto). Montadas em `/api/xflow`, atrás de
+- APIs: `server/xflow.js` — `GET /xflow/team`, `GET /xflow/tickets`
+  (visibilidade org-wide pra todo papel, 2026-08), `GET /xflow/tickets/:id/events`,
+  `POST /xflow/tickets`, `PATCH /xflow/tickets/:id` (recebe
+  `{action, payload}`, validado por `server/xflowPermissions.js` +
+  `server/xflowTransitions.js` — não aceita mais o ticket inteiro solto;
+  resposta inclui `relatedTicket` quando a ação também mexe noutro
+  ticket, ex. vincular/desvincular). Montadas em `/api/xflow`, atrás de
   `requireXflowAccess`.
 - Modelo: tabelas `xflow_tickets` + `xflow_events` (log estruturado da
   timeline). Detalhe completo do fluxo de estados, matriz de permissões/

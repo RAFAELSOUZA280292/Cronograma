@@ -290,6 +290,7 @@ export function blankXflowTicketData() {
     archived: false,
     comments: [],
     history: [],
+    linkedTicketIds: [],
   };
 }
 

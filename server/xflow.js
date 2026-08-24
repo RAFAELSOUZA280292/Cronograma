@@ -329,12 +329,19 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
     const data = { ...row.data };
     const rel = {};
     let historyNote = null;
+    let relatedTicketRow = null;
     const userName = req.user.name;
 
     switch (action) {
       case 'aceitar':
-        rel.assignee_id = req.user.id;
-        historyNote = `${userName} aceitou o BUG`;
+        // Preserva um responsável já definido (ex.: veio de um `redirecionar`
+        // enquanto ainda "aberta") — "aceitar" (inclusive via arrastar no
+        // Quadro pra "Atribuída") só auto-atribui pra quem clicou quando
+        // NINGUÉM está atribuído ainda. Sem isso, qualquer um com permissão
+        // de triagem (inclusive gestão) que reprocesse/arraste o card
+        // sobrescrevia o responsável certo pelo próprio usuário.
+        rel.assignee_id = row.assignee_id || req.user.id;
+        historyNote = row.assignee_id ? `${userName} confirmou o aceite do BUG` : `${userName} aceitou o BUG`;
         break;
       case 'pedir_infos': {
         data.statusBeforeBlock = row.status;
@@ -375,7 +382,9 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         break;
       }
       case 'iniciar_dev_direto':
-        rel.assignee_id = req.user.id;
+        // Mesmo cuidado do `aceitar` — não sobrescreve um responsável já
+        // definido.
+        rel.assignee_id = row.assignee_id || req.user.id;
         historyNote = 'Desenvolvimento iniciado direto pela triagem';
         break;
       case 'iniciar_desenvolvimento':
@@ -563,6 +572,50 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         historyNote = 'Posição no quadro reorganizada';
         break;
       }
+      case 'vincular_ticket': {
+        const targetId = payload && payload.linkedTicketId;
+        if (!targetId || targetId === id) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ message: 'TASK inválida para vincular.' });
+        }
+        const { rows: targetRows } = await client.query('SELECT id, org_id, ticket_number, data FROM xflow_tickets WHERE id=$1 FOR UPDATE', [targetId]);
+        if (!targetRows[0] || targetRows[0].org_id !== req.user.orgId) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ message: 'TASK não encontrada.' });
+        }
+        const currentLinks = data.linkedTicketIds || [];
+        if (!currentLinks.includes(targetId)) data.linkedTicketIds = [...currentLinks, targetId];
+        const targetData = { ...targetRows[0].data };
+        const targetLinks = targetData.linkedTicketIds || [];
+        if (!targetLinks.includes(id)) {
+          targetData.linkedTicketIds = [...targetLinks, id];
+          const { rows: savedTarget } = await client.query(
+            'UPDATE xflow_tickets SET data=$1, updated_at=now() WHERE id=$2 RETURNING *',
+            [JSON.stringify(targetData), targetId]
+          );
+          relatedTicketRow = savedTarget[0];
+          await logEvent(client, targetId, req.user.orgId, 'field_change', 'vincular_ticket', null, id, req.user.id, `Vinculado ao BUG #${row.ticket_number}`);
+        }
+        historyNote = `Vinculado ao BUG #${targetRows[0].ticket_number}`;
+        break;
+      }
+      case 'desvincular_ticket': {
+        const targetId = payload && payload.linkedTicketId;
+        data.linkedTicketIds = (data.linkedTicketIds || []).filter((x) => x !== targetId);
+        const { rows: targetRows } = await client.query('SELECT id, org_id, ticket_number, data FROM xflow_tickets WHERE id=$1 FOR UPDATE', [targetId]);
+        if (targetRows[0] && targetRows[0].org_id === req.user.orgId) {
+          const targetData = { ...targetRows[0].data };
+          targetData.linkedTicketIds = (targetData.linkedTicketIds || []).filter((x) => x !== id);
+          const { rows: savedTarget } = await client.query(
+            'UPDATE xflow_tickets SET data=$1, updated_at=now() WHERE id=$2 RETURNING *',
+            [JSON.stringify(targetData), targetId]
+          );
+          relatedTicketRow = savedTarget[0];
+          await logEvent(client, targetId, req.user.orgId, 'field_change', 'desvincular_ticket', id, null, req.user.id, `Vínculo com o BUG #${row.ticket_number} removido`);
+        }
+        historyNote = 'Vínculo removido';
+        break;
+      }
       default:
         await client.query('ROLLBACK');
         return res.status(400).json({ message: 'Ação inválida.' });
@@ -638,7 +691,7 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
     await logEvent(client, id, req.user.orgId, eventType, statusChanged ? 'status' : action, statusChanged ? row.status : null, statusChanged ? finalStatus : null, req.user.id, historyNote);
 
     await client.query('COMMIT');
-    res.json({ ticket: rowToTicket(updated[0]) });
+    res.json({ ticket: rowToTicket(updated[0]), relatedTicket: relatedTicketRow ? rowToTicket(relatedTicketRow) : null });
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     next(e);
