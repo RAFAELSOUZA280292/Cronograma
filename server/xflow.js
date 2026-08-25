@@ -771,7 +771,13 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
     // chamada de rede externa, não pode segurar a linha nem atrasar a
     // resposta pro usuário se o Google estiver lento. Silencioso se o
     // responsável nunca conectou a própria conta (ver googleCalendar.js).
-    if (action === 'editar_campo' && payload && payload.field === 'expectedCompletionAt' && updatedTicket.assigneeId) {
+    // Dispara em DOIS casos, não só quando a data muda: o fluxo mais comum
+    // na prática é abrir a TASK já com a Previsão preenchida e só DEPOIS
+    // atribuir alguém — se só disparasse na edição do campo de data, esse
+    // caminho (o mais comum) nunca sincronizava nada (bug real, reportado
+    // pelo Rafael testando).
+    const editedCompletionDate = action === 'editar_campo' && payload && payload.field === 'expectedCompletionAt';
+    if (updatedTicket.assigneeId && updatedTicket.expectedCompletionAt && (assigneeChanged || editedCompletionDate)) {
       syncTicketEvent(updatedTicket.assigneeId, updatedTicket, process.env.APP_BASE_URL)
         .then((googleEventId) => {
           if (googleEventId && googleEventId !== updatedTicket.googleEventId) {

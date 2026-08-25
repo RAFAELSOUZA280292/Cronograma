@@ -1837,20 +1837,31 @@ ida-e-volta pro domínio do Google numa navegação de topo (GET), então
 `req.user` já está disponível direto no callback — não precisou de
 `state` carregando id de usuário.
 
-**Gatilho de sincronização**: dentro do mesmo `PATCH /tickets/:id` que já
-processa `editar_campo` — quando `field==='expectedCompletionAt'` **e**
-a TASK já tem responsável, chama `syncTicketEvent()` **depois** do
-`COMMIT` e do `res.json(...)` (fire-and-forget, `.then()/.catch()` sem
-`await` bloqueando a resposta) — é uma chamada de rede externa, não pode
-segurar a linha do banco nem atrasar a resposta pro usuário se o Google
-estiver lento ou o token tiver expirado. Se `syncTicketEvent()` devolver
-um `googleEventId` novo, uma segunda query (também fora da transação
-principal) grava ele em `data.googleEventId`. Silencioso (não gera erro
-pro usuário) se o responsável nunca conectou a própria conta — é o
-estado normal de quem não usa a integração. Reassinatura pro dev.: se o
-Google rejeitar (token revogado, `invalid_grant`, etc.), só loga no
-console do servidor, não afeta a TASK nem o usuário vê nada quebrar —
-testado localmente forçando um refresh_token inválido.
+**Gatilho de sincronização**: dentro do mesmo `PATCH /tickets/:id`,
+chama `syncTicketEvent()` **depois** do `COMMIT` e do `res.json(...)`
+(fire-and-forget, `.then()/.catch()` sem `await` bloqueando a resposta —
+é uma chamada de rede externa, não pode segurar a linha do banco nem
+atrasar a resposta pro usuário se o Google estiver lento ou o token
+tiver expirado) em **dois casos**, não só um: `field==='expectedCompletionAt'`
+sendo editado (`editar_campo`) **ou** o responsável mudando
+(`assigneeChanged`, cobre `reatribuir`/`redirecionar`/`aceitar`/
+`iniciar_dev_direto`) — em ambos os casos, só dispara se a TASK **já**
+tiver responsável e Previsão de conclusão no momento. **Bug real
+encontrado e corrigido** (reportado pelo Rafael testando ao vivo): a
+versão original só cobria a edição do campo de data — mas o fluxo mais
+comum na prática é abrir a TASK já com a Previsão preenchida (direto na
+criação, `NewTicketModal` já tem esse campo) e só **depois** atribuir
+alguém; como atribuir não mexe no campo de data, esse caminho — o mais
+comum, não uma exceção — nunca sincronizava nada. Corrigido cobrindo os
+dois gatilhos. Se `syncTicketEvent()` devolver um `googleEventId` novo,
+uma segunda query (também fora da transação principal) grava ele em
+`data.googleEventId`. Silencioso (não gera erro pro usuário) se o
+responsável nunca conectou a própria conta — é o estado normal de quem
+não usa a integração. Se o Google rejeitar (token revogado,
+`invalid_grant`, etc.), só loga no console do servidor, não afeta a TASK
+nem o usuário vê nada quebrar — testado localmente forçando um
+refresh_token inválido, nos dois gatilhos (edição de data com
+responsável já definido, e atribuição com data já definida).
 
 Ao apagar de vez uma TASK (`DELETE /tickets/:id`, admin-only), se ela
 tinha `googleEventId`, apaga o evento correspondente também (mesmo
