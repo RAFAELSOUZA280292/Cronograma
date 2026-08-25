@@ -1579,6 +1579,24 @@ restrita a dev-responsável/gestão/admin, `edit_content` (Previsão de
 conclusão) continua liberada também pro solicitante-dono em status
 iniciais, exatamente como já era antes (ver §18 pra matriz completa).
 
+**Preview de imagem em Evidências, sem precisar baixar (2026-08, pedido
+do Rafael)**: antes, clicar em qualquer anexo (nome ou miniatura) sempre
+disparava download direto, mesmo pra imagem. Agora, quando
+`ev.type` começa com `image/`, clicar na miniatura ou no nome abre um
+lightbox em tela cheia (`previewEvidence`, estado local do
+`TicketDetailModal`) com a imagem ampliada, nome do arquivo e um botão
+"Baixar" explícito ao lado do fechar — o download continua disponível,
+só deixou de ser a única ação possível. Anexos que não são imagem
+continuam exatamente como antes (clique = download direto, sem preview,
+porque não faria sentido abrir "em tela" um PDF/zip/etc. do mesmo jeito).
+**Bug corrigido durante o teste**: o overlay do lightbox, ao fechar
+clicando fora da imagem, não chamava `stopPropagation()` — o clique
+"vazava" pro overlay do `TicketDetailModal` por trás (que fecha ao
+clicar fora dele), fechando os dois de uma vez em vez de só o lightbox.
+Testado localmente: abrir preview pela miniatura e pelo nome, baixar
+pelo botão dentro do lightbox, fechar clicando fora (só fecha o preview,
+TASK continua aberta) e pelo X.
+
 ## 19a. Autoatendimento de conta (2026-08)
 
 `MyProfileModal` (`App.jsx`, aberto pelo avatar no topo — "Meu perfil")

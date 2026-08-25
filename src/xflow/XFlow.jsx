@@ -4,7 +4,7 @@ import {
   X, Plus, MessageSquare, Clock, Paperclip, ChevronDown, LogOut,
   Upload, Archive, Ban, Trash2, Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Quote, Building2, Columns3, LayoutGrid, LayoutList,
-  Undo2, Redo2, Heading2, Heading3, Indent as IndentIcon, Outdent, Code, Minus as MinusIcon, Link2, Smile,
+  Undo2, Redo2, Heading2, Heading3, Indent as IndentIcon, Outdent, Code, Minus as MinusIcon, Link2, Smile, Download,
 } from 'lucide-react';
 import {
   DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors, closestCenter, useDroppable,
@@ -1153,6 +1153,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   const [publishRelease, setPublishRelease] = useState('');
   const [showGuard, setShowGuard] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [previewEvidence, setPreviewEvidence] = useState(null);
 
   const lastSavedAt = useAutosaveTimestamp(ticket);
   const hasCommentDraft = !!commentDraft.trim() || pendingMentions.length > 0;
@@ -1419,15 +1420,31 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                 <input type="file" multiple style={{ display: 'none' }} onChange={handleEvidencePick} />
               </label>
             )}
-            {(ticket.evidence || []).map((ev) => (
-              <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12 }}>
-                {ev.type && ev.type.startsWith('image/') ? <img src={ev.dataUrl} alt={ev.name} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} /> : <Paperclip size={12} />}
-                <a href={ev.dataUrl} download={ev.name}>{ev.name}</a>
-                {canDoClient('attach_evidence', currentUser, ticket) && (
-                  <button style={S.iconBtnGhost} title="Remover anexo" onClick={() => runAction('remover_anexo', { evidenceId: ev.id })}><X size={12} /></button>
-                )}
-              </div>
-            ))}
+            {(ticket.evidence || []).map((ev) => {
+              const isImage = ev.type && ev.type.startsWith('image/');
+              return (
+                <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12 }}>
+                  {isImage ? (
+                    <img
+                      src={ev.dataUrl} alt={ev.name}
+                      style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4, cursor: 'pointer' }}
+                      onClick={() => setPreviewEvidence(ev)}
+                    />
+                  ) : <Paperclip size={12} />}
+                  {isImage ? (
+                    <a href="#" onClick={(e) => { e.preventDefault(); setPreviewEvidence(ev); }}>{ev.name}</a>
+                  ) : (
+                    <a href={ev.dataUrl} download={ev.name}>{ev.name}</a>
+                  )}
+                  {isImage && (
+                    <a href={ev.dataUrl} download={ev.name} title="Baixar" style={S.iconBtnGhost}><Download size={12} /></a>
+                  )}
+                  {canDoClient('attach_evidence', currentUser, ticket) && (
+                    <button style={S.iconBtnGhost} title="Remover anexo" onClick={() => runAction('remover_anexo', { evidenceId: ev.id })}><X size={12} /></button>
+                  )}
+                </div>
+              );
+            })}
 
             <div style={{ ...S.subSectionLabel, marginTop: 12 }}><Link2 size={12} style={{ verticalAlign: -2, marginRight: 4 }} />TASKs vinculadas</div>
             {linkedTickets.length === 0 && <div style={S.fieldHint}>Nenhuma TASK vinculada ainda.</div>}
@@ -1814,6 +1831,23 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
           onDiscard={onClose}
           onCancel={() => setShowGuard(false)}
         />
+      )}
+      {previewEvidence && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.85)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={(e) => { e.stopPropagation(); setPreviewEvidence(null); }}
+        >
+          <div style={{ maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: 10 }} onClick={(e) => e.stopPropagation()}>
+            <img src={previewEvidence.dataUrl} alt={previewEvidence.name} style={{ maxWidth: '90vw', maxHeight: '78vh', display: 'block', borderRadius: 8, objectFit: 'contain' }} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ color: '#eee', fontSize: 13 }}>{previewEvidence.name}</span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <a href={previewEvidence.dataUrl} download={previewEvidence.name} style={S.primaryBtn}><Download size={14} /> Baixar</a>
+                <button style={S.iconBtnGhost} onClick={() => setPreviewEvidence(null)}><X size={18} color="#fff" /></button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
