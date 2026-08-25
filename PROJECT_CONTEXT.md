@@ -1551,6 +1551,19 @@ screenshot de uma TASK real em "Em desenvolvimento")**:
   desenvolvimento", produto trocado por lá — persistiu na coluna certa e
   registrou `Campo "product" atualizado` na timeline.
 
+**Contador da Previsão de conclusão (2026-08, pedido do Rafael: "deixe
+claro em exibição... adicione um contador")**: `expectedCompletionBadge(dateStr)`
+(`XFlow.jsx`, perto de `daysSince()`) — monta a data em horário local
+(`new Date(y, m-1, d)`, não `new Date(iso)` direto, que cairia em UTC
+meia-noite e podia virar o dia errado dependendo do fuso) e compara com
+hoje: `Atrasada Xd` (vermelho, atrasada), `Entrega hoje` (laranja),
+`Falta 1 dia` (laranja), `Faltam X dias` (azul, 2+ dias). Aparece nos 3
+lugares onde a Previsão já era mostrada — card do Quadro
+(`XflowBoardCard`), linha da Lista (`TicketRow`) e cabeçalho do
+`TicketDetailModal` — sempre ao lado da data por extenso, nunca no lugar
+dela. Testado localmente nos 3 estados (faltando dias, hoje, atrasada) e
+nos 3 lugares.
+
 ## 19a. Autoatendimento de conta (2026-08)
 
 `MyProfileModal` (`App.jsx`, aberto pelo avatar no topo — "Meu perfil")

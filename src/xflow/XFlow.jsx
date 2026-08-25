@@ -1379,8 +1379,9 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
           {ticket.deleted && <Badge meta={{ label: 'Na Lixeira', ...tone('#e2574c') }} />}
         </div>
         {ticket.expectedCompletionAt && (
-          <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: -8, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'var(--text-5)', marginTop: -8, marginBottom: 14 }}>
             Previsão de conclusão: <strong style={{ color: 'var(--text-2)' }}>{fmtDate(ticket.expectedCompletionAt)}</strong>
+            <Badge meta={expectedCompletionBadge(ticket.expectedCompletionAt)} />
           </div>
         )}
 
@@ -1829,6 +1830,24 @@ function daysSince(iso) {
   if (!iso) return null;
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
 }
+// Contador "faltam X dias" / "entrega hoje" da Previsão de conclusão
+// (2026-08, pedido do Rafael — "deixe claro em exibição"). Data guardada
+// como "YYYY-MM-DD" puro (sem hora) — monta a data em horário local em
+// vez de `new Date(iso)` direto, que interpretaria como UTC meia-noite e
+// podia virar o dia errado dependendo do fuso do navegador.
+function expectedCompletionBadge(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  const target = new Date(y, m - 1, d);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((target - today) / 86400000);
+  if (diffDays < 0) return { label: `Atrasada ${Math.abs(diffDays)}d`, ...tone('#e2574c') };
+  if (diffDays === 0) return { label: 'Entrega hoje', ...tone('#ff9f40') };
+  if (diffDays === 1) return { label: 'Falta 1 dia', ...tone('#ff9f40') };
+  return { label: `Faltam ${diffDays} dias`, ...tone('#3ea6ff') };
+}
 function fmtDateFromTs(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -1955,8 +1974,9 @@ function TicketRow({ t, teamById, onOpen }) {
         Aberto {fmtDateFromTs(t.createdAt)}{days != null ? ` · há ${days}d` : ''}
       </div>
       {t.expectedCompletionAt && (
-        <div style={{ fontSize: 10.5, color: 'var(--text-6)' }} title="Previsão de conclusão">
-          Previsão: {fmtDate(t.expectedCompletionAt)}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} title="Previsão de conclusão">
+          <span style={{ fontSize: 10.5, color: 'var(--text-6)' }}>Previsão: {fmtDate(t.expectedCompletionAt)}</span>
+          <Badge meta={expectedCompletionBadge(t.expectedCompletionAt)} small />
         </div>
       )}
     </div>
@@ -2319,6 +2339,7 @@ function XflowBoardCard({ ticket, teamById, columnId, columnTerminal, showRealSt
     id: ticket.id, data: { type: 'card', ticket, columnId }, disabled: columnTerminal,
   });
   const days = daysSince(ticket.createdAt);
+  const completionMeta = expectedCompletionBadge(ticket.expectedCompletionAt);
   const style = { transform: DndCSS.Transform.toString(transform), transition, opacity: isDragging ? 0.35 : 1 };
   return (
     <div
@@ -2344,6 +2365,12 @@ function XflowBoardCard({ ticket, teamById, columnId, columnTerminal, showRealSt
         )}
       </div>
       <div style={{ fontSize: 10.5, color: 'var(--text-5)' }}>{whoHasTheBall(ticket, teamById)}</div>
+      {ticket.expectedCompletionAt && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 10.5, color: 'var(--text-5)' }}>Previsão: {fmtDate(ticket.expectedCompletionAt)}</span>
+          {completionMeta && <Badge meta={completionMeta} small />}
+        </div>
+      )}
       <div style={{ fontSize: 10, color: 'var(--text-6)' }}>Aberto{days != null ? ` há ${days}d` : ''}</div>
     </div>
   );
