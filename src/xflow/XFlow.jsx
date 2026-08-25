@@ -218,6 +218,7 @@ const XFLOW_CLOSURE_REASON_META = {
 const XFLOW_CLOSURE_REASON_ORDER = Object.keys(XFLOW_CLOSURE_REASON_META);
 
 const XFLOW_PRODUCTS = ['X da Questão', 'XClass', 'XPED', 'Gestão Projetos - Empresas', 'XFlow', 'Gestão de Atividades', 'Outro'];
+const XFLOW_ENVIRONMENT_LABEL = { producao: 'Produção', homologacao: 'Homologação', desenvolvimento: 'Desenvolvimento' };
 const XFLOW_CLIENT_TYPES = ['PRICETAX', 'TINTAX'];
 
 function metaLabel(map, key) { return (map[key] && (map[key].label || map[key])) || key || '—'; }
@@ -1718,9 +1719,21 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             <div style={S.fieldHint}>Estimativa de quem abriu a TASK — visível para solicitante, dev e gestão.</div>
 
             <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Dados capturados</div>
-            <div style={S.fieldHint}>Produto: {ticket.product || '—'} · Ambiente: {ticket.environment || '—'}</div>
-            <div style={{ ...S.fieldHint, marginTop: 4 }}>
+            <div style={{ ...S.fieldHint, marginBottom: 4 }}>
               Campos que faltaram na abertura podem ser preenchidos aqui — toda alteração fica registrada na timeline.
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 140px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Produto / Plataforma</div>
+                <select value={ticket.product || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'product', value: e.target.value })}>
+                  <option value="">Selecione</option>
+                  {XFLOW_PRODUCTS.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div style={{ flex: '1 1 140px' }}>
+                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Ambiente</div>
+                <div style={{ fontSize: 13, fontWeight: 600, padding: '9px 0' }}>{XFLOW_ENVIRONMENT_LABEL[ticket.environment] || ticket.environment || '—'}</div>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
@@ -1967,8 +1980,14 @@ function FilterBar({ filters, setFilters, team, teamById, tickets }) {
   // cada ticket. Um dev sem nenhum ticket na mão (ex.: usuário que só abre
   // TASK) simplesmente não aparece na lista.
   const presentBallHolders = new Set((tickets || []).map(ballHolderKey).filter((k) => k !== 'none'));
+  // Sem filtro de papel aqui de propósito: `ballHolderKey()` gera `dev:<id>`
+  // pra qualquer ticket com assignee_id setado, seja lá qual for o papel de
+  // quem foi atribuído (gestão/admin também podem virar responsável de uma
+  // TASK via reatribuir) — exigir xflowRole==='dev' escondia gente real da
+  // lista (bug reportado pelo Rafael: Rafael Souza, responsável de uma TASK
+  // em "Em Desenvolvimento", não aparecia no filtro).
   const devs = teamById
-    ? Object.values(teamById).filter((m) => m.xflowRole === 'dev' && presentBallHolders.has(`dev:${m.id}`)).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+    ? Object.values(teamById).filter((m) => presentBallHolders.has(`dev:${m.id}`)).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
     : [];
   // Solicitantes com atividade parada na fila de triagem (2026-08, pedido do
   // Rafael) — "Fila de triagem" sozinha não dizia de quem é a task, então

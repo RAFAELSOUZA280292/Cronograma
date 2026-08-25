@@ -315,7 +315,7 @@ router.post('/tickets', requireAuth, requireXflowAccess, async (req, res, next) 
 const EDITABLE_CONTENT_FIELDS = [
   'title', 'description', 'expectedResult', 'reproSteps', 'module', 'affectedUser', 'affectedCompany',
   'environment', 'solution', 'whatToTest', 'impact', 'frequency', 'occurredAt', 'clientType',
-  'expectedCompletionAt',
+  'expectedCompletionAt', 'product',
 ];
 
 router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, next) => {
@@ -532,6 +532,12 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
           rel.title = payload.value;
         } else if (field === 'description') {
           data.description = sanitizeDescriptionHtml(payload.value);
+        } else if (field === 'product') {
+          // Coluna relacional (xflow_tickets.product), não campo do `data`
+          // JSONB — precisa ir em `rel`, senão `data.product` ficaria
+          // pairando sem efeito nenhum na leitura (rowToTicket() lê a
+          // coluna, não o data).
+          rel.product = payload.value;
         } else {
           data[field] = payload.value;
         }
