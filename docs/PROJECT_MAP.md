@@ -47,7 +47,7 @@ src/main.jsx        Bootstrap do React (ReactDOM.createRoot).
 src/lib/api.js        Wrapper fetch (apiGet/apiPost/apiPatch/apiDelete), credentials:'include'.
 src/assets/brand/       Logos PNG da PRICETAX (preto = tema claro, branco = tema escuro).
 
-server/index.js       Bootstrap Express: initDb, seedIfEmpty, monta /api e /api/xflow, serve dist/.
+server/index.js       Bootstrap Express: initDb, seedIfEmpty, monta /api, /api/xflow e /api/google, serve dist/.
 server/db.js           Pool pg, criação de tabelas (initDb), seed inicial, defaults de projeto novo.
 server/auth.js         JWT/bcrypt, cookie de sessão, middlewares requireAuth/requireMaster*/requireXflowAccess.
 server/routes.js        Rotas REST de auth, users, projects, personal-board, cnpj, organizations, notifications.
@@ -55,6 +55,8 @@ server/xflow.js         Rotas REST do módulo XFlow (team, tickets, events, view
 server/notifications.js    Central de Notificações (2026-08) — createNotification()/rowToNotification(), usado por xflow.js e routes.js.
 server/xflowPermissions.js  Papel efetivo (reporter/dev/gestao/admin) + canDo() — matriz de "quem pode o quê" do XFlow.
 server/xflowTransitions.js  Matriz de transições de status do XFlow — de onde cada ação pode partir e pra onde vai.
+server/googleCalendar.js   Sincronização com Google Calendar (2026-08) — helper puro (OAuth2, criar/atualizar/apagar evento), sem rotas.
+server/google.js        Rotas OAuth do Google Calendar (status, oauth/start, oauth/callback, disconnect) — router próprio em /api/google.
 server/cnpjLookup.js     Cliente BrasilAPI/ReceitaWS + normalização + cache.
 
 index.html            Shell HTML, variáveis CSS de tema (light/dark) em :root.
@@ -237,6 +239,19 @@ usam `S.detailBox`.
 - Log de leitura de TASK: `POST /xflow/tickets/:id/view` — grava evento
   `type:'view'` (dedup 5min) e marca notificações daquela TASK como
   lidas. Detalhe completo em `PROJECT_CONTEXT.md` §20.
+
+### Sincronização com Google Calendar (2026-08)
+- Previsão de conclusão de uma TASK do XFlow → evento no Google Calendar
+  do responsável (unidirecional, por usuário — cada um conecta a própria
+  conta). Backend: `server/googleCalendar.js` (helper OAuth2/API) +
+  `server/google.js` (rotas, `/api/google`). Schema:
+  `google_calendar_connections` (`server/db.js`) + `data.googleEventId`
+  em `xflow_tickets`.
+- UI: seção "Google Calendar" dentro de `MyProfileModal` (`App.jsx`).
+- Requer `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URI`/
+  `APP_BASE_URL` como variável de ambiente (nunca commitado — só `.env`
+  local e env vars do Railway). Detalhe completo, limitações conhecidas e
+  passo a passo do cadastro no Google Cloud em `PROJECT_CONTEXT.md` §21.
 
 ## 5. Fluxos críticos
 

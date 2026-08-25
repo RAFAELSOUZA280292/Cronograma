@@ -297,6 +297,22 @@ export async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications(user_id, read, created_at DESC)`);
+
+  // Sincronização com Google Calendar (2026-08) — cada usuário conecta a
+  // própria conta (não existe "conexão única pra todo mundo"). Só guarda
+  // os tokens; qual evento do Google corresponde a qual TASK fica em
+  // `data.googleEventId` no próprio `xflow_tickets` (ver blankXflowTicketData
+  // abaixo) — é 1:1 por ticket, não precisa de tabela própria pra isso.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS google_calendar_connections (
+      user_id       TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      access_token  TEXT NOT NULL,
+      refresh_token TEXT NOT NULL,
+      token_expiry  TIMESTAMPTZ NOT NULL,
+      calendar_id   TEXT NOT NULL DEFAULT 'primary',
+      connected_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
 }
 
 export function blankXflowTicketData() {
@@ -315,6 +331,7 @@ export function blankXflowTicketData() {
     comments: [],
     history: [],
     linkedTicketIds: [],
+    googleEventId: '',
   };
 }
 

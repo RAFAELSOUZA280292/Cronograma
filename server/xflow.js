@@ -5,6 +5,7 @@ import { requireAuth, requireXflowAccess } from './auth.js';
 import { canDo } from './xflowPermissions.js';
 import { checkTransition, XFLOW_TERMINAL_STATUSES } from './xflowTransitions.js';
 import { createNotification } from './notifications.js';
+import { syncTicketEvent, deleteTicketEvent } from './googleCalendar.js';
 
 function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
@@ -763,7 +764,22 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
     }
 
     await client.query('COMMIT');
-    res.json({ ticket: rowToTicket(updated[0]), relatedTicket: relatedTicketRow ? rowToTicket(relatedTicketRow) : null });
+    const updatedTicket = rowToTicket(updated[0]);
+    res.json({ ticket: updatedTicket, relatedTicket: relatedTicketRow ? rowToTicket(relatedTicketRow) : null });
+
+    // Google Calendar (2026-08): sincroniza DEPOIS de responder — é uma
+    // chamada de rede externa, não pode segurar a linha nem atrasar a
+    // resposta pro usuário se o Google estiver lento. Silencioso se o
+    // responsável nunca conectou a própria conta (ver googleCalendar.js).
+    if (action === 'editar_campo' && payload && payload.field === 'expectedCompletionAt' && updatedTicket.assigneeId) {
+      syncTicketEvent(updatedTicket.assigneeId, updatedTicket, process.env.APP_BASE_URL)
+        .then((googleEventId) => {
+          if (googleEventId && googleEventId !== updatedTicket.googleEventId) {
+            return pool.query(`UPDATE xflow_tickets SET data = jsonb_set(data, '{googleEventId}', to_jsonb($1::text)) WHERE id=$2`, [googleEventId, id]);
+          }
+        })
+        .catch((e) => console.error('Falha ao sincronizar com Google Calendar', e.message));
+    }
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     next(e);
@@ -789,5 +805,8 @@ router.delete('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, 
     }
     await pool.query('DELETE FROM xflow_tickets WHERE id=$1', [id]);
     res.status(204).end();
+    if (row.assignee_id && row.data && row.data.googleEventId) {
+      deleteTicketEvent(row.assignee_id, row.data.googleEventId).catch((e) => console.error('Falha ao apagar evento no Google Calendar', e.message));
+    }
   } catch (e) { next(e); }
 });

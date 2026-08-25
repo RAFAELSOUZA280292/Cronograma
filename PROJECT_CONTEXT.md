@@ -1776,6 +1776,117 @@ sino funcionaram; abrir o painel sozinho não mexeu na contagem; abrir a
 TASK/atividade referida marcou só aquela notificação como lida; visualizar
 uma TASK duas vezes em seguida não duplicou o registro na timeline.
 
+## 21. Sincronização com Google Calendar (2026-08)
+
+Pedido do Rafael: Previsão de conclusão de uma TASK do XFlow vira evento
+no Google Calendar do responsável. **Unidirecional** (PRICETAX escreve,
+nunca lê a agenda de volta) e **por usuário** (cada um conecta a própria
+conta — não existe "conexão única pra org toda").
+
+### Setup no Google Cloud (feito manualmente pelo Rafael, uma vez)
+
+Projeto "My First Project" no [console.cloud.google.com](https://console.cloud.google.com),
+Calendar API ativada, tela de consentimento OAuth criada (nome "Cronograma
+PRICETAX"), escopo `https://www.googleapis.com/auth/calendar.events`, um
+cliente OAuth "Aplicativo da Web" com dois redirect URIs autorizados (prod
++ localhost, pra dar pra testar local antes de cada deploy):
+```
+https://painel.pricetax.com.br/api/google/oauth/callback
+http://localhost:5173/api/google/oauth/callback
+```
+Client ID/Secret gerados ali viram variável de ambiente — **nunca
+commitados**, só em `.env` local (gitignored) e nas env vars do Railway
+em produção:
+```
+GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-...
+GOOGLE_REDIRECT_URI=<callback específico de cada ambiente>
+APP_BASE_URL=<origem do app específica de cada ambiente>
+```
+
+### Schema
+
+`google_calendar_connections` (`server/db.js`, relacional — um usuário só
+pode ter uma conexão, por isso `user_id` é a própria PK):
+`user_id, access_token, refresh_token, token_expiry, calendar_id, connected_at`.
+Qual evento do Google corresponde a qual TASK fica em
+`data.googleEventId` dentro do próprio `xflow_tickets` (1:1 por ticket,
+não precisa de tabela própria — mesmo raciocínio do `linkedTicketIds`).
+
+### Backend
+
+`server/googleCalendar.js` — helper puro (sem rotas), usa o pacote
+`googleapis`: `getAuthUrl()`, `exchangeCodeForTokens()`,
+`saveConnection()`, `disconnectUser()`, `getConnectionStatus()`,
+`syncTicketEvent(userId, ticket, appBaseUrl)` (cria ou atualiza o evento —
+todo-dia, `start.date`/`end.date` com `end` sendo o dia seguinte, formato
+exigido pela API do Google pra evento de dia inteiro) e
+`deleteTicketEvent()`. O client OAuth2 do `googleapis` renova o
+`access_token` sozinho quando expira (usa o `refresh_token`); um listener
+`client.on('tokens', ...)` persiste o novo `access_token` de volta no
+banco pra não precisar renovar nas próximas.
+
+`server/google.js` — router montado em `/api/google`
+(`server/index.js`): `GET /status`, `GET /oauth/start` (redirect direto
+pro consentimento do Google, não é fetch — o botão no frontend é um
+`<a href>`, não `onClick`), `GET /oauth/callback` (troca `code` por
+tokens, salva, redireciona de volta pro app com um hash marcador —
+`#google-calendar-connected` ou `#google-calendar-error`) e
+`POST /disconnect`. O cookie de sessão (`sameSite: 'lax'`) sobrevive à
+ida-e-volta pro domínio do Google numa navegação de topo (GET), então
+`req.user` já está disponível direto no callback — não precisou de
+`state` carregando id de usuário.
+
+**Gatilho de sincronização**: dentro do mesmo `PATCH /tickets/:id` que já
+processa `editar_campo` — quando `field==='expectedCompletionAt'` **e**
+a TASK já tem responsável, chama `syncTicketEvent()` **depois** do
+`COMMIT` e do `res.json(...)` (fire-and-forget, `.then()/.catch()` sem
+`await` bloqueando a resposta) — é uma chamada de rede externa, não pode
+segurar a linha do banco nem atrasar a resposta pro usuário se o Google
+estiver lento ou o token tiver expirado. Se `syncTicketEvent()` devolver
+um `googleEventId` novo, uma segunda query (também fora da transação
+principal) grava ele em `data.googleEventId`. Silencioso (não gera erro
+pro usuário) se o responsável nunca conectou a própria conta — é o
+estado normal de quem não usa a integração. Reassinatura pro dev.: se o
+Google rejeitar (token revogado, `invalid_grant`, etc.), só loga no
+console do servidor, não afeta a TASK nem o usuário vê nada quebrar —
+testado localmente forçando um refresh_token inválido.
+
+Ao apagar de vez uma TASK (`DELETE /tickets/:id`, admin-only), se ela
+tinha `googleEventId`, apaga o evento correspondente também (mesmo
+padrão fire-and-forget, depois da resposta).
+
+### Frontend
+
+Seção "Google Calendar" dentro de `MyProfileModal` (`App.jsx`, mesmo
+modal da troca de senha) — busca `GET /google/status` ao abrir; mostra
+"Conectar Google Calendar" (link `<a href="/api/google/oauth/start">`,
+não botão com `onClick` + `fetch`, porque OAuth precisa de uma navegação
+de página inteira de verdade) ou, se já conectado, "Conectado desde
+DD/MM/YYYY HH:mm" + botão "Desconectar". Como a ida-e-volta pro Google
+descarrega a página inteira (perde todo estado React, inclusive
+`showMyProfile`), o resultado da autorização só pode ser mostrado
+reabrindo o modal sozinho quando a URL já chega com o hash marcador —
+efeito `hashGoogleDone` em `App.jsx` (mesmo padrão do `hashXflowNavDone`
+do link permanente por TASK, §18.2): detecta
+`#google-calendar-connected`/`#google-calendar-error`, abre "Meu perfil"
+com um banner de sucesso/erro, e limpa o hash da URL.
+
+### Limitações conhecidas e aceitas
+
+- **Só sincroniza a Previsão de conclusão**, não o Prazo — são conceitos
+  diferentes (§18, "Diferença entre Prazo e Previsão de conclusão") e só
+  a Previsão tem sentido como "isso vai pro meu calendário".
+- **Reatribuição não move o evento**: se a TASK muda de responsável
+  depois que o evento já foi criado no calendário do responsável
+  anterior, o evento antigo fica parado lá (só é atualizado/apagado se
+  alguém tocar de novo na Previsão de conclusão OU a TASK for apagada de
+  vez). Não foi implementado mover o evento entre calendários na
+  reatribuição — escopo deixado de fora deliberadamente, pode ser pedido
+  como ajuste futuro se virar um problema real no uso.
+- Sem responsável definido, não sincroniza nada (sem "calendário de
+  quem" óbvio pra usar).
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

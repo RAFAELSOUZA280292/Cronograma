@@ -474,6 +474,7 @@ export default function App() {
   const [cloningProject, setCloningProject] = useState(null);
   const [showGroupActivityModal, setShowGroupActivityModal] = useState(false);
   const [showMyProfile, setShowMyProfile] = useState(false);
+  const [googleConnectResult, setGoogleConnectResult] = useState(null);
   const [openActivityId, setOpenActivityId] = useState(null);
   const [newMember, setNewMember] = useState('');
   const [teamCandidates, setTeamCandidates] = useState([]);
@@ -726,6 +727,26 @@ export default function App() {
     hashXflowNavDone.current = true;
     if (/^#\d+$/.test(window.location.hash) && currentUser.xflowRole) goToWorkspace('xflow');
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
+
+  // Volta do OAuth do Google Calendar (2026-08) — a ida-e-volta pro Google
+  // descarrega a página inteira, então não dá pra manter "Meu perfil"
+  // aberto durante a autorização; a única forma de mostrar o resultado é
+  // reabrir sozinho quando a URL já chega com o hash marcador que
+  // server/google.js usa no redirect final.
+  const hashGoogleDone = useRef(false);
+  useEffect(() => {
+    if (hashGoogleDone.current || !currentUser) return;
+    hashGoogleDone.current = true;
+    if (window.location.hash === '#google-calendar-connected') {
+      setGoogleConnectResult('connected');
+      setShowMyProfile(true);
+      try { window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search); } catch (e) { /* ignora */ }
+    } else if (window.location.hash === '#google-calendar-error') {
+      setGoogleConnectResult('error');
+      setShowMyProfile(true);
+      try { window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search); } catch (e) { /* ignora */ }
+    }
   }, [currentUser]);
 
   function persistPersonalBoardDebounced(board) {
@@ -2322,7 +2343,8 @@ export default function App() {
       {showMyProfile && (
         <MyProfileModal
           user={currentUser}
-          onClose={() => setShowMyProfile(false)}
+          googleConnectResult={googleConnectResult}
+          onClose={() => { setShowMyProfile(false); setGoogleConnectResult(null); }}
           onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
         />
       )}
@@ -2991,7 +3013,7 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
   );
 }
 
-function MyProfileModal({ user, onClose, onSave }) {
+function MyProfileModal({ user, onClose, onSave, googleConnectResult }) {
   const [avatar, setAvatar] = useState(user.avatar || '');
   const isMobile = useIsMobile();
   const isDirty = useDirtyForm(avatar);
@@ -3004,6 +3026,19 @@ function MyProfileModal({ user, onClose, onSave }) {
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
+
+  const [googleStatus, setGoogleStatus] = useState(null);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  useEffect(() => {
+    apiGet('/api/google/status').then(setGoogleStatus).catch(() => setGoogleStatus({ connected: false, configured: false }));
+  }, []);
+  async function disconnectGoogle() {
+    setGoogleBusy(true);
+    try {
+      await apiPost('/api/google/disconnect');
+      setGoogleStatus({ connected: false, connectedAt: null, configured: true });
+    } finally { setGoogleBusy(false); }
+  }
 
   async function submitPassword() {
     setPwError('');
@@ -3051,6 +3086,29 @@ function MyProfileModal({ user, onClose, onSave }) {
         <button style={{ ...S.iconBtn, marginTop: 12, width: '100%', justifyContent: 'center' }} disabled={pwSaving} onClick={submitPassword}>
           {pwSaving ? 'Salvando...' : 'Alterar senha'}
         </button>
+
+        <div style={{ ...S.subSectionLabel, marginTop: 26, paddingTop: 20, borderTop: '1px solid var(--border-1)' }}>Google Calendar</div>
+        {googleConnectResult === 'connected' && <div style={{ ...S.fieldHint, color: '#3ddc84', marginBottom: 8 }}>Conta do Google conectada com sucesso.</div>}
+        {googleConnectResult === 'error' && <div style={{ ...S.loginBlockedMsg, marginBottom: 8 }}>Não deu pra conectar sua conta do Google. Tente de novo.</div>}
+        {!googleStatus ? (
+          <div style={S.fieldHint}>Carregando...</div>
+        ) : !googleStatus.configured ? (
+          <div style={S.fieldHint}>Integração ainda não configurada nesse ambiente.</div>
+        ) : googleStatus.connected ? (
+          <>
+            <div style={S.fieldHint}>Conectado desde {fmtTs(googleStatus.connectedAt)}. A Previsão de conclusão das suas TASKs no XFlow vira evento no seu Google Calendar automaticamente.</div>
+            <button style={{ ...S.iconBtn, marginTop: 8, width: '100%', justifyContent: 'center' }} disabled={googleBusy} onClick={disconnectGoogle}>
+              {googleBusy ? 'Desconectando...' : 'Desconectar Google Calendar'}
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={S.fieldHint}>Conecte sua conta do Google pra ver a Previsão de conclusão das suas TASKs do XFlow direto na sua agenda.</div>
+            <a href="/api/google/oauth/start" style={{ ...S.primaryBtn, marginTop: 8, width: '100%', justifyContent: 'center', textDecoration: 'none' }}>
+              Conectar Google Calendar
+            </a>
+          </>
+        )}
       </div>
       {showGuard && (
         <ConfirmDiscardModal
