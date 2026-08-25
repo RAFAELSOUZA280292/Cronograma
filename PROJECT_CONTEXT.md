@@ -1517,6 +1517,40 @@ pedido de reatribuição/calendário abaixo):**
   já resolvida; o calendário nativo do navegador (ícone 📅) segue sendo o
   mesmo, agora sem nada interrompendo ele no meio da digitação.
 
+**Mais dois bugs corrigidos (2026-08, reportados pelo Rafael com
+screenshot de uma TASK real em "Em desenvolvimento")**:
+
+- **"Responsável atual" escondia gente real**: a lista de devs em
+  `FilterBar` (§18.1) exigia `m.xflowRole === 'dev'` além de estar em
+  `presentBallHolders` — mas `ballHolderKey()` gera `dev:<id>` pra
+  **qualquer** ticket com `assignee_id` setado, seja lá qual for o papel
+  de quem foi atribuído (gestão/admin também viram responsável de uma
+  TASK via `reatribuir`, que permite atribuir a qualquer um, não só a
+  quem tem papel de dev). Um gestor definido como responsável de uma TASK
+  em desenvolvimento simplesmente não aparecia no filtro, apesar de
+  aparecer certinho como "QUEM ESTÁ COM A BOLA" dentro da própria TASK.
+  Corrigido removendo a exigência de papel — a lista agora é exatamente
+  "quem tem `dev:<id>` em algum ticket agora", sem filtro de cargo,
+  batendo com o que o comentário do código já dizia ser a intenção
+  original.
+- **Produto/Plataforma não dava pra editar depois de aberta**: só existia
+  como texto fixo em "Dados capturados" (`Produto: {ticket.product}`) —
+  a única forma de mudar era a ação "Redirecionar" (triagem), que só
+  existe nos status `aberta`/`atribuida`; uma TASK já em desenvolvimento
+  (ou mais adiante) não tinha nenhum jeito de corrigir ou preencher esse
+  campo. Virou um `<select>` editável de verdade (mesmo padrão de "Tipo
+  de cliente" ao lado) chamando `editar_campo` com `field: 'product'`.
+  Detalhe da implementação: `product` é coluna relacional
+  (`xflow_tickets.product`), não uma chave do `data` JSONB — precisou de
+  um caso especial dentro do handler de `editar_campo` (igual `title`/
+  `description` já tinham) pra gravar em `rel.product` em vez de
+  `data.product`; gravar do jeito genérico (`data[field] = value`) teria
+  parecido funcionar na hora mas não teria efeito nenhum de verdade,
+  porque `rowToTicket()` lê a coluna relacional, não essa chave do
+  `data`. Testado localmente: TASK criada com um produto, movida até "Em
+  desenvolvimento", produto trocado por lá — persistiu na coluna certa e
+  registrou `Campo "product" atualizado` na timeline.
+
 ## 19a. Autoatendimento de conta (2026-08)
 
 `MyProfileModal` (`App.jsx`, aberto pelo avatar no topo — "Meu perfil")
