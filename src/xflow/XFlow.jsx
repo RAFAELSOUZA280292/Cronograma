@@ -1714,10 +1714,11 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
 
             <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Prazo</div>
             <ContentField as="input" type="date" value={ticket.dueDate} disabled={!canEditOps} onCommit={(v) => runAction('editar_prazo_proxima_acao', { dueDate: v })} />
+            <div style={S.fieldHint}>Prazo esperado de quem abriu a TASK, com base na urgência do cliente e do time interno — não é a entrega combinada pelo dev.</div>
 
             <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Previsão de conclusão</div>
             <ContentField as="input" type="date" value={ticket.expectedCompletionAt} disabled={!canEditContent} onCommit={(v) => runAction('editar_campo', { field: 'expectedCompletionAt', value: v })} />
-            <div style={S.fieldHint}>Estimativa de quem abriu a TASK — visível para solicitante, dev e gestão.</div>
+            <div style={S.fieldHint}>Data que o dev define como a entrega correta — visível para solicitante, dev e gestão.</div>
 
             <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Dados capturados</div>
             <div style={{ ...S.fieldHint, marginBottom: 4 }}>

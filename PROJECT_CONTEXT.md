@@ -1564,6 +1564,21 @@ lugares onde a Previsão já era mostrada — card do Quadro
 dela. Testado localmente nos 3 estados (faltando dias, hoje, atrasada) e
 nos 3 lugares.
 
+**Diferença entre Prazo e Previsão de conclusão explicada na tela
+(2026-08, pedido do Rafael)**: os dois campos são datas parecidas mas com
+dono e sentido diferentes, e isso não estava claro pra quem abre a TASK.
+`fieldHint` abaixo de cada um dentro do `TicketDetailModal`: Prazo —
+"Prazo esperado de quem abriu a TASK, com base na urgência do cliente e
+do time interno — não é a entrega combinada pelo dev."; Previsão de
+conclusão — "Data que o dev define como a entrega correta — visível para
+solicitante, dev e gestão." (esse segundo texto substituiu um hint antigo
+que dizia o oposto — "Estimativa de quem abriu a TASK" — que já estava
+desatualizado). Só texto explicativo, **não mudou permissão de quem edita
+cada campo** — `editar_prazo_proxima_acao` (Prazo/Próxima ação) continua
+restrita a dev-responsável/gestão/admin, `edit_content` (Previsão de
+conclusão) continua liberada também pro solicitante-dono em status
+iniciais, exatamente como já era antes (ver §18 pra matriz completa).
+
 ## 19a. Autoatendimento de conta (2026-08)
 
 `MyProfileModal` (`App.jsx`, aberto pelo avatar no topo — "Meu perfil")
