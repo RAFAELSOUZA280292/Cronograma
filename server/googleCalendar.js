@@ -130,5 +130,14 @@ export async function deleteTicketEvent(userId, googleEventId) {
   const client = await getAuthedClientForUser(userId);
   if (!client) return;
   const calendar = google.calendar({ version: 'v3', auth: client });
-  try { await calendar.events.delete({ calendarId: 'primary', eventId: googleEventId }); } catch (e) { /* já pode não existir mais — sem problema */ }
+  try {
+    await calendar.events.delete({ calendarId: 'primary', eventId: googleEventId });
+  } catch (e) {
+    // 404/410 = já não existe mais (usuário apagou direto no Google, ou
+    // já tinha sido apagado antes) — silencioso de propósito. Qualquer
+    // outro erro (token revogado, etc.) sobe pro chamador logar — antes
+    // isso era engolido aqui dentro sem log nenhum, escondendo falhas
+    // reais (bug encontrado testando a exclusão em Lixeira).
+    if (e.code !== 404 && e.code !== 410) throw e;
+  }
 }

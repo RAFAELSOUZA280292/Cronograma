@@ -1867,6 +1867,27 @@ Ao apagar de vez uma TASK (`DELETE /tickets/:id`, admin-only), se ela
 tinha `googleEventId`, apaga o evento correspondente também (mesmo
 padrão fire-and-forget, depois da resposta).
 
+**Mandar pra Lixeira também apaga o evento** (`excluir`, 2026-08,
+reportado pelo Rafael: mandou uma TASK pra Lixeira e o evento continuou
+na agenda) — a TASK não está mais ativa no quadro, não faz sentido o
+compromisso continuar lá. `data.googleEventId` é zerado na própria
+transação do `excluir` (evita um `googleEventId` órfão apontando pra um
+evento que não existe mais); o apagar de fato no Google usa o valor
+**original** (lido antes do reset) no fire-and-forget de depois da
+resposta. Restaurar da Lixeira **não** recria o evento sozinho — só
+volta a sincronizar se alguém tocar de novo na Previsão de conclusão ou
+no responsável depois de restaurada (mesmo gatilho normal, nada
+especial pra isso).
+
+**Segundo bug de observabilidade encontrado no mesmo teste**:
+`deleteTicketEvent()` engolia **qualquer** erro do Google num
+`try/catch` vazio (comentário dizia "já pode não existir mais", mas na
+prática escondia erro de token/auth também) — o `.catch()` de quem
+chama nunca via nada, porque a função nunca rejeitava de verdade.
+Corrigido pra só engolir 404/410 (evento já não existe, esperado) e
+deixar qualquer outro erro subir pro log — foi assim que a falha do
+teste (token falso) apareceu no console pela primeira vez.
+
 ### Frontend
 
 Seção "Google Calendar" dentro de `MyProfileModal` (`App.jsx`, mesmo

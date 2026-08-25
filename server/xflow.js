@@ -516,6 +516,10 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         rel.deleted_at = new Date();
         rel.deleted_by = req.user.id;
         historyNote = `${userName} moveu o BUG para a Lixeira`;
+        // Zera aqui (mesma transação) — o apagar de fato no Google
+        // acontece depois da resposta, usando o valor original capturado
+        // em `deletedGoogleEventId` antes desse reset (ver abaixo).
+        data.googleEventId = '';
         break;
       case 'restaurar':
         rel.deleted = false;
@@ -785,6 +789,15 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
           }
         })
         .catch((e) => console.error('Falha ao sincronizar com Google Calendar', e.message));
+    }
+    // Mandar pra Lixeira também some com o evento do Google (2026-08,
+    // reportado pelo Rafael) — a TASK não está mais ativa no quadro dele,
+    // não faz sentido o compromisso continuar na agenda. Se a TASK for
+    // restaurada depois e alguém tocar de novo na Previsão de conclusão
+    // ou no responsável, um evento novo é criado pelo gatilho normal
+    // acima — não precisa recriar automaticamente aqui.
+    if (action === 'excluir' && row.assignee_id && row.data && row.data.googleEventId) {
+      deleteTicketEvent(row.assignee_id, row.data.googleEventId).catch((e) => console.error('Falha ao apagar evento no Google Calendar', e.message));
     }
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
