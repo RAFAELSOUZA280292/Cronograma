@@ -9,10 +9,12 @@ depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
 
 - **Frontend**: SPA React 18 (Vite), sem roteador — navegação é 100% estado
   em memória (`view`, `workspaceMode`, `openActivityId`, etc. em `App()`).
-  Quase todo o app (telas, modais, estilos) está em `src/App.jsx`. Exceção:
-  o módulo XFlow (`src/xflow/XFlow.jsx`, ver seção 2 e 4) — importa primitivas
+  Quase todo o app (telas, modais, estilos) está em `src/App.jsx`. Exceções:
+  o módulo XFlow (`src/xflow/XFlow.jsx`, ver seção 2 e 4) e a Agenda
+  (`src/agenda/Agenda.jsx`, ver seção 4) — ambos importam primitivas
   compartilhadas (`S`, `uid`, `fmtDate`, `fmtTs`, `useIsMobile`,
-  `useIsCompact`, `BrandLogo`, `ThemeToggleBtn`) exportadas de `App.jsx`.
+  `useIsCompact`, `BrandLogo`, `ThemeToggleBtn`, `NotificationBell`)
+  exportadas de `App.jsx`.
 - **Backend**: Express (`server/`), API REST sob `/api/*`. Rotas de usuários/
   projetos/etc. em `server/routes.js`; rotas do XFlow num router próprio,
   `server/xflow.js`, montado em `/api/xflow`. Serve também os estáticos de
@@ -41,13 +43,14 @@ depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
 ## 2. Estrutura de diretórios
 
 ```
-src/App.jsx        Frontend principal: componentes, telas, estilos (S), lógica de estado. Exporta primitivas usadas por xflow/.
+src/App.jsx        Frontend principal: componentes, telas, estilos (S), lógica de estado. Exporta primitivas usadas por xflow/ e agenda/.
 src/xflow/XFlow.jsx     Módulo XFlow (gestão de BUGs) — telas, constantes de status/severidade/prioridade, helpers.
+src/agenda/Agenda.jsx    Módulo Agenda (2026-08) — visão dia/semana/mês da disponibilidade (Google + XFlow + atividades), toggle de privacidade.
 src/main.jsx        Bootstrap do React (ReactDOM.createRoot).
 src/lib/api.js        Wrapper fetch (apiGet/apiPost/apiPatch/apiDelete), credentials:'include'.
 src/assets/brand/       Logos PNG da PRICETAX (preto = tema claro, branco = tema escuro).
 
-server/index.js       Bootstrap Express: initDb, seedIfEmpty, monta /api, /api/xflow e /api/google, serve dist/.
+server/index.js       Bootstrap Express: initDb, seedIfEmpty, monta /api, /api/xflow, /api/google e /api/agenda, serve dist/.
 server/db.js           Pool pg, criação de tabelas (initDb), seed inicial, defaults de projeto novo.
 server/auth.js         JWT/bcrypt, cookie de sessão, middlewares requireAuth/requireMaster*/requireXflowAccess.
 server/routes.js        Rotas REST de auth, users, projects, personal-board, cnpj, organizations, notifications.
@@ -55,8 +58,9 @@ server/xflow.js         Rotas REST do módulo XFlow (team, tickets, events, view
 server/notifications.js    Central de Notificações (2026-08) — createNotification()/rowToNotification(), usado por xflow.js e routes.js.
 server/xflowPermissions.js  Papel efetivo (reporter/dev/gestao/admin) + canDo() — matriz de "quem pode o quê" do XFlow.
 server/xflowTransitions.js  Matriz de transições de status do XFlow — de onde cada ação pode partir e pra onde vai.
-server/googleCalendar.js   Sincronização com Google Calendar (2026-08) — helper puro (OAuth2, criar/atualizar/apagar evento), sem rotas.
+server/googleCalendar.js   Sincronização com Google Calendar (2026-08) — helper puro (OAuth2, criar/atualizar/apagar/listar evento), sem rotas.
 server/google.js        Rotas OAuth do Google Calendar (status, oauth/start, oauth/callback, disconnect) — router próprio em /api/google.
+server/agenda.js        Rota única de leitura da Agenda (2026-08) — GET /api/agenda mescla Google + TASKs do XFlow + atividades do usuário.
 server/cnpjLookup.js     Cliente BrasilAPI/ReceitaWS + normalização + cache.
 
 index.html            Shell HTML, variáveis CSS de tema (light/dark) em :root.
@@ -252,6 +256,18 @@ usam `S.detailBox`.
   `APP_BASE_URL` como variável de ambiente (nunca commitado — só `.env`
   local e env vars do Railway). Detalhe completo, limitações conhecidas e
   passo a passo do cadastro no Google Cloud em `PROJECT_CONTEXT.md` §21.
+
+### Agenda (2026-08)
+- 4ª workspace, universal (todo usuário logado tem, sem depender de
+  acesso concedido — `hasAgenda = true` em `App.jsx`). Só leitura: mescla
+  Google Calendar (se conectado), TASKs do XFlow do usuário e atividades
+  de empresa onde o nome dele bate em `responsible`/`participants`.
+- Backend: `server/agenda.js` (rota única, `GET /api/agenda`) +
+  `listEvents()` em `server/googleCalendar.js`.
+- UI: `src/agenda/Agenda.jsx` — visão Dia/Semana/Mês, toggle "Mostrar
+  detalhes"/"Ocultar detalhes" (client-side, redige título pra "Ocupado"),
+  cor por fonte (Google=azul, TASK=roxo, atividade=verde), poll de 60s.
+- Detalhe completo em `PROJECT_CONTEXT.md` §22.
 
 ## 5. Fluxos críticos
 

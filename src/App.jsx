@@ -19,6 +19,7 @@ import { apiGet, apiPost, apiPatch, apiDelete } from './lib/api.js';
 import pricetaxLogoBranco from './assets/brand/pricetax-logo-branco.png';
 import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
 import XFlowScreen from './xflow/XFlow.jsx';
+import AgendaScreen from './agenda/Agenda.jsx';
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
 const THEME_KEY = 'pricetax-cronograma-theme';
@@ -500,6 +501,7 @@ export default function App() {
   function locationTag(mode, users, orgAdmin, selected) {
     if (!mode) return 'gate';
     if (mode === 'xflow') return 'xflow';
+    if (mode === 'agenda') return 'agenda';
     if (mode === 'personal') return 'personal';
     if (users) return 'company:users';
     if (orgAdmin) return 'company:orgadmin';
@@ -541,6 +543,7 @@ export default function App() {
     else if (tag === 'company') { setWorkspaceMode('company'); setShowUsers(false); setShowOrgAdmin(false); setCompanySelectionConfirmed(true); }
     else if (tag === 'personal') { setWorkspaceMode('personal'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'xflow') { setWorkspaceMode('xflow'); setShowUsers(false); setShowOrgAdmin(false); }
+    else if (tag === 'agenda') { setWorkspaceMode('agenda'); setShowUsers(false); setShowOrgAdmin(false); }
     else { setWorkspaceMode(null); setShowUsers(false); setShowOrgAdmin(false); }
   }
   // Nível 3 (2026-08): abrir ActivityDetailModal empilha em cima do state
@@ -875,7 +878,8 @@ export default function App() {
   const hasCompanies = currentUser.companiesAccess;
   const hasPersonal = currentUser.personalAccess;
   const hasXflow = !!currentUser.xflowRole;
-  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow'].filter(Boolean);
+  const hasAgenda = true; // universal — todo usuário logado tem uma agenda própria pra conectar
+  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda'].filter(Boolean);
   const effectiveMode = workspaceMode || (availableModes.length === 1 ? availableModes[0] : null);
 
   if (availableModes.length === 0) {
@@ -889,6 +893,7 @@ export default function App() {
         onPickCompany={hasCompanies ? () => goToWorkspace('company') : undefined}
         onPickPersonal={hasPersonal ? () => goToWorkspace('personal') : undefined}
         onPickXFlow={hasXflow ? () => goToWorkspace('xflow') : undefined}
+        onPickAgenda={hasAgenda ? () => goToWorkspace('agenda') : undefined}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -929,6 +934,23 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         saveState={personalBoardSaveState}
+        notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
+        onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
+      />
+    );
+  }
+
+  if (effectiveMode === 'agenda') {
+    return (
+      <AgendaScreen
+        currentUser={currentUser}
+        onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
+        onGoCompany={hasCompanies ? () => goToWorkspace('company') : null}
+        onGoPersonal={hasPersonal ? () => goToWorkspace('personal') : null}
+        onGoXFlow={hasXflow ? () => goToWorkspace('xflow') : null}
+        onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
         onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
       />
@@ -4050,7 +4072,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   );
 }
 
-function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onLogout, theme, onToggleTheme }) {
+function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onLogout, theme, onToggleTheme }) {
   return (
     <div className="page-root" style={S.page}>
       <div style={S.companySelectorWrap}>
@@ -4084,6 +4106,13 @@ function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow,
               <Bug size={26} color="#F5C400" />
               <div style={S.workspaceCardTitle}>XFlow</div>
               <div style={S.workspaceCardDesc}>Rastreamento de BUGs dos produtos internos — ciclo de vida próprio, do relato à validação.</div>
+            </button>
+          )}
+          {onPickAgenda && (
+            <button style={S.workspaceCard} onClick={onPickAgenda}>
+              <CalendarDays size={26} color="#F5C400" />
+              <div style={S.workspaceCardTitle}>Agenda</div>
+              <div style={S.workspaceCardDesc}>Sua disponibilidade e compromissos, com o que já está no seu Google Calendar e no PRICETAX.</div>
             </button>
           )}
         </div>

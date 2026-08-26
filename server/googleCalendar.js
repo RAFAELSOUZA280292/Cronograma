@@ -82,6 +82,40 @@ async function getAuthedClientForUser(userId) {
   return client;
 }
 
+// Lê os eventos do calendário principal do usuário num período — usado
+// pela Agenda (2026-08, ver server/agenda.js). `singleEvents: true`
+// expande recorrências em instâncias individuais (senão um evento
+// recorrente viria como uma linha só, sem data concreta de cada
+// ocorrência). Cancelados vêm incluídos de propósito (`status:
+// 'cancelled'`) — a Agenda precisa diferenciar visualmente "cancelado",
+// não só esconder.
+export async function listEvents(userId, timeMinISO, timeMaxISO) {
+  if (!googleConfigured()) return [];
+  const client = await getAuthedClientForUser(userId);
+  if (!client) return [];
+  const calendar = google.calendar({ version: 'v3', auth: client });
+  const res = await calendar.events.list({
+    calendarId: 'primary',
+    timeMin: new Date(timeMinISO).toISOString(),
+    timeMax: new Date(timeMaxISO).toISOString(),
+    singleEvents: true,
+    orderBy: 'startTime',
+    maxResults: 250,
+  });
+  return (res.data.items || []).map((ev) => ({
+    id: `google-${ev.id}`,
+    source: 'google',
+    title: ev.summary || '(sem título)',
+    description: ev.description || '',
+    location: ev.location || '',
+    start: (ev.start && (ev.start.dateTime || ev.start.date)) || null,
+    end: (ev.end && (ev.end.dateTime || ev.end.date)) || null,
+    allDay: !!(ev.start && ev.start.date && !ev.start.dateTime),
+    status: ev.status || 'confirmed',
+    htmlLink: ev.htmlLink || '',
+  })).filter((ev) => ev.start && ev.end);
+}
+
 function nextDay(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
   const dt = new Date(y, m - 1, d + 1);
