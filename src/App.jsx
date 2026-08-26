@@ -1019,6 +1019,8 @@ export default function App() {
           onSwitchOrg={currentUser.isSuperAdmin ? exitOrganization : undefined}
           theme={theme}
           onToggleTheme={toggleTheme}
+          currentUser={currentUser}
+          onOpenProfile={() => setShowMyProfile(true)}
         />
         {showCreateCompany && (
           <CreateCompanyModal
@@ -1045,6 +1047,14 @@ export default function App() {
               setCloningProject(null);
               if (crossOrg) window.alert(`Empresa clonada na organização "${orgName}".`);
             }}
+          />
+        )}
+        {showMyProfile && (
+          <MyProfileModal
+            user={currentUser}
+            googleConnectResult={googleConnectResult}
+            onClose={() => { setShowMyProfile(false); setGoogleConnectResult(null); }}
+            onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
           />
         )}
       </>
@@ -3772,7 +3782,7 @@ function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }) {
   );
 }
 
-function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, onGoUsers, onGoXFlow, onGoAgenda, actingOrg, onSwitchOrg, theme, onToggleTheme }) {
+function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, onGoUsers, onGoXFlow, onGoAgenda, actingOrg, onSwitchOrg, theme, onToggleTheme, currentUser, onOpenProfile }) {
   const [selected, setSelected] = useState(() => new Set(initialSelected));
   const [editingProject, setEditingProject] = useState(null);
   const [search, setSearch] = useState('');
@@ -3874,6 +3884,11 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
             {onGoAgenda && (
               <button style={S.companyHeaderShortcut} onClick={onGoAgenda} title="Ir para a Agenda">
                 <CalendarDays size={14} /> Agenda
+              </button>
+            )}
+            {onOpenProfile && currentUser && (
+              <button style={S.userAvatarBtn} title={`Meu perfil — ${currentUser.name}`} onClick={onOpenProfile}>
+                <UserAvatar user={currentUser} size={26} />
               </button>
             )}
             <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
