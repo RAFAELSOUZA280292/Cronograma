@@ -275,22 +275,24 @@ usam `S.detailBox`.
 - 5º workspace, gate por `companiesAccess && allCompaniesAccess` (não é
   universal — só quem já enxerga todas as empresas da org, senão
   vazaria dado de cliente que o usuário não deveria ver).
-- Backend: `server/macro.js` (rota única, `GET /api/macro?range=overdue|current_week|next_week|next_30|no_date`)
+- Backend: `server/macro.js` (rota única, `GET /api/macro?range=paused|overdue|current_week|next_week|next_30|no_date`)
   — varre `activities[]` de todos os `projects` da org, resolve fase por
-  `phases.find(ph => ph.id === a.phase)`. 5 abas com recorte mutuamente
-  exclusivo (atrasado só aparece na aba Atrasadas; sem `date` cadastrada
-  só aparece em "Sem data", senão nunca apareceria em lugar nenhum);
-  `overdueCount`/`noDateCount` sempre vêm no payload pra alimentar os
-  badges das abas mesmo fora delas. `time` no item = `a.meetingTime`
-  (campo que já existia no `ActivityDetailModal`, "Horário da reunião").
-  Também devolve `companies`/`responsibles` (universo completo da org,
-  não só da aba atual) pra alimentar os filtros do frontend.
+  `phases.find(ph => ph.id === a.phase)`. 6 abas com recorte mutuamente
+  exclusivo, checado nessa ordem de prioridade: `paused` (status pausado
+  vence tudo, mesmo atrasado ou sem data) → `overdue` → janela de data →
+  `no_date`; `overdueCount`/`noDateCount`/`pausedCount` sempre vêm no
+  payload pra alimentar os badges das abas mesmo fora delas. `time` no
+  item = `a.meetingTime` (campo que já existia no `ActivityDetailModal`,
+  "Horário da reunião"). Também devolve `companies`/`responsibles`
+  (universo completo da org, não só da aba atual) pra alimentar os
+  filtros do frontend.
 - UI: `src/macro/MacroOverview.jsx` — "Hoje" sempre visível no topo,
-  5 abas com ícone+contagem, **4 filtros client-side** (Empresa/
+  6 abas com ícone+contagem, **4 filtros client-side** (Empresa/
   Responsável/Status/Prioridade, mesmo padrão da Tabela — `PRIORITY_META`/
   `PRIORITY_ORDER` agora exportados de `App.jsx`), lista agrupada por dia
-  (exceto "Sem data",
-  que é uma lista única sem agrupamento). **Clique na linha
+  (com um bucket "Sem data definida" à parte pra item sem data dentro de
+  qualquer aba — a aba "Sem data" em si é só uma lista única, sem
+  agrupamento nenhum). **Clique na linha
   abre o `ActivityDetailModal` de verdade** (`onOpenActivity` →
   `openActivityDetail`, mesma função da Tabela) — editar ali reflete em
   todo o app porque é o mesmo estado `projects`/PATCH; a própria tela

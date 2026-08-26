@@ -2051,25 +2051,32 @@ existe campo separado, o título da atividade já cobre isso), `phase`,
 `nao-iniciado`/`em-andamento`/`pausado`/`concluido` — não inventa
 "confirmado"/"previsto" como estados novos).
 
-**5 abas, recortes mutuamente exclusivos** (2026-08, revisão): `overdue`
-(`date < hoje` e `status !== 'concluido'`, sem limite de quão antigo),
-`current_week`/`next_week`/`next_30` (dentro da janela de data
-correspondente, mas **excluindo** o que já é `overdue` — um atrasado
-aparece só na aba Atrasadas, nunca duplicado também na semana atual), e
-`no_date` (atividade sem `date` cadastrada — pedido à parte do Rafael,
+**6 abas, recortes mutuamente exclusivos** (2026-08, revisão): `paused`
+(**checado primeiro, tem prioridade sobre tudo** — `status === 'pausado'`,
+tenha `date` ou não; pedido explícito do Rafael: "exiba ali toda as
+atividades com status pausadas e não as exiba em outras abas" — uma
+atividade pausada nunca conta pra `overdueCount`/aparece em Atrasadas nem
+em nenhuma outra aba, mesmo que a data dela já tenha passado ou que ela
+não tenha data nenhuma), `overdue` (`date < hoje` e `status !== 'concluido'`,
+sem limite de quão antigo — pausada já foi excluída antes de chegar
+aqui), `current_week`/`next_week`/`next_30` (dentro da janela de data
+correspondente, excluindo `overdue` e `paused`), e `no_date` (atividade
+sem `date` cadastrada e **não pausada** — pedido à parte do Rafael,
 "esqueci, inclua uma aba sem datas": sem essa aba, uma atividade criada
 sem data nunca aparecia em lugar nenhum, porque todo outro filtro de
 período compara contra `a.date`, e uma comparação com string vazia nunca
 bate). Isso substituiu o comportamento anterior (só um "carry-forward" de
 atrasado dentro das outras abas) depois que o Rafael pediu uma aba
 dedicada pra atrasado — mais claro que duplicar o mesmo item em dois
-lugares. `overdueCount`/`noDateCount` vêm sempre no payload (independente
-da aba pedida) — é o que alimenta os badges de contagem mesmo enquanto o
-usuário está vendo outra aba, sem precisar de uma segunda chamada.
-Ordenação: por data, depois por `time` (quem tem horário vem primeiro e
-em ordem cronológica — bate com o exemplo do Rafael, 10:30 antes de
-14:00), depois por empresa (na aba `no_date`, como não tem data, ordena
-só por empresa).
+lugares. `overdueCount`/`noDateCount`/`pausedCount` vêm sempre no payload
+(independente da aba pedida) — é o que alimenta os badges de contagem
+mesmo enquanto o usuário está vendo outra aba, sem precisar de uma
+segunda chamada. Ordenação: por data, depois por `time` (quem tem
+horário vem primeiro e em ordem cronológica — bate com o exemplo do
+Rafael, 10:30 antes de 14:00), depois por empresa (na aba `no_date`,
+como não tem data, ordena só por empresa; uma atividade pausada **com**
+data ordena junto com as outras normalmente dentro da própria aba
+Pausadas).
 
 ### Frontend
 
@@ -2081,15 +2088,23 @@ XFlow/Agenda) — `MacroOverviewScreen` montada em `App.jsx` como
   topo da tela — não depende de ter ou não atividade nesse dia (antes só
   aparecia um badge "HOJE" pequeno e só se por acaso tivesse algo
   agendado pra hoje; agora é uma linha própria, sempre lá).
-- **5 abas** com visual redesenhado (2026-08, pedido do Rafael — o toggle
+- **6 abas** com visual redesenhado (2026-08, pedido do Rafael — o toggle
   original era "anêmico" na palavra dele): **Atrasadas** / Semana atual
-  (padrão) / Próxima semana / Próximos 30 dias / **Sem data**, cada uma
-  com ícone, padding maior, cor de fundo cheia (não só borda) quando
-  ativa, e um badge de contagem nas abas Atrasadas/Sem data quando
-  `overdueCount`/`noDateCount > 0`. A aba "Sem data" não agrupa por dia
-  (não tem `date` pra agrupar) — mostra uma lista única sob o cabeçalho
-  "Sem data definida", sem badge de urgência (não faz sentido calcular
-  atraso/hoje/em-breve sem uma data de referência).
+  (padrão) / Próxima semana / Próximos 30 dias / **Sem data** / **Pausadas**,
+  cada uma com ícone, padding maior, cor de fundo cheia (não só borda)
+  quando ativa, e um badge de contagem nas abas Atrasadas/Sem data/
+  Pausadas quando `overdueCount`/`noDateCount`/`pausedCount > 0`. A aba
+  "Sem data" não agrupa por dia (não tem `date` pra agrupar) — mostra uma
+  lista única sob o cabeçalho "Sem data definida". A aba "Pausadas" pode
+  ter uma mistura de itens com e sem data (uma atividade pausada não
+  passa pela aba Sem data), então agrupa por dia normalmente mas com um
+  bucket "Sem data definida" à parte pros que não têm — mesmo padrão de
+  agrupamento generalizado pra qualquer aba, não só um caso especial da
+  Sem data. Nem "Sem data" nem "Pausadas" mostram badge de urgência
+  (Atrasado/Hoje/Em breve) ou pintam cabeçalho de dia em
+  vermelho/amarelo — não faz sentido calcular urgência de data pra uma
+  atividade sem data, e pausada é intencionalmente "fora do jogo",
+  mostrar como se estivesse atrasada confundiria.
 - **4 filtros** (2026-08, pedido do Rafael): Empresa, Responsável,
   Status, Prioridade — mesmo padrão de "Filtros rápidos" que a Tabela já
   tem (`filterSelect`/`STATUS_META`/`PRIORITY_META`/`PRIORITY_ORDER`,
