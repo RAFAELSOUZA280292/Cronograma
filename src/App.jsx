@@ -1014,6 +1014,7 @@ export default function App() {
           onGoPersonal={hasPersonal ? () => goToWorkspace('personal') : undefined}
           onGoUsers={currentUser.role === 'master' ? () => goToUsers(true) : undefined}
           onGoXFlow={hasXflow ? () => goToWorkspace('xflow') : undefined}
+          onGoAgenda={hasAgenda ? () => goToWorkspace('agenda') : undefined}
           actingOrg={actingOrg}
           onSwitchOrg={currentUser.isSuperAdmin ? exitOrganization : undefined}
           theme={theme}
@@ -3771,7 +3772,7 @@ function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }) {
   );
 }
 
-function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, onGoUsers, onGoXFlow, actingOrg, onSwitchOrg, theme, onToggleTheme }) {
+function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, onGoUsers, onGoXFlow, onGoAgenda, actingOrg, onSwitchOrg, theme, onToggleTheme }) {
   const [selected, setSelected] = useState(() => new Set(initialSelected));
   const [editingProject, setEditingProject] = useState(null);
   const [search, setSearch] = useState('');
@@ -3868,6 +3869,11 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
             {onGoXFlow && (
               <button style={S.companyHeaderShortcut} onClick={onGoXFlow} title="Ir para o XFlow">
                 <Bug size={14} /> XFlow
+              </button>
+            )}
+            {onGoAgenda && (
+              <button style={S.companyHeaderShortcut} onClick={onGoAgenda} title="Ir para a Agenda">
+                <CalendarDays size={14} /> Agenda
               </button>
             )}
             <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
