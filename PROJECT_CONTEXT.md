@@ -2051,20 +2051,25 @@ existe campo separado, o título da atividade já cobre isso), `phase`,
 `nao-iniciado`/`em-andamento`/`pausado`/`concluido` — não inventa
 "confirmado"/"previsto" como estados novos).
 
-**4 abas, recortes mutuamente exclusivos** (2026-08, revisão): `overdue`
+**5 abas, recortes mutuamente exclusivos** (2026-08, revisão): `overdue`
 (`date < hoje` e `status !== 'concluido'`, sem limite de quão antigo),
 `current_week`/`next_week`/`next_30` (dentro da janela de data
 correspondente, mas **excluindo** o que já é `overdue` — um atrasado
-aparece só na aba Atrasadas, nunca duplicado também na semana atual).
-Isso substituiu o comportamento anterior (só um "carry-forward" de
+aparece só na aba Atrasadas, nunca duplicado também na semana atual), e
+`no_date` (atividade sem `date` cadastrada — pedido à parte do Rafael,
+"esqueci, inclua uma aba sem datas": sem essa aba, uma atividade criada
+sem data nunca aparecia em lugar nenhum, porque todo outro filtro de
+período compara contra `a.date`, e uma comparação com string vazia nunca
+bate). Isso substituiu o comportamento anterior (só um "carry-forward" de
 atrasado dentro das outras abas) depois que o Rafael pediu uma aba
-dedicada — mais claro que duplicar o mesmo item em dois lugares.
-`overdueCount` vem sempre no payload (independente da aba pedida) — é o
-que alimenta o badge de contagem na aba Atrasadas mesmo enquanto o
+dedicada pra atrasado — mais claro que duplicar o mesmo item em dois
+lugares. `overdueCount`/`noDateCount` vêm sempre no payload (independente
+da aba pedida) — é o que alimenta os badges de contagem mesmo enquanto o
 usuário está vendo outra aba, sem precisar de uma segunda chamada.
 Ordenação: por data, depois por `time` (quem tem horário vem primeiro e
 em ordem cronológica — bate com o exemplo do Rafael, 10:30 antes de
-14:00), depois por empresa.
+14:00), depois por empresa (na aba `no_date`, como não tem data, ordena
+só por empresa).
 
 ### Frontend
 
@@ -2076,11 +2081,15 @@ XFlow/Agenda) — `MacroOverviewScreen` montada em `App.jsx` como
   topo da tela — não depende de ter ou não atividade nesse dia (antes só
   aparecia um badge "HOJE" pequeno e só se por acaso tivesse algo
   agendado pra hoje; agora é uma linha própria, sempre lá).
-- **4 abas** com visual redesenhado (2026-08, pedido do Rafael — o toggle
+- **5 abas** com visual redesenhado (2026-08, pedido do Rafael — o toggle
   original era "anêmico" na palavra dele): **Atrasadas** / Semana atual
-  (padrão) / Próxima semana / Próximos 30 dias, cada uma com ícone,
-  padding maior, cor de fundo cheia (não só borda) quando ativa, e um
-  badge de contagem na aba Atrasadas quando `overdueCount > 0`.
+  (padrão) / Próxima semana / Próximos 30 dias / **Sem data**, cada uma
+  com ícone, padding maior, cor de fundo cheia (não só borda) quando
+  ativa, e um badge de contagem nas abas Atrasadas/Sem data quando
+  `overdueCount`/`noDateCount > 0`. A aba "Sem data" não agrupa por dia
+  (não tem `date` pra agrupar) — mostra uma lista única sob o cabeçalho
+  "Sem data definida", sem badge de urgência (não faz sentido calcular
+  atraso/hoje/em-breve sem uma data de referência).
 - Lista agrupada por dia (`Terça-feira — 25/08`), cada linha mostra
   empresa (ponto colorido na cor da empresa), horário (se houver, em
   destaque antes do título) — título, fase (colorida), responsável,

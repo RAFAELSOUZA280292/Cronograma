@@ -9,15 +9,16 @@
 // `projects` (é o mesmo estado, mesmo PATCH). Ver PROJECT_CONTEXT.md §23.
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Building2, Columns3, Bug, LogOut, Home, RefreshCw, AlertTriangle, Clock3, CalendarDays, CalendarRange, CalendarClock } from 'lucide-react';
+import { Building2, Columns3, Bug, LogOut, Home, RefreshCw, AlertTriangle, Clock3, CalendarDays, CalendarRange, CalendarClock, CalendarOff } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
 import { S, BrandLogo, ThemeToggleBtn, NotificationBell, STATUS_META } from '../App.jsx';
 
 const RANGE_OPTIONS = [
-  { value: 'overdue', label: 'Atrasadas', icon: AlertTriangle, accent: '#e2574c' },
+  { value: 'overdue', label: 'Atrasadas', icon: AlertTriangle, accent: '#e2574c', countKey: 'overdueCount' },
   { value: 'current_week', label: 'Semana atual', icon: CalendarDays, accent: '#F5C400' },
   { value: 'next_week', label: 'Próxima semana', icon: CalendarClock, accent: '#F5C400' },
   { value: 'next_30', label: 'Próximos 30 dias', icon: CalendarRange, accent: '#F5C400' },
+  { value: 'no_date', label: 'Sem data', icon: CalendarOff, accent: '#B8BCC8', countKey: 'noDateCount' },
 ];
 
 const FULL_WEEKDAY_LABEL = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -90,15 +91,24 @@ export default function MacroOverviewScreen({
 
   const groups = [];
   if (data) {
-    const byDate = {};
-    for (const item of data.items) {
-      if (!byDate[item.date]) byDate[item.date] = [];
-      byDate[item.date].push(item);
+    if (range === 'no_date') {
+      // Sem data pra agrupar por dia — uma lista só, sem cabeçalho de dia.
+      if (data.items.length > 0) groups.push({ date: null, items: data.items });
+    } else {
+      const byDate = {};
+      for (const item of data.items) {
+        if (!byDate[item.date]) byDate[item.date] = [];
+        byDate[item.date].push(item);
+      }
+      for (const date of Object.keys(byDate).sort()) groups.push({ date, items: byDate[date] });
     }
-    for (const date of Object.keys(byDate).sort()) groups.push({ date, items: byDate[date] });
   }
 
-  const emptyMessage = range === 'overdue' ? 'Nenhuma atividade atrasada no momento.' : 'Nenhum compromisso previsto nesse período.';
+  const emptyMessage = range === 'overdue'
+    ? 'Nenhuma atividade atrasada no momento.'
+    : range === 'no_date'
+      ? 'Nenhuma atividade sem data no momento.'
+      : 'Nenhum compromisso previsto nesse período.';
 
   return (
     <div style={S.page}>
@@ -135,7 +145,7 @@ export default function MacroOverviewScreen({
         {RANGE_OPTIONS.map((opt) => {
           const Icon = opt.icon;
           const active = range === opt.value;
-          const count = opt.value === 'overdue' && data ? data.overdueCount : null;
+          const count = opt.countKey && data ? data[opt.countKey] : null;
           return (
             <button
               key={opt.value}
@@ -153,8 +163,8 @@ export default function MacroOverviewScreen({
               {count !== null && count > 0 && (
                 <span style={{
                   fontSize: 11, fontWeight: 800, minWidth: 18, textAlign: 'center', padding: '1px 6px', borderRadius: 999,
-                  background: active ? 'rgba(0,0,0,.22)' : 'rgba(226,87,76,.18)',
-                  color: active ? '#111' : '#e2574c',
+                  background: active ? 'rgba(0,0,0,.22)' : `${opt.accent}2e`,
+                  color: active ? '#111' : opt.accent,
                 }}>
                   {count}
                 </span>
@@ -172,20 +182,20 @@ export default function MacroOverviewScreen({
         )}
 
         {data && groups.map((group) => {
-          const isPast = group.date < data.today;
-          const isToday = group.date === data.today;
+          const isPast = group.date !== null && group.date < data.today;
+          const isToday = group.date !== null && group.date === data.today;
           return (
-            <div key={group.date}>
+            <div key={group.date === null ? 'no-date' : group.date}>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 800, marginBottom: 8,
                 color: isToday ? '#F5C400' : isPast ? '#e2574c' : 'var(--text-2)',
               }}>
-                {fmtDayLabel(group.date)}
+                {group.date === null ? 'Sem data definida' : fmtDayLabel(group.date)}
                 {isToday && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'rgba(245,196,0,.14)', border: '1px solid rgba(245,196,0,.5)' }}>HOJE</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {group.items.map((item) => {
-                  const urgency = range === 'overdue' ? null : urgencyOf(item, data.today);
+                  const urgency = (range === 'overdue' || range === 'no_date') ? null : urgencyOf(item, data.today);
                   const urgencyMeta = urgency ? URGENCY_META[urgency] : null;
                   const statusMeta = STATUS_META[item.status] || STATUS_META['nao-iniciado'];
                   const overdueDays = range === 'overdue' ? daysOverdue(item.date, data.today) : 0;

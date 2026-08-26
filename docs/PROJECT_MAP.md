@@ -275,15 +275,17 @@ usam `S.detailBox`.
 - 5º workspace, gate por `companiesAccess && allCompaniesAccess` (não é
   universal — só quem já enxerga todas as empresas da org, senão
   vazaria dado de cliente que o usuário não deveria ver).
-- Backend: `server/macro.js` (rota única, `GET /api/macro?range=overdue|current_week|next_week|next_30`)
+- Backend: `server/macro.js` (rota única, `GET /api/macro?range=overdue|current_week|next_week|next_30|no_date`)
   — varre `activities[]` de todos os `projects` da org, resolve fase por
-  `phases.find(ph => ph.id === a.phase)`. 4 abas com recorte mutuamente
-  exclusivo (atrasado só aparece na aba Atrasadas); `overdueCount` sempre
-  vem no payload pra alimentar o badge da aba mesmo fora dela. `time` no
-  item = `a.meetingTime` (campo que já existia no `ActivityDetailModal`,
-  "Horário da reunião").
+  `phases.find(ph => ph.id === a.phase)`. 5 abas com recorte mutuamente
+  exclusivo (atrasado só aparece na aba Atrasadas; sem `date` cadastrada
+  só aparece em "Sem data", senão nunca apareceria em lugar nenhum);
+  `overdueCount`/`noDateCount` sempre vêm no payload pra alimentar os
+  badges das abas mesmo fora delas. `time` no item = `a.meetingTime`
+  (campo que já existia no `ActivityDetailModal`, "Horário da reunião").
 - UI: `src/macro/MacroOverview.jsx` — "Hoje" sempre visível no topo,
-  4 abas com ícone+contagem, lista agrupada por dia. **Clique na linha
+  5 abas com ícone+contagem, lista agrupada por dia (exceto "Sem data",
+  que é uma lista única sem agrupamento). **Clique na linha
   abre o `ActivityDetailModal` de verdade** (`onOpenActivity` →
   `openActivityDetail`, mesma função da Tabela) — editar ali reflete em
   todo o app porque é o mesmo estado `projects`/PATCH; a própria tela
