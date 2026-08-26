@@ -5,7 +5,7 @@ import {
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
   LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History,
   MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal,
-  Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge, Home,
+  Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge, Home, Paperclip,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -1331,10 +1331,18 @@ export default function App() {
     mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, attachments: (a.attachments || []).filter((x) => x.id !== attId) }) }), att ? `Anexo removido em "${act.title}": ${att.name}` : undefined, actId);
   }
 
-  function addComment(targetPid, actId, text, mentionIds) {
+  function addComment(targetPid, actId, text, mentionIds, attachments, links) {
     const v = (text || '').trim();
-    if (!v) return;
-    const c = { id: uid('cm'), text: v, ts: new Date().toISOString(), author: currentUser ? currentUser.name : '', authorId: currentUser ? currentUser.id : '', mentions: mentionIds && mentionIds.length ? mentionIds : [] };
+    const atts = attachments || [];
+    const lks = links || [];
+    // Comentário só de anexo/link (sem texto) é válido — pedido do
+    // Rafael pra dar pra mandar só um print/PDF/link sem precisar
+    // escrever nada junto.
+    if (!v && !atts.length && !lks.length) return;
+    const c = {
+      id: uid('cm'), text: v, ts: new Date().toISOString(), author: currentUser ? currentUser.name : '', authorId: currentUser ? currentUser.id : '',
+      mentions: mentionIds && mentionIds.length ? mentionIds : [], attachments: atts, links: lks,
+    };
     const project = projects.find((p) => p.id === targetPid);
     const act = project && project.activities.find((a) => a.id === actId);
     mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, comments: [...(a.comments || []), c] }) }), `Comentário adicionado em "${act ? act.title : ''}"`, actId);
@@ -6178,6 +6186,11 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
   const [editingCommentText, setEditingCommentText] = useState('');
   const [commentDraft, setCommentDraft] = useState('');
   const [pendingMentions, setPendingMentions] = useState([]);
+  const [commentAttachmentDrafts, setCommentAttachmentDrafts] = useState([]);
+  const [commentLinkDrafts, setCommentLinkDrafts] = useState([]);
+  const [commentLinkLabelDraft, setCommentLinkLabelDraft] = useState('');
+  const [commentLinkUrlDraft, setCommentLinkUrlDraft] = useState('');
+  const [showCommentLinkForm, setShowCommentLinkForm] = useState(false);
   const [dragSubId, setDragSubId] = useState(null);
   const [linkLabelDraft, setLinkLabelDraft] = useState('');
   const [linkUrlDraft, setLinkUrlDraft] = useState('');
@@ -6192,11 +6205,47 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
     setPendingMentions((prev) => (prev.includes(m.userId) ? prev : [...prev, m.userId]));
   }
 
+  function handleCommentFiles(fileList) {
+    const files = Array.from(fileList || []);
+    for (const file of files) {
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        window.alert(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB.`);
+        continue;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        setCommentAttachmentDrafts((prev) => [...prev, { id: uid('att'), name: file.name, size: file.size, type: file.type || '', dataUrl: reader.result }]);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  function removeCommentAttachmentDraft(id) {
+    setCommentAttachmentDrafts((prev) => prev.filter((x) => x.id !== id));
+  }
+
+  function addCommentLinkDraft() {
+    if (!commentLinkUrlDraft.trim()) return;
+    const url = /^https?:\/\//i.test(commentLinkUrlDraft.trim()) ? commentLinkUrlDraft.trim() : `https://${commentLinkUrlDraft.trim()}`;
+    setCommentLinkDrafts((prev) => [...prev, { id: uid('lnk'), label: commentLinkLabelDraft.trim() || url, url }]);
+    setCommentLinkLabelDraft('');
+    setCommentLinkUrlDraft('');
+  }
+
+  function removeCommentLinkDraft(id) {
+    setCommentLinkDrafts((prev) => prev.filter((x) => x.id !== id));
+  }
+
   function submitComment() {
-    if (!commentDraft.trim()) return;
-    addComment(pid, a.id, commentDraft, pendingMentions);
+    if (!commentDraft.trim() && !commentAttachmentDrafts.length && !commentLinkDrafts.length) return;
+    addComment(pid, a.id, commentDraft, pendingMentions, commentAttachmentDrafts, commentLinkDrafts);
     setCommentDraft('');
     setPendingMentions([]);
+    setCommentAttachmentDrafts([]);
+    setCommentLinkDrafts([]);
+    setCommentLinkLabelDraft('');
+    setCommentLinkUrlDraft('');
+    setShowCommentLinkForm(false);
   }
 
   function submitLink() {
@@ -6208,12 +6257,13 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
 
   const isMobile = useIsMobile();
   const lastSavedAt = useAutosaveTimestamp(a);
-  const hasDraft = !!commentDraft.trim() || !!linkLabelDraft.trim() || !!linkUrlDraft.trim() || editingCommentId !== null;
+  const hasDraft = !!commentDraft.trim() || !!linkLabelDraft.trim() || !!linkUrlDraft.trim()
+    || !!commentAttachmentDrafts.length || !!commentLinkDrafts.length || !!commentLinkUrlDraft.trim() || editingCommentId !== null;
   const [showGuard, setShowGuard] = useState(false);
   function requestClose() { if (hasDraft) setShowGuard(true); else onClose(); }
   function saveDraftsAndClose() {
     if (editingCommentId !== null) { updateComment(pid, a.id, editingCommentId, editingCommentText); setEditingCommentId(null); }
-    if (commentDraft.trim()) submitComment();
+    if (commentDraft.trim() || commentAttachmentDrafts.length || commentLinkDrafts.length) submitComment();
     if (linkUrlDraft.trim()) submitLink();
     onClose();
   }
@@ -6306,6 +6356,23 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
                   ) : (
                     <div style={S.commentText}>{renderCommentText(c.text, team)}</div>
                   )}
+                  {((c.attachments || []).length > 0 || (c.links || []).length > 0) && (
+                    <div style={{ ...S.attachList, marginTop: 6 }}>
+                      {(c.attachments || []).map((att) => (
+                        <div key={att.id} style={S.attachRow}>
+                          {att.type && att.type.startsWith('image/') && <img src={att.dataUrl} alt={att.name} style={S.attachThumb} />}
+                          <a href={att.dataUrl} download={att.name} style={S.attachLink}>{att.name}</a>
+                          <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
+                        </div>
+                      ))}
+                      {(c.links || []).map((l) => (
+                        <div key={l.id} style={S.attachRow}>
+                          <Link2 size={12} style={{ flexShrink: 0, color: 'var(--text-6)' }} />
+                          <a href={l.url} target="_blank" rel="noreferrer" style={S.attachLink}>{l.label}</a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div style={S.commentMeta}>
                     <span>{c.author ? `${c.author} · ` : ''}{fmtTs(c.ts)}{c.editedAt ? ' · editado' : ''}</span>
                     {editingCommentId !== c.id && (
@@ -6328,8 +6395,37 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
                 {mentionCandidates.map((m) => <option key={m.userId} value={m.userId}>{m.name}</option>)}
               </select>
             )}
+            {(commentAttachmentDrafts.length > 0 || commentLinkDrafts.length > 0) && (
+              <div style={{ ...S.attachList, marginBottom: 6 }}>
+                {commentAttachmentDrafts.map((att) => (
+                  <div key={att.id} style={S.attachRow}>
+                    {att.type && att.type.startsWith('image/') && <img src={att.dataUrl} alt={att.name} style={S.attachThumb} />}
+                    <span style={S.attachLink}>{att.name}</span>
+                    <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
+                    <button style={S.iconBtnGhost} onClick={() => removeCommentAttachmentDraft(att.id)}><X size={12} /></button>
+                  </div>
+                ))}
+                {commentLinkDrafts.map((l) => (
+                  <div key={l.id} style={S.attachRow}>
+                    <Link2 size={12} style={{ flexShrink: 0, color: 'var(--text-6)' }} />
+                    <span style={S.attachLink}>{l.label}</span>
+                    <button style={S.iconBtnGhost} onClick={() => removeCommentLinkDraft(l.id)}><X size={12} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {showCommentLinkForm && (
+              <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                <input type="text" value={commentLinkLabelDraft} onChange={(e) => setCommentLinkLabelDraft(e.target.value)} placeholder="Nome do link (opcional)" style={{ flex: 1 }} />
+                <input type="text" value={commentLinkUrlDraft} onChange={(e) => setCommentLinkUrlDraft(e.target.value)} placeholder="https://..." style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && addCommentLinkDraft()} />
+                <button style={S.iconBtn} onClick={addCommentLinkDraft}><Plus size={14} /></button>
+              </div>
+            )}
             <div style={S.commentInputRow}>
               <textarea value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} placeholder="Escreva um comentário... use @ pra mencionar alguém" rows={2} style={{ flex: 1 }} />
+              <label htmlFor={`comment-file-${a.id}`} style={S.iconBtnGhost} title="Anexar imagem ou PDF"><Paperclip size={14} /></label>
+              <input id={`comment-file-${a.id}`} type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} onChange={(e) => { handleCommentFiles(e.target.files); e.target.value = ''; }} />
+              <button style={S.iconBtnGhost} title="Anexar link" onClick={() => setShowCommentLinkForm((v) => !v)}><Link2 size={14} /></button>
               <button style={S.primaryBtn} onClick={submitComment}><Send size={14} /></button>
             </div>
 

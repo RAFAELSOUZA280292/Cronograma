@@ -593,6 +593,24 @@ mecanismo.
   ao trocar de aba — mesma classe de bug já corrigida em Agenda/XFlow/
   Visão Macro nesta sessão. `S.tab` passou a usar
   `borderWidth`/`borderStyle`/`borderColor` em vez do shorthand `border`.
+- **Anexos em Comentários (2026-08)**: pedido do Rafael — comentário de
+  atividade (`activity.comments[]`, `ActivityDetailModal`) ganhou
+  `attachments[]` (imagem/PDF, mesmo formato/limite de
+  `MAX_ATTACHMENT_BYTES`/8MB e mesma leitura via `FileReader` →
+  `dataUrl` base64 inline no JSONB que já existia pros anexos da própria
+  atividade) e `links[]` (mesmo formato `{id, label, url}` dos links da
+  atividade). Composer de comentário ganhou dois ícones novos ao lado do
+  Enviar: clipe (`<label>` + `<input type=file accept="image/*,application/pdf" multiple>`
+  oculto, mesmo padrão de "Anexar arquivo" da atividade) e link
+  (abre/fecha um mini-form label+URL, `showCommentLinkForm`). Anexo/link
+  entram numa lista de rascunho (`commentAttachmentDrafts`/
+  `commentLinkDrafts`) antes de enviar — dá pra anexar vários, remover
+  antes de mandar, e **comentário só de anexo/link, sem texto nenhum, é
+  válido** (útil pra só mandar um print ou um link sem escrever nada).
+  `addComment()` ganhou 2 parâmetros novos (`attachments`, `links`) — só
+  aditivo, não quebra nenhuma chamada existente. `hasDraft`/guard de
+  descarte não-salvo passou a considerar esses rascunhos também, senão
+  fechar o modal com um anexo pendente perderia ele silenciosamente.
 - **Relatório em PDF (2026-08)** — deixou de ser "o que está na tela agora"
   impresso via CSS. `exportPdf()` continua chamando `window.print()` (sem
   lib nova), mas agora existe um componente dedicado (`PrintReport` +
