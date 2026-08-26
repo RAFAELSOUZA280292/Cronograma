@@ -2090,6 +2090,25 @@ XFlow/Agenda) — `MacroOverviewScreen` montada em `App.jsx` como
   (não tem `date` pra agrupar) — mostra uma lista única sob o cabeçalho
   "Sem data definida", sem badge de urgência (não faz sentido calcular
   atraso/hoje/em-breve sem uma data de referência).
+- **4 filtros** (2026-08, pedido do Rafael): Empresa, Responsável,
+  Status, Prioridade — mesmo padrão de "Filtros rápidos" que a Tabela já
+  tem (`filterSelect`/`STATUS_META`/`PRIORITY_META`/`PRIORITY_ORDER`,
+  esses dois últimos agora exportados de `App.jsx` pra reuso), só que
+  aqui empresa entra no lugar de fase (fase não faz sentido cruzando
+  empresas com fases diferentes). Filtram **no client**, sobre o que já
+  foi buscado pra aba/período atual — mesma convenção do resto do app
+  (Tabela/Quadro pessoal/XFlow também filtram client-side, não fazem uma
+  chamada por combinação de filtro). Opções de Empresa/Responsável vêm
+  do backend já com o universo completo da org (`companies`/
+  `responsibles` no payload de `/api/macro`, calculado a partir de
+  **todas** as atividades, não só as da aba atual — senão uma empresa
+  sem nada atrasado nunca apareceria como opção enquanto o usuário
+  estivesse na aba Atrasadas). "Limpar filtros" aparece só quando algum
+  filtro está ativo; mensagem de vazio distingue "sem filtro, período
+  genuinamente vazio" de "tem item na aba mas nenhum bate com o filtro"
+  (`Nenhum resultado com esses filtros.`). Bolinha colorida de prioridade
+  (mesmo padrão visual da Tabela) aparece na linha quando a atividade tem
+  prioridade definida.
 - Lista agrupada por dia (`Terça-feira — 25/08`), cada linha mostra
   empresa (ponto colorido na cor da empresa), horário (se houver, em
   destaque antes do título) — título, fase (colorida), responsável,

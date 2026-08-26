@@ -9,9 +9,9 @@
 // `projects` (é o mesmo estado, mesmo PATCH). Ver PROJECT_CONTEXT.md §23.
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Building2, Columns3, Bug, LogOut, Home, RefreshCw, AlertTriangle, Clock3, CalendarDays, CalendarRange, CalendarClock, CalendarOff } from 'lucide-react';
+import { Building2, Columns3, Bug, LogOut, Home, RefreshCw, AlertTriangle, Clock3, CalendarDays, CalendarRange, CalendarClock, CalendarOff, X } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
-import { S, BrandLogo, ThemeToggleBtn, NotificationBell, STATUS_META } from '../App.jsx';
+import { S, BrandLogo, ThemeToggleBtn, NotificationBell, STATUS_META, PRIORITY_META, PRIORITY_ORDER } from '../App.jsx';
 
 const RANGE_OPTIONS = [
   { value: 'overdue', label: 'Atrasadas', icon: AlertTriangle, accent: '#e2574c', countKey: 'overdueCount' },
@@ -61,6 +61,10 @@ export default function MacroOverviewScreen({
   const [data, setData] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
+  const [filterCompany, setFilterCompany] = useState('');
+  const [filterResponsible, setFilterResponsible] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterPriority, setFilterPriority] = useState('');
 
   function load() {
     return apiGet(`/api/macro?range=${range}`)
@@ -89,14 +93,22 @@ export default function MacroOverviewScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activityModalOpen]);
 
+  const filteredItems = data ? data.items.filter((item) =>
+    (!filterCompany || item.projectId === filterCompany)
+    && (!filterResponsible || item.responsible === filterResponsible)
+    && (!filterStatus || item.status === filterStatus)
+    && (!filterPriority || item.priority === filterPriority)
+  ) : [];
+  const filtersActive = !!(filterCompany || filterResponsible || filterStatus || filterPriority);
+
   const groups = [];
   if (data) {
     if (range === 'no_date') {
       // Sem data pra agrupar por dia — uma lista só, sem cabeçalho de dia.
-      if (data.items.length > 0) groups.push({ date: null, items: data.items });
+      if (filteredItems.length > 0) groups.push({ date: null, items: filteredItems });
     } else {
       const byDate = {};
-      for (const item of data.items) {
+      for (const item of filteredItems) {
         if (!byDate[item.date]) byDate[item.date] = [];
         byDate[item.date].push(item);
       }
@@ -104,11 +116,13 @@ export default function MacroOverviewScreen({
     }
   }
 
-  const emptyMessage = range === 'overdue'
-    ? 'Nenhuma atividade atrasada no momento.'
-    : range === 'no_date'
-      ? 'Nenhuma atividade sem data no momento.'
-      : 'Nenhum compromisso previsto nesse período.';
+  const emptyMessage = (filtersActive && data && data.items.length > 0)
+    ? 'Nenhum resultado com esses filtros.'
+    : range === 'overdue'
+      ? 'Nenhuma atividade atrasada no momento.'
+      : range === 'no_date'
+        ? 'Nenhuma atividade sem data no momento.'
+        : 'Nenhum compromisso previsto nesse período.';
 
   return (
     <div style={S.page}>
@@ -174,6 +188,33 @@ export default function MacroOverviewScreen({
         })}
       </div>
 
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '14px 24px 0' }}>
+        <select style={S.companyFilterSelect} value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}>
+          <option value="">Todas as empresas</option>
+          {data && data.companies.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
+        <select style={S.companyFilterSelect} value={filterResponsible} onChange={(e) => setFilterResponsible(e.target.value)}>
+          <option value="">Todos os responsáveis</option>
+          {data && data.responsibles.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <select style={S.companyFilterSelect} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+          <option value="">Todos os status</option>
+          {Object.keys(STATUS_META).map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
+        </select>
+        <select style={S.companyFilterSelect} value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
+          <option value="">Todas as prioridades</option>
+          {PRIORITY_ORDER.map((p) => <option key={p} value={p}>{PRIORITY_META[p].label}</option>)}
+        </select>
+        {filtersActive && (
+          <button
+            style={{ ...S.iconBtnGhost, fontSize: 12.5 }}
+            onClick={() => { setFilterCompany(''); setFilterResponsible(''); setFilterStatus(''); setFilterPriority(''); }}
+          >
+            <X size={13} /> Limpar filtros
+          </button>
+        )}
+      </div>
+
       <div style={{ padding: '18px 24px 40px', display: 'flex', flexDirection: 'column', gap: 18 }}>
         {error && <div style={S.loginBlockedMsg}>{error}</div>}
 
@@ -211,6 +252,9 @@ export default function MacroOverviewScreen({
                       }}
                     >
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.companyColor, flexShrink: 0 }} />
+                      {item.priority && (
+                        <span title={`Prioridade ${PRIORITY_META[item.priority].label}`} style={{ width: 8, height: 8, borderRadius: '50%', background: PRIORITY_META[item.priority].color, flexShrink: 0 }} />
+                      )}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)' }}>
                           {item.company} <span style={{ fontWeight: 500, color: 'var(--text-4)' }}>—</span>{' '}
