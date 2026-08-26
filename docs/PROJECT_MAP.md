@@ -109,7 +109,7 @@ Componentes de tela/modal (nome → linha → responsabilidade):
 | **4706** | **`PersonalBoardScreen`** | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros, `publicMode`/`readOnly` props) |
 | **5541** | **`PublicBoardScreen`** | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
 | 5640 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
-| **5675** | **`ActivityDetailModal`** | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários, histórico, campo opcional `meetingTime` (2026-08, "Horário da reunião") |
+| **5675** | **`ActivityDetailModal`** | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários, histórico, campo opcional `meetingTime` (2026-08, "Horário da reunião") e checkbox `clientDateConfirmed` (2026-08, "Data confirmada com o cliente?") |
 | 6085 | `PrintActivityTable` | Tabela de atividades do relatório em PDF (usada em "Em atraso" e "Próximas etapas") |
 | **6125** | **`PrintReport`** | Relatório em PDF dedicado (2026-08) — KPIs/progresso/próximas etapas, `display:none` na tela, só aparece em `@media print` — ver `PROJECT_CONTEXT.md` §13 |
 | 6339 | `ResumoTable` | Tabela desktop da aba Resumo (2026-08) |

@@ -1202,8 +1202,12 @@ export default function App() {
     const nextMonth = activities.length ? Math.max(...activities.map((a) => a.month)) + 1 : 1;
     const phasesList = project.phases;
     const defaultPhaseId = phasesList.length ? phasesList[phasesList.length - 1].id : 1;
-    const na = { id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '', responsible: (project.team[0] && project.team[0].name) || 'PRICETAX', priority: '', participants: [], date: '', endDate: '', durationDays: '', status: 'nao-iniciado', required: false, subactivities: [], notes: '', attachments: [], comments: [], links: [], transcript: '' };
+    const na = { id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '', responsible: (project.team[0] && project.team[0].name) || 'PRICETAX', priority: '', participants: [], date: '', endDate: '', durationDays: '', status: 'nao-iniciado', required: false, subactivities: [], notes: '', attachments: [], comments: [], links: [], transcript: '', clientDateConfirmed: false };
     mutateProject(targetPid, (p) => ({ ...p, activities: [...p.activities, na] }), `Atividade criada: "${na.title}"`, na.id);
+    // Sem isso, a atividade nasce lá no final da lista (ordenada por
+    // data/mês) e "some" pro usuário — pedido do Rafael pra já abrir
+    // direto pra edição, sem precisar caçar ela na lista depois.
+    openActivityDetail(targetPid, na.id);
   }
 
   // Atividade "de grupo" (v2): registro único no projeto do Master, marcado com
@@ -1221,10 +1225,11 @@ export default function App() {
       id: uid('act'), month: nextMonth, phase: defaultPhaseId, title: 'Nova atividade', desc: '',
       responsible: (project.team[0] && project.team[0].name) || 'PRICETAX', priority: '', participants: [],
       date: '', endDate: '', durationDays: '', status: 'nao-iniciado', required: false, subactivities: [],
-      notes: '', attachments: [], comments: [], links: [], transcript: '',
+      notes: '', attachments: [], comments: [], links: [], transcript: '', clientDateConfirmed: false,
       involvedCompanyIds: involvedCompanyIds || [],
     };
     mutateProject(masterPid, (p) => ({ ...p, activities: [...p.activities, na] }), `Atividade de grupo criada: "${na.title}"`, na.id);
+    openActivityDetail(masterPid, na.id);
   }
 
   function deleteActivity(targetPid, id) {
@@ -1543,6 +1548,7 @@ export default function App() {
       attachments: [],
       comments: [],
       transcript: '',
+      clientDateConfirmed: false,
       subactivities: (a.subactivities || []).filter((s) => !s.deleted).map((s) => ({ ...s, id: uid('s'), done: false, date: shift(s.date) })),
     }));
 
@@ -6428,6 +6434,14 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
               onBlur={() => updateActivity(pid, a.id, {}, `Horário da reunião alterado em "${a.title}": ${a.meetingTime || 'sem horário definido'}`)}
             />
 
+            <div style={{ ...S.subSectionLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={!!a.clientDateConfirmed}
+                onChange={(e) => updateActivity(pid, a.id, { clientDateConfirmed: e.target.checked }, `Data confirmada com o cliente ${e.target.checked ? 'marcada' : 'desmarcada'} em "${a.title}"`)}
+              /> Data confirmada com o cliente?
+            </div>
+
             <div style={S.subSectionLabel}>Prazo (dias)</div>
             <input
               type="number"
@@ -6828,6 +6842,8 @@ const RESUMO_CSS = `
   .rs-avatar { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: #111; flex-shrink: 0; }
   .rs-phase-tag { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
   .rs-date-cell { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+  .rs-meeting-time { color: var(--text-5); }
+  .rs-confirmed-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; white-space: nowrap; margin-left: 6px; color: #3ecf6e; background: rgba(62,207,110,.14); border: 1px solid rgba(62,207,110,.5); }
   .rs-countdown-pill { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
   .rs-status-pill { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
   .rs-empty-row td { text-align: center; color: var(--text-6); font-style: italic; }
@@ -6881,7 +6897,11 @@ function ResumoTable({ rows, orderMap, phases, accent, todayISO, onOpen }) {
                 </td>
                 <td><div className="rs-resp"><span className="rs-avatar" style={{ background: accent }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>{a.responsible || '—'}</div></td>
                 <td>{phase ? <span className="rs-phase-tag" style={{ borderColor: phase.color, color: phase.color }}>{phase.name}</span> : '—'}</td>
-                <td className="rs-date-cell">{resumoDateLabel(a)}</td>
+                <td className="rs-date-cell">
+                  {resumoDateLabel(a)}
+                  {a.meetingTime && <span className="rs-meeting-time"> às {a.meetingTime}</span>}
+                  {a.clientDateConfirmed && <span className="rs-confirmed-badge" title="Data confirmada com o cliente"><Check size={10} /> Confirmado c/ cliente</span>}
+                </td>
                 <td><span className="rs-countdown-pill" style={{ color: tone.color, background: tone.bg }}>{cd.label}</span></td>
                 <td><span className="rs-status-pill" style={{ color: statusMeta.color, background: statusMeta.bg, borderColor: statusMeta.border }}>{statusMeta.label}</span></td>
               </tr>
@@ -6911,9 +6931,17 @@ function ResumoCard({ a, orderMap, phases, accent, todayISO, onOpen }) {
       </div>
       {subs.length > 0 && <div className="rs-activity-subs">{doneSubs}/{subs.length} subatividades</div>}
       <div className="rs-card-bottom">
-        <span className="rs-date-cell">{resumoDateLabel(a)}</span>
+        <span className="rs-date-cell">
+          {resumoDateLabel(a)}
+          {a.meetingTime && <span className="rs-meeting-time"> às {a.meetingTime}</span>}
+        </span>
         <span className="rs-status-pill" style={{ color: statusMeta.color, background: statusMeta.bg, borderColor: statusMeta.border }}>{statusMeta.label}</span>
       </div>
+      {a.clientDateConfirmed && (
+        <div style={{ marginTop: 6 }}>
+          <span className="rs-confirmed-badge" title="Data confirmada com o cliente"><Check size={10} /> Confirmado c/ cliente</span>
+        </div>
+      )}
       <div className="rs-card-secondary">
         <span className="rs-resp"><span className="rs-avatar" style={{ background: accent }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>{a.responsible || '—'}</span>
         {phase && <span className="rs-phase-tag" style={{ borderColor: phase.color, color: phase.color }}>{phase.name}</span>}
@@ -8026,7 +8054,7 @@ export const S = {
   mentionBadge: { position: 'absolute', top: -3, right: -5, background: '#e2574c', color: '#fff', fontSize: 9.5, fontWeight: 800, borderRadius: 999, minWidth: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 },
   primaryBtn: { display: 'flex', alignItems: 'center', gap: 6, background: '#F5C400', border: 'none', color: '#111', fontSize: 12.5, fontWeight: 800, padding: '7px 13px', borderRadius: 7, cursor: 'pointer' },
   tabs: { display: 'flex', gap: 6, padding: '14px 24px 0 24px', overflowX: 'auto' },
-  tab: { display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--border-1)', color: 'var(--text-4)', fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: '8px 8px 0 0', cursor: 'pointer' },
+  tab: { display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--border-1)', color: 'var(--text-4)', fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: '8px 8px 0 0', cursor: 'pointer' },
   tabActive: { background: 'var(--bg-3)', color: '#F5C400', borderColor: 'var(--border-3)', borderBottomColor: 'var(--bg-3)' },
   main: { padding: '20px 24px 0 24px' },
   hint: { fontSize: 11.5, color: 'var(--text-7)', textAlign: 'center', marginTop: 24 },
