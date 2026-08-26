@@ -2035,27 +2035,36 @@ o tile não é a única barreira.
 
 ### Backend
 
-`server/macro.js` — rota única, `GET /api/macro?range=current_week|next_week|next_30`.
+`server/macro.js` — rota única, `GET /api/macro?range=overdue|current_week|next_week|next_30`.
 Varre `SELECT id, data FROM projects WHERE org_id=$1` (todas as empresas
 da org, sem filtro de CNPJ) e achata `data.activities[]` de cada uma,
-igual a Tabela/Agenda já fazem. Pra cada atividade dentro da janela,
-resolve o nome da fase via `phases.find(ph => ph.id === a.phase)`
-(mesma relação numérica id↔phase que a Tabela usa) e monta um item com
-`company`, `date`, `endDate`, `title` (funciona como "tipo de entrega/
-encontro" — não existe campo separado, o título da atividade já cobre
-isso), `phase`, `responsible`, `status` (usa o enum real de
-`STATUS_META`: `nao-iniciado`/`em-andamento`/`pausado`/`concluido` — não
-inventa "confirmado"/"previsto" como estados novos).
+igual a Tabela/Agenda já fazem. Pra cada atividade que casa com o filtro,
+resolve o nome da fase via `phases.find(ph => ph.id === a.phase)` (mesma
+relação numérica id↔phase que a Tabela usa) e monta um item com
+`projectId`+`activityId` (separados — necessário pra reabrir a atividade
+de verdade pra edição, ver abaixo), `company`, `date`, `endDate`, `time`
+(= `a.meetingTime`, campo que **já existia** na atividade — "Horário da
+reunião (opcional)" no `ActivityDetailModal`, só não estava sendo puxado
+pra cá antes), `title` (funciona como "tipo de entrega/encontro" — não
+existe campo separado, o título da atividade já cobre isso), `phase`,
+`responsible`, `status` (usa o enum real de `STATUS_META`:
+`nao-iniciado`/`em-andamento`/`pausado`/`concluido` — não inventa
+"confirmado"/"previsto" como estados novos).
 
-**Atrasado não some quando a semana dele já passou**: além dos itens
-dentro da janela `[start, end)`, qualquer atividade com `date < hoje` e
-`status !== 'concluido'` também entra (exceto na aba "Próxima semana",
-que é uma janela futura específica — não faria sentido puxar atraso de
-meses atrás pra lá). Sem isso, um compromisso atrasado de 2 semanas atrás
-simplesmente desapareceria da visão assim que a semana dele passasse,
-mesmo continuando sem solução — bug encontrado testando localmente antes
-do primeiro deploy (forcei uma atividade com data no passado e ela não
-aparecia em nenhuma aba).
+**4 abas, recortes mutuamente exclusivos** (2026-08, revisão): `overdue`
+(`date < hoje` e `status !== 'concluido'`, sem limite de quão antigo),
+`current_week`/`next_week`/`next_30` (dentro da janela de data
+correspondente, mas **excluindo** o que já é `overdue` — um atrasado
+aparece só na aba Atrasadas, nunca duplicado também na semana atual).
+Isso substituiu o comportamento anterior (só um "carry-forward" de
+atrasado dentro das outras abas) depois que o Rafael pediu uma aba
+dedicada — mais claro que duplicar o mesmo item em dois lugares.
+`overdueCount` vem sempre no payload (independente da aba pedida) — é o
+que alimenta o badge de contagem na aba Atrasadas mesmo enquanto o
+usuário está vendo outra aba, sem precisar de uma segunda chamada.
+Ordenação: por data, depois por `time` (quem tem horário vem primeiro e
+em ordem cronológica — bate com o exemplo do Rafael, 10:30 antes de
+14:00), depois por empresa.
 
 ### Frontend
 
@@ -2063,29 +2072,55 @@ aparecia em nenhuma aba).
 XFlow/Agenda) — `MacroOverviewScreen` montada em `App.jsx` como
 `effectiveMode === 'macro'`.
 
-- 3 abas de período: Semana atual (padrão) / Próxima semana / Próximos 30
-  dias — mesmo componente visual de toggle usado no Dia/Semana/Mês da
-  Agenda.
+- **"Hoje" sempre visível**, calculado no client (`new Date()`), fixo no
+  topo da tela — não depende de ter ou não atividade nesse dia (antes só
+  aparecia um badge "HOJE" pequeno e só se por acaso tivesse algo
+  agendado pra hoje; agora é uma linha própria, sempre lá).
+- **4 abas** com visual redesenhado (2026-08, pedido do Rafael — o toggle
+  original era "anêmico" na palavra dele): **Atrasadas** / Semana atual
+  (padrão) / Próxima semana / Próximos 30 dias, cada uma com ícone,
+  padding maior, cor de fundo cheia (não só borda) quando ativa, e um
+  badge de contagem na aba Atrasadas quando `overdueCount > 0`.
 - Lista agrupada por dia (`Terça-feira — 25/08`), cada linha mostra
-  empresa (com um ponto colorido na cor da empresa), título, fase
-  (colorida), responsável, badge de status real (`STATUS_META`) e — só
-  quando aplicável — um badge de urgência calculado **no client**
-  (`urgencyOf()`): `Atrasado` (vermelho, `date < hoje` e não concluído),
-  `Hoje` (amarelo) ou `Em breve` (laranja, 1-2 dias à frente), nunca pra
-  atividade já concluída. Cabeçalho do dia também fica vermelho/amarelo
-  quando o dia inteiro é passado/hoje.
-- Sem "Horário" — **limitação conhecida**: o modelo de atividade
-  (`project.data.activities[]`) não tem campo de hora, só `date`
-  (dia inteiro). Os exemplos que o Rafael deu (10:30, 14:00) não têm de
-  onde vir hoje; adicionar um campo "Horário" à atividade é uma extensão
-  pequena mas deliberadamente **não fizemos agora** — tocaria o formulário
-  de edição de atividade usado por todo mundo, fora do escopo do pedido
-  original. Considerar como ajuste futuro se o time sentir falta.
+  empresa (ponto colorido na cor da empresa), horário (se houver, em
+  destaque antes do título) — título, fase (colorida), responsável,
+  badge de status real (`STATUS_META`). Badge de urgência muda por aba:
+  na aba Atrasadas, mostra "Há N dias" (mais informativo que repetir
+  "Atrasado" em toda linha, já que a aba inteira já é isso); nas outras
+  abas, `Hoje` (amarelo) ou `Em breve` (laranja, 1-2 dias à frente),
+  nunca pra atividade já concluída. Cabeçalho do dia também fica
+  vermelho/amarelo quando o dia inteiro é passado/hoje.
+- **Clique na linha abre a atividade de verdade pra editar** (2026-08,
+  pedido do Rafael) — reaproveita o `ActivityDetailModal` já usado pela
+  Tabela, não uma cópia read-only. `App.jsx` extraiu o render desse modal
+  pra uma função (`renderActivityDetailModal()`, chamada tanto no branch
+  da Tabela quanto no da Visão Macro) pra não duplicar ~30 linhas de JSX;
+  `openActivityDetail(pid, id)` — a mesma função que a Tabela já usa —
+  é passada como `onOpenActivity`. Editar ali salva pelo mesmo
+  `updateActivity`/PATCH `/projects/:id` de sempre, então reflete em
+  qualquer outra tela que leia o mesmo `projects` (é o mesmo estado
+  React, não uma cópia). A única coisa que precisa de esforço extra é o
+  próprio snapshot da Visão Macro, que veio de um `GET /api/macro`
+  separado e não se atualiza sozinho quando o modal edita algo — por
+  isso a tela observa a prop `activityModalOpen` (`!!openActivityId`) e
+  recarrega (`load()`) assim que ela passa de `true` pra `false`
+  (modal fechou).
 - Sem polling automático (ao contrário da Agenda) — botão de atualizar
-  manual (ícone de refresh) + refetch ao trocar de aba de período. Esse
-  quadro muda com a cadência de quem edita atividade, não com a de um
-  calendário externo sincronizando sozinho — não precisa do mesmo
-  refresh agressivo.
+  manual (ícone de refresh) + refetch ao trocar de aba de período + o
+  refetch pós-edição descrito acima. Esse quadro muda com a cadência de
+  quem edita atividade, não com a de um calendário externo sincronizando
+  sozinho — não precisa do mesmo refresh agressivo.
+
+### Bug encontrado e corrigido
+
+`server/macro.js` usava `id: `${p.id}-${a.id}`` (concatenado) como único
+identificador, sem expor `projectId`/`activityId` separados — parsear de
+volta pra abrir a atividade pra edição seria ambíguo/quebrado, porque
+tanto o id do projeto (`proj-r3lphpf`) quanto o da atividade
+(`m-omet704`, por exemplo) podem ter hífen no meio. Corrigido expondo
+`projectId` e `activityId` como campos próprios desde o início — nunca
+chegou a quebrar em produção porque o parsing ambíguo nunca foi
+implementado (só percebido ao planejar o clique-pra-editar).
 
 ## 19. Onde procurar mais detalhe
 
