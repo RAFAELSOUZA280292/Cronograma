@@ -1125,6 +1125,11 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   const commentRef = useRef(null);
   useEffect(() => { autosize(commentRef.current); }, [commentDraft]);
   const [pendingMentions, setPendingMentions] = useState([]);
+  const [commentAttachmentDrafts, setCommentAttachmentDrafts] = useState([]);
+  const [commentLinkDrafts, setCommentLinkDrafts] = useState([]);
+  const [commentLinkLabelDraft, setCommentLinkLabelDraft] = useState('');
+  const [commentLinkUrlDraft, setCommentLinkUrlDraft] = useState('');
+  const [showCommentLinkForm, setShowCommentLinkForm] = useState(false);
   const [showBlockForm, setShowBlockForm] = useState(false);
   const [blockReasonDraft, setBlockReasonDraft] = useState('');
   const [showCloseForm, setShowCloseForm] = useState(false);
@@ -1156,7 +1161,8 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   const [previewEvidence, setPreviewEvidence] = useState(null);
 
   const lastSavedAt = useAutosaveTimestamp(ticket);
-  const hasCommentDraft = !!commentDraft.trim() || pendingMentions.length > 0;
+  const hasCommentDraft = !!commentDraft.trim() || pendingMentions.length > 0
+    || commentAttachmentDrafts.length > 0 || commentLinkDrafts.length > 0 || !!commentLinkUrlDraft.trim();
   const hasActionDraft = [
     blockReasonDraft, closeReasonDraft, closeJustDraft, closeDupIdDraft, dupIdDraft, reproduceNoteDraft,
     redirectProduct, redirectModule, redirectAssignee, waitNote, gerenciaNote, homologRejectNote,
@@ -1310,14 +1316,44 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
 
   function submitComment() {
     const text = commentDraft.trim();
-    if (!text) return;
-    runAction('comentar', { text, mentions: pendingMentions });
+    if (!text && !commentAttachmentDrafts.length && !commentLinkDrafts.length) return;
+    runAction('comentar', { text, mentions: pendingMentions, attachments: commentAttachmentDrafts, links: commentLinkDrafts });
     setCommentDraft('');
     setPendingMentions([]);
+    setCommentAttachmentDrafts([]);
+    setCommentLinkDrafts([]);
+    setCommentLinkLabelDraft('');
+    setCommentLinkUrlDraft('');
+    setShowCommentLinkForm(false);
   }
   function insertMention(m) {
     setCommentDraft((d) => `${d}@${m.name} `);
     setPendingMentions((p) => (p.includes(m.id) ? p : [...p, m.id]));
+  }
+
+  function handleCommentFiles(fileList) {
+    Array.from(fileList || []).forEach((file) => {
+      if (file.size > MAX_EVIDENCE_BYTES) {
+        window.alert(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_EVIDENCE_BYTES / (1024 * 1024)} MB.`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => setCommentAttachmentDrafts((prev) => [...prev, { id: uid('att'), name: file.name, size: file.size, type: file.type || '', dataUrl: reader.result }]);
+      reader.readAsDataURL(file);
+    });
+  }
+  function removeCommentAttachmentDraft(attId) {
+    setCommentAttachmentDrafts((prev) => prev.filter((x) => x.id !== attId));
+  }
+  function addCommentLinkDraft() {
+    if (!commentLinkUrlDraft.trim()) return;
+    const url = /^https?:\/\//i.test(commentLinkUrlDraft.trim()) ? commentLinkUrlDraft.trim() : `https://${commentLinkUrlDraft.trim()}`;
+    setCommentLinkDrafts((prev) => [...prev, { id: uid('lnk'), label: commentLinkLabelDraft.trim() || url, url }]);
+    setCommentLinkLabelDraft('');
+    setCommentLinkUrlDraft('');
+  }
+  function removeCommentLinkDraft(linkId) {
+    setCommentLinkDrafts((prev) => prev.filter((x) => x.id !== linkId));
   }
 
   function handleEvidencePick(e) {
@@ -1490,17 +1526,75 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               placeholder="Escreva um comentário... use @ pra mencionar alguém"
               style={{ resize: 'none', overflowY: 'auto', maxHeight: CONTENT_FIELD_MAX_H }}
             />
-            {team && team.length > 0 && (
-              <select value="" onChange={(e) => { const m = team.find((t) => t.id === e.target.value); if (m) insertMention(m); }} style={{ marginTop: 6, width: 'auto' }}>
-                <option value="">+ Mencionar...</option>
-                {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
+            {(commentAttachmentDrafts.length > 0 || commentLinkDrafts.length > 0) && (
+              <div style={{ ...S.attachList, marginTop: 6 }}>
+                {commentAttachmentDrafts.map((att) => (
+                  <div key={att.id} style={S.attachRow}>
+                    {att.type && att.type.startsWith('image/') && <img src={att.dataUrl} alt={att.name} style={S.attachThumb} />}
+                    <span style={S.attachLink}>{att.name}</span>
+                    <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
+                    <button style={S.iconBtnGhost} onClick={() => removeCommentAttachmentDraft(att.id)}><X size={12} /></button>
+                  </div>
+                ))}
+                {commentLinkDrafts.map((l) => (
+                  <div key={l.id} style={S.attachRow}>
+                    <Link2 size={12} style={{ flexShrink: 0, color: 'var(--text-6)' }} />
+                    <span style={S.attachLink}>{l.label}</span>
+                    <button style={S.iconBtnGhost} onClick={() => removeCommentLinkDraft(l.id)}><X size={12} /></button>
+                  </div>
+                ))}
+              </div>
             )}
-            <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={submitComment} disabled={!commentDraft.trim()}>Comentar</button>
+            {showCommentLinkForm && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <input type="text" value={commentLinkLabelDraft} onChange={(e) => setCommentLinkLabelDraft(e.target.value)} placeholder="Nome do link (opcional)" style={{ flex: 1 }} />
+                <input type="text" value={commentLinkUrlDraft} onChange={(e) => setCommentLinkUrlDraft(e.target.value)} placeholder="https://..." style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && addCommentLinkDraft()} />
+                <button style={S.iconBtn} onClick={addCommentLinkDraft}><Plus size={14} /></button>
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+              {team && team.length > 0 && (
+                <select value="" onChange={(e) => { const m = team.find((t) => t.id === e.target.value); if (m) insertMention(m); }} style={{ width: 'auto' }}>
+                  <option value="">+ Mencionar...</option>
+                  {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              )}
+              <label style={S.iconBtnGhost} title="Anexar imagem ou PDF"><Paperclip size={14} />
+                <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} onChange={(e) => { handleCommentFiles(e.target.files); e.target.value = ''; }} />
+              </label>
+              <button style={S.iconBtnGhost} title="Anexar link" onClick={() => setShowCommentLinkForm((v) => !v)}><Link2 size={14} /></button>
+              <button style={S.iconBtn} onClick={submitComment} disabled={!commentDraft.trim() && !commentAttachmentDrafts.length && !commentLinkDrafts.length}>Comentar</button>
+            </div>
             {(ticket.comments || []).map((c) => (
               <div key={c.id} style={{ ...S.logRow, marginTop: 10 }}>
                 <div style={S.logTs}>{fmtTs(c.ts)} · {c.author}</div>
-                <div>{renderCommentText(c.text, team, ticketsByNumber, openTicketRefByNumber)}</div>
+                {c.text && <div>{renderCommentText(c.text, team, ticketsByNumber, openTicketRefByNumber)}</div>}
+                {((c.attachments || []).length > 0 || (c.links || []).length > 0) && (
+                  <div style={{ ...S.attachList, marginTop: 4 }}>
+                    {(c.attachments || []).map((att) => {
+                      const isImage = att.type && att.type.startsWith('image/');
+                      return (
+                        <div key={att.id} style={S.attachRow}>
+                          {isImage ? (
+                            <img src={att.dataUrl} alt={att.name} style={{ ...S.attachThumb, cursor: 'pointer' }} onClick={() => setPreviewEvidence(att)} />
+                          ) : <Paperclip size={12} />}
+                          {isImage ? (
+                            <a href="#" onClick={(e) => { e.preventDefault(); setPreviewEvidence(att); }} style={S.attachLink}>{att.name}</a>
+                          ) : (
+                            <a href={att.dataUrl} download={att.name} style={S.attachLink}>{att.name}</a>
+                          )}
+                          <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
+                        </div>
+                      );
+                    })}
+                    {(c.links || []).map((l) => (
+                      <div key={l.id} style={S.attachRow}>
+                        <Link2 size={12} style={{ flexShrink: 0, color: 'var(--text-6)' }} />
+                        <a href={l.url} target="_blank" rel="noreferrer" style={S.attachLink}>{l.label}</a>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
 

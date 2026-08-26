@@ -208,6 +208,12 @@ usam `S.detailBox`.
   URL; `App.jsx` (efeito `hashXflowNavDone`) e `XFlowScreen` (efeito
   `hashOpenDone`) abrem a TASK certa quando a página carrega já com esse
   hash. Detalhe completo em `PROJECT_CONTEXT.md` §18.2.
+- Anexo/link em comentário (2026-08): `comment.attachments[]`/`links[]`
+  (mesmo formato dos de atividade de empresa), ação `comentar` em
+  `server/xflow.js` aceita os dois campos + permite comentário só de
+  anexo/link sem texto. Preview de imagem reaproveita o lightbox
+  `previewEvidence` já usado pelas Evidências da TASK. Detalhe completo
+  em `PROJECT_CONTEXT.md` §18.
 - Acesso: card "XFlow" no `WorkspaceGateScreen`, visível só se
   `currentUser.xflowRole` (reporter/dev/gestao) — controlado em
   `NewUserModal`/`EditUserModal`. Papel efetivo (inclui `admin`) calculado em

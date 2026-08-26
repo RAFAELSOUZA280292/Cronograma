@@ -586,16 +586,21 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         historyNote = 'Prazo/próxima ação atualizados';
         break;
       case 'comentar': {
-        if (!payload || !payload.text || !payload.text.trim()) {
+        const p = payload || {};
+        const commentText = (p.text || '').trim();
+        const attachments = p.attachments || [];
+        const links = p.links || [];
+        // Comentário só de anexo/link (sem texto) é válido — mesmo
+        // critério das atividades de empresa (PROJECT_CONTEXT.md §13).
+        if (!commentText && !attachments.length && !links.length) {
           await client.query('ROLLBACK');
           return res.status(400).json({ message: 'Comentário vazio.' });
         }
-        const commentText = payload.text.trim();
-        const comment = { id: uid('xc'), text: commentText, ts: new Date().toISOString(), author: userName, authorId: req.user.id, mentions: payload.mentions || [] };
+        const comment = { id: uid('xc'), text: commentText, ts: new Date().toISOString(), author: userName, authorId: req.user.id, mentions: p.mentions || [], attachments, links };
         data.comments = [comment, ...(data.comments || [])];
-        historyNote = commentText;
+        historyNote = commentText || 'Comentário com anexo adicionado';
         const preview = commentText.length > 140 ? `${commentText.slice(0, 140)}…` : commentText;
-        (payload.mentions || []).forEach((mentionedId) => {
+        (p.mentions || []).forEach((mentionedId) => {
           if (mentionedId && mentionedId !== req.user.id) {
             notificationsToCreate.push({
               userId: mentionedId, type: 'xflow_mention', title: ticketLabel,

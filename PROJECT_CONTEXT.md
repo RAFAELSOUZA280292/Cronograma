@@ -1653,6 +1653,25 @@ Testado localmente: abrir preview pela miniatura e pelo nome, baixar
 pelo botão dentro do lightbox, fechar clicando fora (só fecha o preview,
 TASK continua aberta) e pelo X.
 
+**Anexo/link em Comentário (2026-08, pedido do Rafael)**: mesma feature
+já construída pra comentário de atividade de empresa (§13, "Anexos em
+Comentários"), replicada aqui — Rafael reportou "não estou conseguindo
+adicionar imagens no comentário" estando dentro de uma TASK do XFlow, e
+o comentário do XFlow é um sistema **completamente separado** do de
+atividade (ação `comentar` via PATCH, não um array mutado client-side),
+então a feature de empresa não cobria XFlow automaticamente. `comment`
+ganhou `attachments[]`/`links[]` (mesmo formato dos de empresa,
+`MAX_EVIDENCE_BYTES`/8MB reaproveitado — já existia pra Evidências, não
+criou uma constante nova). Composer ganhou os mesmos dois ícones (clipe/
+link) ao lado de "Comentar"; anexo de imagem no comentário abre no
+**mesmo lightbox** (`previewEvidence`) já usado pelas Evidências da
+TASK — não duplicou componente de preview. Backend: `comentar` em
+`server/xflow.js` aceita `payload.attachments`/`payload.links` e também
+permite comentário só de anexo/link sem texto (mesmo critério de
+empresa). `rowToTicket()` espalha `...row.data` sem whitelist de campo,
+então `comments[].attachments/links` chegam ao client sem precisar de
+nenhuma mudança adicional em `rowToTicket`.
+
 ## 19a. Autoatendimento de conta (2026-08)
 
 `MyProfileModal` (`App.jsx`, aberto pelo avatar no topo — "Meu perfil")
