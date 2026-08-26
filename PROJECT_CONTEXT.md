@@ -2011,6 +2011,82 @@ Criar reunião nova clicando num horário livre e sincronizar com o Google
 "Nova reunião" no futuro reaproveitar sem precisar refatorar; não existe
 nenhum código morto de UI pra isso ainda.
 
+## 23. Visão Macro / "Visão Geral Empresas" (2026-08)
+
+Pedido do Rafael: "quadro de cronograma geral pra controle interno dos
+projetos" — em vez de entrar empresa por empresa pra saber o que está
+previsto, uma tela só que junta as atividades de **todas** as empresas da
+org, organizadas por dia, com destaque visual pro que está atrasado, é
+hoje, ou está próximo do vencimento.
+
+### Acesso
+
+Tile "Visão Geral Empresas" no `WorkspaceGateScreen`, 5º workspace, só
+aparece se `currentUser.companiesAccess && currentUser.allCompaniesAccess`
+— **não** é universal como a Agenda. Faz sentido: essa tela mostra
+atividade de toda empresa da org de uma vez, então só quem já enxerga
+todas (`allCompaniesAccess`, o mesmo flag do radio "Todas as empresas" vs
+"Empresas específicas" na tela de usuário) pode ver — um usuário
+restrito a um CNPJ (`allowedCnpjs`) nunca deveria ver atividade de outro
+cliente, e essa tela ignoraria esse allowlist de propósito (por design,
+não é um esquecimento) se não tivesse esse gate. Backend confere de novo
+(`403` se `!companiesAccess || !allCompaniesAccess`) — o front escondendo
+o tile não é a única barreira.
+
+### Backend
+
+`server/macro.js` — rota única, `GET /api/macro?range=current_week|next_week|next_30`.
+Varre `SELECT id, data FROM projects WHERE org_id=$1` (todas as empresas
+da org, sem filtro de CNPJ) e achata `data.activities[]` de cada uma,
+igual a Tabela/Agenda já fazem. Pra cada atividade dentro da janela,
+resolve o nome da fase via `phases.find(ph => ph.id === a.phase)`
+(mesma relação numérica id↔phase que a Tabela usa) e monta um item com
+`company`, `date`, `endDate`, `title` (funciona como "tipo de entrega/
+encontro" — não existe campo separado, o título da atividade já cobre
+isso), `phase`, `responsible`, `status` (usa o enum real de
+`STATUS_META`: `nao-iniciado`/`em-andamento`/`pausado`/`concluido` — não
+inventa "confirmado"/"previsto" como estados novos).
+
+**Atrasado não some quando a semana dele já passou**: além dos itens
+dentro da janela `[start, end)`, qualquer atividade com `date < hoje` e
+`status !== 'concluido'` também entra (exceto na aba "Próxima semana",
+que é uma janela futura específica — não faria sentido puxar atraso de
+meses atrás pra lá). Sem isso, um compromisso atrasado de 2 semanas atrás
+simplesmente desapareceria da visão assim que a semana dele passasse,
+mesmo continuando sem solução — bug encontrado testando localmente antes
+do primeiro deploy (forcei uma atividade com data no passado e ela não
+aparecia em nenhuma aba).
+
+### Frontend
+
+`src/macro/MacroOverview.jsx` (mesmo padrão de arquivo próprio do
+XFlow/Agenda) — `MacroOverviewScreen` montada em `App.jsx` como
+`effectiveMode === 'macro'`.
+
+- 3 abas de período: Semana atual (padrão) / Próxima semana / Próximos 30
+  dias — mesmo componente visual de toggle usado no Dia/Semana/Mês da
+  Agenda.
+- Lista agrupada por dia (`Terça-feira — 25/08`), cada linha mostra
+  empresa (com um ponto colorido na cor da empresa), título, fase
+  (colorida), responsável, badge de status real (`STATUS_META`) e — só
+  quando aplicável — um badge de urgência calculado **no client**
+  (`urgencyOf()`): `Atrasado` (vermelho, `date < hoje` e não concluído),
+  `Hoje` (amarelo) ou `Em breve` (laranja, 1-2 dias à frente), nunca pra
+  atividade já concluída. Cabeçalho do dia também fica vermelho/amarelo
+  quando o dia inteiro é passado/hoje.
+- Sem "Horário" — **limitação conhecida**: o modelo de atividade
+  (`project.data.activities[]`) não tem campo de hora, só `date`
+  (dia inteiro). Os exemplos que o Rafael deu (10:30, 14:00) não têm de
+  onde vir hoje; adicionar um campo "Horário" à atividade é uma extensão
+  pequena mas deliberadamente **não fizemos agora** — tocaria o formulário
+  de edição de atividade usado por todo mundo, fora do escopo do pedido
+  original. Considerar como ajuste futuro se o time sentir falta.
+- Sem polling automático (ao contrário da Agenda) — botão de atualizar
+  manual (ícone de refresh) + refetch ao trocar de aba de período. Esse
+  quadro muda com a cadência de quem edita atividade, não com a de um
+  calendário externo sincronizando sozinho — não precisa do mesmo
+  refresh agressivo.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
