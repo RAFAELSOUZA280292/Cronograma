@@ -1779,9 +1779,14 @@ uma TASK duas vezes em seguida não duplicou o registro na timeline.
 ## 21. Sincronização com Google Calendar (2026-08)
 
 Pedido do Rafael: Previsão de conclusão de uma TASK do XFlow vira evento
-no Google Calendar do responsável. **Unidirecional** (PRICETAX escreve,
-nunca lê a agenda de volta) e **por usuário** (cada um conecta a própria
-conta — não existe "conexão única pra org toda").
+no Google Calendar do responsável. Essa sincronização em si é
+**unidirecional** (PRICETAX escreve o evento, nunca lê ele de volta) e
+**por usuário** (cada um conecta a própria conta — não existe "conexão
+única pra org toda"). O escopo `calendar.events` autorizado já cobre
+leitura também, usada depois pela Agenda (§22) pra montar a
+disponibilidade — a integração como um todo deixou de ser só-escrita
+nesse momento, mas o fluxo de sincronização de TASK descrito aqui
+continua sendo one-way.
 
 ### Setup no Google Cloud (feito manualmente pelo Rafael, uma vez)
 
@@ -1918,6 +1923,93 @@ com um banner de sucesso/erro, e limpa o hash da URL.
   como ajuste futuro se virar um problema real no uso.
 - Sem responsável definido, não sincroniza nada (sem "calendário de
   quem" óbvio pra usar).
+
+## 22. Agenda (2026-08)
+
+4ª workspace, junto de Empresas/Gestão de Atividades/XFlow, disponível
+pra **todo** usuário logado (`hasAgenda = true` incondicional, ao
+contrário das outras três que dependem de acesso concedido). Pedido do
+Rafael: consultar/apresentar a própria disponibilidade sem precisar abrir
+o Google Calendar de verdade — útil numa call com cliente pra combinar
+horário sem expor nome/assunto de outros compromissos.
+
+**Só leitura, um feed só, três fontes mescladas**: eventos do Google
+Calendar do usuário (se conectado — reaproveita a mesma conexão OAuth do
+§21, escopo `calendar.events` já cobre leitura), TASKs do XFlow onde o
+usuário é `assignee_id` com Previsão de conclusão no período, e
+atividades de empresa onde o nome dele bate (case-insensitive) em
+`responsible`/`participants` — mesma heurística de nome-livre já usada em
+`notifyActivityChanges()` (`routes.js`), sem checagem adicional de
+`canAccessProject`/CNPJ.
+
+### Backend
+
+`server/agenda.js` — único endpoint, `GET /api/agenda?start=...&end=...`
+(`requireAuth`, datas ISO obrigatórias). Monta o array de eventos
+misturando as três fontes acima, cada evento com um formato comum:
+`{id, source, title, description, start, end, allDay, status, ...}`
+(`source` é `'google'` | `'xflow_ticket'` | `'activity'`). Devolve também
+`connected` (bool) pro frontend saber se deve mostrar o aviso de conectar
+o Google.
+
+`listEvents(userId, timeMinISO, timeMaxISO)` (novo, em
+`server/googleCalendar.js`) — lista os eventos do calendário `primary` no
+período via `calendar.events.list` (`singleEvents: true` expande
+recorrências em instâncias individuais; cancelados vêm incluídos de
+propósito, `status: 'cancelled'`, pra Agenda poder mostrar riscado em vez
+de simplesmente sumir).
+
+Mapeamento porta em `server/index.js`: `app.use('/api/agenda',
+agendaRouter)`.
+
+### Frontend
+
+`src/agenda/Agenda.jsx` (arquivo próprio, mesmo padrão do
+`src/xflow/XFlow.jsx` — bloco de UI grande e autocontido, importa
+primitivas compartilhadas de `App.jsx`: `S`, `fmtDate`, `BrandLogo`,
+`ThemeToggleBtn`, `NotificationBell`). `AgendaScreen` é montada em
+`App.jsx` como uma 5ª peer branch (`effectiveMode === 'agenda'`), com o
+mesmo contrato de props de notificação que `XFlowScreen`/
+`PersonalBoardScreen` já usam.
+
+- **Toggle de privacidade** ("Mostrar detalhes" / "Ocultar detalhes"),
+  bem visível no topo. Client-side só — quando ativo, todo evento de
+  qualquer fonte mostra só "Ocupado" (ou "Ocupado (cancelado)"), nunca um
+  rótulo diferente por evento (decisão deliberada: título único e
+  consistente, não uma frase aleatória por exemplo dado pelo Rafael).
+- **3 modos de visão**: Dia, Semana (padrão) e Mês. Semana/Dia usam a
+  mesma grade horária (06h–21h, 48px/hora), eventos com horário
+  posicionados absolutamente com um empacotamento guloso simples de
+  colunas pra sobreposição (`packTimedEvents` — não maximiza a largura
+  por cluster isolado, só garante que nada fica em cima do outro; aceito
+  como simplificação suficiente pro uso real). Eventos de dia inteiro
+  (toda TASK/atividade da Agenda são desse tipo — só têm data, não
+  horário) ficam numa faixa própria no topo de cada dia. Mês é uma grade
+  6×7 com até 3 chips por dia + "+N mais"; clicar num dia muda pra visão
+  Dia daquela data.
+- **Cor por fonte**: Google = azul, TASK do XFlow = roxo, atividade de
+  empresa = verde (mesma paleta conceitual do resto do app, valores
+  específicos só em `SOURCE_META` dentro do próprio arquivo). Cancelado =
+  riscado + opacidade reduzida, nunca escondido.
+- **Atualização**: sem webhook do Google (exigiria endpoint público
+  registrado + renovação do canal a cada 7 dias — infra a mais não pedida
+  agora); em vez disso, poll simples a cada 60s enquanto a tela estiver
+  aberta, mais refetch imediato ao trocar de visão ou navegar
+  dia/semana/mês. Suficiente pro caso de uso real (Agenda aberta durante
+  uma call).
+- Quando não conectado ao Google, mostra um aviso com link "Conectar
+  Google Calendar" (mesmo `<a href="/api/google/oauth/start">` do §21) —
+  as TASKs/atividades do próprio PRICETAX aparecem normalmente mesmo
+  sem conexão, só os eventos do Google é que ficam de fora.
+
+### Fora do escopo (decisão deliberada, não pedido agora)
+
+Criar reunião nova clicando num horário livre e sincronizar com o Google
+(dito explicitamente pelo Rafael como algo pra deixar a arquitetura
+**preparada**, não construído agora) — `googleCalendar.js` já expõe
+`syncTicketEvent`/`listEvents` de forma genérica o bastante pra um botão
+"Nova reunião" no futuro reaproveitar sem precisar refatorar; não existe
+nenhum código morto de UI pra isso ainda.
 
 ## 19. Onde procurar mais detalhe
 
