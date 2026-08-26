@@ -283,8 +283,13 @@ usam `S.detailBox`.
   `overdueCount`/`noDateCount` sempre vêm no payload pra alimentar os
   badges das abas mesmo fora delas. `time` no item = `a.meetingTime`
   (campo que já existia no `ActivityDetailModal`, "Horário da reunião").
+  Também devolve `companies`/`responsibles` (universo completo da org,
+  não só da aba atual) pra alimentar os filtros do frontend.
 - UI: `src/macro/MacroOverview.jsx` — "Hoje" sempre visível no topo,
-  5 abas com ícone+contagem, lista agrupada por dia (exceto "Sem data",
+  5 abas com ícone+contagem, **4 filtros client-side** (Empresa/
+  Responsável/Status/Prioridade, mesmo padrão da Tabela — `PRIORITY_META`/
+  `PRIORITY_ORDER` agora exportados de `App.jsx`), lista agrupada por dia
+  (exceto "Sem data",
   que é uma lista única sem agrupamento). **Clique na linha
   abre o `ActivityDetailModal` de verdade** (`onOpenActivity` →
   `openActivityDetail`, mesma função da Tabela) — editar ali reflete em

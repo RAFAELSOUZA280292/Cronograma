@@ -72,12 +72,12 @@ const CLIENT_TYPE_ORDER = ['diagnostico', 'diagnostico-consultoria', 'poc-demo']
 const DELETE_CONFIRM_PHRASE = 'Excluir';
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 
-const PRIORITY_META = {
+export const PRIORITY_META = {
   alta: { label: 'Alta', color: '#e2574c', bg: 'rgba(226,87,76,.14)', border: 'rgba(226,87,76,.5)' },
   media: { label: 'Média', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
   baixa: { label: 'Baixa', color: 'var(--text-5)', bg: 'var(--border-1)', border: 'var(--border-3)' },
 };
-const PRIORITY_ORDER = ['alta', 'media', 'baixa'];
+export const PRIORITY_ORDER = ['alta', 'media', 'baixa'];
 
 const SUB_ROW_CSS = `
   .sub-row-card { transition:border-color .12s, box-shadow .12s; }

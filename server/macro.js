@@ -42,13 +42,21 @@ router.get('/', requireAuth, async (req, res, next) => {
     const items = [];
     let overdueCount = 0;
     let noDateCount = 0;
+    // Universo completo de empresas/responsáveis da org, independente do
+    // filtro de período pedido — alimenta os dropdowns de filtro no
+    // frontend (senão uma empresa sem nada na aba atual nunca apareceria
+    // como opção pra filtrar).
+    const companies = [];
+    const responsibleSet = new Set();
     for (const p of rows) {
       const company = (p.data && p.data.company) || {};
       const companyLabel = company.nomeFantasia || company.name || 'Empresa sem nome';
+      companies.push({ id: p.id, label: companyLabel });
       const phases = (p.data && p.data.phases) || [];
       const activities = (p.data && p.data.activities) || [];
       for (const a of activities) {
         if (a.deleted) continue;
+        if (a.responsible) responsibleSet.add(a.responsible);
         const phaseObj = phases.find((ph) => ph.id === a.phase);
         const baseItem = {
           id: `${p.id}-${a.id}`,
@@ -60,6 +68,7 @@ router.get('/', requireAuth, async (req, res, next) => {
           phase: phaseObj ? phaseObj.name : '',
           phaseColor: phaseObj ? phaseObj.color : '',
           responsible: a.responsible || '',
+          priority: a.priority || '',
           status: a.status || 'nao-iniciado',
         };
 
@@ -96,6 +105,9 @@ router.get('/', requireAuth, async (req, res, next) => {
       || (a.time && b.time ? a.time.localeCompare(b.time) : (a.time ? -1 : b.time ? 1 : 0))
       || a.company.localeCompare(b.company));
 
-    res.json({ range, start, end, today: todayIso, items, overdueCount, noDateCount });
+    companies.sort((a, b) => a.label.localeCompare(b.label));
+    const responsibles = [...responsibleSet].sort((a, b) => a.localeCompare(b));
+
+    res.json({ range, start, end, today: todayIso, items, overdueCount, noDateCount, companies, responsibles });
   } catch (e) { next(e); }
 });
