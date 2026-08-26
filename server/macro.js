@@ -9,7 +9,7 @@ import { pool } from './db.js';
 
 export const router = Router();
 
-const RANGES = ['overdue', 'current_week', 'next_week', 'next_30'];
+const RANGES = ['overdue', 'current_week', 'next_week', 'next_30', 'no_date'];
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 function isoDate(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
@@ -41,13 +41,37 @@ router.get('/', requireAuth, async (req, res, next) => {
     const { rows } = await pool.query('SELECT id, data FROM projects WHERE org_id=$1', [req.user.orgId]);
     const items = [];
     let overdueCount = 0;
+    let noDateCount = 0;
     for (const p of rows) {
       const company = (p.data && p.data.company) || {};
       const companyLabel = company.nomeFantasia || company.name || 'Empresa sem nome';
       const phases = (p.data && p.data.phases) || [];
       const activities = (p.data && p.data.activities) || [];
       for (const a of activities) {
-        if (a.deleted || !a.date) continue;
+        if (a.deleted) continue;
+        const phaseObj = phases.find((ph) => ph.id === a.phase);
+        const baseItem = {
+          id: `${p.id}-${a.id}`,
+          projectId: p.id,
+          activityId: a.id,
+          company: companyLabel,
+          companyColor: company.color || '#F5C400',
+          title: a.title || '',
+          phase: phaseObj ? phaseObj.name : '',
+          phaseColor: phaseObj ? phaseObj.color : '',
+          responsible: a.responsible || '',
+          status: a.status || 'nao-iniciado',
+        };
+
+        // Atividade sem data cadastrada vira sua própria aba — nunca
+        // apareceria em nenhuma outra (todo filtro de período compara
+        // contra `a.date`), então sem isso ficaria invisível pra sempre.
+        if (!a.date) {
+          noDateCount += 1;
+          if (range === 'no_date') items.push({ ...baseItem, date: '', endDate: '', time: '' });
+          continue;
+        }
+
         const isOverdue = a.date < todayIso && a.status !== 'concluido';
         if (isOverdue) overdueCount += 1;
 
@@ -56,34 +80,22 @@ router.get('/', requireAuth, async (req, res, next) => {
         // ter o mesmo item contado duas vezes em lugares diferentes.
         const matches = range === 'overdue'
           ? isOverdue
-          : (a.date >= start && a.date < end && !isOverdue);
+          : range === 'no_date'
+            ? false
+            : (a.date >= start && a.date < end && !isOverdue);
         if (!matches) continue;
 
-        const phaseObj = phases.find((ph) => ph.id === a.phase);
-        items.push({
-          id: `${p.id}-${a.id}`,
-          projectId: p.id,
-          activityId: a.id,
-          company: companyLabel,
-          companyColor: company.color || '#F5C400',
-          date: a.date,
-          endDate: a.endDate || a.date,
-          time: a.meetingTime || '',
-          title: a.title || '',
-          phase: phaseObj ? phaseObj.name : '',
-          phaseColor: phaseObj ? phaseObj.color : '',
-          responsible: a.responsible || '',
-          status: a.status || 'nao-iniciado',
-        });
+        items.push({ ...baseItem, date: a.date, endDate: a.endDate || a.date, time: a.meetingTime || '' });
       }
     }
     // Dentro do mesmo dia, com horário definido vem primeiro e em ordem
     // cronológica (igual o exemplo do Rafael: 10:30 antes de 14:00); sem
-    // horário fica depois, ordenado por empresa.
+    // horário fica depois, ordenado por empresa. Sem data (aba própria)
+    // não tem o que comparar por data — só por empresa.
     items.sort((a, b) => a.date.localeCompare(b.date)
       || (a.time && b.time ? a.time.localeCompare(b.time) : (a.time ? -1 : b.time ? 1 : 0))
       || a.company.localeCompare(b.company));
 
-    res.json({ range, start, end, today: todayIso, items, overdueCount });
+    res.json({ range, start, end, today: todayIso, items, overdueCount, noDateCount });
   } catch (e) { next(e); }
 });
