@@ -568,6 +568,31 @@ mecanismo.
   puramente informativo, não valida contra nada, não é obrigatório pra
   salvar a atividade. Aparece formatado como "18/09/2026 às 14:30" na
   tabela "Próximas etapas" do relatório em PDF (abaixo) quando preenchido.
+- **"Data confirmada com o cliente?" (2026-08)**: checkbox `activity.clientDateConfirmed`
+  (booleano, JSONB — sem migração de schema), logo abaixo de "Horário da
+  reunião" no `ActivityDetailModal`, mesmo padrão visual do checkbox
+  "Obrigatória". Aparece no **Resumo** da empresa (`ResumoTable`/
+  `ResumoCard`) como um badge verde "✓ Confirmado c/ cliente" ao lado da
+  data — junto com o horário da reunião, exatamente onde o Rafael pediu
+  ("no quadro resumo... onde vemos o cronograma, horário da reunião e o
+  ticket de confirmado com o cliente"). Sem indicador quando desmarcado —
+  não é um "não confirmado" em vermelho, só ausência do badge verde
+  (estado default, não é uma exceção que precise de destaque).
+- **Nova atividade abre direto pra edição (2026-08)**: `addActivity()`/
+  `addGroupWideActivity()` chamam `openActivityDetail(pid, na.id)` logo
+  depois de criar — antes a atividade nascia no final do array e ficava
+  "perdida" na lista (ordenada por data, uma atividade recém-criada sem
+  data nenhuma podia acabar em qualquer posição), sem indicação nenhuma
+  de que tinha sido criada. Cobre os 3 pontos de entrada que já passavam
+  por `addActivity` (toolbar da Tabela, "+ Nova atividade em X" da visão
+  multi-empresa, Kanban do Quadro) e o de `addGroupWideActivity` (modal
+  de atividade de grupo).
+- **Bug encontrado nesse mesmo teste**: `S.tab`/`S.tabActive` (abas
+  Resumo/Gantt/Tabela/Fases/Quadro no topo da empresa) misturavam
+  `border` (shorthand) com `borderColor`/`borderBottomColor` (longhand)
+  ao trocar de aba — mesma classe de bug já corrigida em Agenda/XFlow/
+  Visão Macro nesta sessão. `S.tab` passou a usar
+  `borderWidth`/`borderStyle`/`borderColor` em vez do shorthand `border`.
 - **Relatório em PDF (2026-08)** — deixou de ser "o que está na tela agora"
   impresso via CSS. `exportPdf()` continua chamando `window.print()` (sem
   lib nova), mas agora existe um componente dedicado (`PrintReport` +
