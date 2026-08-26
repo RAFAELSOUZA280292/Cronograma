@@ -1,22 +1,27 @@
 // Visão Macro (2026-08, pedido do Rafael) — quadro de cronograma geral pra
 // controle interno: junta as atividades de TODAS as empresas da org num só
 // feed organizado por data, pra dar pra ver rápido o que está previsto na
-// semana sem precisar entrar empresa por empresa. Só leitura, unidirecional
-// a partir de `projects.data.activities` (mesma fonte da Tabela). Ver
-// PROJECT_CONTEXT.md §23 pro desenho completo.
+// semana sem precisar entrar empresa por empresa. Só leitura pra fonte dos
+// dados (unidirecional a partir de `projects.data.activities`, mesma fonte
+// da Tabela), mas o item é clicável e abre o `ActivityDetailModal` de
+// verdade (mesmo modal da Tabela, via `onOpenActivity`) — editar ali edita
+// a atividade de verdade, reflete em todas as telas que leem o mesmo
+// `projects` (é o mesmo estado, mesmo PATCH). Ver PROJECT_CONTEXT.md §23.
 
-import React, { useEffect, useState } from 'react';
-import { Building2, Columns3, Bug, CalendarDays, LogOut, Home, RefreshCw, AlertTriangle, Clock3 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Building2, Columns3, Bug, LogOut, Home, RefreshCw, AlertTriangle, Clock3, CalendarDays, CalendarRange, CalendarClock } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
 import { S, BrandLogo, ThemeToggleBtn, NotificationBell, STATUS_META } from '../App.jsx';
 
 const RANGE_OPTIONS = [
-  { value: 'current_week', label: 'Semana atual' },
-  { value: 'next_week', label: 'Próxima semana' },
-  { value: 'next_30', label: 'Próximos 30 dias' },
+  { value: 'overdue', label: 'Atrasadas', icon: AlertTriangle, accent: '#e2574c' },
+  { value: 'current_week', label: 'Semana atual', icon: CalendarDays, accent: '#F5C400' },
+  { value: 'next_week', label: 'Próxima semana', icon: CalendarClock, accent: '#F5C400' },
+  { value: 'next_30', label: 'Próximos 30 dias', icon: CalendarRange, accent: '#F5C400' },
 ];
 
 const FULL_WEEKDAY_LABEL = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+const FULL_MONTH_LABEL = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 function fmtDayLabel(dateStr) {
@@ -24,10 +29,16 @@ function fmtDayLabel(dateStr) {
   const dt = new Date(y, m - 1, d);
   return `${FULL_WEEKDAY_LABEL[dt.getDay()]} — ${pad2(dt.getDate())}/${pad2(dt.getMonth() + 1)}`;
 }
+function fmtTodayFull() {
+  const dt = new Date();
+  return `${FULL_WEEKDAY_LABEL[dt.getDay()]}, ${dt.getDate()} de ${FULL_MONTH_LABEL[dt.getMonth()]} de ${dt.getFullYear()}`;
+}
+function daysOverdue(dateStr, todayIso) {
+  return Math.round((new Date(todayIso) - new Date(dateStr)) / 86400000);
+}
 
 function urgencyOf(item, todayIso) {
   if (item.status === 'concluido') return null;
-  if (item.date < todayIso) return 'atrasado';
   if (item.date === todayIso) return 'hoje';
   const diffDays = Math.round((new Date(item.date) - new Date(todayIso)) / 86400000);
   if (diffDays > 0 && diffDays <= 2) return 'proximo';
@@ -43,11 +54,18 @@ const URGENCY_META = {
 export default function MacroOverviewScreen({
   currentUser, onExit, onGoCompany, onGoPersonal, onGoXFlow, onLogout, theme, onToggleTheme,
   notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead,
+  onOpenActivity, activityModalOpen,
 }) {
   const [range, setRange] = useState('current_week');
   const [data, setData] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
+
+  function load() {
+    return apiGet(`/api/macro?range=${range}`)
+      .then((res) => { setData(res); setLoaded(true); setError(''); })
+      .catch((e) => { setError(e.message); setLoaded(true); });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -56,14 +74,19 @@ export default function MacroOverviewScreen({
       .then((res) => { if (!cancelled) { setData(res); setLoaded(true); setError(''); } })
       .catch((e) => { if (!cancelled) { setError(e.message); setLoaded(true); } });
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range]);
 
-  function reload() {
-    setLoaded(false);
-    apiGet(`/api/macro?range=${range}`)
-      .then((res) => { setData(res); setLoaded(true); setError(''); })
-      .catch((e) => { setError(e.message); setLoaded(true); });
-  }
+  // Editar uma atividade abre o ActivityDetailModal de verdade (fora dessa
+  // tela, montado lá em cima em App.jsx) — quando ele fecha, o snapshot que
+  // essa tela já buscou pode ter ficado desatualizado (data/status/fase
+  // mudaram), então recarrega sozinho pra refletir o que foi salvo.
+  const wasModalOpenRef = useRef(false);
+  useEffect(() => {
+    if (wasModalOpenRef.current && !activityModalOpen) load();
+    wasModalOpenRef.current = !!activityModalOpen;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activityModalOpen]);
 
   const groups = [];
   if (data) {
@@ -74,6 +97,8 @@ export default function MacroOverviewScreen({
     }
     for (const date of Object.keys(byDate).sort()) groups.push({ date, items: byDate[date] });
   }
+
+  const emptyMessage = range === 'overdue' ? 'Nenhuma atividade atrasada no momento.' : 'Nenhum compromisso previsto nesse período.';
 
   return (
     <div style={S.page}>
@@ -90,7 +115,7 @@ export default function MacroOverviewScreen({
           {onExit && <button style={S.iconBtnGhost} onClick={onExit}>Sair da Visão Macro</button>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button style={S.iconBtnGhost} title="Atualizar" onClick={reload}><RefreshCw size={14} /></button>
+          <button style={S.iconBtnGhost} title="Atualizar" onClick={load}><RefreshCw size={14} /></button>
           <NotificationBell
             notifications={notifications} show={showNotifications} onToggle={onToggleNotifications}
             onOpenItem={onOpenNotification} onMarkRead={onMarkNotificationRead} onMarkAllRead={onMarkAllNotificationsRead}
@@ -101,23 +126,49 @@ export default function MacroOverviewScreen({
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 4, background: 'var(--bg-3)', padding: 3, borderRadius: 8, width: 'fit-content', margin: '16px 24px 0' }}>
-        {RANGE_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            style={{ ...S.pbGhostBtn, border: 'none', ...(range === opt.value ? { background: S.pbGhostBtnActive.background, color: S.pbGhostBtnActive.color } : {}) }}
-            onClick={() => setRange(opt.value)}
-          >
-            {opt.label}
-          </button>
-        ))}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '18px 24px 0' }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-5)', textTransform: 'uppercase', letterSpacing: '.04em' }}>Hoje</span>
+        <span style={{ fontSize: 17, fontWeight: 800, color: '#F5C400' }}>{fmtTodayFull()}</span>
       </div>
 
-      <div style={{ padding: '16px 24px 40px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '14px 24px 0' }}>
+        {RANGE_OPTIONS.map((opt) => {
+          const Icon = opt.icon;
+          const active = range === opt.value;
+          const count = opt.value === 'overdue' && data ? data.overdueCount : null;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => setRange(opt.value)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10,
+                fontSize: 13, fontWeight: 800, cursor: 'pointer',
+                background: active ? opt.accent : 'var(--bg-2)',
+                color: active ? '#111' : 'var(--text-2)',
+                border: active ? `1px solid ${opt.accent}` : '1px solid var(--border-2)',
+              }}
+            >
+              <Icon size={15} />
+              {opt.label}
+              {count !== null && count > 0 && (
+                <span style={{
+                  fontSize: 11, fontWeight: 800, minWidth: 18, textAlign: 'center', padding: '1px 6px', borderRadius: 999,
+                  background: active ? 'rgba(0,0,0,.22)' : 'rgba(226,87,76,.18)',
+                  color: active ? '#111' : '#e2574c',
+                }}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ padding: '18px 24px 40px', display: 'flex', flexDirection: 'column', gap: 18 }}>
         {error && <div style={S.loginBlockedMsg}>{error}</div>}
 
         {loaded && !error && groups.length === 0 && (
-          <div style={S.emptyMuted}>Nenhum compromisso previsto nesse período.</div>
+          <div style={S.emptyMuted}>{emptyMessage}</div>
         )}
 
         {data && groups.map((group) => {
@@ -134,21 +185,27 @@ export default function MacroOverviewScreen({
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {group.items.map((item) => {
-                  const urgency = urgencyOf(item, data.today);
+                  const urgency = range === 'overdue' ? null : urgencyOf(item, data.today);
                   const urgencyMeta = urgency ? URGENCY_META[urgency] : null;
                   const statusMeta = STATUS_META[item.status] || STATUS_META['nao-iniciado'];
+                  const overdueDays = range === 'overdue' ? daysOverdue(item.date, data.today) : 0;
                   return (
                     <div
                       key={item.id}
+                      onClick={() => onOpenActivity && onOpenActivity(item.projectId, item.activityId)}
+                      title="Clique para abrir e editar essa atividade"
                       style={{
                         display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8,
-                        background: 'var(--bg-2)', border: `1px solid ${urgencyMeta ? urgencyMeta.border : 'var(--border-1)'}`,
+                        background: 'var(--bg-2)', border: `1px solid ${range === 'overdue' ? URGENCY_META.atrasado.border : (urgencyMeta ? urgencyMeta.border : 'var(--border-1)')}`,
+                        cursor: onOpenActivity ? 'pointer' : 'default',
                       }}
                     >
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.companyColor, flexShrink: 0 }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)' }}>
-                          {item.company} <span style={{ fontWeight: 500, color: 'var(--text-4)' }}>—</span> {item.title}
+                          {item.company} <span style={{ fontWeight: 500, color: 'var(--text-4)' }}>—</span>{' '}
+                          {item.time && <span style={{ color: '#F5C400' }}>{item.time} — </span>}
+                          {item.title}
                         </div>
                         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 3, fontSize: 11.5, color: 'var(--text-5)' }}>
                           {item.phase && (
@@ -161,7 +218,11 @@ export default function MacroOverviewScreen({
                       <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, color: statusMeta.color, background: statusMeta.bg, border: `1px solid ${statusMeta.border}`, whiteSpace: 'nowrap' }}>
                         {statusMeta.label}
                       </span>
-                      {urgencyMeta && (
+                      {range === 'overdue' ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, color: URGENCY_META.atrasado.color, background: URGENCY_META.atrasado.bg, border: `1px solid ${URGENCY_META.atrasado.border}`, whiteSpace: 'nowrap' }}>
+                          <AlertTriangle size={11} /> Há {overdueDays} dia{overdueDays === 1 ? '' : 's'}
+                        </span>
+                      ) : urgencyMeta && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, color: urgencyMeta.color, background: urgencyMeta.bg, border: `1px solid ${urgencyMeta.border}`, whiteSpace: 'nowrap' }}>
                           <AlertTriangle size={11} /> {urgencyMeta.label}
                         </span>

@@ -571,6 +571,45 @@ export default function App() {
     } catch (e) { /* ignora */ }
     setOpenActivityId(null);
   }
+  // Extraído numa função (em vez de inline em cada branch de render) porque
+  // a Visão Macro (§23) também precisa montar esse mesmo modal — editar uma
+  // atividade a partir de lá tem que abrir o ActivityDetailModal de verdade,
+  // não uma cópia, senão a edição não reflete no resto do app.
+  function renderActivityDetailModal() {
+    if (!openActivityId) return null;
+    const project = projects.find((p) => p.id === openActivityId.pid);
+    const activity = project && project.activities.find((a) => a.id === openActivityId.id);
+    if (!project || !activity) return null;
+    const om = buildOrderMap(sortActivities(project.activities));
+    return (
+      <ActivityDetailModal
+        activity={activity}
+        orderMap={om}
+        phases={project.phases}
+        team={project.team}
+        log={project.log}
+        companyName={project.company.name}
+        currentUser={currentUser}
+        pid={project.id}
+        groupChildren={project.company.isGroupMaster ? groupMembers(projects, project.id).filter((p) => p.id !== project.id).map((p) => ({ id: p.id, name: p.company.nomeFantasia || p.company.name || 'Sem nome' })) : []}
+        onClose={closeActivityDetail}
+        updateActivity={updateActivity}
+        deleteActivity={(tPid, id) => { if (deleteActivity(tPid, id)) closeActivityDetail(); }}
+        addSub={addSub}
+        updateSub={updateSub}
+        deleteSub={deleteSub}
+        reorderSub={reorderSub}
+        addAttachment={addAttachment}
+        removeAttachment={removeAttachment}
+        addComment={addComment}
+        removeComment={removeComment}
+        updateComment={updateComment}
+        addLink={addLink}
+        removeLink={removeLink}
+        toggleParticipant={toggleParticipant}
+      />
+    );
+  }
   useEffect(() => {
     try { window.history.replaceState({ navTag: locationTag(workspaceMode, showUsers, showOrgAdmin, companySelectionConfirmed) }, '', window.location.href); } catch (e) { /* ignora */ }
     function onPopState(e) {
@@ -973,18 +1012,23 @@ export default function App() {
 
   if (effectiveMode === 'macro') {
     return (
-      <MacroOverviewScreen
-        currentUser={currentUser}
-        onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
-        onGoCompany={hasCompanies ? () => goToWorkspace('company') : null}
-        onGoPersonal={hasPersonal ? () => goToWorkspace('personal') : null}
-        onGoXFlow={hasXflow ? () => goToWorkspace('xflow') : null}
-        onLogout={handleLogout}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
-        onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
-      />
+      <>
+        <MacroOverviewScreen
+          currentUser={currentUser}
+          onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
+          onGoCompany={hasCompanies ? () => goToWorkspace('company') : null}
+          onGoPersonal={hasPersonal ? () => goToWorkspace('personal') : null}
+          onGoXFlow={hasXflow ? () => goToWorkspace('xflow') : null}
+          onLogout={handleLogout}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
+          onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
+          onOpenActivity={openActivityDetail}
+          activityModalOpen={!!openActivityId}
+        />
+        {renderActivityDetailModal()}
+      </>
     );
   }
 
@@ -2358,40 +2402,7 @@ export default function App() {
         );
       })()}
 
-      {openActivityId && (() => {
-        const project = projects.find((p) => p.id === openActivityId.pid);
-        const activity = project && project.activities.find((a) => a.id === openActivityId.id);
-        if (!project || !activity) return null;
-        const om = buildOrderMap(sortActivities(project.activities));
-        return (
-          <ActivityDetailModal
-            activity={activity}
-            orderMap={om}
-            phases={project.phases}
-            team={project.team}
-            log={project.log}
-            companyName={project.company.name}
-            currentUser={currentUser}
-            pid={project.id}
-            groupChildren={project.company.isGroupMaster ? groupMembers(projects, project.id).filter((p) => p.id !== project.id).map((p) => ({ id: p.id, name: p.company.nomeFantasia || p.company.name || 'Sem nome' })) : []}
-            onClose={closeActivityDetail}
-            updateActivity={updateActivity}
-            deleteActivity={(tPid, id) => { if (deleteActivity(tPid, id)) closeActivityDetail(); }}
-            addSub={addSub}
-            updateSub={updateSub}
-            deleteSub={deleteSub}
-            reorderSub={reorderSub}
-            addAttachment={addAttachment}
-            removeAttachment={removeAttachment}
-            addComment={addComment}
-            removeComment={removeComment}
-            updateComment={updateComment}
-            addLink={addLink}
-            removeLink={removeLink}
-            toggleParticipant={toggleParticipant}
-          />
-        );
-      })()}
+      {renderActivityDetailModal()}
 
       {showCreateCompany && (
         <CreateCompanyModal
