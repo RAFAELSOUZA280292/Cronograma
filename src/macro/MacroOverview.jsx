@@ -43,13 +43,15 @@ function urgencyOf(item, todayIso) {
   if (item.status === 'concluido') return null;
   if (item.date === todayIso) return 'hoje';
   const diffDays = Math.round((new Date(item.date) - new Date(todayIso)) / 86400000);
-  if (diffDays > 0 && diffDays <= 2) return 'proximo';
+  if (diffDays === 1) return 'amanha';
+  if (diffDays > 1) return 'proximo';
   return null;
 }
 
 const URGENCY_META = {
   atrasado: { label: 'Atrasado', color: '#e2574c', bg: 'rgba(226,87,76,.14)', border: 'rgba(226,87,76,.5)' },
   hoje: { label: 'Hoje', color: '#F5C400', bg: 'rgba(245,196,0,.14)', border: 'rgba(245,196,0,.5)' },
+  amanha: { label: 'Amanhã', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
   proximo: { label: 'Em breve', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
 };
 
