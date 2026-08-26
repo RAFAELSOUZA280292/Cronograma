@@ -564,20 +564,33 @@ mecanismo.
   concluídas, guardando `statusBeforePause` pra restaurar exato ao religar;
   atividades já pausadas manualmente ou já concluídas ficam fora do cascade.
 - **Horário da reunião (2026-08)**: campo opcional `activity.meetingTime`
-  (`<input type="time">`, `ActivityDetailModal`, logo abaixo de "Início") —
-  puramente informativo, não valida contra nada, não é obrigatório pra
-  salvar a atividade. Aparece formatado como "18/09/2026 às 14:30" na
-  tabela "Próximas etapas" do relatório em PDF (abaixo) quando preenchido.
+  (`<input type="time">`) — puramente informativo, não valida contra
+  nada, não é obrigatório pra salvar a atividade. Aparece formatado como
+  "18/09/2026 às 14:30" na tabela "Próximas etapas" do relatório em PDF
+  (abaixo) quando preenchido.
 - **"Data confirmada com o cliente?" (2026-08)**: checkbox `activity.clientDateConfirmed`
-  (booleano, JSONB — sem migração de schema), logo abaixo de "Horário da
-  reunião" no `ActivityDetailModal`, mesmo padrão visual do checkbox
-  "Obrigatória". Aparece no **Resumo** da empresa (`ResumoTable`/
+  (booleano, JSONB — sem migração de schema), mesmo padrão visual do
+  checkbox "Obrigatória". Aparece no **Resumo** da empresa (`ResumoTable`/
   `ResumoCard`) como um badge verde "✓ Confirmado c/ cliente" ao lado da
   data — junto com o horário da reunião, exatamente onde o Rafael pediu
   ("no quadro resumo... onde vemos o cronograma, horário da reunião e o
   ticket de confirmado com o cliente"). Sem indicador quando desmarcado —
   não é um "não confirmado" em vermelho, só ausência do badge verde
   (estado default, não é uma exceção que precise de destaque).
+- **Os dois campos acima também ficam inline na Tabela (2026-08, ajuste
+  pedido pelo Rafael)**: os dois foram lançados só dentro do
+  `ActivityDetailModal` (aberto pelo ícone de tela cheia); o Rafael
+  entrou em Resumo/Tabela e não achou nem o checkbox nem o horário, já
+  que a Tabela edita a maioria dos campos **inline**, sem precisar abrir
+  o modal (Fase/Responsável/Início/Prazo/Fim/Obrigatória/Status já são
+  assim). Corrigido adicionando duas colunas novas em `TableView`
+  (`server`-side não muda nada, é só UI): "Horário" (input time, 80px,
+  logo depois de "Prazos") e "Confirm." (checkbox, 70px, logo depois de
+  "Obrig.") — tanto na versão desktop (linha em grid) quanto mobile
+  (cada campo com seu próprio rótulo, junto dos outros campos de
+  Início/Fim/Prazo/Obrigatória). O `ActivityDetailModal` continua tendo
+  os dois campos também — não foi removido de lá, só deixou de ser o
+  único lugar.
 - **Nova atividade abre direto pra edição (2026-08)**: `addActivity()`/
   `addGroupWideActivity()` chamam `openActivityDetail(pid, na.id)` logo
   depois de criar — antes a atividade nascia no final do array e ficava

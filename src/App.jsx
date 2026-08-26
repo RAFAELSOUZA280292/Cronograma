@@ -7437,7 +7437,9 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
             <div style={{ ...S.th, width: 130 }}>Fase</div>
             <div style={{ ...S.th, width: 170 }}>Responsável</div>
             <div style={{ ...S.th, width: 250 }}>Prazos</div>
+            <div style={{ ...S.th, width: 80 }}>Horário</div>
             <div style={{ ...S.th, width: 60, textAlign: 'center' }}>Obrig.</div>
+            <div style={{ ...S.th, width: 70, textAlign: 'center' }}>Confirm.</div>
             <div style={{ ...S.th, width: 140 }}>Status</div>
             <div style={{ ...S.th, width: 60 }}></div>
           </div>
@@ -7569,8 +7571,26 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                     />
                     <input type="date" style={{ width: 96, flexShrink: 0 }} value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(rowPid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
                   </div>
+                  <div style={{ width: 80 }}>
+                    <input
+                      type="time"
+                      title="Horário da reunião (opcional)"
+                      style={{ width: '100%' }}
+                      value={a.meetingTime || ''}
+                      onChange={(e) => updateActivity(rowPid, a.id, { meetingTime: e.target.value })}
+                      onBlur={() => updateActivity(rowPid, a.id, {}, `Horário da reunião alterado em "${a.title}": ${a.meetingTime || 'sem horário definido'}`)}
+                    />
+                  </div>
                   <div style={{ width: 60, textAlign: 'center' }}>
                     <input type="checkbox" checked={a.required} onChange={(e) => updateActivity(rowPid, a.id, { required: e.target.checked }, `Obrigatoriedade alterada em "${a.title}"`)} />
+                  </div>
+                  <div style={{ width: 70, textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      title="Data confirmada com o cliente?"
+                      checked={!!a.clientDateConfirmed}
+                      onChange={(e) => updateActivity(rowPid, a.id, { clientDateConfirmed: e.target.checked }, `Data confirmada com o cliente ${e.target.checked ? 'marcada' : 'desmarcada'} em "${a.title}"`)}
+                    />
                   </div>
                   <div style={{ width: 140 }}>
                     <select value={a.status} onChange={(e) => updateActivity(rowPid, a.id, { status: e.target.value }, `Status alterado em "${a.title}": ${STATUS_META[e.target.value].label}`)} style={{ ...S.pillSelect, background: STATUS_META[a.status].bg, borderColor: STATUS_META[a.status].border, color: STATUS_META[a.status].color }}>
@@ -7674,8 +7694,24 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                           onBlur={() => updateActivity(rowPid, a.id, {}, `Prazo alterado em "${a.title}": ${a.durationDays ? a.durationDays + ' dias' : 'sem prazo definido'}`)}
                         />
                       </div>
+                      <div>
+                        <div style={S.mobileFieldLabel}>Horário da reunião (opcional)</div>
+                        <input
+                          type="time"
+                          value={a.meetingTime || ''}
+                          onChange={(e) => updateActivity(rowPid, a.id, { meetingTime: e.target.value })}
+                          onBlur={() => updateActivity(rowPid, a.id, {}, `Horário da reunião alterado em "${a.title}": ${a.meetingTime || 'sem horário definido'}`)}
+                        />
+                      </div>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-3)' }}>
                         <input type="checkbox" checked={a.required} onChange={(e) => updateActivity(rowPid, a.id, { required: e.target.checked }, `Obrigatoriedade alterada em "${a.title}"`)} /> Obrigatória
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-3)' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!a.clientDateConfirmed}
+                          onChange={(e) => updateActivity(rowPid, a.id, { clientDateConfirmed: e.target.checked }, `Data confirmada com o cliente ${e.target.checked ? 'marcada' : 'desmarcada'} em "${a.title}"`)}
+                        /> Data confirmada com o cliente?
                       </label>
                     </div>
 

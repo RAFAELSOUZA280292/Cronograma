@@ -115,7 +115,7 @@ Componentes de tela/modal (nome → linha → responsabilidade):
 | 6339 | `ResumoTable` | Tabela desktop da aba Resumo (2026-08) |
 | 6388 | `ResumoCard` | Card mobile da aba Resumo (2026-08) — mesmos dados de `ResumoTable`, layout empilhado |
 | **6417** | **`ResumoView`** | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
-| **6597** | **`TableView`** | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) |
+| **6597** | **`TableView`** | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
 | 7128 | `PhasesView` | View "Fases" |
 | 7258 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
 | 7345 | `TimelineView` | View "Gantt" |
