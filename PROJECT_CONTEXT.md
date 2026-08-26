@@ -2205,9 +2205,14 @@ XFlow/Agenda) — `MacroOverviewScreen` montada em `App.jsx` como
   badge de status real (`STATUS_META`). Badge de urgência muda por aba:
   na aba Atrasadas, mostra "Há N dias" (mais informativo que repetir
   "Atrasado" em toda linha, já que a aba inteira já é isso); nas outras
-  abas, `Hoje` (amarelo) ou `Em breve` (laranja, 1-2 dias à frente),
-  nunca pra atividade já concluída. Cabeçalho do dia também fica
-  vermelho/amarelo quando o dia inteiro é passado/hoje.
+  abas, `Hoje` (amarelo, `diffDays === 0`), `Amanhã` (laranja,
+  `diffDays === 1` — separado de "Em breve" a pedido do Rafael, que já
+  via "Hoje" funcionando mas queria "Amanhã" como categoria própria em
+  vez de cair direto em "Em breve") ou `Em breve` (laranja, `diffDays > 1`,
+  sem teto — dentro da aba Semana atual isso já fica naturalmente limitado
+  ao resto da semana corrente), nunca pra atividade já concluída.
+  Cabeçalho do dia também fica vermelho/amarelo quando o dia inteiro é
+  passado/hoje.
 - **Clique na linha abre a atividade de verdade pra editar** (2026-08,
   pedido do Rafael) — reaproveita o `ActivityDetailModal` já usado pela
   Tabela, não uma cópia read-only. `App.jsx` extraiu o render desse modal
