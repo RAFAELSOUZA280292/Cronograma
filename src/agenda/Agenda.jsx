@@ -166,9 +166,9 @@ export default function AgendaScreen({
             {hideDetails ? <EyeOff size={13} /> : <Eye size={13} />} {hideDetails ? 'Ocultar detalhes' : 'Mostrar detalhes'}
           </button>
           <div style={{ display: 'flex', gap: 4, background: 'var(--bg-3)', padding: 3, borderRadius: 8 }}>
-            <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'day' ? S.pbGhostBtnActive : {}) }} onClick={() => setViewMode('day')}>Dia</button>
-            <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'week' ? S.pbGhostBtnActive : {}) }} onClick={() => setViewMode('week')}>Semana</button>
-            <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'month' ? S.pbGhostBtnActive : {}) }} onClick={() => setViewMode('month')}>Mês</button>
+            <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'day' ? { background: S.pbGhostBtnActive.background, color: S.pbGhostBtnActive.color } : {}) }} onClick={() => setViewMode('day')}>Dia</button>
+            <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'week' ? { background: S.pbGhostBtnActive.background, color: S.pbGhostBtnActive.color } : {}) }} onClick={() => setViewMode('week')}>Semana</button>
+            <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'month' ? { background: S.pbGhostBtnActive.background, color: S.pbGhostBtnActive.color } : {}) }} onClick={() => setViewMode('month')}>Mês</button>
           </div>
           <NotificationBell
             notifications={notifications} show={showNotifications} onToggle={onToggleNotifications}

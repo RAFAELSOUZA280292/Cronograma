@@ -7,6 +7,7 @@ import { router as apiRouter } from './routes.js';
 import { router as xflowRouter } from './xflow.js';
 import { router as googleRouter } from './google.js';
 import { router as agendaRouter } from './agenda.js';
+import { router as macroRouter } from './macro.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '..', 'dist');
@@ -19,6 +20,7 @@ app.use('/api', apiRouter);
 app.use('/api/xflow', xflowRouter);
 app.use('/api/google', googleRouter);
 app.use('/api/agenda', agendaRouter);
+app.use('/api/macro', macroRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use('/api', (err, req, res, next) => {

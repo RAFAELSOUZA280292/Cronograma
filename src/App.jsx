@@ -20,6 +20,7 @@ import pricetaxLogoBranco from './assets/brand/pricetax-logo-branco.png';
 import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
 import XFlowScreen from './xflow/XFlow.jsx';
 import AgendaScreen from './agenda/Agenda.jsx';
+import MacroOverviewScreen from './macro/MacroOverview.jsx';
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
 const THEME_KEY = 'pricetax-cronograma-theme';
@@ -51,7 +52,7 @@ const AVATAR_EMOJIS = [
   '☕', '🌵', '🍀', '🎧', '🧩', '🛠️', '🧠', '🏆',
 ];
 
-const STATUS_META = {
+export const STATUS_META = {
   'nao-iniciado': { label: 'Não iniciado', color: 'var(--text-4)', bg: 'var(--border-1)', border: 'var(--border-3)' },
   'em-andamento': { label: 'Em andamento', color: '#F5C400', bg: 'rgba(245,196,0,.14)', border: 'rgba(245,196,0,.5)' },
   'pausado': { label: 'Pausado', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
@@ -502,6 +503,7 @@ export default function App() {
     if (!mode) return 'gate';
     if (mode === 'xflow') return 'xflow';
     if (mode === 'agenda') return 'agenda';
+    if (mode === 'macro') return 'macro';
     if (mode === 'personal') return 'personal';
     if (users) return 'company:users';
     if (orgAdmin) return 'company:orgadmin';
@@ -544,6 +546,7 @@ export default function App() {
     else if (tag === 'personal') { setWorkspaceMode('personal'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'xflow') { setWorkspaceMode('xflow'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'agenda') { setWorkspaceMode('agenda'); setShowUsers(false); setShowOrgAdmin(false); }
+    else if (tag === 'macro') { setWorkspaceMode('macro'); setShowUsers(false); setShowOrgAdmin(false); }
     else { setWorkspaceMode(null); setShowUsers(false); setShowOrgAdmin(false); }
   }
   // Nível 3 (2026-08): abrir ActivityDetailModal empilha em cima do state
@@ -879,7 +882,12 @@ export default function App() {
   const hasPersonal = currentUser.personalAccess;
   const hasXflow = !!currentUser.xflowRole;
   const hasAgenda = true; // universal — todo usuário logado tem uma agenda própria pra conectar
-  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda'].filter(Boolean);
+  // Visão Geral Empresas (2026-08) — cronograma consolidado de TODAS as
+  // empresas da org, então só faz sentido pra quem já enxerga todas (não
+  // pra quem tem acesso restrito a um CNPJ específico — vazaria dado de
+  // cliente que ele não deveria ver).
+  const hasMacro = hasCompanies && currentUser.allCompaniesAccess;
+  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda', hasMacro && 'macro'].filter(Boolean);
   const effectiveMode = workspaceMode || (availableModes.length === 1 ? availableModes[0] : null);
   // Home = tela "Olá, Nome" (WorkspaceGateScreen). Só faz sentido oferecer o
   // atalho se houver mais de 1 workspace pra escolher — com só 1, a tela
@@ -899,6 +907,7 @@ export default function App() {
         onPickPersonal={hasPersonal ? () => goToWorkspace('personal') : undefined}
         onPickXFlow={hasXflow ? () => goToWorkspace('xflow') : undefined}
         onPickAgenda={hasAgenda ? () => goToWorkspace('agenda') : undefined}
+        onPickMacro={hasMacro ? () => goToWorkspace('macro') : undefined}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -948,6 +957,23 @@ export default function App() {
   if (effectiveMode === 'agenda') {
     return (
       <AgendaScreen
+        currentUser={currentUser}
+        onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
+        onGoCompany={hasCompanies ? () => goToWorkspace('company') : null}
+        onGoPersonal={hasPersonal ? () => goToWorkspace('personal') : null}
+        onGoXFlow={hasXflow ? () => goToWorkspace('xflow') : null}
+        onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
+        onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
+      />
+    );
+  }
+
+  if (effectiveMode === 'macro') {
+    return (
+      <MacroOverviewScreen
         currentUser={currentUser}
         onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
         onGoCompany={hasCompanies ? () => goToWorkspace('company') : null}
@@ -4101,7 +4127,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   );
 }
 
-function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onLogout, theme, onToggleTheme }) {
+function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onLogout, theme, onToggleTheme }) {
   return (
     <div className="page-root" style={S.page}>
       <div style={S.companySelectorWrap}>
@@ -4142,6 +4168,13 @@ function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow,
               <CalendarDays size={26} color="#F5C400" />
               <div style={S.workspaceCardTitle}>Agenda</div>
               <div style={S.workspaceCardDesc}>Sua disponibilidade e compromissos, com o que já está no seu Google Calendar e no PRICETAX.</div>
+            </button>
+          )}
+          {onPickMacro && (
+            <button style={S.workspaceCard} onClick={onPickMacro}>
+              <Globe size={26} color="#F5C400" />
+              <div style={S.workspaceCardTitle}>Visão Geral Empresas</div>
+              <div style={S.workspaceCardDesc}>Cronograma consolidado de todas as empresas — entregas, reuniões e marcos, organizados por data.</div>
             </button>
           )}
         </div>

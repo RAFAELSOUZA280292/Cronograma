@@ -46,6 +46,7 @@ depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
 src/App.jsx        Frontend principal: componentes, telas, estilos (S), lógica de estado. Exporta primitivas usadas por xflow/ e agenda/.
 src/xflow/XFlow.jsx     Módulo XFlow (gestão de BUGs) — telas, constantes de status/severidade/prioridade, helpers.
 src/agenda/Agenda.jsx    Módulo Agenda (2026-08) — visão dia/semana/mês da disponibilidade (Google + XFlow + atividades), toggle de privacidade.
+src/macro/MacroOverview.jsx  Módulo Visão Macro (2026-08) — cronograma consolidado de TODAS as empresas da org, por dia, com destaque de atrasado/hoje/próximo.
 src/main.jsx        Bootstrap do React (ReactDOM.createRoot).
 src/lib/api.js        Wrapper fetch (apiGet/apiPost/apiPatch/apiDelete), credentials:'include'.
 src/assets/brand/       Logos PNG da PRICETAX (preto = tema claro, branco = tema escuro).
@@ -61,6 +62,7 @@ server/xflowTransitions.js  Matriz de transições de status do XFlow — de ond
 server/googleCalendar.js   Sincronização com Google Calendar (2026-08) — helper puro (OAuth2, criar/atualizar/apagar/listar evento), sem rotas.
 server/google.js        Rotas OAuth do Google Calendar (status, oauth/start, oauth/callback, disconnect) — router próprio em /api/google.
 server/agenda.js        Rota única de leitura da Agenda (2026-08) — GET /api/agenda mescla Google + TASKs do XFlow + atividades do usuário.
+server/macro.js         Rota única da Visão Macro (2026-08) — GET /api/macro mescla atividades de TODAS as empresas da org, filtra por período (semana atual/próxima/30 dias), gate por allCompaniesAccess.
 server/cnpjLookup.js     Cliente BrasilAPI/ReceitaWS + normalização + cache.
 
 index.html            Shell HTML, variáveis CSS de tema (light/dark) em :root.
@@ -269,11 +271,25 @@ usam `S.detailBox`.
   cor por fonte (Google=azul, TASK=roxo, atividade=verde), poll de 60s.
 - Detalhe completo em `PROJECT_CONTEXT.md` §22.
 
+### Visão Macro / "Visão Geral Empresas" (2026-08)
+- 5º workspace, gate por `companiesAccess && allCompaniesAccess` (não é
+  universal — só quem já enxerga todas as empresas da org, senão
+  vazaria dado de cliente que o usuário não deveria ver).
+- Backend: `server/macro.js` (rota única, `GET /api/macro?range=...`) —
+  varre `activities[]` de todos os `projects` da org, resolve fase por
+  `phases.find(ph => ph.id === a.phase)`. Atrasado (`date < hoje` e não
+  concluído) sempre aparece, mesmo fora da janela de período escolhida.
+- UI: `src/macro/MacroOverview.jsx` — lista agrupada por dia, 3 abas de
+  período (semana atual/próxima/30 dias), badge de urgência calculado no
+  client (Atrasado/Hoje/Em breve). Sem campo de horário — atividade não
+  tem hora no modelo de dados hoje, só data.
+- Detalhe completo em `PROJECT_CONTEXT.md` §23.
+
 ### Atalho "Início" (Home, 2026-08)
 - Ícone de casa (`Home`, lucide-react) ao lado do toggle de tema e do
   botão Sair, presente em toda tela pós-login que tem esse par (Tabela,
   `CompanySelectorScreen`, `PersonalBoardScreen`, `XflowScreen`,
-  `AgendaScreen`) — leva de volta ao `WorkspaceGateScreen`. Não aparece
+  `AgendaScreen`, `MacroOverviewScreen`) — leva de volta ao `WorkspaceGateScreen`. Não aparece
   no próprio `WorkspaceGateScreen` (já é a Home) nem quando
   `availableModes.length <= 1` (usuário só tem 1 workspace — a Home nem
   existe pra esse caso, `goToWorkspace(null)` voltaria pro mesmo lugar).

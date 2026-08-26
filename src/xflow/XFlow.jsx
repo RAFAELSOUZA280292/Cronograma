@@ -2858,10 +2858,10 @@ export default function XFlowScreen({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {!showArchived && !showTrash && (
             <div style={{ display: 'flex', gap: 4, background: 'var(--bg-3)', padding: 3, borderRadius: 8 }}>
-              <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'quadro' ? S.pbGhostBtnActive : {}) }} onClick={() => goToXflowView('quadro')}>
+              <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'quadro' ? { background: S.pbGhostBtnActive.background, color: S.pbGhostBtnActive.color } : {}) }} onClick={() => goToXflowView('quadro')}>
                 <LayoutGrid size={13} /> Quadro
               </button>
-              <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'lista' ? S.pbGhostBtnActive : {}) }} onClick={() => goToXflowView('lista')}>
+              <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'lista' ? { background: S.pbGhostBtnActive.background, color: S.pbGhostBtnActive.color } : {}) }} onClick={() => goToXflowView('lista')}>
                 <LayoutList size={13} /> Lista
               </button>
             </div>
