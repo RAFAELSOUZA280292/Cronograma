@@ -9,7 +9,7 @@
 // `projects` (é o mesmo estado, mesmo PATCH). Ver PROJECT_CONTEXT.md §23.
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Building2, Columns3, Bug, LogOut, Home, RefreshCw, AlertTriangle, Clock3, CalendarDays, CalendarRange, CalendarClock, CalendarOff, X } from 'lucide-react';
+import { Building2, Columns3, Bug, LogOut, Home, RefreshCw, AlertTriangle, Clock3, CalendarDays, CalendarRange, CalendarClock, CalendarOff, Pause, X } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
 import { S, BrandLogo, ThemeToggleBtn, NotificationBell, STATUS_META, PRIORITY_META, PRIORITY_ORDER } from '../App.jsx';
 
@@ -19,6 +19,7 @@ const RANGE_OPTIONS = [
   { value: 'next_week', label: 'Próxima semana', icon: CalendarClock, accent: '#F5C400' },
   { value: 'next_30', label: 'Próximos 30 dias', icon: CalendarRange, accent: '#F5C400' },
   { value: 'no_date', label: 'Sem data', icon: CalendarOff, accent: '#B8BCC8', countKey: 'noDateCount' },
+  { value: 'paused', label: 'Pausadas', icon: Pause, accent: '#ff9f40', countKey: 'pausedCount' },
 ];
 
 const FULL_WEEKDAY_LABEL = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -107,12 +108,18 @@ export default function MacroOverviewScreen({
       // Sem data pra agrupar por dia — uma lista só, sem cabeçalho de dia.
       if (filteredItems.length > 0) groups.push({ date: null, items: filteredItems });
     } else {
+      // Pausada pode ter data ou não (uma atividade pausada não passa
+      // pela aba Sem data, então precisa do mesmo agrupamento "sem data"
+      // aqui dentro pra não sumir do item se ele nunca teve uma data).
       const byDate = {};
+      const noDateItems = [];
       for (const item of filteredItems) {
+        if (!item.date) { noDateItems.push(item); continue; }
         if (!byDate[item.date]) byDate[item.date] = [];
         byDate[item.date].push(item);
       }
       for (const date of Object.keys(byDate).sort()) groups.push({ date, items: byDate[date] });
+      if (noDateItems.length > 0) groups.push({ date: null, items: noDateItems });
     }
   }
 
@@ -122,7 +129,9 @@ export default function MacroOverviewScreen({
       ? 'Nenhuma atividade atrasada no momento.'
       : range === 'no_date'
         ? 'Nenhuma atividade sem data no momento.'
-        : 'Nenhum compromisso previsto nesse período.';
+        : range === 'paused'
+          ? 'Nenhuma atividade pausada no momento.'
+          : 'Nenhum compromisso previsto nesse período.';
 
   return (
     <div style={S.page}>
@@ -223,8 +232,10 @@ export default function MacroOverviewScreen({
         )}
 
         {data && groups.map((group) => {
-          const isPast = group.date !== null && group.date < data.today;
-          const isToday = group.date !== null && group.date === data.today;
+          // Pausada não é sobre urgência de data — não faz sentido pintar
+          // o cabeçalho de vermelho como se fosse atrasado.
+          const isPast = range !== 'paused' && group.date !== null && group.date < data.today;
+          const isToday = range !== 'paused' && group.date !== null && group.date === data.today;
           return (
             <div key={group.date === null ? 'no-date' : group.date}>
               <div style={{
@@ -236,7 +247,7 @@ export default function MacroOverviewScreen({
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {group.items.map((item) => {
-                  const urgency = (range === 'overdue' || range === 'no_date') ? null : urgencyOf(item, data.today);
+                  const urgency = (range === 'overdue' || range === 'no_date' || range === 'paused') ? null : urgencyOf(item, data.today);
                   const urgencyMeta = urgency ? URGENCY_META[urgency] : null;
                   const statusMeta = STATUS_META[item.status] || STATUS_META['nao-iniciado'];
                   const overdueDays = range === 'overdue' ? daysOverdue(item.date, data.today) : 0;

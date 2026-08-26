@@ -9,7 +9,7 @@ import { pool } from './db.js';
 
 export const router = Router();
 
-const RANGES = ['overdue', 'current_week', 'next_week', 'next_30', 'no_date'];
+const RANGES = ['overdue', 'current_week', 'next_week', 'next_30', 'no_date', 'paused'];
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 function isoDate(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
@@ -42,6 +42,7 @@ router.get('/', requireAuth, async (req, res, next) => {
     const items = [];
     let overdueCount = 0;
     let noDateCount = 0;
+    let pausedCount = 0;
     // Universo completo de empresas/responsáveis da org, independente do
     // filtro de período pedido — alimenta os dropdowns de filtro no
     // frontend (senão uma empresa sem nada na aba atual nunca apareceria
@@ -72,6 +73,17 @@ router.get('/', requireAuth, async (req, res, next) => {
           status: a.status || 'nao-iniciado',
         };
 
+        // Pausada tem prioridade sobre qualquer outro recorte — pedido do
+        // Rafael: "exiba ali toda as atividades com status pausadas e não
+        // as exiba em outras abas". Uma atividade pausada não entra em
+        // Atrasadas/Sem data/semana nenhuma, tenha ela data ou não.
+        const isPaused = a.status === 'pausado';
+        if (isPaused) {
+          pausedCount += 1;
+          if (range === 'paused') items.push({ ...baseItem, date: a.date || '', endDate: (a.date && (a.endDate || a.date)) || '', time: a.date ? (a.meetingTime || '') : '' });
+          continue;
+        }
+
         // Atividade sem data cadastrada vira sua própria aba — nunca
         // apareceria em nenhuma outra (todo filtro de período compara
         // contra `a.date`), então sem isso ficaria invisível pra sempre.
@@ -89,7 +101,7 @@ router.get('/', requireAuth, async (req, res, next) => {
         // ter o mesmo item contado duas vezes em lugares diferentes.
         const matches = range === 'overdue'
           ? isOverdue
-          : range === 'no_date'
+          : (range === 'no_date' || range === 'paused')
             ? false
             : (a.date >= start && a.date < end && !isOverdue);
         if (!matches) continue;
@@ -108,6 +120,6 @@ router.get('/', requireAuth, async (req, res, next) => {
     companies.sort((a, b) => a.label.localeCompare(b.label));
     const responsibles = [...responsibleSet].sort((a, b) => a.localeCompare(b));
 
-    res.json({ range, start, end, today: todayIso, items, overdueCount, noDateCount, companies, responsibles });
+    res.json({ range, start, end, today: todayIso, items, overdueCount, noDateCount, pausedCount, companies, responsibles });
   } catch (e) { next(e); }
 });
