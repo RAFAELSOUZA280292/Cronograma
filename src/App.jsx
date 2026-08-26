@@ -5,7 +5,7 @@ import {
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
   LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History,
   MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal,
-  Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge,
+  Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge, Home,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -881,6 +881,11 @@ export default function App() {
   const hasAgenda = true; // universal — todo usuário logado tem uma agenda própria pra conectar
   const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda'].filter(Boolean);
   const effectiveMode = workspaceMode || (availableModes.length === 1 ? availableModes[0] : null);
+  // Home = tela "Olá, Nome" (WorkspaceGateScreen). Só faz sentido oferecer o
+  // atalho se houver mais de 1 workspace pra escolher — com só 1, a tela
+  // inicial nem existe (auto-seleciona direto), então "ir pra Home" voltaria
+  // pro mesmo lugar sem fazer nada.
+  const goHome = availableModes.length > 1 ? () => goToWorkspace(null) : null;
 
   if (availableModes.length === 0) {
     return <NoAccessScreen user={currentUser} onLogout={handleLogout} theme={theme} onToggleTheme={toggleTheme} />;
@@ -1015,6 +1020,7 @@ export default function App() {
           onGoUsers={currentUser.role === 'master' ? () => goToUsers(true) : undefined}
           onGoXFlow={hasXflow ? () => goToWorkspace('xflow') : undefined}
           onGoAgenda={hasAgenda ? () => goToWorkspace('agenda') : undefined}
+          onGoHome={goHome}
           actingOrg={actingOrg}
           onSwitchOrg={currentUser.isSuperAdmin ? exitOrganization : undefined}
           theme={theme}
@@ -1911,6 +1917,7 @@ export default function App() {
             notifications={notifications} show={showNotifications} onToggle={() => setShowNotifications((v) => !v)}
             onOpenItem={goToNotificationTarget} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead}
           />
+          {goHome && <button style={S.iconBtnGhost} title="Início" onClick={goHome}><Home size={15} /></button>}
           <ThemeToggleBtn theme={theme} onToggle={toggleTheme} />
           <div style={S.userBadge}>
             <button style={S.userAvatarBtn} title={`Meu perfil — ${currentUser.name}`} onClick={() => setShowMyProfile(true)}>
@@ -3782,7 +3789,7 @@ function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }) {
   );
 }
 
-function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, onGoUsers, onGoXFlow, onGoAgenda, actingOrg, onSwitchOrg, theme, onToggleTheme, currentUser, onOpenProfile }) {
+function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, onGoUsers, onGoXFlow, onGoAgenda, onGoHome, actingOrg, onSwitchOrg, theme, onToggleTheme, currentUser, onOpenProfile }) {
   const [selected, setSelected] = useState(() => new Set(initialSelected));
   const [editingProject, setEditingProject] = useState(null);
   const [search, setSearch] = useState('');
@@ -3891,6 +3898,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                 <UserAvatar user={currentUser} size={26} />
               </button>
             )}
+            {onGoHome && <button style={S.iconBtnGhost} title="Início" onClick={onGoHome}><Home size={14} /></button>}
             <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
             <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={16} /></button>
           </div>
@@ -5706,6 +5714,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
               onOpenItem={onOpenNotification} onMarkRead={onMarkNotificationRead} onMarkAllRead={onMarkAllNotificationsRead}
             />
           )}
+          {onExit && <button style={S.iconBtnGhost} title="Início" onClick={onExit}><Home size={15} /></button>}
           <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
           {onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
         </div>

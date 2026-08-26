@@ -100,7 +100,7 @@ Componentes de tela/modal (nome → linha → responsabilidade):
 | 2848 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
 | 3250 | `EditCompanyModal` | Edição de empresa já criada |
 | **3474** | **`CompanySelectorScreen`** | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, filtros por Tipo/Status/Regime (2026-08), atalho p/ Gestão de Atividades |
-| 3775 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades |
+| 3775 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades vs XFlow vs Agenda — é a própria "Home" |
 | ~3800–4629 | **Gestão de Atividades pessoal** (Kanban) | `ColorSwatchGrid`, `PriorityPicker`, `StatusPicker`, `TagEditor`, `PersonalColumnMenu`, `PersonalCardMenu`, `PersonalCard`, `PersonalColumn`, `PersonalCardDetailModal`, `PersonalListView`, `ReassignCardsModal`, `PersonalTrashPanel` |
 | 4629 | `BoardShareModal` | Modal de visibilidade da página (Privado/Público por link, copiar/gerar link) |
 | 4683 | `BoardActivityLogModal` | Painel de histórico do quadro — agrega `board.log` + `card.history` de todas as colunas |
@@ -268,6 +268,19 @@ usam `S.detailBox`.
   detalhes"/"Ocultar detalhes" (client-side, redige título pra "Ocupado"),
   cor por fonte (Google=azul, TASK=roxo, atividade=verde), poll de 60s.
 - Detalhe completo em `PROJECT_CONTEXT.md` §22.
+
+### Atalho "Início" (Home, 2026-08)
+- Ícone de casa (`Home`, lucide-react) ao lado do toggle de tema e do
+  botão Sair, presente em toda tela pós-login que tem esse par (Tabela,
+  `CompanySelectorScreen`, `PersonalBoardScreen`, `XflowScreen`,
+  `AgendaScreen`) — leva de volta ao `WorkspaceGateScreen`. Não aparece
+  no próprio `WorkspaceGateScreen` (já é a Home) nem quando
+  `availableModes.length <= 1` (usuário só tem 1 workspace — a Home nem
+  existe pra esse caso, `goToWorkspace(null)` voltaria pro mesmo lugar).
+  Reaproveita a mesma navegação que já existia via `onExit` (antes só
+  acessível pelos links de texto "Sair da Agenda"/"Sair do XFlow"/"Ir
+  para Empresas" no canto esquerdo) — não é uma rota nova, só um atalho
+  visual mais consistente.
 
 ## 5. Fluxos críticos
 
