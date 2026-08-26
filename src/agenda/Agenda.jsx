@@ -9,7 +9,7 @@
 // UI grande e autocontido, com sua própria lógica de grade de horários.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Building2, Columns3, LogOut, Link2, Ban } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Building2, Columns3, LogOut, Link2, Ban, Home } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
 import { S, fmtDate, BrandLogo, ThemeToggleBtn, NotificationBell } from '../App.jsx';
 
@@ -174,6 +174,7 @@ export default function AgendaScreen({
             notifications={notifications} show={showNotifications} onToggle={onToggleNotifications}
             onOpenItem={onOpenNotification} onMarkRead={onMarkNotificationRead} onMarkAllRead={onMarkAllNotificationsRead}
           />
+          {onExit && <button style={S.iconBtnGhost} title="Início" onClick={onExit}><Home size={15} /></button>}
           <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
           {onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
         </div>
