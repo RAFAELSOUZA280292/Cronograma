@@ -21,6 +21,7 @@ import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
 import XFlowScreen from './xflow/XFlow.jsx';
 import AgendaScreen from './agenda/Agenda.jsx';
 import MacroOverviewScreen from './macro/MacroOverview.jsx';
+import { MeetingsView, MeetingDetailModal } from './meetings/Meetings.jsx';
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
 const THEME_KEY = 'pricetax-cronograma-theme';
@@ -58,7 +59,7 @@ export const STATUS_META = {
   'pausado': { label: 'Pausado', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
   'concluido': { label: 'Concluído', color: '#3ecf6e', bg: 'rgba(62,207,110,.14)', border: 'rgba(62,207,110,.5)' },
 };
-const STATUS_ORDER = ['nao-iniciado', 'em-andamento', 'pausado', 'concluido'];
+export const STATUS_ORDER = ['nao-iniciado', 'em-andamento', 'pausado', 'concluido'];
 const COMPANY_STATUS_META = {
   ativo: { label: 'Ativo', color: '#3ecf6e', bg: 'rgba(62,207,110,.14)', border: 'rgba(62,207,110,.5)' },
   pausado: { label: 'Pausado', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
@@ -478,6 +479,8 @@ export default function App() {
   const [showMyProfile, setShowMyProfile] = useState(false);
   const [googleConnectResult, setGoogleConnectResult] = useState(null);
   const [openActivityId, setOpenActivityId] = useState(null);
+  const [openMeetingId, setOpenMeetingId] = useState(null);
+  const [showMeetingsTrash, setShowMeetingsTrash] = useState(false);
   const [newMember, setNewMember] = useState('');
   const [teamCandidates, setTeamCandidates] = useState([]);
   const [linkUserId, setLinkUserId] = useState('');
@@ -571,6 +574,19 @@ export default function App() {
     } catch (e) { /* ignora */ }
     setOpenActivityId(null);
   }
+  function openMeetingDetail(pid, id) {
+    setOpenMeetingId({ pid, id });
+    try {
+      const cur = window.history.state || {};
+      window.history.pushState({ ...cur, detailMeeting: { pid, id } }, '', window.location.href);
+    } catch (e) { /* ignora */ }
+  }
+  function closeMeetingDetail() {
+    try {
+      if (window.history.state && window.history.state.detailMeeting) { window.history.back(); return; }
+    } catch (e) { /* ignora */ }
+    setOpenMeetingId(null);
+  }
   // Extraído numa função (em vez de inline em cada branch de render) porque
   // a Visão Macro (§23) também precisa montar esse mesmo modal — editar uma
   // atividade a partir de lá tem que abrir o ActivityDetailModal de verdade,
@@ -610,11 +626,33 @@ export default function App() {
       />
     );
   }
+  function renderMeetingDetailModal() {
+    if (!openMeetingId) return null;
+    const project = projects.find((p) => p.id === openMeetingId.pid);
+    const meeting = project && (project.meetings || []).find((m) => m.id === openMeetingId.id);
+    if (!project || !meeting) return null;
+    return (
+      <MeetingDetailModal
+        meeting={meeting}
+        team={project.team}
+        pid={project.id}
+        onClose={closeMeetingDetail}
+        updateMeeting={updateMeeting}
+        deleteMeeting={(tPid, id) => { if (deleteMeeting(tPid, id)) closeMeetingDetail(); }}
+        toggleParticipant={toggleMeetingParticipant}
+        addParticipant={addMeetingParticipantFreeText}
+        addActionItem={addMeetingActionItem}
+        updateActionItem={updateMeetingActionItem}
+        deleteActionItem={deleteMeetingActionItem}
+      />
+    );
+  }
   useEffect(() => {
     try { window.history.replaceState({ navTag: locationTag(workspaceMode, showUsers, showOrgAdmin, companySelectionConfirmed) }, '', window.location.href); } catch (e) { /* ignora */ }
     function onPopState(e) {
       applyLocationTag((e.state && e.state.navTag) || 'gate');
       setOpenActivityId((e.state && e.state.detailActivity) || null);
+      setOpenMeetingId((e.state && e.state.detailMeeting) || null);
     }
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -1391,6 +1429,102 @@ export default function App() {
     }), `${has ? 'Participante removido' : 'Participante adicionado'} em "${act.title}": ${name}`, actId);
   }
 
+  // Reuniões (2026-09) — mesmo padrão de mutação das atividades
+  // (mutateProject + soft-delete pra item de primeira classe, hard-delete
+  // pra sub-item leve tipo attachment/link), num array próprio
+  // `project.meetings` — não é atividade do cronograma, não deveria
+  // aparecer nem contar em nenhuma métrica/filtro de atividade existente.
+  function addMeeting(targetPid) {
+    const project = projects.find((p) => p.id === targetPid);
+    if (!project) return;
+    const nm = {
+      id: uid('mtg'), title: 'Nova reunião', date: todayISOStr(), time: '',
+      participants: [], transcript: '', summary: '', decisions: '', actionItems: [],
+      createdAt: new Date().toISOString(), deleted: false, deletedAt: '', deletedBy: '',
+    };
+    mutateProject(targetPid, (p) => ({ ...p, meetings: [...(p.meetings || []), nm] }), `Reunião criada: "${nm.title}"`);
+    openMeetingDetail(targetPid, nm.id);
+  }
+
+  function updateMeeting(targetPid, meetingId, patch, logMsg) {
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((m) => (m.id === meetingId ? { ...m, ...patch } : m)),
+    }), logMsg);
+  }
+
+  function deleteMeeting(targetPid, meetingId) {
+    const project = projects.find((p) => p.id === targetPid);
+    const m = project && (project.meetings || []).find((x) => x.id === meetingId);
+    if (!m) return false;
+    const typed = window.prompt(`Para excluir "${m.title}", digite "${DELETE_CONFIRM_PHRASE}" abaixo:`);
+    if (typed !== DELETE_CONFIRM_PHRASE) return false;
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id === meetingId ? { ...x, deleted: true, deletedAt: new Date().toISOString(), deletedBy: currentUser ? currentUser.name : '' } : x)),
+    }), `Reunião excluída: "${m.title}"`);
+    return true;
+  }
+
+  function restoreMeeting(targetPid, meetingId) {
+    const project = projects.find((p) => p.id === targetPid);
+    const m = project && (project.meetings || []).find((x) => x.id === meetingId);
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id === meetingId ? { ...x, deleted: false, deletedAt: '', deletedBy: '' } : x)),
+    }), m ? `Reunião restaurada: "${m.title}"` : undefined);
+  }
+
+  function toggleMeetingParticipant(targetPid, meetingId, name) {
+    const project = projects.find((p) => p.id === targetPid);
+    const m = project && (project.meetings || []).find((x) => x.id === meetingId);
+    if (!m) return;
+    const has = (m.participants || []).includes(name);
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id === meetingId ? { ...x, participants: has ? (x.participants || []).filter((n) => n !== name) : [...(x.participants || []), name] } : x)),
+    }), `${has ? 'Participante removido' : 'Participante adicionado'} na reunião "${m.title}": ${name}`);
+  }
+
+  function addMeetingParticipantFreeText(targetPid, meetingId, name) {
+    const v = (name || '').trim();
+    if (!v) return;
+    const project = projects.find((p) => p.id === targetPid);
+    const m = project && (project.meetings || []).find((x) => x.id === meetingId);
+    if (!m || (m.participants || []).includes(v)) return;
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id === meetingId ? { ...x, participants: [...(x.participants || []), v] } : x)),
+    }), `Participante adicionado na reunião "${m.title}": ${v}`);
+  }
+
+  function addMeetingActionItem(targetPid, meetingId) {
+    const project = projects.find((p) => p.id === targetPid);
+    const m = project && (project.meetings || []).find((x) => x.id === meetingId);
+    const item = { id: uid('mai'), title: 'Nova atividade', responsible: '', dueDate: '', status: 'nao-iniciado', deleted: false };
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id === meetingId ? { ...x, actionItems: [...(x.actionItems || []), item] } : x)),
+    }), m ? `Atividade adicionada na reunião "${m.title}"` : undefined);
+  }
+
+  function updateMeetingActionItem(targetPid, meetingId, itemId, patch) {
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id === itemId ? { ...it, ...patch } : it)) })),
+    }));
+  }
+
+  function deleteMeetingActionItem(targetPid, meetingId, itemId) {
+    const project = projects.find((p) => p.id === targetPid);
+    const m = project && (project.meetings || []).find((x) => x.id === meetingId);
+    const item = m && (m.actionItems || []).find((it) => it.id === itemId);
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id === itemId ? { ...it, deleted: true } : it)) })),
+    }), item ? `Atividade removida na reunião "${m.title}": ${item.title}` : undefined);
+  }
+
   function addMember() {
     const v = newMember.trim();
     if (!v || !activeProject || activeProject.team.some((m) => m.name === v)) return;
@@ -2017,6 +2151,7 @@ export default function App() {
       <div className="no-print" style={S.tabs}>
         {[
           !isMulti && { id: 'resumo', label: 'Resumo', icon: Gauge },
+          !isMulti && { id: 'meetings', label: 'Reuniões', icon: Mic },
           { id: 'timeline', label: 'Gantt', icon: CalendarDays },
           { id: 'table', label: 'Tabela', icon: List },
           { id: 'phases', label: 'Fases', icon: LayoutGrid },
@@ -2040,6 +2175,19 @@ export default function App() {
             pid={activeProject.id}
             openDetail={openActivityDetail}
             companyColor={activeProject.company.color}
+          />
+        )}
+        {!isMulti && view === 'meetings' && (
+          <MeetingsView
+            meetings={activeProject.meetings || []}
+            team={activeProject.team}
+            pid={activeProject.id}
+            onAdd={() => addMeeting(activeProject.id)}
+            onOpen={(id) => openMeetingDetail(activeProject.id, id)}
+            showTrash={showMeetingsTrash}
+            onShowTrash={() => setShowMeetingsTrash(true)}
+            onHideTrash={() => setShowMeetingsTrash(false)}
+            onRestore={(id) => restoreMeeting(activeProject.id, id)}
           />
         )}
         {!isMulti && view === 'timeline' && (
@@ -2417,6 +2565,7 @@ export default function App() {
       })()}
 
       {renderActivityDetailModal()}
+      {renderMeetingDetailModal()}
 
       {showCreateCompany && (
         <CreateCompanyModal
@@ -6093,7 +6242,7 @@ function NoAccessScreen({ user, onLogout, theme, onToggleTheme }) {
   );
 }
 
-function SidePanel({ title, onClose, children }) {
+export function SidePanel({ title, onClose, children }) {
   const isMobile = useIsMobile();
   return (
     <div className="no-print" style={S.overlay} onClick={onClose}>

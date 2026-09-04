@@ -8,13 +8,17 @@ depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
 ## 1. Arquitetura geral
 
 - **Frontend**: SPA React 18 (Vite), sem roteador — navegação é 100% estado
-  em memória (`view`, `workspaceMode`, `openActivityId`, etc. em `App()`).
-  Quase todo o app (telas, modais, estilos) está em `src/App.jsx`. Exceções:
-  o módulo XFlow (`src/xflow/XFlow.jsx`, ver seção 2 e 4) e a Agenda
-  (`src/agenda/Agenda.jsx`, ver seção 4) — ambos importam primitivas
-  compartilhadas (`S`, `uid`, `fmtDate`, `fmtTs`, `useIsMobile`,
-  `useIsCompact`, `BrandLogo`, `ThemeToggleBtn`, `NotificationBell`)
-  exportadas de `App.jsx`.
+  em memória (`view`, `workspaceMode`, `openActivityId`, `openMeetingId`,
+  etc. em `App()`). Quase todo o app (telas, modais, estilos) está em
+  `src/App.jsx`. Exceções: o módulo XFlow (`src/xflow/XFlow.jsx`, ver
+  seção 2 e 4), a Agenda (`src/agenda/Agenda.jsx`, ver seção 4), a Visão
+  Macro (`src/macro/MacroOverview.jsx`) e Reuniões (`src/meetings/Meetings.jsx`,
+  2026-09) — todos importam primitivas compartilhadas (`S`, `uid`,
+  `fmtDate`, `fmtTs`, `useIsMobile`, `useIsCompact`, `BrandLogo`,
+  `ThemeToggleBtn`, `NotificationBell`, `SidePanel`, `STATUS_META`,
+  `STATUS_ORDER`, `PRIORITY_META`, `PRIORITY_ORDER`, `useAutosaveTimestamp`,
+  `useDirtyForm`, `ConfirmDiscardModal`, `savedStatusLabel`) exportadas de
+  `App.jsx`.
 - **Backend**: Express (`server/`), API REST sob `/api/*`. Rotas de usuários/
   projetos/etc. em `server/routes.js`; rotas do XFlow num router próprio,
   `server/xflow.js`, montado em `/api/xflow`. Serve também os estáticos de
@@ -115,6 +119,7 @@ Componentes de tela/modal (nome → linha → responsabilidade):
 | 6339 | `ResumoTable` | Tabela desktop da aba Resumo (2026-08) |
 | 6388 | `ResumoCard` | Card mobile da aba Resumo (2026-08) — mesmos dados de `ResumoTable`, layout empilhado |
 | **6417** | **`ResumoView`** | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
+| — | `MeetingsView`/`MeetingDetailModal` (`src/meetings/Meetings.jsx`) | Aba "Reuniões" do workspace de Empresas (2026-09) — lista Programadas/Realizadas + modal de edição autosave, array `project.meetings`, só `!isMulti` — ver `PROJECT_CONTEXT.md` §24 |
 | **6597** | **`TableView`** | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
 | 7128 | `PhasesView` | View "Fases" |
 | 7258 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
