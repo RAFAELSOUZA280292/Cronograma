@@ -2245,6 +2245,120 @@ tanto o id do projeto (`proj-r3lphpf`) quanto o da atividade
 chegou a quebrar em produção porque o parsing ambíguo nunca foi
 implementado (só percebido ao planejar o clique-pra-editar).
 
+## 24. Reuniões (2026-09)
+
+Pedido do Rafael: uma central de acompanhamento de reuniões **por
+empresa**, dentro do workspace de Empresas — nome, data/horário (passada
+ou futura), participantes, transcrição completa, resumo, decisões
+tomadas, e uma lista de atividades/próximos passos com responsável,
+prazo e status próprios. Ele avisou que ia mandar 3 reuniões reais pra
+cadastrar depois — a tela foi construída genérica desde o início, sem
+nada hardcoded pras 3 (nenhuma seed/fixture específica).
+
+### Dado
+
+`project.meetings[]` — array novo em `projects.data`, irmão de
+`activities`/`phases`/`team`/`log`, **não** é atividade do cronograma
+(não conta em nenhuma métrica/filtro de atividade, não aparece em
+Resumo/Tabela/Gantt/Fases/Quadro). Adicionado só no `blankProject()` de
+`server/db.js` (JSONB, sem migração de schema, sem coluna relacional
+nova) — projeto já existente no banco não tem essa chave até a primeira
+reunião ser criada nele; todo lugar que lê usa `project.meetings || []`.
+
+Cada reunião:
+```js
+{
+  id, title, date, time,           // data/horário — time é opcional
+  participants: [],                // string[] — nomes de project.team OU texto livre (ex.: contato externo do cliente)
+  transcript: '', summary: '', decisions: '',
+  actionItems: [
+    { id, title, responsible, dueDate, status, deleted }  // status = mesmo enum de STATUS_META (não um enum novo)
+  ],
+  createdAt, deleted, deletedAt, deletedBy,
+}
+```
+
+### Mutação (App.jsx) — mesmo padrão de `mutateProject`/soft-delete já usado pras atividades
+
+- `addMeeting(pid)` — cria em branco (data = hoje) e **já abre direto pra
+  edição** (`openMeetingDetail`), mesma lógica recém-padronizada pra
+  atividade (§13, "nova atividade abre direto") — sem isso a reunião
+  nasceria no fim do array e ficaria "perdida".
+- `updateMeeting`/`deleteMeeting` (soft-delete, com o mesmo prompt de
+  confirmação por frase — `DELETE_CONFIRM_PHRASE` — que `deleteActivity`
+  já usa) /`restoreMeeting`.
+- `toggleMeetingParticipant` (chip de `project.team`) +
+  `addMeetingParticipantFreeText` (participante que não está no `team` —
+  reunião real quase sempre tem gente de fora, tipo o próprio cliente).
+- `addMeetingActionItem`/`updateMeetingActionItem`/`deleteMeetingActionItem`
+  — o item de ação é soft-delete (`deleted: true`, filtrado na UI) igual
+  subatividade de atividade, **não** hard-delete como link/anexo/
+  comentário (a diferença: item de ação tem seu próprio ciclo de vida —
+  responsável, prazo, status — então é conceitualmente mais parecido com
+  subatividade do que com um anexo solto).
+- Navegação por histórico do browser: `openMeetingDetail`/
+  `closeMeetingDetail` empilham/desempilham `detailMeeting` no
+  `window.history.state`, exatamente como `detailActivity` já faz pra
+  atividade — voltar com o botão Voltar do navegador fecha o modal em
+  vez de sair da tela (mesmo popstate handler, só mais uma chave lida).
+
+### UI
+
+Aba "Reuniões" nova na barra de tabs do workspace de Empresas (Resumo /
+**Reuniões** / Gantt / Tabela / Fases / Quadro), logo depois de Resumo,
+só em `!isMulti` (reunião é por empresa, não faz sentido numa visão
+agregada de várias empresas ao mesmo tempo).
+
+`src/meetings/Meetings.jsx` (arquivo próprio, mesmo padrão de módulo
+dedicado do XFlow/Agenda/Visão Macro) exporta dois componentes:
+
+- **`MeetingsView`** — lista da aba. Duas seções, sempre nessa ordem:
+  **Programadas** (`date > hoje`, ordenado crescente — a mais próxima
+  primeiro) e **Realizadas** (`date <= hoje` ou sem data, ordenado
+  decrescente — a mais recente primeiro). Card mostra título, badge
+  Programada (azul) / Realizada (verde), data+horário, participantes,
+  contagem "N/M concluída(s)" das atividades da reunião, e uma prévia do
+  resumo. Clique no card abre o modal de edição de verdade (mesmo
+  `MeetingDetailModal`, não uma cópia read-only). Botão "Lixeira" com
+  contagem abre um `SidePanel` (componente compartilhado, exportado de
+  `App.jsx` pra esse reuso) com restaurar por reunião.
+- **`MeetingDetailModal`** — segue o padrão de **autosave por campo**
+  (não o de rascunho com botão Salvar) — cada `onChange`/`onBlur` já
+  chama `updateMeeting` na hora, igual `ActivityDetailModal`. Usa
+  `useAutosaveTimestamp(meeting)` + `savedStatusLabel()` pro indicador
+  "Salvo automaticamente às HH:MM" / "Alterações não salvas". O único
+  rascunho que precisa da guarda de "sair sem salvar"
+  (`ConfirmDiscardModal`) é o campo de adicionar participante externo
+  ainda não confirmado — não tem comentário nem link nessa tela, então é
+  bem mais simples que o guard do `ActivityDetailModal`.
+  - Participantes: chips de `project.team` (toggle) + input de texto
+    livre com botão "+" pra adicionar alguém de fora do team.
+  - Transcrição/Resumo/Decisões: 3 textareas separadas (não uma só) —
+    pedido explícito do Rafael foi que a transcrição "facilite organizar"
+    essas informações à parte, não que elas fiquem misturadas num campo
+    só.
+  - Atividades e próximos passos: lista de cards à direita (mesmo layout
+    de duas colunas do `ActivityDetailModal`, `S.detailGrid`), cada um
+    com título, responsável (select de `project.team`), prazo (date) e
+    status (select do mesmo `STATUS_META`/`STATUS_ORDER` usado em
+    atividade — não inventou um enum de status novo só pra isso).
+- `STATUS_ORDER` e `SidePanel` precisaram ganhar `export` em `App.jsx`
+  (só `STATUS_META`/`ConfirmDiscardModal`/etc. já eram exportados antes)
+  pra esse novo módulo poder importar, mesmo padrão de reuso que XFlow/
+  Agenda/Macro já usam pra `S`/`fmtDate`/etc.
+- Bloco `<style>` próprio (`MEETINGS_CSS`) com as regras base de
+  `input`/`select`/`textarea` — obrigatório pra tema claro/escuro
+  funcionar (§16), mesma exigência de toda tela nova.
+
+### Fora do escopo (não pedido, não construído)
+
+Anexo de arquivo na reunião (imagem/PDF) — o pedido do Rafael listou
+transcrição/resumo/decisões/atividades, não anexo; a Tabela/comentário de
+atividade já tem esse recurso à parte se algum dia precisar aqui também.
+Vínculo automático reunião↔atividade do cronograma (ex.: uma "atividade e
+próximo passo" da reunião virar uma atividade de verdade na Tabela) —
+os dois sistemas ficam propositalmente desacoplados por enquanto.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

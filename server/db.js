@@ -72,6 +72,7 @@ export function blankProject() {
     activities: defaultActivities().map(normalizeActivity),
     team: defaultTeam(),
     log: [],
+    meetings: [],
   };
 }
 
