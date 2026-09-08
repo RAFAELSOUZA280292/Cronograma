@@ -2359,6 +2359,100 @@ Vínculo automático reunião↔atividade do cronograma (ex.: uma "atividade e
 próximo passo" da reunião virar uma atividade de verdade na Tabela) —
 os dois sistemas ficam propositalmente desacoplados por enquanto.
 
+### 24.1 Caixa de transcrições (2026-09)
+
+Pedido do Rafael, evolução direta de §24: "eu e meus sócios e
+funcionários vão mandar as transcrições, e o painel faz o input pra
+nós" — ou seja, **não** uma API externa (Zapier/Make) pra automação de
+terceiros, e sim um lugar dentro do próprio painel onde qualquer usuário
+com acesso à empresa cola a transcrição bruta e o **painel** (não uma
+sessão do Claude Code) estrutura e cria a reunião sozinho, na hora,
+chamando a Claude API server-side.
+
+**Por que a empresa/projeto não é adivinhada por IA/CNPJ**: a primeira
+ideia (CNPJ como chave de correspondência) foi descartada — transcrição
+real de reunião quase nunca cita CNPJ, e nome de empresa sozinho não é
+confiável o bastante pra bater automaticamente. Em vez disso, quem envia
+já está dentro da aba Reuniões daquela empresa especificamente — o
+`projectId` vem do contexto, sem seletor/dropdown de empresa na tela de
+envio.
+
+**Modelo de dados** — tabela relacional nova `meeting_submissions`
+(`server/db.js`, dentro de `initDb()`), **fora** do JSONB do projeto de
+propósito: o ciclo de vida do envio (`pending` → `processing` →
+`done`/`failed`) precisa sobreviver independente do resultado do
+processamento, inclusive falha de IA. Colunas: `id`, `org_id`,
+`project_id`, `submitted_by`, `transcript`, `manual_date`/`manual_time`
+(opcionais, preenchidos por quem envia se já souber), `status` (CHECK
+`pending|processing|done|failed`), `error_message`, `meeting_id` (id da
+reunião criada, preenchido só quando `done`), `created_at`,
+`processed_at`.
+
+**Backend** (`server/meetingInbox.js`, montado em
+`/api/meeting-inbox` por `server/index.js`):
+- `POST /` — valida `ANTHROPIC_API_KEY` configurada (503 se não),
+  `projectId`+`transcript` (400), `canAccessProject` (403 — função
+  exportada de `server/routes.js` pra ser reusada aqui sem duplicar
+  lógica de autorização). Insere a linha com `status='pending'`,
+  responde `202` **imediatamente**, e dispara `processSubmission(id)`
+  **sem `await`** (fire-and-forget, mesmo padrão do sync do Google
+  Calendar — §21 — uma chamada de IA pode levar dezenas de segundos e
+  não pode segurar a resposta HTTP).
+- `processSubmission(id)` — marca `processing`, chama
+  `extractMeetingFromTranscript()` (Claude API,
+  `client.messages.parse` com `output_config: { format:
+  zodOutputFormat(MeetingExtractionSchema) }` — saída já validada/
+  tipada via Zod, sem parsing manual de JSON string), monta o objeto de
+  reunião **no mesmo formato exato** de `project.meetings[]` (§24) e
+  faz `append` direto via `UPDATE projects SET data=...` — aparece na
+  aba Reuniões igual a uma reunião criada manualmente, sem
+  tratamento especial na UI. **Data/horário manual, se informado,
+  sempre vence o extraído pela IA** (`sub.manual_date || extracted.date
+  || ''`) — o prompt também instrui a IA a só preencher data/horário
+  quando explícito no texto, nunca deduzir de um dia da semana solto
+  ("quarta-feira"), pra reduzir alucinação. Erro em qualquer etapa cai
+  no `catch`, marca `status='failed'` com `error_message` (truncada a
+  500 chars) — nunca perde a submissão silenciosamente.
+- `GET /?projectId=` — lista as últimas 50 submissões da empresa
+  (`canAccessProject` de novo).
+- `POST /:id/retry` — reseta pra `pending` e dispara o processamento de
+  novo (mesmo fire-and-forget); exige `ANTHROPIC_API_KEY` igual o
+  create.
+- **Custo real**: cada transcrição processada é uma chamada de IA paga
+  (poucos centavos por reunião) — decisão explícita do Rafael, ciente
+  do custo, em troca de não precisar processar manualmente depois.
+  **Rafael precisa criar uma chave em console.anthropic.com e
+  configurar `ANTHROPIC_API_KEY` nas variáveis de ambiente do Railway**
+  — sem acesso ao dashboard do Railway, esse passo é manual dele (mesmo
+  padrão do setup do Google OAuth, §21).
+
+**Frontend** (`src/meetings/Meetings.jsx`, mesmo arquivo de §24):
+- Botão "Enviar transcrição" (ícone `Sparkles`) ao lado de "Nova
+  reunião" na aba Reuniões, abre `TranscriptSubmitModal` (textarea da
+  transcrição + data/horário opcionais).
+- Seção "Transcrições enviadas" no topo da aba (só aparece se houver
+  pelo menos uma), com badge de status (`SUBMISSION_STATUS_META` —
+  Na fila/Processando/Concluída/Falhou), quem enviou, quando, e — se
+  falhou — a mensagem de erro + botão de retry.
+- `MeetingsView` faz polling (`setTimeout` recursivo a cada 4s, não
+  `setInterval`, pra nunca sobrepor requisição) enquanto existir alguma
+  submissão `pending`/`processing`. Quando uma submissão transiciona
+  pra `done` (detectado comparando o status anterior salvo num
+  `useRef` contra o novo), chama `onReloadProjects()` — só então o
+  cliente aprende sobre a reunião nova, porque ela foi criada
+  diretamente no Postgres pelo backend, fora do fluxo normal de
+  `mutateProject`/autosave do cliente.
+- `onReloadProjects` — prop nova de `MeetingsView`, ligada em
+  `App.jsx` à função `reloadProjects()` (extraída do `useEffect` de
+  carregamento de projetos que já existia, agora reusável).
+
+**Testado localmente** (sem `ANTHROPIC_API_KEY` disponível no ambiente
+de dev): criação de submissão retorna 503 corretamente sem gravar linha
+órfã, listagem/retry funcionam, badge de status e mensagem de erro
+renderizam certo na UI. **Extração de IA de ponta a ponta não foi
+testada localmente** — depende da chave real do Rafael; validar em
+produção depois que ele configurar `ANTHROPIC_API_KEY` no Railway.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

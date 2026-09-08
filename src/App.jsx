@@ -752,20 +752,22 @@ export default function App() {
     return `${path}${sep}asOrg=${encodeURIComponent(org)}`;
   }
 
+  async function reloadProjects() {
+    try {
+      const res = await apiGet(withActingOrg('/api/projects'));
+      setProjects(res.projects.map(normalizeProject));
+    } catch (e) {
+      console.error('Falha ao carregar projetos', e);
+      setProjects([]);
+    } finally {
+      setProjectsLoaded(true);
+    }
+  }
+
   useEffect(() => {
     if (!currentUser) { setProjects([]); setProjectsLoaded(false); return; }
     setProjectsLoaded(false);
-    (async () => {
-      try {
-        const res = await apiGet(withActingOrg('/api/projects'));
-        setProjects(res.projects.map(normalizeProject));
-      } catch (e) {
-        console.error('Falha ao carregar projetos', e);
-        setProjects([]);
-      } finally {
-        setProjectsLoaded(true);
-      }
-    })();
+    reloadProjects();
   }, [currentUser?.id, actingOrg?.id]);
 
   useEffect(() => {
@@ -2188,6 +2190,7 @@ export default function App() {
             onShowTrash={() => setShowMeetingsTrash(true)}
             onHideTrash={() => setShowMeetingsTrash(false)}
             onRestore={(id) => restoreMeeting(activeProject.id, id)}
+            onReloadProjects={reloadProjects}
           />
         )}
         {!isMulti && view === 'timeline' && (

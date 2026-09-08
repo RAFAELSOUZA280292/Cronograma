@@ -15,7 +15,7 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function canAccessProject(user, project, orgId) {
+export function canAccessProject(user, project, orgId) {
   if (!user || !project) return false;
   if (user.isSuperAdmin) return true;
   if (user.orgId !== orgId) return false;
