@@ -314,6 +314,29 @@ export async function initDb() {
       connected_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+
+  // Caixa de transcrições (2026-09, pedido do Rafael) — "eu e meus sócios e
+  // funcionários vão mandar transcrição, e o painel faz o input pra nós".
+  // Fica de fora do JSONB do projeto de propósito: precisa existir com
+  // status próprio (pending/processing/done/failed) antes mesmo de virar
+  // uma reunião de verdade, e sobrevive independente do resultado do
+  // processamento (falha fica registrada, não silenciosamente perdida).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS meeting_submissions (
+      id            TEXT PRIMARY KEY,
+      org_id        TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      submitted_by  TEXT NOT NULL REFERENCES users(id),
+      transcript    TEXT NOT NULL,
+      manual_date   TEXT NOT NULL DEFAULT '',
+      manual_time   TEXT NOT NULL DEFAULT '',
+      status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','processing','done','failed')),
+      error_message TEXT NOT NULL DEFAULT '',
+      meeting_id    TEXT NOT NULL DEFAULT '',
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      processed_at  TIMESTAMPTZ
+    );
+  `);
 }
 
 export function blankXflowTicketData() {

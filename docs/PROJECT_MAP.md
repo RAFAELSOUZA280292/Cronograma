@@ -23,8 +23,14 @@ depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
   projetos/etc. em `server/routes.js`; rotas do XFlow num router próprio,
   `server/xflow.js`, montado em `/api/xflow`. Serve também os estáticos de
   `dist/` e faz fallback de SPA (`app.get('*', ...)`).
-- **Banco**: Postgres, driver `pg` puro (sem ORM/query builder). 6 tabelas —
-  ver seção 6. Multi-tenant desde 2026-08 (Fase 1): `users`/`projects`/
+- **Banco**: Postgres, driver `pg` puro (sem ORM/query builder). 10 tabelas
+  (`organizations`, `users`, `projects`, `cnpj_cache`, `personal_boards`,
+  `xflow_tickets`, `xflow_events`, `notifications`,
+  `google_calendar_connections`, `meeting_submissions`) — a tabela da
+  seção 6 lista só as 5 mais centrais, as demais estão documentadas nas
+  seções de módulo (XFlow §4, Notificações/Google Calendar
+  `PROJECT_CONTEXT.md` §20/§21, Reuniões `PROJECT_CONTEXT.md` §24.1).
+  Multi-tenant desde 2026-08 (Fase 1): `users`/`projects`/
   `xflow_tickets` têm `org_id` (FK pra `organizations`), toda query filtra
   por ele — ver CLAUDE.md seção "Multi-tenant".
 - **APIs**: só a própria API interna (`server/routes.js`) + 2 APIs públicas de
@@ -51,11 +57,12 @@ src/App.jsx        Frontend principal: componentes, telas, estilos (S), lógica 
 src/xflow/XFlow.jsx     Módulo XFlow (gestão de BUGs) — telas, constantes de status/severidade/prioridade, helpers.
 src/agenda/Agenda.jsx    Módulo Agenda (2026-08) — visão dia/semana/mês da disponibilidade (Google + XFlow + atividades), toggle de privacidade.
 src/macro/MacroOverview.jsx  Módulo Visão Macro (2026-08) — cronograma consolidado de TODAS as empresas da org, por dia, com destaque de atrasado/hoje/próximo.
+src/meetings/Meetings.jsx   Módulo Reuniões (2026-09) — lista/detalhe de reunião por empresa + caixa de transcrições (envio, status, retry).
 src/main.jsx        Bootstrap do React (ReactDOM.createRoot).
 src/lib/api.js        Wrapper fetch (apiGet/apiPost/apiPatch/apiDelete), credentials:'include'.
 src/assets/brand/       Logos PNG da PRICETAX (preto = tema claro, branco = tema escuro).
 
-server/index.js       Bootstrap Express: initDb, seedIfEmpty, monta /api, /api/xflow, /api/google e /api/agenda, serve dist/.
+server/index.js       Bootstrap Express: initDb, seedIfEmpty, monta /api, /api/xflow, /api/google, /api/agenda, /api/macro e /api/meeting-inbox, serve dist/.
 server/db.js           Pool pg, criação de tabelas (initDb), seed inicial, defaults de projeto novo.
 server/auth.js         JWT/bcrypt, cookie de sessão, middlewares requireAuth/requireMaster*/requireXflowAccess.
 server/routes.js        Rotas REST de auth, users, projects, personal-board, cnpj, organizations, notifications.
@@ -67,6 +74,7 @@ server/googleCalendar.js   Sincronização com Google Calendar (2026-08) — hel
 server/google.js        Rotas OAuth do Google Calendar (status, oauth/start, oauth/callback, disconnect) — router próprio em /api/google.
 server/agenda.js        Rota única de leitura da Agenda (2026-08) — GET /api/agenda mescla Google + TASKs do XFlow + atividades do usuário.
 server/macro.js         Rota única da Visão Macro (2026-08) — GET /api/macro mescla atividades de TODAS as empresas da org, filtra por período (semana atual/próxima/30 dias), gate por allCompaniesAccess.
+server/meetingInbox.js    Caixa de transcrições (2026-09) — router próprio em /api/meeting-inbox: POST cria submissão + dispara extração via Claude API (fire-and-forget), GET lista, POST /:id/retry reprocessa — ver PROJECT_CONTEXT.md §24.1.
 server/cnpjLookup.js     Cliente BrasilAPI/ReceitaWS + normalização + cache.
 
 index.html            Shell HTML, variáveis CSS de tema (light/dark) em :root.
@@ -119,7 +127,7 @@ Componentes de tela/modal (nome → linha → responsabilidade):
 | 6339 | `ResumoTable` | Tabela desktop da aba Resumo (2026-08) |
 | 6388 | `ResumoCard` | Card mobile da aba Resumo (2026-08) — mesmos dados de `ResumoTable`, layout empilhado |
 | **6417** | **`ResumoView`** | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
-| — | `MeetingsView`/`MeetingDetailModal` (`src/meetings/Meetings.jsx`) | Aba "Reuniões" do workspace de Empresas (2026-09) — lista Programadas/Realizadas + modal de edição autosave, array `project.meetings`, só `!isMulti` — ver `PROJECT_CONTEXT.md` §24 |
+| — | `MeetingsView`/`MeetingDetailModal`/`TranscriptSubmitModal` (`src/meetings/Meetings.jsx`) | Aba "Reuniões" do workspace de Empresas (2026-09) — lista Programadas/Realizadas + modal de edição autosave, array `project.meetings`, só `!isMulti`; + caixa de transcrições (2026-09) — botão "Enviar transcrição", lista de envios com polling, `POST/GET /api/meeting-inbox` (`server/meetingInbox.js`) — ver `PROJECT_CONTEXT.md` §24 e §24.1 |
 | **6597** | **`TableView`** | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
 | 7128 | `PhasesView` | View "Fases" |
 | 7258 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
@@ -363,6 +371,7 @@ anexos são base64 inline no PATCH do projeto (ver §9, ponto de atenção).
 | `projects` | 1 linha = 1 empresa/cronograma inteiro, tudo em `data JSONB` (company, phases, activities, team, log) + coluna relacional `org_id` | Vínculo com `users` é lógico via `company.cnpj` / `allowed_cnpjs`, não FK; `org_id → organizations.id` |
 | `cnpj_cache` | Cache de 60 dias das respostas de lookup de CNPJ — **não** tem `org_id`, é compartilhado entre organizações de propósito | Nenhum |
 | `personal_boards` | 1 linha por usuário, `data JSONB` = quadro Kanban pessoal — **não** tem `org_id` (sempre buscado por `user_id`; o scan de `shareToken` público é cross-org de propósito) | FK `user_id → users.id` |
+| `meeting_submissions` | Caixa de transcrições (2026-09) — 1 linha por transcrição enviada pra virar reunião via IA, `status` (pending/processing/done/failed) próprio, fora do JSONB do projeto de propósito (sobrevive independente do resultado do processamento) — ver `PROJECT_CONTEXT.md` §24.1 | FK `org_id → organizations.id`, `project_id → projects.id`, `submitted_by → users.id` |
 
 Sem migrations formais — `initDb()` roda `CREATE TABLE IF NOT EXISTS` +
 `ALTER TABLE ADD COLUMN IF NOT EXISTS` a cada boot do servidor.
