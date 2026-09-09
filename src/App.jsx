@@ -635,6 +635,7 @@ export default function App() {
       <MeetingDetailModal
         meeting={meeting}
         team={project.team}
+        externalContacts={project.externalContacts || []}
         pid={project.id}
         onClose={closeMeetingDetail}
         updateMeeting={updateMeeting}
@@ -1488,16 +1489,29 @@ export default function App() {
     }), `${has ? 'Participante removido' : 'Participante adicionado'} na reunião "${m.title}": ${name}`);
   }
 
-  function addMeetingParticipantFreeText(targetPid, meetingId, name) {
+  // Contato externo (cliente/fornecedor) fica salvo em project.externalContacts
+  // pra reaparecer como sugestão nas próximas reuniões dessa empresa — não
+  // precisa retypar nome/e-mail toda vez. Mesmo padrão JSONB de team/meetings,
+  // sem tabela relacional nova (é sempre escopado a UMA empresa).
+  function addMeetingParticipantFreeText(targetPid, meetingId, name, email) {
     const v = (name || '').trim();
     if (!v) return;
     const project = projects.find((p) => p.id === targetPid);
     const m = project && (project.meetings || []).find((x) => x.id === meetingId);
     if (!m || (m.participants || []).includes(v)) return;
-    mutateProject(targetPid, (p) => ({
-      ...p,
-      meetings: (p.meetings || []).map((x) => (x.id === meetingId ? { ...x, participants: [...(x.participants || []), v] } : x)),
-    }), `Participante adicionado na reunião "${m.title}": ${v}`);
+    const emailTrim = (email || '').trim();
+    mutateProject(targetPid, (p) => {
+      const contacts = p.externalContacts || [];
+      const existing = contacts.find((c) => c.name.toLowerCase() === v.toLowerCase());
+      const nextContacts = existing
+        ? (emailTrim && !existing.email ? contacts.map((c) => (c.id === existing.id ? { ...c, email: emailTrim } : c)) : contacts)
+        : [...contacts, { id: uid('ctt'), name: v, email: emailTrim, createdAt: new Date().toISOString() }];
+      return {
+        ...p,
+        externalContacts: nextContacts,
+        meetings: (p.meetings || []).map((x) => (x.id === meetingId ? { ...x, participants: [...(x.participants || []), v] } : x)),
+      };
+    }, `Participante adicionado na reunião "${m.title}": ${v}`);
   }
 
   function addMeetingActionItem(targetPid, meetingId) {

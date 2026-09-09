@@ -772,6 +772,15 @@ mecanismo.
 - Banner "Super Admin — visualizando como X" não aparece ainda em
   `CompanySelectorScreen` (só no topbar principal) — limitação conhecida.
 - `README.md` não atualizado (fora de escopo até pedido explícito).
+- **Comunicação com o painel via Telegram (2026-09) — estudado, não
+  implementado.** Rafael queria um jeito fácil (sem ferramenta oficial
+  burocrática) de o time falar com o app — cogitou e-mail, WhatsApp e
+  Telegram. Recomendação dada: e-mail primeiro (mais simples, sem app
+  novo pro time instalar); Telegram documentado como alternativa mais "de
+  chat" caso e-mail não baste. Estudo técnico completo (setup do bot,
+  webhook vs polling, formato do payload, limites, problema de vincular
+  `from.id`↔usuário/empresa, como encaixaria em `server/meetingInbox.js`)
+  em `docs/TELEGRAM_BOT_ESTUDO.md` — nenhum código escrito, só pesquisa.
 
 ## 16. Padrões obrigatórios ao desenvolver novas funcionalidades
 
@@ -2332,12 +2341,27 @@ dedicado do XFlow/Agenda/Visão Macro) exporta dois componentes:
   ainda não confirmado — não tem comentário nem link nessa tela, então é
   bem mais simples que o guard do `ActivityDetailModal`.
   - Participantes: chips de `project.team` (toggle) + input de texto
-    livre com botão "+" pra adicionar alguém de fora do team.
+    livre com botão "+" pra adicionar alguém de fora do team. **Contatos
+    externos reutilizáveis (2026-09)**: ao adicionar um participante
+    externo (ex.: contato do cliente) com e-mail, ele é salvo em
+    `project.externalContacts[]` (`{id, name, email, createdAt}`, JSONB
+    novo — mesmo padrão de `team`/`meetings`, sem tabela relacional nova,
+    já que é sempre escopado a UMA empresa). Nas próximas reuniões dessa
+    mesma empresa, o nome aparece como sugestão (`<datalist>`) no campo de
+    texto, e selecionar/repetir o nome já preenche o e-mail salvo sozinho
+    — só precisa digitar e-mail na primeira vez que aquela pessoa
+    participa. Participantes externos (fora do `team`) também aparecem
+    como chip removível (reusa `toggleParticipant`, que já era genérico o
+    bastante pra qualquer nome, não só os do team) — antes ficavam
+    "invisíveis" na tela depois de adicionados, só apareciam na listagem
+    da aba Reuniões.
   - Transcrição/Resumo/Decisões: 3 textareas separadas (não uma só) —
     pedido explícito do Rafael foi que a transcrição "facilite organizar"
     essas informações à parte, não que elas fiquem misturadas num campo
     só.
-  - Atividades e próximos passos: lista de cards à direita (mesmo layout
+  - Atividades e próximos passos (rótulo na tela: **"TO_DO"**, renomeado
+    2026-09 a pedido do Rafael — a chave de dados continua `actionItems`,
+    só o texto exibido mudou): lista de cards à direita (mesmo layout
     de duas colunas do `ActivityDetailModal`, `S.detailGrid`), cada um
     com título, responsável (select de `project.team`), prazo (date) e
     status (select do mesmo `STATUS_META`/`STATUS_ORDER` usado em
@@ -2460,4 +2484,5 @@ produção depois que ele configurar `ANTHROPIC_API_KEY` no Railway.
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
 | Regras de padrão de código, arquivos que não mexer, comandos | `CLAUDE.md` |
 | Detalhe de responsividade mobile por tela | `docs/RESPONSIVE_ARCHITECTURE.md` |
+| Estudo de integração via Telegram Bot (não implementado) | `docs/TELEGRAM_BOT_ESTUDO.md` |
 | Histórico de decisões de produto/por quê de uma feature | memória de sessão (fora do repo) ou pedir contexto ao usuário |

@@ -295,17 +295,26 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
   );
 }
 
-export function MeetingDetailModal({ meeting: m, team, pid, onClose, updateMeeting, deleteMeeting, toggleParticipant, addParticipant, addActionItem, updateActionItem, deleteActionItem }) {
+export function MeetingDetailModal({ meeting: m, team, externalContacts, pid, onClose, updateMeeting, deleteMeeting, toggleParticipant, addParticipant, addActionItem, updateActionItem, deleteActionItem }) {
   const isMobile = useIsMobile();
   const [participantDraft, setParticipantDraft] = useState('');
+  const [participantEmailDraft, setParticipantEmailDraft] = useState('');
   const lastSavedAt = useAutosaveTimestamp(m);
-  const hasDraft = !!participantDraft.trim();
+  const hasDraft = !!(participantDraft.trim() || participantEmailDraft.trim());
   const [showGuard, setShowGuard] = useState(false);
   function requestClose() { if (hasDraft) setShowGuard(true); else onClose(); }
   function submitParticipant() {
     if (!participantDraft.trim()) return;
-    addParticipant(pid, m.id, participantDraft);
-    setParticipantDraft('');
+    addParticipant(pid, m.id, participantDraft, participantEmailDraft);
+    setParticipantDraft(''); setParticipantEmailDraft('');
+  }
+  // Ao digitar um nome que já é um contato salvo, preenche o e-mail dele
+  // sozinho — só precisa digitar e-mail na primeira vez que essa pessoa
+  // participa de uma reunião dessa empresa.
+  function handleParticipantNameChange(v) {
+    setParticipantDraft(v);
+    const known = (externalContacts || []).find((c) => c.name.toLowerCase() === v.trim().toLowerCase());
+    if (known) setParticipantEmailDraft(known.email || '');
   }
 
   const activeItems = (m.actionItems || []).filter((it) => !it.deleted);
@@ -361,9 +370,35 @@ export function MeetingDetailModal({ meeting: m, team, pid, onClose, updateMeeti
                   </button>
                 );
               })}
+              {(m.participants || []).filter((name) => !team.some((mem) => mem.name === name)).map((name) => {
+                const contact = (externalContacts || []).find((c) => c.name === name);
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    title={contact && contact.email ? `${contact.email} · clique pra remover` : 'Participante externo · clique pra remover'}
+                    style={{ ...S.participantChip, ...S.participantChipActive, display: 'flex', alignItems: 'center', gap: 4 }}
+                    onClick={() => toggleParticipant(pid, m.id, name)}
+                  >
+                    {name}<X size={11} />
+                  </button>
+                );
+              })}
             </div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-              <input type="text" value={participantDraft} onChange={(e) => setParticipantDraft(e.target.value)} placeholder="Adicionar participante externo..." onKeyDown={(e) => e.key === 'Enter' && submitParticipant()} />
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+              <input
+                type="text" list="mtg-contatos-externos" style={{ flex: '1 1 160px' }}
+                value={participantDraft} onChange={(e) => handleParticipantNameChange(e.target.value)}
+                placeholder="Adicionar participante externo..." onKeyDown={(e) => e.key === 'Enter' && submitParticipant()}
+              />
+              <datalist id="mtg-contatos-externos">
+                {(externalContacts || []).map((c) => <option key={c.id} value={c.name} />)}
+              </datalist>
+              <input
+                type="email" style={{ flex: '1 1 160px' }}
+                value={participantEmailDraft} onChange={(e) => setParticipantEmailDraft(e.target.value)}
+                placeholder="e-mail (opcional, só na 1ª vez)" onKeyDown={(e) => e.key === 'Enter' && submitParticipant()}
+              />
               <button style={S.iconBtn} onClick={submitParticipant}><Plus size={14} /></button>
             </div>
 
@@ -401,7 +436,7 @@ export function MeetingDetailModal({ meeting: m, team, pid, onClose, updateMeeti
           </div>
 
           <div style={{ flex: 1, minWidth: isMobile ? '100%' : 260 }}>
-            <div style={S.subSectionLabel}>Atividades e próximos passos</div>
+            <div style={S.subSectionLabel}>TO_DO</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {activeItems.length === 0 && <div style={S.emptyMuted}>Nenhuma atividade definida ainda.</div>}
               {activeItems.map((it) => (
