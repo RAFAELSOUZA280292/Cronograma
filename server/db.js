@@ -73,6 +73,7 @@ export function blankProject() {
     team: defaultTeam(),
     log: [],
     meetings: [],
+    externalContacts: [],
   };
 }
 
