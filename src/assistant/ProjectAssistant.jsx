@@ -56,6 +56,21 @@ const ASSISTANT_CSS = `
   .asst-spin { animation:asst-spin 1s linear infinite; }
 `;
 
+function actionCardMeta(action) {
+  if (action.type === 'reschedule_activity') {
+    return {
+      title: 'Ação proposta: reagendar atividade',
+      body: `"${action.activityTitle}" — de ${action.currentDate ? fmtDate(action.currentDate) : 'sem data'} para ${fmtDate(action.newDate)}`,
+      doneLabel: 'Atividade reagendada',
+    };
+  }
+  return {
+    title: 'Ação proposta: criar pendência',
+    body: `"${action.title}"${action.meetingTitle ? ` — reunião: ${action.meetingTitle}` : ''}${action.responsible ? ` — responsável: ${action.responsible}` : ''}${action.dueDate ? ` — prazo: ${fmtDate(action.dueDate)}` : ''}`,
+    doneLabel: 'Pendência criada',
+  };
+}
+
 function baseSuggestions(view, hasOpenMeeting) {
   if (hasOpenMeeting) {
     return ['Mostrar decisões', 'Mostrar compromissos', 'Quem participou desta reunião?', 'Comparar com reunião anterior'];
@@ -181,20 +196,21 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                     )}
                     {m.role === 'assistant' && m.proposedAction && (
                       <div className="asst-action-card">
-                        {m.actionStatus === 'pending' && (
-                          <>
-                            <div className="asst-action-card-title"><Sparkles size={13} color="#F5C400" /> Ação proposta: criar pendência</div>
-                            <div className="asst-action-card-body">
-                              "{m.proposedAction.title}"{m.proposedAction.responsible ? ` — responsável: ${m.proposedAction.responsible}` : ''}{m.proposedAction.dueDate ? ` — prazo: ${fmtDate(m.proposedAction.dueDate)}` : ''}
-                            </div>
-                            <div className="asst-action-card-buttons">
-                              <button type="button" className="asst-action-btn asst-action-confirm" disabled={decidingActionId === m.id} onClick={() => decideAction(m.id, 'confirm')}><Check size={13} /> Confirmar</button>
-                              <button type="button" className="asst-action-btn asst-action-reject" disabled={decidingActionId === m.id} onClick={() => decideAction(m.id, 'reject')}><Ban size={13} /> Cancelar</button>
-                            </div>
-                            {m.actionError && <div style={{ color: '#e2574c', marginTop: 6, fontSize: 11 }}>{m.actionError}</div>}
-                          </>
-                        )}
-                        {m.actionStatus === 'executed' && <div className="asst-action-status executed"><Check size={13} /> Pendência criada</div>}
+                        {m.actionStatus === 'pending' && (() => {
+                          const meta = actionCardMeta(m.proposedAction);
+                          return (
+                            <>
+                              <div className="asst-action-card-title"><Sparkles size={13} color="#F5C400" /> {meta.title}</div>
+                              <div className="asst-action-card-body">{meta.body}</div>
+                              <div className="asst-action-card-buttons">
+                                <button type="button" className="asst-action-btn asst-action-confirm" disabled={decidingActionId === m.id} onClick={() => decideAction(m.id, 'confirm')}><Check size={13} /> Confirmar</button>
+                                <button type="button" className="asst-action-btn asst-action-reject" disabled={decidingActionId === m.id} onClick={() => decideAction(m.id, 'reject')}><Ban size={13} /> Cancelar</button>
+                              </div>
+                              {m.actionError && <div style={{ color: '#e2574c', marginTop: 6, fontSize: 11 }}>{m.actionError}</div>}
+                            </>
+                          );
+                        })()}
+                        {m.actionStatus === 'executed' && <div className="asst-action-status executed"><Check size={13} /> {actionCardMeta(m.proposedAction).doneLabel}</div>}
                         {m.actionStatus === 'rejected' && <div className="asst-action-status rejected"><Ban size={13} /> Ação cancelada</div>}
                       </div>
                     )}

@@ -28,25 +28,30 @@ const ResolveQuerySchema = z.object({
   kind: z.enum([...CHUNK_KINDS, 'qualquer']).describe('Tipo de conteúdo mais provável de responder — "qualquer" se não for possível restringir com confiança'),
 });
 
-// Único tipo de ação executável por enquanto (ver server/assistantActions.js)
-// — criar uma pendência numa reunião já existente. É proposto pela IA,
-// nunca executado por ela: fica pendente até o usuário confirmar pelo
-// painel (server/assistant.js, POST /messages/:id/action).
-const ProposedActionSchema = z.object({
-  type: z.literal('create_meeting_todo').describe('Único tipo suportado por enquanto: criar uma pendência (TO_DO) numa reunião.'),
-  meetingId: z.string().describe('id da reunião de destino — só preencha com o id da reunião aberta atualmente (informado no contexto abaixo); nunca invente um id.'),
+// Dois tipos de ação executável por enquanto (ver server/assistantActions.js)
+// — a IA só PROPÕE, nunca executa sozinha: fica pendente até o usuário
+// confirmar pelo painel (server/assistant.js, POST /messages/:id/action).
+const CreateMeetingTodoActionSchema = z.object({
+  type: z.literal('create_meeting_todo').describe('Criar uma pendência (TO_DO) numa reunião já existente.'),
+  meetingId: z.string().describe('id de uma reunião real, exatamente como listado em "REUNIÕES DISPONÍVEIS" no perfil do projeto — nunca invente um id. Se o usuário não deixar claro qual reunião e nenhuma estiver aberta na tela, NÃO proponha ainda: pergunte antes qual reunião vincular (ou sugira a mais recente).'),
   title: z.string().describe('Título curto e claro da pendência a ser criada'),
   responsible: z.string().nullable().describe('Nome da pessoa responsável, se mencionado pelo usuário; null se não especificado'),
   owner: z.enum(['pricetax', 'cliente']).describe('De qual lado é essa entrega'),
   dueDate: z.string().nullable().describe('Prazo em YYYY-MM-DD, se mencionado; null se não especificado'),
-}).nullable();
+});
+const RescheduleActivityActionSchema = z.object({
+  type: z.literal('reschedule_activity').describe('Mudar a data de uma atividade já existente no cronograma oficial (Gantt/Tabela/Fases/Quadro).'),
+  activityId: z.string().describe('id de uma atividade real, exatamente como listado em "ATIVIDADES DO CRONOGRAMA" no perfil do projeto — nunca invente um id. Se não estiver claro qual atividade o usuário quer dizer, NÃO proponha ainda: pergunte antes, citando o título exato que você acha que é, pra confirmar.'),
+  newDate: z.string().describe('Nova data em YYYY-MM-DD. Se o pedido for relativo (ex.: "postergar pro final do cronograma"), calcule uma data depois da atividade mais distante já agendada.'),
+});
+const ProposedActionSchema = z.discriminatedUnion('type', [CreateMeetingTodoActionSchema, RescheduleActivityActionSchema]).nullable();
 
 const SynthesizeAnswerSchema = z.object({
   answer: z.string().describe('A resposta final em português, clara e direta, para o usuário. Se hasEvidence for false, esta deve ser literalmente "Não encontrei evidência suficiente nas reuniões ou documentos deste projeto." Se você preencheu proposedAction, a resposta deve descrever a ação proposta e pedir confirmação explícita — nunca afirme que já foi feita.'),
   citedChunkIds: z.array(z.string()).describe('IDs (campo "id" de cada trecho recebido) dos trechos que sustentam de fato a resposta — só inclua um id se ele realmente contém a informação usada na resposta. Vazio se a resposta veio do PERFIL DO PROJETO em vez de um trecho, ou se hasEvidence for false.'),
   hasEvidence: z.boolean().describe('true se os trechos OU o PERFIL DO PROJETO sustentam a resposta; false só quando nem os trechos recuperados nem o perfil do projeto respondem a pergunta com confiança — nesse caso NUNCA invente, admita explicitamente que não encontrou.'),
   learnedFact: z.string().nullable().describe('Preencha SOMENTE quando esta troca revelou um fato durável e específico sobre ESTE projeto que vale a pena lembrar em conversas futuras (ex.: um padrão recorrente, uma preferência do cliente, um contexto importante que não estava registrado) — seja específico e curto (1 frase). null na grande maioria das respostas — não force um aprendizado onde não há nada novo/reutilizável.'),
-  proposedAction: ProposedActionSchema.describe('Preencha SOMENTE quando o usuário pedir explicitamente pra criar/registrar uma pendência de reunião (ex.: "cria uma atividade pra...", "marca uma pendência pra..."), E houver uma reunião aberta no contexto pra ser o destino. Você NUNCA executa a ação — só propõe; o usuário confirma ou rejeita pelo painel depois. null na grande maioria das respostas — nunca proponha uma ação sem pedido explícito, e nunca proponha sem uma reunião de destino válida.'),
+  proposedAction: ProposedActionSchema.describe('Preencha SOMENTE quando o usuário pedir explicitamente pra criar uma pendência ou reagendar uma atividade do cronograma. Você NUNCA executa a ação — só propõe; o usuário confirma ou rejeita pelo painel depois. Se faltar informação pra ter certeza do alvo (qual reunião, qual atividade), NÃO proponha ainda — pergunte antes na própria resposta, com proposedAction=null, e proponha só no próximo turno depois que o usuário esclarecer. null na grande maioria das respostas.'),
 });
 
 async function resolveQuery({ question, history, context, projectSnapshot }) {
@@ -81,8 +86,8 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, in
     ? chunks.map((c) => `[id=${c.id}] (${c.kind}, reunião "${c.meetingTitle}" em ${c.meetingDate || 'sem data'}${c.timeRef ? `, ${c.timeRef}` : ''})\n${c.content}`).join('\n\n---\n\n')
     : '(nenhum trecho relevante foi encontrado na memória de reuniões deste projeto — mas confira o PERFIL DO PROJETO abaixo antes de concluir que não há evidência: perguntas de identidade/cronograma são respondidas por ele, não por trecho de reunião)';
   const meetingContextText = context && context.meetingId
-    ? `Reunião aberta agora na tela: id="${context.meetingId}", título="${context.meetingTitle || ''}" — este é o ÚNICO id válido pra propor criação de pendência (proposedAction.meetingId).`
-    : 'Nenhuma reunião está aberta na tela agora — NÃO proponha criar pendência (proposedAction deve ficar null); se o usuário pedir, explique que precisa abrir a reunião correspondente primeiro.';
+    ? `Reunião aberta agora na tela: id="${context.meetingId}", título="${context.meetingTitle || ''}" — se o usuário pedir pra criar uma pendência sem dizer qual reunião, essa é a escolha mais provável.`
+    : 'Nenhuma reunião está aberta na tela agora — se o usuário pedir pra criar uma pendência, escolha a reunião certa entre as listadas em "REUNIÕES DISPONÍVEIS" no perfil do projeto (ex.: pelo que ele descrever, ou a mais recente se ele não especificar e isso fizer sentido) — só pergunte se realmente não der pra decidir com confiança.';
   const response = await client.messages.parse({
     model: 'claude-opus-5',
     max_tokens: 1500,
@@ -93,7 +98,8 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, in
       'Quando a resposta envolver várias reuniões ou atividades, apresente sempre da mais antiga pra mais atual (nunca por ordem de cadastro) — mas comece a resposta destacando os pontos mais críticos/urgentes/atrasados antes de entrar na lista cronológica, não deixe eles perdidos no meio do texto.',
       'Quando responder com base num trecho de reunião, cite reunião e data pra ajudar o consultor a confiar na resposta (ex.: "Na reunião de 15/08, Rafael comentou que..."). Só inclua em citedChunkIds os ids dos trechos que você realmente usou — nunca cite um trecho pra sustentar um fato que na verdade veio do PERFIL DO PROJETO ou dos APRENDIZADOS ACUMULADOS.',
       'Se o PERFIL DO PROJETO listar participantes "SEM IDENTIFICAÇÃO CLARA" e isso for relevante ou natural no contexto da conversa, aproveite pra perguntar ao usuário quem é essa pessoa (lado PRICETAX ou cliente, e qual área) — no máximo uma pergunta desse tipo por resposta, nunca repita uma pergunta sobre a mesma pessoa se ela já foi respondida antes (confira os APRENDIZADOS ACUMULADOS e a conversa) — quando o usuário responder, registre em learnedFact.',
-      'Você também pode propor ações (proposedAction) quando o usuário pedir explicitamente pra criar uma pendência de reunião — mas NUNCA executa sozinho, e NUNCA finge que já executou. Sempre descreva a ação proposta na resposta e peça confirmação. Só é possível propor com uma reunião aberta como destino (ver contexto abaixo).',
+      'Você também pode propor ações (proposedAction): criar uma pendência numa reunião, ou reagendar uma atividade do cronograma — mas NUNCA executa sozinho, e NUNCA finge que já executou. Sempre descreva a ação proposta na resposta citando o título exato do alvo (reunião ou atividade) e peça confirmação. Se não tiver certeza de qual reunião/atividade o usuário quer dizer, NÃO proponha ainda — faça a pergunta de esclarecimento primeiro (ex.: "Você está falando da atividade \'Split payment e demais operações financeiras\'?"), e só proponha de fato no turno seguinte, depois de confirmado.',
+      'Ao reagendar (reschedule_activity), sempre diga na resposta a data antiga e a nova, pra o usuário conseguir validar a mudança de verdade antes de confirmar.',
     ].join(' '),
     messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nAprendizados acumulados em conversas anteriores sobre este projeto:\n${insightsText}\n\n${meetingContextText}\n\nConversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória de reuniões:\n\n${chunksText}` }],
     output_config: { format: zodOutputFormat(SynthesizeAnswerSchema) },
@@ -220,13 +226,27 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
     tokensOutput = (resolved.usage && resolved.usage.output_tokens || 0) + (synthesized.usage && synthesized.usage.output_tokens || 0);
 
     // Agente executor — mesma defesa em profundidade das citações: a IA só
-    // PROPÕE, e mesmo a proposta é revalidada aqui (nunca confiar cegamente
-    // no meetingId que ela devolveu) antes de deixar o usuário confirmar.
+    // PROPÕE, e mesmo a proposta é revalidada aqui contra o projeto de
+    // verdade (nunca confiar cegamente no id que ela devolveu) antes de
+    // deixar o usuário confirmar. De quebra, os títulos exibidos no card de
+    // confirmação (meetingTitle/activityTitle/currentDate) vêm do servidor,
+    // não do que a IA disse — não dá pra ela "inventar" um nome bonito pra
+    // um id que não bate com o alvo de verdade.
     const rawAction = synthesized.output.proposedAction;
-    if (rawAction && rawAction.type === 'create_meeting_todo' && context && rawAction.meetingId === context.meetingId) {
-      proposedAction = rawAction;
-    } else if (rawAction) {
-      console.error('Assistente do Projeto: propôs ação com meetingId fora do contexto atual — descartada.', rawAction);
+    if (rawAction && rawAction.type === 'create_meeting_todo') {
+      const targetMeeting = (projectData && projectData.meetings || []).find((m) => m.id === rawAction.meetingId && !m.deleted);
+      if (targetMeeting) {
+        proposedAction = { ...rawAction, meetingTitle: targetMeeting.title || 'Reunião sem título' };
+      } else {
+        console.error('Assistente do Projeto: propôs create_meeting_todo com meetingId inexistente — descartada.', rawAction);
+      }
+    } else if (rawAction && rawAction.type === 'reschedule_activity') {
+      const targetActivity = (projectData && projectData.activities || []).find((a) => a.id === rawAction.activityId && !a.deleted);
+      if (targetActivity) {
+        proposedAction = { ...rawAction, activityTitle: targetActivity.title || 'Atividade sem título', currentDate: targetActivity.date || '' };
+      } else {
+        console.error('Assistente do Projeto: propôs reschedule_activity com activityId inexistente — descartada.', rawAction);
+      }
     }
   }
 
