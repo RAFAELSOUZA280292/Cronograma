@@ -6,7 +6,7 @@ import { Router } from 'express';
 import { pool } from './db.js';
 import { requireAuth } from './auth.js';
 import { canAccessProject } from './routes.js';
-import { askProjectAssistant, getConversationMessages, clearConversation, setMessageFeedback } from './assistantRetrieval.js';
+import { askProjectAssistant, getConversationMessages, clearConversation, setMessageFeedback, decideProposedAction } from './assistantRetrieval.js';
 
 export const router = Router();
 
@@ -60,4 +60,27 @@ router.post('/messages/:id/feedback', requireAuth, async (req, res, next) => {
     await setMessageFeedback(pool, project.org_id, projectId, req.user.id, req.params.id, feedback);
     res.json({ ok: true });
   } catch (e) { next(e); }
+});
+
+// Agente executor (2026-09) — a IA só propõe (ver server/assistantRetrieval.js
+// / server/assistantActions.js); esta rota é o único lugar que de fato
+// confirma ou rejeita, sempre a partir de um clique explícito do usuário
+// no painel (nunca automático).
+router.post('/messages/:id/action', requireAuth, async (req, res, next) => {
+  try {
+    const { projectId, decision } = req.body || {};
+    if (!['confirm', 'reject'].includes(decision)) return res.status(400).json({ message: 'Decisão inválida.' });
+    const project = await loadAuthorizedProject(req, res, projectId);
+    if (!project) return;
+    const result = await decideProposedAction(pool, project.org_id, projectId, req.user.id, req.params.id, decision, req.user.name);
+    res.json(result);
+  } catch (e) {
+    // Erros esperados desse fluxo (mensagem/ação já decidida, reunião
+    // apagada nesse meio-tempo) merecem mensagem própria pro usuário, não
+    // o "Erro interno do servidor." genérico do handler global.
+    if (/não encontrad|já foi decidida|não suportado/i.test(e.message || '')) {
+      return res.status(400).json({ message: e.message });
+    }
+    next(e);
+  }
 });

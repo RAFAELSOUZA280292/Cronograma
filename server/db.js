@@ -430,6 +430,14 @@ export async function initDb() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS ai_messages_conversation_idx ON ai_messages(conversation_id, created_at)`);
 
+  // Agente executor (2026-09, pedido do Rafael: "ele precisa ser um
+  // agente executor também... sempre trazendo pro usuário validar e
+  // confirmar") — a IA só PROPÕE uma ação (`proposed_action`, ver
+  // `server/assistantActions.js`); fica `action_status='pending'` até o
+  // usuário confirmar ou rejeitar pelo painel (nunca executa sozinha).
+  await pool.query(`ALTER TABLE ai_messages ADD COLUMN IF NOT EXISTS proposed_action JSONB`);
+  await pool.query(`ALTER TABLE ai_messages ADD COLUMN IF NOT EXISTS action_status TEXT CHECK (action_status IN ('pending','executed','rejected'))`);
+
   // Aprendizados do Assistente do Projeto (2026-09, pedido do Rafael:
   // "gere aprendizado... memorize isso, não jogue no lixo") — fatos
   // duráveis extraídos das conversas (ver `synthesizeAnswer` em

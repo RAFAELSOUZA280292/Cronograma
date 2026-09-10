@@ -3086,6 +3086,63 @@ usando o perfil do projeto (depende da chave real em produção) — pedir
 ao Rafael pra testar "qual o nome do cliente?"/"qual o regime
 tributário?"/"quais atividades estão atrasadas?" ao vivo.
 
+### Fase 6 v1 — Agente executor (2026-09-10, adiantada a pedido do Rafael)
+
+O Rafael pediu explicitamente pra adiantar a capacidade de execução
+("ele precisa ser um agente executor também... sempre trazendo pro
+usuário validar e confirmar tudo") antes das Fases 3-5. Implementado
+com escopo bem restrito de propósito — primeiro tipo de ação, mais
+simples e de menor risco pra validar o padrão end-to-end antes de
+expandir:
+
+- **Único tipo de ação por enquanto**: `create_meeting_todo` — criar
+  uma pendência (TO_DO) numa reunião já existente. **Não** mexe no
+  cronograma oficial (Gantt/Tabela/Fases/Quadro) ainda — essa é uma
+  extensão natural futura, não construída agora, exatamente pelo maior
+  risco (é a entrega rastreada oficialmente pro cliente).
+- **A IA só propõe, nunca executa sozinha** (`SynthesizeAnswerSchema.proposedAction`,
+  `server/assistantRetrieval.js`) — só quando o usuário pede
+  explicitamente E há uma reunião aberta no contexto (única forma de
+  saber o destino sem ambiguidade nesta v1; sem reunião aberta, a IA é
+  instruída a explicar que precisa abrir a reunião primeiro).
+- **Defesa em profundidade igual à das citações de chunk**: mesmo a
+  proposta da IA é revalidada no backend antes de deixar o usuário
+  confirmar — `meetingId` proposto tem que bater exatamente com o
+  `context.meetingId` da requisição; se não bater, a proposta inteira é
+  descartada e a anomalia vai pro log do servidor.
+- **Execução de verdade** (`server/assistantActions.js`,
+  `executeProposedAction`) só roda depois de `POST
+  /api/assistant/messages/:id/action` com `decision:'confirm'`
+  (`server/assistant.js`) — clique explícito do usuário no painel.
+  Grava a pendência no mesmo formato exato de `meeting.actionItems[]`
+  (igual criação manual ou via `meetingInbox.js`), registra em
+  `project.log` com o nome de quem confirmou, e reindexa a memória da
+  reunião (`reindexMeetingMemory`) pra a pendência nova já ficar
+  pesquisável.
+- **Colunas novas em `ai_messages`**: `proposed_action` (JSONB) e
+  `action_status` (`pending`/`executed`/`rejected`) — uma mensagem sem
+  ação proposta tem os dois `null`. Rejeitar não muda nada no projeto,
+  só marca `action_status='rejected'`; confirmar duas vezes (ex.: duas
+  abas abertas) é bloqueado — `decideProposedAction` recusa qualquer
+  decisão sobre uma ação que não esteja mais `pending`.
+- **UI** (`src/assistant/ProjectAssistant.jsx`): card amarelo com o
+  resumo da ação + botões "Confirmar"/"Cancelar" logo abaixo da
+  mensagem que propôs; depois de decidido, vira um selo neutro
+  ("Pendência criada" / "Ação cancelada"), os botões somem. Confirmar
+  dispara `onReloadProjects` (mesmo mecanismo já usado pela caixa de
+  transcrições, §24.1) pra a pendência nova aparecer sem precisar sair
+  da tela.
+
+**Testado localmente de ponta a ponta** (sem precisar da API key —
+manufaturei uma mensagem com `proposed_action` pendente direto no
+Postgres local pra testar o fluxo de confirmação/rejeição sem depender
+da IA real escolher propor algo): card renderiza certo, "Confirmar"
+grava a pendência no formato certo + log com o nome do usuário +
+reindexação da memória, "Cancelar" não muda nada no projeto, tentar
+decidir a mesma ação duas vezes é recusado com erro claro. **Não
+testado**: a IA de verdade decidindo propor uma ação a partir de um
+pedido em português (depende da chave real em produção).
+
 ### Roteiro das próximas fases (não construído, documentado pra não
 ser assumido como existente)
 
@@ -3096,11 +3153,17 @@ ser assumido como existente)
 - **Fase 4 — Inteligência cross-projeto**: usar a Base de Conhecimento
   pra responder com contexto de outros projetos, sem nunca vazar
   transcrição/dado privado de um cliente pra outro.
-- **Fase 5 — Proativo**: detecção de recorrência entre reuniões,
-  alertas de compromisso vencendo, preparação automática de briefing.
-- **Fase 6 — Ações executáveis**: IA sugerindo criar atividade/alterar
-  prazo/etc., sempre com confirmação explícita do usuário (nunca
-  execução silenciosa).
+- **Fase 5 — Proativo**: hoje o assistente só pergunta sobre
+  participantes sem identificação clara quando o usuário já está
+  conversando (ver PERFIL DO PROJETO acima) — ainda falta detecção de
+  recorrência entre reuniões, alertas de compromisso vencendo sem o
+  usuário perguntar, preparação automática de briefing, e qualquer
+  notificação que apareça sem o usuário ter aberto o painel.
+- **Fase 6 (continuação) — mais tipos de ação executável**: criar
+  atividade no cronograma oficial (Gantt/Tabela/Fases/Quadro), alterar
+  prazo/status de atividade existente, criar reunião — cada um exige
+  pensar o próprio risco/confirmação, não é só copiar o padrão de
+  `create_meeting_todo`.
 
 ## 19. Onde procurar mais detalhe
 
