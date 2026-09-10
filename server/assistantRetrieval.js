@@ -13,7 +13,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
-import { searchProjectMemory } from './memoryRetrieval.js';
+import { searchProjectMemory, getMeetingTranscriptChunks } from './memoryRetrieval.js';
 import { buildProjectSnapshot } from './assistantContext.js';
 import { executeProposedAction } from './assistantActions.js';
 
@@ -27,7 +27,7 @@ const ResolveQuerySchema = z.object({
   standaloneQuery: z.string().describe('Só relevante quando intent="pergunta_sobre_projeto": a pergunta do usuário reescrita como uma busca autossuficiente, resolvendo qualquer pronome ou referência ao turno anterior da conversa (ex.: "esse assunto", "ele", "isso") em texto concreto. Se a pergunta já for autossuficiente, repita-a como está. Se intent="conversa_geral", repita a pergunta original aqui mesmo sem uso.'),
   participant: z.string().nullable().describe('Nome de uma pessoa específica, se a pergunta for sobre o que ela falou/fez/prometeu — exatamente como aparece na conversa, null se a pergunta não for sobre uma pessoa específica'),
   meetingScope: z.enum(['atual', 'projeto_inteiro']).describe('"atual" se o usuário está claramente perguntando só sobre a reunião que está aberta na tela agora; "projeto_inteiro" no caso contrário, incluindo quando o usuário pedir explicitamente pra expandir pra reuniões anteriores'),
-  kind: z.enum([...CHUNK_KINDS, 'qualquer']).describe('Tipo de conteúdo mais provável de responder — "qualquer" se não for possível restringir com confiança'),
+  kind: z.enum([...CHUNK_KINDS, 'qualquer']).describe('Tipo de conteúdo mais provável de responder — "qualquer" se não for possível restringir com confiança. Marque "activity" sempre que o usuário pedir contexto/explicação sobre uma atividade ou pendência específica citando o título dela (ex.: "não to entendendo essa atividade pelo título, me dá mais contexto") — isso aciona uma busca mais profunda na transcrição da reunião de origem.'),
 });
 
 // Dois tipos de ação executável por enquanto (ver server/assistantActions.js)
@@ -103,6 +103,7 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, in
       'Interprete a intenção por trás da fala, não só a letra — dentro dos trechos de reunião, frases como "vou verificar" costumam indicar um compromisso assumido, "depende do fornecedor/cliente" indica uma dependência, "não conseguimos fechar porque faltou X" indica um impedimento, "vamos implementar em [data]" pode indicar um marco do projeto. Ao responder, ajude a distinguir isso — não trate toda menção como se fosse uma tarefa formal.',
       'Quando a resposta envolver várias reuniões ou atividades, apresente sempre da mais antiga pra mais atual (nunca por ordem de cadastro) — mas comece a resposta destacando os pontos mais críticos/urgentes/atrasados antes de entrar na lista cronológica, não deixe eles perdidos no meio do texto.',
       'Quando responder com base num trecho de reunião, cite reunião e data pra ajudar o consultor a confiar na resposta (ex.: "Na reunião de 15/08, Rafael comentou que..."). Só inclua em citedChunkIds os ids dos trechos que você realmente usou — nunca cite um trecho pra sustentar um fato que na verdade veio do PERFIL DO PROJETO ou dos APRENDIZADOS ACUMULADOS.',
+      'Quando o usuário pedir contexto sobre uma atividade específica cujo título sozinho não explica nada (ex.: "não to entendendo essa atividade pelo título"), você recebe, além do chunk da própria atividade, TODOS os segmentos de transcrição da reunião de onde ela nasceu — leia essa transcrição de verdade e explique com suas palavras o que estava sendo discutido quando aquele item surgiu, não repita só os campos da atividade (responsável/prazo/status). O título foi escrito pela IA a partir da fala, então pode não usar as mesmas palavras da conversa original — procure o trecho certo pelo assunto, não por correspondência exata de texto.',
       'Se o assunto tocar uma questão tributária técnica que exige aprofundamento em legislação/base legal (ex.: interpretação de norma de IBS/CBS, fundamento jurídico), não tente concluir sozinha — sinalize que esse ponto merece uma análise tributária dedicada, o tipo de trabalho que a IVANA faz.',
       'Se o PERFIL DO PROJETO listar participantes "SEM IDENTIFICAÇÃO CLARA" e isso for relevante ou natural no contexto da conversa, aproveite pra perguntar ao usuário quem é essa pessoa (lado PRICETAX ou cliente, e qual área) — no máximo uma pergunta desse tipo por resposta, nunca repita uma pergunta sobre a mesma pessoa se ela já foi respondida antes (confira os APRENDIZADOS ACUMULADOS e a conversa) — quando o usuário responder, registre em learnedFact.',
       'Você também pode propor ações (proposedAction): criar uma pendência numa reunião, ou reagendar uma atividade do cronograma — mas NUNCA executa sozinho, e NUNCA finge que já executou. Sempre descreva a ação proposta na resposta citando o título exato do alvo (reunião ou atividade) e peça confirmação. Se não tiver certeza de qual reunião/atividade o usuário quer dizer, NÃO proponha ainda — faça a pergunta de esclarecimento primeiro (ex.: "Você está falando da atividade \'Split payment e demais operações financeiras\'?"), e só proponha de fato no turno seguinte, depois de confirmado.',
@@ -199,6 +200,29 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
         loadInsights(pool, projectId),
       ]);
       chunks = chunksResult;
+
+      // Pedido do Rafael: quando o título de uma atividade não é
+      // autoexplicativo, buscar o chunk da atividade sozinho não basta —
+      // é preciso ler a transcrição da reunião de onde ela veio. O texto
+      // do título é uma paráfrase da IA, pode não usar as mesmas
+      // palavras da fala original — busca por relevância não é
+      // confiável aqui, por isso puxa a transcrição INTEIRA da(s)
+      // reunião(ões) da atividade encontrada, sem depender de ranking.
+      if (scope.kind === 'activity') {
+        const activityMeetingIds = Array.from(new Set(
+          chunks.filter((c) => c.kind === 'activity' && c.meetingId).map((c) => c.meetingId),
+        ));
+        if (activityMeetingIds.length) {
+          const transcriptChunksByMeeting = await Promise.all(
+            activityMeetingIds.map((mid) => getMeetingTranscriptChunks(pool, orgId, projectId, mid)),
+          );
+          const existingIds = new Set(chunks.map((c) => c.id));
+          transcriptChunksByMeeting.flat().forEach((c) => {
+            if (!existingIds.has(c.id)) { chunks.push(c); existingIds.add(c.id); }
+          });
+        }
+      }
+
       synthesized = await synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText, context: context || {} });
       if (synthesized.output.learnedFact) {
         // Falha ao gravar aprendizado não pode derrubar a resposta já
