@@ -35,19 +35,23 @@ const MeetingExtractionSchema = z.object({
   summary: z.string().describe('Resumo completo e bem organizado da reunião em português, cobrindo os principais tópicos discutidos'),
   decisions: z.string().describe('Decisões concretas tomadas durante a reunião, em português; string vazia se nenhuma decisão explícita foi tomada'),
   actionItems: z.array(z.object({
-    title: z.string().describe('O que precisa ser feito'),
-    responsible: z.string().nullable().describe('Nome da pessoa responsável, se identificável na transcrição'),
+    title: z.string().describe('O que precisa ser feito — ação concreta e curta, sem o nome do responsável embutido no texto (o nome já vai no campo "responsible" à parte)'),
+    responsible: z.string().nullable().describe('Nome da pessoa física responsável por executar, exatamente como ela é chamada na transcrição (ex.: "Evanio Santinon", "Rogeria Guerra", "Daniela") — nunca um cargo genérico, nunca o nome de uma empresa. Se duas pessoas dividem a tarefa (ex.: "Gustavo, com a Francine"), coloque as duas nesse mesmo campo, separadas por vírgula. null se a transcrição não deixar claro quem executa.'),
+    owner: z.enum(['pricetax', 'cliente']).describe('De qual lado é essa entrega: "pricetax" quando quem precisa produzir/entregar algo é a própria equipe da consultoria PRICETAX (ex.: fazer uma análise, montar uma prévia, agendar um retorno); "cliente" quando quem precisa produzir/entregar algo é alguém do lado da empresa contratante — a pessoa em "responsible" normalmente já indica de qual lado é, mas classifique mesmo quando "responsible" ficar null'),
     dueDate: z.string().nullable().describe('Prazo em YYYY-MM-DD — só se explicitamente mencionado'),
-  })).describe('Lista de atividades e próximos passos definidos na reunião'),
+  })).describe('Lista de atividades e próximos passos definidos na reunião, um item por ação concreta — não agrupe várias ações numa linha só'),
 });
 
-async function extractMeetingFromTranscript(transcript) {
+async function extractMeetingFromTranscript(transcript, clientCompanyName) {
   const client = new Anthropic();
+  const contexto = clientCompanyName
+    ? `Contexto: esta call é entre a consultoria PRICETAX e o cliente dela, a empresa "${clientCompanyName}". Toda pessoa que não for da equipe da PRICETAX (normalmente identificada na fala como "Pricetax", "consultoria", ou os nomes da equipe da consultoria) é do lado do cliente "${clientCompanyName}".\n\n`
+    : '';
   const response = await client.messages.parse({
     model: 'claude-opus-5',
     max_tokens: 8000,
-    system: 'Você extrai informações estruturadas de transcrições de reuniões de negócio em português do Brasil. Seja fiel ao conteúdo — nunca invente datas, nomes ou decisões que não estejam no texto. Quando algo não for mencionado explicitamente, deixe null (ou lista/string vazia).',
-    messages: [{ role: 'user', content: `Extraia as informações estruturadas desta transcrição de reunião:\n\n${transcript}` }],
+    system: 'Você extrai informações estruturadas de transcrições de reuniões de negócio em português do Brasil. Seja fiel ao conteúdo — nunca invente datas, nomes ou decisões que não estejam no texto. Quando algo não for mencionado explicitamente, deixe null (ou lista/string vazia). Preste atenção especial a quem fala cada trecho (os nomes de interlocutor na transcrição) para saber de que lado (PRICETAX ou cliente) vem cada compromisso assumido.',
+    messages: [{ role: 'user', content: `${contexto}Extraia as informações estruturadas desta transcrição de reunião:\n\n${transcript}` }],
     output_config: { format: zodOutputFormat(MeetingExtractionSchema) },
   });
   if (!response.parsed_output) throw new Error('A IA não conseguiu estruturar essa transcrição.');
@@ -61,11 +65,12 @@ async function processSubmission(submissionId) {
     const sub = rows[0];
     if (!sub) return;
 
-    const extracted = await extractMeetingFromTranscript(sub.transcript);
-
     const { rows: projRows } = await pool.query('SELECT id, data FROM projects WHERE id=$1', [sub.project_id]);
     const project = projRows[0];
     if (!project) throw new Error('Empresa não encontrada.');
+    const clientCompanyName = (project.data && project.data.company && project.data.company.name) || '';
+
+    const extracted = await extractMeetingFromTranscript(sub.transcript, clientCompanyName);
 
     const meeting = {
       id: uid('mtg'),
@@ -80,6 +85,7 @@ async function processSubmission(submissionId) {
         id: uid('mai'),
         title: it.title || '',
         responsible: it.responsible || '',
+        owner: it.owner === 'cliente' ? 'cliente' : 'pricetax',
         dueDate: it.dueDate || '',
         status: 'em-andamento',
         deleted: false,
