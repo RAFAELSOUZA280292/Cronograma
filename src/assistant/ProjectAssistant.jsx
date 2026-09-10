@@ -7,7 +7,7 @@
 // resposta sem indicar de onde veio, e mostra explicitamente quando não
 // há evidência suficiente.
 import React, { useEffect, useRef, useState } from 'react';
-import { Sparkles, X, Send, ThumbsUp, ThumbsDown, Trash2, Mic, Loader2, Check, Ban } from 'lucide-react';
+import { Sparkles, X, Send, ThumbsUp, ThumbsDown, Trash2, Mic, Loader2, Check, Ban, RefreshCw } from 'lucide-react';
 import { fmtDate, useIsMobile } from '../App.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 
@@ -91,6 +91,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [decidingActionId, setDecidingActionId] = useState(null);
+  const [reindexing, setReindexing] = useState(false);
   const bodyRef = useRef(null);
 
   useEffect(() => { setLoaded(false); setMessages([]); }, [projectId]);
@@ -129,6 +130,23 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
   function clearConversation() {
     apiPost(`/api/assistant/conversation/clear?projectId=${projectId}`).catch(() => {});
     setMessages([]);
+  }
+
+  async function handleReindex() {
+    if (reindexing) return;
+    setReindexing(true);
+    try {
+      const res = await apiPost('/api/assistant/reindex', { projectId });
+      setMessages((prev) => [...prev, {
+        id: `local-reindex-${Date.now()}`, role: 'assistant',
+        content: `Memória reindexada: ${res.meetingsIndexed} reunião(ões), ${res.chunksCreated} trecho(s) atualizados. Já pode perguntar de novo.`,
+        sources: [], hasEvidence: null,
+      }]);
+    } catch (e) {
+      setMessages((prev) => [...prev, { id: `err-reindex-${Date.now()}`, role: 'assistant', content: 'Não consegui reindexar agora. Tente de novo em alguns instantes.', sources: [], hasEvidence: false }]);
+    } finally {
+      setReindexing(false);
+    }
   }
 
   function giveFeedback(messageId, feedback) {
@@ -172,6 +190,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                 <div className="asst-head-sub">{projectName}</div>
               </div>
               <div className="asst-head-actions">
+                <button type="button" style={{ background: 'transparent', border: 'none', color: 'var(--text-5)', cursor: reindexing ? 'default' : 'pointer', display: 'flex' }} disabled={reindexing} title="Reindexar memória do projeto — use se a RENATA disser que não encontra o conteúdo de uma reunião que já existe" onClick={handleReindex}><RefreshCw size={16} className={reindexing ? 'asst-spin' : ''} /></button>
                 <button type="button" style={{ background: 'transparent', border: 'none', color: 'var(--text-5)', cursor: 'pointer', display: 'flex' }} title="Limpar conversa" onClick={clearConversation}><Trash2 size={16} /></button>
                 <button type="button" style={{ background: 'transparent', border: 'none', color: 'var(--text-5)', cursor: 'pointer', display: 'flex' }} onClick={() => setOpen(false)}><X size={20} /></button>
               </div>

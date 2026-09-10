@@ -7,6 +7,7 @@ import { pool } from './db.js';
 import { requireAuth } from './auth.js';
 import { canAccessProject } from './routes.js';
 import { askProjectAssistant, getConversationMessages, clearConversation, setMessageFeedback, decideProposedAction } from './assistantRetrieval.js';
+import { reindexProjectMemory } from './memoryIngest.js';
 
 export const router = Router();
 
@@ -59,6 +60,24 @@ router.post('/messages/:id/feedback', requireAuth, async (req, res, next) => {
     if (!project) return;
     await setMessageFeedback(pool, project.org_id, projectId, req.user.id, req.params.id, feedback);
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// Reindexação manual da memória do projeto (2026-09-10) — botão de
+// autoatendimento pro próprio usuário corrigir o caso de reuniões que a
+// RENATA não está encontrando (ex.: reuniões criadas via "Enviar
+// transcrição" antes do fix que passou a reindexar automaticamente,
+// server/meetingInbox.js). Sem isso, corrigir dependeria de rodar um
+// script direto contra o banco de produção — inviável pro Rafael sem
+// acesso ao Railway. Idempotente (reindexMeetingMemory sempre apaga e
+// recria), então clicar de novo nunca duplica nem piora nada.
+router.post('/reindex', requireAuth, async (req, res, next) => {
+  try {
+    const { projectId } = req.body || {};
+    const project = await loadAuthorizedProject(req, res, projectId);
+    if (!project) return;
+    const result = await reindexProjectMemory(pool, project.org_id, projectId, project.data);
+    res.json(result);
   } catch (e) { next(e); }
 });
 
