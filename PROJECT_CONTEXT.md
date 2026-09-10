@@ -3320,6 +3320,45 @@ sequência:
    fixture sintético limpo — e helpers chamados no meio de um pipeline
    maior precisam estar DENTRO do bloco que já trata erro, nunca antes.
 
+### Contexto de atividade via transcrição de origem (2026-09-10)
+
+Pedido do Rafael a partir de um exemplo real de atividade cujo título
+sozinho não explica nada ("Solicitar nova apresentação atualizada do
+sistema de apuração ao fornecedor") — quando o usuário pede contexto
+sobre uma atividade assim, buscar só o chunk `kind='activity'` (que só
+tem título/responsável/status/prazo) não ajuda; é preciso ler de
+verdade a transcrição da reunião de onde ela nasceu.
+
+**Por que busca por relevância não resolve sozinha aqui**: o título da
+atividade é uma paráfrase gerada pela IA a partir da fala — pode não
+ter as mesmas palavras que apareceram na conversa original, então uma
+busca lexical (`ts_rank_cd`) pelo título pode não achar o trecho certo
+da transcrição (que só teria alta relevância textual se usasse
+literalmente as mesmas palavras).
+
+**Fix**: `getMeetingTranscriptChunks(pool, orgId, projectId, meetingId)`
+(`server/memoryRetrieval.js`, novo) — busca TODOS os segmentos de
+transcrição de UMA reunião específica, sem ranking nenhum (não é busca
+por relevância, é "me dê tudo dessa reunião" — o LLM é quem lê e acha a
+parte certa). Em `askProjectAssistant`, quando `resolveQuery` classifica
+`kind="activity"` (descrição do campo reforçada pra reconhecer esse
+padrão de pedido) e a busca inicial retorna um chunk de atividade, o
+`meetingId` dele é extraído e a transcrição inteira daquela reunião é
+buscada e mesclada nos chunks antes de `synthesizeAnswer` — sem
+depender de correspondência textual entre o título e a fala original.
+Prompt de síntese instruído a ler essa transcrição de verdade e
+explicar com as próprias palavras o que estava sendo discutido, não só
+repetir os campos da atividade.
+
+**Testado localmente**: reunião de teste com uma atividade cujo título
+não repete as palavras da transcrição — confirmado que a busca inicial
+por `kind='activity'` acha o chunk certo, o `meetingId` é extraído
+corretamente, e `getMeetingTranscriptChunks` retorna os segmentos de
+transcrição daquela reunião específica (sem depender de relevância
+textual nenhuma). **Não testado**: a IA de verdade lendo esse contexto
+enriquecido e produzindo uma explicação em português a partir dele
+(depende da chave real em produção).
+
 ### Roteiro das próximas fases (não construído, documentado pra não
 ser assumido como existente)
 

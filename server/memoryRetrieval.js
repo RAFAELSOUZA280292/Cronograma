@@ -69,3 +69,34 @@ export async function searchProjectMemory(pool, {
     score: Number(r.score),
   }));
 }
+
+// Busca por relevância (acima) é o padrão pra "o que foi discutido sobre
+// X" — mas quando o assunto é EXPLICAR uma atividade específica cujo
+// título sozinho não é autoexplicativo (pedido do Rafael: "não to
+// entendendo pelo título, a Renata deve ir ler a transcrição"), o que
+// importa é COMPLETUDE, não ranking textual — a atividade foi extraída
+// de algum ponto da conversa, e o texto do título pode não ter as mesmas
+// palavras que apareceram na fala. Por isso esta função busca TODOS os
+// segmentos de transcrição de UMA reunião específica, sem filtro de
+// relevância nenhum — o LLM é quem lê e acha a parte que explica.
+export async function getMeetingTranscriptChunks(pool, orgId, projectId, meetingId, limit = 40) {
+  const { rows } = await pool.query(
+    `SELECT id, meeting_id, kind, content, participants, meeting_date, meeting_title, time_ref, source_ref
+     FROM project_memory_chunks
+     WHERE org_id=$1 AND project_id=$2 AND meeting_id=$3 AND kind='transcript_segment'
+     ORDER BY chunk_order ASC LIMIT $4`,
+    [orgId, projectId, meetingId, limit],
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    meetingId: r.meeting_id,
+    kind: r.kind,
+    content: r.content,
+    participants: r.participants || [],
+    meetingDate: r.meeting_date,
+    meetingTitle: r.meeting_title,
+    timeRef: r.time_ref,
+    sourceRef: r.source_ref || {},
+    score: 0,
+  }));
+}
