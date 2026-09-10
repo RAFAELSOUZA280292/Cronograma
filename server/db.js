@@ -389,6 +389,46 @@ export async function initDb() {
   await pool.query(`CREATE INDEX IF NOT EXISTS project_memory_chunks_meeting_idx ON project_memory_chunks (project_id, meeting_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS project_memory_chunks_org_date_idx ON project_memory_chunks (org_id, project_id, meeting_date)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS project_memory_chunks_participants_idx ON project_memory_chunks USING GIN (participants jsonb_path_ops)`);
+
+  // Assistente do Projeto (2026-09, Fase 2 do Assistente Inteligente de
+  // Projetos) — uma conversa contínua por usuário+empresa (índice único
+  // garante isso no banco, não só por convenção de código). Cada
+  // mensagem já nasce com colunas de observabilidade (modelo/tokens/
+  // latência) e feedback — mais barato adicionar agora do que numa
+  // segunda migration depois. `sources`/`scope` são JSONB porque variam
+  // de forma (fonte pode ser trecho de transcrição, decisão, atividade
+  // etc. — ver server/assistantRetrieval.js).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_conversations (
+      id          TEXT PRIMARY KEY,
+      org_id      TEXT NOT NULL REFERENCES organizations(id),
+      project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS ai_conversations_user_project_uidx ON ai_conversations(project_id, user_id)`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_messages (
+      id              TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
+      role            TEXT NOT NULL CHECK (role IN ('user','assistant')),
+      content         TEXT NOT NULL,
+      sources         JSONB NOT NULL DEFAULT '[]',
+      has_evidence    BOOLEAN,
+      scope           JSONB NOT NULL DEFAULT '{}',
+      feedback        TEXT CHECK (feedback IN ('up','down')),
+      model           TEXT NOT NULL DEFAULT '',
+      tokens_input    INT,
+      tokens_output   INT,
+      latency_ms      INT,
+      error           TEXT,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_messages_conversation_idx ON ai_messages(conversation_id, created_at)`);
 }
 
 export function blankXflowTicketData() {

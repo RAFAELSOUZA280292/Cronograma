@@ -24,6 +24,7 @@ import MacroOverviewScreen from './macro/MacroOverview.jsx';
 import { MeetingsView, todoStatusMeta } from './meetings/Meetings.jsx';
 import { MeetingDetailModal, MeetingPrintReport, PublicMeetingScreen } from './meetings/MeetingDetail.jsx';
 import { TodoBoardView } from './meetings/TodoBoard.jsx';
+import { ProjectAssistant } from './assistant/ProjectAssistant.jsx';
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
 const THEME_KEY = 'pricetax-cronograma-theme';
@@ -2815,6 +2816,23 @@ export default function App() {
       )}
 
       <ToastStack toasts={appToasts} onDismiss={dismissAppToast} />
+
+      {!isMulti && (view === 'meetings' || view === 'todo') && (() => {
+        const openMeeting = openMeetingId && openMeetingId.pid === activeProject.id
+          ? (activeProject.meetings || []).find((m) => m.id === openMeetingId.id)
+          : null;
+        return (
+          <ProjectAssistant
+            projectId={activeProject.id}
+            projectName={activeProject.company && (activeProject.company.nomeFantasia || activeProject.company.name)}
+            view={view}
+            openMeetingId={openMeeting ? openMeeting.id : null}
+            openMeetingTitle={openMeeting ? openMeeting.title : null}
+            openMeetingDate={openMeeting ? openMeeting.date : null}
+            onOpenMeeting={(id) => { setView('meetings'); openMeetingDetail(activeProject.id, id); }}
+          />
+        );
+      })()}
     </div>
   );
 }

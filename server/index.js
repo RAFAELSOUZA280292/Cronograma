@@ -9,6 +9,7 @@ import { router as googleRouter } from './google.js';
 import { router as agendaRouter } from './agenda.js';
 import { router as macroRouter } from './macro.js';
 import { router as meetingInboxRouter } from './meetingInbox.js';
+import { router as assistantRouter } from './assistant.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '..', 'dist');
@@ -23,6 +24,7 @@ app.use('/api/google', googleRouter);
 app.use('/api/agenda', agendaRouter);
 app.use('/api/macro', macroRouter);
 app.use('/api/meeting-inbox', meetingInboxRouter);
+app.use('/api/assistant', assistantRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use('/api', (err, req, res, next) => {
