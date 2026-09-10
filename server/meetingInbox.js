@@ -40,6 +40,15 @@ const MeetingExtractionSchema = z.object({
     owner: z.enum(['pricetax', 'cliente']).describe('De qual lado é essa entrega: "pricetax" quando quem precisa produzir/entregar algo é a própria equipe da consultoria PRICETAX (ex.: fazer uma análise, montar uma prévia, agendar um retorno); "cliente" quando quem precisa produzir/entregar algo é alguém do lado da empresa contratante — a pessoa em "responsible" normalmente já indica de qual lado é, mas classifique mesmo quando "responsible" ficar null'),
     dueDate: z.string().nullable().describe('Prazo em YYYY-MM-DD — só se explicitamente mencionado'),
   })).describe('Lista de atividades e próximos passos definidos na reunião, um item por ação concreta — não agrupe várias ações numa linha só'),
+  topics: z.array(z.object({
+    title: z.string().describe('Título curto do tópico/bloco de assunto discutido, em português'),
+    startTime: z.string().nullable().describe('O timestamp EXATAMENTE como aparece no texto bruto da transcrição no início desse tópico (ex.: "00:00", "12:48") — cite literalmente o texto, não invente nem arredonde. null se a transcrição não tiver marcação de tempo.'),
+  })).describe('De 3 a 8 blocos cronológicos de assunto, na ordem em que aparecem na reunião — só o título e o timestamp de início de cada um, NUNCA reproduza as falas aqui (isso já está no campo transcript, que é a fonte original e não deve ser duplicada).'),
+  highlights: z.array(z.object({
+    type: z.enum(['decisao', 'risco', 'pendencia', 'proximo_passo', 'duvida', 'insight', 'numero_importante']).describe('Classificação do trecho: decisao (algo foi decidido), risco (algo pode dar errado / precisa atenção), pendencia (ficou em aberto), proximo_passo (ação futura combinada), duvida (pergunta sem resposta na call), insight (observação relevante), numero_importante (valor/percentual/prazo citado que merece destaque)'),
+    time: z.string().nullable().describe('Timestamp exatamente como aparece no texto, se houver'),
+    quote: z.string().describe('Citação literal e curta (uma frase) copiada do texto da transcrição — nunca parafraseada'),
+  })).describe('Até 10 trechos mais relevantes da reunião, cada um citado literalmente (não resuma o resto da transcrição aqui, isso é papel do campo summary).'),
 });
 
 async function extractMeetingFromTranscript(transcript, clientCompanyName) {
@@ -49,8 +58,8 @@ async function extractMeetingFromTranscript(transcript, clientCompanyName) {
     : '';
   const response = await client.messages.parse({
     model: 'claude-opus-5',
-    max_tokens: 8000,
-    system: 'Você extrai informações estruturadas de transcrições de reuniões de negócio em português do Brasil. Seja fiel ao conteúdo — nunca invente datas, nomes ou decisões que não estejam no texto. Quando algo não for mencionado explicitamente, deixe null (ou lista/string vazia). Preste atenção especial a quem fala cada trecho (os nomes de interlocutor na transcrição) para saber de que lado (PRICETAX ou cliente) vem cada compromisso assumido.',
+    max_tokens: 10000,
+    system: 'Você extrai informações estruturadas de transcrições de reuniões de negócio em português do Brasil. Seja fiel ao conteúdo — nunca invente datas, nomes ou decisões que não estejam no texto. Quando algo não for mencionado explicitamente, deixe null (ou lista/string vazia). Preste atenção especial a quem fala cada trecho (os nomes de interlocutor na transcrição) para saber de que lado (PRICETAX ou cliente) vem cada compromisso assumido. Para "topics" e "highlights", cite timestamps e trechos exatamente como aparecem no texto bruto — nunca invente marcação de tempo que não esteja lá, e nunca copie a transcrição inteira nesses campos (eles são só um índice leve, o texto original já está preservado à parte).',
     messages: [{ role: 'user', content: `${contexto}Extraia as informações estruturadas desta transcrição de reunião:\n\n${transcript}` }],
     output_config: { format: zodOutputFormat(MeetingExtractionSchema) },
   });
@@ -97,6 +106,10 @@ async function processSubmission(submissionId) {
         createdBy: 'IA (transcrição)',
         createdAt: new Date().toISOString(),
       })),
+      topics: extracted.topics || [],
+      highlights: extracted.highlights || [],
+      shareToken: '',
+      shareVisibility: 'private',
       createdAt: new Date().toISOString(),
       deleted: false,
       deletedAt: '',

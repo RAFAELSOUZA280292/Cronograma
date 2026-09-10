@@ -585,6 +585,32 @@ router.patch('/public-board/:token', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ---------- Public meeting sharing (per-meeting link, SÓ LEITURA) ----------
+// Mesmo espírito do public-board acima (token dentro do próprio JSONB,
+// scan de todos os projetos — poucas dezenas de empresas hoje), mas sem
+// rota PATCH: quem recebe o link nunca edita nada, só visualiza resumo/
+// decisões/transcrição/atividades da reunião.
+
+async function findMeetingByShareToken(token) {
+  const { rows } = await pool.query('SELECT id, data FROM projects');
+  for (const row of rows) {
+    const meetings = (row.data && row.data.meetings) || [];
+    const meeting = meetings.find((m) => m.shareToken && m.shareToken === token && !m.deleted);
+    if (meeting) return { projectId: row.id, companyName: (row.data.company && row.data.company.name) || '', meeting };
+  }
+  return null;
+}
+
+router.get('/public-meeting/:token', optionalAuth, async (req, res, next) => {
+  try {
+    const found = await findMeetingByShareToken(req.params.token);
+    if (!found || found.meeting.shareVisibility !== 'public') {
+      return res.status(404).json({ message: 'Link inválido ou a reunião não é mais pública.' });
+    }
+    res.json({ meeting: found.meeting, companyName: found.companyName });
+  } catch (e) { next(e); }
+});
+
 // ---------- Organizations (Super Admin only) ----------
 
 function rowToOrg(row) {

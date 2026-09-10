@@ -2686,6 +2686,125 @@ conscientemente — não assumir que existe)
   Quadro) em algo tipo "Visão Geral/Cronograma" — só a aba TO
   DO→Atividades mudou; as outras seguem como estavam.
 
+## 26. Reunião — "AI Meeting Workspace" (2026-09)
+
+Redesign completo da tela de detalhe de reunião (antigo `MeetingDetailModal`,
+formulário denso de `<textarea>`s) — motivado por feedback direto do
+Rafael de que a tela competia visualmente, cortava título, e não passava
+sensação de "a IA já organizou isso pra mim". Referência de UX: Linear/
+Notion/Granola, mesma linguagem visual da aba Atividades (§25) — os dois
+módulos precisavam "parecer parte do mesmo produto".
+
+### Onde mora o dado (sem migration)
+
+Continua tudo dentro de `meeting` (JSONB, `project.data.meetings[]`) —
+nada mudou de lugar. Campos novos, default vazio, sem afetar reunião
+antiga:
+```js
+{ ...campos atuais,
+  topics: [{ title, startTime }],       // índice leve de tópicos, NÃO reproduz a fala
+  highlights: [{ type, time, quote }],  // até 10, citação literal curta
+  shareToken: '', shareVisibility: 'private' }
+```
+`topics`/`highlights` só existem em reuniões processadas pela IA
+**depois** deste deploy — reunião antiga cai no fallback (ver Transcrição
+abaixo), sem reprocessamento automático (decisão explícita do Rafael:
+"gerar atividades"/reprocessar reunião existente com IA ficou fora do
+escopo desta entrega).
+
+### Arquivos novos
+
+- `src/meetings/MeetingDetail.jsx` — `MeetingDetailModal` (tela
+  principal, substituiu o que antes vivia em `Meetings.jsx`),
+  `MeetingShareModal`, `MeetingPrintReport`, `PublicMeetingScreen`.
+- `src/meetings/TranscriptView.jsx` — card de transcrição com os 3 modos.
+- `src/meetings/ActivityRow.jsx` — linha de atividade extraída de
+  `TodoBoard.jsx` (era uma função interna `renderRow`) pra ser
+  **literalmente o mesmo componente visual** usado na aba Atividades e
+  na coluna de atividades da Reunião — inclui `ACTIVITY_ROW_CSS`
+  exportado (cada tela que renderiza `<ActivityRow>` precisa incluir
+  esse `<style>` uma vez; `TODO_BOARD_CSS` em `TodoBoard.jsx` só tem mais
+  o CSS de entorno — filtros/stat cards/popovers — não da linha em si).
+- `src/meetings/meetingUtils.js` — `parseTranscript` (regex best-effort),
+  `sliceEntriesByTopics`, `buildMeetingText` (exportação .txt),
+  `downloadTextFile`, `HIGHLIGHT_TYPE_META`.
+- Reaproveitado sem mudança: `TodoDrawer.jsx` (aberto direto a partir da
+  coluna de atividades da reunião — mesmo componente, `onOpenMeeting`
+  vira no-op porque já se está dentro da reunião de origem).
+
+### Transcrição em 3 modos — por que o design é assim
+
+O schema de extração da IA (`server/meetingInbox.js`) ganhou `topics` e
+`highlights`, mas **deliberadamente não pede pra IA reproduzir a
+transcrição** — só título+timestamp de cada tópico e citações curtas nos
+highlights. Reproduzir a call inteira de volta infla `max_tokens`
+proporcionalmente ao tamanho da reunião (risco real com reuniões longas)
+e cria risco de a IA reescrever a fonte, o que o pedido original proibia
+explicitamente ("nunca alterar a transcrição original").
+
+Em vez disso, `parseTranscript()` (client-side, `meetingUtils.js`)
+reconhece por regex o padrão real observado nas transcrições do Rafael
+(linha de horário tipo `00:00` ou `00:00 – 00:01`, linha de nome, texto)
+e monta as "bolhas de fala" — isso roda em **qualquer** reunião, inclusive
+as antigas, sem depender de IA nova. `sliceEntriesByTopics()` só corta
+essas entradas já parseadas usando o `startTime` que a IA identificou.
+Fallbacks em cascata, sempre honestos (nunca finge estrutura que não
+existe):
+- Sem `topics` (reunião antiga, ou nunca processada por IA): aba "Por
+  temas" mostra aviso, não esconde a aba.
+- `parseTranscript` não reconhece padrão suficiente (transcrição colada
+  num formato diferente): aba "Completa" cai pra parágrafo simples (nunca
+  textarea); "Por temas" mostra só o título de cada tópico, sem conteúdo.
+- Sem `highlights`: aba mostra aviso, mesma lógica.
+- Busca (`Buscar na transcrição...`) funciona nos 3 modos, com contador e
+  navegação ↑/↓ — a contagem de resultados só é lida de volta num
+  `useEffect` depois do commit do React (o contador incrementa como
+  efeito colateral durante o render do highlight, não pode ser lido no
+  corpo da função — bug real encontrado e corrigido durante o teste local:
+  mostrava sempre "0 resultados" mesmo com o texto destacado certo).
+- Sem virtualização de verdade (nenhuma lib no projeto) — só renderização
+  incremental ("Carregar mais", 150 por página), suficiente pro volume
+  real de uma transcrição de reunião.
+
+### Compartilhar (link público, só-leitura)
+
+Mesmo padrão de token do quadro pessoal (`genShareToken()`, gerado no
+cliente — não é criptograficamente forte, risco aceito historicamente,
+registrado aqui porque reunião pode ter conteúdo mais sensível que uma
+lista de tarefas pessoal), mas com uma diferença deliberada: **sem rota
+PATCH pública**. `findMeetingByShareToken` (`server/routes.js`) escaneia
+todos os projetos (mesmo trade-off aceito do `findBoardByShareToken` —
+poucas empresas hoje) procurando `data.meetings[].shareToken`. `GET
+/api/public-meeting/:token` (`optionalAuth`) devolve só `{meeting,
+companyName}` — nunca o resto do projeto (equipe, outras reuniões,
+cronograma). Rota ativada por
+`window.location.pathname.match(/^\/reuniao\/([A-Za-z0-9_-]+)/)` em
+`App.jsx` (mesmo esquema hardcoded do `/quadro/:token`), renderizando
+`PublicMeetingScreen` — reaproveita a mesma UI de leitura, sem nenhum
+controle de edição.
+
+### Exportar
+
+PDF via `MeetingPrintReport` (mesmo padrão `display:none` → `@media
+print{display:block}` do `PrintReport` existente, mas layout de 1
+reunião só) — ativado por `exportMeetingPdf()` (`App.jsx`), que monta o
+componente num estado `meetingToPrint`, chama `window.print()` e desmonta
+em seguida. Texto via `buildMeetingText()` + `downloadTextFile()` (Blob +
+`<a download>`, sem lib nova).
+
+### Fora do escopo desta entrega
+
+- Reprocessar/gerar atividades via IA numa reunião já existente (decisão
+  do Rafael) — criar atividade continua manual.
+- Reorganização da navegação superior (Resumo/Gantt/Tabela/Fases/Quadro
+  → "Visão Geral/Cronograma") — decisão do Rafael, mesma da aba
+  Atividades (§25).
+- Speaker mapping manual ("Speaker 1 → escolher participante") — as
+  transcrições reais já vêm com nome de verdade na fala.
+- Word/ata formatada, playback de áudio, "pergunte à IA sobre a
+  reunião", follow-up automático — nenhum suporte hoje.
+- Rota PATCH no link público — é só-leitura por decisão explícita.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

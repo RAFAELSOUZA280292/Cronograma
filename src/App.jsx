@@ -21,7 +21,8 @@ import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
 import XFlowScreen from './xflow/XFlow.jsx';
 import AgendaScreen from './agenda/Agenda.jsx';
 import MacroOverviewScreen from './macro/MacroOverview.jsx';
-import { MeetingsView, MeetingDetailModal, todoStatusMeta } from './meetings/Meetings.jsx';
+import { MeetingsView, todoStatusMeta } from './meetings/Meetings.jsx';
+import { MeetingDetailModal, MeetingPrintReport, PublicMeetingScreen } from './meetings/MeetingDetail.jsx';
 import { TodoBoardView } from './meetings/TodoBoard.jsx';
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
@@ -464,6 +465,7 @@ export default function App() {
 
   const [view, setView] = useState('table');
   const [todoFocusMeetingId, setTodoFocusMeetingId] = useState(null);
+  const [meetingToPrint, setMeetingToPrint] = useState(null);
   const [showLog, setShowLog] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -641,6 +643,9 @@ export default function App() {
         externalContacts={project.externalContacts || []}
         clientName={project.company && project.company.name}
         pid={project.id}
+        currentUser={currentUser}
+        log={project.log || []}
+        pushUndoToast={pushAppUndoToast}
         onClose={closeMeetingDetail}
         updateMeeting={updateMeeting}
         deleteMeeting={(tPid, id) => { if (deleteMeeting(tPid, id)) closeMeetingDetail(); }}
@@ -649,7 +654,18 @@ export default function App() {
         addActionItem={addMeetingActionItem}
         updateActionItem={updateMeetingActionItem}
         deleteActionItem={deleteMeetingActionItem}
+        duplicateActionItem={duplicateActionItem}
+        addSubtask={addTodoSubtask}
+        toggleSubtask={toggleTodoSubtask}
+        deleteSubtask={deleteTodoSubtask}
+        addComment={addTodoComment}
+        deleteComment={deleteTodoComment}
+        addAttachment={addTodoAttachment}
+        deleteAttachment={deleteTodoAttachment}
         onViewActivities={(meetingId) => { closeMeetingDetail(); setView('todo'); setTodoFocusMeetingId(meetingId); }}
+        onSetShareVisibility={(visibility) => toggleMeetingShare(project.id, meeting.id, visibility)}
+        onRegenerateShareLink={() => regenerateMeetingShareLink(project.id, meeting.id)}
+        onExportPdf={() => exportMeetingPdf(meeting, project.company && project.company.name)}
       />
     );
   }
@@ -952,6 +968,11 @@ export default function App() {
   const publicBoardMatch = window.location.pathname.match(/^\/quadro\/([A-Za-z0-9_-]+)/);
   if (publicBoardMatch) {
     return <PublicBoardScreen token={publicBoardMatch[1]} theme={theme} onToggleTheme={toggleTheme} />;
+  }
+
+  const publicMeetingMatch = window.location.pathname.match(/^\/reuniao\/([A-Za-z0-9_-]+)/);
+  if (publicMeetingMatch) {
+    return <PublicMeetingScreen token={publicMeetingMatch[1]} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   if (!sessionChecked) {
@@ -1462,6 +1483,25 @@ export default function App() {
       ...p,
       meetings: (p.meetings || []).map((m) => (m.id === meetingId ? { ...m, ...patch } : m)),
     }), logMsg);
+  }
+
+  // Compartilhar reunião por link público, só-leitura — mesmo padrão de
+  // token do quadro pessoal (genShareToken, gerado no cliente), mas sem
+  // rota PATCH pública: quem recebe o link só visualiza.
+  function toggleMeetingShare(targetPid, meetingId, visibility) {
+    const project = projects.find((p) => p.id === targetPid);
+    const m = project && (project.meetings || []).find((x) => x.id === meetingId);
+    if (!m) return;
+    const patch = { shareVisibility: visibility };
+    if (visibility === 'public' && !m.shareToken) patch.shareToken = genShareToken();
+    updateMeeting(targetPid, meetingId, patch, visibility === 'public' ? `Reunião "${m.title}" tornada pública por link` : `Reunião "${m.title}" tornada privada`);
+  }
+
+  function regenerateMeetingShareLink(targetPid, meetingId) {
+    const project = projects.find((p) => p.id === targetPid);
+    const m = project && (project.meetings || []).find((x) => x.id === meetingId);
+    if (!m) return;
+    updateMeeting(targetPid, meetingId, { shareToken: genShareToken() }, `Link público da reunião "${m.title}" regenerado (link anterior invalidado)`);
   }
 
   function deleteMeeting(targetPid, meetingId) {
@@ -2087,6 +2127,17 @@ export default function App() {
     document.title = prevTitle;
   }
 
+  function exportMeetingPdf(meeting, companyName) {
+    const prevTitle = document.title;
+    document.title = `Reuniao PRICETAX - ${meeting.title || 'sem-titulo'} - ${fmtDate(meeting.date || todayISOStr())}`;
+    setMeetingToPrint({ meeting, companyName });
+    setTimeout(() => {
+      window.print();
+      document.title = prevTitle;
+      setMeetingToPrint(null);
+    }, 50);
+  }
+
   const activitiesSorted = activeProject ? sortActivities(activeProject.activities.filter((a) => !a.deleted)) : [];
   const orderMap = buildOrderMap(activitiesSorted);
 
@@ -2461,6 +2512,7 @@ export default function App() {
       </main>
 
       <PrintReport projects={isMulti ? selectedProjects : [activeProject]} generatedAt={fmtDate(todayISOStr())} />
+      {meetingToPrint && <MeetingPrintReport meeting={meetingToPrint.meeting} companyName={meetingToPrint.companyName} />}
 
       <div className="no-print" style={S.hint}>
         Alterações são salvas automaticamente e registradas no log. {isMulti ? `Você está vendo a visão geral de ${selectedProjects.length} empresas.` : `Você está vendo o projeto de ${activeProject.company.name || 'um cliente sem nome cadastrado'}.`}
