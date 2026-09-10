@@ -8,7 +8,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, Plus, X, Trash2, Undo2, Clock, Users, CalendarDays, ChevronDown, FileText, Sparkles, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
-import { S, fmtDate, fmtTs, useIsMobile, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel, SidePanel, STATUS_META, STATUS_ORDER } from '../App.jsx';
+import { S, fmtDate, fmtTs, useIsMobile, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel, SidePanel } from '../App.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 
 const MEETINGS_CSS = `
@@ -41,6 +41,20 @@ const SUBMISSION_STATUS_META = {
   failed: { label: 'Falhou', className: 'mtg-sub-failed' },
 };
 
+// Status do TO_DO da reunião (2026-09, pedido do Rafael) — próprio, não
+// reaproveita o STATUS_META de atividade: aqui é uma mistura de urgência e
+// andamento ("urgente", "não é relevante"), que não faz sentido no ciclo de
+// vida de uma atividade normal do cronograma.
+const TODO_STATUS_META = {
+  urgente: { label: 'Urgente', color: '#e2574c', bg: 'rgba(226,87,76,.14)', border: 'rgba(226,87,76,.5)' },
+  'em-andamento': { label: 'Em andamento', color: '#3ea6ff', bg: 'rgba(62,166,255,.14)', border: 'rgba(62,166,255,.5)' },
+  pausada: { label: 'Pausada', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
+  concluida: { label: 'Concluída', color: '#3ecf6e', bg: 'rgba(62,207,110,.14)', border: 'rgba(62,207,110,.5)' },
+  'nao-relevante': { label: 'Não é relevante', color: 'var(--text-6)', bg: 'var(--border-1)', border: 'var(--border-3)' },
+};
+const TODO_STATUS_ORDER = ['urgente', 'em-andamento', 'pausada', 'concluida', 'nao-relevante'];
+const todoStatusMeta = (s) => TODO_STATUS_META[s] || TODO_STATUS_META['em-andamento'];
+
 function todayIso() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -49,7 +63,7 @@ function todayIso() {
 function actionItemsSummary(items) {
   const active = (items || []).filter((it) => !it.deleted);
   if (active.length === 0) return null;
-  const done = active.filter((it) => it.status === 'concluido').length;
+  const done = active.filter((it) => it.status === 'concluida').length;
   return `${done}/${active.length} concluída${active.length === 1 ? '' : 's'}`;
 }
 
@@ -455,7 +469,7 @@ export function MeetingDetailModal({ meeting: m, team, externalContacts, pid, on
                     <input
                       type="text" value={it.title}
                       onChange={(e) => updateActionItem(pid, m.id, it.id, { title: e.target.value })}
-                      style={{ flex: 1, fontWeight: 700, textDecoration: it.status === 'concluido' ? 'line-through' : 'none', opacity: it.status === 'concluido' ? .6 : 1 }}
+                      style={{ flex: 1, fontWeight: 700, textDecoration: it.status === 'concluida' ? 'line-through' : 'none', opacity: it.status === 'concluida' ? .6 : 1 }}
                     />
                     <button style={S.iconBtnGhost} onClick={() => deleteActionItem(pid, m.id, it.id)}><X size={13} /></button>
                   </div>
@@ -467,11 +481,11 @@ export function MeetingDetailModal({ meeting: m, team, externalContacts, pid, on
                     <input type="date" value={it.dueDate || ''} onChange={(e) => updateActionItem(pid, m.id, it.id, { dueDate: e.target.value })} style={{ width: 130, flexShrink: 0 }} title="Prazo" />
                   </div>
                   <select
-                    value={it.status || 'nao-iniciado'}
+                    value={TODO_STATUS_META[it.status] ? it.status : 'em-andamento'}
                     onChange={(e) => updateActionItem(pid, m.id, it.id, { status: e.target.value })}
-                    style={{ marginTop: 6, color: STATUS_META[it.status || 'nao-iniciado'].color }}
+                    style={{ marginTop: 6, color: todoStatusMeta(it.status).color }}
                   >
-                    {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
+                    {TODO_STATUS_ORDER.map((s) => <option key={s} value={s}>{TODO_STATUS_META[s].label}</option>)}
                   </select>
                 </div>
               ))}
