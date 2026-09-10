@@ -19,6 +19,21 @@ import { executeProposedAction } from './assistantActions.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
+// Retry único e curto pras duas chamadas à IA (resolveQuery/
+// synthesizeAnswer) — cobre falhas transitórias (rate limit momentâneo,
+// erro de rede, saída estruturada que não bateu no schema numa tentativa
+// isolada) sem mascarar um erro persistente: se a segunda tentativa
+// também falhar, o erro sobe normal pro catch de `askProjectAssistant`.
+async function withRetry(fn, label) {
+  try {
+    return await fn();
+  } catch (e) {
+    console.error(`Assistente do Projeto: ${label} falhou na 1ª tentativa (${e.message}) — tentando de novo.`);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return await fn();
+  }
+}
+
 const CHUNK_KINDS = ['transcript_segment', 'meeting_summary', 'meeting_decision', 'meeting_highlight', 'meeting_topic', 'activity', 'activity_comment'];
 
 const ResolveQuerySchema = z.object({
@@ -186,7 +201,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
 
   let resolved, chunks = [], synthesized, errorMsg = null;
   try {
-    resolved = await resolveQuery({ question, history, context: context || {}, projectSnapshot });
+    resolved = await withRetry(() => resolveQuery({ question, history, context: context || {}, projectSnapshot }), 'resolveQuery');
     // Saudação/conversa geral não passa pelo pipeline de busca+síntese —
     // não é uma pergunta que exige evidência do projeto pra responder.
     if (resolved.output.intent !== 'conversa_geral') {
@@ -255,7 +270,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
         }
       }
 
-      synthesized = await synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText, context: context || {}, personLookupText });
+      synthesized = await withRetry(() => synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText, context: context || {}, personLookupText }), 'synthesizeAnswer');
       if (synthesized.output.learnedFact) {
         // Falha ao gravar aprendizado não pode derrubar a resposta já
         // pronta pro usuário — só registra o erro, não interrompe o fluxo.
@@ -265,6 +280,11 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
     }
   } catch (e) {
     errorMsg = e.message || 'Erro desconhecido';
+    // Antes esse erro era só guardado na coluna `error` de ai_messages,
+    // sem acesso direto ao Postgres de produção (só o Rafael tem) isso
+    // ficava invisível — logar aqui é o único jeito de depurar via
+    // Railway sem precisar de acesso ao banco.
+    console.error(`Assistente do Projeto: pergunta falhou (projectId=${projectId}): ${errorMsg}`, e.stack || '');
   }
 
   const latencyMs = Date.now() - startedAt;
