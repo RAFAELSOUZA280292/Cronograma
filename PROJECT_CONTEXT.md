@@ -3548,6 +3548,61 @@ ser assumido como existente)
   um exige pensar o próprio risco/confirmação, não é só copiar o padrão
   já existente.
 
+## 28. Sincronização entre usuários — "BIP" (2026-09-10)
+
+Rafael reportou: ele e a Amanda com a mesma reunião aberta ao mesmo
+tempo, em computadores diferentes — ela concluiu uma atividade lá, e a
+tela dele não atualizava (precisava recarregar a página manualmente
+pra ver). Pediu algo "tipo um BIP": usuário X altera, usuário Y vê
+rápido, "faça algo seguro e funcional".
+
+**Decisão de arquitetura**: **sem WebSocket/servidor de pub-sub**, de
+propósito — mesma filosofia já aplicada em outras decisões desta sessão
+(busca lexical em vez de pgvector, §27) de não introduzir infraestrutura
+nova quando uma solução mais simples resolve. Implementado como
+**polling barato + reload condicional**, reaproveitando `reloadProjects()`
+que já existia (`src/App.jsx`) — a novidade é só *quando* chamá-lo.
+
+- **`GET /api/projects/versions`** (`server/routes.js`, novo) — mesma
+  lógica de autorização de `GET /api/projects` (já existente), mas
+  devolve só `{id, updatedAt}` de cada empresa acessível, nunca o JSONB
+  inteiro. Faz o mesmo `SELECT ... WHERE org_id=...` e filtro
+  `canAccessProject` de sempre — a economia real é não serializar/
+  transferir o `data` pela rede numa chamada que roda a cada poucos
+  segundos.
+- **`src/App.jsx`** — novo `useEffect` (ao lado do que já fazia a carga
+  inicial de projetos) que faz polling desse endpoint a cada 6s
+  enquanto o usuário está logado, guardando o último `updatedAt`
+  conhecido de cada empresa num `useRef` (não dispara re-render por si
+  só). Se alguma empresa mudou desde a última checagem, chama
+  `reloadProjects()` — a mesma função já usada pela caixa de
+  transcrições e pelo agente executor pra atualizar a tela depois de
+  uma mudança feita no servidor. Falha de rede no poll é silenciosa
+  (é só um heartbeat, não deve virar erro visível).
+- **Por que é seguro pra quem está editando algo no meio do caminho**:
+  todo campo de texto editável no app já segue o padrão "rascunho local
+  + salva no blur" (`EditableTextCard` em `MeetingDetail.jsx`, e o
+  equivalente em outros lugares) — o valor mostrado no campo vem de um
+  `useState` inicializado UMA vez ao entrar em modo de edição, não
+  ligado direto à prop que muda quando os projetos recarregam. Um
+  reload em segundo plano não interrompe quem está digitando; se outro
+  usuário mudou um campo DIFERENTE do mesmo item enquanto isso, as duas
+  mudanças coexistem (patches são por campo, não sobrescrevem o objeto
+  inteiro). Editar o MESMO campo ao mesmo tempo em duas telas ainda seria
+  "o último a salvar vence" — não resolvido aqui, e não foi o problema
+  reportado (o caso real é concluir uma atividade, uma ação atômica de
+  1 clique, não edição de texto concorrente).
+
+**Testado localmente com um cenário de dois usuários simulado**: reunião
+de teste com uma atividade não iniciada, tela do "Rafael" aberta na aba
+Atividades; sem tocar nessa aba, atualizei a atividade pra "concluída"
+direto no banco (simulando a "Amanda", incluindo o `updated_at` que o
+`PATCH /api/projects/:id` real também sempre atualiza) — em até 8
+segundos, sem nenhum reload manual, a tela do "Rafael" moveu a
+atividade sozinha pro grupo "Concluída" e os contadores (pendentes/
+cliente/pricetax) atualizaram. Não precisou WebSocket, não precisou
+recarregar a página.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

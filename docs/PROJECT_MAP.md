@@ -72,7 +72,7 @@ src/assets/brand/       Logos PNG da PRICETAX (preto = tema claro, branco = tema
 server/index.js       Bootstrap Express: initDb, seedIfEmpty, monta /api, /api/xflow, /api/google, /api/agenda, /api/macro e /api/meeting-inbox, serve dist/.
 server/db.js           Pool pg, criação de tabelas (initDb), seed inicial, defaults de projeto novo.
 server/auth.js         JWT/bcrypt, cookie de sessão, middlewares requireAuth/requireMaster*/requireXflowAccess.
-server/routes.js        Rotas REST de auth, users, projects, personal-board, cnpj, organizations, notifications.
+server/routes.js        Rotas REST de auth, users, projects, personal-board, cnpj, organizations, notifications; GET /projects/versions (2026-09-10) — poll barato de {id,updatedAt} pra sincronização entre usuários, ver PROJECT_CONTEXT.md §28.
 server/xflow.js         Rotas REST do módulo XFlow (team, tickets, events, view) — router próprio montado em /api/xflow.
 server/notifications.js    Central de Notificações (2026-08) — createNotification()/rowToNotification(), usado por xflow.js e routes.js.
 server/xflowPermissions.js  Papel efetivo (reporter/dev/gestao/admin) + canDo() — matriz de "quem pode o quê" do XFlow.
