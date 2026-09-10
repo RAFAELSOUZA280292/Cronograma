@@ -6,6 +6,8 @@ import {
 } from './auth.js';
 import { lookupCnpj, cleanCnpj, formatCnpj } from './cnpjLookup.js';
 import { createNotification, rowToNotification } from './notifications.js';
+import { syncProjectMemoryFromDiff } from './memoryIngest.js';
+import { searchProjectMemory } from './memoryRetrieval.js';
 
 function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
@@ -452,6 +454,33 @@ router.patch('/projects/:id', requireAuth, async (req, res, next) => {
     const projectName = (next_.company && (next_.company.nomeFantasia || next_.company.name)) || 'Empresa';
     await notifyActivityChanges(req, id, projectName, current, next_);
     res.json({ project: next_ });
+    // Reindexação da memória do projeto (Assistente Inteligente de
+    // Projetos, Fase 1) — só SQL local (sem chamada de IA nesta fase),
+    // fire-and-forget depois da resposta, mesmo padrão de todo efeito
+    // colateral assíncrono já usado no resto do sistema.
+    syncProjectMemoryFromDiff(pool, rows[0].org_id, id, current, next_)
+      .catch((e) => console.error('Falha ao reindexar memória do projeto', e.message));
+  } catch (e) { next(e); }
+});
+
+// Rota interna de verificação da Fase 1 do Assistente Inteligente de
+// Projetos — NÃO é o chat (que ainda não existe, ver PROJECT_CONTEXT.md).
+// Só permite provar que a memória do projeto está sendo indexada e
+// recuperada corretamente, com o mesmo isolamento de acesso de qualquer
+// outra rota de projeto.
+router.post('/_internal/memory-search', requireAuth, async (req, res, next) => {
+  try {
+    const { projectId, query, participant, meetingId, dateFrom, dateTo, kind, limit } = req.body || {};
+    if (!projectId) return res.status(400).json({ message: 'Informe projectId.' });
+    const { rows } = await pool.query('SELECT data, org_id FROM projects WHERE id=$1', [projectId]);
+    if (!rows[0]) return res.status(404).json({ message: 'Empresa não encontrada.' });
+    if (!canAccessProject(req.user, rows[0].data, rows[0].org_id)) {
+      return res.status(403).json({ message: 'Sem acesso a essa empresa.' });
+    }
+    const results = await searchProjectMemory(pool, {
+      orgId: rows[0].org_id, projectId, query, participant, meetingId, dateFrom, dateTo, kind, limit,
+    });
+    res.json({ results });
   } catch (e) { next(e); }
 });
 

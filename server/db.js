@@ -338,6 +338,57 @@ export async function initDb() {
       processed_at  TIMESTAMPTZ
     );
   `);
+
+  // Memória do projeto (2026-09, Fase 1 do Assistente Inteligente de
+  // Projetos) — não duplica a transcrição/reunião original (que continua
+  // vivendo em `projects.data.meetings[]`, fonte de verdade); esta
+  // tabela é um índice DERIVADO e recriável (apagar e reindexar nunca
+  // perde dado de verdade) pra permitir busca textual rápida com filtro
+  // por participante/reunião/data/tipo — sem precisar carregar e
+  // deserializar o JSONB inteiro do projeto a cada pergunta. Ver
+  // server/memoryIngest.js (quem escreve) e server/memoryRetrieval.js
+  // (quem lê). `scope` já existe pensando na Fase 3 (Base de
+  // Conhecimento Corporativa — valor 'org_knowledge'), mas nesta fase
+  // só o valor 'project' é usado.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS project_memory_chunks (
+      id            TEXT PRIMARY KEY,
+      org_id        TEXT NOT NULL REFERENCES organizations(id),
+      project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      meeting_id    TEXT NOT NULL,
+      kind          TEXT NOT NULL CHECK (kind IN (
+                      'transcript_segment', 'meeting_summary', 'meeting_decision',
+                      'meeting_highlight', 'meeting_topic', 'activity', 'activity_comment'
+                    )),
+      content       TEXT NOT NULL,
+      participants  JSONB NOT NULL DEFAULT '[]',
+      meeting_date  DATE,
+      meeting_title TEXT NOT NULL DEFAULT '',
+      time_ref      TEXT NOT NULL DEFAULT '',
+      source_ref    JSONB NOT NULL DEFAULT '{}',
+      scope         TEXT NOT NULL DEFAULT 'project',
+      chunk_order   INT NOT NULL DEFAULT 0,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  // `unaccent` é uma extensão padrão do Postgres (não é algo exótico
+  // tipo pgvector — vem no contrib padrão, disponível em praticamente
+  // todo Postgres gerenciado). Sem ela, "débito" e "debito" contam como
+  // palavras diferentes pra busca — um problema real, já que transcrição
+  // colada nem sempre vem com acentuação correta. `unaccent()` não é
+  // IMMUTABLE por padrão (não pode entrar direto numa coluna gerada),
+  // por isso o wrapper below — padrão documentado da própria Postgres.
+  await pool.query(`CREATE EXTENSION IF NOT EXISTS unaccent`);
+  await pool.query(`
+    CREATE OR REPLACE FUNCTION immutable_unaccent(text) RETURNS text AS $$
+      SELECT unaccent('unaccent', $1)
+    $$ LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT
+  `);
+  await pool.query(`ALTER TABLE project_memory_chunks ADD COLUMN IF NOT EXISTS content_tsv tsvector GENERATED ALWAYS AS (to_tsvector('portuguese', immutable_unaccent(content))) STORED`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS project_memory_chunks_tsv_idx ON project_memory_chunks USING GIN (content_tsv)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS project_memory_chunks_meeting_idx ON project_memory_chunks (project_id, meeting_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS project_memory_chunks_org_date_idx ON project_memory_chunks (org_id, project_id, meeting_date)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS project_memory_chunks_participants_idx ON project_memory_chunks USING GIN (participants jsonb_path_ops)`);
 }
 
 export function blankXflowTicketData() {

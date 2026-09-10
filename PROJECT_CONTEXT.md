@@ -2805,6 +2805,137 @@ em seguida. Texto via `buildMeetingText()` + `downloadTextFile()` (Blob +
   reunião", follow-up automático — nenhum suporte hoje.
 - Rota PATCH no link público — é só-leitura por decisão explícita.
 
+## 27. Assistente Inteligente de Projetos — Fase 1: Memória do Projeto (2026-09)
+
+Rafael pediu um "Assistente Inteligente de Projetos" de verdade —
+conversar com o histórico real do projeto (reuniões, transcrições,
+decisões, atividades), com fonte obrigatória e zero alucinação
+apresentada como fato. O pedido descreve 6 fases (fundação → chat →
+base de conhecimento corporativa → inteligência cross-projeto →
+proativo → ações executáveis). **Esta seção documenta só a Fase 1**
+(fundação de memória) — decidido com o Rafael entregar em etapas
+seguras; chat, base de conhecimento, proatividade e ações **não
+existem ainda**, ficam como roteiro nas seções abaixo.
+
+### Decisões tomadas nesta rodada
+
+1. **Sem embeddings/pgvector agora** — busca lexical (full-text search
+   nativo do Postgres) em vez de busca semântica de verdade. Evita
+   depender de um provedor de embeddings novo (Anthropic não tem API de
+   embeddings própria — precisaria de Voyage AI ou OpenAI) e evita
+   depender de confirmar/habilitar a extensão `pgvector` no Postgres do
+   Railway. Upgrade para embeddings fica documentado como próximo passo
+   técnico, não construído agora.
+2. **Só Fase 1** — sem painel de chat visível pro usuário ainda. O que
+   existe é a fundação (dado indexado + uma função de recuperação
+   testável via rota interna), que a Fase 2 vai consumir.
+
+### Onde mora a memória (`project_memory_chunks`, `server/db.js`)
+
+Uma tabela relacional nova — **não** duplica a transcrição/reunião
+original (que continua vivendo só em `projects.data.meetings[]`, fonte
+de verdade). É um índice DERIVADO e recriável: apagar e reindexar nunca
+perde dado de verdade, porque tudo vem de novo a partir do JSONB do
+projeto. Um chunk é um trecho pesquisável de: segmento de transcrição,
+resumo, decisão (uma por linha), highlight, tópico, item de ação ou
+comentário de item de ação — cada um com `participants` (nomes
+relevantes, pra filtro por pessoa), `meeting_date`/`meeting_title`
+(denormalizado, evita reabrir o projeto só pra exibir a fonte),
+`time_ref` (timestamp literal da transcrição quando existir), e
+`source_ref` (JSON com `meetingId`/`activityId`/`commentId` — o
+suficiente pra uma futura UI abrir a fonte exata). Campo `scope`
+(default `'project'`) já existe pensando na Fase 3 (Base de
+Conhecimento Corporativa, valor futuro `'org_knowledge'`), mas não é
+usado ainda.
+
+Full-text search em português (`to_tsvector('portuguese', ...)`), com
+**tratamento de acento via a extensão `unaccent`** (padrão do Postgres,
+não é algo exótico tipo pgvector) — sem isso, "débito" e "debito" (uma
+transcrição colada nem sempre vem com acentuação correta) contariam
+como palavras diferentes pra busca, um problema real encontrado e
+corrigido durante o teste local desta fase. Como `unaccent()` não é
+`IMMUTABLE` por padrão (não pode entrar direto numa coluna gerada), há
+um wrapper `immutable_unaccent()` — padrão documentado da própria
+comunidade Postgres pra esse caso exato.
+
+### Ingestão (`server/memoryIngest.js`)
+
+`reindexMeetingMemory(pool, orgId, projectId, meeting)` apaga e recria
+do zero os chunks de UMA reunião (idempotente — pode rodar quantas
+vezes for preciso sem duplicar). `reindexProjectMemory` roda isso pra
+toda reunião não excluída de um projeto (usado no backfill).
+`syncProjectMemoryFromDiff(pool, orgId, projectId, current, next_)` é
+chamado **dentro do `PATCH /api/projects/:id`** (`server/routes.js`),
+depois de responder o HTTP (fire-and-forget, mesmo padrão de todo
+efeito colateral assíncrono já usado no resto do sistema) — compara
+`meetings[]` antes/depois (mesmo espírito do diff que
+`notifyActivityChanges` já faz pra notificações) e só reindexa as
+reuniões que realmente mudaram de conteúdo; reunião apagada
+(soft-delete) tem os chunks removidos, não reindexados. Como não há
+chamada de IA nesse caminho (embeddings ficaram de fora desta fase), o
+custo é só SQL local — testado ao vivo editando uma reunião pela UI
+normal e confirmando via `psql` que a reindexação rodou sozinha sem
+atrasar nem quebrar o autosave já existente.
+
+**Backfill**: `server/scripts/reindexAllMeetings.js` — script manual
+(`node server/scripts/reindexAllMeetings.js`) que reindexa TODAS as
+reuniões de TODOS os projetos já existentes (necessário pra memória
+cobrir o histórico que já existia antes desta fase — não só reuniões
+novas daqui pra frente). Rodado localmente durante o desenvolvimento;
+em produção precisa ser rodado manualmente uma vez depois do deploy
+(operação revisada com o Rafael antes, por escrever em massa numa
+tabela nova).
+
+`parseTranscript`/`sliceEntriesByTopics`/`splitDecisionLines`, que
+antes viviam só em `src/meetings/meetingUtils.js` (frontend), foram
+extraídas pra `shared/transcriptParser.js` (raiz do repo, sem
+dependência de React nem de Express) — importadas tanto pelo frontend
+(reexportadas de `meetingUtils.js`, zero mudança de comportamento na
+tela de Reunião) quanto por `server/memoryIngest.js`, pra nunca ter duas
+implementações do mesmo reconhecimento de padrão de transcrição
+divergindo com o tempo.
+
+### Recuperação (`server/memoryRetrieval.js`)
+
+`searchProjectMemory(pool, {orgId, projectId, query, participant,
+meetingId, dateFrom, dateTo, kind, limit})` — sempre filtra por
+`org_id`+`project_id` (isolamento de tenant/projeto, mesmo par que
+`canAccessProject` já valida na camada de rota), com filtros opcionais
+por participante (`participants @> [...]::jsonb`), reunião, tipo de
+chunk e intervalo de data. Ranking combina relevância textual
+(`ts_rank_cd`) com um leve bônus de recência (reunião mais recente
+ganha até +0.2 no score, decaindo em ~180 dias) — busca híbrida no
+sentido lexical+temporal+metadado, sem semântica de verdade ainda.
+
+**Rota interna de verificação** (não é o chat): `POST
+/api/_internal/memory-search`, atrás de `requireAuth` +
+`canAccessProject` — usada só pra provar que a Fase 1 funciona de ponta
+a ponta antes da Fase 2 existir (testado via `curl` nesta sessão:
+busca por palavra-chave com/sem acento, filtro por participante,
+rejeição de projeto inacessível). Nenhuma tela consome isso ainda.
+
+### Roteiro das próximas fases (não construído, documentado pra não
+ser assumido como existente)
+
+- **Fase 2 — Chat do projeto**: painel "Assistente do Projeto" (nome já
+  decidido) nas abas Reuniões/Atividades, `ai_conversations`/
+  `ai_messages` (memória de conversa, perguntas sequenciais), geração de
+  resposta em linguagem natural via Claude a partir dos chunks
+  recuperados (com citação clicável de fonte), resposta completa de uma
+  vez (sem streaming — decisão já tomada).
+- **Fase 3 — Base de Conhecimento Corporativa**: documentos/legislação,
+  temas estruturados, `scope='org_knowledge'`, promoção explícita de
+  conhecimento privado → global (nunca automática), governança de quem
+  pode promover/editar.
+- **Fase 4 — Inteligência cross-projeto**: usar a Base de Conhecimento
+  pra responder com contexto de outros projetos, sem nunca vazar
+  transcrição/dado privado de um cliente pra outro.
+- **Fase 5 — Proativo**: detecção de recorrência entre reuniões,
+  alertas de compromisso vencendo, preparação automática de briefing.
+- **Fase 6 — Ações executáveis**: IA sugerindo criar atividade/alterar
+  prazo/etc., sempre com confirmação explícita do usuário (nunca
+  execução silenciosa).
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
