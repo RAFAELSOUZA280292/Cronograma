@@ -3507,15 +3507,14 @@ duplicar a lógica. Mesma defesa em profundidade de sempre: o id
 proposto pela IA é validado contra `projectData.meetings` antes de
 confiar nele.
 
-**Limitação arquitetural conhecida, não corrigida agora** (documentada
-pra não esquecer): `plainto_tsquery` com semântica E-lógico-entre-tudo
-pode fazer OUTRAS perguntas de busca ampla falharem do mesmo jeito,
-não só "resuma a reunião X" — qualquer pergunta cuja reformulação
-misture várias palavras que não aparecem todas juntas no mesmo trecho.
-Trocar por `websearch_to_tsquery` (mais tolerante, trata termos
-implícitos com OR em vez de E) resolveria de forma mais geral, mas é
-uma mudança na função de busca usada por TUDO no sistema — precisa de
-teste mais cuidadoso, não é escopo deste fix pontual.
+**Limitação arquitetural conhecida na época, corrigida em 2026-09-10 (ver
+§30 abaixo)**: `plainto_tsquery` com semântica E-lógico-entre-tudo fazia
+OUTRAS perguntas de busca ampla falharem do mesmo jeito, não só "resuma
+a reunião X" — qualquer pergunta cuja reformulação misturasse várias
+palavras que não aparecem todas juntas no mesmo trecho (ex.: "como
+funciona o seguro de vida na Tecumseh?"). Resolvido com um fallback OR
+(`websearch_to_tsquery`) em `searchProjectMemory` quando a busca E não
+acha nada — ver §30.
 
 **Testado localmente**: reproduzido o bug exato (busca genérica com as
 palavras da pergunta contra chunks reais não retorna nada, mesmo o
@@ -3670,6 +3669,64 @@ correta de "não encontrei" em vez de inventar. **Não testado**: a IA de
 verdade reconhecendo a intenção "pendências de uma pessoa" a partir de
 frases livres em português e formatando a resposta final (depende da
 chave real em produção).
+
+## 30. Busca com fallback OR + retry/log nas chamadas à IA (2026-09-10)
+
+Rafael reportou dois bugs em produção na mesma sessão, no projeto
+Tecumseh: (1) "Como funciona o Seguro de Vida na Tecumseh?" →  "Não
+encontrei evidência suficiente..." mesmo com "várias reuniões falando
+de Seguro de Vida" indexadas; (2) clicar na própria sugestão de
+pergunta que a RENATA oferece na tela ("O que cobrar na próxima
+reunião?") → "Não consegui processar essa pergunta agora."
+
+**Causa raiz do (1)**: exatamente a limitação já documentada e adiada
+em §27/§29 — `plainto_tsquery` exige que TODA palavra da busca
+reformulada apareça junto no mesmo trecho. "Como funciona o seguro de
+vida na Tecumseh" quase certamente não aparece daquele jeito literal
+em nenhuma fala de reunião (as pessoas falam sobre o benefício, não
+sobre "como ele funciona na Tecumseh"). Reproduzido localmente: um
+chunk de teste com o texto real sobre seguro de vida não batia com a
+pergunta genérica via `plainto_tsquery`, mas batia com sucesso pela
+mesma busca em modo OR.
+
+**Fix**: `searchProjectMemory` (`server/memoryRetrieval.js`) agora
+tenta a busca normal (E lógico, `plainto_tsquery`, mais precisa) e, só
+se ela voltar **zero linhas** e havia texto de busca, tenta de novo com
+`websearch_to_tsquery` sobre as mesmas palavras separadas por `OR`
+(qualquer uma delas basta pra achar o trecho; `ts_rank_cd` ranqueia
+quem bate mais palavras primeiro). Não é o `websearch_to_tsquery`
+sozinho que resolve — por padrão ele também trata texto simples como E
+lógico, igual o `plainto_tsquery` — o fix real é forçar `OR` entre as
+palavras nessa segunda tentativa. É estritamente aditivo: a busca E
+continua sendo a primeira tentativa (mesma precisão de sempre quando
+acha algo), o fallback só entra quando ela não acha nada — não muda
+ranking nem comportamento de nenhuma busca que já funcionava.
+
+**Causa do (2), sem acesso a log de produção**: não há acesso direto ao
+Postgres/Railway de produção (só o Rafael tem, ver §27), e o erro real
+de exceções na pipeline da RENATA (`askProjectAssistant`,
+`server/assistantRetrieval.js`) era só guardado na coluna `error` de
+`ai_messages` — nunca logado no console do servidor nem exposto em
+nenhuma tela. Sem conseguir reproduzir a pergunta específica
+("próxima reunião" não é uma reunião que existe na lista "REUNIÕES
+DISPONÍVEIS", então pode ser a IA tropeçando nisso, ou simplesmente uma
+falha transitória de rede/rate limit da API da Anthropic — não dá pra
+saber ao certo sem o log). Tratado com duas mudanças de robustez, não
+um fix cirúrgico de causa raiz:
+- `console.error` no catch principal de `askProjectAssistant` (antes
+  vazio) — próxima vez que isso acontecer, aparece no log do Railway.
+- `withRetry`: as duas chamadas à IA (`resolveQuery`/`synthesizeAnswer`)
+  agora tentam de novo uma vez (meio segundo de espera) antes de
+  desistir — cobre falha transitória sem mascarar um erro persistente
+  (a segunda tentativa falhando sobe o erro normal).
+
+**Testado localmente**: fallback OR reproduzido e confirmado via script
+direto contra `searchProjectMemory` com um chunk real de teste inserido
+no Postgres local (empresa de teste, apagado depois) — a pergunta
+genérica que falharia só em modo E encontrou o chunk certo em modo OR.
+**Não testado**: o bug (2) específico, por falta de log de produção —
+se acontecer de novo depois deste deploy, o log novo do Railway deve
+mostrar a mensagem de erro real.
 
 ## 19. Onde procurar mais detalhe
 
