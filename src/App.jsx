@@ -21,7 +21,7 @@ import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
 import XFlowScreen from './xflow/XFlow.jsx';
 import AgendaScreen from './agenda/Agenda.jsx';
 import MacroOverviewScreen from './macro/MacroOverview.jsx';
-import { MeetingsView, MeetingDetailModal } from './meetings/Meetings.jsx';
+import { MeetingsView, MeetingDetailModal, todoStatusMeta } from './meetings/Meetings.jsx';
 import { TodoBoardView } from './meetings/TodoBoard.jsx';
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
@@ -460,8 +460,10 @@ export default function App() {
   const [loginError, setLoginError] = useState(null);
   const [usersPanelError, setUsersPanelError] = useState('');
   const saveTimers = useRef({});
+  const { toasts: appToasts, pushToast: pushAppToast, pushUndoToast: pushAppUndoToast, dismissToast: dismissAppToast } = useToasts();
 
   const [view, setView] = useState('table');
+  const [todoFocusMeetingId, setTodoFocusMeetingId] = useState(null);
   const [showLog, setShowLog] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -647,6 +649,7 @@ export default function App() {
         addActionItem={addMeetingActionItem}
         updateActionItem={updateMeetingActionItem}
         deleteActionItem={deleteMeetingActionItem}
+        onViewActivities={(meetingId) => { closeMeetingDetail(); setView('todo'); setTodoFocusMeetingId(meetingId); }}
       />
     );
   }
@@ -924,7 +927,10 @@ export default function App() {
   function persistProjectDebounced(pid, projectData) {
     if (saveTimers.current[pid]) clearTimeout(saveTimers.current[pid]);
     saveTimers.current[pid] = setTimeout(() => {
-      apiPatch(`/api/projects/${pid}`, { project: projectData }).catch((e) => console.error('Falha ao salvar projeto', e));
+      apiPatch(`/api/projects/${pid}`, { project: projectData }).catch((e) => {
+        console.error('Falha ao salvar projeto', e);
+        pushAppToast({ message: 'Não foi possível salvar a última alteração. Verifique sua conexão.', ttlMs: 8000 });
+      });
     }, 500);
   }
 
@@ -1516,31 +1522,144 @@ export default function App() {
     }, `Participante adicionado na reunião "${m.title}": ${v}`);
   }
 
-  function addMeetingActionItem(targetPid, meetingId) {
+  function addMeetingActionItem(targetPid, meetingId, overrides) {
     const project = projects.find((p) => p.id === targetPid);
     const m = project && (project.meetings || []).find((x) => x.id === meetingId);
-    const item = { id: uid('mai'), title: 'Nova atividade', responsible: '', owner: 'pricetax', dueDate: '', status: 'nao-iniciado', deleted: false };
+    const item = {
+      id: uid('mai'), title: 'Nova atividade', responsible: '', owner: 'pricetax', dueDate: '', status: 'nao-iniciado', deleted: false,
+      subtitle: '', notes: '', subtasks: [], comments: [], attachments: [],
+      createdBy: currentUser ? currentUser.name : '', createdAt: new Date().toISOString(),
+      ...(overrides || {}),
+    };
     mutateProject(targetPid, (p) => ({
       ...p,
       meetings: (p.meetings || []).map((x) => (x.id === meetingId ? { ...x, actionItems: [...(x.actionItems || []), item] } : x)),
-    }), m ? `Atividade adicionada na reunião "${m.title}"` : undefined);
+    }), m ? `Atividade adicionada na reunião "${m.title}"` : undefined, item.id);
+    return item.id;
   }
 
-  function updateMeetingActionItem(targetPid, meetingId, itemId, patch) {
-    mutateProject(targetPid, (p) => ({
-      ...p,
-      meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id === itemId ? { ...it, ...patch } : it)) })),
-    }));
+  // Gera uma frase legível a partir do diff — reaproveita o mesmo
+  // mecanismo de log/histórico já usado pelas atividades de cronograma
+  // (activityId + project.log), agora passando o id do item de TO_DO.
+  function describeActionItemChange(item, patch) {
+    const who = currentUser ? currentUser.name : 'Alguém';
+    const parts = [];
+    if ('status' in patch && patch.status !== item.status) {
+      parts.push(`status de "${todoStatusMeta(item.status).label}" para "${todoStatusMeta(patch.status).label}"`);
+    }
+    if ('responsible' in patch && (patch.responsible || '') !== (item.responsible || '')) {
+      parts.push(`responsável de "${item.responsible || 'sem responsável'}" para "${patch.responsible || 'sem responsável'}"`);
+    }
+    if ('dueDate' in patch && (patch.dueDate || '') !== (item.dueDate || '')) {
+      parts.push(`prazo de "${item.dueDate ? fmtDate(item.dueDate) : 'sem prazo'}" para "${patch.dueDate ? fmtDate(patch.dueDate) : 'sem prazo'}"`);
+    }
+    if ('owner' in patch && patch.owner !== item.owner) {
+      const label = (o) => (o === 'cliente' ? 'cliente' : 'PRICETAX');
+      parts.push(`o lado responsável de "${label(item.owner)}" para "${label(patch.owner)}"`);
+    }
+    if ('title' in patch && patch.title !== item.title) parts.push('o título');
+    if ('subtitle' in patch && (patch.subtitle || '') !== (item.subtitle || '')) parts.push('o contexto');
+    if ('notes' in patch && (patch.notes || '') !== (item.notes || '')) parts.push('a descrição');
+    if (!parts.length) return null;
+    return `${who} alterou ${parts.join(', ')}`;
   }
 
-  function deleteMeetingActionItem(targetPid, meetingId, itemId) {
+  function findActionItem(targetPid, meetingId, itemId) {
     const project = projects.find((p) => p.id === targetPid);
     const m = project && (project.meetings || []).find((x) => x.id === meetingId);
     const item = m && (m.actionItems || []).find((it) => it.id === itemId);
+    return { m, item };
+  }
+
+  function updateMeetingActionItem(targetPid, meetingId, itemId, patch) {
+    const { item } = findActionItem(targetPid, meetingId, itemId);
+    const logMsg = item ? describeActionItemChange(item, patch) : null;
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id === itemId ? { ...it, ...patch } : it)) })),
+    }), logMsg || undefined, itemId);
+  }
+
+  function deleteMeetingActionItem(targetPid, meetingId, itemId) {
+    const { m, item } = findActionItem(targetPid, meetingId, itemId);
     mutateProject(targetPid, (p) => ({
       ...p,
       meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id === itemId ? { ...it, deleted: true } : it)) })),
     }), item ? `Atividade removida na reunião "${m.title}": ${item.title}` : undefined);
+  }
+
+  function duplicateActionItem(targetPid, meetingId, itemId) {
+    const { item } = findActionItem(targetPid, meetingId, itemId);
+    if (!item) return;
+    const copy = {
+      ...item, id: uid('mai'), title: `${item.title} (cópia)`, status: 'nao-iniciado',
+      subtasks: (item.subtasks || []).map((s) => ({ ...s, id: uid('sub'), done: false })),
+      comments: [], attachments: [],
+      createdBy: currentUser ? currentUser.name : '', createdAt: new Date().toISOString(),
+    };
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id === meetingId ? { ...x, actionItems: [...(x.actionItems || []), copy] } : x)),
+    }), `${currentUser ? currentUser.name : 'Alguém'} duplicou a atividade "${item.title}"`, copy.id);
+    return copy.id;
+  }
+
+  function addTodoSubtask(targetPid, meetingId, itemId, title) {
+    const v = (title || '').trim();
+    if (!v) return;
+    const sub = { id: uid('sub'), title: v, done: false };
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id === itemId ? { ...it, subtasks: [...(it.subtasks || []), sub] } : it)) })),
+    }), `${currentUser ? currentUser.name : 'Alguém'} adicionou a subtarefa "${v}"`, itemId);
+  }
+
+  function toggleTodoSubtask(targetPid, meetingId, itemId, subId) {
+    const { item } = findActionItem(targetPid, meetingId, itemId);
+    const sub = item && (item.subtasks || []).find((s) => s.id === subId);
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id !== itemId ? it : { ...it, subtasks: (it.subtasks || []).map((s) => (s.id === subId ? { ...s, done: !s.done } : s)) })) })),
+    }), sub ? `${currentUser ? currentUser.name : 'Alguém'} marcou a subtarefa "${sub.title}" como ${sub.done ? 'não concluída' : 'concluída'}` : undefined, itemId);
+  }
+
+  function deleteTodoSubtask(targetPid, meetingId, itemId, subId) {
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id !== itemId ? it : { ...it, subtasks: (it.subtasks || []).filter((s) => s.id !== subId) })) })),
+    }));
+  }
+
+  function addTodoComment(targetPid, meetingId, itemId, text) {
+    const v = (text || '').trim();
+    if (!v) return;
+    const comment = { id: uid('tc'), text: v, ts: new Date().toISOString(), user: currentUser ? currentUser.name : '', userId: currentUser ? currentUser.id : null };
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id === itemId ? { ...it, comments: [...(it.comments || []), comment] } : it)) })),
+    }), `${currentUser ? currentUser.name : 'Alguém'} comentou`, itemId);
+  }
+
+  function deleteTodoComment(targetPid, meetingId, itemId, commentId) {
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id !== itemId ? it : { ...it, comments: (it.comments || []).filter((c) => c.id !== commentId) })) })),
+    }));
+  }
+
+  function addTodoAttachment(targetPid, meetingId, itemId, fileMeta) {
+    const att = { id: uid('att'), name: fileMeta.name, size: fileMeta.size, type: fileMeta.type, dataUrl: fileMeta.dataUrl, addedBy: currentUser ? currentUser.name : '', addedAt: new Date().toISOString() };
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id === itemId ? { ...it, attachments: [...(it.attachments || []), att] } : it)) })),
+    }), `${currentUser ? currentUser.name : 'Alguém'} anexou o arquivo "${fileMeta.name}"`, itemId);
+  }
+
+  function deleteTodoAttachment(targetPid, meetingId, itemId, attId) {
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id !== itemId ? it : { ...it, attachments: (it.attachments || []).filter((a) => a.id !== attId) })) })),
+    }));
   }
 
   function addMember() {
@@ -2170,7 +2289,7 @@ export default function App() {
         {[
           !isMulti && { id: 'resumo', label: 'Resumo', icon: Gauge },
           !isMulti && { id: 'meetings', label: 'Reuniões', icon: Mic },
-          !isMulti && { id: 'todo', label: 'TO DO', icon: ListChecks },
+          !isMulti && { id: 'todo', label: 'Atividades', icon: ListChecks },
           { id: 'timeline', label: 'Gantt', icon: CalendarDays },
           { id: 'table', label: 'Tabela', icon: List },
           { id: 'phases', label: 'Fases', icon: LayoutGrid },
@@ -2217,10 +2336,23 @@ export default function App() {
             externalContacts={activeProject.externalContacts || []}
             clientName={activeProject.company && activeProject.company.name}
             pid={activeProject.id}
+            currentUser={currentUser}
+            log={activeProject.log || []}
+            pushUndoToast={pushAppUndoToast}
+            focusMeetingId={todoFocusMeetingId}
+            onClearFocusMeeting={() => setTodoFocusMeetingId(null)}
             onOpenMeeting={(id) => { setView('meetings'); openMeetingDetail(activeProject.id, id); }}
-            onAddItem={(meetingId) => addMeetingActionItem(activeProject.id, meetingId)}
+            onAddItem={(meetingId, overrides) => addMeetingActionItem(activeProject.id, meetingId, overrides)}
             updateActionItem={updateMeetingActionItem}
             deleteActionItem={deleteMeetingActionItem}
+            duplicateActionItem={duplicateActionItem}
+            addSubtask={addTodoSubtask}
+            toggleSubtask={toggleTodoSubtask}
+            deleteSubtask={deleteTodoSubtask}
+            addComment={addTodoComment}
+            deleteComment={deleteTodoComment}
+            addAttachment={addTodoAttachment}
+            deleteAttachment={deleteTodoAttachment}
           />
         )}
         {!isMulti && view === 'timeline' && (
@@ -2629,6 +2761,8 @@ export default function App() {
           onCreate={(involvedCompanyIds) => addGroupWideActivity(selectedGroupRoots[0], involvedCompanyIds)}
         />
       )}
+
+      <ToastStack toasts={appToasts} onDismiss={dismissAppToast} />
     </div>
   );
 }

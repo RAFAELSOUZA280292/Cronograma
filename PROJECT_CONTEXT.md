@@ -2524,79 +2524,167 @@ texto). Ainda não confirmado explicitamente pelo Rafael se a extração
 só a mecânica de ponta a ponta (envio → processamento → reunião criada)
 foi validada.
 
-## 25. TO DO consolidado (2026-09)
+## 25. Atividades — "Centro de Execução" (2026-09)
 
-Pedido do Rafael: uma aba nova, **"TO DO"**, na barra de tabs do
-workspace de Empresas — entre Reuniões e Gantt, só em `!isMulti` (é por
-empresa, mesmo critério das outras abas dessa seção) — trazendo **todos
-os itens de TO_DO de todas as reuniões daquela empresa, num lugar só**,
-em vez de precisar abrir reunião por reunião pra ver o que ainda está
-pendente. Pedido explícito: "extremamente utilizável, fácil, bom de
-editar e acompanhar, com cara de Notion".
+Pedido original (2026-09, primeira versão): uma aba **"TO DO"** trazendo
+todos os itens de TO_DO de todas as reuniões da empresa num lugar só.
+Redesign completo (2026-09, segunda rodada, com print de referência
+estilo Linear/Notion/Asana): renomear pra **"Atividades"**, com
+"Seu centro de execução" como subtítulo, e evoluir de uma lista de
+inputs sempre abertos pra uma experiência de linha+checkbox+painel
+lateral (drawer), com subtarefas, comentários, anexos e histórico por
+item. Rafael decidiu explicitamente **não** criar uma visão cruzando
+todas as empresas (o agrupamento "TECUMSEH/PRICETAX" do print de
+referência não existe aqui — cada empresa só vê os itens dela) e **não**
+implementar seleção em massa, paleta de comando (Cmd+K), drag-and-drop
+manual de posição, nem virtualização de lista — isso fica pra uma
+eventual 2ª entrega.
 
-### Onde mora o dado
+### Onde mora o dado (sem tabela nova, sem migration)
 
-`src/meetings/TodoBoard.jsx` (módulo novo, mesmo padrão de arquivo
-dedicado por aba que XFlow/Agenda/Macro/Reuniões já usam) exporta
-`TodoBoardView`. **Não duplica dado nenhum** — o item de TO_DO continua
-fisicamente só em `meeting.actionItems[]` (§24); esta tela só achata
-(`collectTodoRows`) todas as reuniões não excluídas da empresa numa
-lista só, carregando junto de onde cada item veio (`meetingId`,
-`meetingTitle`, `meetingDate`) pra rastreabilidade na tela. Editar um
-item aqui chama exatamente `updateActionItem`/`deleteActionItem`
-(mesmas funções de `App.jsx` que a aba Reuniões já usa) — é o mesmo
-item, editável dos dois lugares, sem sincronização manual.
+`src/meetings/TodoBoard.jsx` exporta `TodoBoardView` — continua **sem
+duplicar dado nenhum**, o item de TO_DO segue fisicamente só em
+`meeting.actionItems[]` (§24); a tela só achata (`collectTodoRows`)
+todas as reuniões não excluídas da empresa numa lista só. Editar um item
+aqui chama as mesmas funções de `App.jsx` que a aba Reuniões usa — é o
+mesmo item, editável dos dois lugares. `src/meetings/TodoDrawer.jsx`
+(arquivo novo) é o painel lateral de detalhe, pra `TodoBoard.jsx` não
+virar um componente gigante. `src/meetings/todoUtils.js` (arquivo novo)
+tem utilitários puros sem estado (`initials`/`avatarColor` — iniciais e
+cor determinística a partir do nome, sem precisar de nenhum campo de
+avatar no backend; `daysOverdue`/`isItemOverdue`/`todayIso`/
+`greetingPeriod`), compartilhados entre os dois.
+
+O item de TO_DO ganhou campos novos, todos com default vazio pra não
+quebrar item antigo (sem migração de dado gravado, mesma convenção já
+usada quando o enum de status ganhou `nao-iniciado`):
+```js
+{ id, title, responsible, owner, dueDate, status, deleted,
+  subtitle, notes, subtasks: [{id, title, done}], comments: [{id, text, ts, user, userId}],
+  attachments: [{id, name, size, type, dataUrl, addedBy, addedAt}],
+  createdBy, createdAt }
+```
+`subtitle` é o contexto curto de uma linha (mostrado embaixo do título,
+na linha e no topo do drawer); `notes` é a descrição mais longa (seção
+"Descrição" do drawer). Ambos são **texto simples por enquanto** — não
+tem rich text (negrito/lista/link) nem @menção com notificação; o editor
+rico do XFlow (`RichTextEditor`, `src/xflow/XFlow.jsx`) não é exportado
+e depende de sanitização dupla cliente+servidor mantida à mão, então
+replicar agora seria desproporcional ao pedido central. Anexos
+reaproveitam literalmente o mesmo padrão do XFlow — base64 dentro do
+próprio JSONB (`dataUrl`), limite de 8MB por arquivo checado só no
+cliente — porque não existe storage de arquivo de verdade em lugar
+nenhum do projeto (nem lá).
+
+**Histórico reaproveita o mecanismo que já existia pras atividades de
+cronograma** — `project.log` (`{ts, action, user, activityId}`) filtrado
+por `activityId === item.id` (mesmo código que `ActivityDetailModal` já
+usa, `App.jsx`). Os itens de TO_DO nunca passavam `activityId` antes
+disso; agora `updateMeetingActionItem` monta uma frase legível a partir
+do diff do patch (`describeActionItemChange`, `App.jsx`) e passa o id do
+item — sem tabela nova, sem campo novo no item, sem endpoint novo.
+Toda mutação (subtarefa, comentário, anexo, duplicar) segue o mesmo
+padrão: uma função em `App.jsx` que chama `mutateProject` com uma
+mensagem de log + `activityId = item.id`.
 
 `TODO_STATUS_META`/`TODO_STATUS_ORDER`/`todoStatusMeta`/`MEETINGS_CSS`
-precisaram ganhar `export` em `Meetings.jsx` pra esse novo módulo poder
-reusar (mesma fonte única de status/estilo — não duplica o enum).
+continuam exportados de `Meetings.jsx` — fonte única de status/estilo.
 
 ### UI (por que cada decisão)
 
-- **Agrupado por status** (Urgente → Em andamento → Pausada → Concluída
-  → Não é relevante), cada grupo colapsável com contador — Concluída e
-  Não é relevante começam **colapsados** por padrão (reduz ruído visual
-  do que já não precisa de atenção, mas não esconde de vez). Dentro de
-  cada grupo, ordena por prazo mais próximo primeiro (sem prazo vai pro
-  fim); prazo vencido (e status ainda não concluído/irrelevante) pinta
-  a data de vermelho (`.todo-overdue`) — motivação visual de "isso atrasou".
-- **Responsável = texto livre com sugestão** (mesmo padrão do TO_DO
-  dentro da reunião, §24) e **toggle PRICETAX/cliente** clicável em cada
-  linha (clica de novo pra alternar) — usa `project.company.name` real
-  no botão, não um rótulo genérico "Cliente". Editar responsável aqui
-  também deduz o lado sozinho por nome conhecido, igual já fazia dentro
-  do modal da reunião.
-  - **Cabeçalho com contadores** ("N itens · N pendentes · N urgentes")
-    — visão de progresso de bate-pronto, sem precisar contar na mão.
-  - **Badge de origem clicável** (ícone de microfone + título da reunião
-    + data) em cada linha — clicar chama `onOpenMeeting`, que troca a
-    aba de volta pra "Reuniões" **e** abre o modal daquela reunião
-    específica (`setView('meetings')` + `openMeetingDetail`), pra nunca
-    perder de onde aquele compromisso veio.
-  - **Busca** (título, responsável ou nome da reunião) + **filtro por
-    lado** (Todos/PRICETAX/nome do cliente) — os dois se combinam.
-  - **"+ Novo item"** abre um popover pra escolher em qual reunião o
-    item novo entra (lista ordenada da mais recente primeiro; reusa
-    `addMeetingActionItem` — mesma criação "nasce em branco, edita
-    inline" já usada em "Nova reunião"/"+ Atividade"). Se não existir
-    nenhuma reunião ainda, avisa pra criar uma primeiro em vez de travar
-    ou permitir um item órfão sem reunião — a estrutura de dado exige um
-    `meetingId` válido, não dá pra ter TO_DO solto.
-- **Exportar Excel** — reusa o `XLSX` já importado em `App.jsx`
-  (`import * as XLSX from 'xlsx'`, mesmo padrão do botão "Excel" já
-  existente pro cronograma de atividades) — exporta TODOS os itens
-  (não só os filtrados na tela, pra não confundir "o que exportei" com
-  "o que eu tinha filtrado no momento"), com colunas Reunião / Data da
-  reunião / Título / Lado / Responsável / Status / Prazo.
+- **Cards de indicador dinâmicos e clicáveis** (pendentes / atrasadas /
+  minhas / reuniões) — clicar em "pendentes"/"atrasadas" aplica o filtro
+  rápido correspondente; "minhas" ativa "Minha fila"; "reuniões" é só
+  informativo (contagem de reuniões da empresa), sem filtro associado.
+- **"Minha fila" é a visão padrão ao abrir a aba** — filtra por
+  `responsible` batendo (case-insensitive, substring — cobre responsável
+  combinado tipo "Gustavo, com a Francine") com o nome do usuário logado.
+  Mostra uma mensagem contextual ("Boa tarde, Nome. Você tem N
+  atividade(s)...") calculada de dado real, ou "Nenhuma atividade exige
+  sua atenção agora." quando a fila está vazia — nunca fica em branco.
+  Chips: Minha fila / Todos / Hoje / Próximos 7 dias.
+- **Popover Filtros** (status multi-select, lado PRICETAX/cliente,
+  reunião, sem prazo, com subtarefas, criadas por mim) e **popover
+  Ordenar** (prioridade inteligente — atrasada > urgente > prazo — mais
+  recente/antiga, prazo próximo/distante, responsável, status; escolha
+  persiste em `localStorage`). Um único `openPopover` (`'add' | 'filters'
+  | 'sort' | 'more' | null`) garante que só um popover fica aberto por
+  vez.
+- **Agrupamento com seletor** — Status (default, mesmo comportamento de
+  antes: Concluída/Não é relevante colapsados por padrão) / Responsável
+  (alfabético, "Sem responsável" por último) / Reunião (mais recente
+  primeiro).
+- **Linha vira card, não formulário**: checkbox conclui em 1 clique
+  (mostra toast "Atividade concluída · Desfazer" — reaproveita
+  `useToasts()`/`pushUndoToast`, já existente pro quadro pessoal;
+  desmarcar volta pro status `nao-iniciado`, não guarda o status
+  anterior). Título é `<textarea>` que cresce sozinho (nunca corta texto
+  — bug relatado pelo Rafael numa rodada anterior, com um título de ~140
+  caracteres cortado no meio da palavra); `subtitle` aparece embaixo,
+  cinza, truncado com `title=` (tooltip nativo) se for muito longo.
+  Responsável mostra avatar com iniciais + cor (gerada a partir do nome,
+  sem cadastro) e vira campo editável só ao clicar (`editingField` no
+  `TodoBoard.jsx`, um único estado tipo `"${rowId}:responsible"` —
+  evita ter um input sempre aberto por linha). Prazo mostra um chip
+  ("Sem prazo" / data / "Vencida há N dias" em vermelho), mesma lógica
+  de clique-pra-editar. Hover revela ações rápidas (Comentar — abre o
+  drawer já com foco no campo de comentário via prop `focusComment` —
+  Duplicar, Excluir) com opacidade 0→1 em ~140ms.
+- **Clicar na linha abre o painel lateral** (`TodoDrawer.jsx`, ~460px,
+  desliza da direita, overlay semi-transparente mantém a lista visível
+  atrás) em vez de navegar pra outra tela. Todo elemento interativo da
+  linha (`select`, inputs, botões) chama `e.stopPropagation()` pra não
+  abrir o drawer sem querer.
+- **Drawer**: status (chip/`<select>` no topo) → título/subtítulo →
+  Empresa/Lado/Responsável/Prazo → **Origem** (card clicável com nome +
+  data da reunião, chama `onOpenMeeting`) → **Descrição** (`notes`) →
+  **Subtarefas** (checklist simples `{id, title, done}`, progresso "N de
+  M", adicionar com Enter) → **Comentários** (lista + campo com
+  Cmd/Ctrl+Enter pra enviar, só autor ou `role==='master'` pode excluir)
+  → **Arquivos** (upload via `<input type=file>`, baixar via
+  `<a download>`, remover) → **Histórico** (ver acima). Indicador
+  "Salvando.../Salvo" reaproveita `useAutosaveTimestamp`/
+  `savedStatusLabel`, já genéricos no `App.jsx`.
+- **Rastreabilidade bidirecional com a reunião de origem**: o modal da
+  reunião (`MeetingDetailModal`, `Meetings.jsx`) mostra um badge
+  clicável "Gerou N atividades · X concluídas · Y pendentes" (calculado
+  direto de `meeting.actionItems`, sem duplicar dado) que chama
+  `onViewActivities(meetingId)` — troca pra aba Atividades, muda o
+  filtro rápido pra "Todos" e aplica o filtro de Reunião daquele id
+  (`focusMeetingId`/`onClearFocusMeeting`, estado em `App.jsx`,
+  consumido uma vez via `useEffect` em `TodoBoardView`).
+- **"+ Nova tarefa"** virou um popover rápido (Título, Responsável,
+  Prazo, Reunião — default a mais recente) em vez de criar um item em
+  branco genérico e precisar renomear depois; ao criar, o item recém-
+  criado abre automaticamente no drawer (`pendingOpenId`, um `useRef`
+  que espera o item aparecer em `allRows` depois do próximo render).
+- **Exportar Excel** moveu pro menu "..." (popover `'more'`) — mesma
+  lógica de exportação de antes (todos os itens, não só os filtrados),
+  colunas Reunião/Data/Título/Lado/Responsável/Status/Prazo.
+- **Melhoria transversal pequena**: `persistProjectDebounced` (`App.jsx`)
+  ganhou um toast de erro (reaproveitando `useToasts()`, chamado uma vez
+  no nível do `App()`) quando o PATCH do projeto falha — antes esse erro
+  só ia pro `console.error` e o usuário nunca ficava sabendo que uma
+  edição não salvou. Isso beneficia qualquer edição de projeto, não só
+  Atividades.
 
-### Fora do escopo (não pedido, não construído)
+### Fora do escopo desta entrega (não pedido pra agora / adiado
+conscientemente — não assumir que existe)
 
-Drag-and-drop entre status (arrastar card muda status) — os grupos são
-só visuais/colapsáveis, mudar status continua sendo o `<select>` de
-cada linha, igual já era dentro do modal da reunião — não virou um
-quadro Kanban de verdade. Filtro por reunião de origem específica (só
-tem busca por texto livre, que já cobre o nome da reunião). Notificação/
-lembrete de prazo vencido (só o destaque visual em vermelho na tela).
+- Tela cruzando todas as empresas ("Minha fila" pessoal e global, fora
+  do escopo de uma única empresa) — Rafael escolheu explicitamente não
+  construir isso agora.
+- Seleção em massa de itens, paleta de comando (Cmd+K), drag-and-drop
+  manual de posição dentro de um grupo, virtualização de lista (sem
+  necessidade com o volume atual de itens).
+- Rich text de verdade (negrito/lista/link) e @menção com notificação
+  nos comentários — `subtitle`/`notes`/comentários são texto simples.
+- Storage de arquivo de verdade — anexos são base64 no JSONB, mesmo
+  limite/mesma limitação do XFlow (sem verificação de tamanho no
+  servidor, só no cliente).
+- Reorganização da navegação das outras abas (Resumo/Gantt/Tabela/Fases/
+  Quadro) em algo tipo "Visão Geral/Cronograma" — só a aba TO
+  DO→Atividades mudou; as outras seguem como estavam.
 
 ## 19. Onde procurar mais detalhe
 

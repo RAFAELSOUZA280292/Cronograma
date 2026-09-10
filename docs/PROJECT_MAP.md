@@ -58,7 +58,9 @@ src/xflow/XFlow.jsx     Módulo XFlow (gestão de BUGs) — telas, constantes de
 src/agenda/Agenda.jsx    Módulo Agenda (2026-08) — visão dia/semana/mês da disponibilidade (Google + XFlow + atividades), toggle de privacidade.
 src/macro/MacroOverview.jsx  Módulo Visão Macro (2026-08) — cronograma consolidado de TODAS as empresas da org, por dia, com destaque de atrasado/hoje/próximo.
 src/meetings/Meetings.jsx   Módulo Reuniões (2026-09) — lista/detalhe de reunião por empresa + caixa de transcrições (envio, status, retry).
-src/meetings/TodoBoard.jsx  Aba "TO DO" (2026-09) — todos os itens de TO_DO de todas as reuniões da empresa, achatados numa lista só, editável e exportável pra Excel (PROJECT_CONTEXT.md §25).
+src/meetings/TodoBoard.jsx  Aba "Atividades" / "Centro de Execução" (2026-09) — todos os itens de TO_DO de todas as reuniões da empresa, achatados numa lista só, com cards de indicador, filtros/ordenação/agrupamento e "Minha fila" (PROJECT_CONTEXT.md §25).
+src/meetings/TodoDrawer.jsx  Painel lateral de detalhe de uma atividade (2026-09) — Origem/Descrição/Subtarefas/Comentários/Arquivos/Histórico (PROJECT_CONTEXT.md §25).
+src/meetings/todoUtils.js   Utilitários puros pra Atividades (2026-09) — iniciais/cor de avatar, cálculo de atraso, saudação por horário.
 src/main.jsx        Bootstrap do React (ReactDOM.createRoot).
 src/lib/api.js        Wrapper fetch (apiGet/apiPost/apiPatch/apiDelete), credentials:'include'.
 src/assets/brand/       Logos PNG da PRICETAX (preto = tema claro, branco = tema escuro).
@@ -129,7 +131,7 @@ Componentes de tela/modal (nome → linha → responsabilidade):
 | 6388 | `ResumoCard` | Card mobile da aba Resumo (2026-08) — mesmos dados de `ResumoTable`, layout empilhado |
 | **6417** | **`ResumoView`** | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
 | — | `MeetingsView`/`MeetingDetailModal`/`TranscriptSubmitModal` (`src/meetings/Meetings.jsx`) | Aba "Reuniões" do workspace de Empresas (2026-09) — lista Programadas/Realizadas + modal de edição autosave, array `project.meetings`, só `!isMulti`; + caixa de transcrições (2026-09) — botão "Enviar transcrição", lista de envios com polling, `POST/GET /api/meeting-inbox` (`server/meetingInbox.js`) — ver `PROJECT_CONTEXT.md` §24 e §24.1 |
-| — | `TodoBoardView` (`src/meetings/TodoBoard.jsx`) | Aba "TO DO" do workspace de Empresas (2026-09) — todos os TO_DOs de todas as reuniões da empresa numa lista só, agrupado por status, editável inline, exportável pra Excel, só `!isMulti` — ver `PROJECT_CONTEXT.md` §25 |
+| — | `TodoBoardView` (`src/meetings/TodoBoard.jsx`) + `TodoDrawer` (`src/meetings/TodoDrawer.jsx`) | Aba "Atividades" do workspace de Empresas (2026-09, redesign "Centro de Execução") — todos os TO_DOs de todas as reuniões da empresa numa lista só, cards de indicador, "Minha fila", filtros/ordenação/agrupamento (status/responsável/reunião), painel lateral com Origem/Descrição/Subtarefas/Comentários/Arquivos/Histórico, exportável pra Excel, só `!isMulti` — ver `PROJECT_CONTEXT.md` §25 |
 | **6597** | **`TableView`** | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
 | 7128 | `PhasesView` | View "Fases" |
 | 7258 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |

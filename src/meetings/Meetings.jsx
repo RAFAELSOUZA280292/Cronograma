@@ -322,7 +322,7 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
   );
 }
 
-export function MeetingDetailModal({ meeting: m, team, externalContacts, clientName, pid, onClose, updateMeeting, deleteMeeting, toggleParticipant, addParticipant, addActionItem, updateActionItem, deleteActionItem }) {
+export function MeetingDetailModal({ meeting: m, team, externalContacts, clientName, pid, onClose, updateMeeting, deleteMeeting, toggleParticipant, addParticipant, addActionItem, updateActionItem, deleteActionItem, onViewActivities }) {
   const isMobile = useIsMobile();
   const [participantDraft, setParticipantDraft] = useState('');
   const [participantEmailDraft, setParticipantEmailDraft] = useState('');
@@ -491,7 +491,20 @@ export function MeetingDetailModal({ meeting: m, team, externalContacts, clientN
           </div>
 
           <div style={{ flex: 1, minWidth: isMobile ? '100%' : 260 }}>
-            <div style={S.subSectionLabel}>TO_DO</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div style={S.subSectionLabel}>TO_DO</div>
+              {onViewActivities && activeItems.length > 0 && (
+                <button
+                  type="button" onClick={() => onViewActivities(m.id)}
+                  title="Ver estas atividades na aba Atividades"
+                  style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-5)', background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 999, padding: '3px 10px', cursor: 'pointer' }}
+                >
+                  Gerou {activeItems.length} atividade{activeItems.length === 1 ? '' : 's'}
+                  {' · '}{activeItems.filter((it) => it.status === 'concluida').length} concluída{activeItems.filter((it) => it.status === 'concluida').length === 1 ? '' : 's'}
+                  {' · '}{activeItems.filter((it) => it.status !== 'concluida' && it.status !== 'nao-relevante').length} pendente{activeItems.filter((it) => it.status !== 'concluida' && it.status !== 'nao-relevante').length === 1 ? '' : 's'}
+                </button>
+              )}
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {activeItems.length === 0 && <div style={S.emptyMuted}>Nenhuma atividade definida ainda.</div>}
               {activeItems.map((it) => {
