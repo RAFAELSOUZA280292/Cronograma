@@ -64,7 +64,12 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
 
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [submissions, setSubmissions] = useState([]);
-  const prevStatusesRef = useRef({});
+  // Snapshot vivo de `meetings` — lido dentro do polling sem precisar recriar
+  // o efeito (e reiniciar o timer) toda vez que a lista de reuniões muda.
+  const meetingsRef = useRef(meetings);
+  useEffect(() => { meetingsRef.current = meetings; }, [meetings]);
+  // Evita recarregar de novo pela mesma submissão já tratada.
+  const reloadedForRef = useRef(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -75,13 +80,19 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
         const res = await apiGet(`/api/meeting-inbox?projectId=${pid}`);
         if (cancelled) return;
         const list = res.submissions || [];
-        const prevStatuses = prevStatusesRef.current;
-        const justFinished = list.some((s) => s.status === 'done' && prevStatuses[s.id] && prevStatuses[s.id] !== 'done');
-        const nextStatuses = {};
-        list.forEach((s) => { nextStatuses[s.id] = s.status; });
-        prevStatusesRef.current = nextStatuses;
         setSubmissions(list);
-        if (justFinished && onReloadProjects) onReloadProjects();
+        // Recarrega se a submissão terminou (`done`) mas a reunião ainda não
+        // está na lista local — cobre tanto "acabou de terminar" quanto "já
+        // tinha terminado antes da tela montar" (processamento rápido demais
+        // pra pegar o status intermediário 'processing'), sem depender de
+        // comparar com o status anterior.
+        const toReload = list.filter((s) => s.status === 'done' && s.meetingId
+          && !reloadedForRef.current.has(s.id)
+          && !(meetingsRef.current || []).some((m) => m.id === s.meetingId));
+        if (toReload.length > 0) {
+          toReload.forEach((s) => reloadedForRef.current.add(s.id));
+          if (onReloadProjects) onReloadProjects();
+        }
         const stillWorking = list.some((s) => s.status === 'pending' || s.status === 'processing');
         if (stillWorking && !cancelled) timer = setTimeout(load, 4000);
       } catch (e) {
@@ -103,7 +114,6 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
   }
 
   function handleSubmitted(submission) {
-    prevStatusesRef.current[submission.id] = submission.status;
     setSubmissions((prev) => [submission, ...prev]);
     setShowSubmitModal(false);
   }
