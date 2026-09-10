@@ -2524,6 +2524,32 @@ texto). Ainda não confirmado explicitamente pelo Rafael se a extração
 só a mecânica de ponta a ponta (envio → processamento → reunião criada)
 foi validada.
 
+**Bug grave corrigido (2026-09-10) — reunião criada por transcrição
+nunca entrava na memória do Assistente/RENATA**: `processSubmission()`
+grava a reunião extraída via `UPDATE projects SET data=...` direto no
+banco — fora do fluxo normal de `PATCH /api/projects/:id`
+(`server/routes.js`), que é o único lugar que disparava
+`syncProjectMemoryFromDiff` (reindexação, §27). Sintoma real observado
+pelo Rafael em produção: perguntar "resuma a última reunião" pro
+Assistente devolvia corretamente título/data/participantes (vêm do
+PERFIL DO PROJETO, direto do cadastro) mas dizia não ter encontrado
+nenhum trecho de conteúdo — porque a transcrição/resumo/decisões
+daquela reunião de fato nunca tinham sido indexadas em
+`project_memory_chunks`. **Fix**: `processSubmission` agora chama
+`reindexMeetingMemory` (`server/memoryIngest.js`) logo depois de gravar
+a reunião, mesmo padrão já usado no agente executor
+(`server/assistantActions.js`). **Conferido que não há mais nenhum
+outro `UPDATE projects SET data=...` direto no código sem reindexação
+correspondente** (só existem 4 no repo: este agora corrigido, os dois
+do agente executor — um já reindexava, o outro é reagendamento de
+atividade de cronograma que não precisa — e o `PATCH` principal, que já
+reindexava desde a Fase 1). **Pendente**: toda reunião criada por
+transcrição **antes** deste fix continua sem memória indexada — precisa
+rodar `server/scripts/reindexAllMeetings.js` contra produção pra
+corrigir o histórico já existente (backfill, script já existia desde a
+Fase 1 mas nunca foi confirmado como executado — ver `PROJECT_CONTEXT.md`
+§27, script pendente há mais de uma sessão).
+
 **Bug corrigido (2026-09-10)**: a lista "Transcrições enviadas" mostrava
 pra sempre toda submissão já feita (até 50, `GET /api/meeting-inbox`),
 inclusive as concluídas com sucesso há muito tempo, mesmo que a reunião
