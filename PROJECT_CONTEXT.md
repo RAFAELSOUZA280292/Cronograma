@@ -2805,7 +2805,7 @@ em seguida. Texto via `buildMeetingText()` + `downloadTextFile()` (Blob +
   reunião", follow-up automático — nenhum suporte hoje.
 - Rota PATCH no link público — é só-leitura por decisão explícita.
 
-## 27. Assistente Inteligente de Projetos — Fase 1: Memória do Projeto (2026-09)
+## 27. Assistente Inteligente de Projetos — Fases 1 e 2 (2026-09)
 
 Rafael pediu um "Assistente Inteligente de Projetos" de verdade —
 conversar com o histórico real do projeto (reuniões, transcrições,
@@ -2914,15 +2914,70 @@ a ponta antes da Fase 2 existir (testado via `curl` nesta sessão:
 busca por palavra-chave com/sem acento, filtro por participante,
 rejeição de projeto inacessível). Nenhuma tela consome isso ainda.
 
+### Fase 2 — Chat do Projeto (implementado)
+
+Painel **"Assistente do Projeto"** — botão flutuante + painel lateral
+(`src/assistant/ProjectAssistant.jsx`), visível só nas abas Reuniões e
+Atividades (`!isMulti && (view==='meetings' || view==='todo')`,
+`App.jsx`). Uma conversa contínua por usuário+empresa (não múltiplas
+conversas nomeadas) — índice único `(project_id, user_id)` em
+`ai_conversations` garante isso no banco. Cada mensagem grava fontes
+(`sources` JSONB), se houve evidência suficiente (`has_evidence`), o
+contexto usado (`scope`) e observabilidade básica (modelo/tokens/
+latência) — tudo isso já nasce junto pra não precisar de uma segunda
+migration depois.
+
+**Pipeline de 2 chamadas à IA** (`server/assistantRetrieval.js`), o
+mesmo padrão de saída estruturada garantida (`client.messages.parse` +
+Zod) já usado em `meetingInbox.js`:
+1. `resolveQuery()` — recebe a pergunta + os últimos turnos da conversa
+   + contexto (aba atual, reunião aberta se houver) e devolve uma busca
+   autossuficiente, resolvendo pronomes/referências do turno anterior
+   ("esse assunto" → "nota de débito"). Barata e rápida (max 500 tokens).
+2. `searchProjectMemory()` (Fase 1, reaproveitada sem mudança) busca na
+   memória do projeto com esse resultado.
+3. `synthesizeAnswer()` — recebe a pergunta + os trechos recuperados +
+   histórico, devolve a resposta final + `citedChunkIds` + `hasEvidence`.
+   Prompt explícito: nunca inventar, e se `hasEvidence=false` a resposta
+   deve ser literalmente "Não encontrei evidência suficiente nas
+   reuniões ou documentos deste projeto."
+
+**Anti-alucinação por validação, não só por instrução de prompt**: todo
+`chunkId` que a IA cita em `citedChunkIds` é conferido contra o conjunto
+de chunks que foi de fato recuperado naquela pergunta
+(`askProjectAssistant`, `server/assistantRetrieval.js`) — qualquer id
+que não bater é descartado da lista de fontes (sem derrubar a resposta)
+e a anomalia fica registrada via `console.error`, pra poder ser
+monitorada.
+
+**Decisão deliberada de não religar "atividade aberta no `TodoDrawer`"
+pra consciência automática do assistente nesta fase** — esse estado
+hoje é local a dois componentes (`TodoBoardView` e
+`MeetingDetailModal`), religar só pra isso seria uma refatoração à
+parte; o assistente continua respondendo bem sobre atividades
+específicas via busca (`kind='activity'`), só não fica "grudado"
+automaticamente numa atividade aberta. O contexto de "reunião aberta"
+funciona normalmente, porque `openMeetingId` já era estado global em
+`App.jsx`.
+
+**Rotas** (`server/assistant.js`, montado em `/api/assistant`): `GET
+/conversation?projectId=` (carrega ou cria a conversa), `POST /ask`
+(pergunta — 503 explícito se `ANTHROPIC_API_KEY` não estiver
+configurada, mesmo padrão do `meetingInbox.js`), `POST
+/conversation/clear?projectId=` ("Limpar conversa" do painel), `POST
+/messages/:id/feedback` (👍/👎). Mesma autorização de toda rota de
+projeto (`canAccessProject`), sem tabela de permissão nova.
+
+**Detalhe de UI encontrado e corrigido durante o teste local**: o
+painel do assistente precisou de um z-index maior que o dos modais de
+Reunião/Atividade (60) — inicialmente usava 55/56 e ficava escondido
+atrás do modal quando aberto por cima de uma reunião; corrigido pra 90
+(abaixo só do `ConfirmDiscardModal`, que é 200 e deve continuar sendo o
+mais alto de todos).
+
 ### Roteiro das próximas fases (não construído, documentado pra não
 ser assumido como existente)
 
-- **Fase 2 — Chat do projeto**: painel "Assistente do Projeto" (nome já
-  decidido) nas abas Reuniões/Atividades, `ai_conversations`/
-  `ai_messages` (memória de conversa, perguntas sequenciais), geração de
-  resposta em linguagem natural via Claude a partir dos chunks
-  recuperados (com citação clicável de fonte), resposta completa de uma
-  vez (sem streaming — decisão já tomada).
 - **Fase 3 — Base de Conhecimento Corporativa**: documentos/legislação,
   temas estruturados, `scope='org_knowledge'`, promoção explícita de
   conhecimento privado → global (nunca automática), governança de quem

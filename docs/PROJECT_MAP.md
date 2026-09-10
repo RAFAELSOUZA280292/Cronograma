@@ -87,6 +87,9 @@ server/memoryIngest.js    Assistente Inteligente de Projetos, Fase 1 (2026-09) �
 server/memoryRetrieval.js  Assistente Inteligente de Projetos, Fase 1 (2026-09) — busca lexical (full-text search + unaccent) sobre `project_memory_chunks`, filtro por participante/reunião/data/tipo — ver PROJECT_CONTEXT.md §27.
 server/scripts/reindexAllMeetings.js  Backfill manual da memória do projeto pra reuniões já existentes (2026-09) — ver PROJECT_CONTEXT.md §27.
 shared/transcriptParser.js  Funções puras de parsing de transcrição (parseTranscript/sliceEntriesByTopics/splitDecisionLines, 2026-09) — sem dependência de React/Express, usadas tanto por src/meetings/meetingUtils.js quanto por server/memoryIngest.js.
+server/assistantRetrieval.js  Assistente Inteligente de Projetos, Fase 2 (2026-09) — pipeline de 2 chamadas à IA (resolveQuery/synthesizeAnswer/askProjectAssistant), citações validadas contra os chunks recuperados — ver PROJECT_CONTEXT.md §27.
+server/assistant.js       Rotas /api/assistant/* (conversation, ask, conversation/clear, messages/:id/feedback), 2026-09 — ver PROJECT_CONTEXT.md §27.
+src/assistant/ProjectAssistant.jsx  Botão flutuante + painel lateral "Assistente do Projeto" (2026-09) — visível nas abas Reuniões/Atividades, consciente de reunião aberta — ver PROJECT_CONTEXT.md §27.
 
 index.html            Shell HTML, variáveis CSS de tema (light/dark) em :root.
 vite.config.js         Proxy /api -> localhost:3001 em dev.
