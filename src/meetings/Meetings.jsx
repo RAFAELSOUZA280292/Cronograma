@@ -77,7 +77,11 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
   const trashed = (meetings || []).filter((m) => m.deleted);
 
   const upcoming = active.filter((m) => m.date && m.date > today).sort((a, b) => `${a.date}${a.time || ''}`.localeCompare(`${b.date}${b.time || ''}`));
-  const past = active.filter((m) => !m.date || m.date <= today).sort((a, b) => `${b.date || ''}${b.time || ''}`.localeCompare(`${a.date || ''}${a.time || ''}`));
+  // Cronológica crescente (mais antiga primeiro) — não depende de quando a
+  // reunião foi cadastrada no sistema, só da data real dela (pedido do
+  // Rafael: registrar hoje uma reunião de uma data passada não pode
+  // bagunçar a ordem, tem que continuar refletindo a data de verdade).
+  const past = active.filter((m) => !m.date || m.date <= today).sort((a, b) => `${a.date || ''}${a.time || ''}`.localeCompare(`${b.date || ''}${b.time || ''}`));
 
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [submissions, setSubmissions] = useState([]);
@@ -171,11 +175,19 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
         </div>
       </div>
 
-      {submissions.length > 0 && (
+      {(() => {
+        // Uma vez concluída com sucesso, a transcrição já virou uma reunião
+        // de verdade na lista abaixo — a entrada some daqui pra não ficar
+        // registrada pra sempre na tela (inclusive se a reunião gerada for
+        // apagada depois). Continua visível enquanto está na fila,
+        // processando, ou se falhou (precisa de retry).
+        const visibleSubmissions = submissions.filter((s) => s.status !== 'done');
+        if (visibleSubmissions.length === 0) return null;
+        return (
         <>
           <div className="mtg-section-title">Transcrições enviadas</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
-            {submissions.map((s) => {
+            {visibleSubmissions.map((s) => {
               const meta = SUBMISSION_STATUS_META[s.status] || SUBMISSION_STATUS_META.pending;
               const working = s.status === 'pending' || s.status === 'processing';
               return (
@@ -199,7 +211,8 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
             })}
           </div>
         </>
-      )}
+        );
+      })()}
 
       {active.length === 0 && (
         <div style={S.emptyMuted}>Nenhuma reunião registrada ainda. Clique em "Nova reunião" para começar.</div>

@@ -239,7 +239,10 @@ export function TodoBoardView({
       const map = new Map();
       filteredRows.forEach((r) => { if (!map.has(r.meetingId)) map.set(r.meetingId, []); map.get(r.meetingId).push(r); });
       const entries = Array.from(map.entries()).map(([mid, rows]) => ({ mid, rows, meetingTitle: rows[0].meetingTitle, meetingDate: rows[0].meetingDate }));
-      entries.sort((a, b) => `${b.meetingDate || ''}`.localeCompare(`${a.meetingDate || ''}`));
+      // Cronológica crescente (reunião mais antiga primeiro) — mesmo
+      // critério da aba Reuniões, não depende de quando a reunião foi
+      // cadastrada no sistema.
+      entries.sort((a, b) => `${a.meetingDate || ''}`.localeCompare(`${b.meetingDate || ''}`));
       return entries.map((e) => ({ key: `mtg:${e.mid}`, label: `${e.meetingTitle}${e.meetingDate ? ' · ' + fmtDate(e.meetingDate) : ''}`, color: 'var(--text-4)', rows: sortRows(e.rows, sortMode) }));
     }
     const byStatus = {};
