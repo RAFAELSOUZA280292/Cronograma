@@ -18,7 +18,9 @@ function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 const CHUNK_KINDS = ['transcript_segment', 'meeting_summary', 'meeting_decision', 'meeting_highlight', 'meeting_topic', 'activity', 'activity_comment'];
 
 const ResolveQuerySchema = z.object({
-  standaloneQuery: z.string().describe('A pergunta do usuário reescrita como uma busca autossuficiente, resolvendo qualquer pronome ou referência ao turno anterior da conversa (ex.: "esse assunto", "ele", "isso") em texto concreto. Se a pergunta já for autossuficiente, repita-a como está.'),
+  intent: z.enum(['pergunta_sobre_projeto', 'conversa_geral']).describe('"conversa_geral" pra saudações ("olá", "bom dia"), agradecimentos, perguntas sobre o que o assistente faz/como usar, ou qualquer mensagem que não pede um fato específico do histórico do projeto. "pergunta_sobre_projeto" pra qualquer pergunta real sobre reuniões, decisões, participantes, atividades, prazos, etc. deste projeto.'),
+  directReply: z.string().nullable().describe('Preenchido SOMENTE quando intent="conversa_geral": uma resposta curta, calorosa e profissional em português (ex.: cumprimentar de volta e explicar em 1-2 frases que você pode responder perguntas sobre as reuniões/decisões/atividades deste projeto, sempre citando a fonte). null quando intent="pergunta_sobre_projeto".'),
+  standaloneQuery: z.string().describe('Só relevante quando intent="pergunta_sobre_projeto": a pergunta do usuário reescrita como uma busca autossuficiente, resolvendo qualquer pronome ou referência ao turno anterior da conversa (ex.: "esse assunto", "ele", "isso") em texto concreto. Se a pergunta já for autossuficiente, repita-a como está. Se intent="conversa_geral", repita a pergunta original aqui mesmo sem uso.'),
   participant: z.string().nullable().describe('Nome de uma pessoa específica, se a pergunta for sobre o que ela falou/fez/prometeu — exatamente como aparece na conversa, null se a pergunta não for sobre uma pessoa específica'),
   meetingScope: z.enum(['atual', 'projeto_inteiro']).describe('"atual" se o usuário está claramente perguntando só sobre a reunião que está aberta na tela agora; "projeto_inteiro" no caso contrário, incluindo quando o usuário pedir explicitamente pra expandir pra reuniões anteriores'),
   kind: z.enum([...CHUNK_KINDS, 'qualquer']).describe('Tipo de conteúdo mais provável de responder — "qualquer" se não for possível restringir com confiança'),
@@ -41,8 +43,12 @@ async function resolveQuery({ question, history, context }) {
   const response = await client.messages.parse({
     model: 'claude-opus-5',
     max_tokens: 500,
-    system: 'Você prepara uma busca a partir de uma pergunta de um consultor sobre o histórico de um projeto de consultoria tributária. Nunca responda a pergunta em si — só a reformule como uma busca autossuficiente, resolvendo qualquer referência ao que foi dito antes na conversa.',
-    messages: [{ role: 'user', content: `Contexto: ${contextText}\n\nConversa até agora:\n${historyText}\n\nNova pergunta do usuário: ${question}` }],
+    system: [
+      'Você prepara o processamento de uma mensagem enviada ao "Assistente do Projeto" da PRICETAX por um consultor interno.',
+      'Primeiro classifique a intenção: se for só uma saudação, agradecimento, ou pergunta sobre o que você mesmo faz — não é uma pergunta sobre o projeto — marque intent="conversa_geral" e escreva você mesmo uma resposta curta e calorosa em directReply (pode mencionar que responde com base nas reuniões/decisões/atividades deste projeto, sempre citando a fonte).',
+      'Se for uma pergunta real sobre o histórico do projeto, marque intent="pergunta_sobre_projeto" e reformule como uma busca autossuficiente, resolvendo qualquer referência ao que foi dito antes na conversa — nunca responda a pergunta em si nesse caso, isso é feito depois por outra etapa.',
+    ].join(' '),
+    messages: [{ role: 'user', content: `Contexto: ${contextText}\n\nConversa até agora:\n${historyText}\n\nNova mensagem do usuário: ${question}` }],
     output_config: { format: zodOutputFormat(ResolveQuerySchema) },
   });
   if (!response.parsed_output) throw new Error('Falha ao interpretar a pergunta.');
@@ -104,29 +110,38 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
     [uid('aim'), conversationId, question],
   );
 
-  let resolved, chunks, synthesized, errorMsg = null;
+  let resolved, chunks = [], synthesized, errorMsg = null;
   try {
     resolved = await resolveQuery({ question, history, context: context || {} });
-    const scope = resolved.output;
-    chunks = await searchProjectMemory(pool, {
-      orgId, projectId,
-      query: scope.standaloneQuery,
-      participant: scope.participant || undefined,
-      meetingId: scope.meetingScope === 'atual' ? (context && context.meetingId) : undefined,
-      kind: scope.kind !== 'qualquer' ? scope.kind : undefined,
-      limit: 12,
-    });
-    synthesized = await synthesizeAnswer({ question, chunks, history });
+    // Saudação/conversa geral não passa pelo pipeline de busca+síntese —
+    // não é uma pergunta que exige evidência do projeto pra responder.
+    if (resolved.output.intent !== 'conversa_geral') {
+      const scope = resolved.output;
+      chunks = await searchProjectMemory(pool, {
+        orgId, projectId,
+        query: scope.standaloneQuery,
+        participant: scope.participant || undefined,
+        meetingId: scope.meetingScope === 'atual' ? (context && context.meetingId) : undefined,
+        kind: scope.kind !== 'qualquer' ? scope.kind : undefined,
+        limit: 12,
+      });
+      synthesized = await synthesizeAnswer({ question, chunks, history });
+    }
   } catch (e) {
     errorMsg = e.message || 'Erro desconhecido';
   }
 
   const latencyMs = Date.now() - startedAt;
-  let answerText, citedSources = [], hasEvidence = false, model = 'claude-opus-5';
+  let answerText, citedSources = [], hasEvidence = null, model = 'claude-opus-5';
   let tokensInput = 0, tokensOutput = 0;
 
   if (errorMsg) {
     answerText = 'Não consegui processar essa pergunta agora. Tente de novo em alguns instantes.';
+    hasEvidence = false;
+  } else if (resolved.output.intent === 'conversa_geral') {
+    answerText = resolved.output.directReply || 'Olá! Pode perguntar qualquer coisa sobre o histórico deste projeto — reuniões, decisões, atividades — que eu respondo sempre citando a fonte.';
+    tokensInput = (resolved.usage && resolved.usage.input_tokens) || 0;
+    tokensOutput = (resolved.usage && resolved.usage.output_tokens) || 0;
   } else {
     const validIds = new Set(chunks.map((c) => c.id));
     // Anti-alucinação por validação, não só por instrução de prompt:

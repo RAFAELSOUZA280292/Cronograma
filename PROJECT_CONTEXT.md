@@ -2975,6 +2975,19 @@ atrás do modal quando aberto por cima de uma reunião; corrigido pra 90
 (abaixo só do `ConfirmDiscardModal`, que é 200 e deve continuar sendo o
 mais alto de todos).
 
+**Bug de intenção corrigido após o deploy inicial**: o pipeline tratava
+toda mensagem, inclusive saudação ("olá"), como pergunta factual —
+`synthesizeAnswer` forçava a resposta canônica "Não encontrei evidência
+suficiente..." sempre que os trechos recuperados não sustentavam uma
+resposta, sem exceção pra conversa social. Corrigido adicionando
+`intent` (`'pergunta_sobre_projeto'` | `'conversa_geral'`) e
+`directReply` ao schema/prompt de `resolveQuery()` — mensagens de
+`conversa_geral` recebem uma resposta calorosa gerada na própria
+primeira chamada e **pulam** `searchProjectMemory`/`synthesizeAnswer`
+inteiramente (`askProjectAssistant`, `server/assistantRetrieval.js`);
+`hasEvidence` fica `null` (não `false`) nesse caso, pra não acionar o
+estilo visual de "sem evidência" no painel pra uma simples saudação.
+
 ### Roteiro das próximas fases (não construído, documentado pra não
 ser assumido como existente)
 
