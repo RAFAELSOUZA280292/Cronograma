@@ -20,6 +20,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { requireAuth } from './auth.js';
 import { pool } from './db.js';
 import { canAccessProject } from './routes.js';
+import { reindexMeetingMemory } from './memoryIngest.js';
 
 export const router = Router();
 
@@ -74,7 +75,7 @@ async function processSubmission(submissionId) {
     const sub = rows[0];
     if (!sub) return;
 
-    const { rows: projRows } = await pool.query('SELECT id, data FROM projects WHERE id=$1', [sub.project_id]);
+    const { rows: projRows } = await pool.query('SELECT id, org_id, data FROM projects WHERE id=$1', [sub.project_id]);
     const project = projRows[0];
     if (!project) throw new Error('Empresa não encontrada.');
     const clientCompanyName = (project.data && project.data.company && project.data.company.name) || '';
@@ -131,6 +132,14 @@ async function processSubmission(submissionId) {
       `UPDATE meeting_submissions SET status='done', meeting_id=$1, processed_at=now() WHERE id=$2`,
       [meeting.id, submissionId],
     );
+    // Essa gravação vai direto no banco (fora do fluxo normal de
+    // mutateProject/PATCH /api/projects/:id, que é quem dispara
+    // syncProjectMemoryFromDiff) — sem isso a reunião nunca entrava na
+    // memória pesquisável do Assistente do Projeto (bug real encontrado
+    // 2026-09-10: reunião aparecia certinho no cadastro, mas a IA nunca
+    // achava conteúdo dela na busca).
+    reindexMeetingMemory(pool, project.org_id, project.id, meeting)
+      .catch((e) => console.error('Falha ao reindexar memória da reunião criada por transcrição', e.message));
   } catch (e) {
     console.error('Falha ao processar transcrição de reunião', e.message);
     await pool.query(
