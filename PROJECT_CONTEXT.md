@@ -3805,22 +3805,42 @@ que foi decidido e o que mudou de fato.
   Assinatura pública não mudou — zero impacto em
   `server/assistantRetrieval.js`.
 
-**Pré-requisito real, pendente**: preciso que o Rafael crie conta em
-voyageai.com, gere uma API key, e configure `VOYAGE_API_KEY` no Railway
-(mesmo processo já feito pra `ANTHROPIC_API_KEY`) — sem isso o código
-sobe mas fica sempre em modo de fallback (só lexical, sem ganho
-nenhum). Ele também precisa passar uma chave de teste pra rodar
-localmente, já que não é possível testar a qualidade real da busca
-semântica sem uma chave de verdade.
+**Pré-requisito cumprido no mesmo dia**: Rafael criou a conta na
+Voyage, gerou a `VOYAGE_API_KEY` e configurou tanto no Railway (produção)
+quanto no `.env` local — permitiu teste real, não só de plumbing.
 
 **Testado localmente, sem `VOYAGE_API_KEY`** (confirma zero regressão
 pra quem ainda não configurou a chave): reunião de teste indexada
 normalmente, chunk criado com `embedding=null`, busca segue 100%
 lexical (fallback OR) e encontra o conteúdo certo — igual ao
-comportamento de antes desta mudança. **Não testado ainda**: a
-qualidade real da busca semântica (a pergunta "Como funciona o Seguro
-de Vida na Tecumseh?" achando o trecho certo pela perna semântica) —
-depende da `VOYAGE_API_KEY` de verdade, que ainda não foi configurada.
+comportamento de antes desta mudança.
+
+**Testado localmente, COM `VOYAGE_API_KEY` de verdade**: reunião de
+teste com transcrição real sobre "apólice de vida em grupo" (sem as
+palavras "seguro"/"como"/"funciona"/"Tecumseh" no conteúdo) —
+reindexação gerou embedding pros 2 chunks; a pergunta "Como funciona o
+Seguro de Vida na Tecumseh?" encontrou os dois, com a perna lexical
+(OR) E a semântica concordando (pontuação somada subiu de ~0.27-0.47
+pra ~0.89-1.10) — a combinação por id de chunk funciona como desenhado.
+Chunk de teste apagado depois.
+
+**Achado importante, não estava no plano original**: a conta da Voyage
+sem forma de pagamento cadastrada tem limite de **3 requisições por
+minuto** (RPM) e 10K tokens/minuto — bem abaixo do que uma reindexação
+de um projeto com várias reuniões precisa (uma chamada por reunião) ou
+do que uso real simultâneo da RENATA exigiria (uma chamada por
+pergunta). Confirmado na prática: uma chamada de embedding retornou
+`429` nesse limite durante o teste. Isso não quebra nada — o
+`try/catch` em `searchProjectMemory` cai pro resultado lexical sozinho
+— mas na prática, sem forma de pagamento cadastrada na Voyage, a perna
+semântica vai falhar silenciosamente com frequência sob uso real, e
+"Reindexar memória" num projeto com muitas reuniões (ex.: Tecumseh, 7
+reuniões) pode deixar as últimas reuniões da fila sem embedding no
+mesmo clique (não é fatal — rodar reindexar de novo tenta de novo, é
+idempotente — mas não é backfill completo garantido de primeira).
+**Recomendação pendente pro Rafael**: cadastrar forma de pagamento na
+página de billing da Voyage pra destravar o rate limit padrão — custo
+esperado é irrisório nessa escala de uso.
 
 ## 19. Onde procurar mais detalhe
 
