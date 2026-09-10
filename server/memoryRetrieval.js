@@ -1,0 +1,71 @@
+// Recuperação da memória do projeto (2026-09, Fase 1 do Assistente
+// Inteligente de Projetos) — busca lexical (full-text search nativo do
+// Postgres, sem embeddings/pgvector nesta fase, decisão explícita do
+// Rafael pra não depender de infraestrutura nova ainda) com filtro por
+// participante/reunião/data/tipo, ranqueada por relevância textual +
+// leve bônus de recência. Ver PROJECT_CONTEXT.md pro raciocínio
+// completo e o roteiro de evolução pra busca semântica.
+export async function searchProjectMemory(pool, {
+  orgId, projectId, query, participant, meetingId, dateFrom, dateTo, kind, limit = 12,
+}) {
+  const conditions = ['org_id = $1', 'project_id = $2'];
+  const params = [orgId, projectId];
+
+  function addParam(value) { params.push(value); return `$${params.length}`; }
+
+  let rankSelect = '0';
+  const q = (query || '').trim();
+  if (q) {
+    const qParam = addParam(q);
+    // `immutable_unaccent()` espelha o que já foi aplicado na coluna
+    // gerada `content_tsv` (server/db.js) — sem isso, "débito" na
+    // pergunta não bateria com "debito" sem acento numa transcrição
+    // colada sem acentuação correta.
+    const tsq = `plainto_tsquery('portuguese', immutable_unaccent(${qParam}))`;
+    conditions.push(`content_tsv @@ ${tsq}`);
+    rankSelect = `ts_rank_cd(content_tsv, ${tsq})`;
+  }
+  if (participant) {
+    conditions.push(`participants @> ${addParam(JSON.stringify([participant]))}::jsonb`);
+  }
+  if (meetingId) {
+    conditions.push(`meeting_id = ${addParam(meetingId)}`);
+  }
+  if (kind) {
+    conditions.push(`kind = ${addParam(kind)}`);
+  }
+  if (dateFrom) {
+    conditions.push(`meeting_date >= ${addParam(dateFrom)}`);
+  }
+  if (dateTo) {
+    conditions.push(`meeting_date <= ${addParam(dateTo)}`);
+  }
+
+  const limitParam = addParam(Math.min(Math.max(limit, 1), 50));
+
+  // Recência: reuniões mais recentes ganham um bônus pequeno (até 0.2)
+  // sobre o ranking textual, decaindo em ~180 dias — favorece o "o que
+  // está acontecendo agora" sem afogar um resultado antigo claramente
+  // mais relevante ao texto da pergunta.
+  const sql = `
+    SELECT id, meeting_id, kind, content, participants, meeting_date, meeting_title, time_ref, source_ref, created_at,
+      (${rankSelect} + GREATEST(0, 0.2 - (0.2 * LEAST(1.0, EXTRACT(DAY FROM (now() - COALESCE(meeting_date::timestamptz, created_at))) / 180.0)))) AS score
+    FROM project_memory_chunks
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY score DESC, created_at DESC
+    LIMIT ${limitParam}
+  `;
+  const { rows } = await pool.query(sql, params);
+  return rows.map((r) => ({
+    id: r.id,
+    meetingId: r.meeting_id,
+    kind: r.kind,
+    content: r.content,
+    participants: r.participants || [],
+    meetingDate: r.meeting_date,
+    meetingTitle: r.meeting_title,
+    timeRef: r.time_ref,
+    sourceRef: r.source_ref || {},
+    score: Number(r.score),
+  }));
+}

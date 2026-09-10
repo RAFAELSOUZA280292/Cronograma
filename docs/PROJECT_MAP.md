@@ -83,6 +83,10 @@ server/agenda.js        Rota única de leitura da Agenda (2026-08) — GET /api/
 server/macro.js         Rota única da Visão Macro (2026-08) — GET /api/macro mescla atividades de TODAS as empresas da org, filtra por período (semana atual/próxima/30 dias), gate por allCompaniesAccess.
 server/meetingInbox.js    Caixa de transcrições (2026-09) — router próprio em /api/meeting-inbox: POST cria submissão + dispara extração via Claude API (fire-and-forget), GET lista, POST /:id/retry reprocessa — ver PROJECT_CONTEXT.md §24.1.
 server/cnpjLookup.js     Cliente BrasilAPI/ReceitaWS + normalização + cache.
+server/memoryIngest.js    Assistente Inteligente de Projetos, Fase 1 (2026-09) — chunking/indexação de reuniões em `project_memory_chunks` (reindexMeetingMemory/reindexProjectMemory/syncProjectMemoryFromDiff), disparado no PATCH /projects/:id — ver PROJECT_CONTEXT.md §27.
+server/memoryRetrieval.js  Assistente Inteligente de Projetos, Fase 1 (2026-09) — busca lexical (full-text search + unaccent) sobre `project_memory_chunks`, filtro por participante/reunião/data/tipo — ver PROJECT_CONTEXT.md §27.
+server/scripts/reindexAllMeetings.js  Backfill manual da memória do projeto pra reuniões já existentes (2026-09) — ver PROJECT_CONTEXT.md §27.
+shared/transcriptParser.js  Funções puras de parsing de transcrição (parseTranscript/sliceEntriesByTopics/splitDecisionLines, 2026-09) — sem dependência de React/Express, usadas tanto por src/meetings/meetingUtils.js quanto por server/memoryIngest.js.
 
 index.html            Shell HTML, variáveis CSS de tema (light/dark) em :root.
 vite.config.js         Proxy /api -> localhost:3001 em dev.

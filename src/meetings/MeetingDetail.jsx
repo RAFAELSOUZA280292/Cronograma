@@ -20,6 +20,7 @@ import { TodoDrawer } from './TodoDrawer.jsx';
 import { TranscriptView } from './TranscriptView.jsx';
 import { initials, avatarColor } from './todoUtils.js';
 import { buildMeetingText, downloadTextFile } from './meetingUtils.js';
+import { splitDecisionLines } from '../../shared/transcriptParser.js';
 
 const MEETING_DETAIL_CSS = `
   .mtg2-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-start; justify-content:center; z-index:60; overflow-y:auto; padding:24px 16px; }
@@ -97,7 +98,7 @@ function EditableTextCard({ icon, title, value, placeholder, emptyMessage, onSav
 }
 
 function DecisionsRead(text) {
-  const items = text.split('\n').map((l) => l.replace(/^\s*\d+[).]\s*/, '').trim()).filter(Boolean);
+  const items = splitDecisionLines(text);
   if (items.length <= 1) return <div className="mtg2-read-text">{text}</div>;
   return (
     <div>
