@@ -101,6 +101,19 @@ export function buildProjectSnapshot(project) {
     .sort((a, b) => a.date.localeCompare(b.date));
   if (upcomingActivities.length) lines.push(`- Próxima atividade agendada: "${upcomingActivities[0].title}" em ${upcomingActivities[0].date}`);
 
+  // Lista completa (id incluso) pra localizar a atividade certa quando o
+  // usuário pedir pra reagendar algo por título (ex.: "postergar o split
+  // payment") — não é só a atrasada/próxima, pode ser qualquer uma.
+  const activitiesById = activities.slice().sort((a, b) => (a.date || '9999-99-99').localeCompare(b.date || '9999-99-99'));
+  if (activitiesById.length) {
+    lines.push(`- ATIVIDADES DO CRONOGRAMA — lista completa pra localizar por título ao propor reagendamento (id entre colchetes, use exatamente esse id em reschedule_activity):`);
+    activitiesById.slice(0, 40).forEach((a) => {
+      const phase = phases.find((p) => p.id === a.phase);
+      lines.push(`  · [${a.id}] "${a.title}" — data: ${a.date || 'sem data'}, status: ${ACTIVITY_STATUS_LABEL[a.status] || a.status}${phase ? `, fase: ${phase.name}` : ''}`);
+    });
+    if (activitiesById.length > 40) lines.push(`  (+${activitiesById.length - 40} atividades mais recentes não listadas aqui — busque se precisar)`);
+  }
+
   lines.push('');
   lines.push('REUNIÕES E TAREFAS DE REUNIÃO — quando listar várias, sempre da mais antiga pra mais atual, mas comece pelos alertas críticos');
   const pastMeetings = meetings.filter((m) => !m.date || m.date <= today).sort((a, b) => `${a.date || ''}${a.time || ''}`.localeCompare(`${b.date || ''}${b.time || ''}`));
@@ -109,10 +122,23 @@ export function buildProjectSnapshot(project) {
   if (pastMeetings.length) lines.push(`- Última reunião realizada: "${pastMeetings[pastMeetings.length - 1].title}" em ${pastMeetings[pastMeetings.length - 1].date || 'sem data'}`);
   if (futureMeetings.length) lines.push(`- Próxima reunião programada: "${futureMeetings[0].title}" em ${futureMeetings[0].date}`);
 
+  // Lista completa (id incluso) pra vincular uma pendência nova a QUALQUER
+  // reunião, não só a que estiver aberta na tela — pedido explícito do
+  // Rafael/Amanda: dá pra criar um "próximo passo" sem estar dentro de
+  // uma reunião específica, o assistente escolhe/pergunta qual vincular.
+  const meetingsById = [...pastMeetings, ...futureMeetings];
+  if (meetingsById.length) {
+    lines.push(`- REUNIÕES DISPONÍVEIS pra vincular uma pendência nova (id entre colchetes, use exatamente esse id em create_meeting_todo — mais recente primeiro nesta lista de referência):`);
+    meetingsById.slice(-20).reverse().forEach((m) => {
+      lines.push(`  · [${m.id}] "${m.title}" — ${m.date || 'sem data'}`);
+    });
+  }
+
   const allTodos = [];
   meetings.forEach((m) => (m.actionItems || []).filter((it) => !it.deleted).forEach((it) => allTodos.push({ ...it, meetingTitle: m.title, meetingDate: m.date })));
   const pendingTodos = allTodos.filter((it) => it.status !== 'concluida' && it.status !== 'nao-relevante');
   const criticalTodos = pendingTodos.filter((it) => it.status === 'urgente' || (it.dueDate && it.dueDate < today));
+  const aiCreatedTodos = pendingTodos.filter((it) => (it.createdBy || '').includes('Assistente'));
   pendingTodos.sort((a, b) => (a.dueDate || a.meetingDate || '9999-99-99').localeCompare(b.dueDate || b.meetingDate || '9999-99-99'));
   if (criticalTodos.length) {
     lines.push(`- ALERTAS CRÍTICOS (urgentes ou com prazo vencido — ${criticalTodos.length} no total):`);
@@ -123,8 +149,12 @@ export function buildProjectSnapshot(project) {
   if (pendingTodos.length) {
     lines.push(`- Pendências de reunião em aberto (${pendingTodos.length} no total, mais antiga primeiro):`);
     pendingTodos.slice(0, 12).forEach((it) => {
-      lines.push(`  · "${it.title}" — responsável: ${it.responsible || 'sem responsável'}, prazo: ${it.dueDate || 'sem prazo'}, status: ${TODO_STATUS_LABEL[it.status] || it.status}, reunião: "${it.meetingTitle}"`);
+      const aiTag = (it.createdBy || '').includes('Assistente') ? ' [criada por você, o Assistente]' : '';
+      lines.push(`  · "${it.title}" — responsável: ${it.responsible || 'sem responsável'}, prazo: ${it.dueDate || 'sem prazo'}, status: ${TODO_STATUS_LABEL[it.status] || it.status}, reunião: "${it.meetingTitle}"${aiTag}`);
     });
+  }
+  if (aiCreatedTodos.length) {
+    lines.push(`- Dessas, ${aiCreatedTodos.length} foram criadas por você mesmo (o Assistente) a pedido do usuário em conversa anterior e ainda não foram concluídas — quando fizer sentido no contexto, pergunte proativamente se já foram resolvidas.`);
   }
 
   return lines.join('\n');

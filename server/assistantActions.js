@@ -5,21 +5,12 @@
 // sozinha. Este arquivo é o único lugar que de fato muta `projects.data`
 // em nome do assistente, e só é chamado depois que o usuário confirma
 // explicitamente pelo painel (`POST /api/assistant/messages/:id/action`,
-// `server/assistant.js`). Um só tipo de ação por enquanto — criar uma
-// pendência (TO_DO) numa reunião já existente, o tipo mais simples e de
-// menor risco pra começar (não mexe no cronograma oficial rastreado pro
-// cliente); outros tipos entram aqui como mais um `case` quando pedidos.
+// `server/assistant.js`).
 import { reindexMeetingMemory } from './memoryIngest.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
-export async function executeProposedAction(pool, orgId, projectId, action, actingUserName) {
-  if (!action || action.type !== 'create_meeting_todo') {
-    throw new Error('Tipo de ação não suportado.');
-  }
-  const { rows } = await pool.query('SELECT data FROM projects WHERE id=$1', [projectId]);
-  if (!rows[0]) throw new Error('Empresa não encontrada.');
-  const project = rows[0].data || {};
+async function executeCreateMeetingTodo(pool, orgId, projectId, project, action, actingUserName) {
   const meetings = project.meetings || [];
   const idx = meetings.findIndex((m) => m.id === action.meetingId && !m.deleted);
   if (idx === -1) throw new Error('Reunião de destino não encontrada (pode ter sido apagada).');
@@ -55,4 +46,46 @@ export async function executeProposedAction(pool, orgId, projectId, action, acti
     .catch((e) => console.error('Assistente do Projeto: falha ao reindexar memória após ação executada', e.message));
 
   return { meetingId: updatedMeeting.id, meetingTitle: updatedMeeting.title, actionItem: newItem };
+}
+
+// Reagendar uma atividade do cronograma oficial (Gantt/Tabela/Fases/
+// Quadro — mesma base, `project.activities`). Pedido explícito do Rafael
+// (exemplo dado: "postergar o split payment pro final do cronograma"),
+// com o mesmo fluxo de confirmação — só muda `date`/`endDate` pra manter
+// o efeito simples e previsível (não recalcula duração nem reordena
+// `month`, que é só um rótulo de exibição).
+async function executeRescheduleActivity(pool, projectId, project, action, actingUserName) {
+  const activities = project.activities || [];
+  const idx = activities.findIndex((a) => a.id === action.activityId && !a.deleted);
+  if (idx === -1) throw new Error('Atividade do cronograma não encontrada (pode ter sido apagada).');
+
+  const oldActivity = activities[idx];
+  const updatedActivity = { ...oldActivity, date: action.newDate, endDate: action.newDate };
+  const nextActivities = activities.map((a, i) => (i === idx ? updatedActivity : a));
+  const nextData = {
+    ...project,
+    activities: nextActivities,
+    log: [
+      { ts: new Date().toISOString(), action: `Atividade reagendada via Assistente do Projeto, confirmado por ${actingUserName || 'usuário'}: "${updatedActivity.title}" de ${oldActivity.date || 'sem data'} para ${action.newDate}`, user: actingUserName || 'Assistente do Projeto', activityId: updatedActivity.id },
+      ...(project.log || []),
+    ].slice(0, 300),
+  };
+
+  await pool.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(nextData), projectId]);
+  return { activityId: updatedActivity.id, activityTitle: updatedActivity.title, oldDate: oldActivity.date || '', newDate: action.newDate };
+}
+
+export async function executeProposedAction(pool, orgId, projectId, action, actingUserName) {
+  if (!action) throw new Error('Nenhuma ação pra executar.');
+  const { rows } = await pool.query('SELECT data FROM projects WHERE id=$1', [projectId]);
+  if (!rows[0]) throw new Error('Empresa não encontrada.');
+  const project = rows[0].data || {};
+
+  if (action.type === 'create_meeting_todo') {
+    return executeCreateMeetingTodo(pool, orgId, projectId, project, action, actingUserName);
+  }
+  if (action.type === 'reschedule_activity') {
+    return executeRescheduleActivity(pool, projectId, project, action, actingUserName);
+  }
+  throw new Error('Tipo de ação não suportado.');
 }
