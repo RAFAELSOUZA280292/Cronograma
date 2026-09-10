@@ -2524,6 +2524,32 @@ texto). Ainda não confirmado explicitamente pelo Rafael se a extração
 só a mecânica de ponta a ponta (envio → processamento → reunião criada)
 foi validada.
 
+**Bug corrigido (2026-09-10)**: a lista "Transcrições enviadas" mostrava
+pra sempre toda submissão já feita (até 50, `GET /api/meeting-inbox`),
+inclusive as concluídas com sucesso há muito tempo, mesmo que a reunião
+gerada por elas já tivesse sido apagada pelo usuário. **Fix**: no
+frontend (`MeetingsView`, `src/meetings/Meetings.jsx`), a lista
+renderizada agora filtra `status !== 'done'` — uma submissão concluída
+some da tela assim que a reunião de verdade já existe na lista abaixo,
+já que ela deixou de ter utilidade informativa. O backend continua
+devolvendo o histórico completo (usado pela lógica de polling que
+detecta a transição pra `'done'` e recarrega os projetos) — só a
+renderização foi filtrada, não o dado.
+
+**Bug corrigido (2026-09-10)**: reuniões "Realizadas" eram ordenadas
+por data decrescente (mais recente primeiro) — o Rafael pediu ordem
+cronológica **crescente** (mais antiga primeiro) pras reuniões e pras
+atividades, pra registrar hoje uma reunião de uma data passada não
+"aparecer fora de ordem" na leitura da tela (o dado já era ordenado
+pela data real, não pela ordem de cadastro — só a direção do sort
+mudou). Ajustado em dois lugares: `past` em `MeetingsView`
+(`src/meetings/Meetings.jsx`) e o agrupamento "Agrupar por Reunião" em
+`TodoBoard.jsx` (§25). **Não** alterado: "Programadas" (já era
+crescente) e o `<select>` de escolher reunião ao criar uma nova
+atividade (`meetingsForPicker`, `TodoBoard.jsx`) — esse continua
+decrescente de propósito, porque define o valor padrão do formulário
+(mais lógico pré-selecionar a reunião mais recente que uma antiga).
+
 ## 25. Atividades — "Centro de Execução" (2026-09)
 
 Pedido original (2026-09, primeira versão): uma aba **"TO DO"** trazendo
