@@ -429,6 +429,23 @@ export async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS ai_messages_conversation_idx ON ai_messages(conversation_id, created_at)`);
+
+  // Aprendizados do Assistente do Projeto (2026-09, pedido do Rafael:
+  // "gere aprendizado... memorize isso, não jogue no lixo") — fatos
+  // duráveis extraídos das conversas (ver `synthesizeAnswer` em
+  // `server/assistantRetrieval.js`), à parte de `ai_messages` de propósito:
+  // sobrevivem a "Limpar conversa" (que só apaga `ai_messages`), porque um
+  // aprendizado sobre o projeto não é conversa descartável.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_project_insights (
+      id          TEXT PRIMARY KEY,
+      org_id      TEXT NOT NULL REFERENCES organizations(id),
+      project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      content     TEXT NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_project_insights_project_idx ON ai_project_insights(project_id, created_at)`);
 }
 
 export function blankXflowTicketData() {

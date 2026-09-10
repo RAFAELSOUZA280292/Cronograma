@@ -3014,6 +3014,78 @@ inteiramente (`askProjectAssistant`, `server/assistantRetrieval.js`);
 `hasEvidence` fica `null` (não `false`) nesse caso, pra não acionar o
 estilo visual de "sem evidência" no painel pra uma simples saudação.
 
+**Bug corrigido (2026-09-10) — assistente não sabia responder identidade
+do cliente**: o Rafael reportou que perguntar "qual o nome do cliente?
+qual o regime tributário?" retornava "Não encontrei evidência
+suficiente..." — **causa raiz**: o pipeline só buscava na memória de
+reuniões (`project_memory_chunks`), e nome/CNPJ/regime tributário nunca
+vêm de transcrição nenhuma, vêm do cadastro (`project.company`). O
+mesmo valia pra cronograma: perguntas sobre atividades/fases/prazos do
+Cronograma (abas Resumo/Gantt/Tabela/Fases/Quadro) também não eram
+respondíveis, porque essa base (`project.activities`/`project.phases`)
+nunca foi indexada como memória de reunião.
+
+**Fix — PERFIL DO PROJETO (`server/assistantContext.js`,
+`buildProjectSnapshot(project)`)**: função pura que monta um resumo
+compacto e sempre atualizado, direto do JSONB do projeto (sem busca,
+sem IA, cabe inteiro em todo pedido — diferente da memória de reuniões,
+que é grande e por isso precisa de busca lexical): identidade do
+cliente (razão social, nome fantasia, CNPJ, regime tributário, tipo de
+projeto, status), equipe/contatos externos, fases, contagem de
+atividades por status, **atividades atrasadas** (prazo vencido e não
+concluídas, mais antiga primeiro) e próxima atividade agendada,
+resumo de reuniões (total/última realizada/próxima programada) e
+**pendências de reunião (TO_DO) em aberto** com uma seção separada de
+**alertas críticos** (status `urgente` ou prazo vencido) sempre antes
+da lista cronológica. `askProjectAssistant` (`server/assistantRetrieval.js`)
+carrega `project.data` (já vinha carregado pela rota, `server/assistant.js`
+— só passou a ser repassado, não gerou query nova) e injeta esse perfil
+tanto em `resolveQuery` (ajuda a resolver "o cliente"/"a empresa" pelo
+nome real) quanto em `synthesizeAnswer`, que agora tem **duas fontes de
+verdade**: o PERFIL DO PROJETO (responde direto, sem citação de chunk)
+e os trechos de reunião recuperados (citação obrigatória, como antes).
+`hasEvidence` passa a considerar as duas fontes — só vira `false`
+quando nem uma nem outra respondem.
+
+**Aprendizado persistente (2026-09-10, pedido do Rafael: "gere
+aprendizado... memorize isso, não jogue no lixo")**: nova tabela
+`ai_project_insights` (`id`, `org_id`, `project_id`, `content`,
+`created_at`) — **fora** de `ai_messages` de propósito, porque um fato
+aprendido sobre o projeto não deve ser perdido quando o usuário clica
+"Limpar conversa" (que só apaga `ai_messages`). `SynthesizeAnswerSchema`
+ganhou um campo `learnedFact` (nullable) — preenchido pela IA só quando
+a troca revela algo durável e reutilizável (ex.: uma preferência do
+cliente, um padrão recorrente); quando presente, é gravado na tabela
+via `saveInsight()` (fire-and-forget, erro não derruba a resposta já
+pronta). `askProjectAssistant` carrega os últimos 50 aprendizados
+(`loadInsights`, ordem cronológica) e injeta em todo `synthesizeAnswer`
+como "Aprendizados acumulados em conversas anteriores sobre este
+projeto" — persistem entre conversas, entre sessões, e não são
+resetados por projeto.
+
+**Comportamento cronológico + alertas (2026-09-10, pedido explícito do
+Rafael)**: o prompt de `synthesizeAnswer` agora instrui explicitamente
+que, ao listar várias reuniões/atividades, a resposta deve vir sempre
+da mais antiga pra mais atual (nunca por ordem de cadastro), mas
+começando pelos pontos mais críticos/urgentes/atrasados antes de entrar
+na lista cronológica — mesmo critério já aplicado à UI (Reuniões
+Realizadas, Agrupar por Reunião em Atividades, ver seção "Reuniões
+(2026-09)" acima) agora também rege como o assistente **fala** sobre
+esses dados, não só como a tela os exibe.
+
+**Testado localmente sem `ANTHROPIC_API_KEY`** (mesma limitação de
+sempre — não há chave local, e a regra do projeto é nunca pedir a
+chave ao Rafael): `buildProjectSnapshot()` testado isoladamente (função
+pura, sem IA) com dados realistas e com projeto vazio/incompleto, sem
+erro; `loadInsights`/`saveInsight` testados direto contra o Postgres
+local (grava, lê em ordem, limpa); `initDb()` roda limpo e cria
+`ai_project_insights` corretamente; `node --check` limpo nos 3 arquivos
+tocados (`assistantContext.js` novo, `assistantRetrieval.js`,
+`assistant.js`). **Não testado**: a qualidade real da resposta da IA
+usando o perfil do projeto (depende da chave real em produção) — pedir
+ao Rafael pra testar "qual o nome do cliente?"/"qual o regime
+tributário?"/"quais atividades estão atrasadas?" ao vivo.
+
 ### Roteiro das próximas fases (não construído, documentado pra não
 ser assumido como existente)
 

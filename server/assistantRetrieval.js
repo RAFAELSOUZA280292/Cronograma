@@ -12,6 +12,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { searchProjectMemory } from './memoryRetrieval.js';
+import { buildProjectSnapshot } from './assistantContext.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -28,11 +29,12 @@ const ResolveQuerySchema = z.object({
 
 const SynthesizeAnswerSchema = z.object({
   answer: z.string().describe('A resposta final em português, clara e direta, para o usuário. Se hasEvidence for false, esta deve ser literalmente "Não encontrei evidência suficiente nas reuniões ou documentos deste projeto."'),
-  citedChunkIds: z.array(z.string()).describe('IDs (campo "id" de cada trecho recebido) dos trechos que sustentam de fato a resposta — só inclua um id se ele realmente contém a informação usada na resposta. Vazio se hasEvidence for false.'),
-  hasEvidence: z.boolean().describe('true se os trechos recebidos sustentam a resposta; false se não há evidência suficiente nos trechos pra responder com confiança — nesse caso NUNCA invente, admita explicitamente que não encontrou.'),
+  citedChunkIds: z.array(z.string()).describe('IDs (campo "id" de cada trecho recebido) dos trechos que sustentam de fato a resposta — só inclua um id se ele realmente contém a informação usada na resposta. Vazio se a resposta veio do PERFIL DO PROJETO em vez de um trecho, ou se hasEvidence for false.'),
+  hasEvidence: z.boolean().describe('true se os trechos OU o PERFIL DO PROJETO sustentam a resposta; false só quando nem os trechos recuperados nem o perfil do projeto respondem a pergunta com confiança — nesse caso NUNCA invente, admita explicitamente que não encontrou.'),
+  learnedFact: z.string().nullable().describe('Preencha SOMENTE quando esta troca revelou um fato durável e específico sobre ESTE projeto que vale a pena lembrar em conversas futuras (ex.: um padrão recorrente, uma preferência do cliente, um contexto importante que não estava registrado) — seja específico e curto (1 frase). null na grande maioria das respostas — não force um aprendizado onde não há nada novo/reutilizável.'),
 });
 
-async function resolveQuery({ question, history, context }) {
+async function resolveQuery({ question, history, context, projectSnapshot }) {
   const client = new Anthropic();
   const historyText = history.length
     ? history.map((m) => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`).join('\n')
@@ -46,34 +48,34 @@ async function resolveQuery({ question, history, context }) {
     system: [
       'Você prepara o processamento de uma mensagem enviada ao "Assistente do Projeto" da PRICETAX por um consultor interno.',
       'Primeiro classifique a intenção: se for só uma saudação, agradecimento, ou pergunta sobre o que você mesmo faz — não é uma pergunta sobre o projeto — marque intent="conversa_geral" e escreva você mesmo uma resposta curta e calorosa em directReply (pode mencionar que responde com base nas reuniões/decisões/atividades deste projeto, sempre citando a fonte).',
-      'Se for uma pergunta real sobre o histórico do projeto, marque intent="pergunta_sobre_projeto" e reformule como uma busca autossuficiente, resolvendo qualquer referência ao que foi dito antes na conversa — nunca responda a pergunta em si nesse caso, isso é feito depois por outra etapa.',
+      'Se for uma pergunta real sobre o histórico do projeto, marque intent="pergunta_sobre_projeto" e reformule como uma busca autossuficiente, resolvendo qualquer referência ao que foi dito antes na conversa (inclusive "o cliente"/"a empresa", que pode ser resolvido pelo nome real no perfil do projeto abaixo) — nunca responda a pergunta em si nesse caso, isso é feito depois por outra etapa.',
     ].join(' '),
-    messages: [{ role: 'user', content: `Contexto: ${contextText}\n\nConversa até agora:\n${historyText}\n\nNova mensagem do usuário: ${question}` }],
+    messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nContexto: ${contextText}\n\nConversa até agora:\n${historyText}\n\nNova mensagem do usuário: ${question}` }],
     output_config: { format: zodOutputFormat(ResolveQuerySchema) },
   });
   if (!response.parsed_output) throw new Error('Falha ao interpretar a pergunta.');
   return { output: response.parsed_output, usage: response.usage };
 }
 
-async function synthesizeAnswer({ question, chunks, history }) {
+async function synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText }) {
   const client = new Anthropic();
   const historyText = history.length
     ? history.map((m) => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`).join('\n')
     : '(sem turnos anteriores nesta conversa)';
   const chunksText = chunks.length
     ? chunks.map((c) => `[id=${c.id}] (${c.kind}, reunião "${c.meetingTitle}" em ${c.meetingDate || 'sem data'}${c.timeRef ? `, ${c.timeRef}` : ''})\n${c.content}`).join('\n\n---\n\n')
-    : '(nenhum trecho relevante foi encontrado na memória deste projeto)';
+    : '(nenhum trecho relevante foi encontrado na memória de reuniões deste projeto — mas confira o PERFIL DO PROJETO abaixo antes de concluir que não há evidência: perguntas de identidade/cronograma são respondidas por ele, não por trecho de reunião)';
   const response = await client.messages.parse({
     model: 'claude-opus-5',
     max_tokens: 1500,
     system: [
-      'Você é o "Assistente do Projeto" da PRICETAX — um especialista que acompanhou de perto todas as reuniões deste projeto de consultoria tributária, e responde consultores internos sobre o histórico dele.',
-      'Regra absoluta: só responda com base nos trechos fornecidos abaixo. Nunca invente nome, data, decisão, compromisso ou fato que não esteja literalmente presente nos trechos.',
-      'Se os trechos não sustentarem uma resposta com confiança, hasEvidence deve ser false e a resposta deve ser exatamente "Não encontrei evidência suficiente nas reuniões ou documentos deste projeto." — nunca tente adivinhar ou completar a lacuna.',
-      'Quando responder com base nos trechos, seja direto e cite reunião e data quando isso ajudar o consultor a confiar na resposta (ex.: "Na reunião de 15/08, Rafael comentou que...").',
-      'Só inclua em citedChunkIds os ids dos trechos que você realmente usou.',
+      'Você é o "Assistente do Projeto" da PRICETAX — um especialista que acompanhou de perto todas as reuniões deste projeto de consultoria tributária, e responde consultores internos sobre o histórico e o cronograma dele.',
+      'Você tem DUAS fontes de verdade, ambas confiáveis: (1) o PERFIL DO PROJETO — dado estruturado direto do cadastro/cronograma (identidade do cliente, fases, atividades, reuniões, pendências), sempre atual, pode responder direto com base nele sem citar chunkId; (2) os TRECHOS RECUPERADOS DA MEMÓRIA — texto literal de reuniões, só pode citar como fonte (citedChunkIds) um id que está realmente na lista recebida.',
+      'Regra absoluta: nunca invente nome, data, decisão, compromisso ou fato que não esteja literalmente no PERFIL DO PROJETO ou nos trechos. Se nenhum dos dois sustentar uma resposta com confiança, hasEvidence deve ser false e a resposta deve ser exatamente "Não encontrei evidência suficiente nas reuniões ou documentos deste projeto." — nunca tente adivinhar ou completar a lacuna.',
+      'Quando a resposta envolver várias reuniões ou atividades, apresente sempre da mais antiga pra mais atual (nunca por ordem de cadastro) — mas comece a resposta destacando os pontos mais críticos/urgentes/atrasados antes de entrar na lista cronológica, não deixe eles perdidos no meio do texto.',
+      'Quando responder com base num trecho de reunião, cite reunião e data pra ajudar o consultor a confiar na resposta (ex.: "Na reunião de 15/08, Rafael comentou que..."). Só inclua em citedChunkIds os ids dos trechos que você realmente usou — nunca cite um trecho pra sustentar um fato que na verdade veio do PERFIL DO PROJETO ou dos APRENDIZADOS ACUMULADOS.',
     ].join(' '),
-    messages: [{ role: 'user', content: `Conversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória do projeto:\n\n${chunksText}` }],
+    messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nAprendizados acumulados em conversas anteriores sobre este projeto:\n${insightsText}\n\nConversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória de reuniões:\n\n${chunksText}` }],
     output_config: { format: zodOutputFormat(SynthesizeAnswerSchema) },
   });
   if (!response.parsed_output) throw new Error('Falha ao gerar a resposta.');
@@ -98,12 +100,36 @@ async function loadRecentHistory(pool, conversationId, limit = 8) {
   return rows.reverse().map((r) => ({ role: r.role, content: r.content }));
 }
 
+async function loadInsights(pool, projectId, limit = 50) {
+  const { rows } = await pool.query(
+    `SELECT content FROM ai_project_insights WHERE project_id=$1 ORDER BY created_at ASC LIMIT $2`,
+    [projectId, limit],
+  );
+  return rows.length ? rows.map((r) => `- ${r.content}`).join('\n') : '(nenhum aprendizado registrado ainda)';
+}
+
+async function saveInsight(pool, orgId, projectId, content) {
+  const text = (content || '').trim();
+  if (!text) return;
+  await pool.query(
+    `INSERT INTO ai_project_insights (id, org_id, project_id, content) VALUES ($1,$2,$3,$4)`,
+    [uid('aii'), orgId, projectId, text.slice(0, 500)],
+  );
+}
+
 // Função pública — orquestra: carrega conversa → resolve a pergunta →
 // busca na memória → sintetiza resposta → valida citações → grava tudo.
-export async function askProjectAssistant({ pool, orgId, projectId, userId, question, context }) {
+// `projectData` é o JSONB completo do projeto (já carregado pela rota, ver
+// server/assistant.js) — usado pra montar o PERFIL DO PROJETO
+// (server/assistantContext.js), que dá ao assistente acesso direto à
+// identidade do cliente e ao cronograma (Resumo/Gantt/Tabela/Fases/
+// Quadro são a mesma base de dados), sem depender da memória de reuniões
+// pra perguntas que não vêm de reunião nenhuma.
+export async function askProjectAssistant({ pool, orgId, projectId, userId, question, context, projectData }) {
   const startedAt = Date.now();
   const conversationId = await getOrCreateConversation(pool, orgId, projectId, userId);
   const history = await loadRecentHistory(pool, conversationId);
+  const projectSnapshot = buildProjectSnapshot(projectData || {});
 
   await pool.query(
     `INSERT INTO ai_messages (id, conversation_id, role, content) VALUES ($1,$2,'user',$3)`,
@@ -112,20 +138,30 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
 
   let resolved, chunks = [], synthesized, errorMsg = null;
   try {
-    resolved = await resolveQuery({ question, history, context: context || {} });
+    resolved = await resolveQuery({ question, history, context: context || {}, projectSnapshot });
     // Saudação/conversa geral não passa pelo pipeline de busca+síntese —
     // não é uma pergunta que exige evidência do projeto pra responder.
     if (resolved.output.intent !== 'conversa_geral') {
       const scope = resolved.output;
-      chunks = await searchProjectMemory(pool, {
-        orgId, projectId,
-        query: scope.standaloneQuery,
-        participant: scope.participant || undefined,
-        meetingId: scope.meetingScope === 'atual' ? (context && context.meetingId) : undefined,
-        kind: scope.kind !== 'qualquer' ? scope.kind : undefined,
-        limit: 12,
-      });
-      synthesized = await synthesizeAnswer({ question, chunks, history });
+      const [chunksResult, insightsText] = await Promise.all([
+        searchProjectMemory(pool, {
+          orgId, projectId,
+          query: scope.standaloneQuery,
+          participant: scope.participant || undefined,
+          meetingId: scope.meetingScope === 'atual' ? (context && context.meetingId) : undefined,
+          kind: scope.kind !== 'qualquer' ? scope.kind : undefined,
+          limit: 12,
+        }),
+        loadInsights(pool, projectId),
+      ]);
+      chunks = chunksResult;
+      synthesized = await synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText });
+      if (synthesized.output.learnedFact) {
+        // Falha ao gravar aprendizado não pode derrubar a resposta já
+        // pronta pro usuário — só registra o erro, não interrompe o fluxo.
+        saveInsight(pool, orgId, projectId, synthesized.output.learnedFact)
+          .catch((e) => console.error('Assistente do Projeto: falha ao gravar aprendizado', e.message));
+      }
     }
   } catch (e) {
     errorMsg = e.message || 'Erro desconhecido';
