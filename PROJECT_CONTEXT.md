@@ -2619,9 +2619,15 @@ continuam exportados de `Meetings.jsx` — fonte única de status/estilo.
 ### UI (por que cada decisão)
 
 - **Cards de indicador dinâmicos e clicáveis** (pendentes / atrasadas /
-  minhas / reuniões) — clicar em "pendentes"/"atrasadas" aplica o filtro
-  rápido correspondente; "minhas" ativa "Minha fila"; "reuniões" é só
-  informativo (contagem de reuniões da empresa), sem filtro associado.
+  minhas / **cliente / pricetax** (2026-09-10) / reuniões) — clicar em
+  "pendentes"/"atrasadas" aplica o filtro rápido correspondente;
+  "minhas" ativa "Minha fila"; **"cliente"/"pricetax" alternam o filtro
+  de lado (`ownerFilter`, o mesmo já usado no popover Filtros) — clicar
+  de novo no mesmo desliga, clicar no outro troca direto**; "reuniões" é
+  só informativo (contagem de reuniões da empresa), sem filtro
+  associado. Contagem de "cliente"/"pricetax" é só de pendências ativas
+  (mesmo critério de "pendentes"), igual às outras — pedido do Rafael
+  pra ver de cara quanto está com cada lado.
 - **"Minha fila" é a visão padrão ao abrir a aba** — filtra por
   `responsible` batendo (case-insensitive, substring — cobre responsável
   combinado tipo "Gustavo, com a Francine") com o nome do usuário logado.

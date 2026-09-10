@@ -188,14 +188,16 @@ export function TodoBoardView({
   const openMeeting = openItem ? (meetings || []).find((m) => m.id === openItem.meetingId) : null;
 
   const stats = useMemo(() => {
-    let pendentes = 0, atrasadas = 0, minhas = 0;
+    let pendentes = 0, atrasadas = 0, minhas = 0, cliente = 0, pricetax = 0;
     allRows.forEach((r) => {
       const pending = r.status !== 'concluida' && r.status !== 'nao-relevante';
       if (pending) pendentes++;
       if (pending && r.dueDate && r.dueDate < today) atrasadas++;
       if (pending && matchesMine(r.responsible, currentUser)) minhas++;
+      if (pending && r.owner === 'cliente') cliente++;
+      if (pending && r.owner !== 'cliente') pricetax++;
     });
-    return { pendentes, atrasadas, minhas, reunioes: (meetings || []).filter((m) => !m.deleted).length };
+    return { pendentes, atrasadas, minhas, cliente, pricetax, reunioes: (meetings || []).filter((m) => !m.deleted).length };
   }, [allRows, currentUser, meetings, today]);
 
   const meuResumo = useMemo(() => {
@@ -348,6 +350,14 @@ export function TodoBoardView({
         <div className={`todo-stat-card ${quickFilter === 'minha' ? 'active' : ''}`} onClick={() => setQuickFilter('minha')}>
           <div className="todo-stat-value">{stats.minhas}</div>
           <div className="todo-stat-label">minhas</div>
+        </div>
+        <div className={`todo-stat-card ${ownerFilter === 'cliente' ? 'active' : ''}`} onClick={() => setOwnerFilter((v) => (v === 'cliente' ? 'todos' : 'cliente'))}>
+          <div className="todo-stat-value">{stats.cliente}</div>
+          <div className="todo-stat-label">cliente</div>
+        </div>
+        <div className={`todo-stat-card ${ownerFilter === 'pricetax' ? 'active' : ''}`} onClick={() => setOwnerFilter((v) => (v === 'pricetax' ? 'todos' : 'pricetax'))}>
+          <div className="todo-stat-value">{stats.pricetax}</div>
+          <div className="todo-stat-label">pricetax</div>
         </div>
         <div className="todo-stat-card static">
           <div className="todo-stat-value">{stats.reunioes}</div>
