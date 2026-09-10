@@ -139,6 +139,11 @@ export function TodoBoardView({
   const sortOpen = openPopover === 'sort';
   const moreOpen = openPopover === 'more';
   function togglePopover(name) { setOpenPopover((v) => (v === name ? null : name)); }
+  function selectStat(nextQuick, nextOwner) {
+    const isActive = quickFilter === nextQuick && ownerFilter === nextOwner;
+    setQuickFilter(isActive ? 'todos' : nextQuick);
+    setOwnerFilter(isActive ? 'todos' : nextOwner);
+  }
   const [statusFilter, setStatusFilter] = useState(() => new Set());
   const [ownerFilter, setOwnerFilter] = useState('todos');
   const [reuniaoFilter, setReuniaoFilter] = useState('');
@@ -215,6 +220,7 @@ export function TodoBoardView({
       if (quickFilter === 'minha' && !matchesMine(r.responsible, currentUser)) return false;
       if (quickFilter === 'hoje' && r.dueDate !== today) return false;
       if (quickFilter === 'semana' && !inNextDays(r.dueDate, 7)) return false;
+      if (quickFilter === 'atrasadas' && !(r.status !== 'concluida' && r.status !== 'nao-relevante' && r.dueDate && r.dueDate < today)) return false;
       if (statusFilter.size > 0 && !statusFilter.has(r.status)) return false;
       if (ownerFilter !== 'todos' && (r.owner === 'cliente' ? 'cliente' : 'pricetax') !== ownerFilter) return false;
       if (reuniaoFilter && r.meetingId !== reuniaoFilter) return false;
@@ -339,25 +345,25 @@ export function TodoBoardView({
       </div>
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-        <div className={`todo-stat-card ${quickFilter === 'todos' ? 'active' : ''}`} onClick={() => setQuickFilter('todos')}>
+        <div className={`todo-stat-card ${quickFilter === 'todos' && ownerFilter === 'todos' ? 'active' : ''}`} onClick={() => selectStat('todos', 'todos')}>
           <div className="todo-stat-value">{stats.pendentes}</div>
           <div className="todo-stat-label">pendentes</div>
         </div>
-        <div className={`todo-stat-card ${quickFilter === 'atrasadas' ? 'active' : ''}`} onClick={() => setQuickFilter((v) => (v === 'atrasadas' ? 'todos' : 'atrasadas'))}>
+        <div className={`todo-stat-card ${quickFilter === 'atrasadas' && ownerFilter === 'todos' ? 'active' : ''}`} onClick={() => selectStat('atrasadas', 'todos')}>
           <div className="todo-stat-value" style={stats.atrasadas > 0 ? { color: '#e2574c' } : undefined}>{stats.atrasadas}</div>
           <div className="todo-stat-label">atrasadas</div>
         </div>
-        <div className={`todo-stat-card ${quickFilter === 'minha' ? 'active' : ''}`} onClick={() => setQuickFilter('minha')}>
+        <div className={`todo-stat-card ${quickFilter === 'minha' && ownerFilter === 'todos' ? 'active' : ''}`} onClick={() => selectStat('minha', 'todos')}>
           <div className="todo-stat-value">{stats.minhas}</div>
           <div className="todo-stat-label">minhas</div>
         </div>
-        <div className={`todo-stat-card ${ownerFilter === 'cliente' ? 'active' : ''}`} onClick={() => setOwnerFilter((v) => (v === 'cliente' ? 'todos' : 'cliente'))}>
+        <div className={`todo-stat-card ${quickFilter === 'todos' && ownerFilter === 'cliente' ? 'active' : ''}`} onClick={() => selectStat('todos', 'cliente')}>
           <div className="todo-stat-value">{stats.cliente}</div>
-          <div className="todo-stat-label">cliente</div>
+          <div className="todo-stat-label">Cliente</div>
         </div>
-        <div className={`todo-stat-card ${ownerFilter === 'pricetax' ? 'active' : ''}`} onClick={() => setOwnerFilter((v) => (v === 'pricetax' ? 'todos' : 'pricetax'))}>
+        <div className={`todo-stat-card ${quickFilter === 'todos' && ownerFilter === 'pricetax' ? 'active' : ''}`} onClick={() => selectStat('todos', 'pricetax')}>
           <div className="todo-stat-value">{stats.pricetax}</div>
-          <div className="todo-stat-label">pricetax</div>
+          <div className="todo-stat-label">Pricetax</div>
         </div>
         <div className="todo-stat-card static">
           <div className="todo-stat-value">{stats.reunioes}</div>

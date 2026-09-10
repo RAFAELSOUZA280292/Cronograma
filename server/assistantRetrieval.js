@@ -14,7 +14,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { searchProjectMemory, getMeetingTranscriptChunks } from './memoryRetrieval.js';
-import { buildProjectSnapshot } from './assistantContext.js';
+import { buildProjectSnapshot, buildPersonLookupText } from './assistantContext.js';
 import { executeProposedAction } from './assistantActions.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
@@ -25,7 +25,7 @@ const ResolveQuerySchema = z.object({
   intent: z.enum(['pergunta_sobre_projeto', 'conversa_geral']).describe('"conversa_geral" pra saudações ("olá", "bom dia"), agradecimentos, perguntas sobre o que o assistente faz/como usar, ou qualquer mensagem que não pede um fato específico do histórico do projeto. "pergunta_sobre_projeto" pra qualquer pergunta real sobre reuniões, decisões, participantes, atividades, prazos, etc. deste projeto.'),
   directReply: z.string().nullable().describe('Preenchido SOMENTE quando intent="conversa_geral": uma resposta curta, calorosa e profissional em português (ex.: cumprimentar de volta e explicar em 1-2 frases que você pode responder perguntas sobre as reuniões/decisões/atividades deste projeto, sempre citando a fonte). null quando intent="pergunta_sobre_projeto".'),
   standaloneQuery: z.string().describe('Só relevante quando intent="pergunta_sobre_projeto": a pergunta do usuário reescrita como uma busca autossuficiente, resolvendo qualquer pronome ou referência ao turno anterior da conversa (ex.: "esse assunto", "ele", "isso") em texto concreto. Se a pergunta já for autossuficiente, repita-a como está. Se intent="conversa_geral", repita a pergunta original aqui mesmo sem uso.'),
-  participant: z.string().nullable().describe('Nome de uma pessoa específica, se a pergunta for sobre o que ela falou/fez/prometeu — exatamente como aparece na conversa, null se a pergunta não for sobre uma pessoa específica'),
+  participant: z.string().nullable().describe('Nome (ou apenas primeiro nome/apelido) de uma pessoa específica, se a pergunta for sobre o que ela falou/fez/prometeu, ou sobre as pendências/atividades dela (ex.: "quais as pendências do Evanio?", "o que o Rafa está nos devendo?") — exatamente como o usuário escreveu, mesmo que seja só um pedaço do nome completo (a resolução pro nome completo é feita depois, à parte). null se a pergunta não for sobre uma pessoa específica.'),
   meetingScope: z.enum(['atual', 'projeto_inteiro']).describe('"atual" se o usuário está claramente perguntando só sobre a reunião que está aberta na tela agora; "projeto_inteiro" no caso contrário, incluindo quando o usuário pedir explicitamente pra expandir pra reuniões anteriores'),
   kind: z.enum([...CHUNK_KINDS, 'qualquer']).describe('Tipo de conteúdo mais provável de responder — "qualquer" se não for possível restringir com confiança. Marque "activity" sempre que o usuário pedir contexto/explicação sobre uma atividade ou pendência específica citando o título dela (ex.: "não to entendendo essa atividade pelo título, me dá mais contexto") — isso aciona uma busca mais profunda na transcrição da reunião de origem.'),
   targetMeetingId: z.string().nullable().describe('Preencha com o id exato de UMA reunião específica — veja a lista "REUNIÕES DISPONÍVEIS" no perfil do projeto — sempre que o usuário claramente pedir sobre uma reunião específica sem necessariamente estar com ela aberta na tela (ex.: "resuma a última reunião" → é a mais recente da lista; "o que foi discutido na reunião de 10/09?" → ache pela data; "a reunião sobre X" → ache pelo título). Isso aciona busca da transcrição INTEIRA daquela reunião, não só busca por relevância — essencial pra pedidos de resumo geral, que não têm palavra-chave forte pra achar o trecho certo por ranking textual. null se a pergunta não se referir a uma reunião específica identificável, ou se já houver uma reunião aberta no contexto (nesse caso ela já é considerada).'),
@@ -84,7 +84,7 @@ async function resolveQuery({ question, history, context, projectSnapshot }) {
   return { output: response.parsed_output, usage: response.usage };
 }
 
-async function synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText, context }) {
+async function synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText, context, personLookupText }) {
   const client = new Anthropic();
   const historyText = history.length
     ? history.map((m) => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`).join('\n')
@@ -108,11 +108,12 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, in
       'Quando o usuário pedir contexto sobre uma atividade específica cujo título sozinho não explica nada (ex.: "não to entendendo essa atividade pelo título"), você recebe, além do chunk da própria atividade, TODOS os segmentos de transcrição da reunião de onde ela nasceu — leia essa transcrição de verdade e explique com suas palavras o que estava sendo discutido quando aquele item surgiu, não repita só os campos da atividade (responsável/prazo/status). O título foi escrito pela IA a partir da fala, então pode não usar as mesmas palavras da conversa original — procure o trecho certo pelo assunto, não por correspondência exata de texto.',
       'Se o assunto tocar uma questão tributária técnica que exige aprofundamento em legislação/base legal (ex.: interpretação de norma de IBS/CBS, fundamento jurídico), não tente concluir sozinha — sinalize que esse ponto merece uma análise tributária dedicada, o tipo de trabalho que a IVANA faz.',
       'Se o PERFIL DO PROJETO listar participantes "SEM IDENTIFICAÇÃO CLARA" e isso for relevante ou natural no contexto da conversa, aproveite pra perguntar ao usuário quem é essa pessoa (lado PRICETAX ou cliente, e qual área) — no máximo uma pergunta desse tipo por resposta, nunca repita uma pergunta sobre a mesma pessoa se ela já foi respondida antes (confira os APRENDIZADOS ACUMULADOS e a conversa) — quando o usuário responder, registre em learnedFact.',
+      'Quando o usuário perguntar sobre as pendências/atividades de uma pessoa (ex.: "quais as pendências do Evanio?", "o que o Rafa está nos devendo?"), mesmo citando só um apelido ou parte do nome, você recebe abaixo o resultado de uma busca por nome já feita no cadastro (PENDÊNCIAS POR PESSOA) — isso é uma varredura completa, não uma amostra, então pode responder com confiança total a partir dele. Se ele indicar mais de um nome parecido (ambíguo), pergunte qual delas antes de responder. Se indicar que não achou ninguém com esse nome, diga isso claramente em vez de inventar.',
       'Você também pode propor ações (proposedAction): criar uma pendência numa reunião, ou reagendar uma atividade do cronograma — mas NUNCA executa sozinho, e NUNCA finge que já executou. Sempre descreva a ação proposta na resposta citando o título exato do alvo (reunião ou atividade) e peça confirmação. Se não tiver certeza de qual reunião/atividade o usuário quer dizer, NÃO proponha ainda — faça a pergunta de esclarecimento primeiro (ex.: "Você está falando da atividade \'Split payment e demais operações financeiras\'?"), e só proponha de fato no turno seguinte, depois de confirmado.',
       'Ao reagendar (reschedule_activity), sempre diga na resposta a data antiga e a nova, pra o usuário conseguir validar a mudança de verdade antes de confirmar.',
       'Seja objetiva e executiva: prefira uma resposta curta e direta quando ela resolver, priorizando clareza, ação, contexto e prioridade — evite textão quando não for necessário.',
     ].join(' '),
-    messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nAprendizados acumulados em conversas anteriores sobre este projeto:\n${insightsText}\n\n${meetingContextText}\n\nConversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória de reuniões:\n\n${chunksText}` }],
+    messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nAprendizados acumulados em conversas anteriores sobre este projeto:\n${insightsText}\n\n${meetingContextText}\n\n${personLookupText || ''}\n\nConversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória de reuniões:\n\n${chunksText}` }],
     output_config: { format: zodOutputFormat(SynthesizeAnswerSchema) },
   });
   if (!response.parsed_output) throw new Error('Falha ao gerar a resposta.');
@@ -190,6 +191,21 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
     // não é uma pergunta que exige evidência do projeto pra responder.
     if (resolved.output.intent !== 'conversa_geral') {
       const scope = resolved.output;
+
+      // Pedido do Rafael: "quais as pendências do Evanio?", "o que o
+      // Rafa está nos devendo?" — resolve apelido/nome parcial pro nome
+      // completo exato ANTES de filtrar a busca por participante (senão
+      // "Evanio" nunca bateria com "Evanio Santinon" no filtro exato de
+      // `searchProjectMemory`) e monta uma varredura completa (não uma
+      // amostra) das pendências dela.
+      let personLookupText = '';
+      let resolvedParticipant = scope.participant || undefined;
+      if (scope.participant) {
+        const lookup = buildPersonLookupText(projectData || {}, scope.participant);
+        personLookupText = lookup.text;
+        resolvedParticipant = lookup.resolvedName || undefined;
+      }
+
       // targetMeetingId (reunião específica identificada pela IA, ex.:
       // "resuma a última reunião") tem prioridade sobre a lógica antiga
       // de só usar a reunião aberta na tela — nunca confiar cegamente
@@ -200,7 +216,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
         searchProjectMemory(pool, {
           orgId, projectId,
           query: scope.standaloneQuery,
-          participant: scope.participant || undefined,
+          participant: resolvedParticipant,
           meetingId: searchMeetingId || undefined,
           kind: scope.kind !== 'qualquer' ? scope.kind : undefined,
           limit: 12,
@@ -239,7 +255,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
         }
       }
 
-      synthesized = await synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText, context: context || {} });
+      synthesized = await synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText, context: context || {}, personLookupText });
       if (synthesized.output.learnedFact) {
         // Falha ao gravar aprendizado não pode derrubar a resposta já
         // pronta pro usuário — só registra o erro, não interrompe o fluxo.
