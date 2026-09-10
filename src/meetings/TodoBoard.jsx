@@ -7,29 +7,42 @@
 // aparece dentro do modal da reunião de origem, e vice-versa.
 import React, { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { ListChecks, Search, Download, Plus, X, ChevronDown, ChevronRight, Mic } from 'lucide-react';
+import { ListChecks, Search, Download, Plus, X, ChevronDown, ChevronRight, Mic, Check } from 'lucide-react';
 import { S, fmtDate, useIsMobile } from '../App.jsx';
 import { MEETINGS_CSS, TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } from './Meetings.jsx';
 
 const TODO_BOARD_CSS = `
-  .todo-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 12px; border-radius:9px; background:var(--bg-2); border:1px solid var(--border-1); transition:border-color .12s; }
-  .todo-row:hover { border-color:var(--border-3); }
+  .todo-row { display:flex; flex-direction:column; gap:9px; padding:13px 14px; border-radius:11px; background:var(--bg-2); border:1px solid var(--border-1); transition:border-color .14s, box-shadow .14s, transform .1s; }
+  .todo-row:hover { border-color:var(--border-3); box-shadow:0 2px 10px rgba(0,0,0,.07); }
   .todo-row:hover .todo-del-btn { opacity:1; }
-  .todo-del-btn { opacity:.35; transition:opacity .12s, color .12s; }
+  .todo-del-btn { opacity:.3; transition:opacity .12s, color .12s; flex-shrink:0; }
   .todo-del-btn:hover { color:#e5484d; }
-  .todo-title-input { font-weight:700; font-size:13px; }
+  .todo-row-main { display:flex; align-items:flex-start; gap:10px; }
+  .todo-row-meta { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding-left:30px; }
+  .todo-check { width:20px; height:20px; border-radius:6px; border:1.5px solid var(--border-3); background:var(--bg-1); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; color:#fff; margin-top:2px; transition:background .14s, border-color .14s, transform .08s; }
+  .todo-check:hover { border-color:#3ecf6e; transform:scale(1.06); }
+  .todo-check.checked { background:#3ecf6e; border-color:#3ecf6e; }
+  .todo-title-input { font-weight:700; font-size:13.5px; width:100%; resize:none; overflow:hidden; line-height:1.45; padding:3px 6px; font-family:inherit; border:1px solid transparent; background:transparent; border-radius:6px; transition:background .12s, border-color .12s; }
+  .todo-title-input:hover { background:var(--bg-3); }
+  .todo-title-input:focus { background:var(--bg-1); border-color:var(--border-3); }
   .todo-section-head { display:flex; align-items:center; gap:8px; padding:8px 2px; cursor:pointer; user-select:none; }
   .todo-section-head:hover .todo-section-label { color:var(--text-2); }
   .todo-section-label { font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--text-4); transition:color .12s; }
   .todo-section-count { font-size:11px; font-weight:700; color:var(--text-6); background:var(--bg-3); border-radius:999px; padding:1px 8px; }
   .todo-owner-btn { font-size:10px; font-weight:800; padding:5px 8px; border-radius:6px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .todo-origin-badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--text-5); background:var(--bg-3); border:1px solid var(--border-1); border-radius:7px; padding:5px 9px; cursor:pointer; white-space:nowrap; max-width:220px; overflow:hidden; text-overflow:ellipsis; }
+  .todo-origin-badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--text-5); background:var(--bg-3); border:1px solid var(--border-1); border-radius:7px; padding:5px 9px; cursor:pointer; white-space:nowrap; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
   .todo-origin-badge:hover { color:var(--text-2); border-color:var(--border-3); }
   .todo-overdue { color:#e2574c !important; font-weight:700; }
   .todo-filter-chip { font-size:11.5px; font-weight:700; padding:6px 11px; border-radius:999px; border:1px solid var(--border-2); background:var(--bg-2); color:var(--text-5); cursor:pointer; white-space:nowrap; }
   .todo-filter-chip.active { border-color:#F5C400; background:rgba(245,196,0,.12); color:#F5C400; }
   .todo-empty { text-align:center; padding:48px 20px; color:var(--text-6); }
 `;
+
+function autosizeTitle(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
 
 function todayIso() {
   const d = new Date();
@@ -151,57 +164,72 @@ export function TodoBoardView({ meetings, team, externalContacts, clientName, pi
 
   function renderRow(row) {
     const owner = row.owner === 'cliente' ? 'cliente' : 'pricetax';
+    const isDone = row.status === 'concluida';
     const isOverdue = row.dueDate && row.dueDate < today && row.status !== 'concluida' && row.status !== 'nao-relevante';
     return (
       <div key={row.id} className="todo-row">
-        <select
-          value={TODO_STATUS_META[row.status] ? row.status : 'nao-iniciado'}
-          onChange={(e) => updateActionItem(pid, row.meetingId, row.id, { status: e.target.value })}
-          style={{ width: 150, flexShrink: 0, fontWeight: 700, color: todoStatusMeta(row.status).color, background: todoStatusMeta(row.status).bg, border: `1px solid ${todoStatusMeta(row.status).border}` }}
-        >
-          {TODO_STATUS_ORDER.map((s) => <option key={s} value={s}>{TODO_STATUS_META[s].label}</option>)}
-        </select>
+        <div className="todo-row-main">
+          <button
+            type="button" className={`todo-check ${isDone ? 'checked' : ''}`}
+            title={isDone ? 'Marcar como não concluída' : 'Marcar como concluída'}
+            onClick={() => updateActionItem(pid, row.meetingId, row.id, { status: isDone ? 'nao-iniciado' : 'concluida' })}
+          >
+            {isDone && <Check size={13} strokeWidth={3} />}
+          </button>
 
-        <input
-          type="text" className="todo-title-input" value={row.title}
-          onChange={(e) => updateActionItem(pid, row.meetingId, row.id, { title: e.target.value })}
-          style={{ flex: '2 1 220px', minWidth: 180, textDecoration: row.status === 'concluida' ? 'line-through' : 'none', opacity: row.status === 'concluida' ? .6 : 1 }}
-        />
+          <textarea
+            className="todo-title-input" value={row.title} rows={1}
+            ref={autosizeTitle}
+            onChange={(e) => updateActionItem(pid, row.meetingId, row.id, { title: e.target.value })}
+            onInput={(e) => autosizeTitle(e.target)}
+            style={{ textDecoration: isDone ? 'line-through' : 'none', opacity: isDone ? .6 : 1 }}
+          />
 
-        <button
-          type="button" className="todo-owner-btn" onClick={() => updateActionItem(pid, row.meetingId, row.id, { owner: owner === 'pricetax' ? 'cliente' : 'pricetax' })}
-          title="Clique pra alternar entre PRICETAX e cliente"
-          style={{
-            border: owner === 'pricetax' ? '1px solid #F5C400' : '1px solid #3ea6ff',
-            background: owner === 'pricetax' ? 'rgba(245,196,0,.14)' : 'rgba(62,166,255,.14)',
-            color: owner === 'pricetax' ? '#F5C400' : '#3ea6ff',
-            flex: '0 1 120px',
-          }}
-        >{owner === 'pricetax' ? 'PRICETAX' : (clientName || 'Cliente')}</button>
+          <button type="button" style={S.iconBtnGhost} className="todo-del-btn" title="Excluir item" onClick={() => deleteActionItem(pid, row.meetingId, row.id)}>
+            <X size={14} />
+          </button>
+        </div>
 
-        <input
-          type="text" list="todo-board-responsaveis"
-          value={row.responsible || ''} onChange={(e) => handleResponsibleChange(row, e.target.value)}
-          placeholder="Responsável" title="Responsável"
-          style={{ flex: '1 1 150px', minWidth: 130 }}
-        />
+        <div className="todo-row-meta">
+          <select
+            value={TODO_STATUS_META[row.status] ? row.status : 'nao-iniciado'}
+            onChange={(e) => updateActionItem(pid, row.meetingId, row.id, { status: e.target.value })}
+            style={{ width: 150, flexShrink: 0, fontWeight: 700, color: todoStatusMeta(row.status).color, background: todoStatusMeta(row.status).bg, border: `1px solid ${todoStatusMeta(row.status).border}` }}
+          >
+            {TODO_STATUS_ORDER.map((s) => <option key={s} value={s}>{TODO_STATUS_META[s].label}</option>)}
+          </select>
 
-        <input
-          type="date" value={row.dueDate || ''} title="Prazo"
-          onChange={(e) => updateActionItem(pid, row.meetingId, row.id, { dueDate: e.target.value })}
-          style={{ width: 138, flexShrink: 0 }}
-          className={isOverdue ? 'todo-overdue' : ''}
-        />
+          <button
+            type="button" className="todo-owner-btn" onClick={() => updateActionItem(pid, row.meetingId, row.id, { owner: owner === 'pricetax' ? 'cliente' : 'pricetax' })}
+            title="Clique pra alternar entre PRICETAX e cliente"
+            style={{
+              border: owner === 'pricetax' ? '1px solid #F5C400' : '1px solid #3ea6ff',
+              background: owner === 'pricetax' ? 'rgba(245,196,0,.14)' : 'rgba(62,166,255,.14)',
+              color: owner === 'pricetax' ? '#F5C400' : '#3ea6ff',
+              flex: '0 1 120px',
+            }}
+          >{owner === 'pricetax' ? 'PRICETAX' : (clientName || 'Cliente')}</button>
 
-        <button type="button" className="todo-origin-badge" onClick={() => onOpenMeeting(row.meetingId)} title="Abrir a reunião de origem">
-          <Mic size={11} />
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.meetingTitle}</span>
-          <span style={{ opacity: .7, flexShrink: 0 }}>· {row.meetingDate ? fmtDate(row.meetingDate) : 'sem data'}</span>
-        </button>
+          <input
+            type="text" list="todo-board-responsaveis"
+            value={row.responsible || ''} onChange={(e) => handleResponsibleChange(row, e.target.value)}
+            placeholder="Responsável" title="Responsável"
+            style={{ flex: '1 1 150px', minWidth: 130 }}
+          />
 
-        <button type="button" style={S.iconBtnGhost} className="todo-del-btn" title="Excluir item" onClick={() => deleteActionItem(pid, row.meetingId, row.id)}>
-          <X size={14} />
-        </button>
+          <input
+            type="date" value={row.dueDate || ''} title="Prazo"
+            onChange={(e) => updateActionItem(pid, row.meetingId, row.id, { dueDate: e.target.value })}
+            style={{ width: 138, flexShrink: 0 }}
+            className={isOverdue ? 'todo-overdue' : ''}
+          />
+
+          <button type="button" className="todo-origin-badge" onClick={() => onOpenMeeting(row.meetingId)} title="Abrir a reunião de origem">
+            <Mic size={11} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.meetingTitle}</span>
+            <span style={{ opacity: .7, flexShrink: 0 }}>· {row.meetingDate ? fmtDate(row.meetingDate) : 'sem data'}</span>
+          </button>
+        </div>
       </div>
     );
   }
