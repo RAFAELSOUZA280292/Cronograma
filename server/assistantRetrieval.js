@@ -158,7 +158,17 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
   const startedAt = Date.now();
   const conversationId = await getOrCreateConversation(pool, orgId, projectId, userId);
   const history = await loadRecentHistory(pool, conversationId);
-  const projectSnapshot = buildProjectSnapshot(projectData || {});
+  // Nunca deixar um formato de dado inesperado no projeto derrubar a
+  // pergunta inteira com um 500 — sem perfil, o assistente ainda responde
+  // com base na memória de reuniões, só perde a parte de identidade/
+  // cronograma nesta pergunta específica.
+  let projectSnapshot;
+  try {
+    projectSnapshot = buildProjectSnapshot(projectData || {});
+  } catch (e) {
+    console.error('Assistente do Projeto: falha ao montar o perfil do projeto', e.message);
+    projectSnapshot = '(perfil do projeto indisponível no momento)';
+  }
 
   await pool.query(
     `INSERT INTO ai_messages (id, conversation_id, role, content) VALUES ($1,$2,'user',$3)`,
