@@ -2576,6 +2576,52 @@ atividade (`meetingsForPicker`, `TodoBoard.jsx`) — esse continua
 decrescente de propósito, porque define o valor padrão do formulário
 (mais lógico pré-selecionar a reunião mais recente que uma antiga).
 
+### 24.2 Cobertura de log — Reuniões e Atividades (2026-09-10)
+
+O Rafael tentou enviar uma transcrição 3 vezes ("aparece em tela, mas
+não permanece") e perguntou se isso fica registrado no log — a
+resposta era **não, parcialmente**: `processSubmission()`
+(`server/meetingInbox.js`) só grava em `project.log` quando o
+processamento **dá certo** e vira reunião; criar o envio e qualquer
+falha no meio do caminho não deixavam rastro nenhum. Auditei toda a
+superfície de Reuniões/Atividades pra fechar essa e outras lacunas
+parecidas (agente `general-purpose`, sem sub-agentes):
+
+- **`server/meetingInbox.js`** — novo helper `appendProjectLog(projectId,
+  action, user)` (log-only, mesmo padrão read-modify-write já usado em
+  todo o resto do sistema). Agora loga: (1) `POST /` — "[usuário] enviou
+  uma transcrição de reunião pra processamento por IA", assim que a
+  submissão é criada; (2) `processSubmission()` catch — "Falha ao
+  processar transcrição enviada: [erro]", só quando o projeto já foi
+  carregado (se a falha for antes disso — ex.: submissão não encontrada
+  — não tem onde logar); (3) `POST /:id/retry` — "[usuário] tentou
+  reprocessar uma transcrição de reunião que tinha falhado". O sucesso
+  já era logado antes (dentro da mesma `UPDATE projects` que cria a
+  reunião, não mudou).
+- **`server/assistant.js`** — `POST /reindex` (botão "Reindexar
+  memória", §27) agora loga "[usuário] reindexou manualmente a memória
+  da RENATA (N reunião(ões), M trecho(s))" — mesmo helper duplicado
+  localmente (4 linhas, não compensa um módulo compartilhado só pra
+  isso).
+- **`src/App.jsx`** — três funções de TO_DO mutavam sem log, inconsistente
+  com as `add*` equivalentes que sempre logaram: `deleteTodoSubtask`,
+  `deleteTodoComment`, `deleteTodoAttachment`. Corrigidas pra seguir o
+  mesmo padrão (`describeActionItemChange`/`findActionItem` já
+  existentes) — agora aparecem no Histórico do item, igual toda outra
+  mutação.
+
+**Testado**: os três casos de App.jsx confirmados via UI real (deletar
+subtarefa/comentário de um item de teste, histórico mostra "removeu a
+subtarefa..."/"removeu um comentário" corretamente). O padrão de
+`appendProjectLog` (idêntico nos dois arquivos de servidor) testado
+isoladamente contra o projeto de teste real — grava, ordena
+mais-recente-primeiro, corta em 300 entradas, tudo certo. **Não
+testado**: o caminho HTTP real de criação/falha de submissão (`POST /`,
+`processSubmission`) — segue a mesma limitação de sempre, o
+`ANTHROPIC_API_KEY` não existe localmente e a rota retorna 503 antes de
+chegar no código novo; a lógica em si (helper + onde é chamada) foi
+revisada linha a linha e o padrão SQL idêntico já foi validado.
+
 ## 25. Atividades — "Centro de Execução" (2026-09)
 
 Pedido original (2026-09, primeira versão): uma aba **"TO DO"** trazendo

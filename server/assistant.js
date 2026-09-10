@@ -19,6 +19,21 @@ async function loadAuthorizedProject(req, res, projectId) {
   return rows[0];
 }
 
+// Log-only append pro project.log (2026-09-10, pedido do Rafael: "crie
+// log para tudo na aba Reuniões e Atividades") — mesmo helper de
+// server/meetingInbox.js, duplicado aqui de propósito (4 linhas, não
+// compensa criar um módulo compartilhado só pra isso).
+async function appendProjectLog(projectId, action, user) {
+  const { rows } = await pool.query('SELECT data FROM projects WHERE id=$1', [projectId]);
+  if (!rows[0]) return;
+  const data = rows[0].data || {};
+  const nextData = {
+    ...data,
+    log: [{ ts: new Date().toISOString(), action, user, activityId: null }, ...(data.log || [])].slice(0, 300),
+  };
+  await pool.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(nextData), projectId]);
+}
+
 router.get('/conversation', requireAuth, async (req, res, next) => {
   try {
     const { projectId } = req.query;
@@ -77,6 +92,8 @@ router.post('/reindex', requireAuth, async (req, res, next) => {
     const project = await loadAuthorizedProject(req, res, projectId);
     if (!project) return;
     const result = await reindexProjectMemory(pool, project.org_id, projectId, project.data);
+    appendProjectLog(projectId, `${req.user.name} reindexou manualmente a memória da RENATA (${result.meetingsIndexed} reunião(ões), ${result.chunksCreated} trecho(s))`, req.user.name)
+      .catch((e) => console.error('Falha ao registrar log de reindexação manual', e.message));
     res.json(result);
   } catch (e) { next(e); }
 });
