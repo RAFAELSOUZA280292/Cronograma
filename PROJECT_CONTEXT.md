@@ -3184,6 +3184,35 @@ peça pro Rafael testar com um pedido tipo "cria uma pendência pro João
 confirmar o XML" (sem reunião aberta) e "posterga o split payment pro
 final do cronograma".
 
+**Incidente em produção (2026-09-10, corrigido no mesmo dia) — toda
+pergunta ao assistente parou de responder no cliente Tecumseh**, com a
+mensagem genérica do frontend "Não consegui responder agora" (não a
+mensagem "processar" do fallback interno de `askProjectAssistant` — essa
+diferença de texto foi a pista de que o erro era um 500 não tratado, não
+um erro capturado dentro do pipeline). Duas causas, corrigidas em
+sequência:
+1. **`z.discriminatedUnion` no `ProposedActionSchema`** gerava um JSON
+   schema com `anyOf` aninhado (union dentro de nullable) que a saída
+   estruturada da Anthropic API não suporta bem — e como esse campo faz
+   parte de `SynthesizeAnswerSchema`, usado por TODA resposta (não só
+   as de ação), qualquer pergunta parou de funcionar. **Lição:** nunca
+   usar `z.discriminatedUnion`/`z.union` em schema passado pra
+   `zodOutputFormat` — sempre objeto achatado com campos nullable por
+   variante (o padrão já usado em todo o resto do sistema, nunca
+   quebrado até essa exceção).
+2. **`buildProjectSnapshot()` era chamado fora do `try/catch`** de
+   `askProjectAssistant` — uma exceção ali (nome de contato externo ou
+   participante de reunião num formato que meus testes locais com dado
+   sintético não cobriram) subia sem tratamento até o handler global do
+   Express e virava 500. Corrigido chamando dentro de um `try/catch` com
+   fallback seguro, e blindados os dois pontos que assumiam string sem
+   checar (`team`/`externalContacts.name`) com `String(x || '')` antes
+   de `toLowerCase()`. **Lição:** qualquer função nova que processa
+   `project.data` de um cliente real precisa ser exercitada mentalmente
+   contra dado "sujo" (campo ausente, tipo inesperado), não só contra
+   fixture sintético limpo — e helpers chamados no meio de um pipeline
+   maior precisam estar DENTRO do bloco que já trata erro, nunca antes.
+
 ### Roteiro das próximas fases (não construído, documentado pra não
 ser assumido como existente)
 
