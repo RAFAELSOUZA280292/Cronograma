@@ -87,7 +87,7 @@ async function processSubmission(submissionId) {
         responsible: it.responsible || '',
         owner: it.owner === 'cliente' ? 'cliente' : 'pricetax',
         dueDate: it.dueDate || '',
-        status: 'em-andamento',
+        status: 'nao-iniciado',
         deleted: false,
       })),
       createdAt: new Date().toISOString(),

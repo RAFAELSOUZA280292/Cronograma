@@ -46,14 +46,17 @@ const SUBMISSION_STATUS_META = {
 // andamento ("urgente", "não é relevante"), que não faz sentido no ciclo de
 // vida de uma atividade normal do cronograma.
 export const TODO_STATUS_META = {
+  'nao-iniciado': { label: 'Não iniciado', color: 'var(--text-4)', bg: 'var(--border-1)', border: 'var(--border-3)' },
   urgente: { label: 'Urgente', color: '#e2574c', bg: 'rgba(226,87,76,.14)', border: 'rgba(226,87,76,.5)' },
   'em-andamento': { label: 'Em andamento', color: '#3ea6ff', bg: 'rgba(62,166,255,.14)', border: 'rgba(62,166,255,.5)' },
   pausada: { label: 'Pausada', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
   concluida: { label: 'Concluída', color: '#3ecf6e', bg: 'rgba(62,207,110,.14)', border: 'rgba(62,207,110,.5)' },
   'nao-relevante': { label: 'Não é relevante', color: 'var(--text-6)', bg: 'var(--border-1)', border: 'var(--border-3)' },
 };
-export const TODO_STATUS_ORDER = ['urgente', 'em-andamento', 'pausada', 'concluida', 'nao-relevante'];
-export const todoStatusMeta = (s) => TODO_STATUS_META[s] || TODO_STATUS_META['em-andamento'];
+// "Não iniciado" é o estado de nascimento de todo item novo (manual ou
+// extraído por IA) — por isso vem primeiro na ordem e é o fallback padrão.
+export const TODO_STATUS_ORDER = ['nao-iniciado', 'urgente', 'em-andamento', 'pausada', 'concluida', 'nao-relevante'];
+export const todoStatusMeta = (s) => TODO_STATUS_META[s] || TODO_STATUS_META['nao-iniciado'];
 
 function todayIso() {
   const d = new Date();
@@ -535,7 +538,7 @@ export function MeetingDetailModal({ meeting: m, team, externalContacts, clientN
                     <input type="date" value={it.dueDate || ''} onChange={(e) => updateActionItem(pid, m.id, it.id, { dueDate: e.target.value })} style={{ width: 130, flexShrink: 0 }} title="Prazo" />
                   </div>
                   <select
-                    value={TODO_STATUS_META[it.status] ? it.status : 'em-andamento'}
+                    value={TODO_STATUS_META[it.status] ? it.status : 'nao-iniciado'}
                     onChange={(e) => updateActionItem(pid, m.id, it.id, { status: e.target.value })}
                     style={{ marginTop: 6, color: todoStatusMeta(it.status).color }}
                   >
