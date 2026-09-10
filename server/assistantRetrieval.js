@@ -31,20 +31,23 @@ const ResolveQuerySchema = z.object({
 // Dois tipos de ação executável por enquanto (ver server/assistantActions.js)
 // — a IA só PROPÕE, nunca executa sozinha: fica pendente até o usuário
 // confirmar pelo painel (server/assistant.js, POST /messages/:id/action).
-const CreateMeetingTodoActionSchema = z.object({
-  type: z.literal('create_meeting_todo').describe('Criar uma pendência (TO_DO) numa reunião já existente.'),
-  meetingId: z.string().describe('id de uma reunião real, exatamente como listado em "REUNIÕES DISPONÍVEIS" no perfil do projeto — nunca invente um id. Se o usuário não deixar claro qual reunião e nenhuma estiver aberta na tela, NÃO proponha ainda: pergunte antes qual reunião vincular (ou sugira a mais recente).'),
-  title: z.string().describe('Título curto e claro da pendência a ser criada'),
-  responsible: z.string().nullable().describe('Nome da pessoa responsável, se mencionado pelo usuário; null se não especificado'),
-  owner: z.enum(['pricetax', 'cliente']).describe('De qual lado é essa entrega'),
-  dueDate: z.string().nullable().describe('Prazo em YYYY-MM-DD, se mencionado; null se não especificado'),
-});
-const RescheduleActivityActionSchema = z.object({
-  type: z.literal('reschedule_activity').describe('Mudar a data de uma atividade já existente no cronograma oficial (Gantt/Tabela/Fases/Quadro).'),
-  activityId: z.string().describe('id de uma atividade real, exatamente como listado em "ATIVIDADES DO CRONOGRAMA" no perfil do projeto — nunca invente um id. Se não estiver claro qual atividade o usuário quer dizer, NÃO proponha ainda: pergunte antes, citando o título exato que você acha que é, pra confirmar.'),
-  newDate: z.string().describe('Nova data em YYYY-MM-DD. Se o pedido for relativo (ex.: "postergar pro final do cronograma"), calcule uma data depois da atividade mais distante já agendada.'),
-});
-const ProposedActionSchema = z.discriminatedUnion('type', [CreateMeetingTodoActionSchema, RescheduleActivityActionSchema]).nullable();
+// Objeto único e achatado (não `z.discriminatedUnion`) de propósito: um
+// union quebrou a saída estruturada da Anthropic API em produção
+// (2026-09-10) — toda pergunta passou a falhar, não só as de ação, porque
+// `proposedAction` está dentro de `SynthesizeAnswerSchema`, usado por
+// TODA resposta. O padrão comprovado no resto do sistema (aqui e em
+// meetingInbox.js) sempre foi objeto achatado com campos nullable — cada
+// tipo de ação usa só os campos que fazem sentido, os outros ficam null.
+const ProposedActionSchema = z.object({
+  type: z.enum(['create_meeting_todo', 'reschedule_activity']).describe('Qual ação está sendo proposta.'),
+  meetingId: z.string().nullable().describe('SÓ pra type="create_meeting_todo": id de uma reunião real, exatamente como listado em "REUNIÕES DISPONÍVEIS" no perfil do projeto — nunca invente um id. Se o usuário não deixar claro qual reunião e nenhuma estiver aberta na tela, NÃO proponha ainda: pergunte antes qual reunião vincular (ou sugira a mais recente). null pra reschedule_activity.'),
+  title: z.string().nullable().describe('SÓ pra type="create_meeting_todo": título curto e claro da pendência a ser criada. null pra reschedule_activity.'),
+  responsible: z.string().nullable().describe('SÓ pra type="create_meeting_todo": nome da pessoa responsável, se mencionado pelo usuário; null se não especificado ou se for reschedule_activity.'),
+  owner: z.enum(['pricetax', 'cliente']).nullable().describe('SÓ pra type="create_meeting_todo": de qual lado é essa entrega. null pra reschedule_activity.'),
+  dueDate: z.string().nullable().describe('SÓ pra type="create_meeting_todo": prazo em YYYY-MM-DD, se mencionado. null se não especificado ou se for reschedule_activity.'),
+  activityId: z.string().nullable().describe('SÓ pra type="reschedule_activity": id de uma atividade real, exatamente como listado em "ATIVIDADES DO CRONOGRAMA" no perfil do projeto — nunca invente um id. Se não estiver claro qual atividade o usuário quer dizer, NÃO proponha ainda: pergunte antes, citando o título exato que você acha que é, pra confirmar. null pra create_meeting_todo.'),
+  newDate: z.string().nullable().describe('SÓ pra type="reschedule_activity": nova data em YYYY-MM-DD. Se o pedido for relativo (ex.: "postergar pro final do cronograma"), calcule uma data depois da atividade mais distante já agendada. null pra create_meeting_todo.'),
+}).nullable();
 
 const SynthesizeAnswerSchema = z.object({
   answer: z.string().describe('A resposta final em português, clara e direta, para o usuário. Se hasEvidence for false, esta deve ser literalmente "Não encontrei evidência suficiente nas reuniões ou documentos deste projeto." Se você preencheu proposedAction, a resposta deve descrever a ação proposta e pedir confirmação explícita — nunca afirme que já foi feita.'),
