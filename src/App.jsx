@@ -636,6 +636,7 @@ export default function App() {
         meeting={meeting}
         team={project.team}
         externalContacts={project.externalContacts || []}
+        clientName={project.company && project.company.name}
         pid={project.id}
         onClose={closeMeetingDetail}
         updateMeeting={updateMeeting}
@@ -1517,7 +1518,7 @@ export default function App() {
   function addMeetingActionItem(targetPid, meetingId) {
     const project = projects.find((p) => p.id === targetPid);
     const m = project && (project.meetings || []).find((x) => x.id === meetingId);
-    const item = { id: uid('mai'), title: 'Nova atividade', responsible: '', dueDate: '', status: 'em-andamento', deleted: false };
+    const item = { id: uid('mai'), title: 'Nova atividade', responsible: '', owner: 'pricetax', dueDate: '', status: 'em-andamento', deleted: false };
     mutateProject(targetPid, (p) => ({
       ...p,
       meetings: (p.meetings || []).map((x) => (x.id === meetingId ? { ...x, actionItems: [...(x.actionItems || []), item] } : x)),

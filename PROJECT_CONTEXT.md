@@ -2363,18 +2363,46 @@ dedicado do XFlow/Agenda/Visão Macro) exporta dois componentes:
     2026-09 a pedido do Rafael — a chave de dados continua `actionItems`,
     só o texto exibido mudou): lista de cards à direita (mesmo layout
     de duas colunas do `ActivityDetailModal`, `S.detailGrid`), cada um
-    com título, responsável (select de `project.team`), prazo (date) e
-    status. **Status próprio do TO_DO (2026-09)** — `TODO_STATUS_META`/
-    `TODO_STATUS_ORDER`, local a `Meetings.jsx`, **não** reaproveita mais
-    o `STATUS_META` de atividade: `urgente` / `em-andamento` / `pausada`
-    / `concluida` / `nao-relevante` — pedido explícito do Rafael, porque
-    mistura urgência com andamento de um jeito que não faz sentido no
-    ciclo de vida de atividade normal (que não tem "urgente" nem "não é
-    relevante" como status). Novo item nasce com `em-andamento` (não
-    `nao-iniciado` — esse valor não existe mais nesse enum). Status
-    legado `nao-iniciado` em dado antigo (se houver) cai num fallback
-    visual pra `em-andamento` (`todoStatusMeta()`), sem migração
-    silenciosa do dado gravado.
+    com título, responsável, prazo (date), status e **de qual lado é a
+    entrega** (PRICETAX × cliente). **Status próprio do TO_DO (2026-09)**
+    — `TODO_STATUS_META`/`TODO_STATUS_ORDER`, local a `Meetings.jsx`,
+    **não** reaproveita mais o `STATUS_META` de atividade: `urgente` /
+    `em-andamento` / `pausada` / `concluida` / `nao-relevante` — pedido
+    explícito do Rafael, porque mistura urgência com andamento de um
+    jeito que não faz sentido no ciclo de vida de atividade normal (que
+    não tem "urgente" nem "não é relevante" como status). Novo item nasce
+    com `em-andamento` (não `nao-iniciado` — esse valor não existe mais
+    nesse enum). Status legado `nao-iniciado` em dado antigo (se houver)
+    cai num fallback visual pra `em-andamento` (`todoStatusMeta()`), sem
+    migração silenciosa do dado gravado.
+    **Responsável (2026-09) — texto livre, não mais `<select>` de
+    `project.team`**: o responsável real de um item de reunião é quase
+    sempre uma pessoa do lado do CLIENTE (ex.: "Evanio Santinon",
+    "Rogeria Guerra"), não uma área da PRICETAX — um dropdown fixo de
+    `project.team` nunca ia conter esses nomes. Vira `<input
+    list="mtg-todo-responsaveis">` com `<datalist>` juntando
+    `project.team` + `project.externalContacts` (§ acima) + os
+    participantes da própria reunião (`m.participants`) — sugestão, não
+    trava em nenhuma lista fechada.
+    **`owner` (novo campo, 2026-09)** — `'pricetax' | 'cliente'`, exibido
+    como dois botões-toggle acima do campo responsável (PRICETAX em
+    amarelo / nome real da empresa em azul, `project.company.name`).
+    Ao digitar/escolher um responsável que já bate com um nome conhecido
+    (`team` ou `externalContacts`), o `owner` é deduzido sozinho
+    (`handleResponsibleChange` em `Meetings.jsx` — dedução por
+    correspondência exata de nome, não é IA) — o usuário sempre pode
+    corrigir clicando no outro botão manualmente. Item novo nasce com
+    `owner: 'pricetax'`.
+    **Extração por IA (`server/meetingInbox.js`) também aprendeu isso**:
+    o schema Zod de `actionItems` ganhou `owner` (mesmo enum) e o prompt
+    recebe o nome real da empresa cliente (`project.data.company.name`,
+    já conhecido pelo sistema — não precisa a IA adivinhar/inferir o
+    nome) como contexto explícito, pra classificar cada item corretamente
+    sem confundir quem fala na transcrição. `responsible` também passou a
+    pedir explicitamente o nome da PESSOA física como ela é chamada na
+    fala, não mais um campo genérico — inclui instrução pra dois
+    responsáveis juntos (ex.: "Gustavo, com a Francine") caberem numa
+    string só, sem inventar campo multi-valor pra isso.
 - `SidePanel` precisou ganhar `export` em `App.jsx`
   (só `STATUS_META`/`ConfirmDiscardModal`/etc. já eram exportados antes)
   pra esse novo módulo poder importar, mesmo padrão de reuso que XFlow/

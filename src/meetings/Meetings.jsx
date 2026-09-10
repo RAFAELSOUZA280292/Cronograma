@@ -319,7 +319,7 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
   );
 }
 
-export function MeetingDetailModal({ meeting: m, team, externalContacts, pid, onClose, updateMeeting, deleteMeeting, toggleParticipant, addParticipant, addActionItem, updateActionItem, deleteActionItem }) {
+export function MeetingDetailModal({ meeting: m, team, externalContacts, clientName, pid, onClose, updateMeeting, deleteMeeting, toggleParticipant, addParticipant, addActionItem, updateActionItem, deleteActionItem }) {
   const isMobile = useIsMobile();
   const [participantDraft, setParticipantDraft] = useState('');
   const [participantEmailDraft, setParticipantEmailDraft] = useState('');
@@ -342,6 +342,34 @@ export function MeetingDetailModal({ meeting: m, team, externalContacts, pid, on
   }
 
   const activeItems = (m.actionItems || []).filter((it) => !it.deleted);
+
+  // Sugestão de responsável no TO_DO: junta equipe da empresa, contatos
+  // externos já salvos e quem participou desta reunião (o elenco mais
+  // provável) — texto livre, não mais preso a um dropdown fixo, porque o
+  // responsável real de um item quase sempre é uma pessoa do cliente, não
+  // uma área da PRICETAX.
+  const responsavelSuggestions = Array.from(new Set([
+    ...(team || []).map((t) => t.name),
+    ...(externalContacts || []).map((c) => c.name),
+    ...(m.participants || []),
+  ].filter(Boolean)));
+
+  // Ao escolher/digitar um responsável que já é conhecido, deduz sozinho de
+  // qual lado é a entrega (equipe PRICETAX vs cliente) — mesma lógica que
+  // já roda no servidor pra transcrição processada por IA, só que aqui é
+  // dedução simples por nome cadastrado, não IA. O usuário sempre pode
+  // corrigir clicando no botão PRICETAX/Cliente.
+  function handleResponsibleChange(itemId, name) {
+    const patch = { responsible: name };
+    const key = name.trim().toLowerCase();
+    if (key) {
+      const isTeam = (team || []).some((t) => t.name.toLowerCase() === key);
+      const isExternal = (externalContacts || []).some((c) => c.name.toLowerCase() === key);
+      if (isTeam) patch.owner = 'pricetax';
+      else if (isExternal) patch.owner = 'cliente';
+    }
+    updateActionItem(pid, m.id, itemId, patch);
+  }
 
   return (
     <div className="no-print mtg-view" style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
@@ -463,7 +491,9 @@ export function MeetingDetailModal({ meeting: m, team, externalContacts, pid, on
             <div style={S.subSectionLabel}>TO_DO</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {activeItems.length === 0 && <div style={S.emptyMuted}>Nenhuma atividade definida ainda.</div>}
-              {activeItems.map((it) => (
+              {activeItems.map((it) => {
+                const owner = it.owner === 'cliente' ? 'cliente' : 'pricetax';
+                return (
                 <div key={it.id} style={{ background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 8, padding: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <input
@@ -474,10 +504,34 @@ export function MeetingDetailModal({ meeting: m, team, externalContacts, pid, on
                     <button style={S.iconBtnGhost} onClick={() => deleteActionItem(pid, m.id, it.id)}><X size={13} /></button>
                   </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                    <select value={it.responsible || ''} onChange={(e) => updateActionItem(pid, m.id, it.id, { responsible: e.target.value })} style={{ flex: 1 }} title="Responsável">
-                      <option value="">Sem responsável</option>
-                      {team.map((mem) => <option key={mem.id} value={mem.name}>{mem.name}</option>)}
-                    </select>
+                    <button
+                      type="button" onClick={() => updateActionItem(pid, m.id, it.id, { owner: 'pricetax' })}
+                      style={{
+                        flex: 1, fontSize: 10.5, fontWeight: 800, padding: '5px 4px', borderRadius: 6, cursor: 'pointer',
+                        border: owner === 'pricetax' ? '1px solid #F5C400' : '1px solid var(--border-3)',
+                        background: owner === 'pricetax' ? 'rgba(245,196,0,.14)' : 'var(--bg-4)',
+                        color: owner === 'pricetax' ? '#F5C400' : 'var(--text-5)',
+                      }}
+                    >PRICETAX</button>
+                    <button
+                      type="button" onClick={() => updateActionItem(pid, m.id, it.id, { owner: 'cliente' })}
+                      title={clientName || 'Cliente'}
+                      style={{
+                        flex: 1, fontSize: 10.5, fontWeight: 800, padding: '5px 4px', borderRadius: 6, cursor: 'pointer',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        border: owner === 'cliente' ? '1px solid #3ea6ff' : '1px solid var(--border-3)',
+                        background: owner === 'cliente' ? 'rgba(62,166,255,.14)' : 'var(--bg-4)',
+                        color: owner === 'cliente' ? '#3ea6ff' : 'var(--text-5)',
+                      }}
+                    >{clientName || 'Cliente'}</button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    <input
+                      type="text" list="mtg-todo-responsaveis"
+                      value={it.responsible || ''}
+                      onChange={(e) => handleResponsibleChange(it.id, e.target.value)}
+                      placeholder="Responsável" style={{ flex: 1 }} title="Responsável"
+                    />
                     <input type="date" value={it.dueDate || ''} onChange={(e) => updateActionItem(pid, m.id, it.id, { dueDate: e.target.value })} style={{ width: 130, flexShrink: 0 }} title="Prazo" />
                   </div>
                   <select
@@ -488,7 +542,11 @@ export function MeetingDetailModal({ meeting: m, team, externalContacts, pid, on
                     {TODO_STATUS_ORDER.map((s) => <option key={s} value={s}>{TODO_STATUS_META[s].label}</option>)}
                   </select>
                 </div>
-              ))}
+                );
+              })}
+              <datalist id="mtg-todo-responsaveis">
+                {responsavelSuggestions.map((n) => <option key={n} value={n} />)}
+              </datalist>
             </div>
             <button style={{ ...S.addSubBtn, marginTop: 8 }} onClick={() => addActionItem(pid, m.id)}><Plus size={12} /> Atividade</button>
           </div>
