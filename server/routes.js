@@ -368,6 +368,29 @@ router.get('/projects', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// "BIP" de sincronização entre usuários (2026-09-10, pedido do Rafael:
+// "amanda concluindo lá, conclui aqui também") — sem WebSocket/infra
+// nova de propósito (mesma filosofia de "não introduzir infra
+// desnecessária" já usada pra decisão de busca lexical em vez de
+// pgvector, §27). O frontend faz polling barato disso (só id+timestamp,
+// nunca o JSONB inteiro) e só busca a lista completa de novo
+// (`GET /projects`, já existente) quando alguma empresa mudou desde a
+// última checagem — dá sincronização "quase em tempo real" (poucos
+// segundos) sem servidor de WebSocket, sem pub/sub, sem dependência
+// nova.
+router.get('/projects/versions', requireAuth, async (req, res, next) => {
+  try {
+    const orgId = effectiveOrgId(req);
+    const sql = req.user.isSuperAdmin && !orgId
+      ? 'SELECT id, data, org_id, updated_at FROM projects'
+      : 'SELECT id, data, org_id, updated_at FROM projects WHERE org_id=$1';
+    const params = req.user.isSuperAdmin && !orgId ? [] : [orgId];
+    const { rows } = await pool.query(sql, params);
+    const visible = rows.filter((r) => canAccessProject(req.user, r.data, r.org_id));
+    res.json({ versions: visible.map((r) => ({ id: r.id, updatedAt: r.updated_at })) });
+  } catch (e) { next(e); }
+});
+
 router.post('/projects', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
   try {
     const project = blankProject();

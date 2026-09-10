@@ -793,6 +793,43 @@ export default function App() {
     reloadProjects();
   }, [currentUser?.id, actingOrg?.id]);
 
+  // "BIP" de sincronização entre usuários (2026-09-10, pedido do Rafael:
+  // "Amanda concluindo lá, conclui aqui também") — poll barato
+  // (só id+updatedAt, nunca o JSONB inteiro) a cada poucos segundos; só
+  // recarrega a lista completa (reloadProjects, já existente) quando
+  // alguma empresa realmente mudou desde a última checagem. Sem
+  // WebSocket/infra nova de propósito, mesmo espírito de "não introduzir
+  // infra desnecessária" já usado nas decisões do Assistente do Projeto.
+  const knownProjectVersionsRef = useRef(new Map());
+  useEffect(() => {
+    if (!currentUser) return;
+    knownProjectVersionsRef.current = new Map();
+    let cancelled = false;
+    let timer = null;
+
+    async function poll() {
+      try {
+        const res = await apiGet(withActingOrg('/api/projects/versions'));
+        if (cancelled) return;
+        const versions = res.versions || [];
+        let changed = false;
+        versions.forEach((v) => {
+          const prev = knownProjectVersionsRef.current.get(v.id);
+          if (prev !== undefined && prev !== v.updatedAt) changed = true;
+          knownProjectVersionsRef.current.set(v.id, v.updatedAt);
+        });
+        if (changed) reloadProjects();
+      } catch (e) {
+        // Silencioso de propósito — é só um heartbeat, uma falha
+        // pontual (rede instável, etc.) não deve virar erro visível.
+      }
+      if (!cancelled) timer = setTimeout(poll, 6000);
+    }
+
+    poll();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [currentUser?.id, actingOrg?.id]);
+
   useEffect(() => {
     if (!projectsLoaded || !currentUser || !currentUser.companiesAccess || projects.length > 1) return;
     setSelectedProjectIds(projects.map((p) => p.id));
