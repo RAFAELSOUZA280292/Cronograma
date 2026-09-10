@@ -3409,6 +3409,63 @@ sem chunk nenhum → clique no botão da tela de Reuniões → "Memória
 reindexada: 1 reunião(ões), 2 trecho(s)." → chunks conferidos no
 banco).
 
+### Bug grave corrigido — "resuma a última reunião" nunca achava o conteúdo, mesmo com memória indexada (2026-09-10)
+
+Depois de reindexar a memória do Tecumseh via botão (acima), o Rafael
+ainda reportou: "resuma a última reunião" continuava dizendo que não
+tinha trecho de transcrição nenhum — mesmo a reindexação tendo criado
+632 trechos. **Causa raiz, mais profunda do que o caso da atividade
+(acima)**: a busca lexical usa `plainto_tsquery('portuguese', ...)`
+(`server/memoryRetrieval.js`), que faz **E lógico entre todas as
+palavras da busca** — se a IA reformula "resuma a última reunião" como
+uma query tipo "resumo da reunião mais recente sobre X", e nenhum
+trecho contém literalmente TODAS essas palavras juntas (o que é o caso
+normal, já que "resumo"/"reunião"/"recente" são palavras da PERGUNTA,
+não do CONTEÚDO discutido), a busca sempre volta vazia — não é falta
+de sorte no ranking, é uma busca que não pode dar resultado por
+construção. Confirmado isoladamente: uma busca de teste com essas
+palavras contra os 632 trechos reais (simulados localmente) retornou
+zero resultados, incluindo pro `meeting_summary` que continha as
+palavras "validação" e "ferramenta" (mas não "resumo"/"recente"/
+"reunião" juntas).
+
+**Fix**: `ResolveQuerySchema` ganhou `targetMeetingId` — a IA resolve
+qual reunião específica o usuário quer dizer (usando a lista "REUNIÕES
+DISPONÍVEIS" no perfil do projeto, que já tinha id+título+data de
+todas) sempre que a pergunta se referir a UMA reunião (a última, uma
+data, um assunto/título) mesmo sem estar aberta na tela — antes só
+existia esse tipo de resolução pra reunião ABERTA (`context.meetingId`,
+via `meetingScope='atual'`). Quando presente, `targetMeetingId`: (1)
+vira o filtro `meetingId` da busca inicial (mais preciso que buscar o
+projeto inteiro); (2) aciona a mesma busca de "transcrição inteira sem
+ranking" (`getMeetingTranscriptChunks`) já construída pro caso de
+atividade — as duas situações (reunião específica identificada
+diretamente, ou identificada indiretamente via o chunk de uma
+atividade) agora convergem pro mesmo bloco de enriquecimento, evitando
+duplicar a lógica. Mesma defesa em profundidade de sempre: o id
+proposto pela IA é validado contra `projectData.meetings` antes de
+confiar nele.
+
+**Limitação arquitetural conhecida, não corrigida agora** (documentada
+pra não esquecer): `plainto_tsquery` com semântica E-lógico-entre-tudo
+pode fazer OUTRAS perguntas de busca ampla falharem do mesmo jeito,
+não só "resuma a reunião X" — qualquer pergunta cuja reformulação
+misture várias palavras que não aparecem todas juntas no mesmo trecho.
+Trocar por `websearch_to_tsquery` (mais tolerante, trata termos
+implícitos com OR em vez de E) resolveria de forma mais geral, mas é
+uma mudança na função de busca usada por TUDO no sistema — precisa de
+teste mais cuidadoso, não é escopo deste fix pontual.
+
+**Testado localmente**: reproduzido o bug exato (busca genérica com as
+palavras da pergunta contra chunks reais não retorna nada, mesmo o
+`meeting_summary` tendo palavras em comum) e confirmado que
+`targetMeetingId` + `getMeetingTranscriptChunks` recupera o conteúdo
+certo independente do resultado da busca por relevância. **Não
+testado**: a IA de verdade resolvendo `targetMeetingId` corretamente a
+partir de "resuma a última reunião" (depende da chave real em
+produção) — pedir pro Rafael reindexar de novo (não precisa, os 632
+trechos continuam lá) e testar essa pergunta específica.
+
 ### Roteiro das próximas fases (não construído, documentado pra não
 ser assumido como existente)
 

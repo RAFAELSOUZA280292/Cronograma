@@ -28,6 +28,7 @@ const ResolveQuerySchema = z.object({
   participant: z.string().nullable().describe('Nome de uma pessoa específica, se a pergunta for sobre o que ela falou/fez/prometeu — exatamente como aparece na conversa, null se a pergunta não for sobre uma pessoa específica'),
   meetingScope: z.enum(['atual', 'projeto_inteiro']).describe('"atual" se o usuário está claramente perguntando só sobre a reunião que está aberta na tela agora; "projeto_inteiro" no caso contrário, incluindo quando o usuário pedir explicitamente pra expandir pra reuniões anteriores'),
   kind: z.enum([...CHUNK_KINDS, 'qualquer']).describe('Tipo de conteúdo mais provável de responder — "qualquer" se não for possível restringir com confiança. Marque "activity" sempre que o usuário pedir contexto/explicação sobre uma atividade ou pendência específica citando o título dela (ex.: "não to entendendo essa atividade pelo título, me dá mais contexto") — isso aciona uma busca mais profunda na transcrição da reunião de origem.'),
+  targetMeetingId: z.string().nullable().describe('Preencha com o id exato de UMA reunião específica — veja a lista "REUNIÕES DISPONÍVEIS" no perfil do projeto — sempre que o usuário claramente pedir sobre uma reunião específica sem necessariamente estar com ela aberta na tela (ex.: "resuma a última reunião" → é a mais recente da lista; "o que foi discutido na reunião de 10/09?" → ache pela data; "a reunião sobre X" → ache pelo título). Isso aciona busca da transcrição INTEIRA daquela reunião, não só busca por relevância — essencial pra pedidos de resumo geral, que não têm palavra-chave forte pra achar o trecho certo por ranking textual. null se a pergunta não se referir a uma reunião específica identificável, ou se já houver uma reunião aberta no contexto (nesse caso ela já é considerada).'),
 });
 
 // Dois tipos de ação executável por enquanto (ver server/assistantActions.js)
@@ -74,6 +75,7 @@ async function resolveQuery({ question, history, context, projectSnapshot }) {
       'Você é a RENATA — a Inteligência de Execução e Gestão de Projetos da PRICETAX (o nome representa Reforma, Execução, Negócios, Agilidade, Tecnologia e Ação). Você prepara o processamento de uma mensagem enviada por um consultor interno.',
       'Primeiro classifique a intenção: se for só uma saudação, agradecimento, ou pergunta sobre o que você mesmo faz/quem você é — não é uma pergunta sobre o projeto — marque intent="conversa_geral" e escreva você mesmo uma resposta curta e calorosa em directReply. Se perguntarem seu nome/quem você é, apresente-se como RENATA, a assistente de execução e gestão de projetos da PRICETAX, irmã da IVANA (a IA tributária da PRICETAX — a IVANA interpreta legislação e Reforma Tributária, você transforma isso em execução real dentro dos projetos).',
       'Se for uma pergunta real sobre o histórico do projeto, marque intent="pergunta_sobre_projeto" e reformule como uma busca autossuficiente, resolvendo qualquer referência ao que foi dito antes na conversa (inclusive "o cliente"/"a empresa", que pode ser resolvido pelo nome real no perfil do projeto abaixo) — nunca responda a pergunta em si nesse caso, isso é feito depois por outra etapa.',
+      'Se a pergunta se referir a UMA reunião específica (ex.: "resuma a última reunião", "o que foi discutido na reunião de 10/09", "a reunião sobre o fornecedor X") — mesmo sem estar aberta na tela — resolva o id exato dela usando a lista "REUNIÕES DISPONÍVEIS" no perfil do projeto e preencha targetMeetingId. Isso é essencial pra pedidos de resumo geral, que não têm palavra-chave forte pra uma busca por relevância achar sozinha.',
     ].join(' '),
     messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nContexto: ${contextText}\n\nConversa até agora:\n${historyText}\n\nNova mensagem do usuário: ${question}` }],
     output_config: { format: zodOutputFormat(ResolveQuerySchema) },
@@ -188,12 +190,18 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
     // não é uma pergunta que exige evidência do projeto pra responder.
     if (resolved.output.intent !== 'conversa_geral') {
       const scope = resolved.output;
+      // targetMeetingId (reunião específica identificada pela IA, ex.:
+      // "resuma a última reunião") tem prioridade sobre a lógica antiga
+      // de só usar a reunião aberta na tela — nunca confiar cegamente
+      // nele aqui ainda (é só um id proposto), a validação de verdade
+      // acontece embaixo, contra `projectData.meetings`.
+      const searchMeetingId = scope.targetMeetingId || (scope.meetingScope === 'atual' ? (context && context.meetingId) : undefined);
       const [chunksResult, insightsText] = await Promise.all([
         searchProjectMemory(pool, {
           orgId, projectId,
           query: scope.standaloneQuery,
           participant: scope.participant || undefined,
-          meetingId: scope.meetingScope === 'atual' ? (context && context.meetingId) : undefined,
+          meetingId: searchMeetingId || undefined,
           kind: scope.kind !== 'qualquer' ? scope.kind : undefined,
           limit: 12,
         }),
@@ -201,20 +209,28 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
       ]);
       chunks = chunksResult;
 
-      // Pedido do Rafael: quando o título de uma atividade não é
-      // autoexplicativo, buscar o chunk da atividade sozinho não basta —
-      // é preciso ler a transcrição da reunião de onde ela veio. O texto
-      // do título é uma paráfrase da IA, pode não usar as mesmas
-      // palavras da fala original — busca por relevância não é
-      // confiável aqui, por isso puxa a transcrição INTEIRA da(s)
-      // reunião(ões) da atividade encontrada, sem depender de ranking.
+      // Duas situações em que busca por relevância sozinha não é
+      // confiável, e o jeito certo de garantir o conteúdo é buscar a
+      // transcrição INTEIRA da reunião certa, sem depender de ranking
+      // textual: (1) a IA identificou que a pergunta é sobre UMA reunião
+      // específica (ex.: "resuma a última reunião" não tem palavra-chave
+      // forte pra achar o trecho certo por relevância); (2) pedido do
+      // Rafael pra explicar uma atividade cujo título não é
+      // autoexplicativo — o título é uma paráfrase da IA, pode não usar
+      // as mesmas palavras da fala original.
+      const meetingIdsNeedingFullTranscript = new Set();
+      if (scope.targetMeetingId) meetingIdsNeedingFullTranscript.add(scope.targetMeetingId);
       if (scope.kind === 'activity') {
-        const activityMeetingIds = Array.from(new Set(
-          chunks.filter((c) => c.kind === 'activity' && c.meetingId).map((c) => c.meetingId),
-        ));
-        if (activityMeetingIds.length) {
+        chunks.filter((c) => c.kind === 'activity' && c.meetingId).forEach((c) => meetingIdsNeedingFullTranscript.add(c.meetingId));
+      }
+      if (meetingIdsNeedingFullTranscript.size) {
+        // Defesa em profundidade, mesmo padrão de nunca confiar num id
+        // que a IA devolveu sem checar contra o projeto de verdade.
+        const validMeetingIds = new Set((projectData && projectData.meetings || []).filter((m) => !m.deleted).map((m) => m.id));
+        const idsToFetch = Array.from(meetingIdsNeedingFullTranscript).filter((id) => validMeetingIds.has(id));
+        if (idsToFetch.length) {
           const transcriptChunksByMeeting = await Promise.all(
-            activityMeetingIds.map((mid) => getMeetingTranscriptChunks(pool, orgId, projectId, mid)),
+            idsToFetch.map((mid) => getMeetingTranscriptChunks(pool, orgId, projectId, mid)),
           );
           const existingIds = new Set(chunks.map((c) => c.id));
           transcriptChunksByMeeting.flat().forEach((c) => {
