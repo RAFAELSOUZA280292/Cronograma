@@ -2691,15 +2691,30 @@ continuam exportados de `Meetings.jsx` — fonte única de status/estilo.
 ### UI (por que cada decisão)
 
 - **Cards de indicador dinâmicos e clicáveis** (pendentes / atrasadas /
-  minhas / **cliente / pricetax** (2026-09-10) / reuniões) — clicar em
+  minhas / **Cliente / Pricetax** (2026-09-10) / reuniões) — clicar em
   "pendentes"/"atrasadas" aplica o filtro rápido correspondente;
-  "minhas" ativa "Minha fila"; **"cliente"/"pricetax" alternam o filtro
-  de lado (`ownerFilter`, o mesmo já usado no popover Filtros) — clicar
-  de novo no mesmo desliga, clicar no outro troca direto**; "reuniões" é
+  "minhas" ativa "Minha fila"; "Cliente"/"Pricetax" alternam o filtro
+  de lado (`ownerFilter`, o mesmo já usado no popover Filtros); "reuniões" é
   só informativo (contagem de reuniões da empresa), sem filtro
-  associado. Contagem de "cliente"/"pricetax" é só de pendências ativas
+  associado. Contagem de "Cliente"/"Pricetax" é só de pendências ativas
   (mesmo critério de "pendentes"), igual às outras — pedido do Rafael
   pra ver de cara quanto está com cada lado.
+  **Fix 2026-09-10**: os 5 cards eram dois `useState` independentes
+  (`quickFilter` e `ownerFilter`) que nunca se resetavam entre si — clicar
+  em "minhas" e depois em "Pricetax" combinava os dois filtros (AND) em
+  vez de trocar, mesmo o visual mostrando só um card "ativo" por vez.
+  Além disso `quickFilter === 'atrasadas'` nunca era checado dentro do
+  `filteredRows` — o card contava certo mas não filtrava a lista.
+  Corrigido com um único helper `selectStat(quickValue, ownerValue)`
+  que sempre define os dois estados juntos (clicar no card já ativo
+  desliga tudo, voltando pra `('todos','todos')` = "pendentes"), e
+  adicionando o check de `atrasadas` que faltava em `filteredRows`
+  (mesmo critério do `stats.atrasadas`: pendente + `dueDate < hoje`).
+  Rótulos "cliente"/"pricetax" também corrigidos pra "Cliente"/"Pricetax"
+  (Rafael reclamou da minúscula). Testado localmente no browser com
+  dados reais (2 tarefas, uma atrasada/Pricetax, uma futura/Cliente/minha):
+  os 5 cards agora são mutuamente exclusivos e cada um filtra a lista
+  corretamente. Ver [TodoBoard.jsx](src/meetings/TodoBoard.jsx).
 - **"Minha fila" é a visão padrão ao abrir a aba** — filtra por
   `responsible` batendo (case-insensitive, substring — cobre responsável
   combinado tipo "Gustavo, com a Francine") com o nome do usuário logado.
@@ -3602,6 +3617,59 @@ segundos, sem nenhum reload manual, a tela do "Rafael" moveu a
 atividade sozinha pro grupo "Concluída" e os contadores (pendentes/
 cliente/pricetax) atualizaram. Não precisou WebSocket, não precisou
 recarregar a página.
+
+## 29. Pendências por pessoa, com apelido/nome parcial (2026-09-10)
+
+Rafael mostrou uma tela com 43 pendências "NÃO INICIADO" de várias
+pessoas diferentes (Evanio Santinon, Rogeria Guerra, Marchiori Joao
+Vitor...) e pediu que a RENATA respondesse "quais atividades pendentes
+temos no nome do Evanio?", "quais as pendências do Evanio Santinon?",
+"o que o Evanio está nos devendo?" — reconhecendo que as pessoas vão
+escrever nome parcial ou apelido ("Rafa" em vez de "Rafael Souza").
+
+**Duas lacunas reais encontradas ao investigar**: (1) o campo
+`participant` já existia em `ResolveQuerySchema`, mas o filtro de
+`searchProjectMemory` exige igualdade exata contra o array
+`participants` de cada chunk — "Evanio" nunca bateria com "Evanio
+Santinon"; (2) o PERFIL DO PROJETO só lista uma amostra (até 12) das
+pendências mais próximas do prazo, de TODO o projeto — com 43 pendências
+de gente diferente, as de uma pessoa específica podiam nem estar na
+amostra.
+
+**Fix** (`server/assistantContext.js`):
+- `findResponsibleMatches(project, rawName)` — resolve apelido/nome
+  parcial pro nome completo exato como está gravado em
+  `actionItem.responsible`, varrendo TODAS as pendências de reunião
+  (não uma amostra) pra montar o universo de nomes conhecidos.
+  Normaliza acento/maiúscula, tenta igualdade exata primeiro, senão
+  compara palavra por palavra com `startsWith` nos dois sentidos
+  (cobre "Evanio" → "Evanio Santinon" e "Rafa"/"Rafael" → "Rafael
+  Souza", os dois exemplos que o Rafael deu). Devolve uma lista — 1
+  nome é o caso normal, mais de 1 é ambíguo, 0 é "não achei".
+- `buildPersonLookupText(project, rawName)` — usa a resolução acima e
+  monta um bloco "PENDÊNCIAS POR PESSOA" com a varredura COMPLETA das
+  pendências dela (não uma amostra): total, uma seção de críticas
+  (urgente ou prazo vencido) e a lista completa em aberto, mais antiga
+  primeiro (mesmo critério cronológico de sempre). Também devolve o
+  nome resolvido, reaproveitado pra corrigir o filtro de
+  `searchProjectMemory` (que também exigia igualdade exata) — as duas
+  lacunas resolvidas com a mesma resolução de nome.
+- `server/assistantRetrieval.js` — `askProjectAssistant` chama isso
+  sempre que `resolveQuery` extrai um `participant` da pergunta,
+  injeta o bloco no contexto de `synthesizeAnswer`, e o prompt foi
+  instruído a responder com confiança total a partir dele (é varredura
+  completa, não busca por relevância), perguntar qual pessoa quando
+  ambíguo, e admitir claramente quando não encontrar ninguém.
+
+**Testado localmente**: `findResponsibleMatches`/`buildPersonLookupText`
+contra dados sintéticos reproduzindo o cenário exato do Rafael (Evanio
+Santinon com uma pendência urgente e uma sem prazo, outra pessoa com
+pendência própria) — "Evanio" resolve certo, monta a seção de crítica e
+a lista completa; nome inexistente ("Zezinho") devolve a mensagem
+correta de "não encontrei" em vez de inventar. **Não testado**: a IA de
+verdade reconhecendo a intenção "pendências de uma pessoa" a partir de
+frases livres em português e formatando a resposta final (depende da
+chave real em produção).
 
 ## 19. Onde procurar mais detalhe
 

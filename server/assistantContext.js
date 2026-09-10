@@ -19,9 +19,89 @@ const CLIENT_TYPE_LABEL = {
   diagnostico: 'Diagnóstico', 'diagnostico-consultoria': 'Diagnóstico e Consultoria Contínua', 'poc-demo': 'POC / Demonstração',
 };
 
-function todayIso() {
+export function todayIso() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function normalizeName(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+// Resolve um nome parcial/apelido ("Evanio", "Rafa") pro nome completo
+// exato como está gravado nas atividades (pedido do Rafael: "as vezes
+// vão pedir do Rafa, ou do Rafael, mas me chamo Rafael Souza") — nunca
+// exige que o usuário digite o nome idêntico. Varre `responsible` de
+// TODAS as pendências de reunião (não só uma amostra) pra montar o
+// universo de nomes conhecidos, já que é exatamente aí que "quem deve o
+// quê" mora. Retorna a lista de nomes que bateram (normalmente 1; mais
+// de 1 é ambíguo, zero é "não achei ninguém com esse nome").
+export function findResponsibleMatches(project, rawName) {
+  const query = normalizeName(rawName);
+  if (!query) return [];
+  const names = new Set();
+  (project.meetings || []).filter((m) => !m.deleted).forEach((m) => {
+    (m.actionItems || []).filter((it) => !it.deleted && it.responsible).forEach((it) => names.add(it.responsible));
+  });
+  const candidates = Array.from(names);
+  const exact = candidates.filter((c) => normalizeName(c) === query);
+  if (exact.length) return exact;
+  return candidates.filter((c) => {
+    const words = normalizeName(c).split(/\s+/);
+    return words.some((w) => w.startsWith(query) || query.startsWith(w));
+  });
+}
+
+// Todas as pendências de reunião (qualquer status, qualquer reunião)
+// atribuídas a um nome exato (já resolvido por findResponsibleMatches)
+// — sem limite/amostra, porque "o que fulano está devendo" precisa da
+// lista completa, não de uma fatia dos itens mais recentes do projeto
+// inteiro (que poderia nem incluir os dele se houver muita gente).
+export function getResponsiblePendingItems(project, responsibleName) {
+  const items = [];
+  (project.meetings || []).filter((m) => !m.deleted).forEach((m) => {
+    (m.actionItems || []).filter((it) => !it.deleted && it.responsible === responsibleName).forEach((it) => {
+      items.push({ ...it, meetingId: m.id, meetingTitle: m.title, meetingDate: m.date || '' });
+    });
+  });
+  return items;
+}
+
+// Monta o bloco "PENDÊNCIAS POR PESSOA" pro contexto do assistente e
+// devolve também o nome resolvido (pra reaproveitar no filtro exato de
+// `searchProjectMemory`, que também é por igualdade — sem essa
+// resolução, filtrar a busca por "Evanio" nunca bateria com
+// "Evanio Santinon"). `resolvedName` vem `null` quando ambíguo ou
+// não encontrado — nesses casos não faz sentido filtrar a busca por
+// participante, só devolver a explicação no texto.
+export function buildPersonLookupText(project, rawName) {
+  const matches = findResponsibleMatches(project, rawName);
+  if (matches.length === 0) {
+    return { text: `PENDÊNCIAS POR PESSOA: não encontrei ninguém chamado "${rawName}" com nenhuma pendência de reunião atribuída neste projeto.`, resolvedName: null };
+  }
+  if (matches.length > 1) {
+    return { text: `PENDÊNCIAS POR PESSOA: o nome "${rawName}" bateu com mais de uma pessoa neste projeto: ${matches.join(', ')} — pergunte ao usuário qual delas antes de listar pendências.`, resolvedName: null };
+  }
+  const resolvedName = matches[0];
+  const today = todayIso();
+  const all = getResponsiblePendingItems(project, resolvedName);
+  const pending = all
+    .filter((it) => it.status !== 'concluida' && it.status !== 'nao-relevante')
+    .sort((a, b) => (a.dueDate || a.meetingDate || '9999-99-99').localeCompare(b.dueDate || b.meetingDate || '9999-99-99'));
+  const critical = pending.filter((it) => it.status === 'urgente' || (it.dueDate && it.dueDate < today));
+  const lines = [`PENDÊNCIAS POR PESSOA — "${rawName}" foi resolvido pra "${resolvedName}" (varredura completa de todas as reuniões, não uma amostra):`];
+  lines.push(`- Total de pendências em aberto: ${pending.length} de ${all.length} atividade(s) atribuída(s) a ela no total (${all.length - pending.length} já concluída(s)/não relevante(s)).`);
+  if (critical.length) {
+    lines.push(`- CRÍTICAS (urgente ou prazo vencido — ${critical.length}):`);
+    critical.forEach((it) => lines.push(`  · "${it.title}" — prazo: ${it.dueDate || 'sem prazo'}, status: ${TODO_STATUS_LABEL[it.status] || it.status}, reunião: "${it.meetingTitle}" (${it.meetingDate || 'sem data'})`));
+  }
+  if (pending.length) {
+    lines.push(`- Todas em aberto (mais antiga primeiro):`);
+    pending.forEach((it) => lines.push(`  · "${it.title}" — prazo: ${it.dueDate || 'sem prazo'}, status: ${TODO_STATUS_LABEL[it.status] || it.status}, reunião: "${it.meetingTitle}" (${it.meetingDate || 'sem data'})`));
+  } else {
+    lines.push('- Nenhuma pendência em aberto no momento.');
+  }
+  return { text: lines.join('\n'), resolvedName };
 }
 
 // Resumo compacto de identidade + cronograma — sempre da mais antiga pra
