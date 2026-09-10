@@ -83,7 +83,7 @@ export function TodoBoardView({ meetings, team, externalContacts, clientName, pi
     const byStatus = {};
     TODO_STATUS_ORDER.forEach((s) => { byStatus[s] = []; });
     filteredRows.forEach((r) => {
-      const s = TODO_STATUS_META[r.status] ? r.status : 'em-andamento';
+      const s = TODO_STATUS_META[r.status] ? r.status : 'nao-iniciado';
       byStatus[s].push(r);
     });
     TODO_STATUS_ORDER.forEach((s) => {
@@ -155,7 +155,7 @@ export function TodoBoardView({ meetings, team, externalContacts, clientName, pi
     return (
       <div key={row.id} className="todo-row">
         <select
-          value={TODO_STATUS_META[row.status] ? row.status : 'em-andamento'}
+          value={TODO_STATUS_META[row.status] ? row.status : 'nao-iniciado'}
           onChange={(e) => updateActionItem(pid, row.meetingId, row.id, { status: e.target.value })}
           style={{ width: 150, flexShrink: 0, fontWeight: 700, color: todoStatusMeta(row.status).color, background: todoStatusMeta(row.status).bg, border: `1px solid ${todoStatusMeta(row.status).border}` }}
         >

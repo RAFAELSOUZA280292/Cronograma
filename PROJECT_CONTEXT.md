@@ -2365,16 +2365,19 @@ dedicado do XFlow/Agenda/Visão Macro) exporta dois componentes:
     de duas colunas do `ActivityDetailModal`, `S.detailGrid`), cada um
     com título, responsável, prazo (date), status e **de qual lado é a
     entrega** (PRICETAX × cliente). **Status próprio do TO_DO (2026-09)**
-    — `TODO_STATUS_META`/`TODO_STATUS_ORDER`, local a `Meetings.jsx`,
-    **não** reaproveita mais o `STATUS_META` de atividade: `urgente` /
-    `em-andamento` / `pausada` / `concluida` / `nao-relevante` — pedido
-    explícito do Rafael, porque mistura urgência com andamento de um
-    jeito que não faz sentido no ciclo de vida de atividade normal (que
-    não tem "urgente" nem "não é relevante" como status). Novo item nasce
-    com `em-andamento` (não `nao-iniciado` — esse valor não existe mais
-    nesse enum). Status legado `nao-iniciado` em dado antigo (se houver)
-    cai num fallback visual pra `em-andamento` (`todoStatusMeta()`), sem
-    migração silenciosa do dado gravado.
+    — `TODO_STATUS_META`/`TODO_STATUS_ORDER` (exportados de
+    `Meetings.jsx`, reusados por `TodoBoard.jsx` — fonte única), **não**
+    reaproveita mais o `STATUS_META` de atividade: `nao-iniciado` /
+    `urgente` / `em-andamento` / `pausada` / `concluida` /
+    `nao-relevante` — pedido explícito do Rafael, porque mistura urgência
+    com andamento de um jeito que não faz sentido no ciclo de vida de
+    atividade normal (que não tem "urgente" nem "não é relevante" como
+    status). **Novo item sempre nasce com `nao-iniciado`** (manual ou
+    extraído por IA em `server/meetingInbox.js`) — chegou a nascer
+    `em-andamento` por um dia (2026-09), corrigido a pedido do Rafael:
+    "a atividade precisa nascer com status não iniciado". Fallback visual
+    pra status desconhecido/legado também é `nao-iniciado`
+    (`todoStatusMeta()`), sem migração silenciosa do dado gravado.
     **Responsável (2026-09) — texto livre, não mais `<select>` de
     `project.team`**: o responsável real de um item de reunião é quase
     sempre uma pessoa do lado do CLIENTE (ex.: "Evanio Santinon",
