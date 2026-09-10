@@ -57,10 +57,14 @@ src/App.jsx        Frontend principal: componentes, telas, estilos (S), lógica 
 src/xflow/XFlow.jsx     Módulo XFlow (gestão de BUGs) — telas, constantes de status/severidade/prioridade, helpers.
 src/agenda/Agenda.jsx    Módulo Agenda (2026-08) — visão dia/semana/mês da disponibilidade (Google + XFlow + atividades), toggle de privacidade.
 src/macro/MacroOverview.jsx  Módulo Visão Macro (2026-08) — cronograma consolidado de TODAS as empresas da org, por dia, com destaque de atrasado/hoje/próximo.
-src/meetings/Meetings.jsx   Módulo Reuniões (2026-09) — lista/detalhe de reunião por empresa + caixa de transcrições (envio, status, retry).
+src/meetings/Meetings.jsx   Módulo Reuniões (2026-09) — lista (MeetingsView) + caixa de transcrições (envio, status, retry). O detalhe da reunião em si mora em MeetingDetail.jsx.
+src/meetings/MeetingDetail.jsx  Tela de detalhe de reunião — "AI Meeting Workspace" (2026-09) — MeetingDetailModal, MeetingShareModal, MeetingPrintReport, PublicMeetingScreen (PROJECT_CONTEXT.md §26).
+src/meetings/TranscriptView.jsx  Card de transcrição com 3 modos: Completa/Por temas/Highlights, busca com destaque (2026-09, PROJECT_CONTEXT.md §26).
 src/meetings/TodoBoard.jsx  Aba "Atividades" / "Centro de Execução" (2026-09) — todos os itens de TO_DO de todas as reuniões da empresa, achatados numa lista só, com cards de indicador, filtros/ordenação/agrupamento e "Minha fila" (PROJECT_CONTEXT.md §25).
-src/meetings/TodoDrawer.jsx  Painel lateral de detalhe de uma atividade (2026-09) — Origem/Descrição/Subtarefas/Comentários/Arquivos/Histórico (PROJECT_CONTEXT.md §25).
+src/meetings/TodoDrawer.jsx  Painel lateral de detalhe de uma atividade (2026-09) — Origem/Descrição/Subtarefas/Comentários/Arquivos/Histórico (PROJECT_CONTEXT.md §25). Reaproveitado direto pela tela de Reunião também.
+src/meetings/ActivityRow.jsx  Linha de atividade (2026-09) — extraída de TodoBoard.jsx pra ser o mesmo componente visual usado na aba Atividades e na coluna de atividades da Reunião. Exporta ACTIVITY_ROW_CSS (cada tela que a usa deve renderizar esse <style> uma vez).
 src/meetings/todoUtils.js   Utilitários puros pra Atividades (2026-09) — iniciais/cor de avatar, cálculo de atraso, saudação por horário.
+src/meetings/meetingUtils.js  Utilitários puros pra Reunião (2026-09) — parseTranscript (regex best-effort), sliceEntriesByTopics, buildMeetingText/downloadTextFile (exportação .txt).
 src/main.jsx        Bootstrap do React (ReactDOM.createRoot).
 src/lib/api.js        Wrapper fetch (apiGet/apiPost/apiPatch/apiDelete), credentials:'include'.
 src/assets/brand/       Logos PNG da PRICETAX (preto = tema claro, branco = tema escuro).
@@ -130,7 +134,8 @@ Componentes de tela/modal (nome → linha → responsabilidade):
 | 6339 | `ResumoTable` | Tabela desktop da aba Resumo (2026-08) |
 | 6388 | `ResumoCard` | Card mobile da aba Resumo (2026-08) — mesmos dados de `ResumoTable`, layout empilhado |
 | **6417** | **`ResumoView`** | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
-| — | `MeetingsView`/`MeetingDetailModal`/`TranscriptSubmitModal` (`src/meetings/Meetings.jsx`) | Aba "Reuniões" do workspace de Empresas (2026-09) — lista Programadas/Realizadas + modal de edição autosave, array `project.meetings`, só `!isMulti`; + caixa de transcrições (2026-09) — botão "Enviar transcrição", lista de envios com polling, `POST/GET /api/meeting-inbox` (`server/meetingInbox.js`) — ver `PROJECT_CONTEXT.md` §24 e §24.1 |
+| — | `MeetingsView`/`TranscriptSubmitModal` (`src/meetings/Meetings.jsx`) | Aba "Reuniões" do workspace de Empresas (2026-09) — lista Programadas/Realizadas, array `project.meetings`, só `!isMulti`; + caixa de transcrições (2026-09) — botão "Enviar transcrição", lista de envios com polling, `POST/GET /api/meeting-inbox` (`server/meetingInbox.js`) — ver `PROJECT_CONTEXT.md` §24 e §24.1 |
+| — | `MeetingDetailModal`/`MeetingShareModal`/`MeetingPrintReport`/`PublicMeetingScreen` (`src/meetings/MeetingDetail.jsx`) | Tela de detalhe de reunião, redesign "AI Meeting Workspace" (2026-09) — leitura em blocos (resumo/decisões editáveis só sob demanda), transcrição em 3 modos (`TranscriptView.jsx`), coluna de atividades reaproveitando `ActivityRow`/`TodoDrawer`, Compartilhar (link público só-leitura, `GET /api/public-meeting/:token`) e Exportar (PDF/Texto) — ver `PROJECT_CONTEXT.md` §26 |
 | — | `TodoBoardView` (`src/meetings/TodoBoard.jsx`) + `TodoDrawer` (`src/meetings/TodoDrawer.jsx`) | Aba "Atividades" do workspace de Empresas (2026-09, redesign "Centro de Execução") — todos os TO_DOs de todas as reuniões da empresa numa lista só, cards de indicador, "Minha fila", filtros/ordenação/agrupamento (status/responsável/reunião), painel lateral com Origem/Descrição/Subtarefas/Comentários/Arquivos/Histórico, exportável pra Excel, só `!isMulti` — ver `PROJECT_CONTEXT.md` §25 |
 | **6597** | **`TableView`** | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
 | 7128 | `PhasesView` | View "Fases" |
