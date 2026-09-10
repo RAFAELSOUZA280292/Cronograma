@@ -89,8 +89,9 @@ server/scripts/reindexAllMeetings.js  Backfill manual da memória do projeto pra
 shared/transcriptParser.js  Funções puras de parsing de transcrição (parseTranscript/sliceEntriesByTopics/splitDecisionLines, 2026-09) — sem dependência de React/Express, usadas tanto por src/meetings/meetingUtils.js quanto por server/memoryIngest.js.
 server/assistantRetrieval.js  Assistente Inteligente de Projetos, Fase 2 (2026-09) — pipeline de 2 chamadas à IA (resolveQuery/synthesizeAnswer/askProjectAssistant), citações validadas contra os chunks recuperados, aprendizados persistidos em ai_project_insights — ver PROJECT_CONTEXT.md §27.
 server/assistantContext.js  buildProjectSnapshot(project) — perfil compacto de identidade+cronograma (Resumo/Gantt/Tabela/Fases/Quadro) injetado no contexto do assistente, 2026-09 — ver PROJECT_CONTEXT.md §27.
-server/assistant.js       Rotas /api/assistant/* (conversation, ask, conversation/clear, messages/:id/feedback), 2026-09 — ver PROJECT_CONTEXT.md §27.
-src/assistant/ProjectAssistant.jsx  Botão flutuante + painel lateral "Assistente do Projeto" (2026-09) — visível nas abas Reuniões/Atividades, consciente de reunião aberta — ver PROJECT_CONTEXT.md §27.
+server/assistantActions.js  Agente executor (2026-09) — executeProposedAction(), único tipo suportado create_meeting_todo, só chamado depois de confirmação explícita do usuário — ver PROJECT_CONTEXT.md §27.
+server/assistant.js       Rotas /api/assistant/* (conversation, ask, conversation/clear, messages/:id/feedback, messages/:id/action), 2026-09 — ver PROJECT_CONTEXT.md §27.
+src/assistant/ProjectAssistant.jsx  Botão flutuante + painel lateral "Assistente do Projeto" (2026-09) — visível nas abas Reuniões/Atividades, consciente de reunião aberta, card de confirmação de ação proposta — ver PROJECT_CONTEXT.md §27.
 
 index.html            Shell HTML, variáveis CSS de tema (light/dark) em :root.
 vite.config.js         Proxy /api -> localhost:3001 em dev.
@@ -389,7 +390,7 @@ anexos são base64 inline no PATCH do projeto (ver §9, ponto de atenção).
 | `cnpj_cache` | Cache de 60 dias das respostas de lookup de CNPJ — **não** tem `org_id`, é compartilhado entre organizações de propósito | Nenhum |
 | `personal_boards` | 1 linha por usuário, `data JSONB` = quadro Kanban pessoal — **não** tem `org_id` (sempre buscado por `user_id`; o scan de `shareToken` público é cross-org de propósito) | FK `user_id → users.id` |
 | `meeting_submissions` | Caixa de transcrições (2026-09) — 1 linha por transcrição enviada pra virar reunião via IA, `status` (pending/processing/done/failed) próprio, fora do JSONB do projeto de propósito (sobrevive independente do resultado do processamento) — ver `PROJECT_CONTEXT.md` §24.1 | FK `org_id → organizations.id`, `project_id → projects.id`, `submitted_by → users.id` |
-| `ai_conversations` / `ai_messages` | Assistente do Projeto, Fase 2 (2026-09) — 1 conversa contínua por (projeto, usuário); mensagens com fontes/observabilidade/feedback — ver `PROJECT_CONTEXT.md` §27 | FK `org_id`/`project_id`/`user_id`; `ai_messages.conversation_id → ai_conversations.id` (CASCADE) |
+| `ai_conversations` / `ai_messages` | Assistente do Projeto, Fase 2 (2026-09) — 1 conversa contínua por (projeto, usuário); mensagens com fontes/observabilidade/feedback + `proposed_action`/`action_status` do agente executor (Fase 6 v1) — ver `PROJECT_CONTEXT.md` §27 | FK `org_id`/`project_id`/`user_id`; `ai_messages.conversation_id → ai_conversations.id` (CASCADE) |
 | `ai_project_insights` | Aprendizados duráveis do Assistente do Projeto (2026-09) — extraídos das conversas, à parte de `ai_messages` de propósito (sobrevivem a "Limpar conversa") — ver `PROJECT_CONTEXT.md` §27 | FK `org_id → organizations.id`, `project_id → projects.id` (CASCADE) |
 
 Sem migrations formais — `initDb()` roda `CREATE TABLE IF NOT EXISTS` +

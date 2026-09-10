@@ -46,6 +46,40 @@ export function buildProjectSnapshot(project) {
   if ((project.externalContacts || []).length) lines.push(`- Contatos externos conhecidos: ${project.externalContacts.map((c) => c.name).join(', ')}`);
 
   lines.push('');
+  lines.push('PARTICIPANTES DE REUNIÃO (agregado de todas as reuniões — use pra responder "quem já participou")');
+  const teamSet = new Set((project.team || []).map((t) => t.toLowerCase()));
+  const externalSet = new Set((project.externalContacts || []).map((c) => c.name.toLowerCase()));
+  const participantMeetings = new Map();
+  meetings.forEach((m) => {
+    (m.participants || []).forEach((name) => {
+      if (!name) return;
+      if (!participantMeetings.has(name)) participantMeetings.set(name, []);
+      participantMeetings.get(name).push({ title: m.title, date: m.date || '' });
+    });
+  });
+  const knownTeamParticipants = [];
+  const knownExternalParticipants = [];
+  const unresolvedParticipants = [];
+  participantMeetings.forEach((occurrences, name) => {
+    occurrences.sort((a, b) => a.date.localeCompare(b.date));
+    if (teamSet.has(name.toLowerCase())) knownTeamParticipants.push(name);
+    else if (externalSet.has(name.toLowerCase())) knownExternalParticipants.push(name);
+    else unresolvedParticipants.push({ name, occurrences });
+  });
+  if (knownTeamParticipants.length) lines.push(`- Da equipe/áreas cadastradas: ${knownTeamParticipants.join(', ')}`);
+  if (knownExternalParticipants.length) lines.push(`- Contatos externos já identificados (lado cliente, com e-mail cadastrado): ${knownExternalParticipants.join(', ')}`);
+  if (unresolvedParticipants.length) {
+    lines.push('- SEM IDENTIFICAÇÃO CLARA (apareceram em reunião, mas não sabemos se são da PRICETAX ou do cliente, nem a área — pergunte ao usuário de forma natural quando fizer sentido, no máximo uma pergunta por resposta, e registre a resposta como aprendizado):');
+    unresolvedParticipants.slice(0, 8).forEach(({ name, occurrences }) => {
+      const last = occurrences[occurrences.length - 1];
+      lines.push(`  · "${name}" — participou de ${occurrences.length} reunião(ões), última: "${last.title}" em ${last.date || 'sem data'}`);
+    });
+  }
+  if (!knownTeamParticipants.length && !knownExternalParticipants.length && !unresolvedParticipants.length) {
+    lines.push('- Nenhum participante registrado em reunião ainda.');
+  }
+
+  lines.push('');
   lines.push('CRONOGRAMA (mesma base de dados das abas Resumo, Gantt, Tabela, Fases e Quadro — não são fontes separadas)');
   lines.push(`- Fases: ${phases.map((p) => p.name).join(' → ') || 'nenhuma fase cadastrada'}`);
   const byStatus = {};

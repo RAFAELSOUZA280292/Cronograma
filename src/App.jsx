@@ -2830,6 +2830,7 @@ export default function App() {
             openMeetingTitle={openMeeting ? openMeeting.title : null}
             openMeetingDate={openMeeting ? openMeeting.date : null}
             onOpenMeeting={(id) => { setView('meetings'); openMeetingDetail(activeProject.id, id); }}
+            onReloadProjects={reloadProjects}
           />
         );
       })()}

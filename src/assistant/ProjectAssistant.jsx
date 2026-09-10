@@ -5,7 +5,7 @@
 // com fonte citável — nunca mostra uma resposta sem indicar de onde
 // veio, e mostra explicitamente quando não há evidência suficiente.
 import React, { useEffect, useRef, useState } from 'react';
-import { Sparkles, X, Send, ThumbsUp, ThumbsDown, Trash2, Mic, Loader2 } from 'lucide-react';
+import { Sparkles, X, Send, ThumbsUp, ThumbsDown, Trash2, Mic, Loader2, Check, Ban } from 'lucide-react';
 import { fmtDate, useIsMobile } from '../App.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 
@@ -33,6 +33,17 @@ const ASSISTANT_CSS = `
   .asst-feedback { display:flex; gap:4px; margin-top:6px; }
   .asst-feedback button { background:transparent; border:none; cursor:pointer; color:var(--text-6); padding:2px; display:flex; }
   .asst-feedback button.active { color:#F5C400; }
+  .asst-action-card { margin-top:8px; max-width:88%; background:var(--bg-2); border:1px solid rgba(245,196,0,.4); border-radius:10px; padding:10px 12px; font-size:12px; }
+  .asst-action-card-title { font-weight:800; color:var(--text-1); margin-bottom:4px; display:flex; align-items:center; gap:6px; }
+  .asst-action-card-body { color:var(--text-4); line-height:1.5; }
+  .asst-action-card-buttons { display:flex; gap:8px; margin-top:8px; }
+  .asst-action-btn { display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; border-radius:7px; padding:6px 11px; cursor:pointer; border:1px solid; }
+  .asst-action-confirm { background:#F5C400; border-color:#F5C400; color:#111; }
+  .asst-action-reject { background:transparent; border-color:var(--border-3); color:var(--text-4); }
+  .asst-action-btn:disabled { opacity:.55; cursor:default; }
+  .asst-action-status { margin-top:8px; font-size:11.5px; font-weight:700; display:flex; align-items:center; gap:5px; }
+  .asst-action-status.executed { color:#3ecf6e; }
+  .asst-action-status.rejected { color:var(--text-6); }
   .asst-suggestions { display:flex; flex-wrap:wrap; gap:6px; padding:0 16px 10px; }
   .asst-suggestion-chip { font-size:11.5px; font-weight:600; color:var(--text-4); background:var(--bg-3); border:1px solid var(--border-2); border-radius:999px; padding:5px 10px; cursor:pointer; }
   .asst-suggestion-chip:hover { border-color:var(--border-3); color:var(--text-2); }
@@ -55,13 +66,14 @@ function baseSuggestions(view, hasOpenMeeting) {
   return ['Resuma a última reunião', 'Decisões recentes', 'Assuntos recorrentes', 'Principais riscos'];
 }
 
-export function ProjectAssistant({ projectId, projectName, view, openMeetingId, openMeetingTitle, openMeetingDate, onOpenMeeting }) {
+export function ProjectAssistant({ projectId, projectName, view, openMeetingId, openMeetingTitle, openMeetingDate, onOpenMeeting, onReloadProjects }) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [decidingActionId, setDecidingActionId] = useState(null);
   const bodyRef = useRef(null);
 
   useEffect(() => { setLoaded(false); setMessages([]); }, [projectId]);
@@ -107,6 +119,23 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
     apiPost(`/api/assistant/messages/${messageId}/feedback`, { projectId, feedback }).catch(() => {});
   }
 
+  async function decideAction(messageId, decision) {
+    if (decidingActionId) return;
+    setDecidingActionId(messageId);
+    try {
+      await apiPost(`/api/assistant/messages/${messageId}/action`, { projectId, decision });
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, actionStatus: decision === 'confirm' ? 'executed' : 'rejected' } : m)));
+      // A ação confirmada muda project.data direto no servidor (fora do
+      // fluxo normal de mutateProject/autosave) — precisa recarregar pra
+      // a pendência nova aparecer na tela sem precisar sair e voltar.
+      if (decision === 'confirm' && onReloadProjects) onReloadProjects();
+    } catch (e) {
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, actionError: e.message || 'Não consegui concluir agora.' } : m)));
+    } finally {
+      setDecidingActionId(null);
+    }
+  }
+
   if (!projectId) return null;
 
   return (
@@ -148,6 +177,25 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                             <Mic size={10} /> {s.meetingTitle}{s.meetingDate ? ` · ${fmtDate(s.meetingDate)}` : ''}{s.timeRef ? ` · ${s.timeRef}` : ''}
                           </button>
                         ))}
+                      </div>
+                    )}
+                    {m.role === 'assistant' && m.proposedAction && (
+                      <div className="asst-action-card">
+                        {m.actionStatus === 'pending' && (
+                          <>
+                            <div className="asst-action-card-title"><Sparkles size={13} color="#F5C400" /> Ação proposta: criar pendência</div>
+                            <div className="asst-action-card-body">
+                              "{m.proposedAction.title}"{m.proposedAction.responsible ? ` — responsável: ${m.proposedAction.responsible}` : ''}{m.proposedAction.dueDate ? ` — prazo: ${fmtDate(m.proposedAction.dueDate)}` : ''}
+                            </div>
+                            <div className="asst-action-card-buttons">
+                              <button type="button" className="asst-action-btn asst-action-confirm" disabled={decidingActionId === m.id} onClick={() => decideAction(m.id, 'confirm')}><Check size={13} /> Confirmar</button>
+                              <button type="button" className="asst-action-btn asst-action-reject" disabled={decidingActionId === m.id} onClick={() => decideAction(m.id, 'reject')}><Ban size={13} /> Cancelar</button>
+                            </div>
+                            {m.actionError && <div style={{ color: '#e2574c', marginTop: 6, fontSize: 11 }}>{m.actionError}</div>}
+                          </>
+                        )}
+                        {m.actionStatus === 'executed' && <div className="asst-action-status executed"><Check size={13} /> Pendência criada</div>}
+                        {m.actionStatus === 'rejected' && <div className="asst-action-status rejected"><Ban size={13} /> Ação cancelada</div>}
                       </div>
                     )}
                     {m.role === 'assistant' && !String(m.id).startsWith('err-') && (
