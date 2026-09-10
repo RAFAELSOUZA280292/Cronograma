@@ -1,9 +1,11 @@
-// Assistente do Projeto (2026-09, Fase 2 do Assistente Inteligente de
-// Projetos) — botão flutuante + painel lateral, integrado às abas
-// Reuniões e Atividades (App.jsx decide quando montar este componente).
-// Conversa contínua por usuário+empresa (server/assistant.js), sempre
-// com fonte citável — nunca mostra uma resposta sem indicar de onde
-// veio, e mostra explicitamente quando não há evidência suficiente.
+// RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente
+// Inteligente de Projetos; nome "RENATA" adotado 2026-09-10, ver
+// PROJECT_CONTEXT.md §27) — botão flutuante + painel lateral, integrado
+// às abas Reuniões e Atividades (App.jsx decide quando montar este
+// componente). Conversa contínua por usuário+empresa
+// (server/assistant.js), sempre com fonte citável — nunca mostra uma
+// resposta sem indicar de onde veio, e mostra explicitamente quando não
+// há evidência suficiente.
 import React, { useEffect, useRef, useState } from 'react';
 import { Sparkles, X, Send, ThumbsUp, ThumbsDown, Trash2, Mic, Loader2, Check, Ban } from 'lucide-react';
 import { fmtDate, useIsMobile } from '../App.jsx';
@@ -158,7 +160,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
       <style>{ASSISTANT_CSS}</style>
       {!open && (
         <button type="button" className="asst-fab" onClick={() => setOpen(true)}>
-          <Sparkles size={16} /> Assistente do Projeto
+          <Sparkles size={16} /> RENATA
         </button>
       )}
       {open && (
@@ -166,7 +168,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
           <div className={`asst-panel ${isMobile ? 'mobile' : ''}`} onClick={(e) => e.stopPropagation()}>
             <div className="asst-head">
               <div>
-                <div className="asst-head-title"><Sparkles size={16} color="#F5C400" /> Assistente do Projeto</div>
+                <div className="asst-head-title"><Sparkles size={16} color="#F5C400" /> RENATA</div>
                 <div className="asst-head-sub">{projectName}</div>
               </div>
               <div className="asst-head-actions">
@@ -178,7 +180,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
             <div className="asst-body" ref={bodyRef}>
               {loaded && messages.length === 0 && (
                 <div className="asst-empty">
-                  Pergunte qualquer coisa sobre o histórico deste projeto — reuniões, decisões, atividades, participantes. Toda resposta baseada em dado real vem com a fonte.
+                  Sou a RENATA, assistente de execução e gestão de projetos da PRICETAX. Pergunte qualquer coisa sobre o histórico deste projeto — reuniões, decisões, atividades, participantes. Toda resposta baseada em dado real vem com a fonte.
                 </div>
               )}
               {messages.map((m) => (
