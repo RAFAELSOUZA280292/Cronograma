@@ -36,7 +36,7 @@ router.post('/ask', requireAuth, async (req, res, next) => {
     if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ message: 'Assistente não configurado nesse ambiente (falta ANTHROPIC_API_KEY).' });
     const project = await loadAuthorizedProject(req, res, projectId);
     if (!project) return;
-    const message = await askProjectAssistant({ pool, orgId: project.org_id, projectId, userId: req.user.id, question: text, context: context || {} });
+    const message = await askProjectAssistant({ pool, orgId: project.org_id, projectId, userId: req.user.id, question: text, context: context || {}, projectData: project.data });
     res.json({ message });
   } catch (e) { next(e); }
 });
