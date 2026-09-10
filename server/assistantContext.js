@@ -47,8 +47,8 @@ export function buildProjectSnapshot(project) {
 
   lines.push('');
   lines.push('PARTICIPANTES DE REUNIÃO (agregado de todas as reuniões — use pra responder "quem já participou")');
-  const teamSet = new Set((project.team || []).map((t) => t.toLowerCase()));
-  const externalSet = new Set((project.externalContacts || []).map((c) => c.name.toLowerCase()));
+  const teamSet = new Set((project.team || []).map((t) => String(t || '').toLowerCase()));
+  const externalSet = new Set((project.externalContacts || []).map((c) => String((c && c.name) || '').toLowerCase()));
   const participantMeetings = new Map();
   meetings.forEach((m) => {
     (m.participants || []).forEach((name) => {
@@ -62,8 +62,9 @@ export function buildProjectSnapshot(project) {
   const unresolvedParticipants = [];
   participantMeetings.forEach((occurrences, name) => {
     occurrences.sort((a, b) => a.date.localeCompare(b.date));
-    if (teamSet.has(name.toLowerCase())) knownTeamParticipants.push(name);
-    else if (externalSet.has(name.toLowerCase())) knownExternalParticipants.push(name);
+    const key = String(name || '').toLowerCase();
+    if (teamSet.has(key)) knownTeamParticipants.push(name);
+    else if (externalSet.has(key)) knownExternalParticipants.push(name);
     else unresolvedParticipants.push({ name, occurrences });
   });
   if (knownTeamParticipants.length) lines.push(`- Da equipe/áreas cadastradas: ${knownTeamParticipants.join(', ')}`);
