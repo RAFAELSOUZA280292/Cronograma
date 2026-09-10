@@ -81,7 +81,7 @@ async function processSubmission(submissionId) {
         title: it.title || '',
         responsible: it.responsible || '',
         dueDate: it.dueDate || '',
-        status: 'nao-iniciado',
+        status: 'em-andamento',
         deleted: false,
       })),
       createdAt: new Date().toISOString(),
