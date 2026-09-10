@@ -2849,6 +2849,81 @@ proativo → ações executáveis). **Esta seção documenta só a Fase 1**
 seguras; chat, base de conhecimento, proatividade e ações **não
 existem ainda**, ficam como roteiro nas seções abaixo.
 
+### Identidade — RENATA (2026-09-10)
+
+O Rafael deu um nome e uma identidade completa pro assistente:
+**RENATA** — Reforma, Execução, Negócios, Agilidade, Tecnologia e Ação.
+Ela é descrita como irmã da **IVANA** (a persona/metodologia de IA
+tributária da PRICETAX, ver memória de sessão
+`ivana-metodologia-reforma-tributaria` — não é um produto/API separado
+dentro deste repositório, é uma forma de atuar que o Claude adota em
+sessões de consultoria tributária): a IVANA interpreta legislação,
+Reforma Tributária, IBS/CBS e regras fiscais; a RENATA transforma
+reuniões e decisões em execução real — atividades, responsáveis,
+prazos, riscos, próximos passos. Princípio central dado pelo Rafael:
+"toda informação relevante precisa virar conhecimento, todo
+conhecimento relevante precisa virar decisão, toda decisão relevante
+precisa virar ação."
+
+O pedido original é um "character brief" extenso (personalidade,
+missão, papel combinando Scrum Master + PM + PMO + Business Analyst +
+Assistente Executiva + IA de Conhecimento Corporativo, dezenas de
+exemplos de pergunta/resposta e de sinalização proativa) — **o que foi
+efetivamente implementado nesta rodada é a fatia que cabe na
+arquitetura já construída** (prompt de `resolveQuery`/`synthesizeAnswer`,
+`server/assistantRetrieval.js`), não o brief inteiro:
+
+- **Nome e identidade**: UI renomeada de "Assistente do Projeto" pra
+  **RENATA** (botão flutuante, cabeçalho do painel,
+  `src/assistant/ProjectAssistant.jsx`); o prompt instrui a IA a se
+  apresentar como RENATA quando perguntarem quem ela é, e a mencionar a
+  IVANA quando o assunto for tributário técnico demais pra concluir
+  sozinha ("sinalize que esse ponto merece uma análise tributária
+  dedicada, o tipo de trabalho que a IVANA faz" — não é uma integração
+  de verdade entre dois sistemas, é uma instrução de prompt pra
+  reconhecer o limite e indicar o caminho certo).
+- **Fato vs. interpretação, reforçado**: já existia a regra de nunca
+  inventar; agora o prompt pede explicitamente pra sinalizar quando algo
+  parece uma atividade mas falta responsável/prazo nos trechos ("Identifiquei
+  isso como uma possível atividade, mas a reunião não deixou explícito
+  quem é responsável nem o prazo") em vez de completar a lacuna.
+- **Interpretação de intenção, não só palavra literal**: instrução nova
+  no prompt de síntese pra reconhecer padrões de fala como compromisso
+  ("vou verificar"), dependência ("depende do fornecedor"), impedimento
+  ("não conseguimos fechar porque faltou X") e marco ("vamos implementar
+  em [data]") ao interpretar trechos de reunião.
+- **Tom executivo**: instrução pra preferir resposta curta e direta
+  quando resolver, priorizando clareza/ação/contexto/prioridade.
+
+**Deliberadamente NÃO implementado nesta rodada** — o brief descreve
+muita coisa que já estava no roteiro de Fases 3-5 (ver "Roteiro das
+próximas fases" no fim desta seção) e continua não construída,
+só ficou mais detalhada como visão:
+- **Memória cross-projeto** ("esse tema já apareceu em outro projeto
+  X") — precisa da Base de Conhecimento Corporativa (Fase 3/4,
+  `scope='org_knowledge'`), que não existe. A busca hoje (`searchProjectMemory`)
+  é sempre escopada a `org_id`+`project_id` — isso é bom pra segregação
+  de confidencialidade entre clientes (que o brief também pede), mas
+  significa que a RENATA estruturalmente não vê outros projetos ainda.
+- **Alertas proativos sem o usuário abrir o chat** ("ao abrir o
+  projeto, ela já avisa: 4 atividades vencidas...") — a única
+  superfície proativa hoje é responder-e-aproveitar-a-resposta-pra-levantar-um-ponto
+  (participante sem identificação, pendência criada por ela mesma ainda
+  aberta); não existe nenhum gatilho que dispara sem o usuário mandar
+  mensagem.
+- **Detecção de contradição entre decisões de reuniões diferentes**,
+  **detecção de scope creep**, **geração de briefing pré-reunião como
+  entregável estruturado** — o prompt tem instrução geral pra "buscar
+  padrões" quando relevante durante uma resposta normal, mas não há
+  lógica dedicada pra nenhum desses três; a RENATA só percebe isso se o
+  contexto retornado pela busca lexical realmente trouxer os trechos
+  contraditórios/repetidos juntos numa mesma pergunta.
+- **Vocabulário de Scrum formal** (backlog, sprint, milestone,
+  entregável como conceitos explícitos de dado) — não virou campo novo
+  no banco nem UI nova; continua usando o modelo de dado já existente
+  (`meeting.actionItems`, `project.activities`) sem introduzir essas
+  abstrações.
+
 ### Decisões tomadas nesta rodada
 
 1. **Sem embeddings/pgvector agora** — busca lexical (full-text search
@@ -3263,4 +3338,5 @@ ser assumido como existente)
 | Regras de padrão de código, arquivos que não mexer, comandos | `CLAUDE.md` |
 | Detalhe de responsividade mobile por tela | `docs/RESPONSIVE_ARCHITECTURE.md` |
 | Estudo de integração via Telegram Bot (não implementado) | `docs/TELEGRAM_BOT_ESTUDO.md` |
+| Brief original completo da identidade/princípios da RENATA | `docs/RENATA_BRIEF.md` (resumo do que foi implementado em `PROJECT_CONTEXT.md` §27) |
 | Histórico de decisões de produto/por quê de uma feature | memória de sessão (fora do repo) ou pedir contexto ao usuário |
