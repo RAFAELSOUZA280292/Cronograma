@@ -85,6 +85,8 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
 
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [submissions, setSubmissions] = useState([]);
+  const [reindexing, setReindexing] = useState(false);
+  const [reindexResult, setReindexResult] = useState(null);
   // Snapshot vivo de `meetings` — lido dentro do polling sem precisar recriar
   // o efeito (e reiniciar o timer) toda vez que a lista de reuniões muda.
   const meetingsRef = useRef(meetings);
@@ -139,6 +141,28 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
     setShowSubmitModal(false);
   }
 
+  // Botão de autoatendimento (2026-09-10, pedido do Rafael) — some
+  // reunião registrada antes de existir a reindexação automática (ou
+  // qualquer outro motivo) pode ficar sem memória de busca; em vez de
+  // depender de alguém rodar um script contra o banco de produção, esse
+  // botão reprocessa tudo direto pelo próprio painel. Mesma rota que o
+  // ícone equivalente dentro do painel da RENATA (src/assistant/ProjectAssistant.jsx)
+  // — colocado aqui também porque nem todo mundo abre o chat pra achar.
+  async function handleReindex() {
+    if (reindexing) return;
+    setReindexing(true);
+    setReindexResult(null);
+    try {
+      const res = await apiPost('/api/assistant/reindex', { projectId: pid });
+      setReindexResult(res);
+    } catch (e) {
+      setReindexResult({ error: true });
+    } finally {
+      setReindexing(false);
+      setTimeout(() => setReindexResult(null), 6000);
+    }
+  }
+
   function renderCard(m) {
     const isUpcoming = m.date && m.date > today;
     const summary = actionItemsSummary(m.actionItems);
@@ -168,7 +192,13 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-1)' }}>Reuniões</div>
           <div style={{ fontSize: 12, color: 'var(--text-5)', marginTop: 2 }}>O que foi discutido, o que foi decidido, e o que ainda está pendente.</div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {reindexResult && (
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: reindexResult.error ? '#e2574c' : '#3ecf6e' }}>
+              {reindexResult.error ? 'Não consegui reindexar agora.' : `Memória reindexada: ${reindexResult.meetingsIndexed} reunião(ões), ${reindexResult.chunksCreated} trecho(s).`}
+            </span>
+          )}
+          <button style={S.iconBtn} onClick={handleReindex} disabled={reindexing} title="Reprocessa a memória de busca da RENATA pra todas as reuniões desta empresa — use se ela disser que não encontra o conteúdo de uma reunião que existe"><RefreshCw size={14} className={reindexing ? 'mtg-spin' : ''} /> Reindexar memória</button>
           <button style={S.iconBtn} onClick={onShowTrash}><Trash2 size={14} /> Lixeira{trashed.length > 0 ? ` (${trashed.length})` : ''}</button>
           <button style={S.iconBtn} onClick={() => setShowSubmitModal(true)}><Sparkles size={14} /> Enviar transcrição</button>
           <button style={S.primaryBtn} onClick={onAdd}><Plus size={15} /> Nova reunião</button>
