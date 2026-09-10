@@ -28,6 +28,22 @@ function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
 function anthropicConfigured() { return !!process.env.ANTHROPIC_API_KEY; }
 
+// Log-only append pro project.log (2026-09-10, pedido do Rafael: "crie
+// log para tudo na aba Reuniões e Atividades, assim como já registra
+// pras demais") — antes desse fix, só o SUCESSO de uma transcrição
+// processada virava reunião ficava registrado; criar o envio, falhar no
+// meio do caminho, ou pedir nova tentativa não deixavam rastro nenhum.
+async function appendProjectLog(projectId, action, user) {
+  const { rows } = await pool.query('SELECT data FROM projects WHERE id=$1', [projectId]);
+  if (!rows[0]) return;
+  const data = rows[0].data || {};
+  const nextData = {
+    ...data,
+    log: [{ ts: new Date().toISOString(), action, user, activityId: null }, ...(data.log || [])].slice(0, 300),
+  };
+  await pool.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(nextData), projectId]);
+}
+
 const MeetingExtractionSchema = z.object({
   title: z.string().describe('Título curto e descritivo da reunião, em português'),
   date: z.string().nullable().describe('Data da reunião em YYYY-MM-DD — só se estiver explícita no texto (ex.: "10 de agosto de 2026"); nunca deduza a partir de um dia da semana sozinho ("quarta-feira")'),
@@ -69,11 +85,13 @@ async function extractMeetingFromTranscript(transcript, clientCompanyName) {
 }
 
 async function processSubmission(submissionId) {
+  let submittedByProjectId = null;
   try {
     await pool.query(`UPDATE meeting_submissions SET status='processing' WHERE id=$1`, [submissionId]);
     const { rows } = await pool.query('SELECT * FROM meeting_submissions WHERE id=$1', [submissionId]);
     const sub = rows[0];
     if (!sub) return;
+    submittedByProjectId = sub.project_id;
 
     const { rows: projRows } = await pool.query('SELECT id, org_id, data FROM projects WHERE id=$1', [sub.project_id]);
     const project = projRows[0];
@@ -141,11 +159,16 @@ async function processSubmission(submissionId) {
     reindexMeetingMemory(pool, project.org_id, project.id, meeting)
       .catch((e) => console.error('Falha ao reindexar memória da reunião criada por transcrição', e.message));
   } catch (e) {
+    const errorMsg = String(e.message || 'Erro desconhecido').slice(0, 500);
     console.error('Falha ao processar transcrição de reunião', e.message);
     await pool.query(
       `UPDATE meeting_submissions SET status='failed', error_message=$1, processed_at=now() WHERE id=$2`,
-      [String(e.message || 'Erro desconhecido').slice(0, 500), submissionId],
+      [errorMsg, submissionId],
     ).catch(() => {});
+    if (submittedByProjectId) {
+      appendProjectLog(submittedByProjectId, `Falha ao processar transcrição enviada: ${errorMsg}`, 'IA (transcrição)')
+        .catch((logErr) => console.error('Falha ao registrar log de falha de transcrição', logErr.message));
+    }
   }
 }
 
@@ -171,6 +194,8 @@ router.post('/', requireAuth, async (req, res, next) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
       [id, rows[0].org_id, projectId, req.user.id, text, date || '', time || ''],
     );
+    appendProjectLog(projectId, `${req.user.name} enviou uma transcrição de reunião pra processamento por IA`, req.user.name)
+      .catch((e) => console.error('Falha ao registrar log de envio de transcrição', e.message));
 
     // Não segura a resposta HTTP na chamada pra Claude API (pode levar
     // dezenas de segundos numa transcrição grande) — mesmo padrão
@@ -214,7 +239,7 @@ router.post('/:id/retry', requireAuth, async (req, res, next) => {
   try {
     const { id } = req.params;
     const { rows } = await pool.query(
-      `SELECT ms.status, p.data AS project_data, p.org_id AS project_org_id
+      `SELECT ms.project_id, ms.status, p.data AS project_data, p.org_id AS project_org_id
        FROM meeting_submissions ms JOIN projects p ON p.id = ms.project_id
        WHERE ms.id=$1`,
       [id],
@@ -227,6 +252,8 @@ router.post('/:id/retry', requireAuth, async (req, res, next) => {
       return res.status(503).json({ message: 'Processamento por IA não configurado nesse ambiente (falta ANTHROPIC_API_KEY).' });
     }
     await pool.query(`UPDATE meeting_submissions SET status='pending', error_message='' WHERE id=$1`, [id]);
+    appendProjectLog(rows[0].project_id, `${req.user.name} tentou reprocessar uma transcrição de reunião que tinha falhado`, req.user.name)
+      .catch((e) => console.error('Falha ao registrar log de nova tentativa de transcrição', e.message));
     processSubmission(id).catch((e) => console.error('Falha fire-and-forget ao reprocessar submissão', e.message));
     res.json({ message: 'Reprocessando.' });
   } catch (e) { next(e); }

@@ -1665,10 +1665,12 @@ export default function App() {
   }
 
   function deleteTodoSubtask(targetPid, meetingId, itemId, subId) {
+    const { item } = findActionItem(targetPid, meetingId, itemId);
+    const sub = item && (item.subtasks || []).find((s) => s.id === subId);
     mutateProject(targetPid, (p) => ({
       ...p,
       meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id !== itemId ? it : { ...it, subtasks: (it.subtasks || []).filter((s) => s.id !== subId) })) })),
-    }));
+    }), sub ? `${currentUser ? currentUser.name : 'Alguém'} removeu a subtarefa "${sub.title}"` : undefined, itemId);
   }
 
   function addTodoComment(targetPid, meetingId, itemId, text) {
@@ -1685,7 +1687,7 @@ export default function App() {
     mutateProject(targetPid, (p) => ({
       ...p,
       meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id !== itemId ? it : { ...it, comments: (it.comments || []).filter((c) => c.id !== commentId) })) })),
-    }));
+    }), `${currentUser ? currentUser.name : 'Alguém'} removeu um comentário`, itemId);
   }
 
   function addTodoAttachment(targetPid, meetingId, itemId, fileMeta) {
@@ -1697,10 +1699,12 @@ export default function App() {
   }
 
   function deleteTodoAttachment(targetPid, meetingId, itemId, attId) {
+    const { item } = findActionItem(targetPid, meetingId, itemId);
+    const att = item && (item.attachments || []).find((a) => a.id === attId);
     mutateProject(targetPid, (p) => ({
       ...p,
       meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id !== itemId ? it : { ...it, attachments: (it.attachments || []).filter((a) => a.id !== attId) })) })),
-    }));
+    }), att ? `${currentUser ? currentUser.name : 'Alguém'} removeu o anexo "${att.name}"` : undefined, itemId);
   }
 
   function addMember() {
