@@ -3394,6 +3394,21 @@ UI, resposta "Memória reindexada: 1 reunião(ões), 2 trecho(s)
 atualizados", e os chunks (`transcript_segment`, `meeting_summary`)
 conferidos direto no banco depois.
 
+**Atualização (mesmo dia)**: o botão só dentro do painel da RENATA se
+mostrou pouco descobrível — o Rafael não achou ("KD a porra do botão
+reindexar?"), porque ele nem tinha aberto o chat ainda, só a tela de
+Reuniões. Adicionado o mesmo botão **direto na tela de Reuniões**
+(`MeetingsView`, `src/meetings/Meetings.jsx`), na barra de ações ao
+lado de "Lixeira"/"Enviar transcrição"/"Nova reunião" — mesma chamada
+(`POST /api/assistant/reindex`), resultado mostrado como um texto
+inline (verde se OK, vermelho se erro) que some sozinho depois de
+alguns segundos, sem precisar abrir o chat pra ver o resultado. O botão
+dentro do painel da RENATA continua existindo (não foi removido) — só
+deixou de ser o único lugar. Reconfirmado via UI real (reunião de teste
+sem chunk nenhum → clique no botão da tela de Reuniões → "Memória
+reindexada: 1 reunião(ões), 2 trecho(s)." → chunks conferidos no
+banco).
+
 ### Roteiro das próximas fases (não construído, documentado pra não
 ser assumido como existente)
 
