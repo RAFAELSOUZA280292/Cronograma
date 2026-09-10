@@ -389,6 +389,16 @@ export async function initDb() {
   await pool.query(`CREATE INDEX IF NOT EXISTS project_memory_chunks_meeting_idx ON project_memory_chunks (project_id, meeting_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS project_memory_chunks_org_date_idx ON project_memory_chunks (org_id, project_id, meeting_date)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS project_memory_chunks_participants_idx ON project_memory_chunks USING GIN (participants jsonb_path_ops)`);
+  // Fase 3 da RENATA (2026-09, ver PROJECT_CONTEXT.md) — busca
+  // semântica híbrida. Guardado como JSONB (array de números), não
+  // pgvector: evita depender de uma extensão que pode não estar
+  // disponível no Postgres gerenciado do Railway; nesta escala de dados
+  // (baixos milhares de chunks por projeto) calcular similaridade de
+  // cosseno em JS é rápido o bastante (ver server/embeddings.js).
+  // Nullable de propósito — chunk sem embedding (chave não configurada,
+  // ou falha pontual na chamada) continua pesquisável por texto, só
+  // fica fora do ranking semântico até a próxima reindexação.
+  await pool.query(`ALTER TABLE project_memory_chunks ADD COLUMN IF NOT EXISTS embedding JSONB`);
 
   // Assistente do Projeto (2026-09, Fase 2 do Assistente Inteligente de
   // Projetos) — uma conversa contínua por usuário+empresa (índice único

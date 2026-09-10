@@ -3728,6 +3728,100 @@ genérica que falharia só em modo E encontrou o chunk certo em modo OR.
 se acontecer de novo depois deste deploy, o log novo do Railway deve
 mostrar a mensagem de erro real.
 
+## 31. Busca semântica híbrida com embeddings — Fase 3 da RENATA (2026-09-10)
+
+Mesmo com o fallback OR (§30), a busca da RENATA continuava sendo 100%
+lexical — compara palavra literal, não significado. Perguntado
+diretamente qual seria a recomendação pra RENATA "ficar realmente
+funcional" (depois dos bugs reportados na mesma sessão), a resposta foi
+migrar a base da busca pra embeddings; o Rafael concordou em seguir.
+Plano completo negociado em modo de planejamento antes de implementar
+— ver histórico da sessão se precisar do racional completo; aqui vai o
+que foi decidido e o que mudou de fato.
+
+**Decisões de arquitetura:**
+- **Provedor: Voyage AI** (`voyage-3`), o parceiro de embeddings
+  recomendado pela própria Anthropic — chamado via `fetch` nativo do
+  Node direto na API REST (`server/embeddings.js`), sem SDK novo, sem
+  dependência nova no `package.json`.
+- **Sem pgvector, de propósito**: embedding guardado como `JSONB`
+  (array de números) na própria `project_memory_chunks`, e a
+  similaridade de cosseno é calculada em JavaScript, não em SQL. Não é
+  uma limitação, é uma escolha: eu não tenho acesso direto ao Postgres
+  de produção pra confirmar se a extensão pgvector estaria disponível
+  no Railway (só o Rafael tem, §27), e depender dela repetiria o mesmo
+  risco de infraestrutura nova que já foi evitado de propósito na Fase
+  1. Na escala de dados de hoje (baixos milhares de chunks por
+  projeto), calcular cosseno em JS pra todos os chunks de um projeto é
+  rápido o bastante — sem precisar de índice vetorial. Migrar pra
+  pgvector no futuro, se o volume crescer muito, vira só uma otimização
+  de performance por trás da mesma função pública
+  (`searchProjectMemory`), sem mudar nada fora dela.
+- **Híbrido, não substituição**: a busca lexical (E, depois OR — §30)
+  continua rodando do jeito que está — ela já é boa pra número exato,
+  CNPJ, nome digitado igual ao original, coisas que embeddings às vezes
+  borram. A perna semântica entra em paralelo: embeda a
+  `standaloneQuery`, busca todos os chunks do projeto com os mesmos
+  filtros de sempre (participante/reunião/tipo/data) que já tenham
+  embedding, ranqueia por similaridade de cosseno. Os dois conjuntos são
+  combinados por `id` do chunk — quem aparece nos dois tem as
+  pontuações somadas (reforço de confiança), quem aparece em só um
+  mantém a pontuação isolada — ordenado e cortado no `limit` de sempre.
+- **Embedding calculado na ingestão, não a cada pergunta**: só a
+  pergunta em si é embedada em tempo real (1 chamada rápida por
+  pergunta, `input_type='query'`); os chunks de uma reunião inteira são
+  embedados numa ÚNICA chamada em lote (`input_type='document'`) antes
+  do insert — evita N chamadas de rede pra N chunks.
+- **Backfill sem script novo**: como a reindexação já é
+  apaga-e-recria (idempotente), ensinar a criação de chunk a também
+  gerar o embedding é suficiente — o botão "Reindexar memória" que já
+  existe na tela e o `reindexAllMeetings.js` preenchem os embeddings de
+  todo o histórico automaticamente, sem nenhuma ferramenta de backfill
+  nova.
+- **Degradação graciosa, mesmo padrão de `ANTHROPIC_API_KEY`**: sem
+  `VOYAGE_API_KEY` configurada, a busca semântica é pulada
+  silenciosamente e o sistema segue 100% igual a antes (só busca
+  lexical) — nunca quebra por falta da chave nova. Uma falha pontual na
+  chamada à Voyage (rede, rate limit) também não derruba a busca: cai
+  pro resultado lexical sozinho, com log do erro.
+
+**O que mudou:**
+- `server/db.js`: coluna `embedding JSONB` (nullable) em
+  `project_memory_chunks`, mesmo padrão de sempre de `ALTER TABLE ADD
+  COLUMN IF NOT EXISTS` no boot do servidor (`initDb()`) — aplica em
+  produção sozinho no próximo deploy, sem eu precisar de acesso ao
+  banco.
+- `server/embeddings.js` (novo): `voyageConfigured()`, `embedTexts(texts,
+  inputType)` (em lotes de até 100 textos por chamada), `cosineSimilarity(a, b)`.
+- `server/memoryIngest.js`: `reindexMeetingMemory` embeda todos os
+  chunks de uma reunião em lote (fora da transação do Postgres, de
+  propósito — não faz sentido segurar uma conexão esperando a API
+  externa responder) antes do insert; falha na chamada loga e insere
+  os chunks sem embedding, não derruba a reindexação.
+- `server/memoryRetrieval.js`: `searchProjectMemory` ganhou a perna
+  semântica (busca todos os chunks com embedding do projeto/filtros,
+  limitado a 1000 candidatos como válvula de segurança, ranqueia por
+  cosseno em JS) e a combinação de pontuação com a perna lexical.
+  Assinatura pública não mudou — zero impacto em
+  `server/assistantRetrieval.js`.
+
+**Pré-requisito real, pendente**: preciso que o Rafael crie conta em
+voyageai.com, gere uma API key, e configure `VOYAGE_API_KEY` no Railway
+(mesmo processo já feito pra `ANTHROPIC_API_KEY`) — sem isso o código
+sobe mas fica sempre em modo de fallback (só lexical, sem ganho
+nenhum). Ele também precisa passar uma chave de teste pra rodar
+localmente, já que não é possível testar a qualidade real da busca
+semântica sem uma chave de verdade.
+
+**Testado localmente, sem `VOYAGE_API_KEY`** (confirma zero regressão
+pra quem ainda não configurou a chave): reunião de teste indexada
+normalmente, chunk criado com `embedding=null`, busca segue 100%
+lexical (fallback OR) e encontra o conteúdo certo — igual ao
+comportamento de antes desta mudança. **Não testado ainda**: a
+qualidade real da busca semântica (a pergunta "Como funciona o Seguro
+de Vida na Tecumseh?" achando o trecho certo pela perna semântica) —
+depende da `VOYAGE_API_KEY` de verdade, que ainda não foi configurada.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

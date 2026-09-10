@@ -7,6 +7,7 @@
 // sempre seguro de rodar de novo: cada chamada apaga e recria do zero
 // os chunks daquela reunião (ver PROJECT_CONTEXT.md).
 import { parseTranscript, splitDecisionLines } from '../shared/transcriptParser.js';
+import { voyageConfigured, embedTexts } from './embeddings.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -136,10 +137,27 @@ async function insertChunks(client, chunks) {
   for (const c of chunks) {
     await client.query(
       `INSERT INTO project_memory_chunks
-        (id, org_id, project_id, meeting_id, kind, content, participants, meeting_date, meeting_title, time_ref, source_ref, chunk_order)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-      [c.id, c.orgId, c.projectId, c.meetingId, c.kind, c.content, JSON.stringify(c.participants), c.meetingDate, c.meetingTitle, c.timeRef, JSON.stringify(c.sourceRef), c.chunkOrder],
+        (id, org_id, project_id, meeting_id, kind, content, participants, meeting_date, meeting_title, time_ref, source_ref, chunk_order, embedding)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [c.id, c.orgId, c.projectId, c.meetingId, c.kind, c.content, JSON.stringify(c.participants), c.meetingDate, c.meetingTitle, c.timeRef, JSON.stringify(c.sourceRef), c.chunkOrder, c.embedding ? JSON.stringify(c.embedding) : null],
     );
+  }
+}
+
+// Embeda todos os chunks de uma reunião numa ÚNICA chamada em lote —
+// evita N chamadas de rede pra N chunks (ver server/embeddings.js).
+// Sem VOYAGE_API_KEY configurada, ou se a chamada falhar, os chunks
+// continuam sendo criados sem embedding — pesquisável só por texto até
+// a próxima reindexação, nunca derruba a reindexação inteira por causa
+// disso (mesma filosofia de "peça faltando não quebra o resto" já usada
+// em askProjectAssistant).
+async function embedChunksInPlace(chunks) {
+  if (!voyageConfigured() || !chunks.length) return;
+  try {
+    const vectors = await embedTexts(chunks.map((c) => c.content), 'document');
+    vectors.forEach((v, i) => { chunks[i].embedding = v; });
+  } catch (e) {
+    console.error('Memória do projeto: falha ao gerar embeddings — chunks ficam sem busca semântica até a próxima reindexação.', e.message);
   }
 }
 
@@ -148,6 +166,10 @@ async function insertChunks(client, chunks) {
 // edição de reunião, no backfill, etc.) sem duplicar nem acumular lixo.
 export async function reindexMeetingMemory(pool, orgId, projectId, meeting) {
   const chunks = buildMeetingChunks(orgId, projectId, meeting);
+  // Chamada de rede fica FORA da transação de propósito — não faz
+  // sentido segurar uma conexão/lock do Postgres esperando a API da
+  // Voyage responder.
+  await embedChunksInPlace(chunks);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
