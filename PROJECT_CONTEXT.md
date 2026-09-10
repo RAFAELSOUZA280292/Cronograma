@@ -3359,6 +3359,41 @@ textual nenhuma). **Não testado**: a IA de verdade lendo esse contexto
 enriquecido e produzindo uma explicação em português a partir dele
 (depende da chave real em produção).
 
+### Botão "Reindexar memória do projeto" (2026-09-10)
+
+O Rafael reportou em produção que uma reunião continuava "sem
+evidência" mesmo depois do fix da reindexação automática (§27, acima)
+— porque essa reunião foi criada **antes** do fix, e o backfill
+(`server/scripts/reindexAllMeetings.js`) nunca foi rodado (precisa de
+acesso direto ao Postgres de produção, que só o Rafael tem, e ele não
+tem o script configurado). Em vez de depender de alguém rodar um
+script contra o banco, adicionei um botão de autoatendimento **dentro
+do próprio painel da RENATA**: ícone de reindexar (`RefreshCw`) no
+cabeçalho, ao lado de "Limpar conversa" — chama `POST
+/api/assistant/reindex` (`server/assistant.js`), que roda
+`reindexProjectMemory` (`server/memoryIngest.js`, já existia, usado só
+pelo script de backfill até agora) pra TODAS as reuniões não excluídas
+daquela empresa, e devolve `{meetingsIndexed, chunksCreated}` — a
+RENATA mostra o resultado como uma mensagem no chat ("Memória
+reindexada: N reunião(ões), M trecho(s) atualizados"). Idempotente
+(mesma reindexação de sempre, apaga e recria) — clicar de novo nunca
+duplica nem piora nada, então é seguro deixar como um botão que
+qualquer usuário com acesso à empresa pode clicar sempre que a RENATA
+disser que não encontrou conteúdo de uma reunião que claramente existe.
+
+Isso também torna o script de linha de comando (`reindexAllMeetings.js`)
+menos crítico como único caminho de correção — continua existindo pra
+rodar em TODOS os projetos de uma vez (útil pra um backfill geral), mas
+agora corrigir UMA empresa específica não depende mais de acesso ao
+Railway/Postgres.
+
+**Testado localmente**: reunião inserida direto no JSONB do projeto
+sem passar pela indexação (simulando exatamente o estado de uma
+reunião pré-fix) — confirmado 0 chunks antes, clique no botão real na
+UI, resposta "Memória reindexada: 1 reunião(ões), 2 trecho(s)
+atualizados", e os chunks (`transcript_segment`, `meeting_summary`)
+conferidos direto no banco depois.
+
 ### Roteiro das próximas fases (não construído, documentado pra não
 ser assumido como existente)
 

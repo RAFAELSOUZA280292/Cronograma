@@ -90,7 +90,7 @@ shared/transcriptParser.js  Funções puras de parsing de transcrição (parseTr
 server/assistantRetrieval.js  Assistente Inteligente de Projetos, Fase 2 (2026-09) — pipeline de 2 chamadas à IA (resolveQuery/synthesizeAnswer/askProjectAssistant), citações validadas contra os chunks recuperados, aprendizados persistidos em ai_project_insights — ver PROJECT_CONTEXT.md §27.
 server/assistantContext.js  buildProjectSnapshot(project) — perfil compacto de identidade+cronograma (Resumo/Gantt/Tabela/Fases/Quadro) injetado no contexto do assistente, 2026-09 — ver PROJECT_CONTEXT.md §27.
 server/assistantActions.js  Agente executor (2026-09) — executeProposedAction(), único tipo suportado create_meeting_todo, só chamado depois de confirmação explícita do usuário — ver PROJECT_CONTEXT.md §27.
-server/assistant.js       Rotas /api/assistant/* (conversation, ask, conversation/clear, messages/:id/feedback, messages/:id/action), 2026-09 — ver PROJECT_CONTEXT.md §27.
+server/assistant.js       Rotas /api/assistant/* (conversation, ask, conversation/clear, messages/:id/feedback, messages/:id/action, reindex), 2026-09 — ver PROJECT_CONTEXT.md §27.
 src/assistant/ProjectAssistant.jsx  Botão flutuante + painel lateral "Assistente do Projeto" (2026-09) — visível nas abas Reuniões/Atividades, consciente de reunião aberta, card de confirmação de ação proposta — ver PROJECT_CONTEXT.md §27.
 
 index.html            Shell HTML, variáveis CSS de tema (light/dark) em :root.
