@@ -11,7 +11,7 @@ import { Mic, Plus, X, Trash2, Undo2, Clock, Users, CalendarDays, ChevronDown, F
 import { S, fmtDate, fmtTs, useIsMobile, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel, SidePanel } from '../App.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 
-const MEETINGS_CSS = `
+export const MEETINGS_CSS = `
   .mtg-view input[type=text], .mtg-view input[type=date], .mtg-view input[type=time],
   .mtg-view select, .mtg-view textarea {
     background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
@@ -45,15 +45,15 @@ const SUBMISSION_STATUS_META = {
 // reaproveita o STATUS_META de atividade: aqui é uma mistura de urgência e
 // andamento ("urgente", "não é relevante"), que não faz sentido no ciclo de
 // vida de uma atividade normal do cronograma.
-const TODO_STATUS_META = {
+export const TODO_STATUS_META = {
   urgente: { label: 'Urgente', color: '#e2574c', bg: 'rgba(226,87,76,.14)', border: 'rgba(226,87,76,.5)' },
   'em-andamento': { label: 'Em andamento', color: '#3ea6ff', bg: 'rgba(62,166,255,.14)', border: 'rgba(62,166,255,.5)' },
   pausada: { label: 'Pausada', color: '#ff9f40', bg: 'rgba(255,159,64,.14)', border: 'rgba(255,159,64,.5)' },
   concluida: { label: 'Concluída', color: '#3ecf6e', bg: 'rgba(62,207,110,.14)', border: 'rgba(62,207,110,.5)' },
   'nao-relevante': { label: 'Não é relevante', color: 'var(--text-6)', bg: 'var(--border-1)', border: 'var(--border-3)' },
 };
-const TODO_STATUS_ORDER = ['urgente', 'em-andamento', 'pausada', 'concluida', 'nao-relevante'];
-const todoStatusMeta = (s) => TODO_STATUS_META[s] || TODO_STATUS_META['em-andamento'];
+export const TODO_STATUS_ORDER = ['urgente', 'em-andamento', 'pausada', 'concluida', 'nao-relevante'];
+export const todoStatusMeta = (s) => TODO_STATUS_META[s] || TODO_STATUS_META['em-andamento'];
 
 function todayIso() {
   const d = new Date();

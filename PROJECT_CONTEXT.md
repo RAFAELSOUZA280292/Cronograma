@@ -2513,6 +2513,87 @@ de dev): criação de submissão retorna 503 corretamente sem gravar linha
 renderizam certo na UI. **Extração de IA de ponta a ponta não foi
 testada localmente** — depende da chave real do Rafael; validar em
 produção depois que ele configurar `ANTHROPIC_API_KEY` no Railway.
+**Atualização 2026-09-10**: chave configurada no Railway, testado em
+produção — submissão real foi de "Na fila" a "Concluída" e criou uma
+reunião de verdade (conteúdo da Tecumseh, data extraída corretamente do
+texto). Ainda não confirmado explicitamente pelo Rafael se a extração
+(resumo/decisões/participantes) saiu no nível de qualidade esperado —
+só a mecânica de ponta a ponta (envio → processamento → reunião criada)
+foi validada.
+
+## 25. TO DO consolidado (2026-09)
+
+Pedido do Rafael: uma aba nova, **"TO DO"**, na barra de tabs do
+workspace de Empresas — entre Reuniões e Gantt, só em `!isMulti` (é por
+empresa, mesmo critério das outras abas dessa seção) — trazendo **todos
+os itens de TO_DO de todas as reuniões daquela empresa, num lugar só**,
+em vez de precisar abrir reunião por reunião pra ver o que ainda está
+pendente. Pedido explícito: "extremamente utilizável, fácil, bom de
+editar e acompanhar, com cara de Notion".
+
+### Onde mora o dado
+
+`src/meetings/TodoBoard.jsx` (módulo novo, mesmo padrão de arquivo
+dedicado por aba que XFlow/Agenda/Macro/Reuniões já usam) exporta
+`TodoBoardView`. **Não duplica dado nenhum** — o item de TO_DO continua
+fisicamente só em `meeting.actionItems[]` (§24); esta tela só achata
+(`collectTodoRows`) todas as reuniões não excluídas da empresa numa
+lista só, carregando junto de onde cada item veio (`meetingId`,
+`meetingTitle`, `meetingDate`) pra rastreabilidade na tela. Editar um
+item aqui chama exatamente `updateActionItem`/`deleteActionItem`
+(mesmas funções de `App.jsx` que a aba Reuniões já usa) — é o mesmo
+item, editável dos dois lugares, sem sincronização manual.
+
+`TODO_STATUS_META`/`TODO_STATUS_ORDER`/`todoStatusMeta`/`MEETINGS_CSS`
+precisaram ganhar `export` em `Meetings.jsx` pra esse novo módulo poder
+reusar (mesma fonte única de status/estilo — não duplica o enum).
+
+### UI (por que cada decisão)
+
+- **Agrupado por status** (Urgente → Em andamento → Pausada → Concluída
+  → Não é relevante), cada grupo colapsável com contador — Concluída e
+  Não é relevante começam **colapsados** por padrão (reduz ruído visual
+  do que já não precisa de atenção, mas não esconde de vez). Dentro de
+  cada grupo, ordena por prazo mais próximo primeiro (sem prazo vai pro
+  fim); prazo vencido (e status ainda não concluído/irrelevante) pinta
+  a data de vermelho (`.todo-overdue`) — motivação visual de "isso atrasou".
+- **Responsável = texto livre com sugestão** (mesmo padrão do TO_DO
+  dentro da reunião, §24) e **toggle PRICETAX/cliente** clicável em cada
+  linha (clica de novo pra alternar) — usa `project.company.name` real
+  no botão, não um rótulo genérico "Cliente". Editar responsável aqui
+  também deduz o lado sozinho por nome conhecido, igual já fazia dentro
+  do modal da reunião.
+  - **Cabeçalho com contadores** ("N itens · N pendentes · N urgentes")
+    — visão de progresso de bate-pronto, sem precisar contar na mão.
+  - **Badge de origem clicável** (ícone de microfone + título da reunião
+    + data) em cada linha — clicar chama `onOpenMeeting`, que troca a
+    aba de volta pra "Reuniões" **e** abre o modal daquela reunião
+    específica (`setView('meetings')` + `openMeetingDetail`), pra nunca
+    perder de onde aquele compromisso veio.
+  - **Busca** (título, responsável ou nome da reunião) + **filtro por
+    lado** (Todos/PRICETAX/nome do cliente) — os dois se combinam.
+  - **"+ Novo item"** abre um popover pra escolher em qual reunião o
+    item novo entra (lista ordenada da mais recente primeiro; reusa
+    `addMeetingActionItem` — mesma criação "nasce em branco, edita
+    inline" já usada em "Nova reunião"/"+ Atividade"). Se não existir
+    nenhuma reunião ainda, avisa pra criar uma primeiro em vez de travar
+    ou permitir um item órfão sem reunião — a estrutura de dado exige um
+    `meetingId` válido, não dá pra ter TO_DO solto.
+- **Exportar Excel** — reusa o `XLSX` já importado em `App.jsx`
+  (`import * as XLSX from 'xlsx'`, mesmo padrão do botão "Excel" já
+  existente pro cronograma de atividades) — exporta TODOS os itens
+  (não só os filtrados na tela, pra não confundir "o que exportei" com
+  "o que eu tinha filtrado no momento"), com colunas Reunião / Data da
+  reunião / Título / Lado / Responsável / Status / Prazo.
+
+### Fora do escopo (não pedido, não construído)
+
+Drag-and-drop entre status (arrastar card muda status) — os grupos são
+só visuais/colapsáveis, mudar status continua sendo o `<select>` de
+cada linha, igual já era dentro do modal da reunião — não virou um
+quadro Kanban de verdade. Filtro por reunião de origem específica (só
+tem busca por texto livre, que já cobre o nome da reunião). Notificação/
+lembrete de prazo vencido (só o destaque visual em vermelho na tela).
 
 ## 19. Onde procurar mais detalhe
 
