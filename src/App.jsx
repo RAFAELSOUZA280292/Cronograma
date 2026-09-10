@@ -22,6 +22,7 @@ import XFlowScreen from './xflow/XFlow.jsx';
 import AgendaScreen from './agenda/Agenda.jsx';
 import MacroOverviewScreen from './macro/MacroOverview.jsx';
 import { MeetingsView, MeetingDetailModal } from './meetings/Meetings.jsx';
+import { TodoBoardView } from './meetings/TodoBoard.jsx';
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
 const THEME_KEY = 'pricetax-cronograma-theme';
@@ -2169,6 +2170,7 @@ export default function App() {
         {[
           !isMulti && { id: 'resumo', label: 'Resumo', icon: Gauge },
           !isMulti && { id: 'meetings', label: 'Reuniões', icon: Mic },
+          !isMulti && { id: 'todo', label: 'TO DO', icon: ListChecks },
           { id: 'timeline', label: 'Gantt', icon: CalendarDays },
           { id: 'table', label: 'Tabela', icon: List },
           { id: 'phases', label: 'Fases', icon: LayoutGrid },
@@ -2206,6 +2208,19 @@ export default function App() {
             onHideTrash={() => setShowMeetingsTrash(false)}
             onRestore={(id) => restoreMeeting(activeProject.id, id)}
             onReloadProjects={reloadProjects}
+          />
+        )}
+        {!isMulti && view === 'todo' && (
+          <TodoBoardView
+            meetings={activeProject.meetings || []}
+            team={activeProject.team}
+            externalContacts={activeProject.externalContacts || []}
+            clientName={activeProject.company && activeProject.company.name}
+            pid={activeProject.id}
+            onOpenMeeting={(id) => { setView('meetings'); openMeetingDetail(activeProject.id, id); }}
+            onAddItem={(meetingId) => addMeetingActionItem(activeProject.id, meetingId)}
+            updateActionItem={updateMeetingActionItem}
+            deleteActionItem={deleteMeetingActionItem}
           />
         )}
         {!isMulti && view === 'timeline' && (
