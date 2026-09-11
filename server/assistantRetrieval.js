@@ -20,6 +20,7 @@ import { googleConfigured, getConnectionStatus, listEvents } from './googleCalen
 import { loadRelevantFacts } from './knowledgeFacts.js';
 import { voyageConfigured, embedTexts } from './embeddings.js';
 import { computeFingerprint, lookupCachedAnswer, saveCachedAnswer } from './answerCache.js';
+import { logMetric } from './metrics.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -66,9 +67,11 @@ const ProposedActionSchema = z.object({
     'create_schedule_activity', 'delete_schedule_activity', 'create_calendar_event',
     'save_knowledge_fact',
   ]).describe('Qual ação está sendo proposta.'),
-  subject: z.string().nullable().describe('SÓ pra type="save_knowledge_fact": um rótulo curto do ASSUNTO do fato (ex.: "cargo do Felipe", não a frase inteira) — usado depois pra detectar se um fato novo conflita com um já existente sobre o mesmo assunto. null pros outros tipos.'),
+  subject: z.string().nullable().describe('SÓ pra type="save_knowledge_fact": um rótulo curto do ASSUNTO do fato (ex.: "cargo do Felipe", não a frase inteira) — usado depois pra detectar se um fato novo conflita/atualiza/complementa um já existente sobre o mesmo assunto. null pros outros tipos.'),
   content: z.string().nullable().describe('SÓ pra type="save_knowledge_fact": o fato em si, como uma frase clara e autossuficiente (ex.: "Felipe é o CEO da PRICETAX"). null pros outros tipos.'),
-  scope: z.enum(['project', 'org']).nullable().describe('SÓ pra type="save_knowledge_fact": "org" se o fato é sobre a PRICETAX em si (cargo, processo interno, conceito, produto — vale pra qualquer projeto); "project" se é específico deste cliente/projeto. null pros outros tipos.'),
+  scope: z.enum(['conversation', 'project', 'org']).nullable().describe('SÓ pra type="save_knowledge_fact": sua MELHOR SUGESTÃO de escopo — o usuário ainda vai poder trocar antes de confirmar, então sugira com confiança, não precisa ficar em cima do muro. "conversation" se o fato só faz sentido pra guiar o restante DESTA conversa (ex.: "assume que é sobre o cliente X daqui pra frente"), não é conhecimento durável; "org" se o fato é sobre a PRICETAX em si (cargo, processo interno, conceito, produto — vale pra qualquer projeto); "project" se é específico deste cliente/projeto (a maioria dos casos). null pros outros tipos.'),
+  knowledgeType: z.enum(['FACT', 'DECISION', 'PREFERENCE', 'RULE', 'HYPOTHESIS', 'PROCEDURE', 'DEFINITION']).nullable().describe('SÓ pra type="save_knowledge_fact": que TIPO de conhecimento é esse fato — FACT (um dado objetivo, ex.: "Felipe é o CEO"), DECISION (uma decisão tomada, ex.: "decidimos não levar a Unimed ao acordo coletivo"), PREFERENCE (uma preferência de alguém/do cliente, ex.: "esse cliente sempre prefere reunião às sextas"), RULE (uma regra/processo interno, ex.: "toda proposta de crédito acima de X precisa de validação da IVANA"), HYPOTHESIS (uma suposição ainda não confirmada, ex.: "acho que o atraso é por causa do fornecedor, mas não confirmei"), PROCEDURE (um passo a passo de como fazer algo), DEFINITION (o significado de um termo/sigla usado pelo cliente ou pela PRICETAX). null pros outros tipos.'),
+  validFrom: z.string().nullable().describe('SÓ pra type="save_knowledge_fact", e só quando o usuário mencionar (ou for possível inferir com confiança) UMA DATA a partir da qual esse fato passou a valer (ex.: "Felipe deixou de ser CEO em 01/10/2026" → validFrom="2026-10-01") — formato YYYY-MM-DD. Isso é o que diferencia uma ATUALIZAÇÃO de um fato anterior de um CONFLITO com ele. null se não houver data explícita/inferível, ou se for outro tipo.'),
   meetingId: z.string().nullable().describe('Pra type="create_meeting_todo" ou "delete_meeting_todo": id de uma reunião real, exatamente como listado em "REUNIÕES DISPONÍVEIS" no perfil do projeto — nunca invente um id. Se o usuário não deixar claro qual reunião e nenhuma estiver aberta na tela, NÃO proponha ainda: pergunte antes. null pros outros tipos.'),
   todoItemId: z.string().nullable().describe('SÓ pra type="delete_meeting_todo": id exato da pendência a excluir, como listado nas TAREFAS DA REUNIÃO no perfil do projeto — nunca invente. Se não estiver claro qual pendência o usuário quer dizer, NÃO proponha ainda: pergunte antes citando o título que você acha que é. null pros outros tipos.'),
   title: z.string().nullable().describe('Pra type="create_meeting_todo", "create_schedule_activity" ou "create_calendar_event": título/nome curto e claro do que está sendo criado. null pros outros tipos.'),
@@ -187,8 +190,8 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, fa
       'Quando o usuário pedir contexto sobre uma atividade específica cujo título sozinho não explica nada (ex.: "não to entendendo essa atividade pelo título"), você recebe, além do chunk da própria atividade, TODOS os segmentos de transcrição da reunião de onde ela nasceu — leia essa transcrição de verdade e explique com suas palavras o que estava sendo discutido quando aquele item surgiu, não repita só os campos da atividade (responsável/prazo/status). O título foi escrito pela IA a partir da fala, então pode não usar as mesmas palavras da conversa original — procure o trecho certo pelo assunto, não por correspondência exata de texto.',
       'Se o assunto tocar uma questão tributária técnica que exige aprofundamento em legislação/base legal (ex.: interpretação de norma de IBS/CBS, fundamento jurídico), não tente concluir sozinha — sinalize que esse ponto merece uma análise tributária dedicada, o tipo de trabalho que a IVANA faz.',
       'Se o PERFIL DO PROJETO listar participantes "SEM IDENTIFICAÇÃO CLARA" e isso for relevante ou natural no contexto da conversa, aproveite pra perguntar ao usuário quem é essa pessoa (lado PRICETAX ou cliente, e qual área) — no máximo uma pergunta desse tipo por resposta, nunca repita uma pergunta sobre a mesma pessoa se ela já foi respondida antes (confira o CONHECIMENTO ACUMULADO e a conversa) — quando o usuário responder, proponha save_knowledge_fact com o que ele disse (não grave sozinha, é a mesma regra de qualquer outra ação).',
-      'Quando o usuário contar um fato durável e reutilizável — não é sobre o histórico específico de UMA reunião, é uma regra/fato que vale lembrar depois (ex.: "Felipe é o CEO da PRICETAX", "nosso processo interno de X é assim", "esse cliente sempre prefere Y") — proponha type="save_knowledge_fact": subject é um rótulo curto do ASSUNTO (ex.: "cargo do Felipe", não a frase toda — isso é usado depois pra achar conflito com um fato futuro sobre o mesmo assunto), content é o fato em si numa frase clara, scope é "org" se for sobre a PRICETAX em si (vale pra qualquer projeto) ou "project" se for específico deste cliente. NUNCA grave sozinha — é sempre proposta com confirmação, igual as outras ações. NÃO proponha isso pra fatos triviais da conversa ou coisas que já estão no PERFIL DO PROJETO/CONHECIMENTO ACUMULADO.',
-      'Você recebe abaixo, em CONHECIMENTO ACUMULADO, os fatos já ensinados sobre este projeto e sobre a PRICETAX em geral — cada um mostra quem informou, quando, e se está com status "conflicting". Se um fato estiver marcado [CONFLITANTE], NUNCA escolha uma versão sozinha — avise o usuário que existem duas informações divergentes sobre aquele assunto e pergunte qual vale, ou sugira validar com quem souber.',
+      'Quando o usuário contar um fato durável e reutilizável — não é sobre o histórico específico de UMA reunião, é uma regra/fato que vale lembrar depois (ex.: "Felipe é o CEO da PRICETAX", "nosso processo interno de X é assim", "esse cliente sempre prefere Y") — proponha type="save_knowledge_fact": subject é um rótulo curto do ASSUNTO (ex.: "cargo do Felipe", não a frase toda), content é o fato em si numa frase clara, knowledgeType classifica que TIPO de conhecimento é (ver descrição do campo), scope é sua sugestão de escopo (o usuário ainda escolhe/confirma no painel antes de salvar de fato — sugira "org" se for sobre a PRICETAX em si, "project" se for específico deste cliente, "conversation" só se for uma instrução de trabalho pra esta conversa apenas), e validFrom só quando houver uma data explícita a partir de quando o fato passou a valer (ex.: alguém deixou um cargo numa data — isso é uma ATUALIZAÇÃO temporal, não um conflito). NUNCA grave sozinha — é sempre proposta com confirmação, igual as outras ações. NÃO proponha isso pra fatos triviais da conversa ou coisas que já estão no PERFIL DO PROJETO/CONHECIMENTO ACUMULADO.',
+      'Você recebe abaixo, em CONHECIMENTO ACUMULADO, os fatos já ensinados sobre este projeto e sobre a PRICETAX em geral — cada um mostra o tipo, quem informou, quando, vigência (se houver) e se está com status "DIVERGENTE" ou é uma "HIPÓTESE" ainda não validada. Se um fato estiver marcado [DIVERGENTE], NUNCA escolha uma versão sozinha — avise o usuário que existem duas informações conflitantes sobre aquele assunto e pergunte qual vale, ou sugira validar com quem souber. Trate uma [HIPÓTESE] como algo ainda não confirmado, não como fato estabelecido.',
       'Quando o usuário perguntar sobre as pendências/atividades de uma pessoa (ex.: "quais as pendências do Evanio?", "o que o Rafa está nos devendo?"), mesmo citando só um apelido ou parte do nome, você recebe abaixo o resultado de uma busca por nome já feita no cadastro (PENDÊNCIAS POR PESSOA) — isso é uma varredura completa, não uma amostra, então pode responder com confiança total a partir dele. Se ele indicar mais de um nome parecido (ambíguo), pergunte qual delas antes de responder. Se indicar que não achou ninguém com esse nome, diga isso claramente em vez de inventar.',
       'Você também pode propor ações (proposedAction) — SEIS tipos possíveis: (1) create_meeting_todo — criar uma pendência numa reunião; (2) delete_meeting_todo — excluir uma pendência de reunião existente; (3) reschedule_activity — reagendar uma atividade do cronograma oficial; (4) create_schedule_activity — criar uma atividade nova no cronograma oficial; (5) delete_schedule_activity — excluir uma atividade do cronograma oficial; (6) create_calendar_event — criar um evento de verdade no Google Calendar do usuário. Em TODOS os casos você NUNCA executa sozinha, e NUNCA finge que já executou — sempre descreva a ação proposta na resposta citando o título exato do alvo e peça confirmação explícita. Se não tiver certeza de qual reunião/pendência/atividade o usuário quer dizer, NÃO proponha ainda — faça a pergunta de esclarecimento primeiro (ex.: "Você está falando da atividade \'Split payment e demais operações financeiras\'?"), e só proponha de fato no turno seguinte, depois de confirmado.',
       'Ao reagendar (reschedule_activity), sempre diga na resposta a data antiga e a nova, pra o usuário conseguir validar a mudança de verdade antes de confirmar.',
@@ -273,6 +276,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
 
   let resolved, chunks = [], synthesized, errorMsg = null, googleConnected = false, calendarContextText = '';
   let cachedAnswer = null, queryEmbedding = null, fingerprint = null, resolvedParticipantOut = null, searchMeetingIdOut = null;
+  let dependencyFactIds = [];
   try {
     resolved = await withRetry(() => resolveQuery({ question, history, context: context || {}, projectSnapshot }), 'resolveQuery');
     // Saudação/conversa geral não passa pelo pipeline de busca+síntese —
@@ -303,6 +307,8 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
       resolvedParticipantOut = resolvedParticipant || null;
       searchMeetingIdOut = searchMeetingId || null;
 
+      logMetric(pool, { orgId, projectId, eventType: 'question_asked', metadata: { standaloneQuery: scope.standaloneQuery } }).catch(() => {});
+
       // Cache semântico (Fase 7, 2026-09-11) — modo "seguro": a chave é
       // a pergunta já RESOLVIDA por resolveQuery (participant/meetingId/
       // kind), não o texto cru do usuário. Só a chamada mais cara
@@ -310,24 +316,48 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
       // roda, é o preço de manter isso seguro contra reaproveitar
       // resposta errada em pergunta parecida com intenção diferente.
       // Opcional: sem VOYAGE_API_KEY, cai direto pro fluxo normal.
+      // Fase 7.1: um candidato pode bater fingerprint+similaridade e
+      // ainda assim ser rejeitado por `isStillFresh` (dependência real
+      // mudou) — `lookupCachedAnswer` sinaliza isso com
+      // `{staleCandidate:true}` só pra fins de métrica, nunca vira uma
+      // resposta de cache de verdade.
       if (voyageConfigured()) {
         try {
           [queryEmbedding] = await embedTexts([scope.standaloneQuery], 'query');
           fingerprint = computeFingerprint(projectUpdatedAt, todayIso());
-          cachedAnswer = await lookupCachedAnswer(pool, {
-            projectId, fingerprint,
+          const cacheResult = await lookupCachedAnswer(pool, {
+            orgId, projectId, fingerprint,
             participant: resolvedParticipantOut,
             meetingId: searchMeetingIdOut,
             kind: scope.kind !== 'qualquer' ? scope.kind : null,
             queryEmbedding,
           });
+          if (cacheResult && cacheResult.staleCandidate) {
+            logMetric(pool, { orgId, projectId, eventType: 'cache_rejected_stale', metadata: { standaloneQuery: scope.standaloneQuery } }).catch(() => {});
+          } else {
+            cachedAnswer = cacheResult;
+          }
         } catch (e) {
           console.error('Assistente do Projeto: falha ao consultar cache semântico — seguindo com a pergunta ao vivo.', e.message);
         }
       }
+      // "Tokens economizados pelo cache" (pedido do Rafael, item 8): no
+      // acerto, `cachedAnswer.tokensInput/tokensOutput` são os tokens
+      // que a chamada original (`synthesizeAnswer`) custou da primeira
+      // vez — reaproveitá-la agora custou só `resolveQuery` (já contado
+      // em `tokensInput/tokensOutput` mais abaixo). É quanto "teria
+      // custado de novo" se não fosse o cache, baseado em custo real
+      // medido, não uma estimativa inventada.
+      logMetric(pool, {
+        orgId, projectId,
+        eventType: cachedAnswer ? 'cache_hit' : 'cache_miss',
+        metadata: cachedAnswer
+          ? { standaloneQuery: scope.standaloneQuery, tokensSavedInput: cachedAnswer.tokensInput || 0, tokensSavedOutput: cachedAnswer.tokensOutput || 0 }
+          : { standaloneQuery: scope.standaloneQuery },
+      }).catch(() => {});
 
       if (!cachedAnswer) {
-        const [chunksResult, factsText, googleConn] = await Promise.all([
+        const [chunksResult, factsResult, googleConn] = await Promise.all([
           searchProjectMemory(pool, {
             orgId, projectId,
             query: scope.standaloneQuery,
@@ -336,10 +366,12 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
             kind: scope.kind !== 'qualquer' ? scope.kind : undefined,
             limit: 12,
           }),
-          loadRelevantFacts(pool, orgId, projectId),
+          loadRelevantFacts(pool, orgId, projectId, conversationId),
           getConnectionStatus(userId),
         ]);
         chunks = chunksResult;
+        const factsText = factsResult.text;
+        dependencyFactIds = factsResult.factIds || [];
         googleConnected = !!(googleConn && googleConn.connected);
 
         // Agenda (Fase 4, 2026-09-10) — igual a personLookupText, é uma
@@ -507,6 +539,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
       // usuário confirmar.
       if ((rawAction.subject || '').trim() && (rawAction.content || '').trim() && rawAction.scope) {
         proposedAction = rawAction;
+        logMetric(pool, { orgId, projectId, eventType: 'fact_proposed', metadata: { subject: rawAction.subject, scope: rawAction.scope, knowledgeType: rawAction.knowledgeType || 'FACT' } }).catch(() => {});
       } else {
         console.error('Assistente do Projeto: propôs save_knowledge_fact incompleto — descartada.', rawAction);
       }
@@ -516,12 +549,19 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
     // proposedAction (reaproveitar uma ação fora de contexto é
     // perigoso: podia recriar pendência duplicada, referenciar id já
     // apagado). Fire-and-forget, nunca atrasa nem derruba a resposta.
+    // Fase 7.1: grava junto as dependências reais desta resposta
+    // (reuniões citadas + fatos injetados) — é isso que
+    // `isStillFresh` (server/answerCache.js) usa depois pra invalidar
+    // só quem depende de verdade do que mudou, e os tokens gastos, pra
+    // "tokens economizados" virar uma métrica honesta (ver `cache_hit`).
     if (!cachedAnswer && !proposedAction && queryEmbedding && fingerprint) {
+      const dependencyMeetingIds = Array.from(new Set(citedSources.map((s) => s.meetingId).filter(Boolean)));
       saveCachedAnswer(pool, {
         orgId, projectId, standaloneQuery: resolved.output.standaloneQuery, queryEmbedding,
         participant: resolvedParticipantOut, meetingId: searchMeetingIdOut,
         kind: resolved.output.kind !== 'qualquer' ? resolved.output.kind : null,
         structured, citedSources, hasEvidence, fingerprint,
+        dependencyMeetingIds, dependencyFactIds, tokensInput, tokensOutput,
       }).catch((e) => console.error('Assistente do Projeto: falha ao gravar cache semântico', e.message));
     }
   }
@@ -550,7 +590,17 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
 // Só executa de verdade em `decision==='confirm'` — chamado a partir de
 // POST /api/assistant/messages/:id/action (server/assistant.js), sempre
 // depois de um clique explícito do usuário no painel.
-export async function decideProposedAction(pool, orgId, projectId, userId, messageId, decision, actingUserName) {
+// `overrides` (Fase 7.1, pedido do Rafael: "conhecimento organizacional
+// precisa de confirmação explícita") — hoje só `{ scope }`, e só tem
+// efeito pra type="save_knowledge_fact": a IA sugere um escopo, mas
+// quem decide de fato é o usuário no seletor do painel
+// (src/assistant/ProjectAssistant.jsx) antes de clicar Confirmar. Nunca
+// confia cegamente no valor recebido — revalida contra o enum real
+// antes de aplicar (defesa em profundidade, mesmo padrão de todo id
+// proposto pela IA neste arquivo).
+const OVERRIDABLE_SCOPES = new Set(['conversation', 'project', 'org']);
+
+export async function decideProposedAction(pool, orgId, projectId, userId, messageId, decision, actingUserName, overrides) {
   const conversationId = await getOrCreateConversation(pool, orgId, projectId, userId);
   const { rows } = await pool.query(
     'SELECT proposed_action, action_status FROM ai_messages WHERE id=$1 AND conversation_id=$2',
@@ -558,12 +608,19 @@ export async function decideProposedAction(pool, orgId, projectId, userId, messa
   );
   if (!rows[0]) throw new Error('Mensagem não encontrada.');
   if (rows[0].action_status !== 'pending') throw new Error('Essa ação já foi decidida antes.');
+  const baseAction = rows[0].proposed_action;
 
   if (decision === 'reject') {
     await pool.query(`UPDATE ai_messages SET action_status='rejected' WHERE id=$1`, [messageId]);
+    if (baseAction && baseAction.type === 'save_knowledge_fact') {
+      logMetric(pool, { orgId, projectId, eventType: 'fact_rejected', metadata: { subject: baseAction.subject } }).catch(() => {});
+    }
     return { actionStatus: 'rejected' };
   }
-  const result = await executeProposedAction(pool, orgId, projectId, rows[0].proposed_action, actingUserName, userId, conversationId);
+  const finalAction = overrides && baseAction && baseAction.type === 'save_knowledge_fact' && OVERRIDABLE_SCOPES.has(overrides.scope)
+    ? { ...baseAction, scope: overrides.scope }
+    : baseAction;
+  const result = await executeProposedAction(pool, orgId, projectId, finalAction, actingUserName, userId, conversationId);
   await pool.query(`UPDATE ai_messages SET action_status='executed' WHERE id=$1`, [messageId]);
   return { actionStatus: 'executed', result };
 }

@@ -137,11 +137,11 @@ router.get('/reindex-needed', requireAuth, async (req, res, next) => {
 // no painel (nunca automático).
 router.post('/messages/:id/action', requireAuth, async (req, res, next) => {
   try {
-    const { projectId, decision } = req.body || {};
+    const { projectId, decision, overrides } = req.body || {};
     if (!['confirm', 'reject'].includes(decision)) return res.status(400).json({ message: 'Decisão inválida.' });
     const project = await loadAuthorizedProject(req, res, projectId);
     if (!project) return;
-    const result = await decideProposedAction(pool, project.org_id, projectId, req.user.id, req.params.id, decision, req.user.name);
+    const result = await decideProposedAction(pool, project.org_id, projectId, req.user.id, req.params.id, decision, req.user.name, overrides || null);
     res.json(result);
   } catch (e) {
     // Erros esperados desse fluxo (mensagem/ação já decidida, reunião

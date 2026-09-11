@@ -89,6 +89,11 @@ const ASSISTANT_CSS = `
   .asst-action-status { margin-top:8px; font-size:11.5px; font-weight:700; display:flex; align-items:center; gap:5px; }
   .asst-action-status.executed { color:#3ecf6e; }
   .asst-action-status.rejected { color:var(--text-6); }
+  .asst-knowledge-type-chip { display:inline-flex; align-items:center; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--text-5); background:var(--bg-3); border:1px solid var(--border-1); border-radius:6px; padding:2px 7px; margin-bottom:5px; }
+  .asst-scope-label { font-size:10.5px; font-weight:700; color:var(--text-6); margin-top:8px; margin-bottom:5px; }
+  .asst-scope-row { display:flex; flex-wrap:wrap; gap:6px; }
+  .asst-scope-pill { font-size:11px; font-weight:700; padding:4px 10px; border-radius:999px; border:1px solid var(--border-3); background:transparent; color:var(--text-4); cursor:pointer; }
+  .asst-scope-pill.active { background:#F5C400; border-color:#F5C400; color:#111; }
   .asst-suggestions { display:flex; flex-wrap:wrap; gap:6px; padding:0 16px 10px; flex-shrink:0; }
   .asst-suggestion-chip { display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:var(--text-4); background:var(--bg-3); border:1px solid var(--border-2); border-radius:999px; padding:5px 11px 5px 9px; cursor:pointer; }
   .asst-suggestion-chip:hover { border-color:var(--border-3); color:var(--text-2); }
@@ -161,6 +166,16 @@ function SectionCard({ section }) {
   );
 }
 
+// Fase 7.1 (pedido do Rafael: "conhecimento organizacional precisa de
+// confirmação explícita") — a IA sugere um escopo, mas quem decide de
+// fato é o usuário, escolhendo entre estas 3 pills antes de confirmar
+// (ver `decideAction`, que manda a escolha em `overrides.scope`).
+const SCOPE_OPTIONS = [
+  { value: 'conversation', label: 'Só esta conversa' },
+  { value: 'project', label: 'Este projeto' },
+  { value: 'org', label: 'Toda a PRICETAX' },
+];
+
 function actionCardMeta(action) {
   if (action.type === 'delete_meeting_todo') {
     return {
@@ -201,7 +216,7 @@ function actionCardMeta(action) {
   if (action.type === 'save_knowledge_fact') {
     return {
       title: 'Ação proposta: lembrar este fato',
-      body: `"${action.content}" — válido pra: ${action.scope === 'org' ? 'toda a PRICETAX' : 'este projeto'}`,
+      body: `"${action.content}"`,
       doneLabel: 'Fato registrado',
     };
   }
@@ -252,6 +267,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
   const [sending, setSending] = useState(false);
   const [decidingActionId, setDecidingActionId] = useState(null);
   const [reindexing, setReindexing] = useState(false);
+  const [scopeOverrides, setScopeOverrides] = useState({});
   const bodyRef = useRef(null);
 
   useEffect(() => { setLoaded(false); setMessages([]); }, [projectId]);
@@ -314,11 +330,20 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
     apiPost(`/api/assistant/messages/${messageId}/feedback`, { projectId, feedback }).catch(() => {});
   }
 
+  function currentScope(m) {
+    return scopeOverrides[m.id] || (m.proposedAction && m.proposedAction.scope) || 'project';
+  }
+
   async function decideAction(messageId, decision) {
     if (decidingActionId) return;
     setDecidingActionId(messageId);
     try {
-      await apiPost(`/api/assistant/messages/${messageId}/action`, { projectId, decision });
+      const msg = messages.find((m) => m.id === messageId);
+      const body = { projectId, decision };
+      if (decision === 'confirm' && msg && msg.proposedAction && msg.proposedAction.type === 'save_knowledge_fact') {
+        body.overrides = { scope: currentScope(msg) };
+      }
+      await apiPost(`/api/assistant/messages/${messageId}/action`, body);
       setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, actionStatus: decision === 'confirm' ? 'executed' : 'rejected' } : m)));
       // A ação confirmada muda project.data direto no servidor (fora do
       // fluxo normal de mutateProject/autosave) — precisa recarregar pra
@@ -419,10 +444,28 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                         <div className={`asst-action-card ${actionCardMeta(m.proposedAction).danger ? 'danger' : ''}`}>
                           {m.actionStatus === 'pending' && (() => {
                             const meta = actionCardMeta(m.proposedAction);
+                            const isFact = m.proposedAction.type === 'save_knowledge_fact';
                             return (
                               <>
                                 <div className="asst-action-card-title"><Sparkles size={13} color="#F5C400" /> {meta.title}</div>
+                                {isFact && m.proposedAction.knowledgeType && (
+                                  <div className="asst-knowledge-type-chip">{m.proposedAction.knowledgeType}</div>
+                                )}
                                 <div className="asst-action-card-body">{meta.body}</div>
+                                {isFact && (
+                                  <>
+                                    <div className="asst-scope-label">Vale para:</div>
+                                    <div className="asst-scope-row">
+                                      {SCOPE_OPTIONS.map((opt) => (
+                                        <button
+                                          key={opt.value} type="button"
+                                          className={`asst-scope-pill ${currentScope(m) === opt.value ? 'active' : ''}`}
+                                          onClick={() => setScopeOverrides((prev) => ({ ...prev, [m.id]: opt.value }))}
+                                        >{opt.label}</button>
+                                      ))}
+                                    </div>
+                                  </>
+                                )}
                                 <div className="asst-action-card-buttons">
                                   <button type="button" className={`asst-action-btn asst-action-confirm ${meta.danger ? 'danger' : ''}`} disabled={decidingActionId === m.id} onClick={() => decideAction(m.id, 'confirm')}><Check size={13} /> Confirmar</button>
                                   <button type="button" className="asst-action-btn asst-action-reject" disabled={decidingActionId === m.id} onClick={() => decideAction(m.id, 'reject')}><Ban size={13} /> Cancelar</button>
