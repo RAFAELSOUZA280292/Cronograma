@@ -3842,6 +3842,89 @@ idempotente — mas não é backfill completo garantido de primeira).
 página de billing da Voyage pra destravar o rate limit padrão — custo
 esperado é irrisório nessa escala de uso.
 
+**Atualização (mesmo dia)**: Rafael cadastrou o cartão. Confirmado via
+teste local (5 chamadas de embedding seguidas, todas OK sem 429) que o
+rate limit padrão já está valendo — a perna semântica deixou de ser o
+gargalo.
+
+## 32. RENATA executora completa — pendências, cronograma e Google Calendar (2026-09-10)
+
+Rafael pediu a RENATA "100% funcional": criar/excluir atividades, abrir
+o calendário, e atualizar a própria memória sozinha ao entrar numa
+empresa (não só pelo botão manual). Perguntas de escopo resolvidas antes
+de implementar: calendário = navegação **e** criar evento de verdade no
+Google Calendar; atividades = pendências de reunião **e** atividades do
+cronograma oficial (Gantt/Fases), ambas criar e excluir; mapear mais
+áreas do painel = só Agenda por enquanto (XFlow fica de fora).
+
+**Seis tipos de ação executável agora** (antes eram dois) — mesmo padrão
+de sempre: a IA só PROPÕE (`ProposedActionSchema`, objeto achatado com
+campos nullable, `server/assistantRetrieval.js`), nunca executa sozinha;
+o usuário confirma no painel; só então `server/assistantActions.js`
+muta `projects.data` de verdade.
+- `create_meeting_todo` / `reschedule_activity` — já existiam.
+- `delete_meeting_todo` (novo) — soft-delete de uma pendência de
+  reunião, mesma mutação de `deleteMeetingActionItem` (`src/App.jsx`).
+- `create_schedule_activity` (novo) — cria atividade no cronograma
+  oficial; fase resolvida por NOME (nunca id inventado pela IA — mesmo
+  princípio de defesa em profundidade de sempre), cai na última fase se
+  não bater com nenhuma (mesmo default de `addActivity`).
+- `delete_schedule_activity` (novo) — soft-delete de atividade do
+  cronograma, com `deletedAt`/`deletedBy` (mesma auditoria de
+  `deleteActivity`). Tratada como mais sensível (afeta prazo visível pro
+  cliente): o card de confirmação no painel usa estilo de aviso mais
+  forte (vermelho — `.asst-action-card.danger`,
+  `src/assistant/ProjectAssistant.jsx`). Não replica o "digite a frase
+  pra confirmar" que a tela normal exige (não dá pra fazer bem dentro do
+  chat) — mitigado só com o visual mais forte, o clique de "Confirmar"
+  continua sendo a mesma barreira de sempre.
+- `create_calendar_event` (novo) — cria evento de verdade no Google
+  Calendar do usuário que confirmou (OAuth por usuário, não por projeto
+  — `server/googleCalendar.js`, `createEvent()` nova, generaliza o
+  `calendar.events.insert` que antes só existia dentro de
+  `syncTicketEvent`, específico do XFlow). Só é proposta pela IA se o
+  usuário já tiver conectado — `askProjectAssistant` busca
+  `getConnectionStatus(userId)` e injeta isso no prompt; mesmo assim o
+  backend revalida (`googleConnected` + `dueDate` presentes) antes de
+  aceitar a proposta, nunca confia cegamente na IA.
+
+**Agenda virou fonte de contexto (leitura)**: `askProjectAssistant`
+busca (em paralelo com a busca de memória de sempre) os próximos 14
+dias de eventos do Google Calendar do usuário via `listEvents()` — já
+existia, usado até agora só pela tela Agenda — e injeta como "PRÓXIMOS
+EVENTOS NA AGENDA" no prompt de síntese. Silencioso se não conectado ou
+se a chamada falhar, nunca derruba a resposta principal (mesmo espírito
+de `personLookupText`).
+
+**"Abrir a Agenda" é navegação simples, não uma ação da IA** — em vez de
+depender do prompt lembrar de oferecer isso, o painel ganhou um botão
+fixo no cabeçalho (`CalendarDays`, ao lado de "Reindexar"/"Limpar
+conversa") que chama `onOpenAgenda` → `goToWorkspace('agenda')`
+(`src/App.jsx`) — sempre disponível, sem depender de acerto de prompt.
+
+**Auto-reindex ao entrar numa empresa**: novo `useEffect` em `src/App.jsx`
+observando `selectedProjectIds` — quando vira UMA empresa só (entrar no
+workspace dela, não a visão geral com várias selecionadas), chama `POST
+/api/assistant/reindex` (já existia, botão manual) silenciosamente, sem
+mensagem no chat. Throttlado por sessão de navegador (`Set` em
+`useRef`, mesmo espírito do "BIP" de sincronização) — não dispara de
+novo trocando de aba dentro da mesma empresa, só ao entrar numa empresa
+diferente. Erro só loga no console do navegador, nunca vira alerta pro
+usuário (é manutenção de bastidor).
+
+**Testado localmente**: as 4 funções `executeX` novas
+(`delete_meeting_todo`/`create_schedule_activity`/
+`delete_schedule_activity`/`create_calendar_event`) chamadas direto via
+script contra dados de teste no Postgres local — soft-delete e criação
+corretos, fase default resolvida certo, `create_calendar_event` falhou
+com mensagem clara quando não havia conexão Google (esperado). No
+browser: auto-reindex confirmado via `read_network_requests` (dispara 1x
+ao entrar na empresa, não dispara de novo trocando de aba); botão
+"Abrir a Agenda" navega certo pra tela Agenda. **Não testado**: a IA de
+verdade propondo cada uma das ações novas, e `create_calendar_event`
+criando um evento real (precisa de alguém com Google Calendar conectado
+de verdade em produção).
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

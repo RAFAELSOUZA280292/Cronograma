@@ -16,6 +16,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { searchProjectMemory, getMeetingTranscriptChunks } from './memoryRetrieval.js';
 import { buildProjectSnapshot, buildPersonLookupText } from './assistantContext.js';
 import { executeProposedAction } from './assistantActions.js';
+import { googleConfigured, getConnectionStatus, listEvents } from './googleCalendar.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -46,8 +47,8 @@ const ResolveQuerySchema = z.object({
   targetMeetingId: z.string().nullable().describe('Preencha com o id exato de UMA reunião específica — veja a lista "REUNIÕES DISPONÍVEIS" no perfil do projeto — sempre que o usuário claramente pedir sobre uma reunião específica sem necessariamente estar com ela aberta na tela (ex.: "resuma a última reunião" → é a mais recente da lista; "o que foi discutido na reunião de 10/09?" → ache pela data; "a reunião sobre X" → ache pelo título). Isso aciona busca da transcrição INTEIRA daquela reunião, não só busca por relevância — essencial pra pedidos de resumo geral, que não têm palavra-chave forte pra achar o trecho certo por ranking textual. null se a pergunta não se referir a uma reunião específica identificável, ou se já houver uma reunião aberta no contexto (nesse caso ela já é considerada).'),
 });
 
-// Dois tipos de ação executável por enquanto (ver server/assistantActions.js)
-// — a IA só PROPÕE, nunca executa sozinha: fica pendente até o usuário
+// Seis tipos de ação executável (ver server/assistantActions.js) — a IA
+// só PROPÕE, nunca executa sozinha: fica pendente até o usuário
 // confirmar pelo painel (server/assistant.js, POST /messages/:id/action).
 // Objeto único e achatado (não `z.discriminatedUnion`) de propósito: um
 // union quebrou a saída estruturada da Anthropic API em produção
@@ -57,14 +58,20 @@ const ResolveQuerySchema = z.object({
 // meetingInbox.js) sempre foi objeto achatado com campos nullable — cada
 // tipo de ação usa só os campos que fazem sentido, os outros ficam null.
 const ProposedActionSchema = z.object({
-  type: z.enum(['create_meeting_todo', 'reschedule_activity']).describe('Qual ação está sendo proposta.'),
-  meetingId: z.string().nullable().describe('SÓ pra type="create_meeting_todo": id de uma reunião real, exatamente como listado em "REUNIÕES DISPONÍVEIS" no perfil do projeto — nunca invente um id. Se o usuário não deixar claro qual reunião e nenhuma estiver aberta na tela, NÃO proponha ainda: pergunte antes qual reunião vincular (ou sugira a mais recente). null pra reschedule_activity.'),
-  title: z.string().nullable().describe('SÓ pra type="create_meeting_todo": título curto e claro da pendência a ser criada. null pra reschedule_activity.'),
-  responsible: z.string().nullable().describe('SÓ pra type="create_meeting_todo": nome da pessoa responsável, se mencionado pelo usuário; null se não especificado ou se for reschedule_activity.'),
-  owner: z.enum(['pricetax', 'cliente']).nullable().describe('SÓ pra type="create_meeting_todo": de qual lado é essa entrega. null pra reschedule_activity.'),
-  dueDate: z.string().nullable().describe('SÓ pra type="create_meeting_todo": prazo em YYYY-MM-DD, se mencionado. null se não especificado ou se for reschedule_activity.'),
-  activityId: z.string().nullable().describe('SÓ pra type="reschedule_activity": id de uma atividade real, exatamente como listado em "ATIVIDADES DO CRONOGRAMA" no perfil do projeto — nunca invente um id. Se não estiver claro qual atividade o usuário quer dizer, NÃO proponha ainda: pergunte antes, citando o título exato que você acha que é, pra confirmar. null pra create_meeting_todo.'),
-  newDate: z.string().nullable().describe('SÓ pra type="reschedule_activity": nova data em YYYY-MM-DD. Se o pedido for relativo (ex.: "postergar pro final do cronograma"), calcule uma data depois da atividade mais distante já agendada. null pra create_meeting_todo.'),
+  type: z.enum([
+    'create_meeting_todo', 'delete_meeting_todo', 'reschedule_activity',
+    'create_schedule_activity', 'delete_schedule_activity', 'create_calendar_event',
+  ]).describe('Qual ação está sendo proposta.'),
+  meetingId: z.string().nullable().describe('Pra type="create_meeting_todo" ou "delete_meeting_todo": id de uma reunião real, exatamente como listado em "REUNIÕES DISPONÍVEIS" no perfil do projeto — nunca invente um id. Se o usuário não deixar claro qual reunião e nenhuma estiver aberta na tela, NÃO proponha ainda: pergunte antes. null pros outros tipos.'),
+  todoItemId: z.string().nullable().describe('SÓ pra type="delete_meeting_todo": id exato da pendência a excluir, como listado nas TAREFAS DA REUNIÃO no perfil do projeto — nunca invente. Se não estiver claro qual pendência o usuário quer dizer, NÃO proponha ainda: pergunte antes citando o título que você acha que é. null pros outros tipos.'),
+  title: z.string().nullable().describe('Pra type="create_meeting_todo", "create_schedule_activity" ou "create_calendar_event": título/nome curto e claro do que está sendo criado. null pros outros tipos.'),
+  responsible: z.string().nullable().describe('Pra type="create_meeting_todo" ou "create_schedule_activity": nome da pessoa responsável, se mencionado pelo usuário; null se não especificado ou se for outro tipo.'),
+  owner: z.enum(['pricetax', 'cliente']).nullable().describe('SÓ pra type="create_meeting_todo": de qual lado é essa entrega. null pros outros tipos.'),
+  phaseName: z.string().nullable().describe('SÓ pra type="create_schedule_activity": nome de UMA fase do cronograma (veja "Fases" no perfil do projeto), se o usuário indicar em qual fase a atividade entra — mesmo que só aproximado, a resolução exata é feita depois, à parte. null se não especificado (cai na última fase automaticamente) ou se for outro tipo.'),
+  dueDate: z.string().nullable().describe('Prazo/data em YYYY-MM-DD — pra "create_meeting_todo" e "create_schedule_activity" é o prazo da pendência/atividade (opcional); pra "create_calendar_event" é a data do evento (OBRIGATÓRIO nesse caso). null se não especificado ou se for outro tipo.'),
+  startTime: z.string().nullable().describe('SÓ pra type="create_calendar_event": horário de início em HH:MM (24h), se o usuário mencionar um horário. null se não mencionado (assume 09:00) ou se for outro tipo.'),
+  activityId: z.string().nullable().describe('Pra type="reschedule_activity" ou "delete_schedule_activity": id de uma atividade real, exatamente como listado em "ATIVIDADES DO CRONOGRAMA" no perfil do projeto — nunca invente um id. Se não estiver claro qual atividade o usuário quer dizer, NÃO proponha ainda: pergunte antes, citando o título exato que você acha que é, pra confirmar. null pros outros tipos.'),
+  newDate: z.string().nullable().describe('SÓ pra type="reschedule_activity": nova data em YYYY-MM-DD. Se o pedido for relativo (ex.: "postergar pro final do cronograma"), calcule uma data depois da atividade mais distante já agendada. null pros outros tipos.'),
 }).nullable();
 
 const SynthesizeAnswerSchema = z.object({
@@ -99,7 +106,7 @@ async function resolveQuery({ question, history, context, projectSnapshot }) {
   return { output: response.parsed_output, usage: response.usage };
 }
 
-async function synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText, context, personLookupText }) {
+async function synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText, context, personLookupText, calendarContextText, googleConnected }) {
   const client = new Anthropic();
   const historyText = history.length
     ? history.map((m) => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`).join('\n')
@@ -124,11 +131,15 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, in
       'Se o assunto tocar uma questão tributária técnica que exige aprofundamento em legislação/base legal (ex.: interpretação de norma de IBS/CBS, fundamento jurídico), não tente concluir sozinha — sinalize que esse ponto merece uma análise tributária dedicada, o tipo de trabalho que a IVANA faz.',
       'Se o PERFIL DO PROJETO listar participantes "SEM IDENTIFICAÇÃO CLARA" e isso for relevante ou natural no contexto da conversa, aproveite pra perguntar ao usuário quem é essa pessoa (lado PRICETAX ou cliente, e qual área) — no máximo uma pergunta desse tipo por resposta, nunca repita uma pergunta sobre a mesma pessoa se ela já foi respondida antes (confira os APRENDIZADOS ACUMULADOS e a conversa) — quando o usuário responder, registre em learnedFact.',
       'Quando o usuário perguntar sobre as pendências/atividades de uma pessoa (ex.: "quais as pendências do Evanio?", "o que o Rafa está nos devendo?"), mesmo citando só um apelido ou parte do nome, você recebe abaixo o resultado de uma busca por nome já feita no cadastro (PENDÊNCIAS POR PESSOA) — isso é uma varredura completa, não uma amostra, então pode responder com confiança total a partir dele. Se ele indicar mais de um nome parecido (ambíguo), pergunte qual delas antes de responder. Se indicar que não achou ninguém com esse nome, diga isso claramente em vez de inventar.',
-      'Você também pode propor ações (proposedAction): criar uma pendência numa reunião, ou reagendar uma atividade do cronograma — mas NUNCA executa sozinho, e NUNCA finge que já executou. Sempre descreva a ação proposta na resposta citando o título exato do alvo (reunião ou atividade) e peça confirmação. Se não tiver certeza de qual reunião/atividade o usuário quer dizer, NÃO proponha ainda — faça a pergunta de esclarecimento primeiro (ex.: "Você está falando da atividade \'Split payment e demais operações financeiras\'?"), e só proponha de fato no turno seguinte, depois de confirmado.',
+      'Você também pode propor ações (proposedAction) — SEIS tipos possíveis: (1) create_meeting_todo — criar uma pendência numa reunião; (2) delete_meeting_todo — excluir uma pendência de reunião existente; (3) reschedule_activity — reagendar uma atividade do cronograma oficial; (4) create_schedule_activity — criar uma atividade nova no cronograma oficial; (5) delete_schedule_activity — excluir uma atividade do cronograma oficial; (6) create_calendar_event — criar um evento de verdade no Google Calendar do usuário. Em TODOS os casos você NUNCA executa sozinha, e NUNCA finge que já executou — sempre descreva a ação proposta na resposta citando o título exato do alvo e peça confirmação explícita. Se não tiver certeza de qual reunião/pendência/atividade o usuário quer dizer, NÃO proponha ainda — faça a pergunta de esclarecimento primeiro (ex.: "Você está falando da atividade \'Split payment e demais operações financeiras\'?"), e só proponha de fato no turno seguinte, depois de confirmado.',
       'Ao reagendar (reschedule_activity), sempre diga na resposta a data antiga e a nova, pra o usuário conseguir validar a mudança de verdade antes de confirmar.',
+      'Excluir uma atividade do CRONOGRAMA OFICIAL (delete_schedule_activity) é mais sensível que excluir uma pendência de reunião — afeta um prazo que pode já estar visível pro cliente. Só proponha se o usuário pedir isso claramente (não sugira excluir por conta própria), e deixe isso explícito na resposta.',
+      googleConnected
+        ? 'O usuário JÁ conectou o Google Calendar — você pode propor create_calendar_event quando ele pedir pra marcar/agendar um compromisso de verdade (não uma atividade do cronograma nem pendência de reunião, que são coisas diferentes). Preencha dueDate (obrigatório) e startTime se um horário for mencionado. Você recebe abaixo, em PRÓXIMOS EVENTOS NA AGENDA, os compromissos já marcados nos próximos dias — use isso pra responder perguntas tipo "o que tenho marcado essa semana" ou "tem conflito nesse horário".'
+        : 'O usuário AINDA NÃO conectou o Google Calendar — nunca proponha create_calendar_event. Se ele pedir pra marcar algo na agenda, diga que ele precisa conectar o Google Calendar primeiro (tela Agenda) antes de você conseguir fazer isso.',
       'Seja objetiva e executiva: prefira uma resposta curta e direta quando ela resolver, priorizando clareza, ação, contexto e prioridade — evite textão quando não for necessário.',
     ].join(' '),
-    messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nAprendizados acumulados em conversas anteriores sobre este projeto:\n${insightsText}\n\n${meetingContextText}\n\n${personLookupText || ''}\n\nConversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória de reuniões:\n\n${chunksText}` }],
+    messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nAprendizados acumulados em conversas anteriores sobre este projeto:\n${insightsText}\n\n${meetingContextText}\n\n${personLookupText || ''}\n\n${calendarContextText || ''}\n\nConversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória de reuniões:\n\n${chunksText}` }],
     output_config: { format: zodOutputFormat(SynthesizeAnswerSchema) },
   });
   if (!response.parsed_output) throw new Error('Falha ao gerar a resposta.');
@@ -199,7 +210,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
     [uid('aim'), conversationId, question],
   );
 
-  let resolved, chunks = [], synthesized, errorMsg = null;
+  let resolved, chunks = [], synthesized, errorMsg = null, googleConnected = false, calendarContextText = '';
   try {
     resolved = await withRetry(() => resolveQuery({ question, history, context: context || {}, projectSnapshot }), 'resolveQuery');
     // Saudação/conversa geral não passa pelo pipeline de busca+síntese —
@@ -227,7 +238,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
       // nele aqui ainda (é só um id proposto), a validação de verdade
       // acontece embaixo, contra `projectData.meetings`.
       const searchMeetingId = scope.targetMeetingId || (scope.meetingScope === 'atual' ? (context && context.meetingId) : undefined);
-      const [chunksResult, insightsText] = await Promise.all([
+      const [chunksResult, insightsText, googleConn] = await Promise.all([
         searchProjectMemory(pool, {
           orgId, projectId,
           query: scope.standaloneQuery,
@@ -237,8 +248,27 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
           limit: 12,
         }),
         loadInsights(pool, projectId),
+        getConnectionStatus(userId),
       ]);
       chunks = chunksResult;
+      googleConnected = !!(googleConn && googleConn.connected);
+
+      // Agenda (Fase 4, 2026-09-10) — igual a personLookupText, é uma
+      // fonte de contexto opcional: silenciosa se o usuário nunca
+      // conectou o Google Calendar, ou se a chamada em si falhar (nunca
+      // derruba a resposta principal por causa disso).
+      if (googleConnected) {
+        try {
+          const now = new Date();
+          const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+          const events = await listEvents(userId, now.toISOString(), in14Days.toISOString());
+          calendarContextText = events.length
+            ? `PRÓXIMOS EVENTOS NA AGENDA (Google Calendar do usuário, próximos 14 dias):\n${events.slice(0, 15).map((e) => `- "${e.title}" — ${e.start}${e.allDay ? ' (dia inteiro)' : ''}`).join('\n')}`
+            : 'PRÓXIMOS EVENTOS NA AGENDA: nenhum evento marcado nos próximos 14 dias.';
+        } catch (e) {
+          console.error('Assistente do Projeto: falha ao buscar eventos do Google Calendar', e.message);
+        }
+      }
 
       // Duas situações em que busca por relevância sozinha não é
       // confiável, e o jeito certo de garantir o conteúdo é buscar a
@@ -270,7 +300,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
         }
       }
 
-      synthesized = await withRetry(() => synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText, context: context || {}, personLookupText }), 'synthesizeAnswer');
+      synthesized = await withRetry(() => synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText, context: context || {}, personLookupText, calendarContextText, googleConnected }), 'synthesizeAnswer');
       if (synthesized.output.learnedFact) {
         // Falha ao gravar aprendizado não pode derrubar a resposta já
         // pronta pro usuário — só registra o erro, não interrompe o fluxo.
@@ -334,12 +364,41 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
       } else {
         console.error('Assistente do Projeto: propôs create_meeting_todo com meetingId inexistente — descartada.', rawAction);
       }
+    } else if (rawAction && rawAction.type === 'delete_meeting_todo') {
+      const targetMeeting = (projectData && projectData.meetings || []).find((m) => m.id === rawAction.meetingId && !m.deleted);
+      const targetTodo = targetMeeting && (targetMeeting.actionItems || []).find((it) => it.id === rawAction.todoItemId && !it.deleted);
+      if (targetMeeting && targetTodo) {
+        proposedAction = { ...rawAction, meetingTitle: targetMeeting.title || 'Reunião sem título', todoTitle: targetTodo.title || 'Pendência sem título' };
+      } else {
+        console.error('Assistente do Projeto: propôs delete_meeting_todo com meetingId/todoItemId inexistente — descartada.', rawAction);
+      }
     } else if (rawAction && rawAction.type === 'reschedule_activity') {
       const targetActivity = (projectData && projectData.activities || []).find((a) => a.id === rawAction.activityId && !a.deleted);
       if (targetActivity) {
         proposedAction = { ...rawAction, activityTitle: targetActivity.title || 'Atividade sem título', currentDate: targetActivity.date || '' };
       } else {
         console.error('Assistente do Projeto: propôs reschedule_activity com activityId inexistente — descartada.', rawAction);
+      }
+    } else if (rawAction && rawAction.type === 'create_schedule_activity') {
+      // Ação de criação não tem um alvo pra validar contra um id
+      // existente (é isso que está sendo criado) — o schema Zod já
+      // garante o formato dos campos; o resto (fase/mês default) é
+      // resolvido em server/assistantActions.js na hora de executar.
+      proposedAction = rawAction;
+    } else if (rawAction && rawAction.type === 'delete_schedule_activity') {
+      const targetActivity = (projectData && projectData.activities || []).find((a) => a.id === rawAction.activityId && !a.deleted);
+      if (targetActivity) {
+        proposedAction = { ...rawAction, activityTitle: targetActivity.title || 'Atividade sem título' };
+      } else {
+        console.error('Assistente do Projeto: propôs delete_schedule_activity com activityId inexistente — descartada.', rawAction);
+      }
+    } else if (rawAction && rawAction.type === 'create_calendar_event') {
+      // Defesa em profundidade: mesmo o prompt instruindo a nunca propor
+      // isso sem conexão, nunca confiar cegamente na IA — revalida aqui.
+      if (googleConnected && rawAction.dueDate) {
+        proposedAction = rawAction;
+      } else {
+        console.error('Assistente do Projeto: propôs create_calendar_event sem Google Calendar conectado ou sem data — descartada.', rawAction);
       }
     }
   }
@@ -380,7 +439,7 @@ export async function decideProposedAction(pool, orgId, projectId, userId, messa
     await pool.query(`UPDATE ai_messages SET action_status='rejected' WHERE id=$1`, [messageId]);
     return { actionStatus: 'rejected' };
   }
-  const result = await executeProposedAction(pool, orgId, projectId, rows[0].proposed_action, actingUserName);
+  const result = await executeProposedAction(pool, orgId, projectId, rows[0].proposed_action, actingUserName, userId);
   await pool.query(`UPDATE ai_messages SET action_status='executed' WHERE id=$1`, [messageId]);
   return { actionStatus: 'executed', result };
 }

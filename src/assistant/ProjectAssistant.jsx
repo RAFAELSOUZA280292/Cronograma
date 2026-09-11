@@ -7,7 +7,7 @@
 // resposta sem indicar de onde veio, e mostra explicitamente quando não
 // há evidência suficiente.
 import React, { useEffect, useRef, useState } from 'react';
-import { Sparkles, X, Send, ThumbsUp, ThumbsDown, Trash2, Mic, Loader2, Check, Ban, RefreshCw } from 'lucide-react';
+import { Sparkles, X, Send, ThumbsUp, ThumbsDown, Trash2, Mic, Loader2, Check, Ban, RefreshCw, CalendarDays } from 'lucide-react';
 import { fmtDate, useIsMobile } from '../App.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 
@@ -36,11 +36,13 @@ const ASSISTANT_CSS = `
   .asst-feedback button { background:transparent; border:none; cursor:pointer; color:var(--text-6); padding:2px; display:flex; }
   .asst-feedback button.active { color:#F5C400; }
   .asst-action-card { margin-top:8px; max-width:88%; background:var(--bg-2); border:1px solid rgba(245,196,0,.4); border-radius:10px; padding:10px 12px; font-size:12px; }
+  .asst-action-card.danger { border-color:rgba(226,87,76,.5); background:rgba(226,87,76,.06); }
   .asst-action-card-title { font-weight:800; color:var(--text-1); margin-bottom:4px; display:flex; align-items:center; gap:6px; }
   .asst-action-card-body { color:var(--text-4); line-height:1.5; }
   .asst-action-card-buttons { display:flex; gap:8px; margin-top:8px; }
   .asst-action-btn { display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; border-radius:7px; padding:6px 11px; cursor:pointer; border:1px solid; }
   .asst-action-confirm { background:#F5C400; border-color:#F5C400; color:#111; }
+  .asst-action-confirm.danger { background:#e2574c; border-color:#e2574c; color:#fff; }
   .asst-action-reject { background:transparent; border-color:var(--border-3); color:var(--text-4); }
   .asst-action-btn:disabled { opacity:.55; cursor:default; }
   .asst-action-status { margin-top:8px; font-size:11.5px; font-weight:700; display:flex; align-items:center; gap:5px; }
@@ -59,11 +61,40 @@ const ASSISTANT_CSS = `
 `;
 
 function actionCardMeta(action) {
+  if (action.type === 'delete_meeting_todo') {
+    return {
+      title: 'Ação proposta: excluir pendência',
+      body: `"${action.todoTitle}"${action.meetingTitle ? ` — reunião: ${action.meetingTitle}` : ''}`,
+      doneLabel: 'Pendência excluída',
+    };
+  }
   if (action.type === 'reschedule_activity') {
     return {
       title: 'Ação proposta: reagendar atividade',
       body: `"${action.activityTitle}" — de ${action.currentDate ? fmtDate(action.currentDate) : 'sem data'} para ${fmtDate(action.newDate)}`,
       doneLabel: 'Atividade reagendada',
+    };
+  }
+  if (action.type === 'create_schedule_activity') {
+    return {
+      title: 'Ação proposta: criar atividade no cronograma',
+      body: `"${action.title}"${action.phaseName ? ` — fase: ${action.phaseName}` : ''}${action.responsible ? ` — responsável: ${action.responsible}` : ''}${action.dueDate ? ` — prazo: ${fmtDate(action.dueDate)}` : ''}`,
+      doneLabel: 'Atividade criada no cronograma',
+    };
+  }
+  if (action.type === 'delete_schedule_activity') {
+    return {
+      title: 'Ação proposta: excluir atividade do cronograma',
+      body: `"${action.activityTitle}" — isso afeta o cronograma oficial do projeto.`,
+      doneLabel: 'Atividade excluída do cronograma',
+      danger: true,
+    };
+  }
+  if (action.type === 'create_calendar_event') {
+    return {
+      title: 'Ação proposta: marcar no Google Calendar',
+      body: `"${action.title}" — ${action.dueDate ? fmtDate(action.dueDate) : 'sem data'}${action.startTime ? ` às ${action.startTime}` : ''}`,
+      doneLabel: 'Evento criado no Google Calendar',
     };
   }
   return {
@@ -83,7 +114,7 @@ function baseSuggestions(view, hasOpenMeeting) {
   return ['Resuma a última reunião', 'Decisões recentes', 'Assuntos recorrentes', 'Principais riscos'];
 }
 
-export function ProjectAssistant({ projectId, projectName, view, openMeetingId, openMeetingTitle, openMeetingDate, onOpenMeeting, onReloadProjects }) {
+export function ProjectAssistant({ projectId, projectName, view, openMeetingId, openMeetingTitle, openMeetingDate, onOpenMeeting, onReloadProjects, onOpenAgenda }) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -190,6 +221,9 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                 <div className="asst-head-sub">{projectName}</div>
               </div>
               <div className="asst-head-actions">
+                {onOpenAgenda && (
+                  <button type="button" style={{ background: 'transparent', border: 'none', color: 'var(--text-5)', cursor: 'pointer', display: 'flex' }} title="Abrir a Agenda" onClick={onOpenAgenda}><CalendarDays size={16} /></button>
+                )}
                 <button type="button" style={{ background: 'transparent', border: 'none', color: 'var(--text-5)', cursor: reindexing ? 'default' : 'pointer', display: 'flex' }} disabled={reindexing} title="Reindexar memória do projeto — use se a RENATA disser que não encontra o conteúdo de uma reunião que já existe" onClick={handleReindex}><RefreshCw size={16} className={reindexing ? 'asst-spin' : ''} /></button>
                 <button type="button" style={{ background: 'transparent', border: 'none', color: 'var(--text-5)', cursor: 'pointer', display: 'flex' }} title="Limpar conversa" onClick={clearConversation}><Trash2 size={16} /></button>
                 <button type="button" style={{ background: 'transparent', border: 'none', color: 'var(--text-5)', cursor: 'pointer', display: 'flex' }} onClick={() => setOpen(false)}><X size={20} /></button>
@@ -216,7 +250,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                       </div>
                     )}
                     {m.role === 'assistant' && m.proposedAction && (
-                      <div className="asst-action-card">
+                      <div className={`asst-action-card ${actionCardMeta(m.proposedAction).danger ? 'danger' : ''}`}>
                         {m.actionStatus === 'pending' && (() => {
                           const meta = actionCardMeta(m.proposedAction);
                           return (
@@ -224,7 +258,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                               <div className="asst-action-card-title"><Sparkles size={13} color="#F5C400" /> {meta.title}</div>
                               <div className="asst-action-card-body">{meta.body}</div>
                               <div className="asst-action-card-buttons">
-                                <button type="button" className="asst-action-btn asst-action-confirm" disabled={decidingActionId === m.id} onClick={() => decideAction(m.id, 'confirm')}><Check size={13} /> Confirmar</button>
+                                <button type="button" className={`asst-action-btn asst-action-confirm ${meta.danger ? 'danger' : ''}`} disabled={decidingActionId === m.id} onClick={() => decideAction(m.id, 'confirm')}><Check size={13} /> Confirmar</button>
                                 <button type="button" className="asst-action-btn asst-action-reject" disabled={decidingActionId === m.id} onClick={() => decideAction(m.id, 'reject')}><Ban size={13} /> Cancelar</button>
                               </div>
                               {m.actionError && <div style={{ color: '#e2574c', marginTop: 6, fontSize: 11 }}>{m.actionError}</div>}
