@@ -4350,6 +4350,34 @@ reescrever** — tudo abaixo é `ALTER TABLE`/extensão sobre o que já
 existia, nenhuma tabela foi recriada, nenhum dado de produção foi
 migrado com perda.
 
+### Incidente real em produção durante este deploy (2026-09-11)
+
+O primeiro deploy desta fase (`ca3bb4b`) derrubou o serviço inteiro em
+produção por ~12 minutos (08:54–09:06, horário de Brasília — 3
+tentativas de deploy até resolver de verdade). Causa raiz: a migração
+de `status` (`server/db.js`) traduzia os valores antigos
+(`unvalidated→active` etc.) **antes** de derrubar a constraint antiga
+— mas a constraint antiga só aceitava o vocabulário velho, então o
+próprio `UPDATE ... SET status='active'` já violava ela mesma assim
+que encontrava uma linha real com `status='unvalidated'` (um fato
+ensinado à RENATA em produção ainda durante a Fase 7 — "Evanio
+Santinon é da área de RH da Tecumseh"). Nunca estourou localmente
+porque o Postgres de dev não tinha nenhuma linha antiga de verdade pra
+disparar a tradução. Um primeiro hotfix (`68f55b4`, uma rede de
+segurança genérica) não resolveu por mirar a hipótese errada
+(condição de corrida); o segundo (`4ee60a2`) corrigiu a ordem de
+verdade — derrubar a constraint antiga primeiro, traduzir depois,
+recriar a constraint nova por último — e foi **reproduzido e
+confirmado localmente antes de subir** (constraint antiga recriada +
+linha real com `status='unvalidated'` inserida de propósito,
+simulando o estado exato de produção). Serviço confirmado saudável
+depois via `curl` (200 em `/` e `/api/health`) e log de boot limpo.
+Lição registrada: `ALTER TABLE ... ADD CONSTRAINT` sempre valida a
+tabela inteira contra o schema ATUAL no momento em que roda — qualquer
+migração que troca o vocabulário de um `CHECK` precisa derrubar a
+constraint antiga **antes** de escrever qualquer valor do vocabulário
+novo, nunca depois.
+
 ### 1. O que precisou ser alterado
 
 | Arquivo | O que mudou |
