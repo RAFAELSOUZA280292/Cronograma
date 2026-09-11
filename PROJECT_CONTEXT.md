@@ -4108,6 +4108,57 @@ resposta da API/console da Anthropic — não dá pra confirmar sem a chave
 real) e a queda de custo real (só visível observando o console da
 Anthropic/Voyage ao longo de alguns dias de uso).
 
+## 36. Bug real — RENATA "se perdia" na data (fuso do servidor) (2026-09-10)
+
+Rafael perguntou "o que preciso fazer amanhã" às 23h21 (horário de
+Brasília) do dia 10/09 — a RENATA respondeu "Hoje é 11/09 (sexta)",
+um dia adiantada, e a partir disso calculou errado o resto (tratou a
+reunião de 10/09, que era HOJE, como "de ontem").
+
+**Causa raiz, dupla**:
+1. `todayIso()` (`server/assistantContext.js`) calculava a data via
+   `getFullYear()/getMonth()/getDate()` — métodos que usam o fuso do
+   **processo**, não o do usuário. O Railway roda em UTC, sem `TZ`
+   configurado. Entre ~21h e meia-noite no horário de Brasília
+   (UTC-3), o servidor já está no dia seguinte em UTC — reproduzido
+   isoladamente com um instante fixo (23h21 de 10/09 em Brasília =
+   02h21 de 11/09 UTC): `getUTCDate()` dava 11, o resultado correto é
+   10.
+2. **Mais grave**: em nenhum lugar do prompt da RENATA a data de hoje
+   era informada explicitamente pra IA. A IA não tem relógio nem noção
+   de data real — só sabe o que está no texto que recebe. Sem uma
+   âncora de data, "hoje"/"amanhã"/"ontem" eram uma **adivinhação da
+   IA**, não um fato — o bug do fuso só tornou isso visível, mas mesmo
+   corrigindo só o fuso, a IA continuaria sem uma fonte de verdade
+   confiável pra esse tipo de cálculo.
+
+**Fix**:
+- `todayIso()` agora usa `toLocaleDateString('en-CA', {timeZone:
+  'America/Sao_Paulo'})` — funciona certo independente do fuso do
+  processo. Todos os clientes são brasileiros, fuso fixo é suficiente.
+- `buildProjectSnapshot()` (mesmo arquivo) agora começa com uma linha
+  explícita `DATA DE HOJE: DD/MM/AAAA (dia da semana) — use isso como
+  referência real e única...` — como esse perfil já é injetado tanto
+  em `resolveQuery` quanto em `synthesizeAnswer`
+  (`server/assistantRetrieval.js`), a âncora de data chega às duas
+  chamadas automaticamente, sem precisar duplicar em nenhum outro
+  lugar.
+
+**Testado localmente**: reproduzido o bug isoladamente com um instante
+UTC fixo equivalente a 23h21 de 10/09 em Brasília — `getUTCDate()`
+(equivalente ao bug antigo) devolvia 11; `toLocaleDateString` com
+`America/Sao_Paulo` (fix novo) devolve `2026-09-10`, correto.
+Confirmada também a primeira linha do perfil do projeto com a data e
+dia da semana certos. **Não testado**: a IA de verdade respondendo
+"amanhã"/"hoje" corretamente em produção (depende da chave real).
+
+**Achado relacionado, fora do escopo deste fix**: `server/macro.js`
+(Visão Macro, cálculo de "semana atual/próxima") usa o mesmo padrão
+(`new Date()` + getters locais, linha ~37) — mesma classe de bug, tem
+a mesma janela de risco (~21h-meia-noite em Brasília). Não corrigido
+agora (feature diferente, fora do que foi reportado) — sinalizado
+como tarefa separada.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

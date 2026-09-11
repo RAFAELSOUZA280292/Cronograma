@@ -19,9 +19,17 @@ const CLIENT_TYPE_LABEL = {
   diagnostico: 'Diagnóstico', 'diagnostico-consultoria': 'Diagnóstico e Consultoria Contínua', 'poc-demo': 'POC / Demonstração',
 };
 
+// Bug real em produção (2026-09-10): a RENATA respondeu "Hoje é 11/09"
+// perguntada às 23h21 de 10/09 no horário de Brasília. Causa: o servidor
+// (Railway) roda em UTC, sem TZ configurado -- `getFullYear()/getMonth()/
+// getDate()` usam o fuso do processo, não o do usuário. Entre ~21h e
+// meia-noite no horário de Brasília, o servidor já está no dia seguinte
+// em UTC. Fix: calcular sempre em America/Sao_Paulo explicitamente, via
+// `toLocaleDateString` (funciona independente do TZ do processo). Todos
+// os clientes são brasileiros -- fuso fixo é suficiente, sem precisar
+// detectar por usuário/organização.
 export function todayIso() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 }
 
 // Exportado (2026-09-10, Fase 4) pra resolver nome de fase por
@@ -118,6 +126,18 @@ export function buildProjectSnapshot(project) {
   const activities = (project.activities || []).filter((a) => !a.deleted);
   const meetings = (project.meetings || []).filter((m) => !m.deleted);
   const lines = [];
+
+  // Âncora explícita de data (2026-09-10, mesmo bug acima) — a IA não
+  // tem noção de relógio/data real nenhuma por conta própria (o
+  // conhecimento dela para no treinamento, bem antes de hoje); sem essa
+  // linha, "hoje"/"amanhã"/"ontem" eram uma adivinhação da IA, não um
+  // fato. Isso injeta a data real do servidor (já corrigida pro fuso de
+  // Brasília, ver todayIso()) como a única fonte de verdade pra esse
+  // tipo de cálculo relativo.
+  const todayWeekday = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long' });
+  const [y, m, d] = today.split('-');
+  lines.push(`DATA DE HOJE: ${d}/${m}/${y} (${todayWeekday}) — use isso como referência real e única pra qualquer cálculo de "hoje"/"ontem"/"amanhã"/"atrasado"/"esta semana". Nunca calcule ou assuma uma data diferente desta.`);
+  lines.push('');
 
   lines.push('IDENTIDADE DO CLIENTE (dado direto do cadastro do projeto — sempre correto, pode responder com confiança, não precisa de citação de reunião pra isso)');
   lines.push(`- Razão social: ${company.name || 'não informado'}${company.nomeFantasia ? ` (nome fantasia: ${company.nomeFantasia})` : ''}`);
