@@ -4052,6 +4052,62 @@ confirmada funcionando em produção antes deste redesign (§33), então o
 conteúdo que a IA gera para esse caso é conhecido; o que muda aqui é só
 a estrutura/formato, testada com esse conteúdo real via mock.
 
+## 35. Redução de custo de token da RENATA — Fase 6 (2026-09-10)
+
+Rafael perguntou direto qual a estratégia pra economizar token.
+Revisando o pipeline, achei 3 desperdícios reais — um deles (o
+auto-reindex da Fase 4) foi introduzido nesta própria sessão.
+
+**1. `resolveQuery` mudou de `claude-opus-5` pra `claude-sonnet-5`**
+(`server/assistantRetrieval.js`) — essa chamada só classifica intenção e
+reformula a busca (roteamento), não precisa do modelo mais caro.
+`synthesizeAnswer` (resposta final) continua em Opus, sem mudança — é a
+etapa de qualidade, não é onde cortar.
+
+**2. Cache de prompt (`cache_control: {type:'ephemeral'}`) nas duas
+chamadas** — o `system` de cada função é praticamente idêntico entre
+chamadas (mesmo texto de instrução, qualquer projeto/usuário; em
+`synthesizeAnswer` só a frase do Google Calendar varia com
+`googleConnected`, estável pra um mesmo usuário). Formato trocado de
+`system: [...].join(' ')` (string) pra `system: [{type:'text', text:
+[...].join(' '), cache_control:{type:'ephemeral'}}]` (array de blocos,
+padrão da API) nas duas funções. Reduz o custo de reenviar esse texto
+longo em toda pergunta, sem mudar nenhuma resposta.
+
+**3. Auto-reindex (Fase 4) só reindexa de verdade quando falta algo** —
+antes, entrar numa empresa reprocessava embedding de TODOS os chunks de
+TODAS as reuniões, mesmo sem nada ter mudado desde a última vez (dado
+que `syncProjectMemoryFromDiff` já mantém a memória sincronizada em
+tempo real a cada edição salva — reindexação completa só era necessária
+pra um caso histórico específico, não uma necessidade recorrente).
+Novo endpoint `GET /api/assistant/reindex-needed` (`server/assistant.js`)
+— só leitura no Postgres, sem custo de IA — checa (a) algum chunk desta
+empresa com `embedding IS NULL`, ou (b) alguma reunião sem NENHUM chunk
+correspondente. `src/App.jsx` chama esse endpoint barato antes de
+decidir chamar `/reindex` de verdade — só reindexa (com custo de
+embedding) quando `needed=true`. O botão manual "Reindexar memória"
+continua chamando `/reindex` direto, sem essa checagem — é sempre um
+clique intencional do usuário, não precisa de economia aí.
+
+**4. `loadInsights` reduzido de 50 pra 20** — cada pergunta manda os
+aprendizados acumulados por inteiro; aprendizados antigos além disso
+raramente ainda são relevantes.
+
+**Testado localmente**: `reindex-needed` testado end-to-end (script
+direto contra o Postgres local, reproduzindo os 4 estados: reunião sem
+chunk → `needed=true`; depois de reindexar com embedding → `false`;
+embedding zerado manualmente → `true` de novo; reindexado de novo →
+`false`) — durante o teste achei e limpei DOIS resíduos de dados de
+teste órfãos de sessões anteriores (`mtg-x4w0271`/"Reunião teste
+filtros" e um chunk solto de `mtg-log-ui-test`) que estavam poluindo a
+checagem. Confirmado no browser via `read_network_requests` que entrar
+numa empresa já indexada dispara só o `/reindex-needed` (barato), sem
+chamar o `/reindex` completo. **Não testado**: o cache de prompt
+funcionando de fato em produção (só aparece nos campos de uso da
+resposta da API/console da Anthropic — não dá pra confirmar sem a chave
+real) e a queda de custo real (só visível observando o console da
+Anthropic/Voyage ao longo de alguns dias de uso).
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
