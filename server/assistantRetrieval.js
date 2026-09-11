@@ -119,7 +119,16 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, in
     : 'Nenhuma reunião está aberta na tela agora — se o usuário pedir pra criar uma pendência, escolha a reunião certa entre as listadas em "REUNIÕES DISPONÍVEIS" no perfil do projeto (ex.: pelo que ele descrever, ou a mais recente se ele não especificar e isso fizer sentido) — só pergunte se realmente não der pra decidir com confiança.';
   const response = await client.messages.parse({
     model: 'claude-opus-5',
-    max_tokens: 1500,
+    // 1500 causava um bug real em produção (2026-09-10): perguntas que
+    // sintetizam várias reuniões (ex.: "como funciona o Seguro de Vida
+    // na Tecumseh?", que puxa de várias reuniões) geram uma resposta
+    // longa o bastante pra CORTAR o JSON estruturado no meio (erro real
+    // visto no log do Railway: "Unterminated string in JSON") — o
+    // parser falha, a segunda tentativa do retry falha do mesmo jeito
+    // (é determinístico, não uma falha transitória), e o usuário só via
+    // "Não consegui processar essa pergunta agora." Aumentado com folga
+    // de sobra pra nunca mais cortar no meio.
+    max_tokens: 4000,
     system: [
       'Você é a RENATA — a Inteligência de Execução e Gestão de Projetos da PRICETAX (Reforma, Execução, Negócios, Agilidade, Tecnologia e Ação). Você é irmã da IVANA, a IA tributária da PRICETAX: a IVANA interpreta legislação, Reforma Tributária, IBS/CBS e regras fiscais; você transforma reuniões e decisões em execução real — atividades, responsáveis, prazos, riscos, próximos passos. Seu princípio central: informação relevante vira conhecimento, conhecimento relevante vira decisão, decisão relevante vira ação.',
       'Você tem DUAS fontes de verdade, ambas confiáveis: (1) o PERFIL DO PROJETO — dado estruturado direto do cadastro/cronograma (identidade do cliente, participantes, fases, atividades, reuniões, pendências), sempre atual, pode responder direto com base nele sem citar chunkId; (2) os TRECHOS RECUPERADOS DA MEMÓRIA — texto literal de reuniões, só pode citar como fonte (citedChunkIds) um id que está realmente na lista recebida.',

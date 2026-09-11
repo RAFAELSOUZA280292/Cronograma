@@ -3925,6 +3925,48 @@ verdade propondo cada uma das ações novas, e `create_calendar_event`
 criando um evento real (precisa de alguém com Google Calendar conectado
 de verdade em produção).
 
+## 33. Bug real de "Não consegui processar essa pergunta agora" — max_tokens baixo demais (2026-09-10)
+
+Depois de configurar acesso aos logs do Railway (`RAILWAY_TOKEN`, ver
+abaixo — primeira vez nesta sessão com acesso real de leitura à
+produção), o Rafael reportou de novo "Como funciona o Seguro de Vida na
+Tecumseh?" → "Não consegui processar essa pergunta agora." mesmo já
+tendo reindexado. Rodando `railway logs --service Cronograma --lines
+300 | grep -i "assistente\|falh"` achei a causa raiz de verdade pela
+primeira vez, sem precisar adivinhar:
+
+```
+Assistente do Projeto: synthesizeAnswer falhou na 1ª tentativa (Failed to parse structured output: Error: Failed to parse structured output as JSON: Unterminated string in JSON at position 2324...) — tentando de novo.
+Assistente do Projeto: pergunta falhou (projectId=proj-2ilkveg): Failed to parse structured output: ... Unterminated string in JSON at position 1970...
+```
+
+**Causa raiz**: `synthesizeAnswer` (`server/assistantRetrieval.js`) tinha
+`max_tokens: 1500`. Perguntas que sintetizam VÁRIAS reuniões (exatamente
+o caso de "Seguro de Vida na Tecumseh", discutido em várias reuniões)
+geram uma resposta longa o bastante pra a Anthropic CORTAR o JSON
+estruturado no meio de uma string — o parser (`client.messages.parse` +
+Zod) falha porque o JSON ficou incompleto, não porque o schema esteja
+errado. Isso explica por que o retry (§30) não ajudava: a segunda
+tentativa gera uma resposta do mesmo tamanho pro mesmo prompt, corta no
+mesmo lugar — é uma falha **determinística** de limite de tokens, não
+uma falha transitória de rede/rate-limit, que é o único tipo de falha
+que o retry realmente resolve.
+
+**Fix**: `max_tokens` de `synthesizeAnswer` subiu de 1500 pra 4000 —
+folga de sobra pra qualquer resposta, mesmo sintetizando várias
+reuniões inteiras, nunca mais cortar o JSON no meio. `resolveQuery`
+(500 tokens, saída bem menor) não precisou de ajuste.
+
+**Isso só foi possível de diagnosticar com precisão porque o Rafael
+configurou `RAILWAY_TOKEN` nesta mesma sessão** (ver instruções de
+acesso combinadas na conversa) — antes disso, esse tipo de bug era pura
+adivinhação (rate limit? schema? erro de rede?). Primeira vez usando
+`railway logs` de verdade pra achar uma causa raiz real.
+
+**Não testado**: a resposta de verdade da IA depois do aumento de
+`max_tokens` (precisa da chave real em produção) — mas a causa raiz
+está confirmada com evidência direta de log, não é uma suposição.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
