@@ -3963,9 +3963,94 @@ acesso combinadas na conversa) — antes disso, esse tipo de bug era pura
 adivinhação (rate limit? schema? erro de rede?). Primeira vez usando
 `railway logs` de verdade pra achar uma causa raiz real.
 
-**Não testado**: a resposta de verdade da IA depois do aumento de
-`max_tokens` (precisa da chave real em produção) — mas a causa raiz
-está confirmada com evidência direta de log, não é uma suposição.
+**Confirmado em produção**: Rafael re-perguntou a mesma coisa depois do
+deploy e recebeu uma resposta completa, com fonte — inclusive a RENATA
+identificou e sinalizou uma contradição real dentro da própria reunião
+(alguém se corrigindo ao vivo sobre 90%/10%) em vez de repetir um número
+errado.
+
+## 34. Redesign visual completo + resposta estruturada — Fase 5 (2026-09-10)
+
+Rafael mandou um print de um app de chat (mobile) como referência visual
+e pediu pra RENATA parar de responder em texto corrido com markdown cru
+(`**assim**` aparecendo literal) e virar uma UI "executiva": blocos
+tipados (ponto de atenção, fatos, impacto, recomendação, linha do
+tempo), insights clicáveis, cabeçalho com tooltip, pills de sugestão com
+ícone. O pedido original era bem mais amplo (mini-card de pessoa, base
+de conhecimento cross-projeto, anexo/áudio no rodapé) — perguntado sobre
+anexo/áudio, Rafael respondeu pra não incluir agora; o resto ficou
+documentado como fora de escopo (ver plano da sessão).
+
+**Resposta estruturada, campos FLAT (nunca `z.discriminatedUnion`,
+mesmo cuidado de sempre)**: `SynthesizeAnswerSchema`
+(`server/assistantRetrieval.js`) trocou o campo único `answer: string`
+por `introduction` (abertura curta) + `sections` (array de objetos
+`{type, title, content, items}` — MESMO formato pra todo `type`, nunca
+um union) + `insights` (até 4 rótulos clicáveis). `type` pode ser
+`warning`/`facts`/`impact`/`recommendation`/`timeline`. "Informação
+conflitante" não virou um 6º tipo — é uma seção `warning` com as versões
+divergentes em `items` (menos schema, mesmo efeito). Caso sem evidência:
+`introduction` recebe a frase fixa de sempre, `sections`/`insights`
+ficam vazios — mesma garantia de anti-alucinação de sempre.
+
+**Nova coluna `ai_messages.structured JSONB`** (nullable, `server/db.js`)
+guarda `{introduction, sections, insights}`. `content` (coluna já
+existente) continua um texto plano achatado (`flattenStructuredAnswer`,
+novo helper em `assistantRetrieval.js`) — é o que alimenta o histórico
+da conversa pro prompt da IA (sempre foi texto, nunca precisou ser
+estruturado) e serve de fallback: mensagem antiga ou de `conversa_geral`
+(saudação, que nunca passou por esse schema) tem `structured=null` e o
+front renderiza um balão de texto simples, sem quebrar nada.
+
+**Insights clicáveis sem mecanismo novo**: clicar um rótulo (ex.:
+"Validar com RH") reenvia o próprio texto como próxima pergunta — o
+histórico da conversa já dá contexto suficiente pro `resolveQuery`
+interpretar certo, sem precisar de um mapeamento espécie por espécie.
+
+**Redesign completo de `src/assistant/ProjectAssistant.jsx`**:
+cabeçalho com nome do projeto + subtítulo fixo + 4 ícones com tooltip
+nativo (`title=`) — Agenda ("Abrir a Agenda"), Reindexar ("Atualizar
+contexto da RENATA"), Limpar ("Limpar esta conversa"), Fechar ("Fechar
+assistente"); balão do usuário com horário + check de "enviada" (não
+existe conceito de "lido" no sistema, não finge que existe); resposta da
+RENATA vira cabeçalho (ícone+nome+horário) + cards por seção (ícone e
+cor suave por `type`: vermelho/azul/verde/roxo/cinza, usando as MESMAS
+variáveis de tema de sempre — funciona em claro e escuro, não fixa cor
+crua) — `timeline` desenha uma linha vertical conectando os itens
+(formato "data — descrição" por item, com fallback pra bullet simples);
+`renderInlineBold()` (helper novo, regex simples, sem lib de markdown)
+interpreta `**negrito**` em qualquer `content`/`items`, nunca mostra a
+sintaxe crua; chips de "Insights rápidos"; pills de sugestão ganharam
+ícone (lucide) e a lista (`baseSuggestions`) foi ampliada com as opções
+que o Rafael pediu ("Pendências em aberto", "O que mudou desde a
+reunião anterior?", "Legislação relacionada", etc.), continua mostrando
+só 4 por contexto. Fontes citáveis, card de ação proposta e feedback
+(👍/👎) mantidos exatamente como já funcionavam, só reencaixados dentro
+do novo layout.
+
+**Fora do escopo desta entrega** (documentado, não construído):
+anexo de documento/ditação por áudio no rodapé (pedido explícito do
+Rafael pra não incluir agora); mini-card de pessoa ao clicar/mencionar
+alguém; Base de Conhecimento Corporativa/cross-projeto (já vinha sendo
+adiada desde a Fase 2); "modo de busca" dedicado com contagem tipo
+"encontrei 4 menções em 3 reuniões" (o prompt pode mencionar isso em
+texto, não virou componente).
+
+**Testado localmente**: migração aplicada (`initDb()`); inserida uma
+mensagem com `structured` mockado direto no Postgres (mesmo truque de
+sempre pra testar UI sem precisar de IA real) reproduzindo o caso real
+do Seguro de Vida (aviso + fatos com negrito + impacto + linha do tempo
++ recomendação + insights) — tudo renderizou certo no browser, nos dois
+temas (claro e escuro) e também no viewport mobile; clique num insight
+reenviou a pergunta certa; caso "sem evidência" renderizou no estilo
+tracejado/itálico esperado; mensagem sem `structured` (simulando erro de
+rede) caiu certinho no balão de texto simples de fallback. Dados de
+teste apagados depois. **Não testado**: a IA de verdade preenchendo o
+schema estruturado em produção (depende da chave real, mesma limitação
+de sempre) — mas a mesma pergunta real do Seguro de Vida já tinha sido
+confirmada funcionando em produção antes deste redesign (§33), então o
+conteúdo que a IA gera para esse caso é conhecido; o que muda aqui é só
+a estrutura/formato, testada com esse conteúdo real via mock.
 
 ## 19. Onde procurar mais detalhe
 

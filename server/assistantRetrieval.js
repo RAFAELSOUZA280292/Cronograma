@@ -74,12 +74,30 @@ const ProposedActionSchema = z.object({
   newDate: z.string().nullable().describe('SÓ pra type="reschedule_activity": nova data em YYYY-MM-DD. Se o pedido for relativo (ex.: "postergar pro final do cronograma"), calcule uma data depois da atividade mais distante já agendada. null pros outros tipos.'),
 }).nullable();
 
+// Seção de resposta estruturada (Fase 5, 2026-09-10) — objeto ÚNICO e
+// achatado reaproveitado por TODO tipo de seção (mesmo cuidado de
+// sempre: nunca `z.discriminatedUnion`, já quebrou a saída estruturada
+// da Anthropic API em produção uma vez). `content` é usado por
+// warning/recommendation (um parágrafo curto); `items` é usado por
+// facts/impact/timeline (lista de bullets — timeline no formato "data —
+// descrição" por item, mas isso é convenção de texto, não schema
+// separado). "Informação conflitante" não é um tipo à parte — é uma
+// seção `warning` com as versões divergentes em `items`.
+const AnswerSectionSchema = z.object({
+  type: z.enum(['warning', 'facts', 'impact', 'recommendation', 'timeline']).describe('warning = ponto de atenção/risco/informação conflitante (ícone vermelho suave); facts = como está registrado, direto de trecho ou do perfil do projeto (ícone azul); impact = por que isso importa pro projeto (ícone verde); recommendation = recomendação acionável da RENATA (ícone roxo); timeline = evolução cronológica de um assunto, cada item em "data — descrição".'),
+  title: z.string().describe('Título curto da seção (ex.: "Ponto de atenção", "Como está registrado", "Por que isso importa no projeto", "Recomendação", "Linha do tempo") — pode variar o texto contanto que combine com o type.'),
+  content: z.string().nullable().describe('Parágrafo curto — usado em warning/recommendation. null quando a seção usa items (facts/impact/timeline).'),
+  items: z.array(z.string()).nullable().describe('Lista de bullets — usada em facts/impact/timeline (timeline no formato "data — descrição" por item). null quando a seção usa content (warning/recommendation).'),
+});
+
 const SynthesizeAnswerSchema = z.object({
-  answer: z.string().describe('A resposta final em português, clara e direta, para o usuário. Se hasEvidence for false, esta deve ser literalmente "Não encontrei evidência suficiente nas reuniões ou documentos deste projeto." Se você preencheu proposedAction, a resposta deve descrever a ação proposta e pedir confirmação explícita — nunca afirme que já foi feita.'),
+  introduction: z.string().describe('1-2 frases de abertura antes dos blocos, direto ao ponto (ex.: "Com base na reunião e nos registros do projeto, aqui está o resumo sobre X:"). Se hasEvidence for false, esta deve ser literalmente "Não encontrei evidência suficiente nas reuniões ou documentos deste projeto." e sections/insights ficam vazios.'),
+  sections: z.array(AnswerSectionSchema).describe('Blocos estruturados da resposta (ver AnswerSectionSchema) — quebre a resposta em blocos sempre que a pergunta tiver conteúdo pra isso (ponto de atenção, fatos, impacto, recomendação, linha do tempo). Pergunta simples/direta pode ter só 1-2 seções, ou até nenhuma (nesse caso a introduction sozinha já responde). Vazio se hasEvidence for false. Use **negrito** (markdown simples) pra destacar números, decisões e nomes importantes dentro de content/items — é a ÚNICA sintaxe markdown que o front-end interpreta.'),
+  insights: z.array(z.string()).describe('Até 4 rótulos CURTOS clicáveis, específicos desta resposta (ex.: "Empresa paga 90%", "Validar com RH", "Impacto no acordo coletivo") — cada um vira um atalho que o usuário pode clicar pra aprofundar (reenvia o próprio rótulo como próxima pergunta, você recebe isso no histórico da conversa e interpreta em contexto). Vazio se a resposta não tiver desdobramentos óbvios pra sugerir (não force).'),
   citedChunkIds: z.array(z.string()).describe('IDs (campo "id" de cada trecho recebido) dos trechos que sustentam de fato a resposta — só inclua um id se ele realmente contém a informação usada na resposta. Vazio se a resposta veio do PERFIL DO PROJETO em vez de um trecho, ou se hasEvidence for false.'),
   hasEvidence: z.boolean().describe('true se os trechos OU o PERFIL DO PROJETO sustentam a resposta; false só quando nem os trechos recuperados nem o perfil do projeto respondem a pergunta com confiança — nesse caso NUNCA invente, admita explicitamente que não encontrou.'),
   learnedFact: z.string().nullable().describe('Preencha SOMENTE quando esta troca revelou um fato durável e específico sobre ESTE projeto que vale a pena lembrar em conversas futuras (ex.: um padrão recorrente, uma preferência do cliente, um contexto importante que não estava registrado) — seja específico e curto (1 frase). null na grande maioria das respostas — não force um aprendizado onde não há nada novo/reutilizável.'),
-  proposedAction: ProposedActionSchema.describe('Preencha SOMENTE quando o usuário pedir explicitamente pra criar uma pendência ou reagendar uma atividade do cronograma. Você NUNCA executa a ação — só propõe; o usuário confirma ou rejeita pelo painel depois. Se faltar informação pra ter certeza do alvo (qual reunião, qual atividade), NÃO proponha ainda — pergunte antes na própria resposta, com proposedAction=null, e proponha só no próximo turno depois que o usuário esclarecer. null na grande maioria das respostas.'),
+  proposedAction: ProposedActionSchema.describe('Preencha SOMENTE quando o usuário pedir explicitamente pra criar/excluir uma pendência, criar/reagendar/excluir uma atividade do cronograma, ou marcar um evento no Google Calendar. Você NUNCA executa a ação — só propõe; o usuário confirma ou rejeita pelo painel depois. Se faltar informação pra ter certeza do alvo, NÃO proponha ainda — pergunte antes na própria resposta, com proposedAction=null, e proponha só no próximo turno depois que o usuário esclarecer. null na grande maioria das respostas.'),
 });
 
 async function resolveQuery({ question, history, context, projectSnapshot }) {
@@ -132,10 +150,12 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, in
     system: [
       'Você é a RENATA — a Inteligência de Execução e Gestão de Projetos da PRICETAX (Reforma, Execução, Negócios, Agilidade, Tecnologia e Ação). Você é irmã da IVANA, a IA tributária da PRICETAX: a IVANA interpreta legislação, Reforma Tributária, IBS/CBS e regras fiscais; você transforma reuniões e decisões em execução real — atividades, responsáveis, prazos, riscos, próximos passos. Seu princípio central: informação relevante vira conhecimento, conhecimento relevante vira decisão, decisão relevante vira ação.',
       'Você tem DUAS fontes de verdade, ambas confiáveis: (1) o PERFIL DO PROJETO — dado estruturado direto do cadastro/cronograma (identidade do cliente, participantes, fases, atividades, reuniões, pendências), sempre atual, pode responder direto com base nele sem citar chunkId; (2) os TRECHOS RECUPERADOS DA MEMÓRIA — texto literal de reuniões, só pode citar como fonte (citedChunkIds) um id que está realmente na lista recebida.',
-      'Regra absoluta: nunca invente nome, data, decisão, compromisso, responsável ou fato que não esteja literalmente no PERFIL DO PROJETO ou nos trechos. Se nenhum dos dois sustentar uma resposta com confiança, hasEvidence deve ser false e a resposta deve ser exatamente "Não encontrei evidência suficiente nas reuniões ou documentos deste projeto." — nunca tente adivinhar ou completar a lacuna. Sempre separe fato de interpretação: se algo parece uma atividade mas falta responsável ou prazo explícito nos trechos, diga isso diretamente (ex.: "Identifiquei isso como uma possível atividade, mas a reunião não deixou explícito quem é responsável nem o prazo") em vez de supor um valor.',
+      'Regra absoluta: nunca invente nome, data, decisão, compromisso, responsável ou fato que não esteja literalmente no PERFIL DO PROJETO ou nos trechos. Se nenhum dos dois sustentar uma resposta com confiança, hasEvidence deve ser false, introduction deve ser exatamente "Não encontrei evidência suficiente nas reuniões ou documentos deste projeto." e sections/insights ficam vazios — nunca tente adivinhar ou completar a lacuna. Sempre separe fato de interpretação: se algo parece uma atividade mas falta responsável ou prazo explícito nos trechos, diga isso diretamente (ex.: em uma seção "facts": "Identifiquei isso como uma possível atividade, mas a reunião não deixou explícito quem é responsável nem o prazo") em vez de supor um valor.',
       'Interprete a intenção por trás da fala, não só a letra — dentro dos trechos de reunião, frases como "vou verificar" costumam indicar um compromisso assumido, "depende do fornecedor/cliente" indica uma dependência, "não conseguimos fechar porque faltou X" indica um impedimento, "vamos implementar em [data]" pode indicar um marco do projeto. Ao responder, ajude a distinguir isso — não trate toda menção como se fosse uma tarefa formal.',
-      'Quando a resposta envolver várias reuniões ou atividades, apresente sempre da mais antiga pra mais atual (nunca por ordem de cadastro) — mas comece a resposta destacando os pontos mais críticos/urgentes/atrasados antes de entrar na lista cronológica, não deixe eles perdidos no meio do texto.',
+      'Como estruturar a resposta em sections: introduction é só a abertura (1-2 frases), o conteúdo de verdade vai nas sections. Se houver algo urgente/crítico/uma divergência entre fontes, isso vira a PRIMEIRA seção (type="warning"), nunca fica perdido no meio. Uma pergunta simples (ex.: "qual o CNPJ do cliente?") pode ter zero sections, a introduction já responde. Quando a resposta envolver várias reuniões ou atividades, ordene os itens de "facts"/"impact" da mais antiga pra mais atual (nunca por ordem de cadastro); se a pergunta for sobre a evolução de um assunto ao longo do tempo, use type="timeline" com um item por marco, formato "data — descrição".',
       'Quando responder com base num trecho de reunião, cite reunião e data pra ajudar o consultor a confiar na resposta (ex.: "Na reunião de 15/08, Rafael comentou que..."). Só inclua em citedChunkIds os ids dos trechos que você realmente usou — nunca cite um trecho pra sustentar um fato que na verdade veio do PERFIL DO PROJETO ou dos APRENDIZADOS ACUMULADOS.',
+      'Se duas fontes (dois trechos, ou um trecho contra o PERFIL DO PROJETO) trouxerem informação DIVERGENTE sobre o mesmo fato, NUNCA escolha uma versão silenciosamente — sinalize isso explicitamente numa seção type="warning" com título "Informação conflitante", liste as duas versões em items, e recomende validar com a pessoa certa antes de usar o dado (isso pode virar a recomendação também).',
+      'insights (até 4 rótulos curtos) só faz sentido quando a resposta abriu desdobramentos reais — um fato que merece validação, um risco que pode ser aprofundado, uma pergunta natural de continuação. Não force 4 só pra preencher; uma resposta simples pode não ter nenhum.',
       'Quando o usuário pedir contexto sobre uma atividade específica cujo título sozinho não explica nada (ex.: "não to entendendo essa atividade pelo título"), você recebe, além do chunk da própria atividade, TODOS os segmentos de transcrição da reunião de onde ela nasceu — leia essa transcrição de verdade e explique com suas palavras o que estava sendo discutido quando aquele item surgiu, não repita só os campos da atividade (responsável/prazo/status). O título foi escrito pela IA a partir da fala, então pode não usar as mesmas palavras da conversa original — procure o trecho certo pelo assunto, não por correspondência exata de texto.',
       'Se o assunto tocar uma questão tributária técnica que exige aprofundamento em legislação/base legal (ex.: interpretação de norma de IBS/CBS, fundamento jurídico), não tente concluir sozinha — sinalize que esse ponto merece uma análise tributária dedicada, o tipo de trabalho que a IVANA faz.',
       'Se o PERFIL DO PROJETO listar participantes "SEM IDENTIFICAÇÃO CLARA" e isso for relevante ou natural no contexto da conversa, aproveite pra perguntar ao usuário quem é essa pessoa (lado PRICETAX ou cliente, e qual área) — no máximo uma pergunta desse tipo por resposta, nunca repita uma pergunta sobre a mesma pessoa se ela já foi respondida antes (confira os APRENDIZADOS ACUMULADOS e a conversa) — quando o usuário responder, registre em learnedFact.',
@@ -153,6 +173,23 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, in
   });
   if (!response.parsed_output) throw new Error('Falha ao gerar a resposta.');
   return { output: response.parsed_output, usage: response.usage };
+}
+
+// Achata a resposta estruturada (Fase 5) num texto plano — usado como
+// `ai_messages.content`, que por sua vez alimenta o histórico da
+// conversa (`historyText` em resolveQuery/synthesizeAnswer, que sempre
+// foi texto puro) e serve de fallback pra qualquer lugar que ainda
+// espera uma string simples. O front-end usa `ai_messages.structured`
+// (a versão rica) pra renderizar os cards — este texto nunca é
+// mostrado na tela quando `structured` existe.
+function flattenStructuredAnswer({ introduction, sections }) {
+  const parts = [introduction];
+  (sections || []).forEach((s) => {
+    parts.push(`\n${s.title}:`);
+    if (s.content) parts.push(s.content);
+    (s.items || []).forEach((item) => parts.push(`- ${item}`));
+  });
+  return parts.join('\n');
 }
 
 async function getOrCreateConversation(pool, orgId, projectId, userId) {
@@ -327,7 +364,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
   }
 
   const latencyMs = Date.now() - startedAt;
-  let answerText, citedSources = [], hasEvidence = null, model = 'claude-opus-5', proposedAction = null;
+  let answerText, citedSources = [], hasEvidence = null, model = 'claude-opus-5', proposedAction = null, structured = null;
   let tokensInput = 0, tokensOutput = 0;
 
   if (errorMsg) {
@@ -353,7 +390,12 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
       const c = byId.get(id);
       return { chunkId: c.id, meetingId: c.meetingId, meetingTitle: c.meetingTitle, meetingDate: c.meetingDate, timeRef: c.timeRef, kind: c.kind, sourceRef: c.sourceRef };
     });
-    answerText = synthesized.output.answer;
+    structured = {
+      introduction: synthesized.output.introduction,
+      sections: synthesized.output.sections || [],
+      insights: synthesized.output.insights || [],
+    };
+    answerText = flattenStructuredAnswer(structured);
     hasEvidence = !!synthesized.output.hasEvidence;
     tokensInput = (resolved.usage && resolved.usage.input_tokens || 0) + (synthesized.usage && synthesized.usage.input_tokens || 0);
     tokensOutput = (resolved.usage && resolved.usage.output_tokens || 0) + (synthesized.usage && synthesized.usage.output_tokens || 0);
@@ -414,20 +456,21 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
 
   const assistantMessageId = uid('aim');
   await pool.query(
-    `INSERT INTO ai_messages (id, conversation_id, role, content, sources, has_evidence, scope, model, tokens_input, tokens_output, latency_ms, error, proposed_action, action_status)
-     VALUES ($1,$2,'assistant',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+    `INSERT INTO ai_messages (id, conversation_id, role, content, sources, has_evidence, scope, model, tokens_input, tokens_output, latency_ms, error, proposed_action, action_status, structured)
+     VALUES ($1,$2,'assistant',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
     [
       assistantMessageId, conversationId, answerText, JSON.stringify(citedSources), hasEvidence,
       JSON.stringify({ view: context && context.view, meetingId: context && context.meetingId, standaloneQuery: resolved && resolved.output.standaloneQuery }),
       model, tokensInput, tokensOutput, latencyMs, errorMsg,
       proposedAction ? JSON.stringify(proposedAction) : null, proposedAction ? 'pending' : null,
+      structured ? JSON.stringify(structured) : null,
     ],
   );
   await pool.query('UPDATE ai_conversations SET updated_at=now() WHERE id=$1', [conversationId]);
 
   return {
     id: assistantMessageId, role: 'assistant', content: answerText, sources: citedSources, hasEvidence,
-    proposedAction, actionStatus: proposedAction ? 'pending' : null, createdAt: new Date().toISOString(),
+    proposedAction, actionStatus: proposedAction ? 'pending' : null, structured, createdAt: new Date().toISOString(),
   };
 }
 
@@ -456,12 +499,12 @@ export async function decideProposedAction(pool, orgId, projectId, userId, messa
 export async function getConversationMessages(pool, orgId, projectId, userId) {
   const conversationId = await getOrCreateConversation(pool, orgId, projectId, userId);
   const { rows } = await pool.query(
-    `SELECT id, role, content, sources, has_evidence, feedback, proposed_action, action_status, created_at FROM ai_messages WHERE conversation_id=$1 ORDER BY created_at ASC`,
+    `SELECT id, role, content, sources, has_evidence, feedback, proposed_action, action_status, structured, created_at FROM ai_messages WHERE conversation_id=$1 ORDER BY created_at ASC`,
     [conversationId],
   );
   return rows.map((r) => ({
     id: r.id, role: r.role, content: r.content, sources: r.sources || [], hasEvidence: r.has_evidence, feedback: r.feedback,
-    proposedAction: r.proposed_action || null, actionStatus: r.action_status, createdAt: r.created_at,
+    proposedAction: r.proposed_action || null, actionStatus: r.action_status, structured: r.structured || null, createdAt: r.created_at,
   }));
 }
 
