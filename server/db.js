@@ -448,6 +448,16 @@ export async function initDb() {
   await pool.query(`ALTER TABLE ai_messages ADD COLUMN IF NOT EXISTS proposed_action JSONB`);
   await pool.query(`ALTER TABLE ai_messages ADD COLUMN IF NOT EXISTS action_status TEXT CHECK (action_status IN ('pending','executed','rejected'))`);
 
+  // Resposta estruturada da RENATA (Fase 5, 2026-09-10) —
+  // {introduction, sections, insights}, ver server/assistantRetrieval.js.
+  // Nullable de propósito: mensagens antigas e as de conversa_geral
+  // (saudação, que nunca passou pelo schema estruturado) ficam com isso
+  // null — o front renderiza um balão de texto simples nesse caso, sem
+  // quebrar nada do histórico já gravado. `content` continua sendo o
+  // texto plano de sempre (introdução + bullets achatados), usado pro
+  // histórico da conversa alimentar o prompt da IA.
+  await pool.query(`ALTER TABLE ai_messages ADD COLUMN IF NOT EXISTS structured JSONB`);
+
   // Aprendizados do Assistente do Projeto (2026-09, pedido do Rafael:
   // "gere aprendizado... memorize isso, não jogue no lixo") — fatos
   // duráveis extraídos das conversas (ver `synthesizeAnswer` em
