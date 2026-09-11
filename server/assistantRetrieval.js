@@ -14,9 +14,12 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { searchProjectMemory, getMeetingTranscriptChunks } from './memoryRetrieval.js';
-import { buildProjectSnapshot, buildPersonLookupText } from './assistantContext.js';
+import { buildProjectSnapshot, buildPersonLookupText, todayIso } from './assistantContext.js';
 import { executeProposedAction } from './assistantActions.js';
 import { googleConfigured, getConnectionStatus, listEvents } from './googleCalendar.js';
+import { loadRelevantFacts } from './knowledgeFacts.js';
+import { voyageConfigured, embedTexts } from './embeddings.js';
+import { computeFingerprint, lookupCachedAnswer, saveCachedAnswer } from './answerCache.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -61,7 +64,11 @@ const ProposedActionSchema = z.object({
   type: z.enum([
     'create_meeting_todo', 'delete_meeting_todo', 'reschedule_activity',
     'create_schedule_activity', 'delete_schedule_activity', 'create_calendar_event',
+    'save_knowledge_fact',
   ]).describe('Qual ação está sendo proposta.'),
+  subject: z.string().nullable().describe('SÓ pra type="save_knowledge_fact": um rótulo curto do ASSUNTO do fato (ex.: "cargo do Felipe", não a frase inteira) — usado depois pra detectar se um fato novo conflita com um já existente sobre o mesmo assunto. null pros outros tipos.'),
+  content: z.string().nullable().describe('SÓ pra type="save_knowledge_fact": o fato em si, como uma frase clara e autossuficiente (ex.: "Felipe é o CEO da PRICETAX"). null pros outros tipos.'),
+  scope: z.enum(['project', 'org']).nullable().describe('SÓ pra type="save_knowledge_fact": "org" se o fato é sobre a PRICETAX em si (cargo, processo interno, conceito, produto — vale pra qualquer projeto); "project" se é específico deste cliente/projeto. null pros outros tipos.'),
   meetingId: z.string().nullable().describe('Pra type="create_meeting_todo" ou "delete_meeting_todo": id de uma reunião real, exatamente como listado em "REUNIÕES DISPONÍVEIS" no perfil do projeto — nunca invente um id. Se o usuário não deixar claro qual reunião e nenhuma estiver aberta na tela, NÃO proponha ainda: pergunte antes. null pros outros tipos.'),
   todoItemId: z.string().nullable().describe('SÓ pra type="delete_meeting_todo": id exato da pendência a excluir, como listado nas TAREFAS DA REUNIÃO no perfil do projeto — nunca invente. Se não estiver claro qual pendência o usuário quer dizer, NÃO proponha ainda: pergunte antes citando o título que você acha que é. null pros outros tipos.'),
   title: z.string().nullable().describe('Pra type="create_meeting_todo", "create_schedule_activity" ou "create_calendar_event": título/nome curto e claro do que está sendo criado. null pros outros tipos.'),
@@ -96,8 +103,7 @@ const SynthesizeAnswerSchema = z.object({
   insights: z.array(z.string()).describe('Até 4 rótulos CURTOS clicáveis, específicos desta resposta (ex.: "Empresa paga 90%", "Validar com RH", "Impacto no acordo coletivo") — cada um vira um atalho que o usuário pode clicar pra aprofundar (reenvia o próprio rótulo como próxima pergunta, você recebe isso no histórico da conversa e interpreta em contexto). Vazio se a resposta não tiver desdobramentos óbvios pra sugerir (não force).'),
   citedChunkIds: z.array(z.string()).describe('IDs (campo "id" de cada trecho recebido) dos trechos que sustentam de fato a resposta — só inclua um id se ele realmente contém a informação usada na resposta. Vazio se a resposta veio do PERFIL DO PROJETO em vez de um trecho, ou se hasEvidence for false.'),
   hasEvidence: z.boolean().describe('true se os trechos OU o PERFIL DO PROJETO sustentam a resposta; false só quando nem os trechos recuperados nem o perfil do projeto respondem a pergunta com confiança — nesse caso NUNCA invente, admita explicitamente que não encontrou.'),
-  learnedFact: z.string().nullable().describe('Preencha SOMENTE quando esta troca revelou um fato durável e específico sobre ESTE projeto que vale a pena lembrar em conversas futuras (ex.: um padrão recorrente, uma preferência do cliente, um contexto importante que não estava registrado) — seja específico e curto (1 frase). null na grande maioria das respostas — não force um aprendizado onde não há nada novo/reutilizável.'),
-  proposedAction: ProposedActionSchema.describe('Preencha SOMENTE quando o usuário pedir explicitamente pra criar/excluir uma pendência, criar/reagendar/excluir uma atividade do cronograma, ou marcar um evento no Google Calendar. Você NUNCA executa a ação — só propõe; o usuário confirma ou rejeita pelo painel depois. Se faltar informação pra ter certeza do alvo, NÃO proponha ainda — pergunte antes na própria resposta, com proposedAction=null, e proponha só no próximo turno depois que o usuário esclarecer. null na grande maioria das respostas.'),
+  proposedAction: ProposedActionSchema.describe('Preencha SOMENTE quando o usuário pedir explicitamente pra criar/excluir uma pendência, criar/reagendar/excluir uma atividade do cronograma, marcar um evento no Google Calendar, OU quando ele contar um fato durável que vale guardar (type="save_knowledge_fact" — ver descrição do campo type). Você NUNCA executa a ação — só propõe; o usuário confirma ou rejeita pelo painel depois. Se faltar informação pra ter certeza do alvo/conteúdo, NÃO proponha ainda — pergunte antes na própria resposta, com proposedAction=null, e proponha só no próximo turno depois que o usuário esclarecer. null na grande maioria das respostas.'),
 });
 
 async function resolveQuery({ question, history, context, projectSnapshot }) {
@@ -138,7 +144,7 @@ async function resolveQuery({ question, history, context, projectSnapshot }) {
   return { output: response.parsed_output, usage: response.usage };
 }
 
-async function synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText, context, personLookupText, calendarContextText, googleConnected }) {
+async function synthesizeAnswer({ question, chunks, history, projectSnapshot, factsText, context, personLookupText, calendarContextText, googleConnected }) {
   const client = new Anthropic();
   const historyText = history.length
     ? history.map((m) => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`).join('\n')
@@ -175,12 +181,14 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, in
       'Regra absoluta: nunca invente nome, data, decisão, compromisso, responsável ou fato que não esteja literalmente no PERFIL DO PROJETO ou nos trechos. Se nenhum dos dois sustentar uma resposta com confiança, hasEvidence deve ser false, introduction deve ser exatamente "Não encontrei evidência suficiente nas reuniões ou documentos deste projeto." e sections/insights ficam vazios — nunca tente adivinhar ou completar a lacuna. Sempre separe fato de interpretação: se algo parece uma atividade mas falta responsável ou prazo explícito nos trechos, diga isso diretamente (ex.: em uma seção "facts": "Identifiquei isso como uma possível atividade, mas a reunião não deixou explícito quem é responsável nem o prazo") em vez de supor um valor.',
       'Interprete a intenção por trás da fala, não só a letra — dentro dos trechos de reunião, frases como "vou verificar" costumam indicar um compromisso assumido, "depende do fornecedor/cliente" indica uma dependência, "não conseguimos fechar porque faltou X" indica um impedimento, "vamos implementar em [data]" pode indicar um marco do projeto. Ao responder, ajude a distinguir isso — não trate toda menção como se fosse uma tarefa formal.',
       'Como estruturar a resposta em sections: introduction é só a abertura (1-2 frases), o conteúdo de verdade vai nas sections. Se houver algo urgente/crítico/uma divergência entre fontes, isso vira a PRIMEIRA seção (type="warning"), nunca fica perdido no meio. Uma pergunta simples (ex.: "qual o CNPJ do cliente?") pode ter zero sections, a introduction já responde. Quando a resposta envolver várias reuniões ou atividades, ordene os itens de "facts"/"impact" da mais antiga pra mais atual (nunca por ordem de cadastro); se a pergunta for sobre a evolução de um assunto ao longo do tempo, use type="timeline" com um item por marco, formato "data — descrição".',
-      'Quando responder com base num trecho de reunião, cite reunião e data pra ajudar o consultor a confiar na resposta (ex.: "Na reunião de 15/08, Rafael comentou que..."). Só inclua em citedChunkIds os ids dos trechos que você realmente usou — nunca cite um trecho pra sustentar um fato que na verdade veio do PERFIL DO PROJETO ou dos APRENDIZADOS ACUMULADOS.',
+      'Quando responder com base num trecho de reunião, cite reunião e data pra ajudar o consultor a confiar na resposta (ex.: "Na reunião de 15/08, Rafael comentou que..."). Só inclua em citedChunkIds os ids dos trechos que você realmente usou — nunca cite um trecho pra sustentar um fato que na verdade veio do PERFIL DO PROJETO ou do CONHECIMENTO ACUMULADO.',
       'Se duas fontes (dois trechos, ou um trecho contra o PERFIL DO PROJETO) trouxerem informação DIVERGENTE sobre o mesmo fato, NUNCA escolha uma versão silenciosamente — sinalize isso explicitamente numa seção type="warning" com título "Informação conflitante", liste as duas versões em items, e recomende validar com a pessoa certa antes de usar o dado (isso pode virar a recomendação também).',
       'insights (até 4 rótulos curtos) só faz sentido quando a resposta abriu desdobramentos reais — um fato que merece validação, um risco que pode ser aprofundado, uma pergunta natural de continuação. Não force 4 só pra preencher; uma resposta simples pode não ter nenhum.',
       'Quando o usuário pedir contexto sobre uma atividade específica cujo título sozinho não explica nada (ex.: "não to entendendo essa atividade pelo título"), você recebe, além do chunk da própria atividade, TODOS os segmentos de transcrição da reunião de onde ela nasceu — leia essa transcrição de verdade e explique com suas palavras o que estava sendo discutido quando aquele item surgiu, não repita só os campos da atividade (responsável/prazo/status). O título foi escrito pela IA a partir da fala, então pode não usar as mesmas palavras da conversa original — procure o trecho certo pelo assunto, não por correspondência exata de texto.',
       'Se o assunto tocar uma questão tributária técnica que exige aprofundamento em legislação/base legal (ex.: interpretação de norma de IBS/CBS, fundamento jurídico), não tente concluir sozinha — sinalize que esse ponto merece uma análise tributária dedicada, o tipo de trabalho que a IVANA faz.',
-      'Se o PERFIL DO PROJETO listar participantes "SEM IDENTIFICAÇÃO CLARA" e isso for relevante ou natural no contexto da conversa, aproveite pra perguntar ao usuário quem é essa pessoa (lado PRICETAX ou cliente, e qual área) — no máximo uma pergunta desse tipo por resposta, nunca repita uma pergunta sobre a mesma pessoa se ela já foi respondida antes (confira os APRENDIZADOS ACUMULADOS e a conversa) — quando o usuário responder, registre em learnedFact.',
+      'Se o PERFIL DO PROJETO listar participantes "SEM IDENTIFICAÇÃO CLARA" e isso for relevante ou natural no contexto da conversa, aproveite pra perguntar ao usuário quem é essa pessoa (lado PRICETAX ou cliente, e qual área) — no máximo uma pergunta desse tipo por resposta, nunca repita uma pergunta sobre a mesma pessoa se ela já foi respondida antes (confira o CONHECIMENTO ACUMULADO e a conversa) — quando o usuário responder, proponha save_knowledge_fact com o que ele disse (não grave sozinha, é a mesma regra de qualquer outra ação).',
+      'Quando o usuário contar um fato durável e reutilizável — não é sobre o histórico específico de UMA reunião, é uma regra/fato que vale lembrar depois (ex.: "Felipe é o CEO da PRICETAX", "nosso processo interno de X é assim", "esse cliente sempre prefere Y") — proponha type="save_knowledge_fact": subject é um rótulo curto do ASSUNTO (ex.: "cargo do Felipe", não a frase toda — isso é usado depois pra achar conflito com um fato futuro sobre o mesmo assunto), content é o fato em si numa frase clara, scope é "org" se for sobre a PRICETAX em si (vale pra qualquer projeto) ou "project" se for específico deste cliente. NUNCA grave sozinha — é sempre proposta com confirmação, igual as outras ações. NÃO proponha isso pra fatos triviais da conversa ou coisas que já estão no PERFIL DO PROJETO/CONHECIMENTO ACUMULADO.',
+      'Você recebe abaixo, em CONHECIMENTO ACUMULADO, os fatos já ensinados sobre este projeto e sobre a PRICETAX em geral — cada um mostra quem informou, quando, e se está com status "conflicting". Se um fato estiver marcado [CONFLITANTE], NUNCA escolha uma versão sozinha — avise o usuário que existem duas informações divergentes sobre aquele assunto e pergunte qual vale, ou sugira validar com quem souber.',
       'Quando o usuário perguntar sobre as pendências/atividades de uma pessoa (ex.: "quais as pendências do Evanio?", "o que o Rafa está nos devendo?"), mesmo citando só um apelido ou parte do nome, você recebe abaixo o resultado de uma busca por nome já feita no cadastro (PENDÊNCIAS POR PESSOA) — isso é uma varredura completa, não uma amostra, então pode responder com confiança total a partir dele. Se ele indicar mais de um nome parecido (ambíguo), pergunte qual delas antes de responder. Se indicar que não achou ninguém com esse nome, diga isso claramente em vez de inventar.',
       'Você também pode propor ações (proposedAction) — SEIS tipos possíveis: (1) create_meeting_todo — criar uma pendência numa reunião; (2) delete_meeting_todo — excluir uma pendência de reunião existente; (3) reschedule_activity — reagendar uma atividade do cronograma oficial; (4) create_schedule_activity — criar uma atividade nova no cronograma oficial; (5) delete_schedule_activity — excluir uma atividade do cronograma oficial; (6) create_calendar_event — criar um evento de verdade no Google Calendar do usuário. Em TODOS os casos você NUNCA executa sozinha, e NUNCA finge que já executou — sempre descreva a ação proposta na resposta citando o título exato do alvo e peça confirmação explícita. Se não tiver certeza de qual reunião/pendência/atividade o usuário quer dizer, NÃO proponha ainda — faça a pergunta de esclarecimento primeiro (ex.: "Você está falando da atividade \'Split payment e demais operações financeiras\'?"), e só proponha de fato no turno seguinte, depois de confirmado.',
       'Ao reagendar (reschedule_activity), sempre diga na resposta a data antiga e a nova, pra o usuário conseguir validar a mudança de verdade antes de confirmar.',
@@ -192,7 +200,7 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, in
       ].join(' '),
       cache_control: { type: 'ephemeral' },
     }],
-    messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nAprendizados acumulados em conversas anteriores sobre este projeto:\n${insightsText}\n\n${meetingContextText}\n\n${personLookupText || ''}\n\n${calendarContextText || ''}\n\nConversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória de reuniões:\n\n${chunksText}` }],
+    messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nCONHECIMENTO ACUMULADO (fatos ensinados por usuários, deste projeto e da PRICETAX em geral):\n${factsText}\n\n${meetingContextText}\n\n${personLookupText || ''}\n\n${calendarContextText || ''}\n\nConversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória de reuniões:\n\n${chunksText}` }],
     output_config: { format: zodOutputFormat(SynthesizeAnswerSchema) },
   });
   if (!response.parsed_output) throw new Error('Falha ao gerar a resposta.');
@@ -234,26 +242,6 @@ async function loadRecentHistory(pool, conversationId, limit = 8) {
   return rows.reverse().map((r) => ({ role: r.role, content: r.content }));
 }
 
-// Limite reduzido de 50 pra 20 (Fase 6, 2026-09-10, redução de custo) —
-// isso é enviado por inteiro em TODA pergunta pra sempre; aprendizados
-// mais antigos que isso raramente ainda são relevantes.
-async function loadInsights(pool, projectId, limit = 20) {
-  const { rows } = await pool.query(
-    `SELECT content FROM ai_project_insights WHERE project_id=$1 ORDER BY created_at ASC LIMIT $2`,
-    [projectId, limit],
-  );
-  return rows.length ? rows.map((r) => `- ${r.content}`).join('\n') : '(nenhum aprendizado registrado ainda)';
-}
-
-async function saveInsight(pool, orgId, projectId, content) {
-  const text = (content || '').trim();
-  if (!text) return;
-  await pool.query(
-    `INSERT INTO ai_project_insights (id, org_id, project_id, content) VALUES ($1,$2,$3,$4)`,
-    [uid('aii'), orgId, projectId, text.slice(0, 500)],
-  );
-}
-
 // Função pública — orquestra: carrega conversa → resolve a pergunta →
 // busca na memória → sintetiza resposta → valida citações → grava tudo.
 // `projectData` é o JSONB completo do projeto (já carregado pela rota, ver
@@ -262,7 +250,7 @@ async function saveInsight(pool, orgId, projectId, content) {
 // identidade do cliente e ao cronograma (Resumo/Gantt/Tabela/Fases/
 // Quadro são a mesma base de dados), sem depender da memória de reuniões
 // pra perguntas que não vêm de reunião nenhuma.
-export async function askProjectAssistant({ pool, orgId, projectId, userId, question, context, projectData }) {
+export async function askProjectAssistant({ pool, orgId, projectId, userId, question, context, projectData, projectUpdatedAt }) {
   const startedAt = Date.now();
   const conversationId = await getOrCreateConversation(pool, orgId, projectId, userId);
   const history = await loadRecentHistory(pool, conversationId);
@@ -284,6 +272,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
   );
 
   let resolved, chunks = [], synthesized, errorMsg = null, googleConnected = false, calendarContextText = '';
+  let cachedAnswer = null, queryEmbedding = null, fingerprint = null, resolvedParticipantOut = null, searchMeetingIdOut = null;
   try {
     resolved = await withRetry(() => resolveQuery({ question, history, context: context || {}, projectSnapshot }), 'resolveQuery');
     // Saudação/conversa geral não passa pelo pipeline de busca+síntese —
@@ -311,74 +300,96 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
       // nele aqui ainda (é só um id proposto), a validação de verdade
       // acontece embaixo, contra `projectData.meetings`.
       const searchMeetingId = scope.targetMeetingId || (scope.meetingScope === 'atual' ? (context && context.meetingId) : undefined);
-      const [chunksResult, insightsText, googleConn] = await Promise.all([
-        searchProjectMemory(pool, {
-          orgId, projectId,
-          query: scope.standaloneQuery,
-          participant: resolvedParticipant,
-          meetingId: searchMeetingId || undefined,
-          kind: scope.kind !== 'qualquer' ? scope.kind : undefined,
-          limit: 12,
-        }),
-        loadInsights(pool, projectId),
-        getConnectionStatus(userId),
-      ]);
-      chunks = chunksResult;
-      googleConnected = !!(googleConn && googleConn.connected);
+      resolvedParticipantOut = resolvedParticipant || null;
+      searchMeetingIdOut = searchMeetingId || null;
 
-      // Agenda (Fase 4, 2026-09-10) — igual a personLookupText, é uma
-      // fonte de contexto opcional: silenciosa se o usuário nunca
-      // conectou o Google Calendar, ou se a chamada em si falhar (nunca
-      // derruba a resposta principal por causa disso).
-      if (googleConnected) {
+      // Cache semântico (Fase 7, 2026-09-11) — modo "seguro": a chave é
+      // a pergunta já RESOLVIDA por resolveQuery (participant/meetingId/
+      // kind), não o texto cru do usuário. Só a chamada mais cara
+      // (synthesizeAnswer) é pulada num acerto — resolveQuery sempre
+      // roda, é o preço de manter isso seguro contra reaproveitar
+      // resposta errada em pergunta parecida com intenção diferente.
+      // Opcional: sem VOYAGE_API_KEY, cai direto pro fluxo normal.
+      if (voyageConfigured()) {
         try {
-          const now = new Date();
-          const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-          const events = await listEvents(userId, now.toISOString(), in14Days.toISOString());
-          calendarContextText = events.length
-            ? `PRÓXIMOS EVENTOS NA AGENDA (Google Calendar do usuário, próximos 14 dias):\n${events.slice(0, 15).map((e) => `- "${e.title}" — ${e.start}${e.allDay ? ' (dia inteiro)' : ''}`).join('\n')}`
-            : 'PRÓXIMOS EVENTOS NA AGENDA: nenhum evento marcado nos próximos 14 dias.';
-        } catch (e) {
-          console.error('Assistente do Projeto: falha ao buscar eventos do Google Calendar', e.message);
-        }
-      }
-
-      // Duas situações em que busca por relevância sozinha não é
-      // confiável, e o jeito certo de garantir o conteúdo é buscar a
-      // transcrição INTEIRA da reunião certa, sem depender de ranking
-      // textual: (1) a IA identificou que a pergunta é sobre UMA reunião
-      // específica (ex.: "resuma a última reunião" não tem palavra-chave
-      // forte pra achar o trecho certo por relevância); (2) pedido do
-      // Rafael pra explicar uma atividade cujo título não é
-      // autoexplicativo — o título é uma paráfrase da IA, pode não usar
-      // as mesmas palavras da fala original.
-      const meetingIdsNeedingFullTranscript = new Set();
-      if (scope.targetMeetingId) meetingIdsNeedingFullTranscript.add(scope.targetMeetingId);
-      if (scope.kind === 'activity') {
-        chunks.filter((c) => c.kind === 'activity' && c.meetingId).forEach((c) => meetingIdsNeedingFullTranscript.add(c.meetingId));
-      }
-      if (meetingIdsNeedingFullTranscript.size) {
-        // Defesa em profundidade, mesmo padrão de nunca confiar num id
-        // que a IA devolveu sem checar contra o projeto de verdade.
-        const validMeetingIds = new Set((projectData && projectData.meetings || []).filter((m) => !m.deleted).map((m) => m.id));
-        const idsToFetch = Array.from(meetingIdsNeedingFullTranscript).filter((id) => validMeetingIds.has(id));
-        if (idsToFetch.length) {
-          const transcriptChunksByMeeting = await Promise.all(
-            idsToFetch.map((mid) => getMeetingTranscriptChunks(pool, orgId, projectId, mid)),
-          );
-          const existingIds = new Set(chunks.map((c) => c.id));
-          transcriptChunksByMeeting.flat().forEach((c) => {
-            if (!existingIds.has(c.id)) { chunks.push(c); existingIds.add(c.id); }
+          [queryEmbedding] = await embedTexts([scope.standaloneQuery], 'query');
+          fingerprint = computeFingerprint(projectUpdatedAt, todayIso());
+          cachedAnswer = await lookupCachedAnswer(pool, {
+            projectId, fingerprint,
+            participant: resolvedParticipantOut,
+            meetingId: searchMeetingIdOut,
+            kind: scope.kind !== 'qualquer' ? scope.kind : null,
+            queryEmbedding,
           });
+        } catch (e) {
+          console.error('Assistente do Projeto: falha ao consultar cache semântico — seguindo com a pergunta ao vivo.', e.message);
         }
       }
 
-      synthesized = await withRetry(() => synthesizeAnswer({ question, chunks, history, projectSnapshot, insightsText, context: context || {}, personLookupText, calendarContextText, googleConnected }), 'synthesizeAnswer');
-      if (synthesized.output.learnedFact) {
-        // Falha ao gravar aprendizado não pode derrubar a resposta já
-        // pronta pro usuário — só registra o erro, não interrompe o fluxo.
-        saveInsight(pool, orgId, projectId, synthesized.output.learnedFact)
-          .catch((e) => console.error('Assistente do Projeto: falha ao gravar aprendizado', e.message));
+      if (!cachedAnswer) {
+        const [chunksResult, factsText, googleConn] = await Promise.all([
+          searchProjectMemory(pool, {
+            orgId, projectId,
+            query: scope.standaloneQuery,
+            participant: resolvedParticipant,
+            meetingId: searchMeetingId || undefined,
+            kind: scope.kind !== 'qualquer' ? scope.kind : undefined,
+            limit: 12,
+          }),
+          loadRelevantFacts(pool, orgId, projectId),
+          getConnectionStatus(userId),
+        ]);
+        chunks = chunksResult;
+        googleConnected = !!(googleConn && googleConn.connected);
+
+        // Agenda (Fase 4, 2026-09-10) — igual a personLookupText, é uma
+        // fonte de contexto opcional: silenciosa se o usuário nunca
+        // conectou o Google Calendar, ou se a chamada em si falhar (nunca
+        // derruba a resposta principal por causa disso).
+        if (googleConnected) {
+          try {
+            const now = new Date();
+            const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+            const events = await listEvents(userId, now.toISOString(), in14Days.toISOString());
+            calendarContextText = events.length
+              ? `PRÓXIMOS EVENTOS NA AGENDA (Google Calendar do usuário, próximos 14 dias):\n${events.slice(0, 15).map((e) => `- "${e.title}" — ${e.start}${e.allDay ? ' (dia inteiro)' : ''}`).join('\n')}`
+              : 'PRÓXIMOS EVENTOS NA AGENDA: nenhum evento marcado nos próximos 14 dias.';
+          } catch (e) {
+            console.error('Assistente do Projeto: falha ao buscar eventos do Google Calendar', e.message);
+          }
+        }
+
+        // Duas situações em que busca por relevância sozinha não é
+        // confiável, e o jeito certo de garantir o conteúdo é buscar a
+        // transcrição INTEIRA da reunião certa, sem depender de ranking
+        // textual: (1) a IA identificou que a pergunta é sobre UMA reunião
+        // específica (ex.: "resuma a última reunião" não tem palavra-chave
+        // forte pra achar o trecho certo por relevância); (2) pedido do
+        // Rafael pra explicar uma atividade cujo título não é
+        // autoexplicativo — o título é uma paráfrase da IA, pode não usar
+        // as mesmas palavras da fala original.
+        const meetingIdsNeedingFullTranscript = new Set();
+        if (scope.targetMeetingId) meetingIdsNeedingFullTranscript.add(scope.targetMeetingId);
+        if (scope.kind === 'activity') {
+          chunks.filter((c) => c.kind === 'activity' && c.meetingId).forEach((c) => meetingIdsNeedingFullTranscript.add(c.meetingId));
+        }
+        if (meetingIdsNeedingFullTranscript.size) {
+          // Defesa em profundidade, mesmo padrão de nunca confiar num id
+          // que a IA devolveu sem checar contra o projeto de verdade.
+          const validMeetingIds = new Set((projectData && projectData.meetings || []).filter((m) => !m.deleted).map((m) => m.id));
+          const idsToFetch = Array.from(meetingIdsNeedingFullTranscript).filter((id) => validMeetingIds.has(id));
+          if (idsToFetch.length) {
+            const transcriptChunksByMeeting = await Promise.all(
+              idsToFetch.map((mid) => getMeetingTranscriptChunks(pool, orgId, projectId, mid)),
+            );
+            const existingIds = new Set(chunks.map((c) => c.id));
+            transcriptChunksByMeeting.flat().forEach((c) => {
+              if (!existingIds.has(c.id)) { chunks.push(c); existingIds.add(c.id); }
+            });
+          }
+        }
+
+        synthesized = await withRetry(() => synthesizeAnswer({ question, chunks, history, projectSnapshot, factsText, context: context || {}, personLookupText, calendarContextText, googleConnected }), 'synthesizeAnswer');
       }
     }
   } catch (e) {
@@ -399,6 +410,18 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
     hasEvidence = false;
   } else if (resolved.output.intent === 'conversa_geral') {
     answerText = resolved.output.directReply || 'Olá! Sou a RENATA, a assistente de execução e gestão de projetos da PRICETAX. Pode perguntar qualquer coisa sobre o histórico deste projeto — reuniões, decisões, atividades — que eu respondo sempre citando a fonte.';
+    tokensInput = (resolved.usage && resolved.usage.input_tokens) || 0;
+    tokensOutput = (resolved.usage && resolved.usage.output_tokens) || 0;
+  } else if (cachedAnswer) {
+    // Acerto de cache semântico (Fase 7) — devolve a resposta já
+    // validada anteriormente, sem chamar synthesizeAnswer. As fontes
+    // citadas já foram validadas contra os chunks daquela pergunta
+    // original, não precisam ser revalidadas aqui (não refizemos a
+    // busca nesta pergunta).
+    structured = cachedAnswer.structured;
+    citedSources = cachedAnswer.citedSources || [];
+    answerText = flattenStructuredAnswer(structured);
+    hasEvidence = !!cachedAnswer.hasEvidence;
     tokensInput = (resolved.usage && resolved.usage.input_tokens) || 0;
     tokensOutput = (resolved.usage && resolved.usage.output_tokens) || 0;
   } else {
@@ -478,6 +501,28 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
       } else {
         console.error('Assistente do Projeto: propôs create_calendar_event sem Google Calendar conectado ou sem data — descartada.', rawAction);
       }
+    } else if (rawAction && rawAction.type === 'save_knowledge_fact') {
+      // Sem id de alvo pra validar (é uma criação) — só garante que os
+      // 3 campos obrigatórios vieram preenchidos antes de deixar o
+      // usuário confirmar.
+      if ((rawAction.subject || '').trim() && (rawAction.content || '').trim() && rawAction.scope) {
+        proposedAction = rawAction;
+      } else {
+        console.error('Assistente do Projeto: propôs save_knowledge_fact incompleto — descartada.', rawAction);
+      }
+    }
+
+    // Cache semântico (Fase 7) — só grava quando a resposta NÃO tem
+    // proposedAction (reaproveitar uma ação fora de contexto é
+    // perigoso: podia recriar pendência duplicada, referenciar id já
+    // apagado). Fire-and-forget, nunca atrasa nem derruba a resposta.
+    if (!cachedAnswer && !proposedAction && queryEmbedding && fingerprint) {
+      saveCachedAnswer(pool, {
+        orgId, projectId, standaloneQuery: resolved.output.standaloneQuery, queryEmbedding,
+        participant: resolvedParticipantOut, meetingId: searchMeetingIdOut,
+        kind: resolved.output.kind !== 'qualquer' ? resolved.output.kind : null,
+        structured, citedSources, hasEvidence, fingerprint,
+      }).catch((e) => console.error('Assistente do Projeto: falha ao gravar cache semântico', e.message));
     }
   }
 
@@ -518,7 +563,7 @@ export async function decideProposedAction(pool, orgId, projectId, userId, messa
     await pool.query(`UPDATE ai_messages SET action_status='rejected' WHERE id=$1`, [messageId]);
     return { actionStatus: 'rejected' };
   }
-  const result = await executeProposedAction(pool, orgId, projectId, rows[0].proposed_action, actingUserName, userId);
+  const result = await executeProposedAction(pool, orgId, projectId, rows[0].proposed_action, actingUserName, userId, conversationId);
   await pool.query(`UPDATE ai_messages SET action_status='executed' WHERE id=$1`, [messageId]);
   return { actionStatus: 'executed', result };
 }

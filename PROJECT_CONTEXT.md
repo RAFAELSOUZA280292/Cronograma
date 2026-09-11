@@ -4159,6 +4159,174 @@ a mesma janela de risco (~21h-meia-noite em Brasília). Não corrigido
 agora (feature diferente, fora do que foi reportado) — sinalizado
 como tarefa separada.
 
+## 37. Memória em camadas + cache semântico de perguntas — Fase 7 (2026-09-11)
+
+Rafael pediu uma auditoria honesta de como a RENATA usa memória hoje.
+A resposta revelou 3 lacunas reais: (1) nenhum cache de pergunta/
+resposta — a mesma pergunta, ou uma equivalente, rodava o pipeline
+completo de novo toda vez; (2) nenhuma memória organizacional — um
+fato tipo "Felipe é o CEO da PRICETAX" ficava preso ao projeto onde foi
+dito; (3) "aprendizados" (`ai_project_insights`) eram uma lista plana,
+sem quem disse, sem confiança, sem detecção de conflito, **gravados
+automaticamente** (sem confirmação nenhuma) sempre que
+`synthesizeAnswer` preenchia `learnedFact` — exatamente o "virar
+verdade global sozinho" que o Rafael não queria.
+
+Decisões de escopo confirmadas com o Rafael antes de implementar: cache
+semântico no modo SEGURO (compara depois de `resolveQuery` já ter
+resolvido a pergunta, não o texto cru — só a chamada mais cara,
+`synthesizeAnswer`/Opus, é pulada num acerto); sem tela de gestão nova
+(fatos/conflitos acessados pelo próprio chat); qualquer usuário pode
+propor um fato organizacional (a barreira é a confirmação explícita,
+não o cargo de quem fala).
+
+### `ai_knowledge_facts` (nova tabela, `server/db.js`)
+
+Substitui `ai_project_insights` como destino de escrita (tabela antiga
+não é apagada, fica histórica — conteúdo migrado uma vez via
+`migrateInsightsToKnowledgeFacts()`, chamada no boot do servidor).
+Campos: `id, org_id, project_id (null quando scope='org'), scope
+('project'|'org'), subject, content, status
+('unvalidated'|'conflicting'|'superseded'|'rejected'), superseded_by
+(self-FK, reservado pro futuro fluxo de resolução), source_user_id,
+source_conversation_id, embedding (do CONTEÚDO, ver abaixo por quê),
+created_at, updated_at`.
+
+Um fato só é gravado depois de confirmação explícita — vira o **7º
+tipo de ação proposta** da RENATA (`save_knowledge_fact`, mesmo
+`ProposedActionSchema`/card de Confirmar-Cancelar das outras 6 já
+existentes, `server/assistantRetrieval.js`/
+`src/assistant/ProjectAssistant.jsx`). `status` começa sempre
+`'unvalidated'` — não existe promoção automática pra `'validated'`
+nesta fase (documentado como próximo passo); a RENATA usa e cita fatos
+`unvalidated` normalmente, sempre atribuindo ("segundo o que [pessoa]
+informou em [data]"), nunca como verdade anônima.
+
+### Detecção de conflito — achado importante durante o teste
+
+O plano original comparava embedding do `subject` (rótulo curto, ex.:
+"cargo do Felipe"). **Testado com embeddings reais antes de shippar**:
+frases curtas de 2-4 palavras NÃO discriminam bem entre si — "cargo do
+Felipe" vs. "prazo do workshop" (assuntos SEM relação nenhuma) deu
+0.57 de similaridade, mais alto que "cargo do Felipe" vs. "quem é o
+CEO" (mesmo assunto, deu 0.56) — os dois ficam no mesmo patamar,
+impossível separar com um limiar. Comparar o **conteúdo completo**
+funciona muito melhor: "Felipe é o CEO" vs. "Felipe não é mais CEO"
+(mesmo tópico, afirmação contrária) deu 0.87; frases sem relação deram
+0.48; paráfrases quase idênticas deram 0.97+. `findConflictingFact`/
+`saveKnowledgeFact` (`server/knowledgeFacts.js`) foram redesenhados
+pra embedar e comparar `content`, não `subject` — `subject` continua
+existindo só como rótulo legível no texto injetado no prompt. Dois
+limiares calibrados com esses dados reais:
+`DUPLICATE_SIMILARITY_THRESHOLD=0.93` (não duplica, mesma frase
+parafraseada) e `CONFLICT_SIMILARITY_THRESHOLD=0.75` (marca os DOIS
+fatos como `'conflicting'`, nunca sobrescreve, nunca apaga).
+
+`loadRelevantFacts(pool, orgId, projectId)` monta o texto "CONHECIMENTO
+ACUMULADO" injetado em `synthesizeAnswer` — fatos do projeto atual +
+fatos `scope='org'` (válidos pra PRICETAX inteira, aparecem em
+qualquer projeto), excluindo `rejected`/`superseded`, com quem
+informou e quando. Fatos `'conflicting'` aparecem com uma marca
+`[CONFLITANTE]`; o prompt é instruído a nunca escolher uma versão
+sozinha nesse caso — sempre expor a divergência e perguntar.
+
+### `ai_answer_cache` (nova tabela) — cache semântico, modo seguro
+
+Chave = a pergunta já **resolvida** por `resolveQuery`
+(`standalone_query`+embedding, `participant`, `meeting_id`, `kind`) —
+não o texto cru do usuário. Isso é o que garante não reaproveitar
+resposta certa pra pergunta parecida com intenção diferente (ex.:
+pendências do Evanio vs. do Rafael nunca colidem, porque `participant`
+resolvido é diferente).
+
+`data_fingerprint` (`server/answerCache.js`,
+`computeFingerprint(projectUpdatedAt, todayIso())`) invalida TUDO do
+projeto de uma vez quando `projects.updated_at` muda (qualquer edição)
+ou quando o dia muda — resolve de quebra o caso de pergunta sensível a
+data ("o que preciso fazer hoje") ficar presa num cache de ontem.
+Grosseiro (não rastreia o que exatamente mudou) mas seguro, mesmo
+espírito do `reindex-needed` (Fase 6).
+
+**Nunca grava** quando a resposta tinha `proposedAction` não-nulo —
+reaproveitar uma ação proposta fora de contexto é perigoso (podia
+recriar pendência duplicada, referenciar id já apagado).
+
+Limiar de acerto calibrado com embeddings reais (`input_type='query'`,
+diferente do usado nos fatos): duas perguntas parafraseadas com a
+mesma intenção ficaram em ~0.90 de similaridade; perguntas realmente
+diferentes ficaram abaixo de 0.2 — margem enorme. `0.85`
+(`CACHE_SIMILARITY_THRESHOLD`) tem folga confortável dos dois lados.
+
+Fluxo em `askProjectAssistant`: depois de `resolveQuery`, calcula o
+fingerprint + embeda a pergunta resolvida + consulta o cache
+(`lookupCachedAnswer`) — só entre candidatos do MESMO projeto, MESMO
+fingerprint, MESMOS `participant`/`meetingId`/`kind` (igualdade exata,
+`IS NOT DISTINCT FROM`, null-safe); a similaridade de cosseno só decide
+ENTRE esses candidatos, nunca sozinha. Num acerto, pula
+`searchProjectMemory` + `synthesizeAnswer` inteiros — só `resolveQuery`
+(já mais barato desde a Fase 6) roda sempre. Num erro/miss, segue o
+fluxo normal e, se a resposta não tiver `proposedAction`, grava no
+cache (`saveCachedAnswer`) pra próxima vez.
+
+### O que muda nos arquivos existentes
+
+- `server/db.js` — tabelas `ai_knowledge_facts`/`ai_answer_cache`;
+  `migrateInsightsToKnowledgeFacts()` (one-shot, idempotente).
+- `server/index.js` — chama a migração no boot.
+- `server/knowledgeFacts.js` (novo) — `findConflictingFact`,
+  `saveKnowledgeFact`, `loadRelevantFacts`.
+- `server/answerCache.js` (novo) — `computeFingerprint`,
+  `lookupCachedAnswer`, `saveCachedAnswer`.
+- `server/assistantActions.js` — `executeSaveKnowledgeFact` (7º tipo).
+- `server/assistantRetrieval.js` — `ProposedActionSchema` ganha
+  `save_knowledge_fact` (+ campos `subject`/`content`/`scope`);
+  `SynthesizeAnswerSchema` PERDE `learnedFact` (removido, não só
+  desativado); `loadInsights`/`saveInsight` apagados, substituídos por
+  `loadRelevantFacts`; lógica de cache integrada em
+  `askProjectAssistant` (busca antes de `searchProjectMemory`, grava
+  depois de uma resposta nova sem ação proposta); prompt ganha
+  instruções de quando propor um fato e como tratar conflito.
+- `server/assistant.js` — `loadAuthorizedProject` passa a selecionar
+  `updated_at` também (usado no fingerprint).
+- `src/assistant/ProjectAssistant.jsx` — card de `save_knowledge_fact`
+  ("Ação proposta: lembrar este fato" + escopo).
+
+### Fora do escopo desta entrega
+
+- Tela de gestão de fatos/conflitos — Rafael pediu só chat por
+  enquanto.
+- Processo formal de validação (`unvalidated` → `validated`) — status
+  existe no schema, fluxo de promoção não foi construído.
+- Base de conhecimento global cross-org (legislação, IVANA) — já
+  adiada desde a Fase 2.
+- Cache "agressivo" (comparar pergunta crua, pulando as duas chamadas)
+  — Rafael escolheu o modo seguro.
+
+### Testado localmente, com embeddings reais (não depende de Claude)
+
+- `saveKnowledgeFact`: 4 cenários rodados contra o Postgres local —
+  fato novo (unvalidated, sem conflito); mesmo fato parafraseado
+  (`duplicate`, não duplicou); afirmação contrária sobre o mesmo tópico
+  (os DOIS viraram `conflicting`); fato sem relação nenhuma
+  (unvalidated, sem falso positivo). Esse teste foi o que revelou o
+  problema de comparar só o `subject` (ver acima) — corrigido antes de
+  considerar pronto.
+- `lookupCachedAnswer`/`saveCachedAnswer`: 5 cenários — pergunta
+  parafraseada (ACERTO), pergunta diferente (MISS), fingerprint mudou
+  (MISS, segurança preservada), mesma pergunta com participante
+  resolvido diferente (MISS, segurança preservada). Todos os 5 bateram
+  o esperado depois de calibrar o limiar com os dados reais.
+- Dados de teste sempre limpos depois; build/`node --check` limpos;
+  boot local do servidor confirmado sem erro novo (migração aplicada
+  sozinha).
+
+**Não testado**: a IA de verdade decidindo propor `save_knowledge_fact`
+(org vs. project) e citando CONHECIMENTO ACUMULADO/conflito em produção
+— depende da chave real. Pedido pro Rafael: ensinar um fato, confirmar,
+perguntar de novo sobre ele, depois contradizer pra ver o conflito
+sendo sinalizado; e perguntar a mesma coisa duas vezes seguidas pra
+sentir a resposta do cache vindo mais rápido.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
