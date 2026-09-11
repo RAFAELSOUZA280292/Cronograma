@@ -2,7 +2,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initDb, seedIfEmpty, migrateToPricetaxOrg, migrateAccessModel, migrateXflowBoardOrder } from './db.js';
+import { initDb, seedIfEmpty, migrateToPricetaxOrg, migrateAccessModel, migrateXflowBoardOrder, migrateInsightsToKnowledgeFacts } from './db.js';
 import { router as apiRouter } from './routes.js';
 import { router as xflowRouter } from './xflow.js';
 import { router as googleRouter } from './google.js';
@@ -45,6 +45,7 @@ async function start() {
   await migrateToPricetaxOrg();
   await migrateAccessModel();
   await migrateXflowBoardOrder();
+  await migrateInsightsToKnowledgeFacts();
   app.listen(port, () => {
     console.log(`Cronograma server ouvindo na porta ${port}`);
   });

@@ -198,6 +198,13 @@ function actionCardMeta(action) {
       doneLabel: 'Evento criado no Google Calendar',
     };
   }
+  if (action.type === 'save_knowledge_fact') {
+    return {
+      title: 'Ação proposta: lembrar este fato',
+      body: `"${action.content}" — válido pra: ${action.scope === 'org' ? 'toda a PRICETAX' : 'este projeto'}`,
+      doneLabel: 'Fato registrado',
+    };
+  }
   return {
     title: 'Ação proposta: criar pendência',
     body: `"${action.title}"${action.meetingTitle ? ` — reunião: ${action.meetingTitle}` : ''}${action.responsible ? ` — responsável: ${action.responsible}` : ''}${action.dueDate ? ` — prazo: ${fmtDate(action.dueDate)}` : ''}`,

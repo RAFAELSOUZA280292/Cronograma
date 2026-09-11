@@ -9,6 +9,7 @@
 import { reindexMeetingMemory } from './memoryIngest.js';
 import { normalizeName } from './assistantContext.js';
 import { createEvent as createGoogleCalendarEvent } from './googleCalendar.js';
+import { saveKnowledgeFact } from './knowledgeFacts.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -211,8 +212,29 @@ async function executeRescheduleActivity(pool, projectId, project, action, actin
   return { activityId: updatedActivity.id, activityTitle: updatedActivity.title, oldDate: oldActivity.date || '', newDate: action.newDate };
 }
 
-export async function executeProposedAction(pool, orgId, projectId, action, actingUserName, userId) {
+// Grava um fato na memória em camadas (Fase 7 — server/knowledgeFacts.js)
+// depois de confirmação explícita, igual às outras 6 ações. Não mexe em
+// `project.data`/`project.log` de propósito — `ai_knowledge_facts` já é
+// a própria trilha de auditoria (quem disse, quando, em qual conversa).
+async function executeSaveKnowledgeFact(pool, orgId, projectId, action, userId, conversationId) {
+  const subject = (action.subject || '').trim();
+  const content = (action.content || '').trim();
+  if (!subject || !content) throw new Error('Assunto ou conteúdo do fato não informado.');
+  const scope = action.scope === 'org' ? 'org' : 'project';
+  const result = await saveKnowledgeFact(pool, {
+    orgId, projectId, scope, subject, content,
+    sourceUserId: userId, sourceConversationId: conversationId,
+  });
+  return { subject, content, scope, ...result };
+}
+
+export async function executeProposedAction(pool, orgId, projectId, action, actingUserName, userId, conversationId) {
   if (!action) throw new Error('Nenhuma ação pra executar.');
+
+  if (action.type === 'save_knowledge_fact') {
+    return executeSaveKnowledgeFact(pool, orgId, projectId, action, userId, conversationId);
+  }
+
   const { rows } = await pool.query('SELECT data FROM projects WHERE id=$1', [projectId]);
   if (!rows[0]) throw new Error('Empresa não encontrada.');
   const project = rows[0].data || {};

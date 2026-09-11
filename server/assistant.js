@@ -13,7 +13,7 @@ export const router = Router();
 
 async function loadAuthorizedProject(req, res, projectId) {
   if (!projectId) { res.status(400).json({ message: 'Informe projectId.' }); return null; }
-  const { rows } = await pool.query('SELECT data, org_id FROM projects WHERE id=$1', [projectId]);
+  const { rows } = await pool.query('SELECT data, org_id, updated_at FROM projects WHERE id=$1', [projectId]);
   if (!rows[0]) { res.status(404).json({ message: 'Empresa não encontrada.' }); return null; }
   if (!canAccessProject(req.user, rows[0].data, rows[0].org_id)) { res.status(403).json({ message: 'Sem acesso a essa empresa.' }); return null; }
   return rows[0];
@@ -52,7 +52,7 @@ router.post('/ask', requireAuth, async (req, res, next) => {
     if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ message: 'Assistente não configurado nesse ambiente (falta ANTHROPIC_API_KEY).' });
     const project = await loadAuthorizedProject(req, res, projectId);
     if (!project) return;
-    const message = await askProjectAssistant({ pool, orgId: project.org_id, projectId, userId: req.user.id, question: text, context: context || {}, projectData: project.data });
+    const message = await askProjectAssistant({ pool, orgId: project.org_id, projectId, userId: req.user.id, question: text, context: context || {}, projectData: project.data, projectUpdatedAt: project.updated_at });
     res.json({ message });
   } catch (e) { next(e); }
 });

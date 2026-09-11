@@ -474,6 +474,85 @@ export async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS ai_project_insights_project_idx ON ai_project_insights(project_id, created_at)`);
+
+  // Fase 7 (2026-09-11) — substitui ai_project_insights como destino de
+  // escrita (tabela antiga não é apagada, fica histórica; ver
+  // migrateInsightsToKnowledgeFacts abaixo). Fato só é gravado depois de
+  // confirmação explícita do usuário (mesmo fluxo de proposedAction já
+  // usado pelas outras 6 ações da RENATA, ver server/knowledgeFacts.js)
+  // — nunca automático. `project_id` nullable quando scope='org' (fato
+  // válido pra organização inteira, não um projeto específico).
+  // `status` começa sempre 'unvalidated' — não existe promoção
+  // automática pra 'validated' nesta fase (documentado como próximo
+  // passo em PROJECT_CONTEXT.md); 'conflicting' marca os DOIS lados de
+  // uma divergência (nunca sobrescreve, nunca apaga — `superseded_by`
+  // fica disponível pro futuro fluxo de resolução).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_knowledge_facts (
+      id                      TEXT PRIMARY KEY,
+      org_id                  TEXT NOT NULL REFERENCES organizations(id),
+      project_id              TEXT REFERENCES projects(id) ON DELETE CASCADE,
+      scope                   TEXT NOT NULL CHECK (scope IN ('project','org')),
+      subject                 TEXT NOT NULL,
+      content                 TEXT NOT NULL,
+      status                  TEXT NOT NULL DEFAULT 'unvalidated' CHECK (status IN ('unvalidated','conflicting','superseded','rejected')),
+      superseded_by           TEXT REFERENCES ai_knowledge_facts(id),
+      source_user_id          TEXT REFERENCES users(id),
+      source_conversation_id  TEXT REFERENCES ai_conversations(id),
+      embedding               JSONB,
+      created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_knowledge_facts_org_idx ON ai_knowledge_facts(org_id, scope, status)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_knowledge_facts_project_idx ON ai_knowledge_facts(project_id, status)`);
+
+  // Cache semântico de perguntas/respostas (Fase 7, 2026-09-11) — modo
+  // "seguro" combinado com o Rafael: chave é a pergunta já RESOLVIDA
+  // (participant/meeting_id/kind, saída de resolveQuery), não o texto
+  // cru do usuário — evita reaproveitar resposta certa pra pergunta
+  // parecida mas com intenção diferente. `data_fingerprint` (hash de
+  // projects.updated_at + data de hoje, ver server/answerCache.js)
+  // invalida tudo pra aquele projeto de uma vez quando qualquer coisa
+  // muda — grosseiro mas seguro, mesmo espírito do reindex-needed
+  // (Fase 6). Nunca grava resposta que tinha proposedAction (reaproveitar
+  // uma ação fora de contexto é perigoso).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_answer_cache (
+      id                TEXT PRIMARY KEY,
+      org_id            TEXT NOT NULL REFERENCES organizations(id),
+      project_id        TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      standalone_query  TEXT NOT NULL,
+      query_embedding   JSONB NOT NULL,
+      participant       TEXT,
+      meeting_id        TEXT,
+      kind              TEXT,
+      structured        JSONB NOT NULL,
+      cited_sources     JSONB NOT NULL DEFAULT '[]',
+      has_evidence      BOOLEAN NOT NULL DEFAULT true,
+      data_fingerprint  TEXT NOT NULL,
+      hit_count         INT NOT NULL DEFAULT 0,
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_used_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_answer_cache_lookup_idx ON ai_answer_cache(project_id, data_fingerprint)`);
+}
+
+// Migração one-shot (Fase 7, 2026-09-11) — copia os aprendizados já
+// gravados em ai_project_insights (texto livre, sem escopo/proveniência)
+// pra ai_knowledge_facts (scope='project', status='unvalidated', já que
+// não temos como saber se foram confirmados por alguém na época).
+// Idempotente: id determinístico a partir do id de origem, nunca duplica
+// rodando de novo. Tabela antiga não é apagada nem deixa de existir —
+// só para de ser usada pelo código novo.
+export async function migrateInsightsToKnowledgeFacts() {
+  await pool.query(`
+    INSERT INTO ai_knowledge_facts (id, org_id, project_id, scope, subject, content, status, created_at, updated_at)
+    SELECT 'akf-mig-' || i.id, i.org_id, i.project_id, 'project', left(i.content, 60), i.content, 'unvalidated', i.created_at, i.created_at
+    FROM ai_project_insights i
+    WHERE NOT EXISTS (SELECT 1 FROM ai_knowledge_facts k WHERE k.id = 'akf-mig-' || i.id)
+  `);
 }
 
 export function blankXflowTicketData() {
