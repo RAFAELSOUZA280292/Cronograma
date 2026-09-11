@@ -508,29 +508,29 @@ export async function initDb() {
   await pool.query(`CREATE INDEX IF NOT EXISTS ai_knowledge_facts_project_idx ON ai_knowledge_facts(project_id, status)`);
 
   // Fase 7.1 (2026-09-11, endurecimento pedido pelo Rafael) — evolui
-  // ai_knowledge_facts sem quebrar o que já está em produção. Ordem
-  // importa: traduz os VALORES antigos de `status` pro vocabulário novo
-  // ANTES de trocar a constraint (senão a ALTER TABLE falha validando
-  // linha existente contra a lista nova) — tudo idempotente, seguro
-  // rodar em todo boot (depois da 1ª vez essas UPDATE não casam mais
-  // linha nenhuma).
+  // ai_knowledge_facts sem quebrar o que já está em produção.
+  //
+  // INCIDENTE REAL EM PRODUÇÃO (2026-09-11, causou crash-loop e
+  // derrubou o serviço inteiro): a ordem original fazia a tradução dos
+  // valores ANTES de derrubar a constraint antiga — mas a constraint
+  // antiga só aceitava `('unvalidated','conflicting','superseded',
+  // 'rejected')`, então o próprio `UPDATE ... SET status='active'
+  // WHERE status='unvalidated'` já violava ELA MESMA (o valor NOVO
+  // 'active' não existia no vocabulário antigo). Só não estourava
+  // localmente porque o Postgres de dev não tinha nenhuma linha antiga
+  // de verdade pra disparar a tradução. A ordem certa é: derrubar a
+  // constraint antiga PRIMEIRO (sem constraint nenhuma, qualquer UPDATE
+  // vale), traduzir os valores, só DEPOIS recriar a constraint já com o
+  // vocabulário novo — assim ela valida a tabela já 100% traduzida.
+  await pool.query(`ALTER TABLE ai_knowledge_facts DROP CONSTRAINT IF EXISTS ai_knowledge_facts_status_check`);
   await pool.query(`UPDATE ai_knowledge_facts SET status='active' WHERE status='unvalidated'`);
   await pool.query(`UPDATE ai_knowledge_facts SET status='disputed' WHERE status='conflicting'`);
   await pool.query(`UPDATE ai_knowledge_facts SET status='archived' WHERE status='rejected'`);
-  // Rede de segurança (incidente real em produção, 2026-09-11): um
-  // deploy travou em crash-loop porque uma linha continuava com um
-  // `status` fora das 3 traduções acima no exato momento do ALTER
-  // (a app antiga ainda estava servindo tráfego e gravou um fato novo
-  // com o default velho `unvalidated` bem no meio da migração — ou
-  // havia byte estranho/whitespace numa linha já existente; qualquer
-  // uma das duas hipóteses é coberta por isto). Sem essa rede, uma
-  // única linha assim derruba o boot inteiro do servidor pra sempre
-  // (o `ALTER TABLE ADD CONSTRAINT` nunca aceita `NOT VALID`, valida
-  // toda a tabela). Roda sempre, idempotente, nunca perde dado — só
-  // força pro default seguro qualquer valor que as traduções acima não
-  // reconheceram.
+  // Rede de segurança adicional, idempotente: qualquer valor que as 3
+  // traduções acima não reconheceram (dado inesperado, nunca deveria
+  // acontecer mas não custa nada garantir) também cai pro default
+  // seguro, antes da constraint nova validar a tabela inteira.
   await pool.query(`UPDATE ai_knowledge_facts SET status='active' WHERE status NOT IN ('active','disputed','superseded','pending_validation','archived')`);
-  await pool.query(`ALTER TABLE ai_knowledge_facts DROP CONSTRAINT IF EXISTS ai_knowledge_facts_status_check`);
   await pool.query(`ALTER TABLE ai_knowledge_facts ADD CONSTRAINT ai_knowledge_facts_status_check CHECK (status IN ('active','disputed','superseded','pending_validation','archived'))`);
   await pool.query(`ALTER TABLE ai_knowledge_facts ALTER COLUMN status SET DEFAULT 'active'`);
   // scope ganha 'conversation' (memória de trabalho só daquela conversa)
