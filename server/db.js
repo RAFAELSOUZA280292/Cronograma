@@ -517,6 +517,19 @@ export async function initDb() {
   await pool.query(`UPDATE ai_knowledge_facts SET status='active' WHERE status='unvalidated'`);
   await pool.query(`UPDATE ai_knowledge_facts SET status='disputed' WHERE status='conflicting'`);
   await pool.query(`UPDATE ai_knowledge_facts SET status='archived' WHERE status='rejected'`);
+  // Rede de segurança (incidente real em produção, 2026-09-11): um
+  // deploy travou em crash-loop porque uma linha continuava com um
+  // `status` fora das 3 traduções acima no exato momento do ALTER
+  // (a app antiga ainda estava servindo tráfego e gravou um fato novo
+  // com o default velho `unvalidated` bem no meio da migração — ou
+  // havia byte estranho/whitespace numa linha já existente; qualquer
+  // uma das duas hipóteses é coberta por isto). Sem essa rede, uma
+  // única linha assim derruba o boot inteiro do servidor pra sempre
+  // (o `ALTER TABLE ADD CONSTRAINT` nunca aceita `NOT VALID`, valida
+  // toda a tabela). Roda sempre, idempotente, nunca perde dado — só
+  // força pro default seguro qualquer valor que as traduções acima não
+  // reconheceram.
+  await pool.query(`UPDATE ai_knowledge_facts SET status='active' WHERE status NOT IN ('active','disputed','superseded','pending_validation','archived')`);
   await pool.query(`ALTER TABLE ai_knowledge_facts DROP CONSTRAINT IF EXISTS ai_knowledge_facts_status_check`);
   await pool.query(`ALTER TABLE ai_knowledge_facts ADD CONSTRAINT ai_knowledge_facts_status_check CHECK (status IN ('active','disputed','superseded','pending_validation','archived'))`);
   await pool.query(`ALTER TABLE ai_knowledge_facts ALTER COLUMN status SET DEFAULT 'active'`);
