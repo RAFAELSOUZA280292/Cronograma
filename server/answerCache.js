@@ -96,7 +96,7 @@ export async function isStillFresh(pool, { orgId, projectId, createdAt, dependen
 // bate) pode estar fino (uma dependência real dele mudou).
 export async function lookupCachedAnswer(pool, { orgId, projectId, fingerprint, participant, meetingId, kind, queryEmbedding }) {
   const { rows } = await pool.query(
-    `SELECT id, structured, cited_sources, has_evidence, query_embedding, created_at,
+    `SELECT id, structured, cited_sources, cited_fact_ids, has_evidence, query_embedding, created_at,
             dependency_meeting_ids, dependency_fact_ids, tokens_input, tokens_output
      FROM ai_answer_cache
      WHERE project_id = $1 AND data_fingerprint = $2
@@ -126,6 +126,7 @@ export async function lookupCachedAnswer(pool, { orgId, projectId, fingerprint, 
     return {
       structured: candidate.structured,
       citedSources: candidate.cited_sources || [],
+      citedFactIds: candidate.cited_fact_ids || [],
       hasEvidence: candidate.has_evidence,
       tokensInput: candidate.tokens_input || 0,
       tokensOutput: candidate.tokens_output || 0,
@@ -139,20 +140,20 @@ export async function lookupCachedAnswer(pool, { orgId, projectId, fingerprint, 
 export async function saveCachedAnswer(pool, {
   orgId, projectId, standaloneQuery, queryEmbedding, participant, meetingId, kind,
   structured, citedSources, hasEvidence, fingerprint,
-  dependencyMeetingIds, dependencyFactIds, tokensInput, tokensOutput,
+  dependencyMeetingIds, dependencyFactIds, citedFactIds, tokensInput, tokensOutput,
 }) {
   const id = uid('aac');
   await pool.query(
     `INSERT INTO ai_answer_cache
       (id, org_id, project_id, standalone_query, query_embedding, participant, meeting_id, kind,
        structured, cited_sources, has_evidence, data_fingerprint,
-       dependency_meeting_ids, dependency_fact_ids, tokens_input, tokens_output)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+       dependency_meeting_ids, dependency_fact_ids, cited_fact_ids, tokens_input, tokens_output)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
     [
       id, orgId, projectId, standaloneQuery, JSON.stringify(queryEmbedding),
       participant || null, meetingId || null, kind || null,
       JSON.stringify(structured), JSON.stringify(citedSources || []), !!hasEvidence, fingerprint,
-      JSON.stringify(dependencyMeetingIds || []), JSON.stringify(dependencyFactIds || []),
+      JSON.stringify(dependencyMeetingIds || []), JSON.stringify(dependencyFactIds || []), JSON.stringify(citedFactIds || []),
       tokensInput || 0, tokensOutput || 0,
     ],
   );

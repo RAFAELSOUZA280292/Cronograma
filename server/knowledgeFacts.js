@@ -15,6 +15,7 @@
 // roda localmente).
 import { embedTexts, cosineSimilarity } from './embeddings.js';
 import { logMetric } from './metrics.js';
+import { linkFactEntities } from './knowledgeEntities.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -29,8 +30,11 @@ function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 // gravado e comparado é do `content`, não do `subject` — o `subject`
 // continua existindo só como rótulo legível pro texto injetado no
 // prompt (`loadRelevantFacts`).
-const DUPLICATE_SIMILARITY_THRESHOLD = 0.93; // praticamente a mesma frase, paráfrase
-const CONFLICT_SIMILARITY_THRESHOLD = 0.75; // mesmo tópico, afirmações potencialmente diferentes
+// Exportados (Fase 8) — o drawer da Central de Conhecimento explica "por
+// que isso foi marcado como conflito/duplicata" mostrando o número real,
+// nunca duplicando a constante.
+export const DUPLICATE_SIMILARITY_THRESHOLD = 0.93; // praticamente a mesma frase, paráfrase
+export const CONFLICT_SIMILARITY_THRESHOLD = 0.75; // mesmo tópico, afirmações potencialmente diferentes
 
 // Heurística de detecção de negação/cessação (Fase 7.1) — não é NLP
 // perfeito, é regex sobre marcadores comuns em português. LIMITAÇÃO
@@ -54,7 +58,12 @@ function hasNegationMarker(text) {
 // competem mais por ser "o fato vigente"). Retorna null se não achar
 // nada acima do limiar mais baixo (CONFLICT).
 export async function findSimilarFact(pool, { orgId, projectId, scope, conversationId, contentEmbedding }) {
-  const conditions = ["org_id = $1", "scope = $2", "status NOT IN ('archived','superseded')", 'embedding IS NOT NULL'];
+  // Fase 8, achado real durante o levantamento: um fato 'active' com
+  // valid_until no passado (ex.: editado manualmente com vigência já
+  // encerrada) nunca era excluído daqui — continuava competindo como
+  // "o fato vigente" pra detectar conflito/duplicata contra um fato
+  // novo. `valid_until IS NULL` cobre "vale desde sempre/ainda vale".
+  const conditions = ["org_id = $1", "scope = $2", "status NOT IN ('archived','superseded')", 'embedding IS NOT NULL', '(valid_until IS NULL OR valid_until >= CURRENT_DATE)'];
   const params = [orgId, scope];
   function addParam(value) { params.push(value); return `$${params.length}`; }
   if (scope === 'project') {
@@ -112,6 +121,7 @@ function classifyRelation({ newContent, newValidFrom, existing }) {
 export async function saveKnowledgeFact(pool, {
   orgId, projectId, scope, subject, content, knowledgeType, validFrom,
   sourceUserId, sourceConversationId, origin, reference, sourceDate,
+  sourceMeetingId, entityMentions, projectData,
 }) {
   if (scope === 'conversation' && !sourceConversationId) {
     throw new Error('Fato de escopo "conversation" precisa de uma conversa de origem.');
@@ -144,16 +154,27 @@ export async function saveKnowledgeFact(pool, {
 
   const id = uid('akf');
   const status = relation === 'conflict' ? 'disputed' : defaultStatus;
+  // Fase 8: `project_id` agora é gravado pra 'project' E 'conversation'
+  // (achado real do levantamento — antes só 'project' guardava, deixando
+  // fatos de conversa sem forma de saber "de qual projeto" pra permissão/
+  // exibição na Central de Conhecimento; nenhuma query de busca usa
+  // project_id pra esse escopo, então isso nunca muda comportamento já
+  // validado). `conflicts_with` só é preenchido na linha nova quando a
+  // relação é 'conflict' — é o elo que a tela de Conflitos precisa pra
+  // montar os pares (antes não existia, achado real do levantamento).
+  const projectIdToStore = (scope === 'org' || scope === 'global') ? null : projectId;
   await pool.query(
     `INSERT INTO ai_knowledge_facts
       (id, org_id, project_id, scope, subject, content, status, knowledge_type, valid_from,
-       source_user_id, source_conversation_id, embedding, origin, reference, source_date)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+       source_user_id, source_conversation_id, embedding, origin, reference, source_date,
+       source_meeting_id, conflicts_with)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
     [
-      id, orgId, scope === 'project' ? projectId : null, scope, subject, content, status, type, validFrom || null,
+      id, orgId, projectIdToStore, scope, subject, content, status, type, validFrom || null,
       sourceUserId || null, sourceConversationId || null,
       contentEmbedding ? JSON.stringify(contentEmbedding) : null,
       origin || 'conversation', reference || null, sourceDate || null,
+      sourceMeetingId || null, relation === 'conflict' ? existing.id : null,
     ],
   );
 
@@ -164,10 +185,23 @@ export async function saveKnowledgeFact(pool, {
     );
     logMetric(pool, { orgId, projectId, eventType: 'temporal_update_detected', metadata: { oldId: existing.id, newId: id, subject } }).catch(() => {});
   } else if (relation === 'conflict') {
-    await pool.query(`UPDATE ai_knowledge_facts SET status='disputed', updated_at=now() WHERE id=$1`, [existing.id]);
+    await pool.query(`UPDATE ai_knowledge_facts SET status='disputed', conflicts_with=$1, updated_at=now() WHERE id=$2`, [id, existing.id]);
     logMetric(pool, { orgId, projectId, eventType: 'conflict_detected', metadata: { existingId: existing.id, newId: id, subject } }).catch(() => {});
   } else if (relation === 'complement') {
     logMetric(pool, { orgId, projectId, eventType: 'complement_detected', metadata: { existingId: existing.id, newId: id, subject } }).catch(() => {});
+  }
+
+  // Grafo de entidades (Fase 8) — nunca bloqueia o save do fato em si se
+  // falhar (mesmo princípio de nunca deixar algo secundário derrubar o
+  // fluxo principal); precisa terminar (await, não fire-and-forget)
+  // antes de responder, senão o id da entidade não existiria ainda se o
+  // chamador quisesse exibir o fato recém-criado com suas relações.
+  if (entityMentions && entityMentions.length) {
+    try {
+      await linkFactEntities(pool, { factId: id, orgId, entityMentions, projectData, projectId });
+    } catch (e) {
+      console.error('Assistente do Projeto: falha ao ligar entidades ao fato novo — fato salvo normalmente.', e.message);
+    }
   }
 
   return { id, status, relation, conflictWith: relation === 'conflict' ? existing.id : null, supersedes: relation === 'update' ? existing.id : null };
@@ -191,6 +225,7 @@ export async function loadRelevantFacts(pool, orgId, projectId, conversationId, 
      LEFT JOIN users u ON u.id = k.source_user_id
      WHERE k.org_id = $1
        AND k.status NOT IN ('archived', 'superseded')
+       AND (k.valid_until IS NULL OR k.valid_until >= CURRENT_DATE)
        AND (
          k.scope = 'org'
          OR (k.scope = 'project' AND k.project_id = $2)
@@ -207,7 +242,11 @@ export async function loadRelevantFacts(pool, orgId, projectId, conversationId, 
     const dateLabel = new Date(r.created_at).toLocaleDateString('pt-BR');
     const vigencia = r.valid_from ? ` — vigente desde ${new Date(r.valid_from).toLocaleDateString('pt-BR')}${r.valid_until ? ` até ${new Date(r.valid_until).toLocaleDateString('pt-BR')}` : ''}` : '';
     const flag = r.status === 'disputed' ? ' [DIVERGENTE — existe outra versão conflitante deste mesmo assunto; não escolha uma sozinha, avise o usuário e pergunte qual vale]' : r.status === 'pending_validation' ? ' [HIPÓTESE — ainda não validada]' : '';
-    return `- [${r.knowledge_type}] [${r.subject}] ${r.content}${vigencia} (${scopeLabel}, ${who}, em ${dateLabel})${flag}`;
+    // `[id=...]` no início (Fase 8) — mesmo padrão de `[id=...]` já usado
+    // nos trechos de reunião (synthesizeAnswer/chunksText) — é o que
+    // permite a RENATA citar em `citedFactIds` exatamente quais fatos
+    // usou, e a Central de Conhecimento rastrear "onde isso foi usado".
+    return `- [id=${r.id}] [${r.knowledge_type}] [${r.subject}] ${r.content}${vigencia} (${scopeLabel}, ${who}, em ${dateLabel})${flag}`;
   }).join('\n');
   return { text, factIds: rows.map((r) => r.id) };
 }

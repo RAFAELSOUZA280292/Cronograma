@@ -72,6 +72,10 @@ const ProposedActionSchema = z.object({
   scope: z.enum(['conversation', 'project', 'org']).nullable().describe('SÓ pra type="save_knowledge_fact": sua MELHOR SUGESTÃO de escopo — o usuário ainda vai poder trocar antes de confirmar, então sugira com confiança, não precisa ficar em cima do muro. "conversation" se o fato só faz sentido pra guiar o restante DESTA conversa (ex.: "assume que é sobre o cliente X daqui pra frente"), não é conhecimento durável; "org" se o fato é sobre a PRICETAX em si (cargo, processo interno, conceito, produto — vale pra qualquer projeto); "project" se é específico deste cliente/projeto (a maioria dos casos). null pros outros tipos.'),
   knowledgeType: z.enum(['FACT', 'DECISION', 'PREFERENCE', 'RULE', 'HYPOTHESIS', 'PROCEDURE', 'DEFINITION']).nullable().describe('SÓ pra type="save_knowledge_fact": que TIPO de conhecimento é esse fato — FACT (um dado objetivo, ex.: "Felipe é o CEO"), DECISION (uma decisão tomada, ex.: "decidimos não levar a Unimed ao acordo coletivo"), PREFERENCE (uma preferência de alguém/do cliente, ex.: "esse cliente sempre prefere reunião às sextas"), RULE (uma regra/processo interno, ex.: "toda proposta de crédito acima de X precisa de validação da IVANA"), HYPOTHESIS (uma suposição ainda não confirmada, ex.: "acho que o atraso é por causa do fornecedor, mas não confirmei"), PROCEDURE (um passo a passo de como fazer algo), DEFINITION (o significado de um termo/sigla usado pelo cliente ou pela PRICETAX). null pros outros tipos.'),
   validFrom: z.string().nullable().describe('SÓ pra type="save_knowledge_fact", e só quando o usuário mencionar (ou for possível inferir com confiança) UMA DATA a partir da qual esse fato passou a valer (ex.: "Felipe deixou de ser CEO em 01/10/2026" → validFrom="2026-10-01") — formato YYYY-MM-DD. Isso é o que diferencia uma ATUALIZAÇÃO de um fato anterior de um CONFLITO com ele. null se não houver data explícita/inferível, ou se for outro tipo.'),
+  entityMentions: z.array(z.object({
+    name: z.string().describe('Nome da entidade exatamente como usada no fato (ex.: "Felipe", "PRICETAX", "KUHN do Brasil").'),
+    type: z.enum(['PERSON', 'COMPANY', 'PROJECT', 'LAW', 'PRODUCT', 'TOPIC']).describe('PERSON = uma pessoa; COMPANY = uma empresa que não é o cliente do projeto atual; PROJECT = o próprio cliente/projeto; LAW = uma norma/legislação; PRODUCT = um produto/sistema; TOPIC = um assunto/tema recorrente (ex.: "split payment") que não é nenhum dos anteriores.'),
+  })).nullable().describe('SÓ pra type="save_knowledge_fact": pessoas/empresas/projetos/temas que este fato menciona (ex.: o fato "Felipe é o CEO da PRICETAX" menciona a pessoa "Felipe" e a empresa "PRICETAX") — usado pra começar a conectar o conhecimento da RENATA num grafo simples de entidades. Vazio/null se não identificar nenhuma entidade clara, ou se for outro tipo — nunca force uma entidade genérica só pra preencher.'),
   meetingId: z.string().nullable().describe('Pra type="create_meeting_todo" ou "delete_meeting_todo": id de uma reunião real, exatamente como listado em "REUNIÕES DISPONÍVEIS" no perfil do projeto — nunca invente um id. Se o usuário não deixar claro qual reunião e nenhuma estiver aberta na tela, NÃO proponha ainda: pergunte antes. null pros outros tipos.'),
   todoItemId: z.string().nullable().describe('SÓ pra type="delete_meeting_todo": id exato da pendência a excluir, como listado nas TAREFAS DA REUNIÃO no perfil do projeto — nunca invente. Se não estiver claro qual pendência o usuário quer dizer, NÃO proponha ainda: pergunte antes citando o título que você acha que é. null pros outros tipos.'),
   title: z.string().nullable().describe('Pra type="create_meeting_todo", "create_schedule_activity" ou "create_calendar_event": título/nome curto e claro do que está sendo criado. null pros outros tipos.'),
@@ -105,6 +109,7 @@ const SynthesizeAnswerSchema = z.object({
   sections: z.array(AnswerSectionSchema).describe('Blocos estruturados da resposta (ver AnswerSectionSchema) — quebre a resposta em blocos sempre que a pergunta tiver conteúdo pra isso (ponto de atenção, fatos, impacto, recomendação, linha do tempo). Pergunta simples/direta pode ter só 1-2 seções, ou até nenhuma (nesse caso a introduction sozinha já responde). Vazio se hasEvidence for false. Use **negrito** (markdown simples) pra destacar números, decisões e nomes importantes dentro de content/items — é a ÚNICA sintaxe markdown que o front-end interpreta.'),
   insights: z.array(z.string()).describe('Até 4 rótulos CURTOS clicáveis, específicos desta resposta (ex.: "Empresa paga 90%", "Validar com RH", "Impacto no acordo coletivo") — cada um vira um atalho que o usuário pode clicar pra aprofundar (reenvia o próprio rótulo como próxima pergunta, você recebe isso no histórico da conversa e interpreta em contexto). Vazio se a resposta não tiver desdobramentos óbvios pra sugerir (não force).'),
   citedChunkIds: z.array(z.string()).describe('IDs (campo "id" de cada trecho recebido) dos trechos que sustentam de fato a resposta — só inclua um id se ele realmente contém a informação usada na resposta. Vazio se a resposta veio do PERFIL DO PROJETO em vez de um trecho, ou se hasEvidence for false.'),
+  citedFactIds: z.array(z.string()).describe('IDs (campo "id=..." no início de cada item de CONHECIMENTO ACUMULADO, ex.: "[id=akf-abc123]") dos fatos de conhecimento que você realmente usou pra formular esta resposta — só inclua um id se o fato realmente influenciou o que você respondeu, não só porque estava disponível na lista. Vazio se a resposta não usou nenhum fato do CONHECIMENTO ACUMULADO.'),
   hasEvidence: z.boolean().describe('true se os trechos OU o PERFIL DO PROJETO sustentam a resposta; false só quando nem os trechos recuperados nem o perfil do projeto respondem a pergunta com confiança — nesse caso NUNCA invente, admita explicitamente que não encontrou.'),
   proposedAction: ProposedActionSchema.describe('Preencha SOMENTE quando o usuário pedir explicitamente pra criar/excluir uma pendência, criar/reagendar/excluir uma atividade do cronograma, marcar um evento no Google Calendar, OU quando ele contar um fato durável que vale guardar (type="save_knowledge_fact" — ver descrição do campo type). Você NUNCA executa a ação — só propõe; o usuário confirma ou rejeita pelo painel depois. Se faltar informação pra ter certeza do alvo/conteúdo, NÃO proponha ainda — pergunte antes na própria resposta, com proposedAction=null, e proponha só no próximo turno depois que o usuário esclarecer. null na grande maioria das respostas.'),
 });
@@ -184,13 +189,13 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, fa
       'Regra absoluta: nunca invente nome, data, decisão, compromisso, responsável ou fato que não esteja literalmente no PERFIL DO PROJETO ou nos trechos. Se nenhum dos dois sustentar uma resposta com confiança, hasEvidence deve ser false, introduction deve ser exatamente "Não encontrei evidência suficiente nas reuniões ou documentos deste projeto." e sections/insights ficam vazios — nunca tente adivinhar ou completar a lacuna. Sempre separe fato de interpretação: se algo parece uma atividade mas falta responsável ou prazo explícito nos trechos, diga isso diretamente (ex.: em uma seção "facts": "Identifiquei isso como uma possível atividade, mas a reunião não deixou explícito quem é responsável nem o prazo") em vez de supor um valor.',
       'Interprete a intenção por trás da fala, não só a letra — dentro dos trechos de reunião, frases como "vou verificar" costumam indicar um compromisso assumido, "depende do fornecedor/cliente" indica uma dependência, "não conseguimos fechar porque faltou X" indica um impedimento, "vamos implementar em [data]" pode indicar um marco do projeto. Ao responder, ajude a distinguir isso — não trate toda menção como se fosse uma tarefa formal.',
       'Como estruturar a resposta em sections: introduction é só a abertura (1-2 frases), o conteúdo de verdade vai nas sections. Se houver algo urgente/crítico/uma divergência entre fontes, isso vira a PRIMEIRA seção (type="warning"), nunca fica perdido no meio. Uma pergunta simples (ex.: "qual o CNPJ do cliente?") pode ter zero sections, a introduction já responde. Quando a resposta envolver várias reuniões ou atividades, ordene os itens de "facts"/"impact" da mais antiga pra mais atual (nunca por ordem de cadastro); se a pergunta for sobre a evolução de um assunto ao longo do tempo, use type="timeline" com um item por marco, formato "data — descrição".',
-      'Quando responder com base num trecho de reunião, cite reunião e data pra ajudar o consultor a confiar na resposta (ex.: "Na reunião de 15/08, Rafael comentou que..."). Só inclua em citedChunkIds os ids dos trechos que você realmente usou — nunca cite um trecho pra sustentar um fato que na verdade veio do PERFIL DO PROJETO ou do CONHECIMENTO ACUMULADO.',
+      'Quando responder com base num trecho de reunião, cite reunião e data pra ajudar o consultor a confiar na resposta (ex.: "Na reunião de 15/08, Rafael comentou que..."). Só inclua em citedChunkIds os ids dos trechos que você realmente usou — nunca cite um trecho pra sustentar um fato que na verdade veio do PERFIL DO PROJETO ou do CONHECIMENTO ACUMULADO. Da mesma forma, sempre que basear a resposta em algo do CONHECIMENTO ACUMULADO, inclua o id daquele fato (formato "id=...") em citedFactIds — isso é o que permite rastrear depois quais conhecimentos a RENATA realmente usa.',
       'Se duas fontes (dois trechos, ou um trecho contra o PERFIL DO PROJETO) trouxerem informação DIVERGENTE sobre o mesmo fato, NUNCA escolha uma versão silenciosamente — sinalize isso explicitamente numa seção type="warning" com título "Informação conflitante", liste as duas versões em items, e recomende validar com a pessoa certa antes de usar o dado (isso pode virar a recomendação também).',
       'insights (até 4 rótulos curtos) só faz sentido quando a resposta abriu desdobramentos reais — um fato que merece validação, um risco que pode ser aprofundado, uma pergunta natural de continuação. Não force 4 só pra preencher; uma resposta simples pode não ter nenhum.',
       'Quando o usuário pedir contexto sobre uma atividade específica cujo título sozinho não explica nada (ex.: "não to entendendo essa atividade pelo título"), você recebe, além do chunk da própria atividade, TODOS os segmentos de transcrição da reunião de onde ela nasceu — leia essa transcrição de verdade e explique com suas palavras o que estava sendo discutido quando aquele item surgiu, não repita só os campos da atividade (responsável/prazo/status). O título foi escrito pela IA a partir da fala, então pode não usar as mesmas palavras da conversa original — procure o trecho certo pelo assunto, não por correspondência exata de texto.',
       'Se o assunto tocar uma questão tributária técnica que exige aprofundamento em legislação/base legal (ex.: interpretação de norma de IBS/CBS, fundamento jurídico), não tente concluir sozinha — sinalize que esse ponto merece uma análise tributária dedicada, o tipo de trabalho que a IVANA faz.',
       'Se o PERFIL DO PROJETO listar participantes "SEM IDENTIFICAÇÃO CLARA" e isso for relevante ou natural no contexto da conversa, aproveite pra perguntar ao usuário quem é essa pessoa (lado PRICETAX ou cliente, e qual área) — no máximo uma pergunta desse tipo por resposta, nunca repita uma pergunta sobre a mesma pessoa se ela já foi respondida antes (confira o CONHECIMENTO ACUMULADO e a conversa) — quando o usuário responder, proponha save_knowledge_fact com o que ele disse (não grave sozinha, é a mesma regra de qualquer outra ação).',
-      'Quando o usuário contar um fato durável e reutilizável — não é sobre o histórico específico de UMA reunião, é uma regra/fato que vale lembrar depois (ex.: "Felipe é o CEO da PRICETAX", "nosso processo interno de X é assim", "esse cliente sempre prefere Y") — proponha type="save_knowledge_fact": subject é um rótulo curto do ASSUNTO (ex.: "cargo do Felipe", não a frase toda), content é o fato em si numa frase clara, knowledgeType classifica que TIPO de conhecimento é (ver descrição do campo), scope é sua sugestão de escopo (o usuário ainda escolhe/confirma no painel antes de salvar de fato — sugira "org" se for sobre a PRICETAX em si, "project" se for específico deste cliente, "conversation" só se for uma instrução de trabalho pra esta conversa apenas), e validFrom só quando houver uma data explícita a partir de quando o fato passou a valer (ex.: alguém deixou um cargo numa data — isso é uma ATUALIZAÇÃO temporal, não um conflito). NUNCA grave sozinha — é sempre proposta com confirmação, igual as outras ações. NÃO proponha isso pra fatos triviais da conversa ou coisas que já estão no PERFIL DO PROJETO/CONHECIMENTO ACUMULADO.',
+      'Quando o usuário contar um fato durável e reutilizável — não é sobre o histórico específico de UMA reunião, é uma regra/fato que vale lembrar depois (ex.: "Felipe é o CEO da PRICETAX", "nosso processo interno de X é assim", "esse cliente sempre prefere Y") — proponha type="save_knowledge_fact": subject é um rótulo curto do ASSUNTO (ex.: "cargo do Felipe", não a frase toda), content é o fato em si numa frase clara, knowledgeType classifica que TIPO de conhecimento é (ver descrição do campo), scope é sua sugestão de escopo (o usuário ainda escolhe/confirma no painel antes de salvar de fato — sugira "org" se for sobre a PRICETAX em si, "project" se for específico deste cliente, "conversation" só se for uma instrução de trabalho pra esta conversa apenas), e validFrom só quando houver uma data explícita a partir de quando o fato passou a valer (ex.: alguém deixou um cargo numa data — isso é uma ATUALIZAÇÃO temporal, não um conflito). Preencha também entityMentions com as pessoas/empresas/temas claramente identificáveis que o fato menciona (ver descrição do campo) — isso começa a conectar o conhecimento num grafo simples, mas não force uma entidade se não houver uma clara. NUNCA grave sozinha — é sempre proposta com confirmação, igual as outras ações. NÃO proponha isso pra fatos triviais da conversa ou coisas que já estão no PERFIL DO PROJETO/CONHECIMENTO ACUMULADO.',
       'Você recebe abaixo, em CONHECIMENTO ACUMULADO, os fatos já ensinados sobre este projeto e sobre a PRICETAX em geral — cada um mostra o tipo, quem informou, quando, vigência (se houver) e se está com status "DIVERGENTE" ou é uma "HIPÓTESE" ainda não validada. Se um fato estiver marcado [DIVERGENTE], NUNCA escolha uma versão sozinha — avise o usuário que existem duas informações conflitantes sobre aquele assunto e pergunte qual vale, ou sugira validar com quem souber. Trate uma [HIPÓTESE] como algo ainda não confirmado, não como fato estabelecido.',
       'Quando o usuário perguntar sobre as pendências/atividades de uma pessoa (ex.: "quais as pendências do Evanio?", "o que o Rafa está nos devendo?"), mesmo citando só um apelido ou parte do nome, você recebe abaixo o resultado de uma busca por nome já feita no cadastro (PENDÊNCIAS POR PESSOA) — isso é uma varredura completa, não uma amostra, então pode responder com confiança total a partir dele. Se ele indicar mais de um nome parecido (ambíguo), pergunte qual delas antes de responder. Se indicar que não achou ninguém com esse nome, diga isso claramente em vez de inventar.',
       'Você também pode propor ações (proposedAction) — SEIS tipos possíveis: (1) create_meeting_todo — criar uma pendência numa reunião; (2) delete_meeting_todo — excluir uma pendência de reunião existente; (3) reschedule_activity — reagendar uma atividade do cronograma oficial; (4) create_schedule_activity — criar uma atividade nova no cronograma oficial; (5) delete_schedule_activity — excluir uma atividade do cronograma oficial; (6) create_calendar_event — criar um evento de verdade no Google Calendar do usuário. Em TODOS os casos você NUNCA executa sozinha, e NUNCA finge que já executou — sempre descreva a ação proposta na resposta citando o título exato do alvo e peça confirmação explícita. Se não tiver certeza de qual reunião/pendência/atividade o usuário quer dizer, NÃO proponha ainda — faça a pergunta de esclarecimento primeiro (ex.: "Você está falando da atividade \'Split payment e demais operações financeiras\'?"), e só proponha de fato no turno seguinte, depois de confirmado.',
@@ -436,6 +441,12 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
   const latencyMs = Date.now() - startedAt;
   let answerText, citedSources = [], hasEvidence = null, model = 'claude-opus-5', proposedAction = null, structured = null;
   let tokensInput = 0, tokensOutput = 0;
+  // Fase 8 — captura de utilização/explicabilidade: quais fatos de
+  // CONHECIMENTO ACUMULADO a resposta realmente citou (subconjunto
+  // ESTREITO de dependencyFactIds, que é o conjunto LARGO injetado no
+  // prompt) e se a resposta veio de um acerto de cache — ver
+  // PROJECT_CONTEXT.md §39.
+  let citedFactIds = [], fromCache = false;
 
   if (errorMsg) {
     answerText = 'Não consegui processar essa pergunta agora. Tente de novo em alguns instantes.';
@@ -452,6 +463,8 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
     // busca nesta pergunta).
     structured = cachedAnswer.structured;
     citedSources = cachedAnswer.citedSources || [];
+    citedFactIds = cachedAnswer.citedFactIds || [];
+    fromCache = true;
     answerText = flattenStructuredAnswer(structured);
     hasEvidence = !!cachedAnswer.hasEvidence;
     tokensInput = (resolved.usage && resolved.usage.input_tokens) || 0;
@@ -471,6 +484,15 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
     citedSources = cited.map((id) => {
       const c = byId.get(id);
       return { chunkId: c.id, meetingId: c.meetingId, meetingTitle: c.meetingTitle, meetingDate: c.meetingDate, timeRef: c.timeRef, kind: c.kind, sourceRef: c.sourceRef };
+    });
+    // Mesma defesa em profundidade de citedChunkIds, aplicada a fatos
+    // (Fase 8): só aceita um id que realmente estava entre os fatos
+    // injetados nesta pergunta (dependencyFactIds, já calculado acima).
+    const validFactIds = new Set(dependencyFactIds);
+    citedFactIds = (synthesized.output.citedFactIds || []).filter((id) => {
+      const ok = validFactIds.has(id);
+      if (!ok) console.error(`Assistente do Projeto: citou factId inexistente no conhecimento injetado (${id}) — descartado.`);
+      return ok;
     });
     structured = {
       introduction: synthesized.output.introduction,
@@ -538,7 +560,11 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
       // 3 campos obrigatórios vieram preenchidos antes de deixar o
       // usuário confirmar.
       if ((rawAction.subject || '').trim() && (rawAction.content || '').trim() && rawAction.scope) {
-        proposedAction = rawAction;
+        // Reunião aberta na tela quando o fato foi proposto (se houver) —
+        // vira "Origem: Reunião X, clicável" na Central de Conhecimento
+        // (Fase 8). entityMentions passa direto (são nomes livres, sem
+        // id pra validar contra o projeto real).
+        proposedAction = { ...rawAction, sourceMeetingId: (context && context.meetingId) || null };
         logMetric(pool, { orgId, projectId, eventType: 'fact_proposed', metadata: { subject: rawAction.subject, scope: rawAction.scope, knowledgeType: rawAction.knowledgeType || 'FACT' } }).catch(() => {});
       } else {
         console.error('Assistente do Projeto: propôs save_knowledge_fact incompleto — descartada.', rawAction);
@@ -561,21 +587,22 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
         participant: resolvedParticipantOut, meetingId: searchMeetingIdOut,
         kind: resolved.output.kind !== 'qualquer' ? resolved.output.kind : null,
         structured, citedSources, hasEvidence, fingerprint,
-        dependencyMeetingIds, dependencyFactIds, tokensInput, tokensOutput,
+        dependencyMeetingIds, dependencyFactIds, citedFactIds, tokensInput, tokensOutput,
       }).catch((e) => console.error('Assistente do Projeto: falha ao gravar cache semântico', e.message));
     }
   }
 
   const assistantMessageId = uid('aim');
   await pool.query(
-    `INSERT INTO ai_messages (id, conversation_id, role, content, sources, has_evidence, scope, model, tokens_input, tokens_output, latency_ms, error, proposed_action, action_status, structured)
-     VALUES ($1,$2,'assistant',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+    `INSERT INTO ai_messages (id, conversation_id, role, content, sources, has_evidence, scope, model, tokens_input, tokens_output, latency_ms, error, proposed_action, action_status, structured, cited_fact_ids, from_cache)
+     VALUES ($1,$2,'assistant',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
     [
       assistantMessageId, conversationId, answerText, JSON.stringify(citedSources), hasEvidence,
       JSON.stringify({ view: context && context.view, meetingId: context && context.meetingId, standaloneQuery: resolved && resolved.output.standaloneQuery }),
       model, tokensInput, tokensOutput, latencyMs, errorMsg,
       proposedAction ? JSON.stringify(proposedAction) : null, proposedAction ? 'pending' : null,
       structured ? JSON.stringify(structured) : null,
+      JSON.stringify(citedFactIds), fromCache,
     ],
   );
   await pool.query('UPDATE ai_conversations SET updated_at=now() WHERE id=$1', [conversationId]);

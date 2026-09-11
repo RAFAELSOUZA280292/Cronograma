@@ -221,18 +221,37 @@ async function executeRescheduleActivity(pool, projectId, project, action, actin
 // `decideProposedAction` — server/assistantRetrieval.js — já aplicou a
 // escolha do usuário no seletor do painel antes de chegar aqui) —
 // mesmo assim nunca confia cegamente: revalida contra o enum real.
+// Fase 8: repassa `sourceMeetingId` (reunião aberta na tela quando a
+// RENATA propôs o fato, se houver) e `entityMentions` (pessoas/empresas/
+// etc. que a IA identificou no fato) pra `saveKnowledgeFact` — nenhuma
+// lógica nova aqui, só propagação. `projectData` só é carregado quando
+// há menções de entidade pra resolver (nunca uma leitura extra à toa).
 async function executeSaveKnowledgeFact(pool, orgId, projectId, action, userId, conversationId) {
   const subject = (action.subject || '').trim();
   const content = (action.content || '').trim();
   if (!subject || !content) throw new Error('Assunto ou conteúdo do fato não informado.');
   const scope = ['conversation', 'org'].includes(action.scope) ? action.scope : 'project';
+
+  let projectData = null;
+  if (action.entityMentions && action.entityMentions.length) {
+    const { rows } = await pool.query('SELECT data FROM projects WHERE id=$1', [projectId]);
+    projectData = rows[0] && rows[0].data;
+  }
+
   const result = await saveKnowledgeFact(pool, {
     orgId, projectId, scope, subject, content,
     knowledgeType: action.knowledgeType || 'FACT',
     validFrom: action.validFrom || null,
     sourceUserId: userId, sourceConversationId: conversationId,
+    sourceMeetingId: action.sourceMeetingId || null,
+    entityMentions: action.entityMentions || null,
+    projectData,
   });
-  logMetric(pool, { orgId, projectId, eventType: 'fact_confirmed', metadata: { subject, scope, relation: result.relation, status: result.status } }).catch(() => {});
+  // `factId` (Fase 8) — sem isso, getFactDetail (server/knowledgeCenter.js)
+  // não consegue achar o evento "confirmado" na timeline de histórico do
+  // fato (os outros 4 eventos automáticos já tinham newId/existingId/
+  // oldId; este era o único que faltava um id pesquisável).
+  logMetric(pool, { orgId, projectId, eventType: 'fact_confirmed', metadata: { factId: result.id, subject, scope, relation: result.relation, status: result.status } }).catch(() => {});
   return { subject, content, scope, ...result };
 }
 
