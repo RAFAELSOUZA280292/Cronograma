@@ -109,14 +109,28 @@ async function resolveQuery({ question, history, context, projectSnapshot }) {
     ? `O usuário está com a reunião "${context.meetingTitle}" (${context.meetingDate || 'sem data'}) aberta na tela agora.`
     : `O usuário está na aba "${context.view === 'todo' ? 'Atividades' : 'Reuniões'}", sem nenhuma reunião específica aberta.`;
   const response = await client.messages.parse({
-    model: 'claude-opus-5',
+    // Fase 6 (2026-09-10, redução de custo): essa chamada só classifica
+    // intenção e reformula a busca — não precisa do modelo mais caro.
+    // Sonnet (não Haiku) porque essa etapa decide qual reunião/
+    // participante a pergunta se refere; errar aqui propaga erro pro
+    // resto do pipeline, então mantém precisão, só corta o modelo mais
+    // caro. synthesizeAnswer (resposta final) continua em Opus.
+    model: 'claude-sonnet-5',
     max_tokens: 500,
-    system: [
-      'Você é a RENATA — a Inteligência de Execução e Gestão de Projetos da PRICETAX (o nome representa Reforma, Execução, Negócios, Agilidade, Tecnologia e Ação). Você prepara o processamento de uma mensagem enviada por um consultor interno.',
-      'Primeiro classifique a intenção: se for só uma saudação, agradecimento, ou pergunta sobre o que você mesmo faz/quem você é — não é uma pergunta sobre o projeto — marque intent="conversa_geral" e escreva você mesmo uma resposta curta e calorosa em directReply. Se perguntarem seu nome/quem você é, apresente-se como RENATA, a assistente de execução e gestão de projetos da PRICETAX, irmã da IVANA (a IA tributária da PRICETAX — a IVANA interpreta legislação e Reforma Tributária, você transforma isso em execução real dentro dos projetos).',
-      'Se for uma pergunta real sobre o histórico do projeto, marque intent="pergunta_sobre_projeto" e reformule como uma busca autossuficiente, resolvendo qualquer referência ao que foi dito antes na conversa (inclusive "o cliente"/"a empresa", que pode ser resolvido pelo nome real no perfil do projeto abaixo) — nunca responda a pergunta em si nesse caso, isso é feito depois por outra etapa.',
-      'Se a pergunta se referir a UMA reunião específica (ex.: "resuma a última reunião", "o que foi discutido na reunião de 10/09", "a reunião sobre o fornecedor X") — mesmo sem estar aberta na tela — resolva o id exato dela usando a lista "REUNIÕES DISPONÍVEIS" no perfil do projeto e preencha targetMeetingId. Isso é essencial pra pedidos de resumo geral, que não têm palavra-chave forte pra uma busca por relevância achar sozinha.',
-    ].join(' '),
+    // cache_control: o texto de instrução abaixo é IDÊNTICO em toda
+    // chamada desta função, pra qualquer projeto/usuário — cachear ele
+    // não muda a resposta em nada, só faz a Anthropic cobrar uma fração
+    // do preço nas chamadas seguintes que reusarem o cache (~5min).
+    system: [{
+      type: 'text',
+      text: [
+        'Você é a RENATA — a Inteligência de Execução e Gestão de Projetos da PRICETAX (o nome representa Reforma, Execução, Negócios, Agilidade, Tecnologia e Ação). Você prepara o processamento de uma mensagem enviada por um consultor interno.',
+        'Primeiro classifique a intenção: se for só uma saudação, agradecimento, ou pergunta sobre o que você mesmo faz/quem você é — não é uma pergunta sobre o projeto — marque intent="conversa_geral" e escreva você mesmo uma resposta curta e calorosa em directReply. Se perguntarem seu nome/quem você é, apresente-se como RENATA, a assistente de execução e gestão de projetos da PRICETAX, irmã da IVANA (a IA tributária da PRICETAX — a IVANA interpreta legislação e Reforma Tributária, você transforma isso em execução real dentro dos projetos).',
+        'Se for uma pergunta real sobre o histórico do projeto, marque intent="pergunta_sobre_projeto" e reformule como uma busca autossuficiente, resolvendo qualquer referência ao que foi dito antes na conversa (inclusive "o cliente"/"a empresa", que pode ser resolvido pelo nome real no perfil do projeto abaixo) — nunca responda a pergunta em si nesse caso, isso é feito depois por outra etapa.',
+        'Se a pergunta se referir a UMA reunião específica (ex.: "resuma a última reunião", "o que foi discutido na reunião de 10/09", "a reunião sobre o fornecedor X") — mesmo sem estar aberta na tela — resolva o id exato dela usando a lista "REUNIÕES DISPONÍVEIS" no perfil do projeto e preencha targetMeetingId. Isso é essencial pra pedidos de resumo geral, que não têm palavra-chave forte pra uma busca por relevância achar sozinha.',
+      ].join(' '),
+      cache_control: { type: 'ephemeral' },
+    }],
     messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nContexto: ${contextText}\n\nConversa até agora:\n${historyText}\n\nNova mensagem do usuário: ${question}` }],
     output_config: { format: zodOutputFormat(ResolveQuerySchema) },
   });
@@ -147,7 +161,15 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, in
     // "Não consegui processar essa pergunta agora." Aumentado com folga
     // de sobra pra nunca mais cortar no meio.
     max_tokens: 4000,
-    system: [
+    // cache_control (Fase 6, 2026-09-10, redução de custo): esse bloco
+    // de instrução é praticamente idêntico entre chamadas (só a frase
+    // do Google Calendar varia com googleConnected, que fica estável
+    // pra um mesmo usuário na maioria das perguntas) — cachear reduz o
+    // custo de reenviar esse texto longo em toda pergunta, sem mudar a
+    // resposta em nada.
+    system: [{
+      type: 'text',
+      text: [
       'Você é a RENATA — a Inteligência de Execução e Gestão de Projetos da PRICETAX (Reforma, Execução, Negócios, Agilidade, Tecnologia e Ação). Você é irmã da IVANA, a IA tributária da PRICETAX: a IVANA interpreta legislação, Reforma Tributária, IBS/CBS e regras fiscais; você transforma reuniões e decisões em execução real — atividades, responsáveis, prazos, riscos, próximos passos. Seu princípio central: informação relevante vira conhecimento, conhecimento relevante vira decisão, decisão relevante vira ação.',
       'Você tem DUAS fontes de verdade, ambas confiáveis: (1) o PERFIL DO PROJETO — dado estruturado direto do cadastro/cronograma (identidade do cliente, participantes, fases, atividades, reuniões, pendências), sempre atual, pode responder direto com base nele sem citar chunkId; (2) os TRECHOS RECUPERADOS DA MEMÓRIA — texto literal de reuniões, só pode citar como fonte (citedChunkIds) um id que está realmente na lista recebida.',
       'Regra absoluta: nunca invente nome, data, decisão, compromisso, responsável ou fato que não esteja literalmente no PERFIL DO PROJETO ou nos trechos. Se nenhum dos dois sustentar uma resposta com confiança, hasEvidence deve ser false, introduction deve ser exatamente "Não encontrei evidência suficiente nas reuniões ou documentos deste projeto." e sections/insights ficam vazios — nunca tente adivinhar ou completar a lacuna. Sempre separe fato de interpretação: se algo parece uma atividade mas falta responsável ou prazo explícito nos trechos, diga isso diretamente (ex.: em uma seção "facts": "Identifiquei isso como uma possível atividade, mas a reunião não deixou explícito quem é responsável nem o prazo") em vez de supor um valor.',
@@ -167,7 +189,9 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, in
         ? 'O usuário JÁ conectou o Google Calendar — você pode propor create_calendar_event quando ele pedir pra marcar/agendar um compromisso de verdade (não uma atividade do cronograma nem pendência de reunião, que são coisas diferentes). Preencha dueDate (obrigatório) e startTime se um horário for mencionado. Você recebe abaixo, em PRÓXIMOS EVENTOS NA AGENDA, os compromissos já marcados nos próximos dias — use isso pra responder perguntas tipo "o que tenho marcado essa semana" ou "tem conflito nesse horário".'
         : 'O usuário AINDA NÃO conectou o Google Calendar — nunca proponha create_calendar_event. Se ele pedir pra marcar algo na agenda, diga que ele precisa conectar o Google Calendar primeiro (tela Agenda) antes de você conseguir fazer isso.',
       'Seja objetiva e executiva: prefira uma resposta curta e direta quando ela resolver, priorizando clareza, ação, contexto e prioridade — evite textão quando não for necessário.',
-    ].join(' '),
+      ].join(' '),
+      cache_control: { type: 'ephemeral' },
+    }],
     messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nAprendizados acumulados em conversas anteriores sobre este projeto:\n${insightsText}\n\n${meetingContextText}\n\n${personLookupText || ''}\n\n${calendarContextText || ''}\n\nConversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória de reuniões:\n\n${chunksText}` }],
     output_config: { format: zodOutputFormat(SynthesizeAnswerSchema) },
   });
@@ -210,7 +234,10 @@ async function loadRecentHistory(pool, conversationId, limit = 8) {
   return rows.reverse().map((r) => ({ role: r.role, content: r.content }));
 }
 
-async function loadInsights(pool, projectId, limit = 50) {
+// Limite reduzido de 50 pra 20 (Fase 6, 2026-09-10, redução de custo) —
+// isso é enviado por inteiro em TODA pergunta pra sempre; aprendizados
+// mais antigos que isso raramente ainda são relevantes.
+async function loadInsights(pool, projectId, limit = 20) {
   const { rows } = await pool.query(
     `SELECT content FROM ai_project_insights WHERE project_id=$1 ORDER BY created_at ASC LIMIT $2`,
     [projectId, limit],

@@ -98,6 +98,39 @@ router.post('/reindex', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Checagem barata (Fase 6, 2026-09-10, redução de custo) — usada pelo
+// auto-reindex ao entrar numa empresa (src/App.jsx) ANTES de chamar
+// /reindex de verdade. syncProjectMemoryFromDiff já mantém a memória
+// sincronizada em tempo real a cada edição salva — uma reindexação
+// completa só é necessária mesmo pra dois casos concretos: (a) algum
+// chunk existe sem embedding (chave da Voyage não configurada na época,
+// ou falha pontual numa chamada anterior); (b) alguma reunião não tem
+// NENHUM chunk (nunca foi indexada de verdade). Fora isso, reindexar de
+// novo só reprocessaria embedding à toa em dados que já estão corretos.
+router.get('/reindex-needed', requireAuth, async (req, res, next) => {
+  try {
+    const { projectId } = req.query;
+    const project = await loadAuthorizedProject(req, res, projectId);
+    if (!project) return;
+    const meetings = (project.data.meetings || []).filter((m) => !m.deleted);
+    if (!meetings.length) return res.json({ needed: false });
+
+    const { rows: unembedded } = await pool.query(
+      `SELECT 1 FROM project_memory_chunks WHERE project_id=$1 AND embedding IS NULL LIMIT 1`,
+      [projectId],
+    );
+    if (unembedded.length) return res.json({ needed: true });
+
+    const { rows: indexedMeetingRows } = await pool.query(
+      `SELECT DISTINCT meeting_id FROM project_memory_chunks WHERE project_id=$1`,
+      [projectId],
+    );
+    const indexedMeetingIds = new Set(indexedMeetingRows.map((r) => r.meeting_id));
+    const needed = meetings.some((m) => !indexedMeetingIds.has(m.id));
+    res.json({ needed });
+  } catch (e) { next(e); }
+});
+
 // Agente executor (2026-09) — a IA só propõe (ver server/assistantRetrieval.js
 // / server/assistantActions.js); esta rota é o único lugar que de fato
 // confirma ou rejeita, sempre a partir de um clique explícito do usuário

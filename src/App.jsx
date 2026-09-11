@@ -837,18 +837,29 @@ export default function App() {
   // "Reindexar memória") assim que `selectedProjectIds` vira UMA empresa
   // só (entrar no workspace dela, não a visão geral com várias
   // selecionadas). Throttlado por sessão de navegador (Set em useRef,
-  // mesmo espírito do "BIP" acima) pra não reindexar de novo a cada
-  // troca de aba dentro da mesma empresa — reindexação já é barata e
-  // idempotente, mas não precisa rodar a cada clique.
+  // mesmo espírito do "BIP" acima) pra não checar de novo a cada troca
+  // de aba dentro da mesma empresa.
+  // Fase 6 (2026-09-10, redução de custo): antes disso chamava
+  // /reindex direto, reprocessando embedding de TUDO toda vez — mesmo
+  // sem nada ter mudado (syncProjectMemoryFromDiff já mantém a memória
+  // atualizada em tempo real a cada edição salva). Agora consulta antes
+  // o endpoint barato /reindex-needed (só leitura no Postgres, sem
+  // custo de IA) e só chama /reindex de verdade quando ele confirma que
+  // falta alguma coisa de verdade.
   const autoReindexedRef = useRef(new Set());
   useEffect(() => {
     if (!currentUser || selectedProjectIds.length !== 1) return;
     const pid = selectedProjectIds[0];
     if (autoReindexedRef.current.has(pid)) return;
     autoReindexedRef.current.add(pid);
-    apiPost('/api/assistant/reindex', { projectId: pid }).catch((e) => {
-      console.error('Auto-atualização da memória da RENATA falhou', e);
-    });
+    apiGet(`/api/assistant/reindex-needed?projectId=${pid}`)
+      .then((res) => {
+        if (!res.needed) return;
+        return apiPost('/api/assistant/reindex', { projectId: pid });
+      })
+      .catch((e) => {
+        console.error('Auto-atualização da memória da RENATA falhou', e);
+      });
   }, [selectedProjectIds.join(','), currentUser?.id]);
 
   useEffect(() => {
