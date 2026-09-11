@@ -830,6 +830,27 @@ export default function App() {
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [currentUser?.id, actingOrg?.id]);
 
+  // Auto-atualização da memória da RENATA ao entrar numa empresa
+  // (2026-09-10, pedido do Rafael: "não esqueça de fazer essa
+  // atualização toda vez que o usuário logar e entrar") — dispara
+  // silenciosamente (sem mensagem no chat, diferente do botão manual
+  // "Reindexar memória") assim que `selectedProjectIds` vira UMA empresa
+  // só (entrar no workspace dela, não a visão geral com várias
+  // selecionadas). Throttlado por sessão de navegador (Set em useRef,
+  // mesmo espírito do "BIP" acima) pra não reindexar de novo a cada
+  // troca de aba dentro da mesma empresa — reindexação já é barata e
+  // idempotente, mas não precisa rodar a cada clique.
+  const autoReindexedRef = useRef(new Set());
+  useEffect(() => {
+    if (!currentUser || selectedProjectIds.length !== 1) return;
+    const pid = selectedProjectIds[0];
+    if (autoReindexedRef.current.has(pid)) return;
+    autoReindexedRef.current.add(pid);
+    apiPost('/api/assistant/reindex', { projectId: pid }).catch((e) => {
+      console.error('Auto-atualização da memória da RENATA falhou', e);
+    });
+  }, [selectedProjectIds.join(','), currentUser?.id]);
+
   useEffect(() => {
     if (!projectsLoaded || !currentUser || !currentUser.companiesAccess || projects.length > 1) return;
     setSelectedProjectIds(projects.map((p) => p.id));
@@ -2872,6 +2893,7 @@ export default function App() {
             openMeetingDate={openMeeting ? openMeeting.date : null}
             onOpenMeeting={(id) => { setView('meetings'); openMeetingDetail(activeProject.id, id); }}
             onReloadProjects={reloadProjects}
+            onOpenAgenda={() => goToWorkspace('agenda')}
           />
         );
       })()}

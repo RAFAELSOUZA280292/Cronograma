@@ -24,7 +24,10 @@ export function todayIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function normalizeName(s) {
+// Exportado (2026-09-10, Fase 4) pra resolver nome de fase por
+// aproximacao tambem em server/assistantActions.js (create_schedule_activity)
+// -- mesmo principio de nunca exigir um id exato vindo da IA.
+export function normalizeName(s) {
   return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
 
@@ -216,7 +219,7 @@ export function buildProjectSnapshot(project) {
   }
 
   const allTodos = [];
-  meetings.forEach((m) => (m.actionItems || []).filter((it) => !it.deleted).forEach((it) => allTodos.push({ ...it, meetingTitle: m.title, meetingDate: m.date })));
+  meetings.forEach((m) => (m.actionItems || []).filter((it) => !it.deleted).forEach((it) => allTodos.push({ ...it, meetingTitle: m.title, meetingDate: m.date, meetingId: m.id })));
   const pendingTodos = allTodos.filter((it) => it.status !== 'concluida' && it.status !== 'nao-relevante');
   const criticalTodos = pendingTodos.filter((it) => it.status === 'urgente' || (it.dueDate && it.dueDate < today));
   const aiCreatedTodos = pendingTodos.filter((it) => (it.createdBy || '').includes('Assistente'));
@@ -228,10 +231,10 @@ export function buildProjectSnapshot(project) {
     });
   }
   if (pendingTodos.length) {
-    lines.push(`- Pendências de reunião em aberto (${pendingTodos.length} no total, mais antiga primeiro):`);
+    lines.push(`- Pendências de reunião em aberto (${pendingTodos.length} no total, mais antiga primeiro; id da pendência e da reunião entre colchetes — use exatamente esses ids em delete_meeting_todo, no formato todoItemId=id da pendência, meetingId=id da reunião):`);
     pendingTodos.slice(0, 12).forEach((it) => {
       const aiTag = (it.createdBy || '').includes('Assistente') ? ' [criada por você, o Assistente]' : '';
-      lines.push(`  · "${it.title}" — responsável: ${it.responsible || 'sem responsável'}, prazo: ${it.dueDate || 'sem prazo'}, status: ${TODO_STATUS_LABEL[it.status] || it.status}, reunião: "${it.meetingTitle}"${aiTag}`);
+      lines.push(`  · [todoItemId=${it.id}, meetingId=${it.meetingId}] "${it.title}" — responsável: ${it.responsible || 'sem responsável'}, prazo: ${it.dueDate || 'sem prazo'}, status: ${TODO_STATUS_LABEL[it.status] || it.status}, reunião: "${it.meetingTitle}"${aiTag}`);
     });
   }
   if (aiCreatedTodos.length) {

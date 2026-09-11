@@ -77,7 +77,7 @@ server/xflow.js         Rotas REST do módulo XFlow (team, tickets, events, view
 server/notifications.js    Central de Notificações (2026-08) — createNotification()/rowToNotification(), usado por xflow.js e routes.js.
 server/xflowPermissions.js  Papel efetivo (reporter/dev/gestao/admin) + canDo() — matriz de "quem pode o quê" do XFlow.
 server/xflowTransitions.js  Matriz de transições de status do XFlow — de onde cada ação pode partir e pra onde vai.
-server/googleCalendar.js   Sincronização com Google Calendar (2026-08) — helper puro (OAuth2, criar/atualizar/apagar/listar evento), sem rotas.
+server/googleCalendar.js   Sincronização com Google Calendar (2026-08) — helper puro (OAuth2, criar/atualizar/apagar/listar evento), sem rotas; createEvent() (Fase 4, 2026-09-10) generaliza a criação de evento pra uso da RENATA — ver PROJECT_CONTEXT.md §32.
 server/google.js        Rotas OAuth do Google Calendar (status, oauth/start, oauth/callback, disconnect) — router próprio em /api/google.
 server/agenda.js        Rota única de leitura da Agenda (2026-08) — GET /api/agenda mescla Google + TASKs do XFlow + atividades do usuário.
 server/macro.js         Rota única da Visão Macro (2026-08) — GET /api/macro mescla atividades de TODAS as empresas da org, filtra por período (semana atual/próxima/30 dias), gate por allCompaniesAccess.
@@ -88,11 +88,11 @@ server/memoryRetrieval.js  Assistente Inteligente de Projetos — busca HÍBRIDA
 server/embeddings.js  Embeddings via Voyage AI (`voyage-3`, REST puro via fetch, sem SDK) pra busca semântica da RENATA — voyageConfigured()/embedTexts(texts, inputType)/cosineSimilarity() (Fase 3, 2026-09-10) — ver PROJECT_CONTEXT.md §31.
 server/scripts/reindexAllMeetings.js  Backfill manual da memória do projeto pra reuniões já existentes (2026-09) — ver PROJECT_CONTEXT.md §27.
 shared/transcriptParser.js  Funções puras de parsing de transcrição (parseTranscript/sliceEntriesByTopics/splitDecisionLines, 2026-09) — sem dependência de React/Express, usadas tanto por src/meetings/meetingUtils.js quanto por server/memoryIngest.js.
-server/assistantRetrieval.js  Assistente Inteligente de Projetos, Fase 2 (2026-09) — pipeline de 2 chamadas à IA (resolveQuery/synthesizeAnswer/askProjectAssistant), citações validadas contra os chunks recuperados, aprendizados persistidos em ai_project_insights — ver PROJECT_CONTEXT.md §27.
-server/assistantContext.js  buildProjectSnapshot(project) — perfil compacto de identidade+cronograma (Resumo/Gantt/Tabela/Fases/Quadro) injetado no contexto do assistente, 2026-09 — ver PROJECT_CONTEXT.md §27.
-server/assistantActions.js  Agente executor (2026-09) — executeProposedAction(), único tipo suportado create_meeting_todo, só chamado depois de confirmação explícita do usuário — ver PROJECT_CONTEXT.md §27.
+server/assistantRetrieval.js  Assistente Inteligente de Projetos — pipeline de 2 chamadas à IA (resolveQuery/synthesizeAnswer/askProjectAssistant), citações validadas contra os chunks recuperados, aprendizados persistidos em ai_project_insights; ProposedActionSchema com 6 tipos de ação (Fase 4, 2026-09-10) e contexto de Agenda (getConnectionStatus/listEvents) — ver PROJECT_CONTEXT.md §27/§32.
+server/assistantContext.js  buildProjectSnapshot(project) — perfil compacto de identidade+cronograma (Resumo/Gantt/Tabela/Fases/Quadro) injetado no contexto do assistente; normalizeName() exportado (Fase 4) pra resolver nome de fase por aproximação — ver PROJECT_CONTEXT.md §27/§32.
+server/assistantActions.js  Agente executor — executeProposedAction(), 6 tipos suportados (create/delete_meeting_todo, reschedule/create/delete_schedule_activity, create_calendar_event, Fase 4 2026-09-10), só chamado depois de confirmação explícita do usuário — ver PROJECT_CONTEXT.md §27/§32.
 server/assistant.js       Rotas /api/assistant/* (conversation, ask, conversation/clear, messages/:id/feedback, messages/:id/action, reindex), 2026-09 — ver PROJECT_CONTEXT.md §27.
-src/assistant/ProjectAssistant.jsx  Botão flutuante + painel lateral "Assistente do Projeto" (2026-09) — visível nas abas Reuniões/Atividades, consciente de reunião aberta, card de confirmação de ação proposta — ver PROJECT_CONTEXT.md §27.
+src/assistant/ProjectAssistant.jsx  Botão flutuante + painel lateral "Assistente do Projeto" (2026-09) — visível nas abas Reuniões/Atividades, consciente de reunião aberta, card de confirmação de ação proposta (6 tipos, card de aviso reforçado pra exclusão de atividade do cronograma) + botão "Abrir a Agenda" (Fase 4, 2026-09-10) — ver PROJECT_CONTEXT.md §27/§32.
 
 index.html            Shell HTML, variáveis CSS de tema (light/dark) em :root.
 vite.config.js         Proxy /api -> localhost:3001 em dev.

@@ -123,6 +123,29 @@ function nextDay(dateStr) {
   return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
 }
 
+// Cria um evento arbitrário no calendário principal do usuário — usado
+// pela RENATA (server/assistantActions.js, 2026-09, Fase 4) pra propor
+// "marcar uma reunião/follow-up" de verdade, e por baixo de
+// `syncTicketEvent` (abaixo), que era a única chamadora antes disso.
+// Lança exceção se falhar (diferente de `syncTicketEvent`, que engole o
+// erro) — quem chama decide como tratar; a RENATA precisa saber que a
+// ação falhou pra avisar o usuário, não fingir que deu certo.
+export async function createEvent(userId, { summary, description, startISO, endISO }) {
+  const client = await getAuthedClientForUser(userId);
+  if (!client) throw new Error('Usuário não conectou o Google Calendar.');
+  const calendar = google.calendar({ version: 'v3', auth: client });
+  const res = await calendar.events.insert({
+    calendarId: 'primary',
+    requestBody: {
+      summary,
+      description: description || '',
+      start: { dateTime: new Date(startISO).toISOString() },
+      end: { dateTime: new Date(endISO).toISOString() },
+    },
+  });
+  return { id: res.data.id, htmlLink: res.data.htmlLink || '' };
+}
+
 // Cria ou atualiza o evento de "Previsão de conclusão" no calendário do
 // responsável atual da TASK. Silencioso se o usuário nunca conectou o
 // Google Calendar (não é erro, é o estado normal de quem não usa isso) —
