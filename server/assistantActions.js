@@ -10,6 +10,7 @@ import { reindexMeetingMemory } from './memoryIngest.js';
 import { normalizeName } from './assistantContext.js';
 import { createEvent as createGoogleCalendarEvent } from './googleCalendar.js';
 import { saveKnowledgeFact } from './knowledgeFacts.js';
+import { logMetric } from './metrics.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -213,18 +214,25 @@ async function executeRescheduleActivity(pool, projectId, project, action, actin
 }
 
 // Grava um fato na memória em camadas (Fase 7 — server/knowledgeFacts.js)
-// depois de confirmação explícita, igual às outras 6 ações. Não mexe em
+// depois de confirmação explícita, igual às outras ações. Não mexe em
 // `project.data`/`project.log` de propósito — `ai_knowledge_facts` já é
 // a própria trilha de auditoria (quem disse, quando, em qual conversa).
+// Fase 7.1: `scope` já chega aqui como o valor FINAL (a IA sugere, mas
+// `decideProposedAction` — server/assistantRetrieval.js — já aplicou a
+// escolha do usuário no seletor do painel antes de chegar aqui) —
+// mesmo assim nunca confia cegamente: revalida contra o enum real.
 async function executeSaveKnowledgeFact(pool, orgId, projectId, action, userId, conversationId) {
   const subject = (action.subject || '').trim();
   const content = (action.content || '').trim();
   if (!subject || !content) throw new Error('Assunto ou conteúdo do fato não informado.');
-  const scope = action.scope === 'org' ? 'org' : 'project';
+  const scope = ['conversation', 'org'].includes(action.scope) ? action.scope : 'project';
   const result = await saveKnowledgeFact(pool, {
     orgId, projectId, scope, subject, content,
+    knowledgeType: action.knowledgeType || 'FACT',
+    validFrom: action.validFrom || null,
     sourceUserId: userId, sourceConversationId: conversationId,
   });
+  logMetric(pool, { orgId, projectId, eventType: 'fact_confirmed', metadata: { subject, scope, relation: result.relation, status: result.status } }).catch(() => {});
   return { subject, content, scope, ...result };
 }
 

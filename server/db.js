@@ -507,6 +507,52 @@ export async function initDb() {
   await pool.query(`CREATE INDEX IF NOT EXISTS ai_knowledge_facts_org_idx ON ai_knowledge_facts(org_id, scope, status)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS ai_knowledge_facts_project_idx ON ai_knowledge_facts(project_id, status)`);
 
+  // Fase 7.1 (2026-09-11, endurecimento pedido pelo Rafael) — evolui
+  // ai_knowledge_facts sem quebrar o que já está em produção. Ordem
+  // importa: traduz os VALORES antigos de `status` pro vocabulário novo
+  // ANTES de trocar a constraint (senão a ALTER TABLE falha validando
+  // linha existente contra a lista nova) — tudo idempotente, seguro
+  // rodar em todo boot (depois da 1ª vez essas UPDATE não casam mais
+  // linha nenhuma).
+  await pool.query(`UPDATE ai_knowledge_facts SET status='active' WHERE status='unvalidated'`);
+  await pool.query(`UPDATE ai_knowledge_facts SET status='disputed' WHERE status='conflicting'`);
+  await pool.query(`UPDATE ai_knowledge_facts SET status='archived' WHERE status='rejected'`);
+  await pool.query(`ALTER TABLE ai_knowledge_facts DROP CONSTRAINT IF EXISTS ai_knowledge_facts_status_check`);
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD CONSTRAINT ai_knowledge_facts_status_check CHECK (status IN ('active','disputed','superseded','pending_validation','archived'))`);
+  await pool.query(`ALTER TABLE ai_knowledge_facts ALTER COLUMN status SET DEFAULT 'active'`);
+  // scope ganha 'conversation' (memória de trabalho só daquela conversa)
+  // e 'global' (reservado pra uma futura base compartilhada com a
+  // IVANA — nenhuma ingestão nova usa isso ainda, ver §37/§38 do
+  // PROJECT_CONTEXT.md) — 'project'/'org' continuam valendo como
+  // sempre, nenhum dado existente precisa mudar de valor.
+  await pool.query(`ALTER TABLE ai_knowledge_facts DROP CONSTRAINT IF EXISTS ai_knowledge_facts_scope_check`);
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD CONSTRAINT ai_knowledge_facts_scope_check CHECK (scope IN ('conversation','project','org','global'))`);
+  // Classificação estruturada do conhecimento (pedido do Rafael: "nem
+  // tudo é simplesmente um fato") — a IA sugere, sempre grava o que
+  // vier (só valida a forma/enum, não o conteúdo). Default 'FACT'
+  // preserva o comportamento de toda linha já existente.
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS knowledge_type TEXT NOT NULL DEFAULT 'FACT'`);
+  await pool.query(`ALTER TABLE ai_knowledge_facts DROP CONSTRAINT IF EXISTS ai_knowledge_facts_knowledge_type_check`);
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD CONSTRAINT ai_knowledge_facts_knowledge_type_check CHECK (knowledge_type IN ('FACT','DECISION','PREFERENCE','RULE','HYPOTHESIS','PROCEDURE','DEFINITION'))`);
+  // Vigência temporal — `valid_from`/`valid_until` nullable (null =
+  // "desde sempre"/"ainda vale"). `superseded_by` já existia mas nunca
+  // era preenchido; passa a ser usado de verdade quando uma atualização
+  // temporal é detectada (ver server/knowledgeFacts.js `classifyRelation`).
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS valid_from DATE`);
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS valid_until DATE`);
+  // Proveniência ampliada — prepara terreno pra uma futura base de
+  // conhecimento validada compartilhada com a IVANA (legislação,
+  // metodologia, pareceres) SEM criar uma tabela paralela incompatível.
+  // `origin='conversation'` é o default — tudo que já existe (só vem de
+  // conversa com usuário) continua se comportando exatamente igual.
+  // Nenhuma ingestão nova usa os outros valores ainda.
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAULT 'conversation'`);
+  await pool.query(`ALTER TABLE ai_knowledge_facts DROP CONSTRAINT IF EXISTS ai_knowledge_facts_origin_check`);
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD CONSTRAINT ai_knowledge_facts_origin_check CHECK (origin IN ('conversation','legislation','internal_document','methodology','best_practice','other'))`);
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS reference TEXT`);
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS source_date DATE`);
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS ingested_at TIMESTAMPTZ NOT NULL DEFAULT now()`);
+
   // Cache semântico de perguntas/respostas (Fase 7, 2026-09-11) — modo
   // "seguro" combinado com o Rafael: chave é a pergunta já RESOLVIDA
   // (participant/meeting_id/kind, saída de resolveQuery), não o texto
@@ -537,6 +583,37 @@ export async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS ai_answer_cache_lookup_idx ON ai_answer_cache(project_id, data_fingerprint)`);
+
+  // Fase 7.1 (2026-09-11) — invalidação por DEPENDÊNCIA real, não só
+  // fingerprint grosseiro: guarda quais reuniões e quais fatos
+  // formaram aquela resposta específica, pra invalidar só quem
+  // realmente depende do que mudou (ver isStillFresh em
+  // server/answerCache.js). `tokens_input`/`tokens_output` gravados
+  // aqui também — é o custo real da resposta original, usado depois
+  // pra estimar "tokens economizados" a cada acerto de cache (métrica,
+  // ver ai_metrics_events).
+  await pool.query(`ALTER TABLE ai_answer_cache ADD COLUMN IF NOT EXISTS dependency_meeting_ids JSONB NOT NULL DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE ai_answer_cache ADD COLUMN IF NOT EXISTS dependency_fact_ids JSONB NOT NULL DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE ai_answer_cache ADD COLUMN IF NOT EXISTS tokens_input INT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE ai_answer_cache ADD COLUMN IF NOT EXISTS tokens_output INT NOT NULL DEFAULT 0`);
+
+  // Métricas mensuráveis (Fase 7.1, pedido do Rafael: "não precisa de
+  // dashboard agora, mas deixe esses eventos mensuráveis") — tabela
+  // genérica, um evento por linha, consultável via SQL direto. Nunca
+  // grava síncrono no caminho crítico (sempre fire-and-forget, ver
+  // server/metrics.js `logMetric`) — uma falha aqui nunca derruba nem
+  // atrasa uma resposta da RENATA.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_metrics_events (
+      id          TEXT PRIMARY KEY,
+      org_id      TEXT NOT NULL REFERENCES organizations(id),
+      project_id  TEXT REFERENCES projects(id) ON DELETE CASCADE,
+      event_type  TEXT NOT NULL,
+      metadata    JSONB NOT NULL DEFAULT '{}',
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_metrics_events_type_idx ON ai_metrics_events(org_id, event_type, created_at)`);
 }
 
 // Migração one-shot (Fase 7, 2026-09-11) — copia os aprendizados já

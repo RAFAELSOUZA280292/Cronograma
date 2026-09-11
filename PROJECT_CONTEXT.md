@@ -4161,6 +4161,15 @@ como tarefa separada.
 
 ## 37. Memória em camadas + cache semântico de perguntas — Fase 7 (2026-09-11)
 
+**Nota (Fase 7.1, mesma data, ver §38):** o vocabulário de `status`
+(`unvalidated|conflicting|rejected`) e o enum de `scope`
+(`project|org`) descritos abaixo foram migrados/estendidos na Fase
+7.1 — `unvalidated→active`, `conflicting→disputed`, `rejected→archived`
+(`superseded` não mudou de nome), e `scope` ganhou `conversation` e
+`global`. O resto desta seção (arquitetura, cálculo de similaridade,
+limiares, cache) continua valendo como está — só o vocabulário de
+status/scope está desatualizado aqui; §38 é a versão corrente.
+
 Rafael pediu uma auditoria honesta de como a RENATA usa memória hoje.
 A resposta revelou 3 lacunas reais: (1) nenhum cache de pergunta/
 resposta — a mesma pergunta, ou uma equivalente, rodava o pipeline
@@ -4326,6 +4335,300 @@ cache (`saveCachedAnswer`) pra próxima vez.
 perguntar de novo sobre ele, depois contradizer pra ver o conflito
 sendo sinalizado; e perguntar a mesma coisa duas vezes seguidas pra
 sentir a resposta do cache vindo mais rápido.
+
+## 38. Endurecimento da memória em camadas — Fase 7.1 (2026-09-11)
+
+Depois de confirmar que a arquitetura da Fase 7 estava no caminho
+certo, Rafael pediu um endurecimento em 8 frentes antes de avançar pra
+telas: escopo editável na confirmação, tipos de conhecimento
+estruturados, vigência temporal, 4 categorias de relação entre fatos
+(não só duplicata/conflito), cache invalidado por dependência real (não
+só um fingerprint grosseiro), garantia testada de isolamento entre
+projetos, uma camada pronta pra uma futura base compartilhada com a
+IVANA, e métricas mensuráveis. Pedido explícito: **evoluir, não
+reescrever** — tudo abaixo é `ALTER TABLE`/extensão sobre o que já
+existia, nenhuma tabela foi recriada, nenhum dado de produção foi
+migrado com perda.
+
+### 1. O que precisou ser alterado
+
+| Arquivo | O que mudou |
+|---|---|
+| `server/db.js` | `ai_knowledge_facts` ganha `knowledge_type`, `valid_from`, `valid_until`, `origin`, `reference`, `source_date`, `ingested_at`; `status`/`scope` migrados pro vocabulário novo (dado existente traduzido antes da troca de `CHECK`, nunca perdido); `ai_answer_cache` ganha `dependency_meeting_ids`, `dependency_fact_ids`, `tokens_input`, `tokens_output`; tabela nova `ai_metrics_events`. |
+| `server/knowledgeFacts.js` | `classifyRelation` (4 categorias, nova); `saveKnowledgeFact` reescrito por cima dela (preenche `superseded_by`/`valid_until` de verdade — existiam desde a Fase 7 mas nunca eram usados); `loadRelevantFacts` ganha filtro por conversa e retorna `{text, factIds}` (os ids viram dependência de cache). |
+| `server/answerCache.js` | `isStillFresh` (nova) — checa dependências reais antes de aceitar um candidato; `lookupCachedAnswer` passa a chamá-la e sinaliza `{staleCandidate:true}` quando rejeita por isso (só pra métrica, nunca vira resposta); `saveCachedAnswer` grava as dependências + tokens. |
+| `server/metrics.js` (novo) | `logMetric` — fire-and-forget, nunca dá `await`/derruba uma resposta real por falha ao gravar métrica. |
+| `server/assistantRetrieval.js` | `ProposedActionSchema.scope` vira enum de 3 valores; ganha `knowledgeType`/`validFrom`; `askProjectAssistant` coleta dependências e chama `logMetric` nos pontos combinados; `decideProposedAction` aceita `overrides`. |
+| `server/assistant.js` | `POST /messages/:id/action` aceita `overrides` opcional no corpo. |
+| `server/assistantActions.js` | `executeSaveKnowledgeFact` passa `knowledgeType`/`validFrom` adiante e aceita `scope='conversation'`; loga `fact_confirmed`. |
+| `src/assistant/ProjectAssistant.jsx` | Card de `save_knowledge_fact` ganha seletor de escopo editável (3 pills) + chip de `knowledgeType`. |
+
+### 2. Modelo das tabelas envolvidas
+
+`ai_knowledge_facts` (colunas novas/alteradas — o resto é igual à Fase
+7, ver §37):
+
+```
+knowledge_type  TEXT NOT NULL DEFAULT 'FACT'
+                CHECK IN ('FACT','DECISION','PREFERENCE','RULE',
+                          'HYPOTHESIS','PROCEDURE','DEFINITION')
+valid_from      DATE            -- desde quando o fato vale (null = sempre valeu)
+valid_until     DATE            -- até quando valeu (preenchido quando é substituído)
+origin          TEXT NOT NULL DEFAULT 'conversation'
+                CHECK IN ('conversation','legislation','internal_document',
+                          'methodology','best_practice','other')
+reference       TEXT            -- citação/documento (ex.: "LC 214/2025, art. 10")
+source_date     DATE            -- data do documento/norma em si
+ingested_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+scope           TEXT NOT NULL CHECK IN ('conversation','project','org','global')
+status          TEXT NOT NULL DEFAULT 'active'
+                CHECK IN ('active','disputed','superseded','pending_validation','archived')
+superseded_by   TEXT REFERENCES ai_knowledge_facts(id)  -- agora É preenchido de verdade
+```
+
+`ai_answer_cache` (colunas novas):
+
+```
+dependency_meeting_ids  JSONB NOT NULL DEFAULT '[]'  -- meetingIds citados nesta resposta
+dependency_fact_ids     JSONB NOT NULL DEFAULT '[]'  -- fatos injetados no CONHECIMENTO ACUMULADO
+tokens_input            INT NOT NULL DEFAULT 0        -- custo da resposta original (synthesizeAnswer)
+tokens_output           INT NOT NULL DEFAULT 0
+```
+
+`ai_metrics_events` (tabela nova, genérica — um evento por linha):
+
+```
+id, org_id, project_id (nullable), event_type, metadata JSONB, created_at
+```
+
+### 3. Fluxo completo de criação e recuperação de conhecimento
+
+**Criação:** usuário conta um fato → `synthesizeAnswer` sugere
+`proposedAction.type='save_knowledge_fact'` com `subject`, `content`,
+`knowledgeType`, `scope` (sugestão) e `validFrom` (se houver data
+explícita) → card de confirmação mostra o fato + o tipo + 3 pills de
+escopo (Só esta conversa / Este projeto / Toda a PRICETAX,
+pré-selecionado no valor sugerido pela IA, editável) → usuário confirma
+(ou troca o escopo antes) → `POST /messages/:id/action` com
+`overrides:{scope}` → `decideProposedAction` aplica o override (só
+nesse campo, só nesse tipo de ação, só se o valor for um dos 3
+válidos) → `executeSaveKnowledgeFact` → `saveKnowledgeFact`: embeda o
+`content`, busca o fato mais parecido no MESMO escopo (`findSimilarFact`,
+SQL filtra org/projeto/conversa ANTES de qualquer similaridade),
+classifica a relação (`classifyRelation`, ver item 5) e grava —
+loga `fact_proposed` (quando a IA sugere), `fact_confirmed` ou
+`fact_rejected` (na decisão), e `duplicate_detected`/
+`conflict_detected`/`temporal_update_detected`/`complement_detected`
+(no resultado da classificação).
+
+**Recuperação:** toda pergunta chama `loadRelevantFacts(pool, orgId,
+projectId, conversationId)` — monta o texto "CONHECIMENTO ACUMULADO"
+com os fatos do projeto + os `scope='org'` (globais à PRICETAX) + os
+`scope='conversation'` DESTA conversa, excluindo `archived`/
+`superseded`, retornando também os ids usados (`factIds` — viram
+`dependency_fact_ids` no cache). Cada fato aparece com tipo, vigência
+(se houver) e uma marca `[DIVERGENTE]` (status `disputed`) ou
+`[HIPÓTESE]` (`pending_validation`) — o prompt nunca escolhe uma
+versão divergente sozinho.
+
+### 4. Política de escopo e permissões
+
+- **A IA nunca decide escopo sozinha** — só sugere; o usuário vê e
+  pode trocar entre os 3 valores no card antes de confirmar (pedido
+  explícito do Rafael: "conhecimento organizacional precisa de
+  confirmação explícita"). O backend nunca confia no `overrides` cego:
+  só aplica se o tipo da ação for `save_knowledge_fact` e o valor
+  estiver no enum de 3 (`OVERRIDABLE_SCOPES`, `assistantRetrieval.js`).
+- **`conversation`** — memória de trabalho explícita e persistente
+  enquanto a conversa não for limpa (diferente do histórico implícito
+  de 8 mensagens, que sempre existiu). Só é lida de volta filtrando
+  pela MESMA `source_conversation_id` — nunca vaza pra outra conversa,
+  nem do mesmo usuário.
+- **`project`** — específico do cliente/projeto (maioria dos casos).
+- **`org`** — vale pra qualquer projeto da PRICETAX. Continua sem
+  exigir nenhum cargo especial pra propor (decisão da Fase 7, mantida:
+  "qualquer usuário pode propor, a barreira é a confirmação") — o
+  endurecimento pedido não foi "quem pode propor org", foi "o usuário
+  vê e decide o escopo antes de confirmar", que é o que foi construído.
+- **`global`** existe no schema (reservado pra Fase 8/IVANA, ver item
+  7 abaixo) mas nada grava nele ainda.
+- **Isolamento entre projetos — testado, não só assumido** (item 6 do
+  pedido original: "segurança e escopo antes de similaridade"):
+  `findSimilarFact`/`loadRelevantFacts`/`lookupCachedAnswer` sempre
+  filtram por `org_id`/`project_id`/`scope` no `WHERE` SQL ANTES de
+  qualquer cálculo de similaridade em JS — não existe caminho de código
+  onde um fato ou uma resposta cacheada de um projeto vira candidato
+  pra outro projeto só por parecer semanticamente igual. Confirmado com
+  um teste automatizado: um fato do projeto A com conteúdo quase
+  idêntico ao de uma busca no projeto B nunca aparece como candidato em
+  B, mesmo usando o MESMO embedding nos dois lados.
+
+### 5. Política de conflito e vigência
+
+`classifyRelation` (`server/knowledgeFacts.js`) decide entre 4
+categorias, nesta ordem, sempre a partir da similaridade de **conteúdo**
+(não do assunto — calibração da própria Fase 7, ver §37) do fato novo
+contra o candidato mais parecido no mesmo escopo:
+
+1. **Duplicata** — similaridade ≥ 0.93 (mesmo limiar da Fase 7,
+   recalibrado com paráfrase real: "Felipe é o CEO da PRICETAX." vs.
+   "O Felipe é CEO da PRICETAX." mediu 0.9762). Não grava de novo,
+   devolve o id do fato existente.
+2. **Atualização temporal** — o fato novo trouxe um `validFrom`
+   explícito POSTERIOR ao `valid_from`/`created_at` do fato existente
+   (exemplo do próprio Rafael: "Felipe é CEO" → depois "Felipe deixou
+   de ser CEO em 01/10/2026" com `validFrom="2026-10-01"`). O fato
+   antigo vira `status='superseded'`, `superseded_by=<novo id>`,
+   `valid_until=<validFrom do novo>` — preservado no histórico, só não
+   é mais "o vigente". NUNCA vira `disputed` — é sucessão no tempo, não
+   incompatibilidade. Medido com dados reais: 0.86 de similaridade
+   (mesma faixa "mesmo tópico" da Fase 7).
+3. **Conflito** — sem data de mudança, mas com assimetria de
+   negação/cessação (regex sobre "não"/"nunca"/"deixou"/"ex-"/"foi
+   substituíd[oa]" presente em só um dos dois textos). Marca os DOIS
+   fatos como `status='disputed'` — nunca escolhe uma versão sozinha,
+   nunca apaga. Medido: 0.88 de similaridade (mesma faixa).
+4. **Complemento** (default da faixa 0.75–0.93 quando nem 2 nem 3 se
+   aplicam) — os dois ficam `active`, independentes, sem relação
+   registrada. Medido: 0.89 de similaridade.
+
+**Limitação conhecida, documentada, não escondida** (ver item 8 —
+riscos): a classificação é heurística (regex + data explícita), não
+NLP. Um conflito sem palavra de negação nenhuma (ex.: "a reunião é
+terça" vs. "a reunião é quinta") vira `complemento` por engano; uma
+atualização sem data explícita vira `conflito`. Resolver isso de
+verdade exigiria uma chamada à IA a mais por fato salvo — decisão
+consciente de não fazer agora, pra não contradizer a economia de custo
+da Fase 6.
+
+### 6. Política de cache e invalidação
+
+Além do `data_fingerprint` (Fase 7 — invalida tudo do projeto quando
+`projects.updated_at` muda ou o dia vira), o cache agora rastreia
+**dependências reais** por resposta: `dependency_meeting_ids` (as
+reuniões citadas em `citedSources`) e `dependency_fact_ids` (todos os
+fatos que entraram no CONHECIMENTO ACUMULADO daquela pergunta).
+`isStillFresh(pool, entry)` (`server/answerCache.js`) checa, antes de
+aceitar um candidato:
+
+1. Nenhuma reunião dependente foi reindexada depois do cache
+   (`MAX(created_at)` dos chunks daquela reunião ≤ `created_at` do
+   cache) — uma edição numa reunião QUE NÃO é dependência não afeta o
+   cache (testado: cache sobrevive).
+2. Nenhum fato dependente foi editado/arquivado depois do cache
+   (`MAX(updated_at)` dos fatos ≤ `created_at` do cache, e nenhum foi
+   `archived`/`superseded`) — testado: editar um fato dependente
+   invalida só quem depende dele.
+3. Nenhum fato NOVO apareceu no escopo relevante (org ou projeto) desde
+   o cache — testado: criar um fato novo invalida.
+
+Qualquer uma falhando = cache inelegível, mesmo com fingerprint e
+similaridade batendo; `lookupCachedAnswer` sinaliza isso como
+`cache_rejected_stale` (métrica, ver item 8) e segue pro fluxo normal,
+que recalcula e grava um cache novo. É estritamente mais preciso que a
+Fase 7 (nunca mais permissivo que o correto — só menos derrubador:
+antes, QUALQUER edição no projeto invalidava TUDO; agora só invalida
+quem realmente depende do que mudou).
+
+"Tokens economizados pelo cache": todo cache grava `tokens_input`/
+`tokens_output` da resposta original; um `cache_hit` loga
+`tokensSavedInput`/`tokensSavedOutput` com esses valores — é quanto
+"teria custado de novo" baseado em custo real medido, não uma
+estimativa inventada.
+
+### 7. Terreno preparado pra base compartilhada com a IVANA (schema only)
+
+Em vez de uma tabela paralela (risco que o Rafael pediu explicitamente
+pra evitar — "não quero criar outra estrutura incompatível"),
+`ai_knowledge_facts` ganhou o vocabulário de proveniência que uma base
+de conhecimento validada precisaria: `origin` (de onde veio —
+legislação, documento interno, metodologia, boa prática, ou
+`conversation`, o default de tudo que já existe), `reference`
+(citação/documento), `source_date` (data do documento em si, diferente
+de `created_at`/`ingested_at`, que são de quando entrou no sistema), e
+`scope='global'` já aceito pelo schema. **Nenhuma ingestão nova usa
+isso ainda** — é só schema pronto; integrar a IVANA de fato (ingestão
+de legislação, cross-org de verdade) fica pra Fase 8 ou além (ver item
+9).
+
+### 8. Testes implementados
+
+Script Node local (`_test_fase71_*.mjs`, descartável, apagado depois
+— mesma disciplina da Fase 7: medir similaridade real antes de fixar
+qualquer expectativa), rodado contra o Postgres local com
+`VOYAGE_API_KEY` real. **20 verificações, todas passando**:
+
+- **4 categorias de `classifyRelation`**, uma por categoria, com a
+  similaridade real medida e registrada (não assumida): duplicata
+  (0.9762), atualização temporal (0.86, com verificação de
+  `superseded_by`/`valid_until`/`status` no fato antigo), conflito
+  (0.88, com verificação de `disputed` nos DOIS fatos), complemento
+  (0.89, com verificação de que o fato antigo continua `active`).
+- **Isolamento entre projetos**: fato do projeto A com conteúdo quase
+  idêntico a uma busca no projeto B — confirmado que nunca aparece
+  como candidato nem no texto de `loadRelevantFacts` de B, mesmo
+  usando o MESMO embedding nos dois lados.
+- **Cache por dependência**, 3 cenários isolados: (A) cache sobrevive a
+  edição numa reunião que NÃO é dependência, invalida quando a
+  DEPENDENTE é reindexada, e devolve os tokens gravados; (B) cache
+  invalida quando um fato dependente é editado depois de cacheado; (C)
+  cache sem dependências sobrevive até surgir um fato novo no escopo,
+  quando invalida.
+- Migração (`initDb()`) aplicada contra o Postgres local e confirmada
+  sem erro contra dados já existentes; `node --check` em todos os
+  arquivos tocados; `npm run build` limpo.
+- **UI testada manualmente no browser** (mesmo truque da Fase 5:
+  org/projeto/usuário/mensagem temporários inseridos direto no
+  Postgres local, sem depender de IA real) — seletor de 3 pills
+  renderiza com o valor sugerido pela IA pré-selecionado, troca de
+  seleção funciona, e confirmar com um escopo DIFERENTE do sugerido
+  (`org`→`project`) grava o valor escolhido pelo usuário no banco
+  (confirmado via SQL) e loga `fact_confirmed` corretamente. Dados de
+  teste (org/usuário/projeto temporários) limpos depois.
+
+**Não testado** (mesma limitação da Fase 7): a IA de verdade sugerindo
+`knowledgeType`/`validFrom`/`scope` corretamente em produção — depende
+da chave real do Claude, indisponível localmente.
+
+### 9. Riscos que ainda permanecem
+
+- **Heurística de conflito/atualização é regex, não NLP** (ver item
+  5): um conflito sem palavra de negação vira complemento por engano;
+  uma atualização sem data explícita vira conflito. Aceitável pro
+  volume atual de fatos ensinados manualmente, mas não escala pra
+  ingestão em massa.
+- **Sem tela de gestão de fatos/conflitos/métricas** — tudo é
+  acessível só via chat ou SQL direto; um `disputed` fica visível pra
+  RENATA mas não há lugar pra "resolver" ele fora de ensinar um novo
+  fato que o supere.
+- **`global` existe mas está vazio** — o dia que a IVANA precisar
+  ingerir legislação de verdade, ainda falta decidir COMO (lote?
+  aprovação manual? quem pode?) — só o campo está pronto, o processo
+  não.
+- **Cache ainda depende de `data_fingerprint` pra dado sem timestamp
+  granular** (cronograma/atividades/equipe) — uma edição em QUALQUER
+  atividade do projeto ainda invalida cache de perguntas sobre
+  reuniões que não têm nada a ver com atividades. Resolver isso exigiria
+  rastrear dependência por atividade também, não só por reunião/fato.
+- **`knowledgeType`/`validFrom` são só sugestão da IA, sem edição no
+  card** (diferente do `scope`, que ganhou o seletor pedido) — se a IA
+  errar o tipo ou não pegar uma data explícita, o usuário só pode
+  confirmar como está ou cancelar, não corrigir campo a campo. Rafael
+  não pediu isso explicitamente desta vez, mas é uma lacuna real.
+
+### 10. Recomendação para a Fase 8
+
+Nesta ordem de prioridade: **(1)** uma tela mínima de gestão de
+conhecimento (listar fatos por status, permitir arquivar/resolver um
+`disputed` manualmente) — hoje isso só existe implicitamente pelo chat,
+e conforme o volume de fatos cresce isso vira o gargalo real; **(2)**
+rastrear dependência de cache por atividade do cronograma (não só
+reunião/fato), fechando o risco de invalidação grosseira que ainda
+resta; **(3)** só depois disso, considerar a integração de fato com a
+IVANA (ingestão de legislação em `origin='legislation'`,
+`scope='global'`) — o schema já está pronto, mas o processo de
+ingestão/validação merece ser desenhado com calma, não encaixado como
+extensão de outra fase.
 
 ## 19. Onde procurar mais detalhe
 
