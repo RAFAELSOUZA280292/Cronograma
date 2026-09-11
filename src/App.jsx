@@ -5,7 +5,7 @@ import {
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
   LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History,
   MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal,
-  Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge, Home, Paperclip,
+  Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge, Home, Paperclip, Sparkles,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -25,6 +25,7 @@ import { MeetingsView, todoStatusMeta } from './meetings/Meetings.jsx';
 import { MeetingDetailModal, MeetingPrintReport, PublicMeetingScreen } from './meetings/MeetingDetail.jsx';
 import { TodoBoardView } from './meetings/TodoBoard.jsx';
 import { ProjectAssistant } from './assistant/ProjectAssistant.jsx';
+import KnowledgeCenterScreen from './knowledge/KnowledgeCenter.jsx';
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
 const THEME_KEY = 'pricetax-cronograma-theme';
@@ -1066,7 +1067,13 @@ export default function App() {
   // pra quem tem acesso restrito a um CNPJ específico — vazaria dado de
   // cliente que ele não deveria ver).
   const hasMacro = hasCompanies && currentUser.allCompaniesAccess;
-  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda', hasMacro && 'macro'].filter(Boolean);
+  // Central de Conhecimento (Fase 8, 2026-09-11) — governança da
+  // memória da RENATA, área PRICETAX-only (decisão confirmada com o
+  // Rafael): 'cliente' nunca vê esta área, mesmo tendo acesso a
+  // empresas — segue exatamente a regra já usada em requireMasterOrPricetax
+  // no backend (server/knowledge.js), sem criar uma role nova.
+  const hasKnowledge = currentUser.role === 'master' || currentUser.role === 'pricetax';
+  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda', hasMacro && 'macro', hasKnowledge && 'knowledge'].filter(Boolean);
   const effectiveMode = workspaceMode || (availableModes.length === 1 ? availableModes[0] : null);
   // Home = tela "Olá, Nome" (WorkspaceGateScreen). Só faz sentido oferecer o
   // atalho se houver mais de 1 workspace pra escolher — com só 1, a tela
@@ -1087,6 +1094,7 @@ export default function App() {
         onPickXFlow={hasXflow ? () => goToWorkspace('xflow') : undefined}
         onPickAgenda={hasAgenda ? () => goToWorkspace('agenda') : undefined}
         onPickMacro={hasMacro ? () => goToWorkspace('macro') : undefined}
+        onPickKnowledge={hasKnowledge ? () => goToWorkspace('knowledge') : undefined}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -1169,6 +1177,25 @@ export default function App() {
         />
         {renderActivityDetailModal()}
       </>
+    );
+  }
+
+  if (effectiveMode === 'knowledge') {
+    return (
+      <KnowledgeCenterScreen
+        currentUser={currentUser}
+        onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
+        onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onNavigateToMeeting={(pid, meetingId) => {
+          setWorkspaceMode('company');
+          setCompanySelectionConfirmed(true);
+          setSelectedProjectIds([pid]);
+          setView('meetings');
+          openMeetingDetail(pid, meetingId);
+        }}
+      />
     );
   }
 
@@ -4613,7 +4640,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   );
 }
 
-function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onLogout, theme, onToggleTheme }) {
+function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onLogout, theme, onToggleTheme }) {
   return (
     <div className="page-root" style={S.page}>
       <div style={S.companySelectorWrap}>
@@ -4661,6 +4688,13 @@ function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow,
               <Globe size={26} color="#F5C400" />
               <div style={S.workspaceCardTitle}>Visão Geral Empresas</div>
               <div style={S.workspaceCardDesc}>Cronograma consolidado de todas as empresas — entregas, reuniões e marcos, organizados por data.</div>
+            </button>
+          )}
+          {onPickKnowledge && (
+            <button style={S.workspaceCard} onClick={onPickKnowledge}>
+              <Sparkles size={26} color="#F5C400" />
+              <div style={S.workspaceCardTitle}>Conhecimento</div>
+              <div style={S.workspaceCardDesc}>O que a RENATA sabe, de onde veio, o que está em conflito e onde já foi usado.</div>
             </button>
           )}
         </div>

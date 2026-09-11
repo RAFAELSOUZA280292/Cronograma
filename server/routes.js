@@ -97,7 +97,9 @@ function sameOrg(req, targetOrgId) {
 
 // Super Admin pode "entrar" numa organização específica passando ?asOrg=<id>
 // (só respeitado quando isSuperAdmin — qualquer outro usuário sempre usa a própria org).
-function effectiveOrgId(req) {
+// Exportada (Fase 8) pra server/knowledge.js resolver orgId do mesmo
+// jeito que todo o resto do admin já resolve — nunca duplicar essa regra.
+export function effectiveOrgId(req) {
   if (req.user.isSuperAdmin && req.query.asOrg) return req.query.asOrg;
   return req.user.orgId;
 }

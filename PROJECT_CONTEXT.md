@@ -4658,6 +4658,247 @@ IVANA (ingestão de legislação em `origin='legislation'`,
 ingestão/validação merece ser desenhado com calma, não encaixado como
 extensão de outra fase.
 
+## 39. Central de Conhecimento e Memória Viva — Fase 8 (2026-09-11)
+
+As Fases 7/7.1 construíram o MOTOR de memória da RENATA (fatos com
+escopo/tipo/vigência/status, 4 categorias de relação, cache semântico
+por dependência) — mas isso só existia "por baixo do capô", sem
+nenhuma tela pra ver/auditar/administrar. O Rafael pediu uma área
+administrativa completa — "Conhecimento" — respondendo "o que a RENATA
+sabe hoje?" de forma visível, com governança (nem todo usuário edita
+conhecimento organizacional) e sem NUNCA destruir histórico. Escopo
+confirmado com ele antes de implementar: visibilidade só PRICETAX
+(master/pricetax — 'cliente' nunca vê esta área); Pessoas/Empresas como
+lista+detalhe (sem grafo/rede); painel "Como a RENATA chegou nisso?" no
+chat fica pra depois (só os dados ficam prontos); "Fontes" não é aba
+própria, é filtro dentro de Memórias. 6 abas: Visão Geral / Memórias /
+Conflitos / Pessoas / Empresas / Métricas.
+
+**Princípio seguido à risca**: nada do motor de memória (`classifyRelation`,
+`findSimilarFact`, cache por dependência) foi reescrito — só estendido
+aditivamente, com a camada de administração construída em cima.
+
+### Achados corrigidos durante o levantamento (bugs reais, não só features novas)
+
+1. **Conflito sem elo rastreável** — `saveKnowledgeFact` marcava o fato
+   existente como `disputed` mas nunca gravava QUAL fato causou o
+   conflito. Corrigido com `conflicts_with` (self-FK), preenchido nos
+   dois lados no momento da detecção.
+2. **`valid_until` nunca era checado** — `findSimilarFact` e
+   `loadRelevantFacts` só excluíam `archived`/`superseded`; um fato
+   `active` com `valid_until` no passado continuava sendo tratado como
+   verdade vigente. Corrigido (`AND (valid_until IS NULL OR valid_until
+   >= CURRENT_DATE)`) em toda query de "verdade atual" — motor de
+   memória E Central de Conhecimento.
+3. **Fatos `scope='conversation'` não guardavam `project_id`** —
+   `saveKnowledgeFact` só setava `project_id` quando `scope==='project'`.
+   Corrigido pra também setar em `'conversation'` (só `'org'`/`'global'`
+   continuam `NULL`) — mudança aditiva comprovada sem efeito nas buscas
+   existentes (que filtram por `source_conversation_id`, não
+   `project_id`, nesse escopo).
+4. **`fact_confirmed`/`fact_proposed` não guardavam o id do fato** — os
+   4 eventos automáticos (`duplicate_detected` etc.) já tinham `newId`/
+   `existingId`/`oldId` em `metadata`, mas o evento de confirmação não
+   tinha nenhum id — impossível montar a timeline "Histórico" de um
+   fato sem isso. Corrigido: `fact_confirmed` agora grava `factId`.
+
+### Modelo de tabelas
+
+`ai_knowledge_facts` ganhou (todas colunas novas aditivas, nenhuma
+constraint de vocabulário mudou nesta fase — sem risco de repetir o
+incidente do §38):
+
+```
+conflicts_with        TEXT REFERENCES ai_knowledge_facts(id)   -- elo dos 2 lados de um conflito
+disputed_reviewed_at  TIMESTAMPTZ                              -- "revisado, sem decisão" (não muda status)
+disputed_reviewed_by  TEXT REFERENCES users(id)
+supersede_reason      TEXT                                     -- motivo, gravado na linha NOVA
+source_meeting_id     TEXT                                     -- sem FK (reuniões vivem no JSONB do projeto)
+content_tsv           tsvector GENERATED (busca lexical, mesmo padrão de project_memory_chunks)
+```
+
+`ai_answer_cache` e `ai_messages` ganharam `cited_fact_ids JSONB DEFAULT
+'[]'` — o subconjunto ESTREITO que a IA realmente citou (distinto de
+`dependency_fact_ids`, o conjunto LARGO injetado no prompt, que só
+serve pra invalidação de cache — Fase 7.1). `ai_messages` ganhou também
+`from_cache BOOLEAN` + índice GIN em `cited_fact_ids`
+(`jsonb_path_ops`).
+
+Duas tabelas novas — grafo de entidades relacional (não um array JSONB
+solto: precisa de find-or-create deduplicado por nome normalizado E
+lookup reverso indexável "quais fatos mencionam esta entidade"):
+
+```sql
+ai_knowledge_entities (id, org_id, type CHECK IN (PERSON,COMPANY,PROJECT,LAW,PRODUCT,TOPIC),
+  name, normalized_name, linked_user_id, linked_project_id, mention_count, created_at, updated_at)
+  -- UNIQUE(org_id, type, normalized_name)
+
+ai_knowledge_fact_entities (id, fact_id FK CASCADE, entity_id FK CASCADE, created_at)
+  -- UNIQUE(fact_id, entity_id)
+```
+
+### Fluxo completo de criação e recuperação
+
+**Criação**: usuário conta um fato → `synthesizeAnswer` sugere
+`save_knowledge_fact` com `entityMentions` (pessoas/empresas/temas
+identificados) além dos campos já existentes → usuário confirma
+(podendo trocar escopo, Fase 7.1) → `saveKnowledgeFact` grava
+`source_meeting_id` (reunião aberta na tela, se houver) e chama
+`linkFactEntities` (find-or-create por nome normalizado, nunca bloqueia
+o save se falhar). No admin, uma entidade também pode ser
+adicionada/removida manualmente no drawer (`POST`/`DELETE
+/api/knowledge/facts/:id/entities`) — útil enquanto a sugestão da IA
+ainda não é 100% confiável.
+
+**Recuperação/busca (Memórias)**: `searchKnowledgeFacts`
+(`server/knowledgeCenter.js`) — busca híbrida, MESMO padrão de
+`searchProjectMemory` (`server/memoryRetrieval.js`): lexical
+(`content_tsv`, fallback AND→OR) + semântica (`embedTexts`/cosseno,
+só dentro do conjunto já filtrado por SQL) + filtros em chip (tipo,
+escopo, status, projeto, origem — "Fontes" vira aqui, não aba própria).
+Default exclui `archived`/`superseded` e `valid_until` vencido (achado
+2) — "verdade atual", não histórico completo.
+
+**Edição (nunca destrutiva)**: `editFactVersioned` NUNCA faz `UPDATE`
+de conteúdo — sempre cria uma linha NOVA (`source_user_id`=quem editou,
+`supersede_reason`=motivo obrigatório, entidades da linha antiga
+copiadas pra nova) e marca a antiga `superseded`+`superseded_by`+
+`valid_until`. É a generalização manual do mesmo padrão que
+`classifyRelation` já usa pra atualização automática (Fase 7.1) — a
+mesma invariante "a linha nunca muda seu conteúdo depois de criada, só
+seu status e `superseded_by`" continua valendo.
+
+### Política de escopo e permissões
+
+Nenhuma role/tabela nova — reusa exatamente o que já existe:
+- **Visibilidade da área inteira**: `requireMasterOrPricetax`
+  (`server/auth.js`, já existente) em TODA rota de `/api/knowledge/*`
+  — 'cliente' nunca acessa, mesmo tendo acesso a empresas.
+- **"Usuário comum"** (ensinar/propor): já era assim desde a Fase 7,
+  sem mudança — qualquer usuário com `canAccessProject` pode propor um
+  fato de `project`/`conversation`.
+- **"Gestor"** (validar/corrigir/resolver conflitos DE PROJETO):
+  `role IN (master, pricetax)` E o projeto do fato estar em
+  `accessibleProjectIds` — checado por
+  `checkFactMutationPermission(user, fact, accessibleProjectIds)`
+  (`server/knowledgeCenter.js`).
+- **"Administrador"** (editar conhecimento organizacional, resolver
+  conflitos globais): `role === 'master'` — mesma checagem, só que fato
+  `scope IN (org, global)` sempre exige `master`, nunca `pricetax`.
+- **Isolamento entre projetos**: `listAccessibleProjectIds(pool, user,
+  orgId)` (`server/permissions.js`, novo) — construído reusando
+  LITERALMENTE `canAccessProject` (`server/routes.js`) linha a linha em
+  vez de reimplementar a regra em SQL, então nunca diverge dela. Toda
+  função de `knowledgeCenter.js` recebe esse conjunto já calculado e
+  filtra `org_id` + `(scope='org' OR project_id = ANY(...))` no SQL
+  ANTES de qualquer similaridade em JS — mesmo funil PERMISSÃO → ESCOPO
+  → BUSCA SEMÂNTICA já usado desde a Fase 7.1, agora também pra buscas
+  cross-projeto (um usuário PRICETAX pode ter acesso a várias empresas
+  ao mesmo tempo, diferente do chat da RENATA, que sempre opera dentro
+  de UM projeto).
+
+### Política de conflito e vigência (6 desfechos, `resolveConflict`)
+
+Todos só usam `UPDATE` sobre `status`/`superseded_by`/`conflicts_with`/
+`disputed_reviewed_at` já existentes — NUNCA `DELETE`:
+
+| Resolução | Efeito |
+|---|---|
+| `keep_a` / `keep_b` | descartado vira `archived`, `superseded_by=<mantido>`; mantido vira `active` |
+| `temporal_update` | mais antigo vira `superseded`+`superseded_by`+`valid_until`; mais novo vira `active` — literalmente o ramo `'update'` de `classifyRelation` acionado à mão |
+| `complement` | ambos ficam `active`, sem `conflicts_with` |
+| `archive_both` | ambos ficam `archived` |
+| `mark_reviewed` | ÚNICO que não muda `status` (continuam `disputed` — a RENATA continua tratando como divergente no prompt) — só grava `disputed_reviewed_at`/`by`, pra sair da lista de "nunca visto" |
+
+### Política de utilização/explicabilidade (itens 9/10)
+
+Comparado duas abordagens: tabela de junção nova (`ai_message_facts`)
+vs. coluna JSONB+GIN em `ai_messages` — escolhida a segunda: é 1:N
+barato que já nasce dentro da linha que seria inserida de qualquer
+jeito (sem write extra), e `cited_fact_ids @> '["id"]'` com
+`jsonb_path_ops` responde rápido nos dois sentidos ("quais fatos esta
+resposta usou" e "quais respostas usaram este fato"), sem o custo de
+manter mais uma tabela. `SynthesizeAnswerSchema` ganhou `citedFactIds`
+— MESMO padrão de `citedChunkIds` (a RENATA declara quais fatos
+realmente citou, validado server-side contra `dependencyFactIds` antes
+de confiar, nunca aceito cego). `ai_messages.from_cache` registra se a
+resposta veio de um acerto de cache — dado pronto pro futuro painel
+"Como a RENATA chegou nisso?" (deferido nesta fase).
+
+### Telas
+
+Visão Geral (KPIs + "aprendeu recentemente" + "precisa de atenção" +
+"mais utilizados"), Memórias (busca híbrida + filtros em chip),
+Conflitos (pares lado a lado + 6 botões com confirmação antes de
+aplicar), Pessoas/Empresas (`EntitiesTab` — um componente único reusado
+pros dois via prop `types`, lista+detalhe sem grafo), Métricas (cards +
+tabelas simples, sem lib de gráfico nova). Área nova em `src/knowledge/`
+(mesmo padrão de módulo autocontido de `src/xflow/`), montada como novo
+`workspaceMode` em `src/App.jsx` — card "Conhecimento" no
+`WorkspaceGateScreen`, visível só quando `role` é `master`/`pricetax`.
+
+### Testes implementados
+
+Scripts `_test_fase8_*.mjs` (descartáveis, apagados depois — mesma
+disciplina das Fases 7/7.1), rodados contra Postgres local +
+`VOYAGE_API_KEY` real. **34 verificações, todas passando**:
+isolamento entre projetos (lexical e semântico); fato `scope='org'`
+visível em todos os projetos autorizados; edição gera nova versão
+preservando a antiga intacta (com cópia de entidades); as 6 resoluções
+de conflito, cada uma com o estado final correto; `saveKnowledgeFact`
+grava `conflicts_with` nos dois lados (achado 1); entidade dedup por
+nome normalizado + resolução de `linked_user_id`; captura e agregação
+de `cited_fact_ids` (sem depender de IA real); validação server-side de
+`citedFactIds` descarta id inventado; fato `superseded` e fato
+`active` com `valid_until` vencido excluídos de toda "verdade atual".
+UI verificada manualmente no browser (dados semeados direto no
+Postgres local): as 6 abas, drawer com histórico/relações/utilização,
+edição versionada ponta a ponta (achado um bug real neste processo —
+ver abaixo), resolução de conflito, navegação "origem → reunião" real
+entre módulos.
+
+**Bug real encontrado e corrigido durante a verificação manual**: após
+editar um fato, o drawer continuava mostrando a versão ANTIGA (agora
+`superseded`) em vez de seguir pra nova — o `factId` no componente pai
+nunca era atualizado com o id devolvido por `editFactVersioned`.
+Corrigido (`onFactChanged(newFactId)` troca o `drawerFactId`); também
+corrigida a rotulagem "Versão atual" na timeline, que comparava contra
+o `factId` aberto (errado) em vez de "quem não tem `superseded_by`"
+(correto).
+
+**Não testado**: a IA de verdade sugerindo `entityMentions`/
+`citedFactIds` em produção — depende da chave real do Claude,
+indisponível localmente (mesma limitação de sempre). Busca semântica
+da Central de Conhecimento não foi exercitada via browser (o dev server
+local não repassa `VOYAGE_API_KEY` pro processo do Vite/Express —
+tentativa de contornar isso esbarrou numa restrição de sandbox do
+ambiente de desenvolvimento; a lógica em si já está coberta pelos
+testes automatizados com embeddings reais).
+
+### Riscos que permanecem
+
+- Heurística de conflito continua regex-based (risco já documentado no
+  §38) — a Central de Conhecimento torna isso mais visível, não mais
+  preciso.
+- Deduplicação de entidades é heurística (`normalizeName`) — "Rafael"
+  e "Rafa" viram entidades diferentes; sem mesclagem manual nesta fase.
+- `conflicts_with` só suporta pares 1:1 — um fato em conflito com dois
+  outros simultaneamente só mantém o vínculo mais recente rastreável.
+- Painel de explicabilidade no chat, visualização em grafo de
+  entidades, e mesclagem de entidades duplicadas ficaram fora do
+  escopo desta entrega (itens adiados, confirmados com o Rafael).
+
+### Recomendação para a Fase 9
+
+Nesta ordem: **(1)** o painel "Como a RENATA chegou nisso?" dentro do
+próprio chat — os dados (`cited_fact_ids`, `from_cache`, `cited_sources`)
+já estão prontos, falta só a UI; **(2)** uma ação de mesclar entidades
+duplicadas manualmente (a heurística de nome normalizado não pega
+apelidos diferentes); **(3)** só depois disso, a visualização em
+grafo/rede de entidades — a base relacional já suporta, mas o
+investimento de UI só se justifica com volume real de dados usando a
+versão lista+detalhe primeiro.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

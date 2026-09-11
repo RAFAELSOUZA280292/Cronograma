@@ -458,6 +458,28 @@ export async function initDb() {
   // histórico da conversa alimentar o prompt da IA.
   await pool.query(`ALTER TABLE ai_messages ADD COLUMN IF NOT EXISTS structured JSONB`);
 
+  // Fase 8 (2026-09-11, Central de Conhecimento) — captura de utilização
+  // e explicabilidade. `cited_fact_ids`: ids de ai_knowledge_facts que a
+  // RENATA realmente citou nesta resposta (mesmo campo/validação de
+  // `cited_fact_ids` em ai_answer_cache, ver lá) — é o que responde
+  // "onde este conhecimento já foi usado" e "quais conhecimentos a
+  // RENATA usou pra responder isso" (item 9/10 do pedido do Rafael).
+  // Escolhido JSONB+GIN em vez de uma tabela de junção nova
+  // (ai_message_facts) de propósito: é 1:N barato que já nasce dentro da
+  // linha que de qualquer forma seria inserida, sem write extra, e
+  // `jsonb_path_ops` responde rápido tanto "quais fatos esta resposta
+  // usou" quanto o inverso "quais respostas usaram este fato"
+  // (`cited_fact_ids @> '["<id>"]'`) — sem o custo de manutenção de mais
+  // uma tabela pra uma relação que cabe inteira na própria mensagem.
+  // `from_cache`: era implícito antes (cache hit só pulava
+  // synthesizeAnswer), agora fica explícito na própria linha — vai
+  // alimentar tanto a métrica de "cache hits" quanto o futuro painel
+  // "Como a RENATA chegou nisso?" (deferido nesta fase, mas o dado já
+  // fica pronto).
+  await pool.query(`ALTER TABLE ai_messages ADD COLUMN IF NOT EXISTS cited_fact_ids JSONB NOT NULL DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE ai_messages ADD COLUMN IF NOT EXISTS from_cache BOOLEAN NOT NULL DEFAULT false`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_messages_cited_facts_idx ON ai_messages USING GIN (cited_fact_ids jsonb_path_ops)`);
+
   // Aprendizados do Assistente do Projeto (2026-09, pedido do Rafael:
   // "gere aprendizado... memorize isso, não jogue no lixo") — fatos
   // duráveis extraídos das conversas (ver `synthesizeAnswer` em
@@ -566,6 +588,43 @@ export async function initDb() {
   await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS source_date DATE`);
   await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS ingested_at TIMESTAMPTZ NOT NULL DEFAULT now()`);
 
+  // Fase 8 (2026-09-11, Central de Conhecimento) — evolui
+  // ai_knowledge_facts pra sustentar a tela de governança, sem tocar em
+  // nenhum valor/constraint já existente (nenhum vocabulário de CHECK
+  // muda nesta fase — todas as colunas abaixo são novas e aditivas).
+  //
+  // `conflicts_with`: quando saveKnowledgeFact detecta relation==='conflict'
+  // (server/knowledgeFacts.js), hoje só marca o fato existente como
+  // 'disputed' mas nunca grava QUAL fato causou isso — sem esse elo a
+  // tela de Conflitos não tem como montar os pares. Preenchido nos dois
+  // lados no momento da detecção.
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS conflicts_with TEXT REFERENCES ai_knowledge_facts(id)`);
+  // `disputed_reviewed_at`/`by`: resolução "revisado, ainda sem decisão"
+  // (um dos 6 desfechos possíveis de um conflito) — não muda `status`
+  // (continua 'disputed', a RENATA continua tratando como divergente no
+  // prompt), só marca que um humano já olhou e a tela de Conflitos para
+  // de listar como pendente-nunca-visto.
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS disputed_reviewed_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS disputed_reviewed_by TEXT REFERENCES users(id)`);
+  // `supersede_reason`: motivo de uma edição manual ou resolução de
+  // conflito, gravado na linha NOVA (nunca a antiga é tocada) — parte do
+  // "nunca perder a história do conhecimento" pedido pelo Rafael.
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS supersede_reason TEXT`);
+  // `source_meeting_id`: sem FK de propósito, mesmo padrão sem-FK de
+  // project_memory_chunks.meeting_id — reuniões vivem dentro do JSONB de
+  // projects.data, nunca foram uma tabela própria. Permite "Origem:
+  // Reunião X" ser clicável no card/drawer (server/assistantRetrieval.js
+  // já sabe o meetingId da reunião aberta quando a IA propõe salvar um
+  // fato — só precisa ser propagado até aqui).
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS source_meeting_id TEXT`);
+  // Busca lexical em Memórias — mesmo padrão exato (mesma função
+  // immutable_unaccent, já criada acima pra project_memory_chunks) de
+  // busca em português com fallback de acentuação.
+  await pool.query(`ALTER TABLE ai_knowledge_facts ADD COLUMN IF NOT EXISTS content_tsv tsvector GENERATED ALWAYS AS (to_tsvector('portuguese', immutable_unaccent(content))) STORED`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_knowledge_facts_tsv_idx ON ai_knowledge_facts USING GIN (content_tsv)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_knowledge_facts_conflicts_idx ON ai_knowledge_facts(conflicts_with) WHERE conflicts_with IS NOT NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_knowledge_facts_source_meeting_idx ON ai_knowledge_facts(project_id, source_meeting_id) WHERE source_meeting_id IS NOT NULL`);
+
   // Cache semântico de perguntas/respostas (Fase 7, 2026-09-11) — modo
   // "seguro" combinado com o Rafael: chave é a pergunta já RESOLVIDA
   // (participant/meeting_id/kind, saída de resolveQuery), não o texto
@@ -609,6 +668,16 @@ export async function initDb() {
   await pool.query(`ALTER TABLE ai_answer_cache ADD COLUMN IF NOT EXISTS dependency_fact_ids JSONB NOT NULL DEFAULT '[]'`);
   await pool.query(`ALTER TABLE ai_answer_cache ADD COLUMN IF NOT EXISTS tokens_input INT NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE ai_answer_cache ADD COLUMN IF NOT EXISTS tokens_output INT NOT NULL DEFAULT 0`);
+  // Fase 8 — `cited_fact_ids` é o subconjunto ESTREITO de fatos que a IA
+  // realmente citou pra formular a resposta (a RENATA declara isso, é
+  // validado contra dependency_fact_ids antes de confiar — mesma defesa
+  // em profundidade de citedChunkIds), bem diferente de
+  // `dependency_fact_ids` acima (LARGO, tudo que foi injetado no prompt,
+  // usado só pra invalidação de cache). Mesma distinção que já existe
+  // entre dependency_meeting_ids (largo) e cited_sources (estreito).
+  // Persistido aqui pra sobreviver a um acerto de cache futuro (ver
+  // askProjectAssistant, ramo cachedAnswer).
+  await pool.query(`ALTER TABLE ai_answer_cache ADD COLUMN IF NOT EXISTS cited_fact_ids JSONB NOT NULL DEFAULT '[]'`);
 
   // Métricas mensuráveis (Fase 7.1, pedido do Rafael: "não precisa de
   // dashboard agora, mas deixe esses eventos mensuráveis") — tabela
@@ -627,19 +696,70 @@ export async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS ai_metrics_events_type_idx ON ai_metrics_events(org_id, event_type, created_at)`);
+
+  // Fase 8 (2026-09-11, Central de Conhecimento) — grafo de entidades,
+  // versão relacional (pedido do Rafael: "não precisa ser Neo4j agora,
+  // pode continuar relacional, mas quero que a arquitetura comece a
+  // identificar e conectar entidades"). Modelo de 2 tabelas escolhido em
+  // vez de um array JSONB de menções direto em ai_knowledge_facts:
+  // precisamos de find-or-create deduplicado por nome normalizado DENTRO
+  // da org (índice único) e de lookup reverso indexável ("quais fatos
+  // mencionam esta pessoa/empresa") — um JSONB solto não dá nenhum dos
+  // dois de graça. `normalized_name` é calculado em JS com
+  // normalizeName() (server/assistantContext.js, já usado pra
+  // apelidos/nomes parciais no resto do app), não uma coluna gerada em
+  // SQL. `linked_user_id`/`linked_project_id` são heurísticos e opcionais
+  // (nunca bloqueiam a criação da entidade se a resolução falhar) —
+  // ligam PERSON a um membro de equipe real e COMPANY/PROJECT ao projeto
+  // de origem, quando dá pra resolver com confiança.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_knowledge_entities (
+      id                TEXT PRIMARY KEY,
+      org_id            TEXT NOT NULL REFERENCES organizations(id),
+      type              TEXT NOT NULL CHECK (type IN ('PERSON','COMPANY','PROJECT','LAW','PRODUCT','TOPIC')),
+      name              TEXT NOT NULL,
+      normalized_name   TEXT NOT NULL,
+      linked_user_id    TEXT REFERENCES users(id),
+      linked_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      mention_count     INT NOT NULL DEFAULT 0,
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS ai_knowledge_entities_org_type_name_uidx ON ai_knowledge_entities(org_id, type, normalized_name)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_knowledge_entities_org_type_idx ON ai_knowledge_entities(org_id, type)`);
+
+  // Tabela de junção — um fato pode mencionar várias entidades, uma
+  // entidade aparece em vários fatos. `ON DELETE CASCADE` dos dois lados:
+  // apagar um fato (nunca acontece hoje, mas por segurança) ou uma
+  // entidade nunca deixa lixo órfão aqui.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_knowledge_fact_entities (
+      id          TEXT PRIMARY KEY,
+      fact_id     TEXT NOT NULL REFERENCES ai_knowledge_facts(id) ON DELETE CASCADE,
+      entity_id   TEXT NOT NULL REFERENCES ai_knowledge_entities(id) ON DELETE CASCADE,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS ai_knowledge_fact_entities_uidx ON ai_knowledge_fact_entities(fact_id, entity_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_knowledge_fact_entities_entity_idx ON ai_knowledge_fact_entities(entity_id)`);
 }
 
 // Migração one-shot (Fase 7, 2026-09-11) — copia os aprendizados já
 // gravados em ai_project_insights (texto livre, sem escopo/proveniência)
-// pra ai_knowledge_facts (scope='project', status='unvalidated', já que
-// não temos como saber se foram confirmados por alguém na época).
-// Idempotente: id determinístico a partir do id de origem, nunca duplica
-// rodando de novo. Tabela antiga não é apagada nem deixa de existir —
-// só para de ser usada pelo código novo.
+// pra ai_knowledge_facts (scope='project', status='active' — corrigido
+// na Fase 8: o literal era 'unvalidated' até então, valor que a Fase 7.1
+// removeu do vocabulário de status; inofensivo até agora porque nada
+// mais escreve em ai_project_insights desde a Fase 7 (todo id já migrado
+// cai no WHERE NOT EXISTS), mas ficaria quebrado se essa tabela antiga
+// algum dia ganhasse uma linha nova). Idempotente: id determinístico a
+// partir do id de origem, nunca duplica rodando de novo. Tabela antiga
+// não é apagada nem deixa de existir — só para de ser usada pelo código
+// novo.
 export async function migrateInsightsToKnowledgeFacts() {
   await pool.query(`
     INSERT INTO ai_knowledge_facts (id, org_id, project_id, scope, subject, content, status, created_at, updated_at)
-    SELECT 'akf-mig-' || i.id, i.org_id, i.project_id, 'project', left(i.content, 60), i.content, 'unvalidated', i.created_at, i.created_at
+    SELECT 'akf-mig-' || i.id, i.org_id, i.project_id, 'project', left(i.content, 60), i.content, 'active', i.created_at, i.created_at
     FROM ai_project_insights i
     WHERE NOT EXISTS (SELECT 1 FROM ai_knowledge_facts k WHERE k.id = 'akf-mig-' || i.id)
   `);
