@@ -4899,6 +4899,58 @@ grafo/rede de entidades — a base relacional já suporta, mas o
 investimento de UI só se justifica com volume real de dados usando a
 versão lista+detalhe primeiro.
 
+## 40. RENATA registra sozinha os conflitos que ela detecta ao responder (2026-09-12)
+
+**Caso real que motivou isso**: o Rafael perguntou sobre os benefícios da
+Tecumseh, a RENATA respondeu citando a reunião de 09/09 e sinalizou
+corretamente (numa seção "warning") uma divergência real entre o
+resumo da reunião e a fala literal do RH sobre o rateio do seguro de
+vida. O Rafael foi conferir na Central de Conhecimento e não achou
+nada — porque, de fato, nada tinha sido salvo: essa "warning" existia
+só naquela resposta e sumiria assim que a conversa fosse limpa.
+
+**Causa**: `save_knowledge_fact` (Fase 7) só é proposto quando o
+USUÁRIO ensina um fato novo na conversa — nunca quando a própria
+RENATA percebe uma divergência entre fontes já existentes (dois
+trechos de reunião, ou um trecho contra o PERFIL DO PROJETO) ao
+responder uma pergunta. Esse tipo de conflito nunca tinha um caminho
+pra virar um registro rastreável.
+
+**Solução**: novo tipo de ação proposta, `flag_knowledge_conflict` —
+mesmo padrão de confirmação das outras 8 ações (nunca grava sozinha).
+Sempre que a RENATA monta uma seção "warning" de informação
+conflitante, ela também pode propor registrar as DUAS versões como
+fatos, já ligados entre si. `ProposedActionSchema` ganha `content`
+(versão A, reaproveitado) + `conflictingContent` (versão B) —
+`subject`/`scope`/`knowledgeType`/`entityMentions` são os mesmos
+campos de `save_knowledge_fact`, com o mesmo seletor de escopo (3
+pills) reaproveitado no card de confirmação.
+
+`saveConflictPair` (`server/knowledgeFacts.js`, novo) — diferente de
+`saveKnowledgeFact`, NÃO roda `classifyRelation` pra descobrir se há
+conflito (a IA já afirmou isso explicitamente): as duas linhas nascem
+`disputed` direto, ligadas via `conflicts_with` nos dois sentidos —
+mesmo estado final que o caminho automático chegaria, só que sem
+depender da heurística de similaridade/negação pra ESSE caso
+específico. Zero migração de schema — reaproveita 100% das colunas já
+criadas na Fase 8 (`conflicts_with`, `status='disputed'`). Aparece na
+aba Conflitos exatamente como um conflito detectado automaticamente
+(mesmo `eventType='conflict_detected'`, com `metadata.source:
+'answer_synthesis'` pra distinguir a origem).
+
+**Testado**: script local com embeddings reais confirmando as duas
+linhas nascendo `disputed`+`conflicts_with` cruzado, aparecendo em
+`listConflicts`, e o evento com a origem certa — e verificação manual
+completa no browser (card de confirmação com as duas versões visíveis,
+seletor de escopo funcionando, confirmação persistindo corretamente e
+aparecendo na aba Conflitos).
+
+**Risco aceito conscientemente**: a IA agora pode propor mais ações do
+que antes (qualquer resposta com uma divergência real vira candidata) —
+mitigado pela mesma regra de sempre: nunca mais de uma proposedAction
+por resposta, e o usuário sempre confirma antes de qualquer coisa ser
+gravada.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
