@@ -9,7 +9,7 @@
 import { reindexMeetingMemory } from './memoryIngest.js';
 import { normalizeName } from './assistantContext.js';
 import { createEvent as createGoogleCalendarEvent } from './googleCalendar.js';
-import { saveKnowledgeFact } from './knowledgeFacts.js';
+import { saveKnowledgeFact, saveConflictPair } from './knowledgeFacts.js';
 import { logMetric } from './metrics.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
@@ -255,11 +255,44 @@ async function executeSaveKnowledgeFact(pool, orgId, projectId, action, userId, 
   return { subject, content, scope, ...result };
 }
 
+// Registra um conflito que a RENATA percebeu sozinha entre duas fontes
+// já existentes (ver server/knowledgeFacts.js `saveConflictPair` pro
+// racional completo). Mesmo padrão de `executeSaveKnowledgeFact`: não
+// mexe em `project.data`, `ai_knowledge_facts` já é a trilha de
+// auditoria; `projectData` só carregado se houver entidades a ligar.
+async function executeFlagKnowledgeConflict(pool, orgId, projectId, action, userId, conversationId) {
+  const subject = (action.subject || '').trim();
+  const contentA = (action.content || '').trim();
+  const contentB = (action.conflictingContent || '').trim();
+  if (!subject || !contentA || !contentB) throw new Error('Conflito incompleto — faltam as duas versões do fato.');
+  const scope = ['conversation', 'org'].includes(action.scope) ? action.scope : 'project';
+
+  let projectData = null;
+  if (action.entityMentions && action.entityMentions.length) {
+    const { rows } = await pool.query('SELECT data FROM projects WHERE id=$1', [projectId]);
+    projectData = rows[0] && rows[0].data;
+  }
+
+  const result = await saveConflictPair(pool, {
+    orgId, projectId, scope, subject, contentA, contentB,
+    knowledgeType: action.knowledgeType || 'FACT',
+    sourceUserId: userId, sourceConversationId: conversationId,
+    sourceMeetingId: action.sourceMeetingId || null,
+    entityMentions: action.entityMentions || null,
+    projectData,
+  });
+  logMetric(pool, { orgId, projectId, eventType: 'conflict_flag_confirmed', metadata: { factIdA: result.idA, factIdB: result.idB, subject, scope } }).catch(() => {});
+  return { subject, contentA, contentB, scope, ...result };
+}
+
 export async function executeProposedAction(pool, orgId, projectId, action, actingUserName, userId, conversationId) {
   if (!action) throw new Error('Nenhuma ação pra executar.');
 
   if (action.type === 'save_knowledge_fact') {
     return executeSaveKnowledgeFact(pool, orgId, projectId, action, userId, conversationId);
+  }
+  if (action.type === 'flag_knowledge_conflict') {
+    return executeFlagKnowledgeConflict(pool, orgId, projectId, action, userId, conversationId);
   }
 
   const { rows } = await pool.query('SELECT data FROM projects WHERE id=$1', [projectId]);

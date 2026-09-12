@@ -207,6 +207,95 @@ export async function saveKnowledgeFact(pool, {
   return { id, status, relation, conflictWith: relation === 'conflict' ? existing.id : null, supersedes: relation === 'update' ? existing.id : null };
 }
 
+// Registra um conflito que a PRÓPRIA RENATA percebeu entre duas fontes
+// já existentes (dois trechos de reunião, ou um trecho contra o PERFIL
+// DO PROJETO) ao responder uma pergunta — pedido do Rafael depois de um
+// caso real: a RENATA avisou sobre uma divergência no rateio do seguro
+// de vida da Tecumseh dentro de uma resposta, mas nada ficou registrado
+// em Conhecimento — o alerta sumiu assim que a conversa terminou.
+//
+// Diferente de `saveKnowledgeFact` (que roda `classifyRelation` pra
+// DESCOBRIR se um fato novo conflita com um já existente), aqui a IA já
+// afirmou explicitamente que as duas versões conflitam — não faz
+// sentido reprocessar isso pela heurística de similaridade/negação
+// (que é só uma aproximação, ver comentário de NEGATION_PATTERN acima);
+// os dois lados nascem `disputed` direto, ligados um ao outro via
+// `conflicts_with`, exatamente no estado final que `classifyRelation`
+// chegaria no caminho 'conflict' — só que sem depender da heurística
+// pra ISSO em particular. `saveKnowledgeFact` continua sendo o único
+// caminho pra fatos ensinados pelo usuário; este é só pra conflitos que
+// a própria síntese da resposta identificou.
+export async function saveConflictPair(pool, {
+  orgId, projectId, scope, subject, contentA, contentB, knowledgeType,
+  sourceUserId, sourceConversationId, sourceMeetingId, entityMentions, projectData,
+}) {
+  if (scope === 'conversation' && !sourceConversationId) {
+    throw new Error('Conflito de escopo "conversation" precisa de uma conversa de origem.');
+  }
+  const type = knowledgeType || 'FACT';
+  const projectIdToStore = (scope === 'org' || scope === 'global') ? null : projectId;
+
+  async function embed(text) {
+    try {
+      const [embedding] = await embedTexts([text], 'document');
+      return embedding;
+    } catch (e) {
+      console.error('Assistente do Projeto: falha ao embedar lado do conflito — seguindo sem embedding.', e.message);
+      return null;
+    }
+  }
+  const [embeddingA, embeddingB] = await Promise.all([embed(contentA), embed(contentB)]);
+
+  const idA = uid('akf');
+  const idB = uid('akf');
+
+  // A entra primeiro sem `conflicts_with` (B ainda não existe pra a FK
+  // apontar), B já nasce apontando pra A, e só então A é atualizado
+  // apontando de volta pra B — evita violar a FK self-referenciada.
+  await pool.query(
+    `INSERT INTO ai_knowledge_facts
+      (id, org_id, project_id, scope, subject, content, status, knowledge_type,
+       source_user_id, source_conversation_id, embedding, source_meeting_id)
+     VALUES ($1,$2,$3,$4,$5,$6,'disputed',$7,$8,$9,$10,$11)`,
+    [
+      idA, orgId, projectIdToStore, scope, subject, contentA, type,
+      sourceUserId || null, sourceConversationId || null,
+      embeddingA ? JSON.stringify(embeddingA) : null, sourceMeetingId || null,
+    ],
+  );
+  await pool.query(
+    `INSERT INTO ai_knowledge_facts
+      (id, org_id, project_id, scope, subject, content, status, knowledge_type,
+       source_user_id, source_conversation_id, embedding, source_meeting_id, conflicts_with)
+     VALUES ($1,$2,$3,$4,$5,$6,'disputed',$7,$8,$9,$10,$11,$12)`,
+    [
+      idB, orgId, projectIdToStore, scope, subject, contentB, type,
+      sourceUserId || null, sourceConversationId || null,
+      embeddingB ? JSON.stringify(embeddingB) : null, sourceMeetingId || null, idA,
+    ],
+  );
+  await pool.query(`UPDATE ai_knowledge_facts SET conflicts_with=$1 WHERE id=$2`, [idB, idA]);
+
+  if (entityMentions && entityMentions.length) {
+    try {
+      await Promise.all([
+        linkFactEntities(pool, { factId: idA, orgId, entityMentions, projectData, projectId }),
+        linkFactEntities(pool, { factId: idB, orgId, entityMentions, projectData, projectId }),
+      ]);
+    } catch (e) {
+      console.error('Assistente do Projeto: falha ao ligar entidades ao conflito novo — fatos salvos normalmente.', e.message);
+    }
+  }
+
+  // Mesmo eventType do caminho automático (`conflict_detected`) — a
+  // Central de Conhecimento já sabe consultar por ele; `source` no
+  // metadata distingue "a IA achou isso lendo uma reunião" de "o
+  // usuário ensinou um fato que bateu de frente com outro já salvo".
+  logMetric(pool, { orgId, projectId, eventType: 'conflict_detected', metadata: { existingId: idA, newId: idB, subject, source: 'answer_synthesis' } }).catch(() => {});
+
+  return { idA, idB, status: 'disputed' };
+}
+
 // Monta o texto "CONHECIMENTO ACUMULADO" injetado no prompt da RENATA —
 // fatos do projeto atual + fatos válidos pra organização inteira
 // (scope='org') + fatos de escopo 'conversation' SE forem desta MESMA

@@ -79,7 +79,7 @@ const ASSISTANT_CSS = `
   .asst-action-card { margin-top:8px; background:var(--bg-2); border:1px solid rgba(245,196,0,.4); border-radius:10px; padding:10px 12px; font-size:12px; }
   .asst-action-card.danger { border-color:rgba(226,87,76,.5); background:rgba(226,87,76,.06); }
   .asst-action-card-title { font-weight:800; color:var(--text-1); margin-bottom:4px; display:flex; align-items:center; gap:6px; }
-  .asst-action-card-body { color:var(--text-4); line-height:1.5; }
+  .asst-action-card-body { color:var(--text-4); line-height:1.5; white-space:pre-wrap; }
   .asst-action-card-buttons { display:flex; gap:8px; margin-top:8px; }
   .asst-action-btn { display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; border-radius:7px; padding:6px 11px; cursor:pointer; border:1px solid; }
   .asst-action-confirm { background:#F5C400; border-color:#F5C400; color:#111; }
@@ -170,6 +170,12 @@ function SectionCard({ section }) {
 // confirmação explícita") — a IA sugere um escopo, mas quem decide de
 // fato é o usuário, escolhendo entre estas 3 pills antes de confirmar
 // (ver `decideAction`, que manda a escolha em `overrides.scope`).
+// Tipos de ação com escopo editável (3 pills) — save_knowledge_fact
+// (Fase 7.1) e flag_knowledge_conflict (registro de conflito percebido
+// pela própria RENATA, ver server/knowledgeFacts.js `saveConflictPair`)
+// compartilham o mesmo seletor de escopo.
+const KNOWLEDGE_ACTION_TYPES = ['save_knowledge_fact', 'flag_knowledge_conflict'];
+
 const SCOPE_OPTIONS = [
   { value: 'conversation', label: 'Só esta conversa' },
   { value: 'project', label: 'Este projeto' },
@@ -218,6 +224,13 @@ function actionCardMeta(action) {
       title: 'Ação proposta: lembrar este fato',
       body: `"${action.content}"`,
       doneLabel: 'Fato registrado',
+    };
+  }
+  if (action.type === 'flag_knowledge_conflict') {
+    return {
+      title: 'Ação proposta: registrar conflito',
+      body: `Versão A: "${action.content}"\nVersão B (contradiz): "${action.conflictingContent}"`,
+      doneLabel: 'Conflito registrado',
     };
   }
   return {
@@ -340,7 +353,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
     try {
       const msg = messages.find((m) => m.id === messageId);
       const body = { projectId, decision };
-      if (decision === 'confirm' && msg && msg.proposedAction && msg.proposedAction.type === 'save_knowledge_fact') {
+      if (decision === 'confirm' && msg && msg.proposedAction && KNOWLEDGE_ACTION_TYPES.includes(msg.proposedAction.type)) {
         body.overrides = { scope: currentScope(msg) };
       }
       await apiPost(`/api/assistant/messages/${messageId}/action`, body);
@@ -444,7 +457,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                         <div className={`asst-action-card ${actionCardMeta(m.proposedAction).danger ? 'danger' : ''}`}>
                           {m.actionStatus === 'pending' && (() => {
                             const meta = actionCardMeta(m.proposedAction);
-                            const isFact = m.proposedAction.type === 'save_knowledge_fact';
+                            const isFact = KNOWLEDGE_ACTION_TYPES.includes(m.proposedAction.type);
                             return (
                               <>
                                 <div className="asst-action-card-title"><Sparkles size={13} color="#F5C400" /> {meta.title}</div>
