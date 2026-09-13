@@ -100,7 +100,12 @@ export const findConflictingFact = findSimilarFact;
 //   um afirma, o outro nega/cessa o mesmo tipo de afirmação.
 // - 'complement': nenhuma das anteriores — mesmo tópico, mas
 //   informação nova que não contradiz nem substitui a antiga.
-function classifyRelation({ newContent, newValidFrom, existing }) {
+// Exportado (2026-09-13, RENATA Eval Harness — server/evals/) só pra
+// permitir teste unitário determinístico direto (a função já era pura —
+// recebe `existing.similarity` pronto, nunca calcula embedding sozinha —
+// então exportar não muda nem expõe nenhum comportamento novo, só
+// visibilidade). Nenhuma linha do corpo abaixo foi alterada.
+export function classifyRelation({ newContent, newValidFrom, existing }) {
   if (existing.similarity >= DUPLICATE_SIMILARITY_THRESHOLD) return 'duplicate';
 
   const existingRef = existing.valid_from || existing.created_at;

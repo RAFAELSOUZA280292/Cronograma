@@ -4951,6 +4951,86 @@ mitigado pela mesma regra de sempre: nunca mais de uma proposedAction
 por resposta, e o usuário sempre confirma antes de qualquer coisa ser
 gravada.
 
+## 41. RENATA Eval Harness — Fase 1 do plano P0/P1 (2026-09-13)
+
+**Contexto**: depois do diagnóstico completo em
+`docs/RENATA_COGNITIVE_ARCHITECTURE_GAP_ANALYSIS.md` (RENATA como "sistema
+cognitivo", 20 itens de gap) e do plano de implementação reduzido a 11
+capacidades P0/P1 em `docs/RENATA_P0_P1_IMPLEMENTATION_PLAN.md`, o Rafael
+pediu pra implementar SÓ a primeira fase — um harness de avaliação — antes
+de tocar em qualquer lógica de raciocínio (Depth Routing, Adaptive Context,
+Reranking, Planner etc. ficam pra depois). Regra central: **medir o
+comportamento atual exatamente como ele é hoje, nunca ajustar
+resolveQuery/searchProjectMemory/buildProjectSnapshot/loadRelevantFacts/
+synthesizeAnswer/ranking/thresholds/prompts/models pra fazer um caso de
+teste passar.**
+
+**O que foi construído** (`server/evals/`, novo módulo):
+- `fixtures.js` — projeto sintético "Fixture Corp" (fictício, inspirado em
+  padrões reais já documentados — ex. o conflito de rateio de seguro de
+  vida do §40, decisão atualizada no tempo, atividade atrasada por
+  dependência), seedado usando CÓDIGO REAL de produção
+  (`reindexProjectMemory`/`saveKnowledgeFact`, nunca reimplementado).
+- `evidenceKeys.js` — como os ids aleatórios de chunk/fato viram chaves
+  estáveis (`chunk:<meetingId>#<kind>#<índice>`, `fact:<subject>#v<n>`) pra
+  os casos de teste referenciarem evidência de forma legível e reprodutível
+  entre reseeds.
+- `evalCases.js` — 23 casos cobrindo as 12 categorias pedidas (FACTUAL,
+  PERSON, MEETING, ACTIVITY, DECISION, TEMPORAL, CONFLICT, CAUSAL,
+  EXECUTIVE, NO_EVIDENCE, AMBIGUOUS_REFERENCE, MULTI_HOP).
+- `evalMetrics.js` — funções puras (recall@K, precision@K, MRR, citation
+  validity, cobertura de fatos esperados, veredito de no-evidence/conflito
+  como TP/FP/FN/TN).
+- `evalRunner.js` — chama `askProjectAssistant` de verdade (com o novo
+  parâmetro opcional `trace`, ver abaixo) e avalia contra `expected`.
+- `evalReport.js` — relatório agregado + FAILURE TRACE completo por caso
+  que falhar (resolveQuery/chunks/fatos/contexto/resposta/citações — nunca
+  só "caso X falhou").
+- `runUnitEval.mjs` (`npm run eval:unit`) — modo determinístico, ZERO
+  chamada de rede, roda em qualquer ambiente.
+- `runFullEval.mjs` (`npm run eval:full -- --baseline`) — modo real, exige
+  `ANTHROPIC_API_KEY`, nunca roda em build/CI automático, só por comando
+  explícito.
+
+**Única mudança em arquivo do "cérebro"**: `askProjectAssistant`
+(`server/assistantRetrieval.js`) ganhou um parâmetro opcional `trace` —
+aditivo, sem nenhuma mudança de comportamento pra quem não o passa
+(`server/assistant.js`, o chamador de produção, nunca passa). É só um ponto
+de observação pra capturar os valores intermediários já calculados
+(resolveQuery, chunks, fatos, synthesizeAnswer, latência por etapa) sem
+duplicar a orquestração numa segunda implementação. `classifyRelation`
+(`server/knowledgeFacts.js`) ganhou a palavra `export` (mesma função, zero
+mudança de corpo) pra ser testável diretamente no modo unitário.
+
+**Schema**: uma tabela nova, aditiva, fora do caminho crítico de produção —
+`ai_eval_runs` (histórico de execuções do benchmark, nunca lida por
+nenhuma rota de usuário final).
+
+**Testado**: `npm run eval:unit` rodado de verdade — 34/34 passou,
+incluindo um teste que documenta (não corrige) o ponto cego já previsto no
+gap analysis (`classifyRelation` classifica dois valores numéricos
+diferentes sem negação como `'complement'`, deveria ser `'conflict'`).
+A seed da fixture (código real + Voyage real, sem Anthropic) revelou DOIS
+achados não previstos, registrados em `docs/RENATA_EVAL_BASELINE.md`: (1)
+duas frases que diferem só numa data saíram como `duplicate` — o segundo
+fato foi descartado silenciosamente, não só mal classificado; (2) trocar o
+nome da pessoa responsável (Felipe→Camila) baixa a similaridade a ponto de
+`findSimilarFact` nunca achar o candidato — os dois fatos ficam `active`
+lado a lado, sem nenhum vínculo de sucessão temporal.
+
+**Pendência real, não escondida**: `ANTHROPIC_API_KEY` não está configurada
+no ambiente local desta sessão — o FULL EVAL (que exercita
+`resolveQuery`/`synthesizeAnswer` de verdade) está pronto pra rodar mas
+ainda não foi executado. `docs/RENATA_EVAL_BASELINE.md` documenta isso
+explicitamente e traz o comando exato (`node server/evals/runFullEval.mjs
+--baseline`) pra gerar o baseline real assim que a chave estiver
+disponível — nenhum número foi inventado pra preencher essa lacuna.
+
+**Próxima fase**: só depois do FULL EVAL rodar de verdade e o baseline
+ficar registrado, o Rafael decide se avança pro resto do plano P0/P1
+(Depth Routing, Adaptive Context, Reranking, ... — ver
+`docs/RENATA_P0_P1_IMPLEMENTATION_PLAN.md`, seção 2).
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

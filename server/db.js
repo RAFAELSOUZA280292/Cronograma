@@ -743,6 +743,25 @@ export async function initDb() {
   `);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS ai_knowledge_fact_entities_uidx ON ai_knowledge_fact_entities(fact_id, entity_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS ai_knowledge_fact_entities_entity_idx ON ai_knowledge_fact_entities(entity_id)`);
+
+  // RENATA Eval Harness — Fase 1 (2026-09-13, ver
+  // docs/RENATA_P0_P1_IMPLEMENTATION_PLAN.md e docs/RENATA_EVAL_BASELINE.md).
+  // Histórico de execuções do benchmark (server/evals/) — fora do caminho
+  // crítico de produção, nunca lida por askProjectAssistant nem por
+  // nenhuma rota de usuário final; só serve pra comparar BEFORE/AFTER entre
+  // fases futuras sem precisar reprocessar tudo manualmente toda vez.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_eval_runs (
+      id               TEXT PRIMARY KEY,
+      org_id           TEXT NOT NULL REFERENCES organizations(id),
+      run_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+      git_commit       TEXT,
+      eval_set_version TEXT NOT NULL,
+      results          JSONB NOT NULL,
+      summary_metrics  JSONB NOT NULL
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_eval_runs_org_idx ON ai_eval_runs(org_id, run_at)`);
 }
 
 // Migração one-shot (Fase 7, 2026-09-11) — copia os aprendizados já
