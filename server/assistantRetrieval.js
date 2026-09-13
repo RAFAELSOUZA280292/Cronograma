@@ -260,7 +260,18 @@ async function loadRecentHistory(pool, conversationId, limit = 8) {
 // identidade do cliente e ao cronograma (Resumo/Gantt/Tabela/Fases/
 // Quadro são a mesma base de dados), sem depender da memória de reuniões
 // pra perguntas que não vêm de reunião nenhuma.
-export async function askProjectAssistant({ pool, orgId, projectId, userId, question, context, projectData, projectUpdatedAt }) {
+//
+// `trace` (opcional, 2026-09-13, RENATA Eval Harness — server/evals/) — um
+// objeto simples que, se passado, é PREENCHIDO com os valores intermediários
+// já calculados neste pipeline (saída de resolveQuery, chunks recuperados,
+// texto de fatos, saída de synthesizeAnswer, latência por etapa). Nunca lido
+// de volta por esta função, nunca influencia nenhum cálculo/decisão — é
+// só um ponto de observação para o harness conseguir depurar EM QUAL ETAPA
+// uma resposta falhou, sem duplicar a orquestração real numa segunda
+// implementação. Nenhum chamador de produção (server/assistant.js) passa
+// esse parâmetro, então o comportamento de produção é bit-a-bit idêntico a
+// antes desta instrumentação.
+export async function askProjectAssistant({ pool, orgId, projectId, userId, question, context, projectData, projectUpdatedAt, trace }) {
   const startedAt = Date.now();
   const conversationId = await getOrCreateConversation(pool, orgId, projectId, userId);
   const history = await loadRecentHistory(pool, conversationId);
@@ -285,7 +296,9 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
   let cachedAnswer = null, queryEmbedding = null, fingerprint = null, resolvedParticipantOut = null, searchMeetingIdOut = null;
   let dependencyFactIds = [];
   try {
+    const resolveStartedAt = Date.now();
     resolved = await withRetry(() => resolveQuery({ question, history, context: context || {}, projectSnapshot }), 'resolveQuery');
+    if (trace) { trace.resolveLatencyMs = Date.now() - resolveStartedAt; trace.resolved = resolved.output; trace.resolveUsage = resolved.usage; }
     // Saudação/conversa geral não passa pelo pipeline de busca+síntese —
     // não é uma pergunta que exige evidência do projeto pra responder.
     if (resolved.output.intent !== 'conversa_geral') {
@@ -364,6 +377,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
       }).catch(() => {});
 
       if (!cachedAnswer) {
+        const retrievalStartedAt = Date.now();
         const [chunksResult, factsResult, googleConn] = await Promise.all([
           searchProjectMemory(pool, {
             orgId, projectId,
@@ -376,10 +390,12 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
           loadRelevantFacts(pool, orgId, projectId, conversationId),
           getConnectionStatus(userId),
         ]);
+        if (trace) trace.retrievalLatencyMs = Date.now() - retrievalStartedAt;
         chunks = chunksResult;
         const factsText = factsResult.text;
         dependencyFactIds = factsResult.factIds || [];
         googleConnected = !!(googleConn && googleConn.connected);
+        if (trace) { trace.resolvedParticipant = resolvedParticipant || null; trace.searchMeetingId = searchMeetingId || null; trace.factsText = factsText; trace.dependencyFactIds = dependencyFactIds; }
 
         // Agenda (Fase 4, 2026-09-10) — igual a personLookupText, é uma
         // fonte de contexto opcional: silenciosa se o usuário nunca
@@ -428,8 +444,12 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
           }
         }
 
+        if (trace) trace.chunksConsidered = chunks;
+        const synthesisStartedAt = Date.now();
         synthesized = await withRetry(() => synthesizeAnswer({ question, chunks, history, projectSnapshot, factsText, context: context || {}, personLookupText, calendarContextText, googleConnected }), 'synthesizeAnswer');
+        if (trace) { trace.synthesisLatencyMs = Date.now() - synthesisStartedAt; trace.synthesized = synthesized.output; trace.synthesisUsage = synthesized.usage; }
       }
+      if (trace) trace.cacheHit = !!cachedAnswer;
     }
   } catch (e) {
     errorMsg = e.message || 'Erro desconhecido';
@@ -602,6 +622,20 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
         dependencyMeetingIds, dependencyFactIds, citedFactIds, tokensInput, tokensOutput,
       }).catch((e) => console.error('Assistente do Projeto: falha ao gravar cache semântico', e.message));
     }
+  }
+
+  if (trace) {
+    trace.errorMsg = errorMsg;
+    trace.answerText = answerText;
+    trace.hasEvidence = hasEvidence;
+    trace.citedSources = citedSources;
+    trace.citedFactIds = citedFactIds;
+    trace.proposedAction = proposedAction;
+    trace.tokensInput = tokensInput;
+    trace.tokensOutput = tokensOutput;
+    trace.latencyMs = latencyMs;
+    trace.fromCache = fromCache;
+    trace.model = model;
   }
 
   const assistantMessageId = uid('aim');
