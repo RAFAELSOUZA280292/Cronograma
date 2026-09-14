@@ -480,6 +480,17 @@ export async function initDb() {
   await pool.query(`ALTER TABLE ai_messages ADD COLUMN IF NOT EXISTS from_cache BOOLEAN NOT NULL DEFAULT false`);
   await pool.query(`CREATE INDEX IF NOT EXISTS ai_messages_cited_facts_idx ON ai_messages USING GIN (cited_fact_ids jsonb_path_ops)`);
 
+  // Auditoria de Prompt Cache NATIVO da Anthropic (2026-09-14, pedido do
+  // Rafael em resposta ao alerta "taxa de acerto de cache de prompt está
+  // baixa") — NÃO confundir com `from_cache`/`cited_fact_ids` acima, que
+  // são sobre o CACHE SEMÂNTICO CASEIRO de respostas (ai_answer_cache,
+  // Fase 7). Isto aqui é o cache_read_input_tokens/cache_creation_input_tokens
+  // que a própria Anthropic devolve em `response.usage` — soma de
+  // resolveQuery+synthesizeAnswer nesta mensagem, mesmo padrão de soma já
+  // usado em tokens_input/tokens_output.
+  await pool.query(`ALTER TABLE ai_messages ADD COLUMN IF NOT EXISTS prompt_cache_read_tokens INT NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE ai_messages ADD COLUMN IF NOT EXISTS prompt_cache_creation_tokens INT NOT NULL DEFAULT 0`);
+
   // Aprendizados do Assistente do Projeto (2026-09, pedido do Rafael:
   // "gere aprendizado... memorize isso, não jogue no lixo") — fatos
   // duráveis extraídos das conversas (ver `synthesizeAnswer` em

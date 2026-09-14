@@ -460,7 +460,7 @@ export async function getMetrics(pool, { orgId, accessibleProjectIds, dateFrom, 
   if (dateFrom) { params.push(dateFrom); dateClause += ` AND created_at >= $${params.length}`; }
   if (dateTo) { params.push(dateTo); dateClause += ` AND created_at <= $${params.length}`; }
 
-  const [eventRows, cacheAggRows, topFactRows, topProjectRows, topUserRows] = await Promise.all([
+  const [eventRows, cacheAggRows, topFactRows, topProjectRows, topUserRows, promptCacheOverallRow, promptCacheByFeatureRows] = await Promise.all([
     pool.query(
       `SELECT event_type, count(*)::int AS count FROM ai_metrics_events
        WHERE org_id=$1 AND (project_id IS NULL OR project_id = ANY($2::text[]))${dateClause}
@@ -499,6 +499,34 @@ export async function getMetrics(pool, { orgId, accessibleProjectIds, dateFrom, 
        GROUP BY u.id, u.name ORDER BY facts_taught DESC LIMIT 10`,
       [orgId, projectFilter],
     ).then((r) => r.rows),
+    // Prompt Cache NATIVO da Anthropic (2026-09-14) — NÃO é o cache semântico
+    // de respostas acima (`cache`/ai_answer_cache); é o cache_read/creation
+    // que a própria Anthropic devolve em `usage` por chamada, ver
+    // `logAnthropicUsage` em server/assistantRetrieval.js e server/meetingInbox.js.
+    pool.query(
+      `SELECT
+         COALESCE(SUM((metadata->>'cacheReadTokens')::bigint), 0) AS cache_read,
+         COALESCE(SUM((metadata->>'cacheCreationTokens')::bigint), 0) AS cache_creation,
+         COALESCE(SUM((metadata->>'inputTokens')::bigint), 0) AS uncached_input,
+         COALESCE(SUM((metadata->>'outputTokens')::bigint), 0) AS output_tokens,
+         count(*)::int AS calls
+       FROM ai_metrics_events
+       WHERE event_type='anthropic_api_call' AND org_id=$1 AND (project_id IS NULL OR project_id = ANY($2::text[]))${dateClause}`,
+      params,
+    ).then((r) => r.rows[0]),
+    pool.query(
+      `SELECT metadata->>'feature' AS feature, metadata->>'model' AS model,
+         COALESCE(SUM((metadata->>'cacheReadTokens')::bigint), 0) AS cache_read,
+         COALESCE(SUM((metadata->>'cacheCreationTokens')::bigint), 0) AS cache_creation,
+         COALESCE(SUM((metadata->>'inputTokens')::bigint), 0) AS uncached_input,
+         COALESCE(SUM((metadata->>'outputTokens')::bigint), 0) AS output_tokens,
+         count(*)::int AS calls
+       FROM ai_metrics_events
+       WHERE event_type='anthropic_api_call' AND org_id=$1 AND (project_id IS NULL OR project_id = ANY($2::text[]))${dateClause}
+       GROUP BY metadata->>'feature', metadata->>'model'
+       ORDER BY cache_read + cache_creation + uncached_input DESC`,
+      params,
+    ).then((r) => r.rows),
   ]);
 
   const events = Object.fromEntries(eventRows.map((r) => [r.event_type, r.count]));
@@ -516,6 +544,29 @@ export async function getMetrics(pool, { orgId, accessibleProjectIds, dateFrom, 
       hitRate: (hits + misses) > 0 ? hits / (hits + misses) : null,
       tokensSavedInput: Number(cacheAggRows.tokens_saved_input), tokensSavedOutput: Number(cacheAggRows.tokens_saved_output),
     },
+    // Prompt Cache NATIVO da Anthropic — camada DIFERENTE do `cache` acima
+    // (que é o cache semântico caseiro de respostas). hitRate aqui segue a
+    // fórmula pedida: cache_read / (cache_read + cache_creation + input).
+    promptCache: (() => {
+      const read = Number(promptCacheOverallRow.cache_read);
+      const creation = Number(promptCacheOverallRow.cache_creation);
+      const uncached = Number(promptCacheOverallRow.uncached_input);
+      const total = read + creation + uncached;
+      return {
+        cacheReadTokens: read, cacheCreationTokens: creation, uncachedInputTokens: uncached,
+        outputTokens: Number(promptCacheOverallRow.output_tokens), calls: promptCacheOverallRow.calls,
+        hitRate: total > 0 ? read / total : null,
+        byFeature: promptCacheByFeatureRows.map((r) => {
+          const rRead = Number(r.cache_read), rCreation = Number(r.cache_creation), rUncached = Number(r.uncached_input);
+          const rTotal = rRead + rCreation + rUncached;
+          return {
+            feature: r.feature, model: r.model, calls: r.calls,
+            cacheReadTokens: rRead, cacheCreationTokens: rCreation, uncachedInputTokens: rUncached,
+            outputTokens: Number(r.output_tokens), hitRate: rTotal > 0 ? rRead / rTotal : null,
+          };
+        }),
+      };
+    })(),
     topFacts: topFactRows,
     topProjects: topProjectRows,
     topUsers: topUserRows,

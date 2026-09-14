@@ -24,6 +24,53 @@ import { logMetric } from './metrics.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
+// Observabilidade de prompt cache (item H da auditoria de custo, 2026-09-14):
+// extrai os 4 campos de `usage` que a Anthropic devolve — inclusive os de
+// cache, que antes eram ignorados (só input/output eram lidos). Nenhum
+// conteúdo de prompt é capturado, só contadores. promptCacheHitRate é
+// derivável depois em SQL: cacheRead / (cacheRead + cacheCreation + input).
+function usageFields(u) {
+  return {
+    inputTokens: (u && u.input_tokens) || 0,
+    outputTokens: (u && u.output_tokens) || 0,
+    cacheReadTokens: (u && u.cache_read_input_tokens) || 0,
+    cacheCreationTokens: (u && u.cache_creation_input_tokens) || 0,
+  };
+}
+// Loga uma chamada à IA como evento 'ai_usage' (fire-and-forget, igual às
+// outras métricas) — quebrável depois por model/endpoint/dia via created_at
+// em ai_metrics_events. Nunca inclui texto de prompt (só contadores).
+function logAiUsage(pool, { orgId, projectId, endpoint, model, usage }) {
+  logMetric(pool, { orgId, projectId, eventType: 'ai_usage', metadata: { endpoint, model, ...usageFields(usage) } }).catch(() => {});
+}
+
+// Auditoria de Prompt Cache (2026-09-14, pedido do Rafael em resposta ao
+// alerta da Anthropic de baixa taxa de acerto de cache) — registra, por
+// CHAMADA individual (não por pergunta, que soma resolveQuery+
+// synthesizeAnswer), o que a própria Anthropic devolveu em `usage`:
+// cache_read_input_tokens (lido do cache, ~10% do preço) e
+// cache_creation_input_tokens (escrito no cache, ~125%/200% do preço
+// conforme TTL) — sem isso não existe como medir se o cache_control já
+// configurado está funcionando de verdade ou é um no-op silencioso
+// (prompt curto demais pro mínimo cacheável do modelo, por exemplo).
+// NUNCA logar o conteúdo do prompt em si, só os números do `usage`.
+// `feature`/`model` dão a granularidade "por funcionalidade/agente/
+// modelo" pedida — `event_type` novo, deliberadamente diferente de
+// `cache_hit`/`cache_miss` (que já existem e são sobre o CACHE SEMÂNTICO
+// DE RESPOSTAS caseiro, `ai_answer_cache`, Fase 7 — uma camada
+// completamente diferente; nunca confundir as duas nos relatórios).
+function logAnthropicUsage(pool, { orgId, projectId, feature, model, usage }) {
+  const cacheReadTokens = (usage && usage.cache_read_input_tokens) || 0;
+  const cacheCreationTokens = (usage && usage.cache_creation_input_tokens) || 0;
+  const inputTokens = (usage && usage.input_tokens) || 0;
+  const outputTokens = (usage && usage.output_tokens) || 0;
+  logMetric(pool, {
+    orgId, projectId, eventType: 'anthropic_api_call',
+    metadata: { feature, model, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens },
+  }).catch(() => {});
+  return { cacheReadTokens, cacheCreationTokens };
+}
+
 // Retry único e curto pras duas chamadas à IA (resolveQuery/
 // synthesizeAnswer) — cobre falhas transitórias (rate limit momentâneo,
 // erro de rede, saída estruturada que não bateu no schema numa tentativa
@@ -132,10 +179,22 @@ async function resolveQuery({ question, history, context, projectSnapshot }) {
     // caro. synthesizeAnswer (resposta final) continua em Opus.
     model: 'claude-sonnet-5',
     max_tokens: 500,
-    // cache_control: o texto de instrução abaixo é IDÊNTICO em toda
-    // chamada desta função, pra qualquer projeto/usuário — cachear ele
-    // não muda a resposta em nada, só faz a Anthropic cobrar uma fração
-    // do preço nas chamadas seguintes que reusarem o cache (~5min).
+    // cache_control (auditoria de Prompt Cache, 2026-09-14): o texto de
+    // instrução abaixo é IDÊNTICO em toda chamada desta função, pra
+    // qualquer projeto/usuário — cachear ele não muda a resposta em nada,
+    // só faz a Anthropic cobrar uma fração do preço nas chamadas
+    // seguintes que reusarem o cache. `ttl: '1h'` (em vez do default de
+    // 5min): o padrão real de uso da RENATA é perguntas esporádicas por
+    // usuário/projeto, frequentemente com mais de 5min de intervalo entre
+    // uma e outra — com TTL de 5min o cache expira antes da próxima
+    // pergunta chegar, e nunca é lido; com 1h a janela cobre a maioria
+    // das lacunas reais entre perguntas. AVISO HONESTO (ver auditoria):
+    // este bloco de sistema sozinho tem ~400-470 tokens estimados, abaixo
+    // do mínimo de 1024 tokens exigido pra caching no claude-sonnet-5 —
+    // então é PROVÁVEL que isto ainda não cacheie na prática por causa do
+    // tamanho, não por causa do TTL. Mantido mesmo assim (correto e sem
+    // custo) + instrumentado (ver métrica `anthropic_api_call` abaixo)
+    // pra confirmar com dado real, não com suposição.
     system: [{
       type: 'text',
       text: [
@@ -144,7 +203,7 @@ async function resolveQuery({ question, history, context, projectSnapshot }) {
         'Se for uma pergunta real sobre o histórico do projeto, marque intent="pergunta_sobre_projeto" e reformule como uma busca autossuficiente, resolvendo qualquer referência ao que foi dito antes na conversa (inclusive "o cliente"/"a empresa", que pode ser resolvido pelo nome real no perfil do projeto abaixo) — nunca responda a pergunta em si nesse caso, isso é feito depois por outra etapa.',
         'Se a pergunta se referir a UMA reunião específica (ex.: "resuma a última reunião", "o que foi discutido na reunião de 10/09", "a reunião sobre o fornecedor X") — mesmo sem estar aberta na tela — resolva o id exato dela usando a lista "REUNIÕES DISPONÍVEIS" no perfil do projeto e preencha targetMeetingId. Isso é essencial pra pedidos de resumo geral, que não têm palavra-chave forte pra uma busca por relevância achar sozinha.',
       ].join(' '),
-      cache_control: { type: 'ephemeral' },
+      cache_control: { type: 'ephemeral', ttl: '1h' },
     }],
     messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nContexto: ${contextText}\n\nConversa até agora:\n${historyText}\n\nNova mensagem do usuário: ${question}` }],
     output_config: { format: zodOutputFormat(ResolveQuerySchema) },
@@ -176,12 +235,20 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, fa
     // "Não consegui processar essa pergunta agora." Aumentado com folga
     // de sobra pra nunca mais cortar no meio.
     max_tokens: 4000,
-    // cache_control (Fase 6, 2026-09-10, redução de custo): esse bloco
-    // de instrução é praticamente idêntico entre chamadas (só a frase
-    // do Google Calendar varia com googleConnected, que fica estável
-    // pra um mesmo usuário na maioria das perguntas) — cachear reduz o
-    // custo de reenviar esse texto longo em toda pergunta, sem mudar a
-    // resposta em nada.
+    // cache_control (Fase 6, 2026-09-10, redução de custo; corrigido na
+    // auditoria de Prompt Cache de 2026-09-14): esse bloco de instrução
+    // agora é BYTE-A-BYTE IDÊNTICO em toda chamada — antes disto, a frase
+    // sobre Google Calendar variava com `googleConnected` (dado POR
+    // USUÁRIO, não da RENATA) DENTRO do bloco marcado como cacheável, o
+    // que fragmentava o cache em duas variantes por org sem necessidade
+    // ("erro A" clássico: conteúdo dinâmico dentro de bloco estático).
+    // A instrução agora é genérica e sempre igual; o estado real
+    // (conectado ou não) vai como texto dinâmico em `messages`, junto de
+    // calendarContextText, onde já era recalculado a cada chamada mesmo.
+    // `ttl: '1h'` pelo mesmo motivo do resolveQuery (ver comentário lá) —
+    // este bloco tem ~3000+ tokens estimados, bem acima do mínimo de 512
+    // do claude-opus-5, então É esperado que já cacheie por tamanho; o
+    // TTL de 5min é o fator mais provável limitando o hit rate aqui.
     system: [{
       type: 'text',
       text: [
@@ -203,14 +270,12 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, fa
       'Você também pode propor ações (proposedAction) — SEIS tipos possíveis: (1) create_meeting_todo — criar uma pendência numa reunião; (2) delete_meeting_todo — excluir uma pendência de reunião existente; (3) reschedule_activity — reagendar uma atividade do cronograma oficial; (4) create_schedule_activity — criar uma atividade nova no cronograma oficial; (5) delete_schedule_activity — excluir uma atividade do cronograma oficial; (6) create_calendar_event — criar um evento de verdade no Google Calendar do usuário. Em TODOS os casos você NUNCA executa sozinha, e NUNCA finge que já executou — sempre descreva a ação proposta na resposta citando o título exato do alvo e peça confirmação explícita. Se não tiver certeza de qual reunião/pendência/atividade o usuário quer dizer, NÃO proponha ainda — faça a pergunta de esclarecimento primeiro (ex.: "Você está falando da atividade \'Split payment e demais operações financeiras\'?"), e só proponha de fato no turno seguinte, depois de confirmado.',
       'Ao reagendar (reschedule_activity), sempre diga na resposta a data antiga e a nova, pra o usuário conseguir validar a mudança de verdade antes de confirmar.',
       'Excluir uma atividade do CRONOGRAMA OFICIAL (delete_schedule_activity) é mais sensível que excluir uma pendência de reunião — afeta um prazo que pode já estar visível pro cliente. Só proponha se o usuário pedir isso claramente (não sugira excluir por conta própria), e deixe isso explícito na resposta.',
-      googleConnected
-        ? 'O usuário JÁ conectou o Google Calendar — você pode propor create_calendar_event quando ele pedir pra marcar/agendar um compromisso de verdade (não uma atividade do cronograma nem pendência de reunião, que são coisas diferentes). Preencha dueDate (obrigatório) e startTime se um horário for mencionado. Você recebe abaixo, em PRÓXIMOS EVENTOS NA AGENDA, os compromissos já marcados nos próximos dias — use isso pra responder perguntas tipo "o que tenho marcado essa semana" ou "tem conflito nesse horário".'
-        : 'O usuário AINDA NÃO conectou o Google Calendar — nunca proponha create_calendar_event. Se ele pedir pra marcar algo na agenda, diga que ele precisa conectar o Google Calendar primeiro (tela Agenda) antes de você conseguir fazer isso.',
+      'Você recebe abaixo, em STATUS DO GOOGLE CALENDAR, se o usuário já conectou a agenda ou não. Só quando estiver conectado você pode propor create_calendar_event pra marcar/agendar um compromisso de verdade (não uma atividade do cronograma nem pendência de reunião, que são coisas diferentes) — preencha dueDate (obrigatório) e startTime se um horário for mencionado, e use PRÓXIMOS EVENTOS NA AGENDA (quando presente) pra responder perguntas tipo "o que tenho marcado essa semana" ou "tem conflito nesse horário". Quando NÃO estiver conectado, nunca proponha create_calendar_event — se o usuário pedir pra marcar algo na agenda, diga que ele precisa conectar o Google Calendar primeiro (tela Agenda).',
       'Seja objetiva e executiva: prefira uma resposta curta e direta quando ela resolver, priorizando clareza, ação, contexto e prioridade — evite textão quando não for necessário.',
       ].join(' '),
-      cache_control: { type: 'ephemeral' },
+      cache_control: { type: 'ephemeral', ttl: '1h' },
     }],
-    messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nCONHECIMENTO ACUMULADO (fatos ensinados por usuários, deste projeto e da PRICETAX em geral):\n${factsText}\n\n${meetingContextText}\n\n${personLookupText || ''}\n\n${calendarContextText || ''}\n\nConversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória de reuniões:\n\n${chunksText}` }],
+    messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nCONHECIMENTO ACUMULADO (fatos ensinados por usuários, deste projeto e da PRICETAX em geral):\n${factsText}\n\n${meetingContextText}\n\n${personLookupText || ''}\n\nSTATUS DO GOOGLE CALENDAR: ${googleConnected ? 'conectado' : 'não conectado'}\n${calendarContextText || ''}\n\nConversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória de reuniões:\n\n${chunksText}` }],
     output_config: { format: zodOutputFormat(SynthesizeAnswerSchema) },
   });
   if (!response.parsed_output) throw new Error('Falha ao gerar a resposta.');
@@ -295,10 +360,16 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
   let resolved, chunks = [], synthesized, errorMsg = null, googleConnected = false, calendarContextText = '';
   let cachedAnswer = null, queryEmbedding = null, fingerprint = null, resolvedParticipantOut = null, searchMeetingIdOut = null;
   let dependencyFactIds = [];
+  let promptCacheReadTokens = 0, promptCacheCreationTokens = 0;
   try {
     const resolveStartedAt = Date.now();
     resolved = await withRetry(() => resolveQuery({ question, history, context: context || {}, projectSnapshot }), 'resolveQuery');
     if (trace) { trace.resolveLatencyMs = Date.now() - resolveStartedAt; trace.resolved = resolved.output; trace.resolveUsage = resolved.usage; }
+    {
+      const usageCache = logAnthropicUsage(pool, { orgId, projectId, feature: 'resolveQuery', model: 'claude-sonnet-5', usage: resolved.usage });
+      promptCacheReadTokens += usageCache.cacheReadTokens;
+      promptCacheCreationTokens += usageCache.cacheCreationTokens;
+    }
     // Saudação/conversa geral não passa pelo pipeline de busca+síntese —
     // não é uma pergunta que exige evidência do projeto pra responder.
     if (resolved.output.intent !== 'conversa_geral') {
@@ -448,6 +519,11 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
         const synthesisStartedAt = Date.now();
         synthesized = await withRetry(() => synthesizeAnswer({ question, chunks, history, projectSnapshot, factsText, context: context || {}, personLookupText, calendarContextText, googleConnected }), 'synthesizeAnswer');
         if (trace) { trace.synthesisLatencyMs = Date.now() - synthesisStartedAt; trace.synthesized = synthesized.output; trace.synthesisUsage = synthesized.usage; }
+        {
+          const usageCache = logAnthropicUsage(pool, { orgId, projectId, feature: 'synthesizeAnswer', model: 'claude-opus-5', usage: synthesized.usage });
+          promptCacheReadTokens += usageCache.cacheReadTokens;
+          promptCacheCreationTokens += usageCache.cacheCreationTokens;
+        }
       }
       if (trace) trace.cacheHit = !!cachedAnswer;
     }
@@ -635,20 +711,22 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
     trace.tokensOutput = tokensOutput;
     trace.latencyMs = latencyMs;
     trace.fromCache = fromCache;
+    trace.promptCacheReadTokens = promptCacheReadTokens;
+    trace.promptCacheCreationTokens = promptCacheCreationTokens;
     trace.model = model;
   }
 
   const assistantMessageId = uid('aim');
   await pool.query(
-    `INSERT INTO ai_messages (id, conversation_id, role, content, sources, has_evidence, scope, model, tokens_input, tokens_output, latency_ms, error, proposed_action, action_status, structured, cited_fact_ids, from_cache)
-     VALUES ($1,$2,'assistant',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+    `INSERT INTO ai_messages (id, conversation_id, role, content, sources, has_evidence, scope, model, tokens_input, tokens_output, latency_ms, error, proposed_action, action_status, structured, cited_fact_ids, from_cache, prompt_cache_read_tokens, prompt_cache_creation_tokens)
+     VALUES ($1,$2,'assistant',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
     [
       assistantMessageId, conversationId, answerText, JSON.stringify(citedSources), hasEvidence,
       JSON.stringify({ view: context && context.view, meetingId: context && context.meetingId, standaloneQuery: resolved && resolved.output.standaloneQuery }),
       model, tokensInput, tokensOutput, latencyMs, errorMsg,
       proposedAction ? JSON.stringify(proposedAction) : null, proposedAction ? 'pending' : null,
       structured ? JSON.stringify(structured) : null,
-      JSON.stringify(citedFactIds), fromCache,
+      JSON.stringify(citedFactIds), fromCache, promptCacheReadTokens, promptCacheCreationTokens,
     ],
   );
   await pool.query('UPDATE ai_conversations SET updated_at=now() WHERE id=$1', [conversationId]);

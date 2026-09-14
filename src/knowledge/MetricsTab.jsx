@@ -25,7 +25,7 @@ export function MetricsTab() {
   if (!loaded) return <div className="knw-empty">Carregando…</div>;
   if (!metrics) return <div className="knw-empty">Não consegui carregar as métricas.</div>;
 
-  const { memory, cache, topFacts, topProjects, topUsers } = metrics;
+  const { memory, cache, promptCache, topFacts, topProjects, topUsers } = metrics;
 
   return (
     <div className="knw-metric-grid">
@@ -43,13 +43,40 @@ export function MetricsTab() {
       </div>
 
       <div className="knw-metric-card">
-        <div className="knw-metric-card-title">Cache</div>
+        <div className="knw-metric-card-title">Cache semântico de respostas</div>
         <div className="knw-metric-row"><span>Acertos (hits)</span><b>{cache.hits}</b></div>
         <div className="knw-metric-row"><span>Erros (misses)</span><b>{cache.misses}</b></div>
         <div className="knw-metric-row"><span>Rejeitados por dependência</span><b>{cache.rejectedStale}</b></div>
         <div className="knw-metric-row"><span>Taxa de aproveitamento</span><b>{pct(cache.hitRate)}</b></div>
         <div className="knw-metric-row"><span>Tokens economizados</span><b>{(cache.tokensSavedInput + cache.tokensSavedOutput).toLocaleString('pt-BR')}</b></div>
       </div>
+
+      {promptCache && (
+        <div className="knw-metric-card" style={{ gridColumn: '1 / -1' }}>
+          <div className="knw-metric-card-title">Cache de prompt (Anthropic) — diferente do cache semântico acima</div>
+          <div className="knw-metric-row"><span>Chamadas à Anthropic</span><b>{promptCache.calls}</b></div>
+          <div className="knw-metric-row"><span>Tokens lidos do cache</span><b>{promptCache.cacheReadTokens.toLocaleString('pt-BR')}</b></div>
+          <div className="knw-metric-row"><span>Tokens gravados no cache</span><b>{promptCache.cacheCreationTokens.toLocaleString('pt-BR')}</b></div>
+          <div className="knw-metric-row"><span>Tokens sem cache</span><b>{promptCache.uncachedInputTokens.toLocaleString('pt-BR')}</b></div>
+          <div className="knw-metric-row"><span>Taxa de acerto de cache</span><b>{pct(promptCache.hitRate)}</b></div>
+          {promptCache.byFeature.length > 0 && (
+            <table className="knw-table" style={{ marginTop: 8 }}>
+              <thead><tr><th>Funcionalidade</th><th>Modelo</th><th>Chamadas</th><th>Lido</th><th>Gravado</th><th>Sem cache</th><th>Taxa</th></tr></thead>
+              <tbody>
+                {promptCache.byFeature.map((f) => (
+                  <tr key={`${f.feature}-${f.model}`}>
+                    <td>{f.feature}</td><td>{f.model}</td><td>{f.calls}</td>
+                    <td>{f.cacheReadTokens.toLocaleString('pt-BR')}</td>
+                    <td>{f.cacheCreationTokens.toLocaleString('pt-BR')}</td>
+                    <td>{f.uncachedInputTokens.toLocaleString('pt-BR')}</td>
+                    <td>{pct(f.hitRate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       <div className="knw-metric-card" style={{ gridColumn: '1 / -1' }}>
         <div className="knw-metric-card-title">Conhecimentos mais utilizados</div>

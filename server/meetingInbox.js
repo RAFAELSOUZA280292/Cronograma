@@ -21,6 +21,7 @@ import { requireAuth } from './auth.js';
 import { pool } from './db.js';
 import { canAccessProject } from './routes.js';
 import { reindexMeetingMemory } from './memoryIngest.js';
+import { logMetric } from './metrics.js';
 
 export const router = Router();
 
@@ -76,12 +77,28 @@ async function extractMeetingFromTranscript(transcript, clientCompanyName) {
   const response = await client.messages.parse({
     model: 'claude-opus-5',
     max_tokens: 10000,
-    system: 'Você extrai informações estruturadas de transcrições de reuniões de negócio em português do Brasil. Seja fiel ao conteúdo — nunca invente datas, nomes ou decisões que não estejam no texto. Quando algo não for mencionado explicitamente, deixe null (ou lista/string vazia). Preste atenção especial a quem fala cada trecho (os nomes de interlocutor na transcrição) para saber de que lado (PRICETAX ou cliente) vem cada compromisso assumido. Para "topics" e "highlights", cite timestamps e trechos exatamente como aparecem no texto bruto — nunca invente marcação de tempo que não esteja lá, e nunca copie a transcrição inteira nesses campos (eles são só um índice leve, o texto original já está preservado à parte).',
+    // cache_control (auditoria de Prompt Cache, 2026-09-14): antes disto o
+    // system era uma STRING solta — impossível de marcar com cache_control
+    // (só um content block aceita isso). Convertido pra array de bloco de
+    // texto, igual ao padrão já usado em resolveQuery/synthesizeAnswer.
+    // AVISO HONESTO: o custo desta chamada é dominado pela TRANSCRIÇÃO em
+    // si (dinâmica, em `messages`, nunca cacheável) — esta instrução
+    // estática é curta (~150-200 tokens estimados), bem abaixo do mínimo
+    // de 512 tokens do claude-opus-5, então é PROVÁVEL que continue sem
+    // cachear na prática mesmo depois desta correção. Mantido mesmo assim
+    // porque é estruturalmente correto e sem custo, e o texto pode crescer
+    // no futuro; a economia real esperada aqui é próxima de zero — não
+    // fingir o contrário.
+    system: [{
+      type: 'text',
+      text: 'Você extrai informações estruturadas de transcrições de reuniões de negócio em português do Brasil. Seja fiel ao conteúdo — nunca invente datas, nomes ou decisões que não estejam no texto. Quando algo não for mencionado explicitamente, deixe null (ou lista/string vazia). Preste atenção especial a quem fala cada trecho (os nomes de interlocutor na transcrição) para saber de que lado (PRICETAX ou cliente) vem cada compromisso assumido. Para "topics" e "highlights", cite timestamps e trechos exatamente como aparecem no texto bruto — nunca invente marcação de tempo que não esteja lá, e nunca copie a transcrição inteira nesses campos (eles são só um índice leve, o texto original já está preservado à parte).',
+      cache_control: { type: 'ephemeral', ttl: '1h' },
+    }],
     messages: [{ role: 'user', content: `${contexto}Extraia as informações estruturadas desta transcrição de reunião:\n\n${transcript}` }],
     output_config: { format: zodOutputFormat(MeetingExtractionSchema) },
   });
   if (!response.parsed_output) throw new Error('A IA não conseguiu estruturar essa transcrição.');
-  return response.parsed_output;
+  return { output: response.parsed_output, usage: response.usage };
 }
 
 async function processSubmission(submissionId) {
@@ -98,7 +115,20 @@ async function processSubmission(submissionId) {
     if (!project) throw new Error('Empresa não encontrada.');
     const clientCompanyName = (project.data && project.data.company && project.data.company.name) || '';
 
-    const extracted = await extractMeetingFromTranscript(sub.transcript, clientCompanyName);
+    const extraction = await extractMeetingFromTranscript(sub.transcript, clientCompanyName);
+    const extracted = extraction.output;
+    // Auditoria de Prompt Cache (2026-09-14) — mesmo padrão de
+    // server/assistantRetrieval.js: só números do `usage`, nunca conteúdo.
+    logMetric(pool, {
+      orgId: project.org_id, projectId: sub.project_id, eventType: 'anthropic_api_call',
+      metadata: {
+        feature: 'meeting_extraction', model: 'claude-opus-5',
+        inputTokens: (extraction.usage && extraction.usage.input_tokens) || 0,
+        outputTokens: (extraction.usage && extraction.usage.output_tokens) || 0,
+        cacheReadTokens: (extraction.usage && extraction.usage.cache_read_input_tokens) || 0,
+        cacheCreationTokens: (extraction.usage && extraction.usage.cache_creation_input_tokens) || 0,
+      },
+    }).catch(() => {});
 
     const meeting = {
       id: uid('mtg'),
