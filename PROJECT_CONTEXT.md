@@ -5031,6 +5031,84 @@ ficar registrado, o Rafael decide se avança pro resto do plano P0/P1
 (Depth Routing, Adaptive Context, Reranking, ... — ver
 `docs/RENATA_P0_P1_IMPLEMENTATION_PLAN.md`, seção 2).
 
+## 42. Auditoria de Prompt Cache nativo da Anthropic (2026-09-14)
+
+**Contexto**: a Anthropic sinalizou taxa de acerto de cache de prompt
+baixa na conta. Auditoria completa das 3 chamadas reais à API (não
+existe nenhuma outra — `resolveQuery`/`synthesizeAnswer` em
+`server/assistantRetrieval.js`, `extractMeetingFromTranscript` em
+`server/meetingInbox.js`; IVANA não tem integração de código própria
+neste repo, é só uma persona citada no texto da RENATA). Relatório
+completo entregue ao Rafael em chat (achados quantificados com
+estimativa de tokens por char-count, já que não havia instrumentação
+prévia pra medir de verdade — corrigido nesta mesma entrega).
+
+**Achados reais corrigidos**:
+1. **`googleConnected` (dado por usuário) estava DENTRO do bloco de
+   system marcado `cache_control` de `synthesizeAnswer`** — clássico
+   "erro A" (conteúdo dinâmico dentro de bloco estático), fragmentava o
+   cache em 2 variantes por org sem necessidade. Corrigido: instrução
+   agora é genérica e sempre idêntica; o estado real vira uma linha
+   dinâmica (`STATUS DO GOOGLE CALENDAR: conectado/não conectado`) no
+   `messages`, onde já era recalculado a cada chamada mesmo.
+2. **`cache_control` sem `ttl` (default 5min) nas 3 chamadas** — o
+   padrão real de uso da RENATA (perguntas esporádicas por
+   usuário/projeto) provavelmente cai na faixa de 5-60min entre
+   perguntas, onde o TTL de 5min nunca é lido a tempo. Trocado pra
+   `ttl: '1h'` nas 3 chamadas (GA no SDK 0.124.0, sem beta header).
+3. **`resolveQuery` (claude-sonnet-5) tem system block estimado em
+   ~400-470 tokens** — abaixo do mínimo de 1024 tokens exigido pra
+   caching nesse modelo (Claude Sonnet 5, ver tabela de mínimos por
+   modelo). É PROVÁVEL que o `cache_control` ali nunca tenha
+   funcionado, mesmo antes desta auditoria — mantido (não custa nada) e
+   agora instrumentado pra confirmar com dado real.
+4. **`extractMeetingFromTranscript` tinha `system` como STRING solta**
+   — impossível de anexar `cache_control` nesse formato. Convertido pra
+   array de bloco de texto. Aviso honesto: essa chamada é dominada pela
+   transcrição (dinâmica), a economia esperada aqui é próxima de zero.
+5. **Zero observabilidade de cache antes desta entrega** —
+   `cache_read_input_tokens`/`cache_creation_input_tokens` do `usage`
+   nunca eram lidos nem logados. Novo: `logAnthropicUsage()`
+   (`assistantRetrieval.js`) loga um evento `anthropic_api_call` em
+   `ai_metrics_events` por CHAMADA individual (feature/model/tokens),
+   nunca confundido com os eventos `cache_hit`/`cache_miss` já
+   existentes (que são do CACHE SEMÂNTICO DE RESPOSTAS caseiro,
+   `ai_answer_cache`, Fase 7 — camada diferente). `ai_messages` ganha
+   `prompt_cache_read_tokens`/`prompt_cache_creation_tokens` (soma
+   resolveQuery+synthesizeAnswer, mesmo padrão de tokens_input/output).
+   `getMetrics()` (`knowledgeCenter.js`) ganha `promptCache` (taxa de
+   acerto pela fórmula `cache_read / (cache_read + cache_creation +
+   input)`, breakdown por feature+modelo); `MetricsTab.jsx` ganha um
+   card novo, claramente rotulado "Cache de prompt (Anthropic) —
+   diferente do cache semântico acima" pra nunca confundir as duas
+   camadas na UI.
+
+**Confirmado como JÁ correto, sem necessidade de mudança**: histórico
+de conversa já é limitado a 8 mensagens (`loadRecentHistory`, nunca
+cresce sem limite); busca de memória já é por trecho relevante com
+`limit=12` (nunca documento inteiro, exceto o caso deliberado de
+transcrição completa pra contexto de atividade/reunião específica);
+ordem do prompt (estático→dinâmico→pergunta) já estava correta nas 3
+chamadas antes desta auditoria.
+
+**Achado não corrigido nesta fase, registrado como oportunidade P1/P2
+futura**: `output_config.format` (schema JSON de `SynthesizeAnswerSchema`,
+gerado por `zodOutputFormat`) mede ~3450-3950 tokens estimados — maior
+que o próprio system prompt — e a interface `JSONOutputFormat` do SDK
+não tem campo `cache_control` (confirmado no `.d.ts`), então não há
+como cachear esse bloco isoladamente hoje; se ele conta ou não pro
+mesmo prefixo cacheável do `system` é uma pergunta em aberto, não
+documentada, que só a métrica nova (`anthropic_api_call`) consegue
+responder com dado real ao longo do tempo. Também ficou como
+oportunidade futura (não implementada, maior risco/complexidade):
+separar o "Perfil do projeto" (`projectSnapshot`) em seu próprio bloco
+com `cache_control` dentro de `messages`, já que ele se repete
+idêntico entre `resolveQuery` e `synthesizeAnswer` na mesma pergunta e
+entre turnos da mesma conversa.
+
+**Testado**: `npm run eval:unit` (34/34, sem regressão), `npm run
+build` limpo, migração aplicada localmente antes do deploy.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
