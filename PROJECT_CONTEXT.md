@@ -5165,6 +5165,39 @@ padrão de `hasDraft` estreito (só rascunho de comentário/checklist) — usa
 um mecanismo de persistência diferente (`personalBoardSaveTimer`, não
 `persistProjectDebounced`), não investigado nem corrigido nesta sessão.
 
+## 44. Correção real: transcrição travava em "Processando..." pra sempre (2026-09-16)
+
+**Bug relatado pelo Rafael** (print de uma transcrição parada em
+"Processando..." havia minutos, sem nenhuma forma de limpar pelo
+painel). Causa raiz: `processSubmission` (`server/meetingInbox.js`) roda
+fire-and-forget (não segura a resposta HTTP numa chamada de IA que pode
+levar dezenas de segundos) — se o servidor reinicia no meio (ex.: um
+deploy, que aconteceu duas vezes nesta mesma sessão antes deste bug ser
+reportado) o processo em memória simplesmente morre, e como nada mais
+toca aquela linha do banco, ela fica em `status='processing'` pra
+sempre. O botão "Tentar novamente" da tela só aparecia pra
+`status='failed'` — uma submissão travada em `processing` não tinha
+NENHUM jeito de ser recuperada pelo painel, só com um `UPDATE` manual
+direto no banco de produção (que nem é publicamente acessível).
+
+**Corrigido em duas camadas, sem precisar de acesso ao banco de
+produção**:
+- `GET /api/meeting-inbox` (`server/meetingInbox.js`) agora recupera
+  sozinho: antes de listar, roda um `UPDATE` que vira `failed` qualquer
+  `processing` com mais de 5 minutos daquele projeto (nenhuma extração
+  real deveria legitimamente levar tanto) — reaproveita o botão "Tentar
+  novamente" que já existe pra `failed`, sem tela/rota nova.
+- `src/meetings/Meetings.jsx`: a tela também oferece "Tentar novamente"
+  sozinha quando uma submissão está `processing` há mais de 90 segundos
+  (mais rápido que esperar os 5min do servidor), com o aviso "Isso está
+  demorando mais que o normal".
+
+**Risco considerado e aceito**: reprocessar uma submissão que ESTIVESSE
+mesmo assim ainda rodando (não órfã de verdade) poderia gerar reunião
+duplicada — julgado desprezível porque nenhuma extração real chega perto
+de 90s/5min, e o cenário real que motivou isto (reinício de servidor) já
+mata o processo antigo de qualquer forma.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

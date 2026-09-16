@@ -220,6 +220,16 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
             {visibleSubmissions.map((s) => {
               const meta = SUBMISSION_STATUS_META[s.status] || SUBMISSION_STATUS_META.pending;
               const working = s.status === 'pending' || s.status === 'processing';
+              // "Travou" (2026-09-16, bug real: transcrição ficava em
+              // "Processando..." pra sempre se o servidor reiniciasse no
+              // meio do processamento — ver processSubmission/GET em
+              // server/meetingInbox.js, que já recupera sozinho depois de
+              // 5min). Nenhuma extração real leva mais que isso — passado
+              // esse tempo aqui na tela (mais rápido que esperar o
+              // recupero automático do servidor), oferece "tentar
+              // novamente" na hora, sem o usuário precisar ficar esperando.
+              const stuckTooLong = s.status === 'processing' && (Date.now() - new Date(s.createdAt).getTime()) > 90000;
+              const canRetry = s.status === 'failed' || stuckTooLong;
               return (
                 <div key={s.id} className="mtg-sub-row">
                   <span className={`mtg-sub-status ${meta.className}`}>
@@ -232,8 +242,11 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
                     {s.status === 'failed' && s.errorMessage && (
                       <div style={{ color: '#e2574c', marginTop: 2, fontSize: 11.5 }}>{s.errorMessage}</div>
                     )}
+                    {stuckTooLong && (
+                      <div style={{ color: '#ff9f40', marginTop: 2, fontSize: 11.5 }}>Isso está demorando mais que o normal — pode ter travado. Tente novamente.</div>
+                    )}
                   </div>
-                  {s.status === 'failed' && (
+                  {canRetry && (
                     <button style={S.iconBtnGhost} title="Tentar novamente" onClick={() => handleRetry(s.id)}><RefreshCw size={14} /></button>
                   )}
                 </div>

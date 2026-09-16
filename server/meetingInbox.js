@@ -245,6 +245,25 @@ router.get('/', requireAuth, async (req, res, next) => {
     if (!canAccessProject(req.user, projRows[0].data, projRows[0].org_id)) {
       return res.status(403).json({ message: 'Sem acesso a essa empresa.' });
     }
+    // Auto-recuperação de submissão órfã (2026-09-16, bug real relatado
+    // pelo Rafael: transcrição travada em "Processando..." pra sempre) —
+    // o processamento é fire-and-forget (ver processSubmission acima); se
+    // o servidor reiniciar no meio (ex.: um deploy) o processo que estava
+    // rodando simplesmente morre, e como nada mais toca aquela linha, ela
+    // fica em 'processing' pra sempre — sem isso, a única forma de
+    // recuperar seria alguém rodar um UPDATE manual direto no banco de
+    // produção. Nenhuma extração real (mesmo transcrição grande) deveria
+    // legitimamente levar mais que uns poucos minutos, então uma
+    // 'processing' mais velha que isso é tratada como órfã e vira
+    // 'failed' automaticamente — o que já reaproveita o botão "Tentar
+    // novamente" que a tela de Reuniões já mostra pra status='failed',
+    // sem precisar de nenhuma tela/rota nova.
+    await pool.query(
+      `UPDATE meeting_submissions
+       SET status='failed', error_message='Processamento interrompido (provável reinício do servidor) — clique em tentar novamente.', processed_at=now()
+       WHERE project_id=$1 AND status='processing' AND created_at < now() - interval '5 minutes'`,
+      [projectId],
+    ).catch((e) => console.error('Falha ao recuperar submissões travadas', e.message));
     const { rows } = await pool.query(
       `SELECT ms.id, ms.status, ms.error_message, ms.meeting_id, ms.created_at, ms.processed_at, u.name AS submitted_by_name
        FROM meeting_submissions ms JOIN users u ON u.id = ms.submitted_by
