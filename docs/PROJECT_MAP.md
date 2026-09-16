@@ -53,12 +53,12 @@ depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
 ## 2. Estrutura de diretórios
 
 ```
-src/App.jsx        Frontend principal: componentes, telas, estilos (S), lógica de estado. Exporta primitivas usadas por xflow/ e agenda/.
+src/App.jsx        Frontend principal: componentes, telas, estilos (S), lógica de estado. Exporta primitivas usadas por xflow/ e agenda/. 2026-09-16: flushProjectSave(pid) (ao lado de persistProjectDebounced/saveTimers) força o PATCH debounced a sair agora — usado por ActivityDetailModal/MeetingDetailModal antes de fechar; ActivityDetailModal ganha fieldsDirty (useDirtyForm sobre título/desc/notes/transcript) somado ao hasDraft, e "Sair sem salvar" reverte os campos de verdade — ver PROJECT_CONTEXT.md §43.
 src/xflow/XFlow.jsx     Módulo XFlow (gestão de BUGs) — telas, constantes de status/severidade/prioridade, helpers.
 src/agenda/Agenda.jsx    Módulo Agenda (2026-08) — visão dia/semana/mês da disponibilidade (Google + XFlow + atividades), toggle de privacidade.
 src/macro/MacroOverview.jsx  Módulo Visão Macro (2026-08) — cronograma consolidado de TODAS as empresas da org, por dia, com destaque de atrasado/hoje/próximo.
 src/meetings/Meetings.jsx   Módulo Reuniões (2026-09) — lista (MeetingsView) + caixa de transcrições (envio, status, retry). O detalhe da reunião em si mora em MeetingDetail.jsx.
-src/meetings/MeetingDetail.jsx  Tela de detalhe de reunião — "AI Meeting Workspace" (2026-09) — MeetingDetailModal, MeetingShareModal, MeetingPrintReport, PublicMeetingScreen (PROJECT_CONTEXT.md §26).
+src/meetings/MeetingDetail.jsx  Tela de detalhe de reunião — "AI Meeting Workspace" (2026-09) — MeetingDetailModal, MeetingShareModal, MeetingPrintReport, PublicMeetingScreen (PROJECT_CONTEXT.md §26). 2026-09-16: EditableTextCard (Resumo/Decisões) vira forwardRef com flush()/isDirty(); MeetingDetailModal ganha fieldsDirty (useDirtyForm sobre título/data/horário/resumo/decisões) somado ao hasDraft — antes só rascunho de participante contava, editar e fechar não pedia confirmação — ver PROJECT_CONTEXT.md §43.
 src/meetings/TranscriptView.jsx  Card de transcrição com 3 modos: Completa/Por temas/Highlights, busca com destaque (2026-09, PROJECT_CONTEXT.md §26).
 src/meetings/TodoBoard.jsx  Aba "Atividades" / "Centro de Execução" (2026-09) — todos os itens de TO_DO de todas as reuniões da empresa, achatados numa lista só, com cards de indicador, filtros/ordenação/agrupamento e "Minha fila" (PROJECT_CONTEXT.md §25).
 src/meetings/TodoDrawer.jsx  Painel lateral de detalhe de uma atividade (2026-09) — Origem/Descrição/Subtarefas/Comentários/Arquivos/Histórico (PROJECT_CONTEXT.md §25). Reaproveitado direto pela tela de Reunião também.

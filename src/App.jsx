@@ -463,6 +463,7 @@ export default function App() {
   const [loginError, setLoginError] = useState(null);
   const [usersPanelError, setUsersPanelError] = useState('');
   const saveTimers = useRef({});
+  const pendingProjectData = useRef({});
   const { toasts: appToasts, pushToast: pushAppToast, pushUndoToast: pushAppUndoToast, dismissToast: dismissAppToast } = useToasts();
 
   const [view, setView] = useState('table');
@@ -617,6 +618,7 @@ export default function App() {
         groupChildren={project.company.isGroupMaster ? groupMembers(projects, project.id).filter((p) => p.id !== project.id).map((p) => ({ id: p.id, name: p.company.nomeFantasia || p.company.name || 'Sem nome' })) : []}
         onClose={closeActivityDetail}
         updateActivity={updateActivity}
+        flushProjectSave={() => flushProjectSave(project.id)}
         deleteActivity={(tPid, id) => { if (deleteActivity(tPid, id)) closeActivityDetail(); }}
         addSub={addSub}
         updateSub={updateSub}
@@ -650,6 +652,7 @@ export default function App() {
         pushUndoToast={pushAppUndoToast}
         onClose={closeMeetingDetail}
         updateMeeting={updateMeeting}
+        flushProjectSave={() => flushProjectSave(project.id)}
         deleteMeeting={(tPid, id) => { if (deleteMeeting(tPid, id)) closeMeetingDetail(); }}
         toggleParticipant={toggleMeetingParticipant}
         addParticipant={addMeetingParticipantFreeText}
@@ -1012,13 +1015,38 @@ export default function App() {
   }
 
   function persistProjectDebounced(pid, projectData) {
+    pendingProjectData.current[pid] = projectData;
     if (saveTimers.current[pid]) clearTimeout(saveTimers.current[pid]);
     saveTimers.current[pid] = setTimeout(() => {
-      apiPatch(`/api/projects/${pid}`, { project: projectData }).catch((e) => {
+      delete saveTimers.current[pid];
+      const data = pendingProjectData.current[pid];
+      delete pendingProjectData.current[pid];
+      apiPatch(`/api/projects/${pid}`, { project: data }).catch((e) => {
         console.error('Falha ao salvar projeto', e);
         pushAppToast({ message: 'Não foi possível salvar a última alteração. Verifique sua conexão.', ttlMs: 8000 });
       });
     }, 500);
+  }
+
+  // Força o PATCH pendente a sair AGORA em vez de esperar o debounce de
+  // 500ms — usado antes de fechar um modal (X/overlay) que tem edição de
+  // campo autosave, pra garantir que a última tecla digitada realmente
+  // chegou no servidor antes do usuário sair da tela (2026-09-16, bug
+  // real relatado pelo Rafael: fechar rápido demais podia dar a
+  // impressão de que a edição "não salvou"). Devolve uma Promise pra quem
+  // chama poder aguardar antes de fechar de fato.
+  function flushProjectSave(pid) {
+    if (!saveTimers.current[pid]) return Promise.resolve();
+    clearTimeout(saveTimers.current[pid]);
+    delete saveTimers.current[pid];
+    const data = pendingProjectData.current[pid];
+    delete pendingProjectData.current[pid];
+    if (!data) return Promise.resolve();
+    return apiPatch(`/api/projects/${pid}`, { project: data }).catch((e) => {
+      console.error('Falha ao salvar projeto', e);
+      pushAppToast({ message: 'Não foi possível salvar a última alteração. Verifique sua conexão.', ttlMs: 8000 });
+      throw e;
+    });
   }
 
   function mutateProject(pid, updater, logMsg, activityId) {
@@ -6676,7 +6704,7 @@ function renderCommentText(text, teamList) {
   return parts.map((part, i) => (names.some((n) => part === `@${n}`) ? <span key={i} style={S.mentionTag}>{part}</span> : <React.Fragment key={i}>{part}</React.Fragment>));
 }
 
-function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant }) {
+function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, flushProjectSave, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant }) {
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState('');
   const [commentDraft, setCommentDraft] = useState('');
@@ -6752,14 +6780,42 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
 
   const isMobile = useIsMobile();
   const lastSavedAt = useAutosaveTimestamp(a);
-  const hasDraft = !!commentDraft.trim() || !!linkLabelDraft.trim() || !!linkUrlDraft.trim()
+  // Campos de autosave-por-tecla (título/descrição/observações/transcrição) —
+  // ANTES desta correção (2026-09-16, bug real relatado pelo Rafael:
+  // "usuário edita e não salva... clica fora e fecha") `hasDraft` só olhava
+  // pra rascunho de comentário/link, então editar a descrição e clicar fora
+  // fechava a tela em silêncio, sem confirmação nenhuma. `useDirtyForm` aqui
+  // dá dois benefícios de uma vez: marca como "não salvo" pra exigir
+  // confirmação de fechamento (igual todo outro modal do app), e registra
+  // aviso de `beforeunload` (recarregar/fechar a aba durante o debounce de
+  // 500ms do salvamento não passa mais em silêncio).
+  const fieldsSnapshot = { title: a.title, desc: a.desc, notes: a.notes || '', transcript: a.transcript || '' };
+  const initialFieldsRef = useRef(fieldsSnapshot);
+  const fieldsDirty = useDirtyForm(fieldsSnapshot);
+  const hasDraft = fieldsDirty || !!commentDraft.trim() || !!linkLabelDraft.trim() || !!linkUrlDraft.trim()
     || !!commentAttachmentDrafts.length || !!commentLinkDrafts.length || !!commentLinkUrlDraft.trim() || editingCommentId !== null;
   const [showGuard, setShowGuard] = useState(false);
+  const [closing, setClosing] = useState(false);
   function requestClose() { if (hasDraft) setShowGuard(true); else onClose(); }
-  function saveDraftsAndClose() {
+  async function saveDraftsAndClose() {
+    setClosing(true);
     if (editingCommentId !== null) { updateComment(pid, a.id, editingCommentId, editingCommentText); setEditingCommentId(null); }
     if (commentDraft.trim() || commentAttachmentDrafts.length || commentLinkDrafts.length) submitComment();
     if (linkUrlDraft.trim()) submitLink();
+    // Dá um tick pro React aplicar os setState acima antes de forçar o
+    // flush — sem isso o flush pode rodar antes do mutateProject(comentário/
+    // link) ter chegado a agendar o próprio PATCH.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (flushProjectSave) { try { await flushProjectSave(); } catch (e) { /* toast já mostrado por flushProjectSave */ } }
+    setClosing(false);
+    onClose();
+  }
+  function discardDraftsAndClose() {
+    if (fieldsDirty) updateActivity(pid, a.id, { ...initialFieldsRef.current });
+    setEditingCommentId(null);
+    setCommentDraft(''); setPendingMentions([]); setCommentAttachmentDrafts([]); setCommentLinkDrafts([]);
+    setCommentLinkLabelDraft(''); setCommentLinkUrlDraft(''); setShowCommentLinkForm(false);
+    setLinkLabelDraft(''); setLinkUrlDraft('');
     onClose();
   }
 
@@ -7112,8 +7168,9 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
       {showGuard && (
         <ConfirmDiscardModal
           onSaveAndExit={saveDraftsAndClose}
-          onDiscard={onClose}
+          onDiscard={discardDraftsAndClose}
           onCancel={() => setShowGuard(false)}
+          saving={closing}
         />
       )}
     </div>
