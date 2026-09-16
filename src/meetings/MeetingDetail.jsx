@@ -7,12 +7,12 @@
 // decisões, participantes, TO_DO) continua no mesmo lugar/mesma função;
 // isto é só a camada visual + as extensões combinadas (compartilhar,
 // exportar, transcrição em 3 modos).
-import React, { useState } from 'react';
+import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   Mic, Plus, X, Trash2, Share2, Download, Pencil, Copy, Lock, Globe,
   FileText, FileDown, Calendar, Clock, Building2, Users, ListChecks, ChevronDown,
 } from 'lucide-react';
-import { S, fmtDate, useIsMobile, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel } from '../App.jsx';
+import { S, fmtDate, useIsMobile, useAutosaveTimestamp, useDirtyForm, ConfirmDiscardModal, savedStatusLabel } from '../App.jsx';
 import { apiGet } from '../lib/api.js';
 import { TODO_STATUS_META, todoStatusMeta } from './Meetings.jsx';
 import { ActivityRow, ACTIVITY_ROW_CSS } from './ActivityRow.jsx';
@@ -66,11 +66,21 @@ const MEETING_DETAIL_CSS = `
   .mtg2-more-item:hover { background:var(--bg-3); }
 `;
 
-function EditableTextCard({ icon, title, value, placeholder, emptyMessage, onSave, renderRead }) {
+// forwardRef (2026-09-16, bug real: fechar o modal com um destes cards em
+// modo edição descartava o texto em silêncio — nem sempre dá pra confiar
+// que o blur dispara sozinho quando o elemento é desmontado) — flush()
+// força o commit do rascunho atual, isDirty() diz se há algo digitado e
+// ainda não commitado, pra MeetingDetailModal poder checar antes de
+// fechar sem precisar saber como este card guarda seu estado por dentro.
+const EditableTextCard = forwardRef(function EditableTextCard({ icon, title, value, placeholder, emptyMessage, onSave, renderRead }, ref) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || '');
   function startEdit() { setDraft(value || ''); setEditing(true); }
   function commit() { setEditing(false); if ((value || '') !== draft) onSave(draft); }
+  useImperativeHandle(ref, () => ({
+    isDirty: () => editing && draft !== (value || ''),
+    flush: () => { if (editing) commit(); },
+  }));
   return (
     <div className="mtg2-card">
       <div className="mtg2-card-head">
@@ -95,7 +105,7 @@ function EditableTextCard({ icon, title, value, placeholder, emptyMessage, onSav
       )}
     </div>
   );
-}
+});
 
 function DecisionsRead(text) {
   const items = splitDecisionLines(text);
@@ -154,7 +164,7 @@ function MeetingShareModal({ meeting, onClose, onSetVisibility, onRegenerateLink
 
 export function MeetingDetailModal({
   meeting: m, team, externalContacts, clientName, pid, currentUser, log, pushUndoToast,
-  onClose, updateMeeting, deleteMeeting, toggleParticipant, addParticipant,
+  onClose, updateMeeting, flushProjectSave, deleteMeeting, toggleParticipant, addParticipant,
   addActionItem, updateActionItem, deleteActionItem, duplicateActionItem,
   addSubtask, toggleSubtask, deleteSubtask, addComment, deleteComment, addAttachment, deleteAttachment,
   onViewActivities, onSetShareVisibility, onRegenerateShareLink, onExportPdf,
@@ -163,15 +173,49 @@ export function MeetingDetailModal({
   const [participantDraft, setParticipantDraft] = useState('');
   const [participantEmailDraft, setParticipantEmailDraft] = useState('');
   const lastSavedAt = useAutosaveTimestamp(m);
-  const hasDraft = !!(participantDraft.trim() || participantEmailDraft.trim());
+  // Mesma correção da ActivityDetailModal (2026-09-16, bug real relatado
+  // pelo Rafael: editar e fechar "não salva") — title/date/time autosavam
+  // por tecla mas nunca entravam no cálculo de "tem algo não salvo";
+  // summary/decisions moram dentro de EditableTextCard (edição sob
+  // demanda, só commita no blur) — summaryCardRef/decisionsCardRef deixam
+  // a modal perguntar/forçar o commit de um rascunho em edição sem
+  // precisar conhecer o estado interno do card.
+  const fieldsSnapshot = { title: m.title, date: m.date || '', time: m.time || '', summary: m.summary || '', decisions: m.decisions || '' };
+  const initialFieldsRef = useRef(fieldsSnapshot);
+  const fieldsDirty = useDirtyForm(fieldsSnapshot);
+  const summaryCardRef = useRef(null);
+  const decisionsCardRef = useRef(null);
+  const hasDraft = fieldsDirty || !!(participantDraft.trim() || participantEmailDraft.trim());
   const [showGuard, setShowGuard] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [openItemId, setOpenItemId] = useState(null);
   const [openFocusComment, setOpenFocusComment] = useState(false);
 
-  function requestClose() { if (hasDraft) setShowGuard(true); else onClose(); }
+  function requestClose() {
+    const cardsDirty = (summaryCardRef.current && summaryCardRef.current.isDirty())
+      || (decisionsCardRef.current && decisionsCardRef.current.isDirty());
+    if (hasDraft || cardsDirty) setShowGuard(true); else onClose();
+  }
+  async function saveAndClose() {
+    setClosing(true);
+    if (summaryCardRef.current) summaryCardRef.current.flush();
+    if (decisionsCardRef.current) decisionsCardRef.current.flush();
+    // Mesmo tick de espera da ActivityDetailModal — dá tempo do
+    // updateMeeting disparado pelo flush() acima agendar o PATCH antes da
+    // gente forçar ele a sair agora.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (flushProjectSave) { try { await flushProjectSave(); } catch (e) { /* toast já mostrado por flushProjectSave */ } }
+    setClosing(false);
+    onClose();
+  }
+  function discardAndClose() {
+    if (fieldsDirty) updateMeeting(pid, m.id, { ...initialFieldsRef.current });
+    setParticipantDraft(''); setParticipantEmailDraft('');
+    onClose();
+  }
   function submitParticipant() {
     if (!participantDraft.trim()) return;
     addParticipant(pid, m.id, participantDraft, participantEmailDraft);
@@ -328,6 +372,7 @@ export function MeetingDetailModal({
             </div>
 
             <EditableTextCard
+              ref={summaryCardRef}
               icon={<FileText size={15} />} title="Resumo executivo" value={m.summary}
               placeholder="O que foi discutido, em poucas linhas..."
               emptyMessage="A IA ainda não gerou um resumo desta reunião."
@@ -335,6 +380,7 @@ export function MeetingDetailModal({
             />
 
             <EditableTextCard
+              ref={decisionsCardRef}
               icon={<ListChecks size={15} />} title="Decisões tomadas" value={m.decisions}
               placeholder="O que ficou definido nesta reunião..."
               emptyMessage="Nenhuma decisão foi identificada."
@@ -389,8 +435,10 @@ export function MeetingDetailModal({
 
       {showGuard && (
         <ConfirmDiscardModal
-          onDiscard={() => { setParticipantDraft(''); setShowGuard(false); onClose(); }}
+          onSaveAndExit={saveAndClose}
+          onDiscard={discardAndClose}
           onCancel={() => setShowGuard(false)}
+          saving={closing}
         />
       )}
 

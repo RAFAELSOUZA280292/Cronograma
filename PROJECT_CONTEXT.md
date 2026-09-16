@@ -5109,6 +5109,62 @@ entre turnos da mesma conversa.
 **Testado**: `npm run eval:unit` (34/34, sem regressão), `npm run
 build` limpo, migração aplicada localmente antes do deploy.
 
+## 43. Correção real: fechar modal editando não confirmava nem sempre salvava de fato (2026-09-16)
+
+**Bug relatado pelo Rafael, reproduzido ao vivo antes de corrigir** (print
+da `ActivityDetailModal`, mas confirmado que o mesmo padrão existia
+também em `MeetingDetailModal`): editar um campo (título/descrição/
+observações/transcrição, ou resumo/decisões de reunião) e clicar fora do
+modal (ou no X) fechava a tela **em silêncio, sem nenhuma confirmação** —
+apesar do app já ter um padrão pronto pra isso (`useDirtyForm`/
+`useAutosaveTimestamp`/`ConfirmDiscardModal`, usado em 6+ outros
+modais). Causa raiz real, confirmada lendo o código: `hasDraft` nesses
+dois modais só olhava rascunho de comentário/link — nunca os campos que
+de fato autosalvam por tecla — então o guard nunca disparava pra eles.
+Em `MeetingDetailModal` havia um segundo problema: Resumo/Decisões usam
+`EditableTextCard` (edição sob demanda, só commita no blur) — fechar com
+o card em modo edição podia descartar o texto sem nunca chamar
+`onSave`.
+
+**Corrigido, não só documentado como limitação** (diferente da correção
+anterior de Prompt Cache, que era sobre custo — esta é sobre
+confiabilidade de dado do usuário):
+- `ActivityDetailModal`/`MeetingDetailModal`: `hasDraft` agora inclui um
+  `fieldsDirty` via `useDirtyForm` sobre os campos autosave (título/
+  descrição/observações/transcrição na atividade; título/data/horário/
+  resumo/decisões na reunião) — reaproveita o hook já existente, ganha de
+  graça o aviso de `beforeunload` (fechar a aba/recarregar durante o
+  debounce de 500ms do salvamento também passa a avisar).
+- `EditableTextCard` (`src/meetings/MeetingDetail.jsx`) virou
+  `forwardRef` com `flush()`/`isDirty()` — a modal força o commit de
+  qualquer edição em andamento antes de decidir se mostra o guard.
+- Novo `flushProjectSave(pid)` (`src/App.jsx`, ao lado de
+  `persistProjectDebounced`) — força o PATCH pendente a sair AGORA em vez
+  de esperar os 500ms de debounce; chamado por "Salvar e sair" antes de
+  fechar de fato, garantindo que a última tecla digitada realmente chegou
+  no servidor.
+- "Sair sem salvar" agora REVERTE de verdade os campos autosave pro valor
+  de quando o modal foi aberto (`initialFieldsRef`, capturado uma vez no
+  primeiro render) — antes desta correção "descartar" não fazia sentido
+  pra esses campos porque eles já tinham sido aplicados ao estado
+  compartilhado; agora reverter de fato desfaz.
+
+**Testado ao vivo no browser** (não só `npm run build`) — reproduzido o
+bug original primeiro (editar Descrição de uma atividade real, clicar
+fora, ver o fechamento silencioso), depois confirmado que a mesma ação
+agora mostra "Você tem alterações não salvas" com as 3 opções
+funcionando: "Continuar editando" mantém a edição; "Sair sem salvar"
+reverte o campo pro valor anterior (conferido no banco); "Salvar e sair"
+persiste de verdade no Postgres (conferido com query direta, não só na
+tela). Repetido o mesmo teste em `MeetingDetailModal` (editar Resumo
+executivo via `EditableTextCard`, fechar) com o mesmo resultado.
+
+**Fora do escopo desta correção, sinalizado como pendência conhecida**:
+`PersonalCardDetailModal` (Gestão de Atividades pessoal) tem o mesmo
+padrão de `hasDraft` estreito (só rascunho de comentário/checklist) — usa
+um mecanismo de persistência diferente (`personalBoardSaveTimer`, não
+`persistProjectDebounced`), não investigado nem corrigido nesta sessão.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
