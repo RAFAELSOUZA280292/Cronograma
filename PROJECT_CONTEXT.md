@@ -5248,6 +5248,55 @@ sem antes extrair cada linha pra seu próprio componente (hooks não podem
 ser chamados dentro de `.map()`), um refactor maior que não foi feito
 aqui por segurança/tempo.
 
+## 46. Auditoria "onde mais isso?" — mesmo bug de digitação em outros 2 lugares (2026-09-17)
+
+Depois da correção do §45, o Rafael pediu explicitamente uma varredura
+completa do código pra achar todo outro lugar com o mesmo padrão (campo
+de texto cujo `onChange` chama `mutateProject`/equivalente direto a
+cada tecla). Levantamento por `grep` em `src/App.jsx` e `src/meetings/*`
+(a única área ainda não auditada de fato).
+
+**Confirmado e corrigido nesta entrega** (mesmo hook `useDebouncedField`
+do §45, contexto de componente único — sem o problema de `.map()`):
+
+- **`TodoDrawer.jsx`** (painel de detalhe de Item de Ação, usado tanto
+  em Reuniões quanto no Quadro/TodoBoard) — título, subtítulo,
+  responsável e descrição chamavam `updateActionItem` (→
+  `updateMeetingActionItem` em `App.jsx` → `mutateProject`) a cada
+  tecla. Era o caso mais grave encontrado — estruturalmente idêntico ao
+  bug do §45, só que em Itens de Ação em vez de Atividades.
+- **`PersonalCardDetailModal`** (`App.jsx`, cards do Quadro Pessoal) —
+  título e descrição do card tinham o mesmo padrão (`onChange={(e) =>
+  onUpdate({...})}` direto). O `onBlur` que só registrava log
+  ("Título atualizado"/"Descrição atualizada") foi absorvido pelo
+  `commit` do próprio `useDebouncedField`.
+
+Ambos testados localmente digitando rápido nos 6 campos no total e
+conferindo o valor final persistido caractere a caractere direto no
+Postgres (não só na tela) — sem nenhuma letra perdida, sem regressão no
+fluxo de "Sair sem salvar"/`ConfirmDiscardModal` existente (que continua
+tratando só rascunho de comentário/checklist, já que título/descrição
+agora sempre autosalvam via debounce).
+
+**Confirmado como risco real, mas NÃO corrigido nesta entrega** — mesmo
+padrão, porém dentro de um `.map()` (exige extrair a linha num
+componente próprio antes, igual à pendência do `TableView` no §45):
+
+- Subatividade dentro de `ActivityDetailModal` (`updateSub`, título da
+  subatividade) — não foi coberto pelo fix do §45, que só tratou os
+  4 campos do nível principal da atividade.
+- Tela "Configurações da Empresa" → Áreas e responsáveis
+  (`updateAreaRow`: campo área/nome/e-mail).
+- Tela "Configurações de Fases" (`updatePhase`: nome/descrição da
+  fase).
+
+**Verificado e descartado como falso positivo** (usa `useState` local,
+só propaga pro estado persistido num submit explícito, não por tecla):
+filtros/busca de XFlow, formulário de criação do TodoBoard,
+busca/filtros de Meetings/TranscriptView/MacroOverview/
+ProjectAssistant/Central de Conhecimento, campo de status em
+`ActivityRow` (é `<select>`, não dispara por tecla).
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
