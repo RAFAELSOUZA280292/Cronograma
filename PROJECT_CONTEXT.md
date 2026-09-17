@@ -5297,6 +5297,49 @@ busca/filtros de Meetings/TranscriptView/MacroOverview/
 ProjectAssistant/Central de Conhecimento, campo de status em
 `ActivityRow` (é `<select>`, não dispara por tecla).
 
+## 47. Fechando a auditoria do §46: os 3 casos dentro de `.map()` (2026-09-17)
+
+Extraídos os 3 `.map()` sinalizados como pendência no §46 em componentes
+próprios — único jeito de usar `useDebouncedField` (um hook) por linha
+sem violar Rules of Hooks:
+
+- **`SubactivityRow`** (perto de `ActivityDetailModal`, `App.jsx`) —
+  título da subatividade. `dragSubId`/`setDragSubId` continuam como
+  estado do `ActivityDetailModal` pai, só passados como prop — a lógica
+  de arrastar pra reordenar não mudou, só onde a JSX mora.
+- **`AreaRow`** (perto de `App()`, `App.jsx`) — área/nome/e-mail da tela
+  "Empresa e equipe" → Áreas e responsáveis.
+- **`PhaseRow`** (perto de `App()`, `App.jsx`) — nome/descrição da tela
+  "Fases". `dragPhaseId`/`setDragPhaseId` também continuam no pai.
+
+**Bug de corrida real encontrado e corrigido durante a extração** (não
+existia antes, teria sido introduzido pelo debounce se eu não tivesse
+ajustado): `commitAreaRow(id)` e o `onBlur` de nome/descrição de fase
+liam o valor "de verdade" do `activeProject`/da prop pra decidir uma
+ação (auto-cadastrar o responsável na equipe; escrever a mensagem de
+log) — só que com o campo agora debounced, o valor mais recente ainda
+podia estar só no rascunho local, não propagado, no exato momento do
+blur (o padrão antigo assumia commit síncrono por tecla). Corrigido
+passando o valor do rascunho direto pro chamador (`commitAreaRow(id,
+overrides)` e `addLog(..., \`Fase renomeada: "${nameField.draft}"\`)`)
+em vez de reler o estado.
+
+**Testado**: os 3 fluxos digitando rápido e conferindo o valor final
+direto no Postgres — subatividade (título), área (área/nome/e-mail,
+incluindo o auto-cadastro do responsável na equipe testado
+especificamente por causa do bug de corrida acima) e fase
+(nome/descrição, log com o nome correto, não o antigo). Drag-and-drop
+não foi testado via automação (ferramenta de browser deste ambiente não
+simula bem HTML5 drag-and-drop nativo) — revisão de código confirma que
+o mecanismo (estado do componente pai + `draggable`/`onDragStart`/
+`onDragOver`/`onDrop`) não mudou, só a JSX foi movida pra dentro do
+componente extraído.
+
+Com isso, a auditoria "onde mais isso?" do §46 está encerrada — os 5
+pontos confirmados (2 do §46 + 3 aqui) foram todos corrigidos. Restou
+só o `TableView` (título/descrição/subatividade/notas inline na aba
+Tabela, §45) como pendência aberta, já rastreada.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
