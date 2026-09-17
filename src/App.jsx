@@ -215,6 +215,61 @@ export function useDirtyForm(currentValue) {
   return isDirty;
 }
 
+// Campo de texto com autosave DEBOUNCED, não por tecla (2026-09-17, bug
+// real relatado pelo Rafael: "escrevo 3-4 letras e o texto é apagado por
+// um fantasma"). Causa raiz: nos modais de autosave-por-campo, CADA tecla
+// disparava a função de update do pai, que sobe até o estado no topo do
+// componente App inteiro (~9000 linhas, sem memoização) e refaz o render
+// da árvore inteira (inclusive a tabela por baixo do modal) — em projetos
+// com mais atividades isso trava visivelmente a digitação: o valor real já
+// está correto por baixo (confirmado lendo o DOM direto), mas a TELA demora
+// a repintar, dando a impressão de que a letra digitada sumiu.
+//
+// Aqui o campo fica 100% local (responsivo, sem NENHUM custo do re-render
+// pesado do app) e só propaga o valor pro resto do sistema (e daí pro
+// autosave de verdade) `delayMs` depois da última tecla — a MESMA
+// sensação de "salva sozinho" pro usuário, sem travar a digitação.
+// `externalValue` (ex.: `a.title`) ainda resincroniza o campo quando muda
+// por outro motivo que não foi o nosso próprio commit (ex.: sincronização
+// de atividade de grupo, ou outra pessoa editando ao mesmo tempo).
+export function useDebouncedField(externalValue, commit, delayMs = 300) {
+  const [draft, setDraft] = useState(externalValue);
+  const lastCommittedRef = useRef(externalValue);
+  const timerRef = useRef(null);
+  useEffect(() => {
+    if (externalValue !== lastCommittedRef.current) {
+      lastCommittedRef.current = externalValue;
+      setDraft(externalValue);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalValue]);
+  function onChange(v) {
+    setDraft(v);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      lastCommittedRef.current = v;
+      commit(v);
+    }, delayMs);
+  }
+  // Cancela o debounce e commita AGORA (usado no onBlur do campo, e antes
+  // de fechar o modal) — nunca deixa uma tecla digitada por último
+  // esperando o timer se o usuário já saiu do campo/da tela.
+  function flush() {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    if (draft !== lastCommittedRef.current) { lastCommittedRef.current = draft; commit(draft); }
+  }
+  // Cancela o debounce SEM commitar — usado só por "Sair sem salvar", que
+  // já reverte o valor de verdade por fora (updateActivity com o valor
+  // original), então aqui só precisa parar o timer e voltar o campo local.
+  function reset(value) {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    lastCommittedRef.current = value;
+    setDraft(value);
+  }
+  return { draft, onChange, flush, reset };
+}
+
 // record = a prop vinda do pai (activity/ticket/card) que já muda sozinha
 // toda vez que um autosave de campo grava — não precisa instrumentar cada
 // handler individual, só observa o resultado.
@@ -6780,18 +6835,19 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
 
   const isMobile = useIsMobile();
   const lastSavedAt = useAutosaveTimestamp(a);
-  // Campos de autosave-por-tecla (título/descrição/observações/transcrição) —
-  // ANTES desta correção (2026-09-16, bug real relatado pelo Rafael:
-  // "usuário edita e não salva... clica fora e fecha") `hasDraft` só olhava
-  // pra rascunho de comentário/link, então editar a descrição e clicar fora
-  // fechava a tela em silêncio, sem confirmação nenhuma. `useDirtyForm` aqui
-  // dá dois benefícios de uma vez: marca como "não salvo" pra exigir
-  // confirmação de fechamento (igual todo outro modal do app), e registra
-  // aviso de `beforeunload` (recarregar/fechar a aba durante o debounce de
-  // 500ms do salvamento não passa mais em silêncio).
-  const fieldsSnapshot = { title: a.title, desc: a.desc, notes: a.notes || '', transcript: a.transcript || '' };
-  const initialFieldsRef = useRef(fieldsSnapshot);
-  const fieldsDirty = useDirtyForm(fieldsSnapshot);
+  // Campos de autosave (título/descrição/observações/transcrição) — 2026-09-16:
+  // corrigido pra exigir confirmação de fechamento (useDirtyForm) quando
+  // editados, já que antes `hasDraft` só olhava rascunho de comentário/link.
+  // 2026-09-17: além disso, corrigido o bug real "escrevo e o texto some" —
+  // useDebouncedField (ver definição) mantém o campo local/responsivo e só
+  // propaga pro resto do app (updateActivity, que refaz o render da árvore
+  // inteira) 300ms depois da última tecla, não a cada tecla.
+  const initialFieldsRef = useRef({ title: a.title, desc: a.desc, notes: a.notes || '', transcript: a.transcript || '' });
+  const titleField = useDebouncedField(a.title, (v) => updateActivity(pid, a.id, { title: v }, `Título alterado: "${v}"`));
+  const descField = useDebouncedField(a.desc, (v) => updateActivity(pid, a.id, { desc: v }, `Descrição alterada em "${titleField.draft}"`));
+  const notesField = useDebouncedField(a.notes || '', (v) => updateActivity(pid, a.id, { notes: v }, `Observação alterada em "${titleField.draft}"`));
+  const transcriptField = useDebouncedField(a.transcript || '', (v) => updateActivity(pid, a.id, { transcript: v }, `Transcrição de reunião atualizada em "${titleField.draft}"`));
+  const fieldsDirty = useDirtyForm({ title: titleField.draft, desc: descField.draft, notes: notesField.draft, transcript: transcriptField.draft });
   const hasDraft = fieldsDirty || !!commentDraft.trim() || !!linkLabelDraft.trim() || !!linkUrlDraft.trim()
     || !!commentAttachmentDrafts.length || !!commentLinkDrafts.length || !!commentLinkUrlDraft.trim() || editingCommentId !== null;
   const [showGuard, setShowGuard] = useState(false);
@@ -6799,6 +6855,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
   function requestClose() { if (hasDraft) setShowGuard(true); else onClose(); }
   async function saveDraftsAndClose() {
     setClosing(true);
+    titleField.flush(); descField.flush(); notesField.flush(); transcriptField.flush();
     if (editingCommentId !== null) { updateComment(pid, a.id, editingCommentId, editingCommentText); setEditingCommentId(null); }
     if (commentDraft.trim() || commentAttachmentDrafts.length || commentLinkDrafts.length) submitComment();
     if (linkUrlDraft.trim()) submitLink();
@@ -6811,7 +6868,11 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
     onClose();
   }
   function discardDraftsAndClose() {
-    if (fieldsDirty) updateActivity(pid, a.id, { ...initialFieldsRef.current });
+    if (fieldsDirty) {
+      const initial = initialFieldsRef.current;
+      titleField.reset(initial.title); descField.reset(initial.desc); notesField.reset(initial.notes); transcriptField.reset(initial.transcript);
+      updateActivity(pid, a.id, { ...initial });
+    }
     setEditingCommentId(null);
     setCommentDraft(''); setPendingMentions([]); setCommentAttachmentDrafts([]); setCommentLinkDrafts([]);
     setCommentLinkLabelDraft(''); setCommentLinkUrlDraft(''); setShowCommentLinkForm(false);
@@ -6834,23 +6895,23 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
 
         <input
           type="text"
-          value={a.title}
-          onChange={(e) => updateActivity(pid, a.id, { title: e.target.value })}
-          onBlur={() => updateActivity(pid, a.id, {}, `Título alterado: "${a.title}"`)}
+          value={titleField.draft}
+          onChange={(e) => titleField.onChange(e.target.value)}
+          onBlur={titleField.flush}
           style={S.detailTitleInput}
         />
 
         <div style={S.detailGrid}>
           <div style={{ ...S.detailMain, ...(isMobile ? S.detailMainMobile : null) }}>
             <div style={S.subSectionLabel}>Descrição</div>
-            <textarea value={a.desc} onChange={(e) => updateActivity(pid, a.id, { desc: e.target.value })} onBlur={() => updateActivity(pid, a.id, {}, `Descrição alterada em "${a.title}"`)} rows={2} style={S.notesArea} />
+            <textarea value={descField.draft} onChange={(e) => descField.onChange(e.target.value)} onBlur={descField.flush} rows={2} style={S.notesArea} />
 
             <div style={{ ...S.subSectionLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
               Observações
               {!showNotesBox && <button style={S.iconBtnGhost} onClick={() => setShowNotesBox('focus')} title="Adicionar observação"><Plus size={12} /></button>}
             </div>
             {!!showNotesBox && (
-              <textarea value={a.notes || ''} onChange={(e) => updateActivity(pid, a.id, { notes: e.target.value })} onBlur={() => updateActivity(pid, a.id, {}, `Observação alterada em "${a.title}"`)} rows={3} placeholder="Comentários, contexto, decisões desta atividade..." style={S.notesArea} autoFocus={showNotesBox === 'focus'} />
+              <textarea value={notesField.draft} onChange={(e) => notesField.onChange(e.target.value)} onBlur={notesField.flush} rows={3} placeholder="Comentários, contexto, decisões desta atividade..." style={S.notesArea} autoFocus={showNotesBox === 'focus'} />
             )}
 
             <div style={S.subSectionLabel}><Link2 size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Links {(a.links || []).length > 0 ? `(${(a.links || []).length})` : ''}</div>
@@ -6874,9 +6935,9 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
             </div>
             {!!showTranscriptBox && (
               <textarea
-                value={a.transcript || ''}
-                onChange={(e) => updateActivity(pid, a.id, { transcript: e.target.value })}
-                onBlur={() => updateActivity(pid, a.id, {}, `Transcrição de reunião atualizada em "${a.title}"`)}
+                value={transcriptField.draft}
+                onChange={(e) => transcriptField.onChange(e.target.value)}
+                onBlur={transcriptField.flush}
                 rows={6}
                 placeholder="Cole aqui a transcrição da reunião..."
                 style={{ ...S.notesArea, fontFamily: 'monospace', fontSize: 11.5 }}
