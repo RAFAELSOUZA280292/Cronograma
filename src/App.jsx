@@ -5253,9 +5253,12 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
   const [editingCommentText, setEditingCommentText] = useState('');
   const [showGuard, setShowGuard] = useState(false);
   const lastSavedAt = useAutosaveTimestamp(card);
+  const titleField = useDebouncedField(card.title, (v) => onUpdate({ title: v }, 'Título atualizado'));
+  const descField = useDebouncedField(card.desc || '', (v) => onUpdate({ desc: v }, 'Descrição atualizada'));
   const hasDraft = !readOnly && (!!commentDraft.trim() || !!checklistDraft.trim() || editingCommentId !== null);
-  function requestClose() { if (hasDraft) setShowGuard(true); else onClose(); }
+  function requestClose() { titleField.flush(); descField.flush(); if (hasDraft) setShowGuard(true); else onClose(); }
   function saveDraftsAndClose() {
+    titleField.flush(); descField.flush();
     if (editingCommentId !== null) { onUpdateComment(editingCommentId, editingCommentText); setEditingCommentId(null); }
     if (commentDraft.trim()) submitComment();
     if (checklistDraft.trim()) submitChecklist();
@@ -5318,10 +5321,10 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
               {card.completed ? <Check size={16} /> : <span style={S.personalCardCheckEmptyLg} />}
             </button>
             <input
-              value={card.title}
+              value={titleField.draft}
               readOnly={readOnly}
-              onChange={(e) => onUpdate({ title: e.target.value })}
-              onBlur={() => onUpdate({}, 'Título atualizado')}
+              onChange={(e) => titleField.onChange(e.target.value)}
+              onBlur={titleField.flush}
               style={{ ...S.personalDetailTitleInput, ...(card.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}
             />
           </div>
@@ -5347,10 +5350,10 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
 
           <div style={S.subSectionLabel}>Descrição</div>
           <textarea
-            value={card.desc || ''}
+            value={descField.draft}
             readOnly={readOnly}
-            onChange={(e) => onUpdate({ desc: e.target.value })}
-            onBlur={() => onUpdate({}, 'Descrição atualizada')}
+            onChange={(e) => descField.onChange(e.target.value)}
+            onBlur={descField.flush}
             rows={6}
             placeholder="Descrição, anotações..."
             style={{ ...S.notesArea, minHeight: 120, fontSize: 13.5, padding: '10px 12px' }}
