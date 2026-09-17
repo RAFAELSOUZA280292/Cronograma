@@ -5198,6 +5198,56 @@ duplicada — julgado desprezível porque nenhuma extração real chega perto
 de 90s/5min, e o cenário real que motivou isto (reinício de servidor) já
 mata o processo antigo de qualquer forma.
 
+## 45. Investigação real: "escrevo e o texto some" ao criar/editar atividade (2026-09-17)
+
+**Bug relatado pelo Rafael**: criar uma atividade nova (ou editar uma
+existente) e digitar no título/descrição fazia o texto parecer sumir
+depois de poucas letras.
+
+**Investigação** — reproduzido localmente com bastante cuidado (query
+direta ao DOM via JS, não só screenshot, porque a própria ferramenta de
+screenshot deste ambiente de teste mostrou um atraso de captura
+independente do estado real do app — um viés que quase me fez chegar a
+uma conclusão errada). Achado real e honesto: o VALOR digitado nunca
+esteve incorreto — confirmado por leitura direta do DOM em todo teste — o
+que existe é uma arquitetura onde CADA tecla nos campos de
+título/descrição/observações/transcrição de `ActivityDetailModal`
+disparava `updateActivity` → `mutateProject` → `setProjects` no
+componente `App` inteiro (~9000 linhas, sem memoização), refazendo o
+render de toda a árvore (inclusive a tabela por baixo do modal) a cada
+tecla — uma ineficiência real e mensurável (confirmada pela quantidade de
+linhas de log/PATCH gerada: uma string de 37 caracteres gerava até 37
+atualizações de estado global antes da correção). Isso é uma explicação
+plausível e corrigida do sintoma, mas **não consegui reproduzir de forma
+100% definitiva o exato "aparece e some"** que o Rafael descreveu — fica
+registrado com essa honestidade, não inflado como "causa raiz 100%
+confirmada".
+
+**Corrigido**: novo `useDebouncedField(externalValue, commit, delayMs)`
+(ao lado de `useDirtyForm`/`useAutosaveTimestamp`, mesmo arquivo) — o
+campo de texto fica com estado 100% LOCAL (responsivo, zero custo do
+re-render pesado do app) e só propaga o valor pro resto do sistema
+(`updateActivity`, e daí pro autosave de verdade) 300ms depois da última
+tecla, não a cada tecla. Resincroniza sozinho se o valor mudar por outro
+motivo (sincronização de atividade de grupo, outra pessoa editando).
+Aplicado aos 4 campos autosave de `ActivityDetailModal`
+(título/descrição/observações/transcrição); `fieldsDirty`/"Sair sem
+salvar"/"Salvar e sair" (correção de 2026-09-16, §43) foram atualizados
+pra trabalhar em cima do rascunho local em vez do valor já commitado.
+
+**Testado**: reproduzido as 3 flows de fechamento (continuar editando,
+sair sem salvar — reverte de verdade, conferido no banco —, salvar e
+sair — persiste de verdade, conferido no banco) com o novo mecanismo;
+confirmado que uma rajada de digitação agora gera só 1-2 commits de
+histórico em vez de um por tecla.
+
+**Não corrigido nesta entrega, sinalizado como pendência relacionada**:
+o título editável DIRETO na linha da aba Tabela (`TableView`) tem o
+mesmo padrão de update por tecla — não dá pra aplicar o mesmo hook ali
+sem antes extrair cada linha pra seu próprio componente (hooks não podem
+ser chamados dentro de `.map()`), um refactor maior que não foi feito
+aqui por segurança/tempo.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
