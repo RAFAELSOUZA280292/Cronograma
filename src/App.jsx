@@ -488,6 +488,66 @@ function buildOrderMap(sortedList) {
   return map;
 }
 
+// Extraído do .map() de "Áreas e responsáveis" (tela de configurações da
+// empresa) pra poder usar useDebouncedField por linha sem violar Rules of
+// Hooks — mesmo bug de digitação do PROJECT_CONTEXT.md §45/§46. onCommit
+// recebe o valor recém-digitado do campo que perdeu o foco (não lê de volta
+// o estado do projeto, que ainda pode não ter propagado o commit debounced).
+function AreaRow({ row, onUpdate, onCommit, onRemove }) {
+  const areaField = useDebouncedField(row.area, (v) => onUpdate({ area: v }));
+  const nameField = useDebouncedField(row.name, (v) => onUpdate({ name: v }));
+  const emailField = useDebouncedField(row.email, (v) => onUpdate({ email: v }));
+  function flushAndCommit(field, key) {
+    field.flush();
+    onCommit({ [key]: field.draft });
+  }
+  return (
+    <div style={S.areaRow}>
+      <input type="text" value={areaField.draft} onChange={(e) => areaField.onChange(e.target.value)} onBlur={() => flushAndCommit(areaField, 'area')} placeholder="Área (ex: Compras)" style={{ marginBottom: 5 }} />
+      <input type="text" value={nameField.draft} onChange={(e) => nameField.onChange(e.target.value)} onBlur={() => flushAndCommit(nameField, 'name')} placeholder="Nome do responsável" style={{ marginBottom: 5 }} />
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input type="email" value={emailField.draft} onChange={(e) => emailField.onChange(e.target.value)} onBlur={() => flushAndCommit(emailField, 'email')} placeholder="email@cliente.com.br" />
+        <button style={S.iconBtnGhost} onClick={onRemove}><Trash2 size={13} /></button>
+      </div>
+    </div>
+  );
+}
+
+// Extraído do .map() de "Fases" (SidePanel de fases do projeto) pelo mesmo
+// motivo do AreaRow acima. O log de "Fase renomeada"/"Descrição alterada"
+// usa o draft local (nameField.draft) em vez de p.name/p.sub das props —
+// essas só atualizam a cada 300ms de pausa, então no blur imediato após
+// digitar rápido a prop ainda pode estar desatualizada.
+function PhaseRow({ p, dragPhaseId, setDragPhaseId, reorderPhase, updatePhase, deletePhase, addLog, phasesEditingProjectId, canDelete }) {
+  const nameField = useDebouncedField(p.name, (v) => updatePhase(p.id, { name: v }));
+  const subField = useDebouncedField(p.sub, (v) => updatePhase(p.id, { sub: v }));
+  return (
+    <div
+      style={{ ...S.phaseEditRow, ...(dragPhaseId === p.id ? S.phaseEditRowDragging : {}) }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={() => { reorderPhase(dragPhaseId, p.id); setDragPhaseId(null); }}
+    >
+      <div
+        style={S.phaseDragHandle}
+        title="Arraste para reordenar"
+        draggable
+        onDragStart={() => setDragPhaseId(p.id)}
+        onDragEnd={() => setDragPhaseId(null)}
+      >
+        <GripVertical size={15} color="var(--text-7)" />
+      </div>
+      <input type="color" value={p.color} onChange={(e) => updatePhase(p.id, { color: e.target.value }, `Cor da fase "${p.name}" alterada`)} style={S.colorInput} />
+      <div style={{ flex: 1 }}>
+        <input type="text" value={nameField.draft} onChange={(e) => nameField.onChange(e.target.value)} onBlur={() => { nameField.flush(); addLog(phasesEditingProjectId, `Fase renomeada: "${nameField.draft}"`); }} placeholder="Nome da fase" />
+        <input type="text" value={subField.draft} onChange={(e) => subField.onChange(e.target.value)} onBlur={() => { subField.flush(); addLog(phasesEditingProjectId, `Descrição da fase "${nameField.draft}" alterada`); }} placeholder="Descrição curta" style={{ marginTop: 6, opacity: .85 }} />
+      </div>
+      <button style={S.iconBtnGhost} onClick={() => deletePhase(p.id)} disabled={!canDelete} title={!canDelete ? 'Deixe pelo menos uma fase' : 'Excluir fase'}>
+        <Trash2 size={14} color={!canDelete ? 'var(--text-8)' : 'var(--text-5)'} />
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const [theme, setTheme] = useState(() => {
     try { return window.localStorage.getItem(THEME_KEY) || 'dark'; } catch (e) { return 'dark'; }
@@ -1925,9 +1985,10 @@ export default function App() {
     mutateProject(pid, (p) => ({ ...p, company: { ...p.company, areas: (p.company.areas || []).map((r) => (r.id === id ? { ...r, ...patch } : r)) } }));
   }
 
-  function commitAreaRow(id) {
-    const row = activeProject && (activeProject.company.areas || []).find((r) => r.id === id);
-    if (!row) return;
+  function commitAreaRow(id, overrides) {
+    const found = activeProject && (activeProject.company.areas || []).find((r) => r.id === id);
+    if (!found) return;
+    const row = { ...found, ...(overrides || {}) };
     addLog(pid, `Área cadastrada: ${row.area || '(sem nome)'} — ${row.name || 'sem responsável'}${row.email ? ` <${row.email}>` : ''}`);
     if (row.name && !activeProject.team.some((m) => m.name === row.name)) {
       mutateProject(pid, (p) => ({ ...p, team: [...p.team, { id: uid('team'), name: row.name, area: row.area || '', userId: null, username: null, role: null }] }));
@@ -2853,14 +2914,12 @@ export default function App() {
           <div style={S.settingsBlock}>
             <div style={S.settingsLabel}>Áreas e responsáveis do cliente</div>
             {(activeProject.company.areas || []).map((row) => (
-              <div key={row.id} style={S.areaRow}>
-                <input type="text" value={row.area} onChange={(e) => updateAreaRow(row.id, { area: e.target.value })} onBlur={() => commitAreaRow(row.id)} placeholder="Área (ex: Compras)" style={{ marginBottom: 5 }} />
-                <input type="text" value={row.name} onChange={(e) => updateAreaRow(row.id, { name: e.target.value })} onBlur={() => commitAreaRow(row.id)} placeholder="Nome do responsável" style={{ marginBottom: 5 }} />
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input type="email" value={row.email} onChange={(e) => updateAreaRow(row.id, { email: e.target.value })} onBlur={() => commitAreaRow(row.id)} placeholder="email@cliente.com.br" />
-                  <button style={S.iconBtnGhost} onClick={() => removeAreaRow(row.id)}><Trash2 size={13} /></button>
-                </div>
-              </div>
+              <AreaRow
+                key={row.id} row={row}
+                onUpdate={(patch) => updateAreaRow(row.id, patch)}
+                onCommit={(overrides) => commitAreaRow(row.id, overrides)}
+                onRemove={() => removeAreaRow(row.id)}
+              />
             ))}
             <button style={{ ...S.iconBtn, marginTop: 4 }} onClick={addAreaRow}><Plus size={14} /> Nova área</button>
           </div>
@@ -2934,30 +2993,13 @@ export default function App() {
             <div style={S.emptyMuted}>As fases agrupam as atividades nas visões Gantt, Fases e no Quadro. Cada uma tem nome, cor e uma linha de descrição.</div>
             <div style={{ marginTop: 16 }}>
               {target.phases.map((p) => (
-                <div
-                  key={p.id}
-                  style={{ ...S.phaseEditRow, ...(dragPhaseId === p.id ? S.phaseEditRowDragging : {}) }}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => { reorderPhase(dragPhaseId, p.id); setDragPhaseId(null); }}
-                >
-                  <div
-                    style={S.phaseDragHandle}
-                    title="Arraste para reordenar"
-                    draggable
-                    onDragStart={() => setDragPhaseId(p.id)}
-                    onDragEnd={() => setDragPhaseId(null)}
-                  >
-                    <GripVertical size={15} color="var(--text-7)" />
-                  </div>
-                  <input type="color" value={p.color} onChange={(e) => updatePhase(p.id, { color: e.target.value }, `Cor da fase "${p.name}" alterada`)} style={S.colorInput} />
-                  <div style={{ flex: 1 }}>
-                    <input type="text" value={p.name} onChange={(e) => updatePhase(p.id, { name: e.target.value })} onBlur={() => addLog(phasesEditingProjectId, `Fase renomeada: "${p.name}"`)} placeholder="Nome da fase" />
-                    <input type="text" value={p.sub} onChange={(e) => updatePhase(p.id, { sub: e.target.value })} onBlur={() => addLog(phasesEditingProjectId, `Descrição da fase "${p.name}" alterada`)} placeholder="Descrição curta" style={{ marginTop: 6, opacity: .85 }} />
-                  </div>
-                  <button style={S.iconBtnGhost} onClick={() => deletePhase(p.id)} disabled={target.phases.length <= 1} title={target.phases.length <= 1 ? 'Deixe pelo menos uma fase' : 'Excluir fase'}>
-                    <Trash2 size={14} color={target.phases.length <= 1 ? 'var(--text-8)' : 'var(--text-5)'} />
-                  </button>
-                </div>
+                <PhaseRow
+                  key={p.id} p={p}
+                  dragPhaseId={dragPhaseId} setDragPhaseId={setDragPhaseId}
+                  reorderPhase={reorderPhase} updatePhase={updatePhase} deletePhase={deletePhase}
+                  addLog={addLog} phasesEditingProjectId={phasesEditingProjectId}
+                  canDelete={target.phases.length > 1}
+                />
               ))}
             </div>
             <button style={{ ...S.iconBtn, marginTop: 4 }} onClick={addPhase}><Plus size={14} /> Nova fase</button>
@@ -6762,6 +6804,38 @@ function renderCommentText(text, teamList) {
   return parts.map((part, i) => (names.some((n) => part === `@${n}`) ? <span key={i} style={S.mentionTag}>{part}</span> : <React.Fragment key={i}>{part}</React.Fragment>));
 }
 
+// Extraído do .map() de subatividades dentro de ActivityDetailModal pra
+// poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo
+// bug de digitação do PROJECT_CONTEXT.md §45/§46 (não coberto pelo fix do
+// §45, que só tratou os 4 campos do nível principal da atividade).
+function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSub, deleteSub, reorderSub }) {
+  const titleField = useDebouncedField(s.title, (v) => updateSub(pid, actId, s.id, { title: v }));
+  return (
+    <div
+      className="sub-row-card"
+      style={{ ...S.subRowWrap, ...(dragSubId === s.id ? { opacity: .4 } : {}) }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={() => { reorderSub(pid, actId, dragSubId, s.id); setDragSubId(null); }}
+    >
+      <div style={S.subRow}>
+        <div className="sub-drag-handle" draggable onDragStart={() => setDragSubId(s.id)} onDragEnd={() => setDragSubId(null)} style={S.subDragHandle} title="Arraste para reordenar">
+          <GripVertical size={13} color="var(--text-8)" />
+        </div>
+        <input type="checkbox" checked={s.done} onChange={(e) => updateSub(pid, actId, s.id, { done: e.target.checked })} />
+        <input type="text" className="sub-title-input" value={titleField.draft} onChange={(e) => titleField.onChange(e.target.value)} onBlur={titleField.flush} style={{ ...S.subTitleInput, textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
+        <button className="sub-del-btn" style={S.iconBtnGhost} onClick={() => deleteSub(pid, actId, s.id)}><X size={13} /></button>
+      </div>
+      <div style={S.subMetaRow}>
+        <select className="sub-meta-select" value={s.responsible || ''} onChange={(e) => updateSub(pid, actId, s.id, { responsible: e.target.value })} style={S.subMetaSelect} title="Responsável da subatividade">
+          <option value="">Sem responsável</option>
+          {team.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
+        </select>
+        <input type="date" className="sub-meta-date" value={s.date || ''} onChange={(e) => updateSub(pid, actId, s.id, { date: e.target.value })} style={S.subMetaDate} title="Prazo da subatividade" />
+      </div>
+    </div>
+  );
+}
+
 function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, flushProjectSave, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant }) {
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState('');
@@ -7183,29 +7257,11 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
             <div style={S.subSectionLabel}>Subatividades</div>
             <div style={S.subList}>
               {(a.subactivities || []).filter((s) => !s.deleted).map((s) => (
-                <div
-                  key={s.id}
-                  className="sub-row-card"
-                  style={{ ...S.subRowWrap, ...(dragSubId === s.id ? { opacity: .4 } : {}) }}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => { reorderSub(pid, a.id, dragSubId, s.id); setDragSubId(null); }}
-                >
-                  <div style={S.subRow}>
-                    <div className="sub-drag-handle" draggable onDragStart={() => setDragSubId(s.id)} onDragEnd={() => setDragSubId(null)} style={S.subDragHandle} title="Arraste para reordenar">
-                      <GripVertical size={13} color="var(--text-8)" />
-                    </div>
-                    <input type="checkbox" checked={s.done} onChange={(e) => updateSub(pid, a.id, s.id, { done: e.target.checked })} />
-                    <input type="text" className="sub-title-input" value={s.title} onChange={(e) => updateSub(pid, a.id, s.id, { title: e.target.value })} style={{ ...S.subTitleInput, textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
-                    <button className="sub-del-btn" style={S.iconBtnGhost} onClick={() => deleteSub(pid, a.id, s.id)}><X size={13} /></button>
-                  </div>
-                  <div style={S.subMetaRow}>
-                    <select className="sub-meta-select" value={s.responsible || ''} onChange={(e) => updateSub(pid, a.id, s.id, { responsible: e.target.value })} style={S.subMetaSelect} title="Responsável da subatividade">
-                      <option value="">Sem responsável</option>
-                      {team.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
-                    </select>
-                    <input type="date" className="sub-meta-date" value={s.date || ''} onChange={(e) => updateSub(pid, a.id, s.id, { date: e.target.value })} style={S.subMetaDate} title="Prazo da subatividade" />
-                  </div>
-                </div>
+                <SubactivityRow
+                  key={s.id} s={s} pid={pid} actId={a.id}
+                  dragSubId={dragSubId} setDragSubId={setDragSubId}
+                  team={team} updateSub={updateSub} deleteSub={deleteSub} reorderSub={reorderSub}
+                />
               ))}
             </div>
             <button style={S.addSubBtn} onClick={() => addSub(pid, a.id)}><Plus size={12} /> Subatividade</button>
