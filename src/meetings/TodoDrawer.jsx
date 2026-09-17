@@ -7,7 +7,7 @@
 // passamos o id do item de TO_DO no lugar do id da atividade.
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Mic, Plus, Trash2, Download, Paperclip, Copy, Check } from 'lucide-react';
-import { S, fmtDate, fmtTs, useIsMobile, useAutosaveTimestamp, savedStatusLabel } from '../App.jsx';
+import { S, fmtDate, fmtTs, useIsMobile, useAutosaveTimestamp, useDebouncedField, savedStatusLabel } from '../App.jsx';
 import { TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } from './Meetings.jsx';
 import { initials, avatarColor, daysOverdue, isItemOverdue } from './todoUtils.js';
 
@@ -72,11 +72,17 @@ export function TodoDrawer({
   const commentRef = useRef(null);
   const fileRef = useRef(null);
 
+  const titleField = useDebouncedField(item.title, (v) => updateActionItem(pid, meeting.id, item.id, { title: v }));
+  const subtitleField = useDebouncedField(item.subtitle || '', (v) => updateActionItem(pid, meeting.id, item.id, { subtitle: v }));
+  const responsibleField = useDebouncedField(item.responsible || '', (v) => updateActionItem(pid, meeting.id, item.id, { responsible: v }));
+  const notesField = useDebouncedField(item.notes || '', (v) => updateActionItem(pid, meeting.id, item.id, { notes: v }));
+
   useEffect(() => {
     if (focusComment && commentRef.current) commentRef.current.focus();
   }, [focusComment]);
 
   function requestClose() {
+    titleField.flush(); subtitleField.flush(); responsibleField.flush(); notesField.flush();
     setOpen(false);
     setTimeout(onClose, 160);
   }
@@ -127,15 +133,17 @@ export function TodoDrawer({
 
         <div className="todo-drawer-body">
           <textarea
-            className="todo-drawer-title" value={item.title} rows={1}
+            className="todo-drawer-title" value={titleField.draft} rows={1}
             ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
             onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = `${e.target.scrollHeight}px`; }}
-            onChange={(e) => updateActionItem(pid, meeting.id, item.id, { title: e.target.value })}
+            onChange={(e) => titleField.onChange(e.target.value)}
+            onBlur={titleField.flush}
           />
           <input
-            type="text" className="todo-drawer-subtitle" value={item.subtitle || ''}
+            type="text" className="todo-drawer-subtitle" value={subtitleField.draft}
             placeholder="Contexto curto (opcional)"
-            onChange={(e) => updateActionItem(pid, meeting.id, item.id, { subtitle: e.target.value })}
+            onChange={(e) => subtitleField.onChange(e.target.value)}
+            onBlur={subtitleField.flush}
           />
 
           <div className="todo-drawer-meta">
@@ -159,9 +167,10 @@ export function TodoDrawer({
             <div>
               <div className="todo-drawer-meta-label">Responsável</div>
               <input
-                type="text" list="todo-drawer-responsaveis" value={item.responsible || ''}
+                type="text" list="todo-drawer-responsaveis" value={responsibleField.draft}
                 placeholder="Sem responsável"
-                onChange={(e) => updateActionItem(pid, meeting.id, item.id, { responsible: e.target.value })}
+                onChange={(e) => responsibleField.onChange(e.target.value)}
+                onBlur={responsibleField.flush}
               />
             </div>
             <div>
@@ -191,9 +200,10 @@ export function TodoDrawer({
           <div className="todo-section">
             <div className="todo-section-title">Descrição</div>
             <textarea
-              className="todo-drawer-notes" value={item.notes || ''}
+              className="todo-drawer-notes" value={notesField.draft}
               placeholder="Detalhe o que precisa ser feito..."
-              onChange={(e) => updateActionItem(pid, meeting.id, item.id, { notes: e.target.value })}
+              onChange={(e) => notesField.onChange(e.target.value)}
+              onBlur={notesField.flush}
             />
           </div>
 
