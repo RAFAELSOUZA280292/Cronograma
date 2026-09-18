@@ -26,6 +26,7 @@ import { MeetingDetailModal, MeetingPrintReport, PublicMeetingScreen } from './m
 import { TodoBoardView } from './meetings/TodoBoard.jsx';
 import { ProjectAssistant } from './assistant/ProjectAssistant.jsx';
 import KnowledgeCenterScreen from './knowledge/KnowledgeCenter.jsx';
+import PareceresScreen from './pareceres/Pareceres.jsx';
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
 const THEME_KEY = 'pricetax-cronograma-theme';
@@ -1216,7 +1217,12 @@ export default function App() {
   // empresas — segue exatamente a regra já usada em requireMasterOrPricetax
   // no backend (server/knowledge.js), sem criar uma role nova.
   const hasKnowledge = currentUser.role === 'master' || currentUser.role === 'pricetax';
-  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda', hasMacro && 'macro', hasKnowledge && 'knowledge'].filter(Boolean);
+  // Pareceres PRICETAX (2026-09-17, ver PROJECT_CONTEXT.md §48) — repositório
+  // de PDFs pra sócios/colaboradores. Mesma regra de visibilidade da Central
+  // de Conhecimento (master/pricetax, nunca 'cliente') — decisão confirmada
+  // com o Rafael.
+  const hasPareceres = currentUser.role === 'master' || currentUser.role === 'pricetax';
+  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda', hasMacro && 'macro', hasKnowledge && 'knowledge', hasPareceres && 'pareceres'].filter(Boolean);
   const effectiveMode = workspaceMode || (availableModes.length === 1 ? availableModes[0] : null);
   // Home = tela "Olá, Nome" (WorkspaceGateScreen). Só faz sentido oferecer o
   // atalho se houver mais de 1 workspace pra escolher — com só 1, a tela
@@ -1238,6 +1244,7 @@ export default function App() {
         onPickAgenda={hasAgenda ? () => goToWorkspace('agenda') : undefined}
         onPickMacro={hasMacro ? () => goToWorkspace('macro') : undefined}
         onPickKnowledge={hasKnowledge ? () => goToWorkspace('knowledge') : undefined}
+        onPickPareceres={hasPareceres ? () => goToWorkspace('pareceres') : undefined}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -1338,6 +1345,18 @@ export default function App() {
           setView('meetings');
           openMeetingDetail(pid, meetingId);
         }}
+      />
+    );
+  }
+
+  if (effectiveMode === 'pareceres') {
+    return (
+      <PareceresScreen
+        currentUser={currentUser}
+        onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
+        onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
     );
   }
@@ -4765,7 +4784,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   );
 }
 
-function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onLogout, theme, onToggleTheme }) {
+function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onLogout, theme, onToggleTheme }) {
   return (
     <div className="page-root" style={S.page}>
       <div style={S.companySelectorWrap}>
@@ -4820,6 +4839,13 @@ function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow,
               <Sparkles size={26} color="#F5C400" />
               <div style={S.workspaceCardTitle}>Conhecimento</div>
               <div style={S.workspaceCardDesc}>O que a RENATA sabe, de onde veio, o que está em conflito e onde já foi usado.</div>
+            </button>
+          )}
+          {onPickPareceres && (
+            <button style={S.workspaceCard} onClick={onPickPareceres}>
+              <FileText size={26} color="#F5C400" />
+              <div style={S.workspaceCardTitle}>Pareceres PRICETAX</div>
+              <div style={S.workspaceCardDesc}>Pareceres em PDF pra compartilhar com sócios e colaboradores — identificação, comentários e histórico.</div>
             </button>
           )}
         </div>

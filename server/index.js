@@ -11,6 +11,7 @@ import { router as macroRouter } from './macro.js';
 import { router as meetingInboxRouter } from './meetingInbox.js';
 import { router as assistantRouter } from './assistant.js';
 import { router as knowledgeRouter } from './knowledge.js';
+import { router as pareceresRouter } from './pareceres.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '..', 'dist');
@@ -27,6 +28,7 @@ app.use('/api/macro', macroRouter);
 app.use('/api/meeting-inbox', meetingInboxRouter);
 app.use('/api/assistant', assistantRouter);
 app.use('/api/knowledge', knowledgeRouter);
+app.use('/api/pareceres', pareceresRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use('/api', (err, req, res, next) => {
