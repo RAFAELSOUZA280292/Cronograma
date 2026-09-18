@@ -136,6 +136,17 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
     }
   }
 
+  async function handleRetryAllFailed() {
+    const failedIds = submissions.filter((s) => s.status === 'failed').map((s) => s.id);
+    if (failedIds.length === 0) return;
+    setSubmissions((prev) => prev.map((s) => (s.status === 'failed' ? { ...s, status: 'pending', errorMessage: '' } : s)));
+    try {
+      await apiPost('/api/meeting-inbox/retry-failed', { projectId: pid });
+    } catch (e) {
+      setSubmissions((prev) => prev.map((s) => (failedIds.includes(s.id) ? { ...s, status: 'failed', errorMessage: e.message } : s)));
+    }
+  }
+
   function handleSubmitted(submission) {
     setSubmissions((prev) => [submission, ...prev]);
     setShowSubmitModal(false);
@@ -213,9 +224,15 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
         // processando, ou se falhou (precisa de retry).
         const visibleSubmissions = submissions.filter((s) => s.status !== 'done');
         if (visibleSubmissions.length === 0) return null;
+        const failedCount = visibleSubmissions.filter((s) => s.status === 'failed').length;
         return (
         <>
-          <div className="mtg-section-title">Transcrições enviadas</div>
+          <div className="mtg-section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <span>Transcrições enviadas</span>
+            {failedCount > 1 && (
+              <button style={{ ...S.iconBtn, fontSize: 11.5 }} onClick={handleRetryAllFailed}><RefreshCw size={12} /> Tentar novamente todas ({failedCount})</button>
+            )}
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
             {visibleSubmissions.map((s) => {
               const meta = SUBMISSION_STATUS_META[s.status] || SUBMISSION_STATUS_META.pending;
@@ -228,7 +245,7 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
               // esse tempo aqui na tela (mais rápido que esperar o
               // recupero automático do servidor), oferece "tentar
               // novamente" na hora, sem o usuário precisar ficar esperando.
-              const stuckTooLong = s.status === 'processing' && (Date.now() - new Date(s.createdAt).getTime()) > 90000;
+              const stuckTooLong = s.status === 'processing' && (Date.now() - new Date(s.processedAt || s.createdAt).getTime()) > 90000;
               const canRetry = s.status === 'failed' || stuckTooLong;
               return (
                 <div key={s.id} className="mtg-sub-row">

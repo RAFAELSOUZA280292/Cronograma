@@ -5435,6 +5435,45 @@ escopo): busca full-text no conteúdo do PDF, versionamento de um
 mesmo Parecer (reenviar substitui — cada upload novo é um Parecer
 novo), notificação quando um Parecer novo é publicado.
 
+## 49. Transcrições: erro de IA em português + "tentar novamente" em lote (2026-09-18)
+
+**Gatilho**: o Rafael subiu um lote de reuniões e a transcrição falhou com o
+JSON cru da Anthropic na tela (`400 {"type":"error",...,"Your credit balance
+is too low..."}`) — a conta dona da `ANTHROPIC_API_KEY` do Railway estava sem
+crédito. Não era bug de código; a correção foi de UX + um bug relacionado.
+
+- **`friendlyAiError(raw)`** (`server/meetingInbox.js`, função pura): traduz
+  saldo baixo, chave inválida/revogada (401), rate limit (429), IA
+  sobrecarregada (529/503) e falha de conexão pra mensagens acionáveis em
+  português; qualquer outra coisa passa crua. Aplicada na GRAVAÇÃO
+  (`processSubmission`, novas falhas) e na LEITURA (`GET /`, pra falhas antigas
+  já gravadas cruas no banco — não precisou migrar dado). O erro cru continua
+  em `console.error` no servidor.
+- **`POST /api/meeting-inbox/retry-failed`** `{projectId}`: marca todas as
+  `failed` da empresa como `pending` e processa **uma por vez, em sequência**
+  (em paralelo estouraria o rate limit justamente num lote grande). Mesmo
+  controle de acesso da rota unitária (`canAccessProject`). Botão "Tentar
+  novamente todas (N)" em `Meetings.jsx`, só aparece com 2+ falhas.
+- **Bug achado no caminho** (já existia no "tentar novamente" unitário): o
+  recupero de órfãs (`GET /`, §44) e o aviso "demorando" da tela mediam desde
+  `created_at`. Uma transcrição antiga reenviada virava `failed` de novo no
+  primeiro poll. Agora `processSubmission` grava `processed_at=now()` ao entrar
+  em `processing` (= "início desta tentativa") e ambos medem a partir dele
+  (`COALESCE(processed_at, created_at)`).
+
+**Testado local** (chave inválida forçada, API real da Anthropic respondeu
+401): mensagem traduzida na gravação; erro de crédito cru inserido à mão no
+banco lido já traduzido; lote de 3 → `pending/processing/pending` e depois todas
+processadas em sequência; sem `projectId` → 400, sem sessão → 401; recupero:
+criada há 2h com tentativa iniciada agora continua `processing`, tentativa
+iniciada há 6min vira `failed`. **Não verificado visualmente**: o botão de lote
+na tela (sessão do navegador de teste expirou; não digitei a senha no login) —
+só build limpo e leitura do código.
+
+**Limitação conhecida**: um item `pending` que estava esperando na fila do lote
+quando o servidor reinicia fica órfão (o recupero só cobre `processing`) e a
+tela não oferece retry pra `pending`.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

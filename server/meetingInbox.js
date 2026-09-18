@@ -101,10 +101,29 @@ async function extractMeetingFromTranscript(transcript, clientCompanyName) {
   return { output: response.parsed_output, usage: response.usage };
 }
 
+// Traduz o erro cru da API da Anthropic (ex.: `400 {"type":"error",...
+// "Your credit balance is too low..."}`) pra uma mensagem acionável em
+// português (2026-09-18, pedido do Rafael depois de ver o JSON cru na
+// tela). Função pura sobre string — aplicada na gravação (novas falhas) E na
+// leitura (falhas antigas já gravadas cruas no banco).
+export function friendlyAiError(raw) {
+  const msg = String(raw || '');
+  if (/credit balance is too low/i.test(msg)) return 'Sem créditos na conta da Anthropic — recarregue em Plans & Billing (console.anthropic.com) e tente novamente.';
+  if (/invalid x-api-key|authentication_error|^401\b/i.test(msg)) return 'A chave da API da Anthropic (ANTHROPIC_API_KEY) é inválida ou foi revogada — confira no Railway.';
+  if (/rate_limit|^429\b/i.test(msg)) return 'Limite de uso da API da Anthropic atingido agora — aguarde um minuto e tente novamente.';
+  if (/overloaded|^(529|503)\b/i.test(msg)) return 'A IA está sobrecarregada no momento — tente novamente em alguns minutos.';
+  if (/timed? ?out|ETIMEDOUT|ECONNRESET|ENOTFOUND|fetch failed|Connection error/i.test(msg)) return 'A conexão com a IA falhou — tente novamente em instantes.';
+  return msg;
+}
+
 async function processSubmission(submissionId) {
   let submittedByProjectId = null;
   try {
-    await pool.query(`UPDATE meeting_submissions SET status='processing' WHERE id=$1`, [submissionId]);
+    // processed_at aqui = "início desta tentativa" (só enquanto status é
+    // 'processing'): o recupero de órfãs em GET / e o aviso "demorando" da
+    // tela medem a partir dele, não de created_at — senão uma transcrição
+    // antiga reenviada seria marcada como travada no mesmo instante.
+    await pool.query(`UPDATE meeting_submissions SET status='processing', processed_at=now() WHERE id=$1`, [submissionId]);
     const { rows } = await pool.query('SELECT * FROM meeting_submissions WHERE id=$1', [submissionId]);
     const sub = rows[0];
     if (!sub) return;
@@ -189,7 +208,7 @@ async function processSubmission(submissionId) {
     reindexMeetingMemory(pool, project.org_id, project.id, meeting)
       .catch((e) => console.error('Falha ao reindexar memória da reunião criada por transcrição', e.message));
   } catch (e) {
-    const errorMsg = String(e.message || 'Erro desconhecido').slice(0, 500);
+    const errorMsg = friendlyAiError(e.message || 'Erro desconhecido').slice(0, 500);
     console.error('Falha ao processar transcrição de reunião', e.message);
     await pool.query(
       `UPDATE meeting_submissions SET status='failed', error_message=$1, processed_at=now() WHERE id=$2`,
@@ -261,7 +280,7 @@ router.get('/', requireAuth, async (req, res, next) => {
     await pool.query(
       `UPDATE meeting_submissions
        SET status='failed', error_message='Processamento interrompido (provável reinício do servidor) — clique em tentar novamente.', processed_at=now()
-       WHERE project_id=$1 AND status='processing' AND created_at < now() - interval '5 minutes'`,
+       WHERE project_id=$1 AND status='processing' AND COALESCE(processed_at, created_at) < now() - interval '5 minutes'`,
       [projectId],
     ).catch((e) => console.error('Falha ao recuperar submissões travadas', e.message));
     const { rows } = await pool.query(
@@ -274,13 +293,48 @@ router.get('/', requireAuth, async (req, res, next) => {
       submissions: rows.map((r) => ({
         id: r.id,
         status: r.status,
-        errorMessage: r.error_message,
+        errorMessage: friendlyAiError(r.error_message),
         meetingId: r.meeting_id,
         createdAt: r.created_at,
         processedAt: r.processed_at,
         submittedByName: r.submitted_by_name,
       })),
     });
+  } catch (e) { next(e); }
+});
+
+// Reprocessa de uma vez todas as transcrições com falha de uma empresa
+// (2026-09-18, pedido do Rafael — ex.: acabou o crédito da Anthropic no
+// meio de um lote de reuniões). Marca todas como 'pending' na hora (a tela
+// já mostra "Na fila") e processa UMA POR VEZ, em sequência — em paralelo
+// estouraria o rate limit da API justamente num lote grande.
+router.post('/retry-failed', requireAuth, async (req, res, next) => {
+  try {
+    const { projectId } = req.body || {};
+    if (!projectId) return res.status(400).json({ message: 'Informe projectId.' });
+    const { rows: projRows } = await pool.query('SELECT data, org_id FROM projects WHERE id=$1', [projectId]);
+    if (!projRows[0]) return res.status(404).json({ message: 'Empresa não encontrada.' });
+    if (!canAccessProject(req.user, projRows[0].data, projRows[0].org_id)) {
+      return res.status(403).json({ message: 'Sem acesso a essa empresa.' });
+    }
+    if (!anthropicConfigured()) {
+      return res.status(503).json({ message: 'Processamento por IA não configurado nesse ambiente (falta ANTHROPIC_API_KEY).' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE meeting_submissions SET status='pending', error_message=''
+       WHERE project_id=$1 AND status='failed' RETURNING id`,
+      [projectId],
+    );
+    const ids = rows.map((r) => r.id);
+    if (ids.length === 0) return res.json({ retried: 0 });
+    appendProjectLog(projectId, `${req.user.name} tentou reprocessar ${ids.length} transcrição(ões) de reunião que tinham falhado`, req.user.name)
+      .catch((e) => console.error('Falha ao registrar log de nova tentativa em lote', e.message));
+    (async () => {
+      for (const id of ids) {
+        await processSubmission(id).catch((e) => console.error('Falha ao reprocessar submissão em lote', e.message));
+      }
+    })();
+    res.json({ retried: ids.length });
   } catch (e) { next(e); }
 });
 
