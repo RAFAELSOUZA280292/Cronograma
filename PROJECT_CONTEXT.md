@@ -5340,6 +5340,101 @@ pontos confirmados (2 do §46 + 3 aqui) foram todos corrigidos. Restou
 só o `TableView` (título/descrição/subatividade/notas inline na aba
 Tabela, §45) como pendência aberta, já rastreada.
 
+## 48. Pareceres PRICETAX — repositório de PDFs (2026-09-17)
+
+**Pedido do Rafael**: um novo menu na tela inicial (junto de
+Empresas/Gestão de Atividades/Agenda/Visão Geral/Conhecimento) pra
+subir pareceres técnicos em PDF, com identificação do arquivo e
+comentários, pra compartilhar com "sócios e colaboradores".
+
+**Decisões de permissão confirmadas com o Rafael antes de implementar**
+(via `AskUserQuestion`, ambíguo demais pra adivinhar com segurança —
+são documentos internos da PRICETAX):
+- **Visibilidade**: só master/pricetax — usuário `cliente` nunca vê
+  esta área, mesmo tendo acesso a empresas. Mesma regra exata da
+  Central de Conhecimento (§39), reaproveitando
+  `requireMasterOrPricetax` — nenhuma role nova.
+- **Upload/edição/exclusão**: master e pricetax (qualquer um da
+  equipe interna, não só o admin).
+- **Comentários**: qualquer um que já enxerga a área (mesmo conjunto
+  master/pricetax).
+
+**Arquitetura**:
+- Tabela nova `pareceres` (`server/db.js`) — PDF guardado como
+  `BYTEA` numa tabela própria, **não** dentro de `projects.data`
+  (JSONB do projeto): é dado organizacional, não de
+  projeto/empresa, e embutir um PDF ali infuncionaria o payload de
+  `GET /api/projects`, que já é buscado inteiro em toda tela.
+  `comments` em JSONB (mesmo padrão de comentário usado em Itens de
+  Ação/atividades — `{id, text, userId, userName, ts}`).
+- `server/pareceres.js` (novo router, `/api/pareceres`, mesmo padrão
+  de `server/knowledge.js`): `GET /` (lista, sem o binário — só
+  metadados), `POST /` (upload — recebe `fileDataBase64` no corpo
+  JSON, decodifica com `Buffer.from(..., 'base64')`, valida
+  `mime_type==='application/pdf'` e tamanho ≤10MB ANTES de gravar),
+  `PATCH /:id` (título/descrição), `DELETE /:id`, `GET /:id/file`
+  (serve o PDF com `Content-Type`/`Content-Disposition: inline`
+  corretos, pra abrir direto no navegador), `POST/DELETE
+  /:id/comments`. Todas as rotas atrás de `requireAuth,
+  requireMasterOrPricetax` + `effectiveOrgId` (nunca uma regra de
+  permissão paralela).
+- **Upload sem `multipart`/`multer`**: mesmo padrão já usado em
+  anexos de reunião (`TodoDrawer`) e do Quadro Pessoal —
+  `FileReader.readAsDataURL` no browser, extrai a parte base64,
+  manda como string dentro do JSON. Limite de 10MB por arquivo
+  escolhido pra caber com folga no limite de 15mb do body parser
+  (`express.json({limit:'15mb'})`, `server/index.js`) já existente —
+  base64 tem ~37% de overhead, então não dava pra usar o limite
+  inteiro.
+- `src/pareceres/Pareceres.jsx` (novo módulo autocontido, mesmo
+  padrão de `src/knowledge/`) — grid de cards, modal de upload
+  (`UploadParecerModal`, dropzone client-side valida tipo/tamanho
+  antes de nem tentar mandar), drawer de detalhe (`ParecerDrawer`,
+  reaproveita `SidePanel` do `App.jsx`) com título/descrição
+  editáveis via **`useDebouncedField`** (mesmo hook do §45) — decisão
+  deliberada de já nascer sem o bug de digitação que motivou toda a
+  auditoria dos §45-47, em vez de escrever `onChange` direto de novo.
+  CSS próprio em `pareceresMeta.js` (prefixo `.par-`, nunca colide
+  com `.knw-` do outro módulo — achei e corrigi esse exato erro de
+  copiar-colar durante o teste local, antes do primeiro commit).
+- `src/App.jsx` — novo `workspaceMode='pareceres'`, `hasPareceres`
+  (mesma condição de `hasKnowledge`), card na `WorkspaceGateScreen`.
+
+**Bug real encontrado e corrigido durante o teste local** (não
+prod, pego antes do primeiro deploy): usei `fmtDate` (que só entende
+`"YYYY-MM-DD"`, faz `iso.split('-')`) pra formatar `created_at`, que
+volta do Postgres como timestamp ISO completo
+(`"2026-09-18T01:08:33.423Z"`) — o `split('-')` saía errado
+(`"18T01:08:33.423Z/09/2026"`). Trocado por `fmtTs` (faz `new
+Date(iso)` de verdade) nos dois lugares (card da lista e cabeçalho do
+drawer).
+
+**Testado localmente** (dev local, projeto/organização de teste,
+nada em produção): upload de um PDF real de ponta a ponta —
+conferido byte a byte (`Buffer.compare`) que o arquivo saiu do
+Postgres idêntico ao que foi enviado; edição de título com digitação
+rápida (padrão dos §45-47) conferida direto no banco; comentário
+adicionado e exibido; exclusão validada diretamente via `fetch` (o
+`window.confirm` do botão "Excluir" é bloqueado por padrão em
+automação de browser — comportamento correto, não um bug); as 3
+validações de segurança do backend — sem cookie de sessão → 401,
+`mime_type` diferente de PDF → 400, arquivo >10MB → 400, nenhuma
+delas grava linha no banco (conferido com `COUNT(*)`).
+
+**Verificado em produção pós-deploy**: `/`, `/api/health` (200) e
+`/api/pareceres` sem sessão (401, confirma que o router está montado
+e a autenticação está de fato bloqueando, não caindo no catch-all da
+SPA — o primeiro teste, ~30s depois do push, ainda pegou o container
+antigo e voltou 200/HTML; esperar o rollout terminar resolveu). O
+`initDb()` rodar sem erro no boot (health 200) já prova que a
+`CREATE TABLE pareceres` nova rodou certo contra o Postgres de
+produção — um erro de SQL ali teria derrubado o boot inteiro.
+
+**Não implementado nesta entrega** (não foi pedido, não inventar
+escopo): busca full-text no conteúdo do PDF, versionamento de um
+mesmo Parecer (reenviar substitui — cada upload novo é um Parecer
+novo), notificação quando um Parecer novo é publicado.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
