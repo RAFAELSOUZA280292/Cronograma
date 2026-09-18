@@ -773,6 +773,32 @@ export async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS ai_eval_runs_org_idx ON ai_eval_runs(org_id, run_at)`);
+
+  // Pareceres PRICETAX (2026-09-17, ver PROJECT_CONTEXT.md §48) — repositório
+  // de PDFs (pareceres técnicos) pra compartilhar com sócios/colaboradores.
+  // Área PRICETAX-only (master/pricetax, nunca 'cliente' — mesma regra do
+  // §39/Central de Conhecimento, `requireMasterOrPricetax`). PDF guardado
+  // como BYTEA numa tabela própria (não dentro de `projects.data`) — não
+  // é dado de projeto/empresa, é organizacional, e não deve inflar o
+  // payload de `GET /api/projects` que já embute tudo mais.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pareceres (
+      id               TEXT PRIMARY KEY,
+      org_id           TEXT NOT NULL REFERENCES organizations(id),
+      title            TEXT NOT NULL,
+      description      TEXT NOT NULL DEFAULT '',
+      file_name        TEXT NOT NULL,
+      mime_type        TEXT NOT NULL DEFAULT 'application/pdf',
+      file_size        INT NOT NULL,
+      file_data        BYTEA NOT NULL,
+      comments         JSONB NOT NULL DEFAULT '[]',
+      created_by       TEXT REFERENCES users(id),
+      created_by_name  TEXT NOT NULL DEFAULT '',
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS pareceres_org_idx ON pareceres(org_id, created_at DESC)`);
 }
 
 // Migração one-shot (Fase 7, 2026-09-11) — copia os aprendizados já
