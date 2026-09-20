@@ -364,7 +364,7 @@ usam `S.detailBox`.
   para Empresas" no canto esquerdo) — não é uma rota nova, só um atalho
   visual mais consistente.
 
-### CRM PRICETAX — Fases 1 e 2 (2026-09, `PROJECT_CONTEXT.md` §54 e §55)
+### CRM PRICETAX — Fases 1 a 3 (2026-09, `PROJECT_CONTEXT.md` §54, §55 e §56)
 - **Backend `server/crm/`** (montado em `/api/crm` por `server/index.js`):
   `routes.js` (`createCrmRouter({ auth })`, auth injetável p/ teste; /me,
   /options, /overview, /search, /cnpj/:cnpj, /companies CRUD + check-duplicates
@@ -379,13 +379,19 @@ usam `S.detailBox`.
   (create/update/move/delete; ganhar promove empresa a cliente) · `dealQueries.js`
   (board, lista, detalhe, KPIs, busca) · `products.js` (catálogo). Rotas: `/pipeline`,
   `/board`, `/deals[/:id[/move|/audit]]`, `/products`.
+  **Fase 3 (atividades)**: `activities.js` (create/update/complete/cancel/reopen/delete + notificação ao
+  responsável) · `activityQueries.js` (lista com contadores, por empresa/negócio, bloco da Visão geral) ·
+  `scheduler.js` (lembretes a cada 10 min, iniciado em `server/index.js`) · `agendaFeed.js` (feed lido por
+  `server/agenda.js`). Rotas `/activities[/:id[/complete|/cancel|/reopen]]`.
 - **Frontend `src/crm/`** (`React.lazy` em `App.jsx`): `CrmScreen.jsx` (shell +
   submenus), `OverviewPage`, `CompaniesPage`, `ContactsPage`, `CompanyDrawer`
   (Ficha 360), `CompanyForm`, `ContactForm`, `ImportWizard` (xlsx.mini em
   `import()` dinâmico), `BootstrapDialog`, `GlobalSearch`, `ui.jsx`,
   `crmMeta.js` (rótulos + `CRM_CSS`), `crmApi.js`. **Fase 2**: `DealsPage` (Kanban+lista),
   `DealDrawer`, `DealForm`, `CloseDealDialog`, `ProductsPage`; `CompanyDrawer` ganhou aba
-  Negócios e botão de upsell; `OverviewPage` ganhou bloco Funil.
+  Negócios e botão de upsell; `OverviewPage` ganhou bloco Funil. **Fase 3**: `AgendaPage`, `ActivityList`,
+  `ActivityForm`; aba Atividades na ficha da empresa, "Próximos passos" na do negócio, sino no topo;
+  `App.jsx` trata `target.kind==='crm_activity'` (`pendingCrmOpen`); `Agenda.jsx`/`RenataAgendaBriefing.jsx` ganharam a fonte `crm_activity`.
 - **Toques em arquivos existentes (aditivos)**: `App.jsx` (`hasCrm`, modo
   `'crm'` em `availableModes`/`locationTag`, card no `WorkspaceGateScreen`,
   select "Acesso ao CRM" no `EditUserModal`), `server/routes.js` (`PATCH
@@ -438,6 +444,7 @@ anexos são base64 inline no PATCH do projeto (ver §9, ponto de atenção).
 | `crm_timeline_events` / `crm_audit_logs` | Histórico de negócio e auditoria campo a campo — **append-only por trigger** (`crm_block_history_mutation` barra UPDATE/DELETE); limpeza de teste exige `DISABLE TRIGGER USER` | `company_id → crm_companies.id` |
 | `crm_pipelines` / `crm_pipeline_stages` | CRM Fase 2 (§55) — funil padrão por org criado sob demanda (7 etapas, prob. por etapa, `kind` open/won/lost); índice único parcial = 1 padrão por org | `pipeline_id → crm_pipelines.id` |
 | `crm_deals` / `crm_deal_items` | Negócios (Lead = 1ª etapa; `deal_type` new/upsell; `status` open/won/lost; soft delete). Itens guardam retrato de nome e preço | `company_id → crm_companies.id`, `stage_id → crm_pipeline_stages.id`; itens → `crm_products` |
+| `crm_activities` | CRM Fase 3 (§56) — atividades/follow-ups presas a uma empresa (negócio e contato opcionais, da mesma empresa); `due_notified_at` = carimbo do lembrete do agendador; soft delete | `company_id → crm_companies.id`, `deal_id → crm_deals.id`, `contact_id → crm_contacts.id`, `owner_id → users.id` |
 | `crm_products` | Catálogo de produtos/serviços (preço de tabela, cobrança, ativo) | `org_id → organizations.id` |
 | `crm_deal_stage_history` | 1 linha por mudança de etapa (dias na anterior) — **append-only por trigger**; base de aging/conversão da Fase 4 | `deal_id → crm_deals.id` |
 

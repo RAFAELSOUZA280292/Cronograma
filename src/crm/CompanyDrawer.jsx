@@ -8,6 +8,8 @@ import { crm } from './crmApi.js';
 import CompanyForm from './CompanyForm.jsx';
 import ContactForm from './ContactForm.jsx';
 import DealForm from './DealForm.jsx';
+import ActivityForm from './ActivityForm.jsx';
+import ActivityList from './ActivityList.jsx';
 import { RelPill, CompletenessBar, useEsc } from './ui.jsx';
 import {
   fmtCnpj, fmtMoney, fmtDateBR, fmtDateTimeBR, daysLabel, staleColor, DECISION_ROLES, roleLabel, STRENGTH_META, INFLUENCE_LABELS,
@@ -42,13 +44,14 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
   const [editing, setEditing] = useState(false);
   const [contactForm, setContactForm] = useState(null); // {contact?}
   const [dealForm, setDealForm] = useState(null); // {type}
+  const [activityForm, setActivityForm] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [noteAbout, setNoteAbout] = useState('company');
   const [busy, setBusy] = useState(false);
   const [projectToLink, setProjectToLink] = useState('');
   // Esc fecha só a camada de cima: com um formulário aberto, Esc fecha o formulário (o Modal cuida disso), não a ficha.
   const noop = useCallback(() => {}, []);
-  useEsc(editing || contactForm || dealForm ? noop : onClose);
+  useEsc(editing || contactForm || dealForm || activityForm ? noop : onClose);
 
   const load = useCallback(async () => {
     try {
@@ -116,7 +119,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
   }
 
   const co = data && data.company;
-  const tabs = [['overview', 'Visão geral'], ['contacts', `Contatos${data ? ` (${data.contacts.length})` : ''}`], ['deals', `Negócios${data ? ` (${data.deals.length})` : ''}`], ['history', 'Histórico'], ['projects', `Projetos${data ? ` (${data.projects.length})` : ''}`]];
+  const tabs = [['overview', 'Visão geral'], ['contacts', `Contatos${data ? ` (${data.contacts.length})` : ''}`], ['deals', `Negócios${data ? ` (${data.deals.length})` : ''}`], ['activities', `Atividades${data && data.kpis.openActivities ? ` (${data.kpis.openActivities})` : ''}`], ['history', 'Histórico'], ['projects', `Projetos${data ? ` (${data.projects.length})` : ''}`]];
   if (caps.remove) tabs.push(['audit', 'Auditoria']);
 
   return (
@@ -139,6 +142,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
             </div>
             <div className="crm-actions">
               {co && !co.deletedAt && caps.write && co.relationship === 'client' && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'upsell' })}><Sparkles size={14} color="#b98af5" /> Criar oportunidade de upsell</button>}
+              {co && !co.deletedAt && caps.write && <button type="button" className="crm-btn" onClick={() => setActivityForm(true)}><Plus size={14} /> Atividade</button>}
               {co && !co.deletedAt && caps.write && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'new' })}><Plus size={14} /> Negócio</button>}
               {co && !co.deletedAt && caps.write && <button type="button" className="crm-btn" onClick={() => setEditing(true)}><Pencil size={14} /> Editar</button>}
               {co && !co.deletedAt && caps.remove && <button type="button" className="crm-btn crm-btn-danger" onClick={removeCompany}><Trash2 size={14} /> Excluir</button>}
@@ -158,8 +162,9 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
           {data && tab === 'overview' && (
             <>
               <div className="crm-cards">
-                <div className="crm-card"><div className="crm-kpi-value" style={{ color: staleColor(data.kpis.daysSinceInteraction), fontSize: 18 }}>{daysLabel(data.kpis.daysSinceInteraction)}</div><div className="crm-kpi-label">Última interação</div><div className="crm-kpi-sub">nota ou reunião realizada</div></div>
+                <div className="crm-card"><div className="crm-kpi-value" style={{ color: staleColor(data.kpis.daysSinceInteraction), fontSize: 18 }}>{daysLabel(data.kpis.daysSinceInteraction)}</div><div className="crm-kpi-label">Última interação</div><div className="crm-kpi-sub">nota, reunião ou interação concluída</div></div>
                 <div className="crm-card"><div className="crm-kpi-value">{data.kpis.contacts}</div><div className="crm-kpi-label">Contatos</div></div>
+                <div className="crm-card"><div className="crm-kpi-value" style={{ color: data.kpis.overdueActivities ? '#e2574c' : undefined }}>{data.kpis.openActivities}</div><div className="crm-kpi-label">Atividades abertas</div><div className="crm-kpi-sub">{data.kpis.overdueActivities} atrasada(s)</div></div>
                 <div className="crm-card"><div className="crm-kpi-value">{data.kpis.openDeals}</div><div className="crm-kpi-label">Negócios em aberto</div><div className="crm-kpi-sub">{fmtMoney(data.kpis.openDealsValue) || 'R$ 0'}</div></div>
                 <div className="crm-card"><div className="crm-kpi-value">{data.kpis.projects}</div><div className="crm-kpi-label">Projetos no painel</div><div className="crm-kpi-sub">{data.kpis.meetings} reunião(ões)</div></div>
                 <div className="crm-card"><div className="crm-kpi-value" style={{ color: data.kpis.overdueTodos ? '#e2574c' : undefined }}>{data.kpis.openTodos}</div><div className="crm-kpi-label">Pendências abertas</div><div className="crm-kpi-sub">{data.kpis.overdueTodos} atrasada(s)</div></div>
@@ -266,6 +271,19 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
             </>
           )}
 
+          {data && tab === 'activities' && (
+            <>
+              <div className="crm-page-head" style={{ marginBottom: 10 }}>
+                <div className="crm-sub" style={{ margin: 0 }}>Próximos passos e o que já foi feito com esta empresa. Ligação, reunião, e-mail, WhatsApp e visita concluídos contam como interação.</div>
+                {caps.write && !co.deletedAt && <button type="button" className="crm-btn crm-btn-primary" onClick={() => setActivityForm(true)}><Plus size={14} /> Nova atividade</button>}
+              </div>
+              <div className="crm-section">
+                <ActivityList activities={data.activities} caps={caps} options={options} currentUserId={currentUserId} onChanged={afterChange} onOpenDeal={onOpenDeal}
+                  emptyText="Nenhuma atividade ainda. Agende o próximo passo com esta empresa para ela não esfriar." />
+              </div>
+            </>
+          )}
+
           {data && tab === 'history' && (
             <>
               {caps.write && !co.deletedAt && (
@@ -363,6 +381,10 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
       {editing && co && (
         <CompanyForm initial={co} options={options} onCancel={() => setEditing(false)} onOpenCompany={onOpenCompany}
           onSaved={async () => { setEditing(false); await afterChange(); }} />
+      )}
+      {activityForm && co && (
+        <ActivityForm company={{ id: co.id, legalName: co.legalName, relationship: co.relationship }} options={options} currentUserId={currentUserId}
+          onCancel={() => setActivityForm(false)} onSaved={async () => { setActivityForm(false); setTab('activities'); await afterChange(); }} />
       )}
       {dealForm && co && (
         <DealForm company={{ id: co.id, legalName: co.legalName, relationship: co.relationship }} defaultType={dealForm.type} options={options} currentUserId={currentUserId}

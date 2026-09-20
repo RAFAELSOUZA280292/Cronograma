@@ -78,6 +78,7 @@ export const TIMELINE_KIND = {
   company_created: 'Cadastro', company_updated: 'Cadastro', relationship_changed: 'Relação', company_deleted: 'Cadastro', company_restored: 'Cadastro',
   contact_added: 'Contato', contact_updated: 'Contato', contact_removed: 'Contato', note_added: 'Nota', note_removed: 'Nota',
   project_linked: 'Projeto', project_unlinked: 'Projeto',
+  activity_created: 'Atividade', activity_updated: 'Atividade', activity_completed: 'Concluída', activity_cancelled: 'Atividade', activity_reopened: 'Atividade', activity_deleted: 'Atividade',
   deal_created: 'Negócio', deal_updated: 'Negócio', deal_stage_changed: 'Negócio', deal_won: 'Ganho', deal_lost: 'Perda', deal_reopened: 'Negócio', deal_deleted: 'Negócio',
 };
 
@@ -85,6 +86,15 @@ export const TIMELINE_KIND = {
 export const DEAL_TYPE_META = { new: { label: 'Novo negócio', color: '#3ea6ff' }, upsell: { label: 'Upsell', color: '#b98af5' } };
 export const DEAL_STATUS_META = { open: { label: 'Em aberto', color: 'var(--text-5)' }, won: { label: 'Ganho', color: '#3ecf6e' }, lost: { label: 'Perdido', color: '#e2574c' } };
 export const BILLING_LABELS = { one_time: 'Projeto (pontual)', recurring: 'Recorrente (mensal)' };
+
+// Atividades (Fase 3). O ícone vem do componente (ActivityList) pra este arquivo não importar React.
+export const ACTIVITY_TYPES = [['task', 'Tarefa'], ['call', 'Ligação'], ['email', 'E-mail'], ['meeting', 'Reunião'], ['whatsapp', 'WhatsApp'], ['visit', 'Visita'], ['followup', 'Follow-up']];
+export const activityTypeLabel = (v) => (ACTIVITY_TYPES.find(([k]) => k === v) || [null, v])[1];
+export const PRIORITY_META = { low: { label: 'Baixa', color: 'var(--text-6)' }, normal: { label: 'Normal', color: 'var(--text-5)' }, high: { label: 'Alta', color: '#e2574c' } };
+export const BUCKET_META = {
+  overdue: { label: 'Atrasadas', color: '#e2574c' }, today: { label: 'Hoje', color: '#ff9f40' },
+  week: { label: 'Próximos 7 dias', color: 'var(--text-4)' }, later: { label: 'Mais adiante', color: 'var(--text-5)' },
+};
 
 // Parado no funil é sinal de ação (Fase 4 traz o aging de verdade por etapa).
 export function stageAgeColor(days) {
@@ -255,4 +265,21 @@ export const CRM_CSS = `
   .crm-path-row { display:flex; justify-content:space-between; gap:10px; font-size:12.5px; color:var(--text-3); padding:6px 0; border-bottom:1px solid var(--border-1); }
   .crm-path-row:last-child { border-bottom:none; }
   .crm-num { font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
+  .crm-act { display:flex; gap:10px; align-items:flex-start; padding:10px 4px; border-bottom:1px solid var(--border-1); }
+  .crm-act:last-child { border-bottom:none; }
+  .crm-act-ico { flex-shrink:0; width:30px; height:30px; border-radius:8px; background:var(--bg-3); color:var(--text-4); display:flex; align-items:center; justify-content:center; }
+  .crm-act.done .crm-act-title { text-decoration:line-through; color:var(--text-5); }
+  .crm-act-title { font-size:13px; font-weight:800; color:var(--text-1); overflow-wrap:anywhere; }
+  .crm-act-meta { font-size:11.5px; color:var(--text-5); margin-top:2px; display:flex; gap:6px 10px; flex-wrap:wrap; align-items:center; }
+  .crm-act-meta button { background:none; border:none; padding:0; font:inherit; color:var(--text-4); text-decoration:underline; cursor:pointer; }
+  .crm-act-body { flex:1; min-width:0; }
+  .crm-act-actions { display:flex; gap:4px; align-items:center; flex-shrink:0; }
+  .crm-act-outcome { margin-top:5px; font-size:12px; color:var(--text-3); background:var(--bg-3); border-radius:8px; padding:6px 9px; white-space:pre-wrap; }
+  .crm-check { width:22px; height:22px; border-radius:50%; border:2px solid var(--border-3); background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; color:transparent; flex-shrink:0; margin-top:4px; padding:0; }
+  .crm-check:hover { border-color:#3ecf6e; color:#3ecf6e; }
+  .crm-check.on { background:#3ecf6e; border-color:#3ecf6e; color:#111; }
+  .crm-chips { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .crm-chip { display:inline-flex; align-items:baseline; gap:6px; padding:6px 12px; border-radius:999px; border:1px solid var(--border-2); background:transparent; color:var(--text-4); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+  .crm-chip b { font-size:13px; color:var(--text-1); font-variant-numeric:tabular-nums; }
+  .crm-chip.active { background:var(--bg-3); color:var(--text-1); border-color:var(--border-3); }
 `;

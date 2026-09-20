@@ -20,6 +20,8 @@ import * as BS from './bootstrap.js';
 import * as D from './deals.js';
 import * as DQ from './dealQueries.js';
 import * as P from './products.js';
+import * as A from './activities.js';
+import * as AQ from './activityQueries.js';
 import { mapCnpjSuggestion } from './cnpjSuggestion.js';
 
 const need = (cap) => (req, res, next) => {
@@ -44,7 +46,7 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
 
   router.get('/me', (req, res) => res.json({ capabilities: crmCapabilities(req.user) }));
   router.get('/options', h(async (req, res) => res.json(await Q.options(orgOf(req)))));
-  router.get('/overview', h(async (req, res) => res.json(await Q.overview(orgOf(req)))));
+  router.get('/overview', h(async (req, res) => res.json(await Q.overview(orgOf(req), req.user.id))));
   router.get('/search', h(async (req, res) => res.json(await Q.search(orgOf(req), req.query.q))));
 
   // Cadastro rápido: digita o CNPJ, o resto vem da Receita (com cache) — e já diz se é duplicado.
@@ -116,6 +118,18 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
   router.post('/deals/:id/move', need('write'), h(async (req, res) => res.json({ deal: await D.moveDeal(orgOf(req), actorOf(req), req.params.id, req.body || {}) })));
   router.delete('/deals/:id', need('remove'), h(async (req, res) => res.json(await D.deleteDeal(orgOf(req), actorOf(req), req.params.id))));
   router.get('/deals/:id/audit', need('remove'), h(async (req, res) => res.json({ logs: await Q.listAudit(orgOf(req), 'deal', req.params.id) })));
+
+  // ---- atividades / follow-ups (Fase 3). ownerId=me vira o usuário logado.
+  router.get('/activities', h(async (req, res) => res.json(await AQ.listActivities(orgOf(req), { ...req.query, ownerId: req.query.ownerId === 'me' ? req.user.id : req.query.ownerId }))));
+  router.post('/activities', need('write'), h(async (req, res) => {
+    const { alreadyDone, ...input } = req.body || {};
+    res.status(201).json({ activity: await A.createActivity(orgOf(req), actorOf(req), input, { alreadyDone: !!alreadyDone }) });
+  }));
+  router.patch('/activities/:id', need('write'), h(async (req, res) => res.json({ activity: await A.updateActivity(orgOf(req), actorOf(req), req.params.id, req.body || {}) })));
+  router.post('/activities/:id/complete', need('write'), h(async (req, res) => res.json({ activity: await A.completeActivity(orgOf(req), actorOf(req), req.params.id, req.body || {}) })));
+  router.post('/activities/:id/cancel', need('write'), h(async (req, res) => res.json({ activity: await A.cancelActivity(orgOf(req), actorOf(req), req.params.id) })));
+  router.post('/activities/:id/reopen', need('write'), h(async (req, res) => res.json({ activity: await A.reopenActivity(orgOf(req), actorOf(req), req.params.id) })));
+  router.delete('/activities/:id', need('remove'), h(async (req, res) => res.json(await A.deleteActivity(orgOf(req), actorOf(req), req.params.id))));
 
   // ---- produtos (catálogo): todos leem; quem define o que se vende é gestor+
   router.get('/products', h(async (req, res) => res.json({ products: await P.listProducts(orgOf(req), { includeInactive: req.query.all === 'true' && crmCan(req.user, 'catalog') }) })));

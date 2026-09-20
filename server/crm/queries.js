@@ -5,6 +5,8 @@ import { onlyDigits, companyNameKey, personNameKey } from './text.js';
 import { companyCompleteness } from './completeness.js';
 import { projectSummary } from './projectSummary.js';
 import { dealsForCompany, dealsOverview, searchDeals } from './dealQueries.js';
+import { activitiesForCompany, activitiesOverview } from './activityQueries.js';
+import { INTERACTION_TYPES } from './activities.js';
 import { listProducts, BILLING } from './products.js';
 import { DEAL_TYPE_LABELS, LOST_REASONS } from './pipeline.js';
 import { COMPANY_SELECT, CONTACT_SELECT, mapCompany, mapContact, isUuid, todayBR, SOURCES, TAX_REGIMES, COMPANY_SIZES, ENUMS, RELATIONSHIP_LABELS } from './service.js';
@@ -19,13 +21,12 @@ export function daysSince(dateStr) {
 }
 
 // Estatísticas por empresa numa tacada só (lista e ficha usam a mesma coisa).
-// "Última interação" (Fase 1) = a mais recente entre uma nota registrada e uma
-// reunião JÁ realizada nos projetos vinculados; atividades/e-mails/ligações
-// entram nas fases seguintes.
+// "Última interação" = a mais recente entre uma nota registrada, uma reunião JÁ
+// realizada nos projetos vinculados e (Fase 3) uma atividade de interação concluída.
 export async function companyStats(db, orgId, ids) {
   const out = new Map();
   if (!ids.length) return out;
-  ids.forEach((id) => out.set(id, { contactsCount: 0, hasPrimaryContact: false, hasDecisionMaker: false, primaryContactName: '', projectsCount: 0, notesCount: 0, lastInteractionAt: null }));
+  ids.forEach((id) => out.set(id, { openActivities: 0, contactsCount: 0, hasPrimaryContact: false, hasDecisionMaker: false, primaryContactName: '', projectsCount: 0, notesCount: 0, lastInteractionAt: null }));
   const { rows: contacts } = await db.query(
     `SELECT company_id, count(*)::int AS n, bool_or(is_primary) AS has_primary, bool_or(decision_role = 'decisor') AS has_decisor,
             max(CASE WHEN is_primary THEN trim(first_name || ' ' || last_name) END) AS primary_name
@@ -45,6 +46,11 @@ export async function companyStats(db, orgId, ids) {
        AND (m->>'date') ~ '^\\d{4}-\\d{2}-\\d{2}$' AND (m->>'date') <= ${SP_DATE}
      GROUP BY cp.company_id`, [ids]);
   meets.forEach((r) => { const s = out.get(r.company_id); if (r.last_meeting && (!s.lastInteractionAt || r.last_meeting > s.lastInteractionAt)) s.lastInteractionAt = r.last_meeting; });
+  // Fase 3: ligação/e-mail/reunião/WhatsApp/visita CONCLUÍDOS contam como interação (tarefa e follow-up não).
+  const { rows: acts } = await db.query(
+    `SELECT company_id, to_char(max(completed_at) AT TIME ZONE 'America/Sao_Paulo','YYYY-MM-DD') AS last_act, count(*) FILTER (WHERE status='open')::int AS open_n
+     FROM crm_activities WHERE org_id=$1 AND company_id = ANY($2::uuid[]) AND deleted_at IS NULL AND (status='open' OR (status='done' AND activity_type = ANY($3::text[]))) GROUP BY company_id`, [orgId, ids, INTERACTION_TYPES]);
+  acts.forEach((r) => { const s = out.get(r.company_id); s.openActivities = r.open_n; if (r.last_act && (!s.lastInteractionAt || r.last_act > s.lastInteractionAt)) s.lastInteractionAt = r.last_act; });
   return out;
 }
 
@@ -95,8 +101,11 @@ export async function getCompanyOverview(orgId, id) {
   const projects = links.map((l) => ({ ...projectSummary(l.project_id, l.data, today), linkedAt: l.linked_at }));
   const notes = await listNotes(orgId, id);
   const deals = await dealsForCompany(orgId, id);
+  const activities = await activitiesForCompany(orgId, id);
   const openDeals = deals.filter((d) => d.status === 'open');
   const kpis = {
+    openActivities: activities.filter((a) => a.status === 'open').length,
+    overdueActivities: activities.filter((a) => a.bucket === 'overdue').length,
     openDeals: openDeals.length,
     openDealsValue: openDeals.reduce((n, d) => n + d.value, 0),
     daysSinceInteraction: company.stats.daysSinceInteraction,
@@ -107,7 +116,7 @@ export async function getCompanyOverview(orgId, id) {
     overdueTodos: projects.reduce((n, p) => n + p.overdueTodos, 0),
     meetings: projects.reduce((n, p) => n + p.meetings.count, 0),
   };
-  return { company, contacts: contacts.items, projects, notes, deals, kpis };
+  return { company, contacts: contacts.items, projects, notes, deals, activities, kpis };
 }
 
 export async function listNotes(orgId, companyId, { limit = 100 } = {}) {
@@ -203,7 +212,7 @@ export async function options(orgId) {
 
 // Visão Geral (Fase 1): o que já dá pra responder só com empresas/contatos —
 // pipeline/receita entram na Fase 2. Sem gráficos: números e listas de atenção.
-export async function overview(orgId) {
+export async function overview(orgId, userId = '') {
   const { rows: byRel } = await pool.query(`SELECT relationship, count(*)::int AS n FROM crm_companies WHERE org_id=$1 AND deleted_at IS NULL GROUP BY relationship`, [orgId]);
   const { rows: cc } = await pool.query(`SELECT count(*)::int AS n FROM crm_contacts k JOIN crm_companies c ON c.id=k.company_id WHERE k.org_id=$1 AND k.deleted_at IS NULL AND c.deleted_at IS NULL`, [orgId]);
   const { rows: all } = await pool.query(`SELECT ${COMPANY_SELECT} FROM crm_companies c WHERE c.org_id=$1 AND c.deleted_at IS NULL`, [orgId]);
@@ -217,8 +226,9 @@ export async function overview(orgId) {
      WHERE t.org_id=$1 AND c.deleted_at IS NULL ORDER BY t.occurred_at DESC LIMIT 12`, [orgId]);
   const brief = (c) => ({ id: c.id, legalName: c.legalName, tradeName: c.tradeName, relationship: c.relationship, daysSinceInteraction: c.stats.daysSinceInteraction, completeness: c.completeness.percent });
   const deals = await dealsOverview(orgId);
+  const activities = await activitiesOverview(orgId, userId);
   return {
-    deals,
+    deals, activities,
     companiesByRelationship: Object.fromEntries(['prospect', 'client', 'former_client', 'partner'].map((k) => [k, (byRel.find((r) => r.relationship === k) || { n: 0 }).n])),
     totalCompanies: list.length, totalContacts: cc[0].n, avgCompleteness,
     noCnpj: list.filter((c) => !c.cnpj).length,

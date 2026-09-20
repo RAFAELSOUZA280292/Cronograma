@@ -28,6 +28,8 @@ function DealCard({ deal, canDrag, dragging, onOpen, onDragStart, onDragEnd }) {
         {deal.dealType === 'upsell' && <span className="crm-tag" style={{ color: DEAL_TYPE_META.upsell.color }}>Upsell</span>}
         {deal.status === 'lost' && <span className="crm-tag" style={{ color: DEAL_STATUS_META.lost.color }}>{deal.lostReasonLabel || 'Perdido'}</span>}
         {deal.overdue && <span className="crm-tag" style={{ color: '#e2574c' }}>Previsão vencida</span>}
+        {deal.noNextStep && <span className="crm-tag" style={{ color: '#ff9f40' }}>Sem próximo passo</span>}
+        {!closed && deal.nextActivityDate && <span className="crm-tag" style={{ color: deal.nextActivityOverdue ? '#e2574c' : 'var(--text-5)' }}>{deal.nextActivityOverdue ? 'Passo atrasado ' : 'Próx. '}{fmtDateBR(deal.nextActivityDate).slice(0, 5)}</span>}
         {!closed && (deal.daysInStage || 0) > 14 && <span className="crm-tag" style={{ color: stageAgeColor(deal.daysInStage) }}>{deal.daysInStage} dias parado</span>}
         {deal.ownerName && <span className="crm-muted" style={{ fontSize: 11 }}>{deal.ownerName}</span>}
       </div>
@@ -156,7 +158,7 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
                   <tr key={d.id} onClick={() => onOpenDeal(d.id)}>
                     <td><div className="crm-name">{d.title}</div>{d.status === 'lost' && <div className="crm-muted">Perdido — {d.lostReasonLabel}</div>}</td>
                     <td>{d.companyName}</td>
-                    <td><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="crm-dot" style={{ background: d.stageColor || 'var(--border-3)' }} />{d.stageName}</span>{d.status === 'open' && (d.daysInStage || 0) > 14 && <div style={{ color: stageAgeColor(d.daysInStage), fontSize: 11 }}>{d.daysInStage} dias parado</div>}</td>
+                    <td><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="crm-dot" style={{ background: d.stageColor || 'var(--border-3)' }} />{d.stageName}</span>{d.status === 'open' && (d.daysInStage || 0) > 14 && <div style={{ color: stageAgeColor(d.daysInStage), fontSize: 11 }}>{d.daysInStage} dias parado</div>}{d.noNextStep && <div style={{ color: '#ff9f40', fontSize: 11 }}>Sem próximo passo</div>}</td>
                     <td className="crm-num">{d.value ? fmtMoney(d.value) : <span className="crm-muted">—</span>}</td>
                     <td className="crm-num">{d.status === 'open' ? `${d.probability}%` : <span className="crm-muted">—</span>}</td>
                     <td style={{ color: d.overdue ? '#e2574c' : undefined, fontWeight: d.overdue ? 700 : undefined }}>{fmtDateBR(d.expectedCloseDate) || <span className="crm-muted">—</span>}</td>

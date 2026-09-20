@@ -13,6 +13,7 @@ import { router as assistantRouter } from './assistant.js';
 import { router as knowledgeRouter } from './knowledge.js';
 import { router as pareceresRouter } from './pareceres.js';
 import { router as crmRouter } from './crm/routes.js';
+import { startCrmScheduler } from './crm/scheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '..', 'dist');
@@ -54,6 +55,7 @@ async function start() {
   await migrateInsightsToKnowledgeFacts();
   app.listen(port, () => {
     console.log(`Cronograma server ouvindo na porta ${port}`);
+    startCrmScheduler();
   });
 }
 

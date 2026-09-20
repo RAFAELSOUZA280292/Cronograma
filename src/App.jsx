@@ -598,6 +598,7 @@ export default function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [pendingXflowOpen, setPendingXflowOpen] = useState(null);
+  const [pendingCrmOpen, setPendingCrmOpen] = useState(null); // {companyId, dealId} vindo de uma notificação do CRM
   const [showSettings, setShowSettings] = useState(false);
   const [showPhases, setShowPhases] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
@@ -895,6 +896,10 @@ export default function App() {
       goToWorkspace('company');
       confirmCompanySelection([t.projectId]);
       openActivityDetail(t.projectId, t.activityId);
+    } else if (t.kind === 'crm_activity') {
+      markNotificationsReadForTarget({ kind: 'crm_activity', activityId: t.activityId });
+      setPendingCrmOpen({ companyId: t.companyId, dealId: t.dealId || null });
+      if (workspaceMode !== 'crm') goToWorkspace('crm');
     }
   }
 
@@ -1384,6 +1389,9 @@ export default function App() {
           onLogout={handleLogout}
           theme={theme}
           onToggleTheme={toggleTheme}
+          notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
+          onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
+          pendingOpen={pendingCrmOpen} onPendingOpenConsumed={() => setPendingCrmOpen(null)}
         />
       </React.Suspense>
     );
