@@ -1,9 +1,9 @@
-// CRM PRICETAX — shell do módulo (Fase 1, 2026-09-20, PROJECT_CONTEXT.md §54).
+// CRM PRICETAX — shell do módulo (Fase 1 + Fase 2, 2026-09-20, PROJECT_CONTEXT.md §54/§55).
 // Novo workspace "CRM" ao lado dos outros; carregado sob demanda (React.lazy em
 // App.jsx) pra não engordar o bundle de quem nunca abre o CRM. Só acrescenta:
 // nenhuma tela existente foi alterada.
 import React, { useCallback, useEffect, useState } from 'react';
-import { Briefcase, LayoutDashboard, Building2, Users, Plus, X, LogOut } from 'lucide-react';
+import { Briefcase, LayoutDashboard, Building2, Users, Plus, X, LogOut, Kanban, Package } from 'lucide-react';
 import { ThemeToggleBtn } from '../App.jsx';
 import { crm } from './crmApi.js';
 import { CRM_CSS } from './crmMeta.js';
@@ -12,12 +12,16 @@ import OverviewPage from './OverviewPage.jsx';
 import CompaniesPage from './CompaniesPage.jsx';
 import ContactsPage from './ContactsPage.jsx';
 import CompanyDrawer from './CompanyDrawer.jsx';
+import DealsPage from './DealsPage.jsx';
+import DealDrawer from './DealDrawer.jsx';
+import DealForm from './DealForm.jsx';
+import ProductsPage from './ProductsPage.jsx';
 import CompanyForm from './CompanyForm.jsx';
 import ContactForm from './ContactForm.jsx';
 import ImportWizard from './ImportWizard.jsx';
 import BootstrapDialog from './BootstrapDialog.jsx';
 
-const NAV = [['overview', 'Visão geral', LayoutDashboard], ['companies', 'Empresas', Building2], ['contacts', 'Contatos', Users]];
+const NAV = [['overview', 'Visão geral', LayoutDashboard], ['deals', 'Negócios', Kanban], ['companies', 'Empresas', Building2], ['contacts', 'Contatos', Users], ['products', 'Produtos', Package]];
 
 export default function CrmScreen({ currentUser, onExit, onLogout, theme, onToggleTheme }) {
   const [page, setPage] = useState('overview');
@@ -27,6 +31,8 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
   const [drawer, setDrawer] = useState(null); // {id, tab}
   const [companyForm, setCompanyForm] = useState(false);
   const [contactForm, setContactForm] = useState(null); // {contact?}
+  const [dealDrawer, setDealDrawer] = useState(null); // id do negócio aberto
+  const [dealForm, setDealForm] = useState(null); // {company?, type?}
   const [showImport, setShowImport] = useState(false);
   const [showBootstrap, setShowBootstrap] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -37,7 +43,9 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
     crm.options().then(setOptions).catch(() => {});
   }, [refreshKey]);
 
-  function openCompany(id, tab) { setDrawer({ id, tab: tab || 'overview' }); }
+  // Um painel lateral por vez: abrir empresa fecha o negócio e vice-versa.
+  function openCompany(id, tab) { setDealDrawer(null); setDrawer({ id, tab: tab || 'overview' }); }
+  function openDeal(id) { setDrawer(null); setDealDrawer(id); }
 
   if (error) return <div style={{ padding: 40 }}><style>{CRM_CSS}</style><div className="crm-alert crm-alert-danger">{error}</div><button type="button" className="crm-btn" onClick={onExit}>Voltar</button></div>;
   if (!caps) return <div className="crm-shell"><style>{CRM_CSS}</style><div className="crm-empty">Carregando o CRM…</div></div>;
@@ -48,8 +56,9 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
       <div className="crm-shell">
         <div className="crm-topbar">
           <div className="crm-brand"><Briefcase size={18} color="#F5C400" /> CRM <span className="crm-muted" style={{ fontWeight: 600 }}>· {caps.roleLabel}</span></div>
-          <GlobalSearch onPickCompany={openCompany} />
+          <GlobalSearch onPickCompany={openCompany} onPickDeal={openDeal} />
           <div className="crm-spacer" />
+          {caps.write && <button type="button" className="crm-btn" onClick={() => setDealForm({})}><Plus size={14} /> Negócio</button>}
           {caps.write && <button type="button" className="crm-btn" onClick={() => setCompanyForm(true)}><Plus size={14} /> Empresa</button>}
           {caps.write && <button type="button" className="crm-btn" onClick={() => setContactForm({})}><Plus size={14} /> Contato</button>}
           <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
@@ -61,14 +70,18 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
             {NAV.map(([k, label, Icon]) => <button key={k} type="button" className={page === k ? 'active' : ''} onClick={() => setPage(k)}><Icon size={15} /> {label}</button>)}
           </nav>
           <main className="crm-main">
-            {page === 'overview' && <OverviewPage caps={caps} refreshKey={refreshKey} onOpenCompany={openCompany} onBootstrap={() => setShowBootstrap(true)} />}
+            {page === 'overview' && <OverviewPage caps={caps} refreshKey={refreshKey} onOpenCompany={openCompany} onOpenDeal={openDeal} onGoDeals={() => setPage('deals')} onBootstrap={() => setShowBootstrap(true)} />}
+            {page === 'deals' && <DealsPage caps={caps} options={options} refreshKey={refreshKey} onOpenDeal={openDeal} onNewDeal={(o) => setDealForm(o || {})} onChanged={refresh} />}
             {page === 'companies' && <CompaniesPage caps={caps} options={options} refreshKey={refreshKey} onOpenCompany={openCompany} onNewCompany={() => setCompanyForm(true)} onImport={() => setShowImport(true)} />}
+            {page === 'products' && <ProductsPage caps={caps} onChanged={refresh} />}
             {page === 'contacts' && <ContactsPage caps={caps} refreshKey={refreshKey} onOpenCompany={openCompany} onNewContact={() => setContactForm({})} onEditContact={(c) => setContactForm({ contact: c })} />}
           </main>
         </div>
       </div>
 
-      {drawer && <CompanyDrawer companyId={drawer.id} initialTab={drawer.tab} caps={caps} options={options} onClose={() => setDrawer(null)} onChanged={refresh} onOpenCompany={(id) => setDrawer({ id, tab: 'overview' })} />}
+      {drawer && <CompanyDrawer companyId={drawer.id} initialTab={drawer.tab} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDrawer(null)} onChanged={refresh} onOpenCompany={(id) => setDrawer({ id, tab: 'overview' })} onOpenDeal={openDeal} />}
+      {dealDrawer && <DealDrawer dealId={dealDrawer} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDealDrawer(null)} onChanged={refresh} onOpenCompany={(id) => openCompany(id)} />}
+      {dealForm && <DealForm company={dealForm.company} defaultType={dealForm.type} options={options} currentUserId={currentUser && currentUser.id} onCancel={() => setDealForm(null)} onSaved={(d) => { setDealForm(null); refresh(); openDeal(d.id); }} />}
       {companyForm && <CompanyForm options={options} prefillOwnerId={currentUser && currentUser.id} onCancel={() => setCompanyForm(false)} onOpenCompany={(id) => { setCompanyForm(false); openCompany(id); }}
         onSaved={(c) => { setCompanyForm(false); refresh(); openCompany(c.id); }} />}
       {contactForm && <ContactForm initial={contactForm.contact} onCancel={() => setContactForm(null)} onSaved={() => { setContactForm(null); refresh(); }} />}

@@ -364,7 +364,7 @@ usam `S.detailBox`.
   para Empresas" no canto esquerdo) — não é uma rota nova, só um atalho
   visual mais consistente.
 
-### CRM PRICETAX — Fase 1 (2026-09, `PROJECT_CONTEXT.md` §54)
+### CRM PRICETAX — Fases 1 e 2 (2026-09, `PROJECT_CONTEXT.md` §54 e §55)
 - **Backend `server/crm/`** (montado em `/api/crm` por `server/index.js`):
   `routes.js` (`createCrmRouter({ auth })`, auth injetável p/ teste; /me,
   /options, /overview, /search, /cnpj/:cnpj, /companies CRUD + check-duplicates
@@ -375,11 +375,17 @@ usam `S.detailBox`.
   read/write/remove/import/admin) · `duplicates.js` · `importer.js` ·
   `bootstrap.js` · `completeness.js` · `projectSummary.js` · `cnpj.js` ·
   `cnpjSuggestion.js` · `text.js` · `errors.js`.
+  **Fase 2 (negócios)**: `pipeline.js` (constantes + `ensureDefaultPipeline`) · `deals.js`
+  (create/update/move/delete; ganhar promove empresa a cliente) · `dealQueries.js`
+  (board, lista, detalhe, KPIs, busca) · `products.js` (catálogo). Rotas: `/pipeline`,
+  `/board`, `/deals[/:id[/move|/audit]]`, `/products`.
 - **Frontend `src/crm/`** (`React.lazy` em `App.jsx`): `CrmScreen.jsx` (shell +
   submenus), `OverviewPage`, `CompaniesPage`, `ContactsPage`, `CompanyDrawer`
   (Ficha 360), `CompanyForm`, `ContactForm`, `ImportWizard` (xlsx.mini em
   `import()` dinâmico), `BootstrapDialog`, `GlobalSearch`, `ui.jsx`,
-  `crmMeta.js` (rótulos + `CRM_CSS`), `crmApi.js`.
+  `crmMeta.js` (rótulos + `CRM_CSS`), `crmApi.js`. **Fase 2**: `DealsPage` (Kanban+lista),
+  `DealDrawer`, `DealForm`, `CloseDealDialog`, `ProductsPage`; `CompanyDrawer` ganhou aba
+  Negócios e botão de upsell; `OverviewPage` ganhou bloco Funil.
 - **Toques em arquivos existentes (aditivos)**: `App.jsx` (`hasCrm`, modo
   `'crm'` em `availableModes`/`locationTag`, card no `WorkspaceGateScreen`,
   select "Acesso ao CRM" no `EditUserModal`), `server/routes.js` (`PATCH
@@ -430,6 +436,10 @@ anexos são base64 inline no PATCH do projeto (ver §9, ponto de atenção).
 | `crm_companies` / `crm_contacts` / `crm_notes` | CRM Fase 1 (2026-09, `PROJECT_CONTEXT.md` §54) — relacionais (não JSONB), UUID, soft delete, `org_id`. Índice único parcial `(org_id, cnpj)` em empresas ativas com CNPJ | `crm_contacts`/`crm_notes` → `crm_companies.id`; `org_id → organizations.id` |
 | `crm_company_projects` | Vínculo empresa CRM ↔ projeto do cronograma (`project_id` UNIQUE; vários projetos por empresa). CRM só LÊ `projects.data` | `company_id → crm_companies.id`, `project_id → projects.id` |
 | `crm_timeline_events` / `crm_audit_logs` | Histórico de negócio e auditoria campo a campo — **append-only por trigger** (`crm_block_history_mutation` barra UPDATE/DELETE); limpeza de teste exige `DISABLE TRIGGER USER` | `company_id → crm_companies.id` |
+| `crm_pipelines` / `crm_pipeline_stages` | CRM Fase 2 (§55) — funil padrão por org criado sob demanda (7 etapas, prob. por etapa, `kind` open/won/lost); índice único parcial = 1 padrão por org | `pipeline_id → crm_pipelines.id` |
+| `crm_deals` / `crm_deal_items` | Negócios (Lead = 1ª etapa; `deal_type` new/upsell; `status` open/won/lost; soft delete). Itens guardam retrato de nome e preço | `company_id → crm_companies.id`, `stage_id → crm_pipeline_stages.id`; itens → `crm_products` |
+| `crm_products` | Catálogo de produtos/serviços (preço de tabela, cobrança, ativo) | `org_id → organizations.id` |
+| `crm_deal_stage_history` | 1 linha por mudança de etapa (dias na anterior) — **append-only por trigger**; base de aging/conversão da Fase 4 | `deal_id → crm_deals.id` |
 
 Sem migrations formais — `initDb()` roda `CREATE TABLE IF NOT EXISTS` +
 `ALTER TABLE ADD COLUMN IF NOT EXISTS` a cada boot do servidor.

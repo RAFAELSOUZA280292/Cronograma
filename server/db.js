@@ -947,6 +947,123 @@ export async function initDb() {
     await pool.query(`DROP TRIGGER IF EXISTS ${t}_append_only ON ${t}`);
     await pool.query(`CREATE TRIGGER ${t}_append_only BEFORE UPDATE OR DELETE ON ${t} FOR EACH ROW EXECUTE FUNCTION crm_block_history_mutation()`);
   }
+
+  // CRM — Fase 2 (2026-09-20, PROJECT_CONTEXT.md §55): Negócios, Pipeline e
+  // Produtos. Também só acrescenta. Lead = 1ª etapa do negócio (o negócio
+  // sempre pertence a uma empresa); upsell = negócio com deal_type='upsell'
+  // numa empresa que já é cliente. Um pipeline padrão por org é criado sob
+  // demanda (ensureDefaultPipeline) — o modelo já comporta vários.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_products (
+      id          UUID PRIMARY KEY,
+      org_id      TEXT NOT NULL REFERENCES organizations(id),
+      name        TEXT NOT NULL,
+      category    TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      list_price  NUMERIC(14,2),
+      billing     TEXT NOT NULL DEFAULT 'one_time' CHECK (billing IN ('one_time','recurring')),
+      active      BOOLEAN NOT NULL DEFAULT true,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      created_by  TEXT REFERENCES users(id),
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_by  TEXT REFERENCES users(id),
+      deleted_at  TIMESTAMPTZ,
+      deleted_by  TEXT REFERENCES users(id)
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_products_org_idx ON crm_products(org_id, deleted_at, active)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_pipelines (
+      id         UUID PRIMARY KEY,
+      org_id     TEXT NOT NULL REFERENCES organizations(id),
+      name       TEXT NOT NULL,
+      is_default BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      deleted_at TIMESTAMPTZ
+    );
+  `);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS crm_pipelines_default_uidx ON crm_pipelines(org_id) WHERE is_default AND deleted_at IS NULL`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_pipeline_stages (
+      id          UUID PRIMARY KEY,
+      org_id      TEXT NOT NULL REFERENCES organizations(id),
+      pipeline_id UUID NOT NULL REFERENCES crm_pipelines(id),
+      name        TEXT NOT NULL,
+      position    INT NOT NULL,
+      probability INT NOT NULL DEFAULT 0 CHECK (probability BETWEEN 0 AND 100),
+      kind        TEXT NOT NULL DEFAULT 'open' CHECK (kind IN ('open','won','lost')),
+      color       TEXT NOT NULL DEFAULT '',
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      deleted_at  TIMESTAMPTZ
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_stages_pipeline_idx ON crm_pipeline_stages(pipeline_id, position)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_deals (
+      id                   UUID PRIMARY KEY,
+      org_id               TEXT NOT NULL REFERENCES organizations(id),
+      company_id           UUID NOT NULL REFERENCES crm_companies(id),
+      pipeline_id          UUID NOT NULL REFERENCES crm_pipelines(id),
+      stage_id             UUID NOT NULL REFERENCES crm_pipeline_stages(id),
+      title                TEXT NOT NULL,
+      deal_type            TEXT NOT NULL DEFAULT 'new' CHECK (deal_type IN ('new','upsell')),
+      value                NUMERIC(14,2) NOT NULL DEFAULT 0,
+      expected_close_date  DATE,
+      probability_override INT CHECK (probability_override IS NULL OR probability_override BETWEEN 0 AND 100),
+      owner_id             TEXT REFERENCES users(id),
+      primary_contact_id   UUID REFERENCES crm_contacts(id),
+      source               TEXT NOT NULL DEFAULT '',
+      description          TEXT NOT NULL DEFAULT '',
+      status               TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','won','lost')),
+      lost_reason          TEXT NOT NULL DEFAULT '',
+      lost_detail          TEXT NOT NULL DEFAULT '',
+      closed_at            TIMESTAMPTZ,
+      stage_entered_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+      board_order          DOUBLE PRECISION NOT NULL DEFAULT 0,
+      created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+      created_by           TEXT REFERENCES users(id),
+      updated_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_by           TEXT REFERENCES users(id),
+      deleted_at           TIMESTAMPTZ,
+      deleted_by           TEXT REFERENCES users(id)
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_deals_org_idx ON crm_deals(org_id, deleted_at, status, stage_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_deals_company_idx ON crm_deals(org_id, company_id, deleted_at)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_deal_items (
+      id         UUID PRIMARY KEY,
+      org_id     TEXT NOT NULL REFERENCES organizations(id),
+      deal_id    UUID NOT NULL REFERENCES crm_deals(id),
+      product_id UUID REFERENCES crm_products(id),
+      name       TEXT NOT NULL,
+      quantity   NUMERIC(12,2) NOT NULL DEFAULT 1,
+      unit_price NUMERIC(14,2) NOT NULL DEFAULT 0,
+      position   INT NOT NULL DEFAULT 0
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_deal_items_deal_idx ON crm_deal_items(deal_id, position)`);
+  // Cada mudança de etapa vira uma linha (base do aging e da conversão por etapa
+  // na Fase 4). Append-only como a timeline.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_deal_stage_history (
+      id              UUID PRIMARY KEY,
+      org_id          TEXT NOT NULL REFERENCES organizations(id),
+      deal_id         UUID NOT NULL REFERENCES crm_deals(id),
+      company_id      UUID NOT NULL REFERENCES crm_companies(id),
+      from_stage_id   UUID REFERENCES crm_pipeline_stages(id),
+      to_stage_id     UUID NOT NULL REFERENCES crm_pipeline_stages(id),
+      from_stage_name TEXT NOT NULL DEFAULT '',
+      to_stage_name   TEXT NOT NULL,
+      days_in_from    NUMERIC(8,2),
+      actor_id        TEXT REFERENCES users(id),
+      actor_name      TEXT NOT NULL DEFAULT '',
+      moved_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_deal_stage_history_deal_idx ON crm_deal_stage_history(deal_id, moved_at)`);
+  await pool.query(`DROP TRIGGER IF EXISTS crm_deal_stage_history_append_only ON crm_deal_stage_history`);
+  await pool.query(`CREATE TRIGGER crm_deal_stage_history_append_only BEFORE UPDATE OR DELETE ON crm_deal_stage_history FOR EACH ROW EXECUTE FUNCTION crm_block_history_mutation()`);
 }
 
 // Migração one-shot (Fase 7, 2026-09-11) — copia os aprendizados já

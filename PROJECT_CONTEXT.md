@@ -5700,8 +5700,99 @@ de produção, o select "Acesso ao CRM" no EditUserModal (só compila),
 layout mobile e tema escuro do CRM.
 
 ### Pendências / próximas fases
-F2 (Negócios/Pipeline/Produtos/upsell) aguarda go-ahead. Descoberta lateral não
+F2 (Negócios/Pipeline/Produtos/upsell) feita em 2026-09-20 — ver §55. Descoberta lateral não
 mexida: navTags 'knowledge'/'pareceres' caem em 'company' no `locationTag`.
+
+## 55. CRM PRICETAX — Fase 2: Negócios, Pipeline e Produtos (2026-09-20)
+
+**Pedido do Rafael** (na mesma conversa da Fase 1): um Lead pode virar cliente
+e um cliente de outro projeto pode virar Lead de upsell; mesmo Kanban pros dois.
+Continua valendo a regra "só agregar" — nada da Fase 1 nem do painel foi
+substituído.
+
+### Modelo
+- **Negócio pertence sempre a uma empresa** (`crm_deals.company_id`). **Lead = a
+  1ª etapa do negócio**, não um estado da empresa; `relationship` da empresa
+  segue sendo só a relação com a PRICETAX. Uma empresa pode ter vários negócios.
+- **Upsell = `deal_type='upsell'`**, só criável em empresa que já é **cliente**
+  (regra checada na criação e ao mudar o tipo; upsell já existente continua
+  editável se a empresa deixar de ser cliente depois — bug pego em teste).
+- **Ganhar promove** prospect/ex-cliente → **cliente** (com `client_since`=hoje),
+  gravando auditoria + timeline `relationship_changed` com `automatic:true`. Parceiro
+  não é promovido. Perder não mexe na empresa. Reabrir (voltar a etapa aberta) limpa
+  motivo e `closed_at`.
+- **Pipeline**: um funil padrão por org, criado sob demanda por
+  `ensureDefaultPipeline` (índice único parcial garante 1 mesmo com chamadas
+  simultâneas — testado com 5 em paralelo). Etapas: Lead 10% · Qualificação 20% ·
+  Diagnóstico 35% · Proposta 55% · Negociação 75% · Ganho (won) · Perdido (lost).
+  `pipeline_id` já está em todo negócio, então vários funis não exigem migração.
+- **Valor/probabilidade**: com produtos, `value` = Σ(qtd × preço) calculado no
+  servidor (o campo manual é ignorado); sem produtos vale o manual. Probabilidade
+  efetiva = manual ?? da etapa; ganho=100, perdido=0. Ponderado = valor × prob.
+- **Produtos** (`crm_products`): catálogo com preço de tabela e cobrança
+  (pontual/recorrente). Item do negócio guarda **retrato do nome e do preço** —
+  produto excluído/alterado depois não muda negócio antigo. Produto inativo some
+  da escolha mas segue nos negócios que já o usam.
+- **Motivo de perda obrigatório** (9 motivos fixos em `pipeline.js`; "Outro"
+  exige descrição) — base da análise de perdas da Fase 4.
+- **Histórico de etapas** (`crm_deal_stage_history`): 1 linha por movimento, com
+  dias na etapa anterior; **append-only por trigger** como timeline/auditoria.
+  É a matéria-prima de aging e conversão por etapa (Fase 4).
+
+### Banco (`server/db.js`, aditivo, após os triggers da Fase 1)
+`crm_products`, `crm_pipelines`, `crm_pipeline_stages`, `crm_deals`,
+`crm_deal_items`, `crm_deal_stage_history`. Nenhuma tabela existente alterada.
+Notas (`crm_notes`) passaram a aceitar `entity_type='deal'`.
+
+### Backend (`server/crm/`)
+`pipeline.js` (constantes + funil padrão) · `deals.js` (createDeal/updateDeal/
+moveDeal/deleteDeal — mesma regra de transação única: dado + auditoria +
+timeline + histórico de etapa) · `dealQueries.js` (listDeals, getBoard,
+getDealDetail, dealsForCompany, dealsOverview, searchDeals) · `products.js`.
+`service.js` só ganhou `export` em utilitários internos + tipo `longtext` + nota
+de negócio. `queries.js` passou a devolver `deals` na ficha da empresa, no
+`overview`, na `search` e produtos/motivos em `options`.
+Rotas novas: `GET /pipeline`, `/board`, `/deals`, `/deals/:id`, `/deals/:id/audit`;
+`POST /deals`, `/deals/:id/move`; `PATCH/DELETE /deals/:id`; `/products` CRUD.
+
+### Permissões
+Negócio: **write** cria/edita/move/ganha/perde (vendedor incluso); **remove**
+(gestor+) exclui, vê auditoria e **é o único que edita negócio já fechado**
+(vendedor recebe 403). Catálogo: nova capacidade **`catalog`** (admin/diretor/
+gestor); todos leem, só `catalog` vê inativos e escreve. `crmCapabilities` agora
+devolve `catalog`.
+
+### Frontend (`src/crm/`, ainda tudo no chunk lazy `CrmScreen`)
+`DealsPage` (quadro Kanban + lista; filtros tipo/responsável/busca; visão
+lembrada em localStorage), `DealDrawer` (Resumo/Histórico/Auditoria; select de
+etapa cobre teclado e celular), `DealForm` (produtos com soma ao vivo, contato,
+previsão, prob. manual), `CloseDealDialog` (ganho avisa da promoção da empresa;
+perda pede motivo), `ProductsPage`. Integrações: Ficha 360 ganhou aba **Negócios**,
+botões **"Criar oportunidade de upsell"** (só cliente) e **"Negócio"**, e nota
+"sobre o negócio X"; Visão geral ganhou o bloco **Funil comercial** (aberto,
+ponderado, upsell, ganho no mês, conversão 90 dias, vencidos/parados + 2 listas);
+busca global acha negócios; nav ganhou Negócios e Produtos. Cartão do Kanban é
+`div` (Firefox não arrasta `<button>`).
+
+### Verificação
+Serviço: 105 asserções (regras, promoção, motivo de perda, reabrir, itens/soma,
+isolamento entre orgs, concorrência do pipeline, soft delete, triggers). Rotas
+com auth falsa por papel: 53. UI no app real (login/fetch simulados): arrastar
+entre etapas, soltar em Perdido abre diálogo com confirmar travado, "Outro" exige
+descrição, ganhar promove empresa e libera o botão de upsell, criação de upsell
+com soma de produtos, lista/filtros/busca, KPIs conferidos à mão, matriz
+visualização/vendedor/gestor, tema claro e escuro, largura estreita.
+
+### Limites conhecidos (honestos)
+- **Não testado com login real nem no banco de produção** (mesma ressalva da F1).
+- Arrastar é HTML5 nativo: **não funciona em toque/celular** (usa o select de
+  etapa na ficha). Sem reordenar cartões dentro da coluna (só mover entre etapas).
+- **Etapas e probabilidades são fixas** (sem tela para editar funil); um só
+  funil na prática. Sem restaurar negócio excluído pela UI (é soft delete, dá
+  pra restaurar no banco).
+- `fmtMoney` arredonda pra reais na tela (9.500,50 aparece R$ 9.501); o dado
+  guarda os centavos.
+- Sem forecast por período, metas, propostas, contratos — Fases 4/5.
 
 ## 19. Onde procurar mais detalhe
 
