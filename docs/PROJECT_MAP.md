@@ -399,6 +399,9 @@ usam `S.detailBox`.
   /users/:id` aceita `crmRole`), `server/auth.js` (`rowToUser` → `crmRole`/
   `crmAccess`), `server/db.js` (fim de `initDb()`), `src/lib/api.js` (`err.data`).
 
+### Agenda — resposta ao convite e carga do dia (2026-09, `PROJECT_CONTEXT.md` §59)
+- `server/googleCalendar.js`: `myResponseOf`/`mapGoogleEvent` (resposta do usuário, `transparent`, organizador). `src/agenda/dayLoad.js` (puro): `rsvpOf`, `summarizeDay` (aceitos, pendentes, livre, pausas, almoço, emendadas, conflitos), `timelineRows`, `fmtDur`. Consumido por `RenataAgendaBriefing.jsx` (tela inicial) e `Agenda.jsx` (grade). `assistantRetrieval.js` etiqueta a resposta no contexto da RENATA.
+
 ## 5. Fluxos críticos
 
 ```

@@ -11,6 +11,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Building2, Columns3, LogOut, Link2, Ban, Home } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
+import { rsvpOf, isPendingRsvp, RSVP_META, summarizeDay, fmtDur } from './dayLoad.js';
 import { S, fmtDate, BrandLogo, ThemeToggleBtn, NotificationBell } from '../App.jsx';
 
 const GRID_START_HOUR = 6;
@@ -78,6 +79,7 @@ export default function AgendaScreen({
   const [viewMode, setViewMode] = useState('week');
   const [anchorDate, setAnchorDate] = useState(() => new Date());
   const [hideDetails, setHideDetails] = useState(false);
+  const [hideDeclined, setHideDeclined] = useState(false);
   const [connected, setConnected] = useState(null);
   const [events, setEvents] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -122,6 +124,7 @@ export default function AgendaScreen({
     const map = {};
     for (const day of daysInView) map[isoDateOnly(day)] = { allDay: [], timed: [] };
     for (const ev of events) {
+      if (hideDeclined && rsvpOf(ev) === 'declined') continue;
       const s = new Date(ev.start);
       const key = isoDateOnly(s);
       if (!map[key]) continue;
@@ -132,11 +135,31 @@ export default function AgendaScreen({
       }
     }
     return map;
+  }, [events, daysInView, hideDeclined]);
+
+  // Resumo do dia (aceitos, tempo ocupado, livre) — só com eventos com horário; recusados/pendentes não ocupam.
+  const dayStats = useMemo(() => {
+    const out = {};
+    for (const day of daysInView) {
+      const key = isoDateOnly(day);
+      const list = events.filter((e) => !e.allDay && isoDateOnly(new Date(e.start)) === key).map((e) => ({ ...e, startDate: new Date(e.start), endDate: new Date(e.end) }));
+      if (list.length) out[key] = summarizeDay(list, key);
+    }
+    return out;
   }, [events, daysInView]);
 
   function eventLabel(ev) {
     if (hideDetails) return ev.status === 'cancelled' ? 'Ocupado (cancelado)' : 'Ocupado';
-    return ev.status === 'cancelled' ? `${ev.title} (cancelado)` : ev.title;
+    const r = rsvpOf(ev);
+    const mark = r === 'declined' ? '✕ ' : isPendingRsvp(r) ? '? ' : '';
+    return `${mark}${ev.status === 'cancelled' ? `${ev.title} (cancelado)` : ev.title}`;
+  }
+  // Dica ao passar o mouse: resposta ao convite + descrição.
+  function eventTip(ev) {
+    if (hideDetails) return '';
+    const r = rsvpOf(ev);
+    const head = ev.source === 'google' ? `${RSVP_META[r].label}${r === 'accepted' && ev.myResponse === 'organizer' ? ' (evento seu)' : ''}${ev.organizer ? ` · convite de ${ev.organizer}` : ''}` : '';
+    return [head, ev.description].filter(Boolean).join('\n');
   }
 
   function openEvent(ev) {
@@ -159,6 +182,13 @@ export default function AgendaScreen({
           {onExit && <button style={S.iconBtnGhost} onClick={onExit}>Sair da Agenda</button>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            style={{ ...S.pbGhostBtn, ...(hideDeclined ? { background: 'var(--bg-3)' } : {}) }}
+            title="Recusados aparecem riscados, como no Google Calendar. Ocultar deixa a grade só com o que você aceitou ou ainda não respondeu."
+            onClick={() => setHideDeclined((v) => !v)}
+          >
+            {hideDeclined ? 'Mostrar recusados' : 'Ocultar recusados'}
+          </button>
           <button
             style={{ ...S.pbGhostBtn, ...(hideDetails ? { background: '#e2574c', color: '#fff', border: '1px solid #e2574c' } : {}) }}
             title="Troca entre ver os títulos reais dos compromissos ou só 'Ocupado' — pra apresentar sua disponibilidade sem expor com quem/sobre o quê"
@@ -199,9 +229,9 @@ export default function AgendaScreen({
         {loadError && <div style={S.loginBlockedMsg}>{loadError}</div>}
 
         {viewMode === 'month' ? (
-          <MonthGrid daysInView={daysInView} eventsByDay={eventsByDay} anchorDate={anchorDate} hideDetails={hideDetails} eventLabel={eventLabel} onOpenEvent={openEvent} onPickDay={(d) => { setAnchorDate(d); setViewMode('day'); }} />
+          <MonthGrid daysInView={daysInView} eventsByDay={eventsByDay} anchorDate={anchorDate} hideDetails={hideDetails} eventLabel={eventLabel} eventTip={eventTip} onOpenEvent={openEvent} onPickDay={(d) => { setAnchorDate(d); setViewMode('day'); }} />
         ) : (
-          <WeekGrid daysInView={daysInView} eventsByDay={eventsByDay} hideDetails={hideDetails} eventLabel={eventLabel} onOpenEvent={openEvent} />
+          <WeekGrid daysInView={daysInView} eventsByDay={eventsByDay} dayStats={dayStats} hideDetails={hideDetails} eventLabel={eventLabel} eventTip={eventTip} onOpenEvent={openEvent} />
         )}
 
         <div style={{ display: 'flex', gap: 14, marginTop: 16, flexWrap: 'wrap' }}>
@@ -211,6 +241,15 @@ export default function AgendaScreen({
               {meta.label}
             </div>
           ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-5)' }}>
+            <span style={{ width: 16, height: 10, borderRadius: 3, background: '#5B8DEF33', borderLeft: '3px solid #5B8DEF', display: 'inline-block' }} /> Aceito
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-5)' }}>
+            <span style={{ width: 16, height: 10, borderRadius: 3, border: '1.5px dashed #5B8DEF', display: 'inline-block' }} /> ? Sem resposta / talvez
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-5)', textDecoration: 'line-through', opacity: 0.7 }}>
+            ✕ Recusado
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-6)' }}>
             <Ban size={12} /> Cancelado
           </div>
@@ -220,7 +259,16 @@ export default function AgendaScreen({
   );
 }
 
-function WeekGrid({ daysInView, eventsByDay, hideDetails, eventLabel, onOpenEvent }) {
+// Estilo por resposta ao convite: aceito = cheio; sem resposta/talvez = contorno tracejado (como no Google);
+// recusado = riscado e apagado. Só eventos do Google têm resposta.
+function rsvpBox(ev, color, base) {
+  const r = rsvpOf(ev);
+  if (isPendingRsvp(r)) return { ...base, background: 'transparent', border: `1.5px dashed ${color}`, borderLeft: `3px dashed ${color}` };
+  if (r === 'declined') return { ...base, textDecoration: 'line-through', opacity: 0.5 };
+  return base;
+}
+
+function WeekGrid({ daysInView, eventsByDay, dayStats, hideDetails, eventLabel, eventTip, onOpenEvent }) {
   const hours = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => GRID_START_HOUR + i);
   const now = new Date();
   const showNowLine = daysInView.some((d) => isoDateOnly(d) === isoDateOnly(now));
@@ -234,6 +282,11 @@ function WeekGrid({ daysInView, eventsByDay, hideDetails, eventLabel, onOpenEven
           <div key={isoDateOnly(d)} style={{ padding: '8px 6px', textAlign: 'center', borderLeft: '1px solid var(--border-1)' }}>
             <div style={{ fontSize: 10.5, color: 'var(--text-5)', fontWeight: 700, textTransform: 'uppercase' }}>{WEEKDAY_LABEL[d.getDay()]}</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: isoDateOnly(d) === isoDateOnly(now) ? '#F5C400' : 'var(--text-1)' }}>{d.getDate()}</div>
+            {!hideDetails && dayStats[isoDateOnly(d)] && (() => { const st = dayStats[isoDateOnly(d)]; return (
+              <div style={{ fontSize: 9.5, color: 'var(--text-5)', marginTop: 2, lineHeight: 1.35 }} title={`Aceitos: ${st.confirmed} (${fmtDur(st.confirmedMin)}). Sem resposta/talvez: ${st.pending}. Recusados: ${st.declined}. Livre no expediente (08–18h): ${fmtDur(st.freeMin)}${st.pending ? `; se aceitar tudo: ${fmtDur(st.freeIfAllMin)}` : ''}.`}>
+                {st.confirmed} aceit{st.confirmed === 1 ? 'o' : 'os'} · {fmtDur(st.confirmedMin)}<br />livre {fmtDur(st.freeMin)}{st.pending ? ` · ${st.pending} ?` : ''}
+              </div>
+            ); })()}
           </div>
         ))}
       </div>
@@ -245,13 +298,13 @@ function WeekGrid({ daysInView, eventsByDay, hideDetails, eventLabel, onOpenEven
             {(eventsByDay[isoDateOnly(d)]?.allDay || []).map((ev) => (
               <div
                 key={ev.id} onClick={() => onOpenEvent(ev)}
-                title={hideDetails ? '' : ev.description}
-                style={{
+                title={eventTip(ev)}
+                style={rsvpBox(ev, SOURCE_META[ev.source]?.color || '#999', {
                   fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 5, cursor: ev.link || ev.htmlLink ? 'pointer' : 'default',
                   background: `${SOURCE_META[ev.source]?.color || '#999'}22`, color: SOURCE_META[ev.source]?.color || 'var(--text-2)',
                   textDecoration: ev.status === 'cancelled' ? 'line-through' : 'none', opacity: ev.status === 'cancelled' ? 0.6 : 1,
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                }}
+                })}
               >
                 {eventLabel(ev)}
               </div>
@@ -267,7 +320,13 @@ function WeekGrid({ daysInView, eventsByDay, hideDetails, eventLabel, onOpenEven
           ))}
         </div>
         {daysInView.map((d) => {
-          const packed = packTimedEvents(eventsByDay[isoDateOnly(d)]?.timed || []);
+          // Recusado não ocupa o seu tempo: fica como faixa apagada ATRÁS da grade, fora da divisão em colunas
+          // (senão um convite recusado de 10h espremia todos os compromissos reais do dia).
+          const dayTimed = eventsByDay[isoDateOnly(d)]?.timed || [];
+          const packed = [
+            ...dayTimed.filter((e) => rsvpOf(e) === 'declined').map((e) => ({ ...e, lane: 0, totalLanes: 1, behind: true })),
+            ...packTimedEvents(dayTimed.filter((e) => rsvpOf(e) !== 'declined')),
+          ];
           return (
             <div key={isoDateOnly(d)} style={{ position: 'relative', borderLeft: '1px solid var(--border-1)', height: GRID_HEIGHT }}>
               {hours.map((h) => <div key={h} style={{ position: 'absolute', top: (h - GRID_START_HOUR) * PX_PER_HOUR, left: 0, right: 0, borderTop: '1px solid var(--border-1)', height: 0 }} />)}
@@ -281,14 +340,14 @@ function WeekGrid({ daysInView, eventsByDay, hideDetails, eventLabel, onOpenEven
                 return (
                   <div
                     key={ev.id} onClick={() => onOpenEvent(ev)}
-                    title={hideDetails ? '' : ev.description}
-                    style={{
+                    title={eventTip(ev)}
+                    style={rsvpBox(ev, SOURCE_META[ev.source]?.color || '#999', {
                       position: 'absolute', top, height: Math.max(16, bottom - top), left: `${ev.lane * width}%`, width: `${width}%`,
                       background: `${SOURCE_META[ev.source]?.color || '#999'}33`, borderLeft: `3px solid ${SOURCE_META[ev.source]?.color || '#999'}`,
                       borderRadius: 4, padding: '2px 5px', fontSize: 10.5, fontWeight: 600, color: 'var(--text-1)', overflow: 'hidden',
-                      cursor: ev.link || ev.htmlLink ? 'pointer' : 'default', zIndex: 2,
+                      cursor: ev.link || ev.htmlLink ? 'pointer' : 'default', zIndex: ev.behind ? 1 : 2,
                       textDecoration: ev.status === 'cancelled' ? 'line-through' : 'none', opacity: ev.status === 'cancelled' ? 0.55 : 1,
-                    }}
+                    })}
                   >
                     {eventLabel(ev)}
                   </div>
@@ -302,7 +361,7 @@ function WeekGrid({ daysInView, eventsByDay, hideDetails, eventLabel, onOpenEven
   );
 }
 
-function MonthGrid({ daysInView, eventsByDay, anchorDate, hideDetails, eventLabel, onOpenEvent, onPickDay }) {
+function MonthGrid({ daysInView, eventsByDay, anchorDate, hideDetails, eventLabel, eventTip, onOpenEvent, onPickDay }) {
   const currentMonth = anchorDate.getMonth();
   const today = isoDateOnly(new Date());
   const weeks = [];
@@ -329,11 +388,12 @@ function MonthGrid({ daysInView, eventsByDay, anchorDate, hideDetails, eventLabe
                   {dayEvents.slice(0, 3).map((ev) => (
                     <div
                       key={ev.id} onClick={(e) => { e.stopPropagation(); onOpenEvent(ev); }}
-                      style={{
+                      title={eventTip(ev)}
+                      style={rsvpBox(ev, SOURCE_META[ev.source]?.color || '#999', {
                         fontSize: 9.5, fontWeight: 600, padding: '1px 4px', borderRadius: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                         background: `${SOURCE_META[ev.source]?.color || '#999'}22`, color: SOURCE_META[ev.source]?.color || 'var(--text-2)',
                         textDecoration: ev.status === 'cancelled' ? 'line-through' : 'none',
-                      }}
+                      })}
                     >
                       {eventLabel(ev)}
                     </div>

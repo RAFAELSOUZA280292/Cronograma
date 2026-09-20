@@ -102,7 +102,25 @@ export async function listEvents(userId, timeMinISO, timeMaxISO) {
     orderBy: 'startTime',
     maxResults: 250,
   });
-  return (res.data.items || []).map((ev) => ({
+  return (res.data.items || []).map(mapGoogleEvent).filter((ev) => ev.start && ev.end);
+}
+
+// A SUA resposta ao convite (2026-09-20, pedido do Rafael: a RENATA mostrava reunião
+// não aceita como se fosse compromisso). Vem em `attendees[]` no item em que `self` é
+// verdadeiro: accepted | declined | tentative (talvez) | needsAction (sem resposta).
+// Evento sem convidados, ou criado por você, é seu ('organizer'). Se o Google omitir a
+// lista (evento enorme) não dá pra saber: 'unknown', tratado como compromisso.
+export function myResponseOf(ev) {
+  const attendees = Array.isArray(ev && ev.attendees) ? ev.attendees : [];
+  const self = attendees.find((a) => a && a.self);
+  if (self) return self.responseStatus || 'needsAction';
+  if (!attendees.length || (ev.organizer && ev.organizer.self)) return 'organizer';
+  return 'unknown';
+}
+
+export function mapGoogleEvent(ev) {
+  const attendees = Array.isArray(ev.attendees) ? ev.attendees : [];
+  return {
     id: `google-${ev.id}`,
     source: 'google',
     title: ev.summary || '(sem título)',
@@ -113,7 +131,13 @@ export async function listEvents(userId, timeMinISO, timeMaxISO) {
     allDay: !!(ev.start && ev.start.date && !ev.start.dateTime),
     status: ev.status || 'confirmed',
     htmlLink: ev.htmlLink || '',
-  })).filter((ev) => ev.start && ev.end);
+    myResponse: myResponseOf(ev),
+    // "Mostrar como: Livre" no Google — o evento não ocupa o seu tempo.
+    transparent: ev.transparency === 'transparent',
+    guests: attendees.length,
+    organizer: ev.organizer && !ev.organizer.self ? (ev.organizer.displayName || ev.organizer.email || '') : '',
+    eventType: ev.eventType || 'default',
+  };
 }
 
 function nextDay(dateStr) {

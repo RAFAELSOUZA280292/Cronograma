@@ -6032,6 +6032,61 @@ mesmo parâmetro como texto e data, "Nome não informado" tratado como empresa "
 - Histórico de etapas anterior à importação e motivo de perda não existem no export.
 - **Passo 3 (atividades/pessoas/chamadas)** aguarda reexport com dados.
 
+## 59. Agenda: mostrar o que foi aceito, o que está sem resposta e o que foi recusado (2026-09-20)
+
+**Relato do Rafael** (dois prints: Google Calendar × tela inicial da RENATA): "vários compromissos eu não
+aceitei" apareciam na RENATA **como se fossem compromissos**. Pediu deixar claro **aceito / não aceito /
+pendente**, as **durações** e o **espaço de descanso** do dia.
+
+### Causa
+`listEvents` (`server/googleCalendar.js`) lia o evento mas **ignorava a resposta do usuário** ao convite
+(`attendees[]` com `self:true` → `responseStatus`). O campo `status` que a tela usava é o do EVENTO
+(confirmed/cancelled), não o do participante. Por isso convite recusado ou sem resposta valia como
+reunião confirmada — na tela inicial, na Agenda e no chat da RENATA.
+
+### Servidor
+`mapGoogleEvent`/`myResponseOf` (exportados, testados): `myResponse` = `accepted | declined | tentative | needsAction`
+(sua resposta), `organizer` (evento sem convidados ou criado por você) ou `unknown` (Google omitiu a lista);
+mais `transparent` (evento marcado como "Livre"), `guests`, `organizer` (nome de quem convidou) e `eventType`.
+Nenhum campo antigo mudou. **Sem novo escopo do Google**: `calendar.events` já devolve os convidados,
+ninguém precisa reautorizar. O chat da RENATA (`assistantRetrieval.js`) agora etiqueta cada evento
+(`[SEM RESPOSTA]`, `[TALVEZ]`, `[RECUSADO — não é compromisso]`), põe os recusados por último e ignora os
+marcados como "Livre".
+
+### Regras (`src/agenda/dayLoad.js`, módulo puro)
+- Só **aceito** (ou seu) ocupa o seu tempo. **Sem resposta e talvez = pendente**: aparecem, mas não contam;
+  o resumo mostra também quanto sobra "se aceitar tudo". **Recusado** e "Livre" não ocupam tempo. Dia inteiro
+  não entra na conta de horas. TASK do XFlow, atividades e atividades do CRM são sempre "aceitas".
+- Expediente **08:00–18:00** e janela de almoço **12:00–14:00** (mín. **45 min** livres) são constantes em
+  `WORK` — não há tela para mudar. Pausa = intervalo livre ≥ 15 min. "Emendada" = reunião aceita que começa a
+  menos de 5 min da anterior. "Sem parar" = sequência ≥ 3h (pausa < 10 min não conta como pausa). Conflito =
+  dois aceitos que se sobrepõem (tempo ocupado sem contar em dobro).
+- Dado antigo sem `myResponse` conta como aceito (nada some).
+
+### Telas
+- **RENATA (tela inicial)**: cada evento com **resposta** (Aceito / Seu evento / Sem resposta / Talvez / Recusado)
+  e **duração**; convite pendente com marcador vazado; recusados **escondidos** por padrão ("Mostrar recusados");
+  a frase do dia agora conta só os **confirmados** ("4 compromissos confirmados (1 sem resposta · 1 recusado)");
+  resumo por dia (aceitos + horas, sem resposta, recusados, **livre X de 10h**, maior pausa, almoço livre/sem
+  janela, "N sem parar", "N emendadas", conflitos) e linhas **"Livre 45 min · 09:15–10:00"** entre reuniões. Cada
+  dia da semana traz o resumo compacto e "+N mais" agora expande.
+- **Agenda (grade)**: convite pendente com **contorno tracejado e "?"** e recusado **riscado e apagado** (como no
+  Google), dica ao passar o mouse com a resposta e quem convidou, legenda, botão **Ocultar recusados**, e
+  resumo curto no cabeçalho de cada dia. O recusado vira faixa apagada **ao fundo** (fora da divisão em
+  colunas — antes um recusado de 10h espremia todos os compromissos reais).
+
+### Verificação
+54 asserções em Node (respostas do Google em todas as combinações; a segunda-feira 21/09 do print
+reconstruída, com os números calculados à mão: 7 aceitos = 5h, 3 pendentes = 3h, livre 5h30, "5h15 se aceitar
+tudo", pausas, almoço, 4 emendadas; casos de borda: dia vazio, Livre, dia inteiro, almoço curto, maratona,
+meia-noite, expediente configurável). UI com agenda simulada: RENATA e Agenda, tema claro e escuro.
+
+### Limites
+- **Não testado com o Google Calendar real** do Rafael (só com dados simulados a partir do print); o formato
+  de `attendees[].self` é o documentado pela API. Vale conferir com a agenda dele.
+- Expediente/almoço fixos; não considera fuso diferente do navegador nem calendários além do principal.
+- Convite de evento recorrente: a resposta vem por ocorrência (comportamento do Google).
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
