@@ -5794,6 +5794,97 @@ visualização/vendedor/gestor, tema claro e escuro, largura estreita.
   guarda os centavos.
 - Sem forecast por período, metas, propostas, contratos — Fases 4/5.
 
+## 56. CRM PRICETAX — Fase 3: Atividades, Agenda e lembretes (2026-09-20)
+
+**Pedido**: "Faça" à Fase 3 (Atividades/Agenda/Notificações), com a minha recomendação
+aceita implicitamente: as atividades do CRM entram nas **Notificações e na Agenda que
+já existem**, de forma aditiva. O CRM ganhou o "próximo passo" — antes só registrava
+o passado.
+
+### Modelo
+- **`crm_activities`** (relacional, UUID, soft delete, created/updated by/at): sempre presa a
+  uma **empresa**; **negócio** e **contato** opcionais e obrigatoriamente DA MESMA empresa
+  (validado na criação e na edição). Tipos: tarefa, ligação, e-mail, reunião, WhatsApp,
+  visita, follow-up. Data obrigatória, horário opcional, prioridade, responsável (padrão =
+  quem criou), situação open/done/cancelled, resultado (`outcome`) ao concluir.
+- **Última interação** (Fase 1 só contava nota + reunião do projeto) agora inclui atividade
+  **concluída** de tipo ligação/e-mail/reunião/WhatsApp/visita. **Tarefa e follow-up NÃO
+  contam** (são trabalho interno, não contato com o cliente).
+- **"Sem próximo passo"** = negócio em aberto sem nenhuma atividade em aberto. Aparece como
+  etiqueta no cartão/lista, alerta na ficha do negócio (com "Agendar agora") e contador +
+  lista na Visão geral. Concluir uma atividade de negócio oferece "Agendar o próximo passo
+  agora" (marcado por padrão) e abre o formulário já preenchido (follow-up, mesmo negócio).
+- **Registrar interação já realizada**: criar direto como concluída, com data ≤ hoje e resultado
+  (cobre "liguei ontem"). É o "pós-reunião" da Fase 3; IA da reunião e pré-reunião ficam
+  para a Fase 6.
+- Editar só atividade **em aberto** (concluída/cancelada: reabrir antes). Cancelar/reabrir
+  guardados em auditoria + timeline. Excluir (soft) exige `remove` (gestor+).
+
+### Notificações (Central existente, sem mexer no servidor delas)
+- **`crm_activity_assigned`**: ao atribuir/reatribuir a OUTRA pessoa (na mesma transação).
+  Atribuir a si mesmo não notifica.
+- **`crm_activity_due`**: lembrete do agendador (abaixo): "para hoje" ou "atrasada".
+- `target = {kind:'crm_activity', companyId, dealId, activityId}`. Em `App.jsx`,
+  `goToNotificationTarget` ganhou o ramo `crm_activity`: marca como lida (rota genérica
+  `mark-read-for-target` já existente), guarda `pendingCrmOpen` e vai ao workspace CRM, que
+  abre o negócio (se houver) ou a aba Atividades da empresa. Funciona vindo de outro workspace
+  (testado a partir da Agenda). O CRM passou a ter o sino de notificações no topo.
+
+### Agendador (o primeiro do servidor)
+`server/crm/scheduler.js`, iniciado em `server/index.js` após o `listen`: a cada **10 min**
+avisa o responsável de cada atividade aberta com data ≤ hoje ainda não avisada. O carimbo
+`due_notified_at` é gravado NA MESMA instrução que escolhe a atividade (`UPDATE ... RETURNING`),
+então **duas execuções simultâneas avisam uma vez só** (testado) — vale também para várias
+instâncias. Regras: **não avisa antes das 7h de Brasília**; pula responsável bloqueado ou
+`cliente`, atividade cancelada/concluída/futura e empresa excluída. Atividade criada já
+vencida/de hoje nasce como "avisada" (quem criou sabe); mudar a data para o futuro libera novo
+lembrete; reabrir uma vencida não gera lembrete duplicado.
+
+### Agenda existente
+`server/agenda.js` chama `crmAgendaEvents` (`server/crm/agendaFeed.js`), em `try/catch`
+isolado — se o CRM falhar, a Agenda fica igual à de antes. Só as atividades **em aberto do
+próprio usuário** e só se ele tem acesso ao CRM. Com horário viram evento de 30 min
+(`-03:00`, sem horário de verão desde 2019); sem horário, dia inteiro. `Agenda.jsx` e
+`RenataAgendaBriefing.jsx` ganharam a fonte `crm_activity` (rótulo/cor).
+
+### Backend (`server/crm/`)
+`activities.js` (create/update/complete/cancel/reopen/delete) · `activityQueries.js`
+(`listActivities` com contadores por faixa, `activitiesForCompany/Deal`, `activitiesOverview`) ·
+`scheduler.js` · `agendaFeed.js`. Toques: `db.js` (tabela + índices, aditivo), `service.js`
+(tipo `time` no sanitizador), `deals.js` (`openActivities`, `nextActivityDate`, `noNextStep`),
+`queries.js` (última interação, `activities` na ficha e no `overview(orgId, userId)`),
+`dealQueries.js` (`activities` no detalhe), `routes.js`.
+Rotas: `GET/POST /activities`, `PATCH/DELETE /activities/:id`, `POST /activities/:id/complete|cancel|reopen`;
+`ownerId=me` vira o usuário logado. Permissões: **write** cria/edita/conclui/cancela/reabre
+(vendedor incluso); **remove** exclui.
+
+### Frontend (`src/crm/`)
+`AgendaPage` (novo item **Agenda**: contadores clicáveis Atrasadas/Hoje/7 dias/Mais adiante/
+Concluídas; filtros responsável ("Minhas" por padrão)/tipo/situação/busca), `ActivityList`
+(lista reutilizável; agrupa por faixa numa única instância pra os diálogos não sumirem quando
+uma faixa esvazia), `ActivityForm`, botão "+ Atividade" no topo, aba **Atividades** na Ficha 360,
+"Próximos passos" na ficha do negócio, bloco "Próximos passos" na Visão geral.
+
+### Verificação
+Serviço: 89 asserções (regras, vínculos da mesma empresa, notificações, última interação por
+tipo, faixas, filtros, agendador com concorrência/idempotência/horário, feed da Agenda,
+isolamento entre orgs, soft delete). Rotas por papel: 28. UI no app real (login/fetch
+simulados): Visão geral, Agenda, concluir com e sem negócio, próximo passo pré-preenchido,
+alerta "sem próximo passo" e "Agendar agora", clique em notificação (com e sem negócio, e vindo de
+outra área), papéis visualização/vendedor, tema claro. **As suítes da Fase 2 não foram
+reexecutadas** (foram descartadas ao fim da Fase 2); a regressão foi coberta pela suíte nova
+(que exercita negócios, quadro e visão geral) e pela UI.
+
+### Limites conhecidos (honestos)
+- **Não testado com login real nem em produção.** O agendador em produção só será visto de fato
+  quando houver atividades reais vencendo.
+- Sem repetição/recorrência de atividade, sem convite por e-mail, sem sincronizar com Google
+  Calendar (só aparece na Agenda interna). Sem "pré-reunião" nem IA da reunião (Fase 6).
+- Lembrete só em "hoje/atrasada"; sem aviso antecipado (ex.: 1 dia antes) e sem reenvio diário
+  de atrasadas — avisa uma vez por atividade.
+- Vendedor edita/conclui atividade de qualquer pessoa (mesma regra aberta de empresas/negócios).
+- Agenda do CRM mostra até 300 atividades por consulta.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

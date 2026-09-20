@@ -29,6 +29,8 @@ export const DEAL_SELECT = `d.id, d.org_id, d.company_id, d.pipeline_id, d.stage
   to_char(d.stage_entered_at AT TIME ZONE 'America/Sao_Paulo','YYYY-MM-DD') AS stage_entered_date,
   s.name AS stage_name, s.probability AS stage_probability, s.kind AS stage_kind, s.color AS stage_color, s.position AS stage_position,
   c.legal_name AS company_name, c.trade_name AS company_trade_name, c.relationship AS company_relationship,
+  (SELECT count(*)::int FROM crm_activities ax WHERE ax.deal_id = d.id AND ax.status = 'open' AND ax.deleted_at IS NULL) AS open_activities,
+  (SELECT to_char(min(ax.due_date),'YYYY-MM-DD') FROM crm_activities ax WHERE ax.deal_id = d.id AND ax.status = 'open' AND ax.deleted_at IS NULL) AS next_activity_date,
   (SELECT name FROM users u WHERE u.id = d.owner_id) AS owner_name,
   (SELECT trim(k.first_name || ' ' || k.last_name) FROM crm_contacts k WHERE k.id = d.primary_contact_id) AS contact_name`;
 export const DEAL_FROM = `crm_deals d JOIN crm_pipeline_stages s ON s.id = d.stage_id JOIN crm_companies c ON c.id = d.company_id`;
@@ -57,6 +59,8 @@ export function mapDeal(row) {
     lostReason: row.lost_reason || '', lostReasonLabel: LOST_REASONS[row.lost_reason] || '', lostDetail: row.lost_detail || '',
     closedAt: row.closed_at || null, stageEnteredAt: row.stage_entered_at, daysInStage: daysBetween(row.stage_entered_date, today),
     overdue: open && !!row.expected_close_date && row.expected_close_date < today,
+    openActivities: row.open_activities || 0, nextActivityDate: row.next_activity_date || null, nextActivityOverdue: !!row.next_activity_date && row.next_activity_date < today,
+    noNextStep: open && !row.open_activities,
     createdAt: row.created_at, updatedAt: row.updated_at, deletedAt: row.deleted_at || null,
   };
 }

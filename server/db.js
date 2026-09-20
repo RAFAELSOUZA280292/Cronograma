@@ -1064,6 +1064,42 @@ export async function initDb() {
   await pool.query(`CREATE INDEX IF NOT EXISTS crm_deal_stage_history_deal_idx ON crm_deal_stage_history(deal_id, moved_at)`);
   await pool.query(`DROP TRIGGER IF EXISTS crm_deal_stage_history_append_only ON crm_deal_stage_history`);
   await pool.query(`CREATE TRIGGER crm_deal_stage_history_append_only BEFORE UPDATE OR DELETE ON crm_deal_stage_history FOR EACH ROW EXECUTE FUNCTION crm_block_history_mutation()`);
+
+  // CRM — Fase 3 (2026-09-20, PROJECT_CONTEXT.md §56): atividades/follow-ups.
+  // Sempre presas a uma empresa (o "hub"); opcionalmente a um negócio e a um
+  // contato. due_notified_at é o carimbo do lembrete: o agendador só avisa quem
+  // ainda está NULL, então nunca repete a notificação de uma mesma atividade.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_activities (
+      id              UUID PRIMARY KEY,
+      org_id          TEXT NOT NULL REFERENCES organizations(id),
+      company_id      UUID NOT NULL REFERENCES crm_companies(id),
+      deal_id         UUID REFERENCES crm_deals(id),
+      contact_id      UUID REFERENCES crm_contacts(id),
+      activity_type   TEXT NOT NULL DEFAULT 'task' CHECK (activity_type IN ('task','call','email','meeting','whatsapp','visit','followup')),
+      title           TEXT NOT NULL,
+      description     TEXT NOT NULL DEFAULT '',
+      due_date        DATE NOT NULL,
+      due_time        TEXT NOT NULL DEFAULT '',
+      priority        TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low','normal','high')),
+      status          TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','done','cancelled')),
+      owner_id        TEXT REFERENCES users(id),
+      completed_at    TIMESTAMPTZ,
+      completed_by    TEXT REFERENCES users(id),
+      outcome         TEXT NOT NULL DEFAULT '',
+      due_notified_at TIMESTAMPTZ,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+      created_by      TEXT REFERENCES users(id),
+      updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_by      TEXT REFERENCES users(id),
+      deleted_at      TIMESTAMPTZ,
+      deleted_by      TEXT REFERENCES users(id)
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_activities_owner_idx ON crm_activities(org_id, owner_id, status, due_date) WHERE deleted_at IS NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_activities_company_idx ON crm_activities(company_id, status, due_date) WHERE deleted_at IS NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_activities_deal_idx ON crm_activities(deal_id, status) WHERE deleted_at IS NULL AND deal_id IS NOT NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_activities_reminder_idx ON crm_activities(due_date) WHERE status = 'open' AND due_notified_at IS NULL AND deleted_at IS NULL`);
 }
 
 // Migração one-shot (Fase 7, 2026-09-11) — copia os aprendizados já

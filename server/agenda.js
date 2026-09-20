@@ -9,6 +9,7 @@ import { Router } from 'express';
 import { requireAuth } from './auth.js';
 import { pool } from './db.js';
 import { getConnectionStatus, listEvents } from './googleCalendar.js';
+import { crmAgendaEvents } from './crm/agendaFeed.js';
 
 export const router = Router();
 
@@ -75,6 +76,10 @@ router.get('/', requireAuth, async (req, res, next) => {
         }
       }
     }
+
+    // CRM (Fase 3): atividades em aberto em que o usuário é o responsável. Isolado —
+    // se o CRM falhar, a Agenda continua igual à de antes.
+    try { events.push(...await crmAgendaEvents(req.user, startDate, endDate)); } catch (e) { console.error('Agenda: falha ao ler atividades do CRM (ignorado):', e.message); }
 
     res.json({ connected: status.connected, events });
   } catch (e) { next(e); }

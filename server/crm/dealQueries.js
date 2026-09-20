@@ -5,6 +5,7 @@ import { companyNameKey } from './text.js';
 import { isUuid, todayBR } from './service.js';
 import { ensureDefaultPipeline, LOST_REASONS } from './pipeline.js';
 import { DEAL_SELECT, DEAL_FROM, mapDeal, fetchDeal } from './deals.js';
+import { activitiesForDeal } from './activityQueries.js';
 
 const PROB = `(CASE d.status WHEN 'won' THEN 100 WHEN 'lost' THEN 0 ELSE COALESCE(d.probability_override, s.probability) END)`;
 const WEIGHTED = `(d.value * ${PROB} / 100.0)`;
@@ -72,15 +73,16 @@ export async function getDealDetail(orgId, id) {
   if (!isUuid(id)) throw new CrmError(404, 'Negócio não encontrado.');
   const deal = await fetchDeal(pool, orgId, id);
   if (!deal) throw new CrmError(404, 'Negócio não encontrado.');
-  const [hist, tl, notes, pipe] = await Promise.all([
+  const [hist, tl, notes, pipe, activities] = await Promise.all([
     pool.query('SELECT id, from_stage_name, to_stage_name, days_in_from, actor_name, moved_at FROM crm_deal_stage_history WHERE deal_id=$1 ORDER BY moved_at, id', [id]),
     pool.query(`SELECT id, event_type, summary, actor_name, occurred_at FROM crm_timeline_events WHERE org_id=$1 AND entity_type='deal' AND entity_id=$2 ORDER BY occurred_at DESC, created_at DESC LIMIT 60`, [orgId, id]),
     pool.query(`SELECT n.id, n.body, n.created_at, n.created_by, u.name AS created_by_name FROM crm_notes n LEFT JOIN users u ON u.id = n.created_by
                 WHERE n.org_id=$1 AND n.entity_type='deal' AND n.entity_id=$2 AND n.deleted_at IS NULL ORDER BY n.created_at DESC`, [orgId, id]),
     getPipeline(orgId),
+    activitiesForDeal(orgId, id),
   ]);
   return {
-    deal,
+    deal, activities,
     stageHistory: hist.rows.map((r) => ({ id: r.id, from: r.from_stage_name, to: r.to_stage_name, daysInFrom: r.days_in_from == null ? null : Number(r.days_in_from), actorName: r.actor_name, movedAt: r.moved_at })),
     timeline: tl.rows.map((r) => ({ id: r.id, eventType: r.event_type, summary: r.summary, actorName: r.actor_name, occurredAt: r.occurred_at })),
     notes: notes.rows.map((r) => ({ id: r.id, body: r.body, createdAt: r.created_at, createdBy: r.created_by, createdByName: r.created_by_name || '' })),

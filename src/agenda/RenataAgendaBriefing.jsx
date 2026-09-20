@@ -8,8 +8,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Sparkles, MapPin, ArrowRight, Link2 } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
 
-const SOURCE_COLOR = { google: '#5B8DEF', xflow_ticket: '#b98af5', activity: '#3ecf6e' };
-const SOURCE_LABEL = { google: 'Google Calendar', xflow_ticket: 'TASK do XFlow', activity: 'Atividade PRICETAX' };
+const SOURCE_COLOR = { google: '#5B8DEF', xflow_ticket: '#b98af5', activity: '#3ecf6e', crm_activity: '#F5C400' };
+const SOURCE_LABEL = { google: 'Google Calendar', xflow_ticket: 'TASK do XFlow', activity: 'Atividade PRICETAX', crm_activity: 'Atividade do CRM' };
 const WEEKDAY_LONG = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 const DISMISS_KEY = 'renata-agenda-dismissed';
 const MAX_TODAY = 8;

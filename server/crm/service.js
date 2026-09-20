@@ -82,6 +82,11 @@ function sanitizeValue(field, raw, errors, opts) {
   const { type, label } = field;
   if (type === 'text') return String(raw == null ? '' : raw).trim().slice(0, 400);
   if (type === 'longtext') return String(raw == null ? '' : raw).trim().slice(0, 3000);
+  if (type === 'time') {
+    const v = String(raw == null ? '' : raw).trim();
+    if (v && !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) { errors.push(`${label}: horário inválido (use HH:MM).`); return ''; }
+    return v;
+  }
   if (type === 'cnpj') {
     const d = onlyDigits(raw);
     if (!d) return '';

@@ -22,6 +22,7 @@ const SOURCE_META = {
   google: { label: 'Google Calendar', color: '#5B8DEF' },
   xflow_ticket: { label: 'TASK do XFlow', color: '#b98af5' },
   activity: { label: 'Atividade PRICETAX', color: '#3ecf6e' },
+  crm_activity: { label: 'Atividade do CRM', color: '#F5C400' },
 };
 
 function pad2(n) { return String(n).padStart(2, '0'); }

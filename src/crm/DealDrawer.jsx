@@ -3,10 +3,12 @@
 // etapa passa por aqui também — o select cobre teclado e celular, onde arrastar
 // no quadro não funciona.
 import React, { useCallback, useEffect, useState } from 'react';
-import { X, Pencil, Trash2, Trophy, ThumbsDown, StickyNote, Building2 } from 'lucide-react';
+import { X, Pencil, Trash2, Trophy, ThumbsDown, StickyNote, Building2, Plus, AlertTriangle } from 'lucide-react';
 import { crm } from './crmApi.js';
 import DealForm from './DealForm.jsx';
 import CloseDealDialog from './CloseDealDialog.jsx';
+import ActivityForm from './ActivityForm.jsx';
+import ActivityList from './ActivityList.jsx';
 import { useEsc } from './ui.jsx';
 import { fmtMoney, fmtDateBR, fmtDateTimeBR, DEAL_TYPE_META, DEAL_STATUS_META, TIMELINE_KIND, sourceLabel, stageAgeColor } from './crmMeta.js';
 
@@ -26,9 +28,10 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
   const [editing, setEditing] = useState(false);
   const [closing, setClosing] = useState(null); // etapa de destino (ganho/perdido)
   const [noteText, setNoteText] = useState('');
+  const [activityForm, setActivityForm] = useState(false);
   const [busy, setBusy] = useState(false);
   const noop = useCallback(() => {}, []);
-  useEsc(editing || closing ? noop : onClose);
+  useEsc(editing || closing || activityForm ? noop : onClose);
 
   const load = useCallback(async () => {
     try { setError(''); setData(await crm.deal(dealId)); } catch (e) { setError(e.message || 'Não foi possível abrir o negócio.'); }
@@ -123,10 +126,22 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
                   <div className="crm-card"><div className="crm-kpi-value" style={{ color: d.overdue ? '#e2574c' : undefined, fontSize: 18 }}>{fmtDateBR(d.expectedCloseDate) || '—'}</div><div className="crm-kpi-label">Previsão de fechamento</div>{d.overdue && <div className="crm-kpi-sub" style={{ color: '#e2574c' }}>vencida</div>}</div>
                 </div>
 
+                {d.status === 'open' && !data.activities.some((a) => a.status === 'open') && (
+                  <div className="crm-alert crm-alert-warn" style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                    <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}><AlertTriangle size={15} /> <span><strong>Sem próximo passo.</strong> Negócio sem atividade agendada tende a esfriar.</span></span>
+                    {caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={() => setActivityForm(true)}><Plus size={14} /> Agendar agora</button>}
+                  </div>
+                )}
+
                 {d.status === 'lost' && (
                   <div className="crm-alert crm-alert-danger"><strong>Perdido — {d.lostReasonLabel}.</strong>{d.lostDetail ? ` ${d.lostDetail}` : ''}</div>
                 )}
                 {d.status === 'won' && d.closedAt && <div className="crm-alert crm-alert-info"><strong>Ganho em {fmtDateBR(d.closedAt)}.</strong></div>}
+
+                <div className="crm-section">
+                  <h3 className="crm-section-title"><span>Próximos passos</span>{caps.write && d.status === 'open' && <button type="button" className="crm-btn" onClick={() => setActivityForm(true)}><Plus size={13} /> Atividade</button>}</h3>
+                  <ActivityList activities={data.activities} caps={caps} options={options} currentUserId={currentUserId} onChanged={afterChange} emptyText="Nenhuma atividade ligada a este negócio." />
+                </div>
 
                 <div className="crm-section">
                   <h3 className="crm-section-title">Produtos</h3>
@@ -217,6 +232,8 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
         </div>
       </div>
 
+      {activityForm && d && <ActivityForm company={{ id: d.companyId, legalName: d.companyName, relationship: d.companyRelationship }} prefill={{ dealId: d.id, contactId: d.primaryContactId || '' }} options={options} currentUserId={currentUserId}
+        onCancel={() => setActivityForm(false)} onSaved={async () => { setActivityForm(false); await afterChange(); }} />}
       {editing && d && <DealForm initial={d} options={options} currentUserId={currentUserId} onCancel={() => setEditing(false)} onSaved={async () => { setEditing(false); await afterChange(); }} />}
       {closing && d && <CloseDealDialog deal={d} stage={closing} reasons={data.lostReasons} onCancel={() => setClosing(null)} onDone={async () => { setClosing(null); await afterChange(); }} />}
     </>
