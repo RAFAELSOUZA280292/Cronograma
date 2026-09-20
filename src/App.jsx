@@ -5216,6 +5216,7 @@ function PersonalColumn({
   const [menuOpen, setMenuOpen] = useState(false);
   const inputRef = useRef(null);
   const nameInputRef = useRef(null);
+  const nameField = useDebouncedField(column.name, (v) => onRenameColumn(column.id, v));
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column.id, data: { type: 'column' }, disabled: readOnly });
   const { setNodeRef: setDropRef } = useDroppable({ id: `coldrop-${column.id}`, data: { type: 'coldrop', columnId: column.id } });
@@ -5240,17 +5241,26 @@ function PersonalColumn({
       <div {...(readOnly ? {} : { ...attributes, ...listeners })} style={{ ...S.personalColHead, ...(readOnly ? {} : { cursor: 'grab', touchAction: 'none' }) }}>
         {!readOnly && <span style={S.personalColGrip}><GripVertical size={13} color="var(--text-8)" /></span>}
         <div style={{ ...S.personalColTag, background: colorMeta ? colorMeta.bg : 'transparent' }}>
+          {/* O cabeçalho inteiro é a alça de arrastar do dnd-kit (listeners
+              acima), então o campo de texto DENTRO dele precisa impedir que
+              teclado/mouse subam pra lá: sem isso, a barra de espaço ativa o
+              arrastar por teclado (o texto trava e aparece o "fantasma" da
+              coluna) e selecionar texto com o mouse arrasta a coluna. Bug
+              real relatado em 2026-09-20 ao renomear "AteSegunda". */}
           <input
             ref={nameInputRef}
-            value={column.name}
+            value={nameField.draft}
             readOnly={readOnly}
-            onChange={(e) => onRenameColumn(column.id, e.target.value)}
+            onChange={(e) => nameField.onChange(e.target.value)}
+            onBlur={nameField.flush}
+            onKeyDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
             style={{ ...S.personalColNameInput, color: colorMeta ? colorMeta.text : 'var(--text-2)' }}
           />
         </div>
         <span style={S.kanbanCount}>{totalVisibleCount}</span>
         {!readOnly && (
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative' }} onKeyDown={(e) => e.stopPropagation()}>
             <button style={S.iconBtnGhost} onClick={() => setMenuOpen((v) => !v)}><MoreHorizontal size={14} /></button>
             {menuOpen && (
               <PersonalColumnMenu

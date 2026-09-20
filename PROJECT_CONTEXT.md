@@ -5515,6 +5515,40 @@ login real + conta Google real (sem sessão/credencial no ambiente de teste;
 não digitei senha) e o dia útil (só o domingo estava disponível na data do
 teste, o caso de dia útil é coberto pelos testes unitários da janela).
 
+## 51. Renomear coluna do Quadro travava e mostrava "fantasma" (2026-09-20)
+
+**Bug relatado pelo Rafael**: no Quadro de Gestão de Atividades, ao editar o
+nome da coluna "AteSegunda" pra "Até Segunda" (acento + espaço), aparecia um
+cartão-fantasma da coluna e o texto travava.
+
+**Causa real**: em `PersonalColumn` (`App.jsx`) o cabeçalho inteiro recebe
+`{...attributes, ...listeners}` do `useSortable` (é a alça de arrastar da
+coluna) e o `<input>` do nome está DENTRO dele. O `KeyboardSensor` do dnd-kit
+ativa o arrastar com **Espaço/Enter** e, como não há `setActivatorNodeRef`,
+não confere se a tecla veio do próprio cabeçalho — então o espaço digitado no
+campo bloqueava a digitação (`preventDefault`) e iniciava um arrasto por
+teclado; o `DragOverlay` de coluna é o "fantasma" do print. O `PointerSensor`
+tem o mesmo problema: selecionar texto com o mouse (mover >4px) arrastava a
+coluna.
+
+**Correção**: `onKeyDown`/`onPointerDown` com `stopPropagation` no campo, e
+`onKeyDown` no wrapper do botão "..." (Enter/Espaço no botão também iniciava o
+arrasto em vez de clicar). Aproveitado pra trocar o `onChange` direto do campo
+por `useDebouncedField` (o mesmo padrão de digitação por tecla do §45-47, que a
+auditoria daquela vez não pegou por ser um input no Quadro Pessoal).
+
+**Verificado**: reproduzi o mecanismo numa página descartável com o mesmo
+dnd-kit e os mesmos sensores — Espaço (evento com `code:'Space'`) no campo
+atual: `defaultPrevented=true` + `dragstart`; mouse: `dragstart` ao mover 30px
+com o botão pressionado. Com `stopPropagation`: nenhum dos dois. **Não
+verificado no componente real** (sem login no ambiente de teste; não digitei
+senha) — só o build limpo e a leitura do código.
+
+**Ainda sujeitos à mesma classe** (botão/controle DENTRO de área com
+`listeners`, Enter/Espaço no teclado inicia arrasto em vez de clicar): os
+botões dos cartões do Quadro Pessoal (`PersonalCard`, `listeners` no cartão
+inteiro). Não é o caso relatado (não há campo de texto ali) e não foi mexido.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
