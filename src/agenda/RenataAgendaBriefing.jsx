@@ -12,6 +12,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Sparkles, MapPin, ArrowRight, Link2, TriangleAlert, CircleHelp, Utensils, Timer } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
 import { WORK, rsvpOf, isPendingRsvp, summarizeDay, timelineRows, durationMin, fmtDur, hhmm } from './dayLoad.js';
+import { loadPrefs, savePrefs, validateLunch, parseHHMM, DEFAULT_PREFS, isDefaultLunch } from './agendaPrefs.js';
 
 const SOURCE_COLOR = { google: '#5B8DEF', xflow_ticket: '#b98af5', activity: '#3ecf6e', crm_activity: '#F5C400' };
 const DAY_SHORT = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
@@ -104,10 +105,16 @@ function insightsFor(sum, isToday, now) {
   const out = [];
   sum.conflicts.slice(0, 2).forEach((c) => out.push({ tone: 'danger', icon: TriangleAlert, text: `${fmtTime(c.b.startDate)} — “${c.a.title}” e “${c.b.title}” ao mesmo tempo` }));
   if (sum.pending > 0) {
-    const extra = sum.pendingConflicts > 0 ? ` (${sum.pendingConflicts} ${sum.pendingConflicts === 1 ? 'choca' : 'chocam'} com o que você aceitou)` : '';
-    out.push({ tone: 'warn', icon: CircleHelp, text: `${sum.pending} ${sum.pending === 1 ? 'convite aguarda' : 'convites aguardam'} sua resposta${extra}` });
+    const bits = [];
+    if (sum.pendingConflicts > 0) bits.push(`${sum.pendingConflicts} ${sum.pendingConflicts === 1 ? 'choca' : 'chocam'} com o que você aceitou`);
+    if (sum.lunch.ok && sum.lunch.pendingBlockers.length > 0) bits.push(`${sum.lunch.pendingBlockers.length === 1 ? '1 pega' : `${sum.lunch.pendingBlockers.length} pegam`} o seu almoço`);
+    out.push({ tone: 'warn', icon: CircleHelp, text: `${sum.pending} ${sum.pending === 1 ? 'convite aguarda' : 'convites aguardam'} sua resposta${bits.length ? ` (${bits.join('; ')})` : ''}` });
   }
-  if (sum.confirmed + sum.pending > 0 && !sum.lunch.ok) out.push({ tone: 'warn', icon: Utensils, text: `Sem janela de almoço (${hhmm(WORK.lunchStart)}–${hhmm(WORK.lunchEnd)})` });
+  if (!sum.lunch.ok && sum.lunch.blockers.length > 0) {
+    const b = sum.lunch.blockers[0];
+    const more = sum.lunch.blockers.length - 1;
+    out.push({ tone: 'warn', icon: Utensils, text: `Reunião no seu almoço (${hhmm(sum.lunch.start)}–${hhmm(sum.lunch.end)}): “${b.title}” ${hhmm(b.s)}–${hhmm(b.e)}${more > 0 ? ` e mais ${more}` : ''}` });
+  }
   else if (sum.longestRun && sum.longestRun.min >= WORK.longRun) out.push({ tone: 'warn', icon: Timer, text: `${fmtDur(sum.longestRun.min)} seguidas sem pausa (${hhmm(sum.longestRun.s)}–${hhmm(sum.longestRun.e)})` });
   const nowMin = minutesOf(now);
   const best = sum.gaps.filter((g) => !isToday || g.e > nowMin + 30).reduce((b, g) => (!b || g.min > b.min ? g : b), null);
@@ -171,6 +178,10 @@ function DayBar({ items, sum, isToday, now }) {
         {isToday && nowMin >= rs && nowMin <= re && <div className="rab-now" style={{ left: `${pct(nowMin)}%` }} title={`Agora, ${hhmm(nowMin)}`} />}
       </div>
       <div className="rab-ticks">
+        {sum.lunch.end > rs && sum.lunch.start < re && (
+          <i className={`rab-lunchline${sum.lunch.blockers.length ? ' rab-lunch-busy' : ''}`} style={{ left: `${pct(Math.max(sum.lunch.start, rs))}%`, width: `${pct(Math.min(sum.lunch.end, re)) - pct(Math.max(sum.lunch.start, rs))}%` }}
+            title={`Seu almoço: ${hhmm(sum.lunch.start)}–${hhmm(sum.lunch.end)} — ${sum.lunch.blockers.length ? 'ocupado por reunião' : 'livre'}`} />
+        )}
         {ticks.map((h) => <span key={h} style={{ left: `${pct(h * 60)}%` }}>{h}h</span>)}
       </div>
     </div>
@@ -240,6 +251,16 @@ const CSS = `
   .rab-now { position:absolute; top:-3px; bottom:-3px; width:2px; background:#F5C400; border-radius:2px; box-shadow:0 0 0 2px rgba(245,196,0,.25); }
   .rab-ticks { position:relative; height:14px; margin-top:4px; }
   .rab-ticks span { position:absolute; transform:translateX(-50%); font-size:10px; color:var(--text-6); font-variant-numeric:tabular-nums; }
+  .rab-lunchline { position:absolute; top:-2px; height:3px; border-radius:2px; background:#2f9e63; opacity:.75; }
+  .rab-lunchline.rab-lunch-busy { background:#e2574c; opacity:.9; }
+  .rab-cfg { margin-top:12px; padding:14px 16px; border:1px solid var(--border-2); border-radius:12px; background:var(--bg-1); }
+  .rab-cfg-t { font-size:12.5px; font-weight:800; color:var(--text-1); margin-bottom:10px; }
+  .rab-cfg-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--text-3); }
+  .rab-cfg-row input { width:auto; padding:7px 10px; font-size:13px; border-radius:8px; font-variant-numeric:tabular-nums; }
+  .rab-cfg-act { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .rab-cfg-act .rab-btn { padding:7px 13px; }
+  .rab-cfg-err { margin-top:9px; font-size:12px; color:#e2574c; }
+  .rab-cfg-hint { margin-top:10px; font-size:11.5px; color:var(--text-6); line-height:1.45; }
   .rab-att { display:flex; flex-direction:column; gap:7px; margin:0 0 14px; }
   .rab-ins { display:flex; align-items:center; gap:9px; font-size:13px; color:var(--text-2); line-height:1.35; }
   .rab-ins-i { width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
@@ -285,6 +306,8 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda }) {
   const [picked, setPicked] = useState(null); // dia escolhido no trilho (null = automático)
   const [showDeclined, setShowDeclined] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [prefs, setPrefs] = useState(() => loadPrefs()); // almoço (padrão 12:00–13:00), por navegador
+  const [cfg, setCfg] = useState(null); // {start, end, error} enquanto o ajuste do almoço está aberto
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 30000);
@@ -327,11 +350,11 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda }) {
   // Hoje + o resto da janela (dias úteis: até domingo; fim de semana: a semana que vem inteira).
   const days = useMemo(() => {
     const out = [];
-    const push = (d) => { const iso = isoDate(d); const list = eventsOnDay(state.events, iso); out.push({ iso, date: new Date(d), list, sum: summarizeDay(list, iso) }); };
+    const push = (d) => { const iso = isoDate(d); const list = eventsOnDay(state.events, iso); out.push({ iso, date: new Date(d), list, sum: summarizeDay(list, iso, { lunchStart: prefs.lunchStart, lunchEnd: prefs.lunchEnd }) }); };
     push(startOfDay(new Date()));
     for (let d = new Date(win.start); d < win.end; d = addDays(d, 1)) push(d);
     return out;
-  }, [state.events, win, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state.events, win, today, prefs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const auto = useMemo(() => pickFocus(days, now), [days, now]);
   const focus = days.find((d) => d.iso === (picked || auto)) || days[0];
@@ -459,7 +482,34 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda }) {
               <span className="rab-legend"><i /> aceito</span>
               <span className="rab-legend"><i className="h" /> sem resposta</span>
               <span className="rab-legend"><TriangleAlert size={11} color="#e2574c" /> choca</span>
+              <button type="button" className="rab-toggle" onClick={() => setCfg(cfg ? null : { start: hhmm(prefs.lunchStart), end: hhmm(prefs.lunchEnd), error: '' })} title="Muda o horário de almoço usado nos avisos">
+                <Utensils size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Almoço {hhmm(prefs.lunchStart)}–{hhmm(prefs.lunchEnd)}{isDefaultLunch(prefs) ? '' : ' (seu)'}
+              </button>
             </div>
+
+            {cfg && (
+              <div className="rab-cfg" role="group" aria-label="Horário de almoço">
+                <div className="rab-cfg-t">Meu horário de almoço</div>
+                <div className="rab-cfg-row">
+                  <label>Das <input type="time" step="900" value={cfg.start} onChange={(e) => setCfg({ ...cfg, start: e.target.value, error: '' })} /></label>
+                  <label>às <input type="time" step="900" value={cfg.end} onChange={(e) => setCfg({ ...cfg, end: e.target.value, error: '' })} /></label>
+                </div>
+                {cfg.error && <div className="rab-cfg-err">{cfg.error}</div>}
+                <div className="rab-cfg-act">
+                  <button type="button" className="rab-btn rab-btn-primary" onClick={() => {
+                    const s = parseHHMM(cfg.start); const e = parseHHMM(cfg.end);
+                    const err = s == null || e == null ? 'Informe o início e o fim do almoço.' : validateLunch(s, e);
+                    if (err) { setCfg({ ...cfg, error: err }); return; }
+                    const r = savePrefs({ lunchStart: s, lunchEnd: e });
+                    if (!r.ok) { setCfg({ ...cfg, error: r.error }); return; }
+                    setPrefs({ lunchStart: s, lunchEnd: e }); setCfg(null);
+                  }}>Salvar</button>
+                  {!isDefaultLunch(prefs) && <button type="button" className="rab-btn rab-btn-ghost" onClick={() => { savePrefs(DEFAULT_PREFS); setPrefs({ ...DEFAULT_PREFS }); setCfg(null); }}>Voltar ao padrão ({hhmm(DEFAULT_PREFS.lunchStart)}–{hhmm(DEFAULT_PREFS.lunchEnd)})</button>}
+                  <button type="button" className="rab-btn rab-btn-ghost" onClick={() => setCfg(null)}>Cancelar</button>
+                </div>
+                <div className="rab-cfg-hint">Uso isso para avisar quando uma reunião aceita pega o seu almoço. Fica salvo neste navegador.</div>
+              </div>
+            )}
           </>
         )}
       </div>

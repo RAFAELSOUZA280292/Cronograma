@@ -400,7 +400,7 @@ usam `S.detailBox`.
   `crmAccess`), `server/db.js` (fim de `initDb()`), `src/lib/api.js` (`err.data`).
 
 ### Agenda — resposta ao convite e carga do dia (2026-09, `PROJECT_CONTEXT.md` §59)
-- `server/googleCalendar.js`: `myResponseOf`/`mapGoogleEvent` (resposta do usuário, `transparent`, organizador). `src/agenda/dayLoad.js` (puro): `rsvpOf`, `summarizeDay` (aceitos, pendentes, livre, pausas, almoço, emendadas, conflitos), `timelineRows`, `fmtDur`. Consumido por `RenataAgendaBriefing.jsx` (tela inicial) e `Agenda.jsx` (grade). `assistantRetrieval.js` etiqueta a resposta no contexto da RENATA.
+- `server/googleCalendar.js`: `myResponseOf`/`mapGoogleEvent` (resposta do usuário, `transparent`, organizador). `src/agenda/dayLoad.js` (puro): `rsvpOf`, `summarizeDay` (aceitos, pendentes, livre, pausas, almoço [padrão 12–13h, `lunch.blockers`], emendadas, conflitos); `src/agenda/agendaPrefs.js` (almoço configurável por pessoa, localStorage, com validação), `timelineRows`, `fmtDur`. Consumido por `RenataAgendaBriefing.jsx` (tela inicial) e `Agenda.jsx` (grade). `assistantRetrieval.js` etiqueta a resposta no contexto da RENATA.
 
 ## 5. Fluxos críticos
 
