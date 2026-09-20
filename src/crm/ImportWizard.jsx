@@ -6,39 +6,7 @@ import React, { useState } from 'react';
 import { Upload, Check } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { Modal } from './ui.jsx';
-
-const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-
-const SYNONYMS = {
-  companies: {
-    legalName: ['razao social', 'nome da empresa', 'empresa', 'razao', 'nome'], tradeName: ['nome fantasia', 'fantasia'], cnpj: ['cnpj'],
-    economicGroup: ['grupo economico', 'grupo'], website: ['site', 'website'], segment: ['segmento', 'setor'], cnae: ['cnae'], city: ['cidade', 'municipio'],
-    state: ['uf', 'estado'], relationship: ['relacao', 'status', 'tipo'], source: ['origem', 'fonte'], ownerName: ['responsavel', 'vendedor'],
-    companySize: ['porte'], taxRegime: ['regime tributario', 'regime'], revenueEstimate: ['faturamento', 'receita'], employees: ['funcionarios'], erp: ['erp'],
-  },
-  contacts: {
-    fullName: ['nome completo', 'contato', 'nome'], firstName: ['primeiro nome'], lastName: ['sobrenome'], companyCnpj: ['cnpj'], companyName: ['empresa', 'razao social'],
-    jobTitle: ['cargo'], department: ['departamento', 'area'], email: ['e mail', 'email'], phone: ['telefone', 'fone'], whatsapp: ['whatsapp', 'celular'],
-    linkedin: ['linkedin'], decisionRole: ['papel na decisao', 'papel'], influence: ['influencia'], relationshipStrength: ['relacionamento'],
-  },
-};
-
-function guessMapping(target, headers) {
-  const map = {};
-  const used = new Set();
-  const nh = headers.map(norm);
-  Object.entries(SYNONYMS[target]).forEach(([field, syns]) => {
-    for (const s of syns) {
-      const i = nh.findIndex((h, idx) => !used.has(idx) && h === s);
-      if (i >= 0) { map[field] = i; used.add(i); return; }
-    }
-    for (const s of syns) {
-      const i = nh.findIndex((h, idx) => !used.has(idx) && h.includes(s));
-      if (i >= 0) { map[field] = i; used.add(i); return; }
-    }
-  });
-  return map;
-}
+import { guessMapping } from './importMapping.js';
 
 const STATUS_LABEL = { new: 'Nova', duplicate: 'Duplicada', possible_duplicate: 'Possível duplicada', invalid: 'Inválida' };
 const STATUS_COLOR = { new: '#3ecf6e', duplicate: '#e2574c', possible_duplicate: '#ff9f40', invalid: '#e2574c' };

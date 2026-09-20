@@ -364,7 +364,7 @@ usam `S.detailBox`.
   para Empresas" no canto esquerdo) — não é uma rota nova, só um atalho
   visual mais consistente.
 
-### CRM PRICETAX — Fases 1 a 3 (2026-09, `PROJECT_CONTEXT.md` §54, §55 e §56)
+### CRM PRICETAX — Fases 1 a 3 + importação PipeRun (2026-09, `PROJECT_CONTEXT.md` §54–§57)
 - **Backend `server/crm/`** (montado em `/api/crm` por `server/index.js`):
   `routes.js` (`createCrmRouter({ auth })`, auth injetável p/ teste; /me,
   /options, /overview, /search, /cnpj/:cnpj, /companies CRUD + check-duplicates
@@ -373,7 +373,7 @@ usam `S.detailBox`.
   commit) · `service.js` (escritas: dado+auditoria+timeline numa transação) ·
   `queries.js` (leituras/KPIs/busca) · `permissions.js` (`crmRoleOf`, capacidades
   read/write/remove/import/admin) · `duplicates.js` · `importer.js` ·
-  `bootstrap.js` · `completeness.js` · `projectSummary.js` · `cnpj.js` ·
+  `bootstrap.js` (importer.js/text.js: normalizadores de planilha, nomes-coringa recusados, §57) · `completeness.js` · `projectSummary.js` · `cnpj.js` ·
   `cnpjSuggestion.js` · `text.js` · `errors.js`.
   **Fase 2 (negócios)**: `pipeline.js` (constantes + `ensureDefaultPipeline`) · `deals.js`
   (create/update/move/delete; ganhar promove empresa a cliente) · `dealQueries.js`
@@ -387,7 +387,7 @@ usam `S.detailBox`.
   submenus), `OverviewPage`, `CompaniesPage`, `ContactsPage`, `CompanyDrawer`
   (Ficha 360), `CompanyForm`, `ContactForm`, `ImportWizard` (xlsx.mini em
   `import()` dinâmico), `BootstrapDialog`, `GlobalSearch`, `ui.jsx`,
-  `crmMeta.js` (rótulos + `CRM_CSS`), `crmApi.js`. **Fase 2**: `DealsPage` (Kanban+lista),
+  `crmMeta.js` (rótulos + `CRM_CSS`), `crmApi.js`, `importMapping.js` (reconhecimento de colunas do assistente, puro/testável). **Fase 2**: `DealsPage` (Kanban+lista),
   `DealDrawer`, `DealForm`, `CloseDealDialog`, `ProductsPage`; `CompanyDrawer` ganhou aba
   Negócios e botão de upsell; `OverviewPage` ganhou bloco Funil. **Fase 3**: `AgendaPage`, `ActivityList`,
   `ActivityForm`; aba Atividades na ficha da empresa, "Próximos passos" na do negócio, sino no topo;
@@ -439,7 +439,7 @@ anexos são base64 inline no PATCH do projeto (ver §9, ponto de atenção).
 | `meeting_submissions` | Caixa de transcrições (2026-09) — 1 linha por transcrição enviada pra virar reunião via IA, `status` (pending/processing/done/failed) próprio, fora do JSONB do projeto de propósito (sobrevive independente do resultado do processamento) — ver `PROJECT_CONTEXT.md` §24.1 | FK `org_id → organizations.id`, `project_id → projects.id`, `submitted_by → users.id` |
 | `ai_conversations` / `ai_messages` | Assistente do Projeto, Fase 2 (2026-09) — 1 conversa contínua por (projeto, usuário); mensagens com fontes/observabilidade/feedback + `proposed_action`/`action_status` do agente executor (Fase 6 v1) — ver `PROJECT_CONTEXT.md` §27 | FK `org_id`/`project_id`/`user_id`; `ai_messages.conversation_id → ai_conversations.id` (CASCADE) |
 | `ai_project_insights` | Aprendizados duráveis do Assistente do Projeto (2026-09) — extraídos das conversas, à parte de `ai_messages` de propósito (sobrevivem a "Limpar conversa") — ver `PROJECT_CONTEXT.md` §27 | FK `org_id → organizations.id`, `project_id → projects.id` (CASCADE) |
-| `crm_companies` / `crm_contacts` / `crm_notes` | CRM Fase 1 (2026-09, `PROJECT_CONTEXT.md` §54) — relacionais (não JSONB), UUID, soft delete, `org_id`. Índice único parcial `(org_id, cnpj)` em empresas ativas com CNPJ | `crm_contacts`/`crm_notes` → `crm_companies.id`; `org_id → organizations.id` |
+| `crm_companies` / `crm_contacts` / `crm_notes` | CRM Fase 1 (2026-09, `PROJECT_CONTEXT.md` §54; §57 acrescentou telefone, e-mail de contato, endereço/CEP, fundação, capital social e CNAEs secundários em `crm_companies`) — relacionais (não JSONB), UUID, soft delete, `org_id`. Índice único parcial `(org_id, cnpj)` em empresas ativas com CNPJ | `crm_contacts`/`crm_notes` → `crm_companies.id`; `org_id → organizations.id` |
 | `crm_company_projects` | Vínculo empresa CRM ↔ projeto do cronograma (`project_id` UNIQUE; vários projetos por empresa). CRM só LÊ `projects.data` | `company_id → crm_companies.id`, `project_id → projects.id` |
 | `crm_timeline_events` / `crm_audit_logs` | Histórico de negócio e auditoria campo a campo — **append-only por trigger** (`crm_block_history_mutation` barra UPDATE/DELETE); limpeza de teste exige `DISABLE TRIGGER USER` | `company_id → crm_companies.id` |
 | `crm_pipelines` / `crm_pipeline_stages` | CRM Fase 2 (§55) — funil padrão por org criado sob demanda (7 etapas, prob. por etapa, `kind` open/won/lost); índice único parcial = 1 padrão por org | `pipeline_id → crm_pipelines.id` |
