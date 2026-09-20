@@ -9186,9 +9186,15 @@ export const S = {
   kanbanCard: { background: 'var(--bg-4)', border: '1px solid var(--border-2)', borderRadius: 8, padding: '10px 11px', marginBottom: 9, cursor: 'grab' },
 
   personalTabs: { display: 'flex', alignItems: 'center', gap: 6, padding: '10px 24px 0', flexWrap: 'wrap' },
-  personalTab: { display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: '8px 8px 0 0', padding: '7px 6px 7px 12px', cursor: 'pointer' },
-  personalTabActive: { background: 'var(--bg-1)', borderBottomColor: 'var(--bg-1)', boxShadow: '0 -1px 0 #F5C400 inset' },
-  personalTabInput: { background: 'transparent', border: 'none', color: 'var(--text-1)', fontSize: 12.5, fontWeight: 700, width: 110, padding: 0 },
+  // Aba do quadro: a inativa fica "afundada" (sem fundo, texto apagado) e a
+  // ativa "sobe" (fundo de cartão, texto forte, barra amarela grossa no topo)
+  // — antes as duas tinham quase o mesmo fundo e só um fio de 1px diferenciava
+  // (2026-09-20, Rafael não conseguia ver em qual quadro estava). Só
+  // propriedades longhand: misturar `border` com `borderBottomColor` deixava
+  // resíduo de estilo entre trocas de aba (aviso do React).
+  personalTab: { display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', color: 'var(--text-5)', borderWidth: '1px 1px 0 1px', borderStyle: 'solid', borderColor: 'transparent', borderRadius: '8px 8px 0 0', padding: '8px 6px 7px 12px', cursor: 'pointer', boxShadow: 'none', fontWeight: 700 },
+  personalTabActive: { background: 'var(--bg-2)', color: 'var(--text-1)', borderColor: 'var(--border-2)', boxShadow: 'inset 0 3px 0 #F5C400', fontWeight: 800 },
+  personalTabInput: { background: 'transparent', border: 'none', color: 'inherit', fontSize: 12.5, fontWeight: 'inherit', width: 110, padding: 0 },
   publicBadge: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 700, color: '#3ea6ff', background: 'rgba(62,166,255,.14)', borderRadius: 5, padding: '2px 6px', marginLeft: 4 },
   personalToolbar: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 24px', flexWrap: 'wrap', borderBottom: '1px solid var(--border-1)' },
   personalViewToggle: { display: 'flex', background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: 8, padding: 2, gap: 2 },
