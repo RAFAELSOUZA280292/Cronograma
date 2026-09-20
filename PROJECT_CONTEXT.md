@@ -5593,6 +5593,24 @@ local, trocar de aba, "não compartilhado" + remover (sem tocar no quadro do
 dono), botão na página pública nos 3 casos (novo, já fixado, dono). **Não
 verificado**: contra o servidor/login reais.
 
+## 53. Aba ativa do Quadro não era evidente (2026-09-20)
+
+**Relato do Rafael** (print do Quadro com PRICETAX / Pessoal / aba do Felipe):
+"não está evidente e claro qual dos quadros estou usando".
+
+**Causa**: `S.personalTab` (inativa) e `S.personalTabActive` tinham quase o mesmo
+fundo (`--bg-2` vs `--bg-1`, ambos brancos no tema claro) — a única marca era um
+fio amarelo de 1px no topo. Além disso, o estilo misturava o atalho `border`
+com `borderBottomColor`, o que gerava o aviso do React "Removing borderBottomColor
+border" e deixava resíduo de estilo ao trocar de aba.
+
+**Correção** (`S.personalTab*` em `App.jsx`, só propriedades longhand): a
+inativa fica "afundada" (sem fundo, sem borda, texto `--text-5`); a ativa "sobe"
+(fundo de cartão, borda, texto `--text-1` em negrito, **barra amarela de 3px** no
+topo). O nome da aba herda cor/peso da aba (`color: inherit`). Vale pras abas
+próprias, pra aba de quadro compartilhado (§52) e pra aba única da página
+pública. Conferido nos dois temas com a paleta real do `index.html`.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
