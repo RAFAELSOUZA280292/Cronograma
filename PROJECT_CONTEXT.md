@@ -6064,12 +6064,20 @@ marcados como "Livre".
 - Dado antigo sem `myResponse` conta como aceito (nada some).
 
 ### Telas
-- **RENATA (tela inicial)**: cada evento com **resposta** (Aceito / Seu evento / Sem resposta / Talvez / Recusado)
-  e **duração**; convite pendente com marcador vazado; recusados **escondidos** por padrão ("Mostrar recusados");
-  a frase do dia agora conta só os **confirmados** ("4 compromissos confirmados (1 sem resposta · 1 recusado)");
-  resumo por dia (aceitos + horas, sem resposta, recusados, **livre X de 10h**, maior pausa, almoço livre/sem
-  janela, "N sem parar", "N emendadas", conflitos) e linhas **"Livre 45 min · 09:15–10:00"** entre reuniões. Cada
-  dia da semana traz o resumo compacto e "+N mais" agora expande.
+- **RENATA (tela inicial) — REDESENHADA no mesmo dia.** A 1ª versão (uma pílula/etiqueta por dado, 3 a 5 por
+  linha, parede de resumos) era um relatório e o Rafael a rejeitou ("nível Jarvis, não isso"). Princípio novo:
+  **uma resposta, um gráfico, no máximo 3 avisos; cor só para o que pede ação** (laranja = responder,
+  vermelho = choque). Estrutura: (1) frase-resposta do dia que interessa ("Amanhã está cheio" — leve <2h,
+  tranquilo <4h, cheio <6h, pesado ≥6h, só o tempo ACEITO) + "8 reuniões · 5h ocupadas · 5h30 livres" + "Agora/
+  Próximo: X" (ou "Hoje você já terminou" quando o painel escolhe sozinho o próximo dia); (2) **trilho da
+  semana** (hoje + janela): cada dia com medidor de horas, ponto vermelho se há choque e anel laranja se há
+  convite sem resposta — clicar troca o dia em foco; (3) **linha do tempo do dia** (blocos por horário; aceito
+  cheio, sem resposta tracejado, recusado apagado, choque com contorno vermelho; faixas verdes onde há pausa de
+  1h+ com o tempo livre; cursor amarelo do "agora"); (4) até **3 avisos** em palavras (choque entre aceitos,
+  convites aguardando resposta, sem janela de almoço OU muitas horas seguidas, melhor janela livre); (5) lista
+  limpa (hora, título, duração; marcador cheio/vazado; ⚠ só onde há choque) com "Ver todos" e "Mostrar N
+  recusados". Dia em foco automático: hoje enquanto houver reunião aceita pela frente, senão o próximo dia com
+  algo. "Passou" agora é só apagado (antes era riscado — confundia com recusado).
 - **Agenda (grade)**: convite pendente com **contorno tracejado e "?"** e recusado **riscado e apagado** (como no
   Google), dica ao passar o mouse com a resposta e quem convidou, legenda, botão **Ocultar recusados**, e
   resumo curto no cabeçalho de cada dia. O recusado vira faixa apagada **ao fundo** (fora da divisão em
@@ -6079,7 +6087,7 @@ marcados como "Livre".
 54 asserções em Node (respostas do Google em todas as combinações; a segunda-feira 21/09 do print
 reconstruída, com os números calculados à mão: 7 aceitos = 5h, 3 pendentes = 3h, livre 5h30, "5h15 se aceitar
 tudo", pausas, almoço, 4 emendadas; casos de borda: dia vazio, Livre, dia inteiro, almoço curto, maratona,
-meia-noite, expediente configurável). UI com agenda simulada: RENATA e Agenda, tema claro e escuro.
+meia-noite, expediente configurável). UI com agenda simulada (a semana do print do Rafael): RENATA (manhã e noite, dia escolhido no trilho, tema claro e escuro) e Agenda. Bugs achados na conferência e corrigidos: "hoje já terminou" aparecendo de manhã ao clicar noutro dia; rótulo "Próximo dia" em dia escolhido.
 
 ### Limites
 - **Não testado com o Google Calendar real** do Rafael (só com dados simulados a partir do print); o formato
