@@ -6057,10 +6057,13 @@ marcados como "Livre".
 - Só **aceito** (ou seu) ocupa o seu tempo. **Sem resposta e talvez = pendente**: aparecem, mas não contam;
   o resumo mostra também quanto sobra "se aceitar tudo". **Recusado** e "Livre" não ocupam tempo. Dia inteiro
   não entra na conta de horas. TASK do XFlow, atividades e atividades do CRM são sempre "aceitas".
-- Expediente **08:00–18:00** (constante em `WORK`, sem tela para mudar). **Almoço: padrão 12:00–13:00**,
-  **configurável por pessoa** (botão "Almoço 12:00–13:00" no rodapé do painel da RENATA; início/fim, 15 min a 3 h,
-  entre 06:00 e 20:00; "Voltar ao padrão"; salvo **neste navegador** — `agendaPrefs.js`, localStorage, como tema e
-  outras preferências pessoais; sem banco). O almoço só conta como **livre com a janela INTEIRA** sem compromisso
+- **Expediente: padrão 08:00–18:00** e **almoço: padrão 12:00–13:00**, ambos **configuráveis por pessoa** (botão
+  "Expediente 08:00–18:00 · Almoço 12:00–13:00" no rodapé do painel da RENATA; "Voltar ao padrão"; salvo **neste
+  navegador** — `agendaPrefs.js`, localStorage, formato `{workStart,workEnd,lunchStart,lunchEnd}` em minutos, migra o
+  formato antigo só-almoço; sem banco). Limites: expediente entre 04:00 e 23:00, 2 a 16 h; almoço 15 min a 3 h e
+  dentro do expediente. **"Livre" = tempo sem reunião aceita DENTRO do expediente** (reunião fora dele conta em
+  "ocupadas" mas não tira tempo livre), por isso o painel escreve "5h30 livres das 08:00 às 18:00" e a Agenda completa usa
+  o mesmo expediente configurado (tooltip com a janela). O gráfico do dia usa o expediente da pessoa. O almoço só conta como **livre com a janela INTEIRA** sem compromisso
   aceito (sem mínimo inventado); o aviso diz qual reunião pega o almoço ("Reunião no seu almoço (12:00–13:00):
   “Workshop” 10:00–12:30 e mais 1"); convite sem resposta que pega o almoço é avisado à parte; a linha do tempo
   marca o almoço (verde livre / vermelho ocupado). Antes era 12–14h com mínimo de 45 min — estipulação minha, removida. Pausa = intervalo livre ≥ 15 min. "Emendada" = reunião aceita que começa a
@@ -6097,7 +6100,7 @@ meia-noite, expediente configurável). UI com agenda simulada (a semana do print
 ### Limites
 - **Não testado com o Google Calendar real** do Rafael (só com dados simulados a partir do print); o formato
   de `attendees[].self` é o documentado pela API. Vale conferir com a agenda dele.
-- Expediente (08–18h) ainda fixo. O almoço configurado fica **só neste navegador** (não acompanha a pessoa em outro
+- Expediente e almoço configurados ficam **só neste navegador** (não acompanha a pessoa em outro
   computador; sincronizar exigiria um campo de preferências no usuário em `db.js`). Não considera fuso diferente do
   navegador nem calendários além do principal.
 - Convite de evento recorrente: a resposta vem por ocorrência (comportamento do Google).

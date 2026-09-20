@@ -11,7 +11,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Building2, Columns3, LogOut, Link2, Ban, Home } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
-import { rsvpOf, isPendingRsvp, RSVP_META, summarizeDay, fmtDur } from './dayLoad.js';
+import { rsvpOf, isPendingRsvp, RSVP_META, summarizeDay, fmtDur, hhmm } from './dayLoad.js';
+import { loadPrefs } from './agendaPrefs.js';
 import { S, fmtDate, BrandLogo, ThemeToggleBtn, NotificationBell } from '../App.jsx';
 
 const GRID_START_HOUR = 6;
@@ -138,15 +139,16 @@ export default function AgendaScreen({
   }, [events, daysInView, hideDeclined]);
 
   // Resumo do dia (aceitos, tempo ocupado, livre) — só com eventos com horário; recusados/pendentes não ocupam.
+  const prefs = useMemo(() => loadPrefs(), []);
   const dayStats = useMemo(() => {
     const out = {};
     for (const day of daysInView) {
       const key = isoDateOnly(day);
       const list = events.filter((e) => !e.allDay && isoDateOnly(new Date(e.start)) === key).map((e) => ({ ...e, startDate: new Date(e.start), endDate: new Date(e.end) }));
-      if (list.length) out[key] = summarizeDay(list, key);
+      if (list.length) out[key] = summarizeDay(list, key, { start: prefs.workStart, end: prefs.workEnd, lunchStart: prefs.lunchStart, lunchEnd: prefs.lunchEnd });
     }
     return out;
-  }, [events, daysInView]);
+  }, [events, daysInView, prefs]);
 
   function eventLabel(ev) {
     if (hideDetails) return ev.status === 'cancelled' ? 'Ocupado (cancelado)' : 'Ocupado';
@@ -283,7 +285,7 @@ function WeekGrid({ daysInView, eventsByDay, dayStats, hideDetails, eventLabel, 
             <div style={{ fontSize: 10.5, color: 'var(--text-5)', fontWeight: 700, textTransform: 'uppercase' }}>{WEEKDAY_LABEL[d.getDay()]}</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: isoDateOnly(d) === isoDateOnly(now) ? '#F5C400' : 'var(--text-1)' }}>{d.getDate()}</div>
             {!hideDetails && dayStats[isoDateOnly(d)] && (() => { const st = dayStats[isoDateOnly(d)]; return (
-              <div style={{ fontSize: 9.5, color: 'var(--text-5)', marginTop: 2, lineHeight: 1.35 }} title={`Aceitos: ${st.confirmed} (${fmtDur(st.confirmedMin)}). Sem resposta/talvez: ${st.pending}. Recusados: ${st.declined}. Livre no expediente (08–18h): ${fmtDur(st.freeMin)}${st.pending ? `; se aceitar tudo: ${fmtDur(st.freeIfAllMin)}` : ''}.`}>
+              <div style={{ fontSize: 9.5, color: 'var(--text-5)', marginTop: 2, lineHeight: 1.35 }} title={`Aceitos: ${st.confirmed} (${fmtDur(st.confirmedMin)}). Sem resposta/talvez: ${st.pending}. Recusados: ${st.declined}. Livre no expediente (${hhmm(st.work.start)}–${hhmm(st.work.end)}): ${fmtDur(st.freeMin)}${st.pending ? `; se aceitar tudo: ${fmtDur(st.freeIfAllMin)}` : ''}.`}>
                 {st.confirmed} aceit{st.confirmed === 1 ? 'o' : 'os'} · {fmtDur(st.confirmedMin)}<br />livre {fmtDur(st.freeMin)}{st.pending ? ` · ${st.pending} ?` : ''}
               </div>
             ); })()}
