@@ -17,6 +17,12 @@ export const SYNONYMS = {
     phone: ['telefones', 'telefone', 'fone'], contactEmail: ['e mail de contato', 'email de contato', 'e mail', 'email'],
     companySize: ['porte'], taxRegime: ['regime tributario', 'forma de tributacao', 'regime'], revenueEstimate: ['faturamento', 'receita'], employees: ['funcionarios'], erp: ['erp'],
   },
+  deals: {
+    externalId: ['hash', 'id da oportunidade'], title: ['titulo', 'nome da oportunidade'], pipelineName: ['funil'], stageName: ['etapa'], situation: ['situacao'],
+    value: ['valor de p s', 'valor'], createdAt: ['data de cadastro', 'data de criacao'], closedAt: ['data de fechamento'], stageDays: ['lead timing da etapa', 'dias na etapa'],
+    ownerEmail: ['dono da oportunidade'], ownerName: ['nome do dono da oportunidade'], source: ['origem'], notes: ['observacoes'], description: ['descricao'], tags: ['tags'],
+    companyCnpj: ['cnpj empresa'], companyName: ['nome fantasia empresa', 'razao social empresa', 'nome da empresa'], personName: ['nome completo pessoa'], personEmail: ['e mail pessoa'],
+  },
   contacts: {
     fullName: ['nome completo', 'contato', 'nome'], firstName: ['primeiro nome'], lastName: ['sobrenome'], companyCnpj: ['cnpj'], companyName: ['empresa', 'razao social'],
     jobTitle: ['cargo'], department: ['departamento', 'area'], email: ['e mail', 'email'], phone: ['telefone', 'fone'], whatsapp: ['whatsapp', 'celular'],

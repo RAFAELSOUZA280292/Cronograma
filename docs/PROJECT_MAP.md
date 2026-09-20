@@ -364,7 +364,7 @@ usam `S.detailBox`.
   para Empresas" no canto esquerdo) — não é uma rota nova, só um atalho
   visual mais consistente.
 
-### CRM PRICETAX — Fases 1 a 3 + importação PipeRun (2026-09, `PROJECT_CONTEXT.md` §54–§57)
+### CRM PRICETAX — Fases 1 a 3 + importação PipeRun (2026-09, `PROJECT_CONTEXT.md` §54–§58)
 - **Backend `server/crm/`** (montado em `/api/crm` por `server/index.js`):
   `routes.js` (`createCrmRouter({ auth })`, auth injetável p/ teste; /me,
   /options, /overview, /search, /cnpj/:cnpj, /companies CRUD + check-duplicates
@@ -381,6 +381,7 @@ usam `S.detailBox`.
   `/board`, `/deals[/:id[/move|/audit]]`, `/products`.
   **Fase 3 (atividades)**: `activities.js` (create/update/complete/cancel/reopen/delete + notificação ao
   responsável) · `activityQueries.js` (lista com contadores, por empresa/negócio, bloco da Visão geral) ·
+  **Vários funis (§58)**: `funnels.js` (criar/renomear/padrão/arquivar funil, `saveStages`, `appendOpenStageTx`) · `dealImporter.js` (importação de negócios do PipeRun: prévia/gravação, idempotente por `external_id`) · rotas `/pipelines[/:id[/stages]]`, `/import/deals/*`.
   `scheduler.js` (lembretes a cada 10 min, iniciado em `server/index.js`) · `agendaFeed.js` (feed lido por
   `server/agenda.js`). Rotas `/activities[/:id[/complete|/cancel|/reopen]]`.
 - **Frontend `src/crm/`** (`React.lazy` em `App.jsx`): `CrmScreen.jsx` (shell +
@@ -389,7 +390,7 @@ usam `S.detailBox`.
   `import()` dinâmico), `BootstrapDialog`, `GlobalSearch`, `ui.jsx`,
   `crmMeta.js` (rótulos + `CRM_CSS`), `crmApi.js`, `importMapping.js` (reconhecimento de colunas do assistente, puro/testável). **Fase 2**: `DealsPage` (Kanban+lista),
   `DealDrawer`, `DealForm`, `CloseDealDialog`, `ProductsPage`; `CompanyDrawer` ganhou aba
-  Negócios e botão de upsell; `OverviewPage` ganhou bloco Funil. **Fase 3**: `AgendaPage`, `ActivityList`,
+  Negócios e botão de upsell; `OverviewPage` ganhou bloco Funil. **§58**: `FunnelsAdmin` (funis e etapas), `DealImportWizard` (importar negócios + CSV dos que ficam de fora), seletor de funil em `DealsPage`/`DealForm`. **Fase 3**: `AgendaPage`, `ActivityList`,
   `ActivityForm`; aba Atividades na ficha da empresa, "Próximos passos" na do negócio, sino no topo;
   `App.jsx` trata `target.kind==='crm_activity'` (`pendingCrmOpen`); `Agenda.jsx`/`RenataAgendaBriefing.jsx` ganharam a fonte `crm_activity`.
 - **Toques em arquivos existentes (aditivos)**: `App.jsx` (`hasCrm`, modo
@@ -443,7 +444,7 @@ anexos são base64 inline no PATCH do projeto (ver §9, ponto de atenção).
 | `crm_company_projects` | Vínculo empresa CRM ↔ projeto do cronograma (`project_id` UNIQUE; vários projetos por empresa). CRM só LÊ `projects.data` | `company_id → crm_companies.id`, `project_id → projects.id` |
 | `crm_timeline_events` / `crm_audit_logs` | Histórico de negócio e auditoria campo a campo — **append-only por trigger** (`crm_block_history_mutation` barra UPDATE/DELETE); limpeza de teste exige `DISABLE TRIGGER USER` | `company_id → crm_companies.id` |
 | `crm_pipelines` / `crm_pipeline_stages` | CRM Fase 2 (§55) — funil padrão por org criado sob demanda (7 etapas, prob. por etapa, `kind` open/won/lost); índice único parcial = 1 padrão por org | `pipeline_id → crm_pipelines.id` |
-| `crm_deals` / `crm_deal_items` | Negócios (Lead = 1ª etapa; `deal_type` new/upsell; `status` open/won/lost; soft delete). Itens guardam retrato de nome e preço | `company_id → crm_companies.id`, `stage_id → crm_pipeline_stages.id`; itens → `crm_products` |
+| `crm_deals` / `crm_deal_items` | Negócios (§58: `external_source`/`external_id` = ID no sistema de origem, índice único parcial p/ reimportar sem duplicar) (Lead = 1ª etapa; `deal_type` new/upsell; `status` open/won/lost; soft delete). Itens guardam retrato de nome e preço | `company_id → crm_companies.id`, `stage_id → crm_pipeline_stages.id`; itens → `crm_products` |
 | `crm_activities` | CRM Fase 3 (§56) — atividades/follow-ups presas a uma empresa (negócio e contato opcionais, da mesma empresa); `due_notified_at` = carimbo do lembrete do agendador; soft delete | `company_id → crm_companies.id`, `deal_id → crm_deals.id`, `contact_id → crm_contacts.id`, `owner_id → users.id` |
 | `crm_products` | Catálogo de produtos/serviços (preço de tabela, cobrança, ativo) | `org_id → organizations.id` |
 | `crm_deal_stage_history` | 1 linha por mudança de etapa (dias na anterior) — **append-only por trigger**; base de aging/conversão da Fase 4 | `deal_id → crm_deals.id` |

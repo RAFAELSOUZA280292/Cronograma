@@ -8,7 +8,8 @@ import { dealsForCompany, dealsOverview, searchDeals } from './dealQueries.js';
 import { activitiesForCompany, activitiesOverview } from './activityQueries.js';
 import { INTERACTION_TYPES } from './activities.js';
 import { listProducts, BILLING } from './products.js';
-import { DEAL_TYPE_LABELS, LOST_REASONS } from './pipeline.js';
+import { DEAL_TYPE_LABELS, SELECTABLE_LOST_REASONS } from './pipeline.js';
+import { listPipelines } from './funnels.js';
 import { COMPANY_SELECT, CONTACT_SELECT, mapCompany, mapContact, isUuid, todayBR, SOURCES, TAX_REGIMES, COMPANY_SIZES, ENUMS, RELATIONSHIP_LABELS } from './service.js';
 
 const SP_DATE = `to_char((now() AT TIME ZONE 'America/Sao_Paulo')::date,'YYYY-MM-DD')`;
@@ -204,7 +205,8 @@ export async function options(orgId) {
     sources: SOURCES, taxRegimes: TAX_REGIMES, companySizes: COMPANY_SIZES, enums: ENUMS,
     segments: segs.map((r) => r.segment), owners,
     products: await listProducts(orgId),
-    lostReasons: Object.entries(LOST_REASONS).map(([value, label]) => ({ value, label })),
+    lostReasons: SELECTABLE_LOST_REASONS,
+    pipelines: (await listPipelines(orgId)).map((p) => ({ id: p.id, name: p.name, isDefault: p.isDefault })),
     dealTypes: Object.entries(DEAL_TYPE_LABELS).map(([value, label]) => ({ value, label })),
     billing: Object.entries(BILLING).map(([value, label]) => ({ value, label })),
   };

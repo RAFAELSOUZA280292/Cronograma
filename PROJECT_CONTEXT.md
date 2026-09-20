@@ -5948,8 +5948,89 @@ simulado): ficha com o bloco novo, assistente lendo o arquivo real até a tela d
 - As 12 linhas sem nome (incl. o cliente da linha 18) precisam ser corrigidas no PipeRun.
 - Origem e Porte não vêm no export de empresas (ficam em branco). "Forma de Tributação" e as
   perguntas de porte/faturamento/funcionários vieram vazias.
-- **Passo 2 (vários funis + importador de negócios) e Passo 3 (atividades) ainda não feitos.** O
-  importador de negócios depende das empresas já estarem no CRM (casa por CNPJ/nome).
+- Passo 2 (vários funis + importador de negócios) feito em §58. Passo 3 (atividades) aguarda reexport.
+
+## 58. CRM PRICETAX — Vários funis + importador de negócios do PipeRun (2026-09-20)
+
+**Passo 2 do plano de migração do PipeRun** (§57). Aprovado ("sim para tudo", "ok, faça"): manter os 6
+funis separados; negócio sem empresa fica de fora e volta em lista; Lixeira descartada; Congelada entra
+como "em aberto, parada".
+
+### Vários funis (`server/crm/funnels.js`, `pipeline.js`)
+- Antes: 1 funil fixo por org. Agora: **N funis** por org, com **etapas editáveis**. `crm_deals.pipeline_id`
+  já existia — nada de migração de dado. Um funil é o **padrão** (recebe negócio novo e abre primeiro);
+  índice único parcial garante 1 padrão por org.
+- Regras: cada funil tem ≥1 etapa aberta + **Ganho** e **Perdido** (sempre no fim, fixos, nomes
+  reservados); **etapa com negócio não pode ser removida** (409); etapa removida é **arquivada**
+  (`deleted_at`), nunca apagada — `crm_deal_stage_history` aponta pra ela; funil com negócios não
+  arquiva (409) e o padrão não arquiva (409). Nome de funil/etapa único. Tudo auditado (`entity_type='pipeline'`).
+- Etapas de funil criado pela importação: ordem **estimada** por uma lista de nomes conhecidos (o export
+  não traz a ordem) e probabilidade espalhada de 10% a 80%; o Rafael reordena na tela.
+- Permissão nova **`funnel`** (admin/diretor/gestor); todos leem. `crmCapabilities` devolve `funnel`.
+- Rotas: `GET/POST /pipelines`, `PATCH/DELETE /pipelines/:id`, `POST /pipelines/:id/stages`
+  (POST porque `lib/api.js` não tem PUT). `board`, `deals` e `pipeline` aceitam `pipelineId`
+  (funil inexistente/arquivado cai no padrão). `createDeal` aceita `pipelineId`. `options` traz `pipelines`.
+- **Sem mudança de CHECK constraint**: "Congelada" não virou status novo (evita a classe de incidente do §38).
+- Motivo de perda novo **"Não informado (importado)"** (`nao_informado`): só existe para perdidos
+  importados; fica **fora das listas de escolha** e o `moveDeal` recusa usá-lo manualmente.
+
+### Importador de negócios (`server/crm/dealImporter.js`)
+`POST /import/deals/preview|commit` (permissão `import`, gestor+). Mesmo desenho do importador de
+empresas: prévia não grava; a gravação **reclassifica** no servidor. Linha por linha:
+- **Lixeira** → descartada. **Sem empresa** (sem CNPJ e sem nome, ou nome-coringa "Nome não informado") →
+  fica de fora. **Empresa que não está no CRM** → fica de fora (importar as empresas antes; casa por
+  CNPJ, senão por nome exato). **Já importado** (ID repetido) → ignorado. **Inválida** → situação/ID/
+  título/funil/etapa ausentes.
+- Situação: Aberta/Congelada → aberto (a Congelada ganha uma linha na descrição); Ganha → ganho; Perdida → perdido.
+- **Datas originais preservadas**: `created_at` = data de cadastro; `closed_at` = data de fechamento (ganhos/
+  perdidos); `stage_entered_at` = hoje − "Lead-Timing da etapa" (dias) — por isso o card mostra "283 dias
+  parado". Ano de 2 dígitos tratado (§57). Data/valor ruim vira aviso, não derruba a linha.
+- **Idempotente**: `crm_deals.external_source='piperun'` + `external_id` (=Hash) com índice único parcial
+  `(org_id, external_source, external_id)`; reimportar o mesmo arquivo não cria nada.
+- Funil/etapa inexistentes são **criados** (funil com etapas ordenadas; etapa nova em funil existente entra
+  no fim das abertas). Ganho/perdido ficam nas etapas de fechamento; o histórico guarda a **última etapa**
+  (`Contrato → Ganho`). Histórico de etapas é parcial (o export não dá o caminho todo).
+- **Dono** casa por e-mail (senão por nome) com usuário da org; não encontrado → o assistente pede a
+  escolha (`ownerMap`), validada contra a org (usuário de outra org é recusado → sem dono).
+- **Pessoa** vira contato da empresa (dedupe por e-mail/nome) e **contato principal do negócio**;
+  **Observações** viram nota do negócio; **Tags** e origem ficam na descrição/`source`.
+- **Ganho promove** prospect/ex-cliente a cliente com `client_since` = **data do fechamento** (não hoje).
+- Auditoria + timeline (`deal_created` com `imported:true`) por negócio.
+
+### Frontend
+`FunnelsAdmin` (botão **Funis**: criar, renomear, padrão, arquivar, reordenar/renomear/probabilidade/
+adicionar/remover etapa; remover trava se houver negócio); `DealsPage` ganhou **seletor de funil**
+(lembrado no navegador; na lista há "Todos os funis") e o botão **Importar negócios**;
+`DealImportWizard` (arquivo → colunas → conferir [funis a criar, donos, promoções, tabela com filtro] →
+resultado) com **CSV da lista dos que ficaram de fora** (`;`, BOM, cabeçalhos em português);
+`DealForm` escolhe o funil; `importMapping.js` ganhou os sinônimos de negócios.
+
+### O que o arquivo real mostrou (importante para o Rafael)
+Das 305 oportunidades: **13 Lixeira, 156 sem empresa** (143 sem CNPJ/nome + 13 "Nome não informado"),
+**136 importáveis** (89 abertas, 34 perdidas, 11 ganhas, 2 congeladas). Ficam de fora **13 das 24 ganhas e
+36 das 70 perdidas** (sem empresa) — o histórico de receita do PipeRun fica **muito incompleto**. 75 dos
+156 sem empresa têm pelo menos uma pessoa de contato (possível "empresa provisória por pessoa" —
+decisão do Rafael, não implementada). As 11 ganhas importáveis são de empresas que já eram clientes
+(0 promoções). Como todo negócio importado nasce sem atividade, a Visão geral lista ~134 "sem próximo passo".
+
+### Verificação
+Arquivos REAIS (empresas → 2 arquivos de oportunidades) em org descartável: 116 asserções (cada regra
+contra um cálculo independente na planilha: datas, situação, fechamento, dias na etapa, valor, dono,
+contato, nota, promoção, histórico, reimportação, quadro/lista por funil, mover/reabrir) + parte sintética
+(ganho promove com a data do fechamento, funil/etapa novos, data/valor ruins, ID repetido, sem situação,
+empresa inexistente). Rotas por papel: 26. UI (simulada): assistente com o arquivo real (19 colunas
+reconhecidas, 134 novas, donos, CSV de 140 linhas), seletor de funil, "Funis" (reordenar/renomear/salvar,
+remover travado com negócios). Bugs achados pelos testes e corrigidos: SQL com parâmetro não usado,
+mesmo parâmetro como texto e data, "Nome não informado" tratado como empresa "não encontrada".
+
+### Limites / a fazer
+- **A importação em produção é do Rafael** (empresas primeiro, depois Negócios → Importar negócios).
+- Depois de importar, o funil **padrão** ("Funil comercial") fica vazio: definir outro como padrão em
+  Funis (o vazio pode então ser arquivado).
+- Ordem/probabilidade das etapas dos funis criados é estimativa — revisar em Funis.
+- Sem mover negócio entre funis; sem editar cor da etapa; sem restaurar funil/etapa arquivados pela tela.
+- Histórico de etapas anterior à importação e motivo de perda não existem no export.
+- **Passo 3 (atividades/pessoas/chamadas)** aguarda reexport com dados.
 
 ## 19. Onde procurar mais detalhe
 

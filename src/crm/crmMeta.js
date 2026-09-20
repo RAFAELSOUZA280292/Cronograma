@@ -270,6 +270,7 @@ export const CRM_CSS = `
   .crm-path-row { display:flex; justify-content:space-between; gap:10px; font-size:12.5px; color:var(--text-3); padding:6px 0; border-bottom:1px solid var(--border-1); }
   .crm-path-row:last-child { border-bottom:none; }
   .crm-num { font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
+  .crm-table.crm-first-narrow th:first-child, .crm-table.crm-first-narrow td:first-child { min-width:0; width:64px; }
   .crm-act { display:flex; gap:10px; align-items:flex-start; padding:10px 4px; border-bottom:1px solid var(--border-1); }
   .crm-act:last-child { border-bottom:none; }
   .crm-act-ico { flex-shrink:0; width:30px; height:30px; border-radius:8px; background:var(--bg-3); color:var(--text-4); display:flex; align-items:center; justify-content:center; }

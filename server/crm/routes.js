@@ -22,6 +22,8 @@ import * as DQ from './dealQueries.js';
 import * as P from './products.js';
 import * as A from './activities.js';
 import * as AQ from './activityQueries.js';
+import * as F from './funnels.js';
+import * as DI from './dealImporter.js';
 import { mapCnpjSuggestion } from './cnpjSuggestion.js';
 
 const need = (cap) => (req, res, next) => {
@@ -109,7 +111,14 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
   router.delete('/contacts/:id', need('write'), h(async (req, res) => res.json(await S.deleteContact(orgOf(req), actorOf(req), req.params.id))));
 
   // ---- negócios / pipeline (Fase 2)
-  router.get('/pipeline', h(async (req, res) => res.json(await DQ.getPipeline(orgOf(req)))));
+  router.get('/pipeline', h(async (req, res) => res.json(await DQ.getPipeline(orgOf(req), req.query.pipelineId || null))));
+
+  // ---- funis e etapas (Fase 2b): todos leem; gestor+ configura
+  router.get('/pipelines', h(async (req, res) => res.json({ pipelines: await F.listPipelines(orgOf(req)) })));
+  router.post('/pipelines', need('funnel'), h(async (req, res) => res.status(201).json({ pipelines: await F.createPipeline(orgOf(req), actorOf(req), req.body || {}) })));
+  router.patch('/pipelines/:id', need('funnel'), h(async (req, res) => res.json({ pipelines: await F.updatePipeline(orgOf(req), actorOf(req), req.params.id, req.body || {}) })));
+  router.delete('/pipelines/:id', need('funnel'), h(async (req, res) => res.json({ pipelines: await F.deletePipeline(orgOf(req), actorOf(req), req.params.id) })));
+  router.post('/pipelines/:id/stages', need('funnel'), h(async (req, res) => res.json({ pipelines: await F.saveStages(orgOf(req), actorOf(req), req.params.id, (req.body || {}).stages) })));
   router.get('/board', h(async (req, res) => res.json(await DQ.getBoard(orgOf(req), req.query))));
   router.get('/deals', h(async (req, res) => res.json(await DQ.listDeals(orgOf(req), req.query))));
   router.post('/deals', need('write'), h(async (req, res) => res.status(201).json({ deal: await D.createDeal(orgOf(req), actorOf(req), req.body || {}) })));
@@ -150,6 +159,12 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
   router.post('/import/commit', need('import'), h(async (req, res) => {
     const { target, rows, includePossibleDuplicates } = req.body || {};
     res.json(await I.commitImport(orgOf(req), actorOf(req), target === 'contacts' ? 'contacts' : 'companies', rows, { includePossibleDuplicates: !!includePossibleDuplicates }));
+  }));
+  router.get('/import/deals/fields', need('import'), (req, res) => res.json({ fields: DI.DEAL_IMPORT_FIELDS, maxRows: I.MAX_IMPORT_ROWS }));
+  router.post('/import/deals/preview', need('import'), h(async (req, res) => res.json(await DI.previewDealImport(orgOf(req), (req.body || {}).rows))));
+  router.post('/import/deals/commit', need('import'), h(async (req, res) => {
+    const { rows, ownerMap } = req.body || {};
+    res.json(await DI.commitDealImport(orgOf(req), actorOf(req), rows, { ownerMap: ownerMap && typeof ownerMap === 'object' ? ownerMap : {} }));
   }));
   router.get('/bootstrap/preview', need('import'), h(async (req, res) => res.json(await BS.previewBootstrap(orgOf(req)))));
   router.post('/bootstrap/commit', need('import'), h(async (req, res) => {

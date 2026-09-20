@@ -19,13 +19,15 @@ function fromDeal(d) {
   };
 }
 
-export default function DealForm({ initial, company, defaultType, options, currentUserId, onSaved, onCancel }) {
+export default function DealForm({ initial, company, defaultType, defaultPipelineId, options, currentUserId, onSaved, onCancel }) {
   const editing = !!(initial && initial.id);
   const [form, setForm] = useState(() => (editing ? fromDeal(initial) : {
     title: '', dealType: defaultType || 'new', value: '', expectedCloseDate: '', probabilityOverride: '', ownerId: currentUserId || '', primaryContactId: '', source: '', description: '',
   }));
   const [items, setItems] = useState(() => (editing && initial.items ? initial.items.map((i) => ({ productId: i.productId || CUSTOM, name: i.name, quantity: String(i.quantity), unitPrice: numStr(i.unitPrice) })) : []));
   const [picked, setPicked] = useState(company || (editing ? { id: initial.companyId, legalName: initial.companyName, relationship: initial.companyRelationship } : null));
+  const pipelines = (options && options.pipelines) || [];
+  const [pipelineId, setPipelineId] = useState(() => (defaultPipelineId && pipelines.some((p) => p.id === defaultPipelineId) ? defaultPipelineId : ((pipelines.find((p) => p.isDefault) || pipelines[0] || {}).id || '')));
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -77,7 +79,7 @@ export default function DealForm({ initial, company, defaultType, options, curre
     setBusy(true);
     try {
       if (editing) onSaved((await crm.updateDeal(initial.id, body)).deal);
-      else onSaved((await crm.createDeal({ ...body, companyId: picked.id })).deal);
+      else onSaved((await crm.createDeal({ ...body, companyId: picked.id, ...(pipelineId ? { pipelineId } : {}) })).deal);
     } catch (e) { setError(e.message || 'Não foi possível salvar.'); } finally { setBusy(false); }
   }
 
@@ -103,6 +105,13 @@ export default function DealForm({ initial, company, defaultType, options, curre
           )}
         </Field>
         <Field label="Título do negócio *" full><input value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="Ex.: Diagnóstico da Reforma Tributária" autoFocus={!!picked && !editing} /></Field>
+        {!editing && pipelines.length > 1 && (
+          <Field label="Funil" full>
+            <select value={pipelineId} onChange={(e) => setPipelineId(e.target.value)}>
+              {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}{p.isDefault ? ' (padrão)' : ''}</option>)}
+            </select>
+          </Field>
+        )}
         <Field label="Tipo">
           <select value={form.dealType} onChange={(e) => set('dealType', e.target.value)}>
             <option value="new">Novo negócio</option>

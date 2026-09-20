@@ -1075,6 +1075,12 @@ export async function initDb() {
     await pool.query(`ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS ${col} ${ddl}`);
   }
 
+  // CRM — importação de negócios do PipeRun (2026-09-20, §58): identificador de origem
+  // do negócio, pra reimportar o mesmo arquivo sem duplicar. Só ADD COLUMN + índice.
+  await pool.query(`ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS external_source TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS external_id TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS crm_deals_external_uidx ON crm_deals(org_id, external_source, external_id) WHERE external_id <> ''`);
+
   // CRM — Fase 3 (2026-09-20, PROJECT_CONTEXT.md §56): atividades/follow-ups.
   // Sempre presas a uma empresa (o "hub"); opcionalmente a um negócio e a um
   // contato. due_notified_at é o carimbo do lembrete: o agendador só avisa quem
