@@ -5611,6 +5611,98 @@ topo). O nome da aba herda cor/peso da aba (`color: inherit`). Vale pras abas
 próprias, pra aba de quadro compartilhado (§52) e pra aba única da página
 pública. Conferido nos dois temas com a paleta real do `index.html`.
 
+## 54. CRM PRICETAX — Fase 1: Fundação + Empresas/Contatos/Ficha 360 (2026-09-20)
+
+**Pedido do Rafael**: nova aba de workspace "CRM" (PRD de 76 itens, dividido em
+6 fases). Regra dura: **somente agregar, nada do que já funciona é
+substituído**. A EMPRESA é o centro; Lead vira cliente e cliente de outro
+projeto pode virar Lead de upsell (o "status de relacionamento" é separado do
+Lead — Lead é o 1º estágio de um Negócio, que chega na Fase 2).
+
+### Plano de fases (acordado)
+F1 Fundação (esta) · F2 Negócios+Pipeline+Produtos (+ "Criar oportunidade de
+upsell", mesmo Kanban) · F3 Atividades/Agenda/Reuniões/Notificações ·
+F4 Inteligência (KPIs, saúde, lead score/ICP, forecast, metas, perdas) ·
+F5 Propostas/Contratos/Renovações/Upsell + automações · F6 IA/integrações/
+relatórios/permissões finas.
+
+### O que a Fase 1 entrega
+Aba **CRM** no seletor de workspace (`WorkspaceGateScreen`, ícone Briefcase,
+`mode==='crm'`, lazy) com 3 submenus: **Visão geral** (6 KPIs), **Empresas**
+(lista, filtros, busca, criar/editar/excluir/restaurar, importar, bootstrap) e
+**Contatos**; **Ficha 360** em drawer (Visão geral com completude, Contatos
+com mapa de stakeholders, Histórico = notas + linha do tempo, Projetos
+vinculados, Auditoria só pra quem tem `remove`); **busca global**; **importação
+xlsx/csv** com mapeamento automático e prévia; **bootstrap** dos clientes que
+já estão no painel.
+
+### Banco (`server/db.js`, final de `initDb()`, tudo aditivo)
+`users.crm_role`; tabelas relacionais `crm_companies`, `crm_company_projects`,
+`crm_contacts`, `crm_notes`, `crm_timeline_events`, `crm_audit_logs` — todas com
+`org_id`, UUID (`crypto.randomUUID()`), soft delete (`deleted_at/by`) e
+created/updated by/at. `crm_companies`: índice único parcial `(org_id, cnpj)
+WHERE cnpj<>'' AND deleted_at IS NULL`. `crm_company_projects.project_id` é
+UNIQUE (um projeto pertence a uma empresa CRM; uma empresa CRM pode ter vários
+projetos). **`crm_timeline_events` e `crm_audit_logs` são append-only por
+trigger Postgres** (`crm_block_history_mutation` bloqueia UPDATE/DELETE) —
+limpeza de teste exige `ALTER TABLE ... DISABLE TRIGGER USER` e religar.
+
+### Regras (server/crm/)
+- **Camada de serviço** (`service.js`): toda escrita = dado + auditoria campo a
+  campo + evento de timeline **na mesma transação**. Rotas nunca escrevem direto.
+- **Permissões** (`permissions.js`): `users.crm_role` ∈ admin/diretor/gestor/
+  vendedor/consultor/financeiro/visualizacao. master e super admin = admin
+  automático; role `cliente` nunca acessa; demais precisam de `crm_role`.
+  Capacidades read/write/remove/import/admin. **Vendedor edita, não remove nem
+  importa.** `rowToUser` devolve `crmRole` e `crmAccess`; atribuição em
+  Usuários → "Acesso ao CRM" (`PATCH /users/:id` aceita `crmRole`).
+- **Duplicidade** (`duplicates.js`): CNPJ igual = bloqueio (409 sem `force`);
+  nome ≥85% similar (JS sobre as empresas da org, sem pg_trgm), e-mail ou
+  telefone (últimos 9 dígitos) de contato = aviso (409 com confirmação
+  "Salvar mesmo assim" → `force`). CNPJ validado por dígito verificador.
+- **Vínculo empresa↔projeto**: vincular promove prospect/ex-cliente → cliente e
+  preenche `clientSince`. O CRM **só LÊ** `projects.data` (verificado: hash da
+  tabela `projects` idêntico antes/depois do bootstrap).
+- **Última interação** (F1) = maior data entre nota e reunião passada dos
+  projetos vinculados. **Completude** = 8 itens de peso igual (CNPJ, segmento,
+  regime, ERP, decisor, contato principal, faturamento, interação). 1º contato
+  vira principal automaticamente.
+- **Importação**: arquivo lido no navegador (xlsx.mini em chunk lazy), linhas
+  mapeadas vão pra `/import/preview` e `/import/commit` (servidor reclassifica;
+  máx. 2000 linhas). **Bootstrap** (`bootstrap.js`) agrupa projetos existentes
+  por CNPJ, revisável antes de gravar, contatos opcionais vindos de `areas`.
+- `createCrmRouter({ auth })` recebe a autenticação por injeção (testes com
+  auth falsa, sem forjar sessão).
+
+### Frontend (`src/crm/`, carregado com `React.lazy`)
+`CrmScreen` (default export), `CompaniesPage`, `ContactsPage`, `OverviewPage`,
+`CompanyDrawer`, `CompanyForm`, `ContactForm`, `ImportWizard`,
+`BootstrapDialog`, `GlobalSearch`, `ui.jsx`, `crmMeta.js` (rótulos + bloco CSS
+`.crm-*`), `crmApi.js`. Formulários com estado local e "Salvar" explícito;
+modais renderizados fora do overlay do drawer. Bundle principal praticamente
+igual ao pré-CRM (1.519 KB vs 1.516 KB); CRM = chunk de 76 KB + xlsx.mini
+(231 KB) só ao clicar/importar. `lib/api.js` agora anexa `err.data` (corpo
+completo do erro — necessário pra ler a lista de duplicados).
+
+### Decisões que eu tomei (Rafael só disse "Começa")
+Submenu chama-se "Empresas"; clientes já existentes no painel entram como
+"Cliente" via bootstrap revisável; modelo de pipeline único (preparado pra
+vários) na F2.
+
+### Verificação e LIMITES (honesto)
+Testado: serviço (99 asserções), HTTP com auth falsa por papel (44: 401/403/
+409/400/404, matriz de papéis, isolamento por org), triggers append-only, UI
+completa em harness com login/fetch simulados (lista, ficha 360, mapa de
+stakeholders, nota→timeline, bloqueio de CNPJ duplicado, aviso de nome
+parecido, import xlsx, bootstrap, visibilidade por papel, cartão do CRM
+aparece/some e chunk só carrega ao clicar). **NÃO testado**: login real / banco
+de produção, o select "Acesso ao CRM" no EditUserModal (só compila),
+layout mobile e tema escuro do CRM.
+
+### Pendências / próximas fases
+F2 (Negócios/Pipeline/Produtos/upsell) aguarda go-ahead. Descoberta lateral não
+mexida: navTags 'knowledge'/'pareceres' caem em 'company' no `locationTag`.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
