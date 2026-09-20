@@ -78,7 +78,33 @@ export const TIMELINE_KIND = {
   company_created: 'Cadastro', company_updated: 'Cadastro', relationship_changed: 'Relação', company_deleted: 'Cadastro', company_restored: 'Cadastro',
   contact_added: 'Contato', contact_updated: 'Contato', contact_removed: 'Contato', note_added: 'Nota', note_removed: 'Nota',
   project_linked: 'Projeto', project_unlinked: 'Projeto',
+  deal_created: 'Negócio', deal_updated: 'Negócio', deal_stage_changed: 'Negócio', deal_won: 'Ganho', deal_lost: 'Perda', deal_reopened: 'Negócio', deal_deleted: 'Negócio',
 };
+
+// Negócios (Fase 2). Cor só marca situação/risco; a etapa usa a cor do funil só num ponto.
+export const DEAL_TYPE_META = { new: { label: 'Novo negócio', color: '#3ea6ff' }, upsell: { label: 'Upsell', color: '#b98af5' } };
+export const DEAL_STATUS_META = { open: { label: 'Em aberto', color: 'var(--text-5)' }, won: { label: 'Ganho', color: '#3ecf6e' }, lost: { label: 'Perdido', color: '#e2574c' } };
+export const BILLING_LABELS = { one_time: 'Projeto (pontual)', recurring: 'Recorrente (mensal)' };
+
+// Parado no funil é sinal de ação (Fase 4 traz o aging de verdade por etapa).
+export function stageAgeColor(days) {
+  if (days == null) return 'var(--text-6)';
+  if (days > 30) return '#e2574c';
+  if (days > 14) return '#ff9f40';
+  return 'var(--text-6)';
+}
+
+// Aceita "20000", "20.000,00", "20.000" (milhar BR) e "R$ 1.500,50". Vazio => null; inválido => NaN.
+export function moneyToNumber(v) {
+  if (v == null) return null;
+  if (typeof v === 'number') return v;
+  let s = String(v).replace(/R\$|\s/g, '');
+  if (!s) return null;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  const n = Number(s);
+  return Number.isFinite(n) ? n : NaN;
+}
 
 export const CRM_CSS = `
   .crm-shell *, .crm-drawer *, .crm-modal * { box-sizing: border-box; }
@@ -198,4 +224,35 @@ export const CRM_CSS = `
   .crm-spin { animation: crm-spin 1s linear infinite; }
   @media (prefers-reduced-motion: reduce) { .crm-spin { animation: none; } }
   .crm-status { font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:999px; }
+  .crm-seg { display:inline-flex; border:1px solid var(--border-2); border-radius:8px; overflow:hidden; }
+  .crm-seg button { display:inline-flex; align-items:center; gap:5px; padding:6px 11px; font-size:12px; font-weight:700; background:transparent; color:var(--text-5); border:none; cursor:pointer; font-family:inherit; }
+  .crm-seg button + button { border-left:1px solid var(--border-2); }
+  .crm-seg button.active { background:var(--bg-3); color:var(--text-1); }
+  .crm-board { display:flex; gap:12px; overflow-x:auto; padding-bottom:14px; align-items:flex-start; }
+  .crm-col { flex:0 0 272px; background:var(--bg-2); border:1px solid var(--border-1); border-radius:12px; display:flex; flex-direction:column; max-height:calc(100vh - 260px); min-height:120px; }
+  .crm-col.over { outline:2px dashed #F5C400; outline-offset:-3px; }
+  .crm-col-head { padding:10px 12px 9px; border-bottom:1px solid var(--border-1); }
+  .crm-col-title { display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:800; color:var(--text-1); }
+  .crm-col-count { margin-left:auto; font-size:11px; font-weight:800; color:var(--text-5); background:var(--bg-3); border-radius:999px; padding:1px 8px; }
+  .crm-col-sum { font-size:11px; color:var(--text-6); margin-top:3px; font-variant-numeric:tabular-nums; }
+  .crm-col-body { padding:8px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; flex:1; }
+  .crm-col-empty { font-size:11.5px; color:var(--text-6); text-align:center; padding:14px 6px; }
+  .crm-deal { background:var(--bg-1); border:1px solid var(--border-1); border-radius:10px; padding:10px 11px; cursor:pointer; text-align:left; width:100%; font-family:inherit; color:inherit; }
+  .crm-deal[draggable="true"] { cursor:grab; }
+  .crm-deal:hover, .crm-deal:focus-visible { border-color:var(--border-3); outline:none; }
+  .crm-deal.dragging { opacity:.4; }
+  .crm-deal-title { font-size:12.5px; font-weight:800; color:var(--text-1); overflow-wrap:anywhere; }
+  .crm-deal-co { font-size:11.5px; color:var(--text-5); margin-top:2px; overflow-wrap:anywhere; }
+  .crm-deal-meta { display:flex; justify-content:space-between; align-items:center; gap:6px; margin-top:8px; font-size:11.5px; color:var(--text-5); }
+  .crm-deal-value { font-weight:800; color:var(--text-1); font-variant-numeric:tabular-nums; font-size:12.5px; }
+  .crm-tags { display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; }
+  .crm-tag { font-size:10px; font-weight:800; padding:1px 7px; border-radius:999px; border:1px solid currentColor; white-space:nowrap; }
+  .crm-items-row { display:grid; grid-template-columns:minmax(0,1fr) 78px 118px 30px; gap:8px; align-items:center; margin-bottom:8px; }
+  .crm-items-row input, .crm-items-row select { width:100%; padding:7px 9px; font-size:12.5px; border-radius:8px; }
+  @media (max-width: 640px) { .crm-items-row { grid-template-columns:minmax(0,1fr) 64px 100px 30px; } .crm-col { flex-basis:78vw; } }
+  .crm-total { display:flex; justify-content:space-between; font-size:13px; font-weight:800; color:var(--text-1); padding-top:8px; border-top:1px solid var(--border-1); font-variant-numeric:tabular-nums; }
+  .crm-path { display:flex; flex-direction:column; gap:6px; }
+  .crm-path-row { display:flex; justify-content:space-between; gap:10px; font-size:12.5px; color:var(--text-3); padding:6px 0; border-bottom:1px solid var(--border-1); }
+  .crm-path-row:last-child { border-bottom:none; }
+  .crm-num { font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
 `;

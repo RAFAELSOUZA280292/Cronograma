@@ -17,6 +17,9 @@ import * as S from './service.js';
 import * as Q from './queries.js';
 import * as I from './importer.js';
 import * as BS from './bootstrap.js';
+import * as D from './deals.js';
+import * as DQ from './dealQueries.js';
+import * as P from './products.js';
 import { mapCnpjSuggestion } from './cnpjSuggestion.js';
 
 const need = (cap) => (req, res, next) => {
@@ -102,6 +105,23 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
     res.json({ contact: await S.updateContact(orgOf(req), actorOf(req), req.params.id, input, { force: !!force }) });
   }));
   router.delete('/contacts/:id', need('write'), h(async (req, res) => res.json(await S.deleteContact(orgOf(req), actorOf(req), req.params.id))));
+
+  // ---- negócios / pipeline (Fase 2)
+  router.get('/pipeline', h(async (req, res) => res.json(await DQ.getPipeline(orgOf(req)))));
+  router.get('/board', h(async (req, res) => res.json(await DQ.getBoard(orgOf(req), req.query))));
+  router.get('/deals', h(async (req, res) => res.json(await DQ.listDeals(orgOf(req), req.query))));
+  router.post('/deals', need('write'), h(async (req, res) => res.status(201).json({ deal: await D.createDeal(orgOf(req), actorOf(req), req.body || {}) })));
+  router.get('/deals/:id', h(async (req, res) => res.json(await DQ.getDealDetail(orgOf(req), req.params.id))));
+  router.patch('/deals/:id', need('write'), h(async (req, res) => res.json({ deal: await D.updateDeal(orgOf(req), actorOf(req), req.params.id, req.body || {}, { canEditClosed: crmCan(req.user, 'remove') }) })));
+  router.post('/deals/:id/move', need('write'), h(async (req, res) => res.json({ deal: await D.moveDeal(orgOf(req), actorOf(req), req.params.id, req.body || {}) })));
+  router.delete('/deals/:id', need('remove'), h(async (req, res) => res.json(await D.deleteDeal(orgOf(req), actorOf(req), req.params.id))));
+  router.get('/deals/:id/audit', need('remove'), h(async (req, res) => res.json({ logs: await Q.listAudit(orgOf(req), 'deal', req.params.id) })));
+
+  // ---- produtos (catálogo): todos leem; quem define o que se vende é gestor+
+  router.get('/products', h(async (req, res) => res.json({ products: await P.listProducts(orgOf(req), { includeInactive: req.query.all === 'true' && crmCan(req.user, 'catalog') }) })));
+  router.post('/products', need('catalog'), h(async (req, res) => res.status(201).json({ product: await P.createProduct(orgOf(req), actorOf(req), req.body || {}) })));
+  router.patch('/products/:id', need('catalog'), h(async (req, res) => res.json({ product: await P.updateProduct(orgOf(req), actorOf(req), req.params.id, req.body || {}) })));
+  router.delete('/products/:id', need('catalog'), h(async (req, res) => res.json(await P.deleteProduct(orgOf(req), actorOf(req), req.params.id))));
 
   // ---- notas
   router.post('/notes', need('write'), h(async (req, res) => res.status(201).json({ note: await S.addNote(orgOf(req), actorOf(req), req.body || {}) })));

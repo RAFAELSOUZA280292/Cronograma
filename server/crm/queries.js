@@ -4,6 +4,9 @@ import { CrmError } from './errors.js';
 import { onlyDigits, companyNameKey, personNameKey } from './text.js';
 import { companyCompleteness } from './completeness.js';
 import { projectSummary } from './projectSummary.js';
+import { dealsForCompany, dealsOverview, searchDeals } from './dealQueries.js';
+import { listProducts, BILLING } from './products.js';
+import { DEAL_TYPE_LABELS, LOST_REASONS } from './pipeline.js';
 import { COMPANY_SELECT, CONTACT_SELECT, mapCompany, mapContact, isUuid, todayBR, SOURCES, TAX_REGIMES, COMPANY_SIZES, ENUMS, RELATIONSHIP_LABELS } from './service.js';
 
 const SP_DATE = `to_char((now() AT TIME ZONE 'America/Sao_Paulo')::date,'YYYY-MM-DD')`;
@@ -91,7 +94,11 @@ export async function getCompanyOverview(orgId, id) {
   const today = todayBR();
   const projects = links.map((l) => ({ ...projectSummary(l.project_id, l.data, today), linkedAt: l.linked_at }));
   const notes = await listNotes(orgId, id);
+  const deals = await dealsForCompany(orgId, id);
+  const openDeals = deals.filter((d) => d.status === 'open');
   const kpis = {
+    openDeals: openDeals.length,
+    openDealsValue: openDeals.reduce((n, d) => n + d.value, 0),
     daysSinceInteraction: company.stats.daysSinceInteraction,
     contacts: company.stats.contactsCount,
     projects: projects.length,
@@ -100,16 +107,17 @@ export async function getCompanyOverview(orgId, id) {
     overdueTodos: projects.reduce((n, p) => n + p.overdueTodos, 0),
     meetings: projects.reduce((n, p) => n + p.meetings.count, 0),
   };
-  return { company, contacts: contacts.items, projects, notes, kpis };
+  return { company, contacts: contacts.items, projects, notes, deals, kpis };
 }
 
 export async function listNotes(orgId, companyId, { limit = 100 } = {}) {
   const { rows } = await pool.query(
     `SELECT n.id, n.entity_type, n.entity_id, n.body, n.created_at, n.created_by, u.name AS created_by_name,
-            CASE WHEN n.entity_type = 'contact' THEN (SELECT trim(k.first_name || ' ' || k.last_name) FROM crm_contacts k WHERE k.id = n.entity_id) END AS contact_name
+            CASE WHEN n.entity_type = 'contact' THEN (SELECT trim(k.first_name || ' ' || k.last_name) FROM crm_contacts k WHERE k.id = n.entity_id) END AS contact_name,
+            CASE WHEN n.entity_type = 'deal' THEN (SELECT d.title FROM crm_deals d WHERE d.id = n.entity_id) END AS deal_title
      FROM crm_notes n LEFT JOIN users u ON u.id = n.created_by
      WHERE n.org_id=$1 AND n.company_id=$2 AND n.deleted_at IS NULL ORDER BY n.created_at DESC LIMIT $3`, [orgId, companyId, limit]);
-  return rows.map((r) => ({ id: r.id, entityType: r.entity_type, entityId: r.entity_id, body: r.body, createdAt: r.created_at, createdBy: r.created_by, createdByName: r.created_by_name || '', contactName: r.contact_name || '' }));
+  return rows.map((r) => ({ id: r.id, entityType: r.entity_type, entityId: r.entity_id, body: r.body, createdAt: r.created_at, createdBy: r.created_by, createdByName: r.created_by_name || '', contactName: r.contact_name || '', dealTitle: r.deal_title || '' }));
 }
 
 export async function listContacts(orgId, f = {}) {
@@ -154,7 +162,7 @@ export async function listAudit(orgId, entityType, entityId, { limit = 100 } = {
 // Busca global (PRD 38) — Fase 1: empresas e contatos.
 export async function search(orgId, qRaw) {
   const q = String(qRaw || '').trim();
-  if (q.length < 2) return { companies: [], contacts: [] };
+  if (q.length < 2) return { companies: [], contacts: [], deals: [] };
   const key = companyNameKey(q);
   const digits = onlyDigits(q);
   const cParams = [orgId];
@@ -170,7 +178,9 @@ export async function search(orgId, qRaw) {
   const contacts = (await pool.query(
     `SELECT k.id, k.first_name, k.last_name, k.email, k.job_title, k.company_id, c.legal_name AS company_name FROM crm_contacts k JOIN crm_companies c ON c.id = k.company_id
      WHERE k.org_id=$1 AND k.deleted_at IS NULL AND c.deleted_at IS NULL AND (k.name_norm LIKE $2 OR lower(k.email) LIKE $3${phoneClause}) ORDER BY lower(k.first_name) LIMIT 8`, kParams)).rows;
+  const deals = await searchDeals(orgId, q);
   return {
+    deals,
     companies: companies.map((r) => ({ id: r.id, legalName: r.legal_name, tradeName: r.trade_name, cnpj: r.cnpj, relationship: r.relationship, city: r.city, state: r.state })),
     contacts: contacts.map((r) => ({ id: r.id, name: `${r.first_name} ${r.last_name}`.trim(), email: r.email, jobTitle: r.job_title, companyId: r.company_id, companyName: r.company_name })),
   };
@@ -184,6 +194,10 @@ export async function options(orgId) {
     relationships: Object.entries(RELATIONSHIP_LABELS).map(([value, label]) => ({ value, label })),
     sources: SOURCES, taxRegimes: TAX_REGIMES, companySizes: COMPANY_SIZES, enums: ENUMS,
     segments: segs.map((r) => r.segment), owners,
+    products: await listProducts(orgId),
+    lostReasons: Object.entries(LOST_REASONS).map(([value, label]) => ({ value, label })),
+    dealTypes: Object.entries(DEAL_TYPE_LABELS).map(([value, label]) => ({ value, label })),
+    billing: Object.entries(BILLING).map(([value, label]) => ({ value, label })),
   };
 }
 
@@ -202,7 +216,9 @@ export async function overview(orgId) {
     `SELECT t.id, t.company_id, t.summary, t.actor_name, t.occurred_at, c.legal_name FROM crm_timeline_events t JOIN crm_companies c ON c.id = t.company_id
      WHERE t.org_id=$1 AND c.deleted_at IS NULL ORDER BY t.occurred_at DESC LIMIT 12`, [orgId]);
   const brief = (c) => ({ id: c.id, legalName: c.legalName, tradeName: c.tradeName, relationship: c.relationship, daysSinceInteraction: c.stats.daysSinceInteraction, completeness: c.completeness.percent });
+  const deals = await dealsOverview(orgId);
   return {
+    deals,
     companiesByRelationship: Object.fromEntries(['prospect', 'client', 'former_client', 'partner'].map((k) => [k, (byRel.find((r) => r.relationship === k) || { n: 0 }).n])),
     totalCompanies: list.length, totalContacts: cc[0].n, avgCompleteness,
     noCnpj: list.filter((c) => !c.cnpj).length,

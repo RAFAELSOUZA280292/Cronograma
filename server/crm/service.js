@@ -81,6 +81,7 @@ export function parseNumberBR(v) {
 function sanitizeValue(field, raw, errors, opts) {
   const { type, label } = field;
   if (type === 'text') return String(raw == null ? '' : raw).trim().slice(0, 400);
+  if (type === 'longtext') return String(raw == null ? '' : raw).trim().slice(0, 3000);
   if (type === 'cnpj') {
     const d = onlyDigits(raw);
     if (!d) return '';
@@ -149,7 +150,7 @@ export const COMPANY_SELECT = `c.id, c.org_id, c.legal_name, c.trade_name, c.cnp
 export const CONTACT_SELECT = `k.id, k.org_id, k.company_id, k.first_name, k.last_name, k.job_title, k.department, k.email, k.phone, k.whatsapp, k.linkedin,
   k.influence, k.decision_role, k.relationship_strength, k.is_primary, k.created_at, k.updated_at, k.deleted_at, c.legal_name AS company_name, c.trade_name AS company_trade_name`;
 
-function mapBySpec(spec, row) {
+export function mapBySpec(spec, row) {
   const out = {};
   spec.forEach((f) => {
     let v = row[f.col];
@@ -184,7 +185,7 @@ function fullName(c) { return `${c.firstName || ''} ${c.lastName || ''}`.trim();
 
 // ---------- transação / auditoria / timeline ----------
 
-async function tx(fn) {
+export async function tx(fn) {
   const c = await pool.connect();
   try {
     await c.query('BEGIN');
@@ -199,14 +200,14 @@ async function tx(fn) {
   }
 }
 
-async function addAudit(c, { orgId, entityType, entityId, action, changes = [], actor }) {
+export async function addAudit(c, { orgId, entityType, entityId, action, changes = [], actor }) {
   await c.query(
     `INSERT INTO crm_audit_logs (id, org_id, entity_type, entity_id, action, changes, actor_id, actor_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
     [randomUUID(), orgId, entityType, entityId, action, JSON.stringify(changes), actor.id || null, actor.name || ''],
   );
 }
 
-async function addTimeline(c, { orgId, companyId, entityType, entityId = null, eventType, summary, data = {}, actor }) {
+export async function addTimeline(c, { orgId, companyId, entityType, entityId = null, eventType, summary, data = {}, actor }) {
   await c.query(
     `INSERT INTO crm_timeline_events (id, org_id, company_id, entity_type, entity_id, event_type, summary, data, actor_id, actor_name)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
@@ -214,7 +215,7 @@ async function addTimeline(c, { orgId, companyId, entityType, entityId = null, e
   );
 }
 
-function diffApi(spec, before, after) {
+export function diffApi(spec, before, after) {
   const changes = [];
   spec.forEach((f) => {
     const a = before[f.key] == null ? '' : before[f.key];
@@ -230,13 +231,13 @@ function fmtChangeValue(f, v) {
   return String(v);
 }
 
-async function assertUserInOrg(db, orgId, userId) {
+export async function assertUserInOrg(db, orgId, userId) {
   if (!userId) return;
   const { rows } = await db.query('SELECT 1 FROM users WHERE id=$1 AND org_id=$2', [userId, orgId]);
   if (!rows[0]) throw new CrmError(400, 'Responsável inválido.');
 }
 
-async function loadCompany(db, orgId, id, { lock = false, includeDeleted = false } = {}) {
+export async function loadCompany(db, orgId, id, { lock = false, includeDeleted = false } = {}) {
   const { rows } = await db.query(
     `SELECT ${COMPANY_SELECT} FROM crm_companies c WHERE c.id=$1 AND c.org_id=$2 ${includeDeleted ? '' : 'AND c.deleted_at IS NULL'} ${lock ? 'FOR UPDATE' : ''}`,
     [id, orgId],
@@ -245,7 +246,7 @@ async function loadCompany(db, orgId, id, { lock = false, includeDeleted = false
 }
 
 export function isUuid(v) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || '')); }
-function requireUuid(v, what = 'registro') { if (!isUuid(v)) throw new CrmError(404, `${what} não encontrado(a).`); }
+export function requireUuid(v, what = 'registro') { if (!isUuid(v)) throw new CrmError(404, `${what} não encontrado(a).`); }
 
 function mapDbError(e) {
   if (e && e.code === '23505') return new CrmError(409, 'Já existe uma empresa com este CNPJ.', { blocking: true });
@@ -256,7 +257,7 @@ export function todayBR() { return new Date().toLocaleDateString('en-CA', { time
 
 // ---------- EMPRESAS ----------
 
-function changeSummary(spec, changes, limit = 5) {
+export function changeSummary(spec, changes, limit = 5) {
   const parts = changes.slice(0, limit).map((ch) => `${ch.label} (de ${fmtChangeValue(ch.field, ch.from)} para ${fmtChangeValue(ch.field, ch.to)})`);
   return parts.join(', ') + (changes.length > limit ? ` e mais ${changes.length - limit}` : '');
 }
@@ -507,7 +508,7 @@ export async function deleteContact(orgId, actor, id) {
 // ---------- NOTAS (PRD 52: qualquer objeto aceita nota; a nota entra na timeline) ----------
 
 export async function addNote(orgId, actor, { entityType, entityId, body }) {
-  if (!['company', 'contact'].includes(entityType)) throw new CrmError(400, 'Tipo de registro inválido para nota.');
+  if (!['company', 'contact', 'deal'].includes(entityType)) throw new CrmError(400, 'Tipo de registro inválido para nota.');
   requireUuid(entityId);
   const text = String(body || '').trim();
   if (!text) throw new CrmError(400, 'Escreva a nota.');
@@ -517,6 +518,11 @@ export async function addNote(orgId, actor, { entityType, entityId, body }) {
     let about = '';
     if (entityType === 'company') {
       if (!(await loadCompany(c, orgId, entityId))) throw new CrmError(404, 'Empresa não encontrada.');
+    } else if (entityType === 'deal') {
+      const { rows: dr } = await c.query('SELECT company_id, title FROM crm_deals WHERE id=$1 AND org_id=$2 AND deleted_at IS NULL', [entityId, orgId]);
+      if (!dr[0]) throw new CrmError(404, 'Negócio não encontrado.');
+      companyId = dr[0].company_id;
+      about = ` sobre o negócio "${dr[0].title}"`;
     } else {
       const k = await loadContact(c, orgId, entityId);
       if (!k) throw new CrmError(404, 'Contato não encontrado.');
