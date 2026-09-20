@@ -5885,6 +5885,72 @@ reexecutadas** (foram descartadas ao fim da Fase 2); a regressão foi coberta pe
 - Vendedor edita/conclui atividade de qualquer pessoa (mesma regra aberta de empresas/negócios).
 - Agenda do CRM mostra até 300 atividades por consulta.
 
+## 57. CRM PRICETAX — Dados de contato/endereço da empresa + importação do PipeRun (2026-09-20)
+
+**Contexto**: o Rafael exportou do PipeRun (CRM que a PRICETAX usava) oportunidades, empresas,
+pessoas, atividades e chamadas para alimentar o CRM. Plano em 3 passos, todos aprovados
+("sim para tudo"): (1) ampliar campos de empresa + importar as 142 empresas; (2) vários funis +
+importador de negócios; (3) atividades, quando ele reexportar (atividades/pessoas/chamadas vieram
+**só com o cabeçalho, 0 linhas**). Este item é o **passo 1**.
+
+### O que os arquivos revelaram (perfil dos dados)
+- **Empresas (142)**: 117 CNPJs, todos com dígito verificador válido, nenhum repetido; traz razão
+  social, CNAE principal/secundários, endereço completo, telefones, fundação, capital social e
+  "Cliente desde" (12). As 109 empresas com CNPJ que aparecem nas oportunidades estão todas aqui.
+- **12 linhas com o nome "Nome não informado"** (sem CNPJ/UF/telefone): registros-fantasma do
+  PipeRun. A linha 18 é um "cliente" (Cliente desde 17/08/26) sem identificação nenhuma. **São
+  recusadas** (ver abaixo) → 130 empresas válidas, **11 clientes**.
+- **Oportunidades (274)**: idênticas ao 1º export; sem motivo de perda; só 155 de 305 (somando o
+  arquivo de congeladas/lixeira) têm empresa. → Passo 2.
+- Datas chegam como texto com **ano de 2 dígitos** ("17/08/26", "05/03/91"); telefones com DDI 55
+  colado e às vezes dois números ("559189195382, 5591989195382"); CEP como número (perde o zero).
+
+### Banco (`server/db.js`, aditivo — só `ADD COLUMN IF NOT EXISTS`, padrão vazio)
+`crm_companies`: `phone`, `contact_email`, `zip_code`, `street`, `street_number`, `complement`,
+`district`, `founded_at` (DATE), `share_capital` (NUMERIC 16,2), `cnae_secondary`. Autorizado pelo
+Rafael (o `CLAUDE.md` marca `db.js` como sensível). Nada existente foi alterado.
+
+### Backend (`server/crm/`)
+- `service.js`: 10 campos novos em `COMPANY_SPEC`/`COMPANY_SELECT` (auditoria e timeline por campo
+  já cobrem); tipo `zip` no sanitizador (8 dígitos, senão 400).
+- `text.js`: normalizadores de planilha — `parseDateBR` (ISO, dd/mm/aaaa e dd/mm/aa; **ano de 2
+  dígitos = século que não cai no futuro**: 26→2026, 91→1991), `formatPhonesBR` (tira o 55, formata
+  `(31) 2519-0606`, vários números viram `a / b`, sem repetir), `normalizeZip` (repõe o zero),
+  `splitCnae` (código × descrição), `firstEmail`.
+- `importer.js`: campos novos + **"Cliente desde" preenchido e relação não informada = cliente, com a
+  data original** (antes seria "hoje"); CNAE vira código e, se o segmento estiver vazio, a descrição
+  vira o segmento; campos de apoio (data, CEP, e-mail, telefone) com valor ruim **viram aviso e o campo
+  é ignorado — não derrubam a linha**. **Nomes-coringa** ("Nome não informado", "sem nome", "n/a"…) não
+  criam empresa: a linha é recusada na prévia com o motivo; se a linha tem outro nome válido, usa-o.
+- `cnpjSuggestion.js`: o cadastro rápido por CNPJ (Receita) agora também traz telefone, CEP,
+  endereço, fundação e capital.
+
+### Frontend (`src/crm/`)
+`importMapping.js` (novo, puro): reconhecimento automático das colunas extraído do assistente para
+ser testável com o arquivo real; sinônimos do PipeRun ("Endereço - CEP", "Cliente desde",
+"Telefones"…). **Correção de risco**: o "contém" agora só vale para cabeçalho curto (≤5 palavras) e por
+palavra inteira — antes "Relação" era ligada a uma pergunta longa que só continha "relação".
+`CompanyForm` (grupos Contato e endereço, fundação, capital, CNAEs secundários; a busca por CNPJ
+preenche os novos), `CompanyDrawer` (bloco "Contato e endereço", fundação, capital, CNAEs
+secundários), `crmMeta.fmtCep`.
+
+### Verificação
+Arquivo REAL de empresas pelo mesmo caminho do assistente (leitura `raw:false`, reconhecimento de
+colunas, prévia, gravação) num banco local descartável: 67 asserções — 18 colunas reconhecidas certo,
+130 novas + 12 recusadas, 11 clientes com data original, telefones/CEP/CNAE/fundação/capital
+convertidos, responsável casado por e-mail, auditoria+timeline por empresa, **reimportar o mesmo
+arquivo não cria nada**, edição manual dos campos novos, formulário com campos vazios. UI (ambiente
+simulado): ficha com o bloco novo, assistente lendo o arquivo real até a tela de conferência.
+
+### Limites / a fazer
+- **A importação em produção é feita pelo Rafael** (Empresas → Importar planilha → arquivo de empresas
+  → conferir a prévia). Nada foi gravado em produção pela IA.
+- As 12 linhas sem nome (incl. o cliente da linha 18) precisam ser corrigidas no PipeRun.
+- Origem e Porte não vêm no export de empresas (ficam em branco). "Forma de Tributação" e as
+  perguntas de porte/faturamento/funcionários vieram vazias.
+- **Passo 2 (vários funis + importador de negócios) e Passo 3 (atividades) ainda não feitos.** O
+  importador de negócios depende das empresas já estarem no CRM (casa por CNPJ/nome).
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

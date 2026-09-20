@@ -35,6 +35,11 @@ export function fmtCnpj(v) {
   return c.length === 14 ? `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}` : (v || '');
 }
 
+export function fmtCep(v) {
+  const d = String(v || '').replace(/\D/g, '');
+  return d.length === 8 ? `${d.slice(0, 5)}-${d.slice(5)}` : (v || '');
+}
+
 export function fmtMoney(n) {
   if (n == null || n === '') return '';
   return Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });

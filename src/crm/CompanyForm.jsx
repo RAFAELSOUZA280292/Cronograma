@@ -10,6 +10,7 @@ import { fmtCnpj, sourceLabel } from './crmMeta.js';
 const EMPTY = {
   legalName: '', tradeName: '', cnpj: '', economicGroup: '', branchType: '', website: '', segment: '', cnae: '', city: '', state: '', country: 'Brasil',
   relationship: 'prospect', source: '', ownerId: '', enteredAt: '', clientSince: '', companySize: '', taxRegime: '', revenueEstimate: '', employees: '', erp: '', strategicLevel: '',
+  phone: '', contactEmail: '', zipCode: '', street: '', streetNumber: '', complement: '', district: '', foundedAt: '', shareCapital: '', cnaeSecondary: '',
 };
 
 function fromCompany(c) {
@@ -39,7 +40,8 @@ export default function CompanyForm({ initial, options, onSaved, onCancel, onOpe
       // só preenche o que ainda está vazio: nunca sobrescreve o que a pessoa já digitou
       setForm((f) => {
         const next = { ...f };
-        ['legalName', 'tradeName', 'city', 'state', 'cnae', 'segment', 'taxRegime', 'companySize'].forEach((k) => { if (!next[k] && s[k]) next[k] = s[k]; });
+        ['legalName', 'tradeName', 'city', 'state', 'cnae', 'segment', 'taxRegime', 'companySize', 'phone', 'zipCode', 'street', 'streetNumber', 'complement', 'district', 'foundedAt', 'shareCapital']
+          .forEach((k) => { if (!next[k] && s[k] !== '' && s[k] != null) next[k] = String(s[k]); });
         next.cnpj = fmtCnpj(s.cnpj || f.cnpj);
         return next;
       });
@@ -121,10 +123,19 @@ export default function CompanyForm({ initial, options, onSaved, onCancel, onOpe
             </Field>
             <Field label="Site"><input value={form.website} onChange={(e) => set('website', e.target.value)} /></Field>
             <Field label="Segmento"><input value={form.segment} onChange={(e) => set('segment', e.target.value)} list="crm-segments" /></Field>
-            <Field label="CNAE"><input value={form.cnae} onChange={(e) => set('cnae', e.target.value)} /></Field>
+            <Field label="CNAE principal"><input value={form.cnae} onChange={(e) => set('cnae', e.target.value)} /></Field>
+            <Field label="CNAEs secundários" full><textarea rows={2} value={form.cnaeSecondary} onChange={(e) => set('cnaeSecondary', e.target.value)} /></Field>
             <Field label="Cidade"><input value={form.city} onChange={(e) => set('city', e.target.value)} /></Field>
             <Field label="Estado (UF)"><input value={form.state} onChange={(e) => set('state', e.target.value.toUpperCase().slice(0, 2))} /></Field>
             <Field label="País"><input value={form.country} onChange={(e) => set('country', e.target.value)} /></Field>
+            <div className="crm-form-group">Contato e endereço</div>
+            <Field label="Telefone(s)"><input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="(11) 3000-0000" /></Field>
+            <Field label="E-mail de contato"><input type="email" value={form.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} /></Field>
+            <Field label="CEP"><input value={form.zipCode} onChange={(e) => set('zipCode', e.target.value)} placeholder="00000-000" /></Field>
+            <Field label="Logradouro"><input value={form.street} onChange={(e) => set('street', e.target.value)} /></Field>
+            <Field label="Número"><input value={form.streetNumber} onChange={(e) => set('streetNumber', e.target.value)} /></Field>
+            <Field label="Complemento"><input value={form.complement} onChange={(e) => set('complement', e.target.value)} /></Field>
+            <Field label="Bairro"><input value={form.district} onChange={(e) => set('district', e.target.value)} /></Field>
             <div className="crm-form-group">Comercial</div>
             <Field label="Data de entrada"><input type="date" value={form.enteredAt} onChange={(e) => set('enteredAt', e.target.value)} /></Field>
             <Field label="Cliente desde"><input type="date" value={form.clientSince} onChange={(e) => set('clientSince', e.target.value)} /></Field>
@@ -139,6 +150,8 @@ export default function CompanyForm({ initial, options, onSaved, onCancel, onOpe
                 <option value="">—</option>{((options && options.taxRegimes) || []).map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </Field>
+            <Field label="Data de fundação"><input type="date" value={form.foundedAt} onChange={(e) => set('foundedAt', e.target.value)} /></Field>
+            <Field label="Capital social (R$)"><input value={form.shareCapital} onChange={(e) => set('shareCapital', e.target.value)} placeholder="ex.: 50.000,00" /></Field>
             <Field label="Faturamento estimado (R$)"><input value={form.revenueEstimate} onChange={(e) => set('revenueEstimate', e.target.value)} placeholder="ex.: 1.500.000,00" /></Field>
             <Field label="Nº de funcionários"><input type="number" min="0" value={form.employees} onChange={(e) => set('employees', e.target.value)} /></Field>
             <Field label="ERP"><input value={form.erp} onChange={(e) => set('erp', e.target.value)} /></Field>

@@ -1065,6 +1065,16 @@ export async function initDb() {
   await pool.query(`DROP TRIGGER IF EXISTS crm_deal_stage_history_append_only ON crm_deal_stage_history`);
   await pool.query(`CREATE TRIGGER crm_deal_stage_history_append_only BEFORE UPDATE OR DELETE ON crm_deal_stage_history FOR EACH ROW EXECUTE FUNCTION crm_block_history_mutation()`);
 
+  // CRM — dados de contato/endereço da empresa (2026-09-20, §57): vieram do export
+  // de empresas do PipeRun. Só ADD COLUMN IF NOT EXISTS, todas com padrão vazio.
+  for (const [col, ddl] of [
+    ['phone', "TEXT NOT NULL DEFAULT ''"], ['contact_email', "TEXT NOT NULL DEFAULT ''"], ['zip_code', "TEXT NOT NULL DEFAULT ''"],
+    ['street', "TEXT NOT NULL DEFAULT ''"], ['street_number', "TEXT NOT NULL DEFAULT ''"], ['complement', "TEXT NOT NULL DEFAULT ''"],
+    ['district', "TEXT NOT NULL DEFAULT ''"], ['founded_at', 'DATE'], ['share_capital', 'NUMERIC(16,2)'], ['cnae_secondary', "TEXT NOT NULL DEFAULT ''"],
+  ]) {
+    await pool.query(`ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS ${col} ${ddl}`);
+  }
+
   // CRM — Fase 3 (2026-09-20, PROJECT_CONTEXT.md §56): atividades/follow-ups.
   // Sempre presas a uma empresa (o "hub"); opcionalmente a um negócio e a um
   // contato. due_notified_at é o carimbo do lembrete: o agendador só avisa quem

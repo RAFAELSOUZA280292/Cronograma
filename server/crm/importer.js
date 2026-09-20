@@ -5,7 +5,7 @@
 // confia no que o preview do navegador disse — e cria o que for permitido).
 import { pool } from '../db.js';
 import { CrmError } from './errors.js';
-import { onlyDigits, companyNameKey, similarity, stripAccents } from './text.js';
+import { onlyDigits, companyNameKey, personNameKey, similarity, stripAccents, parseDateBR, formatPhonesBR, normalizeZip, splitCnae, firstEmail } from './text.js';
 import { createCompany, createContact, validateCompanyInput, validateContactInput, SOURCES } from './service.js';
 
 export const MAX_IMPORT_ROWS = 2000;
@@ -15,6 +15,8 @@ export const COMPANY_IMPORT_FIELDS = [
   ['website', 'Site'], ['segment', 'Segmento'], ['cnae', 'CNAE'], ['city', 'Cidade'], ['state', 'Estado (UF)'],
   ['relationship', 'Relação (prospect/cliente/...)'], ['source', 'Origem'], ['ownerName', 'Responsável (nome)'],
   ['companySize', 'Porte'], ['taxRegime', 'Regime tributário'], ['revenueEstimate', 'Faturamento estimado'], ['employees', 'Nº de funcionários'], ['erp', 'ERP'],
+  ['clientSince', 'Cliente desde'], ['phone', 'Telefone(s)'], ['contactEmail', 'E-mail de contato'], ['zipCode', 'CEP'], ['street', 'Logradouro'], ['streetNumber', 'Número'],
+  ['complement', 'Complemento'], ['district', 'Bairro'], ['foundedAt', 'Data de fundação'], ['shareCapital', 'Capital social'], ['cnaeSecondary', 'CNAEs secundários'],
 ].map(([key, label]) => ({ key, label }));
 
 export const CONTACT_IMPORT_FIELDS = [
@@ -24,6 +26,11 @@ export const CONTACT_IMPORT_FIELDS = [
 ].map(([key, label]) => ({ key, label }));
 
 const norm = (v) => stripAccents(v).toLowerCase().trim();
+
+// Nomes-coringa que sistemas de CRM gravam quando não há nome (o PipeRun exporta "Nome não informado").
+// Importar isso criaria empresas fantasma; a linha é recusada e aparece na prévia com o motivo.
+const PLACEHOLDER_NAMES = new Set(['nome nao informado', 'nao informado', 'nao informada', 'sem nome', 'n a', 'na', 'desconhecido', 'desconhecida']);
+const isPlaceholderName = (v) => PLACEHOLDER_NAMES.has(personNameKey(v));
 
 const REL_MAP = { prospect: 'prospect', lead: 'prospect', cliente: 'client', client: 'client', 'ex-cliente': 'former_client', 'ex cliente': 'former_client', excliente: 'former_client', parceiro: 'partner', partner: 'partner' };
 const ROLE_MAP = { decisor: 'decisor', influenciador: 'influenciador', usuario: 'usuario', comprador: 'comprador', financeiro: 'financeiro', juridico: 'juridico', tecnico: 'tecnico', sponsor: 'sponsor', bloqueador: 'bloqueador' };
@@ -100,10 +107,35 @@ async function classifyCompanies(orgId, rows) {
       legalName: raw.legalName, tradeName: raw.tradeName, cnpj: raw.cnpj, economicGroup: raw.economicGroup, website: raw.website, segment: raw.segment,
       cnae: raw.cnae, city: raw.city, state: raw.state, companySize: raw.companySize, erp: raw.erp, revenueEstimate: raw.revenueEstimate, employees: raw.employees,
       taxRegime: mapRegime(raw.taxRegime), source: mapSource(raw.source),
+      street: raw.street, streetNumber: raw.streetNumber, complement: raw.complement, district: raw.district, shareCapital: raw.shareCapital, cnaeSecondary: raw.cnaeSecondary,
     };
+    // Campos "de apoio" (data, CEP, telefone, e-mail, CNAE): valor ruim NÃO derruba a linha — vira aviso e o campo fica de fora.
+    const placeholders = ['legalName', 'tradeName'].filter((k) => input[k] && isPlaceholderName(input[k]));
+    const shown = placeholders.length ? String(input[placeholders[0]]).trim() : '';
+    placeholders.forEach((k) => { input[k] = ''; });
+    if (placeholders.length) {
+      messages.push(input.legalName || input.tradeName
+        ? `Um dos nomes veio como "${shown}" — ignorado; usei o outro nome da linha.`
+        : `O nome veio como "${shown}" (registro sem identificação no sistema de origem) — não importada. Complete o nome ou o CNPJ lá e reexporte.`);
+    }
+    if (raw.cnae) {
+      const c = splitCnae(raw.cnae);
+      input.cnae = c.code;
+      if (!String(raw.segment || '').trim() && c.description) input.segment = c.description;
+    }
+    const softDate = (key, label) => {
+      const v = parseDateBR(raw[key]);
+      if (v === null) messages.push(`${label} "${raw[key]}" não reconhecida — ignorada.`); else if (v) input[key] = v;
+    };
+    softDate('foundedAt', 'Data de fundação');
+    softDate('clientSince', 'Cliente desde');
+    if (raw.phone) input.phone = formatPhonesBR(raw.phone);
+    if (raw.zipCode) { const z = normalizeZip(raw.zipCode); if (z) input.zipCode = z; else messages.push(`CEP "${raw.zipCode}" inválido — ignorado.`); }
+    if (raw.contactEmail) { const e = firstEmail(raw.contactEmail); if (e) input.contactEmail = e; else messages.push(`E-mail de contato "${raw.contactEmail}" inválido — ignorado.`); }
     const rel = mapEnum(REL_MAP, raw.relationship);
     if (rel === null) messages.push(`Relação "${raw.relationship}" não reconhecida — usando Prospect.`);
-    input.relationship = rel || 'prospect';
+    // "Cliente desde" preenchido e relação não informada: é cliente (e a data original é preservada).
+    input.relationship = rel || (!raw.relationship && input.clientSince ? 'client' : 'prospect');
     if (raw.ownerName) {
       const owner = findOwner(owners, raw.ownerName);
       if (owner) input.ownerId = owner.id; else messages.push(`Responsável "${raw.ownerName}" não encontrado — ficará sem responsável.`);

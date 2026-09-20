@@ -50,6 +50,16 @@ const COMPANY_SPEC = [
   { key: 'employees', col: 'employees', label: 'Nº de funcionários', type: 'int' },
   { key: 'erp', col: 'erp', label: 'ERP', type: 'text' },
   { key: 'strategicLevel', col: 'strategic_level', label: 'Nível estratégico', type: 'enum', values: ENUMS.strategicLevel },
+  { key: 'phone', col: 'phone', label: 'Telefone', type: 'text' },
+  { key: 'contactEmail', col: 'contact_email', label: 'E-mail de contato', type: 'email' },
+  { key: 'zipCode', col: 'zip_code', label: 'CEP', type: 'zip' },
+  { key: 'street', col: 'street', label: 'Logradouro', type: 'text' },
+  { key: 'streetNumber', col: 'street_number', label: 'Número', type: 'text' },
+  { key: 'complement', col: 'complement', label: 'Complemento', type: 'text' },
+  { key: 'district', col: 'district', label: 'Bairro', type: 'text' },
+  { key: 'foundedAt', col: 'founded_at', label: 'Data de fundação', type: 'date' },
+  { key: 'shareCapital', col: 'share_capital', label: 'Capital social', type: 'number' },
+  { key: 'cnaeSecondary', col: 'cnae_secondary', label: 'CNAEs secundários', type: 'longtext' },
 ];
 
 const CONTACT_SPEC = [
@@ -82,6 +92,12 @@ function sanitizeValue(field, raw, errors, opts) {
   const { type, label } = field;
   if (type === 'text') return String(raw == null ? '' : raw).trim().slice(0, 400);
   if (type === 'longtext') return String(raw == null ? '' : raw).trim().slice(0, 3000);
+  if (type === 'zip') {
+    const d = onlyDigits(raw);
+    if (!d) return '';
+    if (d.length !== 8) { errors.push('CEP inválido (são 8 dígitos).'); return ''; }
+    return d;
+  }
   if (type === 'time') {
     const v = String(raw == null ? '' : raw).trim();
     if (v && !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) { errors.push(`${label}: horário inválido (use HH:MM).`); return ''; }
@@ -149,6 +165,7 @@ export function sanitize(spec, input, { partial = false, allowInvalidCnpj = fals
 export const COMPANY_SELECT = `c.id, c.org_id, c.legal_name, c.trade_name, c.cnpj, c.economic_group, c.branch_type, c.website, c.segment, c.cnae, c.city, c.state, c.country,
   c.relationship, c.source, c.owner_id, to_char(c.entered_at,'YYYY-MM-DD') AS entered_at, to_char(c.client_since,'YYYY-MM-DD') AS client_since,
   c.company_size, c.tax_regime, c.revenue_estimate, c.employees, c.erp, c.strategic_level,
+  c.phone, c.contact_email, c.zip_code, c.street, c.street_number, c.complement, c.district, to_char(c.founded_at,'YYYY-MM-DD') AS founded_at, c.share_capital, c.cnae_secondary,
   c.created_at, c.created_by, c.updated_at, c.updated_by, c.deleted_at, c.deleted_by,
   (SELECT name FROM users u WHERE u.id = c.owner_id) AS owner_name`;
 

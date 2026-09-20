@@ -12,7 +12,7 @@ import ActivityForm from './ActivityForm.jsx';
 import ActivityList from './ActivityList.jsx';
 import { RelPill, CompletenessBar, useEsc } from './ui.jsx';
 import {
-  fmtCnpj, fmtMoney, fmtDateBR, fmtDateTimeBR, daysLabel, staleColor, DECISION_ROLES, roleLabel, STRENGTH_META, INFLUENCE_LABELS,
+  fmtCnpj, fmtCep, fmtMoney, fmtDateBR, fmtDateTimeBR, daysLabel, staleColor, DECISION_ROLES, roleLabel, STRENGTH_META, INFLUENCE_LABELS,
   sourceLabel, TIMELINE_KIND, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor,
 } from './crmMeta.js';
 
@@ -188,8 +188,21 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
                   <KV k="Cliente desde" v={fmtDateBR(co.clientSince)} /><KV k="Porte" v={co.companySize} /><KV k="Regime tributário" v={co.taxRegime} />
                   <KV k="Faturamento estimado" v={fmtMoney(co.revenueEstimate)} /><KV k="Funcionários" v={co.employees != null ? String(co.employees) : ''} /><KV k="ERP" v={co.erp} />
                   <KV k="Nível estratégico" v={{ alto: 'Alto', medio: 'Médio', baixo: 'Baixo' }[co.strategicLevel]} />
+                  <KV k="Data de fundação" v={fmtDateBR(co.foundedAt)} /><KV k="Capital social" v={fmtMoney(co.shareCapital)} />
                 </div>
+                {co.cnaeSecondary && <div style={{ marginTop: 14 }}><div className="crm-kv"><KV k="CNAEs secundários" v={co.cnaeSecondary} /></div></div>}
               </div>
+
+              {(co.phone || co.contactEmail || co.street || co.zipCode || co.district) && (
+                <div className="crm-section">
+                  <h3 className="crm-section-title">Contato e endereço</h3>
+                  <div className="crm-kv">
+                    <KV k="Telefone(s)" v={co.phone} /><KV k="E-mail de contato" v={co.contactEmail} />
+                    <KV k="Endereço" v={[[co.street, co.streetNumber].filter(Boolean).join(', '), co.complement, co.district].filter(Boolean).join(' — ')} />
+                    <KV k="CEP" v={fmtCep(co.zipCode)} /><KV k="Cidade / UF" v={[co.city, co.state].filter(Boolean).join(' / ')} />
+                  </div>
+                </div>
+              )}
 
               {data.projects.some((p) => p.meetings.last) && (
                 <div className="crm-section">
