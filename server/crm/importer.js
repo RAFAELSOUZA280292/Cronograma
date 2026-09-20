@@ -30,7 +30,7 @@ const norm = (v) => stripAccents(v).toLowerCase().trim();
 // Nomes-coringa que sistemas de CRM gravam quando não há nome (o PipeRun exporta "Nome não informado").
 // Importar isso criaria empresas fantasma; a linha é recusada e aparece na prévia com o motivo.
 const PLACEHOLDER_NAMES = new Set(['nome nao informado', 'nao informado', 'nao informada', 'sem nome', 'n a', 'na', 'desconhecido', 'desconhecida']);
-const isPlaceholderName = (v) => PLACEHOLDER_NAMES.has(personNameKey(v));
+export const isPlaceholderName = (v) => PLACEHOLDER_NAMES.has(personNameKey(v));
 
 const REL_MAP = { prospect: 'prospect', lead: 'prospect', cliente: 'client', client: 'client', 'ex-cliente': 'former_client', 'ex cliente': 'former_client', excliente: 'former_client', parceiro: 'partner', partner: 'partner' };
 const ROLE_MAP = { decisor: 'decisor', influenciador: 'influenciador', usuario: 'usuario', comprador: 'comprador', financeiro: 'financeiro', juridico: 'juridico', tecnico: 'tecnico', sponsor: 'sponsor', bloqueador: 'bloqueador' };

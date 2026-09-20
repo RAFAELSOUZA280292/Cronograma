@@ -3,12 +3,16 @@
 // perda é obrigatório). O mesmo funil serve novo negócio e upsell — o filtro de
 // tipo separa. Arrastar não existe no celular: lá a etapa muda na ficha do negócio.
 import React, { useCallback, useEffect, useState } from 'react';
-import { Plus, Kanban, List, Sparkles } from 'lucide-react';
+import { Plus, Kanban, List, Sparkles, Settings2, Upload } from 'lucide-react';
 import { crm } from './crmApi.js';
 import CloseDealDialog from './CloseDealDialog.jsx';
+import FunnelsAdmin from './FunnelsAdmin.jsx';
+import DealImportWizard from './DealImportWizard.jsx';
 import { fmtMoney, fmtDateBR, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor } from './crmMeta.js';
 
 const VIEW_KEY = 'crm-deals-view';
+const PIPE_KEY = 'crm-deals-pipeline';
+function readPipe() { try { return window.localStorage.getItem(PIPE_KEY) || ''; } catch { return ''; } }
 function readView() { try { return window.localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'board'; } catch { return 'board'; } }
 
 function DealCard({ deal, canDrag, dragging, onOpen, onDragStart, onDragEnd }) {
@@ -39,6 +43,9 @@ function DealCard({ deal, canDrag, dragging, onOpen, onDragStart, onDragEnd }) {
 
 export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNewDeal, onChanged }) {
   const [view, setView] = useState(readView);
+  const [pipelineId, setPipelineId] = useState(readPipe); // '' = padrão; 'all' = todos (só na lista)
+  const [showFunnels, setShowFunnels] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [filters, setFilters] = useState({ type: '', ownerId: '' });
@@ -54,18 +61,23 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
   const reload = useCallback(() => setLocalKey((k) => k + 1), []);
 
   useEffect(() => { const t = setTimeout(() => setDebouncedQ(q), 300); return () => clearTimeout(t); }, [q]);
+  function changePipeline(v) { setPipelineId(v); try { window.localStorage.setItem(PIPE_KEY, v); } catch { /* sem storage */ } }
   function changeView(v) { setView(v); try { window.localStorage.setItem(VIEW_KEY, v); } catch { /* sem storage: só não lembra */ } }
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    const f = { q: debouncedQ, type: filters.type, ownerId: filters.ownerId };
+    // Quadro mostra UM funil (vazio = o padrão); a lista pode juntar todos ('all'/vazio).
+    const f = { q: debouncedQ, type: filters.type, ownerId: filters.ownerId, pipelineId: pipelineId === 'all' ? '' : pipelineId };
     const req = view === 'board' ? crm.board(f).then((r) => { if (!cancelled) setBoard(r); }) : crm.deals({ ...f, status: listStatus, limit: 100, sort: 'recent' }).then((r) => { if (!cancelled) setList(r); });
     req.then(() => { if (!cancelled) { setError(''); setLoading(false); } }).catch((e) => { if (!cancelled) { setError(e.message || 'Não foi possível carregar os negócios.'); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [view, debouncedQ, filters, listStatus, refreshKey, localKey]);
+  }, [view, pipelineId, debouncedQ, filters, listStatus, refreshKey, localKey]);
 
   const owners = (options && options.owners) || [];
+  const pipelines = (options && options.pipelines) || [];
+  const defaultPipe = pipelines.find((p) => p.isDefault) || pipelines[0];
+  const selectedPipe = view === 'board' ? ((board && board.pipeline && board.pipeline.id) || (pipelineId && pipelineId !== 'all' ? pipelineId : (defaultPipe && defaultPipe.id) || '')) : (pipelineId || 'all');
   const setF = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
   const hasFilter = debouncedQ || filters.type || filters.ownerId;
   const reasons = (options && options.lostReasons) || [];
@@ -96,11 +108,19 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
             <button type="button" className={view === 'board' ? 'active' : ''} onClick={() => changeView('board')}><Kanban size={14} /> Quadro</button>
             <button type="button" className={view === 'list' ? 'active' : ''} onClick={() => changeView('list')}><List size={14} /> Lista</button>
           </div>
-          {caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={() => onNewDeal({})}><Plus size={14} /> Novo negócio</button>}
+          {caps.funnel && <button type="button" className="crm-btn" onClick={() => setShowFunnels(true)}><Settings2 size={14} /> Funis</button>}
+          {caps.import && <button type="button" className="crm-btn" onClick={() => setShowImport(true)}><Upload size={14} /> Importar negócios</button>}
+          {caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={() => onNewDeal({ pipelineId: view === 'board' ? selectedPipe : (pipelineId !== 'all' ? pipelineId : '') })}><Plus size={14} /> Novo negócio</button>}
         </div>
       </div>
 
       <div className="crm-filters">
+        {pipelines.length > 1 && (
+          <select value={selectedPipe} onChange={(e) => changePipeline(e.target.value)} aria-label="Funil" style={{ fontWeight: 800 }}>
+            {view === 'list' && <option value="all">Todos os funis</option>}
+            {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}{p.isDefault ? ' (padrão)' : ''}</option>)}
+          </select>
+        )}
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por negócio ou empresa…" style={{ minWidth: 230 }} />
         <select value={filters.type} onChange={(e) => setF('type', e.target.value)} aria-label="Tipo de negócio">
           <option value="">Novo negócio e upsell</option><option value="new">Só novos negócios</option><option value="upsell">Só upsell</option>
@@ -176,6 +196,8 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
       )}
       {view === 'board' && !board && !error && <div className="crm-empty">Carregando…</div>}
 
+      {showFunnels && <FunnelsAdmin initialId={view === 'board' ? selectedPipe : (pipelineId !== 'all' ? pipelineId : '')} onClose={() => setShowFunnels(false)} onChanged={() => { reload(); if (onChanged) onChanged(); }} />}
+      {showImport && <DealImportWizard options={options} onClose={() => setShowImport(false)} onDone={() => { reload(); if (onChanged) onChanged(); }} />}
       {closing && <CloseDealDialog deal={closing.deal} stage={closing.stage} reasons={reasons} onCancel={() => setClosing(null)} onDone={() => { setClosing(null); reload(); if (onChanged) onChanged(); }} />}
     </div>
   );

@@ -3,7 +3,8 @@ import { pool } from '../db.js';
 import { CrmError } from './errors.js';
 import { companyNameKey } from './text.js';
 import { isUuid, todayBR } from './service.js';
-import { ensureDefaultPipeline, LOST_REASONS } from './pipeline.js';
+import { resolvePipeline, SELECTABLE_LOST_REASONS } from './pipeline.js';
+import { listPipelines } from './funnels.js';
 import { DEAL_SELECT, DEAL_FROM, mapDeal, fetchDeal } from './deals.js';
 import { activitiesForDeal } from './activityQueries.js';
 
@@ -16,6 +17,7 @@ function dealFilters(orgId, f, params) {
   const add = (v) => { params.push(v); return `$${params.length}`; };
   if (['new', 'upsell'].includes(f.type)) where.push(`d.deal_type=${add(f.type)}`);
   if (f.ownerId === 'none') where.push('d.owner_id IS NULL'); else if (f.ownerId) where.push(`d.owner_id=${add(f.ownerId)}`);
+  if (f.pipelineId && isUuid(f.pipelineId)) where.push(`d.pipeline_id=${add(f.pipelineId)}`);
   if (f.companyId) where.push(`d.company_id=${add(isUuid(f.companyId) ? f.companyId : '00000000-0000-0000-0000-000000000000')}`);
   const q = String(f.q || '').trim();
   if (q) {
@@ -49,14 +51,16 @@ export async function listDeals(orgId, f = {}) {
 // Quadro: negócios em aberto + os fechados nos últimos 60 dias (senão as colunas
 // Ganho/Perdido cresceriam pra sempre). A lista mostra tudo.
 export async function getBoard(orgId, f = {}) {
-  const pipeline = await ensureDefaultPipeline(orgId);
+  // Funil pedido; se não existir mais (arquivado), cai no padrão — a tela atualiza a escolha pela resposta.
+  const pipeline = (await resolvePipeline(pool, orgId, isUuid(f.pipelineId) ? f.pipelineId : null)) || (await resolvePipeline(pool, orgId, null));
   const params = [orgId];
-  const where = dealFilters(orgId, f, params);
+  const where = dealFilters(orgId, { ...f, pipelineId: pipeline.id }, params);
   where.push(`(d.status='open' OR d.closed_at >= now() - interval '${BOARD_CLOSED_DAYS} days')`);
   const { rows } = await pool.query(`SELECT ${DEAL_SELECT} FROM ${DEAL_FROM} WHERE ${where.join(' AND ')} ORDER BY d.board_order ASC, d.created_at ASC`, params);
   const deals = rows.map(mapDeal);
   return {
     pipeline: { id: pipeline.id, name: pipeline.name }, closedWindowDays: BOARD_CLOSED_DAYS,
+    pipelines: (await listPipelines(orgId)).map((p) => ({ id: p.id, name: p.name, isDefault: p.isDefault, dealCount: p.dealCount })),
     stages: pipeline.stages.map((s) => {
       const list = deals.filter((d) => d.stageId === s.id);
       return { ...s, count: list.length, value: list.reduce((n, d) => n + d.value, 0), weighted: Math.round(list.reduce((n, d) => n + d.weightedValue, 0) * 100) / 100, deals: list };
@@ -64,9 +68,9 @@ export async function getBoard(orgId, f = {}) {
   };
 }
 
-export async function getPipeline(orgId) {
-  const p = await ensureDefaultPipeline(orgId);
-  return { pipeline: { id: p.id, name: p.name }, stages: p.stages, lostReasons: Object.entries(LOST_REASONS).map(([value, label]) => ({ value, label })) };
+export async function getPipeline(orgId, pipelineId = null) {
+  const p = (await resolvePipeline(pool, orgId, pipelineId)) || (await resolvePipeline(pool, orgId, null));
+  return { pipeline: { id: p.id, name: p.name }, stages: p.stages, lostReasons: SELECTABLE_LOST_REASONS };
 }
 
 export async function getDealDetail(orgId, id) {
@@ -78,7 +82,7 @@ export async function getDealDetail(orgId, id) {
     pool.query(`SELECT id, event_type, summary, actor_name, occurred_at FROM crm_timeline_events WHERE org_id=$1 AND entity_type='deal' AND entity_id=$2 ORDER BY occurred_at DESC, created_at DESC LIMIT 60`, [orgId, id]),
     pool.query(`SELECT n.id, n.body, n.created_at, n.created_by, u.name AS created_by_name FROM crm_notes n LEFT JOIN users u ON u.id = n.created_by
                 WHERE n.org_id=$1 AND n.entity_type='deal' AND n.entity_id=$2 AND n.deleted_at IS NULL ORDER BY n.created_at DESC`, [orgId, id]),
-    getPipeline(orgId),
+    getPipeline(orgId, deal.pipelineId),
     activitiesForDeal(orgId, id),
   ]);
   return {

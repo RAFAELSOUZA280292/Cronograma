@@ -18,6 +18,8 @@ const CAPABILITIES = {
   admin: ['admin'],
   // Catálogo de produtos (Fase 2): quem define o que a PRICETAX vende.
   catalog: ['admin', 'diretor', 'gestor'],
+  // Configurar funis e etapas (Fase 2b): mesma régua do catálogo.
+  funnel: ['admin', 'diretor', 'gestor'],
 };
 
 export function crmRoleOf(user) {
@@ -37,6 +39,6 @@ export function crmCapabilities(user) {
     role,
     roleLabel: CRM_ROLE_LABELS[role] || '',
     read: crmCan(user, 'read'), write: crmCan(user, 'write'), remove: crmCan(user, 'remove'),
-    import: crmCan(user, 'import'), admin: crmCan(user, 'admin'), catalog: crmCan(user, 'catalog'),
+    import: crmCan(user, 'import'), admin: crmCan(user, 'admin'), catalog: crmCan(user, 'catalog'), funnel: crmCan(user, 'funnel'),
   };
 }

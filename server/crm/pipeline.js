@@ -9,8 +9,12 @@ export const DEAL_TYPE_LABELS = { new: 'Novo negócio', upsell: 'Upsell' };
 
 export const LOST_REASONS = {
   preco: 'Preço', concorrente: 'Fechou com concorrente', sem_orcamento: 'Sem orçamento', sem_decisao: 'Sem decisão / adiou',
-  timing: 'Momento errado', sem_fit: 'Sem aderência ao serviço', sem_resposta: 'Parou de responder', escopo: 'Escopo diferente do necessário', outro: 'Outro',
+  timing: 'Momento errado', sem_fit: 'Sem aderência ao serviço', sem_resposta: 'Parou de responder', escopo: 'Escopo diferente do necessário', outro: 'Outro', nao_informado: 'Não informado (importado)',
 };
+
+// "Não informado" só existe pra negócio perdido importado sem motivo (o PipeRun não exporta o motivo);
+// fica de fora das listas de escolha pra ninguém usar de propósito.
+export const SELECTABLE_LOST_REASONS = Object.entries(LOST_REASONS).filter(([k]) => k !== 'nao_informado').map(([value, label]) => ({ value, label }));
 
 // Probabilidade por etapa é o ponto de partida do forecast (Fase 4 pode calibrar
 // com o histórico real). Ganho = 100, Perdido = 0.
@@ -55,3 +59,25 @@ async function loadPipeline(db, row) {
     'SELECT id, name, position, probability, kind, color FROM crm_pipeline_stages WHERE pipeline_id=$1 AND deleted_at IS NULL ORDER BY position', [row.id]);
   return { id: row.id, name: row.name, stages: rows.map((s) => ({ id: s.id, name: s.name, position: s.position, probability: s.probability, kind: s.kind, color: s.color })) };
 }
+
+// Funil por id (só da org, não arquivado). `null` se não existir.
+export async function loadPipelineById(db, orgId, id) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(id || ''))) return null;
+  const { rows } = await db.query('SELECT id, name, is_default FROM crm_pipelines WHERE id=$1 AND org_id=$2 AND deleted_at IS NULL', [id, orgId]);
+  if (!rows[0]) return null;
+  const p = await loadPipeline(db, rows[0]);
+  return { ...p, isDefault: rows[0].is_default };
+}
+
+// Funil escolhido, ou o padrão da org quando nenhum foi pedido.
+export async function resolvePipeline(db, orgId, pipelineId) {
+  if (pipelineId) return loadPipelineById(db, orgId, pipelineId);
+  const p = await ensureDefaultPipeline(orgId, db);
+  return { ...p, isDefault: true };
+}
+
+// Probabilidade das etapas abertas de um funil novo: espalhada de 10% a 80% pela posição.
+export function spreadProbabilities(n) {
+  return Array.from({ length: n }, (_, i) => (n === 1 ? 50 : Math.round(10 + (i * 70) / (n - 1))));
+}
+export const STAGE_COLORS = ['#9a9a9a', '#3ea6ff', '#b98af5', '#ff9f40', '#F5C400', '#2dd4bf', '#f472b6', '#84cc16'];

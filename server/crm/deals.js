@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { pool } from '../db.js';
 import { CrmError } from './errors.js';
-import { ensureDefaultPipeline, DEAL_TYPES, DEAL_TYPE_LABELS, LOST_REASONS } from './pipeline.js';
+import { resolvePipeline, DEAL_TYPES, DEAL_TYPE_LABELS, LOST_REASONS } from './pipeline.js';
 import {
   sanitize, tx, addAudit, addTimeline, diffApi, mapBySpec, loadCompany, requireUuid, assertUserInOrg, changeSummary, todayBR, RELATIONSHIP_LABELS,
 } from './service.js';
@@ -151,7 +151,8 @@ export async function createDeal(orgId, actor, input) {
     const company = await loadCompany(c, orgId, src.companyId, { lock: true });
     if (!company) throw new CrmError(404, 'Empresa não encontrada.');
     if (values.deal_type === 'upsell' && company.relationship !== 'client') throw new CrmError(400, 'Upsell só existe para empresas que já são clientes.');
-    const pipeline = await ensureDefaultPipeline(orgId, c);
+    const pipeline = await resolvePipeline(c, orgId, src.pipelineId || null);
+    if (!pipeline) throw new CrmError(404, 'Funil não encontrado.');
     const stage = src.stageId ? pipeline.stages.find((s) => s.id === src.stageId) : pipeline.stages.find((s) => s.kind === 'open');
     if (!stage || stage.kind !== 'open') throw new CrmError(400, 'Um negócio novo precisa começar numa etapa em aberto.');
     if (src.ownerId === undefined) values.owner_id = await actorInOrg(c, orgId, actor); else await assertUserInOrg(c, orgId, values.owner_id);
@@ -239,7 +240,7 @@ export async function moveDeal(orgId, actor, id, { stageId, lostReason = '', los
     const reason = String(lostReason || '').trim();
     const detail = String(lostDetail || '').trim().slice(0, 1000);
     if (to.kind === 'lost') {
-      if (!LOST_REASONS[reason]) throw new CrmError(400, 'Escolha o motivo da perda.');
+      if (!LOST_REASONS[reason] || reason === 'nao_informado') throw new CrmError(400, 'Escolha o motivo da perda.');
       if (reason === 'outro' && !detail) throw new CrmError(400, 'Descreva o motivo da perda.');
     }
     const daysInFrom = Math.round((Date.now() - new Date(row.stage_entered_at).getTime()) / 864000) / 100;
