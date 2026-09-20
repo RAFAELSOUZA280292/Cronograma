@@ -27,6 +27,7 @@ import { TodoBoardView } from './meetings/TodoBoard.jsx';
 import { ProjectAssistant } from './assistant/ProjectAssistant.jsx';
 import KnowledgeCenterScreen from './knowledge/KnowledgeCenter.jsx';
 import PareceresScreen from './pareceres/Pareceres.jsx';
+import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
 const THEME_KEY = 'pricetax-cronograma-theme';
@@ -4797,6 +4798,8 @@ function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow,
         </div>
         <h1 style={S.loginTitle}>Olá, {(user.name || '').split(' ')[0] || user.username}</h1>
         <p style={S.loginSub}>Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>
+
+        <RenataAgendaBriefing user={user} onOpenAgenda={onPickAgenda} />
 
         <div style={S.workspaceChoices}>
           {onPickCompany && (
