@@ -12,7 +12,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Sparkles, MapPin, ArrowRight, Link2, TriangleAlert, CircleHelp, Utensils, Timer } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
 import { WORK, rsvpOf, isPendingRsvp, summarizeDay, timelineRows, durationMin, fmtDur, hhmm } from './dayLoad.js';
-import { loadPrefs, savePrefs, validateLunch, parseHHMM, DEFAULT_PREFS, isDefaultLunch } from './agendaPrefs.js';
+import { loadPrefs, savePrefs, validatePrefs, parseHHMM, DEFAULT_PREFS, isDefaultPrefs } from './agendaPrefs.js';
 
 const SOURCE_COLOR = { google: '#5B8DEF', xflow_ticket: '#b98af5', activity: '#3ecf6e', crm_activity: '#F5C400' };
 const DAY_SHORT = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
@@ -138,8 +138,8 @@ function packLanes(items) {
 // O dia numa linha do tempo: blocos onde há reunião, faixa verde suave onde há pausa longa.
 function DayBar({ items, sum, isToday, now }) {
   if (!items.length) return null;
-  const rs = Math.max(0, Math.min(WORK.start, Math.floor(Math.min(...items.map((i) => i.s)) / 60) * 60));
-  const re = Math.min(1440, Math.max(WORK.end, Math.ceil(Math.max(...items.map((i) => i.e)) / 60) * 60));
+  const rs = Math.max(0, Math.min(sum.work.start, Math.floor(Math.min(...items.map((i) => i.s)) / 60) * 60));
+  const re = Math.min(1440, Math.max(sum.work.end, Math.ceil(Math.max(...items.map((i) => i.e)) / 60) * 60));
   const span = re - rs;
   const pct = (m) => ((m - rs) / span) * 100;
   const packed = packLanes(items);
@@ -256,6 +256,7 @@ const CSS = `
   .rab-cfg { margin-top:12px; padding:14px 16px; border:1px solid var(--border-2); border-radius:12px; background:var(--bg-1); }
   .rab-cfg-t { font-size:12.5px; font-weight:800; color:var(--text-1); margin-bottom:10px; }
   .rab-cfg-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--text-3); }
+  .rab-cfg-lb { width:78px; font-weight:800; color:var(--text-2); }
   .rab-cfg-row input { width:auto; padding:7px 10px; font-size:13px; border-radius:8px; font-variant-numeric:tabular-nums; }
   .rab-cfg-act { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
   .rab-cfg-act .rab-btn { padding:7px 13px; }
@@ -350,7 +351,7 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda }) {
   // Hoje + o resto da janela (dias úteis: até domingo; fim de semana: a semana que vem inteira).
   const days = useMemo(() => {
     const out = [];
-    const push = (d) => { const iso = isoDate(d); const list = eventsOnDay(state.events, iso); out.push({ iso, date: new Date(d), list, sum: summarizeDay(list, iso, { lunchStart: prefs.lunchStart, lunchEnd: prefs.lunchEnd }) }); };
+    const push = (d) => { const iso = isoDate(d); const list = eventsOnDay(state.events, iso); out.push({ iso, date: new Date(d), list, sum: summarizeDay(list, iso, { start: prefs.workStart, end: prefs.workEnd, lunchStart: prefs.lunchStart, lunchEnd: prefs.lunchEnd }) }); };
     push(startOfDay(new Date()));
     for (let d = new Date(win.start); d < win.end; d = addDays(d, 1)) push(d);
     return out;
@@ -378,7 +379,7 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda }) {
     const s = focus.sum;
     // Hoje é presente ("Hoje está cheio"); qualquer outro dia é futuro ("Amanhã estará cheio", "Segunda estará cheia").
     verdictTitle = `${word.name} ${isToday ? 'está' : 'estará'} ${weight(s.confirmedMin, word.fem)}`;
-    if (s.confirmed > 0) verdictSub = <><b>{s.confirmed} {s.confirmed === 1 ? 'reunião' : 'reuniões'}</b> · {fmtDur(s.confirmedMin)} ocupadas · {fmtDur(s.freeMin)} livres</>;
+    if (s.confirmed > 0) verdictSub = <><b>{s.confirmed} {s.confirmed === 1 ? 'reunião' : 'reuniões'}</b> · {fmtDur(s.confirmedMin)} ocupadas · <span title={`Livre = tempo sem reunião aceita dentro do seu expediente (${hhmm(s.work.start)}–${hhmm(s.work.end)}). Reunião fora desse horário conta em "ocupadas", mas não tira tempo livre.`}>{fmtDur(s.freeMin)} livres das {hhmm(s.work.start)} às {hhmm(s.work.end)}</span></>;
     else if (s.pending > 0) verdictSub = <>Nenhuma reunião confirmada</>;
     else if (s.allDayAccepted > 0) verdictSub = <>Só eventos de dia inteiro</>;
     else verdictSub = <>Nada na agenda</>;
@@ -483,32 +484,38 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda }) {
               <span className="rab-legend"><i /> aceito</span>
               <span className="rab-legend"><i className="h" /> sem resposta</span>
               <span className="rab-legend"><TriangleAlert size={11} color="#e2574c" /> choca</span>
-              <button type="button" className="rab-toggle" onClick={() => setCfg(cfg ? null : { start: hhmm(prefs.lunchStart), end: hhmm(prefs.lunchEnd), error: '' })} title="Muda o horário de almoço usado nos avisos">
-                <Utensils size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Almoço {hhmm(prefs.lunchStart)}–{hhmm(prefs.lunchEnd)}{isDefaultLunch(prefs) ? '' : ' (seu)'}
+              <button type="button" className="rab-toggle" onClick={() => setCfg(cfg ? null : { workStart: hhmm(prefs.workStart), workEnd: hhmm(prefs.workEnd), lunchStart: hhmm(prefs.lunchStart), lunchEnd: hhmm(prefs.lunchEnd), error: '' })} title="Muda o seu expediente e o horário de almoço usados no tempo livre e nos avisos">
+                <Utensils size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Expediente {hhmm(prefs.workStart)}–{hhmm(prefs.workEnd)} · Almoço {hhmm(prefs.lunchStart)}–{hhmm(prefs.lunchEnd)}{isDefaultPrefs(prefs) ? '' : ' (seu)'}
               </button>
             </div>
 
             {cfg && (
-              <div className="rab-cfg" role="group" aria-label="Horário de almoço">
-                <div className="rab-cfg-t">Meu horário de almoço</div>
+              <div className="rab-cfg" role="group" aria-label="Expediente e almoço">
+                <div className="rab-cfg-t">Meu horário de trabalho</div>
                 <div className="rab-cfg-row">
-                  <label>Das <input type="time" step="900" value={cfg.start} onChange={(e) => setCfg({ ...cfg, start: e.target.value, error: '' })} /></label>
-                  <label>às <input type="time" step="900" value={cfg.end} onChange={(e) => setCfg({ ...cfg, end: e.target.value, error: '' })} /></label>
+                  <span className="rab-cfg-lb">Expediente</span>
+                  <label>das <input type="time" step="900" value={cfg.workStart} onChange={(e) => setCfg({ ...cfg, workStart: e.target.value, error: '' })} /></label>
+                  <label>às <input type="time" step="900" value={cfg.workEnd} onChange={(e) => setCfg({ ...cfg, workEnd: e.target.value, error: '' })} /></label>
+                </div>
+                <div className="rab-cfg-row" style={{ marginTop: 8 }}>
+                  <span className="rab-cfg-lb">Almoço</span>
+                  <label>das <input type="time" step="900" value={cfg.lunchStart} onChange={(e) => setCfg({ ...cfg, lunchStart: e.target.value, error: '' })} /></label>
+                  <label>às <input type="time" step="900" value={cfg.lunchEnd} onChange={(e) => setCfg({ ...cfg, lunchEnd: e.target.value, error: '' })} /></label>
                 </div>
                 {cfg.error && <div className="rab-cfg-err">{cfg.error}</div>}
                 <div className="rab-cfg-act">
                   <button type="button" className="rab-btn rab-btn-primary" onClick={() => {
-                    const s = parseHHMM(cfg.start); const e = parseHHMM(cfg.end);
-                    const err = s == null || e == null ? 'Informe o início e o fim do almoço.' : validateLunch(s, e);
+                    const next = { workStart: parseHHMM(cfg.workStart), workEnd: parseHHMM(cfg.workEnd), lunchStart: parseHHMM(cfg.lunchStart), lunchEnd: parseHHMM(cfg.lunchEnd) };
+                    const err = Object.values(next).some((v) => v == null) ? 'Preencha o início e o fim do expediente e do almoço.' : validatePrefs(next);
                     if (err) { setCfg({ ...cfg, error: err }); return; }
-                    const r = savePrefs({ lunchStart: s, lunchEnd: e });
+                    const r = savePrefs(next);
                     if (!r.ok) { setCfg({ ...cfg, error: r.error }); return; }
-                    setPrefs({ lunchStart: s, lunchEnd: e }); setCfg(null);
+                    setPrefs(next); setCfg(null);
                   }}>Salvar</button>
-                  {!isDefaultLunch(prefs) && <button type="button" className="rab-btn rab-btn-ghost" onClick={() => { savePrefs(DEFAULT_PREFS); setPrefs({ ...DEFAULT_PREFS }); setCfg(null); }}>Voltar ao padrão ({hhmm(DEFAULT_PREFS.lunchStart)}–{hhmm(DEFAULT_PREFS.lunchEnd)})</button>}
+                  {!isDefaultPrefs(prefs) && <button type="button" className="rab-btn rab-btn-ghost" onClick={() => { savePrefs(DEFAULT_PREFS); setPrefs({ ...DEFAULT_PREFS }); setCfg(null); }}>Voltar ao padrão ({hhmm(DEFAULT_PREFS.workStart)}–{hhmm(DEFAULT_PREFS.workEnd)}, almoço {hhmm(DEFAULT_PREFS.lunchStart)}–{hhmm(DEFAULT_PREFS.lunchEnd)})</button>}
                   <button type="button" className="rab-btn rab-btn-ghost" onClick={() => setCfg(null)}>Cancelar</button>
                 </div>
-                <div className="rab-cfg-hint">Uso isso para avisar quando uma reunião aceita pega o seu almoço. Fica salvo neste navegador.</div>
+                <div className="rab-cfg-hint">O “livre” é o tempo sem reunião aceita dentro do seu expediente; o almoço serve para avisar quando uma reunião aceita pega esse horário. Fica salvo neste navegador.</div>
               </div>
             )}
           </>
