@@ -5474,6 +5474,47 @@ só build limpo e leitura do código.
 quando o servidor reinicia fica órfão (o recupero só cobre `processing`) e a
 tela não oferece retry pra `pending`.
 
+## 50. RENATA na tela inicial: agenda de hoje/semana ou convite pra conectar (2026-09-20)
+
+**Pedido do Rafael**: ao logar, quem já conectou a agenda vê na hora as
+reuniões do dia e da semana (olhando sempre o dia e horário atuais); quem
+não conectou recebe da RENATA um "Olá, fulano, vamos conectar sua agenda?" com
+o botão à mão.
+
+- **`src/agenda/RenataAgendaBriefing.jsx`** (novo), montado em
+  `WorkspaceGateScreen` (`App.jsx`, a tela "Olá, Nome" logo após o login) acima
+  dos cartões de workspace. **Não chama IA** — lê `GET /api/agenda` (a mesma
+  da tela Agenda: Google + TASKs do XFlow + atividades do usuário) e monta o
+  texto localmente; custo em tokens zero. Decisão deliberada, logo depois da
+  conversa sobre custo da RENATA (§ chat de 18/09).
+- **Conectado**: saudação por hora (Bom dia/Boa tarde/Boa noite), resumo
+  ("Agora: X (até 12:35)" / "Próximo: Y às 14:00"), lista de hoje (passado
+  riscado, em andamento com selo "Agora", cancelados ocultos, dia inteiro no
+  fim) e o resto da semana agrupado por dia (rolagem interna de 300px pra não
+  empurrar os cartões pra fora da tela). "Agora" vem do relógio do navegador,
+  reavaliado a cada 30s; a agenda é recarregada a cada 5min.
+- **Sáb/dom**: não existe "resto da semana", então mostra a semana que vem
+  (seg→dom). Dia útil: de amanhã até domingo.
+- **Não conectado**: convite com botão "Conectar minha agenda"
+  (`/api/google/oauth/start`, mesmo fluxo do Meu Perfil e da Agenda) e
+  "Agora não", que dispensa até fechar a aba (`sessionStorage`). Se o servidor
+  não tem Google configurado (`/api/google/status` → `configured:false`) o
+  painel some — não convida a conectar algo impossível.
+- **Erro** ao ler a agenda (ex.: token revogado): mensagem + "Tentar de novo"
+  e "Reconectar".
+- Detalhe de data que já existia e foi respeitado: Google devolve o fim de
+  evento de dia inteiro como EXCLUSIVO (21→23 ocupa 21 e 22); atividade
+  PRICETAX/TASK do XFlow tem fim inclusivo.
+
+**Testado**: lógica pura (janela da semana p/ seg-dom, dia inteiro exclusivo/
+inclusivo, evento que termina 00:00 não invade o dia seguinte, ordenação) com
+19 asserções; renderização dos 5 estados (conectado, desconectado, sem Google
+configurado, erro, agenda vazia) numa página descartável com respostas
+simuladas de `/api/agenda`, incluindo dispensar o convite. **Não verificado**:
+login real + conta Google real (sem sessão/credencial no ambiente de teste;
+não digitei senha) e o dia útil (só o domingo estava disponível na data do
+teste, o caso de dia útil é coberto pelos testes unitários da janela).
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |
