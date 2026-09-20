@@ -364,6 +364,28 @@ usam `S.detailBox`.
   para Empresas" no canto esquerdo) — não é uma rota nova, só um atalho
   visual mais consistente.
 
+### CRM PRICETAX — Fase 1 (2026-09, `PROJECT_CONTEXT.md` §54)
+- **Backend `server/crm/`** (montado em `/api/crm` por `server/index.js`):
+  `routes.js` (`createCrmRouter({ auth })`, auth injetável p/ teste; /me,
+  /options, /overview, /search, /cnpj/:cnpj, /companies CRUD + check-duplicates
+  + restore + timeline + audit + projects link/unlink, /projects-available,
+  /contacts CRUD, /notes, /import/fields|preview|commit, /bootstrap/preview|
+  commit) · `service.js` (escritas: dado+auditoria+timeline numa transação) ·
+  `queries.js` (leituras/KPIs/busca) · `permissions.js` (`crmRoleOf`, capacidades
+  read/write/remove/import/admin) · `duplicates.js` · `importer.js` ·
+  `bootstrap.js` · `completeness.js` · `projectSummary.js` · `cnpj.js` ·
+  `cnpjSuggestion.js` · `text.js` · `errors.js`.
+- **Frontend `src/crm/`** (`React.lazy` em `App.jsx`): `CrmScreen.jsx` (shell +
+  submenus), `OverviewPage`, `CompaniesPage`, `ContactsPage`, `CompanyDrawer`
+  (Ficha 360), `CompanyForm`, `ContactForm`, `ImportWizard` (xlsx.mini em
+  `import()` dinâmico), `BootstrapDialog`, `GlobalSearch`, `ui.jsx`,
+  `crmMeta.js` (rótulos + `CRM_CSS`), `crmApi.js`.
+- **Toques em arquivos existentes (aditivos)**: `App.jsx` (`hasCrm`, modo
+  `'crm'` em `availableModes`/`locationTag`, card no `WorkspaceGateScreen`,
+  select "Acesso ao CRM" no `EditUserModal`), `server/routes.js` (`PATCH
+  /users/:id` aceita `crmRole`), `server/auth.js` (`rowToUser` → `crmRole`/
+  `crmAccess`), `server/db.js` (fim de `initDb()`), `src/lib/api.js` (`err.data`).
+
 ## 5. Fluxos críticos
 
 ```
@@ -398,13 +420,16 @@ anexos são base64 inline no PATCH do projeto (ver §9, ponto de atenção).
 | Tabela | Finalidade | Relacionamentos |
 |---|---|---|
 | `organizations` | Tenant/organização (2026-08). Colunas: `slug`, `name`, `display_name`, `logo_light/dark`, `favicon`, `primary_color`, `secondary_color`, `login_background`, `status` (active/suspended/blocked), `plan`, `max_users`, `max_companies`, `settings` JSONB | `users.org_id`/`projects.org_id` referenciam `organizations.id` |
-| `users` | Conta de login, papel (master/pricetax/cliente), CNPJs liberados, `org_id`, `is_super_admin` | `personal_boards.user_id` referencia `users.id` (CASCADE); `org_id → organizations.id` |
+| `users` | Conta de login, papel (master/pricetax/cliente), CNPJs liberados, `org_id`, `is_super_admin`, `crm_role` (acesso ao CRM, §54) | `personal_boards.user_id` referencia `users.id` (CASCADE); `org_id → organizations.id` |
 | `projects` | 1 linha = 1 empresa/cronograma inteiro, tudo em `data JSONB` (company, phases, activities, team, log) + coluna relacional `org_id` | Vínculo com `users` é lógico via `company.cnpj` / `allowed_cnpjs`, não FK; `org_id → organizations.id` |
 | `cnpj_cache` | Cache de 60 dias das respostas de lookup de CNPJ — **não** tem `org_id`, é compartilhado entre organizações de propósito | Nenhum |
 | `personal_boards` | 1 linha por usuário, `data JSONB` = quadro Kanban pessoal — **não** tem `org_id` (sempre buscado por `user_id`; o scan de `shareToken` público é cross-org de propósito) | FK `user_id → users.id` |
 | `meeting_submissions` | Caixa de transcrições (2026-09) — 1 linha por transcrição enviada pra virar reunião via IA, `status` (pending/processing/done/failed) próprio, fora do JSONB do projeto de propósito (sobrevive independente do resultado do processamento) — ver `PROJECT_CONTEXT.md` §24.1 | FK `org_id → organizations.id`, `project_id → projects.id`, `submitted_by → users.id` |
 | `ai_conversations` / `ai_messages` | Assistente do Projeto, Fase 2 (2026-09) — 1 conversa contínua por (projeto, usuário); mensagens com fontes/observabilidade/feedback + `proposed_action`/`action_status` do agente executor (Fase 6 v1) — ver `PROJECT_CONTEXT.md` §27 | FK `org_id`/`project_id`/`user_id`; `ai_messages.conversation_id → ai_conversations.id` (CASCADE) |
 | `ai_project_insights` | Aprendizados duráveis do Assistente do Projeto (2026-09) — extraídos das conversas, à parte de `ai_messages` de propósito (sobrevivem a "Limpar conversa") — ver `PROJECT_CONTEXT.md` §27 | FK `org_id → organizations.id`, `project_id → projects.id` (CASCADE) |
+| `crm_companies` / `crm_contacts` / `crm_notes` | CRM Fase 1 (2026-09, `PROJECT_CONTEXT.md` §54) — relacionais (não JSONB), UUID, soft delete, `org_id`. Índice único parcial `(org_id, cnpj)` em empresas ativas com CNPJ | `crm_contacts`/`crm_notes` → `crm_companies.id`; `org_id → organizations.id` |
+| `crm_company_projects` | Vínculo empresa CRM ↔ projeto do cronograma (`project_id` UNIQUE; vários projetos por empresa). CRM só LÊ `projects.data` | `company_id → crm_companies.id`, `project_id → projects.id` |
+| `crm_timeline_events` / `crm_audit_logs` | Histórico de negócio e auditoria campo a campo — **append-only por trigger** (`crm_block_history_mutation` barra UPDATE/DELETE); limpeza de teste exige `DISABLE TRIGGER USER` | `company_id → crm_companies.id` |
 
 Sem migrations formais — `initDb()` roda `CREATE TABLE IF NOT EXISTS` +
 `ALTER TABLE ADD COLUMN IF NOT EXISTS` a cada boot do servidor.

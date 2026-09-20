@@ -64,6 +64,10 @@ function rowToUser(row) {
     companiesAccess: !!row.companies_access,
     allCompaniesAccess: !!row.all_companies_access,
     personalAccess: !!row.personal_access,
+    // CRM (2026-09-20): master/super admin têm acesso de administrador
+    // automaticamente; os demais precisam de crm_role; 'cliente' nunca.
+    crmRole: row.crm_role || '',
+    crmAccess: row.role !== 'cliente' && (row.role === 'master' || !!row.is_super_admin || !!row.crm_role),
   };
 }
 

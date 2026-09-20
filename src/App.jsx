@@ -5,7 +5,7 @@ import {
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
   LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History,
   MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal,
-  Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge, Home, Paperclip, Sparkles,
+  Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge, Home, Paperclip, Sparkles, Briefcase,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -28,6 +28,13 @@ import { ProjectAssistant } from './assistant/ProjectAssistant.jsx';
 import KnowledgeCenterScreen from './knowledge/KnowledgeCenter.jsx';
 import PareceresScreen from './pareceres/Pareceres.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
+// CRM (2026-09-20, PROJECT_CONTEXT.md §54): módulo grande e opcional — carregado só quando alguém abre o CRM.
+const CrmScreen = React.lazy(() => import('./crm/CrmScreen.jsx'));
+// Fica aqui (e não em crm/crmMeta.js) pra o CSS do CRM não entrar no pacote principal.
+const CRM_ROLE_OPTIONS = [
+  ['', 'Sem acesso'], ['admin', 'Administrador'], ['diretor', 'Diretor'], ['gestor', 'Gestor Comercial'], ['vendedor', 'Vendedor'],
+  ['consultor', 'Consultor'], ['financeiro', 'Financeiro'], ['visualizacao', 'Visualização'],
+];
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
 const THEME_KEY = 'pricetax-cronograma-theme';
@@ -632,6 +639,7 @@ export default function App() {
     if (mode === 'xflow') return 'xflow';
     if (mode === 'agenda') return 'agenda';
     if (mode === 'macro') return 'macro';
+    if (mode === 'crm') return 'crm';
     if (mode === 'personal') return 'personal';
     if (users) return 'company:users';
     if (orgAdmin) return 'company:orgadmin';
@@ -675,6 +683,7 @@ export default function App() {
     else if (tag === 'xflow') { setWorkspaceMode('xflow'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'agenda') { setWorkspaceMode('agenda'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'macro') { setWorkspaceMode('macro'); setShowUsers(false); setShowOrgAdmin(false); }
+    else if (tag === 'crm') { setWorkspaceMode('crm'); setShowUsers(false); setShowOrgAdmin(false); }
     else { setWorkspaceMode(null); setShowUsers(false); setShowOrgAdmin(false); }
   }
   // Nível 3 (2026-08): abrir ActivityDetailModal empilha em cima do state
@@ -1236,7 +1245,9 @@ export default function App() {
   // de Conhecimento (master/pricetax, nunca 'cliente') — decisão confirmada
   // com o Rafael.
   const hasPareceres = currentUser.role === 'master' || currentUser.role === 'pricetax';
-  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda', hasMacro && 'macro', hasKnowledge && 'knowledge', hasPareceres && 'pareceres'].filter(Boolean);
+  // CRM (2026-09-20): master/super admin sempre; demais só com crm_role definido em "Usuários"; 'cliente' nunca (regra vem pronta do servidor em crmAccess).
+  const hasCrm = !!currentUser.crmAccess;
+  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda', hasMacro && 'macro', hasKnowledge && 'knowledge', hasPareceres && 'pareceres', hasCrm && 'crm'].filter(Boolean);
   const effectiveMode = workspaceMode || (availableModes.length === 1 ? availableModes[0] : null);
   // Home = tela "Olá, Nome" (WorkspaceGateScreen). Só faz sentido oferecer o
   // atalho se houver mais de 1 workspace pra escolher — com só 1, a tela
@@ -1259,6 +1270,7 @@ export default function App() {
         onPickMacro={hasMacro ? () => goToWorkspace('macro') : undefined}
         onPickKnowledge={hasKnowledge ? () => goToWorkspace('knowledge') : undefined}
         onPickPareceres={hasPareceres ? () => goToWorkspace('pareceres') : undefined}
+        onPickCrm={hasCrm ? () => goToWorkspace('crm') : undefined}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -1360,6 +1372,20 @@ export default function App() {
           openMeetingDetail(pid, meetingId);
         }}
       />
+    );
+  }
+
+  if (effectiveMode === 'crm') {
+    return (
+      <React.Suspense fallback={<LoadingScreen theme={theme} />}>
+        <CrmScreen
+          currentUser={currentUser}
+          onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
+          onLogout={handleLogout}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
+      </React.Suspense>
     );
   }
 
@@ -3717,6 +3743,13 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
           </select>
         </div>
 
+        <div style={{ marginTop: 12 }}>
+          <div style={S.subSectionLabel}>Acesso ao CRM</div>
+          <select value={u.crmRole || ''} onChange={(e) => onUpdate(u.id, { crmRole: e.target.value })} disabled={u.role === 'cliente' || u.role === 'master'}>
+            {CRM_ROLE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{u.role === 'master' ? 'Administrador (automático — Master)' : (u.role === 'cliente' && v === '' ? 'Sem acesso (usuários cliente nunca acessam)' : l)}</option>)}
+          </select>
+        </div>
+
         <div style={S.accessBlock}>
           <div style={S.settingsLabel}>Acesso</div>
           <label style={S.cnpjCheckRow}>
@@ -4798,7 +4831,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   );
 }
 
-function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onLogout, theme, onToggleTheme }) {
+function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickCrm, onLogout, theme, onToggleTheme }) {
   return (
     <div className="page-root" style={S.page}>
       <div style={S.companySelectorWrap}>
@@ -4855,6 +4888,13 @@ function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow,
               <Sparkles size={26} color="#F5C400" />
               <div style={S.workspaceCardTitle}>Conhecimento</div>
               <div style={S.workspaceCardDesc}>O que a RENATA sabe, de onde veio, o que está em conflito e onde já foi usado.</div>
+            </button>
+          )}
+          {onPickCrm && (
+            <button style={S.workspaceCard} onClick={onPickCrm}>
+              <Briefcase size={26} color="#F5C400" />
+              <div style={S.workspaceCardTitle}>CRM</div>
+              <div style={S.workspaceCardDesc}>Empresas, contatos e todo o relacionamento comercial da PRICETAX — do primeiro contato ao projeto.</div>
             </button>
           )}
           {onPickPareceres && (

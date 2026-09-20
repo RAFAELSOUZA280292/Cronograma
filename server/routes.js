@@ -7,6 +7,7 @@ import {
 import { lookupCnpj, cleanCnpj, formatCnpj } from './cnpjLookup.js';
 import { createNotification, rowToNotification } from './notifications.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
+import { CRM_ROLES } from './crm/permissions.js';
 import { searchProjectMemory } from './memoryRetrieval.js';
 
 function uid(p) {
@@ -276,11 +277,12 @@ router.patch('/users/:id', requireAuth, requireMaster, async (req, res, next) =>
       companies_access: patch.companiesAccess !== undefined ? !!patch.companiesAccess : target.companies_access,
       all_companies_access: patch.allCompaniesAccess !== undefined ? !!patch.allCompaniesAccess : target.all_companies_access,
       personal_access: patch.personalAccess !== undefined ? !!patch.personalAccess : target.personal_access,
+      crm_role: patch.crmRole !== undefined ? (CRM_ROLES.includes(patch.crmRole) ? patch.crmRole : '') : (target.crm_role || ''),
     };
     const { rows } = await pool.query(
-      `UPDATE users SET username=$1, name=$2, email=$3, role=$4, cnpj=$5, allowed_cnpjs=$6, expires_at=$7, avatar=$8, personal_only=$9, xflow_role=$10, companies_access=$11, all_companies_access=$12, personal_access=$13, updated_at=now()
-       WHERE id=$14 RETURNING *`,
-      [next_.username, next_.name, next_.email, next_.role, next_.cnpj, next_.allowed_cnpjs, next_.expires_at, next_.avatar, next_.personal_only, next_.xflow_role, next_.companies_access, next_.all_companies_access, next_.personal_access, id]
+      `UPDATE users SET username=$1, name=$2, email=$3, role=$4, cnpj=$5, allowed_cnpjs=$6, expires_at=$7, avatar=$8, personal_only=$9, xflow_role=$10, companies_access=$11, all_companies_access=$12, personal_access=$13, crm_role=$14, updated_at=now()
+       WHERE id=$15 RETURNING *`,
+      [next_.username, next_.name, next_.email, next_.role, next_.cnpj, next_.allowed_cnpjs, next_.expires_at, next_.avatar, next_.personal_only, next_.xflow_role, next_.companies_access, next_.all_companies_access, next_.personal_access, next_.crm_role, id]
     );
     res.json({ user: rowToUser(rows[0]) });
   } catch (e) { next(e); }

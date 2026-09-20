@@ -12,6 +12,7 @@ async function request(method, path, body) {
     const err = new Error(message);
     err.status = res.status;
     err.message = message;
+    err.data = data; // corpo completo do erro (ex.: lista de duplicados do CRM)
     throw err;
   }
   return data;

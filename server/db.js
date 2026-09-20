@@ -799,6 +799,154 @@ export async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS pareceres_org_idx ON pareceres(org_id, created_at DESC)`);
+
+  // CRM PRICETAX — Fase 1 (2026-09-20, ver PROJECT_CONTEXT.md §54). Tudo
+  // ADITIVO: tabelas novas com prefixo crm_ + uma coluna nova em users
+  // (crm_role, vazio = sem acesso). Nada do que já existe é alterado.
+  // Modelo relacional (não JSONB como `projects`) porque funil, forecast e
+  // aging precisam de agregação. IDs UUID gerados no app (crypto.randomUUID).
+  // Empresa do CRM ≠ projeto do cronograma: a ligação é crm_company_projects
+  // (uma empresa do CRM pode ter vários projetos; um projeto pertence a no
+  // máximo uma empresa do CRM). Lead NÃO é estado da empresa (Fase 2: é a
+  // 1ª etapa de um negócio) — `relationship` é só a relação com a PRICETAX.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS crm_role TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_companies (
+      id               UUID PRIMARY KEY,
+      org_id           TEXT NOT NULL REFERENCES organizations(id),
+      legal_name       TEXT NOT NULL,
+      trade_name       TEXT NOT NULL DEFAULT '',
+      cnpj             TEXT NOT NULL DEFAULT '',
+      economic_group   TEXT NOT NULL DEFAULT '',
+      branch_type      TEXT NOT NULL DEFAULT '',
+      website          TEXT NOT NULL DEFAULT '',
+      segment          TEXT NOT NULL DEFAULT '',
+      cnae             TEXT NOT NULL DEFAULT '',
+      city             TEXT NOT NULL DEFAULT '',
+      state            TEXT NOT NULL DEFAULT '',
+      country          TEXT NOT NULL DEFAULT 'Brasil',
+      relationship     TEXT NOT NULL DEFAULT 'prospect' CHECK (relationship IN ('prospect','client','former_client','partner')),
+      source           TEXT NOT NULL DEFAULT '',
+      owner_id         TEXT REFERENCES users(id),
+      entered_at       DATE,
+      client_since     DATE,
+      company_size     TEXT NOT NULL DEFAULT '',
+      tax_regime       TEXT NOT NULL DEFAULT '',
+      revenue_estimate NUMERIC(16,2),
+      employees        INT,
+      erp              TEXT NOT NULL DEFAULT '',
+      strategic_level  TEXT NOT NULL DEFAULT '',
+      name_norm        TEXT NOT NULL DEFAULT '',
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      created_by       TEXT REFERENCES users(id),
+      updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_by       TEXT REFERENCES users(id),
+      deleted_at       TIMESTAMPTZ,
+      deleted_by       TEXT REFERENCES users(id)
+    );
+  `);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS crm_companies_org_cnpj_uidx ON crm_companies(org_id, cnpj) WHERE cnpj <> '' AND deleted_at IS NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_companies_org_idx ON crm_companies(org_id, deleted_at, relationship)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_companies_name_idx ON crm_companies(org_id, name_norm)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_company_projects (
+      company_id  UUID NOT NULL REFERENCES crm_companies(id),
+      project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      linked_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      linked_by   TEXT REFERENCES users(id),
+      PRIMARY KEY (company_id, project_id)
+    );
+  `);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS crm_company_projects_project_uidx ON crm_company_projects(project_id)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_contacts (
+      id                    UUID PRIMARY KEY,
+      org_id                TEXT NOT NULL REFERENCES organizations(id),
+      company_id            UUID NOT NULL REFERENCES crm_companies(id),
+      first_name            TEXT NOT NULL,
+      last_name             TEXT NOT NULL DEFAULT '',
+      job_title             TEXT NOT NULL DEFAULT '',
+      department            TEXT NOT NULL DEFAULT '',
+      email                 TEXT NOT NULL DEFAULT '',
+      phone                 TEXT NOT NULL DEFAULT '',
+      whatsapp              TEXT NOT NULL DEFAULT '',
+      linkedin              TEXT NOT NULL DEFAULT '',
+      influence             TEXT NOT NULL DEFAULT '',
+      decision_role         TEXT NOT NULL DEFAULT '',
+      relationship_strength TEXT NOT NULL DEFAULT '',
+      is_primary            BOOLEAN NOT NULL DEFAULT false,
+      name_norm             TEXT NOT NULL DEFAULT '',
+      created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+      created_by            TEXT REFERENCES users(id),
+      updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_by            TEXT REFERENCES users(id),
+      deleted_at            TIMESTAMPTZ,
+      deleted_by            TEXT REFERENCES users(id)
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_contacts_company_idx ON crm_contacts(org_id, company_id, deleted_at)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_contacts_email_idx ON crm_contacts(org_id, email) WHERE email <> ''`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_notes (
+      id          UUID PRIMARY KEY,
+      org_id      TEXT NOT NULL REFERENCES organizations(id),
+      entity_type TEXT NOT NULL,
+      entity_id   UUID NOT NULL,
+      company_id  UUID NOT NULL REFERENCES crm_companies(id),
+      body        TEXT NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      created_by  TEXT REFERENCES users(id),
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_by  TEXT REFERENCES users(id),
+      deleted_at  TIMESTAMPTZ,
+      deleted_by  TEXT REFERENCES users(id)
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_notes_entity_idx ON crm_notes(org_id, entity_type, entity_id, deleted_at)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_timeline_events (
+      id          UUID PRIMARY KEY,
+      org_id      TEXT NOT NULL REFERENCES organizations(id),
+      company_id  UUID NOT NULL REFERENCES crm_companies(id),
+      entity_type TEXT NOT NULL,
+      entity_id   UUID,
+      event_type  TEXT NOT NULL,
+      summary     TEXT NOT NULL,
+      data        JSONB NOT NULL DEFAULT '{}',
+      actor_id    TEXT REFERENCES users(id),
+      actor_name  TEXT NOT NULL DEFAULT '',
+      occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_timeline_company_idx ON crm_timeline_events(company_id, occurred_at DESC)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_audit_logs (
+      id          UUID PRIMARY KEY,
+      org_id      TEXT NOT NULL REFERENCES organizations(id),
+      entity_type TEXT NOT NULL,
+      entity_id   UUID NOT NULL,
+      action      TEXT NOT NULL,
+      changes     JSONB NOT NULL DEFAULT '[]',
+      actor_id    TEXT REFERENCES users(id),
+      actor_name  TEXT NOT NULL DEFAULT '',
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS crm_audit_entity_idx ON crm_audit_logs(org_id, entity_type, entity_id, created_at DESC)`);
+  // "Nunca apagar histórico" (PRD 43): timeline e auditoria são append-only
+  // também no banco, não só por convenção do código.
+  await pool.query(`
+    CREATE OR REPLACE FUNCTION crm_block_history_mutation() RETURNS trigger AS $$
+    BEGIN
+      RAISE EXCEPTION 'Histórico do CRM é somente-inserção (% em %)', TG_OP, TG_TABLE_NAME;
+    END;
+    $$ LANGUAGE plpgsql
+  `);
+  for (const t of ['crm_timeline_events', 'crm_audit_logs']) {
+    await pool.query(`DROP TRIGGER IF EXISTS ${t}_append_only ON ${t}`);
+    await pool.query(`CREATE TRIGGER ${t}_append_only BEFORE UPDATE OR DELETE ON ${t} FOR EACH ROW EXECUTE FUNCTION crm_block_history_mutation()`);
+  }
 }
 
 // Migração one-shot (Fase 7, 2026-09-11) — copia os aprendizados já
