@@ -7,9 +7,13 @@
 //  · sem resposta e talvez são "pendentes": aparecem, mas NÃO contam como tempo ocupado — o resumo
 //    mostra também quanto sobra "se aceitar tudo";
 //  · recusado não ocupa tempo; evento marcado como "Livre" (transparent) também não;
-//  · dia inteiro não entra na conta de horas.
+//  · dia inteiro não entra na conta de horas;
+//  · almoço = a janela [lunchStart, lunchEnd] (padrão 12:00–13:00, configurável): livre só se nenhum compromisso
+//    ACEITO encosta nela; `lunch.blockers` diz quais reuniões pegam o almoço.
 
-export const WORK = { start: 8 * 60, end: 18 * 60, lunchStart: 12 * 60, lunchEnd: 14 * 60, lunchMin: 45, minGap: 15, backToBack: 5, longRun: 180 };
+// Almoço PADRÃO: 12:00–13:00 (a pessoa pode mudar em agendaPrefs.js). Só conta como "livre" com a janela INTEIRA
+// sem compromisso aceito — nada de supor que ela almoça fora dessa janela.
+export const WORK = { start: 8 * 60, end: 18 * 60, lunchStart: 12 * 60, lunchEnd: 13 * 60, minGap: 15, backToBack: 5, longRun: 180 };
 
 export const RSVP_META = {
   accepted: { label: 'Aceito', color: '#3ecf6e' },
@@ -112,9 +116,13 @@ export function summarizeDay(events, day, opts = {}) {
 
   const gaps = freeGaps(busy, W.start, W.end).filter((g) => g.min >= W.minGap);
   const longestGap = gaps.reduce((b, g) => (!b || g.min > b.min ? g : b), null);
+  const lunchMin = opts.lunchMin != null ? opts.lunchMin : W.lunchEnd - W.lunchStart;
   const lunchGaps = freeGaps(busy, W.lunchStart, W.lunchEnd);
   const lunchBest = lunchGaps.reduce((b, g) => (!b || g.min > b.min ? g : b), null);
   const lunchAll = freeGaps(busyAll, W.lunchStart, W.lunchEnd).reduce((b, g) => (!b || g.min > b.min ? g : b), null);
+  const touchesLunch = (i) => i.s < W.lunchEnd && W.lunchStart < i.e;
+  const lunchBlockers = acc.filter(touchesLunch).sort((a, b) => a.s - b.s).map((i) => ({ title: i.ev.title, s: i.s, e: i.e }));
+  const lunchPendingBlockers = pen.filter(touchesLunch).sort((a, b) => a.s - b.s).map((i) => ({ title: i.ev.title, s: i.s, e: i.e }));
 
   const sortedAcc = [...acc].sort((a, b) => a.s - b.s || a.e - b.e);
   let backToBack = 0;
@@ -131,7 +139,10 @@ export function summarizeDay(events, day, opts = {}) {
     day, confirmed: acc.length, pending: pen.length, declined: dec.length, allDayAccepted, allDayPending,
     confirmedMin: total(busy), pendingMin: total(mergeOverlap(pen)),
     workMin, freeMin, freeIfAllMin, gaps, longestGap,
-    lunch: { ok: !!lunchBest && lunchBest.min >= W.lunchMin, min: lunchBest ? lunchBest.min : 0, window: lunchBest, okIfAll: !!lunchAll && lunchAll.min >= W.lunchMin },
+    lunch: {
+      ok: !!lunchBest && lunchBest.min >= lunchMin, min: lunchBest ? lunchBest.min : 0, window: lunchBest, okIfAll: !!lunchAll && lunchAll.min >= lunchMin,
+      start: W.lunchStart, end: W.lunchEnd, blockers: lunchBlockers, pendingBlockers: lunchPendingBlockers,
+    },
     longestRun: longestRun(busy), backToBack, conflicts, pendingConflicts,
     work: { start: W.start, end: W.end },
   };
