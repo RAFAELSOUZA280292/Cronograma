@@ -74,7 +74,7 @@ export function eventsOnDay(events, day) {
 
 const minutesOf = (d) => d.getHours() * 60 + d.getMinutes();
 
-// "Hoje" / "Amanhã" / "Segunda" — e o gênero certo pro adjetivo ("Segunda está cheia", "Hoje está cheio").
+// "Hoje" / "Amanhã" / "Segunda" — e o gênero certo pro adjetivo ("Segunda estará cheia", "Hoje está cheio").
 function dayWord(iso, todayIso, date) {
   if (iso === todayIso) return { name: 'Hoje', fem: false };
   if (iso === isoDate(addDays(new Date(`${todayIso}T12:00:00`), 1))) return { name: 'Amanhã', fem: false };
@@ -376,7 +376,8 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda }) {
   let verdictTitle = ''; let verdictSub = null; let nextLine = null;
   if (focus) {
     const s = focus.sum;
-    verdictTitle = `${word.name} está ${weight(s.confirmedMin, word.fem)}`;
+    // Hoje é presente ("Hoje está cheio"); qualquer outro dia é futuro ("Amanhã estará cheio", "Segunda estará cheia").
+    verdictTitle = `${word.name} ${isToday ? 'está' : 'estará'} ${weight(s.confirmedMin, word.fem)}`;
     if (s.confirmed > 0) verdictSub = <><b>{s.confirmed} {s.confirmed === 1 ? 'reunião' : 'reuniões'}</b> · {fmtDur(s.confirmedMin)} ocupadas · {fmtDur(s.freeMin)} livres</>;
     else if (s.pending > 0) verdictSub = <>Nenhuma reunião confirmada</>;
     else if (s.allDayAccepted > 0) verdictSub = <>Só eventos de dia inteiro</>;
