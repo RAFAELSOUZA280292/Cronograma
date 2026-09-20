@@ -615,7 +615,50 @@ router.get('/public-board/:token', optionalAuth, async (req, res, next) => {
       const ownerRow = await findUserById(found.ownerId);
       ownerName = ownerRow ? ownerRow.name : '';
     }
-    res.json({ board: found.board, canEdit: !!req.user, ownerName });
+    // isOwner/alreadyLinked (2026-09-20): a página do link mostra "Adicionar ao
+    // meu quadro" só pra quem está logado, não é o dono e ainda não fixou.
+    let alreadyLinked = false;
+    if (req.user && req.user.id !== found.ownerId) {
+      const { rows: mine } = await pool.query('SELECT data FROM personal_boards WHERE user_id=$1', [req.user.id]);
+      alreadyLinked = !!(mine[0] && ((mine[0].data && mine[0].data.linkedBoards) || []).some((l) => l.token === req.params.token));
+    }
+    res.json({ board: found.board, canEdit: !!req.user, ownerName, isOwner: !!req.user && req.user.id === found.ownerId, alreadyLinked });
+  } catch (e) { next(e); }
+});
+
+// Fixa o quadro compartilhado de outra pessoa como uma aba no Gestão de
+// Atividades do usuário logado (2026-09-20, pedido do Rafael). Nada é copiado:
+// guarda só {token, nome em cache, dono}; o conteúdo é sempre o do dono, lido
+// pelo mesmo link público — então perde o acesso se o dono deixar de
+// compartilhar ou regenerar o link (a aba avisa e deixa remover). Exportada
+// pra ser testável sem sessão HTTP.
+export async function addLinkedBoard(user, token) {
+  const found = await findBoardByShareToken(token);
+  if (!found || found.board.visibility !== 'public') return { status: 404, message: 'Link inválido ou o quadro não é mais público.' };
+  if (found.ownerId === user.id) return { status: 400, message: 'Esse quadro já é seu.' };
+  const { rows } = await pool.query('SELECT data FROM personal_boards WHERE user_id=$1', [user.id]);
+  const data = rows[0] ? rows[0].data : blankPersonalBoard();
+  const linked = data.linkedBoards || [];
+  const existing = linked.find((l) => l.token === token);
+  if (existing) return { status: 200, entry: existing, already: true };
+  const ownerRow = await findUserById(found.ownerId);
+  const entry = { token, name: found.board.name || 'Quadro compartilhado', ownerName: ownerRow ? ownerRow.name : '', addedAt: new Date().toISOString() };
+  await pool.query(
+    `INSERT INTO personal_boards (user_id, data) VALUES ($1,$2)
+     ON CONFLICT (user_id) DO UPDATE SET data=$2, updated_at=now()`,
+    [user.id, JSON.stringify({ ...data, linkedBoards: [...linked, entry] })],
+  );
+  return { status: 201, entry, already: false };
+}
+
+router.post('/personal-board/linked', requireAuth, async (req, res, next) => {
+  try {
+    if (!req.user.personalAccess) return res.status(403).json({ message: 'Você não tem acesso à Gestão de Atividades.' });
+    const token = req.body && req.body.token;
+    if (!token || typeof token !== 'string') return res.status(400).json({ message: 'Informe o link do quadro.' });
+    const result = await addLinkedBoard(req.user, token);
+    if (result.message) return res.status(result.status).json({ message: result.message });
+    res.status(result.status).json({ entry: result.entry, already: result.already });
   } catch (e) { next(e); }
 });
 

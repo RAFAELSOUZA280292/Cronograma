@@ -5549,6 +5549,50 @@ senha) — só o build limpo e a leitura do código.
 botões dos cartões do Quadro Pessoal (`PersonalCard`, `listeners` no cartão
 inteiro). Não é o caso relatado (não há campo de texto ali) e não foi mexido.
 
+## 52. Fixar o quadro compartilhado de outra pessoa como aba (2026-09-20)
+
+**Pedido do Rafael**: recebeu o link público de um quadro do Felipe
+(`/quadro/:token`), gostou e quer que fique **fixo** como aba no próprio
+Gestão de Atividades (estando logado), em vez de depender do link.
+
+- **Não copia nada**: o quadro do Felipe continua sendo do Felipe. A aba guarda
+  só `{token, name, ownerName, addedAt}` em `personal_boards.data.linkedBoards`
+  do usuário; o conteúdo é sempre lido do dono pelo mesmo link público.
+  Consequência: se o dono deixar de compartilhar (`visibility` ≠ public) ou
+  regenerar o link, a aba mostra "não está mais compartilhado" com
+  "Remover da minha lista". Remover só tira da lista — nunca apaga o quadro dele.
+- **Servidor** (`server/routes.js`): `POST /api/personal-board/linked {token}`
+  (exige `personalAccess`; 404 se privado/inexistente, 400 se for o próprio
+  quadro, idempotente se já fixado) via `addLinkedBoard()` exportada;
+  `GET /api/public-board/:token` passou a devolver `isOwner` e `alreadyLinked`.
+- **Página do link** (`PublicBoardScreen`, `App.jsx`): logado, não-dono e com
+  acesso à Gestão → botão **"Adicionar ao meu quadro"** (ou "Abrir no meu
+  quadro" se já fixado). Ao adicionar, deixa `sessionStorage['pb-open-linked']`
+  e volta pra `/`; o App abre a Gestão de Atividades direto e
+  `PersonalBoardScreen` abre a aba (e apaga o marcador).
+- **Aba** (`PersonalBoardScreen`): aba com ícone de link, "Nome · Primeiro nome
+  do dono", X = remover da lista; renderiza `PublicBoardScreen embedded`
+  (sem topbar/abas próprias, com faixa "Quadro de X" e o estado de salvamento).
+  Recarrega o quadro a cada 45s se não houver edição pendente/em voo. O nome em
+  cache da aba se atualiza quando o dono renomeia.
+- **Edição**: quem tem acesso edita o quadro do dono (PATCH `/api/public-board`,
+  o mesmo mecanismo que o link já dava a qualquer logado); o histórico do dono
+  registra o nome de quem mexeu. **Quadro/Lista e ordenação ficam locais**
+  (`localViewPrefs`) e nunca vão no PATCH — antes, trocar a visão num quadro
+  compartilhado mudava a tela do dono; agora isso vale também na página pública.
+- **Limitação conhecida (já existia no link público)**: o PATCH substitui o
+  quadro inteiro; se o dono e outra pessoa editarem ao mesmo tempo, vale a
+  última gravação. O recarregamento de 45s reduz a janela, não elimina.
+
+**Testado**: lógica do servidor direto no banco local (9 casos: adiciona,
+idempotência, privado/inexistente/próprio, preserva campos existentes, entrada
+sobrevive se o dono privar); tela com o `App` real e a API simulada (login
+simulado, sem senha): aba abre sozinha após adicionar, edição chega ao dono com
+o log em nome de quem editou e sem alterar as `viewPrefs` dele, Lista fica
+local, trocar de aba, "não compartilhado" + remover (sem tocar no quadro do
+dono), botão na página pública nos 3 casos (novo, já fixado, dono). **Não
+verificado**: contra o servidor/login reais.
+
 ## 19. Onde procurar mais detalhe
 
 | Preciso de... | Vá para |

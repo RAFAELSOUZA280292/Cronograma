@@ -1047,6 +1047,19 @@ export default function App() {
     }
   }, [currentUser]);
 
+  // "Adicionar ao meu quadro" na página pública (/quadro/:token) deixa um
+  // marcador em sessionStorage e volta pra "/": abre a Gestão de Atividades
+  // direto; PersonalBoardScreen é quem consome (e apaga) o marcador.
+  useEffect(() => {
+    if (!currentUser || !personalBoardLoaded) return;
+    let flag = null;
+    try { flag = window.sessionStorage.getItem('pb-open-linked'); } catch (e) { /* ignora */ }
+    if (!flag) return;
+    if (currentUser.personalAccess) goToWorkspace('personal');
+    else { try { window.sessionStorage.removeItem('pb-open-linked'); } catch (e) { /* ignora */ } }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, personalBoardLoaded]);
+
   function persistPersonalBoardDebounced(board) {
     if (personalBoardSaveTimer.current) clearTimeout(personalBoardSaveTimer.current);
     setPersonalBoardSaveState('saving');
@@ -5759,7 +5772,7 @@ function BoardActivityLogModal({ board, onClose }) {
   );
 }
 
-function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
+function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName, embedded, publicAction, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
   // Histórico do navegador — Nível 2 (2026-08): trocar de página do quadro
   // pessoal. Nunca ativo em publicMode (/quadro/:token é a única rota que
   // usa URL de verdade — ver PROJECT_CONTEXT.md §9, não mexer nisso aqui).
@@ -5773,6 +5786,25 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
   })();
   const [activeBoardId, setActiveBoardId] = useState(initPersonalSub || (board.boards[0] ? board.boards[0].id : null));
   const [dragBoardId, setDragBoardId] = useState(null);
+  // Quadros de outras pessoas fixados como aba (2026-09-20, ver
+  // PROJECT_CONTEXT.md §52): `board.linkedBoards` = [{token, name, ownerName}];
+  // a aba renderiza o quadro do dono via PublicBoardScreen embutido.
+  const linkedBoards = (!publicMode && board.linkedBoards) || [];
+  const [activeLinkedToken, setActiveLinkedToken] = useState(() => {
+    if (publicMode || embedded) return null;
+    try {
+      const t = window.sessionStorage.getItem('pb-open-linked');
+      return t && (board.linkedBoards || []).some((l) => l.token === t) ? t : null;
+    } catch (e) { return null; }
+  });
+  useEffect(() => {
+    try { window.sessionStorage.removeItem('pb-open-linked'); } catch (e) { /* ignora */ }
+  }, []);
+  useEffect(() => {
+    if (activeLinkedToken && !linkedBoards.some((l) => l.token === activeLinkedToken)) setActiveLinkedToken(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedBoards.map((l) => l.token).join(',')]);
+  const activeLinked = activeLinkedToken ? linkedBoards.find((l) => l.token === activeLinkedToken) : null;
   const [openCard, setOpenCard] = useState(null);
   const [reassignColumn, setReassignColumn] = useState(null);
   const [showTrash, setShowTrash] = useState(false);
@@ -5793,6 +5825,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
   );
 
   function goToBoardPage(boardId) {
+    setActiveLinkedToken(null);
     setActiveBoardId(boardId);
     if (publicMode) return;
     try { window.history.pushState({ navTag: 'personal', personalSub: boardId }, '', window.location.href); } catch (e) { /* ignora */ }
@@ -5864,6 +5897,20 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
   }
   function mutateCardTree(bid, colId, cardId, updater, logMsg) {
     mutateColumnTree(bid, colId, (c) => ({ ...c, cards: c.cards.map((cd) => (cd.id !== cardId ? cd : updater(cd))) }), logMsg);
+  }
+
+  // ---- quadros compartilhados fixados (abas de outras pessoas) ----
+  function removeLinked(token) {
+    const l = linkedBoards.find((x) => x.token === token);
+    if (!l) return;
+    if (!window.confirm(`Remover "${l.name}" (de ${l.ownerName || 'outra pessoa'}) da sua lista? O quadro dela não é apagado — só deixa de aparecer aqui.`)) return;
+    onMutate((prev) => ({ ...prev, linkedBoards: (prev.linkedBoards || []).filter((x) => x.token !== token) }));
+    if (activeLinkedToken === token) setActiveLinkedToken(null);
+  }
+  function noteLinkedSeen(token, { name, ownerName }) {
+    const l = linkedBoards.find((x) => x.token === token);
+    if (!l || (l.name === name && l.ownerName === ownerName)) return;
+    onMutate((prev) => ({ ...prev, linkedBoards: (prev.linkedBoards || []).map((x) => (x.token === token ? { ...x, name, ownerName } : x)) }));
   }
 
   // ---- boards (pages) ----
@@ -6359,7 +6406,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
   const columnIds = activeBoard ? activeBoard.columns.map((c) => c.id) : [];
 
   return (
-    <div className="page-root" style={S.page}>
+    <div className={embedded ? undefined : 'page-root'} style={embedded ? undefined : S.page}>
       <style>{`
         @keyframes personalSkeletonPulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
         * { box-sizing: border-box; }
@@ -6412,6 +6459,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
         .pb-addbtn { transition: background .12s ease, color .12s ease; }
         .pb-addbtn:hover { background: var(--bg-3); color: var(--text-2); }
       `}</style>
+      {!embedded && (
       <div className="no-print" style={S.topbar}>
         <div style={S.brandRow}>
           <div style={S.logoPlaceholder}><Columns3 size={18} color="#F5C400" /></div>
@@ -6439,14 +6487,23 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
           {onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
         </div>
       </div>
+      )}
 
-      {publicMode ? (
+      {embedded ? (
+        <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 24px 0' }}>
+          <span style={S.publicBadge}><Globe size={11} /> Quadro de {publicOwnerName || 'outra pessoa'}</span>
+          {saveState === 'saving' && <span style={S.saveStateBadge}>Salvando…</span>}
+          {saveState === 'saved' && <FadingSavedBadge />}
+          {saveState === 'error' && <span style={{ ...S.saveStateBadge, color: '#e2574c' }}>Falha ao salvar — desfeito</span>}
+        </div>
+      ) : publicMode ? (
         <div style={S.personalTabs}>
           <div style={{ ...S.personalTab, ...S.personalTabActive, cursor: 'default' }}>
             <span style={S.personalTabInput}>{activeBoard ? activeBoard.name : ''}</span>
             <span style={S.publicBadge}><Globe size={11} /> Público por link</span>
           </div>
           {readOnly && <div style={{ ...S.fieldHint, alignSelf: 'center', marginLeft: 8 }}>Somente visualização — <a href="/" style={{ color: '#F5C400' }}>faça login</a> para colaborar</div>}
+          {publicAction && <div style={{ alignSelf: 'center', marginLeft: 12 }}>{publicAction}</div>}
         </div>
       ) : (
         <div style={S.personalTabs}>
@@ -6459,18 +6516,43 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => { reorderBoards(dragBoardId, b.id); setDragBoardId(null); }}
               onClick={() => goToBoardPage(b.id)}
-              style={{ ...S.personalTab, ...(b.id === activeBoardId ? S.personalTabActive : {}) }}
+              style={{ ...S.personalTab, ...(b.id === activeBoardId && !activeLinkedToken ? S.personalTabActive : {}) }}
             >
               <input value={b.name} onChange={(e) => renameBoard(b.id, e.target.value)} style={S.personalTabInput} />
               {b.visibility === 'public' && <span style={S.publicBadge}><Globe size={11} /></span>}
               <button style={S.chipX} onClick={(e) => { e.stopPropagation(); deleteBoard(b.id); }}><X size={11} /></button>
             </div>
           ))}
+          {linkedBoards.map((l) => (
+            <div
+              key={l.token}
+              onClick={() => setActiveLinkedToken(l.token)}
+              title={l.ownerName ? `Quadro compartilhado por ${l.ownerName}` : 'Quadro compartilhado'}
+              style={{ ...S.personalTab, ...(l.token === activeLinkedToken ? S.personalTabActive : {}) }}
+            >
+              <span style={S.publicBadge}><Link2 size={11} /></span>
+              <span style={{ ...S.personalTabInput, cursor: 'pointer' }}>{l.name}{l.ownerName ? ` · ${l.ownerName.split(' ')[0]}` : ''}</span>
+              <button style={S.chipX} title="Remover da minha lista" onClick={(e) => { e.stopPropagation(); removeLinked(l.token); }}><X size={11} /></button>
+            </div>
+          ))}
           <button style={S.iconBtnGhost} onClick={addBoard} title="Nova página"><Plus size={16} /></button>
         </div>
       )}
 
-      {activeBoard && (
+      {activeLinked && (
+        <PublicBoardScreen
+          key={activeLinked.token}
+          token={activeLinked.token}
+          embedded
+          currentUser={currentUser}
+          theme={theme}
+          onToggleTheme={onToggleTheme}
+          onRemove={() => removeLinked(activeLinked.token)}
+          onSeen={(info) => noteLinkedSeen(activeLinked.token, info)}
+        />
+      )}
+
+      {activeBoard && !activeLinked && (
         <div style={S.personalToolbar}>
           <div style={S.personalViewToggle}>
             <button style={{ ...S.personalViewToggleBtn, ...(viewPrefs.view !== 'list' ? S.personalViewToggleBtnActive : {}) }} onClick={() => setViewPrefs({ view: 'kanban' })}><Columns3 size={13} /> Quadro</button>
@@ -6522,11 +6604,11 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
         </div>
       )}
 
-      {!activeBoard && (
+      {!activeBoard && !activeLinked && (
         <div style={S.emptyMuted}>Nenhuma página ainda. Clique no + acima pra criar a primeira.</div>
       )}
 
-      {activeBoard && viewPrefs.view !== 'list' && (
+      {activeBoard && !activeLinked && viewPrefs.view !== 'list' && (
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
             <div style={S.personalBoardArea}>
@@ -6590,7 +6672,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
         </DndContext>
       )}
 
-      {activeBoard && viewPrefs.view === 'list' && (
+      {activeBoard && !activeLinked && viewPrefs.view === 'list' && (
         <PersonalListView board={activeBoard} filterFn={cardMatches} onOpenCard={openCardDetail} onToggleComplete={toggleCardComplete} readOnly={readOnly} />
       )}
 
@@ -6656,55 +6738,124 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
   );
 }
 
-function PublicBoardScreen({ token, theme, onToggleTheme }) {
-  const [state, setState] = useState({ loading: true, error: '', board: null, canEdit: false, ownerName: '' });
-  const [viewerUser, setViewerUser] = useState(null);
+// Página pública /quadro/:token e também a aba "quadro compartilhado" dentro
+// da Gestão de Atividades (`embedded`, 2026-09-20, ver PROJECT_CONTEXT.md §52).
+// Logado = edita o quadro do DONO (PATCH em /api/public-board/:token, que
+// grava direto nos dados dele); anônimo = só leitura.
+// - viewPrefs (Quadro/Lista, ordenação) ficam LOCAIS de quem está vendo
+//   (`localViewPrefs`) — nunca vão pro PATCH, senão trocar a visão mudaria
+//   também a tela do dono.
+// - `embedded` recarrega o quadro a cada 45s (a menos que haja edição
+//   pendente/em voo) pra enxergar o que o dono mexeu.
+function PublicBoardScreen({ token, theme, onToggleTheme, embedded, currentUser, onRemove, onSeen }) {
+  const [state, setState] = useState({ loading: true, error: '', gone: false, board: null, canEdit: false, ownerName: '', isOwner: false, alreadyLinked: false, localViewPrefs: null });
+  const [viewerUser, setViewerUser] = useState(embedded ? currentUser : null);
   const [saveState, setSaveState] = useState('idle');
+  const [adding, setAdding] = useState(false);
   const saveTimer = useRef(null);
+  const savingRef = useRef(false);
   const lastGoodRef = useRef(null);
+  const onSeenRef = useRef(onSeen);
+  onSeenRef.current = onSeen;
+
+  async function fetchBoard(initial) {
+    try {
+      const res = await apiGet(`/api/public-board/${token}`);
+      lastGoodRef.current = res.board;
+      setState((prev) => {
+        if (!initial && prev.board && JSON.stringify(prev.board) === JSON.stringify(res.board)) return prev;
+        return {
+          ...prev, loading: false, error: '', gone: false, board: res.board, canEdit: !!res.canEdit,
+          ownerName: res.ownerName || '', isOwner: !!res.isOwner, alreadyLinked: !!res.alreadyLinked,
+        };
+      });
+      if (onSeenRef.current) onSeenRef.current({ name: res.board.name, ownerName: res.ownerName || '' });
+    } catch (e) {
+      if (initial) setState((prev) => ({ ...prev, loading: false, error: e.message || 'Link inválido.', gone: e.status === 404, board: null }));
+      else if (e.status === 404) setState((prev) => ({ ...prev, gone: true, error: e.message || 'Link inválido.', board: null }));
+      // falha de rede num recarregamento: mantém o que já está na tela
+    }
+  }
 
   useEffect(() => {
     (async () => {
-      let me = null;
-      try { me = await apiGet('/api/auth/me'); } catch (e) { me = null; }
-      if (me && me.user) setViewerUser(me.user);
-      try {
-        const res = await apiGet(`/api/public-board/${token}`);
-        setState({ loading: false, error: '', board: res.board, canEdit: !!res.canEdit, ownerName: res.ownerName || '' });
-        lastGoodRef.current = res.board;
-      } catch (e) {
-        setState({ loading: false, error: e.message || 'Link inválido.', board: null, canEdit: false, ownerName: '' });
+      if (!embedded) {
+        try {
+          const me = await apiGet('/api/auth/me');
+          if (me && me.user) setViewerUser(me.user);
+        } catch (e) { /* anônimo */ }
       }
+      await fetchBoard(true);
     })();
+    if (!embedded) return undefined;
+    const t = setInterval(() => {
+      if (document.hidden || saveTimer.current || savingRef.current) return;
+      fetchBoard(false);
+    }, 45000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   function persistDebounced(nextBoard) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     setSaveState('saving');
     saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      savingRef.current = true;
       apiPatch(`/api/public-board/${token}`, { board: nextBoard })
         .then(() => { lastGoodRef.current = nextBoard; setSaveState('saved'); })
-        .catch(() => { setSaveState('error'); setState((s) => ({ ...s, board: lastGoodRef.current })); });
+        .catch(() => { setSaveState('error'); setState((s) => ({ ...s, board: lastGoodRef.current })); })
+        .finally(() => { savingRef.current = false; });
     }, 500);
   }
   function mutateBoard(updater) {
     setState((prev) => {
-      const nextWrapped = updater({ boards: [prev.board] });
+      const displayed = { ...prev.board, viewPrefs: prev.localViewPrefs || prev.board.viewPrefs };
+      const nextWrapped = updater({ boards: [displayed] });
       const nextBoard = nextWrapped.boards[0];
-      persistDebounced(nextBoard);
-      return { ...prev, board: nextBoard };
+      if (nextBoard === displayed) return prev;
+      const { viewPrefs: nextPrefs, ...restNext } = nextBoard;
+      const { viewPrefs: curPrefs, ...restCur } = displayed;
+      const contentChanged = JSON.stringify(restNext) !== JSON.stringify(restCur);
+      const ownerBoard = contentChanged ? { ...restNext, viewPrefs: prev.board.viewPrefs } : prev.board;
+      if (contentChanged) persistDebounced(ownerBoard);
+      return { ...prev, board: ownerBoard, localViewPrefs: JSON.stringify(nextPrefs) !== JSON.stringify(curPrefs) ? nextPrefs : prev.localViewPrefs };
     });
   }
 
-  if (state.loading) return <LoadingScreen theme={theme} />;
+  function openInMyBoard() {
+    try { window.sessionStorage.setItem('pb-open-linked', token); } catch (e) { /* ignora */ }
+    window.location.href = '/';
+  }
+  async function addToMyBoard() {
+    setAdding(true);
+    try {
+      await apiPost('/api/personal-board/linked', { token });
+      openInMyBoard();
+    } catch (e) {
+      window.alert(e.message || 'Não foi possível adicionar o quadro.');
+      setAdding(false);
+    }
+  }
+
+  if (state.loading) return embedded ? <div style={{ ...S.emptyMuted, padding: '40px 24px' }}>Carregando o quadro compartilhado…</div> : <LoadingScreen theme={theme} />;
 
   if (state.error || !state.board) {
+    const msg = state.error || 'Este link não existe mais ou o quadro deixou de ser público.';
+    if (embedded) {
+      return (
+        <div style={{ ...S.emptyMuted, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '40px 24px' }}>
+          <div>{state.gone ? 'Este quadro não está mais compartilhado (o dono deixou de compartilhar ou trocou o link).' : msg}</div>
+          {onRemove && <button style={S.iconBtn} onClick={onRemove}><Trash2 size={14} /> Remover da minha lista</button>}
+        </div>
+      );
+    }
     return (
       <div className="page-root" style={S.page}>
         <div style={S.loginWrap}>
           <div style={S.loginBox}>
             <h1 style={S.loginTitle}>Link indisponível</h1>
-            <p style={S.loginSub}>{state.error || 'Este link não existe mais ou o quadro deixou de ser público.'}</p>
+            <p style={S.loginSub}>{msg}</p>
             <a href="/" style={S.primaryBtn}>Ir para o início</a>
           </div>
         </div>
@@ -6712,8 +6863,14 @@ function PublicBoardScreen({ token, theme, onToggleTheme }) {
     );
   }
 
-  const wrappedBoard = { boards: [state.board] };
+  const wrappedBoard = { boards: [{ ...state.board, viewPrefs: state.localViewPrefs || state.board.viewPrefs }] };
   const viewer = viewerUser || { id: null, name: 'Visitante' };
+  const canPin = !embedded && viewerUser && viewerUser.personalAccess && !state.isOwner;
+  const publicAction = canPin ? (
+    state.alreadyLinked
+      ? <button style={S.primaryBtn} onClick={openInMyBoard}><Link2 size={14} /> Abrir no meu quadro</button>
+      : <button style={S.primaryBtn} disabled={adding} onClick={addToMyBoard}><Plus size={14} /> {adding ? 'Adicionando…' : 'Adicionar ao meu quadro'}</button>
+  ) : null;
 
   return (
     <PersonalBoardScreen
@@ -6721,11 +6878,13 @@ function PublicBoardScreen({ token, theme, onToggleTheme }) {
       onMutate={mutateBoard}
       onExit={null}
       currentUser={viewer}
-      onLogout={viewerUser ? () => { apiPost('/api/auth/logout').finally(() => { window.location.href = '/'; }); } : null}
+      onLogout={!embedded && viewerUser ? () => { apiPost('/api/auth/logout').finally(() => { window.location.href = '/'; }); } : null}
       theme={theme}
       onToggleTheme={onToggleTheme}
       saveState={state.canEdit ? saveState : 'idle'}
       publicMode
+      embedded={embedded}
+      publicAction={publicAction}
       readOnly={!state.canEdit}
       publicOwnerName={state.ownerName}
     />
