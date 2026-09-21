@@ -135,54 +135,72 @@ function packLanes(items) {
   });
 }
 
-// O dia numa linha do tempo: blocos onde há reunião, faixa verde suave onde há pausa longa.
+// O dia numa linha do tempo do EXPEDIENTE: blocos com o nome da reunião, faixa verde onde há pausa longa,
+// almoço rotulado. O que cai fora do expediente não estica a régua — vira uma linha de texto abaixo.
 function DayBar({ items, sum, isToday, now }) {
   if (!items.length) return null;
-  const rs = Math.max(0, Math.min(sum.work.start, Math.floor(Math.min(...items.map((i) => i.s)) / 60) * 60));
-  const re = Math.min(1440, Math.max(sum.work.end, Math.ceil(Math.max(...items.map((i) => i.e)) / 60) * 60));
+  const rs = sum.work.start;
+  const re = sum.work.end;
   const span = re - rs;
-  const pct = (m) => ((m - rs) / span) * 100;
-  const packed = packLanes(items);
-  const lanes = Math.max(...packed.map((p) => p.lane)) + 1;
-  const LANE = 26;
+  const pct = (m) => ((Math.min(re, Math.max(rs, m)) - rs) / span) * 100;
+  const inside = items.filter((i) => i.e > rs && i.s < re);
+  const outside = items.filter((i) => !(i.e > rs && i.s < re) && i.rsvp !== 'declined').sort((a, b) => a.s - b.s);
+  const packed = packLanes(inside);
+  const lanes = packed.length ? Math.max(...packed.map((p) => p.lane)) + 1 : 1;
+  const LANE = 28;
   const height = lanes * LANE + (lanes - 1) * 3;
   const ticks = [];
   for (let h = Math.ceil(rs / 120) * 2; h * 60 <= re; h += 2) ticks.push(h);
   const nowMin = minutesOf(now);
+  const hasPending = inside.some((p) => isPendingRsvp(p.rsvp));
+  const hasConflict = inside.some((p) => p.conflict && !isPendingRsvp(p.rsvp));
+  const lunchIn = sum.lunch.end > rs && sum.lunch.start < re;
+  const lunchBusy = sum.lunch.blockers.length > 0;
   return (
-    <div className="rab-bar" aria-label="Linha do tempo do dia">
+    <div className="rab-bar" aria-label="Linha do tempo do expediente">
       <div className="rab-track" style={{ height }}>
         {sum.gaps.filter((g) => g.min >= 60 && g.e > rs && g.s < re).map((g) => {
-          const w = pct(Math.min(g.e, re)) - pct(Math.max(g.s, rs));
+          const w = pct(g.e) - pct(g.s);
           return (
-            <div key={g.s} className="rab-free" style={{ left: `${pct(Math.max(g.s, rs))}%`, width: `${w}%` }}>
+            <div key={g.s} className="rab-free" style={{ left: `${pct(g.s)}%`, width: `${w}%` }}>
               {w > 13 ? <span>{fmtDur(g.min)} livre</span> : null}
             </div>
           );
         })}
         {packed.map((p) => {
-          const w = Math.max(0.8, pct(p.e) - pct(p.s));
+          const w = Math.max(1, pct(p.e) - pct(p.s));
           const pending = isPendingRsvp(p.rsvp);
           const color = SOURCE_COLOR[p.ev.source] || '#5B8DEF';
+          const clipped = p.s < rs || p.e > re;
           return (
             <div
               key={`${p.ev.id}-${p.s}`}
-              className={`rab-blk${pending ? ' rab-blk-pending' : ''}${p.rsvp === 'declined' ? ' rab-blk-declined' : ''}${p.conflict && !pending ? ' rab-blk-conflict' : ''}`}
+              className={`rab-blk${pending ? ' rab-blk-pending' : ''}${p.rsvp === 'declined' ? ' rab-blk-declined' : ''}${p.conflict && !pending ? ' rab-blk-conflict' : ''}${clipped ? ' rab-blk-clipped' : ''}`}
               style={{ left: `${pct(p.s)}%`, width: `${w}%`, top: p.lane * (LANE + 3), height: LANE, '--c': color }}
-              title={`${hhmm(p.s)}–${hhmm(p.e)} · ${p.ev.title}${pending ? ' (sem resposta)' : ''}`}
+              title={`${hhmm(p.s)}–${hhmm(p.e)} · ${p.ev.title}${pending ? ' (sem resposta)' : ''}${p.conflict && !pending ? ' — choca com outra reunião aceita' : ''}`}
             >
-              {w > 11 ? <span>{p.ev.title}</span> : null}
+              {w > 6 ? <span>{p.ev.title}</span> : null}
             </div>
           );
         })}
         {isToday && nowMin >= rs && nowMin <= re && <div className="rab-now" style={{ left: `${pct(nowMin)}%` }} title={`Agora, ${hhmm(nowMin)}`} />}
       </div>
       <div className="rab-ticks">
-        {sum.lunch.end > rs && sum.lunch.start < re && (
-          <i className={`rab-lunchline${sum.lunch.blockers.length ? ' rab-lunch-busy' : ''}`} style={{ left: `${pct(Math.max(sum.lunch.start, rs))}%`, width: `${pct(Math.min(sum.lunch.end, re)) - pct(Math.max(sum.lunch.start, rs))}%` }}
-            title={`Seu almoço: ${hhmm(sum.lunch.start)}–${hhmm(sum.lunch.end)} — ${sum.lunch.blockers.length ? 'ocupado por reunião' : 'livre'}`} />
-        )}
         {ticks.map((h) => <span key={h} style={{ left: `${pct(h * 60)}%` }}>{h}h</span>)}
+      </div>
+      {lunchIn && (
+        <div className="rab-lunchrow">
+          <i className={`rab-lunchpill${lunchBusy ? ' rab-lunch-busy' : ''}`} style={{ left: `${pct(sum.lunch.start)}%`, width: `${pct(sum.lunch.end) - pct(sum.lunch.start)}%` }}
+            title={`Seu almoço: ${hhmm(sum.lunch.start)}–${hhmm(sum.lunch.end)} — ${lunchBusy ? 'ocupado por reunião' : 'livre'}`}>
+            <b>Almoço{lunchBusy ? ' ocupado' : ''}</b>
+          </i>
+        </div>
+      )}
+      <div className="rab-legend">
+        <span><i className="rab-lg rab-lg-acc" />aceito</span>
+        {hasPending && <span><i className="rab-lg rab-lg-pen" />sem resposta</span>}
+        {hasConflict && <span><i className="rab-lg rab-lg-con" />choca com outro aceito</span>}
+        {outside.length > 0 && <span className="rab-outside">Fora do expediente: {outside.slice(0, 3).map((o) => `${hhmm(o.s)} ${o.ev.title}`).join(' · ')}{outside.length > 3 ? ` +${outside.length - 3}` : ''}</span>}
       </div>
     </div>
   );
@@ -251,8 +269,19 @@ const CSS = `
   .rab-now { position:absolute; top:-3px; bottom:-3px; width:2px; background:#F5C400; border-radius:2px; box-shadow:0 0 0 2px rgba(245,196,0,.25); }
   .rab-ticks { position:relative; height:14px; margin-top:4px; }
   .rab-ticks span { position:absolute; transform:translateX(-50%); font-size:10px; color:var(--text-6); font-variant-numeric:tabular-nums; }
-  .rab-lunchline { position:absolute; top:-2px; height:3px; border-radius:2px; background:#2f9e63; opacity:.75; }
-  .rab-lunchline.rab-lunch-busy { background:#e2574c; opacity:.9; }
+  .rab-lunchrow { position:relative; height:16px; margin-top:2px; }
+  .rab-lunchpill { position:absolute; top:0; height:16px; border-radius:8px; background:rgba(47,158,99,.16); border:1px solid rgba(47,158,99,.5); display:flex; align-items:center; justify-content:center; overflow:hidden; box-sizing:border-box; }
+  .rab-lunchpill b { font-size:9.5px; font-weight:800; color:#2f9e63; white-space:nowrap; letter-spacing:.02em; }
+  .rab-lunchpill.rab-lunch-busy { background:rgba(226,87,76,.14); border-color:rgba(226,87,76,.6); }
+  .rab-lunchpill.rab-lunch-busy b { color:#e2574c; }
+  .rab-blk-clipped { border-radius:6px 0 0 6px; }
+  .rab-legend { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:8px; font-size:10.5px; color:var(--text-5); }
+  .rab-legend > span { display:inline-flex; align-items:center; gap:5px; }
+  .rab-lg { display:inline-block; width:11px; height:9px; border-radius:3px; box-sizing:border-box; }
+  .rab-lg-acc { background:color-mix(in srgb, #5B8DEF 30%, transparent); border-left:3px solid #5B8DEF; }
+  .rab-lg-pen { border:1.5px dashed #ff9f40; }
+  .rab-lg-con { border:1.5px solid #e2574c; }
+  .rab-outside { color:var(--text-4); font-weight:700; }
   .rab-cfg { margin-top:12px; padding:14px 16px; border:1px solid var(--border-2); border-radius:12px; background:var(--bg-1); }
   .rab-cfg-t { font-size:12.5px; font-weight:800; color:var(--text-1); margin-bottom:10px; }
   .rab-cfg-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--text-3); }
