@@ -6063,7 +6063,7 @@ marcados como "Livre".
   formato antigo só-almoço; sem banco). Limites: expediente entre 04:00 e 23:00, 2 a 16 h; almoço 15 min a 3 h e
   dentro do expediente. **"Livre" = tempo sem reunião aceita DENTRO do expediente** (reunião fora dele conta em
   "ocupadas" mas não tira tempo livre), por isso o painel escreve "5h30 livres das 08:00 às 18:00" e a Agenda completa usa
-  o mesmo expediente configurado (tooltip com a janela). O gráfico do dia usa o expediente da pessoa. O almoço só conta como **livre com a janela INTEIRA** sem compromisso
+  o mesmo expediente configurado (tooltip com a janela). A barra do dia (`DayBar`) cobre só o expediente: cada bloco leva o título (tooltip com horário), o almoço aparece rotulado (verde livre / vermelho ocupado), há legenda só do que existe no dia (aceito / sem resposta / choca com outro aceito) e reunião totalmente fora do expediente vira a linha "Fora do expediente: 20:00 …" em vez de esticar a régua. O almoço só conta como **livre com a janela INTEIRA** sem compromisso
   aceito (sem mínimo inventado); o aviso diz qual reunião pega o almoço ("Reunião no seu almoço (12:00–13:00):
   “Workshop” 10:00–12:30 e mais 1"); convite sem resposta que pega o almoço é avisado à parte; a linha do tempo
   marca o almoço (verde livre / vermelho ocupado). Antes era 12–14h com mínimo de 45 min — estipulação minha, removida. Pausa = intervalo livre ≥ 15 min. "Emendada" = reunião aceita que começa a
