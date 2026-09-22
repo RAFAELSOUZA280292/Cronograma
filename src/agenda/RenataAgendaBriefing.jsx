@@ -9,7 +9,7 @@
 // pílulas e o mesmo dado repetido; ninguém lê aquilo todo dia. Princípio agora: uma resposta, um
 // gráfico, no máximo 3 avisos; cor só para o que pede ação (laranja = responder, vermelho = choque).
 import React, { useEffect, useMemo, useState } from 'react';
-import { Sparkles, MapPin, ArrowRight, Link2, TriangleAlert, CircleHelp, Utensils, Timer } from 'lucide-react';
+import { Sparkles, MapPin, ArrowRight, Link2, TriangleAlert, CircleHelp, Utensils, Timer, ChevronRight } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
 import { WORK, rsvpOf, isPendingRsvp, summarizeDay, timelineRows, durationMin, fmtDur, hhmm } from './dayLoad.js';
 import { loadPrefs, savePrefs, validatePrefs, parseHHMM, DEFAULT_PREFS, isDefaultPrefs } from './agendaPrefs.js';
@@ -228,7 +228,7 @@ function EventLine({ row, now, isToday }) {
 }
 
 const CSS = `
-  .rab-card { width:min(680px,100%); background:var(--bg-2); border:1px solid var(--border-2); border-radius:18px; padding:22px 24px 18px; margin-bottom:18px; text-align:left; }
+  .rab-card { width:min(680px,100%); background:var(--bg-2); border:1px solid var(--border-2); border-radius:18px; padding:22px 24px 18px; margin-bottom:18px; text-align:left; box-shadow:0 1px 2px rgba(0,0,0,.05), 0 10px 28px rgba(0,0,0,.07); }
   .rab-top { display:flex; align-items:center; gap:11px; margin-bottom:16px; }
   .rab-avatar { width:32px; height:32px; border-radius:50%; background:rgba(245,196,0,.16); color:#F5C400; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .rab-name { font-size:10.5px; font-weight:800; letter-spacing:.09em; color:#F5C400; }
@@ -243,11 +243,12 @@ const CSS = `
   .rab-next { margin-top:10px; font-size:13.5px; color:var(--text-2); }
   .rab-next b { font-weight:800; color:var(--text-1); }
   .rab-rail { display:grid; gap:5px; margin:20px 0 18px; }
-  .rab-day { display:flex; flex-direction:column; align-items:center; gap:2px; padding:9px 2px 7px; border-radius:12px; border:1px solid transparent; background:transparent; cursor:pointer; font-family:inherit; color:var(--text-3); min-width:0; }
+  .rab-day { display:flex; flex-direction:column; align-items:center; gap:2px; padding:9px 2px 7px; border-radius:12px; border:1px solid var(--border-1); background:transparent; cursor:pointer; font-family:inherit; color:var(--text-3); min-width:0; }
   .rab-day:hover { background:var(--bg-3); }
   .rab-day.rab-sel { background:var(--bg-3); border-color:var(--border-3); }
   .rab-dow { font-size:9.5px; font-weight:800; letter-spacing:.07em; color:var(--text-6); }
   .rab-num { font-size:15px; font-weight:800; color:var(--text-1); width:26px; height:26px; line-height:26px; border-radius:50%; }
+  .rab-today.rab-sel { background:rgba(245,196,0,.1); border-color:rgba(245,196,0,.45); }
   .rab-today .rab-num { background:#F5C400; color:#111; }
   .rab-gauge { width:7px; height:30px; border-radius:4px; background:var(--bg-3); position:relative; overflow:hidden; margin:3px 0; }
   .rab-sel .rab-gauge { background:var(--bg-2); }
@@ -291,7 +292,7 @@ const CSS = `
   .rab-cfg-act .rab-btn { padding:7px 13px; }
   .rab-cfg-err { margin-top:9px; font-size:12px; color:#e2574c; }
   .rab-cfg-hint { margin-top:10px; font-size:11.5px; color:var(--text-6); line-height:1.45; }
-  .rab-att { display:flex; flex-direction:column; gap:7px; margin:0 0 14px; }
+  .rab-att { display:flex; flex-direction:column; gap:9px; margin:0 0 14px; padding:12px 14px; border-radius:12px; background:rgba(255,159,64,.09); border:1px solid rgba(255,159,64,.2); }
   .rab-ins { display:flex; align-items:center; gap:9px; font-size:13px; color:var(--text-2); line-height:1.35; }
   .rab-ins-i { width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .rab-ins-danger .rab-ins-i { background:rgba(226,87,76,.15); color:#e2574c; } .rab-ins-warn .rab-ins-i { background:rgba(255,159,64,.16); color:#e08a2a; } .rab-ins-ok .rab-ins-i { background:rgba(62,207,110,.15); color:#2f9e63; }
@@ -508,8 +509,16 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda }) {
             )}
 
             <div className="rab-foot">
-              {visible.length > MAX_ROWS && <button type="button" className="rab-toggle" onClick={() => setShowAll((v) => !v)}>{showAll ? 'Mostrar menos' : `Ver todos os ${visible.length}`}</button>}
-              {declinedCount > 0 && <button type="button" className="rab-toggle" onClick={() => setShowDeclined((v) => !v)}>{showDeclined ? 'Ocultar' : 'Mostrar'} {declinedCount} {declinedCount === 1 ? 'recusado' : 'recusados'}</button>}
+              {visible.length > MAX_ROWS && (
+                <button type="button" className="rab-toggle" onClick={() => setShowAll((v) => !v)}>
+                  {showAll ? 'Mostrar menos' : `Ver todos os ${visible.length}`}<ChevronRight size={12} style={{ verticalAlign: -1, marginLeft: 1, transform: showAll ? 'rotate(90deg)' : 'none' }} />
+                </button>
+              )}
+              {declinedCount > 0 && (
+                <button type="button" className="rab-toggle" onClick={() => setShowDeclined((v) => !v)}>
+                  {showDeclined ? 'Ocultar' : 'Mostrar'} {declinedCount} {declinedCount === 1 ? 'recusado' : 'recusados'}<ChevronRight size={12} style={{ verticalAlign: -1, marginLeft: 1, transform: showDeclined ? 'rotate(90deg)' : 'none' }} />
+                </button>
+              )}
               <span className="rab-legend"><i /> aceito</span>
               <span className="rab-legend"><i className="h" /> sem resposta</span>
               <span className="rab-legend"><TriangleAlert size={11} color="#e2574c" /> choca</span>
