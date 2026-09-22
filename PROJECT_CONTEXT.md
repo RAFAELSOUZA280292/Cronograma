@@ -6063,7 +6063,11 @@ marcados como "Livre".
   formato antigo só-almoço; sem banco). Limites: expediente entre 04:00 e 23:00, 2 a 16 h; almoço 15 min a 3 h e
   dentro do expediente. **"Livre" = tempo sem reunião aceita DENTRO do expediente** (reunião fora dele conta em
   "ocupadas" mas não tira tempo livre), por isso o painel escreve "5h30 livres das 08:00 às 18:00" e a Agenda completa usa
-  o mesmo expediente configurado (tooltip com a janela). A barra do dia (`DayBar`) cobre só o expediente: cada bloco leva o título (tooltip com horário), o almoço aparece rotulado (verde livre / vermelho ocupado), há legenda só do que existe no dia (aceito / sem resposta / choca com outro aceito) e reunião totalmente fora do expediente vira a linha "Fora do expediente: 20:00 …" em vez de esticar a régua. Acabamento (2026-09-22, mockup aprovado pelo Rafael): card com sombra suave, cada dia do trilho com borda própria (hoje com destaque dourado), caixa dos avisos com fundo laranja claro e "Ver todos"/"Mostrar recusados" com seta — testado em claro e escuro. O almoço só conta como **livre com a janela INTEIRA** sem compromisso
+  o mesmo expediente configurado (tooltip com a janela). A barra do dia (`DayBar`) cobre só o expediente: cada
+  bloco leva o título (até 2 linhas, tooltip com horário), o almoço aparece como selo flutuante centrado no
+  horário (verde livre / vermelho ocupado, com "12:00 – 13:00" na 2ª linha), régua de hora em hora e faixa livre
+  com borda tracejada; reunião fora do expediente não entra na barra, mas continua na lista "Reuniões de hoje"
+  (a régua nunca estica por causa dela). O almoço só conta como **livre com a janela INTEIRA** sem compromisso
   aceito (sem mínimo inventado); o aviso diz qual reunião pega o almoço ("Reunião no seu almoço (12:00–13:00):
   “Workshop” 10:00–12:30 e mais 1"); convite sem resposta que pega o almoço é avisado à parte; a linha do tempo
   marca o almoço (verde livre / vermelho ocupado). Antes era 12–14h com mínimo de 45 min — estipulação minha, removida. Pausa = intervalo livre ≥ 15 min. "Emendada" = reunião aceita que começa a
@@ -6072,20 +6076,34 @@ marcados como "Livre".
 - Dado antigo sem `myResponse` conta como aceito (nada some).
 
 ### Telas
-- **RENATA (tela inicial) — REDESENHADA no mesmo dia.** A 1ª versão (uma pílula/etiqueta por dado, 3 a 5 por
-  linha, parede de resumos) era um relatório e o Rafael a rejeitou ("nível Jarvis, não isso"). Princípio novo:
-  **uma resposta, um gráfico, no máximo 3 avisos; cor só para o que pede ação** (laranja = responder,
-  vermelho = choque). Estrutura: (1) frase-resposta do dia que interessa ("Amanhã está cheio" — leve <2h,
-  tranquilo <4h, cheio <6h, pesado ≥6h, só o tempo ACEITO) + "8 reuniões · 5h ocupadas · 5h30 livres" + "Agora/
-  Próximo: X" (ou "Hoje você já terminou" quando o painel escolhe sozinho o próximo dia); (2) **trilho da
-  semana** (hoje + janela): cada dia com medidor de horas, ponto vermelho se há choque e anel laranja se há
-  convite sem resposta — clicar troca o dia em foco; (3) **linha do tempo do dia** (blocos por horário; aceito
-  cheio, sem resposta tracejado, recusado apagado, choque com contorno vermelho; faixas verdes onde há pausa de
-  1h+ com o tempo livre; cursor amarelo do "agora"); (4) até **3 avisos** em palavras (choque entre aceitos,
-  convites aguardando resposta, sem janela de almoço OU muitas horas seguidas, melhor janela livre); (5) lista
-  limpa (hora, título, duração; marcador cheio/vazado; ⚠ só onde há choque) com "Ver todos" e "Mostrar N
-  recusados". Dia em foco automático: hoje enquanto houver reunião aceita pela frente, senão o próximo dia com
-  algo. "Passou" agora é só apagado (antes era riscado — confundia com recusado).
+- **RENATA (tela inicial) — REDESENHADA duas vezes no mesmo dia (2026-09-20) e recomposta em cartões
+  (2026-09-22, sobre mockup aprovado pelo Rafael).** A 1ª versão (uma pílula/etiqueta por dado, 3 a 5 por linha,
+  parede de resumos) era um relatório e o Rafael a rejeitou ("nível Jarvis, não isso"). Princípio: **uma
+  resposta, um gráfico, no máximo 3 avisos; cor só para o que pede ação** (laranja = responder, vermelho =
+  choque). Hoje é uma sequência de cartões (`rab-panel`, sombra suave, cada um com seu título), não mais um só
+  bloco:
+  1. **Visão geral**: frase-resposta do dia que interessa ("Amanhã está cheio" — leve <2h, tranquilo <4h,
+     cheio <6h, pesado ≥6h, só o tempo ACEITO) + **chips com ícone** ("6 reuniões" / "7h ocupadas" / "4h livres
+     das 08:00 às 18:00", tooltip explicando "livre") + banner "Agora/Próximo: X" (ou "Hoje você já terminou"
+     quando o painel escolhe sozinho o próximo dia); ao lado, separado por um traço vertical, um **painel de
+     veredito** (`sidePanelFor`) com ícone + título curto + explicação de 1 linha — verde para dia livre/leve/
+     tranquilo, laranja ("Dia cheio"/"Dia com alta ocupação") para os pesados; empilha embaixo em telas
+     estreitas.
+  2. **Trilho da semana** (hoje + janela, fora do cartão de visão geral, cada dia com sua própria borda): medidor
+     de horas, ponto vermelho se há choque e ponto laranja se há convite sem resposta — clicar troca o dia em
+     foco.
+  3. **Cartão "Agenda de X"**: legenda fixa (aceito azul / sem resposta laranja / choca vermelho / horário livre
+     verde) + linha do tempo do expediente (blocos por horário, texto em até 2 linhas; aceito cheio, sem
+     resposta tracejado, recusado apagado, choque com contorno vermelho; faixa tracejada verde nas pausas de
+     1h+; selo de almoço flutuante; régua de hora em hora; cursor amarelo do "agora").
+  4. **Cartão "Atenção hoje"** (ou "Hoje vai bem" num dia tranquilo): ícone grande à esquerda, tom (vermelho/
+     laranja/verde) = o aviso mais grave presente; até 3 avisos em palavras dentro (choque entre aceitos,
+     convites aguardando resposta, sem janela de almoço OU muitas horas seguidas, melhor janela livre).
+  5. **Cartão "Reuniões de X"**: título com contador (nº de aceitos) e coluna "Duração"; lista limpa (hora,
+     título, duração; marcador cheio/vazado; ⚠ só onde há choque) com "Ver todos"/"Mostrar N recusados" (seta
+     que gira ao expandir), legenda mini de novo no rodapé e o botão de configurar expediente/almoço.
+  Dia em foco automático: hoje enquanto houver reunião aceita pela frente, senão o próximo dia com algo.
+  "Passou" agora é só apagado (antes era riscado — confundia com recusado).
 - **Agenda (grade)**: convite pendente com **contorno tracejado e "?"** e recusado **riscado e apagado** (como no
   Google), dica ao passar o mouse com a resposta e quem convidou, legenda, botão **Ocultar recusados**, e
   resumo curto no cabeçalho de cada dia. O recusado vira faixa apagada **ao fundo** (fora da divisão em
