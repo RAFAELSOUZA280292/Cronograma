@@ -13,6 +13,9 @@ export const PARECERES_MAX_MB = 10;
 export const PARECERES_CSS = `
   .par-shell { display:flex; flex-direction:column; height:100%; min-height:100vh; background:var(--bg-1); }
   .par-topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--border-1); flex-shrink:0; }
+  .par-topbar-left { display:flex; align-items:center; gap:14px; }
+  .par-back { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; color:var(--text-4); background:transparent; border:none; cursor:pointer; font-family:inherit; padding:7px 11px 7px 7px; border-radius:8px; }
+  .par-back:hover { background:var(--bg-3); color:var(--text-1); }
   .par-brand { display:flex; align-items:center; gap:8px; font-weight:800; font-size:15px; color:var(--text-1); }
   .par-actions { display:flex; align-items:center; gap:4px; }
   .par-actions button { background:transparent; border:none; color:var(--text-5); cursor:pointer; display:flex; padding:7px; border-radius:7px; }
@@ -27,6 +30,11 @@ export const PARECERES_CSS = `
     background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); font-family:inherit;
   }
   .par-search input[type=text]:focus { outline:none; border-color:#F5C400; }
+  .par-filter {
+    padding:10px 14px; font-size:12.5px; font-weight:700; border-radius:10px; max-width:220px;
+    background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-2); font-family:inherit; cursor:pointer;
+  }
+  .par-filter:focus { outline:none; border-color:#F5C400; }
   .par-summary { font-size:12px; color:var(--text-6); margin-bottom:16px; }
   .par-btn { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; border-radius:8px; padding:9px 15px; cursor:pointer; border:1px solid; background:transparent; white-space:nowrap; }
   .par-btn-primary { background:#F5C400; border-color:#F5C400; color:#111; }
@@ -46,14 +54,30 @@ export const PARECERES_CSS = `
   .par-card-foot { display:flex; align-items:center; justify-content:space-between; font-size:11px; color:var(--text-6); margin-top:auto; padding-top:8px; border-top:1px solid var(--border-1); }
   .par-card-comments { display:flex; align-items:center; gap:4px; }
 
+  .par-tag { display:inline-flex; align-items:center; gap:5px; align-self:flex-start; font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:999px; }
+  .par-tag-general { background:rgba(91,141,239,.14); color:#5B8DEF; }
+  .par-tag-client { background:rgba(62,207,110,.14); color:#2f9e63; }
+
+  .par-scope-toggle { display:flex; gap:6px; margin-top:2px; }
+  .par-scope-toggle button {
+    flex:1; display:inline-flex; align-items:center; justify-content:center; gap:6px; font-size:12px; font-weight:700;
+    padding:8px 10px; border-radius:9px; border:1px solid var(--border-3); background:var(--bg-4); color:var(--text-4); cursor:pointer; font-family:inherit;
+  }
+  .par-scope-toggle button.active { background:rgba(245,196,0,.14); border-color:#F5C400; color:var(--text-1); }
+  .par-scope-toggle + input[type=text] { margin-top:8px; }
+
+  .par-drawer-scope { margin-bottom:16px; }
+
   .par-form label { font-size:11.5px; font-weight:700; color:var(--text-5); display:block; margin-top:14px; margin-bottom:5px; }
   .par-form input[type=text], .par-form textarea,
-  .par-drawer-title-row input[type=text], .par-drawer-section textarea, .par-comment-input-row textarea {
+  .par-drawer-title-row input[type=text], .par-drawer-section textarea, .par-comment-input-row textarea,
+  .par-drawer-scope input[type=text] {
     width:100%; padding:9px 12px; font-size:13px; border-radius:9px; font-family:inherit;
     background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1);
   }
   .par-form input[type=text]:focus, .par-form textarea:focus,
-  .par-drawer-title-row input[type=text]:focus, .par-drawer-section textarea:focus, .par-comment-input-row textarea:focus {
+  .par-drawer-title-row input[type=text]:focus, .par-drawer-section textarea:focus, .par-comment-input-row textarea:focus,
+  .par-drawer-scope input[type=text]:focus {
     outline:none; border-color:#F5C400;
   }
   .par-form textarea { min-height:70px; resize:vertical; }

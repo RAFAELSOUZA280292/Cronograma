@@ -5449,6 +5449,39 @@ comentário, formulário de upload). Corrigido replicando o padrão já usado no
 Verificado em harness local (dados simulados, mesmo Parecer do print) nos dois temas: busca, grid,
 modal de upload e drawer completo (editar título, editar descrição, comentário).
 
+**Voltar + tag de escopo (2026-09-28)**: dois pedidos do Rafael sobre a mesma tela.
+
+- **Botão "Voltar"**: o topbar já tinha `onExit` (só ícone `X` + tooltip, condicionado a
+  `availableModes.length > 1`), mas sem rótulo visível não lia como navegação — o Rafael não o
+  reconheceu. Trocado por `<ArrowLeft/> Voltar` com texto, movido pra esquerda do topbar (ao lado do
+  título, convenção universal de "voltar"), separado das ações da direita (tema/Sair). Mesmo bug
+  existe em `src/knowledge/KnowledgeCenter.jsx` (não mexido — fora do pedido, mas fica registrado
+  como possível melhoria futura).
+- **Tag de escopo (Geral × Cliente específico)**: cada Parecer agora é `scope='geral'` (padrão, todos
+  os clientes) ou `scope='cliente'` — nesse caso `company_name` é **sempre** preenchido (denormalizado,
+  sobrevive à exclusão do projeto) e `company_project_id` é o vínculo forte **opcional**, só gravado
+  quando o nome digitado bate com um projeto existente da mesma org (permite cliente que ainda nem é
+  projeto no Cronograma). Colunas aditivas em `pareceres` (`server/db.js`): `scope TEXT DEFAULT
+  'geral'` (sem `CHECK` — validado em JS pra não repetir o incidente de CHECK do §38), `company_name
+  TEXT`, `company_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL`. Endpoint novo e leve
+  `GET /api/projects/lite` (`server/routes.js`, `requireAuth`) devolve só `{id, name}` por projeto —
+  nunca o `/api/projects` inteiro, que é pesado (mesma preocupação documentada acima sobre não inflar
+  payload). `POST/PATCH /api/pareceres` (`server/pareceres.js`) validam com `parseScope()`: 'cliente'
+  sem nome → 400; `companyProjectId` que não existe na org é silenciosamente ignorado (vira `null`,
+  mantém o nome); trocar de escopo precisa limpar `company_project_id` quando for pra 'geral' — feito
+  com `CASE WHEN $flag THEN $valor ELSE company_project_id END` no `UPDATE` (não dá pra usar
+  `COALESCE`, que trataria "não mexer" e "limpar pra null" como a mesma coisa). Frontend: `ScopePicker`
+  (toggle Geral/Cliente + `<input list>` com `<datalist>` dos projetos pra sugestão/autocomplete,
+  reaproveitado no upload e na edição do drawer) e `ScopeTag` (selo azul "Geral" / verde com nome do
+  cliente, no cartão e no drawer); filtro novo na barra de busca (`<select>`: Todos / Geral / cada
+  cliente distinto que já aparece na lista).
+  **Testado**: direto contra o Postgres/API local (login real, sem mock) — criar geral, criar cliente
+  com projeto vinculado, criar cliente sem projeto (nome livre), criar cliente sem nome (400), trocar
+  geral→cliente, cliente→geral (confirma que `company_project_id` zera), PATCH só de título (confirma
+  que não mexe no escopo), `companyProjectId` de projeto inexistente (cai pra `null`, mantém o nome).
+  UI conferida em harness (dados simulados) nos dois temas: toggle, autocomplete resolvendo o id certo,
+  filtro, salvar edição de escopo no drawer.
+
 ## 49. Transcrições: erro de IA em português + "tentar novamente" em lote (2026-09-18)
 
 **Gatilho**: o Rafael subiu um lote de reuniões e a transcrição falhou com o
