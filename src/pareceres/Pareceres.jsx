@@ -5,11 +5,53 @@
 // como um novo workspaceMode em src/App.jsx. Mesmo padrão de módulo
 // autocontido de src/knowledge/ — CSS próprio, SidePanel reaproveitado do
 // App.jsx pro drawer de detalhe.
+//
+// Tag de escopo (2026-09-28, pedido do Rafael): todo Parecer é "Geral" (todos os clientes) ou de
+// um "Cliente específico" — nesse caso, o nome do cliente sempre fica salvo (denormalizado, sobrevive
+// mesmo que o projeto seja excluído depois); quando o nome digitado bate com um projeto existente
+// (`/api/projects/lite`, payload leve — nunca o `/api/projects` inteiro), guarda também o vínculo
+// forte `company_project_id`, mas isso nunca é obrigatório (cliente pode ainda nem ser projeto aqui).
 import React, { useEffect, useRef, useState } from 'react';
-import { FileText, X, LogOut, Plus, Upload, Trash2, Pencil, ExternalLink, MessageSquare, Send, Search } from 'lucide-react';
+import { FileText, X, LogOut, Plus, Upload, Trash2, Pencil, ExternalLink, MessageSquare, Send, Search, ArrowLeft, Globe, Building2 } from 'lucide-react';
 import { ThemeToggleBtn, SidePanel, useDebouncedField, fmtTs } from '../App.jsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { PARECERES_CSS, fmtFileSize, PARECERES_MAX_MB } from './pareceresMeta.js';
+
+function ScopeTag({ scope, companyName }) {
+  return scope === 'cliente'
+    ? <span className="par-tag par-tag-client"><Building2 size={11} />{companyName || 'Cliente'}</span>
+    : <span className="par-tag par-tag-general"><Globe size={11} />Geral</span>;
+}
+
+// Toggle Geral/Cliente + campo de nome (com sugestão dos projetos já cadastrados). Reaproveitado no
+// upload e na edição do drawer — a mesma regra dos dois lados: "cliente" sem nome não é permitido.
+function ScopePicker({ value, onChange, companies, listId }) {
+  return (
+    <>
+      <div className="par-scope-toggle">
+        <button type="button" className={value.scope === 'geral' ? 'active' : ''} onClick={() => onChange({ scope: 'geral', companyName: '', companyProjectId: null })}>
+          <Globe size={13} /> Geral
+        </button>
+        <button type="button" className={value.scope === 'cliente' ? 'active' : ''} onClick={() => onChange({ ...value, scope: 'cliente' })}>
+          <Building2 size={13} /> Cliente específico
+        </button>
+      </div>
+      {value.scope === 'cliente' && (
+        <>
+          <input
+            type="text" list={listId} value={value.companyName} placeholder="Nome do cliente"
+            onChange={(e) => {
+              const companyName = e.target.value;
+              const match = companies.find((c) => c.name === companyName);
+              onChange({ scope: 'cliente', companyName, companyProjectId: match ? match.id : null });
+            }}
+          />
+          <datalist id={listId}>{companies.map((c) => <option key={c.id} value={c.name} />)}</datalist>
+        </>
+      )}
+    </>
+  );
+}
 
 function readFileAsBase64(file) {
   return new Promise((resolve, reject) => {
@@ -24,9 +66,10 @@ function readFileAsBase64(file) {
   });
 }
 
-function UploadParecerModal({ onClose, onCreated }) {
+function UploadParecerModal({ onClose, onCreated, companies }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [scopeValue, setScopeValue] = useState({ scope: 'geral', companyName: '', companyProjectId: null });
   const [file, setFile] = useState(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -43,6 +86,7 @@ function UploadParecerModal({ onClose, onCreated }) {
   async function handleSubmit() {
     if (!title.trim()) { setError('Informe uma identificação para o arquivo.'); return; }
     if (!file) { setError('Selecione um arquivo PDF.'); return; }
+    if (scopeValue.scope === 'cliente' && !scopeValue.companyName.trim()) { setError('Informe o nome do cliente, ou marque como "Geral".'); return; }
     setSaving(true);
     setError('');
     try {
@@ -50,6 +94,7 @@ function UploadParecerModal({ onClose, onCreated }) {
       const created = await apiPost('/api/pareceres', {
         title: title.trim(), description: description.trim(),
         fileName: file.name, mimeType: 'application/pdf', fileDataBase64,
+        scope: scopeValue.scope, companyName: scopeValue.companyName.trim(), companyProjectId: scopeValue.companyProjectId,
       });
       onCreated(created);
     } catch (e) {
@@ -66,6 +111,9 @@ function UploadParecerModal({ onClose, onCreated }) {
 
         <label>Comentário / contexto (opcional)</label>
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Do que se trata, pra quem é relevante, etc." />
+
+        <label>Este parecer é</label>
+        <ScopePicker value={scopeValue} onChange={setScopeValue} companies={companies} listId="par-companies-upload" />
 
         <label>Arquivo PDF *</label>
         <div className={`par-dropzone ${file ? 'has-file' : ''}`} onClick={() => fileRef.current && fileRef.current.click()}>
@@ -88,22 +136,38 @@ function UploadParecerModal({ onClose, onCreated }) {
   );
 }
 
-function ParecerDrawer({ parecer, currentUser, onClose, onChanged, onDeleted }) {
+function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, onDeleted }) {
   const [comments, setComments] = useState(parecer.comments || []);
   const [commentDraft, setCommentDraft] = useState('');
   const [editing, setEditing] = useState(false);
   const [sendingComment, setSendingComment] = useState(false);
+  const [scopeDraft, setScopeDraft] = useState({ scope: parecer.scope || 'geral', companyName: parecer.company_name || '', companyProjectId: parecer.company_project_id || null });
+  const [savingScope, setSavingScope] = useState(false);
 
   const titleField = useDebouncedField(parecer.title, (v) => saveField({ title: v }));
   const descField = useDebouncedField(parecer.description || '', (v) => saveField({ description: v }));
 
   useEffect(() => { setComments(parecer.comments || []); }, [parecer.id, parecer.comments]);
+  useEffect(() => { setScopeDraft({ scope: parecer.scope || 'geral', companyName: parecer.company_name || '', companyProjectId: parecer.company_project_id || null }); }, [parecer.id, parecer.scope, parecer.company_name]);
 
   async function saveField(patch) {
     try {
       const updated = await apiPatch(`/api/pareceres/${parecer.id}`, patch);
       onChanged(updated);
     } catch { /* useDebouncedField já mantém o rascunho local; falha de rede não perde o que foi digitado */ }
+  }
+
+  // Escopo (Geral/Cliente) é um objeto composto — salva explícito (não em cada tecla, como
+  // título/descrição) pra nunca mandar 'cliente' sem nome no meio da digitação.
+  const scopeDirty = scopeDraft.scope !== (parecer.scope || 'geral') || scopeDraft.companyName !== (parecer.company_name || '');
+  async function saveScope() {
+    if (scopeDraft.scope === 'cliente' && !scopeDraft.companyName.trim()) return;
+    setSavingScope(true);
+    try {
+      const updated = await apiPatch(`/api/pareceres/${parecer.id}`, { scope: scopeDraft.scope, companyName: scopeDraft.companyName.trim(), companyProjectId: scopeDraft.companyProjectId });
+      onChanged(updated);
+    } catch { /* mantém o rascunho pro usuário tentar de novo */ }
+    setSavingScope(false);
   }
 
   async function submitComment() {
@@ -141,6 +205,17 @@ function ParecerDrawer({ parecer, currentUser, onClose, onChanged, onDeleted }) 
         <button className="par-comment-del" title={editing ? 'Concluir edição' : 'Editar identificação'} onClick={() => setEditing((v) => !v)}><Pencil size={14} /></button>
       </div>
       <div className="par-drawer-file">{parecer.file_name} · {fmtFileSize(parecer.file_size)} · enviado por {parecer.created_by_name || 'alguém'} em {fmtTs(parecer.created_at)}</div>
+
+      <div className="par-drawer-scope">
+        {editing ? (
+          <>
+            <ScopePicker value={scopeDraft} onChange={setScopeDraft} companies={companies} listId={`par-companies-${parecer.id}`} />
+            {scopeDirty && <button type="button" className="par-btn par-btn-primary" style={{ marginTop: 8 }} onClick={saveScope} disabled={savingScope}>{savingScope ? 'Salvando…' : 'Salvar'}</button>}
+          </>
+        ) : (
+          <ScopeTag scope={parecer.scope} companyName={parecer.company_name} />
+        )}
+      </div>
 
       <div className="par-drawer-actions">
         <a className="par-btn par-btn-primary" href={`/api/pareceres/${parecer.id}/file`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
@@ -180,13 +255,16 @@ function ParecerDrawer({ parecer, currentUser, onClose, onChanged, onDeleted }) 
 
 export default function PareceresScreen({ currentUser, onExit, onLogout, theme, onToggleTheme }) {
   const [pareceres, setPareceres] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [search, setSearch] = useState('');
+  const [filterScope, setFilterScope] = useState('all'); // 'all' | 'geral' | nome de um cliente
   const [showUpload, setShowUpload] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
 
   useEffect(() => {
     apiGet('/api/pareceres').then((res) => { setPareceres(res.pareceres || []); setLoaded(true); }).catch(() => setLoaded(true));
+    apiGet('/api/projects/lite').then((res) => setCompanies(res.projects || [])).catch(() => {}); // só sugestão no autocomplete — falha não bloqueia a tela
   }, []);
 
   function handleCreated(created) {
@@ -203,7 +281,11 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
     setSelectedId(null);
   }
 
+  const distinctClients = [...new Set(pareceres.filter((p) => p.scope === 'cliente' && p.company_name).map((p) => p.company_name))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
   const filtered = pareceres.filter((p) => {
+    if (filterScope === 'geral' && p.scope !== 'geral') return false;
+    if (filterScope !== 'all' && filterScope !== 'geral' && p.company_name !== filterScope) return false;
     if (!search.trim()) return true;
     const q = search.trim().toLowerCase();
     return (p.title || '').toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q);
@@ -216,10 +298,12 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
       <style>{PARECERES_CSS}</style>
       <div className="par-shell">
         <div className="par-topbar">
-          <div className="par-brand"><FileText size={18} color="#F5C400" /> Pareceres PRICETAX</div>
+          <div className="par-topbar-left">
+            {onExit && <button className="par-back" onClick={onExit}><ArrowLeft size={16} /> Voltar</button>}
+            <div className="par-brand"><FileText size={18} color="#F5C400" /> Pareceres PRICETAX</div>
+          </div>
           <div className="par-actions">
             <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
-            {onExit && <button title="Sair dos Pareceres" onClick={onExit}><X size={18} /></button>}
             <button title="Sair" onClick={onLogout}><LogOut size={16} /></button>
           </div>
         </div>
@@ -230,20 +314,31 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
                 <Search size={14} />
                 <input type="text" placeholder="Buscar por identificação ou comentário…" value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
+              {(pareceres.length > 0) && (
+                <select className="par-filter" value={filterScope} onChange={(e) => setFilterScope(e.target.value)}>
+                  <option value="all">Todos os pareceres</option>
+                  <option value="geral">Geral (todos os clientes)</option>
+                  {distinctClients.length > 0 && (
+                    <optgroup label="Cliente específico">
+                      {distinctClients.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </optgroup>
+                  )}
+                </select>
+              )}
               <button className="par-btn par-btn-primary" onClick={() => setShowUpload(true)}><Plus size={14} /> Novo Parecer</button>
             </div>
 
             {loaded && pareceres.length > 0 && (
               <div className="par-summary">
                 {pareceres.length} {pareceres.length === 1 ? 'parecer' : 'pareceres'}
-                {search.trim() ? ` · ${filtered.length} ${filtered.length === 1 ? 'encontrado' : 'encontrados'}` : ''}
+                {(search.trim() || filterScope !== 'all') ? ` · ${filtered.length} ${filtered.length === 1 ? 'encontrado' : 'encontrados'}` : ''}
               </div>
             )}
 
             {!loaded && <div className="par-empty">Carregando…</div>}
             {loaded && filtered.length === 0 && (
               <div className="par-empty">
-                {pareceres.length === 0 ? 'Nenhum Parecer enviado ainda. Clique em "Novo Parecer" pra subir o primeiro PDF.' : 'Nenhum Parecer encontrado com esse termo.'}
+                {pareceres.length === 0 ? 'Nenhum Parecer enviado ainda. Clique em "Novo Parecer" pra subir o primeiro PDF.' : 'Nenhum Parecer encontrado com esse filtro.'}
               </div>
             )}
             {filtered.length > 0 && (
@@ -257,6 +352,7 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
                         <div className="par-card-file">{p.file_name} · {fmtFileSize(p.file_size)}</div>
                       </div>
                     </div>
+                    <ScopeTag scope={p.scope} companyName={p.company_name} />
                     {p.description && <div className="par-card-desc">{p.description}</div>}
                     <div className="par-card-foot">
                       <span>{p.created_by_name || 'alguém'} · {fmtTs(p.created_at)}</span>
@@ -270,10 +366,10 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
         </div>
       </div>
 
-      {showUpload && <UploadParecerModal onClose={() => setShowUpload(false)} onCreated={handleCreated} />}
+      {showUpload && <UploadParecerModal onClose={() => setShowUpload(false)} onCreated={handleCreated} companies={companies} />}
       {selected && (
         <ParecerDrawer
-          parecer={selected} currentUser={currentUser}
+          parecer={selected} currentUser={currentUser} companies={companies}
           onClose={() => setSelectedId(null)}
           onChanged={handleChanged}
           onDeleted={handleDeleted}

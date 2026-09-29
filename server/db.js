@@ -799,6 +799,15 @@ export async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS pareceres_org_idx ON pareceres(org_id, created_at DESC)`);
+  // Tag de escopo (2026-09-28, pedido do Rafael: "entender se é parecer geral pra todos os
+  // clientes ou pra um cliente específico"). `company_name` é sempre a fonte de exibição
+  // (denormalizada, sobrevive a um projeto excluído ou a um cliente que ainda nem é projeto no
+  // Cronograma); `company_project_id` é o vínculo forte quando o cliente escolhido É um projeto
+  // existente (permite futuro filtro/join, nunca obrigatório).
+  await pool.query(`ALTER TABLE pareceres ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'geral'`);
+  await pool.query(`ALTER TABLE pareceres ADD COLUMN IF NOT EXISTS company_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE pareceres ADD COLUMN IF NOT EXISTS company_name TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS pareceres_scope_idx ON pareceres(org_id, scope)`);
 
   // CRM PRICETAX — Fase 1 (2026-09-20, ver PROJECT_CONTEXT.md §54). Tudo
   // ADITIVO: tabelas novas com prefixo crm_ + uma coluna nova em users

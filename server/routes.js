@@ -395,6 +395,22 @@ router.get('/projects/versions', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Lista leve (id + nome) pra picker de cliente (ex.: tag de escopo dos Pareceres) — nunca o JSONB
+// inteiro de cada projeto, que já é pesado (é por isso que Pareceres guarda o PDF numa tabela
+// própria em vez de embutir em `projects.data`, ver PROJECT_CONTEXT.md §48).
+router.get('/projects/lite', requireAuth, async (req, res, next) => {
+  try {
+    const orgId = effectiveOrgId(req);
+    const sql = req.user.isSuperAdmin && !orgId
+      ? 'SELECT id, data, org_id FROM projects ORDER BY created_at ASC'
+      : 'SELECT id, data, org_id FROM projects WHERE org_id=$1 ORDER BY created_at ASC';
+    const params = req.user.isSuperAdmin && !orgId ? [] : [orgId];
+    const { rows } = await pool.query(sql, params);
+    const visible = rows.filter((r) => canAccessProject(req.user, r.data, r.org_id));
+    res.json({ projects: visible.map((r) => ({ id: r.id, name: (r.data.company && (r.data.company.nomeFantasia || r.data.company.name)) || 'Sem nome' })) });
+  } catch (e) { next(e); }
+});
+
 router.post('/projects', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
   try {
     const project = blankProject();
