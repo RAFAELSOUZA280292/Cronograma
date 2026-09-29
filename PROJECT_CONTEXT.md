@@ -5435,6 +5435,20 @@ escopo): busca full-text no conteúdo do PDF, versionamento de um
 mesmo Parecer (reenviar substitui — cada upload novo é um Parecer
 novo), notificação quando um Parecer novo é publicado.
 
+**Ajuste de layout (2026-09-28)**: o Rafael reportou a tela "feia e ruim para uso" com print — o
+defeito real era `.par-body` sem `max-width`: numa tela larga a busca/botão esticavam de ponta a
+ponta e, com poucos Pareceres, o cartão ficava perdido num mar de vazio. Corrigido com `.par-inner`
+(`max-width:960px`, centralizado); busca ganhou ícone (`Search`) e teto de 420px; ícone do cartão
+trocado de vermelho (`#e2574c`, cor de conflito/alerta do resto do app, sem relação com o conteúdo)
+pra dourado (`rgba(245,196,0,.16)`/`#F5C400`, mesma combinação do avatar da RENATA); linha de resumo
+nova acima do grid ("N pareceres" + "M encontrados" durante busca). **Bug pré-existente achado no
+mesmo teste** (não introduzido agora): nenhum input/textarea do módulo tinha `background`/`border`/
+`color` themed — ficavam brancos mesmo no tema escuro (busca, título/descrição do drawer, campo de
+comentário, formulário de upload). Corrigido replicando o padrão já usado no resto do app
+(`background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1)` + foco dourado).
+Verificado em harness local (dados simulados, mesmo Parecer do print) nos dois temas: busca, grid,
+modal de upload e drawer completo (editar título, editar descrição, comentário).
+
 ## 49. Transcrições: erro de IA em português + "tentar novamente" em lote (2026-09-18)
 
 **Gatilho**: o Rafael subiu um lote de reuniões e a transcrição falhou com o
