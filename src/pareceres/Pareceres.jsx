@@ -6,7 +6,7 @@
 // autocontido de src/knowledge/ — CSS próprio, SidePanel reaproveitado do
 // App.jsx pro drawer de detalhe.
 import React, { useEffect, useRef, useState } from 'react';
-import { FileText, X, LogOut, Plus, Upload, Trash2, Pencil, ExternalLink, MessageSquare, Send } from 'lucide-react';
+import { FileText, X, LogOut, Plus, Upload, Trash2, Pencil, ExternalLink, MessageSquare, Send, Search } from 'lucide-react';
 import { ThemeToggleBtn, SidePanel, useDebouncedField, fmtTs } from '../App.jsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { PARECERES_CSS, fmtFileSize, PARECERES_MAX_MB } from './pareceresMeta.js';
@@ -224,37 +224,49 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
           </div>
         </div>
         <div className="par-body">
-          <div className="par-toolbar">
-            <input type="text" placeholder="Buscar por identificação ou comentário…" value={search} onChange={(e) => setSearch(e.target.value)} />
-            <button className="par-btn par-btn-primary" onClick={() => setShowUpload(true)}><Plus size={14} /> Novo Parecer</button>
-          </div>
-
-          {!loaded && <div className="par-empty">Carregando…</div>}
-          {loaded && filtered.length === 0 && (
-            <div className="par-empty">
-              {pareceres.length === 0 ? 'Nenhum Parecer enviado ainda. Clique em "Novo Parecer" pra subir o primeiro PDF.' : 'Nenhum Parecer encontrado com esse termo.'}
+          <div className="par-inner">
+            <div className="par-toolbar">
+              <div className="par-search">
+                <Search size={14} />
+                <input type="text" placeholder="Buscar por identificação ou comentário…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+              <button className="par-btn par-btn-primary" onClick={() => setShowUpload(true)}><Plus size={14} /> Novo Parecer</button>
             </div>
-          )}
-          {filtered.length > 0 && (
-            <div className="par-grid">
-              {filtered.map((p) => (
-                <div key={p.id} className="par-card" onClick={() => setSelectedId(p.id)}>
-                  <div className="par-card-head">
-                    <div className="par-card-icon"><FileText size={18} /></div>
-                    <div>
-                      <div className="par-card-title">{p.title}</div>
-                      <div className="par-card-file">{p.file_name} · {fmtFileSize(p.file_size)}</div>
+
+            {loaded && pareceres.length > 0 && (
+              <div className="par-summary">
+                {pareceres.length} {pareceres.length === 1 ? 'parecer' : 'pareceres'}
+                {search.trim() ? ` · ${filtered.length} ${filtered.length === 1 ? 'encontrado' : 'encontrados'}` : ''}
+              </div>
+            )}
+
+            {!loaded && <div className="par-empty">Carregando…</div>}
+            {loaded && filtered.length === 0 && (
+              <div className="par-empty">
+                {pareceres.length === 0 ? 'Nenhum Parecer enviado ainda. Clique em "Novo Parecer" pra subir o primeiro PDF.' : 'Nenhum Parecer encontrado com esse termo.'}
+              </div>
+            )}
+            {filtered.length > 0 && (
+              <div className="par-grid">
+                {filtered.map((p) => (
+                  <div key={p.id} className="par-card" onClick={() => setSelectedId(p.id)}>
+                    <div className="par-card-head">
+                      <div className="par-card-icon"><FileText size={18} /></div>
+                      <div>
+                        <div className="par-card-title">{p.title}</div>
+                        <div className="par-card-file">{p.file_name} · {fmtFileSize(p.file_size)}</div>
+                      </div>
+                    </div>
+                    {p.description && <div className="par-card-desc">{p.description}</div>}
+                    <div className="par-card-foot">
+                      <span>{p.created_by_name || 'alguém'} · {fmtTs(p.created_at)}</span>
+                      <span className="par-card-comments"><MessageSquare size={12} /> {(p.comments || []).length}</span>
                     </div>
                   </div>
-                  {p.description && <div className="par-card-desc">{p.description}</div>}
-                  <div className="par-card-foot">
-                    <span>{p.created_by_name || 'alguém'} · {fmtTs(p.created_at)}</span>
-                    <span className="par-card-comments"><MessageSquare size={12} /> {(p.comments || []).length}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -18,8 +18,16 @@ export const PARECERES_CSS = `
   .par-actions button { background:transparent; border:none; color:var(--text-5); cursor:pointer; display:flex; padding:7px; border-radius:7px; }
   .par-actions button:hover { background:var(--bg-3); color:var(--text-2); }
   .par-body { flex:1; overflow-y:auto; padding:22px; }
-  .par-toolbar { display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap; }
-  .par-toolbar input[type=text] { flex:1; min-width:200px; padding:10px 14px; font-size:13px; border-radius:10px; }
+  .par-inner { max-width:960px; margin:0 auto; width:100%; }
+  .par-toolbar { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .par-search { position:relative; flex:1; min-width:200px; max-width:420px; }
+  .par-search svg { position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--text-6); pointer-events:none; }
+  .par-search input[type=text] {
+    width:100%; padding:10px 14px 10px 36px; font-size:13px; border-radius:10px; box-sizing:border-box;
+    background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); font-family:inherit;
+  }
+  .par-search input[type=text]:focus { outline:none; border-color:#F5C400; }
+  .par-summary { font-size:12px; color:var(--text-6); margin-bottom:16px; }
   .par-btn { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; border-radius:8px; padding:9px 15px; cursor:pointer; border:1px solid; background:transparent; white-space:nowrap; }
   .par-btn-primary { background:#F5C400; border-color:#F5C400; color:#111; }
   .par-btn-ghost { border-color:var(--border-2); color:var(--text-4); }
@@ -31,7 +39,7 @@ export const PARECERES_CSS = `
   .par-card { background:var(--bg-2); border:1px solid var(--border-1); border-radius:13px; padding:16px; cursor:pointer; display:flex; flex-direction:column; gap:8px; transition:border-color .12s; }
   .par-card:hover { border-color:var(--border-3); }
   .par-card-head { display:flex; align-items:flex-start; gap:10px; }
-  .par-card-icon { width:38px; height:38px; border-radius:10px; background:rgba(226,87,76,.14); color:#e2574c; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .par-card-icon { width:38px; height:38px; border-radius:10px; background:rgba(245,196,0,.16); color:#F5C400; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .par-card-title { font-size:13.5px; font-weight:800; color:var(--text-1); line-height:1.3; }
   .par-card-file { font-size:11px; color:var(--text-6); margin-top:2px; }
   .par-card-desc { font-size:12px; color:var(--text-4); line-height:1.45; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
@@ -39,8 +47,16 @@ export const PARECERES_CSS = `
   .par-card-comments { display:flex; align-items:center; gap:4px; }
 
   .par-form label { font-size:11.5px; font-weight:700; color:var(--text-5); display:block; margin-top:14px; margin-bottom:5px; }
-  .par-form input[type=text], .par-form textarea { width:100%; padding:9px 12px; font-size:13px; border-radius:9px; }
-  .par-form textarea { min-height:70px; resize:vertical; font-family:inherit; }
+  .par-form input[type=text], .par-form textarea,
+  .par-drawer-title-row input[type=text], .par-drawer-section textarea, .par-comment-input-row textarea {
+    width:100%; padding:9px 12px; font-size:13px; border-radius:9px; font-family:inherit;
+    background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1);
+  }
+  .par-form input[type=text]:focus, .par-form textarea:focus,
+  .par-drawer-title-row input[type=text]:focus, .par-drawer-section textarea:focus, .par-comment-input-row textarea:focus {
+    outline:none; border-color:#F5C400;
+  }
+  .par-form textarea { min-height:70px; resize:vertical; }
   .par-dropzone { margin-top:6px; border:1.5px dashed var(--border-3); border-radius:11px; padding:22px 14px; text-align:center; cursor:pointer; color:var(--text-5); font-size:12.5px; }
   .par-dropzone:hover { border-color:#F5C400; color:var(--text-3); }
   .par-dropzone.has-file { border-style:solid; border-color:#3ecf6e; color:var(--text-2); }
