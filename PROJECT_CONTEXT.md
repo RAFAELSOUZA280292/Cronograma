@@ -6170,7 +6170,63 @@ meia-noite, expediente configurável). UI com agenda simulada (a semana do print
   navegador nem calendários além do principal.
 - Convite de evento recorrente: a resposta vem por ocorrência (comportamento do Google).
 
-## 19. Onde procurar mais detalhe
+## 60. Bug real: digitar e o texto sumir sozinho — corrida entre autosave e o poll de sincronização (2026-09-29)
+
+**Relato da Amanda** (via Rafael): criar uma atividade numa reunião, escrever o nome, e ~2 segundos
+depois o texto digitado desaparecia sozinho — sem ela apertar nada.
+
+### Causa raiz
+Duas peças do app, cada uma correta isoladamente, colidem: (1) toda edição de projeto (`mutateProject`)
+salva com debounce de 500ms (`persistProjectDebounced`) — cada campo autosave (ex.: título da
+atividade) tem também o próprio debounce de 300ms (`useDebouncedField`), então uma tecla digitada
+leva até ~800ms pra realmente sair como PATCH; (2) o "BIP" de sincronização entre usuários (poll a
+cada 6s em `GET /api/projects/versions`, §28) recarrega a lista inteira de projetos
+(`reloadProjects`) sempre que percebe que ALGUM projeto mudou — inclusive quando quem mudou foi o
+PRÓPRIO usuário (criar a atividade já conta como "mudou"). `reloadProjects` fazia
+`setProjects(res.projects...)` **sem nenhuma proteção** — se esse poll disparasse enquanto uma
+edição local ainda não tinha chegado no servidor (aguardando o debounce, OU já enviada mas sem
+resposta ainda), a resposta do servidor era uma FOTO DE ANTES, e essa foto substituía o `projects`
+inteiro na tela — apagando o texto que a pessoa via, mesmo que ela já tivesse "commitado"
+localmente. Criar uma atividade e renomear ela na sequência é o cenário mais exposto: são dois
+saves próximos um do outro, bem na janela em que o poll (rodando numa agenda própria, independente
+do que o usuário está fazendo) tem mais chance de cair no meio.
+
+Esse exato padrão de proteção **já existia** em `PublicBoardScreen` (poll de 45s do quadro público:
+`if (document.hidden || saveTimer.current || savingRef.current) return;`) — só não tinha sido
+aplicado ao poll principal de `projects`, que é o que cobre atividades/reuniões/cronograma.
+
+### Correção (`src/App.jsx`)
+`reloadProjects(opts)` ganha `opts.background` (só `true` quando quem chama é o poll, nunca no
+carregamento inicial) e, nesse caso, funde a resposta do servidor com o estado local em vez de
+substituir tudo: qualquer projeto com edição **agendada, ainda não enviada**
+(`saveTimers.current[pid]`, já existia) OU **enviada, ainda sem resposta**
+(`inFlightProjectSaves.current[pid]`, novo — incrementado/decrementado por `trackInFlightSave()`,
+usado tanto por `persistProjectDebounced` quanto por `flushProjectSave`) mantém a versão local —
+só os projetos SEM edição pendente são substituídos pela foto do servidor. Isso preserva o
+propósito original do poll (Amanda vê o que outra pessoa mudou) sem nunca apagar uma edição que o
+servidor ainda não sabe que existe. Efeito colateral corrigido junto: o `catch` de `reloadProjects`
+fazia `setProjects([])` em QUALQUER falha — um poll de fundo que desse timeout apagaria a tela
+inteira; agora só o carregamento inicial (sem dado nenhum ainda) cai pra lista vazia.
+
+### Verificação
+Build limpo. Reproduzido e corrigido ao vivo no dev local (login real, não simulado): criada uma
+atividade numa reunião de teste, digitado o título — (a) com a correção ativa, o texto sobreviveu a
+vários ciclos reais do poll (confirmado no log de rede: `GET /api/projects` intercalado com
+`PATCH /api/projects/:id` sem perda) e foi lido de volta do Postgres exatamente como digitado;
+(b) forçado o pior caso possível — PATCH artificialmente atrasado 7s (cobrindo um ciclo inteiro do
+poll de 6s) via `window.fetch` interceptado — o texto ainda sobreviveu e persistiu corretamente,
+provando que a proteção cobre também a janela "enviado, sem resposta ainda", não só a "agendado,
+ainda não enviado". Dados de teste removidos do Postgres local depois.
+
+### Onde mais isso poderia doer (investigado, sem achado)
+- **Gestão de Atividades (Quadro Pessoal)**: `personalBoard` tem o próprio debounce
+  (`persistPersonalBoardDebounced`) mas **nenhum poll periódico** recarrega ele sozinho — carregado
+  uma vez no login, sem re-fetch de fundo. Não é vulnerável a esse padrão (nada existe pra
+  sobrescrever o estado local no meio de uma edição).
+- **Quadro público compartilhado** (`PublicBoardScreen`): já tinha a proteção (é de onde copiei o
+  padrão), confirmado lendo o código, não só por analogia.
+- **Notificações** (poll de 45s): só lê/substitui a lista de notificações, não tem edição de texto
+  do usuário em voo — sem risco equivalente.
 
 | Preciso de... | Vá para |
 |---|---|
