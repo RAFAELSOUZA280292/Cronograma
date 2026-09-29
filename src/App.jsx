@@ -588,6 +588,11 @@ export default function App() {
   const [usersPanelError, setUsersPanelError] = useState('');
   const saveTimers = useRef({});
   const pendingProjectData = useRef({});
+  // Conta PATCHs de projeto em voo (enviados, ainda sem resposta) — junto com saveTimers (agendado,
+  // ainda nem enviado), cobre as 2 janelas em que existe edição local que o servidor ainda não tem.
+  // Usado só por reloadProjects pra nunca sobrescrever um projeto nessas janelas (ver bug de
+  // 2026-09-29 abaixo).
+  const inFlightProjectSaves = useRef({});
   const { toasts: appToasts, pushToast: pushAppToast, pushUndoToast: pushAppUndoToast, dismissToast: dismissAppToast } = useToasts();
 
   const [view, setView] = useState('table');
@@ -910,13 +915,37 @@ export default function App() {
     return `${path}${sep}asOrg=${encodeURIComponent(org)}`;
   }
 
-  async function reloadProjects() {
+  // `background=true` é o "BIP" de sincronização (poll a cada 6s, linha ~950) recarregando sozinho
+  // porque outro usuário mudou algo — nunca o carregamento inicial de fato.
+  //
+  // Bug real relatado pela Amanda (2026-09-29): criar uma atividade numa reunião e, ~2s depois,
+  // digitar o nome dela, o texto digitado sumia sozinho. Causa: o poll de sincronização roda numa
+  // agenda própria (a cada 6s, independente do que o usuário está fazendo) e, ao notar que ESTE
+  // MESMO usuário acabou de salvar algo (criar a atividade já dispara um PATCH), chamava
+  // reloadProjects() — que sobrescrevia `projects` inteiro com a resposta do servidor. Se isso
+  // acontecesse enquanto a edição do NOME ainda estava só localmente (aguardando o debounce de
+  // 500ms de persistProjectDebounced, ou já enviada mas sem resposta ainda), o servidor devolvia
+  // uma foto de ANTES dela terminar de digitar — e essa foto apagava o que ela via na tela.
+  // Corrigido nunca sobrescrevendo, numa recarga em background, um projeto que ainda tem edição
+  // local pendente (`saveTimers`, agendada) ou em voo (`inFlightProjectSaves`, já enviada mas sem
+  // resposta) — os dois únicos jeitos de "o servidor ainda não sabe o que eu digitei".
+  async function reloadProjects(opts) {
+    const background = !!(opts && opts.background);
     try {
       const res = await apiGet(withActingOrg('/api/projects'));
-      setProjects(res.projects.map(normalizeProject));
+      const fresh = res.projects.map(normalizeProject);
+      if (!background) { setProjects(fresh); return; }
+      setProjects((prev) => fresh.map((p) => {
+        const pending = saveTimers.current[p.id] || inFlightProjectSaves.current[p.id];
+        if (!pending) return p;
+        const local = prev.find((x) => x.id === p.id);
+        return local || p;
+      }));
     } catch (e) {
       console.error('Falha ao carregar projetos', e);
-      setProjects([]);
+      // Falha no poll silencioso não pode apagar o que já está na tela — só o carregamento
+      // inicial (sem dado nenhum ainda) cai pra lista vazia.
+      if (!background) setProjects([]);
     } finally {
       setProjectsLoaded(true);
     }
@@ -953,7 +982,7 @@ export default function App() {
           if (prev !== undefined && prev !== v.updatedAt) changed = true;
           knownProjectVersionsRef.current.set(v.id, v.updatedAt);
         });
-        if (changed) reloadProjects();
+        if (changed) reloadProjects({ background: true });
       } catch (e) {
         // Silencioso de propósito — é só um heartbeat, uma falha
         // pontual (rede instável, etc.) não deve virar erro visível.
@@ -1158,6 +1187,19 @@ export default function App() {
     setUsers((prev) => prev.map((u) => (u.id === res.user.id ? res.user : u)));
   }
 
+  // Marca pid como "em voo" (PATCH enviado, sem resposta ainda) enquanto `promise` não resolve —
+  // reloadProjects usa isso (junto com saveTimers) pra nunca sobrescrever um projeto que o
+  // servidor ainda não confirmou ter recebido.
+  function trackInFlightSave(pid, promise) {
+    inFlightProjectSaves.current[pid] = (inFlightProjectSaves.current[pid] || 0) + 1;
+    const clear = () => {
+      const n = (inFlightProjectSaves.current[pid] || 1) - 1;
+      if (n <= 0) delete inFlightProjectSaves.current[pid]; else inFlightProjectSaves.current[pid] = n;
+    };
+    promise.then(clear, clear);
+    return promise;
+  }
+
   function persistProjectDebounced(pid, projectData) {
     pendingProjectData.current[pid] = projectData;
     if (saveTimers.current[pid]) clearTimeout(saveTimers.current[pid]);
@@ -1165,7 +1207,7 @@ export default function App() {
       delete saveTimers.current[pid];
       const data = pendingProjectData.current[pid];
       delete pendingProjectData.current[pid];
-      apiPatch(`/api/projects/${pid}`, { project: data }).catch((e) => {
+      trackInFlightSave(pid, apiPatch(`/api/projects/${pid}`, { project: data })).catch((e) => {
         console.error('Falha ao salvar projeto', e);
         pushAppToast({ message: 'Não foi possível salvar a última alteração. Verifique sua conexão.', ttlMs: 8000 });
       });
@@ -1186,7 +1228,7 @@ export default function App() {
     const data = pendingProjectData.current[pid];
     delete pendingProjectData.current[pid];
     if (!data) return Promise.resolve();
-    return apiPatch(`/api/projects/${pid}`, { project: data }).catch((e) => {
+    return trackInFlightSave(pid, apiPatch(`/api/projects/${pid}`, { project: data })).catch((e) => {
       console.error('Falha ao salvar projeto', e);
       pushAppToast({ message: 'Não foi possível salvar a última alteração. Verifique sua conexão.', ttlMs: 8000 });
       throw e;
