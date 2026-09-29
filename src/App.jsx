@@ -994,6 +994,42 @@ export default function App() {
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [currentUser?.id, actingOrg?.id]);
 
+  // Aviso de "nova versão" (2026-09-29) — descoberto ao investigar um relatório da Amanda de bug
+  // "corrigido" que continuou acontecendo: um deploy troca o JS servido, mas quem já está com a
+  // aba aberta continua rodando o bundle ANTIGO, na memória, indefinidamente — nada nesse app
+  // recarrega uma sessão em andamento sozinho. Sem isso, toda correção fica invisível pra quem
+  // não fechar e reabrir a aba, e o suporte vira "vc atualizou a página?" às cegas. Checa o
+  // `index.html` de verdade (não cacheado) de tempos em tempos e, se o JS referenciado mudou,
+  // mostra um toast persistente com "Atualizar agora" (dado real, sem timer arriscando adivinhar
+  // "quando" o usuário está no meio de algo).
+  useEffect(() => {
+    const currentScript = document.querySelector('script[type="module"][src*="/assets/"]');
+    const currentSrc = currentScript && currentScript.getAttribute('src');
+    if (!currentSrc) return undefined; // dev (Vite sem build) não serve assets com hash — nada a comparar
+    let cancelled = false;
+    let notified = false;
+    async function check() {
+      try {
+        const res = await fetch('/', { cache: 'no-store' });
+        const html = await res.text();
+        if (cancelled || notified) return;
+        const m = html.match(/<script[^>]+type="module"[^>]+src="([^"]+)"/);
+        if (m && m[1] && m[1] !== currentSrc) {
+          notified = true;
+          pushAppToast({
+            message: 'Uma nova versão do Cronograma está disponível.',
+            actionLabel: 'Atualizar agora',
+            onAction: () => window.location.reload(),
+            ttlMs: 0,
+          });
+        }
+      } catch (e) { /* falha pontual de rede — tenta de novo no próximo ciclo */ }
+    }
+    check();
+    const timer = setInterval(check, 4 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, []);
+
   // Auto-atualização da memória da RENATA ao entrar numa empresa
   // (2026-09-10, pedido do Rafael: "não esqueça de fazer essa
   // atualização toda vez que o usuário logar e entrar") — dispara

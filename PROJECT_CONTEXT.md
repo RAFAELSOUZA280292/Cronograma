@@ -6228,6 +6228,31 @@ ainda não enviado". Dados de teste removidos do Postgres local depois.
 - **Notificações** (poll de 45s): só lê/substitui a lista de notificações, não tem edição de texto
   do usuário em voo — sem risco equivalente.
 
+### Continuação (mesmo dia): a Amanda testou de novo e "não deu certo"
+
+A correção acima estava (e está) correta e confirmada em produção — mas isso sozinho **não bastava**
+pra Amanda ver o efeito. Causa real: esse é um SPA — **um deploy nunca atualiza sozinho uma aba já
+aberta**. Se a aba dela já estava carregada (ou tinha ficado aberta) de ANTES do deploy dessa
+correção, ela continuou rodando o JS antigo (com o bug) indefinidamente, na memória do navegador,
+mesmo com o servidor já 100% atualizado — nenhuma quantidade de deploy no Railway alcança uma sessão
+já em execução. Não tinha como verificar isso remotamente (o servidor não loga requisição por
+requisição, só a linha de boot), e é exatamente o tipo de "fantasma" que gera "eu corrigi mas
+continua igual" — o código novo nunca chegou a rodar na tela dela.
+
+**Correção real desse gap** (`src/App.jsx`, `useEffect` perto do poll de sincronização): a cada 4
+minutos (e uma vez já na entrada), busca `/` sem cache e compara o `<script type="module" src="...">`
+retornado com o que está carregado agora; se mudou, mostra um toast **persistente** (`ttlMs: 0`) —
+"Uma nova versão do Cronograma está disponível." + botão "Atualizar agora" (`window.location.reload()`).
+Isso fecha a classe inteira de "corrigi e não fez efeito" daqui pra frente, não só esse caso.
+**Testado de ponta a ponta** rodando `dist/` de verdade num servidor local: login real, troquei o
+`index.html` servido pra simular um deploy novo (JS com nome fictício), o toast apareceu na tela
+certa (dentro do workspace de Empresas, onde `ToastStack` já é renderizado) e "Atualizar agora"
+recarregou a página com sucesso (restaurei o `index.html` real antes de clicar, pra não confirmar só
+metade do fluxo). Limite conhecido: o toast só aparece nas telas que já renderizam `<ToastStack
+appToasts>` (o workspace de Empresas — onde reuniões/atividades vivem, exatamente onde o bug da
+Amanda acontece); não aparece na tela de login nem no seletor de organização do Super Admin — não
+crítico, ninguém fica parado ali por muito tempo.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
