@@ -5466,7 +5466,7 @@ function PersonalColumn({
   );
 }
 
-function PersonalCardDetailModal({ card, columnName, boardName, allTags, currentUserId, readOnly, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onRemoveChecklistItem }) {
+function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherColumns, onMoveTo, allTags, currentUserId, readOnly, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onRemoveChecklistItem }) {
   const [commentDraft, setCommentDraft] = useState('');
   const [checklistDraft, setChecklistDraft] = useState('');
   const [editingCommentId, setEditingCommentId] = useState(null);
@@ -5513,7 +5513,20 @@ function PersonalCardDetailModal({ card, columnName, boardName, allTags, current
       <div style={{ ...S.detailBox, width: 'min(760px, 100%)', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={S.fieldHint}>{boardName} / {columnName}</div>
+            <div style={{ ...S.fieldHint, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span>{boardName} /</span>
+              {!readOnly && otherColumns && otherColumns.length > 0 ? (
+                <select
+                  value={columnId}
+                  onChange={(e) => onMoveTo(e.target.value)}
+                  title="Mover para outra coluna"
+                  style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-6)', background: 'transparent', border: '1px solid var(--border-2)', borderRadius: 6, padding: '2px 5px', fontFamily: 'inherit', cursor: 'pointer' }}
+                >
+                  <option value={columnId}>{columnName}</option>
+                  {otherColumns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              ) : <span>{columnName}</span>}
+            </div>
             {!readOnly && <span style={{ fontSize: 11, color: hasDraft ? '#ff9f40' : 'var(--text-6)' }}>{savedStatusLabel(hasDraft, lastSavedAt)}</span>}
           </div>
           <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
@@ -6809,8 +6822,11 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
         return (
           <PersonalCardDetailModal
             card={card}
+            columnId={col.id}
             columnName={col.name}
             boardName={activeBoard.name}
+            otherColumns={activeBoard.columns.filter((c) => c.id !== col.id)}
+            onMoveTo={(targetColId) => { moveCardToIndex(card.id, col.id, targetColId, null); setOpenCard({ colId: targetColId, cardId: card.id }); }}
             allTags={allTags}
             currentUserId={currentUser.id}
             readOnly={readOnly}
