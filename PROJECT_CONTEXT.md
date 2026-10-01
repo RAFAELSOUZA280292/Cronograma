@@ -6253,6 +6253,28 @@ appToasts>` (o workspace de Empresas — onde reuniões/atividades vivem, exatam
 Amanda acontece); não aparece na tela de login nem no seletor de organização do Super Admin — não
 crítico, ninguém fica parado ali por muito tempo.
 
+## 61. Quadro Pessoal: mover de coluna por dentro da atividade (2026-10-01)
+
+**Pedido do Rafael** (com print do detalhe de uma atividade "FLP - CEREJ"): dar pra trocar a
+atividade de coluna sem precisar fechar o detalhe e usar o menu "⋯" do card na lista.
+
+Essa ação **já existia** — `PersonalCardMenu` (o menu "⋯" de cada card) tem "Mover para..." desde
+sempre, chamando `moveCardToIndex(cardId, fromColId, toColId, null)` (já existente, com log no
+histórico e toast de desfazer) — só não estava acessível de dentro do `PersonalCardDetailModal`
+(a tela de detalhe que abre ao clicar no card). Adicionado ali, reusando a mesma função, sem
+duplicar lógica: o breadcrumb "{board} / {coluna}" no topo do modal virou um `<select>` quando há
+outras colunas (`otherColumns`, mesmo array já usado por `ReassignCardsModal`) — trocar a opção
+chama `onMoveTo(novaColId)`, que roda `moveCardToIndex` e atualiza `openCard` pra apontar pra nova
+coluna (o modal continua aberto, mostrando a nova coluna, em vez de fechar sozinho porque o card
+some da coluna antiga). Em modo só-leitura (link público) continua mostrando só o nome, sem o
+`<select>` — mesma regra do resto do modal.
+
+**Testado** localmente (login real): criada a atividade "FLP - CEREJ" em "A fazer", trocado pelo
+`<select>` do modal pra "Em andamento" — o rótulo do breadcrumb atualizou, "Salvo automaticamente"
+confirmou, o quadro (atrás do modal) já mostrava o card na coluna nova, e o Histórico registrou
+"Movida de "A fazer" para "Em andamento"" com timestamp e usuário certos. Dado de teste removido do
+Postgres local depois.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
