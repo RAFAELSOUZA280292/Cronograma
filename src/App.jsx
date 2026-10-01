@@ -5466,20 +5466,26 @@ function PersonalColumn({
   );
 }
 
-function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherColumns, onMoveTo, allTags, currentUserId, readOnly, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onRemoveChecklistItem }) {
+function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherColumns, onMoveTo, allTags, currentUserId, readOnly, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onUpdateChecklistItem, onRemoveChecklistItem }) {
   const [commentDraft, setCommentDraft] = useState('');
   const [checklistDraft, setChecklistDraft] = useState('');
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState('');
+  const [editingChecklistId, setEditingChecklistId] = useState(null);
+  const [editingChecklistText, setEditingChecklistText] = useState('');
+  // Sair do campo (Escape) tira o foco, e o blur dispararia logo em seguida — sem essa flag, o
+  // blur salvaria o texto "cancelado" por cima do Escape (testado e achado ao vivo, não hipotético).
+  const cancelingChecklistRef = useRef(false);
   const [showGuard, setShowGuard] = useState(false);
   const lastSavedAt = useAutosaveTimestamp(card);
   const titleField = useDebouncedField(card.title, (v) => onUpdate({ title: v }, 'Título atualizado'));
   const descField = useDebouncedField(card.desc || '', (v) => onUpdate({ desc: v }, 'Descrição atualizada'));
-  const hasDraft = !readOnly && (!!commentDraft.trim() || !!checklistDraft.trim() || editingCommentId !== null);
+  const hasDraft = !readOnly && (!!commentDraft.trim() || !!checklistDraft.trim() || editingCommentId !== null || editingChecklistId !== null);
   function requestClose() { titleField.flush(); descField.flush(); if (hasDraft) setShowGuard(true); else onClose(); }
   function saveDraftsAndClose() {
     titleField.flush(); descField.flush();
     if (editingCommentId !== null) { onUpdateComment(editingCommentId, editingCommentText); setEditingCommentId(null); }
+    if (editingChecklistId !== null) { onUpdateChecklistItem(editingChecklistId, editingChecklistText); setEditingChecklistId(null); }
     if (commentDraft.trim()) submitComment();
     if (checklistDraft.trim()) submitChecklist();
     onClose();
@@ -5597,8 +5603,38 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
             {(card.checklist || []).map((item) => (
               <div key={item.id} style={S.checklistRow}>
                 <input type="checkbox" checked={item.done} onChange={() => onToggleChecklistItem(item.id)} />
-                <span style={{ flex: 1, ...(item.done ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{item.text}</span>
-                <button style={S.chipX} onClick={() => onRemoveChecklistItem(item.id)}><X size={12} /></button>
+                {editingChecklistId === item.id ? (
+                  <>
+                    <input
+                      value={editingChecklistText}
+                      onChange={(e) => setEditingChecklistText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); onUpdateChecklistItem(item.id, editingChecklistText); setEditingChecklistId(null); }
+                        else if (e.key === 'Escape') { cancelingChecklistRef.current = true; setEditingChecklistId(null); }
+                      }}
+                      onBlur={() => {
+                        if (cancelingChecklistRef.current) { cancelingChecklistRef.current = false; return; }
+                        onUpdateChecklistItem(item.id, editingChecklistText); setEditingChecklistId(null);
+                      }}
+                      style={{ flex: 1 }}
+                      autoFocus
+                    />
+                    <button style={S.chipX} onClick={() => { cancelingChecklistRef.current = true; setEditingChecklistId(null); }}><X size={12} /></button>
+                  </>
+                ) : (
+                  <>
+                    <span
+                      style={{ flex: 1, cursor: readOnly ? 'default' : 'text', ...(item.done ? { textDecoration: 'line-through', opacity: .6 } : {}) }}
+                      onClick={() => { if (!readOnly) { setEditingChecklistId(item.id); setEditingChecklistText(item.text); } }}
+                    >
+                      {item.text}
+                    </span>
+                    {!readOnly && (
+                      <button style={S.chipX} title="Editar" onClick={() => { setEditingChecklistId(item.id); setEditingChecklistText(item.text); }}><Pencil size={11} /></button>
+                    )}
+                    <button style={S.chipX} onClick={() => onRemoveChecklistItem(item.id)}><X size={12} /></button>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -6380,6 +6416,11 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
   function toggleChecklistItem(colId, cardId, itemId) {
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).map((i) => (i.id === itemId ? { ...i, done: !i.done } : i)), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
   }
+  function updateChecklistItem(colId, cardId, itemId, text) {
+    const v = (text || '').trim();
+    if (!v) return;
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).map((i) => (i.id === itemId ? { ...i, text: v } : i)), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
+  }
   function removeChecklistItem(colId, cardId, itemId) {
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).filter((i) => i.id !== itemId), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
   }
@@ -6840,6 +6881,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
             onRemoveComment={(id) => removeCardComment(col.id, card.id, id)}
             onAddChecklistItem={(text) => addChecklistItem(col.id, card.id, text)}
             onToggleChecklistItem={(id) => toggleChecklistItem(col.id, card.id, id)}
+            onUpdateChecklistItem={(id, text) => updateChecklistItem(col.id, card.id, id, text)}
             onRemoveChecklistItem={(id) => removeChecklistItem(col.id, card.id, id)}
           />
         );

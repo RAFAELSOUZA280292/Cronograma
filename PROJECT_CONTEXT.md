@@ -6275,6 +6275,37 @@ confirmou, o quadro (atrás do modal) já mostrava o card na coluna nova, e o Hi
 "Movida de "A fazer" para "Em andamento"" com timestamp e usuário certos. Dado de teste removido do
 Postgres local depois.
 
+## 62. Quadro Pessoal: texto do item de checklist editável (2026-10-01)
+
+**Pedido do Rafael** (com print): item de checklist "DOCUMENTAÇÃO 3 ANSO - SPED" (typo) não podia
+ser corrigido — só existia marcar como feito (checkbox) e excluir (X), nunca editar o texto.
+
+`updateChecklistItem(colId, cardId, itemId, text)` novo (`PersonalBoardScreen`), mesmo padrão de
+`addChecklistItem`/`toggleChecklistItem`/`removeChecklistItem` (valida texto não-vazio, atualiza
+`updatedAt`/`updatedBy`). No `PersonalCardDetailModal`: clicar no texto do item OU no ícone de
+lápis novo vira um `<input>` editável (mesmo visual de edição de comentário já existente); Enter
+ou clicar fora salva; Escape cancela sem salvar. Modo só-leitura (link público) não mostra o lápis
+nem deixa clicar no texto.
+
+**Bug achado e corrigido durante o próprio teste** (não hipotético): o primeiro código escrito
+salvava o texto errado ao cancelar com Escape — `setEditingChecklistId(null)` tira o foco do
+`<input>`, o que dispara o `onBlur` *depois* do Escape, e o `onBlur` chamava
+`onUpdateChecklistItem` incondicionalmente, salvando o texto "cancelado" por cima. Corrigido com
+`cancelingChecklistRef` (um `useRef`): Escape e o botão "cancelar" marcam a flag antes de tirar o
+foco, o `onBlur` confere a flag e não salva nesse caso — só reseta e sai. Mesmo princípio já usado
+em `useDebouncedField.reset()` (nunca commitar quando a saída é uma desistência explícita).
+
+**Efeito colateral conhecido, não corrigido** (pré-existente, não é regressão): o Escape também
+fecha o modal inteiro (o `window.addEventListener('keydown', ...)` do modal ouve Escape
+globalmente e não tem como saber que já foi tratado dentro do campo) — mesmo comportamento que já
+acontecia ao cancelar a edição de um comentário com Escape. Testado e aceito como consistente com o
+que já existia, não exclusivo do checklist.
+
+**Testado** localmente (login real): criado o item com o mesmo typo do print, editado pelo lápis e
+pelo clique direto no texto, confirmado no Postgres que o texto corrigido persistiu; reproduzido o
+bug do Escape salvando errado, corrigido, e confirmado de novo no Postgres que cancelar não altera
+nada. Dado de teste removido depois.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
