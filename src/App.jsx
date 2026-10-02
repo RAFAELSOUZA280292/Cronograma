@@ -2761,6 +2761,8 @@ export default function App() {
             meetings={activeProject.meetings || []}
             team={activeProject.team}
             pid={activeProject.id}
+            companyName={activeProject.company.nomeFantasia || activeProject.company.name || ''}
+            canDossier={!!currentUser && (currentUser.isSuperAdmin || currentUser.role === 'master' || currentUser.role === 'pricetax')}
             onAdd={() => addMeeting(activeProject.id)}
             onOpen={(id) => openMeetingDetail(activeProject.id, id)}
             showTrash={showMeetingsTrash}

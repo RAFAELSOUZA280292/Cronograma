@@ -809,6 +809,41 @@ export async function initDb() {
   await pool.query(`ALTER TABLE pareceres ADD COLUMN IF NOT EXISTS company_name TEXT NOT NULL DEFAULT ''`);
   await pool.query(`CREATE INDEX IF NOT EXISTS pareceres_scope_idx ON pareceres(org_id, scope)`);
 
+  // Dossiê do cliente (2026-10-02, pedido da Amanda via Rafael: "um compilado de todas as reuniões
+  // da Tecumseh") — ver PROJECT_CONTEXT.md §63. `project_dossiers` guarda cada geração (versionada;
+  // o JSONB `content` é o documento estruturado, `sources` o hash de cada reunião usada, pra avisar
+  // "N reuniões novas desde este dossiê"); `project_meeting_digests` é só cache da ficha gerada a
+  // partir da TRANSCRIÇÃO de reuniões sem resumo, pra regerar o dossiê não repagar a IA. Sem CHECK
+  // constraint de propósito (status validado em JS) — mesma lição do §38.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS project_dossiers (
+      id              TEXT PRIMARY KEY,
+      org_id          TEXT NOT NULL REFERENCES organizations(id),
+      project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      status          TEXT NOT NULL DEFAULT 'generating',
+      progress        JSONB NOT NULL DEFAULT '{}',
+      content         JSONB,
+      sources         JSONB NOT NULL DEFAULT '[]',
+      error           TEXT NOT NULL DEFAULT '',
+      created_by      TEXT REFERENCES users(id),
+      created_by_name TEXT NOT NULL DEFAULT '',
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+      finished_at     TIMESTAMPTZ
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS project_dossiers_project_idx ON project_dossiers(project_id, created_at DESC)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS project_meeting_digests (
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      meeting_id TEXT NOT NULL,
+      digest_key TEXT NOT NULL,
+      digest     TEXT NOT NULL,
+      model      TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (project_id, meeting_id)
+    );
+  `);
+
   // CRM PRICETAX — Fase 1 (2026-09-20, ver PROJECT_CONTEXT.md §54). Tudo
   // ADITIVO: tabelas novas com prefixo crm_ + uma coluna nova em users
   // (crm_role, vazio = sem acesso). Nada do que já existe é alterado.

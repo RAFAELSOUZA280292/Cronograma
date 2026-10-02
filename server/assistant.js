@@ -8,8 +8,15 @@ import { requireAuth } from './auth.js';
 import { canAccessProject } from './routes.js';
 import { askProjectAssistant, getConversationMessages, clearConversation, setMessageFeedback, decideProposedAction } from './assistantRetrieval.js';
 import { reindexProjectMemory } from './memoryIngest.js';
+import { startDossier, getDossierState, liveMeetings } from './dossier.js';
 
 export const router = Router();
+
+// Dossiê do cliente (ver server/dossier.js): compilação interna de TODAS as reuniões — só a equipe
+// (master/pricetax), nunca o usuário `cliente`, mesmo que ele enxergue a empresa.
+function canUseDossier(user) {
+  return !!user && (user.isSuperAdmin || user.role === 'master' || user.role === 'pricetax');
+}
 
 async function loadAuthorizedProject(req, res, projectId) {
   if (!projectId) { res.status(400).json({ message: 'Informe projectId.' }); return null; }
@@ -128,6 +135,33 @@ router.get('/reindex-needed', requireAuth, async (req, res, next) => {
     const indexedMeetingIds = new Set(indexedMeetingRows.map((r) => r.meeting_id));
     const needed = meetings.some((m) => !indexedMeetingIds.has(m.id));
     res.json({ needed });
+  } catch (e) { next(e); }
+});
+
+router.get('/dossier', requireAuth, async (req, res, next) => {
+  try {
+    if (!canUseDossier(req.user)) return res.status(403).json({ message: 'O dossiê do cliente é restrito à equipe PRICETAX.' });
+    const { projectId } = req.query;
+    const project = await loadAuthorizedProject(req, res, projectId);
+    if (!project) return;
+    res.json(await getDossierState(pool, { projectId, projectData: project.data }));
+  } catch (e) { next(e); }
+});
+
+router.post('/dossier', requireAuth, async (req, res, next) => {
+  try {
+    if (!canUseDossier(req.user)) return res.status(403).json({ message: 'O dossiê do cliente é restrito à equipe PRICETAX.' });
+    const { projectId } = req.body || {};
+    if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ message: 'Assistente não configurado nesse ambiente (falta ANTHROPIC_API_KEY).' });
+    const project = await loadAuthorizedProject(req, res, projectId);
+    if (!project) return;
+    if (!liveMeetings(project.data).length) return res.status(400).json({ message: 'Esta empresa ainda não tem reuniões para compilar.' });
+    const started = await startDossier(pool, { orgId: project.org_id, projectId, projectData: project.data, user: req.user });
+    if (!started.alreadyRunning) {
+      appendProjectLog(projectId, `${req.user.name} gerou o dossiê do cliente (compilado das reuniões)`, req.user.name)
+        .catch((e) => console.error('Falha ao registrar log do dossiê', e.message));
+    }
+    res.status(202).json(await getDossierState(pool, { projectId, projectData: project.data }));
   } catch (e) { next(e); }
 });
 
