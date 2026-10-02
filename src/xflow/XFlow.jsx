@@ -27,6 +27,49 @@ import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn, useDirt
 
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
 
+// Colar print (Ctrl+V) e arrastar imagem nas TASKs (2026-10-02, pedido do Rafael: o time de DEV precisa
+// colar print e adicionar imagens). Antes só a Descrição aceitava print colado; comentário e os campos
+// de texto simples (Resultado esperado, Passo a passo, Solução aplicada, O que testar) ignoravam o Ctrl+V.
+// Print colado chega do navegador com o nome genérico "image.png" — vira "print-AAAAMMDD-HHMMSS.png".
+const GENERIC_IMAGE_NAME = /^image\.(png|jpe?g|gif|webp)$/i;
+function nowStamp() {
+  const d = new Date(); const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+function imageFilesFrom(list) {
+  const imgs = Array.from(list || []).filter((f) => f && f.type && f.type.startsWith('image/'));
+  return imgs.map((f, i) => {
+    if (f.name && !GENERIC_IMAGE_NAME.test(f.name)) return f;
+    const ext = ((f.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace(/[^a-z0-9]/gi, '')) || 'png';
+    return new File([f], `print-${nowStamp()}${imgs.length > 1 ? `-${i + 1}` : ''}.${ext}`, { type: f.type });
+  });
+}
+function clipboardImageFiles(e) {
+  const cd = e && e.clipboardData;
+  if (!cd) return [];
+  const fromFiles = imageFilesFrom(cd.files);
+  if (fromFiles.length) return fromFiles;
+  return imageFilesFrom(Array.from(cd.items || []).filter((it) => it.kind === 'file').map((it) => it.getAsFile()));
+}
+function readEvidenceFile(file) {
+  return new Promise((resolve) => {
+    if (file.size > MAX_EVIDENCE_BYTES) {
+      window.alert(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_EVIDENCE_BYTES / (1024 * 1024)} MB.`);
+      resolve(null); return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => resolve({ id: uid('ev'), name: file.name, size: file.size, type: file.type, dataUrl: reader.result });
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+function FlashToast({ message }) {
+  if (!message) return null;
+  return (
+    <div role="status" style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 3000, background: 'var(--bg-1)', color: 'var(--text-1)', border: '1px solid #3ecf6e', borderRadius: 8, padding: '9px 16px', fontSize: 12.5, fontWeight: 700, boxShadow: '0 6px 20px rgba(0,0,0,.35)' }}>{message}</div>
+  );
+}
+
 // Descrição do BUG é rich text (editor Tiptap, ver RichTextEditor). HTML
 // nunca vai pra tela sem passar por aqui — mesmo conteúdo já sanitizado no
 // backend ao salvar (defesa em profundidade, server/xflow.js
@@ -855,18 +898,35 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
 
   function set(patch) { setForm((f) => ({ ...f, ...patch })); }
 
+  const [pasteNote, setPasteNote] = useState('');
+  const pasteNoteTimer = useRef(null);
+  useEffect(() => () => clearTimeout(pasteNoteTimer.current), []);
+  async function addEvidenceFiles(files) {
+    let n = 0;
+    for (const file of files) {
+      const ev = await readEvidenceFile(file);
+      if (!ev) continue;
+      setForm((f) => ({ ...f, evidence: [...f.evidence, ev] }));
+      n += 1;
+    }
+    if (n) {
+      setPasteNote(n === 1 ? `Anexado como evidência: ${files[0].name}` : `${n} arquivos anexados como evidência.`);
+      clearTimeout(pasteNoteTimer.current);
+      pasteNoteTimer.current = setTimeout(() => setPasteNote(''), 4000);
+    }
+  }
   function handleEvidencePick(e) {
     const files = Array.from(e.target.files || []);
-    files.forEach((file) => {
-      if (file.size > MAX_EVIDENCE_BYTES) {
-        window.alert(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_EVIDENCE_BYTES / (1024 * 1024)} MB.`);
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => setForm((f) => ({ ...f, evidence: [...f.evidence, { id: uid('ev'), name: file.name, size: file.size, type: file.type, dataUrl: reader.result }] }));
-      reader.readAsDataURL(file);
-    });
+    e.target.value = '';
+    addEvidenceFiles(files);
   }
+  // Print colado num campo de texto simples vira evidência (esses campos não guardam imagem).
+  const onPasteToEvidence = (e) => {
+    const imgs = clipboardImageFiles(e);
+    if (!imgs.length) return;
+    e.preventDefault();
+    addEvidenceFiles(imgs);
+  };
   function removeEvidence(id) { setForm((f) => ({ ...f, evidence: f.evidence.filter((ev) => ev.id !== id) })); }
 
   const requiredOk = form.title.trim() && form.product && form.clientType && !richTextIsBlank(form.description) && form.environment && form.occurredAt;
@@ -884,6 +944,7 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
 
   return (
     <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
+      <FlashToast message={pasteNote} />
       <div style={{ ...S.detailBox, width: 'min(1100px, 94vw)', maxHeight: '90vh', overflowY: 'auto', padding: isMobile ? undefined : '24px 30px 30px 30px', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={{ ...S.detailTopBar, alignItems: 'flex-start', marginBottom: 20 }}>
           <div>
@@ -1003,11 +1064,11 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
             </div>
             <div>
               <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Resultado esperado</div>
-              <textarea rows={2} value={form.expectedResult} onChange={(e) => set({ expectedResult: e.target.value })} placeholder="O que deveria acontecer" />
+              <textarea rows={2} value={form.expectedResult} onChange={(e) => set({ expectedResult: e.target.value })} onPaste={onPasteToEvidence} placeholder="O que deveria acontecer" />
             </div>
             <div>
               <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Passo a passo para reproduzir</div>
-              <textarea rows={4} value={form.reproSteps} onChange={(e) => set({ reproSteps: e.target.value })} placeholder={'1. Entrou em...\n2. Clicou em...\n3. Fez upload...'} />
+              <textarea rows={4} value={form.reproSteps} onChange={(e) => set({ reproSteps: e.target.value })} onPaste={onPasteToEvidence} placeholder={'1. Entrou em...\n2. Clicou em...\n3. Fez upload...'} />
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 160px' }}>
@@ -1027,12 +1088,13 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
             </div>
             <div>
               <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Evidência (print, vídeo, arquivo, mensagem de erro)</div>
+              <div style={{ ...S.fieldHint, marginBottom: 6 }}>Cole um print com Ctrl+V (Cmd+V no Mac) na Descrição ou nos campos acima, ou use o botão.</div>
               <label style={S.iconBtn}><Upload size={14} /> Anexar evidência
                 <input type="file" multiple style={{ display: 'none' }} onChange={handleEvidencePick} />
               </label>
               {form.evidence.map((ev) => (
                 <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12 }}>
-                  <Paperclip size={12} /> {ev.name}
+                  {ev.type && ev.type.startsWith('image/') ? <img src={ev.dataUrl} alt={ev.name} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} /> : <Paperclip size={12} />} {ev.name}
                   <button style={S.iconBtnGhost} onClick={() => removeEvidence(ev.id)}><X size={12} /></button>
                 </div>
               ))}
@@ -1098,7 +1160,7 @@ function autosize(el) {
   el.style.height = Math.min(el.scrollHeight, CONTENT_FIELD_MAX_H) + 'px';
 }
 
-function ContentField({ as: Tag = 'textarea', value, onCommit, disabled, rows, placeholder, type }) {
+function ContentField({ as: Tag = 'textarea', value, onCommit, disabled, rows, placeholder, type, onPasteImage }) {
   const [draft, setDraft] = useState(value || '');
   const taRef = useRef(null);
   useEffect(() => { setDraft(value || ''); }, [value]);
@@ -1107,6 +1169,13 @@ function ContentField({ as: Tag = 'textarea', value, onCommit, disabled, rows, p
     value: draft, disabled, placeholder,
     onChange: (e) => setDraft(e.target.value),
     onBlur: () => { if (draft !== (value || '')) onCommit(draft); },
+    // Campo de texto puro não guarda imagem: o print colado vira anexo da TASK (Evidências).
+    onPaste: onPasteImage ? (e) => {
+      const imgs = clipboardImageFiles(e);
+      if (!imgs.length) return;
+      e.preventDefault();
+      onPasteImage(imgs);
+    } : undefined,
   };
   if (Tag === 'input') return <input type={type || 'text'} {...common} />;
   return (
@@ -1126,6 +1195,15 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   useEffect(() => { autosize(commentRef.current); }, [commentDraft]);
   const [pendingMentions, setPendingMentions] = useState([]);
   const [commentAttachmentDrafts, setCommentAttachmentDrafts] = useState([]);
+  const [attachNote, setAttachNote] = useState('');
+  const attachNoteTimer = useRef(null);
+  const attachFilesRef = useRef(null);
+  useEffect(() => () => clearTimeout(attachNoteTimer.current), []);
+  function flashAttachNote(msg) {
+    setAttachNote(msg);
+    clearTimeout(attachNoteTimer.current);
+    attachNoteTimer.current = setTimeout(() => setAttachNote(''), 4000);
+  }
   const [commentLinkDrafts, setCommentLinkDrafts] = useState([]);
   const [commentLinkLabelDraft, setCommentLinkLabelDraft] = useState('');
   const [commentLinkUrlDraft, setCommentLinkUrlDraft] = useState('');
@@ -1356,22 +1434,47 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
     setCommentLinkDrafts((prev) => prev.filter((x) => x.id !== linkId));
   }
 
+  // Anexa à TASK (Evidências), um de cada vez (cada 'anexar' é uma transação no servidor).
+  async function attachFiles(files) {
+    let n = 0;
+    for (const file of files) {
+      const ev = await readEvidenceFile(file);
+      if (!ev) continue;
+      await runAction('anexar', { evidence: ev });
+      n += 1;
+    }
+    if (n) flashAttachNote(n === 1 ? `Anexado em Evidências: ${files[0].name}` : `${n} arquivos anexados em Evidências.`);
+  }
+  attachFilesRef.current = attachFiles;
   function handleEvidencePick(e) {
     const files = Array.from(e.target.files || []);
-    files.forEach((file) => {
-      if (file.size > MAX_EVIDENCE_BYTES) {
-        window.alert(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_EVIDENCE_BYTES / (1024 * 1024)} MB.`);
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => runAction('anexar', { evidence: { id: uid('ev'), name: file.name, size: file.size, type: file.type, dataUrl: reader.result } });
-      reader.readAsDataURL(file);
-    });
+    e.target.value = '';
+    attachFiles(files);
   }
 
   const ball = whoHasTheBall(ticket, teamById);
   const terminal = isTerminal(ticket.status);
   const canEditContent = canDoClient('edit_content', currentUser, ticket);
+  const canAttach = canDoClient('attach_evidence', currentUser, ticket);
+  const pasteToEvidence = canAttach ? (imgs) => attachFiles(imgs) : undefined;
+
+  // Ctrl+V com a TASK aberta e NADA em foco (nenhum campo de texto): o print vai direto pras Evidências.
+  // Campo de texto em foco trata o próprio paste (Descrição = inline, comentário = rascunho de anexo,
+  // demais = Evidências); por isso aqui só age quando o foco não está num campo editável.
+  useEffect(() => {
+    if (!canAttach) return undefined;
+    function onDocPaste(e) {
+      if (e.defaultPrevented) return;
+      const el = document.activeElement;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      const imgs = clipboardImageFiles(e);
+      if (!imgs.length) return;
+      e.preventDefault();
+      if (attachFilesRef.current) attachFilesRef.current(imgs);
+    }
+    document.addEventListener('paste', onDocPaste);
+    return () => document.removeEventListener('paste', onDocPaste);
+  }, [canAttach]);
   const canEditOps = canDoClient('editar_prazo_proxima_acao', currentUser, ticket);
   const closureReasonOptions = XFLOW_CLOSURE_REASON_ORDER.filter((k) => k !== 'descartado_gestao' || canDoClient('fechar_motivo_gestao', currentUser, ticket));
 
@@ -1383,6 +1486,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
 
   return (
     <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
+      <FlashToast message={attachNote} />
       <div style={{ ...S.detailBox, width: 'min(1000px, 100%)', maxHeight: '92vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div>
@@ -1445,12 +1549,13 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             />
 
             <div style={{ ...S.subSectionLabel, marginTop: 12 }}>Resultado esperado</div>
-            <ContentField value={ticket.expectedResult} disabled={!canEditContent} rows={2} onCommit={(v) => runAction('editar_campo', { field: 'expectedResult', value: v })} />
+            <ContentField value={ticket.expectedResult} disabled={!canEditContent} rows={2} onPasteImage={pasteToEvidence} onCommit={(v) => runAction('editar_campo', { field: 'expectedResult', value: v })} />
 
             <div style={{ ...S.subSectionLabel, marginTop: 12 }}>Passo a passo para reproduzir</div>
-            <ContentField value={ticket.reproSteps} disabled={!canEditContent} rows={4} onCommit={(v) => runAction('editar_campo', { field: 'reproSteps', value: v })} />
+            <ContentField value={ticket.reproSteps} disabled={!canEditContent} rows={4} onPasteImage={pasteToEvidence} onCommit={(v) => runAction('editar_campo', { field: 'reproSteps', value: v })} />
 
             <div style={{ ...S.subSectionLabel, marginTop: 12 }}>Evidências</div>
+            {canAttach && <div style={{ ...S.fieldHint, marginBottom: 6 }}>Tire um print e cole com Ctrl+V (Cmd+V no Mac) — funciona na Descrição, nos campos de texto desta TASK e até com nada selecionado. Pra outros arquivos, use Anexar.</div>}
             {canDoClient('attach_evidence', currentUser, ticket) && (
               <label style={S.iconBtn}><Upload size={14} /> Anexar
                 <input type="file" multiple style={{ display: 'none' }} onChange={handleEvidencePick} />
@@ -1514,17 +1619,30 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             {(ticket.solution || ticket.whatToTest || ['em_desenvolvimento', 'em_revisao', 'pronta_para_teste', 'em_homologacao', 'publicada', 'aguardando_validacao_solicitante', 'concluida'].includes(ticket.status)) && (
               <>
                 <div style={{ ...S.subSectionLabel, marginTop: 12 }}>Solução aplicada</div>
-                <ContentField value={ticket.solution} disabled={!canEditContent} rows={2} placeholder="O que foi feito para corrigir" onCommit={(v) => runAction('editar_campo', { field: 'solution', value: v })} />
+                <ContentField value={ticket.solution} disabled={!canEditContent} rows={2} placeholder="O que foi feito para corrigir" onPasteImage={pasteToEvidence} onCommit={(v) => runAction('editar_campo', { field: 'solution', value: v })} />
                 <div style={{ ...S.subSectionLabel, marginTop: 12 }}>O que testar</div>
-                <ContentField value={ticket.whatToTest} disabled={!canEditContent} rows={2} placeholder="Passos pra validar a correção" onCommit={(v) => runAction('editar_campo', { field: 'whatToTest', value: v })} />
+                <ContentField value={ticket.whatToTest} disabled={!canEditContent} rows={2} placeholder="Passos pra validar a correção" onPasteImage={pasteToEvidence} onCommit={(v) => runAction('editar_campo', { field: 'whatToTest', value: v })} />
               </>
             )}
 
             <div style={{ ...S.subSectionLabel, marginTop: 16 }}><MessageSquare size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Comentários</div>
             <textarea
               ref={commentRef} rows={2} value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)}
-              placeholder="Escreva um comentário... use @ pra mencionar alguém"
+              placeholder="Escreva um comentário... @ pra mencionar alguém · Ctrl+V cola um print"
               style={{ resize: 'none', overflowY: 'auto', maxHeight: CONTENT_FIELD_MAX_H }}
+              onPaste={(e) => {
+                const imgs = clipboardImageFiles(e);
+                if (!imgs.length) return;
+                e.preventDefault();
+                handleCommentFiles(imgs);
+              }}
+              onDragOver={(e) => { if (Array.from((e.dataTransfer && e.dataTransfer.types) || []).includes('Files')) e.preventDefault(); }}
+              onDrop={(e) => {
+                const imgs = imageFilesFrom(e.dataTransfer && e.dataTransfer.files);
+                if (!imgs.length) return;
+                e.preventDefault();
+                handleCommentFiles(imgs);
+              }}
             />
             {(commentAttachmentDrafts.length > 0 || commentLinkDrafts.length > 0) && (
               <div style={{ ...S.attachList, marginTop: 6 }}>
