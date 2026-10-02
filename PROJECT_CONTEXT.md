@@ -6382,6 +6382,37 @@ conteúdo; gerar de novo reprocessa tudo (as fichas de transcrição ficam em ca
 não); sem versão anterior navegável na tela (o banco guarda as 5 últimas, a tela mostra a mais
 recente); layout em celular só conferido por CSS, não visualmente.
 
+## 64. XFlow: colar print e adicionar imagens nas TASKs do time de DEV (2026-10-02)
+
+**Pedido do Rafael**: "dentro das TASKS para time de DEV permita colar PRINT e permita adicionar imagens".
+
+**O que já existia**: colar print na **Descrição** (editor Tiptap, vira imagem inline + anexo) e o botão
+**Anexar** em Evidências; o **comentário** aceitava imagem só pelo clipe. O que NÃO funcionava era o Ctrl+V
+em todo o resto — comentário e os campos de texto simples (Resultado esperado, Passo a passo, **Solução
+aplicada** e **O que testar**, os que o dev mais usa): o navegador simplesmente ignorava a imagem.
+
+**Agora** (`src/xflow/XFlow.jsx`, sem mudança de servidor — mesmos `comentar`/`anexar`, mesmos limites de 8 MB
+por arquivo e mesma sanitização):
+- **Comentário**: Ctrl+V de um print vira rascunho de anexo (com miniatura) e vai junto ao clicar em
+  Comentar; também dá pra **arrastar** imagem pra dentro da caixa.
+- **Campos de texto simples** (Resultado esperado, Passo a passo, Solução aplicada, O que testar — no
+  detalhe e na "Nova TASK"): o print colado é **anexado em Evidências** (esses campos são texto puro e não
+  guardam imagem) e aparece um aviso "Anexado em Evidências: print-….png". Colar texto continua normal.
+- **Ctrl+V com a TASK aberta e nada em foco** (nenhum campo de texto): anexa em Evidências. Se um campo
+  está em foco, ele trata o próprio paste (por isso o listener de documento ignora `INPUT/TEXTAREA/SELECT/
+  contenteditable` e eventos já tratados — sem anexo duplicado).
+- Print colado chega do navegador como `image.png`; vira `print-AAAAMMDD-HHMMSS.png` (vários: `-1`, `-2`…).
+  Arquivo copiado do Finder/Explorer mantém o nome. Evidências do "Nova TASK" agora mostram miniatura.
+- Respeita a permissão `attach_evidence` (solicitante só na própria TASK; dev/triagem/gestão/admin sempre):
+  sem permissão, o Ctrl+V nos campos não é interceptado.
+- Dica fixa na seção Evidências ensinando o Ctrl+V.
+
+**Testado** (dev local, login real, simulando o evento de colar com PNG real gerado no navegador): Nova TASK
+(print em "Resultado esperado" → miniatura + aviso, texto preservado), detalhe (comentário com print →
+rascunho → comentário enviado; "Resultado esperado"; sem foco; texto puro não interceptado; Descrição sem
+regressão) e **persistência no Postgres** (2 evidências + comentário com anexo `image/png`). Não testado com
+um print real do SO (Cmd+Shift+4 → Cmd+V) — o evento simulado carrega o mesmo `File` que o navegador entrega.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
