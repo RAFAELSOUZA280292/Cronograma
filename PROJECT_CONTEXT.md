@@ -6306,6 +6306,82 @@ pelo clique direto no texto, confirmado no Postgres que o texto corrigido persis
 bug do Escape salvando errado, corrigido, e confirmado de novo no Postgres que cancelar não altera
 nada. Dado de teste removido depois.
 
+## 63. Dossiê do cliente — compilado de todas as reuniões (2026-10-02)
+
+**Pedido** (Amanda, via Rafael): "estou com todas as reuniões da Tecumseh aqui, eu queria que a
+Renata fizesse um compilado… um resumo, um cronograma, um mapeamento pra gente entender como um todo."
+Entregue a **Fase A** (o compilado). Fase B (a RENATA propor um plano/atividades a partir dele, com
+aprovação antes de criar) e Fase C (atualização incremental, decisões viram fatos da Central de
+Conhecimento) ficam para depois, só com aval do Rafael.
+
+**Por que o chat não servia**: cada pergunta busca só 12 trechos da memória (`limit: 12` em
+`assistantRetrieval.js`) e a resposta é capada em 4.000 tokens — serve pra perguntas, não pra ler
+tudo. Mas cada reunião já tem resumo, decisões, tópicos, destaques e atividades estruturados.
+
+**Arquitetura** (`server/dossier.js`, map/reduce):
+1. **Ficha por reunião, SEM IA** (`buildFicha`): título, data, participantes, resumo, decisões,
+   tópicos, destaques e atividades que a reunião já tem. Só quando a reunião NÃO tem resumo (<80
+   chars) mas tem transcrição (≥200), o Sonnet resume a transcrição (`digestTranscript`, cap 120k
+   caracteres: começo + fim); isso fica em cache (`project_meeting_digests`, chave = hash de
+   título+data+transcrição — mexer em status de atividade não invalida).
+2. **Consolidação**: o Opus lê as fichas em ordem cronológica e devolve um JSON estruturado
+   (`DossierSchema`, zod **achatado**, sem `discriminatedUnion` — incidente de produção de 2026-09-10, ver §27/§34; instâncias novas de `ids()`
+   por campo, sem reuso de objeto zod): resumo executivo, linha do tempo, frentes de trabalho,
+   decisões (com `state`: vigente/alterada/revogada/incerta + nota do que mudou), pessoas, riscos,
+   lacunas. Cada item cita `meetingIds`; ids inventados são descartados (`sanitizeConsolidation`).
+   Acima de ~180k caracteres de fichas: um dossiê parcial por bloco + uma chamada final de união.
+3. **Por código, não pela IA**: pendências em aberto (atividades de reunião não concluídas, separadas
+   por lado PRICETAX/cliente, vencidas primeiro) e estatísticas (nº de reuniões, período, atividades
+   abertas/vencidas, participantes). Dado do sistema nunca passa pelo modelo.
+4. **Segundo plano**: o Opus leva minutos. `POST /api/assistant/dossier` cria a linha `generating`
+   e responde 202; `runDossierJob` roda sem ser aguardado e atualiza `progress`; o front faz polling
+   a cada 3s. Já tem geração rodando → devolve ela (não paga 2x). Job `generating` há >45min vira
+   `error` (`failStaleJobs`; container reiniciado mataria o job e travaria o botão). Mantém as 5
+   últimas versões `done`.
+5. **Desatualização**: `sources` guarda o hash de cada reunião usada; `computeStaleness` compara
+   com o estado atual e a tela avisa "N nova(s), N alterada(s), N removida(s) desde este dossiê".
+6. **Erros claros** (`friendlyError`): 401/403 → "chave da IA não aceita"; 429 → limite; sem crédito;
+   JSON cortado → 1 retry mais conciso (`COMPACT_SUFFIX`; `max_tokens: 16000`, abaixo do teto de
+   10 min do SDK, ver o incidente do JSON truncado no §33). 401 não retenta e, na etapa das fichas,
+   aborta antes de gastar Opus. Falha ao resumir UMA transcrição não derruba o dossiê (vai no
+   aviso da tela).
+
+**Acesso**: só master/pricetax/superadmin (`canUseDossier`) — o usuário `cliente` leva 403 mesmo
+vendo a empresa (é compilação interna). Mesmo `canAccessProject` das outras rotas do assistente.
+O botão "Dossiê do cliente" só aparece pra esses papéis e quando há reuniões. Gerar registra no log
+do projeto ("gerou o dossiê do cliente").
+
+**Front** (`src/meetings/DossierPanel.jsx` + `dossierExport.js`): documento com tiles de resumo,
+seções, fontes clicáveis (abrem a reunião de origem), aviso de reuniões sem conteúdo, e exportação —
+Copiar/Baixar **Markdown** (a Amanda quer "jogar no cloud": o .md serve pra levar pro Claude/Drive) e
+**PDF/Imprimir** (janela própria com HTML escapado, independente do tema). Regra de produto: o
+documento sempre diz que é gerado por IA e manda conferir nas fontes.
+
+**Banco** (`server/db.js`, aditivo, sem CHECK — §38): `project_dossiers` e `project_meeting_digests`
+(ver `docs/PROJECT_MAP.md`).
+
+**Testado**: (a) `server/dossier.js` com cliente de IA SIMULADO contra o Postgres local — 28
+verificações: ordem cronológica e reunião apagada fora, ficha vazia sinalizada, pendências por
+código, ids inventados descartados, cache da ficha (2ª geração não chama o Sonnet; transcrição
+alterada refaz só ela), desatualização nova/alterada/removida, lotes + união, retry de JSON
+cortado, 401 sem retentar, max_tokens persistente, falha numa ficha não derruba, job travado vira
+erro, geração já em andamento não duplica, poda de versões, CASCADE; (b) exportadores Markdown/HTML
+(escape, sem undefined/null, conteúdo vazio); (c) tela no navegador com dossiê gerado pelo próprio
+job: documento completo, fonte clicável abre a reunião, "gerando" com progresso e atualização por
+polling, aviso de desatualizado, erro tratado mantendo o dossiê anterior, download do .md, impressão;
+(d) rotas com sessões reais: cliente 403, sem sessão 401, projeto inexistente 404, sem projectId 400,
+e o caminho HTTP completo até a chamada de IA (chave local inválida → erro 401 tratado na tela).
+**NÃO testado com IA real**: não há `ANTHROPIC_API_KEY` válida local; a primeira geração real será
+em produção. Risco principal: a saída estruturada do Opus (schema só com tipos já provados em
+produção: string/array/object/enum/nullable). Se falhar, o erro aparece na própria tela e no log do
+Railway (`Dossiê: falha na geração — …`).
+
+**Limites conhecidos**: qualidade depende do que as reuniões têm (reunião sem resumo nem transcrição
+fica de fora e é listada); reunião só com transcrição curta (<200 chars) e sem resumo conta como sem
+conteúdo; gerar de novo reprocessa tudo (as fichas de transcrição ficam em cache, a consolidação
+não); sem versão anterior navegável na tela (o banco guarda as 5 últimas, a tela mostra a mais
+recente); layout em celular só conferido por CSS, não visualmente.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |

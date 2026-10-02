@@ -10,6 +10,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Mic, Plus, X, Trash2, Undo2, Clock, Users, CalendarDays, ChevronDown, FileText, Sparkles, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
 import { S, fmtDate, fmtTs, useIsMobile, SidePanel } from '../App.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
+import DossierPanel from './DossierPanel.jsx';
 
 export const MEETINGS_CSS = `
   .mtg-view input[type=text], .mtg-view input[type=date], .mtg-view input[type=time],
@@ -70,7 +71,7 @@ function actionItemsSummary(items) {
   return `${done}/${active.length} concluída${active.length === 1 ? '' : 's'}`;
 }
 
-export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, onShowTrash, onHideTrash, onRestore, onReloadProjects }) {
+export function MeetingsView({ meetings, team, pid, companyName, canDossier, onAdd, onOpen, showTrash, onShowTrash, onHideTrash, onRestore, onReloadProjects }) {
   const isMobile = useIsMobile();
   const today = todayIso();
   const active = (meetings || []).filter((m) => !m.deleted);
@@ -84,6 +85,7 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
   const past = active.filter((m) => !m.date || m.date <= today).sort((a, b) => `${a.date || ''}${a.time || ''}`.localeCompare(`${b.date || ''}${b.time || ''}`));
 
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [showDossier, setShowDossier] = useState(false);
   const [submissions, setSubmissions] = useState([]);
   const [reindexing, setReindexing] = useState(false);
   const [reindexResult, setReindexResult] = useState(null);
@@ -210,6 +212,7 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
             </span>
           )}
           <button style={S.iconBtn} onClick={handleReindex} disabled={reindexing} title="Reprocessa a memória de busca da RENATA pra todas as reuniões desta empresa — use se ela disser que não encontra o conteúdo de uma reunião que existe"><RefreshCw size={14} className={reindexing ? 'mtg-spin' : ''} /> Reindexar memória</button>
+          {canDossier && active.length > 0 && <button style={S.iconBtn} onClick={() => setShowDossier(true)} title="A RENATA lê todas as reuniões desta empresa e monta um compilado: resumo, linha do tempo, frentes, decisões, pendências, riscos"><FileText size={14} /> Dossiê do cliente</button>}
           <button style={S.iconBtn} onClick={onShowTrash}><Trash2 size={14} /> Lixeira{trashed.length > 0 ? ` (${trashed.length})` : ''}</button>
           <button style={S.iconBtn} onClick={() => setShowSubmitModal(true)}><Sparkles size={14} /> Enviar transcrição</button>
           <button style={S.primaryBtn} onClick={onAdd}><Plus size={15} /> Nova reunião</button>
@@ -306,6 +309,8 @@ export function MeetingsView({ meetings, team, pid, onAdd, onOpen, showTrash, on
           ))}
         </SidePanel>
       )}
+
+      {showDossier && <DossierPanel pid={pid} companyName={companyName} onClose={() => setShowDossier(false)} onOpenMeeting={onOpen} />}
 
       {showSubmitModal && (
         <TranscriptSubmitModal pid={pid} onClose={() => setShowSubmitModal(false)} onSubmitted={handleSubmitted} />
