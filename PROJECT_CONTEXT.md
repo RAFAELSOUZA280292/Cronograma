@@ -6730,6 +6730,13 @@ fatos fora da detecção de conflito) + browser: dentro de uma empresa só apare
 parecer não bater com o nome da empresa e não houver vínculo, o parecer específico NÃO será usado nem na empresa
 certa (prefere calar a vazar); a saída é escolher a empresa da lista ao enviar o parecer (grava o vínculo).
 
+**Deploy no meio do estudo (2026-10-04)**: o job de estudo é em memória; um deploy/reinício mata o job e deixava as
+linhas `running` por até 30 min (botão preso em "Estudando…"). Agora `computeStudyState` marca como `failed`
+("o servidor reiniciou durante o estudo — o que já foi estudado não é refeito") toda linha `running` há mais de
+1 min quando **este processo** não tem job vivo (`running` Set); o 1 min cobre a janela entre marcar `running` e o
+job entrar no Set. Pareceres já estudados ficam salvos e não são refeitos; só os interrompidos voltam a ser
+pendentes. Verificado em Node (órfão vira falho na hora; recém-iniciado continua "estudando").
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
