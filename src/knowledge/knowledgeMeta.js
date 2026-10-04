@@ -40,7 +40,8 @@ export function entityTypeLabel(t) { return ENTITY_TYPE_LABELS[t] || t; }
 export function statusMeta(s) { return STATUS_META[s] || { label: s, color: 'var(--text-5)' }; }
 
 export const KNOWLEDGE_CSS = `
-  .knw-shell { display:flex; flex-direction:column; height:100%; min-height:100vh; background:var(--bg-1); }
+  .knw-root { font-family:'Inter', sans-serif; color:var(--text-1); -webkit-font-smoothing:antialiased; }
+  .knw-shell { display:flex; flex-direction:column; height:100%; min-height:100vh; background:var(--bg-page); }
   .knw-topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--border-1); flex-shrink:0; }
   .knw-brand { display:flex; align-items:center; gap:8px; font-weight:800; font-size:15px; color:var(--text-1); }
   .knw-actions { display:flex; align-items:center; gap:4px; }

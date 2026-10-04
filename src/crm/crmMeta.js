@@ -123,6 +123,7 @@ export function moneyToNumber(v) {
 
 export const CRM_CSS = `
   .crm-shell *, .crm-drawer *, .crm-modal * { box-sizing: border-box; }
+  .crm-root, .crm-shell { font-family:'Inter', sans-serif; -webkit-font-smoothing:antialiased; }
   .crm-shell { display:flex; flex-direction:column; min-height:100vh; background:var(--bg-1); color:var(--text-2); }
   .crm-topbar { display:flex; align-items:center; gap:14px; padding:12px 20px; border-bottom:1px solid var(--border-1); flex-wrap:wrap; }
   .crm-brand { display:flex; align-items:center; gap:8px; font-weight:800; font-size:15px; color:var(--text-1); }
