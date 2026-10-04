@@ -6737,6 +6737,29 @@ linhas `running` por até 30 min (botão preso em "Estudando…"). Agora `comput
 job entrar no Set. Pareceres já estudados ficam salvos e não são refeitos; só os interrompidos voltam a ser
 pendentes. Verificado em Node (órfão vira falho na hora; recém-iniciado continua "estudando").
 
+## 71. Auditoria de fonte do app inteiro + regra global (2026-10-04)
+
+Pergunta do Rafael: "tem alguma aba com cara de anos 1980 ainda?". Em vez de opinar, auditei no browser: um script
+percorre cada tela (início, Gestão de Atividades, Agenda, Visão Geral, Conhecimento e as 6 abas, CRM e 6 abas,
+Pareceres, Usuários, Super Admin, seletor de empresas, as 7 abas de uma empresa, RENATA, modal de atividade,
+notificações, Indicadores) e mede, por elemento de texto, a `font-family` computada (`getComputedStyle`).
+**Achado**: as telas centrais já eram 100% Inter (cada uma declara `input, select, textarea, button
+{font-family:'Inter'}` num `<style>` local). O que sobrava eram só `BUTTON` em **Arial** (default do navegador:
+botão não herda fonte) nas telas mais novas — abas do Conhecimento, abas do CRM, Agenda, Visão Geral — e o `body`
+em Times (o que causou o visual "biblioteca" nos Pareceres, §69).
+**Correção na raiz** (`index.html`): `body { font-family:'Inter', -apple-system, 'Segoe UI', sans-serif }` e
+`button, input, select, textarea { font-family:inherit }`. Seletores de elemento (especificidade mínima): qualquer
+`font-family` de classe, inline ou de relatório impresso (`.print-report`, `.mtg-print-report` = Arial de propósito)
+continua mandando. Módulo novo não precisa mais lembrar da fonte (o `.par-root`/`.knw-root`/`.crm-root` dos §69/§70
+ficam, são inofensivos).
+**Medido antes/depois nas mesmas 10 telas**: textos fora da Inter 6–10 por tela → 0; altura do documento e dos
+botões iguais (Agenda +1 px); nenhuma rolagem lateral nova.
+**Segundo achado**: os 4 filtros da Visão Geral Empresas (`macro/MacroOverview.jsx`) eram `<select>` nativos sem
+estilo (quadrados, sem padding) — os únicos do app inteiro (medido: 0 nas demais telas). Estilo local
+`.macro-filters select` (mesmo padrão de campo do resto: fundo `--bg-4`, borda `--border-3`, raio 8 px, foco amarelo).
+Não auditado: tela de login, XFlow (conta de teste sem acesso), páginas públicas `/quadro` e `/reuniao`, telas em
+tema escuro, mobile.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |

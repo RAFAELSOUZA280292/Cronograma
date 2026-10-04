@@ -137,6 +137,10 @@ export default function MacroOverviewScreen({
 
   return (
     <div style={S.page}>
+      <style>{`
+        .macro-filters select { background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:8px; padding:8px 10px; font-size:12.5px; cursor:pointer; }
+        .macro-filters select:focus { outline:none; border-color:#F5C400; }
+      `}</style>
       <div style={S.topbar}>
         <div style={S.brandRow}>
           <BrandLogo theme={theme} style={S.logoImg} />
@@ -199,7 +203,7 @@ export default function MacroOverviewScreen({
         })}
       </div>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '14px 24px 0' }}>
+      <div className="macro-filters" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '14px 24px 0' }}>
         <select style={S.companyFilterSelect} value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}>
           <option value="">Todas as empresas</option>
           {data && data.companies.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}

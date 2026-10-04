@@ -52,6 +52,11 @@
         --text-8: #b0ac9f;
         --scrollbar: #d7d3c8;
       }
+      /* Fonte base do app (2026-10-04): sem isto o body cai em Times e todo botão/campo em Arial — era o visual
+         "anos 1980" de módulos que não declaravam fonte. Seletores de elemento (especificidade mínima): qualquer
+         font-family de classe, inline ou de relatório impresso continua mandando. */
+      body { font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif; }
+      button, input, select, textarea { font-family: inherit; }
       html, body { background: var(--bg-page); }
       html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
       html, body { overflow-x: hidden; max-width: 100%; }
