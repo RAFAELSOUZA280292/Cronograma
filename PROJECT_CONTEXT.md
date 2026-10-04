@@ -6596,6 +6596,29 @@ bloqueia; falha não conta; 3 chamadas = 1 evento) + browser: 1º clique = 1 pin
 virada do dia simulada (Date adiantado) = 1 ping novo; 1 linha no banco, com User-Agent.
 Bug achado pelo teste, não por leitura: `TZ` usado em `accessLog.js` sem estar declarado nesse arquivo.
 
+## 69. Pareceres PRICETAX: redesenho da listagem (2026-10-04)
+
+Pedido do Rafael (print): a tela "está legal, mas horrível de feia, parece uma Biblioteca antiga dos anos 1980".
+**Causa-raiz da aparência**: o módulo não declarava `font-family` — as outras telas herdam Inter de `S.page`
+(`App.jsx`), mas `.par-shell` não, então tudo caía na serifa padrão do navegador (Times). Pior: o `SidePanel` do
+drawer é renderizado fora do `.par-shell`, então também ficava serifado. Correção estrutural: o módulo inteiro
+(listagem + drawer + modal de upload) agora vive dentro de `<div className="par-root">` com Inter —
+**qualquer módulo novo que renderize `SidePanel` precisa de um ancestral com a fonte**.
+Mudanças (só `Pareceres.jsx` listagem + `pareceresMeta.js`; o drawer e o upload não foram refeitos, só herdam
+a fonte): fundo `--bg-page` (igual ao resto do app, antes `--bg-1`); container 960→1240 px; cabeçalho com título
+"Pareceres" 30 px + subtítulo e o botão "Novo Parecer"; busca maior; **filtro virou pílulas** (Todos / Geral /
+cada cliente, com contagem) no lugar do `<select>`; cartões 16 px, sombra suave, hover que sobe, foco por
+teclado (`role=button`, Enter/Espaço); linha de topo com tag de escopo + "PDF · tamanho", **nome do arquivo saiu
+do cartão** (fica no tooltip e no drawer), rodapé com avatar de iniciais + autor + data e contador de
+comentários só quando > 0; título com `overflow-wrap:anywhere` e 3 linhas (corrige o título que estourava o cartão,
+ex. "ACURÁCIA DE FORNECEDORES | TECU…"); descrição que é só uma URL vira chip com o domínio (`urlHost`).
+**Heurística de exibição** (`splitParecerTitle`): título no padrão `PARECER | Nº 27/2026 | Assunto` vira kicker
+"PARECER Nº 27/2026" + título "Assunto" no cartão; qualquer outro formato aparece intacto. O dado salvo NÃO muda —
+o drawer mostra o título completo original.
+Verificado no browser local com 7 pareceres semeados parecidos com os do print: claro e escuro, filtro por
+cliente, busca, gaveta (Inter confirmada por `getComputedStyle`), mobile 375 px (sem rolagem lateral).
+Não testado com os PDFs/dados reais de produção.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
