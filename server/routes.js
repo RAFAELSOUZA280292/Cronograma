@@ -9,6 +9,7 @@ import { createNotification, rowToNotification } from './notifications.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { CRM_ROLES } from './crm/permissions.js';
 import { searchProjectMemory } from './memoryRetrieval.js';
+import { syncCardEvents, getActivityStats, cardEventsOf } from './personalActivity.js';
 
 function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
@@ -548,7 +549,21 @@ router.patch('/personal-board', requireAuth, async (req, res, next) => {
        ON CONFLICT (user_id) DO UPDATE SET data=$2, updated_at=now()`,
       [req.user.id, JSON.stringify(board)]
     );
+    await syncCardEvents(pool, req.user.id, board);
     res.json({ board });
+  } catch (e) { next(e); }
+});
+
+router.get('/personal-board/stats', requireAuth, async (req, res, next) => {
+  try {
+    const d = parseInt(req.query.days, 10);
+    const days = Number.isInteger(d) && d > 0 && d <= 3650 ? d : null;
+    const { rows } = await pool.query('SELECT data FROM personal_boards WHERE user_id=$1', [req.user.id]);
+    const data = rows[0] ? rows[0].data : blankPersonalBoard();
+    await syncCardEvents(pool, req.user.id, data);
+    const { withoutOpenDate, closedWithoutDate } = cardEventsOf(data);
+    const stats = await getActivityStats(pool, req.user.id, days);
+    res.json({ ...stats, days, withoutOpenDate, closedWithoutDate });
   } catch (e) { next(e); }
 });
 
@@ -696,6 +711,7 @@ router.patch('/public-board/:token', requireAuth, async (req, res, next) => {
       boards: found.ownerData.boards.map((b, i) => (i === found.boardIndex ? patchedBoard : b)),
     };
     await pool.query('UPDATE personal_boards SET data=$1, updated_at=now() WHERE user_id=$2', [JSON.stringify(nextData), found.ownerId]);
+    await syncCardEvents(pool, found.ownerId, nextData);
     res.json({ board: patchedBoard });
   } catch (e) { next(e); }
 });

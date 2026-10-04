@@ -181,6 +181,16 @@ export async function initDb() {
     );
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS personal_card_events (
+      user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      card_id     TEXT NOT NULL,
+      kind        TEXT NOT NULL,
+      occurred_at TIMESTAMPTZ NOT NULL,
+      PRIMARY KEY (user_id, card_id, kind, occurred_at)
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS personal_card_events_user_idx ON personal_card_events(user_id, kind, occurred_at DESC)`);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS xflow_tickets (
       id            TEXT PRIMARY KEY,
       ticket_number SERIAL,
