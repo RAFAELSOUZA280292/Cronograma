@@ -5012,8 +5012,8 @@ function sortCards(cards, mode) {
   const list = cards.slice();
   const priorityRank = (c) => { const i = CARD_PRIORITY_ORDER.indexOf(c.priority); return i === -1 ? CARD_PRIORITY_ORDER.length : i; };
   if (mode === 'priority') return list.sort((a, b) => {
-    const aDone = a.completed ? 1 : 0, bDone = b.completed ? 1 : 0;
-    if (aDone !== bDone) return aDone - bDone;
+    const tier = (c) => (c.completed ? 2 : cardStatusOf(c) === 'pausada' ? 1 : 0);
+    if (tier(a) !== tier(b)) return tier(a) - tier(b);
     return priorityRank(a) - priorityRank(b);
   });
   if (mode === 'dueDate') return list.sort((a, b) => (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99'));
@@ -6275,7 +6275,8 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
       completedBy: willComplete ? (wasCompleted ? card.completedBy : currentUser.name) : '',
     };
     const historyMsg = `Status alterado: ${oldLabel} → ${CARD_STATUS_META[status].label}`;
-    if (willComplete && !wasCompleted) {
+    const goesToEnd = (willComplete && !wasCompleted) || (status === 'pausada' && cardStatusOf(card) !== 'pausada');
+    if (goesToEnd) {
       mutateColumnTree(activeBoard.id, colId, (c) => {
         const idx = c.cards.findIndex((cd) => cd.id === cardId);
         if (idx === -1) return c;

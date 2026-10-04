@@ -6494,6 +6494,26 @@ Verificado com 12 checagens novas (reaberta, formatos 1/2/3, sem `createdAt`, sk
 evento já gravado antes, log de card apagado, log não duplica card vivo nem card excluído depois, dia
 da semana certo) + as 24 anteriores sem regressão.
 
+## 66. Quadro Pessoal: pausar manda a atividade pro fim da coluna (2026-10-04)
+
+Pedido do Rafael (com print de um card "Parceria JOY", Pausada/Alta, no meio da coluna): "ao pausar uma
+atividade, lembre de colocar ela no final da coluna" — mesmo comportamento que concluir já tinha (§ memória
+`cronograma_personal_board_completion_archive`). Dois pontos em `src/App.jsx`:
+- `setCardStatus`: o ramo que faz `splice` pro fim da coluna (antes só `willComplete && !wasCompleted`) agora
+  também dispara em `status === 'pausada'` vindo de outro status (`goesToEnd`). Pausar um card que já está
+  pausado não move. Todos os caminhos de mudar status do quadro pessoal (menu do card, StatusPicker do modal,
+  lista) passam por `setCardStatus`, então um ponto só cobre todos.
+- `sortCards` modo `'priority'`: o desempate deixou de ser `(concluída, prioridade)` e virou 3 faixas —
+  ativa (0) < pausada (1) < concluída (2) — e só depois prioridade. Sem isso, no modo Prioridade (o que o
+  Rafael usa) uma pausada "Urgente" continuava no topo apesar de estar fisicamente no fim.
+**Limites conscientes**: nos outros modos de ordenação (Prazo, Criação, Atualização, Nome) a ordem é calculada
+pelo campo, então "fim da coluna" só vale no modo Manual e no Prioridade — igual a concluída sempre foi. No
+modo Manual a pausada fica depois das concluídas que já estejam na coluna (fim literal), enquanto no
+Prioridade a ordem é ativas → pausadas → concluídas.
+Verificado no browser local: coluna com 4 cards, pausar o 1º em modo Manual (foi pro fim) e depois em modo
+Prioridade pausando um card Urgente (ficou depois dos ativos, antes não ficava), conferido na tela e no JSON
+salvo. Não é evento dos Indicadores (§65) — pausar não conta como abertura nem encerramento.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
