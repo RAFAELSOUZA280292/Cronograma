@@ -169,8 +169,16 @@ export async function archiveParecerFacts(pool, parecerId) {
 const HASH_SQL = `encode(sha256(p.file_data), 'hex')`;
 
 async function computeStudyState(pool, orgId, identity) {
+  // Estudo "em andamento" sem job vivo neste processo = órfão (o servidor reiniciou/deploy no meio): vira falha
+  // em 1 min em vez de prender o botão por 30. O 1 min cobre a janela entre marcar `running` e o job entrar em
+  // `running` (Set). Mesmo com job vivo, passar de 30 min é travado.
   await pool.query(
-    `UPDATE parecer_studies SET status='failed', error='Estudo interrompido (o servidor reiniciou ou demorou demais). Tente de novo.'
+    `UPDATE parecer_studies SET status='failed', error='Estudo interrompido (o servidor reiniciou durante o estudo). Aperte o botão de novo — o que já foi estudado não é refeito.'
+     WHERE org_id=$1 AND status='running' AND NOT $2::boolean AND started_at < now() - interval '1 minute'`,
+    [orgId, running.has(orgId)],
+  );
+  await pool.query(
+    `UPDATE parecer_studies SET status='failed', error='Estudo interrompido (demorou demais). Tente de novo.'
      WHERE org_id=$1 AND status='running' AND started_at < now() - ($2::int * interval '1 millisecond')`,
     [orgId, STALE_STUDY_MS],
   );
