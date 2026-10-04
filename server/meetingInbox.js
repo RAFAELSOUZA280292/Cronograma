@@ -22,6 +22,7 @@ import { pool } from './db.js';
 import { canAccessProject } from './routes.js';
 import { reindexMeetingMemory } from './memoryIngest.js';
 import { logMetric } from './metrics.js';
+import { generateMeetingAdvice } from './parecerStudy.js';
 
 export const router = Router();
 
@@ -207,6 +208,10 @@ async function processSubmission(submissionId) {
     // achava conteúdo dela na busca).
     reindexMeetingMemory(pool, project.org_id, project.id, meeting)
       .catch((e) => console.error('Falha ao reindexar memória da reunião criada por transcrição', e.message));
+    // Sugestão dos Pareceres (§70): só roda se a RENATA já estudou algum parecer (senão nem chama a IA)
+    // e nunca derruba nem atrasa o registro da reunião.
+    generateMeetingAdvice({ pool, orgId: project.org_id, projectId: project.id, meeting })
+      .catch((e) => console.error('Falha ao gerar sugestão dos pareceres pra reunião', e.message));
   } catch (e) {
     const errorMsg = friendlyAiError(e.message || 'Erro desconhecido').slice(0, 500);
     console.error('Falha ao processar transcrição de reunião', e.message);

@@ -3242,6 +3242,7 @@ export default function App() {
             onOpenMeeting={(id) => { setView('meetings'); openMeetingDetail(activeProject.id, id); }}
             onReloadProjects={reloadProjects}
             onOpenAgenda={() => goToWorkspace('agenda')}
+            canStudyPareceres={currentUser.isSuperAdmin || currentUser.role === 'master' || currentUser.role === 'pricetax'}
           />
         );
       })()}

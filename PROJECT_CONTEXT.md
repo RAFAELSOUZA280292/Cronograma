@@ -6619,6 +6619,59 @@ Verificado no browser local com 7 pareceres semeados parecidos com os do print: 
 cliente, busca, gaveta (Inter confirmada por `getComputedStyle`), mobile 375 px (sem rolagem lateral).
 Não testado com os PDFs/dados reais de produção.
 
+## 70. RENATA estuda os Pareceres PRICETAX e sugere caminhos nas reuniões (2026-10-04)
+
+Pedido do Rafael: botão **Estudar Pareceres** na RENATA; ela estuda os pareceres da PRICETAX, aprende, e depois
+de uma reunião processada cita numa caixa "existe o Parecer X sobre o tema; conforme o estudo da RENATA,
+aconselhe o cliente a ..."; deve **registrar o que estudou e não gastar crédito de novo**: sem parecer novo, o
+botão não pode chamar a IA. Módulo `server/parecerStudy.js`, tudo atrás de `requireMasterOrPricetax`.
+
+**Regra de custo (o ponto central)**: `parecer_studies` guarda, por parecer, o hash SHA-256 do arquivo
+(`encode(sha256(file_data),'hex')` calculado em SQL) e o estudo. Estado por parecer: `new` (sem linha),
+`done` (hash igual), `changed` (arquivo trocado), `failed`, `running`. `startStudy` primeiro lê o estado só em
+SQL: sem `new/changed/failed` devolve `{upToDate:true}` e **não precisa nem de chave de IA** — é por isso que o
+botão pode ser apertado à vontade. Falha reaparece como pendente (próximo clique refaz SÓ ela); erro fatal
+(sem crédito/chave inválida) interrompe o lote em vez de insistir nos demais.
+**O estudo**: o PDF vai direto ao modelo como bloco `document` base64 (sem lib de PDF, lê layout e imagens;
+10 MB cabem) com `claude-sonnet-5`, `messages.parse` + zod achatado (`ParecerStudySchema`: número, assunto,
+resumo, conclusões, orientações {situação, conselho, ressalva}, temas, `appliesTo`, `usageTriggers`, base legal,
+limites). Prompt manda usar SÓ o que está no documento e deixar vazio o que não estiver. Job em segundo plano,
+um por organização (`running` Set), marcação `running` >30 min vira `failed` (`STALE_STUDY_MS`).
+**Memória**: cada estudo vira UM fato de conhecimento `scope='org'`, `origin='internal_document'`,
+`knowledge_type='RULE'`, assunto "Parecer PRICETAX Nº X" (resumo + "Usar quando" + orientações + temas) —
+registrado por INSERT direto (`registerFact`), **de propósito sem `saveKnowledgeFact`**: ele detecta
+conflito/duplicata por embedding+negação e pareceres sobre temas vizinhos gerariam "conflitos" falsos na
+Central de Conhecimento. Re-estudo (arquivo trocado) deixa o fato antigo `superseded` (histórico preservado);
+excluir o parecer arquiva o fato (`archiveParecerFacts`) e o estudo cai por cascade. Como o chat já injeta fatos
+da org, ganhou uma linha no prompt de `synthesizeAnswer` mandando citar o parecer pelo número e o caminho que ele
+indica (usando só o que o fato registra).
+**Sugestão na reunião**: tabela `meeting_parecer_advice` (PK projeto+reunião) **fora do JSON do projeto**, de
+propósito — o JSON da reunião é lido por clientes e reescrito inteiro por PATCH; guardado lá, vazaria o conselho
+pro cliente ou seria apagado quando ele salvasse. Após `processSubmission` registrar a reunião,
+`generateMeetingAdvice` (fire-and-forget, nunca derruba o registro) manda resumo+decisões+atividades+tópicos e o
+índice dos estudos ao Sonnet; devolve 0–3 itens {parecerId, tema, por quê, 2–4 caminhos, ressalva}; ids
+inventados e itens sem passo são descartados; sem nenhum estudo **não chama a IA**. Resultado vazio também é
+gravado (não paga de novo). `signature` = hash dos estudos vigentes → `stale:true` quando a RENATA estudou
+parecer novo depois ("Atualizar sugestões"). `generatingAdvice` Set evita clique duplicado durante a geração.
+**Rotas** (`/api/pareceres`): `GET /study` (estado + o que foi aprendido), `POST /study` (202 iniciou / 200
+em dia / 503 sem chave), `GET /advice` e `POST /advice` (`projectId`, `meetingId`; checa `canAccessProject`;
+409 se não há estudo, 502 com mensagem em português se a IA falhar).
+**Frontend**: botão `BookOpen` no cabeçalho do painel da RENATA (`ProjectAssistant`, prop `canStudyPareceres`
+= superAdmin/master/pricetax) abre `ParecerStudyModal` (contagem "N de M estudados", botão "Estudar N parecer(es)
+novo(s)" ou "Tudo estudado" desabilitado com a nota "sem custo", polling de 4 s enquanto roda, cada parecer
+expansível com resumo, conclusões, "o que aconselhar ao cliente", "onde isso pode ser usado" e temas).
+`ParecerAdviceBox` fica na coluna lateral do `MeetingDetailModal`, logo abaixo das atividades, só pra staff.
+**Verificado**: 35 checagens em Node com cliente de IA simulado (zero chamadas no 2º clique, só o novo é
+estudado, falha isolada, erro fatal pára o lote, arquivo trocado versiona o fato, sugestão descarta id inventado,
+vazio é gravado, parecer excluído some da caixa, sem estudo = zero chamadas) + browser (caixa na reunião, modal,
+expansão, clique sem chave = mensagem clara, "Tudo estudado" + `POST /study` = 200 em dia).
+**NÃO verificado — e é o risco real**: a chamada à IA de verdade. Sem `ANTHROPIC_API_KEY` local, o PDF como
+bloco `document` + `messages.parse` com `zodOutputFormat` NUNCA rodou contra a API. A 1ª execução real será em
+produção; se falhar, a mensagem aparece no próprio modal e em `railway logs` ("Pareceres: falha ao estudar
+parecer"). Também não medi o custo por parecer (PDF de ~15 páginas, Sonnet) — conferir o uso depois do 1º estudo.
+Pendência: o botão só existe dentro do painel da RENATA (que só aparece nas abas Reuniões/Atividades de uma
+empresa); não há atalho na tela de Pareceres.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |

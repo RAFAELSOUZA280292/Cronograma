@@ -850,6 +850,32 @@ export async function initDb() {
   // partir da TRANSCRIÇÃO de reuniões sem resumo, pra regerar o dossiê não repagar a IA. Sem CHECK
   // constraint de propósito (status validado em JS) — mesma lição do §38.
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS parecer_studies (
+      parecer_id  TEXT PRIMARY KEY REFERENCES pareceres(id) ON DELETE CASCADE,
+      org_id      TEXT NOT NULL REFERENCES organizations(id),
+      file_hash   TEXT NOT NULL DEFAULT '',
+      status      TEXT NOT NULL DEFAULT 'running',
+      study       JSONB,
+      fact_id     TEXT,
+      model       TEXT NOT NULL DEFAULT '',
+      error       TEXT NOT NULL DEFAULT '',
+      started_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      studied_at  TIMESTAMPTZ
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS parecer_studies_org_idx ON parecer_studies(org_id, status)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS meeting_parecer_advice (
+      project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      meeting_id   TEXT NOT NULL,
+      org_id       TEXT NOT NULL REFERENCES organizations(id),
+      advice       JSONB NOT NULL DEFAULT '{}',
+      signature    TEXT NOT NULL DEFAULT '',
+      generated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (project_id, meeting_id)
+    );
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS project_dossiers (
       id              TEXT PRIMARY KEY,
       org_id          TEXT NOT NULL REFERENCES organizations(id),

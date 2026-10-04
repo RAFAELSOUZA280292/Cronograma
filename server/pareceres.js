@@ -5,7 +5,8 @@
 import { Router } from 'express';
 import { pool } from './db.js';
 import { requireAuth, requireMasterOrPricetax } from './auth.js';
-import { effectiveOrgId } from './routes.js';
+import { effectiveOrgId, canAccessProject } from './routes.js';
+import { startStudy, getStudyState, getMeetingAdvice, generateMeetingAdvice, archiveParecerFacts, friendlyStudyError } from './parecerStudy.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -25,6 +26,59 @@ function parseScope(body) {
 
 export const router = Router();
 router.use(requireAuth, requireMasterOrPricetax);
+
+// RENATA estuda os pareceres (§70). `GET /study` e o "nada novo" de `POST /study` são só SQL — zero chamada à IA.
+router.get('/study', async (req, res, next) => {
+  try {
+    res.json(await getStudyState(pool, effectiveOrgId(req)));
+  } catch (e) { next(e); }
+});
+
+router.post('/study', async (req, res, next) => {
+  try {
+    const result = await startStudy({ pool, orgId: effectiveOrgId(req), userId: req.user.id });
+    if (result.noKey) return res.status(503).json({ message: 'Estudo por IA não configurado nesse ambiente (falta ANTHROPIC_API_KEY).', ...result });
+    res.status(result.started ? 202 : 200).json(result);
+  } catch (e) { next(e); }
+});
+
+async function loadMeetingFor(req, res) {
+  const projectId = String((req.method === 'GET' ? req.query.projectId : (req.body || {}).projectId) || '');
+  const meetingId = String((req.method === 'GET' ? req.query.meetingId : (req.body || {}).meetingId) || '');
+  if (!projectId || !meetingId) { res.status(400).json({ message: 'Informe projectId e meetingId.' }); return null; }
+  const { rows } = await pool.query('SELECT id, org_id, data FROM projects WHERE id=$1', [projectId]);
+  const project = rows[0];
+  if (!project || !canAccessProject(req.user, project.data, project.org_id)) { res.status(404).json({ message: 'Empresa não encontrada.' }); return null; }
+  const meeting = ((project.data && project.data.meetings) || []).find((m) => m.id === meetingId && !m.deleted);
+  if (!meeting) { res.status(404).json({ message: 'Reunião não encontrada.' }); return null; }
+  return { projectId, orgId: project.org_id, meeting };
+}
+
+router.get('/advice', async (req, res, next) => {
+  try {
+    const found = await loadMeetingFor(req, res);
+    if (!found) return;
+    res.json(await getMeetingAdvice(pool, found.orgId, found.projectId, found.meeting.id));
+  } catch (e) { next(e); }
+});
+
+router.post('/advice', async (req, res, next) => {
+  try {
+    const found = await loadMeetingFor(req, res);
+    if (!found) return;
+    const state = await getMeetingAdvice(pool, found.orgId, found.projectId, found.meeting.id);
+    if (!state.hasStudies) return res.status(409).json({ message: 'A RENATA ainda não estudou nenhum parecer. Use "Estudar Pareceres" primeiro.' });
+    if (state.generating) return res.json(state);
+    if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ message: 'IA não configurada nesse ambiente (falta ANTHROPIC_API_KEY).' });
+    try {
+      await generateMeetingAdvice({ pool, orgId: found.orgId, projectId: found.projectId, meeting: found.meeting });
+    } catch (e) {
+      console.error('Pareceres: falha ao gerar sugestão da reunião', e.message);
+      return res.status(502).json({ message: friendlyStudyError(e.message) });
+    }
+    res.json(await getMeetingAdvice(pool, found.orgId, found.projectId, found.meeting.id));
+  } catch (e) { next(e); }
+});
 
 router.get('/', async (req, res, next) => {
   try {
@@ -111,6 +165,8 @@ router.patch('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const orgId = effectiveOrgId(req);
+    const own = await pool.query('SELECT 1 FROM pareceres WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
+    if (own.rows.length) await archiveParecerFacts(pool, req.params.id);
     const { rowCount } = await pool.query('DELETE FROM pareceres WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
     if (!rowCount) return res.status(404).json({ message: 'Parecer não encontrado.' });
     res.json({ ok: true });
