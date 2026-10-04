@@ -575,6 +575,7 @@ export default function App() {
   const [projects, setProjects] = useState([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [users, setUsers] = useState([]);
+  const [userAccess, setUserAccess] = useState({});
   const [selectedProjectIds, setSelectedProjectIds] = useState([]);
   const [companySelectionConfirmed, setCompanySelectionConfirmed] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState(null);
@@ -1512,6 +1513,7 @@ export default function App() {
     return (
       <UsersManagementScreen
         users={users}
+        access={userAccess}
         currentUser={currentUser}
         registeredProjects={registeredProjects}
         usersPanelError={usersPanelError}
@@ -2318,6 +2320,7 @@ export default function App() {
     try {
       const res = await apiGet(withActingOrg('/api/users'));
       setUsers(res.users);
+      setUserAccess(res.access || {});
       setUsersPanelError('');
     } catch (e) {
       setUsersPanelError(e.message);
@@ -3422,8 +3425,53 @@ function SuperAdminScreen({ organizations, error, onClose, closeLabel, onLogout,
   );
 }
 
+const COUNTRY_PT = { Brazil: 'Brasil', 'United States': 'Estados Unidos', Portugal: 'Portugal', Argentina: 'Argentina', Canada: 'Canadá', Germany: 'Alemanha', France: 'França', Spain: 'Espanha', Italy: 'Itália', 'United Kingdom': 'Reino Unido', Paraguay: 'Paraguai', Uruguay: 'Uruguai', Chile: 'Chile', Mexico: 'México' };
+function fmtAccessPlace(ev) {
+  if (!ev) return '';
+  if (!ev.city && !ev.country) return ev.ip ? 'Local não identificado' : '';
+  const country = COUNTRY_PT[ev.country] || ev.country;
+  const place = [ev.city, ev.region].filter(Boolean).join(', ');
+  return country && country !== 'Brasil' ? [place, country].filter(Boolean).join(' · ') : place;
+}
+
+const ACCESS_KIND = { login: { label: 'Login', color: '#3ecf6e' }, visit: { label: 'Voltou à sessão', color: 'var(--text-4)' }, login_failed: { label: 'Tentativa falha', color: '#e2574c' } };
+
+function UserAccessHistory({ userId, summary }) {
+  const [events, setEvents] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    setEvents(null);
+    apiGet(`/api/users/${userId}/access`)
+      .then((r) => { if (!cancelled) setEvents(Array.isArray(r && r.events) ? r.events : []); })
+      .catch(() => { if (!cancelled) setEvents([]); });
+    return () => { cancelled = true; };
+  }, [userId]);
+  const count = (summary && summary.count) || 0;
+  return (
+    <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--border-1)' }}>
+      <div style={S.subSectionLabel}>Acessos</div>
+      <div style={{ ...S.fieldHint, marginBottom: 8 }}>
+        {count} acesso{count === 1 ? '' : 's'} registrado{count === 1 ? '' : 's'}
+        {summary && summary.failed30d > 0 && <span style={{ color: '#e2574c' }}> · {summary.failed30d} tentativa{summary.failed30d === 1 ? '' : 's'} de login com senha errada nos últimos 30 dias</span>}
+      </div>
+      {events === null && <div style={S.emptyMuted}>Carregando…</div>}
+      {events && events.length === 0 && <div style={S.emptyMuted}>Nenhum acesso registrado ainda. O registro começou a valer a partir da ativação deste recurso.</div>}
+      {events && events.map((e) => {
+        const meta = ACCESS_KIND[e.kind] || { label: e.kind, color: 'var(--text-4)' };
+        return (
+          <div key={e.id} style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '6px 0', borderTop: '1px solid var(--border-1)', fontSize: 12 }}>
+            <span style={{ color: meta.color, fontWeight: 700, width: 108, flexShrink: 0 }}>{meta.label}</span>
+            <span style={{ color: 'var(--text-3)', width: 118, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{fmtTs(e.at)}</span>
+            <span style={{ color: 'var(--text-4)', minWidth: 0, flex: 1 }}>{[fmtAccessPlace(e), e.ip, e.device].filter(Boolean).join(' · ')}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function UsersManagementScreen({
-  users, currentUser, registeredProjects, usersPanelError, organizations,
+  users, access, currentUser, registeredProjects, usersPanelError, organizations,
   onClose, onCreateUser, onUpdateUser, onToggleBlock, onRenew, onResetPassword, onDeleteUser, onToggleCnpj,
   theme, onToggleTheme,
 }) {
@@ -3525,6 +3573,8 @@ function UsersManagementScreen({
             <div style={{ ...S.th, width: 148 }}>Perfil</div>
             <div style={{ ...S.th, width: 100 }}>Status</div>
             <div style={{ ...S.th, width: 110 }}>Licença até</div>
+            <div style={{ ...S.th, width: 190 }}>Último acesso</div>
+            <div style={{ ...S.th, width: 56, textAlign: 'right' }}>Acessos</div>
             <div style={{ ...S.th, width: 80, textAlign: 'right' }}>Ações</div>
           </div>
           )}
@@ -3547,6 +3597,20 @@ function UsersManagementScreen({
               </div>
               <div style={{ width: 110, fontSize: 12.5, color: isExpiredNotYetFlagged(u) ? '#e2574c' : 'var(--text-3)' }}>
                 {u.expiresAt ? fmtDate(u.expiresAt) : 'Sem limite'}
+              </div>
+              <div style={{ width: 190, minWidth: 0 }}>
+                {access && access[u.id] && access[u.id].last ? (
+                  <>
+                    <div style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{fmtTs(access[u.id].last.at)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={[fmtAccessPlace(access[u.id].last), access[u.id].last.ip, access[u.id].last.device].filter(Boolean).join(' · ')}>
+                      {[fmtAccessPlace(access[u.id].last), access[u.id].last.device].filter(Boolean).join(' · ') || access[u.id].last.ip}
+                    </div>
+                  </>
+                ) : <span style={{ fontSize: 12, color: 'var(--text-7)' }}>Sem registro</span>}
+              </div>
+              <div style={{ width: 56, textAlign: 'right', fontSize: 12.5, color: 'var(--text-3)', fontVariantNumeric: 'tabular-nums' }}>
+                {access && access[u.id] ? access[u.id].count : 0}
+                {access && access[u.id] && access[u.id].failed30d > 0 && <div style={{ fontSize: 10.5, color: '#e2574c' }} title="Tentativas de login com senha errada nos últimos 30 dias">{access[u.id].failed30d} falha{access[u.id].failed30d === 1 ? '' : 's'}</div>}
               </div>
               <div style={{ width: 80, display: 'flex', gap: 2, justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
                 <button style={S.iconBtnGhost} title="Editar" onClick={() => setEditingId(u.id)}><Pencil size={14} /></button>
@@ -3576,6 +3640,11 @@ function UsersManagementScreen({
                 <span style={{ fontSize: 12, color: isExpiredNotYetFlagged(u) ? '#e2574c' : 'var(--text-5)' }}>
                   {u.expiresAt ? `Até ${fmtDate(u.expiresAt)}` : 'Sem limite'}
                 </span>
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-6)', marginTop: 6 }}>
+                {access && access[u.id] && access[u.id].last
+                  ? `Último acesso ${fmtTs(access[u.id].last.at)}${fmtAccessPlace(access[u.id].last) ? ` · ${fmtAccessPlace(access[u.id].last)}` : ''} · ${access[u.id].count} acesso${access[u.id].count === 1 ? '' : 's'}`
+                  : 'Sem acesso registrado'}
               </div>
               <div style={S.usersMobileActionsRow} onClick={(e) => e.stopPropagation()}>
                 <button style={S.mobileIconBtn} title="Editar" onClick={() => setEditingId(u.id)}><Pencil size={16} /></button>
@@ -3614,6 +3683,7 @@ function UsersManagementScreen({
       {editingUser && (
         <EditUserModal
           user={editingUser}
+          accessSummary={access && access[editingUser.id]}
           currentUser={currentUser}
           registeredProjects={registeredProjects}
           onClose={() => setEditingId(null)}
@@ -3731,7 +3801,7 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations, register
   );
 }
 
-function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUpdate, onToggleBlock, onRenew, onResetPassword, onToggleCnpj, onDelete }) {
+function EditUserModal({ user: u, accessSummary, currentUser, registeredProjects, onClose, onUpdate, onToggleBlock, onRenew, onResetPassword, onToggleCnpj, onDelete }) {
   const isSelf = u.id === currentUser.id;
   const [draftName, setDraftName] = useState(u.name);
   const [draftUsername, setDraftUsername] = useState(u.username);
@@ -3863,6 +3933,8 @@ function EditUserModal({ user: u, currentUser, registeredProjects, onClose, onUp
             <UserPasswordReset onReset={(pwd) => onResetPassword(u.id, pwd)} />
           </div>
         </div>
+
+        <UserAccessHistory userId={u.id} summary={accessSummary} />
 
         <button style={{ ...S.iconBtnGhost, marginTop: 14 }} onClick={() => onDelete(u.id)} disabled={isSelf}>
           <Trash2 size={13} color={isSelf ? 'var(--text-8)' : 'var(--text-5)'} /> {isSelf ? ' (é você)' : ' Remover usuário'}

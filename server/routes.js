@@ -9,6 +9,7 @@ import { createNotification, rowToNotification } from './notifications.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { CRM_ROLES } from './crm/permissions.js';
 import { searchProjectMemory } from './memoryRetrieval.js';
+import { recordAccess, noteVisit, accessSummary, recentAccess } from './accessLog.js';
 import { syncCardEvents, getActivityStats, getDayDetail, cardEventsOf } from './personalActivity.js';
 
 function uid(p) {
@@ -131,10 +132,14 @@ router.post('/auth/login', async (req, res, next) => {
     }
 
     const ok = await comparePassword(password, row.password_hash);
-    if (!ok) return res.status(401).json({ message: 'Usuário ou senha inválidos.' });
+    if (!ok) {
+      recordAccess(row.id, 'login_failed', req);
+      return res.status(401).json({ message: 'Usuário ou senha inválidos.' });
+    }
 
     const token = signToken(row.id);
     setAuthCookie(res, token);
+    recordAccess(row.id, 'login', req);
     res.json({ user: rowToUser(row) });
   } catch (e) { next(e); }
 });
@@ -176,6 +181,7 @@ router.post('/auth/change-password-login', async (req, res, next) => {
     );
     const token = signToken(row.id);
     setAuthCookie(res, token);
+    recordAccess(row.id, 'login', req);
     res.json({ user: rowToUser(rows[0]) });
   } catch (e) { next(e); }
 });
@@ -186,6 +192,7 @@ router.post('/auth/logout', (req, res) => {
 });
 
 router.get('/auth/me', requireAuth, (req, res) => {
+  noteVisit(req.user.id, req);
   res.json({ user: req.user });
 });
 
@@ -228,7 +235,15 @@ router.get('/users', requireAuth, requireMaster, async (req, res, next) => {
       : 'SELECT * FROM users WHERE org_id=$1 ORDER BY created_at ASC';
     const params = req.user.isSuperAdmin && !orgId ? [] : [orgId];
     const { rows } = await pool.query(sql, params);
-    res.json({ users: rows.map(rowToUser) });
+    res.json({ users: rows.map(rowToUser), access: await accessSummary(rows.map((r) => r.id)) });
+  } catch (e) { next(e); }
+});
+
+router.get('/users/:id/access', requireAuth, requireMaster, async (req, res, next) => {
+  try {
+    const target = await findUserById(req.params.id);
+    if (!target || !sameOrg(req, target.org_id)) return res.status(404).json({ message: 'Usuário não encontrado.' });
+    res.json({ events: await recentAccess(target.id) });
   } catch (e) { next(e); }
 });
 

@@ -181,6 +181,30 @@ export async function initDb() {
     );
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_access_events (
+      id            BIGSERIAL PRIMARY KEY,
+      user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind          TEXT NOT NULL,
+      at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+      ip            TEXT NOT NULL DEFAULT '',
+      forwarded_for TEXT NOT NULL DEFAULT '',
+      city          TEXT NOT NULL DEFAULT '',
+      region        TEXT NOT NULL DEFAULT '',
+      country       TEXT NOT NULL DEFAULT '',
+      user_agent    TEXT NOT NULL DEFAULT ''
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS user_access_events_user_idx ON user_access_events(user_id, at DESC)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ip_geo_cache (
+      ip         TEXT PRIMARY KEY,
+      city       TEXT NOT NULL DEFAULT '',
+      region     TEXT NOT NULL DEFAULT '',
+      country    TEXT NOT NULL DEFAULT '',
+      fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS personal_card_events (
       user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       card_id     TEXT NOT NULL,
