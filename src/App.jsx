@@ -27,6 +27,7 @@ import { TodoBoardView } from './meetings/TodoBoard.jsx';
 import { ProjectAssistant } from './assistant/ProjectAssistant.jsx';
 import KnowledgeCenterScreen from './knowledge/KnowledgeCenter.jsx';
 import PareceresScreen from './pareceres/Pareceres.jsx';
+import PersonalStatsPanel from './personal/PersonalStats.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
 // CRM (2026-09-20, PROJECT_CONTEXT.md §54): módulo grande e opcional — carregado só quando alguém abre o CRM.
 const CrmScreen = React.lazy(() => import('./crm/CrmScreen.jsx'));
@@ -5986,6 +5987,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
   const [reassignColumn, setReassignColumn] = useState(null);
   const [showTrash, setShowTrash] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ priority: [], dueBucket: '', tags: [], status: '' });
   const [showFilters, setShowFilters] = useState(false);
@@ -6653,6 +6655,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
           {onGoXFlow && <button className="pb-ghost" style={S.pbGhostBtn} onClick={onGoXFlow}><Bug size={15} /> Ir para XFlow</button>}
           {!readOnly && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira{trashItems.length > 0 ? ` (${trashItems.length})` : ''}</button>}
           {!readOnly && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowArchive(true)}><Archive size={15} /> Concluídas{archiveItems.length > 0 ? ` (${archiveItems.length})` : ''}</button>}
+          {!readOnly && !publicMode && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowStats(true)}><Gauge size={15} /> Indicadores</button>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {saveState === 'saving' && <span style={S.saveStateBadge}>Salvando…</span>}
@@ -6906,6 +6909,8 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
         <PersonalArchivePanel archiveItems={archiveItems} onClose={() => setShowArchive(false)} onRestore={restoreArchivedCard} />
       )}
 
+      {showStats && <PersonalStatsPanel onClose={() => setShowStats(false)} />}
+
       {showShareModal && activeBoard && (
         <BoardShareModal
           board={activeBoard}
@@ -7100,11 +7105,11 @@ function NoAccessScreen({ user, onLogout, theme, onToggleTheme }) {
   );
 }
 
-export function SidePanel({ title, onClose, children }) {
+export function SidePanel({ title, onClose, width, children }) {
   const isMobile = useIsMobile();
   return (
     <div className="no-print" style={S.overlay} onClick={onClose}>
-      <div style={{ ...S.panel, ...(isMobile ? S.panelMobile : null) }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...S.panel, ...(width ? { width } : null), ...(isMobile ? S.panelMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.panelHead}>
           <div style={S.panelTitle}>{title}</div>
           <button style={S.iconBtnGhost} onClick={onClose}><X size={16} /></button>

@@ -6413,6 +6413,45 @@ rascunho → comentário enviado; "Resultado esperado"; sem foco; texto puro nã
 regressão) e **persistência no Postgres** (2 evidências + comentário com anexo `image/png`). Não testado com
 um print real do SO (Cmd+Shift+4 → Cmd+V) — o evento simulado carrega o mesmo `File` que o navegador entrega.
 
+## 65. Gestão de Atividades: indicadores de abertura/encerramento (2026-10-04)
+
+Pedido do Rafael: "memorizar todas as atividades abertas e encerradas" e mostrar a cada pessoa (Rafael,
+sócios, Amanda…) **o próprio** dia da semana e dia do mês em que mais abre e mais encerra — motivação
+individual, ninguém vê o indicador de outro. Botão **Indicadores** no topo da Gestão de Atividades
+(`PersonalBoardScreen`, ao lado de Concluídas; some no quadro público/somente leitura).
+
+**Por que tabela nova e não só ler o card**: o card guarda só o ESTADO atual (`createdAt`, `completedAt`).
+Reabrir apaga `completedAt`; "Excluir definitivamente" apaga o card inteiro (e as datas); `history`
+é capado em 200 e `board.log` em 300. Por isso `personal_card_events` (`server/db.js`, aditiva, SEM CHECK
+— lição do §38): PK `(user_id, card_id, kind, occurred_at)`, `kind` = `opened`|`closed`, sem FK pro card.
+
+**Como grava**: `server/personalActivity.js` → `cardEventsOf(data)` deriva os eventos de cada card
+(`createdAt` → opened; `completed` + `completedAt` → closed) e `syncCardEvents` insere com
+`ON CONFLICT DO NOTHING`. É idempotente de propósito: usa o timestamp do PRÓPRIO card (não `now()`),
+então rodar N vezes não duplica e o backfill dos cards antigos cai no mesmo caminho. Chamado em
+`PATCH /personal-board`, `PATCH /public-board/:token` (atribui ao DONO do quadro) e no próprio
+`GET /personal-board/stats` (é aí que as atividades antigas entram, retroativamente, na 1ª abertura).
+Nunca derruba o save (try/catch interno só loga).
+
+**Regras de contagem**: reabrir NÃO remove a conclusão já registrada; reconcluir em outro momento conta
+OUTRA conclusão (inflação aceita e avisada na tela). Card sem `createdAt`, ou concluído sem `completedAt`,
+não entra — a rota devolve `withoutOpenDate`/`closedWithoutDate` e a tela avisa quantas ficaram de fora.
+Fuso fixo `America/Sao_Paulo` (SQL `AT TIME ZONE`), não UTC: 05/10 02:30Z é domingo 23:30 em Brasília.
+
+**Rota**: `GET /api/personal-board/stats?days=30|90|(vazio=tudo)` (só `requireAuth`, sempre do `req.user`)
+→ `{opened, closed, weekday:{opened[7],closed[7]} (0=dom), monthDay:{opened[31],closed[31]},
+firstEventAt, days, withoutOpenDate, closedWithoutDate}`. Frontend: `src/personal/PersonalStats.jsx`
+(frase-resumo com os picos, KPIs, velocímetro SVG = encerradas ÷ abertas, barras por dia da semana e do
+mês). `SidePanel` ganhou prop opcional `width`.
+
+**Verificação**: 11 checagens em Node contra o Postgres local (idempotência com 3 syncs, fuso, reabrir,
+reconcluir, exclusão definitiva, filtro de período, cobertura) + painel no browser + PATCH ao vivo
+gravando `opened`/`closed`. Bug achado SÓ rodando: `apiGet` não põe `/api` sozinho (o Vite devolveu o
+HTML com 200 e a tela ficou em "Carregando…") — o painel agora trata resposta sem `weekday` como erro.
+**Não testado em produção**: não sei quantas atividades antigas têm `createdAt`/`completedAt`; o aviso na
+tela mostra o número real na primeira abertura. O que for concluído/criado ANTES do deploy só entra se o
+card ainda existir; o que foi excluído definitivamente antes é irrecuperável.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
