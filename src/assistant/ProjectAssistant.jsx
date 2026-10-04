@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { fmtDate, useIsMobile } from '../App.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
+import ParecerStudyModal from './ParecerStudyModal.jsx';
 
 const ASSISTANT_CSS = `
   .asst-fab { position:fixed; bottom:22px; right:22px; z-index:90; display:flex; align-items:center; gap:8px; background:#F5C400; color:#111; border:none; border-radius:999px; padding:12px 18px; font-weight:800; font-size:13px; cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,.3); }
@@ -271,8 +272,9 @@ function baseSuggestions(view, hasOpenMeeting) {
   return ['Resuma a última reunião', 'O que mudou desde a reunião anterior?', 'Próximos passos', 'Legislação relacionada'];
 }
 
-export function ProjectAssistant({ projectId, projectName, view, openMeetingId, openMeetingTitle, openMeetingDate, onOpenMeeting, onReloadProjects, onOpenAgenda }) {
+export function ProjectAssistant({ projectId, projectName, view, openMeetingId, openMeetingTitle, openMeetingDate, onOpenMeeting, onReloadProjects, onOpenAgenda, canStudyPareceres }) {
   const isMobile = useIsMobile();
+  const [showStudy, setShowStudy] = useState(false);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -392,6 +394,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                 {onOpenAgenda && (
                   <button type="button" title="Abrir a Agenda" onClick={onOpenAgenda}><CalendarDays size={16} /></button>
                 )}
+                {canStudyPareceres && <button type="button" title="Estudar Pareceres da PRICETAX" onClick={() => setShowStudy(true)}><BookOpen size={16} /></button>}
                 <button type="button" disabled={reindexing} title="Atualizar contexto da RENATA" onClick={handleReindex}><RefreshCw size={16} className={reindexing ? 'asst-spin' : ''} /></button>
                 <button type="button" title="Limpar esta conversa" onClick={clearConversation}><Trash2 size={16} /></button>
                 <button type="button" title="Fechar assistente" onClick={() => setOpen(false)}><X size={20} /></button>
@@ -528,6 +531,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
           </div>
         </div>
       )}
+      {showStudy && <ParecerStudyModal onClose={() => setShowStudy(false)} />}
     </>
   );
 }

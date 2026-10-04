@@ -162,6 +162,8 @@ function MeetingShareModal({ meeting, onClose, onSetVisibility, onRegenerateLink
   );
 }
 
+import ParecerAdviceBox from './ParecerAdviceBox.jsx';
+
 export function MeetingDetailModal({
   meeting: m, team, externalContacts, clientName, pid, currentUser, log, pushUndoToast,
   onClose, updateMeeting, flushProjectSave, deleteMeeting, toggleParticipant, addParticipant,
@@ -170,6 +172,7 @@ export function MeetingDetailModal({
   onViewActivities, onSetShareVisibility, onRegenerateShareLink, onExportPdf,
 }) {
   const isMobile = useIsMobile();
+  const isStaff = !!currentUser && (currentUser.isSuperAdmin || currentUser.role === 'master' || currentUser.role === 'pricetax');
   const [participantDraft, setParticipantDraft] = useState('');
   const [participantEmailDraft, setParticipantEmailDraft] = useState('');
   const lastSavedAt = useAutosaveTimestamp(m);
@@ -429,6 +432,7 @@ export function MeetingDetailModal({
                 )}
               </div>
             </div>
+            {isStaff && <ParecerAdviceBox projectId={pid} meetingId={m.id} />}
           </div>
         </div>
       </div>
