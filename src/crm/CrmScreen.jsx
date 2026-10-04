@@ -57,11 +57,11 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
   function openCompany(id, tab) { setDealDrawer(null); setDrawer({ id, tab: tab || 'overview' }); }
   function openDeal(id) { setDrawer(null); setDealDrawer(id); }
 
-  if (error) return <div style={{ padding: 40 }}><style>{CRM_CSS}</style><div className="crm-alert crm-alert-danger">{error}</div><button type="button" className="crm-btn" onClick={onExit}>Voltar</button></div>;
+  if (error) return <div style={{ padding: 40, fontFamily: "'Inter', sans-serif" }}><style>{CRM_CSS}</style><div className="crm-alert crm-alert-danger">{error}</div><button type="button" className="crm-btn" onClick={onExit}>Voltar</button></div>;
   if (!caps) return <div className="crm-shell"><style>{CRM_CSS}</style><div className="crm-empty">Carregando o CRM…</div></div>;
 
   return (
-    <>
+    <div className="crm-root">
       <style>{CRM_CSS}</style>
       <div className="crm-shell">
         <div className="crm-topbar">
@@ -101,6 +101,6 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
       {contactForm && <ContactForm initial={contactForm.contact} onCancel={() => setContactForm(null)} onSaved={() => { setContactForm(null); refresh(); }} />}
       {showImport && <ImportWizard onClose={() => setShowImport(false)} onDone={refresh} />}
       {showBootstrap && <BootstrapDialog onClose={() => setShowBootstrap(false)} onDone={refresh} />}
-    </>
+    </div>
   );
 }

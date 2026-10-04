@@ -312,14 +312,69 @@ export async function saveConflictPair(pool, {
 // prompt, `factIds` é a lista de ids realmente incluídos (Fase 7.1:
 // vira `dependency_fact_ids` no cache de resposta — server/answerCache.js
 // `isStillFresh` invalida o cache se qualquer um desses fatos mudar).
-export async function loadRelevantFacts(pool, orgId, projectId, conversationId, limit = 30) {
-  const { rows } = await pool.query(
-    `SELECT k.id, k.subject, k.content, k.status, k.scope, k.knowledge_type, k.valid_from, k.valid_until, k.created_at, u.name AS source_user_name
+// Pareceres PRICETAX estudados pela RENATA (§70) entram na memória como fatos da organização, mas NÃO são
+// carregados em toda pergunta: cada um custa ~200 tokens e a lista cresce com cada parecer novo. Só entram os
+// poucos que tocam o assunto da pergunta (`pickRelevantPareceres`); os demais ficam na memória, visíveis na
+// Central de Conhecimento, sem custo no chat.
+const PARECER_FACT_SQL = `(k.origin = 'internal_document' AND k.reference LIKE 'Parecer PRICETAX:%')`;
+export const MAX_PARECERES_PER_QUESTION = 3;
+
+const GENERIC_WORDS = new Set([
+  'parecer', 'pareceres', 'pricetax', 'usar', 'quando', 'orientacao', 'orientacoes', 'cliente', 'clientes', 'temas', 'tema',
+  'para', 'como', 'qual', 'quais', 'sobre', 'esse', 'essa', 'isso', 'esta', 'este', 'esse', 'pelo', 'pela', 'pelos', 'pelas',
+  'mais', 'menos', 'muito', 'pode', 'podem', 'deve', 'devem', 'fazer', 'quero', 'preciso', 'existe', 'existem', 'tenho',
+  'reuniao', 'reunioes', 'ultima', 'ultimo', 'resuma', 'resumo', 'explique', 'conte', 'diga', 'falamos', 'falar', 'tratou',
+  'empresa', 'projeto', 'atividade', 'atividades', 'pendencia', 'pendencias', 'quem', 'onde', 'porque', 'entao', 'ainda',
+  'nosso', 'nossa', 'nossos', 'seus', 'suas', 'dele', 'dela', 'deles', 'delas', 'sendo', 'foram', 'sera', 'serao',
+]);
+
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const stemOf = (w) => (w.length > 6 ? w.slice(0, 6) : w);
+function stemSet(text) {
+  return new Set(norm(text).split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !GENERIC_WORDS.has(w)).map(stemOf));
+}
+
+// Função pura (testável sem banco): devolve até `max` fatos de parecer que a pergunta realmente toca.
+// Palavra que aparece na maioria dos pareceres é genérica demais pra decidir (ignorada); entra o parecer que
+// bate em 2+ palavras da pergunta, ou em 1 palavra RARA entre os pareceres. Sem batida, nenhum entra (custo 0).
+export function pickRelevantPareceres(parecerRows, query, max = MAX_PARECERES_PER_QUESTION) {
+  if (!parecerRows.length) return [];
+  const q = stemSet(query);
+  if (!q.size) return [];
+  const sets = parecerRows.map((r) => stemSet(`${r.subject} ${r.content}`));
+  const n = parecerRows.length;
+  const df = new Map();
+  sets.forEach((st) => st.forEach((w) => df.set(w, (df.get(w) || 0) + 1)));
+  const scored = parecerRows.map((r, i) => {
+    let hits = 0;
+    let rare = 0;
+    q.forEach((w) => {
+      if (!sets[i].has(w)) return;
+      const share = df.get(w) / n;
+      if (n >= 3 && share >= 0.6) return;
+      hits += 1;
+      if (share <= 0.34) rare += 1;
+    });
+    return { r, hits, rare };
+  });
+  return scored
+    .filter((x) => x.hits >= 2 || x.rare >= 1)
+    .sort((a, b) => b.hits - a.hits || b.rare - a.rare)
+    .slice(0, max)
+    .map((x) => x.r);
+}
+
+export async function loadRelevantFacts(pool, orgId, projectId, conversationId, limit = 30, opts = {}) {
+  const baseWhere = `k.org_id = $1
+       AND k.status NOT IN ('archived', 'superseded')
+       AND (k.valid_until IS NULL OR k.valid_until >= CURRENT_DATE)`;
+  const columns = `k.id, k.subject, k.content, k.status, k.scope, k.knowledge_type, k.valid_from, k.valid_until, k.created_at, u.name AS source_user_name`;
+  const { rows: general } = await pool.query(
+    `SELECT ${columns}
      FROM ai_knowledge_facts k
      LEFT JOIN users u ON u.id = k.source_user_id
-     WHERE k.org_id = $1
-       AND k.status NOT IN ('archived', 'superseded')
-       AND (k.valid_until IS NULL OR k.valid_until >= CURRENT_DATE)
+     WHERE ${baseWhere}
+       AND NOT ${PARECER_FACT_SQL}
        AND (
          k.scope = 'org'
          OR (k.scope = 'project' AND k.project_id = $2)
@@ -329,7 +384,20 @@ export async function loadRelevantFacts(pool, orgId, projectId, conversationId, 
      LIMIT $4`,
     [orgId, projectId, conversationId || null, limit],
   );
-  if (!rows.length) return { text: '(nenhum conhecimento acumulado registrado ainda para este projeto/organização/conversa)', factIds: [] };
+  let pareceres = [];
+  if (opts.query) {
+    const { rows: all } = await pool.query(
+      `SELECT ${columns}
+       FROM ai_knowledge_facts k
+       LEFT JOIN users u ON u.id = k.source_user_id
+       WHERE ${baseWhere} AND k.scope = 'org' AND ${PARECER_FACT_SQL}
+       ORDER BY k.created_at DESC`,
+      [orgId],
+    );
+    pareceres = pickRelevantPareceres(all, opts.query);
+  }
+  const rows = [...general, ...pareceres];
+  if (!rows.length) return { text: '(nenhum conhecimento acumulado registrado ainda para este projeto/organização/conversa)', factIds: [], pareceresIncluded: 0 };
   const text = rows.map((r) => {
     const scopeLabel = r.scope === 'org' ? 'PRICETAX (toda a organização)' : r.scope === 'conversation' ? 'só esta conversa' : 'específico deste projeto';
     const who = r.source_user_name ? `informado por ${r.source_user_name}` : 'origem não registrada';
@@ -342,5 +410,5 @@ export async function loadRelevantFacts(pool, orgId, projectId, conversationId, 
     // usou, e a Central de Conhecimento rastrear "onde isso foi usado".
     return `- [id=${r.id}] [${r.knowledge_type}] [${r.subject}] ${r.content}${vigencia} (${scopeLabel}, ${who}, em ${dateLabel})${flag}`;
   }).join('\n');
-  return { text, factIds: rows.map((r) => r.id) };
+  return { text, factIds: rows.map((r) => r.id), pareceresIncluded: pareceres.length };
 }

@@ -459,7 +459,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
             kind: scope.kind !== 'qualquer' ? scope.kind : undefined,
             limit: 12,
           }),
-          loadRelevantFacts(pool, orgId, projectId, conversationId),
+          loadRelevantFacts(pool, orgId, projectId, conversationId, 30, { query: scope.standaloneQuery }),
           getConnectionStatus(userId),
         ]);
         if (trace) trace.retrievalLatencyMs = Date.now() - retrievalStartedAt;

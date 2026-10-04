@@ -6672,6 +6672,29 @@ parecer"). Também não medi o custo por parecer (PDF de ~15 páginas, Sonnet) �
 Pendência: o botão só existe dentro do painel da RENATA (que só aparece nas abas Reuniões/Atividades de uma
 empresa); não há atalho na tela de Pareceres.
 
+**Custo no chat — correção (2026-10-04, mesmo dia, depois da pergunta do Rafael "vamos economizar token?")**:
+a 1ª versão deixava os fatos de parecer entrarem em TODA pergunta (`loadRelevantFacts` carrega os fatos da org por
+data, limite 30) — ~200–290 tokens por parecer, crescendo a cada parecer novo, e ainda ocupando vagas das 30.
+Agora `loadRelevantFacts(..., limit, {query})` tira os fatos de parecer (`origin='internal_document'` e
+`reference LIKE 'Parecer PRICETAX:%'`) da consulta geral e `pickRelevantPareceres` (função pura em
+`knowledgeFacts.js`) escolhe **no máximo 3** que a pergunta toca, comparando radicais de 6 letras sem acento entre
+a pergunta (`scope.standaloneQuery`, já reformulada) e assunto+conteúdo do fato. Ignora palavras genéricas
+(`GENERIC_WORDS`) e as que aparecem em ≥60% dos pareceres; entra o parecer com 2+ batidas ou 1 batida em palavra
+RARA (≤34% dos pareceres). Sem batida → nenhum parecer, custo zero. Sem `query` também nenhum. Só lexical, de
+propósito: sem chamada de embedding extra (Voyage free = 3 req/min). Os fatos continuam na Central de
+Conhecimento; só deixam de ir pro prompt à toa. Medido com 7 pareceres realistas: carregar todos custaria ~700+
+tokens/pergunta (mais com resumos longos de verdade); agora 0 a ~150 por pergunta típica. Limite conhecido: o
+casamento é por palavra, então pergunta em outras palavras que o parecer não usa ("aquele parecer do crédito da
+folha") pode não trazer o parecer — nesse caso a RENATA responde sem ele, nunca com ele errado.
+Verificado: 16 checagens (split→26/2026, CBS 2027→25/2026, "resuma a última reunião"/"quem participou"/pendências
+→ nenhum, teto de 3, 30 gerais intactos + só o parecer relevante no banco).
+
+**Fonte (mesma causa do §69, achada em mais 2 módulos)**: `body` do app é `Times` (a Inter vem de `S.page` em cada
+tela). Central de Conhecimento (`knw-shell`, drawer fora do shell) e CRM (`crm-shell`, só `font-family:inherit`)
+renderizavam em serifa. Corrigido com `.knw-root`/`.crm-root` (+ `font-family` no shell, loading e erro do CRM)
+e o fundo do Conhecimento passou de `--bg-1` para `--bg-page`, igual ao resto. Verificado por `getComputedStyle`
+nos dois. **Regra**: todo módulo novo precisa de um ancestral com a fonte, inclusive pro que renderiza `SidePanel`.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |

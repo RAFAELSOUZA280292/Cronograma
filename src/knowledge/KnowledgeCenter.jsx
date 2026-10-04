@@ -116,7 +116,7 @@ export default function KnowledgeCenterScreen({ currentUser, onExit, onNavigateT
   }
 
   return (
-    <>
+    <div className="knw-root">
       <style>{KNOWLEDGE_CSS}</style>
       <div className="knw-shell">
         <div className="knw-topbar">
@@ -155,6 +155,6 @@ export default function KnowledgeCenterScreen({ currentUser, onExit, onNavigateT
           onChanged={onFactChanged}
         />
       )}
-    </>
+    </div>
   );
 }
