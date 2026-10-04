@@ -9,7 +9,7 @@ import { createNotification, rowToNotification } from './notifications.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { CRM_ROLES } from './crm/permissions.js';
 import { searchProjectMemory } from './memoryRetrieval.js';
-import { syncCardEvents, getActivityStats, cardEventsOf } from './personalActivity.js';
+import { syncCardEvents, getActivityStats, getDayDetail, cardEventsOf } from './personalActivity.js';
 
 function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
@@ -564,6 +564,18 @@ router.get('/personal-board/stats', requireAuth, async (req, res, next) => {
     const { withoutOpenDate, closedWithoutDate } = cardEventsOf(data);
     const stats = await getActivityStats(pool, req.user.id, days);
     res.json({ ...stats, days, withoutOpenDate, closedWithoutDate });
+  } catch (e) { next(e); }
+});
+
+router.get('/personal-board/stats/day', requireAuth, async (req, res, next) => {
+  try {
+    const date = String(req.query.date || '');
+    const valid = /^\d{4}-\d{2}-\d{2}$/.test(date) && new Date(`${date}T12:00:00Z`).toISOString().slice(0, 10) === date;
+    if (!valid) return res.status(400).json({ message: 'Data inválida.' });
+    const { rows } = await pool.query('SELECT data FROM personal_boards WHERE user_id=$1', [req.user.id]);
+    const data = rows[0] ? rows[0].data : blankPersonalBoard();
+    await syncCardEvents(pool, req.user.id, data);
+    res.json(await getDayDetail(pool, req.user.id, date, data));
   } catch (e) { next(e); }
 });
 

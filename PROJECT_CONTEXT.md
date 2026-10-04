@@ -6452,6 +6452,21 @@ HTML com 200 e a tela ficou em "Carregando…") — o painel agora trata respost
 tela mostra o número real na primeira abertura. O que for concluído/criado ANTES do deploy só entra se o
 card ainda existir; o que foi excluído definitivamente antes é irrecuperável.
 
+**Visão dia a dia e médias (2026-10-04, pedido do Rafael após ver o painel em produção: "filtrar e caminhar
+por dia, ver a métrica por dia e a média por dia")**. `GET /api/personal-board/stats` ganha `today`,
+`fromDay`, `totalDays` (dias corridos do período, em Brasília), `weekdayDays[7]`/`monthDayDays[31]`
+(quantas vezes cada dia da semana/do mês ocorre no período — o divisor da média). Nova
+`GET /api/personal-board/stats/day?date=YYYY-MM-DD` (valida data real, 400 se inválida) →
+`{date, window[30] (30 dias terminando no dia, com zeros), events[{cardId,kind,at,title|null}]}`; o título vem
+do card ATUAL do quadro, e `null` = atividade excluída definitivamente (a tela mostra "Atividade excluída"
+em itálico; o evento continua contando). Na tela: KPIs com "média de X por dia" (total ÷ dias corridos do
+período, não ÷ dias com evento), card **Dia a dia** (‹ data › + "Hoje", faixa clicável de 30 dias, lista de
+abertas/encerradas com hora), e alternador **Total | Média por dia** que vale pros dois gráficos (média =
+total ÷ ocorrências daquele dia da semana/mês no período; a frase-resumo segue o modo escolhido).
+Verificado: 13 checagens em Node (faixa do período, ocorrências, janela, título nulo após exclusão, virada
+à meia-noite de Brasília: 02:59Z = dia anterior, 03:00Z = dia seguinte) + navegação no browser conferida
+contra SQL (dias 02, 03 e 04/10 e média 91÷41 = 2,2).
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |

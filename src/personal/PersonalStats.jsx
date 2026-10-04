@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
 import { SidePanel } from '../App.jsx';
 
@@ -20,6 +21,20 @@ const PERIODS = [
   { value: 90, label: '90 dias' },
   { value: 0, label: 'Tudo' },
 ];
+
+const TZ = 'America/Sao_Paulo';
+const fmtNum = (n) => n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+const shortDay = (ymd) => `${ymd.slice(8, 10)}/${ymd.slice(5, 7)}`;
+const hhmm = (iso) => new Date(iso).toLocaleTimeString('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+function shiftDay(ymd, delta) {
+  const d = new Date(`${ymd}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
+function dayLabel(ymd) {
+  const t = new Date(`${ymd}T12:00:00Z`).toLocaleDateString('pt-BR', { timeZone: 'UTC', weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
 
 function peakIndex(arr) {
   let best = -1;
@@ -45,6 +60,17 @@ const CSS = `
   .ps-lab { font-size: 10px; color: var(--text-6); margin-top: 4px; height: 12px; white-space: nowrap; }
   .ps-lab.peak { color: var(--text-1); font-weight: 700; }
   .ps-legend { display: flex; gap: 14px; font-size: 11px; color: var(--text-5); margin-top: 10px; }
+  .ps-nav { display: flex; align-items: center; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+  .ps-navbtn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--border-2); background: var(--bg-2); color: var(--text-3); cursor: pointer; }
+  .ps-navbtn:disabled { opacity: .35; cursor: default; }
+  .ps-nav .ps-date { width: 150px; flex: 0 0 auto; height: 30px; border-radius: 7px; border: 1px solid var(--border-2); background: var(--bg-2); color: var(--text-1); padding: 0 8px; font-size: 12.5px; font-family: inherit; }
+  .ps-strip { display: flex; align-items: flex-end; gap: 2px; height: 64px; margin-top: 14px; }
+  .ps-day { flex: 1; min-width: 0; height: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 1px; padding: 0 0 0; border: none; border-radius: 3px; background: transparent; cursor: pointer; }
+  .ps-day:hover { background: var(--bg-4); }
+  .ps-day.sel { background: var(--bg-4); box-shadow: inset 0 -2px 0 var(--text-1); }
+  .ps-day i { display: block; flex: 1; max-width: 6px; border-radius: 1px 1px 0 0; }
+  .ps-evt { display: flex; gap: 8px; font-size: 12.5px; color: var(--text-2); padding: 5px 0; border-top: 1px solid var(--border-1); }
+  .ps-evt time { color: var(--text-6); font-variant-numeric: tabular-nums; flex-shrink: 0; }
   .ps-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
 `;
 
@@ -69,7 +95,7 @@ function Gauge180({ pct }) {
   );
 }
 
-function Bars({ items, opened, closed, peakOpened, peakClosed, showEvery }) {
+function Bars({ items, opened, closed, peakOpened, peakClosed, showEvery, fmt = (n) => n }) {
   const max = Math.max(1, ...opened, ...closed);
   return (
     <div className="ps-bars">
@@ -79,8 +105,8 @@ function Bars({ items, opened, closed, peakOpened, peakClosed, showEvery }) {
         const isPeak = it.idx === peakOpened || it.idx === peakClosed;
         const label = showEvery && (it.n % showEvery !== 0 && it.n !== 1) ? '' : it.short;
         return (
-          <div key={it.idx} className="ps-col" title={`${it.long || it.short}: ${o} aberta${o === 1 ? '' : 's'}, ${c} encerrada${c === 1 ? '' : 's'}`}>
-            <div className="ps-val">{it.idx === peakOpened && o > 0 ? o : ''}{it.idx === peakOpened && it.idx === peakClosed ? ' · ' : ''}{it.idx === peakClosed && c > 0 ? c : ''}</div>
+          <div key={it.idx} className="ps-col" title={`${it.long || it.short}: ${fmt(o)} aberta${o === 1 ? '' : 's'}, ${fmt(c)} encerrada${c === 1 ? '' : 's'}`}>
+            <div className="ps-val">{it.idx === peakOpened && o > 0 ? fmt(o) : ''}{it.idx === peakOpened && it.idx === peakClosed ? ' · ' : ''}{it.idx === peakClosed && c > 0 ? fmt(c) : ''}</div>
             <div className="ps-pair" style={{ height: 78 }}>
               <div className="ps-bar" style={{ height: `${(o / max) * 100}%`, background: OPENED, opacity: it.idx === peakOpened ? 1 : 0.55 }} />
               <div className="ps-bar" style={{ height: `${(c / max) * 100}%`, background: CLOSED, opacity: it.idx === peakClosed ? 1 : 0.55 }} />
@@ -97,6 +123,28 @@ export default function PersonalStatsPanel({ onClose }) {
   const [period, setPeriod] = useState(0);
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
+  const [mode, setMode] = useState('total');
+  const [day, setDay] = useState('');
+  const [dayData, setDayData] = useState(null);
+  const [dayError, setDayError] = useState('');
+
+  useEffect(() => {
+    if (stats && !day) setDay(stats.today);
+  }, [stats, day]);
+
+  useEffect(() => {
+    if (!day) return undefined;
+    let cancelled = false;
+    setDayError('');
+    apiGet(`/api/personal-board/stats/day?date=${day}`)
+      .then((r) => {
+        if (cancelled) return;
+        if (r && Array.isArray(r.window) && Array.isArray(r.events)) setDayData(r);
+        else setDayError('Não foi possível carregar este dia.');
+      })
+      .catch((e) => { if (!cancelled) setDayError(e && e.message ? e.message : 'Não foi possível carregar este dia.'); });
+    return () => { cancelled = true; };
+  }, [day]);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,10 +165,21 @@ export default function PersonalStatsPanel({ onClose }) {
     if (!stats) return <div style={{ fontSize: 12.5, color: 'var(--text-6)' }}>Carregando…</div>;
     const { opened, closed, weekday, monthDay } = stats;
     const pct = opened > 0 ? closed / opened : 0;
-    const wdOpen = peakIndex(weekday.opened);
-    const wdClose = peakIndex(weekday.closed);
-    const mdOpen = peakIndex(monthDay.opened);
-    const mdClose = peakIndex(monthDay.closed);
+    const days = Math.max(1, stats.totalDays);
+    const avgOpened = opened / days;
+    const avgClosed = closed / days;
+    const per = (arr, occ) => (mode === 'avg' ? arr.map((n, i) => (occ[i] ? n / occ[i] : 0)) : arr);
+    const wd = { opened: per(weekday.opened, stats.weekdayDays), closed: per(weekday.closed, stats.weekdayDays) };
+    const md = { opened: per(monthDay.opened, stats.monthDayDays), closed: per(monthDay.closed, stats.monthDayDays) };
+    const fmt = mode === 'avg' ? fmtNum : (n) => n;
+    const wdOpen = peakIndex(wd.opened);
+    const wdClose = peakIndex(wd.closed);
+    const mdOpen = peakIndex(md.opened);
+    const mdClose = peakIndex(md.closed);
+    const dayOpened = dayData ? dayData.events.filter((e) => e.kind === 'opened') : [];
+    const dayClosed = dayData ? dayData.events.filter((e) => e.kind === 'closed') : [];
+    const winMax = dayData ? Math.max(1, ...dayData.window.map((w) => Math.max(w.opened, w.closed))) : 1;
+    const isToday = day === stats.today;
     const wdName = (i) => WEEKDAYS.find((w) => w.idx === i);
     const weekItems = WEEKDAYS.map((w, n) => ({ ...w, n: n + 1 }));
     const dayItems = Array.from({ length: 31 }, (_, i) => ({ idx: i, short: String(i + 1), long: `Dia ${i + 1}`, n: i + 1 }));
@@ -150,8 +209,8 @@ export default function PersonalStatsPanel({ onClose }) {
             </div>
 
             <div style={{ display: 'flex', gap: 10 }}>
-              <div className="ps-kpi"><div className="ps-kpi-num" style={{ color: OPENED }}>{opened}</div><div className="ps-kpi-label">Abertas</div></div>
-              <div className="ps-kpi"><div className="ps-kpi-num" style={{ color: CLOSED }}>{closed}</div><div className="ps-kpi-label">Encerradas</div></div>
+              <div className="ps-kpi"><div className="ps-kpi-num" style={{ color: OPENED }}>{opened}</div><div className="ps-kpi-label">Abertas · média de {fmtNum(avgOpened)} por dia</div></div>
+              <div className="ps-kpi"><div className="ps-kpi-num" style={{ color: CLOSED }}>{closed}</div><div className="ps-kpi-label">Encerradas · média de {fmtNum(avgClosed)} por dia</div></div>
             </div>
 
             <div className="ps-card" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -164,16 +223,66 @@ export default function PersonalStatsPanel({ onClose }) {
             </div>
 
             <div className="ps-card">
-              <div className="ps-title">Dia da semana</div>
-              <div className="ps-sub">Quando você abre e quando encerra atividades. O pico de cada um fica em destaque.</div>
-              <Bars items={weekItems} opened={weekday.opened} closed={weekday.closed} peakOpened={wdOpen} peakClosed={wdClose} />
+              <div className="ps-title">Dia a dia</div>
+              <div className="ps-sub">Navegue por um dia e veja o que foi aberto e encerrado. Média do período: {fmtNum(avgOpened)} abertas e {fmtNum(avgClosed)} encerradas por dia.</div>
+              <div className="ps-nav">
+                <button className="ps-navbtn" title="Dia anterior" onClick={() => setDay(shiftDay(day, -1))}><ChevronLeft size={16} /></button>
+                <input className="ps-date" type="date" value={day} max={stats.today} onChange={(e) => { if (e.target.value && e.target.value <= stats.today) setDay(e.target.value); }} />
+                <button className="ps-navbtn" title="Próximo dia" disabled={isToday} onClick={() => setDay(shiftDay(day, 1))}><ChevronRight size={16} /></button>
+                {!isToday && <button className="ps-chip" onClick={() => setDay(stats.today)}>Hoje</button>}
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 10 }}>{dayLabel(day)}</div>
+              {dayError && <div style={{ fontSize: 12, color: '#e2574c', marginTop: 8 }}>{dayError}</div>}
+              {dayData && dayData.date === day && (
+                <>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                    <div className="ps-kpi"><div className="ps-kpi-num" style={{ color: OPENED }}>{dayOpened.length}</div><div className="ps-kpi-label">Abertas neste dia</div></div>
+                    <div className="ps-kpi"><div className="ps-kpi-num" style={{ color: CLOSED }}>{dayClosed.length}</div><div className="ps-kpi-label">Encerradas neste dia</div></div>
+                  </div>
+                  <div className="ps-strip">
+                    {dayData.window.map((w) => (
+                      <button key={w.d} className={`ps-day${w.d === day ? ' sel' : ''}`} title={`${shortDay(w.d)}: ${w.opened} abertas, ${w.closed} encerradas`} onClick={() => setDay(w.d)}>
+                        <i style={{ height: `${(w.opened / winMax) * 100}%`, background: OPENED }} />
+                        <i style={{ height: `${(w.closed / winMax) * 100}%`, background: CLOSED }} />
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-6)', marginTop: 4 }}>
+                    <span>{shortDay(dayData.window[0].d)}</span><span>30 dias até o dia escolhido</span><span>{shortDay(dayData.window[dayData.window.length - 1].d)}</span>
+                  </div>
+                  {[['Abertas', dayOpened, OPENED], ['Encerradas', dayClosed, CLOSED]].map(([label, list, color]) => list.length > 0 && (
+                    <div key={label} style={{ marginTop: 14 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 4 }}>{label}</div>
+                      {list.map((e) => (
+                        <div key={`${e.cardId}-${e.kind}-${e.at}`} className="ps-evt">
+                          <time>{hhmm(e.at)}</time>
+                          <span style={e.title === null ? { fontStyle: 'italic', color: 'var(--text-6)' } : undefined}>{e.title === null ? 'Atividade excluída' : (e.title || 'Sem título')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  {dayOpened.length + dayClosed.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-6)', marginTop: 12 }}>Nada aberto nem encerrado neste dia.</div>}
+                </>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11.5, color: 'var(--text-6)' }}>Gráficos:</span>
+              <button className={`ps-chip${mode === 'total' ? ' on' : ''}`} onClick={() => setMode('total')}>Total</button>
+              <button className={`ps-chip${mode === 'avg' ? ' on' : ''}`} onClick={() => setMode('avg')}>Média por dia</button>
+            </div>
+
+            <div className="ps-card">
+              <div className="ps-title">Dia da semana{mode === 'avg' ? ' (média)' : ''}</div>
+              <div className="ps-sub">{mode === 'avg' ? 'Média por ocorrência de cada dia da semana no período.' : 'Quando você abre e quando encerra atividades. O pico de cada um fica em destaque.'}</div>
+              <Bars items={weekItems} opened={wd.opened} closed={wd.closed} peakOpened={wdOpen} peakClosed={wdClose} fmt={fmt} />
               <div className="ps-legend"><span><i className="ps-dot" style={{ background: OPENED }} />Abertas</span><span><i className="ps-dot" style={{ background: CLOSED }} />Encerradas</span></div>
             </div>
 
             <div className="ps-card">
-              <div className="ps-title">Dia do mês</div>
-              <div className="ps-sub">Somando todos os meses do período.</div>
-              <Bars items={dayItems} opened={monthDay.opened} closed={monthDay.closed} peakOpened={mdOpen} peakClosed={mdClose} showEvery={5} />
+              <div className="ps-title">Dia do mês{mode === 'avg' ? ' (média)' : ''}</div>
+              <div className="ps-sub">{mode === 'avg' ? 'Média por ocorrência de cada dia do mês no período.' : 'Somando todos os meses do período.'}</div>
+              <Bars items={dayItems} opened={md.opened} closed={md.closed} peakOpened={mdOpen} peakClosed={mdClose} showEvery={5} fmt={fmt} />
             </div>
           </>
         )}

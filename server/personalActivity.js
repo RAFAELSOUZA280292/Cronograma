@@ -68,5 +68,66 @@ export async function getActivityStats(pool, userId, days) {
     if (r.kind === 'opened') opened += r.n; else closed += r.n;
   }
   const { rows: first } = await pool.query('SELECT min(occurred_at) AS first FROM personal_card_events WHERE user_id=$1', [userId]);
-  return { opened, closed, weekday, monthDay, firstEventAt: first[0] && first[0].first ? first[0].first.toISOString() : null };
+  const firstEventAt = first[0] && first[0].first ? first[0].first.toISOString() : null;
+
+  const { rows: span } = await pool.query(
+    `SELECT to_char((now() AT TIME ZONE $1)::date, 'YYYY-MM-DD') AS today,
+            to_char(CASE WHEN $3::int IS NOT NULL THEN (now() AT TIME ZONE $1)::date - ($3::int - 1)
+                         ELSE COALESCE((SELECT min(occurred_at AT TIME ZONE $1)::date FROM personal_card_events WHERE user_id=$2), (now() AT TIME ZONE $1)::date) END, 'YYYY-MM-DD') AS from_day`,
+    [TZ, userId, periodDays],
+  );
+  const { today, from_day: fromDay } = span[0];
+  const { rows: cal } = await pool.query(
+    `SELECT EXTRACT(DOW FROM d)::int AS dow, EXTRACT(DAY FROM d)::int AS dom
+     FROM generate_series($1::date, $2::date, interval '1 day') AS d`,
+    [fromDay, today],
+  );
+  const weekdayDays = Array(7).fill(0);
+  const monthDayDays = Array(31).fill(0);
+  for (const r of cal) { weekdayDays[r.dow] += 1; monthDayDays[r.dom - 1] += 1; }
+
+  return { opened, closed, weekday, monthDay, firstEventAt, today, fromDay, totalDays: cal.length, weekdayDays, monthDayDays };
+}
+
+const WINDOW_DAYS = 30;
+
+function titlesOf(data) {
+  const map = new Map();
+  for (const board of (data && data.boards) || []) {
+    for (const col of board.columns || []) {
+      for (const card of col.cards || []) if (card && card.id) map.set(card.id, card.title || '');
+    }
+  }
+  return map;
+}
+
+export async function getDayDetail(pool, userId, date, data) {
+  const { rows: events } = await pool.query(
+    `SELECT card_id, kind, occurred_at FROM personal_card_events
+     WHERE user_id=$1 AND (occurred_at AT TIME ZONE $2)::date = $3::date
+     ORDER BY occurred_at`,
+    [userId, TZ, date],
+  );
+  const { rows: win } = await pool.query(
+    `SELECT to_char(occurred_at AT TIME ZONE $2, 'YYYY-MM-DD') AS d, kind, count(*)::int AS n
+     FROM personal_card_events
+     WHERE user_id=$1
+       AND (occurred_at AT TIME ZONE $2)::date BETWEEN $3::date - ($4::int - 1) AND $3::date
+     GROUP BY d, kind`,
+    [userId, TZ, date, WINDOW_DAYS],
+  );
+  const { rows: days } = await pool.query(
+    `SELECT to_char(d, 'YYYY-MM-DD') AS d FROM generate_series($1::date - ($2::int - 1), $1::date, interval '1 day') AS d`,
+    [date, WINDOW_DAYS],
+  );
+  const byDay = new Map(days.map((r) => [r.d, { d: r.d, opened: 0, closed: 0 }]));
+  for (const r of win) if (byDay.has(r.d) && (r.kind === 'opened' || r.kind === 'closed')) byDay.get(r.d)[r.kind] = r.n;
+  const titles = titlesOf(data);
+  return {
+    date,
+    window: [...byDay.values()],
+    events: events
+      .filter((e) => e.kind === 'opened' || e.kind === 'closed')
+      .map((e) => ({ cardId: e.card_id, kind: e.kind, at: e.occurred_at.toISOString(), title: titles.has(e.card_id) ? titles.get(e.card_id) : null })),
+  };
 }
