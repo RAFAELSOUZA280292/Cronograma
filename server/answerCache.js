@@ -79,6 +79,7 @@ export async function isStillFresh(pool, { orgId, projectId, createdAt, dependen
        SELECT 1 FROM ai_knowledge_facts
        WHERE org_id = $1 AND created_at > $2 AND status NOT IN ('archived', 'superseded')
          AND (scope = 'org' OR (scope = 'project' AND project_id = $3))
+         AND NOT (origin = 'internal_document' AND reference LIKE 'Parecer PRICETAX:%')
      ) AS has_new`,
     [orgId, createdAt, projectId],
   );

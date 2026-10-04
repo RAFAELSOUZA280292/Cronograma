@@ -16,6 +16,7 @@
 import { embedTexts, cosineSimilarity } from './embeddings.js';
 import { logMetric } from './metrics.js';
 import { linkFactEntities } from './knowledgeEntities.js';
+import { parecerUsableFor, loadProjectIdentity } from './parecerScope.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -63,7 +64,10 @@ export async function findSimilarFact(pool, { orgId, projectId, scope, conversat
   // encerrada) nunca era excluído daqui — continuava competindo como
   // "o fato vigente" pra detectar conflito/duplicata contra um fato
   // novo. `valid_until IS NULL` cobre "vale desde sempre/ainda vale".
-  const conditions = ["org_id = $1", "scope = $2", "status NOT IN ('archived','superseded')", 'embedding IS NOT NULL', '(valid_until IS NULL OR valid_until >= CURRENT_DATE)'];
+  const conditions = ["org_id = $1", "scope = $2", "status NOT IN ('archived','superseded')", 'embedding IS NOT NULL', '(valid_until IS NULL OR valid_until >= CURRENT_DATE)',
+    // Fatos de parecer (§70) não participam da detecção de duplicata/conflito: um fato ensinado numa conversa
+    // não pode ser comparado — nem marcado como "divergente" — contra o parecer de outro cliente.
+    "NOT (origin = 'internal_document' AND reference LIKE 'Parecer PRICETAX:%')"];
   const params = [orgId, scope];
   function addParam(value) { params.push(value); return `$${params.length}`; }
   if (scope === 'project') {
@@ -337,21 +341,24 @@ function stemSet(text) {
 // Função pura (testável sem banco): devolve até `max` fatos de parecer que a pergunta realmente toca.
 // Palavra que aparece na maioria dos pareceres é genérica demais pra decidir (ignorada); entra o parecer que
 // bate em 2+ palavras da pergunta, ou em 1 palavra RARA entre os pareceres. Sem batida, nenhum entra (custo 0).
-export function pickRelevantPareceres(parecerRows, query, max = MAX_PARECERES_PER_QUESTION) {
+export function pickRelevantPareceres(parecerRows, query, max = MAX_PARECERES_PER_QUESTION, corpus = parecerRows) {
   if (!parecerRows.length) return [];
   const q = stemSet(query);
   if (!q.size) return [];
   const sets = parecerRows.map((r) => stemSet(`${r.subject} ${r.content}`));
-  const n = parecerRows.length;
+  // A frequência das palavras é medida sobre TODOS os pareceres da organização (`corpus`, só pra estatística —
+  // nenhum conteúdo dele chega a lugar nenhum), não só os visíveis nesta empresa: com poucos pareceres visíveis,
+  // uma palavra comum a todos ("split") parece genérica mas é justamente o assunto da pergunta.
+  const n = corpus.length;
   const df = new Map();
-  sets.forEach((st) => st.forEach((w) => df.set(w, (df.get(w) || 0) + 1)));
+  corpus.forEach((r) => stemSet(`${r.subject} ${r.content}`).forEach((w) => df.set(w, (df.get(w) || 0) + 1)));
   const scored = parecerRows.map((r, i) => {
     let hits = 0;
     let rare = 0;
     q.forEach((w) => {
       if (!sets[i].has(w)) return;
-      const share = df.get(w) / n;
-      if (n >= 3 && share >= 0.6) return;
+      const share = (df.get(w) || 1) / n;
+      if (n >= 5 && share >= 0.6) return;
       hits += 1;
       if (share <= 0.34) rare += 1;
     });
@@ -384,17 +391,24 @@ export async function loadRelevantFacts(pool, orgId, projectId, conversationId, 
      LIMIT $4`,
     [orgId, projectId, conversationId || null, limit],
   );
+  // Pareceres só chegam à equipe PRICETAX (`opts.isStaff`) e só os que podem ser usados NESTA empresa: o
+  // "Geral" e o do próprio cliente. O vínculo fato→parecer vem de parecer_studies.fact_id e o escopo é lido do
+  // parecer agora (§70) — sem vínculo verificável, o fato não entra (regra fechada).
   let pareceres = [];
-  if (opts.query) {
+  if (opts.query && opts.isStaff) {
+    const identity = await loadProjectIdentity(pool, projectId);
     const { rows: all } = await pool.query(
-      `SELECT ${columns}
+      `SELECT ${columns}, p.scope AS parecer_scope, p.company_name, p.company_project_id
        FROM ai_knowledge_facts k
+       JOIN parecer_studies ps ON ps.fact_id = k.id
+       JOIN pareceres p ON p.id = ps.parecer_id
        LEFT JOIN users u ON u.id = k.source_user_id
        WHERE ${baseWhere} AND k.scope = 'org' AND ${PARECER_FACT_SQL}
        ORDER BY k.created_at DESC`,
       [orgId],
     );
-    pareceres = pickRelevantPareceres(all, opts.query);
+    const usable = all.filter((r) => parecerUsableFor({ scope: r.parecer_scope, company_name: r.company_name, company_project_id: r.company_project_id }, identity));
+    pareceres = pickRelevantPareceres(usable, opts.query, MAX_PARECERES_PER_QUESTION, all);
   }
   const rows = [...general, ...pareceres];
   if (!rows.length) return { text: '(nenhum conhecimento acumulado registrado ainda para este projeto/organização/conversa)', factIds: [], pareceresIncluded: 0 };

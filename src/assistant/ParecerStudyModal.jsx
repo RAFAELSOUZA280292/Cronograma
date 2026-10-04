@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BookOpen, X, Loader2, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
+import { BookOpen, X, Loader2, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Sparkles, Lock } from 'lucide-react';
 import { apiGet, apiPost } from '../lib/api.js';
 
 const CSS = `
@@ -20,6 +20,8 @@ const CSS = `
   .pst-btn:hover:not(:disabled) { background:#ffd21f; }
   .pst-btn:disabled { background:var(--bg-4); border-color:var(--border-2); color:var(--text-5); cursor:default; }
   .pst-note { font-size:12.5px; color:var(--text-5); line-height:1.5; }
+  .pst-others { display:flex; gap:8px; align-items:flex-start; background:var(--bg-3); border-radius:10px; padding:10px 12px; }
+  .pst-others svg { flex-shrink:0; margin-top:2px; }
   .pst-error { font-size:12.5px; color:#e2574c; line-height:1.5; }
   .pst-item { border:1px solid var(--border-1); border-radius:12px; background:var(--bg-2); }
   .pst-item-head { display:flex; align-items:center; gap:10px; padding:12px 14px; cursor:pointer; }
@@ -68,7 +70,7 @@ function Learned({ study }) {
   );
 }
 
-export default function ParecerStudyModal({ onClose }) {
+export default function ParecerStudyModal({ onClose, projectId }) {
   const [state, setState] = useState(null);
   const [error, setError] = useState('');
   const [starting, setStarting] = useState(false);
@@ -78,7 +80,7 @@ export default function ParecerStudyModal({ onClose }) {
 
   async function load() {
     try {
-      const r = await apiGet('/api/pareceres/study');
+      const r = await apiGet(`/api/pareceres/study${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`);
       if (r && Array.isArray(r.items)) { setState(r); setError(''); } else setError('Não foi possível carregar o estudo dos pareceres.');
       return r;
     } catch (e) {
@@ -152,6 +154,11 @@ export default function ParecerStudyModal({ onClose }) {
               )}
               {busy && <div className="pst-note">Isso leva alguns minutos por parecer. Pode fechar esta janela: o estudo continua e o resultado fica guardado.</div>}
               {lastResult && <div className="pst-note">{lastResult}</div>}
+              {state.others && state.others.count > 0 && (
+                <div className="pst-note pst-others">
+                  <Lock size={13} /> {state.others.count} parecer{state.others.count === 1 ? '' : 'es'} específico{state.others.count === 1 ? '' : 's'} de outros clientes {state.others.count === 1 ? 'entra' : 'entram'} no estudo, mas {state.others.count === 1 ? 'fica guardado' : 'ficam guardados'} e só {state.others.count === 1 ? 'é usado' : 'são usados'} na empresa {state.others.count === 1 ? 'dele' : 'deles'}. Não aparecem aqui nem nas sugestões desta empresa.
+                </div>
+              )}
 
               {state.items.map((it) => {
                 const canOpen = !!it.study;

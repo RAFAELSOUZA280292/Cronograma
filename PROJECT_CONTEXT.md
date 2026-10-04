@@ -6695,6 +6695,41 @@ renderizavam em serifa. Corrigido com `.knw-root`/`.crm-root` (+ `font-family` n
 e o fundo do Conhecimento passou de `--bg-1` para `--bg-page`, igual ao resto. Verificado por `getComputedStyle`
 nos dois. **Regra**: todo módulo novo precisa de um ancestral com a fonte, inclusive pro que renderiza `SidePanel`.
 
+**Isolamento por cliente (2026-10-04, pedido do Rafael ao ver um parecer da TECUMSEH dentro da empresa DAJU:
+"permita estudar, mas não deixe vazar informação de um cliente para o outro")**. Regra em
+`server/parecerScope.js` (`parecerUsableFor`): parecer **Geral** vale em qualquer empresa; **Cliente específico**
+só na empresa a que pertence — por `company_project_id` (vínculo forte; se existir, é ele que decide, mesmo que o
+nome seja igual ao de outra empresa) ou, sem vínculo, por nome (`companyTokens`: sem acento/caixa, sem LTDA/SA/
+"do Brasil"; vale se o conjunto de palavras de um contém o do outro). **Regra fechada**: sem nome, sem vínculo ou
+sem empresa de referência → não vale fora de casa. O escopo é lido do parecer NA HORA (não copiado pro fato), então
+editar a tag vale imediatamente. A RENATA continua ESTUDANDO tudo (`startStudy` enxerga todos via
+`computeStudyState`); o que muda é onde o resultado pode aparecer:
+- **Janela de estudo** (`GET /study?projectId=`): só os pareceres usáveis naquela empresa, com título e conteúdo;
+  os de outros clientes viram uma contagem anônima (`others.count`) e um aviso com cadeado — título, nome do cliente,
+  id e conteúdo NÃO saem do servidor (verificado no JSON bruto). Sem `projectId`, só o Geral. A rota confere
+  `canAccessProject`.
+- **Sugestão na reunião**: `loadDoneStudies` filtra por empresa ANTES de montar o prompt — o modelo nunca recebe o
+  parecer de outro cliente. `getMeetingAdvice` filtra de novo na leitura (defesa em profundidade: sugestão antiga,
+  tag editada depois).
+- **Chat da RENATA**: `loadRelevantFacts` agora recebe `isStaff` (`canUseDossier(req.user)` em `assistant.js`) e só
+  considera fatos de parecer pra equipe PRICETAX (usuário `cliente` nunca recebe parecer, nem o da própria empresa),
+  ligando fato→parecer por `parecer_studies.fact_id` e aplicando `parecerUsableFor`; fato sem vínculo verificável
+  não entra. A frequência de palavras do filtro de relevância passou a ser medida sobre TODOS os pareceres da org
+  (`corpus`, só estatística) e o corte de "palavra genérica" só vale com ≥5 pareceres — achado pelo teste: com 3
+  pareceres visíveis, uma palavra comum a todos ("split") era descartada justamente quando era o assunto.
+- **Fatos de parecer fora da detecção de conflito** (`findSimilarFact`) e fora da checagem de "fato novo" do cache
+  de respostas (`answerCache.js`): um fato ensinado numa conversa não é comparado nem marcado "divergente" contra o
+  parecer de outro cliente, e estudar parecer novo deixou de invalidar o cache de todos os projetos. O cache em si
+  já era por projeto.
+- **Central de Conhecimento** continua mostrando todos os fatos de parecer (área só da equipe, visão global) — é de
+  propósito; o isolamento vale onde a RENATA conversa ou sugere dentro de uma empresa.
+Verificado: 27 checagens de isolamento em Node (2 empresas + 4 pareceres: geral, por nome, vinculado por id, da outra
+empresa; lista, prompt da reunião, sugestão gravada à mão com item proibido, chat equipe/não equipe, tag editada,
+fatos fora da detecção de conflito) + browser: dentro de uma empresa só aparecem o Geral e o dela, sem a palavra
+"Tecumseh" na tela nem no JSON. **Limite conhecido**: o casamento por nome é conservador — se o nome digitado no
+parecer não bater com o nome da empresa e não houver vínculo, o parecer específico NÃO será usado nem na empresa
+certa (prefere calar a vazar); a saída é escolher a empresa da lista ao enviar o parecer (grava o vínculo).
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
