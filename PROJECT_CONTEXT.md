@@ -6552,6 +6552,27 @@ substituem o usuário por `res.user`, que não carrega o resumo.
 Verificado: 20 checagens em Node (prioridade de cabeçalho, geolocalização real, cache, IP privado, janela de
 30 min incl. reinício, falha não conta) + login/senha errada pelas rotas reais + tela e modal no browser.
 
+## 68. Gestão de Usuários na tela inicial (2026-10-04)
+
+Pedido do Rafael (print da `WorkspaceGateScreen`): "coloque a Gestão de usuários nessa tela, atualmente ele tá
+escondido no EMPRESAS". Novo card **Gestão de Usuários** (ícone `UserCog`) na tela inicial, só pra
+`role === 'master'` (mesma regra do atalho dentro de Empresas, que continua existindo — `goToUsers`/`showUsers`
+não mudaram). Implementado como workspace mode próprio `'users'`, **fora** de `availableModes` de propósito:
+entrar em `availableModes` mudaria o auto-select de quem só tem 1 módulo e o `goHome`. Peças em `App.jsx`:
+`locationTag('users')` → tag `'users'`, `applyLocationTag('users')` (Voltar/Avançar do navegador funcionam),
+`loadUsers` também dispara em `workspaceMode==='users'`, e o ramo de `UsersManagementScreen` aceita
+`showUsers || effectiveMode==='users'`; nesse caminho o botão vira "Voltar ao início" (`closeLabel`, prop nova)
+e leva ao gate (`goToWorkspace(null)`).
+**Super Admin**: o interceptador do seletor de organização (`canPickCompanies && isSuperAdmin && !actingOrg`)
+vem antes e continua valendo — ele escolhe a organização primeiro. `enterOrganization` agora lembra a
+intenção: se `workspaceMode==='users'` segue pra tela de usuários daquela organização (antes iria sempre pro
+seletor de empresas).
+**Quirk preexistente, NÃO mexi**: `locationTag`/`applyLocationTag` não conhecem `knowledge` nem `pareceres`
+(caem em `'company'`), então Voltar do navegador a partir deles não restaura o módulo certo.
+Verificado no browser local: card visível, clique abre a tela de usuários (4 usuários), via Super Admin →
+organização → usuários, "Voltar ao início" volta ao gate, Voltar/Avançar do navegador alternam certo.
+Não testado: usuário master NÃO super admin em produção (caminho sem seletor de organização, mais simples).
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
