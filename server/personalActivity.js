@@ -6,39 +6,92 @@ function validTs(v) {
   return Number.isNaN(t.getTime()) ? null : t.toISOString();
 }
 
+const SAME_EVENT_MS = 3000;
+const HISTORY_OPEN = /^Tarefa (criada|duplicada)$/;
+const CLOSE_TEXT = '(?:Marcada como concluída|Status alterado: (?:.+ → )?Concluída)';
+const HISTORY_CLOSE = new RegExp(`^${CLOSE_TEXT}$`);
+const LOG_OPEN = /^Tarefa criada: ".*"$/;
+const LOG_CLOSE = new RegExp(`^".*" — ${CLOSE_TEXT}$`);
+
+function collapse(events) {
+  const sorted = [...events].sort((a, b) => (a.cardId < b.cardId ? -1 : a.cardId > b.cardId ? 1 : a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  const out = [];
+  for (const e of sorted) {
+    const prev = out[out.length - 1];
+    if (prev && prev.cardId === e.cardId && prev.kind === e.kind && Date.parse(e.at) - Date.parse(prev.at) < SAME_EVENT_MS) continue;
+    out.push(e);
+  }
+  return out;
+}
+
 export function cardEventsOf(data) {
-  const events = [];
+  const cardEvents = [];
+  const logEvents = [];
   let withoutOpenDate = 0;
   let closedWithoutDate = 0;
   for (const board of (data && data.boards) || []) {
     for (const col of board.columns || []) {
       for (const card of col.cards || []) {
         if (!card || !card.id) continue;
-        const opened = validTs(card.createdAt);
-        if (opened) events.push({ cardId: card.id, kind: 'opened', at: opened });
-        else withoutOpenDate += 1;
+        let hasOpen = false;
+        let hasClose = false;
+        const add = (kind, at) => {
+          cardEvents.push({ cardId: card.id, kind, at, loose: false });
+          if (kind === 'opened') hasOpen = true; else hasClose = true;
+        };
+        const created = validTs(card.createdAt);
+        if (created) add('opened', created);
         if (card.completed) {
           const closed = validTs(card.completedAt);
-          if (closed) events.push({ cardId: card.id, kind: 'closed', at: closed });
-          else closedWithoutDate += 1;
+          if (closed) add('closed', closed);
         }
+        for (const h of Array.isArray(card.history) ? card.history : []) {
+          const at = h && validTs(h.ts);
+          if (!at || typeof h.action !== 'string') continue;
+          if (HISTORY_OPEN.test(h.action)) add('opened', at);
+          else if (HISTORY_CLOSE.test(h.action)) add('closed', at);
+        }
+        if (!hasOpen) withoutOpenDate += 1;
+        if (card.completed && !hasClose) closedWithoutDate += 1;
       }
     }
+    for (const l of Array.isArray(board.log) ? board.log : []) {
+      const at = l && validTs(l.ts);
+      if (!at || typeof l.action !== 'string') continue;
+      if (LOG_OPEN.test(l.action)) logEvents.push({ cardId: `log:${at}:o`, kind: 'opened', at, loose: true });
+      else if (LOG_CLOSE.test(l.action)) logEvents.push({ cardId: `log:${at}:c`, kind: 'closed', at, loose: true });
+    }
   }
-  return { events, withoutOpenDate, closedWithoutDate };
+  const events = collapse(cardEvents);
+  const near = (kind, at) => events.some((e) => e.kind === kind && Math.abs(Date.parse(e.at) - Date.parse(at)) < SAME_EVENT_MS);
+  const fromLog = [];
+  for (const e of logEvents.sort((a, b) => (a.at < b.at ? -1 : 1))) {
+    if (near(e.kind, e.at)) continue;
+    const prev = fromLog[fromLog.length - 1];
+    if (prev && prev.kind === e.kind && Date.parse(e.at) - Date.parse(prev.at) < SAME_EVENT_MS) continue;
+    fromLog.push(e);
+  }
+  return { events: [...events, ...fromLog], withoutOpenDate, closedWithoutDate };
 }
 
 export async function syncCardEvents(pool, userId, data) {
   try {
     const { events } = cardEventsOf(data);
     if (!events.length) return;
-    await pool.query(
+    const res = await pool.query(
       `INSERT INTO personal_card_events (user_id, card_id, kind, occurred_at)
        SELECT $1, t.card_id, t.kind, t.at
-       FROM unnest($2::text[], $3::text[], $4::timestamptz[]) AS t(card_id, kind, at)
+       FROM unnest($2::text[], $3::text[], $4::timestamptz[], $5::boolean[]) AS t(card_id, kind, at, loose)
+       WHERE NOT EXISTS (
+         SELECT 1 FROM personal_card_events e
+         WHERE e.user_id = $1 AND e.kind = t.kind
+           AND e.occurred_at BETWEEN t.at - interval '3 seconds' AND t.at + interval '3 seconds'
+           AND (t.loose OR e.card_id = t.card_id)
+       )
        ON CONFLICT DO NOTHING`,
-      [userId, events.map((e) => e.cardId), events.map((e) => e.kind), events.map((e) => e.at)],
+      [userId, events.map((e) => e.cardId), events.map((e) => e.kind), events.map((e) => e.at), events.map((e) => e.loose)],
     );
+    if (res.rowCount >= 5) console.log(`Indicadores: ${res.rowCount} evento(s) novo(s) registrados para ${userId}`);
   } catch (e) {
     console.error('Indicadores: falha ao registrar eventos de atividade', e.message);
   }

@@ -6467,6 +6467,33 @@ Verificado: 13 checagens em Node (faixa do período, ocorrências, janela, títu
 à meia-noite de Brasília: 02:59Z = dia anterior, 03:00Z = dia seguinte) + navegação no browser conferida
 contra SQL (dias 02, 03 e 04/10 e média 91÷41 = 2,2).
 
+**Recuperação do passado (2026-10-04, pedido do Rafael: "funcionar pro passado também, usando o LOG")**.
+`cardEventsOf` agora lê, além de `createdAt`/`completedAt`, o `card.history` de cada atividade e o
+`board.log` de cada página. Fontes e limites REAIS (conferidos no código e no git, não assumidos):
+- **`card.history`** (cap 200/card, vive junto com o card, inclusive Lixeira e Concluídas arquivadas) é a
+  fonte principal. Recupera conclusões que o `completedAt` perdeu (reabriu e concluiu de novo; ainda aberta
+  mas já concluída antes) e a abertura de card sem `createdAt`. A mensagem de conclusão mudou 3 vezes desde
+  que o quadro nasceu (09/08/2026): `Marcada como concluída` → `Status alterado: Concluída` →
+  `Status alterado: X → Concluída` — o regex (`CLOSE_TEXT`) reconhece as 3. Abertura = `Tarefa criada` |
+  `Tarefa duplicada`. Reabrir/mover/comentar/excluir não viram evento.
+- **`board.log`** SÓ é gravado quando a página está `visibility==='public'` (`mutateBoardTree`) e é capado
+  em 300 entradas por página — logo só ajuda pra atividade EXCLUÍDA DEFINITIVAMENTE em quadro que foi
+  compartilhado, dentro das últimas 300 ocorrências. Entra com `card_id` sintético `log:<ts>:o|c`.
+- **Deduplicação por proximidade (±3 s), não só pela PK**: `completedAt` e o `ts` do histórico saem do mesmo
+  `now` na versão atual, mas na v1 de 09/08 (`updateCard` calculava o próprio `now`) e no `ts` do log
+  diferem por milissegundos. Regra: um evento só entra se não houver outro do mesmo `kind` e do mesmo
+  `card_id` em ±3 s (`loose` = qualquer `card_id`, usado só pro log, que não tem id de card). Primeiro
+  colapsa dentro do lote em JS (`collapse`), depois o `NOT EXISTS` do INSERT protege contra o que já está
+  gravado — por isso é seguro rodar de novo e por isso o log não duplica um card que foi excluído depois.
+- Eventos de OUTRA pessoa em quadro compartilhado (editor) continuam atribuídos ao DONO do quadro.
+- Quando um sync insere ≥5 eventos, loga `Indicadores: N evento(s) novo(s) registrados para <user>` —
+  é como dá pra ver no `railway logs` quanto passado foi recuperado na primeira abertura do painel.
+- **Irrecuperável**: atividade excluída definitivamente FORA da janela do log (ou de quadro nunca público),
+  qualquer coisa anterior a 09/08/2026, e histórico além dos 200 últimos eventos de um card.
+Verificado com 12 checagens novas (reaberta, formatos 1/2/3, sem `createdAt`, skew de 120 ms, ruído,
+evento já gravado antes, log de card apagado, log não duplica card vivo nem card excluído depois, dia
+da semana certo) + as 24 anteriores sem regressão.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
