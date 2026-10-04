@@ -649,6 +649,7 @@ export default function App() {
     if (mode === 'macro') return 'macro';
     if (mode === 'crm') return 'crm';
     if (mode === 'personal') return 'personal';
+    if (mode === 'users') return 'users';
     if (users) return 'company:users';
     if (orgAdmin) return 'company:orgadmin';
     if (selected === false) return 'company:select';
@@ -692,6 +693,7 @@ export default function App() {
     else if (tag === 'agenda') { setWorkspaceMode('agenda'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'macro') { setWorkspaceMode('macro'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'crm') { setWorkspaceMode('crm'); setShowUsers(false); setShowOrgAdmin(false); }
+    else if (tag === 'users') { setWorkspaceMode('users'); setShowUsers(false); setShowOrgAdmin(false); }
     else { setWorkspaceMode(null); setShowUsers(false); setShowOrgAdmin(false); }
   }
   // Nível 3 (2026-08): abrir ActivityDetailModal empilha em cima do state
@@ -1167,10 +1169,10 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (showUsers && currentUser && currentUser.role === 'master') {
+    if ((showUsers || workspaceMode === 'users') && currentUser && currentUser.role === 'master') {
       loadUsers();
     }
-  }, [showUsers, currentUser?.id, actingOrg?.id]);
+  }, [showUsers, workspaceMode, currentUser?.id, actingOrg?.id]);
 
   useEffect(() => {
     if (currentUser && currentUser.isSuperAdmin) {
@@ -1356,6 +1358,7 @@ export default function App() {
         onPickKnowledge={hasKnowledge ? () => goToWorkspace('knowledge') : undefined}
         onPickPareceres={hasPareceres ? () => goToWorkspace('pareceres') : undefined}
         onPickCrm={hasCrm ? () => goToWorkspace('crm') : undefined}
+        onPickUsers={currentUser.role === 'master' ? () => goToWorkspace('users') : undefined}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -1509,7 +1512,7 @@ export default function App() {
     );
   }
 
-  if (showUsers && currentUser.role === 'master') {
+  if ((showUsers || effectiveMode === 'users') && currentUser.role === 'master') {
     return (
       <UsersManagementScreen
         users={users}
@@ -1518,7 +1521,8 @@ export default function App() {
         registeredProjects={registeredProjects}
         usersPanelError={usersPanelError}
         organizations={organizations}
-        onClose={() => goToUsers(false)}
+        onClose={effectiveMode === 'users' ? () => goToWorkspace(null) : () => goToUsers(false)}
+        closeLabel={effectiveMode === 'users' ? 'Voltar ao início' : undefined}
         onCreateUser={addUser}
         onUpdateUser={updateUser}
         onToggleBlock={toggleUserBlock}
@@ -2378,12 +2382,13 @@ export default function App() {
   }
 
   function enterOrganization(org) {
+    const toUsers = workspaceMode === 'users';
     setActingOrg({ id: org.id, name: org.displayName || org.name });
     setShowOrgAdmin(false);
     setCompanySelectionConfirmed(false);
     setSelectedProjectIds([]);
-    setWorkspaceMode('company');
-    pushLocation('company:select');
+    setWorkspaceMode(toUsers ? 'users' : 'company');
+    pushLocation(toUsers ? 'users' : 'company:select');
   }
 
   function exitOrganization() {
@@ -3472,7 +3477,7 @@ function UserAccessHistory({ userId, summary }) {
 
 function UsersManagementScreen({
   users, access, currentUser, registeredProjects, usersPanelError, organizations,
-  onClose, onCreateUser, onUpdateUser, onToggleBlock, onRenew, onResetPassword, onDeleteUser, onToggleCnpj,
+  onClose, closeLabel, onCreateUser, onUpdateUser, onToggleBlock, onRenew, onResetPassword, onDeleteUser, onToggleCnpj,
   theme, onToggleTheme,
 }) {
   const [search, setSearch] = useState('');
@@ -3524,7 +3529,7 @@ function UsersManagementScreen({
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} style={S.iconBtn} />
           <button style={S.primaryBtn} onClick={() => setShowCreate(true)}><Plus size={14} /> Novo usuário</button>
-          <button style={S.iconBtn} onClick={onClose}><X size={14} /> Voltar ao cronograma</button>
+          <button style={S.iconBtn} onClick={onClose}><X size={14} /> {closeLabel || 'Voltar ao cronograma'}</button>
         </div>
       </div>
 
@@ -4992,7 +4997,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   );
 }
 
-function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickCrm, onLogout, theme, onToggleTheme }) {
+function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickCrm, onPickUsers, onLogout, theme, onToggleTheme }) {
   return (
     <div className="page-root" style={S.page}>
       <div style={S.companySelectorWrap}>
@@ -5063,6 +5068,13 @@ function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow,
               <FileText size={26} color="#F5C400" />
               <div style={S.workspaceCardTitle}>Pareceres PRICETAX</div>
               <div style={S.workspaceCardDesc}>Pareceres em PDF pra compartilhar com sócios e colaboradores — identificação, comentários e histórico.</div>
+            </button>
+          )}
+          {onPickUsers && (
+            <button style={S.workspaceCard} onClick={onPickUsers}>
+              <UserCog size={26} color="#F5C400" />
+              <div style={S.workspaceCardTitle}>Gestão de Usuários</div>
+              <div style={S.workspaceCardDesc}>Quem tem acesso, perfis e permissões, senhas, bloqueios e o registro de acessos de cada pessoa.</div>
             </button>
           )}
         </div>
