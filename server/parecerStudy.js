@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { embedTexts } from './embeddings.js';
 import { logMetric } from './metrics.js';
+import { parecerUsableFor, loadProjectIdentity } from './parecerScope.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 const sha1 = (s) => crypto.createHash('sha1').update(String(s || '')).digest('hex');
@@ -167,26 +168,27 @@ export async function archiveParecerFacts(pool, parecerId) {
 
 const HASH_SQL = `encode(sha256(p.file_data), 'hex')`;
 
-export async function getStudyState(pool, orgId) {
+async function computeStudyState(pool, orgId, identity) {
   await pool.query(
     `UPDATE parecer_studies SET status='failed', error='Estudo interrompido (o servidor reiniciou ou demorou demais). Tente de novo.'
      WHERE org_id=$1 AND status='running' AND started_at < now() - ($2::int * interval '1 millisecond')`,
     [orgId, STALE_STUDY_MS],
   );
   const { rows } = await pool.query(
-    `SELECT p.id, p.title, p.scope, p.company_name, p.created_at, ${HASH_SQL} AS hash,
+    `SELECT p.id, p.title, p.scope, p.company_name, p.company_project_id, p.created_at, ${HASH_SQL} AS hash,
             s.status AS study_status, s.file_hash AS study_hash, s.study, s.error, s.studied_at
      FROM pareceres p LEFT JOIN parecer_studies s ON s.parecer_id = p.id
      WHERE p.org_id = $1 ORDER BY p.created_at DESC`,
     [orgId],
   );
-  const items = rows.map((r) => {
+  const all = rows.map((r) => {
     const current = r.study_status === 'done' && r.study_hash === r.hash;
     const state = r.study_status === 'running' ? 'running'
       : current ? 'done'
         : r.study_status === 'failed' ? 'failed'
           : r.study_status === 'done' ? 'changed' : 'new';
     return {
+      usableHere: parecerUsableFor(r, identity),
       id: r.id, title: r.title, scope: r.scope, companyName: r.company_name, state,
       error: state === 'failed' ? r.error : '', studiedAt: r.studied_at ? r.studied_at.toISOString() : null,
       study: r.study && (state === 'done' || state === 'changed') ? {
@@ -196,12 +198,26 @@ export async function getStudyState(pool, orgId) {
       } : null,
     };
   });
-  const count = (st) => items.filter((i) => i.state === st).length;
+  const count = (st) => all.filter((i) => i.state === st).length;
+  // Parecer de OUTRO cliente: o estudo continua valendo (a RENATA estuda tudo), mas nada dele — título,
+  // cliente, conteúdo — chega à tela de quem está em outra empresa; só entra uma contagem.
+  const items = all.filter((i) => i.usableHere);
+  const hidden = all.filter((i) => !i.usableHere);
   return {
-    total: items.length, studied: count('done'),
-    pending: items.filter((i) => ['new', 'changed', 'failed'].includes(i.state)).length,
-    running: count('running'), jobRunning: running.has(orgId), items,
+    total: all.length, studied: count('done'),
+    pending: all.filter((i) => ['new', 'changed', 'failed'].includes(i.state)).length,
+    running: count('running'), jobRunning: running.has(orgId),
+    items: items.map(({ usableHere, ...rest }) => rest),
+    others: { count: hidden.length, studied: hidden.filter((i) => i.state === 'done').length },
+    allItems: all,
   };
+}
+
+// Visão por empresa — é o que a API devolve; `allItems` (com os pareceres de outros clientes) nunca sai daqui.
+export async function getStudyState(pool, orgId, projectId) {
+  const identity = await loadProjectIdentity(pool, projectId);
+  const { allItems, ...visible } = await computeStudyState(pool, orgId, identity);
+  return visible;
 }
 
 async function runStudyJob({ pool, client, orgId, userId, ids }) {
@@ -248,9 +264,9 @@ async function runStudyJob({ pool, client, orgId, userId, ids }) {
 }
 
 export async function startStudy({ pool, orgId, userId, client, awaitJob = false }) {
-  const state = await getStudyState(pool, orgId);
+  const state = await computeStudyState(pool, orgId, null);
   if (state.jobRunning || state.running > 0) return { running: true, ...summaryOf(state) };
-  const todo = state.items.filter((i) => ['new', 'changed', 'failed'].includes(i.state));
+  const todo = state.allItems.filter((i) => ['new', 'changed', 'failed'].includes(i.state));
   if (!todo.length) return { upToDate: true, ...summaryOf(state) };
   const aiClient = client || (process.env.ANTHROPIC_API_KEY ? new Anthropic() : null);
   if (!aiClient) return { noKey: true, ...summaryOf(state) };
@@ -276,14 +292,14 @@ function summaryOf(state) {
 // Sugestão na reunião
 // ---------------------------------------------------------------------------------------------
 
-async function loadDoneStudies(pool, orgId) {
+async function loadDoneStudies(pool, orgId, identity) {
   const { rows } = await pool.query(
-    `SELECT p.id, p.title, s.study, s.file_hash
+    `SELECT p.id, p.title, p.scope, p.company_name, p.company_project_id, s.study, s.file_hash
      FROM parecer_studies s JOIN pareceres p ON p.id = s.parecer_id
      WHERE s.org_id=$1 AND s.status='done' AND s.study IS NOT NULL ORDER BY p.created_at DESC`,
     [orgId],
   );
-  return rows;
+  return rows.filter((r) => parecerUsableFor(r, identity));
 }
 
 const signatureOf = (studies) => sha1(studies.map((s) => `${s.id}:${s.file_hash}`).sort().join('|'));
@@ -317,7 +333,8 @@ function studyIndexLine(s) {
 export async function generateMeetingAdvice({ pool, orgId, projectId, meeting, client }) {
   const key = `${projectId}:${meeting.id}`;
   if (generatingAdvice.has(key)) return null;
-  const studies = await loadDoneStudies(pool, orgId);
+  const identity = await loadProjectIdentity(pool, projectId);
+  const studies = await loadDoneStudies(pool, orgId, identity);
   if (!studies.length) return null;
   const aiClient = client || (process.env.ANTHROPIC_API_KEY ? new Anthropic() : null);
   if (!aiClient) return null;
@@ -370,7 +387,8 @@ async function buildAdvice({ pool, orgId, projectId, meeting, studies, aiClient 
 }
 
 export async function getMeetingAdvice(pool, orgId, projectId, meetingId) {
-  const studies = await loadDoneStudies(pool, orgId);
+  const identity = await loadProjectIdentity(pool, projectId);
+  const studies = await loadDoneStudies(pool, orgId, identity);
   const { rows } = await pool.query(
     'SELECT advice, signature, generated_at FROM meeting_parecer_advice WHERE project_id=$1 AND meeting_id=$2',
     [projectId, meetingId],
@@ -378,7 +396,12 @@ export async function getMeetingAdvice(pool, orgId, projectId, meetingId) {
   const row = rows[0];
   const generating = generatingAdvice.has(`${projectId}:${meetingId}`);
   if (!row) return { hasStudies: studies.length > 0, advice: null, stale: false, generating };
-  const alive = new Set((await pool.query('SELECT id FROM pareceres WHERE org_id=$1', [orgId])).rows.map((r) => r.id));
+  // Defesa em profundidade: mesmo que uma sugestão antiga tenha sido gravada com um parecer que hoje não pode
+  // ser usado nesta empresa (tag editada depois), ele não sai daqui.
+  const alive = new Set(
+    (await pool.query('SELECT id, scope, company_name, company_project_id FROM pareceres WHERE org_id=$1', [orgId])).rows
+      .filter((r) => parecerUsableFor(r, identity)).map((r) => r.id),
+  );
   const items = ((row.advice && row.advice.items) || []).filter((it) => alive.has(it.parecerId));
   return {
     hasStudies: studies.length > 0,

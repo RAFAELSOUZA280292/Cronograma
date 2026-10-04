@@ -30,7 +30,12 @@ router.use(requireAuth, requireMasterOrPricetax);
 // RENATA estuda os pareceres (§70). `GET /study` e o "nada novo" de `POST /study` são só SQL — zero chamada à IA.
 router.get('/study', async (req, res, next) => {
   try {
-    res.json(await getStudyState(pool, effectiveOrgId(req)));
+    const projectId = req.query.projectId ? String(req.query.projectId) : null;
+    if (projectId) {
+      const { rows } = await pool.query('SELECT data, org_id FROM projects WHERE id=$1', [projectId]);
+      if (!rows[0] || !canAccessProject(req.user, rows[0].data, rows[0].org_id)) return res.status(404).json({ message: 'Empresa não encontrada.' });
+    }
+    res.json(await getStudyState(pool, effectiveOrgId(req), projectId));
   } catch (e) { next(e); }
 });
 

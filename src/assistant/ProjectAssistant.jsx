@@ -531,7 +531,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
           </div>
         </div>
       )}
-      {showStudy && <ParecerStudyModal onClose={() => setShowStudy(false)} />}
+      {showStudy && <ParecerStudyModal projectId={projectId} onClose={() => setShowStudy(false)} />}
     </>
   );
 }

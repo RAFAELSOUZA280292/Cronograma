@@ -337,7 +337,7 @@ async function loadRecentHistory(pool, conversationId, limit = 8) {
 // implementação. Nenhum chamador de produção (server/assistant.js) passa
 // esse parâmetro, então o comportamento de produção é bit-a-bit idêntico a
 // antes desta instrumentação.
-export async function askProjectAssistant({ pool, orgId, projectId, userId, question, context, projectData, projectUpdatedAt, trace }) {
+export async function askProjectAssistant({ pool, orgId, projectId, userId, question, context, projectData, projectUpdatedAt, trace, isStaff }) {
   const startedAt = Date.now();
   const conversationId = await getOrCreateConversation(pool, orgId, projectId, userId);
   const history = await loadRecentHistory(pool, conversationId);
@@ -459,7 +459,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
             kind: scope.kind !== 'qualquer' ? scope.kind : undefined,
             limit: 12,
           }),
-          loadRelevantFacts(pool, orgId, projectId, conversationId, 30, { query: scope.standaloneQuery }),
+          loadRelevantFacts(pool, orgId, projectId, conversationId, 30, { query: scope.standaloneQuery, isStaff: !!isStaff }),
           getConnectionStatus(userId),
         ]);
         if (trace) trace.retrievalLatencyMs = Date.now() - retrievalStartedAt;
