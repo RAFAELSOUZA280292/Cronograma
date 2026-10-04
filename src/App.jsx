@@ -1092,6 +1092,35 @@ export default function App() {
     })();
   }, [currentUser?.id]);
 
+  useEffect(() => {
+    if (!currentUser) return undefined;
+    const storageKey = `ptx-first-use:${currentUser.id}`;
+    const dayOf = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' });
+    let doneDay = '';
+    try { doneDay = window.localStorage.getItem(storageKey) || ''; } catch (e) { /* sem storage */ }
+    let inFlight = false;
+    let retryAt = 0;
+    function onUse() {
+      if (inFlight || Date.now() < retryAt) return;
+      const today = dayOf.format(new Date());
+      if (today === doneDay) return;
+      inFlight = true;
+      apiPost('/api/activity/ping', {})
+        .then(() => {
+          doneDay = today;
+          try { window.localStorage.setItem(storageKey, today); } catch (e) { /* sem storage */ }
+        })
+        .catch(() => { retryAt = Date.now() + 60000; })
+        .finally(() => { inFlight = false; });
+    }
+    window.addEventListener('pointerdown', onUse, true);
+    window.addEventListener('keydown', onUse, true);
+    return () => {
+      window.removeEventListener('pointerdown', onUse, true);
+      window.removeEventListener('keydown', onUse, true);
+    };
+  }, [currentUser?.id]);
+
   // Link permanente por TASK do XFlow (2026-08, pedido do Rafael): um link
   // tipo ".../#30" precisa cair direto dentro do XFlow (não só no gate),
   // pra XFlowScreen então abrir o BUG #30 específico (ver hashOpenDone lá).
@@ -3439,7 +3468,7 @@ function fmtAccessPlace(ev) {
   return country && country !== 'Brasil' ? [place, country].filter(Boolean).join(' · ') : place;
 }
 
-const ACCESS_KIND = { login: { label: 'Login', color: '#3ecf6e' }, visit: { label: 'Voltou à sessão', color: 'var(--text-4)' }, login_failed: { label: 'Tentativa falha', color: '#e2574c' } };
+const ACCESS_KIND = { login: { label: 'Login', color: '#3ecf6e' }, first_use: { label: 'Primeiro uso do dia', color: '#5B8DEF' }, visit: { label: 'Voltou à sessão', color: 'var(--text-4)' }, login_failed: { label: 'Tentativa falha', color: '#e2574c' } };
 
 function UserAccessHistory({ userId, summary }) {
   const [events, setEvents] = useState(null);
@@ -3465,7 +3494,7 @@ function UserAccessHistory({ userId, summary }) {
         const meta = ACCESS_KIND[e.kind] || { label: e.kind, color: 'var(--text-4)' };
         return (
           <div key={e.id} style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '6px 0', borderTop: '1px solid var(--border-1)', fontSize: 12 }}>
-            <span style={{ color: meta.color, fontWeight: 700, width: 108, flexShrink: 0 }}>{meta.label}</span>
+            <span style={{ color: meta.color, fontWeight: 700, width: 132, flexShrink: 0 }}>{meta.label}</span>
             <span style={{ color: 'var(--text-3)', width: 118, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{fmtTs(e.at)}</span>
             <span style={{ color: 'var(--text-4)', minWidth: 0, flex: 1 }}>{[fmtAccessPlace(e), e.ip, e.device].filter(Boolean).join(' · ')}</span>
           </div>
@@ -3615,6 +3644,7 @@ function UsersManagementScreen({
               </div>
               <div style={{ width: 56, textAlign: 'right', fontSize: 12.5, color: 'var(--text-3)', fontVariantNumeric: 'tabular-nums' }}>
                 {access && access[u.id] ? access[u.id].count : 0}
+                {access && access[u.id] && access[u.id].activeDays > 0 && <div style={{ fontSize: 10.5, color: 'var(--text-6)' }} title="Dias diferentes em que a pessoa usou o painel">{access[u.id].activeDays} dia{access[u.id].activeDays === 1 ? '' : 's'}</div>}
                 {access && access[u.id] && access[u.id].failed30d > 0 && <div style={{ fontSize: 10.5, color: '#e2574c' }} title="Tentativas de login com senha errada nos últimos 30 dias">{access[u.id].failed30d} falha{access[u.id].failed30d === 1 ? '' : 's'}</div>}
               </div>
               <div style={{ width: 80, display: 'flex', gap: 2, justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
