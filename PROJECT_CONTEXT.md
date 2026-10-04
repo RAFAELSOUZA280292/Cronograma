@@ -6514,6 +6514,44 @@ Verificado no browser local: coluna com 4 cards, pausar o 1º em modo Manual (fo
 Prioridade pausando um card Urgente (ficou depois dos ativos, antes não ficava), conferido na tela e no JSON
 salvo. Não é evento dos Indicadores (§65) — pausar não conta como abertura nem encerramento.
 
+## 67. Auditoria de acessos dos usuários (2026-10-04)
+
+Pedido do Rafael (Gestão de Usuários): registrar quantas vezes cada usuário acessou, o último acesso e o
+local pelo IP, "etc." — ele achava que "já existia um auditor". **Não existia**: o login não gravava nada
+(nenhum `last_login`, IP ou contagem em `users`). Construído do zero e aditivo.
+
+**Tabelas** (`server/db.js`, sem CHECK — lição do §38): `user_access_events` (`user_id` FK CASCADE, `kind`
+`login`|`visit`|`login_failed`, `at`, `ip`, `forwarded_for` bruto, `city/region/country`, `user_agent`) e
+`ip_geo_cache` (1 linha por IP — cada IP é consultado UMA vez).
+
+**Captura** (`server/accessLog.js`, tudo fire-and-forget: nunca atrasa nem derruba login):
+- `login`: `POST /auth/login` e `/auth/change-password-login` (que também emite sessão).
+- `login_failed`: senha errada de usuário EXISTENTE (usuário inexistente não grava — evita lixo).
+- `visit`: o cookie dura 7 dias, então contar só logins dá número irreal pra quem usa todo dia. `GET
+  /auth/me` (chamado a cada carga de página) chama `noteVisit`: se o último `login`/`visit` do usuário tem
+  mais de 30 min, grava `visit` ("voltou à sessão"). Dedupe em memória (`lastRecorded`) + checagem no banco
+  na 1ª vez após reinício. "Acessos" = `login` + `visit` (falha não conta).
+- IP (`clientIp`): `x-real-ip` → 1º do `x-forwarded-for` → `socket.remoteAddress`, tira `::ffff:`.
+  **Premissa NÃO verificada em produção**: assume que o proxy do Railway define `x-real-ip` sobrescrevendo o
+  do cliente; se não definir, um cliente poderia forjar o IP gravado. `forwarded_for` bruto fica no banco pra
+  auditar isso. Confirmar com o 1º login real do Rafael (IP mostrado × IP público dele).
+- Local: serviço externo **ipwho.is** (HTTPS, sem chave, timeout 3 s), resultado em `ip_geo_cache`; falha →
+  não grava local e só tenta de novo daquele IP após 10 min (`geoMiss`). IP privado/loopback nem consulta.
+  Trade-off aceito: o IP de cada usuário (inclusive de cliente) é enviado a um terceiro uma vez; alternativa
+  100% offline = pacote `geoip-lite`/`fast-geoip` (115–164 MB, só cidade com a base cheia) ou
+  `geoip-country` (8 MB, só país). Trocar é mexer só em `lookupGeo`.
+- Dispositivo = `deviceLabel(user_agent)` calculado na leitura ("Chrome · macOS").
+
+**Leitura (só master, mesma org)**: `GET /users` agora devolve também `access` (`{userId:{count, failed30d,
+last{at,ip,city,region,country,device}}}` via `accessSummary`); `GET /users/:id/access` → últimos 25 eventos.
+Frontend: `UsersManagementScreen` ganha colunas "Último acesso" (data/hora + cidade/UF + dispositivo) e
+"Acessos" (com "N falhas" em vermelho nos últimos 30 dias), linha equivalente no mobile, e `UserAccessHistory`
+no `EditUserModal`. `access` vem num estado separado (`userAccess`) porque as ações de editar/bloquear
+substituem o usuário por `res.user`, que não carrega o resumo.
+**Não retroativo**: não há log anterior — o contador começa do zero no deploy. 
+Verificado: 20 checagens em Node (prioridade de cabeçalho, geolocalização real, cache, IP privado, janela de
+30 min incl. reinício, falha não conta) + login/senha errada pelas rotas reais + tela e modal no browser.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
