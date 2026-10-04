@@ -9,7 +9,7 @@ import { createNotification, rowToNotification } from './notifications.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { CRM_ROLES } from './crm/permissions.js';
 import { searchProjectMemory } from './memoryRetrieval.js';
-import { recordAccess, noteVisit, accessSummary, recentAccess } from './accessLog.js';
+import { recordAccess, noteVisit, noteFirstUse, accessSummary, recentAccess } from './accessLog.js';
 import { syncCardEvents, getActivityStats, getDayDetail, cardEventsOf } from './personalActivity.js';
 
 function uid(p) {
@@ -194,6 +194,11 @@ router.post('/auth/logout', (req, res) => {
 router.get('/auth/me', requireAuth, (req, res) => {
   noteVisit(req.user.id, req);
   res.json({ user: req.user });
+});
+
+router.post('/activity/ping', requireAuth, (req, res) => {
+  noteFirstUse(req.user.id, req);
+  res.json({ ok: true });
 });
 
 router.patch('/auth/me', requireAuth, async (req, res, next) => {

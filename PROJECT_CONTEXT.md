@@ -6532,9 +6532,9 @@ local pelo IP, "etc." — ele achava que "já existia um auditor". **Não existi
   mais de 30 min, grava `visit` ("voltou à sessão"). Dedupe em memória (`lastRecorded`) + checagem no banco
   na 1ª vez após reinício. "Acessos" = `login` + `visit` (falha não conta).
 - IP (`clientIp`): `x-real-ip` → 1º do `x-forwarded-for` → `socket.remoteAddress`, tira `::ffff:`.
-  **Premissa NÃO verificada em produção**: assume que o proxy do Railway define `x-real-ip` sobrescrevendo o
-  do cliente; se não definir, um cliente poderia forjar o IP gravado. `forwarded_for` bruto fica no banco pra
-  auditar isso. Confirmar com o 1º login real do Rafael (IP mostrado × IP público dele).
+  **Confirmado em produção (2026-10-04)**: o 1º login real do Rafael mostrou "Curitiba, PR · Safari · macOS"
+  — o Railway entrega o IP real do visitante. NÃO verificado: se o proxy sobrescreve um `x-real-ip` forjado pelo
+  cliente (`forwarded_for` bruto fica no banco pra auditar).
 - Local: serviço externo **ipwho.is** (HTTPS, sem chave, timeout 3 s), resultado em `ip_geo_cache`; falha →
   não grava local e só tenta de novo daquele IP após 10 min (`geoMiss`). IP privado/loopback nem consulta.
   Trade-off aceito: o IP de cada usuário (inclusive de cliente) é enviado a um terceiro uma vez; alternativa
@@ -6572,6 +6572,29 @@ seletor de empresas).
 Verificado no browser local: card visível, clique abre a tela de usuários (4 usuários), via Super Admin →
 organização → usuários, "Voltar ao início" volta ao gate, Voltar/Avançar do navegador alternam certo.
 Não testado: usuário master NÃO super admin em produção (caminho sem seletor de organização, mais simples).
+
+**Primeiro uso do dia (2026-10-04, pedido do Rafael: "não só quando entra, mas no primeiro clique/uso do dia,
+inclusive o lugar")** — `kind='first_use'`. Por que existe: o cookie dura 7 dias e uma aba pode ficar aberta
+de um dia pro outro sem recarregar, então nem `login` nem `visit` (que dependem de carga de página) pegam o
+uso daquele dia. Peças:
+- **Cliente** (`App.jsx`, `useEffect` por `currentUser.id`): listeners em captura de `pointerdown` e `keydown`
+  (cobre mouse, toque e teclado). Só `pointerdown`/`keydown` — o poll de 6 s e os de notificação NÃO contam como
+  uso. Na 1ª interação de cada dia de Brasília (`Intl` `America/Sao_Paulo`, comparado com `doneDay` em
+  memória + `localStorage` `ptx-first-use:<userId>`) faz `POST /api/activity/ping`; falha tenta de novo só
+  após 60 s (`retryAt`), nunca a cada clique. localStorage indisponível → pinga 1x por carga de página.
+- **Servidor** (`noteFirstUse` em `accessLog.js`, rota `POST /activity/ping`): grava `first_use` **só se o
+  usuário não tem `login`/`visit`/`first_use` no dia (Brasília)**. Ou seja, "primeiro uso do dia" é
+  exatamente 1 evento por dia, de quem vier primeiro — login às 8h já é o uso do dia e o clique seguinte
+  não duplica. `login_failed` não conta como presença. Dedupe em memória (`firstUseDay`) + checagem no banco.
+  `recordAccess` de qualquer presença marca `firstUseDay`/`lastRecorded`, então depois de um `first_use`
+  recarregar a página em <30 min também não vira `visit`.
+- **Números**: "Acessos" agora = `login` + `visit` + `first_use` (`PRESENCE`); "Último acesso" = o mais recente
+  desses três (antes ignorava o uso de hoje se o login fosse de dias atrás); novo `activeDays` = dias distintos
+  (Brasília) com presença, mostrado sob o número de acessos ("N dias"). Histórico mostra "Primeiro uso do dia".
+Verificado: 11 checagens novas em Node (acesso ontem 23:30 Brasília não bloqueia hoje; login hoje 00:10
+bloqueia; falha não conta; 3 chamadas = 1 evento) + browser: 1º clique = 1 ping, clique/tecla seguintes = 0,
+virada do dia simulada (Date adiantado) = 1 ping novo; 1 linha no banco, com User-Agent.
+Bug achado pelo teste, não por leitura: `TZ` usado em `accessLog.js` sem estar declarado nesse arquivo.
 
 | Preciso de... | Vá para |
 |---|---|
