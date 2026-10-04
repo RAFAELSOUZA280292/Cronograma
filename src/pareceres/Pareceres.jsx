@@ -15,7 +15,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { FileText, X, LogOut, Plus, Upload, Trash2, Pencil, ExternalLink, MessageSquare, Send, Search, ArrowLeft, Globe, Building2 } from 'lucide-react';
 import { ThemeToggleBtn, SidePanel, useDebouncedField, fmtTs } from '../App.jsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
-import { PARECERES_CSS, fmtFileSize, PARECERES_MAX_MB } from './pareceresMeta.js';
+import { PARECERES_CSS, fmtFileSize, PARECERES_MAX_MB, splitParecerTitle, urlHost, initialsOf } from './pareceresMeta.js';
 
 function ScopeTag({ scope, companyName }) {
   return scope === 'cliente'
@@ -293,15 +293,16 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
 
   const selected = selectedId ? pareceres.find((p) => p.id === selectedId) : null;
 
+  const countGeral = pareceres.filter((p) => p.scope === 'geral').length;
+  const countOf = (name) => pareceres.filter((p) => p.scope === 'cliente' && p.company_name === name).length;
+  const filterActive = search.trim() || filterScope !== 'all';
+
   return (
-    <>
+    <div className="par-root">
       <style>{PARECERES_CSS}</style>
       <div className="par-shell">
         <div className="par-topbar">
-          <div className="par-topbar-left">
-            {onExit && <button className="par-back" onClick={onExit}><ArrowLeft size={16} /> Voltar</button>}
-            <div className="par-brand"><FileText size={18} color="#F5C400" /> Pareceres PRICETAX</div>
-          </div>
+          {onExit ? <button className="par-back" onClick={onExit}><ArrowLeft size={16} /> Voltar</button> : <span />}
           <div className="par-actions">
             <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
             <button title="Sair" onClick={onLogout}><LogOut size={16} /></button>
@@ -309,58 +310,71 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
         </div>
         <div className="par-body">
           <div className="par-inner">
-            <div className="par-toolbar">
-              <div className="par-search">
-                <Search size={14} />
-                <input type="text" placeholder="Buscar por identificação ou comentário…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <div className="par-hero">
+              <div>
+                <h1 className="par-title">Pareceres</h1>
+                <p className="par-subtitle">Documentos técnicos da PRICETAX para compartilhar com sócios e colaboradores.</p>
               </div>
-              {(pareceres.length > 0) && (
-                <select className="par-filter" value={filterScope} onChange={(e) => setFilterScope(e.target.value)}>
-                  <option value="all">Todos os pareceres</option>
-                  <option value="geral">Geral (todos os clientes)</option>
-                  {distinctClients.length > 0 && (
-                    <optgroup label="Cliente específico">
-                      {distinctClients.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </optgroup>
-                  )}
-                </select>
-              )}
-              <button className="par-btn par-btn-primary" onClick={() => setShowUpload(true)}><Plus size={14} /> Novo Parecer</button>
+              <button className="par-btn par-btn-primary" onClick={() => setShowUpload(true)}><Plus size={16} /> Novo Parecer</button>
             </div>
 
-            {loaded && pareceres.length > 0 && (
-              <div className="par-summary">
-                {pareceres.length} {pareceres.length === 1 ? 'parecer' : 'pareceres'}
-                {(search.trim() || filterScope !== 'all') ? ` · ${filtered.length} ${filtered.length === 1 ? 'encontrado' : 'encontrados'}` : ''}
+            <div className="par-toolbar">
+              <div className="par-search">
+                <Search size={16} />
+                <input type="text" placeholder="Buscar pareceres" value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
-            )}
+              {pareceres.length > 0 && (
+                <div className="par-chips">
+                  <button className={`par-chip${filterScope === 'all' ? ' on' : ''}`} onClick={() => setFilterScope('all')}>Todos <span className="par-chip-n">{pareceres.length}</span></button>
+                  {countGeral > 0 && <button className={`par-chip${filterScope === 'geral' ? ' on' : ''}`} onClick={() => setFilterScope('geral')}><Globe size={13} /> Geral <span className="par-chip-n">{countGeral}</span></button>}
+                  {distinctClients.map((c) => (
+                    <button key={c} className={`par-chip${filterScope === c ? ' on' : ''}`} onClick={() => setFilterScope(c)}><Building2 size={13} /> {c} <span className="par-chip-n">{countOf(c)}</span></button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {!loaded && <div className="par-empty">Carregando…</div>}
             {loaded && filtered.length === 0 && (
               <div className="par-empty">
-                {pareceres.length === 0 ? 'Nenhum Parecer enviado ainda. Clique em "Novo Parecer" pra subir o primeiro PDF.' : 'Nenhum Parecer encontrado com esse filtro.'}
+                <div className="par-empty-icon"><FileText size={26} /></div>
+                <div>{pareceres.length === 0 ? 'Nenhum parecer enviado ainda.' : 'Nenhum parecer encontrado com esse filtro.'}</div>
+                {pareceres.length === 0 && <div style={{ fontSize: 13, color: 'var(--text-6)' }}>Clique em "Novo Parecer" para subir o primeiro PDF.</div>}
               </div>
             )}
             {filtered.length > 0 && (
-              <div className="par-grid">
-                {filtered.map((p) => (
-                  <div key={p.id} className="par-card" onClick={() => setSelectedId(p.id)}>
-                    <div className="par-card-head">
-                      <div className="par-card-icon"><FileText size={18} /></div>
-                      <div>
-                        <div className="par-card-title">{p.title}</div>
-                        <div className="par-card-file">{p.file_name} · {fmtFileSize(p.file_size)}</div>
+              <>
+                {filterActive && <div style={{ fontSize: 13, color: 'var(--text-5)', marginBottom: 14 }}>{filtered.length} {filtered.length === 1 ? 'parecer encontrado' : 'pareceres encontrados'}</div>}
+                <div className="par-grid">
+                  {filtered.map((p) => {
+                    const { number, title } = splitParecerTitle(p.title);
+                    const host = urlHost(p.description);
+                    const nComments = (p.comments || []).length;
+                    return (
+                      <div key={p.id} className="par-card" role="button" tabIndex={0} onClick={() => setSelectedId(p.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedId(p.id); } }}>
+                        <div className="par-card-top">
+                          <ScopeTag scope={p.scope} companyName={p.company_name} />
+                          <span className="par-card-pdf" title={p.file_name}><FileText size={13} /> PDF · {fmtFileSize(p.file_size)}</span>
+                        </div>
+                        <div className="par-card-main">
+                          {number && <div className="par-card-kicker">Parecer Nº {number}</div>}
+                          <div className="par-card-title">{title}</div>
+                          {host
+                            ? <div className="par-card-link"><ExternalLink size={13} /><span>{host}</span></div>
+                            : p.description && <div className="par-card-desc">{p.description}</div>}
+                        </div>
+                        <div className="par-card-foot">
+                          <div className="par-card-author">
+                            <span className="par-avatar">{initialsOf(p.created_by_name)}</span>
+                            <span className="par-card-who"><b>{p.created_by_name || 'Alguém'}</b><span>{new Date(p.created_at).toLocaleDateString('pt-BR')}</span></span>
+                          </div>
+                          {nComments > 0 && <span className="par-card-comments" title={`${nComments} comentário${nComments === 1 ? '' : 's'}`}><MessageSquare size={14} /> {nComments}</span>}
+                        </div>
                       </div>
-                    </div>
-                    <ScopeTag scope={p.scope} companyName={p.company_name} />
-                    {p.description && <div className="par-card-desc">{p.description}</div>}
-                    <div className="par-card-foot">
-                      <span>{p.created_by_name || 'alguém'} · {fmtTs(p.created_at)}</span>
-                      <span className="par-card-comments"><MessageSquare size={12} /> {(p.comments || []).length}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -375,6 +389,6 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
           onDeleted={handleDeleted}
         />
       )}
-    </>
+    </div>
   );
 }
