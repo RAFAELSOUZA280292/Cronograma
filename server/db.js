@@ -919,6 +919,7 @@ export async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_token_created_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_last_used_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_views JSONB`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_token_enc TEXT`);
   // "Meu dia" (2026-10-05, §77): preferências do usuário, marca da primeira configuração e cache diário das fontes.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_done_at TIMESTAMPTZ`);

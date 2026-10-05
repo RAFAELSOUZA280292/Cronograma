@@ -6904,6 +6904,15 @@ próxima reunião. Tocar no widget abre `/gestao-atividades`.
   no painel NÃO exige colar script de novo; mudar o próprio script exige (token não é recuperável: gerar código novo e substituir o
   conteúdo). Testado: unitário (urgentes, agenda, validação), HTTP (GET/PUT, `?view=`, nome inexistente → `viewFound:false`),
   script com globais simuladas e tela no browser. Não testado no iPhone com mais de uma visão.
+- **Um script por visão (2026-10-05)**: o Rafael notou que havia um "link" só (o script) mesmo depois de criar visões, e o que estava no
+  iPhone era o antigo. Agora cada visão tem o **seu** script, com o nome da visão embutido (`const VIEW`); o Parameter do widget, se
+  preenchido, ainda tem prioridade. O token deixou de ser "mostrado uma vez": fica **cifrado** (AES-256-GCM, chave derivada de
+  `JWT_SECRET`, coluna `users.widget_token_enc`; o `widget_token_hash` continua sendo o que autentica) e `GET /api/widget/token`
+  (cookie, `no-store`) o devolve, então o painel monta e copia o script de qualquer visão quando quiser, sem gerar código novo.
+  Código criado antes desta versão não é recuperável (`status.recoverable=false`): o painel avisa e pede um código novo uma vez.
+  Mudar o conteúdo de uma visão não exige colar de novo; criar visão nova ou trocar o nome exige um script novo. Trocar `JWT_SECRET`
+  invalida os tokens guardados (gera-se outro). Aba iPhone: lista de visões com "Copiar script desta visão" (desabilitado com
+  alterações não salvas), nome sugerido "PRICETAX <visão>" e plano B em texto selecionável se a área de transferência falhar.
 - **Atalho na tela inicial**: o gate (`WorkspaceGateScreen`) ganhou o botão rotulado "Meu perfil" (avatar + texto) no cabeçalho e renderiza o `MyProfileModal`; antes o perfil só abria de dentro de Empresas/lista de empresas, difícil de achar. Os demais módulos (Agenda, Atividades…) continuam sem o atalho.
 - **Tela**: "Widget do iPhone" em Meu perfil (`src/widget/WidgetSection.jsx`): gerar código, mostrar o script UMA vez (token
   não é recuperável), Copiar, passo a passo, gerar novo (confirma que desliga o antigo), revogar (confirma).

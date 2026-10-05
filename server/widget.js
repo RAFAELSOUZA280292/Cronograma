@@ -15,6 +15,24 @@ const PREFIX = 'pxw_';
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const newToken = () => PREFIX + crypto.randomBytes(32).toString('base64url');
 
+// O token fica recuperável (AES-256-GCM, chave derivada do JWT_SECRET) para o painel poder mostrar o script de cada visão a qualquer
+// momento, sem gerar código novo. Sem JWT_SECRET o servidor nem sobe; trocar o segredo invalida os tokens guardados (gera-se outro).
+const encKey = () => crypto.createHash('sha256').update(`widget-token|${process.env.JWT_SECRET || ''}`).digest();
+function encrypt(text) {
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', encKey(), iv);
+  const data = Buffer.concat([c.update(text, 'utf8'), c.final()]);
+  return [iv, c.getAuthTag(), data].map((b) => b.toString('base64')).join('.');
+}
+function decrypt(blob) {
+  try {
+    const [iv, tag, data] = String(blob || '').split('.').map((x) => Buffer.from(x, 'base64'));
+    const d = crypto.createDecipheriv('aes-256-gcm', encKey(), iv);
+    d.setAuthTag(tag);
+    return Buffer.concat([d.update(data), d.final()]).toString('utf8');
+  } catch { return null; }
+}
+
 const WINDOW_MS = 60 * 1000;
 const MAX_PER_WINDOW = 30;
 const hits = new Map();
@@ -42,9 +60,9 @@ async function upcomingEvents(userId, now) {
 
 router.get('/status', requireAuth, async (req, res, next) => {
   try {
-    const { rows } = await pool.query('SELECT widget_token_created_at, widget_last_used_at FROM users WHERE id=$1', [req.user.id]);
+    const { rows } = await pool.query('SELECT widget_token_created_at, widget_last_used_at, widget_token_enc FROM users WHERE id=$1', [req.user.id]);
     const r = rows[0] || {};
-    res.json({ active: !!r.widget_token_created_at, createdAt: r.widget_token_created_at || null, lastUsedAt: r.widget_last_used_at || null });
+    res.json({ active: !!r.widget_token_created_at, recoverable: !!(r.widget_token_enc && decrypt(r.widget_token_enc)), createdAt: r.widget_token_created_at || null, lastUsedAt: r.widget_last_used_at || null });
   } catch (e) { next(e); }
 });
 
@@ -64,10 +82,20 @@ router.put('/views', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get('/token', requireAuth, async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const { rows } = await pool.query('SELECT widget_token_enc FROM users WHERE id=$1', [req.user.id]);
+    const token = rows[0] && rows[0].widget_token_enc ? decrypt(rows[0].widget_token_enc) : null;
+    if (!token) return res.status(404).json({ message: 'Gere um código do widget.' });
+    res.json({ token });
+  } catch (e) { next(e); }
+});
+
 router.post('/token', requireAuth, async (req, res, next) => {
   try {
     const token = newToken();
-    await pool.query('UPDATE users SET widget_token_hash=$1, widget_token_created_at=now(), widget_last_used_at=NULL WHERE id=$2', [sha256(token), req.user.id]);
+    await pool.query('UPDATE users SET widget_token_hash=$1, widget_token_enc=$2, widget_token_created_at=now(), widget_last_used_at=NULL WHERE id=$3', [sha256(token), encrypt(token), req.user.id]);
     res.set('Cache-Control', 'no-store');
     res.json({ token });
   } catch (e) { next(e); }
@@ -75,7 +103,7 @@ router.post('/token', requireAuth, async (req, res, next) => {
 
 router.delete('/token', requireAuth, async (req, res, next) => {
   try {
-    await pool.query('UPDATE users SET widget_token_hash=NULL, widget_token_created_at=NULL, widget_last_used_at=NULL WHERE id=$1', [req.user.id]);
+    await pool.query('UPDATE users SET widget_token_hash=NULL, widget_token_enc=NULL, widget_token_created_at=NULL, widget_last_used_at=NULL WHERE id=$1', [req.user.id]);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
