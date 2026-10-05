@@ -4,7 +4,7 @@ import { apiGet, apiPost, apiPut, apiDelete } from '../lib/api.js';
 import { buildScriptableScript } from './scriptableScript.js';
 
 const CSS = `
-  .wgt { margin-top:26px; padding-top:20px; border-top:1px solid var(--border-1); font-family:'Inter', sans-serif; }
+  .wgt { font-family:'Inter', sans-serif; }
   .wgt-label { font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text-6); display:flex; align-items:center; gap:6px; }
   .wgt p { font-size:12px; line-height:1.5; color:var(--text-4); margin:6px 0 0; }
   .wgt-btn { display:flex; align-items:center; justify-content:center; gap:7px; width:100%; margin-top:10px; font-family:inherit; font-size:13px; font-weight:700; border-radius:10px; padding:10px 14px; cursor:pointer; border:1px solid var(--border-3); background:var(--bg-3); color:var(--text-2); }

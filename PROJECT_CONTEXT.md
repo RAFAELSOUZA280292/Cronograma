@@ -6915,6 +6915,41 @@ próxima reunião. Tocar no widget abre `/gestao-atividades`.
   simuladas (médio/pequeno/grande, offline com e sem cache, 401, fora do widget, agenda desconectada) e a tela no browser
   (gerar → script → fechar → revogar). **Confirmado em 2026-10-05 no iPhone real do Rafael** (widget médio: atrasadas, hoje e reunião "Agora" vinda do Google Calendar de produção).
 
+## 77. Meu dia, boas-vindas e Meu perfil em abas (2026-10-05)
+
+Pedido do Rafael: transformar o painel num ecossistema para ele, os sócios e todo colaborador; na primeira entrada a pessoa
+deve ser levada a **configurar a agenda e o que quer receber**, e poder **escolher conteúdos diários** (católico, cristão,
+horóscopo, horóscopo chinês, sabedoria, inspiração) — visível, não escondido; e o Meu perfil deve ser "extremamente funcional".
+
+- **Meu perfil em abas** (`MyProfileModal`, App.jsx): Perfil (avatar + senha), **Meu dia**, Agenda (Google Calendar), iPhone
+  (widget, §76). Abre direto na aba certa (`openProfile(tab)`); o botão "Meu perfil" fica na tela inicial (§76).
+- **Boas-vindas** (`src/daily/WelcomeSetup.jsx`, montada por `useWelcomeSetup` numa raiz React própria, porque o App tem dezenas de
+  retornos por módulo): 3 passos (conectar Google · montar o dia · pronto) por cima de qualquer tela, para quem tem
+  `onboarding_done_at` nulo — **inclui todos os usuários já existentes, uma vez**. "Agora não" também marca como feito (não insiste);
+  tudo continua em Meu perfil. Voltando do OAuth do Google com onboarding pendente, a aba Agenda só abre quando já concluiu.
+- **Tela inicial**: seção "Meu dia" (`DailyCards`) acima dos módulos, recolhível (lembra em `localStorage` `pt-daily-open`); sem nenhum
+  item escolhido mostra o convite "Monte o seu dia"; "Personalizar" abre Meu perfil > Meu dia. "Ver o conteúdo do dia" desligado = some.
+- **Dados** (aditivos em `db.js`): `users.preferences` JSONB `{enabled, cards[], birthDate}`, `users.onboarding_done_at`,
+  tabela `daily_content(kind,key,day)` = cache. `rowToUser` ganhou `onboardingDone`. Rotas `/api/daily`: `GET /` (cartões do usuário,
+  `no-store`), `GET/PUT /preferences` (valida cartões e data: AAAA-MM-DD real, 1900..hoje; ordem canônica), `POST /onboarding-complete`.
+  A data de nascimento é do próprio usuário (só ele lê/grava) e serve só para signo e animal.
+- **Fontes** (`server/dailyContent.js`; cada uma buscada UMA vez por dia, não por usuário; timeout 8 s; falha → cartão "Indisponível",
+  nova tentativa só após 10 min): **Evangelho** = Liturgia Diária (`liturgia.up.railway.app/v2`, comunitária, NÃO oficial da CNBB — o cartão avisa);
+  **Versículo** = Midvash `/v1/votd?language=pt-br`; **Sabedoria** = Provérbios (lista de 30 passagens rotativa por dia do ano) via Midvash,
+  Bíblia Livre CC BY 4.0 — **o crédito aparece junto do texto (obrigatório)**; **Horóscopo** = AstroWay `lang=pt` (12 signos, 12 chamadas/dia,
+  limite 30/h por IP); **Horóscopo chinês** e **Inspiração** = texto **gerado por IA** (`claude-haiku-4-5`, UMA chamada por dia com os 12
+  animais + a inspiração, `messages.parse`), sempre marcado como IA/entretenimento; a inspiração nunca atribui frase a autor real.
+  Signo ocidental e animal chinês calculados no servidor (animal pelo calendário chinês do próprio runtime via `Intl`, que acerta quem nasceu
+  em jan/fev antes do Ano-Novo Lunar; conferido em 12 datas).
+- **Fontes que a pesquisa recomendou e NÃO usei** (testadas em 2026-10-05): ABíbliaDigital (HTTP 503), Ferramentas da Web de frases
+  (sem resposta), Ditado API (deploy removido), DivineAPI (exige chave, 14 dias de teste). Frases de autores famosos ficaram de fora de propósito:
+  sem API confiável e com risco de atribuição falsa.
+- **Verificado**: fontes reais (liturgia, versículo, sabedoria, horóscopo) e cache; IA com cliente simulado (uma chamada para 3 pedidos
+  simultâneos, falha degrada sem derrubar); validação da API; fluxo completo no browser (boas-vindas → 3 passos → cartões → Personalizar → salvar)
+  em desktop e celular. **Não testado**: a chamada real à IA (Haiku com saída estruturada) — sem `ANTHROPIC_API_KEY` local; se falhar em
+  produção, os dois cartões de IA mostram "Indisponível" e o log traz `Meu dia: falha em ...`. Também não testado: Google OAuth real no
+  fluxo de boas-vindas. "Receber mensagens" foi entendido como ver o conteúdo do dia; não há e-mail/WhatsApp/push no painel.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
