@@ -973,7 +973,7 @@ mecanismo.
 - **Arquivo enviado por usuário**: lista fechada de extensões, `Content-Type` do servidor, `nosniff`; HTML só com CSP `sandbox`; SVG recusado. Tamanho validado no servidor e na tela.
 - **Segredo de integração** (token de widget, chave): só o hash autentica; se precisar reexibir, guardar **cifrado** (AES-GCM) — nunca em claro; credencial em `Authorization`, **nunca na URL** (cai em log).
 - **IA com custo**: nunca uma chamada por usuário/visita — cache por dia ou por hash do insumo, 1 chamada para N pessoas, "nada novo" = zero IA; falha de IA degrada o cartão ("Indisponível") sem derrubar a tela.
-- **Conteúdo de terceiros**: testar a API antes (§77); mostrar o crédito da licença junto do texto; texto gerado por IA sempre rotulado; **nunca atribuir frase a pessoa real** sem fonte verificada.
+- **Conteúdo de terceiros**: testar a API antes (§77); mostrar o crédito da licença junto do texto; texto gerado por IA sempre rotulado; **frase de pessoa real só de base curada com fonte**, conferida na fonte oficial antes de ir para a tela (o que veio de pesquisa de terceiros e não foi conferido fica separado e com ressalva — §77, Senna).
 - **Datas**: "dias" de calendário no fuso local, não blocos de 24 h (§75); "hoje" no servidor em `America/Sao_Paulo` (`widgetSummary.todayInSp`, §76–§77), nunca o fuso do processo (§36).
 - **Texto "Nd" ou contagem exibida** precisa ter um teste com a data de borda (domingo→segunda, virada de mês) antes de dizer "feito" — o erro de §75 foi falta disso.
 - **Antes de dizer "feito"**: rastrear o dado até a tela e provar valor esperado × obtido; o que não foi possível testar (IA real, aparelho real, OAuth real) entra na entrega como **"não testado"**, e na §15.
@@ -7070,13 +7070,21 @@ horóscopo, horóscopo chinês, sabedoria, inspiração) — visível, não esco
   nova tentativa só após 10 min): **Evangelho** = Liturgia Diária (`liturgia.up.railway.app/v2`, comunitária, NÃO oficial da CNBB — o cartão avisa);
   **Versículo** = Midvash `/v1/votd?language=pt-br`; **Sabedoria** = Provérbios (lista de 30 passagens rotativa por dia do ano) via Midvash,
   Bíblia Livre CC BY 4.0 — **o crédito aparece junto do texto (obrigatório)**; **Horóscopo** = AstroWay `lang=pt` (12 signos, 12 chamadas/dia,
-  limite 30/h por IP); **Horóscopo chinês** e **Inspiração** = texto **gerado por IA** (`claude-haiku-4-5`, UMA chamada por dia com os 12
-  animais + a inspiração, `messages.parse`), sempre marcado como IA/entretenimento; a inspiração nunca atribui frase a autor real.
+  limite 30/h por IP); **Horóscopo chinês** = texto **gerado por IA** (`claude-haiku-4-5`, UMA chamada por dia com os 12
+  animais, `messages.parse`), sempre marcado como IA/entretenimento. **Inspiração** = **frase do dia de Ayrton Senna**, NÃO IA: base curada em `server/inspirationQuotes.js` (ver "Frases do Senna" abaixo).
   Signo ocidental e animal chinês calculados no servidor (animal pelo calendário chinês do próprio runtime via `Intl`, que acerta quem nasceu
   em jan/fev antes do Ano-Novo Lunar; conferido em 12 datas).
 - **Fontes que a pesquisa recomendou e NÃO usei** (testadas em 2026-10-05): ABíbliaDigital (HTTP 503), Ferramentas da Web de frases
-  (sem resposta), Ditado API (deploy removido), DivineAPI (exige chave, 14 dias de teste). Frases de autores famosos ficaram de fora de propósito:
-  sem API confiável e com risco de atribuição falsa.
+  (sem resposta), Ditado API (deploy removido), DivineAPI (exige chave, 14 dias de teste). Frases de autores famosos ficaram de fora até o Rafael trazer uma lista própria (Senna, ver abaixo): não há API
+  confiável e o risco é a atribuição falsa.
+- **Frases do Senna (2026-10-05)** — pedido do Rafael: "aprenda essas frases do Senna, imputa na memória da RENATA" e usar em *Mensagem do dia › Inspiração*. A lista veio de uma pesquisa colada por ele; **antes de usar, conferi na fonte**:
+  a página oficial `senna.com` ("Confira dez frases motivacionais de Ayrton Senna", 23/06/2022) traz 10 frases. **Quatro** das 12 da pesquisa batem palavra por palavra (Vencer é o que importa…; O segundo… dos perdedores; O medo me fascina; Nas adversidades…); a página tem **outras seis** que a pesquisa
+  não trazia e que entraram (dedicação total; "Seja você quem for…"; "Não sei dirigir de outra maneira…"; empenho/"meio termo"; "O medo faz parte da vida da gente…"; "Vencer sem correr riscos…"). As **8 restantes** da pesquisa (TAG Heuer, Suzuka 1988, McLaren Senna 2017, Jackie Stewart 1990, Roda Viva 1986 ×2, acervo, Folha 1994) **não consegui conferir**;
+  a do TAG Heuer ("Quando chego ao meu limite, descubro que tenho força para ir além") tem redação **diferente** da oficial — marcada como provável paráfrase.
+  Duas camadas que nunca se misturam (`verification` em `server/inspirationQuotes.js`): `oficial` (10) → vai para a Mensagem do dia (uma por dia, `quoteOfDay`, determinística por data, rotaciona as 10; cartão mostra a frase, "— Ayrton Senna · tema", fonte e link) e para a RENATA; `pesquisa` (8) → **só na memória da RENATA, com a ressalva escrita no fato** ("NÃO conferida — diga isso ao citar").
+  **Memória da RENATA**: 19 fatos org da organização PRICETAX em `ai_knowledge_facts` (1 regra "Como citar Ayrton Senna" + 18 frases; ids fixos `akf-quote-*`, `origin='other'`), semeados no boot (`seedQuoteFacts`, idempotente, `ON CONFLICT DO NOTHING` — edição feita depois na Central de Conhecimento não é sobrescrita; embeddings em melhor esforço, `embedQuoteFacts`).
+  **Cuidado com a janela de contexto**: `loadRelevantFacts` pega os 30 fatos de org mais recentes para TODA pergunta; 19 fatos novos de uma vez a inundariam. Por isso os `akf-quote-*` ficam **fora** da janela geral e só entram quando a pergunta casa `QUOTE_TRIGGER` (senna/ayrton/frase/citação/inspiração/motivação).
+  A IA deixou de escrever a inspiração (o campo saiu do schema do Haiku). **Não testado**: a RENATA respondendo de fato (sem `ANTHROPIC_API_KEY` local — conferido só o que entra no contexto); embeddings locais falharam (chave Voyage inválida aqui), seguem só com busca por palavras.
 - **Verificado**: fontes reais (liturgia, versículo, sabedoria, horóscopo) e cache; IA com cliente simulado (uma chamada para 3 pedidos
   simultâneos, falha degrada sem derrubar); validação da API; fluxo completo no browser (boas-vindas → 3 passos → cartões → Personalizar → salvar)
   em desktop e celular. **Não testado**: a chamada real à IA (Haiku com saída estruturada) — sem `ANTHROPIC_API_KEY` local; se falhar em

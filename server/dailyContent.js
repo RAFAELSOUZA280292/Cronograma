@@ -4,13 +4,14 @@
 // Midvash (versículo do dia + passagens, Bíblia Livre CC BY 4.0, crédito obrigatório), AstroWay (horóscopo, lang=pt).
 // ABíbliaDigital (503), Ferramentas da Web (sem resposta) e Ditado API (fora do ar) ficaram de fora.
 // Horóscopo chinês e Inspiração são textos GERADOS por IA (sem API gratuita confiável) e saem marcados como tal;
-// a inspiração nunca atribui frase a autor real.
+// 
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { pool } from './db.js';
 import { logMetric } from './metrics.js';
 import { todayInSp } from './widgetSummary.js';
+import { quoteOfDay } from './inspirationQuotes.js';
 
 export const CARDS = {
   liturgy: 'Evangelho do dia',
@@ -118,14 +119,12 @@ export async function fetchHoroscope(signId) {
 }
 
 const AiDaySchema = z.object({
-  inspiration: z.string().describe('Reflexão original de 2 a 4 frases em português do Brasil, para começar o dia de trabalho com ânimo. Nunca atribua a nenhum autor. Sem citações.'),
   rat: z.string(), ox: z.string(), tiger: z.string(), rabbit: z.string(), dragon: z.string(), snake: z.string(),
   horse: z.string(), goat: z.string(), monkey: z.string(), rooster: z.string(), dog: z.string(), pig: z.string(),
 });
 
 const AI_MODEL = 'claude-haiku-4-5-20251001';
 const AI_SYSTEM = `Você escreve o conteúdo leve do dia para o painel de uma consultoria tributária brasileira.
-- "inspiration": uma reflexão ORIGINAL, 2 a 4 frases, tom caloroso e profissional. Não cite autores nem frases famosas.
 - Um texto por animal do zodíaco chinês (rat, ox, tiger, rabbit, dragon, snake, horse, goat, monkey, rooster, dog, pig): 2 a 3 frases sobre o dia, no tom de horóscopo de entretenimento, baseado nas características tradicionais do animal. Sem promessas, sem conselho financeiro, de saúde ou jurídico.
 - Português do Brasil, sem emojis, sem markdown.`;
 
@@ -198,7 +197,7 @@ export async function loadCard(kind, { day, birthDate }) {
     if (kind === 'liturgy') return { kind, title, ok: true, data: await cached('liturgy', 'br', day, () => fetchLiturgy(day)) };
     if (kind === 'votd') return { kind, title, ok: true, data: await cached('votd', 'pt', day, () => fetchVotd()) };
     if (kind === 'wisdom') return { kind, title, ok: true, data: await cached('wisdom', 'pt', day, () => fetchWisdom(day)) };
-    if (kind === 'inspiration') { const a = await aiDay(day); return { kind, title, ok: true, data: { text: a.inspiration, ai: true } }; }
+    if (kind === 'inspiration') { const q = quoteOfDay(day); return { kind, title, ok: true, data: { text: q.text, author: q.author, theme: q.theme, source: q.source, sourceUrl: q.sourceUrl } }; }
     if (kind === 'horoscope') {
       const sign = westernSign(birthDate);
       if (!sign) return { kind, title, ok: false, needsBirth: true };
