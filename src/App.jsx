@@ -5157,12 +5157,13 @@ function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersona
             <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={16} /></button>
           </div>
         </div>
-        <h1 style={S.loginTitle}>Olá, {(user.name || '').split(' ')[0] || user.username}</h1>
-        <p style={S.loginSub}>Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>
+        <h1 style={{ ...S.loginTitle, marginBottom: 14 }}>Olá, {(user.name || '').split(' ')[0] || user.username}</h1>
+
+        <DailyCards onConfigure={onConfigureDaily} reloadKey={dailyReload} />
 
         <RenataAgendaBriefing user={user} onOpenAgenda={onPickAgenda} personalBoard={personalBoard} onOpenPersonal={onPickPersonal} />
 
-        <DailyCards onConfigure={onConfigureDaily} reloadKey={dailyReload} />
+        <p style={S.loginSub}>Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>
 
         <div style={S.workspaceChoices}>
           {onPickCompany && (
