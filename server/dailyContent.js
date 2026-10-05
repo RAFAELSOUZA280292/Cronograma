@@ -197,7 +197,7 @@ export async function loadCard(kind, { day, birthDate }) {
     if (kind === 'liturgy') return { kind, title, ok: true, data: await cached('liturgy', 'br', day, () => fetchLiturgy(day)) };
     if (kind === 'votd') return { kind, title, ok: true, data: await cached('votd', 'pt', day, () => fetchVotd()) };
     if (kind === 'wisdom') return { kind, title, ok: true, data: await cached('wisdom', 'pt', day, () => fetchWisdom(day)) };
-    if (kind === 'inspiration') { const q = quoteOfDay(day); return { kind, title, ok: true, data: { text: q.text, author: q.author, theme: q.theme, source: q.source, sourceUrl: q.sourceUrl } }; }
+    if (kind === 'inspiration') { const q = quoteOfDay(day); return { kind, title, ok: true, data: { text: q.text, author: q.author, theme: q.theme, source: q.source, sourceUrl: q.sourceUrl, original: q.original || '', translated: !!q.translated } }; }
     if (kind === 'horoscope') {
       const sign = westernSign(birthDate);
       if (!sign) return { kind, title, ok: false, needsBirth: true };
