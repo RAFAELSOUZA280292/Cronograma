@@ -10,6 +10,7 @@ export const MODE_PATHS = {
   macro: '/visao-geral',
   knowledge: '/conhecimento',
   pareceres: '/pareceres',
+  modelos: '/modelos',
   crm: '/crm',
   users: '/usuarios',
 };
@@ -56,6 +57,7 @@ export function canOpenMode(mode, user) {
     case 'macro': return !!user.companiesAccess && !!user.allCompaniesAccess;
     case 'knowledge': return isStaff;
     case 'pareceres': return isStaff;
+    case 'modelos': return isStaff;
     case 'crm': return !!user.crmAccess;
     case 'users': return user.role === 'master';
     default: return false;
