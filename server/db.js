@@ -944,6 +944,33 @@ export async function initDb() {
     )
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS document_templates_org_idx ON document_templates(org_id, created_at DESC)`);
+  // Um modelo com VÁRIOS anexos (2026-10-05, §78): o mesmo documento em Word, Excel, PDF, HTML, link… As colunas de arquivo/link
+  // da tabela acima ficam como legado (só leitura da migração); o conteúdo vive aqui.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS document_template_items (
+      id            TEXT PRIMARY KEY,
+      template_id   TEXT NOT NULL REFERENCES document_templates(id) ON DELETE CASCADE,
+      kind          TEXT NOT NULL DEFAULT 'file',
+      file_name     TEXT,
+      mime_type     TEXT,
+      file_size     INT,
+      file_data     BYTEA,
+      url           TEXT,
+      link_meta     JSONB,
+      preview_text  TEXT NOT NULL DEFAULT '',
+      position      INT NOT NULL DEFAULT 0,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS document_template_items_tpl_idx ON document_template_items(template_id, position)`);
+  await pool.query(`
+    INSERT INTO document_template_items (id, template_id, kind, file_name, mime_type, file_size, file_data, url, link_meta, preview_text, position, created_at)
+    SELECT 'item-' || t.id, t.id, t.kind, t.file_name, t.mime_type, t.file_size, t.file_data, t.url, t.link_meta, t.preview_text, 0, t.created_at
+    FROM document_templates t
+    WHERE (t.file_data IS NOT NULL OR t.url IS NOT NULL)
+      AND NOT EXISTS (SELECT 1 FROM document_template_items i WHERE i.template_id = t.id)
+  `);
+  await pool.query(`UPDATE document_templates t SET file_data = NULL WHERE file_data IS NOT NULL AND EXISTS (SELECT 1 FROM document_template_items i WHERE i.id = 'item-' || t.id AND i.file_data IS NOT NULL)`);
   // "Meu dia" (2026-10-05, §77): preferências do usuário, marca da primeira configuração e cache diário das fontes.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_done_at TIMESTAMPTZ`);

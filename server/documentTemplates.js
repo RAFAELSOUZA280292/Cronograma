@@ -1,7 +1,8 @@
-// Modelos de documentos (2026-10-05, §78) — irmã da aba Pareceres: biblioteca de modelos (arquivos e links) para sócios e
-// colaboradores. Mesma regra de acesso dos Pareceres (master/pricetax, nunca 'cliente') e do mesmo jeito: effectiveOrgId,
-// arquivo em BYTEA, comentários em JSONB. Arquivo: lista fechada de extensões, Content-Type decidido pelo servidor (nunca
-// o que o navegador mandou), nada de HTML/SVG (seria XSS servido da nossa origem). Link: prévia por server/linkPreview.js.
+// Modelos de documentos (2026-10-05, §78) — irmã da aba Pareceres: biblioteca de modelos para sócios e colaboradores. Um MODELO
+// (título, categoria, para que serve, comentários) tem vários ANEXOS: o mesmo documento em Word, Excel, PDF, HTML, link…
+// Mesma regra de acesso dos Pareceres (master/pricetax, nunca 'cliente') e effectiveOrgId. Arquivo: lista fechada de extensões,
+// Content-Type decidido pelo servidor (nunca o do navegador). HTML é aceito, mas servido ISOLADO: CSP `sandbox` sem scripts e sem
+// origem própria, então nem aberto direto na nossa origem consegue ler cookie ou chamar a API. SVG segue recusado. Link: server/linkPreview.js.
 import { Router } from 'express';
 import { pool } from './db.js';
 import { requireAuth, requireMasterOrPricetax } from './auth.js';
@@ -12,6 +13,7 @@ import { officePreviewText } from './officePreview.js';
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
 export const MAX_FILE_BYTES = 30 * 1024 * 1024;
+export const MAX_ITEMS = 12;
 
 export const FILE_TYPES = {
   pdf: { mime: 'application/pdf', kind: 'pdf', inline: true },
@@ -21,6 +23,8 @@ export const FILE_TYPES = {
   gif: { mime: 'image/gif', kind: 'image', inline: true },
   webp: { mime: 'image/webp', kind: 'image', inline: true },
   txt: { mime: 'text/plain; charset=utf-8', kind: 'text', inline: true },
+  html: { mime: 'text/html; charset=utf-8', kind: 'html', inline: true, sandbox: true },
+  htm: { mime: 'text/html; charset=utf-8', kind: 'html', inline: true, sandbox: true },
   csv: { mime: 'text/csv; charset=utf-8', kind: 'excel', inline: false },
   doc: { mime: 'application/msword', kind: 'word', inline: false },
   docx: { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', kind: 'word', inline: false },
@@ -39,101 +43,139 @@ export function extOf(fileName) {
   return m ? m[1].toLowerCase() : '';
 }
 
-const LIST_COLUMNS = 'id, kind, title, description, category, file_name, mime_type, file_size, url, link_meta, preview_text, comments, created_by, created_by_name, created_at, updated_at';
+const SANDBOX_CSP = "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data: https: http:; font-src data:; media-src 'none'; frame-ancestors 'self'";
+
+const SELECT_TEMPLATE = `
+  SELECT t.id, t.title, t.description, t.category, t.comments, t.created_by, t.created_by_name, t.created_at, t.updated_at,
+    COALESCE((SELECT json_agg(json_build_object(
+        'id', i.id, 'kind', i.kind, 'file_name', i.file_name, 'file_size', i.file_size, 'url', i.url,
+        'link_meta', i.link_meta, 'preview_text', i.preview_text) ORDER BY i.position, i.created_at)
+      FROM document_template_items i WHERE i.template_id = t.id), '[]'::json) AS items
+  FROM document_templates t`;
 
 export const router = Router();
 router.use(requireAuth, requireMasterOrPricetax);
 
 const cleanCategory = (v) => String(v || '').trim().slice(0, 40);
 
+async function loadTemplate(id, orgId) {
+  const { rows } = await pool.query(`${SELECT_TEMPLATE} WHERE t.id=$1 AND t.org_id=$2`, [id, orgId]);
+  return rows[0] || null;
+}
+
+// Valida um anexo vindo do corpo da requisição e devolve as colunas a gravar (ou { error }).
+async function parseItem(body) {
+  const kind = body.kind === 'link' ? 'link' : 'file';
+  if (kind === 'link') {
+    const u = normalizeUrl(body.url);
+    if (!u) return { error: 'Endereço do link inválido. Use um endereço que comece com http:// ou https://.' };
+    const preview = await fetchLinkPreview(u.toString());
+    return { kind, url: u.toString(), linkMeta: preview, suggestedTitle: (preview.ok && preview.title) || u.hostname.replace(/^www\./, '') };
+  }
+  const fileName = String(body.fileName || '').trim().slice(0, 240);
+  const ext = extOf(fileName);
+  const type = FILE_TYPES[ext];
+  if (!body.fileDataBase64 || !fileName) return { error: 'Selecione um arquivo.' };
+  if (!type) return { error: 'Tipo de arquivo não aceito. Use PDF, Word, PowerPoint, Excel, HTML, texto ou imagem (PNG, JPG, GIF, WebP).' };
+  const buffer = Buffer.from(body.fileDataBase64, 'base64');
+  if (!buffer.length) return { error: 'Arquivo vazio ou inválido.' };
+  if (buffer.length > MAX_FILE_BYTES) return { error: `Arquivo maior que ${Math.floor(MAX_FILE_BYTES / 1024 / 1024)} MB. Para arquivos maiores, adicione como link.` };
+  return { kind, fileName, mime: type.mime, size: buffer.length, buffer, preview: officePreviewText(ext, buffer), suggestedTitle: fileName.replace(/\.[^.]+$/, '').slice(0, 200) || fileName };
+}
+
+async function insertItem(templateId, item, position) {
+  const id = uid('item');
+  await pool.query(
+    `INSERT INTO document_template_items (id, template_id, kind, file_name, mime_type, file_size, file_data, url, link_meta, preview_text, position)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    [id, templateId, item.kind, item.fileName || null, item.mime || null, item.size || null, item.buffer || null, item.url || null, item.linkMeta ? JSON.stringify(item.linkMeta) : null, item.preview || '', position],
+  );
+  return id;
+}
+
 router.get('/', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(`SELECT ${LIST_COLUMNS} FROM document_templates WHERE org_id=$1 ORDER BY created_at DESC`, [effectiveOrgId(req)]);
+    const { rows } = await pool.query(`${SELECT_TEMPLATE} WHERE t.org_id=$1 ORDER BY t.created_at DESC`, [effectiveOrgId(req)]);
     res.json({ templates: rows });
   } catch (e) { next(e); }
 });
 
+// Cria o modelo já com o 1º anexo (arquivo ou link). Os demais entram em POST /:id/items, um por requisição
+// (cada arquivo pode ter até 30 MB; juntar todos num corpo só estouraria o limite).
 router.post('/', async (req, res, next) => {
   try {
     const orgId = effectiveOrgId(req);
     const body = req.body || {};
-    const kind = body.kind === 'link' ? 'link' : 'file';
-    const category = cleanCategory(body.category);
-    const description = String(body.description || '').trim().slice(0, 4000);
+    const item = await parseItem(body);
+    if (item.error) return res.status(400).json({ message: item.error });
     const id = uid('modelo');
-    let title = String(body.title || '').trim().slice(0, 200);
+    const title = String(body.title || '').trim().slice(0, 200) || item.suggestedTitle;
+    await pool.query(
+      `INSERT INTO document_templates (id, org_id, kind, title, description, category, created_by, created_by_name) VALUES ($1,$2,'multi',$3,$4,$5,$6,$7)`,
+      [id, orgId, title, String(body.description || '').trim().slice(0, 4000), cleanCategory(body.category), req.user.id, req.user.name || req.user.username],
+    );
+    await insertItem(id, item, 0);
+    res.status(201).json(await loadTemplate(id, orgId));
+  } catch (e) { next(e); }
+});
 
-    if (kind === 'link') {
-      const u = normalizeUrl(body.url);
-      if (!u) return res.status(400).json({ message: 'Endereço do link inválido. Use um endereço que comece com http:// ou https://.' });
-      const preview = await fetchLinkPreview(u.toString());
-      if (!title) title = (preview.ok && preview.title) || u.hostname.replace(/^www\./, '');
-      await pool.query(
-        `INSERT INTO document_templates (id, org_id, kind, title, description, category, url, link_meta, created_by, created_by_name)
-         VALUES ($1,$2,'link',$3,$4,$5,$6,$7,$8,$9)`,
-        [id, orgId, title, description, category, u.toString(), JSON.stringify(preview), req.user.id, req.user.name || req.user.username],
-      );
-    } else {
-      const fileName = String(body.fileName || '').trim().slice(0, 240);
-      const ext = extOf(fileName);
-      const type = FILE_TYPES[ext];
-      if (!body.fileDataBase64 || !fileName) return res.status(400).json({ message: 'Selecione um arquivo.' });
-      if (!type) return res.status(400).json({ message: 'Tipo de arquivo não aceito. Use PDF, Word, PowerPoint, Excel, texto ou imagem (PNG, JPG, GIF, WebP).' });
-      const buffer = Buffer.from(body.fileDataBase64, 'base64');
-      if (!buffer.length) return res.status(400).json({ message: 'Arquivo vazio ou inválido.' });
-      if (buffer.length > MAX_FILE_BYTES) return res.status(400).json({ message: `Arquivo maior que ${Math.floor(MAX_FILE_BYTES / 1024 / 1024)} MB. Para arquivos maiores, adicione como link.` });
-      if (!title) title = fileName.replace(/\.[^.]+$/, '').slice(0, 200) || fileName;
-      await pool.query(
-        `INSERT INTO document_templates (id, org_id, kind, title, description, category, file_name, mime_type, file_size, file_data, preview_text, created_by, created_by_name)
-         VALUES ($1,$2,'file',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-        [id, orgId, title, description, category, fileName, type.mime, buffer.length, buffer, officePreviewText(ext, buffer), req.user.id, req.user.name || req.user.username],
-      );
-    }
-    const { rows } = await pool.query(`SELECT ${LIST_COLUMNS} FROM document_templates WHERE id=$1`, [id]);
-    res.status(201).json(rows[0]);
+router.post('/:id/items', async (req, res, next) => {
+  try {
+    const orgId = effectiveOrgId(req);
+    const cur = await loadTemplate(req.params.id, orgId);
+    if (!cur) return res.status(404).json({ message: 'Modelo não encontrado.' });
+    if (cur.items.length >= MAX_ITEMS) return res.status(400).json({ message: `Um modelo aceita até ${MAX_ITEMS} anexos.` });
+    const item = await parseItem(req.body || {});
+    if (item.error) return res.status(400).json({ message: item.error });
+    await insertItem(cur.id, item, cur.items.length);
+    await pool.query('UPDATE document_templates SET updated_at=now() WHERE id=$1', [cur.id]);
+    res.status(201).json(await loadTemplate(cur.id, orgId));
   } catch (e) { next(e); }
 });
 
 router.patch('/:id', async (req, res, next) => {
   try {
     const orgId = effectiveOrgId(req);
-    const { title, description, category, url } = req.body || {};
+    const { title, description, category } = req.body || {};
     if (title !== undefined && !String(title).trim()) return res.status(400).json({ message: 'O título não pode ficar vazio.' });
-    let newUrl = null;
-    let preview = null;
-    if (url !== undefined) {
-      const u = normalizeUrl(url);
-      if (!u) return res.status(400).json({ message: 'Endereço do link inválido.' });
-      newUrl = u.toString();
-      preview = JSON.stringify(await fetchLinkPreview(newUrl));
-    }
-    const { rows } = await pool.query(
-      `UPDATE document_templates SET
-         title=COALESCE($1,title), description=COALESCE($2,description), category=COALESCE($3,category),
-         url=CASE WHEN $4::text IS NOT NULL AND kind='link' THEN $4 ELSE url END,
-         link_meta=CASE WHEN $5::text IS NOT NULL AND kind='link' THEN $5::jsonb ELSE link_meta END,
-         updated_at=now()
-       WHERE id=$6 AND org_id=$7 RETURNING ${LIST_COLUMNS}`,
-      [
-        title !== undefined ? String(title).trim().slice(0, 200) : null,
-        description !== undefined ? String(description).trim().slice(0, 4000) : null,
-        category !== undefined ? cleanCategory(category) : null,
-        newUrl, preview, req.params.id, orgId,
-      ],
+    const { rowCount } = await pool.query(
+      `UPDATE document_templates SET title=COALESCE($1,title), description=COALESCE($2,description), category=COALESCE($3,category), updated_at=now() WHERE id=$4 AND org_id=$5`,
+      [title !== undefined ? String(title).trim().slice(0, 200) : null, description !== undefined ? String(description).trim().slice(0, 4000) : null, category !== undefined ? cleanCategory(category) : null, req.params.id, orgId],
     );
-    if (!rows.length) return res.status(404).json({ message: 'Modelo não encontrado.' });
-    res.json(rows[0]);
+    if (!rowCount) return res.status(404).json({ message: 'Modelo não encontrado.' });
+    res.json(await loadTemplate(req.params.id, orgId));
   } catch (e) { next(e); }
 });
 
-router.post('/:id/refresh-preview', async (req, res, next) => {
+// Troca o endereço de um link e refaz a prévia (url ausente = só refaz a prévia do endereço atual).
+router.patch('/:id/items/:itemId', async (req, res, next) => {
   try {
     const orgId = effectiveOrgId(req);
-    const { rows: cur } = await pool.query(`SELECT url, kind FROM document_templates WHERE id=$1 AND org_id=$2`, [req.params.id, orgId]);
-    if (!cur.length || cur[0].kind !== 'link') return res.status(404).json({ message: 'Link não encontrado.' });
-    const preview = await fetchLinkPreview(cur[0].url);
-    const { rows } = await pool.query(`UPDATE document_templates SET link_meta=$1, updated_at=now() WHERE id=$2 RETURNING ${LIST_COLUMNS}`, [JSON.stringify(preview), req.params.id]);
-    res.json(rows[0]);
+    const cur = await loadTemplate(req.params.id, orgId);
+    const item = cur && cur.items.find((i) => i.id === req.params.itemId);
+    if (!item || item.kind !== 'link') return res.status(404).json({ message: 'Link não encontrado.' });
+    let url = item.url;
+    if (req.body && req.body.url !== undefined) {
+      const u = normalizeUrl(req.body.url);
+      if (!u) return res.status(400).json({ message: 'Endereço do link inválido.' });
+      url = u.toString();
+    }
+    const preview = await fetchLinkPreview(url);
+    await pool.query('UPDATE document_template_items SET url=$1, link_meta=$2 WHERE id=$3', [url, JSON.stringify(preview), item.id]);
+    await pool.query('UPDATE document_templates SET updated_at=now() WHERE id=$1', [cur.id]);
+    res.json(await loadTemplate(cur.id, orgId));
+  } catch (e) { next(e); }
+});
+
+router.delete('/:id/items/:itemId', async (req, res, next) => {
+  try {
+    const orgId = effectiveOrgId(req);
+    const cur = await loadTemplate(req.params.id, orgId);
+    if (!cur || !cur.items.some((i) => i.id === req.params.itemId)) return res.status(404).json({ message: 'Anexo não encontrado.' });
+    if (cur.items.length <= 1) return res.status(400).json({ message: 'Este é o único anexo do modelo. Para remover tudo, exclua o modelo.' });
+    await pool.query('DELETE FROM document_template_items WHERE id=$1', [req.params.itemId]);
+    await pool.query('UPDATE document_templates SET updated_at=now() WHERE id=$1', [cur.id]);
+    res.json(await loadTemplate(cur.id, orgId));
   } catch (e) { next(e); }
 });
 
@@ -145,20 +187,27 @@ router.delete('/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.get('/:id/file', async (req, res, next) => {
+async function sendItemFile(req, res, next, itemId) {
   try {
-    const { rows } = await pool.query(`SELECT file_name, file_data FROM document_templates WHERE id=$1 AND org_id=$2 AND kind='file'`, [req.params.id, effectiveOrgId(req)]);
-    if (!rows.length) return res.status(404).json({ message: 'Arquivo não encontrado.' });
-    const type = FILE_TYPES[extOf(rows[0].file_name)];
-    if (!type) return res.status(404).json({ message: 'Arquivo não encontrado.' });
+    const { rows } = await pool.query(
+      `SELECT i.file_name, i.file_data FROM document_template_items i JOIN document_templates t ON t.id=i.template_id
+       WHERE t.id=$1 AND t.org_id=$2 AND i.kind='file' AND ($3::text IS NULL OR i.id=$3) ORDER BY i.position LIMIT 1`,
+      [req.params.id, effectiveOrgId(req), itemId],
+    );
+    const type = rows.length && FILE_TYPES[extOf(rows[0].file_name)];
+    if (!type || !rows[0].file_data) return res.status(404).json({ message: 'Arquivo não encontrado.' });
     const inline = type.inline && req.query.download !== '1';
     res.setHeader('Content-Type', type.mime);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'private, no-store');
+    if (type.sandbox) res.setHeader('Content-Security-Policy', SANDBOX_CSP);
     res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(rows[0].file_name).replace(/'/g, '%27')}`);
     res.send(rows[0].file_data);
   } catch (e) { next(e); }
-});
+}
+
+router.get('/:id/items/:itemId/file', (req, res, next) => sendItemFile(req, res, next, req.params.itemId));
+router.get('/:id/file', (req, res, next) => sendItemFile(req, res, next, null)); // compatibilidade: 1º arquivo do modelo
 
 router.post('/:id/comments', async (req, res, next) => {
   try {
