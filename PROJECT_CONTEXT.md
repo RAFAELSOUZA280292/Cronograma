@@ -6803,6 +6803,18 @@ esmaecidos DE PROPÓSITO (empresa pausada, "Recusado") ainda reprovam. Login, XF
 modais não foram medidos. Screenshots só funcionaram parte do tempo (painel oculto), então parte da conferência
 visual foi por DOM/estilos computados.
 
+## 73. Tela inicial: "Hoje você já terminou" era falso (2026-10-05)
+
+O Rafael (segunda-feira, com 2 h de reunião já encerradas) viu na RENATA da tela inicial "Hoje você já terminou. O resto do
+dia é seu." e apontou o erro: sem reunião aceita não significa que o dia acabou — ele estava em trabalho manual e
+estudos internos. A linha (`RenataAgendaBriefing.jsx`) só aparece quando o painel escolheu sozinho o próximo dia porque
+as reuniões ACEITAS de hoje acabaram. Agora usa `afterMeetingsMessage(nowMin, workEnd)` (função pura em `dayLoad.js`):
+antes do fim do expediente (`prefs.workEnd`, o do próprio usuário) → "Suas reuniões de hoje já acabaram. Aproveite o resto
+do dia para responder e-mails e colocar suas atividades em dia."; depois → "Suas reuniões e o seu expediente de hoje já
+acabaram. Aproveite para deixar amanhã organizado." Só o fim do expediente muda o tom — a agenda vazia nunca declara o
+dia encerrado. Testado em Node nos 2 lados do limite e com expediente personalizado; NÃO testado na tela com agenda real
+(depende de eventos do Google Calendar).
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |

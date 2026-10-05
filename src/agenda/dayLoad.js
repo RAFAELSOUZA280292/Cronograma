@@ -167,3 +167,11 @@ export function timelineRows(events, day, opts = {}) {
   }
   return rows.sort((a, b) => a.key - b.key);
 }
+
+// Mensagem quando as reuniões ACEITAS de hoje já acabaram. Sem reunião não quer dizer que o dia acabou
+// (a pessoa pode estar em trabalho manual, estudo, e-mail) — só o fim do EXPEDIENTE muda o tom.
+export function afterMeetingsMessage(nowMin, workEnd) {
+  return nowMin < workEnd
+    ? 'Suas reuniões de hoje já acabaram. Aproveite o resto do dia para responder e-mails e colocar suas atividades em dia.'
+    : 'Suas reuniões e o seu expediente de hoje já acabaram. Aproveite para deixar amanhã organizado.';
+}
