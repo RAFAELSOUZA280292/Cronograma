@@ -30,6 +30,7 @@ import PareceresScreen from './pareceres/Pareceres.jsx';
 import PersonalStatsPanel from './personal/PersonalStats.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
 import { activate, activateRow } from './ui/index.jsx';
+import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
 // CRM (2026-09-20, PROJECT_CONTEXT.md §54): módulo grande e opcional — carregado só quando alguém abre o CRM.
 const CrmScreen = React.lazy(() => import('./crm/CrmScreen.jsx'));
 // Fica aqui (e não em crm/crmMeta.js) pra o CSS do CRM não entrar no pacote principal.
@@ -651,13 +652,15 @@ export default function App() {
     if (mode === 'crm') return 'crm';
     if (mode === 'personal') return 'personal';
     if (mode === 'users') return 'users';
+    if (mode === 'knowledge') return 'knowledge';
+    if (mode === 'pareceres') return 'pareceres';
     if (users) return 'company:users';
     if (orgAdmin) return 'company:orgadmin';
     if (selected === false) return 'company:select';
     return 'company';
   }
   function pushLocation(tag) {
-    try { window.history.pushState({ navTag: tag }, '', window.location.href); } catch (e) { /* ignora (ex.: sandbox) */ }
+    try { window.history.pushState({ navTag: tag }, '', pathForTag(tag)); } catch (e) { /* ignora (ex.: sandbox) */ }
   }
   function goToWorkspace(mode) {
     setShowUsers(false);
@@ -695,6 +698,8 @@ export default function App() {
     else if (tag === 'macro') { setWorkspaceMode('macro'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'crm') { setWorkspaceMode('crm'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'users') { setWorkspaceMode('users'); setShowUsers(false); setShowOrgAdmin(false); }
+    else if (tag === 'knowledge') { setWorkspaceMode('knowledge'); setShowUsers(false); setShowOrgAdmin(false); }
+    else if (tag === 'pareceres') { setWorkspaceMode('pareceres'); setShowUsers(false); setShowOrgAdmin(false); }
     else { setWorkspaceMode(null); setShowUsers(false); setShowOrgAdmin(false); }
   }
   // Nível 3 (2026-08): abrir ActivityDetailModal empilha em cima do state
@@ -814,7 +819,8 @@ export default function App() {
   useEffect(() => {
     try { window.history.replaceState({ navTag: locationTag(workspaceMode, showUsers, showOrgAdmin, companySelectionConfirmed) }, '', window.location.href); } catch (e) { /* ignora */ }
     function onPopState(e) {
-      applyLocationTag((e.state && e.state.navTag) || 'gate');
+      // Entrada sem navTag (ex.: aberta direto por favorito): o endereço diz o módulo.
+      applyLocationTag((e.state && e.state.navTag) || modeForPath(window.location.pathname) || 'gate');
       setOpenActivityId((e.state && e.state.detailActivity) || null);
       setOpenMeetingId((e.state && e.state.detailMeeting) || null);
     }
@@ -1132,6 +1138,35 @@ export default function App() {
   // disparasse de novo a cada render, qualquer troca de módulo posterior
   // pro usuário voltaria pro XFlow enquanto o hash antigo ainda estivesse
   // na URL.
+  // Abertura direta por endereço (favorito/link, 2026-10-05): /gestao-atividades, /agenda, /crm… Roda UMA vez por
+  // sessão de página, depois que o usuário existe e DEPOIS do efeito que zera o módulo na troca de usuário (mesma
+  // razão do hash do XFlow abaixo). Sem acesso ao módulo, volta pra "/" em vez de abrir uma tela vazia. Não empilha
+  // histórico (replaceState): o Voltar do navegador sai do site, como em qualquer favorito.
+  const initialPathDone = useRef(false);
+  useEffect(() => {
+    if (initialPathDone.current || !currentUser) return;
+    initialPathDone.current = true;
+    if (/^#\d+$/.test(window.location.hash)) return;
+    const mode = modeForPath(window.location.pathname);
+    if (!mode) {
+      // Endereço que não é de módulo nenhum: limpa pra "/". EXCETO os links públicos (/quadro/:token e
+      // /reuniao/:token): os hooks rodam antes do `return` que desenha a tela pública, então reescrever a URL aqui
+      // faria o link de quem está logado abrir a tela inicial em vez do quadro/reunião compartilhado.
+      const p = window.location.pathname;
+      if (p !== '/' && !/^\/(quadro|reuniao)\//.test(p)) { try { window.history.replaceState({ navTag: 'gate' }, '', '/'); } catch (e) { /* ignora */ } }
+      return;
+    }
+    try {
+      if (canOpenMode(mode, currentUser)) {
+        setWorkspaceMode(mode);
+        window.history.replaceState({ navTag: modeForTag(mode) }, '', pathForMode(mode));
+      } else {
+        window.history.replaceState({ navTag: 'gate' }, '', '/');
+      }
+    } catch (e) { /* ignora */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
+
   const hashXflowNavDone = useRef(false);
   useEffect(() => {
     if (hashXflowNavDone.current || !currentUser) return;
@@ -1249,6 +1284,7 @@ export default function App() {
     setSelectedProjectIds([]);
     setCompanySelectionConfirmed(false);
     setActingOrg(null);
+    try { window.history.replaceState({ navTag: 'gate' }, '', '/'); } catch (e) { /* ignora */ }
   }
 
   async function updateMyAvatar(avatar) {

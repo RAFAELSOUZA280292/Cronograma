@@ -6829,6 +6829,37 @@ checagens em Node (várias páginas, singular/plural, lixeira/arquivadas/conclu�
 cartões simulados (faixa + linha + "Abrir quadro" abre o quadro; com agenda vazia só a linha). Limite: a contagem usa o
 quadro carregado no login — cartão alterado em outra aba só aparece ao recarregar.
 
+## 74. Endereço próprio por módulo (favoritar) (2026-10-05)
+
+Pedido do Rafael: "o link é sempre painel.pricetax.com.br, não consigo favoritar direto a Gestão de Atividades —
+por que não `/gestaoatividades/rafael`?". O app não tem roteador (§9) e todo módulo vivia na mesma URL. Agora cada
+módulo tem endereço (`src/lib/routes.js`, módulo puro): `/gestao-atividades`, `/empresas`, `/xflow`, `/agenda`,
+`/visao-geral`, `/conhecimento`, `/pareceres`, `/crm`, `/usuarios`; tela inicial = `/`. Variantes aceitas e
+normalizadas pro oficial (`/gestaoatividades`, maiúsculas, acento, barra final). **Sem `/rafael` no endereço, de
+propósito**: a Gestão de Atividades já é sempre a do usuário logado (`GET /personal-board` por `req.user`), então um
+segmento de pessoa seria cosmético — ou ignorado (enganoso) ou exigiria permissão de ver o quadro de outro.
+Como funciona (continua sem roteador; só ganhou URL):
+- `pushLocation(tag)` agora faz `pushState({navTag}, '', pathForTag(tag))` (antes mantinha a URL). `company:select`,
+  `company:users`, `company:orgadmin` = `/empresas`. Os outros `pushState(..., window.location.href)` (subnavegação,
+  modais) seguem preservando o endereço atual, e o Voltar/Avançar restauram a URL de cada entrada sozinhos.
+- **Abertura direta** (favorito/link): efeito `initialPathDone` em `App()`, uma vez, depois que o usuário existe e DEPOIS
+  do efeito que zera `workspaceMode` na troca de usuário: `modeForPath` → `canOpenMode` (mesmas regras de acesso da tela
+  inicial) → `setWorkspaceMode` + `replaceState` (não empilha histórico). Sem acesso ao módulo → volta pra `/`. Endereço
+  desconhecido → `/`. Deslogado: o login aparece com a URL guardada e, depois de entrar, cai direto no módulo (testado).
+  Logout limpa a URL pra `/`. Hash do XFlow (`/#30`) segue tratado pelo efeito próprio (este sai cedo se há hash numérico).
+- `popstate` sem `navTag` (entrada aberta por favorito) deduz o módulo pela URL.
+- Brinde: `knowledge` e `pareceres` ganharam tag própria em `locationTag`/`applyLocationTag` — antes caíam em
+  `company` e o Voltar do navegador a partir deles ia pra tela errada (quirk anotado no §68, agora corrigido).
+- Servidor: nada a mudar — `app.get('*')` já devolve o `index.html` pra qualquer caminho fora de `/api`.
+**Regressão que o teste pegou (corrigida antes do deploy)**: a 1ª versão limpava pra `/` todo endereço desconhecido, e
+os hooks rodam ANTES do `return` que desenha `/quadro/:token` e `/reuniao/:token`; com o usuário logado o link público
+era reescrito e abria a tela inicial. Agora `/quadro/…` e `/reuniao/…` nunca são tocados (conferido nos dois, logado).
+Verificado: 17 checagens em Node (`routes.js`) + browser: card → URL muda, Voltar/Avançar, recarregar em
+`/gestao-atividades`, `/gestaoatividades` → normaliza, `/conhecimento`, `/agenda`, casinha e Sair → `/`, Voltar de
+Pareceres, login com link guardado, endereço inventado → `/`, links públicos preservados. NÃO testado: usuário sem
+acesso batendo no endereço (regra coberta só em Node), XFlow por URL (conta de teste sem acesso), produção.
+Pendência possível: favoritar uma PÁGINA específica do quadro (hoje o endereço leva ao quadro, na aba padrão).
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
