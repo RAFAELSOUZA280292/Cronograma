@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { apiGet, apiPost, apiPatch, apiDelete } from './lib/api.js';
+import WidgetSection from './widget/WidgetSection.jsx';
 import pricetaxLogoBranco from './assets/brand/pricetax-logo-branco.png';
 import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
 import XFlowScreen from './xflow/XFlow.jsx';
@@ -4112,6 +4113,8 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult }) {
             </a>
           </>
         )}
+
+        <WidgetSection />
       </div>
       {showGuard && (
         <ConfirmDiscardModal

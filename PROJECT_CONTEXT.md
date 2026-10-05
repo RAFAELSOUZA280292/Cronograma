@@ -6876,6 +6876,34 @@ em produção, `card.createdAt`; não precisei consultar. Verificado: 11 checage
 (inclui a conta antiga dando 0 no caso dele, virada de mês e de ano) + browser com cartões criados ontem 20h (→ 1d),
 hoje 00:05 (→ 0d), anteontem 23h (→ 2d) e há 8 dias (→ 8d). Limite: depende do fuso do navegador de quem vê.
 
+## 76. Widget do iPhone (Scriptable) (2026-10-05)
+
+Pedido do Rafael: ver, ao pegar o iPhone, o que importa do painel, sem autenticar. PWA no iOS não faz widget; o caminho
+curto é o app gratuito **Scriptable** + um endpoint só de leitura com **token secreto**. Mostra: atrasadas, vencem hoje e
+próxima reunião. Tocar no widget abre `/gestao-atividades`.
+
+- **Backend** (`server/widget.js`, montado em `/api/widget`): `POST /token` (cookie; gera `pxw_` + 32 bytes base64url, guarda
+  só o sha256 em `users.widget_token_hash`; gerar outro invalida o anterior), `DELETE /token` (revoga), `GET /status`
+  (ativo, criado em, último uso) e **`GET /summary`** — público, autenticado só por `Authorization: Bearer <token>` (nunca
+  na URL, para não cair em log; `?token=` dá 401). Usuário bloqueado/expirado → 403. Limite de 30 consultas/min por IP
+  (memória; 429). `Cache-Control: no-store`. Colunas novas aditivas em `users` (`widget_token_hash`, `_created_at`,
+  `widget_last_used_at`) + índice único parcial no hash — única mudança de `db.js`, justificada por ser campo relacional.
+- **Resumo** (`server/widgetSummary.js`, funções puras): `boardItems` (aberto = não concluído/excluído/arquivado, com data;
+  até 5 títulos por grupo, mais antigas primeiro; "hoje" no fuso America/Sao_Paulo), `pickNextMeeting` (mesma regra da RENATA/Agenda:
+  só accepted/organizer/unknown; fora dia inteiro, cancelado, "livre", recusado/pendente/talvez; evento em andamento conta como "agora"),
+  `buildSummary`. Só títulos e horários: sem descrição, convidados, local ou link. Agenda lida de `listEvents` (−6 h a +3 dias),
+  cache de 5 min por usuário; falha do Google não derruba o resumo (próxima reunião vem nula).
+- **Tela**: "Widget do iPhone" em Meu perfil (`src/widget/WidgetSection.jsx`): gerar código, mostrar o script UMA vez (token
+  não é recuperável), Copiar, passo a passo, gerar novo (confirma que desliga o antigo), revogar (confirma).
+  `src/widget/scriptableScript.js` monta o script já com endereço (`window.location.origin`) e token; sem template literal
+  dentro do script. Widget pequeno/médio/grande; guarda o último resumo no iPhone e mostra "offline" se a rede falhar;
+  token revogado mostra mensagem clara. O iOS decide quando atualizar (pedimos 15 min; na prática 15–30 min, não é tempo real).
+- **Verificado**: testes puros (Node) da lógica, teste HTTP real contra o servidor local (sem token, inválido, `?token=`,
+  gerar, hash ≠ token, novo invalida o antigo, bloqueado, revogado, 429, `no-store`), script do Scriptable rodado com globais
+  simuladas (médio/pequeno/grande, offline com e sem cache, 401, fora do widget, agenda desconectada) e a tela no browser
+  (gerar → script → fechar → revogar). **Não testado**: no iPhone real nem com agenda Google real (local não tem Google
+  configurado — a escolha da reunião foi provada só com eventos simulados).
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |

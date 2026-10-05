@@ -13,6 +13,7 @@ import { router as assistantRouter } from './assistant.js';
 import { router as knowledgeRouter } from './knowledge.js';
 import { router as pareceresRouter } from './pareceres.js';
 import { router as crmRouter } from './crm/routes.js';
+import { router as widgetRouter } from './widget.js';
 import { startCrmScheduler } from './crm/scheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,6 +33,7 @@ app.use('/api/assistant', assistantRouter);
 app.use('/api/knowledge', knowledgeRouter);
 app.use('/api/pareceres', pareceresRouter);
 app.use('/api/crm', crmRouter);
+app.use('/api/widget', widgetRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use('/api', (err, req, res, next) => {

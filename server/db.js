@@ -914,6 +914,11 @@ export async function initDb() {
   // máximo uma empresa do CRM). Lead NÃO é estado da empresa (Fase 2: é a
   // 1ª etapa de um negócio) — `relationship` é só a relação com a PRICETAX.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS crm_role TEXT NOT NULL DEFAULT ''`);
+  // Widget do iPhone (2026-10-05, §76): só o hash do token secreto fica no banco.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_token_hash TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_token_created_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_last_used_at TIMESTAMPTZ`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_widget_token ON users(widget_token_hash) WHERE widget_token_hash IS NOT NULL`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_companies (
       id               UUID PRIMARY KEY,
