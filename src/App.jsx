@@ -17,6 +17,7 @@ import {
 import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from './lib/api.js';
 import WidgetSection from './widget/WidgetSection.jsx';
+import ConnectSection from './connect/ConnectSection.jsx';
 import DailyCards from './daily/DailyCards.jsx';
 import DailyPrefs from './daily/DailyPrefs.jsx';
 import { useWelcomeSetup } from './daily/useWelcomeSetup.jsx';
@@ -589,6 +590,8 @@ export default function App() {
   const [personalBoardSaveState, setPersonalBoardSaveState] = useState('idle');
   const personalBoardSaveTimer = useRef(null);
   const lastGoodPersonalBoardRef = useRef(null);
+  const personalBoardVersionRef = useRef('');
+  const personalBoardBusyRef = useRef(false);
   const [phasesEditingProjectId, setPhasesEditingProjectId] = useState(null);
   const [usersLog, setUsersLog] = useState([]);
   const [loginError, setLoginError] = useState(null);
@@ -1096,6 +1099,7 @@ export default function App() {
         const res = await apiGet('/api/personal-board');
         setPersonalBoard(res.board);
         lastGoodPersonalBoardRef.current = res.board;
+        personalBoardVersionRef.current = res.updatedAt || '';
         setPersonalBoardSaveState('idle');
       } catch (e) {
         console.error('Falha ao carregar Gestão de Atividades', e);
@@ -1223,20 +1227,57 @@ export default function App() {
 
   function persistPersonalBoardDebounced(board) {
     if (personalBoardSaveTimer.current) clearTimeout(personalBoardSaveTimer.current);
+    personalBoardBusyRef.current = true;
     setPersonalBoardSaveState('saving');
     personalBoardSaveTimer.current = setTimeout(() => {
-      apiPatch('/api/personal-board', { board })
-        .then(() => {
-          lastGoodPersonalBoardRef.current = board;
+      personalBoardSaveTimer.current = null;
+      apiPatch('/api/personal-board', { board, baseUpdatedAt: personalBoardVersionRef.current })
+        .then((res) => {
+          const edited = !!personalBoardSaveTimer.current;
+          if (res && res.merged && res.board && !edited) {
+            // Uma atividade criada pela API de conectividade (§80) estava fora do que o painel conhecia: o servidor a devolveu ao quadro.
+            setPersonalBoard(res.board);
+            lastGoodPersonalBoardRef.current = res.board;
+            personalBoardVersionRef.current = res.updatedAt || personalBoardVersionRef.current;
+          } else {
+            lastGoodPersonalBoardRef.current = board;
+            // Com edição nova pendente, mantém a versão antiga: o próximo salvamento será mesclado de novo.
+            if (!(res && res.merged)) personalBoardVersionRef.current = (res && res.updatedAt) || personalBoardVersionRef.current;
+          }
+          if (!edited) personalBoardBusyRef.current = false;
           setPersonalBoardSaveState('saved');
         })
         .catch((e) => {
           console.error('Falha ao salvar Gestão de Atividades', e);
+          if (!personalBoardSaveTimer.current) personalBoardBusyRef.current = false;
           setPersonalBoardSaveState('error');
           setPersonalBoard(lastGoodPersonalBoardRef.current);
         });
     }, 500);
   }
+
+  // Outra origem pode alterar o quadro (a API de conectividade, §80; o quadro público). Consulta só o carimbo e recarrega o quadro
+  // quando mudou — e só se não há edição local pendente, para nunca sobrescrever o que a pessoa acabou de digitar.
+  useEffect(() => {
+    if (!currentUser || !currentUser.personalAccess || !personalBoardLoaded) return undefined;
+    let stop = false;
+    async function check() {
+      if (stop || document.hidden || personalBoardBusyRef.current) return;
+      try {
+        const v = await apiGet('/api/personal-board/version');
+        if (stop || !v || !v.updatedAt || v.updatedAt === personalBoardVersionRef.current || personalBoardBusyRef.current) return;
+        const res = await apiGet('/api/personal-board');
+        if (stop || personalBoardBusyRef.current) return;
+        setPersonalBoard(res.board);
+        lastGoodPersonalBoardRef.current = res.board;
+        personalBoardVersionRef.current = res.updatedAt || '';
+      } catch { /* sem rede: tenta no próximo ciclo */ }
+    }
+    const timer = setInterval(check, 12000);
+    const onVisible = () => { if (!document.hidden) check(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { stop = true; clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [currentUser?.id, currentUser?.personalAccess, personalBoardLoaded]);
 
   function mutatePersonalBoard(updater) {
     setPersonalBoard((prev) => {
@@ -4144,6 +4185,7 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab
             { id: 'dia', label: 'Meu dia' },
             { id: 'agenda', label: 'Agenda' },
             { id: 'iphone', label: 'iPhone' },
+            { id: 'conectar', label: 'Conectar' },
           ]} />
         </div>
 
@@ -4206,6 +4248,7 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab
         </>)}
 
         {tab === 'iphone' && <WidgetSection />}
+        {tab === 'conectar' && <ConnectSection />}
       </div>
       {showGuard && (
         <ConfirmDiscardModal

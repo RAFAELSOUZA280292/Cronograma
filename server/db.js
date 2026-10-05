@@ -944,6 +944,21 @@ export async function initDb() {
     )
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS document_templates_org_idx ON document_templates(org_id, created_at DESC)`);
+  // API de conectividade (2026-10-05, §80): um token por janela do Claude Code, cada um com o seu escopo. Só o hash fica no banco.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS api_tokens (
+      id            TEXT PRIMARY KEY,
+      user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name          TEXT NOT NULL,
+      scope         TEXT NOT NULL DEFAULT 'read',
+      token_hash    TEXT NOT NULL UNIQUE,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      expires_at    TIMESTAMPTZ NOT NULL,
+      last_used_at  TIMESTAMPTZ,
+      revoked_at    TIMESTAMPTZ
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS api_tokens_user_idx ON api_tokens(user_id, created_at DESC)`);
   // Um modelo com VÁRIOS anexos (2026-10-05, §78): o mesmo documento em Word, Excel, PDF, HTML, link… As colunas de arquivo/link
   // da tabela acima ficam como legado (só leitura da migração); o conteúdo vive aqui.
   await pool.query(`
