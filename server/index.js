@@ -43,6 +43,12 @@ app.use('/api/daily', dailyRouter);
 app.use('/api/templates', templatesRouter);
 app.use('/api/connect', connectRouter);
 
+// Rota inexistente sob /api responde 404 em JSON — antes caía no fallback do SPA e devolvia o index.html com 200,
+// o que enganava qualquer cliente da API (inclusive a de conectividade, §80).
+app.use('/api', (req, res) => {
+  res.status(404).json({ message: 'Rota não encontrada.' });
+});
+
 // eslint-disable-next-line no-unused-vars
 app.use('/api', (err, req, res, next) => {
   console.error(err);

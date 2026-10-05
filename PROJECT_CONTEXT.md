@@ -80,7 +80,7 @@ Verificação = `npm run build` limpo + teste manual no browser.
   `npm run build` limpo → commit → `git push origin main` (Railway builda e publica sozinho).
   **Política vigente (Rafael, 2026-08-25, reafirmada):** commit + push **sem pedir confirmação a cada vez** — o que
   continua obrigatório é o `fetch`/checagem de divergência antes e a **verificação em produção depois** (o hash do bundle
-  em `https://painel.pricetax.com.br/` muda e uma rota nova responde 401/200 em JSON em vez de cair no `index.html`; **não existe `/api/health`**: qualquer caminho desconhecido devolve o `index.html` com 200). O texto antigo
+  em `https://painel.pricetax.com.br/` muda e uma rota nova responde 401/200 em JSON em vez de cair no `index.html`; **não existe `/api/health`** — e, desde 2026-10-05, rota desconhecida sob `/api` responde **404 em JSON** (`{"message":"Rota não encontrada."}`); antes caía no fallback do SPA e devolvia o `index.html` com 200, o que enganava clientes da API. Fora de `/api`, o fallback do SPA segue valendo). O texto antigo
   "sempre confirmar antes do push" foi superado por essa instrução.
 - **Logs de produção**: `RAILWAY_TOKEN` no `.env` local dá leitura dos logs do deploy atual (`railway logs`); é a primeira coisa a olhar
   num erro reportado em produção (§33).
@@ -7162,6 +7162,8 @@ Um token por janela; até 10 ativos por pessoa.
 **Problema real resolvido junto: o painel aberto apagaria a atividade criada pela API.** O painel salva o quadro **inteiro** (§16) e só carregava o quadro uma vez, então o próximo autosave removeria cartões que ele não conhecia. Duas camadas:
 1. **Atualização do painel**: `GET /personal-board/version` (só o carimbo `updated_at`); a cada ~12 s (e ao voltar para a aba) o `App()` compara com `personalBoardVersionRef` e recarrega o quadro **somente se não há edição local pendente** (`personalBoardBusyRef`). Pausa com a aba oculta.
 2. **Rede de segurança no servidor** (`mergeApiCards`, `server/routes.js`): `PATCH /personal-board` agora recebe `baseUpdatedAt` (última versão que o painel conheceu) e, dentro de transação com `FOR UPDATE`, devolve ao quadro os cartões `createdVia:'api'` criados **depois** dessa versão que o painel não tem (ele não pode tê-los apagado). A resposta traz `merged` e o painel adota o quadro devolvido (com edição pendente, mantém a versão antiga para mesclar de novo). A API grava `updated_at` = o mesmo instante de `card.createdAt`, que é o que torna a comparação exata. Cartão apagado de propósito **depois** de aparecer não volta.
+
+**404 em JSON para rota inexistente** (`server/index.js`): apontado pelo teste de outro Claude contra produção — `/api/health` devolvia HTML com 200. Corrigido; rotas reais e caminhos do SPA (`/`, `/pareceres`, `/quadro/…`) conferidos sem mudança.
 
 **Verificado**: HTTP real (criar/listar/revogar token; 401 sem/errado/`?token=`/cookie; 403 escopo e usuário bloqueado; token vencido; limites de 10 tokens, 120/min e 60 criações/h; validações de título/data/prioridade; coluna por nome com mensagem listando as colunas; `ref` idempotente; abertura registrada nos Indicadores;
 isolamento entre usuários e entre organizações; os três cenários da rede de segurança), a aba no browser e o fluxo completo com **`curl` simulando a outra janela** com o painel aberto — a atividade apareceu sozinha em ~4,5 s e, numa corrida real (API cria enquanto o painel edita), os dois cartões sobreviveram.
