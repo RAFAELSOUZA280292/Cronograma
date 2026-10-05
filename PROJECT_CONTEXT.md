@@ -7167,6 +7167,7 @@ Um token por janela; até 10 ativos por pessoa.
 
 **Verificado**: HTTP real (criar/listar/revogar token; 401 sem/errado/`?token=`/cookie; 403 escopo e usuário bloqueado; token vencido; limites de 10 tokens, 120/min e 60 criações/h; validações de título/data/prioridade; coluna por nome com mensagem listando as colunas; `ref` idempotente; abertura registrada nos Indicadores;
 isolamento entre usuários e entre organizações; os três cenários da rede de segurança), a aba no browser e o fluxo completo com **`curl` simulando a outra janela** com o painel aberto — a atividade apareceu sozinha em ~4,5 s e, numa corrida real (API cria enquanto o painel edita), os dois cartões sobreviveram.
+`docs/testar-conectividade.sh` roda os testes de leitura e de segurança contra qualquer endereço (validado contra o servidor local; ainda não rodado em produção com token real).
 **Não testado**: uma segunda janela real do Claude Code lendo o guia; `GET /agenda` com Google real; produção com token real.
 
 | Preciso de... | Vá para |
