@@ -15,9 +15,10 @@
 // ("Dia com alta ocupação"), legenda fixa com "horário livre", régua de hora em hora, almoço como
 // selo flutuante e a caixa de atenção com o tom (verde/laranja/vermelho) do aviso mais grave.
 import React, { useEffect, useMemo, useState } from 'react';
-import { Sparkles, MapPin, ArrowRight, Link2, TriangleAlert, CircleHelp, Utensils, Timer, ChevronRight, Calendar, Clock, BarChart2, Activity } from 'lucide-react';
+import { Sparkles, MapPin, ArrowRight, Link2, TriangleAlert, CircleHelp, Utensils, Timer, ChevronRight, Calendar, Clock, BarChart2, Activity, ListChecks } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
 import { WORK, rsvpOf, isPendingRsvp, summarizeDay, timelineRows, durationMin, fmtDur, hhmm, afterMeetingsMessage } from './dayLoad.js';
+import { boardAttention, attentionParts, oldestText } from '../personal/boardAttention.js';
 import { loadPrefs, savePrefs, validatePrefs, parseHHMM, DEFAULT_PREFS, isDefaultPrefs } from './agendaPrefs.js';
 
 const SOURCE_COLOR = { google: '#5B8DEF', xflow_ticket: '#b98af5', activity: '#3ecf6e', crm_activity: '#F5C400' };
@@ -261,6 +262,10 @@ const CSS = `
   .rab-chip svg { color:var(--text-5); flex-shrink:0; }
   .rab-now-banner { display:flex; align-items:center; gap:9px; margin-top:12px; padding:10px 14px; border-radius:10px; background:rgba(245,196,0,.13); font-size:13px; color:var(--text-2); }
   .rab-now-banner b { font-weight:800; color:var(--text-1); }
+  .rab-board { display:flex; align-items:center; gap:10px; margin-top:10px; padding:10px 14px; border-radius:10px; background:var(--bg-3); border:1px solid var(--border-1); font-size:13px; color:var(--text-2); flex-wrap:wrap; }
+  .rab-board svg { flex-shrink:0; color:var(--text-4); }
+  .rab-board-text { flex:1; min-width:200px; line-height:1.5; }
+  .rab-board b { font-weight:800; color:var(--text-1); }
   .rab-now-dot { width:7px; height:7px; border-radius:50%; background:#F5C400; flex-shrink:0; }
   .rab-hero { display:flex; align-items:stretch; gap:22px; }
   .rab-hero-main { flex:1; min-width:0; }
@@ -370,7 +375,7 @@ const CSS = `
   @media (max-width:520px) { .rab-verdict { font-size:23px; } .rab-line { grid-template-columns:12px 64px minmax(0,1fr) auto; gap:8px; } .rab-num { font-size:13px; width:22px; height:22px; line-height:22px; } }
 `;
 
-export default function RenataAgendaBriefing({ user, onOpenAgenda }) {
+export default function RenataAgendaBriefing({ user, onOpenAgenda, personalBoard, onOpenPersonal }) {
   const firstName = ((user && user.name) || '').split(' ')[0] || (user && user.username) || '';
   const [now, setNow] = useState(() => new Date());
   const [state, setState] = useState({ phase: 'loading', events: [], configured: true });
@@ -431,6 +436,8 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda }) {
     return out;
   }, [state.events, win, today, prefs]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const att = useMemo(() => boardAttention(personalBoard, today), [personalBoard, today]);
+  const attParts = attentionParts(att);
   const auto = useMemo(() => pickFocus(days, now), [days, now]);
   const focus = days.find((d) => d.iso === (picked || auto)) || days[0];
   const focusIso = focus ? focus.iso : '';
@@ -466,7 +473,7 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda }) {
       else if (nxt) { const mins = Math.round((nxt.startDate - now) / 60000); nextLine = <>Próximo: <b>{nxt.title}</b> às {fmtTime(nxt.startDate)}{mins <= 90 ? ` · em ${fmtDur(mins)}` : ''}</>; }
     } else if (!picked && days[0].sum.confirmed > 0 && !days[0].list.some((e) => !e.allDay && !e.transparent && rsvpOf(e) === 'accepted' && e.endDate > now)) {
       // Só quando o painel escolheu sozinho o próximo dia porque hoje acabou (não quando a pessoa clicou noutro dia).
-      nextLine = <>{afterMeetingsMessage(now.getHours() * 60 + now.getMinutes(), prefs.workEnd)}</>;
+      nextLine = <>{afterMeetingsMessage(now.getHours() * 60 + now.getMinutes(), prefs.workEnd, att)}</>;
     }
   }
   const insights = focus ? insightsFor(sum, isToday, now) : [];
@@ -530,6 +537,13 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda }) {
                 </div>
                 {verdictSub && <div className="rab-quiet" style={{ marginTop: 8 }}>{verdictSub}</div>}
                 {nextLine && <div className="rab-now-banner"><span className="rab-now-dot" />{nextLine}</div>}
+                {attParts.length > 0 && (
+                  <div className="rab-board">
+                    <ListChecks size={15} />
+                    <span className="rab-board-text"><b>Seu quadro:</b> {attParts.join(' · ')}{att.oldest ? <> — {oldestText(att)}</> : null}</span>
+                    {onOpenPersonal && <button type="button" className="rab-link" onClick={onOpenPersonal}>Abrir quadro <ArrowRight size={13} /></button>}
+                  </div>
+                )}
               </>
             )}
           </div>

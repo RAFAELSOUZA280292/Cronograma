@@ -6815,6 +6815,20 @@ acabaram. Aproveite para deixar amanhã organizado." Só o fim do expediente mud
 dia encerrado. Testado em Node nos 2 lados do limite e com expediente personalizado; NÃO testado na tela com agenda real
 (depende de eventos do Google Calendar).
 
+**Sugestão concreta com o quadro pessoal (2026-10-05, "sim, faça isso")**: a RENATA da tela inicial agora lê o quadro de
+Gestão de Atividades do próprio usuário (`personalBoard` do estado de `App()`, passado `WorkspaceGateScreen` →
+`RenataAgendaBriefing`; sem rota nova, sem leitura extra). `src/personal/boardAttention.js` (função pura): conta cartões
+ABERTOS (fora concluídos, lixeira e arquivados) com `dueDate` < hoje (atrasadas) e = hoje (vencem hoje) em TODAS as páginas
+do quadro, e acha a mais antiga ("há N dias"). Dois efeitos: (1) a frase de "reuniões acabaram" fica específica
+(`afterMeetingsMessage(nowMin, workEnd, att)`: "Bom momento para atacar as 3 atividades atrasadas do seu quadro" /
+"fechar as 2 que vencem hoje" / depois do expediente "Deixe amanhã organizado: seu quadro tem N atrasadas"; sem urgência
+volta à genérica de e-mails); (2) uma linha **"Seu quadro: 2 atrasadas · 1 vence hoje — a mais antiga é "…" (há 8 dias)" +
+botão "Abrir quadro"** aparece SEMPRE que há algo atrasado/vencendo hoje, independente das reuniões — é o caso do Rafael com
+agenda vazia. Só no estado `ready` da agenda (Google conectado); quadro vazio/nulo não mostra nada. Verificado: 15
+checagens em Node (várias páginas, singular/plural, lixeira/arquivadas/concluídas fora, nulo) + browser com agenda e
+cartões simulados (faixa + linha + "Abrir quadro" abre o quadro; com agenda vazia só a linha). Limite: a contagem usa o
+quadro carregado no login — cartão alterado em outra aba só aparece ao recarregar.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |

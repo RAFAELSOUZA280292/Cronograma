@@ -169,9 +169,17 @@ export function timelineRows(events, day, opts = {}) {
 }
 
 // Mensagem quando as reuniões ACEITAS de hoje já acabaram. Sem reunião não quer dizer que o dia acabou
-// (a pessoa pode estar em trabalho manual, estudo, e-mail) — só o fim do EXPEDIENTE muda o tom.
-export function afterMeetingsMessage(nowMin, workEnd) {
-  return nowMin < workEnd
-    ? 'Suas reuniões de hoje já acabaram. Aproveite o resto do dia para responder e-mails e colocar suas atividades em dia.'
-    : 'Suas reuniões e o seu expediente de hoje já acabaram. Aproveite para deixar amanhã organizado.';
+// (a pessoa pode estar em trabalho manual, estudo, e-mail) — só o fim do EXPEDIENTE muda o tom. `att` (opcional) é
+// o resumo do quadro pessoal ({overdue, dueToday}); com ele a sugestão deixa de ser genérica.
+export function afterMeetingsMessage(nowMin, workEnd, att) {
+  const overdue = (att && att.overdue) || 0;
+  const dueToday = (att && att.dueToday) || 0;
+  const noun = (n, one, many) => (n === 1 ? one : many);
+  if (nowMin < workEnd) {
+    if (overdue > 0) return `Suas reuniões de hoje já acabaram. Bom momento para atacar ${overdue === 1 ? 'a atividade atrasada' : `as ${overdue} atividades atrasadas`} do seu quadro.`;
+    if (dueToday > 0) return `Suas reuniões de hoje já acabaram. Aproveite para fechar ${dueToday === 1 ? 'a atividade que vence' : `as ${dueToday} atividades que vencem`} hoje no seu quadro.`;
+    return 'Suas reuniões de hoje já acabaram. Aproveite o resto do dia para responder e-mails e colocar suas atividades em dia.';
+  }
+  if (overdue > 0) return `Suas reuniões e o seu expediente de hoje já acabaram. Deixe amanhã organizado: seu quadro tem ${overdue} ${noun(overdue, 'atividade atrasada', 'atividades atrasadas')}.`;
+  return 'Suas reuniões e o seu expediente de hoje já acabaram. Aproveite para deixar amanhã organizado.';
 }
