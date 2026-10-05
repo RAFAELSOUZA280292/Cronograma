@@ -9,7 +9,8 @@
 // `projects` (é o mesmo estado, mesmo PATCH). Ver PROJECT_CONTEXT.md §23.
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Building2, Columns3, Bug, LogOut, Home, RefreshCw, AlertTriangle, Clock3, CalendarDays, CalendarRange, CalendarClock, CalendarOff, Pause, X } from 'lucide-react';
+import { Building2, Columns3, Bug, LogOut, Home, RefreshCw, AlertTriangle, Clock3, CalendarDays, CalendarRange, CalendarClock, CalendarOff, Pause, X, CheckCircle2, Search } from 'lucide-react';
+import { Chip, ChipRow, Select, Button, EmptyState, SkeletonCards, activate } from '../ui/index.jsx';
 import { apiGet } from '../lib/api.js';
 import { S, BrandLogo, ThemeToggleBtn, NotificationBell, STATUS_META, PRIORITY_META, PRIORITY_ORDER } from '../App.jsx';
 
@@ -125,22 +126,18 @@ export default function MacroOverviewScreen({
     }
   }
 
-  const emptyMessage = (filtersActive && data && data.items.length > 0)
-    ? 'Nenhum resultado com esses filtros.'
+  const emptyView = (filtersActive && data && data.items.length > 0)
+    ? { icon: Search, title: 'Nenhum resultado com esses filtros', description: 'Tire algum filtro para ver mais atividades.' }
     : range === 'overdue'
-      ? 'Nenhuma atividade atrasada no momento.'
+      ? { icon: CheckCircle2, tone: 'ok', title: 'Nada atrasado', description: 'Nenhuma atividade atrasada no momento.' }
       : range === 'no_date'
-        ? 'Nenhuma atividade sem data no momento.'
+        ? { icon: CalendarOff, title: 'Nenhuma atividade sem data', description: 'Nenhuma atividade sem data no momento.' }
         : range === 'paused'
-          ? 'Nenhuma atividade pausada no momento.'
-          : 'Nenhum compromisso previsto nesse período.';
+          ? { icon: Pause, title: 'Nenhuma atividade pausada', description: 'Nenhuma atividade pausada no momento.' }
+          : { icon: CalendarDays, title: 'Nenhum compromisso previsto', description: 'Nenhum compromisso previsto nesse período. Troque o período acima para ver outros.' };
 
   return (
     <div style={S.page}>
-      <style>{`
-        .macro-filters select { background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:8px; padding:8px 10px; font-size:12.5px; cursor:pointer; }
-        .macro-filters select:focus { outline:none; border-color:#F5C400; }
-      `}</style>
       <div style={S.topbar}>
         <div style={S.brandRow}>
           <BrandLogo theme={theme} style={S.logoImg} />
@@ -167,74 +164,59 @@ export default function MacroOverviewScreen({
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '18px 24px 0' }}>
         <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-5)', textTransform: 'uppercase', letterSpacing: '.04em' }}>Hoje</span>
-        <span style={{ fontSize: 17, fontWeight: 800, color: '#F5C400' }}>{fmtTodayFull()}</span>
+        <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--ui-accent-text)' }}>{fmtTodayFull()}</span>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '14px 24px 0' }}>
-        {RANGE_OPTIONS.map((opt) => {
-          const Icon = opt.icon;
-          const active = range === opt.value;
-          const count = opt.countKey && data ? data[opt.countKey] : null;
-          return (
-            <button
-              key={opt.value}
+      <div style={{ padding: '14px 24px 0' }}>
+        <ChipRow label="Período">
+          {RANGE_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.value} icon={opt.icon} accent={opt.accent}
+              active={range === opt.value}
+              count={opt.countKey && data ? data[opt.countKey] : null}
               onClick={() => setRange(opt.value)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10,
-                fontSize: 13, fontWeight: 800, cursor: 'pointer',
-                background: active ? opt.accent : 'var(--bg-2)',
-                color: active ? '#111' : 'var(--text-2)',
-                border: active ? `1px solid ${opt.accent}` : '1px solid var(--border-2)',
-              }}
             >
-              <Icon size={15} />
               {opt.label}
-              {count !== null && count > 0 && (
-                <span style={{
-                  fontSize: 11, fontWeight: 800, minWidth: 18, textAlign: 'center', padding: '1px 6px', borderRadius: 999,
-                  background: active ? 'rgba(0,0,0,.22)' : `${opt.accent}2e`,
-                  color: active ? '#111' : opt.accent,
-                }}>
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
+            </Chip>
+          ))}
+        </ChipRow>
       </div>
 
-      <div className="macro-filters" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '14px 24px 0' }}>
-        <select style={S.companyFilterSelect} value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}>
+      <div className="ui-field-row" style={{ padding: '14px 24px 0' }}>
+        <Select style={S.companyFilterSelect} value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}>
           <option value="">Todas as empresas</option>
           {data && data.companies.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-        </select>
-        <select style={S.companyFilterSelect} value={filterResponsible} onChange={(e) => setFilterResponsible(e.target.value)}>
+        </Select>
+        <Select style={S.companyFilterSelect} value={filterResponsible} onChange={(e) => setFilterResponsible(e.target.value)}>
           <option value="">Todos os responsáveis</option>
           {data && data.responsibles.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
-        <select style={S.companyFilterSelect} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+        </Select>
+        <Select style={S.companyFilterSelect} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
           <option value="">Todos os status</option>
           {Object.keys(STATUS_META).map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
-        </select>
-        <select style={S.companyFilterSelect} value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
+        </Select>
+        <Select style={S.companyFilterSelect} value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
           <option value="">Todas as prioridades</option>
           {PRIORITY_ORDER.map((p) => <option key={p} value={p}>{PRIORITY_META[p].label}</option>)}
-        </select>
+        </Select>
         {filtersActive && (
-          <button
-            style={{ ...S.iconBtnGhost, fontSize: 12.5 }}
-            onClick={() => { setFilterCompany(''); setFilterResponsible(''); setFilterStatus(''); setFilterPriority(''); }}
-          >
-            <X size={13} /> Limpar filtros
-          </button>
+          <Button size="sm" icon={X} onClick={() => { setFilterCompany(''); setFilterResponsible(''); setFilterStatus(''); setFilterPriority(''); }}>
+            Limpar filtros
+          </Button>
         )}
       </div>
 
       <div style={{ padding: '18px 24px 40px', display: 'flex', flexDirection: 'column', gap: 18 }}>
         {error && <div style={S.loginBlockedMsg}>{error}</div>}
 
+        {!loaded && !error && <SkeletonCards count={4} height={58} />}
+
         {loaded && !error && groups.length === 0 && (
-          <div style={S.emptyMuted}>{emptyMessage}</div>
+          <EmptyState icon={emptyView.icon} tone={emptyView.tone} title={emptyView.title} description={emptyView.description}>
+            {filtersActive && (
+              <Button size="sm" icon={X} onClick={() => { setFilterCompany(''); setFilterResponsible(''); setFilterStatus(''); setFilterPriority(''); }}>Limpar filtros</Button>
+            )}
+          </EmptyState>
         )}
 
         {data && groups.map((group) => {
@@ -246,7 +228,7 @@ export default function MacroOverviewScreen({
             <div key={group.date === null ? 'no-date' : group.date}>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 800, marginBottom: 8,
-                color: isToday ? '#F5C400' : isPast ? '#e2574c' : 'var(--text-2)',
+                color: isToday ? 'var(--ui-accent-text)' : isPast ? 'var(--ui-danger)' : 'var(--text-2)',
               }}>
                 {group.date === null ? 'Sem data definida' : fmtDayLabel(group.date)}
                 {isToday && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'rgba(245,196,0,.14)', border: '1px solid rgba(245,196,0,.5)' }}>HOJE</span>}
@@ -260,7 +242,7 @@ export default function MacroOverviewScreen({
                   return (
                     <div
                       key={item.id}
-                      onClick={() => onOpenActivity && onOpenActivity(item.projectId, item.activityId)}
+                      {...(onOpenActivity ? activate(() => onOpenActivity(item.projectId, item.activityId)) : {})}
                       title="Clique para abrir e editar essa atividade"
                       style={{
                         display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8,

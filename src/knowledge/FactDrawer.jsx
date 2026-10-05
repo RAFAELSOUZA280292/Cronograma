@@ -7,6 +7,7 @@
 import React, { useEffect, useState } from 'react';
 import { Pencil, ExternalLink, Plus, X } from 'lucide-react';
 import { SidePanel, fmtTs } from '../App.jsx';
+import { EmptyState, SkeletonCards } from '../ui/index.jsx';
 import { apiGet, apiPost, apiDelete } from '../lib/api.js';
 import { knowledgeTypeLabel, scopeLabel, originLabel, entityTypeLabel, statusMeta, ENTITY_TYPE_LABELS, KNOWLEDGE_TYPE_LABELS } from './knowledgeMeta.js';
 
@@ -28,10 +29,10 @@ export function FactDrawer({ factId, onClose, onNavigateToMeeting, onOpenEntity,
   useEffect(load, [factId]);
 
   if (!loaded) {
-    return <SidePanel title="Conhecimento" onClose={onClose}><div className="knw-empty">Carregando…</div></SidePanel>;
+    return <SidePanel title="Conhecimento" onClose={onClose}><SkeletonCards count={3} height={70} /></SidePanel>;
   }
   if (!detail) {
-    return <SidePanel title="Conhecimento" onClose={onClose}><div className="knw-empty">Não encontrado.</div></SidePanel>;
+    return <SidePanel title="Conhecimento" onClose={onClose}><EmptyState compact title="Conhecimento não encontrado" description="Ele pode ter sido arquivado ou editado. Feche e abra a lista de novo." /></SidePanel>;
   }
 
   const { fact, chain, entities, usage, events } = detail;

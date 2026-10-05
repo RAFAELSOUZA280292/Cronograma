@@ -26,11 +26,11 @@
         --text-1: #eeeeee;
         --text-2: #dddddd;
         --text-3: #cccccc;
-        --text-4: #999999;
-        --text-5: #888888;
-        --text-6: #777777;
-        --text-7: #666666;
-        --text-8: #555555;
+        --text-4: #a8a8a8;
+        --text-5: #9c9c9c;
+        --text-6: #929292;
+        --text-7: #8a8a8a;
+        --text-8: #6a6a6a;
         --scrollbar: #333333;
       }
       html[data-theme="light"] {
@@ -44,12 +44,12 @@
         --border-3: #cbc6b9;
         --text-1: #262420;
         --text-2: #3a3833;
-        --text-3: #504d46;
-        --text-4: #6b6860;
-        --text-5: #7d7a71;
-        --text-6: #918e84;
-        --text-7: #a19d92;
-        --text-8: #b0ac9f;
+        --text-3: #45423c;
+        --text-4: #55524b;
+        --text-5: #615e57;
+        --text-6: #636058;
+        --text-7: #68655d;
+        --text-8: #8a867b;
         --scrollbar: #d7d3c8;
       }
       /* Fonte base do app (2026-10-04): sem isto o body cai em Times e todo botão/campo em Arial — era o visual
@@ -57,6 +57,20 @@
          font-family de classe, inline ou de relatório impresso continua mandando. */
       body { font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif; }
       button, input, select, textarea { font-family: inherit; }
+      /* Contraste (WCAG AA 4.5:1) — medido em 2026-10-04: no tema claro 56% dos textos reprovavam, quase todos pelos
+         cinzas --text-5/6/7. Valores acima já corrigidos nos dois temas. As cores de status abaixo são "texto neon
+         sobre fundo claro" (verde 1,6:1, azul 2,6:1, amarelo 1,5:1): só no tema claro, só quando a cor é o TEXTO
+         do elemento (border-color/background não casam com os seletores). !important porque a cor vem inline. */
+      html[data-theme="light"] [style^="color: rgb(62, 207, 110)"], html[data-theme="light"] [style*="; color: rgb(62, 207, 110)"] { color: #176f39 !important; }
+      html[data-theme="light"] [style^="color: rgb(91, 141, 239)"], html[data-theme="light"] [style*="; color: rgb(91, 141, 239)"] { color: #2b57b8 !important; }
+      html[data-theme="light"] [style^="color: rgb(245, 196, 0)"], html[data-theme="light"] [style*="; color: rgb(245, 196, 0)"] { color: #7a5f00 !important; }
+      html[data-theme="light"] [style^="color: rgb(226, 87, 76)"], html[data-theme="light"] [style*="; color: rgb(226, 87, 76)"] { color: #b3281d !important; }
+      html[data-theme="light"] [style^="color: rgb(255, 159, 64)"], html[data-theme="light"] [style*="; color: rgb(255, 159, 64)"] { color: #9a4e00 !important; }
+      html[data-theme="light"] [style^="color: rgb(155, 122, 245)"], html[data-theme="light"] [style*="; color: rgb(155, 122, 245)"] { color: #5b3dbf !important; }
+      html[data-theme="light"] [style^="color: rgb(62, 166, 255)"], html[data-theme="light"] [style*="; color: rgb(62, 166, 255)"] { color: #14659f !important; }
+      /* Foco: campos de texto trocavam só a cor da borda (amarelo sobre branco = 1,6:1); acrescenta um halo. Botões e
+         links seguem com o anel padrão do navegador. */
+      input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 0 0 0 3px rgba(245, 196, 0, .4); }
       html, body { background: var(--bg-page); }
       html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
       html, body { overflow-x: hidden; max-width: 100%; }
@@ -65,6 +79,13 @@
         --safe-bottom: env(safe-area-inset-bottom, 0px);
         --safe-left: env(safe-area-inset-left, 0px);
         --safe-right: env(safe-area-inset-right, 0px);
+      }
+      /* Alvos de toque (medido em 2026-10-04 a 375px): os botões de ícone da barra superior (início, tema, sair,
+         notificações) tinham 23x23 px em TODAS as telas — abaixo do mínimo de 24 px do WCAG e longe dos 44 px
+         recomendados. Só no celular; no desktop nada muda. Botão com `title` é, na prática, o botão de ícone. */
+      @media (max-width: 767px) {
+        button[title], a[title] { min-width: 36px; min-height: 36px; }
+        button[title="Início"], button[title="Sair"], button[title^="Mudar para modo"], button[title="Notificações"] { min-width: 40px; min-height: 40px; }
       }
       /* Evita zoom automático do iOS ao focar campos (exige fonte >= 16px). Só em telas pequenas — desktop mantém o tamanho de fonte de cada componente. */
       @media (max-width: 767px) {

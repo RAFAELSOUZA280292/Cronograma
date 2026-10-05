@@ -5,6 +5,7 @@
 // aba própria — decisão confirmada com o Rafael.
 import React, { useEffect, useState } from 'react';
 import { Search } from 'lucide-react';
+import { EmptyState, SkeletonCards, Button, activate } from '../ui/index.jsx';
 import { fmtTs } from '../App.jsx';
 import { apiGet } from '../lib/api.js';
 import { knowledgeTypeLabel, scopeLabel, originLabel, statusMeta, KNOWLEDGE_TYPE_LABELS, SCOPE_LABELS, ORIGIN_LABELS } from './knowledgeMeta.js';
@@ -70,14 +71,22 @@ export function MemoriesTab({ onOpenFact, refreshKey }) {
       </div>
 
       {!loaded ? (
-        <div className="knw-empty">Buscando…</div>
+        <SkeletonCards count={4} height={86} />
       ) : facts.length === 0 ? (
-        <div className="knw-empty">Nenhum conhecimento encontrado com esses filtros.</div>
+        <EmptyState
+          icon={Search}
+          title={(q.trim() || knowledgeType || scope || status || origin) ? 'Nenhum conhecimento encontrado' : 'A memória da RENATA está vazia'}
+          description={(q.trim() || knowledgeType || scope || status || origin) ? 'Tente outros termos ou tire algum filtro.' : 'Quando ela aprender algo, ou estudar os Pareceres, aparece aqui.'}
+        >
+          {(q.trim() || knowledgeType || scope || status || origin) && (
+            <Button size="sm" onClick={() => { setQ(''); setKnowledgeType(''); setScope(''); setStatus(''); setOrigin(''); }}>Limpar busca e filtros</Button>
+          )}
+        </EmptyState>
       ) : (
         facts.map((f) => {
           const st = statusMeta(f.status);
           return (
-            <div key={f.id} className="knw-fact-card" onClick={() => onOpenFact(f.id)}>
+            <div key={f.id} className="knw-fact-card" {...activate(() => onOpenFact(f.id))}>
               <div className="knw-fact-head">
                 <span className="knw-status-dot" style={{ background: st.color }} />
                 <span className="knw-fact-subject">{f.subject}</span>

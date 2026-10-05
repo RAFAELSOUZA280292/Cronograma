@@ -18,6 +18,7 @@ import { MEETINGS_CSS, TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } fro
 import { TodoDrawer } from './TodoDrawer.jsx';
 import { ActivityRow, ACTIVITY_ROW_CSS } from './ActivityRow.jsx';
 import { isItemOverdue, todayIso, greetingPeriod } from './todoUtils.js';
+import { activate } from '../ui/index.jsx';
 
 const SORT_MODE_KEY = 'pricetax_todo_sort_mode';
 
@@ -50,7 +51,7 @@ const TODO_BOARD_CSS = `
   .todo-section-label { font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--text-4); transition:color .12s; }
   .todo-section-count { font-size:11px; font-weight:700; color:var(--text-6); background:var(--bg-3); border-radius:999px; padding:1px 8px; }
   .todo-filter-chip { font-size:11.5px; font-weight:700; padding:6px 11px; border-radius:999px; border:1px solid var(--border-2); background:var(--bg-2); color:var(--text-5); cursor:pointer; white-space:nowrap; }
-  .todo-filter-chip.active { border-color:#F5C400; background:rgba(245,196,0,.12); color:#F5C400; }
+  .todo-filter-chip.active { border-color:#F5C400; background:rgba(245,196,0,.12); color:var(--ui-accent-text); }
   .todo-empty { text-align:center; padding:48px 20px; color:var(--text-6); }
   .todo-stat-card { display:flex; flex-direction:column; gap:2px; background:var(--bg-2); border:1px solid var(--border-1); border-radius:11px; padding:12px 16px; min-width:110px; cursor:pointer; transition:border-color .14s, transform .1s; }
   .todo-stat-card:hover { border-color:var(--border-3); transform:translateY(-1px); }
@@ -345,23 +346,23 @@ export function TodoBoardView({
       </div>
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-        <div className={`todo-stat-card ${quickFilter === 'todos' && ownerFilter === 'todos' ? 'active' : ''}`} onClick={() => selectStat('todos', 'todos')}>
+        <div className={`todo-stat-card ${quickFilter === 'todos' && ownerFilter === 'todos' ? 'active' : ''}`} {...activate(() => selectStat('todos', 'todos'))}>
           <div className="todo-stat-value">{stats.pendentes}</div>
           <div className="todo-stat-label">pendentes</div>
         </div>
-        <div className={`todo-stat-card ${quickFilter === 'atrasadas' && ownerFilter === 'todos' ? 'active' : ''}`} onClick={() => selectStat('atrasadas', 'todos')}>
+        <div className={`todo-stat-card ${quickFilter === 'atrasadas' && ownerFilter === 'todos' ? 'active' : ''}`} {...activate(() => selectStat('atrasadas', 'todos'))}>
           <div className="todo-stat-value" style={stats.atrasadas > 0 ? { color: '#e2574c' } : undefined}>{stats.atrasadas}</div>
           <div className="todo-stat-label">atrasadas</div>
         </div>
-        <div className={`todo-stat-card ${quickFilter === 'minha' && ownerFilter === 'todos' ? 'active' : ''}`} onClick={() => selectStat('minha', 'todos')}>
+        <div className={`todo-stat-card ${quickFilter === 'minha' && ownerFilter === 'todos' ? 'active' : ''}`} {...activate(() => selectStat('minha', 'todos'))}>
           <div className="todo-stat-value">{stats.minhas}</div>
           <div className="todo-stat-label">minhas</div>
         </div>
-        <div className={`todo-stat-card ${quickFilter === 'todos' && ownerFilter === 'cliente' ? 'active' : ''}`} onClick={() => selectStat('todos', 'cliente')}>
+        <div className={`todo-stat-card ${quickFilter === 'todos' && ownerFilter === 'cliente' ? 'active' : ''}`} {...activate(() => selectStat('todos', 'cliente'))}>
           <div className="todo-stat-value">{stats.cliente}</div>
           <div className="todo-stat-label">Cliente</div>
         </div>
-        <div className={`todo-stat-card ${quickFilter === 'todos' && ownerFilter === 'pricetax' ? 'active' : ''}`} onClick={() => selectStat('todos', 'pricetax')}>
+        <div className={`todo-stat-card ${quickFilter === 'todos' && ownerFilter === 'pricetax' ? 'active' : ''}`} {...activate(() => selectStat('todos', 'pricetax'))}>
           <div className="todo-stat-value">{stats.pricetax}</div>
           <div className="todo-stat-label">Pricetax</div>
         </div>

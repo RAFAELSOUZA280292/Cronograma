@@ -248,8 +248,8 @@ const CSS = `
   .rab-shell { width:min(820px,100%); display:flex; flex-direction:column; gap:14px; margin-bottom:18px; text-align:left; }
   .rab-panel { background:var(--bg-2); border:1px solid var(--border-2); border-radius:16px; padding:20px 22px; box-shadow:0 1px 2px rgba(0,0,0,.05), 0 8px 22px rgba(0,0,0,.06); }
   .rab-top { display:flex; align-items:center; gap:11px; margin-bottom:16px; }
-  .rab-avatar { width:32px; height:32px; border-radius:50%; background:rgba(245,196,0,.16); color:#F5C400; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .rab-name { font-size:10.5px; font-weight:800; letter-spacing:.09em; color:#F5C400; }
+  .rab-avatar { width:32px; height:32px; border-radius:50%; background:rgba(245,196,0,.16); color:var(--ui-accent-text); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .rab-name { font-size:10.5px; font-weight:800; letter-spacing:.09em; color:var(--ui-accent-text); }
   .rab-greet { font-size:13px; font-weight:700; color:var(--text-3); margin-top:1px; }
   .rab-spacer { flex:1; }
   .rab-link { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:800; color:var(--text-3); background:var(--bg-2); border:1px solid var(--border-2); border-radius:999px; cursor:pointer; font-family:inherit; padding:8px 14px; }
@@ -267,7 +267,7 @@ const CSS = `
   .rab-divider { width:1px; align-self:stretch; background:var(--border-1); }
   .rab-side { width:210px; flex-shrink:0; padding-top:2px; }
   .rab-side-icon { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:11px; }
-  .rab-side-ok { background:rgba(62,207,110,.15); color:#2f9e63; }
+  .rab-side-ok { background:rgba(62,207,110,.15); color:var(--ui-ok); }
   .rab-side-warn { background:rgba(255,159,64,.16); color:#e08a2a; }
   .rab-side-title { font-size:14px; font-weight:800; color:var(--text-1); margin-bottom:4px; }
   .rab-side-sub { font-size:12.5px; color:var(--text-4); line-height:1.45; }
@@ -301,7 +301,7 @@ const CSS = `
   .rab-leg2-acc { background:#5B8DEF; } .rab-leg2-pen { background:#ff9f40; } .rab-leg2-con { background:#e2574c; } .rab-leg2-free { background:#3ecf6e; }
   .rab-bar { margin-top:2px; }
   .rab-track { position:relative; }
-  .rab-free { position:absolute; top:0; bottom:0; background:rgba(62,207,110,.11); border:1.5px dashed rgba(47,158,99,.4); border-radius:8px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:800; color:#2f9e63; pointer-events:none; }
+  .rab-free { position:absolute; top:0; bottom:0; background:rgba(62,207,110,.11); border:1.5px dashed rgba(47,158,99,.4); border-radius:8px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:800; color:var(--ui-ok); pointer-events:none; }
   .rab-blk { position:absolute; border-radius:6px; background:color-mix(in srgb, var(--c) 24%, transparent); border-left:3px solid var(--c); padding:4px 7px; display:flex; align-items:center; overflow:hidden; box-sizing:border-box; }
   .rab-blk span { font-size:10.5px; font-weight:700; color:var(--text-1); line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-overflow:ellipsis; word-break:break-word; }
   .rab-blk-pending { background:transparent; border:1.5px dashed var(--c); }
@@ -313,10 +313,10 @@ const CSS = `
   .rab-ticks span { position:absolute; transform:translateX(-50%); font-size:10px; color:var(--text-6); font-variant-numeric:tabular-nums; }
   .rab-lunchrow { position:relative; height:38px; margin-top:6px; }
   .rab-lunchpill { position:absolute; top:0; transform:translateX(-50%); padding:5px 13px; border-radius:10px; background:rgba(47,158,99,.09); border:1px solid rgba(47,158,99,.35); text-align:center; white-space:nowrap; box-sizing:border-box; }
-  .rab-lunchpill b { display:block; font-size:10.5px; font-weight:800; color:#2f9e63; }
+  .rab-lunchpill b { display:block; font-size:10.5px; font-weight:800; color:var(--ui-ok); }
   .rab-lunchpill i { display:block; font-style:normal; font-size:9.5px; color:var(--text-5); margin-top:1px; }
   .rab-lunchpill.rab-lunch-busy { background:rgba(226,87,76,.1); border-color:rgba(226,87,76,.5); }
-  .rab-lunchpill.rab-lunch-busy b { color:#e2574c; }
+  .rab-lunchpill.rab-lunch-busy b { color:var(--ui-danger); }
   .rab-cfg { margin-top:14px; padding:14px 16px; border:1px solid var(--border-2); border-radius:12px; background:var(--bg-1); }
   .rab-cfg-t { font-size:12.5px; font-weight:800; color:var(--text-1); margin-bottom:10px; }
   .rab-cfg-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--text-3); }
@@ -324,22 +324,22 @@ const CSS = `
   .rab-cfg-row input { width:auto; padding:7px 10px; font-size:13px; border-radius:8px; font-variant-numeric:tabular-nums; }
   .rab-cfg-act { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
   .rab-cfg-act .rab-btn { padding:7px 13px; }
-  .rab-cfg-err { margin-top:9px; font-size:12px; color:#e2574c; }
+  .rab-cfg-err { margin-top:9px; font-size:12px; color:var(--ui-danger); }
   .rab-cfg-hint { margin-top:10px; font-size:11.5px; color:var(--text-6); line-height:1.45; }
   .rab-att { display:flex; align-items:flex-start; gap:14px; }
   .rab-att-danger { background:rgba(226,87,76,.06); border-color:rgba(226,87,76,.22); }
   .rab-att-warn { background:rgba(255,159,64,.07); border-color:rgba(255,159,64,.22); }
   .rab-att-ok { background:rgba(62,207,110,.06); border-color:rgba(62,207,110,.22); }
   .rab-att-icon { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .rab-att-danger .rab-att-icon { background:rgba(226,87,76,.15); color:#e2574c; }
+  .rab-att-danger .rab-att-icon { background:rgba(226,87,76,.15); color:var(--ui-danger); }
   .rab-att-warn .rab-att-icon { background:rgba(255,159,64,.17); color:#e08a2a; }
-  .rab-att-ok .rab-att-icon { background:rgba(62,207,110,.16); color:#2f9e63; }
+  .rab-att-ok .rab-att-icon { background:rgba(62,207,110,.16); color:var(--ui-ok); }
   .rab-att-body { flex:1; min-width:0; }
   .rab-att-title { font-size:14px; font-weight:800; color:var(--text-1); margin-bottom:9px; }
   .rab-att-list { display:flex; flex-direction:column; gap:8px; }
   .rab-ins { display:flex; align-items:center; gap:9px; font-size:13px; color:var(--text-2); line-height:1.35; }
   .rab-ins-i { width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .rab-ins-danger .rab-ins-i { background:rgba(226,87,76,.15); color:#e2574c; } .rab-ins-warn .rab-ins-i { background:rgba(255,159,64,.16); color:#e08a2a; } .rab-ins-ok .rab-ins-i { background:rgba(62,207,110,.15); color:#2f9e63; }
+  .rab-ins-danger .rab-ins-i { background:rgba(226,87,76,.15); color:var(--ui-danger); } .rab-ins-warn .rab-ins-i { background:rgba(255,159,64,.16); color:#e08a2a; } .rab-ins-ok .rab-ins-i { background:rgba(62,207,110,.15); color:var(--ui-ok); }
   .rab-list { border-top:1px solid var(--border-1); padding-top:6px; }
   .rab-line { display:grid; grid-template-columns:12px 84px minmax(0,1fr) auto; align-items:start; gap:10px; padding:10px 0; }
   .rab-line + .rab-line { border-top:1px solid var(--border-1); }
@@ -350,7 +350,7 @@ const CSS = `
   .rab-lb { min-width:0; display:flex; flex-direction:column; gap:2px; }
   .rab-lb b { font-size:13.5px; font-weight:700; color:var(--text-1); overflow-wrap:anywhere; }
   .rab-lb small { font-size:11.5px; color:var(--text-6); display:flex; align-items:center; gap:4px; }
-  .rab-lw { color:#e2574c; margin-left:6px; vertical-align:-1px; }
+  .rab-lw { color:var(--ui-danger); margin-left:6px; vertical-align:-1px; }
   .rab-pill-now { font-style:normal; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; background:#F5C400; color:#111; padding:1px 7px; border-radius:999px; margin-left:8px; }
   .rab-ld { font-size:12px; color:var(--text-5); font-variant-numeric:tabular-nums; white-space:nowrap; padding-top:1px; }
   .rab-past { opacity:.45; }

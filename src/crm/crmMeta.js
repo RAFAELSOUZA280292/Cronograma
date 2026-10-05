@@ -142,7 +142,7 @@ export const CRM_CSS = `
   .crm-btn:hover { background:var(--bg-3); }
   .crm-btn-primary { background:#F5C400; border-color:#F5C400; color:#111; }
   .crm-btn-primary:hover { background:#e6b800; }
-  .crm-btn-danger { color:#e2574c; border-color:rgba(226,87,76,.5); }
+  .crm-btn-danger { color:var(--ui-danger); border-color:rgba(226,87,76,.5); }
   .crm-btn:disabled { opacity:.5; cursor:default; }
   .crm-h1 { font-size:20px; font-weight:800; color:var(--text-1); margin:0; }
   .crm-sub { font-size:12.5px; color:var(--text-5); margin-top:3px; }
@@ -211,7 +211,7 @@ export const CRM_CSS = `
   .crm-alert-warn { background:rgba(255,159,64,.10); border-color:rgba(255,159,64,.45); color:var(--text-2); }
   .crm-alert-danger { background:rgba(226,87,76,.10); border-color:rgba(226,87,76,.45); color:var(--text-2); }
   .crm-alert-info { background:rgba(62,166,255,.10); border-color:rgba(62,166,255,.4); color:var(--text-2); }
-  .crm-err { color:#e2574c; font-size:12px; margin-top:8px; }
+  .crm-err { color:var(--ui-danger); font-size:12px; margin-top:8px; }
 
   .crm-kv { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:14px 20px; }
   .crm-kv .k { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--text-6); margin-bottom:3px; }
@@ -283,7 +283,7 @@ export const CRM_CSS = `
   .crm-act-actions { display:flex; gap:4px; align-items:center; flex-shrink:0; }
   .crm-act-outcome { margin-top:5px; font-size:12px; color:var(--text-3); background:var(--bg-3); border-radius:8px; padding:6px 9px; white-space:pre-wrap; }
   .crm-check { width:22px; height:22px; border-radius:50%; border:2px solid var(--border-3); background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; color:transparent; flex-shrink:0; margin-top:4px; padding:0; }
-  .crm-check:hover { border-color:#3ecf6e; color:#3ecf6e; }
+  .crm-check:hover { border-color:#3ecf6e; color:var(--ui-ok); }
   .crm-check.on { background:#3ecf6e; border-color:#3ecf6e; color:#111; }
   .crm-chips { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
   .crm-chip { display:inline-flex; align-items:baseline; gap:6px; padding:6px 12px; border-radius:999px; border:1px solid var(--border-2); background:transparent; color:var(--text-4); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }

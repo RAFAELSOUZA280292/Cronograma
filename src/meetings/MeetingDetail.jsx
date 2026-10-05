@@ -53,7 +53,7 @@ const MEETING_DETAIL_CSS = `
   .mtg2-read-text { font-size:13.5px; line-height:1.65; color:var(--text-2); white-space:pre-wrap; }
   .mtg2-decision-item { display:flex; gap:10px; padding:8px 0; border-top:1px solid var(--border-1); }
   .mtg2-decision-item:first-child { border-top:none; }
-  .mtg2-decision-num { width:22px; height:22px; border-radius:999px; background:rgba(62,207,110,.14); color:#3ecf6e; font-weight:800; font-size:11.5px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .mtg2-decision-num { width:22px; height:22px; border-radius:999px; background:rgba(62,207,110,.14); color:var(--ui-ok); font-weight:800; font-size:11.5px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .mtg2-decision-text { font-size:13.5px; line-height:1.55; color:var(--text-2); }
   .mtg2-empty { font-size:12.5px; color:var(--text-6); display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
   .mtg2-participants-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }

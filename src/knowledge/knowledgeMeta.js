@@ -47,17 +47,9 @@ export const KNOWLEDGE_CSS = `
   .knw-actions { display:flex; align-items:center; gap:4px; }
   .knw-actions button { background:transparent; border:none; color:var(--text-5); cursor:pointer; display:flex; padding:7px; border-radius:7px; }
   .knw-actions button:hover { background:var(--bg-3); color:var(--text-2); }
-  .knw-tabs { display:flex; gap:2px; padding:0 20px; border-bottom:1px solid var(--border-1); overflow-x:auto; flex-shrink:0; }
-  .knw-tab { display:flex; align-items:center; gap:6px; padding:12px 14px; font-size:13px; font-weight:700; color:var(--text-5); background:transparent; border:none; border-bottom:2px solid transparent; cursor:pointer; white-space:nowrap; }
-  .knw-tab:hover { color:var(--text-2); }
-  .knw-tab.active { color:var(--text-1); border-bottom-color:#F5C400; }
   .knw-body { flex:1; overflow-y:auto; padding:22px; }
   .knw-loading, .knw-empty { text-align:center; color:var(--text-6); font-size:13px; padding:48px 12px; }
 
-  .knw-kpi-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:12px; margin-bottom:24px; }
-  .knw-kpi-card { background:var(--bg-2); border:1px solid var(--border-1); border-radius:12px; padding:14px 16px; }
-  .knw-kpi-value { font-size:24px; font-weight:800; color:var(--text-1); line-height:1.1; }
-  .knw-kpi-label { font-size:11.5px; color:var(--text-5); margin-top:4px; font-weight:600; }
 
   .knw-section-title { font-size:13px; font-weight:800; color:var(--text-1); margin:0 0 10px; display:flex; align-items:center; gap:6px; }
   .knw-section { margin-bottom:26px; }
@@ -68,7 +60,7 @@ export const KNOWLEDGE_CSS = `
   .knw-fact-card:hover { border-color:var(--border-3); }
   .knw-fact-head { display:flex; align-items:center; gap:6px; margin-bottom:6px; flex-wrap:wrap; }
   .knw-chip { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; padding:2px 8px; border-radius:999px; background:var(--bg-3); color:var(--text-5); }
-  .knw-chip.scope-org { background:rgba(245,196,0,.14); color:#c99400; }
+  .knw-chip.scope-org { background:rgba(245,196,0,.14); color:var(--ui-accent-text); }
   .knw-status-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
   .knw-fact-subject { font-size:12.5px; font-weight:700; color:var(--text-2); }
   .knw-fact-content { font-size:12.5px; color:var(--text-3); line-height:1.5; }

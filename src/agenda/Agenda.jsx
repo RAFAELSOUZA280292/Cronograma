@@ -9,7 +9,8 @@
 // UI grande e autocontido, com sua própria lógica de grade de horários.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Building2, Columns3, LogOut, Link2, Ban, Home } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Building2, Columns3, LogOut, Link2, Ban, Home, AlertTriangle } from 'lucide-react';
+import { Segmented, Callout, BusyBar } from '../ui/index.jsx';
 import { apiGet } from '../lib/api.js';
 import { rsvpOf, isPendingRsvp, RSVP_META, summarizeDay, fmtDur, hhmm } from './dayLoad.js';
 import { loadPrefs } from './agendaPrefs.js';
@@ -198,11 +199,10 @@ export default function AgendaScreen({
           >
             {hideDetails ? <EyeOff size={13} /> : <Eye size={13} />} {hideDetails ? 'Ocultar detalhes' : 'Mostrar detalhes'}
           </button>
-          <div style={{ display: 'flex', gap: 4, background: 'var(--bg-3)', padding: 3, borderRadius: 8 }}>
-            <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'day' ? { background: S.pbGhostBtnActive.background, color: S.pbGhostBtnActive.color } : {}) }} onClick={() => setViewMode('day')}>Dia</button>
-            <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'week' ? { background: S.pbGhostBtnActive.background, color: S.pbGhostBtnActive.color } : {}) }} onClick={() => setViewMode('week')}>Semana</button>
-            <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'month' ? { background: S.pbGhostBtnActive.background, color: S.pbGhostBtnActive.color } : {}) }} onClick={() => setViewMode('month')}>Mês</button>
-          </div>
+          <Segmented
+            label="Visualização da agenda" value={viewMode} onChange={setViewMode}
+            options={[{ value: 'day', label: 'Dia' }, { value: 'week', label: 'Semana' }, { value: 'month', label: 'Mês' }]}
+          />
           <NotificationBell
             notifications={notifications} show={showNotifications} onToggle={onToggleNotifications}
             onOpenItem={onOpenNotification} onMarkRead={onMarkNotificationRead} onMarkAllRead={onMarkAllNotificationsRead}
@@ -220,15 +220,25 @@ export default function AgendaScreen({
         <div style={{ fontWeight: 700, fontSize: 14 }}>{rangeLabel(viewMode, anchorDate)}</div>
         {loaded && <RefreshCw size={12} style={{ color: 'var(--text-6)', marginLeft: 4 }} />}
       </div>
+      <div style={{ padding: '10px 24px 0' }}><BusyBar active={!loaded} /></div>
 
       <div style={{ padding: '10px 24px 24px' }}>
         {connected === false && (
-          <div style={{ ...S.loginBlockedMsg, background: 'rgba(91,141,239,.12)', borderColor: 'rgba(91,141,239,.4)', color: 'var(--text-2)', marginBottom: 14 }}>
-            Você ainda não conectou seu Google Calendar — as TASKs e atividades do PRICETAX já aparecem abaixo, mas os compromissos do Google não.{' '}
-            <a href="/api/google/oauth/start" style={{ color: '#5B8DEF', fontWeight: 700 }}>Conectar Google Calendar</a>
+          <div style={{ marginBottom: 14 }}>
+            <Callout
+              tone="info" icon={Link2} title="Seu Google Calendar ainda não está conectado"
+              action={<a className="ui-btn primary sm" href="/api/google/oauth/start">Conectar Google Calendar</a>}
+            >
+              As TASKs e atividades do PRICETAX já aparecem abaixo, mas os compromissos do Google não.
+            </Callout>
           </div>
         )}
-        {loadError && <div style={S.loginBlockedMsg}>{loadError}</div>}
+        {loadError && <div style={{ marginBottom: 14 }}><Callout tone="danger" icon={AlertTriangle} title="Não consegui carregar a agenda">{loadError}</Callout></div>}
+        {loaded && !loadError && events.length === 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <Callout icon={CalendarDays} title="Nenhum compromisso neste período">Use as setas para ver outra semana ou troque a visualização.</Callout>
+          </div>
+        )}
 
         {viewMode === 'month' ? (
           <MonthGrid daysInView={daysInView} eventsByDay={eventsByDay} anchorDate={anchorDate} hideDetails={hideDetails} eventLabel={eventLabel} eventTip={eventTip} onOpenEvent={openEvent} onPickDay={(d) => { setAnchorDate(d); setViewMode('day'); }} />
