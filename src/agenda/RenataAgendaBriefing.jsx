@@ -17,7 +17,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Sparkles, MapPin, ArrowRight, Link2, TriangleAlert, CircleHelp, Utensils, Timer, ChevronRight, Calendar, Clock, BarChart2, Activity } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
-import { WORK, rsvpOf, isPendingRsvp, summarizeDay, timelineRows, durationMin, fmtDur, hhmm } from './dayLoad.js';
+import { WORK, rsvpOf, isPendingRsvp, summarizeDay, timelineRows, durationMin, fmtDur, hhmm, afterMeetingsMessage } from './dayLoad.js';
 import { loadPrefs, savePrefs, validatePrefs, parseHHMM, DEFAULT_PREFS, isDefaultPrefs } from './agendaPrefs.js';
 
 const SOURCE_COLOR = { google: '#5B8DEF', xflow_ticket: '#b98af5', activity: '#3ecf6e', crm_activity: '#F5C400' };
@@ -466,7 +466,7 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda }) {
       else if (nxt) { const mins = Math.round((nxt.startDate - now) / 60000); nextLine = <>Próximo: <b>{nxt.title}</b> às {fmtTime(nxt.startDate)}{mins <= 90 ? ` · em ${fmtDur(mins)}` : ''}</>; }
     } else if (!picked && days[0].sum.confirmed > 0 && !days[0].list.some((e) => !e.allDay && !e.transparent && rsvpOf(e) === 'accepted' && e.endDate > now)) {
       // Só quando o painel escolheu sozinho o próximo dia porque hoje acabou (não quando a pessoa clicou noutro dia).
-      nextLine = <>Hoje você já terminou. O resto do dia é seu.</>;
+      nextLine = <>{afterMeetingsMessage(now.getHours() * 60 + now.getMinutes(), prefs.workEnd)}</>;
     }
   }
   const insights = focus ? insightsFor(sum, isToday, now) : [];
