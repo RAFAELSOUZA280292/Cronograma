@@ -1413,6 +1413,7 @@ export default function App() {
 
   if (!effectiveMode) {
     return (
+      <>
       <WorkspaceGateScreen
         user={currentUser}
         personalBoard={personalBoard}
@@ -1428,7 +1429,17 @@ export default function App() {
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
+        onOpenProfile={() => setShowMyProfile(true)}
       />
+        {showMyProfile && (
+          <MyProfileModal
+            user={currentUser}
+            googleConnectResult={googleConnectResult}
+            onClose={() => { setShowMyProfile(false); setGoogleConnectResult(null); }}
+            onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
+          />
+        )}
+      </>
     );
   }
 
@@ -5067,13 +5078,18 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   );
 }
 
-function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickCrm, onPickUsers, onLogout, theme, onToggleTheme }) {
+function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickCrm, onPickUsers, onLogout, theme, onToggleTheme, onOpenProfile }) {
   return (
     <div className="page-root" style={S.page}>
       <div style={S.companySelectorWrap}>
         <div style={S.companySelectorHeader}>
           <BrandLogo theme={theme} style={{ ...S.loginLogo, marginBottom: 0 }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {onOpenProfile && (
+              <button style={S.companyHeaderShortcut} title={`Meu perfil — ${user.name}`} onClick={onOpenProfile}>
+                <UserAvatar user={user} size={20} /> Meu perfil
+              </button>
+            )}
             <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
             <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={16} /></button>
           </div>
