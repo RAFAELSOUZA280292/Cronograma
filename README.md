@@ -40,4 +40,5 @@ Lista completa de variáveis de ambiente, tabelas e rotas: `PROJECT_CONTEXT.md` 
 - `PROJECT_CONTEXT.md` — memória técnica oficial: arquitetura, banco, deploy, regras de negócio, decisões, bugs já resolvidos e pendências. **Comece pelo §0.**
 - `docs/PROJECT_MAP.md` — onde está cada componente/função (com linhas) e a estrutura de diretórios.
 - `CLAUDE.md` — regras de trabalho e padrões de código.
+- `docs/CONECTIVIDADE_CLAUDE_CODE.md` — como conectar outra janela do Claude Code ao painel (tokens, API, guia pronto).
 - `docs/` — responsividade, auditoria visual, RENATA (brief, cobertura, eval) e estudo de integração via Telegram.

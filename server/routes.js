@@ -552,25 +552,73 @@ router.post('/_internal/memory-search', requireAuth, async (req, res, next) => {
 
 router.get('/personal-board', requireAuth, async (req, res, next) => {
   try {
-    const { rows } = await pool.query('SELECT data FROM personal_boards WHERE user_id=$1', [req.user.id]);
-    if (rows[0]) return res.json({ board: rows[0].data });
+    const { rows } = await pool.query('SELECT data, updated_at FROM personal_boards WHERE user_id=$1', [req.user.id]);
+    if (rows[0]) return res.json({ board: rows[0].data, updatedAt: rows[0].updated_at });
     const board = blankPersonalBoard();
-    await pool.query('INSERT INTO personal_boards (user_id, data) VALUES ($1,$2)', [req.user.id, JSON.stringify(board)]);
-    res.json({ board });
+    const ins = await pool.query('INSERT INTO personal_boards (user_id, data) VALUES ($1,$2) RETURNING updated_at', [req.user.id, JSON.stringify(board)]);
+    res.json({ board, updatedAt: ins.rows[0].updated_at });
   } catch (e) { next(e); }
 });
 
-router.patch('/personal-board', requireAuth, async (req, res, next) => {
+// Versão barata do quadro (só o carimbo): o cliente consulta de tempos em tempos para saber se OUTRA origem (a API de conectividade,
+// §80, ou o quadro público) alterou o quadro, e recarrega quando não há edição local pendente.
+router.get('/personal-board/version', requireAuth, async (req, res, next) => {
   try {
-    const board = req.body && req.body.board;
-    if (!board) return res.status(400).json({ message: 'Payload inválido.' });
-    await pool.query(
+    const { rows } = await pool.query('SELECT updated_at FROM personal_boards WHERE user_id=$1', [req.user.id]);
+    res.json({ updatedAt: rows[0] ? rows[0].updated_at : null });
+  } catch (e) { next(e); }
+});
+
+// Rede de segurança contra perda silenciosa: o painel salva o quadro INTEIRO. Se uma atividade foi criada pela API depois da última
+// versão que este cliente conheceu (`baseUpdatedAt`), ela não pode ter sido apagada por ele — então é devolvida ao quadro antes de gravar.
+export function mergeApiCards(stored, incoming, baseUpdatedAt) {
+  if (!stored || !Array.isArray(stored.boards) || !incoming || !Array.isArray(incoming.boards) || !baseUpdatedAt) return { board: incoming, merged: 0 };
+  const known = new Set();
+  for (const b of incoming.boards) for (const c of b.columns || []) for (const k of c.cards || []) known.add(k.id);
+  let merged = 0;
+  const boards = incoming.boards.map((b) => ({ ...b, columns: (b.columns || []).map((c) => ({ ...c, cards: [...(c.cards || [])] })) }));
+  for (const sb of stored.boards) {
+    for (const sc of sb.columns || []) {
+      for (const card of sc.cards || []) {
+        if (card.createdVia !== 'api' || known.has(card.id) || !card.createdAt || card.createdAt <= baseUpdatedAt) continue;
+        const board = boards.find((b) => b.id === sb.id) || boards[0];
+        if (!board || !board.columns.length) continue;
+        const col = board.columns.find((c) => c.id === sc.id) || board.columns[0];
+        col.cards.push(card);
+        known.add(card.id);
+        merged += 1;
+      }
+    }
+  }
+  return { board: merged ? { ...incoming, boards } : incoming, merged };
+}
+
+router.patch('/personal-board', requireAuth, async (req, res, next) => {
+  const incoming = req.body && req.body.board;
+  if (!incoming) return res.status(400).json({ message: 'Payload inválido.' });
+  const base = typeof req.body.baseUpdatedAt === 'string' ? req.body.baseUpdatedAt : '';
+  let saved;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const cur = await client.query('SELECT data FROM personal_boards WHERE user_id=$1 FOR UPDATE', [req.user.id]);
+    const { board, merged } = cur.rows[0] ? mergeApiCards(cur.rows[0].data, incoming, base) : { board: incoming, merged: 0 };
+    const up = await client.query(
       `INSERT INTO personal_boards (user_id, data) VALUES ($1,$2)
-       ON CONFLICT (user_id) DO UPDATE SET data=$2, updated_at=now()`,
+       ON CONFLICT (user_id) DO UPDATE SET data=$2, updated_at=now() RETURNING updated_at`,
       [req.user.id, JSON.stringify(board)]
     );
-    await syncCardEvents(pool, req.user.id, board);
-    res.json({ board });
+    await client.query('COMMIT');
+    saved = { board, updatedAt: up.rows[0].updated_at, merged: merged > 0 };
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch { /* conexão já encerrada */ }
+    client.release();
+    return next(e);
+  }
+  client.release();
+  try {
+    await syncCardEvents(pool, req.user.id, saved.board);
+    res.json(saved);
   } catch (e) { next(e); }
 });
 

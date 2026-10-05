@@ -34,7 +34,7 @@ O painel (painel.pricetax.com.br) virou o **ecossistema de trabalho da PRICETAX*
 
 Transversais (não são "abas"): **RENATA** (assistente de IA: §27–§42, §50, §63, §70), **Meu perfil** em abas — Perfil · Meu dia ·
 Agenda · iPhone — com **boas-vindas** na primeira entrada e a **Mensagem do dia** na tela inicial (§77), **Widget do iPhone** (§76),
-Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (§67).
+Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (§67), **API de conectividade** para outra janela do Claude Code (§80).
 
 **Linha do tempo** (o "porquê" de cada coisa está na seção citada):
 - **2026-08** — multi-tenant (§11), XFlow v1→v2 (§18), autoatendimento de conta (§19a), Notificações (§20), Google Calendar (§21), Agenda (§22), Visão Geral (§23), Grupo Empresarial (§12), 3 acessos independentes (§7).
@@ -42,7 +42,7 @@ Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (
 - **2026-09-16/20** — correções reais de autosave/transcrição (§43–§47), Pareceres (§48), transcrição em português (§49), RENATA na tela inicial (§50), quadro compartilhado como aba (§52), CRM fases 1–3 + importação do PipeRun (§54–§58), Agenda com aceito/recusado (§59).
 - **2026-09-28 a 10-02** — Pareceres por cliente (§48), bug "digito e some" (§60), quadro pessoal (§61–§62), Dossiê do cliente (§63), imagens nas TASKs (§64).
 - **2026-10-04** — Indicadores de atividades (§65), pausar → fim da coluna (§66), auditoria de acessos (§67), Usuários na tela inicial (§68), Pareceres redesenhado (§69), RENATA estuda os Pareceres (§70), fonte em todo o app (§71), peças visuais comuns + acessibilidade medida (§72).
-- **2026-10-05** — tela inicial verdadeira (§73), endereço por módulo (§74), idade do cartão em dias de calendário (§75), Widget do iPhone com visões e um script por visão (§76), Meu dia + boas-vindas + Meu perfil em abas + Mensagem do dia (§77), Modelos de documentos com vários anexos (§78), consolidação da documentação (§79).
+- **2026-10-05** — tela inicial verdadeira (§73), endereço por módulo (§74), idade do cartão em dias de calendário (§75), Widget do iPhone com visões e um script por visão (§76), Meu dia + boas-vindas + Meu perfil em abas + Mensagem do dia (§77), Modelos de documentos com vários anexos (§78), consolidação da documentação (§79), API de conectividade com tokens (§80).
 
 **Em aberto** (lista única e atual: §15). **Armadilhas que mais pegam** (regras fixas: §16 e §16.1).
 
@@ -118,7 +118,7 @@ Fonte da verdade: `.env` local (não commitado, `.gitignore`) + Railway env vars
 Local: `set -a && source .env && set +a` antes de rodar, ou script wrapper com
 `export VAR="..."` (sandbox bloqueia `source .env` em alguns ambientes).
 
-## 5. Banco de dados (Postgres, 44 tabelas, sem ORM)
+## 5. Banco de dados (Postgres, 45 tabelas, sem ORM)
 
 `initDb()` roda `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ADD COLUMN IF NOT
 EXISTS` a cada boot (idempotente, sem migration tool). `migrateToPricetaxOrg()`
@@ -134,7 +134,7 @@ roda logo depois, também todo boot.
 | `xflow_tickets` | `id, ticket_number SERIAL, org_id FK, title, status, severity, priority, suggested_priority, product, reporter_id FK, assignee_id FK, data JSONB, created_at, updated_at, status_entered_at, time_breakdown JSONB, ball_holder_type/user_id, waiting_on_type, reopen_count, homolog_reject_count, sla_first_response_due_at/met_at, sla_resolution_due_at/met_at, sla_paused_at, sla_paused_seconds` | 1 linha = 1 BUG/ticket do módulo XFlow (§18); `status` **sem** `CHECK` de propósito (lista evolui sem migration) |
 | `xflow_events` | `id, ticket_id FK CASCADE, org_id FK, type, field, old_value, new_value, note, user_id FK, created_at` | Log estruturado de toda ação do XFlow — fonte de verdade da timeline (§18), substitui o `data.history[]` de texto livre da v1 (mantido só como fallback de leitura pra tickets antigos) |
 
-**As outras 37 tabelas** (criadas depois das 7 acima; descrição de cada uma em `docs/PROJECT_MAP.md` §6 e na seção citada):
+**As outras 38 tabelas** (criadas depois das 7 acima; descrição de cada uma em `docs/PROJECT_MAP.md` §6 e na seção citada):
 
 | Grupo | Tabelas | Seção |
 |---|---|---|
@@ -144,6 +144,7 @@ roda logo depois, também todo boot.
 | Notificações / Google | `notifications`, `google_calendar_connections` | §20, §21 |
 | Auditoria / indicadores | `user_access_events`, `ip_geo_cache`, `personal_card_events` | §65, §67 |
 | Meu dia | **`daily_content`** (cache diário das fontes, PK `kind,key,day`) | §77 |
+| Conectividade | **`api_tokens`** (token por janela do Claude Code: hash, escopo, validade, revogação, último uso) | §80 |
 | CRM (relacional, UUID, soft delete) | `crm_companies`, `crm_contacts`, `crm_notes`, `crm_company_projects`, `crm_pipelines`, `crm_pipeline_stages`, `crm_deals`, `crm_deal_items`, `crm_deal_stage_history`, `crm_products`, `crm_activities`, `crm_timeline_events`, `crm_audit_logs` | §54–§58 |
 
 **Regra de ouro**: `projects.data` e `personal_boards.data` são JSONB sem
@@ -254,7 +255,7 @@ para um caso de uso raro (poucas dezenas de usuários hoje).
 
 | Prefixo | Arquivo | Acesso | Para quê | Seção |
 |---|---|---|---|---|
-| `/api` | `routes.js` | misto | núcleo + `POST /auth/change-password[-login]`, `POST /activity/ping`, `GET /users/:id/access`, `GET /projects/versions` e `/projects/lite`, `GET /personal-board/stats[/day]`, `POST /personal-board/linked`, `/notifications*`, `GET /public-meeting/:token` | §7, §20, §28, §52, §65, §67 |
+| `/api` | `routes.js` | misto | núcleo + `POST /auth/change-password[-login]`, `POST /activity/ping`, `GET /users/:id/access`, `GET /projects/versions` e `/projects/lite`, `GET /personal-board/version` (§80), `GET /personal-board/stats[/day]`, `POST /personal-board/linked`, `/notifications*`, `GET /public-meeting/:token` | §7, §20, §28, §52, §65, §67 |
 | `/api/xflow` | `xflow.js` | `requireXflowAccess` | BUGs/TASKs (ação + transição validadas no servidor) | §18 |
 | `/api/google` | `google.js` | cookie | `status`, `oauth/start`, `oauth/callback`, `disconnect` | §21 |
 | `/api/agenda` | `agenda.js` | cookie | feed único (Google + XFlow + atividades + CRM) | §22 |
@@ -267,6 +268,7 @@ para um caso de uso raro (poucas dezenas de usuários hoje).
 | `/api/crm` | `crm/routes.js` (57 rotas) | `crm_role` | CRM completo | §54–§58 |
 | `/api/widget` | `widget.js` | cookie (gestão) + Bearer (`/summary`) | token, visões, resumo do iPhone | §76 |
 | `/api/daily` | `daily.js` | cookie | Meu dia: conteúdo, preferências, onboarding | §77 |
+| `/api/connect` | `connect.js` | cookie (`/tokens`) + Bearer `pxk_…` (o resto) + índice público (`GET /`) | **API de conectividade** para outra janela do Claude Code: atividades (ler/criar), empresas, reuniões, agenda | §80 |
 
 Limite de corpo JSON: 15 MB global; **`/api/templates` tem parser próprio de 45 MB montado antes do global** (arquivo de até 30 MB em base64).
 
@@ -868,6 +870,7 @@ mecanismo.
 - Widget: confirmado no iPhone com uma visão (§76); vários scripts/visões e o limite de linhas do widget grande ainda sem confirmação no aparelho.
 - Auditoria de acessos: IP real do Railway (`x-real-ip`) a confirmar com login real; forja de cabeçalho não verificada (§67).
 - Acessibilidade: telas e modais fora de `src/ui` não foram auditados (§72).
+- API de conectividade (§80): testada com `curl` simulando a outra janela e com o painel aberto, **não** com uma segunda janela real do Claude Code lendo o guia; `GET /agenda` não foi testado com Google real; produção ainda não vista com token real.
 
 **Documentação**
 - Este arquivo e `docs/PROJECT_MAP.md` foram reconciliados com o código em 2026-10-05 (§79). Reconferir a cada entrega grande.
@@ -7135,6 +7138,34 @@ O Rafael pediu para consolidar "tudo que foi feito hoje e nos dias anteriores" e
 | `docs/PROJECT_MAP.md`: índice de componentes com linhas de 2026-08, §7 só com as primeiras rotas, tabelas e arquivos novos sem linha | índice regenerado do código; §6/§7 completados; arquivos novos incluídos |
 
 **Como manter**: ao fechar uma entrega, atualizar no mesmo dia (1) a seção dela, (2) o §0 se um módulo nasceu/mudou de acesso, (3) o §15 (o que ficou sem teste real), (4) o `PROJECT_MAP`. Quando houver dúvida, o **código manda** — conferir antes de confiar no texto.
+
+## 80. API de conectividade — outra janela do Claude Code usa o painel (2026-10-05)
+
+Pedido do Rafael: "criar uma API ou um documento de conectividade" para ele se conectar à ferramenta **de outra janela do Claude Code**. Escolhas dele: permissão **ler e criar atividades**
+e formato **token + guia pronto** (não servidor MCP). Documento de referência: `docs/CONECTIVIDADE_CLAUDE_CODE.md`.
+
+**Como o usuário usa** — Meu perfil › aba **Conectar** (`src/connect/ConnectSection.jsx`): nome, permissão (**Ler e criar atividades** | **Só ler**) e validade (30/90/180/365 dias) → **Gerar token** `pxk_…`
+(mostrado uma vez) → dois botões: *1. Copiar comando do token* (`export PRICETAX_URL=… PRICETAX_TOKEN=…`) e *2. Copiar guia para o Claude Code* (`src/connect/guide.js`, **sem** o token). Lista de tokens ativos com último uso e revogação.
+Um token por janela; até 10 ativos por pessoa.
+
+**API** (`server/connect.js`, `/api/connect`; credencial só em `Authorization: Bearer`, nunca na URL; 120 req/min por token; criação limitada a 60/h):
+`GET /` (índice público, sem segredo) · `GET /me` · `GET /activities?status=open|overdue|today|urgent|done|all&q=&limit=` · `POST /activities` (escopo `read_create`: `title`, `desc`, `dueDate`, `priority`, `board`, `column`, `ref`) ·
+`GET /companies?q=` · `GET /companies/:id` · `GET /companies/:id/meetings/:meetingId[?transcript=1]` · `GET /agenda?days=` (só Google do dono, compromissos aceitos/próprios). Gestão dos tokens: `GET/POST/DELETE /tokens` (cookie).
+
+**Segurança (decisões)**
+- Só o **sha256** do token fica em `api_tokens` (não recuperável); revogação/validade/bloqueio do usuário valem na hora (401/403).
+- **API estreita e estável, não a sessão do usuário**: o token só abre `/api/connect/*` — não serve em `/api/users`, organizações, widget, notificações nem em rota interna; o cookie de sessão não vale na API de conectividade.
+- Respeita o acesso de quem gerou: empresas por `canAccessProject` + mesma organização (empresa de outra organização → 404, testado); atividades só do quadro pessoal dele; agenda só a dele.
+- Escrita mínima: criar atividade no quadro pessoal (cartão com `createdVia:'api'`, autor "<nome> (via API)", histórico com o nome do token). Não edita nem apaga. `ref` = idempotência (repetir devolve a mesma, `created:false`).
+- Fora da API de propósito: editar/apagar atividades, Pareceres, Modelos, CRM, XFlow, perguntas à RENATA, usuários/administração — cada um pede decisão de escopo.
+
+**Problema real resolvido junto: o painel aberto apagaria a atividade criada pela API.** O painel salva o quadro **inteiro** (§16) e só carregava o quadro uma vez, então o próximo autosave removeria cartões que ele não conhecia. Duas camadas:
+1. **Atualização do painel**: `GET /personal-board/version` (só o carimbo `updated_at`); a cada ~12 s (e ao voltar para a aba) o `App()` compara com `personalBoardVersionRef` e recarrega o quadro **somente se não há edição local pendente** (`personalBoardBusyRef`). Pausa com a aba oculta.
+2. **Rede de segurança no servidor** (`mergeApiCards`, `server/routes.js`): `PATCH /personal-board` agora recebe `baseUpdatedAt` (última versão que o painel conheceu) e, dentro de transação com `FOR UPDATE`, devolve ao quadro os cartões `createdVia:'api'` criados **depois** dessa versão que o painel não tem (ele não pode tê-los apagado). A resposta traz `merged` e o painel adota o quadro devolvido (com edição pendente, mantém a versão antiga para mesclar de novo). A API grava `updated_at` = o mesmo instante de `card.createdAt`, que é o que torna a comparação exata. Cartão apagado de propósito **depois** de aparecer não volta.
+
+**Verificado**: HTTP real (criar/listar/revogar token; 401 sem/errado/`?token=`/cookie; 403 escopo e usuário bloqueado; token vencido; limites de 10 tokens, 120/min e 60 criações/h; validações de título/data/prioridade; coluna por nome com mensagem listando as colunas; `ref` idempotente; abertura registrada nos Indicadores;
+isolamento entre usuários e entre organizações; os três cenários da rede de segurança), a aba no browser e o fluxo completo com **`curl` simulando a outra janela** com o painel aberto — a atividade apareceu sozinha em ~4,5 s e, numa corrida real (API cria enquanto o painel edita), os dois cartões sobreviveram.
+**Não testado**: uma segunda janela real do Claude Code lendo o guia; `GET /agenda` com Google real; produção com token real.
 
 | Preciso de... | Vá para |
 |---|---|

@@ -24,7 +24,7 @@ depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
   projetos/etc. em `server/routes.js`; rotas do XFlow num router próprio,
   `server/xflow.js`, montado em `/api/xflow`. Serve também os estáticos de
   `dist/` e faz fallback de SPA (`app.get('*', ...)`).
-- **Banco**: Postgres, driver `pg` puro (sem ORM/query builder). **44 tabelas**
+- **Banco**: Postgres, driver `pg` puro (sem ORM/query builder). **45 tabelas**
   (lista por grupo em `PROJECT_CONTEXT.md` §5); a seção 6 abaixo descreve cada uma e as seções de módulo trazem o
   detalhe (XFlow §4, Notificações/Google Calendar `PROJECT_CONTEXT.md` §20/§21, Reuniões §24.1, CRM §54–§58, Meu dia §77, Modelos §78).
   Multi-tenant desde 2026-08 (Fase 1): `users`/`projects`/
@@ -75,6 +75,7 @@ server/notifications.js    Central de Notificações (2026-08) — createNotific
 server/widget.js           Widget do iPhone (2026-10-05, §76): /api/widget — token (hash em users), status, GET /summary por Bearer (público, limite por IP). Funções puras em server/widgetSummary.js.
 server/daily.js            Meu dia (2026-10-05, §77): /api/daily — conteúdo do usuário, preferências (users.preferences), onboarding. Fontes, cache diário, signo/animal e IA em server/dailyContent.js.
 server/documentTemplates.js  Modelos de documentos (2026-10-05, §78): /api/templates — arquivos (lista fechada de extensões, ≤30 MB) e links com prévia; mesma regra dos Pareceres. Auxiliares: officePreview.js (texto de docx/pptx/xlsx) e linkPreview.js (Open Graph com defesa contra SSRF).
+server/connect.js         API de conectividade (2026-10-05, §80): `/api/connect` — tokens por janela do Claude Code (cookie) e API Bearer estreita (atividades ler/criar, empresas, reuniões, agenda). Tabela `api_tokens`. `mergeApiCards` (rede de segurança do quadro) está em routes.js.
 server/xflowPermissions.js  Papel efetivo (reporter/dev/gestao/admin) + canDo() — matriz de "quem pode o quê" do XFlow.
 server/xflowTransitions.js  Matriz de transições de status do XFlow — de onde cada ação pode partir e pra onde vai.
 server/googleCalendar.js   Sincronização com Google Calendar (2026-08) — helper puro (OAuth2, criar/atualizar/apagar/listar evento), sem rotas; createEvent() (Fase 4, 2026-09-10) generaliza a criação de evento pra uso da RENATA — ver PROJECT_CONTEXT.md §32.
@@ -103,6 +104,7 @@ src/lib/routes.js  Endereço por módulo (2026-10-05, §74): MODE_PATHS (/gestao
 src/widget/         Widget do iPhone (§76): WidgetSection.jsx (seção em Meu perfil) + scriptableScript.js (gera o script do Scriptable com token).
 src/daily/          Meu dia (§77): DailyCards (tela inicial), DailyPrefs (escolha de conteúdos, usada nas boas-vindas e em Meu perfil), WelcomeSetup + useWelcomeSetup (3 passos, raiz React própria).
 src/modelos/         Modelos de documentos (§78): Modelos.jsx (grade, gaveta com prévia, adicionar arquivo/link) + modelosMeta.js (tipos, CSS mdl-*; reaproveita par-* dos Pareceres). Rota /modelos em src/lib/routes.js.
+src/connect/        Conectar (§80): ConnectSection.jsx (aba Conectar em Meu perfil: gerar/revogar token) + guide.js (guia que o usuário cola no outro Claude Code, sem token).
 src/crm/            CRM (§54–§58): CrmScreen (shell/abas), *Page.jsx (Empresas, Contatos, Negócios, Produtos, Agenda, Visão Geral), *Drawer/*Form/*Dialog/*Wizard (ficha, formulários, fechar negócio, importadores PipeRun), FunnelsAdmin, GlobalSearch, crmApi.js/crmMeta.js/importMapping.js/ui.jsx. `React.lazy` a partir de App.jsx.
 src/ui/index.jsx + src/ui/ui.css  Peças visuais comuns (2026-10-04, §72): Card, Button, Chip, Segmented, Tabs, Select, Kpi, Section, EmptyState, Skeleton*, Callout, BusyBar, activate/activateRow (clicável por teclado). Tokens `--ui-*` adaptativos ao tema. Migrados: Conhecimento, Visão Geral Empresas, Agenda. Auditoria medida em docs/AUDITORIA_VISUAL.md.
 server/parecerScope.js  Isolamento de pareceres por cliente (2026-10-04, §70) — `parecerUsableFor` (Geral vale em qualquer empresa; específico só na empresa dele, por vínculo ou nome, regra fechada), `companyTokens`, `loadProjectIdentity`. Usado por parecerStudy.js (janela, sugestão) e knowledgeFacts.js (chat).
@@ -527,6 +529,7 @@ Não há storage externo nem fila: anexos de atividade são base64 inline no PAT
 | `cnpj_cache` | Cache de 60 dias das respostas de lookup de CNPJ — **não** tem `org_id`, é compartilhado entre organizações de propósito | Nenhum |
 | `personal_boards` | 1 linha por usuário, `data JSONB` = quadro Kanban pessoal — **não** tem `org_id` (sempre buscado por `user_id`; o scan de `shareToken` público é cross-org de propósito) | FK `user_id → users.id` |
 | `document_templates` / `document_template_items` | Modelos de documentos (2026-10-05, §78): o modelo (título, categoria, descrição, comentários) e seus até 12 anexos (arquivo em BYTEA ou link com `link_meta`/`preview_text`). Colunas de arquivo/link de `document_templates` são legado migrado | `org_id → organizations.id`; `template_id → document_templates.id` (CASCADE) |
+| `api_tokens` | Tokens da API de conectividade (2026-10-05, §80): um por janela do Claude Code, `token_hash` (sha256, único), `scope` (`read`/`read_create`), `expires_at`, `last_used_at`, `revoked_at` | `user_id → users.id` (CASCADE) |
 | `daily_content` | Cache diário das fontes do Meu dia (2026-10-05, §77): PK `(kind, key, day)`, `payload` JSONB; evangelho/versículo/sabedoria/horóscopo por signo/texto de IA do dia | — |
 | `ai_eval_runs` | Registro de execução do eval da RENATA (`server/evals/`, §41) | — |
 | `parecer_studies` / `meeting_parecer_advice` | Estudo de cada parecer (hash do arquivo, JSON estruturado, `fact_id` na memória) e sugestão de pareceres por reunião (fora do JSON do projeto de propósito, §70) | `parecer_id → pareceres.id` (CASCADE); `project_id → projects.id` (CASCADE) |
@@ -591,6 +594,7 @@ migration manual.
 | `/api/daily` | `GET /` (conteúdo do usuário), `GET/PUT /preferences`, `POST /onboarding-complete`, `GET /options` | daily.js (+ dailyContent.js) |
 | `/api/templates` | `GET /`, `POST /`, `PATCH/DELETE /:id`, `POST /:id/items`, `PATCH/DELETE /:id/items/:itemId`, `GET /:id/items/:itemId/file`, comentários | documentTemplates.js |
 | `/api/pareceres` | CRUD + `/:id/file`, comentários, `/study`, `/advice` | pareceres.js |
+| `/api/connect` | `GET /` (índice público), `/tokens` (cookie), `/me`, `/activities` (GET/POST), `/companies[/:id[/meetings/:mid]]`, `/agenda` — Bearer `pxk_…` | connect.js |
 | `/api/crm` | 57 rotas (empresas, contatos, negócios, funis, atividades, importadores) | crm/routes.js |
 
 `GET/POST /projects` e `GET/POST /users` aceitam `?asOrg=<orgId>` — só

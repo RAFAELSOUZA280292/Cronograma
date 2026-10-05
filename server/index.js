@@ -16,6 +16,7 @@ import { router as crmRouter } from './crm/routes.js';
 import { router as widgetRouter } from './widget.js';
 import { router as dailyRouter } from './daily.js';
 import { router as templatesRouter } from './documentTemplates.js';
+import { router as connectRouter } from './connect.js';
 import { startCrmScheduler } from './crm/scheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -40,6 +41,7 @@ app.use('/api/crm', crmRouter);
 app.use('/api/widget', widgetRouter);
 app.use('/api/daily', dailyRouter);
 app.use('/api/templates', templatesRouter);
+app.use('/api/connect', connectRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use('/api', (err, req, res, next) => {
