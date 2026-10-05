@@ -6975,8 +6975,8 @@ regra dos Pareceres, `requireMasterOrPricetax` + `effectiveOrgId`; `canOpenMode`
 - **API** (`server/documentTemplates.js`, `/api/templates`): `GET /`, `POST /` (arquivo em base64 ou link), `PATCH /:id`, `POST /:id/refresh-preview`,
   `DELETE /:id`, `GET /:id/file` (`?download=1` força baixar), comentários como nos Pareceres. O parser JSON de `/api/templates` tem limite de
   45 MB e é montado ANTES do global de 15 MB (`index.js`) — arquivo de até **30 MB**; acima disso a tela manda usar link.
-- **Arquivos**: lista fechada de extensões (pdf, doc/docx/rtf/odt, ppt/pptx/odp, xls/xlsx/ods/csv, txt, png/jpg/gif/webp). **HTML, SVG, JS e executáveis
-  são recusados** (servidos da nossa origem seriam XSS). O `Content-Type` vem do servidor pela extensão, nunca do navegador; `nosniff`; só PDF, imagem e
+- **Arquivos**: lista fechada de extensões (pdf, doc/docx/rtf/odt, ppt/pptx/odp, xls/xlsx/ods/csv, txt, png/jpg/gif/webp). **SVG, JS e executáveis
+  são recusados**; HTML passou a ser aceito (ver "Vários anexos" abaixo, servido isolado). O `Content-Type` vem do servidor pela extensão, nunca do navegador; `nosniff`; só PDF, imagem e
   txt abrem inline, o resto baixa.
 - **Pré-visualização**: PDF e imagem na própria gaveta; **docx/pptx/xlsx** mostram o começo do conteúdo (`server/officePreview.js`: leitor de ZIP com o
   `zlib` do Node, sem dependência nova, teto de 6 MB por entrada contra zip bomb; docx = primeiros parágrafos, pptx = nº de slides + títulos, xlsx = nomes
@@ -6989,6 +6989,17 @@ regra dos Pareceres, `requireMasterOrPricetax` + `effectiveOrgId`; `canOpenMode`
 - **Tela** (`src/modelos/`, mesmo esqueleto `par-*` dos Pareceres): cards com miniatura (imagem do link, imagem pequena, ou ícone colorido por tipo), busca,
   filtros por categoria e por tipo, gaveta com prévia, editar título/categoria/descrição (autosave com `useDebouncedField`), editar endereço do link, atualizar
   prévia, comentários, excluir. Adicionar: aba Arquivo (arrastar e soltar ou clicar) / Link.
+- **Vários anexos por modelo (2026-10-05, mesmo dia)**: o Rafael pediu o mesmo documento em Word, Excel, PDF, HTML etc. sob um título só. Agora o **modelo**
+  (título, categoria, "para que serve", comentários) tem até **12 anexos** (arquivos e/ou links) na tabela `document_template_items` (cascade ao excluir o modelo).
+  As colunas de arquivo/link de `document_templates` viraram legado: `initDb` migra cada linha antiga para 1 anexo (idempotente, conferido rodando 2×) e zera o
+  `file_data` antigo para não duplicar. API: `POST /` cria o modelo já com o 1º anexo; `POST /:id/items` soma outro (um por requisição, até 30 MB cada);
+  `PATCH /:id/items/:itemId` troca o endereço/refaz a prévia de um link; `DELETE /:id/items/:itemId` (não remove o último: exclui-se o modelo);
+  `GET /:id/items/:itemId/file` (a rota antiga `/:id/file` devolve o 1º arquivo, para abas com JS velho). A tela escolhe vários arquivos de uma vez + links
+  ao criar, a gaveta alterna entre os anexos (cada um com a sua prévia) e permite adicionar/remover; o cartão mostra os tipos presentes e "N anexos";
+  filtro por tipo e busca olham todos os anexos; tipos recusados são barrados já ao escolher. Se um anexo do meio falha o modelo fica criado e a tela avisa quais não subiram.
+- **HTML aceito, isolado**: `.html/.htm` abrem inline com `Content-Security-Policy: sandbox; default-src 'none'; …` — SEM `allow-scripts` nem `allow-same-origin`, então o
+  arquivo não executa script, não lê cookie e não chama a API, nem aberto direto numa aba (conferido no browser: o `<script>` do arquivo não rodou e `document.cookie`
+  deu SecurityError). Na gaveta a prévia é um `<iframe sandbox>`. SVG continua recusado.
 - **Verificado**: extração de docx/pptx/xlsx com arquivos reais (e arquivo corrompido → vazio), 15 endereços privados bloqueados + 6 URLs hostis, prévia
   real de example.com, github.com e gov.br, API (401/403, isolamento por organização, extensões proibidas, 31 MB recusado e 29 MB aceito, headers dos
   arquivos, SSRF, edição/comentários) e a tela no browser (docx, link, filtros, mobile). **Não testado**: abrir PDF real na gaveta (o painel de teste não

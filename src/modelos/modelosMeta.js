@@ -1,12 +1,13 @@
 // Modelos de documentos (2026-10-05, §78) — tipos, ícones e CSS próprio do módulo (prefixo mdl-, em cima do par- dos Pareceres).
 export const MAX_FILE_MB = 30;
-export const ACCEPT = '.pdf,.doc,.docx,.rtf,.odt,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.txt,.png,.jpg,.jpeg,.gif,.webp';
+export const ACCEPT = '.pdf,.doc,.docx,.rtf,.odt,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.txt,.html,.htm,.png,.jpg,.jpeg,.gif,.webp';
+export const MAX_ITEMS = 12;
 
 const KIND_BY_EXT = {
   pdf: 'pdf', doc: 'word', docx: 'word', rtf: 'word', odt: 'word', ppt: 'ppt', pptx: 'ppt', odp: 'ppt',
-  xls: 'excel', xlsx: 'excel', ods: 'excel', csv: 'excel', txt: 'text', png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image',
+  xls: 'excel', xlsx: 'excel', ods: 'excel', csv: 'excel', txt: 'text', html: 'html', htm: 'html', png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image',
 };
-export const INLINE_KINDS = new Set(['pdf', 'image', 'text']);
+export const INLINE_KINDS = new Set(['pdf', 'image', 'text', 'html']);
 
 export const KIND_META = {
   pdf: { label: 'PDF', color: 'var(--ui-danger)' },
@@ -14,18 +15,30 @@ export const KIND_META = {
   ppt: { label: 'PowerPoint', color: 'var(--ui-warn)' },
   excel: { label: 'Excel', color: 'var(--ui-ok)' },
   image: { label: 'Imagem', color: 'var(--ui-info2)' },
+  html: { label: 'HTML', color: 'var(--ui-accent-text)' },
   text: { label: 'Texto', color: 'var(--text-4)' },
   link: { label: 'Link', color: 'var(--ui-info)' },
 };
+
+export const isAllowedFile = (name) => Object.prototype.hasOwnProperty.call(KIND_BY_EXT, extOf(name));
 
 export function extOf(name) {
   const m = /\.([a-z0-9]+)$/i.exec(name || '');
   return m ? m[1].toLowerCase() : '';
 }
 
-export function kindOf(t) {
-  if (t.kind === 'link') return 'link';
-  return KIND_BY_EXT[extOf(t.file_name)] || 'text';
+export function itemKind(i) {
+  if (i.kind === 'link') return 'link';
+  return KIND_BY_EXT[extOf(i.file_name)] || 'text';
+}
+
+// Tipos distintos de um modelo, na ordem em que aparecem nos anexos.
+export function kindsOf(t) {
+  return [...new Set((t.items || []).map(itemKind))];
+}
+
+export function itemName(i) {
+  return i.kind === 'link' ? hostOf(i.url) : i.file_name;
 }
 
 export function hostOf(url) {
@@ -57,6 +70,23 @@ export const MODELOS_CSS = `
   .mdl-form textarea { min-height:70px; resize:vertical; }
   .mdl-form label { font-size:11.5px; font-weight:700; color:var(--text-5); display:block; margin-top:14px; margin-bottom:5px; }
   .mdl-pv { margin:4px 0 16px; border:1px solid var(--border-2); border-radius:12px; overflow:hidden; background:var(--bg-2); }
+  .mdl-items { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px; }
+  .mdl-item { display:inline-flex; align-items:center; gap:7px; max-width:100%; font-family:inherit; font-size:12.5px; font-weight:600; color:var(--text-3); background:var(--bg-3); border:1px solid var(--border-2); border-radius:10px; padding:7px 11px; cursor:pointer; min-height:36px; }
+  .mdl-item svg { flex-shrink:0; color:var(--c); }
+  .mdl-item span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:190px; }
+  .mdl-item[aria-pressed="true"] { border-color:#F5C400; background:rgba(245,196,0,.12); color:var(--text-1); }
+  .mdl-badges { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .mdl-more { font-size:11.5px; font-weight:700; color:var(--text-5); }
+  .mdl-pick-list { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+  .mdl-pick { display:flex; align-items:center; gap:9px; background:var(--bg-3); border:1px solid var(--border-2); border-radius:9px; padding:7px 10px; font-size:12.5px; color:var(--text-2); }
+  .mdl-pick svg { flex-shrink:0; color:var(--c); }
+  .mdl-pick span.n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mdl-pick span.s { color:var(--text-5); font-size:11.5px; flex-shrink:0; }
+  .mdl-pick button { background:none; border:none; color:var(--text-5); cursor:pointer; display:flex; padding:6px; border-radius:6px; min-width:32px; min-height:32px; align-items:center; justify-content:center; }
+  .mdl-pick button:hover { color:var(--ui-danger); background:var(--bg-4); }
+  .mdl-add-row { display:flex; gap:8px; margin-top:6px; }
+  .mdl-add-row input { flex:1; min-width:0; }
+  .mdl-add-panel { border:1px dashed var(--border-3); border-radius:12px; padding:12px; margin-bottom:14px; }
   .mdl-pv iframe { display:block; width:100%; height:440px; border:0; background:#fff; }
   .mdl-pv img.mdl-pv-img { display:block; max-width:100%; max-height:380px; margin:0 auto; object-fit:contain; background:var(--bg-3); }
   .mdl-pv-text { padding:14px; font-size:12.5px; line-height:1.6; color:var(--text-3); white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; }
