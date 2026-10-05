@@ -30,6 +30,7 @@ import PareceresScreen from './pareceres/Pareceres.jsx';
 import PersonalStatsPanel from './personal/PersonalStats.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
 import { activate, activateRow } from './ui/index.jsx';
+import { calendarDaysSince } from './lib/dates.js';
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
 // CRM (2026-09-20, PROJECT_CONTEXT.md §54): módulo grande e opcional — carregado só quando alguém abre o CRM.
 const CrmScreen = React.lazy(() => import('./crm/CrmScreen.jsx'));
@@ -166,11 +167,8 @@ function dueDateTone(card) {
 }
 
 function daysSinceCardMovement(card) {
-  const ref = card.updatedAt || card.createdAt;
-  if (!ref) return 0;
-  const then = new Date(ref).getTime();
-  if (Number.isNaN(then)) return 0;
-  return Math.max(0, Math.floor((Date.now() - then) / 86400000));
+  const days = calendarDaysSince(card.updatedAt || card.createdAt);
+  return days === null ? 0 : days;
 }
 function staleTone(days) {
   if (days >= 7) return 'critical';

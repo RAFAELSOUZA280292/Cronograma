@@ -6860,6 +6860,22 @@ Pareceres, login com link guardado, endereço inventado → `/`, links públicos
 acesso batendo no endereço (regra coberta só em Node), XFlow por URL (conta de teste sem acesso), produção.
 Pendência possível: favoritar uma PÁGINA específica do quadro (hoje o endereço leva ao quadro, na aba padrão).
 
+## 75. "0d" numa segunda-feira para algo aberto no domingo (2026-10-05)
+
+O Rafael abriu 4 atividades no domingo e na segunda-feira o selo do cartão (`⏱ Nd`, "Sem movimentação há N dias") dizia
+`0d`; esperava 1. **Causa**: `daysSinceCardMovement` (App.jsx) fazia `floor((agora − momento) / 86400000)` — conta blocos de
+24 h, não dias. Aberto domingo 18h, só virava "1d" na segunda 18h. **Correção**: `calendarDaysSince(iso)` em
+`src/lib/dates.js` (módulo puro) reduz cada data ao número do dia no fuso LOCAL (`Date.UTC(ano, mês, dia)` locais) e
+subtrai — domingo → segunda = 1 dia a qualquer hora; 23:50 → 00:10 = 1; futuro nunca negativo; vazio/inválido = `null`
+(o cartão trata como 0). Usado também em `XFlow.jsx` `daysSince` (idade do bug e faixas de envelhecimento — mesmo erro, não
+pedido mas idêntico; as faixas de filtro "aging" podem mudar de bucket 1 dia mais cedo, é o comportamento correto).
+Efeito colateral intencional: o tom do selo (`staleTone`: ≥3 aviso, ≥7 crítico) agora também conta dias de calendário.
+Auditado (`grep 86400000`): os demais contadores (`parseDate` diff, atrasadas, Visão Geral, `todoUtils`) já comparam
+DATAS "YYYY-MM-DD", não instantes — não tinham o erro. O Rafael também pediu pra checar o log do horário exato de abertura:
+em produção, `card.createdAt`; não precisei consultar. Verificado: 11 checagens em Node com `TZ=America/Sao_Paulo`
+(inclui a conta antiga dando 0 no caso dele, virada de mês e de ano) + browser com cartões criados ontem 20h (→ 1d),
+hoje 00:05 (→ 0d), anteontem 23h (→ 2d) e há 8 dias (→ 8d). Limite: depende do fuso do navegador de quem vê.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |

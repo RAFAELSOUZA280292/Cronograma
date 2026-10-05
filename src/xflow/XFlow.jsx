@@ -24,6 +24,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel, COLUMN_COLOR_META, NotificationBell } from '../App.jsx';
+import { calendarDaysSince } from '../lib/dates.js';
 
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
 
@@ -2074,8 +2075,7 @@ function isToday(iso) {
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
 }
 function daysSince(iso) {
-  if (!iso) return null;
-  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
+  return calendarDaysSince(iso);
 }
 // Contador "faltam X dias" / "entrega hoje" da Previsão de conclusão
 // (2026-08, pedido do Rafael — "deixe claro em exibição"). Data guardada
