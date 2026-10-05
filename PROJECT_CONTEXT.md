@@ -6893,6 +6893,7 @@ próxima reunião. Tocar no widget abre `/gestao-atividades`.
   só accepted/organizer/unknown; fora dia inteiro, cancelado, "livre", recusado/pendente/talvez; evento em andamento conta como "agora"),
   `buildSummary`. Só títulos e horários: sem descrição, convidados, local ou link. Agenda lida de `listEvents` (−6 h a +3 dias),
   cache de 5 min por usuário; falha do Google não derruba o resumo (próxima reunião vem nula).
+- **Atalho na tela inicial**: o gate (`WorkspaceGateScreen`) ganhou o botão rotulado "Meu perfil" (avatar + texto) no cabeçalho e renderiza o `MyProfileModal`; antes o perfil só abria de dentro de Empresas/lista de empresas, difícil de achar. Os demais módulos (Agenda, Atividades…) continuam sem o atalho.
 - **Tela**: "Widget do iPhone" em Meu perfil (`src/widget/WidgetSection.jsx`): gerar código, mostrar o script UMA vez (token
   não é recuperável), Copiar, passo a passo, gerar novo (confirma que desliga o antigo), revogar (confirma).
   `src/widget/scriptableScript.js` monta o script já com endereço (`window.location.origin`) e token; sem template literal
