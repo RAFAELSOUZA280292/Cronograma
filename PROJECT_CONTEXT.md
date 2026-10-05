@@ -6936,8 +6936,12 @@ horóscopo, horóscopo chinês, sabedoria, inspiração) — visível, não esco
   retornos por módulo): 3 passos (conectar Google · montar o dia · pronto) por cima de qualquer tela, para quem tem
   `onboarding_done_at` nulo — **inclui todos os usuários já existentes, uma vez**. "Agora não" também marca como feito (não insiste);
   tudo continua em Meu perfil. Voltando do OAuth do Google com onboarding pendente, a aba Agenda só abre quando já concluiu.
-- **Tela inicial**: seção "Meu dia" (`DailyCards`) acima dos módulos, recolhível (lembra em `localStorage` `pt-daily-open`); sem nenhum
-  item escolhido mostra o convite "Monte o seu dia"; "Personalizar" abre Meu perfil > Meu dia. "Ver o conteúdo do dia" desligado = some.
+- **Tela inicial** (revisada no mesmo dia, a pedido do Rafael: a 1ª versão — grade larga e solta acima dos módulos — ficou "perdida"): um card único
+  **"Mensagem do dia"** logo abaixo do "Olá, <nome>", na mesma largura dos módulos (680 px), com chips para alternar entre os conteúdos
+  escolhidos (lembra o último em `localStorage` `pt-daily-sel`), prévia de 3 linhas e "Ler completo" que abre um modal com o texto inteiro
+  (evangelho com todas as leituras, crédito da Bíblia Livre, avisos de IA/entretenimento; Esc fecha). Ordem da tela: Olá → Mensagem do dia → RENATA
+  (agenda) → "Onde você quer trabalhar agora?" → módulos. Sem nenhum item escolhido: convite "Monte o seu dia"; "Personalizar" abre Meu perfil > Meu dia;
+  "Ver o conteúdo do dia" desligado = some.
 - **Dados** (aditivos em `db.js`): `users.preferences` JSONB `{enabled, cards[], birthDate}`, `users.onboarding_done_at`,
   tabela `daily_content(kind,key,day)` = cache. `rowToUser` ganhou `onboardingDone`. Rotas `/api/daily`: `GET /` (cartões do usuário,
   `no-store`), `GET/PUT /preferences` (valida cartões e data: AAAA-MM-DD real, 1900..hoje; ordem canônica), `POST /onboarding-complete`.
