@@ -144,13 +144,13 @@ function build(result, family) {
     return w;
   }
 
-  const budget = family === "large" ? 14 : 6;
+  const budget = family === "large" ? 16 : 6;
   const avail = {};
   let used = 0;
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
-    if (LISTS[b]) { avail[b] = Math.min(5, LISTS[b].get(d).items.length); used += 1; }
-    else if (b === "agenda") { avail[b] = Math.min(5, d.calendarConnected && d.agenda ? d.agenda.items.length : 0); used += 1; }
+    if (LISTS[b]) { avail[b] = Math.min(14, LISTS[b].get(d).items.length); used += 1; }
+    else if (b === "agenda") { avail[b] = Math.min(14, d.calendarConnected && d.agenda ? d.agenda.items.length : 0); used += 1; }
     else used += 1;
   }
   const give = {};

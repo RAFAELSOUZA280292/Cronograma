@@ -6913,6 +6913,7 @@ próxima reunião. Tocar no widget abre `/gestao-atividades`.
   Mudar o conteúdo de uma visão não exige colar de novo; criar visão nova ou trocar o nome exige um script novo. Trocar `JWT_SECRET`
   invalida os tokens guardados (gera-se outro). Aba iPhone: lista de visões com "Copiar script desta visão" (desabilitado com
   alterações não salvas), nome sugerido "PRICETAX <visão>" e plano B em texto selecionável se a área de transferência falhar.
+- **Limite de linhas (2026-10-05)**: o Rafael viu o widget grande com as mesmas 5 linhas do médio. Era limitação nossa (teto de 5 itens por bloco no script e no servidor), não do Scriptable. Agora o servidor manda até 12 itens por lista e 14 na agenda, e o script reparte um orçamento de linhas (médio 6, grande 16) entre os blocos, sem teto fixo de 5. O teto fica no script colado: quem quiser ver mais linhas precisa copiar o script de novo.
 - **Atalho na tela inicial**: o gate (`WorkspaceGateScreen`) ganhou o botão rotulado "Meu perfil" (avatar + texto) no cabeçalho e renderiza o `MyProfileModal`; antes o perfil só abria de dentro de Empresas/lista de empresas, difícil de achar. Os demais módulos (Agenda, Atividades…) continuam sem o atalho.
 - **Tela**: "Widget do iPhone" em Meu perfil (`src/widget/WidgetSection.jsx`): gerar código, mostrar o script UMA vez (token
   não é recuperável), Copiar, passo a passo, gerar novo (confirma que desliga o antigo), revogar (confirma).
