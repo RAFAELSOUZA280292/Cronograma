@@ -64,6 +64,7 @@ function rowToUser(row) {
     companiesAccess: !!row.companies_access,
     allCompaniesAccess: !!row.all_companies_access,
     personalAccess: !!row.personal_access,
+    onboardingDone: !!row.onboarding_done_at,
     // CRM (2026-09-20): master/super admin têm acesso de administrador
     // automaticamente; os demais precisam de crm_role; 'cliente' nunca.
     crmRole: row.crm_role || '',

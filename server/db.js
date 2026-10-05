@@ -919,6 +919,19 @@ export async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_token_created_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_last_used_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_views JSONB`);
+  // "Meu dia" (2026-10-05, §77): preferências do usuário, marca da primeira configuração e cache diário das fontes.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_done_at TIMESTAMPTZ`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS daily_content (
+      kind TEXT NOT NULL,
+      key TEXT NOT NULL,
+      day DATE NOT NULL,
+      payload JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (kind, key, day)
+    )
+  `);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_widget_token ON users(widget_token_hash) WHERE widget_token_hash IS NOT NULL`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_companies (

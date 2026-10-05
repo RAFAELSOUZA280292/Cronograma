@@ -15,8 +15,11 @@ import {
   SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy, useSortable, arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
-import { apiGet, apiPost, apiPatch, apiDelete } from './lib/api.js';
+import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from './lib/api.js';
 import WidgetSection from './widget/WidgetSection.jsx';
+import DailyCards from './daily/DailyCards.jsx';
+import DailyPrefs from './daily/DailyPrefs.jsx';
+import { useWelcomeSetup } from './daily/useWelcomeSetup.jsx';
 import pricetaxLogoBranco from './assets/brand/pricetax-logo-branco.png';
 import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
 import XFlowScreen from './xflow/XFlow.jsx';
@@ -30,7 +33,7 @@ import KnowledgeCenterScreen from './knowledge/KnowledgeCenter.jsx';
 import PareceresScreen from './pareceres/Pareceres.jsx';
 import PersonalStatsPanel from './personal/PersonalStats.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
-import { activate, activateRow } from './ui/index.jsx';
+import { activate, activateRow, Tabs } from './ui/index.jsx';
 import { calendarDaysSince } from './lib/dates.js';
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
 // CRM (2026-09-20, PROJECT_CONTEXT.md §54): módulo grande e opcional — carregado só quando alguém abre o CRM.
@@ -618,6 +621,9 @@ export default function App() {
   const [cloningProject, setCloningProject] = useState(null);
   const [showGroupActivityModal, setShowGroupActivityModal] = useState(false);
   const [showMyProfile, setShowMyProfile] = useState(false);
+  const [profileTab, setProfileTab] = useState('perfil');
+  const [dailyReload, setDailyReload] = useState(0);
+  const openProfile = (tab) => { setProfileTab(tab || 'perfil'); setShowMyProfile(true); };
   const [googleConnectResult, setGoogleConnectResult] = useState(null);
   const [openActivityId, setOpenActivityId] = useState(null);
   const [openMeetingId, setOpenMeetingId] = useState(null);
@@ -1185,14 +1191,19 @@ export default function App() {
     hashGoogleDone.current = true;
     if (window.location.hash === '#google-calendar-connected') {
       setGoogleConnectResult('connected');
-      setShowMyProfile(true);
+      if (currentUser.onboardingDone) openProfile('agenda');
       try { window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search); } catch (e) { /* ignora */ }
     } else if (window.location.hash === '#google-calendar-error') {
       setGoogleConnectResult('error');
-      setShowMyProfile(true);
+      if (currentUser.onboardingDone) openProfile('agenda');
       try { window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search); } catch (e) { /* ignora */ }
     }
   }, [currentUser]);
+
+  useWelcomeSetup(currentUser, (saved) => {
+    setCurrentUser((u) => (u ? { ...u, onboardingDone: true } : u));
+    if (saved) setDailyReload((k) => k + 1);
+  });
 
   // "Adicionar ao meu quadro" na página pública (/quadro/:token) deixa um
   // marcador em sessionStorage e volta pra "/": abre a Gestão de Atividades
@@ -1429,11 +1440,15 @@ export default function App() {
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
-        onOpenProfile={() => setShowMyProfile(true)}
+        onOpenProfile={() => openProfile('perfil')}
+        onConfigureDaily={() => openProfile('dia')}
+        dailyReload={dailyReload}
       />
         {showMyProfile && (
           <MyProfileModal
             user={currentUser}
+            initialTab={profileTab}
+            onDailySaved={() => setDailyReload((k) => k + 1)}
             googleConnectResult={googleConnectResult}
             onClose={() => { setShowMyProfile(false); setGoogleConnectResult(null); }}
             onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
@@ -1635,7 +1650,7 @@ export default function App() {
           theme={theme}
           onToggleTheme={toggleTheme}
           currentUser={currentUser}
-          onOpenProfile={() => setShowMyProfile(true)}
+          onOpenProfile={() => openProfile('perfil')}
         />
         {showCreateCompany && (
           <CreateCompanyModal
@@ -1667,6 +1682,8 @@ export default function App() {
         {showMyProfile && (
           <MyProfileModal
             user={currentUser}
+            initialTab={profileTab}
+            onDailySaved={() => setDailyReload((k) => k + 1)}
             googleConnectResult={googleConnectResult}
             onClose={() => { setShowMyProfile(false); setGoogleConnectResult(null); }}
             onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
@@ -2802,7 +2819,7 @@ export default function App() {
           {goHome && <button style={S.iconBtnGhost} title="Início" onClick={goHome}><Home size={15} /></button>}
           <ThemeToggleBtn theme={theme} onToggle={toggleTheme} />
           <div style={S.userBadge}>
-            <button style={S.userAvatarBtn} title={`Meu perfil — ${currentUser.name}`} onClick={() => setShowMyProfile(true)}>
+            <button style={S.userAvatarBtn} title={`Meu perfil — ${currentUser.name}`} onClick={() => openProfile('perfil')}>
               <UserAvatar user={currentUser} size={26} />
             </button>
             {!isMobile && <span style={{ ...S.roleTag, color: ROLE_META[currentUser.role].color, borderColor: ROLE_META[currentUser.role].color }}>{ROLE_META[currentUser.role].label}</span>}
@@ -3259,6 +3276,8 @@ export default function App() {
       {showMyProfile && (
         <MyProfileModal
           user={currentUser}
+          initialTab={profileTab}
+          onDailySaved={() => setDailyReload((k) => k + 1)}
           googleConnectResult={googleConnectResult}
           onClose={() => { setShowMyProfile(false); setGoogleConnectResult(null); }}
           onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
@@ -4028,7 +4047,8 @@ function EditUserModal({ user: u, accessSummary, currentUser, registeredProjects
   );
 }
 
-function MyProfileModal({ user, onClose, onSave, googleConnectResult }) {
+function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab, onDailySaved }) {
+  const [tab, setTab] = useState(initialTab || 'perfil');
   const [avatar, setAvatar] = useState(user.avatar || '');
   const isMobile = useIsMobile();
   const isDirty = useDirtyForm(avatar);
@@ -4047,6 +4067,22 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult }) {
   useEffect(() => {
     apiGet('/api/google/status').then(setGoogleStatus).catch(() => setGoogleStatus({ connected: false, configured: false }));
   }, []);
+  const [daily, setDaily] = useState(null);
+  const [dailySummary, setDailySummary] = useState(null);
+  const [dailyMsg, setDailyMsg] = useState('');
+  const [dailyBusy, setDailyBusy] = useState(false);
+  useEffect(() => {
+    apiGet('/api/daily/preferences').then((p) => { setDaily({ enabled: p.enabled, cards: p.cards, birthDate: p.birthDate }); setDailySummary(p); }).catch(() => setDaily(null));
+  }, []);
+  async function saveDaily() {
+    setDailyBusy(true); setDailyMsg('');
+    try {
+      const r = await apiPut('/api/daily/preferences', daily);
+      setDailySummary(r);
+      setDailyMsg('Salvo. Já aparece na sua tela inicial.');
+      if (onDailySaved) onDailySaved();
+    } catch (e) { setDailyMsg(e && e.message ? e.message : 'Não foi possível salvar.'); } finally { setDailyBusy(false); }
+  }
   async function disconnectGoogle() {
     setGoogleBusy(true);
     try {
@@ -4071,7 +4107,7 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult }) {
 
   return (
     <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
-      <div style={{ ...S.detailBox, width: 'min(420px, 100%)', height: 'auto', maxHeight: '88vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '90vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Meu perfil</div>
           <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
@@ -4085,6 +4121,16 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult }) {
           </div>
         </div>
 
+        <div style={{ margin: '4px 0 16px' }}>
+          <Tabs label="Seções do perfil" active={tab} onChange={setTab} tabs={[
+            { id: 'perfil', label: 'Perfil' },
+            { id: 'dia', label: 'Meu dia' },
+            { id: 'agenda', label: 'Agenda' },
+            { id: 'iphone', label: 'iPhone' },
+          ]} />
+        </div>
+
+        {tab === 'perfil' && (<>
         <div style={S.subSectionLabel}>Escolha seu avatar</div>
         <AvatarPicker value={avatar} onChange={setAvatar} />
 
@@ -4101,8 +4147,23 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult }) {
         <button style={{ ...S.iconBtn, marginTop: 12, width: '100%', justifyContent: 'center' }} disabled={pwSaving} onClick={submitPassword}>
           {pwSaving ? 'Salvando...' : 'Alterar senha'}
         </button>
+        </>)}
 
-        <div style={{ ...S.subSectionLabel, marginTop: 26, paddingTop: 20, borderTop: '1px solid var(--border-1)' }}>Google Calendar</div>
+        {tab === 'dia' && (
+          <>
+            <div style={S.subSectionLabel}>O que você quer ver no seu dia</div>
+            {!daily ? <div style={S.fieldHint}>Carregando...</div> : (
+              <>
+                <DailyPrefs value={daily} onChange={(v) => { setDaily(v); setDailyMsg(''); }} summary={dailySummary} />
+                <button style={{ ...S.primaryBtn, marginTop: 16, width: '100%', justifyContent: 'center' }} disabled={dailyBusy} onClick={saveDaily}>{dailyBusy ? 'Salvando...' : 'Salvar meu dia'}</button>
+                {dailyMsg && <div style={{ ...S.fieldHint, marginTop: 8, color: dailyMsg.startsWith('Salvo') ? '#3ddc84' : undefined }}>{dailyMsg}</div>}
+              </>
+            )}
+          </>
+        )}
+
+        {tab === 'agenda' && (<>
+        <div style={S.subSectionLabel}>Google Calendar</div>
         {googleConnectResult === 'connected' && <div style={{ ...S.fieldHint, color: '#3ddc84', marginBottom: 8 }}>Conta do Google conectada com sucesso.</div>}
         {googleConnectResult === 'error' && <div style={{ ...S.loginBlockedMsg, marginBottom: 8 }}>Não deu pra conectar sua conta do Google. Tente de novo.</div>}
         {!googleStatus ? (
@@ -4125,7 +4186,9 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult }) {
           </>
         )}
 
-        <WidgetSection />
+        </>)}
+
+        {tab === 'iphone' && <WidgetSection />}
       </div>
       {showGuard && (
         <ConfirmDiscardModal
@@ -5078,7 +5141,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   );
 }
 
-function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickCrm, onPickUsers, onLogout, theme, onToggleTheme, onOpenProfile }) {
+function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickCrm, onPickUsers, onLogout, theme, onToggleTheme, onOpenProfile, onConfigureDaily, dailyReload }) {
   return (
     <div className="page-root" style={S.page}>
       <div style={S.companySelectorWrap}>
@@ -5098,6 +5161,8 @@ function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersona
         <p style={S.loginSub}>Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>
 
         <RenataAgendaBriefing user={user} onOpenAgenda={onPickAgenda} personalBoard={personalBoard} onOpenPersonal={onPickPersonal} />
+
+        <DailyCards onConfigure={onConfigureDaily} reloadKey={dailyReload} />
 
         <div style={S.workspaceChoices}>
           {onPickCompany && (
