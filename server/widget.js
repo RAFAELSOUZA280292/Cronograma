@@ -7,7 +7,7 @@ import { requireAuth } from './auth.js';
 import { pool } from './db.js';
 import { clientIp } from './accessLog.js';
 import { getConnectionStatus, listEvents } from './googleCalendar.js';
-import { buildSummary } from './widgetSummary.js';
+import { buildSummary, sanitizeViews, DEFAULT_VIEWS, BLOCKS } from './widgetSummary.js';
 
 export const router = Router();
 
@@ -48,6 +48,22 @@ router.get('/status', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get('/views', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT widget_views FROM users WHERE id=$1', [req.user.id]);
+    res.json({ views: (rows[0] && rows[0].widget_views) || DEFAULT_VIEWS, blocks: BLOCKS });
+  } catch (e) { next(e); }
+});
+
+router.put('/views', requireAuth, async (req, res, next) => {
+  try {
+    const out = sanitizeViews(req.body && req.body.views);
+    if (out.error) return res.status(400).json({ message: out.error });
+    await pool.query('UPDATE users SET widget_views=$1 WHERE id=$2', [JSON.stringify(out.views), req.user.id]);
+    res.json({ views: out.views });
+  } catch (e) { next(e); }
+});
+
 router.post('/token', requireAuth, async (req, res, next) => {
   try {
     const token = newToken();
@@ -84,6 +100,6 @@ router.get('/summary', async (req, res, next) => {
       try { events = await upcomingEvents(user.id, now); } catch (e) { console.error('Widget: falha ao ler agenda', e.message); }
     }
     pool.query('UPDATE users SET widget_last_used_at=now() WHERE id=$1', [user.id]).catch(() => {});
-    res.json(buildSummary({ board: boardRows[0] ? boardRows[0].data : null, events, calendarConnected: calendar.connected, now: new Date(now), userName: user.name }));
+    res.json(buildSummary({ board: boardRows[0] ? boardRows[0].data : null, events, calendarConnected: calendar.connected, now: new Date(now), userName: user.name, views: user.widget_views, viewName: req.query.view }));
   } catch (e) { next(e); }
 });
