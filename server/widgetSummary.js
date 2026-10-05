@@ -1,7 +1,7 @@
 // Resumo para o widget do iPhone (2026-10-05, §76). Funções puras: recebem o JSON do quadro pessoal,
 // os eventos do Google e "agora", e devolvem só títulos e horários — nada de descrição, convidados ou links.
 export const TZ = 'America/Sao_Paulo';
-const MAX_ITEMS = 5;
+const MAX_ITEMS = 12;
 const COMMITMENT = new Set(['accepted', 'organizer', 'unknown']);
 
 export function todayInSp(now = new Date()) {
@@ -95,7 +95,7 @@ export function agendaItems(events, now = new Date()) {
   const nowMs = now.getTime();
   const lastDay = todayInSp(new Date(nowMs + 86400000));
   const list = upcoming(events, nowMs).filter((x) => todayInSp(new Date(x.s)) <= lastDay);
-  return { count: list.length, items: list.slice(0, 8).map((x) => shapeEvent(x, nowMs)) };
+  return { count: list.length, items: list.slice(0, 14).map((x) => shapeEvent(x, nowMs)) };
 }
 
 export function buildSummary({ board, events, calendarConnected, now = new Date(), userName, views, viewName }) {
