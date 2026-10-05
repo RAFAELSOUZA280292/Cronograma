@@ -10,12 +10,41 @@
 > integração, mudança de regra de negócio, decisão técnica, item resolvido do
 > roadmap) deve ser refletida aqui na mesma sessão.
 
-Última validação completa: 2026-08-18 (XFlow v2 — auditoria funcional do v1
-encontrou que toda regra de negócio vivia só na interface; v2 adicionou
-autorização real e matriz de transições no backend, tempo por status, SLA
-com pausa, log de eventos estruturado e as três Homes por papel — planejado
-e testado ao vivo em Postgres local + `curl` direto na API nesta sessão;
-2 bugs reais encontrados e corrigidos durante os testes — ver §18).
+Última consolidação desta documentação: **2026-10-05** (§79) — auditoria contra o código: §4–§9, §14–§17 estavam
+parados em 2026-08 e foram refeitos; §76–§78 reescritos no estado final. Última validação funcional **completa** do
+produto inteiro: 2026-08-18 (XFlow v2, §18); desde então cada módulo novo registra a sua verificação na própria seção.
+
+## 0. O produto hoje, em uma página (2026-10-05)
+
+O painel (painel.pricetax.com.br) virou o **ecossistema de trabalho da PRICETAX**: cada pessoa entra, vê o seu dia
+(mensagem do dia, agenda, atividades) e abre o módulo de que precisa. Cada módulo tem endereço próprio (§74).
+
+| Módulo | Endereço | Quem acessa (`canOpenMode`, `src/lib/routes.js`) | Seções | Código principal |
+|---|---|---|---|---|
+| Gestão de Atividades (quadro pessoal) | `/gestao-atividades` | `personal_access` | §13, §51–§53, §61–§62, §65–§66 | `src/App.jsx` (`PersonalBoardScreen`), `src/personal/` |
+| Empresas (cronogramas, reuniões, atividades) | `/empresas` | `companies_access` | §11–§13, §24–§26, §28–§29, §43–§47 | `src/App.jsx`, `src/meetings/` |
+| XFlow (BUGs/TASKs do time de DEV) | `/xflow` | `xflow_role` | §18, §64 | `src/xflow/`, `server/xflow*.js` |
+| Agenda | `/agenda` | todo usuário logado | §21–§22, §59 | `src/agenda/`, `server/agenda.js` |
+| Visão Geral Empresas | `/visao-geral` | `companies_access` + `all_companies_access` | §23 | `src/macro/`, `server/macro.js` |
+| Conhecimento (memória da RENATA) | `/conhecimento` | master/pricetax | §37–§40 | `src/knowledge/`, `server/knowledge*.js` |
+| Pareceres | `/pareceres` | master/pricetax | §48, §69–§70 | `src/pareceres/`, `server/pareceres.js` |
+| **Modelos de documentos** | `/modelos` | master/pricetax | §78 | `src/modelos/`, `server/documentTemplates.js` |
+| CRM | `/crm` | `crm_role` (master/super admin sempre) | §54–§58 | `src/crm/`, `server/crm/` |
+| Gestão de Usuários | `/usuarios` | master | §7, §67–§68 | `src/App.jsx` (`UsersManagementScreen`) |
+
+Transversais (não são "abas"): **RENATA** (assistente de IA: §27–§42, §50, §63, §70), **Meu perfil** em abas — Perfil · Meu dia ·
+Agenda · iPhone — com **boas-vindas** na primeira entrada e a **Mensagem do dia** na tela inicial (§77), **Widget do iPhone** (§76),
+Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (§67).
+
+**Linha do tempo** (o "porquê" de cada coisa está na seção citada):
+- **2026-08** — multi-tenant (§11), XFlow v1→v2 (§18), autoatendimento de conta (§19a), Notificações (§20), Google Calendar (§21), Agenda (§22), Visão Geral (§23), Grupo Empresarial (§12), 3 acessos independentes (§7).
+- **2026-09 (até 14)** — Reuniões (§24), Atividades/Centro de Execução (§25), AI Meeting Workspace (§26), RENATA fases 1–8 (§27, §30–§42: memória, busca híbrida com embeddings, executora, custo, memória em camadas, Central de Conhecimento, eval harness, prompt cache), sincronização entre usuários (§28), pendências por pessoa (§29).
+- **2026-09-16/20** — correções reais de autosave/transcrição (§43–§47), Pareceres (§48), transcrição em português (§49), RENATA na tela inicial (§50), quadro compartilhado como aba (§52), CRM fases 1–3 + importação do PipeRun (§54–§58), Agenda com aceito/recusado (§59).
+- **2026-09-28 a 10-02** — Pareceres por cliente (§48), bug "digito e some" (§60), quadro pessoal (§61–§62), Dossiê do cliente (§63), imagens nas TASKs (§64).
+- **2026-10-04** — Indicadores de atividades (§65), pausar → fim da coluna (§66), auditoria de acessos (§67), Usuários na tela inicial (§68), Pareceres redesenhado (§69), RENATA estuda os Pareceres (§70), fonte em todo o app (§71), peças visuais comuns + acessibilidade medida (§72).
+- **2026-10-05** — tela inicial verdadeira (§73), endereço por módulo (§74), idade do cartão em dias de calendário (§75), Widget do iPhone com visões e um script por visão (§76), Meu dia + boas-vindas + Meu perfil em abas + Mensagem do dia (§77), Modelos de documentos com vários anexos (§78), consolidação da documentação (§79).
+
+**Em aberto** (lista única e atual: §15). **Armadilhas que mais pegam** (regras fixas: §16 e §16.1).
 
 ## 1. O que é
 
@@ -45,12 +74,16 @@ Verificação = `npm run build` limpo + teste manual no browser.
 ## 3. Repositório e deploy
 
 - **GitHub**: `RAFAELSOUZA280292/Cronograma` (público), branch padrão `main`.
-- **⚠️ O diretório de trabalho local NÃO é um repo git.** Deploy é feito
-  clonando o repo num diretório temporário (scratchpad), fazendo `rsync` do
-  working dir pra lá (excluindo `.git/node_modules/dist/.env/.claude`),
-  `npm run build` limpo, commit, e **só então** `git push origin main` —
-  sempre com confirmação explícita do usuário antes do push (Railway builda e
-  publica automaticamente). Depois, apagar o clone temporário.
+- **⚠️ O diretório de trabalho local NÃO é um repo git.** Deploy é feito num clone à parte
+  (hoje `/private/tmp/deploy-clone`; refazer com `git clone` se sumir): `git fetch` + conferir
+  divergência → `rsync -a --delete` do working dir pra lá (excluindo `.git/node_modules/dist/.env/.claude`) →
+  `npm run build` limpo → commit → `git push origin main` (Railway builda e publica sozinho).
+  **Política vigente (Rafael, 2026-08-25, reafirmada):** commit + push **sem pedir confirmação a cada vez** — o que
+  continua obrigatório é o `fetch`/checagem de divergência antes e a **verificação em produção depois** (o hash do bundle
+  em `https://painel.pricetax.com.br/` muda e uma rota nova responde 401/200 em JSON em vez de cair no `index.html`; **não existe `/api/health`**: qualquer caminho desconhecido devolve o `index.html` com 200). O texto antigo
+  "sempre confirmar antes do push" foi superado por essa instrução.
+- **Logs de produção**: `RAILWAY_TOKEN` no `.env` local dá leitura dos logs do deploy atual (`railway logs`); é a primeira coisa a olhar
+  num erro reportado em produção (§33).
 - **Railway**: sem `railway.json`/`Procfile`/`nixpacks.toml` — detecção
   automática via `package.json` (`npm install` → `npm run build` → `npm start`,
   que serve `dist/` + API no mesmo processo Node, porta via `$PORT`).
@@ -75,11 +108,17 @@ Fonte da verdade: `.env` local (não commitado, `.gitignore`) + Railway env vars
 | `SEED_ADMIN_NAME` | Nome de exibição do admin seed | Não (default "Administrador PRICETAX") |
 | `PORT` | Porta do Express | Não (default 3001) |
 | `NODE_ENV` | Só usado para `cookie.secure` (`=== 'production'`) | Não |
+| `ANTHROPIC_API_KEY` | Toda a IA: RENATA (§27+), estudo dos Pareceres (§70), Dossiê (§63), transcrições (§24/§49), horóscopo chinês e inspiração do Meu dia (§77). Sem ela cada função responde "IA não configurada" (503/cartão "Indisponível"); o resto do app segue | Não (mas sem ela não há IA) |
+| `VOYAGE_API_KEY` | Embeddings da busca semântica (§31). Sem ela a busca cai para só lexical. Plano gratuito: 3 req/min | Não |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` | OAuth do Google Calendar (§21). Sem eles a Agenda/Meu perfil mostram "integração não configurada" | Não |
+| `APP_BASE_URL` | Endereço público para links gerados no servidor (retorno do OAuth do Google em `server/google.js`; link da TASK no evento do Calendar em `server/xflow.js`) | Não |
+| `GIT_COMMIT` | Só rótulo do registro de execução do eval da RENATA (`server/evals/runFullEval.mjs`, §41) | Não |
+| `RAILWAY_TOKEN` | **Só local** (`.env`): acesso de leitura aos logs de produção pela CLI — o app não lê | Não |
 
 Local: `set -a && source .env && set +a` antes de rodar, ou script wrapper com
 `export VAR="..."` (sandbox bloqueia `source .env` em alguns ambientes).
 
-## 5. Banco de dados (Postgres, 7 tabelas, sem ORM)
+## 5. Banco de dados (Postgres, 44 tabelas, sem ORM)
 
 `initDb()` roda `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ADD COLUMN IF NOT
 EXISTS` a cada boot (idempotente, sem migration tool). `migrateToPricetaxOrg()`
@@ -88,12 +127,24 @@ roda logo depois, também todo boot.
 | Tabela | Colunas-chave | Observação |
 |---|---|---|
 | `organizations` | `id, slug, name, display_name, logo_light/dark, favicon, primary_color, secondary_color, login_background, status(active/suspended/blocked), plan, max_users, max_companies, settings JSONB` | `status`/`plan`/limites existem no schema mas **não são aplicados** ainda (roadmap) |
-| `users` | `id, username, password_hash, name, email, role(master/pricetax/cliente), cnpj, allowed_cnpjs JSONB, blocked, block_reason, expires_at, avatar, personal_only, org_id FK, is_super_admin, xflow_role('' / reporter / dev / gestao), companies_access, all_companies_access, personal_access` | `cnpj`/`personal_only` mortas (não lidas/escritas) desde os "3 acessos independentes" (§13) — ver §7 |
+| `users` | `id, username, password_hash, name, email, role(master/pricetax/cliente), cnpj, allowed_cnpjs JSONB, blocked, block_reason, expires_at, avatar, personal_only, org_id FK, is_super_admin, xflow_role('' / reporter / dev / gestao), companies_access, all_companies_access, personal_access`, `crm_role` (§54), `preferences` JSONB + `onboarding_done_at` (Meu dia/boas-vindas, §77), `widget_token_hash` / `widget_token_enc` / `widget_token_created_at` / `widget_last_used_at` / `widget_views` JSONB (Widget do iPhone, §76) | `cnpj`/`personal_only` mortas (não lidas/escritas) desde os "3 acessos independentes" (§13) — ver §7. Toda coluna nova de `users` é aditiva (`ADD COLUMN IF NOT EXISTS`) |
 | `projects` | `id, data JSONB(company/phases/activities/team/log), org_id FK` | 1 linha = 1 empresa/cronograma inteiro; **schemaless** dentro de `data` |
 | `cnpj_cache` | `cnpj PK, data JSONB, fetched_at` | Cache de 60 dias; **sem** `org_id` de propósito (dado público compartilhado) |
 | `personal_boards` | `user_id PK/FK CASCADE, data JSONB(boards[].columns[].cards[], lastCompletedArchiveAt), updated_at` | 1 linha por usuário; **sem** `org_id` (sempre por `user_id`; scan de `shareToken` público é cross-org de propósito) |
 | `xflow_tickets` | `id, ticket_number SERIAL, org_id FK, title, status, severity, priority, suggested_priority, product, reporter_id FK, assignee_id FK, data JSONB, created_at, updated_at, status_entered_at, time_breakdown JSONB, ball_holder_type/user_id, waiting_on_type, reopen_count, homolog_reject_count, sla_first_response_due_at/met_at, sla_resolution_due_at/met_at, sla_paused_at, sla_paused_seconds` | 1 linha = 1 BUG/ticket do módulo XFlow (§18); `status` **sem** `CHECK` de propósito (lista evolui sem migration) |
 | `xflow_events` | `id, ticket_id FK CASCADE, org_id FK, type, field, old_value, new_value, note, user_id FK, created_at` | Log estruturado de toda ação do XFlow — fonte de verdade da timeline (§18), substitui o `data.history[]` de texto livre da v1 (mantido só como fallback de leitura pra tickets antigos) |
+
+**As outras 37 tabelas** (criadas depois das 7 acima; descrição de cada uma em `docs/PROJECT_MAP.md` §6 e na seção citada):
+
+| Grupo | Tabelas | Seção |
+|---|---|---|
+| RENATA / memória | `ai_conversations`, `ai_messages`, `ai_project_insights`, `ai_knowledge_facts`, `ai_knowledge_entities`, `ai_knowledge_fact_entities`, `ai_answer_cache`, `ai_metrics_events`, `ai_eval_runs`, `project_memory_chunks` | §27, §31, §37–§42 |
+| Reuniões / Dossiê | `meeting_submissions`, `project_dossiers`, `project_meeting_digests` | §24, §49, §63 |
+| Pareceres / Modelos | `pareceres`, `parecer_studies`, `meeting_parecer_advice`, **`document_templates`, `document_template_items`** | §48, §70, §78 |
+| Notificações / Google | `notifications`, `google_calendar_connections` | §20, §21 |
+| Auditoria / indicadores | `user_access_events`, `ip_geo_cache`, `personal_card_events` | §65, §67 |
+| Meu dia | **`daily_content`** (cache diário das fontes, PK `kind,key,day`) | §77 |
+| CRM (relacional, UUID, soft delete) | `crm_companies`, `crm_contacts`, `crm_notes`, `crm_company_projects`, `crm_pipelines`, `crm_pipeline_stages`, `crm_deals`, `crm_deal_items`, `crm_deal_stage_history`, `crm_products`, `crm_activities`, `crm_timeline_events`, `crm_audit_logs` | §54–§58 |
 
 **Regra de ouro**: `projects.data` e `personal_boards.data` são JSONB sem
 whitelist no backend (`PATCH` aceita o objeto inteiro) → **campo novo em uma
@@ -108,21 +159,26 @@ fora do JSONB) é rara/sensível — só fazer se pedido explicitamente.
 | BrasilAPI (`brasilapi.com.br/api/cnpj/v1/`) | Lookup de CNPJ (fonte primária) | timeout 15s, `server/cnpjLookup.js` |
 | ReceitaWS (`receitaws.com.br/v1/cnpj/`) | Fallback se BrasilAPI falhar | timeout 15s |
 | — | Cache local | `cnpj_cache`, 60 dias, evita round-trip repetido |
+| Anthropic (Claude) | IA de toda a RENATA, estudo dos Pareceres, Dossiê, transcrições, Meu dia | `@anthropic-ai/sdk`; modelos Sonnet/Opus nas funções de análise e **Haiku** no Meu dia; saída estruturada por `messages.parse` + `zod` (§27/§33: schema achatado, nunca `z.discriminatedUnion`; chamadas fora do `try/catch` do assistente derrubaram produção) |
+| Voyage AI | Embeddings da busca semântica | `server/embeddings.js` (§31) |
+| Google (OAuth + Calendar API) | Agenda, RENATA executora, previsão das TASKs, "próxima reunião" do widget | `server/google*.js`, `googleCalendar.js` (§21, §59) |
+| Liturgia Diária (`liturgia.up.railway.app/v2`) | Evangelho do dia | comunitária, **não oficial da CNBB** (§77) |
+| Midvash (`api.midvash.com`) | Versículo do dia e provérbio | Bíblia Livre CC BY 4.0 — crédito obrigatório junto do texto (§77) |
+| AstroWay (`api.astroway.info`) | Horóscopo (`lang=pt`) | limite 30/h por IP; 12 chamadas/dia (§77) |
+| Qualquer site (prévia de link dos Modelos) | Título/descrição/imagem da página | busca iniciada pelo usuário ⇒ **defesa contra SSRF** em `server/linkPreview.js` (§78) |
+| Geolocalização por IP | Local do acesso na auditoria | `ip_geo_cache` (§67) |
 
-Nenhuma outra API externa. Sem storage externo (S3 etc.) — anexos de
-atividade são base64 inline em `activity.attachments[].dataUrl` (limite 8MB/
-arquivo, ver §14). `avatar` do usuário **não** é imagem — é 1 emoji de uma
-lista fixa (`AVATAR_EMOJIS`, `src/App.jsx`), validado no backend como string
-≤16 chars (`PATCH /auth/me`).
+Sem storage externo (S3 etc.): anexos de atividade são base64 inline em `activity.attachments[].dataUrl` (limite 8MB/arquivo, §14);
+arquivos de Pareceres (≤10 MB) e de Modelos (≤30 MB cada) ficam em `BYTEA` no Postgres. `avatar` do usuário **não** é imagem — é 1 emoji de uma
+lista fixa (`AVATAR_EMOJIS`, `src/App.jsx`), validado no backend como string ≤16 chars (`PATCH /auth/me`).
 
-**Sem workers/jobs/filas — nenhum agendador real existe no servidor.** O
-único comportamento "agendado" do sistema é 100% client-side: o
-arquivamento semanal de cards concluídos na Gestão de Atividades roda dentro
-de um `useEffect` de `PersonalBoardScreen`, disparado quando a tela carrega
-(compara `board.lastCompletedArchiveAt` contra a segunda-feira mais recente).
-**Se o usuário nunca abrir essa tela, o arquivamento nunca roda** — não há
-cron/worker no backend garantindo isso. Debounce de autosave também é
-`setTimeout` no cliente, não fila real.
+**Agendamento e trabalho em segundo plano.** Não há fila/worker externo. O que existe: (a) `server/crm/scheduler.js` — `setInterval` de 10 min no
+processo do servidor que avisa, pela Central de Notificações, o responsável de cada atividade do CRM que venceu/vence hoje (não antes das 7h de Brasília; carimbo `due_notified_at` evita aviso em dobro, §56); (b) trabalhos assíncronos **dentro do processo** disparados por requisição — estudo dos
+Pareceres (§70), Dossiê (§63), processamento de transcrição (§24), reindexação da memória (§31) — com estado em tabela (`running`/`done`/`failed`);
+um deploy no meio mata o trabalho (no estudo dos Pareceres o registro "órfão" passa a falho depois de 1 minuto sem job vivo, §70; nos demais, refazer pelo botão de nova tentativa); (c) o único comportamento
+agendado do cliente: o arquivamento semanal de cards concluídos da Gestão de Atividades roda num `useEffect` de `PersonalBoardScreen`
+(compara `board.lastCompletedArchiveAt` com a segunda-feira mais recente) — **se ninguém abrir a tela, não roda**. Debounce de autosave é
+`setTimeout` no cliente, não fila.
 
 Link público de quadro (`shareToken`) é resolvido varrendo **todas** as
 linhas de `personal_boards` a cada request (`findBoardByShareToken` em
@@ -165,6 +221,10 @@ para um caso de uso raro (poucas dezenas de usuários hoje).
   não `allCompaniesAccess` (lista específica, não papel), o CNPJ da empresa
   criada é **automaticamente adicionado** ao `allowedCnpjs` de quem criou —
   não precisa de passo manual de liberação depois.
+- **Duas autenticações além do cookie JWT** (2026-10-05): (1) `GET /api/widget/summary` é público e autentica só por `Authorization: Bearer pxw_…`
+  (hash sha256 em `users.widget_token_hash`; token também guardado cifrado para o painel remontar os scripts; revogável; só leitura; limite 30/min/IP) — §76;
+  (2) `GET /quadro/:token` e `/reuniao/:token` (links públicos) seguem como antes. Nenhuma rota nova aceita credencial na URL.
+- `onboardingDone` (de `users.onboarding_done_at`) vem no objeto de usuário de `/auth/me`/login e dispara as boas-vindas (§77).
 - `GET /users`/`GET /projects` quando `isSuperAdmin && !?asOrg` (nenhuma org
   selecionada): retornam **todos os registros de todas as organizações sem
   filtro nenhum**. Isso só é seguro porque só o `SuperAdminScreen` (tela de
@@ -190,14 +250,36 @@ para um caso de uso raro (poucas dezenas de usuários hoje).
 | POST `/xflow/tickets` | `requireXflowAccess` | `reporter_id` sempre `req.user.id`; status sempre `aberta`, ignora o que o cliente mandar |
 | PATCH `/xflow/tickets/:id` | `requireXflowAccess` + `xflowPermissions.canDo()` + `xflowTransitions.checkTransition()` | router próprio `server/xflow.js`, montado em `/api/xflow`; recebe `{action, payload}` (não mais o ticket inteiro) — toda ação valida papel e transição de status antes de gravar, 403/400 reais |
 
+**8.1 Mapa completo dos roteadores** (montados em `server/index.js`; a tabela acima é só o núcleo de `routes.js`):
+
+| Prefixo | Arquivo | Acesso | Para quê | Seção |
+|---|---|---|---|---|
+| `/api` | `routes.js` | misto | núcleo + `POST /auth/change-password[-login]`, `POST /activity/ping`, `GET /users/:id/access`, `GET /projects/versions` e `/projects/lite`, `GET /personal-board/stats[/day]`, `POST /personal-board/linked`, `/notifications*`, `GET /public-meeting/:token` | §7, §20, §28, §52, §65, §67 |
+| `/api/xflow` | `xflow.js` | `requireXflowAccess` | BUGs/TASKs (ação + transição validadas no servidor) | §18 |
+| `/api/google` | `google.js` | cookie | `status`, `oauth/start`, `oauth/callback`, `disconnect` | §21 |
+| `/api/agenda` | `agenda.js` | cookie | feed único (Google + XFlow + atividades + CRM) | §22 |
+| `/api/macro` | `macro.js` | cookie | Visão Geral | §23 |
+| `/api/meeting-inbox` | `meetingInbox.js` | cookie | caixa de transcrições (`POST /`, `GET /`, retry) | §24 |
+| `/api/assistant` | `assistant.js` | cookie | RENATA: conversa, `ask`, feedback, ação, reindex, dossiê | §27, §63 |
+| `/api/knowledge` | `knowledge.js` | master/pricetax | Central de Conhecimento | §39 |
+| `/api/pareceres` | `pareceres.js` | master/pricetax | PDFs, comentários, estudo e sugestão da RENATA | §48, §70 |
+| `/api/templates` | `documentTemplates.js` | master/pricetax | Modelos: modelo + anexos (`/:id/items…`), comentários | §78 |
+| `/api/crm` | `crm/routes.js` (57 rotas) | `crm_role` | CRM completo | §54–§58 |
+| `/api/widget` | `widget.js` | cookie (gestão) + Bearer (`/summary`) | token, visões, resumo do iPhone | §76 |
+| `/api/daily` | `daily.js` | cookie | Meu dia: conteúdo, preferências, onboarding | §77 |
+
+Limite de corpo JSON: 15 MB global; **`/api/templates` tem parser próprio de 45 MB montado antes do global** (arquivo de até 30 MB em base64).
+
 `GET/POST /projects` e `/users` aceitam `?asOrg=<id>` — só respeitado se
 `isSuperAdmin` (`effectiveOrgId()`), é como o Super Admin "entra" numa org.
 
-## 9. Arquitetura do frontend (`src/App.jsx`, ~6970 linhas)
+## 9. Arquitetura do frontend (`src/App.jsx`, ~9.900 linhas + módulos em `src/*/`)
 
-Um único componente `App()` (~1450 linhas) com todo o estado
-(`useState`/`useEffect`), sem Redux/Context/roteador — navegação é 100% estado
-em memória. ~30 componentes de tela/modal no mesmo arquivo. **Mapa completo
+Um único componente `App()` (~2.800 linhas) com todo o estado
+(`useState`/`useEffect`), sem Redux/Context/roteador — navegação é estado em
+memória **espelhado na URL** por módulo (§74, `src/lib/routes.js`). Dezenas de
+componentes de tela/modal no mesmo arquivo; módulos novos nascem fora dele
+(`src/xflow`, `src/agenda`, `src/knowledge`, `src/pareceres`, `src/modelos`, `src/crm`, `src/daily`, `src/widget`, `src/ui`). **Mapa completo
 com números de linha**: `docs/PROJECT_MAP.md` (não duplicar aqui — linhas
 mudam a cada edição, o mapa lá é a fonte viva).
 
@@ -749,29 +831,49 @@ mecanismo.
 
 ## 14. Problemas técnicos conhecidos
 
-- `src/App.jsx` é muito grande (~6970 linhas, um componente `App()` de
-  ~1450 linhas) — leitura completa é cara em contexto; usar
+- `src/App.jsx` é muito grande (~9.900 linhas, um componente `App()` de
+  ~2.800 linhas) — leitura completa é cara em contexto; usar
   `docs/PROJECT_MAP.md` + `grep`/`Read offset` sempre.
 - Anexos em base64 dentro do JSONB (`activity.attachments[].dataUrl`, até
   8MB/arquivo, sem limite total) — sem storage externo; payload de
   `PATCH /projects/:id` cresce com o projeto.
 - Autosave reenvia o **objeto inteiro** (não diffs) tanto em `/projects/:id`
   quanto em `/personal-board` — custo cresce com o tamanho do dado.
-- `README.md` desatualizado (ainda descreve versão antiga localStorage,
-  sem backend real) — não reflete a arquitetura atual.
-- Sem testes automatizados, sem linter configurado.
+- Sem testes automatizados no repositório, sem linter. A verificação de cada entrega é feita com scripts **descartáveis**
+  (lógica pura em Node, HTTP real contra o Postgres local com JWT assinado com o segredo de dev, e conferência no browser); o
+  resultado fica descrito na seção da entrega, não em arquivo de teste. Armadilhas do ambiente de teste: `node --watch` fica parado depois de
+  um erro de sintaxe (`touch server/index.js` reinicia); o painel de preview não renderiza PDF; o cookie de sessão de teste some quando o dev
+  server reinicia (logar de novo por `fetch('/api/auth/login')`).
+- **Fontes externas de conteúdo mudam ou caem**: das 6 APIs de uma pesquisa de 2026-10-05, 3 estavam fora do ar e 1 devolvia outro idioma (§77).
+  Testar cada API antes de depender dela e degradar para "Indisponível" sem derrubar a tela.
 - `cnpjLookup.js` depende de 2 APIs externas instáveis — já tem retry/
   timeout/cache, mas é ponto único de falha do cadastro de empresa.
 
 ## 15. Pendências / roadmap conhecido
 
-- Enforcement de `organizations.status` (suspensa/bloqueada não bloqueia
-  login/acesso ainda, é só rótulo).
-- Planos/limites/cobrança (`plan`, `max_users`, `max_companies` no schema,
-  nada lê/aplica).
-- Banner "Super Admin — visualizando como X" não aparece ainda em
-  `CompanySelectorScreen` (só no topbar principal) — limitação conhecida.
-- `README.md` não atualizado (fora de escopo até pedido explícito).
+**Produto e infraestrutura**
+- Enforcement de `organizations.status` (suspensa/bloqueada não bloqueia login/acesso ainda, é só rótulo).
+- Planos/limites/cobrança (`plan`, `max_users`, `max_companies` no schema, nada lê/aplica) — "Fase 4" do multi-tenant.
+- Banner "Super Admin — visualizando como X" não aparece em `CompanySelectorScreen` (só no topbar principal).
+- Migrar CRM, Pareceres e Reuniões para as peças de `src/ui` (§72) — oferecido, não aprovado.
+- Dossiê do cliente: Fases B e C só com aval do Rafael (§63).
+- Favoritar uma **página** específica do quadro pessoal (hoje o endereço leva ao quadro, na aba padrão) (§74).
+- Reindexação de memória das reuniões antigas (`server/scripts/reindexAllMeetings.js`, §31/§32): confirmar se já rodou em produção.
+
+**Coisas entregues mas nunca vistas funcionando de verdade (precisam de um olhar em produção)**
+- Estudo dos Pareceres pela IA (§70): primeira execução real (custo e erros) ainda não relatada.
+- Meu dia: horóscopo chinês e inspiração (Haiku com saída estruturada, §77) — chamada real nunca testada; falha vira cartão "Indisponível" + log `Meu dia: falha em …`.
+- Boas-vindas com o OAuth do Google real (§77).
+- Modelos: abrir PDF real na gaveta, upload acima de ~10 MB pela tela, links de Drive/SharePoint reais (§78).
+- Widget: confirmado no iPhone com uma visão (§76); vários scripts/visões e o limite de linhas do widget grande ainda sem confirmação no aparelho.
+- Auditoria de acessos: IP real do Railway (`x-real-ip`) a confirmar com login real; forja de cabeçalho não verificada (§67).
+- Acessibilidade: telas e modais fora de `src/ui` não foram auditados (§72).
+
+**Documentação**
+- Este arquivo e `docs/PROJECT_MAP.md` foram reconciliados com o código em 2026-10-05 (§79). Reconferir a cada entrega grande.
+- Assuntos que o Rafael **encerrou** (não reabrir): troca de senha obrigatória do Felipe após o reset; dono da tela de IBS/CBS da NFS-e.
+
+**Estudos sem código**
 - **Comunicação com o painel via Telegram (2026-09) — estudado, não
   implementado.** Rafael queria um jeito fácil (sem ferramenta oficial
   burocrática) de o time falar com o app — cogitou e-mail, WhatsApp e
@@ -855,6 +957,23 @@ mecanismo.
     `savedStatusLabel(hasDraft, lastSavedAt)`.
   - Novo modal de edição = seguir um dos dois padrões acima, nunca inventar
     um terceiro.
+
+### 16.1 Padrões acrescentados em 2026-10 (valem para qualquer entrega nova)
+
+- **Módulo novo** = (1) `MODE_PATHS` + `canOpenMode` em `src/lib/routes.js`; (2) em `App.jsx`: `hasX`, `availableModes`, tag em `locationTag`/`applyLocationTag`, card na `WorkspaceGateScreen`,
+  ramo `effectiveMode === 'x'`; (3) fonte Inter na raiz do módulo, inclusive em drawer/modal (§71); (4) rota no `server/index.js` com o mesmo guard de acesso do front; (5) esta documentação (§0, §8.1, `PROJECT_MAP`).
+- **Migração só aditiva**: `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` dentro de `initDb()`; tabela com FK vem **depois** da tabela referenciada (`parecer_studies` antes de `pareceres` derrubou boot em banco novo, §70);
+  migração de dado idempotente (rodar `initDb` duas vezes tem que dar o mesmo resultado, como a dos anexos de Modelos, §78). Nunca `DROP`/`UPDATE` destrutivo sem copiar antes.
+- **Rotas e telas públicas** (`/quadro/:token`, `/reuniao/:token`) nunca são reescritas por efeito de URL — os hooks do `App()` rodam antes do `return` que as desenha (§74).
+- **Overlay global** (que precisa aparecer por cima de qualquer módulo, como as boas-vindas): raiz React própria (`src/daily/useWelcomeSetup.jsx`), não um `return` extra — o `App()` tem dezenas de retornos por módulo.
+- **Busca no servidor a pedido do usuário (link, prévia, webhook)** passa pela validação de SSRF de `server/linkPreview.js` — nunca `fetch(url)` direto com endereço vindo do usuário.
+- **Arquivo enviado por usuário**: lista fechada de extensões, `Content-Type` do servidor, `nosniff`; HTML só com CSP `sandbox`; SVG recusado. Tamanho validado no servidor e na tela.
+- **Segredo de integração** (token de widget, chave): só o hash autentica; se precisar reexibir, guardar **cifrado** (AES-GCM) — nunca em claro; credencial em `Authorization`, **nunca na URL** (cai em log).
+- **IA com custo**: nunca uma chamada por usuário/visita — cache por dia ou por hash do insumo, 1 chamada para N pessoas, "nada novo" = zero IA; falha de IA degrada o cartão ("Indisponível") sem derrubar a tela.
+- **Conteúdo de terceiros**: testar a API antes (§77); mostrar o crédito da licença junto do texto; texto gerado por IA sempre rotulado; **nunca atribuir frase a pessoa real** sem fonte verificada.
+- **Datas**: "dias" de calendário no fuso local, não blocos de 24 h (§75); "hoje" no servidor em `America/Sao_Paulo` (`widgetSummary.todayInSp`, §76–§77), nunca o fuso do processo (§36).
+- **Texto "Nd" ou contagem exibida** precisa ter um teste com a data de borda (domingo→segunda, virada de mês) antes de dizer "feito" — o erro de §75 foi falta disso.
+- **Antes de dizer "feito"**: rastrear o dado até a tela e provar valor esperado × obtido; o que não foi possível testar (IA real, aparelho real, OAuth real) entra na entrega como **"não testado"**, e na §15.
 
 ## 17. Bugs já resolvidos — não reintroduzir
 
@@ -970,6 +1089,14 @@ Confirmados nesta sessão (causa raiz verificada e corrigida ao vivo):
   exatamente o que falta preencher. **Lição**: `disabled` baseado em
   validação de formulário é sempre um risco de "clique morto" — prefira
   deixar o botão clicável e mostrar o erro dentro do próprio handler.
+
+**Bugs de 2026-09/10 (o detalhe e a causa estão na seção citada)**
+- Texto digitado some sozinho (poll de sincronização sobrescrevia a edição local) — §60. `reloadProjects` em segundo plano funde com `saveTimers`/`inFlightProjectSaves`.
+- Fechar modal editando não salvava/confirmava — §43; transcrição presa em "Processando…" — §44; "escrevo e o texto some" — §45–§47 (`useDebouncedField`).
+- Link público `/quadro/:token` reescrito para `/` com o usuário logado (efeito de URL) — §74.
+- "Hoje você já terminou" dito numa segunda de manhã — §73; "0d" para o que foi aberto no domingo — §75.
+- Tabela criada antes da tabela referenciada derrubaria o boot em banco novo (`parecer_studies`) — §70; estudo órfão "running" depois de deploy — §70.
+- Widget: teto de 5 itens por bloco era do nosso script/servidor, não do Scriptable — §76; script antigo no iPhone não conhece visões — §76.
 
 Do histórico do projeto (título do commit é a única fonte disponível —
 confiança menor, mas mantido como sinal de "área sensível"):
@@ -5342,6 +5469,8 @@ Tabela, §45) como pendência aberta, já rastreada.
 
 ## 48. Pareceres PRICETAX — repositório de PDFs (2026-09-17)
 
+> Aba irmã: **Modelos de documentos** (§78) reaproveita o mesmo esqueleto, a mesma regra de acesso e os comentários.
+
 **Pedido do Rafael**: um novo menu na tela inicial (junto de
 Empresas/Gestão de Atividades/Agenda/Visão Geral/Conhecimento) pra
 subir pareceres técnicos em PDF, com identificação do arquivo e
@@ -5522,6 +5651,8 @@ quando o servidor reinicia fica órfão (o recupero só cobre `processing`) e a
 tela não oferece retry pra `pending`.
 
 ## 50. RENATA na tela inicial: agenda de hoje/semana ou convite pra conectar (2026-09-20)
+
+> Ordem atual da tela inicial (§73, §77): Olá → **Mensagem do dia** → RENATA (agenda e quadro) → "Onde você quer trabalhar agora?" → módulos.
 
 **Pedido do Rafael**: ao logar, quem já conectou a agenda vê na hora as
 reuniões do dia e da semana (olhando sempre o dia e horário atuais); quem
@@ -6834,7 +6965,7 @@ quadro carregado no login — cartão alterado em outra aba só aparece ao recar
 Pedido do Rafael: "o link é sempre painel.pricetax.com.br, não consigo favoritar direto a Gestão de Atividades —
 por que não `/gestaoatividades/rafael`?". O app não tem roteador (§9) e todo módulo vivia na mesma URL. Agora cada
 módulo tem endereço (`src/lib/routes.js`, módulo puro): `/gestao-atividades`, `/empresas`, `/xflow`, `/agenda`,
-`/visao-geral`, `/conhecimento`, `/pareceres`, `/crm`, `/usuarios`; tela inicial = `/`. Variantes aceitas e
+`/visao-geral`, `/conhecimento`, `/pareceres`, `/modelos` (§78), `/crm`, `/usuarios`; tela inicial = `/`. Variantes aceitas e
 normalizadas pro oficial (`/gestaoatividades`, maiúsculas, acento, barra final). **Sem `/rafael` no endereço, de
 propósito**: a Gestão de Atividades já é sempre a do usuário logado (`GET /personal-board` por `req.user`), então um
 segmento de pessoa seria cosmético — ou ignorado (enganoso) ou exigiria permissão de ver o quadro de outro.
@@ -6878,52 +7009,36 @@ hoje 00:05 (→ 0d), anteontem 23h (→ 2d) e há 8 dias (→ 8d). Limite: depen
 
 ## 76. Widget do iPhone (Scriptable) (2026-10-05)
 
-Pedido do Rafael: ver, ao pegar o iPhone, o que importa do painel, sem autenticar. PWA no iOS não faz widget; o caminho
-curto é o app gratuito **Scriptable** + um endpoint só de leitura com **token secreto**. Mostra: atrasadas, vencem hoje e
-próxima reunião. Tocar no widget abre `/gestao-atividades`.
+Pedido do Rafael: ver, ao pegar o iPhone, o que importa do painel, **sem autenticar**. PWA no iOS não faz widget; o caminho curto é o
+app gratuito **Scriptable** + um endpoint só de leitura protegido por **token secreto**. Tocar no widget abre `/gestao-atividades`.
+**Confirmado no iPhone real do Rafael** em 2026-10-05 (widget médio com atrasadas, hoje e reunião "Agora" do Google Calendar de produção).
 
-- **Backend** (`server/widget.js`, montado em `/api/widget`): `POST /token` (cookie; gera `pxw_` + 32 bytes base64url, guarda
-  só o sha256 em `users.widget_token_hash`; gerar outro invalida o anterior), `DELETE /token` (revoga), `GET /status`
-  (ativo, criado em, último uso) e **`GET /summary`** — público, autenticado só por `Authorization: Bearer <token>` (nunca
-  na URL, para não cair em log; `?token=` dá 401). Usuário bloqueado/expirado → 403. Limite de 30 consultas/min por IP
-  (memória; 429). `Cache-Control: no-store`. Colunas novas aditivas em `users` (`widget_token_hash`, `_created_at`,
-  `widget_last_used_at`) + índice único parcial no hash — única mudança de `db.js`, justificada por ser campo relacional.
-- **Resumo** (`server/widgetSummary.js`, funções puras): `boardItems` (aberto = não concluído/excluído/arquivado, com data;
-  até 5 títulos por grupo, mais antigas primeiro; "hoje" no fuso America/Sao_Paulo), `pickNextMeeting` (mesma regra da RENATA/Agenda:
-  só accepted/organizer/unknown; fora dia inteiro, cancelado, "livre", recusado/pendente/talvez; evento em andamento conta como "agora"),
-  `buildSummary`. Só títulos e horários: sem descrição, convidados, local ou link. Agenda lida de `listEvents` (−6 h a +3 dias),
-  cache de 5 min por usuário; falha do Google não derruba o resumo (próxima reunião vem nula).
-- **Visões (2026-10-05, mesmo dia)**: o Rafael quis escolher o que ver sem mexer em código. Em Meu perfil > Widget do iPhone > "O que mostrar"
-  ele monta até 6 **visões** (nome de até 24 caracteres, sem repetir ignorando maiúsculas; 1 a 5 itens de: Atrasadas, Vencem hoje,
-  **Urgentes** = cartões abertos com prioridade `urgente`, com ou sem data, **Próxima reunião**, **Agenda de hoje e amanhã** = até 8
-  compromissos aceitos). Salvas em `users.widget_views` (JSONB, coluna aditiva) via `GET/PUT /api/widget/views` (cookie; validação em
-  `sanitizeViews`). A 1ª visão é a padrão; para outra, no iPhone: Editar Widget > **Parameter** = nome da visão (o script manda
-  `?view=nome`, só o nome, nunca o token). `/summary` devolve `view`, `viewFound`, `viewNames`, `urgent`, `agenda` **e continua
-  devolvendo `overdue`/`dueToday`/`nextMeeting`** — scripts colados antes continuam funcionando (mas só mostram o layout antigo).
-  O script novo reparte as linhas do widget entre os blocos que têm itens (médio 6, grande 14) e guarda um cache por visão. Mudar as visões
-  no painel NÃO exige colar script de novo; mudar o próprio script exige (token não é recuperável: gerar código novo e substituir o
-  conteúdo). Testado: unitário (urgentes, agenda, validação), HTTP (GET/PUT, `?view=`, nome inexistente → `viewFound:false`),
-  script com globais simuladas e tela no browser. Não testado no iPhone com mais de uma visão.
-- **Um script por visão (2026-10-05)**: o Rafael notou que havia um "link" só (o script) mesmo depois de criar visões, e o que estava no
-  iPhone era o antigo. Agora cada visão tem o **seu** script, com o nome da visão embutido (`const VIEW`); o Parameter do widget, se
-  preenchido, ainda tem prioridade. O token deixou de ser "mostrado uma vez": fica **cifrado** (AES-256-GCM, chave derivada de
-  `JWT_SECRET`, coluna `users.widget_token_enc`; o `widget_token_hash` continua sendo o que autentica) e `GET /api/widget/token`
-  (cookie, `no-store`) o devolve, então o painel monta e copia o script de qualquer visão quando quiser, sem gerar código novo.
-  Código criado antes desta versão não é recuperável (`status.recoverable=false`): o painel avisa e pede um código novo uma vez.
-  Mudar o conteúdo de uma visão não exige colar de novo; criar visão nova ou trocar o nome exige um script novo. Trocar `JWT_SECRET`
-  invalida os tokens guardados (gera-se outro). Aba iPhone: lista de visões com "Copiar script desta visão" (desabilitado com
-  alterações não salvas), nome sugerido "PRICETAX <visão>" e plano B em texto selecionável se a área de transferência falhar.
-- **Limite de linhas (2026-10-05)**: o Rafael viu o widget grande com as mesmas 5 linhas do médio. Era limitação nossa (teto de 5 itens por bloco no script e no servidor), não do Scriptable. Agora o servidor manda até 12 itens por lista e 14 na agenda, e o script reparte um orçamento de linhas (médio 6, grande 16) entre os blocos, sem teto fixo de 5. O teto fica no script colado: quem quiser ver mais linhas precisa copiar o script de novo.
-- **Atalho na tela inicial**: o gate (`WorkspaceGateScreen`) ganhou o botão rotulado "Meu perfil" (avatar + texto) no cabeçalho e renderiza o `MyProfileModal`; antes o perfil só abria de dentro de Empresas/lista de empresas, difícil de achar. Os demais módulos (Agenda, Atividades…) continuam sem o atalho.
-- **Tela**: "Widget do iPhone" em Meu perfil (`src/widget/WidgetSection.jsx`): gerar código, mostrar o script UMA vez (token
-  não é recuperável), Copiar, passo a passo, gerar novo (confirma que desliga o antigo), revogar (confirma).
-  `src/widget/scriptableScript.js` monta o script já com endereço (`window.location.origin`) e token; sem template literal
-  dentro do script. Widget pequeno/médio/grande; guarda o último resumo no iPhone e mostra "offline" se a rede falhar;
-  token revogado mostra mensagem clara. O iOS decide quando atualizar (pedimos 15 min; na prática 15–30 min, não é tempo real).
-- **Verificado**: testes puros (Node) da lógica, teste HTTP real contra o servidor local (sem token, inválido, `?token=`,
-  gerar, hash ≠ token, novo invalida o antigo, bloqueado, revogado, 429, `no-store`), script do Scriptable rodado com globais
-  simuladas (médio/pequeno/grande, offline com e sem cache, 401, fora do widget, agenda desconectada) e a tela no browser
-  (gerar → script → fechar → revogar). **Confirmado em 2026-10-05 no iPhone real do Rafael** (widget médio: atrasadas, hoje e reunião "Agora" vinda do Google Calendar de produção).
+**Estado final (como funciona hoje)**
+- **Token** (`server/widget.js`, `/api/widget`): `POST /token` (cookie) gera `pxw_` + 32 bytes base64url; autentica pelo **sha256** em `users.widget_token_hash`
+  (índice único parcial) e fica **também cifrado** (AES-256-GCM, chave derivada do `JWT_SECRET`, `users.widget_token_enc`) para o painel remontar scripts
+  sem gerar código novo — `GET /token` (cookie, `no-store`) o devolve. Gerar outro invalida o anterior; `DELETE /token` revoga; `GET /status` informa
+  `active`, `recoverable`, criado em, último uso. Trocar `JWT_SECRET` invalida os tokens cifrados (gera-se outro). Token antigo (só hash) não é recuperável:
+  o painel avisa e pede um código novo uma vez.
+- **`GET /summary`** é público e autenticado só por `Authorization: Bearer <token>` (nunca na URL; `?token=` dá 401). Bloqueado/expirado → 403. 30 consultas/min por IP
+  (memória; 429). `no-store`. Só títulos e horários — sem descrição, convidados, local ou link. "Hoje" no fuso America/Sao_Paulo.
+- **Visões** (`users.widget_views`, `GET/PUT /api/widget/views`, validação em `sanitizeViews`): até 6, nome de até 24 caracteres sem repetir (ignora maiúsculas), 1 a 5 blocos de:
+  Atrasadas · Vencem hoje · **Urgentes** (cartões abertos com prioridade `urgente`, com ou sem data) · Próxima reunião · **Agenda de hoje e amanhã**. A 1ª é a padrão;
+  `?view=nome` escolhe outra (nome desconhecido → `viewFound:false` + a 1ª). `/summary` continua devolvendo `overdue`/`dueToday`/`nextMeeting` (compatível com scripts antigos).
+- **Resumo** (`server/widgetSummary.js`, funções puras): aberto = não concluído/excluído/arquivado; até 12 itens por lista e 14 na agenda; reunião = mesma regra da RENATA/Agenda
+  (só accepted/organizer/unknown; fora dia inteiro, cancelado, "livre", recusado/pendente/talvez; em andamento = "Agora"). Agenda do Google lida de `listEvents` (−6 h a +3 dias), cache de 5 min por usuário;
+  falha do Google não derruba o resumo.
+- **Script** (`src/widget/scriptableScript.js`, gerado com endereço, token e **o nome da visão embutido** — um script por visão; o Parameter do widget, se preenchido, tem prioridade):
+  pequeno/médio/grande; reparte um orçamento de linhas (médio 6, grande 16) entre os blocos com itens; cache por visão no iPhone ("offline" se a rede falhar); token revogado mostra mensagem clara;
+  sem template literal dentro do script. O iOS decide a atualização (pedimos 15 min; na prática 15–30, não é tempo real).
+- **Tela** (`src/widget/WidgetSection.jsx`, aba **iPhone** de Meu perfil): gerar/renovar/revogar código, lista de visões (editar blocos, adicionar, remover, salvar), **"Copiar script desta visão"**
+  (desabilitado com alterações não salvas; nome sugerido "PRICETAX <visão>"; plano B em texto selecionável), passo a passo.
+- **O que exige colar de novo**: criar visão nova, trocar o nome de uma, ou mudança no próprio script (ex.: o teto de linhas). Mudar os blocos de uma visão **não** exige.
+
+**Como chegou aqui (decisões, em ordem)**: 1 script e 1 endpoint → visões escolhidas pelo Parameter → "um link por visão" (o Rafael via um só script, desatualizado, mesmo após criar visões) → token recuperável
+para montar scripts a qualquer hora → teto de 5 itens por bloco era **nosso**, não do Scriptable (subiu para 12/14) → botão "Meu perfil" visível na tela inicial.
+
+**Verificado**: lógica pura (Node); HTTP real (sem token, inválido, `?token=`, gerar, hash ≠ token, cifra ≠ token, recuperar, token antigo não recuperável, novo invalida o antigo, bloqueado, revogado, 429, `no-store`, visões);
+script com globais simuladas (3 tamanhos, offline com/sem cache, 401, visão embutida × Parameter, nome com `$&` e aspas); tela no browser. **Não confirmado no aparelho**: vários scripts/visões e o limite de linhas do grande.
 
 ## 77. Meu dia, boas-vindas e Meu perfil em abas (2026-10-05)
 
@@ -6932,7 +7047,8 @@ deve ser levada a **configurar a agenda e o que quer receber**, e poder **escolh
 horóscopo, horóscopo chinês, sabedoria, inspiração) — visível, não escondido; e o Meu perfil deve ser "extremamente funcional".
 
 - **Meu perfil em abas** (`MyProfileModal`, App.jsx): Perfil (avatar + senha), **Meu dia**, Agenda (Google Calendar), iPhone
-  (widget, §76). Abre direto na aba certa (`openProfile(tab)`); o botão "Meu perfil" fica na tela inicial (§76).
+  (widget, §76). Abre direto na aba certa (`openProfile(tab)`). O botão **"Meu perfil"** (avatar + texto) fica no cabeçalho da **tela inicial** — antes o perfil só abria de dentro da lista de
+  Empresas e ninguém achava; os outros módulos (Agenda, Atividades…) seguem sem o atalho.
 - **Boas-vindas** (`src/daily/WelcomeSetup.jsx`, montada por `useWelcomeSetup` numa raiz React própria, porque o App tem dezenas de
   retornos por módulo): 3 passos (conectar Google · montar o dia · pronto) por cima de qualquer tela, para quem tem
   `onboarding_done_at` nulo — **inclui todos os usuários já existentes, uma vez**. "Agora não" também marca como feito (não insiste);
@@ -6966,44 +7082,59 @@ horóscopo, horóscopo chinês, sabedoria, inspiração) — visível, não esco
 
 ## 78. Modelos de documentos (2026-10-05)
 
-Pedido do Rafael: uma aba irmã dos Pareceres, para **modelos de documentos**, que aceite **links com pré-visualização** e arquivos
-(PDF, Word, PowerPoint etc.). Novo módulo `modelos` (`/modelos`, card "Modelos de documentos" na tela inicial), **só master/pricetax** (mesma
-regra dos Pareceres, `requireMasterOrPricetax` + `effectiveOrgId`; `canOpenMode` e `hasModelos` em App.jsx).
+Pedido do Rafael: uma aba **irmã dos Pareceres** para **modelos de documentos**, com **links com pré-visualização** e arquivos (PDF, Word, PowerPoint, Excel, HTML…), e **mais de um tipo de
+documento por título** (o mesmo modelo em Word, Excel, PDF…). Módulo `modelos` (`/modelos`, card "Modelos de documentos" na tela inicial), **só master/pricetax** (mesma regra dos Pareceres:
+`requireMasterOrPricetax` + `effectiveOrgId`; `canOpenMode`/`hasModelos`).
 
-- **Dados**: tabela `document_templates` (aditiva em `db.js`): `kind` ('file'|'link'), título, descrição ("para que serve"), `category`
-  (livre, com sugestões), arquivo em BYTEA, `url`, `link_meta` JSONB (título/descrição/imagem/site da página), `preview_text`, comentários.
-- **API** (`server/documentTemplates.js`, `/api/templates`): `GET /`, `POST /` (arquivo em base64 ou link), `PATCH /:id`, `POST /:id/refresh-preview`,
-  `DELETE /:id`, `GET /:id/file` (`?download=1` força baixar), comentários como nos Pareceres. O parser JSON de `/api/templates` tem limite de
-  45 MB e é montado ANTES do global de 15 MB (`index.js`) — arquivo de até **30 MB**; acima disso a tela manda usar link.
-- **Arquivos**: lista fechada de extensões (pdf, doc/docx/rtf/odt, ppt/pptx/odp, xls/xlsx/ods/csv, txt, png/jpg/gif/webp). **SVG, JS e executáveis
-  são recusados**; HTML passou a ser aceito (ver "Vários anexos" abaixo, servido isolado). O `Content-Type` vem do servidor pela extensão, nunca do navegador; `nosniff`; só PDF, imagem e
-  txt abrem inline, o resto baixa.
-- **Pré-visualização**: PDF e imagem na própria gaveta; **docx/pptx/xlsx** mostram o começo do conteúdo (`server/officePreview.js`: leitor de ZIP com o
-  `zlib` do Node, sem dependência nova, teto de 6 MB por entrada contra zip bomb; docx = primeiros parágrafos, pptx = nº de slides + títulos, xlsx = nomes
-  das planilhas); `.doc/.ppt/.xls` antigos e demais só mostram ícone + baixar. Não há miniatura de PDF/Office (exigiria converter no servidor).
-- **Links** (`server/linkPreview.js`): o servidor busca a página e lê `og:title/description/image` (com fallback para `<title>`/`description`). **Defesa contra
-  SSRF**: só http/https, sem usuário/senha; o DNS é validado NA CONEXÃO (`lookup` próprio, sem janela de rebinding) e recusa endereço privado, loopback,
-  link-local/metadados (169.254.x), CGNAT, multicast e IPv6 equivalentes; redirecionamentos refeitos e revalidados (máx. 3); corpo ≤ 300 KB, só text/html,
-  6 s. Falha ou endereço bloqueado NÃO impede salvar: o link fica com `link_meta.ok=false`. Páginas que pedem login (Drive, SharePoint) só dão o domínio.
-  A imagem da prévia é carregada direto do site de origem (`referrerPolicy=no-referrer`).
-- **Tela** (`src/modelos/`, mesmo esqueleto `par-*` dos Pareceres): cards com miniatura (imagem do link, imagem pequena, ou ícone colorido por tipo), busca,
-  filtros por categoria e por tipo, gaveta com prévia, editar título/categoria/descrição (autosave com `useDebouncedField`), editar endereço do link, atualizar
-  prévia, comentários, excluir. Adicionar: aba Arquivo (arrastar e soltar ou clicar) / Link.
-- **Vários anexos por modelo (2026-10-05, mesmo dia)**: o Rafael pediu o mesmo documento em Word, Excel, PDF, HTML etc. sob um título só. Agora o **modelo**
-  (título, categoria, "para que serve", comentários) tem até **12 anexos** (arquivos e/ou links) na tabela `document_template_items` (cascade ao excluir o modelo).
-  As colunas de arquivo/link de `document_templates` viraram legado: `initDb` migra cada linha antiga para 1 anexo (idempotente, conferido rodando 2×) e zera o
-  `file_data` antigo para não duplicar. API: `POST /` cria o modelo já com o 1º anexo; `POST /:id/items` soma outro (um por requisição, até 30 MB cada);
-  `PATCH /:id/items/:itemId` troca o endereço/refaz a prévia de um link; `DELETE /:id/items/:itemId` (não remove o último: exclui-se o modelo);
-  `GET /:id/items/:itemId/file` (a rota antiga `/:id/file` devolve o 1º arquivo, para abas com JS velho). A tela escolhe vários arquivos de uma vez + links
-  ao criar, a gaveta alterna entre os anexos (cada um com a sua prévia) e permite adicionar/remover; o cartão mostra os tipos presentes e "N anexos";
-  filtro por tipo e busca olham todos os anexos; tipos recusados são barrados já ao escolher. Se um anexo do meio falha o modelo fica criado e a tela avisa quais não subiram.
-- **HTML aceito, isolado**: `.html/.htm` abrem inline com `Content-Security-Policy: sandbox; default-src 'none'; …` — SEM `allow-scripts` nem `allow-same-origin`, então o
-  arquivo não executa script, não lê cookie e não chama a API, nem aberto direto numa aba (conferido no browser: o `<script>` do arquivo não rodou e `document.cookie`
-  deu SecurityError). Na gaveta a prévia é um `<iframe sandbox>`. SVG continua recusado.
-- **Verificado**: extração de docx/pptx/xlsx com arquivos reais (e arquivo corrompido → vazio), 15 endereços privados bloqueados + 6 URLs hostis, prévia
-  real de example.com, github.com e gov.br, API (401/403, isolamento por organização, extensões proibidas, 31 MB recusado e 29 MB aceito, headers dos
-  arquivos, SSRF, edição/comentários) e a tela no browser (docx, link, filtros, mobile). **Não testado**: abrir PDF real na gaveta (o painel de teste não
-  renderiza PDF; o cabeçalho inline foi conferido por HTTP), upload acima de ~10 MB pela tela, e links de Drive/SharePoint reais.
+**Modelo e anexos**
+- Um **modelo** (`document_templates`: título, categoria livre com sugestões, "para que serve", comentários) tem até **12 anexos** (`document_template_items`, cascade): arquivo (BYTEA) e/ou link
+  (`url` + `link_meta` JSONB), com `preview_text` para Office. As colunas de arquivo/link de `document_templates` são **legado**: `initDb` migra cada linha antiga para 1 anexo (idempotente, conferido rodando 2×)
+  e zera o `file_data` antigo para não duplicar.
+- **API** (`server/documentTemplates.js`, `/api/templates`): `GET /` (modelos com a lista de anexos, sem o conteúdo), `POST /` (cria o modelo já com o 1º anexo), `POST /:id/items` (soma um anexo por requisição),
+  `PATCH /:id` (título/categoria/descrição), `PATCH /:id/items/:itemId` (troca o endereço e/ou refaz a prévia de um link), `DELETE /:id/items/:itemId` (não remove o último), `DELETE /:id`,
+  `GET /:id/items/:itemId/file` (`?download=1` força baixar; `GET /:id/file` antigo devolve o 1º arquivo), comentários como nos Pareceres. Corpo JSON de `/api/templates`: parser próprio de **45 MB**
+  montado antes do global de 15 MB (`index.js`); arquivo de até **30 MB**; acima disso a tela manda usar link.
+
+**Arquivos e segurança**
+- Lista fechada de extensões: pdf, doc/docx/rtf/odt, ppt/pptx/odp, xls/xlsx/ods/csv, txt, **html/htm**, png/jpg/gif/webp. SVG, JS, executáveis e qualquer outra são recusados (servidor e, já ao escolher, a tela).
+  `Content-Type` decidido pelo servidor pela extensão (nunca o do navegador), `nosniff`, `no-store`; só PDF, imagem, txt e HTML abrem inline, o resto baixa.
+- **HTML aceito, mas isolado**: servido com `Content-Security-Policy: sandbox; default-src 'none'; …` — sem `allow-scripts` e sem `allow-same-origin`: não executa script, não lê cookie, não chama a API,
+  **nem aberto direto numa aba** (conferido no browser: o `<script>` do arquivo não rodou e `document.cookie` deu SecurityError). Na gaveta a prévia é um `<iframe sandbox>`.
+
+**Pré-visualização**
+- PDF, imagem, HTML e txt abrem na própria gaveta. **docx/pptx/xlsx** mostram o começo do conteúdo (`server/officePreview.js`: leitor de ZIP com o `zlib` do Node, sem dependência nova, teto de 6 MB por entrada contra zip bomb;
+  docx = primeiros parágrafos, pptx = nº de slides + títulos, xlsx = nomes das planilhas). `.doc/.ppt/.xls` antigos só mostram ícone + baixar. **Não há miniatura de PDF/Office** (exigiria converter no servidor).
+- **Links** (`server/linkPreview.js`): o servidor busca a página e lê `og:title/description/image` (fallback `<title>`/`description`). **Defesa contra SSRF**: só http/https, sem usuário/senha; DNS validado **na conexão**
+  (`lookup` próprio, sem janela de rebinding), recusa endereço privado, loopback, link-local/metadados (169.254.x), CGNAT, multicast e IPv6 equivalentes; redirecionamentos refeitos e revalidados (máx. 3); corpo ≤ 300 KB, só text/html, 6 s.
+  Falha ou endereço bloqueado **não** impede salvar (`link_meta.ok=false`). Páginas com login (Drive, SharePoint) só dão o domínio. A imagem da prévia vem direto do site de origem (`referrerPolicy=no-referrer`).
+
+**Tela** (`src/modelos/`, esqueleto `par-*` dos Pareceres + `mdl-*`): cartões com capa (imagem do link, imagem pequena ou ícone por tipo), um selo por tipo presente e "N anexos"; busca (olha todos os anexos) e filtros por categoria e por tipo;
+gaveta com os anexos como botões (cada um com a sua prévia), adicionar/remover anexo, editar título/categoria/descrição (autosave `useDebouncedField`) e o endereço de um link, atualizar prévia, comentários, excluir o modelo.
+Novo modelo: vários arquivos de uma vez (arrastar e soltar) + links; se um anexo do meio falha, o modelo fica criado e a tela avisa quais não subiram.
+
+**Verificado**: extração de docx/pptx/xlsx reais (corrompido → vazio); 15 endereços privados e 6 URLs hostis bloqueados; prévia real de example.com, github.com e gov.br; API (401/403, isolamento por organização, extensões proibidas,
+31 MB recusado e 29 MB aceito, limite de 12 anexos, headers de arquivo e do HTML, SSRF, migração de linhas legadas, cascade); tela no browser (vários anexos, HTML isolado, adicionar/remover, filtros, mobile).
+**Não testado**: abrir PDF real na gaveta (o painel de teste não renderiza PDF; o cabeçalho inline foi conferido por HTTP), upload acima de ~10 MB pela tela, links de Drive/SharePoint reais.
+
+## 79. Consolidação da documentação (2026-10-05)
+
+O Rafael pediu para consolidar "tudo que foi feito hoje e nos dias anteriores" e perguntou se a documentação estava atualizada. **Não estava por inteiro.** Auditoria feita contra o código:
+
+| Achado | Correção |
+|---|---|
+| Cabeçalho dizia "última validação 2026-08-18" e não havia visão do conjunto | §0 novo: mapa dos módulos (endereço, acesso, seções, código) + linha do tempo |
+| §4 listava 7 variáveis; o código usa também `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, `GOOGLE_*`, `APP_BASE_URL`, `GIT_COMMIT` (+ `RAILWAY_TOKEN` local) | tabela refeita |
+| §5 dizia "7 tabelas"; `initDb()` cria **44** e `users` ganhou 8 colunas novas (`crm_role`, `preferences`, `onboarding_done_at`, 5 do widget) | contagem, coluna de `users` e tabela de grupos das outras 37 |
+| §6 dizia "nenhuma outra API externa" e "sem jobs"; há Anthropic, Voyage, Google, 3 fontes de conteúdo, prévia de link, geolocalização, o agendador do CRM e trabalhos em processo | §6 refeito |
+| §8 só tinha o núcleo de `routes.js`; faltavam 12 roteadores | §8.1 com o mapa completo |
+| §9/§14: "App.jsx ~6970 linhas" (hoje ~9.900) e "README desatualizado" | contagens; README reescrito |
+| §3 mandava "sempre confirmar antes do push", contrariando a instrução vigente do Rafael (commit+push direto; 2026-08-25) | §3 alinhado e com a verificação pós-deploy; `CLAUDE.md` também |
+| §15 não refletia o que está em aberto nem o que foi entregue sem ser visto funcionando | §15 reescrito em 4 grupos |
+| §16/§17 não tinham os padrões e bugs de 2026-10 | §16.1 e lista em §17 |
+| §76–§78 tinham sido escritos por acréscimo e se contradiziam (ex.: "script mostrado uma vez", "HTML recusado", "aba Arquivo/Link") | reescritos no estado final, com as decisões em ordem |
+| `docs/PROJECT_MAP.md`: índice de componentes com linhas de 2026-08, §7 só com as primeiras rotas, tabelas e arquivos novos sem linha | índice regenerado do código; §6/§7 completados; arquivos novos incluídos |
+
+**Como manter**: ao fechar uma entrega, atualizar no mesmo dia (1) a seção dela, (2) o §0 se um módulo nasceu/mudou de acesso, (3) o §15 (o que ficou sem teste real), (4) o `PROJECT_MAP`. Quando houver dúvida, o **código manda** — conferir antes de confiar no texto.
 
 | Preciso de... | Vá para |
 |---|---|

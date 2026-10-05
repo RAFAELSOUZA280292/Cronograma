@@ -15,8 +15,9 @@ Antes de qualquer tarefa nova, siga esta ordem:
    `docs/PROJECT_MAP.md`) sempre que uma alteração mudar arquitetura, regra
    de negócio, infraestrutura ou comportamento relevante — na mesma sessão.
 6. Evite carregar arquivos grandes ou módulos não relacionados no contexto
-   (`src/App.jsx` tem ~6970 linhas — leia com `offset`/`limit` ou `grep`,
-   nunca o arquivo inteiro sem motivo).
+   (`src/App.jsx` tem ~9.900 linhas — leia com `offset`/`limit` ou `grep`,
+   nunca o arquivo inteiro sem motivo). Comece pelo **§0 do `PROJECT_CONTEXT.md`**
+   (mapa dos módulos, endereços, acessos e linha do tempo) para saber onde fica cada coisa.
 7. Investigue progressivamente: **documentação → arquivos relacionados →
    dependências necessárias**. Só amplie a busca (`grep` livre / Explore
    agent) se os dois documentos não cobrirem o que você precisa.
@@ -26,11 +27,14 @@ Antes de qualquer tarefa nova, siga esta ordem:
 
 ## Stack (resumo — detalhes em `PROJECT_CONTEXT.md`)
 
-React 18 + Vite (`src/App.jsx`, arquivo único) · Express/Node ESM (`server/`)
-· Postgres via `pg`, sem ORM · JWT+bcrypt · Railway (deploy automático em
-push na `main`). Working dir local **não é** repo git — deploy é
-clone/rsync/build/commit/push num diretório separado, **sempre com
-confirmação explícita antes do `git push`**.
+React 18 + Vite (`src/App.jsx` + módulos em `src/*/`) · Express/Node ESM (`server/`)
+· Postgres via `pg`, sem ORM · JWT+bcrypt · IA Anthropic (+ Voyage para embeddings) ·
+Railway (deploy automático em push na `main`). Working dir local **não é** repo git —
+deploy é fetch/rsync/build/commit/push num clone separado. **Política vigente (Rafael,
+2026-08-25, reafirmada): commit + push sem pedir confirmação a cada vez**, depois de
+`git fetch` e checar divergência, e **verificando em produção em seguida**. (O texto
+antigo "sempre confirmar antes do push" foi superado por essa instrução; o detalhe
+está em `PROJECT_CONTEXT.md` §3.)
 
 ## Comandos
 
@@ -42,7 +46,9 @@ npm start         # produção: node server/index.js
 ```
 
 Sem test runner/linter configurado — verificação = `npm run build` limpo +
-teste manual no browser.
+testes descartáveis (Node para lógica pura, HTTP real contra o Postgres local, conferência
+no browser). O que não deu para testar de verdade (IA real, aparelho real, OAuth real) deve
+ser dito como **não testado** e entrar na §15 do `PROJECT_CONTEXT.md`.
 
 ## Arquivos que NÃO devem ser mexidos sem necessidade explícita
 
