@@ -1,19 +1,20 @@
 # PROJECT_MAP.md — Índice técnico (PRICETAX Cronograma)
 
 Mapa de localização, não documentação completa. Números de linha são
-aproximados no momento da escrita (2026-08) — se o arquivo tiver sido editado
+aproximados no momento da escrita — **o índice de componentes de `App.jsx` (§3) foi regenerado do código em 2026-10-05** e a documentação toda foi reconciliada nessa data (`PROJECT_CONTEXT.md` §79). Se o arquivo tiver sido editado
 depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
 `Read` com `offset`. Fonte da verdade é sempre o código.
 
 ## 1. Arquitetura geral
 
-- **Frontend**: SPA React 18 (Vite), sem roteador — navegação é 100% estado
-  em memória (`view`, `workspaceMode`, `openActivityId`, `openMeetingId`,
-  etc. em `App()`). Quase todo o app (telas, modais, estilos) está em
-  `src/App.jsx`. Exceções: o módulo XFlow (`src/xflow/XFlow.jsx`, ver
-  seção 2 e 4), a Agenda (`src/agenda/Agenda.jsx`, ver seção 4), a Visão
-  Macro (`src/macro/MacroOverview.jsx`) e Reuniões (`src/meetings/Meetings.jsx`,
-  2026-09) — todos importam primitivas compartilhadas (`S`, `uid`,
+- **Frontend**: SPA React 18 (Vite), sem biblioteca de roteamento — navegação é
+  estado em memória (`view`, `workspaceMode`, `openActivityId`, `openMeetingId`,
+  etc. em `App()`) **espelhado na URL por módulo** (`src/lib/routes.js`, §74 do
+  CONTEXT). Quase todo o app (telas, modais, estilos) está em
+  `src/App.jsx`. Exceções (módulos em pasta própria, ver seção 2): XFlow
+  (`src/xflow`), Agenda, Visão Macro, Reuniões, Conhecimento, Pareceres, **Modelos**,
+  CRM, **Meu dia/boas-vindas** (`src/daily`), **Widget do iPhone** (`src/widget`) e as
+  peças visuais comuns (`src/ui`) — todos importam primitivas compartilhadas (`S`, `uid`,
   `fmtDate`, `fmtTs`, `useIsMobile`, `useIsCompact`, `BrandLogo`,
   `ThemeToggleBtn`, `NotificationBell`, `SidePanel`, `STATUS_META`,
   `STATUS_ORDER`, `PRIORITY_META`, `PRIORITY_ORDER`, `useAutosaveTimestamp`,
@@ -23,29 +24,23 @@ depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
   projetos/etc. em `server/routes.js`; rotas do XFlow num router próprio,
   `server/xflow.js`, montado em `/api/xflow`. Serve também os estáticos de
   `dist/` e faz fallback de SPA (`app.get('*', ...)`).
-- **Banco**: Postgres, driver `pg` puro (sem ORM/query builder). 10 tabelas
-  (`organizations`, `users`, `projects`, `cnpj_cache`, `personal_boards`,
-  `xflow_tickets`, `xflow_events`, `notifications`,
-  `google_calendar_connections`, `meeting_submissions`) — a tabela da
-  seção 6 lista só as 5 mais centrais, as demais estão documentadas nas
-  seções de módulo (XFlow §4, Notificações/Google Calendar
-  `PROJECT_CONTEXT.md` §20/§21, Reuniões `PROJECT_CONTEXT.md` §24.1).
+- **Banco**: Postgres, driver `pg` puro (sem ORM/query builder). **44 tabelas**
+  (lista por grupo em `PROJECT_CONTEXT.md` §5); a seção 6 abaixo descreve cada uma e as seções de módulo trazem o
+  detalhe (XFlow §4, Notificações/Google Calendar `PROJECT_CONTEXT.md` §20/§21, Reuniões §24.1, CRM §54–§58, Meu dia §77, Modelos §78).
   Multi-tenant desde 2026-08 (Fase 1): `users`/`projects`/
   `xflow_tickets` têm `org_id` (FK pra `organizations`), toda query filtra
   por ele — ver CLAUDE.md seção "Multi-tenant".
-- **APIs**: só a própria API interna (`server/routes.js`) + 2 APIs públicas de
-  terceiros para lookup de CNPJ (BrasilAPI, fallback ReceitaWS), com cache em
-  `cnpj_cache`.
+- **APIs externas**: BrasilAPI/ReceitaWS (CNPJ, cache em `cnpj_cache`), Anthropic (IA), Voyage (embeddings), Google Calendar,
+  Liturgia Diária, Midvash e AstroWay (conteúdo do Meu dia), geolocalização por IP e a busca de páginas para a prévia de link
+  dos Modelos (com defesa contra SSRF). Tabela completa em `PROJECT_CONTEXT.md` §6.
 - **Autenticação**: JWT em cookie httpOnly, ver `server/auth.js`.
-- **Armazenamento de arquivos**: não há storage externo (S3 etc.) — anexos de
-  atividade são salvos como **base64 inline dentro do JSONB** do projeto
-  (`activity.attachments[].dataUrl`), limitados a 8MB por arquivo
-  (`MAX_ATTACHMENT_BYTES` em `App.jsx`). Isso não escala bem — ver §9.
-- **Processamento assíncrono / filas**: não existe. Tudo é request/response
-  síncrono. Debounce de autosave é client-side (`setTimeout`), não é uma fila
-  real.
-- **Integrações externas**: BrasilAPI e ReceitaWS (consulta de CNPJ, com
-  retry + timeout + cache de 60 dias em `server/cnpjLookup.js`).
+- **Armazenamento de arquivos**: não há storage externo (S3 etc.). Anexos de
+  atividade são **base64 inline dentro do JSONB** do projeto
+  (`activity.attachments[].dataUrl`, até 8MB por arquivo — `MAX_ATTACHMENT_BYTES` em `App.jsx`; não escala bem, ver §9);
+  arquivos de **Pareceres (≤10 MB) e Modelos (≤30 MB cada)** ficam em `BYTEA` no Postgres.
+- **Processamento assíncrono / filas**: não há fila externa. Trabalhos longos (estudo dos Pareceres, Dossiê, transcrição, reindexação)
+  rodam dentro do processo e gravam o estado em tabela; há um agendador de 10 min (lembretes do CRM, `server/crm/scheduler.js`).
+  Debounce de autosave é client-side (`setTimeout`).
 - **Infra/deploy**: Railway, auto-deploy on push para `main` do repo GitHub
   `RAFAELSOUZA280292/Cronograma`. `npm run build` gera `dist/`, `npm start`
   serve tudo num único processo Node.
@@ -70,7 +65,7 @@ src/main.jsx        Bootstrap do React (ReactDOM.createRoot).
 src/lib/api.js        Wrapper fetch (apiGet/apiPost/apiPatch/apiDelete), credentials:'include'.
 src/assets/brand/       Logos PNG da PRICETAX (preto = tema claro, branco = tema escuro).
 
-server/index.js       Bootstrap Express: initDb, seedIfEmpty, monta /api, /api/xflow, /api/google, /api/agenda, /api/macro, /api/meeting-inbox, /api/assistant, /api/knowledge (Fase 8) e /api/pareceres (2026-09-17, §48), serve dist/.
+server/index.js       Bootstrap Express: initDb, seedIfEmpty, monta todos os roteadores (mapa completo em `PROJECT_CONTEXT.md` §8.1: /api, /xflow, /google, /agenda, /macro, /meeting-inbox, /assistant, /knowledge, /pareceres, /crm, /widget, /daily, /templates), inicia o agendador do CRM e serve dist/. `/api/templates` tem parser JSON próprio de 45 MB montado antes do global de 15 MB. Qualquer caminho fora de `/api` devolve o `index.html` (não existe `/api/health`).
 server/db.js           Pool pg, criação de tabelas (initDb), seed inicial, defaults de projeto novo. Fase 8: ai_knowledge_facts ganha conflicts_with/disputed_reviewed_at/by/supersede_reason/source_meeting_id/content_tsv; ai_answer_cache e ai_messages ganham cited_fact_ids (ai_messages também from_cache); tabelas novas ai_knowledge_entities/ai_knowledge_fact_entities — ver PROJECT_CONTEXT.md §39. 2026-09-17: tabela nova `pareceres` (PDF em BYTEA, comments em JSONB) — ver §48. 2026-09-28: `pareceres` ganha `scope`/`company_name`/`company_project_id` (tag Geral×Cliente específico, sem CHECK — validado em JS). 2026-10-02: tabelas novas `project_dossiers` e `project_meeting_digests` (Dossiê do cliente) — ver §63.
 server/auth.js         JWT/bcrypt, cookie de sessão, middlewares requireAuth/requireMaster*/requireXflowAccess.
 server/routes.js        Rotas REST de auth, users, projects, personal-board, cnpj, organizations, notifications; GET /projects/versions (2026-09-10) — poll barato de {id,updatedAt} pra sincronização entre usuários, ver PROJECT_CONTEXT.md §28. canAccessProject() e effectiveOrgId() exportados (Fase 8) — reusados por server/permissions.js, nunca reimplementados. 2026-09-20: POST /personal-board/linked (addLinkedBoard) + isOwner/alreadyLinked em GET /public-board/:token — ver §52. 2026-09-28: GET /projects/lite — payload leve {id,name} por projeto (nunca o data JSONB inteiro), usado pelo autocomplete de cliente dos Pareceres, ver §48.
@@ -108,6 +103,7 @@ src/lib/routes.js  Endereço por módulo (2026-10-05, §74): MODE_PATHS (/gestao
 src/widget/         Widget do iPhone (§76): WidgetSection.jsx (seção em Meu perfil) + scriptableScript.js (gera o script do Scriptable com token).
 src/daily/          Meu dia (§77): DailyCards (tela inicial), DailyPrefs (escolha de conteúdos, usada nas boas-vindas e em Meu perfil), WelcomeSetup + useWelcomeSetup (3 passos, raiz React própria).
 src/modelos/         Modelos de documentos (§78): Modelos.jsx (grade, gaveta com prévia, adicionar arquivo/link) + modelosMeta.js (tipos, CSS mdl-*; reaproveita par-* dos Pareceres). Rota /modelos em src/lib/routes.js.
+src/crm/            CRM (§54–§58): CrmScreen (shell/abas), *Page.jsx (Empresas, Contatos, Negócios, Produtos, Agenda, Visão Geral), *Drawer/*Form/*Dialog/*Wizard (ficha, formulários, fechar negócio, importadores PipeRun), FunnelsAdmin, GlobalSearch, crmApi.js/crmMeta.js/importMapping.js/ui.jsx. `React.lazy` a partir de App.jsx.
 src/ui/index.jsx + src/ui/ui.css  Peças visuais comuns (2026-10-04, §72): Card, Button, Chip, Segmented, Tabs, Select, Kpi, Section, EmptyState, Skeleton*, Callout, BusyBar, activate/activateRow (clicável por teclado). Tokens `--ui-*` adaptativos ao tema. Migrados: Conhecimento, Visão Geral Empresas, Agenda. Auditoria medida em docs/AUDITORIA_VISUAL.md.
 server/parecerScope.js  Isolamento de pareceres por cliente (2026-10-04, §70) — `parecerUsableFor` (Geral vale em qualquer empresa; específico só na empresa dele, por vínculo ou nome, regra fechada), `companyTokens`, `loadProjectIdentity`. Usado por parecerStudy.js (janela, sugestão) e knowledgeFacts.js (chat).
 server/parecerStudy.js  RENATA estuda os Pareceres (2026-10-04, §70) — `startStudy` (só SQL decide se há parecer novo; sem novo = zero IA), `studyOne` (PDF como bloco document, Sonnet, zod achatado), `registerFact` (1 fato org/internal_document por parecer, INSERT direto sem detecção de conflito), `getStudyState` (no chat, `pickRelevantPareceres` em knowledgeFacts.js só carrega até 3 pareceres relevantes à pergunta), `generateMeetingAdvice`/`getMeetingAdvice` (sugestão na reunião, assinatura dos estudos → `stale`). Rotas em server/pareceres.js (`/study`, `/advice`); gancho em meetingInbox.js após registrar a reunião. Tabelas `parecer_studies` e `meeting_parecer_advice`.
@@ -115,6 +111,7 @@ src/assistant/ParecerStudyModal.jsx  Modal "Estudar Pareceres" aberto pelo botã
 server/accessLog.js  Auditoria de acessos (2026-10-04, §67) — `recordAccess` (login/login_failed/visit, fire-and-forget), `noteVisit` (volta à sessão após 30 min, chamado em GET /auth/me), `noteFirstUse` (1º clique/tecla do dia, `POST /api/activity/ping`; 1 evento/dia de Brasília), `clientIp` (x-real-ip → x-forwarded-for), geolocalização via ipwho.is com cache em `ip_geo_cache`, `deviceLabel`, `accessSummary`/`recentAccess` (GET /users traz `access`; GET /users/:id/access). Tabelas `user_access_events` e `ip_geo_cache`.
 server/personalActivity.js  Indicadores da Gestão de Atividades (2026-10-04, §65) — `cardEventsOf` (deriva opened/closed de `createdAt`/`completedAt` + `card.history` + `board.log` público, deduplica por proximidade ±3s; conta cards sem data), `syncCardEvents` (idempotente, ON CONFLICT DO NOTHING, nunca derruba o save), `getActivityStats` (agrega por dia da semana/dia do mês em America/Sao_Paulo, + divisores da média), `getDayDetail` (eventos de um dia + janela de 30 dias, título do card atual). Tabela `personal_card_events` (append-only na prática, sem CHECK). Rotas `GET /api/personal-board/stats` e `/stats/day` em routes.js; sync em PATCH /personal-board e /public-board/:token.
 src/personal/PersonalStats.jsx  Painel "Meus indicadores" (2026-10-04, §65) — botão Indicadores no topo de PersonalBoardScreen; frase-resumo, KPIs, velocímetro, barras por dia da semana e do mês, filtro 30/90/tudo; card Dia a dia (navegação por data, faixa de 30 dias, lista do dia), médias por dia e alternador Total/Média nos gráficos; cada usuário vê só o próprio.
+src/personal/boardAttention.js  Módulo puro (2026-10-05, §73): `boardAttention(board, hoje)` → atrasadas, vencem hoje e a mais antiga do quadro pessoal; `attentionParts`/`oldestText` montam a frase da RENATA na tela inicial.
 server/dossier.js      Dossiê do cliente (2026-10-02, §63) — compila TODAS as reuniões de uma empresa em um documento (resumo executivo, linha do tempo, frentes, decisões e o que mudou, pessoas, riscos, lacunas). Map/reduce: ficha por reunião montada SEM IA (resumo/decisões/atividades já existentes; Sonnet só resume transcrição de reunião sem resumo, em cache `project_meeting_digests`) → Opus consolida em JSON estruturado (zod achatado, sem discriminatedUnion); em blocos + união quando passa de ~180k caracteres. Pendências e estatísticas são montadas por CÓDIGO. Job em segundo plano (`startDossier`/`runDossierJob`, cliente de IA injetável pra teste), travado >45min vira erro (`failStaleJobs`), `computeStaleness` avisa "N reuniões novas/alteradas desde este dossiê".
 src/meetings/DossierPanel.jsx  Tela do Dossiê do cliente (2026-10-02, §63) — modal que mostra o documento, acompanha a geração por polling (3s), avisa desatualização, cita a reunião de origem de cada item (clicável) e exporta (Copiar/Baixar Markdown, PDF/Imprimir). `src/meetings/dossierExport.js` = geradores PUROS de Markdown e HTML (testáveis em Node).
 src/knowledge/  Central de Conhecimento — "o cérebro da RENATA" (Fase 8, 2026-09-11), módulo autocontido (mesmo padrão de src/xflow/), novo workspaceMode='knowledge' em src/App.jsx, visível só pra master/pricetax. KnowledgeCenter.jsx (shell + 6 abas + OverviewTab), MemoriesTab.jsx (busca híbrida + filtros, "Fontes" vira filtro de origem aqui), FactDrawer.jsx (drawer via SidePanel — histórico/relações/utilização/edição versionada), ConflictsTab.jsx (6 resoluções com confirmação), EntitiesTab.jsx (lista+detalhe, reusado pra Pessoas e Empresas via prop `types`), MetricsTab.jsx, knowledgeMeta.js (rótulos/CSS compartilhados) — ver PROJECT_CONTEXT.md §39.
@@ -131,58 +128,131 @@ Não há `server/routes/`, `server/models/`, `src/components/` — tudo é flat.
 
 ## 3. Índice de componentes (`src/App.jsx`)
 
-Helpers/constantes de topo: linhas 1–307 (formatação de data, `STATUS_META`,
-`PRIORITY_META`, `CARD_*_META`, `S` fica no fim do arquivo, ~L5121).
+Helpers/constantes de topo: linhas 1–565 (formatação de data, `STATUS_META`, `PRIORITY_META`, `CARD_*_META`, hooks e componentes pequenos; o objeto de estilos `S` fica perto de L?).
 
-`App()` — componente raiz, **linha 307 a ~1759**. Contém todo o estado global
-e todas as funções de mutação (ver §7 e §8 para os fluxos). Sub-blocos
-principais dentro de `App()`:
-- L307–360: estado (useState/useRef) — auth, projects, workspace, personal board, UI toggles.
-- L360–470: efeitos de bootstrap (sessão, fetch de projetos/board, atalhos de teclado).
-- ~L470–520: `handleLogin/handleLogout/updateMyAvatar`, persistência de board pessoal.
-- ~L520–730: mutações de atividade/subatividade/comentário/link (`updateActivity` … `toggleParticipant`).
-- ~L730–900: equipe, fases, upload de logo, empresa (create/clone/delete/update).
-- ~L900–990: usuários (CRUD admin).
-- ~L1090–1160: export Excel/PDF.
-- ~L1290+: `return (...)` com o roteamento por estado (login → workspace gate → seleção de empresa → workspace).
+`App()` — componente raiz, **linha 566 a ~3336** (~2771 linhas). Contém todo o estado global
+e todas as funções de mutação (ver §5 e §8 para os fluxos), os efeitos de bootstrap (sessão, projetos, quadro, URL por módulo, boas-vindas) e o
+`return` com o roteamento por estado (login → tela inicial → módulo). **`src/App.jsx` tem 9922 linhas**; módulos novos moram em `src/*/` (ver §2).
 
-Componentes de tela/modal (nome → linha → responsabilidade):
+Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do código em 2026-10-05** (linhas exatas naquele dia; descrições antigas foram mantidas, as novas vêm do comentário acima da declaração — `—` = ainda sem descrição):
 
 | Linha | Componente | Responsabilidade |
 |---|---|---|
-| 25 | `BrandLogo` | Logo PRICETAX, troca PNG conforme tema |
-| 29 | `ThemeToggleBtn` | Botão sol/lua |
-| ~1760 | `LoadingScreen` | Tela de carregamento inicial |
-| ~2321 | `LoginGate` | Formulário de login + modo "Trocar senha" (2026-08, `POST /api/auth/change-password-login`) |
-| ~2124 | `UsersManagementScreen` | Painel admin de usuários (master) |
-| ~2330/2380 | `NewUserModal` / `EditUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
-| ~2911 | `MyProfileModal` | Avatar do usuário logado + seção "Trocar senha" (2026-08, `POST /api/auth/change-password`) |
-| 2848 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
-| 3250 | `EditCompanyModal` | Edição de empresa já criada |
-| **3474** | **`CompanySelectorScreen`** | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, filtros por Tipo/Status/Regime (2026-08), atalho p/ Gestão de Atividades |
-| 3775 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades vs XFlow vs Agenda — é a própria "Home" |
-| ~3800–4629 | **Gestão de Atividades pessoal** (Kanban) | `ColorSwatchGrid`, `PriorityPicker`, `StatusPicker`, `TagEditor`, `PersonalColumnMenu`, `PersonalCardMenu`, `PersonalCard`, `PersonalColumn`, `PersonalCardDetailModal`, `PersonalListView`, `ReassignCardsModal`, `PersonalTrashPanel` |
-| 4629 | `BoardShareModal` | Modal de visibilidade da página (Privado/Público por link, copiar/gerar link) |
-| 4683 | `BoardActivityLogModal` | Painel de histórico do quadro — agrega `board.log` + `card.history` de todas as colunas |
-| **4706** | **`PersonalBoardScreen`** | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros, `publicMode`/`readOnly` props) |
-| **5541** | **`PublicBoardScreen`** | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
-| 5640 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
-| **5675** | **`ActivityDetailModal`** | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários (com anexo de imagem/PDF e link por comentário, 2026-08), histórico, campo opcional `meetingTime` (2026-08, "Horário da reunião") e checkbox `clientDateConfirmed` (2026-08, "Data confirmada com o cliente?") |
-| 6085 | `PrintActivityTable` | Tabela de atividades do relatório em PDF (usada em "Em atraso" e "Próximas etapas") |
-| **6125** | **`PrintReport`** | Relatório em PDF dedicado (2026-08) — KPIs/progresso/próximas etapas, `display:none` na tela, só aparece em `@media print` — ver `PROJECT_CONTEXT.md` §13 |
-| 6339 | `ResumoTable` | Tabela desktop da aba Resumo (2026-08) |
-| 6388 | `ResumoCard` | Card mobile da aba Resumo (2026-08) — mesmos dados de `ResumoTable`, layout empilhado |
-| **6417** | **`ResumoView`** | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
-| — | `MeetingsView`/`TranscriptSubmitModal` (`src/meetings/Meetings.jsx`) | Aba "Reuniões" do workspace de Empresas (2026-09) — lista Programadas/Realizadas, array `project.meetings`, só `!isMulti`; + caixa de transcrições (2026-09) — botão "Enviar transcrição", lista de envios com polling, `POST/GET /api/meeting-inbox` (`server/meetingInbox.js`); botão "Reindexar memória" (2026-09-10) chama `POST /api/assistant/reindex` — ver `PROJECT_CONTEXT.md` §24, §24.1 e §27 |
-| — | `MeetingDetailModal`/`MeetingShareModal`/`MeetingPrintReport`/`PublicMeetingScreen` (`src/meetings/MeetingDetail.jsx`) | Tela de detalhe de reunião, redesign "AI Meeting Workspace" (2026-09) — leitura em blocos (resumo/decisões editáveis só sob demanda), transcrição em 3 modos (`TranscriptView.jsx`), coluna de atividades reaproveitando `ActivityRow`/`TodoDrawer`, Compartilhar (link público só-leitura, `GET /api/public-meeting/:token`) e Exportar (PDF/Texto) — ver `PROJECT_CONTEXT.md` §26 |
-| — | `TodoBoardView` (`src/meetings/TodoBoard.jsx`) + `TodoDrawer` (`src/meetings/TodoDrawer.jsx`) | Aba "Atividades" do workspace de Empresas (2026-09, redesign "Centro de Execução") — todos os TO_DOs de todas as reuniões da empresa numa lista só, cards de indicador, "Minha fila", filtros/ordenação/agrupamento (status/responsável/reunião), painel lateral com Origem/Descrição/Subtarefas/Comentários/Arquivos/Histórico, exportável pra Excel, só `!isMulti` — ver `PROJECT_CONTEXT.md` §25 |
-| **6597** | **`TableView`** | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
-| 7128 | `PhasesView` | View "Fases" |
-| 7258 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
-| 7345 | `TimelineView` | View "Gantt" |
-| 7498 | `export const S = {...}` | Objeto de estilos inline |
-
-### 3.1 Responsividade / mobile
+| 51 | `BrandLogo` | Logo PRICETAX, troca PNG conforme tema |
+| 55 | `ThemeToggleBtn` | Botão sol/lua |
+| 138 | `cardStatusOf` | Status efetivo de um cartão do quadro pessoal (`status` ou derivado de `completed`) |
+| 157 | `initials` | Iniciais de um nome (avatar) |
+| 164 | `dueDateTone` | Tom (cor) do prazo de um cartão: atrasado/hoje/futuro |
+| 174 | `daysSinceCardMovement` | Dias de calendário desde a última movimentação do cartão (`calendarDaysSince`, §75) |
+| 178 | `staleTone` | Tom do selo "Nd sem movimentação" (≥3 aviso, ≥7 crítico) |
+| 183 | `fmtDateOnly` | Formata data AAAA-MM-DD sem fuso |
+| 190 | `uid` | Gera id curto com prefixo |
+| 191 | `genShareToken` | Gera token de link público |
+| 193 | `todayISOStr` | Hoje em AAAA-MM-DD (fuso local) |
+| 200 | `useMediaQuery` | Hook de media query |
+| 213 | `useIsMobile` | Hook: viewport < 768px |
+| 214 | `useIsCompact` | Hook: viewport < 1024px |
+| 221 | `useDirtyForm` | Guarda de "alterações não salvas" — padrão único reusado em todo modal de formulário-rascunho (useDirtyForm) e em todo modal autosave-por-campo (useAutosaveTimestamp), pra nunca fechar e perder informação em silêncio. currentValue |
+| 250 | `useDebouncedField` | Campo de texto com autosave DEBOUNCED, não por tecla (2026-09-17, bug real relatado pelo Rafael: "escrevo 3-4 letras e o texto é apagado por um fantasma"). Causa raiz: nos modais de autosave-por-campo, CADA tecla disparava a funçã |
+| 291 | `useAutosaveTimestamp` | record = a prop vinda do pai (activity/ticket/card) que já muda sozinha toda vez que um autosave de campo grava — não precisa instrumentar cada handler individual, só observa o resultado. |
+| 304 | `ConfirmDiscardModal` | Modal "Salvar e sair / Sair sem salvar / Continuar editando" (§16, guarda de alterações não salvas) |
+| 324 | `savedStatusLabel` | Texto "Alterações não salvas / Salvo automaticamente às HH:MM" |
+| 330 | `normalizeTeam` | Normaliza `project.team` (vínculo com usuários) |
+| 338 | `normalizeProject` | Preenche defaults de um projeto carregado |
+| 343 | `isExpiredNotYetFlagged` | Usuário com acesso expirado ainda não sinalizado |
+| 347 | `fmtDate` | Data em pt-BR |
+| 353 | `fmtTs` | Data e hora em pt-BR (exportado, usado pelos módulos) |
+| 358 | `projectProgress` | % de conclusão de um projeto |
+| 364 | `projectNextActivity` | Próxima atividade de um projeto |
+| 375 | `groupRootId` | Grupo Empresarial: o Master é sua própria raiz de grupo (isGroupMaster=true, sem precisar de groupId apontando pra si mesmo); filhas têm company.groupId = id do Master. |
+| 379 | `groupMembers` | Membros de um grupo empresarial (§12) |
+| 386 | `involvedCompaniesLabel` | Selo "Empresas envolvidas" (v2) — só pra atividades do Master com o campo novo definido (involvedCompanyIds !== undefined); distinto do selo legado "Grupo inteiro"/"Várias empresas" (groupActivityId, mecanismo de cópia v1). |
+| 394 | `parseDate` | AAAA-MM-DD → Date |
+| 395 | `toISODate` | Date → AAAA-MM-DD |
+| 396 | `startOfDay` | Início do dia |
+| 397 | `addDays` | Soma dias |
+| 398 | `addMonths` | Soma meses |
+| 399 | `calcDeadline` | Prazo a partir de início + duração |
+| 408 | `dayAfter` | Dia seguinte |
+| 415 | `dayBefore` | Dia anterior |
+| 422 | `startOfMonth` | Início do mês |
+| 423 | `endOfMonth` | Fim do mês |
+| 424 | `startOfWeek` | Início da semana |
+| 425 | `fmtDayLabel` | Rótulo de dia (Gantt/Tabela) |
+| 426 | `fmtDayFull` | Dia por extenso |
+| 427 | `fmtMonthYearLabel` | Mês/ano |
+| 428 | `fmtYearLabel` | Ano |
+| 429 | `fmtWeekLabel` | Semana |
+| 430 | `fmtMonthTitle` | Título de mês |
+| 432 | `buildTimelineColumns` | Colunas da linha do tempo (dia/semana/mês) do Gantt |
+| 472 | `colIndexFor` | Índice da coluna de uma data |
+| 483 | `fractionInColumn` | Fração de uma data dentro da coluna |
+| 491 | `sortActivities` | Ordena atividades (data/fase/prioridade) |
+| 500 | `buildOrderMap` | Mapa de ordem manual de atividades |
+| 511 | `AreaRow` | Extraído do .map() de "Áreas e responsáveis" (tela de configurações da empresa) pra poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo bug de digitação do PROJECT_CONTEXT.md §45/§46. onCommit recebe o valor r |
+| 536 | `PhaseRow` | Extraído do .map() de "Fases" (SidePanel de fases do projeto) pelo mesmo motivo do AreaRow acima. O log de "Fase renomeada"/"Descrição alterada" usa o draft local (nameField.draft) em vez de p.name/p.sub das props — essas só atual |
+| 3337 | `LoadingScreen` | Tela de carregamento inicial |
+| 3350 | `LoginGate` | Formulário de login + modo "Trocar senha" (2026-08, `POST /api/auth/change-password-login`) |
+| 3437 | `UserPasswordReset` | Modal de reset de senha de um usuário (master) |
+| 3453 | `SuperAdminScreen` | Tela "Organizações (Super Admin)": lista, cria e entra numa organização |
+| 3548 | `fmtAccessPlace` | Texto do local de um acesso (cidade/UF/país) — §67 |
+| 3558 | `UserAccessHistory` | Gaveta com o histórico de acessos de um usuário — §67 |
+| 3592 | `UsersManagementScreen` | Painel admin de usuários (master) |
+| 3822 | `NewUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| 3924 | `EditUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| 4067 | `MyProfileModal` | Avatar do usuário logado + seção "Trocar senha" (2026-08, `POST /api/auth/change-password`) |
+| 4221 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| 4557 | `UserAvatar` | Avatar (emoji) do usuário |
+| 4575 | `AvatarPicker` | Seletor de avatar (`AVATAR_EMOJIS`) |
+| 4593 | `CompanyBadge` | Selo de empresa |
+| 4602 | `TeamLinkBadge` | Selo "vinculado a usuário" da equipe |
+| 4610 | `CompanySectionHeader` | Cabeçalho de seção de empresa na visão multi-empresa |
+| 4625 | `EditCompanyModal` | Edição de empresa já criada |
+| 4795 | `GroupActivityCompaniesModal` | Escolha das empresas envolvidas numa atividade de grupo (§12) |
+| 4849 | `CompanySelectorScreen` | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, filtros por Tipo/Status/Regime (2026-08), atalho p/ Gestão de Atividades |
+| 5161 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades vs XFlow vs Agenda — é a própria "Home" |
+| 5270 | `sortCards` | Ordena cartões do quadro pessoal (5 modos + manual) |
+| 5286 | `cardMatchesFilters` | Filtros de busca/prioridade/prazo/tags/status do quadro pessoal |
+| 5309 | `useToasts` | Hook de avisos temporários (toasts) |
+| 5324 | `ToastStack` | Pilha de toasts |
+| 5339 | `FadingSavedBadge` | Selo "salvo" que some sozinho |
+| 5350 | `PersonalBoardSkeleton` | Esqueleto de carregamento do quadro pessoal |
+| 5371 | `ColorSwatchGrid` | Grade de cores de coluna |
+| 5382 | `PriorityPicker` | Seletor de prioridade do cartão |
+| 5399 | `StatusPicker` | Seletor de status do cartão |
+| 5415 | `TagEditor` | Editor de tags do cartão |
+| 5447 | `PersonalColumnMenu` | Menu da coluna do quadro pessoal |
+| 5485 | `PersonalCardMenu` | Menu do cartão (mover, concluir, excluir…) |
+| 5532 | `PersonalCard` | Cartão do quadro pessoal |
+| 5611 | `PersonalColumn` | Coluna do quadro pessoal (drag and drop) |
+| 5732 | `PersonalCardDetailModal` | Modal de detalhe do cartão (campos, checklist, comentários, "Mover para…", §61–§62) |
+| 5997 | `PersonalListView` | Visão em lista do quadro pessoal |
+| 6070 | `ReassignCardsModal` | Reatribui cartões ao excluir uma coluna |
+| 6099 | `PersonalTrashPanel` | Lixeira do quadro pessoal |
+| 6118 | `PersonalArchivePanel` | Painel de concluídas arquivadas |
+| 6136 | `BoardShareModal` | Modal de visibilidade da página (Privado/Público por link, copiar/gerar link) |
+| 6190 | `BoardActivityLogModal` | Painel de histórico do quadro — agrega `board.log` + `card.history` de todas as colunas |
+| 6213 | `PersonalBoardScreen` | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros, `publicMode`/`readOnly` props) |
+| 7202 | `PublicBoardScreen` | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
+| 7346 | `NoAccessScreen` | Tela para quem não tem acesso a nenhum módulo |
+| 7369 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
+| 7392 | `NotificationBell` | Central de Notificações (2026-08) — componente compartilhado, usado nas 3 telas (Empresas em App(), Gestão de Atividades em PersonalBoardScreen, XFlow em XflowScreen) via o mesmo estado/lista levantados em App(), pra contador e li |
+| 7437 | `StatusPill` | Selo de status de atividade |
+| 7449 | `renderCommentText` | Renderiza comentário com menções/links |
+| 7461 | `SubactivityRow` | Extraído do .map() de subatividades dentro de ActivityDetailModal pra poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo bug de digitação do PROJECT_CONTEXT.md §45/§46 (não coberto pelo fix do §45, que só tra |
+| 7489 | `ActivityDetailModal` | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários (com anexo de imagem/PDF e link por comentário, 2026-08), histórico, campo opcional `meetingTime` (2026-08, "Horário da reunião") e checkbox `clientDateConfirmed` (2026-08, "Data confirmada com o cliente?") |
+| 8020 | `PrintActivityTable` | Tabela de atividades do relatório em PDF (usada em "Em atraso" e "Próximas etapas") |
+| 8066 | `PrintReport` | Relatório em PDF dedicado (2026-08) — KPIs/progresso/próximas etapas, `display:none` na tela, só aparece em `@media print` — ver `PROJECT_CONTEXT.md` §13 |
+| 8198 | `resumoMonthLabel` | Rótulo de mês do resumo |
+| 8204 | `resumoCountdown` | Contagem regressiva do resumo |
+| 8217 | `resumoDateLabel` | Rótulo de data do resumo |
+| 8281 | `ResumoTable` | Tabela desktop da aba Resumo (2026-08) |
+| 8334 | `ResumoCard` | Card mobile da aba Resumo (2026-08) — mesmos dados de `ResumoTable`, layout empilhado |
+| 8371 | `ResumoView` | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
+| 8553 | `TableView` | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
+| 9120 | `PhasesView` | View "Fases" |
+| 9250 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
+| 9337 | `TimelineView` | View "Gantt" |
 
 Detalhes completos em **`docs/RESPONSIVE_ARCHITECTURE.md`** — não repita aqui.
 Resumo: dois hooks (`useIsMobile()` <768px, `useIsCompact()` <1024px) definidos
@@ -445,18 +515,20 @@ QUADRO PESSOAL — AUTOSAVE COM ROLLBACK
 Usuário arrasta/edita card → mutatePersonalBoard() (update otimista) → persistPersonalBoardDebounced() → PATCH /personal-board → se falhar, reverte para lastGoodPersonalBoardRef e mostra "Falha ao salvar".
 ```
 
-Não há upload de arquivo para storage externo, nem job assíncrono, nem fila —
-anexos são base64 inline no PATCH do projeto (ver §9, ponto de atenção).
+Não há storage externo nem fila: anexos de atividade são base64 inline no PATCH do projeto (ver §9), arquivos de Pareceres e Modelos ficam em BYTEA. Trabalhos assíncronos (estudo dos Pareceres, Dossiê, transcrição) rodam dentro do processo e o estado vai para tabela; há um agendador de 10 min (lembretes do CRM) — ver `PROJECT_CONTEXT.md` §6.
 
 ## 6. Banco de dados
 
 | Tabela | Finalidade | Relacionamentos |
 |---|---|---|
 | `organizations` | Tenant/organização (2026-08). Colunas: `slug`, `name`, `display_name`, `logo_light/dark`, `favicon`, `primary_color`, `secondary_color`, `login_background`, `status` (active/suspended/blocked), `plan`, `max_users`, `max_companies`, `settings` JSONB | `users.org_id`/`projects.org_id` referenciam `organizations.id` |
-| `users` | Conta de login, papel (master/pricetax/cliente), CNPJs liberados, `org_id`, `is_super_admin`, `crm_role` (acesso ao CRM, §54) | `personal_boards.user_id` referencia `users.id` (CASCADE); `org_id → organizations.id` |
+| `users` | Conta de login, papel (master/pricetax/cliente), CNPJs liberados, `org_id`, `is_super_admin`, `crm_role` (acesso ao CRM, §54), `preferences`/`onboarding_done_at` (Meu dia e boas-vindas, §77), `widget_token_hash`/`widget_token_enc`/`widget_token_created_at`/`widget_last_used_at`/`widget_views` (widget do iPhone, §76) | `personal_boards.user_id` referencia `users.id` (CASCADE); `org_id → organizations.id` |
 | `projects` | 1 linha = 1 empresa/cronograma inteiro, tudo em `data JSONB` (company, phases, activities, team, log) + coluna relacional `org_id` | Vínculo com `users` é lógico via `company.cnpj` / `allowed_cnpjs`, não FK; `org_id → organizations.id` |
 | `cnpj_cache` | Cache de 60 dias das respostas de lookup de CNPJ — **não** tem `org_id`, é compartilhado entre organizações de propósito | Nenhum |
 | `personal_boards` | 1 linha por usuário, `data JSONB` = quadro Kanban pessoal — **não** tem `org_id` (sempre buscado por `user_id`; o scan de `shareToken` público é cross-org de propósito) | FK `user_id → users.id` |
+| `document_templates` / `document_template_items` | Modelos de documentos (2026-10-05, §78): o modelo (título, categoria, descrição, comentários) e seus até 12 anexos (arquivo em BYTEA ou link com `link_meta`/`preview_text`). Colunas de arquivo/link de `document_templates` são legado migrado | `org_id → organizations.id`; `template_id → document_templates.id` (CASCADE) |
+| `daily_content` | Cache diário das fontes do Meu dia (2026-10-05, §77): PK `(kind, key, day)`, `payload` JSONB; evangelho/versículo/sabedoria/horóscopo por signo/texto de IA do dia | — |
+| `ai_eval_runs` | Registro de execução do eval da RENATA (`server/evals/`, §41) | — |
 | `parecer_studies` / `meeting_parecer_advice` | Estudo de cada parecer (hash do arquivo, JSON estruturado, `fact_id` na memória) e sugestão de pareceres por reunião (fora do JSON do projeto de propósito, §70) | `parecer_id → pareceres.id` (CASCADE); `project_id → projects.id` (CASCADE) |
 | `user_access_events` / `ip_geo_cache` | Auditoria de acessos (login, volta à sessão, tentativa falha) com IP, local e dispositivo; cache de geolocalização por IP (§67) | `user_id → users.id` (CASCADE) |
 | `personal_card_events` | Registro permanente de abertura/conclusão de cada atividade do quadro pessoal (`kind` opened/closed, sem CHECK) — sobrevive a reabrir e excluir; base dos Indicadores (§65) | FK `user_id → users.id` (CASCADE); `card_id` solto, sem FK |
@@ -511,6 +583,16 @@ migration manual.
 | POST /organizations | Cria organização (slug gerado do nome, `requireSuperAdmin`) | routes.js |
 | PATCH /organizations/:id | Atualiza organização (status, branding — `requireSuperAdmin`) | routes.js |
 
+**Roteadores além de `routes.js`** — lista completa com acesso e seção em `PROJECT_CONTEXT.md` §8.1. Resumo das mais novas:
+
+| Prefixo | Rotas principais | Arquivo |
+|---|---|---|
+| `/api/widget` | `GET/POST/DELETE /token`, `GET /status`, `GET/PUT /views`, `GET /summary` (público, Bearer) | widget.js (+ widgetSummary.js) |
+| `/api/daily` | `GET /` (conteúdo do usuário), `GET/PUT /preferences`, `POST /onboarding-complete`, `GET /options` | daily.js (+ dailyContent.js) |
+| `/api/templates` | `GET /`, `POST /`, `PATCH/DELETE /:id`, `POST /:id/items`, `PATCH/DELETE /:id/items/:itemId`, `GET /:id/items/:itemId/file`, comentários | documentTemplates.js |
+| `/api/pareceres` | CRUD + `/:id/file`, comentários, `/study`, `/advice` | pareceres.js |
+| `/api/crm` | 57 rotas (empresas, contatos, negócios, funis, atividades, importadores) | crm/routes.js |
+
 `GET/POST /projects` e `GET/POST /users` aceitam `?asOrg=<orgId>` — só
 respeitado quando `req.user.isSuperAdmin` (`effectiveOrgId()` em
 routes.js); é como o Super Admin "entra" numa organização pra ver/criar
@@ -562,8 +644,8 @@ status — fonte única de verdade do status derivado de `card.completed`.
 
 ## 10. Problemas técnicos conhecidos
 
-- **Arquivo excessivamente grande**: `src/App.jsx` (5500 linhas, um único
-  componente `App()` com ~50 funções internas e ~30 componentes no mesmo
+- **Arquivo excessivamente grande**: `src/App.jsx` (~9.900 linhas, um único
+  componente `App()` de ~2.800 linhas e mais de 100 funções/componentes no mesmo
   arquivo). Qualquer leitura completa consome muito contexto — use os números
   de linha da seção 3 e `Read` com `offset`/`limit`, ou `grep` por nome de
   função/componente.
@@ -575,9 +657,7 @@ status — fonte única de verdade do status derivado de `card.completed`.
 - **Autosave reenvia o objeto inteiro**: tanto `PATCH /projects/:id` quanto
   `PATCH /personal-board` recebem o payload completo (não diffs), então o
   custo de rede/serialização cresce com o tamanho do projeto/board.
-- **README.md desatualizado**: ainda descreve a versão antiga (localStorage,
-  sem backend/login real) — não reflete a arquitetura atual com Postgres/JWT
-  descrita aqui. Não fixado nesta rodada (fora do escopo, é só documentação).
+- **README.md**: reescrito em 2026-10-05 (antes descrevia a versão antiga em localStorage).
 - **Sem testes automatizados nem lint configurado**: verificação de
   regressão é manual (build limpo + teste no browser).
 - Nenhum outro gargalo, duplicação relevante ou risco de concorrência foi
