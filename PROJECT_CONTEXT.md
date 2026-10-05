@@ -6893,6 +6893,17 @@ próxima reunião. Tocar no widget abre `/gestao-atividades`.
   só accepted/organizer/unknown; fora dia inteiro, cancelado, "livre", recusado/pendente/talvez; evento em andamento conta como "agora"),
   `buildSummary`. Só títulos e horários: sem descrição, convidados, local ou link. Agenda lida de `listEvents` (−6 h a +3 dias),
   cache de 5 min por usuário; falha do Google não derruba o resumo (próxima reunião vem nula).
+- **Visões (2026-10-05, mesmo dia)**: o Rafael quis escolher o que ver sem mexer em código. Em Meu perfil > Widget do iPhone > "O que mostrar"
+  ele monta até 6 **visões** (nome de até 24 caracteres, sem repetir ignorando maiúsculas; 1 a 5 itens de: Atrasadas, Vencem hoje,
+  **Urgentes** = cartões abertos com prioridade `urgente`, com ou sem data, **Próxima reunião**, **Agenda de hoje e amanhã** = até 8
+  compromissos aceitos). Salvas em `users.widget_views` (JSONB, coluna aditiva) via `GET/PUT /api/widget/views` (cookie; validação em
+  `sanitizeViews`). A 1ª visão é a padrão; para outra, no iPhone: Editar Widget > **Parameter** = nome da visão (o script manda
+  `?view=nome`, só o nome, nunca o token). `/summary` devolve `view`, `viewFound`, `viewNames`, `urgent`, `agenda` **e continua
+  devolvendo `overdue`/`dueToday`/`nextMeeting`** — scripts colados antes continuam funcionando (mas só mostram o layout antigo).
+  O script novo reparte as linhas do widget entre os blocos que têm itens (médio 6, grande 14) e guarda um cache por visão. Mudar as visões
+  no painel NÃO exige colar script de novo; mudar o próprio script exige (token não é recuperável: gerar código novo e substituir o
+  conteúdo). Testado: unitário (urgentes, agenda, validação), HTTP (GET/PUT, `?view=`, nome inexistente → `viewFound:false`),
+  script com globais simuladas e tela no browser. Não testado no iPhone com mais de uma visão.
 - **Atalho na tela inicial**: o gate (`WorkspaceGateScreen`) ganhou o botão rotulado "Meu perfil" (avatar + texto) no cabeçalho e renderiza o `MyProfileModal`; antes o perfil só abria de dentro de Empresas/lista de empresas, difícil de achar. Os demais módulos (Agenda, Atividades…) continuam sem o atalho.
 - **Tela**: "Widget do iPhone" em Meu perfil (`src/widget/WidgetSection.jsx`): gerar código, mostrar o script UMA vez (token
   não é recuperável), Copiar, passo a passo, gerar novo (confirma que desliga o antigo), revogar (confirma).
@@ -6902,8 +6913,7 @@ próxima reunião. Tocar no widget abre `/gestao-atividades`.
 - **Verificado**: testes puros (Node) da lógica, teste HTTP real contra o servidor local (sem token, inválido, `?token=`,
   gerar, hash ≠ token, novo invalida o antigo, bloqueado, revogado, 429, `no-store`), script do Scriptable rodado com globais
   simuladas (médio/pequeno/grande, offline com e sem cache, 401, fora do widget, agenda desconectada) e a tela no browser
-  (gerar → script → fechar → revogar). **Não testado**: no iPhone real nem com agenda Google real (local não tem Google
-  configurado — a escolha da reunião foi provada só com eventos simulados).
+  (gerar → script → fechar → revogar). **Confirmado em 2026-10-05 no iPhone real do Rafael** (widget médio: atrasadas, hoje e reunião "Agora" vinda do Google Calendar de produção).
 
 | Preciso de... | Vá para |
 |---|---|

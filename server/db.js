@@ -918,6 +918,7 @@ export async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_token_hash TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_token_created_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_last_used_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_views JSONB`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_widget_token ON users(widget_token_hash) WHERE widget_token_hash IS NOT NULL`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_companies (

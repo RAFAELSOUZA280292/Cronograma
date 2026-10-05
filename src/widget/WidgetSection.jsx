@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Smartphone, Copy, Check } from 'lucide-react';
-import { apiGet, apiPost, apiDelete } from '../lib/api.js';
+import { apiGet, apiPost, apiPut, apiDelete } from '../lib/api.js';
 import { buildScriptableScript } from './scriptableScript.js';
 
 const CSS = `
@@ -17,6 +17,17 @@ const CSS = `
   .wgt ol { margin:8px 0 0; padding-left:18px; font-size:12px; line-height:1.55; color:var(--text-3); }
   .wgt ol li { margin-bottom:3px; }
   .wgt-warn { margin-top:10px; font-size:12px; line-height:1.5; color:var(--ui-warn); background:rgba(255,159,64,.12); border-radius:8px; padding:8px 10px; }
+  .wgt-views { margin-top:18px; padding-top:16px; border-top:1px dashed var(--border-2); }
+  .wgt-view { margin-top:10px; border:1px solid var(--border-2); border-radius:10px; padding:10px; background:var(--bg-2); }
+  .wgt-view-head { display:flex; gap:8px; align-items:center; }
+  .wgt-view-head input { flex:1; min-width:0; }
+  .wgt-x { background:transparent; border:1px solid var(--border-3); color:var(--text-4); border-radius:8px; padding:6px 10px; font-family:inherit; font-size:12px; cursor:pointer; }
+  .wgt-x:hover { color:var(--ui-danger); }
+  .wgt-checks { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .wgt-check { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-3); background:var(--bg-3); border:1px solid var(--border-2); border-radius:999px; padding:6px 11px; cursor:pointer; min-height:32px; }
+  .wgt-check input { margin:0; }
+  .wgt-check.on { border-color:#F5C400; color:var(--text-1); }
+  .wgt-ok { margin-top:8px; font-size:12px; color:var(--ui-ok); }
   .wgt-err { margin-top:8px; font-size:12px; color:var(--ui-danger); }
 `;
 
@@ -34,7 +45,26 @@ export default function WidgetSection() {
   async function load() {
     try { setStatus(await apiGet('/api/widget/status')); } catch { setStatus({ active: false, failed: true }); }
   }
-  useEffect(() => { load(); }, []);
+  const [views, setViews] = useState(null);
+  const [blockNames, setBlockNames] = useState({});
+  const [viewsDirty, setViewsDirty] = useState(false);
+  const [viewsSaved, setViewsSaved] = useState(false);
+  useEffect(() => { load(); apiGet('/api/widget/views').then((r) => { setViews(r.views); setBlockNames(r.blocks || {}); }).catch(() => {}); }, []);
+
+  function editView(i, patch) { setViews((vs) => vs.map((v, k) => (k === i ? { ...v, ...patch } : v))); setViewsDirty(true); setViewsSaved(false); }
+  function toggleBlock(i, key) {
+    const v = views[i];
+    editView(i, { blocks: v.blocks.includes(key) ? v.blocks.filter((b) => b !== key) : [...v.blocks, key] });
+  }
+  function addView() { setViews((vs) => [...vs, { name: '', blocks: ['overdue'] }]); setViewsDirty(true); setViewsSaved(false); }
+  function removeView(i) { setViews((vs) => vs.filter((_, k) => k !== i)); setViewsDirty(true); setViewsSaved(false); }
+  async function saveViews() {
+    setBusy(true); setError('');
+    try {
+      const r = await apiPut('/api/widget/views', { views });
+      setViews(r.views); setViewsDirty(false); setViewsSaved(true);
+    } catch (e) { setError(e && e.message ? e.message : 'Não foi possível salvar.'); } finally { setBusy(false); }
+  }
 
   async function generate() {
     if (status && status.active && !window.confirm('Gerar um novo código vai desligar o widget que já está no seu iPhone até você colar o novo script. Continuar?')) return;
@@ -94,6 +124,31 @@ export default function WidgetSection() {
             </>
           )}
         </>
+      )}
+
+      {views && (
+        <div className="wgt-views">
+          <div className="wgt-label">O que mostrar</div>
+          <p>Cada visão é um widget diferente. A primeira aparece sozinha; para usar outra, no widget do iPhone toque em <b>Editar Widget</b> e escreva o nome da visão em <b>Parameter</b>. Mudou aqui, o widget muda na próxima atualização, sem colar nada de novo.</p>
+          {views.map((v, i) => (
+            <div key={i} className="wgt-view">
+              <div className="wgt-view-head">
+                <input value={v.name} maxLength={24} placeholder="Nome da visão" aria-label="Nome da visão" onChange={(e) => editView(i, { name: e.target.value })} />
+                {views.length > 1 && <button type="button" className="wgt-x" onClick={() => removeView(i)}>Remover</button>}
+              </div>
+              <div className="wgt-checks">
+                {Object.keys(blockNames).map((key) => (
+                  <label key={key} className={`wgt-check${v.blocks.includes(key) ? ' on' : ''}`}>
+                    <input type="checkbox" checked={v.blocks.includes(key)} onChange={() => toggleBlock(i, key)} /> {blockNames[key]}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+          {views.length < 6 && <button className="wgt-btn" type="button" onClick={addView}>Adicionar visão</button>}
+          <button className="wgt-btn primary" type="button" disabled={busy || !viewsDirty} onClick={saveViews}>Salvar visões</button>
+          {viewsSaved && <div className="wgt-ok">Salvo. O widget atualiza na próxima vez que o iPhone renovar (15–30 min), ou ao rodar o script.</div>}
+        </div>
       )}
       {error && <div className="wgt-err">{error}</div>}
     </div>
