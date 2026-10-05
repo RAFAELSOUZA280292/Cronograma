@@ -7056,12 +7056,13 @@ horóscopo, horóscopo chinês, sabedoria, inspiração) — visível, não esco
   retornos por módulo): 3 passos (conectar Google · montar o dia · pronto) por cima de qualquer tela, para quem tem
   `onboarding_done_at` nulo — **inclui todos os usuários já existentes, uma vez**. "Agora não" também marca como feito (não insiste);
   tudo continua em Meu perfil. Voltando do OAuth do Google com onboarding pendente, a aba Agenda só abre quando já concluiu.
-- **Tela inicial** (revisada no mesmo dia, a pedido do Rafael: a 1ª versão — grade larga e solta acima dos módulos — ficou "perdida"): um card único
-  **"Mensagem do dia"** logo abaixo do "Olá, <nome>", na mesma largura dos módulos (680 px), com chips para alternar entre os conteúdos
-  escolhidos (lembra o último em `localStorage` `pt-daily-sel`), prévia de 3 linhas e "Ler completo" que abre um modal com o texto inteiro
-  (evangelho com todas as leituras, crédito da Bíblia Livre, avisos de IA/entretenimento; Esc fecha). Ordem da tela: Olá → Mensagem do dia → RENATA
-  (agenda) → "Onde você quer trabalhar agora?" → módulos. Sem nenhum item escolhido: convite "Monte o seu dia"; "Personalizar" abre Meu perfil > Meu dia;
-  "Ver o conteúdo do dia" desligado = some.
+- **Tela inicial** (redesenhada duas vezes no mesmo dia; versão atual inspirada num mockup que o Rafael trouxe): logo abaixo do "Olá, <nome>" vem uma **saudação do conteúdo escolhido** ("Que a Palavra de Deus ilumine o seu dia." no
+  evangelho; uma frase própria para cada tipo) com um traço dourado, e o card único **"Mensagem do dia"** (`src/daily/DailyCards.jsx`, 760 px; a grade de módulos também foi para 760): cabeçalho com ícone redondo + descrição do conteúdo + "Personalizar";
+  abas com **ícone** (Evangelho, Versículo, Sabedoria, Horóscopo, Chinês, Inspiração; a ativa em dourado e rolada para o centro no celular; lembra a última em `localStorage` `pt-daily-sel`); corpo com título grande, **selo "cor verde"** da liturgia,
+  referência em dourado e texto em 4 linhas (a Inspiração mostra a frase em destaque + "— autor · tema"); botão **"Ler completo"** (modal com o texto inteiro, leituras, crédito/fonte; Esc fecha) e **Compartilhar** (`navigator.share`, senão copia o texto);
+  à direita um **painel ilustrado** (gradiente dourado com o ícone do conteúdo; some abaixo de 720 px; tema escuro tem versão própria). Cores do app (ouro `#F5C400` com texto escuro, não branco sobre ouro, por contraste). Ordem da tela: Olá → saudação → Mensagem do dia → RENATA
+  (agenda) → "Onde você quer trabalhar agora?" → módulos. Sem nenhum item escolhido: convite "Monte o seu dia"; "Personalizar" abre Meu perfil > Meu dia; "Ver o conteúdo do dia" desligado = some.
+  **Do mockup que NÃO foi feito**: a foto (Bíblia e cruz) — não há imagem própria, o painel é gradiente + ícone —, e o botão **salvar/favoritar** (seria meia-funcionalidade sem um lugar para ver o que foi salvo; precisa de decisão do Rafael).
 - **Dados** (aditivos em `db.js`): `users.preferences` JSONB `{enabled, cards[], birthDate}`, `users.onboarding_done_at`,
   tabela `daily_content(kind,key,day)` = cache. `rowToUser` ganhou `onboardingDone`. Rotas `/api/daily`: `GET /` (cartões do usuário,
   `no-store`), `GET/PUT /preferences` (valida cartões e data: AAAA-MM-DD real, 1900..hoje; ordem canônica), `POST /onboarding-complete`.

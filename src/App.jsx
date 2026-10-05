@@ -9928,7 +9928,7 @@ export const S = {
   companySearchInput: { flex: 1, background: 'transparent', border: 'none', padding: 0, fontSize: 13 },
   companyFilterRow: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   companyFilterSelect: { flex: '1 1 160px', minWidth: 140, maxWidth: 240 },
-  workspaceChoices: { display: 'flex', gap: 16, width: 'min(680px, 100%)', flexWrap: 'wrap' },
+  workspaceChoices: { display: 'flex', gap: 16, width: 'min(760px, 100%)', flexWrap: 'wrap' },
   workspaceCard: { flex: '1 1 260px', textAlign: 'left', background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: 12, padding: '24px 22px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8, color: 'var(--text-1)', fontFamily: "'Inter', sans-serif", transition: 'border-color .12s' },
   workspaceCardTitle: { fontSize: 16, fontWeight: 800, marginTop: 4 },
   workspaceCardDesc: { fontSize: 12.5, color: 'var(--text-5)', lineHeight: 1.5 },
