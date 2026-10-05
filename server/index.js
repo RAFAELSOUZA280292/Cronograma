@@ -18,6 +18,8 @@ import { router as dailyRouter } from './daily.js';
 import { router as templatesRouter } from './documentTemplates.js';
 import { router as connectRouter } from './connect.js';
 import { startCrmScheduler } from './crm/scheduler.js';
+import { pool } from './db.js';
+import { seedQuoteFacts, embedQuoteFacts } from './inspirationQuotes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '..', 'dist');
@@ -69,6 +71,12 @@ async function start() {
   await migrateAccessModel();
   await migrateXflowBoardOrder();
   await migrateInsightsToKnowledgeFacts();
+  // Memória da RENATA: frases de inspiração (§77). Não fatal — o app sobe mesmo se falhar.
+  try {
+    const n = await seedQuoteFacts(pool);
+    if (n) console.log(`RENATA: ${n} fato(s) de frases de inspiração registrados na memória.`);
+    embedQuoteFacts(pool).catch((e) => console.error('RENATA: embeddings das frases ficaram para depois:', e.message));
+  } catch (e) { console.error('RENATA: não consegui registrar as frases de inspiração:', e.message); }
   app.listen(port, () => {
     console.log(`Cronograma server ouvindo na porta ${port}`);
     startCrmScheduler();

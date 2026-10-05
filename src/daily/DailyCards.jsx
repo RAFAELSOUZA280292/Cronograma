@@ -44,7 +44,7 @@ function Preview({ card, onConfigure }) {
   if (card.kind === 'votd' || card.kind === 'wisdom') return <><div className="dcs-sub">{d.reference}</div><div className="dcs-text clamp">“{d.text}”</div></>;
   if (card.kind === 'horoscope') return <><div className="dcs-sub">{d.sign}</div><div className="dcs-text clamp">{d.text}</div></>;
   if (card.kind === 'chinese') return <><div className="dcs-sub">{d.animal} de {d.element}</div><div className="dcs-text clamp">{d.text}</div></>;
-  return <div className="dcs-text clamp big">{d.text}</div>;
+  return <><div className="dcs-text clamp big">“{d.text}”</div><div className="dcs-sub" style={{ fontSize: 13 }}>— {d.author}</div></>;
 }
 
 function Full({ card, onConfigure }) {
@@ -69,13 +69,13 @@ function Full({ card, onConfigure }) {
   if (card.kind === 'votd' || card.kind === 'wisdom') return <><div className="dcs-sub">{d.reference}</div><div className="dcs-text big">“{d.text}”</div><div className="dcs-foot">{d.credit}</div></>;
   if (card.kind === 'horoscope') return <><div className="dcs-sub">{d.sign}</div><div className="dcs-text">{d.text}</div><div className="dcs-foot">Entretenimento. Fonte: AstroWay.</div></>;
   if (card.kind === 'chinese') return <><div className="dcs-sub">{d.animal} de {d.element} · ano {d.year}</div><div className="dcs-text">{d.text}</div><div className="dcs-foot">Texto gerado por IA, para entretenimento.</div></>;
-  return <><div className="dcs-text big">{d.text}</div><div className="dcs-foot">Escrito pela RENATA. Não é citação de ninguém.</div></>;
+  return <><div className="dcs-text big">“{d.text}”</div><div className="dcs-sub">— {d.author}{d.theme ? ` · ${d.theme}` : ''}</div><div className="dcs-foot">Fonte: {d.source}{d.sourceUrl ? <> · <a href={d.sourceUrl} target="_blank" rel="noreferrer noopener" style={{ color: 'inherit' }}>abrir</a></> : null}</div></>;
 }
 
 function needsMore(card) {
   if (!card.ok || !card.data) return false;
   const d = card.data;
-  if (card.kind === 'liturgy') return true;
+  if (card.kind === 'liturgy' || card.kind === 'inspiration') return true;
   if (card.kind === 'votd' || card.kind === 'wisdom') return true;
   return String(d.text || '').length > 160;
 }

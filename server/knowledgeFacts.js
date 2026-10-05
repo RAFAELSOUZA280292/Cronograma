@@ -14,6 +14,7 @@
 // filtrado. Ver server/_test_knowledge_isolation.mjs (script de teste,
 // roda localmente).
 import { embedTexts, cosineSimilarity } from './embeddings.js';
+import { QUOTE_FACT_PREFIX, QUOTE_TRIGGER } from './inspirationQuotes.js';
 import { logMetric } from './metrics.js';
 import { linkFactEntities } from './knowledgeEntities.js';
 import { parecerUsableFor, loadProjectIdentity } from './parecerScope.js';
@@ -321,6 +322,9 @@ export async function saveConflictPair(pool, {
 // poucos que tocam o assunto da pergunta (`pickRelevantPareceres`); os demais ficam na memória, visíveis na
 // Central de Conhecimento, sem custo no chat.
 const PARECER_FACT_SQL = `(k.origin = 'internal_document' AND k.reference LIKE 'Parecer PRICETAX:%')`;
+// Frases de inspiração (Senna, §77) também ficam FORA da janela geral dos 30 fatos mais recentes — são ~17 de uma vez e empurrariam o
+// conhecimento de verdade para fora de toda pergunta. Só entram quando a pergunta fala de frase/citação/inspiração/Senna.
+const QUOTE_FACT_SQL = `k.id LIKE '${QUOTE_FACT_PREFIX}%'`;
 export const MAX_PARECERES_PER_QUESTION = 3;
 
 const GENERIC_WORDS = new Set([
@@ -382,6 +386,7 @@ export async function loadRelevantFacts(pool, orgId, projectId, conversationId, 
      LEFT JOIN users u ON u.id = k.source_user_id
      WHERE ${baseWhere}
        AND NOT ${PARECER_FACT_SQL}
+       AND NOT ${QUOTE_FACT_SQL}
        AND (
          k.scope = 'org'
          OR (k.scope = 'project' AND k.project_id = $2)
@@ -410,7 +415,16 @@ export async function loadRelevantFacts(pool, orgId, projectId, conversationId, 
     const usable = all.filter((r) => parecerUsableFor({ scope: r.parecer_scope, company_name: r.company_name, company_project_id: r.company_project_id }, identity));
     pareceres = pickRelevantPareceres(usable, opts.query, MAX_PARECERES_PER_QUESTION, all);
   }
-  const rows = [...general, ...pareceres];
+  let quotes = [];
+  if (opts.query && QUOTE_TRIGGER.test(opts.query)) {
+    const { rows: q } = await pool.query(
+      `SELECT ${columns} FROM ai_knowledge_facts k LEFT JOIN users u ON u.id = k.source_user_id
+       WHERE ${baseWhere} AND k.scope = 'org' AND ${QUOTE_FACT_SQL} ORDER BY k.id LIMIT 25`,
+      [orgId],
+    );
+    quotes = q;
+  }
+  const rows = [...general, ...pareceres, ...quotes];
   if (!rows.length) return { text: '(nenhum conhecimento acumulado registrado ainda para este projeto/organização/conversa)', factIds: [], pareceresIncluded: 0 };
   const text = rows.map((r) => {
     const scopeLabel = r.scope === 'org' ? 'PRICETAX (toda a organização)' : r.scope === 'conversation' ? 'só esta conversa' : 'específico deste projeto';
