@@ -1380,6 +1380,7 @@ export default function App() {
     return (
       <WorkspaceGateScreen
         user={currentUser}
+        personalBoard={personalBoard}
         onPickCompany={hasCompanies ? () => goToWorkspace('company') : undefined}
         onPickPersonal={hasPersonal ? () => goToWorkspace('personal') : undefined}
         onPickXFlow={hasXflow ? () => goToWorkspace('xflow') : undefined}
@@ -5029,7 +5030,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   );
 }
 
-function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickCrm, onPickUsers, onLogout, theme, onToggleTheme }) {
+function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickCrm, onPickUsers, onLogout, theme, onToggleTheme }) {
   return (
     <div className="page-root" style={S.page}>
       <div style={S.companySelectorWrap}>
@@ -5043,7 +5044,7 @@ function WorkspaceGateScreen({ user, onPickCompany, onPickPersonal, onPickXFlow,
         <h1 style={S.loginTitle}>Olá, {(user.name || '').split(' ')[0] || user.username}</h1>
         <p style={S.loginSub}>Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>
 
-        <RenataAgendaBriefing user={user} onOpenAgenda={onPickAgenda} />
+        <RenataAgendaBriefing user={user} onOpenAgenda={onPickAgenda} personalBoard={personalBoard} onOpenPersonal={onPickPersonal} />
 
         <div style={S.workspaceChoices}>
           {onPickCompany && (
