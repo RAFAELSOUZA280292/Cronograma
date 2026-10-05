@@ -72,7 +72,7 @@ const META = {
   wisdom: { short: 'Sabedoria', icon: Lightbulb, greet: 'Sabedoria para decidir bem hoje.', sub: 'Um provérbio para pensar durante o dia.' },
   horoscope: { short: 'Horóscopo', icon: Star, greet: 'O que os astros dizem sobre o seu dia.', sub: 'Previsão do seu signo, só por diversão.' },
   chinese: { short: 'Chinês', icon: Moon, greet: 'O que o seu animal diz sobre hoje.', sub: 'Horóscopo chinês, só por diversão.' },
-  inspiration: { short: 'Inspiração', icon: Leaf, greet: 'Que a coragem de quem veio antes inspire o seu dia.', sub: 'Uma frase do dia, sempre com a fonte.' },
+  inspiration: { short: 'Inspiração', icon: Leaf, greet: 'Que quem veio antes inspire o seu dia.', sub: 'Uma frase do dia, sempre com a fonte.' },
 };
 
 // O que o cartão mostra, por conteúdo: título, selo, referência, texto e (para a frase) autor.
@@ -89,7 +89,7 @@ function shareText(card) {
   const d = card.data;
   if (card.kind === 'liturgy') return `${d.title}\n${d.gospel.reference}\n${d.gospel.text}`;
   if (card.kind === 'votd' || card.kind === 'wisdom') return `“${d.text}”\n— ${d.reference}`;
-  if (card.kind === 'inspiration') return `“${d.text}”\n— ${d.author}`;
+  if (card.kind === 'inspiration') return `“${d.text}”\n— ${d.author}${d.translated ? ' (tradução livre)' : ''}`;
   return `${card.title}\n${d.text}`;
 }
 
@@ -115,7 +115,7 @@ function Full({ card, onConfigure }) {
   if (card.kind === 'votd' || card.kind === 'wisdom') return <><div className="dcs-sub">{d.reference}</div><div className="dcs-text big">“{d.text}”</div><div className="dcs-foot">{d.credit}</div></>;
   if (card.kind === 'horoscope') return <><div className="dcs-sub">{d.sign}</div><div className="dcs-text">{d.text}</div><div className="dcs-foot">Entretenimento. Fonte: AstroWay.</div></>;
   if (card.kind === 'chinese') return <><div className="dcs-sub">{d.animal} de {d.element} · ano {d.year}</div><div className="dcs-text">{d.text}</div><div className="dcs-foot">Texto gerado por IA, para entretenimento.</div></>;
-  return <><div className="dcs-text big">“{d.text}”</div><div className="dcs-sub">— {d.author}{d.theme ? ` · ${d.theme}` : ''}</div><div className="dcs-foot">Fonte: {d.source}{d.sourceUrl ? <> · <a href={d.sourceUrl} target="_blank" rel="noreferrer noopener">abrir</a></> : null}</div></>;
+  return <><div className="dcs-text big">“{d.text}”</div><div className="dcs-sub">— {d.author}{d.theme ? ` · ${d.theme}` : ''}</div>{d.original && <div className="dcs-text" style={{ fontStyle: 'italic' }}>Original: “{d.original}”</div>}{d.translated && <div className="dcs-foot">Tradução livre para o português.</div>}<div className="dcs-foot">Fonte: {d.source}{d.sourceUrl ? <> · <a href={d.sourceUrl} target="_blank" rel="noreferrer noopener">abrir</a></> : null}</div></>;
 }
 
 function needsMore(card) {
