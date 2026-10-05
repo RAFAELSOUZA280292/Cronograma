@@ -2,10 +2,11 @@
 // O token e o endereço entram já preenchidos; o resto é fixo. Sem template literal dentro do script
 // para não brigar com o template deste arquivo.
 const TEMPLATE = String.raw`// PRICETAX — widget do iPhone. Gerado em "Meu perfil > Widget do iPhone".
-// O que aparece é escolhido no painel (Meu perfil > Widget do iPhone > O que mostrar).
-// Para ter vários widgets diferentes, escreva o nome da visão em Editar Widget > Parameter.
+// Este script mostra a visão escolhida no painel (Meu perfil > iPhone). Cada visão tem o seu próprio script:
+// cole um por widget. Se preferir um script só, apague o nome da visão acima e use Editar Widget > Parameter.
 const BASE = __BASE__;
 const TOKEN = __TOKEN__;
+const VIEW = __VIEW__;
 
 const BG = new Color("#0B0B1E");
 const TEXT = new Color("#FFFFFF");
@@ -15,7 +16,7 @@ const RED = new Color("#FF6B6B");
 const ORANGE = new Color("#FF9F40");
 const GREEN = new Color("#3ECF6E");
 
-const PARAM = ((args && args.widgetParameter) || "").toString().trim();
+const PARAM = (((args && args.widgetParameter) || VIEW) || "").toString().trim();
 const fm = FileManager.local();
 const cachePath = fm.joinPath(fm.documentsDirectory(), "pricetax-widget-" + encodeURIComponent(PARAM.toLowerCase() || "padrao") + ".json");
 
@@ -183,6 +184,6 @@ if (config.runsInWidget) {
 Script.complete();
 `;
 
-export function buildScriptableScript({ baseUrl, token }) {
-  return TEMPLATE.replace('__BASE__', JSON.stringify(baseUrl)).replace('__TOKEN__', JSON.stringify(token));
+export function buildScriptableScript({ baseUrl, token, view = '' }) {
+  return TEMPLATE.replace('__BASE__', () => JSON.stringify(baseUrl)).replace('__TOKEN__', () => JSON.stringify(token)).replace('__VIEW__', () => JSON.stringify(view));
 }
