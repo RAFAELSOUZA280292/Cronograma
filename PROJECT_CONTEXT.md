@@ -872,6 +872,9 @@ mecanismo.
 - Acessibilidade: telas e modais fora de `src/ui` não foram auditados (§72).
 - API de conectividade (§80): testada com `curl` simulando a outra janela e com o painel aberto, **não** com uma segunda janela real do Claude Code lendo o guia; `GET /agenda` não foi testado com Google real; produção ainda não vista com token real.
 
+**Usabilidade**
+- Plano de 7 ondas em `docs/PLANO_USABILIDADE.md` (§81): aguardando decisão do Rafael sobre por onde começar.
+
 **Documentação**
 - Este arquivo e `docs/PROJECT_MAP.md` foram reconciliados com o código em 2026-10-05 (§79). Reconferir a cada entrega grande.
 - Assuntos que o Rafael **encerrou** (não reabrir): troca de senha obrigatória do Felipe após o reset; dono da tela de IBS/CBS da NFS-e.
@@ -7181,6 +7184,15 @@ Um token por janela; até 10 ativos por pessoa.
 isolamento entre usuários e entre organizações; os três cenários da rede de segurança), a aba no browser e o fluxo completo com **`curl` simulando a outra janela** com o painel aberto — a atividade apareceu sozinha em ~4,5 s e, numa corrida real (API cria enquanto o painel edita), os dois cartões sobreviveram.
 `docs/testar-conectividade.sh` roda os testes de leitura e de segurança contra qualquer endereço (validado contra o servidor local; ainda não rodado em produção com token real).
 **Não testado**: uma segunda janela real do Claude Code lendo o guia; `GET /agenda` com Google real; produção com token real.
+
+## 81. Plano de usabilidade e front (2026-10-05) — PLANO, nada implementado
+
+Pedido do Rafael: um portal em que o usuário queira ficar (e cobrar melhorias), com varredura de Voltar, atalhos entre módulos, redundâncias, "fantasmas" e botões de salvar/editar/comentar/link/print.
+Resultado: `docs/PLANO_USABILIDADE.md` — diagnóstico em números (667 botões, 15+ famílias visuais, 58 `confirm/alert/prompt`, só ~6 telas com Esc, colar print só no XFlow, 3 modelos mentais de salvar), tabela de Voltar/atalhos por tela,
+lista de perda de dado/cliques mortos, redundâncias e **7 ondas**: 0 parar a perda de dado · 1 casca única (`ModuleShell`, busca Ctrl+K, Esc/Voltar do navegador) · 2 design system de ações (`ConfirmDialog`, `Toast` com Desfazer, `Button`) · 3 `ComposeBox` (comentar/@/print/link/arquivos em todo módulo) ·
+4 salvar sem pensar (`SaveStatus`) · 5 "Hoje" acionável, navegação cruzada, notificações que navegam · 6 visual/linguagem/mobile.
+Método: 5 auditorias de leitura em paralelo + contagens próprias; os achados mais graves foram **conferidos no código** (marcados [C] no plano): remover usuário sem confirmação, XFlow limpando o rascunho antes do servidor responder, Esc/X do CRM sem guarda,
+ficha da empresa do CRM sem `key`, "Nova atividade" gravada antes de digitar, "Ir para Empresas" que leva ao Início. O restante vem dos relatórios ([R]) e deve ser conferido ao implementar. Defeito meu achado: o token da aba **Conectar** some ao trocar de aba (Onda 0).
 
 | Preciso de... | Vá para |
 |---|---|
