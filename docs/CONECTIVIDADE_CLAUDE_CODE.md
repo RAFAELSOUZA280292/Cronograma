@@ -17,6 +17,16 @@
 | Validade | 30, 90, 180 (padrão) ou 365 dias; no máximo 10 tokens ativos por pessoa |
 | Limites | 120 requisições/min por token · 60 atividades criadas/hora por token |
 
+## Testar a conexão (só leitura, não cria nada)
+
+```bash
+export PRICETAX_TOKEN='pxk_…'        # o token que você gerou em Meu perfil › Conectar
+bash docs/testar-conectividade.sh     # imprime OK/FALHA por rota e nunca mostra o token
+```
+
+O script confere `me`, atividades (abertas, atrasadas, de hoje), empresas, detalhe da 1ª empresa, 1ª reunião e agenda, e ainda checa que sem token → 401,
+token na URL → 401, o token **não** abre `/api/users` e rota inexistente → 404. Pode colar a saída (sem o token) para conferência.
+
 ## Modelo de segurança
 
 - **Um token por janela.** Revogar um não afeta os outros (Meu perfil › Conectar › lixeira). Só o **hash** (sha256) fica no banco; o token não é recuperável.
