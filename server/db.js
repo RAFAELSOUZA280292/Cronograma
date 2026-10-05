@@ -920,6 +920,30 @@ export async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_last_used_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_views JSONB`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_token_enc TEXT`);
+  // Modelos de documentos (2026-10-05, §78): arquivos (BYTEA) e links com prévia, irmã da tabela pareceres.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS document_templates (
+      id               TEXT PRIMARY KEY,
+      org_id           TEXT NOT NULL REFERENCES organizations(id),
+      kind             TEXT NOT NULL DEFAULT 'file',
+      title            TEXT NOT NULL,
+      description      TEXT NOT NULL DEFAULT '',
+      category         TEXT NOT NULL DEFAULT '',
+      file_name        TEXT,
+      mime_type        TEXT,
+      file_size        INT,
+      file_data        BYTEA,
+      url              TEXT,
+      link_meta        JSONB,
+      preview_text     TEXT NOT NULL DEFAULT '',
+      comments         JSONB NOT NULL DEFAULT '[]',
+      created_by       TEXT REFERENCES users(id),
+      created_by_name  TEXT NOT NULL DEFAULT '',
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS document_templates_org_idx ON document_templates(org_id, created_at DESC)`);
   // "Meu dia" (2026-10-05, §77): preferências do usuário, marca da primeira configuração e cache diário das fontes.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_done_at TIMESTAMPTZ`);

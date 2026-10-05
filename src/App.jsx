@@ -5,7 +5,7 @@ import {
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
   LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History,
   MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal,
-  Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge, Home, Paperclip, Sparkles, Briefcase,
+  Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge, Home, Paperclip, Sparkles, Briefcase, FolderOpen,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -31,6 +31,7 @@ import { TodoBoardView } from './meetings/TodoBoard.jsx';
 import { ProjectAssistant } from './assistant/ProjectAssistant.jsx';
 import KnowledgeCenterScreen from './knowledge/KnowledgeCenter.jsx';
 import PareceresScreen from './pareceres/Pareceres.jsx';
+import ModelosScreen from './modelos/Modelos.jsx';
 import PersonalStatsPanel from './personal/PersonalStats.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
 import { activate, activateRow, Tabs } from './ui/index.jsx';
@@ -659,6 +660,7 @@ export default function App() {
     if (mode === 'users') return 'users';
     if (mode === 'knowledge') return 'knowledge';
     if (mode === 'pareceres') return 'pareceres';
+    if (mode === 'modelos') return 'modelos';
     if (users) return 'company:users';
     if (orgAdmin) return 'company:orgadmin';
     if (selected === false) return 'company:select';
@@ -705,6 +707,7 @@ export default function App() {
     else if (tag === 'users') { setWorkspaceMode('users'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'knowledge') { setWorkspaceMode('knowledge'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'pareceres') { setWorkspaceMode('pareceres'); setShowUsers(false); setShowOrgAdmin(false); }
+    else if (tag === 'modelos') { setWorkspaceMode('modelos'); setShowUsers(false); setShowOrgAdmin(false); }
     else { setWorkspaceMode(null); setShowUsers(false); setShowOrgAdmin(false); }
   }
   // Nível 3 (2026-08): abrir ActivityDetailModal empilha em cima do state
@@ -1408,9 +1411,10 @@ export default function App() {
   // de Conhecimento (master/pricetax, nunca 'cliente') — decisão confirmada
   // com o Rafael.
   const hasPareceres = currentUser.role === 'master' || currentUser.role === 'pricetax';
+  const hasModelos = hasPareceres;
   // CRM (2026-09-20): master/super admin sempre; demais só com crm_role definido em "Usuários"; 'cliente' nunca (regra vem pronta do servidor em crmAccess).
   const hasCrm = !!currentUser.crmAccess;
-  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda', hasMacro && 'macro', hasKnowledge && 'knowledge', hasPareceres && 'pareceres', hasCrm && 'crm'].filter(Boolean);
+  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda', hasMacro && 'macro', hasKnowledge && 'knowledge', hasPareceres && 'pareceres', hasModelos && 'modelos', hasCrm && 'crm'].filter(Boolean);
   const effectiveMode = workspaceMode || (availableModes.length === 1 ? availableModes[0] : null);
   // Home = tela "Olá, Nome" (WorkspaceGateScreen). Só faz sentido oferecer o
   // atalho se houver mais de 1 workspace pra escolher — com só 1, a tela
@@ -1435,6 +1439,7 @@ export default function App() {
         onPickMacro={hasMacro ? () => goToWorkspace('macro') : undefined}
         onPickKnowledge={hasKnowledge ? () => goToWorkspace('knowledge') : undefined}
         onPickPareceres={hasPareceres ? () => goToWorkspace('pareceres') : undefined}
+        onPickModelos={hasModelos ? () => goToWorkspace('modelos') : undefined}
         onPickCrm={hasCrm ? () => goToWorkspace('crm') : undefined}
         onPickUsers={currentUser.role === 'master' ? () => goToWorkspace('users') : undefined}
         onLogout={handleLogout}
@@ -1569,6 +1574,18 @@ export default function App() {
           pendingOpen={pendingCrmOpen} onPendingOpenConsumed={() => setPendingCrmOpen(null)}
         />
       </React.Suspense>
+    );
+  }
+
+  if (effectiveMode === 'modelos') {
+    return (
+      <ModelosScreen
+        currentUser={currentUser}
+        onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
+        onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
     );
   }
 
@@ -5141,7 +5158,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   );
 }
 
-function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickCrm, onPickUsers, onLogout, theme, onToggleTheme, onOpenProfile, onConfigureDaily, dailyReload }) {
+function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickModelos, onPickCrm, onPickUsers, onLogout, theme, onToggleTheme, onOpenProfile, onConfigureDaily, dailyReload }) {
   return (
     <div className="page-root" style={S.page}>
       <div style={S.companySelectorWrap}>
@@ -5220,6 +5237,13 @@ function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersona
               <FileText size={26} color="#F5C400" />
               <div style={S.workspaceCardTitle}>Pareceres PRICETAX</div>
               <div style={S.workspaceCardDesc}>Pareceres em PDF pra compartilhar com sócios e colaboradores — identificação, comentários e histórico.</div>
+            </button>
+          )}
+          {onPickModelos && (
+            <button style={S.workspaceCard} onClick={onPickModelos}>
+              <FolderOpen size={26} color="#F5C400" />
+              <div style={S.workspaceCardTitle}>Modelos de documentos</div>
+              <div style={S.workspaceCardDesc}>Contratos, propostas, apresentações e planilhas prontos — suba arquivos ou cole links com prévia.</div>
             </button>
           )}
           {onPickUsers && (

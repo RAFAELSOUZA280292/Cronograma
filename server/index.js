@@ -15,12 +15,15 @@ import { router as pareceresRouter } from './pareceres.js';
 import { router as crmRouter } from './crm/routes.js';
 import { router as widgetRouter } from './widget.js';
 import { router as dailyRouter } from './daily.js';
+import { router as templatesRouter } from './documentTemplates.js';
 import { startCrmScheduler } from './crm/scheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '..', 'dist');
 
 const app = express();
+// Modelos de documentos aceitam arquivo de até 30 MB (base64 ≈ 40 MB): o parser maior precisa vir ANTES do global.
+app.use('/api/templates', express.json({ limit: '45mb' }));
 app.use(express.json({ limit: '15mb' }));
 app.use(cookieParser());
 
@@ -36,6 +39,7 @@ app.use('/api/pareceres', pareceresRouter);
 app.use('/api/crm', crmRouter);
 app.use('/api/widget', widgetRouter);
 app.use('/api/daily', dailyRouter);
+app.use('/api/templates', templatesRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use('/api', (err, req, res, next) => {

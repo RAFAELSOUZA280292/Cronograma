@@ -6964,6 +6964,36 @@ horóscopo, horóscopo chinês, sabedoria, inspiração) — visível, não esco
   produção, os dois cartões de IA mostram "Indisponível" e o log traz `Meu dia: falha em ...`. Também não testado: Google OAuth real no
   fluxo de boas-vindas. "Receber mensagens" foi entendido como ver o conteúdo do dia; não há e-mail/WhatsApp/push no painel.
 
+## 78. Modelos de documentos (2026-10-05)
+
+Pedido do Rafael: uma aba irmã dos Pareceres, para **modelos de documentos**, que aceite **links com pré-visualização** e arquivos
+(PDF, Word, PowerPoint etc.). Novo módulo `modelos` (`/modelos`, card "Modelos de documentos" na tela inicial), **só master/pricetax** (mesma
+regra dos Pareceres, `requireMasterOrPricetax` + `effectiveOrgId`; `canOpenMode` e `hasModelos` em App.jsx).
+
+- **Dados**: tabela `document_templates` (aditiva em `db.js`): `kind` ('file'|'link'), título, descrição ("para que serve"), `category`
+  (livre, com sugestões), arquivo em BYTEA, `url`, `link_meta` JSONB (título/descrição/imagem/site da página), `preview_text`, comentários.
+- **API** (`server/documentTemplates.js`, `/api/templates`): `GET /`, `POST /` (arquivo em base64 ou link), `PATCH /:id`, `POST /:id/refresh-preview`,
+  `DELETE /:id`, `GET /:id/file` (`?download=1` força baixar), comentários como nos Pareceres. O parser JSON de `/api/templates` tem limite de
+  45 MB e é montado ANTES do global de 15 MB (`index.js`) — arquivo de até **30 MB**; acima disso a tela manda usar link.
+- **Arquivos**: lista fechada de extensões (pdf, doc/docx/rtf/odt, ppt/pptx/odp, xls/xlsx/ods/csv, txt, png/jpg/gif/webp). **HTML, SVG, JS e executáveis
+  são recusados** (servidos da nossa origem seriam XSS). O `Content-Type` vem do servidor pela extensão, nunca do navegador; `nosniff`; só PDF, imagem e
+  txt abrem inline, o resto baixa.
+- **Pré-visualização**: PDF e imagem na própria gaveta; **docx/pptx/xlsx** mostram o começo do conteúdo (`server/officePreview.js`: leitor de ZIP com o
+  `zlib` do Node, sem dependência nova, teto de 6 MB por entrada contra zip bomb; docx = primeiros parágrafos, pptx = nº de slides + títulos, xlsx = nomes
+  das planilhas); `.doc/.ppt/.xls` antigos e demais só mostram ícone + baixar. Não há miniatura de PDF/Office (exigiria converter no servidor).
+- **Links** (`server/linkPreview.js`): o servidor busca a página e lê `og:title/description/image` (com fallback para `<title>`/`description`). **Defesa contra
+  SSRF**: só http/https, sem usuário/senha; o DNS é validado NA CONEXÃO (`lookup` próprio, sem janela de rebinding) e recusa endereço privado, loopback,
+  link-local/metadados (169.254.x), CGNAT, multicast e IPv6 equivalentes; redirecionamentos refeitos e revalidados (máx. 3); corpo ≤ 300 KB, só text/html,
+  6 s. Falha ou endereço bloqueado NÃO impede salvar: o link fica com `link_meta.ok=false`. Páginas que pedem login (Drive, SharePoint) só dão o domínio.
+  A imagem da prévia é carregada direto do site de origem (`referrerPolicy=no-referrer`).
+- **Tela** (`src/modelos/`, mesmo esqueleto `par-*` dos Pareceres): cards com miniatura (imagem do link, imagem pequena, ou ícone colorido por tipo), busca,
+  filtros por categoria e por tipo, gaveta com prévia, editar título/categoria/descrição (autosave com `useDebouncedField`), editar endereço do link, atualizar
+  prévia, comentários, excluir. Adicionar: aba Arquivo (arrastar e soltar ou clicar) / Link.
+- **Verificado**: extração de docx/pptx/xlsx com arquivos reais (e arquivo corrompido → vazio), 15 endereços privados bloqueados + 6 URLs hostis, prévia
+  real de example.com, github.com e gov.br, API (401/403, isolamento por organização, extensões proibidas, 31 MB recusado e 29 MB aceito, headers dos
+  arquivos, SSRF, edição/comentários) e a tela no browser (docx, link, filtros, mobile). **Não testado**: abrir PDF real na gaveta (o painel de teste não
+  renderiza PDF; o cabeçalho inline foi conferido por HTTP), upload acima de ~10 MB pela tela, e links de Drive/SharePoint reais.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
