@@ -5,6 +5,7 @@
 // evita duplicar list+detail duas vezes pra algo estruturalmente igual.
 import React, { useEffect, useState } from 'react';
 import { Users } from 'lucide-react';
+import { EmptyState, SkeletonCards, activate } from '../ui/index.jsx';
 import { apiGet } from '../lib/api.js';
 import { entityTypeLabel, knowledgeTypeLabel, scopeLabel, statusMeta } from './knowledgeMeta.js';
 
@@ -66,13 +67,13 @@ export function EntitiesTab({ types, emptyLabel, onOpenFact }) {
   return (
     <div>
       {!loaded ? (
-        <div className="knw-empty">Carregando…</div>
+        <SkeletonCards count={3} height={64} />
       ) : entities.length === 0 ? (
-        <div className="knw-empty">{emptyLabel}</div>
+        <EmptyState icon={Users} title={emptyLabel} description="A RENATA vai montando esta lista conforme aprende fatos que citam pessoas e empresas." />
       ) : (
         <div className="knw-entity-grid">
           {entities.map((e) => (
-            <div key={e.id} className="knw-entity-card" onClick={() => setSelectedId(e.id)}>
+            <div key={e.id} className="knw-entity-card" {...activate(() => setSelectedId(e.id))}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Users size={15} color="#F5C400" />
                 <div className="knw-entity-card-name">{e.name}</div>

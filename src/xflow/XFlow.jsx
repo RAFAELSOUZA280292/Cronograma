@@ -137,7 +137,7 @@ const RICH_TEXT_CSS = `
   .xflow-rte-btn { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: transparent; border: none; border-radius: 4px; color: var(--text-3); cursor: pointer; }
   .xflow-rte-btn:hover { background: var(--bg-4); color: var(--text-1); }
   .xflow-rte-btn:disabled { opacity: .35; cursor: default; }
-  .xflow-rte-btn.active { background: rgba(245,196,0,.16); color: #F5C400; }
+  .xflow-rte-btn.active { background: rgba(245,196,0,.16); color: var(--ui-accent-text); }
   .xflow-rte-sep { width: 1px; height: 18px; background: var(--border-2); margin: 0 3px; }
   .xflow-rte-font { font-size: 11.5px; background: var(--bg-4); border: 1px solid var(--border-3); color: var(--text-2); border-radius: 4px; padding: 3px 4px; width: auto; }
   .xflow-rte-body { min-height: 110px; max-height: 380px; overflow-y: auto; background: var(--bg-4); border: 1px solid var(--border-3); border-radius: 0 0 6px 6px; padding: 10px 12px; font-size: 12.5px; color: var(--text-1); line-height: 1.6; }
@@ -149,7 +149,7 @@ const RICH_TEXT_CSS = `
   .xflow-rte-body ul, .xflow-rte-body ol { margin: 6px 0; padding-left: 22px; }
   .xflow-rte-body img { max-width: 100%; border-radius: 4px; margin: 4px 0; display: block; }
   .xflow-rte-body hr { border: none; border-top: 1px solid var(--border-3); margin: 10px 0; }
-  .xflow-rte-body a { color: #3ea6ff; text-decoration: underline; }
+  .xflow-rte-body a { color: var(--ui-info2); text-decoration: underline; }
   .xflow-rte-body pre { background: var(--bg-3); border: 1px solid var(--border-3); border-radius: 6px; padding: 8px 10px; overflow-x: auto; font-size: 11.5px; }
   .xflow-rte-body code { font-family: "Courier New", monospace; background: var(--bg-3); border-radius: 3px; padding: 1px 4px; font-size: 11.5px; }
   .xflow-rte-body pre code { background: none; padding: 0; }
@@ -157,7 +157,7 @@ const RICH_TEXT_CSS = `
   .xflow-rte-emoji-panel { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 6px; background: var(--bg-1); border: 1px solid var(--border-1); border-radius: 8px; box-shadow: var(--pb-shadow-drag, 0 8px 24px rgba(0,0,0,.3)); }
   .xflow-rte-emoji-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; font-size: 16px; background: transparent; border: none; border-radius: 5px; cursor: pointer; }
   .xflow-rte-emoji-btn:hover { background: var(--bg-4); }
-  .xflow-ticket-ref { color: #F5C400; font-weight: 700; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; }
+  .xflow-ticket-ref { color: var(--ui-accent-text); font-weight: 700; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; }
 `;
 
 function hexToRgba(hex, alpha) {

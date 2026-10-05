@@ -29,6 +29,7 @@ import KnowledgeCenterScreen from './knowledge/KnowledgeCenter.jsx';
 import PareceresScreen from './pareceres/Pareceres.jsx';
 import PersonalStatsPanel from './personal/PersonalStats.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
+import { activate, activateRow } from './ui/index.jsx';
 // CRM (2026-09-20, PROJECT_CONTEXT.md §54): módulo grande e opcional — carregado só quando alguém abre o CRM.
 const CrmScreen = React.lazy(() => import('./crm/CrmScreen.jsx'));
 // Fica aqui (e não em crm/crmMeta.js) pra o CSS do CRM não entrar no pacote principal.
@@ -5901,7 +5902,7 @@ function PersonalListView({ board, filterFn, onOpenCard, onToggleComplete, readO
             const tone = dueDateTone(r);
             const priorityMeta = r.priority ? CARD_PRIORITY_META[r.priority] : null;
             return (
-              <tr key={r.id} style={S.personalListRow} onClick={() => onOpenCard(r._colId, r.id)}>
+              <tr key={r.id} style={S.personalListRow} {...activateRow(() => onOpenCard(r._colId, r.id))}>
                 <td style={S.personalListTd}><input type="checkbox" checked={r.completed} disabled={readOnly} onClick={(e) => e.stopPropagation()} onChange={() => onToggleComplete(r._colId, r.id)} /></td>
                 <td style={{ ...S.personalListTd, ...(r.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{r.title}</td>
                 <td style={S.personalListTd}>{r._colName}</td>
@@ -8116,7 +8117,7 @@ const RESUMO_CSS = `
   .rs-phase-tag { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
   .rs-date-cell { font-size: 12px; color: var(--text-3); white-space: nowrap; }
   .rs-meeting-time { color: var(--text-5); }
-  .rs-confirmed-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; white-space: nowrap; margin-left: 6px; color: #3ecf6e; background: rgba(62,207,110,.14); border: 1px solid rgba(62,207,110,.5); }
+  .rs-confirmed-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; white-space: nowrap; margin-left: 6px; color: var(--ui-ok); background: rgba(62,207,110,.14); border: 1px solid rgba(62,207,110,.5); }
   .rs-countdown-pill { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
   .rs-status-pill { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
   .rs-empty-row td { text-align: center; color: var(--text-6); font-style: italic; }
@@ -8157,7 +8158,7 @@ function ResumoTable({ rows, orderMap, phases, accent, todayISO, onOpen }) {
             const subs = (a.subactivities || []).filter((s) => !s.deleted);
             const doneSubs = subs.filter((s) => s.done).length;
             return (
-              <tr key={a.id} className="rs-row" onClick={() => onOpen(a.id)}>
+              <tr key={a.id} className="rs-row" {...activateRow(() => onOpen(a.id))}>
                 <td>
                   <div className="rs-td-activity">
                     <div className="rs-activity-num">#{orderMap[a.id]}</div>
@@ -8324,7 +8325,7 @@ function ResumoView({ activities, orderMap, phases, pid, openDetail, companyColo
         <div className="rs-kpi"><div className="rs-kpi-num" style={{ color: atrasadas ? '#e2574c' : 'var(--text-1)' }}>{atrasadas}</div><div className="rs-kpi-label">Atrasadas</div></div>
         <div className="rs-kpi"><div className="rs-kpi-num" style={{ color: '#3ea6ff' }}>{proximas7}</div><div className="rs-kpi-label">Próx. 7 dias</div></div>
         {nextActivity ? (
-          <div className="rs-kpi rs-kpi-next" onClick={() => openDetail(pid, nextActivity.id)}>
+          <div className="rs-kpi rs-kpi-next" {...activate(() => openDetail(pid, nextActivity.id))}>
             <div className="rs-kpi-next-label">Próxima atividade</div>
             <div className="rs-kpi-next-title" title={nextActivity.title}>{nextActivity.title}</div>
             <div className="rs-kpi-next-meta">{resumoDateLabel(nextActivity)} · {resumoCountdown(nextActivity, todayISO).label}</div>

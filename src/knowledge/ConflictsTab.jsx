@@ -4,7 +4,8 @@
 // aqui usa DELETE (server/knowledgeCenter.js `resolveConflict`) — é
 // sempre um UPDATE de status/superseded_by, histórico nunca é perdido.
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Check, X } from 'lucide-react';
+import { AlertTriangle, Check, X, CheckCircle2 } from 'lucide-react';
+import { EmptyState, SkeletonCards } from '../ui/index.jsx';
 import { fmtTs } from '../App.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 import { RESOLUTION_LABELS } from './knowledgeMeta.js';
@@ -100,9 +101,9 @@ export function ConflictsTab() {
         <button className={`knw-filter-chip ${includeReviewed ? 'active' : ''}`} onClick={() => setIncludeReviewed(true)}>Incluir já revisados</button>
       </div>
       {!loaded ? (
-        <div className="knw-empty">Carregando…</div>
+        <SkeletonCards count={2} height={150} />
       ) : conflicts.length === 0 ? (
-        <div className="knw-empty">Nenhum conflito {includeReviewed ? '' : 'pendente'} — a RENATA não tem divergências pra resolver agora.</div>
+        <EmptyState tone="ok" icon={CheckCircle2} title={`Nenhum conflito${includeReviewed ? '' : ' pendente'}`} description="A RENATA não tem divergências para resolver agora. Quando duas informações se contradisserem, o par aparece aqui para você decidir qual vale." />
       ) : (
         conflicts.map((c) => (
           <React.Fragment key={`${c.fact_a_id}-${c.fact_b_id}`}>

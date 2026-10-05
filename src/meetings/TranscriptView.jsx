@@ -23,7 +23,7 @@ const TRANSCRIPT_CSS = `
   .mtg-transcript-search-nav { position:absolute; right:6px; top:50%; transform:translateY(-50%); display:flex; align-items:center; gap:4px; font-size:11px; color:var(--text-5); }
   .mtg-transcript-tabs { display:flex; gap:6px; margin-bottom:14px; }
   .mtg-transcript-tab { font-size:12px; font-weight:700; padding:6px 12px; border-radius:999px; border:1px solid var(--border-2); background:var(--bg-3); color:var(--text-5); cursor:pointer; }
-  .mtg-transcript-tab.active { border-color:#F5C400; background:rgba(245,196,0,.12); color:#F5C400; }
+  .mtg-transcript-tab.active { border-color:#F5C400; background:rgba(245,196,0,.12); color:var(--ui-accent-text); }
   .mtg-bubble { display:flex; gap:10px; padding:10px 0; }
   .mtg-bubble-avatar { width:26px; height:26px; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:800; flex-shrink:0; }
   .mtg-bubble-head { display:flex; align-items:baseline; gap:8px; margin-bottom:2px; }

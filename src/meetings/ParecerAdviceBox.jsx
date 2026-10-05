@@ -12,7 +12,7 @@ const CSS = `
   .pab-item { display:flex; flex-direction:column; gap:9px; }
   .pab-item + .pab-item { padding-top:16px; border-top:1px dashed var(--border-2); }
   .pab-kicker { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-  .pab-chip { display:inline-flex; align-items:center; gap:6px; font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#8a6d00; background:rgba(245,196,0,.2); border-radius:999px; padding:3px 9px; min-width:0; }
+  .pab-chip { display:inline-flex; align-items:center; gap:6px; font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--ui-accent-text); background:rgba(245,196,0,.2); border-radius:999px; padding:3px 9px; min-width:0; }
   .pab-open { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; color:var(--text-4); text-decoration:none; flex-shrink:0; }
   .pab-open:hover { color:var(--text-1); }
   .pab-topic { font-size:14.5px; font-weight:800; color:var(--text-1); line-height:1.35; }
@@ -20,7 +20,7 @@ const CSS = `
   .pab-lead { font-size:12px; font-weight:700; color:var(--text-2); }
   .pab-steps { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:7px; }
   .pab-steps li { display:flex; gap:9px; font-size:12.5px; line-height:1.5; color:var(--text-2); background:var(--bg-3); border-radius:9px; padding:9px 11px; }
-  .pab-steps li svg { flex-shrink:0; margin-top:2px; color:#b8920a; }
+  .pab-steps li svg { flex-shrink:0; margin-top:2px; color:var(--ui-accent-text); }
   .pab-caution { display:flex; gap:8px; font-size:12px; line-height:1.5; color:#9a5b00; background:rgba(255,159,64,.13); border-radius:9px; padding:8px 10px; }
   .pab-caution svg { flex-shrink:0; margin-top:2px; }
   .pab-muted { font-size:12.5px; line-height:1.55; color:var(--text-5); }
@@ -30,7 +30,7 @@ const CSS = `
   .pab-btn:disabled { opacity:.6; cursor:default; }
   .pab-btn.primary { background:#F5C400; border-color:#F5C400; color:#111; }
   .pab-btn.primary:hover:not(:disabled) { background:#ffd21f; }
-  .pab-error { font-size:12px; color:#e2574c; }
+  .pab-error { font-size:12px; color:var(--ui-danger); }
   .pab-spin { animation:pabspin 1s linear infinite; }
   @keyframes pabspin { to { transform:rotate(360deg); } }
 `;

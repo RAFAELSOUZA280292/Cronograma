@@ -54,10 +54,10 @@ const ASSISTANT_CSS = `
   .asst-section-content { font-size:12.5px; line-height:1.6; color:var(--text-3); }
   .asst-section-list { margin:2px 0 0; padding-left:17px; }
   .asst-section-list li { font-size:12.5px; line-height:1.6; color:var(--text-3); margin-bottom:3px; }
-  .asst-section-warning .asst-section-icon { background:rgba(226,87,76,.13); color:#e2574c; }
+  .asst-section-warning .asst-section-icon { background:rgba(226,87,76,.13); color:var(--ui-danger); }
   .asst-section-warning { border-color:rgba(226,87,76,.3); }
-  .asst-section-facts .asst-section-icon { background:rgba(91,141,239,.14); color:#5b8def; }
-  .asst-section-impact .asst-section-icon { background:rgba(61,207,110,.14); color:#3ecf6e; }
+  .asst-section-facts .asst-section-icon { background:rgba(91,141,239,.14); color:var(--ui-info); }
+  .asst-section-impact .asst-section-icon { background:rgba(61,207,110,.14); color:var(--ui-ok); }
   .asst-section-recommendation .asst-section-icon { background:rgba(155,109,255,.15); color:#9b6dff; }
   .asst-section-recommendation { border-color:rgba(155,109,255,.28); }
   .asst-section-timeline .asst-section-icon { background:rgba(150,150,150,.16); color:var(--text-4); }
@@ -76,7 +76,7 @@ const ASSISTANT_CSS = `
   .asst-insight-chip:hover { background:rgba(245,196,0,.18); }
   .asst-feedback { display:flex; gap:4px; margin-top:8px; }
   .asst-feedback button { background:transparent; border:none; cursor:pointer; color:var(--text-6); padding:2px; display:flex; }
-  .asst-feedback button.active { color:#F5C400; }
+  .asst-feedback button.active { color:var(--ui-accent-text); }
   .asst-action-card { margin-top:8px; background:var(--bg-2); border:1px solid rgba(245,196,0,.4); border-radius:10px; padding:10px 12px; font-size:12px; }
   .asst-action-card.danger { border-color:rgba(226,87,76,.5); background:rgba(226,87,76,.06); }
   .asst-action-card-title { font-weight:800; color:var(--text-1); margin-bottom:4px; display:flex; align-items:center; gap:6px; }
@@ -88,7 +88,7 @@ const ASSISTANT_CSS = `
   .asst-action-reject { background:transparent; border-color:var(--border-3); color:var(--text-4); }
   .asst-action-btn:disabled { opacity:.55; cursor:default; }
   .asst-action-status { margin-top:8px; font-size:11.5px; font-weight:700; display:flex; align-items:center; gap:5px; }
-  .asst-action-status.executed { color:#3ecf6e; }
+  .asst-action-status.executed { color:var(--ui-ok); }
   .asst-action-status.rejected { color:var(--text-6); }
   .asst-knowledge-type-chip { display:inline-flex; align-items:center; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--text-5); background:var(--bg-3); border:1px solid var(--border-1); border-radius:6px; padding:2px 7px; margin-bottom:5px; }
   .asst-scope-label { font-size:10.5px; font-weight:700; color:var(--text-6); margin-top:8px; margin-bottom:5px; }

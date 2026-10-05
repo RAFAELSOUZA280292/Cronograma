@@ -11,6 +11,7 @@ import { Mic, Plus, X, Trash2, Undo2, Clock, Users, CalendarDays, ChevronDown, F
 import { S, fmtDate, fmtTs, useIsMobile, SidePanel } from '../App.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 import DossierPanel from './DossierPanel.jsx';
+import { activate } from '../ui/index.jsx';
 
 export const MEETINGS_CSS = `
   .mtg-view input[type=text], .mtg-view input[type=date], .mtg-view input[type=time],
@@ -22,15 +23,15 @@ export const MEETINGS_CSS = `
   .mtg-card { background:var(--bg-2); border:1px solid var(--border-1); border-radius:10px; padding:14px 16px; cursor:pointer; transition:border-color .12s; }
   .mtg-card:hover { border-color:var(--border-3); }
   .mtg-badge { display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; white-space:nowrap; }
-  .mtg-badge-done { color:#3ecf6e; background:rgba(62,207,110,.14); border:1px solid rgba(62,207,110,.5); }
-  .mtg-badge-upcoming { color:#3ea6ff; background:rgba(62,166,255,.14); border:1px solid rgba(62,166,255,.5); }
+  .mtg-badge-done { color:var(--ui-ok); background:rgba(62,207,110,.14); border:1px solid rgba(62,207,110,.5); }
+  .mtg-badge-upcoming { color:var(--ui-info2); background:rgba(62,166,255,.14); border:1px solid rgba(62,166,255,.5); }
   .mtg-section-title { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--text-5); margin:18px 0 8px; }
   .mtg-section-title:first-child { margin-top:0; }
   .mtg-sub-row { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:8px; background:var(--bg-2); border:1px solid var(--border-1); font-size:12px; }
   .mtg-sub-status { display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; white-space:nowrap; flex-shrink:0; }
-  .mtg-sub-pending, .mtg-sub-processing { color:#3ea6ff; background:rgba(62,166,255,.14); border:1px solid rgba(62,166,255,.5); }
-  .mtg-sub-done { color:#3ecf6e; background:rgba(62,207,110,.14); border:1px solid rgba(62,207,110,.5); }
-  .mtg-sub-failed { color:#e2574c; background:rgba(226,87,76,.14); border:1px solid rgba(226,87,76,.5); }
+  .mtg-sub-pending, .mtg-sub-processing { color:var(--ui-info2); background:rgba(62,166,255,.14); border:1px solid rgba(62,166,255,.5); }
+  .mtg-sub-done { color:var(--ui-ok); background:rgba(62,207,110,.14); border:1px solid rgba(62,207,110,.5); }
+  .mtg-sub-failed { color:var(--ui-danger); background:rgba(226,87,76,.14); border:1px solid rgba(226,87,76,.5); }
   @keyframes mtg-spin { to { transform: rotate(360deg); } }
   .mtg-spin { animation: mtg-spin 1s linear infinite; }
 `;
@@ -180,7 +181,7 @@ export function MeetingsView({ meetings, team, pid, companyName, canDossier, onA
     const isUpcoming = m.date && m.date > today;
     const summary = actionItemsSummary(m.actionItems);
     return (
-      <div key={m.id} className="mtg-card" onClick={() => onOpen(m.id)}>
+      <div key={m.id} className="mtg-card" {...activate(() => onOpen(m.id))}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-1)' }}>{m.title || 'Reunião sem título'}</div>
           <span className={`mtg-badge ${isUpcoming ? 'mtg-badge-upcoming' : 'mtg-badge-done'}`}>{isUpcoming ? 'Programada' : 'Realizada'}</span>

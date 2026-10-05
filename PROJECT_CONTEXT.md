@@ -6760,6 +6760,49 @@ estilo (quadrados, sem padding) — os únicos do app inteiro (medido: 0 nas dem
 Não auditado: tela de login, XFlow (conta de teste sem acesso), páginas públicas `/quadro` e `/reuniao`, telas em
 tema escuro, mobile.
 
+## 72. Peças visuais comuns, estados vazios/carregando e auditoria de acessibilidade (2026-10-04)
+
+Pedido do Rafael ("faça 1, 2 e 3 em ordem"): (1) um conjunto único de peças visuais, (2) telas vazias/carregando
+decentes, (3) auditoria MEDIDA de contraste, toque e teclado. Resultado completo e o que ainda reprova:
+`docs/AUDITORIA_VISUAL.md`.
+
+**(1) `src/ui/`** — `ui.css` (importado por `index.jsx`, vai no CSS global do build) + componentes: `Card`, `Button`
+(`primary`/`danger`/`sm`), `Chip`/`ChipRow` (filtro com contagem, `aria-pressed`, cor própria via `--chip-accent`),
+`Segmented`, `Tabs` (`role=tablist/tab`, `aria-selected`), `Select`, `Kpi`/`KpiGrid` (`featured`, `tone`), `Section`,
+`EmptyState`, `Skeleton`/`SkeletonCards`/`SkeletonKpis`, `Callout`, `BusyBar`, `activate()`/`activateRow()` (tornam um
+`div`/`tr` clicável acessível por teclado: `role`, `tabIndex`, Enter/Espaço, sem mudar o que o clique faz). Só
+apresentação — quem usa continua dono do estado e dos handlers. Tokens semânticos **adaptativos ao tema**:
+`--ui-ok/-warn/-danger/-info/-info2/-accent-text` (claro escuro, escuro claro). Migrados nesta rodada, sem tocar em
+lógica: **Conhecimento** (abas, Visão Geral, Memórias, Conflitos, Pessoas/Empresas, Métricas, drawer),
+**Visão Geral Empresas** (períodos viram `Chip`, 4 filtros viram `Select`, linhas viram acessíveis) e **Agenda**
+(`Segmented`, `Callout` de "conectar Google", `BusyBar`). **NÃO migrados** (seguem com CSS próprio): CRM, Pareceres,
+Reuniões, XFlow, Atividades, Usuários. Próximo passo natural: migrar um por vez.
+
+**(2) Estados** — Conhecimento: de 10 cartões "0" iguais para 3 destaques (Conhecimento ativo, Aprendidos em 7 dias,
+Precisam de atenção — esse é clicável e vermelho se > 0) + grupos "Como está a memória" e "Economia da RENATA" (os 10
+números continuam, nada sumiu). `EmptyState` com orientação do que fazer em cada vazio (Visão Geral, Memórias com
+"Limpar busca e filtros", Conflitos, Pessoas/Empresas, Métricas); `SkeletonCards/Kpis` no lugar de "Carregando…";
+Visão Geral: vazio por período (ok/informativo) com "Limpar filtros" quando há filtro; Agenda: aviso quando o período
+não tem compromisso e barra de progresso enquanto carrega.
+
+**(3) Medição e correções** (detalhe e números em `docs/AUDITORIA_VISUAL.md`):
+- Contraste: 249/441 → 1/465 (claro), 73/273 → 1/294 (escuro). Causas: (a) cinzas `--text-3…7` de `index.html`
+  reajustados nos dois temas; (b) cores de status "neon" como texto no tema claro (verde 1,6:1, azul 2,6:1,
+  amarelo 1,5:1) — 52 regras de CSS de módulo trocadas por `var(--ui-*)` e, para o que vem INLINE de JS
+  (`STATUS_META` etc.), override global `html[data-theme="light"] [style^="color: rgb(…)"] {color:… !important}`
+  em `index.html` (casa só `color:`, não `border-color`/`background`).
+- Foco: nenhum botão removia o anel padrão; 18 regras de CAMPO removiam `outline` e trocavam só a cor da borda →
+  halo global `input/select/textarea:focus-visible {box-shadow}`. O teste de foco por `.focus()` não funciona neste
+  browser (documento sem foco) — por isso foi auditado pelas regras.
+- Teclado: cartão "Próxima atividade", linhas da tabela do Resumo e do quadro em lista, cartões de reunião e os 5
+  filtros-cartão de Atividades passaram a ser focáveis (`activate`/`activateRow`).
+- Toque (só `@media (max-width:767px)`): `button[title]` ≥ 36 px e os de início/tema/sair/notificações ≥ 40 px
+  (eram 23×23 em todas as telas).
+**Limite honesto**: a medição de contraste ignora imagens/gradientes e trata `opacity` como multiplicador; 6 textos
+esmaecidos DE PROPÓSITO (empresa pausada, "Recusado") ainda reprovam. Login, XFlow, páginas públicas e a maioria dos
+modais não foram medidos. Screenshots só funcionaram parte do tempo (painel oculto), então parte da conferência
+visual foi por DOM/estilos computados.
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |

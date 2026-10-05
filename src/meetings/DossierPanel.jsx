@@ -27,7 +27,7 @@ const DOSSIER_CSS = `
   .dos-spin { animation:dos-rot 1s linear infinite; } @keyframes dos-rot { to { transform:rotate(360deg); } }
   .dos-tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin:6px 0 4px; }
   .dos-tile { background:var(--bg-3); border:1px solid var(--border-1); border-radius:10px; padding:10px 12px; } .dos-tile b { display:block; font-size:19px; color:var(--text-1); } .dos-tile span { font-size:11px; color:var(--text-5); }
-  .dos-tile.bad b { color:#e2574c; }
+  .dos-tile.bad b { color:var(--ui-danger); }
   .dos-h { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--text-5); margin:24px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--border-1); }
   .dos-p { font-size:13.5px; line-height:1.6; color:var(--text-2); margin:0 0 10px; white-space:pre-wrap; }
   .dos-item { padding:10px 0; border-bottom:1px solid var(--border-1); } .dos-item:last-child { border-bottom:none; }
@@ -36,14 +36,14 @@ const DOSSIER_CSS = `
   .dos-card { background:var(--bg-3); border:1px solid var(--border-1); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
   .dos-pts { margin:8px 0 0; padding-left:18px; font-size:12.5px; color:var(--text-3); line-height:1.55; }
   .dos-tag { display:inline-block; font-size:10px; font-weight:800; padding:2px 8px; border-radius:99px; background:var(--bg-4); color:var(--text-3); vertical-align:middle; margin-left:6px; }
-  .dos-tag.em_andamento, .dos-tag.alterada { background:rgba(255,159,64,.18); color:#e08a2a; } .dos-tag.concluida, .dos-tag.vigente { background:rgba(62,207,110,.16); color:#2f9e63; }
-  .dos-tag.revogada { background:rgba(226,87,76,.16); color:#e2574c; } .dos-tag.incerta { background:rgba(245,196,0,.18); color:#b98900; }
+  .dos-tag.em_andamento, .dos-tag.alterada { background:rgba(255,159,64,.18); color:#e08a2a; } .dos-tag.concluida, .dos-tag.vigente { background:rgba(62,207,110,.16); color:var(--ui-ok); }
+  .dos-tag.revogada { background:rgba(226,87,76,.16); color:var(--ui-danger); } .dos-tag.incerta { background:rgba(245,196,0,.18); color:#b98900; }
   .dos-note { font-size:12px; color:#e08a2a; margin-top:3px; }
   .dos-srcs { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
   .dos-src { font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:99px; background:var(--bg-4); border:1px solid var(--border-1); color:var(--text-4); cursor:pointer; font-family:inherit; }
   .dos-src:hover { color:var(--text-1); border-color:var(--border-3); }
   .dos-open { display:grid; grid-template-columns:minmax(0,2.2fr) minmax(0,1.1fr) minmax(0,.9fr) minmax(0,.9fr); gap:10px; padding:8px 0; border-bottom:1px solid var(--border-1); font-size:12.5px; align-items:start; }
-  .dos-open.late .due { color:#e2574c; font-weight:700; }
+  .dos-open.late .due { color:var(--ui-danger); font-weight:700; }
   .dos-sidehead { font-size:11.5px; font-weight:800; color:var(--text-4); margin:14px 0 2px; }
   .dos-foot { font-size:11px; color:var(--text-6); margin-top:22px; line-height:1.5; }
   @media (max-width:640px) { .dos-box { padding:16px 14px 22px; } .dos-open { grid-template-columns:1fr 1fr; } }

@@ -65,7 +65,7 @@ export const PARECERES_CSS = `
   .par-btn:disabled { opacity:.5; cursor:default; }
 
   .par-empty { text-align:center; color:var(--text-5); font-size:14px; padding:72px 12px; line-height:1.6; }
-  .par-empty-icon { width:56px; height:56px; border-radius:16px; background:rgba(245,196,0,.14); color:#F5C400; display:inline-flex; align-items:center; justify-content:center; margin-bottom:14px; }
+  .par-empty-icon { width:56px; height:56px; border-radius:16px; background:rgba(245,196,0,.14); color:var(--ui-accent-text); display:inline-flex; align-items:center; justify-content:center; margin-bottom:14px; }
   .par-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap:18px; }
   .par-card { background:var(--bg-1); border:1px solid var(--border-1); border-radius:16px; padding:20px 20px 16px; cursor:pointer; display:flex; flex-direction:column; gap:12px; min-width:0; box-shadow:0 1px 2px rgba(0,0,0,.04); transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
   .par-card:hover { transform:translateY(-2px); border-color:var(--border-3); box-shadow:0 10px 28px rgba(0,0,0,.10); }
@@ -73,7 +73,7 @@ export const PARECERES_CSS = `
   .par-card-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .par-card-pdf { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:var(--text-5); flex-shrink:0; }
   .par-card-main { display:flex; flex-direction:column; gap:7px; min-width:0; }
-  .par-card-kicker { font-size:11.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#b8920a; }
+  .par-card-kicker { font-size:11.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--ui-accent-text); }
   .par-card-title { font-size:16px; font-weight:700; color:var(--text-1); line-height:1.35; letter-spacing:-.005em; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
   .par-card-desc { font-size:13.5px; color:var(--text-4); line-height:1.55; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
   .par-card-link { display:inline-flex; align-items:center; gap:6px; align-self:flex-start; font-size:12.5px; font-weight:600; color:var(--text-3); background:var(--bg-3); border-radius:8px; padding:6px 10px; max-width:100%; }
@@ -87,8 +87,8 @@ export const PARECERES_CSS = `
   .par-card-comments { display:flex; align-items:center; gap:5px; flex-shrink:0; font-variant-numeric:tabular-nums; }
 
   .par-tag { display:inline-flex; align-items:center; gap:6px; align-self:flex-start; font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:999px; max-width:100%; }
-  .par-tag-general { background:rgba(91,141,239,.13); color:#4a7be0; }
-  .par-tag-client { background:rgba(62,207,110,.15); color:#2a8f5a; }
+  .par-tag-general { background:rgba(91,141,239,.13); color:var(--ui-info); }
+  .par-tag-client { background:rgba(62,207,110,.15); color:var(--ui-ok); }
 
   .par-scope-toggle { display:flex; gap:6px; margin-top:2px; }
   .par-scope-toggle button {
@@ -116,7 +116,7 @@ export const PARECERES_CSS = `
   .par-dropzone { margin-top:6px; border:1.5px dashed var(--border-3); border-radius:11px; padding:22px 14px; text-align:center; cursor:pointer; color:var(--text-5); font-size:12.5px; }
   .par-dropzone:hover { border-color:#F5C400; color:var(--text-3); }
   .par-dropzone.has-file { border-style:solid; border-color:#3ecf6e; color:var(--text-2); }
-  .par-error { font-size:12px; color:#e2574c; margin-top:10px; }
+  .par-error { font-size:12px; color:var(--ui-danger); margin-top:10px; }
   .par-btn-row { display:flex; gap:8px; margin-top:18px; justify-content:flex-end; }
 
   .par-drawer-title-row { display:flex; align-items:flex-start; gap:8px; margin-bottom:4px; }
@@ -131,7 +131,7 @@ export const PARECERES_CSS = `
   .par-comment-head { display:flex; align-items:center; justify-content:space-between; font-size:11px; color:var(--text-6); margin-bottom:4px; }
   .par-comment-text { font-size:12.5px; color:var(--text-2); white-space:pre-wrap; }
   .par-comment-del { background:none; border:none; color:var(--text-7); cursor:pointer; padding:2px; }
-  .par-comment-del:hover { color:#e2574c; }
+  .par-comment-del:hover { color:var(--ui-danger); }
   .par-comment-input-row { display:flex; gap:8px; margin-top:10px; align-items:flex-end; }
   .par-comment-input-row textarea { flex:1; min-height:44px; }
 `;

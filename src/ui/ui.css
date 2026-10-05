@@ -1,0 +1,139 @@
+/* Peças visuais comuns do app (2026-10-04, §72). Antes cada módulo reinventava cartão, aba, etiqueta e botão
+   (par-*, knw-*, crm-*, pb-*, mtg2-*…) e por isso as telas pareciam de produtos diferentes. Tudo aqui usa os
+   tokens de index.html (--bg-*, --border-*, --text-*) e funciona nos dois temas. Prefixo `ui-` p/ nunca colidir. */
+
+:root {
+  --ui-accent: #F5C400;
+  --ui-accent-ink: #111111;
+  --ui-ok: #4fd98a;
+  --ui-warn: #ffb066;
+  --ui-danger: #ff7b70;
+  --ui-info: #7ba7ff;
+  --ui-info2: #5bb8ff;
+  --ui-ok-bg: rgba(62, 207, 110, .14);
+  --ui-warn-bg: rgba(255, 159, 64, .14);
+  --ui-danger-bg: rgba(226, 87, 76, .15);
+  --ui-info-bg: rgba(91, 141, 239, .15);
+  --ui-accent-bg: rgba(245, 196, 0, .14);
+  --ui-accent-text: #F5C400;
+  --ui-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+  --ui-shadow-hover: 0 8px 24px rgba(0, 0, 0, .35);
+}
+html[data-theme="light"] {
+  --ui-accent-text: #7a5f00;
+  --ui-ok: #176f39;
+  --ui-warn: #9a4e00;
+  --ui-danger: #b3281d;
+  --ui-info: #2b57b8;
+  --ui-info2: #14659f;
+  --ui-shadow: 0 1px 2px rgba(40, 32, 8, .05);
+  --ui-shadow-hover: 0 8px 24px rgba(40, 32, 8, .10);
+}
+
+/* ---------- Cartão ---------- */
+.ui-card { background: var(--bg-2); border: 1px solid var(--border-1); border-radius: 14px; padding: 16px 18px; box-shadow: var(--ui-shadow); min-width: 0; }
+.ui-card.interactive { cursor: pointer; transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
+.ui-card.interactive:hover { transform: translateY(-1px); border-color: var(--border-3); box-shadow: var(--ui-shadow-hover); }
+.ui-card.interactive:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.ui-card-title { font-size: 13.5px; font-weight: 700; color: var(--text-1); line-height: 1.4; }
+.ui-card-meta { font-size: 12px; color: var(--text-5); margin-top: 4px; line-height: 1.5; }
+
+/* ---------- Botão ---------- */
+.ui-btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--border-2); background: transparent; color: var(--text-3); font-family: inherit; font-size: 13px; font-weight: 700; line-height: 1; white-space: nowrap; cursor: pointer; transition: background .12s ease, border-color .12s ease; }
+.ui-btn:hover:not(:disabled) { background: var(--bg-3); border-color: var(--border-3); }
+.ui-btn:disabled { opacity: .5; cursor: default; }
+.ui-btn.primary { background: var(--ui-accent); border-color: var(--ui-accent); color: var(--ui-accent-ink); }
+.ui-btn.primary:hover:not(:disabled) { background: #ffd21f; border-color: #ffd21f; }
+.ui-btn.danger { background: #c9392e; border-color: #c9392e; color: #fff; }
+.ui-btn.danger:hover:not(:disabled) { background: #b3281d; border-color: #b3281d; }
+.ui-btn.sm { min-height: 30px; padding: 6px 11px; font-size: 12.5px; border-radius: 8px; }
+
+/* ---------- Etiqueta de filtro (chip) ---------- */
+.ui-chip { --chip-accent: var(--ui-accent); display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 8px 15px; border-radius: 11px; border: 1px solid var(--border-2); background: var(--bg-2); color: var(--text-2); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .12s ease, border-color .12s ease; }
+.ui-chip:hover { border-color: var(--border-3); background: var(--bg-3); }
+.ui-chip[aria-pressed="true"] { background: var(--chip-accent); border-color: var(--chip-accent); color: #111; }
+.ui-chip-n { min-width: 20px; text-align: center; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 800; background: var(--bg-4); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.ui-chip[aria-pressed="true"] .ui-chip-n { background: rgba(0, 0, 0, .2); color: #111; }
+.ui-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---------- Segmentado (Dia | Semana | Mês) ---------- */
+.ui-seg { display: inline-flex; gap: 3px; padding: 3px; background: var(--bg-3); border: 1px solid var(--border-1); border-radius: 11px; }
+.ui-seg button { min-height: 32px; padding: 6px 14px; border: none; border-radius: 8px; background: transparent; color: var(--text-4); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.ui-seg button:hover { color: var(--text-1); }
+.ui-seg button[aria-pressed="true"], .ui-seg button[aria-selected="true"] { background: var(--bg-1); color: var(--text-1); box-shadow: var(--ui-shadow); }
+
+/* ---------- Abas ---------- */
+.ui-tabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid var(--border-1); overflow-x: auto; flex-shrink: 0; background: var(--bg-1); }
+.ui-tab { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 10px 14px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-4); font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.ui-tab:hover { color: var(--text-1); }
+.ui-tab[aria-selected="true"] { color: var(--text-1); border-bottom-color: var(--ui-accent); }
+.ui-tab-n { font-size: 11.5px; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: var(--bg-4); color: var(--text-3); }
+
+/* ---------- Campos ---------- */
+.ui-select, .ui-input { min-height: 38px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-3); background: var(--bg-1); color: var(--text-1); font-family: inherit; font-size: 13px; }
+.ui-select { cursor: pointer; }
+.ui-select:focus, .ui-input:focus { outline: none; border-color: var(--ui-accent); box-shadow: 0 0 0 3px rgba(245, 196, 0, .35); }
+.ui-field-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* ---------- Indicador numérico (KPI) ---------- */
+.ui-kpi-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.ui-kpi-grid.featured { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.ui-kpi { display: flex; flex-direction: column; gap: 4px; text-align: left; font-family: inherit; }
+button.ui-kpi { width: 100%; }
+.ui-kpi-label { font-size: 12px; font-weight: 700; color: var(--text-4); letter-spacing: .01em; display: flex; align-items: center; gap: 6px; }
+.ui-kpi-value { font-size: 26px; font-weight: 800; line-height: 1.1; color: var(--text-1); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.ui-kpi.featured { padding: 18px 20px; }
+.ui-kpi.featured .ui-kpi-value { font-size: 36px; }
+.ui-kpi-hint { font-size: 12px; color: var(--text-5); line-height: 1.45; }
+.ui-kpi.tone-danger { border-color: rgba(226, 87, 76, .45); background: var(--ui-danger-bg); }
+.ui-kpi.tone-danger .ui-kpi-value { color: var(--ui-danger); }
+.ui-kpi.tone-ok .ui-kpi-value { color: var(--ui-ok); }
+.ui-kpi.tone-accent { border-color: rgba(245, 196, 0, .5); }
+
+/* ---------- Títulos de seção ---------- */
+.ui-section { margin-bottom: 28px; }
+.ui-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.ui-section-title { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 14px; font-weight: 800; color: var(--text-1); }
+.ui-eyebrow { font-size: 11.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-5); }
+
+/* ---------- Tela vazia ---------- */
+.ui-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 32px 18px; border: 1px dashed var(--border-2); border-radius: 14px; background: var(--bg-2); }
+.ui-empty.compact { padding: 22px 16px; }
+.ui-empty-icon { width: 44px; height: 44px; border-radius: 13px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; background: var(--ui-accent-bg); color: var(--ui-accent); }
+html[data-theme="light"] .ui-empty-icon { color: #7a5f00; }
+.ui-empty.tone-ok .ui-empty-icon { background: var(--ui-ok-bg); color: var(--ui-ok); }
+.ui-empty.tone-info .ui-empty-icon { background: var(--ui-info-bg); color: var(--ui-info); }
+.ui-empty-title { font-size: 14.5px; font-weight: 800; color: var(--text-1); }
+.ui-empty-desc { font-size: 13px; line-height: 1.55; color: var(--text-4); max-width: 420px; }
+.ui-empty-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
+
+/* ---------- Carregando (esqueleto) ---------- */
+.ui-skel { display: block; border-radius: 8px; background: linear-gradient(90deg, var(--bg-3) 25%, var(--bg-4) 50%, var(--bg-3) 75%); background-size: 200% 100%; animation: ui-shimmer 1.4s ease-in-out infinite; }
+.ui-skel-stack { display: flex; flex-direction: column; gap: 10px; }
+@keyframes ui-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .ui-skel { animation: none; } .ui-card.interactive { transition: none; } .ui-card.interactive:hover { transform: none; } }
+
+/* ---------- Aviso (callout) ---------- */
+.ui-callout { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--border-2); background: var(--bg-3); color: var(--text-2); font-size: 13px; line-height: 1.55; }
+.ui-callout.tone-info { background: var(--ui-info-bg); border-color: rgba(91, 141, 239, .4); }
+.ui-callout.tone-warn { background: var(--ui-warn-bg); border-color: rgba(255, 159, 64, .4); }
+.ui-callout.tone-danger { background: var(--ui-danger-bg); border-color: rgba(226, 87, 76, .4); }
+.ui-callout-icon { flex-shrink: 0; margin-top: 2px; }
+.ui-callout.tone-info .ui-callout-icon { color: var(--ui-info); }
+.ui-callout.tone-warn .ui-callout-icon { color: var(--ui-warn); }
+.ui-callout.tone-danger .ui-callout-icon { color: var(--ui-danger); }
+.ui-callout-body { flex: 1; min-width: 0; }
+.ui-callout-title { font-weight: 800; color: var(--text-1); margin-bottom: 2px; }
+.ui-callout-action { flex-shrink: 0; align-self: center; }
+
+/* ---------- Barra de progresso indeterminada ---------- */
+.ui-busy { height: 2px; background: var(--border-1); overflow: hidden; position: relative; }
+.ui-busy::after { content: ''; position: absolute; inset: 0 auto 0 0; width: 30%; background: var(--ui-accent); animation: ui-busy 1.1s ease-in-out infinite; }
+@keyframes ui-busy { from { transform: translateX(-100%); } to { transform: translateX(420%); } }
+@media (prefers-reduced-motion: reduce) { .ui-busy::after { animation: none; width: 100%; opacity: .5; } }
+
+/* ---------- Toque no celular: alvos maiores só onde há dedo ---------- */
+@media (max-width: 767px) {
+  .ui-btn, .ui-chip, .ui-seg button, .ui-select, .ui-input { min-height: 44px; }
+  .ui-btn.sm { min-height: 40px; }
+}

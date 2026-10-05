@@ -22,16 +22,16 @@ const CSS = `
   .pst-note { font-size:12.5px; color:var(--text-5); line-height:1.5; }
   .pst-others { display:flex; gap:8px; align-items:flex-start; background:var(--bg-3); border-radius:10px; padding:10px 12px; }
   .pst-others svg { flex-shrink:0; margin-top:2px; }
-  .pst-error { font-size:12.5px; color:#e2574c; line-height:1.5; }
+  .pst-error { font-size:12.5px; color:var(--ui-danger); line-height:1.5; }
   .pst-item { border:1px solid var(--border-1); border-radius:12px; background:var(--bg-2); }
   .pst-item-head { display:flex; align-items:center; gap:10px; padding:12px 14px; cursor:pointer; }
   .pst-item-head.static { cursor:default; }
   .pst-item-title { flex:1; min-width:0; font-size:13.5px; font-weight:700; line-height:1.35; overflow-wrap:anywhere; }
   .pst-pill { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap; flex-shrink:0; }
-  .pst-pill.done { background:rgba(62,207,110,.15); color:#2a8f5a; }
-  .pst-pill.new { background:rgba(245,196,0,.18); color:#a07c00; }
-  .pst-pill.running { background:rgba(91,141,239,.15); color:#4a7be0; }
-  .pst-pill.failed { background:rgba(226,87,76,.14); color:#d24a40; }
+  .pst-pill.done { background:rgba(62,207,110,.15); color:var(--ui-ok); }
+  .pst-pill.new { background:rgba(245,196,0,.18); color:var(--ui-accent-text); }
+  .pst-pill.running { background:rgba(91,141,239,.15); color:var(--ui-info); }
+  .pst-pill.failed { background:rgba(226,87,76,.14); color:var(--ui-danger); }
   .pst-learn { padding:2px 16px 16px 40px; display:flex; flex-direction:column; gap:12px; font-size:13px; line-height:1.55; color:var(--text-3); }
   .pst-learn h4 { margin:0 0 4px; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text-6); }
   .pst-learn ul { margin:0; padding-left:18px; }

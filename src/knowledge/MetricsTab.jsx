@@ -5,6 +5,8 @@
 import React, { useEffect, useState } from 'react';
 import { apiGet } from '../lib/api.js';
 import { knowledgeTypeLabel } from './knowledgeMeta.js';
+import { EmptyState, SkeletonCards } from '../ui/index.jsx';
+import { AlertTriangle } from 'lucide-react';
 
 function pct(n) { return n == null ? '—' : `${Math.round(n * 100)}%`; }
 
@@ -22,8 +24,8 @@ export function MetricsTab() {
     }).catch(() => {});
   }, []);
 
-  if (!loaded) return <div className="knw-empty">Carregando…</div>;
-  if (!metrics) return <div className="knw-empty">Não consegui carregar as métricas.</div>;
+  if (!loaded) return <SkeletonCards count={3} height={110} />;
+  if (!metrics) return <EmptyState icon={AlertTriangle} title="Não consegui carregar as métricas" description="Atualize a página em alguns segundos. Se continuar, avise o suporte." />;
 
   const { memory, cache, promptCache, topFacts, topProjects, topUsers } = metrics;
 

@@ -31,7 +31,7 @@ export const ACTIVITY_ROW_CSS = `
   .todo-avatar { width:20px; height:20px; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:800; flex-shrink:0; }
   .todo-date-chip { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:var(--text-5); background:var(--bg-3); border:1px solid var(--border-1); border-radius:7px; padding:5px 9px; cursor:pointer; }
   .todo-date-chip:hover { border-color:var(--border-3); }
-  .todo-date-chip.overdue { color:#e2574c; background:rgba(226,87,76,.1); border-color:rgba(226,87,76,.4); font-weight:700; }
+  .todo-date-chip.overdue { color:var(--ui-danger); background:rgba(226,87,76,.1); border-color:rgba(226,87,76,.4); font-weight:700; }
   .todo-owner-btn { font-size:10px; font-weight:800; padding:5px 8px; border-radius:6px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .todo-origin-badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--text-5); background:var(--bg-3); border:1px solid var(--border-1); border-radius:7px; padding:5px 9px; cursor:pointer; white-space:nowrap; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
   .todo-origin-badge:hover { color:var(--text-2); border-color:var(--border-3); }
