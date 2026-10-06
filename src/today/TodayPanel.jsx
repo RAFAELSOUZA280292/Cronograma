@@ -6,6 +6,7 @@ import React, { useMemo, useState } from 'react';
 import { CheckCircle2, CalendarClock, ExternalLink, Mic, ListChecks, Columns3, Building2, Bell, ChevronDown } from 'lucide-react';
 import { Button, EmptyState } from '../ui/index.jsx';
 import { buildTodayItems } from './todayItems.js';
+import { useNotifPrefs, visibleNotifications, requestNotifSettings } from '../lib/notifPrefs.js';
 
 const LIMIT = 8;
 const MAX_NOTIFS = 5;
@@ -132,7 +133,8 @@ export default function TodayPanel({ projects, personalBoard, user, notification
   const [open, setOpen] = useState({});
   const [collapsed, toggleCollapsed] = useCollapsed();
   const data = useMemo(() => buildTodayItems({ projects, personalBoard, user, todayIso }), [projects, personalBoard, user, todayIso]);
-  const unread = useMemo(() => (notifications || []).filter((n) => !n.read), [notifications]);
+  const prefs = useNotifPrefs();
+  const unread = useMemo(() => visibleNotifications(notifications, prefs.categories).filter((n) => !n.read), [notifications, prefs.categories]);
   const shownNotifs = unread.slice(0, MAX_NOTIFS);
   const toggle = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const nothingDue = data.total === 0;
@@ -201,6 +203,7 @@ export default function TodayPanel({ projects, personalBoard, user, notification
             <div className="tp-more" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {unread.length > MAX_NOTIFS && <Button size="sm" onClick={actions.openAllNotifications}>{`Ver todas (${unread.length})`}</Button>}
               {unread.length > 1 && actions.markAllNotificationsRead && <Button size="sm" onClick={actions.markAllNotificationsRead}>Marcar todas como lidas</Button>}
+              <Button size="sm" onClick={() => { requestNotifSettings(); actions.openAllNotifications(); }}>Escolher quais ver</Button>
             </div>
           </div>
           </section>

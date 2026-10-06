@@ -49,7 +49,7 @@ router.put('/preferences', requireAuth, async (req, res, next) => {
     const birth = validBirth(body.birthDate);
     if (birth === null) return res.status(400).json({ message: 'Data de nascimento inválida.' });
     const prefs = { enabled: body.enabled !== false, cards: Object.keys(CARDS).filter((c) => cards.includes(c)), birthDate: birth };
-    await pool.query('UPDATE users SET preferences=$1 WHERE id=$2', [JSON.stringify(prefs), req.user.id]);
+    await pool.query("UPDATE users SET preferences = COALESCE(preferences, '{}'::jsonb) || $1::jsonb WHERE id=$2", [JSON.stringify(prefs), req.user.id]);
     res.json(describe(prefs));
   } catch (e) { next(e); }
 });
