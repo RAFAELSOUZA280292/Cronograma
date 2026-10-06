@@ -2,16 +2,16 @@
 // tem VÁRIOS anexos (o mesmo documento em Word, Excel, PDF, HTML, link…); a gaveta alterna entre eles com prévia por tipo:
 // PDF, imagem, HTML (isolado) e texto abrem na própria tela, Word/PowerPoint/Excel mostram o começo do conteúdo, link mostra a prévia da página.
 import React, { useEffect, useRef, useState } from 'react';
-import { FileText, FileSpreadsheet, Presentation, Image as ImageIcon, Link2, Code2, X, Plus, Upload, Trash2, Pencil, ExternalLink, Download, RefreshCw, MessageSquare, Search } from 'lucide-react';
-import { useDebouncedField, useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
+import { FileText, FileSpreadsheet, Presentation, Image as ImageIcon, Link2, Code2, X, Plus, Upload, Trash2, ExternalLink, Download, RefreshCw, MessageSquare, Search } from 'lucide-react';
+import { useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
 import { ConfirmDialog, Button, IconButton, ErrorState, SaveStatus } from '../ui/index.jsx';
 import { ComposeBox, CommentThread, useMentionUsers } from '../ui/ComposeBox.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { ModulePanel } from '../pareceres/ModulePanel.jsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { PARECERES_CSS, fmtFileSize, initialsOf, apiErrorText } from '../pareceres/pareceresMeta.js';
-import { InlineAlert, useFieldSaver } from '../pareceres/Pareceres.jsx';
-import { MODELOS_CSS, MAX_FILE_MB, MAX_ITEMS, ACCEPT, KIND_META, INLINE_KINDS, itemKind, kindsOf, itemName, hostOf, isAllowedFile, SUGGESTED_CATEGORIES } from './modelosMeta.js';
+import { InlineAlert, useFieldSaver, useAutosaveField, fmtHHMM } from '../pareceres/Pareceres.jsx';
+import { MODELOS_CSS, MAX_FILE_MB, MAX_ITEMS, ACCEPT, KIND_META, INLINE_KINDS, itemKind, kindsOf, itemName, hostOf, isAllowedFile, isValidHttpUrl, SUGGESTED_CATEGORIES } from './modelosMeta.js';
 
 const ICONS = { pdf: FileText, word: FileText, text: FileText, ppt: Presentation, excel: FileSpreadsheet, image: ImageIcon, link: Link2, html: Code2 };
 const KIND_ORDER = ['pdf', 'word', 'ppt', 'excel', 'html', 'image', 'text', 'link'];
@@ -246,7 +246,6 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
   const [itemId, setItemId] = useState(items[0] ? items[0].id : null);
   const [comments, setComments] = useState(t.comments || []);
   const [commentDirty, setCommentDirty] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newFiles, setNewFiles] = useState([]);
   const [newLinks, setNewLinks] = useState([]);
@@ -258,24 +257,54 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
   const [dlgBusy, setDlgBusy] = useState(false);
   const [dlgError, setDlgError] = useState('');
   const [confirmClose, setConfirmClose] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  const [urlShowErr, setUrlShowErr] = useState(false);
+  const urlTimerRef = useRef(null);
+  const urlDraftRef = useRef('');
+  const urlSentRef = useRef({});
   const mentionCandidates = useMentionUsers();
 
   const item = items.find((i) => i.id === itemId) || items[0];
   const saver = useFieldSaver(async (body) => { onChanged(await apiPatch(`/api/templates/${t.id}`, body)); });
-  const titleField = useDebouncedField(t.title, (v) => saver.save({ title: v }));
-  const descField = useDebouncedField(t.description || '', (v) => saver.save({ description: v }));
-  const catField = useDebouncedField(t.category || '', (v) => saver.save({ category: v }));
+  const urlSaver = useFieldSaver(async (body) => {
+    for (const [k, v] of Object.entries(body)) onChanged(await apiPatch(`/api/templates/${t.id}/items/${k.slice(4)}`, { url: v }));
+  });
+  const titleField = useAutosaveField(t.title, (v) => { if (v.trim()) saver.save({ title: v }); });
+  const descField = useAutosaveField(t.description || '', (v) => saver.save({ description: v }));
+  const catField = useAutosaveField(t.category || '', (v) => saver.save({ category: v }));
+  const itemRef = useRef(item);
+  itemRef.current = item;
 
   useEffect(() => { setComments(t.comments || []); }, [t.id, t.comments]);
   useEffect(() => { if (!items.some((i) => i.id === itemId)) setItemId(items[0] ? items[0].id : null); }, [t.items]);
-  useEffect(() => { setUrlDraft(item && item.url ? item.url : ''); }, [item && item.id, item && item.url]);
+  // O rascunho do endereço só é refeito ao trocar de anexo: a resposta do servidor (endereço normalizado, chega depois da
+  // prévia) não pode atropelar o que a pessoa ainda está digitando.
+  useEffect(() => { const v = item && item.url ? item.url : ''; urlDraftRef.current = v; setUrlDraft(v); setUrlShowErr(false); }, [item && item.id]);
+  useEffect(() => () => { if (urlTimerRef.current) flushUrl(); }, []);
+
+  // Endereço do link grava sozinho, só quando é um http(s) válido; endereço inválido fica no campo com aviso e nada é enviado.
+  function flushUrl() {
+    if (urlTimerRef.current) { clearTimeout(urlTimerRef.current); urlTimerRef.current = null; }
+    const it = itemRef.current;
+    if (!it || it.kind !== 'link') return;
+    const v = urlDraftRef.current.trim();
+    if (!isValidHttpUrl(v)) { if (v !== (urlSentRef.current[it.id] ?? it.url)) setUrlShowErr(true); return; }
+    if (v === (urlSentRef.current[it.id] ?? it.url)) return;
+    urlSentRef.current[it.id] = v;
+    urlSaver.save({ [`url:${it.id}`]: v });
+  }
+  function changeUrl(v) {
+    urlDraftRef.current = v;
+    setUrlDraft(v); setUrlShowErr(false);
+    if (urlTimerRef.current) clearTimeout(urlTimerRef.current);
+    urlTimerRef.current = setTimeout(flushUrl, 700);
+  }
 
   const showError = (message) => setErr(message ? { message } : null);
   async function run(fn, fallback) {
     setBusy(true); setErr(null);
     try { return await fn(); } catch (e) { setErr({ message: `${apiErrorText(e, fallback)}`, retry: () => run(fn, fallback) }); return null; } finally { setBusy(false); }
   }
-  const saveUrl = () => run(async () => onChanged(await apiPatch(`/api/templates/${t.id}/items/${item.id}`, { url: urlDraft })), 'Não foi possível salvar o endereço.');
   const refresh = () => run(async () => onChanged(await apiPatch(`/api/templates/${t.id}/items/${item.id}`, {})), 'Não foi possível atualizar a prévia.');
   async function removeItem() {
     setDlgBusy(true); setDlgError('');
@@ -329,17 +358,37 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
     setDlgBusy(true); setDlgError('');
     try { await apiDelete(`/api/templates/${t.id}`); onDeleted(t.id); } catch (e) { setDlgError(apiErrorText(e, 'Não foi possível excluir o modelo.')); setDlgBusy(false); }
   }
-  function pickItem(id) { setItemId(id); setErr(null); }
+  function pickItem(id) { flushUrl(); setItemId(id); setErr(null); }
 
-  const urlDirty = !!item && item.kind === 'link' && urlDraft !== (item.url || '');
-  const hasDraft = saver.state === 'error' || saver.state === 'saving' || commentDirty || urlDirty || newFiles.length > 0 || newLinks.length > 0;
-  useDirtyForm(hasDraft);
+  const isLink = !!item && item.kind === 'link';
+  const urlTrim = urlDraft.trim();
+  const urlSaved = item ? (urlSentRef.current[item.id] ?? item.url) : '';
+  const urlInvalid = isLink && urlTrim !== urlSaved && !isValidHttpUrl(urlTrim);
+  const urlUnsent = isLink && urlTrim !== urlSaved && !urlInvalid;
+  const titleEmpty = !titleField.draft.trim();
+  const unrecorded = titleField.unsent || descField.unsent || catField.unsent || urlUnsent || urlInvalid || titleEmpty;
+  const states = [saver.state, urlSaver.state];
+  const status = states.includes('error') ? 'error' : states.includes('saving') ? 'saving' : unrecorded ? 'draft' : states.includes('saved') ? 'saved' : 'idle';
+  const savedAtDate = [saver.savedAt, urlSaver.savedAt].filter(Boolean).sort((a, b) => b - a)[0] || null;
+  const anyPending = () => saver.hasPending() || urlSaver.hasPending();
+  const retryAll = () => { saver.retry(); urlSaver.retry(); };
+  const hasAttachDraft = newFiles.length > 0 || newLinks.length > 0;
+  useDirtyForm(states.includes('error') || states.includes('saving') || anyPending() || commentDirty || unrecorded || hasAttachDraft);
 
   async function requestClose() {
-    titleField.flush(); descField.flush(); catField.flush();
-    await saver.settle();
-    if (saver.hasPending() || commentDirty || urlDirty || newFiles.length > 0 || newLinks.length > 0) setConfirmClose(true); else onClose();
+    titleField.flush(); descField.flush(); catField.flush(); flushUrl();
+    await Promise.all([saver.settle(), urlSaver.settle()]);
+    if (anyPending() || commentDirty || titleEmpty || urlInvalid || hasAttachDraft) setConfirmClose(true); else onClose();
   }
+
+  async function saveAndExit() {
+    setExiting(true);
+    retryAll();
+    await Promise.all([saver.settle(), urlSaver.settle()]);
+    setExiting(false);
+    if (anyPending()) setConfirmClose(false); else onClose();
+  }
+  const canSaveAndExit = anyPending() && !commentDirty && !titleEmpty && !urlInvalid && !hasAttachDraft;
 
   const threadComments = comments.map((c) => ({ ...c, author: c.userName, authorId: c.userId }));
   const mentionNames = mentionCandidates.map((m) => m.name);
@@ -349,13 +398,11 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
   return (
     <>
     <ModulePanel title="Modelo" onClose={requestClose}>
+      <div className="par-drawer-status"><SaveStatus state={status} savedAt={fmtHHMM(savedAtDate)} onRetry={retryAll} /></div>
       <div className="par-drawer-title-row">
-        {editing
-          ? <input type="text" style={{ flex: 1, fontSize: 15, fontWeight: 800 }} value={titleField.draft} onChange={(e) => titleField.onChange(e.target.value)} onBlur={titleField.flush} autoFocus />
-          : <div className="par-drawer-title" style={{ flex: 1 }}>{titleField.draft}</div>}
-        <SaveStatus state={saver.state} onRetry={saver.retry} />
-        <IconButton size="sm" icon={Pencil} label={editing ? 'Fechar edição' : 'Editar modelo'} aria-pressed={editing} onClick={() => setEditing((v) => !v)} />
+        <input type="text" aria-label="Título do modelo" style={{ flex: 1, fontSize: 15, fontWeight: 800 }} value={titleField.draft} onChange={(e) => titleField.onChange(e.target.value)} onBlur={titleField.flush} />
       </div>
+      {titleEmpty && <div className="par-error" role="alert" style={{ marginTop: 0, marginBottom: 8 }}>O título não pode ficar vazio.</div>}
       <div className="par-drawer-file">{items.length} {items.length === 1 ? 'anexo' : 'anexos'} · por {t.created_by_name || 'alguém'} em {fmtTs(t.created_at)}</div>
 
       <div className="mdl-items" role="group" aria-label="Anexos do modelo">
@@ -402,33 +449,25 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
       )}
       {item && <div className="par-drawer-file" style={{ marginTop: -8 }}>{kind === 'link' ? item.url : `${item.file_name} · ${fmtFileSize(item.file_size)}`}</div>}
       {item && items.length <= 1 && <div id="mdl-only-item" className="par-drawer-file" style={{ marginTop: -8 }}>{ONLY_ITEM_HINT}</div>}
-      {saver.state === 'error' && <InlineAlert message={`Não foi possível salvar as alterações: ${saver.error} O texto digitado continua aqui.`} onRetry={saver.retry} />}
+      {states.includes('error') && <InlineAlert message={`Não foi possível salvar as alterações: ${saver.state === 'error' ? saver.error : urlSaver.error} O que você digitou continua aqui.`} />}
       {err && <InlineAlert message={err.message} onRetry={err.retry} />}
 
-      {editing && (
-        <div className="mdl-form" style={{ marginBottom: 14 }}>
-          <div className="par-hint">Título, categoria e descrição são gravados sozinhos.{item && kind === 'link' ? ' O endereço do link só vale depois de clicar em Salvar.' : ''}</div>
-          <label htmlFor="mdl-edit-cat" style={{ marginTop: 0 }}>Categoria</label>
-          <input id="mdl-edit-cat" type="text" list={`mdl-cats-${t.id}`} value={catField.draft} onChange={(e) => catField.onChange(e.target.value)} onBlur={catField.flush} maxLength={40} />
-          <datalist id={`mdl-cats-${t.id}`}>{[...new Set([...categories, ...SUGGESTED_CATEGORIES])].map((c) => <option key={c} value={c} />)}</datalist>
-          {item && kind === 'link' && (
-            <>
-              <label htmlFor="mdl-edit-url">Endereço deste link</label>
-              <div className="mdl-url-row">
-                <input id="mdl-edit-url" type="url" value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} />
-                <Button variant="primary" onClick={saveUrl} disabled={busy || urlDraft === item.url} disabledReason={busy ? 'Aguarde terminar' : 'Altere o endereço para salvar'}>Salvar</Button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-      {!editing && t.category && <div style={{ marginBottom: 12 }}><span className="mdl-cat">{t.category}</span></div>}
+      <div className="mdl-form" style={{ marginBottom: 14 }}>
+        <label htmlFor="mdl-edit-cat" style={{ marginTop: 0 }}>Categoria</label>
+        <input id="mdl-edit-cat" type="text" list={`mdl-cats-${t.id}`} value={catField.draft} onChange={(e) => catField.onChange(e.target.value)} onBlur={catField.flush} maxLength={40} />
+        <datalist id={`mdl-cats-${t.id}`}>{[...new Set([...categories, ...SUGGESTED_CATEGORIES])].map((c) => <option key={c} value={c} />)}</datalist>
+        {isLink && (
+          <>
+            <label htmlFor="mdl-edit-url">Endereço deste link</label>
+            <input id="mdl-edit-url" type="url" inputMode="url" value={urlDraft} onChange={(e) => changeUrl(e.target.value)} onBlur={flushUrl} aria-invalid={urlInvalid && urlShowErr ? 'true' : undefined} aria-describedby={urlInvalid && urlShowErr ? 'mdl-url-err' : undefined} />
+            {urlInvalid && urlShowErr && <div id="mdl-url-err" className="par-error" role="alert" style={{ marginTop: 6 }}>Endereço inválido. Use um link que comece com http:// ou https://. Ele só será salvo quando estiver correto.</div>}
+          </>
+        )}
+      </div>
 
       <div className="par-drawer-section">
         <div className="par-drawer-label">Para que serve</div>
-        {editing
-          ? <textarea style={{ width: '100%', minHeight: 70 }} value={descField.draft} onChange={(e) => descField.onChange(e.target.value)} onBlur={descField.flush} placeholder="Quando usar, quem preenche, o que ajustar…" />
-          : <div className="par-drawer-desc">{descField.draft || <span style={{ color: 'var(--text-7)' }}>Sem descrição.</span>}</div>}
+        <textarea aria-label="Para que serve" style={{ width: '100%', minHeight: 70 }} value={descField.draft} onChange={(e) => descField.onChange(e.target.value)} onBlur={descField.flush} placeholder="Quando usar, quem preenche, o que ajustar…" />
       </div>
 
       <div className="par-drawer-section">
@@ -463,7 +502,7 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
         onConfirm={removeItem} onCancel={() => setConfirmRemove(false)}
       />
     )}
-    {confirmClose && <ConfirmDiscardModal onDiscard={onClose} onCancel={() => setConfirmClose(false)} />}
+    {confirmClose && <ConfirmDiscardModal onSaveAndExit={canSaveAndExit ? saveAndExit : undefined} saving={exiting} onDiscard={onClose} onCancel={() => setConfirmClose(false)} />}
     </>
   );
 }

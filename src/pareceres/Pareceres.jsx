@@ -12,9 +12,9 @@
 // (`/api/projects/lite`, payload leve — nunca o `/api/projects` inteiro), guarda também o vínculo
 // forte `company_project_id`, mas isso nunca é obrigatório (cliente pode ainda nem ser projeto aqui).
 import React, { useEffect, useRef, useState } from 'react';
-import { FileText, Plus, Upload, Trash2, Pencil, ExternalLink, MessageSquare, Search, Globe, Building2 } from 'lucide-react';
-import { useDebouncedField, useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
-import { ConfirmDialog, Button, IconButton, ErrorState, SaveStatus } from '../ui/index.jsx';
+import { FileText, Plus, Upload, Trash2, ExternalLink, MessageSquare, Search, Globe, Building2 } from 'lucide-react';
+import { useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
+import { ConfirmDialog, Button, ErrorState, SaveStatus } from '../ui/index.jsx';
 import { ComposeBox, CommentThread, useMentionUsers } from '../ui/ComposeBox.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { ModulePanel } from './ModulePanel.jsx';
@@ -31,47 +31,85 @@ export function InlineAlert({ message, onRetry, retryLabel = 'Tentar de novo' })
   );
 }
 
-// Autosave com estado visível: acumula os campos que ainda não foram gravados, reenvia no "tentar de novo" e
-// deixa o chamador esperar (settle) o que está em voo antes de fechar a gaveta.
+// Autosave com estado visível: acumula os campos que ainda não foram gravados, grava em fila (nunca duas requisições
+// em paralelo — o último valor sempre vence), reenvia no "tentar de novo" e deixa o chamador esperar (settle) o que
+// está em voo antes de fechar a gaveta. Falha nunca apaga o que foi digitado: o valor fica em `pending` até gravar.
 export function useFieldSaver(send) {
   const [state, setState] = useState('idle');
   const [error, setError] = useState('');
+  const [savedAt, setSavedAt] = useState(null);
   const pending = useRef({});
   const active = useRef(0);
   const inflight = useRef(new Set());
+  const chain = useRef(Promise.resolve());
+  const lastError = useRef('');
   const sendRef = useRef(send);
   sendRef.current = send;
 
   function save(patch) {
     pending.current = { ...pending.current, ...patch };
-    const body = { ...pending.current };
-    if (!Object.keys(body).length) return Promise.resolve();
+    if (!Object.keys(pending.current).length) return Promise.resolve();
     active.current += 1;
     setState('saving'); setError('');
-    const p = (async () => {
-      try {
-        await sendRef.current(body);
-        for (const k of Object.keys(body)) if (pending.current[k] === body[k]) delete pending.current[k];
-        active.current -= 1;
-        if (!Object.keys(pending.current).length) setState('saved');
-        else if (active.current === 0) { setState('error'); setError('Algumas alterações ainda não foram gravadas.'); }
-      } catch (e) {
-        active.current -= 1;
-        if (active.current === 0) { setState('error'); setError(apiErrorText(e, 'Não foi possível salvar.')); }
+    const p = chain.current.then(async () => {
+      const body = { ...pending.current };
+      if (Object.keys(body).length) {
+        try {
+          await sendRef.current(body);
+          for (const k of Object.keys(body)) if (pending.current[k] === body[k]) delete pending.current[k];
+          lastError.current = '';
+        } catch (e) { lastError.current = apiErrorText(e, 'Não foi possível salvar.'); }
       }
-    })();
+      active.current -= 1;
+      if (active.current === 0) {
+        if (!Object.keys(pending.current).length) { setState('saved'); setSavedAt(new Date()); setError(''); }
+        else { setState('error'); setError(lastError.current || 'Algumas alterações ainda não foram gravadas.'); }
+      }
+    });
+    chain.current = p;
     inflight.current.add(p);
     p.finally(() => inflight.current.delete(p));
     return p;
   }
 
   return {
-    state, error, save,
+    state, error, savedAt, save,
     retry: () => save({}),
     hasPending: () => Object.keys(pending.current).length > 0,
     settle: () => Promise.all([...inflight.current]),
   };
 }
+
+// Campo de texto sempre editável com gravação automática ~`delayMs` depois da última tecla (e na hora, no blur/ao fechar).
+// O rascunho é 100% local e NUNCA é sobrescrito pela resposta do servidor (ela devolve o texto aparado e apagaria o espaço
+// que a pessoa acabou de digitar). `unsent` = digitado e ainda não entregue ao gravador.
+export function useAutosaveField(initial, commit, delayMs = 500) {
+  const [draft, setDraft] = useState(initial);
+  const [unsent, setUnsent] = useState(false);
+  const draftRef = useRef(initial);
+  const committedRef = useRef(initial);
+  const timerRef = useRef(null);
+  const commitRef = useRef(commit);
+  commitRef.current = commit;
+
+  function flush() {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    const v = draftRef.current;
+    if (v !== committedRef.current) { committedRef.current = v; commitRef.current(v); }
+    setUnsent(false);
+  }
+  function onChange(v) {
+    draftRef.current = v;
+    setDraft(v);
+    setUnsent(v !== committedRef.current);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(flush, delayMs);
+  }
+  useEffect(() => () => { if (timerRef.current) flush(); }, []);
+  return { draft, unsent, onChange, flush };
+}
+
+export const fmtHHMM = (d) => (d ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '');
 
 const COMMENT_MAX_FILE_BYTES = 3 * 1024 * 1024;
 const COMMENT_MAX_FILES = 3;
@@ -98,7 +136,7 @@ function ScopePicker({ value, onChange, companies, listId }) {
       {value.scope === 'cliente' && (
         <>
           <input
-            type="text" list={listId} value={value.companyName} placeholder="Nome do cliente"
+            type="text" list={listId} value={value.companyName} placeholder="Nome do cliente" aria-label="Nome do cliente"
             onChange={(e) => {
               const companyName = e.target.value;
               const match = companies.find((c) => c.name === companyName);
@@ -205,45 +243,52 @@ function UploadParecerModal({ onClose, onCreated, companies }) {
   );
 }
 
+const scopeValid = (v) => v.scope === 'geral' || !!v.companyName.trim();
+const scopeKey = (v) => `${v.scope}|${v.companyName.trim()}|${v.companyProjectId || ''}`;
+
 function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, onDeleted }) {
   const [comments, setComments] = useState(parecer.comments || []);
   const [commentDirty, setCommentDirty] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [scopeDraft, setScopeDraft] = useState({ scope: parecer.scope || 'geral', companyName: parecer.company_name || '', companyProjectId: parecer.company_project_id || null });
-  const [savingScope, setSavingScope] = useState(false);
-  const [scopeState, setScopeState] = useState('idle');
   const [notice, setNotice] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [confirmClose, setConfirmClose] = useState(false);
-  const latest = useRef({});
+  const [exiting, setExiting] = useState(false);
+  const scopeDraftRef = useRef(scopeDraft);
+  const scopeSentRef = useRef(scopeKey(scopeDraft));
+  const scopeTimerRef = useRef(null);
   const mentionCandidates = useMentionUsers();
 
   const saver = useFieldSaver(async (body) => { onChanged(await apiPatch(`/api/pareceres/${parecer.id}`, body)); });
-  const titleField = useDebouncedField(parecer.title, (v) => saver.save({ title: v }));
-  const descField = useDebouncedField(parecer.description || '', (v) => saver.save({ description: v }));
+  const titleField = useAutosaveField(parecer.title, (v) => { if (v.trim()) saver.save({ title: v }); });
+  const descField = useAutosaveField(parecer.description || '', (v) => saver.save({ description: v }));
 
   useEffect(() => { setComments(parecer.comments || []); }, [parecer.id, parecer.comments]);
-  useEffect(() => { setScopeDraft({ scope: parecer.scope || 'geral', companyName: parecer.company_name || '', companyProjectId: parecer.company_project_id || null }); }, [parecer.id, parecer.scope, parecer.company_name]);
 
-  // Escopo (Geral/Cliente) é um objeto composto — salva explícito (não em cada tecla, como
-  // título/descrição) pra nunca mandar 'cliente' sem nome no meio da digitação.
-  const scopeDirty = scopeDraft.scope !== (parecer.scope || 'geral') || scopeDraft.companyName !== (parecer.company_name || '');
-  const scopeMissingName = scopeDraft.scope === 'cliente' && !scopeDraft.companyName.trim();
-  async function saveScope() {
-    if (scopeMissingName) { setNotice({ message: 'Informe o nome do cliente, ou marque como "Geral".' }); return; }
-    setSavingScope(true); setNotice(null); setScopeState('saving');
-    try {
-      const updated = await apiPatch(`/api/pareceres/${parecer.id}`, { scope: scopeDraft.scope, companyName: scopeDraft.companyName.trim(), companyProjectId: scopeDraft.companyProjectId });
-      onChanged(updated);
-      setScopeState('saved');
-    } catch (e) {
-      setScopeState('error');
-      setNotice({ message: `Não foi possível salvar o escopo: ${apiErrorText(e, 'erro inesperado.')} O que você escolheu continua aqui.`, retry: () => latest.current.saveScope() });
-    }
-    setSavingScope(false);
+  // Escopo grava sozinho assim que a combinação é válida (Geral, ou Cliente com empresa). Mandar 'cliente' sem nome
+  // seria recusado, então fica só no rascunho com uma dica. Troca de Geral/Cliente grava na hora; digitar o nome espera a pausa.
+  function flushScope() {
+    if (scopeTimerRef.current) { clearTimeout(scopeTimerRef.current); scopeTimerRef.current = null; }
+    const v = scopeDraftRef.current;
+    if (!scopeValid(v) || scopeKey(v) === scopeSentRef.current) return;
+    scopeSentRef.current = scopeKey(v);
+    saver.save({ scope: v.scope, companyName: v.companyName.trim(), companyProjectId: v.companyProjectId || null });
   }
+  function changeScope(next) {
+    scopeDraftRef.current = next;
+    setScopeDraft(next);
+    if (scopeTimerRef.current) { clearTimeout(scopeTimerRef.current); scopeTimerRef.current = null; }
+    if (next.scope === 'geral') flushScope(); else scopeTimerRef.current = setTimeout(flushScope, 700);
+  }
+  useEffect(() => () => { if (scopeTimerRef.current) flushScope(); }, []);
+
+  const scopeIncomplete = !scopeValid(scopeDraft);
+  const scopeUnsent = !scopeIncomplete && scopeKey(scopeDraft) !== scopeSentRef.current;
+  const titleEmpty = !titleField.draft.trim();
+  const unrecorded = titleField.unsent || descField.unsent || scopeUnsent || scopeIncomplete || titleEmpty;
+  const status = saver.state === 'error' ? 'error' : saver.state === 'saving' ? 'saving' : unrecorded ? 'draft' : saver.state;
 
   async function submitComment({ text, mentions, attachments, links }) {
     setNotice(null);
@@ -292,15 +337,22 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
     }
   }
 
-  latest.current = { saveScope };
-  const hasDraft = saver.state === 'error' || saver.state === 'saving' || commentDirty || scopeDirty;
-  useDirtyForm(hasDraft);
+  useDirtyForm(saver.state === 'error' || saver.state === 'saving' || saver.hasPending() || commentDirty || unrecorded);
 
   async function requestClose() {
-    titleField.flush(); descField.flush();
+    titleField.flush(); descField.flush(); flushScope();
     await saver.settle();
-    if (saver.hasPending() || commentDirty || scopeDirty) setConfirmClose(true); else onClose();
+    if (saver.hasPending() || commentDirty || titleEmpty || scopeIncomplete) setConfirmClose(true); else onClose();
   }
+
+  async function saveAndExit() {
+    setExiting(true);
+    saver.retry();
+    await saver.settle();
+    setExiting(false);
+    if (saver.hasPending()) setConfirmClose(false); else onClose();
+  }
+  const canSaveAndExit = saver.hasPending() && !commentDirty && !titleEmpty && !scopeIncomplete;
 
   const threadComments = comments.map((c) => ({ ...c, author: c.userName, authorId: c.userId }));
   const mentionNames = mentionCandidates.map((m) => m.name);
@@ -308,34 +360,20 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
   return (
     <>
     <ModulePanel title="Parecer" onClose={requestClose}>
+      <div className="par-drawer-status"><SaveStatus state={status} savedAt={fmtHHMM(saver.savedAt)} onRetry={saver.retry} /></div>
       <div className="par-drawer-title-row">
-        {editing ? (
-          <input type="text" style={{ flex: 1, fontSize: 15, fontWeight: 800 }} value={titleField.draft} onChange={(e) => titleField.onChange(e.target.value)} onBlur={titleField.flush} autoFocus />
-        ) : (
-          <div className="par-drawer-title" style={{ flex: 1 }}>{titleField.draft}</div>
-        )}
-        <SaveStatus state={saver.state} onRetry={saver.retry} />
-        <IconButton size="sm" icon={Pencil} label={editing ? 'Fechar edição' : 'Editar identificação'} aria-pressed={editing} onClick={() => setEditing((v) => !v)} />
+        <input type="text" aria-label="Título do parecer" style={{ flex: 1, fontSize: 15, fontWeight: 800 }} value={titleField.draft} onChange={(e) => titleField.onChange(e.target.value)} onBlur={titleField.flush} />
       </div>
+      {titleEmpty && <div className="par-error" role="alert" style={{ marginTop: 0, marginBottom: 8 }}>O título não pode ficar vazio.</div>}
       <div className="par-drawer-file">{parecer.file_name} · {fmtFileSize(parecer.file_size)} · enviado por {parecer.created_by_name || 'alguém'} em {fmtTs(parecer.created_at)}</div>
 
-      {saver.state === 'error' && <InlineAlert message={`Não foi possível salvar as alterações: ${saver.error} O texto digitado continua aqui.`} onRetry={saver.retry} />}
+      {saver.state === 'error' && <InlineAlert message={`Não foi possível salvar as alterações: ${saver.error} O que você digitou continua aqui.`} />}
       {notice && <InlineAlert message={notice.message} onRetry={notice.retry} />}
 
-      <div className="par-drawer-scope">
-        {editing ? (
-          <>
-            <div className="par-hint">Título e comentário são gravados sozinhos. O escopo só vale depois de clicar em Salvar.</div>
-            <ScopePicker value={scopeDraft} onChange={setScopeDraft} companies={companies} listId={`par-companies-${parecer.id}`} />
-            {scopeDirty && scopeMissingName && <div className="par-error" role="alert">Informe o nome do cliente, ou marque como "Geral".</div>}
-            <div className="par-scope-save">
-              {scopeDirty && <Button variant="primary" onClick={saveScope} disabled={savingScope || scopeMissingName} disabledReason={savingScope ? 'Aguarde terminar' : 'Informe o nome do cliente'}>Salvar</Button>}
-              <SaveStatus state={scopeDirty ? (scopeState === 'error' ? 'error' : 'idle') : scopeState} onRetry={saveScope} />
-            </div>
-          </>
-        ) : (
-          <ScopeTag scope={parecer.scope} companyName={parecer.company_name} />
-        )}
+      <div className="par-drawer-section par-drawer-scope">
+        <div className="par-drawer-label">Este parecer é</div>
+        <ScopePicker value={scopeDraft} onChange={changeScope} companies={companies} listId={`par-companies-${parecer.id}`} />
+        {scopeIncomplete && <div className="par-hint" style={{ marginTop: 8, marginBottom: 0 }}>Escolha a empresa para salvar o escopo.</div>}
       </div>
 
       <div className="par-drawer-actions">
@@ -347,11 +385,7 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
 
       <div className="par-drawer-section">
         <div className="par-drawer-label">Comentário / contexto</div>
-        {editing ? (
-          <textarea style={{ width: '100%', minHeight: 70 }} value={descField.draft} onChange={(e) => descField.onChange(e.target.value)} onBlur={descField.flush} placeholder="Do que se trata, pra quem é relevante, etc." />
-        ) : (
-          <div className="par-drawer-desc">{descField.draft || <span style={{ color: 'var(--text-7)' }}>Sem descrição.</span>}</div>
-        )}
+        <textarea aria-label="Comentário / contexto" style={{ width: '100%', minHeight: 70 }} value={descField.draft} onChange={(e) => descField.onChange(e.target.value)} onBlur={descField.flush} placeholder="Do que se trata, pra quem é relevante, etc." />
       </div>
 
       <div className="par-drawer-section">
@@ -374,7 +408,7 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
         onConfirm={handleDelete} onCancel={() => setConfirmDelete(false)}
       />
     )}
-    {confirmClose && <ConfirmDiscardModal onDiscard={onClose} onCancel={() => setConfirmClose(false)} />}
+    {confirmClose && <ConfirmDiscardModal onSaveAndExit={canSaveAndExit ? saveAndExit : undefined} saving={exiting} onDiscard={onClose} onCancel={() => setConfirmClose(false)} />}
     </>
   );
 }

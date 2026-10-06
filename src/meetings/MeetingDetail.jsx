@@ -12,10 +12,11 @@ import {
   Mic, Plus, X, Trash2, Share2, Download, Pencil, Copy, Lock, Globe,
   FileText, FileDown, Calendar, Clock, Building2, Users, ListChecks, ChevronDown,
 } from 'lucide-react';
-import { S, fmtDate, useIsMobile, useAutosaveTimestamp, useDirtyForm, ConfirmDiscardModal, savedStatusLabel } from '../App.jsx';
+import { S, fmtDate, useIsMobile, useAutosaveTimestamp, useDirtyForm, useDebouncedField, ConfirmDiscardModal } from '../App.jsx';
 import { apiGet } from '../lib/api.js';
 import { useDialog } from '../lib/nav.js';
 import { DialogOverlay } from '../ui/dialog.jsx';
+import { RecordSaveStatus } from '../ui/index.jsx';
 import { TODO_STATUS_META, todoStatusMeta } from './Meetings.jsx';
 import { ActivityRow, ACTIVITY_ROW_CSS } from './ActivityRow.jsx';
 import { TodoDrawer } from './TodoDrawer.jsx';
@@ -180,6 +181,8 @@ export function MeetingDetailModal({
   const [participantDraft, setParticipantDraft] = useState('');
   const [participantEmailDraft, setParticipantEmailDraft] = useState('');
   const lastSavedAt = useAutosaveTimestamp(m);
+  // O título grava com debounce (antes gravava a cada tecla e re-renderizava o projeto inteiro — mesmo risco do §45).
+  const titleField = useDebouncedField(m.title, (v) => updateMeeting(pid, m.id, { title: v }));
   // Mesma correção da ActivityDetailModal (2026-09-16, bug real relatado
   // pelo Rafael: editar e fechar "não salva") — title/date/time autosavam
   // por tecla mas nunca entravam no cálculo de "tem algo não salvo";
@@ -202,12 +205,14 @@ export function MeetingDetailModal({
   const [openFocusComment, setOpenFocusComment] = useState(false);
 
   function requestClose() {
+    titleField.flush();
     const cardsDirty = (summaryCardRef.current && summaryCardRef.current.isDirty())
       || (decisionsCardRef.current && decisionsCardRef.current.isDirty());
     if (hasDraft || cardsDirty) setShowGuard(true); else onClose();
   }
   async function saveAndClose() {
     setClosing(true);
+    titleField.flush();
     if (summaryCardRef.current) summaryCardRef.current.flush();
     if (decisionsCardRef.current) decisionsCardRef.current.flush();
     // Mesmo tick de espera da ActivityDetailModal — dá tempo do
@@ -268,15 +273,15 @@ export function MeetingDetailModal({
           <div className="mtg2-title-row">
             <div style={{ flex: '1 1 400px', minWidth: 0 }}>
               <textarea
-                className="mtg2-title" value={m.title} rows={1}
+                className="mtg2-title" value={titleField.draft} rows={1}
                 ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
                 onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = `${e.target.scrollHeight}px`; }}
-                onChange={(e) => updateMeeting(pid, m.id, { title: e.target.value })}
-                onBlur={() => updateMeeting(pid, m.id, {}, `Reunião renomeada: "${m.title}"`)}
+                onChange={(e) => titleField.onChange(e.target.value)}
+                onBlur={() => { titleField.flush(); updateMeeting(pid, m.id, {}, `Reunião renomeada: "${m.title}"`); }}
               />
               <div className="mtg2-subtitle">
                 A IA da PRICETAX organizou o conteúdo desta reunião para você.
-                {' · '}<span style={{ color: hasDraft ? '#ff9f40' : 'var(--text-6)' }}>{savedStatusLabel(hasDraft, lastSavedAt)}</span>
+                {' · '}<RecordSaveStatus hasDraft={hasDraft} lastSavedAt={lastSavedAt} />
               </div>
             </div>
             <div className="mtg2-actions" style={{ position: 'relative' }}>

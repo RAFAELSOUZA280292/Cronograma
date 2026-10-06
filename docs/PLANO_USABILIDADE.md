@@ -175,7 +175,7 @@ Componentes em `src/ui` (hoje quase sem adoção): `Button`/`IconButton` (rótul
 - Unificar "Observações/Comentários/Descrição" da atividade; um único botão **Adicionar → arquivo, print ou link**; print colado vira só imagem inline (sem cópia em Evidências).
 **Pronto quando:** o mesmo gesto (comentar/linkar/anexar/colar) existe e funciona igual em todo módulo.
 
-### Onda 4 — "Salvar sem pensar" (1 a 2 semanas)
+### Onda 4 — "Salvar sem pensar" (1 a 2 semanas) — **FEITA em 2026-10-06 (ver PROJECT_CONTEXT §81)**
 - Regra única: **campo sempre editável + autosave + selo "Salvo/Salvando/Falhou — tentar de novo"** (`SaveStatus`) em todo lugar; formulário de **criação** tem botão Criar claro. Fim do lápis escondido e do "alguns campos salvam, outros não" na mesma tela.
 - Perfil: "Salvar" deixa de gravar só o avatar; mudanças em Meu dia/iPhone avisam ao sair da aba.
 - Título da reunião e Tabela: `useDebouncedField` (mesmo risco do §45).

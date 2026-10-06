@@ -6,6 +6,7 @@ import { ArrowLeft, ChevronDown, Search, LogOut, UserCog, Sun, Moon, Check } fro
 import { NotificationBell, UserAvatar } from '../App.jsx';
 import CommandPalette from './CommandPalette.jsx';
 import { useEscClose } from '../lib/nav.js';
+import { GlobalSaveStatus } from '../ui/index.jsx';
 
 const CSS = `
 .shell-bar { position: sticky; top: 0; z-index: 45; display: flex; align-items: center; gap: 8px; height: var(--shell-h, 48px); padding: 0 14px;
@@ -18,6 +19,7 @@ const CSS = `
 .shell-btn.icon { width: 32px; padding: 0; justify-content: center; }
 .shell-sep { width: 1px; height: 20px; background: var(--border-1); margin: 0 2px; flex-shrink: 0; }
 .shell-spacer { flex: 1; min-width: 0; }
+.shell-save { display: inline-flex; align-items: center; margin-right: 6px; white-space: nowrap; }
 .shell-cur { color: var(--text-1); font-weight: 700; }
 .shell-search { min-width: 190px; justify-content: flex-start; color: var(--text-4); background: var(--bg-3); border-color: var(--border-1); font-weight: 500; }
 .shell-search kbd, .shell-pal kbd { margin-left: auto; font: inherit; font-size: 10.5px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-2); color: var(--text-4); background: var(--bg-1); }
@@ -52,6 +54,7 @@ const CSS = `
   .shell-search span, .shell-search kbd { display: none; }
   .shell-cur-label { display: none; }
   .shell-hide-m { display: none; }
+  .shell-save .ui-save { font-size: 11px; }
   .shell-pal-overlay { padding-top: 8vh; }
 }
 /* A barra ocupa 48px: as telas que ocupam a altura toda descontam isso para não criar rolagem extra. */
@@ -125,6 +128,7 @@ export default function ModuleShell({
           })}
         </Menu>
         <span className="shell-spacer" />
+        <span className="shell-save"><GlobalSaveStatus /></span>
         <button type="button" className="shell-btn shell-search" onClick={() => setPalette(true)} title="Buscar (Ctrl+K)" aria-label="Buscar">
           <Search size={14} aria-hidden="true" /> <span>Buscar…</span> <kbd>{isMac ? '⌘K' : 'Ctrl K'}</kbd>
         </button>

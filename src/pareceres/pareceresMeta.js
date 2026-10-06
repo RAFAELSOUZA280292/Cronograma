@@ -132,8 +132,7 @@ export const PARECERES_CSS = `
   .par-alert button { font-family:inherit; font-size:12px; font-weight:700; padding:5px 10px; border-radius:8px; cursor:pointer; background:transparent; border:1px solid var(--ui-danger); color:var(--ui-danger); }
   .par-alert button:hover { background:rgba(226,87,76,.14); }
   .par-hint { font-size:11.5px; color:var(--text-6); margin-bottom:8px; line-height:1.4; }
-  .par-scope-save { display:flex; align-items:center; gap:10px; margin-top:8px; }
-  .par-drawer-title-row .ui-save { align-self:center; }
+  .par-drawer-status { min-height:20px; margin-bottom:10px; }
 `;
 
 export function apiErrorText(e, fallback) {
