@@ -11,7 +11,8 @@ import { S, fmtDate, fmtTs, useIsMobile, useAutosaveTimestamp, useDebouncedField
 import { TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } from './Meetings.jsx';
 import { useDialog } from '../lib/nav.js';
 import { notify } from '../ui/dialogs.jsx';
-import { initials, avatarColor, daysOverdue, isItemOverdue } from './todoUtils.js';
+import { ComposeBox, CommentThread } from '../ui/ComposeBox.jsx';
+import { daysOverdue, isItemOverdue } from './todoUtils.js';
 
 const MAX_TODO_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 
@@ -50,18 +51,12 @@ const DRAWER_CSS = `
   .todo-history-row:last-child { border-bottom:none; }
 `;
 
-function AvatarBadge({ name, size = 22 }) {
-  if (!name) return null;
-  const c = avatarColor(name);
-  return <div className="todo-avatar" style={{ width: size, height: size, background: c.bg, color: c.fg }}>{initials(name)}</div>;
-}
-
 export function TodoDrawer({
   item, meeting, clientName, responsavelSuggestions, currentUser, log, pid,
   onClose, onOpenMeeting,
   updateActionItem, deleteActionItem, duplicateActionItem,
   addSubtask, toggleSubtask, deleteSubtask,
-  addComment, deleteComment,
+  addComment, updateComment, deleteComment,
   addAttachment, deleteAttachment,
   focusComment,
 }) {
@@ -70,7 +65,6 @@ export function TodoDrawer({
   useEffect(() => { const raf = requestAnimationFrame(() => setOpen(true)); return () => cancelAnimationFrame(raf); }, []);
   const lastSavedAt = useAutosaveTimestamp(item);
   const [subtaskDraft, setSubtaskDraft] = useState('');
-  const [commentDraft, setCommentDraft] = useState('');
   const commentRef = useRef(null);
   const fileRef = useRef(null);
 
@@ -104,12 +98,6 @@ export function TodoDrawer({
   const attachments = item.attachments || [];
   const itemHistory = (log || []).filter((l) => l.activityId === item.id);
 
-  function submitComment() {
-    if (!commentDraft.trim()) return;
-    addComment(pid, meeting.id, item.id, commentDraft);
-    setCommentDraft('');
-  }
-
   function handleFilePicked(e) {
     const file = e.target.files && e.target.files[0];
     if (fileRef.current) fileRef.current.value = '';
@@ -120,7 +108,7 @@ export function TodoDrawer({
     reader.readAsDataURL(file);
   }
 
-  const canDeleteComment = (c) => currentUser && (c.userId === currentUser.id || currentUser.role === 'master');
+  const threadComments = comments.map((c) => (c.author ? c : { ...c, author: c.user }));
 
   return (
     <div className="todo-drawer-overlay" {...dlg} aria-label="Detalhe da atividade" onClick={(e) => { e.stopPropagation(); requestClose(); }}>
@@ -242,26 +230,25 @@ export function TodoDrawer({
 
           <div className="todo-section">
             <div className="todo-section-title"><span>Comentários</span><span style={{ fontWeight: 600, textTransform: 'none' }}>{comments.length}</span></div>
-            {comments.map((c) => (
-              <div key={c.id} className="todo-comment">
-                <div className="todo-comment-head">
-                  <AvatarBadge name={c.user} size={18} />
-                  <span style={{ fontWeight: 700 }}>{c.user}</span>
-                  <span>· {c.ts ? fmtTs(c.ts) : ''}</span>
-                  {canDeleteComment(c) && <button type="button" style={{ ...S.iconBtnGhost, marginLeft: 'auto', padding: 2 }} aria-label="Excluir comentário" title="Excluir comentário" onClick={() => deleteComment(pid, meeting.id, item.id, c.id)}><X size={12} aria-hidden="true" /></button>}
-                </div>
-                <div className="todo-comment-text">{c.text}</div>
-              </div>
-            ))}
-            <textarea
-              ref={commentRef} className="todo-drawer-notes" style={{ minHeight: 56 }} value={commentDraft}
-              placeholder="Adicione um comentário... (Cmd/Ctrl+Enter para comentar)"
-              onChange={(e) => setCommentDraft(e.target.value)}
-              onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitComment(); }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-              <button type="button" style={S.primaryBtn} disabled={!commentDraft.trim()} title={!commentDraft.trim() ? 'Escreva um comentário' : undefined} onClick={submitComment}>Comentar</button>
+            <div style={{ marginBottom: 10 }}>
+              <CommentThread
+                comments={threadComments}
+                currentUserId={currentUser ? currentUser.id : ''}
+                canModerate={!!currentUser && currentUser.role === 'master'}
+                onEdit={(id, text) => updateComment(pid, meeting.id, item.id, id, text)}
+                onDelete={(id) => deleteComment(pid, meeting.id, item.id, id)}
+              />
             </div>
+            <ComposeBox
+              ref={commentRef}
+              draftKey={`todo:${item.id}`}
+              features={{ mentions: false }}
+              maxFileBytes={MAX_TODO_ATTACHMENT_BYTES}
+              compact
+              submitLabel="Comentar"
+              placeholder="Adicione um comentário…"
+              onSubmit={async ({ text, attachments: atts, links }) => { addComment(pid, meeting.id, item.id, text, atts, links); }}
+            />
           </div>
 
           <div className="todo-section">

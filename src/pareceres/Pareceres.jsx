@@ -12,9 +12,11 @@
 // (`/api/projects/lite`, payload leve — nunca o `/api/projects` inteiro), guarda também o vínculo
 // forte `company_project_id`, mas isso nunca é obrigatório (cliente pode ainda nem ser projeto aqui).
 import React, { useEffect, useRef, useState } from 'react';
-import { FileText, X, Plus, Upload, Trash2, Pencil, ExternalLink, MessageSquare, Send, Search, Globe, Building2 } from 'lucide-react';
+import { FileText, Plus, Upload, Trash2, Pencil, ExternalLink, MessageSquare, Search, Globe, Building2 } from 'lucide-react';
 import { useDebouncedField, useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
 import { ConfirmDialog, Button, IconButton, ErrorState, SaveStatus } from '../ui/index.jsx';
+import { ComposeBox, CommentThread, useMentionUsers } from '../ui/ComposeBox.jsx';
+import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { ModulePanel } from './ModulePanel.jsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { PARECERES_CSS, fmtFileSize, PARECERES_MAX_MB, splitParecerTitle, urlHost, initialsOf, apiErrorText } from './pareceresMeta.js';
@@ -70,6 +72,9 @@ export function useFieldSaver(send) {
     settle: () => Promise.all([...inflight.current]),
   };
 }
+
+const COMMENT_MAX_FILE_BYTES = 3 * 1024 * 1024;
+const COMMENT_MAX_FILES = 3;
 
 function ScopeTag({ scope, companyName }) {
   return scope === 'cliente'
@@ -202,9 +207,8 @@ function UploadParecerModal({ onClose, onCreated, companies }) {
 
 function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, onDeleted }) {
   const [comments, setComments] = useState(parecer.comments || []);
-  const [commentDraft, setCommentDraft] = useState('');
+  const [commentDirty, setCommentDirty] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [sendingComment, setSendingComment] = useState(false);
   const [scopeDraft, setScopeDraft] = useState({ scope: parecer.scope || 'geral', companyName: parecer.company_name || '', companyProjectId: parecer.company_project_id || null });
   const [savingScope, setSavingScope] = useState(false);
   const [scopeState, setScopeState] = useState('idle');
@@ -214,6 +218,7 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
   const [deleteError, setDeleteError] = useState('');
   const [confirmClose, setConfirmClose] = useState(false);
   const latest = useRef({});
+  const mentionCandidates = useMentionUsers();
 
   const saver = useFieldSaver(async (body) => { onChanged(await apiPatch(`/api/pareceres/${parecer.id}`, body)); });
   const titleField = useDebouncedField(parecer.title, (v) => saver.save({ title: v }));
@@ -240,21 +245,26 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
     setSavingScope(false);
   }
 
-  async function submitComment() {
-    const text = commentDraft.trim();
-    if (!text) return;
-    setSendingComment(true); setNotice(null);
+  async function submitComment({ text, mentions, attachments, links }) {
+    setNotice(null);
     try {
-      const { comment } = await apiPost(`/api/pareceres/${parecer.id}/comments`, { text });
+      const { comment } = await apiPost(`/api/pareceres/${parecer.id}/comments`, { text, mentions, attachments, links });
       setComments((prev) => [...prev, comment]);
-      setCommentDraft('');
     } catch (e) {
-      setNotice({ message: `Não foi possível enviar o comentário: ${apiErrorText(e, 'erro inesperado.')} O texto continua na caixa.`, retry: () => latest.current.submitComment() });
+      throw new Error(`Não foi possível enviar o comentário: ${apiErrorText(e, 'erro inesperado.')} O que você escreveu foi mantido.`);
     }
-    setSendingComment(false);
   }
 
-  async function removeComment(id) {
+  async function editComment(id, text) {
+    try {
+      const { comment } = await apiPatch(`/api/pareceres/${parecer.id}/comments/${id}`, { text });
+      setComments((prev) => prev.map((c) => (c.id === id ? { ...c, ...comment } : c)));
+    } catch (e) {
+      throw new Error(apiErrorText(e, 'Não foi possível salvar o comentário.'));
+    }
+  }
+
+  async function doRemoveComment(id) {
     const index = comments.findIndex((c) => c.id === id);
     const removed = comments[index];
     if (!removed) return;
@@ -262,8 +272,13 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
     setComments((prev) => prev.filter((c) => c.id !== id));
     try { await apiDelete(`/api/pareceres/${parecer.id}/comments/${id}`); } catch (e) {
       setComments((prev) => (prev.some((c) => c.id === id) ? prev : [...prev.slice(0, index), removed, ...prev.slice(index)]));
-      setNotice({ message: `Não foi possível excluir o comentário: ${apiErrorText(e, 'erro inesperado.')} Ele foi mantido.`, retry: () => removeComment(id) });
+      setNotice({ message: `Não foi possível excluir o comentário: ${apiErrorText(e, 'erro inesperado.')} Ele foi mantido.`, retry: () => doRemoveComment(id) });
     }
+  }
+
+  async function removeComment(id) {
+    const ok = await askConfirm({ title: 'Excluir comentário', message: 'Excluir este comentário? Essa ação não pode ser desfeita.', confirmLabel: 'Excluir', danger: true });
+    if (ok) doRemoveComment(id);
   }
 
   async function handleDelete() {
@@ -277,17 +292,18 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
     }
   }
 
-  latest.current = { saveScope, submitComment };
-  const hasDraft = saver.state === 'error' || saver.state === 'saving' || !!commentDraft.trim() || scopeDirty;
+  latest.current = { saveScope };
+  const hasDraft = saver.state === 'error' || saver.state === 'saving' || commentDirty || scopeDirty;
   useDirtyForm(hasDraft);
 
   async function requestClose() {
     titleField.flush(); descField.flush();
     await saver.settle();
-    if (saver.hasPending() || commentDraft.trim() || scopeDirty) setConfirmClose(true); else onClose();
+    if (saver.hasPending() || commentDirty || scopeDirty) setConfirmClose(true); else onClose();
   }
 
-  const canDeleteComment = (c) => currentUser && (c.userId === currentUser.id || currentUser.role === 'master');
+  const threadComments = comments.map((c) => ({ ...c, author: c.userName, authorId: c.userId }));
+  const mentionNames = mentionCandidates.map((m) => m.name);
 
   return (
     <>
@@ -340,19 +356,14 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
 
       <div className="par-drawer-section">
         <div className="par-drawer-label"><MessageSquare size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Comentários ({comments.length})</div>
-        {comments.map((c) => (
-          <div key={c.id} className="par-comment">
-            <div className="par-comment-head">
-              <span><strong>{c.userName}</strong> · {fmtTs(c.ts)}</span>
-              {canDeleteComment(c) && <IconButton size="sm" variant="danger" icon={X} label="Excluir comentário" onClick={() => removeComment(c.id)} />}
-            </div>
-            <div className="par-comment-text">{c.text}</div>
-          </div>
-        ))}
-        <div className="par-comment-input-row">
-          <textarea value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} placeholder="Escreva um comentário…" onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitComment(); }} />
-          <Button variant="primary" icon={Send} onClick={submitComment} disabled={sendingComment || !commentDraft.trim()} disabledReason={sendingComment ? 'Aguarde terminar' : 'Escreva um comentário'}>Comentar</Button>
-        </div>
+        <CommentThread
+          comments={threadComments} currentUserId={currentUser && currentUser.id} canModerate={!!currentUser && currentUser.role === 'master'}
+          onEdit={editComment} onDelete={removeComment} mentionNames={mentionNames}
+        />
+        <ComposeBox
+          onSubmit={submitComment} mentionCandidates={mentionCandidates} maxFileBytes={COMMENT_MAX_FILE_BYTES} maxFiles={COMMENT_MAX_FILES}
+          submitLabel="Comentar" draftKey={`parecer:${parecer.id}`} onDirtyChange={setCommentDirty}
+        />
       </div>
     </ModulePanel>
     {confirmDelete && (
@@ -368,7 +379,7 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
   );
 }
 
-export default function PareceresScreen({ currentUser, onExit, onLogout, theme, onToggleTheme }) {
+export default function PareceresScreen({ currentUser, onExit, onLogout, theme, onToggleTheme, pendingOpenId, onPendingOpenConsumed }) {
   const [pareceres, setPareceres] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -387,6 +398,14 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
     loadPareceres();
     apiGet('/api/projects/lite').then((res) => setCompanies(res.projects || [])).catch(() => {}); // só sugestão no autocomplete — falha não bloqueia a tela
   }, []);
+
+  // Link de notificação: abre a gaveta quando a lista já carregou; só consome o pedido uma vez (se a carga falhou, espera o "tentar de novo").
+  useEffect(() => {
+    if (!pendingOpenId || !loaded || loadError) return;
+    if (pareceres.some((p) => String(p.id) === String(pendingOpenId))) setSelectedId(pareceres.find((p) => String(p.id) === String(pendingOpenId)).id);
+    else notify('Esse parecer não está mais disponível.', { tone: 'error' });
+    if (onPendingOpenConsumed) onPendingOpenConsumed();
+  }, [pendingOpenId, loaded, loadError, pareceres]);
 
   function handleCreated(created) {
     setPareceres((prev) => [created, ...prev]);
@@ -504,6 +523,7 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
       {showUpload && <UploadParecerModal onClose={() => setShowUpload(false)} onCreated={handleCreated} companies={companies} />}
       {selected && (
         <ParecerDrawer
+          key={selected.id}
           parecer={selected} currentUser={currentUser} companies={companies}
           onClose={() => setSelectedId(null)}
           onChanged={handleChanged}

@@ -172,7 +172,7 @@ export function MeetingDetailModal({
   meeting: m, team, externalContacts, clientName, pid, currentUser, log, pushUndoToast,
   onClose, updateMeeting, flushProjectSave, deleteMeeting, toggleParticipant, addParticipant,
   addActionItem, updateActionItem, deleteActionItem, duplicateActionItem,
-  addSubtask, toggleSubtask, deleteSubtask, addComment, deleteComment, addAttachment, deleteAttachment,
+  addSubtask, toggleSubtask, deleteSubtask, addComment, updateComment, deleteComment, addAttachment, deleteAttachment,
   onViewActivities, onSetShareVisibility, onRegenerateShareLink, onExportPdf,
 }) {
   const isMobile = useIsMobile();
@@ -468,7 +468,7 @@ export function MeetingDetailModal({
           onOpenMeeting={() => {}}
           updateActionItem={updateActionItem} deleteActionItem={deleteActionItem} duplicateActionItem={duplicateActionItem}
           addSubtask={addSubtask} toggleSubtask={toggleSubtask} deleteSubtask={deleteSubtask}
-          addComment={addComment} deleteComment={deleteComment}
+          addComment={addComment} updateComment={updateComment} deleteComment={deleteComment}
           addAttachment={addAttachment} deleteAttachment={deleteAttachment}
           focusComment={openFocusComment}
         />

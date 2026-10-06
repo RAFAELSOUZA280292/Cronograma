@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import DOMPurify from 'dompurify';
 import {
   X, Plus, MessageSquare, Clock, Paperclip, ChevronDown,
-  Upload, Archive, Ban, Trash2, Bold, Italic, Underline as UnderlineIcon, Strikethrough,
+  Archive, Ban, Trash2, Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Quote, LayoutGrid, LayoutList,
   Undo2, Redo2, Heading2, Heading3, Indent as IndentIcon, Outdent, Code, Minus as MinusIcon, Link2, Smile, Download,
 } from 'lucide-react';
@@ -25,6 +25,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel, COLUMN_COLOR_META } from '../App.jsx';
 import { DialogOverlay } from '../ui/dialog.jsx';
+import { ComposeBox, CommentThread, AddMenu } from '../ui/ComposeBox.jsx';
 import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
 import { calendarDaysSince } from '../lib/dates.js';
 
@@ -466,42 +467,6 @@ function captureMetadata() {
   };
 }
 
-// Reconhece @menção (nomes do time) e #N (referência a outra TASK, 2026-08)
-// num único passe — #N só vira link se o número existir de fato em
-// `ticketsByNumber`; senão fica como texto puro (ex.: "#3 parafusos" num
-// comentário qualquer não deve virar link morto).
-function renderCommentText(text, team, ticketsByNumber, onOpenTicketRef) {
-  const names = (team || []).map((m) => m.name).filter(Boolean).sort((a, b) => b.length - a.length);
-  const namePart = names.length ? `@(?:${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})` : null;
-  const pattern = new RegExp(`(${[namePart, '#\\d+'].filter(Boolean).join('|')})`, 'g');
-  const out = [];
-  let lastIndex = 0;
-  let m;
-  let key = 0;
-  while ((m = pattern.exec(text))) {
-    if (m.index > lastIndex) out.push(text.slice(lastIndex, m.index));
-    const token = m[0];
-    if (token.startsWith('@')) {
-      out.push(<span key={key++} style={S.mentionTag}>{token}</span>);
-    } else {
-      const number = token.slice(1);
-      const t = ticketsByNumber && ticketsByNumber[number];
-      if (t && onOpenTicketRef) {
-        out.push(
-          <a key={key++} href="#" onClick={(e) => { e.preventDefault(); onOpenTicketRef(number); }} style={{ color: '#F5C400', fontWeight: 700, textDecoration: 'none' }}>
-            {token}
-          </a>
-        );
-      } else {
-        out.push(token);
-      }
-    }
-    lastIndex = pattern.lastIndex;
-  }
-  if (lastIndex < text.length) out.push(text.slice(lastIndex));
-  return out;
-}
-
 function Badge({ meta, small }) {
   if (!meta) return null;
   return (
@@ -634,22 +599,19 @@ const TicketRefExtension = Extension.create({
 
 // Extensão da Descrição do problema (BUG/melhoria/TASK) — editor real via
 // Tiptap (ver PROJECT_CONTEXT.md §18). `value`/`onChange`/`onCommit`/
-// `onPasteImage`/`disabled`/`placeholder` mantêm exatamente o mesmo
-// contrato do editor caseiro anterior, então quem usa o componente
-// (NewTicketModal, TicketDetailModal) não precisou mudar nada. `onChange`
+// `disabled`/`placeholder` mantêm o contrato do editor caseiro anterior.
+// Onda 3 (2026-10): print colado vira SÓ imagem inline na Descrição — não é mais copiado para Evidências. `onChange`
 // é local/vivo (sem custo de rede); `onCommit` é o que efetivamente salva
 // (onBlur), mesmo espírito do ContentField acima. Callbacks ficam em refs
 // (padrão recomendado pelo próprio Tiptap) porque as opções do
-// `useEditor` só são lidas na criação do editor — sem isso, um `onChange`/
-// `onPasteImage` novo a cada render (comum quando o pai passa uma arrow
+// `useEditor` só são lidas na criação do editor — sem isso, um `onChange`
+// novo a cada render (comum quando o pai passa uma arrow
 // function inline) ficaria "congelado" na primeira versão.
-function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, placeholder, ticketsByNumber, onOpenTicketRef }) {
+function RichTextEditor({ value, onChange, onCommit, disabled, placeholder, ticketsByNumber, onOpenTicketRef }) {
   const onChangeRef = useRef(onChange);
   const onCommitRef = useRef(onCommit);
-  const onPasteImageRef = useRef(onPasteImage);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
   useEffect(() => { onCommitRef.current = onCommit; }, [onCommit]);
-  useEffect(() => { onPasteImageRef.current = onPasteImage; }, [onPasteImage]);
   const [showEmoji, setShowEmoji] = useState(false);
 
   // Ver TicketRefExtension acima — byNumber precisa ser Map (não o objeto
@@ -696,7 +658,6 @@ function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, pla
           const { schema } = view.state;
           const node = schema.nodes.image.create({ src: reader.result });
           view.dispatch(view.state.tr.replaceSelectionWith(node));
-          if (onPasteImageRef.current) onPasteImageRef.current({ id: uid('ev'), name: `print-${Date.now()}.png`, size: file.size, type: file.type, dataUrl: reader.result });
         };
         reader.readAsDataURL(file);
         return true;
@@ -921,11 +882,6 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
       pasteNoteTimer.current = setTimeout(() => setPasteNote(''), 4000);
     }
   }
-  function handleEvidencePick(e) {
-    const files = Array.from(e.target.files || []);
-    e.target.value = '';
-    addEvidenceFiles(files);
-  }
   // Print colado num campo de texto simples vira evidência (esses campos não guardam imagem).
   const onPasteToEvidence = (e) => {
     const imgs = clipboardImageFiles(e);
@@ -1039,7 +995,6 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
           <RichTextEditor
             value={form.description}
             onChange={(html) => set({ description: html })}
-            onPasteImage={(ev) => setForm((f) => ({ ...f, evidence: [...f.evidence, ev] }))}
             placeholder="O que aconteceu"
           />
         </div>
@@ -1099,10 +1054,8 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
             </div>
             <div>
               <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Evidência (print, vídeo, arquivo, mensagem de erro)</div>
-              <div style={{ ...S.fieldHint, marginBottom: 6 }}>Cole um print com Ctrl+V (Cmd+V no Mac) na Descrição ou nos campos acima, ou use o botão.</div>
-              <label style={S.iconBtn}><Upload size={14} /> Anexar evidência
-                <input type="file" multiple style={{ display: 'none' }} onChange={handleEvidencePick} />
-              </label>
+              <div style={{ ...S.fieldHint, marginBottom: 6 }}>Print colado na Descrição fica dentro do texto. Cole (Ctrl+V / Cmd+V) nos campos acima para guardar como evidência, ou use o botão.</div>
+              <AddMenu onFiles={addEvidenceFiles} accept="" label="Anexar" />
               {form.evidence.map((ev) => (
                 <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12 }}>
                   {ev.type && ev.type.startsWith('image/') ? <img src={ev.dataUrl} alt={ev.name} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} /> : <Paperclip size={12} />} {ev.name}
@@ -1200,15 +1153,42 @@ function ContentField({ as: Tag = 'textarea', value, onCommit, disabled, rows, p
   );
 }
 
+// Texto de comentário: destaca @menção da equipe e transforma #N em link para a TASK N (quando ela existe na lista).
+function renderCommentText(text, team, ticketsByNumber, onOpenTicketRef) {
+  const names = (team || []).map((m) => m.name).filter(Boolean).sort((a, b) => b.length - a.length);
+  const namePart = names.length ? `@(?:${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})` : null;
+  const pattern = new RegExp(`(${[namePart, '#\\d+'].filter(Boolean).join('|')})`, 'g');
+  const out = [];
+  let lastIndex = 0;
+  let m;
+  let key = 0;
+  while ((m = pattern.exec(text))) {
+    if (m.index > lastIndex) out.push(text.slice(lastIndex, m.index));
+    const token = m[0];
+    if (token.startsWith('@')) {
+      out.push(<span key={key++} style={S.mentionTag}>{token}</span>);
+    } else {
+      const number = token.slice(1);
+      const t = ticketsByNumber && ticketsByNumber[number];
+      if (t && onOpenTicketRef) {
+        out.push(<a key={key++} href="#" onClick={(e) => { e.preventDefault(); onOpenTicketRef(number); }} style={{ color: '#F5C400', fontWeight: 700, textDecoration: 'none' }}>{token}</a>);
+      } else {
+        out.push(token);
+      }
+    }
+    lastIndex = m.index + token.length;
+  }
+  if (lastIndex < text.length) out.push(text.slice(lastIndex));
+  return out;
+}
+
 function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCreateSpinoff, affectedCompanies, allTickets, onOpenTicket, onViewed, backGuardRef }) {
   const isMobile = useIsMobile();
   const role = effectiveXflowRole(currentUser);
   const [events, setEvents] = useState([]);
-  const [commentDraft, setCommentDraft] = useState('');
-  const commentRef = useRef(null);
-  useEffect(() => { autosize(commentRef.current); }, [commentDraft]);
-  const [pendingMentions, setPendingMentions] = useState([]);
-  const [commentAttachmentDrafts, setCommentAttachmentDrafts] = useState([]);
+  const composeRef = useRef(null);
+  const commentSentRef = useRef(false);
+  const [hasCommentDraft, setHasCommentDraft] = useState(false);
   const [attachNote, setAttachNote] = useState('');
   const attachNoteTimer = useRef(null);
   const attachFilesRef = useRef(null);
@@ -1218,10 +1198,6 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
     clearTimeout(attachNoteTimer.current);
     attachNoteTimer.current = setTimeout(() => setAttachNote(''), 4000);
   }
-  const [commentLinkDrafts, setCommentLinkDrafts] = useState([]);
-  const [commentLinkLabelDraft, setCommentLinkLabelDraft] = useState('');
-  const [commentLinkUrlDraft, setCommentLinkUrlDraft] = useState('');
-  const [showCommentLinkForm, setShowCommentLinkForm] = useState(false);
   const [showBlockForm, setShowBlockForm] = useState(false);
   const [blockReasonDraft, setBlockReasonDraft] = useState('');
   const [showCloseForm, setShowCloseForm] = useState(false);
@@ -1251,16 +1227,11 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   const [showGuard, setShowGuard] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [previewEvidence, setPreviewEvidence] = useState(null);
-  const [commentError, setCommentError] = useState('');
   const [sideError, setSideError] = useState('');
-  const [sendingComment, setSendingComment] = useState(false);
   const [formBusy, setFormBusy] = useState(false);
-  const sendingCommentRef = useRef(false);
   const formBusyRef = useRef(false);
 
   const lastSavedAt = useAutosaveTimestamp(ticket);
-  const hasCommentDraft = !!commentDraft.trim() || pendingMentions.length > 0
-    || commentAttachmentDrafts.length > 0 || commentLinkDrafts.length > 0 || !!commentLinkUrlDraft.trim();
   const hasActionDraft = [
     blockReasonDraft, closeReasonDraft, closeJustDraft, closeDupIdDraft, dupIdDraft, reproduceNoteDraft,
     redirectProduct, redirectModule, redirectAssignee, waitNote, gerenciaNote, homologRejectNote,
@@ -1282,9 +1253,10 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   }, [backGuardRef]);
   function closePreview(e) { if (e && e.stopPropagation) e.stopPropagation(); setPreviewEvidence(null); }
   async function saveDraftsAndClose() {
-    if (hasCommentDraft) {
-      const ok = await submitComment();
-      if (!ok) { setShowGuard(false); return; }
+    if (hasCommentDraft && composeRef.current) {
+      commentSentRef.current = false;
+      await composeRef.current.submit();
+      if (!commentSentRef.current) { setShowGuard(false); return; }
     }
     onClose();
   }
@@ -1338,14 +1310,13 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
     if (t && onOpenTicket) onOpenTicket(t.id);
   }
 
-  async function runAction(action, payload, scope) {
-    const setErr = scope === 'comment' ? setCommentError : setSideError;
-    setErr('');
+  async function runAction(action, payload) {
+    setSideError('');
     try {
       await onAction(ticket.id, action, payload || {});
       return true;
     } catch (e) {
-      setErr((e && e.message) || 'Não foi possível concluir a ação. Tente de novo.');
+      setSideError((e && e.message) || 'Não foi possível concluir a ação. Tente de novo.');
       return false;
     }
   }
@@ -1449,58 +1420,27 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
     setCloseReasonDraft(''); setCloseJustDraft(''); setCloseDupIdDraft('');
   }
 
-  async function submitComment() {
-    const text = commentDraft.trim();
-    if (!text && !commentAttachmentDrafts.length && !commentLinkDrafts.length) return true;
-    if (sendingCommentRef.current) return false;
-    sendingCommentRef.current = true;
-    setSendingComment(true);
-    let ok;
+  // Comentário (Onda 3): o ComposeBox guarda o rascunho; lançar aqui mantém o que foi digitado e mostra o erro na própria caixa.
+  async function sendComment({ text, mentions, attachments, links }) {
     try {
-      ok = await runAction('comentar', { text, mentions: pendingMentions, attachments: commentAttachmentDrafts, links: commentLinkDrafts }, 'comment');
-    } finally {
-      sendingCommentRef.current = false;
-      setSendingComment(false);
+      await onAction(ticket.id, 'comentar', { text, mentions, attachments, links });
+    } catch (e) {
+      throw new Error(`Não foi possível enviar o comentário: ${(e && e.message) || 'tente de novo.'} O que você escreveu foi mantido — tente de novo.`);
     }
-    if (!ok) return false;
-    setCommentDraft('');
-    setPendingMentions([]);
-    setCommentAttachmentDrafts([]);
-    setCommentLinkDrafts([]);
-    setCommentLinkLabelDraft('');
-    setCommentLinkUrlDraft('');
-    setShowCommentLinkForm(false);
-    return true;
+    commentSentRef.current = true;
   }
-  function insertMention(m) {
-    setCommentDraft((d) => `${d}@${m.name} `);
-    setPendingMentions((p) => (p.includes(m.id) ? p : [...p, m.id]));
+  async function editComment(commentId, text) {
+    await onAction(ticket.id, 'editar_comentario', { commentId, text });
   }
-
-  function handleCommentFiles(fileList) {
-    Array.from(fileList || []).forEach((file) => {
-      if (file.size > MAX_EVIDENCE_BYTES) {
-        notify(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_EVIDENCE_BYTES / (1024 * 1024)} MB.`, { tone: 'error' });
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => setCommentAttachmentDrafts((prev) => [...prev, { id: uid('att'), name: file.name, size: file.size, type: file.type || '', dataUrl: reader.result }]);
-      reader.readAsDataURL(file);
-    });
+  async function deleteComment(commentId) {
+    const ok = await askConfirm({ title: 'Excluir comentário?', message: 'O comentário será apagado desta TASK. Não dá para desfazer.', confirmLabel: 'Excluir', danger: true });
+    if (!ok) return;
+    await runAction('excluir_comentario', { commentId });
   }
-  function removeCommentAttachmentDraft(attId) {
-    setCommentAttachmentDrafts((prev) => prev.filter((x) => x.id !== attId));
-  }
-  function addCommentLinkDraft() {
-    if (!commentLinkUrlDraft.trim()) return;
-    const url = /^https?:\/\//i.test(commentLinkUrlDraft.trim()) ? commentLinkUrlDraft.trim() : `https://${commentLinkUrlDraft.trim()}`;
-    setCommentLinkDrafts((prev) => [...prev, { id: uid('lnk'), label: commentLinkLabelDraft.trim() || url, url }]);
-    setCommentLinkLabelDraft('');
-    setCommentLinkUrlDraft('');
-  }
-  function removeCommentLinkDraft(linkId) {
-    setCommentLinkDrafts((prev) => prev.filter((x) => x.id !== linkId));
-  }
+  const mentionCandidates = useMemo(
+    () => (team || []).filter((t) => t && t.id && t.name).map((t) => ({ id: t.id, name: t.name })),
+    [team]
+  );
 
   // Anexa à TASK (Evidências), um de cada vez (cada 'anexar' é uma transação no servidor).
   async function attachFiles(files) {
@@ -1513,11 +1453,6 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
     if (n) flashAttachNote(n === 1 ? `Anexado em Evidências: ${files[0].name}` : `${n} arquivos anexados em Evidências.`);
   }
   attachFilesRef.current = attachFiles;
-  function handleEvidencePick(e) {
-    const files = Array.from(e.target.files || []);
-    e.target.value = '';
-    attachFiles(files);
-  }
 
   const ball = whoHasTheBall(ticket, teamById);
   const terminal = isTerminal(ticket.status);
@@ -1616,7 +1551,6 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               value={ticket.description}
               disabled={!canEditContent}
               onCommit={(html) => runAction('editar_campo', { field: 'description', value: html })}
-              onPasteImage={(ev) => runAction('anexar', { evidence: ev })}
               ticketsByNumber={ticketsByNumber}
               onOpenTicketRef={openTicketRefByNumber}
               placeholder="O que aconteceu"
@@ -1629,12 +1563,8 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             <ContentField value={ticket.reproSteps} disabled={!canEditContent} rows={4} onPasteImage={pasteToEvidence} onCommit={(v) => runAction('editar_campo', { field: 'reproSteps', value: v })} />
 
             <div style={{ ...S.subSectionLabel, marginTop: 12 }}>Evidências</div>
-            {canAttach && <div style={{ ...S.fieldHint, marginBottom: 6 }}>Tire um print e cole com Ctrl+V (Cmd+V no Mac) — funciona na Descrição, nos campos de texto desta TASK e até com nada selecionado. Pra outros arquivos, use Anexar.</div>}
-            {canDoClient('attach_evidence', currentUser, ticket) && (
-              <label style={S.iconBtn}><Upload size={14} /> Anexar
-                <input type="file" multiple style={{ display: 'none' }} onChange={handleEvidencePick} />
-              </label>
-            )}
+            {canAttach && <div style={{ ...S.fieldHint, marginBottom: 6 }}>Print colado na Descrição fica dentro do texto. Cole com Ctrl+V (Cmd+V no Mac) nos outros campos de texto ou com nada selecionado para guardar como evidência. Pra outros arquivos, use Anexar.</div>}
+            {canAttach && <AddMenu onFiles={attachFiles} accept="" label="Anexar" />}
             {(ticket.evidence || []).map((ev) => {
               const isImage = ev.type && ev.type.startsWith('image/');
               return (
@@ -1700,100 +1630,26 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             )}
 
             <div style={{ ...S.subSectionLabel, marginTop: 16 }}><MessageSquare size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Comentários</div>
-            <textarea
-              ref={commentRef} rows={2} value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)}
-              placeholder="Escreva um comentário... @ pra mencionar alguém · Ctrl+V cola um print"
-              style={{ resize: 'none', overflowY: 'auto', maxHeight: CONTENT_FIELD_MAX_H }}
-              onPaste={(e) => {
-                const imgs = clipboardImageFiles(e);
-                if (!imgs.length) return;
-                e.preventDefault();
-                handleCommentFiles(imgs);
-              }}
-              onDragOver={(e) => { if (Array.from((e.dataTransfer && e.dataTransfer.types) || []).includes('Files')) e.preventDefault(); }}
-              onDrop={(e) => {
-                const imgs = imageFilesFrom(e.dataTransfer && e.dataTransfer.files);
-                if (!imgs.length) return;
-                e.preventDefault();
-                handleCommentFiles(imgs);
-              }}
+            <ComposeBox
+              ref={composeRef}
+              onSubmit={sendComment}
+              mentionCandidates={mentionCandidates}
+              onDirtyChange={setHasCommentDraft}
+              submitLabel="Comentar"
+              placeholder="Escreva um comentário… @ para mencionar · cole um print com Ctrl+V"
+              draftKey={`xflow:${ticket.id}`}
             />
-            {(commentAttachmentDrafts.length > 0 || commentLinkDrafts.length > 0) && (
-              <div style={{ ...S.attachList, marginTop: 6 }}>
-                {commentAttachmentDrafts.map((att) => (
-                  <div key={att.id} style={S.attachRow}>
-                    {att.type && att.type.startsWith('image/') && <img src={att.dataUrl} alt={att.name} style={S.attachThumb} />}
-                    <span style={S.attachLink}>{att.name}</span>
-                    <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
-                    <button style={S.iconBtnGhost} aria-label="Remover anexo" title="Remover anexo" onClick={() => removeCommentAttachmentDraft(att.id)}><X size={12} aria-hidden="true" /></button>
-                  </div>
-                ))}
-                {commentLinkDrafts.map((l) => (
-                  <div key={l.id} style={S.attachRow}>
-                    <Link2 size={12} style={{ flexShrink: 0, color: 'var(--text-6)' }} />
-                    <span style={S.attachLink}>{l.label}</span>
-                    <button style={S.iconBtnGhost} aria-label="Remover link" title="Remover link" onClick={() => removeCommentLinkDraft(l.id)}><X size={12} aria-hidden="true" /></button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {showCommentLinkForm && (
-              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                <input type="text" value={commentLinkLabelDraft} onChange={(e) => setCommentLinkLabelDraft(e.target.value)} placeholder="Nome do link (opcional)" style={{ flex: 1 }} />
-                <input type="text" value={commentLinkUrlDraft} onChange={(e) => setCommentLinkUrlDraft(e.target.value)} placeholder="https://..." style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && addCommentLinkDraft()} />
-                <button style={S.iconBtn} aria-label="Adicionar link" title="Adicionar link" onClick={addCommentLinkDraft}><Plus size={14} aria-hidden="true" /></button>
-              </div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-              {team && team.length > 0 && (
-                <select value="" onChange={(e) => { const m = team.find((t) => t.id === e.target.value); if (m) insertMention(m); }} style={{ width: 'auto' }}>
-                  <option value="">+ Mencionar...</option>
-                  {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
-              )}
-              <label style={S.iconBtnGhost} title="Anexar imagem ou PDF"><Paperclip size={14} />
-                <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} onChange={(e) => { handleCommentFiles(e.target.files); e.target.value = ''; }} />
-              </label>
-              <button style={S.iconBtnGhost} aria-label="Anexar link" title="Anexar link" onClick={() => setShowCommentLinkForm((v) => !v)}><Link2 size={14} aria-hidden="true" /></button>
-              <button style={S.iconBtn} onClick={submitComment} disabled={sendingComment || (!commentDraft.trim() && !commentAttachmentDrafts.length && !commentLinkDrafts.length)} title={sendingComment ? 'Aguarde terminar de enviar' : (!commentDraft.trim() && !commentAttachmentDrafts.length && !commentLinkDrafts.length) ? 'Escreva um comentário ou anexe um arquivo ou link' : undefined}>{sendingComment ? 'Enviando…' : 'Comentar'}</button>
+            <div style={{ marginTop: 10 }}>
+              <CommentThread
+                comments={ticket.comments || []}
+                currentUserId={currentUser && currentUser.id}
+                canModerate={role === 'admin'}
+                onEdit={editComment}
+                onDelete={deleteComment}
+                renderText={(t) => renderCommentText(t, team, ticketsByNumber, openTicketRefByNumber)}
+                empty="Nenhum comentário ainda."
+              />
             </div>
-            {commentError && (
-              <div role="alert" style={{ ...S.loginBlockedMsg, marginTop: 8, marginBottom: 0 }}>
-                Não foi possível enviar o comentário: {commentError} O texto, os anexos e os links foram mantidos — tente de novo.
-              </div>
-            )}
-            {(ticket.comments || []).map((c) => (
-              <div key={c.id} style={{ ...S.logRow, marginTop: 10 }}>
-                <div style={S.logTs}>{fmtTs(c.ts)} · {c.author}</div>
-                {c.text && <div>{renderCommentText(c.text, team, ticketsByNumber, openTicketRefByNumber)}</div>}
-                {((c.attachments || []).length > 0 || (c.links || []).length > 0) && (
-                  <div style={{ ...S.attachList, marginTop: 4 }}>
-                    {(c.attachments || []).map((att) => {
-                      const isImage = att.type && att.type.startsWith('image/');
-                      return (
-                        <div key={att.id} style={S.attachRow}>
-                          {isImage ? (
-                            <img src={att.dataUrl} alt={att.name} style={{ ...S.attachThumb, cursor: 'pointer' }} onClick={() => setPreviewEvidence(att)} />
-                          ) : <Paperclip size={12} />}
-                          {isImage ? (
-                            <a href="#" onClick={(e) => { e.preventDefault(); setPreviewEvidence(att); }} style={S.attachLink}>{att.name}</a>
-                          ) : (
-                            <a href={att.dataUrl} download={att.name} style={S.attachLink}>{att.name}</a>
-                          )}
-                          <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
-                        </div>
-                      );
-                    })}
-                    {(c.links || []).map((l) => (
-                      <div key={l.id} style={S.attachRow}>
-                        <Link2 size={12} style={{ flexShrink: 0, color: 'var(--text-6)' }} />
-                        <a href={l.url} target="_blank" rel="noreferrer" style={S.attachLink}>{l.label}</a>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
 
             <div style={{ ...S.subSectionLabel, marginTop: 16 }}><Clock size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Timeline</div>
             {timeline.length === 0 && <div style={S.emptyMuted}>Nenhum evento ainda.</div>}

@@ -19,6 +19,19 @@ import { DialogOverlay } from './dialog.jsx';
 import { notify } from './dialogs.jsx';
 import { useEscClose } from '../lib/nav.js';
 
+// Pessoas da equipe para @menção em módulos sem lista própria (Pareceres, Modelos, CRM). Uma busca por sessão.
+let mentionUsersPromise = null;
+export function useMentionUsers() {
+  const [users, setUsers] = useState([]);
+  useEffect(() => {
+    if (!mentionUsersPromise) mentionUsersPromise = fetch('/api/mentions/users', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : { users: [] })).then((b) => b.users || []).catch(() => { mentionUsersPromise = null; return []; });
+    let alive = true;
+    mentionUsersPromise.then((u) => { if (alive) setUsers(u); });
+    return () => { alive = false; };
+  }, []);
+  return users;
+}
+
 export const DEFAULT_MAX_FILE_BYTES = 8 * 1024 * 1024;
 const rid = (p) => `${p}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 const fmtSize = (n) => (n ? (n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`) : '');
@@ -86,10 +99,38 @@ export function AttachmentList({ attachments = [], links = [], onRemoveAttachmen
   );
 }
 
-export function ComposeBox({
+// Botão "Adicionar" com menu (Arquivo ou imagem / Link) — o ÚNICO jeito de anexar em qualquer módulo. Print: Ctrl+V na caixa.
+export function AddMenu({ onFiles, onLink, accept = 'image/*,application/pdf', label = 'Adicionar', size = 'sm', showPasteHint = true }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const fileRef = useRef(null);
+  useEscClose(() => setOpen(false), open);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+  if (!onFiles && !onLink) return null;
+  return (
+    <div className="cmp-add" ref={ref}>
+      <Button size={size} icon={Plus} onClick={() => setOpen((v) => !v)} aria-haspopup="menu" aria-expanded={open}>{label}</Button>
+      {open && (
+        <div className="cmp-menu" role="menu">
+          {onFiles && <button type="button" role="menuitem" onClick={() => { setOpen(false); fileRef.current && fileRef.current.click(); }}><Paperclip size={14} aria-hidden="true" /> Arquivo ou imagem</button>}
+          {onLink && <button type="button" role="menuitem" onClick={() => { setOpen(false); onLink(); }}><Link2 size={14} aria-hidden="true" /> Link</button>}
+          {onFiles && showPasteHint && <div className="cmp-menu-hint"><ImageIcon size={13} aria-hidden="true" /> Print: cole com Ctrl+V</div>}
+        </div>
+      )}
+      {onFiles && <input ref={fileRef} type="file" accept={accept} multiple hidden onChange={(e) => { onFiles([...e.target.files]); e.target.value = ''; }} />}
+    </div>
+  );
+}
+
+export const ComposeBox = React.forwardRef(function ComposeBox({
   onSubmit, mentionCandidates = [], features, maxFileBytes = DEFAULT_MAX_FILE_BYTES, maxFiles = 10,
   accept = 'image/*,application/pdf', submitLabel = 'Comentar', placeholder, draftKey, autoFocus, compact, onDirtyChange, disabled, initialText = '',
-}) {
+}, ref) {
   const f = { attach: true, link: true, mentions: mentionCandidates.length > 0, ...(features || {}) };
   const storageKey = draftKey ? `cmp-draft:${draftKey}` : null;
   const [text, setText] = useState(() => {
@@ -105,12 +146,8 @@ export function ComposeBox({
   const [showLink, setShowLink] = useState(false);
   const [linkLabel, setLinkLabel] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
-  const [menuOpen, setMenuOpen] = useState(false);
   const [pop, setPop] = useState(null); // { query, start, idx }
   const taRef = useRef(null);
-  const fileRef = useRef(null);
-  const menuRef = useRef(null);
-  const uid = useRef(rid('cmp')).current;
 
   const dirty = !!text.trim() || attachments.length > 0 || links.length > 0;
   useEffect(() => { if (onDirtyChange) onDirtyChange(dirty); }, [dirty]);
@@ -119,14 +156,6 @@ export function ComposeBox({
     if (!storageKey) return;
     try { if (text.trim()) window.sessionStorage.setItem(storageKey, text); else window.sessionStorage.removeItem(storageKey); } catch (e) { /* ignora */ }
   }, [text, storageKey]);
-  useEscClose(() => setMenuOpen(false), menuOpen);
-  useEffect(() => {
-    if (!menuOpen) return undefined;
-    const onDown = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [menuOpen]);
-
   const candidates = useMemo(() => {
     if (!pop) return [];
     const q = pop.query.toLowerCase();
@@ -175,7 +204,7 @@ export function ComposeBox({
     if (!f.mentions) return;
     const caret = e.target.selectionStart;
     const before = v.slice(0, caret);
-    const m = /(^|\s)@([^\s@]{0,30})$/.exec(before);
+    const m = /(^|\s)@([^@\n]{0,30})$/.exec(before); // aceita espaço: nomes têm sobrenome; sem nome que case, a lista some
     setPop(m ? { query: m[2], start: caret - m[2].length - 1, idx: 0 } : null);
   }
   function pickMention(m) {
@@ -201,6 +230,8 @@ export function ComposeBox({
       setError((e && e.message) || 'Não foi possível enviar. O que você escreveu foi mantido — tente de novo.');
     } finally { setBusy(false); }
   }
+
+  React.useImperativeHandle(ref, () => ({ submit, isDirty: () => dirty, focus: () => taRef.current && taRef.current.focus() }));
 
   function onKeyDown(e) {
     if (pop && candidates.length) {
@@ -246,19 +277,7 @@ export function ComposeBox({
           )}
         </div>
         <div className="cmp-actions">
-          {showAdd && (
-            <div className="cmp-add" ref={menuRef}>
-              <Button size="sm" icon={Plus} onClick={() => setMenuOpen((v) => !v)} aria-haspopup="menu" aria-expanded={menuOpen}>Adicionar</Button>
-              {menuOpen && (
-                <div className="cmp-menu" role="menu">
-                  {f.attach && <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); fileRef.current && fileRef.current.click(); }}><Paperclip size={14} aria-hidden="true" /> Arquivo ou imagem</button>}
-                  {f.link && <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setShowLink(true); }}><Link2 size={14} aria-hidden="true" /> Link</button>}
-                  {f.attach && <div className="cmp-menu-hint"><ImageIcon size={13} aria-hidden="true" /> Print: cole com Ctrl+V na caixa</div>}
-                </div>
-              )}
-              <input ref={fileRef} id={`${uid}-file`} type="file" accept={accept} multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
-            </div>
-          )}
+          {showAdd && <AddMenu onFiles={f.attach ? addFiles : null} onLink={f.link ? () => setShowLink(true) : null} accept={accept} />}
           <Button variant="primary" size="sm" icon={Send} onClick={submit} loading={busy} disabled={empty} disabledReason={reason}>{submitLabel}</Button>
         </div>
       </div>
@@ -266,7 +285,7 @@ export function ComposeBox({
       <div className="cmp-hint">Ctrl+Enter envia{f.attach ? ' · arraste ou cole arquivos aqui' : ''}</div>
     </div>
   );
-}
+});
 
 // ---------- Lista de comentários (editar/excluir o próprio) ----------
 function renderText(text, names) {
@@ -276,7 +295,7 @@ function renderText(text, names) {
   return String(text).split(re).map((part, i) => (re.test(part) && part.startsWith('@') ? <span key={i} className="cmp-mention">{part}</span> : part));
 }
 
-function CommentRow({ c, own, canEdit, canDelete, onEdit, onDelete, mentionNames }) {
+function CommentRow({ c, own, canEdit, canDelete, onEdit, onDelete, mentionNames, renderText: renderCustom }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(c.text || '');
   const [busy, setBusy] = useState(false);
@@ -306,7 +325,7 @@ function CommentRow({ c, own, canEdit, canDelete, onEdit, onDelete, mentionNames
           </div>
         </div>
       ) : (
-        c.text ? <div className="cmp-comment-text">{renderText(c.text, mentionNames)}</div> : null
+        c.text ? <div className="cmp-comment-text">{renderCustom ? renderCustom(c.text) : renderText(c.text, mentionNames)}</div> : null
       )}
       <AttachmentList attachments={c.attachments || []} links={c.links || []} />
     </div>
@@ -314,14 +333,15 @@ function CommentRow({ c, own, canEdit, canDelete, onEdit, onDelete, mentionNames
 }
 
 // Regra padrão: autor edita e exclui o próprio; `canModerate` (admin) exclui qualquer um.
-export function CommentThread({ comments = [], currentUserId, canModerate, onEdit, onDelete, mentionNames, empty = 'Nenhum comentário ainda.' }) {
+// `renderText(texto)` (opcional) troca a renderização do texto — ex.: XFlow transforma #30 em link para a TASK 30.
+export function CommentThread({ comments = [], currentUserId, canModerate, onEdit, onDelete, mentionNames, renderText: renderCustom, empty = 'Nenhum comentário ainda.' }) {
   if (!comments.length) return <div className="cmp-empty">{empty}</div>;
   return (
     <div className="cmp-thread">
       {comments.map((c) => {
         const authorId = c.authorId || c.userId;
         const own = !!currentUserId && authorId === currentUserId;
-        return <CommentRow key={c.id} c={c} own={own} canEdit={own} canDelete={own || !!canModerate} onEdit={onEdit} onDelete={onDelete} mentionNames={mentionNames} />;
+        return <CommentRow key={c.id} c={c} own={own} canEdit={own} canDelete={own || !!canModerate} onEdit={onEdit} onDelete={onDelete} mentionNames={mentionNames} renderText={renderCustom} />;
       })}
     </div>
   );

@@ -230,6 +230,17 @@ router.post('/auth/change-password', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Pessoas que podem ser @mencionadas em comentários (Onda 3): só a equipe PRICETAX da org da pessoa; cliente não enxerga a equipe.
+router.get('/mentions/users', requireAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'master' && req.user.role !== 'pricetax') return res.json({ users: [] });
+    const orgId = effectiveOrgId(req) || req.user.orgId;
+    const { rows } = await pool.query(
+      `SELECT id, name FROM users WHERE org_id=$1 AND role IN ('master','pricetax') AND blocked = false AND (expires_at IS NULL OR expires_at > now()) ORDER BY name ASC`, [orgId]);
+    res.json({ users: rows.map((r) => ({ id: r.id, name: r.name })) });
+  } catch (e) { next(e); }
+});
+
 // ---------- Users (master only) ----------
 
 router.get('/users', requireAuth, requireMaster, async (req, res, next) => {
