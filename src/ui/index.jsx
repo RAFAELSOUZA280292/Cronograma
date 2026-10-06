@@ -2,6 +2,7 @@
 // continua dono do estado e dos handlers. Acessibilidade embutida (aria-pressed/selected, role=status, foco).
 import React, { useEffect, useRef, useState } from 'react';
 import './ui.css';
+import { useDialog } from '../lib/nav.js';
 
 const cx = (...parts) => parts.filter(Boolean).join(' ');
 
@@ -180,6 +181,7 @@ export function activateRow(fn) {
 export function ConfirmDialog({ title, message, confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', danger, requireText, onConfirm, onCancel, busy, error }) {
   const [typed, setTyped] = useState('');
   const first = useRef(null);
+  const trap = useDialog(onCancel, { esc: false, history: false });
   useEffect(() => {
     if (first.current) first.current.focus();
     const onKey = (e) => { if (e.key === 'Escape' && !busy) { e.stopPropagation(); onCancel(); } };
@@ -190,7 +192,7 @@ export function ConfirmDialog({ title, message, confirmLabel = 'Confirmar', canc
   const submit = () => { if (ok && !busy) onConfirm(); };
   return (
     <div className="ui-dlg-overlay" onClick={() => { if (!busy) onCancel(); }}>
-      <div className="ui-dlg" role="alertdialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+      <div className="ui-dlg" role="alertdialog" aria-modal="true" aria-label={title} ref={trap.ref} tabIndex={-1} onClick={(e) => e.stopPropagation()}>
         <h2 className="ui-dlg-title">{title}</h2>
         {message && <div className="ui-dlg-msg">{message}</div>}
         {requireText && (

@@ -9,12 +9,13 @@
 // UI grande e autocontido, com sua própria lógica de grade de horários.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Building2, Columns3, LogOut, Link2, Ban, Home, AlertTriangle } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Link2, Ban, AlertTriangle } from 'lucide-react';
 import { Segmented, Callout, BusyBar } from '../ui/index.jsx';
 import { apiGet } from '../lib/api.js';
 import { rsvpOf, isPendingRsvp, RSVP_META, summarizeDay, fmtDur, hhmm } from './dayLoad.js';
 import { loadPrefs } from './agendaPrefs.js';
-import { S, fmtDate, BrandLogo, ThemeToggleBtn, NotificationBell } from '../App.jsx';
+import { S, BrandLogo } from '../App.jsx';
+import { useHistoryValue, readHistoryValue } from '../lib/nav.js';
 
 const GRID_START_HOUR = 6;
 const GRID_END_HOUR = 21;
@@ -78,7 +79,8 @@ export default function AgendaScreen({
   currentUser, onExit, onGoCompany, onGoPersonal, onGoXFlow, onLogout, theme, onToggleTheme,
   notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead,
 }) {
-  const [viewMode, setViewMode] = useState('week');
+  const [viewMode, setViewMode] = useState(() => readHistoryValue('agendaView', 'week'));
+  useHistoryValue('agendaView', viewMode, setViewMode, 'week');
   const [anchorDate, setAnchorDate] = useState(() => new Date());
   const [hideDetails, setHideDetails] = useState(false);
   const [hideDeclined, setHideDeclined] = useState(false);
@@ -179,10 +181,6 @@ export default function AgendaScreen({
             <div style={{ fontWeight: 800 }}>Agenda</div>
             <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{currentUser.name}</div>
           </div>
-          {onGoCompany && <button style={S.iconBtnGhost} onClick={onGoCompany}><Building2 size={14} /> Ir para Empresas</button>}
-          {onGoPersonal && <button style={S.iconBtnGhost} onClick={onGoPersonal}><Columns3 size={14} /> Ir para Gestão de Atividades</button>}
-          {onGoXFlow && <button style={S.iconBtnGhost} onClick={onGoXFlow}><CalendarDays size={14} /> Ir para XFlow</button>}
-          {onExit && <button style={S.iconBtnGhost} onClick={onExit}>Sair da Agenda</button>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
@@ -203,13 +201,6 @@ export default function AgendaScreen({
             label="Visualização da agenda" value={viewMode} onChange={setViewMode}
             options={[{ value: 'day', label: 'Dia' }, { value: 'week', label: 'Semana' }, { value: 'month', label: 'Mês' }]}
           />
-          <NotificationBell
-            notifications={notifications} show={showNotifications} onToggle={onToggleNotifications}
-            onOpenItem={onOpenNotification} onMarkRead={onMarkNotificationRead} onMarkAllRead={onMarkAllNotificationsRead}
-          />
-          {onExit && <button style={S.iconBtnGhost} title="Início" onClick={onExit}><Home size={15} /></button>}
-          <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
-          {onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
         </div>
       </div>
 

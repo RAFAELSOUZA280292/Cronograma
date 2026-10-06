@@ -2,9 +2,10 @@
 // tem VÁRIOS anexos (o mesmo documento em Word, Excel, PDF, HTML, link…); a gaveta alterna entre eles com prévia por tipo:
 // PDF, imagem, HTML (isolado) e texto abrem na própria tela, Word/PowerPoint/Excel mostram o começo do conteúdo, link mostra a prévia da página.
 import React, { useEffect, useRef, useState } from 'react';
-import { FileText, FileSpreadsheet, Presentation, Image as ImageIcon, Link2, Code2, X, LogOut, Plus, Upload, Trash2, Pencil, ExternalLink, Download, RefreshCw, MessageSquare, Send, Search, ArrowLeft } from 'lucide-react';
-import { ThemeToggleBtn, SidePanel, useDebouncedField, useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
+import { FileText, FileSpreadsheet, Presentation, Image as ImageIcon, Link2, Code2, X, Plus, Upload, Trash2, Pencil, ExternalLink, Download, RefreshCw, MessageSquare, Send, Search } from 'lucide-react';
+import { useDebouncedField, useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
 import { ConfirmDialog } from '../ui/index.jsx';
+import { ModulePanel } from '../pareceres/ModulePanel.jsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { PARECERES_CSS, fmtFileSize, initialsOf, apiErrorText } from '../pareceres/pareceresMeta.js';
 import { InlineAlert, SaveBadge, useFieldSaver } from '../pareceres/Pareceres.jsx';
@@ -175,7 +176,7 @@ function AddModal({ onClose, onCreated, categories }) {
 
   return (
     <>
-    <SidePanel title="Novo modelo" onClose={requestClose}>
+    <ModulePanel title="Novo modelo" onClose={requestClose}>
       <div className="mdl-form">
         <label htmlFor="mdl-title" style={{ marginTop: 0 }}>Título (opcional)</label>
         <input id="mdl-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Se ficar vazio, usa o nome do primeiro anexo" />
@@ -195,7 +196,7 @@ function AddModal({ onClose, onCreated, categories }) {
           <button className="par-btn par-btn-primary" onClick={submit} disabled={saving}>{saving ? progress || 'Enviando…' : 'Adicionar'}</button>
         </div>
       </div>
-    </SidePanel>
+    </ModulePanel>
     {confirmClose && <ConfirmDiscardModal onDiscard={onClose} onCancel={() => setConfirmClose(false)} />}
     </>
   );
@@ -335,7 +336,7 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
 
   return (
     <>
-    <SidePanel title="Modelo" onClose={requestClose}>
+    <ModulePanel title="Modelo" onClose={requestClose}>
       <div className="par-drawer-title-row">
         {editing
           ? <input type="text" style={{ flex: 1, fontSize: 15, fontWeight: 800 }} value={titleField.draft} onChange={(e) => titleField.onChange(e.target.value)} onBlur={titleField.flush} autoFocus />
@@ -437,7 +438,7 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
       <div className="par-drawer-actions" style={{ marginTop: 18 }}>
         <button className="par-btn par-btn-danger" onClick={() => { setDlgError(''); setConfirmDelete(true); }}><Trash2 size={14} /> Excluir modelo</button>
       </div>
-    </SidePanel>
+    </ModulePanel>
     {confirmDelete && (
       <ConfirmDialog
         title="Excluir modelo" danger confirmLabel="Excluir modelo"
@@ -496,13 +497,6 @@ export default function ModelosScreen({ currentUser, onExit, onLogout, theme, on
     <div className="par-root">
       <style>{PARECERES_CSS}{MODELOS_CSS}</style>
       <div className="par-shell">
-        <div className="par-topbar">
-          {onExit ? <button className="par-back" onClick={onExit}><ArrowLeft size={16} /> Voltar</button> : <span />}
-          <div className="par-actions">
-            <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
-            <button title="Sair" aria-label="Sair" onClick={onLogout}><LogOut size={16} /></button>
-          </div>
-        </div>
         <div className="par-body">
           <div className="par-inner">
             <div className="par-hero">
@@ -593,7 +587,7 @@ export default function ModelosScreen({ currentUser, onExit, onLogout, theme, on
         </div>
       </div>
 
-      {adding && <AddModal categories={categories} onClose={() => setAdding(false)} onCreated={(tpl, failed) => { upsert(tpl); setAdding(false); setSelectedId(tpl.id); if (failed.length) setNotice(`Modelo criado, mas não consegui enviar: ${failed.join('; ')}`); }} />}
+      {adding && <AddModal categories={categories} onClose={() => setAdding(false)} onCreated={(tpl, failed) => { upsert(tpl); setAdding(false); setTimeout(() => setSelectedId(tpl.id), 80); if (failed.length) setNotice(`Modelo criado, mas não consegui enviar: ${failed.join('; ')}`); }} />}
       {selected && (
         <Drawer
           key={selected.id}

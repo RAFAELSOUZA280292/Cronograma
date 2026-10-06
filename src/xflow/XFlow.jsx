@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import DOMPurify from 'dompurify';
 import {
-  X, Plus, MessageSquare, Clock, Paperclip, ChevronDown, LogOut,
+  X, Plus, MessageSquare, Clock, Paperclip, ChevronDown,
   Upload, Archive, Ban, Trash2, Bold, Italic, Underline as UnderlineIcon, Strikethrough,
-  AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Quote, Building2, Columns3, LayoutGrid, LayoutList,
-  Undo2, Redo2, Heading2, Heading3, Indent as IndentIcon, Outdent, Code, Minus as MinusIcon, Link2, Smile, Download, Home,
+  AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Quote, LayoutGrid, LayoutList,
+  Undo2, Redo2, Heading2, Heading3, Indent as IndentIcon, Outdent, Code, Minus as MinusIcon, Link2, Smile, Download,
 } from 'lucide-react';
 import {
   DndContext, DragOverlay, MouseSensor, TouchSensor, KeyboardSensor, useSensor, useSensors, closestCenter, useDroppable,
@@ -23,7 +23,8 @@ import TiptapImage from '@tiptap/extension-image';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
-import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, ThemeToggleBtn, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel, COLUMN_COLOR_META, NotificationBell } from '../App.jsx';
+import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel, COLUMN_COLOR_META } from '../App.jsx';
+import { DialogOverlay } from '../ui/dialog.jsx';
 import { calendarDaysSince } from '../lib/dates.js';
 
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
@@ -859,7 +860,7 @@ function AffectedCompanyField({ value, options, disabled, onCommit, placeholder 
         onChange={(e) => { setDraft(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onBlur={(e) => commit(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}
+        onKeyDown={(e) => { if (e.key === 'Escape' && open) { setOpen(false); e.preventDefault(); } }}
       />
       {open && matches.length > 0 && (
         <div style={{ ...S.dropdownMenu, position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, maxHeight: 200, overflowY: 'auto', zIndex: 10 }}>
@@ -893,9 +894,12 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const isMobile = useIsMobile();
-  const isDirty = useDirtyForm(form);
+  // O editor rico devolve "<p></p>" para um campo vazio: sem normalizar, um formulário intocado já contaria como alterado.
+  const emptyRich = (h) => !String(h || '').replace(/<[^>]*>/g, '').replace(/&nbsp;|\s/g, '') && !/<img/i.test(String(h || ''));
+  const isDirty = useDirtyForm({ ...form, description: emptyRich(form.description) ? '' : form.description });
   const [showGuard, setShowGuard] = useState(false);
   function requestClose() { if (isDirty) setShowGuard(true); else onClose(); }
+  function escClose() { if (showGuard) setShowGuard(false); else requestClose(); }
 
   function set(patch) { setForm((f) => ({ ...f, ...patch })); }
 
@@ -944,7 +948,7 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
   }
 
   return (
-    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
+    <DialogOverlay onClose={escClose} label="Nova TASK" style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }}>
       <FlashToast message={pasteNote} />
       <div style={{ ...S.detailBox, width: 'min(1100px, 94vw)', maxHeight: '90vh', overflowY: 'auto', padding: isMobile ? undefined : '24px 30px 30px 30px', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={{ ...S.detailTopBar, alignItems: 'flex-start', marginBottom: 20 }}>
@@ -1114,14 +1118,16 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
         </button>
       </div>
       {showGuard && (
-        <ConfirmDiscardModal
-          onSaveAndExit={requiredOk ? submit : undefined}
-          onDiscard={onClose}
-          onCancel={() => setShowGuard(false)}
-          saving={saving}
-        />
+        <div onClick={(e) => e.stopPropagation()}>
+          <ConfirmDiscardModal
+            onSaveAndExit={requiredOk ? submit : undefined}
+            onDiscard={onClose}
+            onCancel={() => setShowGuard(false)}
+            saving={saving}
+          />
+        </div>
       )}
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -1187,7 +1193,7 @@ function ContentField({ as: Tag = 'textarea', value, onCommit, disabled, rows, p
   );
 }
 
-function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCreateSpinoff, affectedCompanies, allTickets, onOpenTicket, onViewed }) {
+function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCreateSpinoff, affectedCompanies, allTickets, onOpenTicket, onViewed, backGuardRef }) {
   const isMobile = useIsMobile();
   const role = effectiveXflowRole(currentUser);
   const [events, setEvents] = useState([]);
@@ -1255,6 +1261,19 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   ].some((v) => v && v.trim());
   const hasDraft = hasCommentDraft || hasActionDraft;
   function requestClose() { if (hasDraft) setShowGuard(true); else onClose(); }
+  function escClose() { if (showGuard) setShowGuard(false); else requestClose(); }
+  const hasDraftRef = useRef(hasDraft);
+  hasDraftRef.current = hasDraft;
+  useEffect(() => {
+    if (!backGuardRef) return undefined;
+    backGuardRef.current = () => {
+      if (!hasDraftRef.current) return false;
+      setShowGuard(true);
+      return true;
+    };
+    return () => { backGuardRef.current = null; };
+  }, [backGuardRef]);
+  function closePreview(e) { if (e && e.stopPropagation) e.stopPropagation(); setPreviewEvidence(null); }
   async function saveDraftsAndClose() {
     if (hasCommentDraft) {
       const ok = await submitComment();
@@ -1526,7 +1545,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   const timeline = [...structuredHistory, ...legacyHistory].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
   return (
-    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
+    <DialogOverlay onClose={escClose} label={`TASK #${ticket.number}`} history={false} style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }}>
       <FlashToast message={attachNote} />
       <div style={{ ...S.detailBox, width: 'min(1000px, 100%)', maxHeight: '92vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
@@ -2091,16 +2110,18 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
         </div>
       </div>
       {showGuard && (
-        <ConfirmDiscardModal
-          onSaveAndExit={hasCommentDraft ? saveDraftsAndClose : undefined}
-          onDiscard={onClose}
-          onCancel={() => setShowGuard(false)}
-        />
+        <div onClick={(e) => e.stopPropagation()}>
+          <ConfirmDiscardModal
+            onSaveAndExit={hasCommentDraft ? saveDraftsAndClose : undefined}
+            onDiscard={onClose}
+            onCancel={() => setShowGuard(false)}
+          />
+        </div>
       )}
       {previewEvidence && (
-        <div
+        <DialogOverlay
+          onClose={closePreview} label={previewEvidence.name || 'Evidência'}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.85)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-          onClick={(e) => { e.stopPropagation(); setPreviewEvidence(null); }}
         >
           <div style={{ maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: 10 }} onClick={(e) => e.stopPropagation()}>
             <img src={previewEvidence.dataUrl} alt={previewEvidence.name} style={{ maxWidth: '90vw', maxHeight: '78vh', display: 'block', borderRadius: 8, objectFit: 'contain' }} />
@@ -2112,9 +2133,9 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               </div>
             </div>
           </div>
-        </div>
+        </DialogOverlay>
       )}
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -2609,7 +2630,7 @@ function DragFieldPromptModal({ title, field, saving, onConfirm, onCancel }) {
   const [value, setValue] = useState('');
   const valid = value.trim().length > 0;
   return (
-    <div style={S.detailOverlay} onClick={onCancel}>
+    <DialogOverlay onClose={onCancel} label={title} style={S.detailOverlay}>
       <div style={{ ...S.detailBox, width: 'min(420px, 100%)' }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontWeight: 700, fontSize: 13.5 }}>{title}</div>
@@ -2629,7 +2650,7 @@ function DragFieldPromptModal({ title, field, saving, onConfirm, onCancel }) {
           <button style={S.primaryBtn} onClick={() => valid && onConfirm(value)} disabled={!valid || saving}>{saving ? 'Salvando...' : 'Confirmar'}</button>
         </div>
       </div>
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -2882,6 +2903,11 @@ export default function XFlowScreen({
   const [affectedCompanies, setAffectedCompanies] = useState([]);
   const [viewMode, setViewMode] = useState(initXflowSub === 'lista' ? 'lista' : 'quadro');
 
+  const openTicketIdRef = useRef(null);
+  const backGuardRef = useRef(null);
+  const lastDetailUrlRef = useRef('');
+  openTicketIdRef.current = openTicketId;
+
   function pushXflowSub(sub) {
     try { window.history.pushState({ navTag: 'xflow', xflowSub: sub }, '', window.location.href); } catch (e) { /* ignora */ }
   }
@@ -2909,13 +2935,18 @@ export default function XFlowScreen({
   // pedido do Rafael de link permanente por TASK) — vira parte da mesma
   // entrada de histórico, então Voltar já desfaz o hash de graça junto com
   // o resto.
+  // Se há uma camada de Voltar (useBackLayer, ex.: modal Nova TASK) no topo, a
+  // entrada dela é substituída em vez de empilhar — evita a camada, ao se
+  // desfazer, dar history.back() e fechar a TASK recém-aberta.
   function openTicketDetail(id) {
     setOpenTicketId(id);
     try {
       const t = tickets.find((tk) => tk.id === id) || trashTickets.find((tk) => tk.id === id);
-      const cur = window.history.state || {};
+      const { backLayer, ...cur } = window.history.state || {};
       const url = t ? `${window.location.pathname}${window.location.search}#${t.number}` : window.location.href;
-      window.history.pushState({ ...cur, detailTicket: id }, '', url);
+      lastDetailUrlRef.current = url;
+      if (backLayer) window.history.replaceState({ ...cur, detailTicket: id }, '', url);
+      else window.history.pushState({ ...cur, detailTicket: id }, '', url);
     } catch (e) { /* ignora */ }
   }
   function closeTicketDetail() {
@@ -2935,6 +2966,11 @@ export default function XFlowScreen({
     function onPopState(e) {
       const state = e.state;
       if (!state || state.navTag !== 'xflow') return; // troca de módulo — App.jsx cuida
+      // Voltar com rascunho não salvo na TASK aberta: repõe a entrada e mostra a guarda em vez de descartar.
+      if (!state.detailTicket && openTicketIdRef.current && backGuardRef.current && backGuardRef.current()) {
+        try { window.history.pushState({ ...state, detailTicket: openTicketIdRef.current }, '', lastDetailUrlRef.current || window.location.href); } catch (err) { /* ignora */ }
+        return;
+      }
       setOpenTicketId(state.detailTicket || null);
       const sub = state.xflowSub || 'quadro';
       if (sub === 'trash') { setShowTrash(true); setShowArchived(false); }
@@ -3126,9 +3162,6 @@ export default function XFlowScreen({
             <div style={{ fontWeight: 800 }}>XFlow</div>
             <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{currentUser.name} · {XFLOW_ROLE_META[effRole] ? XFLOW_ROLE_META[effRole].label : currentUser.xflowRole}</div>
           </div>
-          {onGoCompany && <button style={S.iconBtnGhost} onClick={onGoCompany}><Building2 size={14} /> Ir para Empresas</button>}
-          {onGoPersonal && <button style={S.iconBtnGhost} onClick={onGoPersonal}><Columns3 size={14} /> Ir para Gestão de Atividades</button>}
-          {onExit && <button style={S.iconBtnGhost} onClick={onExit}>Sair do XFlow</button>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {!showArchived && !showTrash && (
@@ -3152,13 +3185,6 @@ export default function XFlowScreen({
             </button>
           )}
           <button style={S.primaryBtn} onClick={() => setShowNew(true)}><Plus size={15} /> Nova TASK</button>
-          <NotificationBell
-            notifications={notifications} show={showNotifications} onToggle={onToggleNotifications}
-            onOpenItem={onOpenNotification} onMarkRead={onMarkNotificationRead} onMarkAllRead={onMarkAllNotificationsRead}
-          />
-          {onExit && <button style={S.iconBtnGhost} title="Início" onClick={onExit}><Home size={15} /></button>}
-          <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
-          {onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
         </div>
       </div>
 
@@ -3231,6 +3257,7 @@ export default function XFlowScreen({
           onCreateSpinoff={createSpinoff}
           onOpenTicket={openTicketDetail}
           onViewed={onTicketViewed}
+          backGuardRef={backGuardRef}
         />
       )}
       {toastMsg && (

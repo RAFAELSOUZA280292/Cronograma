@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X, Mic, Plus, Trash2, Download, Paperclip, Copy, Check } from 'lucide-react';
 import { S, fmtDate, fmtTs, useIsMobile, useAutosaveTimestamp, useDebouncedField, savedStatusLabel } from '../App.jsx';
 import { TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } from './Meetings.jsx';
+import { useDialog } from '../lib/nav.js';
 import { initials, avatarColor, daysOverdue, isItemOverdue } from './todoUtils.js';
 
 const MAX_TODO_ATTACHMENT_BYTES = 8 * 1024 * 1024;
@@ -87,6 +88,13 @@ export function TodoDrawer({
     setTimeout(onClose, 160);
   }
 
+  // Esc/Voltar fecham na hora (sem a animação do X): o retardo de 160ms faria a camada de histórico ser reposta e desempilhada de novo.
+  function closeNow() {
+    titleField.flush(); subtitleField.flush(); responsibleField.flush(); notesField.flush();
+    onClose();
+  }
+  const dlg = useDialog(closeNow);
+
   const owner = item.owner === 'cliente' ? 'cliente' : 'pricetax';
   const overdue = isItemOverdue(item);
   const subtasks = item.subtasks || [];
@@ -114,7 +122,7 @@ export function TodoDrawer({
   const canDeleteComment = (c) => currentUser && (c.userId === currentUser.id || currentUser.role === 'master');
 
   return (
-    <div className="todo-drawer-overlay" onClick={requestClose}>
+    <div className="todo-drawer-overlay" {...dlg} aria-label="Detalhe da atividade" onClick={(e) => { e.stopPropagation(); requestClose(); }}>
       <style>{DRAWER_CSS}</style>
       <div className={`todo-drawer ${open ? 'open' : ''} ${isMobile ? 'mobile' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="todo-drawer-head">
@@ -128,7 +136,7 @@ export function TodoDrawer({
           <span style={{ fontSize: 11, color: 'var(--text-6)', flex: 1 }}>{savedStatusLabel(false, lastSavedAt)}</span>
           <button type="button" style={S.iconBtnGhost} title="Duplicar atividade" onClick={() => duplicateActionItem(pid, meeting.id, item.id)}><Copy size={16} /></button>
           <button type="button" style={S.iconBtnGhost} title="Excluir atividade" onClick={() => { deleteActionItem(pid, meeting.id, item.id); requestClose(); }}><Trash2 size={16} /></button>
-          <button type="button" style={S.iconBtnGhost} onClick={requestClose}><X size={20} /></button>
+          <button type="button" style={S.iconBtnGhost} onClick={requestClose} aria-label="Fechar"><X size={20} /></button>
         </div>
 
         <div className="todo-drawer-body">

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CalendarDays, Sparkles, CheckCircle2 } from 'lucide-react';
 import { apiGet, apiPut, apiPost } from '../lib/api.js';
 import DailyPrefs, { DAILY_CSS } from './DailyPrefs.jsx';
+import { useDialog } from '../lib/nav.js';
 
 const CSS = `
   .wsu-overlay { position:fixed; inset:0; background:rgba(0,0,0,.62); z-index:200; display:flex; align-items:center; justify-content:center; padding:16px; }
@@ -55,8 +56,10 @@ export default function WelcomeSetup({ user, onDone }) {
   }
 
   const first = (user.name || '').split(' ')[0] || user.username;
+  // Onboarding de passo a passo: só foco preso e a11y. Esc/Voltar não fecham (sair é "Agora não", que registra a conclusão).
+  const dlg = useDialog(() => {}, { history: false, esc: false });
   return (
-    <div className="wsu-overlay" role="dialog" aria-modal="true" aria-label="Boas-vindas">
+    <div className="wsu-overlay" {...dlg} aria-label="Boas-vindas">
       <style>{CSS}{DAILY_CSS}</style>
       <div className="wsu">
         <div className="wsu-head">

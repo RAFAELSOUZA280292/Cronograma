@@ -9,10 +9,11 @@
 // `projects` (é o mesmo estado, mesmo PATCH). Ver PROJECT_CONTEXT.md §23.
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Building2, Columns3, Bug, LogOut, Home, RefreshCw, AlertTriangle, Clock3, CalendarDays, CalendarRange, CalendarClock, CalendarOff, Pause, X, CheckCircle2, Search } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Clock3, CalendarDays, CalendarRange, CalendarClock, CalendarOff, Pause, X, CheckCircle2, Search } from 'lucide-react';
 import { Chip, ChipRow, Select, Button, EmptyState, SkeletonCards, activate } from '../ui/index.jsx';
 import { apiGet } from '../lib/api.js';
-import { S, BrandLogo, ThemeToggleBtn, NotificationBell, STATUS_META, PRIORITY_META, PRIORITY_ORDER } from '../App.jsx';
+import { useHistoryValue, readHistoryValue } from '../lib/nav.js';
+import { S, BrandLogo, STATUS_META, PRIORITY_META, PRIORITY_ORDER } from '../App.jsx';
 
 const RANGE_OPTIONS = [
   { value: 'overdue', label: 'Atrasadas', icon: AlertTriangle, accent: '#e2574c', countKey: 'overdueCount' },
@@ -61,7 +62,8 @@ export default function MacroOverviewScreen({
   notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead,
   onOpenActivity, activityModalOpen,
 }) {
-  const [range, setRange] = useState('current_week');
+  const [range, setRange] = useState(() => readHistoryValue('macroView', 'current_week'));
+  useHistoryValue('macroView', range, setRange, 'current_week');
   const [data, setData] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
@@ -145,20 +147,9 @@ export default function MacroOverviewScreen({
             <div style={{ fontWeight: 800 }}>Visão Macro</div>
             <div style={{ fontSize: 11, color: 'var(--text-5)' }}>Cronograma geral — todas as empresas</div>
           </div>
-          {onGoCompany && <button style={S.iconBtnGhost} onClick={onGoCompany}><Building2 size={14} /> Ir para Empresas</button>}
-          {onGoPersonal && <button style={S.iconBtnGhost} onClick={onGoPersonal}><Columns3 size={14} /> Ir para Gestão de Atividades</button>}
-          {onGoXFlow && <button style={S.iconBtnGhost} onClick={onGoXFlow}><Bug size={14} /> Ir para XFlow</button>}
-          {onExit && <button style={S.iconBtnGhost} onClick={onExit}>Sair da Visão Macro</button>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button style={S.iconBtnGhost} title="Atualizar" onClick={load}><RefreshCw size={14} /></button>
-          <NotificationBell
-            notifications={notifications} show={showNotifications} onToggle={onToggleNotifications}
-            onOpenItem={onOpenNotification} onMarkRead={onMarkNotificationRead} onMarkAllRead={onMarkAllNotificationsRead}
-          />
-          {onExit && <button style={S.iconBtnGhost} title="Início" onClick={onExit}><Home size={15} /></button>}
-          <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
-          {onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
         </div>
       </div>
 

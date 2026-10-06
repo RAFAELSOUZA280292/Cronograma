@@ -5,7 +5,7 @@ import {
   GripVertical, CalendarDays, List, Pencil, Maximize2, Send, MessageSquare, Mic,
   LogOut, UserCog, AlertTriangle, Sun, Moon, Copy, Undo2, Bell, Link2, History,
   MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal,
-  Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge, Home, Paperclip, Sparkles, Briefcase, FolderOpen,
+  ArrowLeft, Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge, Home, Paperclip, Sparkles, Briefcase, FolderOpen,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -36,6 +36,9 @@ import ModelosScreen from './modelos/Modelos.jsx';
 import PersonalStatsPanel from './personal/PersonalStats.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
 import { activate, activateRow, Tabs, ConfirmDialog } from './ui/index.jsx';
+import ModuleShell from './shell/ModuleShell.jsx';
+import { DialogOverlay } from './ui/dialog.jsx';
+import { useHistoryValue, readHistoryValue, withoutLayer } from './lib/nav.js';
 import { calendarDaysSince } from './lib/dates.js';
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
 // CRM (2026-09-20, PROJECT_CONTEXT.md §54): módulo grande e opcional — carregado só quando alguém abre o CRM.
@@ -304,7 +307,7 @@ export function useAutosaveTimestamp(record) {
 
 export function ConfirmDiscardModal({ onSaveAndExit, onDiscard, onCancel, saving }) {
   return (
-    <div style={{ ...S.detailOverlay, zIndex: 200 }} onClick={onCancel}>
+    <DialogOverlay style={{ ...S.detailOverlay, zIndex: 200 }} onClose={onCancel} history={false}>
       <div style={{ ...S.detailBox, width: 'min(420px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ fontSize: 16, fontWeight: 800 }}>Você tem alterações não salvas</div>
         <div style={{ ...S.fieldHint, marginTop: 8, fontSize: 12.5 }}>Deseja salvar antes de sair?</div>
@@ -318,7 +321,7 @@ export function ConfirmDiscardModal({ onSaveAndExit, onDiscard, onCancel, saving
           <button style={{ ...S.iconBtnGhost, justifyContent: 'center' }} onClick={onCancel}>Continuar editando</button>
         </div>
       </div>
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -564,7 +567,20 @@ function PhaseRow({ p, dragPhaseId, setDragPhaseId, reorderPhase, updatePhase, d
   );
 }
 
-export default function App() {
+const SHELL_MODES = [
+  { key: 'company', label: 'Empresas', icon: Building2 },
+  { key: 'personal', label: 'Gestão de Atividades', icon: Columns3 },
+  { key: 'xflow', label: 'XFlow', icon: Bug },
+  { key: 'agenda', label: 'Agenda', icon: CalendarDays },
+  { key: 'macro', label: 'Visão Geral', icon: Globe },
+  { key: 'knowledge', label: 'Conhecimento', icon: Sparkles },
+  { key: 'crm', label: 'CRM', icon: Briefcase },
+  { key: 'pareceres', label: 'Pareceres', icon: FileText },
+  { key: 'modelos', label: 'Modelos', icon: FolderOpen },
+  { key: 'users', label: 'Usuários', icon: UserCog },
+];
+
+function AppScreens({ shellRef, bump }) {
   const [theme, setTheme] = useState(() => {
     try { return window.localStorage.getItem(THEME_KEY) || 'dark'; } catch (e) { return 'dark'; }
   });
@@ -605,7 +621,8 @@ export default function App() {
   const inFlightProjectSaves = useRef({});
   const { toasts: appToasts, pushToast: pushAppToast, pushUndoToast: pushAppUndoToast, dismissToast: dismissAppToast } = useToasts();
 
-  const [view, setView] = useState('table');
+  const [view, setView] = useState(() => readHistoryValue('companyView', 'table'));
+  useHistoryValue('companyView', view, setView, 'table');
   const [todoFocusMeetingId, setTodoFocusMeetingId] = useState(null);
   const [meetingToPrint, setMeetingToPrint] = useState(null);
   const [showLog, setShowLog] = useState(false);
@@ -613,6 +630,7 @@ export default function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [pendingXflowOpen, setPendingXflowOpen] = useState(null);
+  const [pendingPersonalOpen, setPendingPersonalOpen] = useState(null); // {boardId, colId, cardId} vindo da busca global
   const [pendingCrmOpen, setPendingCrmOpen] = useState(null); // {companyId, dealId} vindo de uma notificação do CRM
   const [showSettings, setShowSettings] = useState(false);
   const [showPhases, setShowPhases] = useState(false);
@@ -726,7 +744,7 @@ export default function App() {
     markNotificationsReadForTarget({ kind: 'activity', projectId: pid, activityId: id });
     try {
       const cur = window.history.state || {};
-      window.history.pushState({ ...cur, detailActivity: { pid, id } }, '', window.location.href);
+      window.history.pushState({ ...withoutLayer(cur), detailActivity: { pid, id } }, '', window.location.href);
     } catch (e) { /* ignora */ }
   }
   function closeActivityDetail() {
@@ -739,7 +757,7 @@ export default function App() {
     setOpenMeetingId({ pid, id });
     try {
       const cur = window.history.state || {};
-      window.history.pushState({ ...cur, detailMeeting: { pid, id } }, '', window.location.href);
+      window.history.pushState({ ...withoutLayer(cur), detailMeeting: { pid, id } }, '', window.location.href);
     } catch (e) { /* ignora */ }
   }
   // Criar atividade/reunião já grava o registro e abre o modal (decisão antiga: editar direto). Se a pessoa fecha sem
@@ -1443,6 +1461,15 @@ export default function App() {
     });
   }
 
+  // Casca única (§81, Onda 1): cada render publica em shellRef o que a barra do topo precisa; a barra só re-renderiza
+  // quando a assinatura muda (os callbacks são lidos na hora do clique, então nunca ficam velhos).
+  const shellSigRef = useRef('');
+  useEffect(() => {
+    const sig = shellRef.current ? shellRef.current.sig : '';
+    if (sig !== shellSigRef.current) { shellSigRef.current = sig; bump(); }
+  });
+  shellRef.current = null;
+
   const publicBoardMatch = window.location.pathname.match(/^\/quadro\/([A-Za-z0-9_-]+)/);
   if (publicBoardMatch) {
     return <PublicBoardScreen token={publicBoardMatch[1]} theme={theme} onToggleTheme={toggleTheme} />;
@@ -1496,7 +1523,63 @@ export default function App() {
   // pro mesmo lugar sem fazer nada.
   const goHome = availableModes.length > 1 ? () => goToWorkspace(null) : null;
 
+  const shellModeKeys = [...availableModes, currentUser.role === 'master' && 'users'].filter(Boolean);
+  const shellModes = SHELL_MODES.filter((m) => shellModeKeys.includes(m.key));
+  const shellCurrent = (showUsers || effectiveMode === 'users') && currentUser.role === 'master' ? 'users' : effectiveMode;
+  function buildSearchItems() {
+    const items = shellModes.map((m) => ({ id: `m-${m.key}`, group: 'Ir para', label: m.label, icon: m.icon, run: () => goToWorkspace(m.key) }));
+    if (hasCompanies) {
+      for (const p of projects) {
+        const name = p.company.nomeFantasia || p.company.name || 'Sem nome';
+        const openCompany = () => { goToWorkspace('company'); confirmCompanySelection([p.id]); };
+        items.push({ id: `c-${p.id}`, group: 'Empresas', label: name, hint: p.company.cnpj || '', icon: Building2, run: openCompany });
+        for (const a of p.activities || []) {
+          if (a.deleted) continue;
+          items.push({ id: `a-${p.id}-${a.id}`, group: 'Atividades', label: a.title || '(sem título)', hint: name, keywords: a.responsible || '', icon: ListChecks, run: () => { openCompany(); openActivityDetail(p.id, a.id); } });
+        }
+        for (const m of p.meetings || []) {
+          if (m.deleted) continue;
+          items.push({ id: `r-${p.id}-${m.id}`, group: 'Reuniões', label: m.title || '(sem título)', hint: name, icon: Mic, run: () => { openCompany(); setView('meetings'); openMeetingDetail(p.id, m.id); } });
+        }
+      }
+    }
+    if (hasPersonal && personalBoard) {
+      for (const b of personalBoard.boards || []) {
+        for (const col of b.columns || []) {
+          for (const cd of col.cards || []) {
+            if (cd.deleted || cd.archived) continue;
+            items.push({ id: `p-${cd.id}`, group: 'Meu quadro', label: cd.title || '(sem título)', hint: b.name, icon: Columns3, run: () => { setPendingPersonalOpen({ boardId: b.id, colId: col.id, cardId: cd.id }); goToWorkspace('personal'); } });
+          }
+        }
+      }
+    }
+    return items;
+  }
+  shellRef.current = {
+    sig: [currentUser.id, currentUser.avatar, currentUser.name, shellCurrent, shellModeKeys.join(','), theme, showNotifications, showMyProfile, profileTab, googleConnectResult ? 1 : 0,
+      notifications.map((n) => `${n.id}${n.read ? 1 : 0}`).join(',')].join('|'),
+    user: currentUser, current: shellCurrent, modes: shellModes, theme, notifications, showNotifications,
+    onGo: (k) => goToWorkspace(k),
+    onHome: goHome ? () => goToWorkspace(null) : null,
+    getSearchItems: buildSearchItems,
+    onToggleNotifications: () => setShowNotifications((v) => !v),
+    onOpenNotification: goToNotificationTarget, onMarkNotificationRead: markNotificationRead, onMarkAllNotificationsRead: markAllNotificationsRead,
+    onOpenProfile: () => openProfile('perfil'),
+    onToggleTheme: toggleTheme, onLogout: handleLogout,
+    profileNode: showMyProfile ? (
+      <MyProfileModal
+        user={currentUser}
+        initialTab={profileTab}
+        onDailySaved={() => setDailyReload((k) => k + 1)}
+        googleConnectResult={googleConnectResult}
+        onClose={() => { setShowMyProfile(false); setGoogleConnectResult(null); }}
+        onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
+      />
+    ) : null,
+  };
+
   if (availableModes.length === 0) {
+    shellRef.current = null;
     return <NoAccessScreen user={currentUser} onLogout={handleLogout} onHome={availableModes.length > 0 ? () => goToWorkspace(null) : null} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
@@ -1523,16 +1606,6 @@ export default function App() {
         onConfigureDaily={() => openProfile('dia')}
         dailyReload={dailyReload}
       />
-        {showMyProfile && (
-          <MyProfileModal
-            user={currentUser}
-            initialTab={profileTab}
-            onDailySaved={() => setDailyReload((k) => k + 1)}
-            googleConnectResult={googleConnectResult}
-            onClose={() => { setShowMyProfile(false); setGoogleConnectResult(null); }}
-            onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
-          />
-        )}
       </>
     );
   }
@@ -1570,6 +1643,7 @@ export default function App() {
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
+        pendingOpen={pendingPersonalOpen} onPendingOpenConsumed={() => setPendingPersonalOpen(null)}
         saveState={personalBoardSaveState}
         notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
         onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
@@ -1769,16 +1843,6 @@ export default function App() {
               setCloningProject(null);
               if (crossOrg) window.alert(`Empresa clonada na organização "${orgName}".`);
             }}
-          />
-        )}
-        {showMyProfile && (
-          <MyProfileModal
-            user={currentUser}
-            initialTab={profileTab}
-            onDailySaved={() => setDailyReload((k) => k + 1)}
-            googleConnectResult={googleConnectResult}
-            onClose={() => { setShowMyProfile(false); setGoogleConnectResult(null); }}
-            onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
           />
         )}
         <ToastStack toasts={appToasts} onDismiss={dismissAppToast} />
@@ -2785,10 +2849,7 @@ export default function App() {
   const moreMenuItems = [
     !isMulti && { icon: Settings, label: 'Empresa', onClick: () => setShowSettings(true) },
     canPickCompanies && { icon: Building2, label: 'Trocar empresas', onClick: () => goToCompanySelector() },
-    currentUser.personalAccess && { icon: Columns3, label: 'Gestão de Atividades', onClick: () => goToWorkspace('personal') },
-    currentUser.xflowRole && { icon: Bug, label: 'XFlow', onClick: () => goToWorkspace('xflow') },
     (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Plus, label: 'Cadastrar empresa', onClick: () => setShowCreateCompany(true) },
-    currentUser.role === 'master' && { icon: UserCog, label: 'Usuários', onClick: () => goToUsers(true) },
     currentUser.isSuperAdmin && { icon: Building2, label: 'Organizações', onClick: () => goToOrgAdmin(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: LayoutGrid, label: 'Fases', onClick: () => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); } },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Clock, label: `Log (${(activeProject.log || []).length})`, onClick: () => setShowLog(true) },
@@ -2878,12 +2939,6 @@ export default function App() {
           {!isMobile && canPickCompanies && (
             <button style={S.iconBtn} onClick={() => goToCompanySelector()}><Building2 size={15} /> Trocar empresas</button>
           )}
-          {!isMobile && currentUser.personalAccess && (
-            <button style={S.iconBtn} onClick={() => goToWorkspace('personal')}><Columns3 size={15} /> Gestão de Atividades</button>
-          )}
-          {!isMobile && currentUser.xflowRole && (
-            <button style={S.iconBtn} onClick={() => goToWorkspace('xflow')}><Bug size={15} /> XFlow</button>
-          )}
         </div>
         <div style={S.actionsRow}>
           {isMobile && moreMenuItems.length > 0 && (
@@ -2906,7 +2961,6 @@ export default function App() {
           {!isMobile && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowCreateCompany(true)}><Plus size={15} /> Cadastrar empresa</button>
           )}
-          {!isMobile && currentUser.role === 'master' && <button style={S.iconBtn} onClick={() => goToUsers(true)}><UserCog size={15} /> Usuários</button>}
           {!isMobile && currentUser.isSuperAdmin && <button style={S.iconBtn} onClick={() => goToOrgAdmin(true)}><Building2 size={15} /> Organizações</button>}
           {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); }}><LayoutGrid size={15} /> Fases</button>
@@ -2933,20 +2987,6 @@ export default function App() {
           ) : (
             <button style={S.primaryBtn} onClick={() => addActivity(activeProject.id)}><Plus size={15} /> Nova atividade</button>
           )}
-          <NotificationBell
-            notifications={notifications} show={showNotifications} onToggle={() => setShowNotifications((v) => !v)}
-            onOpenItem={goToNotificationTarget} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead}
-          />
-          {goHome && <button style={S.iconBtnGhost} title="Início" onClick={goHome}><Home size={15} /></button>}
-          <ThemeToggleBtn theme={theme} onToggle={toggleTheme} />
-          <div style={S.userBadge}>
-            <button style={S.userAvatarBtn} title={`Meu perfil — ${currentUser.name}`} onClick={() => openProfile('perfil')}>
-              <UserAvatar user={currentUser} size={26} />
-            </button>
-            {!isMobile && <span style={{ ...S.roleTag, color: ROLE_META[currentUser.role].color, borderColor: ROLE_META[currentUser.role].color }}>{ROLE_META[currentUser.role].label}</span>}
-            {!isMobile && <span style={S.userName}>{currentUser.name}</span>}
-            <button style={S.iconBtnGhost} title="Sair" onClick={handleLogout}><LogOut size={15} /></button>
-          </div>
         </div>
       </div>
 
@@ -3394,16 +3434,6 @@ export default function App() {
         />
       )}
 
-      {showMyProfile && (
-        <MyProfileModal
-          user={currentUser}
-          initialTab={profileTab}
-          onDailySaved={() => setDailyReload((k) => k + 1)}
-          googleConnectResult={googleConnectResult}
-          onClose={() => { setShowMyProfile(false); setGoogleConnectResult(null); }}
-          onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
-        />
-      )}
 
       {showGroupActivityModal && (
         <GroupActivityCompaniesModal
@@ -3589,10 +3619,8 @@ function SuperAdminScreen({ organizations, error, onClose, closeLabel, onLogout,
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} style={S.iconBtn} />
           <button style={S.primaryBtn} onClick={() => setShowCreate((v) => !v)}><Plus size={14} /> Nova organização</button>
-          <button style={S.iconBtn} onClick={onClose}><X size={14} /> {closeLabel || 'Voltar ao cronograma'}</button>
-          {onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={16} /></button>}
+          {!closeLabel && <button style={S.iconBtn} onClick={onClose}><ArrowLeft size={14} /> Voltar</button>}
         </div>
       </div>
 
@@ -3761,9 +3789,8 @@ function UsersManagementScreen({
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} style={S.iconBtn} />
           <button style={S.primaryBtn} onClick={() => setShowCreate(true)}><Plus size={14} /> Novo usuário</button>
-          <button style={S.iconBtn} onClick={onClose}><X size={14} /> {closeLabel || 'Voltar ao cronograma'}</button>
+          {!closeLabel && <button style={S.iconBtn} onClick={onClose}><ArrowLeft size={14} /> Voltar</button>}
         </div>
       </div>
 
@@ -3993,7 +4020,7 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations, register
   }
 
   return (
-    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
+    <DialogOverlay style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose}>
       <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', maxHeight: '88vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Novo usuário</div>
@@ -4072,7 +4099,7 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations, register
           onCancel={() => setShowGuard(false)}
         />
       )}
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -4085,7 +4112,7 @@ function EditUserModal({ user: u, accessSummary, currentUser, registeredProjects
   const isMobile = useIsMobile();
 
   return (
-    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onClose}>
+    <DialogOverlay style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={onClose}>
       <div style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '88vh', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -4215,7 +4242,7 @@ function EditUserModal({ user: u, accessSummary, currentUser, registeredProjects
           <Trash2 size={13} color={isSelf ? 'var(--text-8)' : 'var(--text-5)'} /> {isSelf ? ' (é você)' : ' Remover usuário'}
         </button>
       </div>
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -4283,7 +4310,7 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab
   }
 
   return (
-    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
+    <DialogOverlay style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose}>
       <div style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '90vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Meu perfil</div>
@@ -4387,7 +4414,7 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab
           onCancel={() => setShowGuard(false)}
         />
       )}
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -4507,7 +4534,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
   }
 
   return (
-    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
+    <DialogOverlay style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose}>
       <style>{`
         input[type=text], input[type=email], input[type=password], select, textarea {
           background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
@@ -4723,11 +4750,11 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
           saving={saving}
         />
       )}
-    </div>
+    </DialogOverlay>
   );
 }
 
-function UserAvatar({ user, size = 32 }) {
+export function UserAvatar({ user, size = 32 }) {
   const color = ROLE_META[user.role]?.color || 'var(--text-5)';
   const initial = (user.name || user.username || '?').slice(0, 1).toUpperCase();
   return (
@@ -4857,7 +4884,7 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
   }
 
   return (
-    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
+    <DialogOverlay style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose}>
       <style>{`
         input[type=text], select, textarea {
           background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
@@ -4961,7 +4988,7 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
           saving={saving}
         />
       )}
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -4986,7 +5013,7 @@ function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }) {
   }
 
   return (
-    <div style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
+    <DialogOverlay style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose}>
       <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Nova atividade do grupo</div>
@@ -5015,7 +5042,7 @@ function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }) {
           onCancel={() => setShowGuard(false)}
         />
       )}
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -5111,36 +5138,6 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
       <div style={S.companySelectorWrap}>
         <div style={S.companySelectorHeader}>
           <BrandLogo theme={theme} style={{ ...S.loginLogo, marginBottom: 0 }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {onGoPersonal && (
-              <button style={S.companyHeaderShortcut} onClick={onGoPersonal} title="Ir para o seu quadro pessoal de tarefas">
-                <Columns3 size={14} /> Gestão de Atividades
-              </button>
-            )}
-            {onGoUsers && (
-              <button style={S.companyHeaderShortcut} onClick={onGoUsers} title="Gerenciar usuários">
-                <UserCog size={14} /> Gestão de Usuários
-              </button>
-            )}
-            {onGoXFlow && (
-              <button style={S.companyHeaderShortcut} onClick={onGoXFlow} title="Ir para o XFlow">
-                <Bug size={14} /> XFlow
-              </button>
-            )}
-            {onGoAgenda && (
-              <button style={S.companyHeaderShortcut} onClick={onGoAgenda} title="Ir para a Agenda">
-                <CalendarDays size={14} /> Agenda
-              </button>
-            )}
-            {onOpenProfile && currentUser && (
-              <button style={S.userAvatarBtn} title={`Meu perfil — ${currentUser.name}`} onClick={onOpenProfile}>
-                <UserAvatar user={currentUser} size={26} />
-              </button>
-            )}
-            {onGoHome && <button style={S.iconBtnGhost} title="Início" onClick={onGoHome}><Home size={14} /></button>}
-            <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
-            <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={16} /></button>
-          </div>
         </div>
         <h1 style={S.loginTitle}>Quais empresas você quer acompanhar?</h1>
         <p style={S.loginSub}>Escolha uma, várias, ou marque "Selecionar todas" pra ter a visão geral. Dá pra trocar depois clicando em "Trocar empresas".</p>
@@ -5346,15 +5343,6 @@ function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersona
       <div style={S.companySelectorWrap}>
         <div style={S.companySelectorHeader}>
           <BrandLogo theme={theme} style={{ ...S.loginLogo, marginBottom: 0 }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {onOpenProfile && (
-              <button style={S.companyHeaderShortcut} title={`Meu perfil — ${user.name}`} onClick={onOpenProfile}>
-                <UserAvatar user={user} size={20} /> Meu perfil
-              </button>
-            )}
-            <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
-            <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={16} /></button>
-          </div>
         </div>
         <h1 style={{ ...S.loginTitle, marginBottom: 14 }}>Olá, {(user.name || '').split(' ')[0] || user.username}</h1>
 
@@ -5612,7 +5600,7 @@ function TagEditor({ tags, onChange, suggestions }) {
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit(); } if (e.key === 'Escape') setDraft(''); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit(); } if (e.key === 'Escape') { e.preventDefault(); setDraft(''); } }}
           onBlur={commit}
           placeholder="+ tag"
           list="personal-tag-suggestions"
@@ -5942,13 +5930,6 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
     onClose();
   }
 
-  useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') requestClose(); }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasDraft]);
-
   function submitComment() {
     if (!commentDraft.trim()) return;
     onAddComment(commentDraft);
@@ -5966,7 +5947,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
   const stale = staleTone(staleDays);
 
   return (
-    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
+    <DialogOverlay style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose} history={false}>
       <div style={{ ...S.detailBox, width: 'min(760px, 100%)', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -6061,7 +6042,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
                       onChange={(e) => setEditingChecklistText(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') { e.preventDefault(); onUpdateChecklistItem(item.id, editingChecklistText); setEditingChecklistId(null); }
-                        else if (e.key === 'Escape') { cancelingChecklistRef.current = true; setEditingChecklistId(null); }
+                        else if (e.key === 'Escape') { e.preventDefault(); cancelingChecklistRef.current = true; setEditingChecklistId(null); }
                       }}
                       onBlur={() => {
                         if (cancelingChecklistRef.current) { cancelingChecklistRef.current = false; return; }
@@ -6120,7 +6101,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
                     <textarea
                       value={editingCommentText}
                       onChange={(e) => setEditingCommentText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Escape') setEditingCommentId(null); }}
+                      onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setEditingCommentId(null); } }}
                       rows={3}
                       style={{ ...S.notesArea, flex: 1 }}
                       autoFocus
@@ -6178,7 +6159,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
           onCancel={() => setShowGuard(false)}
         />
       )}
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -6261,7 +6242,7 @@ function ReassignCardsModal({ column, otherColumns, onConfirm, onCancel }) {
   const activeCount = column.cards.filter((c) => !c.deleted).length;
   const isMobile = useIsMobile();
   return (
-    <div style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={onCancel}>
+    <DialogOverlay style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={onCancel}>
       <div style={{ ...S.detailBox, width: 'min(460px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 16, fontWeight: 800 }}>Excluir coluna "{column.name}"</div>
@@ -6280,7 +6261,7 @@ function ReassignCardsModal({ column, otherColumns, onConfirm, onCancel }) {
           <button style={S.primaryBtn} onClick={() => onConfirm(targetColId, alsoDelete)} disabled={!targetColId}>Mover e excluir coluna</button>
         </div>
       </div>
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -6335,7 +6316,7 @@ function BoardShareModal({ board, onClose, onSetVisibility, onRegenerateLink }) 
   }
 
   return (
-    <div style={S.detailOverlay} onClick={onClose}>
+    <DialogOverlay style={S.detailOverlay} onClose={onClose}>
       <div style={{ ...S.detailBox, width: 'min(480px, 100%)' }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={S.subSectionLabel}>Visibilidade da página "{board.name}"</div>
@@ -6371,7 +6352,7 @@ function BoardShareModal({ board, onClose, onSetVisibility, onRegenerateLink }) 
           </>
         )}
       </div>
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -6398,7 +6379,7 @@ function BoardActivityLogModal({ board, onClose }) {
   );
 }
 
-function PersonalBoardScreen({ board, onMutate, onExit, onGoCompany, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName, embedded, publicAction, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
+function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMutate, onExit, onGoCompany, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName, embedded, publicAction, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
   // Histórico do navegador — Nível 2 (2026-08): trocar de página do quadro
   // pessoal. Nunca ativo em publicMode (/quadro/:token é a única rota que
   // usa URL de verdade — ver PROJECT_CONTEXT.md §9, não mexer nisso aqui).
@@ -6468,7 +6449,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoCompany, onGoXFlow, 
     if (publicMode) return;
     try {
       const cur = window.history.state || {};
-      window.history.pushState({ ...cur, detailCard: { colId, cardId } }, '', window.location.href);
+      window.history.pushState({ ...withoutLayer(cur), detailCard: { colId, cardId } }, '', window.location.href);
     } catch (e) { /* ignora */ }
   }
   function closeCardDetail() {
@@ -6498,6 +6479,16 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoCompany, onGoXFlow, 
     return () => window.removeEventListener('popstate', onPopState);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!pendingOpen) return;
+    if (board.boards.some((b) => b.id === pendingOpen.boardId)) {
+      goToBoardPage(pendingOpen.boardId);
+      openCardDetail(pendingOpen.colId, pendingOpen.cardId);
+    }
+    onPendingOpenConsumed && onPendingOpenConsumed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingOpen]);
 
   useEffect(() => {
     if (!board.boards.some((b) => b.id === activeBoardId)) {
@@ -7135,8 +7126,6 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoCompany, onGoXFlow, 
             <div style={S.brandName}>Gestão de Atividades</div>
             <div style={S.brandCnpj}>{publicMode ? (publicOwnerName ? `Quadro de ${publicOwnerName}` : 'Quadro compartilhado') : currentUser.name}</div>
           </div>
-          {onGoCompany && <button className="pb-ghost" style={S.pbGhostBtn} onClick={onGoCompany}><Building2 size={15} /> Ir para Empresas</button>}
-          {onGoXFlow && <button className="pb-ghost" style={S.pbGhostBtn} onClick={onGoXFlow}><Bug size={15} /> Ir para XFlow</button>}
           {!readOnly && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira{trashItems.length > 0 ? ` (${trashItems.length})` : ''}</button>}
           {!readOnly && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowArchive(true)}><Archive size={15} /> Concluídas{archiveItems.length > 0 ? ` (${archiveItems.length})` : ''}</button>}
           {!readOnly && !publicMode && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowStats(true)}><Gauge size={15} /> Indicadores</button>}
@@ -7145,15 +7134,8 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoCompany, onGoXFlow, 
           {saveState === 'saving' && <span style={S.saveStateBadge}>Salvando…</span>}
           {saveState === 'saved' && <FadingSavedBadge />}
           {saveState === 'error' && <span style={{ ...S.saveStateBadge, color: '#e2574c' }}>Falha ao salvar — desfeito</span>}
-          {!publicMode && (
-            <NotificationBell
-              notifications={notifications} show={showNotifications} onToggle={onToggleNotifications}
-              onOpenItem={onOpenNotification} onMarkRead={onMarkNotificationRead} onMarkAllRead={onMarkAllNotificationsRead}
-            />
-          )}
-          {onExit && <button style={S.iconBtnGhost} title="Início" onClick={onExit}><Home size={15} /></button>}
-          <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
-          {onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
+          {publicMode && <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />}
+          {publicMode && onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
         </div>
       </div>
       )}
@@ -7632,7 +7614,7 @@ function NoAccessScreen({ user, onLogout, onHome, theme, onToggleTheme }) {
 export function SidePanel({ title, onClose, width, children }) {
   const isMobile = useIsMobile();
   return (
-    <div className="no-print" style={S.overlay} onClick={onClose}>
+    <DialogOverlay className="no-print" style={S.overlay} onClose={onClose}>
       <div style={{ ...S.panel, ...(width ? { width } : null), ...(isMobile ? S.panelMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.panelHead}>
           <div style={S.panelTitle}>{title}</div>
@@ -7640,7 +7622,7 @@ export function SidePanel({ title, onClose, width, children }) {
         </div>
         <div style={S.panelBody}>{children}</div>
       </div>
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -7661,7 +7643,7 @@ export function NotificationBell({ notifications, show, onToggle, onOpenItem, on
         {unreadCount > 0 && <span style={S.mentionBadge}>{unreadCount > 9 ? '9+' : unreadCount}</span>}
       </button>
       {show && (
-        <div className="no-print" style={S.overlay} onClick={onToggle}>
+        <DialogOverlay className="no-print" style={S.overlay} onClose={onToggle}>
           <div style={S.panel} onClick={(e) => e.stopPropagation()}>
             <div style={S.panelHead}>
               <div style={S.panelTitle}>{unreadCount > 0 ? `${unreadCount} notifica${unreadCount === 1 ? 'ção' : 'ções'}` : 'Notificações'}</div>
@@ -7691,7 +7673,7 @@ export function NotificationBell({ notifications, show, onToggle, onOpenItem, on
               ))}
             </div>
           </div>
-        </div>
+        </DialogOverlay>
       )}
     </div>
   );
@@ -7869,7 +7851,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
   }
 
   return (
-    <div className="no-print" style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClick={requestClose}>
+    <DialogOverlay className="no-print" style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose} history={false}>
       <style>{SUB_ROW_CSS}</style>
       <div style={{ ...S.detailBox, ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
@@ -7944,7 +7926,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
                         value={editingCommentText}
                         onChange={(e) => setEditingCommentText(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Escape') setEditingCommentId(null);
+                          if (e.key === 'Escape') { e.preventDefault(); setEditingCommentId(null); }
                         }}
                         rows={3}
                         style={{ ...S.notesArea, flex: 1 }}
@@ -8204,7 +8186,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
           saving={closing}
         />
       )}
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -10184,3 +10166,36 @@ export const S = {
   companyCardNextTitle: { fontSize: 12, fontWeight: 600, color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 },
   companyCardNextDate: { fontSize: 11, marginTop: 1 },
 };
+
+// Raiz: a barra única (ModuleShell) fica fora das telas, que continuam sendo devolvidas por AppScreens.
+const AppScreensMemo = React.memo(AppScreens);
+
+function ShellHost({ shellRef }) {
+  const p = shellRef.current;
+  if (!p) return null;
+  const call = (name) => (...args) => (shellRef.current && shellRef.current[name] ? shellRef.current[name](...args) : undefined);
+  return (
+    <>
+      <ModuleShell
+        user={p.user} current={p.current} modes={p.modes} theme={p.theme}
+        onGo={call('onGo')} onHome={p.onHome ? call('onHome') : null} getSearchItems={call('getSearchItems')}
+        notifications={p.notifications} showNotifications={p.showNotifications}
+        onToggleNotifications={call('onToggleNotifications')} onOpenNotification={call('onOpenNotification')}
+        onMarkNotificationRead={call('onMarkNotificationRead')} onMarkAllNotificationsRead={call('onMarkAllNotificationsRead')}
+        onOpenProfile={call('onOpenProfile')} onToggleTheme={call('onToggleTheme')} onLogout={call('onLogout')}
+      />
+      {p.profileNode}
+    </>
+  );
+}
+
+export default function App() {
+  const shellRef = useRef(null);
+  const [, bump] = React.useReducer((x) => x + 1, 0);
+  return (
+    <>
+      <ShellHost shellRef={shellRef} />
+      <AppScreensMemo shellRef={shellRef} bump={bump} />
+    </>
+  );
+}

@@ -1,12 +1,12 @@
 // Card/drawer detalhado de um conhecimento (Fase 8, 2026-09-11, item 4
-// do pedido do Rafael) — usa o SidePanel já existente (src/App.jsx)
-// como container, então não precisa recriar overlay/animação/botão de
-// fechar. Mostra tipo/escopo/status/vigência, origem (clicável quando
+// do pedido do Rafael) — usa o ModulePanel (src/pareceres/ModulePanel.jsx, gaveta acessível:
+// foco preso, Esc e Voltar do navegador fecham). Mostra tipo/escopo/status/vigência, origem (clicável quando
 // aponta pra uma reunião real), histórico completo de versões (nunca
 // esconde uma versão superseded), relações (entidades) e utilização.
 import React, { useEffect, useState } from 'react';
 import { Pencil, ExternalLink, Plus, X } from 'lucide-react';
-import { SidePanel, fmtTs } from '../App.jsx';
+import { fmtTs } from '../App.jsx';
+import { ModulePanel } from '../pareceres/ModulePanel.jsx';
 import { EmptyState, SkeletonCards } from '../ui/index.jsx';
 import { apiGet, apiPost, apiDelete } from '../lib/api.js';
 import { knowledgeTypeLabel, scopeLabel, originLabel, entityTypeLabel, statusMeta, ENTITY_TYPE_LABELS, KNOWLEDGE_TYPE_LABELS } from './knowledgeMeta.js';
@@ -29,10 +29,10 @@ export function FactDrawer({ factId, onClose, onNavigateToMeeting, onOpenEntity,
   useEffect(load, [factId]);
 
   if (!loaded) {
-    return <SidePanel title="Conhecimento" onClose={onClose}><SkeletonCards count={3} height={70} /></SidePanel>;
+    return <ModulePanel title="Conhecimento" onClose={onClose}><SkeletonCards count={3} height={70} /></ModulePanel>;
   }
   if (!detail) {
-    return <SidePanel title="Conhecimento" onClose={onClose}><EmptyState compact title="Conhecimento não encontrado" description="Ele pode ter sido arquivado ou editado. Feche e abra a lista de novo." /></SidePanel>;
+    return <ModulePanel title="Conhecimento" onClose={onClose}><EmptyState compact title="Conhecimento não encontrado" description="Ele pode ter sido arquivado ou editado. Feche e abra a lista de novo." /></ModulePanel>;
   }
 
   const { fact, chain, entities, usage, events } = detail;
@@ -87,7 +87,7 @@ export function FactDrawer({ factId, onClose, onNavigateToMeeting, onOpenEntity,
   }
 
   return (
-    <SidePanel title="Conhecimento" onClose={onClose}>
+    <ModulePanel title="Conhecimento" onClose={onClose}>
       <div className="knw-drawer-title">{fact.subject}</div>
       <div className="knw-drawer-chips">
         <span className="knw-chip">{knowledgeTypeLabel(fact.knowledge_type)}</span>
@@ -203,7 +203,7 @@ export function FactDrawer({ factId, onClose, onNavigateToMeeting, onOpenEntity,
         </div>
         {usage.lastUsedAt && <div className="knw-fact-meta">Última utilização: {fmtTs(usage.lastUsedAt)}</div>}
       </div>
-    </SidePanel>
+    </ModulePanel>
   );
 }
 
