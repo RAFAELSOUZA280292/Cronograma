@@ -72,6 +72,9 @@ const CSS = `
   .ps-evt { display: flex; gap: 8px; font-size: 12.5px; color: var(--text-2); padding: 5px 0; border-top: 1px solid var(--border-1); }
   .ps-evt time { color: var(--text-6); font-variant-numeric: tabular-nums; flex-shrink: 0; }
   .ps-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+
+  .ps-chip:focus-visible, .ps-navbtn:focus-visible, .ps-nav .ps-date:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) { .ps-chip, .ps-navbtn { min-height:44px; min-width:44px; } .ps-nav .ps-date { font-size:16px; min-height:44px; } }
 `;
 
 function Gauge180({ pct }) {
@@ -227,7 +230,7 @@ export default function PersonalStatsPanel({ onClose }) {
               <div className="ps-sub">Navegue por um dia e veja o que foi aberto e encerrado. Média do período: {fmtNum(avgOpened)} abertas e {fmtNum(avgClosed)} encerradas por dia.</div>
               <div className="ps-nav">
                 <button className="ps-navbtn" title="Dia anterior" aria-label="Dia anterior" onClick={() => setDay(shiftDay(day, -1))}><ChevronLeft size={16} aria-hidden="true" /></button>
-                <input className="ps-date" type="date" value={day} max={stats.today} onChange={(e) => { if (e.target.value && e.target.value <= stats.today) setDay(e.target.value); }} />
+                <input aria-label="Escolher o dia" className="ps-date" type="date" value={day} max={stats.today} onChange={(e) => { if (e.target.value && e.target.value <= stats.today) setDay(e.target.value); }} />
                 <button className="ps-navbtn" title={isToday ? 'Já está no dia de hoje' : 'Próximo dia'} aria-label="Próximo dia" disabled={isToday} onClick={() => setDay(shiftDay(day, 1))}><ChevronRight size={16} aria-hidden="true" /></button>
                 {!isToday && <button className="ps-chip" onClick={() => setDay(stats.today)}>Hoje</button>}
               </div>

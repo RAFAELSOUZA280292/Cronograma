@@ -25,7 +25,7 @@ export function buildMeetingText(meeting, companyName) {
   if (meeting.decisions) { lines.push('DECISÕES TOMADAS'); lines.push(meeting.decisions); lines.push(''); }
   const items = (meeting.actionItems || []).filter((it) => !it.deleted);
   if (items.length) {
-    lines.push('ATIVIDADES GERADAS');
+    lines.push('TAREFAS GERADAS');
     items.forEach((it) => {
       const side = it.owner === 'cliente' ? (companyName || 'Cliente') : 'PRICETAX';
       lines.push(`- [${todoStatusMeta(it.status).label}] ${it.title} — ${side}${it.responsible ? ` — ${it.responsible}` : ''}${it.dueDate ? ` — prazo ${fmtDate(it.dueDate)}` : ''}`);

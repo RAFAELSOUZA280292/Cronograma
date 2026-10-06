@@ -361,7 +361,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
                 <div className="crm-section">
                   <h3 className="crm-section-title">Vincular projeto existente</h3>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <select value={projectToLink} onChange={(e) => setProjectToLink(e.target.value)}>
+                    <select aria-label="Projeto para vincular" value={projectToLink} onChange={(e) => setProjectToLink(e.target.value)}>
                       <option value="">Escolha um projeto do painel…</option>
                       {available.map((p) => <option key={p.id} value={p.id}>{p.name}{p.cnpj ? ` — ${p.cnpj}` : ''}</option>)}
                     </select>

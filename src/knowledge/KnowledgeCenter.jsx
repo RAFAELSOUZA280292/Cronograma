@@ -47,7 +47,7 @@ function OverviewTab({ onOpenFact, onGoTab, refreshKey }) {
       </div>
     );
   }
-  if (!data) return <EmptyState icon={AlertTriangle} title="Não consegui carregar a visão geral" description="Atualize a página em alguns segundos. Se continuar, avise o suporte." />;
+  if (!data) return <EmptyState icon={AlertTriangle} title="Não foi possível carregar a visão geral" description="Atualize a página em alguns segundos. Se continuar, avise o suporte da PRICETAX." />;
 
   const { kpis, recentlyLearned, needsAttention, mostUsed } = data;
 
@@ -71,15 +71,15 @@ function OverviewTab({ onOpenFact, onGoTab, refreshKey }) {
           <Kpi label="Organizacionais" value={Number(kpis.org)} hint="Valem para toda a PRICETAX" />
           <Kpi label="De projeto" value={Number(kpis.project)} hint="Valem para uma empresa" />
           <Kpi label="De conversa" value={Number(kpis.conversation)} hint="Valem numa conversa" />
-          <Kpi label="Hipóteses" value={Number(kpis.pendingValidation)} hint="Ainda sem confirmação" />
-          <Kpi label="Substituídos" value={Number(kpis.superseded)} hint="Versões antigas guardadas" />
+          <Kpi label="A confirmar" value={Number(kpis.pendingValidation)} hint="Ainda sem confirmação" />
+          <Kpi label="Versões antigas" value={Number(kpis.superseded)} hint="Substituídas por uma versão mais nova e guardadas no histórico" />
         </KpiGrid>
       </Section>
 
-      <Section title="Economia da RENATA">
+      <Section title="Respostas reaproveitadas e custo evitado">
         <KpiGrid>
-          <Kpi label="Respostas reaproveitadas" value={Number(kpis.cacheHits)} hint="Perguntas respondidas sem chamar a IA de novo (cache hits)" />
-          <Kpi label="Tokens economizados" value={Number(kpis.tokensSaved)} hint="O que essas respostas teriam custado" />
+          <Kpi label="Respostas reaproveitadas" value={Number(kpis.cacheHits)} hint="Perguntas respondidas sem chamar a IA de novo" />
+          <Kpi label="Custo evitado" value={Number(kpis.tokensSaved)} hint="Unidades de texto que a IA deixou de processar por causa dessas respostas" />
         </KpiGrid>
       </Section>
 

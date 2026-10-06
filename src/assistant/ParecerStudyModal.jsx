@@ -41,6 +41,9 @@ const CSS = `
   .pst-tag { font-size:11.5px; font-weight:600; background:var(--bg-3); color:var(--text-3); border-radius:999px; padding:3px 10px; }
   .pst-spin { animation:pstspin 1s linear infinite; }
   @keyframes pstspin { to { transform:rotate(360deg); } }
+
+  .pst-btn:focus-visible, .pst-x:focus-visible, .pst-item-head:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) { .pst-btn, .pst-item-head { min-height:44px; } .pst-x { min-width:44px; min-height:44px; align-items:center; justify-content:center; } }
 `;
 
 function fmtDay(iso) { return iso ? new Date(iso).toLocaleDateString('pt-BR') : ''; }

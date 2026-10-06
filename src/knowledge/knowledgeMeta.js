@@ -4,18 +4,18 @@
 // ("PENDING_VALIDATION", "conversation") em qualquer tela.
 export const KNOWLEDGE_TYPE_LABELS = {
   FACT: 'Fato', DECISION: 'Decisão', PREFERENCE: 'Preferência', RULE: 'Regra',
-  HYPOTHESIS: 'Hipótese', PROCEDURE: 'Procedimento', DEFINITION: 'Definição',
+  HYPOTHESIS: 'A confirmar', PROCEDURE: 'Procedimento', DEFINITION: 'Definição',
 };
 
 export const SCOPE_LABELS = {
-  conversation: 'Só esta conversa', project: 'Projeto', org: 'Organização (PRICETAX)', global: 'Global',
+  conversation: 'Só esta conversa', project: 'Projeto', org: 'Organização (PRICETAX)', global: 'Geral',
 };
 
 export const STATUS_META = {
   active: { label: 'Ativo', color: '#3ecf6e' },
   disputed: { label: 'Em conflito', color: '#e2574c' },
-  superseded: { label: 'Substituído', color: 'var(--text-6)' },
-  pending_validation: { label: 'Hipótese', color: '#9b6dff' },
+  superseded: { label: 'Versão antiga', color: 'var(--text-6)' },
+  pending_validation: { label: 'A confirmar', color: '#9b6dff' },
   archived: { label: 'Arquivado', color: 'var(--text-7)' },
 };
 
@@ -98,6 +98,16 @@ export const KNOWLEDGE_CSS = `
   .knw-btn-danger { background:#e2574c; border-color:#e2574c; color:#fff; }
   .knw-btn:disabled { opacity:.5; cursor:default; }
   .knw-btn-row { display:flex; gap:8px; margin-top:16px; }
+
+  .knw-btn:focus-visible, .knw-filter-chip:focus-visible, .knw-filter-select:focus-visible, .knw-origin-link:focus-visible, .knw-entity-chip:focus-visible, .knw-fact-card:focus-visible, .knw-entity-card:focus-visible,
+  .knw-search-row input:focus-visible, .knw-edit-form textarea:focus-visible, .knw-edit-form input:focus-visible, .knw-edit-form select:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) {
+    .knw-body { padding:16px; }
+    .knw-btn, .knw-filter-chip, .knw-filter-select, .knw-origin-link, .knw-entity-chip { min-height:44px; }
+    .knw-btn-row, .knw-conflict-actions { flex-wrap:wrap; }
+    .knw-search-row input[type=text], .knw-edit-form textarea, .knw-edit-form input[type=text], .knw-edit-form select, .knw-filter-select, .knw-conflict-card input[type=text] { font-size:16px; min-height:44px; box-sizing:border-box; }
+    .knw-table { display:block; overflow-x:auto; }
+  }
 
   .knw-conflict-card { background:var(--bg-2); border:1px solid rgba(226,87,76,.35); border-radius:12px; padding:16px; margin-bottom:14px; }
   .knw-conflict-versions { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:12px 0; }

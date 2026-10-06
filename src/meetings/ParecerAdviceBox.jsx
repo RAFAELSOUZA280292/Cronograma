@@ -33,6 +33,9 @@ const CSS = `
   .pab-error { font-size:12px; color:var(--ui-danger); }
   .pab-spin { animation:pabspin 1s linear infinite; }
   @keyframes pabspin { to { transform:rotate(360deg); } }
+
+  .pab-btn:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) { .pab-btn { min-height:44px; } }
 `;
 
 function fmtWhen(iso) {

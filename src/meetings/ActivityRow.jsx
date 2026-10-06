@@ -35,6 +35,16 @@ export const ACTIVITY_ROW_CSS = `
   .todo-owner-btn { font-size:10px; font-weight:800; padding:5px 8px; border-radius:6px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .todo-origin-badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--text-5); background:var(--bg-3); border:1px solid var(--border-1); border-radius:7px; padding:5px 9px; cursor:pointer; white-space:nowrap; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
   .todo-origin-badge:hover { color:var(--text-2); border-color:var(--border-3); }
+
+  .todo-row:focus-within .todo-row-actions { opacity:1; }
+  .todo-check:focus-visible, .todo-avatar-chip:focus-visible, .todo-date-chip:focus-visible, .todo-owner-btn:focus-visible, .todo-origin-badge:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (hover: none) { .todo-row-actions { opacity:1; } }
+  .todo-check { position:relative; }
+  @media (max-width: 767px) {
+    .todo-check::after { content:''; position:absolute; inset:-12px; }
+    .todo-avatar-chip, .todo-date-chip, .todo-origin-badge, .todo-owner-btn { min-height:44px; }
+    .todo-row-meta { padding-left:0; }
+  }
 `;
 
 function AvatarBadge({ name }) {
@@ -74,7 +84,7 @@ export function ActivityRow({
     const prevStatus = row.status;
     updateActionItem(pid, row.meetingId, row.id, { status: isDone ? 'nao-iniciado' : 'concluida' });
     if (!isDone && pushUndoToast) {
-      pushUndoToast('Atividade concluída · Desfazer', () => updateActionItem(pid, row.meetingId, row.id, { status: prevStatus }));
+      pushUndoToast('Tarefa concluída · Desfazer', () => updateActionItem(pid, row.meetingId, row.id, { status: prevStatus }));
     }
   }
 
@@ -96,13 +106,13 @@ export function ActivityRow({
 
         <div className="todo-row-actions" onClick={(e) => e.stopPropagation()}>
           <button type="button" style={S.iconBtnGhost} title="Comentar" aria-label="Comentar" onClick={() => onOpen(row, true)}><MessageSquare size={14} aria-hidden="true" /></button>
-          <button type="button" style={S.iconBtnGhost} title="Duplicar atividade" aria-label="Duplicar atividade" onClick={() => duplicateActionItem(pid, row.meetingId, row.id)}><Copy size={14} aria-hidden="true" /></button>
-          <button type="button" style={S.iconBtnGhost} className="todo-del-btn" title="Excluir" aria-label="Excluir atividade" onClick={() => deleteActionItem(pid, row.meetingId, row.id)}><X size={14} aria-hidden="true" /></button>
+          <button type="button" style={S.iconBtnGhost} title="Duplicar tarefa" aria-label="Duplicar tarefa" onClick={() => duplicateActionItem(pid, row.meetingId, row.id)}><Copy size={14} aria-hidden="true" /></button>
+          <button type="button" style={S.iconBtnGhost} className="todo-del-btn" title="Excluir" aria-label="Excluir tarefa" onClick={() => deleteActionItem(pid, row.meetingId, row.id)}><X size={14} aria-hidden="true" /></button>
         </div>
       </div>
 
       <div className="todo-row-meta" onClick={(e) => e.stopPropagation()}>
-        <select
+        <select aria-label="Situação da tarefa"
           value={TODO_STATUS_META[row.status] ? row.status : 'nao-iniciado'}
           onChange={(e) => updateActionItem(pid, row.meetingId, row.id, { status: e.target.value })}
           style={{ width: 148, flexShrink: 0, fontWeight: 700, fontSize: 11.5, color: todoStatusMeta(row.status).color, background: todoStatusMeta(row.status).bg, border: `1px solid ${todoStatusMeta(row.status).border}` }}
@@ -121,7 +131,7 @@ export function ActivityRow({
         >{owner === 'pricetax' ? 'PRICETAX' : (clientName || 'Cliente')}</button>
 
         {editingField === 'responsible' ? (
-          <input
+          <input aria-label="Responsável pela tarefa"
             autoFocus type="text" list="todo-board-responsaveis" defaultValue={row.responsible || ''}
             onBlur={(e) => { handleResponsibleChange(e.target.value); setEditingField(null); }}
             onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
@@ -134,7 +144,7 @@ export function ActivityRow({
         )}
 
         {editingField === 'dueDate' ? (
-          <input
+          <input aria-label="Prazo da tarefa"
             autoFocus type="date" defaultValue={row.dueDate || ''}
             onBlur={(e) => { updateActionItem(pid, row.meetingId, row.id, { dueDate: e.target.value }); setEditingField(null); }}
             style={{ width: 138 }}

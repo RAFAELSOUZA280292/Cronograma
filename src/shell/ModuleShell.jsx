@@ -52,6 +52,8 @@ const CSS = `
 .shell-pal-foot kbd { margin: 0 3px 0 0; }
 @media (max-width: 720px) {
   .shell-bar { gap: 4px; padding: 0 8px; }
+  .shell-bar button, .shell-bar .shell-btn { min-height: 44px; min-width: 44px; }
+  .shell-btn.icon, .shell-search { width: 44px; }
   .shell-search { min-width: 0; width: 32px; padding: 0; justify-content: center; }
   .shell-search span, .shell-search kbd { display: none; }
   .shell-cur-label { display: none; }

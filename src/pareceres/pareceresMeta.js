@@ -44,7 +44,7 @@ export const PARECERES_CSS = `
     background:var(--bg-1); border:1px solid var(--border-2); color:var(--text-1); font-family:inherit;
   }
   .par-search input[type=text]::placeholder { color:var(--text-6); }
-  .par-search input[type=text]:focus { outline:none; border-color:#F5C400; box-shadow:0 0 0 3px rgba(245,196,0,.18); }
+  .par-search input[type=text]:focus { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; border-color:#F5C400; box-shadow:0 0 0 3px rgba(245,196,0,.18); }
   .par-chips { display:flex; gap:8px; flex-wrap:wrap; }
   .par-chip { display:inline-flex; align-items:center; gap:7px; font-family:inherit; font-size:13px; font-weight:600; padding:7px 14px; border-radius:999px; cursor:pointer; background:var(--bg-1); border:1px solid var(--border-2); color:var(--text-3); transition:background .12s, border-color .12s; }
   .par-chip:hover { border-color:var(--border-3); background:var(--bg-3); }
@@ -104,7 +104,7 @@ export const PARECERES_CSS = `
   .par-form input[type=text]:focus, .par-form textarea:focus,
   .par-drawer-title-row input[type=text]:focus, .par-drawer-section textarea:focus, .par-comment-input-row textarea:focus,
   .par-drawer-scope input[type=text]:focus {
-    outline:none; border-color:#F5C400;
+    outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; border-color:#F5C400;
   }
   .par-form textarea { min-height:70px; resize:vertical; }
   .par-dropzone { margin-top:6px; border:1.5px dashed var(--border-3); border-radius:11px; padding:22px 14px; text-align:center; cursor:pointer; color:var(--text-5); font-size:12.5px; }
@@ -133,6 +133,17 @@ export const PARECERES_CSS = `
   .par-alert button:hover { background:rgba(226,87,76,.14); }
   .par-hint { font-size:11.5px; color:var(--text-6); margin-bottom:8px; line-height:1.4; }
   .par-drawer-status { min-height:20px; margin-bottom:10px; }
+
+  .par-btn:focus-visible, .par-chip:focus-visible, .par-card:focus-visible, .par-card-link:focus-visible, .par-form select:focus-visible, .par-form input:focus-visible, .par-form textarea:focus-visible, .par-drawer-scope select:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) {
+    .par-body { padding:20px 16px 48px; }
+    .par-btn, .par-chip { min-height:44px; }
+    .par-search input[type=text], .par-form input[type=text], .par-form input[type=url], .par-form textarea, .par-form select, .par-drawer-title-row input[type=text], .par-drawer-section textarea, .par-comment-input-row textarea, .par-drawer-scope input[type=text], .par-drawer-scope select { font-size:16px; min-height:44px; box-sizing:border-box; }
+    .par-search { max-width:100%; }
+    .par-btn-row { flex-wrap:wrap; }
+    .par-hero { align-items:flex-start; }
+    .par-title { font-size:24px; }
+  }
 `;
 
 export function apiErrorText(e, fallback) {

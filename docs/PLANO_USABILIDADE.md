@@ -186,7 +186,7 @@ Componentes em `src/ui` (hoje quase sem adoção): `Button`/`IconButton` (rótul
 - **RENATA** presente em todas as abas de uma empresa e no CRM; Agenda com ação (novo compromisso, aceitar/recusar).
 - Resumo semanal na tela inicial (usa os Indicadores de §65).
 
-### Onda 6 — Visual e linguagem (contínua, junto das ondas 2-5)
+### Onda 6 — Visual e linguagem (contínua, junto das ondas 2-5) — **FEITA em 2026-10-06 (ver PROJECT_CONTEXT §81)**
 - **Tela inicial agrupada** (Trabalho diário · Clientes · Conhecimento · Administração) em vez de 10 cartões iguais; a Mensagem do dia segue em destaque.
 - **Densidade**: tabela de atividades (~14 controles por linha) → menu ⋯ + ações sob hover; modal do XFlow (~20 campos, 8 ações) em seções recolhíveis; Tiptap com menos botões.
 - **Mobile**: Agenda e Visão Geral responsivas (hoje sem `@media`), formulários do XFlow acima da dobra, alvos ≥ 44 px.

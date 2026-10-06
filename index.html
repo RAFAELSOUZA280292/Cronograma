@@ -84,8 +84,8 @@
          notificações) tinham 23x23 px em TODAS as telas — abaixo do mínimo de 24 px do WCAG e longe dos 44 px
          recomendados. Só no celular; no desktop nada muda. Botão com `title` é, na prática, o botão de ícone. */
       @media (max-width: 767px) {
-        button[title], a[title] { min-width: 36px; min-height: 36px; }
-        button[title="Início"], button[title="Sair"], button[title^="Mudar para modo"], button[title="Notificações"] { min-width: 40px; min-height: 40px; }
+        /* Onda 6 (§81): mínimo de 44 px (era 36/40) — esta regra vencia a dos módulos pela especificidade (button[title]). */
+        button[title], a[title] { min-width: 44px; min-height: 44px; }
       }
       /* Evita zoom automático do iOS ao focar campos (exige fonte >= 16px). Só em telas pequenas — desktop mantém o tamanho de fonte de cada componente. */
       @media (max-width: 767px) {

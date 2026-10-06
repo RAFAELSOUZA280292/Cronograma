@@ -52,7 +52,7 @@ export default function AgendaPage({ caps, options, currentUserId, refreshKey, o
       </div>
 
       <div className="crm-filters">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por atividade ou empresa…" style={{ minWidth: 230 }} />
+        <input aria-label="Buscar atividade ou empresa" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por atividade ou empresa…" style={{ minWidth: 230 }} />
         <select value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Responsável">
           <option value="me">Minhas atividades</option><option value="">De todos</option><option value="none">Sem responsável</option>
           {owners.filter((o) => o.id !== currentUserId).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}

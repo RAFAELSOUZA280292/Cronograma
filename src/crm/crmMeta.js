@@ -257,7 +257,7 @@ export const CRM_CSS = `
   .crm-col-empty { font-size:11.5px; color:var(--text-6); text-align:center; padding:14px 6px; }
   .crm-deal { background:var(--bg-1); border:1px solid var(--border-1); border-radius:10px; padding:10px 11px; cursor:pointer; text-align:left; width:100%; font-family:inherit; color:inherit; }
   .crm-deal[draggable="true"] { cursor:grab; }
-  .crm-deal:hover, .crm-deal:focus-visible { border-color:var(--border-3); outline:none; }
+  .crm-deal:hover, .crm-deal:focus-visible { border-color:var(--border-3); }
   .crm-deal.dragging { opacity:.4; }
   .crm-deal-move { display:none; margin-top:8px; }
   .crm-deal-move select { width:100%; padding:8px 10px; font-size:13px; border-radius:8px; }
@@ -294,4 +294,22 @@ export const CRM_CSS = `
   .crm-chip { display:inline-flex; align-items:baseline; gap:6px; padding:6px 12px; border-radius:999px; border:1px solid var(--border-2); background:transparent; color:var(--text-4); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
   .crm-chip b { font-size:13px; color:var(--text-1); font-variant-numeric:tabular-nums; }
   .crm-chip.active { background:var(--bg-3); color:var(--text-1); border-color:var(--border-3); }
+
+  .crm-btn:focus-visible, .crm-icon-btn:focus-visible, .crm-nav button:focus-visible, .crm-tab:focus-visible, .crm-seg button:focus-visible, .crm-chip:focus-visible, .crm-check:focus-visible, .crm-row-link:focus-visible, .crm-search-item:focus-visible, .crm-deal:focus-visible, .crm-person:focus-visible, .crm-act-meta button:focus-visible,
+  .crm-field input:focus-visible, .crm-field select:focus-visible, .crm-field textarea:focus-visible, .crm-filters select:focus-visible, .crm-filters input:focus-visible, .crm-search input:focus-visible, .crm-note-input textarea:focus-visible, .crm-items-row input:focus-visible, .crm-items-row select:focus-visible, .crm-map-row select:focus-visible, .crm-deal-move select:focus-visible, .crm-table tbody tr:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  .crm-check { position:relative; }
+  @media (max-width: 767px) {
+    .crm-btn, .crm-icon-btn, .crm-nav button, .crm-tab, .crm-seg button, .crm-chip, .crm-row-link, .crm-search-item { min-height:44px; }
+    .crm-icon-btn { min-width:44px; align-items:center; justify-content:center; }
+    .crm-check::after { content:''; position:absolute; inset:-11px; }
+    .crm-field input, .crm-field select, .crm-field textarea, .crm-filters select, .crm-filters input, .crm-search input, .crm-note-input textarea, .crm-items-row input, .crm-items-row select, .crm-map-row select, .crm-deal-move select { font-size:16px; min-height:44px; }
+    .crm-note-input textarea { min-height:88px; }
+    .crm-filters select, .crm-filters input { flex:1 1 140px; width:auto; min-width:0; }
+    .crm-items-row { grid-template-columns:minmax(0,1fr) 64px 100px 44px; }
+    .crm-modal { padding:16px; }
+    .crm-drawer-head { padding:14px 14px 0; }
+    .crm-drawer-body { padding:14px 14px 32px; }
+    .crm-form-foot { flex-wrap:wrap; }
+    .crm-topbar { padding:10px 14px; }
+  }
 `;

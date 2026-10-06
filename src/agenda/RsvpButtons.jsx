@@ -2,6 +2,7 @@
 import React from 'react';
 import { Check, CircleHelp, X } from 'lucide-react';
 import { Button } from '../ui/index.jsx';
+import './agenda.css';
 
 const OPTIONS = [
   { value: 'accepted', label: 'Aceitar', Icon: Check },
@@ -11,7 +12,7 @@ const OPTIONS = [
 
 export default function RsvpButtons({ ev, onRespond, busy }) {
   return (
-    <div role="group" aria-label={`Responder ao convite: ${ev.title || 'compromisso'}`} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+    <div role="group" aria-label={`Responder ao convite: ${ev.title || 'compromisso'}`} className="agd-rsvp">
       {OPTIONS.map(({ value, label, Icon }) => (
         <Button
           key={value} size="sm" icon={Icon} variant={ev.myResponse === value ? 'primary' : undefined}

@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { Pencil, ExternalLink, Plus, X } from 'lucide-react';
 import { fmtTs } from '../App.jsx';
 import { ModulePanel } from '../pareceres/ModulePanel.jsx';
-import { EmptyState, SkeletonCards } from '../ui/index.jsx';
+import { EmptyState, SkeletonCards, activate } from '../ui/index.jsx';
 import { apiGet, apiPost, apiDelete } from '../lib/api.js';
 import { knowledgeTypeLabel, scopeLabel, originLabel, entityTypeLabel, statusMeta, ENTITY_TYPE_LABELS, KNOWLEDGE_TYPE_LABELS } from './knowledgeMeta.js';
 
@@ -59,7 +59,7 @@ export function FactDrawer({ factId, onClose, onNavigateToMeeting, onOpenEntity,
       // vendo a versão que acabou de virar histórico.
       if (onChanged) onChanged(result.id);
     } catch (e) {
-      setError(e.message || 'Não consegui salvar a edição.');
+      setError(e.message || 'Não foi possível salvar a edição. Tente de novo em instantes.');
     } finally {
       setSaving(false);
     }
@@ -73,7 +73,7 @@ export function FactDrawer({ factId, onClose, onNavigateToMeeting, onOpenEntity,
       setAddingEntity(false);
       load();
     } catch (e) {
-      setError(e.message || 'Não consegui adicionar a entidade.');
+      setError(e.message || 'Não foi possível adicionar a pessoa ou empresa. Tente de novo em instantes.');
     }
   }
 
@@ -82,7 +82,7 @@ export function FactDrawer({ factId, onClose, onNavigateToMeeting, onOpenEntity,
       await apiDelete(`/api/knowledge/facts/${factId}/entities/${entityId}`);
       load();
     } catch (e) {
-      setError(e.message || 'Não consegui remover a entidade.');
+      setError(e.message || 'Não foi possível remover o vínculo. Tente de novo em instantes.');
     }
   }
 
@@ -110,7 +110,7 @@ export function FactDrawer({ factId, onClose, onNavigateToMeeting, onOpenEntity,
       ) : (
         <div className="knw-drawer-section knw-edit-form">
           <div className="knw-drawer-label">Editar (nunca apaga a versão atual — ela vira histórico)</div>
-          <textarea value={editForm.content} onChange={(e) => setEditForm({ ...editForm, content: e.target.value })} />
+          <textarea aria-label="Texto do conhecimento" value={editForm.content} onChange={(e) => setEditForm({ ...editForm, content: e.target.value })} />
           <label>Tipo de conhecimento
             <select value={editForm.knowledgeType} onChange={(e) => setEditForm({ ...editForm, knowledgeType: e.target.value })}>
               {Object.keys(KNOWLEDGE_TYPE_LABELS).map((k) => <option key={k} value={k}>{knowledgeTypeLabel(k)}</option>)}
@@ -175,7 +175,7 @@ export function FactDrawer({ factId, onClose, onNavigateToMeeting, onOpenEntity,
         <div className="knw-drawer-label">Relações</div>
         <div className="knw-drawer-chips">
           {(entities || []).map((e) => (
-            <span key={e.id} className="knw-entity-chip" onClick={() => onOpenEntity(e)}>
+            <span key={e.id} className="knw-entity-chip" {...activate(() => onOpenEntity(e))}>
               {entityTypeLabel(e.type)}: {e.name}
               <button style={{ background: 'none', border: 'none', color: 'var(--text-6)', cursor: 'pointer', padding: 0, display: 'flex' }} aria-label={`Remover vínculo com ${e.name}`} title="Remover vínculo" onClick={(ev) => { ev.stopPropagation(); removeEntity(e.id); }}><X size={11} aria-hidden="true" /></button>
             </span>
@@ -184,10 +184,10 @@ export function FactDrawer({ factId, onClose, onNavigateToMeeting, onOpenEntity,
             <button className="knw-filter-chip" onClick={() => setAddingEntity(true)}><Plus size={11} /> Adicionar</button>
           ) : (
             <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-              <select value={entityType} onChange={(e) => setEntityType(e.target.value)} style={{ fontSize: 11 }}>
+              <select aria-label="Tipo do vínculo" value={entityType} onChange={(e) => setEntityType(e.target.value)} style={{ fontSize: 11 }}>
                 {Object.keys(ENTITY_TYPE_LABELS).map((k) => <option key={k} value={k}>{entityTypeLabel(k)}</option>)}
               </select>
-              <input type="text" placeholder="Nome" value={entityName} onChange={(e) => setEntityName(e.target.value)} style={{ fontSize: 11, width: 100 }} />
+              <input type="text" aria-label="Nome da pessoa ou empresa" placeholder="Nome" value={entityName} onChange={(e) => setEntityName(e.target.value)} style={{ fontSize: 11, width: 100 }} />
               <button className="knw-btn knw-btn-primary" style={{ padding: '4px 8px' }} onClick={addEntity}>Adicionar</button>
             </span>
           )}
@@ -211,7 +211,7 @@ function eventLabel(type) {
   const map = {
     fact_proposed: 'Proposto pela RENATA', fact_confirmed: 'Confirmado pelo usuário', fact_rejected: 'Rejeitado',
     duplicate_detected: 'Identificado como duplicata', conflict_detected: 'Conflito detectado',
-    temporal_update_detected: 'Atualização temporal detectada', complement_detected: 'Complemento detectado',
+    temporal_update_detected: 'Atualização de informação detectada', complement_detected: 'Complemento detectado',
     fact_edited: 'Editado manualmente', conflict_resolved: 'Conflito resolvido',
   };
   return map[type] || type;

@@ -33,7 +33,7 @@ const MEETING_DETAIL_CSS = `
   .mtg2-title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
   .mtg2-title { font-size:24px; font-weight:800; color:var(--text-1); width:100%; resize:none; overflow:hidden; border:1px solid transparent; background:transparent; border-radius:8px; padding:4px 6px; font-family:inherit; line-height:1.3; }
   .mtg2-title:hover { background:var(--bg-3); }
-  .mtg2-title:focus { background:var(--bg-1); border-color:var(--border-3); outline:none; }
+  .mtg2-title:focus { background:var(--bg-1); border-color:var(--border-3); outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
   .mtg2-subtitle { font-size:12.5px; color:var(--text-5); margin:4px 0 14px; }
   .mtg2-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
   .mtg2-meta-card { display:flex; flex-wrap:wrap; gap:0; background:var(--bg-2); border:1px solid var(--border-1); border-radius:12px; margin:0 26px 20px; overflow:hidden; }
@@ -67,6 +67,18 @@ const MEETING_DETAIL_CSS = `
   .mtg2-more-menu { position:absolute; top:110%; right:0; z-index:30; background:var(--bg-1); border:1px solid var(--border-2); border-radius:10px; padding:6px; width:220px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
   .mtg2-more-item { display:flex; align-items:center; gap:8px; width:100%; background:transparent; border:none; color:var(--text-2); font-size:12.5px; padding:8px 10px; border-radius:7px; cursor:pointer; text-align:left; }
   .mtg2-more-item:hover { background:var(--bg-3); }
+
+  .mtg2-edit-btn:focus-visible, .mtg2-more-item:focus-visible, .mtg2-participants-more:focus-visible, .mtg2-share-visibility:focus-within { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) {
+    .mtg2-overlay { padding:0; }
+    .mtg2-page { border-radius:0; }
+    .mtg2-header { padding:16px 16px 0; }
+    .mtg2-meta-card { margin:0 16px 16px; }
+    .mtg2-body { padding:0 16px 20px; }
+    .mtg2-meta-value input { font-size:16px; min-height:44px; }
+    .mtg2-participants-more, .mtg2-share-visibility { min-height:44px; }
+    .mtg2-actions { flex-wrap:wrap; }
+  }
 `;
 
 // forwardRef (2026-09-16, bug real: fechar o modal com um destes cards em
@@ -91,7 +103,7 @@ const EditableTextCard = forwardRef(function EditableTextCard({ icon, title, val
         {!editing && <button type="button" className="mtg2-edit-btn" onClick={startEdit}><Pencil size={12} /> Editar</button>}
       </div>
       {editing ? (
-        <textarea
+        <textarea aria-label={title}
           autoFocus value={draft} placeholder={placeholder}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
@@ -153,10 +165,10 @@ function MeetingShareModal({ meeting, onClose, onSetVisibility, onRegenerateLink
         {isPublic && (
           <>
             <div style={{ ...S.fieldHint, marginTop: 10, lineHeight: 1.5 }}>
-              Quem tiver o link consegue só <b>visualizar</b> resumo, decisões, transcrição e atividades — não pode editar nem excluir nada.
+              Quem tiver o link consegue só <b>visualizar</b> resumo, decisões, transcrição e tarefas — não pode editar nem excluir nada.
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <input value={publicUrl} readOnly onFocus={(e) => e.target.select()} style={{ flex: 1 }} />
+              <input aria-label="Link público da reunião" value={publicUrl} readOnly onFocus={(e) => e.target.select()} style={{ flex: 1 }} />
               <button style={S.primaryBtn} onClick={copyLink}>{copied ? 'Copiado!' : 'Copiar link'}</button>
             </div>
             <button type="button" style={{ ...S.iconBtn, marginTop: 8 }} onClick={onRegenerateLink}>Gerar novo link (invalida o anterior)</button>
@@ -279,7 +291,7 @@ export function MeetingDetailModal({
           </div>
           <div className="mtg2-title-row">
             <div style={{ flex: '1 1 400px', minWidth: 0 }}>
-              <textarea
+              <textarea aria-label="Título da reunião"
                 className="mtg2-title" value={titleField.draft} rows={1}
                 ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
                 onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = `${e.target.scrollHeight}px`; }}
@@ -310,14 +322,14 @@ export function MeetingDetailModal({
             <Calendar size={16} className="mtg2-meta-icon" />
             <div>
               <div className="mtg2-meta-label">Data</div>
-              <input type="date" value={m.date || ''} onChange={(e) => updateMeeting(pid, m.id, { date: e.target.value }, `Data da reunião alterada: "${m.title}"`)} style={{ border: 'none', background: 'transparent', padding: 0 }} />
+              <input aria-label="Data da reunião" type="date" value={m.date || ''} onChange={(e) => updateMeeting(pid, m.id, { date: e.target.value }, `Data da reunião alterada: "${m.title}"`)} style={{ border: 'none', background: 'transparent', padding: 0 }} />
             </div>
           </div>
           <div className="mtg2-meta-item">
             <Clock size={16} className="mtg2-meta-icon" />
             <div>
               <div className="mtg2-meta-label">Horário</div>
-              <input type="time" value={m.time || ''} onChange={(e) => updateMeeting(pid, m.id, { time: e.target.value })} onBlur={() => updateMeeting(pid, m.id, {}, `Horário da reunião alterado: "${m.title}"`)} style={{ border: 'none', background: 'transparent', padding: 0 }} />
+              <input aria-label="Horário da reunião" type="time" value={m.time || ''} onChange={(e) => updateMeeting(pid, m.id, { time: e.target.value })} onBlur={() => updateMeeting(pid, m.id, {}, `Horário da reunião alterado: "${m.title}"`)} style={{ border: 'none', background: 'transparent', padding: 0 }} />
             </div>
           </div>
           <div className="mtg2-meta-item">
@@ -337,8 +349,8 @@ export function MeetingDetailModal({
           <div className="mtg2-meta-item">
             <ListChecks size={16} className="mtg2-meta-icon" />
             <div>
-              <div className="mtg2-meta-label">Atividades geradas</div>
-              <div className="mtg2-meta-value">{activeItems.length} atividade{activeItems.length === 1 ? '' : 's'}</div>
+              <div className="mtg2-meta-label">Tarefas geradas</div>
+              <div className="mtg2-meta-value">{activeItems.length} tarefa{activeItems.length === 1 ? '' : 's'}</div>
             </div>
           </div>
         </div>
@@ -374,7 +386,7 @@ export function MeetingDetailModal({
                 )}
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                <input
+                <input aria-label="Nome do participante externo"
                   type="text" list="mtg-contatos-externos" style={{ flex: '1 1 160px' }}
                   value={participantDraft} onChange={(e) => handleParticipantNameChange(e.target.value)}
                   placeholder="Adicionar participante externo..." onKeyDown={(e) => e.key === 'Enter' && submitParticipant()}
@@ -382,7 +394,7 @@ export function MeetingDetailModal({
                 <datalist id="mtg-contatos-externos">
                   {(externalContacts || []).map((c) => <option key={c.id} value={c.name} />)}
                 </datalist>
-                <input
+                <input aria-label="E-mail do participante externo"
                   type="email" style={{ flex: '1 1 160px' }}
                   value={participantEmailDraft} onChange={(e) => setParticipantEmailDraft(e.target.value)}
                   placeholder="e-mail (opcional, só na 1ª vez)" onKeyDown={(e) => e.key === 'Enter' && submitParticipant()}
@@ -415,17 +427,17 @@ export function MeetingDetailModal({
             <div className="mtg2-card" style={{ padding: 0 }}>
               <div className="mtg2-activities-head">
                 <div className="mtg2-card-head" style={{ marginBottom: 4 }}>
-                  <div className="mtg2-card-title"><ListChecks size={15} /> Atividades geradas pela IA</div>
+                  <div className="mtg2-card-title"><ListChecks size={15} /> Tarefas geradas pela IA</div>
                   <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-6)', background: 'var(--bg-3)', borderRadius: 999, padding: '1px 8px' }}>{activeItems.length}</span>
                 </div>
                 <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginBottom: 4 }}>
-                  {activeItems.length} atividade{activeItems.length === 1 ? '' : 's'} criada{activeItems.length === 1 ? '' : 's'} · {doneCount} concluída{doneCount === 1 ? '' : 's'} · {pendingCount} pendente{pendingCount === 1 ? '' : 's'}
+                  {activeItems.length} tarefa{activeItems.length === 1 ? '' : 's'} criada{activeItems.length === 1 ? '' : 's'} · {doneCount} concluída{doneCount === 1 ? '' : 's'} · {pendingCount} pendente{pendingCount === 1 ? '' : 's'}
                 </div>
               </div>
               <div className="mtg2-activities-list">
                 {activeItems.length === 0 ? (
                   <div className="mtg2-empty">
-                    Nenhuma atividade foi criada a partir desta reunião.
+                    Nenhuma tarefa foi criada a partir desta reunião.
                   </div>
                 ) : (
                   activeItems.map((it) => (
@@ -441,10 +453,10 @@ export function MeetingDetailModal({
                     />
                   ))
                 )}
-                <button type="button" style={{ ...S.addSubBtn, width: '100%', justifyContent: 'center' }} onClick={() => addActionItem(pid, m.id)}><Plus size={12} /> Nova atividade</button>
+                <button type="button" style={{ ...S.addSubBtn, width: '100%', justifyContent: 'center' }} onClick={() => addActionItem(pid, m.id)}><Plus size={12} /> Nova tarefa</button>
                 {onViewActivities && (
                   <button type="button" style={{ ...S.iconBtn, justifyContent: 'center' }} onClick={() => onViewActivities(m.id)}>
-                    Abrir no centro de atividades →
+                    Ver tarefas da reunião →
                   </button>
                 )}
               </div>
@@ -523,7 +535,7 @@ export function MeetingPrintReport({ meeting, companyName }) {
       {meeting.decisions && <><h2>Decisões tomadas</h2><p>{meeting.decisions}</p></>}
       {items.length > 0 && (
         <>
-          <h2>Atividades geradas</h2>
+          <h2>Tarefas geradas</h2>
           <ul>
             {items.map((it) => (
               <li key={it.id}>[{todoStatusMeta(it.status).label}] {it.title} — {it.owner === 'cliente' ? (companyName || 'Cliente') : 'PRICETAX'}{it.responsible ? ` — ${it.responsible}` : ''}{it.dueDate ? ` — prazo ${fmtDate(it.dueDate)}` : ''}</li>
@@ -548,7 +560,7 @@ export function PublicMeetingScreen({ token }) {
         const res = await apiGet(`/api/public-meeting/${token}`);
         setState({ loading: false, error: '', meeting: res.meeting, companyName: res.companyName || '' });
       } catch (e) {
-        setState({ loading: false, error: e.message || 'Link inválido.', meeting: null, companyName: '' });
+        setState({ loading: false, error: e.message || 'Este link não é válido ou foi desativado. Peça um novo a quem o enviou.', meeting: null, companyName: '' });
       }
     })();
   }, [token]);
@@ -585,7 +597,7 @@ export function PublicMeetingScreen({ token }) {
           <div className="mtg2-meta-item"><Calendar size={16} className="mtg2-meta-icon" /><div><div className="mtg2-meta-label">Data</div><div className="mtg2-meta-value">{m.date ? fmtDate(m.date) : 'Sem data'}</div></div></div>
           <div className="mtg2-meta-item"><Clock size={16} className="mtg2-meta-icon" /><div><div className="mtg2-meta-label">Horário</div><div className="mtg2-meta-value">{m.time || '—'}</div></div></div>
           <div className="mtg2-meta-item"><Users size={16} className="mtg2-meta-icon" /><div><div className="mtg2-meta-label">Participantes</div><div className="mtg2-meta-value">{(m.participants || []).length}</div></div></div>
-          <div className="mtg2-meta-item"><ListChecks size={16} className="mtg2-meta-icon" /><div><div className="mtg2-meta-label">Atividades</div><div className="mtg2-meta-value">{items.length}</div></div></div>
+          <div className="mtg2-meta-item"><ListChecks size={16} className="mtg2-meta-icon" /><div><div className="mtg2-meta-label">Tarefas</div><div className="mtg2-meta-value">{items.length}</div></div></div>
         </div>
         <div className="mtg2-body">
           <div className="mtg2-main">
@@ -595,8 +607,8 @@ export function PublicMeetingScreen({ token }) {
           </div>
           <div className="mtg2-side">
             <div className="mtg2-card">
-              <div className="mtg2-card-title" style={{ marginBottom: 10 }}><ListChecks size={15} /> Atividades geradas pela IA</div>
-              {items.length === 0 ? <div className="mtg2-empty">Nenhuma atividade foi criada a partir desta reunião.</div> : items.map((it) => (
+              <div className="mtg2-card-title" style={{ marginBottom: 10 }}><ListChecks size={15} /> Tarefas geradas pela IA</div>
+              {items.length === 0 ? <div className="mtg2-empty">Nenhuma tarefa foi criada a partir desta reunião.</div> : items.map((it) => (
                 <div key={it.id} style={{ padding: '8px 0', borderTop: '1px solid var(--border-1)' }}>
                   <div style={{ fontWeight: 700, fontSize: 13, textDecoration: it.status === 'concluida' ? 'line-through' : 'none', opacity: it.status === 'concluida' ? .6 : 1 }}>{it.title}</div>
                   <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 2 }}>

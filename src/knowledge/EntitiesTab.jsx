@@ -43,12 +43,12 @@ export function EntitiesTab({ types, emptyLabel, onOpenFact }) {
         </div>
         <div className="knw-drawer-label" style={{ marginTop: 16 }}>Conhecimentos relacionados</div>
         {detail.facts.length === 0 ? (
-          <div className="knw-empty-hint">Nenhum conhecimento visível ligado a esta entidade.</div>
+          <div className="knw-empty-hint">Nenhum conhecimento visível ligado a este item.</div>
         ) : (
           detail.facts.map((f) => {
             const st = statusMeta(f.status);
             return (
-              <div key={f.id} className="knw-fact-card" onClick={() => onOpenFact(f.id)}>
+              <div key={f.id} className="knw-fact-card" {...activate(() => onOpenFact(f.id))}>
                 <div className="knw-fact-head">
                   <span className="knw-status-dot" style={{ background: st.color }} />
                   <span className="knw-fact-subject">{f.subject}</span>

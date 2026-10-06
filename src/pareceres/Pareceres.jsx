@@ -212,10 +212,10 @@ function UploadParecerModal({ onClose, onCreated, companies }) {
     <ModulePanel title="Novo Parecer" onClose={requestClose}>
       <div className="par-form">
         <label>Identificação do arquivo *</label>
-        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder='Ex.: "Parecer — Reforma Tributária, créditos de IBS/CBS sobre RH"' autoFocus />
+        <input aria-label="Identificação do arquivo" type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder='Ex.: "Parecer — Reforma Tributária, créditos de IBS/CBS sobre RH"' autoFocus />
 
         <label>Comentário / contexto (opcional)</label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Do que se trata, pra quem é relevante, etc." />
+        <textarea aria-label="Comentário ou contexto do parecer" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Do que se trata, pra quem é relevante, etc." />
 
         <label>Este parecer é</label>
         <ScopePicker value={scopeValue} onChange={setScopeValue} companies={companies} listId="par-companies-upload" />
@@ -488,7 +488,7 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
             <div className="par-toolbar">
               <div className="par-search">
                 <Search size={16} />
-                <input type="text" placeholder="Buscar pareceres" value={search} onChange={(e) => setSearch(e.target.value)} />
+                <input aria-label="Buscar pareceres" type="text" placeholder="Buscar pareceres" value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               {pareceres.length > 0 && (
                 <div className="par-chips">

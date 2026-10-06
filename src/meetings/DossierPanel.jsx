@@ -48,6 +48,9 @@ const DOSSIER_CSS = `
   .dos-sidehead { font-size:11.5px; font-weight:800; color:var(--text-4); margin:14px 0 2px; }
   .dos-foot { font-size:11px; color:var(--text-6); margin-top:22px; line-height:1.5; }
   @media (max-width:640px) { .dos-box { padding:16px 14px 22px; } .dos-open { grid-template-columns:1fr 1fr; } }
+
+  .dos-btn:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) { .dos-btn { min-height:44px; } .dos-overlay { padding:0; } .dos-box { border-radius:0; } }
 `;
 
 function Sources({ ids, byId, onOpenMeeting }) {
@@ -77,7 +80,7 @@ export default function DossierPanel({ pid, companyName, onClose, onOpenMeeting 
     try {
       setState(await apiGet(`/api/assistant/dossier?projectId=${encodeURIComponent(pid)}`));
       setLoadError('');
-    } catch (e) { setLoadError(e.message || 'Não consegui carregar o dossiê.'); } finally { setLoading(false); }
+    } catch (e) { setLoadError(e.message || 'Não foi possível carregar o dossiê. Atualize a página e tente de novo.'); } finally { setLoading(false); }
   }, [pid]);
 
   useEffect(() => { load(); }, [load]);
@@ -90,7 +93,7 @@ export default function DossierPanel({ pid, companyName, onClose, onOpenMeeting 
 
   async function start() {
     setStarting(true); setActionError('');
-    try { setState(await apiPost('/api/assistant/dossier', { projectId: pid })); } catch (e) { setActionError(e.message || 'Não consegui iniciar a geração.'); } finally { setStarting(false); }
+    try { setState(await apiPost('/api/assistant/dossier', { projectId: pid })); } catch (e) { setActionError(e.message || 'Não foi possível iniciar a geração do dossiê. Tente de novo em instantes.'); } finally { setStarting(false); }
   }
 
   const dossier = state && state.dossier;
@@ -179,7 +182,7 @@ export default function DossierPanel({ pid, companyName, onClose, onOpenMeeting 
           <div>
             <div className="dos-tiles">
               <div className="dos-tile"><b>{content.stats.meetingsTotal}</b><span>reuniões{content.stats.period.from ? ` · ${fmtBR(content.stats.period.from)} a ${fmtBR(content.stats.period.to)}` : ''}</span></div>
-              <div className="dos-tile"><b>{content.stats.activities.open}</b><span>atividades abertas (de {content.stats.activities.total})</span></div>
+              <div className="dos-tile"><b>{content.stats.activities.open}</b><span>tarefas abertas (de {content.stats.activities.total})</span></div>
               <div className={`dos-tile ${content.stats.activities.overdue ? 'bad' : ''}`}><b>{content.stats.activities.overdue}</b><span>vencidas</span></div>
               <div className="dos-tile"><b>{content.stats.meetingsWithContent}/{content.stats.meetingsTotal}</b><span>reuniões com conteúdo{content.stats.meetingsFromTranscript ? ` (${content.stats.meetingsFromTranscript} resumidas da transcrição)` : ''}</span></div>
             </div>
@@ -231,10 +234,10 @@ export default function DossierPanel({ pid, companyName, onClose, onOpenMeeting 
             ))}</>)}
 
             {content.notes && content.notes.meetingsWithoutContent.length > 0 && (
-              <div className="dos-banner warn" style={{ marginTop: 18 }}><AlertTriangle size={15} color="#e08a2a" /><span>{content.notes.meetingsWithoutContent.length} reunião(ões) não têm resumo, decisões, atividades nem transcrição registrados e ficaram de fora do conteúdo: {content.notes.meetingsWithoutContent.map((id) => (byId[id] ? `${fmtBR(byId[id].date)} ${byId[id].title}` : id)).join('; ')}.</span></div>
+              <div className="dos-banner warn" style={{ marginTop: 18 }}><AlertTriangle size={15} color="#e08a2a" /><span>{content.notes.meetingsWithoutContent.length} reunião(ões) não têm resumo, decisões, tarefas nem transcrição registrados e ficaram de fora do conteúdo: {content.notes.meetingsWithoutContent.map((id) => (byId[id] ? `${fmtBR(byId[id].date)} ${byId[id].title}` : id)).join('; ')}.</span></div>
             )}
             {content.notes && content.notes.digestFailures > 0 && (
-              <div className="dos-banner warn"><AlertTriangle size={15} color="#e08a2a" /><span>Não consegui resumir a transcrição de {content.notes.digestFailures} reunião(ões); elas entraram só com o que já estava registrado. Gerar de novo tenta outra vez.</span></div>
+              <div className="dos-banner warn"><AlertTriangle size={15} color="#e08a2a" /><span>Não foi possível resumir a transcrição de {content.notes.digestFailures} reunião(ões); elas entraram só com o que já estava registrado. Gerar de novo tenta outra vez.</span></div>
             )}
             <div className="dos-foot">Gerado por IA a partir somente das reuniões registradas neste sistema. Pode conter imprecisões: confira nas reuniões de origem (botões acima) antes de usar numa decisão.</div>
           </div>

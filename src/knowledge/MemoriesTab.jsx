@@ -45,26 +45,26 @@ export function MemoriesTab({ onOpenFact, refreshKey }) {
   return (
     <div>
       <div className="knw-search-row">
-        <input type="text" placeholder="Pesquise por texto, assunto, pessoa, empresa… (ex.: “presidente da empresa”)" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input type="text" aria-label="Pesquisar na memória da RENATA" placeholder="Pesquise por texto, assunto, pessoa, empresa… (ex.: “presidente da empresa”)" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="knw-filter-row">
-        <select className="knw-filter-select" value={knowledgeType} onChange={(e) => setKnowledgeType(e.target.value)}>
+        <select className="knw-filter-select" aria-label="Filtrar por tipo" value={knowledgeType} onChange={(e) => setKnowledgeType(e.target.value)}>
           <option value="">Todos os tipos</option>
           {Object.keys(KNOWLEDGE_TYPE_LABELS).map((k) => <option key={k} value={k}>{knowledgeTypeLabel(k)}</option>)}
         </select>
-        <select className="knw-filter-select" value={scope} onChange={(e) => setScope(e.target.value)}>
-          <option value="">Todos os escopos</option>
+        <select className="knw-filter-select" aria-label="Filtrar por onde vale" value={scope} onChange={(e) => setScope(e.target.value)}>
+          <option value="">Vale em qualquer lugar</option>
           {Object.keys(SCOPE_LABELS).map((k) => <option key={k} value={k}>{scopeLabel(k)}</option>)}
         </select>
-        <select className="knw-filter-select" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <select className="knw-filter-select" aria-label="Filtrar por situação" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">Vigentes (padrão)</option>
           <option value="active">Ativos</option>
           <option value="disputed">Em conflito</option>
-          <option value="pending_validation">Hipóteses</option>
-          <option value="superseded">Substituídos</option>
+          <option value="pending_validation">A confirmar</option>
+          <option value="superseded">Versões antigas</option>
           <option value="archived">Arquivados</option>
         </select>
-        <select className="knw-filter-select" value={origin} onChange={(e) => setOrigin(e.target.value)}>
+        <select className="knw-filter-select" aria-label="Filtrar por origem" value={origin} onChange={(e) => setOrigin(e.target.value)}>
           <option value="">Toda origem</option>
           {Object.keys(ORIGIN_LABELS).map((k) => <option key={k} value={k}>{originLabel(k)}</option>)}
         </select>

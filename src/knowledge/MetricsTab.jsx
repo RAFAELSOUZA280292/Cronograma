@@ -25,7 +25,7 @@ export function MetricsTab() {
   }, []);
 
   if (!loaded) return <SkeletonCards count={3} height={110} />;
-  if (!metrics) return <EmptyState icon={AlertTriangle} title="Não consegui carregar as métricas" description="Atualize a página em alguns segundos. Se continuar, avise o suporte." />;
+  if (!metrics) return <EmptyState icon={AlertTriangle} title="Não foi possível carregar as métricas" description="Atualize a página em alguns segundos. Se continuar, avise o suporte da PRICETAX." />;
 
   const { memory, cache, promptCache, topFacts, topProjects, topUsers } = metrics;
 
@@ -37,33 +37,33 @@ export function MetricsTab() {
         <div className="knw-metric-row"><span>Fatos confirmados</span><b>{memory.factsConfirmed}</b></div>
         <div className="knw-metric-row"><span>Fatos rejeitados</span><b>{memory.factsRejected}</b></div>
         <div className="knw-metric-row"><span>Conflitos detectados</span><b>{memory.conflictsDetected}</b></div>
-        <div className="knw-metric-row"><span>Atualizações temporais</span><b>{memory.temporalUpdates}</b></div>
-        <div className="knw-metric-row"><span>Duplicatas</span><b>{memory.duplicates}</b></div>
+        <div className="knw-metric-row"><span>Atualizações de informação</span><b>{memory.temporalUpdates}</b></div>
+        <div className="knw-metric-row"><span>Repetidos</span><b>{memory.duplicates}</b></div>
         <div className="knw-metric-row"><span>Complementos</span><b>{memory.complements}</b></div>
         <div className="knw-metric-row"><span>Edições manuais</span><b>{memory.factsEdited}</b></div>
         <div className="knw-metric-row"><span>Conflitos resolvidos</span><b>{memory.conflictsResolved}</b></div>
       </div>
 
       <div className="knw-metric-card">
-        <div className="knw-metric-card-title">Cache semântico de respostas</div>
-        <div className="knw-metric-row"><span>Acertos (hits)</span><b>{cache.hits}</b></div>
-        <div className="knw-metric-row"><span>Erros (misses)</span><b>{cache.misses}</b></div>
-        <div className="knw-metric-row"><span>Rejeitados por dependência</span><b>{cache.rejectedStale}</b></div>
-        <div className="knw-metric-row"><span>Taxa de aproveitamento</span><b>{pct(cache.hitRate)}</b></div>
-        <div className="knw-metric-row"><span>Tokens economizados</span><b>{(cache.tokensSavedInput + cache.tokensSavedOutput).toLocaleString('pt-BR')}</b></div>
+        <div className="knw-metric-card-title">Respostas reaproveitadas</div>
+        <div className="knw-metric-row"><span>Respondidas sem chamar a IA de novo</span><b>{cache.hits}</b></div>
+        <div className="knw-metric-row"><span>Precisaram chamar a IA</span><b>{cache.misses}</b></div>
+        <div className="knw-metric-row"><span>Descartadas por estarem desatualizadas</span><b>{cache.rejectedStale}</b></div>
+        <div className="knw-metric-row"><span>Taxa de reaproveitamento</span><b>{pct(cache.hitRate)}</b></div>
+        <div className="knw-metric-row"><span>Custo evitado (unidades de texto)</span><b>{(cache.tokensSavedInput + cache.tokensSavedOutput).toLocaleString('pt-BR')}</b></div>
       </div>
 
       {promptCache && (
         <div className="knw-metric-card" style={{ gridColumn: '1 / -1' }}>
-          <div className="knw-metric-card-title">Cache de prompt (Anthropic) — diferente do cache semântico acima</div>
-          <div className="knw-metric-row"><span>Chamadas à Anthropic</span><b>{promptCache.calls}</b></div>
-          <div className="knw-metric-row"><span>Tokens lidos do cache</span><b>{promptCache.cacheReadTokens.toLocaleString('pt-BR')}</b></div>
-          <div className="knw-metric-row"><span>Tokens gravados no cache</span><b>{promptCache.cacheCreationTokens.toLocaleString('pt-BR')}</b></div>
-          <div className="knw-metric-row"><span>Tokens sem cache</span><b>{promptCache.uncachedInputTokens.toLocaleString('pt-BR')}</b></div>
-          <div className="knw-metric-row"><span>Taxa de acerto de cache</span><b>{pct(promptCache.hitRate)}</b></div>
+          <div className="knw-metric-card-title">Contexto reaproveitado pela IA — diferente das respostas reaproveitadas acima</div>
+          <div className="knw-metric-row"><span>Chamadas à IA</span><b>{promptCache.calls}</b></div>
+          <div className="knw-metric-row"><span>Texto reaproveitado</span><b>{promptCache.cacheReadTokens.toLocaleString('pt-BR')}</b></div>
+          <div className="knw-metric-row"><span>Texto guardado para reuso</span><b>{promptCache.cacheCreationTokens.toLocaleString('pt-BR')}</b></div>
+          <div className="knw-metric-row"><span>Texto processado do zero</span><b>{promptCache.uncachedInputTokens.toLocaleString('pt-BR')}</b></div>
+          <div className="knw-metric-row"><span>Taxa de reaproveitamento</span><b>{pct(promptCache.hitRate)}</b></div>
           {promptCache.byFeature.length > 0 && (
             <table className="knw-table" style={{ marginTop: 8 }}>
-              <thead><tr><th>Funcionalidade</th><th>Modelo</th><th>Chamadas</th><th>Lido</th><th>Gravado</th><th>Sem cache</th><th>Taxa</th></tr></thead>
+              <thead><tr><th>Funcionalidade</th><th>Modelo</th><th>Chamadas</th><th>Reaproveitado</th><th>Guardado</th><th>Do zero</th><th>Taxa</th></tr></thead>
               <tbody>
                 {promptCache.byFeature.map((f) => (
                   <tr key={`${f.feature}-${f.model}`}>

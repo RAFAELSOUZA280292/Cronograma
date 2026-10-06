@@ -20,7 +20,7 @@ export const MEETINGS_CSS = `
     background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
     padding:8px 10px; font-size:12.5px; width:100%; font-family:'Inter', sans-serif;
   }
-  .mtg-view input:focus, .mtg-view select:focus, .mtg-view textarea:focus { outline:none; border-color:#F5C400; }
+  .mtg-view input:focus, .mtg-view select:focus, .mtg-view textarea:focus { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; border-color:#F5C400; }
   .mtg-card { background:var(--bg-2); border:1px solid var(--border-1); border-radius:10px; padding:14px 16px; cursor:pointer; transition:border-color .12s; }
   .mtg-card:hover { border-color:var(--border-3); }
   .mtg-badge { display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; white-space:nowrap; }
@@ -35,6 +35,14 @@ export const MEETINGS_CSS = `
   .mtg-sub-failed { color:var(--ui-danger); background:rgba(226,87,76,.14); border:1px solid rgba(226,87,76,.5); }
   @keyframes mtg-spin { to { transform: rotate(360deg); } }
   .mtg-spin { animation: mtg-spin 1s linear infinite; }
+
+  .mtg-view button:focus-visible, .mtg-card:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) {
+    .mtg-view input[type=text], .mtg-view input[type=date], .mtg-view input[type=time], .mtg-view input[type=email], .mtg-view select, .mtg-view textarea { font-size:16px !important; min-height:44px; box-sizing:border-box; }
+    .mtg-head-actions button, .mtg-view .mtg2-actions button, .mtg-view .mtg2-edit-btn, .mtg-view .mtg2-more-item, .mtg-transcript-tab { min-height:44px; }
+    .mtg-card { min-height:44px; }
+    .mtg-head-actions { width:100%; }
+  }
 `;
 
 const SUBMISSION_STATUS_META = {
@@ -136,7 +144,7 @@ export function MeetingsView({ meetings, team, pid, companyName, canDossier, onA
     try {
       await apiPost(`/api/meeting-inbox/${id}/retry`);
     } catch (e) {
-      setSubmissions((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'failed', errorMessage: e.message } : s)));
+      setSubmissions((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'failed', errorMessage: e.message || 'Não foi possível tentar de novo agora. Aguarde um instante e tente outra vez.' } : s)));
     }
   }
 
@@ -147,7 +155,7 @@ export function MeetingsView({ meetings, team, pid, companyName, canDossier, onA
     try {
       await apiPost('/api/meeting-inbox/retry-failed', { projectId: pid });
     } catch (e) {
-      setSubmissions((prev) => prev.map((s) => (failedIds.includes(s.id) ? { ...s, status: 'failed', errorMessage: e.message } : s)));
+      setSubmissions((prev) => prev.map((s) => (failedIds.includes(s.id) ? { ...s, status: 'failed', errorMessage: e.message || 'Não foi possível tentar de novo agora. Aguarde um instante e tente outra vez.' } : s)));
     }
   }
 
@@ -207,13 +215,13 @@ export function MeetingsView({ meetings, team, pid, companyName, canDossier, onA
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-1)' }}>Reuniões</div>
           <div style={{ fontSize: 12, color: 'var(--text-5)', marginTop: 2 }}>O que foi discutido, o que foi decidido, e o que ainda está pendente.</div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="mtg-head-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {reindexResult && (
             <span style={{ fontSize: 11.5, fontWeight: 700, color: reindexResult.error ? '#e2574c' : '#3ecf6e' }}>
-              {reindexResult.error ? 'Não consegui reindexar agora.' : `Memória reindexada: ${reindexResult.meetingsIndexed} reunião(ões), ${reindexResult.chunksCreated} trecho(s).`}
+              {reindexResult.error ? 'Não foi possível atualizar a memória agora. Tente de novo em instantes.' : `Memória atualizada: ${reindexResult.meetingsIndexed} reunião(ões) lida(s) de novo.`}
             </span>
           )}
-          <button style={S.iconBtn} onClick={handleReindex} disabled={reindexing} title={reindexing ? 'Aguarde terminar' : 'Reprocessa a memória de busca da RENATA pra todas as reuniões desta empresa — use se ela disser que não encontra o conteúdo de uma reunião que existe'}><RefreshCw size={14} className={reindexing ? 'mtg-spin' : ''} /> Reindexar memória</button>
+          <button style={S.iconBtn} onClick={handleReindex} disabled={reindexing} title={reindexing ? 'Aguarde terminar' : 'Faz a RENATA reler todas as reuniões desta empresa — use se ela disser que não encontra o conteúdo de uma reunião que existe'}><RefreshCw size={14} className={reindexing ? 'mtg-spin' : ''} /> Atualizar memória da RENATA</button>
           {canDossier && active.length > 0 && <button style={S.iconBtn} onClick={() => setShowDossier(true)} title="A RENATA lê todas as reuniões desta empresa e monta um compilado: resumo, linha do tempo, frentes, decisões, pendências, riscos"><FileText size={14} /> Dossiê do cliente</button>}
           <button style={S.iconBtn} onClick={onShowTrash}><Trash2 size={14} /> Lixeira{trashed.length > 0 ? ` (${trashed.length})` : ''}</button>
           <button style={S.iconBtn} onClick={() => setShowSubmitModal(true)}><Sparkles size={14} /> Enviar transcrição</button>
@@ -351,7 +359,7 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
         submittedByName: 'Você',
       });
     } catch (e) {
-      setError(e.message || 'Falha ao enviar a transcrição.');
+      setError(e.message || 'Não foi possível enviar a transcrição. Confira sua conexão e tente de novo; o texto colado foi mantido.');
       setSending(false);
     }
   }
@@ -377,14 +385,14 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
               <Sparkles size={16} /> Enviar transcrição
             </div>
             <div style={{ ...S.fieldHint, fontSize: 12, marginTop: 4 }}>
-              Cole a transcrição completa da reunião — o painel identifica participantes, resumo, decisões e atividades automaticamente e cria a reunião pra você.
+              Cole a transcrição completa da reunião — o painel identifica participantes, resumo, decisões e tarefas automaticamente e cria a reunião pra você.
             </div>
           </div>
           <button style={S.iconBtnGhost} onClick={requestClose} aria-label="Fechar"><X size={20} /></button>
         </div>
 
         <div style={S.subSectionLabel}>Transcrição</div>
-        <textarea
+        <textarea aria-label="Transcrição da reunião"
           value={transcript}
           onChange={(e) => setTranscript(e.target.value)}
           rows={12}
@@ -397,11 +405,11 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
         <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
           <div style={{ flex: 1 }}>
             <div style={S.subSectionLabel}>Data (se souber)</div>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={sending} />
+            <input aria-label="Data da reunião" type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={sending} />
           </div>
           <div style={{ flex: 1 }}>
             <div style={S.subSectionLabel}>Horário (se souber)</div>
-            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} disabled={sending} />
+            <input aria-label="Horário da reunião" type="time" value={time} onChange={(e) => setTime(e.target.value)} disabled={sending} />
           </div>
         </div>
 

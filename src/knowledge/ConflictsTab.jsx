@@ -28,7 +28,7 @@ function ConflictCard({ conflict, onResolved }) {
       });
       onResolved();
     } catch (e) {
-      setError(e.message || 'Não consegui aplicar essa resolução.');
+      setError(e.message || 'Não foi possível aplicar essa decisão. Tente de novo em instantes.');
       setSaving(false);
     }
   }
@@ -55,7 +55,7 @@ function ConflictCard({ conflict, onResolved }) {
         <div className="knw-conflict-actions">
           <button className="knw-btn knw-btn-ghost" onClick={() => setPending('keep_a')}>Manter A</button>
           <button className="knw-btn knw-btn-ghost" onClick={() => setPending('keep_b')}>Manter B</button>
-          <button className="knw-btn knw-btn-ghost" onClick={() => setPending('temporal_update')}>É atualização temporal</button>
+          <button className="knw-btn knw-btn-ghost" onClick={() => setPending('temporal_update')}>É uma atualização</button>
           <button className="knw-btn knw-btn-ghost" onClick={() => setPending('complement')}>Manter as duas</button>
           <button className="knw-btn knw-btn-ghost" onClick={() => setPending('archive_both')}>Arquivar as duas</button>
           <button className="knw-btn knw-btn-ghost" onClick={() => setPending('mark_reviewed')}>Revisado, sem decisão</button>
@@ -69,7 +69,7 @@ function ConflictCard({ conflict, onResolved }) {
               <button className={`knw-filter-chip ${olderId === conflict.fact_b_id ? 'active' : ''}`} onClick={() => setOlderId(conflict.fact_b_id)}>B é a mais antiga</button>
             </div>
           )}
-          <input type="text" placeholder="Motivo (opcional)" value={reason} onChange={(e) => setReason(e.target.value)} style={{ width: '100%', fontSize: 12, padding: '7px 10px', borderRadius: 7 }} />
+          <input type="text" aria-label="Motivo da decisão (opcional)" placeholder="Motivo (opcional)" value={reason} onChange={(e) => setReason(e.target.value)} style={{ width: '100%', fontSize: 12, padding: '7px 10px', borderRadius: 7 }} />
           {error && <div style={{ color: '#e2574c', fontSize: 11.5, marginTop: 6 }}>{error}</div>}
           <div className="knw-btn-row">
             <button className="knw-btn knw-btn-primary" disabled={saving} title={saving ? 'Aguarde terminar' : undefined} onClick={confirm}><Check size={13} /> Confirmar</button>

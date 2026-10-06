@@ -77,7 +77,7 @@ export const MODELOS_CSS = `
   .mdl-dz.has-file { border-style:solid; border-color:#3ecf6e; color:var(--text-2); }
   .mdl-note { font-size:11.5px; color:var(--text-5); margin-top:6px; line-height:1.45; }
   .mdl-form input[type=text], .mdl-form input[type=url], .mdl-form textarea { width:100%; padding:9px 12px; font-size:13px; border-radius:9px; font-family:inherit; background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); box-sizing:border-box; }
-  .mdl-form input:focus, .mdl-form textarea:focus { outline:none; border-color:#F5C400; }
+  .mdl-form input:focus, .mdl-form textarea:focus { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; border-color:#F5C400; }
   .mdl-form textarea { min-height:70px; resize:vertical; }
   .mdl-form label { font-size:11.5px; font-weight:700; color:var(--text-5); display:block; margin-top:14px; margin-bottom:5px; }
   .mdl-pv { margin:4px 0 16px; border:1px solid var(--border-2); border-radius:12px; overflow:hidden; background:var(--bg-2); }
@@ -111,4 +111,12 @@ export const MODELOS_CSS = `
   .mdl-lk-warn { font-size:12px; color:var(--text-5); line-height:1.5; }
   .mdl-url-row { display:flex; gap:8px; margin-bottom:12px; }
   .mdl-url-row input { flex:1; min-width:0; }
+
+  .mdl-seg button:focus-visible, .mdl-item:focus-visible, .mdl-pick button:focus-visible, .mdl-dz:focus-visible, .mdl-form select:focus-visible, .mdl-add-row input:focus-visible, .mdl-url-row input:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) {
+    .mdl-seg button, .mdl-item, .mdl-pick button, .mdl-pick { min-height:44px; }
+    .mdl-pick button { min-width:44px; align-items:center; justify-content:center; }
+    .mdl-form input[type=text], .mdl-form input[type=url], .mdl-form textarea, .mdl-form select, .mdl-add-row input, .mdl-url-row input { font-size:16px; min-height:44px; box-sizing:border-box; }
+    .mdl-pv iframe { height:320px; }
+  }
 `;
