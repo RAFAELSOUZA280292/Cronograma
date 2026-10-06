@@ -5759,7 +5759,10 @@ function sortCards(cards, mode) {
   if (mode === 'priority') return list.sort((a, b) => {
     const tier = (c) => (c.completed ? 2 : cardStatusOf(c) === 'pausada' ? 1 : 0);
     if (tier(a) !== tier(b)) return tier(a) - tier(b);
-    return priorityRank(a) - priorityRank(b);
+    if (priorityRank(a) !== priorityRank(b)) return priorityRank(a) - priorityRank(b);
+    // Na mesma prioridade, quem tem prazo vem antes (mais próximo primeiro); sem prazo vai para o fim do grupo.
+    if (!!a.dueDate !== !!b.dueDate) return a.dueDate ? -1 : 1;
+    return a.dueDate && b.dueDate ? a.dueDate.localeCompare(b.dueDate) : 0;
   });
   if (mode === 'dueDate') return list.sort((a, b) => (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99'));
   if (mode === 'createdAt') return list.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
@@ -6438,7 +6441,10 @@ function PersonalListView({ board, filterFn, onOpenCard, onToggleComplete, readO
       column: (a, b) => a._colIdx - b._colIdx,
       priority: (a, b) => {
         const rank = (c) => { const i = CARD_PRIORITY_ORDER.indexOf(c.priority); return i === -1 ? 99 : i; };
-        return rank(a) - rank(b);
+        if (rank(a) !== rank(b)) return rank(a) - rank(b);
+        // Na mesma prioridade: com prazo antes, sem prazo por último — nos dois sentidos da ordenação (sortDir inverte o resultado, então compensa).
+        if (!!a.dueDate !== !!b.dueDate) return (a.dueDate ? -1 : 1) * sortDir;
+        return a.dueDate && b.dueDate ? a.dueDate.localeCompare(b.dueDate) : 0;
       },
       dueDate: (a, b) => (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99'),
       updatedAt: (a, b) => (a.updatedAt || '').localeCompare(b.updatedAt || ''),
