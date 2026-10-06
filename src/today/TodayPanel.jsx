@@ -15,6 +15,7 @@ const CSS = `
 .tp { margin: 0 0 18px; font-family: 'Inter', sans-serif; align-self: stretch; width: 100%; box-sizing: border-box; }
 .tp-card { background: var(--bg-2); border: 1px solid var(--border-1); border-radius: 14px; padding: 16px 18px; }
 .tp-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.tp-prefs { margin-left: auto; }
 .tp-title { margin: 0; font-size: 16px; font-weight: 800; color: var(--text-1); }
 .tp-sub { font-size: 12.5px; color: var(--text-4); }
 .tp-sec { margin-top: 14px; }
@@ -135,6 +136,7 @@ export default function TodayPanel({ projects, personalBoard, user, notification
   const data = useMemo(() => buildTodayItems({ projects, personalBoard, user, todayIso }), [projects, personalBoard, user, todayIso]);
   const prefs = useNotifPrefs();
   const unread = useMemo(() => visibleNotifications(notifications, prefs.categories).filter((n) => !n.read), [notifications, prefs.categories]);
+  const hiddenCats = prefs.categories.filter((c) => c.muted).length;
   const shownNotifs = unread.slice(0, MAX_NOTIFS);
   const toggle = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const nothingDue = data.total === 0;
@@ -151,6 +153,11 @@ export default function TodayPanel({ projects, personalBoard, user, notification
         <div className="tp-head">
           <h2 className="tp-title">Hoje</h2>
           <span className="tp-sub">{parts.length ? parts.join(' · ') : 'Tudo em dia'}</span>
+          {actions.openAllNotifications && (
+            <Button size="sm" icon={Bell} className="tp-prefs" onClick={() => { requestNotifSettings(); actions.openAllNotifications(); }}>
+              {hiddenCats ? `Quais notificações ver (${hiddenCats} oculta${hiddenCats === 1 ? '' : 's'})` : 'Quais notificações ver'}
+            </Button>
+          )}
         </div>
 
         {empty && (
