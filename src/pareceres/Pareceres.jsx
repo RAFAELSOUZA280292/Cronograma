@@ -413,6 +413,49 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
   );
 }
 
+// Situação da memória da RENATA: quantos pareceres ela já estudou. O estudo é MANUAL (não roda ao enviar o PDF): parecer novo ou
+// alterado fica "aguardando" até alguém pedir — este aviso mostra isso e tem o botão. GET /study é só SQL (sem custo de IA).
+function StudyBanner({ refreshKey }) {
+  const [st, setSt] = useState(null);
+  const [err, setErr] = useState('');
+  const [starting, setStarting] = useState(false);
+
+  function load() {
+    apiGet('/api/pareceres/study').then((r) => { setSt(r); setErr(''); }).catch((e) => setErr(apiErrorText(e, 'Não consegui verificar a memória da RENATA.')));
+  }
+  useEffect(() => { load(); }, [refreshKey]);
+  const running = !!(st && (st.jobRunning || st.running > 0));
+  useEffect(() => {
+    if (!running) return undefined;
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [running]);
+
+  async function start() {
+    const n = st ? st.pending : 0;
+    if (!(await askConfirm({ title: 'A RENATA estudar os pareceres pendentes?', message: `${n} parecer${n === 1 ? '' : 'es'} ${n === 1 ? 'será lido' : 'serão lidos'} pela IA agora. Pode levar alguns minutos; você pode continuar usando o painel.`, confirmLabel: 'Estudar agora' }))) return;
+    setStarting(true);
+    try { const r = await apiPost('/api/pareceres/study'); setSt((cur) => ({ ...(cur || {}), ...r, jobRunning: true })); setTimeout(load, 1500); }
+    catch (e) { notify(apiErrorText(e, 'Não foi possível iniciar o estudo.'), { tone: 'error' }); }
+    finally { setStarting(false); }
+  }
+
+  if (err) return <div className="par-study"><InlineAlert message={err} onRetry={load} /></div>;
+  if (!st || !st.total) return null;
+  const done = st.studied;
+  const upToDate = st.pending === 0 && !running;
+  return (
+    <div className={`par-study${upToDate ? ' ok' : ' warn'}`} role="status">
+      <div className="par-study-t">
+        {running ? <>A RENATA está estudando os pareceres… <b>{done} de {st.total}</b> prontos.</>
+          : upToDate ? <>A memória da RENATA está em dia: ela já estudou <b>{st.total === 1 ? 'o único parecer' : `os ${st.total} pareceres`}</b>.</>
+            : <>A RENATA estudou <b>{done} de {st.total}</b> {st.total === 1 ? 'parecer' : 'pareceres'}. <b>{st.pending}</b> {st.pending === 1 ? 'aguarda' : 'aguardam'} estudo (novos, alterados ou que falharam) e ainda não entram nas respostas dela.</>}
+      </div>
+      {!running && st.pending > 0 && <Button size="sm" variant="primary" onClick={start} loading={starting}>Estudar os pendentes</Button>}
+    </div>
+  );
+}
+
 export default function PareceresScreen({ currentUser, onExit, onLogout, theme, onToggleTheme, pendingOpenId, onPendingOpenConsumed }) {
   const [pareceres, setPareceres] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -441,7 +484,9 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
     if (onPendingOpenConsumed) onPendingOpenConsumed();
   }, [pendingOpenId, loaded, loadError, pareceres]);
 
+  const [studyTick, setStudyTick] = useState(0);
   function handleCreated(created) {
+    setStudyTick((t) => t + 1);
     setPareceres((prev) => [created, ...prev]);
     setShowUpload(false);
   }
@@ -484,6 +529,8 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
               </div>
               <Button variant="primary" icon={Plus} onClick={() => setShowUpload(true)}>Novo Parecer</Button>
             </div>
+
+            <StudyBanner refreshKey={studyTick} />
 
             <div className="par-toolbar">
               <div className="par-search">

@@ -108,6 +108,7 @@ src/modelos/         Modelos de documentos (§78): Modelos.jsx (grade, gaveta co
 src/connect/        Conectar (§80): ConnectSection.jsx (aba Conectar em Meu perfil: gerar/revogar token) + guide.js (guia que o usuário cola no outro Claude Code, sem token).
 src/crm/            CRM (§54–§58): CrmScreen (shell/abas), *Page.jsx (Empresas, Contatos, Negócios, Produtos, Agenda, Visão Geral), *Drawer/*Form/*Dialog/*Wizard (ficha, formulários, fechar negócio, importadores PipeRun), FunnelsAdmin, GlobalSearch, crmApi.js/crmMeta.js/importMapping.js/ui.jsx. `React.lazy` a partir de App.jsx.
 src/shell/ModuleShell.jsx + CommandPalette.jsx  Casca única (Onda 1, §81): barra do topo + busca Ctrl+K; publicada pelo `AppScreens` via `shellRef`.
+src/assistant/RenataHome.jsx + server/assistantGeneral.js  RENATA geral (sem projeto), `POST /api/assistant/general/ask` (2026-10-06, §81).
 src/today/ (TodayPanel, WeekSummary, ContinueStrip, todayItems.js, boardActions.js)  Home "Hoje" acionável (Onda 5, §81); src/lib/recents.js recentes/favoritos/última empresa; `server/todoNotifications.js` avisos de tarefa de reunião; `scripts/scope-check.py` JSX sem import + TDZ.
 src/lib/saveState.js + useAutosave.js  Estado global de gravação (todo PATCH/PUT) + `GlobalSaveStatus` na barra + `RecordSaveStatus` por registro; `useAutosave` p/ preferências (Onda 4, §81).
 src/ui/ComposeBox.jsx  ComposeBox/CommentThread/AddMenu/AttachmentList (Onda 3, §81): comentar/linkar/anexar/colar print igual em todo módulo; `server/commentExtras.js` valida anexos/links e notifica menções.

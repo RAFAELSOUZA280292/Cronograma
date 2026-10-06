@@ -2,7 +2,7 @@
 // ← Início (com texto) · seletor de módulos · busca global (Ctrl/Cmd+K) · sino · menu da pessoa (perfil, tema, sair).
 // Os módulos mantêm só o que é deles (título, ações do módulo); Início/Sair/Tema/Sino/Perfil vivem aqui.
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown, Search, LogOut, UserCog, Sun, Moon, Check } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Search, LogOut, UserCog, Sun, Moon, Check, Sparkles } from 'lucide-react';
 import { NotificationBell, UserAvatar } from '../App.jsx';
 import CommandPalette from './CommandPalette.jsx';
 import { useEscClose } from '../lib/nav.js';
@@ -21,6 +21,8 @@ const CSS = `
 .shell-spacer { flex: 1; min-width: 0; }
 .shell-save { display: inline-flex; align-items: center; margin-right: 6px; white-space: nowrap; }
 .shell-cur { color: var(--text-1); font-weight: 700; }
+.shell-renata { color: var(--ui-accent, #F5C400); }
+.shell-renata:hover { background: var(--ui-accent-bg, rgba(245,196,0,.14)); }
 .shell-search { min-width: 190px; justify-content: flex-start; color: var(--text-4); background: var(--bg-3); border-color: var(--border-1); font-weight: 500; }
 .shell-search kbd, .shell-pal kbd { margin-left: auto; font: inherit; font-size: 10.5px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-2); color: var(--text-4); background: var(--bg-1); }
 .shell-pop { position: relative; }
@@ -58,6 +60,8 @@ const CSS = `
   .shell-search span, .shell-search kbd { display: none; }
   .shell-cur-label { display: none; }
   .shell-hide-m { display: none; }
+  .shell-renata-t { display: none; }
+  .shell-renata { width: 44px; padding: 0; justify-content: center; }
   .shell-save .ui-save { font-size: 11px; }
   .shell-pal-overlay { padding-top: 8vh; }
 }
@@ -85,7 +89,7 @@ function Menu({ label, align = 'left', trigger, children }) {
 }
 
 export default function ModuleShell({
-  user, current, modes, onGo, onHome, getSearchItems,
+  user, current, modes, onGo, onHome, getSearchItems, onOpenRenata,
   notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead,
   onOpenProfile, theme, onToggleTheme, onLogout,
 }) {
@@ -136,6 +140,11 @@ export default function ModuleShell({
         <button type="button" className="shell-btn shell-search" onClick={() => setPalette(true)} title="Buscar (Ctrl+K)" aria-label="Buscar">
           <Search size={14} aria-hidden="true" /> <span>Buscar…</span> <kbd>{isMac ? '⌘K' : 'Ctrl K'}</kbd>
         </button>
+        {onOpenRenata && (
+          <button type="button" className="shell-btn shell-renata" onClick={() => onOpenRenata()} title="Falar com a RENATA" aria-label="Falar com a RENATA">
+            <Sparkles size={15} aria-hidden="true" /> <span className="shell-renata-t">RENATA</span>
+          </button>
+        )}
         {notifications && (
           <NotificationBell
             notifications={notifications} show={showNotifications} onToggle={onToggleNotifications}
@@ -157,7 +166,7 @@ export default function ModuleShell({
           <button type="button" role="menuitem" className="shell-menu-item" onClick={onLogout}><LogOut size={15} aria-hidden="true" /> Sair</button>
         </Menu>
       </header>
-      {palette && <CommandPalette getItems={getSearchItems} onClose={() => setPalette(false)} />}
+      {palette && <CommandPalette getItems={getSearchItems} onAskRenata={onOpenRenata} onClose={() => setPalette(false)} />}
     </>
   );
 }

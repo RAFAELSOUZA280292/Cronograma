@@ -29,6 +29,10 @@ export function initialsOf(name) {
 
 export const PARECERES_CSS = `
   .par-root { font-family:'Inter', sans-serif; color:var(--text-1); -webkit-font-smoothing:antialiased; }
+  .par-study { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:11px 14px; margin:0 0 14px; border-radius:12px; border:1px solid var(--border-2); background:var(--bg-2); font-size:13px; color:var(--text-2); }
+  .par-study.ok { border-color:rgba(62,207,110,.45); }
+  .par-study.warn { border-color:rgba(255,159,64,.55); background:var(--ui-warn-bg, rgba(255,159,64,.12)); }
+  .par-study-t { flex:1 1 280px; line-height:1.5; }
   .par-shell { display:flex; flex-direction:column; min-height:calc(100dvh - var(--shell-h, 48px)); background:var(--bg-page); }
   .par-body { flex:1; padding:36px 32px 64px; }
   .par-inner { max-width:1240px; margin:0 auto; width:100%; }

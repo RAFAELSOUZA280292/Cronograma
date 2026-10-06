@@ -3,7 +3,7 @@
 // atuais, e o que não existe mais some) e cada item tem uma estrela para favoritar (Shift+Enter também).
 // Os itens vêm do App (que conhece os dados já carregados); aqui só filtra, ordena e navega por teclado.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Star } from 'lucide-react';
+import { Search, Star, Sparkles } from 'lucide-react';
 import { useDialog } from '../lib/nav.js';
 import { IconButton } from '../ui/index.jsx';
 import { getFavorites, getRecents, toggleFavorite } from '../lib/recents.js';
@@ -25,7 +25,7 @@ function score(item, terms) {
   return total;
 }
 
-export default function CommandPalette({ getItems, onClose }) {
+export default function CommandPalette({ getItems, onClose, onAskRenata }) {
   const [q, setQ] = useState('');
   const [active, setActive] = useState(0);
   const items = useMemo(() => { try { return getItems() || []; } catch (e) { return []; } }, []);
@@ -38,19 +38,23 @@ export default function CommandPalette({ getItems, onClose }) {
 
   const results = useMemo(() => {
     const terms = fold(q).split(/\s+/).filter(Boolean);
+    const text = q.trim();
+    // RENATA sempre à mão: sem texto, "Falar com a RENATA"; com texto, "Perguntar à RENATA: …" (vale mesmo sem nenhum resultado).
+    const renata = onAskRenata ? [{ id: 'ask-renata', group: 'RENATA', icon: Sparkles, label: text.length >= 2 ? `Perguntar à RENATA: “${text}”` : 'Falar com a RENATA', hint: text.length >= 2 ? 'Enter' : 'assistente da PRICETAX', run: () => onAskRenata(text.length >= 2 ? text : '') }] : [];
     if (!terms.length) {
       const byKey = new Map(items.filter((i) => i.kind).map((i) => [keyOf(i), i]));
       const alive = (list) => list.map((x) => byKey.get(`${x.kind}:${x.id}`)).filter(Boolean);
       const favItems = alive(favs).map((i) => ({ ...i, id: `fav-${i.id}`, group: 'Favoritos' }));
       const recItems = alive(recents).filter((i) => !favKeys.has(keyOf(i))).slice(0, 8).map((i) => ({ ...i, id: `rec-${i.id}`, group: 'Recentes' }));
-      return [...favItems, ...recItems, ...items.filter((i) => i.group === 'Ir para'), ...items.filter((i) => i.group === 'Empresas').slice(0, 6)];
+      return [...renata, ...favItems, ...recItems, ...items.filter((i) => i.group === 'Ir para'), ...items.filter((i) => i.group === 'Empresas').slice(0, 6)];
     }
     const ranked = items.map((i) => ({ i, s: score(i, terms) })).filter((x) => x.s >= 0).sort((a, b) => b.s - a.s).map((x) => x.i);
     // Agrupa na ordem fixa (cada título aparece uma vez), mantendo o ranking dentro do grupo e um teto por grupo.
     const out = [];
     for (const g of GROUP_ORDER) out.push(...ranked.filter((i) => i.group === g).slice(0, 10));
-    return out.slice(0, MAX);
-  }, [q, items, favs, recents, favKeys]);
+    // Com texto, a RENATA vem por ÚLTIMO: Enter continua abrindo o melhor resultado; sem resultado nenhum, Enter pergunta à RENATA.
+    return [...out.slice(0, MAX), ...renata];
+  }, [q, items, favs, recents, favKeys, onAskRenata]);
 
   useEffect(() => { setActive(0); }, [q]);
   useEffect(() => {
