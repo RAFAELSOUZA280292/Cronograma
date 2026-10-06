@@ -268,13 +268,29 @@ async function runStudyJob({ pool, client, orgId, userId, ids }) {
     }
   } finally {
     running.delete(orgId);
+    // Parecer enviado enquanto este estudo rodava: pega agora, sem esperar alguém clicar.
+    if (autoFollowUp.delete(orgId)) autoStudy({ pool, orgId, userId, client }).catch(() => {});
   }
 }
 
-export async function startStudy({ pool, orgId, userId, client, awaitJob = false }) {
+const autoFollowUp = new Set();
+
+// Estudo automático ao enviar um parecer (2026-10-06, decisão do Rafael: a memória da RENATA tem que estar sempre em dia).
+// Roda em segundo plano, nunca atrasa nem derruba o envio do PDF; sem chave de IA, não faz nada (o aviso na tela de Pareceres
+// continua mostrando o parecer como "aguardando"). Se já há um estudo em andamento, marca para repetir quando ele terminar.
+export async function autoStudy({ pool, orgId, userId, client }) {
+  if (!client && !process.env.ANTHROPIC_API_KEY) return { skipped: 'sem chave de IA' };
+  const r = await startStudy({ pool, orgId, userId, client, states: ['new', 'changed'] });
+  if (r.running) autoFollowUp.add(orgId);
+  return r;
+}
+
+// `states`: quais situações entram no estudo (padrão: novos, alterados e os que falharam — o botão manual). O disparo automático
+// ao enviar um PDF usa só 'new'/'changed' (não reprocessa em loop um parecer que já falhou).
+export async function startStudy({ pool, orgId, userId, client, awaitJob = false, states = ['new', 'changed', 'failed'] }) {
   const state = await computeStudyState(pool, orgId, null);
   if (state.jobRunning || state.running > 0) return { running: true, ...summaryOf(state) };
-  const todo = state.allItems.filter((i) => ['new', 'changed', 'failed'].includes(i.state));
+  const todo = state.allItems.filter((i) => states.includes(i.state));
   if (!todo.length) return { upToDate: true, ...summaryOf(state) };
   const aiClient = client || (process.env.ANTHROPIC_API_KEY ? new Anthropic() : null);
   if (!aiClient) return { noKey: true, ...summaryOf(state) };

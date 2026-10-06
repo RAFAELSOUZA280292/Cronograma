@@ -7,7 +7,7 @@ import { pool } from './db.js';
 import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import { effectiveOrgId, canAccessProject } from './routes.js';
 import { cleanCommentExtras, notifyMentions } from './commentExtras.js';
-import { startStudy, getStudyState, getMeetingAdvice, generateMeetingAdvice, archiveParecerFacts, friendlyStudyError } from './parecerStudy.js';
+import { startStudy, autoStudy, getStudyState, getMeetingAdvice, generateMeetingAdvice, archiveParecerFacts, friendlyStudyError } from './parecerStudy.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -124,6 +124,8 @@ router.post('/', async (req, res, next) => {
     );
     const { rows } = await pool.query(`SELECT ${LIST_COLUMNS} FROM pareceres WHERE id=$1`, [id]);
     res.status(201).json(rows[0]);
+    // A RENATA estuda o parecer novo em segundo plano (a resposta ao envio já saiu; falha aqui não afeta o upload).
+    autoStudy({ pool, orgId, userId: req.user.id }).catch((e) => console.error('Pareceres: estudo automático falhou', e.message));
   } catch (e) { next(e); }
 });
 
