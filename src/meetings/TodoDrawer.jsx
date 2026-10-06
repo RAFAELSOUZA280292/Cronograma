@@ -7,10 +7,11 @@
 // passamos o id do item de TO_DO no lugar do id da atividade.
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Mic, Plus, Trash2, Download, Paperclip, Copy, Check } from 'lucide-react';
-import { S, fmtDate, fmtTs, useIsMobile, useAutosaveTimestamp, useDebouncedField, savedStatusLabel } from '../App.jsx';
+import { S, fmtDate, fmtTs, useIsMobile, useAutosaveTimestamp, useDebouncedField } from '../App.jsx';
 import { TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } from './Meetings.jsx';
 import { useDialog } from '../lib/nav.js';
 import { notify } from '../ui/dialogs.jsx';
+import { RecordSaveStatus } from '../ui/index.jsx';
 import { ComposeBox, CommentThread } from '../ui/ComposeBox.jsx';
 import { daysOverdue, isItemOverdue } from './todoUtils.js';
 
@@ -122,7 +123,7 @@ export function TodoDrawer({
           >
             {TODO_STATUS_ORDER.map((s) => <option key={s} value={s}>{TODO_STATUS_META[s].label}</option>)}
           </select>
-          <span style={{ fontSize: 11, color: 'var(--text-6)', flex: 1 }}>{savedStatusLabel(false, lastSavedAt)}</span>
+          <span style={{ flex: 1 }}><RecordSaveStatus hasDraft={false} lastSavedAt={lastSavedAt} /></span>
           <button type="button" style={S.iconBtnGhost} title="Duplicar atividade" aria-label="Duplicar atividade" onClick={() => duplicateActionItem(pid, meeting.id, item.id)}><Copy size={16} aria-hidden="true" /></button>
           <button type="button" style={S.iconBtnGhost} title="Excluir atividade" aria-label="Excluir atividade" onClick={() => { deleteActionItem(pid, meeting.id, item.id); requestClose(); }}><Trash2 size={16} aria-hidden="true" /></button>
           <button type="button" style={S.iconBtnGhost} onClick={requestClose} aria-label="Fechar"><X size={20} /></button>

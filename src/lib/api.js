@@ -1,4 +1,6 @@
-async function request(method, path, body) {
+import { beginSave } from './saveState.js';
+
+async function rawRequest(method, path, body) {
   const res = await fetch(path, {
     method,
     credentials: 'include',
@@ -16,6 +18,23 @@ async function request(method, path, body) {
     throw err;
   }
   return data;
+}
+
+// Gravações automáticas (PATCH/PUT) alimentam o estado global "Salvando/Salvo/Falhou" (src/lib/saveState.js).
+async function request(method, path, body) {
+  if (method !== 'PATCH' && method !== 'PUT') return rawRequest(method, path, body);
+  // "Tentar de novo" global só para gravação idempotente de documento inteiro (projeto). As demais (ações do XFlow, avatar,
+  // preferências…) têm o próprio fluxo de erro/retry: reenviar o corpo cru não atualizaria o estado de quem chamou nem seria seguro.
+  const retry = method === 'PATCH' && /^\/api\/projects\/[^/?]+$/.test(path) ? () => request(method, path, body) : null;
+  const tracker = beginSave(`${method} ${path}`, retry);
+  try {
+    const data = await rawRequest(method, path, body);
+    tracker.ok();
+    return data;
+  } catch (e) {
+    if (e && e.status >= 400 && e.status < 500) tracker.rejected(); else tracker.fail(e);
+    throw e;
+  }
 }
 
 export const apiGet = (path) => request('GET', path);

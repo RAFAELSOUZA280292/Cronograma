@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './ui.css';
 import { useDialog } from '../lib/nav.js';
+import { useSaveState, retryFailedSaves } from '../lib/saveState.js';
 
 const cx = (...parts) => parts.filter(Boolean).join(' ');
 
@@ -59,16 +60,39 @@ export function ErrorState({ title = 'Não foi possível carregar', message, onR
   );
 }
 
-// Estado de gravação: o mesmo texto em todo lugar. state: 'idle' | 'saving' | 'saved' | 'error'.
-export function SaveStatus({ state, savedAt, onRetry }) {
-  if (!state || state === 'idle') return null;
+// Estado de gravação: o mesmo texto em todo lugar. state: 'idle' | 'draft' (digitado, ainda não gravado) | 'saving' | 'saved' | 'error'.
+// `idleText` aparece no estado idle (ex.: "Todas as alterações estão salvas"); `errorText` troca o texto do erro.
+export function SaveStatus({ state, savedAt, onRetry, idleText, errorText }) {
+  if (!state || (state === 'idle' && !idleText)) return null;
   return (
     <span className={cx('ui-save', `s-${state}`)} role="status">
+      {state === 'idle' && idleText}
+      {state === 'draft' && 'Alterações ainda não salvas'}
       {state === 'saving' && 'Salvando…'}
       {state === 'saved' && `Salvo${savedAt ? ` às ${savedAt}` : ''}`}
-      {state === 'error' && <>Não foi possível salvar{onRetry && <button type="button" className="ui-save-retry" onClick={onRetry}>Tentar de novo</button>}</>}
+      {state === 'error' && <>{errorText || 'Não foi possível salvar'}{onRetry && <button type="button" className="ui-save-retry" onClick={onRetry}>Tentar de novo</button>}</>}
     </span>
   );
+}
+
+const hhmm = (d) => (d ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '');
+
+// Selo de gravação do indicador GLOBAL (barra do topo): lê o estado de todas as gravações automáticas.
+export function GlobalSaveStatus() {
+  const g = useSaveState();
+  return <SaveStatus state={g.status} savedAt={hhmm(g.savedAt)} onRetry={g.status === 'error' && g.retryable ? retryFailedSaves : undefined} />;
+}
+
+// Selo de um REGISTRO aberto (atividade, cartão, TASK, reunião…): mistura o rascunho local com o estado global de gravação.
+// `lastSavedAt` vem do useAutosaveTimestamp do registro.
+export function RecordSaveStatus({ hasDraft, lastSavedAt }) {
+  const g = useSaveState();
+  let state = 'idle';
+  if (g.status === 'error') state = 'error';
+  else if (g.status === 'saving') state = 'saving';
+  else if (hasDraft) state = 'draft';
+  else if (lastSavedAt) state = 'saved';
+  return <SaveStatus state={state} savedAt={hhmm(lastSavedAt)} onRetry={state === 'error' && g.retryable ? retryFailedSaves : undefined} idleText="Todas as alterações estão salvas" />;
 }
 
 export function Chip({ active, count, accent, icon: Icon, children, className, ...rest }) {

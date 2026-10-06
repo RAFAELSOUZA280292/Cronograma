@@ -241,3 +241,5 @@ a.cmp-file-name { text-decoration: underline; text-underline-offset: 2px; }
 .cmp-edit { display: flex; flex-direction: column; gap: 6px; }
 .cmp-edit textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border-3); background: var(--bg-4); color: var(--text-1); font: inherit; font-size: 13.5px; }
 .cmp-edit-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+.ui-save.s-draft { color: var(--ui-warn); }

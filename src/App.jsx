@@ -35,12 +35,13 @@ import PareceresScreen from './pareceres/Pareceres.jsx';
 import ModelosScreen from './modelos/Modelos.jsx';
 import PersonalStatsPanel from './personal/PersonalStats.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
-import { activate, activateRow, Tabs, ConfirmDialog, Button, IconButton } from './ui/index.jsx';
+import { activate, activateRow, Tabs, ConfirmDialog, Button, IconButton, SaveStatus, RecordSaveStatus } from './ui/index.jsx';
 import { ComposeBox, CommentThread, AttachmentList, AddMenu, readFileAsAttachment } from './ui/ComposeBox.jsx';
 import ModuleShell from './shell/ModuleShell.jsx';
 import { DialogOverlay } from './ui/dialog.jsx';
 import { DialogHost, notify, askConfirm, askText, pushToastCompat, dismissToast as dismissToastGlobal } from './ui/dialogs.jsx';
 import { useHistoryValue, readHistoryValue, withoutLayer } from './lib/nav.js';
+import { useAutosave } from './lib/useAutosave.js';
 import { calendarDaysSince } from './lib/dates.js';
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
 // CRM (2026-09-20, PROJECT_CONTEXT.md §54): módulo grande e opcional — carregado só quando alguém abre o CRM.
@@ -291,6 +292,13 @@ export function useDebouncedField(externalValue, commit, delayMs = 300) {
   return { draft, onChange, flush, reset };
 }
 
+// Campo de texto de uma linha da Tabela com gravação por debounce (Onda 4): grava ~300 ms depois de parar de digitar e ao sair do campo,
+// em vez de a cada tecla (cada tecla re-renderizava o projeto inteiro — §45). `onBlurLog` registra a linha no histórico como antes.
+function DebouncedTextInput({ value, onCommit, onBlurLog, ...rest }) {
+  const f = useDebouncedField(value || '', onCommit);
+  return <input type="text" {...rest} value={f.draft} onChange={(e) => f.onChange(e.target.value)} onBlur={() => { f.flush(); if (onBlurLog) onBlurLog(); }} />;
+}
+
 // record = a prop vinda do pai (activity/ticket/card) que já muda sozinha
 // toda vez que um autosave de campo grava — não precisa instrumentar cada
 // handler individual, só observa o resultado.
@@ -327,11 +335,6 @@ export function ConfirmDiscardModal({ onSaveAndExit, onDiscard, onCancel, saving
   );
 }
 
-export function savedStatusLabel(hasDraft, lastSavedAt) {
-  if (hasDraft) return 'Alterações não salvas';
-  if (lastSavedAt) return `Salvo automaticamente às ${lastSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-  return 'Todas as alterações estão salvas';
-}
 
 function normalizeTeam(team, teamLinks) {
   return (team || []).map((m) => {
@@ -1586,7 +1589,7 @@ function AppScreens({ shellRef, bump }) {
         onDailySaved={() => setDailyReload((k) => k + 1)}
         googleConnectResult={googleConnectResult}
         onClose={() => { setShowMyProfile(false); setGoogleConnectResult(null); }}
-        onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
+        onAvatar={updateMyAvatar}
       />
     ) : null,
   };
@@ -4278,17 +4281,18 @@ function EditUserModal({ user: u, accessSummary, currentUser, registeredProjects
   );
 }
 
-function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab, onDailySaved }) {
+function MyProfileModal({ user, onClose, onAvatar, googleConnectResult, initialTab, onDailySaved }) {
   const [tab, setTab] = useState(initialTab || 'perfil');
   const [avatar, setAvatar] = useState(user.avatar || '');
   const isMobile = useIsMobile();
-  const isDirty = useDirtyForm(avatar);
-  const [showGuard, setShowGuard] = useState(false);
   const [tokenAtRisk, setTokenAtRisk] = useState(false);
   const [showTokenGuard, setShowTokenGuard] = useState(false);
-  function requestClose() {
+  // Avatar e "Meu dia" gravam sozinhos (Onda 4): nada de botão "Salvar" que só grava uma parte da tela.
+  const avatarSave = useAutosave({ value: avatar, delay: 250, save: (v) => onAvatar(v) });
+  async function requestClose() {
     if (tokenAtRisk) { setShowTokenGuard(true); return; }
-    if (isDirty) setShowGuard(true); else onClose();
+    const results = await Promise.all([avatarSave.flush(), dailySave.flush()]);
+    if (results.every(Boolean)) onClose();
   }
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -4305,20 +4309,18 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab
   }, []);
   const [daily, setDaily] = useState(null);
   const [dailySummary, setDailySummary] = useState(null);
-  const [dailyMsg, setDailyMsg] = useState('');
-  const [dailyBusy, setDailyBusy] = useState(false);
   useEffect(() => {
     apiGet('/api/daily/preferences').then((p) => { setDaily({ enabled: p.enabled, cards: p.cards, birthDate: p.birthDate }); setDailySummary(p); }).catch(() => setDaily(null));
   }, []);
-  async function saveDaily() {
-    setDailyBusy(true); setDailyMsg('');
-    try {
-      const r = await apiPut('/api/daily/preferences', daily);
+  const dailySave = useAutosave({
+    value: daily, armed: !!daily, delay: 800,
+    validate: (v) => (v && v.birthDate && v.birthDate > new Date().toISOString().slice(0, 10) ? 'A data de nascimento não pode ser no futuro.' : ''),
+    save: async (v) => {
+      const r = await apiPut('/api/daily/preferences', v);
       setDailySummary(r);
-      setDailyMsg('Salvo. Já aparece na sua tela inicial.');
       if (onDailySaved) onDailySaved();
-    } catch (e) { setDailyMsg(e && e.message ? e.message : 'Não foi possível salvar.'); } finally { setDailyBusy(false); }
-  }
+    },
+  });
   async function disconnectGoogle() {
     setGoogleBusy(true);
     try {
@@ -4370,10 +4372,7 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab
         {tab === 'perfil' && (<>
         <div style={S.subSectionLabel}>Escolha seu avatar</div>
         <AvatarPicker value={avatar} onChange={setAvatar} />
-
-        <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={() => onSave(avatar)}>
-          Salvar
-        </button>
+        <div style={{ marginTop: 10, minHeight: 18 }}><SaveStatus state={avatarSave.state} savedAt={avatarSave.savedAt} onRetry={avatarSave.retry} /></div>
 
         <div style={{ ...S.subSectionLabel, marginTop: 26, paddingTop: 20, borderTop: '1px solid var(--border-1)' }}>Trocar senha</div>
         <input type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Senha atual" />
@@ -4391,9 +4390,11 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab
             <div style={S.subSectionLabel}>O que você quer ver no seu dia</div>
             {!daily ? <div style={S.fieldHint}>Carregando...</div> : (
               <>
-                <DailyPrefs value={daily} onChange={(v) => { setDaily(v); setDailyMsg(''); }} summary={dailySummary} />
-                <button title={dailyBusy ? 'Aguarde terminar de salvar' : undefined} style={{ ...S.primaryBtn, marginTop: 16, width: '100%', justifyContent: 'center' }} disabled={dailyBusy} onClick={saveDaily}>{dailyBusy ? 'Salvando...' : 'Salvar meu dia'}</button>
-                {dailyMsg && <div style={{ ...S.fieldHint, marginTop: 8, color: dailyMsg.startsWith('Salvo') ? '#3ddc84' : undefined }}>{dailyMsg}</div>}
+                <DailyPrefs value={daily} onChange={setDaily} summary={dailySummary} />
+                <div style={{ marginTop: 12, minHeight: 18 }}>
+                  <SaveStatus state={dailySave.state} savedAt={dailySave.savedAt} onRetry={dailySave.retry} idleText="Grava sozinho — já aparece na sua tela inicial." />
+                  {dailySave.reason && <div style={{ ...S.fieldHint, color: '#ff9f40' }}>{dailySave.reason}</div>}
+                </div>
               </>
             )}
           </>
@@ -4437,13 +4438,6 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab
           danger
           onConfirm={onClose}
           onCancel={() => setShowTokenGuard(false)}
-        />
-      )}
-      {showGuard && (
-        <ConfirmDiscardModal
-          onSaveAndExit={() => onSave(avatar)}
-          onDiscard={onClose}
-          onCancel={() => setShowGuard(false)}
         />
       )}
     </DialogOverlay>
@@ -5522,16 +5516,6 @@ function useToasts() {
 
 function ToastStack() { return null; }
 
-function FadingSavedBadge() {
-  const [visible, setVisible] = useState(true);
-  useEffect(() => {
-    setVisible(true);
-    const t = setTimeout(() => setVisible(false), 2000);
-    return () => clearTimeout(t);
-  }, []);
-  if (!visible) return null;
-  return <span style={S.saveStateBadge}>Salvo</span>;
-}
 
 function PersonalBoardSkeleton({ theme }) {
   return (
@@ -5981,7 +5965,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
                 </select>
               ) : <span>{columnName}</span>}
             </div>
-            {!readOnly && <span style={{ fontSize: 11, color: hasDraft ? '#ff9f40' : 'var(--text-6)' }}>{savedStatusLabel(hasDraft, lastSavedAt)}</span>}
+            {!readOnly && <RecordSaveStatus hasDraft={hasDraft} lastSavedAt={lastSavedAt} />}
           </div>
           <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
         </div>
@@ -7118,9 +7102,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
           {!readOnly && !publicMode && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowStats(true)}><Gauge size={15} /> Indicadores</button>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {saveState === 'saving' && <span style={S.saveStateBadge}>Salvando…</span>}
-          {saveState === 'saved' && <FadingSavedBadge />}
-          {saveState === 'error' && <span style={{ ...S.saveStateBadge, color: '#e2574c' }}>Falha ao salvar — desfeito</span>}
+          {publicMode && <SaveStatus state={saveState} errorText="Não foi possível salvar — alteração desfeita." />}
           {publicMode && <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />}
           {publicMode && onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
         </div>
@@ -7130,9 +7112,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
       {embedded ? (
         <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 24px 0' }}>
           <span style={S.publicBadge}><Globe size={11} /> Quadro de {publicOwnerName || 'outra pessoa'}</span>
-          {saveState === 'saving' && <span style={S.saveStateBadge}>Salvando…</span>}
-          {saveState === 'saved' && <FadingSavedBadge />}
-          {saveState === 'error' && <span style={{ ...S.saveStateBadge, color: '#e2574c' }}>Falha ao salvar — desfeito</span>}
+          <SaveStatus state={saveState} errorText="Não foi possível salvar — alteração desfeita." />
         </div>
       ) : publicMode ? (
         <div style={S.personalTabs}>
@@ -7813,7 +7793,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
           <div style={S.detailTopLeft}>
             <span style={{ ...S.monthBadgeSm, background: phase?.color }}>#{orderMap[a.id]}</span>
             <span style={S.detailPhaseTag}><span style={{ ...S.timelineLaneDot, background: phase?.color }} />{phase?.name}</span>
-            <span style={{ fontSize: 11, color: hasDraft ? '#ff9f40' : 'var(--text-6)' }}>{savedStatusLabel(hasDraft, lastSavedAt)}</span>
+            <RecordSaveStatus hasDraft={hasDraft} lastSavedAt={lastSavedAt} />
           </div>
           <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={20} /></button>
         </div>
@@ -8951,9 +8931,9 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                   <div style={{ flex: 2, minWidth: 260 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {a.priority && <span title={`Prioridade ${PRIORITY_META[a.priority].label}`} style={{ ...S.priorityDot, background: PRIORITY_META[a.priority].color }} />}
-                      <input type="text" value={a.title} onChange={(e) => updateActivity(rowPid, a.id, { title: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} style={{ flex: 1 }} />
+                      <DebouncedTextInput value={a.title} onCommit={(v) => updateActivity(rowPid, a.id, { title: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} style={{ flex: 1 }} />
                     </div>
-                    <input type="text" value={a.desc} onChange={(e) => updateActivity(rowPid, a.id, { desc: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 4, opacity: .8 }} />
+                    <DebouncedTextInput value={a.desc} onCommit={(v) => updateActivity(rowPid, a.id, { desc: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 4, opacity: .8 }} />
                     <button
                       style={S.subToggleBtn}
                       onClick={() => setExpanded((e) => ({ ...e, [`${rowPid}-${a.id}`]: !e[`${rowPid}-${a.id}`] }))}
@@ -9046,7 +9026,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           {a.priority && <span title={`Prioridade ${PRIORITY_META[a.priority].label}`} style={{ ...S.priorityDot, background: PRIORITY_META[a.priority].color, flexShrink: 0 }} />}
-                          <input type="text" value={a.title} onChange={(e) => updateActivity(rowPid, a.id, { title: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} style={{ flex: 1, fontWeight: 700 }} />
+                          <DebouncedTextInput value={a.title} onCommit={(v) => updateActivity(rowPid, a.id, { title: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} style={{ flex: 1, fontWeight: 700 }} />
                         </div>
                         {multiMode && (
                           <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -9063,7 +9043,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                             )}
                           </div>
                         )}
-                        <input type="text" value={a.desc} onChange={(e) => updateActivity(rowPid, a.id, { desc: e.target.value })} onBlur={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 6, opacity: .8 }} />
+                        <DebouncedTextInput value={a.desc} onCommit={(v) => updateActivity(rowPid, a.id, { desc: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 6, opacity: .8 }} />
                       </div>
                     </div>
 

@@ -3,6 +3,8 @@ import { Smartphone, Copy, Check } from 'lucide-react';
 import { apiGet, apiPost, apiPut, apiDelete } from '../lib/api.js';
 import { buildScriptableScript } from './scriptableScript.js';
 import { askConfirm } from '../ui/dialogs.jsx';
+import { SaveStatus } from '../ui/index.jsx';
+import { useAutosave } from '../lib/useAutosave.js';
 
 const CSS = `
   .wgt { font-family:'Inter', sans-serif; }
@@ -45,8 +47,6 @@ export default function WidgetSection() {
   const [error, setError] = useState('');
   const [views, setViews] = useState(null);
   const [blockNames, setBlockNames] = useState({});
-  const [viewsDirty, setViewsDirty] = useState(false);
-  const [viewsSaved, setViewsSaved] = useState(false);
   const [copied, setCopied] = useState(-1);
   const [manual, setManual] = useState(null);
 
@@ -71,15 +71,22 @@ export default function WidgetSection() {
     try { await apiDelete('/api/widget/token'); await loadStatus(); } catch (e) { setError(e && e.message ? e.message : 'Não foi possível revogar.'); } finally { setBusy(false); }
   }
 
-  function editView(i, patch) { setViews((vs) => vs.map((v, k) => (k === i ? { ...v, ...patch } : v))); setViewsDirty(true); setViewsSaved(false); setManual(null); }
+  // As visões gravam sozinhas (Onda 4): sem botão "Salvar". Só grava quando todas têm nome e ao menos um bloco.
+  const viewsSave = useAutosave({
+    value: views, armed: views !== null, delay: 900,
+    validate: (vs) => {
+      if (!vs) return '';
+      if (vs.some((v) => !v.name.trim())) return 'Dê um nome a cada visão para gravar.';
+      if (vs.some((v) => !v.blocks.length)) return 'Marque ao menos um item em cada visão para gravar.';
+      return '';
+    },
+    save: async (vs) => { await apiPut('/api/widget/views', { views: vs }); },
+  });
+  const viewsDirty = viewsSave.dirty;
+  function editView(i, patch) { setViews((vs) => vs.map((v, k) => (k === i ? { ...v, ...patch } : v))); setManual(null); }
   function toggleBlock(i, key) { const v = views[i]; editView(i, { blocks: v.blocks.includes(key) ? v.blocks.filter((b) => b !== key) : [...v.blocks, key] }); }
-  function addView() { setViews((vs) => [...vs, { name: '', blocks: ['overdue'] }]); setViewsDirty(true); setViewsSaved(false); }
-  function removeView(i) { setViews((vs) => vs.filter((_, k) => k !== i)); setViewsDirty(true); setViewsSaved(false); setManual(null); }
-  async function saveViews() {
-    setBusy(true); setError('');
-    try { const r = await apiPut('/api/widget/views', { views }); setViews(r.views); setViewsDirty(false); setViewsSaved(true); } catch (e) { setError(e && e.message ? e.message : 'Não foi possível salvar.'); } finally { setBusy(false); }
-  }
-
+  function addView() { setViews((vs) => [...vs, { name: '', blocks: ['overdue'] }]); }
+  function removeView(i) { setViews((vs) => vs.filter((_, k) => k !== i)); setManual(null); }
   async function copyScript(i) {
     const script = buildScriptableScript({ baseUrl: window.location.origin, token, view: views[i].name });
     setError('');
@@ -111,7 +118,7 @@ export default function WidgetSection() {
       {views && (
         <div className="wgt-views">
           <div className="wgt-label">Suas visões</div>
-          <p>Cada visão é um widget diferente, com o seu próprio script. Monte a visão, salve, copie o script dela e cole num script novo do Scriptable.</p>
+          <p>Cada visão é um widget diferente, com o seu próprio script. Monte a visão (ela grava sozinha), copie o script dela e cole num script novo do Scriptable.</p>
           {views.map((v, i) => (
             <div key={i} className="wgt-view">
               <div className="wgt-view-head">
@@ -127,10 +134,10 @@ export default function WidgetSection() {
               </div>
               {ready && (
                 <>
-                  <button type="button" className="wgt-btn sm primary" disabled={viewsDirty || !v.name.trim()} title={viewsDirty ? 'Salve as visões para copiar o script' : !v.name.trim() ? 'Dê um nome à visão' : 'Copiar script desta visão'} onClick={() => copyScript(i)}>
+                  <button type="button" className="wgt-btn sm primary" disabled={viewsDirty || !v.name.trim()} title={viewsDirty ? 'Aguarde as visões gravarem para copiar o script' : !v.name.trim() ? 'Dê um nome à visão' : 'Copiar script desta visão'} onClick={() => copyScript(i)}>
                     {copied === i ? <><Check size={15} /> Copiado</> : <><Copy size={15} /> Copiar script desta visão</>}
                   </button>
-                  <div className="wgt-name">{viewsDirty ? 'Salve as visões para copiar o script.' : `No Scriptable, dê o nome “PRICETAX ${v.name || '…'}” ao script.`}</div>
+                  <div className="wgt-name">{viewsDirty ? 'Aguarde as visões gravarem para copiar o script.' : `No Scriptable, dê o nome “PRICETAX ${v.name || '…'}” ao script.`}</div>
                   {manual && manual.i === i && (
                     <>
                       <div className="wgt-warn">Não consegui copiar sozinho. Toque no texto, selecione tudo e use Copiar.</div>
@@ -142,8 +149,11 @@ export default function WidgetSection() {
             </div>
           ))}
           {views.length < 6 && <button className="wgt-btn" type="button" title="Adicionar visão" onClick={addView}>Adicionar visão</button>}
-          <button className="wgt-btn primary" type="button" disabled={busy || !viewsDirty} title={busy ? 'Aguarde terminar' : !viewsDirty ? 'Nenhuma mudança para salvar' : undefined} onClick={saveViews}>Salvar visões</button>
-          {viewsSaved && <div className="wgt-ok">Salvo. Mudou o que a visão mostra? O widget acompanha na próxima atualização, sem colar de novo. Só criar visão nova ou trocar o nome exige um script novo.</div>}
+          <div style={{ marginTop: 10, minHeight: 18 }}>
+            <SaveStatus state={viewsSave.state} savedAt={viewsSave.savedAt} onRetry={viewsSave.retry} idleText="As visões gravam sozinhas." />
+            {viewsSave.reason && <div className="wgt-warn">{viewsSave.reason}</div>}
+          </div>
+          {viewsSave.state === 'saved' && <div className="wgt-ok">Mudou o que a visão mostra? O widget acompanha na próxima atualização, sem colar de novo. Só criar visão nova ou trocar o nome exige um script novo.</div>}
         </div>
       )}
 

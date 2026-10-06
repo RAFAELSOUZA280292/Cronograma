@@ -23,10 +23,11 @@ import TiptapImage from '@tiptap/extension-image';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
-import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel, COLUMN_COLOR_META } from '../App.jsx';
+import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, COLUMN_COLOR_META } from '../App.jsx';
 import { DialogOverlay } from '../ui/dialog.jsx';
 import { ComposeBox, CommentThread, AddMenu } from '../ui/ComposeBox.jsx';
 import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
+import { RecordSaveStatus } from '../ui/index.jsx';
 import { calendarDaysSince } from '../lib/dates.js';
 
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
@@ -1497,7 +1498,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 4 }}>
               Aberto em {fmtDateFromTs(ticket.createdAt)}
             </div>
-            <div style={{ fontSize: 11, color: hasDraft ? '#ff9f40' : 'var(--text-6)', marginTop: 2 }}>{savedStatusLabel(hasDraft, lastSavedAt)}</div>
+            <div style={{ marginTop: 2 }}><RecordSaveStatus hasDraft={hasDraft} lastSavedAt={lastSavedAt} /></div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {linkCopied && <span style={{ fontSize: 11, color: 'var(--text-5)' }}>Link copiado!</span>}

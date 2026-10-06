@@ -45,6 +45,17 @@ export function hostOf(url) {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
 }
 
+// Espelha normalizeUrl do servidor (http/https, sem login embutido, endereço de site com domínio) para só gravar sozinho o que o servidor aceita.
+export function isValidHttpUrl(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return false;
+  let u;
+  try { u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(text) ? text : `https://${text}`); } catch (e) { return false; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+  if (u.username || u.password) return false;
+  return /\.[a-z]{2,}$/i.test(u.hostname);
+}
+
 export const SUGGESTED_CATEGORIES = ['Contratos', 'Propostas', 'Apresentações', 'Planilhas', 'Cartas', 'Procurações', 'Relatórios', 'Referências'];
 
 export const MODELOS_CSS = `
