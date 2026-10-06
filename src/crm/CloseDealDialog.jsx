@@ -3,7 +3,7 @@
 // avisa quando a empresa vai virar cliente — efeito colateral que não pode ser surpresa.
 import React, { useState } from 'react';
 import { crm } from './crmApi.js';
-import { Modal, Field } from './ui.jsx';
+import { Modal, Field, CancelButton, useDirty } from './ui.jsx';
 import { fmtMoney, REL_META } from './crmMeta.js';
 
 export default function CloseDealDialog({ deal, stage, reasons, onCancel, onDone }) {
@@ -12,6 +12,7 @@ export default function CloseDealDialog({ deal, stage, reasons, onCancel, onDone
   const [detail, setDetail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const dirty = useDirty({ reason, detail });
   const promotes = won && ['prospect', 'former_client'].includes(deal.companyRelationship);
 
   async function confirm() {
@@ -23,7 +24,7 @@ export default function CloseDealDialog({ deal, stage, reasons, onCancel, onDone
   }
 
   return (
-    <Modal title={won ? 'Ganhar negócio' : 'Marcar como perdido'} onClose={onCancel} width={480}>
+    <Modal title={won ? 'Ganhar negócio' : 'Marcar como perdido'} onClose={onCancel} width={480} dirty={dirty} locked={busy}>
       <div style={{ marginBottom: 12 }}>
         <div className="crm-name">{deal.title}</div>
         <div className="crm-muted">{deal.companyName}{deal.value ? ` · ${fmtMoney(deal.value)}` : ''}</div>
@@ -50,7 +51,7 @@ export default function CloseDealDialog({ deal, stage, reasons, onCancel, onDone
       )}
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        <button type="button" className="crm-btn" onClick={onCancel}>Cancelar</button>
+        <CancelButton />
         <button type="button" className={`crm-btn ${won ? 'crm-btn-primary' : 'crm-btn-danger'}`} disabled={busy || (!won && (!reason || (reason === 'outro' && !detail.trim())))} onClick={confirm}>
           {busy ? 'Salvando…' : won ? 'Confirmar ganho' : 'Confirmar perda'}
         </button>

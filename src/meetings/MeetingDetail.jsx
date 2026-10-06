@@ -183,12 +183,12 @@ export function MeetingDetailModal({
   // demanda, só commita no blur) — summaryCardRef/decisionsCardRef deixam
   // a modal perguntar/forçar o commit de um rascunho em edição sem
   // precisar conhecer o estado interno do card.
-  const fieldsSnapshot = { title: m.title, date: m.date || '', time: m.time || '', summary: m.summary || '', decisions: m.decisions || '' };
-  const initialFieldsRef = useRef(fieldsSnapshot);
-  const fieldsDirty = useDirtyForm(fieldsSnapshot);
+  // "Não salvo" = só o que ainda não foi gravado (participante digitado e não adicionado; resumo/decisões em edição, via os refs dos cards).
+  // Título/data/hora gravam sozinhos: antes a guarda comparava com o valor de quando o modal abriu e avisava à toa (Onda 0, §81).
   const summaryCardRef = useRef(null);
   const decisionsCardRef = useRef(null);
-  const hasDraft = fieldsDirty || !!(participantDraft.trim() || participantEmailDraft.trim());
+  const hasDraft = !!(participantDraft.trim() || participantEmailDraft.trim());
+  useDirtyForm(hasDraft);
   const [showGuard, setShowGuard] = useState(false);
   const [closing, setClosing] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -215,7 +215,6 @@ export function MeetingDetailModal({
     onClose();
   }
   function discardAndClose() {
-    if (fieldsDirty) updateMeeting(pid, m.id, { ...initialFieldsRef.current });
     setParticipantDraft(''); setParticipantEmailDraft('');
     onClose();
   }

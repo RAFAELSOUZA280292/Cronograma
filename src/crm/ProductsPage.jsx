@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Plus, Package, Pencil } from 'lucide-react';
 import { crm } from './crmApi.js';
-import { Modal, Field } from './ui.jsx';
+import { Modal, Field, CancelButton, useDirty } from './ui.jsx';
 import { fmtMoney, BILLING_LABELS, moneyToNumber } from './crmMeta.js';
 
 function ProductForm({ initial, onSaved, onCancel }) {
@@ -16,6 +16,7 @@ function ProductForm({ initial, onSaved, onCancel }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  const dirty = useDirty(f);
 
   async function save() {
     const price = moneyToNumber(f.listPrice);
@@ -28,7 +29,7 @@ function ProductForm({ initial, onSaved, onCancel }) {
   }
 
   return (
-    <Modal title={editing ? 'Editar produto' : 'Novo produto'} onClose={onCancel} width={560}>
+    <Modal title={editing ? 'Editar produto' : 'Novo produto'} onClose={onCancel} width={560} dirty={dirty}>
       <div className="crm-form-grid">
         <Field label="Nome *" full><input value={f.name} onChange={(e) => set('name', e.target.value)} autoFocus /></Field>
         <Field label="Categoria"><input value={f.category} onChange={(e) => set('category', e.target.value)} placeholder="Ex.: Consultoria, Software" /></Field>
@@ -45,7 +46,7 @@ function ProductForm({ initial, onSaved, onCancel }) {
       </div>
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        <button type="button" className="crm-btn" onClick={onCancel}>Cancelar</button>
+        <CancelButton />
         <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !f.name.trim()} onClick={save}>{busy ? 'Salvando…' : 'Salvar'}</button>
       </div>
     </Modal>

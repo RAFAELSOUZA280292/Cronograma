@@ -4,7 +4,7 @@
 // de ontem, reunião de hoje cedo) direto como concluída, com o resultado.
 import React, { useEffect, useState } from 'react';
 import { crm } from './crmApi.js';
-import { Modal, Field, RelPill } from './ui.jsx';
+import { Modal, Field, RelPill, CancelButton, useDirty } from './ui.jsx';
 import { ACTIVITY_TYPES, PRIORITY_META } from './crmMeta.js';
 
 const todayLocal = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
@@ -29,6 +29,7 @@ export default function ActivityForm({ initial, company, prefill, options, curre
   const [error, setError] = useState('');
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const owners = (options && options.owners) || [];
+  const dirty = useDirty({ form, done, outcome, company: picked && picked.id });
 
   useEffect(() => {
     if (picked || q.trim().length < 2) { setResults([]); return undefined; }
@@ -55,7 +56,7 @@ export default function ActivityForm({ initial, company, prefill, options, curre
   }
 
   return (
-    <Modal title={editing ? 'Editar atividade' : (done ? 'Registrar interação realizada' : 'Nova atividade')} onClose={onCancel} width={700}>
+    <Modal title={editing ? 'Editar atividade' : (done ? 'Registrar interação realizada' : 'Nova atividade')} onClose={onCancel} width={700} dirty={dirty}>
       <div className="crm-form-grid">
         <Field label="Empresa *" full>
           {picked ? (
@@ -110,7 +111,7 @@ export default function ActivityForm({ initial, company, prefill, options, curre
       </div>
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        <button type="button" className="crm-btn" onClick={onCancel}>Cancelar</button>
+        <CancelButton />
         <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !picked || !form.title.trim() || !form.dueDate} onClick={save}>{busy ? 'Salvando…' : (done ? 'Registrar' : 'Salvar')}</button>
       </div>
     </Modal>

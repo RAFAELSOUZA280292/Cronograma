@@ -5,7 +5,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { crm } from './crmApi.js';
-import { Modal, Field, RelPill } from './ui.jsx';
+import { Modal, Field, RelPill, CancelButton, useDirty } from './ui.jsx';
 import { fmtMoney, sourceLabel, moneyToNumber } from './crmMeta.js';
 
 const CUSTOM = '__custom';
@@ -34,6 +34,7 @@ export default function DealForm({ initial, company, defaultType, defaultPipelin
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const dirty = useDirty({ form, items, company: picked && picked.id, pipelineId });
   const products = (options && options.products) || [];
   const owners = (options && options.owners) || [];
   const isClient = picked && picked.relationship === 'client';
@@ -84,7 +85,7 @@ export default function DealForm({ initial, company, defaultType, defaultPipelin
   }
 
   return (
-    <Modal title={editing ? 'Editar negócio' : (form.dealType === 'upsell' ? 'Nova oportunidade de upsell' : 'Novo negócio')} onClose={onCancel} width={820}>
+    <Modal title={editing ? 'Editar negócio' : (form.dealType === 'upsell' ? 'Nova oportunidade de upsell' : 'Novo negócio')} onClose={onCancel} width={820} dirty={dirty}>
       <div className="crm-form-grid">
         <Field label="Empresa *" full>
           {picked ? (
@@ -164,7 +165,7 @@ export default function DealForm({ initial, company, defaultType, defaultPipelin
       </div>
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        <button type="button" className="crm-btn" onClick={onCancel}>Cancelar</button>
+        <CancelButton />
         <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !picked || !form.title.trim()} onClick={save}>{busy ? 'Salvando…' : 'Salvar'}</button>
       </div>
     </Modal>

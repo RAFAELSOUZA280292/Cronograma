@@ -34,6 +34,7 @@ export default function DealImportWizard({ options, onClose, onDone }) {
   const [filter, setFilter] = useState('problems');
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [committing, setCommitting] = useState(false);
   const [error, setError] = useState('');
   const owners = (options && options.owners) || [];
 
@@ -79,16 +80,16 @@ export default function DealImportWizard({ options, onClose, onDone }) {
   }
 
   async function runCommit() {
-    setError(''); setBusy(true);
+    setError(''); setBusy(true); setCommitting(true);
     try { const r = await crm.dealImportCommit(buildRows(), ownerMap); setResult(r); setStep(4); if (onDone) onDone(); }
-    catch (e) { setError(e.message || 'Não foi possível importar.'); } finally { setBusy(false); }
+    catch (e) { setError(e.message || 'Não foi possível importar.'); } finally { setBusy(false); setCommitting(false); }
   }
 
   const shown = preview ? preview.rows.filter((r) => (filter === 'all' ? true : filter === 'problems' ? !['new', 'already'].includes(r.status) : r.status === filter)) : [];
   const skippedCount = preview ? preview.skipped.length : 0;
 
   return (
-    <Modal title="Importar negócios" onClose={onClose} width={920}>
+    <Modal title="Importar negócios" onClose={onClose} width={920} locked={committing}>
       <div className="crm-step"><span>{step === 1 ? <b>1. Arquivo</b> : '1. Arquivo'}</span><span>›</span><span>{step === 2 ? <b>2. Colunas</b> : '2. Colunas'}</span><span>›</span><span>{step === 3 ? <b>3. Conferir</b> : '3. Conferir'}</span><span>›</span><span>{step === 4 ? <b>4. Resultado</b> : '4. Resultado'}</span></div>
 
       {step === 1 && (
@@ -173,9 +174,10 @@ export default function DealImportWizard({ options, onClose, onDone }) {
             {shown.length === 0 && <div className="crm-empty">Nenhuma linha neste filtro.</div>}
           </div>
           {shown.length > 300 && <div className="crm-muted">Mostrando as 300 primeiras de {shown.length}.</div>}
+          {committing && <div className="crm-alert crm-alert-info" role="status">Importando… não feche esta janela.</div>}
           {error && <div className="crm-err">{error}</div>}
           <div className="crm-form-foot">
-            <button type="button" className="crm-btn" onClick={() => setStep(2)}>Voltar</button>
+            <button type="button" className="crm-btn" disabled={busy} onClick={() => setStep(2)}>Voltar</button>
             <button type="button" className="crm-btn crm-btn-primary" disabled={busy || preview.counts.new === 0} onClick={runCommit}>{busy ? 'Importando…' : `Importar ${preview.counts.new} negócio(s)`}</button>
           </div>
         </>

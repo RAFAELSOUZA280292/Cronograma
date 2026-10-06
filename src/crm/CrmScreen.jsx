@@ -92,8 +92,8 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
         </div>
       </div>
 
-      {drawer && <CompanyDrawer companyId={drawer.id} initialTab={drawer.tab} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDrawer(null)} onChanged={refresh} onOpenCompany={(id) => setDrawer({ id, tab: 'overview' })} onOpenDeal={openDeal} />}
-      {dealDrawer && <DealDrawer dealId={dealDrawer} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDealDrawer(null)} onChanged={refresh} onOpenCompany={(id) => openCompany(id)} />}
+      {drawer && <CompanyDrawer key={drawer.id} companyId={drawer.id} initialTab={drawer.tab} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDrawer(null)} onChanged={refresh} onOpenCompany={(id) => setDrawer({ id, tab: 'overview' })} onOpenDeal={openDeal} />}
+      {dealDrawer && <DealDrawer key={dealDrawer} dealId={dealDrawer} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDealDrawer(null)} onChanged={refresh} onOpenCompany={(id) => openCompany(id)} />}
       {activityForm && <ActivityForm company={activityForm.company} options={options} currentUserId={currentUser && currentUser.id} onCancel={() => setActivityForm(null)} onSaved={() => { setActivityForm(null); refresh(); }} />}
       {dealForm && <DealForm company={dealForm.company} defaultType={dealForm.type} defaultPipelineId={dealForm.pipelineId} options={options} currentUserId={currentUser && currentUser.id} onCancel={() => setDealForm(null)} onSaved={(d) => { setDealForm(null); refresh(); openDeal(d.id); }} />}
       {companyForm && <CompanyForm options={options} prefillOwnerId={currentUser && currentUser.id} onCancel={() => setCompanyForm(false)} onOpenCompany={(id) => { setCompanyForm(false); openCompany(id); }}

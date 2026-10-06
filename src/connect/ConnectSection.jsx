@@ -37,7 +37,7 @@ const CSS = `
 const fmt = (iso) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '');
 const fmtTs = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '');
 
-export default function ConnectSection() {
+export default function ConnectSection({ onAtRiskChange }) {
   const [tokens, setTokens] = useState(null);
   const [name, setName] = useState('');
   const [scope, setScope] = useState('read_create');
@@ -47,17 +47,19 @@ export default function ConnectSection() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState('');
   const [manual, setManual] = useState('');
+  const [everCopied, setEverCopied] = useState(false);
 
   async function load() {
     try { setTokens((await apiGet('/api/connect/tokens')).tokens); } catch { setTokens([]); }
   }
   useEffect(() => { load(); }, []);
+  useEffect(() => { if (onAtRiskChange) onAtRiskChange(!!fresh && !everCopied); }, [fresh, everCopied]);
 
   async function create() {
     setBusy(true); setError(''); setManual('');
     try {
       const r = await apiPost('/api/connect/tokens', { name, scope, days: Number(days) });
-      setFresh(r); setName('');
+      setFresh(r); setName(''); setEverCopied(false);
       await load();
     } catch (e) { setError(e.message || 'Não foi possível criar o token.'); } finally { setBusy(false); }
   }
@@ -69,7 +71,7 @@ export default function ConnectSection() {
 
   async function copy(kind, text) {
     setError('');
-    try { await navigator.clipboard.writeText(text); setCopied(kind); setManual(''); setTimeout(() => setCopied((c) => (c === kind ? '' : c)), 2500); } catch { setManual(text); }
+    try { await navigator.clipboard.writeText(text); setCopied(kind); setManual(''); if (kind === 'token') setEverCopied(true); setTimeout(() => setCopied((c) => (c === kind ? '' : c)), 2500); } catch { setManual(text); }
   }
 
   const baseUrl = window.location.origin;
@@ -93,7 +95,7 @@ export default function ConnectSection() {
           <button type="button" className="cnx-btn primary" style={{ marginTop: 10 }} onClick={() => copy('token', exportLine)}>{copied === 'token' ? <><Check size={15} /> Copiado</> : <><Copy size={15} /> 1. Copiar comando do token</>}</button>
           <button type="button" className="cnx-btn" style={{ marginTop: 8 }} onClick={() => copy('guide', guide)}>{copied === 'guide' ? <><Check size={15} /> Copiado</> : <><Copy size={15} /> 2. Copiar guia para o Claude Code</>}</button>
           {manual && <><div className="cnx-warn">Não consegui copiar sozinho. Toque no texto, selecione tudo e use Copiar.</div><textarea className="cnx-code" readOnly value={manual} onFocus={(e) => e.target.select()} /></>}
-          <button type="button" className="cnx-btn" style={{ marginTop: 8 }} onClick={() => { setFresh(null); setManual(''); }}>Já copiei, fechar</button>
+          <button type="button" className="cnx-btn" style={{ marginTop: 8 }} onClick={() => { setFresh(null); setManual(''); setEverCopied(false); }}>Já copiei, fechar</button>
         </>
       ) : (
         <div className="cnx-form">

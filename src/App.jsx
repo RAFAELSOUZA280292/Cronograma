@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
-  DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors, closestCorners, useDroppable,
+  DndContext, DragOverlay, MouseSensor, TouchSensor, KeyboardSensor, useSensor, useSensors, closestCorners, useDroppable,
 } from '@dnd-kit/core';
 import {
   SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy, useSortable, arrayMove,
@@ -35,7 +35,7 @@ import PareceresScreen from './pareceres/Pareceres.jsx';
 import ModelosScreen from './modelos/Modelos.jsx';
 import PersonalStatsPanel from './personal/PersonalStats.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
-import { activate, activateRow, Tabs } from './ui/index.jsx';
+import { activate, activateRow, Tabs, ConfirmDialog } from './ui/index.jsx';
 import { calendarDaysSince } from './lib/dates.js';
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
 // CRM (2026-09-20, PROJECT_CONTEXT.md §54): módulo grande e opcional — carregado só quando alguém abre o CRM.
@@ -742,6 +742,39 @@ export default function App() {
       window.history.pushState({ ...cur, detailMeeting: { pid, id } }, '', window.location.href);
     } catch (e) { /* ignora */ }
   }
+  // Criar atividade/reunião já grava o registro e abre o modal (decisão antiga: editar direto). Se a pessoa fecha sem
+  // preencher nada, o registro vazio ficaria sobrando — então ele é descartado (só se continua intocado).
+  const prevOpenActRef = useRef(null);
+  const prevOpenMtgRef = useRef(null);
+  function isUntouchedNewActivity(a, project) {
+    const firstMember = project && project.team && project.team[0] && project.team[0].name;
+    return !a.deleted && a.title === 'Nova atividade' && !a.desc && !a.date && !a.endDate && !a.notes && !a.transcript && !a.durationDays
+      && !a.priority && (a.status || 'nao-iniciado') === 'nao-iniciado' && a.responsible === (firstMember || 'PRICETAX')
+      && !(a.subactivities || []).length && !(a.attachments || []).length && !(a.comments || []).length && !(a.links || []).length;
+  }
+  function isUntouchedNewMeeting(m) {
+    return !m.deleted && m.title === 'Nova reunião' && m.date === todayISOStr() && !m.time && !m.transcript && !m.summary && !m.decisions
+      && !(m.participants || []).length && !(m.actionItems || []).some((it) => !it.deleted);
+  }
+  useEffect(() => {
+    const prev = prevOpenActRef.current;
+    prevOpenActRef.current = openActivityId;
+    if (!prev || (openActivityId && openActivityId.id === prev.id)) return;
+    const project = projects.find((p) => p.id === prev.pid);
+    const a = project && project.activities.find((x) => x.id === prev.id);
+    if (!a || !isUntouchedNewActivity(a, project)) return;
+    mutateProject(prev.pid, (p) => ({ ...p, activities: p.activities.filter((x) => !(x.id === prev.id && isUntouchedNewActivity(x, p))) }));
+  }, [openActivityId]);
+  useEffect(() => {
+    const prev = prevOpenMtgRef.current;
+    prevOpenMtgRef.current = openMeetingId;
+    if (!prev || (openMeetingId && openMeetingId.id === prev.id)) return;
+    const project = projects.find((p) => p.id === prev.pid);
+    const m = project && (project.meetings || []).find((x) => x.id === prev.id);
+    if (!m || !isUntouchedNewMeeting(m)) return;
+    mutateProject(prev.pid, (p) => ({ ...p, meetings: (p.meetings || []).filter((x) => !(x.id === prev.id && isUntouchedNewMeeting(x))) }));
+  }, [openMeetingId]);
+
   function closeMeetingDetail() {
     try {
       if (window.history.state && window.history.state.detailMeeting) { window.history.back(); return; }
@@ -1464,7 +1497,7 @@ export default function App() {
   const goHome = availableModes.length > 1 ? () => goToWorkspace(null) : null;
 
   if (availableModes.length === 0) {
-    return <NoAccessScreen user={currentUser} onLogout={handleLogout} theme={theme} onToggleTheme={toggleTheme} />;
+    return <NoAccessScreen user={currentUser} onLogout={handleLogout} onHome={availableModes.length > 0 ? () => goToWorkspace(null) : null} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   if (!effectiveMode) {
@@ -1531,6 +1564,7 @@ export default function App() {
         board={personalBoard}
         onMutate={mutatePersonalBoard}
         onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
+        onGoCompany={hasCompanies ? () => goToWorkspace('company') : null}
         onGoXFlow={hasXflow ? () => goToWorkspace('xflow') : null}
         currentUser={currentUser}
         onLogout={handleLogout}
@@ -1747,6 +1781,7 @@ export default function App() {
             onSave={async (avatar) => { await updateMyAvatar(avatar); setShowMyProfile(false); }}
           />
         )}
+        <ToastStack toasts={appToasts} onDismiss={dismissAppToast} />
       </>
     );
   }
@@ -1773,7 +1808,7 @@ export default function App() {
   const isGroupView = isMulti && selectedGroupRoots.every((r) => r && r === selectedGroupRoots[0]);
 
   if (!activeProject && !isMulti) {
-    return <NoAccessScreen user={currentUser} onLogout={handleLogout} theme={theme} onToggleTheme={toggleTheme} />;
+    return <NoAccessScreen user={currentUser} onLogout={handleLogout} onHome={availableModes.length > 0 ? () => goToWorkspace(null) : null} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   const pid = activeProject ? activeProject.id : null;
@@ -1890,6 +1925,21 @@ export default function App() {
         subactivities: (a.subactivities || []).map((s) => s.id === subId ? { ...s, deleted: true, deletedAt: new Date().toISOString(), deletedBy: currentUser ? currentUser.name : '' } : s),
       }),
     }), sub ? `Subatividade excluída em "${act.title}": ${sub.title}` : undefined, actId);
+    if (sub) pushAppUndoToast(`Subatividade "${sub.title}" excluída.`, () => restoreSub(targetPid, actId, subId), 8000);
+  }
+
+  // Remoção de item de lista dentro da atividade (anexo, comentário, link): guarda o item e a posição para o "Desfazer" devolver no lugar.
+  function undoReinsert(targetPid, actId, field, item, index) {
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      activities: p.activities.map((a) => {
+        if (a.id !== actId) return a;
+        const list = [...(a[field] || [])];
+        if (list.some((x) => x.id === item.id)) return a;
+        list.splice(Math.min(index, list.length), 0, item);
+        return { ...a, [field]: list };
+      }),
+    }), undefined, actId);
   }
 
   function restoreSub(targetPid, actId, subId) {
@@ -1942,6 +1992,8 @@ export default function App() {
     const project = projects.find((p) => p.id === targetPid);
     const act = project && project.activities.find((a) => a.id === actId);
     const att = act && (act.attachments || []).find((x) => x.id === attId);
+    const attIdx = act ? (act.attachments || []).findIndex((x) => x.id === attId) : -1;
+    if (att) pushAppUndoToast(`Anexo "${att.name || 'arquivo'}" removido.`, () => undoReinsert(targetPid, actId, 'attachments', att, attIdx), 8000);
     mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, attachments: (a.attachments || []).filter((x) => x.id !== attId) }) }), att ? `Anexo removido em "${act.title}": ${att.name}` : undefined, actId);
   }
 
@@ -1963,6 +2015,11 @@ export default function App() {
   }
 
   function removeComment(targetPid, actId, commentId) {
+    const project = projects.find((p) => p.id === targetPid);
+    const act = project && project.activities.find((a) => a.id === actId);
+    const cm = act && (act.comments || []).find((c) => c.id === commentId);
+    const cmIdx = act ? (act.comments || []).findIndex((c) => c.id === commentId) : -1;
+    if (cm) pushAppUndoToast('Comentário removido.', () => undoReinsert(targetPid, actId, 'comments', cm, cmIdx), 8000);
     mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, comments: (a.comments || []).filter((c) => c.id !== commentId) }) }), undefined, actId);
   }
 
@@ -1991,6 +2048,8 @@ export default function App() {
     const project = projects.find((p) => p.id === targetPid);
     const act = project && project.activities.find((a) => a.id === actId);
     const l = act && (act.links || []).find((x) => x.id === linkId);
+    const lIdx = act ? (act.links || []).findIndex((x) => x.id === linkId) : -1;
+    if (l) pushAppUndoToast(`Link "${l.label}" removido.`, () => undoReinsert(targetPid, actId, 'links', l, lIdx), 8000);
     mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, links: (a.links || []).filter((x) => x.id !== linkId) }) }), l ? `Link removido em "${act.title}": ${l.label}` : undefined, actId);
   }
 
@@ -2170,6 +2229,7 @@ export default function App() {
       ...p,
       meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id === itemId ? { ...it, deleted: true } : it)) })),
     }), item ? `Atividade removida na reunião "${m.title}": ${item.title}` : undefined);
+    if (item) pushAppUndoToast(`Tarefa "${item.title}" excluída.`, () => updateMeetingActionItem(targetPid, meetingId, itemId, { deleted: false }), 8000);
   }
 
   function duplicateActionItem(targetPid, meetingId, itemId) {
@@ -2470,6 +2530,9 @@ export default function App() {
     }, statusChanging
       ? `Status da empresa alterado para: ${COMPANY_STATUS_META[nextStatus].label}${nextStatus === 'pausado' ? ' — atividades em andamento pausadas' : ' — atividades pausadas retomadas'}`
       : `Dados da empresa "${label}" atualizados`);
+    if (statusChanging && nextStatus === 'pausado') {
+      pushAppUndoToast(`"${label}" pausada: as atividades em andamento foram pausadas junto.`, () => updateCompanyFields(pid, { status: 'ativo', resumeDate: '' }), 8000);
+    }
   }
 
   async function loadUsers() {
@@ -2496,8 +2559,7 @@ export default function App() {
       setUsersPanelError('');
       return { crossOrg: !!orgId && orgId !== currentOrgId, orgName: org ? org.name : null };
     } catch (e) {
-      setUsersPanelError(e.message);
-      return null;
+      return { error: e.message || 'Não foi possível criar o usuário.' };
     }
   }
 
@@ -2610,16 +2672,17 @@ export default function App() {
   }
 
   async function deleteUser(id) {
-    if (id === currentUser.id) return;
+    if (id === currentUser.id) return 'Você não pode remover a si mesmo.';
     const target = users.find((u) => u.id === id);
     const masters = users.filter((u) => u.role === 'master');
-    if (target && target.role === 'master' && masters.length <= 1) return;
+    if (target && target.role === 'master' && masters.length <= 1) return 'Este é o único administrador (Master). Crie outro antes de remover este.';
     try {
       await apiDelete(`/api/users/${id}`);
       setUsers((prev) => prev.filter((u) => u.id !== id));
       if (target) addUsersLog(`Usuário removido: ${target.name}`);
+      return '';
     } catch (e) {
-      setUsersPanelError(e.message);
+      return e.message || 'Não foi possível remover o usuário.';
     }
   }
 
@@ -3640,7 +3703,23 @@ function UsersManagementScreen({
   const [filterStatus, setFilterStatus] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [confirmUser, setConfirmUser] = useState(null);
   const isMobile = useIsMobile();
+
+  function requestBlock(id) {
+    const u = users.find((x) => x.id === id);
+    if (!u) return;
+    if (u.blocked) onToggleBlock(id);
+    else setConfirmUser({ kind: 'block', user: u, busy: false, error: '' });
+  }
+  async function runConfirmUser() {
+    const { kind, user } = confirmUser;
+    setConfirmUser((c) => ({ ...c, busy: true, error: '' }));
+    if (kind === 'block') { await onToggleBlock(user.id); setConfirmUser(null); return; }
+    const err = await onDeleteUser(user.id);
+    if (err) setConfirmUser((c) => ({ ...c, busy: false, error: err }));
+    else { setConfirmUser(null); setEditingId(null); }
+  }
 
   const total = users.length;
   const blocked = users.filter((u) => u.blocked).length;
@@ -3777,11 +3856,12 @@ function UsersManagementScreen({
                 <button style={S.iconBtnGhost} title="Editar" onClick={() => setEditingId(u.id)}><Pencil size={14} /></button>
                 <button
                   style={S.iconBtnGhost}
-                  title={u.blocked ? 'Desbloquear' : 'Bloquear'}
-                  onClick={() => onToggleBlock(u.id)}
+                  title={u.id === currentUser.id ? 'Você não pode bloquear a si mesmo' : u.blocked ? 'Desbloquear acesso' : 'Bloquear acesso'}
+                  aria-label={u.blocked ? 'Desbloquear acesso' : 'Bloquear acesso'}
+                  onClick={() => requestBlock(u.id)}
                   disabled={u.id === currentUser.id}
                 >
-                  {u.blocked ? <Check size={14} color="#3ecf6e" /> : <Trash2 size={14} color={u.id === currentUser.id ? 'var(--text-8)' : '#e2574c'} />}
+                  {u.blocked ? <Check size={14} color="#3ecf6e" /> : <Lock size={14} color={u.id === currentUser.id ? 'var(--text-8)' : '#e2574c'} />}
                 </button>
               </div>
             </div>
@@ -3811,11 +3891,12 @@ function UsersManagementScreen({
                 <button style={S.mobileIconBtn} title="Editar" onClick={() => setEditingId(u.id)}><Pencil size={16} /></button>
                 <button
                   style={S.mobileIconBtn}
-                  title={u.blocked ? 'Desbloquear' : 'Bloquear'}
-                  onClick={() => onToggleBlock(u.id)}
+                  title={u.id === currentUser.id ? 'Você não pode bloquear a si mesmo' : u.blocked ? 'Desbloquear acesso' : 'Bloquear acesso'}
+                  aria-label={u.blocked ? 'Desbloquear acesso' : 'Bloquear acesso'}
+                  onClick={() => requestBlock(u.id)}
                   disabled={u.id === currentUser.id}
                 >
-                  {u.blocked ? <Check size={16} color="#3ecf6e" /> : <Trash2 size={16} color={u.id === currentUser.id ? 'var(--text-8)' : '#e2574c'} />}
+                  {u.blocked ? <Check size={16} color="#3ecf6e" /> : <Lock size={16} color={u.id === currentUser.id ? 'var(--text-8)' : '#e2574c'} />}
                 </button>
               </div>
             </div>
@@ -3832,6 +3913,7 @@ function UsersManagementScreen({
           registeredProjects={registeredProjects}
           onCreate={async (draft) => {
             const result = await onCreateUser(draft);
+            if (result && result.error) throw new Error(result.error);
             setShowCreate(false);
             if (result && result.crossOrg) {
               window.alert(`Usuário criado na organização "${result.orgName}".`);
@@ -3849,11 +3931,37 @@ function UsersManagementScreen({
           registeredProjects={registeredProjects}
           onClose={() => setEditingId(null)}
           onUpdate={onUpdateUser}
-          onToggleBlock={onToggleBlock}
+          onToggleBlock={requestBlock}
           onRenew={onRenew}
           onResetPassword={onResetPassword}
           onToggleCnpj={onToggleCnpj}
-          onDelete={(id) => { onDeleteUser(id); setEditingId(null); }}
+          onDelete={(id) => { const u = users.find((x) => x.id === id); if (u) setConfirmUser({ kind: 'delete', user: u, busy: false, error: '' }); }}
+        />
+      )}
+
+      {confirmUser && confirmUser.kind === 'delete' && (
+        <ConfirmDialog
+          title={`Remover ${confirmUser.user.name}?`}
+          message={`Isto apaga a conta de "${confirmUser.user.username}" de vez, junto com o quadro pessoal dela. Não dá para desfazer.\nSe você só quer impedir o acesso por enquanto, use Bloquear.`}
+          confirmLabel="Remover usuário"
+          danger
+          requireText={confirmUser.user.username}
+          busy={confirmUser.busy}
+          error={confirmUser.error}
+          onConfirm={runConfirmUser}
+          onCancel={() => setConfirmUser(null)}
+        />
+      )}
+      {confirmUser && confirmUser.kind === 'block' && (
+        <ConfirmDialog
+          title={`Bloquear ${confirmUser.user.name}?`}
+          message="A pessoa perde o acesso ao painel agora. Dá para desbloquear a qualquer momento; nada é apagado."
+          confirmLabel="Bloquear acesso"
+          danger
+          busy={confirmUser.busy}
+          error={confirmUser.error}
+          onConfirm={runConfirmUser}
+          onCancel={() => setConfirmUser(null)}
         />
       )}
     </div>
@@ -3874,9 +3982,14 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations, register
     });
   }
 
-  function submit() {
-    if (!draft.username || !draft.password || !draft.name) return;
-    onCreate(draft);
+  const [formError, setFormError] = useState('');
+  const [creating, setCreating] = useState(false);
+  async function submit() {
+    if (creating) return;
+    if (!draft.username.trim() || !draft.password || !draft.name.trim()) { setFormError('Preencha o nome, o usuário (login) e a senha inicial.'); return; }
+    setFormError('');
+    setCreating(true);
+    try { await onCreate(draft); } catch (e) { setFormError(e.message || 'Não foi possível criar o usuário.'); } finally { setCreating(false); }
   }
 
   return (
@@ -3949,7 +4062,8 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations, register
           <option value="dev">Dev</option>
           <option value="gestao">Gestão</option>
         </select>
-        <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit}><Plus size={14} /> Criar usuário</button>
+        {formError && <div style={{ ...S.loginBlockedMsg, marginTop: 16, marginBottom: 0 }} role="alert">{formError}</div>}
+        <button style={{ ...S.primaryBtn, marginTop: formError ? 12 : 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={creating}><Plus size={14} /> {creating ? 'Criando...' : 'Criar usuário'}</button>
       </div>
       {showGuard && (
         <ConfirmDiscardModal
@@ -4111,7 +4225,12 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab
   const isMobile = useIsMobile();
   const isDirty = useDirtyForm(avatar);
   const [showGuard, setShowGuard] = useState(false);
-  function requestClose() { if (isDirty) setShowGuard(true); else onClose(); }
+  const [tokenAtRisk, setTokenAtRisk] = useState(false);
+  const [showTokenGuard, setShowTokenGuard] = useState(false);
+  function requestClose() {
+    if (tokenAtRisk) { setShowTokenGuard(true); return; }
+    if (isDirty) setShowGuard(true); else onClose();
+  }
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -4248,8 +4367,19 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab
         </>)}
 
         {tab === 'iphone' && <WidgetSection />}
-        {tab === 'conectar' && <ConnectSection />}
+        <div style={{ display: tab === 'conectar' ? 'block' : 'none' }}><ConnectSection onAtRiskChange={setTokenAtRisk} /></div>
       </div>
+      {showTokenGuard && (
+        <ConfirmDialog
+          title="Fechar sem copiar o token?"
+          message="O token que você acabou de gerar só aparece uma vez e se perde ao fechar. Copie o comando do token na aba Conectar antes de sair, ou gere outro depois."
+          confirmLabel="Fechar mesmo assim"
+          cancelLabel="Voltar e copiar"
+          danger
+          onConfirm={onClose}
+          onCancel={() => setShowTokenGuard(false)}
+        />
+      )}
       {showGuard && (
         <ConfirmDiscardModal
           onSaveAndExit={() => onSave(avatar)}
@@ -4945,18 +5075,27 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
     });
   }
 
+  const [deleteTarget, setDeleteTarget] = useState(null);
   function handleDelete(e, p) {
     e.stopPropagation();
-    const name = p.company.name || 'esta empresa';
-    if (window.confirm(`Excluir "${name}" e todo o cronograma dela? Essa ação não pode ser desfeita.`)) {
-      onDeleteCompany(p.id);
-    }
+    setDeleteTarget(p);
   }
 
   const allChecked = filteredProjects.length > 0 && filteredProjects.every((p) => selected.has(p.id));
 
   return (
     <div className="page-root" style={S.page}>
+      {deleteTarget && (
+        <ConfirmDialog
+          title={`Excluir ${deleteTarget.company.name || 'esta empresa'}?`}
+          message="Isto apaga a empresa e todo o cronograma dela (atividades, reuniões, histórico). Não dá para desfazer."
+          confirmLabel="Excluir empresa"
+          danger
+          requireText={deleteTarget.company.name || 'EXCLUIR'}
+          onConfirm={() => { onDeleteCompany(deleteTarget.id); setDeleteTarget(null); }}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
       <style>{`
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
@@ -5590,7 +5729,7 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
     <div
       ref={setNodeRef}
       className="pb-card"
-      style={{ ...S.personalCard, ...style, ...(disabled || readOnly ? {} : { cursor: 'grab', touchAction: 'none' }), ...(card.completed ? S.personalCardDone : {}) }}
+      style={{ ...S.personalCard, ...style, ...(disabled || readOnly ? {} : { cursor: 'grab' }), ...(card.completed ? S.personalCardDone : {}) }}
       {...attributes}
       {...(readOnly ? {} : listeners)}
       onClick={onOpen}
@@ -5652,7 +5791,7 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
 }
 
 function PersonalColumn({
-  column, cardsToRender, totalVisibleCount, dragDisabled, readOnly, canMoveLeft, canMoveRight, otherColumns,
+  column, cardsToRender, totalVisibleCount, hiddenByFilter, hiddenCompleted, onClearFilters, dragDisabled, readOnly, canMoveLeft, canMoveRight, otherColumns,
   onAddCard, onOpenCard, onToggleComplete, onDeleteCard, onDuplicateCard, onSetPriority, onSetStatus, onMoveCardTo,
   onRenameColumn, onColorChange, onToggleHideCompleted, onMoveLeft, onMoveRight, onDuplicateColumn, onSortColumnNow, onDeleteColumn,
 }) {
@@ -5683,7 +5822,7 @@ function PersonalColumn({
 
   return (
     <div ref={setNodeRef} style={{ ...S.personalCol, background: colorMeta ? colorMeta.container : 'var(--pcol-default-container)', ...style }}>
-      <div {...(readOnly ? {} : { ...attributes, ...listeners })} style={{ ...S.personalColHead, ...(readOnly ? {} : { cursor: 'grab', touchAction: 'none' }) }}>
+      <div {...(readOnly ? {} : { ...attributes, ...listeners })} style={{ ...S.personalColHead, ...(readOnly ? {} : { cursor: 'grab' }) }}>
         {!readOnly && <span style={S.personalColGrip}><GripVertical size={13} color="var(--text-8)" /></span>}
         <div style={{ ...S.personalColTag, background: colorMeta ? colorMeta.bg : 'transparent' }}>
           {/* O cabeçalho inteiro é a alça de arrastar do dnd-kit (listeners
@@ -5748,7 +5887,13 @@ function PersonalColumn({
             />
           ))}
         </SortableContext>
-        {cardsToRender.length === 0 && <div style={S.personalColEmpty}>Nenhuma tarefa aqui.</div>}
+        {cardsToRender.length === 0 && <div style={S.personalColEmpty}>{hiddenByFilter > 0 ? 'Nenhuma tarefa visível com os filtros atuais.' : hiddenCompleted > 0 ? 'Só há tarefas concluídas aqui (ocultas).' : 'Nenhuma tarefa aqui.'}</div>}
+        {(hiddenByFilter > 0 || hiddenCompleted > 0) && (
+          <div style={S.personalColHidden}>
+            {hiddenByFilter > 0 && <span>{hiddenByFilter} {hiddenByFilter === 1 ? 'oculta' : 'ocultas'} por filtro{onClearFilters ? <> · <button type="button" style={S.personalColHiddenBtn} onClick={onClearFilters}>limpar</button></> : null}</span>}
+            {hiddenCompleted > 0 && <span>{hiddenCompleted} {hiddenCompleted === 1 ? 'concluída oculta' : 'concluídas ocultas'}</span>}
+          </div>
+        )}
       </div>
 
       {!readOnly && (showQuickAdd ? (
@@ -6253,7 +6398,7 @@ function BoardActivityLogModal({ board, onClose }) {
   );
 }
 
-function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName, embedded, publicAction, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
+function PersonalBoardScreen({ board, onMutate, onExit, onGoCompany, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName, embedded, publicAction, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
   // Histórico do navegador — Nível 2 (2026-08): trocar de página do quadro
   // pessoal. Nunca ativo em publicMode (/quadro/:token é a única rota que
   // usa URL de verdade — ver PROJECT_CONTEXT.md §9, não mexer nisso aqui).
@@ -6297,12 +6442,15 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
   const [showShareModal, setShowShareModal] = useState(false);
   const [showActivityLog, setShowActivityLog] = useState(false);
   const activeFilterCount = (filters.status ? 1 : 0) + (filters.priority.length > 0 ? 1 : 0) + (filters.dueBucket ? 1 : 0);
+  const anyFilterActive = activeFilterCount > 0 || filters.tags.length > 0 || !!search.trim();
+  function clearAllFilters() { setSearch(''); setFilters({ priority: [], dueBucket: '', tags: [], status: '' }); }
   const [activeDragItem, setActiveDragItem] = useState(null);
-  const { toasts, pushUndoToast, dismissToast } = useToasts();
+  const { toasts, pushToast, pushUndoToast, dismissToast } = useToasts();
   const isMobile = useIsMobile();
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 6 } }),
     useSensor(KeyboardSensor)
   );
 
@@ -6425,11 +6573,20 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
   function renameBoard(boardId, name) {
     onMutate((prev) => ({ ...prev, boards: prev.boards.map((b) => (b.id === boardId ? { ...b, name } : b)) }));
   }
+  const [deleteBoardTarget, setDeleteBoardTarget] = useState(null);
+  const [deleteColumnTarget, setDeleteColumnTarget] = useState(null);
   function deleteBoard(boardId) {
     const b = board.boards.find((x) => x.id === boardId);
     if (!b) return;
-    if (!window.confirm(`Excluir a página "${b.name}" e tudo dentro dela? Essa ação não pode ser desfeita.`)) return;
-    onMutate((prev) => ({ ...prev, boards: prev.boards.filter((x) => x.id !== boardId) }));
+    setDeleteBoardTarget(b);
+  }
+  function confirmDeleteBoard() {
+    const b = deleteBoardTarget;
+    if (!b) return;
+    const idx = board.boards.findIndex((x) => x.id === b.id);
+    onMutate((prev) => ({ ...prev, boards: prev.boards.filter((x) => x.id !== b.id) }));
+    setDeleteBoardTarget(null);
+    pushUndoToast(`Página "${b.name}" excluída.`, () => onMutate((prev) => (prev.boards.some((x) => x.id === b.id) ? prev : { ...prev, boards: (() => { const l = [...prev.boards]; l.splice(Math.min(idx, l.length), 0, b); return l; })() })), 12000);
   }
   function reorderBoards(fromId, toId) {
     if (!fromId || fromId === toId) return;
@@ -6507,16 +6664,23 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
     const col = activeBoard.columns.find((c) => c.id === colId);
     if (!col) return;
     if (activeBoard.columns.length <= 1) {
-      window.alert('Esta é a única coluna da página. Crie outra coluna antes de excluir esta.');
+      pushToast({ message: 'Esta é a única coluna da página. Crie outra coluna antes de excluir esta.', ttlMs: 6000 });
       return;
     }
     const activeCount = col.cards.filter((cd) => !cd.deleted).length;
     if (activeCount === 0) {
-      if (!window.confirm(`Excluir a coluna "${col.name}"?`)) return;
-      mutateBoardTree(activeBoard.id, (b) => ({ ...b, columns: b.columns.filter((c) => c.id !== colId) }), `Coluna excluída: "${col.name}"`);
+      setDeleteColumnTarget(col);
       return;
     }
     setReassignColumn(col);
+  }
+  function confirmDeleteEmptyColumn() {
+    const col = deleteColumnTarget;
+    if (!col) return;
+    const idx = activeBoard.columns.findIndex((c) => c.id === col.id);
+    mutateBoardTree(activeBoard.id, (b) => ({ ...b, columns: b.columns.filter((c) => c.id !== col.id) }), `Coluna excluída: "${col.name}"`);
+    setDeleteColumnTarget(null);
+    pushUndoToast(`Coluna "${col.name}" excluída.`, () => mutateBoardTree(activeBoard.id, (b) => (b.columns.some((c) => c.id === col.id) ? b : { ...b, columns: (() => { const l = [...b.columns]; l.splice(Math.min(idx, l.length), 0, col); return l; })() }), `Coluna restaurada: "${col.name}"`), 8000);
   }
   function confirmDeleteColumn(targetColId, alsoDeleteCards) {
     const col = reassignColumn;
@@ -6710,7 +6874,19 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
       ...cd, comments: (cd.comments || []).map((c) => (c.id === commentId ? { ...c, text: v, editedAt: new Date().toISOString() } : c)),
     }));
   }
+  function reinsertInCard(colId, cardId, field, item, index) {
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => {
+      const list = [...(cd[field] || [])];
+      if (list.some((x) => x.id === item.id)) return cd;
+      list.splice(Math.min(index, list.length), 0, item);
+      return { ...cd, [field]: list };
+    });
+  }
   function removeCardComment(colId, cardId, commentId) {
+    const cardNow = findCardById(cardId);
+    const cm = cardNow && (cardNow.comments || []).find((c) => c.id === commentId);
+    const idx = cardNow ? (cardNow.comments || []).findIndex((c) => c.id === commentId) : -1;
+    if (cm) pushUndoToast('Comentário removido.', () => reinsertInCard(colId, cardId, 'comments', cm, idx), 8000);
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, comments: (cd.comments || []).filter((c) => c.id !== commentId) }));
   }
 
@@ -6730,6 +6906,10 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).map((i) => (i.id === itemId ? { ...i, text: v } : i)), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
   }
   function removeChecklistItem(colId, cardId, itemId) {
+    const cardNow = findCardById(cardId);
+    const it = cardNow && (cardNow.checklist || []).find((i) => i.id === itemId);
+    const idx = cardNow ? (cardNow.checklist || []).findIndex((i) => i.id === itemId) : -1;
+    if (it) pushUndoToast(`Item "${it.text || it.title || 'do checklist'}" removido.`, () => reinsertInCard(colId, cardId, 'checklist', it, idx), 8000);
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).filter((i) => i.id !== itemId), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
   }
 
@@ -6955,7 +7135,7 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
             <div style={S.brandName}>Gestão de Atividades</div>
             <div style={S.brandCnpj}>{publicMode ? (publicOwnerName ? `Quadro de ${publicOwnerName}` : 'Quadro compartilhado') : currentUser.name}</div>
           </div>
-          {onExit && <button className="pb-ghost" style={S.pbGhostBtn} onClick={onExit}><Building2 size={15} /> Ir para Empresas</button>}
+          {onGoCompany && <button className="pb-ghost" style={S.pbGhostBtn} onClick={onGoCompany}><Building2 size={15} /> Ir para Empresas</button>}
           {onGoXFlow && <button className="pb-ghost" style={S.pbGhostBtn} onClick={onGoXFlow}><Bug size={15} /> Ir para XFlow</button>}
           {!readOnly && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira{trashItems.length > 0 ? ` (${trashItems.length})` : ''}</button>}
           {!readOnly && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowArchive(true)}><Archive size={15} /> Concluídas{archiveItems.length > 0 ? ` (${archiveItems.length})` : ''}</button>}
@@ -7093,6 +7273,18 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
         </div>
       )}
 
+      {activeBoard && !activeLinked && anyFilterActive && (
+        <div style={S.personalActiveFilters} role="status">
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-4)' }}>Filtros ativos:</span>
+          {search.trim() && <button type="button" style={S.personalFilterChip} onClick={() => setSearch('')} title="Remover este filtro">Busca: “{search.trim().slice(0, 24)}” <X size={11} /></button>}
+          {filters.status && <button type="button" style={S.personalFilterChip} onClick={() => setFilters((f) => ({ ...f, status: '' }))} title="Remover este filtro">{filters.status === 'nao-concluida' ? 'Sem concluídas' : `Status: ${CARD_STATUS_META[filters.status] ? CARD_STATUS_META[filters.status].label : filters.status}`} <X size={11} /></button>}
+          {filters.priority.length > 0 && <button type="button" style={S.personalFilterChip} onClick={() => setFilters((f) => ({ ...f, priority: [] }))} title="Remover este filtro">Prioridade: {CARD_PRIORITY_META[filters.priority[0]] ? CARD_PRIORITY_META[filters.priority[0]].label : filters.priority[0]} <X size={11} /></button>}
+          {filters.dueBucket && <button type="button" style={S.personalFilterChip} onClick={() => setFilters((f) => ({ ...f, dueBucket: '' }))} title="Remover este filtro">Prazo: {{ overdue: 'vencido', today: 'hoje', week: 'próximos dias', none: 'sem prazo' }[filters.dueBucket] || filters.dueBucket} <X size={11} /></button>}
+          {filters.tags.length > 0 && <button type="button" style={S.personalFilterChip} onClick={() => setFilters((f) => ({ ...f, tags: [] }))} title="Remover este filtro">Tags: {filters.tags.join(', ')} <X size={11} /></button>}
+          <button type="button" style={{ ...S.personalFilterChip, background: 'transparent', fontWeight: 800 }} onClick={clearAllFilters}>Limpar tudo</button>
+        </div>
+      )}
+
       {!activeBoard && !activeLinked && (
         <div style={S.emptyMuted}>Nenhuma página ainda. Clique no + acima pra criar a primeira.</div>
       )}
@@ -7102,16 +7294,22 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
           <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
             <div style={S.personalBoardArea}>
               {activeBoard.columns.map((col, idx) => {
+                const alive = col.cards.filter((cd) => !cd.deleted && !cd.archived);
                 const visible = sortCards(
-                  col.cards.filter((cd) => !cd.deleted && !cd.archived && !(col.hideCompleted && cd.completed) && cardMatches(cd)),
+                  alive.filter((cd) => !(col.hideCompleted && cd.completed) && cardMatches(cd)),
                   viewPrefs.sortMode
                 );
+                const hiddenByFilter = alive.filter((cd) => !(col.hideCompleted && cd.completed) && !cardMatches(cd)).length;
+                const hiddenCompleted = col.hideCompleted ? alive.filter((cd) => cd.completed).length : 0;
                 return (
                   <PersonalColumn
                     key={col.id}
                     column={col}
                     cardsToRender={visible}
                     totalVisibleCount={visible.length}
+                    hiddenByFilter={hiddenByFilter}
+                    hiddenCompleted={hiddenCompleted}
+                    onClearFilters={clearAllFilters}
                     dragDisabled={false}
                     readOnly={readOnly}
                     canMoveLeft={idx > 0}
@@ -7228,6 +7426,27 @@ function PersonalBoardScreen({ board, onMutate, onExit, onGoXFlow, currentUser, 
         <BoardActivityLogModal board={activeBoard} onClose={() => setShowActivityLog(false)} />
       )}
 
+      {deleteBoardTarget && (
+        <ConfirmDialog
+          title={`Excluir a página "${deleteBoardTarget.name}"?`}
+          message={`Isto apaga a página e tudo dentro dela (${deleteBoardTarget.columns.reduce((n, c) => n + c.cards.length, 0)} atividades, inclusive as da Lixeira). Você terá alguns segundos para desfazer.`}
+          confirmLabel="Excluir página"
+          danger
+          requireText={deleteBoardTarget.columns.some((c) => c.cards.some((cd) => !cd.deleted)) ? deleteBoardTarget.name : undefined}
+          onConfirm={confirmDeleteBoard}
+          onCancel={() => setDeleteBoardTarget(null)}
+        />
+      )}
+      {deleteColumnTarget && (
+        <ConfirmDialog
+          title={`Excluir a coluna "${deleteColumnTarget.name}"?`}
+          message="A coluna está vazia. Você terá alguns segundos para desfazer."
+          confirmLabel="Excluir coluna"
+          danger
+          onConfirm={confirmDeleteEmptyColumn}
+          onCancel={() => setDeleteColumnTarget(null)}
+        />
+      )}
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
@@ -7386,12 +7605,12 @@ function PublicBoardScreen({ token, theme, onToggleTheme, embedded, currentUser,
   );
 }
 
-function NoAccessScreen({ user, onLogout, theme, onToggleTheme }) {
+function NoAccessScreen({ user, onLogout, onHome, theme, onToggleTheme }) {
   const hasAnyAccess = user.companiesAccess || user.personalAccess || !!user.xflowRole;
   const title = hasAnyAccess ? 'Nenhuma empresa liberada' : 'Nenhum acesso liberado';
   const message = hasAnyAccess
-    ? `${user.name}, você ainda não tem acesso a nenhuma empresa. Peça para um PRICETAX Master liberar o CNPJ correspondente em "Usuários".`
-    : `${user.name}, você ainda não tem acesso a nenhum módulo (Empresas, Gestão de Atividades ou XFlow). Peça para um PRICETAX Master liberar o acesso em "Usuários".`;
+    ? `${user.name}, você ainda não tem acesso a nenhuma empresa (ou a empresa que você abriu não existe mais). Para ver uma empresa, peça para um PRICETAX Master liberar o CNPJ correspondente em "Usuários".`
+    : `${user.name}, você ainda não tem acesso a nenhum módulo. Peça para um PRICETAX Master liberar o acesso em "Usuários".`;
   return (
     <div className="page-root" style={S.page}>
       <div style={S.themeToggleCorner}>
@@ -7402,7 +7621,8 @@ function NoAccessScreen({ user, onLogout, theme, onToggleTheme }) {
           <span style={{ ...S.roleTag, color: ROLE_META[user.role].color, borderColor: ROLE_META[user.role].color }}>{ROLE_META[user.role].label}</span>
           <h1 style={S.loginTitle}>{title}</h1>
           <p style={S.loginSub}>{message}</p>
-          <button style={S.primaryBtn} onClick={onLogout}><LogOut size={14} /> Trocar de usuário</button>
+          {onHome && <button style={{ ...S.primaryBtn, marginRight: 8 }} onClick={onHome}><Home size={14} /> Voltar ao início</button>}
+          <button style={onHome ? S.iconBtn : S.primaryBtn} onClick={onLogout}><LogOut size={14} /> Trocar de usuário</button>
         </div>
       </div>
     </div>
@@ -7612,14 +7832,16 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
   // useDebouncedField (ver definição) mantém o campo local/responsivo e só
   // propaga pro resto do app (updateActivity, que refaz o render da árvore
   // inteira) 300ms depois da última tecla, não a cada tecla.
-  const initialFieldsRef = useRef({ title: a.title, desc: a.desc, notes: a.notes || '', transcript: a.transcript || '' });
   const titleField = useDebouncedField(a.title, (v) => updateActivity(pid, a.id, { title: v }, `Título alterado: "${v}"`));
   const descField = useDebouncedField(a.desc, (v) => updateActivity(pid, a.id, { desc: v }, `Descrição alterada em "${titleField.draft}"`));
   const notesField = useDebouncedField(a.notes || '', (v) => updateActivity(pid, a.id, { notes: v }, `Observação alterada em "${titleField.draft}"`));
   const transcriptField = useDebouncedField(a.transcript || '', (v) => updateActivity(pid, a.id, { transcript: v }, `Transcrição de reunião atualizada em "${titleField.draft}"`));
-  const fieldsDirty = useDirtyForm({ title: titleField.draft, desc: descField.draft, notes: notesField.draft, transcript: transcriptField.draft });
-  const hasDraft = fieldsDirty || !!commentDraft.trim() || !!linkLabelDraft.trim() || !!linkUrlDraft.trim()
+  // "Não salvo" = só o que ainda não foi gravado: texto nos 300 ms antes do autosave e rascunhos de comentário/link ainda não enviados.
+  // O que o autosave já gravou NÃO conta (antes a guarda comparava com o valor de quando o modal abriu e avisava à toa).
+  const fieldsPending = titleField.draft !== a.title || descField.draft !== a.desc || notesField.draft !== (a.notes || '') || transcriptField.draft !== (a.transcript || '');
+  const hasDraft = fieldsPending || !!commentDraft.trim() || !!linkLabelDraft.trim() || !!linkUrlDraft.trim()
     || !!commentAttachmentDrafts.length || !!commentLinkDrafts.length || !!commentLinkUrlDraft.trim() || editingCommentId !== null;
+  useDirtyForm(hasDraft);
   const [showGuard, setShowGuard] = useState(false);
   const [closing, setClosing] = useState(false);
   function requestClose() { if (hasDraft) setShowGuard(true); else onClose(); }
@@ -7638,11 +7860,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
     onClose();
   }
   function discardDraftsAndClose() {
-    if (fieldsDirty) {
-      const initial = initialFieldsRef.current;
-      titleField.reset(initial.title); descField.reset(initial.desc); notesField.reset(initial.notes); transcriptField.reset(initial.transcript);
-      updateActivity(pid, a.id, { ...initial });
-    }
+    titleField.flush(); descField.flush(); notesField.flush(); transcriptField.flush();
     setEditingCommentId(null);
     setCommentDraft(''); setPendingMentions([]); setCommentAttachmentDrafts([]); setCommentLinkDrafts([]);
     setCommentLinkLabelDraft(''); setCommentLinkUrlDraft(''); setShowCommentLinkForm(false);
@@ -9708,6 +9926,10 @@ export const S = {
   personalColGrip: { display: 'flex', cursor: 'grab', flexShrink: 0, opacity: .5 },
   personalColNameInput: { background: 'transparent', border: 'none', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 650, padding: 0, flex: 1, minWidth: 0 },
   personalColBody: { minHeight: 12 },
+  personalActiveFilters: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '0 20px 10px', maxWidth: '100%' },
+  personalFilterChip: { display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', fontSize: 12, fontWeight: 700, color: 'var(--text-2)', background: 'rgba(245,196,0,.14)', border: '1px solid rgba(245,196,0,.5)', borderRadius: 999, padding: '5px 10px', cursor: 'pointer', minHeight: 30 },
+  personalColHidden: { display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11.5, color: 'var(--text-5)', padding: '6px 4px 2px', lineHeight: 1.4 },
+  personalColHiddenBtn: { background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 800, color: 'var(--text-2)', textDecoration: 'underline', cursor: 'pointer' },
   personalColEmpty: { fontSize: 11.5, color: 'var(--text-7)', padding: '10px 4px', textAlign: 'center' },
   personalQuickAddInput: { width: '100%', fontSize: 12.5, padding: '8px 10px', borderRadius: 8, marginTop: 2 },
   personalCard: { background: 'var(--bg-1)', border: 'none', borderRadius: 8, padding: '10px 12px', marginBottom: 8, boxShadow: 'var(--pb-shadow-soft)' },

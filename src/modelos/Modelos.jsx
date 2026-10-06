@@ -3,9 +3,11 @@
 // PDF, imagem, HTML (isolado) e texto abrem na própria tela, Word/PowerPoint/Excel mostram o começo do conteúdo, link mostra a prévia da página.
 import React, { useEffect, useRef, useState } from 'react';
 import { FileText, FileSpreadsheet, Presentation, Image as ImageIcon, Link2, Code2, X, LogOut, Plus, Upload, Trash2, Pencil, ExternalLink, Download, RefreshCw, MessageSquare, Send, Search, ArrowLeft } from 'lucide-react';
-import { ThemeToggleBtn, SidePanel, useDebouncedField, fmtTs } from '../App.jsx';
+import { ThemeToggleBtn, SidePanel, useDebouncedField, useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
+import { ConfirmDialog } from '../ui/index.jsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
-import { PARECERES_CSS, fmtFileSize, initialsOf } from '../pareceres/pareceresMeta.js';
+import { PARECERES_CSS, fmtFileSize, initialsOf, apiErrorText } from '../pareceres/pareceresMeta.js';
+import { InlineAlert, SaveBadge, useFieldSaver } from '../pareceres/Pareceres.jsx';
 import { MODELOS_CSS, MAX_FILE_MB, MAX_ITEMS, ACCEPT, KIND_META, INLINE_KINDS, itemKind, kindsOf, itemName, hostOf, isAllowedFile, SUGGESTED_CATEGORIES } from './modelosMeta.js';
 
 const ICONS = { pdf: FileText, word: FileText, text: FileText, ppt: Presentation, excel: FileSpreadsheet, image: ImageIcon, link: Link2, html: Code2 };
@@ -144,6 +146,13 @@ function AddModal({ onClose, onCreated, categories }) {
   const [error, setError] = useState('');
   const [progress, setProgress] = useState('');
   const [saving, setSaving] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
+  const dirty = useDirtyForm({ title, category, description, files: files.map((f) => `${f.name}:${f.size}`), links });
+
+  function requestClose() {
+    if (saving) return;
+    if (dirty) setConfirmClose(true); else onClose();
+  }
 
   async function submit() {
     setError('');
@@ -161,11 +170,12 @@ function AddModal({ onClose, onCreated, categories }) {
         template = out.template; failed = out.failed;
       }
       onCreated(template, failed);
-    } catch (e) { setError(e.message || 'Não foi possível adicionar.'); setSaving(false); setProgress(''); }
+    } catch (e) { setError(apiErrorText(e, 'Não foi possível adicionar.')); setSaving(false); setProgress(''); }
   }
 
   return (
-    <SidePanel title="Novo modelo" onClose={saving ? () => {} : onClose}>
+    <>
+    <SidePanel title="Novo modelo" onClose={requestClose}>
       <div className="mdl-form">
         <label htmlFor="mdl-title" style={{ marginTop: 0 }}>Título (opcional)</label>
         <input id="mdl-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Se ficar vazio, usa o nome do primeiro anexo" />
@@ -181,11 +191,13 @@ function AddModal({ onClose, onCreated, categories }) {
 
         {error && <div className="par-error" role="alert">{error}</div>}
         <div className="par-btn-row">
-          <button className="par-btn par-btn-ghost" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button className="par-btn par-btn-ghost" onClick={requestClose} disabled={saving}>Cancelar</button>
           <button className="par-btn par-btn-primary" onClick={submit} disabled={saving}>{saving ? progress || 'Enviando…' : 'Adicionar'}</button>
         </div>
       </div>
     </SidePanel>
+    {confirmClose && <ConfirmDiscardModal onDiscard={onClose} onCancel={() => setConfirmClose(false)} />}
+    </>
   );
 }
 
@@ -222,6 +234,8 @@ function Preview({ t, item }) {
   return <div className="mdl-pv"><div className="mdl-pv-text" style={{ color: 'var(--text-5)' }}>{kind === 'text' ? 'Abra o arquivo para ler.' : 'Este formato não tem prévia aqui. Baixe o arquivo para abrir no seu programa.'}</div></div>;
 }
 
+const ONLY_ITEM_HINT = 'É o único anexo. Para remover tudo, exclua o modelo.';
+
 function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
   const items = t.items || [];
   const [itemId, setItemId] = useState(items[0] ? items[0].id : null);
@@ -234,55 +248,85 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
   const [newLinks, setNewLinks] = useState([]);
   const [urlDraft, setUrlDraft] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [err, setErr] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [dlgBusy, setDlgBusy] = useState(false);
+  const [dlgError, setDlgError] = useState('');
+  const [confirmClose, setConfirmClose] = useState(false);
+  const latest = useRef({});
 
   const item = items.find((i) => i.id === itemId) || items[0];
-  const titleField = useDebouncedField(t.title, (v) => save({ title: v }));
-  const descField = useDebouncedField(t.description || '', (v) => save({ description: v }));
-  const catField = useDebouncedField(t.category || '', (v) => save({ category: v }));
+  const saver = useFieldSaver(async (body) => { onChanged(await apiPatch(`/api/templates/${t.id}`, body)); });
+  const titleField = useDebouncedField(t.title, (v) => saver.save({ title: v }));
+  const descField = useDebouncedField(t.description || '', (v) => saver.save({ description: v }));
+  const catField = useDebouncedField(t.category || '', (v) => saver.save({ category: v }));
 
   useEffect(() => { setComments(t.comments || []); }, [t.id, t.comments]);
   useEffect(() => { if (!items.some((i) => i.id === itemId)) setItemId(items[0] ? items[0].id : null); }, [t.items]);
   useEffect(() => { setUrlDraft(item && item.url ? item.url : ''); }, [item && item.id, item && item.url]);
 
-  async function save(patch) {
-    try { onChanged(await apiPatch(`/api/templates/${t.id}`, patch)); } catch { /* o rascunho local fica; rede falhou */ }
-  }
+  const showError = (message) => setErr(message ? { message } : null);
   async function run(fn, fallback) {
-    setBusy(true); setError('');
-    try { return await fn(); } catch (e) { setError(e.message || fallback); return null; } finally { setBusy(false); }
+    setBusy(true); setErr(null);
+    try { return await fn(); } catch (e) { setErr({ message: `${apiErrorText(e, fallback)}`, retry: () => run(fn, fallback) }); return null; } finally { setBusy(false); }
   }
   const saveUrl = () => run(async () => onChanged(await apiPatch(`/api/templates/${t.id}/items/${item.id}`, { url: urlDraft })), 'Não foi possível salvar o endereço.');
   const refresh = () => run(async () => onChanged(await apiPatch(`/api/templates/${t.id}/items/${item.id}`, {})), 'Não foi possível atualizar a prévia.');
-  const removeItem = () => {
-    if (!window.confirm(`Remover "${itemName(item)}" deste modelo?`)) return Promise.resolve();
-    return run(async () => onChanged(await apiDelete(`/api/templates/${t.id}/items/${item.id}`)), 'Não foi possível remover o anexo.');
-  };
+  async function removeItem() {
+    setDlgBusy(true); setDlgError('');
+    try { onChanged(await apiDelete(`/api/templates/${t.id}/items/${item.id}`)); setConfirmRemove(false); } catch (e) { setDlgError(apiErrorText(e, 'Não foi possível remover o anexo.')); }
+    setDlgBusy(false);
+  }
   async function addItems() {
     const queue = queueOf(newFiles, newLinks);
     if (!queue.length) return;
     const out = await run(async () => sendItems(queue, t), 'Não foi possível adicionar.');
     if (!out) return;
     onChanged(out.template);
-    if (out.failed.length) setError(`Não consegui enviar: ${out.failed.join('; ')}`);
+    if (out.failed.length) showError(`Não consegui enviar: ${out.failed.join('; ')}`);
     else { setAdding(false); setNewFiles([]); setNewLinks([]); }
     const last = out.template.items[out.template.items.length - 1];
     if (last && out.template.items.length > items.length) setItemId(last.id);
   }
   async function submitComment() {
-    if (!draft.trim()) return;
-    setSending(true);
-    try { const { comment } = await apiPost(`/api/templates/${t.id}/comments`, { text: draft.trim() }); setComments((p) => [...p, comment]); setDraft(''); } catch { /* mantém o rascunho */ }
+    const text = draft.trim();
+    if (!text) return;
+    setSending(true); setErr(null);
+    try {
+      const { comment } = await apiPost(`/api/templates/${t.id}/comments`, { text });
+      setComments((p) => [...p, comment]); setDraft('');
+    } catch (e) {
+      setErr({ message: `Não foi possível enviar o comentário: ${apiErrorText(e, 'erro inesperado.')} O texto continua na caixa.`, retry: () => latest.current.submitComment() });
+    }
     setSending(false);
   }
   async function removeComment(id) {
+    const index = comments.findIndex((c) => c.id === id);
+    const removed = comments[index];
+    if (!removed) return;
+    setErr(null);
     setComments((p) => p.filter((c) => c.id !== id));
-    try { await apiDelete(`/api/templates/${t.id}/comments/${id}`); } catch { setComments(t.comments || []); }
+    try { await apiDelete(`/api/templates/${t.id}/comments/${id}`); } catch (e) {
+      setComments((p) => (p.some((c) => c.id === id) ? p : [...p.slice(0, index), removed, ...p.slice(index)]));
+      setErr({ message: `Não foi possível excluir o comentário: ${apiErrorText(e, 'erro inesperado.')} Ele foi mantido.`, retry: () => removeComment(id) });
+    }
   }
   async function handleDelete() {
-    if (!window.confirm(`Excluir o modelo "${t.title}" e todos os ${items.length} anexos? Essa ação não pode ser desfeita.`)) return;
-    await apiDelete(`/api/templates/${t.id}`);
-    onDeleted(t.id);
+    setDlgBusy(true); setDlgError('');
+    try { await apiDelete(`/api/templates/${t.id}`); onDeleted(t.id); } catch (e) { setDlgError(apiErrorText(e, 'Não foi possível excluir o modelo.')); setDlgBusy(false); }
+  }
+  function pickItem(id) { setItemId(id); setErr(null); }
+
+  latest.current = { submitComment };
+  const urlDirty = !!item && item.kind === 'link' && urlDraft !== (item.url || '');
+  const hasDraft = saver.state === 'error' || saver.state === 'saving' || !!draft.trim() || urlDirty || newFiles.length > 0 || newLinks.length > 0;
+  useDirtyForm(hasDraft);
+
+  async function requestClose() {
+    titleField.flush(); descField.flush(); catField.flush();
+    await saver.settle();
+    if (saver.hasPending() || draft.trim() || urlDirty || newFiles.length > 0 || newLinks.length > 0) setConfirmClose(true); else onClose();
   }
 
   const canDeleteComment = (c) => currentUser && (c.userId === currentUser.id || currentUser.role === 'master');
@@ -290,11 +334,13 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
   const fileUrl = item ? `/api/templates/${t.id}/items/${item.id}/file` : '';
 
   return (
-    <SidePanel title="Modelo" onClose={() => { titleField.flush(); descField.flush(); catField.flush(); onClose(); }}>
+    <>
+    <SidePanel title="Modelo" onClose={requestClose}>
       <div className="par-drawer-title-row">
         {editing
           ? <input type="text" style={{ flex: 1, fontSize: 15, fontWeight: 800 }} value={titleField.draft} onChange={(e) => titleField.onChange(e.target.value)} onBlur={titleField.flush} autoFocus />
           : <div className="par-drawer-title" style={{ flex: 1 }}>{titleField.draft}</div>}
+        <SaveBadge state={saver.state} onRetry={saver.retry} />
         <button className="par-comment-del" title={editing ? 'Concluir edição' : 'Editar'} aria-label={editing ? 'Concluir edição' : 'Editar'} onClick={() => setEditing((v) => !v)}><Pencil size={14} /></button>
       </div>
       <div className="par-drawer-file">{items.length} {items.length === 1 ? 'anexo' : 'anexos'} · por {t.created_by_name || 'alguém'} em {fmtTs(t.created_at)}</div>
@@ -302,14 +348,14 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
       <div className="mdl-items" role="group" aria-label="Anexos do modelo">
         {items.map((i) => {
           const k = itemKind(i); const Icon = ICONS[k] || FileText;
-          return <button key={i.id} type="button" className="mdl-item" style={{ '--c': KIND_META[k].color }} aria-pressed={item && i.id === item.id} title={itemName(i)} onClick={() => setItemId(i.id)}><Icon size={14} /><span>{itemName(i)}</span></button>;
+          return <button key={i.id} type="button" className="mdl-item" style={{ '--c': KIND_META[k].color }} aria-pressed={item && i.id === item.id} title={itemName(i)} onClick={() => pickItem(i.id)}><Icon size={14} /><span>{itemName(i)}</span></button>;
         })}
-        {items.length < MAX_ITEMS && <button type="button" className="mdl-item" onClick={() => setAdding((v) => !v)} aria-expanded={adding}><Plus size={14} /><span>Adicionar anexo</span></button>}
+        {items.length < MAX_ITEMS && <button type="button" className="mdl-item" onClick={() => { setAdding((v) => !v); setErr(null); }} aria-expanded={adding}><Plus size={14} /><span>Adicionar anexo</span></button>}
       </div>
 
       {adding && (
         <div className="mdl-add-panel mdl-form">
-          <ItemPicker files={newFiles} setFiles={setNewFiles} links={newLinks} setLinks={setNewLinks} room={MAX_ITEMS - items.length} setError={setError} />
+          <ItemPicker files={newFiles} setFiles={setNewFiles} links={newLinks} setLinks={setNewLinks} room={MAX_ITEMS - items.length} setError={showError} />
           <div className="par-btn-row">
             <button className="par-btn par-btn-ghost" onClick={() => { setAdding(false); setNewFiles([]); setNewLinks([]); }} disabled={busy}>Cancelar</button>
             <button className="par-btn par-btn-primary" onClick={addItems} disabled={busy || (!newFiles.length && !newLinks.length)}>{busy ? 'Enviando…' : 'Enviar'}</button>
@@ -334,11 +380,17 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
               {INLINE_KINDS.has(kind) && <a className="par-btn par-btn-ghost" href={`${fileUrl}?download=1`} style={{ textDecoration: 'none' }}><Download size={14} /> Baixar</a>}
             </>
           )}
-          {items.length > 1 && <button className="par-btn par-btn-ghost" onClick={removeItem} disabled={busy}><X size={14} /> Remover este anexo</button>}
+          <button
+            className="par-btn par-btn-ghost" disabled={busy || items.length <= 1}
+            title={items.length <= 1 ? ONLY_ITEM_HINT : undefined} aria-describedby={items.length <= 1 ? 'mdl-only-item' : undefined}
+            onClick={() => { setDlgError(''); setConfirmRemove(true); }}
+          ><X size={14} /> Remover este anexo</button>
         </div>
       )}
       {item && <div className="par-drawer-file" style={{ marginTop: -8 }}>{kind === 'link' ? item.url : `${item.file_name} · ${fmtFileSize(item.file_size)}`}</div>}
-      {error && <div className="par-error" role="alert" style={{ marginTop: 0, marginBottom: 12 }}>{error}</div>}
+      {item && items.length <= 1 && <div id="mdl-only-item" className="par-drawer-file" style={{ marginTop: -8 }}>{ONLY_ITEM_HINT}</div>}
+      {saver.state === 'error' && <InlineAlert message={`Não foi possível salvar as alterações: ${saver.error} O texto digitado continua aqui.`} onRetry={saver.retry} />}
+      {err && <InlineAlert message={err.message} onRetry={err.retry} />}
 
       {editing && (
         <div className="mdl-form" style={{ marginBottom: 14 }}>
@@ -383,9 +435,27 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
       </div>
 
       <div className="par-drawer-actions" style={{ marginTop: 18 }}>
-        <button className="par-btn par-btn-danger" onClick={handleDelete}><Trash2 size={14} /> Excluir modelo</button>
+        <button className="par-btn par-btn-danger" onClick={() => { setDlgError(''); setConfirmDelete(true); }}><Trash2 size={14} /> Excluir modelo</button>
       </div>
     </SidePanel>
+    {confirmDelete && (
+      <ConfirmDialog
+        title="Excluir modelo" danger confirmLabel="Excluir modelo"
+        message={`Excluir o modelo "${t.title}" e ${items.length === 1 ? 'o único anexo' : `todos os ${items.length} anexos`}? Essa ação não pode ser desfeita.`}
+        busy={dlgBusy} error={dlgError}
+        onConfirm={handleDelete} onCancel={() => setConfirmDelete(false)}
+      />
+    )}
+    {confirmRemove && item && (
+      <ConfirmDialog
+        title="Remover anexo" danger confirmLabel="Remover anexo"
+        message={`Remover "${itemName(item)}" deste modelo?`}
+        busy={dlgBusy} error={dlgError}
+        onConfirm={removeItem} onCancel={() => setConfirmRemove(false)}
+      />
+    )}
+    {confirmClose && <ConfirmDiscardModal onDiscard={onClose} onCancel={() => setConfirmClose(false)} />}
+    </>
   );
 }
 
@@ -400,9 +470,11 @@ export default function ModelosScreen({ currentUser, onExit, onLogout, theme, on
   const [adding, setAdding] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
 
-  useEffect(() => {
-    apiGet('/api/templates').then((r) => { setItems(r.templates || []); setLoaded(true); }).catch((e) => { setError(e.message || 'Não foi possível carregar os modelos.'); setLoaded(true); });
-  }, []);
+  function load() {
+    setLoaded(false); setError('');
+    apiGet('/api/templates').then((r) => { setItems(r.templates || []); setLoaded(true); }).catch((e) => { setError(apiErrorText(e, 'Não foi possível carregar os modelos.')); setLoaded(true); });
+  }
+  useEffect(() => { load(); }, []);
 
   const categories = [...new Set(items.map((t) => t.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const kindsPresent = KIND_ORDER.filter((k) => items.some((t) => kindsOf(t).includes(k)));
@@ -473,7 +545,7 @@ export default function ModelosScreen({ currentUser, onExit, onLogout, theme, on
             </div>
 
             {!loaded && <div className="par-empty">Carregando…</div>}
-            {error && <div className="par-error" role="alert">{error}</div>}
+            {error && <InlineAlert message={`Não foi possível carregar os modelos: ${error}`} onRetry={load} />}
             {loaded && !error && filtered.length === 0 && (
               <div className="par-empty">
                 <div className="par-empty-icon"><FileText size={26} /></div>

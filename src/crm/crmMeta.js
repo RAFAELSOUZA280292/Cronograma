@@ -257,6 +257,9 @@ export const CRM_CSS = `
   .crm-deal[draggable="true"] { cursor:grab; }
   .crm-deal:hover, .crm-deal:focus-visible { border-color:var(--border-3); outline:none; }
   .crm-deal.dragging { opacity:.4; }
+  .crm-deal-move { display:none; margin-top:8px; }
+  .crm-deal-move select { width:100%; padding:8px 10px; font-size:13px; border-radius:8px; }
+  @media (pointer: coarse) { .crm-deal-move { display:block; } }
   .crm-deal-title { font-size:12.5px; font-weight:800; color:var(--text-1); overflow-wrap:anywhere; }
   .crm-deal-co { font-size:11.5px; color:var(--text-5); margin-top:2px; overflow-wrap:anywhere; }
   .crm-deal-meta { display:flex; justify-content:space-between; align-items:center; gap:6px; margin-top:8px; font-size:11.5px; color:var(--text-5); }

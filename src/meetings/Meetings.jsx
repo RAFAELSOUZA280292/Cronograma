@@ -8,10 +8,10 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, Plus, X, Trash2, Undo2, Clock, Users, CalendarDays, ChevronDown, FileText, Sparkles, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
-import { S, fmtDate, fmtTs, useIsMobile, SidePanel } from '../App.jsx';
+import { S, fmtDate, fmtTs, useIsMobile, SidePanel, useDirtyForm } from '../App.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 import DossierPanel from './DossierPanel.jsx';
-import { activate } from '../ui/index.jsx';
+import { activate, ConfirmDialog } from '../ui/index.jsx';
 
 export const MEETINGS_CSS = `
   .mtg-view input[type=text], .mtg-view input[type=date], .mtg-view input[type=time],
@@ -326,6 +326,12 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
   const [time, setTime] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [askDiscard, setAskDiscard] = useState(false);
+  const isDirty = useDirtyForm({ transcript: transcript.trim() ? transcript : '', date, time });
+  function requestClose() {
+    if (sending) return;
+    if (isDirty) setAskDiscard(true); else onClose();
+  }
 
   async function handleSubmit() {
     const text = transcript.trim();
@@ -350,8 +356,19 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
   }
 
   return (
-    <div className="mtg-view" style={{ ...S.detailOverlay, zIndex: 120 }} onClick={sending ? undefined : onClose}>
+    <div className="mtg-view" style={{ ...S.detailOverlay, zIndex: 120 }} onClick={requestClose}>
       <style>{MEETINGS_CSS}</style>
+      {askDiscard && (
+        <ConfirmDialog
+          title="Descartar a transcrição?"
+          message="A transcrição que você colou ainda não foi enviada e será perdida."
+          confirmLabel="Descartar"
+          cancelLabel="Continuar editando"
+          danger
+          onConfirm={onClose}
+          onCancel={() => setAskDiscard(false)}
+        />
+      )}
       <div style={{ ...S.detailBox, width: 'min(620px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
           <div>
@@ -362,7 +379,7 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
               Cole a transcrição completa da reunião — o painel identifica participantes, resumo, decisões e atividades automaticamente e cria a reunião pra você.
             </div>
           </div>
-          <button style={S.iconBtnGhost} onClick={sending ? undefined : onClose}><X size={20} /></button>
+          <button style={S.iconBtnGhost} onClick={requestClose} aria-label="Fechar"><X size={20} /></button>
         </div>
 
         <div style={S.subSectionLabel}>Transcrição</div>
@@ -390,7 +407,7 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
         {error && <div style={{ color: '#e2574c', fontSize: 12, marginTop: 10 }}>{error}</div>}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
-          <button style={S.iconBtn} onClick={onClose} disabled={sending}>Cancelar</button>
+          <button style={S.iconBtn} onClick={requestClose} disabled={sending}>Cancelar</button>
           <button style={S.primaryBtn} onClick={handleSubmit} disabled={sending}>
             {sending ? <Loader2 size={14} className="mtg-spin" /> : <Sparkles size={14} />}
             {sending ? 'Enviando...' : 'Enviar'}

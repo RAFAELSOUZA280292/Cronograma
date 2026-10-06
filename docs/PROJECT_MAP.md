@@ -107,7 +107,7 @@ src/daily/          Meu dia (§77): DailyCards (tela inicial), DailyPrefs (escol
 src/modelos/         Modelos de documentos (§78): Modelos.jsx (grade, gaveta com prévia, adicionar arquivo/link) + modelosMeta.js (tipos, CSS mdl-*; reaproveita par-* dos Pareceres). Rota /modelos em src/lib/routes.js.
 src/connect/        Conectar (§80): ConnectSection.jsx (aba Conectar em Meu perfil: gerar/revogar token) + guide.js (guia que o usuário cola no outro Claude Code, sem token).
 src/crm/            CRM (§54–§58): CrmScreen (shell/abas), *Page.jsx (Empresas, Contatos, Negócios, Produtos, Agenda, Visão Geral), *Drawer/*Form/*Dialog/*Wizard (ficha, formulários, fechar negócio, importadores PipeRun), FunnelsAdmin, GlobalSearch, crmApi.js/crmMeta.js/importMapping.js/ui.jsx. `React.lazy` a partir de App.jsx.
-src/ui/index.jsx + src/ui/ui.css  Peças visuais comuns (2026-10-04, §72): Card, Button, Chip, Segmented, Tabs, Select, Kpi, Section, EmptyState, Skeleton*, Callout, BusyBar, activate/activateRow (clicável por teclado). Tokens `--ui-*` adaptativos ao tema. Migrados: Conhecimento, Visão Geral Empresas, Agenda. Auditoria medida em docs/AUDITORIA_VISUAL.md.
+src/ui/index.jsx + src/ui/ui.css  Peças visuais comuns (2026-10-04, §72): Card, Button, Chip, Segmented, Tabs, Select, Kpi, Section, EmptyState, Skeleton*, Callout, BusyBar, **ConfirmDialog** (Onda 0, §81: confirmação com `requireText`), activate/activateRow (clicável por teclado). Tokens `--ui-*` adaptativos ao tema. Migrados: Conhecimento, Visão Geral Empresas, Agenda. Auditoria medida em docs/AUDITORIA_VISUAL.md.
 server/parecerScope.js  Isolamento de pareceres por cliente (2026-10-04, §70) — `parecerUsableFor` (Geral vale em qualquer empresa; específico só na empresa dele, por vínculo ou nome, regra fechada), `companyTokens`, `loadProjectIdentity`. Usado por parecerStudy.js (janela, sugestão) e knowledgeFacts.js (chat).
 server/parecerStudy.js  RENATA estuda os Pareceres (2026-10-04, §70) — `startStudy` (só SQL decide se há parecer novo; sem novo = zero IA), `studyOne` (PDF como bloco document, Sonnet, zod achatado), `registerFact` (1 fato org/internal_document por parecer, INSERT direto sem detecção de conflito), `getStudyState` (no chat, `pickRelevantPareceres` em knowledgeFacts.js só carrega até 3 pareceres relevantes à pergunta), `generateMeetingAdvice`/`getMeetingAdvice` (sugestão na reunião, assinatura dos estudos → `stale`). Rotas em server/pareceres.js (`/study`, `/advice`); gancho em meetingInbox.js após registrar a reunião. Tabelas `parecer_studies` e `meeting_parecer_advice`.
 src/assistant/ParecerStudyModal.jsx  Modal "Estudar Pareceres" aberto pelo botão no cabeçalho da RENATA (§70). src/meetings/ParecerAdviceBox.jsx  Caixa "RENATA · Pareceres PRICETAX" na coluna lateral de MeetingDetailModal (só staff).
@@ -141,121 +141,121 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 
 | Linha | Componente | Responsabilidade |
 |---|---|---|
-| 51 | `BrandLogo` | Logo PRICETAX, troca PNG conforme tema |
-| 55 | `ThemeToggleBtn` | Botão sol/lua |
-| 138 | `cardStatusOf` | Status efetivo de um cartão do quadro pessoal (`status` ou derivado de `completed`) |
-| 157 | `initials` | Iniciais de um nome (avatar) |
-| 164 | `dueDateTone` | Tom (cor) do prazo de um cartão: atrasado/hoje/futuro |
-| 174 | `daysSinceCardMovement` | Dias de calendário desde a última movimentação do cartão (`calendarDaysSince`, §75) |
-| 178 | `staleTone` | Tom do selo "Nd sem movimentação" (≥3 aviso, ≥7 crítico) |
-| 183 | `fmtDateOnly` | Formata data AAAA-MM-DD sem fuso |
-| 190 | `uid` | Gera id curto com prefixo |
-| 191 | `genShareToken` | Gera token de link público |
-| 193 | `todayISOStr` | Hoje em AAAA-MM-DD (fuso local) |
-| 200 | `useMediaQuery` | Hook de media query |
-| 213 | `useIsMobile` | Hook: viewport < 768px |
-| 214 | `useIsCompact` | Hook: viewport < 1024px |
-| 221 | `useDirtyForm` | Guarda de "alterações não salvas" — padrão único reusado em todo modal de formulário-rascunho (useDirtyForm) e em todo modal autosave-por-campo (useAutosaveTimestamp), pra nunca fechar e perder informação em silêncio. currentValue |
-| 250 | `useDebouncedField` | Campo de texto com autosave DEBOUNCED, não por tecla (2026-09-17, bug real relatado pelo Rafael: "escrevo 3-4 letras e o texto é apagado por um fantasma"). Causa raiz: nos modais de autosave-por-campo, CADA tecla disparava a funçã |
-| 291 | `useAutosaveTimestamp` | record = a prop vinda do pai (activity/ticket/card) que já muda sozinha toda vez que um autosave de campo grava — não precisa instrumentar cada handler individual, só observa o resultado. |
-| 304 | `ConfirmDiscardModal` | Modal "Salvar e sair / Sair sem salvar / Continuar editando" (§16, guarda de alterações não salvas) |
-| 324 | `savedStatusLabel` | Texto "Alterações não salvas / Salvo automaticamente às HH:MM" |
-| 330 | `normalizeTeam` | Normaliza `project.team` (vínculo com usuários) |
-| 338 | `normalizeProject` | Preenche defaults de um projeto carregado |
-| 343 | `isExpiredNotYetFlagged` | Usuário com acesso expirado ainda não sinalizado |
-| 347 | `fmtDate` | Data em pt-BR |
-| 353 | `fmtTs` | Data e hora em pt-BR (exportado, usado pelos módulos) |
-| 358 | `projectProgress` | % de conclusão de um projeto |
-| 364 | `projectNextActivity` | Próxima atividade de um projeto |
-| 375 | `groupRootId` | Grupo Empresarial: o Master é sua própria raiz de grupo (isGroupMaster=true, sem precisar de groupId apontando pra si mesmo); filhas têm company.groupId = id do Master. |
-| 379 | `groupMembers` | Membros de um grupo empresarial (§12) |
-| 386 | `involvedCompaniesLabel` | Selo "Empresas envolvidas" (v2) — só pra atividades do Master com o campo novo definido (involvedCompanyIds !== undefined); distinto do selo legado "Grupo inteiro"/"Várias empresas" (groupActivityId, mecanismo de cópia v1). |
-| 394 | `parseDate` | AAAA-MM-DD → Date |
-| 395 | `toISODate` | Date → AAAA-MM-DD |
-| 396 | `startOfDay` | Início do dia |
-| 397 | `addDays` | Soma dias |
-| 398 | `addMonths` | Soma meses |
-| 399 | `calcDeadline` | Prazo a partir de início + duração |
-| 408 | `dayAfter` | Dia seguinte |
-| 415 | `dayBefore` | Dia anterior |
-| 422 | `startOfMonth` | Início do mês |
-| 423 | `endOfMonth` | Fim do mês |
-| 424 | `startOfWeek` | Início da semana |
-| 425 | `fmtDayLabel` | Rótulo de dia (Gantt/Tabela) |
-| 426 | `fmtDayFull` | Dia por extenso |
-| 427 | `fmtMonthYearLabel` | Mês/ano |
-| 428 | `fmtYearLabel` | Ano |
-| 429 | `fmtWeekLabel` | Semana |
-| 430 | `fmtMonthTitle` | Título de mês |
-| 432 | `buildTimelineColumns` | Colunas da linha do tempo (dia/semana/mês) do Gantt |
-| 472 | `colIndexFor` | Índice da coluna de uma data |
-| 483 | `fractionInColumn` | Fração de uma data dentro da coluna |
-| 491 | `sortActivities` | Ordena atividades (data/fase/prioridade) |
-| 500 | `buildOrderMap` | Mapa de ordem manual de atividades |
-| 511 | `AreaRow` | Extraído do .map() de "Áreas e responsáveis" (tela de configurações da empresa) pra poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo bug de digitação do PROJECT_CONTEXT.md §45/§46. onCommit recebe o valor r |
-| 536 | `PhaseRow` | Extraído do .map() de "Fases" (SidePanel de fases do projeto) pelo mesmo motivo do AreaRow acima. O log de "Fase renomeada"/"Descrição alterada" usa o draft local (nameField.draft) em vez de p.name/p.sub das props — essas só atual |
-| 3337 | `LoadingScreen` | Tela de carregamento inicial |
-| 3350 | `LoginGate` | Formulário de login + modo "Trocar senha" (2026-08, `POST /api/auth/change-password-login`) |
-| 3437 | `UserPasswordReset` | Modal de reset de senha de um usuário (master) |
-| 3453 | `SuperAdminScreen` | Tela "Organizações (Super Admin)": lista, cria e entra numa organização |
-| 3548 | `fmtAccessPlace` | Texto do local de um acesso (cidade/UF/país) — §67 |
-| 3558 | `UserAccessHistory` | Gaveta com o histórico de acessos de um usuário — §67 |
-| 3592 | `UsersManagementScreen` | Painel admin de usuários (master) |
-| 3822 | `NewUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
-| 3924 | `EditUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
-| 4067 | `MyProfileModal` | Avatar do usuário logado + seção "Trocar senha" (2026-08, `POST /api/auth/change-password`) |
-| 4221 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
-| 4557 | `UserAvatar` | Avatar (emoji) do usuário |
-| 4575 | `AvatarPicker` | Seletor de avatar (`AVATAR_EMOJIS`) |
-| 4593 | `CompanyBadge` | Selo de empresa |
-| 4602 | `TeamLinkBadge` | Selo "vinculado a usuário" da equipe |
-| 4610 | `CompanySectionHeader` | Cabeçalho de seção de empresa na visão multi-empresa |
-| 4625 | `EditCompanyModal` | Edição de empresa já criada |
-| 4795 | `GroupActivityCompaniesModal` | Escolha das empresas envolvidas numa atividade de grupo (§12) |
-| 4849 | `CompanySelectorScreen` | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, filtros por Tipo/Status/Regime (2026-08), atalho p/ Gestão de Atividades |
-| 5161 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades vs XFlow vs Agenda — é a própria "Home" |
-| 5270 | `sortCards` | Ordena cartões do quadro pessoal (5 modos + manual) |
-| 5286 | `cardMatchesFilters` | Filtros de busca/prioridade/prazo/tags/status do quadro pessoal |
-| 5309 | `useToasts` | Hook de avisos temporários (toasts) |
-| 5324 | `ToastStack` | Pilha de toasts |
-| 5339 | `FadingSavedBadge` | Selo "salvo" que some sozinho |
-| 5350 | `PersonalBoardSkeleton` | Esqueleto de carregamento do quadro pessoal |
-| 5371 | `ColorSwatchGrid` | Grade de cores de coluna |
-| 5382 | `PriorityPicker` | Seletor de prioridade do cartão |
-| 5399 | `StatusPicker` | Seletor de status do cartão |
-| 5415 | `TagEditor` | Editor de tags do cartão |
-| 5447 | `PersonalColumnMenu` | Menu da coluna do quadro pessoal |
-| 5485 | `PersonalCardMenu` | Menu do cartão (mover, concluir, excluir…) |
-| 5532 | `PersonalCard` | Cartão do quadro pessoal |
-| 5611 | `PersonalColumn` | Coluna do quadro pessoal (drag and drop) |
-| 5732 | `PersonalCardDetailModal` | Modal de detalhe do cartão (campos, checklist, comentários, "Mover para…", §61–§62) |
-| 5997 | `PersonalListView` | Visão em lista do quadro pessoal |
-| 6070 | `ReassignCardsModal` | Reatribui cartões ao excluir uma coluna |
-| 6099 | `PersonalTrashPanel` | Lixeira do quadro pessoal |
-| 6118 | `PersonalArchivePanel` | Painel de concluídas arquivadas |
-| 6136 | `BoardShareModal` | Modal de visibilidade da página (Privado/Público por link, copiar/gerar link) |
-| 6190 | `BoardActivityLogModal` | Painel de histórico do quadro — agrega `board.log` + `card.history` de todas as colunas |
-| 6213 | `PersonalBoardScreen` | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros, `publicMode`/`readOnly` props) |
-| 7202 | `PublicBoardScreen` | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
-| 7346 | `NoAccessScreen` | Tela para quem não tem acesso a nenhum módulo |
-| 7369 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
-| 7392 | `NotificationBell` | Central de Notificações (2026-08) — componente compartilhado, usado nas 3 telas (Empresas em App(), Gestão de Atividades em PersonalBoardScreen, XFlow em XflowScreen) via o mesmo estado/lista levantados em App(), pra contador e li |
-| 7437 | `StatusPill` | Selo de status de atividade |
-| 7449 | `renderCommentText` | Renderiza comentário com menções/links |
-| 7461 | `SubactivityRow` | Extraído do .map() de subatividades dentro de ActivityDetailModal pra poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo bug de digitação do PROJECT_CONTEXT.md §45/§46 (não coberto pelo fix do §45, que só tra |
-| 7489 | `ActivityDetailModal` | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários (com anexo de imagem/PDF e link por comentário, 2026-08), histórico, campo opcional `meetingTime` (2026-08, "Horário da reunião") e checkbox `clientDateConfirmed` (2026-08, "Data confirmada com o cliente?") |
-| 8020 | `PrintActivityTable` | Tabela de atividades do relatório em PDF (usada em "Em atraso" e "Próximas etapas") |
-| 8066 | `PrintReport` | Relatório em PDF dedicado (2026-08) — KPIs/progresso/próximas etapas, `display:none` na tela, só aparece em `@media print` — ver `PROJECT_CONTEXT.md` §13 |
-| 8198 | `resumoMonthLabel` | Rótulo de mês do resumo |
-| 8204 | `resumoCountdown` | Contagem regressiva do resumo |
-| 8217 | `resumoDateLabel` | Rótulo de data do resumo |
-| 8281 | `ResumoTable` | Tabela desktop da aba Resumo (2026-08) |
-| 8334 | `ResumoCard` | Card mobile da aba Resumo (2026-08) — mesmos dados de `ResumoTable`, layout empilhado |
-| 8371 | `ResumoView` | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
-| 8553 | `TableView` | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
-| 9120 | `PhasesView` | View "Fases" |
-| 9250 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
-| 9337 | `TimelineView` | View "Gantt" |
+| 52 | `BrandLogo` | Logo PRICETAX, troca PNG conforme tema |
+| 56 | `ThemeToggleBtn` | Botão sol/lua |
+| 139 | `cardStatusOf` | Status efetivo de um cartão do quadro pessoal (`status` ou derivado de `completed`) |
+| 158 | `initials` | Iniciais de um nome (avatar) |
+| 165 | `dueDateTone` | Tom (cor) do prazo de um cartão: atrasado/hoje/futuro |
+| 175 | `daysSinceCardMovement` | Dias de calendário desde a última movimentação do cartão (`calendarDaysSince`, §75) |
+| 179 | `staleTone` | Tom do selo "Nd sem movimentação" (≥3 aviso, ≥7 crítico) |
+| 184 | `fmtDateOnly` | Formata data AAAA-MM-DD sem fuso |
+| 191 | `uid` | Gera id curto com prefixo |
+| 192 | `genShareToken` | Gera token de link público |
+| 194 | `todayISOStr` | Hoje em AAAA-MM-DD (fuso local) |
+| 201 | `useMediaQuery` | Hook de media query |
+| 214 | `useIsMobile` | Hook: viewport < 768px |
+| 215 | `useIsCompact` | Hook: viewport < 1024px |
+| 222 | `useDirtyForm` | Guarda de "alterações não salvas" — padrão único reusado em todo modal de formulário-rascunho (useDirtyForm) e em todo modal autosave-por-campo (useAutosaveTimestamp), pra nunca fechar e perder informação em silêncio. currentValue |
+| 251 | `useDebouncedField` | Campo de texto com autosave DEBOUNCED, não por tecla (2026-09-17, bug real relatado pelo Rafael: "escrevo 3-4 letras e o texto é apagado por um fantasma"). Causa raiz: nos modais de autosave-por-campo, CADA tecla disparava a funçã |
+| 292 | `useAutosaveTimestamp` | record = a prop vinda do pai (activity/ticket/card) que já muda sozinha toda vez que um autosave de campo grava — não precisa instrumentar cada handler individual, só observa o resultado. |
+| 305 | `ConfirmDiscardModal` | Modal "Salvar e sair / Sair sem salvar / Continuar editando" (§16, guarda de alterações não salvas) |
+| 325 | `savedStatusLabel` | Texto "Alterações não salvas / Salvo automaticamente às HH:MM" |
+| 331 | `normalizeTeam` | Normaliza `project.team` (vínculo com usuários) |
+| 339 | `normalizeProject` | Preenche defaults de um projeto carregado |
+| 344 | `isExpiredNotYetFlagged` | Usuário com acesso expirado ainda não sinalizado |
+| 348 | `fmtDate` | Data em pt-BR |
+| 354 | `fmtTs` | Data e hora em pt-BR (exportado, usado pelos módulos) |
+| 359 | `projectProgress` | % de conclusão de um projeto |
+| 365 | `projectNextActivity` | Próxima atividade de um projeto |
+| 376 | `groupRootId` | Grupo Empresarial: o Master é sua própria raiz de grupo (isGroupMaster=true, sem precisar de groupId apontando pra si mesmo); filhas têm company.groupId = id do Master. |
+| 380 | `groupMembers` | Membros de um grupo empresarial (§12) |
+| 387 | `involvedCompaniesLabel` | Selo "Empresas envolvidas" (v2) — só pra atividades do Master com o campo novo definido (involvedCompanyIds !== undefined); distinto do selo legado "Grupo inteiro"/"Várias empresas" (groupActivityId, mecanismo de cópia v1). |
+| 395 | `parseDate` | AAAA-MM-DD → Date |
+| 396 | `toISODate` | Date → AAAA-MM-DD |
+| 397 | `startOfDay` | Início do dia |
+| 398 | `addDays` | Soma dias |
+| 399 | `addMonths` | Soma meses |
+| 400 | `calcDeadline` | Prazo a partir de início + duração |
+| 409 | `dayAfter` | Dia seguinte |
+| 416 | `dayBefore` | Dia anterior |
+| 423 | `startOfMonth` | Início do mês |
+| 424 | `endOfMonth` | Fim do mês |
+| 425 | `startOfWeek` | Início da semana |
+| 426 | `fmtDayLabel` | Rótulo de dia (Gantt/Tabela) |
+| 427 | `fmtDayFull` | Dia por extenso |
+| 428 | `fmtMonthYearLabel` | Mês/ano |
+| 429 | `fmtYearLabel` | Ano |
+| 430 | `fmtWeekLabel` | Semana |
+| 431 | `fmtMonthTitle` | Título de mês |
+| 433 | `buildTimelineColumns` | Colunas da linha do tempo (dia/semana/mês) do Gantt |
+| 473 | `colIndexFor` | Índice da coluna de uma data |
+| 484 | `fractionInColumn` | Fração de uma data dentro da coluna |
+| 492 | `sortActivities` | Ordena atividades (data/fase/prioridade) |
+| 501 | `buildOrderMap` | Mapa de ordem manual de atividades |
+| 512 | `AreaRow` | Extraído do .map() de "Áreas e responsáveis" (tela de configurações da empresa) pra poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo bug de digitação do PROJECT_CONTEXT.md §45/§46. onCommit recebe o valor r |
+| 537 | `PhaseRow` | Extraído do .map() de "Fases" (SidePanel de fases do projeto) pelo mesmo motivo do AreaRow acima. O log de "Fase renomeada"/"Descrição alterada" usa o draft local (nameField.draft) em vez de p.name/p.sub das props — essas só atual |
+| 3441 | `LoadingScreen` | Tela de carregamento inicial |
+| 3454 | `LoginGate` | Formulário de login + modo "Trocar senha" (2026-08, `POST /api/auth/change-password-login`) |
+| 3541 | `UserPasswordReset` | Modal de reset de senha de um usuário (master) |
+| 3557 | `SuperAdminScreen` | Tela "Organizações (Super Admin)": lista, cria e entra numa organização |
+| 3652 | `fmtAccessPlace` | Texto do local de um acesso (cidade/UF/país) — §67 |
+| 3662 | `UserAccessHistory` | Gaveta com o histórico de acessos de um usuário — §67 |
+| 3696 | `UsersManagementScreen` | Painel admin de usuários (master) |
+| 3971 | `NewUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| 4079 | `EditUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| 4222 | `MyProfileModal` | Avatar do usuário logado + seção "Trocar senha" (2026-08, `POST /api/auth/change-password`) |
+| 4394 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| 4730 | `UserAvatar` | Avatar (emoji) do usuário |
+| 4748 | `AvatarPicker` | Seletor de avatar (`AVATAR_EMOJIS`) |
+| 4766 | `CompanyBadge` | Selo de empresa |
+| 4775 | `TeamLinkBadge` | Selo "vinculado a usuário" da equipe |
+| 4783 | `CompanySectionHeader` | Cabeçalho de seção de empresa na visão multi-empresa |
+| 4798 | `EditCompanyModal` | Edição de empresa já criada |
+| 4968 | `GroupActivityCompaniesModal` | Escolha das empresas envolvidas numa atividade de grupo (§12) |
+| 5022 | `CompanySelectorScreen` | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, filtros por Tipo/Status/Regime (2026-08), atalho p/ Gestão de Atividades |
+| 5343 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades vs XFlow vs Agenda — é a própria "Home" |
+| 5452 | `sortCards` | Ordena cartões do quadro pessoal (5 modos + manual) |
+| 5468 | `cardMatchesFilters` | Filtros de busca/prioridade/prazo/tags/status do quadro pessoal |
+| 5491 | `useToasts` | Hook de avisos temporários (toasts) |
+| 5506 | `ToastStack` | Pilha de toasts |
+| 5521 | `FadingSavedBadge` | Selo "salvo" que some sozinho |
+| 5532 | `PersonalBoardSkeleton` | Esqueleto de carregamento do quadro pessoal |
+| 5553 | `ColorSwatchGrid` | Grade de cores de coluna |
+| 5564 | `PriorityPicker` | Seletor de prioridade do cartão |
+| 5581 | `StatusPicker` | Seletor de status do cartão |
+| 5597 | `TagEditor` | Editor de tags do cartão |
+| 5629 | `PersonalColumnMenu` | Menu da coluna do quadro pessoal |
+| 5667 | `PersonalCardMenu` | Menu do cartão (mover, concluir, excluir…) |
+| 5714 | `PersonalCard` | Cartão do quadro pessoal |
+| 5793 | `PersonalColumn` | Coluna do quadro pessoal (drag and drop) |
+| 5920 | `PersonalCardDetailModal` | Modal de detalhe do cartão (campos, checklist, comentários, "Mover para…", §61–§62) |
+| 6185 | `PersonalListView` | Visão em lista do quadro pessoal |
+| 6258 | `ReassignCardsModal` | Reatribui cartões ao excluir uma coluna |
+| 6287 | `PersonalTrashPanel` | Lixeira do quadro pessoal |
+| 6306 | `PersonalArchivePanel` | Painel de concluídas arquivadas |
+| 6324 | `BoardShareModal` | Modal de visibilidade da página (Privado/Público por link, copiar/gerar link) |
+| 6378 | `BoardActivityLogModal` | Painel de histórico do quadro — agrega `board.log` + `card.history` de todas as colunas |
+| 6401 | `PersonalBoardScreen` | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros, `publicMode`/`readOnly` props) |
+| 7464 | `PublicBoardScreen` | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
+| 7608 | `NoAccessScreen` | Tela para quem não tem acesso a nenhum módulo |
+| 7632 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
+| 7655 | `NotificationBell` | Central de Notificações (2026-08) — componente compartilhado, usado nas 3 telas (Empresas em App(), Gestão de Atividades em PersonalBoardScreen, XFlow em XflowScreen) via o mesmo estado/lista levantados em App(), pra contador e li |
+| 7700 | `StatusPill` | Selo de status de atividade |
+| 7712 | `renderCommentText` | Renderiza comentário com menções/links |
+| 7724 | `SubactivityRow` | Extraído do .map() de subatividades dentro de ActivityDetailModal pra poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo bug de digitação do PROJECT_CONTEXT.md §45/§46 (não coberto pelo fix do §45, que só tra |
+| 7752 | `ActivityDetailModal` | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários (com anexo de imagem/PDF e link por comentário, 2026-08), histórico, campo opcional `meetingTime` (2026-08, "Horário da reunião") e checkbox `clientDateConfirmed` (2026-08, "Data confirmada com o cliente?") |
+| 8281 | `PrintActivityTable` | Tabela de atividades do relatório em PDF (usada em "Em atraso" e "Próximas etapas") |
+| 8327 | `PrintReport` | Relatório em PDF dedicado (2026-08) — KPIs/progresso/próximas etapas, `display:none` na tela, só aparece em `@media print` — ver `PROJECT_CONTEXT.md` §13 |
+| 8459 | `resumoMonthLabel` | Rótulo de mês do resumo |
+| 8465 | `resumoCountdown` | Contagem regressiva do resumo |
+| 8478 | `resumoDateLabel` | Rótulo de data do resumo |
+| 8542 | `ResumoTable` | Tabela desktop da aba Resumo (2026-08) |
+| 8595 | `ResumoCard` | Card mobile da aba Resumo (2026-08) — mesmos dados de `ResumoTable`, layout empilhado |
+| 8632 | `ResumoView` | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
+| 8814 | `TableView` | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
+| 9381 | `PhasesView` | View "Fases" |
+| 9511 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
+| 9598 | `TimelineView` | View "Gantt" |
 
 Detalhes completos em **`docs/RESPONSIVE_ARCHITECTURE.md`** — não repita aqui.
 Resumo: dois hooks (`useIsMobile()` <768px, `useIsCompact()` <1024px) definidos

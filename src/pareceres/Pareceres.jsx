@@ -13,9 +13,67 @@
 // forte `company_project_id`, mas isso nunca é obrigatório (cliente pode ainda nem ser projeto aqui).
 import React, { useEffect, useRef, useState } from 'react';
 import { FileText, X, LogOut, Plus, Upload, Trash2, Pencil, ExternalLink, MessageSquare, Send, Search, ArrowLeft, Globe, Building2 } from 'lucide-react';
-import { ThemeToggleBtn, SidePanel, useDebouncedField, fmtTs } from '../App.jsx';
+import { ThemeToggleBtn, SidePanel, useDebouncedField, useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
+import { ConfirmDialog } from '../ui/index.jsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
-import { PARECERES_CSS, fmtFileSize, PARECERES_MAX_MB, splitParecerTitle, urlHost, initialsOf } from './pareceresMeta.js';
+import { PARECERES_CSS, fmtFileSize, PARECERES_MAX_MB, splitParecerTitle, urlHost, initialsOf, apiErrorText } from './pareceresMeta.js';
+
+export function InlineAlert({ message, onRetry, retryLabel = 'Tentar de novo' }) {
+  if (!message) return null;
+  return (
+    <div className="par-alert" role="alert">
+      <span>{message}</span>
+      {onRetry && <button type="button" onClick={onRetry}>{retryLabel}</button>}
+    </div>
+  );
+}
+
+export function SaveBadge({ state, onRetry }) {
+  if (state === 'error') return <button type="button" className="par-save err" onClick={onRetry}>Não salvou — tentar de novo</button>;
+  return <span className="par-save" role="status" aria-live="polite">{state === 'saving' ? 'Salvando…' : state === 'saved' ? 'Salvo' : ''}</span>;
+}
+
+// Autosave com estado visível: acumula os campos que ainda não foram gravados, reenvia no "tentar de novo" e
+// deixa o chamador esperar (settle) o que está em voo antes de fechar a gaveta.
+export function useFieldSaver(send) {
+  const [state, setState] = useState('idle');
+  const [error, setError] = useState('');
+  const pending = useRef({});
+  const active = useRef(0);
+  const inflight = useRef(new Set());
+  const sendRef = useRef(send);
+  sendRef.current = send;
+
+  function save(patch) {
+    pending.current = { ...pending.current, ...patch };
+    const body = { ...pending.current };
+    if (!Object.keys(body).length) return Promise.resolve();
+    active.current += 1;
+    setState('saving'); setError('');
+    const p = (async () => {
+      try {
+        await sendRef.current(body);
+        for (const k of Object.keys(body)) if (pending.current[k] === body[k]) delete pending.current[k];
+        active.current -= 1;
+        if (!Object.keys(pending.current).length) setState('saved');
+        else if (active.current === 0) { setState('error'); setError('Algumas alterações ainda não foram gravadas.'); }
+      } catch (e) {
+        active.current -= 1;
+        if (active.current === 0) { setState('error'); setError(apiErrorText(e, 'Não foi possível salvar.')); }
+      }
+    })();
+    inflight.current.add(p);
+    p.finally(() => inflight.current.delete(p));
+    return p;
+  }
+
+  return {
+    state, error, save,
+    retry: () => save({}),
+    hasPending: () => Object.keys(pending.current).length > 0,
+    settle: () => Promise.all([...inflight.current]),
+  };
+}
 
 function ScopeTag({ scope, companyName }) {
   return scope === 'cliente'
@@ -73,7 +131,14 @@ function UploadParecerModal({ onClose, onCreated, companies }) {
   const [file, setFile] = useState(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
   const fileRef = useRef(null);
+  const dirty = useDirtyForm({ title, description, scopeValue, file: file ? file.name : null });
+
+  function requestClose() {
+    if (saving) return;
+    if (dirty) setConfirmClose(true); else onClose();
+  }
 
   function pickFile(f) {
     setError('');
@@ -98,13 +163,14 @@ function UploadParecerModal({ onClose, onCreated, companies }) {
       });
       onCreated(created);
     } catch (e) {
-      setError(e.message || 'Não foi possível enviar o Parecer.');
+      setError(apiErrorText(e, 'Não foi possível enviar o Parecer.'));
       setSaving(false);
     }
   }
 
   return (
-    <SidePanel title="Novo Parecer" onClose={onClose}>
+    <>
+    <SidePanel title="Novo Parecer" onClose={requestClose}>
       <div className="par-form">
         <label>Identificação do arquivo *</label>
         <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder='Ex.: "Parecer — Reforma Tributária, créditos de IBS/CBS sobre RH"' autoFocus />
@@ -125,14 +191,16 @@ function UploadParecerModal({ onClose, onCreated, companies }) {
         </div>
         <input ref={fileRef} type="file" accept="application/pdf" style={{ display: 'none' }} onChange={(e) => pickFile(e.target.files && e.target.files[0])} />
 
-        {error && <div className="par-error">{error}</div>}
+        {error && <div className="par-error" role="alert">{error}</div>}
 
         <div className="par-btn-row">
-          <button className="par-btn par-btn-ghost" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button className="par-btn par-btn-ghost" onClick={requestClose} disabled={saving}>Cancelar</button>
           <button className="par-btn par-btn-primary" onClick={handleSubmit} disabled={saving}>{saving ? 'Enviando…' : 'Enviar Parecer'}</button>
         </div>
       </div>
     </SidePanel>
+    {confirmClose && <ConfirmDiscardModal onDiscard={onClose} onCancel={() => setConfirmClose(false)} />}
+    </>
   );
 }
 
@@ -143,74 +211,108 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
   const [sendingComment, setSendingComment] = useState(false);
   const [scopeDraft, setScopeDraft] = useState({ scope: parecer.scope || 'geral', companyName: parecer.company_name || '', companyProjectId: parecer.company_project_id || null });
   const [savingScope, setSavingScope] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [confirmClose, setConfirmClose] = useState(false);
+  const latest = useRef({});
 
-  const titleField = useDebouncedField(parecer.title, (v) => saveField({ title: v }));
-  const descField = useDebouncedField(parecer.description || '', (v) => saveField({ description: v }));
+  const saver = useFieldSaver(async (body) => { onChanged(await apiPatch(`/api/pareceres/${parecer.id}`, body)); });
+  const titleField = useDebouncedField(parecer.title, (v) => saver.save({ title: v }));
+  const descField = useDebouncedField(parecer.description || '', (v) => saver.save({ description: v }));
 
   useEffect(() => { setComments(parecer.comments || []); }, [parecer.id, parecer.comments]);
   useEffect(() => { setScopeDraft({ scope: parecer.scope || 'geral', companyName: parecer.company_name || '', companyProjectId: parecer.company_project_id || null }); }, [parecer.id, parecer.scope, parecer.company_name]);
 
-  async function saveField(patch) {
-    try {
-      const updated = await apiPatch(`/api/pareceres/${parecer.id}`, patch);
-      onChanged(updated);
-    } catch { /* useDebouncedField já mantém o rascunho local; falha de rede não perde o que foi digitado */ }
-  }
-
   // Escopo (Geral/Cliente) é um objeto composto — salva explícito (não em cada tecla, como
   // título/descrição) pra nunca mandar 'cliente' sem nome no meio da digitação.
   const scopeDirty = scopeDraft.scope !== (parecer.scope || 'geral') || scopeDraft.companyName !== (parecer.company_name || '');
+  const scopeMissingName = scopeDraft.scope === 'cliente' && !scopeDraft.companyName.trim();
   async function saveScope() {
-    if (scopeDraft.scope === 'cliente' && !scopeDraft.companyName.trim()) return;
-    setSavingScope(true);
+    if (scopeMissingName) { setNotice({ message: 'Informe o nome do cliente, ou marque como "Geral".' }); return; }
+    setSavingScope(true); setNotice(null);
     try {
       const updated = await apiPatch(`/api/pareceres/${parecer.id}`, { scope: scopeDraft.scope, companyName: scopeDraft.companyName.trim(), companyProjectId: scopeDraft.companyProjectId });
       onChanged(updated);
-    } catch { /* mantém o rascunho pro usuário tentar de novo */ }
+    } catch (e) {
+      setNotice({ message: `Não foi possível salvar o escopo: ${apiErrorText(e, 'erro inesperado.')} O que você escolheu continua aqui.`, retry: () => latest.current.saveScope() });
+    }
     setSavingScope(false);
   }
 
   async function submitComment() {
-    if (!commentDraft.trim()) return;
-    setSendingComment(true);
+    const text = commentDraft.trim();
+    if (!text) return;
+    setSendingComment(true); setNotice(null);
     try {
-      const { comment } = await apiPost(`/api/pareceres/${parecer.id}/comments`, { text: commentDraft.trim() });
+      const { comment } = await apiPost(`/api/pareceres/${parecer.id}/comments`, { text });
       setComments((prev) => [...prev, comment]);
       setCommentDraft('');
-    } catch { /* erro de rede — mantém o rascunho pro usuário tentar de novo */ }
+    } catch (e) {
+      setNotice({ message: `Não foi possível enviar o comentário: ${apiErrorText(e, 'erro inesperado.')} O texto continua na caixa.`, retry: () => latest.current.submitComment() });
+    }
     setSendingComment(false);
   }
 
   async function removeComment(id) {
+    const index = comments.findIndex((c) => c.id === id);
+    const removed = comments[index];
+    if (!removed) return;
+    setNotice(null);
     setComments((prev) => prev.filter((c) => c.id !== id));
-    try { await apiDelete(`/api/pareceres/${parecer.id}/comments/${id}`); } catch { setComments(parecer.comments || []); }
+    try { await apiDelete(`/api/pareceres/${parecer.id}/comments/${id}`); } catch (e) {
+      setComments((prev) => (prev.some((c) => c.id === id) ? prev : [...prev.slice(0, index), removed, ...prev.slice(index)]));
+      setNotice({ message: `Não foi possível excluir o comentário: ${apiErrorText(e, 'erro inesperado.')} Ele foi mantido.`, retry: () => removeComment(id) });
+    }
   }
 
   async function handleDelete() {
-    if (!window.confirm(`Excluir "${parecer.title}"? Essa ação não pode ser desfeita.`)) return;
-    await apiDelete(`/api/pareceres/${parecer.id}`);
-    onDeleted(parecer.id);
+    setDeleting(true); setDeleteError('');
+    try {
+      await apiDelete(`/api/pareceres/${parecer.id}`);
+      onDeleted(parecer.id);
+    } catch (e) {
+      setDeleteError(apiErrorText(e, 'Não foi possível excluir o parecer.'));
+      setDeleting(false);
+    }
+  }
+
+  latest.current = { saveScope, submitComment };
+  const hasDraft = saver.state === 'error' || saver.state === 'saving' || !!commentDraft.trim() || scopeDirty;
+  useDirtyForm(hasDraft);
+
+  async function requestClose() {
+    titleField.flush(); descField.flush();
+    await saver.settle();
+    if (saver.hasPending() || commentDraft.trim() || scopeDirty) setConfirmClose(true); else onClose();
   }
 
   const canDeleteComment = (c) => currentUser && (c.userId === currentUser.id || currentUser.role === 'master');
 
   return (
-    <SidePanel title="Parecer" onClose={() => { titleField.flush(); descField.flush(); onClose(); }}>
+    <>
+    <SidePanel title="Parecer" onClose={requestClose}>
       <div className="par-drawer-title-row">
         {editing ? (
           <input type="text" style={{ flex: 1, fontSize: 15, fontWeight: 800 }} value={titleField.draft} onChange={(e) => titleField.onChange(e.target.value)} onBlur={titleField.flush} autoFocus />
         ) : (
           <div className="par-drawer-title" style={{ flex: 1 }}>{titleField.draft}</div>
         )}
-        <button className="par-comment-del" title={editing ? 'Concluir edição' : 'Editar identificação'} onClick={() => setEditing((v) => !v)}><Pencil size={14} /></button>
+        <SaveBadge state={saver.state} onRetry={saver.retry} />
+        <button className="par-comment-del" title={editing ? 'Concluir edição' : 'Editar identificação'} aria-label={editing ? 'Concluir edição' : 'Editar identificação'} onClick={() => setEditing((v) => !v)}><Pencil size={14} /></button>
       </div>
       <div className="par-drawer-file">{parecer.file_name} · {fmtFileSize(parecer.file_size)} · enviado por {parecer.created_by_name || 'alguém'} em {fmtTs(parecer.created_at)}</div>
+
+      {saver.state === 'error' && <InlineAlert message={`Não foi possível salvar as alterações: ${saver.error} O texto digitado continua aqui.`} onRetry={saver.retry} />}
+      {notice && <InlineAlert message={notice.message} onRetry={notice.retry} />}
 
       <div className="par-drawer-scope">
         {editing ? (
           <>
             <ScopePicker value={scopeDraft} onChange={setScopeDraft} companies={companies} listId={`par-companies-${parecer.id}`} />
-            {scopeDirty && <button type="button" className="par-btn par-btn-primary" style={{ marginTop: 8 }} onClick={saveScope} disabled={savingScope}>{savingScope ? 'Salvando…' : 'Salvar'}</button>}
+            {scopeDirty && scopeMissingName && <div className="par-error" role="alert">Informe o nome do cliente, ou marque como "Geral".</div>}
+            {scopeDirty && <button type="button" className="par-btn par-btn-primary" style={{ marginTop: 8 }} onClick={saveScope} disabled={savingScope || scopeMissingName}>{savingScope ? 'Salvando…' : 'Salvar'}</button>}
           </>
         ) : (
           <ScopeTag scope={parecer.scope} companyName={parecer.company_name} />
@@ -221,7 +323,7 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
         <a className="par-btn par-btn-primary" href={`/api/pareceres/${parecer.id}/file`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
           <ExternalLink size={14} /> Abrir PDF
         </a>
-        <button className="par-btn par-btn-danger" onClick={handleDelete}><Trash2 size={14} /> Excluir</button>
+        <button className="par-btn par-btn-danger" onClick={() => { setDeleteError(''); setConfirmDelete(true); }}><Trash2 size={14} /> Excluir</button>
       </div>
 
       <div className="par-drawer-section">
@@ -239,17 +341,27 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
           <div key={c.id} className="par-comment">
             <div className="par-comment-head">
               <span><strong>{c.userName}</strong> · {fmtTs(c.ts)}</span>
-              {canDeleteComment(c) && <button className="par-comment-del" onClick={() => removeComment(c.id)}><X size={12} /></button>}
+              {canDeleteComment(c) && <button className="par-comment-del" aria-label="Excluir comentário" onClick={() => removeComment(c.id)}><X size={12} /></button>}
             </div>
             <div className="par-comment-text">{c.text}</div>
           </div>
         ))}
         <div className="par-comment-input-row">
           <textarea value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} placeholder="Escreva um comentário…" onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitComment(); }} />
-          <button className="par-btn par-btn-primary" onClick={submitComment} disabled={sendingComment || !commentDraft.trim()}><Send size={14} /></button>
+          <button className="par-btn par-btn-primary" aria-label="Enviar comentário" onClick={submitComment} disabled={sendingComment || !commentDraft.trim()}><Send size={14} /></button>
         </div>
       </div>
     </SidePanel>
+    {confirmDelete && (
+      <ConfirmDialog
+        title="Excluir parecer" danger confirmLabel="Excluir parecer"
+        message={`Excluir "${parecer.title}"? Essa ação não pode ser desfeita.`}
+        busy={deleting} error={deleteError}
+        onConfirm={handleDelete} onCancel={() => setConfirmDelete(false)}
+      />
+    )}
+    {confirmClose && <ConfirmDiscardModal onDiscard={onClose} onCancel={() => setConfirmClose(false)} />}
+    </>
   );
 }
 
@@ -257,13 +369,19 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
   const [pareceres, setPareceres] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
   const [filterScope, setFilterScope] = useState('all'); // 'all' | 'geral' | nome de um cliente
   const [showUpload, setShowUpload] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
 
+  function loadPareceres() {
+    setLoaded(false); setLoadError('');
+    apiGet('/api/pareceres').then((res) => { setPareceres(res.pareceres || []); setLoaded(true); }).catch((e) => { setLoadError(apiErrorText(e, 'Não foi possível carregar os pareceres.')); setLoaded(true); });
+  }
+
   useEffect(() => {
-    apiGet('/api/pareceres').then((res) => { setPareceres(res.pareceres || []); setLoaded(true); }).catch(() => setLoaded(true));
+    loadPareceres();
     apiGet('/api/projects/lite').then((res) => setCompanies(res.projects || [])).catch(() => {}); // só sugestão no autocomplete — falha não bloqueia a tela
   }, []);
 
@@ -335,7 +453,15 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
             </div>
 
             {!loaded && <div className="par-empty">Carregando…</div>}
-            {loaded && filtered.length === 0 && (
+            {loaded && loadError && (
+              <div className="par-empty">
+                <div className="par-alert" role="alert" style={{ justifyContent: 'center', textAlign: 'left', maxWidth: 520, margin: '0 auto' }}>
+                  <span>Não foi possível carregar os pareceres: {loadError}</span>
+                  <button type="button" onClick={loadPareceres}>Tentar de novo</button>
+                </div>
+              </div>
+            )}
+            {loaded && !loadError && filtered.length === 0 && (
               <div className="par-empty">
                 <div className="par-empty-icon"><FileText size={26} /></div>
                 <div>{pareceres.length === 0 ? 'Nenhum parecer enviado ainda.' : 'Nenhum parecer encontrado com esse filtro.'}</div>

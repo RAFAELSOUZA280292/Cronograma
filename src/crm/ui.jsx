@@ -1,7 +1,18 @@
 // Peças de UI compartilhadas do CRM.
-import React, { useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { ConfirmDialog } from '../ui/index.jsx';
 import { REL_META, completenessColor } from './crmMeta.js';
+
+// Camadas abertas (modais). O Esc do drawer ignora enquanto houver uma: o Esc fecha só a camada de cima.
+// O contador baixa num setTimeout para que o Esc que fechou o modal não "vaze" para o drawer no mesmo evento.
+let openLayers = 0;
+function useLayer() {
+  useEffect(() => {
+    openLayers += 1;
+    return () => { setTimeout(() => { openLayers -= 1; }, 0); };
+  }, []);
+}
 
 export function useEsc(onClose) {
   useEffect(() => {
@@ -11,16 +22,58 @@ export function useEsc(onClose) {
   }, [onClose]);
 }
 
-export function Modal({ title, onClose, children, width }) {
-  useEsc(onClose);
+export function useDrawerEsc(onClose) {
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape' && openLayers === 0 && !e.defaultPrevented) onClose(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+}
+
+// Compara o estado atual do formulário com o do primeiro render: só quem mexeu em algo está "sujo".
+export function useDirty(value) {
+  const base = useRef(null);
+  const json = JSON.stringify(value);
+  if (base.current === null) base.current = json;
+  return json !== base.current;
+}
+
+// `guard(fn)` devolve uma função que roda `fn` direto quando não há alterações e, havendo, pede confirmação antes.
+export function useDraftGuard(dirty, message) {
+  const [pending, setPending] = useState(null);
+  const guard = useCallback((fn) => () => { if (dirty) setPending({ fn }); else fn(); }, [dirty]);
+  const dialog = pending ? (
+    <ConfirmDialog title="Descartar alterações?" message={message || 'Você tem alterações que ainda não foram salvas. Se descartar, elas serão perdidas.'}
+      confirmLabel="Descartar" cancelLabel="Continuar editando" danger
+      onConfirm={() => { const { fn } = pending; setPending(null); fn(); }} onCancel={() => setPending(null)} />
+  ) : null;
+  return { guard, dialog };
+}
+
+const ModalCtx = createContext({ requestClose: () => {}, locked: false });
+
+// `dirty`: há alterações não salvas — Esc, X e Cancelar pedem confirmação. `locked`: operação em andamento — nada fecha.
+export function Modal({ title, onClose, children, width, dirty, locked }) {
+  const { guard, dialog } = useDraftGuard(dirty);
+  const requestClose = useCallback(() => { if (!locked) guard(onClose)(); }, [locked, guard, onClose]);
+  useLayer();
+  useEsc(requestClose);
   return (
-    <div className="crm-modal-overlay">
-      <div className="crm-modal" style={width ? { width } : undefined} role="dialog" aria-label={title}>
-        <h2 className="crm-modal-title"><span>{title}</span><button type="button" className="crm-icon-btn" onClick={onClose} title="Fechar"><X size={16} /></button></h2>
-        {children}
+    <ModalCtx.Provider value={{ requestClose, locked: !!locked }}>
+      <div className="crm-modal-overlay">
+        <div className="crm-modal" style={width ? { width } : undefined} role="dialog" aria-label={title}>
+          <h2 className="crm-modal-title"><span>{title}</span><button type="button" className="crm-icon-btn" onClick={requestClose} disabled={locked} title="Fechar"><X size={16} /></button></h2>
+          {children}
+        </div>
       </div>
-    </div>
+      {dialog}
+    </ModalCtx.Provider>
   );
+}
+
+export function CancelButton({ children = 'Cancelar' }) {
+  const { requestClose, locked } = useContext(ModalCtx);
+  return <button type="button" className="crm-btn" onClick={requestClose} disabled={locked}>{children}</button>;
 }
 
 export function Field({ label, children, full }) {

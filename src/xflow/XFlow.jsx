@@ -7,7 +7,7 @@ import {
   Undo2, Redo2, Heading2, Heading3, Indent as IndentIcon, Outdent, Code, Minus as MinusIcon, Link2, Smile, Download, Home,
 } from 'lucide-react';
 import {
-  DndContext, DragOverlay, PointerSensor, KeyboardSensor, useSensor, useSensors, closestCenter, useDroppable,
+  DndContext, DragOverlay, MouseSensor, TouchSensor, KeyboardSensor, useSensor, useSensors, closestCenter, useDroppable,
 } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
@@ -1238,6 +1238,12 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   const [showGuard, setShowGuard] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [previewEvidence, setPreviewEvidence] = useState(null);
+  const [commentError, setCommentError] = useState('');
+  const [sideError, setSideError] = useState('');
+  const [sendingComment, setSendingComment] = useState(false);
+  const [formBusy, setFormBusy] = useState(false);
+  const sendingCommentRef = useRef(false);
+  const formBusyRef = useRef(false);
 
   const lastSavedAt = useAutosaveTimestamp(ticket);
   const hasCommentDraft = !!commentDraft.trim() || pendingMentions.length > 0
@@ -1249,8 +1255,11 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   ].some((v) => v && v.trim());
   const hasDraft = hasCommentDraft || hasActionDraft;
   function requestClose() { if (hasDraft) setShowGuard(true); else onClose(); }
-  function saveDraftsAndClose() {
-    if (hasCommentDraft) submitComment();
+  async function saveDraftsAndClose() {
+    if (hasCommentDraft) {
+      const ok = await submitComment();
+      if (!ok) { setShowGuard(false); return; }
+    }
     onClose();
   }
 
@@ -1303,11 +1312,27 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
     if (t && onOpenTicket) onOpenTicket(t.id);
   }
 
-  async function runAction(action, payload) {
+  async function runAction(action, payload, scope) {
+    const setErr = scope === 'comment' ? setCommentError : setSideError;
+    setErr('');
     try {
       await onAction(ticket.id, action, payload || {});
+      return true;
     } catch (e) {
-      window.alert(e.message);
+      setErr((e && e.message) || 'Não foi possível concluir a ação. Tente de novo.');
+      return false;
+    }
+  }
+
+  async function runForm(action, payload) {
+    if (formBusyRef.current) return false;
+    formBusyRef.current = true;
+    setFormBusy(true);
+    try {
+      return await runAction(action, payload);
+    } finally {
+      formBusyRef.current = false;
+      setFormBusy(false);
     }
   }
 
@@ -1322,59 +1347,59 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
     else if (key === 'iniciar_dev_direto') runAction('iniciar_dev_direto');
   }
 
-  function confirmWait() {
-    runAction('pedir_infos', { waitingOnType: waitOnType, note: waitNote.trim() || undefined });
+  async function confirmWait() {
+    if (!(await runForm('pedir_infos', { waitingOnType: waitOnType, note: waitNote.trim() || undefined }))) return;
     setShowWaitForm(false);
     setWaitNote('');
   }
-  function confirmResolverGerencia() {
+  async function confirmResolverGerencia() {
     if (!gerenciaNote.trim()) return;
-    runAction('resolver_gerencia', { note: gerenciaNote.trim() });
+    if (!(await runForm('resolver_gerencia', { note: gerenciaNote.trim() }))) return;
     setShowGerenciaForm(false);
     setGerenciaNote('');
   }
-  function confirmHomologReject() {
+  async function confirmHomologReject() {
     if (!homologRejectNote.trim()) return;
-    runAction('homolog_reprovar', { note: homologRejectNote.trim() });
+    if (!(await runForm('homolog_reprovar', { note: homologRejectNote.trim() }))) return;
     setShowHomologRejectForm(false);
     setHomologRejectNote('');
   }
-  function confirmPublish() {
+  async function confirmPublish() {
     const payload = {};
     if (publishVersion.trim()) payload.version = publishVersion.trim();
     if (publishBuild.trim()) payload.build = publishBuild.trim();
     if (publishRelease.trim()) payload.release = publishRelease.trim();
-    runAction('publicar', payload);
+    if (!(await runForm('publicar', payload))) return;
     setShowPublishForm(false);
     setPublishVersion(''); setPublishBuild(''); setPublishRelease('');
   }
 
-  function confirmReproduce() {
+  async function confirmReproduce() {
     if (!reproduceNoteDraft.trim()) return;
-    runAction('nao_reproduziu', { closureJustification: reproduceNoteDraft.trim() });
+    if (!(await runForm('nao_reproduziu', { closureJustification: reproduceNoteDraft.trim() }))) return;
     setShowReproduceForm(false);
     setReproduceNoteDraft('');
   }
-  function confirmDuplicate() {
+  async function confirmDuplicate() {
     if (!dupIdDraft.trim()) return;
-    runAction('marcar_duplicado', { duplicateOfTicketId: dupIdDraft.trim() });
+    if (!(await runForm('marcar_duplicado', { duplicateOfTicketId: dupIdDraft.trim() }))) return;
     setShowDupForm(false);
     setDupIdDraft('');
   }
-  function confirmRedirect() {
+  async function confirmRedirect() {
     const payload = {};
     if (redirectProduct) payload.product = redirectProduct;
     if (redirectModule.trim()) payload.module = redirectModule.trim();
     if (redirectAssignee) payload.assigneeId = redirectAssignee;
     if (!payload.product && !payload.module && !payload.assigneeId) return;
-    runAction('redirecionar', payload);
+    if (!(await runForm('redirecionar', payload))) return;
     setShowRedirectForm(false);
     setRedirectProduct(''); setRedirectModule(''); setRedirectAssignee('');
   }
 
-  function confirmBlock() {
+  async function confirmBlock() {
     if (!blockReasonDraft) return;
-    runAction('bloquear', { blockedReason: blockReasonDraft });
+    if (!(await runForm('bloquear', { blockedReason: blockReasonDraft }))) return;
     setShowBlockForm(false);
     setBlockReasonDraft('');
   }
@@ -1382,21 +1407,36 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   async function confirmClose() {
     if (!closeReasonDraft || !closeJustDraft.trim()) return;
     if (closeReasonDraft === 'duplicado' && !closeDupIdDraft.trim()) return;
-    await runAction('fechar_sem_desenvolver', {
+    const ok = await runForm('fechar_sem_desenvolver', {
       closureReason: closeReasonDraft, closureJustification: closeJustDraft.trim(),
       duplicateOfTicketId: closeReasonDraft === 'duplicado' ? closeDupIdDraft.trim() : undefined,
     });
+    if (!ok) return;
     if (closeReasonDraft === 'melhoria' && onCreateSpinoff) {
-      await onCreateSpinoff(ticket);
+      try {
+        await onCreateSpinoff(ticket);
+      } catch (e) {
+        setSideError(`A TASK foi encerrada, mas não foi possível criar a melhoria vinculada: ${(e && e.message) || 'tente de novo.'}`);
+      }
     }
     setShowCloseForm(false);
     setCloseReasonDraft(''); setCloseJustDraft(''); setCloseDupIdDraft('');
   }
 
-  function submitComment() {
+  async function submitComment() {
     const text = commentDraft.trim();
-    if (!text && !commentAttachmentDrafts.length && !commentLinkDrafts.length) return;
-    runAction('comentar', { text, mentions: pendingMentions, attachments: commentAttachmentDrafts, links: commentLinkDrafts });
+    if (!text && !commentAttachmentDrafts.length && !commentLinkDrafts.length) return true;
+    if (sendingCommentRef.current) return false;
+    sendingCommentRef.current = true;
+    setSendingComment(true);
+    let ok;
+    try {
+      ok = await runAction('comentar', { text, mentions: pendingMentions, attachments: commentAttachmentDrafts, links: commentLinkDrafts }, 'comment');
+    } finally {
+      sendingCommentRef.current = false;
+      setSendingComment(false);
+    }
+    if (!ok) return false;
     setCommentDraft('');
     setPendingMentions([]);
     setCommentAttachmentDrafts([]);
@@ -1404,6 +1444,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
     setCommentLinkLabelDraft('');
     setCommentLinkUrlDraft('');
     setShowCommentLinkForm(false);
+    return true;
   }
   function insertMention(m) {
     setCommentDraft((d) => `${d}@${m.name} `);
@@ -1441,8 +1482,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
     for (const file of files) {
       const ev = await readEvidenceFile(file);
       if (!ev) continue;
-      await runAction('anexar', { evidence: ev });
-      n += 1;
+      if (await runAction('anexar', { evidence: ev })) n += 1;
     }
     if (n) flashAttachNote(n === 1 ? `Anexado em Evidências: ${files[0].name}` : `${n} arquivos anexados em Evidências.`);
   }
@@ -1533,6 +1573,13 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             {canDoClient('restaurar', currentUser, ticket) && (
               <button style={{ ...S.iconBtn, marginLeft: 10 }} onClick={() => runAction('restaurar')}>Restaurar</button>
             )}
+          </div>
+        )}
+
+        {sideError && (
+          <div role="alert" style={{ ...S.loginBlockedMsg, marginBottom: 14, position: 'sticky', top: 0, zIndex: 5, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <span style={{ flex: 1 }}>{sideError}</span>
+            <button style={S.iconBtnGhost} title="Dispensar aviso" onClick={() => setSideError('')}><X size={12} /></button>
           </div>
         )}
 
@@ -1682,8 +1729,13 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                 <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} onChange={(e) => { handleCommentFiles(e.target.files); e.target.value = ''; }} />
               </label>
               <button style={S.iconBtnGhost} title="Anexar link" onClick={() => setShowCommentLinkForm((v) => !v)}><Link2 size={14} /></button>
-              <button style={S.iconBtn} onClick={submitComment} disabled={!commentDraft.trim() && !commentAttachmentDrafts.length && !commentLinkDrafts.length}>Comentar</button>
+              <button style={S.iconBtn} onClick={submitComment} disabled={sendingComment || (!commentDraft.trim() && !commentAttachmentDrafts.length && !commentLinkDrafts.length)}>{sendingComment ? 'Enviando…' : 'Comentar'}</button>
             </div>
+            {commentError && (
+              <div role="alert" style={{ ...S.loginBlockedMsg, marginTop: 8, marginBottom: 0 }}>
+                Não foi possível enviar o comentário: {commentError} O texto, os anexos e os links foram mantidos — tente de novo.
+              </div>
+            )}
             {(ticket.comments || []).map((c) => (
               <div key={c.id} style={{ ...S.logRow, marginTop: 10 }}>
                 <div style={S.logTs}>{fmtTs(c.ts)} · {c.author}</div>
@@ -1743,14 +1795,14 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>O que você tentou pra reproduzir?</div>
                 <textarea rows={2} value={reproduceNoteDraft} onChange={(e) => setReproduceNoteDraft(e.target.value)} />
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmReproduce} disabled={!reproduceNoteDraft.trim()}>Confirmar</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmReproduce} disabled={!reproduceNoteDraft.trim() || formBusy}>Confirmar</button>
               </div>
             )}
             {showDupForm && (
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>ID/número do BUG original</div>
                 <input type="text" value={dupIdDraft} onChange={(e) => setDupIdDraft(e.target.value)} />
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmDuplicate} disabled={!dupIdDraft.trim()}>Vincular e marcar duplicado</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmDuplicate} disabled={!dupIdDraft.trim() || formBusy}>Vincular e marcar duplicado</button>
               </div>
             )}
             {showRedirectForm && (
@@ -1767,7 +1819,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                   <option value="">Manter</option>
                   {(team || []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmRedirect}>Confirmar redirecionamento</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmRedirect} disabled={formBusy}>Confirmar redirecionamento</button>
               </div>
             )}
             {showWaitForm && (
@@ -1780,7 +1832,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                 </select>
                 <div style={{ ...S.fieldHint, marginTop: 6 }}>O que está faltando (opcional)</div>
                 <textarea rows={2} value={waitNote} onChange={(e) => setWaitNote(e.target.value)} />
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmWait}>Confirmar</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmWait} disabled={formBusy}>Confirmar</button>
               </div>
             )}
 
@@ -1808,7 +1860,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>Motivo da reprovação (obrigatório)</div>
                 <textarea rows={2} value={homologRejectNote} onChange={(e) => setHomologRejectNote(e.target.value)} />
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmHomologReject} disabled={!homologRejectNote.trim()}>Confirmar reprovação</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmHomologReject} disabled={!homologRejectNote.trim() || formBusy}>Confirmar reprovação</button>
               </div>
             )}
             {ticket.status === 'pronta_para_publicacao' && canDoClient('publicar', currentUser, ticket) && (
@@ -1822,7 +1874,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                 <input type="text" value={publishBuild} onChange={(e) => setPublishBuild(e.target.value)} />
                 <div style={{ ...S.fieldHint, marginTop: 6 }}>Release (opcional)</div>
                 <input type="text" value={publishRelease} onChange={(e) => setPublishRelease(e.target.value)} />
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmPublish}>Confirmar publicação</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmPublish} disabled={formBusy}>Confirmar publicação</button>
               </div>
             )}
             {ticket.status === 'aguardando_gerencia' && (
@@ -1834,7 +1886,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>Decisão (obrigatória)</div>
                 <textarea rows={2} value={gerenciaNote} onChange={(e) => setGerenciaNote(e.target.value)} />
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmResolverGerencia} disabled={!gerenciaNote.trim()}>Confirmar decisão</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmResolverGerencia} disabled={!gerenciaNote.trim() || formBusy}>Confirmar decisão</button>
               </div>
             )}
             {ticket.status === 'publicada' && canDoClient('enviar_validacao', currentUser, ticket) && (
@@ -1862,7 +1914,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                   <option value="">Selecione</option>
                   {XFLOW_BLOCK_REASON_ORDER.map((k) => <option key={k} value={k}>{XFLOW_BLOCK_REASON_META[k]}</option>)}
                 </select>
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmBlock} disabled={!blockReasonDraft}>Confirmar bloqueio</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmBlock} disabled={!blockReasonDraft || formBusy}>Confirmar bloqueio</button>
               </div>
             )}
             {!terminal && ['pausada', 'aguardando_terceiro'].includes(ticket.status) && canDoClient('resume', currentUser, ticket) && (
@@ -1887,7 +1939,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                 <div style={{ ...S.fieldHint, marginTop: 6 }}>Justificativa (obrigatória)</div>
                 <textarea rows={2} value={closeJustDraft} onChange={(e) => setCloseJustDraft(e.target.value)} />
                 {closeReasonDraft === 'melhoria' && <div style={{ ...S.fieldHint, marginTop: 4 }}>Vai criar automaticamente uma nova TASK de melhoria vinculada a este BUG.</div>}
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmClose} disabled={!closeReasonDraft || !closeJustDraft.trim() || (closeReasonDraft === 'duplicado' && !closeDupIdDraft.trim())}>Confirmar encerramento</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmClose} disabled={!closeReasonDraft || !closeJustDraft.trim() || (closeReasonDraft === 'duplicado' && !closeDupIdDraft.trim()) || formBusy}>Confirmar encerramento</button>
               </div>
             )}
             {terminal && !ticket.archived && canDoClient('reabrir', currentUser, ticket) && (
@@ -2592,7 +2644,7 @@ function XflowBoardCard({ ticket, teamById, columnId, columnTerminal, showRealSt
     <div
       ref={setNodeRef}
       {...(columnTerminal ? {} : { ...attributes, ...listeners })}
-      style={{ ...S.personalCard, ...style, cursor: columnTerminal ? 'pointer' : 'grab', touchAction: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}
+      style={{ ...S.personalCard, ...style, cursor: columnTerminal ? 'pointer' : 'grab', display: 'flex', flexDirection: 'column', gap: 6 }}
       onClick={onOpen}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2668,7 +2720,8 @@ function XflowBoardColumn({ column, tickets, teamById, dimmed, onOpen }) {
 // simplesmente não move nada — sem necessidade de reverter estado.
 function XflowBoardView({ tickets, currentUser, teamById, filters, setFilters, onOpen, onAction, showToast }) {
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 6 } }),
     useSensor(KeyboardSensor)
   );
   const [activeTicket, setActiveTicket] = useState(null);
@@ -2816,6 +2869,8 @@ export default function XFlowScreen({
   const [tickets, setTickets] = useState([]);
   const [team, setTeam] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [trashError, setTrashError] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [openTicketId, setOpenTicketId] = useState(null);
   const [showArchived, setShowArchived] = useState(initXflowSub === 'archived');
@@ -2893,18 +2948,21 @@ export default function XFlowScreen({
 
   function showToast(msg) { setToastMsg(msg); setTimeout(() => setToastMsg(''), 4500); }
 
-  useEffect(() => {
+  function loadAll() {
+    setLoadError(false);
+    setLoaded(false);
     Promise.all([apiGet('/api/xflow/tickets'), apiGet('/api/xflow/team'), apiGet('/api/xflow/affected-companies')])
       .then(([t, tm, ac]) => { setTickets(t.tickets); setTeam(tm.team); setAffectedCompanies(ac.affectedCompanies); setLoaded(true); })
-      .catch(() => setLoaded(true));
-  }, []);
+      .catch(() => { setLoadError(true); setLoaded(true); });
+  }
+  useEffect(() => { loadAll(); }, []);
 
   // Link permanente por TASK (2026-08): "#30" na URL abre direto o BUG #30
   // assim que a lista carrega — só roda uma vez (hashOpenDone), senão fica
   // reabrindo o mesmo ticket toda vez que `tickets` muda depois.
   const hashOpenDone = useRef(false);
   useEffect(() => {
-    if (!loaded || hashOpenDone.current) return;
+    if (!loaded || loadError || hashOpenDone.current) return;
     hashOpenDone.current = true;
     const m = /^#(\d+)$/.exec(window.location.hash);
     if (!m) return;
@@ -2912,19 +2970,19 @@ export default function XFlowScreen({
     if (t) openTicketDetail(t.id);
     else showToast(`TASK #${m[1]} não encontrada.`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded]);
+  }, [loaded, loadError]);
 
   // Clique numa notificação (Central de Notificações, 2026-08) de fora do
   // XFlow: App.jsx seta `pendingOpenTicketId` e troca o workspace; aqui só
   // abre assim que os tickets estiverem carregados e limpa o pendente (senão
   // ficaria reabrindo sozinho depois que o usuário já fechou o modal).
   useEffect(() => {
-    if (!pendingOpenTicketId || !loaded) return;
+    if (!pendingOpenTicketId || !loaded || loadError) return;
     const t = tickets.find((tk) => tk.id === pendingOpenTicketId);
     if (t) openTicketDetail(t.id);
     if (onPendingOpenConsumed) onPendingOpenConsumed();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingOpenTicketId, loaded]);
+  }, [pendingOpenTicketId, loaded, loadError]);
 
   function registerAffectedCompany(name) {
     const trimmed = (name || '').trim();
@@ -2932,11 +2990,16 @@ export default function XFlowScreen({
     setAffectedCompanies((prev) => (prev.some((n) => n.toLowerCase() === trimmed.toLowerCase()) ? prev : [trimmed, ...prev]));
   }
 
-  useEffect(() => {
-    if (!showTrash) return;
+  function loadTrash() {
+    setTrashError(false);
+    setTrashLoaded(false);
     apiGet('/api/xflow/tickets?trash=1')
       .then((t) => { setTrashTickets(t.tickets); setTrashLoaded(true); })
-      .catch(() => setTrashLoaded(true));
+      .catch(() => { setTrashError(true); setTrashLoaded(true); });
+  }
+  useEffect(() => {
+    if (!showTrash) return;
+    loadTrash();
   }, [showTrash]);
 
   const teamById = useMemo(() => {
@@ -3100,7 +3163,7 @@ export default function XFlowScreen({
       </div>
 
       <div style={{ padding: '0 24px', paddingBottom: 40 }}>
-        {dependemDeVoceCount > 0 && !showArchived && !showTrash && (
+        {!loadError && dependemDeVoceCount > 0 && !showArchived && !showTrash && (
           <div style={{ ...S.loginBlockedMsg, marginTop: 16, background: 'rgba(255,159,64,.14)', color: '#ff9f40', borderColor: 'rgba(255,159,64,.5)' }}>
             ⚠ {dependemDeVoceCount} BUG{dependemDeVoceCount === 1 ? '' : 's'} dependendo de você
           </div>
@@ -3108,8 +3171,20 @@ export default function XFlowScreen({
 
         {!loaded && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Carregando...</div>}
 
-        {loaded && showTrash && (
-          !trashLoaded ? <div style={{ ...S.emptyMuted, marginTop: 20 }}>Carregando...</div> : (
+        {loaded && loadError && (
+          <div role="alert" style={{ ...S.loginBlockedMsg, marginTop: 20, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ flex: 1, minWidth: 200 }}>Não foi possível carregar os tickets. Verifique sua conexão e tente de novo.</span>
+            <button style={S.iconBtn} onClick={loadAll}>Tentar de novo</button>
+          </div>
+        )}
+
+        {loaded && !loadError && showTrash && (
+          !trashLoaded ? <div style={{ ...S.emptyMuted, marginTop: 20 }}>Carregando...</div> : trashError ? (
+            <div role="alert" style={{ ...S.loginBlockedMsg, marginTop: 20, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ flex: 1, minWidth: 200 }}>Não foi possível carregar a Lixeira. Verifique sua conexão e tente de novo.</span>
+              <button style={S.iconBtn} onClick={loadTrash}>Tentar de novo</button>
+            </div>
+          ) : (
             <LixeiraView
               tickets={trashTickets} teamById={teamById} filters={filters} setFilters={setFilters}
               onOpen={openTicketDetail} onRestore={(id) => performAction(id, 'restaurar', {})}
@@ -3118,7 +3193,7 @@ export default function XFlowScreen({
           )
         )}
 
-        {loaded && showArchived && !showTrash && (
+        {loaded && !loadError && showArchived && !showTrash && (
           <ArchivedView
             tickets={tickets} teamById={teamById} filters={filters} setFilters={setFilters}
             onOpen={openTicketDetail} onUnarchive={(id) => performAction(id, 'desarquivar', {})}
@@ -3126,19 +3201,19 @@ export default function XFlowScreen({
           />
         )}
 
-        {loaded && !showArchived && !showTrash && viewMode === 'quadro' && (
+        {loaded && !loadError && !showArchived && !showTrash && viewMode === 'quadro' && (
           <XflowBoardView
             tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters}
             onOpen={openTicketDetail} onAction={performAction} showToast={showToast}
           />
         )}
-        {loaded && !showArchived && !showTrash && viewMode === 'lista' && effRole === 'reporter' && (
+        {loaded && !loadError && !showArchived && !showTrash && viewMode === 'lista' && effRole === 'reporter' && (
           <ReporterHome tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={openTicketDetail} />
         )}
-        {loaded && !showArchived && !showTrash && viewMode === 'lista' && effRole === 'dev' && (
+        {loaded && !loadError && !showArchived && !showTrash && viewMode === 'lista' && effRole === 'dev' && (
           <DevHome tickets={tickets} currentUser={currentUser} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={openTicketDetail} />
         )}
-        {loaded && !showArchived && !showTrash && viewMode === 'lista' && (effRole === 'gestao' || effRole === 'admin') && (
+        {loaded && !loadError && !showArchived && !showTrash && viewMode === 'lista' && (effRole === 'gestao' || effRole === 'admin') && (
           <GestorHome tickets={tickets} team={team} teamById={teamById} filters={filters} setFilters={setFilters} onOpen={openTicketDetail} />
         )}
       </div>
