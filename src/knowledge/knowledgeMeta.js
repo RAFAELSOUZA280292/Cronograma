@@ -41,12 +41,9 @@ export function statusMeta(s) { return STATUS_META[s] || { label: s, color: 'var
 
 export const KNOWLEDGE_CSS = `
   .knw-root { font-family:'Inter', sans-serif; color:var(--text-1); -webkit-font-smoothing:antialiased; }
-  .knw-shell { display:flex; flex-direction:column; height:100%; min-height:100vh; background:var(--bg-page); }
+  .knw-shell { display:flex; flex-direction:column; height:100%; min-height:calc(100dvh - var(--shell-h, 48px)); background:var(--bg-page); }
   .knw-topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--border-1); flex-shrink:0; }
   .knw-brand { display:flex; align-items:center; gap:8px; font-weight:800; font-size:15px; color:var(--text-1); }
-  .knw-actions { display:flex; align-items:center; gap:4px; }
-  .knw-actions button { background:transparent; border:none; color:var(--text-5); cursor:pointer; display:flex; padding:7px; border-radius:7px; }
-  .knw-actions button:hover { background:var(--bg-3); color:var(--text-2); }
   .knw-body { flex:1; overflow-y:auto; padding:22px; }
   .knw-loading, .knw-empty { text-align:center; color:var(--text-6); font-size:13px; padding:48px 12px; }
 

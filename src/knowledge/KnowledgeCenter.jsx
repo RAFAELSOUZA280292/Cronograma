@@ -6,11 +6,11 @@
 // novo workspaceMode em src/App.jsx.
 import React, { useState } from 'react';
 import {
-  Sparkles, X, LogOut, LayoutDashboard, Search, AlertTriangle, Users, Building2, BarChart3, CheckCircle2, TrendingUp,
+  Sparkles, LayoutDashboard, Search, AlertTriangle, Users, Building2, BarChart3, CheckCircle2, TrendingUp,
 } from 'lucide-react';
 import { Tabs, Kpi, KpiGrid, Section, EmptyState, SkeletonKpis, SkeletonCards, activate } from '../ui/index.jsx';
-import { ThemeToggleBtn } from '../App.jsx';
 import { apiGet } from '../lib/api.js';
+import { useHistoryValue, readHistoryValue } from '../lib/nav.js';
 import { KNOWLEDGE_CSS, statusMeta, knowledgeTypeLabel } from './knowledgeMeta.js';
 import { MemoriesTab } from './MemoriesTab.jsx';
 import { ConflictsTab } from './ConflictsTab.jsx';
@@ -128,7 +128,8 @@ function OverviewTab({ onOpenFact, onGoTab, refreshKey }) {
 }
 
 export default function KnowledgeCenterScreen({ currentUser, onExit, onNavigateToMeeting, onLogout, theme, onToggleTheme }) {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => readHistoryValue('knowledgeTab', 'overview'));
+  useHistoryValue('knowledgeTab', activeTab, setActiveTab, 'overview');
   const [drawerFactId, setDrawerFactId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -143,9 +144,17 @@ export default function KnowledgeCenterScreen({ currentUser, onExit, onNavigateT
     setRefreshKey((k) => k + 1);
     if (newFactId) setDrawerFactId(newFactId);
   }
+  // Fechar a gaveta desempilha a entrada de histórico dela (assíncrono); a navegação seguinte só pode empilhar
+  // depois que esse "voltar" terminar, senão ele desfaz a própria navegação.
+  function afterDrawerClosed(fn) {
+    let done = false;
+    const run = () => { if (done) return; done = true; window.removeEventListener('popstate', run); fn(); };
+    window.addEventListener('popstate', run);
+    setTimeout(run, 250);
+  }
   function openEntityFromFact(entity) {
     closeFact();
-    setActiveTab(entity.type === 'PERSON' ? 'people' : 'companies');
+    afterDrawerClosed(() => setActiveTab(entity.type === 'PERSON' ? 'people' : 'companies'));
   }
 
   return (
@@ -154,11 +163,6 @@ export default function KnowledgeCenterScreen({ currentUser, onExit, onNavigateT
       <div className="knw-shell">
         <div className="knw-topbar">
           <div className="knw-brand"><Sparkles size={18} color="#F5C400" /> Conhecimento <span style={{ fontWeight: 500, color: 'var(--text-6)', fontSize: 12 }}>— a memória da RENATA</span></div>
-          <div className="knw-actions">
-            <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
-            {onExit && <button title="Sair da Central de Conhecimento" onClick={onExit}><X size={18} /></button>}
-            <button title="Sair" onClick={onLogout}><LogOut size={16} /></button>
-          </div>
         </div>
         <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} label="Seções da Central de Conhecimento" />
         <div className="knw-body">
@@ -174,7 +178,7 @@ export default function KnowledgeCenterScreen({ currentUser, onExit, onNavigateT
         <FactDrawer
           factId={drawerFactId}
           onClose={closeFact}
-          onNavigateToMeeting={(pid, meetingId) => { closeFact(); onNavigateToMeeting(pid, meetingId); }}
+          onNavigateToMeeting={(pid, meetingId) => { closeFact(); afterDrawerClosed(() => onNavigateToMeeting(pid, meetingId)); }}
           onOpenEntity={openEntityFromFact}
           onChanged={onFactChanged}
         />

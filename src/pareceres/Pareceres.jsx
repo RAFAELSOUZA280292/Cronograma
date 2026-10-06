@@ -3,8 +3,8 @@
 // Área PRICETAX-only (master/pricetax — decisão confirmada com o Rafael,
 // mesma regra da Central de Conhecimento em server/knowledge.js), montada
 // como um novo workspaceMode em src/App.jsx. Mesmo padrão de módulo
-// autocontido de src/knowledge/ — CSS próprio, SidePanel reaproveitado do
-// App.jsx pro drawer de detalhe.
+// autocontido de src/knowledge/ — CSS próprio, gaveta de detalhe em ModulePanel (acessível:
+// foco preso, Esc e Voltar do navegador fecham a gaveta antes de sair do módulo).
 //
 // Tag de escopo (2026-09-28, pedido do Rafael): todo Parecer é "Geral" (todos os clientes) ou de
 // um "Cliente específico" — nesse caso, o nome do cliente sempre fica salvo (denormalizado, sobrevive
@@ -12,9 +12,10 @@
 // (`/api/projects/lite`, payload leve — nunca o `/api/projects` inteiro), guarda também o vínculo
 // forte `company_project_id`, mas isso nunca é obrigatório (cliente pode ainda nem ser projeto aqui).
 import React, { useEffect, useRef, useState } from 'react';
-import { FileText, X, LogOut, Plus, Upload, Trash2, Pencil, ExternalLink, MessageSquare, Send, Search, ArrowLeft, Globe, Building2 } from 'lucide-react';
-import { ThemeToggleBtn, SidePanel, useDebouncedField, useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
+import { FileText, X, Plus, Upload, Trash2, Pencil, ExternalLink, MessageSquare, Send, Search, Globe, Building2 } from 'lucide-react';
+import { useDebouncedField, useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
 import { ConfirmDialog } from '../ui/index.jsx';
+import { ModulePanel } from './ModulePanel.jsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { PARECERES_CSS, fmtFileSize, PARECERES_MAX_MB, splitParecerTitle, urlHost, initialsOf, apiErrorText } from './pareceresMeta.js';
 
@@ -170,7 +171,7 @@ function UploadParecerModal({ onClose, onCreated, companies }) {
 
   return (
     <>
-    <SidePanel title="Novo Parecer" onClose={requestClose}>
+    <ModulePanel title="Novo Parecer" onClose={requestClose}>
       <div className="par-form">
         <label>Identificação do arquivo *</label>
         <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder='Ex.: "Parecer — Reforma Tributária, créditos de IBS/CBS sobre RH"' autoFocus />
@@ -198,7 +199,7 @@ function UploadParecerModal({ onClose, onCreated, companies }) {
           <button className="par-btn par-btn-primary" onClick={handleSubmit} disabled={saving}>{saving ? 'Enviando…' : 'Enviar Parecer'}</button>
         </div>
       </div>
-    </SidePanel>
+    </ModulePanel>
     {confirmClose && <ConfirmDiscardModal onDiscard={onClose} onCancel={() => setConfirmClose(false)} />}
     </>
   );
@@ -292,7 +293,7 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
 
   return (
     <>
-    <SidePanel title="Parecer" onClose={requestClose}>
+    <ModulePanel title="Parecer" onClose={requestClose}>
       <div className="par-drawer-title-row">
         {editing ? (
           <input type="text" style={{ flex: 1, fontSize: 15, fontWeight: 800 }} value={titleField.draft} onChange={(e) => titleField.onChange(e.target.value)} onBlur={titleField.flush} autoFocus />
@@ -351,7 +352,7 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
           <button className="par-btn par-btn-primary" aria-label="Enviar comentário" onClick={submitComment} disabled={sendingComment || !commentDraft.trim()}><Send size={14} /></button>
         </div>
       </div>
-    </SidePanel>
+    </ModulePanel>
     {confirmDelete && (
       <ConfirmDialog
         title="Excluir parecer" danger confirmLabel="Excluir parecer"
@@ -419,13 +420,6 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
     <div className="par-root">
       <style>{PARECERES_CSS}</style>
       <div className="par-shell">
-        <div className="par-topbar">
-          {onExit ? <button className="par-back" onClick={onExit}><ArrowLeft size={16} /> Voltar</button> : <span />}
-          <div className="par-actions">
-            <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
-            <button title="Sair" onClick={onLogout}><LogOut size={16} /></button>
-          </div>
-        </div>
         <div className="par-body">
           <div className="par-inner">
             <div className="par-hero">

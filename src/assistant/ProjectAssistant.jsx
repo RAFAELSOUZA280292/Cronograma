@@ -16,6 +16,7 @@ import {
 import { fmtDate, useIsMobile } from '../App.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 import ParecerStudyModal from './ParecerStudyModal.jsx';
+import { DialogOverlay } from '../ui/dialog.jsx';
 
 const ASSISTANT_CSS = `
   .asst-fab { position:fixed; bottom:22px; right:22px; z-index:90; display:flex; align-items:center; gap:8px; background:#F5C400; color:#111; border:none; border-radius:999px; padding:12px 18px; font-weight:800; font-size:13px; cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,.3); }
@@ -373,6 +374,10 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
 
   if (!projectId) return null;
 
+  // Navegar para fora do painel: fecha primeiro (desempilha a entrada de histórico do painel) e só então empilha o destino.
+  function goMeeting(id) { if (!onOpenMeeting) return; setOpen(false); setTimeout(() => onOpenMeeting(id), 150); }
+  function goAgenda() { setOpen(false); setTimeout(onOpenAgenda, 150); }
+
   return (
     <>
       <style>{ASSISTANT_CSS}</style>
@@ -382,7 +387,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
         </button>
       )}
       {open && (
-        <div className="asst-overlay" onClick={() => setOpen(false)}>
+        <DialogOverlay className="asst-overlay" onClose={() => setOpen(false)} label="RENATA, assistente do projeto">
           <div className={`asst-panel ${isMobile ? 'mobile' : ''}`} onClick={(e) => e.stopPropagation()}>
             <div className="asst-head">
               <div>
@@ -392,7 +397,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
               </div>
               <div className="asst-head-actions">
                 {onOpenAgenda && (
-                  <button type="button" title="Abrir a Agenda" onClick={onOpenAgenda}><CalendarDays size={16} /></button>
+                  <button type="button" title="Abrir a Agenda" onClick={goAgenda}><CalendarDays size={16} /></button>
                 )}
                 {canStudyPareceres && <button type="button" title="Estudar Pareceres da PRICETAX" onClick={() => setShowStudy(true)}><BookOpen size={16} /></button>}
                 <button type="button" disabled={reindexing} title="Atualizar contexto da RENATA" onClick={handleReindex}><RefreshCw size={16} className={reindexing ? 'asst-spin' : ''} /></button>
@@ -450,7 +455,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                       {(m.sources || []).length > 0 && (
                         <div className="asst-sources">
                           {m.sources.map((s, i) => (
-                            <button key={i} type="button" className="asst-source-chip" onClick={() => onOpenMeeting && onOpenMeeting(s.meetingId)}>
+                            <button key={i} type="button" className="asst-source-chip" onClick={() => goMeeting(s.meetingId)}>
                               <Mic size={10} /> {s.meetingTitle}{s.meetingDate ? ` · ${fmtDate(s.meetingDate)}` : ''}{s.timeRef ? ` · ${s.timeRef}` : ''}
                             </button>
                           ))}
@@ -529,7 +534,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
               <button type="button" className="asst-send-btn" disabled={!input.trim() || sending} onClick={() => send()}><Send size={16} /></button>
             </div>
           </div>
-        </div>
+        </DialogOverlay>
       )}
       {showStudy && <ParecerStudyModal projectId={projectId} onClose={() => setShowStudy(false)} />}
     </>

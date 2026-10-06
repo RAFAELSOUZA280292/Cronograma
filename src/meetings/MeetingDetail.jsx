@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { S, fmtDate, useIsMobile, useAutosaveTimestamp, useDirtyForm, ConfirmDiscardModal, savedStatusLabel } from '../App.jsx';
 import { apiGet } from '../lib/api.js';
+import { useDialog } from '../lib/nav.js';
+import { DialogOverlay } from '../ui/dialog.jsx';
 import { TODO_STATUS_META, todoStatusMeta } from './Meetings.jsx';
 import { ActivityRow, ACTIVITY_ROW_CSS } from './ActivityRow.jsx';
 import { TodoDrawer } from './TodoDrawer.jsx';
@@ -126,16 +128,18 @@ function MeetingShareModal({ meeting, onClose, onSetVisibility, onRegenerateLink
   const [copied, setCopied] = useState(false);
   const isPublic = meeting.shareVisibility === 'public';
   const publicUrl = isPublic && meeting.shareToken ? `${window.location.origin}/reuniao/${meeting.shareToken}` : '';
+  // O modal é filho da sobreposição da reunião: sem parar a propagação, clicar no fundo também fecharia a reunião.
+  function closeShare(e) { if (e && e.stopPropagation) e.stopPropagation(); onClose(); }
   function copyLink() {
     if (!publicUrl) return;
     navigator.clipboard.writeText(publicUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }).catch(() => {});
   }
   return (
-    <div style={S.detailOverlay} onClick={onClose}>
+    <DialogOverlay style={S.detailOverlay} onClose={closeShare} label="Compartilhar reunião">
       <div style={{ ...S.detailBox, width: 'min(480px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={S.subSectionLabel}>Compartilhar "{meeting.title}"</div>
-          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+          <button style={S.iconBtnGhost} onClick={onClose} aria-label="Fechar"><X size={18} /></button>
         </div>
         <label className="mtg2-share-visibility">
           <input type="radio" name="meeting-visibility" checked={!isPublic} onChange={() => onSetVisibility('private')} />
@@ -158,7 +162,7 @@ function MeetingShareModal({ meeting, onClose, onSetVisibility, onRegenerateLink
           </>
         )}
       </div>
-    </div>
+    </DialogOverlay>
   );
 }
 
@@ -218,6 +222,8 @@ export function MeetingDetailModal({
     setParticipantDraft(''); setParticipantEmailDraft('');
     onClose();
   }
+  // O histórico desta tela já é empilhado pelo App (openMeetingDetail/closeMeetingDetail): history:false evita empilhar de novo.
+  const dlg = useDialog(requestClose, { history: false });
   function submitParticipant() {
     if (!participantDraft.trim()) return;
     addParticipant(pid, m.id, participantDraft, participantEmailDraft);
@@ -250,14 +256,14 @@ export function MeetingDetailModal({
   }
 
   return (
-    <div className="no-print mtg-view mtg2-overlay" onClick={requestClose}>
+    <div className="no-print mtg-view mtg2-overlay" {...dlg} aria-label={m.title || 'Reunião'} onClick={requestClose}>
       <style>{MEETING_DETAIL_CSS}</style>
       <style>{ACTIVITY_ROW_CSS}</style>
       <div className="mtg2-page" onClick={(e) => e.stopPropagation()}>
         <div className="mtg2-header">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div className="mtg2-eyebrow"><Mic size={13} /> Reunião</div>
-            <button style={S.iconBtnGhost} onClick={requestClose}><X size={20} /></button>
+            <button style={S.iconBtnGhost} onClick={requestClose} aria-label="Fechar"><X size={20} /></button>
           </div>
           <div className="mtg2-title-row">
             <div style={{ flex: '1 1 400px', minWidth: 0 }}>

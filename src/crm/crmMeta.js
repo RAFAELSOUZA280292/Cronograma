@@ -192,6 +192,7 @@ export const CRM_CSS = `
   .crm-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:80; display:flex; justify-content:flex-end; }
   .crm-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:90; display:flex; align-items:center; justify-content:center; padding:16px; }
   .crm-drawer { width:min(900px, 100%); height:100%; background:var(--bg-1); border-left:1px solid var(--border-2); overflow-y:auto; }
+  .crm-drawer:focus, .crm-modal:focus { outline:none; }
   .crm-drawer-head { position:sticky; top:0; z-index:2; background:var(--bg-1); padding:16px 22px 0; border-bottom:1px solid var(--border-1); }
   .crm-drawer-body { padding:18px 22px 40px; }
   .crm-tabs { display:flex; gap:2px; margin-top:12px; overflow-x:auto; }

@@ -9,7 +9,8 @@ import DealForm from './DealForm.jsx';
 import CloseDealDialog from './CloseDealDialog.jsx';
 import ActivityForm from './ActivityForm.jsx';
 import ActivityList from './ActivityList.jsx';
-import { useDrawerEsc, useDraftGuard } from './ui.jsx';
+import { useDraftGuard } from './ui.jsx';
+import { useDialog } from '../lib/nav.js';
 import { fmtMoney, fmtDateBR, fmtDateTimeBR, DEAL_TYPE_META, DEAL_STATUS_META, TIMELINE_KIND, sourceLabel, stageAgeColor } from './crmMeta.js';
 
 // A auditoria guarda os valores crus (new/open/won…); na tela vão em português.
@@ -20,7 +21,7 @@ function KV({ k, v }) {
   return <div><div className="k">{k}</div><div className="v">{v || <span className="crm-muted">—</span>}</div></div>;
 }
 
-export default function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, onOpenCompany }) {
+export default function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, onOpenCompany, closeRef }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('summary');
@@ -32,7 +33,8 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
   const [busy, setBusy] = useState(false);
   const { guard, dialog: discardDialog } = useDraftGuard(!!noteText.trim(), 'Há uma nota digitada que ainda não foi registrada. Se fechar, o texto será perdido.');
   const close = guard(onClose);
-  useDrawerEsc(close);
+  if (closeRef) closeRef.current = close;
+  const dlg = useDialog(close, { history: false });
 
   const load = useCallback(async () => {
     try { setError(''); setData(await crm.deal(dealId)); } catch (e) { setError(e.message || 'Não foi possível abrir o negócio.'); }
@@ -74,7 +76,7 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
   return (
     <>
       <div className="crm-overlay" onClick={close}>
-        <div className="crm-drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ficha do negócio">
+        <div className="crm-drawer" onClick={(e) => e.stopPropagation()} {...dlg} aria-label="Ficha do negócio">
           <div className="crm-drawer-head">
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
               <div style={{ minWidth: 0 }}>

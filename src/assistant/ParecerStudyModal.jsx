@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BookOpen, X, Loader2, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Sparkles, Lock } from 'lucide-react';
 import { apiGet, apiPost } from '../lib/api.js';
+import { DialogOverlay } from '../ui/dialog.jsx';
 
 const CSS = `
   .pst-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:100; display:flex; align-items:center; justify-content:center; padding:20px; }
@@ -117,7 +118,7 @@ export default function ParecerStudyModal({ onClose, projectId }) {
   const failed = state ? state.items.filter((i) => i.state === 'failed') : [];
 
   return (
-    <div className="pst-overlay" onClick={onClose}>
+    <DialogOverlay className="pst-overlay" onClose={onClose} label="Estudar Pareceres">
       <style>{CSS}</style>
       <div className="pst-modal" onClick={(e) => e.stopPropagation()}>
         <div className="pst-head">
@@ -183,6 +184,6 @@ export default function ParecerStudyModal({ onClose, projectId }) {
           )}
         </div>
       </div>
-    </div>
+    </DialogOverlay>
   );
 }

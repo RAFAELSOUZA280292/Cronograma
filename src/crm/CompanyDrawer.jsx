@@ -10,7 +10,8 @@ import ContactForm from './ContactForm.jsx';
 import DealForm from './DealForm.jsx';
 import ActivityForm from './ActivityForm.jsx';
 import ActivityList from './ActivityList.jsx';
-import { RelPill, CompletenessBar, useDrawerEsc, useDraftGuard } from './ui.jsx';
+import { RelPill, CompletenessBar, useDraftGuard } from './ui.jsx';
+import { useDialog } from '../lib/nav.js';
 import {
   fmtCnpj, fmtCep, fmtMoney, fmtDateBR, fmtDateTimeBR, daysLabel, staleColor, DECISION_ROLES, roleLabel, STRENGTH_META, INFLUENCE_LABELS,
   sourceLabel, TIMELINE_KIND, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor,
@@ -33,7 +34,7 @@ function Person({ c, onOpen }) {
   );
 }
 
-export default function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, onClose, onChanged, onOpenCompany, onOpenDeal }) {
+export default function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, onClose, onChanged, onOpenCompany, onOpenDeal, closeRef }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState(initialTab || 'overview');
@@ -52,7 +53,8 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
   // Esc fecha só a camada de cima: com um modal aberto (formulário, diálogo), Esc fecha o modal e a ficha espera.
   const { guard, dialog: discardDialog } = useDraftGuard(!!noteText.trim(), 'Há uma nota digitada que ainda não foi registrada. Se fechar, o texto será perdido.');
   const close = guard(onClose);
-  useDrawerEsc(close);
+  if (closeRef) closeRef.current = close;
+  const dlg = useDialog(close, { history: false });
   const guarded = (fn) => guard(fn)();
   const openDeal = onOpenDeal && ((id) => guarded(() => onOpenDeal(id)));
   const openOtherCompany = onOpenCompany && ((id) => guarded(() => onOpenCompany(id)));
@@ -129,7 +131,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
   return (
     <>
     <div className="crm-overlay" onClick={close}>
-      <div className="crm-drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ficha da empresa">
+      <div className="crm-drawer" onClick={(e) => e.stopPropagation()} {...dlg} aria-label="Ficha da empresa">
         <div className="crm-drawer-head">
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
             <div style={{ minWidth: 0 }}>

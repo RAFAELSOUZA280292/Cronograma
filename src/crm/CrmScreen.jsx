@@ -2,9 +2,9 @@
 // Novo workspace "CRM" ao lado dos outros; carregado sob demanda (React.lazy em
 // App.jsx) pra não engordar o bundle de quem nunca abre o CRM. Só acrescenta:
 // nenhuma tela existente foi alterada.
-import React, { useCallback, useEffect, useState } from 'react';
-import { Briefcase, LayoutDashboard, Building2, Users, Plus, X, LogOut, Kanban, Package, CalendarCheck } from 'lucide-react';
-import { ThemeToggleBtn, NotificationBell } from '../App.jsx';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Briefcase, LayoutDashboard, Building2, Users, Plus, Kanban, Package, CalendarCheck } from 'lucide-react';
+import { readHistoryValue, useHistoryValue, useBackLayer } from '../lib/nav.js';
 import { crm } from './crmApi.js';
 import { CRM_CSS } from './crmMeta.js';
 import GlobalSearch from './GlobalSearch.jsx';
@@ -26,7 +26,8 @@ import BootstrapDialog from './BootstrapDialog.jsx';
 const NAV = [['overview', 'Visão geral', LayoutDashboard], ['agenda', 'Agenda', CalendarCheck], ['deals', 'Negócios', Kanban], ['companies', 'Empresas', Building2], ['contacts', 'Contatos', Users], ['products', 'Produtos', Package]];
 
 export default function CrmScreen({ currentUser, onExit, onLogout, theme, onToggleTheme, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead, pendingOpen, onPendingOpenConsumed }) {
-  const [page, setPage] = useState('overview');
+  const [page, setPage] = useState(() => readHistoryValue('crmPage', 'overview'));
+  useHistoryValue('crmPage', page, setPage, 'overview');
   const [caps, setCaps] = useState(null);
   const [options, setOptions] = useState(null);
   const [error, setError] = useState('');
@@ -54,6 +55,13 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
     if (onPendingOpenConsumed) onPendingOpenConsumed();
   }, [pendingOpen, caps]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Uma única camada de histórico para qualquer gaveta (empresa/negócio): trocar de uma para a outra não empilha nem desempilha.
+  // O Voltar chama o `close` da gaveta aberta (que respeita a guarda de nota não registrada); o Esc é da própria gaveta (useDialog).
+  const drawerCloseRef = useRef(null);
+  useBackLayer(!!(drawer || dealDrawer), () => { if (drawerCloseRef.current) drawerCloseRef.current(); else { setDrawer(null); setDealDrawer(null); } });
+  // Fechar um formulário e abrir a gaveta logo em seguida deixaria a entrada de histórico do formulário sob a da gaveta (Voltar "não faz nada" uma vez).
+  const openAfterModal = (fn) => { setTimeout(fn, 80); };
+
   function openCompany(id, tab) { setDealDrawer(null); setDrawer({ id, tab: tab || 'overview' }); }
   function openDeal(id) { setDrawer(null); setDealDrawer(id); }
 
@@ -72,10 +80,6 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
           {caps.write && <button type="button" className="crm-btn" onClick={() => setDealForm({})}><Plus size={14} /> Negócio</button>}
           {caps.write && <button type="button" className="crm-btn" onClick={() => setCompanyForm(true)}><Plus size={14} /> Empresa</button>}
           {caps.write && <button type="button" className="crm-btn" onClick={() => setContactForm({})}><Plus size={14} /> Contato</button>}
-          {notifications && <NotificationBell notifications={notifications} show={showNotifications} onToggle={onToggleNotifications} onOpenItem={onOpenNotification} onMarkRead={onMarkNotificationRead} onMarkAllRead={onMarkAllNotificationsRead} />}
-          <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
-          {onExit && <button type="button" className="crm-icon-btn" title="Sair do CRM" onClick={onExit}><X size={18} /></button>}
-          <button type="button" className="crm-icon-btn" title="Sair" onClick={onLogout}><LogOut size={16} /></button>
         </div>
         <div className="crm-layout">
           <nav className="crm-nav" aria-label="Menu do CRM">
@@ -92,12 +96,12 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
         </div>
       </div>
 
-      {drawer && <CompanyDrawer key={drawer.id} companyId={drawer.id} initialTab={drawer.tab} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDrawer(null)} onChanged={refresh} onOpenCompany={(id) => setDrawer({ id, tab: 'overview' })} onOpenDeal={openDeal} />}
-      {dealDrawer && <DealDrawer key={dealDrawer} dealId={dealDrawer} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDealDrawer(null)} onChanged={refresh} onOpenCompany={(id) => openCompany(id)} />}
+      {drawer && <CompanyDrawer key={drawer.id} closeRef={drawerCloseRef} companyId={drawer.id} initialTab={drawer.tab} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDrawer(null)} onChanged={refresh} onOpenCompany={(id) => setDrawer({ id, tab: 'overview' })} onOpenDeal={openDeal} />}
+      {dealDrawer && <DealDrawer key={dealDrawer} closeRef={drawerCloseRef} dealId={dealDrawer} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDealDrawer(null)} onChanged={refresh} onOpenCompany={(id) => openCompany(id)} />}
       {activityForm && <ActivityForm company={activityForm.company} options={options} currentUserId={currentUser && currentUser.id} onCancel={() => setActivityForm(null)} onSaved={() => { setActivityForm(null); refresh(); }} />}
-      {dealForm && <DealForm company={dealForm.company} defaultType={dealForm.type} defaultPipelineId={dealForm.pipelineId} options={options} currentUserId={currentUser && currentUser.id} onCancel={() => setDealForm(null)} onSaved={(d) => { setDealForm(null); refresh(); openDeal(d.id); }} />}
-      {companyForm && <CompanyForm options={options} prefillOwnerId={currentUser && currentUser.id} onCancel={() => setCompanyForm(false)} onOpenCompany={(id) => { setCompanyForm(false); openCompany(id); }}
-        onSaved={(c) => { setCompanyForm(false); refresh(); openCompany(c.id); }} />}
+      {dealForm && <DealForm company={dealForm.company} defaultType={dealForm.type} defaultPipelineId={dealForm.pipelineId} options={options} currentUserId={currentUser && currentUser.id} onCancel={() => setDealForm(null)} onSaved={(d) => { setDealForm(null); refresh(); openAfterModal(() => openDeal(d.id)); }} />}
+      {companyForm && <CompanyForm options={options} prefillOwnerId={currentUser && currentUser.id} onCancel={() => setCompanyForm(false)} onOpenCompany={(id) => { setCompanyForm(false); openAfterModal(() => openCompany(id)); }}
+        onSaved={(c) => { setCompanyForm(false); refresh(); openAfterModal(() => openCompany(c.id)); }} />}
       {contactForm && <ContactForm initial={contactForm.contact} onCancel={() => setContactForm(null)} onSaved={() => { setContactForm(null); refresh(); }} />}
       {showImport && <ImportWizard onClose={() => setShowImport(false)} onDone={refresh} />}
       {showBootstrap && <BootstrapDialog onClose={() => setShowBootstrap(false)} onDone={refresh} />}

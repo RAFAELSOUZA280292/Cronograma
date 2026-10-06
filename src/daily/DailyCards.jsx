@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BookOpen, Cross, Lightbulb, Star, Moon, Leaf, Settings2, X, ChevronRight, Share2, Check } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
+import { DialogOverlay } from '../ui/dialog.jsx';
 
 const CSS = `
   .dcs { width:min(760px, 100%); margin:0 0 20px; font-family:'Inter', sans-serif; text-align:left; box-sizing:border-box; --gold:#F5C400; --gold-text:var(--ui-accent-text); }
@@ -149,13 +150,6 @@ export default function DailyCards({ onConfigure, reloadKey }) {
     return () => { alive = false; };
   }, [reloadKey]);
 
-  useEffect(() => {
-    if (!reading) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') setReading(false); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [reading]);
-
   const activeKind = data && data.cards && data.cards.length ? ((data.cards.find((c) => c.kind === sel) || data.cards[0]).kind) : '';
   useEffect(() => {
     const box = chipsRef.current;
@@ -241,15 +235,15 @@ export default function DailyCards({ onConfigure, reloadKey }) {
       </div>
 
       {reading && (
-        <div className="dcs-overlay" onClick={() => setReading(false)}>
-          <div className="dcs-modal" role="dialog" aria-modal="true" aria-label={card.title} onClick={(e) => e.stopPropagation()}>
+        <DialogOverlay className="dcs-overlay" onClose={() => setReading(false)} label={card.title}>
+          <div className="dcs-modal" onClick={(e) => e.stopPropagation()}>
             <div className="dcs-mhead">
               <div className="dcs-kicker" style={{ display: 'flex', alignItems: 'center', gap: 7 }}><HeadIcon size={15} /> {card.title}</div>
               <button type="button" className="dcs-x" aria-label="Fechar" onClick={() => setReading(false)}><X size={18} /></button>
             </div>
             <div className="dcs-mbody"><Full card={card} onConfigure={onConfigure} /></div>
           </div>
-        </div>
+        </DialogOverlay>
       )}
     </section>
   );

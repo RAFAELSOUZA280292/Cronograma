@@ -156,7 +156,7 @@
 11. Quadro e CRM no celular: `TouchSensor` com delay (arrastar só ao segurar) e liberar o scroll. *[15]*
 **Pronto quando:** nenhuma ação destrutiva sem proteção, nenhum erro engolido, nenhum formulário perde dado ao fechar.
 
-### Onda 1 — "Uma casca só" (1 a 2 semanas) — resolve a seção 2
+### Onda 1 — "Uma casca só" (1 a 2 semanas) — resolve a seção 2 — **FEITA em 2026-10-06 (ver PROJECT_CONTEXT §81)**
 - **`ModuleShell`**: um cabeçalho único em todas as telas — `← Início` (texto), **seletor de módulos** (derivado de `availableModes`/`canOpenMode`, que já existem), **busca global Ctrl+K**, sino, Meu perfil, tema, Sair. Remove os botões duplicados.
 - Todo módulo ganha **Voltar do navegador** com sub-estados (abas, gavetas, páginas) via `pushLocation`.
 - Sino e Perfil em **todas** as telas, inclusive a inicial.

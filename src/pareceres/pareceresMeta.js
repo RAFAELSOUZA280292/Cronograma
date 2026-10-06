@@ -29,13 +29,7 @@ export function initialsOf(name) {
 
 export const PARECERES_CSS = `
   .par-root { font-family:'Inter', sans-serif; color:var(--text-1); -webkit-font-smoothing:antialiased; }
-  .par-shell { display:flex; flex-direction:column; min-height:100vh; background:var(--bg-page); }
-  .par-topbar { display:flex; align-items:center; justify-content:space-between; padding:10px 24px; background:var(--bg-1); border-bottom:1px solid var(--border-1); flex-shrink:0; position:sticky; top:0; z-index:5; }
-  .par-back { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; color:var(--text-4); background:transparent; border:none; cursor:pointer; font-family:inherit; padding:7px 12px 7px 8px; border-radius:8px; }
-  .par-back:hover { background:var(--bg-3); color:var(--text-1); }
-  .par-actions { display:flex; align-items:center; gap:4px; }
-  .par-actions button { background:transparent; border:none; color:var(--text-5); cursor:pointer; display:flex; padding:7px; border-radius:7px; }
-  .par-actions button:hover { background:var(--bg-3); color:var(--text-2); }
+  .par-shell { display:flex; flex-direction:column; min-height:calc(100dvh - var(--shell-h, 48px)); background:var(--bg-page); }
   .par-body { flex:1; padding:36px 32px 64px; }
   .par-inner { max-width:1240px; margin:0 auto; width:100%; }
 

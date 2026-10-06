@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { X, RefreshCw, Copy, Download, Printer, Loader2, AlertTriangle, Check, Sparkles, FileText } from 'lucide-react';
 import { useIsMobile } from '../App.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
+import { DialogOverlay } from '../ui/dialog.jsx';
 import { dossierToMarkdown, dossierToHtml, fmtBR, WORKSTREAM_STATUS, DECISION_STATE, TODO_STATUS } from './dossierExport.js';
 
 const DOSSIER_CSS = `
@@ -86,11 +87,6 @@ export default function DossierPanel({ pid, companyName, onClose, onOpenMeeting 
     const t = setInterval(load, 3000);
     return () => clearInterval(t);
   }, [generating, load]);
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   async function start() {
     setStarting(true); setActionError('');
@@ -104,7 +100,8 @@ export default function DossierPanel({ pid, companyName, onClose, onOpenMeeting 
   const staleTotal = stale ? stale.new + stale.changed + stale.removed : 0;
   const byId = {};
   ((content && content.meetings) || []).forEach((m) => { byId[m.id] = m; });
-  const openMeeting = (id) => { onClose(); onOpenMeeting(id); };
+  // Espera a entrada de histórico deste painel sair antes de empilhar a da reunião (senão o Voltar do desempilhar desfaz a reunião).
+  const openMeeting = (id) => { onClose(); setTimeout(() => onOpenMeeting(id), 150); };
   const fileBase = `dossie-${slug(companyName || (content && content.company))}-${new Date().toISOString().slice(0, 10)}`;
 
   async function copyMd() {
@@ -129,7 +126,7 @@ export default function DossierPanel({ pid, companyName, onClose, onOpenMeeting 
   const determinate = p.stage !== 'consolidate' && p.total > 0;
 
   return (
-    <div className="dos-overlay" onClick={onClose}>
+    <DialogOverlay className="dos-overlay" onClose={onClose} label="Dossiê do cliente">
       <style>{DOSSIER_CSS}</style>
       <div className="dos-box" onClick={(e) => e.stopPropagation()} style={isMobile ? { borderRadius: 10 } : undefined}>
         <div className="dos-head">
@@ -243,6 +240,6 @@ export default function DossierPanel({ pid, companyName, onClose, onOpenMeeting 
           </div>
         )}
       </div>
-    </div>
+    </DialogOverlay>
   );
 }

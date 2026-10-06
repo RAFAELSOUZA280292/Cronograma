@@ -2,33 +2,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { ConfirmDialog } from '../ui/index.jsx';
+import { useDialog } from '../lib/nav.js';
 import { REL_META, completenessColor } from './crmMeta.js';
-
-// Camadas abertas (modais). O Esc do drawer ignora enquanto houver uma: o Esc fecha só a camada de cima.
-// O contador baixa num setTimeout para que o Esc que fechou o modal não "vaze" para o drawer no mesmo evento.
-let openLayers = 0;
-function useLayer() {
-  useEffect(() => {
-    openLayers += 1;
-    return () => { setTimeout(() => { openLayers -= 1; }, 0); };
-  }, []);
-}
-
-export function useEsc(onClose) {
-  useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') onClose(); }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-}
-
-export function useDrawerEsc(onClose) {
-  useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape' && openLayers === 0 && !e.defaultPrevented) onClose(); }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-}
 
 // Compara o estado atual do formulário com o do primeiro render: só quem mexeu em algo está "sujo".
 export function useDirty(value) {
@@ -53,15 +28,22 @@ export function useDraftGuard(dirty, message) {
 const ModalCtx = createContext({ requestClose: () => {}, locked: false });
 
 // `dirty`: há alterações não salvas — Esc, X e Cancelar pedem confirmação. `locked`: operação em andamento — nada fecha.
+// Esc, Voltar do navegador e X passam todos por `requestClose` (respeita `dirty` e `locked`); useDialog cuida de foco preso e Esc em pilha.
 export function Modal({ title, onClose, children, width, dirty, locked }) {
   const { guard, dialog } = useDraftGuard(dirty);
   const requestClose = useCallback(() => { if (!locked) guard(onClose)(); }, [locked, guard, onClose]);
-  useLayer();
-  useEsc(requestClose);
+  const dlg = useDialog(requestClose);
+  useEffect(() => {
+    const el = dlg.ref.current;
+    const a = document.activeElement;
+    if (!el || (a && a !== el && !(a.matches && a.matches('button')))) return;
+    const f = el.querySelector('input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled])');
+    if (f) { try { f.focus({ preventScroll: true }); } catch (e) { /* ignora */ } }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <ModalCtx.Provider value={{ requestClose, locked: !!locked }}>
       <div className="crm-modal-overlay">
-        <div className="crm-modal" style={width ? { width } : undefined} role="dialog" aria-label={title}>
+        <div className="crm-modal" style={width ? { width } : undefined} {...dlg} aria-label={title}>
           <h2 className="crm-modal-title"><span>{title}</span><button type="button" className="crm-icon-btn" onClick={requestClose} disabled={locked} title="Fechar"><X size={16} /></button></h2>
           {children}
         </div>

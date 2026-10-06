@@ -12,6 +12,7 @@ import { S, fmtDate, fmtTs, useIsMobile, SidePanel, useDirtyForm } from '../App.
 import { apiGet, apiPost } from '../lib/api.js';
 import DossierPanel from './DossierPanel.jsx';
 import { activate, ConfirmDialog } from '../ui/index.jsx';
+import { DialogOverlay } from '../ui/dialog.jsx';
 
 export const MEETINGS_CSS = `
   .mtg-view input[type=text], .mtg-view input[type=date], .mtg-view input[type=time],
@@ -356,7 +357,7 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
   }
 
   return (
-    <div className="mtg-view" style={{ ...S.detailOverlay, zIndex: 120 }} onClick={requestClose}>
+    <DialogOverlay className="mtg-view" style={{ ...S.detailOverlay, zIndex: 120 }} onClose={requestClose} label="Enviar transcrição">
       <style>{MEETINGS_CSS}</style>
       {askDiscard && (
         <ConfirmDialog
@@ -414,6 +415,6 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
           </button>
         </div>
       </div>
-    </div>
+    </DialogOverlay>
   );
 }
