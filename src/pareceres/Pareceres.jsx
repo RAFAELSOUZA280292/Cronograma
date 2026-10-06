@@ -449,7 +449,7 @@ function StudyBanner({ refreshKey }) {
       <div className="par-study-t">
         {running ? <>A RENATA está estudando os pareceres… <b>{done} de {st.total}</b> prontos.</>
           : upToDate ? <>A memória da RENATA está em dia: ela já estudou <b>{st.total === 1 ? 'o único parecer' : `os ${st.total} pareceres`}</b>.</>
-            : <>A RENATA estudou <b>{done} de {st.total}</b> {st.total === 1 ? 'parecer' : 'pareceres'}. <b>{st.pending}</b> {st.pending === 1 ? 'aguarda' : 'aguardam'} estudo (novos, alterados ou que falharam) e ainda não entram nas respostas dela.</>}
+            : <>A RENATA estudou <b>{done} de {st.total}</b> {st.total === 1 ? 'parecer' : 'pareceres'}. <b>{st.pending}</b> {st.pending === 1 ? 'aguarda' : 'aguardam'} estudo e ainda não entram nas respostas dela. Os novos são estudados sozinhos ao enviar; ficam aqui os que falharam ou foram enviados antes disso.</>}
       </div>
       {!running && st.pending > 0 && <Button size="sm" variant="primary" onClick={start} loading={starting}>Estudar os pendentes</Button>}
     </div>
