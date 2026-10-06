@@ -226,9 +226,9 @@ export default function PersonalStatsPanel({ onClose }) {
               <div className="ps-title">Dia a dia</div>
               <div className="ps-sub">Navegue por um dia e veja o que foi aberto e encerrado. Média do período: {fmtNum(avgOpened)} abertas e {fmtNum(avgClosed)} encerradas por dia.</div>
               <div className="ps-nav">
-                <button className="ps-navbtn" title="Dia anterior" onClick={() => setDay(shiftDay(day, -1))}><ChevronLeft size={16} /></button>
+                <button className="ps-navbtn" title="Dia anterior" aria-label="Dia anterior" onClick={() => setDay(shiftDay(day, -1))}><ChevronLeft size={16} aria-hidden="true" /></button>
                 <input className="ps-date" type="date" value={day} max={stats.today} onChange={(e) => { if (e.target.value && e.target.value <= stats.today) setDay(e.target.value); }} />
-                <button className="ps-navbtn" title="Próximo dia" disabled={isToday} onClick={() => setDay(shiftDay(day, 1))}><ChevronRight size={16} /></button>
+                <button className="ps-navbtn" title={isToday ? 'Já está no dia de hoje' : 'Próximo dia'} aria-label="Próximo dia" disabled={isToday} onClick={() => setDay(shiftDay(day, 1))}><ChevronRight size={16} aria-hidden="true" /></button>
                 {!isToday && <button className="ps-chip" onClick={() => setDay(stats.today)}>Hoje</button>}
               </div>
               <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 10 }}>{dayLabel(day)}</div>
@@ -241,7 +241,7 @@ export default function PersonalStatsPanel({ onClose }) {
                   </div>
                   <div className="ps-strip">
                     {dayData.window.map((w) => (
-                      <button key={w.d} className={`ps-day${w.d === day ? ' sel' : ''}`} title={`${shortDay(w.d)}: ${w.opened} abertas, ${w.closed} encerradas`} onClick={() => setDay(w.d)}>
+                      <button key={w.d} className={`ps-day${w.d === day ? ' sel' : ''}`} title={`${shortDay(w.d)}: ${w.opened} abertas, ${w.closed} encerradas`} aria-label={`${shortDay(w.d)}: ${w.opened} abertas, ${w.closed} encerradas`} aria-pressed={w.d === day} onClick={() => setDay(w.d)}>
                         <i style={{ height: `${(w.opened / winMax) * 100}%`, background: OPENED }} />
                         <i style={{ height: `${(w.closed / winMax) * 100}%`, background: CLOSED }} />
                       </button>

@@ -166,8 +166,8 @@ export function TranscriptView({ meeting }) {
         {search && (
           <div className="mtg-transcript-search-nav">
             <span>{totalMatches} resultado{totalMatches === 1 ? '' : 's'}</span>
-            <button type="button" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-5)', display: 'flex' }} onClick={() => navigateMatch(-1)}><ChevronUp size={14} /></button>
-            <button type="button" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-5)', display: 'flex' }} onClick={() => navigateMatch(1)}><ChevronDown size={14} /></button>
+            <button type="button" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-5)', display: 'flex' }} aria-label="Resultado anterior" title="Resultado anterior" onClick={() => navigateMatch(-1)}><ChevronUp size={14} aria-hidden="true" /></button>
+            <button type="button" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-5)', display: 'flex' }} aria-label="Próximo resultado" title="Próximo resultado" onClick={() => navigateMatch(1)}><ChevronDown size={14} aria-hidden="true" /></button>
           </div>
         )}
       </div>

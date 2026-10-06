@@ -83,7 +83,7 @@ export function ActivityRow({
       <div className="todo-row-main">
         <button
           type="button" className={`todo-check ${isDone ? 'checked' : ''}`}
-          title={isDone ? 'Marcar como não concluída' : 'Marcar como concluída'}
+          title={isDone ? 'Marcar como não concluída' : 'Marcar como concluída'} aria-label={isDone ? 'Marcar como não concluída' : 'Marcar como concluída'} aria-pressed={!!isDone}
           onClick={(e) => { e.stopPropagation(); handleToggleComplete(); }}
         >
           {isDone && <Check size={13} strokeWidth={3} />}
@@ -95,9 +95,9 @@ export function ActivityRow({
         </div>
 
         <div className="todo-row-actions" onClick={(e) => e.stopPropagation()}>
-          <button type="button" style={S.iconBtnGhost} title="Comentar" onClick={() => onOpen(row, true)}><MessageSquare size={14} /></button>
-          <button type="button" style={S.iconBtnGhost} title="Duplicar" onClick={() => duplicateActionItem(pid, row.meetingId, row.id)}><Copy size={14} /></button>
-          <button type="button" style={S.iconBtnGhost} className="todo-del-btn" title="Excluir" onClick={() => deleteActionItem(pid, row.meetingId, row.id)}><X size={14} /></button>
+          <button type="button" style={S.iconBtnGhost} title="Comentar" aria-label="Comentar" onClick={() => onOpen(row, true)}><MessageSquare size={14} aria-hidden="true" /></button>
+          <button type="button" style={S.iconBtnGhost} title="Duplicar atividade" aria-label="Duplicar atividade" onClick={() => duplicateActionItem(pid, row.meetingId, row.id)}><Copy size={14} aria-hidden="true" /></button>
+          <button type="button" style={S.iconBtnGhost} className="todo-del-btn" title="Excluir" aria-label="Excluir atividade" onClick={() => deleteActionItem(pid, row.meetingId, row.id)}><X size={14} aria-hidden="true" /></button>
         </div>
       </div>
 
@@ -128,7 +128,7 @@ export function ActivityRow({
             style={{ width: 150 }}
           />
         ) : (
-          <button type="button" className="todo-avatar-chip" onClick={() => setEditingField('responsible')}>
+          <button type="button" className="todo-avatar-chip" aria-label={`Responsável: ${row.responsible || 'ninguém'}. Alterar`} title="Alterar responsável" onClick={() => setEditingField('responsible')}>
             <AvatarBadge name={row.responsible} />
           </button>
         )}

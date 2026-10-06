@@ -10,6 +10,7 @@ import { X, Mic, Plus, Trash2, Download, Paperclip, Copy, Check } from 'lucide-r
 import { S, fmtDate, fmtTs, useIsMobile, useAutosaveTimestamp, useDebouncedField, savedStatusLabel } from '../App.jsx';
 import { TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } from './Meetings.jsx';
 import { useDialog } from '../lib/nav.js';
+import { notify } from '../ui/dialogs.jsx';
 import { initials, avatarColor, daysOverdue, isItemOverdue } from './todoUtils.js';
 
 const MAX_TODO_ATTACHMENT_BYTES = 8 * 1024 * 1024;
@@ -113,7 +114,7 @@ export function TodoDrawer({
     const file = e.target.files && e.target.files[0];
     if (fileRef.current) fileRef.current.value = '';
     if (!file) return;
-    if (file.size > MAX_TODO_ATTACHMENT_BYTES) { window.alert('Arquivo maior que 8MB — não pode ser anexado.'); return; }
+    if (file.size > MAX_TODO_ATTACHMENT_BYTES) { notify('Arquivo maior que 8MB — não pode ser anexado.', { tone: 'error' }); return; }
     const reader = new FileReader();
     reader.onload = () => addAttachment(pid, meeting.id, item.id, { name: file.name, size: file.size, type: file.type, dataUrl: reader.result });
     reader.readAsDataURL(file);
@@ -134,8 +135,8 @@ export function TodoDrawer({
             {TODO_STATUS_ORDER.map((s) => <option key={s} value={s}>{TODO_STATUS_META[s].label}</option>)}
           </select>
           <span style={{ fontSize: 11, color: 'var(--text-6)', flex: 1 }}>{savedStatusLabel(false, lastSavedAt)}</span>
-          <button type="button" style={S.iconBtnGhost} title="Duplicar atividade" onClick={() => duplicateActionItem(pid, meeting.id, item.id)}><Copy size={16} /></button>
-          <button type="button" style={S.iconBtnGhost} title="Excluir atividade" onClick={() => { deleteActionItem(pid, meeting.id, item.id); requestClose(); }}><Trash2 size={16} /></button>
+          <button type="button" style={S.iconBtnGhost} title="Duplicar atividade" aria-label="Duplicar atividade" onClick={() => duplicateActionItem(pid, meeting.id, item.id)}><Copy size={16} aria-hidden="true" /></button>
+          <button type="button" style={S.iconBtnGhost} title="Excluir atividade" aria-label="Excluir atividade" onClick={() => { deleteActionItem(pid, meeting.id, item.id); requestClose(); }}><Trash2 size={16} aria-hidden="true" /></button>
           <button type="button" style={S.iconBtnGhost} onClick={requestClose} aria-label="Fechar"><X size={20} /></button>
         </div>
 
@@ -222,11 +223,11 @@ export function TodoDrawer({
             </div>
             {subtasks.map((s) => (
               <div key={s.id} className="todo-sub-row">
-                <button type="button" className={`todo-sub-check ${s.done ? 'checked' : ''}`} onClick={() => toggleSubtask(pid, meeting.id, item.id, s.id)}>
+                <button type="button" className={`todo-sub-check ${s.done ? 'checked' : ''}`} aria-label={s.done ? 'Desmarcar subtarefa' : 'Marcar subtarefa como feita'} title={s.done ? 'Desmarcar subtarefa' : 'Marcar como feita'} aria-pressed={!!s.done} onClick={() => toggleSubtask(pid, meeting.id, item.id, s.id)}>
                   {s.done && <Check size={11} strokeWidth={3} />}
                 </button>
                 <span className={`todo-sub-title ${s.done ? 'done' : ''}`}>{s.title}</span>
-                <button type="button" style={S.iconBtnGhost} onClick={() => deleteSubtask(pid, meeting.id, item.id, s.id)}><X size={13} /></button>
+                <button type="button" style={S.iconBtnGhost} aria-label="Remover subtarefa" title="Remover subtarefa" onClick={() => deleteSubtask(pid, meeting.id, item.id, s.id)}><X size={13} aria-hidden="true" /></button>
               </div>
             ))}
             <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
@@ -235,7 +236,7 @@ export function TodoDrawer({
                 onChange={(e) => setSubtaskDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { addSubtask(pid, meeting.id, item.id, subtaskDraft); setSubtaskDraft(''); } }}
               />
-              <button type="button" style={S.iconBtn} onClick={() => { addSubtask(pid, meeting.id, item.id, subtaskDraft); setSubtaskDraft(''); }}><Plus size={14} /></button>
+              <button type="button" style={S.iconBtn} aria-label="Adicionar subtarefa" title="Adicionar subtarefa" onClick={() => { addSubtask(pid, meeting.id, item.id, subtaskDraft); setSubtaskDraft(''); }}><Plus size={14} aria-hidden="true" /></button>
             </div>
           </div>
 
@@ -247,19 +248,19 @@ export function TodoDrawer({
                   <AvatarBadge name={c.user} size={18} />
                   <span style={{ fontWeight: 700 }}>{c.user}</span>
                   <span>· {c.ts ? fmtTs(c.ts) : ''}</span>
-                  {canDeleteComment(c) && <button type="button" style={{ ...S.iconBtnGhost, marginLeft: 'auto', padding: 2 }} onClick={() => deleteComment(pid, meeting.id, item.id, c.id)}><X size={12} /></button>}
+                  {canDeleteComment(c) && <button type="button" style={{ ...S.iconBtnGhost, marginLeft: 'auto', padding: 2 }} aria-label="Excluir comentário" title="Excluir comentário" onClick={() => deleteComment(pid, meeting.id, item.id, c.id)}><X size={12} aria-hidden="true" /></button>}
                 </div>
                 <div className="todo-comment-text">{c.text}</div>
               </div>
             ))}
             <textarea
               ref={commentRef} className="todo-drawer-notes" style={{ minHeight: 56 }} value={commentDraft}
-              placeholder="Adicione um comentário... (Cmd/Ctrl+Enter para enviar)"
+              placeholder="Adicione um comentário... (Cmd/Ctrl+Enter para comentar)"
               onChange={(e) => setCommentDraft(e.target.value)}
               onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitComment(); }}
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-              <button type="button" style={S.primaryBtn} onClick={submitComment}>Enviar</button>
+              <button type="button" style={S.primaryBtn} disabled={!commentDraft.trim()} title={!commentDraft.trim() ? 'Escreva um comentário' : undefined} onClick={submitComment}>Comentar</button>
             </div>
           </div>
 
@@ -270,8 +271,8 @@ export function TodoDrawer({
                 <Paperclip size={13} color="var(--text-6)" />
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
                 <span style={{ color: 'var(--text-6)', flexShrink: 0 }}>{(a.size / 1024).toFixed(0)}KB</span>
-                <a href={a.dataUrl} download={a.name} style={{ ...S.iconBtnGhost, textDecoration: 'none' }} title="Baixar"><Download size={14} /></a>
-                <button type="button" style={S.iconBtnGhost} onClick={() => deleteAttachment(pid, meeting.id, item.id, a.id)}><X size={13} /></button>
+                <a href={a.dataUrl} download={a.name} style={{ ...S.iconBtnGhost, textDecoration: 'none' }} title="Baixar anexo" aria-label="Baixar anexo"><Download size={14} aria-hidden="true" /></a>
+                <button type="button" style={S.iconBtnGhost} aria-label="Remover anexo" title="Remover anexo" onClick={() => deleteAttachment(pid, meeting.id, item.id, a.id)}><X size={13} aria-hidden="true" /></button>
               </div>
             ))}
             <input ref={fileRef} type="file" onChange={handleFilePicked} style={{ marginTop: 8, fontSize: 11.5 }} />

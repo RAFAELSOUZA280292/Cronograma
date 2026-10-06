@@ -29,7 +29,7 @@ export default function ContactsPage({ caps, refreshKey, onOpenCompany, onNewCon
     <div>
       <div className="crm-page-head">
         <div><h1 className="crm-h1">Contatos</h1><div className="crm-sub">Em venda B2B, quem decide importa mais que quem atende o telefone — o papel de cada pessoa fica visível aqui.</div></div>
-        {caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={onNewContact}><Plus size={14} /> Novo contato</button>}
+        {caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={onNewContact}><Plus size={14} /> Criar contato</button>}
       </div>
       <div className="crm-filters">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, e-mail, telefone ou empresa…" style={{ minWidth: 260 }} />
@@ -64,8 +64,8 @@ export default function ContactsPage({ caps, refreshKey, onOpenCompany, onNewCon
       <div className="crm-pager">
         <span>{data.total} {data.total === 1 ? 'contato' : 'contatos'}</span>
         <span style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className="crm-btn" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>Anterior</button>
-          <button type="button" className="crm-btn" disabled={offset + PAGE >= data.total} onClick={() => setOffset(offset + PAGE)}>Próxima</button>
+          <button type="button" className="crm-btn" disabled={offset === 0} title={offset === 0 ? 'Você já está na primeira página' : undefined} onClick={() => setOffset(Math.max(0, offset - PAGE))}>Anterior</button>
+          <button type="button" className="crm-btn" disabled={offset + PAGE >= data.total} title={offset + PAGE >= data.total ? 'Esta é a última página' : undefined} onClick={() => setOffset(offset + PAGE)}>Próxima</button>
         </span>
       </div>
     </div>

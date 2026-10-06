@@ -4,11 +4,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { FileText, FileSpreadsheet, Presentation, Image as ImageIcon, Link2, Code2, X, Plus, Upload, Trash2, Pencil, ExternalLink, Download, RefreshCw, MessageSquare, Send, Search } from 'lucide-react';
 import { useDebouncedField, useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
-import { ConfirmDialog } from '../ui/index.jsx';
+import { ConfirmDialog, Button, IconButton, ErrorState, SaveStatus } from '../ui/index.jsx';
 import { ModulePanel } from '../pareceres/ModulePanel.jsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { PARECERES_CSS, fmtFileSize, initialsOf, apiErrorText } from '../pareceres/pareceresMeta.js';
-import { InlineAlert, SaveBadge, useFieldSaver } from '../pareceres/Pareceres.jsx';
+import { InlineAlert, useFieldSaver } from '../pareceres/Pareceres.jsx';
 import { MODELOS_CSS, MAX_FILE_MB, MAX_ITEMS, ACCEPT, KIND_META, INLINE_KINDS, itemKind, kindsOf, itemName, hostOf, isAllowedFile, SUGGESTED_CATEGORIES } from './modelosMeta.js';
 
 const ICONS = { pdf: FileText, word: FileText, text: FileText, ppt: Presentation, excel: FileSpreadsheet, image: ImageIcon, link: Link2, html: Code2 };
@@ -97,7 +97,7 @@ function ItemPicker({ files, setFiles, links, setLinks, room, setError }) {
       <label htmlFor="mdl-link-draft">Links</label>
       <div className="mdl-add-row">
         <input id="mdl-link-draft" type="url" inputMode="url" value={linkDraft} onChange={(e) => setLinkDraft(e.target.value)} placeholder="https://..." onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLink(); } }} />
-        <button type="button" className="par-btn par-btn-ghost" onClick={addLink} disabled={!linkDraft.trim()}>Incluir</button>
+        <Button onClick={addLink} disabled={!linkDraft.trim()} disabledReason="Cole o endereço do link">Adicionar link</Button>
       </div>
       <div className="mdl-note">Para links a gente busca título, descrição e imagem da página. Páginas com login (Google Drive, SharePoint) mostram só o domínio.</div>
 
@@ -108,14 +108,14 @@ function ItemPicker({ files, setFiles, links, setLinks, room, setError }) {
             return (
               <div key={`f${i}`} className="mdl-pick" style={{ '--c': KIND_META[k].color }}>
                 <Icon size={15} /><span className="n">{f.name}</span><span className="s">{fmtFileSize(f.size)}</span>
-                <button type="button" aria-label={`Tirar ${f.name}`} onClick={() => setFiles(files.filter((_, j) => j !== i))}><X size={14} /></button>
+                <button type="button" aria-label={`Remover ${f.name}`} title="Remover" onClick={() => setFiles(files.filter((_, j) => j !== i))}><X size={14} /></button>
               </div>
             );
           })}
           {links.map((l, i) => (
             <div key={`l${i}`} className="mdl-pick" style={{ '--c': KIND_META.link.color }}>
               <Link2 size={15} /><span className="n">{l}</span>
-              <button type="button" aria-label={`Tirar ${l}`} onClick={() => setLinks(links.filter((_, j) => j !== i))}><X size={14} /></button>
+              <button type="button" aria-label={`Remover ${l}`} title="Remover" onClick={() => setLinks(links.filter((_, j) => j !== i))}><X size={14} /></button>
             </div>
           ))}
         </div>
@@ -192,8 +192,8 @@ function AddModal({ onClose, onCreated, categories }) {
 
         {error && <div className="par-error" role="alert">{error}</div>}
         <div className="par-btn-row">
-          <button className="par-btn par-btn-ghost" onClick={requestClose} disabled={saving}>Cancelar</button>
-          <button className="par-btn par-btn-primary" onClick={submit} disabled={saving}>{saving ? progress || 'Enviando…' : 'Adicionar'}</button>
+          <Button onClick={requestClose} disabled={saving} disabledReason="Aguarde terminar">Cancelar</Button>
+          <Button variant="primary" onClick={submit} disabled={saving} disabledReason="Aguarde terminar">{saving ? progress || 'Enviando…' : 'Criar modelo'}</Button>
         </div>
       </div>
     </ModulePanel>
@@ -341,8 +341,8 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
         {editing
           ? <input type="text" style={{ flex: 1, fontSize: 15, fontWeight: 800 }} value={titleField.draft} onChange={(e) => titleField.onChange(e.target.value)} onBlur={titleField.flush} autoFocus />
           : <div className="par-drawer-title" style={{ flex: 1 }}>{titleField.draft}</div>}
-        <SaveBadge state={saver.state} onRetry={saver.retry} />
-        <button className="par-comment-del" title={editing ? 'Concluir edição' : 'Editar'} aria-label={editing ? 'Concluir edição' : 'Editar'} onClick={() => setEditing((v) => !v)}><Pencil size={14} /></button>
+        <SaveStatus state={saver.state} onRetry={saver.retry} />
+        <IconButton size="sm" icon={Pencil} label={editing ? 'Fechar edição' : 'Editar modelo'} aria-pressed={editing} onClick={() => setEditing((v) => !v)} />
       </div>
       <div className="par-drawer-file">{items.length} {items.length === 1 ? 'anexo' : 'anexos'} · por {t.created_by_name || 'alguém'} em {fmtTs(t.created_at)}</div>
 
@@ -358,8 +358,8 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
         <div className="mdl-add-panel mdl-form">
           <ItemPicker files={newFiles} setFiles={setNewFiles} links={newLinks} setLinks={setNewLinks} room={MAX_ITEMS - items.length} setError={showError} />
           <div className="par-btn-row">
-            <button className="par-btn par-btn-ghost" onClick={() => { setAdding(false); setNewFiles([]); setNewLinks([]); }} disabled={busy}>Cancelar</button>
-            <button className="par-btn par-btn-primary" onClick={addItems} disabled={busy || (!newFiles.length && !newLinks.length)}>{busy ? 'Enviando…' : 'Enviar'}</button>
+            <Button onClick={() => { setAdding(false); setNewFiles([]); setNewLinks([]); }} disabled={busy} disabledReason="Aguarde terminar">Cancelar</Button>
+            <Button variant="primary" onClick={addItems} disabled={busy || (!newFiles.length && !newLinks.length)} disabledReason={busy ? 'Aguarde terminar' : 'Escolha um arquivo ou adicione um link'}>{busy ? 'Enviando…' : 'Anexar'}</Button>
           </div>
         </div>
       )}
@@ -370,22 +370,22 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
         <div className="par-drawer-actions">
           {kind === 'link' ? (
             <>
-              <a className="par-btn par-btn-primary" href={item.url} target="_blank" rel="noreferrer noopener" style={{ textDecoration: 'none' }}><ExternalLink size={14} /> Abrir link</a>
-              <button className="par-btn par-btn-ghost" onClick={refresh} disabled={busy}><RefreshCw size={14} /> Atualizar prévia</button>
+              <a className="ui-btn primary" href={item.url} target="_blank" rel="noreferrer noopener"><ExternalLink size={14} aria-hidden="true" /> Abrir link</a>
+              <Button icon={RefreshCw} onClick={refresh} disabled={busy} disabledReason="Aguarde terminar">Atualizar prévia</Button>
             </>
           ) : (
             <>
               {INLINE_KINDS.has(kind)
-                ? <a className="par-btn par-btn-primary" href={fileUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}><ExternalLink size={14} /> Abrir</a>
-                : <a className="par-btn par-btn-primary" href={`${fileUrl}?download=1`} style={{ textDecoration: 'none' }}><Download size={14} /> Baixar</a>}
-              {INLINE_KINDS.has(kind) && <a className="par-btn par-btn-ghost" href={`${fileUrl}?download=1`} style={{ textDecoration: 'none' }}><Download size={14} /> Baixar</a>}
+                ? <a className="ui-btn primary" href={fileUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" /> Abrir</a>
+                : <a className="ui-btn primary" href={`${fileUrl}?download=1`}><Download size={14} aria-hidden="true" /> Baixar</a>}
+              {INLINE_KINDS.has(kind) && <a className="ui-btn" href={`${fileUrl}?download=1`}><Download size={14} aria-hidden="true" /> Baixar</a>}
             </>
           )}
-          <button
-            className="par-btn par-btn-ghost" disabled={busy || items.length <= 1}
-            title={items.length <= 1 ? ONLY_ITEM_HINT : undefined} aria-describedby={items.length <= 1 ? 'mdl-only-item' : undefined}
+          <Button
+            icon={X} disabled={busy || items.length <= 1} disabledReason={items.length <= 1 ? ONLY_ITEM_HINT : 'Aguarde terminar'}
+            aria-describedby={items.length <= 1 ? 'mdl-only-item' : undefined}
             onClick={() => { setDlgError(''); setConfirmRemove(true); }}
-          ><X size={14} /> Remover este anexo</button>
+          >Remover este anexo</Button>
         </div>
       )}
       {item && <div className="par-drawer-file" style={{ marginTop: -8 }}>{kind === 'link' ? item.url : `${item.file_name} · ${fmtFileSize(item.file_size)}`}</div>}
@@ -395,6 +395,7 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
 
       {editing && (
         <div className="mdl-form" style={{ marginBottom: 14 }}>
+          <div className="par-hint">Título, categoria e descrição são gravados sozinhos.{item && kind === 'link' ? ' O endereço do link só vale depois de clicar em Salvar.' : ''}</div>
           <label htmlFor="mdl-edit-cat" style={{ marginTop: 0 }}>Categoria</label>
           <input id="mdl-edit-cat" type="text" list={`mdl-cats-${t.id}`} value={catField.draft} onChange={(e) => catField.onChange(e.target.value)} onBlur={catField.flush} maxLength={40} />
           <datalist id={`mdl-cats-${t.id}`}>{[...new Set([...categories, ...SUGGESTED_CATEGORIES])].map((c) => <option key={c} value={c} />)}</datalist>
@@ -403,7 +404,7 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
               <label htmlFor="mdl-edit-url">Endereço deste link</label>
               <div className="mdl-url-row">
                 <input id="mdl-edit-url" type="url" value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} />
-                <button className="par-btn par-btn-primary" onClick={saveUrl} disabled={busy || urlDraft === item.url}>Salvar</button>
+                <Button variant="primary" onClick={saveUrl} disabled={busy || urlDraft === item.url} disabledReason={busy ? 'Aguarde terminar' : 'Altere o endereço para salvar'}>Salvar</Button>
               </div>
             </>
           )}
@@ -424,19 +425,19 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
           <div key={c.id} className="par-comment">
             <div className="par-comment-head">
               <span><strong>{c.userName}</strong> · {fmtTs(c.ts)}</span>
-              {canDeleteComment(c) && <button className="par-comment-del" aria-label="Excluir comentário" onClick={() => removeComment(c.id)}><X size={12} /></button>}
+              {canDeleteComment(c) && <IconButton size="sm" variant="danger" icon={X} label="Excluir comentário" onClick={() => removeComment(c.id)} />}
             </div>
             <div className="par-comment-text">{c.text}</div>
           </div>
         ))}
         <div className="par-comment-input-row">
           <textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreva um comentário…" onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitComment(); }} />
-          <button className="par-btn par-btn-primary" aria-label="Enviar comentário" onClick={submitComment} disabled={sending || !draft.trim()}><Send size={14} /></button>
+          <Button variant="primary" icon={Send} onClick={submitComment} disabled={sending || !draft.trim()} disabledReason={sending ? 'Aguarde terminar' : 'Escreva um comentário'}>Comentar</Button>
         </div>
       </div>
 
       <div className="par-drawer-actions" style={{ marginTop: 18 }}>
-        <button className="par-btn par-btn-danger" onClick={() => { setDlgError(''); setConfirmDelete(true); }}><Trash2 size={14} /> Excluir modelo</button>
+        <Button variant="danger" icon={Trash2} onClick={() => { setDlgError(''); setConfirmDelete(true); }}>Excluir modelo</Button>
       </div>
     </ModulePanel>
     {confirmDelete && (
@@ -504,9 +505,9 @@ export default function ModelosScreen({ currentUser, onExit, onLogout, theme, on
                 <h1 className="par-title">Modelos de documentos</h1>
                 <p className="par-subtitle">Contratos, propostas, apresentações e planilhas prontos para a equipe reaproveitar. Cada modelo pode ter vários anexos: o mesmo documento em Word, Excel, PDF, HTML ou link.</p>
               </div>
-              <div className="mdl-hero-actions"><button className="par-btn par-btn-primary" onClick={() => setAdding(true)}><Plus size={16} /> Novo modelo</button></div>
+              <div className="mdl-hero-actions"><Button variant="primary" icon={Plus} onClick={() => setAdding(true)}>Novo modelo</Button></div>
             </div>
-            {notice && <div className="par-error" role="alert" style={{ marginTop: 0, marginBottom: 16 }}>{notice} <button type="button" className="par-comment-del" aria-label="Dispensar aviso" onClick={() => setNotice('')}><X size={12} /></button></div>}
+            {notice && <div className="par-error" role="alert" style={{ marginTop: 0, marginBottom: 16 }}>{notice} <IconButton size="sm" icon={X} label="Fechar aviso" onClick={() => setNotice('')} /></div>}
 
             <div className="par-toolbar">
               <div className="par-search">
@@ -539,7 +540,7 @@ export default function ModelosScreen({ currentUser, onExit, onLogout, theme, on
             </div>
 
             {!loaded && <div className="par-empty">Carregando…</div>}
-            {error && <InlineAlert message={`Não foi possível carregar os modelos: ${error}`} onRetry={load} />}
+            {error && <ErrorState title="Não foi possível carregar os modelos" message={error} onRetry={load} />}
             {loaded && !error && filtered.length === 0 && (
               <div className="par-empty">
                 <div className="par-empty-icon"><FileText size={26} /></div>

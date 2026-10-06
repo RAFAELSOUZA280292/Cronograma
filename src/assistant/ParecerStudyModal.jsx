@@ -126,7 +126,7 @@ export default function ParecerStudyModal({ onClose, projectId }) {
             <div className="pst-title"><BookOpen size={20} color="#F5C400" /> Estudar Pareceres</div>
             <div className="pst-sub">A RENATA lê cada parecer da PRICETAX uma única vez e guarda o que aprendeu: o que o parecer conclui, o que aconselhar ao cliente e onde usar. Depois disso ela sugere esses caminhos nas reuniões e nas respostas.</div>
           </div>
-          <button className="pst-x" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
+          <button className="pst-x" onClick={onClose} aria-label="Fechar" title="Fechar"><X size={18} aria-hidden="true" /></button>
         </div>
         <div className="pst-body">
           {!state && !error && <div className="pst-note">Carregando…</div>}
@@ -141,13 +141,13 @@ export default function ParecerStudyModal({ onClose, projectId }) {
                 {state.total === 0 ? (
                   <div className="pst-note">Nenhum parecer enviado ainda.</div>
                 ) : busy ? (
-                  <button className="pst-btn" disabled><Loader2 size={16} className="pst-spin" /> Estudando…</button>
+                  <button className="pst-btn" disabled title="Aguarde terminar o estudo"><Loader2 size={16} className="pst-spin" /> Estudando…</button>
                 ) : state.pending > 0 ? (
-                  <button className="pst-btn" onClick={start} disabled={starting}>
+                  <button className="pst-btn" onClick={start} disabled={starting} title={starting ? 'Aguarde terminar' : undefined}>
                     <Sparkles size={16} /> {starting ? 'Iniciando…' : `Estudar ${state.pending} parecer${state.pending === 1 ? '' : 'es'} ${failed.length === state.pending ? 'de novo' : 'novo' + (state.pending === 1 ? '' : 's')}`}
                   </button>
                 ) : (
-                  <button className="pst-btn" disabled><CheckCircle2 size={16} /> Tudo estudado</button>
+                  <button className="pst-btn" disabled title="Todos os pareceres já foram estudados"><CheckCircle2 size={16} /> Tudo estudado</button>
                 )}
               </div>
               {!busy && state.total > 0 && state.pending === 0 && (

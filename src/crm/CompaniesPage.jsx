@@ -38,7 +38,7 @@ export default function CompaniesPage({ caps, options, refreshKey, onOpenCompany
         <div><h1 className="crm-h1">Empresas</h1><div className="crm-sub">Toda empresa é uma conta: contatos, projetos e histórico ficam presos a ela.</div></div>
         <div className="crm-actions">
           {caps.import && <button type="button" className="crm-btn" onClick={onImport}><Upload size={14} /> Importar planilha</button>}
-          {caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={onNewCompany}><Plus size={14} /> Nova empresa</button>}
+          {caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={onNewCompany}><Plus size={14} /> Criar empresa</button>}
         </div>
       </div>
 
@@ -81,7 +81,7 @@ export default function CompaniesPage({ caps, options, refreshKey, onOpenCompany
           <div className="crm-empty">
             <Building2 size={26} style={{ opacity: .5 }} />
             <div style={{ marginTop: 8 }}>{hasFilter ? 'Nenhuma empresa com esses filtros.' : 'Nenhuma empresa cadastrada ainda.'}</div>
-            {!hasFilter && caps.write && <div style={{ marginTop: 10 }}><button type="button" className="crm-btn crm-btn-primary" onClick={onNewCompany}><Plus size={14} /> Cadastrar a primeira</button></div>}
+            {!hasFilter && caps.write && <div style={{ marginTop: 10 }}><button type="button" className="crm-btn crm-btn-primary" onClick={onNewCompany}><Plus size={14} /> Criar a primeira empresa</button></div>}
           </div>
         )}
         {loading && <div className="crm-empty">Carregando…</div>}
@@ -89,8 +89,8 @@ export default function CompaniesPage({ caps, options, refreshKey, onOpenCompany
       <div className="crm-pager">
         <span>{data.total} {data.total === 1 ? 'empresa' : 'empresas'}</span>
         <span style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className="crm-btn" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>Anterior</button>
-          <button type="button" className="crm-btn" disabled={offset + PAGE >= data.total} onClick={() => setOffset(offset + PAGE)}>Próxima</button>
+          <button type="button" className="crm-btn" disabled={offset === 0} title={offset === 0 ? 'Você já está na primeira página' : undefined} onClick={() => setOffset(Math.max(0, offset - PAGE))}>Anterior</button>
+          <button type="button" className="crm-btn" disabled={offset + PAGE >= data.total} title={offset + PAGE >= data.total ? 'Esta é a última página' : undefined} onClick={() => setOffset(offset + PAGE)}>Próxima</button>
         </span>
       </div>
     </div>

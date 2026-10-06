@@ -14,7 +14,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { FileText, X, Plus, Upload, Trash2, Pencil, ExternalLink, MessageSquare, Send, Search, Globe, Building2 } from 'lucide-react';
 import { useDebouncedField, useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
-import { ConfirmDialog } from '../ui/index.jsx';
+import { ConfirmDialog, Button, IconButton, ErrorState, SaveStatus } from '../ui/index.jsx';
 import { ModulePanel } from './ModulePanel.jsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { PARECERES_CSS, fmtFileSize, PARECERES_MAX_MB, splitParecerTitle, urlHost, initialsOf, apiErrorText } from './pareceresMeta.js';
@@ -27,11 +27,6 @@ export function InlineAlert({ message, onRetry, retryLabel = 'Tentar de novo' })
       {onRetry && <button type="button" onClick={onRetry}>{retryLabel}</button>}
     </div>
   );
-}
-
-export function SaveBadge({ state, onRetry }) {
-  if (state === 'error') return <button type="button" className="par-save err" onClick={onRetry}>Não salvou — tentar de novo</button>;
-  return <span className="par-save" role="status" aria-live="polite">{state === 'saving' ? 'Salvando…' : state === 'saved' ? 'Salvo' : ''}</span>;
 }
 
 // Autosave com estado visível: acumula os campos que ainda não foram gravados, reenvia no "tentar de novo" e
@@ -195,8 +190,8 @@ function UploadParecerModal({ onClose, onCreated, companies }) {
         {error && <div className="par-error" role="alert">{error}</div>}
 
         <div className="par-btn-row">
-          <button className="par-btn par-btn-ghost" onClick={requestClose} disabled={saving}>Cancelar</button>
-          <button className="par-btn par-btn-primary" onClick={handleSubmit} disabled={saving}>{saving ? 'Enviando…' : 'Enviar Parecer'}</button>
+          <Button onClick={requestClose} disabled={saving} disabledReason="Aguarde terminar">Cancelar</Button>
+          <Button variant="primary" onClick={handleSubmit} disabled={saving} disabledReason="Aguarde terminar">{saving ? 'Enviando…' : 'Criar parecer'}</Button>
         </div>
       </div>
     </ModulePanel>
@@ -212,6 +207,7 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
   const [sendingComment, setSendingComment] = useState(false);
   const [scopeDraft, setScopeDraft] = useState({ scope: parecer.scope || 'geral', companyName: parecer.company_name || '', companyProjectId: parecer.company_project_id || null });
   const [savingScope, setSavingScope] = useState(false);
+  const [scopeState, setScopeState] = useState('idle');
   const [notice, setNotice] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -232,11 +228,13 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
   const scopeMissingName = scopeDraft.scope === 'cliente' && !scopeDraft.companyName.trim();
   async function saveScope() {
     if (scopeMissingName) { setNotice({ message: 'Informe o nome do cliente, ou marque como "Geral".' }); return; }
-    setSavingScope(true); setNotice(null);
+    setSavingScope(true); setNotice(null); setScopeState('saving');
     try {
       const updated = await apiPatch(`/api/pareceres/${parecer.id}`, { scope: scopeDraft.scope, companyName: scopeDraft.companyName.trim(), companyProjectId: scopeDraft.companyProjectId });
       onChanged(updated);
+      setScopeState('saved');
     } catch (e) {
+      setScopeState('error');
       setNotice({ message: `Não foi possível salvar o escopo: ${apiErrorText(e, 'erro inesperado.')} O que você escolheu continua aqui.`, retry: () => latest.current.saveScope() });
     }
     setSavingScope(false);
@@ -300,8 +298,8 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
         ) : (
           <div className="par-drawer-title" style={{ flex: 1 }}>{titleField.draft}</div>
         )}
-        <SaveBadge state={saver.state} onRetry={saver.retry} />
-        <button className="par-comment-del" title={editing ? 'Concluir edição' : 'Editar identificação'} aria-label={editing ? 'Concluir edição' : 'Editar identificação'} onClick={() => setEditing((v) => !v)}><Pencil size={14} /></button>
+        <SaveStatus state={saver.state} onRetry={saver.retry} />
+        <IconButton size="sm" icon={Pencil} label={editing ? 'Fechar edição' : 'Editar identificação'} aria-pressed={editing} onClick={() => setEditing((v) => !v)} />
       </div>
       <div className="par-drawer-file">{parecer.file_name} · {fmtFileSize(parecer.file_size)} · enviado por {parecer.created_by_name || 'alguém'} em {fmtTs(parecer.created_at)}</div>
 
@@ -311,9 +309,13 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
       <div className="par-drawer-scope">
         {editing ? (
           <>
+            <div className="par-hint">Título e comentário são gravados sozinhos. O escopo só vale depois de clicar em Salvar.</div>
             <ScopePicker value={scopeDraft} onChange={setScopeDraft} companies={companies} listId={`par-companies-${parecer.id}`} />
             {scopeDirty && scopeMissingName && <div className="par-error" role="alert">Informe o nome do cliente, ou marque como "Geral".</div>}
-            {scopeDirty && <button type="button" className="par-btn par-btn-primary" style={{ marginTop: 8 }} onClick={saveScope} disabled={savingScope || scopeMissingName}>{savingScope ? 'Salvando…' : 'Salvar'}</button>}
+            <div className="par-scope-save">
+              {scopeDirty && <Button variant="primary" onClick={saveScope} disabled={savingScope || scopeMissingName} disabledReason={savingScope ? 'Aguarde terminar' : 'Informe o nome do cliente'}>Salvar</Button>}
+              <SaveStatus state={scopeDirty ? (scopeState === 'error' ? 'error' : 'idle') : scopeState} onRetry={saveScope} />
+            </div>
           </>
         ) : (
           <ScopeTag scope={parecer.scope} companyName={parecer.company_name} />
@@ -321,10 +323,10 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
       </div>
 
       <div className="par-drawer-actions">
-        <a className="par-btn par-btn-primary" href={`/api/pareceres/${parecer.id}/file`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
-          <ExternalLink size={14} /> Abrir PDF
+        <a className="ui-btn primary" href={`/api/pareceres/${parecer.id}/file`} target="_blank" rel="noreferrer">
+          <ExternalLink size={14} aria-hidden="true" /> Abrir PDF
         </a>
-        <button className="par-btn par-btn-danger" onClick={() => { setDeleteError(''); setConfirmDelete(true); }}><Trash2 size={14} /> Excluir</button>
+        <Button variant="danger" icon={Trash2} onClick={() => { setDeleteError(''); setConfirmDelete(true); }}>Excluir</Button>
       </div>
 
       <div className="par-drawer-section">
@@ -342,14 +344,14 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
           <div key={c.id} className="par-comment">
             <div className="par-comment-head">
               <span><strong>{c.userName}</strong> · {fmtTs(c.ts)}</span>
-              {canDeleteComment(c) && <button className="par-comment-del" aria-label="Excluir comentário" onClick={() => removeComment(c.id)}><X size={12} /></button>}
+              {canDeleteComment(c) && <IconButton size="sm" variant="danger" icon={X} label="Excluir comentário" onClick={() => removeComment(c.id)} />}
             </div>
             <div className="par-comment-text">{c.text}</div>
           </div>
         ))}
         <div className="par-comment-input-row">
           <textarea value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} placeholder="Escreva um comentário…" onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitComment(); }} />
-          <button className="par-btn par-btn-primary" aria-label="Enviar comentário" onClick={submitComment} disabled={sendingComment || !commentDraft.trim()}><Send size={14} /></button>
+          <Button variant="primary" icon={Send} onClick={submitComment} disabled={sendingComment || !commentDraft.trim()} disabledReason={sendingComment ? 'Aguarde terminar' : 'Escreva um comentário'}>Comentar</Button>
         </div>
       </div>
     </ModulePanel>
@@ -427,7 +429,7 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
                 <h1 className="par-title">Pareceres</h1>
                 <p className="par-subtitle">Documentos técnicos da PRICETAX para compartilhar com sócios e colaboradores.</p>
               </div>
-              <button className="par-btn par-btn-primary" onClick={() => setShowUpload(true)}><Plus size={16} /> Novo Parecer</button>
+              <Button variant="primary" icon={Plus} onClick={() => setShowUpload(true)}>Novo Parecer</Button>
             </div>
 
             <div className="par-toolbar">
@@ -449,9 +451,8 @@ export default function PareceresScreen({ currentUser, onExit, onLogout, theme, 
             {!loaded && <div className="par-empty">Carregando…</div>}
             {loaded && loadError && (
               <div className="par-empty">
-                <div className="par-alert" role="alert" style={{ justifyContent: 'center', textAlign: 'left', maxWidth: 520, margin: '0 auto' }}>
-                  <span>Não foi possível carregar os pareceres: {loadError}</span>
-                  <button type="button" onClick={loadPareceres}>Tentar de novo</button>
+                <div style={{ maxWidth: 520, margin: '0 auto', textAlign: 'left' }}>
+                  <ErrorState title="Não foi possível carregar os pareceres" message={loadError} onRetry={loadPareceres} />
                 </div>
               </div>
             )}

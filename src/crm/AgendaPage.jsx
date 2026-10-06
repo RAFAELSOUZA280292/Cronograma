@@ -39,7 +39,7 @@ export default function AgendaPage({ caps, options, currentUserId, refreshKey, o
     <div>
       <div className="crm-page-head">
         <div><h1 className="crm-h1">Agenda</h1><div className="crm-sub">O que precisa ser feito, por urgência. Concluir uma ligação, reunião ou e-mail conta como interação com a empresa.</div></div>
-        <div className="crm-actions">{caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={() => onNewActivity({})}><Plus size={14} /> Nova atividade</button>}</div>
+        <div className="crm-actions">{caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={() => onNewActivity({})}><Plus size={14} /> Criar atividade</button>}</div>
       </div>
 
       <div className="crm-chips">

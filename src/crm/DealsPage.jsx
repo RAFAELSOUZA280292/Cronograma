@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Plus, Kanban, List, Sparkles, Settings2, Upload } from 'lucide-react';
 import { crm } from './crmApi.js';
+import { notify } from '../ui/dialogs.jsx';
 import CloseDealDialog from './CloseDealDialog.jsx';
 import FunnelsAdmin from './FunnelsAdmin.jsx';
 import DealImportWizard from './DealImportWizard.jsx';
@@ -101,7 +102,7 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
   async function moveDeal(deal, stage) {
     if (deal.stageId === stage.id) return;
     if (stage.kind !== 'open') { setClosing({ deal, stage }); return; }
-    try { await crm.moveDeal(deal.id, { stageId: stage.id }); reload(); if (onChanged) onChanged(); } catch (e) { window.alert(e.message || 'Não foi possível mover o negócio.'); reload(); }
+    try { await crm.moveDeal(deal.id, { stageId: stage.id }); reload(); if (onChanged) onChanged(); } catch (e) { notify(e.message || 'Não foi possível mover o negócio.', { tone: 'error' }); reload(); }
   }
 
   const totalOpen = board ? board.stages.filter((s) => s.kind === 'open').reduce((a, s) => ({ n: a.n + s.count, v: a.v + s.value, w: a.w + s.weighted }), { n: 0, v: 0, w: 0 }) : null;
@@ -122,7 +123,7 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
           </div>
           {caps.funnel && <button type="button" className="crm-btn" onClick={() => setShowFunnels(true)}><Settings2 size={14} /> Funis</button>}
           {caps.import && <button type="button" className="crm-btn" onClick={() => setShowImport(true)}><Upload size={14} /> Importar negócios</button>}
-          {caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={() => onNewDeal({ pipelineId: view === 'board' ? selectedPipe : (pipelineId !== 'all' ? pipelineId : '') })}><Plus size={14} /> Novo negócio</button>}
+          {caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={() => onNewDeal({ pipelineId: view === 'board' ? selectedPipe : (pipelineId !== 'all' ? pipelineId : '') })}><Plus size={14} /> Criar negócio</button>}
         </div>
       </div>
 

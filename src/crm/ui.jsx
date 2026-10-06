@@ -44,7 +44,7 @@ export function Modal({ title, onClose, children, width, dirty, locked }) {
     <ModalCtx.Provider value={{ requestClose, locked: !!locked }}>
       <div className="crm-modal-overlay">
         <div className="crm-modal" style={width ? { width } : undefined} {...dlg} aria-label={title}>
-          <h2 className="crm-modal-title"><span>{title}</span><button type="button" className="crm-icon-btn" onClick={requestClose} disabled={locked} title="Fechar"><X size={16} /></button></h2>
+          <h2 className="crm-modal-title"><span>{title}</span><button type="button" className="crm-icon-btn" onClick={requestClose} disabled={locked} title={locked ? 'Aguarde terminar' : 'Fechar'} aria-label="Fechar"><X size={16} aria-hidden="true" /></button></h2>
           {children}
         </div>
       </div>
@@ -55,7 +55,7 @@ export function Modal({ title, onClose, children, width, dirty, locked }) {
 
 export function CancelButton({ children = 'Cancelar' }) {
   const { requestClose, locked } = useContext(ModalCtx);
-  return <button type="button" className="crm-btn" onClick={requestClose} disabled={locked}>{children}</button>;
+  return <button type="button" className="crm-btn" onClick={requestClose} disabled={locked} title={locked ? 'Aguarde terminar' : undefined}>{children}</button>;
 }
 
 export function Field({ label, children, full }) {

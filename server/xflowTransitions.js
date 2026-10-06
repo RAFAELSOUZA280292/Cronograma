@@ -61,6 +61,9 @@ export const XFLOW_TRANSITIONS = {
   reatribuir: { from: null, to: null, permission: 'reassign' },
   editar_prazo_proxima_acao: { from: null, to: null, permission: 'editar_prazo_proxima_acao' },
   comentar: { from: null, to: null, permission: 'comment' },
+  // Editar/excluir comentário: a regra fina (só o autor edita; autor ou admin exclui) é conferida no handler.
+  editar_comentario: { from: null, to: null, permission: 'comment' },
+  excluir_comentario: { from: null, to: null, permission: 'comment' },
   anexar: { from: null, to: null, permission: 'attach_evidence' },
   remover_anexo: { from: null, to: null, permission: 'attach_evidence' },
   // Reorganizar a posição manual no Quadro — não muda status, mesmo

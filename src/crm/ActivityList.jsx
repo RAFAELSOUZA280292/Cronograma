@@ -7,6 +7,7 @@ import { Phone, Mail, Video, MessageCircle, MapPin, CheckSquare, Repeat, Check, 
 import { crm } from './crmApi.js';
 import ActivityForm from './ActivityForm.jsx';
 import { Modal, Field, CancelButton, useDirty } from './ui.jsx';
+import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { fmtDateBR, fmtDateTimeBR, BUCKET_META, PRIORITY_META, activityTypeLabel } from './crmMeta.js';
 
 const ICONS = { task: CheckSquare, call: Phone, email: Mail, meeting: Video, whatsapp: MessageCircle, visit: MapPin, followup: Repeat };
@@ -32,7 +33,7 @@ function CompleteDialog({ activity, onCancel, onDone }) {
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
         <CancelButton />
-        <button type="button" className="crm-btn crm-btn-primary" disabled={busy} onClick={confirm}>{busy ? 'Salvando…' : 'Concluir'}</button>
+        <button type="button" className="crm-btn crm-btn-primary" disabled={busy} title={busy ? 'Aguarde terminar de salvar' : undefined} onClick={confirm}>{busy ? 'Salvando…' : 'Concluir'}</button>
       </div>
     </Modal>
   );
@@ -44,9 +45,9 @@ export default function ActivityList({ activities, caps, options, currentUserId,
   const [scheduling, setScheduling] = useState(null); // atividade recém-concluída → próximo passo
   const changed = () => { if (onChanged) onChanged(); };
 
-  async function act(fn, confirmText) {
-    if (confirmText && !window.confirm(confirmText)) return;
-    try { await fn(); changed(); } catch (e) { window.alert(e.message); }
+  async function act(fn, confirmOpts) {
+    if (confirmOpts && !(await askConfirm(confirmOpts))) return;
+    try { await fn(); changed(); } catch (e) { notify((e && e.message) || 'Não foi possível concluir.', { tone: 'error' }); }
   }
 
   function renderRow(a) {
@@ -56,7 +57,7 @@ export default function ActivityList({ activities, caps, options, currentUserId,
     return (
       <div key={a.id} className={`crm-act${open ? '' : ' done'}`}>
         {open
-          ? <button type="button" className="crm-check" title="Concluir" aria-label={`Concluir ${a.title}`} disabled={!caps.write} onClick={() => setCompleting(a)}><Check size={13} /></button>
+          ? <button type="button" className="crm-check" title={caps.write ? 'Concluir' : 'Você não tem permissão para concluir atividades'} aria-label={`Concluir ${a.title}`} disabled={!caps.write} onClick={() => setCompleting(a)}><Check size={13} /></button>
           : <span className={`crm-check ${a.status === 'done' ? 'on' : ''}`} style={{ cursor: 'default' }}>{a.status === 'done' ? <Check size={13} /> : <Ban size={12} />}</span>}
         <div className="crm-act-ico" title={activityTypeLabel(a.activityType)}><Icon size={15} /></div>
         <div className="crm-act-body">
@@ -67,8 +68,8 @@ export default function ActivityList({ activities, caps, options, currentUserId,
             </span>
             <span>{activityTypeLabel(a.activityType)}</span>
             {a.priority === 'high' && <span style={{ color: PRIORITY_META.high.color, fontWeight: 800 }}>Prioridade alta</span>}
-            {showCompany && (onOpenCompany ? <button type="button" onClick={() => onOpenCompany(a.companyId)}>{a.companyName}</button> : <span>{a.companyName}</span>)}
-            {a.dealTitle && (onOpenDeal && a.dealId ? <button type="button" onClick={() => onOpenDeal(a.dealId)}>Negócio: {a.dealTitle}</button> : <span>Negócio: {a.dealTitle}</span>)}
+            {showCompany && (onOpenCompany ? <button type="button" title={`Abrir a empresa ${a.companyName}`} onClick={() => onOpenCompany(a.companyId)}>{a.companyName}</button> : <span>{a.companyName}</span>)}
+            {a.dealTitle && (onOpenDeal && a.dealId ? <button type="button" title={`Abrir o negócio ${a.dealTitle}`} onClick={() => onOpenDeal(a.dealId)}>Negócio: {a.dealTitle}</button> : <span>Negócio: {a.dealTitle}</span>)}
             {a.contactName && <span>com {a.contactName}</span>}
             {a.ownerName && <span>Resp.: {a.ownerName}</span>}
             {a.status === 'done' && a.completedAt && <span>Concluída em {fmtDateTimeBR(a.completedAt)}{a.completedByName ? ` por ${a.completedByName}` : ''}</span>}
@@ -79,10 +80,10 @@ export default function ActivityList({ activities, caps, options, currentUserId,
         </div>
         {caps.write && (
           <div className="crm-act-actions">
-            {open && <button type="button" className="crm-icon-btn" title="Editar" onClick={() => setEditing(a)}><Pencil size={14} /></button>}
-            {open && <button type="button" className="crm-icon-btn" title="Cancelar atividade" onClick={() => act(() => crm.cancelActivity(a.id), `Cancelar "${a.title}"? Ela sai da agenda, mas o histórico registra.`)}><Ban size={14} /></button>}
-            {!open && <button type="button" className="crm-icon-btn" title="Reabrir" onClick={() => act(() => crm.reopenActivity(a.id))}><RotateCcw size={14} /></button>}
-            {caps.remove && <button type="button" className="crm-icon-btn" title="Excluir" onClick={() => act(() => crm.deleteActivity(a.id), `Excluir "${a.title}"? O histórico registra a exclusão.`)}><Trash2 size={14} /></button>}
+            {open && <button type="button" className="crm-icon-btn" title="Editar atividade" aria-label="Editar atividade" onClick={() => setEditing(a)}><Pencil size={14} aria-hidden="true" /></button>}
+            {open && <button type="button" className="crm-icon-btn" title="Cancelar atividade" aria-label="Cancelar atividade" onClick={() => act(() => crm.cancelActivity(a.id), { title: `Cancelar a atividade "${a.title}"?`, message: 'Ela sai da agenda, mas o histórico registra.', confirmLabel: 'Cancelar atividade', cancelLabel: 'Manter atividade', danger: true })}><Ban size={14} aria-hidden="true" /></button>}
+            {!open && <button type="button" className="crm-icon-btn" title="Reabrir atividade" aria-label="Reabrir atividade" onClick={() => act(() => crm.reopenActivity(a.id))}><RotateCcw size={14} aria-hidden="true" /></button>}
+            {caps.remove && <button type="button" className="crm-icon-btn" title="Excluir atividade" aria-label="Excluir atividade" onClick={() => act(() => crm.deleteActivity(a.id), { title: `Excluir a atividade "${a.title}"?`, message: 'O histórico registra a exclusão.', confirmLabel: 'Excluir', danger: true })}><Trash2 size={14} aria-hidden="true" /></button>}
           </div>
         )}
       </div>

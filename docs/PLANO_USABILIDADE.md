@@ -163,7 +163,7 @@
 - **Esc fecha tudo** (um hook `useEscClose` ligado ao `requestClose`, respeitando a guarda), foco preso e `aria-modal` corretos nos modais/gavetas.
 **Pronto quando:** de qualquer tela, 1 clique leva a qualquer módulo; Esc e Voltar do navegador se comportam igual em todo lugar.
 
-### Onda 2 — "Um jeito só de fazer cada coisa" (2 a 3 semanas) — base do design system
+### Onda 2 — "Um jeito só de fazer cada coisa" (2 a 3 semanas) — base do design system — **FEITA em 2026-10-06 (ver PROJECT_CONTEXT §81)**
 Componentes em `src/ui` (hoje quase sem adoção): `Button`/`IconButton` (rótulo acessível obrigatório, alvo ≥ 40 px, motivo do `disabled` em tooltip e texto), **`ConfirmDialog`** (substitui os 58 `confirm/alert/prompt`), **`Toast`** (com "Desfazer"), `Modal`/`Drawer` únicos, `SaveStatus`, `EmptyState`/`ErrorState` com "Tentar de novo", `Skeleton`.
 - **Vocabulário fixo**: Salvar · Adicionar · Comentar · Anexar · Excluir (vai para Lixeira, com Desfazer) · Remover (só tirar um vínculo) · Cancelar. Primário amarelo, destrutivo vermelho — igual em todo módulo.
 - Migrar módulo por módulo (Pareceres/Modelos primeiro, são a referência; depois Conhecimento, CRM, XFlow, Empresas).

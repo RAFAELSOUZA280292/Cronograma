@@ -148,6 +148,7 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
 
   // ---- notas
   router.post('/notes', need('write'), h(async (req, res) => res.status(201).json({ note: await S.addNote(orgOf(req), actorOf(req), req.body || {}) })));
+  router.patch('/notes/:id', need('write'), h(async (req, res) => res.json({ note: await S.updateNote(orgOf(req), actorOf(req), req.params.id, req.body || {}) })));
   router.delete('/notes/:id', need('write'), h(async (req, res) => res.json(await S.deleteNote(orgOf(req), actorOf(req), req.params.id, { canModerate: crmCan(req.user, 'remove') }))));
 
   // ---- importação (planilha) e clientes atuais do painel

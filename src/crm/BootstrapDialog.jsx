@@ -68,7 +68,7 @@ export default function BootstrapDialog({ onClose, onDone }) {
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
         {!result && <CancelButton />}
-        {!result && items && items.length > 0 && <button type="button" className="crm-btn crm-btn-primary" disabled={busy || picked.size === 0} onClick={run}>{busy ? 'Trazendo…' : `Trazer ${picked.size} ${picked.size === 1 ? 'empresa' : 'empresas'}`}</button>}
+        {!result && items && items.length > 0 && <button type="button" className="crm-btn crm-btn-primary" disabled={busy || picked.size === 0} title={busy ? 'Aguarde terminar de trazer' : picked.size === 0 ? 'Marque ao menos uma empresa' : undefined} onClick={run}>{busy ? 'Trazendo…' : `Trazer ${picked.size} ${picked.size === 1 ? 'empresa' : 'empresas'}`}</button>}
         {result && <button type="button" className="crm-btn crm-btn-primary" onClick={onClose}>Fechar</button>}
       </div>
     </Modal>

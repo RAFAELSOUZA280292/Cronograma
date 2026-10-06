@@ -288,7 +288,7 @@ export function MeetingDetailModal({
                   <button type="button" className="mtg2-more-item" onClick={exportText}><FileText size={14} /> Exportar Texto (.txt)</button>
                 </div>
               )}
-              <button style={S.iconBtnGhost} title="Excluir reunião" onClick={() => deleteMeeting(pid, m.id)}><Trash2 size={16} /></button>
+              <button style={S.iconBtnGhost} title="Excluir reunião" aria-label="Excluir reunião" onClick={() => deleteMeeting(pid, m.id)}><Trash2 size={16} aria-hidden="true" /></button>
             </div>
           </div>
         </div>
@@ -375,7 +375,7 @@ export function MeetingDetailModal({
                   value={participantEmailDraft} onChange={(e) => setParticipantEmailDraft(e.target.value)}
                   placeholder="e-mail (opcional, só na 1ª vez)" onKeyDown={(e) => e.key === 'Enter' && submitParticipant()}
                 />
-                <button style={S.iconBtn} onClick={submitParticipant}><Plus size={14} /></button>
+                <button style={S.iconBtn} aria-label="Adicionar participante" title="Adicionar participante" onClick={submitParticipant}><Plus size={14} aria-hidden="true" /></button>
               </div>
             </div>
 

@@ -1093,6 +1093,10 @@ export async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS crm_notes_entity_idx ON crm_notes(org_id, entity_type, entity_id, deleted_at)`);
+  // Onda 3 (§81): nota do CRM aceita anexos e links (mesmo formato dos comentários de atividade) e registra se foi editada.
+  await pool.query(`ALTER TABLE crm_notes ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await pool.query(`ALTER TABLE crm_notes ADD COLUMN IF NOT EXISTS links JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await pool.query(`ALTER TABLE crm_notes ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_timeline_events (
       id          UUID PRIMARY KEY,

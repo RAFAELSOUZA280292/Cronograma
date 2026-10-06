@@ -48,6 +48,8 @@ export default function ContactForm({ initial, company, onSaved, onCancel }) {
     } finally { setBusy(false); }
   }
 
+  const blockReason = busy ? 'Aguarde terminar de salvar' : !picked ? 'Escolha a empresa para salvar' : !form.firstName.trim() ? 'Preencha o nome para salvar' : '';
+
   return (
     <Modal title={editing ? 'Editar contato' : 'Novo contato'} onClose={onCancel} dirty={dirty}>
       <div className="crm-form-grid">
@@ -61,7 +63,7 @@ export default function ContactForm({ initial, company, onSaved, onCancel }) {
             <div>
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Digite o nome ou CNPJ da empresa" autoFocus />
               {results.map((r) => (
-                <button key={r.id} type="button" className="crm-search-item" onClick={() => { setPicked({ id: r.id, legalName: r.legalName }); setResults([]); }}>
+                <button key={r.id} type="button" className="crm-search-item" title={`Escolher ${r.legalName}`} onClick={() => { setPicked({ id: r.id, legalName: r.legalName }); setResults([]); }}>
                   {r.legalName}<small>{r.tradeName}</small>
                 </button>
               ))}
@@ -101,9 +103,10 @@ export default function ContactForm({ initial, company, onSaved, onCancel }) {
       <DuplicatesAlert duplicates={dup && dup.duplicates} blocking={false} />
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
+        {blockReason && !busy && <span className="crm-muted" style={{ fontSize: 11.5, marginRight: 'auto' }}>{blockReason}</span>}
         <CancelButton />
-        {dup && <button type="button" className="crm-btn" disabled={busy} onClick={() => save(true)}>Salvar mesmo assim</button>}
-        <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !picked || !form.firstName.trim()} onClick={() => save(false)}>{busy ? 'Salvando…' : 'Salvar'}</button>
+        {dup && <button type="button" className="crm-btn" disabled={busy} title={busy ? 'Aguarde terminar de salvar' : undefined} onClick={() => save(true)}>Salvar mesmo assim</button>}
+        <button type="button" className="crm-btn crm-btn-primary" disabled={!!blockReason} title={blockReason || undefined} onClick={() => save(false)}>{busy ? 'Salvando…' : (editing ? 'Salvar' : (company ? 'Adicionar contato' : 'Criar contato'))}</button>
       </div>
     </Modal>
   );

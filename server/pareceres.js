@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { pool } from './db.js';
 import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import { effectiveOrgId, canAccessProject } from './routes.js';
+import { cleanCommentExtras, notifyMentions } from './commentExtras.js';
 import { startStudy, getStudyState, getMeetingAdvice, generateMeetingAdvice, archiveParecerFacts, friendlyStudyError } from './parecerStudy.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
@@ -193,14 +194,36 @@ router.get('/:id/file', async (req, res, next) => {
 router.post('/:id/comments', async (req, res, next) => {
   try {
     const orgId = effectiveOrgId(req);
-    const { text } = req.body || {};
-    if (!text || !text.trim()) return res.status(400).json({ message: 'Escreva um comentário.' });
-    const { rows } = await pool.query('SELECT comments FROM pareceres WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
+    const { text, attachments, links, mentions } = req.body || {};
+    const body = String(text || '').trim();
+    const extras = cleanCommentExtras(attachments, links, { maxAttachments: 3, maxFileChars: 3 * 1024 * 1024 });
+    if (!body && !extras.attachments.length && !extras.links.length) return res.status(400).json({ message: 'Escreva um comentário.' });
+    if (body.length > 4000) return res.status(400).json({ message: 'Comentário muito longo (máximo 4.000 caracteres).' });
+    const { rows } = await pool.query('SELECT title, comments FROM pareceres WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
     if (!rows.length) return res.status(404).json({ message: 'Parecer não encontrado.' });
-    const comment = { id: uid('cmt'), text: text.trim(), userId: req.user.id, userName: req.user.name || req.user.username, ts: new Date().toISOString() };
+    const comment = { id: uid('cmt'), text: body, userId: req.user.id, userName: req.user.name || req.user.username, ts: new Date().toISOString(), attachments: extras.attachments, links: extras.links, mentions: Array.isArray(mentions) ? mentions.map(String).slice(0, 20) : [] };
     const comments = [...(rows[0].comments || []), comment];
     await pool.query('UPDATE pareceres SET comments=$1, updated_at=now() WHERE id=$2', [JSON.stringify(comments), req.params.id]);
+    await notifyMentions(pool, { orgId, actor: req.user, mentions, type: 'parecer_mention', title: `Parecer: ${rows[0].title}`,
+      body: `${req.user.name || req.user.username} mencionou você em um comentário: "${body.slice(0, 140)}"`, target: { kind: 'parecer', id: req.params.id } });
     res.status(201).json({ comment });
+  } catch (e) { next(e); }
+});
+
+router.patch('/:id/comments/:commentId', async (req, res, next) => {
+  try {
+    const orgId = effectiveOrgId(req);
+    const body = String((req.body || {}).text || '').trim();
+    if (body.length > 4000) return res.status(400).json({ message: 'Comentário muito longo (máximo 4.000 caracteres).' });
+    const { rows } = await pool.query('SELECT comments FROM pareceres WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
+    if (!rows.length) return res.status(404).json({ message: 'Parecer não encontrado.' });
+    const comment = (rows[0].comments || []).find((c) => c.id === req.params.commentId);
+    if (!comment) return res.status(404).json({ message: 'Comentário não encontrado.' });
+    if (comment.userId !== req.user.id) return res.status(403).json({ message: 'Você só pode editar o seu próprio comentário.' });
+    if (!body && !(comment.attachments || []).length && !(comment.links || []).length) return res.status(400).json({ message: 'O comentário não pode ficar vazio. Para apagar, use Excluir.' });
+    const comments = rows[0].comments.map((c) => (c.id === comment.id ? { ...c, text: body, editedAt: new Date().toISOString() } : c));
+    await pool.query('UPDATE pareceres SET comments=$1, updated_at=now() WHERE id=$2', [JSON.stringify(comments), req.params.id]);
+    res.json({ comment: comments.find((c) => c.id === comment.id) });
   } catch (e) { next(e); }
 });
 

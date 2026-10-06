@@ -12,6 +12,7 @@ import ActivityForm from './ActivityForm.jsx';
 import ActivityList from './ActivityList.jsx';
 import { RelPill, CompletenessBar, useDraftGuard } from './ui.jsx';
 import { useDialog } from '../lib/nav.js';
+import { askConfirm, notify } from '../ui/dialogs.jsx';
 import {
   fmtCnpj, fmtCep, fmtMoney, fmtDateBR, fmtDateTimeBR, daysLabel, staleColor, DECISION_ROLES, roleLabel, STRENGTH_META, INFLUENCE_LABELS,
   sourceLabel, TIMELINE_KIND, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor,
@@ -73,6 +74,8 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
     if (tab === 'projects' && caps.write) crm.projectsAvailable().then((r) => setAvailable(r.projects)).catch(() => setAvailable([]));
   }, [tab, caps.remove, caps.write, audit, companyId]);
 
+  const fail = (e) => notify((e && e.message) || 'Não foi possível concluir.', { tone: 'error' });
+
   async function afterChange() { setAudit(null); await load(); if (onChanged) onChanged(); }
 
   async function moreEvents() {
@@ -92,36 +95,36 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
       await crm.addNote({ ...about, body: noteText });
       setNoteText('');
       await afterChange();
-    } catch (e) { window.alert(e.message); } finally { setBusy(false); }
+    } catch (e) { fail(e); } finally { setBusy(false); }
   }
 
   async function removeNote(id) {
-    if (!window.confirm('Remover esta nota? O registro de que ela existiu continua no histórico.')) return;
-    try { await crm.deleteNote(id); await afterChange(); } catch (e) { window.alert(e.message); }
+    if (!(await askConfirm({ title: 'Remover esta nota?', message: 'O registro de que ela existiu continua no histórico.', confirmLabel: 'Remover', danger: true }))) return;
+    try { await crm.deleteNote(id); await afterChange(); } catch (e) { fail(e); }
   }
 
   async function removeCompany() {
-    if (!window.confirm(`Excluir "${data.company.legalName}"? Ela some das listas, mas um administrador pode restaurar depois.`)) return;
-    try { await crm.deleteCompany(companyId); if (onChanged) onChanged(); onClose(); } catch (e) { window.alert(e.message); }
+    if (!(await askConfirm({ title: `Excluir "${data.company.legalName}"?`, message: 'Ela some das listas, mas um administrador pode restaurar depois.', confirmLabel: 'Excluir', danger: true }))) return;
+    try { await crm.deleteCompany(companyId); if (onChanged) onChanged(); onClose(); } catch (e) { fail(e); }
   }
 
   async function restoreCompany() {
-    try { await crm.restoreCompany(companyId); await afterChange(); } catch (e) { window.alert(e.message); }
+    try { await crm.restoreCompany(companyId); await afterChange(); } catch (e) { fail(e); }
   }
 
   async function removeContact(c) {
-    if (!window.confirm(`Remover o contato ${c.firstName} ${c.lastName}?`)) return;
-    try { await crm.deleteContact(c.id); await afterChange(); } catch (e) { window.alert(e.message); }
+    if (!(await askConfirm({ title: `Remover o contato ${`${c.firstName} ${c.lastName}`.trim()}?`, confirmLabel: 'Remover', danger: true }))) return;
+    try { await crm.deleteContact(c.id); await afterChange(); } catch (e) { fail(e); }
   }
 
   async function linkProject() {
     if (!projectToLink) return;
-    try { await crm.linkProject(companyId, projectToLink); setProjectToLink(''); await afterChange(); } catch (e) { window.alert(e.message); }
+    try { await crm.linkProject(companyId, projectToLink); setProjectToLink(''); await afterChange(); } catch (e) { fail(e); }
   }
 
   async function unlinkProject(p) {
-    if (!window.confirm(`Desvincular o projeto "${p.name}" desta empresa? O projeto em si não é alterado.`)) return;
-    try { await crm.unlinkProject(companyId, p.projectId); await afterChange(); } catch (e) { window.alert(e.message); }
+    if (!(await askConfirm({ title: `Remover o vínculo com o projeto "${p.name}"?`, message: 'O projeto em si não é alterado.', confirmLabel: 'Remover vínculo', danger: true }))) return;
+    try { await crm.unlinkProject(companyId, p.projectId); await afterChange(); } catch (e) { fail(e); }
   }
 
   const co = data && data.company;
@@ -148,16 +151,16 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
             </div>
             <div className="crm-actions">
               {co && !co.deletedAt && caps.write && co.relationship === 'client' && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'upsell' })}><Sparkles size={14} color="#b98af5" /> Criar oportunidade de upsell</button>}
-              {co && !co.deletedAt && caps.write && <button type="button" className="crm-btn" onClick={() => setActivityForm(true)}><Plus size={14} /> Atividade</button>}
-              {co && !co.deletedAt && caps.write && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'new' })}><Plus size={14} /> Negócio</button>}
+              {co && !co.deletedAt && caps.write && <button type="button" className="crm-btn" onClick={() => setActivityForm(true)}><Plus size={14} /> Criar atividade</button>}
+              {co && !co.deletedAt && caps.write && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'new' })}><Plus size={14} /> Criar negócio</button>}
               {co && !co.deletedAt && caps.write && <button type="button" className="crm-btn" onClick={() => setEditing(true)}><Pencil size={14} /> Editar</button>}
               {co && !co.deletedAt && caps.remove && <button type="button" className="crm-btn crm-btn-danger" onClick={removeCompany}><Trash2 size={14} /> Excluir</button>}
               {co && co.deletedAt && caps.admin && <button type="button" className="crm-btn" onClick={restoreCompany}><RotateCcw size={14} /> Restaurar</button>}
-              <button type="button" className="crm-icon-btn" onClick={close} title="Fechar"><X size={18} /></button>
+              <button type="button" className="crm-icon-btn" onClick={close} title="Fechar" aria-label="Fechar"><X size={18} aria-hidden="true" /></button>
             </div>
           </div>
           <div className="crm-tabs" role="tablist">
-            {tabs.map(([k, l]) => <button key={k} type="button" role="tab" className={`crm-tab${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>{l}</button>)}
+            {tabs.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} aria-label={l} className={`crm-tab${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>{l}</button>)}
           </div>
         </div>
 
@@ -225,7 +228,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
             <>
               <div className="crm-page-head" style={{ marginBottom: 10 }}>
                 <div className="crm-sub" style={{ margin: 0 }}>Mapa de stakeholders — a bolinha mostra a força do relacionamento; ★ é o contato principal.</div>
-                {caps.write && !co.deletedAt && <button type="button" className="crm-btn crm-btn-primary" onClick={() => setContactForm({})}><Plus size={14} /> Novo contato</button>}
+                {caps.write && !co.deletedAt && <button type="button" className="crm-btn crm-btn-primary" onClick={() => setContactForm({})}><Plus size={14} /> Adicionar contato</button>}
               </div>
               {data.contacts.length === 0 && <div className="crm-empty">Nenhum contato ainda. Sem decisor identificado, a venda B2B fica cega.</div>}
               <div className="crm-stake">
@@ -249,7 +252,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
                         <tr key={c.id} onClick={() => caps.write && setContactForm({ contact: c })}>
                           <td><span className="crm-name">{`${c.firstName} ${c.lastName}`.trim()}</span>{c.isPrimary && ' ★'}<div className="crm-muted">{roleLabel(c.decisionRole)}</div></td>
                           <td>{c.jobTitle || c.department}</td><td>{c.email}</td><td>{c.phone || c.whatsapp}</td><td>{INFLUENCE_LABELS[c.influence] || ''}</td>
-                          <td onClick={(e) => e.stopPropagation()}>{caps.write && <button type="button" className="crm-icon-btn" title="Remover contato" onClick={() => removeContact(c)}><Trash2 size={14} /></button>}</td>
+                          <td onClick={(e) => e.stopPropagation()}>{caps.write && <button type="button" className="crm-icon-btn" title="Remover contato" aria-label="Remover contato" onClick={() => removeContact(c)}><Trash2 size={14} aria-hidden="true" /></button>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -265,7 +268,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
                 <div className="crm-sub" style={{ margin: 0 }}>Todas as oportunidades desta empresa. O Lead é a primeira etapa de um negócio; ganhar um negócio transforma a empresa em cliente.</div>
                 {caps.write && !co.deletedAt && <div className="crm-actions">
                   {co.relationship === 'client' && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'upsell' })}><Sparkles size={14} color="#b98af5" /> Oportunidade de upsell</button>}
-                  <button type="button" className="crm-btn crm-btn-primary" onClick={() => setDealForm({ type: 'new' })}><Plus size={14} /> Novo negócio</button>
+                  <button type="button" className="crm-btn crm-btn-primary" onClick={() => setDealForm({ type: 'new' })}><Plus size={14} /> Criar negócio</button>
                 </div>}
               </div>
               {data.deals.length === 0 && <div className="crm-empty">Nenhum negócio ainda.{co.relationship === 'client' ? ' Esta é uma cliente: que tal abrir uma oportunidade de upsell?' : ' Abra o primeiro para acompanhar esta venda no funil.'}</div>}
@@ -294,7 +297,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
             <>
               <div className="crm-page-head" style={{ marginBottom: 10 }}>
                 <div className="crm-sub" style={{ margin: 0 }}>Próximos passos e o que já foi feito com esta empresa. Ligação, reunião, e-mail, WhatsApp e visita concluídos contam como interação.</div>
-                {caps.write && !co.deletedAt && <button type="button" className="crm-btn crm-btn-primary" onClick={() => setActivityForm(true)}><Plus size={14} /> Nova atividade</button>}
+                {caps.write && !co.deletedAt && <button type="button" className="crm-btn crm-btn-primary" onClick={() => setActivityForm(true)}><Plus size={14} /> Criar atividade</button>}
               </div>
               <div className="crm-section">
                 <ActivityList activities={data.activities} caps={caps} options={options} currentUserId={currentUserId} onChanged={afterChange} onOpenDeal={openDeal}
@@ -317,7 +320,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
                   <div className="crm-note-input">
                     <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="O que aconteceu? Ligação, decisão, preferência do cliente…" />
                   </div>
-                  <div style={{ textAlign: 'right', marginTop: 8 }}><button type="button" className="crm-btn crm-btn-primary" disabled={busy || !noteText.trim()} onClick={addNote}>Registrar nota</button></div>
+                  <div style={{ textAlign: 'right', marginTop: 8 }}><button type="button" className="crm-btn crm-btn-primary" disabled={busy || !noteText.trim()} title={busy ? 'Aguarde terminar de salvar' : !noteText.trim() ? 'Escreva a nota para adicionar' : undefined} onClick={addNote}>Adicionar nota</button></div>
                 </div>
               )}
               {data.notes.length > 0 && (
@@ -326,7 +329,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
                   {data.notes.map((n) => (
                     <div key={n.id} className="crm-note">
                       <div className="crm-note-meta"><span>{n.createdByName || 'Alguém'}{n.contactName ? ` · sobre ${n.contactName}` : ''}{n.dealTitle ? ` · sobre o negócio ${n.dealTitle}` : ''} · {fmtDateTimeBR(n.createdAt)}</span>
-                        {caps.write && <button type="button" className="crm-icon-btn" style={{ padding: 2 }} title="Remover nota" onClick={() => removeNote(n.id)}><X size={12} /></button>}
+                        {caps.write && <button type="button" className="crm-icon-btn" style={{ padding: 2 }} title="Remover nota" aria-label="Remover nota" onClick={() => removeNote(n.id)}><X size={12} aria-hidden="true" /></button>}
                       </div>
                       {n.body}
                     </div>
@@ -355,7 +358,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
               {data.projects.length === 0 && <div className="crm-empty">Nenhum projeto vinculado.</div>}
               {data.projects.map((p) => (
                 <div key={p.projectId} className="crm-section">
-                  <h3 className="crm-section-title"><span>{p.name}</span>{caps.write && <button type="button" className="crm-btn" onClick={() => unlinkProject(p)}><Link2 size={13} /> Desvincular</button>}</h3>
+                  <h3 className="crm-section-title"><span>{p.name}</span>{caps.write && <button type="button" className="crm-btn" onClick={() => unlinkProject(p)}><Link2 size={13} /> Remover vínculo</button>}</h3>
                   <div className="crm-kv">
                     <KV k="Atividades do cronograma" v={`${p.activities.done} de ${p.activities.total} concluídas${p.activities.overdue ? ` · ${p.activities.overdue} atrasada(s)` : ''}`} />
                     <KV k="Reuniões" v={`${p.meetings.count}${p.meetings.last ? ` · última ${fmtDateBR(p.meetings.last.date)} (${p.meetings.last.title})` : ''}`} />
@@ -372,7 +375,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
                       <option value="">Escolha um projeto do painel…</option>
                       {available.map((p) => <option key={p.id} value={p.id}>{p.name}{p.cnpj ? ` — ${p.cnpj}` : ''}</option>)}
                     </select>
-                    <button type="button" className="crm-btn crm-btn-primary" disabled={!projectToLink} onClick={linkProject}>Vincular</button>
+                    <button type="button" className="crm-btn crm-btn-primary" disabled={!projectToLink} title={!projectToLink ? 'Escolha um projeto para vincular' : undefined} onClick={linkProject}>Vincular</button>
                   </div>
                 </div>
               )}

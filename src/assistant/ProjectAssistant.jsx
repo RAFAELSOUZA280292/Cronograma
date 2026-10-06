@@ -397,12 +397,12 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
               </div>
               <div className="asst-head-actions">
                 {onOpenAgenda && (
-                  <button type="button" title="Abrir a Agenda" onClick={goAgenda}><CalendarDays size={16} /></button>
+                  <button type="button" title="Abrir a Agenda" aria-label="Abrir a Agenda" onClick={goAgenda}><CalendarDays size={16} aria-hidden="true" /></button>
                 )}
-                {canStudyPareceres && <button type="button" title="Estudar Pareceres da PRICETAX" onClick={() => setShowStudy(true)}><BookOpen size={16} /></button>}
-                <button type="button" disabled={reindexing} title="Atualizar contexto da RENATA" onClick={handleReindex}><RefreshCw size={16} className={reindexing ? 'asst-spin' : ''} /></button>
-                <button type="button" title="Limpar esta conversa" onClick={clearConversation}><Trash2 size={16} /></button>
-                <button type="button" title="Fechar assistente" onClick={() => setOpen(false)}><X size={20} /></button>
+                {canStudyPareceres && <button type="button" title="Estudar Pareceres da PRICETAX" aria-label="Estudar Pareceres da PRICETAX" onClick={() => setShowStudy(true)}><BookOpen size={16} aria-hidden="true" /></button>}
+                <button type="button" disabled={reindexing} title={reindexing ? 'Aguarde terminar' : 'Atualizar contexto da RENATA'} aria-label="Atualizar contexto da RENATA" onClick={handleReindex}><RefreshCw size={16} className={reindexing ? 'asst-spin' : ''} aria-hidden="true" /></button>
+                <button type="button" title="Limpar esta conversa" aria-label="Limpar esta conversa" onClick={clearConversation}><Trash2 size={16} aria-hidden="true" /></button>
+                <button type="button" title="Fechar assistente" aria-label="Fechar assistente" onClick={() => setOpen(false)}><X size={20} aria-hidden="true" /></button>
               </div>
             </div>
 
@@ -488,8 +488,8 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                                   </>
                                 )}
                                 <div className="asst-action-card-buttons">
-                                  <button type="button" className={`asst-action-btn asst-action-confirm ${meta.danger ? 'danger' : ''}`} disabled={decidingActionId === m.id} onClick={() => decideAction(m.id, 'confirm')}><Check size={13} /> Confirmar</button>
-                                  <button type="button" className="asst-action-btn asst-action-reject" disabled={decidingActionId === m.id} onClick={() => decideAction(m.id, 'reject')}><Ban size={13} /> Cancelar</button>
+                                  <button type="button" className={`asst-action-btn asst-action-confirm ${meta.danger ? 'danger' : ''}`} disabled={decidingActionId === m.id} title={decidingActionId === m.id ? 'Aguarde terminar' : undefined} onClick={() => decideAction(m.id, 'confirm')}><Check size={13} /> Confirmar</button>
+                                  <button type="button" className="asst-action-btn asst-action-reject" disabled={decidingActionId === m.id} title={decidingActionId === m.id ? 'Aguarde terminar' : undefined} onClick={() => decideAction(m.id, 'reject')}><Ban size={13} /> Cancelar</button>
                                 </div>
                                 {m.actionError && <div style={{ color: '#e2574c', marginTop: 6, fontSize: 11 }}>{m.actionError}</div>}
                               </>
@@ -501,8 +501,8 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                       )}
                       {!String(m.id).startsWith('err-') && (
                         <div className="asst-feedback">
-                          <button type="button" className={m.feedback === 'up' ? 'active' : ''} onClick={() => giveFeedback(m.id, 'up')}><ThumbsUp size={12} /></button>
-                          <button type="button" className={m.feedback === 'down' ? 'active' : ''} onClick={() => giveFeedback(m.id, 'down')}><ThumbsDown size={12} /></button>
+                          <button type="button" className={m.feedback === 'up' ? 'active' : ''} aria-label="Resposta útil" title="Resposta útil" aria-pressed={m.feedback === 'up'} onClick={() => giveFeedback(m.id, 'up')}><ThumbsUp size={12} aria-hidden="true" /></button>
+                          <button type="button" className={m.feedback === 'down' ? 'active' : ''} aria-label="Resposta não ajudou" title="Resposta não ajudou" aria-pressed={m.feedback === 'down'} onClick={() => giveFeedback(m.id, 'down')}><ThumbsDown size={12} aria-hidden="true" /></button>
                         </div>
                       )}
                     </div>
@@ -531,7 +531,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
               />
-              <button type="button" className="asst-send-btn" disabled={!input.trim() || sending} onClick={() => send()}><Send size={16} /></button>
+              <button type="button" className="asst-send-btn" disabled={!input.trim() || sending} aria-label="Enviar pergunta" title={sending ? 'Aguarde a resposta' : !input.trim() ? 'Escreva sua pergunta' : 'Enviar pergunta'} onClick={() => send()}><Send size={16} aria-hidden="true" /></button>
             </div>
           </div>
         </DialogOverlay>

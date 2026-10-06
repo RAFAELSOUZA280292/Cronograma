@@ -205,9 +205,9 @@ export default function AgendaScreen({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 24px 0' }}>
-        <button style={S.iconBtnGhost} onClick={goPrev}><ChevronLeft size={18} /></button>
+        <button style={S.iconBtnGhost} aria-label="Período anterior" title="Período anterior" onClick={goPrev}><ChevronLeft size={18} aria-hidden="true" /></button>
         <button style={S.pbGhostBtn} onClick={goToday}>Hoje</button>
-        <button style={S.iconBtnGhost} onClick={goNext}><ChevronRight size={18} /></button>
+        <button style={S.iconBtnGhost} aria-label="Próximo período" title="Próximo período" onClick={goNext}><ChevronRight size={18} aria-hidden="true" /></button>
         <div style={{ fontWeight: 700, fontSize: 14 }}>{rangeLabel(viewMode, anchorDate)}</div>
         {loaded && <RefreshCw size={12} style={{ color: 'var(--text-6)', marginLeft: 4 }} />}
       </div>

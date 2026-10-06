@@ -9,6 +9,7 @@ import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import { effectiveOrgId } from './routes.js';
 import { fetchLinkPreview, normalizeUrl } from './linkPreview.js';
 import { officePreviewText } from './officePreview.js';
+import { cleanCommentExtras, notifyMentions } from './commentExtras.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -212,13 +213,32 @@ router.get('/:id/file', (req, res, next) => sendItemFile(req, res, next, null));
 router.post('/:id/comments', async (req, res, next) => {
   try {
     const orgId = effectiveOrgId(req);
+    const { attachments, links, mentions } = req.body || {};
     const text = String((req.body || {}).text || '').trim();
-    if (!text) return res.status(400).json({ message: 'Escreva um comentário.' });
-    const { rows } = await pool.query('SELECT comments FROM document_templates WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
+    const extras = cleanCommentExtras(attachments, links, { maxAttachments: 3, maxFileChars: 3 * 1024 * 1024 });
+    if (!text && !extras.attachments.length && !extras.links.length) return res.status(400).json({ message: 'Escreva um comentário.' });
+    const { rows } = await pool.query('SELECT title, comments FROM document_templates WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
     if (!rows.length) return res.status(404).json({ message: 'Modelo não encontrado.' });
-    const comment = { id: uid('cmt'), text: text.slice(0, 4000), userId: req.user.id, userName: req.user.name || req.user.username, ts: new Date().toISOString() };
+    const comment = { id: uid('cmt'), text: text.slice(0, 4000), userId: req.user.id, userName: req.user.name || req.user.username, ts: new Date().toISOString(), attachments: extras.attachments, links: extras.links, mentions: Array.isArray(mentions) ? mentions.map(String).slice(0, 20) : [] };
     await pool.query('UPDATE document_templates SET comments=$1, updated_at=now() WHERE id=$2', [JSON.stringify([...(rows[0].comments || []), comment]), req.params.id]);
+    await notifyMentions(pool, { orgId, actor: req.user, mentions, type: 'modelo_mention', title: `Modelo: ${rows[0].title}`,
+      body: `${req.user.name || req.user.username} mencionou você em um comentário: "${text.slice(0, 140)}"`, target: { kind: 'modelo', id: req.params.id } });
     res.status(201).json({ comment });
+  } catch (e) { next(e); }
+});
+
+router.patch('/:id/comments/:commentId', async (req, res, next) => {
+  try {
+    const text = String((req.body || {}).text || '').trim().slice(0, 4000);
+    const { rows } = await pool.query('SELECT comments FROM document_templates WHERE id=$1 AND org_id=$2', [req.params.id, effectiveOrgId(req)]);
+    if (!rows.length) return res.status(404).json({ message: 'Modelo não encontrado.' });
+    const comment = (rows[0].comments || []).find((c) => c.id === req.params.commentId);
+    if (!comment) return res.status(404).json({ message: 'Comentário não encontrado.' });
+    if (comment.userId !== req.user.id) return res.status(403).json({ message: 'Você só pode editar o seu próprio comentário.' });
+    if (!text && !(comment.attachments || []).length && !(comment.links || []).length) return res.status(400).json({ message: 'O comentário não pode ficar vazio. Para apagar, use Excluir.' });
+    const comments = rows[0].comments.map((c) => (c.id === comment.id ? { ...c, text, editedAt: new Date().toISOString() } : c));
+    await pool.query('UPDATE document_templates SET comments=$1, updated_at=now() WHERE id=$2', [JSON.stringify(comments), req.params.id]);
+    res.json({ comment: comments.find((c) => c.id === comment.id) });
   } catch (e) { next(e); }
 });
 

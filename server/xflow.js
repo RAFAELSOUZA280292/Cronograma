@@ -2,7 +2,7 @@ import { Router } from 'express';
 import sanitizeHtml from 'sanitize-html';
 import { pool, blankXflowTicketData } from './db.js';
 import { requireAuth, requireXflowAccess } from './auth.js';
-import { canDo } from './xflowPermissions.js';
+import { canDo, effectiveXflowRole } from './xflowPermissions.js';
 import { checkTransition, XFLOW_TERMINAL_STATUSES } from './xflowTransitions.js';
 import { createNotification } from './notifications.js';
 import { syncTicketEvent, deleteTicketEvent } from './googleCalendar.js';
@@ -609,6 +609,28 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
             });
           }
         });
+        break;
+      }
+      case 'editar_comentario':
+      case 'excluir_comentario': {
+        const cid = payload && payload.commentId;
+        const cm = (data.comments || []).find((c) => c.id === cid);
+        if (!cm) { await client.query('ROLLBACK'); return res.status(400).json({ message: 'Comentário não encontrado.' }); }
+        const isAuthor = cm.authorId === req.user.id;
+        if (action === 'editar_comentario') {
+          if (!isAuthor) { await client.query('ROLLBACK'); return res.status(403).json({ message: 'Você só pode editar o seu próprio comentário.' }); }
+          const newText = String((payload && payload.text) || '').trim();
+          if (!newText && !(cm.attachments || []).length && !(cm.links || []).length) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ message: 'O comentário não pode ficar vazio. Para apagar, use Excluir.' });
+          }
+          data.comments = (data.comments || []).map((c) => (c.id === cid ? { ...c, text: newText, editedAt: new Date().toISOString() } : c));
+          historyNote = 'Comentário editado';
+        } else {
+          if (!isAuthor && effectiveXflowRole(req.user) !== 'admin') { await client.query('ROLLBACK'); return res.status(403).json({ message: 'Você só pode excluir o seu próprio comentário.' }); }
+          data.comments = (data.comments || []).filter((c) => c.id !== cid);
+          historyNote = 'Comentário excluído';
+        }
         break;
       }
       case 'anexar': {

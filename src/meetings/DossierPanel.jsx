@@ -140,7 +140,7 @@ export default function DossierPanel({ pid, companyName, onClose, onOpenMeeting 
             {content && <button type="button" className="dos-btn" onClick={copyMd}>{copied ? <Check size={13} /> : <Copy size={13} />} {copied ? 'Copiado' : 'Copiar (Markdown)'}</button>}
             {content && <button type="button" className="dos-btn" onClick={downloadMd}><Download size={13} /> Baixar .md</button>}
             {content && <button type="button" className="dos-btn" onClick={printPdf}><Printer size={13} /> PDF / Imprimir</button>}
-            {state && !generating && <button type="button" className={`dos-btn ${content ? '' : 'dos-btn-primary'}`} onClick={start} disabled={starting || !state.meetingsNow}><RefreshCw size={13} className={starting ? 'dos-spin' : ''} /> {content ? 'Gerar de novo' : 'Gerar dossiê'}</button>}
+            {state && !generating && <button type="button" className={`dos-btn ${content ? '' : 'dos-btn-primary'}`} onClick={start} disabled={starting || !state.meetingsNow} title={starting ? 'Aguarde terminar' : !state.meetingsNow ? 'Nenhuma reunião para compilar' : undefined}><RefreshCw size={13} className={starting ? 'dos-spin' : ''} /> {content ? 'Gerar de novo' : 'Gerar dossiê'}</button>}
             <button type="button" className="dos-btn" onClick={onClose} aria-label="Fechar"><X size={14} /></button>
           </div>
         </div>

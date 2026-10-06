@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Copy, Check, KeyRound, Trash2 } from 'lucide-react';
 import { apiGet, apiPost, apiDelete } from '../lib/api.js';
 import { buildGuide } from './guide.js';
+import { askConfirm } from '../ui/dialogs.jsx';
 
 const CSS = `
   .cnx { font-family:'Inter', sans-serif; }
@@ -65,7 +66,7 @@ export default function ConnectSection({ onAtRiskChange }) {
   }
 
   async function revoke(t) {
-    if (!window.confirm(`Revogar "${t.name}"? Quem usa esse token perde o acesso na hora.`)) return;
+    if (!(await askConfirm({ title: `Revogar "${t.name}"?`, message: 'Quem usa esse token perde o acesso na hora.', confirmLabel: 'Revogar', danger: true }))) return;
     try { await apiDelete(`/api/connect/tokens/${t.id}`); if (fresh && fresh.id === t.id) setFresh(null); await load(); } catch (e) { setError(e.message || 'Não foi possível revogar.'); }
   }
 
@@ -92,8 +93,8 @@ export default function ConnectSection({ onAtRiskChange }) {
             <li>Cole o <b>guia</b> na conversa do Claude Code (ou salve no CLAUDE.md dela, <i>sem</i> o token).</li>
             <li>Peça: “leia o guia e rode o primeiro passo para confirmar a conexão”.</li>
           </ol>
-          <button type="button" className="cnx-btn primary" style={{ marginTop: 10 }} onClick={() => copy('token', exportLine)}>{copied === 'token' ? <><Check size={15} /> Copiado</> : <><Copy size={15} /> 1. Copiar comando do token</>}</button>
-          <button type="button" className="cnx-btn" style={{ marginTop: 8 }} onClick={() => copy('guide', guide)}>{copied === 'guide' ? <><Check size={15} /> Copiado</> : <><Copy size={15} /> 2. Copiar guia para o Claude Code</>}</button>
+          <button type="button" className="cnx-btn primary" style={{ marginTop: 10 }} title="Copiar comando do token" onClick={() => copy('token', exportLine)}>{copied === 'token' ? <><Check size={15} /> Copiado</> : <><Copy size={15} /> 1. Copiar comando do token</>}</button>
+          <button type="button" className="cnx-btn" style={{ marginTop: 8 }} title="Copiar guia para o Claude Code" onClick={() => copy('guide', guide)}>{copied === 'guide' ? <><Check size={15} /> Copiado</> : <><Copy size={15} /> 2. Copiar guia para o Claude Code</>}</button>
           {manual && <><div className="cnx-warn">Não consegui copiar sozinho. Toque no texto, selecione tudo e use Copiar.</div><textarea className="cnx-code" readOnly value={manual} onFocus={(e) => e.target.select()} /></>}
           <button type="button" className="cnx-btn" style={{ marginTop: 8 }} onClick={() => { setFresh(null); setManual(''); setEverCopied(false); }}>Já copiei, fechar</button>
         </>
@@ -113,7 +114,7 @@ export default function ConnectSection({ onAtRiskChange }) {
               <option value="30">30 dias</option><option value="90">90 dias</option><option value="180">180 dias</option><option value="365">1 ano</option>
             </select>
           </div>
-          <button type="button" className="cnx-btn primary" disabled={busy || !name.trim()} onClick={create}>{busy ? 'Gerando...' : 'Gerar token'}</button>
+          <button type="button" className="cnx-btn primary" disabled={busy || !name.trim()} title={busy ? 'Aguarde terminar' : !name.trim() ? 'Dê um nome ao token' : undefined} onClick={create}>{busy ? 'Gerando...' : 'Gerar token'}</button>
         </div>
       )}
       {error && <div className="cnx-err" role="alert">{error}</div>}
