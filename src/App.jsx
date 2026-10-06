@@ -31,6 +31,7 @@ import { MeetingsView, todoStatusMeta } from './meetings/Meetings.jsx';
 import { MeetingDetailModal, MeetingPrintReport, PublicMeetingScreen } from './meetings/MeetingDetail.jsx';
 import { TodoBoardView } from './meetings/TodoBoard.jsx';
 import { ProjectAssistant } from './assistant/ProjectAssistant.jsx';
+import RenataHome from './assistant/RenataHome.jsx';
 import KnowledgeCenterScreen from './knowledge/KnowledgeCenter.jsx';
 import PareceresScreen from './pareceres/Pareceres.jsx';
 import ModelosScreen from './modelos/Modelos.jsx';
@@ -656,6 +657,8 @@ function AppScreens({ shellRef, bump }) {
   const [pendingCrmOpen, setPendingCrmOpen] = useState(null); // {companyId, dealId} vindo de uma notificação do CRM
   const [pendingParecerOpen, setPendingParecerOpen] = useState(null); // id do parecer vindo de uma notificação de menção
   const [pendingModeloOpen, setPendingModeloOpen] = useState(null); // id do modelo vindo de uma notificação de menção
+  const [renataHome, setRenataHome] = useState(null); // {question, n}: painel da RENATA geral (barra do topo / busca)
+  const [renataProjectId, setRenataProjectId] = useState(null); // RENATA de uma empresa aberta a partir da geral
   const [pendingTodoOpen, setPendingTodoOpen] = useState(null); // {pid, meetingId, itemId}: abre o drawer da tarefa dentro da reunião (notificação 'todo' / "Hoje")
   setRecentsUser(currentUser ? currentUser.id : '');
   const [showSettings, setShowSettings] = useState(false);
@@ -1783,7 +1786,7 @@ function AppScreens({ shellRef, bump }) {
     return [...live.filter((i) => i.kind !== 'module'), ...live.filter((i) => i.kind === 'module')].slice(0, 4);
   }
   shellRef.current = {
-    sig: [currentUser.id, currentUser.avatar, currentUser.name, shellCurrent, shellModeKeys.join(','), theme, showNotifications, showMyProfile, profileTab, googleConnectResult ? 1 : 0,
+    sig: [currentUser.id, currentUser.avatar, currentUser.name, shellCurrent, shellModeKeys.join(','), theme, showNotifications, showMyProfile, profileTab, googleConnectResult ? 1 : 0, renataHome ? renataHome.n : 0, renataProjectId || '',
       notifications.map((n) => `${n.id}${n.read ? 1 : 0}`).join(',')].join('|'),
     user: currentUser, current: shellCurrent, modes: shellModes, theme, notifications, showNotifications,
     onGo: (k) => goToWorkspace(k),
@@ -1792,7 +1795,41 @@ function AppScreens({ shellRef, bump }) {
     onToggleNotifications: () => setShowNotifications((v) => !v),
     onOpenNotification: goToNotificationTarget, onMarkNotificationRead: markNotificationRead, onMarkAllNotificationsRead: markAllNotificationsRead,
     onOpenProfile: () => openProfile('perfil'),
+    onOpenRenata: (question) => setRenataHome({ question: String(question || ''), n: Date.now() }),
     onToggleTheme: toggleTheme, onLogout: handleLogout,
+    renataNode: (
+      <>
+        {renataHome && (
+          <RenataHome
+            key={renataHome.n}
+            userId={currentUser.id}
+            userName={currentUser.name}
+            initialQuestion={renataHome.question}
+            projects={projects.map((p) => ({ id: p.id, name: p.company.nomeFantasia || p.company.name || 'Sem nome' }))}
+            onClose={() => setRenataHome(null)}
+            onOpenCompany={(pid) => { setRenataHome(null); setTimeout(() => setRenataProjectId(pid), 160); }}
+          />
+        )}
+        {renataProjectId && (() => {
+          const rp = projects.find((p) => p.id === renataProjectId);
+          if (!rp) return null;
+          return (
+            <ProjectAssistant
+              key={renataProjectId}
+              projectId={rp.id}
+              projectName={rp.company.nomeFantasia || rp.company.name}
+              view="resumo"
+              defaultOpen
+              onClosed={() => setRenataProjectId(null)}
+              onOpenMeeting={(id) => { setRenataProjectId(null); setTimeout(() => { openCompanyWorkspace([rp.id]); setView('meetings'); openMeetingDetail(rp.id, id); }, 160); }}
+              onReloadProjects={reloadProjects}
+              onOpenAgenda={() => { setRenataProjectId(null); setTimeout(() => goToWorkspace('agenda'), 160); }}
+              canStudyPareceres={currentUser.isSuperAdmin || currentUser.role === 'master' || currentUser.role === 'pricetax'}
+            />
+          );
+        })()}
+      </>
+    ),
     profileNode: showMyProfile ? (
       <MyProfileModal
         user={currentUser}
@@ -10379,9 +10416,10 @@ function ShellHost({ shellRef }) {
         notifications={p.notifications} showNotifications={p.showNotifications}
         onToggleNotifications={call('onToggleNotifications')} onOpenNotification={call('onOpenNotification')}
         onMarkNotificationRead={call('onMarkNotificationRead')} onMarkAllNotificationsRead={call('onMarkAllNotificationsRead')}
-        onOpenProfile={call('onOpenProfile')} onToggleTheme={call('onToggleTheme')} onLogout={call('onLogout')}
+        onOpenProfile={call('onOpenProfile')} onOpenRenata={call('onOpenRenata')} onToggleTheme={call('onToggleTheme')} onLogout={call('onLogout')}
       />
       {p.profileNode}
+      {p.renataNode}
     </>
   );
 }

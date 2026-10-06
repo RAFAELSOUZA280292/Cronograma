@@ -9,6 +9,7 @@ import { canAccessProject } from './routes.js';
 import { askProjectAssistant, getConversationMessages, clearConversation, setMessageFeedback, decideProposedAction } from './assistantRetrieval.js';
 import { reindexProjectMemory } from './memoryIngest.js';
 import { startDossier, getDossierState, liveMeetings } from './dossier.js';
+import { askGeneral, generalClient } from './assistantGeneral.js';
 
 export const router = Router();
 
@@ -186,4 +187,20 @@ router.post('/messages/:id/action', requireAuth, async (req, res, next) => {
     }
     next(e);
   }
+});
+
+// RENATA geral (disponível de qualquer tela, sem projeto): responde com o que a pessoa já vê + conhecimento da organização.
+// A conversa fica no navegador; o servidor só recebe as últimas mensagens. Detalhe de uma empresa → RENATA da empresa.
+router.post('/general/ask', requireAuth, async (req, res, next) => {
+  try {
+    const { question, history } = req.body || {};
+    const text = String(question || '').trim();
+    if (!text) return res.status(400).json({ message: 'Escreva a pergunta.' });
+    if (text.length > 1500) return res.status(400).json({ message: 'Pergunta muito longa (máximo 1.500 caracteres).' });
+    const client = generalClient();
+    if (!client) return res.status(503).json({ message: 'A RENATA ainda não está configurada neste ambiente (falta a chave da IA).' });
+    const orgId = req.user.isSuperAdmin && req.query.asOrg ? String(req.query.asOrg) : req.user.orgId;
+    const out = await askGeneral({ pool, client, user: req.user, orgId, question: text, history, isStaff: canUseDossier(req.user) });
+    res.json(out);
+  } catch (e) { next(e); }
 });
