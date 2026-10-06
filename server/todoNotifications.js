@@ -64,16 +64,18 @@ export async function notifyTodoChanges(req, projectId, projectName, current, ne
 
 // Tarefa vencida e ainda aberta → aviso ÚNICO por tarefa (a verificação no próprio banco impede repetir, mesmo com duas
 // instâncias). Antes das 7h (Brasília) não avisa. Retorna quantos avisos criou.
-export async function runTodoReminders({ now = new Date(), minHour = 7 } = {}) {
+// Só avisa o que venceu há pouco (padrão: até 14 dias) — a primeira rodada em produção avisou tudo que já estava vencido há meses.
+export async function runTodoReminders({ now = new Date(), minHour = 7, maxDaysLate = 14 } = {}) {
   const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hour12: false }).format(now)) % 24;
   if (hour < minHour) return 0;
   const today = todayInSp(now);
+  const oldest = new Date(new Date(`${today}T12:00:00Z`).getTime() - maxDaysLate * 86400000).toISOString().slice(0, 10);
   const { rows: projects } = await pool.query('SELECT id, org_id, data FROM projects');
   let created = 0;
   const usersByOrg = new Map();
   for (const p of projects) {
     for (const { meeting, item } of liveItems(p.data)) {
-      if (!item.dueDate || item.dueDate >= today || DONE.has(item.status) || !item.responsible) continue;
+      if (!item.dueDate || item.dueDate >= today || item.dueDate < oldest || DONE.has(item.status) || !item.responsible) continue;
       if (!usersByOrg.has(p.org_id)) {
         const { rows } = await pool.query(`SELECT id, name FROM users WHERE org_id=$1 AND blocked=false AND role <> 'cliente'`, [p.org_id]);
         usersByOrg.set(p.org_id, new Map(rows.map((u) => [key(u.name), u])));

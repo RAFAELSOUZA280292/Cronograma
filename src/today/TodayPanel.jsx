@@ -3,7 +3,7 @@
 // dados passa `actions` (que gravam e mostram o aviso com Desfazer). Os eventos do Google NÃO entram aqui: já estão na
 // RENATA da tela inicial (RenataAgendaBriefing).
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, CalendarClock, ExternalLink, Mic, ListChecks, Columns3, Building2, Bell } from 'lucide-react';
+import { CheckCircle2, CalendarClock, ExternalLink, Mic, ListChecks, Columns3, Building2, Bell, ChevronDown } from 'lucide-react';
 import { Button, EmptyState } from '../ui/index.jsx';
 import { buildTodayItems } from './todayItems.js';
 
@@ -11,7 +11,7 @@ const LIMIT = 8;
 const MAX_NOTIFS = 5;
 
 const CSS = `
-.tp { margin: 0 0 18px; font-family: 'Inter', sans-serif; }
+.tp { margin: 0 0 18px; font-family: 'Inter', sans-serif; align-self: stretch; width: 100%; box-sizing: border-box; }
 .tp-card { background: var(--bg-2); border: 1px solid var(--border-1); border-radius: 14px; padding: 16px 18px; }
 .tp-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
 .tp-title { margin: 0; font-size: 16px; font-weight: 800; color: var(--text-1); }
@@ -19,6 +19,11 @@ const CSS = `
 .tp-sec { margin-top: 14px; }
 .tp-sec-title { display: flex; align-items: center; gap: 7px; margin: 0 0 6px; font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--text-4); }
 .tp-sec-title.danger { color: var(--ui-danger, #ff7b70); }
+.tp-sec-toggle { display: flex; align-items: center; gap: 7px; width: 100%; padding: 6px 4px; margin: 0 -4px; background: transparent; border: 0; border-radius: 8px; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer; }
+.tp-sec-toggle:hover { background: var(--bg-3); }
+.tp-chev { margin-left: auto; flex-shrink: 0; transition: transform .15s ease; }
+.tp-sec.collapsed .tp-chev { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) { .tp-chev { transition: none; } }
 .tp-n { min-width: 20px; text-align: center; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 800; background: var(--bg-4); color: var(--text-3); }
 .tp-sec-title.danger .tp-n { background: var(--ui-danger-bg, rgba(226,87,76,.15)); color: var(--ui-danger, #ff7b70); }
 .tp-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--border-1); }
@@ -75,19 +80,49 @@ function ItemRow({ item, actions }) {
   );
 }
 
-function ItemSection({ id, title, danger, items, expanded, onToggle, actions }) {
+function ItemSection({ id, title, danger, items, expanded, onToggle, actions, collapsed, onCollapse }) {
   if (!items.length) return null;
   const shown = expanded ? items : items.slice(0, LIMIT);
   return (
-    <section className="tp-sec" aria-labelledby={`tp-${id}`}>
-      <h3 className={`tp-sec-title ${danger ? 'danger' : ''}`} id={`tp-${id}`}>{title} <span className="tp-n">{items.length}</span></h3>
-      <ul style={{ margin: 0, padding: 0 }}>{shown.map((it) => <ItemRow key={it.key} item={it} actions={actions} />)}</ul>
-      {items.length > LIMIT && (
-        <div className="tp-more">
-          <Button size="sm" aria-expanded={expanded} onClick={onToggle}>{expanded ? 'Mostrar menos' : `Ver todos (${items.length})`}</Button>
-        </div>
-      )}
+    <section className={`tp-sec${collapsed ? ' collapsed' : ''}`} aria-labelledby={`tp-${id}`}>
+      <SectionHead id={id} title={title} count={items.length} danger={danger} collapsed={collapsed} onToggle={onCollapse} />
+      <div id={`tp-body-${id}`} hidden={collapsed}>
+        <ul style={{ margin: 0, padding: 0 }}>{shown.map((it) => <ItemRow key={it.key} item={it} actions={actions} />)}</ul>
+        {items.length > LIMIT && (
+          <div className="tp-more">
+            <Button size="sm" aria-expanded={expanded} onClick={onToggle}>{expanded ? 'Mostrar menos' : `Ver todos (${items.length})`}</Button>
+          </div>
+        )}
+      </div>
     </section>
+  );
+}
+
+// Cada etapa (Atrasadas, Vencem hoje, Reuniões, Notificações) pode ser recolhida; a escolha fica guardada neste navegador.
+const COLLAPSE_KEY = 'pricetax-today-collapsed-v1';
+function readCollapsed() {
+  try { return JSON.parse(window.localStorage.getItem(COLLAPSE_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+function useCollapsed() {
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const toggleCollapsed = (id) => setCollapsed((c) => {
+    const next = { ...c, [id]: !c[id] };
+    try { window.localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next)); } catch (e) { /* sem armazenamento: vale só nesta sessão */ }
+    return next;
+  });
+  return [collapsed, toggleCollapsed];
+}
+
+function SectionHead({ id, title, count, danger, icon: Icon, collapsed, onToggle }) {
+  return (
+    <h3 className={`tp-sec-title ${danger ? 'danger' : ''}`} id={`tp-${id}`}>
+      <button type="button" className="tp-sec-toggle" aria-expanded={!collapsed} aria-controls={`tp-body-${id}`} onClick={onToggle}
+        title={collapsed ? `Mostrar ${title.toLowerCase()}` : `Ocultar ${title.toLowerCase()}`}>
+        {Icon && <Icon size={13} aria-hidden="true" />}
+        <span>{title}</span> <span className="tp-n">{count}</span>
+        <ChevronDown size={15} className="tp-chev" aria-hidden="true" />
+      </button>
+    </h3>
   );
 }
 
@@ -95,6 +130,7 @@ function dayWord(m) { return m.day === 'today' ? 'Hoje' : 'Amanhã'; }
 
 export default function TodayPanel({ projects, personalBoard, user, notifications, todayIso, actions }) {
   const [open, setOpen] = useState({});
+  const [collapsed, toggleCollapsed] = useCollapsed();
   const data = useMemo(() => buildTodayItems({ projects, personalBoard, user, todayIso }), [projects, personalBoard, user, todayIso]);
   const unread = useMemo(() => (notifications || []).filter((n) => !n.read), [notifications]);
   const shownNotifs = unread.slice(0, MAX_NOTIFS);
@@ -121,12 +157,13 @@ export default function TodayPanel({ projects, personalBoard, user, notification
 
         {!empty && nothingDue && <div className="tp-none">Nada atrasado nem vencendo hoje.</div>}
 
-        <ItemSection id="late" title="Atrasadas" danger items={data.overdue} expanded={!!open.late} onToggle={() => toggle('late')} actions={actions} />
-        <ItemSection id="today" title="Vencem hoje" items={data.today} expanded={!!open.today} onToggle={() => toggle('today')} actions={actions} />
+        <ItemSection id="late" title="Atrasadas" danger items={data.overdue} expanded={!!open.late} onToggle={() => toggle('late')} actions={actions} collapsed={!!collapsed.late} onCollapse={() => toggleCollapsed('late')} />
+        <ItemSection id="today" title="Vencem hoje" items={data.today} expanded={!!open.today} onToggle={() => toggle('today')} actions={actions} collapsed={!!collapsed.today} onCollapse={() => toggleCollapsed('today')} />
 
         {data.meetings.length > 0 && (
-          <section className="tp-sec" aria-labelledby="tp-meet">
-            <h3 className="tp-sec-title" id="tp-meet"><Mic size={13} aria-hidden="true" /> Reuniões de hoje e amanhã <span className="tp-n">{data.meetings.length}</span></h3>
+          <section className={`tp-sec${collapsed.meet ? ' collapsed' : ''}`} aria-labelledby="tp-meet">
+            <SectionHead id="meet" title="Reuniões de hoje e amanhã" count={data.meetings.length} icon={Mic} collapsed={!!collapsed.meet} onToggle={() => toggleCollapsed('meet')} />
+            <div id="tp-body-meet" hidden={!!collapsed.meet}>
             <ul style={{ margin: 0, padding: 0 }}>
               {(open.meet ? data.meetings : data.meetings.slice(0, LIMIT)).map((m) => (
                 <li key={m.key} className="tp-row" style={{ listStyle: 'none' }}>
@@ -139,12 +176,14 @@ export default function TodayPanel({ projects, personalBoard, user, notification
               ))}
             </ul>
             {data.meetings.length > LIMIT && <div className="tp-more"><Button size="sm" aria-expanded={!!open.meet} onClick={() => toggle('meet')}>{open.meet ? 'Mostrar menos' : `Ver todas (${data.meetings.length})`}</Button></div>}
+          </div>
           </section>
         )}
 
         {unread.length > 0 && (
-          <section className="tp-sec" aria-labelledby="tp-notif">
-            <h3 className="tp-sec-title" id="tp-notif"><Bell size={13} aria-hidden="true" /> Notificações não lidas <span className="tp-n">{unread.length}</span></h3>
+          <section className={`tp-sec${collapsed.notif ? ' collapsed' : ''}`} aria-labelledby="tp-notif">
+            <SectionHead id="notif" title="Notificações não lidas" count={unread.length} icon={Bell} collapsed={!!collapsed.notif} onToggle={() => toggleCollapsed('notif')} />
+            <div id="tp-body-notif" hidden={!!collapsed.notif}>
             <ul style={{ margin: 0, padding: 0 }}>
               {shownNotifs.map((n) => (
                 <li key={n.id} className="tp-row" style={{ listStyle: 'none' }}>
@@ -159,7 +198,11 @@ export default function TodayPanel({ projects, personalBoard, user, notification
                 </li>
               ))}
             </ul>
-            {unread.length > MAX_NOTIFS && <div className="tp-more"><Button size="sm" onClick={actions.openAllNotifications}>{`Ver todas (${unread.length})`}</Button></div>}
+            <div className="tp-more" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {unread.length > MAX_NOTIFS && <Button size="sm" onClick={actions.openAllNotifications}>{`Ver todas (${unread.length})`}</Button>}
+              {unread.length > 1 && actions.markAllNotificationsRead && <Button size="sm" onClick={actions.markAllNotificationsRead}>Marcar todas como lidas</Button>}
+            </div>
+          </div>
           </section>
         )}
       </div>
