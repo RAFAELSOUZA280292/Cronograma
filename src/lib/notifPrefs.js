@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import { apiGet, apiPut } from './api.js';
 
-let state = { categories: [], loaded: false, saving: false, savedAt: null, error: '', wantSettings: false };
+let state = { categories: [], todaySources: [], loaded: false, saving: false, savedAt: null, error: '', wantSettings: false };
 const listeners = new Set();
 function set(patch) { state = { ...state, ...patch }; listeners.forEach((l) => l()); }
 function refreshNotifications() { try { window.dispatchEvent(new Event('notifications:refresh')); } catch (e) { /* ignora */ } }
@@ -13,9 +13,9 @@ export function useNotifPrefs() {
 }
 
 export function loadNotifPrefs() {
-  return apiGet('/api/notifications/preferences').then((r) => set({ categories: r.categories || [], loaded: true })).catch(() => {});
+  return apiGet('/api/notifications/preferences').then((r) => set({ categories: r.categories || [], todaySources: r.todaySources || [], loaded: true })).catch(() => {});
 }
-export function resetNotifPrefs() { set({ categories: [], loaded: false, saving: false, savedAt: null, error: '', wantSettings: false }); }
+export function resetNotifPrefs() { set({ categories: [], todaySources: [], loaded: false, saving: false, savedAt: null, error: '', wantSettings: false }); }
 
 export function requestNotifSettings(v = true) { set({ wantSettings: v }); }
 
@@ -38,5 +38,22 @@ export async function setCategoryMuted(key, muted) {
     refreshNotifications();
   } catch (e) {
     set({ categories: before, saving: false, error: 'Não foi possível salvar. Tente de novo.' });
+  }
+}
+
+// Origens (card/activity/todo/meeting) que o usuário escondeu das listas do painel Hoje.
+export function hiddenTodaySources(todaySources = state.todaySources) {
+  return (todaySources || []).filter((x) => x.hidden).map((x) => x.source);
+}
+
+export async function setTodaySourceHidden(source, hidden) {
+  const before = state.todaySources;
+  const next = before.map((x) => (x.source === source ? { ...x, hidden } : x));
+  set({ todaySources: next, saving: true, error: '' });
+  try {
+    const r = await apiPut('/api/notifications/preferences', { todayHidden: hiddenTodaySources(next) });
+    set({ todaySources: r.todaySources || next, saving: false, savedAt: Date.now() });
+  } catch (e) {
+    set({ todaySources: before, saving: false, error: 'Não foi possível salvar. Tente de novo.' });
   }
 }

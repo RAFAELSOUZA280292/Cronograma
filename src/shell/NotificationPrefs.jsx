@@ -1,7 +1,7 @@
 // Escolher quais notificações ver (2026-10-06). Marcado = aparece; desmarcado = fica escondido (nada é apagado).
 // Salva sozinho, por usuário.
 import React from 'react';
-import { useNotifPrefs, setCategoryMuted } from '../lib/notifPrefs.js';
+import { useNotifPrefs, setCategoryMuted, setTodaySourceHidden } from '../lib/notifPrefs.js';
 
 const CSS = `
 .np { display: flex; flex-direction: column; gap: 4px; font-family: Inter, system-ui, sans-serif; }
@@ -12,6 +12,7 @@ const CSS = `
 .np-name { font-size: 14px; font-weight: 700; color: var(--text-1); }
 .np-desc { margin-top: 2px; font-size: 12.5px; line-height: 1.45; color: var(--text-3); }
 .np-soon { margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--text-4); }
+.np-h { margin: 14px 0 2px; font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--text-4); }
 .np-status { min-height: 18px; margin-top: 6px; font-size: 12.5px; color: var(--text-3); }
 .np-status.err { color: var(--ui-danger, #ff7b70); }
 `;
@@ -22,7 +23,18 @@ export default function NotificationPrefs() {
   return (
     <div className="np">
       <style>{CSS}</style>
-      <p className="np-intro">Marque o que você quer ver. O que ficar desmarcado deixa de aparecer no sino e no painel Hoje — nada é apagado, e volta se você marcar de novo. Fica salvo no seu usuário.</p>
+      <p className="np-intro">Marque o que você quer ver. O que ficar desmarcado deixa de aparecer — nada é apagado, e volta se você marcar de novo. Fica salvo no seu usuário.</p>
+      <h3 className="np-h">Tarefas e reuniões do painel Hoje</h3>
+      {p.todaySources.map((x) => (
+        <label key={x.source} className="np-row">
+          <input type="checkbox" checked={!x.hidden} onChange={(e) => setTodaySourceHidden(x.source, !e.target.checked)} />
+          <span>
+            <span className="np-name">{x.label}</span>
+            <span className="np-desc" style={{ display: 'block' }}>{x.description}</span>
+          </span>
+        </label>
+      ))}
+      <h3 className="np-h">Notificações (sino)</h3>
       {p.categories.map((c) => (
         <label key={c.key} className="np-row">
           <input type="checkbox" checked={!c.muted} onChange={(e) => setCategoryMuted(c.key, !e.target.checked)} />

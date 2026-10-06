@@ -33,20 +33,22 @@ function byPriority(a, b) {
   return rank(a.priority) - rank(b.priority) || String(a.title).localeCompare(String(b.title), 'pt-BR');
 }
 
-export function buildTodayItems({ projects, personalBoard, user, todayIso }) {
+export function buildTodayItems({ projects, personalBoard, user, todayIso, hiddenSources = [] }) {
   const out = { overdue: [], today: [], meetings: [], total: 0 };
   if (!isIso(todayIso)) return out;
   const tomorrowIso = addDaysIso(todayIso, 1);
   const me = normName(user && user.name);
 
+  const hide = new Set(hiddenSources);
+
   function push(item) {
-    if (!isIso(item.dueDate)) return;
+    if (hide.has(item.source) || !isIso(item.dueDate)) return;
     if (item.dueDate < todayIso) out.overdue.push({ ...item, daysLate: daysBetweenIso(item.dueDate, todayIso) });
     else if (item.dueDate === todayIso) out.today.push({ ...item, daysLate: 0 });
   }
 
   // (a) quadro pessoal
-  if (personalBoard && Array.isArray(personalBoard.boards)) {
+  if (!hide.has('card') && personalBoard && Array.isArray(personalBoard.boards)) {
     for (const b of personalBoard.boards) {
       for (const col of b.columns || []) {
         for (const c of col.cards || []) {
@@ -90,7 +92,7 @@ export function buildTodayItems({ projects, personalBoard, user, todayIso }) {
           });
         }
         // reuniões de hoje/amanhã em que a pessoa participa
-        if ((m.date === todayIso || m.date === tomorrowIso) && (m.participants || []).some((n) => normName(n) === me)) {
+        if (!hide.has('meeting') && (m.date === todayIso || m.date === tomorrowIso) && (m.participants || []).some((n) => normName(n) === me)) {
           out.meetings.push({
             key: `meeting:${p.id}:${m.id}`, source: 'meeting', title: m.title || 'Reunião sem título', hint: company,
             date: m.date, time: m.time || '', day: m.date === todayIso ? 'today' : 'tomorrow', ref: { pid: p.id, meetingId: m.id },
