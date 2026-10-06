@@ -44,7 +44,7 @@ import { DialogOverlay } from './ui/dialog.jsx';
 import { DialogHost, notify, askConfirm, askText, pushToastCompat, dismissToast as dismissToastGlobal } from './ui/dialogs.jsx';
 import { useHistoryValue, readHistoryValue, withoutLayer, useEscClose } from './lib/nav.js';
 import { useAutosave } from './lib/useAutosave.js';
-import { loadNotifPrefs, resetNotifPrefs, useNotifPrefs, visibleNotifications, requestNotifSettings } from './lib/notifPrefs.js';
+import { loadNotifPrefs, resetNotifPrefs, useNotifPrefs, visibleNotifications, requestNotifSettings, hiddenTodaySources } from './lib/notifPrefs.js';
 import NotificationPrefs from './shell/NotificationPrefs.jsx';
 import { calendarDaysSince } from './lib/dates.js';
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
@@ -5678,7 +5678,8 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
 }
 
 function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickModelos, onPickCrm, onPickUsers, onLogout, theme, onToggleTheme, onOpenProfile, onConfigureDaily, dailyReload, projects, notifications, todayIso, todayActions, showWeek, onOpenStats, continueItems }) {
-  const overdueNow = useMemo(() => buildTodayItems({ projects, personalBoard, user, todayIso }).overdue.length, [projects, personalBoard, user, todayIso]);
+  const todayPrefs = useNotifPrefs();
+  const overdueNow = useMemo(() => buildTodayItems({ projects, personalBoard, user, todayIso, hiddenSources: hiddenTodaySources(todayPrefs.todaySources) }).overdue.length, [projects, personalBoard, user, todayIso, todayPrefs.todaySources]);
   const gateGroups = [
     { id: 'diario', title: 'Trabalho diário', items: [
       onPickPersonal && { id: 'personal', Icon: Columns3, title: 'Gestão de Atividades', desc: 'Seu quadro pessoal de tarefas e prazos.', onPick: onPickPersonal },
@@ -7914,10 +7915,10 @@ export function NotificationBell({ notifications: allNotifications, show, onTogg
         <DialogOverlay className="no-print" style={S.overlay} onClose={onToggle}>
           <div style={S.panel} onClick={(e) => e.stopPropagation()}>
             <div style={S.panelHead}>
-              <div style={S.panelTitle}>{settings ? 'Quais notificações ver' : (unreadCount > 0 ? `${unreadCount} notifica${unreadCount === 1 ? 'ção' : 'ções'}` : 'Notificações')}</div>
+              <div style={S.panelTitle}>{settings ? 'O que ver no Hoje' : (unreadCount > 0 ? `${unreadCount} notifica${unreadCount === 1 ? 'ção' : 'ções'}` : 'Notificações')}</div>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                 {!settings && unreadCount > 0 && <button style={S.filterClearBtn} onClick={onMarkAllRead}>Marcar todas como lidas</button>}
-                <button style={S.filterClearBtn} aria-pressed={settings} onClick={() => setSettings((v) => !v)}>{settings ? 'Voltar às notificações' : 'Escolher quais ver'}</button>
+                <button style={S.filterClearBtn} aria-pressed={settings} onClick={() => setSettings((v) => !v)}>{settings ? 'Voltar às notificações' : 'Escolher o que ver'}</button>
                 <button aria-label="Fechar notificações" title="Fechar notificações" style={S.iconBtnGhost} onClick={onToggle}><X aria-hidden="true" size={16} /></button>
               </div>
             </div>

@@ -29,3 +29,22 @@ export async function loadMutedPatterns(pool, userId) {
   const { rows } = await pool.query('SELECT preferences FROM users WHERE id=$1', [userId]);
   return mutedPatterns(readMuted(rows[0] && rows[0].preferences));
 }
+
+// O que aparece nas listas do painel Hoje (Atrasadas / Vencem hoje / Reuniões) — por origem do item. Mesma escolha por
+// usuário, em users.preferences.notifications.todayHidden. `source` é o mesmo valor de buildTodayItems (src/today).
+export const TODAY_SOURCES = [
+  { source: 'card', label: 'Meu quadro', description: 'Cartões do seu quadro pessoal de tarefas.' },
+  { source: 'activity', label: 'Atividades das empresas', description: 'Atividades do cronograma das empresas em que você é o responsável.' },
+  { source: 'todo', label: 'Tarefas de reunião', description: 'Pendências que saíram das reuniões e estão no seu nome.' },
+  { source: 'meeting', label: 'Reuniões de hoje e amanhã', description: 'As reuniões em que você participa.' },
+];
+
+export function readTodayHidden(preferences) {
+  const h = preferences && preferences.notifications && preferences.notifications.todayHidden;
+  const valid = new Set(TODAY_SOURCES.map((x) => x.source));
+  return Array.isArray(h) ? [...new Set(h.filter((k) => valid.has(k)))] : [];
+}
+
+export function publicTodaySources(hidden) {
+  return TODAY_SOURCES.map((x) => ({ ...x, hidden: hidden.includes(x.source) }));
+}

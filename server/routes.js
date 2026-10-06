@@ -7,7 +7,7 @@ import {
 } from './auth.js';
 import { lookupCnpj, cleanCnpj, formatCnpj } from './cnpjLookup.js';
 import { createNotification, rowToNotification } from './notifications.js';
-import { readMuted, publicCategories, loadMutedPatterns, NOTIFICATION_CATEGORIES } from './notificationPrefs.js';
+import { readMuted, publicCategories, loadMutedPatterns, NOTIFICATION_CATEGORIES, TODAY_SOURCES, readTodayHidden, publicTodaySources } from './notificationPrefs.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { CRM_ROLES } from './crm/permissions.js';
 import { searchProjectMemory } from './memoryRetrieval.js';
@@ -682,21 +682,34 @@ router.get('/notifications', requireAuth, async (req, res, next) => {
 router.get('/notifications/preferences', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query('SELECT preferences FROM users WHERE id=$1', [req.user.id]);
-    res.json({ categories: publicCategories(readMuted(rows[0] && rows[0].preferences)) });
+    const prefs = rows[0] && rows[0].preferences;
+    res.json({ categories: publicCategories(readMuted(prefs)), todaySources: publicTodaySources(readTodayHidden(prefs)) });
   } catch (e) { next(e); }
 });
 
 router.put('/notifications/preferences', requireAuth, async (req, res, next) => {
   try {
-    const muted = req.body && req.body.muted;
-    const valid = new Set(NOTIFICATION_CATEGORIES.map((c) => c.key));
-    if (!Array.isArray(muted) || muted.some((k) => !valid.has(k))) return res.status(400).json({ message: 'Categoria de notificação desconhecida.' });
-    const clean = [...new Set(muted)];
-    await pool.query(
-      `UPDATE users SET preferences = jsonb_set(COALESCE(preferences, '{}'::jsonb), '{notifications}', $1::jsonb, true) WHERE id=$2`,
-      [JSON.stringify({ muted: clean }), req.user.id]
+    const { muted, todayHidden } = req.body || {};
+    const validCat = new Set(NOTIFICATION_CATEGORIES.map((c) => c.key));
+    const validSrc = new Set(TODAY_SOURCES.map((x) => x.source));
+    const patch = {};
+    if (muted !== undefined) {
+      if (!Array.isArray(muted) || muted.some((k) => !validCat.has(k))) return res.status(400).json({ message: 'Categoria de notificação desconhecida.' });
+      patch.muted = [...new Set(muted)];
+    }
+    if (todayHidden !== undefined) {
+      if (!Array.isArray(todayHidden) || todayHidden.some((k) => !validSrc.has(k))) return res.status(400).json({ message: 'Origem do painel Hoje desconhecida.' });
+      patch.todayHidden = [...new Set(todayHidden)];
+    }
+    if (!Object.keys(patch).length) return res.status(400).json({ message: 'Nada para salvar.' });
+    // Mescla dentro de preferences.notifications (muted e todayHidden são independentes) e preserva o resto de preferences.
+    const { rows } = await pool.query(
+      `UPDATE users SET preferences = jsonb_set(COALESCE(preferences, '{}'::jsonb), '{notifications}',
+         COALESCE(preferences->'notifications', '{}'::jsonb) || $1::jsonb, true) WHERE id=$2 RETURNING preferences`,
+      [JSON.stringify(patch), req.user.id]
     );
-    res.json({ categories: publicCategories(clean) });
+    const prefs = rows[0] && rows[0].preferences;
+    res.json({ categories: publicCategories(readMuted(prefs)), todaySources: publicTodaySources(readTodayHidden(prefs)) });
   } catch (e) { next(e); }
 });
 
