@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { Upload, Check } from 'lucide-react';
 import { crm } from './crmApi.js';
-import { Modal } from './ui.jsx';
+import { Modal, CancelButton } from './ui.jsx';
 import { guessMapping } from './importMapping.js';
 
 const STATUS_LABEL = { new: 'Nova', duplicate: 'Duplicada', possible_duplicate: 'Possível duplicada', invalid: 'Inválida' };
@@ -23,6 +23,7 @@ export default function ImportWizard({ onClose, onDone }) {
   const [includePossible, setIncludePossible] = useState(false);
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [committing, setCommitting] = useState(false);
   const [error, setError] = useState('');
 
   async function onFile(e) {
@@ -70,14 +71,14 @@ export default function ImportWizard({ onClose, onDone }) {
   }
 
   async function runCommit() {
-    setError(''); setBusy(true);
-    try { setResult(await crm.importCommit(target, buildRows(), includePossible)); setStep(4); if (onDone) onDone(); } catch (e) { setError(e.message || 'Não foi possível importar.'); } finally { setBusy(false); }
+    setError(''); setBusy(true); setCommitting(true);
+    try { setResult(await crm.importCommit(target, buildRows(), includePossible)); setStep(4); if (onDone) onDone(); } catch (e) { setError(e.message || 'Não foi possível importar.'); } finally { setBusy(false); setCommitting(false); }
   }
 
   const willImport = preview ? preview.counts.new + (includePossible ? preview.counts.possible_duplicate : 0) : 0;
 
   return (
-    <Modal title="Importar planilha" onClose={onClose} width="min(880px, 100%)">
+    <Modal title="Importar planilha" onClose={onClose} width="min(880px, 100%)" locked={committing}>
       <div className="crm-step">
         {['Arquivo', 'Colunas', 'Conferir', 'Resultado'].map((l, i) => <span key={l} style={{ marginRight: 10 }}>{step === i + 1 ? <b>{i + 1}. {l}</b> : `${i + 1}. ${l}`}</span>)}
       </div>
@@ -153,12 +154,13 @@ export default function ImportWizard({ onClose, onDone }) {
         </div>
       )}
 
+      {committing && <div className="crm-alert crm-alert-info" role="status">Importando… não feche esta janela.</div>}
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        {step < 4 && <button type="button" className="crm-btn" onClick={onClose}>Cancelar</button>}
-        {step === 2 && <button type="button" className="crm-btn" onClick={() => setStep(1)}>Voltar</button>}
+        {step < 4 && <CancelButton />}
+        {step === 2 && <button type="button" className="crm-btn" disabled={busy} onClick={() => setStep(1)}>Voltar</button>}
         {step === 2 && <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !needOk} onClick={runPreview}>{busy ? 'Conferindo…' : 'Conferir'}</button>}
-        {step === 3 && <button type="button" className="crm-btn" onClick={() => setStep(2)}>Voltar</button>}
+        {step === 3 && <button type="button" className="crm-btn" disabled={busy} onClick={() => setStep(2)}>Voltar</button>}
         {step === 3 && <button type="button" className="crm-btn crm-btn-primary" disabled={busy || willImport === 0} onClick={runCommit}>{busy ? 'Importando…' : `Importar ${willImport} ${willImport === 1 ? 'linha' : 'linhas'}`}</button>}
         {step === 4 && <button type="button" className="crm-btn crm-btn-primary" onClick={onClose}>Fechar</button>}
       </div>

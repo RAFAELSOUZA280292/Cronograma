@@ -1,7 +1,7 @@
 // Negócios (PRD 12/13): quadro Kanban por etapa + lista. Arrastar o cartão move
 // de etapa; soltar em Ganho/Perdido abre o diálogo de fechamento (motivo da
 // perda é obrigatório). O mesmo funil serve novo negócio e upsell — o filtro de
-// tipo separa. Arrastar não existe no celular: lá a etapa muda na ficha do negócio.
+// tipo separa. Arrastar não existe no celular: lá o cartão tem o seletor “Mover para…” (e a etapa também muda na ficha do negócio).
 import React, { useCallback, useEffect, useState } from 'react';
 import { Plus, Kanban, List, Sparkles, Settings2, Upload } from 'lucide-react';
 import { crm } from './crmApi.js';
@@ -15,7 +15,7 @@ const PIPE_KEY = 'crm-deals-pipeline';
 function readPipe() { try { return window.localStorage.getItem(PIPE_KEY) || ''; } catch { return ''; } }
 function readView() { try { return window.localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'board'; } catch { return 'board'; } }
 
-function DealCard({ deal, canDrag, dragging, onOpen, onDragStart, onDragEnd }) {
+function DealCard({ deal, stages, canDrag, dragging, onOpen, onMove, onDragStart, onDragEnd }) {
   const closed = deal.status !== 'open';
   return (
     // div (não button): o Firefox não inicia arrasto em <button>. Teclado abre com Enter/Espaço.
@@ -37,6 +37,14 @@ function DealCard({ deal, canDrag, dragging, onOpen, onDragStart, onDragEnd }) {
         {!closed && (deal.daysInStage || 0) > 14 && <span className="crm-tag" style={{ color: stageAgeColor(deal.daysInStage) }}>{deal.daysInStage} dias parado</span>}
         {deal.ownerName && <span className="crm-muted" style={{ fontSize: 11 }}>{deal.ownerName}</span>}
       </div>
+      {canDrag && (
+        <div className="crm-deal-move" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <select value="" aria-label={`Mover o negócio ${deal.title} para outra etapa`} onChange={(e) => { if (e.target.value) onMove(deal, e.target.value); }}>
+            <option value="">Mover para…</option>
+            {stages.filter((s) => s.id !== deal.stageId).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+      )}
     </div>
   );
 }
@@ -87,9 +95,13 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
     setDragId(null); setOverStage(null);
     if (!id || !board) return;
     const deal = board.stages.flatMap((s) => s.deals).find((d) => d.id === id);
-    if (!deal || deal.stageId === stage.id) return;
+    if (deal) await moveDeal(deal, stage);
+  }
+
+  async function moveDeal(deal, stage) {
+    if (deal.stageId === stage.id) return;
     if (stage.kind !== 'open') { setClosing({ deal, stage }); return; }
-    try { await crm.moveDeal(id, { stageId: stage.id }); reload(); if (onChanged) onChanged(); } catch (e) { window.alert(e.message); reload(); }
+    try { await crm.moveDeal(deal.id, { stageId: stage.id }); reload(); if (onChanged) onChanged(); } catch (e) { window.alert(e.message || 'Não foi possível mover o negócio.'); reload(); }
   }
 
   const totalOpen = board ? board.stages.filter((s) => s.kind === 'open').reduce((a, s) => ({ n: a.n + s.count, v: a.v + s.value, w: a.w + s.weighted }), { n: 0, v: 0, w: 0 }) : null;
@@ -151,13 +163,13 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
                   <div className="crm-col-sum">{s.count ? `${fmtMoney(s.value) || 'R$ 0'}${s.kind === 'open' ? ` · pond. ${fmtMoney(s.weighted) || 'R$ 0'}` : ''}` : (s.kind === 'open' ? `${s.probability}% de chance` : '—')}</div>
                 </div>
                 <div className="crm-col-body">
-                  {s.deals.map((d) => <DealCard key={d.id} deal={d} canDrag={caps.write} dragging={dragId === d.id} onOpen={onOpenDeal} onDragStart={setDragId} onDragEnd={() => { setDragId(null); setOverStage(null); }} />)}
+                  {s.deals.map((d) => <DealCard key={d.id} deal={d} stages={board.stages} canDrag={caps.write} dragging={dragId === d.id} onOpen={onOpenDeal} onMove={(deal, stageId) => moveDeal(deal, board.stages.find((s) => s.id === stageId))} onDragStart={setDragId} onDragEnd={() => { setDragId(null); setOverStage(null); }} />)}
                   {s.deals.length === 0 && <div className="crm-col-empty">{s.kind === 'open' ? 'Nenhum negócio aqui.' : `Sem ${s.kind === 'won' ? 'ganhos' : 'perdas'} nos últimos ${board.closedWindowDays} dias.`}</div>}
                 </div>
               </div>
             ))}
           </div>
-          <div className="crm-muted">Ganhos e perdas no quadro mostram os últimos {board.closedWindowDays} dias — a lista tem tudo.{caps.write ? ' Arraste um cartão para mudar de etapa (no celular, mude a etapa dentro do negócio).' : ''}</div>
+          <div className="crm-muted">Ganhos e perdas no quadro mostram os últimos {board.closedWindowDays} dias — a lista tem tudo.{caps.write ? ' Arraste um cartão para mudar de etapa (no celular, use o seletor “Mover para…” do cartão).' : ''}</div>
           {!loading && board.stages.every((s) => s.count === 0) && (
             <div className="crm-empty">
               <Sparkles size={26} style={{ opacity: .5 }} />

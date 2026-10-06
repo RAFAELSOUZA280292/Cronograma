@@ -1,6 +1,6 @@
 // Peças visuais comuns (2026-10-04, §72) — ver ui.css. Só apresentação: nenhuma lógica de negócio aqui, quem usa
 // continua dono do estado e dos handlers. Acessibilidade embutida (aria-pressed/selected, role=status, foco).
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './ui.css';
 
 const cx = (...parts) => parts.filter(Boolean).join(' ');
@@ -172,4 +172,39 @@ export function activateRow(fn) {
     onClick: fn,
     onKeyDown: (e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); fn(e); } },
   };
+}
+
+// Confirmação no visual do app (substitui window.confirm/prompt). `requireText`: a pessoa precisa digitar exatamente esse texto
+// (nome da empresa, "EXCLUIR"…) para liberar o botão. Esc e "Cancelar" cancelam; `busy` trava os botões; `error` aparece dentro do
+// diálogo (a ação que falhou não fecha a janela). Foco inicial no botão seguro (Cancelar) ou no campo de digitação.
+export function ConfirmDialog({ title, message, confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', danger, requireText, onConfirm, onCancel, busy, error }) {
+  const [typed, setTyped] = useState('');
+  const first = useRef(null);
+  useEffect(() => {
+    if (first.current) first.current.focus();
+    const onKey = (e) => { if (e.key === 'Escape' && !busy) { e.stopPropagation(); onCancel(); } };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [busy]);
+  const ok = !requireText || typed.trim().toLowerCase() === String(requireText).trim().toLowerCase();
+  const submit = () => { if (ok && !busy) onConfirm(); };
+  return (
+    <div className="ui-dlg-overlay" onClick={() => { if (!busy) onCancel(); }}>
+      <div className="ui-dlg" role="alertdialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <h2 className="ui-dlg-title">{title}</h2>
+        {message && <div className="ui-dlg-msg">{message}</div>}
+        {requireText && (
+          <div className="ui-dlg-type">
+            <label htmlFor="ui-dlg-input">Para confirmar, digite <b>{requireText}</b></label>
+            <input id="ui-dlg-input" ref={first} type="text" value={typed} autoComplete="off" onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />
+          </div>
+        )}
+        {error && <div className="ui-dlg-err" role="alert">{error}</div>}
+        <div className="ui-dlg-actions">
+          <button type="button" className="ui-btn" ref={requireText ? undefined : first} onClick={onCancel} disabled={busy}>{cancelLabel}</button>
+          <button type="button" className={`ui-btn ${danger ? 'danger' : 'primary'}`} onClick={submit} disabled={!ok || busy}>{busy ? 'Aguarde…' : confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
 }

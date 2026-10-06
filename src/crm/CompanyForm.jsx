@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { Search, Loader2 } from 'lucide-react';
 import { crm } from './crmApi.js';
-import { Modal, Field, DuplicatesAlert } from './ui.jsx';
+import { Modal, Field, DuplicatesAlert, CancelButton, useDirty, useDraftGuard } from './ui.jsx';
 import { fmtCnpj, sourceLabel } from './crmMeta.js';
 
 const EMPTY = {
@@ -29,6 +29,8 @@ export default function CompanyForm({ initial, options, onSaved, onCancel, onOpe
   const [dup, setDup] = useState(null); // { duplicates, blocking }
   const [lookupMsg, setLookupMsg] = useState('');
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const dirty = useDirty(form);
+  const { guard: guardOpen, dialog: openDialog } = useDraftGuard(dirty, 'Abrir outra empresa fecha este formulário e as alterações digitadas aqui serão perdidas.');
 
   async function lookup() {
     setError(''); setLookupMsg(''); setLookingUp(true);
@@ -79,7 +81,7 @@ export default function CompanyForm({ initial, options, onSaved, onCancel, onOpe
   const owners = (options && options.owners) || [];
   const canForce = dup && !dup.blocking;
   return (
-    <Modal title={editing ? 'Editar empresa' : 'Nova empresa'} onClose={onCancel}>
+    <Modal title={editing ? 'Editar empresa' : 'Nova empresa'} onClose={onCancel} dirty={dirty}>
       <div className="crm-form-grid">
         <Field label="CNPJ" full>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -164,13 +166,14 @@ export default function CompanyForm({ initial, options, onSaved, onCancel, onOpe
         )}
       </div>
       <datalist id="crm-segments">{((options && options.segments) || []).map((s) => <option key={s} value={s} />)}</datalist>
-      <DuplicatesAlert duplicates={dup && dup.duplicates} blocking={dup && dup.blocking} onOpenCompany={onOpenCompany} />
+      <DuplicatesAlert duplicates={dup && dup.duplicates} blocking={dup && dup.blocking} onOpenCompany={onOpenCompany && ((id) => guardOpen(() => onOpenCompany(id))())} />
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        <button type="button" className="crm-btn" onClick={onCancel}>Cancelar</button>
+        <CancelButton />
         {canForce && <button type="button" className="crm-btn" disabled={busy} onClick={() => save(true)}>Salvar mesmo assim</button>}
         <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !form.legalName.trim() && !form.tradeName.trim()} onClick={() => save(false)}>{busy ? 'Salvando…' : 'Salvar'}</button>
       </div>
+      {openDialog}
     </Modal>
   );
 }

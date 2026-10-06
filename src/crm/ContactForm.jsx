@@ -2,7 +2,7 @@
 // formulário pede pra escolher uma (busca por nome/CNPJ).
 import React, { useEffect, useState } from 'react';
 import { crm } from './crmApi.js';
-import { Modal, Field, DuplicatesAlert } from './ui.jsx';
+import { Modal, Field, DuplicatesAlert, CancelButton, useDirty } from './ui.jsx';
 import { DECISION_ROLES } from './crmMeta.js';
 
 const EMPTY = { firstName: '', lastName: '', jobTitle: '', department: '', email: '', phone: '', whatsapp: '', linkedin: '', decisionRole: '', influence: '', relationshipStrength: '', isPrimary: false };
@@ -22,6 +22,7 @@ export default function ContactForm({ initial, company, onSaved, onCancel }) {
   const [error, setError] = useState('');
   const [dup, setDup] = useState(null);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const dirty = useDirty({ form, company: picked && picked.id });
 
   useEffect(() => {
     if (picked || q.trim().length < 2) { setResults([]); return undefined; }
@@ -48,7 +49,7 @@ export default function ContactForm({ initial, company, onSaved, onCancel }) {
   }
 
   return (
-    <Modal title={editing ? 'Editar contato' : 'Novo contato'} onClose={onCancel}>
+    <Modal title={editing ? 'Editar contato' : 'Novo contato'} onClose={onCancel} dirty={dirty}>
       <div className="crm-form-grid">
         <Field label="Empresa *" full>
           {picked ? (
@@ -100,7 +101,7 @@ export default function ContactForm({ initial, company, onSaved, onCancel }) {
       <DuplicatesAlert duplicates={dup && dup.duplicates} blocking={false} />
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        <button type="button" className="crm-btn" onClick={onCancel}>Cancelar</button>
+        <CancelButton />
         {dup && <button type="button" className="crm-btn" disabled={busy} onClick={() => save(true)}>Salvar mesmo assim</button>}
         <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !picked || !form.firstName.trim()} onClick={() => save(false)}>{busy ? 'Salvando…' : 'Salvar'}</button>
       </div>

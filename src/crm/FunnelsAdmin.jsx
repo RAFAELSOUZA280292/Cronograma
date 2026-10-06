@@ -46,7 +46,7 @@ export default function FunnelsAdmin({ initialId, onClose, onChanged }) {
   const closed = sel ? sel.stages.filter((s) => s.kind !== 'open') : [];
 
   return (
-    <Modal title="Funis e etapas" onClose={() => { if (!dirty || window.confirm('Fechar sem salvar as alterações de etapas?')) onClose(); }} width={980}>
+    <Modal title="Funis e etapas" onClose={onClose} width={980} dirty={dirty}>
       {!pipelines && !error && <div className="crm-empty">Carregando…</div>}
       {error && <div className="crm-alert crm-alert-danger">{error}</div>}
       {pipelines && sel && (

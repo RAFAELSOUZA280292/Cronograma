@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { Phone, Mail, Video, MessageCircle, MapPin, CheckSquare, Repeat, Check, Pencil, Ban, RotateCcw, Trash2, Clock } from 'lucide-react';
 import { crm } from './crmApi.js';
 import ActivityForm from './ActivityForm.jsx';
-import { Modal, Field } from './ui.jsx';
+import { Modal, Field, CancelButton, useDirty } from './ui.jsx';
 import { fmtDateBR, fmtDateTimeBR, BUCKET_META, PRIORITY_META, activityTypeLabel } from './crmMeta.js';
 
 const ICONS = { task: CheckSquare, call: Phone, email: Mail, meeting: Video, whatsapp: MessageCircle, visit: MapPin, followup: Repeat };
@@ -16,12 +16,13 @@ function CompleteDialog({ activity, onCancel, onDone }) {
   const [next, setNext] = useState(activity.status === 'open' && !!activity.dealId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const dirty = useDirty({ outcome, next });
   async function confirm() {
     setBusy(true); setError('');
     try { const r = await crm.completeActivity(activity.id, outcome); onDone(r.activity, next); } catch (e) { setError(e.message || 'Não foi possível concluir.'); } finally { setBusy(false); }
   }
   return (
-    <Modal title="Concluir atividade" onClose={onCancel} width={500}>
+    <Modal title="Concluir atividade" onClose={onCancel} width={500} dirty={dirty} locked={busy}>
       <div style={{ marginBottom: 12 }}><div className="crm-name">{activity.title}</div><div className="crm-muted">{activity.companyName}{activity.dealTitle ? ` · ${activity.dealTitle}` : ''}</div></div>
       <Field label="Como foi? (resultado — opcional)"><textarea rows={3} value={outcome} onChange={(e) => setOutcome(e.target.value)} autoFocus placeholder="O que ficou combinado, o que o cliente disse…" /></Field>
       <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 600, fontSize: 13, marginTop: 12 }}>
@@ -30,7 +31,7 @@ function CompleteDialog({ activity, onCancel, onDone }) {
       {activity.dealId && !next && <div className="crm-muted" style={{ marginTop: 6 }}>Sem outra atividade em aberto, o negócio fica marcado como “sem próximo passo”.</div>}
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        <button type="button" className="crm-btn" onClick={onCancel}>Cancelar</button>
+        <CancelButton />
         <button type="button" className="crm-btn crm-btn-primary" disabled={busy} onClick={confirm}>{busy ? 'Salvando…' : 'Concluir'}</button>
       </div>
     </Modal>

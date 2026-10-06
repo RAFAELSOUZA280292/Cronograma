@@ -873,7 +873,7 @@ mecanismo.
 - API de conectividade (§80): testada com `curl` simulando a outra janela e com o painel aberto, **não** com uma segunda janela real do Claude Code lendo o guia; `GET /agenda` não foi testado com Google real; produção ainda não vista com token real.
 
 **Usabilidade**
-- Plano de 7 ondas em `docs/PLANO_USABILIDADE.md` (§81): aguardando decisão do Rafael sobre por onde começar.
+- Plano de 7 ondas em `docs/PLANO_USABILIDADE.md` (§81): **Onda 0 feita** (2026-10-05, ver §81 — inclui a lista do que não foi testado: arrasto por toque em aparelho real, desfazeres até o fim, vários guardas no browser); Ondas 1-6 aguardam decisão do Rafael.
 
 **Documentação**
 - Este arquivo e `docs/PROJECT_MAP.md` foram reconciliados com o código em 2026-10-05 (§79). Reconferir a cada entrega grande.
@@ -7185,7 +7185,7 @@ isolamento entre usuários e entre organizações; os três cenários da rede de
 `docs/testar-conectividade.sh` roda os testes de leitura e de segurança contra qualquer endereço (validado contra o servidor local; ainda não rodado em produção com token real).
 **Não testado**: uma segunda janela real do Claude Code lendo o guia; `GET /agenda` com Google real; produção com token real.
 
-## 81. Plano de usabilidade e front (2026-10-05) — PLANO, nada implementado
+## 81. Plano de usabilidade e front (2026-10-05) — Onda 0 IMPLEMENTADA, Ondas 1-6 só plano
 
 Pedido do Rafael: um portal em que o usuário queira ficar (e cobrar melhorias), com varredura de Voltar, atalhos entre módulos, redundâncias, "fantasmas" e botões de salvar/editar/comentar/link/print.
 Resultado: `docs/PLANO_USABILIDADE.md` — diagnóstico em números (667 botões, 15+ famílias visuais, 58 `confirm/alert/prompt`, só ~6 telas com Esc, colar print só no XFlow, 3 modelos mentais de salvar), tabela de Voltar/atalhos por tela,
@@ -7193,6 +7193,20 @@ lista de perda de dado/cliques mortos, redundâncias e **7 ondas**: 0 parar a pe
 4 salvar sem pensar (`SaveStatus`) · 5 "Hoje" acionável, navegação cruzada, notificações que navegam · 6 visual/linguagem/mobile.
 Método: 5 auditorias de leitura em paralelo + contagens próprias; os achados mais graves foram **conferidos no código** (marcados [C] no plano): remover usuário sem confirmação, XFlow limpando o rascunho antes do servidor responder, Esc/X do CRM sem guarda,
 ficha da empresa do CRM sem `key`, "Nova atividade" gravada antes de digitar, "Ir para Empresas" que leva ao Início. O restante vem dos relatórios ([R]) e deve ser conferido ao implementar. Defeito meu achado: o token da aba **Conectar** some ao trocar de aba (Onda 0).
+
+### Onda 0 — implementada (2026-10-05): parar a perda de dado e a UI que mente
+Primitivas novas: `ConfirmDialog` em `src/ui/index.jsx` (props `title/message/confirmLabel/danger/requireText/onConfirm/onCancel/busy/error`; Esc cancela, foco em Cancelar ou no campo de confirmação, `role=alertdialog`) e o padrão **excluir = toast com Desfazer** (`pushAppUndoToast` no `App`, `pushUndoToast` do `useToasts` nas telas). Regra: exclusão destrutiva pede o nome digitado (empresa, página do quadro com cartões, usuário); exclusão pequena e reversível vira toast "Desfazer".
+- **Usuários**: excluir exige digitar o login; bloquear pede confirmação e o ícone de bloquear é cadeado (não mais lixeira vermelha); `deleteUser`/`addUser` devolvem o erro e o "Novo usuário" mostra o erro **dentro** do modal (só fecha no sucesso).
+- **Empresas**: excluir exige digitar o nome (`CompanySelectorScreen`); pausar projeto tem toast Desfazer (o `ToastStack` do `App` também é renderizado na tela do seletor — telas que retornam cedo no `App` precisam do seu próprio `ToastStack`).
+- **"Nova atividade/reunião"** em empresa: o registro nasce ao abrir o modal (o modal precisa dele) mas é **removido ao fechar se nada foi tocado** (`isUntouchedNewActivity/Meeting`, effects em `openActivityId/openMeetingId`); não vai para a Lixeira.
+- **Guarda honesta de saída**: atividade e reunião só consideram "sujo" o que **não foi persistido** (`fieldsPending`/`hasDraft`); descartar não reverte o que já foi salvo; a transcrição colada (`TranscriptSubmitModal`) pede confirmação ao fechar.
+- **Aba Conectar** (Meu perfil): sempre montada (token não some ao trocar de aba) e fechar com token novo não copiado pergunta antes (`onAtRiskChange`).
+- **Quadro pessoal**: chips de filtro ativo + "Limpar tudo", "N oculta(s) por filtro · limpar" por coluna, "Ir para Empresas" vai para Empresas (antes caía no Início), excluir página/coluna com confirmação + Desfazer, desfazer de comentário/checklist/anexo/link/subatividade/tarefa de reunião; `NoAccessScreen` ganhou "Voltar ao início"; sensores `MouseSensor`+`TouchSensor`(250 ms)+Keyboard no quadro pessoal, XFlow e CRM (sem `touchAction:none`).
+- **XFlow**: rascunho só é limpo após sucesso (`runAction` devolve boolean), erro de carga com "Tentar de novo".
+- **CRM**: guarda de alterações não salvas em todos os formulários (`Modal dirty/locked`, `useDraftGuard`), `key` na ficha da empresa/negócio, assistente de importação não fecha enquanto importa.
+- **Pareceres/Modelos**: nenhum `catch` engole erro — carga com falha mostra aviso + "Tentar de novo"; salvar mostra estado; exclusões com `ConfirmDialog`.
+**Testado de verdade** (browser local, 2026-10-05): quadro (chips/ocultas/limpar), excluir página (campo de nome bloqueia o botão), "Ir para Empresas", pausar+Desfazer, excluir empresa (diálogo), bloquear usuário (diálogo), criar usuário duplicado (erro inline e modal aberto), "Nova atividade" fechada vazia (volta a 11 cartões, Lixeira 0), CRM (guarda Continuar editando/Descartar), Pareceres e Modelos com API falhando (aviso + tentar de novo), XFlow com criação falhando (erro no formulário e rascunho mantido), mobile 375 px do quadro, aba Conectar (token persiste entre abas; fechar sem copiar pergunta). **Achado no teste**: o diálogo de excluir empresa tinha ido para o componente errado (`App`, onde `deleteTarget` não existe) e quebraria a tela da empresa — corrigido; o build não pega isso, por isso rodei `no-undef` do ESLint em `src/` e conferi componentes JSX.
+**Não testado**: arrasto por toque em aparelho real (iPhone/Android); desfazer de anexo/link/comentário/checklist/subatividade/tarefa de reunião e exclusão de coluna/página até o fim (só o diálogo); guardas das reuniões/transcrição no browser; caminhos de falha do XFlow além da criação; fluxos do CRM além do formulário de empresa. Limites conhecidos (já existiam): `addItems` do XFlow com falha parcial duplica ao repetir; `useDebouncedField` pode sobrescrever o que foi digitado se a resposta do servidor chegar tarde; trocar o drawer do CRM por `pendingOpen` não passa pela guarda.
 
 | Preciso de... | Vá para |
 |---|---|

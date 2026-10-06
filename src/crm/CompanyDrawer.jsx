@@ -10,7 +10,7 @@ import ContactForm from './ContactForm.jsx';
 import DealForm from './DealForm.jsx';
 import ActivityForm from './ActivityForm.jsx';
 import ActivityList from './ActivityList.jsx';
-import { RelPill, CompletenessBar, useEsc } from './ui.jsx';
+import { RelPill, CompletenessBar, useDrawerEsc, useDraftGuard } from './ui.jsx';
 import {
   fmtCnpj, fmtCep, fmtMoney, fmtDateBR, fmtDateTimeBR, daysLabel, staleColor, DECISION_ROLES, roleLabel, STRENGTH_META, INFLUENCE_LABELS,
   sourceLabel, TIMELINE_KIND, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor,
@@ -49,9 +49,13 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
   const [noteAbout, setNoteAbout] = useState('company');
   const [busy, setBusy] = useState(false);
   const [projectToLink, setProjectToLink] = useState('');
-  // Esc fecha só a camada de cima: com um formulário aberto, Esc fecha o formulário (o Modal cuida disso), não a ficha.
-  const noop = useCallback(() => {}, []);
-  useEsc(editing || contactForm || dealForm || activityForm ? noop : onClose);
+  // Esc fecha só a camada de cima: com um modal aberto (formulário, diálogo), Esc fecha o modal e a ficha espera.
+  const { guard, dialog: discardDialog } = useDraftGuard(!!noteText.trim(), 'Há uma nota digitada que ainda não foi registrada. Se fechar, o texto será perdido.');
+  const close = guard(onClose);
+  useDrawerEsc(close);
+  const guarded = (fn) => guard(fn)();
+  const openDeal = onOpenDeal && ((id) => guarded(() => onOpenDeal(id)));
+  const openOtherCompany = onOpenCompany && ((id) => guarded(() => onOpenCompany(id)));
 
   const load = useCallback(async () => {
     try {
@@ -124,7 +128,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
 
   return (
     <>
-    <div className="crm-overlay" onClick={onClose}>
+    <div className="crm-overlay" onClick={close}>
       <div className="crm-drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ficha da empresa">
         <div className="crm-drawer-head">
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
@@ -147,7 +151,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
               {co && !co.deletedAt && caps.write && <button type="button" className="crm-btn" onClick={() => setEditing(true)}><Pencil size={14} /> Editar</button>}
               {co && !co.deletedAt && caps.remove && <button type="button" className="crm-btn crm-btn-danger" onClick={removeCompany}><Trash2 size={14} /> Excluir</button>}
               {co && co.deletedAt && caps.admin && <button type="button" className="crm-btn" onClick={restoreCompany}><RotateCcw size={14} /> Restaurar</button>}
-              <button type="button" className="crm-icon-btn" onClick={onClose} title="Fechar"><X size={18} /></button>
+              <button type="button" className="crm-icon-btn" onClick={close} title="Fechar"><X size={18} /></button>
             </div>
           </div>
           <div className="crm-tabs" role="tablist">
@@ -269,7 +273,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
                     <thead><tr><th>Negócio</th><th>Etapa</th><th className="crm-num">Valor</th><th>Previsão</th><th>Tipo</th></tr></thead>
                     <tbody>
                       {data.deals.map((d) => (
-                        <tr key={d.id} onClick={() => onOpenDeal && onOpenDeal(d.id)}>
+                        <tr key={d.id} onClick={() => openDeal && openDeal(d.id)}>
                           <td><div className="crm-name">{d.title}</div><div className="crm-muted">{d.ownerName}</div></td>
                           <td><span className="crm-pill" style={{ color: d.status === 'open' ? 'var(--text-4)' : DEAL_STATUS_META[d.status].color }}>{d.status === 'open' ? d.stageName : DEAL_STATUS_META[d.status].label}</span>{d.status === 'open' && (d.daysInStage || 0) > 14 && <div style={{ color: stageAgeColor(d.daysInStage), fontSize: 11 }}>{d.daysInStage} dias parado</div>}</td>
                           <td className="crm-num">{d.value ? fmtMoney(d.value) : <span className="crm-muted">—</span>}</td>
@@ -291,7 +295,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
                 {caps.write && !co.deletedAt && <button type="button" className="crm-btn crm-btn-primary" onClick={() => setActivityForm(true)}><Plus size={14} /> Nova atividade</button>}
               </div>
               <div className="crm-section">
-                <ActivityList activities={data.activities} caps={caps} options={options} currentUserId={currentUserId} onChanged={afterChange} onOpenDeal={onOpenDeal}
+                <ActivityList activities={data.activities} caps={caps} options={options} currentUserId={currentUserId} onChanged={afterChange} onOpenDeal={openDeal}
                   emptyText="Nenhuma atividade ainda. Agende o próximo passo com esta empresa para ela não esfriar." />
               </div>
             </>
@@ -392,7 +396,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
     </div>
 
       {editing && co && (
-        <CompanyForm initial={co} options={options} onCancel={() => setEditing(false)} onOpenCompany={onOpenCompany}
+        <CompanyForm initial={co} options={options} onCancel={() => setEditing(false)} onOpenCompany={openOtherCompany}
           onSaved={async () => { setEditing(false); await afterChange(); }} />
       )}
       {activityForm && co && (
@@ -403,6 +407,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
         <DealForm company={{ id: co.id, legalName: co.legalName, relationship: co.relationship }} defaultType={dealForm.type} options={options} currentUserId={currentUserId}
           onCancel={() => setDealForm(null)} onSaved={async () => { setDealForm(null); setTab('deals'); await afterChange(); }} />
       )}
+      {discardDialog}
       {contactForm && co && (
         <ContactForm initial={contactForm.contact} company={{ id: co.id, legalName: co.legalName }} onCancel={() => setContactForm(null)}
           onSaved={async () => { setContactForm(null); await afterChange(); }} />

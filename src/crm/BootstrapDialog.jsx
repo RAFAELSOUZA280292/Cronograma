@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { crm } from './crmApi.js';
-import { Modal } from './ui.jsx';
+import { Modal, CancelButton } from './ui.jsx';
 import { fmtCnpj } from './crmMeta.js';
 
 const ACTION_LABEL = { create: 'Criar empresa', link_existing: 'Ligar à empresa existente', possible_duplicate: 'Possível duplicada' };
@@ -28,7 +28,7 @@ export default function BootstrapDialog({ onClose, onDone }) {
   }
 
   return (
-    <Modal title="Trazer clientes do painel para o CRM" onClose={onClose} width="min(900px, 100%)">
+    <Modal title="Trazer clientes do painel para o CRM" onClose={onClose} width="min(900px, 100%)" locked={busy}>
       {!items && !error && <div className="crm-empty">Carregando…</div>}
       {items && !result && (
         <>
@@ -64,9 +64,10 @@ export default function BootstrapDialog({ onClose, onDone }) {
           {result.failed.map((f, i) => <div key={i} className="crm-err">{f.name}: {f.message}</div>)}
         </div>
       )}
+      {busy && <div className="crm-alert crm-alert-info" role="status">Trazendo as empresas… não feche esta janela.</div>}
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        {!result && <button type="button" className="crm-btn" onClick={onClose}>Cancelar</button>}
+        {!result && <CancelButton />}
         {!result && items && items.length > 0 && <button type="button" className="crm-btn crm-btn-primary" disabled={busy || picked.size === 0} onClick={run}>{busy ? 'Trazendo…' : `Trazer ${picked.size} ${picked.size === 1 ? 'empresa' : 'empresas'}`}</button>}
         {result && <button type="button" className="crm-btn crm-btn-primary" onClick={onClose}>Fechar</button>}
       </div>

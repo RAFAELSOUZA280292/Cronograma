@@ -9,7 +9,7 @@ import DealForm from './DealForm.jsx';
 import CloseDealDialog from './CloseDealDialog.jsx';
 import ActivityForm from './ActivityForm.jsx';
 import ActivityList from './ActivityList.jsx';
-import { useEsc } from './ui.jsx';
+import { useDrawerEsc, useDraftGuard } from './ui.jsx';
 import { fmtMoney, fmtDateBR, fmtDateTimeBR, DEAL_TYPE_META, DEAL_STATUS_META, TIMELINE_KIND, sourceLabel, stageAgeColor } from './crmMeta.js';
 
 // A auditoria guarda os valores crus (new/open/won…); na tela vão em português.
@@ -30,8 +30,9 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
   const [noteText, setNoteText] = useState('');
   const [activityForm, setActivityForm] = useState(false);
   const [busy, setBusy] = useState(false);
-  const noop = useCallback(() => {}, []);
-  useEsc(editing || closing || activityForm ? noop : onClose);
+  const { guard, dialog: discardDialog } = useDraftGuard(!!noteText.trim(), 'Há uma nota digitada que ainda não foi registrada. Se fechar, o texto será perdido.');
+  const close = guard(onClose);
+  useDrawerEsc(close);
 
   const load = useCallback(async () => {
     try { setError(''); setData(await crm.deal(dealId)); } catch (e) { setError(e.message || 'Não foi possível abrir o negócio.'); }
@@ -72,7 +73,7 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
 
   return (
     <>
-      <div className="crm-overlay" onClick={onClose}>
+      <div className="crm-overlay" onClick={close}>
         <div className="crm-drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ficha do negócio">
           <div className="crm-drawer-head">
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
@@ -85,7 +86,7 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
                       {d.status !== 'open' && <span className="crm-pill" style={{ color: DEAL_STATUS_META[d.status].color }}>{DEAL_STATUS_META[d.status].label}</span>}
                     </div>
                     <div className="crm-sub" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <button type="button" className="crm-btn" style={{ padding: '3px 9px' }} onClick={() => onOpenCompany(d.companyId)}><Building2 size={12} /> {d.companyName}</button>
+                      <button type="button" className="crm-btn" style={{ padding: '3px 9px' }} onClick={guard(() => onOpenCompany(d.companyId))}><Building2 size={12} /> {d.companyName}</button>
                       {d.ownerName && <span>Responsável: {d.ownerName}</span>}
                     </div>
                   </>
@@ -94,7 +95,7 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
               <div className="crm-actions">
                 {canEdit && <button type="button" className="crm-btn" onClick={() => setEditing(true)}><Pencil size={14} /> Editar</button>}
                 {d && caps.remove && <button type="button" className="crm-btn crm-btn-danger" onClick={removeDeal}><Trash2 size={14} /> Excluir</button>}
-                <button type="button" className="crm-icon-btn" onClick={onClose} title="Fechar"><X size={18} /></button>
+                <button type="button" className="crm-icon-btn" onClick={close} title="Fechar"><X size={18} /></button>
               </div>
             </div>
             {d && caps.write && (
@@ -232,6 +233,7 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
         </div>
       </div>
 
+      {discardDialog}
       {activityForm && d && <ActivityForm company={{ id: d.companyId, legalName: d.companyName, relationship: d.companyRelationship }} prefill={{ dealId: d.id, contactId: d.primaryContactId || '' }} options={options} currentUserId={currentUserId}
         onCancel={() => setActivityForm(false)} onSaved={async () => { setActivityForm(false); await afterChange(); }} />}
       {editing && d && <DealForm initial={d} options={options} currentUserId={currentUserId} onCancel={() => setEditing(false)} onSaved={async () => { setEditing(false); await afterChange(); }} />}
