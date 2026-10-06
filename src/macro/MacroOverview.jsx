@@ -149,7 +149,7 @@ export default function MacroOverviewScreen({
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button style={S.iconBtnGhost} title="Atualizar" onClick={load}><RefreshCw size={14} /></button>
+          <button style={S.iconBtnGhost} title="Atualizar" aria-label="Atualizar" onClick={load}><RefreshCw size={14} aria-hidden="true" /></button>
         </div>
       </div>
 

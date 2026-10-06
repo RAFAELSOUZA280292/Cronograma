@@ -31,6 +31,8 @@ export default function ActivityForm({ initial, company, prefill, options, curre
   const owners = (options && options.owners) || [];
   const dirty = useDirty({ form, done, outcome, company: picked && picked.id });
 
+  const blockReason = busy ? 'Aguarde terminar de salvar' : !picked ? 'Escolha a empresa para salvar' : !form.title.trim() ? 'Preencha o que precisa ser feito para salvar' : !form.dueDate ? 'Informe a data para salvar' : '';
+
   useEffect(() => {
     if (picked || q.trim().length < 2) { setResults([]); return undefined; }
     const t = setTimeout(() => { crm.companies({ q, limit: 6 }).then((r) => setResults(r.items)).catch(() => setResults([])); }, 250);
@@ -68,7 +70,7 @@ export default function ActivityForm({ initial, company, prefill, options, curre
             <div>
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Digite o nome ou CNPJ da empresa" autoFocus />
               {results.map((r) => (
-                <button key={r.id} type="button" className="crm-search-item" onClick={() => { setPicked({ id: r.id, legalName: r.legalName, relationship: r.relationship }); setResults([]); }}>
+                <button key={r.id} type="button" className="crm-search-item" title={`Escolher ${r.legalName}`} onClick={() => { setPicked({ id: r.id, legalName: r.legalName, relationship: r.relationship }); setResults([]); }}>
                   {r.legalName}<small>{r.tradeName}</small>
                 </button>
               ))}
@@ -111,8 +113,9 @@ export default function ActivityForm({ initial, company, prefill, options, curre
       </div>
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
+        {blockReason && !busy && <span className="crm-muted" style={{ fontSize: 11.5, marginRight: 'auto' }}>{blockReason}</span>}
         <CancelButton />
-        <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !picked || !form.title.trim() || !form.dueDate} onClick={save}>{busy ? 'Salvando…' : (done ? 'Registrar' : 'Salvar')}</button>
+        <button type="button" className="crm-btn crm-btn-primary" disabled={!!blockReason} title={blockReason || undefined} onClick={save}>{busy ? 'Salvando…' : (done ? 'Registrar' : 'Salvar')}</button>
       </div>
     </Modal>
   );

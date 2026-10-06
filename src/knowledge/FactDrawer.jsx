@@ -124,8 +124,8 @@ export function FactDrawer({ factId, onClose, onNavigateToMeeting, onOpenEntity,
           </label>
           {error && <div style={{ color: '#e2574c', fontSize: 11.5, marginTop: 8 }}>{error}</div>}
           <div className="knw-btn-row">
-            <button className="knw-btn knw-btn-primary" disabled={saving} onClick={saveEdit}>{saving ? 'Salvando…' : 'Salvar nova versão'}</button>
-            <button className="knw-btn knw-btn-ghost" disabled={saving} onClick={() => setEditing(false)}>Cancelar</button>
+            <button className="knw-btn knw-btn-primary" disabled={saving} title={saving ? 'Aguarde terminar' : undefined} onClick={saveEdit}>{saving ? 'Salvando…' : 'Salvar nova versão'}</button>
+            <button className="knw-btn knw-btn-ghost" disabled={saving} title={saving ? 'Aguarde terminar' : undefined} onClick={() => setEditing(false)}>Cancelar</button>
           </div>
         </div>
       )}
@@ -177,7 +177,7 @@ export function FactDrawer({ factId, onClose, onNavigateToMeeting, onOpenEntity,
           {(entities || []).map((e) => (
             <span key={e.id} className="knw-entity-chip" onClick={() => onOpenEntity(e)}>
               {entityTypeLabel(e.type)}: {e.name}
-              <button style={{ background: 'none', border: 'none', color: 'var(--text-6)', cursor: 'pointer', padding: 0, display: 'flex' }} onClick={(ev) => { ev.stopPropagation(); removeEntity(e.id); }}><X size={11} /></button>
+              <button style={{ background: 'none', border: 'none', color: 'var(--text-6)', cursor: 'pointer', padding: 0, display: 'flex' }} aria-label={`Remover vínculo com ${e.name}`} title="Remover vínculo" onClick={(ev) => { ev.stopPropagation(); removeEntity(e.id); }}><X size={11} aria-hidden="true" /></button>
             </span>
           ))}
           {!addingEntity ? (
@@ -188,7 +188,7 @@ export function FactDrawer({ factId, onClose, onNavigateToMeeting, onOpenEntity,
                 {Object.keys(ENTITY_TYPE_LABELS).map((k) => <option key={k} value={k}>{entityTypeLabel(k)}</option>)}
               </select>
               <input type="text" placeholder="Nome" value={entityName} onChange={(e) => setEntityName(e.target.value)} style={{ fontSize: 11, width: 100 }} />
-              <button className="knw-btn knw-btn-primary" style={{ padding: '4px 8px' }} onClick={addEntity}>OK</button>
+              <button className="knw-btn knw-btn-primary" style={{ padding: '4px 8px' }} onClick={addEntity}>Adicionar</button>
             </span>
           )}
           {!entities || entities.length === 0 ? null : null}

@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowUp, ArrowDown, Trash2, Plus, Star } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { Modal } from './ui.jsx';
+import { askConfirm } from '../ui/dialogs.jsx';
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const toDraft = (p) => p.stages.filter((s) => s.kind === 'open').map((s) => ({ id: s.id, name: s.name, probability: String(s.probability), deals: s.deals }));
@@ -35,8 +36,8 @@ export default function FunnelsAdmin({ initialId, onClose, onChanged }) {
     setError(''); setNote(''); setBusy(true);
     try { const r = await fn(); adopt(r.pipelines, keepId); if (okMsg) setNote(okMsg); if (onChanged) onChanged(); return true; } catch (e) { setError(e.message || 'Não foi possível salvar.'); return false; } finally { setBusy(false); }
   }
-  function pick(p) {
-    if (dirty && !window.confirm('Descartar as alterações de etapas ainda não salvas?')) return;
+  async function pick(p) {
+    if (dirty && !(await askConfirm({ title: 'Descartar as alterações de etapas?', message: 'As alterações de etapas ainda não foram salvas e serão perdidas.', confirmLabel: 'Descartar', cancelLabel: 'Continuar editando', danger: true }))) return;
     setSelId(p.id); setDraft(toDraft(p)); setName(p.name); setError(''); setNote('');
   }
   function move(i, d) { setDraft((l) => { const n = [...l]; const j = i + d; if (j < 0 || j >= n.length) return l; [n[i], n[j]] = [n[j], n[i]]; return n; }); }
@@ -54,25 +55,25 @@ export default function FunnelsAdmin({ initialId, onClose, onChanged }) {
           <div>
             <div className="crm-form-group" style={{ margin: '0 0 8px' }}>Funis</div>
             {pipelines.map((p) => (
-              <button key={p.id} type="button" className={`crm-row-link${p.id === sel.id ? ' crm-active-row' : ''}`} style={{ borderRadius: 8, borderBottom: 'none', marginBottom: 2, background: p.id === sel.id ? 'var(--bg-3)' : undefined }} onClick={() => pick(p)}>
+              <button key={p.id} type="button" className={`crm-row-link${p.id === sel.id ? ' crm-active-row' : ''}`} style={{ borderRadius: 8, borderBottom: 'none', marginBottom: 2, background: p.id === sel.id ? 'var(--bg-3)' : undefined }} title={`Abrir o funil ${p.name}`} onClick={() => pick(p)}>
                 <span style={{ fontWeight: p.id === sel.id ? 800 : 600 }}>{p.isDefault && <Star size={12} color="#F5C400" style={{ marginRight: 4, verticalAlign: -1 }} />}{p.name}</span>
                 <span className="crm-muted">{p.dealCount}</span>
               </button>
             ))}
             <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
               <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Novo funil" style={{ padding: '7px 9px', fontSize: 12.5, borderRadius: 8 }} onKeyDown={(e) => { if (e.key === 'Enter' && newName.trim()) run(() => crm.createPipeline({ name: newName }), null).then((ok) => ok && setNewName('')); }} />
-              <button type="button" className="crm-btn" disabled={busy || !newName.trim()} onClick={() => run(() => crm.createPipeline({ name: newName }), null, 'Funil criado com etapas iniciais — ajuste abaixo.').then((ok) => ok && setNewName(''))}><Plus size={14} /></button>
+              <button type="button" className="crm-btn" disabled={busy || !newName.trim()} aria-label="Criar funil" title={busy ? 'Aguarde terminar de salvar' : !newName.trim() ? 'Digite o nome do novo funil' : 'Criar funil'} onClick={() => run(() => crm.createPipeline({ name: newName }), null, 'Funil criado com etapas iniciais — ajuste abaixo.').then((ok) => ok && setNewName(''))}><Plus size={14} aria-hidden="true" /></button>
             </div>
           </div>
 
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
               <input value={name} onChange={(e) => setName(e.target.value)} aria-label="Nome do funil" style={{ maxWidth: 300, fontWeight: 800, padding: '8px 10px', borderRadius: 8 }} />
-              <button type="button" className="crm-btn" disabled={busy || !name.trim() || name.trim() === sel.name} onClick={() => run(() => crm.updatePipeline(sel.id, { name }), sel.id, 'Nome atualizado.')}>Renomear</button>
+              <button type="button" className="crm-btn" disabled={busy || !name.trim() || name.trim() === sel.name} title={busy ? 'Aguarde terminar de salvar' : !name.trim() ? 'Digite o nome do funil' : name.trim() === sel.name ? 'Altere o nome para renomear' : undefined} onClick={() => run(() => crm.updatePipeline(sel.id, { name }), sel.id, 'Nome atualizado.')}>Renomear</button>
               {sel.isDefault
                 ? <span className="crm-pill" style={{ color: '#F5C400' }}><Star size={11} /> Funil padrão</span>
-                : <button type="button" className="crm-btn" disabled={busy} onClick={() => run(() => crm.updatePipeline(sel.id, { isDefault: true }), sel.id, 'Definido como padrão (o que abre primeiro e recebe negócios novos).')}>Definir como padrão</button>}
-              {!sel.isDefault && <button type="button" className="crm-btn crm-btn-danger" disabled={busy} onClick={() => { if (window.confirm(`Arquivar o funil "${sel.name}"? Só é possível se ele não tiver negócios.`)) run(() => crm.deletePipeline(sel.id), null, 'Funil arquivado.'); }}>Arquivar funil</button>}
+                : <button type="button" className="crm-btn" disabled={busy} title={busy ? 'Aguarde terminar de salvar' : undefined} onClick={() => run(() => crm.updatePipeline(sel.id, { isDefault: true }), sel.id, 'Definido como padrão (o que abre primeiro e recebe negócios novos).')}>Definir como padrão</button>}
+              {!sel.isDefault && <button type="button" className="crm-btn crm-btn-danger" disabled={busy} title={busy ? 'Aguarde terminar de salvar' : undefined} onClick={async () => { if (await askConfirm({ title: `Arquivar o funil "${sel.name}"?`, message: 'Só é possível se ele não tiver negócios.', confirmLabel: 'Arquivar funil', danger: true })) run(() => crm.deletePipeline(sel.id), null, 'Funil arquivado.'); }}>Arquivar funil</button>}
             </div>
 
             <div className="crm-table-wrap" style={{ marginBottom: 10 }}>
@@ -86,9 +87,9 @@ export default function FunnelsAdmin({ initialId, onClose, onChanged }) {
                       <td className="crm-num">{r.id ? r.deals : '—'}</td>
                       <td>
                         <div style={{ display: 'flex', gap: 2 }}>
-                        <button type="button" className="crm-icon-btn" title="Subir" disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp size={14} /></button>
-                        <button type="button" className="crm-icon-btn" title="Descer" disabled={i === draft.length - 1} onClick={() => move(i, 1)}><ArrowDown size={14} /></button>
-                        <button type="button" className="crm-icon-btn" title={r.id && r.deals ? 'Tem negócios — mova-os antes de remover' : 'Remover etapa'} disabled={draft.length <= 1 || (r.id && r.deals > 0)} onClick={() => setDraft((l) => l.filter((_, k) => k !== i))}><Trash2 size={14} /></button>
+                        <button type="button" className="crm-icon-btn" title={i === 0 ? 'Já é a primeira etapa' : 'Subir etapa'} aria-label={`Subir a etapa ${r.name || i + 1}`} disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp size={14} aria-hidden="true" /></button>
+                        <button type="button" className="crm-icon-btn" title={i === draft.length - 1 ? 'Já é a última etapa' : 'Descer etapa'} aria-label={`Descer a etapa ${r.name || i + 1}`} disabled={i === draft.length - 1} onClick={() => move(i, 1)}><ArrowDown size={14} aria-hidden="true" /></button>
+                        <button type="button" className="crm-icon-btn" title={r.id && r.deals ? 'Tem negócios — mova-os antes de remover' : draft.length <= 1 ? 'O funil precisa de ao menos uma etapa' : 'Remover etapa'} aria-label={`Remover a etapa ${r.name || i + 1}`} disabled={draft.length <= 1 || (r.id && r.deals > 0)} onClick={() => setDraft((l) => l.filter((_, k) => k !== i))}><Trash2 size={14} aria-hidden="true" /></button>
                         </div>
                       </td>
                     </tr>
@@ -105,8 +106,8 @@ export default function FunnelsAdmin({ initialId, onClose, onChanged }) {
             <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap' }}>
               <button type="button" className="crm-btn" onClick={() => setDraft((l) => [...l, { id: null, name: '', probability: '50', deals: 0 }])}><Plus size={14} /> Adicionar etapa</button>
               <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                {dirty && <span className="crm-muted">Alterações não salvas</span>}
-                <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !dirty || invalid} onClick={() => run(() => crm.saveStages(sel.id, draft.map((r) => ({ id: r.id || undefined, name: r.name, probability: Number(r.probability) }))), sel.id, 'Etapas salvas.')}>{busy ? 'Salvando…' : 'Salvar etapas'}</button>
+                {dirty && !busy && <span className="crm-muted">{invalid ? 'Preencha o nome e a chance (0 a 100) de todas as etapas para salvar' : 'Alterações não salvas'}</span>}
+                <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !dirty || invalid} title={busy ? 'Aguarde terminar de salvar' : !dirty ? 'Nenhuma alteração para salvar' : invalid ? 'Preencha o nome e a chance (0 a 100) de todas as etapas' : undefined} onClick={() => run(() => crm.saveStages(sel.id, draft.map((r) => ({ id: r.id || undefined, name: r.name, probability: Number(r.probability) }))), sel.id, 'Etapas salvas.')}>{busy ? 'Salvando…' : 'Salvar etapas'}</button>
               </span>
             </div>
             <div className="crm-muted" style={{ marginTop: 10 }}>A “chance” é o ponto de partida do valor ponderado do funil. Ganho vale sempre 100% e Perdido 0%. Etapa removida é arquivada: o histórico dos negócios antigos continua intacto.</div>

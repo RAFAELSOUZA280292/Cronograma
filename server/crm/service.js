@@ -4,6 +4,8 @@
 // UMA transação que grava (1) o dado, (2) a auditoria campo-a-campo e (3) o
 // evento de timeline — é isso que garante PRD 9/43/55/57 (histórico completo,
 // nada some, quem/quando). Excluir é sempre soft delete (deleted_at/by).
+import { createNotification } from '../notifications.js';
+import { cleanCommentExtras, notifyMentions, ExtrasError } from '../commentExtras.js';
 import { randomUUID } from 'node:crypto';
 import { pool } from '../db.js';
 import { CrmError } from './errors.js';
@@ -529,11 +531,19 @@ export async function deleteContact(orgId, actor, id) {
 
 // ---------- NOTAS (PRD 52: qualquer objeto aceita nota; a nota entra na timeline) ----------
 
-export async function addNote(orgId, actor, { entityType, entityId, body }) {
+export function cleanNoteExtras(attachments, links) {
+  try {
+    const r = cleanCommentExtras(attachments, links, { maxAttachments: 5, maxFileChars: 4 * 1024 * 1024 });
+    return { att: r.attachments, lk: r.links };
+  } catch (e) { if (e instanceof ExtrasError) throw new CrmError(400, e.message); throw e; }
+}
+
+export async function addNote(orgId, actor, { entityType, entityId, body, attachments, links, mentions }) {
   if (!['company', 'contact', 'deal'].includes(entityType)) throw new CrmError(400, 'Tipo de registro inválido para nota.');
   requireUuid(entityId);
   const text = String(body || '').trim();
-  if (!text) throw new CrmError(400, 'Escreva a nota.');
+  const { att, lk } = cleanNoteExtras(attachments, links);
+  if (!text && !att.length && !lk.length) throw new CrmError(400, 'Escreva a nota.');
   if (text.length > 5000) throw new CrmError(400, 'Nota muito longa (máximo 5.000 caracteres).');
   return tx(async (c) => {
     let companyId = entityId;
@@ -552,13 +562,33 @@ export async function addNote(orgId, actor, { entityType, entityId, body }) {
       about = ` sobre ${`${k.first_name} ${k.last_name}`.trim()}`;
     }
     const id = randomUUID();
-    await c.query(`INSERT INTO crm_notes (id, org_id, entity_type, entity_id, company_id, body, created_by, updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$7)`,
-      [id, orgId, entityType, entityId, companyId, text, actor.id || null]);
+    await c.query(`INSERT INTO crm_notes (id, org_id, entity_type, entity_id, company_id, body, created_by, updated_by, attachments, links) VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9)`,
+      [id, orgId, entityType, entityId, companyId, text, actor.id || null, JSON.stringify(att), JSON.stringify(lk)]);
     await addAudit(c, { orgId, entityType: 'note', entityId: id, action: 'create', changes: [{ field: 'body', label: 'Nota', from: null, to: text }], actor });
     const excerpt = text.length > 160 ? `${text.slice(0, 160)}…` : text;
     await addTimeline(c, { orgId, companyId, entityType: 'note', entityId: id, eventType: 'note_added', actor,
       summary: `${actor.name} registrou uma nota${about}: "${excerpt}"`, data: { noteId: id, refType: entityType, refId: entityId } });
-    return { id, entityType, entityId, companyId, body: text, createdAt: new Date().toISOString(), createdByName: actor.name };
+    // @menção: quem foi citado recebe uma notificação que abre a empresa/negócio no CRM.
+    await notifyMentions(c, { orgId, actor, mentions, type: 'crm_mention', title: 'Menção em nota do CRM',
+      body: `${actor.name} mencionou você em uma nota${about}: "${excerpt}"`,
+      target: { kind: 'crm_activity', companyId, dealId: entityType === 'deal' ? entityId : null } });
+    return { id, entityType, entityId, companyId, body: text, attachments: att, links: lk, createdAt: new Date().toISOString(), createdBy: actor.id || null, createdByName: actor.name };
+  });
+}
+
+// Editar a própria nota (só o texto; anexos e links ficam). Fica registrado como editada.
+export async function updateNote(orgId, actor, id, { body }) {
+  requireUuid(id, 'Nota');
+  const text = String(body || '').trim();
+  if (text.length > 5000) throw new CrmError(400, 'Nota muito longa (máximo 5.000 caracteres).');
+  return tx(async (c) => {
+    const { rows } = await c.query('SELECT id, company_id, created_by, body, attachments, links FROM crm_notes WHERE id=$1 AND org_id=$2 AND deleted_at IS NULL FOR UPDATE', [id, orgId]);
+    if (!rows[0]) throw new CrmError(404, 'Nota não encontrada.');
+    if (rows[0].created_by !== actor.id) throw new CrmError(403, 'Você só pode editar as suas próprias notas.');
+    if (!text && !(rows[0].attachments || []).length && !(rows[0].links || []).length) throw new CrmError(400, 'A nota não pode ficar vazia. Para apagar, use Remover.');
+    await c.query('UPDATE crm_notes SET body=$1, edited_at=now(), updated_at=now(), updated_by=$2 WHERE id=$3', [text, actor.id || null, id]);
+    await addAudit(c, { orgId, entityType: 'note', entityId: id, action: 'update', changes: [{ field: 'body', label: 'Nota', from: rows[0].body, to: text }], actor });
+    return { id, body: text, editedAt: new Date().toISOString() };
   });
 }
 

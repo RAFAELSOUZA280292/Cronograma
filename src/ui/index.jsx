@@ -22,12 +22,52 @@ export function Card({ interactive, onClick, className, children, ...rest }) {
   );
 }
 
-export function Button({ variant, size, icon: Icon, children, className, type = 'button', ...rest }) {
+// Botão de texto. variant: primary (amarelo — a ação principal da tela) · danger (vermelho — destrutivo) · padrão (secundário).
+// `disabledReason` é OBRIGATÓRIO quando `disabled` (o motivo vira tooltip e texto para leitor de tela): botão desligado sem
+// explicação é botão quebrado para quem usa. `loading` mostra "Aguarde…" e trava.
+export function Button({ variant, size, icon: Icon, children, className, type = 'button', disabled, disabledReason, loading, title, ...rest }) {
+  const off = !!(disabled || loading);
+  const reason = disabled && disabledReason ? disabledReason : undefined;
   return (
-    <button type={type} className={cx('ui-btn', variant, size, className)} {...rest}>
-      {Icon && <Icon size={size === 'sm' ? 13 : 15} />}
-      {children}
+    <button type={type} className={cx('ui-btn', variant, size, className)} disabled={off} title={reason || title} aria-busy={loading || undefined} {...rest}>
+      {Icon && <Icon size={size === 'sm' ? 13 : 15} aria-hidden="true" />}
+      {loading ? 'Aguarde…' : children}
+      {reason && <span className="ui-sr">{` — ${reason}`}</span>}
     </button>
+  );
+}
+
+// Botão só-ícone: o rótulo (`label`) é obrigatório — vira aria-label e tooltip. Alvo de 36 px (44 no celular).
+export function IconButton({ label, icon: Icon, variant, size, className, type = 'button', disabled, disabledReason, ...rest }) {
+  if (!label && typeof console !== 'undefined') console.error('IconButton sem label');
+  const reason = disabled && disabledReason ? disabledReason : undefined;
+  return (
+    <button type={type} className={cx('ui-iconbtn', variant, size, className)} aria-label={label} title={reason ? `${label} — ${reason}` : label} disabled={disabled} {...rest}>
+      {Icon && <Icon size={size === 'sm' ? 14 : 16} aria-hidden="true" />}
+    </button>
+  );
+}
+
+// Estado de erro com saída: o que aconteceu, por quê (se der) e "Tentar de novo".
+export function ErrorState({ title = 'Não foi possível carregar', message, onRetry, retryLabel = 'Tentar de novo', compact }) {
+  return (
+    <div className={cx('ui-error', compact && 'compact')} role="alert">
+      <div className="ui-error-title">{title}</div>
+      {message && <div className="ui-error-msg">{message}</div>}
+      {onRetry && <Button size="sm" onClick={onRetry}>{retryLabel}</Button>}
+    </div>
+  );
+}
+
+// Estado de gravação: o mesmo texto em todo lugar. state: 'idle' | 'saving' | 'saved' | 'error'.
+export function SaveStatus({ state, savedAt, onRetry }) {
+  if (!state || state === 'idle') return null;
+  return (
+    <span className={cx('ui-save', `s-${state}`)} role="status">
+      {state === 'saving' && 'Salvando…'}
+      {state === 'saved' && `Salvo${savedAt ? ` às ${savedAt}` : ''}`}
+      {state === 'error' && <>Não foi possível salvar{onRetry && <button type="button" className="ui-save-retry" onClick={onRetry}>Tentar de novo</button>}</>}
+    </span>
   );
 }
 
@@ -203,8 +243,8 @@ export function ConfirmDialog({ title, message, confirmLabel = 'Confirmar', canc
         )}
         {error && <div className="ui-dlg-err" role="alert">{error}</div>}
         <div className="ui-dlg-actions">
-          <button type="button" className="ui-btn" ref={requireText ? undefined : first} onClick={onCancel} disabled={busy}>{cancelLabel}</button>
-          <button type="button" className={`ui-btn ${danger ? 'danger' : 'primary'}`} onClick={submit} disabled={!ok || busy}>{busy ? 'Aguarde…' : confirmLabel}</button>
+          <button type="button" className="ui-btn" ref={requireText ? undefined : first} onClick={onCancel} disabled={busy} title={busy ? 'Aguarde terminar' : undefined}>{cancelLabel}</button>
+          <button type="button" className={`ui-btn ${danger ? 'danger' : 'primary'}`} onClick={submit} disabled={!ok || busy} title={busy ? 'Aguarde terminar' : !ok ? 'Digite o texto indicado para liberar' : undefined}>{busy ? 'Aguarde…' : confirmLabel}</button>
         </div>
       </div>
     </div>

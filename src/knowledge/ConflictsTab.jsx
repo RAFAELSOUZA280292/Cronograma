@@ -72,8 +72,8 @@ function ConflictCard({ conflict, onResolved }) {
           <input type="text" placeholder="Motivo (opcional)" value={reason} onChange={(e) => setReason(e.target.value)} style={{ width: '100%', fontSize: 12, padding: '7px 10px', borderRadius: 7 }} />
           {error && <div style={{ color: '#e2574c', fontSize: 11.5, marginTop: 6 }}>{error}</div>}
           <div className="knw-btn-row">
-            <button className="knw-btn knw-btn-primary" disabled={saving} onClick={confirm}><Check size={13} /> Confirmar</button>
-            <button className="knw-btn knw-btn-ghost" disabled={saving} onClick={() => { setPending(null); setOlderId(null); setError(''); }}><X size={13} /> Cancelar</button>
+            <button className="knw-btn knw-btn-primary" disabled={saving} title={saving ? 'Aguarde terminar' : undefined} onClick={confirm}><Check size={13} /> Confirmar</button>
+            <button className="knw-btn knw-btn-ghost" disabled={saving} title={saving ? 'Aguarde terminar' : undefined} onClick={() => { setPending(null); setOlderId(null); setError(''); }}><X size={13} /> Cancelar</button>
           </div>
         </div>
       )}

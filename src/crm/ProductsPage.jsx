@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Plus, Package, Pencil } from 'lucide-react';
 import { crm } from './crmApi.js';
+import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { Modal, Field, CancelButton, useDirty } from './ui.jsx';
 import { fmtMoney, BILLING_LABELS, moneyToNumber } from './crmMeta.js';
 
@@ -46,8 +47,9 @@ function ProductForm({ initial, onSaved, onCancel }) {
       </div>
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
+        {!f.name.trim() && !busy && <span className="crm-muted" style={{ fontSize: 11.5, marginRight: 'auto' }}>Preencha o nome para salvar</span>}
         <CancelButton />
-        <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !f.name.trim()} onClick={save}>{busy ? 'Salvando…' : 'Salvar'}</button>
+        <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !f.name.trim()} title={busy ? 'Aguarde terminar de salvar' : !f.name.trim() ? 'Preencha o nome para salvar' : undefined} onClick={save}>{busy ? 'Salvando…' : (editing ? 'Salvar' : 'Criar produto')}</button>
       </div>
     </Modal>
   );
@@ -65,15 +67,15 @@ export default function ProductsPage({ caps, onChanged }) {
   useEffect(() => { load(); }, [load]);
 
   async function remove(p) {
-    if (!window.confirm(`Excluir "${p.name}" do catálogo? Negócios antigos que o usam continuam com o nome registrado. Para só parar de oferecer, prefira desativar.`)) return;
-    try { await crm.deleteProduct(p.id); load(); if (onChanged) onChanged(); } catch (e) { window.alert(e.message); }
+    if (!(await askConfirm({ title: `Excluir "${p.name}" do catálogo?`, message: 'Negócios antigos que o usam continuam com o nome registrado. Para só parar de oferecer, prefira desativar.', confirmLabel: 'Excluir', danger: true }))) return;
+    try { await crm.deleteProduct(p.id); load(); if (onChanged) onChanged(); } catch (e) { notify((e && e.message) || 'Não foi possível excluir o produto.', { tone: 'error' }); }
   }
 
   return (
     <div>
       <div className="crm-page-head">
         <div><h1 className="crm-h1">Produtos</h1><div className="crm-sub">O que a PRICETAX vende. Cada negócio escolhe daqui e o valor é a soma dos itens.</div></div>
-        {caps.catalog && <button type="button" className="crm-btn crm-btn-primary" onClick={() => setForm({})}><Plus size={14} /> Novo produto</button>}
+        {caps.catalog && <button type="button" className="crm-btn crm-btn-primary" onClick={() => setForm({})}><Plus size={14} /> Criar produto</button>}
       </div>
       {error && <div className="crm-alert crm-alert-danger">{error}</div>}
       <div className="crm-table-wrap">
@@ -88,7 +90,7 @@ export default function ProductsPage({ caps, onChanged }) {
                 <td className="crm-num">{p.listPrice != null ? fmtMoney(p.listPrice) : <span className="crm-muted">—</span>}</td>
                 <td><span className="crm-pill" style={{ color: p.active ? '#3ecf6e' : '#9a9a9a' }}>{p.active ? 'Ativo' : 'Inativo'}</span></td>
                 {caps.catalog && <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
-                  <button type="button" className="crm-icon-btn" title="Editar" onClick={() => setForm({ product: p })}><Pencil size={14} /></button>
+                  <button type="button" className="crm-icon-btn" title="Editar produto" aria-label="Editar produto" onClick={() => setForm({ product: p })}><Pencil size={14} aria-hidden="true" /></button>
                   <button type="button" className="crm-btn crm-btn-danger" style={{ padding: '4px 9px' }} onClick={() => remove(p)}>Excluir</button>
                 </td>}
               </tr>
@@ -99,7 +101,7 @@ export default function ProductsPage({ caps, onChanged }) {
           <div className="crm-empty">
             <Package size={26} style={{ opacity: .5 }} />
             <div style={{ marginTop: 8 }}>Nenhum produto cadastrado ainda.{!caps.catalog && ' Peça a um gestor para cadastrar o catálogo.'}</div>
-            {caps.catalog && <div style={{ marginTop: 10 }}><button type="button" className="crm-btn crm-btn-primary" onClick={() => setForm({})}><Plus size={14} /> Cadastrar o primeiro</button></div>}
+            {caps.catalog && <div style={{ marginTop: 10 }}><button type="button" className="crm-btn crm-btn-primary" onClick={() => setForm({})}><Plus size={14} /> Criar o primeiro produto</button></div>}
           </div>
         )}
         {loading && <div className="crm-empty">Carregando…</div>}

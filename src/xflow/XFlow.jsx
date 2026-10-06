@@ -25,6 +25,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, savedStatusLabel, COLUMN_COLOR_META } from '../App.jsx';
 import { DialogOverlay } from '../ui/dialog.jsx';
+import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
 import { calendarDaysSince } from '../lib/dates.js';
 
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
@@ -56,7 +57,7 @@ function clipboardImageFiles(e) {
 function readEvidenceFile(file) {
   return new Promise((resolve) => {
     if (file.size > MAX_EVIDENCE_BYTES) {
-      window.alert(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_EVIDENCE_BYTES / (1024 * 1024)} MB.`);
+      notify(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_EVIDENCE_BYTES / (1024 * 1024)} MB.`, { tone: 'error' });
       resolve(null); return;
     }
     const reader = new FileReader();
@@ -687,7 +688,7 @@ function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, pla
         const file = imageItem.getAsFile();
         if (!file) return false;
         if (file.size > MAX_EVIDENCE_BYTES) {
-          window.alert(`A imagem colada tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite é ${MAX_EVIDENCE_BYTES / (1024 * 1024)} MB.`);
+          notify(`A imagem colada tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite é ${MAX_EVIDENCE_BYTES / (1024 * 1024)} MB.`, { tone: 'error' });
           return true;
         }
         const reader = new FileReader();
@@ -719,9 +720,9 @@ function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, pla
   if (!editor) return null;
 
   function btnCls(active) { return `xflow-rte-btn${active ? ' active' : ''}`; }
-  function insertLink() {
+  async function insertLink() {
     const prev = editor.getAttributes('link').href || '';
-    const url = window.prompt('URL do link:', prev);
+    const url = await askText({ title: 'Inserir link', label: 'URL do link (deixe vazio para remover o link)', defaultValue: prev, confirmLabel: 'Aplicar', required: false });
     if (url === null) return;
     const chain = editor.chain().focus().extendMarkRange('link');
     if (url.trim()) chain.setLink({ href: url.trim() }).run();
@@ -737,16 +738,16 @@ function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, pla
       <style>{RICH_TEXT_CSS}</style>
       {!disabled && (
         <div className="xflow-rte-toolbar">
-          <button type="button" className="xflow-rte-btn" title="Desfazer (Ctrl+Z)" disabled={!editor.can().undo()} onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().undo().run()}><Undo2 size={13} /></button>
-          <button type="button" className="xflow-rte-btn" title="Refazer (Ctrl+Shift+Z)" disabled={!editor.can().redo()} onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().redo().run()}><Redo2 size={13} /></button>
+          <button type="button" className="xflow-rte-btn" aria-label="Desfazer" title="Desfazer (Ctrl+Z)" disabled={!editor.can().undo()} onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().undo().run()}><Undo2 size={13} aria-hidden="true" /></button>
+          <button type="button" className="xflow-rte-btn" aria-label="Refazer" title="Refazer (Ctrl+Shift+Z)" disabled={!editor.can().redo()} onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().redo().run()}><Redo2 size={13} aria-hidden="true" /></button>
           <div className="xflow-rte-sep" />
-          <button type="button" className={btnCls(editor.isActive('heading', { level: 2 }))} title="Título" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 size={13} /></button>
-          <button type="button" className={btnCls(editor.isActive('heading', { level: 3 }))} title="Subtítulo" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}><Heading3 size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive('heading', { level: 2 }))} aria-label="Título" title="Título" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 size={13} aria-hidden="true" /></button>
+          <button type="button" className={btnCls(editor.isActive('heading', { level: 3 }))} aria-label="Subtítulo" title="Subtítulo" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}><Heading3 size={13} aria-hidden="true" /></button>
           <div className="xflow-rte-sep" />
-          <button type="button" className={btnCls(editor.isActive('bold'))} title="Negrito (Ctrl+B)" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()}><Bold size={13} /></button>
-          <button type="button" className={btnCls(editor.isActive('italic'))} title="Itálico (Ctrl+I)" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic size={13} /></button>
-          <button type="button" className={btnCls(editor.isActive('underline'))} title="Sublinhado (Ctrl+U)" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon size={13} /></button>
-          <button type="button" className={btnCls(editor.isActive('strike'))} title="Tachado" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive('bold'))} aria-label="Negrito" title="Negrito (Ctrl+B)" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()}><Bold size={13} aria-hidden="true" /></button>
+          <button type="button" className={btnCls(editor.isActive('italic'))} aria-label="Itálico" title="Itálico (Ctrl+I)" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic size={13} aria-hidden="true" /></button>
+          <button type="button" className={btnCls(editor.isActive('underline'))} aria-label="Sublinhado" title="Sublinhado (Ctrl+U)" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon size={13} aria-hidden="true" /></button>
+          <button type="button" className={btnCls(editor.isActive('strike'))} aria-label="Tachado" title="Tachado" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough size={13} aria-hidden="true" /></button>
           <div className="xflow-rte-sep" />
           <select className="xflow-rte-font" title="Fonte" value={editor.getAttributes('textStyle').fontFamily || ''} onChange={(e) => { const v = e.target.value; if (v) editor.chain().focus().setFontFamily(v).run(); else editor.chain().focus().unsetFontFamily().run(); }}>
             {RICH_TEXT_FONTS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
@@ -755,23 +756,23 @@ function RichTextEditor({ value, onChange, onCommit, onPasteImage, disabled, pla
             {RICH_TEXT_SIZES.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
           </select>
           <div className="xflow-rte-sep" />
-          <button type="button" className={btnCls(editor.isActive({ textAlign: 'left' }))} title="Alinhar à esquerda" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('left').run()}><AlignLeft size={13} /></button>
-          <button type="button" className={btnCls(editor.isActive({ textAlign: 'center' }))} title="Centralizar" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('center').run()}><AlignCenter size={13} /></button>
-          <button type="button" className={btnCls(editor.isActive({ textAlign: 'right' }))} title="Alinhar à direita" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('right').run()}><AlignRight size={13} /></button>
-          <button type="button" className={btnCls(editor.isActive({ textAlign: 'justify' }))} title="Justificar" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('justify').run()}><AlignJustify size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive({ textAlign: 'left' }))} aria-label="Alinhar à esquerda" title="Alinhar à esquerda" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('left').run()}><AlignLeft size={13} aria-hidden="true" /></button>
+          <button type="button" className={btnCls(editor.isActive({ textAlign: 'center' }))} aria-label="Centralizar" title="Centralizar" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('center').run()}><AlignCenter size={13} aria-hidden="true" /></button>
+          <button type="button" className={btnCls(editor.isActive({ textAlign: 'right' }))} aria-label="Alinhar à direita" title="Alinhar à direita" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('right').run()}><AlignRight size={13} aria-hidden="true" /></button>
+          <button type="button" className={btnCls(editor.isActive({ textAlign: 'justify' }))} aria-label="Justificar" title="Justificar" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('justify').run()}><AlignJustify size={13} aria-hidden="true" /></button>
           <div className="xflow-rte-sep" />
-          <button type="button" className={btnCls(editor.isActive('bulletList'))} title="Lista com marcadores" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBulletList().run()}><List size={13} /></button>
-          <button type="button" className={btnCls(editor.isActive('orderedList'))} title="Lista numerada" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered size={13} /></button>
-          <button type="button" className="xflow-rte-btn" title="Diminuir recuo" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().outdent().run()}><Outdent size={13} /></button>
-          <button type="button" className="xflow-rte-btn" title="Aumentar recuo" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().indent().run()}><IndentIcon size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive('bulletList'))} aria-label="Lista com marcadores" title="Lista com marcadores" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBulletList().run()}><List size={13} aria-hidden="true" /></button>
+          <button type="button" className={btnCls(editor.isActive('orderedList'))} aria-label="Lista numerada" title="Lista numerada" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered size={13} aria-hidden="true" /></button>
+          <button type="button" className="xflow-rte-btn" aria-label="Diminuir recuo" title="Diminuir recuo" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().outdent().run()}><Outdent size={13} aria-hidden="true" /></button>
+          <button type="button" className="xflow-rte-btn" aria-label="Aumentar recuo" title="Aumentar recuo" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().indent().run()}><IndentIcon size={13} aria-hidden="true" /></button>
           <div className="xflow-rte-sep" />
-          <button type="button" className={btnCls(editor.isActive('blockquote'))} title="Citação" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote size={13} /></button>
-          <button type="button" className={btnCls(editor.isActive('codeBlock'))} title="Bloco de código" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleCodeBlock().run()}><Code size={13} /></button>
-          <button type="button" className="xflow-rte-btn" title="Linha horizontal" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setHorizontalRule().run()}><MinusIcon size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive('blockquote'))} aria-label="Citação" title="Citação" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote size={13} aria-hidden="true" /></button>
+          <button type="button" className={btnCls(editor.isActive('codeBlock'))} aria-label="Bloco de código" title="Bloco de código" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleCodeBlock().run()}><Code size={13} aria-hidden="true" /></button>
+          <button type="button" className="xflow-rte-btn" aria-label="Linha horizontal" title="Linha horizontal" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setHorizontalRule().run()}><MinusIcon size={13} aria-hidden="true" /></button>
           <div className="xflow-rte-sep" />
-          <button type="button" className={btnCls(editor.isActive('link'))} title="Link" onMouseDown={(e) => e.preventDefault()} onClick={insertLink}><Link2 size={13} /></button>
+          <button type="button" className={btnCls(editor.isActive('link'))} aria-label="Link" title="Link" onMouseDown={(e) => e.preventDefault()} onClick={insertLink}><Link2 size={13} aria-hidden="true" /></button>
           <div style={{ position: 'relative' }}>
-            <button type="button" className="xflow-rte-btn" title="Emoji" onMouseDown={(e) => e.preventDefault()} onClick={() => setShowEmoji((v) => !v)}><Smile size={13} /></button>
+            <button type="button" className="xflow-rte-btn" aria-label="Emoji" title="Emoji" onMouseDown={(e) => e.preventDefault()} onClick={() => setShowEmoji((v) => !v)}><Smile size={13} aria-hidden="true" /></button>
             {showEmoji && (
               <div className="xflow-rte-emoji-panel" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10, marginTop: 4 }}>
                 {RICH_TEXT_EMOJIS.map((em) => (
@@ -935,6 +936,11 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
   function removeEvidence(id) { setForm((f) => ({ ...f, evidence: f.evidence.filter((ev) => ev.id !== id) })); }
 
   const requiredOk = form.title.trim() && form.product && form.clientType && !richTextIsBlank(form.description) && form.environment && form.occurredAt;
+  const missingRequired = [
+    !form.title.trim() && 'título', !form.product && 'produto', !form.clientType && 'tipo de cliente',
+    richTextIsBlank(form.description) && 'descrição', !form.environment && 'ambiente', !form.occurredAt && 'data de ocorrência',
+  ].filter(Boolean);
+  const createDisabledReason = saving ? 'Aguarde terminar de salvar' : !requiredOk ? `Preencha para abrir a TASK: ${missingRequired.join(', ')}` : undefined;
 
   async function submit() {
     if (!requiredOk || saving) return;
@@ -958,7 +964,7 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
               Só o essencial pra abrir agora — dá pra completar o resto depois.
             </div>
           </div>
-          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
+          <button style={S.iconBtnGhost} aria-label="Fechar" title="Fechar" onClick={requestClose}><X size={18} aria-hidden="true" /></button>
         </div>
 
         <div style={S.subSectionLabel}>Tipo</div>
@@ -1100,7 +1106,7 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
               {form.evidence.map((ev) => (
                 <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12 }}>
                   {ev.type && ev.type.startsWith('image/') ? <img src={ev.dataUrl} alt={ev.name} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} /> : <Paperclip size={12} />} {ev.name}
-                  <button style={S.iconBtnGhost} onClick={() => removeEvidence(ev.id)}><X size={12} /></button>
+                  <button style={S.iconBtnGhost} aria-label="Remover evidência" title="Remover evidência" onClick={() => removeEvidence(ev.id)}><X size={12} aria-hidden="true" /></button>
                 </div>
               ))}
             </div>
@@ -1113,9 +1119,10 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
 
         {error && <div style={{ ...S.loginBlockedMsg, marginTop: 10 }}>{error}</div>}
 
-        <button style={{ ...S.primaryBtn, marginTop: 18, width: '100%', justifyContent: 'center', padding: '12px 16px', fontSize: 13.5, borderRadius: 9 }} onClick={submit} disabled={!requiredOk || saving}>
+        <button style={{ ...S.primaryBtn, marginTop: 18, width: '100%', justifyContent: 'center', padding: '12px 16px', fontSize: 13.5, borderRadius: 9 }} onClick={submit} disabled={!requiredOk || saving} title={createDisabledReason}>
           {saving ? 'Enviando...' : form.type === 'melhoria' ? 'Registrar melhoria' : 'Abrir BUG'}
         </button>
+        {createDisabledReason && <div style={{ ...S.fieldHint, marginTop: 6, textAlign: 'center' }}>{createDisabledReason}</div>}
       </div>
       {showGuard && (
         <div onClick={(e) => e.stopPropagation()}>
@@ -1473,7 +1480,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   function handleCommentFiles(fileList) {
     Array.from(fileList || []).forEach((file) => {
       if (file.size > MAX_EVIDENCE_BYTES) {
-        window.alert(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_EVIDENCE_BYTES / (1024 * 1024)} MB.`);
+        notify(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_EVIDENCE_BYTES / (1024 * 1024)} MB.`, { tone: 'error' });
         return;
       }
       const reader = new FileReader();
@@ -1560,13 +1567,13 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {linkCopied && <span style={{ fontSize: 11, color: 'var(--text-5)' }}>Link copiado!</span>}
             <button
-              style={S.iconBtnGhost} title="Copiar link permanente desta TASK"
+              style={S.iconBtnGhost} aria-label="Copiar link da TASK" title="Copiar link permanente desta TASK"
               onClick={() => {
                 const url = `${window.location.origin}${window.location.pathname}${window.location.search}#${ticket.number}`;
                 navigator.clipboard.writeText(url).then(() => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2500); });
               }}
-            ><Link2 size={16} /></button>
-            <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
+            ><Link2 size={16} aria-hidden="true" /></button>
+            <button style={S.iconBtnGhost} aria-label="Fechar" title="Fechar" onClick={requestClose}><X size={18} aria-hidden="true" /></button>
           </div>
         </div>
 
@@ -1598,7 +1605,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
         {sideError && (
           <div role="alert" style={{ ...S.loginBlockedMsg, marginBottom: 14, position: 'sticky', top: 0, zIndex: 5, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
             <span style={{ flex: 1 }}>{sideError}</span>
-            <button style={S.iconBtnGhost} title="Dispensar aviso" onClick={() => setSideError('')}><X size={12} /></button>
+            <button style={S.iconBtnGhost} aria-label="Dispensar aviso" title="Dispensar aviso" onClick={() => setSideError('')}><X size={12} aria-hidden="true" /></button>
           </div>
         )}
 
@@ -1648,7 +1655,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                     <a href={ev.dataUrl} download={ev.name} title="Baixar" style={S.iconBtnGhost}><Download size={12} /></a>
                   )}
                   {canDoClient('attach_evidence', currentUser, ticket) && (
-                    <button style={S.iconBtnGhost} title="Remover anexo" onClick={() => runAction('remover_anexo', { evidenceId: ev.id })}><X size={12} /></button>
+                    <button style={S.iconBtnGhost} aria-label="Remover anexo" title="Remover anexo" onClick={() => runAction('remover_anexo', { evidenceId: ev.id })}><X size={12} aria-hidden="true" /></button>
                   )}
                 </div>
               );
@@ -1662,7 +1669,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                   #{lt.number} — {lt.title}
                 </a>
                 <Badge meta={XFLOW_STATUS_META[lt.status]} small />
-                <button style={S.iconBtnGhost} title="Remover vínculo" onClick={() => runAction('desvincular_ticket', { linkedTicketId: lt.id })}><X size={12} /></button>
+                <button style={S.iconBtnGhost} aria-label="Remover vínculo" title="Remover vínculo" onClick={() => runAction('desvincular_ticket', { linkedTicketId: lt.id })}><X size={12} aria-hidden="true" /></button>
               </div>
             ))}
             <input
@@ -1718,14 +1725,14 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                     {att.type && att.type.startsWith('image/') && <img src={att.dataUrl} alt={att.name} style={S.attachThumb} />}
                     <span style={S.attachLink}>{att.name}</span>
                     <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
-                    <button style={S.iconBtnGhost} onClick={() => removeCommentAttachmentDraft(att.id)}><X size={12} /></button>
+                    <button style={S.iconBtnGhost} aria-label="Remover anexo" title="Remover anexo" onClick={() => removeCommentAttachmentDraft(att.id)}><X size={12} aria-hidden="true" /></button>
                   </div>
                 ))}
                 {commentLinkDrafts.map((l) => (
                   <div key={l.id} style={S.attachRow}>
                     <Link2 size={12} style={{ flexShrink: 0, color: 'var(--text-6)' }} />
                     <span style={S.attachLink}>{l.label}</span>
-                    <button style={S.iconBtnGhost} onClick={() => removeCommentLinkDraft(l.id)}><X size={12} /></button>
+                    <button style={S.iconBtnGhost} aria-label="Remover link" title="Remover link" onClick={() => removeCommentLinkDraft(l.id)}><X size={12} aria-hidden="true" /></button>
                   </div>
                 ))}
               </div>
@@ -1734,7 +1741,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                 <input type="text" value={commentLinkLabelDraft} onChange={(e) => setCommentLinkLabelDraft(e.target.value)} placeholder="Nome do link (opcional)" style={{ flex: 1 }} />
                 <input type="text" value={commentLinkUrlDraft} onChange={(e) => setCommentLinkUrlDraft(e.target.value)} placeholder="https://..." style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && addCommentLinkDraft()} />
-                <button style={S.iconBtn} onClick={addCommentLinkDraft}><Plus size={14} /></button>
+                <button style={S.iconBtn} aria-label="Adicionar link" title="Adicionar link" onClick={addCommentLinkDraft}><Plus size={14} aria-hidden="true" /></button>
               </div>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
@@ -1747,8 +1754,8 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               <label style={S.iconBtnGhost} title="Anexar imagem ou PDF"><Paperclip size={14} />
                 <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} onChange={(e) => { handleCommentFiles(e.target.files); e.target.value = ''; }} />
               </label>
-              <button style={S.iconBtnGhost} title="Anexar link" onClick={() => setShowCommentLinkForm((v) => !v)}><Link2 size={14} /></button>
-              <button style={S.iconBtn} onClick={submitComment} disabled={sendingComment || (!commentDraft.trim() && !commentAttachmentDrafts.length && !commentLinkDrafts.length)}>{sendingComment ? 'Enviando…' : 'Comentar'}</button>
+              <button style={S.iconBtnGhost} aria-label="Anexar link" title="Anexar link" onClick={() => setShowCommentLinkForm((v) => !v)}><Link2 size={14} aria-hidden="true" /></button>
+              <button style={S.iconBtn} onClick={submitComment} disabled={sendingComment || (!commentDraft.trim() && !commentAttachmentDrafts.length && !commentLinkDrafts.length)} title={sendingComment ? 'Aguarde terminar de enviar' : (!commentDraft.trim() && !commentAttachmentDrafts.length && !commentLinkDrafts.length) ? 'Escreva um comentário ou anexe um arquivo ou link' : undefined}>{sendingComment ? 'Enviando…' : 'Comentar'}</button>
             </div>
             {commentError && (
               <div role="alert" style={{ ...S.loginBlockedMsg, marginTop: 8, marginBottom: 0 }}>
@@ -1814,14 +1821,14 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>O que você tentou pra reproduzir?</div>
                 <textarea rows={2} value={reproduceNoteDraft} onChange={(e) => setReproduceNoteDraft(e.target.value)} />
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmReproduce} disabled={!reproduceNoteDraft.trim() || formBusy}>Confirmar</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmReproduce} disabled={!reproduceNoteDraft.trim() || formBusy} title={formBusy ? 'Aguarde terminar' : !reproduceNoteDraft.trim() ? 'Descreva o que foi observado para continuar' : undefined}>Confirmar</button>
               </div>
             )}
             {showDupForm && (
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>ID/número do BUG original</div>
                 <input type="text" value={dupIdDraft} onChange={(e) => setDupIdDraft(e.target.value)} />
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmDuplicate} disabled={!dupIdDraft.trim() || formBusy}>Vincular e marcar duplicado</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmDuplicate} disabled={!dupIdDraft.trim() || formBusy} title={formBusy ? 'Aguarde terminar' : !dupIdDraft.trim() ? 'Informe o número da TASK original' : undefined}>Vincular e marcar duplicado</button>
               </div>
             )}
             {showRedirectForm && (
@@ -1838,7 +1845,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                   <option value="">Manter</option>
                   {(team || []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmRedirect} disabled={formBusy}>Confirmar redirecionamento</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmRedirect} disabled={formBusy} title={formBusy ? 'Aguarde terminar' : undefined}>Confirmar redirecionamento</button>
               </div>
             )}
             {showWaitForm && (
@@ -1851,7 +1858,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                 </select>
                 <div style={{ ...S.fieldHint, marginTop: 6 }}>O que está faltando (opcional)</div>
                 <textarea rows={2} value={waitNote} onChange={(e) => setWaitNote(e.target.value)} />
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmWait} disabled={formBusy}>Confirmar</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmWait} disabled={formBusy} title={formBusy ? 'Aguarde terminar' : undefined}>Confirmar</button>
               </div>
             )}
 
@@ -1879,7 +1886,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>Motivo da reprovação (obrigatório)</div>
                 <textarea rows={2} value={homologRejectNote} onChange={(e) => setHomologRejectNote(e.target.value)} />
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmHomologReject} disabled={!homologRejectNote.trim() || formBusy}>Confirmar reprovação</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmHomologReject} disabled={!homologRejectNote.trim() || formBusy} title={formBusy ? 'Aguarde terminar' : !homologRejectNote.trim() ? 'Escreva o motivo da reprovação' : undefined}>Confirmar reprovação</button>
               </div>
             )}
             {ticket.status === 'pronta_para_publicacao' && canDoClient('publicar', currentUser, ticket) && (
@@ -1893,7 +1900,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                 <input type="text" value={publishBuild} onChange={(e) => setPublishBuild(e.target.value)} />
                 <div style={{ ...S.fieldHint, marginTop: 6 }}>Release (opcional)</div>
                 <input type="text" value={publishRelease} onChange={(e) => setPublishRelease(e.target.value)} />
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmPublish} disabled={formBusy}>Confirmar publicação</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmPublish} disabled={formBusy} title={formBusy ? 'Aguarde terminar' : undefined}>Confirmar publicação</button>
               </div>
             )}
             {ticket.status === 'aguardando_gerencia' && (
@@ -1905,7 +1912,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>Decisão (obrigatória)</div>
                 <textarea rows={2} value={gerenciaNote} onChange={(e) => setGerenciaNote(e.target.value)} />
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmResolverGerencia} disabled={!gerenciaNote.trim() || formBusy}>Confirmar decisão</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmResolverGerencia} disabled={!gerenciaNote.trim() || formBusy} title={formBusy ? 'Aguarde terminar' : !gerenciaNote.trim() ? 'Escreva a decisão da gerência' : undefined}>Confirmar decisão</button>
               </div>
             )}
             {ticket.status === 'publicada' && canDoClient('enviar_validacao', currentUser, ticket) && (
@@ -1933,7 +1940,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                   <option value="">Selecione</option>
                   {XFLOW_BLOCK_REASON_ORDER.map((k) => <option key={k} value={k}>{XFLOW_BLOCK_REASON_META[k]}</option>)}
                 </select>
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmBlock} disabled={!blockReasonDraft || formBusy}>Confirmar bloqueio</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmBlock} disabled={!blockReasonDraft || formBusy} title={formBusy ? 'Aguarde terminar' : !blockReasonDraft ? 'Escolha o motivo do bloqueio' : undefined}>Confirmar bloqueio</button>
               </div>
             )}
             {!terminal && ['pausada', 'aguardando_terceiro'].includes(ticket.status) && canDoClient('resume', currentUser, ticket) && (
@@ -1958,12 +1965,12 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                 <div style={{ ...S.fieldHint, marginTop: 6 }}>Justificativa (obrigatória)</div>
                 <textarea rows={2} value={closeJustDraft} onChange={(e) => setCloseJustDraft(e.target.value)} />
                 {closeReasonDraft === 'melhoria' && <div style={{ ...S.fieldHint, marginTop: 4 }}>Vai criar automaticamente uma nova TASK de melhoria vinculada a este BUG.</div>}
-                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmClose} disabled={!closeReasonDraft || !closeJustDraft.trim() || (closeReasonDraft === 'duplicado' && !closeDupIdDraft.trim()) || formBusy}>Confirmar encerramento</button>
+                <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmClose} disabled={!closeReasonDraft || !closeJustDraft.trim() || (closeReasonDraft === 'duplicado' && !closeDupIdDraft.trim()) || formBusy} title={formBusy ? 'Aguarde terminar' : !closeReasonDraft ? 'Escolha o motivo do encerramento' : !closeJustDraft.trim() ? 'Escreva a justificativa' : (closeReasonDraft === 'duplicado' && !closeDupIdDraft.trim()) ? 'Informe o número da TASK original' : undefined}>Confirmar encerramento</button>
               </div>
             )}
             {terminal && !ticket.archived && canDoClient('reabrir', currentUser, ticket) && (
-              <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={() => {
-                const note = window.prompt('Motivo da reabertura (obrigatório):');
+              <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={async () => {
+                const note = await askText({ title: 'Reabrir BUG', label: 'Motivo da reabertura (obrigatório)', confirmLabel: 'Reabrir', required: true });
                 if (note && note.trim()) runAction('reabrir', { note: note.trim() });
               }}>Reabrir BUG</button>
             )}
@@ -2129,7 +2136,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               <span style={{ color: '#eee', fontSize: 13 }}>{previewEvidence.name}</span>
               <div style={{ display: 'flex', gap: 8 }}>
                 <a href={previewEvidence.dataUrl} download={previewEvidence.name} style={S.primaryBtn}><Download size={14} /> Baixar</a>
-                <button style={S.iconBtnGhost} onClick={() => setPreviewEvidence(null)}><X size={18} color="#fff" /></button>
+                <button style={S.iconBtnGhost} aria-label="Fechar pré-visualização" title="Fechar pré-visualização" onClick={() => setPreviewEvidence(null)}><X size={18} color="#fff" aria-hidden="true" /></button>
               </div>
             </div>
           </div>
@@ -2634,7 +2641,7 @@ function DragFieldPromptModal({ title, field, saving, onConfirm, onCancel }) {
       <div style={{ ...S.detailBox, width: 'min(420px, 100%)' }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontWeight: 700, fontSize: 13.5 }}>{title}</div>
-          <button style={S.iconBtnGhost} onClick={onCancel}><X size={16} /></button>
+          <button style={S.iconBtnGhost} aria-label="Fechar" title="Fechar" onClick={onCancel}><X size={16} aria-hidden="true" /></button>
         </div>
         <div style={S.subSectionLabel}>{field.label}</div>
         {field.type === 'select' ? (
@@ -2646,8 +2653,8 @@ function DragFieldPromptModal({ title, field, saving, onConfirm, onCancel }) {
           <textarea value={value} onChange={(e) => setValue(e.target.value)} rows={3} autoFocus placeholder="Descreva..." />
         )}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
-          <button style={S.iconBtnGhost} onClick={onCancel} disabled={saving}>Cancelar</button>
-          <button style={S.primaryBtn} onClick={() => valid && onConfirm(value)} disabled={!valid || saving}>{saving ? 'Salvando...' : 'Confirmar'}</button>
+          <button style={S.iconBtnGhost} onClick={onCancel} disabled={saving} title={saving ? 'Aguarde terminar' : undefined}>Cancelar</button>
+          <button style={S.primaryBtn} onClick={() => valid && onConfirm(value)} disabled={!valid || saving} title={saving ? 'Aguarde terminar' : !valid ? (field.type === 'select' ? 'Selecione uma opção para continuar' : 'Preencha o campo para continuar') : undefined}>{saving ? 'Salvando...' : 'Confirmar'}</button>
         </div>
       </div>
     </DialogOverlay>
@@ -3092,8 +3099,7 @@ export default function XFlowScreen({
   }
 
   async function purgeTicket(ticketId, title) {
-    const typed = window.prompt(`Para apagar "${title}" de vez (sem volta), digite "${XFLOW_PURGE_CONFIRM_PHRASE}" abaixo:`);
-    if (typed !== XFLOW_PURGE_CONFIRM_PHRASE) return;
+    if (!(await askConfirm({ title: 'Excluir definitivamente?', message: `"${title}" será apagada de vez, sem volta.`, confirmLabel: 'Excluir definitivamente', danger: true, requireText: XFLOW_PURGE_CONFIRM_PHRASE }))) return;
     await apiDelete(`/api/xflow/tickets/${ticketId}`);
     setTrashTickets((prev) => prev.filter((t) => t.id !== ticketId));
     if (openTicketId === ticketId) setOpenTicketId(null);

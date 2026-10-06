@@ -158,10 +158,10 @@ export default function ImportWizard({ onClose, onDone }) {
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
         {step < 4 && <CancelButton />}
-        {step === 2 && <button type="button" className="crm-btn" disabled={busy} onClick={() => setStep(1)}>Voltar</button>}
-        {step === 2 && <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !needOk} onClick={runPreview}>{busy ? 'Conferindo…' : 'Conferir'}</button>}
-        {step === 3 && <button type="button" className="crm-btn" disabled={busy} onClick={() => setStep(2)}>Voltar</button>}
-        {step === 3 && <button type="button" className="crm-btn crm-btn-primary" disabled={busy || willImport === 0} onClick={runCommit}>{busy ? 'Importando…' : `Importar ${willImport} ${willImport === 1 ? 'linha' : 'linhas'}`}</button>}
+        {step === 2 && <button type="button" className="crm-btn" disabled={busy} title={busy ? 'Aguarde terminar a leitura' : undefined} onClick={() => setStep(1)}>Voltar</button>}
+        {step === 2 && <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !needOk} title={busy ? 'Aguarde terminar a leitura' : !needOk ? (target === 'companies' ? 'Mapeie pelo menos o nome da empresa' : 'Mapeie o nome do contato e o CNPJ ou o nome da empresa') : undefined} onClick={runPreview}>{busy ? 'Conferindo…' : 'Conferir'}</button>}
+        {step === 3 && <button type="button" className="crm-btn" disabled={busy} title={busy ? 'Aguarde terminar a importação' : undefined} onClick={() => setStep(2)}>Voltar</button>}
+        {step === 3 && <button type="button" className="crm-btn crm-btn-primary" disabled={busy || willImport === 0} title={busy ? 'Aguarde terminar a importação' : willImport === 0 ? 'Não há linhas para importar' : undefined} onClick={runCommit}>{busy ? 'Importando…' : `Importar ${willImport} ${willImport === 1 ? 'linha' : 'linhas'}`}</button>}
         {step === 4 && <button type="button" className="crm-btn crm-btn-primary" onClick={onClose}>Fechar</button>}
       </div>
     </Modal>

@@ -122,12 +122,12 @@ export async function getCompanyOverview(orgId, id) {
 
 export async function listNotes(orgId, companyId, { limit = 100 } = {}) {
   const { rows } = await pool.query(
-    `SELECT n.id, n.entity_type, n.entity_id, n.body, n.created_at, n.created_by, u.name AS created_by_name,
+    `SELECT n.id, n.entity_type, n.entity_id, n.body, n.attachments, n.links, n.edited_at, n.created_at, n.created_by, u.name AS created_by_name,
             CASE WHEN n.entity_type = 'contact' THEN (SELECT trim(k.first_name || ' ' || k.last_name) FROM crm_contacts k WHERE k.id = n.entity_id) END AS contact_name,
             CASE WHEN n.entity_type = 'deal' THEN (SELECT d.title FROM crm_deals d WHERE d.id = n.entity_id) END AS deal_title
      FROM crm_notes n LEFT JOIN users u ON u.id = n.created_by
      WHERE n.org_id=$1 AND n.company_id=$2 AND n.deleted_at IS NULL ORDER BY n.created_at DESC LIMIT $3`, [orgId, companyId, limit]);
-  return rows.map((r) => ({ id: r.id, entityType: r.entity_type, entityId: r.entity_id, body: r.body, createdAt: r.created_at, createdBy: r.created_by, createdByName: r.created_by_name || '', contactName: r.contact_name || '', dealTitle: r.deal_title || '' }));
+  return rows.map((r) => ({ id: r.id, entityType: r.entity_type, entityId: r.entity_id, body: r.body, attachments: r.attachments || [], links: r.links || [], editedAt: r.edited_at, createdAt: r.created_at, createdBy: r.created_by, createdByName: r.created_by_name || '', contactName: r.contact_name || '', dealTitle: r.deal_title || '' }));
 }
 
 export async function listContacts(orgId, f = {}) {

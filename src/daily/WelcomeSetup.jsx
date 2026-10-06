@@ -91,12 +91,12 @@ export default function WelcomeSetup({ user, onDone }) {
         </div>
 
         <div className="wsu-foot">
-          <button type="button" className="wsu-skip" disabled={busy} onClick={() => finish(false)}>Agora não</button>
+          <button type="button" className="wsu-skip" disabled={busy} title={busy ? 'Aguarde terminar' : undefined} onClick={() => finish(false)}>Agora não</button>
           <div style={{ display: 'flex', gap: 8 }}>
             {step > 0 && step < 2 && <button type="button" className="wsu-btn ghost" onClick={() => setStep(step - 1)}>Voltar</button>}
             {step === 0 && <button type="button" className="wsu-btn" onClick={() => setStep(1)}>{google && google.connected ? 'Continuar' : 'Pular este passo'}</button>}
-            {step === 1 && <button type="button" className="wsu-btn" disabled={busy} onClick={saveStep}>{busy ? 'Salvando...' : 'Continuar'}</button>}
-            {step === 2 && <button type="button" className="wsu-btn" disabled={busy} onClick={() => finish(false)}>Começar</button>}
+            {step === 1 && <button type="button" className="wsu-btn" disabled={busy} title={busy ? 'Aguarde terminar' : undefined} onClick={saveStep}>{busy ? 'Salvando...' : 'Continuar'}</button>}
+            {step === 2 && <button type="button" className="wsu-btn" disabled={busy} title={busy ? 'Aguarde terminar' : undefined} onClick={() => finish(false)}>Começar</button>}
           </div>
         </div>
       </div>

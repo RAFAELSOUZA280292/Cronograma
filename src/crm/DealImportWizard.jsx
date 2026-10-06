@@ -116,7 +116,7 @@ export default function DealImportWizard({ options, onClose, onDone }) {
           </div>
           {!mappingOk && <div className="crm-alert crm-alert-warn">Falta apontar {REQUIRED.filter((k) => !has(k)).map((k) => fields.fields.find((f) => f.key === k).label).concat(has('companyCnpj') || has('companyName') ? [] : ['CNPJ ou nome da empresa']).join(', ')}.</div>}
           {error && <div className="crm-err">{error}</div>}
-          <div className="crm-form-foot"><button type="button" className="crm-btn" onClick={() => setStep(1)}>Voltar</button><button type="button" className="crm-btn crm-btn-primary" disabled={!mappingOk || busy} onClick={runPreview}>{busy ? 'Conferindo…' : 'Conferir'}</button></div>
+          <div className="crm-form-foot"><button type="button" className="crm-btn" onClick={() => setStep(1)}>Voltar</button><button type="button" className="crm-btn crm-btn-primary" disabled={!mappingOk || busy} title={busy ? 'Aguarde terminar a leitura' : !mappingOk ? 'Aponte as colunas obrigatórias (*) para conferir' : undefined} onClick={runPreview}>{busy ? 'Conferindo…' : 'Conferir'}</button></div>
         </>
       )}
 
@@ -177,8 +177,8 @@ export default function DealImportWizard({ options, onClose, onDone }) {
           {committing && <div className="crm-alert crm-alert-info" role="status">Importando… não feche esta janela.</div>}
           {error && <div className="crm-err">{error}</div>}
           <div className="crm-form-foot">
-            <button type="button" className="crm-btn" disabled={busy} onClick={() => setStep(2)}>Voltar</button>
-            <button type="button" className="crm-btn crm-btn-primary" disabled={busy || preview.counts.new === 0} onClick={runCommit}>{busy ? 'Importando…' : `Importar ${preview.counts.new} negócio(s)`}</button>
+            <button type="button" className="crm-btn" disabled={busy} title={busy ? 'Aguarde terminar a importação' : undefined} onClick={() => setStep(2)}>Voltar</button>
+            <button type="button" className="crm-btn crm-btn-primary" disabled={busy || preview.counts.new === 0} title={busy ? 'Aguarde terminar a importação' : preview.counts.new === 0 ? 'Não há negócios novos para importar' : undefined} onClick={runCommit}>{busy ? 'Importando…' : `Importar ${preview.counts.new} negócio(s)`}</button>
           </div>
         </>
       )}

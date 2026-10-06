@@ -213,7 +213,7 @@ export function MeetingsView({ meetings, team, pid, companyName, canDossier, onA
               {reindexResult.error ? 'Não consegui reindexar agora.' : `Memória reindexada: ${reindexResult.meetingsIndexed} reunião(ões), ${reindexResult.chunksCreated} trecho(s).`}
             </span>
           )}
-          <button style={S.iconBtn} onClick={handleReindex} disabled={reindexing} title="Reprocessa a memória de busca da RENATA pra todas as reuniões desta empresa — use se ela disser que não encontra o conteúdo de uma reunião que existe"><RefreshCw size={14} className={reindexing ? 'mtg-spin' : ''} /> Reindexar memória</button>
+          <button style={S.iconBtn} onClick={handleReindex} disabled={reindexing} title={reindexing ? 'Aguarde terminar' : 'Reprocessa a memória de busca da RENATA pra todas as reuniões desta empresa — use se ela disser que não encontra o conteúdo de uma reunião que existe'}><RefreshCw size={14} className={reindexing ? 'mtg-spin' : ''} /> Reindexar memória</button>
           {canDossier && active.length > 0 && <button style={S.iconBtn} onClick={() => setShowDossier(true)} title="A RENATA lê todas as reuniões desta empresa e monta um compilado: resumo, linha do tempo, frentes, decisões, pendências, riscos"><FileText size={14} /> Dossiê do cliente</button>}
           <button style={S.iconBtn} onClick={onShowTrash}><Trash2 size={14} /> Lixeira{trashed.length > 0 ? ` (${trashed.length})` : ''}</button>
           <button style={S.iconBtn} onClick={() => setShowSubmitModal(true)}><Sparkles size={14} /> Enviar transcrição</button>
@@ -269,7 +269,7 @@ export function MeetingsView({ meetings, team, pid, companyName, canDossier, onA
                     )}
                   </div>
                   {canRetry && (
-                    <button style={S.iconBtnGhost} title="Tentar novamente" onClick={() => handleRetry(s.id)}><RefreshCw size={14} /></button>
+                    <button style={S.iconBtnGhost} title="Tentar novamente" aria-label="Tentar novamente" onClick={() => handleRetry(s.id)}><RefreshCw size={14} aria-hidden="true" /></button>
                   )}
                 </div>
               );
@@ -306,7 +306,7 @@ export function MeetingsView({ meetings, team, pid, companyName, canDossier, onA
                 <div style={{ fontWeight: 700, fontSize: 13 }}>{m.title || 'Reunião sem título'}</div>
                 <div style={S.logTs}>{m.date ? fmtDate(m.date) : 'Sem data'} · excluída{m.deletedBy ? ` por ${m.deletedBy}` : ''}</div>
               </div>
-              <button style={S.iconBtnGhost} title="Restaurar" onClick={() => onRestore(m.id)}><Undo2 size={14} /></button>
+              <button style={S.iconBtnGhost} title="Restaurar reunião" aria-label="Restaurar reunião" onClick={() => onRestore(m.id)}><Undo2 size={14} aria-hidden="true" /></button>
             </div>
           ))}
         </SidePanel>
@@ -408,8 +408,8 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
         {error && <div style={{ color: '#e2574c', fontSize: 12, marginTop: 10 }}>{error}</div>}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
-          <button style={S.iconBtn} onClick={requestClose} disabled={sending}>Cancelar</button>
-          <button style={S.primaryBtn} onClick={handleSubmit} disabled={sending}>
+          <button style={S.iconBtn} onClick={requestClose} disabled={sending} title={sending ? 'Aguarde terminar' : undefined}>Cancelar</button>
+          <button style={S.primaryBtn} onClick={handleSubmit} disabled={sending} title={sending ? 'Aguarde terminar' : undefined}>
             {sending ? <Loader2 size={14} className="mtg-spin" /> : <Sparkles size={14} />}
             {sending ? 'Enviando...' : 'Enviar'}
           </button>

@@ -38,6 +38,7 @@ import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
 import { activate, activateRow, Tabs, ConfirmDialog } from './ui/index.jsx';
 import ModuleShell from './shell/ModuleShell.jsx';
 import { DialogOverlay } from './ui/dialog.jsx';
+import { DialogHost, notify, askConfirm, askText, pushToastCompat, dismissToast as dismissToastGlobal } from './ui/dialogs.jsx';
 import { useHistoryValue, readHistoryValue, withoutLayer } from './lib/nav.js';
 import { calendarDaysSince } from './lib/dates.js';
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
@@ -313,11 +314,11 @@ export function ConfirmDiscardModal({ onSaveAndExit, onDiscard, onCancel, saving
         <div style={{ ...S.fieldHint, marginTop: 8, fontSize: 12.5 }}>Deseja salvar antes de sair?</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 18 }}>
           {onSaveAndExit && (
-            <button style={{ ...S.primaryBtn, justifyContent: 'center' }} onClick={onSaveAndExit} disabled={saving}>
+            <button title={saving ? 'Aguarde terminar de salvar' : undefined} style={{ ...S.primaryBtn, justifyContent: 'center' }} onClick={onSaveAndExit} disabled={saving}>
               {saving ? 'Salvando...' : 'Salvar e sair'}
             </button>
           )}
-          <button style={{ ...S.iconBtn, justifyContent: 'center' }} onClick={onDiscard} disabled={saving}>Sair sem salvar</button>
+          <button title={saving ? 'Aguarde terminar de salvar' : undefined} style={{ ...S.iconBtn, justifyContent: 'center' }} onClick={onDiscard} disabled={saving}>Sair sem salvar</button>
           <button style={{ ...S.iconBtnGhost, justifyContent: 'center' }} onClick={onCancel}>Continuar editando</button>
         </div>
       </div>
@@ -526,7 +527,7 @@ function AreaRow({ row, onUpdate, onCommit, onRemove }) {
       <input type="text" value={nameField.draft} onChange={(e) => nameField.onChange(e.target.value)} onBlur={() => flushAndCommit(nameField, 'name')} placeholder="Nome do responsável" style={{ marginBottom: 5 }} />
       <div style={{ display: 'flex', gap: 6 }}>
         <input type="email" value={emailField.draft} onChange={(e) => emailField.onChange(e.target.value)} onBlur={() => flushAndCommit(emailField, 'email')} placeholder="email@cliente.com.br" />
-        <button style={S.iconBtnGhost} onClick={onRemove}><Trash2 size={13} /></button>
+        <button aria-label="Remover responsável" title="Remover responsável" style={S.iconBtnGhost} onClick={onRemove}><Trash2 aria-hidden="true" size={13} /></button>
       </div>
     </div>
   );
@@ -823,7 +824,7 @@ function AppScreens({ shellRef, bump }) {
         onClose={closeActivityDetail}
         updateActivity={updateActivity}
         flushProjectSave={() => flushProjectSave(project.id)}
-        deleteActivity={(tPid, id) => { if (deleteActivity(tPid, id)) closeActivityDetail(); }}
+        deleteActivity={async (tPid, id) => { if (await deleteActivity(tPid, id)) closeActivityDetail(); }}
         addSub={addSub}
         updateSub={updateSub}
         deleteSub={deleteSub}
@@ -857,7 +858,7 @@ function AppScreens({ shellRef, bump }) {
         onClose={closeMeetingDetail}
         updateMeeting={updateMeeting}
         flushProjectSave={() => flushProjectSave(project.id)}
-        deleteMeeting={(tPid, id) => { if (deleteMeeting(tPid, id)) closeMeetingDetail(); }}
+        deleteMeeting={async (tPid, id) => { if (await deleteMeeting(tPid, id)) closeMeetingDetail(); }}
         toggleParticipant={toggleMeetingParticipant}
         addParticipant={addMeetingParticipantFreeText}
         addActionItem={addMeetingActionItem}
@@ -1841,7 +1842,7 @@ function AppScreens({ shellRef, bump }) {
               const { id, crossOrg, orgName } = await cloneCompany(cloningProject.id, company);
               if (!crossOrg) setSelectedProjectIds((prev) => [...prev, id]);
               setCloningProject(null);
-              if (crossOrg) window.alert(`Empresa clonada na organização "${orgName}".`);
+              if (crossOrg) notify(`Empresa clonada na organização "${orgName}".`, { tone: 'success' });
             }}
           />
         )}
@@ -1945,12 +1946,12 @@ function AppScreens({ shellRef, bump }) {
     openActivityDetail(masterPid, na.id);
   }
 
-  function deleteActivity(targetPid, id) {
+  async function deleteActivity(targetPid, id) {
     const project = projects.find((p) => p.id === targetPid);
     const a = project && project.activities.find((x) => x.id === id);
     if (!a) return false;
-    const typed = window.prompt(`Para excluir "${a.title}", digite "${DELETE_CONFIRM_PHRASE}" abaixo:`);
-    if (typed !== DELETE_CONFIRM_PHRASE) return false;
+    const okDelete = await askConfirm({ title: 'Excluir atividade?', message: `Para excluir "${a.title}", digite "${DELETE_CONFIRM_PHRASE}" abaixo.`, confirmLabel: 'Excluir', danger: true, requireText: DELETE_CONFIRM_PHRASE });
+    if (!okDelete) return false;
     mutateProject(targetPid, (p) => ({
       ...p,
       activities: p.activities.map((x) => (x.id === id ? { ...x, deleted: true, deletedAt: new Date().toISOString(), deletedBy: currentUser ? currentUser.name : '' } : x)),
@@ -2039,7 +2040,7 @@ function AppScreens({ shellRef, bump }) {
   function addAttachment(targetPid, actId, file) {
     if (!file) return;
     if (file.size > MAX_ATTACHMENT_BYTES) {
-      window.alert(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB.`);
+      notify(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB.`, { tone: 'error' });
       return;
     }
     const reader = new FileReader();
@@ -2171,12 +2172,12 @@ function AppScreens({ shellRef, bump }) {
     updateMeeting(targetPid, meetingId, { shareToken: genShareToken() }, `Link público da reunião "${m.title}" regenerado (link anterior invalidado)`);
   }
 
-  function deleteMeeting(targetPid, meetingId) {
+  async function deleteMeeting(targetPid, meetingId) {
     const project = projects.find((p) => p.id === targetPid);
     const m = project && (project.meetings || []).find((x) => x.id === meetingId);
     if (!m) return false;
-    const typed = window.prompt(`Para excluir "${m.title}", digite "${DELETE_CONFIRM_PHRASE}" abaixo:`);
-    if (typed !== DELETE_CONFIRM_PHRASE) return false;
+    const okDelete = await askConfirm({ title: 'Excluir reunião?', message: `Para excluir "${m.title}", digite "${DELETE_CONFIRM_PHRASE}" abaixo.`, confirmLabel: 'Excluir', danger: true, requireText: DELETE_CONFIRM_PHRASE });
+    if (!okDelete) return false;
     mutateProject(targetPid, (p) => ({
       ...p,
       meetings: (p.meetings || []).map((x) => (x.id === meetingId ? { ...x, deleted: true, deletedAt: new Date().toISOString(), deletedBy: currentUser ? currentUser.name : '' } : x)),
@@ -2512,12 +2513,12 @@ function AppScreens({ shellRef, bump }) {
         setCompanySelectionConfirmed(true);
         pushLocation('company');
       }
-      if (crossOrg) window.alert(`Grupo cadastrado na organização "${orgName}".`);
+      if (crossOrg) notify(`Grupo cadastrado na organização "${orgName}".`, { tone: 'success' });
       return;
     }
     const { id, crossOrg, orgName } = await createCompany(payload);
     if (!crossOrg) setSelectedProjectIds((prev) => [...prev, id]);
-    if (crossOrg) window.alert(`Empresa cadastrada na organização "${orgName}".`);
+    if (crossOrg) notify(`Empresa cadastrada na organização "${orgName}".`, { tone: 'success' });
   }
 
   async function cloneCompany(sourceId, company) {
@@ -3348,7 +3349,7 @@ function AppScreens({ shellRef, bump }) {
                     <div style={S.teamCardTop}>
                       <div style={S.teamCardName}>{m.name}</div>
                       <TeamLinkBadge link={m} companyName={activeProject.company.name} />
-                      <button style={S.chipX} onClick={() => removeMember(m.id)}><X size={13} /></button>
+                      <button aria-label="Remover membro" title="Remover membro" style={S.chipX} onClick={() => removeMember(m.id)}><X aria-hidden="true" size={13} /></button>
                     </div>
                     {m.role && (
                       <div style={S.teamCardMeta}>{empresa}{username ? ` — usuário: ${username}` : ' — sem login próprio'}</div>
@@ -3367,7 +3368,7 @@ function AppScreens({ shellRef, bump }) {
             </div>
             <div style={S.memberAddRow}>
               <input type="text" value={newMember} onChange={(e) => setNewMember(e.target.value)} placeholder="Nome ou área genérica (sem login)" onKeyDown={(e) => e.key === 'Enter' && addMember()} />
-              <button style={S.iconBtn} onClick={addMember}><Plus size={14} /></button>
+              <button aria-label="Adicionar membro" title="Adicionar membro" style={S.iconBtn} onClick={addMember}><Plus aria-hidden="true" size={14} /></button>
             </div>
             <div style={{ ...S.fieldHint, marginTop: 10 }}>Ou vincule um usuário já cadastrado no sistema:</div>
             <div style={S.linkUserRow}>
@@ -3378,7 +3379,7 @@ function AppScreens({ shellRef, bump }) {
                 ))}
               </select>
               <input type="text" value={linkArea} onChange={(e) => setLinkArea(e.target.value)} placeholder="Área em que ele atua (ex: Financeiro)" />
-              <button
+              <button title={!linkUserId ? 'Escolha um usuário para vincular' : undefined}
                 style={{ ...S.iconBtn, justifyContent: 'center' }}
                 disabled={!linkUserId}
                 onClick={() => {
@@ -3544,7 +3545,7 @@ function LoginGate({ onLogin, onChangePasswordAndLogin, loginError, theme, onTog
             <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <input type="text" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Usuário" autoComplete="username" />
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" autoComplete="current-password" />
-              <button type="submit" style={S.primaryBtn} disabled={submitting}>{submitting ? 'Entrando...' : 'Entrar'}</button>
+              <button title={submitting ? 'Aguarde terminar de entrar' : undefined} type="submit" style={S.primaryBtn} disabled={submitting}>{submitting ? 'Entrando...' : 'Entrar'}</button>
             </form>
           ) : (
             <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -3552,7 +3553,7 @@ function LoginGate({ onLogin, onChangePasswordAndLogin, loginError, theme, onTog
               <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Senha atual" autoComplete="current-password" />
               <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Nova senha" autoComplete="new-password" />
               <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirmar nova senha" autoComplete="new-password" />
-              <button type="submit" style={S.primaryBtn} disabled={submitting}>{submitting ? 'Trocando...' : 'Trocar senha e entrar'}</button>
+              <button title={submitting ? 'Aguarde terminar de trocar a senha' : undefined} type="submit" style={S.primaryBtn} disabled={submitting}>{submitting ? 'Trocando...' : 'Trocar senha e entrar'}</button>
             </form>
           )}
           <button
@@ -3638,7 +3639,7 @@ function SuperAdminScreen({ organizations, error, onClose, closeLabel, onLogout,
             autoFocus
           />
           <div style={S.fieldHint}>O identificador de URL (slug) é gerado automaticamente a partir do nome.</div>
-          <button style={{ ...S.primaryBtn, marginTop: 10 }} onClick={submitCreate} disabled={creating}>
+          <button title={creating ? 'Aguarde terminar de criar' : undefined} style={{ ...S.primaryBtn, marginTop: 10 }} onClick={submitCreate} disabled={creating}>
             {creating ? 'Criando...' : 'Criar organização'}
           </button>
         </div>
@@ -3943,7 +3944,7 @@ function UsersManagementScreen({
             if (result && result.error) throw new Error(result.error);
             setShowCreate(false);
             if (result && result.crossOrg) {
-              window.alert(`Usuário criado na organização "${result.orgName}".`);
+              notify(`Usuário criado na organização "${result.orgName}".`, { tone: 'success' });
             }
           }}
           onClose={() => setShowCreate(false)}
@@ -4024,7 +4025,7 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations, register
       <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', maxHeight: '88vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Novo usuário</div>
-          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
+          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
         </div>
         <div style={S.subSectionLabel}>Nome</div>
         <input type="text" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} placeholder="Nome completo" />
@@ -4090,7 +4091,7 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations, register
           <option value="gestao">Gestão</option>
         </select>
         {formError && <div style={{ ...S.loginBlockedMsg, marginTop: 16, marginBottom: 0 }} role="alert">{formError}</div>}
-        <button style={{ ...S.primaryBtn, marginTop: formError ? 12 : 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={creating}><Plus size={14} /> {creating ? 'Criando...' : 'Criar usuário'}</button>
+        <button title={creating ? 'Aguarde terminar de criar' : undefined} style={{ ...S.primaryBtn, marginTop: formError ? 12 : 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={creating}><Plus size={14} /> {creating ? 'Criando...' : 'Criar usuário'}</button>
       </div>
       {showGuard && (
         <ConfirmDiscardModal
@@ -4119,7 +4120,7 @@ function EditUserModal({ user: u, accessSummary, currentUser, registeredProjects
             <UserAvatar user={u} size={30} />
             <div style={{ fontSize: 17, fontWeight: 800 }}>{u.name}</div>
           </div>
-          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={onClose}><X aria-hidden="true" size={18} /></button>
         </div>
 
         <div style={{ display: 'flex', gap: 6 }}>
@@ -4238,8 +4239,8 @@ function EditUserModal({ user: u, accessSummary, currentUser, registeredProjects
 
         <UserAccessHistory userId={u.id} summary={accessSummary} />
 
-        <button style={{ ...S.iconBtnGhost, marginTop: 14 }} onClick={() => onDelete(u.id)} disabled={isSelf}>
-          <Trash2 size={13} color={isSelf ? 'var(--text-8)' : 'var(--text-5)'} /> {isSelf ? ' (é você)' : ' Remover usuário'}
+        <button title={isSelf ? 'Você não pode excluir o próprio usuário' : undefined} style={{ ...S.iconBtnGhost, marginTop: 14 }} onClick={() => onDelete(u.id)} disabled={isSelf}>
+          <Trash2 size={13} color={isSelf ? 'var(--text-8)' : 'var(--text-5)'} /> {isSelf ? ' (é você)' : ' Excluir usuário'}
         </button>
       </div>
     </DialogOverlay>
@@ -4314,7 +4315,7 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab
       <div style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '90vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Meu perfil</div>
-          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
+          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
         </div>
 
         <div style={S.myProfilePreview}>
@@ -4349,7 +4350,7 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab
         <input type="password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirmar nova senha" style={{ marginTop: 8 }} />
         {pwError && <div style={{ ...S.loginBlockedMsg, marginTop: 12, marginBottom: 0 }}>{pwError}</div>}
         {pwSuccess && <div style={{ ...S.fieldHint, color: '#3ddc84', marginTop: 8 }}>Senha alterada com sucesso.</div>}
-        <button style={{ ...S.iconBtn, marginTop: 12, width: '100%', justifyContent: 'center' }} disabled={pwSaving} onClick={submitPassword}>
+        <button title={pwSaving ? 'Aguarde terminar de salvar' : undefined} style={{ ...S.iconBtn, marginTop: 12, width: '100%', justifyContent: 'center' }} disabled={pwSaving} onClick={submitPassword}>
           {pwSaving ? 'Salvando...' : 'Alterar senha'}
         </button>
         </>)}
@@ -4360,7 +4361,7 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab
             {!daily ? <div style={S.fieldHint}>Carregando...</div> : (
               <>
                 <DailyPrefs value={daily} onChange={(v) => { setDaily(v); setDailyMsg(''); }} summary={dailySummary} />
-                <button style={{ ...S.primaryBtn, marginTop: 16, width: '100%', justifyContent: 'center' }} disabled={dailyBusy} onClick={saveDaily}>{dailyBusy ? 'Salvando...' : 'Salvar meu dia'}</button>
+                <button title={dailyBusy ? 'Aguarde terminar de salvar' : undefined} style={{ ...S.primaryBtn, marginTop: 16, width: '100%', justifyContent: 'center' }} disabled={dailyBusy} onClick={saveDaily}>{dailyBusy ? 'Salvando...' : 'Salvar meu dia'}</button>
                 {dailyMsg && <div style={{ ...S.fieldHint, marginTop: 8, color: dailyMsg.startsWith('Salvo') ? '#3ddc84' : undefined }}>{dailyMsg}</div>}
               </>
             )}
@@ -4378,7 +4379,7 @@ function MyProfileModal({ user, onClose, onSave, googleConnectResult, initialTab
         ) : googleStatus.connected ? (
           <>
             <div style={S.fieldHint}>Conectado desde {fmtTs(googleStatus.connectedAt)}. A Previsão de conclusão das suas TASKs no XFlow vira evento no seu Google Calendar automaticamente.</div>
-            <button style={{ ...S.iconBtn, marginTop: 8, width: '100%', justifyContent: 'center' }} disabled={googleBusy} onClick={disconnectGoogle}>
+            <button title={googleBusy ? 'Aguarde terminar' : undefined} style={{ ...S.iconBtn, marginTop: 8, width: '100%', justifyContent: 'center' }} disabled={googleBusy} onClick={disconnectGoogle}>
               {googleBusy ? 'Desconectando...' : 'Desconectar Google Calendar'}
             </button>
           </>
@@ -4547,7 +4548,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
       <div style={{ ...S.detailBox, width: 'min(560px, 100%)', height: 'auto', maxHeight: '88vh', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>{cloneSource ? 'Clonar empresa' : 'Cadastrar empresa'}</div>
-          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
+          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
         </div>
 
         {cloneSource && (
@@ -4623,7 +4624,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
             placeholder="00.000.000/0000-00"
             onKeyDown={(e) => e.key === 'Enter' && buscar()}
           />
-          <button style={{ ...S.iconBtn, flexShrink: 0 }} onClick={buscar} disabled={loading}>
+          <button title={loading ? 'Aguarde terminar a busca' : undefined} style={{ ...S.iconBtn, flexShrink: 0 }} onClick={buscar} disabled={loading}>
             {loading ? 'Buscando...' : 'Buscar dados'}
           </button>
         </div>
@@ -4719,10 +4720,10 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
                           onKeyDown={(e) => e.key === 'Enter' && buscarChild(c.id)}
                         />
                       </div>
-                      <button style={{ ...S.iconBtn, flexShrink: 0 }} onClick={() => buscarChild(c.id)} disabled={c.loading}>
+                      <button title={c.loading ? 'Aguarde terminar a busca' : undefined} style={{ ...S.iconBtn, flexShrink: 0 }} onClick={() => buscarChild(c.id)} disabled={c.loading}>
                         {c.loading ? 'Buscando...' : 'Buscar dados'}
                       </button>
-                      <button style={S.iconBtnGhost} onClick={() => removeChildRow(c.id)}><X size={16} /></button>
+                      <button aria-label="Remover empresa da lista" title="Remover empresa da lista" style={S.iconBtnGhost} onClick={() => removeChildRow(c.id)}><X aria-hidden="true" size={16} /></button>
                     </div>
                     {c.error && <div style={{ ...S.loginBlockedMsg, marginTop: 8 }}>{c.error}</div>}
                     {(c.name || c.nomeFantasia) && (
@@ -4734,7 +4735,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
               </>
             )}
 
-            <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={saving}>
+            <button title={saving ? 'Aguarde terminar de criar' : undefined} style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={saving}>
               {saving
                 ? (cloneSource ? 'Clonando...' : (isGroup ? 'Criando grupo...' : 'Criando...'))
                 : (cloneSource ? 'Clonar empresa' : (isGroup ? 'Criar grupo' : 'Criar empresa'))}
@@ -4855,7 +4856,7 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
   }
 
   async function becomeMaster() {
-    const groupName = window.prompt('Nome do grupo:', c.name || form.name || '');
+    const groupName = await askText({ title: 'Transformar em grupo', label: 'Nome do grupo', defaultValue: c.name || form.name || '', confirmLabel: 'Criar grupo', required: false });
     if (groupName === null || saving) return;
     setSaving(true);
     await onSave({ isGroupMaster: true, groupId: '', groupName: groupName.trim() || form.name, structureType: 'grupo' });
@@ -4873,10 +4874,10 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
     if (saving) return;
     const blocking = parentGroup ? (parentGroup.activities || []).filter((act) => !act.deleted && act.status !== 'concluido' && (act.involvedCompanyIds || []).includes(project.id)) : [];
     if (blocking.length > 0) {
-      window.alert(`Não é possível desvincular: ${blocking.length} atividade${blocking.length === 1 ? '' : 's'} em aberto no grupo ainda envolve${blocking.length === 1 ? '' : 'm'} esta empresa ("${blocking.slice(0, 3).map((act) => act.title).join('", "')}"${blocking.length > 3 ? ', ...' : ''}). Remova a empresa dessas atividades (ou conclua-as) antes de desvincular.`);
+      notify(`Não é possível desvincular: ${blocking.length} atividade${blocking.length === 1 ? '' : 's'} em aberto no grupo ainda envolve${blocking.length === 1 ? '' : 'm'} esta empresa ("${blocking.slice(0, 3).map((act) => act.title).join('", "')}"${blocking.length > 3 ? ', ...' : ''}). Remova a empresa dessas atividades (ou conclua-as) antes de desvincular.`, { tone: 'error' });
       return;
     }
-    if (!window.confirm('Desvincular esta empresa do grupo?')) return;
+    if (!(await askConfirm({ title: 'Remover vínculo com o grupo?', message: 'Esta empresa deixa de fazer parte do grupo e volta a ser individual.', confirmLabel: 'Remover vínculo', danger: true }))) return;
     setSaving(true);
     await onSave({ isGroupMaster: false, groupId: '', groupName: '', structureType: 'individual' });
     setSaving(false);
@@ -4895,7 +4896,7 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
       <div style={{ ...S.detailBox, width: 'min(480px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Editar empresa</div>
-          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
+          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
         </div>
 
         <div style={S.subSectionLabel}>CNPJ</div>
@@ -4955,12 +4956,12 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
             <div style={S.fieldHint}>
               Esta empresa é filial do grupo <strong>{(parentGroup && (parentGroup.company.groupName || parentGroup.company.name)) || 'grupo'}</strong>.
             </div>
-            <button style={{ ...S.iconBtn, marginTop: 8 }} onClick={unlinkFromGroup} disabled={saving}>Desvincular do grupo</button>
+            <button title={saving ? 'Aguarde terminar de salvar' : undefined} style={{ ...S.iconBtn, marginTop: 8 }} onClick={unlinkFromGroup} disabled={saving}>Remover vínculo com o grupo</button>
           </>
         ) : (
           <>
             <div style={S.fieldHint}>Empresa individual — não faz parte de nenhum grupo.</div>
-            <button style={{ ...S.iconBtn, marginTop: 8 }} onClick={becomeMaster} disabled={saving}>Transformar em Grupo (Master)</button>
+            <button title={saving ? 'Aguarde terminar de salvar' : undefined} style={{ ...S.iconBtn, marginTop: 8 }} onClick={becomeMaster} disabled={saving}>Transformar em Grupo (Master)</button>
             {availableMasters.length > 0 && (
               <div style={{ marginTop: 10 }}>
                 <div style={S.fieldHint}>Ou vincular como filial de um grupo existente:</div>
@@ -4969,16 +4970,17 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
                     <option value="">Selecione o grupo</option>
                     {availableMasters.map((m) => <option key={m.id} value={m.id}>{m.company.groupName || m.company.name}</option>)}
                   </select>
-                  <button style={{ ...S.iconBtn, flexShrink: 0 }} onClick={linkAsChild} disabled={saving || !linkTargetId}>Vincular</button>
+                  <button title={saving ? 'Aguarde terminar de salvar' : !linkTargetId ? 'Escolha o grupo para vincular' : undefined} style={{ ...S.iconBtn, flexShrink: 0 }} onClick={linkAsChild} disabled={saving || !linkTargetId}>Vincular</button>
                 </div>
               </div>
             )}
           </>
         )}
 
-        <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={saving || !form.name.trim()}>
-          {saving ? 'Salvando...' : 'Salvar alterações'}
+        <button title={saving ? 'Aguarde terminar de salvar' : !form.name.trim() ? 'Preencha a razão social para salvar' : undefined} style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={saving || !form.name.trim()}>
+          {saving ? 'Salvando...' : 'Salvar'}
         </button>
+        {!saving && !form.name.trim() && <div style={{ ...S.fieldHint, textAlign: 'center', marginTop: 6 }}>Preencha a razão social para salvar.</div>}
       </div>
       {showGuard && (
         <ConfirmDiscardModal
@@ -5017,7 +5019,7 @@ function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }) {
       <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Nova atividade do grupo</div>
-          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
+          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
         </div>
 
         <div style={S.subSectionLabel}>Empresas envolvidas</div>
@@ -5319,7 +5321,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
         )}
 
         {projects.length > 0 && (
-          <button style={{ ...S.primaryBtn, marginTop: 16, width: 'min(1240px, 96%)', justifyContent: 'center' }} disabled={selected.size === 0} onClick={() => onConfirm(Array.from(selected))}>
+          <button title={selected.size === 0 ? 'Selecione ao menos uma empresa para continuar' : undefined} style={{ ...S.primaryBtn, marginTop: 16, width: 'min(1240px, 96%)', justifyContent: 'center' }} disabled={selected.size === 0} onClick={() => onConfirm(Array.from(selected))}>
             Continuar {selected.size > 0 ? `(${selected.size} selecionada${selected.size === 1 ? '' : 's'})` : ''}
           </button>
         )}
@@ -5476,35 +5478,18 @@ function cardMatchesFilters(card, { search, priority, dueBucket, tags, status })
   return true;
 }
 
+// Avisos: desde a Onda 2 todos vão para o MESMO empilhamento global (src/ui/dialogs.jsx, <DialogHost />). Esta API existe
+// para o código antigo; o novo usa notify() direto.
 function useToasts() {
-  const [toasts, setToasts] = useState([]);
-  function dismissToast(id) { setToasts((t) => t.filter((x) => x.id !== id)); }
-  function pushToast({ message, actionLabel, onAction, ttlMs = 5000 }) {
-    const id = uid('toast');
-    setToasts((t) => [...t, { id, message, actionLabel, onAction }]);
-    if (ttlMs) setTimeout(() => dismissToast(id), ttlMs);
-    return id;
-  }
-  function pushUndoToast(message, undoFn, ttlMs = 6000) {
-    return pushToast({ message, actionLabel: 'Desfazer', onAction: undoFn, ttlMs });
-  }
-  return { toasts, pushToast, pushUndoToast, dismissToast };
+  return {
+    toasts: [],
+    pushToast: pushToastCompat,
+    pushUndoToast: (message, undoFn, ttlMs = 6000) => notify(message, { undo: undoFn, ttlMs }),
+    dismissToast: dismissToastGlobal,
+  };
 }
 
-function ToastStack({ toasts, onDismiss }) {
-  if (toasts.length === 0) return null;
-  return (
-    <div style={S.toastStack}>
-      {toasts.map((t) => (
-        <div key={t.id} style={S.toast}>
-          <span>{t.message}</span>
-          {t.actionLabel && <button style={S.toastAction} onClick={() => { t.onAction && t.onAction(); onDismiss(t.id); }}>{t.actionLabel}</button>}
-          <button style={S.chipX} onClick={() => onDismiss(t.id)}><X size={12} /></button>
-        </div>
-      ))}
-    </div>
-  );
-}
+function ToastStack() { return null; }
 
 function FadingSavedBadge() {
   const [visible, setVisible] = useState(true);
@@ -5594,7 +5579,7 @@ function TagEditor({ tags, onChange, suggestions }) {
       <div style={S.tagEditorChips}>
         {tags.map((t) => (
           <span key={t} style={S.personalCardTag}>
-            {t} <button style={S.chipX} onClick={() => onChange(tags.filter((x) => x !== t))}><X size={10} /></button>
+            {t} <button aria-label="Remover tag" title="Remover tag" style={S.chipX} onClick={() => onChange(tags.filter((x) => x !== t))}><X aria-hidden="true" size={10} /></button>
           </span>
         ))}
         <input
@@ -5624,8 +5609,8 @@ function PersonalColumnMenu({ column, canMoveLeft, canMoveRight, onClose, onAddC
           <button style={S.dropdownItem} onClick={() => { onRename(); onClose(); }}><Pencil size={13} /> Renomear</button>
           <button style={S.dropdownItem} onClick={() => setMode('color')}><Palette size={13} /> Alterar cor</button>
           <button style={S.dropdownItem} onClick={() => setMode('sort')}><ArrowLeftRight size={13} /> Ordenar</button>
-          <button style={{ ...S.dropdownItem, opacity: canMoveLeft ? 1 : .4 }} disabled={!canMoveLeft} onClick={() => { onMoveLeft(); onClose(); }}>← Mover para esquerda</button>
-          <button style={{ ...S.dropdownItem, opacity: canMoveRight ? 1 : .4 }} disabled={!canMoveRight} onClick={() => { onMoveRight(); onClose(); }}>→ Mover para direita</button>
+          <button title={!canMoveLeft ? 'Esta coluna já é a primeira' : undefined} style={{ ...S.dropdownItem, opacity: canMoveLeft ? 1 : .4 }} disabled={!canMoveLeft} onClick={() => { onMoveLeft(); onClose(); }}>← Mover para esquerda</button>
+          <button title={!canMoveRight ? 'Esta coluna já é a última' : undefined} style={{ ...S.dropdownItem, opacity: canMoveRight ? 1 : .4 }} disabled={!canMoveRight} onClick={() => { onMoveRight(); onClose(); }}>→ Mover para direita</button>
           <button style={S.dropdownItem} onClick={() => { onDuplicate(); onClose(); }}><Copy size={13} /> Duplicar coluna</button>
           <label style={S.dropdownItem}>
             <input type="checkbox" checked={!!column.hideCompleted} onChange={onToggleHideCompleted} /> Ocultar concluídas
@@ -5729,7 +5714,7 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
         <div style={{ ...S.personalCardTitleText, ...(card.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{card.title}</div>
         {!readOnly && (
           <div style={{ position: 'relative' }}>
-            <button style={S.iconBtnGhost} onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}><MoreHorizontal size={13} /></button>
+            <button aria-label="Mais ações" title="Mais ações" style={S.iconBtnGhost} onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}><MoreHorizontal aria-hidden="true" size={13} /></button>
             {menuOpen && (
               <PersonalCardMenu
                 card={card}
@@ -5833,7 +5818,7 @@ function PersonalColumn({
         <span style={S.kanbanCount}>{totalVisibleCount}</span>
         {!readOnly && (
           <div style={{ position: 'relative' }} onKeyDown={(e) => e.stopPropagation()}>
-            <button style={S.iconBtnGhost} onClick={() => setMenuOpen((v) => !v)}><MoreHorizontal size={14} /></button>
+            <button aria-label="Mais ações" title="Mais ações" style={S.iconBtnGhost} onClick={() => setMenuOpen((v) => !v)}><MoreHorizontal aria-hidden="true" size={14} /></button>
             {menuOpen && (
               <PersonalColumnMenu
                 column={column}
@@ -5967,7 +5952,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
             </div>
             {!readOnly && <span style={{ fontSize: 11, color: hasDraft ? '#ff9f40' : 'var(--text-6)' }}>{savedStatusLabel(hasDraft, lastSavedAt)}</span>}
           </div>
-          <button style={S.iconBtnGhost} onClick={requestClose}><X size={18} /></button>
+          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
         </div>
 
         {readOnly && (
@@ -6051,7 +6036,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
                       style={{ flex: 1 }}
                       autoFocus
                     />
-                    <button style={S.chipX} onClick={() => { cancelingChecklistRef.current = true; setEditingChecklistId(null); }}><X size={12} /></button>
+                    <button aria-label="Cancelar edição" title="Cancelar edição" style={S.chipX} onClick={() => { cancelingChecklistRef.current = true; setEditingChecklistId(null); }}><X aria-hidden="true" size={12} /></button>
                   </>
                 ) : (
                   <>
@@ -6064,7 +6049,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
                     {!readOnly && (
                       <button style={S.chipX} title="Editar" onClick={() => { setEditingChecklistId(item.id); setEditingChecklistText(item.text); }}><Pencil size={11} /></button>
                     )}
-                    <button style={S.chipX} onClick={() => onRemoveChecklistItem(item.id)}><X size={12} /></button>
+                    <button aria-label="Remover item do checklist" title="Remover item do checklist" style={S.chipX} onClick={() => onRemoveChecklistItem(item.id)}><X aria-hidden="true" size={12} /></button>
                   </>
                 )}
               </div>
@@ -6079,7 +6064,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
                 placeholder="Adicionar item..."
                 style={{ flex: 1 }}
               />
-              <button style={S.iconBtn} onClick={submitChecklist}><Plus size={13} /></button>
+              <button aria-label="Adicionar item ao checklist" title="Adicionar item ao checklist" style={S.iconBtn} onClick={submitChecklist}><Plus aria-hidden="true" size={13} /></button>
             </div>
           )}
         </div>
@@ -6106,8 +6091,8 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
                       style={{ ...S.notesArea, flex: 1 }}
                       autoFocus
                     />
-                    <button style={S.iconBtn} onClick={() => { onUpdateComment(c.id, editingCommentText); setEditingCommentId(null); }}><Check size={13} /></button>
-                    <button style={S.iconBtnGhost} onClick={() => setEditingCommentId(null)}><X size={13} /></button>
+                    <button aria-label="Salvar comentário" title="Salvar comentário" style={S.iconBtn} onClick={() => { onUpdateComment(c.id, editingCommentText); setEditingCommentId(null); }}><Check aria-hidden="true" size={13} /></button>
+                    <button aria-label="Cancelar edição" title="Cancelar edição" style={S.iconBtnGhost} onClick={() => setEditingCommentId(null)}><X aria-hidden="true" size={13} /></button>
                   </div>
                 ) : (
                   <div style={S.commentText}>{c.text}</div>
@@ -6116,8 +6101,8 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
                   <div style={S.commentMeta}>
                     <span />
                     <span style={{ display: 'flex', gap: 8 }}>
-                      <button style={S.commentDel} onClick={() => { setEditingCommentId(c.id); setEditingCommentText(c.text); }}><Pencil size={11} /></button>
-                      <button style={S.commentDel} onClick={() => onRemoveComment(c.id)}><X size={11} /></button>
+                      <button aria-label="Editar comentário" title="Editar comentário" style={S.commentDel} onClick={() => { setEditingCommentId(c.id); setEditingCommentText(c.text); }}><Pencil aria-hidden="true" size={11} /></button>
+                      <button aria-label="Excluir comentário" title="Excluir comentário" style={S.commentDel} onClick={() => onRemoveComment(c.id)}><X aria-hidden="true" size={11} /></button>
                     </span>
                   </div>
                 )}
@@ -6135,7 +6120,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
               rows={2}
               style={{ flex: 1 }}
             />
-            <button style={S.primaryBtn} onClick={submitComment}><Send size={14} /></button>
+            <button aria-label="Comentar" title="Comentar" style={S.primaryBtn} onClick={submitComment}><Send aria-hidden="true" size={14} /></button>
           </div>
         )}
 
@@ -6246,7 +6231,7 @@ function ReassignCardsModal({ column, otherColumns, onConfirm, onCancel }) {
       <div style={{ ...S.detailBox, width: 'min(460px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 16, fontWeight: 800 }}>Excluir coluna "{column.name}"</div>
-          <button style={S.iconBtnGhost} onClick={onCancel}><X size={18} /></button>
+          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={onCancel}><X aria-hidden="true" size={18} /></button>
         </div>
         <div style={S.fieldHint}>Esta coluna tem {activeCount} tarefa(s). Para onde deseja movê-las?</div>
         <select value={targetColId} onChange={(e) => setTargetColId(e.target.value)} style={{ marginTop: 10 }}>
@@ -6258,7 +6243,7 @@ function ReassignCardsModal({ column, otherColumns, onConfirm, onCancel }) {
         </label>
         <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
           <button style={S.iconBtn} onClick={onCancel}>Cancelar</button>
-          <button style={S.primaryBtn} onClick={() => onConfirm(targetColId, alsoDelete)} disabled={!targetColId}>Mover e excluir coluna</button>
+          <button title={!targetColId ? 'Escolha a coluna de destino' : undefined} style={S.primaryBtn} onClick={() => onConfirm(targetColId, alsoDelete)} disabled={!targetColId}>Mover e excluir coluna</button>
         </div>
       </div>
     </DialogOverlay>
@@ -6277,7 +6262,7 @@ function PersonalTrashPanel({ trashItems, onClose, onRestore, onHardDelete }) {
             <div style={S.logTs}>Excluída em {fmtTs(item.card.deletedAt)}{item.card.deletedBy ? ` · ${item.card.deletedBy}` : ''}</div>
           </div>
           <button style={S.iconBtn} onClick={() => onRestore(item)}><Undo2 size={14} /> Restaurar</button>
-          <button style={S.iconBtnGhost} onClick={() => onHardDelete(item)}><Trash2 size={14} color="#e2574c" /></button>
+          <button aria-label="Excluir definitivamente" title="Excluir definitivamente" style={S.iconBtnGhost} onClick={() => onHardDelete(item)}><Trash2 aria-hidden="true" size={14} color="#e2574c" /></button>
         </div>
       ))}
     </SidePanel>
@@ -6320,7 +6305,7 @@ function BoardShareModal({ board, onClose, onSetVisibility, onRegenerateLink }) 
       <div style={{ ...S.detailBox, width: 'min(480px, 100%)' }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={S.subSectionLabel}>Visibilidade da página "{board.name}"</div>
-          <button style={S.iconBtnGhost} onClick={onClose}><X size={18} /></button>
+          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={onClose}><X aria-hidden="true" size={18} /></button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 }}>
           <label style={S.cnpjCheckRow}>
@@ -6345,7 +6330,7 @@ function BoardShareModal({ board, onClose, onSetVisibility, onRegenerateLink }) 
             <button
               className="pb-ghost"
               style={{ ...S.pbGhostBtn, marginTop: 10 }}
-              onClick={() => { if (window.confirm('Gerar um novo link público? O link atual deixará de funcionar imediatamente.')) onRegenerateLink(); }}
+              onClick={async () => { if (await askConfirm({ title: 'Gerar um novo link público?', message: 'O link atual deixará de funcionar imediatamente.', confirmLabel: 'Gerar novo link', danger: true })) onRegenerateLink(); }}
             >
               <RefreshCw size={13} /> Gerar novo link
             </button>
@@ -6521,10 +6506,10 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
   }
 
   // ---- quadros compartilhados fixados (abas de outras pessoas) ----
-  function removeLinked(token) {
+  async function removeLinked(token) {
     const l = linkedBoards.find((x) => x.token === token);
     if (!l) return;
-    if (!window.confirm(`Remover "${l.name}" (de ${l.ownerName || 'outra pessoa'}) da sua lista? O quadro dela não é apagado — só deixa de aparecer aqui.`)) return;
+    if (!(await askConfirm({ title: 'Remover quadro da sua lista?', message: `"${l.name}" (de ${l.ownerName || 'outra pessoa'}) deixa de aparecer aqui. O quadro dela não é apagado.`, confirmLabel: 'Remover', danger: true }))) return;
     onMutate((prev) => ({ ...prev, linkedBoards: (prev.linkedBoards || []).filter((x) => x.token !== token) }));
     if (activeLinkedToken === token) setActiveLinkedToken(null);
   }
@@ -6936,9 +6921,8 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
       }),
     }));
   }
-  function hardDeleteTrashedCard(item) {
-    const typed = window.prompt(`Para excluir definitivamente "${item.card.title}", digite "${CARD_DELETE_CONFIRM_PHRASE}" abaixo:`);
-    if (typed !== CARD_DELETE_CONFIRM_PHRASE) return;
+  async function hardDeleteTrashedCard(item) {
+    if (!(await askConfirm({ title: 'Excluir definitivamente?', message: `Para excluir definitivamente "${item.card.title}", digite "${CARD_DELETE_CONFIRM_PHRASE}" abaixo. Não há como desfazer.`, confirmLabel: 'Excluir definitivamente', danger: true, requireText: CARD_DELETE_CONFIRM_PHRASE }))) return;
     onMutate((prev) => ({
       ...prev,
       boards: prev.boards.map((b) => (b.id !== item.boardId ? b : {
@@ -7171,7 +7155,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
             >
               <input value={b.name} onChange={(e) => renameBoard(b.id, e.target.value)} style={S.personalTabInput} />
               {b.visibility === 'public' && <span style={S.publicBadge}><Globe size={11} /></span>}
-              <button style={S.chipX} onClick={(e) => { e.stopPropagation(); deleteBoard(b.id); }}><X size={11} /></button>
+              <button aria-label="Excluir quadro" title="Excluir quadro" style={S.chipX} onClick={(e) => { e.stopPropagation(); deleteBoard(b.id); }}><X aria-hidden="true" size={11} /></button>
             </div>
           ))}
           {linkedBoards.map((l) => (
@@ -7529,7 +7513,7 @@ function PublicBoardScreen({ token, theme, onToggleTheme, embedded, currentUser,
       await apiPost('/api/personal-board/linked', { token });
       openInMyBoard();
     } catch (e) {
-      window.alert(e.message || 'Não foi possível adicionar o quadro.');
+      notify(e.message || 'Não foi possível adicionar o quadro.', { tone: 'error' });
       setAdding(false);
     }
   }
@@ -7565,7 +7549,7 @@ function PublicBoardScreen({ token, theme, onToggleTheme, embedded, currentUser,
   const publicAction = canPin ? (
     state.alreadyLinked
       ? <button style={S.primaryBtn} onClick={openInMyBoard}><Link2 size={14} /> Abrir no meu quadro</button>
-      : <button style={S.primaryBtn} disabled={adding} onClick={addToMyBoard}><Plus size={14} /> {adding ? 'Adicionando…' : 'Adicionar ao meu quadro'}</button>
+      : <button title={adding ? 'Aguarde terminar de adicionar' : undefined} style={S.primaryBtn} disabled={adding} onClick={addToMyBoard}><Plus size={14} /> {adding ? 'Adicionando…' : 'Adicionar ao meu quadro'}</button>
   ) : null;
 
   return (
@@ -7618,7 +7602,7 @@ export function SidePanel({ title, onClose, width, children }) {
       <div style={{ ...S.panel, ...(width ? { width } : null), ...(isMobile ? S.panelMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.panelHead}>
           <div style={S.panelTitle}>{title}</div>
-          <button style={S.iconBtnGhost} onClick={onClose}><X size={16} /></button>
+          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={onClose}><X aria-hidden="true" size={16} /></button>
         </div>
         <div style={S.panelBody}>{children}</div>
       </div>
@@ -7649,7 +7633,7 @@ export function NotificationBell({ notifications, show, onToggle, onOpenItem, on
               <div style={S.panelTitle}>{unreadCount > 0 ? `${unreadCount} notifica${unreadCount === 1 ? 'ção' : 'ções'}` : 'Notificações'}</div>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                 {unreadCount > 0 && <button style={S.filterClearBtn} onClick={onMarkAllRead}>Marcar todas como lidas</button>}
-                <button style={S.iconBtnGhost} onClick={onToggle}><X size={16} /></button>
+                <button aria-label="Fechar notificações" title="Fechar notificações" style={S.iconBtnGhost} onClick={onToggle}><X aria-hidden="true" size={16} /></button>
               </div>
             </div>
             <div style={S.panelBody}>
@@ -7718,7 +7702,7 @@ function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSu
         </div>
         <input type="checkbox" checked={s.done} onChange={(e) => updateSub(pid, actId, s.id, { done: e.target.checked })} />
         <input type="text" className="sub-title-input" value={titleField.draft} onChange={(e) => titleField.onChange(e.target.value)} onBlur={titleField.flush} style={{ ...S.subTitleInput, textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
-        <button className="sub-del-btn" style={S.iconBtnGhost} onClick={() => deleteSub(pid, actId, s.id)}><X size={13} /></button>
+        <button aria-label="Excluir subatividade" title="Excluir subatividade" className="sub-del-btn" style={S.iconBtnGhost} onClick={() => deleteSub(pid, actId, s.id)}><X aria-hidden="true" size={13} /></button>
       </div>
       <div style={S.subMetaRow}>
         <select className="sub-meta-select" value={s.responsible || ''} onChange={(e) => updateSub(pid, actId, s.id, { responsible: e.target.value })} style={S.subMetaSelect} title="Responsável da subatividade">
@@ -7759,7 +7743,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
     const files = Array.from(fileList || []);
     for (const file of files) {
       if (file.size > MAX_ATTACHMENT_BYTES) {
-        window.alert(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB.`);
+        notify(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB.`, { tone: 'error' });
         continue;
       }
       const reader = new FileReader();
@@ -7860,7 +7844,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
             <span style={S.detailPhaseTag}><span style={{ ...S.timelineLaneDot, background: phase?.color }} />{phase?.name}</span>
             <span style={{ fontSize: 11, color: hasDraft ? '#ff9f40' : 'var(--text-6)' }}>{savedStatusLabel(hasDraft, lastSavedAt)}</span>
           </div>
-          <button style={S.iconBtnGhost} onClick={requestClose}><X size={20} /></button>
+          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={20} /></button>
         </div>
 
         <input
@@ -7889,14 +7873,14 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
               {(a.links || []).map((l) => (
                 <div key={l.id} style={S.attachRow}>
                   <a href={l.url} target="_blank" rel="noreferrer" style={S.attachLink}>{l.label}</a>
-                  <button style={S.iconBtnGhost} onClick={() => removeLink(pid, a.id, l.id)}><X size={12} /></button>
+                  <button aria-label="Remover link" title="Remover link" style={S.iconBtnGhost} onClick={() => removeLink(pid, a.id, l.id)}><X aria-hidden="true" size={12} /></button>
                 </div>
               ))}
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <input type="text" value={linkLabelDraft} onChange={(e) => setLinkLabelDraft(e.target.value)} placeholder="Nome do link (opcional)" style={{ flex: 1 }} />
               <input type="text" value={linkUrlDraft} onChange={(e) => setLinkUrlDraft(e.target.value)} placeholder="https://..." style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && submitLink()} />
-              <button style={S.iconBtn} onClick={submitLink}><Plus size={14} /></button>
+              <button aria-label="Adicionar link" title="Adicionar link" style={S.iconBtn} onClick={submitLink}><Plus aria-hidden="true" size={14} /></button>
             </div>
 
             <div style={{ ...S.subSectionLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -7932,8 +7916,8 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
                         style={{ ...S.notesArea, flex: 1 }}
                         autoFocus
                       />
-                      <button style={S.iconBtn} onClick={() => { updateComment(pid, a.id, c.id, editingCommentText); setEditingCommentId(null); }}><Check size={13} /></button>
-                      <button style={S.iconBtnGhost} onClick={() => setEditingCommentId(null)}><X size={13} /></button>
+                      <button aria-label="Salvar comentário" title="Salvar comentário" style={S.iconBtn} onClick={() => { updateComment(pid, a.id, c.id, editingCommentText); setEditingCommentId(null); }}><Check aria-hidden="true" size={13} /></button>
+                      <button aria-label="Cancelar edição" title="Cancelar edição" style={S.iconBtnGhost} onClick={() => setEditingCommentId(null)}><X aria-hidden="true" size={13} /></button>
                     </div>
                   ) : (
                     <div style={S.commentText}>{renderCommentText(c.text, team)}</div>
@@ -7959,8 +7943,8 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
                     <span>{c.author ? `${c.author} · ` : ''}{fmtTs(c.ts)}{c.editedAt ? ' · editado' : ''}</span>
                     {editingCommentId !== c.id && (
                       <span style={{ display: 'flex', gap: 8 }}>
-                        <button style={S.commentDel} onClick={() => { setEditingCommentId(c.id); setEditingCommentText(c.text); }}><Pencil size={11} /></button>
-                        <button style={S.commentDel} onClick={() => removeComment(pid, a.id, c.id)}><X size={11} /></button>
+                        <button aria-label="Editar comentário" title="Editar comentário" style={S.commentDel} onClick={() => { setEditingCommentId(c.id); setEditingCommentText(c.text); }}><Pencil aria-hidden="true" size={11} /></button>
+                        <button aria-label="Excluir comentário" title="Excluir comentário" style={S.commentDel} onClick={() => removeComment(pid, a.id, c.id)}><X aria-hidden="true" size={11} /></button>
                       </span>
                     )}
                   </div>
@@ -7984,14 +7968,14 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
                     {att.type && att.type.startsWith('image/') && <img src={att.dataUrl} alt={att.name} style={S.attachThumb} />}
                     <span style={S.attachLink}>{att.name}</span>
                     <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
-                    <button style={S.iconBtnGhost} onClick={() => removeCommentAttachmentDraft(att.id)}><X size={12} /></button>
+                    <button aria-label="Remover anexo" title="Remover anexo" style={S.iconBtnGhost} onClick={() => removeCommentAttachmentDraft(att.id)}><X aria-hidden="true" size={12} /></button>
                   </div>
                 ))}
                 {commentLinkDrafts.map((l) => (
                   <div key={l.id} style={S.attachRow}>
                     <Link2 size={12} style={{ flexShrink: 0, color: 'var(--text-6)' }} />
                     <span style={S.attachLink}>{l.label}</span>
-                    <button style={S.iconBtnGhost} onClick={() => removeCommentLinkDraft(l.id)}><X size={12} /></button>
+                    <button aria-label="Remover link" title="Remover link" style={S.iconBtnGhost} onClick={() => removeCommentLinkDraft(l.id)}><X aria-hidden="true" size={12} /></button>
                   </div>
                 ))}
               </div>
@@ -8000,7 +7984,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
               <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
                 <input type="text" value={commentLinkLabelDraft} onChange={(e) => setCommentLinkLabelDraft(e.target.value)} placeholder="Nome do link (opcional)" style={{ flex: 1 }} />
                 <input type="text" value={commentLinkUrlDraft} onChange={(e) => setCommentLinkUrlDraft(e.target.value)} placeholder="https://..." style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && addCommentLinkDraft()} />
-                <button style={S.iconBtn} onClick={addCommentLinkDraft}><Plus size={14} /></button>
+                <button aria-label="Adicionar link" title="Adicionar link" style={S.iconBtn} onClick={addCommentLinkDraft}><Plus aria-hidden="true" size={14} /></button>
               </div>
             )}
             <div style={S.commentInputRow}>
@@ -8008,7 +7992,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
               <label htmlFor={`comment-file-${a.id}`} style={S.iconBtnGhost} title="Anexar imagem ou PDF"><Paperclip size={14} /></label>
               <input id={`comment-file-${a.id}`} type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} onChange={(e) => { handleCommentFiles(e.target.files); e.target.value = ''; }} />
               <button style={S.iconBtnGhost} title="Anexar link" onClick={() => setShowCommentLinkForm((v) => !v)}><Link2 size={14} /></button>
-              <button style={S.primaryBtn} onClick={submitComment}><Send size={14} /></button>
+              <button aria-label="Comentar" title="Comentar" style={S.primaryBtn} onClick={submitComment}><Send aria-hidden="true" size={14} /></button>
             </div>
 
             <div style={{ ...S.subSectionLabel, marginTop: 18 }}><History size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Histórico desta atividade</div>
@@ -8166,7 +8150,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
                   {att.type && att.type.startsWith('image/') && <img src={att.dataUrl} alt={att.name} style={S.attachThumb} />}
                   <a href={att.dataUrl} download={att.name} style={S.attachLink}>{att.name}</a>
                   <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
-                  <button style={S.iconBtnGhost} onClick={() => removeAttachment(pid, a.id, att.id)}><X size={12} /></button>
+                  <button aria-label="Remover anexo" title="Remover anexo" style={S.iconBtnGhost} onClick={() => removeAttachment(pid, a.id, att.id)}><X aria-hidden="true" size={12} /></button>
                 </div>
               ))}
             </div>
@@ -9164,7 +9148,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                   </div>
                   <div style={S.actionsCell}>
                     <button style={S.iconBtnGhost} title="Abrir em tela cheia" onClick={() => openDetail(rowPid, a.id)}><Maximize2 size={13} /></button>
-                    <button style={S.iconBtnGhost} onClick={() => deleteActivity(rowPid, a.id)}><Trash2 size={14} /></button>
+                    <button aria-label="Excluir atividade" title="Excluir atividade" style={S.iconBtnGhost} onClick={() => deleteActivity(rowPid, a.id)}><Trash2 aria-hidden="true" size={14} /></button>
                   </div>
                 </div>
                 )}
@@ -9290,7 +9274,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                       </button>
                       <div style={{ display: 'flex', gap: 4 }}>
                         <button style={S.mobileIconBtn} title="Abrir em tela cheia" onClick={() => openDetail(rowPid, a.id)}><Maximize2 size={16} /></button>
-                        <button style={S.mobileIconBtn} onClick={() => deleteActivity(rowPid, a.id)}><Trash2 size={16} /></button>
+                        <button aria-label="Excluir atividade" title="Excluir atividade" style={S.mobileIconBtn} onClick={() => deleteActivity(rowPid, a.id)}><Trash2 aria-hidden="true" size={16} /></button>
                       </div>
                     </div>
                   </div>
@@ -9313,7 +9297,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                             </div>
                             <input type="checkbox" checked={s.done} onChange={(e) => updateSub(rowPid, a.id, s.id, { done: e.target.checked })} />
                             <input type="text" className="sub-title-input" value={s.title} onChange={(e) => updateSub(rowPid, a.id, s.id, { title: e.target.value })} style={{ ...S.subTitleInput, textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
-                            <button className="sub-del-btn" style={S.iconBtnGhost} onClick={() => deleteSub(rowPid, a.id, s.id)}><X size={13} /></button>
+                            <button aria-label="Excluir subatividade" title="Excluir subatividade" className="sub-del-btn" style={S.iconBtnGhost} onClick={() => deleteSub(rowPid, a.id, s.id)}><X aria-hidden="true" size={13} /></button>
                           </div>
                           <div style={S.subMetaRow}>
                             <select className="sub-meta-select" value={s.responsible || ''} onChange={(e) => updateSub(rowPid, a.id, s.id, { responsible: e.target.value })} style={S.subMetaSelect} title="Responsável da subatividade">
@@ -9343,7 +9327,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                         <div key={att.id} style={S.attachRow}>
                           <a href={att.dataUrl} download={att.name} style={S.attachLink}>{att.name}</a>
                           <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
-                          <button style={S.iconBtnGhost} onClick={() => removeAttachment(rowPid, a.id, att.id)}><X size={12} /></button>
+                          <button aria-label="Remover anexo" title="Remover anexo" style={S.iconBtnGhost} onClick={() => removeAttachment(rowPid, a.id, att.id)}><X aria-hidden="true" size={12} /></button>
                         </div>
                       ))}
                     </div>
@@ -9655,9 +9639,9 @@ function TimelineView({ activities, phases, granularity, setGranularity, windowA
         </div>
         {windowed && (
           <div style={S.navGroup}>
-            <button style={S.navBtn} onClick={() => nav(-1)}>‹</button>
+            <button aria-label="Período anterior" title="Período anterior" style={S.navBtn} onClick={() => nav(-1)}>‹</button>
             <span style={S.navLabel}>{granularity === 'dia' ? fmtMonthTitle(windowAnchor) : `${fmtMonthTitle(addMonths(windowAnchor, -1))} — ${fmtMonthTitle(addMonths(windowAnchor, 1))}`}</span>
-            <button style={S.navBtn} onClick={() => nav(1)}>›</button>
+            <button aria-label="Próximo período" title="Próximo período" style={S.navBtn} onClick={() => nav(1)}>›</button>
             <button style={S.navToday} onClick={() => setWindowAnchor(new Date())}>Hoje</button>
           </div>
         )}
@@ -10196,6 +10180,7 @@ export default function App() {
     <>
       <ShellHost shellRef={shellRef} />
       <AppScreensMemo shellRef={shellRef} bump={bump} />
+      <DialogHost />
     </>
   );
 }

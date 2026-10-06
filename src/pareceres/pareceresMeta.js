@@ -124,8 +124,6 @@ export const PARECERES_CSS = `
   .par-comment { background:var(--bg-3); border:1px solid var(--border-1); border-radius:10px; padding:10px 12px; margin-bottom:8px; }
   .par-comment-head { display:flex; align-items:center; justify-content:space-between; font-size:11px; color:var(--text-6); margin-bottom:4px; }
   .par-comment-text { font-size:12.5px; color:var(--text-2); white-space:pre-wrap; }
-  .par-comment-del { background:none; border:none; color:var(--text-7); cursor:pointer; padding:2px; }
-  .par-comment-del:hover { color:var(--ui-danger); }
   .par-comment-input-row { display:flex; gap:8px; margin-top:10px; align-items:flex-end; }
   .par-comment-input-row textarea { flex:1; min-height:44px; }
 
@@ -133,8 +131,9 @@ export const PARECERES_CSS = `
   .par-alert > span { flex:1; min-width:160px; }
   .par-alert button { font-family:inherit; font-size:12px; font-weight:700; padding:5px 10px; border-radius:8px; cursor:pointer; background:transparent; border:1px solid var(--ui-danger); color:var(--ui-danger); }
   .par-alert button:hover { background:rgba(226,87,76,.14); }
-  .par-save { align-self:center; font-size:11.5px; font-weight:700; color:var(--text-6); white-space:nowrap; }
-  .par-save.err { color:var(--ui-danger); background:none; border:none; cursor:pointer; font-family:inherit; text-decoration:underline; padding:0; }
+  .par-hint { font-size:11.5px; color:var(--text-6); margin-bottom:8px; line-height:1.4; }
+  .par-scope-save { display:flex; align-items:center; gap:10px; margin-top:8px; }
+  .par-drawer-title-row .ui-save { align-self:center; }
 `;
 
 export function apiErrorText(e, fallback) {

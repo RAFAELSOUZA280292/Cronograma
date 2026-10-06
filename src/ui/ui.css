@@ -149,3 +149,95 @@ html[data-theme="light"] .ui-empty-icon { color: #7a5f00; }
 .ui-dlg-type input:focus { outline: none; border-color: var(--ui-accent); }
 .ui-dlg-err { margin-top: 10px; font-size: 12.5px; color: var(--ui-danger); line-height: 1.45; }
 .ui-dlg-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+
+/* ---------- Avisos (toast) e diálogos globais — Onda 2 ---------- */
+.ui-toasts { position: fixed; right: 20px; bottom: 20px; z-index: 400; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; max-width: calc(100vw - 32px); font-family: 'Inter', sans-serif; }
+.ui-toast { display: flex; align-items: center; gap: 10px; min-width: 240px; max-width: 460px; padding: 10px 12px; border-radius: 10px; background: var(--bg-1); border: 1px solid var(--border-2); color: var(--text-2); font-size: 13px; line-height: 1.4; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+.ui-toast.tone-success { border-color: rgba(62, 207, 110, .55); }
+.ui-toast.tone-error { border-color: rgba(226, 87, 76, .65); background: var(--ui-danger-bg); color: var(--text-1); }
+.ui-toast-msg { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ui-toast-action { flex-shrink: 0; border: 0; background: transparent; color: var(--ui-accent); font: inherit; font-weight: 800; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.ui-toast-action:hover { background: var(--bg-3); }
+.ui-toast-x { flex-shrink: 0; display: inline-flex; border: 0; background: transparent; color: var(--text-4); cursor: pointer; padding: 5px; border-radius: 6px; }
+.ui-toast-x:hover { background: var(--bg-3); color: var(--text-1); }
+.ui-dlg-type textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 14px; border-radius: 9px; font-family: inherit; background: var(--bg-4); border: 1px solid var(--border-3); color: var(--text-1); resize: vertical; }
+.ui-dlg-type textarea:focus { outline: none; border-color: var(--ui-accent); }
+@media (max-width: 767px) { .ui-toasts { right: 12px; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); align-items: stretch; } .ui-toast { max-width: none; } }
+
+/* ---------- IconButton, ErrorState, SaveStatus, Modal/Drawer — Onda 2 ---------- */
+.ui-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.ui-iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: 9px; border: 1px solid transparent; background: transparent; color: var(--text-3); cursor: pointer; transition: background .12s ease, color .12s ease; }
+.ui-iconbtn:hover:not(:disabled) { background: var(--bg-3); color: var(--text-1); }
+.ui-iconbtn:disabled { opacity: .45; cursor: default; }
+.ui-iconbtn.danger { color: var(--ui-danger); }
+.ui-iconbtn.danger:hover:not(:disabled) { background: var(--ui-danger-bg); }
+.ui-iconbtn.sm { width: 30px; height: 30px; border-radius: 8px; }
+.ui-iconbtn:focus-visible, .ui-btn:focus-visible, .ui-toast-action:focus-visible, .ui-toast-x:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+@media (max-width: 767px) { .ui-iconbtn { width: 44px; height: 44px; } .ui-iconbtn.sm { width: 40px; height: 40px; } }
+.ui-error { padding: 18px; border-radius: 12px; border: 1px solid rgba(226, 87, 76, .4); background: var(--ui-danger-bg); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.ui-error.compact { padding: 10px 12px; }
+.ui-error-title { font-weight: 800; color: var(--text-1); font-size: 14px; }
+.ui-error-msg { color: var(--text-3); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.ui-save { font-size: 12px; font-weight: 600; color: var(--text-4); display: inline-flex; align-items: center; gap: 8px; }
+.ui-save.s-saved { color: var(--ui-ok); }
+.ui-save.s-error { color: var(--ui-danger); }
+.ui-save-retry { border: 0; background: transparent; color: inherit; font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; padding: 0; }
+.ui-frame-overlay { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.6); display: flex; padding: 16px; font-family: 'Inter', sans-serif; }
+.ui-frame-overlay.modal { align-items: center; justify-content: center; }
+.ui-frame-overlay.drawer { align-items: stretch; justify-content: flex-end; padding: 0; }
+.ui-frame { display: flex; flex-direction: column; max-height: 100%; background: var(--bg-1); color: var(--text-1); border: 1px solid var(--border-2); box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+.ui-frame.modal { width: min(560px, 100%); border-radius: 16px; }
+.ui-frame.modal.lg { width: min(860px, 100%); }
+.ui-frame.modal.sm { width: min(420px, 100%); }
+.ui-frame.drawer { width: min(520px, 100%); border-radius: 0; border-top: 0; border-bottom: 0; border-right: 0; }
+.ui-frame-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 16px 12px 20px; border-bottom: 1px solid var(--border-1); }
+.ui-frame-title { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
+.ui-frame-sub { margin-top: 3px; font-size: 12.5px; color: var(--text-4); }
+.ui-frame-body { padding: 16px 20px; overflow-y: auto; flex: 1; min-height: 0; }
+.ui-frame-err { margin: 0 20px 4px; font-size: 12.5px; color: var(--ui-danger); line-height: 1.45; }
+.ui-frame-foot { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; padding: 12px 20px 16px; border-top: 1px solid var(--border-1); }
+@media (max-width: 767px) { .ui-frame-overlay.modal { padding: 0; align-items: stretch; } .ui-frame.modal { width: 100%; border-radius: 0; } }
+
+/* ---------- ComposeBox / CommentThread — Onda 3 ---------- */
+.cmp-box { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; border: 1px solid var(--border-2); background: var(--bg-2); font-family: 'Inter', sans-serif; transition: border-color .12s ease; }
+.cmp-box:focus-within { border-color: var(--ui-accent); }
+.cmp-box.drag { border-color: var(--ui-accent); background: var(--ui-accent-bg); }
+.cmp-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.cmp-field { position: relative; flex: 1 1 260px; min-width: 0; }
+.cmp-field textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 56px; padding: 9px 11px; border-radius: 9px; border: 1px solid var(--border-3); background: var(--bg-4); color: var(--text-1); font: inherit; font-size: 13.5px; line-height: 1.5; }
+.cmp-field textarea:focus { outline: none; border-color: var(--ui-accent); }
+.cmp-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cmp-add { position: relative; }
+.cmp-menu { position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 20; min-width: 230px; padding: 5px; border-radius: 10px; background: var(--bg-1); border: 1px solid var(--border-2); box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+.cmp-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text-2); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.cmp-menu button:hover { background: var(--bg-3); }
+.cmp-menu-hint { display: flex; align-items: center; gap: 7px; padding: 7px 10px 5px; font-size: 11.5px; color: var(--text-4); border-top: 1px solid var(--border-1); margin-top: 4px; }
+.cmp-pop { position: absolute; left: 8px; bottom: calc(100% + 4px); z-index: 25; margin: 0; padding: 4px; list-style: none; min-width: 200px; border-radius: 10px; background: var(--bg-1); border: 1px solid var(--border-2); box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+.cmp-pop li { padding: 7px 10px; border-radius: 7px; font-size: 13px; color: var(--text-2); cursor: pointer; }
+.cmp-pop li.on, .cmp-pop li:hover { background: var(--ui-accent-bg); color: var(--text-1); }
+.cmp-linkform { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.cmp-linkform input { flex: 1 1 160px; min-width: 0; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border-3); background: var(--bg-4); color: var(--text-1); font: inherit; font-size: 13px; }
+.cmp-files { display: flex; flex-direction: column; gap: 5px; }
+.cmp-file { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 8px; background: var(--bg-3); border: 1px solid var(--border-1); font-size: 12.5px; color: var(--text-3); }
+.cmp-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); text-decoration: none; }
+a.cmp-file-name { text-decoration: underline; text-underline-offset: 2px; }
+.cmp-file-size { color: var(--text-4); font-size: 11.5px; flex-shrink: 0; }
+.cmp-thumb { padding: 0; border: 1px solid var(--border-2); border-radius: 6px; overflow: hidden; width: 38px; height: 38px; flex-shrink: 0; background: var(--bg-1); cursor: zoom-in; }
+.cmp-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cmp-err { font-size: 12.5px; color: var(--ui-danger); line-height: 1.45; }
+.cmp-hint { font-size: 11.5px; color: var(--text-4); }
+.cmp-box.compact .cmp-hint { display: none; }
+.cmp-lightbox { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,.85); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.cmp-lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+.cmp-lightbox-x { position: absolute; top: 14px; right: 14px; background: rgba(0,0,0,.5); color: #fff; }
+.cmp-thread { display: flex; flex-direction: column; gap: 10px; }
+.cmp-empty { font-size: 13px; color: var(--text-4); padding: 6px 0; }
+.cmp-comment { padding: 10px 12px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--border-1); display: flex; flex-direction: column; gap: 6px; }
+.cmp-comment-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-4); }
+.cmp-comment-head b { color: var(--text-1); font-size: 13px; }
+.cmp-spacer { flex: 1; }
+.cmp-comment-text { font-size: 13.5px; line-height: 1.55; color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cmp-mention { color: var(--ui-info); font-weight: 700; }
+.cmp-edit { display: flex; flex-direction: column; gap: 6px; }
+.cmp-edit textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border-3); background: var(--bg-4); color: var(--text-1); font: inherit; font-size: 13.5px; }
+.cmp-edit-actions { display: flex; gap: 8px; justify-content: flex-end; }

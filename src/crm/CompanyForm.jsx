@@ -80,13 +80,14 @@ export default function CompanyForm({ initial, options, onSaved, onCancel, onOpe
 
   const owners = (options && options.owners) || [];
   const canForce = dup && !dup.blocking;
+  const blockReason = busy ? 'Aguarde terminar de salvar' : (!form.legalName.trim() && !form.tradeName.trim()) ? 'Preencha a razão social ou o nome fantasia para salvar' : '';
   return (
     <Modal title={editing ? 'Editar empresa' : 'Nova empresa'} onClose={onCancel} dirty={dirty}>
       <div className="crm-form-grid">
         <Field label="CNPJ" full>
           <div style={{ display: 'flex', gap: 8 }}>
             <input value={form.cnpj} onChange={(e) => set('cnpj', e.target.value)} placeholder="00.000.000/0000-00" autoFocus />
-            <button type="button" className="crm-btn" disabled={lookingUp || form.cnpj.replace(/\D/g, '').length !== 14} onClick={lookup}>
+            <button type="button" className="crm-btn" disabled={lookingUp || form.cnpj.replace(/\D/g, '').length !== 14} title={lookingUp ? 'Aguarde terminar a consulta' : form.cnpj.replace(/\D/g, '').length !== 14 ? 'Digite os 14 dígitos do CNPJ para buscar' : undefined} onClick={lookup}>
               {lookingUp ? <Loader2 size={14} className="crm-spin" /> : <Search size={14} />} Buscar dados
             </button>
           </div>
@@ -169,9 +170,10 @@ export default function CompanyForm({ initial, options, onSaved, onCancel, onOpe
       <DuplicatesAlert duplicates={dup && dup.duplicates} blocking={dup && dup.blocking} onOpenCompany={onOpenCompany && ((id) => guardOpen(() => onOpenCompany(id))())} />
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
+        {blockReason && !busy && <span className="crm-muted" style={{ fontSize: 11.5, marginRight: 'auto' }}>{blockReason}</span>}
         <CancelButton />
-        {canForce && <button type="button" className="crm-btn" disabled={busy} onClick={() => save(true)}>Salvar mesmo assim</button>}
-        <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !form.legalName.trim() && !form.tradeName.trim()} onClick={() => save(false)}>{busy ? 'Salvando…' : 'Salvar'}</button>
+        {canForce && <button type="button" className="crm-btn" disabled={busy} title={busy ? 'Aguarde terminar de salvar' : undefined} onClick={() => save(true)}>Salvar mesmo assim</button>}
+        <button type="button" className="crm-btn crm-btn-primary" disabled={!!blockReason} title={blockReason || undefined} onClick={() => save(false)}>{busy ? 'Salvando…' : (editing ? 'Salvar' : 'Criar empresa')}</button>
       </div>
       {openDialog}
     </Modal>

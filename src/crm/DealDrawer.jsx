@@ -11,6 +11,7 @@ import ActivityForm from './ActivityForm.jsx';
 import ActivityList from './ActivityList.jsx';
 import { useDraftGuard } from './ui.jsx';
 import { useDialog } from '../lib/nav.js';
+import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { fmtMoney, fmtDateBR, fmtDateTimeBR, DEAL_TYPE_META, DEAL_STATUS_META, TIMELINE_KIND, sourceLabel, stageAgeColor } from './crmMeta.js';
 
 // A auditoria guarda os valores crus (new/open/won…); na tela vão em português.
@@ -44,27 +45,29 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
 
   async function afterChange() { setAudit(null); await load(); if (onChanged) onChanged(); }
 
+  const fail = (e) => notify((e && e.message) || 'Não foi possível concluir.', { tone: 'error' });
+
   async function changeStage(stageId) {
     const stage = data.stages.find((s) => s.id === stageId);
     if (!stage || stage.id === data.deal.stageId) return;
     if (stage.kind !== 'open') { setClosing(stage); return; }
-    try { await crm.moveDeal(dealId, { stageId }); await afterChange(); } catch (e) { window.alert(e.message); }
+    try { await crm.moveDeal(dealId, { stageId }); await afterChange(); } catch (e) { fail(e); }
   }
 
   async function addNote() {
     if (!noteText.trim()) return;
     setBusy(true);
-    try { await crm.addNote({ entityType: 'deal', entityId: dealId, body: noteText }); setNoteText(''); await afterChange(); } catch (e) { window.alert(e.message); } finally { setBusy(false); }
+    try { await crm.addNote({ entityType: 'deal', entityId: dealId, body: noteText }); setNoteText(''); await afterChange(); } catch (e) { fail(e); } finally { setBusy(false); }
   }
 
   async function removeNote(id) {
-    if (!window.confirm('Remover esta nota? O registro de que ela existiu continua no histórico.')) return;
-    try { await crm.deleteNote(id); await afterChange(); } catch (e) { window.alert(e.message); }
+    if (!(await askConfirm({ title: 'Remover esta nota?', message: 'O registro de que ela existiu continua no histórico.', confirmLabel: 'Remover', danger: true }))) return;
+    try { await crm.deleteNote(id); await afterChange(); } catch (e) { fail(e); }
   }
 
   async function removeDeal() {
-    if (!window.confirm(`Excluir o negócio "${data.deal.title}"? Ele some do funil; o histórico da empresa registra a exclusão.`)) return;
-    try { await crm.deleteDeal(dealId); if (onChanged) onChanged(); onClose(); } catch (e) { window.alert(e.message); }
+    if (!(await askConfirm({ title: `Excluir o negócio "${data.deal.title}"?`, message: 'Ele some do funil; o histórico da empresa registra a exclusão.', confirmLabel: 'Excluir', danger: true }))) return;
+    try { await crm.deleteDeal(dealId); if (onChanged) onChanged(); onClose(); } catch (e) { fail(e); }
   }
 
   const d = data && data.deal;
@@ -88,7 +91,7 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
                       {d.status !== 'open' && <span className="crm-pill" style={{ color: DEAL_STATUS_META[d.status].color }}>{DEAL_STATUS_META[d.status].label}</span>}
                     </div>
                     <div className="crm-sub" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <button type="button" className="crm-btn" style={{ padding: '3px 9px' }} onClick={guard(() => onOpenCompany(d.companyId))}><Building2 size={12} /> {d.companyName}</button>
+                      <button type="button" className="crm-btn" style={{ padding: '3px 9px' }} title={`Abrir a empresa ${d.companyName}`} onClick={guard(() => onOpenCompany(d.companyId))}><Building2 size={12} /> {d.companyName}</button>
                       {d.ownerName && <span>Responsável: {d.ownerName}</span>}
                     </div>
                   </>
@@ -97,7 +100,7 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
               <div className="crm-actions">
                 {canEdit && <button type="button" className="crm-btn" onClick={() => setEditing(true)}><Pencil size={14} /> Editar</button>}
                 {d && caps.remove && <button type="button" className="crm-btn crm-btn-danger" onClick={removeDeal}><Trash2 size={14} /> Excluir</button>}
-                <button type="button" className="crm-icon-btn" onClick={close} title="Fechar"><X size={18} /></button>
+                <button type="button" className="crm-icon-btn" onClick={close} title="Fechar" aria-label="Fechar"><X size={18} aria-hidden="true" /></button>
               </div>
             </div>
             {d && caps.write && (
@@ -111,7 +114,7 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
               </div>
             )}
             <div className="crm-tabs" role="tablist">
-              {tabs.map(([k, l]) => <button key={k} type="button" role="tab" className={`crm-tab${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>{l}</button>)}
+              {tabs.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} aria-label={l} className={`crm-tab${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>{l}</button>)}
             </div>
           </div>
 
@@ -142,7 +145,7 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
                 {d.status === 'won' && d.closedAt && <div className="crm-alert crm-alert-info"><strong>Ganho em {fmtDateBR(d.closedAt)}.</strong></div>}
 
                 <div className="crm-section">
-                  <h3 className="crm-section-title"><span>Próximos passos</span>{caps.write && d.status === 'open' && <button type="button" className="crm-btn" onClick={() => setActivityForm(true)}><Plus size={13} /> Atividade</button>}</h3>
+                  <h3 className="crm-section-title"><span>Próximos passos</span>{caps.write && d.status === 'open' && <button type="button" className="crm-btn" onClick={() => setActivityForm(true)}><Plus size={13} /> Criar atividade</button>}</h3>
                   <ActivityList activities={data.activities} caps={caps} options={options} currentUserId={currentUserId} onChanged={afterChange} emptyText="Nenhuma atividade ligada a este negócio." />
                 </div>
 
@@ -175,7 +178,7 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
                   <div className="crm-section">
                     <h3 className="crm-section-title"><span><StickyNote size={13} style={{ verticalAlign: -2, marginRight: 5 }} />Nova nota sobre o negócio</span></h3>
                     <div className="crm-note-input"><textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Objeção, próximo passo, o que o cliente disse…" /></div>
-                    <div style={{ textAlign: 'right', marginTop: 8 }}><button type="button" className="crm-btn crm-btn-primary" disabled={busy || !noteText.trim()} onClick={addNote}>Registrar nota</button></div>
+                    <div style={{ textAlign: 'right', marginTop: 8 }}><button type="button" className="crm-btn crm-btn-primary" disabled={busy || !noteText.trim()} title={busy ? 'Aguarde terminar de salvar' : !noteText.trim() ? 'Escreva a nota para adicionar' : undefined} onClick={addNote}>Adicionar nota</button></div>
                   </div>
                 )}
                 {data.notes.length > 0 && (
@@ -184,7 +187,7 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
                     {data.notes.map((n) => (
                       <div key={n.id} className="crm-note">
                         <div className="crm-note-meta"><span>{n.createdByName || 'Alguém'} · {fmtDateTimeBR(n.createdAt)}</span>
-                          {caps.write && <button type="button" className="crm-icon-btn" style={{ padding: 2 }} title="Remover nota" onClick={() => removeNote(n.id)}><X size={12} /></button>}
+                          {caps.write && <button type="button" className="crm-icon-btn" style={{ padding: 2 }} title="Remover nota" aria-label="Remover nota" onClick={() => removeNote(n.id)}><X size={12} aria-hidden="true" /></button>}
                         </div>
                         {n.body}
                       </div>

@@ -66,6 +66,8 @@ export default function DealForm({ initial, company, defaultType, defaultPipelin
     setItem(idx, { productId, name: p ? p.name : '', unitPrice: p && p.listPrice != null ? numStr(p.listPrice) : '' });
   }
 
+  const blockReason = busy ? 'Aguarde terminar de salvar' : !picked ? 'Escolha a empresa para salvar' : !form.title.trim() ? 'Preencha o título do negócio para salvar' : '';
+
   async function save() {
     setError('');
     const value = moneyToNumber(form.value);
@@ -97,7 +99,7 @@ export default function DealForm({ initial, company, defaultType, defaultPipelin
             <div>
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Digite o nome ou CNPJ da empresa" autoFocus />
               {results.map((r) => (
-                <button key={r.id} type="button" className="crm-search-item" onClick={() => { setPicked({ id: r.id, legalName: r.legalName, relationship: r.relationship }); setResults([]); }}>
+                <button key={r.id} type="button" className="crm-search-item" title={`Escolher ${r.legalName}`} onClick={() => { setPicked({ id: r.id, legalName: r.legalName, relationship: r.relationship }); setResults([]); }}>
                   {r.legalName}<small>{r.tradeName}</small>
                 </button>
               ))}
@@ -140,7 +142,7 @@ export default function DealForm({ initial, company, defaultType, defaultPipelin
               </div>
               <input inputMode="decimal" value={it.quantity} onChange={(e) => setItem(idx, { quantity: e.target.value })} aria-label="Quantidade" placeholder="Qtd." />
               <input inputMode="decimal" value={it.unitPrice} onChange={(e) => setItem(idx, { unitPrice: e.target.value })} aria-label="Preço unitário" placeholder="Preço un." />
-              <button type="button" className="crm-icon-btn" title="Remover produto" onClick={() => setItems((l) => l.filter((_, i) => i !== idx))}><Trash2 size={14} /></button>
+              <button type="button" className="crm-icon-btn" title="Remover produto" aria-label="Remover produto" onClick={() => setItems((l) => l.filter((_, i) => i !== idx))}><Trash2 size={14} aria-hidden="true" /></button>
             </div>
           ))}
           <button type="button" className="crm-btn" onClick={() => setItems((l) => [...l, { productId: '', name: '', quantity: '1', unitPrice: '' }])}><Plus size={13} /> Adicionar produto</button>
@@ -165,8 +167,9 @@ export default function DealForm({ initial, company, defaultType, defaultPipelin
       </div>
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
+        {blockReason && !busy && <span className="crm-muted" style={{ fontSize: 11.5, marginRight: 'auto' }}>{blockReason}</span>}
         <CancelButton />
-        <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !picked || !form.title.trim()} onClick={save}>{busy ? 'Salvando…' : 'Salvar'}</button>
+        <button type="button" className="crm-btn crm-btn-primary" disabled={!!blockReason} title={blockReason || undefined} onClick={save}>{busy ? 'Salvando…' : (editing ? 'Salvar' : 'Criar negócio')}</button>
       </div>
     </Modal>
   );

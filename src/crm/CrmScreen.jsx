@@ -76,10 +76,10 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
           <div className="crm-brand"><Briefcase size={18} color="#F5C400" /> CRM <span className="crm-muted" style={{ fontWeight: 600 }}>· {caps.roleLabel}</span></div>
           <GlobalSearch onPickCompany={openCompany} onPickDeal={openDeal} />
           <div className="crm-spacer" />
-          {caps.write && <button type="button" className="crm-btn" onClick={() => setActivityForm({})}><Plus size={14} /> Atividade</button>}
-          {caps.write && <button type="button" className="crm-btn" onClick={() => setDealForm({})}><Plus size={14} /> Negócio</button>}
-          {caps.write && <button type="button" className="crm-btn" onClick={() => setCompanyForm(true)}><Plus size={14} /> Empresa</button>}
-          {caps.write && <button type="button" className="crm-btn" onClick={() => setContactForm({})}><Plus size={14} /> Contato</button>}
+          {caps.write && <button type="button" className="crm-btn" onClick={() => setActivityForm({})}><Plus size={14} /> Criar atividade</button>}
+          {caps.write && <button type="button" className="crm-btn" onClick={() => setDealForm({})}><Plus size={14} /> Criar negócio</button>}
+          {caps.write && <button type="button" className="crm-btn" onClick={() => setCompanyForm(true)}><Plus size={14} /> Criar empresa</button>}
+          {caps.write && <button type="button" className="crm-btn" onClick={() => setContactForm({})}><Plus size={14} /> Criar contato</button>}
         </div>
         <div className="crm-layout">
           <nav className="crm-nav" aria-label="Menu do CRM">

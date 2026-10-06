@@ -315,7 +315,7 @@ export function TodoBoardView({
         </div>
         <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
           <button style={S.primaryBtn} onClick={() => { togglePopover('add'); setNewMeetingId(meetingsForPicker[0]?.id || ''); }}><Plus size={15} /> Nova tarefa</button>
-          <button style={S.iconBtn} onClick={() => togglePopover('more')}><MoreHorizontal size={15} /></button>
+          <button style={S.iconBtn} aria-label="Mais ações" title="Mais ações" aria-expanded={!!moreOpen} onClick={() => togglePopover('more')}><MoreHorizontal size={15} aria-hidden="true" /></button>
           {moreOpen && (
             <div className="todo-popover" style={{ right: 0, width: 180 }}>
               <button type="button" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'transparent', border: 'none', color: 'var(--text-2)', fontSize: 12.5, padding: '6px 4px', cursor: 'pointer' }}><Download size={14} /> Exportar Excel</button>
@@ -338,7 +338,7 @@ export function TodoBoardView({
                 </select>
               )}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-                <button type="button" style={S.primaryBtn} onClick={handleCreateSubmit} disabled={!newTitle.trim() || !newMeetingId}>Criar</button>
+                <button type="button" style={S.primaryBtn} onClick={handleCreateSubmit} disabled={!newTitle.trim() || !newMeetingId} title={!newTitle.trim() ? 'Escreva o título da tarefa' : !newMeetingId ? 'Escolha a reunião' : undefined}>Criar</button>
               </div>
             </div>
           )}
