@@ -44,6 +44,8 @@ import { DialogOverlay } from './ui/dialog.jsx';
 import { DialogHost, notify, askConfirm, askText, pushToastCompat, dismissToast as dismissToastGlobal } from './ui/dialogs.jsx';
 import { useHistoryValue, readHistoryValue, withoutLayer, useEscClose } from './lib/nav.js';
 import { useAutosave } from './lib/useAutosave.js';
+import { loadNotifPrefs, resetNotifPrefs, useNotifPrefs, visibleNotifications, requestNotifSettings } from './lib/notifPrefs.js';
+import NotificationPrefs from './shell/NotificationPrefs.jsx';
 import { calendarDaysSince } from './lib/dates.js';
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
 import { setRecentsUser, recordRecent, getRecents, loadLastWorkspace, saveLastWorkspace } from './lib/recents.js';
@@ -996,14 +998,16 @@ function AppScreens({ shellRef, bump }) {
   // Atividades/XFlow) precisam mostrar o MESMO contador/lista — só App()
   // fica montado o tempo todo, sobrevivendo à troca de workspaceMode.
   useEffect(() => {
-    if (!currentUser) { setNotifications([]); return; }
+    if (!currentUser) { setNotifications([]); resetNotifPrefs(); return; }
     let cancelled = false;
     function load() {
       apiGet('/api/notifications').then((res) => { if (!cancelled) setNotifications(res.notifications); }).catch(() => {});
     }
+    loadNotifPrefs();
     load();
     const interval = setInterval(load, 45000);
-    return () => { cancelled = true; clearInterval(interval); };
+    window.addEventListener('notifications:refresh', load);
+    return () => { cancelled = true; clearInterval(interval); window.removeEventListener('notifications:refresh', load); };
   }, [currentUser?.id]);
 
   async function markNotificationRead(id, read) {
@@ -7886,7 +7890,13 @@ export function SidePanel({ title, onClose, width, children }) {
 // explícita do Rafael) — só marca ao clicar em "marcar como lida", "marcar
 // todas como lidas", ou ao efetivamente abrir a TASK/atividade referida
 // (isso acontece no callback `onOpenItem`, fora daqui).
-export function NotificationBell({ notifications, show, onToggle, onOpenItem, onMarkRead, onMarkAllRead }) {
+export function NotificationBell({ notifications: allNotifications, show, onToggle, onOpenItem, onMarkRead, onMarkAllRead }) {
+  const prefs = useNotifPrefs();
+  const notifications = visibleNotifications(allNotifications, prefs.categories);
+  const [settings, setSettings] = useState(false);
+  useEffect(() => {
+    if (show) { setSettings(prefs.wantSettings); requestNotifSettings(false); }
+  }, [show]);
   const unreadCount = notifications.filter((n) => !n.read).length;
   return (
     <div style={{ position: 'relative' }}>
@@ -7898,15 +7908,17 @@ export function NotificationBell({ notifications, show, onToggle, onOpenItem, on
         <DialogOverlay className="no-print" style={S.overlay} onClose={onToggle}>
           <div style={S.panel} onClick={(e) => e.stopPropagation()}>
             <div style={S.panelHead}>
-              <div style={S.panelTitle}>{unreadCount > 0 ? `${unreadCount} notifica${unreadCount === 1 ? 'ção' : 'ções'}` : 'Notificações'}</div>
+              <div style={S.panelTitle}>{settings ? 'Quais notificações ver' : (unreadCount > 0 ? `${unreadCount} notifica${unreadCount === 1 ? 'ção' : 'ções'}` : 'Notificações')}</div>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                {unreadCount > 0 && <button style={S.filterClearBtn} onClick={onMarkAllRead}>Marcar todas como lidas</button>}
+                {!settings && unreadCount > 0 && <button style={S.filterClearBtn} onClick={onMarkAllRead}>Marcar todas como lidas</button>}
+                <button style={S.filterClearBtn} aria-pressed={settings} onClick={() => setSettings((v) => !v)}>{settings ? 'Voltar às notificações' : 'Escolher quais ver'}</button>
                 <button aria-label="Fechar notificações" title="Fechar notificações" style={S.iconBtnGhost} onClick={onToggle}><X aria-hidden="true" size={16} /></button>
               </div>
             </div>
             <div style={S.panelBody}>
-              {notifications.length === 0 && <div style={S.emptyMuted}>Nenhuma notificação ainda.</div>}
-              {notifications.map((n) => (
+              {settings && <NotificationPrefs />}
+              {!settings && notifications.length === 0 && <div style={S.emptyMuted}>{allNotifications.length > 0 || prefs.categories.some((c) => c.muted) ? 'Nenhuma notificação das categorias que você escolheu ver.' : 'Nenhuma notificação ainda.'}</div>}
+              {!settings && notifications.map((n) => (
                 <div key={n.id} style={{ ...S.mentionRow, ...(n.read ? null : S.notificationUnread) }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                     <div style={{ flex: 1, minWidth: 0 }} onClick={() => onOpenItem(n)}>

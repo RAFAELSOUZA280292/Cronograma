@@ -7,6 +7,7 @@ import {
 } from './auth.js';
 import { lookupCnpj, cleanCnpj, formatCnpj } from './cnpjLookup.js';
 import { createNotification, rowToNotification } from './notifications.js';
+import { readMuted, publicCategories, loadMutedPatterns, NOTIFICATION_CATEGORIES } from './notificationPrefs.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { CRM_ROLES } from './crm/permissions.js';
 import { searchProjectMemory } from './memoryRetrieval.js';
@@ -668,11 +669,34 @@ router.get('/personal-board/stats/day', requireAuth, async (req, res, next) => {
 
 router.get('/notifications', requireAuth, async (req, res, next) => {
   try {
+    const muted = await loadMutedPatterns(pool, req.user.id);
     const { rows } = await pool.query(
-      'SELECT * FROM notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 200',
-      [req.user.id]
+      'SELECT * FROM notifications WHERE user_id=$1 AND NOT (type LIKE ANY($2::text[])) ORDER BY created_at DESC LIMIT 200',
+      [req.user.id, muted]
     );
     res.json({ notifications: rows.map(rowToNotification) });
+  } catch (e) { next(e); }
+});
+
+// Quais categorias o usuário quer ver — por usuário, fica salvo até ele mudar (users.preferences.notifications).
+router.get('/notifications/preferences', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT preferences FROM users WHERE id=$1', [req.user.id]);
+    res.json({ categories: publicCategories(readMuted(rows[0] && rows[0].preferences)) });
+  } catch (e) { next(e); }
+});
+
+router.put('/notifications/preferences', requireAuth, async (req, res, next) => {
+  try {
+    const muted = req.body && req.body.muted;
+    const valid = new Set(NOTIFICATION_CATEGORIES.map((c) => c.key));
+    if (!Array.isArray(muted) || muted.some((k) => !valid.has(k))) return res.status(400).json({ message: 'Categoria de notificação desconhecida.' });
+    const clean = [...new Set(muted)];
+    await pool.query(
+      `UPDATE users SET preferences = jsonb_set(COALESCE(preferences, '{}'::jsonb), '{notifications}', $1::jsonb, true) WHERE id=$2`,
+      [JSON.stringify({ muted: clean }), req.user.id]
+    );
+    res.json({ categories: publicCategories(clean) });
   } catch (e) { next(e); }
 });
 
@@ -691,7 +715,8 @@ router.patch('/notifications/:id', requireAuth, async (req, res, next) => {
 
 router.post('/notifications/read-all', requireAuth, async (req, res, next) => {
   try {
-    await pool.query('UPDATE notifications SET read=true WHERE user_id=$1 AND read=false', [req.user.id]);
+    const muted = await loadMutedPatterns(pool, req.user.id);
+    await pool.query('UPDATE notifications SET read=true WHERE user_id=$1 AND read=false AND NOT (type LIKE ANY($2::text[]))', [req.user.id, muted]);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });

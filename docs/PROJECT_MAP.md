@@ -72,6 +72,7 @@ server/routes.js        Rotas REST de auth, users, projects, personal-board, cnp
 server/permissions.js  listAccessibleProjectIds(pool, user, orgId) (Fase 8, 2026-09-11) — reusa canAccessProject linha a linha pra devolver o CONJUNTO de projetos acessíveis (não um booleano por projeto), base do isolamento cross-projeto da Central de Conhecimento — ver PROJECT_CONTEXT.md §39.
 server/xflow.js         Rotas REST do módulo XFlow (team, tickets, events, view) — router próprio montado em /api/xflow.
 server/notifications.js    Central de Notificações (2026-08) — createNotification()/rowToNotification(), usado por xflow.js e routes.js.
+server/notificationPrefs.js  Escolha de quais notificações cada usuário vê (2026-10-06): categorias→prefixos de tipo, readMuted/loadMutedPatterns; rotas GET/PUT /api/notifications/preferences em routes.js; salvo em users.preferences.notifications.muted.
 server/widget.js           Widget do iPhone (2026-10-05, §76): /api/widget — token (hash em users), status, GET /summary por Bearer (público, limite por IP). Funções puras em server/widgetSummary.js.
 server/inspirationQuotes.js  Frases de inspiração (2026-10-05, §77): base curada de Ayrton Senna e Henry Ford (`oficial` = conferida na fonte oficial × `pesquisa` = não conferida; Ford com original em inglês e aviso das frases não autenticadas), `quoteOfDay` (Mensagem do dia), `seedQuoteFacts`/`embedQuoteFacts` (memória da RENATA, ids `akf-quote-*`, chamados no boot em index.js). `knowledgeFacts.js` as mantém fora da janela geral de fatos.
 server/daily.js            Meu dia (2026-10-05, §77): /api/daily — conteúdo do usuário, preferências (users.preferences), onboarding. Fontes, cache diário, signo/animal e IA em server/dailyContent.js.
@@ -111,6 +112,7 @@ src/shell/ModuleShell.jsx + CommandPalette.jsx  Casca única (Onda 1, §81): bar
 src/assistant/RenataHome.jsx + server/assistantGeneral.js  RENATA geral (sem projeto), `POST /api/assistant/general/ask` (2026-10-06, §81).
 src/today/ (TodayPanel, WeekSummary, ContinueStrip, todayItems.js, boardActions.js)  Home "Hoje" acionável (Onda 5, §81); src/lib/recents.js recentes/favoritos/última empresa; `server/todoNotifications.js` avisos de tarefa de reunião; `scripts/scope-check.py` JSX sem import + TDZ.
 src/lib/saveState.js + useAutosave.js  Estado global de gravação (todo PATCH/PUT) + `GlobalSaveStatus` na barra + `RecordSaveStatus` por registro; `useAutosave` p/ preferências (Onda 4, §81).
+src/lib/notifPrefs.js + src/shell/NotificationPrefs.jsx  Store (useSyncExternalStore) e tela "Escolher quais ver" das notificações; usados por `NotificationBell` (App.jsx) e `TodayPanel`.
 src/ui/ComposeBox.jsx  ComposeBox/CommentThread/AddMenu/AttachmentList (Onda 3, §81): comentar/linkar/anexar/colar print igual em todo módulo; `server/commentExtras.js` valida anexos/links e notifica menções.
 src/ui/dialogs.jsx  askConfirm/askText/notify + DialogHost (Onda 2): substituem confirm/prompt/alert; `scripts/ui-audit.py` mede o resultado.
 src/lib/nav.js + src/ui/dialog.jsx  useEscClose/useBackLayer/useDialog/useHistoryValue/withoutLayer + `DialogOverlay` (Esc, Voltar do navegador, foco preso).
