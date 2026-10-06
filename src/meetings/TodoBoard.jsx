@@ -124,7 +124,7 @@ export function TodoBoardView({
   onOpenMeeting, onAddItem,
   updateActionItem, deleteActionItem, duplicateActionItem,
   addSubtask, toggleSubtask, deleteSubtask,
-  addComment, deleteComment,
+  addComment, updateComment, deleteComment,
   addAttachment, deleteAttachment,
 }) {
   const isMobile = useIsMobile();
@@ -507,6 +507,7 @@ export function TodoBoardView({
           toggleSubtask={toggleSubtask}
           deleteSubtask={deleteSubtask}
           addComment={addComment}
+          updateComment={updateComment}
           deleteComment={deleteComment}
           addAttachment={addAttachment}
           deleteAttachment={deleteAttachment}

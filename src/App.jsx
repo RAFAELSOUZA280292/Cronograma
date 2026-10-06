@@ -35,7 +35,8 @@ import PareceresScreen from './pareceres/Pareceres.jsx';
 import ModelosScreen from './modelos/Modelos.jsx';
 import PersonalStatsPanel from './personal/PersonalStats.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
-import { activate, activateRow, Tabs, ConfirmDialog } from './ui/index.jsx';
+import { activate, activateRow, Tabs, ConfirmDialog, Button, IconButton } from './ui/index.jsx';
+import { ComposeBox, CommentThread, AttachmentList, AddMenu, readFileAsAttachment } from './ui/ComposeBox.jsx';
 import ModuleShell from './shell/ModuleShell.jsx';
 import { DialogOverlay } from './ui/dialog.jsx';
 import { DialogHost, notify, askConfirm, askText, pushToastCompat, dismissToast as dismissToastGlobal } from './ui/dialogs.jsx';
@@ -633,6 +634,8 @@ function AppScreens({ shellRef, bump }) {
   const [pendingXflowOpen, setPendingXflowOpen] = useState(null);
   const [pendingPersonalOpen, setPendingPersonalOpen] = useState(null); // {boardId, colId, cardId} vindo da busca global
   const [pendingCrmOpen, setPendingCrmOpen] = useState(null); // {companyId, dealId} vindo de uma notificação do CRM
+  const [pendingParecerOpen, setPendingParecerOpen] = useState(null); // id do parecer vindo de uma notificação de menção
+  const [pendingModeloOpen, setPendingModeloOpen] = useState(null); // id do modelo vindo de uma notificação de menção
   const [showSettings, setShowSettings] = useState(false);
   const [showPhases, setShowPhases] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
@@ -829,7 +832,7 @@ function AppScreens({ shellRef, bump }) {
         updateSub={updateSub}
         deleteSub={deleteSub}
         reorderSub={reorderSub}
-        addAttachment={addAttachment}
+        addAttachments={addAttachments}
         removeAttachment={removeAttachment}
         addComment={addComment}
         removeComment={removeComment}
@@ -869,6 +872,7 @@ function AppScreens({ shellRef, bump }) {
         toggleSubtask={toggleTodoSubtask}
         deleteSubtask={deleteTodoSubtask}
         addComment={addTodoComment}
+        updateComment={updateTodoComment}
         deleteComment={deleteTodoComment}
         addAttachment={addTodoAttachment}
         deleteAttachment={deleteTodoAttachment}
@@ -979,6 +983,14 @@ function AppScreens({ shellRef, bump }) {
       markNotificationsReadForTarget({ kind: 'crm_activity', activityId: t.activityId });
       setPendingCrmOpen({ companyId: t.companyId, dealId: t.dealId || null });
       if (workspaceMode !== 'crm') goToWorkspace('crm');
+    } else if (t.kind === 'parecer') {
+      markNotificationRead(n.id, true);
+      setPendingParecerOpen(t.id);
+      if (workspaceMode !== 'pareceres') goToWorkspace('pareceres');
+    } else if (t.kind === 'modelo') {
+      markNotificationRead(n.id, true);
+      setPendingModeloOpen(t.id);
+      if (workspaceMode !== 'modelos') goToWorkspace('modelos');
     }
   }
 
@@ -1731,6 +1743,8 @@ function AppScreens({ shellRef, bump }) {
     return (
       <ModelosScreen
         currentUser={currentUser}
+        pendingOpenId={pendingModeloOpen}
+        onPendingOpenConsumed={() => setPendingModeloOpen(null)}
         onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
         onLogout={handleLogout}
         theme={theme}
@@ -1743,6 +1757,8 @@ function AppScreens({ shellRef, bump }) {
     return (
       <PareceresScreen
         currentUser={currentUser}
+        pendingOpenId={pendingParecerOpen}
+        onPendingOpenConsumed={() => setPendingParecerOpen(null)}
         onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
         onLogout={handleLogout}
         theme={theme}
@@ -2037,20 +2053,18 @@ function AppScreens({ shellRef, bump }) {
     }), undefined, actId);
   }
 
-  function addAttachment(targetPid, actId, file) {
-    if (!file) return;
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      notify(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB.`, { tone: 'error' });
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const att = { id: uid('att'), name: file.name, size: file.size, type: file.type || '', dataUrl: reader.result };
+  async function addAttachments(targetPid, actId, files) {
+    for (const file of files || []) {
+      const att = await readFileAsAttachment(file, MAX_ATTACHMENT_BYTES);
+      if (!att) continue;
       const project = projects.find((p) => p.id === targetPid);
       const act = project && project.activities.find((a) => a.id === actId);
-      mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, attachments: [...(a.attachments || []), att] }) }), `Anexo adicionado em "${act ? act.title : ''}": ${file.name}`, actId);
-    };
-    reader.readAsDataURL(file);
+      mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, attachments: [...(a.attachments || []), att] }) }), `Anexo adicionado em "${act ? act.title : ''}": ${att.name}`, actId);
+    }
+  }
+
+  function addAttachment(targetPid, actId, file) {
+    if (file) addAttachments(targetPid, actId, [file]);
   }
 
   function removeAttachment(targetPid, actId, attId) {
@@ -2090,7 +2104,10 @@ function AppScreens({ shellRef, bump }) {
 
   function updateComment(targetPid, actId, commentId, text) {
     const v = (text || '').trim();
-    if (!v) return;
+    const project = projects.find((p) => p.id === targetPid);
+    const act = project && project.activities.find((a) => a.id === actId);
+    const cur = act && (act.comments || []).find((c) => c.id === commentId);
+    if (!v && !(cur && ((cur.attachments || []).length || (cur.links || []).length))) return;
     mutateProject(targetPid, (p) => ({
       ...p,
       activities: p.activities.map((a) => a.id !== actId ? a : {
@@ -2341,14 +2358,27 @@ function AppScreens({ shellRef, bump }) {
     }), sub ? `${currentUser ? currentUser.name : 'Alguém'} removeu a subtarefa "${sub.title}"` : undefined, itemId);
   }
 
-  function addTodoComment(targetPid, meetingId, itemId, text) {
+  function addTodoComment(targetPid, meetingId, itemId, text, attachments, links) {
     const v = (text || '').trim();
-    if (!v) return;
-    const comment = { id: uid('tc'), text: v, ts: new Date().toISOString(), user: currentUser ? currentUser.name : '', userId: currentUser ? currentUser.id : null };
+    const atts = attachments || [];
+    const lks = links || [];
+    if (!v && !atts.length && !lks.length) return;
+    const comment = { id: uid('tc'), text: v, ts: new Date().toISOString(), user: currentUser ? currentUser.name : '', userId: currentUser ? currentUser.id : null, ...(atts.length ? { attachments: atts } : {}), ...(lks.length ? { links: lks } : {}) };
     mutateProject(targetPid, (p) => ({
       ...p,
       meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id === itemId ? { ...it, comments: [...(it.comments || []), comment] } : it)) })),
     }), `${currentUser ? currentUser.name : 'Alguém'} comentou`, itemId);
+  }
+
+  function updateTodoComment(targetPid, meetingId, itemId, commentId, text) {
+    const v = (text || '').trim();
+    const { item } = findActionItem(targetPid, meetingId, itemId);
+    const cur = item && (item.comments || []).find((c) => c.id === commentId);
+    if (!v && !(cur && ((cur.attachments || []).length || (cur.links || []).length))) return;
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id !== itemId ? it : { ...it, comments: (it.comments || []).map((c) => (c.id === commentId ? { ...c, text: v, editedAt: new Date().toISOString() } : c)) })) })),
+    }), undefined, itemId);
   }
 
   function deleteTodoComment(targetPid, meetingId, itemId, commentId) {
@@ -3058,6 +3088,7 @@ function AppScreens({ shellRef, bump }) {
             toggleSubtask={toggleTodoSubtask}
             deleteSubtask={deleteTodoSubtask}
             addComment={addTodoComment}
+            updateComment={updateTodoComment}
             deleteComment={deleteTodoComment}
             addAttachment={addTodoAttachment}
             deleteAttachment={deleteTodoAttachment}
@@ -5891,10 +5922,9 @@ function PersonalColumn({
 }
 
 function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherColumns, onMoveTo, allTags, currentUserId, readOnly, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onUpdateChecklistItem, onRemoveChecklistItem }) {
-  const [commentDraft, setCommentDraft] = useState('');
   const [checklistDraft, setChecklistDraft] = useState('');
-  const [editingCommentId, setEditingCommentId] = useState(null);
-  const [editingCommentText, setEditingCommentText] = useState('');
+  const [composeDirty, setComposeDirty] = useState(false);
+  const composeRef = useRef(null);
   const [editingChecklistId, setEditingChecklistId] = useState(null);
   const [editingChecklistText, setEditingChecklistText] = useState('');
   // Sair do campo (Escape) tira o foco, e o blur dispararia logo em seguida — sem essa flag, o
@@ -5904,21 +5934,22 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
   const lastSavedAt = useAutosaveTimestamp(card);
   const titleField = useDebouncedField(card.title, (v) => onUpdate({ title: v }, 'Título atualizado'));
   const descField = useDebouncedField(card.desc || '', (v) => onUpdate({ desc: v }, 'Descrição atualizada'));
-  const hasDraft = !readOnly && (!!commentDraft.trim() || !!checklistDraft.trim() || editingCommentId !== null || editingChecklistId !== null);
+  const hasDraft = !readOnly && (composeDirty || !!checklistDraft.trim() || editingChecklistId !== null);
   function requestClose() { titleField.flush(); descField.flush(); if (hasDraft) setShowGuard(true); else onClose(); }
-  function saveDraftsAndClose() {
+  async function saveDraftsAndClose() {
     titleField.flush(); descField.flush();
-    if (editingCommentId !== null) { onUpdateComment(editingCommentId, editingCommentText); setEditingCommentId(null); }
     if (editingChecklistId !== null) { onUpdateChecklistItem(editingChecklistId, editingChecklistText); setEditingChecklistId(null); }
-    if (commentDraft.trim()) submitComment();
     if (checklistDraft.trim()) submitChecklist();
+    if (composeRef.current && composeRef.current.isDirty()) {
+      await composeRef.current.submit();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (composeRef.current && composeRef.current.isDirty()) { setShowGuard(false); return; }
+    }
     onClose();
   }
-
-  function submitComment() {
-    if (!commentDraft.trim()) return;
-    onAddComment(commentDraft);
-    setCommentDraft('');
+  function discardAndClose() {
+    try { window.sessionStorage.removeItem(`cmp-draft:card:${card.id}`); } catch (e) { /* ignora */ }
+    onClose();
   }
   function submitChecklist() {
     if (!checklistDraft.trim()) return;
@@ -6070,59 +6101,27 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
         </div>
 
         <div style={{ ...S.subSectionLabel, marginTop: 18 }}><MessageSquare size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Comentários {(card.comments || []).length > 0 ? `(${card.comments.length})` : ''}</div>
-        <div style={S.commentThread}>
-          {(card.comments || []).length === 0 && <div style={S.emptyMuted}>Nenhum comentário ainda.</div>}
-          {[...(card.comments || [])].reverse().map((c) => {
-            const isOwn = c.authorId === currentUserId;
-            return (
-              <div key={c.id} style={S.commentBubble}>
-                <div style={S.commentAuthorRow}>
-                  <span style={S.commentAvatar}>{initials(c.author)}</span>
-                  <span style={S.commentAuthorName}>{c.author}</span>
-                  <span style={S.commentAuthorTs}>{fmtTs(c.ts)}{c.editedAt ? ' · editado' : ''}</span>
-                </div>
-                {editingCommentId === c.id ? (
-                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                    <textarea
-                      value={editingCommentText}
-                      onChange={(e) => setEditingCommentText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setEditingCommentId(null); } }}
-                      rows={3}
-                      style={{ ...S.notesArea, flex: 1 }}
-                      autoFocus
-                    />
-                    <button aria-label="Salvar comentário" title="Salvar comentário" style={S.iconBtn} onClick={() => { onUpdateComment(c.id, editingCommentText); setEditingCommentId(null); }}><Check aria-hidden="true" size={13} /></button>
-                    <button aria-label="Cancelar edição" title="Cancelar edição" style={S.iconBtnGhost} onClick={() => setEditingCommentId(null)}><X aria-hidden="true" size={13} /></button>
-                  </div>
-                ) : (
-                  <div style={S.commentText}>{c.text}</div>
-                )}
-                {!readOnly && isOwn && editingCommentId !== c.id && (
-                  <div style={S.commentMeta}>
-                    <span />
-                    <span style={{ display: 'flex', gap: 8 }}>
-                      <button aria-label="Editar comentário" title="Editar comentário" style={S.commentDel} onClick={() => { setEditingCommentId(c.id); setEditingCommentText(c.text); }}><Pencil aria-hidden="true" size={11} /></button>
-                      <button aria-label="Excluir comentário" title="Excluir comentário" style={S.commentDel} onClick={() => onRemoveComment(c.id)}><X aria-hidden="true" size={11} /></button>
-                    </span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
         {!readOnly && (
-          <div style={S.commentInputRow}>
-            <textarea
-              value={commentDraft}
-              onChange={(e) => setCommentDraft(e.target.value)}
-              onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); submitComment(); } }}
-              placeholder="Escreva um comentário... (Cmd/Ctrl+Enter para enviar)"
-              rows={2}
-              style={{ flex: 1 }}
-            />
-            <button aria-label="Comentar" title="Comentar" style={S.primaryBtn} onClick={submitComment}><Send aria-hidden="true" size={14} /></button>
-          </div>
+          <ComposeBox
+            ref={composeRef}
+            draftKey={`card:${card.id}`}
+            features={{ mentions: false }}
+            maxFileBytes={2 * 1024 * 1024}
+            maxFiles={3}
+            submitLabel="Comentar"
+            placeholder="Escreva um comentário…"
+            onDirtyChange={setComposeDirty}
+            onSubmit={async ({ text, attachments, links }) => { onAddComment(text, attachments, links); }}
+          />
         )}
+        <div style={{ marginTop: 10 }}>
+          <CommentThread
+            comments={[...(card.comments || [])].reverse()}
+            currentUserId={readOnly ? '' : currentUserId}
+            onEdit={readOnly ? undefined : (id, text) => onUpdateComment(id, text)}
+            onDelete={readOnly ? undefined : (id) => onRemoveComment(id)}
+          />
+        </div>
 
         <div style={{ ...S.subSectionLabel, marginTop: 18 }}><History size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Histórico</div>
         <div style={S.historyList}>
@@ -6140,7 +6139,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
       {showGuard && (
         <ConfirmDiscardModal
           onSaveAndExit={saveDraftsAndClose}
-          onDiscard={onClose}
+          onDiscard={discardAndClose}
           onCancel={() => setShowGuard(false)}
         />
       )}
@@ -6832,11 +6831,13 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
   }
 
   // ---- comments ----
-  function addCardComment(colId, cardId, text) {
+  function addCardComment(colId, cardId, text, attachments, links) {
     const v = (text || '').trim();
-    if (!v) return;
+    const atts = attachments || [];
+    const lks = links || [];
+    if (!v && !atts.length && !lks.length) return;
     const now = new Date().toISOString();
-    const c = { id: uid('cm'), text: v, ts: now, author: currentUser.name, authorId: currentUser.id };
+    const c = { id: uid('cm'), text: v, ts: now, author: currentUser.name, authorId: currentUser.id, ...(atts.length ? { attachments: atts } : {}), ...(lks.length ? { links: lks } : {}) };
     const cardBefore = findCardById(cardId);
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({
       ...cd, comments: [...(cd.comments || []), c], updatedAt: now, updatedBy: currentUser.name,
@@ -6845,7 +6846,9 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
   }
   function updateCardComment(colId, cardId, commentId, text) {
     const v = (text || '').trim();
-    if (!v) return;
+    const cur = (findCardById(cardId) || {}).comments;
+    const cm = (cur || []).find((c) => c.id === commentId);
+    if (!v && !(cm && ((cm.attachments || []).length || (cm.links || []).length))) return;
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({
       ...cd, comments: (cd.comments || []).map((c) => (c.id === commentId ? { ...c, text: v, editedAt: new Date().toISOString() } : c)),
     }));
@@ -7349,7 +7352,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
             onDelete={() => { deleteCard(col.id, card.id); closeCardDetail(); }}
             onToggleComplete={() => toggleCardComplete(col.id, card.id)}
             onSetStatus={(s) => setCardStatus(col.id, card.id, s)}
-            onAddComment={(text) => addCardComment(col.id, card.id, text)}
+            onAddComment={(text, attachments, links) => addCardComment(col.id, card.id, text, attachments, links)}
             onUpdateComment={(id, text) => updateCardComment(col.id, card.id, id, text)}
             onRemoveComment={(id) => removeCardComment(col.id, card.id, id)}
             onAddChecklistItem={(text) => addChecklistItem(col.id, card.id, text)}
@@ -7675,14 +7678,6 @@ function StatusPill({ status, onClick }) {
   );
 }
 
-function renderCommentText(text, teamList) {
-  const names = teamList.filter((m) => m.userId).map((m) => m.name).sort((x, y) => y.length - x.length);
-  if (!names.length) return text;
-  const pattern = new RegExp(`(@(?:${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')}))`, 'g');
-  const parts = text.split(pattern);
-  return parts.map((part, i) => (names.some((n) => part === `@${n}`) ? <span key={i} style={S.mentionTag}>{part}</span> : <React.Fragment key={i}>{part}</React.Fragment>));
-}
-
 // Extraído do .map() de subatividades dentro de ActivityDetailModal pra
 // poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo
 // bug de digitação do PROJECT_CONTEXT.md §45/§46 (não coberto pelo fix do
@@ -7715,71 +7710,48 @@ function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSu
   );
 }
 
-function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, flushProjectSave, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant }) {
-  const [editingCommentId, setEditingCommentId] = useState(null);
-  const [editingCommentText, setEditingCommentText] = useState('');
-  const [commentDraft, setCommentDraft] = useState('');
-  const [pendingMentions, setPendingMentions] = useState([]);
-  const [commentAttachmentDrafts, setCommentAttachmentDrafts] = useState([]);
-  const [commentLinkDrafts, setCommentLinkDrafts] = useState([]);
-  const [commentLinkLabelDraft, setCommentLinkLabelDraft] = useState('');
-  const [commentLinkUrlDraft, setCommentLinkUrlDraft] = useState('');
-  const [showCommentLinkForm, setShowCommentLinkForm] = useState(false);
+function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, flushProjectSave, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachments, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant }) {
   const [dragSubId, setDragSubId] = useState(null);
+  const [showLinkForm, setShowLinkForm] = useState(false);
   const [linkLabelDraft, setLinkLabelDraft] = useState('');
   const [linkUrlDraft, setLinkUrlDraft] = useState('');
-  const [showNotesBox, setShowNotesBox] = useState(!!a.notes);
+  const [composeDirty, setComposeDirty] = useState(false);
+  const [filesDragOver, setFilesDragOver] = useState(false);
+  const composeRef = useRef(null);
   const [showTranscriptBox, setShowTranscriptBox] = useState(!!a.transcript);
   const phase = phases.find((p) => p.id === a.phase);
-  const mentionCandidates = team.filter((m) => m.userId);
+  const mentionCandidates = team.filter((m) => m.userId).map((m) => ({ id: m.userId, name: m.name }));
+  const mentionNames = mentionCandidates.map((m) => m.name);
   const activityHistory = (log || []).filter((l) => l.activityId === a.id);
+  const isMaster = !!currentUser && currentUser.role === 'master';
+  const threadComments = [...(a.comments || [])].reverse().map((c) => (c.authorId || !c.author || !currentUser || c.author !== currentUser.name ? c : { ...c, authorId: currentUser.id }));
 
-  function insertMention(m) {
-    setCommentDraft((d) => `${d}${d && !d.endsWith(' ') ? ' ' : ''}@${m.name} `);
-    setPendingMentions((prev) => (prev.includes(m.userId) ? prev : [...prev, m.userId]));
-  }
-
-  function handleCommentFiles(fileList) {
-    const files = Array.from(fileList || []);
-    for (const file of files) {
-      if (file.size > MAX_ATTACHMENT_BYTES) {
-        notify(`"${file.name}" tem ${(file.size / (1024 * 1024)).toFixed(1)} MB — o limite por arquivo é ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB.`, { tone: 'error' });
-        continue;
-      }
-      const reader = new FileReader();
-      reader.onload = () => {
-        setCommentAttachmentDrafts((prev) => [...prev, { id: uid('att'), name: file.name, size: file.size, type: file.type || '', dataUrl: reader.result }]);
-      };
-      reader.readAsDataURL(file);
+  // Observações (a.notes) viraram parte da Descrição (Onda 3): atividade antiga com observação junta o texto à descrição uma única vez.
+  // Atividade de grupo tem a descrição sincronizada entre as empresas — lá a observação vira um comentário (que é independente), para não vazar para as irmãs.
+  const notesMigratedRef = useRef(null);
+  useEffect(() => {
+    if (!a.notes || notesMigratedRef.current === a.id) return;
+    notesMigratedRef.current = a.id;
+    const notes = String(a.notes).trim();
+    if (!notes) { updateActivity(pid, a.id, { notes: '' }); return; }
+    if (a.groupActivityId) {
+      const c = { id: uid('cm'), text: notes, ts: new Date().toISOString(), author: 'Observações anteriores', authorId: '', mentions: [], attachments: [], links: [] };
+      updateActivity(pid, a.id, { notes: '', comments: [...(a.comments || []), c] }, 'Observações movidas para comentário');
+      return;
     }
-  }
+    const desc = a.desc || '';
+    updateActivity(pid, a.id, { desc: desc + (desc ? '\n\n' : '') + notes, notes: '' }, 'Observações juntadas à descrição');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [a.id, a.notes]);
 
-  function removeCommentAttachmentDraft(id) {
-    setCommentAttachmentDrafts((prev) => prev.filter((x) => x.id !== id));
-  }
+  function addFiles(fileList) { addAttachments(pid, a.id, [...(fileList || [])]); }
 
-  function addCommentLinkDraft() {
-    if (!commentLinkUrlDraft.trim()) return;
-    const url = /^https?:\/\//i.test(commentLinkUrlDraft.trim()) ? commentLinkUrlDraft.trim() : `https://${commentLinkUrlDraft.trim()}`;
-    setCommentLinkDrafts((prev) => [...prev, { id: uid('lnk'), label: commentLinkLabelDraft.trim() || url, url }]);
-    setCommentLinkLabelDraft('');
-    setCommentLinkUrlDraft('');
-  }
-
-  function removeCommentLinkDraft(id) {
-    setCommentLinkDrafts((prev) => prev.filter((x) => x.id !== id));
-  }
-
-  function submitComment() {
-    if (!commentDraft.trim() && !commentAttachmentDrafts.length && !commentLinkDrafts.length) return;
-    addComment(pid, a.id, commentDraft, pendingMentions, commentAttachmentDrafts, commentLinkDrafts);
-    setCommentDraft('');
-    setPendingMentions([]);
-    setCommentAttachmentDrafts([]);
-    setCommentLinkDrafts([]);
-    setCommentLinkLabelDraft('');
-    setCommentLinkUrlDraft('');
-    setShowCommentLinkForm(false);
+  function onPasteFiles(e) {
+    if (e.defaultPrevented || (e.target && e.target.closest && e.target.closest('.cmp-box, .cmp-comment'))) return;
+    const files = [...((e.clipboardData && e.clipboardData.items) || [])].filter((it) => it.kind === 'file').map((it) => it.getAsFile()).filter(Boolean);
+    if (!files.length) return;
+    e.preventDefault();
+    addFiles(files);
   }
 
   function submitLink() {
@@ -7787,6 +7759,7 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
     addLink(pid, a.id, { label: linkLabelDraft, url: linkUrlDraft });
     setLinkLabelDraft('');
     setLinkUrlDraft('');
+    setShowLinkForm(false);
   }
 
   const isMobile = useIsMobile();
@@ -7800,23 +7773,24 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
   // inteira) 300ms depois da última tecla, não a cada tecla.
   const titleField = useDebouncedField(a.title, (v) => updateActivity(pid, a.id, { title: v }, `Título alterado: "${v}"`));
   const descField = useDebouncedField(a.desc, (v) => updateActivity(pid, a.id, { desc: v }, `Descrição alterada em "${titleField.draft}"`));
-  const notesField = useDebouncedField(a.notes || '', (v) => updateActivity(pid, a.id, { notes: v }, `Observação alterada em "${titleField.draft}"`));
   const transcriptField = useDebouncedField(a.transcript || '', (v) => updateActivity(pid, a.id, { transcript: v }, `Transcrição de reunião atualizada em "${titleField.draft}"`));
   // "Não salvo" = só o que ainda não foi gravado: texto nos 300 ms antes do autosave e rascunhos de comentário/link ainda não enviados.
   // O que o autosave já gravou NÃO conta (antes a guarda comparava com o valor de quando o modal abriu e avisava à toa).
-  const fieldsPending = titleField.draft !== a.title || descField.draft !== a.desc || notesField.draft !== (a.notes || '') || transcriptField.draft !== (a.transcript || '');
-  const hasDraft = fieldsPending || !!commentDraft.trim() || !!linkLabelDraft.trim() || !!linkUrlDraft.trim()
-    || !!commentAttachmentDrafts.length || !!commentLinkDrafts.length || !!commentLinkUrlDraft.trim() || editingCommentId !== null;
+  const fieldsPending = titleField.draft !== a.title || descField.draft !== a.desc || transcriptField.draft !== (a.transcript || '');
+  const hasDraft = fieldsPending || composeDirty || !!linkLabelDraft.trim() || !!linkUrlDraft.trim();
   useDirtyForm(hasDraft);
   const [showGuard, setShowGuard] = useState(false);
   const [closing, setClosing] = useState(false);
   function requestClose() { if (hasDraft) setShowGuard(true); else onClose(); }
   async function saveDraftsAndClose() {
     setClosing(true);
-    titleField.flush(); descField.flush(); notesField.flush(); transcriptField.flush();
-    if (editingCommentId !== null) { updateComment(pid, a.id, editingCommentId, editingCommentText); setEditingCommentId(null); }
-    if (commentDraft.trim() || commentAttachmentDrafts.length || commentLinkDrafts.length) submitComment();
+    titleField.flush(); descField.flush(); transcriptField.flush();
     if (linkUrlDraft.trim()) submitLink();
+    if (composeRef.current && composeRef.current.isDirty()) {
+      await composeRef.current.submit();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (composeRef.current && composeRef.current.isDirty()) { setClosing(false); setShowGuard(false); return; }
+    }
     // Dá um tick pro React aplicar os setState acima antes de forçar o
     // flush — sem isso o flush pode rodar antes do mutateProject(comentário/
     // link) ter chegado a agendar o próprio PATCH.
@@ -7826,11 +7800,8 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
     onClose();
   }
   function discardDraftsAndClose() {
-    titleField.flush(); descField.flush(); notesField.flush(); transcriptField.flush();
-    setEditingCommentId(null);
-    setCommentDraft(''); setPendingMentions([]); setCommentAttachmentDrafts([]); setCommentLinkDrafts([]);
-    setCommentLinkLabelDraft(''); setCommentLinkUrlDraft(''); setShowCommentLinkForm(false);
-    setLinkLabelDraft(''); setLinkUrlDraft('');
+    titleField.flush(); descField.flush(); transcriptField.flush();
+    try { window.sessionStorage.removeItem(`cmp-draft:act:${a.id}`); } catch (e) { /* ignora */ }
     onClose();
   }
 
@@ -7855,32 +7826,36 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
           style={S.detailTitleInput}
         />
 
-        <div style={S.detailGrid}>
+        <div style={S.detailGrid} onPaste={onPasteFiles}>
           <div style={{ ...S.detailMain, ...(isMobile ? S.detailMainMobile : null) }}>
             <div style={S.subSectionLabel}>Descrição</div>
-            <textarea value={descField.draft} onChange={(e) => descField.onChange(e.target.value)} onBlur={descField.flush} rows={2} style={S.notesArea} />
+            <textarea value={descField.draft} onChange={(e) => descField.onChange(e.target.value)} onBlur={descField.flush} rows={3} placeholder="Contexto, decisões e observações desta atividade..." style={S.notesArea} />
 
-            <div style={{ ...S.subSectionLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
-              Observações
-              {!showNotesBox && <button style={S.iconBtnGhost} onClick={() => setShowNotesBox('focus')} title="Adicionar observação"><Plus size={12} /></button>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 14, marginBottom: 6 }}>
+              <span style={{ ...S.subSectionLabel, margin: 0 }}><Paperclip size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Anexos e links {(a.attachments || []).length + (a.links || []).length > 0 ? `(${(a.attachments || []).length + (a.links || []).length})` : ''}</span>
+              <AddMenu onFiles={addFiles} onLink={() => setShowLinkForm(true)} accept="*/*" />
             </div>
-            {!!showNotesBox && (
-              <textarea value={notesField.draft} onChange={(e) => notesField.onChange(e.target.value)} onBlur={notesField.flush} rows={3} placeholder="Comentários, contexto, decisões desta atividade..." style={S.notesArea} autoFocus={showNotesBox === 'focus'} />
-            )}
-
-            <div style={S.subSectionLabel}><Link2 size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Links {(a.links || []).length > 0 ? `(${(a.links || []).length})` : ''}</div>
-            <div style={S.attachList}>
-              {(a.links || []).map((l) => (
-                <div key={l.id} style={S.attachRow}>
-                  <a href={l.url} target="_blank" rel="noreferrer" style={S.attachLink}>{l.label}</a>
-                  <button aria-label="Remover link" title="Remover link" style={S.iconBtnGhost} onClick={() => removeLink(pid, a.id, l.id)}><X aria-hidden="true" size={12} /></button>
+            <div
+              className={`cmp-box${filesDragOver ? ' drag' : ''}`}
+              style={{ padding: 8 }}
+              onDragOver={(e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); setFilesDragOver(true); } }}
+              onDragLeave={() => setFilesDragOver(false)}
+              onDrop={(e) => { setFilesDragOver(false); if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); addFiles(e.dataTransfer.files); } }}
+            >
+              <AttachmentList
+                attachments={a.attachments || []} links={a.links || []}
+                onRemoveAttachment={(id) => removeAttachment(pid, a.id, id)} onRemoveLink={(id) => removeLink(pid, a.id, id)}
+              />
+              {!(a.attachments || []).length && !(a.links || []).length && <div style={S.emptyMuted}>Nenhum anexo ou link ainda.</div>}
+              {showLinkForm && (
+                <div className="cmp-linkform">
+                  <input type="text" value={linkLabelDraft} onChange={(e) => setLinkLabelDraft(e.target.value)} placeholder="Nome do link (opcional)" aria-label="Nome do link" />
+                  <input type="text" value={linkUrlDraft} onChange={(e) => setLinkUrlDraft(e.target.value)} placeholder="https://..." aria-label="Endereço do link" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitLink(); } }} autoFocus />
+                  <Button size="sm" onClick={submitLink} disabled={!linkUrlDraft.trim()} disabledReason="Informe o endereço do link">Adicionar link</Button>
+                  <IconButton size="sm" label="Cancelar link" icon={X} onClick={() => { setShowLinkForm(false); setLinkUrlDraft(''); setLinkLabelDraft(''); }} />
                 </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input type="text" value={linkLabelDraft} onChange={(e) => setLinkLabelDraft(e.target.value)} placeholder="Nome do link (opcional)" style={{ flex: 1 }} />
-              <input type="text" value={linkUrlDraft} onChange={(e) => setLinkUrlDraft(e.target.value)} placeholder="https://..." style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && submitLink()} />
-              <button aria-label="Adicionar link" title="Adicionar link" style={S.iconBtn} onClick={submitLink}><Plus aria-hidden="true" size={14} /></button>
+              )}
+              <div className="cmp-hint">Limite de {MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB por arquivo · arraste arquivos aqui ou cole um print com Ctrl+V</div>
             </div>
 
             <div style={{ ...S.subSectionLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -7900,99 +7875,25 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
             )}
 
             <div style={S.subSectionLabel}><MessageSquare size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Comentários {(a.comments || []).length > 0 ? `(${(a.comments || []).length})` : ''}</div>
-            <div style={S.commentThread}>
-              {(a.comments || []).length === 0 && <div style={S.emptyMuted}>Nenhum comentário ainda.</div>}
-              {[...(a.comments || [])].reverse().map((c) => (
-                <div key={c.id} style={S.commentBubble}>
-                  {editingCommentId === c.id ? (
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <textarea
-                        value={editingCommentText}
-                        onChange={(e) => setEditingCommentText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape') { e.preventDefault(); setEditingCommentId(null); }
-                        }}
-                        rows={3}
-                        style={{ ...S.notesArea, flex: 1 }}
-                        autoFocus
-                      />
-                      <button aria-label="Salvar comentário" title="Salvar comentário" style={S.iconBtn} onClick={() => { updateComment(pid, a.id, c.id, editingCommentText); setEditingCommentId(null); }}><Check aria-hidden="true" size={13} /></button>
-                      <button aria-label="Cancelar edição" title="Cancelar edição" style={S.iconBtnGhost} onClick={() => setEditingCommentId(null)}><X aria-hidden="true" size={13} /></button>
-                    </div>
-                  ) : (
-                    <div style={S.commentText}>{renderCommentText(c.text, team)}</div>
-                  )}
-                  {((c.attachments || []).length > 0 || (c.links || []).length > 0) && (
-                    <div style={{ ...S.attachList, marginTop: 6 }}>
-                      {(c.attachments || []).map((att) => (
-                        <div key={att.id} style={S.attachRow}>
-                          {att.type && att.type.startsWith('image/') && <img src={att.dataUrl} alt={att.name} style={S.attachThumb} />}
-                          <a href={att.dataUrl} download={att.name} style={S.attachLink}>{att.name}</a>
-                          <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
-                        </div>
-                      ))}
-                      {(c.links || []).map((l) => (
-                        <div key={l.id} style={S.attachRow}>
-                          <Link2 size={12} style={{ flexShrink: 0, color: 'var(--text-6)' }} />
-                          <a href={l.url} target="_blank" rel="noreferrer" style={S.attachLink}>{l.label}</a>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div style={S.commentMeta}>
-                    <span>{c.author ? `${c.author} · ` : ''}{fmtTs(c.ts)}{c.editedAt ? ' · editado' : ''}</span>
-                    {editingCommentId !== c.id && (
-                      <span style={{ display: 'flex', gap: 8 }}>
-                        <button aria-label="Editar comentário" title="Editar comentário" style={S.commentDel} onClick={() => { setEditingCommentId(c.id); setEditingCommentText(c.text); }}><Pencil aria-hidden="true" size={11} /></button>
-                        <button aria-label="Excluir comentário" title="Excluir comentário" style={S.commentDel} onClick={() => removeComment(pid, a.id, c.id)}><X aria-hidden="true" size={11} /></button>
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {mentionCandidates.length > 0 && (
-              <select
-                value=""
-                onChange={(e) => { const m = mentionCandidates.find((x) => x.userId === e.target.value); if (m) insertMention(m); }}
-                style={{ marginBottom: 6 }}
-              >
-                <option value="">@ Mencionar alguém...</option>
-                {mentionCandidates.map((m) => <option key={m.userId} value={m.userId}>{m.name}</option>)}
-              </select>
-            )}
-            {(commentAttachmentDrafts.length > 0 || commentLinkDrafts.length > 0) && (
-              <div style={{ ...S.attachList, marginBottom: 6 }}>
-                {commentAttachmentDrafts.map((att) => (
-                  <div key={att.id} style={S.attachRow}>
-                    {att.type && att.type.startsWith('image/') && <img src={att.dataUrl} alt={att.name} style={S.attachThumb} />}
-                    <span style={S.attachLink}>{att.name}</span>
-                    <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
-                    <button aria-label="Remover anexo" title="Remover anexo" style={S.iconBtnGhost} onClick={() => removeCommentAttachmentDraft(att.id)}><X aria-hidden="true" size={12} /></button>
-                  </div>
-                ))}
-                {commentLinkDrafts.map((l) => (
-                  <div key={l.id} style={S.attachRow}>
-                    <Link2 size={12} style={{ flexShrink: 0, color: 'var(--text-6)' }} />
-                    <span style={S.attachLink}>{l.label}</span>
-                    <button aria-label="Remover link" title="Remover link" style={S.iconBtnGhost} onClick={() => removeCommentLinkDraft(l.id)}><X aria-hidden="true" size={12} /></button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {showCommentLinkForm && (
-              <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-                <input type="text" value={commentLinkLabelDraft} onChange={(e) => setCommentLinkLabelDraft(e.target.value)} placeholder="Nome do link (opcional)" style={{ flex: 1 }} />
-                <input type="text" value={commentLinkUrlDraft} onChange={(e) => setCommentLinkUrlDraft(e.target.value)} placeholder="https://..." style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && addCommentLinkDraft()} />
-                <button aria-label="Adicionar link" title="Adicionar link" style={S.iconBtn} onClick={addCommentLinkDraft}><Plus aria-hidden="true" size={14} /></button>
-              </div>
-            )}
-            <div style={S.commentInputRow}>
-              <textarea value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} placeholder="Escreva um comentário... use @ pra mencionar alguém" rows={2} style={{ flex: 1 }} />
-              <label htmlFor={`comment-file-${a.id}`} style={S.iconBtnGhost} title="Anexar imagem ou PDF"><Paperclip size={14} /></label>
-              <input id={`comment-file-${a.id}`} type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} onChange={(e) => { handleCommentFiles(e.target.files); e.target.value = ''; }} />
-              <button style={S.iconBtnGhost} title="Anexar link" onClick={() => setShowCommentLinkForm((v) => !v)}><Link2 size={14} /></button>
-              <button aria-label="Comentar" title="Comentar" style={S.primaryBtn} onClick={submitComment}><Send aria-hidden="true" size={14} /></button>
+            <ComposeBox
+              ref={composeRef}
+              draftKey={`act:${a.id}`}
+              mentionCandidates={mentionCandidates}
+              maxFileBytes={MAX_ATTACHMENT_BYTES}
+              submitLabel="Comentar"
+              placeholder="Escreva um comentário…"
+              onDirtyChange={setComposeDirty}
+              onSubmit={async ({ text, mentions, attachments, links }) => { addComment(pid, a.id, text, mentions, attachments, links); }}
+            />
+            <div style={{ marginTop: 10 }}>
+              <CommentThread
+                comments={threadComments}
+                currentUserId={currentUser ? currentUser.id : ''}
+                canModerate={isMaster}
+                mentionNames={mentionNames}
+                onEdit={(id, text) => updateComment(pid, a.id, id, text)}
+                onDelete={(id) => removeComment(pid, a.id, id)}
+              />
             </div>
 
             <div style={{ ...S.subSectionLabel, marginTop: 18 }}><History size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Histórico desta atividade</div>
@@ -8142,21 +8043,6 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
               ))}
             </div>
             <button style={S.addSubBtn} onClick={() => addSub(pid, a.id)}><Plus size={12} /> Subatividade</button>
-
-            <div style={S.subSectionLabel}>Anexos {(a.attachments || []).length > 0 ? `(${(a.attachments || []).length})` : ''}</div>
-            <div style={S.attachList}>
-              {(a.attachments || []).map((att) => (
-                <div key={att.id} style={S.attachRow}>
-                  {att.type && att.type.startsWith('image/') && <img src={att.dataUrl} alt={att.name} style={S.attachThumb} />}
-                  <a href={att.dataUrl} download={att.name} style={S.attachLink}>{att.name}</a>
-                  <span style={S.attachSize}>{att.size ? `${Math.max(1, Math.round(att.size / 1024))} KB` : ''}</span>
-                  <button aria-label="Remover anexo" title="Remover anexo" style={S.iconBtnGhost} onClick={() => removeAttachment(pid, a.id, att.id)}><X aria-hidden="true" size={12} /></button>
-                </div>
-              ))}
-            </div>
-            <div style={S.fieldHint}>Limite de {MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB por arquivo.</div>
-            <label htmlFor={`file-detail-${a.id}`} style={S.addSubBtn}><Upload size={12} /> Anexar arquivo</label>
-            <input id={`file-detail-${a.id}`} type="file" style={{ display: 'none' }} onChange={(e) => { addAttachment(pid, a.id, e.target.files && e.target.files[0]); e.target.value = ''; }} />
 
             <button style={{ ...S.iconBtn, marginTop: 20, color: '#e2574c', borderColor: 'rgba(226,87,76,.35)' }} onClick={() => deleteActivity(pid, a.id)}><Trash2 size={14} /> Excluir atividade</button>
           </div>
@@ -9311,15 +9197,13 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                     </div>
                     <button style={S.addSubBtn} onClick={() => addSub(rowPid, a.id)}><Plus size={12} /> Subatividade</button>
 
-                    <div style={S.subSectionLabel}>Observações</div>
-                    <textarea
-                      value={a.notes || ''}
-                      onChange={(e) => updateActivity(rowPid, a.id, { notes: e.target.value })}
-                      onBlur={() => updateActivity(rowPid, a.id, {}, `Observação alterada em "${a.title}"`)}
-                      placeholder="Comentários, contexto, decisões desta atividade..."
-                      rows={3}
-                      style={S.notesArea}
-                    />
+                    {!!(a.notes || '').trim() && (
+                      <>
+                        <div style={S.subSectionLabel}>Observações anteriores</div>
+                        <div style={{ ...S.fieldHint, marginTop: 0, whiteSpace: 'pre-wrap' }}>{a.notes}</div>
+                        <div style={S.fieldHint}>Ao abrir a atividade em tela cheia, este texto passa a fazer parte da descrição.</div>
+                      </>
+                    )}
 
                     <div style={S.subSectionLabel}>Anexos {(a.attachments || []).length > 0 ? `(${(a.attachments || []).length})` : ''}</div>
                     <div style={S.attachList}>

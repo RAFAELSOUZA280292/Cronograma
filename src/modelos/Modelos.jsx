@@ -2,9 +2,11 @@
 // tem VÁRIOS anexos (o mesmo documento em Word, Excel, PDF, HTML, link…); a gaveta alterna entre eles com prévia por tipo:
 // PDF, imagem, HTML (isolado) e texto abrem na própria tela, Word/PowerPoint/Excel mostram o começo do conteúdo, link mostra a prévia da página.
 import React, { useEffect, useRef, useState } from 'react';
-import { FileText, FileSpreadsheet, Presentation, Image as ImageIcon, Link2, Code2, X, Plus, Upload, Trash2, Pencil, ExternalLink, Download, RefreshCw, MessageSquare, Send, Search } from 'lucide-react';
+import { FileText, FileSpreadsheet, Presentation, Image as ImageIcon, Link2, Code2, X, Plus, Upload, Trash2, Pencil, ExternalLink, Download, RefreshCw, MessageSquare, Search } from 'lucide-react';
 import { useDebouncedField, useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
 import { ConfirmDialog, Button, IconButton, ErrorState, SaveStatus } from '../ui/index.jsx';
+import { ComposeBox, CommentThread, useMentionUsers } from '../ui/ComposeBox.jsx';
+import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { ModulePanel } from '../pareceres/ModulePanel.jsx';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { PARECERES_CSS, fmtFileSize, initialsOf, apiErrorText } from '../pareceres/pareceresMeta.js';
@@ -235,15 +237,16 @@ function Preview({ t, item }) {
   return <div className="mdl-pv"><div className="mdl-pv-text" style={{ color: 'var(--text-5)' }}>{kind === 'text' ? 'Abra o arquivo para ler.' : 'Este formato não tem prévia aqui. Baixe o arquivo para abrir no seu programa.'}</div></div>;
 }
 
+const COMMENT_MAX_FILE_BYTES = 3 * 1024 * 1024;
+const COMMENT_MAX_FILES = 3;
 const ONLY_ITEM_HINT = 'É o único anexo. Para remover tudo, exclua o modelo.';
 
 function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
   const items = t.items || [];
   const [itemId, setItemId] = useState(items[0] ? items[0].id : null);
   const [comments, setComments] = useState(t.comments || []);
-  const [draft, setDraft] = useState('');
+  const [commentDirty, setCommentDirty] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [sending, setSending] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newFiles, setNewFiles] = useState([]);
   const [newLinks, setNewLinks] = useState([]);
@@ -255,7 +258,7 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
   const [dlgBusy, setDlgBusy] = useState(false);
   const [dlgError, setDlgError] = useState('');
   const [confirmClose, setConfirmClose] = useState(false);
-  const latest = useRef({});
+  const mentionCandidates = useMentionUsers();
 
   const item = items.find((i) => i.id === itemId) || items[0];
   const saver = useFieldSaver(async (body) => { onChanged(await apiPatch(`/api/templates/${t.id}`, body)); });
@@ -290,19 +293,24 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
     const last = out.template.items[out.template.items.length - 1];
     if (last && out.template.items.length > items.length) setItemId(last.id);
   }
-  async function submitComment() {
-    const text = draft.trim();
-    if (!text) return;
-    setSending(true); setErr(null);
+  async function submitComment({ text, mentions, attachments, links }) {
+    setErr(null);
     try {
-      const { comment } = await apiPost(`/api/templates/${t.id}/comments`, { text });
-      setComments((p) => [...p, comment]); setDraft('');
+      const { comment } = await apiPost(`/api/templates/${t.id}/comments`, { text, mentions, attachments, links });
+      setComments((p) => [...p, comment]);
     } catch (e) {
-      setErr({ message: `Não foi possível enviar o comentário: ${apiErrorText(e, 'erro inesperado.')} O texto continua na caixa.`, retry: () => latest.current.submitComment() });
+      throw new Error(`Não foi possível enviar o comentário: ${apiErrorText(e, 'erro inesperado.')} O que você escreveu foi mantido.`);
     }
-    setSending(false);
   }
-  async function removeComment(id) {
+  async function editComment(id, text) {
+    try {
+      const { comment } = await apiPatch(`/api/templates/${t.id}/comments/${id}`, { text });
+      setComments((p) => p.map((c) => (c.id === id ? { ...c, ...comment } : c)));
+    } catch (e) {
+      throw new Error(apiErrorText(e, 'Não foi possível salvar o comentário.'));
+    }
+  }
+  async function doRemoveComment(id) {
     const index = comments.findIndex((c) => c.id === id);
     const removed = comments[index];
     if (!removed) return;
@@ -310,8 +318,12 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
     setComments((p) => p.filter((c) => c.id !== id));
     try { await apiDelete(`/api/templates/${t.id}/comments/${id}`); } catch (e) {
       setComments((p) => (p.some((c) => c.id === id) ? p : [...p.slice(0, index), removed, ...p.slice(index)]));
-      setErr({ message: `Não foi possível excluir o comentário: ${apiErrorText(e, 'erro inesperado.')} Ele foi mantido.`, retry: () => removeComment(id) });
+      setErr({ message: `Não foi possível excluir o comentário: ${apiErrorText(e, 'erro inesperado.')} Ele foi mantido.`, retry: () => doRemoveComment(id) });
     }
+  }
+  async function removeComment(id) {
+    const ok = await askConfirm({ title: 'Excluir comentário', message: 'Excluir este comentário? Essa ação não pode ser desfeita.', confirmLabel: 'Excluir', danger: true });
+    if (ok) doRemoveComment(id);
   }
   async function handleDelete() {
     setDlgBusy(true); setDlgError('');
@@ -319,18 +331,18 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
   }
   function pickItem(id) { setItemId(id); setErr(null); }
 
-  latest.current = { submitComment };
   const urlDirty = !!item && item.kind === 'link' && urlDraft !== (item.url || '');
-  const hasDraft = saver.state === 'error' || saver.state === 'saving' || !!draft.trim() || urlDirty || newFiles.length > 0 || newLinks.length > 0;
+  const hasDraft = saver.state === 'error' || saver.state === 'saving' || commentDirty || urlDirty || newFiles.length > 0 || newLinks.length > 0;
   useDirtyForm(hasDraft);
 
   async function requestClose() {
     titleField.flush(); descField.flush(); catField.flush();
     await saver.settle();
-    if (saver.hasPending() || draft.trim() || urlDirty || newFiles.length > 0 || newLinks.length > 0) setConfirmClose(true); else onClose();
+    if (saver.hasPending() || commentDirty || urlDirty || newFiles.length > 0 || newLinks.length > 0) setConfirmClose(true); else onClose();
   }
 
-  const canDeleteComment = (c) => currentUser && (c.userId === currentUser.id || currentUser.role === 'master');
+  const threadComments = comments.map((c) => ({ ...c, author: c.userName, authorId: c.userId }));
+  const mentionNames = mentionCandidates.map((m) => m.name);
   const kind = item ? itemKind(item) : 'text';
   const fileUrl = item ? `/api/templates/${t.id}/items/${item.id}/file` : '';
 
@@ -421,19 +433,14 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
 
       <div className="par-drawer-section">
         <div className="par-drawer-label"><MessageSquare size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Comentários ({comments.length})</div>
-        {comments.map((c) => (
-          <div key={c.id} className="par-comment">
-            <div className="par-comment-head">
-              <span><strong>{c.userName}</strong> · {fmtTs(c.ts)}</span>
-              {canDeleteComment(c) && <IconButton size="sm" variant="danger" icon={X} label="Excluir comentário" onClick={() => removeComment(c.id)} />}
-            </div>
-            <div className="par-comment-text">{c.text}</div>
-          </div>
-        ))}
-        <div className="par-comment-input-row">
-          <textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Escreva um comentário…" onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitComment(); }} />
-          <Button variant="primary" icon={Send} onClick={submitComment} disabled={sending || !draft.trim()} disabledReason={sending ? 'Aguarde terminar' : 'Escreva um comentário'}>Comentar</Button>
-        </div>
+        <CommentThread
+          comments={threadComments} currentUserId={currentUser && currentUser.id} canModerate={!!currentUser && currentUser.role === 'master'}
+          onEdit={editComment} onDelete={removeComment} mentionNames={mentionNames}
+        />
+        <ComposeBox
+          onSubmit={submitComment} mentionCandidates={mentionCandidates} maxFileBytes={COMMENT_MAX_FILE_BYTES} maxFiles={COMMENT_MAX_FILES}
+          submitLabel="Comentar" draftKey={`modelo:${t.id}`} onDirtyChange={setCommentDirty}
+        />
       </div>
 
       <div className="par-drawer-actions" style={{ marginTop: 18 }}>
@@ -461,7 +468,7 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
   );
 }
 
-export default function ModelosScreen({ currentUser, onExit, onLogout, theme, onToggleTheme }) {
+export default function ModelosScreen({ currentUser, onExit, onLogout, theme, onToggleTheme, pendingOpenId, onPendingOpenConsumed }) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
@@ -477,6 +484,15 @@ export default function ModelosScreen({ currentUser, onExit, onLogout, theme, on
     apiGet('/api/templates').then((r) => { setItems(r.templates || []); setLoaded(true); }).catch((e) => { setError(apiErrorText(e, 'Não foi possível carregar os modelos.')); setLoaded(true); });
   }
   useEffect(() => { load(); }, []);
+
+  // Link de notificação: abre a gaveta quando a lista já carregou; só consome o pedido uma vez (se a carga falhou, espera o "tentar de novo").
+  useEffect(() => {
+    if (!pendingOpenId || !loaded || error) return;
+    const found = items.find((t) => String(t.id) === String(pendingOpenId));
+    if (found) setSelectedId(found.id);
+    else notify('Esse modelo não está mais disponível.', { tone: 'error' });
+    if (onPendingOpenConsumed) onPendingOpenConsumed();
+  }, [pendingOpenId, loaded, error, items]);
 
   const categories = [...new Set(items.map((t) => t.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const kindsPresent = KIND_ORDER.filter((k) => items.some((t) => kindsOf(t).includes(k)));

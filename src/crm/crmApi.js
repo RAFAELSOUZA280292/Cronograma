@@ -61,6 +61,7 @@ export const crm = {
   updateProduct: (id, body) => apiPatch(`${B}/products/${id}`, body),
   deleteProduct: (id) => apiDelete(`${B}/products/${id}`),
   addNote: (body) => apiPost(`${B}/notes`, body),
+  updateNote: (id, body) => apiPatch(`${B}/notes/${id}`, body),
   deleteNote: (id) => apiDelete(`${B}/notes/${id}`),
   importFields: () => apiGet(`${B}/import/fields`),
   importPreview: (target, rows) => apiPost(`${B}/import/preview`, { target, rows }),

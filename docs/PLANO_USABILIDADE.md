@@ -169,7 +169,7 @@ Componentes em `src/ui` (hoje quase sem adoção): `Button`/`IconButton` (rótul
 - Migrar módulo por módulo (Pareceres/Modelos primeiro, são a referência; depois Conhecimento, CRM, XFlow, Empresas).
 **Pronto quando:** `window.confirm/alert/prompt` = 0; 100% dos botões só-ícone com rótulo; todo `disabled` explica o motivo.
 
-### Onda 3 — "Comentar, linkar e colar print em qualquer lugar" (2 semanas)
+### Onda 3 — "Comentar, linkar e colar print em qualquer lugar" (2 semanas) — **FEITA em 2026-10-06 (ver PROJECT_CONTEXT §81)**
 - **`ComposeBox`** único: texto + **@menção com autocomplete** + **colar print (Ctrl+V)** + arrastar vários arquivos + link + **Ctrl+Enter** + prévia dos anexos; erro não apaga o que foi digitado.
 - Usar em: atividade de empresa, quadro pessoal (hoje sem link/anexo/print), XFlow, notas do CRM, Pareceres/Modelos, TodoDrawer. **Editar/excluir o próprio comentário** em todos (XFlow e CRM não têm).
 - Unificar "Observações/Comentários/Descrição" da atividade; um único botão **Adicionar → arquivo, print ou link**; print colado vira só imagem inline (sem cópia em Evidências).

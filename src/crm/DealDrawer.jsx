@@ -9,7 +9,7 @@ import DealForm from './DealForm.jsx';
 import CloseDealDialog from './CloseDealDialog.jsx';
 import ActivityForm from './ActivityForm.jsx';
 import ActivityList from './ActivityList.jsx';
-import { useDraftGuard } from './ui.jsx';
+import { useDraftGuard, NoteComposer, NoteThread } from './ui.jsx';
 import { useDialog } from '../lib/nav.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { fmtMoney, fmtDateBR, fmtDateTimeBR, DEAL_TYPE_META, DEAL_STATUS_META, TIMELINE_KIND, sourceLabel, stageAgeColor } from './crmMeta.js';
@@ -29,10 +29,9 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
   const [audit, setAudit] = useState(null);
   const [editing, setEditing] = useState(false);
   const [closing, setClosing] = useState(null); // etapa de destino (ganho/perdido)
-  const [noteText, setNoteText] = useState('');
+  const [noteDirty, setNoteDirty] = useState(false);
   const [activityForm, setActivityForm] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const { guard, dialog: discardDialog } = useDraftGuard(!!noteText.trim(), 'Há uma nota digitada que ainda não foi registrada. Se fechar, o texto será perdido.');
+  const { guard, dialog: discardDialog } = useDraftGuard(noteDirty, 'Há uma nota digitada que ainda não foi registrada. Se fechar, o texto será perdido.');
   const close = guard(onClose);
   if (closeRef) closeRef.current = close;
   const dlg = useDialog(close, { history: false });
@@ -52,17 +51,6 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
     if (!stage || stage.id === data.deal.stageId) return;
     if (stage.kind !== 'open') { setClosing(stage); return; }
     try { await crm.moveDeal(dealId, { stageId }); await afterChange(); } catch (e) { fail(e); }
-  }
-
-  async function addNote() {
-    if (!noteText.trim()) return;
-    setBusy(true);
-    try { await crm.addNote({ entityType: 'deal', entityId: dealId, body: noteText }); setNoteText(''); await afterChange(); } catch (e) { fail(e); } finally { setBusy(false); }
-  }
-
-  async function removeNote(id) {
-    if (!(await askConfirm({ title: 'Remover esta nota?', message: 'O registro de que ela existiu continua no histórico.', confirmLabel: 'Remover', danger: true }))) return;
-    try { await crm.deleteNote(id); await afterChange(); } catch (e) { fail(e); }
   }
 
   async function removeDeal() {
@@ -172,26 +160,21 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
               </>
             )}
 
+            {data && caps.write && (
+              <div hidden={tab !== 'history'}>
+                <div className="crm-section">
+                  <h3 className="crm-section-title"><span><StickyNote size={13} style={{ verticalAlign: -2, marginRight: 5 }} />Nova nota sobre o negócio</span></h3>
+                  <NoteComposer about={{ entityType: 'deal', entityId: dealId }} draftKey={`crm-deal:${dealId}`} placeholder="Objeção, próximo passo, o que o cliente disse…" onDirtyChange={setNoteDirty} onAdded={afterChange} />
+                </div>
+              </div>
+            )}
+
             {data && tab === 'history' && (
               <>
-                {caps.write && (
-                  <div className="crm-section">
-                    <h3 className="crm-section-title"><span><StickyNote size={13} style={{ verticalAlign: -2, marginRight: 5 }} />Nova nota sobre o negócio</span></h3>
-                    <div className="crm-note-input"><textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Objeção, próximo passo, o que o cliente disse…" /></div>
-                    <div style={{ textAlign: 'right', marginTop: 8 }}><button type="button" className="crm-btn crm-btn-primary" disabled={busy || !noteText.trim()} title={busy ? 'Aguarde terminar de salvar' : !noteText.trim() ? 'Escreva a nota para adicionar' : undefined} onClick={addNote}>Adicionar nota</button></div>
-                  </div>
-                )}
                 {data.notes.length > 0 && (
                   <div className="crm-section">
                     <h3 className="crm-section-title">Notas</h3>
-                    {data.notes.map((n) => (
-                      <div key={n.id} className="crm-note">
-                        <div className="crm-note-meta"><span>{n.createdByName || 'Alguém'} · {fmtDateTimeBR(n.createdAt)}</span>
-                          {caps.write && <button type="button" className="crm-icon-btn" style={{ padding: 2 }} title="Remover nota" aria-label="Remover nota" onClick={() => removeNote(n.id)}><X size={12} aria-hidden="true" /></button>}
-                        </div>
-                        {n.body}
-                      </div>
-                    ))}
+                    <NoteThread notes={data.notes} currentUserId={currentUserId} canModerate={!!caps.remove} onChanged={afterChange} />
                   </div>
                 )}
                 <div className="crm-section">
