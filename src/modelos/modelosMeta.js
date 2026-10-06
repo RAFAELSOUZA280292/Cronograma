@@ -1,11 +1,11 @@
 // Modelos de documentos (2026-10-05, §78) — tipos, ícones e CSS próprio do módulo (prefixo mdl-, em cima do par- dos Pareceres).
 export const MAX_FILE_MB = 30;
-export const ACCEPT = '.pdf,.doc,.docx,.rtf,.odt,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.txt,.html,.htm,.png,.jpg,.jpeg,.gif,.webp';
+export const ACCEPT = '.pdf,.doc,.docx,.rtf,.odt,.ppt,.pptx,.odp,.xls,.xlsx,.ods,.csv,.txt,.html,.htm,.png,.jpg,.jpeg,.gif,.webp,.zip';
 export const MAX_ITEMS = 12;
 
 const KIND_BY_EXT = {
   pdf: 'pdf', doc: 'word', docx: 'word', rtf: 'word', odt: 'word', ppt: 'ppt', pptx: 'ppt', odp: 'ppt',
-  xls: 'excel', xlsx: 'excel', ods: 'excel', csv: 'excel', txt: 'text', html: 'html', htm: 'html', png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image',
+  xls: 'excel', xlsx: 'excel', ods: 'excel', csv: 'excel', txt: 'text', html: 'html', htm: 'html', png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', zip: 'zip',
 };
 export const INLINE_KINDS = new Set(['pdf', 'image', 'text', 'html']);
 
@@ -17,6 +17,7 @@ export const KIND_META = {
   image: { label: 'Imagem', color: 'var(--ui-info2)' },
   html: { label: 'HTML', color: 'var(--ui-accent-text)' },
   text: { label: 'Texto', color: 'var(--text-4)' },
+  zip: { label: 'ZIP', color: 'var(--text-3)' },
   link: { label: 'Link', color: 'var(--ui-info)' },
 };
 

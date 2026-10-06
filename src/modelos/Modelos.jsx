@@ -2,7 +2,7 @@
 // tem VÁRIOS anexos (o mesmo documento em Word, Excel, PDF, HTML, link…); a gaveta alterna entre eles com prévia por tipo:
 // PDF, imagem, HTML (isolado) e texto abrem na própria tela, Word/PowerPoint/Excel mostram o começo do conteúdo, link mostra a prévia da página.
 import React, { useEffect, useRef, useState } from 'react';
-import { FileText, FileSpreadsheet, Presentation, Image as ImageIcon, Link2, Code2, X, Plus, Upload, Trash2, ExternalLink, Download, RefreshCw, MessageSquare, Search } from 'lucide-react';
+import { FileText, FileSpreadsheet, Presentation, Image as ImageIcon, Link2, Code2, FileArchive, X, Plus, Upload, Trash2, ExternalLink, Download, RefreshCw, MessageSquare, Search } from 'lucide-react';
 import { useDirtyForm, ConfirmDiscardModal, fmtTs } from '../App.jsx';
 import { ConfirmDialog, Button, IconButton, ErrorState, SaveStatus } from '../ui/index.jsx';
 import { ComposeBox, CommentThread, useMentionUsers } from '../ui/ComposeBox.jsx';
@@ -13,8 +13,8 @@ import { PARECERES_CSS, fmtFileSize, initialsOf, apiErrorText } from '../parecer
 import { InlineAlert, useFieldSaver, useAutosaveField, fmtHHMM } from '../pareceres/Pareceres.jsx';
 import { MODELOS_CSS, MAX_FILE_MB, MAX_ITEMS, ACCEPT, KIND_META, INLINE_KINDS, itemKind, kindsOf, itemName, hostOf, isAllowedFile, isValidHttpUrl, SUGGESTED_CATEGORIES } from './modelosMeta.js';
 
-const ICONS = { pdf: FileText, word: FileText, text: FileText, ppt: Presentation, excel: FileSpreadsheet, image: ImageIcon, link: Link2, html: Code2 };
-const KIND_ORDER = ['pdf', 'word', 'ppt', 'excel', 'html', 'image', 'text', 'link'];
+const ICONS = { pdf: FileText, word: FileText, text: FileText, ppt: Presentation, excel: FileSpreadsheet, image: ImageIcon, link: Link2, html: Code2, zip: FileArchive };
+const KIND_ORDER = ['pdf', 'word', 'ppt', 'excel', 'html', 'image', 'text', 'zip', 'link'];
 
 function TypeBadge({ kind, extra }) {
   const Icon = ICONS[kind] || FileText;
@@ -69,7 +69,7 @@ function ItemPicker({ files, setFiles, links, setLinks, room, setError }) {
     const ok = [];
     for (const f of incoming) {
       if (space <= 0) { setError(`Um modelo aceita até ${MAX_ITEMS} anexos.`); break; }
-      if (!isAllowedFile(f.name)) { setError(`"${f.name}" não é de um tipo aceito. Use PDF, Word, PowerPoint, Excel, HTML, texto ou imagem.`); continue; }
+      if (!isAllowedFile(f.name)) { setError(`"${f.name}" não é de um tipo aceito. Use PDF, Word, PowerPoint, Excel, HTML, texto, imagem ou ZIP.`); continue; }
       if (f.size > MAX_FILE_MB * 1024 * 1024) { setError(`"${f.name}" passa de ${MAX_FILE_MB} MB. Para arquivos grandes, adicione como link.`); continue; }
       ok.push(f); space -= 1;
     }
@@ -92,7 +92,7 @@ function ItemPicker({ files, setFiles, links, setLinks, room, setError }) {
         onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
         onDrop={(e) => { e.preventDefault(); setOver(false); addFiles(e.dataTransfer.files); }}
       >
-        <Upload size={14} style={{ verticalAlign: -2, marginRight: 6 }} />Arraste aqui ou clique para escolher (pode ser mais de um)<br />PDF, Word, PowerPoint, Excel, HTML, texto ou imagem, até {MAX_FILE_MB} MB cada
+        <Upload size={14} style={{ verticalAlign: -2, marginRight: 6 }} />Arraste aqui ou clique para escolher (pode ser mais de um)<br />PDF, Word, PowerPoint, Excel, HTML, texto, imagem ou ZIP, até {MAX_FILE_MB} MB cada
       </div>
       <input ref={fileRef} type="file" multiple accept={ACCEPT} style={{ display: 'none' }} onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
 
