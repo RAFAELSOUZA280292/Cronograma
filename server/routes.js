@@ -1,3 +1,4 @@
+import { notifyTodoChanges } from './todoNotifications.js';
 import { Router } from 'express';
 import { pool, blankProject, blankPersonalBoard } from './db.js';
 import {
@@ -528,6 +529,7 @@ router.patch('/projects/:id', requireAuth, async (req, res, next) => {
     await pool.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(next_), id]);
     const projectName = (next_.company && (next_.company.nomeFantasia || next_.company.name)) || 'Empresa';
     await notifyActivityChanges(req, id, projectName, current, next_);
+    await notifyTodoChanges(req, id, projectName, current, next_);
     res.json({ project: next_ });
     // Reindexação da memória do projeto (Assistente Inteligente de
     // Projetos, Fase 1) — só SQL local (sem chamada de IA nesta fase),

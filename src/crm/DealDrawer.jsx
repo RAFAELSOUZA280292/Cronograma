@@ -9,6 +9,7 @@ import DealForm from './DealForm.jsx';
 import CloseDealDialog from './CloseDealDialog.jsx';
 import ActivityForm from './ActivityForm.jsx';
 import ActivityList from './ActivityList.jsx';
+import RenataAsk from './RenataAsk.jsx';
 import { useDraftGuard, NoteComposer, NoteThread } from './ui.jsx';
 import { useDialog } from '../lib/nav.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
@@ -22,7 +23,7 @@ function KV({ k, v }) {
   return <div><div className="k">{k}</div><div className="v">{v || <span className="crm-muted">—</span>}</div></div>;
 }
 
-export default function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, onOpenCompany, closeRef }) {
+export default function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, onOpenCompany, canAskRenata, closeRef }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('summary');
@@ -31,6 +32,7 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
   const [closing, setClosing] = useState(null); // etapa de destino (ganho/perdido)
   const [noteDirty, setNoteDirty] = useState(false);
   const [activityForm, setActivityForm] = useState(false);
+  const [companyProjects, setCompanyProjects] = useState(null); // projetos do cronograma ligados à empresa do negócio (null = ainda não sei)
   const { guard, dialog: discardDialog } = useDraftGuard(noteDirty, 'Há uma nota digitada que ainda não foi registrada. Se fechar, o texto será perdido.');
   const close = guard(onClose);
   if (closeRef) closeRef.current = close;
@@ -41,6 +43,16 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
   }, [dealId]);
   useEffect(() => { setData(null); setAudit(null); setTab('summary'); load(); }, [load]);
   useEffect(() => { if (tab === 'audit' && caps.remove && !audit) crm.dealAudit(dealId).then((r) => setAudit(r.logs)).catch(() => setAudit([])); }, [tab, caps.remove, audit, dealId]);
+
+  // O negócio não traz os projetos; busca a ficha da empresa só para saber quais estão vinculados (a RENATA é por projeto).
+  const dealCompanyId = data && data.deal && data.deal.companyId;
+  useEffect(() => {
+    setCompanyProjects(null);
+    if (!dealCompanyId || !canAskRenata) return undefined;
+    let alive = true;
+    crm.company(dealCompanyId).then((r) => { if (alive) setCompanyProjects(r.projects || []); }).catch(() => {});
+    return () => { alive = false; };
+  }, [dealCompanyId, canAskRenata]);
 
   async function afterChange() { setAudit(null); await load(); if (onChanged) onChanged(); }
 
@@ -148,6 +160,13 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
                     </div>
                   )}
                 </div>
+
+                {companyProjects && (
+                  <div className="crm-section">
+                    <h3 className="crm-section-title">RENATA</h3>
+                    <RenataAsk projects={companyProjects} canAsk={canAskRenata} onReload={afterChange} />
+                  </div>
+                )}
 
                 <div className="crm-section">
                   <h3 className="crm-section-title">Detalhes</h3>

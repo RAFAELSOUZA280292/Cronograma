@@ -2,18 +2,22 @@
 // do usuário com o que já é dele dentro do PRICETAX (TASK do XFlow,
 // atividade de empresa) numa visão só de dia/semana/mês, com um toggle de
 // privacidade pra apresentar disponibilidade sem expor assunto/nome de
-// evento (útil numa call com cliente). Unidirecional (só leitura) — ver
-// PROJECT_CONTEXT.md §22 pro desenho completo.
+// evento (útil numa call com cliente). Leitura + (Onda 5, §81) criar compromisso
+// no Google e responder convite — ver PROJECT_CONTEXT.md §22 pro desenho completo.
 //
 // Arquivo próprio (não em App.jsx) pelo mesmo motivo do XFlow: bloco de
 // UI grande e autocontido, com sua própria lógica de grade de horários.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Link2, Ban, AlertTriangle } from 'lucide-react';
-import { Segmented, Callout, BusyBar } from '../ui/index.jsx';
+import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Link2, Ban, AlertTriangle, Plus } from 'lucide-react';
+import { Segmented, Callout, BusyBar, Button } from '../ui/index.jsx';
+import { Modal } from '../ui/dialog.jsx';
 import { apiGet } from '../lib/api.js';
 import { rsvpOf, isPendingRsvp, RSVP_META, summarizeDay, fmtDur, hhmm } from './dayLoad.js';
 import { loadPrefs } from './agendaPrefs.js';
+import NewEventModal, { defaultSlot } from './NewEventModal.jsx';
+import RsvpButtons from './RsvpButtons.jsx';
+import { canRespond, useRespond } from './agendaActions.js';
 import { S, BrandLogo } from '../App.jsx';
 import { useHistoryValue, readHistoryValue } from '../lib/nav.js';
 
@@ -88,6 +92,10 @@ export default function AgendaScreen({
   const [events, setEvents] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [reloadTick, setReloadTick] = useState(0);
+  const [newEvent, setNewEvent] = useState(null); // { date, time } enquanto o "Novo compromisso" está aberto
+  const [detailId, setDetailId] = useState(null);
+  const { respond, respondingId } = useRespond((id, myResponse) => setEvents((list) => list.map((e) => (e.id === id ? { ...e, myResponse } : e))));
 
   const { start: rangeStart, end: rangeEnd } = useMemo(() => rangeForView(viewMode, anchorDate), [viewMode, anchorDate]);
   const rangeKey = `${isoDateOnly(rangeStart)}_${isoDateOnly(rangeEnd)}`;
@@ -106,7 +114,7 @@ export default function AgendaScreen({
     const t = setInterval(load, 60000);
     return () => { cancelled = true; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeKey]);
+  }, [rangeKey, reloadTick]);
 
   function goToday() { setAnchorDate(new Date()); }
   function goPrev() {
@@ -169,8 +177,13 @@ export default function AgendaScreen({
 
   function openEvent(ev) {
     if (ev.source === 'xflow_ticket' && ev.link) { window.location.hash = ev.link; return; }
-    if (ev.source === 'google' && ev.htmlLink && !hideDetails) { window.open(ev.htmlLink, '_blank', 'noopener'); }
+    if (ev.source === 'google' && !hideDetails) setDetailId(ev.id);
   }
+
+  function pickSlot(day, minutes) {
+    setNewEvent({ date: isoDateOnly(day), time: `${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}` });
+  }
+  const detailEv = detailId ? events.find((e) => e.id === detailId) : null;
 
   return (
     <div style={S.page}>
@@ -201,6 +214,7 @@ export default function AgendaScreen({
             label="Visualização da agenda" value={viewMode} onChange={setViewMode}
             options={[{ value: 'day', label: 'Dia' }, { value: 'week', label: 'Semana' }, { value: 'month', label: 'Mês' }]}
           />
+          <Button variant="primary" icon={Plus} onClick={() => setNewEvent(defaultSlot())}>Novo compromisso</Button>
         </div>
       </div>
 
@@ -234,8 +248,10 @@ export default function AgendaScreen({
         {viewMode === 'month' ? (
           <MonthGrid daysInView={daysInView} eventsByDay={eventsByDay} anchorDate={anchorDate} hideDetails={hideDetails} eventLabel={eventLabel} eventTip={eventTip} onOpenEvent={openEvent} onPickDay={(d) => { setAnchorDate(d); setViewMode('day'); }} />
         ) : (
-          <WeekGrid daysInView={daysInView} eventsByDay={eventsByDay} dayStats={dayStats} hideDetails={hideDetails} eventLabel={eventLabel} eventTip={eventTip} onOpenEvent={openEvent} />
+          <WeekGrid daysInView={daysInView} eventsByDay={eventsByDay} dayStats={dayStats} hideDetails={hideDetails} eventLabel={eventLabel} eventTip={eventTip} onOpenEvent={openEvent} onPickSlot={pickSlot} />
         )}
+
+        {viewMode !== 'month' && <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--text-5)' }}>Dica: clique num horário livre da grade para criar um compromisso nele.</div>}
 
         <div style={{ display: 'flex', gap: 14, marginTop: 16, flexWrap: 'wrap' }}>
           {Object.entries(SOURCE_META).map(([key, meta]) => (
@@ -258,7 +274,56 @@ export default function AgendaScreen({
           </div>
         </div>
       </div>
+
+      {newEvent && (
+        <NewEventModal
+          initial={newEvent} connected={connected} onClose={() => setNewEvent(null)}
+          onCreated={() => { setNewEvent(null); setReloadTick((n) => n + 1); }}
+        />
+      )}
+      {detailEv && <EventDetailModal ev={detailEv} onClose={() => setDetailId(null)} onRespond={respond} busy={respondingId === detailEv.id} />}
     </div>
+  );
+}
+
+function fmtWhen(ev) {
+  const s = new Date(ev.start);
+  const e = new Date(ev.end || ev.start);
+  const day = `${WEEKDAY_LABEL[s.getDay()]}, ${s.getDate()} de ${MONTH_LABEL[s.getMonth()]}`;
+  if (ev.allDay) return `${day} · dia inteiro`;
+  const hm = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return `${day} · ${hm(s)}–${hm(e)}`;
+}
+
+// Detalhe do compromisso do Google: dados, resposta ao convite (se for convidado) e atalho para o Google Calendar.
+function EventDetailModal({ ev, onClose, onRespond, busy }) {
+  const r = rsvpOf(ev);
+  const invited = canRespond(ev);
+  return (
+    <Modal
+      title={ev.title} subtitle={fmtWhen(ev)} onClose={onClose}
+      footer={(
+        <>
+          {ev.htmlLink && <a className="ui-btn" href={ev.htmlLink} target="_blank" rel="noopener noreferrer">Abrir no Google Calendar</a>}
+          <Button onClick={onClose}>Fechar</Button>
+        </>
+      )}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13.5, color: 'var(--text-2)' }}>
+        {ev.status === 'cancelled' && <Callout tone="danger" icon={Ban}>Este compromisso foi cancelado.</Callout>}
+        {ev.location && <div><b>Local:</b> {ev.location}</div>}
+        {ev.organizer && <div><b>Convite de:</b> {ev.organizer}</div>}
+        {ev.guests > 0 && <div><b>Convidados:</b> {ev.guests}</div>}
+        {!invited && ev.myResponse === 'organizer' && <div style={{ color: 'var(--text-4)' }}>Compromisso seu: você é o organizador.</div>}
+        {ev.description && <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-3)' }}>{ev.description}</div>}
+        {invited && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 12, borderTop: '1px solid var(--border-1)' }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)' }}>Sua resposta: {RSVP_META[r].label}</div>
+            <RsvpButtons ev={ev} onRespond={onRespond} busy={busy} />
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -271,7 +336,7 @@ function rsvpBox(ev, color, base) {
   return base;
 }
 
-function WeekGrid({ daysInView, eventsByDay, dayStats, hideDetails, eventLabel, eventTip, onOpenEvent }) {
+function WeekGrid({ daysInView, eventsByDay, dayStats, hideDetails, eventLabel, eventTip, onOpenEvent, onPickSlot }) {
   const hours = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => GRID_START_HOUR + i);
   const now = new Date();
   const showNowLine = daysInView.some((d) => isoDateOnly(d) === isoDateOnly(now));
@@ -303,7 +368,7 @@ function WeekGrid({ daysInView, eventsByDay, dayStats, hideDetails, eventLabel, 
                 key={ev.id} onClick={() => onOpenEvent(ev)}
                 title={eventTip(ev)}
                 style={rsvpBox(ev, SOURCE_META[ev.source]?.color || '#999', {
-                  fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 5, cursor: ev.link || ev.htmlLink ? 'pointer' : 'default',
+                  fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 5, cursor: ev.link || ev.source === 'google' ? 'pointer' : 'default',
                   background: `${SOURCE_META[ev.source]?.color || '#999'}22`, color: SOURCE_META[ev.source]?.color || 'var(--text-2)',
                   textDecoration: ev.status === 'cancelled' ? 'line-through' : 'none', opacity: ev.status === 'cancelled' ? 0.6 : 1,
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -331,7 +396,15 @@ function WeekGrid({ daysInView, eventsByDay, dayStats, hideDetails, eventLabel, 
             ...packTimedEvents(dayTimed.filter((e) => rsvpOf(e) !== 'declined')),
           ];
           return (
-            <div key={isoDateOnly(d)} style={{ position: 'relative', borderLeft: '1px solid var(--border-1)', height: GRID_HEIGHT }}>
+            <div
+              key={isoDateOnly(d)} style={{ position: 'relative', borderLeft: '1px solid var(--border-1)', height: GRID_HEIGHT, cursor: 'cell' }}
+              onClick={(e) => {
+                if (e.target.closest('[data-ev]')) return;
+                const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+                const slot = Math.min(24 * 60 - 30, GRID_START_HOUR * 60 + Math.floor(((y / PX_PER_HOUR) * 60) / 30) * 30);
+                onPickSlot(d, slot);
+              }}
+            >
               {hours.map((h) => <div key={h} style={{ position: 'absolute', top: (h - GRID_START_HOUR) * PX_PER_HOUR, left: 0, right: 0, borderTop: '1px solid var(--border-1)', height: 0 }} />)}
               {isoDateOnly(d) === isoDateOnly(now) && showNowLine && nowTop >= 0 && nowTop <= GRID_HEIGHT && (
                 <div style={{ position: 'absolute', top: nowTop, left: 0, right: 0, borderTop: '2px solid #e2574c', zIndex: 3 }} />
@@ -342,13 +415,13 @@ function WeekGrid({ daysInView, eventsByDay, dayStats, hideDetails, eventLabel, 
                 const width = 100 / ev.totalLanes;
                 return (
                   <div
-                    key={ev.id} onClick={() => onOpenEvent(ev)}
+                    key={ev.id} data-ev="1" onClick={() => onOpenEvent(ev)}
                     title={eventTip(ev)}
                     style={rsvpBox(ev, SOURCE_META[ev.source]?.color || '#999', {
                       position: 'absolute', top, height: Math.max(16, bottom - top), left: `${ev.lane * width}%`, width: `${width}%`,
                       background: `${SOURCE_META[ev.source]?.color || '#999'}33`, borderLeft: `3px solid ${SOURCE_META[ev.source]?.color || '#999'}`,
                       borderRadius: 4, padding: '2px 5px', fontSize: 10.5, fontWeight: 600, color: 'var(--text-1)', overflow: 'hidden',
-                      cursor: ev.link || ev.htmlLink ? 'pointer' : 'default', zIndex: ev.behind ? 1 : 2,
+                      cursor: ev.link || ev.source === 'google' ? 'pointer' : 'default', zIndex: ev.behind ? 1 : 2,
                       textDecoration: ev.status === 'cancelled' ? 'line-through' : 'none', opacity: ev.status === 'cancelled' ? 0.55 : 1,
                     })}
                   >

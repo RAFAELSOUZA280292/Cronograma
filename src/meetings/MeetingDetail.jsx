@@ -7,7 +7,7 @@
 // decisões, participantes, TO_DO) continua no mesmo lugar/mesma função;
 // isto é só a camada visual + as extensões combinadas (compartilhar,
 // exportar, transcrição em 3 modos).
-import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
   Mic, Plus, X, Trash2, Share2, Download, Pencil, Copy, Lock, Globe,
   FileText, FileDown, Calendar, Clock, Building2, Users, ListChecks, ChevronDown,
@@ -174,7 +174,7 @@ export function MeetingDetailModal({
   onClose, updateMeeting, flushProjectSave, deleteMeeting, toggleParticipant, addParticipant,
   addActionItem, updateActionItem, deleteActionItem, duplicateActionItem,
   addSubtask, toggleSubtask, deleteSubtask, addComment, updateComment, deleteComment, addAttachment, deleteAttachment,
-  onViewActivities, onSetShareVisibility, onRegenerateShareLink, onExportPdf,
+  onViewActivities, onSetShareVisibility, onRegenerateShareLink, onExportPdf, initialOpenItemId, onInitialOpenItemConsumed,
 }) {
   const isMobile = useIsMobile();
   const isStaff = !!currentUser && (currentUser.isSuperAdmin || currentUser.role === 'master' || currentUser.role === 'pricetax');
@@ -201,7 +201,14 @@ export function MeetingDetailModal({
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showAllParticipants, setShowAllParticipants] = useState(false);
-  const [openItemId, setOpenItemId] = useState(null);
+  // Abrir a reunião JÁ com o drawer de uma tarefa (notificação de tarefa, "Hoje"): `initialOpenItemId` vem do App.
+  const [openItemId, setOpenItemId] = useState(initialOpenItemId || null);
+  useEffect(() => {
+    if (!initialOpenItemId) return;
+    setOpenItemId(initialOpenItemId);
+    if (onInitialOpenItemConsumed) onInitialOpenItemConsumed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialOpenItemId]);
   const [openFocusComment, setOpenFocusComment] = useState(false);
 
   function requestClose() {
@@ -470,7 +477,7 @@ export function MeetingDetailModal({
           item={openItem} meeting={m} pid={pid} clientName={clientName}
           responsavelSuggestions={responsavelSuggestions} currentUser={currentUser} log={log}
           onClose={() => { setOpenItemId(null); setOpenFocusComment(false); }}
-          onOpenMeeting={() => {}}
+          onOpenMeeting={() => { setOpenItemId(null); setOpenFocusComment(false); }}
           updateActionItem={updateActionItem} deleteActionItem={deleteActionItem} duplicateActionItem={duplicateActionItem}
           addSubtask={addSubtask} toggleSubtask={toggleSubtask} deleteSubtask={deleteSubtask}
           addComment={addComment} updateComment={updateComment} deleteComment={deleteComment}

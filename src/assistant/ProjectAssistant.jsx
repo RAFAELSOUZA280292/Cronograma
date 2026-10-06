@@ -273,10 +273,12 @@ function baseSuggestions(view, hasOpenMeeting) {
   return ['Resuma a última reunião', 'O que mudou desde a reunião anterior?', 'Próximos passos', 'Legislação relacionada'];
 }
 
-export function ProjectAssistant({ projectId, projectName, view, openMeetingId, openMeetingTitle, openMeetingDate, onOpenMeeting, onReloadProjects, onOpenAgenda, canStudyPareceres }) {
+// `defaultOpen`: nasce com o painel aberto e sem o botão flutuante (quem monta, ex.: o CRM, controla); `onClosed` avisa ao fechar.
+export function ProjectAssistant({ projectId, projectName, view, openMeetingId, openMeetingTitle, openMeetingDate, onOpenMeeting, onReloadProjects, onOpenAgenda, canStudyPareceres, defaultOpen, onClosed }) {
   const isMobile = useIsMobile();
   const [showStudy, setShowStudy] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(!!defaultOpen);
+  const setOpen = (v) => { setOpenState(v); if (!v && onClosed) onClosed(); };
   const [messages, setMessages] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [input, setInput] = useState('');
@@ -381,7 +383,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
   return (
     <>
       <style>{ASSISTANT_CSS}</style>
-      {!open && (
+      {!open && !defaultOpen && (
         <button type="button" className="asst-fab" onClick={() => setOpen(true)}>
           <Sparkles size={16} /> RENATA
         </button>

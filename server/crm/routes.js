@@ -87,6 +87,14 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
   router.delete('/companies/:id/projects/:projectId', need('write'), h(async (req, res) => res.json(await S.unlinkProject(orgOf(req), actorOf(req), req.params.id, req.params.projectId))));
 
   // Projetos do cronograma que ainda não estão ligados a nenhuma empresa do CRM (pra ligar na mão).
+  // Empresa do CRM a partir do projeto do cronograma (Onda 5): alimenta "Abrir no CRM". 404 = esse projeto ainda não está no CRM.
+  router.get('/companies/by-project/:projectId', h(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT c.id, c.legal_name, c.trade_name FROM crm_company_projects cp JOIN crm_companies c ON c.id = cp.company_id
+       WHERE cp.project_id=$1 AND c.org_id=$2 AND c.deleted_at IS NULL ORDER BY cp.linked_at LIMIT 1`, [String(req.params.projectId).slice(0, 80), orgOf(req)]);
+    if (!rows[0]) return res.status(404).json({ message: 'Esta empresa ainda não está no CRM.' });
+    res.json({ company: { id: rows[0].id, name: rows[0].trade_name || rows[0].legal_name } });
+  }));
   router.get('/projects-available', need('write'), h(async (req, res) => {
     const { rows } = await pool.query(
       `SELECT p.id, p.data->'company'->>'name' AS name, p.data->'company'->>'cnpj' AS cnpj FROM projects p
