@@ -8,7 +8,7 @@ import { Button, ErrorState, Skeleton } from '../ui/index.jsx';
 const WEEKDAY_LONG = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
 
 const CSS = `
-.ws { font-family: 'Inter', sans-serif; margin: 0 0 18px; }
+.ws { font-family: 'Inter', sans-serif; margin: 0 0 18px; align-self: stretch; width: 100%; box-sizing: border-box; }
 .ws-card { background: var(--bg-2); border: 1px solid var(--border-1); border-radius: 14px; padding: 14px 18px; }
 .ws-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .ws-title { margin: 0; font-size: 14px; font-weight: 800; color: var(--text-1); }

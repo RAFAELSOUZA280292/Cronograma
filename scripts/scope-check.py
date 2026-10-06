@@ -10,7 +10,7 @@ for f in sorted(glob.glob('src/**/*.jsx', recursive=True)):
     s = open(f, encoding='utf-8').read()
     for t in sorted(set(re.findall(r'<([A-Z][A-Za-z0-9_]*)\b', s))):
         if not re.search(r'(import[^;]*\b' + t + r'\b|function ' + t + r'\b|const ' + t + r'\b|class ' + t + r'\b|\{[^}]*\b' + t + r'\b[^}]*\}\s*=|as ' + t + r'\b)', s):
-            if t == 'Icon' and f in ('src/crm/CrmScreen.jsx', 'src/xflow/XFlow.jsx'):  # `icon: Icon` / `[k, l, Icon]` desestruturados
+            if re.search(r'icon:\s*' + t + r'\b|,\s*' + t + r'\]\)', s):  # componente vindo de desestruturação (`icon: Icon`, `[k, l, Icon]`)
                 continue
             print(f'JSX sem import/definição: {f} <{t}>'); bad += 1
 L = open('src/App.jsx', encoding='utf-8').read().split('\n')

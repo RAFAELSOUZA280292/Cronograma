@@ -1774,6 +1774,7 @@ function AppScreens({ shellRef, bump }) {
     openNotification: goToNotificationTarget,
     markNotificationRead,
     openAllNotifications: () => setShowNotifications(true),
+    markAllNotificationsRead: () => markAllNotificationsRead(),
   };
   // "Continuar de onde parou": só o que ainda existe, com o rótulo atual; itens concretos antes dos módulos.
   function buildContinueItems() {
