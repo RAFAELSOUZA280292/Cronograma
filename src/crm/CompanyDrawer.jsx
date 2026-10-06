@@ -3,13 +3,14 @@
 // vinculado, só leitura) e Auditoria (gestor+). As abas de negócios,
 // propostas e contratos entram nas fases seguintes — nada de aba vazia.
 import React, { useCallback, useEffect, useState } from 'react';
-import { X, Pencil, Trash2, RotateCcw, Plus, Link2, AlertTriangle, StickyNote, Sparkles } from 'lucide-react';
+import { X, Pencil, Trash2, RotateCcw, Plus, Link2, AlertTriangle, StickyNote, Sparkles, ExternalLink } from 'lucide-react';
 import { crm } from './crmApi.js';
 import CompanyForm from './CompanyForm.jsx';
 import ContactForm from './ContactForm.jsx';
 import DealForm from './DealForm.jsx';
 import ActivityForm from './ActivityForm.jsx';
 import ActivityList from './ActivityList.jsx';
+import RenataAsk from './RenataAsk.jsx';
 import { RelPill, CompletenessBar, useDraftGuard, NoteComposer, NoteThread } from './ui.jsx';
 import { useDialog } from '../lib/nav.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
@@ -35,7 +36,7 @@ function Person({ c, onOpen }) {
   );
 }
 
-export default function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, onClose, onChanged, onOpenCompany, onOpenDeal, closeRef }) {
+export default function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, onClose, onChanged, onOpenCompany, onOpenDeal, onOpenProject, canAskRenata, closeRef }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState(initialTab || 'overview');
@@ -58,6 +59,9 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
   const guarded = (fn) => guard(fn)();
   const openDeal = onOpenDeal && ((id) => guarded(() => onOpenDeal(id)));
   const openOtherCompany = onOpenCompany && ((id) => guarded(() => onOpenCompany(id)));
+
+  // Fecha a ficha primeiro (desempilha a entrada de histórico dela) e só então navega, como a RENATA e o CRM fazem.
+  const openProject = onOpenProject && ((projectId) => guarded(() => { onClose(); setTimeout(() => onOpenProject(projectId), 150); }));
 
   const load = useCallback(async () => {
     try {
@@ -252,7 +256,7 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
               <div className="crm-page-head" style={{ marginBottom: 10 }}>
                 <div className="crm-sub" style={{ margin: 0 }}>Todas as oportunidades desta empresa. O Lead é a primeira etapa de um negócio; ganhar um negócio transforma a empresa em cliente.</div>
                 {caps.write && !co.deletedAt && <div className="crm-actions">
-                  {co.relationship === 'client' && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'upsell' })}><Sparkles size={14} color="#b98af5" /> Oportunidade de upsell</button>}
+                  {co.relationship === 'client' && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'upsell' })}><Sparkles size={14} color="#b98af5" /> Criar oportunidade de upsell</button>}
                   <button type="button" className="crm-btn crm-btn-primary" onClick={() => setDealForm({ type: 'new' })}><Plus size={14} /> Criar negócio</button>
                 </div>}
               </div>
@@ -334,9 +338,17 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
             <>
               <div className="crm-sub" style={{ marginBottom: 12 }}>Projetos do painel ligados a esta empresa. O CRM só lê — o cronograma continua sendo editado onde sempre foi.</div>
               {data.projects.length === 0 && <div className="crm-empty">Nenhum projeto vinculado.</div>}
+              <div className="crm-section">
+                <h3 className="crm-section-title">RENATA</h3>
+                <RenataAsk projects={data.projects} canAsk={canAskRenata} onReload={afterChange} />
+              </div>
               {data.projects.map((p) => (
                 <div key={p.projectId} className="crm-section">
-                  <h3 className="crm-section-title"><span>{p.name}</span>{caps.write && <button type="button" className="crm-btn" onClick={() => unlinkProject(p)}><Link2 size={13} /> Remover vínculo</button>}</h3>
+                  <h3 className="crm-section-title"><span>{p.name}</span>
+                    <span className="crm-actions">
+                      {openProject && <button type="button" className="crm-btn" onClick={() => openProject(p.projectId)}><ExternalLink size={13} /> Abrir no cronograma</button>}
+                      {caps.write && <button type="button" className="crm-btn" onClick={() => unlinkProject(p)}><Link2 size={13} /> Remover vínculo</button>}
+                    </span></h3>
                   <div className="crm-kv">
                     <KV k="Atividades do cronograma" v={`${p.activities.done} de ${p.activities.total} concluídas${p.activities.overdue ? ` · ${p.activities.overdue} atrasada(s)` : ''}`} />
                     <KV k="Reuniões" v={`${p.meetings.count}${p.meetings.last ? ` · última ${fmtDateBR(p.meetings.last.date)} (${p.meetings.last.title})` : ''}`} />

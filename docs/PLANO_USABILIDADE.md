@@ -180,7 +180,7 @@ Componentes em `src/ui` (hoje quase sem adoção): `Button`/`IconButton` (rótul
 - Perfil: "Salvar" deixa de gravar só o avatar; mudanças em Meu dia/iPhone avisam ao sair da aba.
 - Título da reunião e Tabela: `useDebouncedField` (mesmo risco do §45).
 
-### Onda 5 — "Por que voltar amanhã" (3 a 4 semanas)
+### Onda 5 — "Por que voltar amanhã" (3 a 4 semanas) — **FEITA em 2026-10-06 (ver PROJECT_CONTEXT §81)**
 - **"Hoje" acionável** na tela inicial (atrasadas, reuniões, tarefas vencendo, notificações) com resolver em 1 clique; notificações para tarefa de reunião (atribuída/comentada/vencida) e **toda notificação navega**.
 - **Navegação cruzada** (empresa↔reunião↔tarefa↔atividade), **recentes e favoritos**, lembrar última aba/empresa.
 - **RENATA** presente em todas as abas de uma empresa e no CRM; Agenda com ação (novo compromisso, aceitar/recusar).

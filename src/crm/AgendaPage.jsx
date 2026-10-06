@@ -74,7 +74,7 @@ export default function AgendaPage({ caps, options, currentUserId, refreshKey, o
             <div className="crm-empty">
               <CalendarCheck size={26} style={{ opacity: .5 }} />
               <div style={{ marginTop: 8 }}>{hasFilter || bucket ? 'Nenhuma atividade com esses filtros.' : 'Nada pendente por aqui. Toda venda anda com um próximo passo agendado.'}</div>
-              {caps.write && !hasFilter && !bucket && <div style={{ marginTop: 10 }}><button type="button" className="crm-btn crm-btn-primary" onClick={() => onNewActivity({})}><Plus size={14} /> Agendar uma atividade</button></div>}
+              {caps.write && !hasFilter && !bucket && <div style={{ marginTop: 10 }}><button type="button" className="crm-btn crm-btn-primary" onClick={() => onNewActivity({})}><Plus size={14} /> Criar a primeira atividade</button></div>}
             </div>
           )}
           <ActivityList activities={data.items} grouped={view === 'open'} showCompany caps={caps} options={options} currentUserId={currentUserId}

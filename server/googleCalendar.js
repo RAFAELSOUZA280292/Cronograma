@@ -154,7 +154,7 @@ function nextDay(dateStr) {
 // Lança exceção se falhar (diferente de `syncTicketEvent`, que engole o
 // erro) — quem chama decide como tratar; a RENATA precisa saber que a
 // ação falhou pra avisar o usuário, não fingir que deu certo.
-export async function createEvent(userId, { summary, description, startISO, endISO }) {
+export async function createEvent(userId, { summary, description, startISO, endISO, location, attendees }) {
   const client = await getAuthedClientForUser(userId);
   if (!client) throw new Error('Usuário não conectou o Google Calendar.');
   const calendar = google.calendar({ version: 'v3', auth: client });
@@ -163,11 +163,35 @@ export async function createEvent(userId, { summary, description, startISO, endI
     requestBody: {
       summary,
       description: description || '',
+      ...(location ? { location } : {}),
+      ...(Array.isArray(attendees) && attendees.length ? { attendees: attendees.map((email) => ({ email })) } : {}),
       start: { dateTime: new Date(startISO).toISOString() },
       end: { dateTime: new Date(endISO).toISOString() },
     },
+    // Convidados recebem o convite por e-mail (comportamento normal do Google Calendar ao criar com convidados).
+    sendUpdates: Array.isArray(attendees) && attendees.length ? 'all' : 'none',
   });
   return { id: res.data.id, htmlLink: res.data.htmlLink || '' };
+}
+
+// Marca a SUA resposta (accepted | declined | tentative) na lista de convidados — função pura, sem rede.
+export function applySelfResponse(attendees, response) {
+  if (!['accepted', 'declined', 'tentative'].includes(response)) throw new Error('Resposta inválida.');
+  const list = Array.isArray(attendees) ? attendees : [];
+  if (!list.some((a) => a && a.self)) return null; // não é convidado: não há o que responder
+  return list.map((a) => (a && a.self ? { ...a, responseStatus: response } : a));
+}
+
+// Aceitar / recusar / talvez um convite da Agenda. Só funciona para evento do Google em que você é convidado.
+export async function respondToEvent(userId, googleEventId, response) {
+  const client = await getAuthedClientForUser(userId);
+  if (!client) throw Object.assign(new Error('Conecte o Google Calendar para responder convites.'), { status: 409 });
+  const calendar = google.calendar({ version: 'v3', auth: client });
+  const cur = await calendar.events.get({ calendarId: 'primary', eventId: googleEventId });
+  const attendees = applySelfResponse(cur.data.attendees, response);
+  if (!attendees) throw Object.assign(new Error('Você não é convidado deste evento — não há convite para responder.'), { status: 400 });
+  await calendar.events.patch({ calendarId: 'primary', eventId: googleEventId, requestBody: { attendees }, sendUpdates: 'all' });
+  return { id: `google-${googleEventId}`, myResponse: response };
 }
 
 // Cria ou atualiza o evento de "Previsão de conclusão" no calendário do

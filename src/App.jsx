@@ -44,6 +44,12 @@ import { useHistoryValue, readHistoryValue, withoutLayer } from './lib/nav.js';
 import { useAutosave } from './lib/useAutosave.js';
 import { calendarDaysSince } from './lib/dates.js';
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
+import { setRecentsUser, recordRecent, getRecents, loadLastWorkspace, saveLastWorkspace } from './lib/recents.js';
+import TodayPanel from './today/TodayPanel.jsx';
+import WeekSummary from './today/WeekSummary.jsx';
+import ContinueStrip from './today/ContinueStrip.jsx';
+import { buildTodayItems, addDaysIso } from './today/todayItems.js';
+import { setCardStatusInBoard, setCardDueDateInBoard, findCard } from './today/boardActions.js';
 // CRM (2026-09-20, PROJECT_CONTEXT.md §54): módulo grande e opcional — carregado só quando alguém abre o CRM.
 const CrmScreen = React.lazy(() => import('./crm/CrmScreen.jsx'));
 // Fica aqui (e não em crm/crmMeta.js) pra o CSS do CRM não entrar no pacote principal.
@@ -585,6 +591,10 @@ const SHELL_MODES = [
   { key: 'users', label: 'Usuários', icon: UserCog },
 ];
 
+// Abas do workspace de empresa; as 3 primeiras só existem para UMA empresa (a visão de várias não as tem).
+const COMPANY_VIEW_IDS = ['resumo', 'meetings', 'todo', 'timeline', 'table', 'phases', 'kanban'];
+const SINGLE_ONLY_VIEWS = ['resumo', 'meetings', 'todo'];
+
 function AppScreens({ shellRef, bump }) {
   const [theme, setTheme] = useState(() => {
     try { return window.localStorage.getItem(THEME_KEY) || 'dark'; } catch (e) { return 'dark'; }
@@ -639,6 +649,8 @@ function AppScreens({ shellRef, bump }) {
   const [pendingCrmOpen, setPendingCrmOpen] = useState(null); // {companyId, dealId} vindo de uma notificação do CRM
   const [pendingParecerOpen, setPendingParecerOpen] = useState(null); // id do parecer vindo de uma notificação de menção
   const [pendingModeloOpen, setPendingModeloOpen] = useState(null); // id do modelo vindo de uma notificação de menção
+  const [pendingTodoOpen, setPendingTodoOpen] = useState(null); // {pid, meetingId, itemId}: abre o drawer da tarefa dentro da reunião (notificação 'todo' / "Hoje")
+  setRecentsUser(currentUser ? currentUser.id : '');
   const [showSettings, setShowSettings] = useState(false);
   const [showPhases, setShowPhases] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
@@ -646,6 +658,7 @@ function AppScreens({ shellRef, bump }) {
   const [organizations, setOrganizations] = useState([]);
   const [orgAdminError, setOrgAdminError] = useState('');
   const [actingOrg, setActingOrg] = useState(null);
+  const lastScope = actingOrg ? actingOrg.id : '';
   const [showCreateCompany, setShowCreateCompany] = useState(false);
   const [cloningProject, setCloningProject] = useState(null);
   const [showGroupActivityModal, setShowGroupActivityModal] = useState(false);
@@ -697,11 +710,34 @@ function AppScreens({ shellRef, bump }) {
   function pushLocation(tag) {
     try { window.history.pushState({ navTag: tag }, '', pathForTag(tag)); } catch (e) { /* ignora (ex.: sandbox) */ }
   }
-  function goToWorkspace(mode) {
+  // Ao abrir "Empresas" vindo de outro módulo/início, restaura a última seleção de empresas desta pessoa (se ainda existir
+  // e ela puder abrir) e pula o seletor; "Trocar empresas" (goToCompanySelector) continua levando ao seletor, sem restaurar.
+  function restoreLastCompanies() {
+    if (companySelectionConfirmed || !currentUser || !currentUser.companiesAccess || projects.length < 2) return false;
+    if (currentUser.isSuperAdmin && !actingOrg) return false;
+    const saved = loadLastWorkspace(lastScope);
+    const valid = saved ? saved.ids.filter((id) => projects.some((p) => p.id === id)) : [];
+    if (!valid.length) return false;
+    setSelectedProjectIds(valid);
+    setCompanySelectionConfirmed(true);
+    const wanted = saved.view && COMPANY_VIEW_IDS.includes(saved.view) ? saved.view : view;
+    const nextView = valid.length > 1 && SINGLE_ONLY_VIEWS.includes(wanted) ? 'table' : wanted;
+    if (nextView !== view) setView(nextView);
+    return true;
+  }
+  function goToWorkspace(mode, opts) {
+    const restored = mode === 'company' && workspaceMode !== 'company' && !(opts && opts.noRestore) ? restoreLastCompanies() : false;
     setShowUsers(false);
     setShowOrgAdmin(false);
     setWorkspaceMode(mode);
-    pushLocation(locationTag(mode, false, false, mode === 'company' ? companySelectionConfirmed : true));
+    pushLocation(locationTag(mode, false, false, mode === 'company' ? (companySelectionConfirmed || restored) : true));
+    const m = mode && SHELL_MODES.find((x) => x.key === mode);
+    if (m) recordRecent({ kind: 'module', id: mode, label: m.label });
+  }
+  // Abre uma empresa (ou várias) direto, sem passar pelo seletor nem restaurar a seleção antiga.
+  function openCompanyWorkspace(ids) {
+    goToWorkspace('company', { noRestore: true });
+    confirmCompanySelection(ids);
   }
   function goToUsers(open) {
     setShowUsers(open);
@@ -720,6 +756,12 @@ function AppScreens({ shellRef, bump }) {
   function confirmCompanySelection(ids) {
     setSelectedProjectIds(ids);
     setCompanySelectionConfirmed(true);
+    if (ids.length > 1 && SINGLE_ONLY_VIEWS.includes(view)) setView('table');
+    saveLastWorkspace(lastScope, { ids });
+    if (ids.length === 1) {
+      const p = projects.find((x) => x.id === ids[0]);
+      if (p) recordRecent({ kind: 'company', id: p.id, label: p.company.nomeFantasia || p.company.name || 'Sem nome', hint: p.company.cnpj || '' });
+    }
     pushLocation('company');
   }
   function applyLocationTag(tag) {
@@ -748,6 +790,11 @@ function AppScreens({ shellRef, bump }) {
   // PROJECT_CONTEXT.md §9).
   function openActivityDetail(pid, id) {
     setOpenActivityId({ pid, id });
+    {
+      const pr = projects.find((x) => x.id === pid);
+      const ac = pr && pr.activities.find((x) => x.id === id);
+      if (ac && ac.title !== 'Nova atividade') recordRecent({ kind: 'activity', id: `${pid}/${id}`, label: ac.title || '(sem título)', hint: pr.company.nomeFantasia || pr.company.name || '' });
+    }
     markNotificationsReadForTarget({ kind: 'activity', projectId: pid, activityId: id });
     try {
       const cur = window.history.state || {};
@@ -762,6 +809,11 @@ function AppScreens({ shellRef, bump }) {
   }
   function openMeetingDetail(pid, id) {
     setOpenMeetingId({ pid, id });
+    {
+      const pr = projects.find((x) => x.id === pid);
+      const mt = pr && (pr.meetings || []).find((x) => x.id === id);
+      if (mt && mt.title !== 'Nova reunião') recordRecent({ kind: 'meeting', id: `${pid}/${id}`, label: mt.title || '(sem título)', hint: pr.company.nomeFantasia || pr.company.name || '' });
+    }
     try {
       const cur = window.history.state || {};
       window.history.pushState({ ...withoutLayer(cur), detailMeeting: { pid, id } }, '', window.location.href);
@@ -883,6 +935,8 @@ function AppScreens({ shellRef, bump }) {
         onSetShareVisibility={(visibility) => toggleMeetingShare(project.id, meeting.id, visibility)}
         onRegenerateShareLink={() => regenerateMeetingShareLink(project.id, meeting.id)}
         onExportPdf={() => exportMeetingPdf(meeting, project.company && project.company.name)}
+        initialOpenItemId={pendingTodoOpen && pendingTodoOpen.pid === project.id && pendingTodoOpen.meetingId === meeting.id ? pendingTodoOpen.itemId : null}
+        onInitialOpenItemConsumed={() => setPendingTodoOpen(null)}
       />
     );
   }
@@ -972,28 +1026,57 @@ function AppScreens({ shellRef, bump }) {
   // Clicar numa notificação leva pro lugar exato (regra do Rafael: abrir o
   // painel sozinho NÃO marca como lida — só isso aqui, que é o usuário de
   // fato acessando a ocorrência, ou o botão explícito "marcar como lida").
+  // Toda notificação navega (Onda 5, §81): cada `target.kind` que o servidor cria tem caminho aqui — xflow_ticket, activity,
+  // todo, crm_activity, parecer, modelo. Alvo que sumiu (atividade/reunião/tarefa excluída) ou módulo sem acesso avisa em
+  // vez de deixar a tela em branco; notificação sem alvo vai ao módulo mais provável pelo prefixo do tipo.
   function goToNotificationTarget(n) {
-    const t = n.target || {};
+    const t = (n && n.target) || {};
     setShowNotifications(false);
+    const gone = () => notify('Este item não existe mais.', { tone: 'error' });
+    const enter = (mode) => {
+      if (!canOpenMode(mode, currentUser)) { notify('Você não tem acesso a este módulo.', { tone: 'error' }); return false; }
+      if (workspaceMode !== mode) goToWorkspace(mode);
+      return true;
+    };
     if (t.kind === 'xflow_ticket') {
+      if (!enter('xflow')) return;
       setPendingXflowOpen(t.ticketId);
-      if (workspaceMode !== 'xflow') goToWorkspace('xflow');
     } else if (t.kind === 'activity') {
-      goToWorkspace('company');
-      confirmCompanySelection([t.projectId]);
+      const pr = projects.find((x) => x.id === t.projectId);
+      const ac = pr && (pr.activities || []).find((x) => x.id === t.activityId && !x.deleted);
+      if (!ac) { gone(); return; }
+      if (!canOpenMode('company', currentUser)) { notify('Você não tem acesso a este módulo.', { tone: 'error' }); return; }
+      openCompanyWorkspace([t.projectId]);
       openActivityDetail(t.projectId, t.activityId);
+    } else if (t.kind === 'todo') {
+      const pr = projects.find((x) => x.id === t.projectId);
+      const mt = pr && (pr.meetings || []).find((x) => x.id === t.meetingId && !x.deleted);
+      const it = mt && (mt.actionItems || []).find((x) => x.id === t.itemId && !x.deleted);
+      if (!it) { gone(); return; }
+      if (!canOpenMode('company', currentUser)) { notify('Você não tem acesso a este módulo.', { tone: 'error' }); return; }
+      markNotificationRead(n.id, true);
+      openCompanyWorkspace([t.projectId]);
+      setView('meetings');
+      setPendingTodoOpen({ pid: t.projectId, meetingId: t.meetingId, itemId: t.itemId });
+      openMeetingDetail(t.projectId, t.meetingId);
     } else if (t.kind === 'crm_activity') {
+      if (!enter('crm')) return;
       markNotificationsReadForTarget({ kind: 'crm_activity', activityId: t.activityId });
       setPendingCrmOpen({ companyId: t.companyId, dealId: t.dealId || null });
-      if (workspaceMode !== 'crm') goToWorkspace('crm');
     } else if (t.kind === 'parecer') {
+      if (!enter('pareceres')) return;
       markNotificationRead(n.id, true);
       setPendingParecerOpen(t.id);
-      if (workspaceMode !== 'pareceres') goToWorkspace('pareceres');
     } else if (t.kind === 'modelo') {
+      if (!enter('modelos')) return;
       markNotificationRead(n.id, true);
       setPendingModeloOpen(t.id);
-      if (workspaceMode !== 'modelos') goToWorkspace('modelos');
+    } else {
+      const prefix = String((n && n.type) || '').split('_')[0];
+      const mode = { xflow: 'xflow', crm: 'crm', parecer: 'pareceres', modelo: 'modelos', activity: 'company', todo: 'company' }[prefix];
+      if (n && n.id) markNotificationRead(n.id, true);
+      if (mode) enter(mode);
+      else notify('Esta notificação não aponta para um item específico.');
     }
   }
 
@@ -1237,6 +1320,7 @@ function AppScreens({ shellRef, bump }) {
     }
     try {
       if (canOpenMode(mode, currentUser)) {
+        if (mode === 'company') restoreCompanyPending.current = true;
         setWorkspaceMode(mode);
         window.history.replaceState({ navTag: modeForTag(mode) }, '', pathForMode(mode));
       } else {
@@ -1245,6 +1329,29 @@ function AppScreens({ shellRef, bump }) {
     } catch (e) { /* ignora */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser]);
+
+  // Última aba da empresa e, ao abrir "Empresas" direto por endereço (/empresas), a última seleção — por pessoa
+  // (localStorage, src/lib/recents.js). Só restaura o que ainda existe e que a pessoa pode abrir.
+  const savedViewApplied = useRef(false);
+  useEffect(() => {
+    if (!projectsLoaded || !currentUser || savedViewApplied.current) return;
+    savedViewApplied.current = true;
+    const saved = loadLastWorkspace(lastScope);
+    if (saved && saved.view && COMPANY_VIEW_IDS.includes(saved.view) && readHistoryValue('companyView', null) === null) setView(saved.view);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectsLoaded, currentUser?.id]);
+  const restoreCompanyPending = useRef(false);
+  useEffect(() => {
+    if (!restoreCompanyPending.current || !projectsLoaded || !currentUser || workspaceMode !== 'company') return;
+    restoreCompanyPending.current = false;
+    restoreLastCompanies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectsLoaded, workspaceMode, currentUser?.id]);
+  useEffect(() => {
+    if (!currentUser || !companySelectionConfirmed || !projectsLoaded) return;
+    saveLastWorkspace(lastScope, { view });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, companySelectionConfirmed, projectsLoaded]);
 
   const hashXflowNavDone = useRef(false);
   useEffect(() => {
@@ -1542,20 +1649,22 @@ function AppScreens({ shellRef, bump }) {
   const shellModeKeys = [...availableModes, currentUser.role === 'master' && 'users'].filter(Boolean);
   const shellModes = SHELL_MODES.filter((m) => shellModeKeys.includes(m.key));
   const shellCurrent = (showUsers || effectiveMode === 'users') && currentUser.role === 'master' ? 'users' : effectiveMode;
+  // Itens da busca global (Ctrl+K), dos recentes e dos favoritos. `kind`+`rid` identificam o item de forma estável (é só isso
+  // que os recentes/favoritos guardam); `run` é reconstruído aqui a cada vez, a partir dos dados atuais.
   function buildSearchItems() {
-    const items = shellModes.map((m) => ({ id: `m-${m.key}`, group: 'Ir para', label: m.label, icon: m.icon, run: () => goToWorkspace(m.key) }));
+    const items = shellModes.map((m) => ({ id: `m-${m.key}`, kind: 'module', rid: m.key, group: 'Ir para', label: m.label, icon: m.icon, run: () => goToWorkspace(m.key) }));
     if (hasCompanies) {
       for (const p of projects) {
         const name = p.company.nomeFantasia || p.company.name || 'Sem nome';
-        const openCompany = () => { goToWorkspace('company'); confirmCompanySelection([p.id]); };
-        items.push({ id: `c-${p.id}`, group: 'Empresas', label: name, hint: p.company.cnpj || '', icon: Building2, run: openCompany });
+        const openCompany = () => openCompanyWorkspace([p.id]);
+        items.push({ id: `c-${p.id}`, kind: 'company', rid: p.id, group: 'Empresas', label: name, hint: p.company.cnpj || '', icon: Building2, run: openCompany });
         for (const a of p.activities || []) {
           if (a.deleted) continue;
-          items.push({ id: `a-${p.id}-${a.id}`, group: 'Atividades', label: a.title || '(sem título)', hint: name, keywords: a.responsible || '', icon: ListChecks, run: () => { openCompany(); openActivityDetail(p.id, a.id); } });
+          items.push({ id: `a-${p.id}-${a.id}`, kind: 'activity', rid: `${p.id}/${a.id}`, group: 'Atividades', label: a.title || '(sem título)', hint: name, keywords: a.responsible || '', icon: ListChecks, run: () => { openCompany(); openActivityDetail(p.id, a.id); } });
         }
         for (const m of p.meetings || []) {
           if (m.deleted) continue;
-          items.push({ id: `r-${p.id}-${m.id}`, group: 'Reuniões', label: m.title || '(sem título)', hint: name, icon: Mic, run: () => { openCompany(); setView('meetings'); openMeetingDetail(p.id, m.id); } });
+          items.push({ id: `r-${p.id}-${m.id}`, kind: 'meeting', rid: `${p.id}/${m.id}`, group: 'Reuniões', label: m.title || '(sem título)', hint: name, icon: Mic, run: () => { openCompany(); setView('meetings'); openMeetingDetail(p.id, m.id); } });
         }
       }
     }
@@ -1564,12 +1673,106 @@ function AppScreens({ shellRef, bump }) {
         for (const col of b.columns || []) {
           for (const cd of col.cards || []) {
             if (cd.deleted || cd.archived) continue;
-            items.push({ id: `p-${cd.id}`, group: 'Meu quadro', label: cd.title || '(sem título)', hint: b.name, icon: Columns3, run: () => { setPendingPersonalOpen({ boardId: b.id, colId: col.id, cardId: cd.id }); goToWorkspace('personal'); } });
+            items.push({ id: `p-${cd.id}`, kind: 'card', rid: cd.id, group: 'Meu quadro', label: cd.title || '(sem título)', hint: b.name, icon: Columns3, run: () => { setPendingPersonalOpen({ boardId: b.id, colId: col.id, cardId: cd.id }); goToWorkspace('personal'); } });
           }
         }
       }
     }
     return items;
+  }
+
+  // "Hoje" da tela inicial (Onda 5, §81): resolver em 1 clique. Tudo passa pelos mesmos caminhos de gravação das telas
+  // (mutatePersonalBoard / updateActivity / updateMeetingActionItem) e devolve um aviso com Desfazer.
+  const todayCardLabel = (st) => (CARD_STATUS_META[st] || CARD_STATUS_META['nao-iniciada']).label;
+  function todayGone() { notify('Este item não existe mais.', { tone: 'error' }); }
+  function todayComplete(item) {
+    const userName = currentUser.name;
+    if (item.source === 'card') {
+      const found = findCard(personalBoard, item.ref);
+      if (!found) { todayGone(); return; }
+      const prevStatus = found.card.status || (found.card.completed ? 'concluida' : 'nao-iniciada');
+      const apply = (status) => mutatePersonalBoard((prev) => setCardStatusInBoard(prev, item.ref, status, { userName, nowIso: new Date().toISOString(), labelOf: todayCardLabel }));
+      apply('concluida');
+      notify(`Tarefa "${found.card.title}" concluída.`, { undo: () => apply(prevStatus === 'concluida' ? 'em-andamento' : prevStatus) });
+    } else if (item.source === 'activity') {
+      const pr = projects.find((x) => x.id === item.ref.pid);
+      const a = pr && pr.activities.find((x) => x.id === item.ref.id && !x.deleted);
+      if (!a) { todayGone(); return; }
+      const prevStatus = a.status || 'nao-iniciado';
+      const set = (st) => updateActivity(item.ref.pid, item.ref.id, { status: st }, `Status alterado em "${a.title}": ${STATUS_META[st].label}`);
+      set('concluido');
+      notify(`Atividade "${a.title}" concluída.`, { undo: () => set(prevStatus) });
+    } else if (item.source === 'todo') {
+      const { item: it } = findActionItem(item.ref.pid, item.ref.meetingId, item.ref.itemId);
+      if (!it || it.deleted) { todayGone(); return; }
+      const prevStatus = it.status || 'nao-iniciado';
+      updateMeetingActionItem(item.ref.pid, item.ref.meetingId, item.ref.itemId, { status: 'concluida' });
+      notify(`Tarefa "${it.title}" concluída.`, { undo: () => updateMeetingActionItem(item.ref.pid, item.ref.meetingId, item.ref.itemId, { status: prevStatus }) });
+    }
+  }
+  function todayPostpone(item) {
+    const tomorrow = addDaysIso(todayISOStr(), 1);
+    const userName = currentUser.name;
+    if (item.source === 'card') {
+      const found = findCard(personalBoard, item.ref);
+      if (!found) { todayGone(); return; }
+      const prevDue = found.card.dueDate || '';
+      const apply = (d) => mutatePersonalBoard((prev) => setCardDueDateInBoard(prev, item.ref, d, { userName, nowIso: new Date().toISOString(), fmt: fmtDate }));
+      apply(tomorrow);
+      notify(`Tarefa "${found.card.title}" adiada para amanhã.`, { undo: () => apply(prevDue) });
+    } else if (item.source === 'activity') {
+      const pr = projects.find((x) => x.id === item.ref.pid);
+      const a = pr && pr.activities.find((x) => x.id === item.ref.id && !x.deleted);
+      if (!a) { todayGone(); return; }
+      // O prazo da atividade é `endDate || date`: com Fim definido adia o Fim; só com Início, adia o Início (e o Fim junto, como o campo Início faz).
+      let patch;
+      if (a.endDate) patch = a.date && a.date > tomorrow ? { date: tomorrow, endDate: tomorrow } : { endDate: tomorrow };
+      else patch = { date: tomorrow, endDate: a.durationDays ? calcDeadline(tomorrow, a.durationDays) : tomorrow };
+      const back = {};
+      Object.keys(patch).forEach((k) => { back[k] = a[k] || ''; });
+      const msg = (pa) => ('endDate' in pa && !('date' in pa) ? `Fim alterado em "${a.title}": ${pa.endDate ? fmtDate(pa.endDate) : 'sem data'}` : `Início alterado em "${a.title}": ${pa.date ? fmtDate(pa.date) : 'sem data'}`);
+      updateActivity(item.ref.pid, item.ref.id, patch, msg(patch));
+      notify(`Atividade "${a.title}" adiada para amanhã.`, { undo: () => updateActivity(item.ref.pid, item.ref.id, back, msg(back)) });
+    } else if (item.source === 'todo') {
+      const { item: it } = findActionItem(item.ref.pid, item.ref.meetingId, item.ref.itemId);
+      if (!it || it.deleted) { todayGone(); return; }
+      const prevDue = it.dueDate || '';
+      updateMeetingActionItem(item.ref.pid, item.ref.meetingId, item.ref.itemId, { dueDate: tomorrow });
+      notify(`Tarefa "${it.title}" adiada para amanhã.`, { undo: () => updateMeetingActionItem(item.ref.pid, item.ref.meetingId, item.ref.itemId, { dueDate: prevDue }) });
+    }
+  }
+  function todayOpen(item) {
+    if (item.source === 'card') {
+      if (!canOpenMode('personal', currentUser)) { notify('Você não tem acesso a este módulo.', { tone: 'error' }); return; }
+      setPendingPersonalOpen({ boardId: item.ref.boardId, colId: item.ref.colId, cardId: item.ref.cardId });
+      goToWorkspace('personal');
+      return;
+    }
+    if (!canOpenMode('company', currentUser)) { notify('Você não tem acesso a este módulo.', { tone: 'error' }); return; }
+    if (item.source === 'activity') {
+      openCompanyWorkspace([item.ref.pid]);
+      openActivityDetail(item.ref.pid, item.ref.id);
+    } else if (item.source === 'todo' || item.source === 'meeting') {
+      openCompanyWorkspace([item.ref.pid]);
+      setView('meetings');
+      if (item.source === 'todo') setPendingTodoOpen({ pid: item.ref.pid, meetingId: item.ref.meetingId, itemId: item.ref.itemId });
+      openMeetingDetail(item.ref.pid, item.ref.meetingId);
+    }
+  }
+  const todayActions = {
+    complete: todayComplete,
+    postpone: todayPostpone,
+    open: todayOpen,
+    openMeeting: (m) => todayOpen({ source: 'meeting', ref: m.ref }),
+    openNotification: goToNotificationTarget,
+    markNotificationRead,
+    openAllNotifications: () => setShowNotifications(true),
+  };
+  // "Continuar de onde parou": só o que ainda existe, com o rótulo atual; itens concretos antes dos módulos.
+  function buildContinueItems() {
+    const byKey = new Map(buildSearchItems().map((i) => [`${i.kind}:${i.rid}`, i]));
+    const live = getRecents().map((r) => byKey.get(`${r.kind}:${r.id}`)).filter(Boolean).map((i) => ({ kind: i.kind, id: i.rid, label: i.label, hint: i.kind === 'module' ? '' : (i.hint || ''), run: i.run }));
+    return [...live.filter((i) => i.kind !== 'module'), ...live.filter((i) => i.kind === 'module')].slice(0, 4);
   }
   shellRef.current = {
     sig: [currentUser.id, currentUser.avatar, currentUser.name, shellCurrent, shellModeKeys.join(','), theme, showNotifications, showMyProfile, profileTab, googleConnectResult ? 1 : 0,
@@ -1621,6 +1824,13 @@ function AppScreens({ shellRef, bump }) {
         onOpenProfile={() => openProfile('perfil')}
         onConfigureDaily={() => openProfile('dia')}
         dailyReload={dailyReload}
+        projects={projects}
+        notifications={notifications}
+        todayIso={todayISOStr()}
+        todayActions={todayActions}
+        showWeek={hasPersonal}
+        onOpenStats={hasPersonal ? () => { setPendingPersonalOpen({ stats: true }); goToWorkspace('personal'); } : undefined}
+        continueItems={buildContinueItems()}
       />
       </>
     );
@@ -1737,6 +1947,7 @@ function AppScreens({ shellRef, bump }) {
           notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
           onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
           pendingOpen={pendingCrmOpen} onPendingOpenConsumed={() => setPendingCrmOpen(null)}
+          onOpenProject={(projectId) => openCompanyWorkspace([projectId])}
         />
       </React.Suspense>
     );
@@ -2880,8 +3091,21 @@ function AppScreens({ shellRef, bump }) {
   // Ações secundárias do topbar — mesma lista de condições usada pelos botões desktop (linha a linha
   // logo abaixo), só que declarativa, para poder ser renderizada também dentro do menu "Mais" no mobile
   // sem duplicar a lógica de onClick/visibilidade.
+  // "Abrir no CRM" (Onda 5): acha a empresa do CRM vinculada a este projeto e abre a ficha dela.
+  async function openProjectInCrm() {
+    if (!activeProject) return;
+    try {
+      const r = await apiGet(`/api/crm/companies/by-project/${encodeURIComponent(activeProject.id)}`);
+      setPendingCrmOpen({ companyId: r.company.id, dealId: null });
+      goToWorkspace('crm');
+    } catch (e) {
+      notify(e && e.status === 404 ? 'Esta empresa ainda não está no CRM.' : (e && e.message) || 'Não foi possível abrir o CRM.', { tone: e && e.status === 404 ? 'info' : 'error' });
+    }
+  }
+
   const moreMenuItems = [
     !isMulti && { icon: Settings, label: 'Empresa', onClick: () => setShowSettings(true) },
+    !isMulti && currentUser.crmAccess && { icon: Briefcase, label: 'Abrir no CRM', onClick: () => openProjectInCrm() },
     canPickCompanies && { icon: Building2, label: 'Trocar empresas', onClick: () => goToCompanySelector() },
     (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Plus, label: 'Cadastrar empresa', onClick: () => setShowCreateCompany(true) },
     currentUser.isSuperAdmin && { icon: Building2, label: 'Organizações', onClick: () => goToOrgAdmin(true) },
@@ -2968,6 +3192,7 @@ function AppScreens({ shellRef, bump }) {
                 </div>
               </div>
               {!isMobile && <button style={S.iconBtn} onClick={() => setShowSettings(true)}><Settings size={15} /> Empresa</button>}
+              {!isMobile && currentUser.crmAccess && <button style={S.iconBtn} onClick={openProjectInCrm} title="Abrir esta empresa no CRM"><Briefcase size={15} /> Abrir no CRM</button>}
             </>
           )}
           {!isMobile && canPickCompanies && (
@@ -3043,7 +3268,7 @@ function AppScreens({ shellRef, bump }) {
         })}
       </div>
 
-      <main className="no-print" style={{ ...S.main, ...(isMobile ? { padding: '14px 12px 0 12px' } : null) }}>
+      <main className="no-print" style={{ ...S.main, ...(isMobile ? { padding: `14px 12px ${isMulti ? 0 : 64}px 12px` } : null) }}>
         {!isMulti && view === 'resumo' && (
           <ResumoView
             activities={activitiesSorted}
@@ -3480,7 +3705,7 @@ function AppScreens({ shellRef, bump }) {
 
       <ToastStack toasts={appToasts} onDismiss={dismissAppToast} />
 
-      {!isMulti && (view === 'meetings' || view === 'todo') && (() => {
+      {!isMulti && (() => {
         const openMeeting = openMeetingId && openMeetingId.pid === activeProject.id
           ? (activeProject.meetings || []).find((m) => m.id === openMeetingId.id)
           : null;
@@ -3499,6 +3724,8 @@ function AppScreens({ shellRef, bump }) {
           />
         );
       })()}
+      {/* A RENATA agora aparece em todas as abas de UMA empresa: no celular o botão fica menor e o conteúdo ganha folga embaixo para ele não cobrir o último botão/linha. */}
+      {!isMulti && <style>{'@media (max-width: 768px) { .asst-fab { bottom: 12px !important; right: 12px !important; padding: 9px 13px !important; font-size: 12px !important; } }'}</style>}
     </div>
   );
 }
@@ -5364,7 +5591,8 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   );
 }
 
-function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickModelos, onPickCrm, onPickUsers, onLogout, theme, onToggleTheme, onOpenProfile, onConfigureDaily, dailyReload }) {
+function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickModelos, onPickCrm, onPickUsers, onLogout, theme, onToggleTheme, onOpenProfile, onConfigureDaily, dailyReload, projects, notifications, todayIso, todayActions, showWeek, onOpenStats, continueItems }) {
+  const overdueNow = useMemo(() => buildTodayItems({ projects, personalBoard, user, todayIso }).overdue.length, [projects, personalBoard, user, todayIso]);
   return (
     <div className="page-root" style={S.page}>
       <div style={S.companySelectorWrap}>
@@ -5375,7 +5603,13 @@ function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersona
 
         <DailyCards onConfigure={onConfigureDaily} reloadKey={dailyReload} />
 
-        <RenataAgendaBriefing user={user} onOpenAgenda={onPickAgenda} personalBoard={personalBoard} onOpenPersonal={onPickPersonal} />
+        <TodayPanel projects={projects} personalBoard={personalBoard} user={user} notifications={notifications} todayIso={todayIso} actions={todayActions} />
+        {showWeek && <WeekSummary overdueNow={overdueNow} onOpenStats={onOpenStats} />}
+
+        {/* O quadro pessoal NÃO vai para a RENATA aqui: o painel "Hoje" acima já lista os cartões atrasados/de hoje com ações. */}
+        <RenataAgendaBriefing user={user} onOpenAgenda={onPickAgenda} personalBoard={null} onOpenPersonal={onPickPersonal} />
+
+        <ContinueStrip items={continueItems} onOpen={(it) => it.run()} />
 
         <p style={S.loginSub}>Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>
 
@@ -6450,7 +6684,8 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
 
   useEffect(() => {
     if (!pendingOpen) return;
-    if (board.boards.some((b) => b.id === pendingOpen.boardId)) {
+    if (pendingOpen.stats) setShowStats(true);
+    else if (board.boards.some((b) => b.id === pendingOpen.boardId)) {
       goToBoardPage(pendingOpen.boardId);
       openCardDetail(pendingOpen.colId, pendingOpen.cardId);
     }

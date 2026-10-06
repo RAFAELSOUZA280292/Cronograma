@@ -18,6 +18,7 @@ import { router as dailyRouter } from './daily.js';
 import { router as templatesRouter } from './documentTemplates.js';
 import { router as connectRouter } from './connect.js';
 import { startCrmScheduler } from './crm/scheduler.js';
+import { startTodoScheduler } from './todoNotifications.js';
 import { pool } from './db.js';
 import { seedQuoteFacts, embedQuoteFacts } from './inspirationQuotes.js';
 
@@ -83,6 +84,7 @@ async function start() {
   app.listen(port, () => {
     console.log(`Cronograma server ouvindo na porta ${port}`);
     startCrmScheduler();
+    startTodoScheduler();
   });
 }
 

@@ -45,6 +45,8 @@ const CSS = `
 .shell-pal-item[data-active="true"] { background: var(--bg-3); color: var(--text-1); }
 .shell-pal-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shell-pal-hint { font-size: 12px; color: var(--text-4); max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-pal-star { flex-shrink: 0; margin: -6px -4px -6px 0; color: var(--text-5); }
+.shell-pal-star[aria-pressed="true"] { color: var(--ui-accent, #F5C400); }
 .shell-pal-empty { padding: 22px 12px; text-align: center; color: var(--text-4); font-size: 13.5px; }
 .shell-pal-foot { display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--border-1); font-size: 11.5px; color: var(--text-4); }
 .shell-pal-foot kbd { margin: 0 3px 0 0; }

@@ -19,6 +19,8 @@ import { Sparkles, MapPin, ArrowRight, Link2, TriangleAlert, CircleHelp, Utensil
 import { apiGet } from '../lib/api.js';
 import { WORK, rsvpOf, isPendingRsvp, summarizeDay, timelineRows, durationMin, fmtDur, hhmm, afterMeetingsMessage } from './dayLoad.js';
 import { boardAttention, attentionParts, oldestText } from '../personal/boardAttention.js';
+import RsvpButtons from './RsvpButtons.jsx';
+import { isUnanswered, useRespond } from './agendaActions.js';
 import { loadPrefs, savePrefs, validatePrefs, parseHHMM, DEFAULT_PREFS, isDefaultPrefs } from './agendaPrefs.js';
 
 const SOURCE_COLOR = { google: '#5B8DEF', xflow_ticket: '#b98af5', activity: '#3ecf6e', crm_activity: '#F5C400' };
@@ -224,7 +226,7 @@ function DayBar({ items, sum, isToday, now }) {
   );
 }
 
-function EventLine({ row, now, isToday }) {
+function EventLine({ row, now, isToday, onRespond, busy }) {
   const e = row.ev;
   const dur = durationMin(e);
   const pending = isPendingRsvp(row.rsvp);
@@ -239,6 +241,7 @@ function EventLine({ row, now, isToday }) {
       <span className="rab-lb">
         <b>{e.title}{row.conflict ? <TriangleAlert size={12} className="rab-lw" aria-label="Choca com outro compromisso" /> : null}{current ? <em className="rab-pill-now">agora</em> : null}</b>
         {sub.length ? <small>{e.location ? <MapPin size={10} /> : null}{sub.join(' · ')}</small> : null}
+        {isUnanswered(e) && <span className="rab-rsvp"><RsvpButtons ev={e} onRespond={onRespond} busy={busy} /></span>}
       </span>
       <span className="rab-ld">{declined ? 'recusado' : dur ? fmtDur(dur) : ''}</span>
     </div>
@@ -355,6 +358,7 @@ const CSS = `
   .rab-lb { min-width:0; display:flex; flex-direction:column; gap:2px; }
   .rab-lb b { font-size:13.5px; font-weight:700; color:var(--text-1); overflow-wrap:anywhere; }
   .rab-lb small { font-size:11.5px; color:var(--text-6); display:flex; align-items:center; gap:4px; }
+  .rab-rsvp { margin-top:6px; }
   .rab-lw { color:var(--ui-danger); margin-left:6px; vertical-align:-1px; }
   .rab-pill-now { font-style:normal; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; background:#F5C400; color:#111; padding:1px 7px; border-radius:999px; margin-left:8px; }
   .rab-ld { font-size:12px; color:var(--text-5); font-variant-numeric:tabular-nums; white-space:nowrap; padding-top:1px; }
@@ -387,6 +391,7 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda, personalBoard
   const [showDeclined, setShowDeclined] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [prefs, setPrefs] = useState(() => loadPrefs()); // expediente/almoço, por navegador
+  const { respond, respondingId } = useRespond((id, myResponse) => setState((s) => ({ ...s, events: s.events.map((e) => (e.id === id ? { ...e, myResponse } : e)) })));
   const [cfg, setCfg] = useState(null); // {workStart, workEnd, lunchStart, lunchEnd, error} enquanto o ajuste está aberto
 
   useEffect(() => {
@@ -621,7 +626,7 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda, personalBoard
                   <span className="rab-col-label">Duração</span>
                 </div>
                 <div className="rab-list">
-                  {shown.map((r) => <EventLine key={`${focus.iso}-${r.ev.id}`} row={r} now={now} isToday={isToday} />)}
+                  {shown.map((r) => <EventLine key={`${focus.iso}-${r.ev.id}`} row={r} now={now} isToday={isToday} onRespond={respond} busy={respondingId === r.ev.id} />)}
                 </div>
 
                 <div className="rab-foot">

@@ -189,6 +189,7 @@ export const CRM_CSS = `
   .crm-bar > span { display:block; height:100%; border-radius:999px; }
   .crm-pager { display:flex; align-items:center; justify-content:space-between; padding:10px 4px; font-size:12px; color:var(--text-5); }
 
+  .crm-renata-host .asst-fab { display:none !important; }
   .crm-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:80; display:flex; justify-content:flex-end; }
   .crm-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:90; display:flex; align-items:center; justify-content:center; padding:16px; }
   .crm-drawer { width:min(900px, 100%); height:100%; background:var(--bg-1); border-left:1px solid var(--border-2); overflow-y:auto; }

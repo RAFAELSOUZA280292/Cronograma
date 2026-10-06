@@ -185,12 +185,16 @@ export function TodoDrawer({
           {meeting && (
             <div className="todo-section">
               <div className="todo-section-title">Origem</div>
-              <button type="button" className="todo-origin-card" onClick={() => onOpenMeeting(meeting.id)}>
-                <Mic size={14} color="var(--text-5)" />
-                <div>
+              <button
+                type="button" className="todo-origin-card" aria-label={`Abrir reunião: ${meeting.title || 'Reunião sem título'}`}
+                onClick={() => { titleField.flush(); subtitleField.flush(); responsibleField.flush(); notesField.flush(); onOpenMeeting(meeting.id); }}
+              >
+                <Mic size={14} color="var(--text-5)" aria-hidden="true" />
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 12.5 }}>{meeting.title || 'Reunião sem título'}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-6)' }}>Reunião · {meeting.date ? fmtDate(meeting.date) : 'sem data'}</div>
                 </div>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>Abrir reunião →</span>
               </button>
             </div>
           )}

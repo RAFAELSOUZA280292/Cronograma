@@ -8,7 +8,7 @@
 import { Router } from 'express';
 import { requireAuth } from './auth.js';
 import { pool } from './db.js';
-import { getConnectionStatus, listEvents } from './googleCalendar.js';
+import { getConnectionStatus, listEvents, createEvent, respondToEvent, googleConfigured } from './googleCalendar.js';
 import { crmAgendaEvents } from './crm/agendaFeed.js';
 
 export const router = Router();
@@ -83,4 +83,50 @@ router.get('/', requireAuth, async (req, res, next) => {
 
     res.json({ connected: status.connected, events });
   } catch (e) { next(e); }
+});
+
+// ---------- Ações da Agenda (Onda 5, §81): novo compromisso e responder convite ----------
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Monta o instante a partir de data local de Brasília + hora (o Google guarda o fuso do evento no ISO).
+export function brInstant(date, time) {
+  return new Date(`${date}T${time}:00-03:00`);
+}
+
+router.post('/events', requireAuth, async (req, res, next) => {
+  try {
+    const b = req.body || {};
+    const title = String(b.title || '').trim();
+    if (!title) return res.status(400).json({ message: 'Dê um título ao compromisso.' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.date || ''))) return res.status(400).json({ message: 'Informe a data do compromisso.' });
+    if (!/^\d{2}:\d{2}$/.test(String(b.startTime || ''))) return res.status(400).json({ message: 'Informe a hora de início.' });
+    const minutes = Number(b.durationMinutes || 60);
+    if (!Number.isFinite(minutes) || minutes < 5 || minutes > 12 * 60) return res.status(400).json({ message: 'A duração precisa ficar entre 5 minutos e 12 horas.' });
+    const start = brInstant(b.date, b.startTime);
+    if (Number.isNaN(start.getTime())) return res.status(400).json({ message: 'Data ou hora inválida.' });
+    const end = new Date(start.getTime() + minutes * 60000);
+    const attendees = [...new Set((Array.isArray(b.attendees) ? b.attendees : []).map((e) => String(e).trim().toLowerCase()).filter(Boolean))];
+    const bad = attendees.find((e) => !EMAIL.test(e));
+    if (bad) return res.status(400).json({ message: `"${bad}" não parece um e-mail válido.` });
+    if (attendees.length > 30) return res.status(400).json({ message: 'No máximo 30 convidados.' });
+    if (!googleConfigured()) return res.status(409).json({ message: 'A integração com o Google Calendar não está configurada neste ambiente.' });
+    const status = await getConnectionStatus(req.user.id);
+    if (!status.connected) return res.status(409).json({ message: 'Conecte o seu Google Calendar (Meu perfil › Agenda) para criar compromissos.' });
+    const ev = await createEvent(req.user.id, { summary: title, description: String(b.description || '').slice(0, 4000), location: String(b.location || '').slice(0, 300), startISO: start.toISOString(), endISO: end.toISOString(), attendees });
+    res.status(201).json({ event: { id: `google-${ev.id}`, htmlLink: ev.htmlLink } });
+  } catch (e) { next(e); }
+});
+
+router.post('/events/:id/respond', requireAuth, async (req, res, next) => {
+  try {
+    const response = String((req.body || {}).response || '');
+    if (!['accepted', 'declined', 'tentative'].includes(response)) return res.status(400).json({ message: 'Resposta inválida (aceitar, recusar ou talvez).' });
+    const id = String(req.params.id || '');
+    if (!id.startsWith('google-')) return res.status(400).json({ message: 'Só é possível responder convites de eventos do Google Calendar.' });
+    res.json(await respondToEvent(req.user.id, id.slice('google-'.length), response));
+  } catch (e) {
+    if (e && e.status) return res.status(e.status).json({ message: e.message });
+    if (e && e.code === 404) return res.status(404).json({ message: 'Evento não encontrado no seu Google Calendar.' });
+    next(e);
+  }
 });
