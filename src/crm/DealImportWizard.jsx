@@ -54,7 +54,7 @@ export default function DealImportWizard({ options, onClose, onDone }) {
       const rows = aoa.slice(1).filter((r) => r.some((v) => String(v).trim() !== ''));
       if (rows.length > f.maxRows) throw new Error(`A planilha tem ${rows.length} linhas; o limite é ${f.maxRows} por importação — divida em partes.`);
       setFileName(file.name); setHeaders(hs); setDataRows(rows); setMapping(guessMapping('deals', hs)); setStep(2);
-    } catch (err) { setError(err.message || 'Não consegui ler esse arquivo.'); } finally { setBusy(false); e.target.value = ''; }
+    } catch (err) { setError(err.message || 'Não foi possível ler esse arquivo. Confira se é uma planilha (.xlsx ou .csv) e tente de novo.'); } finally { setBusy(false); e.target.value = ''; }
   }
 
   function buildRows() {
@@ -108,7 +108,7 @@ export default function DealImportWizard({ options, onClose, onDone }) {
             {fields.fields.map((f) => (
               <div key={f.key} className="crm-map-row">
                 <span>{f.label}{REQUIRED.includes(f.key) ? ' *' : ''}</span>
-                <select value={mapping[f.key] === undefined ? '' : mapping[f.key]} onChange={(e) => setMapping((m) => ({ ...m, [f.key]: e.target.value === '' ? '' : Number(e.target.value) }))}>
+                <select aria-label={`Coluna da planilha para ${f.label}`} value={mapping[f.key] === undefined ? '' : mapping[f.key]} onChange={(e) => setMapping((m) => ({ ...m, [f.key]: e.target.value === '' ? '' : Number(e.target.value) }))}>
                   <option value="">— não importar —</option>{headers.map((h, i) => <option key={i} value={i}>{h}</option>)}
                 </select>
               </div>
@@ -141,7 +141,7 @@ export default function DealImportWizard({ options, onClose, onDone }) {
                 <div key={o.key} className="crm-map-row">
                   <span>{o.label} <span className="crm-muted">· {o.count} negócio(s){o.email && o.email !== o.label ? ` · ${o.email}` : ''}</span></span>
                   {o.userId ? <span style={{ color: '#3ecf6e', fontWeight: 700 }}>✓ encontrado no CRM</span> : (
-                    <select value={ownerMap[o.key] || ''} onChange={(e) => setOwnerMap((m) => ({ ...m, [o.key]: e.target.value }))}>
+                    <select aria-label={`Responsável para ${o.label}`} value={ownerMap[o.key] || ''} onChange={(e) => setOwnerMap((m) => ({ ...m, [o.key]: e.target.value }))}>
                       <option value="">Sem responsável (não encontrei esse usuário)</option>{owners.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                     </select>
                   )}

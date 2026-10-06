@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import DOMPurify from 'dompurify';
 import {
-  X, Plus, MessageSquare, Clock, Paperclip, ChevronDown,
+  X, Plus, MessageSquare, Clock, Paperclip, ChevronDown, ChevronRight, MoreHorizontal, SlidersHorizontal,
   Archive, Ban, Trash2, Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Quote, LayoutGrid, LayoutList,
   Undo2, Redo2, Heading2, Heading3, Indent as IndentIcon, Outdent, Code, Minus as MinusIcon, Link2, Smile, Download,
@@ -27,7 +27,8 @@ import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, useDirtyForm, useAutosa
 import { DialogOverlay } from '../ui/dialog.jsx';
 import { ComposeBox, CommentThread, AddMenu } from '../ui/ComposeBox.jsx';
 import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
-import { RecordSaveStatus } from '../ui/index.jsx';
+import { RecordSaveStatus, Button } from '../ui/index.jsx';
+import { useEscClose } from '../lib/nav.js';
 import { calendarDaysSince } from '../lib/dates.js';
 
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
@@ -75,7 +76,118 @@ function FlashToast({ message }) {
   );
 }
 
-// Descrição do BUG é rich text (editor Tiptap, ver RichTextEditor). HTML
+// O item se chama TASK; "BUG" é só o TIPO (chip BUG/Melhoria, "não sendo BUG"). Os textos que vêm do servidor
+// ainda dizem "o BUG": troca na hora de mostrar (aviso, erro, histórico), com a concordância certa.
+const TASK_ARTICLES = { o: 'a', O: 'A', do: 'da', Do: 'Da', ao: 'à', Ao: 'À', no: 'na', No: 'Na', pelo: 'pela', Pelo: 'Pela', este: 'esta', Este: 'Esta', um: 'uma', Um: 'Uma' };
+function taskWording(text) {
+  if (!text || typeof text !== 'string') return text;
+  return text
+    .replace(/(não sendo )BUG/g, '$1\u0000')
+    .replace(/\b(o|O|do|Do|ao|Ao|no|No|pelo|Pelo|este|Este|um|Um) BUG\b/g, (m, a) => `${TASK_ARTICLES[a]} TASK`)
+    .replace(/\bBUG\b/g, 'TASK')
+    .replace(/\u0000/g, 'BUG');
+}
+// Erro para a pessoa: mensagem do servidor (já em português) sem jargão; sem mensagem, um texto claro com a saída.
+function friendlyError(e, fallback) {
+  const m = e && e.message;
+  if (!m || /^(failed to fetch|networkerror|load failed|\w*error:)/i.test(m)) return fallback;
+  return taskWording(m);
+}
+
+// Seção recolhível (Onda 6, §81): botão com aria-expanded/aria-controls + corpo que fica montado (hidden) para não perder
+// o que foi digitado. `persist` lembra aberto/fechado por seção em sessionStorage (com try/catch); `forceOpen` abre sozinha
+// (ex.: campo obrigatório faltando); `summary` é o texto curto ao lado do título ("2 preenchidos").
+function readSecOpen(key, dflt) {
+  try {
+    const v = window.sessionStorage.getItem(`xflow:sec:${key}`);
+    if (v === '1') return true;
+    if (v === '0') return false;
+  } catch (e) { /* sem storage: usa o padrão */ }
+  return dflt;
+}
+function writeSecOpen(key, open) {
+  try { window.sessionStorage.setItem(`xflow:sec:${key}`, open ? '1' : '0'); } catch (e) { /* ignora */ }
+}
+function CollapsibleSection({ id, title, summary, defaultOpen, persist, forceOpen, icon: Icon, children, style }) {
+  const [open, setOpen] = useState(() => (persist ? readSecOpen(id, !!defaultOpen) : !!defaultOpen));
+  const bodyId = useId();
+  useEffect(() => { if (forceOpen) setOpen(true); }, [forceOpen]);
+  function toggle() {
+    setOpen((v) => { if (persist) writeSecOpen(id, !v); return !v; });
+  }
+  return (
+    <section className="xf-sec" style={style}>
+      <h3 className="xf-sec-h">
+        <button type="button" className="xf-sec-btn" aria-expanded={open} aria-controls={bodyId} onClick={toggle}>
+          {open ? <ChevronDown size={15} aria-hidden="true" /> : <ChevronRight size={15} aria-hidden="true" />}
+          {Icon && <Icon size={13} aria-hidden="true" />}
+          <span className="xf-sec-title">{title}</span>
+          {summary ? <span className="xf-sec-sum">· {summary}</span> : null}
+        </button>
+      </h3>
+      <div id={bodyId} className="xf-sec-body" hidden={!open}>{children}</div>
+    </section>
+  );
+}
+// Campo com rótulo ligado ao controle (leitor de tela lê o nome; clicar no rótulo foca o campo).
+function Field({ label, required, hint, style, children }) {
+  const id = useId();
+  return (
+    <div style={style}>
+      <label htmlFor={id} style={{ ...S.subSectionLabel, marginTop: 0, display: 'block' }}>
+        {label}{required && <span style={{ color: '#e2574c' }} aria-hidden="true"> *</span>}{required && <span className="ui-sr"> (obrigatório)</span>}
+      </label>
+      {children(id)}
+      {hint && <div style={S.fieldHint}>{hint}</div>}
+    </div>
+  );
+}
+
+// CSS do módulo: seções recolhíveis, rodapé de ação fixo e, no celular (<768px), alvos de toque >= 44 px,
+// campos em 16px (o iOS dá zoom abaixo disso) e nenhuma rolagem horizontal da página (só dentro do quadro).
+const XFLOW_CSS = `
+  .xf-root button:focus-visible, .xf-modal button:focus-visible, .xf-modal a:focus-visible, .xf-root a:focus-visible, .xf-modal summary:focus-visible { outline: 2px solid var(--ui-accent, #F5C400); outline-offset: 2px; }
+  .xf-sec { border-top: 1px solid var(--border-1); margin-top: 12px; }
+  .xf-sec-h { margin: 0; font-size: inherit; }
+  .xf-sec-btn { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 40px; padding: 8px 2px; background: transparent; border: none; color: var(--text-2); font-family: inherit; font-size: 12.5px; font-weight: 700; text-align: left; cursor: pointer; border-radius: 6px; }
+  .xf-sec-btn:hover { color: var(--text-1); }
+  .xf-sec-title { text-transform: uppercase; letter-spacing: .04em; font-size: 11.5px; }
+  .xf-sec-sum { font-weight: 600; color: var(--text-5); font-size: 12px; text-transform: none; letter-spacing: 0; }
+  .xf-sec-body { padding: 2px 0 10px; }
+  .xf-sec-body[hidden] { display: none; }
+  .xf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 12px; }
+  .xf-grid .xf-wide { grid-column: 1 / -1; }
+  .xf-foot { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; padding: 12px 30px; border-top: 1px solid var(--border-2); background: var(--bg-1); }
+  .xf-foot-msg { flex: 1 1 220px; min-width: 0; font-size: 12px; line-height: 1.4; color: var(--text-4); }
+  .xf-foot-msg.err { color: #f0a49e; }
+  .xf-foot-btns { display: flex; gap: 8px; }
+  .xf-filter-toggle { display: none; }
+  @media (max-width: 767px) {
+    html, body { overflow-x: hidden; }
+    .xf-root, .xf-modal { max-width: 100vw; }
+    .xf-root button, .xf-modal button, .xf-root a.xf-tap, .xf-modal a.xf-tap, .xf-modal summary { min-height: 44px; }
+    .xf-root button:not(.xf-sec-btn):not(.xf-fill), .xf-modal button:not(.xf-sec-btn):not(.xf-fill):not(.xflow-rte-emoji-btn) { min-width: 44px; }
+    .xf-root input[type=text], .xf-root input[type=date], .xf-root select, .xf-root textarea,
+    .xf-modal input[type=text], .xf-modal input[type=date], .xf-modal select, .xf-modal textarea { font-size: 16px; min-height: 44px; }
+    .xf-root select, .xf-modal select { min-height: 44px; }
+    .xf-modal textarea { min-height: 0; }
+    .xf-foot { padding: 10px 16px calc(10px + var(--safe-bottom, 0px)); }
+    .xf-foot-msg { flex-basis: 100%; }
+    .xf-foot-btns { width: 100%; }
+    .xf-foot-btns > button { flex: 1; }
+    .xf-card { min-height: 44px; }
+    .xf-filter-toggle { display: inline-flex; }
+    .xf-filters-collapsed > :not(.xf-filter-always) { display: none !important; }
+    .xf-board { padding-left: 0 !important; padding-right: 0 !important; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .xf-topbar { padding: 12px 16px !important; }
+    .xf-topbar-actions { width: 100%; justify-content: space-between; flex-wrap: wrap; }
+    .xf-pad { padding-left: 16px !important; padding-right: 16px !important; }
+    .xf-stat { min-width: calc(50% - 5px) !important; flex: 1 1 calc(50% - 5px) !important; }
+    .xf-row { gap: 8px !important; }
+  }
+`;
+
+// Descrição da TASK é rich text (editor Tiptap, ver RichTextEditor). HTML
 // nunca vai pra tela sem passar por aqui — mesmo conteúdo já sanitizado no
 // backend ao salvar (defesa em profundidade, server/xflow.js
 // sanitizeDescriptionHtml — não confia só no cliente). Allow-list espelha
@@ -138,15 +250,24 @@ const RICH_TEXT_EMOJIS = [
 // direto no elemento editável de verdade, então a maior parte do CSS de
 // antes (contenteditable caseiro) segue valendo sem mudança.
 const RICH_TEXT_CSS = `
-  .xflow-rte-toolbar { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; padding: 4px; background: var(--bg-3); border: 1px solid var(--border-3); border-bottom: none; border-radius: 6px 6px 0 0; }
-  .xflow-rte-btn { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: transparent; border: none; border-radius: 4px; color: var(--text-3); cursor: pointer; }
+  .xflow-rte-toolbar { position: relative; display: flex; align-items: center; gap: 2px; flex-wrap: wrap; padding: 4px; background: var(--bg-3); border: 1px solid var(--border-3); border-bottom: none; border-radius: 6px 6px 0 0; }
+  .xflow-rte-btn { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; background: transparent; border: none; border-radius: 4px; color: var(--text-3); cursor: pointer; }
   .xflow-rte-btn:hover { background: var(--bg-4); color: var(--text-1); }
   .xflow-rte-btn:disabled { opacity: .35; cursor: default; }
   .xflow-rte-btn.active { background: rgba(245,196,0,.16); color: var(--ui-accent-text); }
+  .xflow-rte-btn:focus-visible, .xflow-rte-opt:focus-visible, .xflow-rte-emoji-btn:focus-visible { outline: 2px solid var(--ui-accent, #F5C400); outline-offset: 1px; }
+  .xflow-rte-btn.more { width: auto; gap: 4px; padding: 0 9px; font-family: inherit; font-size: 12px; font-weight: 700; }
+  .xflow-rte-menu { position: absolute; top: 100%; left: 0; z-index: 30; margin-top: 4px; width: min(340px, 100%); max-height: min(60vh, 420px); overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--bg-1); border: 1px solid var(--border-1); border-radius: 8px; box-shadow: var(--pb-shadow-drag, 0 8px 24px rgba(0,0,0,.3)); }
+  .xflow-rte-menu-group { display: flex; flex-wrap: wrap; gap: 2px; }
+  .xflow-rte-menu-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-5); margin-top: 2px; }
+  .xflow-rte-opt { padding: 6px 10px; font-family: inherit; font-size: 12px; color: var(--text-2); background: transparent; border: 1px solid var(--border-2); border-radius: 6px; cursor: pointer; }
+  .xflow-rte-opt:hover { background: var(--bg-4); }
+  .xflow-rte-opt.active { background: rgba(245,196,0,.16); border-color: var(--ui-accent, #F5C400); color: var(--ui-accent-text); }
+  .xflow-rte-menu .xflow-rte-emoji-panel { border: none; box-shadow: none; padding: 0; background: transparent; }
   .xflow-rte-sep { width: 1px; height: 18px; background: var(--border-2); margin: 0 3px; }
   .xflow-rte-font { font-size: 11.5px; background: var(--bg-4); border: 1px solid var(--border-3); color: var(--text-2); border-radius: 4px; padding: 3px 4px; width: auto; }
   .xflow-rte-body { min-height: 110px; max-height: 380px; overflow-y: auto; background: var(--bg-4); border: 1px solid var(--border-3); border-radius: 0 0 6px 6px; padding: 10px 12px; font-size: 12.5px; color: var(--text-1); line-height: 1.6; }
-  .xflow-rte-body:focus { outline: none; border-color: #F5C400; }
+  .xflow-rte-body:focus { outline: none; border-color: #F5C400; box-shadow: 0 0 0 3px rgba(245,196,0,.35); }
   .xflow-rte-body .is-editor-empty:first-child::before { content: attr(data-placeholder); color: var(--text-6); float: left; height: 0; pointer-events: none; }
   .xflow-rte-body h2 { font-size: 17px; font-weight: 800; margin: 10px 0 4px; }
   .xflow-rte-body h3 { font-size: 14.5px; font-weight: 800; margin: 8px 0 4px; }
@@ -160,8 +281,9 @@ const RICH_TEXT_CSS = `
   .xflow-rte-body pre code { background: none; padding: 0; }
   .xflow-rte-body[contenteditable=false] { cursor: default; }
   .xflow-rte-emoji-panel { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 6px; background: var(--bg-1); border: 1px solid var(--border-1); border-radius: 8px; box-shadow: var(--pb-shadow-drag, 0 8px 24px rgba(0,0,0,.3)); }
-  .xflow-rte-emoji-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; font-size: 16px; background: transparent; border: none; border-radius: 5px; cursor: pointer; }
+  .xflow-rte-emoji-btn { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; font-size: 16px; background: transparent; border: none; border-radius: 5px; cursor: pointer; }
   .xflow-rte-emoji-btn:hover { background: var(--bg-4); }
+  @media (max-width: 767px) { .xflow-rte-btn { width: 44px; height: 44px; } .xflow-rte-btn.more { width: auto; } .xflow-rte-emoji-btn { width: 44px; height: 44px; } .xflow-rte-opt { min-height: 44px; } .xflow-rte-menu { width: 100%; } .xflow-rte-emoji-panel { grid-template-columns: repeat(6, 1fr); } .xflow-rte-sep { height: 24px; } .xflow-rte-body { font-size: 16px; } }
   .xflow-ticket-ref { color: var(--ui-accent-text); font-weight: 700; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; }
 `;
 
@@ -613,7 +735,21 @@ function RichTextEditor({ value, onChange, onCommit, disabled, placeholder, tick
   const onCommitRef = useRef(onCommit);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
   useEffect(() => { onCommitRef.current = onCommit; }, [onCommit]);
-  const [showEmoji, setShowEmoji] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const moreId = useId();
+  const toolbarRef = useRef(null);
+  const moreBtnRef = useRef(null);
+  const menuRef = useRef(null);
+  // Esc fecha só o menu "Mais" (ele entra por cima na pilha de Esc do modal) e o foco volta ao botão.
+  useEscClose(() => { setShowMore(false); if (moreBtnRef.current) moreBtnRef.current.focus(); }, showMore);
+  useEffect(() => {
+    if (!showMore) return undefined;
+    const first = menuRef.current && menuRef.current.querySelector('[role^="menuitem"]');
+    if (first) first.focus();
+    const onDown = (e) => { if (toolbarRef.current && !toolbarRef.current.contains(e.target)) setShowMore(false); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [showMore]);
 
   // Ver TicketRefExtension acima — byNumber precisa ser Map (não o objeto
   // plano `ticketsByNumber`) pra decorations() checar presença em O(1).
@@ -692,57 +828,87 @@ function RichTextEditor({ value, onChange, onCommit, disabled, placeholder, tick
   }
   function insertEmoji(emoji) {
     editor.chain().focus().insertContent(emoji).run();
-    setShowEmoji(false);
   }
+  function runMore(fn) { fn(); setShowMore(false); }
+  function onMenuKeyDown(e) {
+    const items = Array.from(menuRef.current ? menuRef.current.querySelectorAll('[role^="menuitem"]') : []);
+    if (!items.length) return;
+    const i = items.indexOf(document.activeElement);
+    let next = null;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') next = items[(i + 1) % items.length];
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') next = items[(i - 1 + items.length) % items.length];
+    else if (e.key === 'Home') next = items[0];
+    else if (e.key === 'End') next = items[items.length - 1];
+    else if (e.key === 'Tab') { setShowMore(false); return; }
+    if (next) { e.preventDefault(); next.focus(); }
+  }
+  const moreActive = editor.isActive('heading') || editor.isActive('underline') || editor.isActive('strike') || editor.isActive('blockquote') || editor.isActive('codeBlock')
+    || ['center', 'right', 'justify'].some((a) => editor.isActive({ textAlign: a }))
+    || !!editor.getAttributes('textStyle').fontFamily || !!editor.getAttributes('textStyle').fontSize;
 
   return (
     <div>
       <style>{RICH_TEXT_CSS}</style>
       {!disabled && (
-        <div className="xflow-rte-toolbar">
-          <button type="button" className="xflow-rte-btn" aria-label="Desfazer" title="Desfazer (Ctrl+Z)" disabled={!editor.can().undo()} onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().undo().run()}><Undo2 size={13} aria-hidden="true" /></button>
-          <button type="button" className="xflow-rte-btn" aria-label="Refazer" title="Refazer (Ctrl+Shift+Z)" disabled={!editor.can().redo()} onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().redo().run()}><Redo2 size={13} aria-hidden="true" /></button>
+        <div className="xflow-rte-toolbar" ref={toolbarRef} role="toolbar" aria-label="Formatação do texto">
+          <button type="button" className="xflow-rte-btn" aria-label="Desfazer" title="Desfazer (Ctrl+Z)" disabled={!editor.can().undo()} onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().undo().run()}><Undo2 size={14} aria-hidden="true" /></button>
+          <button type="button" className="xflow-rte-btn" aria-label="Refazer" title="Refazer (Ctrl+Shift+Z)" disabled={!editor.can().redo()} onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().redo().run()}><Redo2 size={14} aria-hidden="true" /></button>
           <div className="xflow-rte-sep" />
-          <button type="button" className={btnCls(editor.isActive('heading', { level: 2 }))} aria-label="Título" title="Título" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 size={13} aria-hidden="true" /></button>
-          <button type="button" className={btnCls(editor.isActive('heading', { level: 3 }))} aria-label="Subtítulo" title="Subtítulo" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}><Heading3 size={13} aria-hidden="true" /></button>
+          <button type="button" className={btnCls(editor.isActive('bold'))} aria-label="Negrito" aria-pressed={editor.isActive('bold')} title="Negrito (Ctrl+B)" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()}><Bold size={14} aria-hidden="true" /></button>
+          <button type="button" className={btnCls(editor.isActive('italic'))} aria-label="Itálico" aria-pressed={editor.isActive('italic')} title="Itálico (Ctrl+I)" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic size={14} aria-hidden="true" /></button>
           <div className="xflow-rte-sep" />
-          <button type="button" className={btnCls(editor.isActive('bold'))} aria-label="Negrito" title="Negrito (Ctrl+B)" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()}><Bold size={13} aria-hidden="true" /></button>
-          <button type="button" className={btnCls(editor.isActive('italic'))} aria-label="Itálico" title="Itálico (Ctrl+I)" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic size={13} aria-hidden="true" /></button>
-          <button type="button" className={btnCls(editor.isActive('underline'))} aria-label="Sublinhado" title="Sublinhado (Ctrl+U)" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon size={13} aria-hidden="true" /></button>
-          <button type="button" className={btnCls(editor.isActive('strike'))} aria-label="Tachado" title="Tachado" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough size={13} aria-hidden="true" /></button>
+          <button type="button" className={btnCls(editor.isActive('bulletList'))} aria-label="Lista com marcadores" aria-pressed={editor.isActive('bulletList')} title="Lista com marcadores" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBulletList().run()}><List size={14} aria-hidden="true" /></button>
+          <button type="button" className={btnCls(editor.isActive('orderedList'))} aria-label="Lista numerada" aria-pressed={editor.isActive('orderedList')} title="Lista numerada" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered size={14} aria-hidden="true" /></button>
           <div className="xflow-rte-sep" />
-          <select className="xflow-rte-font" title="Fonte" value={editor.getAttributes('textStyle').fontFamily || ''} onChange={(e) => { const v = e.target.value; if (v) editor.chain().focus().setFontFamily(v).run(); else editor.chain().focus().unsetFontFamily().run(); }}>
-            {RICH_TEXT_FONTS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-          </select>
-          <select className="xflow-rte-font" title="Tamanho" value={editor.getAttributes('textStyle').fontSize || ''} onChange={(e) => { const v = e.target.value; if (v) editor.chain().focus().setFontSize(v).run(); else editor.chain().focus().unsetFontSize().run(); }}>
-            {RICH_TEXT_SIZES.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-          </select>
-          <div className="xflow-rte-sep" />
-          <button type="button" className={btnCls(editor.isActive({ textAlign: 'left' }))} aria-label="Alinhar à esquerda" title="Alinhar à esquerda" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('left').run()}><AlignLeft size={13} aria-hidden="true" /></button>
-          <button type="button" className={btnCls(editor.isActive({ textAlign: 'center' }))} aria-label="Centralizar" title="Centralizar" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('center').run()}><AlignCenter size={13} aria-hidden="true" /></button>
-          <button type="button" className={btnCls(editor.isActive({ textAlign: 'right' }))} aria-label="Alinhar à direita" title="Alinhar à direita" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('right').run()}><AlignRight size={13} aria-hidden="true" /></button>
-          <button type="button" className={btnCls(editor.isActive({ textAlign: 'justify' }))} aria-label="Justificar" title="Justificar" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setTextAlign('justify').run()}><AlignJustify size={13} aria-hidden="true" /></button>
-          <div className="xflow-rte-sep" />
-          <button type="button" className={btnCls(editor.isActive('bulletList'))} aria-label="Lista com marcadores" title="Lista com marcadores" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBulletList().run()}><List size={13} aria-hidden="true" /></button>
-          <button type="button" className={btnCls(editor.isActive('orderedList'))} aria-label="Lista numerada" title="Lista numerada" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered size={13} aria-hidden="true" /></button>
-          <button type="button" className="xflow-rte-btn" aria-label="Diminuir recuo" title="Diminuir recuo" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().outdent().run()}><Outdent size={13} aria-hidden="true" /></button>
-          <button type="button" className="xflow-rte-btn" aria-label="Aumentar recuo" title="Aumentar recuo" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().indent().run()}><IndentIcon size={13} aria-hidden="true" /></button>
-          <div className="xflow-rte-sep" />
-          <button type="button" className={btnCls(editor.isActive('blockquote'))} aria-label="Citação" title="Citação" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote size={13} aria-hidden="true" /></button>
-          <button type="button" className={btnCls(editor.isActive('codeBlock'))} aria-label="Bloco de código" title="Bloco de código" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().toggleCodeBlock().run()}><Code size={13} aria-hidden="true" /></button>
-          <button type="button" className="xflow-rte-btn" aria-label="Linha horizontal" title="Linha horizontal" onMouseDown={(e) => e.preventDefault()} onClick={() => editor.chain().focus().setHorizontalRule().run()}><MinusIcon size={13} aria-hidden="true" /></button>
-          <div className="xflow-rte-sep" />
-          <button type="button" className={btnCls(editor.isActive('link'))} aria-label="Link" title="Link" onMouseDown={(e) => e.preventDefault()} onClick={insertLink}><Link2 size={13} aria-hidden="true" /></button>
-          <div style={{ position: 'relative' }}>
-            <button type="button" className="xflow-rte-btn" aria-label="Emoji" title="Emoji" onMouseDown={(e) => e.preventDefault()} onClick={() => setShowEmoji((v) => !v)}><Smile size={13} aria-hidden="true" /></button>
-            {showEmoji && (
-              <div className="xflow-rte-emoji-panel" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10, marginTop: 4 }}>
+          <button type="button" className={btnCls(editor.isActive('link'))} aria-label="Link" aria-pressed={editor.isActive('link')} title="Link" onMouseDown={(e) => e.preventDefault()} onClick={insertLink}><Link2 size={14} aria-hidden="true" /></button>
+          <button
+            ref={moreBtnRef} type="button" className={`${btnCls(moreActive)} more`} aria-haspopup="menu" aria-expanded={showMore} aria-controls={showMore ? moreId : undefined}
+            aria-label="Mais opções de formatação" title="Mais opções de formatação: títulos, sublinhado, tachado, fonte, tamanho, alinhamento, recuo, citação, código, linha e emoji"
+            onMouseDown={(e) => e.preventDefault()} onClick={() => setShowMore((v) => !v)}
+          ><MoreHorizontal size={14} aria-hidden="true" /> Mais</button>
+          {showMore && (
+            <div id={moreId} ref={menuRef} className="xflow-rte-menu" role="menu" aria-label="Mais opções de formatação" onKeyDown={onMenuKeyDown} onMouseDown={(e) => e.preventDefault()}>
+              <div className="xflow-rte-menu-group" role="group" aria-label="Texto">
+                <button type="button" role="menuitemcheckbox" aria-checked={editor.isActive('heading', { level: 2 })} className={btnCls(editor.isActive('heading', { level: 2 }))} aria-label="Título" title="Título" onClick={() => runMore(() => editor.chain().focus().toggleHeading({ level: 2 }).run())}><Heading2 size={14} aria-hidden="true" /></button>
+                <button type="button" role="menuitemcheckbox" aria-checked={editor.isActive('heading', { level: 3 })} className={btnCls(editor.isActive('heading', { level: 3 }))} aria-label="Subtítulo" title="Subtítulo" onClick={() => runMore(() => editor.chain().focus().toggleHeading({ level: 3 }).run())}><Heading3 size={14} aria-hidden="true" /></button>
+                <button type="button" role="menuitemcheckbox" aria-checked={editor.isActive('underline')} className={btnCls(editor.isActive('underline'))} aria-label="Sublinhado" title="Sublinhado (Ctrl+U)" onClick={() => runMore(() => editor.chain().focus().toggleUnderline().run())}><UnderlineIcon size={14} aria-hidden="true" /></button>
+                <button type="button" role="menuitemcheckbox" aria-checked={editor.isActive('strike')} className={btnCls(editor.isActive('strike'))} aria-label="Tachado" title="Tachado" onClick={() => runMore(() => editor.chain().focus().toggleStrike().run())}><Strikethrough size={14} aria-hidden="true" /></button>
+              </div>
+              <div className="xflow-rte-menu-group" role="group" aria-label="Alinhamento">
+                <button type="button" role="menuitemradio" aria-checked={editor.isActive({ textAlign: 'left' })} className={btnCls(editor.isActive({ textAlign: 'left' }))} aria-label="Alinhar à esquerda" title="Alinhar à esquerda" onClick={() => runMore(() => editor.chain().focus().setTextAlign('left').run())}><AlignLeft size={14} aria-hidden="true" /></button>
+                <button type="button" role="menuitemradio" aria-checked={editor.isActive({ textAlign: 'center' })} className={btnCls(editor.isActive({ textAlign: 'center' }))} aria-label="Centralizar" title="Centralizar" onClick={() => runMore(() => editor.chain().focus().setTextAlign('center').run())}><AlignCenter size={14} aria-hidden="true" /></button>
+                <button type="button" role="menuitemradio" aria-checked={editor.isActive({ textAlign: 'right' })} className={btnCls(editor.isActive({ textAlign: 'right' }))} aria-label="Alinhar à direita" title="Alinhar à direita" onClick={() => runMore(() => editor.chain().focus().setTextAlign('right').run())}><AlignRight size={14} aria-hidden="true" /></button>
+                <button type="button" role="menuitemradio" aria-checked={editor.isActive({ textAlign: 'justify' })} className={btnCls(editor.isActive({ textAlign: 'justify' }))} aria-label="Justificar" title="Justificar" onClick={() => runMore(() => editor.chain().focus().setTextAlign('justify').run())}><AlignJustify size={14} aria-hidden="true" /></button>
+              </div>
+              <div className="xflow-rte-menu-group" role="group" aria-label="Recuo e blocos">
+                <button type="button" role="menuitem" className="xflow-rte-btn" aria-label="Diminuir recuo" title="Diminuir recuo" onClick={() => runMore(() => editor.chain().focus().outdent().run())}><Outdent size={14} aria-hidden="true" /></button>
+                <button type="button" role="menuitem" className="xflow-rte-btn" aria-label="Aumentar recuo" title="Aumentar recuo" onClick={() => runMore(() => editor.chain().focus().indent().run())}><IndentIcon size={14} aria-hidden="true" /></button>
+                <button type="button" role="menuitemcheckbox" aria-checked={editor.isActive('blockquote')} className={btnCls(editor.isActive('blockquote'))} aria-label="Citação" title="Citação" onClick={() => runMore(() => editor.chain().focus().toggleBlockquote().run())}><Quote size={14} aria-hidden="true" /></button>
+                <button type="button" role="menuitemcheckbox" aria-checked={editor.isActive('codeBlock')} className={btnCls(editor.isActive('codeBlock'))} aria-label="Bloco de código" title="Bloco de código" onClick={() => runMore(() => editor.chain().focus().toggleCodeBlock().run())}><Code size={14} aria-hidden="true" /></button>
+                <button type="button" role="menuitem" className="xflow-rte-btn" aria-label="Linha horizontal" title="Linha horizontal" onClick={() => runMore(() => editor.chain().focus().setHorizontalRule().run())}><MinusIcon size={14} aria-hidden="true" /></button>
+              </div>
+              <div className="xflow-rte-menu-label" role="presentation">Fonte</div>
+              <div className="xflow-rte-menu-group wrap" role="group" aria-label="Fonte">
+                {RICH_TEXT_FONTS.map((f) => {
+                  const on = (editor.getAttributes('textStyle').fontFamily || '') === f.value;
+                  return <button key={f.value || 'padrao'} type="button" role="menuitemradio" aria-checked={on} className={`xflow-rte-opt${on ? ' active' : ''}`} onClick={() => runMore(() => { if (f.value) editor.chain().focus().setFontFamily(f.value).run(); else editor.chain().focus().unsetFontFamily().run(); })}>{f.label}</button>;
+                })}
+              </div>
+              <div className="xflow-rte-menu-label" role="presentation">Tamanho</div>
+              <div className="xflow-rte-menu-group wrap" role="group" aria-label="Tamanho">
+                {RICH_TEXT_SIZES.map((f) => {
+                  const on = (editor.getAttributes('textStyle').fontSize || '') === f.value;
+                  return <button key={f.value || 'padrao'} type="button" role="menuitemradio" aria-checked={on} className={`xflow-rte-opt${on ? ' active' : ''}`} onClick={() => runMore(() => { if (f.value) editor.chain().focus().setFontSize(f.value).run(); else editor.chain().focus().unsetFontSize().run(); })}>{f.value ? f.label : 'Tamanho padrão'}</button>;
+                })}
+              </div>
+              <div className="xflow-rte-menu-label" role="presentation">Emoji</div>
+              <div className="xflow-rte-emoji-panel" role="group" aria-label="Emoji">
                 {RICH_TEXT_EMOJIS.map((em) => (
-                  <button key={em} type="button" className="xflow-rte-emoji-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => insertEmoji(em)}>{em}</button>
+                  <button key={em} type="button" role="menuitem" className="xflow-rte-emoji-btn" aria-label={`Inserir emoji ${em}`} title={`Inserir ${em}`} onClick={() => runMore(() => insertEmoji(em))}>{em}</button>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
       <EditorContent editor={editor} />
@@ -778,7 +944,7 @@ function levenshtein(a, b) {
   return dp[m][n];
 }
 
-function AffectedCompanyField({ value, options, disabled, onCommit, placeholder }) {
+function AffectedCompanyField({ id, ariaLabel, value, options, disabled, onCommit, placeholder }) {
   const [draft, setDraft] = useState(value || '');
   const [open, setOpen] = useState(false);
   useEffect(() => { setDraft(value || ''); }, [value]);
@@ -819,7 +985,7 @@ function AffectedCompanyField({ value, options, disabled, onCommit, placeholder 
   return (
     <div style={{ position: 'relative' }}>
       <input
-        type="text" value={draft} disabled={disabled} placeholder={placeholder}
+        id={id} aria-label={ariaLabel} type="text" value={draft} disabled={disabled} placeholder={placeholder} autoComplete="off"
         onChange={(e) => { setDraft(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onBlur={(e) => commit(e.target.value)}
@@ -897,186 +1063,208 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
     !form.title.trim() && 'título', !form.product && 'produto', !form.clientType && 'tipo de cliente',
     richTextIsBlank(form.description) && 'descrição', !form.environment && 'ambiente', !form.occurredAt && 'data de ocorrência',
   ].filter(Boolean);
-  const createDisabledReason = saving ? 'Aguarde terminar de salvar' : !requiredOk ? `Preencha para abrir a TASK: ${missingRequired.join(', ')}` : undefined;
+  const createDisabledReason = saving ? 'Aguarde terminar de enviar' : !requiredOk ? `Preencha para abrir a TASK: ${missingRequired.join(', ')}` : undefined;
+
+  // Seções recolhíveis: o rótulo diz quantos campos já têm conteúdo; "Contexto" abre sozinha se faltar um obrigatório dela.
+  const filled = (list) => list.filter((v) => v && String(v).trim()).length;
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const ctxCount = filled([form.environment, form.occurredAt, form.expectedCompletionAt, form.module, form.affectedUser, form.affectedCompany]);
+  const impactCount = filled([form.expectedResult, form.reproSteps, form.impact, form.frequency, form.priority]);
+  const evCount = form.evidence.length;
+  const ctxMissing = !form.environment || !form.occurredAt;
 
   async function submit() {
     if (!requiredOk || saving) return;
     setSaving(true);
+    setError('');
     try {
       await onCreate({ ...form, ...captureMetadata() });
     } catch (e) {
-      setError(e.message);
+      setError(friendlyError(e, 'Não foi possível abrir a TASK agora. Confira sua conexão e tente de novo — o que você preencheu foi mantido.'));
       setSaving(false);
     }
   }
 
+  const padX = isMobile ? 16 : 30;
   return (
-    <DialogOverlay onClose={escClose} label="Nova TASK" style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }}>
+    <DialogOverlay onClose={escClose} label="Nova TASK" className="xf-modal" style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }}>
       <FlashToast message={pasteNote} />
-      <div style={{ ...S.detailBox, width: 'min(1100px, 94vw)', maxHeight: '90vh', overflowY: 'auto', padding: isMobile ? undefined : '24px 30px 30px 30px', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ ...S.detailTopBar, alignItems: 'flex-start', marginBottom: 20 }}>
+      <div
+        style={{
+          ...S.detailBox, width: 'min(1100px, 94vw)', height: 'auto', maxHeight: '90vh', padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+          ...(isMobile ? { ...S.detailBoxMobile, padding: 0, height: '100dvh', maxHeight: '100dvh' } : null),
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ ...S.detailTopBar, alignItems: 'flex-start', marginBottom: 0, flex: 'none', padding: isMobile ? 'calc(12px + var(--safe-top)) 16px 8px' : '22px 30px 10px' }}>
           <div>
-            <div style={{ fontSize: 19, fontWeight: 800 }}>Nova TASK</div>
+            <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800 }}>Nova TASK</h2>
             <div style={{ fontSize: 12, color: 'var(--text-5)', marginTop: 3 }}>
-              Só o essencial pra abrir agora — dá pra completar o resto depois.
+              Só o essencial pra abrir agora — o resto você completa depois.
             </div>
           </div>
           <button style={S.iconBtnGhost} aria-label="Fechar" title="Fechar" onClick={requestClose}><X size={18} aria-hidden="true" /></button>
         </div>
 
-        <div style={S.subSectionLabel}>Tipo</div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {XFLOW_TASK_TYPES.map((t) => (
-            <button
-              key={t.value} type="button" onClick={() => set({ type: t.value })}
-              style={{
-                flex: 1, textAlign: 'left', padding: '10px 12px', borderRadius: 9, cursor: 'pointer',
-                border: `1.5px solid ${form.type === t.value ? '#F5C400' : 'var(--border-3)'}`,
-                background: form.type === t.value ? 'rgba(245,196,0,.12)' : 'var(--bg-4)',
-              }}
-            >
-              <div style={{ fontWeight: 800, fontSize: 13, color: form.type === t.value ? '#F5C400' : 'var(--text-1)' }}>{t.label}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-5)', marginTop: 2 }}>{t.desc}</div>
-            </button>
-          ))}
-        </div>
-
-        <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Título {form.type === 'melhoria' ? 'da melhoria' : 'do BUG'} <span style={{ color: '#e2574c' }}>*</span></div>
-        <input
-          type="text" value={form.title} onChange={(e) => set({ title: e.target.value })}
-          placeholder={form.type === 'melhoria' ? 'Ex.: "Adicionar filtro por responsável na lista"' : 'Ex.: "Erro ao calcular aderência após upload do SPED"'}
-          style={{ fontSize: 17, fontWeight: 600, padding: '13px 14px', borderRadius: 9 }}
-        />
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 160px' }}>
-            <div style={S.subSectionLabel}>Produto / Plataforma <span style={{ color: '#e2574c' }}>*</span></div>
-            <select value={form.product} onChange={(e) => set({ product: e.target.value })}>
-              <option value="">Selecione</option>
-              {XFLOW_PRODUCTS.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: `0 ${padX}px 16px` }}>
+          <div style={S.subSectionLabel} id="xf-new-type">Tipo</div>
+          <div style={{ display: 'flex', gap: 8 }} role="group" aria-labelledby="xf-new-type">
+            {XFLOW_TASK_TYPES.map((t) => (
+              <button
+                key={t.value} type="button" className="xf-fill" onClick={() => set({ type: t.value })} aria-pressed={form.type === t.value}
+                style={{
+                  flex: 1, textAlign: 'left', padding: '10px 12px', borderRadius: 9, cursor: 'pointer',
+                  border: `1.5px solid ${form.type === t.value ? '#F5C400' : 'var(--border-3)'}`,
+                  background: form.type === t.value ? 'rgba(245,196,0,.12)' : 'var(--bg-4)',
+                }}
+              >
+                <div style={{ fontWeight: 800, fontSize: 13, color: form.type === t.value ? '#F5C400' : 'var(--text-1)' }}>{t.label}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-5)', marginTop: 2 }}>{t.desc}</div>
+              </button>
+            ))}
           </div>
-          <div style={{ flex: '1 1 160px' }}>
-            <div style={S.subSectionLabel}>Tipo de cliente <span style={{ color: '#e2574c' }}>*</span></div>
-            <select value={form.clientType} onChange={(e) => set({ clientType: e.target.value })}>
-              <option value="">Selecione</option>
-              {XFLOW_CLIENT_TYPES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div style={{ flex: '1 1 160px' }}>
-            <div style={S.subSectionLabel}>Ambiente</div>
-            <select value={form.environment} onChange={(e) => set({ environment: e.target.value })}>
-              <option value="producao">Produção</option>
-              <option value="homologacao">Homologação</option>
-              <option value="desenvolvimento">Desenvolvimento</option>
-            </select>
-          </div>
-        </div>
 
-        <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 160px' }}>
-            <div style={S.subSectionLabel}>Data da ocorrência <span style={{ color: '#e2574c' }}>*</span></div>
-            <input type="date" value={form.occurredAt} onChange={(e) => set({ occurredAt: e.target.value })} />
-          </div>
-          <div style={{ flex: '1 1 160px' }}>
-            <div style={S.subSectionLabel}>Previsão de conclusão</div>
-            <input type="date" value={form.expectedCompletionAt} onChange={(e) => set({ expectedCompletionAt: e.target.value })} />
-          </div>
-          <div style={{ flex: '1 1 160px' }}>
-            <div style={S.subSectionLabel}>Prioridade sugerida</div>
-            <select value={form.priority} onChange={(e) => set({ priority: e.target.value })}>
-              <option value="">Selecione</option>
-              {XFLOW_PRIORITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_PRIORITY_META[k].label}</option>)}
-            </select>
-          </div>
-        </div>
+          <Field label={form.type === 'melhoria' ? 'Título da melhoria' : 'Título do BUG'} required style={{ marginTop: 14 }}>
+            {(id) => (
+              <input
+                id={id} type="text" value={form.title} onChange={(e) => set({ title: e.target.value })} aria-required="true"
+                placeholder={form.type === 'melhoria' ? 'Ex.: "Adicionar filtro por responsável na lista"' : 'Ex.: "Erro ao calcular aderência após upload do SPED"'}
+                style={{ fontSize: 17, fontWeight: 600, padding: '13px 14px', borderRadius: 9 }}
+              />
+            )}
+          </Field>
 
-        <div style={{ marginTop: 14 }}>
-          <div style={S.subSectionLabel}>Descrição {form.type === 'melhoria' ? 'da melhoria' : 'do problema'} <span style={{ color: '#e2574c' }}>*</span></div>
-          <RichTextEditor
-            value={form.description}
-            onChange={(html) => set({ description: html })}
-            placeholder="O que aconteceu"
-          />
-        </div>
-
-        <div style={{ ...S.fieldHint, marginTop: 10 }}>
-          O resto pode ser preenchido depois de aberto: módulo, usuário/empresa afetados,
-          resultado esperado, passo a passo, impacto e frequência.
-        </div>
-
-        <details style={{ marginTop: 14 }}>
-          <summary style={{ cursor: 'pointer', fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)', padding: '9px 0', userSelect: 'none' }}>
-            Adicionar mais detalhes agora (opcional)
-          </summary>
-          <div style={{ marginTop: 4, padding: '16px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Módulo / Tela</div>
-              <input type="text" value={form.module} onChange={(e) => set({ module: e.target.value })} placeholder="Ex.: Upload, Aderência, Dashboard" />
-            </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 160px' }}>
-                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Usuário afetado</div>
-                <input type="text" value={form.affectedUser} onChange={(e) => set({ affectedUser: e.target.value })} placeholder="Quem encontrou o problema" />
-              </div>
-              <div style={{ flex: '1 1 160px' }}>
-                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Empresa/Cliente afetado</div>
-                <AffectedCompanyField
-                  value={form.affectedCompany}
-                  options={affectedCompanies}
-                  onCommit={(v) => set({ affectedCompany: v })}
-                  placeholder="Comece a digitar..."
-                />
-              </div>
-            </div>
-            <div>
-              <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Resultado esperado</div>
-              <textarea rows={2} value={form.expectedResult} onChange={(e) => set({ expectedResult: e.target.value })} onPaste={onPasteToEvidence} placeholder="O que deveria acontecer" />
-            </div>
-            <div>
-              <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Passo a passo para reproduzir</div>
-              <textarea rows={4} value={form.reproSteps} onChange={(e) => set({ reproSteps: e.target.value })} onPaste={onPasteToEvidence} placeholder={'1. Entrou em...\n2. Clicou em...\n3. Fez upload...'} />
-            </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 160px' }}>
-                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Impacto</div>
-                <select value={form.impact} onChange={(e) => set({ impact: e.target.value })}>
+          <div className="xf-grid" style={{ marginTop: 14 }}>
+            <Field label="Produto / Plataforma" required>
+              {(id) => (
+                <select id={id} value={form.product} onChange={(e) => set({ product: e.target.value })} aria-required="true">
                   <option value="">Selecione</option>
-                  {XFLOW_IMPACT_ORDER.map((k) => <option key={k} value={k}>{XFLOW_IMPACT_META[k]}</option>)}
+                  {XFLOW_PRODUCTS.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
-              </div>
-              <div style={{ flex: '1 1 160px' }}>
-                <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Frequência</div>
-                <select value={form.frequency} onChange={(e) => set({ frequency: e.target.value })}>
+              )}
+            </Field>
+            <Field label="Tipo de cliente" required>
+              {(id) => (
+                <select id={id} value={form.clientType} onChange={(e) => set({ clientType: e.target.value })} aria-required="true">
                   <option value="">Selecione</option>
-                  {XFLOW_FREQUENCY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_FREQUENCY_META[k]}</option>)}
+                  {XFLOW_CLIENT_TYPES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
-              </div>
+              )}
+            </Field>
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <div style={{ ...S.subSectionLabel, marginTop: 0 }} id="xf-new-desc">
+              Descrição {form.type === 'melhoria' ? 'da melhoria' : 'do problema'} <span style={{ color: '#e2574c' }} aria-hidden="true">*</span><span className="ui-sr"> (obrigatório)</span>
             </div>
-            <div>
-              <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Evidência (print, vídeo, arquivo, mensagem de erro)</div>
-              <div style={{ ...S.fieldHint, marginBottom: 6 }}>Print colado na Descrição fica dentro do texto. Cole (Ctrl+V / Cmd+V) nos campos acima para guardar como evidência, ou use o botão.</div>
+            <RichTextEditor
+              value={form.description}
+              onChange={(html) => set({ description: html })}
+              placeholder="O que aconteceu"
+            />
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <CollapsibleSection id="new:contexto" title="Contexto" summary={ctxCount ? plural(ctxCount, 'preenchido', 'preenchidos') : 'opcional'} forceOpen={ctxMissing}>
+              <div className="xf-grid">
+                <Field label="Ambiente" required>
+                  {(id) => (
+                    <select id={id} value={form.environment} onChange={(e) => set({ environment: e.target.value })} aria-required="true">
+                      <option value="producao">Produção</option>
+                      <option value="homologacao">Homologação</option>
+                      <option value="desenvolvimento">Desenvolvimento</option>
+                    </select>
+                  )}
+                </Field>
+                <Field label="Data da ocorrência" required>
+                  {(id) => <input id={id} type="date" value={form.occurredAt} onChange={(e) => set({ occurredAt: e.target.value })} aria-required="true" />}
+                </Field>
+                <Field label="Previsão de conclusão">
+                  {(id) => <input id={id} type="date" value={form.expectedCompletionAt} onChange={(e) => set({ expectedCompletionAt: e.target.value })} />}
+                </Field>
+                <Field label="Módulo / Tela">
+                  {(id) => <input id={id} type="text" value={form.module} onChange={(e) => set({ module: e.target.value })} placeholder="Ex.: Upload, Aderência, Dashboard" />}
+                </Field>
+                <Field label="Usuário afetado">
+                  {(id) => <input id={id} type="text" value={form.affectedUser} onChange={(e) => set({ affectedUser: e.target.value })} placeholder="Quem encontrou o problema" />}
+                </Field>
+                <Field label="Empresa/Cliente afetado">
+                  {(id) => (
+                    <AffectedCompanyField
+                      id={id}
+                      value={form.affectedCompany}
+                      options={affectedCompanies}
+                      onCommit={(v) => set({ affectedCompany: v })}
+                      placeholder="Comece a digitar..."
+                    />
+                  )}
+                </Field>
+              </div>
+            </CollapsibleSection>
+
+            <CollapsibleSection id="new:impacto" title="Impacto" summary={impactCount ? plural(impactCount, 'preenchido', 'preenchidos') : 'opcional'}>
+              <div className="xf-grid">
+                <Field label="Resultado esperado" style={{ gridColumn: '1 / -1' }}>
+                  {(id) => <textarea id={id} rows={2} value={form.expectedResult} onChange={(e) => set({ expectedResult: e.target.value })} onPaste={onPasteToEvidence} placeholder="O que deveria acontecer" />}
+                </Field>
+                <Field label="Passo a passo para reproduzir" style={{ gridColumn: '1 / -1' }}>
+                  {(id) => <textarea id={id} rows={4} value={form.reproSteps} onChange={(e) => set({ reproSteps: e.target.value })} onPaste={onPasteToEvidence} placeholder={'1. Entrou em...\n2. Clicou em...\n3. Fez upload...'} />}
+                </Field>
+                <Field label="Impacto">
+                  {(id) => (
+                    <select id={id} value={form.impact} onChange={(e) => set({ impact: e.target.value })}>
+                      <option value="">Selecione</option>
+                      {XFLOW_IMPACT_ORDER.map((k) => <option key={k} value={k}>{XFLOW_IMPACT_META[k]}</option>)}
+                    </select>
+                  )}
+                </Field>
+                <Field label="Frequência">
+                  {(id) => (
+                    <select id={id} value={form.frequency} onChange={(e) => set({ frequency: e.target.value })}>
+                      <option value="">Selecione</option>
+                      {XFLOW_FREQUENCY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_FREQUENCY_META[k]}</option>)}
+                    </select>
+                  )}
+                </Field>
+                <Field label="Prioridade sugerida">
+                  {(id) => (
+                    <select id={id} value={form.priority} onChange={(e) => set({ priority: e.target.value })}>
+                      <option value="">Selecione</option>
+                      {XFLOW_PRIORITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_PRIORITY_META[k].label}</option>)}
+                    </select>
+                  )}
+                </Field>
+              </div>
+            </CollapsibleSection>
+
+            <CollapsibleSection id="new:evidencias" title="Evidências" summary={evCount ? plural(evCount, 'anexo', 'anexos') : 'opcional'}>
+              <div style={{ ...S.fieldHint, marginTop: 0, marginBottom: 6 }}>Print, vídeo, arquivo ou mensagem de erro. Print colado na Descrição fica dentro do texto; cole (Ctrl+V / Cmd+V) nos campos de Impacto para guardar como evidência, ou use o botão.</div>
               <AddMenu onFiles={addEvidenceFiles} accept="" label="Anexar" />
               {form.evidence.map((ev) => (
                 <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12 }}>
-                  {ev.type && ev.type.startsWith('image/') ? <img src={ev.dataUrl} alt={ev.name} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} /> : <Paperclip size={12} />} {ev.name}
-                  <button style={S.iconBtnGhost} aria-label="Remover evidência" title="Remover evidência" onClick={() => removeEvidence(ev.id)}><X size={12} aria-hidden="true" /></button>
+                  {ev.type && ev.type.startsWith('image/') ? <img src={ev.dataUrl} alt={ev.name} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} /> : <Paperclip size={12} aria-hidden="true" />} <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{ev.name}</span>
+                  <button style={S.iconBtnGhost} aria-label={`Remover evidência ${ev.name}`} title="Remover evidência" onClick={() => removeEvidence(ev.id)}><X size={12} aria-hidden="true" /></button>
                 </div>
               ))}
-            </div>
+            </CollapsibleSection>
           </div>
-        </details>
 
-        <div style={{ ...S.fieldHint, marginTop: 14 }}>
-          Capturado automaticamente ao enviar: URL atual, navegador, sistema operacional, resolução da tela e sessão — do ambiente de quem está preenchendo este formulário, não necessariamente de quem sofreu o problema.
+          <div style={{ ...S.fieldHint, marginTop: 12 }}>
+            Capturado automaticamente ao enviar: endereço da tela atual, navegador, sistema, tamanho da tela e sessão — de quem está preenchendo este formulário, não necessariamente de quem sofreu o problema.
+          </div>
         </div>
 
-        {error && <div style={{ ...S.loginBlockedMsg, marginTop: 10 }}>{error}</div>}
-
-        <button style={{ ...S.primaryBtn, marginTop: 18, width: '100%', justifyContent: 'center', padding: '12px 16px', fontSize: 13.5, borderRadius: 9 }} onClick={submit} disabled={!requiredOk || saving} title={createDisabledReason}>
-          {saving ? 'Enviando...' : form.type === 'melhoria' ? 'Registrar melhoria' : 'Abrir BUG'}
-        </button>
-        {createDisabledReason && <div style={{ ...S.fieldHint, marginTop: 6, textAlign: 'center' }}>{createDisabledReason}</div>}
+        <div className="xf-foot" style={{ paddingLeft: isMobile ? undefined : padX, paddingRight: isMobile ? undefined : padX }}>
+          <div className={`xf-foot-msg${error ? ' err' : ''}`} role={error ? 'alert' : 'status'} aria-live="polite">
+            {error || createDisabledReason || 'Tudo certo para enviar.'}
+          </div>
+          <div className="xf-foot-btns">
+            <Button onClick={requestClose}>Cancelar</Button>
+            <Button variant="primary" onClick={submit} disabled={!requiredOk || saving} disabledReason={createDisabledReason}>
+              {saving ? 'Enviando...' : form.type === 'melhoria' ? 'Registrar melhoria' : 'Abrir BUG'}
+            </Button>
+          </div>
+        </div>
       </div>
       {showGuard && (
         <div onClick={(e) => e.stopPropagation()}>
@@ -1095,7 +1283,7 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
 function TriageMenu({ onAction }) {
   const [open, setOpen] = useState(false);
   const items = [
-    { key: 'aceitar', label: 'Aceitar BUG' },
+    { key: 'aceitar', label: 'Aceitar TASK' },
     { key: 'pedir_infos', label: 'Solicitar mais informações' },
     { key: 'nao_reproduziu', label: 'Não consegui reproduzir' },
     { key: 'marcar_duplicado', label: 'Marcar como duplicado' },
@@ -1128,13 +1316,13 @@ function autosize(el) {
   el.style.height = Math.min(el.scrollHeight, CONTENT_FIELD_MAX_H) + 'px';
 }
 
-function ContentField({ as: Tag = 'textarea', value, onCommit, disabled, rows, placeholder, type, onPasteImage }) {
+function ContentField({ as: Tag = 'textarea', value, onCommit, disabled, rows, placeholder, type, onPasteImage, ariaLabel }) {
   const [draft, setDraft] = useState(value || '');
   const taRef = useRef(null);
   useEffect(() => { setDraft(value || ''); }, [value]);
   useEffect(() => { autosize(taRef.current); }, [draft]);
   const common = {
-    value: draft, disabled, placeholder,
+    value: draft, disabled, placeholder, 'aria-label': ariaLabel,
     onChange: (e) => setDraft(e.target.value),
     onBlur: () => { if (draft !== (value || '')) onCommit(draft); },
     // Campo de texto puro não guarda imagem: o print colado vira anexo da TASK (Evidências).
@@ -1317,7 +1505,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
       await onAction(ticket.id, action, payload || {});
       return true;
     } catch (e) {
-      setSideError((e && e.message) || 'Não foi possível concluir a ação. Tente de novo.');
+      setSideError(friendlyError(e, 'Não foi possível concluir a ação. Confira sua conexão e tente de novo.'));
       return false;
     }
   }
@@ -1414,7 +1602,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
       try {
         await onCreateSpinoff(ticket);
       } catch (e) {
-        setSideError(`A TASK foi encerrada, mas não foi possível criar a melhoria vinculada: ${(e && e.message) || 'tente de novo.'}`);
+        setSideError(`A TASK foi encerrada, mas não foi possível criar a melhoria vinculada: ${friendlyError(e, 'tente de novo.')}`);
       }
     }
     setShowCloseForm(false);
@@ -1426,7 +1614,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
     try {
       await onAction(ticket.id, 'comentar', { text, mentions, attachments, links });
     } catch (e) {
-      throw new Error(`Não foi possível enviar o comentário: ${(e && e.message) || 'tente de novo.'} O que você escreveu foi mantido — tente de novo.`);
+      throw new Error(`Não foi possível enviar o comentário: ${friendlyError(e, 'confira sua conexão.')} O que você escreveu foi mantido — tente de novo.`);
     }
     commentSentRef.current = true;
   }
@@ -1488,13 +1676,13 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
   const timeline = [...structuredHistory, ...legacyHistory].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
   return (
-    <DialogOverlay onClose={escClose} label={`TASK #${ticket.number}`} history={false} style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }}>
+    <DialogOverlay onClose={escClose} label={`TASK #${ticket.number}`} history={false} className="xf-modal" style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }}>
       <FlashToast message={attachNote} />
       <div style={{ ...S.detailBox, width: 'min(1000px, 100%)', maxHeight: '92vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div>
-            <div style={{ fontSize: 12, color: 'var(--text-5)', fontWeight: 700 }}>BUG #{ticket.number}</div>
-            <ContentField as="input" value={ticket.title} disabled={!canEditContent} onCommit={(v) => runAction('editar_campo', { field: 'title', value: v })} />
+            <h2 style={{ margin: 0, fontSize: 12, color: 'var(--text-5)', fontWeight: 700 }}>TASK #{ticket.number}</h2>
+            <ContentField as="input" ariaLabel="Título da TASK" value={ticket.title} disabled={!canEditContent} onCommit={(v) => runAction('editar_campo', { field: 'title', value: v })} />
             <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 4 }}>
               Aberto em {fmtDateFromTs(ticket.createdAt)}
             </div>
@@ -1531,7 +1719,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
 
         {ticket.deleted && (
           <div style={{ ...S.loginBlockedMsg, marginBottom: 14 }}>
-            Este BUG está na Lixeira{ticket.deletedBy && teamById[ticket.deletedBy] ? ` (excluído por ${teamById[ticket.deletedBy].name})` : ''}.
+            Esta TASK está na Lixeira{ticket.deletedBy && teamById[ticket.deletedBy] ? ` (excluído por ${teamById[ticket.deletedBy].name})` : ''}.
             {canDoClient('restaurar', currentUser, ticket) && (
               <button style={{ ...S.iconBtn, marginLeft: 10 }} onClick={() => runAction('restaurar')}>Restaurar</button>
             )}
@@ -1545,8 +1733,9 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 20, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-          <div style={{ flex: 2, minWidth: 0 }}>
+        <div style={{ display: 'flex', gap: 20, flexDirection: isMobile ? 'column' : 'row' }}>
+          <div style={{ flex: 2, minWidth: 0, display: isMobile ? 'contents' : 'block' }}>
+            <div style={{ order: 1, minWidth: 0 }}>
             <div style={S.subSectionLabel}>Descrição</div>
             <RichTextEditor
               value={ticket.description}
@@ -1556,14 +1745,18 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               onOpenTicketRef={openTicketRefByNumber}
               placeholder="O que aconteceu"
             />
+            </div>
 
-            <div style={{ ...S.subSectionLabel, marginTop: 12 }}>Resultado esperado</div>
-            <ContentField value={ticket.expectedResult} disabled={!canEditContent} rows={2} onPasteImage={pasteToEvidence} onCommit={(v) => runAction('editar_campo', { field: 'expectedResult', value: v })} />
+            <div style={{ order: 3, minWidth: 0 }}>
+            <CollapsibleSection id="detail:repro" persist defaultOpen title="Resultado esperado e passo a passo">
+            <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Resultado esperado</div>
+            <ContentField ariaLabel="Resultado esperado" value={ticket.expectedResult} disabled={!canEditContent} rows={2} onPasteImage={pasteToEvidence} onCommit={(v) => runAction('editar_campo', { field: 'expectedResult', value: v })} />
 
             <div style={{ ...S.subSectionLabel, marginTop: 12 }}>Passo a passo para reproduzir</div>
-            <ContentField value={ticket.reproSteps} disabled={!canEditContent} rows={4} onPasteImage={pasteToEvidence} onCommit={(v) => runAction('editar_campo', { field: 'reproSteps', value: v })} />
+            <ContentField ariaLabel="Passo a passo para reproduzir" value={ticket.reproSteps} disabled={!canEditContent} rows={4} onPasteImage={pasteToEvidence} onCommit={(v) => runAction('editar_campo', { field: 'reproSteps', value: v })} />
+            </CollapsibleSection>
 
-            <div style={{ ...S.subSectionLabel, marginTop: 12 }}>Evidências</div>
+            <CollapsibleSection id="detail:evidencias" persist defaultOpen={(ticket.evidence || []).length > 0} title="Evidências" summary={(ticket.evidence || []).length ? `${(ticket.evidence || []).length} ${(ticket.evidence || []).length === 1 ? 'anexo' : 'anexos'}` : 'nenhuma'}>
             {canAttach && <div style={{ ...S.fieldHint, marginBottom: 6 }}>Print colado na Descrição fica dentro do texto. Cole com Ctrl+V (Cmd+V no Mac) nos outros campos de texto ou com nada selecionado para guardar como evidência. Pra outros arquivos, use Anexar.</div>}
             {canAttach && <AddMenu onFiles={attachFiles} accept="" label="Anexar" />}
             {(ticket.evidence || []).map((ev) => {
@@ -1586,13 +1779,15 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                     <a href={ev.dataUrl} download={ev.name} title="Baixar" style={S.iconBtnGhost}><Download size={12} /></a>
                   )}
                   {canDoClient('attach_evidence', currentUser, ticket) && (
-                    <button style={S.iconBtnGhost} aria-label="Remover anexo" title="Remover anexo" onClick={() => runAction('remover_anexo', { evidenceId: ev.id })}><X size={12} aria-hidden="true" /></button>
+                    <button style={S.iconBtnGhost} aria-label={`Remover anexo ${ev.name}`} title="Remover anexo" onClick={() => runAction('remover_anexo', { evidenceId: ev.id })}><X size={12} aria-hidden="true" /></button>
                   )}
                 </div>
               );
             })}
+            {!(ticket.evidence || []).length && !canAttach && <div style={S.fieldHint}>Nenhuma evidência anexada.</div>}
+            </CollapsibleSection>
 
-            <div style={{ ...S.subSectionLabel, marginTop: 12 }}><Link2 size={12} style={{ verticalAlign: -2, marginRight: 4 }} />TASKs vinculadas</div>
+            <CollapsibleSection id="detail:vinculadas" persist defaultOpen={linkedTickets.length > 0} icon={Link2} title="TASKs vinculadas" summary={linkedTickets.length ? String(linkedTickets.length) : 'nenhuma'}>
             {linkedTickets.length === 0 && <div style={S.fieldHint}>Nenhuma TASK vinculada ainda.</div>}
             {linkedTickets.map((lt) => (
               <div key={lt.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
@@ -1604,7 +1799,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               </div>
             ))}
             <input
-              type="text" placeholder="Vincular TASK — busque por número, título ou palavra-chave"
+              type="text" placeholder="Vincular TASK — busque por número, título ou palavra-chave" aria-label="Vincular TASK: buscar por número, título ou palavra-chave"
               value={linkQuery} onChange={(e) => setLinkQuery(e.target.value)} style={{ marginTop: 8 }}
             />
             {linkMatches.length > 0 && (
@@ -1620,16 +1815,19 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                 ))}
               </div>
             )}
+            </CollapsibleSection>
 
             {(ticket.solution || ticket.whatToTest || ['em_desenvolvimento', 'em_revisao', 'pronta_para_teste', 'em_homologacao', 'publicada', 'aguardando_validacao_solicitante', 'concluida'].includes(ticket.status)) && (
               <>
                 <div style={{ ...S.subSectionLabel, marginTop: 12 }}>Solução aplicada</div>
-                <ContentField value={ticket.solution} disabled={!canEditContent} rows={2} placeholder="O que foi feito para corrigir" onPasteImage={pasteToEvidence} onCommit={(v) => runAction('editar_campo', { field: 'solution', value: v })} />
+                <ContentField ariaLabel="Solução aplicada" value={ticket.solution} disabled={!canEditContent} rows={2} placeholder="O que foi feito para corrigir" onPasteImage={pasteToEvidence} onCommit={(v) => runAction('editar_campo', { field: 'solution', value: v })} />
                 <div style={{ ...S.subSectionLabel, marginTop: 12 }}>O que testar</div>
-                <ContentField value={ticket.whatToTest} disabled={!canEditContent} rows={2} placeholder="Passos pra validar a correção" onPasteImage={pasteToEvidence} onCommit={(v) => runAction('editar_campo', { field: 'whatToTest', value: v })} />
+                <ContentField ariaLabel="O que testar" value={ticket.whatToTest} disabled={!canEditContent} rows={2} placeholder="Passos pra validar a correção" onPasteImage={pasteToEvidence} onCommit={(v) => runAction('editar_campo', { field: 'whatToTest', value: v })} />
               </>
             )}
+            </div>
 
+            <div style={{ order: 4, minWidth: 0 }}>
             <div style={{ ...S.subSectionLabel, marginTop: 16 }}><MessageSquare size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Comentários</div>
             <ComposeBox
               ref={composeRef}
@@ -1652,17 +1850,23 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
               />
             </div>
 
-            <div style={{ ...S.subSectionLabel, marginTop: 16 }}><Clock size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Timeline</div>
+            </div>
+
+            <div style={{ order: 5, minWidth: 0 }}>
+            <CollapsibleSection id="detail:historico" persist icon={Clock} title="Histórico" summary={timeline.length ? `${timeline.length} ${timeline.length === 1 ? 'evento' : 'eventos'}` : 'nenhum evento'}>
             {timeline.length === 0 && <div style={S.emptyMuted}>Nenhum evento ainda.</div>}
             {timeline.map((h) => (
               <div key={h.id} style={S.logRow}>
                 <div style={S.logTs}>{fmtTs(h.createdAt)}{h.userName ? ` · ${h.userName}` : ''}</div>
-                <div style={S.logAction}>{h.note}</div>
+                <div style={S.logAction}>{taskWording(h.note)}</div>
               </div>
             ))}
+            </CollapsibleSection>
+            </div>
           </div>
 
-          <div style={{ flex: 1, minWidth: isMobile ? '100%' : 260 }}>
+          <div style={{ flex: 1, minWidth: isMobile ? 0 : 260, display: isMobile ? 'contents' : 'block' }}>
+            <div style={{ order: 2, minWidth: 0 }}>
             <div style={{ ...S.accessBlock, marginBottom: 12 }}>
               <div style={S.settingsLabel}>Quem está com a bola</div>
               <div style={{ fontWeight: 800, fontSize: 13 }}>{ball}</div>
@@ -1677,28 +1881,28 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             {showReproduceForm && (
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>O que você tentou pra reproduzir?</div>
-                <textarea rows={2} value={reproduceNoteDraft} onChange={(e) => setReproduceNoteDraft(e.target.value)} />
+                <textarea aria-label="O que você tentou pra reproduzir?" rows={2} value={reproduceNoteDraft} onChange={(e) => setReproduceNoteDraft(e.target.value)} />
                 <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmReproduce} disabled={!reproduceNoteDraft.trim() || formBusy} title={formBusy ? 'Aguarde terminar' : !reproduceNoteDraft.trim() ? 'Descreva o que foi observado para continuar' : undefined}>Confirmar</button>
               </div>
             )}
             {showDupForm && (
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
-                <div style={S.fieldHint}>ID/número do BUG original</div>
-                <input type="text" value={dupIdDraft} onChange={(e) => setDupIdDraft(e.target.value)} />
+                <div style={S.fieldHint}>ID/número da TASK original</div>
+                <input aria-label="ID/número da TASK original" type="text" value={dupIdDraft} onChange={(e) => setDupIdDraft(e.target.value)} />
                 <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmDuplicate} disabled={!dupIdDraft.trim() || formBusy} title={formBusy ? 'Aguarde terminar' : !dupIdDraft.trim() ? 'Informe o número da TASK original' : undefined}>Vincular e marcar duplicado</button>
               </div>
             )}
             {showRedirectForm && (
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>Novo produto (opcional)</div>
-                <select value={redirectProduct} onChange={(e) => setRedirectProduct(e.target.value)}>
+                <select aria-label="Novo produto (opcional)" value={redirectProduct} onChange={(e) => setRedirectProduct(e.target.value)}>
                   <option value="">Manter</option>
                   {XFLOW_PRODUCTS.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
                 <div style={{ ...S.fieldHint, marginTop: 6 }}>Novo módulo (opcional)</div>
-                <input type="text" value={redirectModule} onChange={(e) => setRedirectModule(e.target.value)} />
+                <input aria-label="Novo módulo (opcional)" type="text" value={redirectModule} onChange={(e) => setRedirectModule(e.target.value)} />
                 <div style={{ ...S.fieldHint, marginTop: 6 }}>Novo responsável (opcional)</div>
-                <select value={redirectAssignee} onChange={(e) => setRedirectAssignee(e.target.value)}>
+                <select aria-label="Novo responsável (opcional)" value={redirectAssignee} onChange={(e) => setRedirectAssignee(e.target.value)}>
                   <option value="">Manter</option>
                   {(team || []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
@@ -1708,13 +1912,13 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             {showWaitForm && (
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>Aguardar resposta de</div>
-                <select value={waitOnType} onChange={(e) => setWaitOnType(e.target.value)}>
+                <select aria-label="Aguardar resposta de" value={waitOnType} onChange={(e) => setWaitOnType(e.target.value)}>
                   <option value="solicitante">Solicitante</option>
                   <option value="cliente">Cliente</option>
                   <option value="terceiro">Terceiro</option>
                 </select>
                 <div style={{ ...S.fieldHint, marginTop: 6 }}>O que está faltando (opcional)</div>
-                <textarea rows={2} value={waitNote} onChange={(e) => setWaitNote(e.target.value)} />
+                <textarea aria-label="O que está faltando (opcional)" rows={2} value={waitNote} onChange={(e) => setWaitNote(e.target.value)} />
                 <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmWait} disabled={formBusy} title={formBusy ? 'Aguarde terminar' : undefined}>Confirmar</button>
               </div>
             )}
@@ -1742,7 +1946,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             {showHomologRejectForm && (
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>Motivo da reprovação (obrigatório)</div>
-                <textarea rows={2} value={homologRejectNote} onChange={(e) => setHomologRejectNote(e.target.value)} />
+                <textarea aria-label="Motivo da reprovação (obrigatório)" rows={2} value={homologRejectNote} onChange={(e) => setHomologRejectNote(e.target.value)} />
                 <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmHomologReject} disabled={!homologRejectNote.trim() || formBusy} title={formBusy ? 'Aguarde terminar' : !homologRejectNote.trim() ? 'Escreva o motivo da reprovação' : undefined}>Confirmar reprovação</button>
               </div>
             )}
@@ -1752,11 +1956,11 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             {showPublishForm && (
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>Versão (opcional)</div>
-                <input type="text" value={publishVersion} onChange={(e) => setPublishVersion(e.target.value)} />
+                <input aria-label="Versão (opcional)" type="text" value={publishVersion} onChange={(e) => setPublishVersion(e.target.value)} />
                 <div style={{ ...S.fieldHint, marginTop: 6 }}>Build (opcional)</div>
-                <input type="text" value={publishBuild} onChange={(e) => setPublishBuild(e.target.value)} />
+                <input aria-label="Build (opcional)" type="text" value={publishBuild} onChange={(e) => setPublishBuild(e.target.value)} />
                 <div style={{ ...S.fieldHint, marginTop: 6 }}>Release (opcional)</div>
-                <input type="text" value={publishRelease} onChange={(e) => setPublishRelease(e.target.value)} />
+                <input aria-label="Release (opcional)" type="text" value={publishRelease} onChange={(e) => setPublishRelease(e.target.value)} />
                 <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmPublish} disabled={formBusy} title={formBusy ? 'Aguarde terminar' : undefined}>Confirmar publicação</button>
               </div>
             )}
@@ -1768,7 +1972,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             {showGerenciaForm && (
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>Decisão (obrigatória)</div>
-                <textarea rows={2} value={gerenciaNote} onChange={(e) => setGerenciaNote(e.target.value)} />
+                <textarea aria-label="Decisão (obrigatória)" rows={2} value={gerenciaNote} onChange={(e) => setGerenciaNote(e.target.value)} />
                 <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmResolverGerencia} disabled={!gerenciaNote.trim() || formBusy} title={formBusy ? 'Aguarde terminar' : !gerenciaNote.trim() ? 'Escreva a decisão da gerência' : undefined}>Confirmar decisão</button>
               </div>
             )}
@@ -1793,7 +1997,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             {showBlockForm && (
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>Motivo</div>
-                <select value={blockReasonDraft} onChange={(e) => setBlockReasonDraft(e.target.value)}>
+                <select aria-label="Motivo" value={blockReasonDraft} onChange={(e) => setBlockReasonDraft(e.target.value)}>
                   <option value="">Selecione</option>
                   {XFLOW_BLOCK_REASON_ORDER.map((k) => <option key={k} value={k}>{XFLOW_BLOCK_REASON_META[k]}</option>)}
                 </select>
@@ -1812,24 +2016,24 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             {showCloseForm && (
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>Motivo do encerramento</div>
-                <select value={closeReasonDraft} onChange={(e) => setCloseReasonDraft(e.target.value)}>
+                <select aria-label="Motivo do encerramento" value={closeReasonDraft} onChange={(e) => setCloseReasonDraft(e.target.value)}>
                   <option value="">Selecione</option>
                   {closureReasonOptions.map((k) => <option key={k} value={k}>{XFLOW_CLOSURE_REASON_META[k]}</option>)}
                 </select>
                 {closeReasonDraft === 'duplicado' && (
-                  <input type="text" style={{ marginTop: 6 }} placeholder="ID/número do BUG original" value={closeDupIdDraft} onChange={(e) => setCloseDupIdDraft(e.target.value)} />
+                  <input type="text" aria-label="ID/número da TASK original" style={{ marginTop: 6 }} placeholder="ID/número da TASK original" value={closeDupIdDraft} onChange={(e) => setCloseDupIdDraft(e.target.value)} />
                 )}
                 <div style={{ ...S.fieldHint, marginTop: 6 }}>Justificativa (obrigatória)</div>
-                <textarea rows={2} value={closeJustDraft} onChange={(e) => setCloseJustDraft(e.target.value)} />
-                {closeReasonDraft === 'melhoria' && <div style={{ ...S.fieldHint, marginTop: 4 }}>Vai criar automaticamente uma nova TASK de melhoria vinculada a este BUG.</div>}
+                <textarea aria-label="Justificativa (obrigatória)" rows={2} value={closeJustDraft} onChange={(e) => setCloseJustDraft(e.target.value)} />
+                {closeReasonDraft === 'melhoria' && <div style={{ ...S.fieldHint, marginTop: 4 }}>Vai criar automaticamente uma nova TASK de melhoria vinculada a esta TASK.</div>}
                 <button style={{ ...S.iconBtn, marginTop: 6 }} onClick={confirmClose} disabled={!closeReasonDraft || !closeJustDraft.trim() || (closeReasonDraft === 'duplicado' && !closeDupIdDraft.trim()) || formBusy} title={formBusy ? 'Aguarde terminar' : !closeReasonDraft ? 'Escolha o motivo do encerramento' : !closeJustDraft.trim() ? 'Escreva a justificativa' : (closeReasonDraft === 'duplicado' && !closeDupIdDraft.trim()) ? 'Informe o número da TASK original' : undefined}>Confirmar encerramento</button>
               </div>
             )}
             {terminal && !ticket.archived && canDoClient('reabrir', currentUser, ticket) && (
               <button style={{ ...S.iconBtn, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={async () => {
-                const note = await askText({ title: 'Reabrir BUG', label: 'Motivo da reabertura (obrigatório)', confirmLabel: 'Reabrir', required: true });
+                const note = await askText({ title: 'Reabrir TASK', label: 'Motivo da reabertura (obrigatório)', confirmLabel: 'Reabrir', required: true });
                 if (note && note.trim()) runAction('reabrir', { note: note.trim() });
-              }}>Reabrir BUG</button>
+              }}>Reabrir TASK</button>
             )}
             {ticket.status === 'concluida' && !ticket.archived && canDoClient('arquivar', currentUser, ticket) && (
               <button style={{ ...S.iconBtnGhost, width: '100%', justifyContent: 'center', marginBottom: 6 }} onClick={() => runAction('arquivar')}><Archive size={13} /> Arquivar</button>
@@ -1842,21 +2046,25 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             {!ticket.deleted && showDeleteConfirm && (
               <div style={{ ...S.accessBlock, marginBottom: 10 }}>
                 <div style={S.fieldHint}>
-                  O BUG vai para a Lixeira — nada é apagado de verdade. Fica lá com todo o
+                  A TASK vai para a Lixeira — nada é apagado de verdade. Fica lá com todo o
                   histórico até alguém da gestão restaurar (ou o admin apagar de vez).
                 </div>
                 <button style={{ ...S.iconBtn, marginTop: 6, color: '#e2574c' }} onClick={() => runAction('excluir')}>Confirmar exclusão</button>
               </div>
             )}
 
-            <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Severidade</div>
-            <select value={ticket.severity || ''} disabled={!canDoClient('change_severity', currentUser, ticket)} onChange={(e) => runAction('mudar_severidade', { severity: e.target.value })}>
+            </div>
+
+            <div style={{ order: 6, minWidth: 0 }}>
+            <CollapsibleSection id="detail:classificacao" persist defaultOpen title="Classificação e responsável">
+            <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Severidade</div>
+            <select aria-label="Severidade" value={ticket.severity || ''} disabled={!canDoClient('change_severity', currentUser, ticket)} onChange={(e) => runAction('mudar_severidade', { severity: e.target.value })}>
               <option value="">Sem severidade</option>
               {XFLOW_SEVERITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_SEVERITY_META[k].label}</option>)}
             </select>
 
             <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Prioridade</div>
-            <select value={ticket.priority || ''} disabled={!canDoClient('change_priority', currentUser, ticket)} onChange={(e) => runAction('mudar_prioridade', { priority: e.target.value })}>
+            <select aria-label="Prioridade" value={ticket.priority || ''} disabled={!canDoClient('change_priority', currentUser, ticket)} onChange={(e) => runAction('mudar_prioridade', { priority: e.target.value })}>
               <option value="">Sem prioridade</option>
               {XFLOW_PRIORITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_PRIORITY_META[k].label}</option>)}
             </select>
@@ -1864,7 +2072,7 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
 
             <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Responsável atual</div>
             {(role === 'gestao' || role === 'admin') ? (
-              <select value={ticket.assigneeId || ''} onChange={(e) => runAction('reatribuir', { assigneeId: e.target.value || null })}>
+              <select aria-label="Responsável atual" value={ticket.assigneeId || ''} onChange={(e) => runAction('reatribuir', { assigneeId: e.target.value || null })}>
                 <option value="">Ninguém</option>
                 {(team || []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
@@ -1873,26 +2081,29 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             ) : (
               <div style={{ fontSize: 13, fontWeight: 600 }}>{(teamById[ticket.assigneeId] && teamById[ticket.assigneeId].name) || 'Ninguém'}</div>
             )}
+            </CollapsibleSection>
 
-            <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Próxima ação</div>
-            <ContentField as="input" value={ticket.nextAction} disabled={!canEditOps} onCommit={(v) => runAction('editar_prazo_proxima_acao', { nextAction: v })} />
+            <CollapsibleSection id="detail:prazos" persist defaultOpen={!isMobile} title="Prazos e próxima ação" summary={ticket.dueDate ? `prazo ${fmtDate(ticket.dueDate)}` : undefined}>
+            <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Próxima ação</div>
+            <ContentField ariaLabel="Próxima ação" as="input" value={ticket.nextAction} disabled={!canEditOps} onCommit={(v) => runAction('editar_prazo_proxima_acao', { nextAction: v })} />
 
             <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Prazo</div>
-            <ContentField as="input" type="date" value={ticket.dueDate} disabled={!canEditOps} onCommit={(v) => runAction('editar_prazo_proxima_acao', { dueDate: v })} />
+            <ContentField ariaLabel="Prazo" as="input" type="date" value={ticket.dueDate} disabled={!canEditOps} onCommit={(v) => runAction('editar_prazo_proxima_acao', { dueDate: v })} />
             <div style={S.fieldHint}>Prazo esperado de quem abriu a TASK, com base na urgência do cliente e do time interno — não é a entrega combinada pelo dev.</div>
 
             <div style={{ ...S.subSectionLabel, marginTop: 10 }}>Previsão de conclusão</div>
-            <ContentField as="input" type="date" value={ticket.expectedCompletionAt} disabled={!canEditContent} onCommit={(v) => runAction('editar_campo', { field: 'expectedCompletionAt', value: v })} />
+            <ContentField ariaLabel="Previsão de conclusão" as="input" type="date" value={ticket.expectedCompletionAt} disabled={!canEditContent} onCommit={(v) => runAction('editar_campo', { field: 'expectedCompletionAt', value: v })} />
             <div style={S.fieldHint}>Data que o dev define como a entrega correta — visível para solicitante, dev e gestão.</div>
+            </CollapsibleSection>
 
-            <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Dados capturados</div>
-            <div style={{ ...S.fieldHint, marginBottom: 4 }}>
-              Campos que faltaram na abertura podem ser preenchidos aqui — toda alteração fica registrada na timeline.
+            <CollapsibleSection id="detail:dados" persist title="Dados da abertura">
+            <div style={{ ...S.fieldHint, marginTop: 0, marginBottom: 4 }}>
+              Campos que faltaram na abertura podem ser preenchidos aqui — toda alteração fica registrada no histórico.
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 140px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Produto / Plataforma</div>
-                <select value={ticket.product || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'product', value: e.target.value })}>
+                <select aria-label="Produto / Plataforma" value={ticket.product || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'product', value: e.target.value })}>
                   <option value="">Selecione</option>
                   {XFLOW_PRODUCTS.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
@@ -1906,11 +2117,11 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 140px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Módulo / Tela</div>
-                <ContentField as="input" value={ticket.module} disabled={!canEditContent} placeholder="Ex.: Upload, Aderência" onCommit={(v) => runAction('editar_campo', { field: 'module', value: v })} />
+                <ContentField ariaLabel="Módulo / Tela" as="input" value={ticket.module} disabled={!canEditContent} placeholder="Ex.: Upload, Aderência" onCommit={(v) => runAction('editar_campo', { field: 'module', value: v })} />
               </div>
               <div style={{ flex: '1 1 140px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Tipo de cliente</div>
-                <select value={ticket.clientType || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'clientType', value: e.target.value })}>
+                <select aria-label="Tipo de cliente" value={ticket.clientType || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'clientType', value: e.target.value })}>
                   <option value="">Selecione</option>
                   {XFLOW_CLIENT_TYPES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -1920,11 +2131,11 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 140px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Usuário afetado</div>
-                <ContentField as="input" value={ticket.affectedUser} disabled={!canEditContent} placeholder="Quem encontrou o problema" onCommit={(v) => runAction('editar_campo', { field: 'affectedUser', value: v })} />
+                <ContentField ariaLabel="Usuário afetado" as="input" value={ticket.affectedUser} disabled={!canEditContent} placeholder="Quem encontrou o problema" onCommit={(v) => runAction('editar_campo', { field: 'affectedUser', value: v })} />
               </div>
               <div style={{ flex: '1 1 140px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Empresa/Cliente afetado</div>
-                <AffectedCompanyField
+                <AffectedCompanyField ariaLabel="Empresa/Cliente afetado"
                   value={ticket.affectedCompany}
                   options={affectedCompanies}
                   disabled={!canEditContent}
@@ -1936,14 +2147,14 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 140px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Impacto</div>
-                <select value={ticket.impact || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'impact', value: e.target.value })}>
+                <select aria-label="Impacto" value={ticket.impact || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'impact', value: e.target.value })}>
                   <option value="">Selecione</option>
                   {XFLOW_IMPACT_ORDER.map((k) => <option key={k} value={k}>{XFLOW_IMPACT_META[k]}</option>)}
                 </select>
               </div>
               <div style={{ flex: '1 1 140px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Frequência</div>
-                <select value={ticket.frequency || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'frequency', value: e.target.value })}>
+                <select aria-label="Frequência" value={ticket.frequency || ''} disabled={!canEditContent} onChange={(e) => runAction('editar_campo', { field: 'frequency', value: e.target.value })}>
                   <option value="">Selecione</option>
                   {XFLOW_FREQUENCY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_FREQUENCY_META[k]}</option>)}
                 </select>
@@ -1953,11 +2164,11 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
             <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 140px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Data da ocorrência</div>
-                <ContentField as="input" type="date" value={ticket.occurredAt} disabled={!canEditContent} onCommit={(v) => runAction('editar_campo', { field: 'occurredAt', value: v })} />
+                <ContentField ariaLabel="Data da ocorrência" as="input" type="date" value={ticket.occurredAt} disabled={!canEditContent} onCommit={(v) => runAction('editar_campo', { field: 'occurredAt', value: v })} />
               </div>
               <div style={{ flex: '1 1 140px' }}>
                 <div style={{ ...S.subSectionLabel, marginTop: 0 }}>Prioridade sugerida</div>
-                <select
+                <select aria-label="Prioridade sugerida"
                   value={ticket.suggestedPriority || ''}
                   disabled={!canEditContent || !!ticket.suggestedPriority}
                   onChange={(e) => runAction('definir_prioridade_sugerida', { value: e.target.value })}
@@ -1968,8 +2179,9 @@ function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCre
                 {ticket.suggestedPriority && <div style={S.fieldHint}>Definida — não pode ser alterada depois.</div>}
               </div>
             </div>
-
-            {ticket.capturedUrl && <div style={{ ...S.fieldHint, marginTop: 10, wordBreak: 'break-all' }}>URL: {ticket.capturedUrl}</div>}
+            {ticket.capturedUrl && <div style={{ ...S.fieldHint, marginTop: 10, wordBreak: 'break-all' }}>Endereço da tela na abertura: {ticket.capturedUrl}</div>}
+            </CollapsibleSection>
+            </div>
           </div>
         </div>
       </div>
@@ -2124,7 +2336,7 @@ function fmtHours(seconds) {
 function StatCard({ label, count, active, onClick, tone: cardTone }) {
   return (
     <button
-      onClick={onClick}
+      onClick={onClick} className="xf-stat xf-fill" aria-pressed={!!active}
       style={{
         ...S.accessBlock, cursor: 'pointer', textAlign: 'left', minWidth: 118, flex: '1 1 118px',
         border: active ? '1px solid #F5C400' : undefined, background: active ? 'rgba(245,196,0,.08)' : undefined,
@@ -2139,7 +2351,12 @@ function StatCard({ label, count, active, onClick, tone: cardTone }) {
 function TicketRow({ t, teamById, onOpen }) {
   const days = daysSince(t.createdAt);
   return (
-    <div style={{ ...S.accessBlock, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }} onClick={() => onOpen(t.id)}>
+    <div
+      className="xf-card xf-row" role="button" tabIndex={0} aria-label={`Abrir TASK #${t.number}: ${t.title}`}
+      style={{ ...S.accessBlock, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}
+      onClick={() => onOpen(t.id)}
+      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onOpen(t.id); } }}
+    >
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-5)', width: 56 }}>#{t.number}</div>
       <Badge meta={XFLOW_TYPE_META[t.type] || XFLOW_TYPE_META.bug} small />
       <div style={{ flex: 1, minWidth: 160, fontWeight: 700 }}>
@@ -2168,7 +2385,7 @@ function TicketRow({ t, teamById, onOpen }) {
 }
 
 function TicketList({ list, teamById, onOpen, emptyLabel }) {
-  if (!list.length) return <div style={{ ...S.emptyMuted, marginTop: 10 }}>{emptyLabel || 'Nenhum BUG aqui.'}</div>;
+  if (!list.length) return <div style={{ ...S.emptyMuted, marginTop: 10 }}>{emptyLabel || 'Nenhuma TASK aqui.'}</div>;
   return (
     <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
       {list.map((t) => <TicketRow key={t.id} t={t} teamById={teamById} onOpen={onOpen} />)}
@@ -2177,6 +2394,9 @@ function TicketList({ list, teamById, onOpen, emptyLabel }) {
 }
 
 function FilterBar({ filters, setFilters, team, teamById, tickets }) {
+  const isMobile = useIsMobile();
+  const [panelOpen, setPanelOpen] = useState(false);
+  const panelId = useId();
   function set(patch) { setFilters((f) => ({ ...f, ...patch })); }
   // "Responsável atual" só lista quem de fato está com a bola em algum
   // ticket agora (2026-08, pedido do Rafael) — não é "todo mundo com papel
@@ -2199,50 +2419,79 @@ function FilterBar({ filters, setFilters, team, teamById, tickets }) {
   const triageReporters = teamById
     ? [...new Map((tickets || []).filter((t) => ballHolderKey(t) === 'triage_queue' && t.reporterId && teamById[t.reporterId]).map((t) => [t.reporterId, teamById[t.reporterId]])).values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
     : [];
+  const activeCount = Object.keys(filters).filter((k) => k !== 'search' && filters[k]).length;
+  const collapsed = isMobile && !panelOpen;
+  const sel = isMobile ? { width: '100%', minWidth: 0 } : { width: 'auto' };
+  const cell = isMobile ? { flex: '1 1 45%', minWidth: 0 } : { display: 'contents' };
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '14px 0' }}>
-      <input type="text" placeholder="Buscar por ID, título, empresa, usuário..." value={filters.search} onChange={(e) => set({ search: e.target.value })} style={{ flex: '1 1 220px', minWidth: 180 }} />
-      <select value={filters.status} onChange={(e) => set({ status: e.target.value })} style={{ width: 'auto' }}>
-        <option value="">Todos os status</option>
-        {Object.keys(XFLOW_STATUS_META).map((k) => <option key={k} value={k}>{XFLOW_STATUS_META[k].label}</option>)}
-      </select>
-      <select value={filters.product} onChange={(e) => set({ product: e.target.value })} style={{ width: 'auto' }}>
-        <option value="">Todos os produtos</option>
-        {XFLOW_PRODUCTS.map((p) => <option key={p} value={p}>{p}</option>)}
-      </select>
-      <select value={filters.severity} onChange={(e) => set({ severity: e.target.value })} style={{ width: 'auto' }}>
-        <option value="">Toda severidade</option>
-        {XFLOW_SEVERITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_SEVERITY_META[k].label}</option>)}
-      </select>
-      <select value={filters.priority} onChange={(e) => set({ priority: e.target.value })} style={{ width: 'auto' }}>
-        <option value="">Toda prioridade</option>
-        {XFLOW_PRIORITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_PRIORITY_META[k].label}</option>)}
-      </select>
-      {team && team.length > 0 && (
-        <select value={filters.assigneeId} onChange={(e) => set({ assigneeId: e.target.value })} style={{ width: 'auto' }}>
-          <option value="">Atribuído a: todos</option>
-          {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-        </select>
+      <input type="text" aria-label="Buscar TASKs" placeholder="Buscar por ID, título, empresa, usuário..." value={filters.search} onChange={(e) => set({ search: e.target.value })} style={{ flex: '1 1 220px', minWidth: 180 }} />
+      {isMobile && (
+        <button type="button" className="xf-fill" style={S.iconBtn} aria-expanded={panelOpen} aria-controls={panelOpen ? panelId : undefined} onClick={() => setPanelOpen((v) => !v)}>
+          <SlidersHorizontal size={14} aria-hidden="true" /> Filtros{activeCount ? ` (${activeCount})` : ''}
+        </button>
       )}
-      {teamById && (
-        <select value={filters.ballHolder} onChange={(e) => set({ ballHolder: e.target.value })} style={{ width: 'auto' }} title="Quem precisa agir agora, não a atribuição fixa">
-          <option value="">Responsável atual: todos</option>
-          {devs.map((m) => <option key={m.id} value={`dev:${m.id}`}>{m.name}</option>)}
-          {presentBallHolders.has('gestao') && <option value="gestao">Gestão</option>}
-          {presentBallHolders.has('reporter') && <option value="reporter">Solicitante</option>}
-          {presentBallHolders.has('terceiro') && <option value="terceiro">Terceiro</option>}
-          {presentBallHolders.has('triage_queue') && <option value="triage_queue">Fila de triagem: todos</option>}
-          {triageReporters.map((r) => <option key={r.id} value={`triageReporter:${r.id}`}>Fila de triagem: {r.name}</option>)}
-        </select>
+      {!collapsed && (
+        <div id={panelId} style={isMobile ? { display: 'flex', flexWrap: 'wrap', gap: 8, width: '100%' } : { display: 'contents' }}>
+          <div style={cell}>
+            <select aria-label="Filtrar por status" value={filters.status} onChange={(e) => set({ status: e.target.value })} style={sel}>
+              <option value="">Todos os status</option>
+              {Object.keys(XFLOW_STATUS_META).map((k) => <option key={k} value={k}>{XFLOW_STATUS_META[k].label}</option>)}
+            </select>
+          </div>
+          <div style={cell}>
+            <select aria-label="Filtrar por produto" value={filters.product} onChange={(e) => set({ product: e.target.value })} style={sel}>
+              <option value="">Todos os produtos</option>
+              {XFLOW_PRODUCTS.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div style={cell}>
+            <select aria-label="Filtrar por severidade" value={filters.severity} onChange={(e) => set({ severity: e.target.value })} style={sel}>
+              <option value="">Toda severidade</option>
+              {XFLOW_SEVERITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_SEVERITY_META[k].label}</option>)}
+            </select>
+          </div>
+          <div style={cell}>
+            <select aria-label="Filtrar por prioridade" value={filters.priority} onChange={(e) => set({ priority: e.target.value })} style={sel}>
+              <option value="">Toda prioridade</option>
+              {XFLOW_PRIORITY_ORDER.map((k) => <option key={k} value={k}>{XFLOW_PRIORITY_META[k].label}</option>)}
+            </select>
+          </div>
+          {team && team.length > 0 && (
+            <div style={cell}>
+              <select aria-label="Filtrar por atribuição" value={filters.assigneeId} onChange={(e) => set({ assigneeId: e.target.value })} style={sel}>
+                <option value="">Atribuído a: todos</option>
+                {team.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </div>
+          )}
+          {teamById && (
+            <div style={cell}>
+              <select aria-label="Filtrar por responsável atual" value={filters.ballHolder} onChange={(e) => set({ ballHolder: e.target.value })} style={sel} title="Quem precisa agir agora, não a atribuição fixa">
+                <option value="">Responsável atual: todos</option>
+                {devs.map((m) => <option key={m.id} value={`dev:${m.id}`}>{m.name}</option>)}
+                {presentBallHolders.has('gestao') && <option value="gestao">Gestão</option>}
+                {presentBallHolders.has('reporter') && <option value="reporter">Solicitante</option>}
+                {presentBallHolders.has('terceiro') && <option value="terceiro">Terceiro</option>}
+                {presentBallHolders.has('triage_queue') && <option value="triage_queue">Fila de triagem: todos</option>}
+                {triageReporters.map((r) => <option key={r.id} value={`triageReporter:${r.id}`}>Fila de triagem: {r.name}</option>)}
+              </select>
+            </div>
+          )}
+          <div style={cell}>
+            <select aria-label="Filtrar por prazo (SLA)" value={filters.slaState} onChange={(e) => set({ slaState: e.target.value })} style={sel}>
+              <option value="">Todo SLA</option>
+              {Object.keys(XFLOW_SLA_STATE_META).map((k) => <option key={k} value={k}>{XFLOW_SLA_STATE_META[k].label}</option>)}
+            </select>
+          </div>
+          <div style={cell}>
+            <select aria-label="Filtrar por tempo aberta" value={filters.agingBucket} onChange={(e) => set({ agingBucket: e.target.value })} style={sel}>
+              <option value="">Toda idade</option>
+              {AGING_BUCKET_ORDER.map((k) => <option key={k} value={k}>{AGING_BUCKET_LABEL[k]}</option>)}
+            </select>
+          </div>
+        </div>
       )}
-      <select value={filters.slaState} onChange={(e) => set({ slaState: e.target.value })} style={{ width: 'auto' }}>
-        <option value="">Todo SLA</option>
-        {Object.keys(XFLOW_SLA_STATE_META).map((k) => <option key={k} value={k}>{XFLOW_SLA_STATE_META[k].label}</option>)}
-      </select>
-      <select value={filters.agingBucket} onChange={(e) => set({ agingBucket: e.target.value })} style={{ width: 'auto' }}>
-        <option value="">Toda idade</option>
-        {AGING_BUCKET_ORDER.map((k) => <option key={k} value={k}>{AGING_BUCKET_LABEL[k]}</option>)}
-      </select>
       {hasActiveFilters(filters) && (
         <button style={S.iconBtnGhost} onClick={() => setFilters(BLANK_FILTERS)}>Limpar filtros</button>
       )}
@@ -2307,7 +2556,7 @@ function DevHome({ tickets, currentUser, teamById, filters, setFilters, onOpen }
           </div>
         );
       })}
-      {filteredMine.length === 0 && fila.length === 0 && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Nenhum BUG aguardando você.</div>}
+      {filteredMine.length === 0 && fila.length === 0 && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Nenhuma TASK aguardando você.</div>}
     </>
   );
 }
@@ -2375,7 +2624,7 @@ function GestorHome({ tickets, team, teamById, filters, setFilters, onOpen }) {
 
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 18 }}>
         <div style={{ ...S.accessBlock, flex: '1 1 260px' }}>
-          <div style={S.settingsLabel}>Gargalos — tempo acumulado (tickets ativos)</div>
+          <div style={S.settingsLabel}>Gargalos — tempo acumulado (TASKs ativas)</div>
           {Object.keys(BOTTLENECK_LABEL).map((k) => (
             <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginTop: 6 }}>
               <span style={{ color: 'var(--text-4)' }}>{BOTTLENECK_LABEL[k]}</span>
@@ -2406,10 +2655,10 @@ function GestorHome({ tickets, team, teamById, filters, setFilters, onOpen }) {
           {Object.entries(byDev).sort((a, b) => b[1].count - a[1].count).map(([devId, info]) => (
             <div key={devId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginTop: 6 }}>
               <span>{(teamById[devId] && teamById[devId].name) || devId}</span>
-              <span style={{ color: 'var(--text-5)' }}>{info.count} tickets · {fmtHours(info.devSeconds)} em dev</span>
+              <span style={{ color: 'var(--text-5)' }}>{info.count} {info.count === 1 ? 'TASK' : 'TASKs'} · {fmtHours(info.devSeconds)} em dev</span>
             </div>
           ))}
-          {Object.keys(byDev).length === 0 && <div style={S.emptyMuted}>Nenhum ticket atribuído.</div>}
+          {Object.keys(byDev).length === 0 && <div style={S.emptyMuted}>Nenhuma TASK atribuída.</div>}
         </div>
 
         <div style={{ ...S.accessBlock, flex: '1 1 260px' }}>
@@ -2444,7 +2693,7 @@ function ArchivedView({ tickets, teamById, filters, setFilters, onOpen, onUnarch
   return (
     <>
       <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} tickets={tickets} />
-      {list.length === 0 && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Nenhum BUG arquivado.</div>}
+      {list.length === 0 && <div style={{ ...S.emptyMuted, marginTop: 20 }}>Nenhuma TASK arquivada.</div>}
       <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {list.map((t) => (
           <div key={t.id} style={{ ...S.accessBlock, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -2464,7 +2713,7 @@ function LixeiraView({ tickets, teamById, filters, setFilters, onOpen, onRestore
   return (
     <>
       <div style={{ ...S.fieldHint, marginTop: 10 }}>
-        BUGs excluídos nunca somem de verdade — ficam aqui com todo o histórico até
+        TASKs excluídas nunca somem de verdade — ficam aqui com todo o histórico até
         alguém da gestão restaurar, ou o admin apagar de vez.
       </div>
       <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} tickets={tickets} />
@@ -2528,7 +2777,8 @@ function XflowBoardCard({ ticket, teamById, columnId, columnTerminal, showRealSt
   return (
     <div
       ref={setNodeRef}
-      {...(columnTerminal ? {} : { ...attributes, ...listeners })}
+      {...(columnTerminal ? { role: 'button', tabIndex: 0, onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } } } : { ...attributes, ...listeners })}
+      className="xf-card"
       style={{ ...S.personalCard, ...style, cursor: columnTerminal ? 'pointer' : 'grab', display: 'flex', flexDirection: 'column', gap: 6 }}
       onClick={onOpen}
     >
@@ -2642,7 +2892,7 @@ function XflowBoardView({ tickets, currentUser, teamById, filters, setFilters, o
       await onAction(ticket.id, rule.action, payload || {});
       setPendingDrop(null);
     } catch (err) {
-      showToast(err.message || 'Não foi possível mover a TASK.');
+      showToast(friendlyError(err, 'Não foi possível mover a TASK. Tente de novo.'));
     } finally {
       setBusy(false);
     }
@@ -2679,13 +2929,13 @@ function XflowBoardView({ tickets, currentUser, teamById, filters, setFilters, o
       if (sortMode !== 'manual') return;
       const newOrder = computeReorderBoardOrder(ticket, fromColumnId, overIsCard ? event.over.id : null);
       if (newOrder === null) return;
-      onAction(ticket.id, 'reordenar', { boardOrder: newOrder }).catch((err) => showToast(err.message || 'Não foi possível reordenar.'));
+      onAction(ticket.id, 'reordenar', { boardOrder: newOrder }).catch((err) => showToast(friendlyError(err, 'Não foi possível reordenar. Tente de novo.')));
       return;
     }
 
     const result = resolveDrag(ticket.status, targetColumnId, currentUser, ticket);
     if (!result) return;
-    if (result.blocked) { showToast(result.reason); return; }
+    if (result.blocked) { showToast(taskWording(result.reason)); return; }
     if (result.promptField) { setPendingDrop({ ticket, rule: result }); return; }
     runDrag(ticket, result);
   }
@@ -2701,7 +2951,7 @@ function XflowBoardView({ tickets, currentUser, teamById, filters, setFilters, o
         {sortMode === 'manual' && <span style={S.fieldHint}>Arraste os cards dentro da coluna pra reorganizar.</span>}
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div style={S.personalBoardArea}>
+        <div className="xf-board" style={S.personalBoardArea}>
           {XFLOW_BOARD_COLUMNS.map((col) => (
             <XflowBoardColumn
               key={col.id}
@@ -2857,7 +3107,7 @@ export default function XFlowScreen({
   }
   useEffect(() => { loadAll(); }, []);
 
-  // Link permanente por TASK (2026-08): "#30" na URL abre direto o BUG #30
+  // Link permanente por TASK (2026-08): "#30" na URL abre direto a TASK #30
   // assim que a lista carrega — só roda uma vez (hashOpenDone), senão fica
   // reabrindo o mesmo ticket toda vez que `tickets` muda depois.
   const hashOpenDone = useRef(false);
@@ -2914,7 +3164,7 @@ export default function XFlowScreen({
     registerAffectedCompany(res.ticket.affectedCompany);
     setShowNew(false);
     openTicketDetail(res.ticket.id);
-    setToastMsg(`BUG #${res.ticket.number} criado`);
+    setToastMsg(`TASK #${res.ticket.number} criada`);
     setTimeout(() => setToastMsg(''), 4500);
   }
 
@@ -2934,14 +3184,14 @@ export default function XFlowScreen({
     if (action === 'excluir') {
       setTickets((prev) => prev.filter((t) => t.id !== res.ticket.id));
       setTrashTickets((prev) => (trashLoaded ? [res.ticket, ...prev] : prev));
-      setToastMsg(`BUG #${res.ticket.number} movido para a Lixeira`);
+      setToastMsg(`TASK #${res.ticket.number} movida para a Lixeira`);
       setTimeout(() => setToastMsg(''), 4500);
       return;
     }
     if (action === 'restaurar') {
       setTrashTickets((prev) => prev.filter((t) => t.id !== res.ticket.id));
       setTickets((prev) => [res.ticket, ...prev]);
-      setToastMsg(`BUG #${res.ticket.number} restaurado`);
+      setToastMsg(`TASK #${res.ticket.number} restaurada`);
       setTimeout(() => setToastMsg(''), 4500);
       return;
     }
@@ -2960,7 +3210,7 @@ export default function XFlowScreen({
     await apiDelete(`/api/xflow/tickets/${ticketId}`);
     setTrashTickets((prev) => prev.filter((t) => t.id !== ticketId));
     if (openTicketId === ticketId) setOpenTicketId(null);
-    setToastMsg('BUG apagado de vez');
+    setToastMsg('TASK apagada de vez');
     setTimeout(() => setToastMsg(''), 4500);
   }
 
@@ -2979,7 +3229,8 @@ export default function XFlowScreen({
   }).length;
 
   return (
-    <div style={S.page}>
+    <div className="xf-root" style={S.page}>
+      <style>{XFLOW_CSS}</style>
       <style>{`
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
@@ -3018,7 +3269,7 @@ export default function XFlowScreen({
           --pcol-default-container: #F7F7F5;
         }
       `}</style>
-      <div style={S.topbar}>
+      <div className="xf-topbar" style={S.topbar}>
         <div style={S.brandRow}>
           <BrandLogo theme={theme} style={S.logoImg} />
           <div>
@@ -3026,7 +3277,7 @@ export default function XFlowScreen({
             <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{currentUser.name} · {XFLOW_ROLE_META[effRole] ? XFLOW_ROLE_META[effRole].label : currentUser.xflowRole}</div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="xf-topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {!showArchived && !showTrash && (
             <div style={{ display: 'flex', gap: 4, background: 'var(--bg-3)', padding: 3, borderRadius: 8 }}>
               <button style={{ ...S.pbGhostBtn, border: 'none', ...(viewMode === 'quadro' ? { background: S.pbGhostBtnActive.background, color: S.pbGhostBtnActive.color } : {}) }} onClick={() => goToXflowView('quadro')}>
@@ -3051,10 +3302,10 @@ export default function XFlowScreen({
         </div>
       </div>
 
-      <div style={{ padding: '0 24px', paddingBottom: 40 }}>
+      <div className="xf-pad" style={{ padding: '0 24px', paddingBottom: 40 }}>
         {!loadError && dependemDeVoceCount > 0 && !showArchived && !showTrash && (
           <div style={{ ...S.loginBlockedMsg, marginTop: 16, background: 'rgba(255,159,64,.14)', color: '#ff9f40', borderColor: 'rgba(255,159,64,.5)' }}>
-            ⚠ {dependemDeVoceCount} BUG{dependemDeVoceCount === 1 ? '' : 's'} dependendo de você
+            ⚠ {dependemDeVoceCount} {dependemDeVoceCount === 1 ? 'TASK dependendo' : 'TASKs dependendo'} de você
           </div>
         )}
 
@@ -3062,7 +3313,7 @@ export default function XFlowScreen({
 
         {loaded && loadError && (
           <div role="alert" style={{ ...S.loginBlockedMsg, marginTop: 20, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <span style={{ flex: 1, minWidth: 200 }}>Não foi possível carregar os tickets. Verifique sua conexão e tente de novo.</span>
+            <span style={{ flex: 1, minWidth: 200 }}>Não foi possível carregar as TASKs. Verifique sua conexão e tente de novo.</span>
             <button style={S.iconBtn} onClick={loadAll}>Tentar de novo</button>
           </div>
         )}

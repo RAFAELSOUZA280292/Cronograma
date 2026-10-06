@@ -1,4 +1,4 @@
-// Visão Macro (2026-08, pedido do Rafael) — quadro de cronograma geral pra
+// Visão Geral (antes "Visão Macro"; 2026-08, pedido do Rafael) — quadro de cronograma geral pra
 // controle interno: junta as atividades de TODAS as empresas da org num só
 // feed organizado por data, pra dar pra ver rápido o que está previsto na
 // semana sem precisar entrar empresa por empresa. Só leitura pra fonte dos
@@ -9,11 +9,12 @@
 // `projects` (é o mesmo estado, mesmo PATCH). Ver PROJECT_CONTEXT.md §23.
 
 import React, { useEffect, useRef, useState } from 'react';
-import { RefreshCw, AlertTriangle, Clock3, CalendarDays, CalendarRange, CalendarClock, CalendarOff, Pause, X, CheckCircle2, Search } from 'lucide-react';
+import { SlidersHorizontal, RefreshCw, AlertTriangle, Clock3, CalendarDays, CalendarRange, CalendarClock, CalendarOff, Pause, X, CheckCircle2, Search } from 'lucide-react';
 import { Chip, ChipRow, Select, Button, EmptyState, SkeletonCards, activate } from '../ui/index.jsx';
 import { apiGet } from '../lib/api.js';
 import { useHistoryValue, readHistoryValue } from '../lib/nav.js';
 import { S, BrandLogo, STATUS_META, PRIORITY_META, PRIORITY_ORDER } from '../App.jsx';
+import './macro.css';
 
 const RANGE_OPTIONS = [
   { value: 'overdue', label: 'Atrasadas', icon: AlertTriangle, accent: '#e2574c', countKey: 'overdueCount' },
@@ -71,6 +72,8 @@ export default function MacroOverviewScreen({
   const [filterResponsible, setFilterResponsible] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false); // só tem efeito no celular (no desktop os filtros ficam sempre à vista)
+  const periodRef = useRef(null);
 
   function load() {
     return apiGet(`/api/macro?range=${range}`)
@@ -99,6 +102,12 @@ export default function MacroOverviewScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activityModalOpen]);
 
+  // No celular os períodos rolam numa fileira: traz o escolhido (ex.: "Pausadas", ao voltar pelo navegador) para a vista.
+  useEffect(() => {
+    const el = periodRef.current && periodRef.current.querySelector('[aria-pressed="true"]');
+    if (el && el.scrollIntoView) { try { el.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch { /* sem suporte */ } }
+  }, [range]);
+
   const filteredItems = data ? data.items.filter((item) =>
     (!filterCompany || item.projectId === filterCompany)
     && (!filterResponsible || item.responsible === filterResponsible)
@@ -106,6 +115,8 @@ export default function MacroOverviewScreen({
     && (!filterPriority || item.priority === filterPriority)
   ) : [];
   const filtersActive = !!(filterCompany || filterResponsible || filterStatus || filterPriority);
+  const filtersCount = [filterCompany, filterResponsible, filterStatus, filterPriority].filter(Boolean).length;
+  const clearFilters = () => { setFilterCompany(''); setFilterResponsible(''); setFilterStatus(''); setFilterPriority(''); };
 
   const groups = [];
   if (data) {
@@ -140,25 +151,25 @@ export default function MacroOverviewScreen({
 
   return (
     <div style={S.page}>
-      <div style={S.topbar}>
+      <div className="mac-top" style={S.topbar}>
         <div style={S.brandRow}>
           <BrandLogo theme={theme} style={S.logoImg} />
           <div>
-            <div style={{ fontWeight: 800 }}>Visão Macro</div>
-            <div style={{ fontSize: 11, color: 'var(--text-5)' }}>Cronograma geral — todas as empresas</div>
+            <h1 style={{ margin: 0, fontSize: 'inherit', fontWeight: 800 }}>Visão Geral</h1>
+            <div style={{ fontSize: 11, color: 'var(--text-5)' }}>Todas as empresas, por data</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button style={S.iconBtnGhost} title="Atualizar" aria-label="Atualizar" onClick={load}><RefreshCw size={14} aria-hidden="true" /></button>
+          <button type="button" className="mac-ic" title="Atualizar" aria-label="Atualizar" onClick={load}><RefreshCw size={14} aria-hidden="true" /></button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '18px 24px 0' }}>
-        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-5)', textTransform: 'uppercase', letterSpacing: '.04em' }}>Hoje</span>
-        <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--ui-accent-text)' }}>{fmtTodayFull()}</span>
+      <div className="mac-today mac-pad" style={{ paddingTop: 18 }}>
+        <span className="mac-today-l">Hoje</span>
+        <span className="mac-today-d">{fmtTodayFull()}</span>
       </div>
 
-      <div style={{ padding: '14px 24px 0' }}>
+      <div className="mac-period mac-pad" style={{ paddingTop: 14 }} ref={periodRef}>
         <ChipRow label="Período">
           {RANGE_OPTIONS.map((opt) => (
             <Chip
@@ -173,31 +184,32 @@ export default function MacroOverviewScreen({
         </ChipRow>
       </div>
 
-      <div className="ui-field-row" style={{ padding: '14px 24px 0' }}>
-        <Select style={S.companyFilterSelect} value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}>
-          <option value="">Todas as empresas</option>
-          {data && data.companies.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-        </Select>
-        <Select style={S.companyFilterSelect} value={filterResponsible} onChange={(e) => setFilterResponsible(e.target.value)}>
-          <option value="">Todos os responsáveis</option>
-          {data && data.responsibles.map((r) => <option key={r} value={r}>{r}</option>)}
-        </Select>
-        <Select style={S.companyFilterSelect} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="">Todos os status</option>
-          {Object.keys(STATUS_META).map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
-        </Select>
-        <Select style={S.companyFilterSelect} value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
-          <option value="">Todas as prioridades</option>
-          {PRIORITY_ORDER.map((p) => <option key={p} value={p}>{PRIORITY_META[p].label}</option>)}
-        </Select>
-        {filtersActive && (
-          <Button size="sm" icon={X} onClick={() => { setFilterCompany(''); setFilterResponsible(''); setFilterStatus(''); setFilterPriority(''); }}>
-            Limpar filtros
-          </Button>
-        )}
+      <div className="mac-pad" style={{ paddingTop: 14 }}>
+        <Button className="mac-filters-toggle" icon={SlidersHorizontal} aria-expanded={filtersOpen} aria-controls="mac-filters" onClick={() => setFiltersOpen((v) => !v)}>
+          Filtros{filtersCount > 0 ? ` (${filtersCount})` : ''}
+        </Button>
+        <div id="mac-filters" className={`mac-filters${filtersOpen ? ' open' : ''}`}>
+          <Select className="mac-sel" aria-label="Filtrar por empresa" value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}>
+            <option value="">Todas as empresas</option>
+            {data && data.companies.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </Select>
+          <Select className="mac-sel" aria-label="Filtrar por responsável" value={filterResponsible} onChange={(e) => setFilterResponsible(e.target.value)}>
+            <option value="">Todos os responsáveis</option>
+            {data && data.responsibles.map((r) => <option key={r} value={r}>{r}</option>)}
+          </Select>
+          <Select className="mac-sel" aria-label="Filtrar por situação" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <option value="">Todos os status</option>
+            {Object.keys(STATUS_META).map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
+          </Select>
+          <Select className="mac-sel" aria-label="Filtrar por prioridade" value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
+            <option value="">Todas as prioridades</option>
+            {PRIORITY_ORDER.map((p) => <option key={p} value={p}>{PRIORITY_META[p].label}</option>)}
+          </Select>
+          {filtersActive && <Button size="sm" icon={X} onClick={clearFilters}>Limpar filtros</Button>}
+        </div>
       </div>
 
-      <div style={{ padding: '18px 24px 40px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div className="mac-pad" style={{ paddingTop: 18, paddingBottom: 40, display: 'flex', flexDirection: 'column', gap: 18 }}>
         {error && <div style={S.loginBlockedMsg}>{error}</div>}
 
         {!loaded && !error && <SkeletonCards count={4} height={58} />}
@@ -205,7 +217,7 @@ export default function MacroOverviewScreen({
         {loaded && !error && groups.length === 0 && (
           <EmptyState icon={emptyView.icon} tone={emptyView.tone} title={emptyView.title} description={emptyView.description}>
             {filtersActive && (
-              <Button size="sm" icon={X} onClick={() => { setFilterCompany(''); setFilterResponsible(''); setFilterStatus(''); setFilterPriority(''); }}>Limpar filtros</Button>
+              <Button size="sm" icon={X} onClick={clearFilters}>Limpar filtros</Button>
             )}
           </EmptyState>
         )}
@@ -216,15 +228,12 @@ export default function MacroOverviewScreen({
           const isPast = range !== 'paused' && group.date !== null && group.date < data.today;
           const isToday = range !== 'paused' && group.date !== null && group.date === data.today;
           return (
-            <div key={group.date === null ? 'no-date' : group.date}>
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 800, marginBottom: 8,
-                color: isToday ? 'var(--ui-accent-text)' : isPast ? 'var(--ui-danger)' : 'var(--text-2)',
-              }}>
+            <section key={group.date === null ? 'no-date' : group.date} aria-label={group.date === null ? 'Sem data definida' : fmtDayLabel(group.date)}>
+              <h2 className="mac-day" style={{ margin: '0 0 8px', color: isToday ? 'var(--ui-accent-text)' : isPast ? 'var(--ui-danger)' : 'var(--text-2)' }}>
                 {group.date === null ? 'Sem data definida' : fmtDayLabel(group.date)}
-                {isToday && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'rgba(245,196,0,.14)', border: '1px solid rgba(245,196,0,.5)' }}>HOJE</span>}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {isToday && <span className="mac-day-badge">HOJE</span>}
+              </h2>
+              <div className="mac-list">
                 {group.items.map((item) => {
                   const urgency = (range === 'overdue' || range === 'no_date' || range === 'paused') ? null : urgencyOf(item, data.today);
                   const urgencyMeta = urgency ? URGENCY_META[urgency] : null;
@@ -233,49 +242,53 @@ export default function MacroOverviewScreen({
                   return (
                     <div
                       key={item.id}
+                      className="mac-card"
                       {...(onOpenActivity ? activate(() => onOpenActivity(item.projectId, item.activityId)) : {})}
-                      title="Clique para abrir e editar essa atividade"
+                      title={onOpenActivity ? 'Abrir esta atividade' : undefined}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8,
-                        background: 'var(--bg-2)', border: `1px solid ${range === 'overdue' ? URGENCY_META.atrasado.border : (urgencyMeta ? urgencyMeta.border : 'var(--border-1)')}`,
+                        border: `1px solid ${range === 'overdue' ? URGENCY_META.atrasado.border : (urgencyMeta ? urgencyMeta.border : 'var(--border-1)')}`,
                         cursor: onOpenActivity ? 'pointer' : 'default',
                       }}
                     >
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.companyColor, flexShrink: 0 }} />
-                      {item.priority && (
-                        <span title={`Prioridade ${PRIORITY_META[item.priority].label}`} style={{ width: 8, height: 8, borderRadius: '50%', background: PRIORITY_META[item.priority].color, flexShrink: 0 }} />
-                      )}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)' }}>
-                          {item.company} <span style={{ fontWeight: 500, color: 'var(--text-4)' }}>—</span>{' '}
-                          {item.time && <span style={{ color: '#F5C400' }}>{item.time} — </span>}
+                      <span className="mac-dots">
+                        <span className="mac-dot" style={{ background: item.companyColor }} />
+                        {item.priority && (
+                          <span className="mac-dot" title={`Prioridade ${PRIORITY_META[item.priority].label}`} style={{ background: PRIORITY_META[item.priority].color }} />
+                        )}
+                      </span>
+                      <div className="mac-main">
+                        <div className="mac-title">
+                          <span className="mac-co">{item.company}</span><span className="mac-sep"> — </span>
+                          {item.time && <span className="mac-time">{item.time} — </span>}
                           {item.title}
                         </div>
-                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 3, fontSize: 11.5, color: 'var(--text-5)' }}>
+                        <div className="mac-meta">
                           {item.phase && (
                             <span style={{ color: item.phaseColor || 'var(--text-5)' }}>{item.phase}</span>
                           )}
                           {item.responsible && <span>{item.responsible}</span>}
-                          {item.endDate !== item.date && <span><Clock3 size={11} style={{ verticalAlign: -1 }} /> até {item.endDate.split('-').reverse().join('/')}</span>}
+                          {item.endDate !== item.date && <span><Clock3 size={11} aria-hidden="true" style={{ verticalAlign: -1 }} /> até {item.endDate.split('-').reverse().join('/')}</span>}
                         </div>
                       </div>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, color: statusMeta.color, background: statusMeta.bg, border: `1px solid ${statusMeta.border}`, whiteSpace: 'nowrap' }}>
-                        {statusMeta.label}
-                      </span>
-                      {range === 'overdue' ? (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, color: URGENCY_META.atrasado.color, background: URGENCY_META.atrasado.bg, border: `1px solid ${URGENCY_META.atrasado.border}`, whiteSpace: 'nowrap' }}>
-                          <AlertTriangle size={11} /> Há {overdueDays} dia{overdueDays === 1 ? '' : 's'}
+                      <div className="mac-pills">
+                        <span className="mac-pill" style={{ color: statusMeta.color, background: statusMeta.bg, borderColor: statusMeta.border }}>
+                          {statusMeta.label}
                         </span>
-                      ) : urgencyMeta && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, color: urgencyMeta.color, background: urgencyMeta.bg, border: `1px solid ${urgencyMeta.border}`, whiteSpace: 'nowrap' }}>
-                          <AlertTriangle size={11} /> {urgencyMeta.label}
-                        </span>
-                      )}
+                        {range === 'overdue' ? (
+                          <span className="mac-pill" style={{ color: URGENCY_META.atrasado.color, background: URGENCY_META.atrasado.bg, borderColor: URGENCY_META.atrasado.border }}>
+                            <AlertTriangle size={11} aria-hidden="true" /> Há {overdueDays} dia{overdueDays === 1 ? '' : 's'}
+                          </span>
+                        ) : urgencyMeta && (
+                          <span className="mac-pill" style={{ color: urgencyMeta.color, background: urgencyMeta.bg, borderColor: urgencyMeta.border }}>
+                            <AlertTriangle size={11} aria-hidden="true" /> {urgencyMeta.label}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </section>
           );
         })}
       </div>

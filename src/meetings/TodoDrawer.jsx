@@ -26,10 +26,10 @@ const DRAWER_CSS = `
   .todo-drawer-body { padding:16px 18px 28px; }
   .todo-drawer-title { font-weight:800; font-size:16px; width:100%; resize:none; overflow:hidden; line-height:1.4; border:1px solid transparent; background:transparent; border-radius:6px; padding:4px 6px; font-family:inherit; }
   .todo-drawer-title:hover { background:var(--bg-3); }
-  .todo-drawer-title:focus { background:var(--bg-1); border-color:var(--border-3); outline:none; }
+  .todo-drawer-title:focus { background:var(--bg-1); border-color:var(--border-3); outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
   .todo-drawer-subtitle { font-size:12.5px; color:var(--text-5); width:100%; border:1px solid transparent; background:transparent; border-radius:6px; padding:4px 6px; font-family:inherit; }
   .todo-drawer-subtitle:hover { background:var(--bg-3); }
-  .todo-drawer-subtitle:focus { background:var(--bg-1); border-color:var(--border-3); outline:none; }
+  .todo-drawer-subtitle:focus { background:var(--bg-1); border-color:var(--border-3); outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
   .todo-drawer-meta { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
   .todo-drawer-meta-full { grid-column:1 / -1; }
   .todo-drawer-meta-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-6); margin-bottom:4px; }
@@ -50,6 +50,17 @@ const DRAWER_CSS = `
   .todo-attachment-row { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:12px; }
   .todo-history-row { font-size:11.5px; color:var(--text-5); padding:6px 0; border-bottom:1px solid var(--border-1); }
   .todo-history-row:last-child { border-bottom:none; }
+
+  .todo-origin-card:focus-visible, .todo-sub-check:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  .todo-sub-check { position:relative; }
+  @media (max-width: 767px) {
+    .todo-sub-check::after { content:''; position:absolute; inset:-14px; }
+    .todo-drawer-head button, .todo-origin-card { min-height:44px; }
+    .todo-drawer-head button { min-width:44px; }
+    .todo-drawer input, .todo-drawer select, .todo-drawer textarea { font-size:16px !important; min-height:44px; }
+    .todo-drawer-meta { grid-template-columns:1fr; }
+    .todo-drawer-notes { min-height:96px; }
+  }
 `;
 
 export function TodoDrawer({
@@ -112,11 +123,11 @@ export function TodoDrawer({
   const threadComments = comments.map((c) => (c.author ? c : { ...c, author: c.user }));
 
   return (
-    <div className="todo-drawer-overlay" {...dlg} aria-label="Detalhe da atividade" onClick={(e) => { e.stopPropagation(); requestClose(); }}>
+    <div className="todo-drawer-overlay" {...dlg} aria-label="Detalhe da tarefa" onClick={(e) => { e.stopPropagation(); requestClose(); }}>
       <style>{DRAWER_CSS}</style>
       <div className={`todo-drawer ${open ? 'open' : ''} ${isMobile ? 'mobile' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="todo-drawer-head">
-          <select
+          <select aria-label="Situação da tarefa"
             value={TODO_STATUS_META[item.status] ? item.status : 'nao-iniciado'}
             onChange={(e) => updateActionItem(pid, meeting.id, item.id, { status: e.target.value })}
             style={{ width: 160, flexShrink: 0, fontWeight: 700, color: todoStatusMeta(item.status).color, background: todoStatusMeta(item.status).bg, border: `1px solid ${todoStatusMeta(item.status).border}` }}
@@ -124,20 +135,20 @@ export function TodoDrawer({
             {TODO_STATUS_ORDER.map((s) => <option key={s} value={s}>{TODO_STATUS_META[s].label}</option>)}
           </select>
           <span style={{ flex: 1 }}><RecordSaveStatus hasDraft={false} lastSavedAt={lastSavedAt} /></span>
-          <button type="button" style={S.iconBtnGhost} title="Duplicar atividade" aria-label="Duplicar atividade" onClick={() => duplicateActionItem(pid, meeting.id, item.id)}><Copy size={16} aria-hidden="true" /></button>
-          <button type="button" style={S.iconBtnGhost} title="Excluir atividade" aria-label="Excluir atividade" onClick={() => { deleteActionItem(pid, meeting.id, item.id); requestClose(); }}><Trash2 size={16} aria-hidden="true" /></button>
+          <button type="button" style={S.iconBtnGhost} title="Duplicar tarefa" aria-label="Duplicar tarefa" onClick={() => duplicateActionItem(pid, meeting.id, item.id)}><Copy size={16} aria-hidden="true" /></button>
+          <button type="button" style={S.iconBtnGhost} title="Excluir tarefa" aria-label="Excluir tarefa" onClick={() => { deleteActionItem(pid, meeting.id, item.id); requestClose(); }}><Trash2 size={16} aria-hidden="true" /></button>
           <button type="button" style={S.iconBtnGhost} onClick={requestClose} aria-label="Fechar"><X size={20} /></button>
         </div>
 
         <div className="todo-drawer-body">
-          <textarea
+          <textarea aria-label="Título da tarefa"
             className="todo-drawer-title" value={titleField.draft} rows={1}
             ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
             onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = `${e.target.scrollHeight}px`; }}
             onChange={(e) => titleField.onChange(e.target.value)}
             onBlur={titleField.flush}
           />
-          <input
+          <input aria-label="Contexto curto da tarefa"
             type="text" className="todo-drawer-subtitle" value={subtitleField.draft}
             placeholder="Contexto curto (opcional)"
             onChange={(e) => subtitleField.onChange(e.target.value)}
@@ -164,7 +175,7 @@ export function TodoDrawer({
             </div>
             <div>
               <div className="todo-drawer-meta-label">Responsável</div>
-              <input
+              <input aria-label="Responsável pela tarefa"
                 type="text" list="todo-drawer-responsaveis" value={responsibleField.draft}
                 placeholder="Sem responsável"
                 onChange={(e) => responsibleField.onChange(e.target.value)}
@@ -173,7 +184,7 @@ export function TodoDrawer({
             </div>
             <div>
               <div className="todo-drawer-meta-label">Data de vencimento</div>
-              <input
+              <input aria-label="Prazo da tarefa"
                 type="date" value={item.dueDate || ''}
                 onChange={(e) => updateActionItem(pid, meeting.id, item.id, { dueDate: e.target.value })}
                 style={overdue ? { borderColor: '#e2574c', color: '#e2574c' } : undefined}
@@ -201,7 +212,7 @@ export function TodoDrawer({
 
           <div className="todo-section">
             <div className="todo-section-title">Descrição</div>
-            <textarea
+            <textarea aria-label="Detalhes da tarefa"
               className="todo-drawer-notes" value={notesField.draft}
               placeholder="Detalhe o que precisa ser feito..."
               onChange={(e) => notesField.onChange(e.target.value)}
@@ -224,7 +235,7 @@ export function TodoDrawer({
               </div>
             ))}
             <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-              <input
+              <input aria-label="Nova subtarefa"
                 type="text" value={subtaskDraft} placeholder="Adicionar subtarefa..."
                 onChange={(e) => setSubtaskDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { addSubtask(pid, meeting.id, item.id, subtaskDraft); setSubtaskDraft(''); } }}
@@ -267,7 +278,7 @@ export function TodoDrawer({
                 <button type="button" style={S.iconBtnGhost} aria-label="Remover anexo" title="Remover anexo" onClick={() => deleteAttachment(pid, meeting.id, item.id, a.id)}><X size={13} aria-hidden="true" /></button>
               </div>
             ))}
-            <input ref={fileRef} type="file" onChange={handleFilePicked} style={{ marginTop: 8, fontSize: 11.5 }} />
+            <input aria-label="Anexar arquivo à tarefa" ref={fileRef} type="file" onChange={handleFilePicked} style={{ marginTop: 8, fontSize: 11.5 }} />
           </div>
 
           <div className="todo-section">

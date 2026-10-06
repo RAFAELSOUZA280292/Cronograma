@@ -131,7 +131,7 @@ async function sendItems(rest, startTemplate) {
   let template = startTemplate;
   const failed = [];
   for (const it of rest) {
-    try { template = await apiPost(`/api/templates/${template.id}/items`, await toBody(it)); } catch (e) { failed.push(`${it.label}: ${e.message || 'falhou'}`); }
+    try { template = await apiPost(`/api/templates/${template.id}/items`, await toBody(it)); } catch (e) { failed.push(`${it.label}: ${e.message || 'não foi enviado'}`); }
   }
   return { template, failed };
 }
@@ -317,7 +317,7 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
     const out = await run(async () => sendItems(queue, t), 'Não foi possível adicionar.');
     if (!out) return;
     onChanged(out.template);
-    if (out.failed.length) showError(`Não consegui enviar: ${out.failed.join('; ')}`);
+    if (out.failed.length) showError(`Não foi possível enviar: ${out.failed.join('; ')}. Tente anexar de novo.`);
     else { setAdding(false); setNewFiles([]); setNewLinks([]); }
     const last = out.template.items[out.template.items.length - 1];
     if (last && out.template.items.length > items.length) setItemId(last.id);

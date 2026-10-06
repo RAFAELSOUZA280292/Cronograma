@@ -61,7 +61,7 @@ export default function FunnelsAdmin({ initialId, onClose, onChanged }) {
               </button>
             ))}
             <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Novo funil" style={{ padding: '7px 9px', fontSize: 12.5, borderRadius: 8 }} onKeyDown={(e) => { if (e.key === 'Enter' && newName.trim()) run(() => crm.createPipeline({ name: newName }), null).then((ok) => ok && setNewName('')); }} />
+              <input aria-label="Nome do novo funil" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Novo funil" style={{ padding: '7px 9px', fontSize: 12.5, borderRadius: 8 }} onKeyDown={(e) => { if (e.key === 'Enter' && newName.trim()) run(() => crm.createPipeline({ name: newName }), null).then((ok) => ok && setNewName('')); }} />
               <button type="button" className="crm-btn" disabled={busy || !newName.trim()} aria-label="Criar funil" title={busy ? 'Aguarde terminar de salvar' : !newName.trim() ? 'Digite o nome do novo funil' : 'Criar funil'} onClick={() => run(() => crm.createPipeline({ name: newName }), null, 'Funil criado com etapas iniciais — ajuste abaixo.').then((ok) => ok && setNewName(''))}><Plus size={14} aria-hidden="true" /></button>
             </div>
           </div>

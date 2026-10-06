@@ -106,6 +106,16 @@ const ASSISTANT_CSS = `
   .asst-thinking { display:flex; align-items:center; gap:6px; color:var(--text-6); font-size:12px; }
   @keyframes asst-spin { to { transform:rotate(360deg); } }
   .asst-spin { animation:asst-spin 1s linear infinite; }
+
+  .asst-fab:focus-visible, .asst-head-actions button:focus-visible, .asst-source-chip:focus-visible, .asst-insight-chip:focus-visible, .asst-feedback button:focus-visible, .asst-action-btn:focus-visible, .asst-scope-pill:focus-visible, .asst-suggestion-chip:focus-visible, .asst-send-btn:focus-visible, .asst-footer textarea:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) {
+    .asst-head-actions button { min-width:44px; min-height:44px; align-items:center; justify-content:center; }
+    .asst-feedback button { min-width:44px; min-height:44px; align-items:center; justify-content:center; }
+    .asst-action-btn, .asst-scope-pill, .asst-suggestion-chip, .asst-insight-chip, .asst-source-chip { min-height:44px; }
+    .asst-action-card-buttons { flex-wrap:wrap; }
+    .asst-send-btn { width:44px; height:44px; }
+    .asst-footer textarea { font-size:16px; min-height:44px; }
+  }
 `;
 
 // Interpreta só **negrito** (a única sintaxe de markdown que o prompt da
@@ -315,7 +325,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
       const res = await apiPost('/api/assistant/ask', { projectId, question, context: context() });
       setMessages((prev) => [...prev, res.message]);
     } catch (e) {
-      setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: 'assistant', content: 'Não consegui responder agora. Tente de novo em alguns instantes.', sources: [], hasEvidence: false, createdAt: new Date().toISOString() }]);
+      setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: 'assistant', content: 'Não foi possível responder agora. Tente de novo em alguns instantes.', sources: [], hasEvidence: false, createdAt: new Date().toISOString() }]);
     } finally {
       setSending(false);
     }
@@ -333,11 +343,11 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
       const res = await apiPost('/api/assistant/reindex', { projectId });
       setMessages((prev) => [...prev, {
         id: `local-reindex-${Date.now()}`, role: 'assistant',
-        content: `Memória reindexada: ${res.meetingsIndexed} reunião(ões), ${res.chunksCreated} trecho(s) atualizados. Já pode perguntar de novo.`,
+        content: `Memória atualizada: ${res.meetingsIndexed} reunião(ões) lida(s) de novo. Já pode perguntar de novo.`,
         sources: [], hasEvidence: null, createdAt: new Date().toISOString(),
       }]);
     } catch (e) {
-      setMessages((prev) => [...prev, { id: `err-reindex-${Date.now()}`, role: 'assistant', content: 'Não consegui reindexar agora. Tente de novo em alguns instantes.', sources: [], hasEvidence: false, createdAt: new Date().toISOString() }]);
+      setMessages((prev) => [...prev, { id: `err-reindex-${Date.now()}`, role: 'assistant', content: 'Não foi possível atualizar a memória agora. Tente de novo em alguns instantes.', sources: [], hasEvidence: false, createdAt: new Date().toISOString() }]);
     } finally {
       setReindexing(false);
     }
@@ -368,7 +378,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
       // a pendência nova aparecer na tela sem precisar sair e voltar.
       if (decision === 'confirm' && onReloadProjects) onReloadProjects();
     } catch (e) {
-      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, actionError: e.message || 'Não consegui concluir agora.' } : m)));
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, actionError: e.message || 'Não foi possível concluir agora. Tente de novo em instantes.' } : m)));
     } finally {
       setDecidingActionId(null);
     }
@@ -402,7 +412,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                   <button type="button" title="Abrir a Agenda" aria-label="Abrir a Agenda" onClick={goAgenda}><CalendarDays size={16} aria-hidden="true" /></button>
                 )}
                 {canStudyPareceres && <button type="button" title="Estudar Pareceres da PRICETAX" aria-label="Estudar Pareceres da PRICETAX" onClick={() => setShowStudy(true)}><BookOpen size={16} aria-hidden="true" /></button>}
-                <button type="button" disabled={reindexing} title={reindexing ? 'Aguarde terminar' : 'Atualizar contexto da RENATA'} aria-label="Atualizar contexto da RENATA" onClick={handleReindex}><RefreshCw size={16} className={reindexing ? 'asst-spin' : ''} aria-hidden="true" /></button>
+                <button type="button" disabled={reindexing} title={reindexing ? 'Aguarde terminar' : 'Atualizar memória da RENATA'} aria-label="Atualizar memória da RENATA" onClick={handleReindex}><RefreshCw size={16} className={reindexing ? 'asst-spin' : ''} aria-hidden="true" /></button>
                 <button type="button" title="Limpar esta conversa" aria-label="Limpar esta conversa" onClick={clearConversation}><Trash2 size={16} aria-hidden="true" /></button>
                 <button type="button" title="Fechar assistente" aria-label="Fechar assistente" onClick={() => setOpen(false)}><X size={20} aria-hidden="true" /></button>
               </div>
@@ -528,7 +538,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
             )}
 
             <div className="asst-footer">
-              <textarea
+              <textarea aria-label="Pergunta para a RENATA"
                 rows={1} value={input} placeholder="Pergunte qualquer coisa sobre este projeto..."
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}

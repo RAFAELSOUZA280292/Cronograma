@@ -215,7 +215,7 @@ function DayBar({ items, sum, isToday, now }) {
       </div>
       {lunchIn && (
         <div className="rab-lunchrow">
-          <div className={`rab-lunchpill${lunchBusy ? ' rab-lunch-busy' : ''}`} style={{ left: `${pct(lunchMid)}%` }}
+          <div className={`rab-lunchpill${lunchBusy ? ' rab-lunch-busy' : ''}`} style={{ left: `clamp(80px, ${pct(lunchMid)}%, calc(100% - 80px))` }}
             title={`Seu almoço: ${hhmm(sum.lunch.start)}–${hhmm(sum.lunch.end)} — ${lunchBusy ? 'ocupado por reunião' : 'livre'}`}>
             <b>Almoço{lunchBusy ? ' ocupado' : ''}</b>
             <i>{hhmm(sum.lunch.start)} – {hhmm(sum.lunch.end)}</i>
@@ -241,9 +241,9 @@ function EventLine({ row, now, isToday, onRespond, busy }) {
       <span className="rab-lb">
         <b>{e.title}{row.conflict ? <TriangleAlert size={12} className="rab-lw" aria-label="Choca com outro compromisso" /> : null}{current ? <em className="rab-pill-now">agora</em> : null}</b>
         {sub.length ? <small>{e.location ? <MapPin size={10} /> : null}{sub.join(' · ')}</small> : null}
-        {isUnanswered(e) && <span className="rab-rsvp"><RsvpButtons ev={e} onRespond={onRespond} busy={busy} /></span>}
       </span>
       <span className="rab-ld">{declined ? 'recusado' : dur ? fmtDur(dur) : ''}</span>
+      {isUnanswered(e) && <span className="rab-rsvp"><RsvpButtons ev={e} onRespond={onRespond} busy={busy} /></span>}
     </div>
   );
 }
@@ -349,7 +349,7 @@ const CSS = `
   .rab-ins-i { width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .rab-ins-danger .rab-ins-i { background:rgba(226,87,76,.15); color:var(--ui-danger); } .rab-ins-warn .rab-ins-i { background:rgba(255,159,64,.16); color:#e08a2a; } .rab-ins-ok .rab-ins-i { background:rgba(62,207,110,.15); color:var(--ui-ok); }
   .rab-list { border-top:1px solid var(--border-1); padding-top:6px; }
-  .rab-line { display:grid; grid-template-columns:12px 84px minmax(0,1fr) auto; align-items:start; gap:10px; padding:10px 0; }
+  .rab-line { display:grid; grid-template-columns:12px 84px minmax(0,1fr) auto; align-items:start; column-gap:10px; row-gap:0; padding:10px 0; }
   .rab-line + .rab-line { border-top:1px solid var(--border-1); }
   .rab-mark { width:8px; height:8px; border-radius:50%; background:var(--c); margin-top:6px; box-sizing:border-box; }
   .rab-mark-pending { background:transparent; border:2px solid #ff9f40; }
@@ -358,7 +358,7 @@ const CSS = `
   .rab-lb { min-width:0; display:flex; flex-direction:column; gap:2px; }
   .rab-lb b { font-size:13.5px; font-weight:700; color:var(--text-1); overflow-wrap:anywhere; }
   .rab-lb small { font-size:11.5px; color:var(--text-6); display:flex; align-items:center; gap:4px; }
-  .rab-rsvp { margin-top:6px; }
+  .rab-rsvp { grid-column:3 / -1; margin-top:8px; }
   .rab-lw { color:var(--ui-danger); margin-left:6px; vertical-align:-1px; }
   .rab-pill-now { font-style:normal; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; background:#F5C400; color:#111; padding:1px 7px; border-radius:999px; margin-left:8px; }
   .rab-ld { font-size:12px; color:var(--text-5); font-variant-numeric:tabular-nums; white-space:nowrap; padding-top:1px; }
@@ -376,6 +376,25 @@ const CSS = `
   .rab-btn { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:800; border-radius:8px; padding:9px 15px; cursor:pointer; border:1px solid transparent; text-decoration:none; font-family:inherit; }
   .rab-btn-primary { background:#F5C400; color:#111; }
   .rab-btn-ghost { background:transparent; border-color:var(--border-2); color:var(--text-4); }
+  .rab-shell, .rab-panel, .rab-hero-main, .rab-bar { min-width:0; }
+  .rab-link:focus-visible, .rab-btn:focus-visible, .rab-toggle:focus-visible, .rab-day:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width:767px) {
+    .rab-panel { padding:16px; }
+    .rab-top { flex-wrap:wrap; }
+    .rab-link, .rab-btn, .rab-toggle { min-height:44px; display:inline-flex; align-items:center; box-sizing:border-box; }
+    .rab-toggle { padding:0 2px; text-align:left; }
+    .rab-foot { gap:4px 14px; }
+    .rab-rail { grid-auto-flow:column; grid-template-columns:none !important; grid-auto-columns:minmax(56px, 1fr); overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x proximity; padding-bottom:4px; }
+    .rab-day { min-height:44px; scroll-snap-align:start; }
+    .rab-rsvp { grid-column:1 / -1; }
+    .rab-cfg-row input { min-height:44px; font-size:16px; box-sizing:border-box; }
+    .rab-cfg-row label { display:inline-flex; align-items:center; gap:6px; }
+    .rab-cfg-lb { width:100%; }
+    .rab-cfg-act .rab-btn { flex:1 1 auto; justify-content:center; }
+    .rab-board-text { min-width:0; flex:1 1 100%; }
+    .rab-att { gap:10px; }
+    .rab-lunchpill { white-space:normal; max-width:160px; }
+  }
   @media (max-width:520px) { .rab-verdict { font-size:23px; } .rab-line { grid-template-columns:12px 64px minmax(0,1fr) auto; gap:8px; } .rab-num { font-size:13px; width:22px; height:22px; line-height:22px; } }
 `;
 
@@ -498,7 +517,7 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda, personalBoard
         <div className="rab-panel rab-hero">
           <div className="rab-hero-main">
             <div className="rab-top">
-              <div className="rab-avatar"><Sparkles size={16} /></div>
+              <div className="rab-avatar"><Sparkles size={16} aria-hidden="true" /></div>
               <div>
                 <div className="rab-name">RENATA</div>
                 <div className="rab-greet">{state.phase === 'disconnected' ? `Olá, ${firstName}! Vamos conectar sua agenda?` : greeting}</div>
@@ -643,14 +662,15 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda, personalBoard
                   <span className="rab-legend"><i /> aceito</span>
                   <span className="rab-legend"><i className="h" /> sem resposta</span>
                   <span className="rab-legend"><TriangleAlert size={11} color="#e2574c" /> choca</span>
-                  <button type="button" className="rab-toggle" onClick={() => setCfg(cfg ? null : { workStart: hhmm(prefs.workStart), workEnd: hhmm(prefs.workEnd), lunchStart: hhmm(prefs.lunchStart), lunchEnd: hhmm(prefs.lunchEnd), error: '' })} title="Muda o seu expediente e o horário de almoço usados no tempo livre e nos avisos">
-                    <Utensils size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Expediente {hhmm(prefs.workStart)}–{hhmm(prefs.workEnd)} · Almoço {hhmm(prefs.lunchStart)}–{hhmm(prefs.lunchEnd)}{isDefaultPrefs(prefs) ? '' : ' (seu)'}
+                  <button type="button" className="rab-toggle" onClick={() => setCfg(cfg ? null : { workStart: hhmm(prefs.workStart), workEnd: hhmm(prefs.workEnd), lunchStart: hhmm(prefs.lunchStart), lunchEnd: hhmm(prefs.lunchEnd), error: '' })} title="Muda o seu expediente e o horário de almoço usados no tempo livre e nos avisos" aria-expanded={!!cfg}>
+                    <Utensils size={11} aria-hidden="true" style={{ verticalAlign: -1, marginRight: 4 }} />Expediente {hhmm(prefs.workStart)}–{hhmm(prefs.workEnd)} · Almoço {hhmm(prefs.lunchStart)}–{hhmm(prefs.lunchEnd)}{isDefaultPrefs(prefs) ? '' : ' (seu)'}
                   </button>
                 </div>
 
                 {cfg && (
                   <div className="rab-cfg" role="group" aria-label="Expediente e almoço">
                     <div className="rab-cfg-t">Meu horário de trabalho</div>
+                    <div className="rab-cfg-hint" style={{ marginTop: -4, marginBottom: 10 }}>Expediente é o seu horário de trabalho. Almoço é a sua pausa: a RENATA avisa se uma reunião aceita cair nela.</div>
                     <div className="rab-cfg-row">
                       <span className="rab-cfg-lb">Expediente</span>
                       <label>das <input type="time" step="900" value={cfg.workStart} onChange={(e) => setCfg({ ...cfg, workStart: e.target.value, error: '' })} /></label>
@@ -674,7 +694,7 @@ export default function RenataAgendaBriefing({ user, onOpenAgenda, personalBoard
                       {!isDefaultPrefs(prefs) && <button type="button" className="rab-btn rab-btn-ghost" onClick={() => { savePrefs(DEFAULT_PREFS); setPrefs({ ...DEFAULT_PREFS }); setCfg(null); }}>Voltar ao padrão ({hhmm(DEFAULT_PREFS.workStart)}–{hhmm(DEFAULT_PREFS.workEnd)}, almoço {hhmm(DEFAULT_PREFS.lunchStart)}–{hhmm(DEFAULT_PREFS.lunchEnd)})</button>}
                       <button type="button" className="rab-btn rab-btn-ghost" onClick={() => setCfg(null)}>Cancelar</button>
                     </div>
-                    <div className="rab-cfg-hint">O “livre” é o tempo sem reunião aceita dentro do seu expediente; o almoço serve para avisar quando uma reunião aceita pega esse horário. Fica salvo neste navegador.</div>
+                    <div className="rab-cfg-hint">“Livre” é o tempo sem reunião aceita dentro do seu expediente. Fica salvo neste navegador.</div>
                   </div>
                 )}
               </div>

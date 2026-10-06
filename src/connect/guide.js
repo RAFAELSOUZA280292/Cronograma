@@ -51,6 +51,6 @@ ${create}
 - Os dados são do Rafael e de clientes dele: **não copie para arquivos do repositório, logs ou issues** mais do que o necessário para a tarefa.
 - Erros: 401 token inválido/revogado/expirado · 403 sem permissão (escopo ou acesso) · 404 não achou · 429 limite (120/min) · 400 dado inválido (a mensagem diz o quê).
 - Não faça varredura em massa nem laço sem fim; peça só o que precisa.
-- Se o token parar de funcionar, avise o Rafael: ele gera outro em *Meu perfil › Conectar*.
+- Se o token parar de funcionar, avise o Rafael: ele gera outro em *Meu perfil › Integrações (avançado)*.
 `;
 }

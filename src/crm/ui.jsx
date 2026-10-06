@@ -1,5 +1,5 @@
 // Peças de UI compartilhadas do CRM.
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { ConfirmDialog } from '../ui/index.jsx';
 import { ComposeBox, CommentThread, useMentionUsers } from '../ui/ComposeBox.jsx';
@@ -62,7 +62,10 @@ export function CancelButton({ children = 'Cancelar' }) {
 }
 
 export function Field({ label, children, full }) {
-  return <div className={`crm-field${full ? ' full' : ''}`}><label>{label}</label>{children}</div>;
+  const uid = useId();
+  const only = React.isValidElement(children) && ['input', 'select', 'textarea'].includes(children.type) ? children : null;
+  const fid = only ? (only.props.id || `crm-f${uid}`) : undefined;
+  return <div className={`crm-field${full ? ' full' : ''}`}><label htmlFor={fid}>{label}</label>{only ? React.cloneElement(only, { id: fid }) : children}</div>;
 }
 
 export function RelPill({ value }) {

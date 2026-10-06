@@ -32,8 +32,8 @@ export default function ContactsPage({ caps, refreshKey, onOpenCompany, onNewCon
         {caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={onNewContact}><Plus size={14} /> Criar contato</button>}
       </div>
       <div className="crm-filters">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, e-mail, telefone ou empresa…" style={{ minWidth: 260 }} />
-        <select value={role} onChange={(e) => { setRole(e.target.value); setOffset(0); }}>
+        <input aria-label="Buscar contato" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, e-mail, telefone ou empresa…" style={{ minWidth: 260 }} />
+        <select aria-label="Filtrar por papel" value={role} onChange={(e) => { setRole(e.target.value); setOffset(0); }}>
           <option value="">Todo papel na decisão</option>{DECISION_ROLES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
       </div>

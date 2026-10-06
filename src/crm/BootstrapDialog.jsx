@@ -40,7 +40,7 @@ export default function BootstrapDialog({ onClose, onDone }) {
               <tbody>
                 {items.map((i) => (
                   <tr key={i.key} onClick={() => toggle(i.key)}>
-                    <td><input type="checkbox" style={{ width: 'auto' }} checked={picked.has(i.key)} onChange={() => toggle(i.key)} onClick={(e) => e.stopPropagation()} /></td>
+                    <td><input aria-label={`Trazer ${i.legalName}`} type="checkbox" style={{ width: 'auto' }} checked={picked.has(i.key)} onChange={() => toggle(i.key)} onClick={(e) => e.stopPropagation()} /></td>
                     <td><span className="crm-name">{i.legalName}</span>{i.groupName && <div className="crm-muted">Grupo: {i.groupName}</div>}{i.warnings.map((w) => <div key={w} className="crm-muted" style={{ color: '#ff9f40' }}>{w}</div>)}</td>
                     <td>{i.cnpj ? fmtCnpj(i.cnpj) : <span className="crm-muted">—</span>}</td>
                     <td>{i.projects.length}</td>

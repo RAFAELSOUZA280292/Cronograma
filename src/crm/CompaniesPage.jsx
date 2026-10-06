@@ -43,17 +43,17 @@ export default function CompaniesPage({ caps, options, refreshKey, onOpenCompany
       </div>
 
       <div className="crm-filters">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, CNPJ ou cidade…" style={{ minWidth: 240 }} />
-        <select value={filters.relationship} onChange={(e) => setF('relationship', e.target.value)}>
+        <input aria-label="Buscar empresa" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, CNPJ ou cidade…" style={{ minWidth: 240 }} />
+        <select aria-label="Filtrar por relacionamento" value={filters.relationship} onChange={(e) => setF('relationship', e.target.value)}>
           <option value="">Toda relação</option>{((options && options.relationships) || []).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
-        <select value={filters.ownerId} onChange={(e) => setF('ownerId', e.target.value)}>
+        <select aria-label="Filtrar por responsável" value={filters.ownerId} onChange={(e) => setF('ownerId', e.target.value)}>
           <option value="">Todo responsável</option><option value="none">Sem responsável</option>{owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
         </select>
-        <select value={filters.taxRegime} onChange={(e) => setF('taxRegime', e.target.value)}>
+        <select aria-label="Filtrar por regime tributário" value={filters.taxRegime} onChange={(e) => setF('taxRegime', e.target.value)}>
           <option value="">Todo regime</option>{((options && options.taxRegimes) || []).map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
-        <input value={filters.state} onChange={(e) => setF('state', e.target.value.toUpperCase().slice(0, 2))} placeholder="UF" style={{ width: 60 }} />
+        <input aria-label="Filtrar por UF" value={filters.state} onChange={(e) => setF('state', e.target.value.toUpperCase().slice(0, 2))} placeholder="UF" style={{ width: 60 }} />
         {caps.admin && <label className="crm-muted" style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={showDeleted} onChange={(e) => { setShowDeleted(e.target.checked); setOffset(0); }} style={{ width: 'auto' }} /> Ver excluídas</label>}
         {hasFilter && <button type="button" className="crm-btn" onClick={() => { setQ(''); setFilters({ relationship: '', ownerId: '', state: '', taxRegime: '', source: '' }); }}>Limpar</button>}
       </div>

@@ -135,7 +135,7 @@ html[data-theme="light"] .ui-empty-icon { color: #7a5f00; }
 /* ---------- Toque no celular: alvos maiores só onde há dedo ---------- */
 @media (max-width: 767px) {
   .ui-btn, .ui-chip, .ui-seg button, .ui-select, .ui-input { min-height: 44px; }
-  .ui-btn.sm { min-height: 40px; }
+  .ui-btn.sm { min-height: 44px; }
 }
 
 /* ConfirmDialog (Onda 0 do plano de usabilidade, §81): confirmação no visual do app, no lugar de window.confirm/alert/prompt. */
@@ -243,3 +243,22 @@ a.cmp-file-name { text-decoration: underline; text-underline-offset: 2px; }
 .cmp-edit-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 .ui-save.s-draft { color: var(--ui-warn); }
+
+/* ---------- Base global de acessibilidade (Onda 6, §81) ---------- */
+/* Foco visível em todo controle por teclado. `:where` zera a especificidade: qualquer módulo pode refinar, mas ninguém precisa repetir. */
+:where(button, a[href], select, input, textarea, summary, [role="button"], [role="tab"], [role="menuitem"], [role="option"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--ui-accent, #F5C400);
+  outline-offset: 2px;
+}
+/* Quem pediu menos movimento não recebe animações/transições longas. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+/* Callout no celular: o botão de ação vai para baixo do texto (em coluna estreita o texto ficava espremido). */
+@media (max-width: 767px) {
+  .ui-callout { flex-wrap: wrap; }
+  .ui-callout-body { flex: 1 1 calc(100% - 40px); }
+  .ui-callout-action { flex: 1 1 100%; align-self: stretch; }
+  .ui-callout-action .ui-btn, .ui-callout-action a { width: 100%; box-sizing: border-box; }
+}

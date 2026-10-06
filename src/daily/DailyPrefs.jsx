@@ -23,6 +23,10 @@ export const DAILY_CSS = `
   .dpf-sign { font-size:12.5px; color:var(--text-2); margin-top:8px; font-weight:600; }
   .dpf-sw { display:flex; align-items:center; gap:10px; font-size:13px; font-weight:700; color:var(--text-1); cursor:pointer; min-height:36px; }
   .dpf-sw input { width:18px; height:18px; accent-color:#F5C400; }
+
+  .dpf-row:focus-within, .dpf-sw:focus-within { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  .dpf-row input:focus-visible, .dpf-sw input:focus-visible, .dpf-birth input:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) { .dpf-row, .dpf-sw { min-height:44px; } .dpf-birth input { font-size:16px; min-height:44px; } }
 `;
 
 export default function DailyPrefs({ value, onChange, summary }) {

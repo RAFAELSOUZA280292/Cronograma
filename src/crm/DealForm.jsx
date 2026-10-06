@@ -138,7 +138,7 @@ export default function DealForm({ initial, company, defaultType, defaultPipelin
                   {it.productId && it.productId !== CUSTOM && !products.some((p) => p.id === it.productId) && <option value={it.productId}>{it.name} (inativo)</option>}
                   <option value={CUSTOM}>Outro (item avulso)…</option>
                 </select>
-                {it.productId === CUSTOM && <input style={{ marginTop: 6 }} value={it.name} onChange={(e) => setItem(idx, { name: e.target.value })} placeholder="Nome do item" />}
+                {it.productId === CUSTOM && <input aria-label="Nome do item avulso" style={{ marginTop: 6 }} value={it.name} onChange={(e) => setItem(idx, { name: e.target.value })} placeholder="Nome do item" />}
               </div>
               <input inputMode="decimal" value={it.quantity} onChange={(e) => setItem(idx, { quantity: e.target.value })} aria-label="Quantidade" placeholder="Qtd." />
               <input inputMode="decimal" value={it.unitPrice} onChange={(e) => setItem(idx, { unitPrice: e.target.value })} aria-label="Preço unitário" placeholder="Preço un." />

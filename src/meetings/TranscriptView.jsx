@@ -40,6 +40,9 @@ const TRANSCRIPT_CSS = `
   .mtg-transcript-loadmore { display:block; margin:14px auto 0; }
   mark.mtg-tmatch { background:rgba(245,196,0,.35); color:inherit; border-radius:3px; }
   mark.mtg-tmatch.active { background:#F5C400; color:#111; }
+
+  .mtg-transcript-tab:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) { .mtg-transcript-tab { min-height:44px; } .mtg-transcript-tabs { flex-wrap:wrap; } }
 `;
 
 function highlightText(text, query, matchCounterRef) {
@@ -162,7 +165,7 @@ export function TranscriptView({ meeting }) {
 
       <div className="mtg-transcript-search">
         <Search size={13} className="mtg-transcript-search-icon" />
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar na transcrição..." />
+        <input aria-label="Buscar na transcrição" type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar na transcrição..." />
         {search && (
           <div className="mtg-transcript-search-nav">
             <span>{totalMatches} resultado{totalMatches === 1 ? '' : 's'}</span>

@@ -65,6 +65,16 @@ const TODO_BOARD_CSS = `
   .todo-popover-label:first-child { margin-top:0; }
   .todo-check-row { display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--text-2); padding:3px 0; cursor:pointer; }
   .todo-greeting { background:var(--bg-2); border:1px solid var(--border-1); border-radius:11px; padding:14px 16px; margin-bottom:16px; font-size:13px; color:var(--text-2); }
+
+  .todo-filter-chip:focus-visible, .todo-stat-card:focus-visible, .todo-section-head:focus-visible, .todo-check-row:focus-within { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) {
+    .todo-filter-chip { min-height:44px; }
+    .todo-stat-card { min-height:44px; }
+    .todo-section-head { min-height:44px; }
+    .todo-check-row { min-height:44px; }
+    .todo-popover { width:min(280px, calc(100vw - 32px)); }
+    .todo-popover input, .todo-popover select, .todo-board-view input[type=text], .todo-board-view input[type=date], .todo-board-view select { font-size:16px !important; min-height:44px; }
+  }
 `;
 
 function collectTodoRows(meetings) {
@@ -289,8 +299,8 @@ export function TodoBoardView({
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [{ wch: 30 }, { wch: 14 }, { wch: 44 }, { wch: 16 }, { wch: 22 }, { wch: 16 }, { wch: 12 }];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Atividades');
-    const fname = `atividades-${(clientName || 'empresa').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.xlsx`;
+    XLSX.utils.book_append_sheet(wb, ws, 'Tarefas');
+    const fname = `tarefas-${(clientName || 'empresa').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.xlsx`;
     XLSX.writeFile(wb, fname);
     setOpenPopover(null);
   }
@@ -309,11 +319,11 @@ export function TodoBoardView({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-1)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <ListChecks size={20} /> Atividades
+            <ListChecks size={20} /> Tarefas das reuniões
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-5)', marginTop: 2 }}>Seu centro de execução.</div>
         </div>
-        <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
+        <div className="mtg-head-actions" style={{ display: 'flex', gap: 8, position: 'relative' }}>
           <button style={S.primaryBtn} onClick={() => { togglePopover('add'); setNewMeetingId(meetingsForPicker[0]?.id || ''); }}><Plus size={15} /> Nova tarefa</button>
           <button style={S.iconBtn} aria-label="Mais ações" title="Mais ações" aria-expanded={!!moreOpen} onClick={() => togglePopover('more')}><MoreHorizontal size={15} aria-hidden="true" /></button>
           {moreOpen && (
@@ -324,16 +334,16 @@ export function TodoBoardView({
           {showAddPicker && (
             <div className="todo-popover" style={{ right: 0, width: 280 }} onClick={(e) => e.stopPropagation()}>
               <div className="todo-popover-label">Título</div>
-              <input type="text" autoFocus value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="O que precisa ser feito?" onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleCreateSubmit(); }} />
+              <input aria-label="O que precisa ser feito" type="text" autoFocus value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="O que precisa ser feito?" onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleCreateSubmit(); }} />
               <div className="todo-popover-label">Responsável</div>
-              <input type="text" list="todo-board-responsaveis" value={newResponsible} onChange={(e) => setNewResponsible(e.target.value)} placeholder="Opcional" />
+              <input aria-label="Responsável" type="text" list="todo-board-responsaveis" value={newResponsible} onChange={(e) => setNewResponsible(e.target.value)} placeholder="Opcional" />
               <div className="todo-popover-label">Prazo</div>
-              <input type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
+              <input aria-label="Prazo" type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
               <div className="todo-popover-label">Reunião</div>
               {meetingsForPicker.length === 0 ? (
                 <div style={{ fontSize: 12, color: 'var(--text-5)' }}>Crie uma reunião primeiro, na aba Reuniões.</div>
               ) : (
-                <select value={newMeetingId} onChange={(e) => setNewMeetingId(e.target.value)}>
+                <select aria-label="Reunião da tarefa" value={newMeetingId} onChange={(e) => setNewMeetingId(e.target.value)}>
                   {meetingsForPicker.map((m) => <option key={m.id} value={m.id}>{m.title || 'Reunião sem título'} {m.date ? `(${fmtDate(m.date)})` : ''}</option>)}
                 </select>
               )}
@@ -376,11 +386,11 @@ export function TodoBoardView({
         <div className="todo-greeting">
           {meuResumo.total > 0 ? (
             <>
-              {greetingPeriod()}{currentUser?.name ? `, ${currentUser.name.split(' ')[0]}` : ''}. Você tem <strong>{meuResumo.total}</strong> atividade{meuResumo.total === 1 ? '' : 's'} na sua fila
+              {greetingPeriod()}{currentUser?.name ? `, ${currentUser.name.split(' ')[0]}` : ''}. Você tem <strong>{meuResumo.total}</strong> tarefa{meuResumo.total === 1 ? '' : 's'} na sua fila
               {meuResumo.atrasadas > 0 && <> · <strong style={{ color: '#e2574c' }}>{meuResumo.atrasadas} atrasada{meuResumo.atrasadas === 1 ? '' : 's'}</strong></>}
               {meuResumo.semPrazo > 0 && <> · {meuResumo.semPrazo} sem prazo</>}.
             </>
-          ) : 'Nenhuma atividade exige sua atenção agora.'}
+          ) : 'Nenhuma tarefa exige sua atenção agora.'}
         </div>
       )}
 
@@ -402,13 +412,13 @@ export function TodoBoardView({
                 </label>
               ))}
               <div className="todo-popover-label">Lado</div>
-              <select value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
+              <select aria-label="Filtrar por lado" value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
                 <option value="todos">Todos</option>
                 <option value="pricetax">PRICETAX</option>
                 <option value="cliente">{clientName || 'Cliente'}</option>
               </select>
               <div className="todo-popover-label">Reunião</div>
-              <select value={reuniaoFilter} onChange={(e) => setReuniaoFilter(e.target.value)}>
+              <select aria-label="Filtrar por reunião" value={reuniaoFilter} onChange={(e) => setReuniaoFilter(e.target.value)}>
                 <option value="">Todas</option>
                 {meetingsForPicker.map((m) => <option key={m.id} value={m.id}>{m.title || 'Reunião sem título'}</option>)}
               </select>
@@ -435,13 +445,13 @@ export function TodoBoardView({
           )}
         </div>
 
-        <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)} style={{ width: 'auto', fontSize: 11.5 }}>
+        <select aria-label="Agrupar tarefas" value={groupBy} onChange={(e) => setGroupBy(e.target.value)} style={{ width: 'auto', fontSize: 11.5 }}>
           {GROUP_OPTIONS.map((g) => <option key={g.key} value={g.key}>Agrupar por {g.label}</option>)}
         </select>
 
         <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 180 }}>
           <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-6)' }} />
-          <input
+          <input aria-label="Buscar tarefas"
             type="text" value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por título, responsável ou reunião..."
             style={{ paddingLeft: 30 }}
@@ -452,7 +462,7 @@ export function TodoBoardView({
       {allRows.length === 0 ? (
         <div className="todo-empty">
           <ListChecks size={28} style={{ opacity: .4, marginBottom: 8 }} />
-          <div style={{ fontWeight: 700, color: 'var(--text-4)' }}>Nenhuma atividade ainda.</div>
+          <div style={{ fontWeight: 700, color: 'var(--text-4)' }}>Nenhuma tarefa ainda.</div>
           <div style={{ fontSize: 12, marginTop: 4 }}>Itens aparecem aqui assim que forem criados dentro de uma reunião, ou enviando uma transcrição pra IA processar.</div>
         </div>
       ) : filteredRows.length === 0 ? (

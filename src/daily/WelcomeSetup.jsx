@@ -25,6 +25,9 @@ const CSS = `
   .wsu-dots { display:flex; gap:6px; }
   .wsu-dots i { width:22px; height:4px; border-radius:99px; background:var(--border-3); }
   .wsu-dots i.on { background:#F5C400; }
+
+  .wsu-btn:focus-visible, .wsu-skip:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) { .wsu-btn, .wsu-skip { min-height:44px; } .wsu-overlay { padding:8px; } }
 `;
 
 export default function WelcomeSetup({ user, onDone }) {

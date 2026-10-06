@@ -34,6 +34,17 @@ const CSS = `
   .wgt-ok { margin-top:8px; font-size:12px; color:var(--ui-ok); }
   .wgt-warn { margin-top:10px; font-size:12px; line-height:1.5; color:var(--ui-warn); background:rgba(255,159,64,.12); border-radius:8px; padding:8px 10px; }
   .wgt-err { margin-top:8px; font-size:12px; color:var(--ui-danger); }
+  .wgt-det { margin-top:16px; border:1px solid var(--border-2); border-radius:10px; background:var(--bg-2); }
+  .wgt-det > summary { cursor:pointer; padding:10px 12px; font-size:12.5px; font-weight:700; color:var(--text-3); min-height:44px; box-sizing:border-box; display:flex; align-items:center; }
+  .wgt-det-body { padding:0 12px 12px; }
+  .wgt-btn:focus-visible, .wgt-x:focus-visible, .wgt-check:focus-within, .wgt-det > summary:focus-visible, .wgt-view-head input:focus-visible, .wgt-code:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) {
+    .wgt-btn, .wgt-btn.sm { min-height:44px; }
+    .wgt-x { min-height:44px; min-width:44px; }
+    .wgt-check { min-height:44px; }
+    .wgt-view-head input { min-height:44px; font-size:16px; }
+    .wgt-code { font-size:16px; }
+  }
 `;
 
 function fmtTs(iso) {
@@ -60,15 +71,15 @@ export default function WidgetSection() {
   useEffect(() => { loadStatus(); apiGet('/api/widget/views').then((r) => { setViews(r.views); setBlockNames(r.blocks || {}); }).catch(() => {}); }, []);
 
   async function generate() {
-    if (status && status.active && !(await askConfirm({ title: 'Gerar um código novo?', message: 'Gerar um novo código desliga os widgets que já estão no seu iPhone até você colar os scripts novos.', confirmLabel: 'Gerar código novo', danger: true }))) return;
+    if (status && status.active && !(await askConfirm({ title: 'Gerar uma chave de acesso nova?', message: 'Gerar uma chave nova desliga os widgets que já estão no seu iPhone até você colar os scripts novos.', confirmLabel: 'Gerar chave nova', danger: true }))) return;
     setBusy(true); setError('');
-    try { await apiPost('/api/widget/token'); await loadStatus(); } catch (e) { setError(e && e.message ? e.message : 'Não foi possível gerar o código.'); } finally { setBusy(false); }
+    try { await apiPost('/api/widget/token'); await loadStatus(); } catch (e) { setError(e && e.message ? e.message : 'Não foi possível gerar a chave de acesso agora. Tente de novo em instantes.'); } finally { setBusy(false); }
   }
 
   async function revoke() {
-    if (!(await askConfirm({ title: 'Revogar o acesso dos widgets?', message: 'Revogar desliga todos os widgets do iPhone. Você pode gerar outro código quando quiser.', confirmLabel: 'Revogar', danger: true }))) return;
+    if (!(await askConfirm({ title: 'Revogar o acesso dos widgets?', message: 'Revogar desliga todos os widgets do iPhone. Você pode gerar outra chave de acesso quando quiser.', confirmLabel: 'Revogar chave', danger: true }))) return;
     setBusy(true); setError('');
-    try { await apiDelete('/api/widget/token'); await loadStatus(); } catch (e) { setError(e && e.message ? e.message : 'Não foi possível revogar.'); } finally { setBusy(false); }
+    try { await apiDelete('/api/widget/token'); await loadStatus(); } catch (e) { setError(e && e.message ? e.message : 'Não foi possível revogar a chave agora. Tente de novo em instantes.'); } finally { setBusy(false); }
   }
 
   // As visões gravam sozinhas (Onda 4): sem botão "Salvar". Só grava quando todas têm nome e ao menos um bloco.
@@ -99,7 +110,7 @@ export default function WidgetSection() {
     <div className="wgt">
       <style>{CSS}</style>
       <div className="wgt-label"><Smartphone size={13} /> Widgets do iPhone</div>
-      <p>Veja na tela de início do iPhone as atividades atrasadas, as que vencem hoje, as urgentes, a agenda e a próxima reunião, sem entrar no painel. Usa o app gratuito <b>Scriptable</b> e um código só seu, que só lê.</p>
+      <p>Veja na tela de início do iPhone as atividades atrasadas, as que vencem hoje, as urgentes, a agenda e a próxima reunião, sem entrar no painel. Usa o app gratuito <b>Scriptable</b> e uma chave de acesso só sua, que só lê.</p>
 
       {!status ? <p>Carregando...</p> : (
         <>
@@ -107,10 +118,10 @@ export default function WidgetSection() {
             <p>Ligado desde {fmtTs(status.createdAt)}{status.lastUsedAt ? `. Última atualização no iPhone: ${fmtTs(status.lastUsedAt)}.` : '. Ainda não foi usado.'}</p>
           )}
           {status.active && !status.recoverable && (
-            <div className="wgt-warn">Seu código foi criado numa versão anterior e não dá para montar os scripts das visões a partir dele. Gere um código novo uma vez; depois os scripts ficam disponíveis aqui sempre que você quiser.</div>
+            <div className="wgt-warn">Sua chave de acesso foi criada numa versão anterior e não dá para montar os scripts das visões a partir dela. Gere uma chave nova uma vez; depois os scripts ficam disponíveis aqui sempre que você quiser.</div>
           )}
           {(!status.active || !status.recoverable) && (
-            <button className="wgt-btn primary" disabled={busy} title={busy ? 'Aguarde terminar' : undefined} onClick={generate}>{busy ? 'Gerando...' : status.active ? 'Gerar código novo' : 'Gerar código do widget'}</button>
+            <button className="wgt-btn primary" disabled={busy} title={busy ? 'Aguarde terminar' : undefined} onClick={generate}>{busy ? 'Gerando...' : status.active ? 'Gerar chave de acesso nova' : 'Gerar chave de acesso'}</button>
           )}
         </>
       )}
@@ -140,8 +151,8 @@ export default function WidgetSection() {
                   <div className="wgt-name">{viewsDirty ? 'Aguarde as visões gravarem para copiar o script.' : `No Scriptable, dê o nome “PRICETAX ${v.name || '…'}” ao script.`}</div>
                   {manual && manual.i === i && (
                     <>
-                      <div className="wgt-warn">Não consegui copiar sozinho. Toque no texto, selecione tudo e use Copiar.</div>
-                      <textarea className="wgt-code" readOnly value={manual.script} onFocus={(e) => e.target.select()} />
+                      <div className="wgt-warn">Não foi possível copiar automaticamente. Toque no texto, selecione tudo e use Copiar.</div>
+                      <textarea className="wgt-code" readOnly aria-label="Script para copiar" value={manual.script} onFocus={(e) => e.target.select()} />
                     </>
                   )}
                 </>
@@ -166,11 +177,17 @@ export default function WidgetSection() {
             <li>Na tela de início: segure num espaço vazio, <b>+</b>, escolha <b>Scriptable</b> e o tamanho (o médio mostra os títulos).</li>
             <li>Segure o widget, toque em <b>Editar Widget</b> e em Script escolha o da visão.</li>
           </ol>
-          <button className="wgt-btn" type="button" disabled={busy} title={busy ? 'Aguarde terminar' : undefined} onClick={generate}>Gerar código novo</button>
-          <button className="wgt-btn danger" type="button" disabled={busy} title={busy ? 'Aguarde terminar' : undefined} onClick={revoke}>Revogar acesso dos widgets</button>
+          <details className="wgt-det">
+            <summary>Detalhes para quem integra</summary>
+            <div className="wgt-det-body">
+              <p>Cada widget é um script do Scriptable que consulta <code>{window.location.origin}/api/widget</code> com a chave de acesso embutida no próprio script. Por isso o script não deve ser compartilhado: quem o tiver lê as mesmas informações que o widget. Se isso acontecer, gere uma chave nova — as antigas deixam de funcionar.</p>
+            </div>
+          </details>
+          <button className="wgt-btn" type="button" disabled={busy} title={busy ? 'Aguarde terminar' : undefined} onClick={generate}>Gerar chave de acesso nova</button>
+          <button className="wgt-btn danger" type="button" disabled={busy} title={busy ? 'Aguarde terminar' : undefined} onClick={revoke}>Revogar chave de acesso</button>
         </div>
       )}
-      {status && status.active && !ready && status.recoverable && <p>Carregando o código...</p>}
+      {status && status.active && !ready && status.recoverable && <p>Carregando a chave de acesso...</p>}
       {error && <div className="wgt-err">{error}</div>}
     </div>
   );

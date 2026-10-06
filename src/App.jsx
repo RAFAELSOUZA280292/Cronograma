@@ -7,6 +7,7 @@ import {
   MoreHorizontal, Search, Tag, ListChecks, Palette, ArrowLeftRight, LayoutList, SlidersHorizontal,
   ArrowLeft, Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge, Home, Paperclip, Sparkles, Briefcase, FolderOpen,
 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import {
   DndContext, DragOverlay, MouseSensor, TouchSensor, KeyboardSensor, useSensor, useSensors, closestCorners, useDroppable,
@@ -40,7 +41,7 @@ import { ComposeBox, CommentThread, AttachmentList, AddMenu, readFileAsAttachmen
 import ModuleShell from './shell/ModuleShell.jsx';
 import { DialogOverlay } from './ui/dialog.jsx';
 import { DialogHost, notify, askConfirm, askText, pushToastCompat, dismissToast as dismissToastGlobal } from './ui/dialogs.jsx';
-import { useHistoryValue, readHistoryValue, withoutLayer } from './lib/nav.js';
+import { useHistoryValue, readHistoryValue, withoutLayer, useEscClose } from './lib/nav.js';
 import { useAutosave } from './lib/useAutosave.js';
 import { calendarDaysSince } from './lib/dates.js';
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
@@ -131,6 +132,12 @@ const SUB_ROW_CSS = `
   }
   .sub-row-card .sub-meta-select:hover, .sub-row-card .sub-meta-date:hover { color:var(--text-2); border-color:var(--border-3); }
   .sub-row-card input[type=checkbox] { width:16px; height:16px; cursor:pointer; flex-shrink:0; }
+  .act-row .act-row-actions { opacity:.45; transition:opacity .12s; }
+  .act-row:hover .act-row-actions, .act-row:focus-within .act-row-actions, .act-row .act-row-actions[data-open="true"] { opacity:1; }
+  @media (hover:none) { .act-row .act-row-actions { opacity:1; } }
+  .row-menu-btn:hover { background:var(--bg-3); color:var(--text-1); }
+  .row-menu-btn:focus-visible, .row-menu-item:focus-visible { outline:2px solid #F5C400; outline-offset:-2px; }
+  .row-menu-item:hover, .row-menu-item:focus { background:var(--bg-3); }
 `;
 
 const CARD_PRIORITY_META = {
@@ -859,7 +866,7 @@ function AppScreens({ shellRef, bump }) {
     setOpenMeetingId(null);
   }
   // Extraído numa função (em vez de inline em cada branch de render) porque
-  // a Visão Macro (§23) também precisa montar esse mesmo modal — editar uma
+  // a Visão Geral (§23) também precisa montar esse mesmo modal — editar uma
   // atividade a partir de lá tem que abrir o ActivityDetailModal de verdade,
   // não uma cópia, senão a edição não reflete no resto do app.
   function renderActivityDetailModal() {
@@ -1292,7 +1299,7 @@ function AppScreens({ shellRef, bump }) {
 
   // Link permanente por TASK do XFlow (2026-08, pedido do Rafael): um link
   // tipo ".../#30" precisa cair direto dentro do XFlow (não só no gate),
-  // pra XFlowScreen então abrir o BUG #30 específico (ver hashOpenDone lá).
+  // pra XFlowScreen então abrir a TASK #30 específica (ver hashOpenDone lá).
   // Precisa rodar DEPOIS do efeito logo acima (que reseta workspaceMode pra
   // null a cada troca de currentUser) — senão o reset ganha e desfaz esse
   // goToWorkspace('xflow'), porque os dois dependem de currentUser e efeitos
@@ -2465,7 +2472,7 @@ function AppScreens({ shellRef, bump }) {
     const project = projects.find((p) => p.id === targetPid);
     const m = project && (project.meetings || []).find((x) => x.id === meetingId);
     const item = {
-      id: uid('mai'), title: 'Nova atividade', responsible: '', owner: 'pricetax', dueDate: '', status: 'nao-iniciado', deleted: false,
+      id: uid('mai'), title: 'Nova tarefa', responsible: '', owner: 'pricetax', dueDate: '', status: 'nao-iniciado', deleted: false,
       subtitle: '', notes: '', subtasks: [], comments: [], attachments: [],
       createdBy: currentUser ? currentUser.name : '', createdAt: new Date().toISOString(),
       ...(overrides || {}),
@@ -2473,7 +2480,7 @@ function AppScreens({ shellRef, bump }) {
     mutateProject(targetPid, (p) => ({
       ...p,
       meetings: (p.meetings || []).map((x) => (x.id === meetingId ? { ...x, actionItems: [...(x.actionItems || []), item] } : x)),
-    }), m ? `Atividade adicionada na reunião "${m.title}"` : undefined, item.id);
+    }), m ? `Tarefa adicionada na reunião "${m.title}"` : undefined, item.id);
     return item.id;
   }
 
@@ -2524,7 +2531,7 @@ function AppScreens({ shellRef, bump }) {
     mutateProject(targetPid, (p) => ({
       ...p,
       meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id === itemId ? { ...it, deleted: true } : it)) })),
-    }), item ? `Atividade removida na reunião "${m.title}": ${item.title}` : undefined);
+    }), item ? `Tarefa removida na reunião "${m.title}": ${item.title}` : undefined);
     if (item) pushAppUndoToast(`Tarefa "${item.title}" excluída.`, () => updateMeetingActionItem(targetPid, meetingId, itemId, { deleted: false }), 8000);
   }
 
@@ -2540,7 +2547,7 @@ function AppScreens({ shellRef, bump }) {
     mutateProject(targetPid, (p) => ({
       ...p,
       meetings: (p.meetings || []).map((x) => (x.id === meetingId ? { ...x, actionItems: [...(x.actionItems || []), copy] } : x)),
-    }), `${currentUser ? currentUser.name : 'Alguém'} duplicou a atividade "${item.title}"`, copy.id);
+    }), `${currentUser ? currentUser.name : 'Alguém'} duplicou a tarefa "${item.title}"`, copy.id);
     return copy.id;
   }
 
@@ -3141,13 +3148,13 @@ function AppScreens({ shellRef, bump }) {
       `}</style>
 
       {actingOrg && (
-        <div className="no-print" style={S.actingOrgBanner}>
+        <div className="no-print acting-org-banner" style={S.actingOrgBanner}>
           <Building2 size={13} /> Super Admin — visualizando como <strong>{actingOrg.name}</strong>
           <button style={S.actingOrgExitBtn} onClick={exitOrganization}>Sair da organização</button>
         </div>
       )}
 
-      <div className="no-print" style={S.topbar}>
+      <div className="no-print t44" style={S.topbar}>
         <div style={S.brandRow}>
           {isMulti ? (
             <>
@@ -3249,11 +3256,11 @@ function AppScreens({ shellRef, bump }) {
         </div>
       </div>
 
-      <div className="no-print" style={S.tabs}>
+      <div className="no-print t44" style={S.tabs}>
         {[
           !isMulti && { id: 'resumo', label: 'Resumo', icon: Gauge },
           !isMulti && { id: 'meetings', label: 'Reuniões', icon: Mic },
-          !isMulti && { id: 'todo', label: 'Atividades', icon: ListChecks },
+          !isMulti && { id: 'todo', label: 'Tarefas', icon: ListChecks },
           { id: 'timeline', label: 'Gantt', icon: CalendarDays },
           { id: 'table', label: 'Tabela', icon: List },
           { id: 'phases', label: 'Fases', icon: LayoutGrid },
@@ -3743,8 +3750,29 @@ function LoadingScreen({ theme }) {
   );
 }
 
+function PasswordField({ value, onChange, placeholder, autoComplete, label }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div style={{ position: 'relative' }}>
+      <input type={visible ? 'text' : 'password'} value={value} onChange={onChange} placeholder={placeholder} aria-label={label || placeholder} autoComplete={autoComplete} style={{ paddingRight: 72 }} />
+      <button
+        type="button"
+        aria-pressed={visible}
+        aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
+        title={visible ? 'Ocultar senha' : 'Mostrar senha'}
+        onClick={() => setVisible((v) => !v)}
+        className="login-eye"
+        style={{ position: 'absolute', right: 2, top: 0, bottom: 0, minWidth: 64, padding: '0 8px', background: 'transparent', border: 'none', borderRadius: 6, color: 'var(--text-5)', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}
+      >
+        {visible ? 'Ocultar' : 'Mostrar'}
+      </button>
+    </div>
+  );
+}
+
 function LoginGate({ onLogin, onChangePasswordAndLogin, loginError, theme, onToggleTheme }) {
   const [mode, setMode] = useState('login');
+  const [showForgot, setShowForgot] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -3755,6 +3783,7 @@ function LoginGate({ onLogin, onChangePasswordAndLogin, loginError, theme, onTog
 
   function switchMode(next) {
     setMode(next);
+    setShowForgot(false);
     setLocalError('');
     setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
   }
@@ -3785,9 +3814,10 @@ function LoginGate({ onLogin, onChangePasswordAndLogin, loginError, theme, onTog
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
         input[type=text], input[type=password] {
           background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
-          padding:9px 10px; font-size:13px; width:100%;
+          padding:9px 10px; font-size:14px; width:100%; min-height:44px;
         }
-        input[type=text]:focus, input[type=password]:focus { outline:none; border-color:#F5C400; }
+        input[type=text]:focus, input[type=password]:focus { outline:none; border-color:#F5C400; box-shadow:0 0 0 2px rgba(245,196,0,.35); }
+        .login-eye:focus-visible, .login-link:focus-visible { outline:2px solid #F5C400; outline-offset:2px; }
       `}</style>
       <div style={S.themeToggleCorner}>
         <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />
@@ -3795,35 +3825,48 @@ function LoginGate({ onLogin, onChangePasswordAndLogin, loginError, theme, onTog
       <div style={S.loginWrap}>
         <div style={S.loginBox}>
           <BrandLogo theme={theme} style={S.loginLogo} />
-          <div style={S.loginEyebrow}>Cronograma de Reforma Tributária</div>
+          <div style={S.loginEyebrow}>Painel PRICETAX</div>
           <h1 style={S.loginTitle}>{mode === 'login' ? 'Entrar' : 'Trocar senha'}</h1>
           <p style={S.loginSub}>
-            {mode === 'login' ? 'Use seu usuário e senha para acessar o cronograma.' : 'Informe seu usuário, a senha atual e a nova senha. Você já entra em seguida.'}
+            {mode === 'login' ? 'Use seu usuário e senha para acessar o painel.' : 'Informe seu usuário, a senha atual e a nova senha. Você já entra em seguida.'}
           </p>
-          {loginError && <div style={S.loginBlockedMsg}>{loginError.message}</div>}
-          {localError && <div style={S.loginBlockedMsg}>{localError}</div>}
+          {loginError && <div style={S.loginBlockedMsg} role="alert">{loginError.message}</div>}
+          {localError && <div style={S.loginBlockedMsg} role="alert">{localError}</div>}
           {mode === 'login' ? (
             <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <input type="text" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Usuário" autoComplete="username" />
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" autoComplete="current-password" />
-              <button title={submitting ? 'Aguarde terminar de entrar' : undefined} type="submit" style={S.primaryBtn} disabled={submitting}>{submitting ? 'Entrando...' : 'Entrar'}</button>
+              <input type="text" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Usuário" aria-label="Usuário" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+              <PasswordField value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" autoComplete="current-password" />
+              <button title={submitting ? 'Aguarde terminar de entrar' : undefined} type="submit" style={{ ...S.primaryBtn, minHeight: 44 }} disabled={submitting}>{submitting ? 'Entrando...' : 'Entrar'}</button>
             </form>
           ) : (
             <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <input type="text" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Usuário" autoComplete="username" />
-              <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Senha atual" autoComplete="current-password" />
-              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Nova senha" autoComplete="new-password" />
-              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirmar nova senha" autoComplete="new-password" />
-              <button title={submitting ? 'Aguarde terminar de trocar a senha' : undefined} type="submit" style={S.primaryBtn} disabled={submitting}>{submitting ? 'Trocando...' : 'Trocar senha e entrar'}</button>
+              <input type="text" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Usuário" aria-label="Usuário" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+              <PasswordField value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Senha atual" autoComplete="current-password" />
+              <PasswordField value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Nova senha" autoComplete="new-password" />
+              <PasswordField value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirmar nova senha" autoComplete="new-password" />
+              <button title={submitting ? 'Aguarde terminar de trocar a senha' : undefined} type="submit" style={{ ...S.primaryBtn, minHeight: 44 }} disabled={submitting}>{submitting ? 'Trocando...' : 'Trocar senha e entrar'}</button>
             </form>
           )}
-          <button
-            type="button"
-            onClick={() => switchMode(mode === 'login' ? 'changePassword' : 'login')}
-            style={{ background: 'transparent', border: 'none', color: 'var(--text-5)', fontSize: 12, cursor: 'pointer', marginTop: 14, textAlign: 'center', textDecoration: 'underline' }}
-          >
-            {mode === 'login' ? 'Trocar senha' : 'Voltar para o login'}
-          </button>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0 18px', marginTop: 10 }}>
+            <button
+              type="button"
+              className="login-link"
+              onClick={() => switchMode(mode === 'login' ? 'changePassword' : 'login')}
+              style={S.loginLinkBtn}
+            >
+              {mode === 'login' ? 'Trocar senha' : 'Voltar para o login'}
+            </button>
+            {mode === 'login' && (
+              <button type="button" className="login-link" aria-expanded={showForgot} onClick={() => setShowForgot((v) => !v)} style={S.loginLinkBtn}>
+                Esqueci a senha
+              </button>
+            )}
+          </div>
+          {mode === 'login' && showForgot && (
+            <div role="status" style={S.loginForgotNote}>
+              Peça a um administrador da PRICETAX para redefinir a sua senha (Gestão de Usuários › Redefinir senha). Ele define uma nova senha para você; com ela você entra e pode trocar por uma sua em &quot;Trocar senha&quot; (aqui no login) ou em Meu perfil › Alterar senha.
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -3861,7 +3904,7 @@ function SuperAdminScreen({ organizations, error, onClose, closeLabel, onLogout,
   }
 
   return (
-    <div className="page-root" style={S.page}>
+    <div className="page-root t44" style={S.page}>
       <style>{`
         * { box-sizing: border-box; }
         input, select, button { font-family: 'Inter', sans-serif; }
@@ -4029,7 +4072,7 @@ function UsersManagementScreen({
   });
 
   return (
-    <div className="page-root" style={S.page}>
+    <div className="page-root t44" style={S.page}>
       <style>{`
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
@@ -4283,7 +4326,7 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations, register
 
   return (
     <DialogOverlay style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose}>
-      <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', maxHeight: '88vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
+      <div className="t44" style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', maxHeight: '88vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Novo usuário</div>
           <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
@@ -4375,7 +4418,7 @@ function EditUserModal({ user: u, accessSummary, currentUser, registeredProjects
 
   return (
     <DialogOverlay style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={onClose}>
-      <div style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '88vh', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
+      <div className="t44" style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '88vh', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <UserAvatar user={u} size={30} />
@@ -4572,7 +4615,7 @@ function MyProfileModal({ user, onClose, onAvatar, googleConnectResult, initialT
 
   return (
     <DialogOverlay style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose}>
-      <div style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '90vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
+      <div className="t44" style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '90vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Meu perfil</div>
           <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
@@ -4592,7 +4635,7 @@ function MyProfileModal({ user, onClose, onAvatar, googleConnectResult, initialT
             { id: 'dia', label: 'Meu dia' },
             { id: 'agenda', label: 'Agenda' },
             { id: 'iphone', label: 'iPhone' },
-            { id: 'conectar', label: 'Conectar' },
+            { id: 'conectar', label: 'Integrações (avançado)' },
           ]} />
         </div>
 
@@ -4659,7 +4702,7 @@ function MyProfileModal({ user, onClose, onAvatar, googleConnectResult, initialT
       {showTokenGuard && (
         <ConfirmDialog
           title="Fechar sem copiar o token?"
-          message="O token que você acabou de gerar só aparece uma vez e se perde ao fechar. Copie o comando do token na aba Conectar antes de sair, ou gere outro depois."
+          message="O token que você acabou de gerar só aparece uma vez e se perde ao fechar. Copie o comando do token na aba Integrações (avançado) antes de sair, ou gere outro depois."
           confirmLabel="Fechar mesmo assim"
           cancelLabel="Voltar e copiar"
           danger
@@ -4797,7 +4840,7 @@ function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmin, orga
           outline:none; border-color:#F5C400;
         }
       `}</style>
-      <div style={{ ...S.detailBox, width: 'min(560px, 100%)', height: 'auto', maxHeight: '88vh', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
+      <div className="t44" style={{ ...S.detailBox, width: 'min(560px, 100%)', height: 'auto', maxHeight: '88vh', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>{cloneSource ? 'Clonar empresa' : 'Cadastrar empresa'}</div>
           <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
@@ -5145,7 +5188,7 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
         }
         input[type=text]:focus { outline:none; border-color:#F5C400; }
       `}</style>
-      <div style={{ ...S.detailBox, width: 'min(480px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
+      <div className="t44" style={{ ...S.detailBox, width: 'min(480px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Editar empresa</div>
           <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
@@ -5268,7 +5311,7 @@ function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }) {
 
   return (
     <DialogOverlay style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose}>
-      <div style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
+      <div className="t44" style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>Nova atividade do grupo</div>
           <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
@@ -5365,7 +5408,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   const allChecked = filteredProjects.length > 0 && filteredProjects.every((p) => selected.has(p.id));
 
   return (
-    <div className="page-root" style={S.page}>
+    <div className="page-root t44" style={S.page}>
       {deleteTarget && (
         <ConfirmDialog
           title={`Excluir ${deleteTarget.company.name || 'esta empresa'}?`}
@@ -5387,7 +5430,8 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
         select:focus { outline:none; border-color:#F5C400; }
         input[type=checkbox]{ accent-color:#F5C400; width:16px; height:16px; }
         .company-card .company-card-actions { opacity: .4; transition: opacity .12s; }
-        .company-card:hover .company-card-actions { opacity: 1; }
+        .company-card:hover .company-card-actions, .company-card:focus-within .company-card-actions { opacity: 1; }
+        @media (hover:none) { .company-card .company-card-actions { opacity: 1; } }
       `}</style>
       <div style={S.companySelectorWrap}>
         <div style={S.companySelectorHeader}>
@@ -5593,6 +5637,26 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
 
 function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickModelos, onPickCrm, onPickUsers, onLogout, theme, onToggleTheme, onOpenProfile, onConfigureDaily, dailyReload, projects, notifications, todayIso, todayActions, showWeek, onOpenStats, continueItems }) {
   const overdueNow = useMemo(() => buildTodayItems({ projects, personalBoard, user, todayIso }).overdue.length, [projects, personalBoard, user, todayIso]);
+  const gateGroups = [
+    { id: 'diario', title: 'Trabalho diário', items: [
+      onPickPersonal && { id: 'personal', Icon: Columns3, title: 'Gestão de Atividades', desc: 'Seu quadro pessoal de tarefas e prazos.', onPick: onPickPersonal },
+      onPickAgenda && { id: 'agenda', Icon: CalendarDays, title: 'Agenda', desc: 'Seus compromissos e horários livres.', onPick: onPickAgenda },
+      onPickXFlow && { id: 'xflow', Icon: Bug, title: 'XFlow', desc: 'TASKs dos produtos internos, do relato à validação.', onPick: onPickXFlow },
+    ] },
+    { id: 'clientes', title: 'Clientes', items: [
+      onPickCompany && { id: 'company', Icon: Building2, title: 'Empresas', desc: 'Cronograma de reforma tributária de cada empresa.', onPick: onPickCompany },
+      onPickMacro && { id: 'macro', Icon: Globe, title: 'Visão Geral', desc: 'Entregas e reuniões de todas as empresas, por data.', onPick: onPickMacro },
+      onPickCrm && { id: 'crm', Icon: Briefcase, title: 'CRM', desc: 'Contatos e negócios, do primeiro contato ao projeto.', onPick: onPickCrm },
+    ] },
+    { id: 'conhecimento', title: 'Conhecimento', items: [
+      onPickKnowledge && { id: 'knowledge', Icon: Sparkles, title: 'Conhecimento', desc: 'O que a RENATA aprendeu e onde usou.', onPick: onPickKnowledge },
+      onPickPareceres && { id: 'pareceres', Icon: FileText, title: 'Pareceres PRICETAX', desc: 'Pareceres em PDF para compartilhar, com comentários.', onPick: onPickPareceres },
+      onPickModelos && { id: 'modelos', Icon: FolderOpen, title: 'Modelos de documentos', desc: 'Contratos, propostas e planilhas prontos.', onPick: onPickModelos },
+    ] },
+    { id: 'admin', title: 'Administração', items: [
+      onPickUsers && { id: 'users', Icon: UserCog, title: 'Gestão de Usuários', desc: 'Acessos, permissões e senhas.', onPick: onPickUsers },
+    ] },
+  ].map((g) => ({ ...g, items: g.items.filter(Boolean) })).filter((g) => g.items.length > 0);
   return (
     <div className="page-root" style={S.page}>
       <div style={S.companySelectorWrap}>
@@ -5611,80 +5675,28 @@ function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersona
 
         <ContinueStrip items={continueItems} onOpen={(it) => it.run()} />
 
-        <p style={S.loginSub}>Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>
+        <p style={{ ...S.loginSub, marginBottom: 14 }}>Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>
 
-        <div style={S.workspaceChoices}>
-          {onPickCompany && (
-            <button style={S.workspaceCard} onClick={onPickCompany}>
-              <Building2 size={26} color="#F5C400" />
-              <div style={S.workspaceCardTitle}>Empresas</div>
-              <div style={S.workspaceCardDesc}>Cronogramas de reforma tributária das empresas que você acompanha.</div>
-            </button>
-          )}
-          {onPickPersonal && (
-            <button style={S.workspaceCard} onClick={onPickPersonal}>
-              <Columns3 size={26} color="#F5C400" />
-              <div style={S.workspaceCardTitle}>Gestão de Atividades</div>
-              <div style={S.workspaceCardDesc}>Seu quadro pessoal — organize tarefas, compromissos e pendências, sem vincular a nenhuma empresa.</div>
-            </button>
-          )}
-          {onPickXFlow && (
-            <button style={S.workspaceCard} onClick={onPickXFlow}>
-              <Bug size={26} color="#F5C400" />
-              <div style={S.workspaceCardTitle}>XFlow</div>
-              <div style={S.workspaceCardDesc}>Rastreamento de BUGs dos produtos internos — ciclo de vida próprio, do relato à validação.</div>
-            </button>
-          )}
-          {onPickAgenda && (
-            <button style={S.workspaceCard} onClick={onPickAgenda}>
-              <CalendarDays size={26} color="#F5C400" />
-              <div style={S.workspaceCardTitle}>Agenda</div>
-              <div style={S.workspaceCardDesc}>Sua disponibilidade e compromissos, com o que já está no seu Google Calendar e no PRICETAX.</div>
-            </button>
-          )}
-          {onPickMacro && (
-            <button style={S.workspaceCard} onClick={onPickMacro}>
-              <Globe size={26} color="#F5C400" />
-              <div style={S.workspaceCardTitle}>Visão Geral Empresas</div>
-              <div style={S.workspaceCardDesc}>Cronograma consolidado de todas as empresas — entregas, reuniões e marcos, organizados por data.</div>
-            </button>
-          )}
-          {onPickKnowledge && (
-            <button style={S.workspaceCard} onClick={onPickKnowledge}>
-              <Sparkles size={26} color="#F5C400" />
-              <div style={S.workspaceCardTitle}>Conhecimento</div>
-              <div style={S.workspaceCardDesc}>O que a RENATA sabe, de onde veio, o que está em conflito e onde já foi usado.</div>
-            </button>
-          )}
-          {onPickCrm && (
-            <button style={S.workspaceCard} onClick={onPickCrm}>
-              <Briefcase size={26} color="#F5C400" />
-              <div style={S.workspaceCardTitle}>CRM</div>
-              <div style={S.workspaceCardDesc}>Empresas, contatos e todo o relacionamento comercial da PRICETAX — do primeiro contato ao projeto.</div>
-            </button>
-          )}
-          {onPickPareceres && (
-            <button style={S.workspaceCard} onClick={onPickPareceres}>
-              <FileText size={26} color="#F5C400" />
-              <div style={S.workspaceCardTitle}>Pareceres PRICETAX</div>
-              <div style={S.workspaceCardDesc}>Pareceres em PDF pra compartilhar com sócios e colaboradores — identificação, comentários e histórico.</div>
-            </button>
-          )}
-          {onPickModelos && (
-            <button style={S.workspaceCard} onClick={onPickModelos}>
-              <FolderOpen size={26} color="#F5C400" />
-              <div style={S.workspaceCardTitle}>Modelos de documentos</div>
-              <div style={S.workspaceCardDesc}>Contratos, propostas, apresentações e planilhas prontos — suba arquivos ou cole links com prévia.</div>
-            </button>
-          )}
-          {onPickUsers && (
-            <button style={S.workspaceCard} onClick={onPickUsers}>
-              <UserCog size={26} color="#F5C400" />
-              <div style={S.workspaceCardTitle}>Gestão de Usuários</div>
-              <div style={S.workspaceCardDesc}>Quem tem acesso, perfis e permissões, senhas, bloqueios e o registro de acessos de cada pessoa.</div>
-            </button>
-          )}
-        </div>
+        <style>{`
+          .gate-card:hover { border-color: #F5C400 !important; }
+          .gate-card:focus-visible { outline: 2px solid #F5C400; outline-offset: 2px; }
+        `}</style>
+        {gateGroups.map((g) => (
+          <section key={g.id} aria-labelledby={`gate-grp-${g.id}`} style={S.gateGroup}>
+            <h2 id={`gate-grp-${g.id}`} style={S.gateGroupTitle}>{g.title}</h2>
+            <div style={S.gateGrid}>
+              {g.items.map((it) => (
+                <button key={it.id} className="gate-card" style={S.gateCard} onClick={it.onPick}>
+                  <it.Icon size={22} color="#F5C400" aria-hidden="true" style={{ flexShrink: 0 }} />
+                  <span style={S.gateCardText}>
+                    <span style={S.gateCardTitle}>{it.title}</span>
+                    <span style={S.gateCardDesc}>{it.desc}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
     </div>
   );
@@ -6445,7 +6457,7 @@ function ReassignCardsModal({ column, otherColumns, onConfirm, onCancel }) {
   const isMobile = useIsMobile();
   return (
     <DialogOverlay style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={onCancel}>
-      <div style={{ ...S.detailBox, width: 'min(460px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
+      <div className="t44" style={{ ...S.detailBox, width: 'min(460px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
           <div style={{ fontSize: 16, fontWeight: 800 }}>Excluir coluna "{column.name}"</div>
           <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={onCancel}><X aria-hidden="true" size={18} /></button>
@@ -7271,7 +7283,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
   const columnIds = activeBoard ? activeBoard.columns.map((c) => c.id) : [];
 
   return (
-    <div className={embedded ? undefined : 'page-root'} style={embedded ? undefined : S.page}>
+    <div className={embedded ? undefined : 'page-root t44'} style={embedded ? undefined : S.page}>
       <style>{`
         @keyframes personalSkeletonPulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
         * { box-sizing: border-box; }
@@ -7325,7 +7337,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
         .pb-addbtn:hover { background: var(--bg-3); color: var(--text-2); }
       `}</style>
       {!embedded && (
-      <div className="no-print" style={S.topbar}>
+      <div className="no-print t44" style={S.topbar}>
         <div style={S.brandRow}>
           <div style={S.logoPlaceholder}><Columns3 size={18} color="#F5C400" /></div>
           <div>
@@ -7345,7 +7357,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
       )}
 
       {embedded ? (
-        <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 24px 0' }}>
+        <div className="no-print t44" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 24px 0' }}>
           <span style={S.publicBadge}><Globe size={11} /> Quadro de {publicOwnerName || 'outra pessoa'}</span>
           <SaveStatus state={saveState} errorText="Não foi possível salvar — alteração desfeita." />
         </div>
@@ -8878,6 +8890,171 @@ function ResumoView({ activities, orderMap, phases, pid, openDetail, companyColo
   );
 }
 
+function ActivityMetaChips({ a, phaseName, phaseColor }) {
+  const chip = { fontSize: 10.5, fontWeight: 600, marginTop: 6, color: 'var(--text-5)' };
+  return (
+    <>
+      {phaseName && <span style={{ ...chip, color: phaseColor }}>{phaseName}</span>}
+      {a.meetingTime && <span style={chip} title="Horário da reunião">{a.meetingTime}</span>}
+      {a.required && <span style={chip}>Obrigatória</span>}
+      {a.clientDateConfirmed && <span style={{ ...chip, color: '#3ecf6e' }}>Data confirmada com o cliente</span>}
+    </>
+  );
+}
+
+// Campos secundários da atividade (fase, prioridade, prazo em dias, horário da reunião) — antes eram colunas da linha da tabela.
+function ActivityMoreFields({ a, rowPid, rowPhases, phaseColor, updateActivity, isMobile }) {
+  const ctl = isMobile ? { minHeight: 44 } : null;
+  return (
+    <div style={S.moreFieldsGrid}>
+      <div>
+        <div style={S.mobileFieldLabel}>Fase</div>
+        <select
+          aria-label={`Fase de ${a.title}`}
+          value={a.phase}
+          onChange={(e) => {
+            const newPhaseId = Number(e.target.value);
+            const phaseName = rowPhases.find((p) => p.id === newPhaseId)?.name || '';
+            updateActivity(rowPid, a.id, { phase: newPhaseId }, `Fase alterada em "${a.title}": ${phaseName}`);
+          }}
+          style={{ ...S.pillSelect, ...ctl, background: `${phaseColor}22`, borderColor: `${phaseColor}66`, color: phaseColor }}
+        >
+          {rowPhases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
+      <div>
+        <div style={S.mobileFieldLabel}>Prioridade</div>
+        <select
+          aria-label={`Prioridade de ${a.title}`}
+          value={a.priority || ''}
+          style={ctl}
+          onChange={(e) => updateActivity(rowPid, a.id, { priority: e.target.value }, `Prioridade alterada em "${a.title}": ${e.target.value ? PRIORITY_META[e.target.value].label : 'sem prioridade'}`)}
+        >
+          <option value="">Sem prioridade</option>
+          {PRIORITY_ORDER.map((pr) => <option key={pr} value={pr}>{PRIORITY_META[pr].label}</option>)}
+        </select>
+      </div>
+      <div>
+        <div style={S.mobileFieldLabel}>Prazo (dias)</div>
+        <input
+          type="number"
+          min={1}
+          placeholder="dias"
+          aria-label={`Prazo em dias de ${a.title}`}
+          value={a.durationDays || ''}
+          style={ctl}
+          onChange={(e) => {
+            const v = e.target.value;
+            const patch = { durationDays: v ? Number(v) : '' };
+            if (v && a.date) patch.endDate = calcDeadline(a.date, v);
+            updateActivity(rowPid, a.id, patch);
+          }}
+          onBlur={() => updateActivity(rowPid, a.id, {}, `Prazo alterado em "${a.title}": ${a.durationDays ? a.durationDays + ' dias' : 'sem prazo definido'}`)}
+        />
+      </div>
+      <div>
+        <div style={S.mobileFieldLabel}>Horário da reunião (opcional)</div>
+        <input
+          type="time"
+          aria-label={`Horário da reunião de ${a.title}`}
+          value={a.meetingTime || ''}
+          style={ctl}
+          onChange={(e) => updateActivity(rowPid, a.id, { meetingTime: e.target.value })}
+          onBlur={() => updateActivity(rowPid, a.id, {}, `Horário da reunião alterado em "${a.title}": ${a.meetingTime || 'sem horário definido'}`)}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Menu "⋯ Mais ações" por linha: renderizado num portal (a tabela rola na horizontal e cortaria um menu absoluto).
+function RowActionsMenu({ title, required, confirmed, onToggleRequired, onToggleConfirmed, onOpenFull, onMoreFields, onDelete, isMobile }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+  const close = (refocus) => { setOpen(false); if (refocus && btnRef.current) btnRef.current.focus(); };
+  useEscClose(() => close(true), open);
+  useEffect(() => {
+    if (!open) return undefined;
+    function onDown(e) {
+      if (menuRef.current && menuRef.current.contains(e.target)) return;
+      if (btnRef.current && btnRef.current.contains(e.target)) return;
+      setOpen(false);
+    }
+    function onAway() { setOpen(false); }
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    window.addEventListener('resize', onAway);
+    window.addEventListener('scroll', onAway, true);
+    const first = menuRef.current && menuRef.current.querySelector('[role^="menuitem"]');
+    if (first) first.focus();
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      window.removeEventListener('resize', onAway);
+      window.removeEventListener('scroll', onAway, true);
+    };
+  }, [open]);
+
+  function toggle() {
+    if (open) { close(true); return; }
+    const r = btnRef.current.getBoundingClientRect();
+    const w = 280;
+    const h = 5 * (isMobile ? 48 : 38) + 14;
+    const left = Math.min(Math.max(8, r.right - w), Math.max(8, window.innerWidth - w - 8));
+    let top = r.bottom + 4;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 4);
+    setPos({ top, left, width: Math.min(w, window.innerWidth - 16) });
+    setOpen(true);
+  }
+  function onMenuKey(e) {
+    const items = Array.from(menuRef.current.querySelectorAll('[role^="menuitem"]'));
+    const i = items.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+    else if (e.key === 'Home') { e.preventDefault(); items[0].focus(); }
+    else if (e.key === 'End') { e.preventDefault(); items[items.length - 1].focus(); }
+    else if (e.key === 'Tab') close(false);
+  }
+  const itemStyle = { ...S.rowMenuItem, ...(isMobile ? { minHeight: 48 } : null) };
+  const run = (fn) => () => { close(true); fn(); };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className="row-menu-btn act-row-actions"
+        data-open={open}
+        aria-label={`Mais ações da atividade ${title || '(sem título)'}`}
+        title="Mais ações"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        style={{ ...S.rowMenuBtn, ...(isMobile ? { width: 44, height: 44 } : null) }}
+        onClick={toggle}
+      >
+        <MoreHorizontal size={isMobile ? 18 : 16} aria-hidden="true" />
+      </button>
+      {open && pos && createPortal(
+        <div ref={menuRef} role="menu" aria-label={`Ações da atividade ${title || '(sem título)'}`} onKeyDown={onMenuKey} style={{ ...S.rowMenu, top: pos.top, left: pos.left, width: pos.width }}>
+          <button type="button" role="menuitem" tabIndex={-1} className="row-menu-item" style={itemStyle} onClick={run(onOpenFull)}><Maximize2 size={14} aria-hidden="true" /> Abrir em tela cheia</button>
+          <button type="button" role="menuitem" tabIndex={-1} className="row-menu-item" style={itemStyle} onClick={run(onMoreFields)}><SlidersHorizontal size={14} aria-hidden="true" /> Fase, prioridade, prazo e horário…</button>
+          <button type="button" role="menuitemcheckbox" aria-checked={!!required} tabIndex={-1} className="row-menu-item" style={itemStyle} onClick={onToggleRequired}>
+            <span aria-hidden="true" style={S.rowMenuCheck}>{required ? <Check size={13} /> : null}</span> Obrigatória
+          </button>
+          <button type="button" role="menuitemcheckbox" aria-checked={!!confirmed} tabIndex={-1} className="row-menu-item" style={itemStyle} onClick={onToggleConfirmed}>
+            <span aria-hidden="true" style={S.rowMenuCheck}>{confirmed ? <Check size={13} /> : null}</span> Data confirmada com o cliente
+          </button>
+          <div role="separator" style={{ height: 1, background: 'var(--border-1)', margin: '4px 0' }} />
+          <button type="button" role="menuitem" tabIndex={-1} className="row-menu-item" style={{ ...itemStyle, color: '#e5484d' }} onClick={run(onDelete)}><Trash2 size={14} aria-hidden="true" /> Excluir atividade</button>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor, groupInfo }) {
   const isMobile = useIsMobile();
   const isCompact = useIsCompact();
@@ -9015,7 +9192,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
     <div style={{ ...S.tableLayout, ...(isCompact ? S.tableLayoutCompact : null) }}>
       <style>{SUB_ROW_CSS}</style>
       {isCompact && (
-        <button style={S.filterToggleBtn} onClick={() => setShowMobileFilters((v) => !v)}>
+        <button style={{ ...S.filterToggleBtn, minHeight: 44 }} aria-expanded={showMobileFilters} onClick={() => setShowMobileFilters((v) => !v)}>
           <SlidersHorizontal size={14} /> Filtros{filtersActive ? ' •' : ''} {showMobileFilters ? '▲' : '▼'}
         </button>
       )}
@@ -9084,14 +9261,10 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
             <div style={{ ...S.th, width: 46 }}>#</div>
             {multiMode && <div style={{ ...S.th, width: 150 }}>Empresa</div>}
             <div style={{ ...S.th, flex: 2, minWidth: 260 }}>Atividade</div>
-            <div style={{ ...S.th, width: 130 }}>Fase</div>
             <div style={{ ...S.th, width: 170 }}>Responsável</div>
-            <div style={{ ...S.th, width: 250 }}>Prazos</div>
-            <div style={{ ...S.th, width: 80 }}>Horário</div>
-            <div style={{ ...S.th, width: 60, textAlign: 'center' }}>Obrig.</div>
-            <div style={{ ...S.th, width: 70, textAlign: 'center' }}>Confirm.</div>
+            <div style={{ ...S.th, width: 240 }}>Início / Fim</div>
             <div style={{ ...S.th, width: 140 }}>Status</div>
-            <div style={{ ...S.th, width: 60 }}></div>
+            <div style={{ ...S.th, width: 84 }}></div>
           </div>
           )}
 
@@ -9128,6 +9301,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
               <div
                 key={`${rowPid}-${a.id}`}
                 ref={(el) => { rowElRefs.current[a.id] = el; }}
+                className="act-row"
                 style={{
                   ...S.tableGroup,
                   borderLeft: `3px solid ${rowAccent}`,
@@ -9166,29 +9340,20 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                   <div style={{ flex: 2, minWidth: 260 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {a.priority && <span title={`Prioridade ${PRIORITY_META[a.priority].label}`} style={{ ...S.priorityDot, background: PRIORITY_META[a.priority].color }} />}
-                      <DebouncedTextInput value={a.title} onCommit={(v) => updateActivity(rowPid, a.id, { title: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} style={{ flex: 1 }} />
+                      <DebouncedTextInput aria-label="Título da atividade" value={a.title} onCommit={(v) => updateActivity(rowPid, a.id, { title: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} style={{ flex: 1 }} />
                     </div>
                     <DebouncedTextInput value={a.desc} onCommit={(v) => updateActivity(rowPid, a.id, { desc: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 4, opacity: .8 }} />
-                    <button
-                      style={S.subToggleBtn}
-                      onClick={() => setExpanded((e) => ({ ...e, [`${rowPid}-${a.id}`]: !e[`${rowPid}-${a.id}`] }))}
-                    >
-                      <ChevronDown size={11} style={{ transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .12s' }} />
-                      {subs.length > 0 ? `${doneSubs}/${subs.length} subatividades` : 'Detalhes'}
-                    </button>
-                  </div>
-                  <div style={{ width: 130 }}>
-                    <select
-                      value={a.phase}
-                      onChange={(e) => {
-                        const newPhaseId = Number(e.target.value);
-                        const phaseName = rowPhases.find((p) => p.id === newPhaseId)?.name || '';
-                        updateActivity(rowPid, a.id, { phase: newPhaseId }, `Fase alterada em "${a.title}": ${phaseName}`);
-                      }}
-                      style={{ ...S.pillSelect, background: `${phaseColor}22`, borderColor: `${phaseColor}66`, color: phaseColor }}
-                    >
-                      {rowPhases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <button
+                        aria-expanded={isOpen}
+                        style={S.subToggleBtn}
+                        onClick={() => setExpanded((e) => ({ ...e, [`${rowPid}-${a.id}`]: !e[`${rowPid}-${a.id}`] }))}
+                      >
+                        <ChevronDown size={11} aria-hidden="true" style={{ transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .12s' }} />
+                        {subs.length > 0 ? `${doneSubs}/${subs.length} subatividades` : 'Detalhes'}
+                      </button>
+                      <ActivityMetaChips a={a} phaseName={phaseOf(a)?.name} phaseColor={phaseColor} />
+                    </div>
                   </div>
                   <div style={{ width: 170, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ ...S.avatarDot, background: rowAccent }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>
@@ -9196,51 +9361,16 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                       {rowTeam.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
                     </select>
                   </div>
-                  <div style={{ width: 250, display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <input type="date" style={{ width: 96, flexShrink: 0 }} value={a.date} onChange={(e) => {
+                  <div style={{ width: 240, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <input type="date" aria-label={`Início de ${a.title}`} style={{ width: 108, flexShrink: 0 }} value={a.date} onChange={(e) => {
                       const v = e.target.value;
                       const patch = { date: v };
                       if (a.durationDays) patch.endDate = calcDeadline(v, a.durationDays);
                       else if (!a.endDate || a.endDate < v) patch.endDate = v;
                       updateActivity(rowPid, a.id, patch, `Início alterado em "${a.title}": ${fmtDate(v)}`);
                     }} />
-                    <input
-                      type="number"
-                      min={1}
-                      placeholder="dias"
-                      title="Prazo em dias"
-                      value={a.durationDays || ''}
-                      style={S.prazoInput}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        const patch = { durationDays: v ? Number(v) : '' };
-                        if (v && a.date) patch.endDate = calcDeadline(a.date, v);
-                        updateActivity(rowPid, a.id, patch);
-                      }}
-                      onBlur={() => updateActivity(rowPid, a.id, {}, `Prazo alterado em "${a.title}": ${a.durationDays ? a.durationDays + ' dias' : 'sem prazo definido'}`)}
-                    />
-                    <input type="date" style={{ width: 96, flexShrink: 0 }} value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(rowPid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
-                  </div>
-                  <div style={{ width: 80 }}>
-                    <input
-                      type="time"
-                      title="Horário da reunião (opcional)"
-                      style={{ width: '100%' }}
-                      value={a.meetingTime || ''}
-                      onChange={(e) => updateActivity(rowPid, a.id, { meetingTime: e.target.value })}
-                      onBlur={() => updateActivity(rowPid, a.id, {}, `Horário da reunião alterado em "${a.title}": ${a.meetingTime || 'sem horário definido'}`)}
-                    />
-                  </div>
-                  <div style={{ width: 60, textAlign: 'center' }}>
-                    <input type="checkbox" checked={a.required} onChange={(e) => updateActivity(rowPid, a.id, { required: e.target.checked }, `Obrigatoriedade alterada em "${a.title}"`)} />
-                  </div>
-                  <div style={{ width: 70, textAlign: 'center' }}>
-                    <input
-                      type="checkbox"
-                      title="Data confirmada com o cliente?"
-                      checked={!!a.clientDateConfirmed}
-                      onChange={(e) => updateActivity(rowPid, a.id, { clientDateConfirmed: e.target.checked }, `Data confirmada com o cliente ${e.target.checked ? 'marcada' : 'desmarcada'} em "${a.title}"`)}
-                    />
+                    <span aria-hidden="true" style={{ color: 'var(--text-6)', flexShrink: 0 }}>→</span>
+                    <input type="date" aria-label={`Fim de ${a.title}`} style={{ width: 108, flexShrink: 0 }} value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(rowPid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
                   </div>
                   <div style={{ width: 140 }}>
                     <select value={a.status} onChange={(e) => updateActivity(rowPid, a.id, { status: e.target.value }, `Status alterado em "${a.title}": ${STATUS_META[e.target.value].label}`)} style={{ ...S.pillSelect, background: STATUS_META[a.status].bg, borderColor: STATUS_META[a.status].border, color: STATUS_META[a.status].color }}>
@@ -9248,8 +9378,18 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                     </select>
                   </div>
                   <div style={S.actionsCell}>
-                    <button style={S.iconBtnGhost} title="Abrir em tela cheia" onClick={() => openDetail(rowPid, a.id)}><Maximize2 size={13} /></button>
-                    <button aria-label="Excluir atividade" title="Excluir atividade" style={S.iconBtnGhost} onClick={() => deleteActivity(rowPid, a.id)}><Trash2 aria-hidden="true" size={14} /></button>
+                    <button aria-label={`Abrir em tela cheia a atividade ${a.title || '(sem título)'}`} title="Abrir em tela cheia" className="act-row-actions" style={S.rowMenuBtn} onClick={() => openDetail(rowPid, a.id)}><Maximize2 size={14} aria-hidden="true" /></button>
+                    <RowActionsMenu
+                      title={a.title}
+                      required={a.required}
+                      confirmed={a.clientDateConfirmed}
+                      onToggleRequired={() => updateActivity(rowPid, a.id, { required: !a.required }, `Obrigatoriedade alterada em "${a.title}"`)}
+                      onToggleConfirmed={() => updateActivity(rowPid, a.id, { clientDateConfirmed: !a.clientDateConfirmed }, `Data confirmada com o cliente ${!a.clientDateConfirmed ? 'marcada' : 'desmarcada'} em "${a.title}"`)}
+                      onOpenFull={() => openDetail(rowPid, a.id)}
+                      onMoreFields={() => setExpanded((e) => ({ ...e, [`${rowPid}-${a.id}`]: true }))}
+                      onDelete={() => deleteActivity(rowPid, a.id)}
+                      isMobile={false}
+                    />
                   </div>
                 </div>
                 )}
@@ -9261,7 +9401,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           {a.priority && <span title={`Prioridade ${PRIORITY_META[a.priority].label}`} style={{ ...S.priorityDot, background: PRIORITY_META[a.priority].color, flexShrink: 0 }} />}
-                          <DebouncedTextInput value={a.title} onCommit={(v) => updateActivity(rowPid, a.id, { title: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} style={{ flex: 1, fontWeight: 700 }} />
+                          <DebouncedTextInput aria-label="Título da atividade" value={a.title} onCommit={(v) => updateActivity(rowPid, a.id, { title: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} style={{ flex: 1, fontWeight: 700, minHeight: 44 }} />
                         </div>
                         {multiMode && (
                           <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -9278,44 +9418,30 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                             )}
                           </div>
                         )}
-                        <DebouncedTextInput value={a.desc} onCommit={(v) => updateActivity(rowPid, a.id, { desc: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 6, opacity: .8 }} />
+                        <DebouncedTextInput value={a.desc} onCommit={(v) => updateActivity(rowPid, a.id, { desc: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 6, opacity: .8, minHeight: 44 }} />
                       </div>
                     </div>
 
                     <div style={S.mobileFieldGroup}>
                       <div>
-                        <div style={S.mobileFieldLabel}>Fase</div>
-                        <select
-                          value={a.phase}
-                          onChange={(e) => {
-                            const newPhaseId = Number(e.target.value);
-                            const phaseName = rowPhases.find((p) => p.id === newPhaseId)?.name || '';
-                            updateActivity(rowPid, a.id, { phase: newPhaseId }, `Fase alterada em "${a.title}": ${phaseName}`);
-                          }}
-                          style={{ ...S.pillSelect, background: `${phaseColor}22`, borderColor: `${phaseColor}66`, color: phaseColor }}
-                        >
-                          {rowPhases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                      </div>
-                      <div>
                         <div style={S.mobileFieldLabel}>Responsável</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ ...S.avatarDot, background: rowAccent }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>
-                          <select value={a.responsible} onChange={(e) => updateActivity(rowPid, a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)} style={{ flex: 1, minWidth: 0 }}>
+                          <select aria-label={`Responsável por ${a.title}`} value={a.responsible} onChange={(e) => updateActivity(rowPid, a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)} style={{ flex: 1, minWidth: 0, minHeight: 44 }}>
                             {rowTeam.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
                           </select>
                         </div>
                       </div>
                       <div>
                         <div style={S.mobileFieldLabel}>Status</div>
-                        <select value={a.status} onChange={(e) => updateActivity(rowPid, a.id, { status: e.target.value }, `Status alterado em "${a.title}": ${STATUS_META[e.target.value].label}`)} style={{ ...S.pillSelect, background: STATUS_META[a.status].bg, borderColor: STATUS_META[a.status].border, color: STATUS_META[a.status].color }}>
+                        <select aria-label={`Status de ${a.title}`} value={a.status} onChange={(e) => updateActivity(rowPid, a.id, { status: e.target.value }, `Status alterado em "${a.title}": ${STATUS_META[e.target.value].label}`)} style={{ ...S.pillSelect, minHeight: 44, background: STATUS_META[a.status].bg, borderColor: STATUS_META[a.status].border, color: STATUS_META[a.status].color }}>
                           {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
                         </select>
                       </div>
                       <div style={{ display: 'flex', gap: 10 }}>
                         <div style={{ flex: 1 }}>
                           <div style={S.mobileFieldLabel}>Início</div>
-                          <input type="date" value={a.date} onChange={(e) => {
+                          <input type="date" aria-label={`Início de ${a.title}`} style={{ minHeight: 44 }} value={a.date} onChange={(e) => {
                             const v = e.target.value;
                             const patch = { date: v };
                             if (a.durationDays) patch.endDate = calcDeadline(v, a.durationDays);
@@ -9325,64 +9451,41 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                         </div>
                         <div style={{ flex: 1 }}>
                           <div style={S.mobileFieldLabel}>Fim</div>
-                          <input type="date" value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(rowPid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
+                          <input type="date" aria-label={`Fim de ${a.title}`} style={{ minHeight: 44 }} value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(rowPid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
                         </div>
                       </div>
-                      <div>
-                        <div style={S.mobileFieldLabel}>Prazo (dias)</div>
-                        <input
-                          type="number"
-                          min={1}
-                          placeholder="dias"
-                          value={a.durationDays || ''}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            const patch = { durationDays: v ? Number(v) : '' };
-                            if (v && a.date) patch.endDate = calcDeadline(a.date, v);
-                            updateActivity(rowPid, a.id, patch);
-                          }}
-                          onBlur={() => updateActivity(rowPid, a.id, {}, `Prazo alterado em "${a.title}": ${a.durationDays ? a.durationDays + ' dias' : 'sem prazo definido'}`)}
-                        />
-                      </div>
-                      <div>
-                        <div style={S.mobileFieldLabel}>Horário da reunião (opcional)</div>
-                        <input
-                          type="time"
-                          value={a.meetingTime || ''}
-                          onChange={(e) => updateActivity(rowPid, a.id, { meetingTime: e.target.value })}
-                          onBlur={() => updateActivity(rowPid, a.id, {}, `Horário da reunião alterado em "${a.title}": ${a.meetingTime || 'sem horário definido'}`)}
-                        />
-                      </div>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-3)' }}>
-                        <input type="checkbox" checked={a.required} onChange={(e) => updateActivity(rowPid, a.id, { required: e.target.checked }, `Obrigatoriedade alterada em "${a.title}"`)} /> Obrigatória
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-3)' }}>
-                        <input
-                          type="checkbox"
-                          checked={!!a.clientDateConfirmed}
-                          onChange={(e) => updateActivity(rowPid, a.id, { clientDateConfirmed: e.target.checked }, `Data confirmada com o cliente ${e.target.checked ? 'marcada' : 'desmarcada'} em "${a.title}"`)}
-                        /> Data confirmada com o cliente?
-                      </label>
                     </div>
 
                     <div style={S.mobileActionsRow}>
-                      <button
-                        style={S.subToggleBtn}
-                        onClick={() => setExpanded((e) => ({ ...e, [`${rowPid}-${a.id}`]: !e[`${rowPid}-${a.id}`] }))}
-                      >
-                        <ChevronDown size={11} style={{ transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .12s' }} />
-                        {subs.length > 0 ? `${doneSubs}/${subs.length} subatividades` : 'Detalhes'}
-                      </button>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button style={S.mobileIconBtn} title="Abrir em tela cheia" onClick={() => openDetail(rowPid, a.id)}><Maximize2 size={16} /></button>
-                        <button aria-label="Excluir atividade" title="Excluir atividade" style={S.mobileIconBtn} onClick={() => deleteActivity(rowPid, a.id)}><Trash2 aria-hidden="true" size={16} /></button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
+                        <button
+                          aria-expanded={isOpen}
+                          style={{ ...S.subToggleBtn, marginTop: 0, minHeight: 44 }}
+                          onClick={() => setExpanded((e) => ({ ...e, [`${rowPid}-${a.id}`]: !e[`${rowPid}-${a.id}`] }))}
+                        >
+                          <ChevronDown size={11} aria-hidden="true" style={{ transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .12s' }} />
+                          {subs.length > 0 ? `${doneSubs}/${subs.length} subatividades` : 'Detalhes'}
+                        </button>
+                        <ActivityMetaChips a={a} phaseName={phaseOf(a)?.name} phaseColor={phaseColor} />
                       </div>
+                      <RowActionsMenu
+                        title={a.title}
+                        required={a.required}
+                        confirmed={a.clientDateConfirmed}
+                        onToggleRequired={() => updateActivity(rowPid, a.id, { required: !a.required }, `Obrigatoriedade alterada em "${a.title}"`)}
+                        onToggleConfirmed={() => updateActivity(rowPid, a.id, { clientDateConfirmed: !a.clientDateConfirmed }, `Data confirmada com o cliente ${!a.clientDateConfirmed ? 'marcada' : 'desmarcada'} em "${a.title}"`)}
+                        onOpenFull={() => openDetail(rowPid, a.id)}
+                        onMoreFields={() => setExpanded((e) => ({ ...e, [`${rowPid}-${a.id}`]: true }))}
+                        onDelete={() => deleteActivity(rowPid, a.id)}
+                        isMobile
+                      />
                     </div>
                   </div>
                 )}
 
                 {isOpen && (
                   <div style={S.subPanel}>
+                    <ActivityMoreFields a={a} rowPid={rowPid} rowPhases={rowPhases} phaseColor={phaseColor} updateActivity={updateActivity} isMobile={isMobile} />
                     <div style={S.subList}>
                       {subs.map((s) => (
                         <div
@@ -9834,7 +9937,7 @@ export const S = {
   mentionBadge: { position: 'absolute', top: -3, right: -5, background: '#e2574c', color: '#fff', fontSize: 9.5, fontWeight: 800, borderRadius: 999, minWidth: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 },
   primaryBtn: { display: 'flex', alignItems: 'center', gap: 6, background: '#F5C400', border: 'none', color: '#111', fontSize: 12.5, fontWeight: 800, padding: '7px 13px', borderRadius: 7, cursor: 'pointer' },
   tabs: { display: 'flex', gap: 6, padding: '14px 24px 0 24px', overflowX: 'auto' },
-  tab: { display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--border-1)', color: 'var(--text-4)', fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: '8px 8px 0 0', cursor: 'pointer' },
+  tab: { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap', background: 'transparent', borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--border-1)', color: 'var(--text-4)', fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: '8px 8px 0 0', cursor: 'pointer' },
   tabActive: { background: 'var(--bg-3)', color: '#F5C400', borderColor: 'var(--border-3)', borderBottomColor: 'var(--bg-3)' },
   main: { padding: '20px 24px 0 24px' },
   hint: { fontSize: 11.5, color: 'var(--text-7)', textAlign: 'center', marginTop: 24 },
@@ -9882,13 +9985,18 @@ export const S = {
   mobileFieldGroup: { display: 'flex', flexDirection: 'column', gap: 12 },
   mobileFieldLabel: { fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-5)', marginBottom: 4 },
   mobileActionsRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2, paddingTop: 10, borderTop: '1px solid var(--border-1)' },
-  mobileIconBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 38, height: 38, background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 8, color: 'var(--text-3)', cursor: 'pointer' },
+  mobileIconBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 8, color: 'var(--text-3)', cursor: 'pointer' },
   monthBadgeSm: { fontSize: 10.5, fontWeight: 800, background: '#F5C400', color: '#111', padding: '3px 7px', borderRadius: 5 },
   subCounter: { fontSize: 11, color: 'var(--text-6)', marginTop: 4 },
   subToggleBtn: { display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 'none', color: 'var(--text-5)', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0, marginTop: 6 },
   pillSelect: { borderRadius: 999, padding: '5px 10px', fontWeight: 700, fontSize: 11.5, border: '1px solid' },
   prazoInput: { width: 46, flexShrink: 0, textAlign: 'center', padding: '6px 2px', fontSize: 12 },
-  actionsCell: { width: 60, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 },
+  moreFieldsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 14 },
+  rowMenuBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, background: 'transparent', border: '1px solid transparent', borderRadius: 8, color: 'var(--text-4)', cursor: 'pointer', padding: 0, flexShrink: 0 },
+  rowMenu: { position: 'fixed', zIndex: 2000, background: 'var(--bg-2)', border: '1px solid var(--border-3)', borderRadius: 10, padding: 6, boxShadow: '0 8px 28px rgba(0,0,0,.35)', display: 'flex', flexDirection: 'column' },
+  rowMenuItem: { display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 36, textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 6, padding: '6px 10px', color: 'var(--text-2)', fontSize: 13, cursor: 'pointer', fontFamily: "'Inter', sans-serif" },
+  rowMenuCheck: { display: 'inline-flex', width: 14, height: 14, alignItems: 'center', justifyContent: 'center', color: '#F5C400', flexShrink: 0 },
+  actionsCell: { width: 84, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 },
   subPanel: { padding: '4px 14px 14px 60px', display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-page)' },
   subList: { display: 'flex', flexDirection: 'column', gap: 6 },
   subRowWrap: { display: 'flex', flexDirection: 'column', gap: 5, padding: '6px 8px 7px 5px', borderRadius: 8, background: 'var(--bg-2)', border: '1px solid var(--border-1)' },
@@ -10160,6 +10268,8 @@ export const S = {
   accessBlock: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-1)' },
   expireWarning: { marginTop: 10, background: 'rgba(226,87,76,.12)', border: '1px solid rgba(226,87,76,.4)', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#f0a49e', lineHeight: 1.5 },
   renewBtn: { display: 'block', marginTop: 8, background: '#e2574c', border: 'none', color: '#fff', fontWeight: 700, fontSize: 11.5, padding: '6px 11px', borderRadius: 6, cursor: 'pointer' },
+  loginLinkBtn: { background: 'transparent', border: 'none', color: 'var(--text-5)', fontSize: 12.5, cursor: 'pointer', textAlign: 'center', textDecoration: 'underline', minHeight: 44, padding: '0 6px' },
+  loginForgotNote: { background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.55, marginTop: 4 },
   loginBlockedMsg: { background: 'rgba(226,87,76,.12)', border: '1px solid rgba(226,87,76,.4)', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: '#f0a49e', marginBottom: 16 },
   loginBlockedTag: { fontSize: 10, fontWeight: 800, color: '#e2574c', border: '1px solid #e2574c', borderRadius: 999, padding: '2px 7px' },
 
@@ -10215,10 +10325,13 @@ export const S = {
   companySearchInput: { flex: 1, background: 'transparent', border: 'none', padding: 0, fontSize: 13 },
   companyFilterRow: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   companyFilterSelect: { flex: '1 1 160px', minWidth: 140, maxWidth: 240 },
-  workspaceChoices: { display: 'flex', gap: 16, width: 'min(760px, 100%)', flexWrap: 'wrap' },
-  workspaceCard: { flex: '1 1 260px', textAlign: 'left', background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: 12, padding: '24px 22px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8, color: 'var(--text-1)', fontFamily: "'Inter', sans-serif", transition: 'border-color .12s' },
-  workspaceCardTitle: { fontSize: 16, fontWeight: 800, marginTop: 4 },
-  workspaceCardDesc: { fontSize: 12.5, color: 'var(--text-5)', lineHeight: 1.5 },
+  gateGroup: { width: 'min(760px, 100%)', marginBottom: 18 },
+  gateGroupTitle: { fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--text-5)', margin: '0 0 8px' },
+  gateGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 230px), 1fr))', gap: 10 },
+  gateCard: { textAlign: 'left', background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: 10, padding: '10px 14px', minHeight: 56, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, color: 'var(--text-1)', fontFamily: "'Inter', sans-serif", transition: 'border-color .12s' },
+  gateCardText: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
+  gateCardTitle: { fontSize: 14, fontWeight: 800 },
+  gateCardDesc: { fontSize: 12, color: 'var(--text-5)', lineHeight: 1.4 },
   companyEmptyState: { width: 'min(1240px, 96%)', textAlign: 'center', padding: '40px 20px', border: '1px dashed var(--border-3)', borderRadius: 12 },
   companyPanel: { width: 'min(1240px, 96%)', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 14, padding: 18 },
   companySelectAllRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border-1)' },
@@ -10272,11 +10385,15 @@ function ShellHost({ shellRef }) {
   );
 }
 
+// Alvo de toque >= 44 px no celular: opt-in por contêiner (className="t44"), para não inflar ícones minúsculos de listas densas.
+const TOUCH_CSS = '@media (max-width: 767px) { .t44 button, .t44 select, .t44 textarea, .t44 input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]) { min-height: 44px; } .t44 button { min-width: 44px; } .t44 label { min-height: 28px; } .t44 + * button, .acting-org-banner button { min-height: 44px; } .asst-fab { min-height: 44px; } }';
+
 export default function App() {
   const shellRef = useRef(null);
   const [, bump] = React.useReducer((x) => x + 1, 0);
   return (
     <>
+      <style>{TOUCH_CSS}</style>
       <ShellHost shellRef={shellRef} />
       <AppScreensMemo shellRef={shellRef} bump={bump} />
       <DialogHost />

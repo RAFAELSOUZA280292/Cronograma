@@ -7,6 +7,7 @@ import { Button, Callout, Select } from '../ui/index.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { useDirtyForm } from '../App.jsx';
 import { createAgendaEvent } from './agendaActions.js';
+import './agenda.css';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_GUESTS = 30;
@@ -142,7 +143,7 @@ function NewEventForm({ initial, onClose, onCreated }) {
         </>
       )}
     >
-      <form id="agenda-new-event" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <form id="agenda-new-event" className="agd-form" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {needsConnect && (
           <Callout tone="info" icon={Link2} title="Google Calendar não conectado" action={<a className="ui-btn primary sm" href="/api/google/oauth/start">Conectar Google</a>}>
             Conecte a sua conta e tente de novo. O que você digitou fica aqui.
@@ -186,31 +187,23 @@ function NewEventForm({ initial, onClose, onCreated }) {
         </label>
         <div style={label}>
           <label htmlFor="agenda-guests">Convidados <span style={{ fontWeight: 500, color: 'var(--text-5)' }}>(opcional, até {MAX_GUESTS})</span></label>
-          <div
-            onClick={() => guestInput.current && guestInput.current.focus()}
-            style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', padding: 6, minHeight: 40, border: '1px solid var(--border-3)', borderRadius: 10, background: 'var(--bg-1)', cursor: 'text' }}
-          >
+          <div className="agd-guests" onClick={() => guestInput.current && guestInput.current.focus()}>
             {guests.map((g) => {
               const ok = EMAIL.test(g);
               return (
-                <span
-                  key={g} title={ok ? g : `"${g}" não parece um e-mail válido`}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 4px 3px 9px', borderRadius: 999, fontSize: 12.5, fontWeight: 600, border: `1px solid ${ok ? 'var(--border-2)' : 'var(--ui-danger)'}`, background: ok ? 'var(--bg-3)' : 'rgba(226,87,76,.12)', color: ok ? 'var(--text-2)' : 'var(--ui-danger)' }}
-                >
+                <span key={g} title={ok ? g : `"${g}" não parece um e-mail válido`} className={`agd-guest${ok ? '' : ' bad'}`}>
                   {g}{!ok && <span className="ui-sr"> (e-mail inválido)</span>}
                   <button
-                    type="button" aria-label={`Remover convidado ${g}`} title={`Remover ${g}`}
+                    type="button" className="agd-guest-x" aria-label={`Remover convidado ${g}`} title={`Remover ${g}`}
                     onClick={(e) => { e.stopPropagation(); setGuests((cur) => cur.filter((x) => x !== g)); }}
-                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, border: 'none', borderRadius: '50%', background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 0 }}
                   ><X size={12} aria-hidden="true" /></button>
                 </span>
               );
             })}
             <input
-              id="agenda-guests" ref={guestInput} type="text" inputMode="email" autoComplete="off" value={guestDraft}
+              id="agenda-guests" ref={guestInput} className="agd-guest-input" type="text" inputMode="email" autoComplete="off" value={guestDraft}
               onChange={(e) => onGuestChange(e.target.value)} onKeyDown={onGuestKey} onBlur={commitDraft}
               placeholder={guests.length ? '' : 'nome@empresa.com.br'}
-              style={{ flex: '1 1 160px', minWidth: 120, border: 'none', outline: 'none', background: 'transparent', color: 'var(--text-1)', fontFamily: 'inherit', fontSize: 13, padding: '4px 6px' }}
             />
           </div>
           <div style={hint}>

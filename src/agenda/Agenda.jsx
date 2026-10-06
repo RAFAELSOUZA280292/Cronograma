@@ -10,7 +10,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Link2, Ban, AlertTriangle, Plus } from 'lucide-react';
-import { Segmented, Callout, BusyBar, Button } from '../ui/index.jsx';
+import { Segmented, Callout, BusyBar, Button, activate } from '../ui/index.jsx';
 import { Modal } from '../ui/dialog.jsx';
 import { apiGet } from '../lib/api.js';
 import { rsvpOf, isPendingRsvp, RSVP_META, summarizeDay, fmtDur, hhmm } from './dayLoad.js';
@@ -20,6 +20,7 @@ import RsvpButtons from './RsvpButtons.jsx';
 import { canRespond, useRespond } from './agendaActions.js';
 import { S, BrandLogo } from '../App.jsx';
 import { useHistoryValue, readHistoryValue } from '../lib/nav.js';
+import './agenda.css';
 
 const GRID_START_HOUR = 6;
 const GRID_END_HOUR = 21;
@@ -59,6 +60,24 @@ function packTimedEvents(events) {
   return placed.map((ev) => ({ ...ev, totalLanes }));
 }
 
+// Celular = abaixo de 768 px (mesmo corte do CSS). Decide o que muda de ESTRUTURA (lista em vez de grade); o resto é só CSS.
+const MOBILE_QUERY = '(max-width: 767px)';
+function isMobileNow() {
+  try { return typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches; } catch { return false; }
+}
+function useIsMobile() {
+  const [mobile, setMobile] = useState(isMobileNow);
+  useEffect(() => {
+    let mq;
+    try { mq = window.matchMedia(MOBILE_QUERY); } catch { return undefined; }
+    const on = () => setMobile(mq.matches);
+    on();
+    if (mq.addEventListener) mq.addEventListener('change', on); else mq.addListener(on);
+    return () => { if (mq.removeEventListener) mq.removeEventListener('change', on); else mq.removeListener(on); };
+  }, []);
+  return mobile;
+}
+
 function rangeForView(viewMode, anchorDate) {
   if (viewMode === 'day') return { start: startOfDay(anchorDate), end: addDays(startOfDay(anchorDate), 1) };
   if (viewMode === 'month') {
@@ -83,8 +102,12 @@ export default function AgendaScreen({
   currentUser, onExit, onGoCompany, onGoPersonal, onGoXFlow, onLogout, theme, onToggleTheme,
   notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead,
 }) {
-  const [viewMode, setViewMode] = useState(() => readHistoryValue('agendaView', 'week'));
-  useHistoryValue('agendaView', viewMode, setViewMode, 'week');
+  const isMobile = useIsMobile();
+  // No celular a semana de 7 colunas é ilegível: a visão padrão é o Dia (Semana e Mês continuam à mão, com rolagem dentro da grade).
+  const defaultView = useState(() => (isMobileNow() ? 'day' : 'week'))[0];
+  const [viewMode, setViewMode] = useState(() => readHistoryValue('agendaView', defaultView));
+  useHistoryValue('agendaView', viewMode, setViewMode, defaultView);
+  const [dayLayout, setDayLayout] = useState('list'); // celular, visão Dia: 'list' (cartões) ou 'grid' (horários)
   const [anchorDate, setAnchorDate] = useState(() => new Date());
   const [hideDetails, setHideDetails] = useState(false);
   const [hideDeclined, setHideDeclined] = useState(false);
@@ -187,7 +210,7 @@ export default function AgendaScreen({
 
   return (
     <div style={S.page}>
-      <div style={S.topbar}>
+      <div className="agd-top" style={S.topbar}>
         <div style={S.brandRow}>
           <BrandLogo theme={theme} style={S.logoImg} />
           <div>
@@ -195,39 +218,49 @@ export default function AgendaScreen({
             <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{currentUser.name}</div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="agd-actions">
           <button
-            style={{ ...S.pbGhostBtn, ...(hideDeclined ? { background: 'var(--bg-3)' } : {}) }}
+            type="button" className={`agd-tog${hideDeclined ? ' on' : ''}`}
             title="Recusados aparecem riscados, como no Google Calendar. Ocultar deixa a grade só com o que você aceitou ou ainda não respondeu."
             onClick={() => setHideDeclined((v) => !v)}
           >
             {hideDeclined ? 'Mostrar recusados' : 'Ocultar recusados'}
           </button>
           <button
-            style={{ ...S.pbGhostBtn, ...(hideDetails ? { background: '#e2574c', color: '#fff', border: '1px solid #e2574c' } : {}) }}
+            type="button" className={`agd-tog${hideDetails ? ' hide' : ''}`}
             title="Troca entre ver os títulos reais dos compromissos ou só 'Ocupado' — pra apresentar sua disponibilidade sem expor com quem/sobre o quê"
             onClick={() => setHideDetails((v) => !v)}
           >
-            {hideDetails ? <EyeOff size={13} /> : <Eye size={13} />} {hideDetails ? 'Ocultar detalhes' : 'Mostrar detalhes'}
+            {hideDetails ? <EyeOff size={13} aria-hidden="true" /> : <Eye size={13} aria-hidden="true" />} {hideDetails ? 'Ocultar detalhes' : 'Mostrar detalhes'}
           </button>
-          <Segmented
-            label="Visualização da agenda" value={viewMode} onChange={setViewMode}
-            options={[{ value: 'day', label: 'Dia' }, { value: 'week', label: 'Semana' }, { value: 'month', label: 'Mês' }]}
-          />
-          <Button variant="primary" icon={Plus} onClick={() => setNewEvent(defaultSlot())}>Novo compromisso</Button>
+          <div className="agd-seg">
+            <Segmented
+              label="Visualização da agenda" value={viewMode} onChange={setViewMode}
+              options={[{ value: 'day', label: 'Dia' }, { value: 'week', label: 'Semana' }, { value: 'month', label: 'Mês' }]}
+            />
+          </div>
+          <Button className="agd-new" variant="primary" icon={Plus} onClick={() => setNewEvent(defaultSlot())}>Novo compromisso</Button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 24px 0' }}>
-        <button style={S.iconBtnGhost} aria-label="Período anterior" title="Período anterior" onClick={goPrev}><ChevronLeft size={18} aria-hidden="true" /></button>
-        <button style={S.pbGhostBtn} onClick={goToday}>Hoje</button>
-        <button style={S.iconBtnGhost} aria-label="Próximo período" title="Próximo período" onClick={goNext}><ChevronRight size={18} aria-hidden="true" /></button>
-        <div style={{ fontWeight: 700, fontSize: 14 }}>{rangeLabel(viewMode, anchorDate)}</div>
-        {loaded && <RefreshCw size={12} style={{ color: 'var(--text-6)', marginLeft: 4 }} />}
+      <div className="agd-nav">
+        <button type="button" className="agd-ic" aria-label="Período anterior" title="Período anterior" onClick={goPrev}><ChevronLeft size={18} aria-hidden="true" /></button>
+        <button type="button" className="agd-tog agd-today" onClick={goToday}>Hoje</button>
+        <button type="button" className="agd-ic" aria-label="Próximo período" title="Próximo período" onClick={goNext}><ChevronRight size={18} aria-hidden="true" /></button>
+        <div className="agd-nav-label" aria-live="polite">{rangeLabel(viewMode, anchorDate)}</div>
+        {loaded && <RefreshCw size={12} aria-hidden="true" style={{ color: 'var(--text-6)', marginLeft: 4 }} />}
       </div>
-      <div style={{ padding: '10px 24px 0' }}><BusyBar active={!loaded} /></div>
+      <div className="agd-pad" style={{ paddingTop: 10 }}><BusyBar active={!loaded} /></div>
 
-      <div style={{ padding: '10px 24px 24px' }}>
+      <div className="agd-pad" style={{ paddingTop: 10, paddingBottom: 24 }}>
+        {isMobile && viewMode === 'day' && (
+          <div className="agd-mob-only" style={{ marginBottom: 10 }}>
+            <Segmented
+              label="Como ver o dia" value={dayLayout} onChange={setDayLayout}
+              options={[{ value: 'list', label: 'Lista' }, { value: 'grid', label: 'Horários' }]}
+            />
+          </div>
+        )}
         {connected === false && (
           <div style={{ marginBottom: 14 }}>
             <Callout
@@ -247,11 +280,13 @@ export default function AgendaScreen({
 
         {viewMode === 'month' ? (
           <MonthGrid daysInView={daysInView} eventsByDay={eventsByDay} anchorDate={anchorDate} hideDetails={hideDetails} eventLabel={eventLabel} eventTip={eventTip} onOpenEvent={openEvent} onPickDay={(d) => { setAnchorDate(d); setViewMode('day'); }} />
+        ) : isMobile && viewMode === 'day' && dayLayout === 'list' ? (
+          <DayList day={daysInView[0]} eventsByDay={eventsByDay} dayStats={dayStats} hideDetails={hideDetails} eventLabel={eventLabel} onOpenEvent={openEvent} />
         ) : (
           <WeekGrid daysInView={daysInView} eventsByDay={eventsByDay} dayStats={dayStats} hideDetails={hideDetails} eventLabel={eventLabel} eventTip={eventTip} onOpenEvent={openEvent} onPickSlot={pickSlot} />
         )}
 
-        {viewMode !== 'month' && <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--text-5)' }}>Dica: clique num horário livre da grade para criar um compromisso nele.</div>}
+        {viewMode !== 'month' && !(isMobile && viewMode === 'day' && dayLayout === 'list') && <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--text-5)' }}>Dica: {isMobile ? 'toque' : 'clique'} num horário livre da grade para criar um compromisso nele.</div>}
 
         <div style={{ display: 'flex', gap: 14, marginTop: 16, flexWrap: 'wrap' }}>
           {Object.entries(SOURCE_META).map(([key, meta]) => (
@@ -284,6 +319,11 @@ export default function AgendaScreen({
       {detailEv && <EventDetailModal ev={detailEv} onClose={() => setDetailId(null)} onRespond={respond} busy={respondingId === detailEv.id} />}
     </div>
   );
+}
+
+// Só o que abre algo vira botão para teclado/leitor de tela (TASK do XFlow com link; compromisso do Google com detalhes visíveis).
+function openable(ev, hideDetails) {
+  return (ev.source === 'xflow_ticket' && !!ev.link) || (ev.source === 'google' && !hideDetails);
 }
 
 function fmtWhen(ev) {
@@ -343,9 +383,11 @@ function WeekGrid({ daysInView, eventsByDay, dayStats, hideDetails, eventLabel, 
   const nowTop = ((now.getHours() * 60 + now.getMinutes()) - GRID_START_HOUR * 60) / ((GRID_END_HOUR - GRID_START_HOUR) * 60) * GRID_HEIGHT;
 
   return (
-    <div style={{ border: '1px solid var(--border-1)', borderRadius: 10, overflow: 'hidden', background: 'var(--bg-1)' }}>
+    <div className="agd-frame">
+      <div className="agd-scroll">
+      <div className="agd-grid" style={{ '--cols': daysInView.length }}>
       <div style={{ display: 'grid', gridTemplateColumns: `56px repeat(${daysInView.length}, 1fr)`, borderBottom: '1px solid var(--border-1)' }}>
-        <div />
+        <div className="agd-hours" />
         {daysInView.map((d) => (
           <div key={isoDateOnly(d)} style={{ padding: '8px 6px', textAlign: 'center', borderLeft: '1px solid var(--border-1)' }}>
             <div style={{ fontSize: 10.5, color: 'var(--text-5)', fontWeight: 700, textTransform: 'uppercase' }}>{WEEKDAY_LABEL[d.getDay()]}</div>
@@ -360,12 +402,13 @@ function WeekGrid({ daysInView, eventsByDay, dayStats, hideDetails, eventLabel, 
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: `56px repeat(${daysInView.length}, 1fr)`, borderBottom: '1px solid var(--border-1)', minHeight: 32 }}>
-        <div style={{ fontSize: 9.5, color: 'var(--text-6)', padding: '4px 6px' }}>Dia todo</div>
+        <div className="agd-hours" style={{ fontSize: 9.5, color: 'var(--text-6)', padding: '4px 6px' }}>Dia todo</div>
         {daysInView.map((d) => (
           <div key={isoDateOnly(d)} style={{ borderLeft: '1px solid var(--border-1)', padding: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
             {(eventsByDay[isoDateOnly(d)]?.allDay || []).map((ev) => (
               <div
-                key={ev.id} onClick={() => onOpenEvent(ev)}
+                key={ev.id} className="agd-ev"
+                {...(openable(ev, hideDetails) ? { ...activate(() => onOpenEvent(ev)), 'aria-label': eventLabel(ev) } : {})}
                 title={eventTip(ev)}
                 style={rsvpBox(ev, SOURCE_META[ev.source]?.color || '#999', {
                   fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 5, cursor: ev.link || ev.source === 'google' ? 'pointer' : 'default',
@@ -382,7 +425,7 @@ function WeekGrid({ daysInView, eventsByDay, dayStats, hideDetails, eventLabel, 
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: `56px repeat(${daysInView.length}, 1fr)`, position: 'relative' }}>
-        <div>
+        <div className="agd-hours">
           {hours.map((h) => (
             <div key={h} style={{ height: PX_PER_HOUR, fontSize: 10, color: 'var(--text-6)', textAlign: 'right', paddingRight: 6, transform: 'translateY(-6px)' }}>{pad2(h)}:00</div>
           ))}
@@ -415,7 +458,8 @@ function WeekGrid({ daysInView, eventsByDay, dayStats, hideDetails, eventLabel, 
                 const width = 100 / ev.totalLanes;
                 return (
                   <div
-                    key={ev.id} data-ev="1" onClick={() => onOpenEvent(ev)}
+                    key={ev.id} data-ev="1" className="agd-ev"
+                    {...(openable(ev, hideDetails) ? { ...activate(() => onOpenEvent(ev)), 'aria-label': `${hhmm(ev.startMin)}–${hhmm(ev.endMin)} ${eventLabel(ev)}` } : { onClick: () => onOpenEvent(ev) })}
                     title={eventTip(ev)}
                     style={rsvpBox(ev, SOURCE_META[ev.source]?.color || '#999', {
                       position: 'absolute', top, height: Math.max(16, bottom - top), left: `${ev.lane * width}%`, width: `${width}%`,
@@ -433,6 +477,49 @@ function WeekGrid({ daysInView, eventsByDay, dayStats, hideDetails, eventLabel, 
           );
         })}
       </div>
+      </div>
+      </div>
+    </div>
+  );
+}
+
+// Celular, visão Dia: os compromissos como cartões empilhados (hora, título, origem, resposta ao convite). Tocar abre o detalhe.
+function DayList({ day, eventsByDay, dayStats, hideDetails, eventLabel, onOpenEvent }) {
+  const key = isoDateOnly(day);
+  const allDay = eventsByDay[key]?.allDay || [];
+  const timed = [...(eventsByDay[key]?.timed || [])].sort((a, b) => a.startMin - b.startMin);
+  const st = dayStats[key];
+  if (!allDay.length && !timed.length) return null;
+  const card = (ev, when) => {
+    const r = rsvpOf(ev);
+    const pending = isPendingRsvp(r);
+    const color = SOURCE_META[ev.source]?.color || '#999';
+    const sub = hideDetails ? '' : [SOURCE_META[ev.source]?.label, ev.location].filter(Boolean).join(' · ');
+    const props = openable(ev, hideDetails) ? { ...activate(() => onOpenEvent(ev)), 'aria-label': `${when} ${eventLabel(ev)}` } : {};
+    return (
+      <div
+        key={ev.id} {...props}
+        className={`agd-card${pending ? ' pending' : ''}${r === 'declined' ? ' declined' : ''}${ev.status === 'cancelled' ? ' cancelled' : ''}`}
+        style={{ '--c': color }}
+      >
+        <div className="agd-card-top">
+          <span>{when}</span>
+          {!hideDetails && ev.source === 'google' && (pending || r === 'declined') && <span className="agd-card-tag" style={{ color: RSVP_META[r].color }}>{RSVP_META[r].label}</span>}
+        </div>
+        <div className="agd-card-title">{eventLabel(ev)}</div>
+        {sub && <div className="agd-card-sub">{sub}</div>}
+      </div>
+    );
+  };
+  return (
+    <div className="agd-list">
+      {!hideDetails && st && (
+        <div className="agd-day-sum">
+          {st.confirmed} aceit{st.confirmed === 1 ? 'o' : 'os'} ({fmtDur(st.confirmedMin)}) · livre {fmtDur(st.freeMin)} no seu expediente ({hhmm(st.work.start)}–{hhmm(st.work.end)}){st.pending ? ` · ${st.pending} sem resposta` : ''}
+        </div>
+      )}
+      {allDay.map((ev) => card(ev, 'Dia todo'))}
+      {timed.map((ev) => card(ev, `${hhmm(ev.startMin)}–${hhmm(ev.endMin)}`))}
     </div>
   );
 }
@@ -444,7 +531,7 @@ function MonthGrid({ daysInView, eventsByDay, anchorDate, hideDetails, eventLabe
   for (let i = 0; i < daysInView.length; i += 7) weeks.push(daysInView.slice(i, i + 7));
 
   return (
-    <div style={{ border: '1px solid var(--border-1)', borderRadius: 10, overflow: 'hidden', background: 'var(--bg-1)' }}>
+    <div className="agd-frame">
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--border-1)' }}>
         {WEEKDAY_LABEL.map((l) => <div key={l} style={{ padding: '6px 8px', fontSize: 10.5, fontWeight: 700, color: 'var(--text-5)', textAlign: 'center' }}>{l}</div>)}
       </div>
@@ -456,11 +543,19 @@ function MonthGrid({ daysInView, eventsByDay, anchorDate, hideDetails, eventLabe
             const dimmed = d.getMonth() !== currentMonth;
             return (
               <div
-                key={key} onClick={() => onPickDay(d)}
-                style={{ minHeight: 92, borderLeft: '1px solid var(--border-1)', padding: 5, cursor: 'pointer', opacity: dimmed ? 0.4 : 1, background: key === today ? 'rgba(245,196,0,.08)' : 'transparent' }}
+                key={key} className="agd-m-cell"
+                {...activate(() => onPickDay(d))}
+                aria-label={`${d.getDate()} de ${MONTH_LABEL[d.getMonth()].toLowerCase()}: ${dayEvents.length === 0 ? 'sem compromissos' : dayEvents.length === 1 ? '1 compromisso' : `${dayEvents.length} compromissos`}. Abrir o dia`}
+                style={{ borderLeft: '1px solid var(--border-1)', padding: 5, cursor: 'pointer', opacity: dimmed ? 0.4 : 1, background: key === today ? 'rgba(245,196,0,.08)' : 'transparent' }}
               >
                 <div style={{ fontSize: 11.5, fontWeight: key === today ? 800 : 600, color: key === today ? '#F5C400' : 'var(--text-2)' }}>{d.getDate()}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 3 }}>
+                {dayEvents.length > 0 && (
+                  <div className="agd-m-dots" aria-hidden="true">
+                    {dayEvents.slice(0, 4).map((ev) => <span key={ev.id} className="agd-m-dot" style={{ background: SOURCE_META[ev.source]?.color || '#999' }} />)}
+                    {dayEvents.length > 4 && <span className="agd-m-more">+{dayEvents.length - 4}</span>}
+                  </div>
+                )}
+                <div className="agd-m-evs" style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 3 }}>
                   {dayEvents.slice(0, 3).map((ev) => (
                     <div
                       key={ev.id} onClick={(e) => { e.stopPropagation(); onOpenEvent(ev); }}

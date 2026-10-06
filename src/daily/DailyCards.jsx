@@ -65,6 +65,9 @@ const CSS = `
   .dcs-x:hover { background:var(--bg-3); color:var(--text-2); }
   .dcs-mbody { padding:4px 18px 20px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; }
   .dcs-rd { border-top:1px solid var(--border-1); padding-top:10px; display:flex; flex-direction:column; gap:6px; }
+
+  .dcs-read:focus-visible, .dcs-icon-btn:focus-visible, .dcs-more:focus-visible, .dcs-btn:focus-visible, .dcs-chip:focus-visible, .dcs-x:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) { .dcs-btn, .dcs-more, .dcs-chip, .dcs-read { min-height:44px; } .dcs-x { min-width:44px; min-height:44px; } }
 `;
 
 const META = {

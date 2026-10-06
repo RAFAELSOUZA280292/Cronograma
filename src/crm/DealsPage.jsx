@@ -134,7 +134,7 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
             {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}{p.isDefault ? ' (padrão)' : ''}</option>)}
           </select>
         )}
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por negócio ou empresa…" style={{ minWidth: 230 }} />
+        <input aria-label="Buscar negócio ou empresa" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por negócio ou empresa…" style={{ minWidth: 230 }} />
         <select value={filters.type} onChange={(e) => setF('type', e.target.value)} aria-label="Tipo de negócio">
           <option value="">Novo negócio e upsell</option><option value="new">Só novos negócios</option><option value="upsell">Só upsell</option>
         </select>
