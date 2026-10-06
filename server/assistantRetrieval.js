@@ -178,7 +178,11 @@ async function resolveQuery({ question, history, context, projectSnapshot }) {
     // resto do pipeline, então mantém precisão, só corta o modelo mais
     // caro. synthesizeAnswer (resposta final) continua em Opus.
     model: 'claude-sonnet-5',
-    max_tokens: 500,
+    // 500 cortava o JSON no meio em produção (2026-10-06: "Unterminated string in JSON at position 17/66",
+    // nas duas tentativas, em perguntas de acompanhamento como "e antes dessa, tivemos outra?"): o limite
+    // é do TOTAL da saída, então qualquer raciocínio do modelo antes do JSON come o orçamento. Margem
+    // grande não custa nada — só se paga o que for gerado.
+    max_tokens: 4000,
     // cache_control (auditoria de Prompt Cache, 2026-09-14): o texto de
     // instrução abaixo é IDÊNTICO em toda chamada desta função, pra
     // qualquer projeto/usuário — cachear ele não muda a resposta em nada,
@@ -233,8 +237,8 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, fa
     // parser falha, a segunda tentativa do retry falha do mesmo jeito
     // (é determinístico, não uma falha transitória), e o usuário só via
     // "Não consegui processar essa pergunta agora." Aumentado com folga
-    // de sobra pra nunca mais cortar no meio.
-    max_tokens: 4000,
+    // de sobra pra nunca mais cortar no meio. 2026-10-06: 4000 → 8000 pelo mesmo motivo do resolveQuery.
+    max_tokens: 8000,
     // cache_control (Fase 6, 2026-09-10, redução de custo; corrigido na
     // auditoria de Prompt Cache de 2026-09-14): esse bloco de instrução
     // agora é BYTE-A-BYTE IDÊNTICO em toda chamada — antes disto, a frase
@@ -364,7 +368,18 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
   let promptCacheReadTokens = 0, promptCacheCreationTokens = 0;
   try {
     const resolveStartedAt = Date.now();
-    resolved = await withRetry(() => resolveQuery({ question, history, context: context || {}, projectSnapshot }), 'resolveQuery');
+    try {
+      resolved = await withRetry(() => resolveQuery({ question, history, context: context || {}, projectSnapshot }), 'resolveQuery');
+    } catch (e) {
+      // Interpretar a pergunta é só um refinamento: se falhar duas vezes, ainda dá para buscar e responder com a
+      // pergunta como o usuário a escreveu (+ o turno anterior, para não perder o "essa"/"antes dela").
+      console.error(`Assistente do Projeto: resolveQuery falhou nas duas tentativas (${e.message}) — seguindo com a pergunta literal.`);
+      const lastUser = [...history].reverse().find((m) => m.role === 'user');
+      resolved = {
+        output: { intent: 'pergunta_sobre_projeto', directReply: null, standaloneQuery: lastUser ? `${lastUser.content} ${question}` : question, participant: null, meetingScope: 'projeto_inteiro', kind: 'qualquer', targetMeetingId: null },
+        usage: {},
+      };
+    }
     if (trace) { trace.resolveLatencyMs = Date.now() - resolveStartedAt; trace.resolved = resolved.output; trace.resolveUsage = resolved.usage; }
     {
       const usageCache = logAnthropicUsage(pool, { orgId, projectId, feature: 'resolveQuery', model: 'claude-sonnet-5', usage: resolved.usage });
