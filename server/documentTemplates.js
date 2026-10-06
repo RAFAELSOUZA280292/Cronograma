@@ -37,6 +37,7 @@ export const FILE_TYPES = {
   xls: { mime: 'application/vnd.ms-excel', kind: 'excel', inline: false },
   xlsx: { mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', kind: 'excel', inline: false },
   ods: { mime: 'application/vnd.oasis.opendocument.spreadsheet', kind: 'excel', inline: false },
+  zip: { mime: 'application/zip', kind: 'zip', inline: false },
 };
 
 export function extOf(fileName) {
@@ -77,7 +78,7 @@ async function parseItem(body) {
   const ext = extOf(fileName);
   const type = FILE_TYPES[ext];
   if (!body.fileDataBase64 || !fileName) return { error: 'Selecione um arquivo.' };
-  if (!type) return { error: 'Tipo de arquivo não aceito. Use PDF, Word, PowerPoint, Excel, HTML, texto ou imagem (PNG, JPG, GIF, WebP).' };
+  if (!type) return { error: 'Tipo de arquivo não aceito. Use PDF, Word, PowerPoint, Excel, HTML, texto, imagem (PNG, JPG, GIF, WebP) ou ZIP.' };
   const buffer = Buffer.from(body.fileDataBase64, 'base64');
   if (!buffer.length) return { error: 'Arquivo vazio ou inválido.' };
   if (buffer.length > MAX_FILE_BYTES) return { error: `Arquivo maior que ${Math.floor(MAX_FILE_BYTES / 1024 / 1024)} MB. Para arquivos maiores, adicione como link.` };
