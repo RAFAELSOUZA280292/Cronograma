@@ -10,10 +10,11 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { SlidersHorizontal, RefreshCw, AlertTriangle, Clock3, CalendarDays, CalendarRange, CalendarClock, CalendarOff, Pause, X, CheckCircle2, Search } from 'lucide-react';
-import { Chip, ChipRow, Select, Button, EmptyState, SkeletonCards, activate } from '../ui/index.jsx';
+import { Chip, ChipRow, Select, Button, EmptyState, SkeletonCards, Segmented, activate } from '../ui/index.jsx';
 import { apiGet } from '../lib/api.js';
 import { useHistoryValue, readHistoryValue } from '../lib/nav.js';
 import { S, BrandLogo, STATUS_META, PRIORITY_META, PRIORITY_ORDER } from '../App.jsx';
+import InventoryView from './Inventory.jsx';
 import './macro.css';
 
 const RANGE_OPTIONS = [
@@ -65,6 +66,9 @@ export default function MacroOverviewScreen({
 }) {
   const [range, setRange] = useState(() => readHistoryValue('macroView', 'current_week'));
   useHistoryValue('macroView', range, setRange, 'current_week');
+  // "Por data" (a agenda de sempre) ou "Levantamento" (todas as atividades por fase/responsável, 2026-10-07).
+  const [tab, setTab] = useState(() => readHistoryValue('macroTab', 'date'));
+  useHistoryValue('macroTab', tab, setTab, 'date');
   const [data, setData] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
@@ -156,7 +160,7 @@ export default function MacroOverviewScreen({
           <BrandLogo theme={theme} style={S.logoImg} />
           <div>
             <h1 style={{ margin: 0, fontSize: 'inherit', fontWeight: 800 }}>Visão Geral</h1>
-            <div style={{ fontSize: 11, color: 'var(--text-5)' }}>Todas as empresas, por data</div>
+            <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{tab === 'inventory' ? 'Todas as empresas, por fase e responsável' : 'Todas as empresas, por data'}</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -164,6 +168,11 @@ export default function MacroOverviewScreen({
         </div>
       </div>
 
+      <div className="mac-pad" style={{ paddingTop: 14 }}>
+        <Segmented label="Tipo de visão" value={tab} onChange={setTab} options={[{ value: 'date', label: 'Por data' }, { value: 'inventory', label: 'Levantamento' }]} />
+      </div>
+
+      {tab === 'inventory' ? <InventoryView onOpenActivity={onOpenActivity} activityModalOpen={activityModalOpen} /> : (<>
       <div className="mac-today mac-pad" style={{ paddingTop: 18 }}>
         <span className="mac-today-l">Hoje</span>
         <span className="mac-today-d">{fmtTodayFull()}</span>
@@ -292,6 +301,7 @@ export default function MacroOverviewScreen({
           );
         })}
       </div>
+      </>)}
     </div>
   );
 }
