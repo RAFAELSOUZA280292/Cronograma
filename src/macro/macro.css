@@ -76,8 +76,8 @@ button.mac-filters-toggle { display: none; }
 .inv-body { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 6px; }
 .inv-item { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border-1); }
 .inv-group.d1 .inv-item, .inv-group.d0 > .inv-body > .inv-item { background: var(--bg-2); }
-.inv-item[role="button"] { cursor: pointer; }
-.inv-item[role="button"]:hover { background: var(--bg-4, var(--bg-3)); }
+.inv-item:hover { background: var(--bg-3); }
+.inv-item-main[role="button"] { cursor: pointer; }
 .inv-item-main { flex: 1; min-width: 0; }
 .inv-item-title { font-size: 13px; font-weight: 700; color: var(--text-1); overflow-wrap: anywhere; }
 .inv-co { color: var(--text-4); font-weight: 800; }
@@ -94,6 +94,7 @@ button.mac-filters-toggle { display: none; }
   .inv-tools .ui-btn { min-height: 44px; }
   .inv-item { flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px; min-height: 44px; }
   .inv-item-pills { flex-wrap: wrap; gap: 8px; }
+  .inv-item-main { width: 100%; min-height: 44px; display: flex; flex-direction: column; justify-content: center; }
   .inv-item-title { font-size: 14.5px; line-height: 1.35; }
   .inv-item-meta { font-size: 12.5px; }
   .inv-head { padding: 10px 12px; }
@@ -108,3 +109,26 @@ button.mac-filters-toggle { display: none; }
 .inv-qlist p { margin: 0 0 6px; font-size: 12px; color: var(--text-4); line-height: 1.45; }
 .inv-qlist ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--text-2); line-height: 1.45; }
 .inv-qsug { color: var(--text-4); }
+
+/* Levantamento — Passo 3: área, conciliação de nomes e sugestões (2026-10-07). */
+.inv-area { max-width: 150px; min-height: 30px; padding: 3px 8px; border: 1px solid var(--border-2); border-radius: 8px; background: var(--bg-3); color: var(--text-2); font: inherit; font-size: 12px; font-weight: 600; }
+.inv-area.empty { color: var(--text-5); border-style: dashed; }
+.inv-area-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; }
+.inv-area-l { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: var(--text-3); }
+.inv-name { list-style: none; margin-left: -18px; padding: 8px 0; border-bottom: 1px solid var(--border-1); }
+.inv-name-t { font-size: 12.5px; line-height: 1.45; }
+.inv-name-a { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.inv-sug { border: 1px solid var(--ui-accent, #F5C400); border-radius: 10px; padding: 12px; background: var(--bg-2); display: flex; flex-direction: column; gap: 8px; }
+.inv-sug-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--text-1); }
+.inv-sug-h span { font-size: 12px; color: var(--text-4); }
+.inv-sug-l { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; }
+.inv-sug-l label { display: flex; align-items: flex-start; gap: 8px; min-height: 32px; font-size: 12.5px; line-height: 1.4; color: var(--text-2); cursor: pointer; }
+.inv-sug-l input { margin-top: 2px; width: 18px; height: 18px; flex: none; accent-color: var(--ui-accent, #F5C400); }
+.inv-sug-a { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 767px) {
+  .inv-area { max-width: none; min-height: 44px; font-size: 16px; width: 100%; }
+  .inv-area-tools .ui-btn, .inv-area-tools .mac-sel { width: 100%; max-width: none; }
+  .inv-name-a .mac-sel, .inv-name-a .ui-btn { width: 100%; max-width: none; }
+  .inv-sug-l label { min-height: 44px; align-items: center; }
+  .inv-sug-a .ui-btn { width: 100%; }
+}
