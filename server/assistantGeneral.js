@@ -11,6 +11,7 @@ import { listEvents, getConnectionStatus, googleConfigured } from './googleCalen
 import { loadRelevantFacts } from './knowledgeFacts.js';
 import { loadInventoryItems, inventoryContextText } from './inventory.js';
 import { needsSweep, runSweep } from './assistantSweep.js';
+import { GAPS_HINT, gapsContextFor } from './gaps.js';
 import { logMetric } from './metrics.js';
 import { STUDY_MODEL } from './parecerStudy.js';
 
@@ -88,6 +89,11 @@ export async function buildGeneralContext({ pool, user, orgId, question, isStaff
     try { parts.push(inventoryContextText(await loadInventoryItems(user, orgId, today, pool))); } catch (e) { /* segue sem o levantamento */ }
   }
 
+  // Lacunas entre cronogramas (Etapa 4): só equipe PRICETAX e só quando a pergunta é sobre o que falta no cronograma.
+  if ((user.role === 'master' || user.role === 'pricetax') && GAPS_HINT.test(question || '')) {
+    try { const gt = await gapsContextFor({ user, orgId, question, db: pool }); if (gt) parts.push(gt); } catch (e) { /* segue sem as lacunas */ }
+  }
+
   let agenda = 'Google Calendar não conectado (a pessoa pode conectar em Meu perfil › Agenda).';
   try {
     if (googleConfigured()) {
@@ -111,6 +117,7 @@ REGRAS:
 - Use SOMENTE os dados do CONTEXTO abaixo. Nunca invente prazos, valores, nomes, artigos de lei ou o conteúdo de reuniões.
 - Sobre o LEVANTAMENTO DE ATIVIDADES (quando presente): as contagens por fase e por responsável são exatas — use-as sem recalcular e sem inventar. Ele traz só totais; para ver a lista de atividades e baixar a planilha, indique Visão Geral › Levantamento. Cada empresa dá o próprio nome às fases, e em muitos cronogramas o "responsável" é na verdade a ÁREA (Fiscal, Compras, Financeiro…): diga isso se for relevante.
 - Sobre a BUSCA NAS REUNIÕES (quando presente): a COBERTURA é exata (contagem do banco) — para "quais clientes falaram de X" liste as empresas dela, sem inventar outras. Os TRECHOS são só uma AMOSTRA (no máximo 3 por empresa): cite sempre empresa e data ("Na KUHN, na reunião de 18/09…"), use SOMENTE o que está nos trechos e diga quando a amostra for parcial. Se nada foi encontrado, diga isso. Não repita a lista de "Reuniões consultadas" — o sistema a acrescenta no fim.
+- Sobre LACUNAS DE CRONOGRAMA (quando presente): são só títulos genéricos de atividades-padrão (que várias empresas têm) com contagens agregadas; use-os como estão, nunca diga de qual outra empresa vieram (não sabemos nem mostramos) e lembre que quem decide o que criar é a pessoa, em Visão Geral › Lacunas.
 - Se a resposta não está no contexto, diga com franqueza que não encontrou e indique onde olhar. Para detalhes de reuniões, decisões e histórico de UMA empresa (quando não houver BUSCA NAS REUNIÕES), oriente a abrir a RENATA da empresa (botão "Perguntar sobre uma empresa" ou a RENATA dentro da empresa).
 - Sobre reforma tributária e pareceres: use apenas o CONHECIMENTO ACUMULADO; cite o parecer pelo título/assunto e deixe claro o que é orientação do parecer. Sem base suficiente, diga isso.
 - Se a pessoa pedir para CRIAR/ALTERAR algo (atividade, tarefa, evento), explique que aqui você só consulta e diga em que tela fazer (ou que a RENATA da empresa propõe a ação).
