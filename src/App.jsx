@@ -1960,6 +1960,13 @@ function AppScreens({ shellRef, bump }) {
           notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
           onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
           onOpenActivity={openActivityDetail}
+          onOpenTodo={(pid, meetingId, itemId) => {
+            if (!canOpenMode('company', currentUser)) { notify('Você não tem acesso a este módulo.', { tone: 'error' }); return; }
+            openCompanyWorkspace([pid]);
+            setView('meetings');
+            setPendingTodoOpen({ pid, meetingId, itemId });
+            openMeetingDetail(pid, meetingId);
+          }}
           activityModalOpen={!!openActivityId}
         />
         {renderActivityDetailModal()}
