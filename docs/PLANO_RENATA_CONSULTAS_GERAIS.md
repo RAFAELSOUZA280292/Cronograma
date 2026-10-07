@@ -55,7 +55,7 @@ Criado em 2026-10-07. **Plano, nada implementado.** Pedido do Felipe (07/10/2026
 - **Dependência:** busca por significado usa a Voyage, que no plano gratuito aceita 3 pedidos/min; sem pagamento cai para a busca por palavras.
 - **Tamanho:** médio/grande (custo de IA e qualidade dependem de teste com perguntas reais).
 
-## Etapa 4 — Usar o levantamento para atualizar os cronogramas dos clientes
+## Etapa 4 — Usar o levantamento para atualizar os cronogramas dos clientes — ✅ FEITA em 2026-10-08 (aba Visão Geral › Lacunas; criação em lote com confirmação em tela em vez de RENATA propor uma a uma; ver PROJECT_CONTEXT §81)
 
 - Comparar o conjunto de atividades por área entre clientes e apontar **lacunas** ("o cliente X não tem Y, que 8 dos outros têm").
 - A RENATA **da empresa** propõe criar as atividades (ação já existente, com confirmação do usuário). Nada é criado em lote sem revisão.
@@ -89,4 +89,4 @@ Criado em 2026-10-07. **Plano, nada implementado.** Pedido do Felipe (07/10/2026
 2. **Incluir tarefas de reunião no Levantamento** — ✅ feito (coluna Origem).
 3. **Organizar na entrada** — ✅ feito em 2026-10-07: responsável amarrado à equipe ao transcrever (ou "a confirmar"), campo Área (lista fechada em `server/areas.js`, sugestão da RENATA com revisão) e conciliação em lote do passado no painel de qualidade. Pendente de validar com IA real em produção (extração com equipe/área e sugestão de área).
 4. RENATA varrendo as reuniões de todos os clientes (Etapa 3 acima) — ✅ feito em 2026-10-08.
-5. Lacunas entre cronogramas (Etapa 4 acima).
+5. Lacunas entre cronogramas (Etapa 4 acima) — ✅ feito em 2026-10-08.
