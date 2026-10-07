@@ -1810,6 +1810,7 @@ function AppScreens({ shellRef, bump }) {
             key={renataHome.n}
             userId={currentUser.id}
             userName={currentUser.name}
+            canSweep={currentUser.role === 'master' || currentUser.role === 'pricetax'}
             initialQuestion={renataHome.question}
             projects={projects.map((p) => ({ id: p.id, name: p.company.nomeFantasia || p.company.name || 'Sem nome' }))}
             onClose={() => setRenataHome(null)}

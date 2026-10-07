@@ -172,3 +172,112 @@ export async function getMeetingTranscriptChunks(pool, orgId, projectId, meeting
     score: 0,
   }));
 }
+
+// ---------- Busca em VÁRIAS empresas (Etapa 3 do plano da RENATA, 2026-10-08) ----------
+// A busca acima é sempre de UM projeto e continua intocada (já validada). Esta é para a RENATA geral responder "quais clientes
+// falaram de X?": o filtro `project_id = ANY(acessíveis)` entra no SQL ANTES de qualquer ranking (nunca compara trecho de empresa
+// sem acesso), ela limita quantos trechos cada empresa pode ocupar (senão a empresa com mais reuniões engole a resposta) e devolve
+// uma COBERTURA exata — por empresa: quantos trechos batem, em quantas reuniões e a mais recente — calculada no banco, não pela IA.
+const HIGH_SIGNAL_KINDS = ['meeting_summary', 'meeting_decision', 'meeting_highlight', 'meeting_topic', 'activity'];
+// Embeddings ficam em JSONB (~15 KB cada): na perna semântica entre empresas só entram os trechos de maior sinal e mais recentes.
+const ACROSS_SEMANTIC_LIMIT = 600;
+
+export async function searchMemoryAcross(pool, {
+  orgId, projectIds, query, kind, dateFrom, dateTo, perProject = 3, limit = 24,
+}) {
+  const empty = { chunks: [], coverage: [], mode: 'none' };
+  if (!orgId || !Array.isArray(projectIds) || !projectIds.length) return empty;
+  const q = String(query || '').trim();
+  const cap = Math.min(Math.max(limit, 1), 60);
+
+  function base() {
+    const params = [orgId, projectIds];
+    const add = (v) => { params.push(v); return `$${params.length}`; };
+    const cond = ['org_id = $1', 'project_id = ANY($2::text[])'];
+    if (kind) cond.push(`kind = ${add(kind)}`);
+    if (dateFrom) cond.push(`meeting_date >= ${add(dateFrom)}`);
+    if (dateTo) cond.push(`meeting_date <= ${add(dateTo)}`);
+    return { cond, params, add };
+  }
+  const tsqOf = (mode, ref) => (mode === 'or' ? `websearch_to_tsquery('portuguese', immutable_unaccent(${ref}))` : `plainto_tsquery('portuguese', immutable_unaccent(${ref}))`);
+  const orText = (text) => text.split(/\s+/).filter(Boolean).join(' OR ');
+
+  async function lexical(mode) {
+    const { cond, params, add } = base();
+    const ref = add(mode === 'or' ? orText(q) : q);
+    const tsq = tsqOf(mode, ref);
+    cond.push(`content_tsv @@ ${tsq}`);
+    const where = cond.join(' AND ');
+    const limitRef = add(400);
+    const { rows } = await pool.query(
+      `SELECT id, project_id, meeting_id, kind, content, participants, meeting_date, meeting_title, time_ref, source_ref, created_at,
+         (ts_rank_cd(content_tsv, ${tsq}) + ${RECENCY_BONUS_SQL}) AS score
+       FROM project_memory_chunks WHERE ${where} ORDER BY score DESC, created_at DESC LIMIT ${limitRef}`, params);
+    const cov = await pool.query(
+      `SELECT project_id, count(*)::int AS mentions, count(DISTINCT meeting_id)::int AS meetings, max(meeting_date) AS last_date,
+         (array_agg(meeting_title ORDER BY meeting_date DESC NULLS LAST))[1] AS last_title
+       FROM project_memory_chunks WHERE ${where} GROUP BY project_id`, params.slice(0, params.length - 1));
+    return { rows, cov: cov.rows };
+  }
+
+  let rows = []; let cov = []; let mode = 'recent';
+  if (q) {
+    ({ rows, cov } = await lexical('and'));
+    mode = 'and';
+    if (!rows.length) { ({ rows, cov } = await lexical('or')); mode = 'or'; }
+  } else {
+    // Sem assunto ("o que foi tratado nas últimas reuniões?"): resumos mais recentes de cada empresa.
+    const { cond, params, add } = base();
+    if (!kind) cond.push(`kind = ${add('meeting_summary')}`);
+    const limitRef = add(400);
+    ({ rows } = await pool.query(
+      `SELECT id, project_id, meeting_id, kind, content, participants, meeting_date, meeting_title, time_ref, source_ref, created_at, 0 AS score
+       FROM project_memory_chunks WHERE ${cond.join(' AND ')} ORDER BY meeting_date DESC NULLS LAST, created_at DESC LIMIT ${limitRef}`, params));
+  }
+
+  // Perna semântica (opcional, só com VOYAGE_API_KEY): acha paráfrase que a busca por palavra perde.
+  let semantic = [];
+  if (q && voyageConfigured()) {
+    try {
+      const [vec] = await embedTexts([q], 'query');
+      const { cond, params, add } = base();
+      cond.push('embedding IS NOT NULL');
+      if (!kind) cond.push(`kind = ANY(${add(HIGH_SIGNAL_KINDS)}::text[])`);
+      const lim = add(ACROSS_SEMANTIC_LIMIT);
+      const { rows: cands } = await pool.query(
+        `SELECT id, project_id, meeting_id, kind, content, participants, meeting_date, meeting_title, time_ref, source_ref, created_at, embedding, ${RECENCY_BONUS_SQL} AS bonus
+         FROM project_memory_chunks WHERE ${cond.join(' AND ')} ORDER BY meeting_date DESC NULLS LAST LIMIT ${lim}`, params);
+      semantic = cands.map((r) => ({ ...r, score: cosineSimilarity(vec, r.embedding) + Number(r.bonus) })).sort((a, b) => b.score - a.score).slice(0, 80);
+    } catch (e) {
+      console.error('Memória entre empresas: busca semântica falhou, seguindo só com a lexical.', e.message);
+    }
+  }
+
+  const byId = new Map();
+  [...rows, ...semantic].forEach((r) => {
+    const prev = byId.get(r.id);
+    if (prev) prev.score += Number(r.score); else byId.set(r.id, { ...r, score: Number(r.score) });
+  });
+  const ranked = [...byId.values()].sort((a, b) => b.score - a.score);
+  // Limite por empresa, depois completa em rodízio até o teto — nenhuma empresa ocupa tudo.
+  const taken = new Map(); const picked = [];
+  for (const r of ranked) {
+    if ((taken.get(r.project_id) || 0) >= perProject) continue;
+    taken.set(r.project_id, (taken.get(r.project_id) || 0) + 1);
+    picked.push(r);
+    if (picked.length >= cap) break;
+  }
+  const chunks = picked.map((r) => ({
+    id: r.id, projectId: r.project_id, meetingId: r.meeting_id, kind: r.kind, content: r.content, participants: r.participants || [],
+    meetingDate: r.meeting_date, meetingTitle: r.meeting_title, timeRef: r.time_ref, score: r.score,
+  }));
+  // Cobertura: do SQL (lexical). Sem texto de busca ou só semântica, deriva do que foi recuperado.
+  let coverage = cov.map((c) => ({ projectId: c.project_id, mentions: c.mentions, meetings: c.meetings, lastDate: c.last_date, lastTitle: c.last_title }));
+  if (!coverage.length && chunks.length) {
+    const g = new Map();
+    for (const c of chunks) { const e = g.get(c.projectId) || { projectId: c.projectId, mentions: 0, meetings: new Set(), lastDate: null, lastTitle: '' }; e.mentions += 1; e.meetings.add(c.meetingId); if (!e.lastDate || String(c.meetingDate) > String(e.lastDate)) { e.lastDate = c.meetingDate; e.lastTitle = c.meetingTitle; } g.set(c.projectId, e); }
+    coverage = [...g.values()].map((e) => ({ ...e, meetings: e.meetings.size }));
+  }
+  coverage.sort((a, b) => b.mentions - a.mentions);
+  return { chunks, coverage, mode: semantic.length ? `${mode}+semantic` : mode };
+}

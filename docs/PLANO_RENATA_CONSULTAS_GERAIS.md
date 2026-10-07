@@ -45,7 +45,7 @@ Criado em 2026-10-07. **Plano, nada implementado.** Pedido do Felipe (07/10/2026
 - Modelos de cronograma novos já nascem com a área.
 - **Tamanho:** médio. Toca o formato da atividade (dado no JSON do projeto) — exige cuidado com compatibilidade.
 
-## Etapa 3 — RENATA geral consulta reuniões de vários clientes (pedido 1)
+## Etapa 3 — RENATA geral consulta reuniões de vários clientes (pedido 1) — ✅ FEITA em 2026-10-08 (ver PROJECT_CONTEXT §81; falta validar com IA real e volume de produção)
 
 - Estender `searchProjectMemory` para aceitar uma **lista** de empresas (hoje é uma só), sempre limitada às acessíveis.
 - Etapa de interpretação da pergunta no modo geral: quais empresas (citadas ou todas), assunto, período.
@@ -88,5 +88,5 @@ Criado em 2026-10-07. **Plano, nada implementado.** Pedido do Felipe (07/10/2026
 1. **Medir a qualidade dos dados** — ✅ feito (painel "Qualidade dos dados" no Levantamento).
 2. **Incluir tarefas de reunião no Levantamento** — ✅ feito (coluna Origem).
 3. **Organizar na entrada** — ✅ feito em 2026-10-07: responsável amarrado à equipe ao transcrever (ou "a confirmar"), campo Área (lista fechada em `server/areas.js`, sugestão da RENATA com revisão) e conciliação em lote do passado no painel de qualidade. Pendente de validar com IA real em produção (extração com equipe/área e sugestão de área).
-4. RENATA varrendo as reuniões de todos os clientes (Etapa 3 acima).
+4. RENATA varrendo as reuniões de todos os clientes (Etapa 3 acima) — ✅ feito em 2026-10-08.
 5. Lacunas entre cronogramas (Etapa 4 acima).
