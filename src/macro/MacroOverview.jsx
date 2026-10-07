@@ -62,7 +62,7 @@ const URGENCY_META = {
 export default function MacroOverviewScreen({
   currentUser, onExit, onGoCompany, onGoPersonal, onGoXFlow, onLogout, theme, onToggleTheme,
   notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead,
-  onOpenActivity, activityModalOpen,
+  onOpenActivity, onOpenTodo, activityModalOpen,
 }) {
   const [range, setRange] = useState(() => readHistoryValue('macroView', 'current_week'));
   useHistoryValue('macroView', range, setRange, 'current_week');
@@ -172,7 +172,7 @@ export default function MacroOverviewScreen({
         <Segmented label="Tipo de visão" value={tab} onChange={setTab} options={[{ value: 'date', label: 'Por data' }, { value: 'inventory', label: 'Levantamento' }]} />
       </div>
 
-      {tab === 'inventory' ? <InventoryView onOpenActivity={onOpenActivity} activityModalOpen={activityModalOpen} /> : (<>
+      {tab === 'inventory' ? <InventoryView onOpenActivity={onOpenActivity} onOpenTodo={onOpenTodo} activityModalOpen={activityModalOpen} /> : (<>
       <div className="mac-today mac-pad" style={{ paddingTop: 18 }}>
         <span className="mac-today-l">Hoje</span>
         <span className="mac-today-d">{fmtTodayFull()}</span>

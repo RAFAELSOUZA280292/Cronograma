@@ -82,3 +82,11 @@ Criado em 2026-10-07. **Plano, nada implementado.** Pedido do Felipe (07/10/2026
 - **Custo e latência** crescem com o número de empresas pesquisadas; mitigação: limite por empresa e por resposta.
 - **Qualidade:** em perguntas muito amplas a RENATA pode devolver um recorte; a resposta deve avisar quando o recorte for parcial.
 - **Confidencialidade entre clientes** (ver Etapa 4).
+
+## Caminho combinado em 2026-10-07 (depois da Etapa 1)
+
+1. **Medir a qualidade dos dados** — ✅ feito (painel "Qualidade dos dados" no Levantamento).
+2. **Incluir tarefas de reunião no Levantamento** — ✅ feito (coluna Origem).
+3. **Organizar na entrada** — pendente: amarrar o responsável a uma pessoa da equipe ao transcrever (ou marcar "a confirmar"), campo Área em lista fechada (se o Felipe quiser) e tela de conciliação em lote do passado com revisão humana.
+4. RENATA varrendo as reuniões de todos os clientes (Etapa 3 acima).
+5. Lacunas entre cronogramas (Etapa 4 acima).
