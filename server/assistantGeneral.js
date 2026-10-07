@@ -8,6 +8,7 @@ import { canAccessProject } from './routes.js';
 import { boardItems, todayInSp } from './widgetSummary.js';
 import { listEvents, getConnectionStatus, googleConfigured } from './googleCalendar.js';
 import { loadRelevantFacts } from './knowledgeFacts.js';
+import { loadInventoryItems, inventoryContextText } from './inventory.js';
 import { logMetric } from './metrics.js';
 import { STUDY_MODEL } from './parecerStudy.js';
 
@@ -59,6 +60,9 @@ function projectText(s) {
   return lines.join('\n');
 }
 
+// Perguntas que pedem o panorama das atividades de todas as empresas.
+const INVENTORY_HINT = /atividade|levantamento|cronograma|\bfases?\b|respons[aá]ve|\b[aá]reas?\b|pend[eê]ncia|quantas|quantos|por empresa|todas as empresas|todos os clientes/i;
+
 export async function buildGeneralContext({ pool, user, orgId, question, isStaff, now = new Date(), listEventsFn = listEvents }) {
   const today = todayInSp(now);
   const parts = [`Hoje é ${today} (horário de Brasília). Pessoa: ${user.name} (${user.role}).`];
@@ -75,6 +79,12 @@ export async function buildGeneralContext({ pool, user, orgId, question, isStaff
   const mine = projs.filter((p) => canAccessProject(user, p.data, p.org_id)).map((p) => summarizeProject(p.data || {}, user.name, today));
   mine.sort((a, b) => (b.totals.overdue - a.totals.overdue) || a.name.localeCompare(b.name));
   parts.push(`EMPRESAS A QUE A PESSOA TEM ACESSO (${mine.length}):\n${mine.slice(0, 40).map(projectText).join('\n') || '- nenhuma'}${mine.length > 40 ? `\n- … e mais ${mine.length - 40} empresa(s)` : ''}`);
+
+  // Levantamento de atividades de todas as empresas (contagens exatas por fase e responsável) — só quando a pergunta é sobre isso
+  // (custa contexto) e só para a equipe PRICETAX, que é quem pode ver o Levantamento.
+  if ((user.role === 'master' || user.role === 'pricetax') && INVENTORY_HINT.test(question || '')) {
+    try { parts.push(inventoryContextText(await loadInventoryItems(user, orgId, today, pool))); } catch (e) { /* segue sem o levantamento */ }
+  }
 
   let agenda = 'Google Calendar não conectado (a pessoa pode conectar em Meu perfil › Agenda).';
   try {
@@ -97,6 +107,7 @@ export async function buildGeneralContext({ pool, user, orgId, question, isStaff
 const SYSTEM = `Você é a RENATA, assistente da PRICETAX. Responda em português do Brasil, de forma direta, calorosa e profissional, em parágrafos curtos e listas com "-" quando ajudar.
 REGRAS:
 - Use SOMENTE os dados do CONTEXTO abaixo. Nunca invente prazos, valores, nomes, artigos de lei ou o conteúdo de reuniões.
+- Sobre o LEVANTAMENTO DE ATIVIDADES (quando presente): as contagens por fase e por responsável são exatas — use-as sem recalcular e sem inventar. Ele traz só totais; para ver a lista de atividades e baixar a planilha, indique Visão Geral › Levantamento. Cada empresa dá o próprio nome às fases, e em muitos cronogramas o "responsável" é na verdade a ÁREA (Fiscal, Compras, Financeiro…): diga isso se for relevante.
 - Se a resposta não está no contexto, diga com franqueza que não encontrou e indique onde olhar. Para detalhes de reuniões, decisões e histórico de UMA empresa, oriente a abrir a RENATA da empresa (botão "Perguntar sobre uma empresa" ou a RENATA dentro da empresa).
 - Sobre reforma tributária e pareceres: use apenas o CONHECIMENTO ACUMULADO; cite o parecer pelo título/assunto e deixe claro o que é orientação do parecer. Sem base suficiente, diga isso.
 - Se a pessoa pedir para CRIAR/ALTERAR algo (atividade, tarefa, evento), explique que aqui você só consulta e diga em que tela fazer (ou que a RENATA da empresa propõe a ação).
