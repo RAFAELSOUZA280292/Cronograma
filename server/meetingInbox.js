@@ -23,6 +23,8 @@ import { canAccessProject } from './routes.js';
 import { reindexMeetingMemory } from './memoryIngest.js';
 import { logMetric } from './metrics.js';
 import { generateMeetingAdvice } from './parecerStudy.js';
+import { AREAS } from './areas.js';
+import { matchPerson } from './inventory.js';
 
 export const router = Router();
 
@@ -58,6 +60,7 @@ const MeetingExtractionSchema = z.object({
     responsible: z.string().nullable().describe('Nome da pessoa física responsável por executar, exatamente como ela é chamada na transcrição (ex.: "Evanio Santinon", "Rogeria Guerra", "Daniela") — nunca um cargo genérico, nunca o nome de uma empresa. Se duas pessoas dividem a tarefa (ex.: "Gustavo, com a Francine"), coloque as duas nesse mesmo campo, separadas por vírgula. null se a transcrição não deixar claro quem executa.'),
     owner: z.enum(['pricetax', 'cliente']).describe('De qual lado é essa entrega: "pricetax" quando quem precisa produzir/entregar algo é a própria equipe da consultoria PRICETAX (ex.: fazer uma análise, montar uma prévia, agendar um retorno); "cliente" quando quem precisa produzir/entregar algo é alguém do lado da empresa contratante — a pessoa em "responsible" normalmente já indica de qual lado é, mas classifique mesmo quando "responsible" ficar null'),
     dueDate: z.string().nullable().describe('Prazo em YYYY-MM-DD — só se explicitamente mencionado'),
+    area: z.enum(AREAS).nullable().describe('Área do cliente que esta ação envolve (Fiscal, Compras, Financeiro, Controladoria, Comercial, Jurídico, Logística, Diretoria, RH, TI) — escolha a mais provável pelo assunto da ação; null se não der para decidir com segurança (nunca chute).'),
   })).describe('Lista de atividades e próximos passos definidos na reunião, um item por ação concreta — não agrupe várias ações numa linha só'),
   topics: z.array(z.object({
     title: z.string().describe('Título curto do tópico/bloco de assunto discutido, em português'),
@@ -70,10 +73,30 @@ const MeetingExtractionSchema = z.object({
   })).describe('Até 10 trechos mais relevantes da reunião, cada um citado literalmente (não resuma o resto da transcrição aqui, isso é papel do campo summary).'),
 });
 
-async function extractMeetingFromTranscript(transcript, clientCompanyName) {
+// Pós-processamento do responsável de cada ação (2026-10-07, Passo 3): a IA devolve o nome como foi falado ("Rafa"). Para ações do
+// lado PRICETAX, amarra à pessoa da equipe quando só há UMA correspondência (nome completo; guarda o original em
+// `responsibleOriginal` e marca `responsibleStatus: 'auto'`); se for ambíguo ou desconhecido, mantém o texto e marca
+// 'confirmar'. Ações do lado do cliente não são mexidas (gente de fora da equipe). Função pura.
+export function normalizeActionItems(items, candidates) {
+  return (items || []).map((it) => {
+    const base = { area: AREAS.includes(it.area) ? it.area : '', responsibleOriginal: '', responsibleStatus: '' };
+    const name = String(it.responsible || '').trim();
+    if (!name || it.owner === 'cliente') return { ...it, ...base, responsible: name };
+    const m = matchPerson(name, candidates);
+    if (m.kind === 'exact') return { ...it, ...base, responsible: m.name || name };
+    if (m.kind === 'partial') return { ...it, ...base, responsible: m.suggestion, responsibleOriginal: name, responsibleStatus: 'auto' };
+    if (m.kind === 'area') return { ...it, ...base, responsible: name, area: base.area || m.name };
+    return { ...it, ...base, responsible: name, responsibleStatus: 'confirmar' };
+  });
+}
+
+async function extractMeetingFromTranscript(transcript, clientCompanyName, roster = []) {
   const client = new Anthropic();
   const contexto = clientCompanyName
     ? `Contexto: esta call é entre a consultoria PRICETAX e o cliente dela, a empresa "${clientCompanyName}". Toda pessoa que não for da equipe da PRICETAX (normalmente identificada na fala como "Pricetax", "consultoria", ou os nomes da equipe da consultoria) é do lado do cliente "${clientCompanyName}".\n\n`
+    : '';
+  const equipe = roster.length
+    ? `Equipe da PRICETAX: ${roster.join('; ')}. Quando o responsável por uma ação for uma destas pessoas, escreva o nome COMPLETO exatamente como está nesta lista, mesmo que na fala ela tenha sido chamada só pelo primeiro nome ou por apelido.\n\n`
     : '';
   const response = await client.messages.parse({
     model: 'claude-opus-5',
@@ -95,7 +118,7 @@ async function extractMeetingFromTranscript(transcript, clientCompanyName) {
       text: 'Você extrai informações estruturadas de transcrições de reuniões de negócio em português do Brasil. Seja fiel ao conteúdo — nunca invente datas, nomes ou decisões que não estejam no texto. Quando algo não for mencionado explicitamente, deixe null (ou lista/string vazia). Preste atenção especial a quem fala cada trecho (os nomes de interlocutor na transcrição) para saber de que lado (PRICETAX ou cliente) vem cada compromisso assumido. Para "topics" e "highlights", cite timestamps e trechos exatamente como aparecem no texto bruto — nunca invente marcação de tempo que não esteja lá, e nunca copie a transcrição inteira nesses campos (eles são só um índice leve, o texto original já está preservado à parte).',
       cache_control: { type: 'ephemeral', ttl: '1h' },
     }],
-    messages: [{ role: 'user', content: `${contexto}Extraia as informações estruturadas desta transcrição de reunião:\n\n${transcript}` }],
+    messages: [{ role: 'user', content: `${contexto}${equipe}Extraia as informações estruturadas desta transcrição de reunião:\n\n${transcript}` }],
     output_config: { format: zodOutputFormat(MeetingExtractionSchema) },
   });
   if (!response.parsed_output) throw new Error('A IA não conseguiu estruturar essa transcrição.');
@@ -135,7 +158,9 @@ async function processSubmission(submissionId) {
     if (!project) throw new Error('Empresa não encontrada.');
     const clientCompanyName = (project.data && project.data.company && project.data.company.name) || '';
 
-    const extraction = await extractMeetingFromTranscript(sub.transcript, clientCompanyName);
+    const { rows: staff } = await pool.query("SELECT name FROM users WHERE org_id=$1 AND blocked=false AND role <> 'cliente'", [project.org_id]);
+    const roster = staff.map((u) => u.name).filter(Boolean);
+    const extraction = await extractMeetingFromTranscript(sub.transcript, clientCompanyName, roster);
     const extracted = extraction.output;
     // Auditoria de Prompt Cache (2026-09-14) — mesmo padrão de
     // server/assistantRetrieval.js: só números do `usage`, nunca conteúdo.
@@ -159,10 +184,13 @@ async function processSubmission(submissionId) {
       transcript: sub.transcript,
       summary: extracted.summary || '',
       decisions: extracted.decisions || '',
-      actionItems: (extracted.actionItems || []).map((it) => ({
+      actionItems: normalizeActionItems(extracted.actionItems, [...roster, ...(((project.data || {}).team) || []).map((t) => t && t.name).filter(Boolean)]).map((it) => ({
         id: uid('mai'),
         title: it.title || '',
         responsible: it.responsible || '',
+        responsibleOriginal: it.responsibleOriginal || undefined,
+        responsibleStatus: it.responsibleStatus || undefined,
+        area: it.area || undefined,
         owner: it.owner === 'cliente' ? 'cliente' : 'pricetax',
         dueDate: it.dueDate || '',
         status: 'nao-iniciado',

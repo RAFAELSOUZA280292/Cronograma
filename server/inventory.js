@@ -10,6 +10,7 @@ import XLSX from 'xlsx';
 import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import { pool } from './db.js';
 import { canAccessProject, effectiveOrgId } from './routes.js';
+import { AREAS, canonicalArea } from './areas.js';
 
 export const OPEN_STATUSES = ['nao-iniciado', 'em-andamento'];
 const ALL_STATUSES = ['nao-iniciado', 'em-andamento', 'pausado', 'concluido'];
@@ -24,6 +25,14 @@ const NO_RESP = 'Sem responsável';
 export const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 const clip = (s, n) => (String(s || '').length > n ? `${String(s).slice(0, n)}…` : String(s || ''));
 const brDate = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
+
+// Área do item: a escolhida (lista fechada) ou, quando o "responsável" é o nome de uma área (cronogramas padrão), essa área.
+function areaFields(explicit, responsible) {
+  const manual = canonicalArea(explicit);
+  if (manual) return { area: manual, areaSource: 'manual' };
+  const fromResp = canonicalArea(responsible);
+  return fromResp ? { area: fromResp, areaSource: 'responsavel' } : { area: '', areaSource: '' };
+}
 
 // Linhas do levantamento a partir dos projetos já filtrados por permissão. Função pura.
 export function buildItems(projectRows, today) {
@@ -41,7 +50,8 @@ export function buildItems(projectRows, today) {
       const date = a.date || '';
       const subs = (a.subactivities || []).filter((s) => s && !s.deleted);
       items.push({
-        origin: 'cronograma', projectId: p.id, activityId: a.id, company: label, companyPaused: paused,
+        origin: 'cronograma', ref: `cronograma|${p.id}|${a.id}`, projectId: p.id, activityId: a.id, company: label, companyPaused: paused,
+        ...areaFields(a.area, a.responsible), responsibleConfirmed: !!a.responsibleConfirmed,
         title: a.title || '', desc: a.desc || '',
         phase: phaseName.trim(), phaseKey: norm(phaseName) || '_sem_fase',
         responsible: String(a.responsible || '').trim(), responsibleKey: norm(a.responsible) || '_sem_resp',
@@ -59,8 +69,9 @@ export function buildItems(projectRows, today) {
         const date = it.dueDate || '';
         const subs = (it.subtasks || []).filter((s) => s && !s.deleted);
         items.push({
-          origin: 'reuniao', projectId: p.id, activityId: '', taskId: it.id, meetingId: m.id, meetingTitle: m.title || '', meetingDate: m.date || '',
+          origin: 'reuniao', ref: `reuniao|${p.id}|${m.id}|${it.id}`, projectId: p.id, activityId: '', taskId: it.id, meetingId: m.id, meetingTitle: m.title || '', meetingDate: m.date || '',
           owner: it.owner === 'cliente' ? 'cliente' : 'pricetax', company: label, companyPaused: paused,
+          ...areaFields(it.area, it.responsible), responsibleConfirmed: !!it.responsibleConfirmed,
           title: it.title || '', desc: it.notes || it.subtitle || '',
           phase: '', phaseKey: '_sem_fase',
           responsible: String(it.responsible || '').trim(), responsibleKey: norm(it.responsible) || '_sem_resp',
@@ -98,6 +109,8 @@ export function buildUniverse(items) {
   const list = (m) => [...m.values()].map((e) => ({ key: e.key, label: pick(e), count: e.count })).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
   return {
     companies: [...companies.values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')), phases: list(phaseNames), responsibles: list(respNames),
+    areas: AREAS.map((a) => ({ area: a, count: items.filter((i) => i.area === a).length })),
+    noArea: items.filter((i) => !i.area).length,
     origins: { cronograma: items.filter((i) => i.origin === 'cronograma').length, reuniao: items.filter((i) => i.origin === 'reuniao').length },
   };
 }
@@ -108,9 +121,10 @@ export function parseFilters(q = {}) {
     status: status.length ? status : OPEN_STATUSES,
     company: String(q.company || ''), phase: String(q.phase || ''), responsible: String(q.responsible || ''),
     origin: (() => { const o = String(q.origin || ORIGINS.join(',')).split(',').map((x) => x.trim()).filter((x) => ORIGINS.includes(x)); return o.length ? o : ORIGINS; })(),
+    area: q.area === '_sem_area' ? '_sem_area' : canonicalArea(q.area),
     overdue: q.overdue === '1' || q.overdue === 'true',
     hidePausedCompanies: q.hidePausedCompanies === '1' || q.hidePausedCompanies === 'true',
-    groupBy: ['phase', 'responsible', 'phase_responsible', 'responsible_phase', 'company'].includes(q.groupBy) ? q.groupBy : 'phase_responsible',
+    groupBy: ['phase', 'responsible', 'phase_responsible', 'responsible_phase', 'company', 'area', 'area_responsible'].includes(q.groupBy) ? q.groupBy : 'phase_responsible',
   };
 }
 
@@ -119,6 +133,7 @@ export function applyFilters(items, f) {
     && (!f.company || it.projectId === f.company)
     && (!f.phase || it.phaseKey === f.phase)
     && (!f.responsible || it.responsibleKey === f.responsible)
+    && (!f.area || (f.area === '_sem_area' ? !it.area : it.area === f.area))
     && (!f.overdue || it.overdue)
     && (!f.hidePausedCompanies || !it.companyPaused));
 }
@@ -133,6 +148,7 @@ const DIMENSIONS = {
   phase: { key: (i) => i.phaseKey, label: (i) => i.phase || NO_PHASE, last: '_sem_fase' },
   responsible: { key: (i) => i.responsibleKey, label: (i) => i.responsible || NO_RESP, last: '_sem_resp' },
   company: { key: (i) => i.projectId, label: (i) => i.company, last: null },
+  area: { key: (i) => i.area || '_sem_area', label: (i) => i.area || 'Sem área', last: '_sem_area' },
 };
 
 function groupBy(items, dims) {
@@ -151,7 +167,7 @@ function groupBy(items, dims) {
 }
 
 export function buildGroups(items, groupByKey) {
-  const dims = { phase: ['phase'], responsible: ['responsible'], phase_responsible: ['phase', 'responsible'], responsible_phase: ['responsible', 'phase'], company: ['company'] }[groupByKey] || ['phase', 'responsible'];
+  const dims = { phase: ['phase'], responsible: ['responsible'], phase_responsible: ['phase', 'responsible'], responsible_phase: ['responsible', 'phase'], company: ['company'], area: ['area'], area_responsible: ['area', 'responsible'] }[groupByKey] || ['phase', 'responsible'];
   return groupBy(items, dims);
 }
 
@@ -173,9 +189,11 @@ const tokMatch = (a, b) => a === b || (a.length >= 3 && b.startsWith(a)) || (b.l
 export function matchPerson(name, candidates) {
   const n = norm(name);
   if (!n) return { kind: 'empty' };
-  if (n === 'pricetax') return { kind: 'exact' };
+  if (n === 'pricetax') return { kind: 'exact', name: 'PRICETAX' };
   const cands = [...new Map(candidates.filter(Boolean).map((c) => [norm(c), c])).values()];
-  if (cands.some((c) => norm(c) === n)) return { kind: 'exact' };
+  const hit = cands.find((c) => norm(c) === n);
+  if (hit) return { kind: 'exact', name: hit };
+  if (canonicalArea(name)) return { kind: 'area', name: canonicalArea(name) };
   const nt = tokensOf(name);
   const near = cands.filter((c) => {
     const ct = tokensOf(c);
@@ -193,15 +211,18 @@ export function buildQuality(projectRows, items, userNames, today) {
   const gaps = {
     noResponsible: { cronograma: by(open.filter((i) => !i.responsible), 'cronograma'), reuniao: by(open.filter((i) => !i.responsible), 'reuniao') },
     noDate: { cronograma: by(open.filter((i) => !i.date), 'cronograma'), reuniao: by(open.filter((i) => !i.date), 'reuniao') },
+    noArea: { cronograma: by(open.filter((i) => !i.area), 'cronograma'), reuniao: by(open.filter((i) => !i.area), 'reuniao') },
   };
   // Quem é avaliado: atividades do cronograma e tarefas de reunião do lado PRICETAX (o lado do cliente tem gente de fora da equipe).
-  const people = { evaluated: 0, recognized: 0, partial: 0, ambiguous: 0, unknown: 0, clientSide: open.filter((i) => i.origin === 'reuniao' && i.owner === 'cliente').length };
+  const people = { evaluated: 0, recognized: 0, area: 0, partial: 0, ambiguous: 0, unknown: 0, clientSide: open.filter((i) => i.origin === 'reuniao' && i.owner === 'cliente').length };
   const unknown = new Map();
   for (const it of open) {
     if (!it.responsible || (it.origin === 'reuniao' && it.owner === 'cliente')) continue;
     people.evaluated += 1;
+    if (it.responsibleConfirmed) { people.recognized += 1; continue; }
     const m = matchPerson(it.responsible, [...(teamOf.get(it.projectId) || []), ...userNames]);
     if (m.kind === 'exact') { people.recognized += 1; continue; }
+    if (m.kind === 'area') { people.area += 1; continue; }
     people[m.kind] += 1;
     const e = unknown.get(it.responsibleKey) || { name: it.responsible, count: 0, companies: new Set(), kind: m.kind, suggestion: m.suggestion || '' };
     e.count += 1; e.companies.add(it.company); unknown.set(it.responsibleKey, e);
@@ -246,7 +267,7 @@ export function buildQuality(projectRows, items, userNames, today) {
   return {
     today,
     scope: { open: open.length, cronograma: by(open, 'cronograma'), reuniao: by(open, 'reuniao'), companies: new Set(open.map((i) => i.projectId)).size, meetings: { total: meetings, noDate, noTasks } },
-    gaps, people, unknownNames, clusters,
+    gaps, people, unknownNames, clusters, candidates: [...new Set(userNames)].sort((a, b) => a.localeCompare(b, 'pt-BR')), areas: AREAS,
     duplicates: { count: dups.length, examples: dups.slice(0, 8).map((e) => ({ company: e.company, title: e.title, meeting: e.meeting })) },
   };
 }
@@ -275,6 +296,7 @@ function describeFilters(f, universe) {
   if (f.phase) parts.push(`fase: ${(universe.phases.find((p) => p.key === f.phase) || {}).label || f.phase}`);
   if (f.responsible) parts.push(`responsável: ${(universe.responsibles.find((r) => r.key === f.responsible) || {}).label || f.responsible}`);
   if (f.origin.length < ORIGINS.length) parts.push(`origem: ${f.origin.map((o) => (o === 'reuniao' ? 'tarefas de reunião' : 'cronograma')).join(', ')}`);
+  if (f.area) parts.push(`área: ${f.area === '_sem_area' ? 'sem área' : f.area}`);
   if (f.overdue) parts.push('só atrasadas');
   if (f.hidePausedCompanies) parts.push('sem empresas pausadas');
   return parts.join(' · ');
@@ -313,14 +335,14 @@ router.get('/export.xlsx', async (req, res, next) => {
       Empresa: i.company, Origem: i.origin === 'reuniao' ? 'Reunião' : 'Cronograma',
       Reunião: i.origin === 'reuniao' ? `${i.meetingTitle}${i.meetingDate ? ` (${brDate(i.meetingDate)})` : ''}` : '',
       Lado: i.origin === 'reuniao' ? (i.owner === 'cliente' ? 'Cliente' : 'PRICETAX') : '',
-      Fase: i.phase || NO_PHASE, 'Responsável': i.responsible || NO_RESP, 'Atividade': i.title,
+      Fase: i.phase || NO_PHASE, 'Área': i.area || '', 'Responsável': i.responsible || NO_RESP, 'Atividade': i.title,
       'Descrição': clip(i.desc, 1500), Status: STATUS_LABEL[i.status], Prioridade: PRIORITY_LABEL[i.priority] || '',
       'Início': brDate(i.date), 'Fim': brDate(i.endDate), Atrasada: i.overdue ? 'Sim' : '',
       'Subatividades': i.subTotal ? `${i.subDone}/${i.subTotal}` : '',
     }));
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Aviso: 'Nenhuma atividade com esses filtros.' }]);
-    ws['!cols'] = [28, 12, 36, 10, 22, 22, 50, 60, 14, 12, 12, 12, 10, 14].map((wch) => ({ wch }));
+    ws['!cols'] = [28, 12, 36, 10, 22, 14, 22, 50, 60, 14, 12, 12, 12, 10, 14].map((wch) => ({ wch }));
     XLSX.utils.book_append_sheet(wb, ws, 'Atividades');
     // Fase × Responsável (contagem) — a mesma agregação da tela.
     const pivot = [];

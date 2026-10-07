@@ -87,6 +87,6 @@ Criado em 2026-10-07. **Plano, nada implementado.** Pedido do Felipe (07/10/2026
 
 1. **Medir a qualidade dos dados** — ✅ feito (painel "Qualidade dos dados" no Levantamento).
 2. **Incluir tarefas de reunião no Levantamento** — ✅ feito (coluna Origem).
-3. **Organizar na entrada** — pendente: amarrar o responsável a uma pessoa da equipe ao transcrever (ou marcar "a confirmar"), campo Área em lista fechada (se o Felipe quiser) e tela de conciliação em lote do passado com revisão humana.
+3. **Organizar na entrada** — ✅ feito em 2026-10-07: responsável amarrado à equipe ao transcrever (ou "a confirmar"), campo Área (lista fechada em `server/areas.js`, sugestão da RENATA com revisão) e conciliação em lote do passado no painel de qualidade. Pendente de validar com IA real em produção (extração com equipe/área e sugestão de área).
 4. RENATA varrendo as reuniões de todos os clientes (Etapa 3 acima).
 5. Lacunas entre cronogramas (Etapa 4 acima).
