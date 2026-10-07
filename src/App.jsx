@@ -46,6 +46,8 @@ import { useHistoryValue, readHistoryValue, withoutLayer, useEscClose } from './
 import { useAutosave } from './lib/useAutosave.js';
 import { loadNotifPrefs, resetNotifPrefs, useNotifPrefs, visibleNotifications, requestNotifSettings, hiddenTodaySources } from './lib/notifPrefs.js';
 import NotificationPrefs from './shell/NotificationPrefs.jsx';
+import RichNote from './ui/RichNote.jsx';
+import { noteToPlain } from './lib/richNote.js';
 import { calendarDaysSince } from './lib/dates.js';
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
 import { setRecentsUser, recordRecent, getRecents, loadLastWorkspace, saveLastWorkspace } from './lib/recents.js';
@@ -5789,7 +5791,7 @@ function cardMatchesFilters(card, { search, priority, dueBucket, tags, status })
   }
   if (search) {
     const q = search.toLowerCase();
-    const hay = `${card.title} ${card.desc || ''} ${(card.tags || []).join(' ')}`.toLowerCase();
+    const hay = `${card.title} ${noteToPlain(card.desc, card.descFormat)} ${(card.tags || []).join(' ')}`.toLowerCase();
     if (!hay.includes(q)) return false;
   }
   return true;
@@ -6209,7 +6211,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
   const [showGuard, setShowGuard] = useState(false);
   const lastSavedAt = useAutosaveTimestamp(card);
   const titleField = useDebouncedField(card.title, (v) => onUpdate({ title: v }, 'Título atualizado'));
-  const descField = useDebouncedField(card.desc || '', (v) => onUpdate({ desc: v }, 'Descrição atualizada'));
+  const descField = useDebouncedField(card.desc || '', (v) => onUpdate({ desc: v, descFormat: v ? 'html' : '' }, 'Descrição atualizada'));
   const hasDraft = !readOnly && (composeDirty || !!checklistDraft.trim() || editingChecklistId !== null);
   function requestClose() { titleField.flush(); descField.flush(); if (hasDraft) setShowGuard(true); else onClose(); }
   async function saveDraftsAndClose() {
@@ -6312,15 +6314,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
           <TagEditor tags={card.tags || []} onChange={(tags) => onUpdate({ tags }, 'Tags atualizadas')} suggestions={allTags} />
 
           <div style={S.subSectionLabel}>Descrição</div>
-          <textarea
-            value={descField.draft}
-            readOnly={readOnly}
-            onChange={(e) => descField.onChange(e.target.value)}
-            onBlur={descField.flush}
-            rows={6}
-            placeholder="Descrição, anotações..."
-            style={{ ...S.notesArea, minHeight: 120, fontSize: 13.5, padding: '10px 12px' }}
-          />
+          <RichNote value={descField.draft} format={card.descFormat} readOnly={readOnly} onChange={descField.onChange} onBlur={descField.flush} placeholder="Descrição, anotações..." />
 
           <div style={S.subSectionLabel}><ListChecks size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Checklist {card.checklist && card.checklist.length > 0 ? `(${doneCount}/${card.checklist.length})` : ''}</div>
           <div style={S.checklistList}>

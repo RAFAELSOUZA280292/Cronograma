@@ -13,7 +13,7 @@
 //
 // Anexo = { id, name, size, type, dataUrl } e link = { id, label, url } — o mesmo formato que atividades e XFlow já gravam.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Paperclip, Link2, Plus, Send, X, Pencil, Trash2, FileText, ImageIcon } from 'lucide-react';
+import { Paperclip, Link2, Plus, Send, X, Pencil, Trash2, FileText, ImageIcon, Bold } from 'lucide-react';
 import { IconButton, Button } from './index.jsx';
 import { DialogOverlay } from './dialog.jsx';
 import { notify } from './dialogs.jsx';
@@ -125,6 +125,41 @@ export function AddMenu({ onFiles, onLink, accept = 'image/*,application/pdf', l
       {onFiles && <input ref={fileRef} type="file" accept={accept} multiple hidden onChange={(e) => { onFiles([...e.target.files]); e.target.value = ''; }} />}
     </div>
   );
+}
+
+
+// Negrito em comentário (2026-10-07): o texto continua simples, o negrito é **assim**. Ctrl/⌘+B (ou o botão B) envolve a seleção;
+// com a seleção já em negrito, tira. Devolve o novo texto e a nova seleção.
+export function toggleBold(value, start, end) {
+  const sel = value.slice(start, end);
+  if (sel.length >= 4 && sel.startsWith('**') && sel.endsWith('**')) return { value: value.slice(0, start) + sel.slice(2, -2) + value.slice(end), start, end: end - 4 };
+  if (value.slice(start - 2, start) === '**' && value.slice(end, end + 2) === '**') return { value: value.slice(0, start - 2) + sel + value.slice(end + 2), start: start - 2, end: end - 2 };
+  return { value: `${value.slice(0, start)}**${sel}**${value.slice(end)}`, start: start + 2, end: end + 2 };
+}
+function applyBold(el, setValue) {
+  if (!el) return;
+  const r = toggleBold(el.value, el.selectionStart, el.selectionEnd);
+  setValue(r.value);
+  requestAnimationFrame(() => { el.focus(); el.setSelectionRange(r.start, r.end); });
+}
+const isBoldKey = (e) => (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === 'b' || e.key === 'B');
+
+// Divide o texto em trechos normais e **negritos**; `renderPlain` cuida do resto (menções, #30 do XFlow...).
+const BOLD_RE = /\*\*(?=\S)([^\n]*?\S)\*\*/g;
+function renderWithBold(text, renderPlain) {
+  const src = String(text == null ? '' : text);
+  const out = [];
+  let last = 0;
+  let m;
+  BOLD_RE.lastIndex = 0;
+  while ((m = BOLD_RE.exec(src))) {
+    if (m.index > last) out.push(<React.Fragment key={`t${last}`}>{renderPlain(src.slice(last, m.index))}</React.Fragment>);
+    out.push(<strong key={`b${m.index}`}>{renderPlain(m[1])}</strong>);
+    last = m.index + m[0].length;
+  }
+  if (!out.length) return renderPlain(src);
+  if (last < src.length) out.push(<React.Fragment key={`t${last}`}>{renderPlain(src.slice(last))}</React.Fragment>);
+  return out;
 }
 
 export const ComposeBox = React.forwardRef(function ComposeBox({
@@ -240,6 +275,7 @@ export const ComposeBox = React.forwardRef(function ComposeBox({
       if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(candidates[pop.idx]); return; }
     }
     if (pop && e.key === 'Escape') { e.preventDefault(); setPop(null); return; }
+    if (isBoldKey(e)) { e.preventDefault(); applyBold(taRef.current, (v) => setText(v)); return; }
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); submit(); }
   }
 
@@ -277,12 +313,13 @@ export const ComposeBox = React.forwardRef(function ComposeBox({
           )}
         </div>
         <div className="cmp-actions">
+          <IconButton size="sm" label="Negrito (Ctrl+B)" icon={Bold} onMouseDown={(e) => e.preventDefault()} onClick={() => applyBold(taRef.current, (v) => setText(v))} disabled={disabled} disabledReason="Campo indisponível" />
           {showAdd && <AddMenu onFiles={f.attach ? addFiles : null} onLink={f.link ? () => setShowLink(true) : null} accept={accept} />}
           <Button variant="primary" size="sm" icon={Send} onClick={submit} loading={busy} disabled={empty} disabledReason={reason}>{submitLabel}</Button>
         </div>
       </div>
       {error && <div className="cmp-err" role="alert">{error}</div>}
-      <div className="cmp-hint">Ctrl+Enter envia{f.attach ? ' · arraste ou cole arquivos aqui' : ''}</div>
+      <div className="cmp-hint">Ctrl+Enter envia · Ctrl+B negrito{f.attach ? ' · arraste ou cole arquivos aqui' : ''}</div>
     </div>
   );
 });
@@ -317,7 +354,7 @@ function CommentRow({ c, own, canEdit, canDelete, onEdit, onDelete, mentionNames
       {editing ? (
         <div className="cmp-edit">
           <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} aria-label="Editar comentário" autoFocus
-            onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setEditing(false); } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); save(); } }} />
+            onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setEditing(false); } else if (isBoldKey(e)) { e.preventDefault(); applyBold(e.currentTarget, setDraft); } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); save(); } }} />
           {err && <div className="cmp-err" role="alert">{err}</div>}
           <div className="cmp-edit-actions">
             <Button size="sm" onClick={() => setEditing(false)} disabled={busy} disabledReason="Aguarde terminar de salvar">Cancelar</Button>
@@ -325,7 +362,7 @@ function CommentRow({ c, own, canEdit, canDelete, onEdit, onDelete, mentionNames
           </div>
         </div>
       ) : (
-        c.text ? <div className="cmp-comment-text">{renderCustom ? renderCustom(c.text) : renderText(c.text, mentionNames)}</div> : null
+        c.text ? <div className="cmp-comment-text">{renderWithBold(c.text, (t) => (renderCustom ? renderCustom(t) : renderText(t, mentionNames)))}</div> : null
       )}
       <AttachmentList attachments={c.attachments || []} links={c.links || []} />
     </div>

@@ -4,6 +4,7 @@
 //  - credencial só no cabeçalho Authorization (nunca na URL); limite por token; usuário bloqueado/expirado = 403;
 //  - API propositalmente ESTREITA e estável (não é a API interna do app): o token nunca vale como a sessão inteira do usuário;
 //  - tudo respeita o que o usuário já pode ver (mesmo canAccessProject das telas) e a organização dele.
+import { noteToText } from './richNote.js';
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import { pool, blankPersonalBoard } from './db.js';
@@ -156,7 +157,7 @@ export function flattenCards(data, today) {
         if (!c || c.deleted || c.archived) continue;
         const open = !c.completed;
         out.push({
-          id: c.id, title: clip(c.title, 200), desc: clip(c.desc, 600), board: b.name || '', column: col.name || '',
+          id: c.id, title: clip(c.title, 200), desc: clip(noteToText(c.desc, c.descFormat), 600), board: b.name || '', column: col.name || '',
           priority: c.priority || '', status: c.status || (c.completed ? 'concluida' : 'nao-iniciada'), dueDate: c.dueDate || '',
           tags: Array.isArray(c.tags) ? c.tags.slice(0, 10) : [], completed: !!c.completed, completedAt: c.completedAt || '',
           createdAt: c.createdAt || '', updatedAt: c.updatedAt || '',
