@@ -14,6 +14,8 @@ const SUGGESTIONS = [
   'Quais reuniões e compromissos tenho esta semana?',
   'O que os pareceres dizem sobre ',
 ];
+// Só a equipe PRICETAX: a RENATA geral varre as reuniões de todas as empresas a que a pessoa tem acesso (2026-10-08).
+const SWEEP_SUGGESTIONS = ['Quais clientes falaram sobre ', 'O que ficou decidido nas reuniões de '];
 
 const CSS = `
 .rnh { display: flex; flex-direction: column; gap: 12px; font-family: 'Inter', sans-serif; }
@@ -58,7 +60,7 @@ function saveChat(userId, msgs) {
   try { window.sessionStorage.setItem(storeKey(userId), JSON.stringify(msgs.slice(-40))); } catch (e) { /* ignora */ }
 }
 
-export default function RenataHome({ userId, userName, projects, initialQuestion, onClose, onOpenCompany }) {
+export default function RenataHome({ userId, userName, canSweep, projects, initialQuestion, onClose, onOpenCompany }) {
   const [msgs, setMsgs] = useState(() => loadChat(userId));
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -116,9 +118,9 @@ export default function RenataHome({ userId, userName, projects, initialQuestion
       <div className="rnh">
         {msgs.length === 0 && (
           <>
-            <div className="rnh-hello">Oi{first ? `, ${first}` : ''}! Pergunte sobre o seu dia, as suas empresas, reuniões e compromissos — ou sobre o que os pareceres da PRICETAX dizem. Para detalhes de uma empresa específica, abra a RENATA dela abaixo.</div>
+            <div className="rnh-hello">Oi{first ? `, ${first}` : ''}! Pergunte sobre o seu dia, as suas empresas, reuniões e compromissos — ou sobre o que os pareceres da PRICETAX dizem.{canSweep ? ' Também posso varrer as reuniões de todos os seus clientes (ex.: “quais clientes falaram de split payment?”).' : ''} Para detalhes de uma empresa específica, abra a RENATA dela abaixo.</div>
             <div className="rnh-chips">
-              {SUGGESTIONS.map((s) => (
+              {(canSweep ? [...SUGGESTIONS, ...SWEEP_SUGGESTIONS] : SUGGESTIONS).map((s) => (
                 <button key={s} type="button" className="rnh-chip" onClick={() => (s.endsWith(' ') ? (setInput(s), taRef.current && taRef.current.focus()) : ask(s))}>{s}</button>
               ))}
             </div>
