@@ -7,6 +7,7 @@ import {
 } from './auth.js';
 import { lookupCnpj, cleanCnpj, formatCnpj } from './cnpjLookup.js';
 import { createNotification, rowToNotification } from './notifications.js';
+import { sanitizeBoardNotes } from './richNote.js';
 import { readMuted, publicCategories, loadMutedPatterns, NOTIFICATION_CATEGORIES, TODAY_SOURCES, readTodayHidden, publicTodaySources } from './notificationPrefs.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { CRM_ROLES } from './crm/permissions.js';
@@ -610,6 +611,7 @@ export function mergeApiCards(stored, incoming, baseUpdatedAt) {
 router.patch('/personal-board', requireAuth, async (req, res, next) => {
   const incoming = req.body && req.body.board;
   if (!incoming) return res.status(400).json({ message: 'Payload inválido.' });
+  sanitizeBoardNotes(incoming);
   const base = typeof req.body.baseUpdatedAt === 'string' ? req.body.baseUpdatedAt : '';
   let saved;
   const client = await pool.connect();
@@ -830,6 +832,7 @@ router.patch('/public-board/:token', requireAuth, async (req, res, next) => {
   try {
     const patchedBoard = req.body && req.body.board;
     if (!patchedBoard) return res.status(400).json({ message: 'Payload inválido.' });
+    sanitizeBoardNotes(patchedBoard);
     const found = await findBoardByShareToken(req.params.token);
     if (!found || found.board.visibility !== 'public') {
       return res.status(404).json({ message: 'Link inválido ou o quadro não é mais público.' });
