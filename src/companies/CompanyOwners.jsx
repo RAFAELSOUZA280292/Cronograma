@@ -17,6 +17,8 @@ export const shortName = (name) => {
   return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : (parts[0] || '');
 };
 
+export const ownerInitials = (name) => { const p = String(name || '').trim().split(/\s+/).filter(Boolean); return ((p[0] || '')[0] || '') + (p.length > 1 ? p[p.length - 1][0] : ''); };
+
 // Escolha salva por usuário (só conveniência): quais responsáveis ver e se mostra pausadas/arquivadas.
 const prefKey = (userId) => `ptx-company-view:${userId}`;
 export function readCompanyView(userId) {
@@ -40,12 +42,12 @@ export function OwnerBadges({ company, usersById, onEdit }) {
   const ordered = [...ids.filter((id) => id === principal), ...ids.filter((id) => id !== principal)];
   return (
     <span className="own-row" title={ordered.map((id) => `${usersById.get(id)}${id === principal ? ' (principal)' : ''}`).join(' · ')}>
-      {ordered.slice(0, 3).map((id) => (
+      {ordered.slice(0, 1).map((id) => (
         <span key={id} className={`own-badge${id === principal ? ' main' : ''}`}>
-          {id === principal && <Star size={10} aria-hidden="true" />} {shortName(usersById.get(id))}
+          {id === principal && <Star size={12} aria-hidden="true" />} {shortName(usersById.get(id))}
         </span>
       ))}
-      {ordered.length > 3 && <span className="own-badge">+{ordered.length - 3}</span>}
+      {ordered.length > 1 && <span className="own-badge">+{ordered.length - 1}</span>}
     </span>
   );
 }
@@ -122,9 +124,9 @@ export function mergeOwners(company, val, mode) {
 }
 
 export const OWNERS_CSS = `
-.own-row { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.own-badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border-3); background: transparent; color: var(--text-4); font: inherit; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.own-badge.main { color: var(--ui-accent-text, #F5C400); border-color: rgba(245,196,0,.5); background: rgba(245,196,0,.1); }
+.own-row { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.own-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 8px; border: 1px solid var(--border-3); background: transparent; color: var(--text-3); font: inherit; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.own-badge.main { color: var(--ui-accent-text, #F5C400); border-color: rgba(214,168,0,.5); background: rgba(245,196,0,.16); }
 .own-badge.none { color: var(--ui-warn, #ffb066); border-color: rgba(255,159,64,.5); border-style: dashed; cursor: pointer; }
 .own-field { display: flex; flex-direction: column; gap: 8px; }
 .own-lbl { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--text-3); }
@@ -141,8 +143,48 @@ export const OWNERS_CSS = `
 .cview-sel { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; font-weight: 700; color: var(--text-4); }
 .cview-sel select { min-width: 220px; }
 .cview-note { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; font-size: 12.5px; color: var(--text-4); }
-.cview-note button { background: transparent; border: 0; padding: 0; color: var(--ui-accent-text, #F5C400); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
+.cview-note button { background: transparent; border: 0; padding: 0; color: var(--ui-accent-text, #F5C400); font: inherit; font-weight: 800; cursor: pointer; }
+.cview-note button:hover { text-decoration: underline; }
+
+/* Faixa "Por responsável": uma linha de botões com a contagem de cada pessoa (clicar filtra). */
+.own-strip { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; margin: 0 0 10px; }
+.own-strip-l { font-size: 11.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--text-4); }
+.own-strip-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.own-chip { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px 0 6px; border-radius: 999px; border: 1px solid var(--border-2); background: var(--bg-3); color: var(--text-2); font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.own-chip:first-child { padding-left: 12px; }
+.own-chip:hover { border-color: var(--border-3); background: var(--bg-4, var(--bg-3)); }
+.own-chip.on { background: rgba(245,196,0,.18); border-color: #F5C400; color: var(--text-1); }
+.own-chip.warn:not(.on) { border-style: dashed; color: var(--ui-warn, #ffb066); }
+.own-chip b { font-weight: 700; }
+.own-chip .own-n { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--bg-1); border: 1px solid var(--border-1); font-weight: 800; font-size: 12px; text-align: center; color: var(--text-1); }
+.own-chip .own-p { font-style: normal; font-size: 11px; color: var(--text-4); }
+.own-chip:focus-visible, .cview .ui-seg button:focus-visible { outline: 2px solid var(--ui-accent, #F5C400); outline-offset: 1px; }
+.own-av { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(245,196,0,.28); color: var(--text-1); font-size: 10px; font-weight: 800; }
+
+/* Tela de empresas (desenho aprovado em 2026-10-09): botões de situação soltos em formato de pílula; barra do topo flutuante. */
+.co-sel .cview .ui-seg { background: transparent; border: 0; padding: 0; gap: 10px; }
+.co-sel .cview .ui-seg button { min-height: 38px; padding: 0 20px; border-radius: 19px; border: 1px solid var(--border-2); background: var(--bg-3); color: var(--text-2); font-size: 13.5px; font-weight: 700; box-shadow: none; }
+.co-sel .cview .ui-seg button[aria-pressed="true"] { background: rgba(245,196,0,.18); border-color: #F5C400; color: var(--text-1); font-weight: 800; }
+.co-sel .cview-sel { font-size: 12.5px; color: var(--text-2); }
+.co-sel .cview-sel select { min-width: 300px; }
+.co-sel::before, .co-sel::after { content: ''; position: absolute; pointer-events: none; z-index: 0; border-radius: 50%; }
+.co-sel::before { width: 620px; height: 620px; left: -330px; top: 60px; background: radial-gradient(closest-side, rgba(245,196,0,.10), transparent 72%); }
+.co-sel::after { width: 560px; height: 560px; right: -250px; top: 40px; border: 26px solid rgba(245,196,0,.09); filter: blur(1px); }
+html[data-theme="light"] .co-sel { overflow-x: clip; background-image: linear-gradient(180deg, #fbfaf6 0%, var(--bg-page) 320px); }
+html[data-theme="light"] .co-sel .company-card { background: var(--bg-2) !important; box-shadow: 0 2px 12px rgba(40,32,8,.06); }
+html[data-co-sel="1"] .shell-bar { top: 10px; margin: 10px 24px 0; border: 1px solid var(--border-1); border-radius: 18px; box-shadow: 0 8px 28px rgba(40,32,8,.10); height: 54px; }
+html[data-co-sel="1"] .co-sel { padding-top: 6px; }
+
 @media (max-width: 767px) {
+  html[data-co-sel="1"] .shell-bar { margin: 8px 8px 0; top: 8px; border-radius: 14px; }
+  .co-sel .cview .ui-seg { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding-bottom: 4px; }
+  .co-sel .cview .ui-seg button { flex-shrink: 0; white-space: nowrap; }
+  .co-sel .cview > [role="group"] { width: 100%; }
+  .co-sel .cview .ui-seg button { min-height: 44px; padding: 0 16px; }
+  .co-sel .cview-sel select { min-width: 0; }
+  .own-strip-chips { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding-bottom: 4px; }
+  .own-chip { height: 44px; flex-shrink: 0; }
+  .own-strip { flex-direction: column; align-items: flex-start; }
   .cview-sel, .cview-sel select { width: 100%; }
   .cview-sel select { min-height: 44px; font-size: 16px; }
   .own-check { min-height: 44px; }
