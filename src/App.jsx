@@ -38,7 +38,7 @@ import ModelosScreen from './modelos/Modelos.jsx';
 import PersonalStatsPanel from './personal/PersonalStats.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
 import { activate, activateRow, Tabs, ConfirmDialog, Button, IconButton, SaveStatus, RecordSaveStatus, Segmented } from './ui/index.jsx';
-import { ownerIdsOf, principalOf, OwnerBadges, OwnersField, BulkOwnersModal, mergeOwners, readCompanyView, saveCompanyView, OWNERS_CSS } from './companies/CompanyOwners.jsx';
+import { ownerIdsOf, principalOf, shortName, ownerInitials, OwnerBadges, OwnersField, BulkOwnersModal, mergeOwners, readCompanyView, saveCompanyView, OWNERS_CSS } from './companies/CompanyOwners.jsx';
 import { ComposeBox, CommentThread, AttachmentList, AddMenu, readFileAsAttachment, useMentionUsers } from './ui/ComposeBox.jsx';
 import ModuleShell from './shell/ModuleShell.jsx';
 import { DialogOverlay } from './ui/dialog.jsx';
@@ -5435,6 +5435,8 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   const setOwnerView = (v) => { setOwnerViewRaw(v); saveCompanyView(myId, { owner: v }); };
   const [statusView, setStatusView] = useState('ativas');
   const [bulkOpen, setBulkOpen] = useState(false);
+  // A barra do topo só "flutua" (cartão arredondado com sombra) nesta tela — marca o <html> enquanto ela está aberta.
+  useEffect(() => { document.documentElement.setAttribute('data-co-sel', '1'); return () => document.documentElement.removeAttribute('data-co-sel'); }, []);
   const isMobile = useIsMobile();
 
   function toggleGroupExpanded(e, id) {
@@ -5486,6 +5488,13 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   const hiddenPaused = statusView === 'ativas' ? nPaused : 0;
   const hiddenOthers = matching.filter((p) => !ownerMatch(p.company) && statusMatch(p.company)).length;
   const noOwnerCount = projects.filter((p) => ownerIdsOf(p.company).length === 0).length;
+  // Faixa "Por responsável": quantas empresas cada pessoa tem, na situação escolhida (mesmos números que a lista mostraria ao clicar).
+  const inView = matching.filter((p) => statusMatch(p.company));
+  const ownerChips = canOwners ? staffUsers.map((u) => {
+    const mine = inView.filter((p) => ownerIdsOf(p.company).includes(u.id));
+    return { id: u.id, name: u.name, value: u.id === myId ? 'mine' : `u:${u.id}`, count: mine.length, principal: mine.filter((p) => principalOf(p.company) === u.id).length, me: u.id === myId };
+  }).filter((c) => c.count > 0 || c.me).sort((a, b) => (b.me - a.me) || (b.count - a.count) || a.name.localeCompare(b.name, 'pt-BR')) : [];
+  const noOwnerInView = inView.filter((p) => ownerIdsOf(p.company).length === 0).length;
   const anyView = !!(term || filtersActive || (canOwners && ownerView !== 'all') || statusView !== 'todas');
   const visibleIds = new Set(filteredProjects.map((p) => p.id));
   const hiddenSelected = [...selected].filter((id) => !visibleIds.has(id)).length;
@@ -5510,7 +5519,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   const allChecked = filteredProjects.length > 0 && filteredProjects.every((p) => selected.has(p.id));
 
   return (
-    <div className="page-root t44" style={S.page}>
+    <div className="page-root t44 co-sel" style={S.page}>
       {deleteTarget && (
         <ConfirmDialog
           title={`Excluir ${deleteTarget.company.name || 'esta empresa'}?`}
@@ -5530,8 +5539,8 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
           padding:6px 8px; font-size:12.5px;
         }
         select:focus { outline:none; border-color:#F5C400; }
-        input[type=checkbox]{ accent-color:#F5C400; width:16px; height:16px; }
-        .company-card .company-card-actions { opacity: .4; transition: opacity .12s; }
+        input[type=checkbox]{ accent-color:#F5C400; width:18px; height:18px; }
+        .company-card .company-card-actions { opacity: .8; transition: opacity .12s; }
         .company-card:hover .company-card-actions, .company-card:focus-within .company-card-actions { opacity: 1; }
         @media (hover:none) { .company-card .company-card-actions { opacity: 1; } }
         ${OWNERS_CSS}
@@ -5541,7 +5550,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
           <BrandLogo theme={theme} style={{ ...S.loginLogo, marginBottom: 0 }} />
         </div>
         <h1 style={S.loginTitle}>Quais empresas você quer acompanhar?</h1>
-        <p style={S.loginSub}>Escolha uma, várias, ou marque "Selecionar todas" pra ter a visão geral. Dá pra trocar depois clicando em "Trocar empresas".</p>
+        <p style={S.loginSub}>Escolha uma, várias, ou marque "Selecionar todas" para ter a visão geral. Dá pra trocar depois clicando em "Trocar empresas".</p>
 
         {actingOrg && (
           <div style={S.companyActingOrgRow}>
@@ -5595,6 +5604,30 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                   { value: 'pausadas', label: `Pausadas (${nPaused})` },
                   { value: 'todas', label: `Todas (${nActive + nPaused})` },
                 ]} />
+              </div>
+            )}
+            {projects.length > 1 && canOwners && (ownerChips.length > 0 || noOwnerInView > 0) && (
+              <div className="own-strip" role="group" aria-label="Quantas empresas cada pessoa tem">
+                <span className="own-strip-l">Por responsável</span>
+                <div className="own-strip-chips">
+                  <button type="button" className={`own-chip${ownerView === 'all' ? ' on' : ''}`} aria-pressed={ownerView === 'all'} onClick={() => setOwnerView('all')} title="Todas as empresas, de todos os responsáveis">
+                    <b>Todos</b><span className="own-n">{inView.length}</span>
+                  </button>
+                  {ownerChips.map((c) => (
+                    <button key={c.id} type="button" className={`own-chip${ownerView === c.value ? ' on' : ''}`} aria-pressed={ownerView === c.value}
+                      onClick={() => setOwnerView(ownerView === c.value ? 'all' : c.value)}
+                      title={`${c.name}: ${c.count} ${c.count === 1 ? 'empresa' : 'empresas'} (${c.principal} como principal, ${c.count - c.principal} ${c.count - c.principal === 1 ? 'em que também acompanha' : 'em que também acompanha'})`}>
+                      <span className="own-av" aria-hidden="true">{ownerInitials(c.name)}</span>
+                      <b>{c.me ? 'Eu' : shortName(c.name)}</b><span className="own-n">{c.count}</span>
+                      {c.principal > 0 && c.principal !== c.count && <em className="own-p">★ {c.principal}</em>}
+                    </button>
+                  ))}
+                  {noOwnerInView > 0 && (
+                    <button type="button" className={`own-chip warn${ownerView === 'none' ? ' on' : ''}`} aria-pressed={ownerView === 'none'} onClick={() => setOwnerView(ownerView === 'none' ? 'all' : 'none')} title="Empresas que ainda não têm responsável">
+                      <b>Sem responsável</b><span className="own-n">{noOwnerInView}</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
             {(hiddenPaused > 0 || hiddenOthers > 0) && (
@@ -5711,7 +5744,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                     </label>
                     <div style={{ ...S.companyCardProgress, ...(isMobile ? S.companyCardProgressMobile : null) }}>
                       <div style={S.companyCardDonutWrap}>
-                        <svg viewBox="0 0 32 32" width="34" height="34">
+                        <svg viewBox="0 0 32 32" width="46" height="46">
                           <circle cx="16" cy="16" r="13" fill="none" stroke="var(--border-1)" strokeWidth="4" />
                           <circle
                             cx="16" cy="16" r="13" fill="none" stroke={accent} strokeWidth="4" strokeLinecap="round"
@@ -10488,15 +10521,15 @@ export const S = {
   companySectionCnpj: { fontSize: 11, color: 'var(--text-5)', marginTop: 1 },
 
   // company selector screen
-  companySelectorWrap: { minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px' },
+  companySelectorWrap: { minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 24px 40px', position: 'relative', zIndex: 1 },
   companySelectorHeader: { width: 'min(1240px, 96%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 },
   companyHeaderShortcut: { display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--border-2)', color: 'var(--text-3)', fontSize: 12.5, fontWeight: 600, padding: '7px 12px', borderRadius: 999, cursor: 'pointer' },
   companyActingOrgRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, color: '#F5C400', marginTop: -12, marginBottom: 22 },
   companySwitchOrgBtn: { background: 'transparent', border: '1px solid rgba(245,196,0,.5)', color: '#F5C400', fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 999, cursor: 'pointer' },
-  companySearchWrap: { display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-3)', border: '1px solid var(--border-1)', borderRadius: 8, padding: '8px 12px', marginBottom: 14 },
-  companySearchInput: { flex: 1, background: 'transparent', border: 'none', padding: 0, fontSize: 13 },
+  companySearchWrap: { display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-3)', border: '1px solid var(--border-1)', borderRadius: 12, padding: '12px 16px', marginBottom: 16 },
+  companySearchInput: { flex: 1, background: 'transparent', border: 'none', padding: 0, fontSize: 14 },
   companyFilterRow: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  companyFilterSelect: { flex: '1 1 160px', minWidth: 140, maxWidth: 240 },
+  companyFilterSelect: { flex: '0 1 300px', minWidth: 160, maxWidth: 320 },
   gateGroup: { width: 'min(760px, 100%)', marginBottom: 18 },
   gateGroupTitle: { fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--text-5)', margin: '0 0 8px' },
   gateGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 230px), 1fr))', gap: 10 },
@@ -10505,10 +10538,10 @@ export const S = {
   gateCardTitle: { fontSize: 14, fontWeight: 800 },
   gateCardDesc: { fontSize: 12, color: 'var(--text-5)', lineHeight: 1.4 },
   companyEmptyState: { width: 'min(1240px, 96%)', textAlign: 'center', padding: '40px 20px', border: '1px dashed var(--border-3)', borderRadius: 12 },
-  companyPanel: { width: 'min(1240px, 96%)', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 14, padding: 18 },
-  companySelectAllRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border-1)' },
+  companyPanel: { width: 'min(1240px, 96%)', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 22, padding: '22px 26px', boxShadow: '0 10px 40px rgba(40,32,8,.06)' },
+  companySelectAllRow: { display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, fontWeight: 700, color: 'var(--text-2)', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border-1)' },
   companyList: { display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '60vh', overflowY: 'auto', paddingRight: 2 },
-  companyCard: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 10, padding: '4px 14px 4px 4px', transition: 'background .12s' },
+  companyCard: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 16, padding: '8px 16px 8px 8px', transition: 'background .12s' },
   // Overrides aplicados via spread condicional (isMobile ? S.xMobile : {}) — o card vira um bloco
   // empilhado em vez da linha horizontal do desktop; nenhuma chave acima é alterada.
   companyCardMobile: { flexWrap: 'wrap', alignItems: 'stretch', padding: '10px 12px' },
@@ -10516,23 +10549,23 @@ export const S = {
   companyCardMainMobile: { flex: '1 1 100%' },
   companyCardActions: { display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 },
   companyCardActionsMobile: { flex: '1 1 100%', justifyContent: 'flex-end', borderTop: '1px solid var(--border-2)', paddingTop: 8, marginTop: 4, opacity: 1 },
-  companyCardLogo: { width: 36, height: 36, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border-3)', flexShrink: 0 },
-  companyCardLogoEmpty: { width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  companyCardLogo: { width: 46, height: 46, borderRadius: 11, objectFit: 'cover', border: '1px solid var(--border-3)', flexShrink: 0 },
+  companyCardLogoEmpty: { width: 46, height: 46, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   companyCardNameRow: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  companyCardName: { fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)' },
-  companyCardSecondary: { fontSize: 11, color: 'var(--text-5)', marginTop: 1 },
-  companyCardCnpj: { fontSize: 11.5, color: 'var(--text-5)', marginTop: 1 },
-  companyCardProgress: { display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 150px', padding: '4px 10px', borderLeft: '1px solid var(--border-2)' },
+  companyCardName: { fontSize: 15.5, fontWeight: 800, color: 'var(--text-1)' },
+  companyCardSecondary: { fontSize: 12, color: 'var(--text-4)', marginTop: 1 },
+  companyCardCnpj: { fontSize: 12.5, color: 'var(--text-4)', marginTop: 1 },
+  companyCardProgress: { display: 'flex', alignItems: 'center', gap: 10, flex: '0 0 176px', padding: '4px 10px', borderLeft: '1px solid var(--border-2)' },
   companyCardProgressMobile: { flex: '1 1 45%', borderLeft: 'none', borderTop: '1px solid var(--border-2)', paddingTop: 8 },
-  companyCardDonutWrap: { position: 'relative', width: 34, height: 34, flexShrink: 0 },
-  companyCardDonutLabel: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9.5, fontWeight: 800, color: 'var(--text-1)' },
-  companyCardProgressText: { fontSize: 11, color: 'var(--text-5)', lineHeight: 1.3 },
-  companyCardProgressNum: { fontSize: 12, fontWeight: 700, color: 'var(--text-2)' },
+  companyCardDonutWrap: { position: 'relative', width: 46, height: 46, flexShrink: 0 },
+  companyCardDonutLabel: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: 'var(--text-1)' },
+  companyCardProgressText: { fontSize: 12, color: 'var(--text-5)', lineHeight: 1.3 },
+  companyCardProgressNum: { fontSize: 14, fontWeight: 800, color: 'var(--text-1)' },
   companyCardNext: { flex: '1 1 200px', minWidth: 0, padding: '4px 10px', borderLeft: '1px solid var(--border-2)' },
   companyCardNextMobile: { flex: '1 1 45%', borderLeft: 'none', borderTop: '1px solid var(--border-2)', paddingTop: 8 },
-  companyCardNextLabel: { fontSize: 10, fontWeight: 700, color: 'var(--text-6)', textTransform: 'uppercase', letterSpacing: .3 },
-  companyCardNextTitle: { fontSize: 12, fontWeight: 600, color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 },
-  companyCardNextDate: { fontSize: 11, marginTop: 1 },
+  companyCardNextLabel: { fontSize: 10.5, fontWeight: 700, color: 'var(--text-5)', textTransform: 'uppercase', letterSpacing: .4 },
+  companyCardNextTitle: { fontSize: 14, fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 },
+  companyCardNextDate: { fontSize: 12.5, marginTop: 1 },
 };
 
 // Raiz: a barra única (ModuleShell) fica fora das telas, que continuam sendo devolvidas por AppScreens.
