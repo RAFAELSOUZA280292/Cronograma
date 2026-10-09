@@ -5493,7 +5493,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   const ownerChips = canOwners ? staffUsers.map((u) => {
     const mine = inView.filter((p) => ownerIdsOf(p.company).includes(u.id));
     return { id: u.id, name: u.name, value: u.id === myId ? 'mine' : `u:${u.id}`, count: mine.length, principal: mine.filter((p) => principalOf(p.company) === u.id).length, me: u.id === myId };
-  }).filter((c) => c.count > 0 || c.me).sort((a, b) => (b.me - a.me) || (b.count - a.count) || a.name.localeCompare(b.name, 'pt-BR')) : [];
+  }).filter((c) => c.count > 0 || c.me || c.value === ownerView).sort((a, b) => (b.me - a.me) || (b.count - a.count) || a.name.localeCompare(b.name, 'pt-BR')) : [];
   const noOwnerInView = inView.filter((p) => ownerIdsOf(p.company).length === 0).length;
   const anyView = !!(term || filtersActive || (canOwners && ownerView !== 'all') || statusView !== 'todas');
   const visibleIds = new Set(filteredProjects.map((p) => p.id));
@@ -5580,16 +5580,30 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
             )}
             {projects.length > 1 && canOwners && (
               <div className="cview">
-                <label className="cview-sel">Responsável
-                  <select aria-label="Ver empresas de qual responsável" value={ownerView} onChange={(e) => setOwnerView(e.target.value)}>
-                    <option value="mine">Minhas empresas ({mineCount})</option>
-                    <option value="all">Todas as empresas ({projects.length})</option>
-                    <option value="none">Sem responsável ({noOwnerCount})</option>
-                    {staffUsers.filter((u) => u.id !== myId).map((u) => (
-                      <option key={u.id} value={`u:${u.id}`}>Responsável: {u.name} ({projects.filter((p) => ownerIdsOf(p.company).includes(u.id)).length})</option>
-                    ))}
-                  </select>
-                </label>
+                {(ownerChips.length > 0 || noOwnerInView > 0 || ownerView !== 'all') && (
+                  <div className="own-strip" role="group" aria-label="Quantas empresas cada pessoa tem">
+                    <span className="own-strip-l">Por responsável</span>
+                    <div className="own-strip-chips">
+                      <button type="button" className={`own-chip${ownerView === 'all' ? ' on' : ''}`} aria-pressed={ownerView === 'all'} onClick={() => setOwnerView('all')} title="Todas as empresas, de todos os responsáveis">
+                        <b>Todos</b><span className="own-n">{inView.length}</span>
+                      </button>
+                      {ownerChips.map((c) => (
+                        <button key={c.id} type="button" className={`own-chip${ownerView === c.value ? ' on' : ''}`} aria-pressed={ownerView === c.value}
+                          onClick={() => setOwnerView(ownerView === c.value ? 'all' : c.value)}
+                          title={`${c.name}: ${c.count} ${c.count === 1 ? 'empresa' : 'empresas'} (${c.principal} como principal, ${c.count - c.principal} em que também acompanha)`}>
+                          <span className="own-av" aria-hidden="true">{ownerInitials(c.name)}</span>
+                          <b>{c.me ? 'Eu' : shortName(c.name)}</b><span className="own-n">{c.count}</span>
+                          {c.principal > 0 && c.principal !== c.count && <em className="own-p">★ {c.principal}</em>}
+                        </button>
+                      ))}
+                      {(noOwnerInView > 0 || ownerView === 'none') && (
+                        <button type="button" className={`own-chip warn${ownerView === 'none' ? ' on' : ''}`} aria-pressed={ownerView === 'none'} onClick={() => setOwnerView(ownerView === 'none' ? 'all' : 'none')} title="Empresas que ainda não têm responsável">
+                          <b>Sem responsável</b><span className="own-n">{noOwnerInView}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <Segmented label="Situação das empresas" value={statusView} onChange={setStatusView} options={[
                   { value: 'ativas', label: `Em andamento (${nActive})` },
                   { value: 'pausadas', label: `Pausadas e arquivadas (${nPaused})` },
@@ -5604,30 +5618,6 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                   { value: 'pausadas', label: `Pausadas (${nPaused})` },
                   { value: 'todas', label: `Todas (${nActive + nPaused})` },
                 ]} />
-              </div>
-            )}
-            {projects.length > 1 && canOwners && (ownerChips.length > 0 || noOwnerInView > 0) && (
-              <div className="own-strip" role="group" aria-label="Quantas empresas cada pessoa tem">
-                <span className="own-strip-l">Por responsável</span>
-                <div className="own-strip-chips">
-                  <button type="button" className={`own-chip${ownerView === 'all' ? ' on' : ''}`} aria-pressed={ownerView === 'all'} onClick={() => setOwnerView('all')} title="Todas as empresas, de todos os responsáveis">
-                    <b>Todos</b><span className="own-n">{inView.length}</span>
-                  </button>
-                  {ownerChips.map((c) => (
-                    <button key={c.id} type="button" className={`own-chip${ownerView === c.value ? ' on' : ''}`} aria-pressed={ownerView === c.value}
-                      onClick={() => setOwnerView(ownerView === c.value ? 'all' : c.value)}
-                      title={`${c.name}: ${c.count} ${c.count === 1 ? 'empresa' : 'empresas'} (${c.principal} como principal, ${c.count - c.principal} ${c.count - c.principal === 1 ? 'em que também acompanha' : 'em que também acompanha'})`}>
-                      <span className="own-av" aria-hidden="true">{ownerInitials(c.name)}</span>
-                      <b>{c.me ? 'Eu' : shortName(c.name)}</b><span className="own-n">{c.count}</span>
-                      {c.principal > 0 && c.principal !== c.count && <em className="own-p">★ {c.principal}</em>}
-                    </button>
-                  ))}
-                  {noOwnerInView > 0 && (
-                    <button type="button" className={`own-chip warn${ownerView === 'none' ? ' on' : ''}`} aria-pressed={ownerView === 'none'} onClick={() => setOwnerView(ownerView === 'none' ? 'all' : 'none')} title="Empresas que ainda não têm responsável">
-                      <b>Sem responsável</b><span className="own-n">{noOwnerInView}</span>
-                    </button>
-                  )}
-                </div>
               </div>
             )}
             {(hiddenPaused > 0 || hiddenOthers > 0) && (
