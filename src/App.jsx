@@ -37,8 +37,9 @@ import PareceresScreen from './pareceres/Pareceres.jsx';
 import ModelosScreen from './modelos/Modelos.jsx';
 import PersonalStatsPanel from './personal/PersonalStats.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
-import { activate, activateRow, Tabs, ConfirmDialog, Button, IconButton, SaveStatus, RecordSaveStatus } from './ui/index.jsx';
-import { ComposeBox, CommentThread, AttachmentList, AddMenu, readFileAsAttachment } from './ui/ComposeBox.jsx';
+import { activate, activateRow, Tabs, ConfirmDialog, Button, IconButton, SaveStatus, RecordSaveStatus, Segmented } from './ui/index.jsx';
+import { ownerIdsOf, principalOf, OwnerBadges, OwnersField, BulkOwnersModal, mergeOwners, readCompanyView, saveCompanyView, OWNERS_CSS } from './companies/CompanyOwners.jsx';
+import { ComposeBox, CommentThread, AttachmentList, AddMenu, readFileAsAttachment, useMentionUsers } from './ui/ComposeBox.jsx';
 import ModuleShell from './shell/ModuleShell.jsx';
 import { DialogOverlay } from './ui/dialog.jsx';
 import { DialogHost, notify, askConfirm, askText, pushToastCompat, dismissToast as dismissToastGlobal } from './ui/dialogs.jsx';
@@ -2781,8 +2782,17 @@ function AppScreens({ shellRef, bump }) {
     reader.readAsDataURL(file);
   }
 
+  // Responsável padrão de empresa nova = quem cadastrou (equipe PRICETAX), exceto quando cadastra em OUTRA organização.
+  function withDefaultOwner(companyBody, orgId) {
+    const currentOrg = actingOrg ? actingOrg.id : currentUser.orgId;
+    const staff = currentUser && (currentUser.role === 'master' || currentUser.role === 'pricetax');
+    if (!staff || (orgId && orgId !== currentOrg) || (Array.isArray(companyBody.ownerIds) && companyBody.ownerIds.length)) return companyBody;
+    return { ...companyBody, ownerIds: [currentUser.id], principalOwnerId: currentUser.id };
+  }
+
   async function createCompany(company) {
-    const { orgId, ...companyBody } = company;
+    const { orgId, ...rawBody } = company;
+    const companyBody = withDefaultOwner(rawBody, orgId);
     const res = await apiPost(withActingOrg('/api/projects', orgId), { company: companyBody });
     const currentOrgId = actingOrg ? actingOrg.id : currentUser.orgId;
     const crossOrg = !!orgId && orgId !== currentOrgId;
@@ -2850,7 +2860,8 @@ function AppScreens({ shellRef, bump }) {
 
     const team = source.team.map((m) => ({ ...m, id: uid('team') }));
 
-    const { orgId, ...companyBody } = company;
+    const { orgId, ...rawBody } = company;
+    const companyBody = withDefaultOwner(rawBody, orgId);
     const res = await apiPost(withActingOrg('/api/projects', orgId), {
       company: companyBody,
       activities,
@@ -2899,7 +2910,7 @@ function AppScreens({ shellRef, bump }) {
       ? `Status da empresa alterado para: ${COMPANY_STATUS_META[nextStatus].label}${nextStatus === 'pausado' ? ' — atividades em andamento pausadas' : ' — atividades pausadas retomadas'}`
       : `Dados da empresa "${label}" atualizados`);
     if (statusChanging && nextStatus === 'pausado') {
-      pushAppUndoToast(`"${label}" pausada: as atividades em andamento foram pausadas junto.`, () => updateCompanyFields(pid, { status: 'ativo', resumeDate: '' }), 8000);
+      pushAppUndoToast(`"${label}" pausada e arquivada: some da lista principal (veja em "Pausadas e arquivadas") e as atividades em andamento foram pausadas junto.`, () => updateCompanyFields(pid, { status: 'ativo', resumeDate: '' }), 8000);
     }
   }
 
@@ -5172,7 +5183,8 @@ function CompanySectionHeader({ project, onEditPhases }) {
 
 function EditCompanyModal({ project, projects, onClose, onSave }) {
   const c = project.company;
-  const [form, setForm] = useState({ name: c.name || '', nomeFantasia: c.nomeFantasia || '', color: c.color || PHASE_COLORS[0], logo: c.logo || '', status: c.status || 'ativo', resumeDate: c.resumeDate || '', clientType: c.clientType || '' });
+  const staffUsers = useMentionUsers();
+  const [form, setForm] = useState({ name: c.name || '', nomeFantasia: c.nomeFantasia || '', color: c.color || PHASE_COLORS[0], logo: c.logo || '', status: c.status || 'ativo', resumeDate: c.resumeDate || '', clientType: c.clientType || '', ownerIds: ownerIdsOf(c), principalOwnerId: principalOf(c) });
   const [saving, setSaving] = useState(false);
   const [linkTargetId, setLinkTargetId] = useState('');
   const isMobile = useIsMobile();
@@ -5261,7 +5273,16 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
           {CLIENT_TYPE_ORDER.map((t) => <option key={t} value={t}>{CLIENT_TYPE_META[t].label}</option>)}
         </select>
 
+        {staffUsers.length > 0 && (
+          <>
+            <style>{OWNERS_CSS}</style>
+            <div style={S.subSectionLabel}>Responsáveis (equipe PRICETAX)</div>
+            <OwnersField users={staffUsers} value={form} onChange={(v) => setForm((f) => ({ ...f, ...v }))} />
+          </>
+        )}
+
         <div style={S.subSectionLabel}>Status da empresa</div>
+        <div style={{ ...S.fieldHint, marginTop: 0, marginBottom: 6 }}>Pausar também arquiva: a empresa some da lista principal e volta em "Pausadas e arquivadas".</div>
         <select value={form.status} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, status: v, resumeDate: v === 'ativo' ? '' : f.resumeDate })); }}>
           <option value="ativo">Ativo</option>
           <option value="pausado">Pausado</option>
@@ -5400,9 +5421,20 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   const [editingProject, setEditingProject] = useState(null);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
   const [filterRegime, setFilterRegime] = useState('');
   const [expandedGroups, setExpandedGroups] = useState(() => new Set());
+  // Responsáveis por empresa (2026-10-09): por padrão só as empresas em que EU sou responsável; pausadas ficam arquivadas (ocultas).
+  const staffUsers = useMentionUsers();
+  const usersById = useMemo(() => new Map(staffUsers.map((u) => [u.id, u.name])), [staffUsers]);
+  const canOwners = staffUsers.length > 0 && !!currentUser;
+  const myId = currentUser ? currentUser.id : '';
+  const mineCount = projects.filter((p) => ownerIdsOf(p.company).includes(myId)).length;
+  // Padrão: "Minhas empresas" (ou "Todas" se ainda não sou responsável por nenhuma). Só a escolha EXPLÍCITA do responsável é lembrada;
+  // pausadas/arquivadas sempre abrem ocultas.
+  const [ownerView, setOwnerViewRaw] = useState(() => { const v = readCompanyView(myId); return (v && v.owner) || (mineCount > 0 ? 'mine' : 'all'); });
+  const setOwnerView = (v) => { setOwnerViewRaw(v); saveCompanyView(myId, { owner: v }); };
+  const [statusView, setStatusView] = useState('ativas');
+  const [bulkOpen, setBulkOpen] = useState(false);
   const isMobile = useIsMobile();
 
   function toggleGroupExpanded(e, id) {
@@ -5428,17 +5460,35 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
   }
 
   const regimeOptions = Array.from(new Set(projects.map((p) => p.company.regimeTributario).filter(Boolean))).sort();
-  const filtersActive = !!(filterType || filterStatus || filterRegime);
+  const filtersActive = !!(filterType || filterRegime);
 
   const term = search.trim().toLowerCase();
-  const filteredProjects = projects.filter((p) => {
+  const isPausedCo = (c) => (c.status || 'ativo') === 'pausado';
+  const ownerMatch = (c) => {
+    if (!canOwners || ownerView === 'all') return true;
+    const ids = ownerIdsOf(c);
+    if (ownerView === 'none') return ids.length === 0;
+    return ids.includes(ownerView === 'mine' ? myId : ownerView.slice(2));
+  };
+  const statusMatch = (c) => statusView === 'todas' || (statusView === 'pausadas' ? isPausedCo(c) : !isPausedCo(c));
+  // "matching" = o que combina com a busca/tipo/regime; depois vêm os filtros de responsável e de situação.
+  const matching = projects.filter((p) => {
     const c = p.company;
     if (term && ![c.nomeFantasia, c.name, c.cnpj].filter(Boolean).some((v) => v.toLowerCase().includes(term))) return false;
     if (filterType && c.clientType !== filterType) return false;
-    if (filterStatus && (c.status || 'ativo') !== filterStatus) return false;
     if (filterRegime && c.regimeTributario !== filterRegime) return false;
     return true;
   });
+  const filteredProjects = matching.filter((p) => ownerMatch(p.company) && statusMatch(p.company));
+  const ownedMatching = matching.filter((p) => ownerMatch(p.company));
+  const nActive = ownedMatching.filter((p) => !isPausedCo(p.company)).length;
+  const nPaused = ownedMatching.filter((p) => isPausedCo(p.company)).length;
+  const hiddenPaused = statusView === 'ativas' ? nPaused : 0;
+  const hiddenOthers = matching.filter((p) => !ownerMatch(p.company) && statusMatch(p.company)).length;
+  const noOwnerCount = projects.filter((p) => ownerIdsOf(p.company).length === 0).length;
+  const anyView = !!(term || filtersActive || (canOwners && ownerView !== 'all') || statusView !== 'todas');
+  const visibleIds = new Set(filteredProjects.map((p) => p.id));
+  const hiddenSelected = [...selected].filter((id) => !visibleIds.has(id)).length;
 
   function toggleAll() {
     const ids = filteredProjects.map((p) => p.id);
@@ -5484,6 +5534,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
         .company-card .company-card-actions { opacity: .4; transition: opacity .12s; }
         .company-card:hover .company-card-actions, .company-card:focus-within .company-card-actions { opacity: 1; }
         @media (hover:none) { .company-card .company-card-actions { opacity: 1; } }
+        ${OWNERS_CSS}
       `}</style>
       <div style={S.companySelectorWrap}>
         <div style={S.companySelectorHeader}>
@@ -5518,16 +5569,49 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                 />
               </div>
             )}
+            {projects.length > 1 && canOwners && (
+              <div className="cview">
+                <label className="cview-sel">Responsável
+                  <select aria-label="Ver empresas de qual responsável" value={ownerView} onChange={(e) => setOwnerView(e.target.value)}>
+                    <option value="mine">Minhas empresas ({mineCount})</option>
+                    <option value="all">Todas as empresas ({projects.length})</option>
+                    <option value="none">Sem responsável ({noOwnerCount})</option>
+                    {staffUsers.filter((u) => u.id !== myId).map((u) => (
+                      <option key={u.id} value={`u:${u.id}`}>Responsável: {u.name} ({projects.filter((p) => ownerIdsOf(p.company).includes(u.id)).length})</option>
+                    ))}
+                  </select>
+                </label>
+                <Segmented label="Situação das empresas" value={statusView} onChange={setStatusView} options={[
+                  { value: 'ativas', label: `Em andamento (${nActive})` },
+                  { value: 'pausadas', label: `Pausadas e arquivadas (${nPaused})` },
+                  { value: 'todas', label: `Todas (${nActive + nPaused})` },
+                ]} />
+              </div>
+            )}
+            {projects.length > 1 && !canOwners && (
+              <div className="cview">
+                <Segmented label="Situação das empresas" value={statusView} onChange={setStatusView} options={[
+                  { value: 'ativas', label: `Em andamento (${nActive})` },
+                  { value: 'pausadas', label: `Pausadas (${nPaused})` },
+                  { value: 'todas', label: `Todas (${nActive + nPaused})` },
+                ]} />
+              </div>
+            )}
+            {(hiddenPaused > 0 || hiddenOthers > 0) && (
+              <p className="cview-note">
+                <span>Ocultas:</span>
+                {hiddenPaused > 0 && <span>{hiddenPaused} {hiddenPaused === 1 ? 'pausada/arquivada' : 'pausadas/arquivadas'}</span>}
+                {hiddenPaused > 0 && hiddenOthers > 0 && <span>·</span>}
+                {hiddenOthers > 0 && <span>{hiddenOthers} de outros responsáveis</span>}
+                {hiddenPaused > 0 && <button type="button" onClick={() => setStatusView('todas')}>Ver pausadas</button>}
+                {hiddenOthers > 0 && <button type="button" onClick={() => setOwnerView('all')}>Ver de todos</button>}
+              </p>
+            )}
             {projects.length > 1 && (
               <div style={S.companyFilterRow}>
                 <select style={S.companyFilterSelect} value={filterType} onChange={(e) => setFilterType(e.target.value)}>
                   <option value="">Todos os tipos</option>
                   {CLIENT_TYPE_ORDER.map((t) => <option key={t} value={t}>{CLIENT_TYPE_META[t].label}</option>)}
-                </select>
-                <select style={S.companyFilterSelect} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                  <option value="">Todos os status</option>
-                  <option value="ativo">Em andamento</option>
-                  <option value="pausado">Pausado</option>
                 </select>
                 {regimeOptions.length > 0 && (
                   <select style={S.companyFilterSelect} value={filterRegime} onChange={(e) => setFilterRegime(e.target.value)}>
@@ -5536,18 +5620,29 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                   </select>
                 )}
                 {filtersActive && (
-                  <button style={S.filterClearBtn} onClick={() => { setFilterType(''); setFilterStatus(''); setFilterRegime(''); }}>
+                  <button style={S.filterClearBtn} onClick={() => { setFilterType(''); setFilterRegime(''); }}>
                     Limpar filtros
                   </button>
                 )}
               </div>
             )}
-            <label style={S.companySelectAllRow}>
-              <input type="checkbox" checked={allChecked} onChange={toggleAll} />
-              {term || filtersActive ? `Selecionar todas as encontradas (${filteredProjects.length})` : `Selecionar todas (${projects.length})`}
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+              <label style={S.companySelectAllRow}>
+                <input type="checkbox" checked={allChecked} onChange={toggleAll} />
+                {anyView ? `Selecionar todas as exibidas (${filteredProjects.length})` : `Selecionar todas (${projects.length})`}
+              </label>
+              {canOwners && selected.size > 0 && (
+                <Button size="sm" icon={Users} onClick={() => setBulkOpen(true)}>Definir responsáveis ({selected.size})</Button>
+              )}
+            </div>
             {filteredProjects.length === 0 && (
-              <div style={S.emptyMuted}>{term ? `Nenhuma empresa encontrada para "${search}".` : 'Nenhuma empresa encontrada para os filtros selecionados.'}</div>
+              <div style={S.emptyMuted}>
+                {term ? `Nenhuma empresa encontrada para "${search}" com os filtros atuais.`
+                  : (canOwners && ownerView === 'mine' && mineCount === 0) ? 'Você ainda não é responsável por nenhuma empresa.'
+                    : statusView === 'pausadas' ? 'Nenhuma empresa pausada ou arquivada.'
+                      : 'Nenhuma empresa encontrada para os filtros selecionados.'}
+                {(canOwners && ownerView !== 'all') && <div style={{ marginTop: 8 }}><Button size="sm" onClick={() => { setOwnerView('all'); setStatusView('todas'); }}>Ver todas as empresas</Button></div>}
+              </div>
             )}
             <div style={S.companyList}>
               {filteredProjects.map((p) => {
@@ -5604,6 +5699,7 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                           {p.company.cnpj || 'CNPJ não informado'}
                           {p.company.regimeTributario ? ` · ${p.company.regimeTributario}` : ''}
                         </div>
+                        {canOwners && <div style={{ marginTop: 4 }}><OwnerBadges company={p.company} usersById={usersById} onEdit={() => setEditingProject(p)} /></div>}
                         {p.company.isGroupMaster && expandedGroups.has(p.id) && (
                           <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 11.5, color: 'var(--text-5)' }}>
                             {groupMembers(projects, p.id).filter((m) => m.id !== p.id).map((m) => (
@@ -5647,9 +5743,11 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
                     <div className={isMobile ? undefined : 'company-card-actions'} style={{ ...S.companyCardActions, ...(isMobile ? S.companyCardActionsMobile : null) }}>
                       <button
                         style={{ ...S.iconBtnGhost, ...(isPaused ? { color: COMPANY_STATUS_META.ativo.color } : { color: COMPANY_STATUS_META.pausado.color }) }}
-                        title={isPaused ? 'Retomar projeto (1 clique) — reativa as atividades pausadas' : 'Pausar projeto (1 clique) — pausa todas as atividades em andamento'}
+                        title={isPaused ? 'Retomar projeto (1 clique) — reativa as atividades pausadas e volta para a lista' : 'Pausar e arquivar (1 clique) — pausa as atividades em andamento e esconde a empresa desta lista'}
+                        aria-label={isPaused ? 'Retomar projeto' : 'Pausar e arquivar projeto'}
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (!isPaused) setSelected((prev) => { const n = new Set(prev); n.delete(p.id); return n; });
                           onUpdateCompany(p.id, isPaused ? { status: 'ativo', resumeDate: '' } : { status: 'pausado' });
                         }}
                       >
@@ -5668,6 +5766,9 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
           </div>
         )}
 
+        {projects.length > 0 && hiddenSelected > 0 && (
+          <div className="cview-note" style={{ width: 'min(1240px, 96%)', justifyContent: 'center', marginTop: 10, marginBottom: 0 }}>{hiddenSelected} {hiddenSelected === 1 ? 'empresa selecionada está' : 'empresas selecionadas estão'} fora do filtro atual e entra{hiddenSelected === 1 ? '' : 'm'} em "Continuar".</div>
+        )}
         {projects.length > 0 && (
           <button title={selected.size === 0 ? 'Selecione ao menos uma empresa para continuar' : undefined} style={{ ...S.primaryBtn, marginTop: 16, width: 'min(1240px, 96%)', justifyContent: 'center' }} disabled={selected.size === 0} onClick={() => onConfirm(Array.from(selected))}>
             Continuar {selected.size > 0 ? `(${selected.size} selecionada${selected.size === 1 ? '' : 's'})` : ''}
@@ -5681,6 +5782,18 @@ function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout,
           projects={projects}
           onClose={() => setEditingProject(null)}
           onSave={async (patch) => onUpdateCompany(editingProject.id, patch)}
+        />
+      )}
+      {bulkOpen && (
+        <BulkOwnersModal
+          users={staffUsers}
+          count={selected.size}
+          onClose={() => setBulkOpen(false)}
+          onApply={async (val, mode) => {
+            const ids = [...selected];
+            ids.forEach((id) => { const pr = projects.find((x) => x.id === id); if (pr) onUpdateCompany(id, mergeOwners(pr.company, val, mode)); });
+            notify(`Responsáveis ${mode === 'replace' ? 'substituídos' : 'adicionados'} em ${ids.length} ${ids.length === 1 ? 'empresa' : 'empresas'}.`, { tone: 'success' });
+          }}
         />
       )}
     </div>
