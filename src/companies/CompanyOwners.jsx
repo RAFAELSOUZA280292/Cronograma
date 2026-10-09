@@ -147,7 +147,8 @@ export const OWNERS_CSS = `
 .cview-note button:hover { text-decoration: underline; }
 
 /* Faixa "Por responsável": uma linha de botões com a contagem de cada pessoa (clicar filtra). */
-.own-strip { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; margin: 0 0 10px; }
+.own-strip { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; margin: 0; flex: 1 1 360px; min-width: 0; }
+.co-sel .cview { justify-content: space-between; align-items: center; }
 .own-strip-l { font-size: 11.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--text-4); }
 .own-strip-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .own-chip { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px 0 6px; border-radius: 999px; border: 1px solid var(--border-2); background: var(--bg-3); color: var(--text-2); font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
