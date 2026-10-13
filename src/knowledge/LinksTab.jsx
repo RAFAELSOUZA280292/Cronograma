@@ -7,6 +7,7 @@ import { RotateCcw, Link2, CheckCircle2, XCircle } from 'lucide-react';
 import { apiGet, apiPost } from '../lib/api.js';
 import { Kpi, KpiGrid, Section, EmptyState, SkeletonCards, Button, ErrorState } from '../ui/index.jsx';
 import { notify } from '../ui/dialogs.jsx';
+import { PendingLinks } from './PendingLinks.jsx';
 
 const pct = (r) => (r == null ? '—' : `${Math.round(r * 100)}%`);
 const DECISION = { escolheu: 'Escolha manual', confirmou: 'Confirmou', corrigiu: 'Trocou', nenhuma: 'Nenhuma se aplica' };
@@ -122,6 +123,8 @@ export function LinksTab() {
       {empty && (
         <EmptyState icon={Link2} title="A RENATA ainda não aprendeu nada aqui" description="Confirme, troque ou escolha a atividade de algumas tarefas na aba Tarefas das empresas. Cada decisão vira um exemplo." />
       )}
+
+      <PendingLinks isAdmin={canForget} onChanged={load} />
 
       <Section title="Acerto por semana">
         <div className="knw-metric-card">
