@@ -5,6 +5,7 @@ import { SidePanel } from '../App.jsx';
 
 const OPENED = '#5B8DEF';
 const CLOSED = '#3ecf6e';
+const STEPS = '#F5A623';
 
 const WEEKDAYS = [
   { idx: 1, short: 'Seg', long: 'segunda-feira', plural: 'segundas' },
@@ -167,10 +168,12 @@ export default function PersonalStatsPanel({ onClose }) {
     if (error) return <div style={{ fontSize: 12.5, color: '#e2574c' }}>{error}</div>;
     if (!stats) return <div style={{ fontSize: 12.5, color: 'var(--text-6)' }}>Carregando…</div>;
     const { opened, closed, weekday, monthDay } = stats;
+    const steps = stats.steps || 0;
     const pct = opened > 0 ? closed / opened : 0;
     const days = Math.max(1, stats.totalDays);
     const avgOpened = opened / days;
     const avgClosed = closed / days;
+    const avgSteps = steps / days;
     const per = (arr, occ) => (mode === 'avg' ? arr.map((n, i) => (occ[i] ? n / occ[i] : 0)) : arr);
     const wd = { opened: per(weekday.opened, stats.weekdayDays), closed: per(weekday.closed, stats.weekdayDays) };
     const md = { opened: per(monthDay.opened, stats.monthDayDays), closed: per(monthDay.closed, stats.monthDayDays) };
@@ -181,11 +184,14 @@ export default function PersonalStatsPanel({ onClose }) {
     const mdClose = peakIndex(md.closed);
     const dayOpened = dayData ? dayData.events.filter((e) => e.kind === 'opened') : [];
     const dayClosed = dayData ? dayData.events.filter((e) => e.kind === 'closed') : [];
-    const winMax = dayData ? Math.max(1, ...dayData.window.map((w) => Math.max(w.opened, w.closed))) : 1;
+    const daySteps = dayData ? dayData.events.filter((e) => e.kind === 'steps') : [];
+    const dayWins = dayClosed.length + daySteps.length;
+    const winMax = dayData ? Math.max(1, ...dayData.window.map((w) => Math.max(w.opened, w.closed, w.steps || 0))) : 1;
     const isToday = day === stats.today;
     const wdName = (i) => WEEKDAYS.find((w) => w.idx === i);
     const weekItems = WEEKDAYS.map((w, n) => ({ ...w, n: n + 1 }));
     const dayItems = Array.from({ length: 31 }, (_, i) => ({ idx: i, short: String(i + 1), long: `Dia ${i + 1}`, n: i + 1 }));
+    const stepsSince = stats.firstStepAt ? new Date(stats.firstStepAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : null;
     const missing = stats.withoutOpenDate + stats.closedWithoutDate;
     const since = stats.firstEventAt ? new Date(stats.firstEventAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : null;
 
@@ -197,9 +203,9 @@ export default function PersonalStatsPanel({ onClose }) {
           ))}
         </div>
 
-        {opened + closed === 0 ? (
+        {opened + closed + steps === 0 ? (
           <div style={{ fontSize: 12.5, color: 'var(--text-6)', lineHeight: 1.5 }}>
-            Ainda não há atividades abertas ou encerradas neste período. Crie e conclua tarefas no quadro e os indicadores aparecem aqui.
+            Ainda não há atividades abertas, encerradas nem subatividades concluídas neste período. Crie e conclua tarefas (e marque os itens do checklist) no quadro e os indicadores aparecem aqui.
           </div>
         ) : (
           <>
@@ -214,6 +220,7 @@ export default function PersonalStatsPanel({ onClose }) {
             <div style={{ display: 'flex', gap: 10 }}>
               <div className="ps-kpi"><div className="ps-kpi-num" style={{ color: OPENED }}>{opened}</div><div className="ps-kpi-label">Abertas · média de {fmtNum(avgOpened)} por dia</div></div>
               <div className="ps-kpi"><div className="ps-kpi-num" style={{ color: CLOSED }}>{closed}</div><div className="ps-kpi-label">Encerradas · média de {fmtNum(avgClosed)} por dia</div></div>
+              <div className="ps-kpi"><div className="ps-kpi-num" style={{ color: STEPS }}>{steps}</div><div className="ps-kpi-label">Subatividades · média de {fmtNum(avgSteps)} por dia</div></div>
             </div>
 
             <div className="ps-card" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -227,7 +234,7 @@ export default function PersonalStatsPanel({ onClose }) {
 
             <div className="ps-card">
               <div className="ps-title">Dia a dia</div>
-              <div className="ps-sub">Navegue por um dia e veja o que foi aberto e encerrado. Média do período: {fmtNum(avgOpened)} abertas e {fmtNum(avgClosed)} encerradas por dia.</div>
+              <div className="ps-sub">Navegue por um dia e veja o que foi aberto, encerrado e as subatividades concluídas. Ganhos do dia = atividades encerradas + subatividades concluídas. Média do período: {fmtNum(avgClosed + avgSteps)} ganhos por dia.</div>
               <div className="ps-nav">
                 <button className="ps-navbtn" title="Dia anterior" aria-label="Dia anterior" onClick={() => setDay(shiftDay(day, -1))}><ChevronLeft size={16} aria-hidden="true" /></button>
                 <input aria-label="Escolher o dia" className="ps-date" type="date" value={day} max={stats.today} onChange={(e) => { if (e.target.value && e.target.value <= stats.today) setDay(e.target.value); }} />
@@ -238,33 +245,39 @@ export default function PersonalStatsPanel({ onClose }) {
               {dayError && <div style={{ fontSize: 12, color: '#e2574c', marginTop: 8 }}>{dayError}</div>}
               {dayData && dayData.date === day && (
                 <>
+                  <div className="ps-kpi" style={{ marginTop: 10, flex: 'none', borderColor: dayWins > 0 ? CLOSED : undefined }}>
+                    <div className="ps-kpi-num" style={{ color: dayWins > 0 ? CLOSED : 'var(--text-6)' }}>{dayWins}</div>
+                    <div className="ps-kpi-label">{dayWins === 1 ? 'Ganho do dia' : 'Ganhos do dia'} · {dayClosed.length} encerrada{dayClosed.length === 1 ? '' : 's'} + {daySteps.length} subatividade{daySteps.length === 1 ? '' : 's'}</div>
+                  </div>
                   <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
                     <div className="ps-kpi"><div className="ps-kpi-num" style={{ color: OPENED }}>{dayOpened.length}</div><div className="ps-kpi-label">Abertas neste dia</div></div>
                     <div className="ps-kpi"><div className="ps-kpi-num" style={{ color: CLOSED }}>{dayClosed.length}</div><div className="ps-kpi-label">Encerradas neste dia</div></div>
+                    <div className="ps-kpi"><div className="ps-kpi-num" style={{ color: STEPS }}>{daySteps.length}</div><div className="ps-kpi-label">Subatividades neste dia</div></div>
                   </div>
                   <div className="ps-strip">
                     {dayData.window.map((w) => (
-                      <button key={w.d} className={`ps-day${w.d === day ? ' sel' : ''}`} title={`${shortDay(w.d)}: ${w.opened} abertas, ${w.closed} encerradas`} aria-label={`${shortDay(w.d)}: ${w.opened} abertas, ${w.closed} encerradas`} aria-pressed={w.d === day} onClick={() => setDay(w.d)}>
+                      <button key={w.d} className={`ps-day${w.d === day ? ' sel' : ''}`} title={`${shortDay(w.d)}: ${w.opened} abertas, ${w.closed} encerradas, ${w.steps || 0} subatividades`} aria-label={`${shortDay(w.d)}: ${w.opened} abertas, ${w.closed} encerradas, ${w.steps || 0} subatividades`} aria-pressed={w.d === day} onClick={() => setDay(w.d)}>
                         <i style={{ height: `${(w.opened / winMax) * 100}%`, background: OPENED }} />
                         <i style={{ height: `${(w.closed / winMax) * 100}%`, background: CLOSED }} />
+                        <i style={{ height: `${((w.steps || 0) / winMax) * 100}%`, background: STEPS }} />
                       </button>
                     ))}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-6)', marginTop: 4 }}>
                     <span>{shortDay(dayData.window[0].d)}</span><span>30 dias até o dia escolhido</span><span>{shortDay(dayData.window[dayData.window.length - 1].d)}</span>
                   </div>
-                  {[['Abertas', dayOpened, OPENED], ['Encerradas', dayClosed, CLOSED]].map(([label, list, color]) => list.length > 0 && (
+                  {[['Abertas', dayOpened, OPENED], ['Encerradas', dayClosed, CLOSED], ['Subatividades concluídas', daySteps, STEPS]].map(([label, list, color]) => list.length > 0 && (
                     <div key={label} style={{ marginTop: 14 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 4 }}>{label}</div>
                       {list.map((e) => (
                         <div key={`${e.cardId}-${e.kind}-${e.at}`} className="ps-evt">
                           <time>{hhmm(e.at)}</time>
-                          <span style={e.title === null ? { fontStyle: 'italic', color: 'var(--text-6)' } : undefined}>{e.title === null ? 'Atividade excluída' : (e.title || 'Sem título')}</span>
+                          <span style={e.title === null ? { fontStyle: 'italic', color: 'var(--text-6)' } : undefined}>{e.title === null ? (e.kind === 'steps' ? 'Subatividade excluída' : 'Atividade excluída') : (e.title || 'Sem título')}{e.kind === 'steps' && e.title !== null && e.cardTitle ? <span style={{ color: 'var(--text-6)' }}> · em {e.cardTitle}</span> : null}</span>
                         </div>
                       ))}
                     </div>
                   ))}
-                  {dayOpened.length + dayClosed.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-6)', marginTop: 12 }}>Nada aberto nem encerrado neste dia.</div>}
+                  {dayOpened.length + dayClosed.length + daySteps.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-6)', marginTop: 12 }}>Nada aberto, encerrado nem concluído neste dia.</div>}
                 </>
               )}
             </div>
@@ -291,7 +304,7 @@ export default function PersonalStatsPanel({ onClose }) {
         )}
 
         <div style={{ fontSize: 11, color: 'var(--text-7)', lineHeight: 1.5 }}>
-          Horário de Brasília. Cada abertura e cada encerramento é guardado de forma permanente{since ? `, desde ${since}` : ''}: reabrir ou excluir uma atividade não apaga o que já foi registrado, e encerrar de novo conta como um novo encerramento.
+          Horário de Brasília. Cada abertura e cada encerramento é guardado de forma permanente{since ? `, desde ${since}` : ''}: reabrir ou excluir uma atividade não apaga o que já foi registrado, e encerrar de novo conta como um novo encerramento. Subatividades (itens do checklist) concluídas contam como ganho{stepsSince ? ` desde ${stepsSince}` : ' a partir da primeira que você concluir'}; as concluídas antes disso não tinham horário e não entram. Desmarcar e marcar de novo no mesmo dia conta uma vez só.
           {missing > 0 && <> {missing} atividade{missing === 1 ? '' : 's'} antiga{missing === 1 ? '' : 's'} sem data registrada não entra{missing === 1 ? '' : 'm'} na conta.</>}
         </div>
       </div>

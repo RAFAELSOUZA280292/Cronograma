@@ -6631,6 +6631,21 @@ Verificado com 12 checagens novas (reaberta, formatos 1/2/3, sem `createdAt`, sk
 evento já gravado antes, log de card apagado, log não duplica card vivo nem card excluído depois, dia
 da semana certo) + as 24 anteriores sem regressão.
 
+**Subatividade concluída = ganho do dia (2026-10-13, pedido do Rafael)**: concluir um item do checklist de um card do Meu quadro
+conta como **ganho**. `toggleChecklistItem` (App.jsx) grava `doneAt` (ISO) ao marcar e limpa ao desmarcar; duplicar card/coluna
+remove `doneAt` dos itens da cópia (senão a cópia geraria ganhos falsos). `cardEventsOf` devolve também `steps` (item `done` com
+`doneAt` válido) e `syncCardEvents` grava em `personal_card_events` com `kind='step_done'` e `card_id = "<cardId>#<itemId>"`;
+**dedupe por item+dia (BRT)** — desmarcar e marcar de novo no mesmo dia conta uma vez; em outro dia conta de novo. Itens concluídos
+**antes** do deploy não têm horário e não entram (irrecuperável); a tela diz "desde <data do 1º registro>" (`firstStepAt`).
+`getActivityStats` devolve `steps` (total) e `weekday/monthDay.steps`; `getDayDetail` devolve `window[].steps` e eventos
+`kind:'steps'` com `title` = texto do item e `cardTitle` (null se o item/card foi excluído). Tela (`PersonalStats.jsx`): KPI
+"Subatividades", cartão **Ganhos do dia = encerradas + subatividades** no Dia a dia, 3ª barra na faixa de 30 dias (laranja `#F5A623`),
+lista "Subatividades concluídas · em <atividade>"; `WeekSummary` ganhou o KPI "Subatividades concluídas". Gráficos por dia da
+semana/mês continuam só abertas×encerradas. Escopo: só quadro pessoal (subatividades de atividades de EMPRESA não entram).
+**Testado**: lógica + banco local (idempotência, refazer no mesmo dia, item excluído, soma = total) e browser (marcar → evento →
+painel). **Não testado**: produção com dados reais, virada de dia à meia-noite.
+
+
 ## 66. Quadro Pessoal: pausar manda a atividade pro fim da coluna (2026-10-04)
 
 Pedido do Rafael (com print de um card "Parceria JOY", Pausada/Alta, no meio da coluna): "ao pausar uma
