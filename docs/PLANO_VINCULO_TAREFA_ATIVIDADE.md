@@ -1,6 +1,6 @@
 # Plano — vincular cada tarefa de reunião à atividade do cronograma (e a RENATA aprender com as confirmações)
 
-Criado em 2026-10-13. **Aprovado pelo Rafael (7 recomendações) em 2026-10-13. Fases 1 a 5 implementadas; falta a conferência dos 35 casos pelo time e a 1ª avaliação com IA real em produção.** (Fase 3: aprendizado por palavras, sem embeddings — a Voyage grátis não comporta; ver §65.) (Desvio na Fase 1: a rota só registra a decisão no livro-razão; o campo da tarefa vai pelo caminho normal do cliente — ver PROJECT_CONTEXT §65.) Pedido do Rafael: ao gerar tarefas a partir de uma transcrição, achar a
+Criado em 2026-10-13. **Aprovado pelo Rafael (7 recomendações) em 2026-10-13. Fases 1 a 5 implementadas; 1ª avaliação com IA real em produção PASSOU; falta a conferência dos casos pelo time e o acompanhamento com transcrições reais.** (Fase 3: aprendizado por palavras, sem embeddings — a Voyage grátis não comporta; ver §65.) (Desvio na Fase 1: a rota só registra a decisão no livro-razão; o campo da tarefa vai pelo caminho normal do cliente — ver PROJECT_CONTEXT §65.) Pedido do Rafael: ao gerar tarefas a partir de uma transcrição, achar a
 atividade da aba **Resumo/Gantt** (Kickoff, Envio de dados, Prévia AR, Prévia DR, Workshop, Compras, Análise, Validação documental,
 Comitê da reforma…) a que cada tarefa pertence; o usuário **confirma** e a RENATA **aprende**.
 
@@ -133,3 +133,5 @@ Ordem recomendada: 0 → 1 → 2 → 3 → 4 → 5. A fase 1 entrega valor sozin
 - **Acompanhar**: cartão "Custo e erros" + taxa de acerto semanal do mesmo painel.
 - **Emergência**: variável do Railway `TASK_LINK_MODE` = `off` (nada sugere) ou `sem-ia` (só aprendido + regra).
 - **Isolamento**: testado por HTTP (2 organizações, usuário restrito por CNPJ, cliente, sem login).
+
+- **Avaliação real em produção (2026-10-13 19:20, rodada pelo Rafael): PASSOU — precisão 100%, cobertura 98%** (56 casos, IA de produção). Pendente: o time conferir os casos à mão e acompanhar a taxa de acerto com transcrições reais.
