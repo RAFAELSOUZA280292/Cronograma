@@ -55,6 +55,8 @@ export function highConfidenceRows(rows, options) {
 }
 
 export const ACTIVITY_LINK_CSS = `
+  .alink-ask { background:transparent; }
+  .alink-bulk:disabled { opacity:.6; cursor:wait; }
   .alink-bulk { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; color:var(--text-1); background:rgba(245,196,0,.12); border:1px solid var(--ui-accent, #F5C400); border-radius:999px; padding:5px 12px; cursor:pointer; }
   .alink-bulk:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
   @media (max-width: 767px) { .alink-bulk { min-height:44px; } }
@@ -132,5 +134,46 @@ export function ConfirmSuggestionsButton({ rows, options, onConfirmOne }) {
   }
   return (
     <button type="button" className="alink-bulk" onClick={run}><Sparkles size={12} aria-hidden="true" /> Confirmar {hi.length} sugest{hi.length === 1 ? 'ão' : 'ões'} de confiança alta</button>
+  );
+}
+
+// Tarefa que ainda pede sugestão: sem vínculo, sem "nenhuma se aplica" e sem sugestão válida. Espelha `eligibleTasks` (server/taskLinks.js).
+export function needsSuggestion(row, options) {
+  if (!row || row.deleted || row.activityId || !row.title) return false;
+  const st = linkState(row, options);
+  return st.kind === 'empty' || st.kind === 'orphan';
+}
+
+// Aplica as sugestões devolvidas pelo servidor às tarefas (nunca confirma; não toca em tarefa já vinculada/decidida).
+export function applySuggestionsToMeetings(meetings, suggestions) {
+  let count = 0;
+  const next = (meetings || []).map((m) => {
+    if (!m || m.deleted || !(m.actionItems || []).some((it) => suggestions[it.id])) return m;
+    return {
+      ...m,
+      actionItems: m.actionItems.map((it) => {
+        const s = suggestions[it.id];
+        if (!s || it.activityId || (it.activityLink && (it.activityLink.status === 'confirmed' || it.activityLink.status === 'none'))) return it;
+        count += 1;
+        return { ...it, activityLink: { status: 'suggested', suggestedId: s.activityId, confidence: s.confidence, reason: s.reason, source: s.source } };
+      }),
+    };
+  });
+  return { meetings: next, count };
+}
+
+// "Sugerir atividades (N)": pede à RENATA a sugestão das tarefas pendentes de vínculo. Só sugere; a pessoa revisa e confirma.
+export function SuggestLinksButton({ rows, options, onSuggest }) {
+  const [busy, setBusy] = useState(false);
+  const n = (rows || []).filter((r) => needsSuggestion(r, options)).length;
+  if (!n && !busy) return null;
+  async function run() {
+    setBusy(true);
+    try { await onSuggest(); } finally { setBusy(false); }
+  }
+  return (
+    <button type="button" className="alink-bulk alink-ask" disabled={busy} onClick={run} title="A RENATA sugere a atividade do cronograma de cada tarefa sem vínculo. Nada é gravado sem você confirmar.">
+      <Sparkles size={12} aria-hidden="true" /> {busy ? 'Pensando…' : `Sugerir atividades (${n})`}
+    </button>
   );
 }

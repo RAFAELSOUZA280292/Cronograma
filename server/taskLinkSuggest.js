@@ -1,13 +1,15 @@
 // Sugestão da atividade do cronograma para cada tarefa que sai de uma transcrição (Fase 2 do plano, 2026-10-13;
 // docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). Conjunto FECHADO: a IA só escolhe entre as atividades daquela empresa ou diz "nenhuma";
 // o id devolvido é validado em código. Duas camadas: IA (uma chamada em lote, separada da extração — falha não derruba a reunião) e
-// regra simples de reserva (área → atividade, sobreposição de palavras). Nunca confirma sozinha: grava `activityLink.status =
-// 'suggested'` e o humano confirma/troca na tela (Fase 1). A camada "aprendido" (Fase 3) entra antes destas duas.
+// regra simples de reserva (área → atividade, sobreposição de palavras). Fase 3: antes delas entra a camada "aprendido" (taskLinkLearn.js,
+// a partir das decisões humanas), e a IA recebe como exemplo as tarefas já vinculadas DA PRÓPRIA empresa. Nunca confirma sozinha: grava
+// `activityLink.status = 'suggested'` e o humano confirma/troca na tela (Fase 1).
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { norm } from './inventory.js';
 import { titleTokens, jaccard } from './gaps.js';
 import { STUDY_MODEL } from './parecerStudy.js';
+import { learnedSuggest, sameCompanyExamples } from './taskLinkLearn.js';
 
 export const MIN_CONFIDENCE = 0.5;   // abaixo disso não sugere (mostra "escolher atividade")
 export const HIGH_CONFIDENCE = 0.8;  // acima disso entra no "confirmar todas"
@@ -52,13 +54,14 @@ const SuggestSchema = z.object({
   })),
 });
 
-const SYSTEM = 'Você é a RENATA, assistente da consultoria PRICETAX (Reforma Tributária). Cada empresa-cliente tem um cronograma com atividades macro (ex.: Kickoff, envio de dados, apresentação prévia, workshop por área como Compras ou Fiscal, validação, comitê). Dada uma lista de tarefas que saíram de uma reunião, diga a qual atividade DO CRONOGRAMA DESTA EMPRESA cada tarefa pertence — a atividade que a tarefa faz andar. Escolha somente entre as atividades listadas e copie o id exatamente. Se nenhuma se encaixa com segurança, devolva activityId null: é melhor não sugerir do que chutar. Responda só o JSON pedido.';
+const SYSTEM = 'Você é a RENATA, assistente da consultoria PRICETAX (Reforma Tributária). Cada empresa-cliente tem um cronograma com atividades macro (ex.: Kickoff, envio de dados, apresentação prévia, workshop por área como Compras ou Fiscal, validação, comitê). Dada uma lista de tarefas que saíram de uma reunião, diga a qual atividade DO CRONOGRAMA DESTA EMPRESA cada tarefa pertence — a atividade que a tarefa faz andar. Escolha somente entre as atividades listadas e copie o id exatamente. Se nenhuma se encaixa com segurança, devolva activityId null: é melhor não sugerir do que chutar. Quando houver EXEMPLOS já confirmados por pessoas desta empresa, siga o mesmo critério deles. Responda só o JSON pedido.';
 
-export function buildPrompt({ activities, phases, tasks, meeting }) {
+export function buildPrompt({ activities, phases, tasks, meeting, examples }) {
   const phaseName = new Map((phases || []).map((p) => [p.id, p.name]));
   const acts = liveActivities(activities).map((a) => `- id=${a.id} | ${a.title} | fase: ${phaseName.get(a.phase) || '—'}${a.responsible ? ` | responsável: ${a.responsible}` : ''}${a.date ? ` | data: ${a.date}` : ''}${a.desc ? ` | ${clip(a.desc, 140)}` : ''}`);
   const ts = tasks.map((t) => `- id=${t.id} | ${clip(t.title, 220)}${t.area ? ` | área: ${t.area}` : ''} | lado: ${t.owner === 'cliente' ? 'cliente' : 'PRICETAX'}${t.responsible ? ` | responsável: ${t.responsible}` : ''}`);
-  return `ATIVIDADES DO CRONOGRAMA:\n${acts.join('\n')}\n\nREUNIÃO: ${clip(meeting && meeting.title, 120)}\n${meeting && meeting.summary ? `Resumo: ${clip(meeting.summary, 900)}\n` : ''}\nTAREFAS:\n${ts.join('\n')}`;
+  const ex = (examples || []).map((e) => `- "${clip(e.title, 140)}" → ${e.activity}`);
+  return `ATIVIDADES DO CRONOGRAMA:\n${acts.join('\n')}\n\n${ex.length ? `EXEMPLOS JÁ CONFIRMADOS POR PESSOAS DESTA EMPRESA:\n${ex.join('\n')}\n\n` : ''}REUNIÃO: ${clip(meeting && meeting.title, 120)}\n${meeting && meeting.summary ? `Resumo: ${clip(meeting.summary, 900)}\n` : ''}\nTAREFAS:\n${ts.join('\n')}`;
 }
 
 // Valida a resposta da IA contra o conjunto fechado. Função pura.
@@ -85,20 +88,32 @@ export function applySuggestions(items, suggestions) {
 }
 
 // Ponto de entrada. `client` = SDK da Anthropic (injetável em teste); sem client ou se a IA falhar, só a regra de reserva.
-export async function suggestActivityLinks({ client, activities, phases, tasks, meeting }) {
+export async function suggestActivityLinks({ client, activities, phases, tasks, meeting, learn }) {
   const acts = liveActivities(activities);
   const result = { suggestions: {}, usage: { input: 0, output: 0 }, usedAI: false, aiError: '' };
   if (!acts.length || !tasks.length) return result;
+  // Camada "aprendido": forte (≥ HIGH_CONFIDENCE) resolve sem IA; fraca fica de reserva atrás da IA.
+  const strong = {};
+  const weak = {};
+  if (learn && learn.examples && learn.examples.length) {
+    for (const t of tasks) {
+      const l = learnedSuggest(t, activities, learn.examples, learn.projectId);
+      if (!l) continue;
+      if (l.confidence >= HIGH_CONFIDENCE) strong[t.id] = l; else weak[t.id] = l;
+    }
+  }
+  result.learned = Object.keys(strong).length + Object.keys(weak).length;
+  const open = tasks.filter((t) => !strong[t.id]);
   let ai = {};
-  if (client) {
+  if (client && open.length) {
     try {
-      for (let i = 0; i < tasks.length; i += CHUNK) {
-        const chunk = tasks.slice(i, i + CHUNK);
+      for (let i = 0; i < open.length; i += CHUNK) {
+        const chunk = open.slice(i, i + CHUNK);
         const res = await client.messages.parse({
           model: STUDY_MODEL,
           max_tokens: 4000,
           system: [{ type: 'text', text: SYSTEM }],
-          messages: [{ role: 'user', content: buildPrompt({ activities, phases, tasks: chunk, meeting }) }],
+          messages: [{ role: 'user', content: buildPrompt({ activities, phases, tasks: chunk, meeting, examples: learn && learn.data ? sameCompanyExamples(learn.data, chunk) : [] }) }],
           output_config: { format: zodOutputFormat(SuggestSchema) },
         });
         Object.assign(ai, validateAi(res.parsed_output, chunk, activities));
@@ -113,7 +128,9 @@ export async function suggestActivityLinks({ client, activities, phases, tasks, 
     }
   }
   for (const t of tasks) {
+    if (strong[t.id]) { result.suggestions[t.id] = strong[t.id]; continue; }
     if (ai[t.id]) { result.suggestions[t.id] = ai[t.id]; continue; }
+    if (weak[t.id]) { result.suggestions[t.id] = weak[t.id]; continue; }
     if (result.usedAI) continue; // a IA olhou e decidiu que nenhuma se encaixa: não sobrepõe com a regra
     const r = ruleSuggest(t, activities);
     if (r) result.suggestions[t.id] = { ...r, source: 'regra' };

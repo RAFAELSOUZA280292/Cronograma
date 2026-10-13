@@ -11,6 +11,8 @@ import { normalizeName } from './assistantContext.js';
 import { createEvent as createGoogleCalendarEvent } from './googleCalendar.js';
 import { saveKnowledgeFact, saveConflictPair } from './knowledgeFacts.js';
 import { logMetric } from './metrics.js';
+import { suggestActivityLinks, applySuggestions } from './taskLinkSuggest.js';
+import { loadLedgerExamples } from './taskLinkLearn.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -31,7 +33,16 @@ async function executeCreateMeetingTodo(pool, orgId, projectId, project, action,
     createdBy: 'Assistente do Projeto (IA)',
     createdAt: new Date().toISOString(),
   };
-  const updatedMeeting = { ...meetings[idx], actionItems: [...(meetings[idx].actionItems || []), newItem] };
+  // Vínculo tarefa → atividade (Fase 3): só aprendido + regra (sem IA, para não atrasar a confirmação); nunca confirma sozinho.
+  let itemToAdd = newItem;
+  try {
+    const sug = await suggestActivityLinks({
+      client: null, activities: project.activities, phases: project.phases, tasks: [{ id: newItem.id, title: newItem.title, area: '', owner: newItem.owner, responsible: newItem.responsible }],
+      meeting: meetings[idx], learn: { examples: await loadLedgerExamples(pool, orgId), projectId, data: project },
+    });
+    itemToAdd = applySuggestions([newItem], sug.suggestions)[0];
+  } catch (e) { console.error('Assistente do Projeto: falha ao sugerir atividade do cronograma', e.message); }
+  const updatedMeeting = { ...meetings[idx], actionItems: [...(meetings[idx].actionItems || []), itemToAdd] };
   const nextMeetings = meetings.map((m, i) => (i === idx ? updatedMeeting : m));
   const nextData = {
     ...project,
