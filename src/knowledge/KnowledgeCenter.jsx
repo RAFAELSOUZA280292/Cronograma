@@ -6,7 +6,7 @@
 // novo workspaceMode em src/App.jsx.
 import React, { useState } from 'react';
 import {
-  Sparkles, LayoutDashboard, Search, AlertTriangle, Users, Building2, BarChart3, CheckCircle2, TrendingUp,
+  Sparkles, LayoutDashboard, Search, AlertTriangle, Users, Building2, BarChart3, CheckCircle2, TrendingUp, Link2,
 } from 'lucide-react';
 import { Tabs, Kpi, KpiGrid, Section, EmptyState, SkeletonKpis, SkeletonCards, activate } from '../ui/index.jsx';
 import { apiGet } from '../lib/api.js';
@@ -16,6 +16,7 @@ import { MemoriesTab } from './MemoriesTab.jsx';
 import { ConflictsTab } from './ConflictsTab.jsx';
 import { EntitiesTab } from './EntitiesTab.jsx';
 import { MetricsTab } from './MetricsTab.jsx';
+import { LinksTab } from './LinksTab.jsx';
 import { FactDrawer } from './FactDrawer.jsx';
 
 const TABS = [
@@ -24,6 +25,7 @@ const TABS = [
   { id: 'conflicts', label: 'Conflitos', icon: AlertTriangle },
   { id: 'people', label: 'Pessoas', icon: Users },
   { id: 'companies', label: 'Empresas', icon: Building2 },
+  { id: 'links', label: 'Tarefas × atividades', icon: Link2 },
   { id: 'metrics', label: 'Métricas', icon: BarChart3 },
 ];
 
@@ -171,6 +173,7 @@ export default function KnowledgeCenterScreen({ currentUser, onExit, onNavigateT
           {activeTab === 'conflicts' && <ConflictsTab />}
           {activeTab === 'people' && <EntitiesTab types={['PERSON']} emptyLabel="Nenhuma pessoa identificada ainda." onOpenFact={openFact} />}
           {activeTab === 'companies' && <EntitiesTab types={['COMPANY', 'PROJECT']} emptyLabel="Nenhuma empresa/projeto identificado ainda." onOpenFact={openFact} />}
+          {activeTab === 'links' && <LinksTab />}
           {activeTab === 'metrics' && <MetricsTab />}
         </div>
       </div>

@@ -232,6 +232,7 @@ export async function initDb() {
     )
   `);
   await pool.query(`ALTER TABLE task_activity_links ADD COLUMN IF NOT EXISTS confidence REAL`);
+  await pool.query(`ALTER TABLE task_activity_links ADD COLUMN IF NOT EXISTS ignored BOOLEAN NOT NULL DEFAULT false`);
   await pool.query(`CREATE INDEX IF NOT EXISTS task_activity_links_org_idx ON task_activity_links(org_id, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS task_activity_links_project_idx ON task_activity_links(project_id, task_id)`);
   await pool.query(`

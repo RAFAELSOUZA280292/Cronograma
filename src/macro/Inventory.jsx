@@ -2,7 +2,7 @@
 // acessíveis, agrupadas por fase e/ou responsável, com contagens exatas vindas do servidor (server/inventory.js) e planilha
 // para baixar. Só leitura; clicar numa atividade abre o mesmo modal de sempre.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, Download, AlertTriangle, X, Search, Mic, CalendarRange, ShieldCheck, Sparkles, Tag } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, AlertTriangle, X, Search, Mic, CalendarRange, ShieldCheck, Sparkles, Tag, Link2 } from 'lucide-react';
 import { Chip, ChipRow, Segmented, Select, Button, EmptyState, SkeletonCards, Kpi, KpiGrid, ErrorState, activate } from '../ui/index.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
@@ -44,6 +44,8 @@ function Item({ item, onOpen, onOpenTodo, hide, areas, onSetArea }) {
         <div className="inv-item-title">{!hide.company && <><span className="inv-co">{item.company}</span><span className="inv-sep"> — </span></>}{item.title}</div>
         <div className="inv-item-meta">
           {isMeeting && <span className="inv-origin"><Mic size={11} aria-hidden="true" /> Reunião{item.meetingTitle ? `: ${item.meetingTitle}` : ''}{item.meetingDate ? ` · ${br(item.meetingDate)}` : ''}{item.owner === 'cliente' ? ' · lado do cliente' : ''}</span>}
+          {isMeeting && item.linkedActivity && <span className="inv-origin" title="Atividade do cronograma a que esta tarefa está vinculada"><Link2 size={11} aria-hidden="true" /> {item.linkedActivity}</span>}
+          {isMeeting && !item.linkedActivity && item.linkPending && <span style={{ color: 'var(--text-5)' }}>sugestão de atividade a confirmar</span>}
           {!hide.phase && item.phase && <span>{item.phase}</span>}
           {!hide.responsible && item.responsible && <span>{item.responsible}</span>}
           {item.priority && PRIORITY_META[item.priority] && <span style={{ color: PRIORITY_META[item.priority].color }}>● {PRIORITY_META[item.priority].label}</span>}
@@ -173,6 +175,7 @@ function QualityPanel({ onChanged }) {
               <KpiGrid>
                 <Kpi label="Sem responsável" value={q.gaps.noResponsible.cronograma + q.gaps.noResponsible.reuniao} tone={q.gaps.noResponsible.cronograma + q.gaps.noResponsible.reuniao ? 'warn' : 'ok'} hint={`${q.gaps.noResponsible.cronograma} cronograma · ${q.gaps.noResponsible.reuniao} reuniões`} />
                 <Kpi label="Sem área" value={q.gaps.noArea.cronograma + q.gaps.noArea.reuniao} tone="warn" hint={`${q.gaps.noArea.cronograma} cronograma · ${q.gaps.noArea.reuniao} reuniões`} />
+                <Kpi label="Tarefas sem atividade do cronograma" value={q.gaps.noActivityLink} tone={q.gaps.noActivityLink ? 'warn' : 'ok'} hint={`${q.gaps.linkPending} com sugestão a confirmar · só reuniões`} />
                 <Kpi label="Sem prazo" value={q.gaps.noDate.cronograma + q.gaps.noDate.reuniao} tone="warn" hint={`${q.gaps.noDate.cronograma} cronograma · ${q.gaps.noDate.reuniao} reuniões (${pct(q.gaps.noDate.reuniao, q.scope.reuniao)})`} />
                 <Kpi label="Responsável fora da equipe" value={q.people.partial + q.people.ambiguous + q.people.unknown} tone={q.people.partial + q.people.ambiguous + q.people.unknown ? 'warn' : 'ok'} hint={`de ${q.people.evaluated} avaliadas (${pct(q.people.partial + q.people.ambiguous + q.people.unknown, q.people.evaluated)}) · ${q.people.clientSide} do lado do cliente não entram`} />
                 <Kpi label="Lançadas no cronograma e na reunião" value={q.duplicates.count} tone={q.duplicates.count ? 'warn' : 'ok'} hint="mesmo título, mesma empresa — contadas duas vezes" />
