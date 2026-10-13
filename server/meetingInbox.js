@@ -25,6 +25,7 @@ import { logMetric } from './metrics.js';
 import { generateMeetingAdvice } from './parecerStudy.js';
 import { AREAS } from './areas.js';
 import { matchPerson } from './inventory.js';
+import { suggestActivityLinks, applySuggestions } from './taskLinkSuggest.js';
 
 export const router = Router();
 
@@ -212,6 +213,24 @@ async function processSubmission(submissionId) {
       deletedAt: '',
       deletedBy: '',
     };
+
+    // Vínculo tarefa → atividade do cronograma (Fase 2, 2026-10-13): só SUGERE (o humano confirma na tela); qualquer falha vira "sem
+    // sugestão" e nunca derruba nem atrasa o registro da reunião.
+    try {
+      const cur = project.data || {};
+      const sug = await suggestActivityLinks({
+        client: anthropicConfigured() ? new Anthropic() : null,
+        activities: cur.activities, phases: cur.phases, meeting,
+        tasks: meeting.actionItems.map((it) => ({ id: it.id, title: it.title, area: it.area || '', owner: it.owner, responsible: it.responsible })),
+      });
+      meeting.actionItems = applySuggestions(meeting.actionItems, sug.suggestions);
+      logMetric(pool, {
+        orgId: project.org_id, projectId: sub.project_id, eventType: 'task_link_suggest',
+        metadata: { tasks: meeting.actionItems.length, suggested: Object.keys(sug.suggestions).length, usedAI: sug.usedAI, aiError: sug.aiError || undefined, inputTokens: sug.usage.input, outputTokens: sug.usage.output },
+      }).catch(() => {});
+    } catch (e) {
+      console.error('Vínculo tarefa→atividade: falha ao sugerir (reunião registrada sem sugestões)', e.message);
+    }
 
     const currentData = project.data || {};
     const nextData = {

@@ -19,6 +19,7 @@ import { TodoDrawer } from './TodoDrawer.jsx';
 import { ActivityRow, ACTIVITY_ROW_CSS } from './ActivityRow.jsx';
 import { isItemOverdue, todayIso, greetingPeriod } from './todoUtils.js';
 import { activate } from '../ui/index.jsx';
+import { linkState, ConfirmSuggestionsButton } from './ActivityLink.jsx';
 
 const SORT_MODE_KEY = 'pricetax_todo_sort_mode';
 
@@ -78,6 +79,7 @@ const TODO_BOARD_CSS = `
 `;
 
 const SEM_ATIVIDADE = '__sem__';
+const COM_SUGESTAO = '__sug__';
 
 function collectTodoRows(meetings) {
   const rows = [];
@@ -251,7 +253,8 @@ export function TodoBoardView({
       if (reuniaoFilter && r.meetingId !== reuniaoFilter) return false;
       if (activityFilter) {
         const linked = !!r.activityId && (activityOptions || []).some((o) => o.id === r.activityId);
-        if (activityFilter === SEM_ATIVIDADE ? linked : r.activityId !== activityFilter) return false;
+        if (activityFilter === COM_SUGESTAO) { if (linkState(r, activityOptions).kind !== 'suggested') return false; }
+        else if (activityFilter === SEM_ATIVIDADE ? linked : r.activityId !== activityFilter) return false;
       }
       if (semPrazoOnly && r.dueDate) return false;
       if (comSubtarefasOnly && !(r.subtasks || []).length) return false;
@@ -446,6 +449,7 @@ export function TodoBoardView({
                   <div className="todo-popover-label">Atividade do cronograma</div>
                   <select aria-label="Filtrar por atividade do cronograma" value={activityFilter} onChange={(e) => setActivityFilter(e.target.value)}>
                     <option value="">Todas</option>
+                    <option value={COM_SUGESTAO}>Com sugestão a confirmar</option>
                     <option value={SEM_ATIVIDADE}>Sem atividade vinculada</option>
                     {(activityOptions || []).map((o) => <option key={o.id} value={o.id}>{o.title}</option>)}
                   </select>
@@ -459,9 +463,13 @@ export function TodoBoardView({
           )}
         </div>
 
+        {onLinkActivity && (
+          <ConfirmSuggestionsButton rows={filteredRows} options={activityOptions} onConfirmOne={(r) => onLinkActivity(pid, r.meetingId, r.id, r.activityLink.suggestedId)} />
+        )}
+
         {activityFilter && (
           <button type="button" className="todo-filter-chip active" onClick={() => setActivityFilter('')} title="Remover este filtro" aria-label="Remover o filtro de atividade do cronograma">
-            {activityFilter === SEM_ATIVIDADE ? 'Sem atividade vinculada' : `Atividade: ${activityName(activityFilter) || 'excluída'}`} ✕
+            {activityFilter === SEM_ATIVIDADE ? 'Sem atividade vinculada' : activityFilter === COM_SUGESTAO ? 'Com sugestão a confirmar' : `Atividade: ${activityName(activityFilter) || 'excluída'}`} ✕
           </button>
         )}
 
