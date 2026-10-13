@@ -184,7 +184,7 @@ import ParecerAdviceBox from './ParecerAdviceBox.jsx';
 export function MeetingDetailModal({
   meeting: m, team, externalContacts, clientName, pid, currentUser, log, pushUndoToast,
   onClose, updateMeeting, flushProjectSave, deleteMeeting, toggleParticipant, addParticipant,
-  addActionItem, updateActionItem, deleteActionItem, duplicateActionItem,
+  addActionItem, updateActionItem, deleteActionItem, duplicateActionItem, activityOptions, onLinkActivity,
   addSubtask, toggleSubtask, deleteSubtask, addComment, updateComment, deleteComment, addAttachment, deleteAttachment,
   onViewActivities, onSetShareVisibility, onRegenerateShareLink, onExportPdf, initialOpenItemId, onInitialOpenItemConsumed,
 }) {
@@ -450,6 +450,7 @@ export function MeetingDetailModal({
                       onOpen={(row, focusComment) => { setOpenItemId(row.id); setOpenFocusComment(!!focusComment); }}
                       updateActionItem={updateActionItem} deleteActionItem={deleteActionItem} duplicateActionItem={duplicateActionItem}
                       pushUndoToast={pushUndoToast}
+                      activityOptions={activityOptions} onLinkActivity={onLinkActivity}
                     />
                   ))
                 )}
@@ -495,6 +496,7 @@ export function MeetingDetailModal({
           addComment={addComment} updateComment={updateComment} deleteComment={deleteComment}
           addAttachment={addAttachment} deleteAttachment={deleteAttachment}
           focusComment={openFocusComment}
+          activityOptions={activityOptions} onLinkActivity={onLinkActivity}
         />
       )}
     </div>

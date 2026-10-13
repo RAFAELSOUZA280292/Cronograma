@@ -14,10 +14,14 @@ import { notify } from '../ui/dialogs.jsx';
 import { RecordSaveStatus } from '../ui/index.jsx';
 import { ComposeBox, CommentThread } from '../ui/ComposeBox.jsx';
 import { daysOverdue, isItemOverdue } from './todoUtils.js';
+import { ActivityLinkSelect, ACTIVITY_LINK_CSS } from './ActivityLink.jsx';
 
 const MAX_TODO_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 
 const DRAWER_CSS = `
+  ${ACTIVITY_LINK_CSS}
+  .todo-drawer .alink { display:flex; }
+  .todo-drawer .alink select { width:100%; max-width:none; }
   .todo-drawer-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; justify-content:flex-end; z-index:60; }
   .todo-drawer { width:460px; max-width:94vw; height:100%; background:var(--bg-2); border-left:1px solid var(--border-2); overflow-y:auto; transform:translateX(24px); opacity:0; transition:transform .18s ease, opacity .18s ease; }
   .todo-drawer.open { transform:translateX(0); opacity:1; }
@@ -70,7 +74,7 @@ export function TodoDrawer({
   addSubtask, toggleSubtask, deleteSubtask,
   addComment, updateComment, deleteComment,
   addAttachment, deleteAttachment,
-  focusComment,
+  focusComment, activityOptions, onLinkActivity,
 }) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -192,6 +196,15 @@ export function TodoDrawer({
               {overdue && <div style={{ fontSize: 10.5, color: '#e2574c', fontWeight: 700, marginTop: 2 }}>Vencida há {daysOverdue(item.dueDate)} dia{daysOverdue(item.dueDate) === 1 ? '' : 's'}</div>}
             </div>
           </div>
+
+          {onLinkActivity && (
+            <div className="todo-drawer-meta" style={{ marginTop: 10 }}>
+              <div className="todo-drawer-meta-full">
+                <div className="todo-drawer-meta-label">Atividade do cronograma</div>
+                <ActivityLinkSelect row={item} options={activityOptions} onLink={(v) => onLinkActivity(pid, meeting.id, item.id, v)} labelled="Atividade do cronograma da tarefa" />
+              </div>
+            </div>
+          )}
 
           {meeting && (
             <div className="todo-section">
