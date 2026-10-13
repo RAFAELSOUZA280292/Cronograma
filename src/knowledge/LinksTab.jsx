@@ -3,7 +3,7 @@
 // sugestão), por semana/origem/faixa de confiança, o critério para CONSIDERAR aplicar sozinha (não ativa nada), padrões mais fortes
 // (palavras só com ≥ 3 empresas) e as decisões recentes, com "Esquecer" para administradores. Dados de GET /api/task-links/learning.
 import React, { useCallback, useEffect, useState } from 'react';
-import { RotateCcw, Link2 } from 'lucide-react';
+import { RotateCcw, Link2, CheckCircle2, XCircle } from 'lucide-react';
 import { apiGet, apiPost } from '../lib/api.js';
 import { Kpi, KpiGrid, Section, EmptyState, SkeletonCards, Button, ErrorState } from '../ui/index.jsx';
 import { notify } from '../ui/dialogs.jsx';
@@ -31,11 +31,58 @@ const CSS = `
   .lk-ignored { opacity:.5; text-decoration:line-through; }
   .lk-scroll { overflow-x:auto; }
   .lk-words { color:var(--text-5); font-size:12px; }
+  .lk-check { display:flex; align-items:center; gap:8px; font-size:12.5px; padding:4px 0; }
   @media (max-width: 767px) { .lk-week:nth-child(even) .lk-lab { visibility:hidden; } .lk-weeks { gap:4px; } }
 `;
 
 function Accuracy({ label, a }) {
   return <div className="knw-metric-row"><span>{label}</span><b>{a.n ? `${pct(a.rate)} (${a.n})` : '—'}</b></div>;
+}
+
+function EvalCard({ ops, mode }) {
+  const [state, setState] = useState({ busy: false, report: null, error: '' });
+  async function run() {
+    setState({ busy: true, report: null, error: '' });
+    try { setState({ busy: false, report: await apiPost('/api/task-links/eval', {}), error: '' }); }
+    catch (e) { setState({ busy: false, report: null, error: (e && e.message) || 'Não foi possível rodar a avaliação.' }); }
+  }
+  const r = state.report;
+  const last = ops.lastEval;
+  return (
+    <div className="knw-metric-card">
+      <div className="knw-metric-card-title">Avaliação de qualidade (casos de teste)</div>
+      <div style={{ fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
+        Roda 35 tarefas de exemplo (de uma empresa fictícia, sem dado de cliente) pelo mesmo caminho das sugestões reais e confere se a RENATA acerta. Uma rodada faz 1 chamada de IA. As respostas esperadas são uma primeira leitura: o time deve conferir e ajustar em <code>server/evals/taskLinkEval.js</code>.
+      </div>
+      {mode !== 'normal' && <div style={{ marginTop: 8 }}><span className="lk-pill warn">Modo do ambiente: {mode === 'off' ? 'sugestões desligadas' : 'sem IA (só aprendido e regra)'}</span></div>}
+      {last && !r && <div className="knw-metric-row" style={{ marginTop: 10 }}><span>Última avaliação ({when(last.at)})</span><b>{last.passed ? 'Passou' : 'Não passou'} · precisão {pct(last.precision)} · cobertura {pct(last.coverage)}</b></div>}
+      <div style={{ marginTop: 10 }}><Button size="sm" loading={state.busy} onClick={run}>{state.busy ? 'Avaliando…' : 'Rodar avaliação'}</Button></div>
+      {state.error && <div style={{ color: '#e2574c', fontSize: 12.5, marginTop: 8 }}>{state.error}</div>}
+      {r && (
+        <div style={{ marginTop: 12 }}>
+          {!r.usedAI && <div style={{ color: '#e8a317', fontSize: 12.5, marginBottom: 8 }}>A IA não respondeu{r.aiError ? ` (${r.aiError})` : ''}: este resultado é só da regra de reserva e não vale como avaliação da RENATA.</div>}
+          <div style={{ fontWeight: 800, fontSize: 14, color: r.passed ? OK : '#e2574c' }}>{r.passed ? 'Passou no critério de liberação' : 'Ainda não passou no critério de liberação'}</div>
+          {r.checks.map((c) => (
+            <div key={c.id} className="lk-check">
+              {c.pass ? <CheckCircle2 size={14} color={OK} aria-hidden="true" /> : <XCircle size={14} color="#e2574c" aria-hidden="true" />}
+              <span>{c.label}: <b>{pct(c.value)}</b></span>
+            </div>
+          ))}
+          <div className="lk-words" style={{ marginTop: 6 }}>
+            {r.metrics.suggested} sugestões em {r.metrics.positives} tarefas com atividade ({r.missed.length} sem sugestão) · {r.metrics.falsePositiveN} sugestão(ões) em {r.metrics.negatives} tarefas sem atividade · {r.ms} ms · {(r.usage.input + r.usage.output).toLocaleString('pt-BR')} tokens
+          </div>
+          {r.failures.length > 0 && (
+            <div className="lk-scroll" style={{ marginTop: 10 }}>
+              <table className="knw-table">
+                <thead><tr><th>Tarefa</th><th>Esperado</th><th>A RENATA sugeriu</th></tr></thead>
+                <tbody>{r.failures.map((f) => <tr key={f.id}><td>{f.title}</td><td>{f.expected}</td><td>{f.got || '—'}{f.confidence != null ? <span className="lk-words"> · {pct(f.confidence)}</span> : null}</td></tr>)}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function LinksTab() {
@@ -57,7 +104,7 @@ export function LinksTab() {
 
   if (error) return <ErrorState title="Não foi possível carregar" message={error} onRetry={load} />;
   if (!data) return <SkeletonCards count={3} height={110} />;
-  const { totals, accuracy, weekly, gate, state, patterns, recent, canForget } = data;
+  const { totals, accuracy, weekly, gate, state, patterns, recent, canForget, ops, mode } = data;
   const maxN = Math.max(1, ...weekly.map((w) => w.n));
   const gateN = Math.min(1, gate.high.n / gate.minDecisions);
   const empty = totals.decisions === 0;
@@ -112,6 +159,23 @@ export function LinksTab() {
           <div style={{ marginTop: 10 }}><span className={`lk-pill ${gate.ready ? 'ok' : 'warn'}`}>{gate.ready ? 'Critério atingido — vale conversar' : 'Critério ainda não atingido'}</span></div>
         </div>
       </div>
+
+      <Section title="Qualidade e custo">
+        <div className="knw-metric-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
+          <div className="knw-metric-card">
+            <div className="knw-metric-card-title">Custo e erros (30 dias)</div>
+            <div className="knw-metric-row"><span>Pedidos de sugestão</span><b>{ops.runs}</b></div>
+            <div className="knw-metric-row"><span>Tarefas avaliadas / com sugestão</span><b>{ops.tasks} / {ops.suggested}</b></div>
+            <div className="knw-metric-row"><span>Resolvidas pelo aprendizado (sem IA)</span><b>{ops.learned}</b></div>
+            <div className="knw-metric-row"><span>Pedidos que usaram a IA</span><b>{ops.aiRuns}</b></div>
+            <div className="knw-metric-row"><span>Falhas da IA (caiu para a regra)</span><b style={ops.aiFailed ? { color: '#e2574c' } : undefined}>{ops.aiFailed}</b></div>
+            <div className="knw-metric-row"><span>Tokens de entrada / saída</span><b>{ops.inputTokens.toLocaleString('pt-BR')} / {ops.outputTokens.toLocaleString('pt-BR')}</b></div>
+          </div>
+          {canForget ? <EvalCard ops={ops} mode={mode} /> : (
+            <div className="knw-metric-card"><div className="knw-metric-card-title">Avaliação de qualidade</div><div className="knw-empty-hint">{ops.lastEval ? `Última: ${ops.lastEval.passed ? 'passou' : 'não passou'} · precisão ${pct(ops.lastEval.precision)} (${when(ops.lastEval.at)})` : 'Só administradores rodam a avaliação.'}</div></div>
+          )}
+        </div>
+      </Section>
 
       <Section title="Padrões mais fortes">
         <div className="knw-metric-card lk-scroll">

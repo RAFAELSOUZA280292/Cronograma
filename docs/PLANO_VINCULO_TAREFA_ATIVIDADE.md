@@ -1,6 +1,6 @@
 # Plano — vincular cada tarefa de reunião à atividade do cronograma (e a RENATA aprender com as confirmações)
 
-Criado em 2026-10-13. **Aprovado pelo Rafael (7 recomendações) em 2026-10-13. Fases 1 a 4 implementadas; Fase 5 (qualidade com transcrições reais) pendente.** (Fase 3: aprendizado por palavras, sem embeddings — a Voyage grátis não comporta; ver §65.) (Desvio na Fase 1: a rota só registra a decisão no livro-razão; o campo da tarefa vai pelo caminho normal do cliente — ver PROJECT_CONTEXT §65.) Pedido do Rafael: ao gerar tarefas a partir de uma transcrição, achar a
+Criado em 2026-10-13. **Aprovado pelo Rafael (7 recomendações) em 2026-10-13. Fases 1 a 5 implementadas; falta a conferência dos 35 casos pelo time e a 1ª avaliação com IA real em produção.** (Fase 3: aprendizado por palavras, sem embeddings — a Voyage grátis não comporta; ver §65.) (Desvio na Fase 1: a rota só registra a decisão no livro-razão; o campo da tarefa vai pelo caminho normal do cliente — ver PROJECT_CONTEXT §65.) Pedido do Rafael: ao gerar tarefas a partir de uma transcrição, achar a
 atividade da aba **Resumo/Gantt** (Kickoff, Envio de dados, Prévia AR, Prévia DR, Workshop, Compras, Análise, Validação documental,
 Comitê da reforma…) a que cada tarefa pertence; o usuário **confirma** e a RENATA **aprende**.
 
@@ -122,3 +122,13 @@ Ordem recomendada: 0 → 1 → 2 → 3 → 4 → 5. A fase 1 entrega valor sozin
 - **Voyage 3 pedidos/min:** a camada 1 cai para palavras; não bloqueia.
 - **Custo:** 1 chamada barata por transcrição (≤ ~20 tarefas × ≤ ~30 atividades) — pequeno perto da extração (Opus).
 - **Documentação:** ao implementar, atualizar `PROJECT_CONTEXT.md`, `docs/PROJECT_MAP.md` e a memória na mesma sessão.
+
+## Fase 5 — como foi feita e como liberar (2026-10-13)
+
+- **Conjunto de avaliação** em `server/evals/taskLinkEval.js` (35 tarefas de uma empresa fictícia; 6 sem atividade para medir falso-positivo). As respostas esperadas são uma primeira leitura: **o Felipe/Rafael devem conferir e ajustar** (campo `accept` de cada caso). Em vez das "~10 perguntas reais do Felipe" (não tenho acesso a elas), o arquivo é o lugar de acrescentar casos reais.
+- **Critério** (`RELEASE_GATE`): precisão ≥ 85%, precisão com confiança ≥ 80% ≥ 90% (mín. 8 casos), sugestão em tarefa sem atividade ≤ 25%, cobertura ≥ 60%.
+- **Rodar**: Central de Conhecimento › Tarefas × atividades › "Rodar avaliação" (administrador, 1 chamada de IA, máx. 3/hora).
+- **Linha de base sem IA** (só regra): cobertura 34%, precisão 90%, 0 falso-positivo → reprova; a IA é necessária.
+- **Acompanhar**: cartão "Custo e erros" + taxa de acerto semanal do mesmo painel.
+- **Emergência**: variável do Railway `TASK_LINK_MODE` = `off` (nada sugere) ou `sem-ia` (só aprendido + regra).
+- **Isolamento**: testado por HTTP (2 organizações, usuário restrito por CNPJ, cliente, sem login).
