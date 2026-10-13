@@ -19,6 +19,7 @@ import { DialogOverlay } from '../ui/dialog.jsx';
 import { RecordSaveStatus } from '../ui/index.jsx';
 import { TODO_STATUS_META, todoStatusMeta } from './Meetings.jsx';
 import { ActivityRow, ACTIVITY_ROW_CSS } from './ActivityRow.jsx';
+import { ConfirmSuggestionsButton } from './ActivityLink.jsx';
 import { TodoDrawer } from './TodoDrawer.jsx';
 import { TranscriptView } from './TranscriptView.jsx';
 import { initials, avatarColor } from './todoUtils.js';
@@ -435,6 +436,9 @@ export function MeetingDetailModal({
                 </div>
               </div>
               <div className="mtg2-activities-list">
+                {onLinkActivity && (
+                  <ConfirmSuggestionsButton rows={activeItems} options={activityOptions} onConfirmOne={(it) => onLinkActivity(pid, m.id, it.id, it.activityLink.suggestedId)} />
+                )}
                 {activeItems.length === 0 ? (
                   <div className="mtg2-empty">
                     Nenhuma tarefa foi criada a partir desta reunião.

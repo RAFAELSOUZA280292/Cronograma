@@ -28,28 +28,31 @@ export function findActivity(data, activityId) {
 }
 
 // Linha do livro-razão a partir do que o servidor VÊ no projeto (nunca confia no texto vindo do cliente).
-export function ledgerRow({ project, taskId, decision, chosenActivityId, suggestedActivityId, source, userId }) {
+export function ledgerRow({ project, taskId, decision, chosenActivityId, suggestedActivityId, source, confidence, userId }) {
   const task = findTask(project.data, taskId);
   if (!task) return { error: 'Tarefa não encontrada.' };
   if (!DECISIONS.includes(decision)) return { error: 'Decisão inválida.' };
   const chosen = findActivity(project.data, chosenActivityId);
   const suggested = findActivity(project.data, suggestedActivityId);
   if (decision !== 'nenhuma' && !chosen) return { error: 'Atividade não encontrada neste cronograma.' };
+  // A decisão é derivada aqui (não do que o cliente diz): com sugestão, igual = confirmou, diferente = corrigiu; sem sugestão = escolheu.
+  const final = decision === 'nenhuma' ? 'nenhuma' : !suggested ? 'escolheu' : suggested.id === chosen.id ? 'confirmou' : 'corrigiu';
   return {
     row: {
       orgId: project.org_id, projectId: project.id, taskId,
       taskText: clip(norm(task.title), 300), taskArea: clip(task.area, 40), ownerSide: task.owner === 'cliente' ? 'cliente' : 'pricetax',
       suggestedKey: suggested ? activityKey(suggested.title) : '', chosenKey: chosen ? activityKey(chosen.title) : '',
-      decision, source: clip(source || 'manual', 20), userId: clip(userId, 80),
+      decision: final, source: clip(source || 'manual', 20), userId: clip(userId, 80),
+      confidence: suggested && Number.isFinite(Number(confidence)) ? Math.max(0, Math.min(1, Number(confidence))) : null,
     },
   };
 }
 
 export async function recordDecision(db, row) {
   await db.query(
-    `INSERT INTO task_activity_links (org_id, project_id, task_id, task_text, task_area, owner_side, suggested_activity_key, chosen_activity_key, decision, source, user_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-    [row.orgId, row.projectId, row.taskId, row.taskText, row.taskArea, row.ownerSide, row.suggestedKey, row.chosenKey, row.decision, row.source, row.userId],
+    `INSERT INTO task_activity_links (org_id, project_id, task_id, task_text, task_area, owner_side, suggested_activity_key, chosen_activity_key, decision, source, user_id, confidence)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+    [row.orgId, row.projectId, row.taskId, row.taskText, row.taskArea, row.ownerSide, row.suggestedKey, row.chosenKey, row.decision, row.source, row.userId, row.confidence],
   );
 }
 
@@ -57,12 +60,12 @@ export const router = Router();
 
 router.post('/', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
   try {
-    const { projectId, taskId, decision, activityId, suggestedActivityId, source } = req.body || {};
+    const { projectId, taskId, decision, activityId, suggestedActivityId, source, confidence } = req.body || {};
     if (typeof projectId !== 'string' || typeof taskId !== 'string') return res.status(400).json({ message: 'Informe a empresa e a tarefa.' });
     const { rows } = await pool.query('SELECT id, org_id, data FROM projects WHERE id=$1', [projectId]);
     const project = rows[0];
     if (!project || !canAccessProject(req.user, project.data, project.org_id)) return res.status(404).json({ message: 'Empresa não encontrada.' });
-    const built = ledgerRow({ project, taskId, decision, chosenActivityId: activityId, suggestedActivityId, source, userId: req.user.id });
+    const built = ledgerRow({ project, taskId, decision, chosenActivityId: activityId, suggestedActivityId, source, confidence, userId: req.user.id });
     if (built.error) return res.status(400).json({ message: built.error });
     await recordDecision(pool, built.row);
     res.status(201).json({ ok: true });

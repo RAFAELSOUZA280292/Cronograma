@@ -2619,20 +2619,28 @@ function AppScreens({ shellRef, bump }) {
     const act = value && value !== NO_ACTIVITY ? (project.activities || []).find((a) => a.id === value && !a.deleted) : null;
     if (value && value !== NO_ACTIVITY && !act) return;
     const now = new Date().toISOString();
+    const sug = item.activityLink && item.activityLink.status === 'suggested' ? item.activityLink : null; // sugestão da RENATA ainda pendente
+    const base = { confirmedBy: who, confirmedAt: now, source: sug ? 'sugestao' : 'manual', ...(sug ? { suggestedId: sug.suggestedId, confidence: sug.confidence } : {}) };
     const patch = !value
       ? { activityId: '', activityLink: null }
       : act
-        ? { activityId: act.id, activityLink: { status: 'confirmed', source: 'manual', confirmedBy: who, confirmedAt: now } }
-        : { activityId: '', activityLink: { status: 'none', source: 'manual', confirmedBy: who, confirmedAt: now } };
-    const logMsg = !value ? `${who} removeu o vínculo da tarefa "${item.title}" com o cronograma`
-      : act ? `${who} vinculou a tarefa "${item.title}" à atividade "${act.title}"`
+        ? { activityId: act.id, activityLink: { status: 'confirmed', ...base } }
+        : { activityId: '', activityLink: { status: 'none', ...base } };
+    const suggestedTitle = sug ? ((project.activities || []).find((a) => a.id === sug.suggestedId) || {}).title : '';
+    const logMsg = !value ? (sug ? `${who} dispensou a sugestão de atividade da tarefa "${item.title}"` : `${who} removeu o vínculo da tarefa "${item.title}" com o cronograma`)
+      : act ? (sug && act.id === sug.suggestedId ? `${who} confirmou a sugestão da RENATA: tarefa "${item.title}" na atividade "${act.title}"`
+        : sug ? `${who} trocou a sugestão da RENATA${suggestedTitle ? ` ("${suggestedTitle}")` : ''}: tarefa "${item.title}" vinculada à atividade "${act.title}"`
+          : `${who} vinculou a tarefa "${item.title}" à atividade "${act.title}"`)
         : `${who} marcou que nenhuma atividade do cronograma se aplica à tarefa "${item.title}"`;
     mutateProject(targetPid, (p) => ({
       ...p,
       meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id === itemId ? { ...it, ...patch } : it)) })),
     }), logMsg, itemId);
     if (value) {
-      apiPost('/api/task-links', { projectId: targetPid, taskId: itemId, decision: act ? 'escolheu' : 'nenhuma', activityId: act ? act.id : undefined, source: 'manual' }).catch(() => {});
+      apiPost('/api/task-links', {
+        projectId: targetPid, taskId: itemId, decision: act ? 'escolheu' : 'nenhuma', activityId: act ? act.id : undefined,
+        suggestedActivityId: sug ? sug.suggestedId : undefined, confidence: sug ? sug.confidence : undefined, source: sug ? (sug.source || 'ia') : 'manual',
+      }).catch(() => {});
     }
   }
 
