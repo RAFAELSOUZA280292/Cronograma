@@ -1,6 +1,6 @@
 # Plano — vincular cada tarefa de reunião à atividade do cronograma (e a RENATA aprender com as confirmações)
 
-Criado em 2026-10-13. **Aprovado pelo Rafael (7 recomendações) em 2026-10-13. Fases 1, 2 e 3 implementadas; Fases 4-5 pendentes.** (Fase 3: aprendizado por palavras, sem embeddings — a Voyage grátis não comporta; ver §65.) (Desvio na Fase 1: a rota só registra a decisão no livro-razão; o campo da tarefa vai pelo caminho normal do cliente — ver PROJECT_CONTEXT §65.) Pedido do Rafael: ao gerar tarefas a partir de uma transcrição, achar a
+Criado em 2026-10-13. **Aprovado pelo Rafael (7 recomendações) em 2026-10-13. Fases 1 a 4 implementadas; Fase 5 (qualidade com transcrições reais) pendente.** (Fase 3: aprendizado por palavras, sem embeddings — a Voyage grátis não comporta; ver §65.) (Desvio na Fase 1: a rota só registra a decisão no livro-razão; o campo da tarefa vai pelo caminho normal do cliente — ver PROJECT_CONTEXT §65.) Pedido do Rafael: ao gerar tarefas a partir de uma transcrição, achar a
 atividade da aba **Resumo/Gantt** (Kickoff, Envio de dados, Prévia AR, Prévia DR, Workshop, Compras, Análise, Validação documental,
 Comitê da reforma…) a que cada tarefa pertence; o usuário **confirma** e a RENATA **aprende**.
 

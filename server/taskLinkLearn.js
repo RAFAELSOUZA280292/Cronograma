@@ -26,11 +26,12 @@ export function collapseDecisions(rows) {
 
 export async function loadLedgerExamples(db, orgId) {
   const { rows } = await db.query(
-    `SELECT id, project_id, task_id, task_text, task_area, chosen_activity_key, suggested_activity_key, decision
+    `SELECT id, project_id, task_id, task_text, task_area, chosen_activity_key, suggested_activity_key, decision, ignored
      FROM task_activity_links WHERE org_id=$1 ORDER BY id DESC LIMIT 5000`,
     [orgId],
   );
-  return collapseDecisions(rows).map((r) => ({
+  // "Esquecer" (painel): a decisão mais recente de uma tarefa marcada como ignorada tira a tarefa do aprendizado (não ressuscita a anterior).
+  return collapseDecisions(rows).filter((r) => !r.ignored).map((r) => ({
     projectId: r.project_id, taskId: r.task_id, text: r.task_text, area: r.task_area || '', chosenKey: r.chosen_activity_key || '',
     suggestedKey: r.suggested_activity_key || '', decision: r.decision,
   }));

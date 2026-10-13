@@ -238,6 +238,8 @@ export function buildProjectSnapshot(project) {
     });
   }
 
+  const linkedTitles = new Map(activities.filter((x) => x && !x.deleted).map((x) => [x.id, x.title]));
+  const linkedTag = (it) => (it.activityId && linkedTitles.get(it.activityId) ? `, atividade do cronograma: "${linkedTitles.get(it.activityId)}"` : '');
   const allTodos = [];
   meetings.forEach((m) => (m.actionItems || []).filter((it) => !it.deleted).forEach((it) => allTodos.push({ ...it, meetingTitle: m.title, meetingDate: m.date, meetingId: m.id })));
   const pendingTodos = allTodos.filter((it) => it.status !== 'concluida' && it.status !== 'nao-relevante');
@@ -254,8 +256,21 @@ export function buildProjectSnapshot(project) {
     lines.push(`- Pendências de reunião em aberto (${pendingTodos.length} no total, mais antiga primeiro; id da pendência e da reunião entre colchetes — use exatamente esses ids em delete_meeting_todo, no formato todoItemId=id da pendência, meetingId=id da reunião):`);
     pendingTodos.slice(0, 12).forEach((it) => {
       const aiTag = (it.createdBy || '').includes('Assistente') ? ' [criada por você, o Assistente]' : '';
-      lines.push(`  · [todoItemId=${it.id}, meetingId=${it.meetingId}] "${it.title}" — responsável: ${it.responsible || 'sem responsável'}, prazo: ${it.dueDate || 'sem prazo'}, status: ${TODO_STATUS_LABEL[it.status] || it.status}, reunião: "${it.meetingTitle}"${aiTag}`);
+      lines.push(`  · [todoItemId=${it.id}, meetingId=${it.meetingId}] "${it.title}" — responsável: ${it.responsible || 'sem responsável'}, prazo: ${it.dueDate || 'sem prazo'}, status: ${TODO_STATUS_LABEL[it.status] || it.status}${linkedTag(it)}, reunião: "${it.meetingTitle}"${aiTag}`);
     });
+  }
+  // Tarefas de reunião agrupadas pela atividade do cronograma a que foram vinculadas (só vínculo CONFIRMADO; sugestão pendente é dito à parte).
+  const actTitleById = new Map(activities.filter((x) => x && !x.deleted).map((x) => [x.id, x.title]));
+  const byActivity = new Map();
+  pendingTodos.forEach((it) => { const t = it.activityId && actTitleById.get(it.activityId); if (t) (byActivity.get(it.activityId) || byActivity.set(it.activityId, { title: t, items: [] }).get(it.activityId)).items.push(it); });
+  const withoutLink = pendingTodos.filter((it) => !(it.activityId && actTitleById.get(it.activityId)));
+  if (byActivity.size) {
+    lines.push(`- PENDÊNCIAS DE REUNIÃO AGRUPADAS PELA ATIVIDADE DO CRONOGRAMA (vínculo confirmado por uma pessoa; use para responder "o que está pendente em <atividade>?"):`);
+    [...byActivity.values()].sort((x, y) => y.items.length - x.items.length).slice(0, 12).forEach((g) => {
+      lines.push(`  · ${g.title}: ${g.items.length} em aberto — ${g.items.slice(0, 5).map((it) => `"${it.title}"`).join('; ')}${g.items.length > 5 ? `; e mais ${g.items.length - 5}` : ''}`);
+    });
+    const pend = withoutLink.filter((it) => it.activityLink && it.activityLink.status === 'suggested').length;
+    lines.push(`  · ${withoutLink.length} pendência(s) em aberto SEM atividade do cronograma vinculada${pend ? ` (${pend} com sugestão a confirmar)` : ''} — não as atribua a uma atividade por conta própria.`);
   }
   if (aiCreatedTodos.length) {
     lines.push(`- Dessas, ${aiCreatedTodos.length} foram criadas por você mesmo (o Assistente) a pedido do usuário em conversa anterior e ainda não foram concluídas — quando fizer sentido no contexto, pergunte proativamente se já foram resolvidas.`);

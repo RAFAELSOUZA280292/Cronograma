@@ -124,3 +124,112 @@ router.post('/suggest', requireAuth, requireMasterOrPricetax, async (req, res, n
     res.json({ suggestions: sug.suggestions, considered: batch.length, remaining: eligible.length - batch.length, usedAI: sug.usedAI, learned: sug.learned || 0 });
   } catch (e) { next(e); }
 });
+
+// ---------- Painel "O que a RENATA aprendeu" (Fase 4) ----------
+const GATE = { minDecisions: 100, minRate: 0.9, band: 0.8 }; // critério do plano para CONSIDERAR (não ativa nada) aplicar sozinha
+const isAdmin = (u) => !!u && (u.isSuperAdmin || u.role === 'master');
+const ratio = (conf, n) => (n ? Math.round((conf / n) * 1000) / 1000 : null);
+
+// Taxa de acerto = confirmou ÷ (confirmou + corrigiu + nenhuma) sobre decisões em que HAVIA uma sugestão. Função pura (testável).
+export function learningStats(rows, now = new Date()) {
+  const withSug = rows.filter((r) => r.suggested_activity_key && ['confirmou', 'corrigiu', 'nenhuma'].includes(r.decision));
+  const hit = (r) => r.decision === 'confirmou';
+  const agg = (list) => ({ n: list.length, rate: ratio(list.filter(hit).length, list.length) });
+  const bySource = {};
+  for (const src of ['ia', 'aprendido', 'regra']) bySource[src] = agg(withSug.filter((r) => r.source === src));
+  const high = withSug.filter((r) => Number(r.confidence) >= GATE.band);
+  const low = withSug.filter((r) => !(Number(r.confidence) >= GATE.band));
+  // Semanas (segunda a domingo, em UTC a partir do carimbo) — as últimas 12, incluindo as vazias.
+  const monday = (d) => { const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7)); return x; };
+  const start = monday(now); start.setUTCDate(start.getUTCDate() - 11 * 7);
+  const weeks = Array.from({ length: 12 }, (_, i) => { const d = new Date(start); d.setUTCDate(d.getUTCDate() + i * 7); return { week: d.toISOString().slice(0, 10), n: 0, confirmed: 0 }; });
+  for (const r of withSug) {
+    const w = monday(new Date(r.created_at)).toISOString().slice(0, 10);
+    const slot = weeks.find((x) => x.week === w);
+    if (slot) { slot.n += 1; if (hit(r)) slot.confirmed += 1; }
+  }
+  const all = agg(withSug);
+  return {
+    totals: {
+      decisions: rows.length, withSuggestion: withSug.length, confirmed: withSug.filter(hit).length,
+      corrected: withSug.filter((r) => r.decision === 'corrigiu').length, dismissed: withSug.filter((r) => r.decision === 'nenhuma').length,
+      manual: rows.filter((r) => !r.suggested_activity_key).length,
+    },
+    accuracy: { overall: all.rate, n: all.n, bySource, byBand: { high: agg(high), low: agg(low) } },
+    weekly: weeks.map((w) => ({ week: w.week, n: w.n, confirmed: w.confirmed, rate: ratio(w.confirmed, w.n) })),
+    gate: { ...GATE, high: agg(high), ready: high.length >= GATE.minDecisions && (ratio(high.filter(hit).length, high.length) || 0) >= GATE.minRate },
+  };
+}
+
+// Padrões mais fortes por atividade-tipo. Palavras só aparecem se estiverem em ≥ MIN_FLOOR empresas diferentes (mesma regra do aprendizado).
+export function learningPatterns(rows, labelOfKey, floor = 3) {
+  const per = new Map();
+  for (const r of rows) {
+    if (r.ignored || !r.chosen_activity_key || !['escolheu', 'confirmou', 'corrigiu'].includes(r.decision)) continue;
+    const e = per.get(r.chosen_activity_key) || { key: r.chosen_activity_key, decisions: 0, projects: new Set(), words: new Map() };
+    e.decisions += 1; e.projects.add(r.project_id);
+    for (const w of new Set(String(r.task_text || '').split(' ').filter((x) => x.length > 3))) {
+      const set = e.words.get(w) || e.words.set(w, new Set()).get(w); set.add(r.project_id);
+    }
+    per.set(r.chosen_activity_key, e);
+  }
+  return [...per.values()].sort((a, b) => b.decisions - a.decisions || a.key.localeCompare(b.key)).slice(0, 12).map((e) => ({
+    activity: labelOfKey(e.key), decisions: e.decisions, companies: e.projects.size,
+    words: [...e.words.entries()].filter(([, ps]) => ps.size >= floor).sort((a, b) => b[1].size - a[1].size).slice(0, 6).map(([w]) => w),
+  }));
+}
+
+router.get('/learning', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
+  try {
+    const orgId = req.user.isSuperAdmin && req.query.asOrg ? req.query.asOrg : req.user.orgId;
+    const { rows: projs } = await pool.query('SELECT id, org_id, data FROM projects WHERE org_id=$1', [orgId]);
+    const mine = projs.filter((p) => canAccessProject(req.user, p.data, p.org_id));
+    const ids = mine.map((p) => p.id);
+    const nameOf = new Map(mine.map((p) => [p.id, (p.data.company && (p.data.company.nomeFantasia || p.data.company.name)) || 'Empresa']));
+    const { rows } = await pool.query(
+      `SELECT id, project_id, task_id, task_text, chosen_activity_key, suggested_activity_key, decision, source, confidence, ignored, created_at
+       FROM task_activity_links WHERE org_id=$1 AND project_id = ANY($2) ORDER BY id DESC LIMIT 5000`, [orgId, ids]);
+    // Rótulo legível de uma chave: o título de atividade mais comum, entre as empresas que o usuário vê, cuja chave é essa.
+    const labels = new Map();
+    for (const p of mine) for (const a of p.data.activities || []) {
+      if (!a || a.deleted || !a.title) continue;
+      const k = keyOf(a.title); const m = labels.get(k) || labels.set(k, new Map()).get(k); m.set(a.title, (m.get(a.title) || 0) + 1);
+    }
+    const labelOfKey = (k) => { const m = labels.get(k); return m ? [...m.entries()].sort((a, b) => b[1] - a[1])[0][0] : (k || '—'); };
+    // Situação atual das tarefas de reunião (vinculada / a confirmar / "nenhuma" / sem vínculo).
+    const state = { linked: 0, pending: 0, none: 0, unlinked: 0 };
+    for (const p of mine) for (const m of p.data.meetings || []) {
+      if (!m || m.deleted) continue;
+      const live = new Set((p.data.activities || []).filter((a) => a && !a.deleted).map((a) => a.id));
+      for (const it of m.actionItems || []) {
+        if (!it || it.deleted || it.status === 'nao-relevante') continue;
+        const l = it.activityLink;
+        if (it.activityId && live.has(it.activityId)) state.linked += 1;
+        else if (l && l.status === 'none') state.none += 1;
+        else if (l && l.status === 'suggested' && live.has(l.suggestedId)) state.pending += 1;
+        else state.unlinked += 1;
+      }
+    }
+    const recent = rows.slice(0, 40).map((r) => ({
+      id: String(r.id), company: nameOf.get(r.project_id) || 'Empresa', text: r.task_text, decision: r.decision, source: r.source,
+      chosen: r.chosen_activity_key ? labelOfKey(r.chosen_activity_key) : '', suggested: r.suggested_activity_key ? labelOfKey(r.suggested_activity_key) : '',
+      confidence: r.confidence == null ? null : Number(r.confidence), ignored: !!r.ignored, at: r.created_at.toISOString(),
+    }));
+    res.json({ ...learningStats(rows), state, patterns: learningPatterns(rows, labelOfKey), recent, canForget: isAdmin(req.user) });
+  } catch (e) { next(e); }
+});
+
+router.post('/forget', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
+  try {
+    if (!isAdmin(req.user)) return res.status(403).json({ message: 'Só administradores podem esquecer um aprendizado.' });
+    const { id, ignored } = req.body || {};
+    if (!/^\d+$/.test(String(id || ''))) return res.status(400).json({ message: 'Informe a decisão.' });
+    const { rows } = await pool.query('SELECT id, org_id, project_id FROM task_activity_links WHERE id=$1', [id]);
+    const row = rows[0];
+    if (!row) return res.status(404).json({ message: 'Decisão não encontrada.' });
+    const { rows: pr } = await pool.query('SELECT id, org_id, data FROM projects WHERE id=$1', [row.project_id]);
+    if (!pr[0] || !canAccessProject(req.user, pr[0].data, pr[0].org_id) || pr[0].org_id !== row.org_id) return res.status(404).json({ message: 'Decisão não encontrada.' });
+    await pool.query('UPDATE task_activity_links SET ignored=$2 WHERE id=$1', [id, ignored !== false]);
+    res.json({ ok: true, ignored: ignored !== false });
+  } catch (e) { next(e); }
+});

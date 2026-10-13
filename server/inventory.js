@@ -43,6 +43,7 @@ export function buildItems(projectRows, today) {
     const label = company.nomeFantasia || company.name || 'Empresa sem nome';
     const paused = company.status === 'pausado';
     const phases = data.phases || [];
+    const actTitle = new Map((data.activities || []).filter((x) => x && !x.deleted).map((x) => [x.id, x.title || '']));
     for (const a of data.activities || []) {
       if (!a || a.deleted) continue;
       const phaseName = (phases.find((ph) => ph.id === a.phase) || {}).name || '';
@@ -69,7 +70,10 @@ export function buildItems(projectRows, today) {
         const date = it.dueDate || '';
         const subs = (it.subtasks || []).filter((s) => s && !s.deleted);
         items.push({
-          origin: 'reuniao', ref: `reuniao|${p.id}|${m.id}|${it.id}`, projectId: p.id, activityId: '', taskId: it.id, meetingId: m.id, meetingTitle: m.title || '', meetingDate: m.date || '',
+          origin: 'reuniao', ref: `reuniao|${p.id}|${m.id}|${it.id}`, projectId: p.id, activityId: '', taskId: it.id,
+          // Vínculo com a atividade do cronograma (plano docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md): só o confirmado conta; sugestão pendente é à parte.
+          linkedActivity: it.activityId ? (actTitle.get(it.activityId) || '') : '', linkPending: !it.activityId && !!it.activityLink && it.activityLink.status === 'suggested' && actTitle.has(it.activityLink.suggestedId),
+          linkNone: !it.activityId && !!it.activityLink && it.activityLink.status === 'none', meetingId: m.id, meetingTitle: m.title || '', meetingDate: m.date || '',
           owner: it.owner === 'cliente' ? 'cliente' : 'pricetax', company: label, companyPaused: paused,
           ...areaFields(it.area, it.responsible), responsibleConfirmed: !!it.responsibleConfirmed,
           title: it.title || '', desc: it.notes || it.subtitle || '',
@@ -212,6 +216,9 @@ export function buildQuality(projectRows, items, userNames, today) {
     noResponsible: { cronograma: by(open.filter((i) => !i.responsible), 'cronograma'), reuniao: by(open.filter((i) => !i.responsible), 'reuniao') },
     noDate: { cronograma: by(open.filter((i) => !i.date), 'cronograma'), reuniao: by(open.filter((i) => !i.date), 'reuniao') },
     noArea: { cronograma: by(open.filter((i) => !i.area), 'cronograma'), reuniao: by(open.filter((i) => !i.area), 'reuniao') },
+    // Tarefas de reunião sem atividade do cronograma: nem vinculadas, nem marcadas "nenhuma se aplica" (as com sugestão pendente contam à parte).
+    noActivityLink: open.filter((i) => i.origin === 'reuniao' && !i.linkedActivity && !i.linkNone && !i.linkPending).length,
+    linkPending: open.filter((i) => i.origin === 'reuniao' && i.linkPending).length,
   };
   // Quem é avaliado: atividades do cronograma e tarefas de reunião do lado PRICETAX (o lado do cliente tem gente de fora da equipe).
   const people = { evaluated: 0, recognized: 0, area: 0, partial: 0, ambiguous: 0, unknown: 0, clientSide: open.filter((i) => i.origin === 'reuniao' && i.owner === 'cliente').length };
@@ -285,6 +292,8 @@ export function inventoryContextText(items) {
     const resp = (g.children || []).slice(0, 8).map((c) => `${c.label} ${c.counts.total}`).join(', ');
     lines.push(`- ${g.label}: ${g.counts.total} em ${g.counts.companies} empresa(s), ${g.counts.overdue} atrasada(s) — ${resp}`);
   }
+  const meetingOpen = open.filter((i) => i.origin === 'reuniao');
+  if (meetingOpen.length) lines.push(`Tarefas de reunião em aberto: ${meetingOpen.filter((i) => i.linkedActivity).length} vinculadas a uma atividade do cronograma, ${meetingOpen.filter((i) => i.linkPending).length} com sugestão a confirmar, ${meetingOpen.filter((i) => !i.linkedActivity && !i.linkNone && !i.linkPending).length} sem vínculo.`);
   lines.push('Por responsável:');
   for (const g of buildGroups(open, 'responsible').slice(0, 20)) lines.push(`- ${g.label}: ${g.counts.total} em ${g.counts.companies} empresa(s), ${g.counts.overdue} atrasada(s)`);
   return lines.join('\n');
@@ -339,10 +348,11 @@ router.get('/export.xlsx', async (req, res, next) => {
       'Descrição': clip(i.desc, 1500), Status: STATUS_LABEL[i.status], Prioridade: PRIORITY_LABEL[i.priority] || '',
       'Início': brDate(i.date), 'Fim': brDate(i.endDate), Atrasada: i.overdue ? 'Sim' : '',
       'Subatividades': i.subTotal ? `${i.subDone}/${i.subTotal}` : '',
+      'Atividade do cronograma': i.origin === 'reuniao' ? (i.linkedActivity || (i.linkNone ? '(nenhuma se aplica)' : i.linkPending ? '(sugestão a confirmar)' : '')) : '',
     }));
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Aviso: 'Nenhuma atividade com esses filtros.' }]);
-    ws['!cols'] = [28, 12, 36, 10, 22, 14, 22, 50, 60, 14, 12, 12, 12, 10, 14].map((wch) => ({ wch }));
+    ws['!cols'] = [28, 12, 36, 10, 22, 14, 22, 50, 60, 14, 12, 12, 12, 10, 14, 30].map((wch) => ({ wch }));
     XLSX.utils.book_append_sheet(wb, ws, 'Atividades');
     // Fase × Responsável (contagem) — a mesma agregação da tela.
     const pivot = [];
