@@ -125,10 +125,11 @@ Ordem recomendada: 0 → 1 → 2 → 3 → 4 → 5. A fase 1 entrega valor sozin
 
 ## Fase 5 — como foi feita e como liberar (2026-10-13)
 
-- **Conjunto de avaliação** em `server/evals/taskLinkEval.js` (35 tarefas de uma empresa fictícia; 6 sem atividade para medir falso-positivo). As respostas esperadas são uma primeira leitura: **o Felipe/Rafael devem conferir e ajustar** (campo `accept` de cada caso). Em vez das "~10 perguntas reais do Felipe" (não tenho acesso a elas), o arquivo é o lugar de acrescentar casos reais.
+- **Conjunto de avaliação** em `server/evals/taskLinkEval.js` (56 tarefas de uma empresa fictícia com 19 atividades; 12 sem atividade para medir falso-positivo; inclui armadilhas de palavra-chave). As respostas esperadas são uma primeira leitura: **o Felipe/Rafael devem conferir e ajustar** (campo `accept` de cada caso). Em vez das "~10 perguntas reais do Felipe" (não tenho acesso a elas), o arquivo é o lugar de acrescentar casos reais.
 - **Critério** (`RELEASE_GATE`): precisão ≥ 85%, precisão com confiança ≥ 80% ≥ 90% (mín. 8 casos), sugestão em tarefa sem atividade ≤ 25%, cobertura ≥ 60%.
 - **Rodar**: Central de Conhecimento › Tarefas × atividades › "Rodar avaliação" (administrador, 1 chamada de IA, máx. 3/hora).
-- **Linha de base sem IA** (só regra): cobertura 34%, precisão 90%, 0 falso-positivo → reprova; a IA é necessária.
+- **Linha de base sem IA** (só regra): cobertura 36%, precisão 94%, 0 falso-positivo → reprova; a IA é necessária.
+- **Avaliador substituto** (subagente Sonnet, mesmos prompts de produção, sem ver o gabarito; NÃO é o modelo de produção): precisão 100% (41/41), cobertura 93%, 0 falso-positivo → passaria. Otimista (mesma família do autor dos casos). A medida real ainda é o botão em produção.
 - **Acompanhar**: cartão "Custo e erros" + taxa de acerto semanal do mesmo painel.
 - **Emergência**: variável do Railway `TASK_LINK_MODE` = `off` (nada sugere) ou `sem-ia` (só aprendido + regra).
 - **Isolamento**: testado por HTTP (2 organizações, usuário restrito por CNPJ, cliente, sem login).
