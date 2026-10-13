@@ -7,6 +7,8 @@ function validTs(v) {
 }
 
 const SAME_EVENT_MS = 3000;
+const STEP = 'step_done';
+const STEP_SEP = '#';
 const HISTORY_OPEN = /^Tarefa (criada|duplicada)$/;
 const CLOSE_TEXT = '(?:Marcada como concluída|Status alterado: (?:.+ → )?Concluída)';
 const HISTORY_CLOSE = new RegExp(`^${CLOSE_TEXT}$`);
@@ -27,6 +29,7 @@ function collapse(events) {
 export function cardEventsOf(data) {
   const cardEvents = [];
   const logEvents = [];
+  const steps = [];
   let withoutOpenDate = 0;
   let closedWithoutDate = 0;
   for (const board of (data && data.boards) || []) {
@@ -51,6 +54,10 @@ export function cardEventsOf(data) {
           if (HISTORY_OPEN.test(h.action)) add('opened', at);
           else if (HISTORY_CLOSE.test(h.action)) add('closed', at);
         }
+        for (const it of Array.isArray(card.checklist) ? card.checklist : []) {
+          const at = it && it.done && it.id && validTs(it.doneAt);
+          if (at) steps.push({ cardId: `${card.id}${STEP_SEP}${it.id}`, kind: STEP, at });
+        }
         if (!hasOpen) withoutOpenDate += 1;
         if (card.completed && !hasClose) closedWithoutDate += 1;
       }
@@ -71,12 +78,26 @@ export function cardEventsOf(data) {
     if (prev && prev.kind === e.kind && Date.parse(e.at) - Date.parse(prev.at) < SAME_EVENT_MS) continue;
     fromLog.push(e);
   }
-  return { events: [...events, ...fromLog], withoutOpenDate, closedWithoutDate };
+  return { events: [...events, ...fromLog], steps, withoutOpenDate, closedWithoutDate };
 }
 
 export async function syncCardEvents(pool, userId, data) {
   try {
-    const { events } = cardEventsOf(data);
+    const { events, steps } = cardEventsOf(data);
+    if (steps.length) {
+      await pool.query(
+        `INSERT INTO personal_card_events (user_id, card_id, kind, occurred_at)
+         SELECT $1, t.card_id, $2, t.at
+         FROM unnest($3::text[], $4::timestamptz[]) AS t(card_id, at)
+         WHERE NOT EXISTS (
+           SELECT 1 FROM personal_card_events e
+           WHERE e.user_id = $1 AND e.kind = $2 AND e.card_id = t.card_id
+             AND (e.occurred_at AT TIME ZONE $5)::date = (t.at AT TIME ZONE $5)::date
+         )
+         ON CONFLICT DO NOTHING`,
+        [userId, STEP, steps.map((e) => e.cardId), steps.map((e) => e.at), TZ],
+      );
+    }
     if (!events.length) return;
     const res = await pool.query(
       `INSERT INTO personal_card_events (user_id, card_id, kind, occurred_at)
@@ -109,19 +130,23 @@ export async function getActivityStats(pool, userId, days) {
      GROUP BY kind, dow, dom`,
     [userId, TZ, periodDays],
   );
-  const mk = (len) => ({ opened: Array(len).fill(0), closed: Array(len).fill(0) });
+  const mk = (len) => ({ opened: Array(len).fill(0), closed: Array(len).fill(0), steps: Array(len).fill(0) });
   const weekday = mk(7);
   const monthDay = mk(31);
   let opened = 0;
   let closed = 0;
+  let steps = 0;
   for (const r of rows) {
-    if (r.kind !== 'opened' && r.kind !== 'closed') continue;
-    weekday[r.kind][r.dow] += r.n;
-    monthDay[r.kind][r.dom - 1] += r.n;
-    if (r.kind === 'opened') opened += r.n; else closed += r.n;
+    const key = r.kind === STEP ? 'steps' : r.kind;
+    if (key !== 'opened' && key !== 'closed' && key !== 'steps') continue;
+    weekday[key][r.dow] += r.n;
+    monthDay[key][r.dom - 1] += r.n;
+    if (key === 'opened') opened += r.n; else if (key === 'closed') closed += r.n; else steps += r.n;
   }
   const { rows: first } = await pool.query('SELECT min(occurred_at) AS first FROM personal_card_events WHERE user_id=$1', [userId]);
   const firstEventAt = first[0] && first[0].first ? first[0].first.toISOString() : null;
+  const { rows: firstStep } = await pool.query('SELECT min(occurred_at) AS first FROM personal_card_events WHERE user_id=$1 AND kind=$2', [userId, STEP]);
+  const firstStepAt = firstStep[0] && firstStep[0].first ? firstStep[0].first.toISOString() : null;
 
   const { rows: span } = await pool.query(
     `SELECT to_char((now() AT TIME ZONE $1)::date, 'YYYY-MM-DD') AS today,
@@ -139,19 +164,26 @@ export async function getActivityStats(pool, userId, days) {
   const monthDayDays = Array(31).fill(0);
   for (const r of cal) { weekdayDays[r.dow] += 1; monthDayDays[r.dom - 1] += 1; }
 
-  return { opened, closed, weekday, monthDay, firstEventAt, today, fromDay, totalDays: cal.length, weekdayDays, monthDayDays };
+  return { opened, closed, steps, weekday, monthDay, firstEventAt, firstStepAt, today, fromDay, totalDays: cal.length, weekdayDays, monthDayDays };
 }
 
 const WINDOW_DAYS = 30;
 
 function titlesOf(data) {
   const map = new Map();
+  const stepMap = new Map();
   for (const board of (data && data.boards) || []) {
     for (const col of board.columns || []) {
-      for (const card of col.cards || []) if (card && card.id) map.set(card.id, card.title || '');
+      for (const card of col.cards || []) {
+        if (!card || !card.id) continue;
+        map.set(card.id, card.title || '');
+        for (const it of Array.isArray(card.checklist) ? card.checklist : []) {
+          if (it && it.id) stepMap.set(`${card.id}${STEP_SEP}${it.id}`, { text: it.text || '', cardTitle: card.title || '' });
+        }
+      }
     }
   }
-  return map;
+  return { map, stepMap };
 }
 
 export async function getDayDetail(pool, userId, date, data) {
@@ -173,14 +205,22 @@ export async function getDayDetail(pool, userId, date, data) {
     `SELECT to_char(d, 'YYYY-MM-DD') AS d FROM generate_series($1::date - ($2::int - 1), $1::date, interval '1 day') AS d`,
     [date, WINDOW_DAYS],
   );
-  const byDay = new Map(days.map((r) => [r.d, { d: r.d, opened: 0, closed: 0 }]));
-  for (const r of win) if (byDay.has(r.d) && (r.kind === 'opened' || r.kind === 'closed')) byDay.get(r.d)[r.kind] = r.n;
-  const titles = titlesOf(data);
+  const byDay = new Map(days.map((r) => [r.d, { d: r.d, opened: 0, closed: 0, steps: 0 }]));
+  for (const r of win) {
+    const key = r.kind === STEP ? 'steps' : r.kind;
+    if (byDay.has(r.d) && (key === 'opened' || key === 'closed' || key === 'steps')) byDay.get(r.d)[key] = r.n;
+  }
+  const { map: titles, stepMap } = titlesOf(data);
   return {
     date,
     window: [...byDay.values()],
     events: events
-      .filter((e) => e.kind === 'opened' || e.kind === 'closed')
-      .map((e) => ({ cardId: e.card_id, kind: e.kind, at: e.occurred_at.toISOString(), title: titles.has(e.card_id) ? titles.get(e.card_id) : null })),
+      .filter((e) => e.kind === 'opened' || e.kind === 'closed' || e.kind === STEP)
+      .map((e) => {
+        const at = e.occurred_at.toISOString();
+        if (e.kind !== STEP) return { cardId: e.card_id, kind: e.kind, at, title: titles.has(e.card_id) ? titles.get(e.card_id) : null };
+        const st = stepMap.get(e.card_id);
+        return { cardId: e.card_id, kind: 'steps', at, title: st ? st.text : null, cardTitle: st ? st.cardTitle : null };
+      }),
   };
 }

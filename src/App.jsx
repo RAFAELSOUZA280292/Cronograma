@@ -7038,7 +7038,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
       id: uid('col'),
       name: `${col.name} (cópia)`,
       cards: col.cards.filter((cd) => !cd.deleted).map((cd) => ({
-        ...cd, id: uid('card'), comments: [],
+        ...cd, id: uid('card'), comments: [], checklist: (cd.checklist || []).map(({ doneAt, ...i }) => i),
         history: [{ ts: now, action: 'Tarefa duplicada', user: currentUser.name }],
         createdAt: now, createdBy: currentUser.name, updatedAt: now, updatedBy: currentUser.name,
       })),
@@ -7184,7 +7184,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
     if (!card) return;
     const now = new Date().toISOString();
     const clone = {
-      ...card, id: uid('card'), title: `${card.title} (cópia)`, comments: [],
+      ...card, id: uid('card'), title: `${card.title} (cópia)`, comments: [], checklist: (card.checklist || []).map(({ doneAt, ...i }) => i),
       history: [{ ts: now, action: 'Tarefa duplicada', user: currentUser.name }],
       status: 'nao-iniciada', completed: false, completedAt: '', completedBy: '',
       createdAt: now, createdBy: currentUser.name, updatedAt: now, updatedBy: currentUser.name,
@@ -7295,7 +7295,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: [...(cd.checklist || []), item], updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
   }
   function toggleChecklistItem(colId, cardId, itemId) {
-    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).map((i) => (i.id === itemId ? { ...i, done: !i.done } : i)), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).map((i) => (i.id === itemId ? (i.done ? { ...i, done: false, doneAt: '' } : { ...i, done: true, doneAt: new Date().toISOString() }) : i)), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
   }
   function updateChecklistItem(colId, cardId, itemId, text) {
     const v = (text || '').trim();

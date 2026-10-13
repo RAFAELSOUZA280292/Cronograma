@@ -60,6 +60,7 @@ export default function WeekSummary({ overdueNow, onOpenStats }) {
         {!loading && stats && (
           <div className="ws-grid">
             <div className="ws-kpi"><div className="ws-num">{stats.closed}</div><div className="ws-lab">Concluídas</div></div>
+            <div className="ws-kpi"><div className="ws-num">{stats.steps || 0}</div><div className="ws-lab">Subatividades concluídas</div></div>
             <div className="ws-kpi"><div className="ws-num">{stats.opened}</div><div className="ws-lab">Abertas (novas)</div></div>
             <div className="ws-kpi"><div className={`ws-num ${overdueNow > 0 ? 'danger' : ''}`}>{overdueNow}</div><div className="ws-lab">Atrasadas agora</div></div>
             <div className="ws-kpi"><div className="ws-num small">{topDay >= 0 ? WEEKDAY_LONG[topDay] : '—'}</div><div className="ws-lab">{topDay >= 0 ? 'Dia com mais conclusões' : 'Sem conclusões na semana'}</div></div>
