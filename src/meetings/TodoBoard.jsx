@@ -19,7 +19,7 @@ import { TodoDrawer } from './TodoDrawer.jsx';
 import { ActivityRow, ACTIVITY_ROW_CSS } from './ActivityRow.jsx';
 import { isItemOverdue, todayIso, greetingPeriod } from './todoUtils.js';
 import { activate } from '../ui/index.jsx';
-import { linkState, ConfirmSuggestionsButton } from './ActivityLink.jsx';
+import { linkState, ConfirmSuggestionsButton, SuggestLinksButton } from './ActivityLink.jsx';
 
 const SORT_MODE_KEY = 'pricetax_todo_sort_mode';
 
@@ -134,7 +134,7 @@ function sortRows(rows, mode) {
 
 export function TodoBoardView({
   meetings, team, externalContacts, clientName, pid, currentUser, log, pushUndoToast,
-  focusMeetingId, onClearFocusMeeting, focusActivityId, onClearFocusActivity, activityOptions, onLinkActivity,
+  focusMeetingId, onClearFocusMeeting, focusActivityId, onClearFocusActivity, activityOptions, onLinkActivity, onSuggestLinks,
   onOpenMeeting, onAddItem,
   updateActionItem, deleteActionItem, duplicateActionItem,
   addSubtask, toggleSubtask, deleteSubtask,
@@ -465,6 +465,10 @@ export function TodoBoardView({
 
         {onLinkActivity && (
           <ConfirmSuggestionsButton rows={filteredRows} options={activityOptions} onConfirmOne={(r) => onLinkActivity(pid, r.meetingId, r.id, r.activityLink.suggestedId)} />
+        )}
+
+        {onLinkActivity && onSuggestLinks && (
+          <SuggestLinksButton rows={allRows} options={activityOptions} onSuggest={onSuggestLinks} />
         )}
 
         {activityFilter && (

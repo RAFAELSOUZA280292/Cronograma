@@ -17,7 +17,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from './lib/api.js';
-import { buildActivityOptions, taskCountsByActivity, NO_ACTIVITY } from './meetings/ActivityLink.jsx';
+import { buildActivityOptions, taskCountsByActivity, applySuggestionsToMeetings, NO_ACTIVITY } from './meetings/ActivityLink.jsx';
 import WidgetSection from './widget/WidgetSection.jsx';
 import ConnectSection from './connect/ConnectSection.jsx';
 import DailyCards from './daily/DailyCards.jsx';
@@ -2610,6 +2610,24 @@ function AppScreens({ shellRef, bump }) {
 
   // Vínculo tarefa → atividade do cronograma (Fase 1, docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). `value`: id da atividade, NO_ACTIVITY ("nenhuma se
   // aplica") ou '' (limpar). O campo vai junto do projeto (autosave); a decisão humana também vai pro livro-razão (aprendizado), sem bloquear.
+  // "Sugerir atividades" para as tarefas pendentes de vínculo (Fase 3): grava antes, pede ao servidor, aplica só como SUGESTÃO (a pessoa confirma).
+  async function requestTaskSuggestions(targetPid) {
+    try {
+      await flushProjectSave(targetPid);
+      const r = await apiPost('/api/task-links/suggest', { projectId: targetPid });
+      const sugg = (r && r.suggestions) || {};
+      const project = projects.find((p) => p.id === targetPid);
+      const applied = applySuggestionsToMeetings((project && project.meetings) || [], sugg).count;
+      if (applied > 0) {
+        mutateProject(targetPid, (p) => ({ ...p, meetings: applySuggestionsToMeetings(p.meetings || [], sugg).meetings }),
+          `${currentUser ? currentUser.name : 'Alguém'} pediu sugestões da RENATA: ${applied} tarefa${applied === 1 ? '' : 's'} com atividade do cronograma sugerida (a confirmar)`);
+      }
+      const rest = r && r.remaining > 0 ? ` Restam ${r.remaining} tarefas: clique de novo para continuar.` : '';
+      notify(applied > 0 ? `A RENATA sugeriu a atividade de ${applied} de ${r.considered} tarefas. Revise e confirme.${rest}` : `A RENATA não achou atividade com segurança para essas ${r.considered} tarefas.${rest}`, { tone: applied > 0 ? 'success' : 'info', ttlMs: 8000 });
+    } catch (e) {
+      notify((e && e.message) || 'Não foi possível pedir as sugestões agora.', { tone: 'error' });
+    }
+  }
   const canLinkTasks = !!currentUser && (currentUser.isSuperAdmin || currentUser.role === 'master' || currentUser.role === 'pricetax');
   function linkTaskToActivity(targetPid, meetingId, itemId, value) {
     const { item } = findActionItem(targetPid, meetingId, itemId);
@@ -3423,6 +3441,7 @@ function AppScreens({ shellRef, bump }) {
             onClearFocusActivity={() => setTodoFocusActivityId(null)}
             activityOptions={buildActivityOptions(activeProject.activities, activeProject.phases)}
             onLinkActivity={canLinkTasks ? linkTaskToActivity : undefined}
+            onSuggestLinks={canLinkTasks ? () => requestTaskSuggestions(activeProject.id) : undefined}
             onOpenMeeting={(id) => { setView('meetings'); openMeetingDetail(activeProject.id, id); }}
             onAddItem={(meetingId, overrides) => addMeetingActionItem(activeProject.id, meetingId, overrides)}
             updateActionItem={updateMeetingActionItem}
