@@ -7,11 +7,13 @@ import { X, Mic, Check, MessageSquare, Copy, Calendar } from 'lucide-react';
 import { S, fmtDate } from '../App.jsx';
 import { TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } from './Meetings.jsx';
 import { initials, avatarColor, daysOverdue, isItemOverdue } from './todoUtils.js';
+import { ActivityLinkSelect, ACTIVITY_LINK_CSS } from './ActivityLink.jsx';
 
 // CSS da linha em si (não do entorno/board) — exportada pra qualquer
 // tela que renderize <ActivityRow> incluir uma vez (TodoBoard.jsx e a
 // coluna de atividades da tela de Reunião, MeetingDetail.jsx).
 export const ACTIVITY_ROW_CSS = `
+  ${ACTIVITY_LINK_CSS}
   .todo-row { display:flex; flex-direction:column; gap:9px; padding:13px 14px; border-radius:11px; background:var(--bg-2); border:1px solid var(--border-1); transition:border-color .14s, box-shadow .14s; cursor:pointer; }
   .todo-row:hover { border-color:var(--border-3); box-shadow:0 2px 10px rgba(0,0,0,.07); }
   .todo-row:hover .todo-row-actions { opacity:1; }
@@ -62,6 +64,7 @@ export function ActivityRow({
   row, pid, team, externalContacts, clientName, hideOrigin,
   onOpenMeeting, onOpen,
   updateActionItem, deleteActionItem, duplicateActionItem, pushUndoToast,
+  activityOptions, onLinkActivity,
 }) {
   const [editingField, setEditingField] = useState(null); // 'responsible' | 'dueDate' | null
   const owner = row.owner === 'cliente' ? 'cliente' : 'pricetax';
@@ -154,6 +157,10 @@ export function ActivityRow({
             <Calendar size={11} />
             {row.dueDate ? (overdue ? `Vencida há ${daysOverdue(row.dueDate)} dia${daysOverdue(row.dueDate) === 1 ? '' : 's'}` : fmtDate(row.dueDate)) : 'Sem prazo'}
           </button>
+        )}
+
+        {onLinkActivity && (
+          <ActivityLinkSelect row={row} options={activityOptions} onLink={(v) => onLinkActivity(pid, row.meetingId, row.id, v)} />
         )}
 
         {!hideOrigin && (

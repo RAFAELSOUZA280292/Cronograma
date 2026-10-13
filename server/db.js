@@ -215,6 +215,25 @@ export async function initDb() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS personal_card_events_user_idx ON personal_card_events(user_id, kind, occurred_at DESC)`);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS task_activity_links (
+      id                     BIGSERIAL PRIMARY KEY,
+      org_id                 TEXT NOT NULL,
+      project_id             TEXT NOT NULL,
+      task_id                TEXT NOT NULL,
+      task_text              TEXT NOT NULL DEFAULT '',
+      task_area              TEXT NOT NULL DEFAULT '',
+      owner_side             TEXT NOT NULL DEFAULT '',
+      suggested_activity_key TEXT NOT NULL DEFAULT '',
+      chosen_activity_key    TEXT NOT NULL DEFAULT '',
+      decision               TEXT NOT NULL,
+      source                 TEXT NOT NULL DEFAULT '',
+      user_id                TEXT NOT NULL DEFAULT '',
+      created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS task_activity_links_org_idx ON task_activity_links(org_id, created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS task_activity_links_project_idx ON task_activity_links(project_id, task_id)`);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS xflow_tickets (
       id            TEXT PRIMARY KEY,
       ticket_number SERIAL,

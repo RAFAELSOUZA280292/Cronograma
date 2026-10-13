@@ -77,6 +77,8 @@ const TODO_BOARD_CSS = `
   }
 `;
 
+const SEM_ATIVIDADE = '__sem__';
+
 function collectTodoRows(meetings) {
   const rows = [];
   (meetings || []).filter((m) => !m.deleted).forEach((m) => {
@@ -130,7 +132,7 @@ function sortRows(rows, mode) {
 
 export function TodoBoardView({
   meetings, team, externalContacts, clientName, pid, currentUser, log, pushUndoToast,
-  focusMeetingId, onClearFocusMeeting,
+  focusMeetingId, onClearFocusMeeting, focusActivityId, onClearFocusActivity, activityOptions, onLinkActivity,
   onOpenMeeting, onAddItem,
   updateActionItem, deleteActionItem, duplicateActionItem,
   addSubtask, toggleSubtask, deleteSubtask,
@@ -158,6 +160,7 @@ export function TodoBoardView({
   const [statusFilter, setStatusFilter] = useState(() => new Set());
   const [ownerFilter, setOwnerFilter] = useState('todos');
   const [reuniaoFilter, setReuniaoFilter] = useState('');
+  const [activityFilter, setActivityFilter] = useState(''); // '' = todas | SEM_ATIVIDADE | id da atividade
   const [semPrazoOnly, setSemPrazoOnly] = useState(false);
   const [comSubtarefasOnly, setComSubtarefasOnly] = useState(false);
   const [criadasPorMimOnly, setCriadasPorMimOnly] = useState(false);
@@ -181,7 +184,18 @@ export function TodoBoardView({
     }
   }, [focusMeetingId]);
 
+  useEffect(() => {
+    if (focusActivityId) {
+      setQuickFilter('todos');
+      setOwnerFilter('todos');
+      setStatusFilter(new Set());
+      setActivityFilter(focusActivityId);
+      onClearFocusActivity && onClearFocusActivity();
+    }
+  }, [focusActivityId]);
+
   const allRows = useMemo(() => collectTodoRows(meetings), [meetings]);
+  const activityName = (id) => ((activityOptions || []).find((o) => o.id === id) || {}).title || '';
 
   useEffect(() => {
     if (pendingOpenId.current && allRows.some((r) => r.id === pendingOpenId.current)) {
@@ -235,6 +249,10 @@ export function TodoBoardView({
       if (statusFilter.size > 0 && !statusFilter.has(r.status)) return false;
       if (ownerFilter !== 'todos' && (r.owner === 'cliente' ? 'cliente' : 'pricetax') !== ownerFilter) return false;
       if (reuniaoFilter && r.meetingId !== reuniaoFilter) return false;
+      if (activityFilter) {
+        const linked = !!r.activityId && (activityOptions || []).some((o) => o.id === r.activityId);
+        if (activityFilter === SEM_ATIVIDADE ? linked : r.activityId !== activityFilter) return false;
+      }
       if (semPrazoOnly && r.dueDate) return false;
       if (comSubtarefasOnly && !(r.subtasks || []).length) return false;
       if (criadasPorMimOnly && !(currentUser && r.createdBy === currentUser.name)) return false;
@@ -245,7 +263,7 @@ export function TodoBoardView({
         || (r.responsible || '').toLowerCase().includes(q)
         || (r.meetingTitle || '').toLowerCase().includes(q);
     });
-  }, [allRows, search, quickFilter, statusFilter, ownerFilter, reuniaoFilter, semPrazoOnly, comSubtarefasOnly, criadasPorMimOnly, currentUser, today]);
+  }, [allRows, search, quickFilter, statusFilter, ownerFilter, reuniaoFilter, activityFilter, activityOptions, semPrazoOnly, comSubtarefasOnly, criadasPorMimOnly, currentUser, today]);
 
   const groups = useMemo(() => {
     if (groupBy === 'responsavel') {
@@ -295,9 +313,10 @@ export function TodoBoardView({
       Responsável: r.responsible || '',
       Status: todoStatusMeta(r.status).label,
       Prazo: r.dueDate ? fmtDate(r.dueDate) : '',
+      'Atividade do cronograma': r.activityId ? (activityName(r.activityId) || 'Atividade excluída') : '',
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [{ wch: 30 }, { wch: 14 }, { wch: 44 }, { wch: 16 }, { wch: 22 }, { wch: 16 }, { wch: 12 }];
+    ws['!cols'] = [{ wch: 30 }, { wch: 14 }, { wch: 44 }, { wch: 16 }, { wch: 22 }, { wch: 16 }, { wch: 12 }, { wch: 30 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Tarefas');
     const fname = `tarefas-${(clientName || 'empresa').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.xlsx`;
@@ -401,7 +420,7 @@ export function TodoBoardView({
 
         <div style={{ position: 'relative' }}>
           <button type="button" className="todo-filter-chip" onClick={() => togglePopover('filters')} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Filter size={12} /> Filtros{(statusFilter.size > 0 || ownerFilter !== 'todos' || reuniaoFilter || semPrazoOnly || comSubtarefasOnly || criadasPorMimOnly) ? ` (${[statusFilter.size > 0, ownerFilter !== 'todos', !!reuniaoFilter, semPrazoOnly, comSubtarefasOnly, criadasPorMimOnly].filter(Boolean).length})` : ''}
+            <Filter size={12} /> Filtros{(statusFilter.size > 0 || ownerFilter !== 'todos' || reuniaoFilter || activityFilter || semPrazoOnly || comSubtarefasOnly || criadasPorMimOnly) ? ` (${[statusFilter.size > 0, ownerFilter !== 'todos', !!reuniaoFilter, !!activityFilter, semPrazoOnly, comSubtarefasOnly, criadasPorMimOnly].filter(Boolean).length})` : ''}
           </button>
           {filtersOpen && (
             <div className="todo-popover" onClick={(e) => e.stopPropagation()}>
@@ -422,6 +441,16 @@ export function TodoBoardView({
                 <option value="">Todas</option>
                 {meetingsForPicker.map((m) => <option key={m.id} value={m.id}>{m.title || 'Reunião sem título'}</option>)}
               </select>
+              {onLinkActivity && (
+                <>
+                  <div className="todo-popover-label">Atividade do cronograma</div>
+                  <select aria-label="Filtrar por atividade do cronograma" value={activityFilter} onChange={(e) => setActivityFilter(e.target.value)}>
+                    <option value="">Todas</option>
+                    <option value={SEM_ATIVIDADE}>Sem atividade vinculada</option>
+                    {(activityOptions || []).map((o) => <option key={o.id} value={o.id}>{o.title}</option>)}
+                  </select>
+                </>
+              )}
               <div className="todo-popover-label">Outros</div>
               <label className="todo-check-row"><input type="checkbox" checked={semPrazoOnly} onChange={(e) => setSemPrazoOnly(e.target.checked)} /> Sem prazo</label>
               <label className="todo-check-row"><input type="checkbox" checked={comSubtarefasOnly} onChange={(e) => setComSubtarefasOnly(e.target.checked)} /> Com subtarefas</label>
@@ -429,6 +458,12 @@ export function TodoBoardView({
             </div>
           )}
         </div>
+
+        {activityFilter && (
+          <button type="button" className="todo-filter-chip active" onClick={() => setActivityFilter('')} title="Remover este filtro" aria-label="Remover o filtro de atividade do cronograma">
+            {activityFilter === SEM_ATIVIDADE ? 'Sem atividade vinculada' : `Atividade: ${activityName(activityFilter) || 'excluída'}`} ✕
+          </button>
+        )}
 
         <div style={{ position: 'relative' }}>
           <button type="button" className="todo-filter-chip" onClick={() => togglePopover('sort')} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -486,6 +521,7 @@ export function TodoBoardView({
                       onOpenMeeting={onOpenMeeting} onOpen={openDrawer}
                       updateActionItem={updateActionItem} deleteActionItem={deleteActionItem} duplicateActionItem={duplicateActionItem}
                       pushUndoToast={pushUndoToast}
+                      activityOptions={activityOptions} onLinkActivity={onLinkActivity}
                     />
                   ))}
                 </div>
@@ -522,6 +558,7 @@ export function TodoBoardView({
           addAttachment={addAttachment}
           deleteAttachment={deleteAttachment}
           focusComment={openFocusComment}
+          activityOptions={activityOptions} onLinkActivity={onLinkActivity}
         />
       )}
     </div>

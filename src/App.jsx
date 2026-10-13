@@ -17,6 +17,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from './lib/api.js';
+import { buildActivityOptions, taskCountsByActivity, NO_ACTIVITY } from './meetings/ActivityLink.jsx';
 import WidgetSection from './widget/WidgetSection.jsx';
 import ConnectSection from './connect/ConnectSection.jsx';
 import DailyCards from './daily/DailyCards.jsx';
@@ -652,6 +653,7 @@ function AppScreens({ shellRef, bump }) {
   const [view, setView] = useState(() => readHistoryValue('companyView', 'table'));
   useHistoryValue('companyView', view, setView, 'table');
   const [todoFocusMeetingId, setTodoFocusMeetingId] = useState(null);
+  const [todoFocusActivityId, setTodoFocusActivityId] = useState(null);
   const [meetingToPrint, setMeetingToPrint] = useState(null);
   const [showLog, setShowLog] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
@@ -938,6 +940,8 @@ function AppScreens({ shellRef, bump }) {
         updateActionItem={updateMeetingActionItem}
         deleteActionItem={deleteMeetingActionItem}
         duplicateActionItem={duplicateActionItem}
+        activityOptions={buildActivityOptions(project.activities, project.phases)}
+        onLinkActivity={canLinkTasks ? linkTaskToActivity : undefined}
         addSubtask={addTodoSubtask}
         toggleSubtask={toggleTodoSubtask}
         deleteSubtask={deleteTodoSubtask}
@@ -2604,6 +2608,34 @@ function AppScreens({ shellRef, bump }) {
     return copy.id;
   }
 
+  // Vínculo tarefa → atividade do cronograma (Fase 1, docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). `value`: id da atividade, NO_ACTIVITY ("nenhuma se
+  // aplica") ou '' (limpar). O campo vai junto do projeto (autosave); a decisão humana também vai pro livro-razão (aprendizado), sem bloquear.
+  const canLinkTasks = !!currentUser && (currentUser.isSuperAdmin || currentUser.role === 'master' || currentUser.role === 'pricetax');
+  function linkTaskToActivity(targetPid, meetingId, itemId, value) {
+    const { item } = findActionItem(targetPid, meetingId, itemId);
+    const project = projects.find((p) => p.id === targetPid);
+    if (!item || !project) return;
+    const who = currentUser ? currentUser.name : 'Alguém';
+    const act = value && value !== NO_ACTIVITY ? (project.activities || []).find((a) => a.id === value && !a.deleted) : null;
+    if (value && value !== NO_ACTIVITY && !act) return;
+    const now = new Date().toISOString();
+    const patch = !value
+      ? { activityId: '', activityLink: null }
+      : act
+        ? { activityId: act.id, activityLink: { status: 'confirmed', source: 'manual', confirmedBy: who, confirmedAt: now } }
+        : { activityId: '', activityLink: { status: 'none', source: 'manual', confirmedBy: who, confirmedAt: now } };
+    const logMsg = !value ? `${who} removeu o vínculo da tarefa "${item.title}" com o cronograma`
+      : act ? `${who} vinculou a tarefa "${item.title}" à atividade "${act.title}"`
+        : `${who} marcou que nenhuma atividade do cronograma se aplica à tarefa "${item.title}"`;
+    mutateProject(targetPid, (p) => ({
+      ...p,
+      meetings: (p.meetings || []).map((x) => (x.id !== meetingId ? x : { ...x, actionItems: (x.actionItems || []).map((it) => (it.id === itemId ? { ...it, ...patch } : it)) })),
+    }), logMsg, itemId);
+    if (value) {
+      apiPost('/api/task-links', { projectId: targetPid, taskId: itemId, decision: act ? 'escolheu' : 'nenhuma', activityId: act ? act.id : undefined, source: 'manual' }).catch(() => {});
+    }
+  }
+
   function addTodoSubtask(targetPid, meetingId, itemId, title) {
     const v = (title || '').trim();
     if (!v) return;
@@ -3347,6 +3379,8 @@ function AppScreens({ shellRef, bump }) {
             pid={activeProject.id}
             openDetail={openActivityDetail}
             companyColor={activeProject.company.color}
+            taskCounts={taskCountsByActivity(activeProject.meetings)}
+            onOpenTasks={(activityId) => { setView('todo'); setTodoFocusActivityId(activityId); }}
           />
         )}
         {!isMulti && view === 'meetings' && (
@@ -3377,6 +3411,10 @@ function AppScreens({ shellRef, bump }) {
             pushUndoToast={pushAppUndoToast}
             focusMeetingId={todoFocusMeetingId}
             onClearFocusMeeting={() => setTodoFocusMeetingId(null)}
+            focusActivityId={todoFocusActivityId}
+            onClearFocusActivity={() => setTodoFocusActivityId(null)}
+            activityOptions={buildActivityOptions(activeProject.activities, activeProject.phases)}
+            onLinkActivity={canLinkTasks ? linkTaskToActivity : undefined}
             onOpenMeeting={(id) => { setView('meetings'); openMeetingDetail(activeProject.id, id); }}
             onAddItem={(meetingId, overrides) => addMeetingActionItem(activeProject.id, meetingId, overrides)}
             updateActionItem={updateMeetingActionItem}
@@ -8791,6 +8829,10 @@ const RESUMO_CSS = `
   .rs-activity-title { font-weight: 700; color: var(--text-1); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .rs-activity-desc { font-size: 11px; color: var(--text-5); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .rs-activity-subs { font-size: 10.5px; color: var(--text-6); margin-top: 3px; }
+  .rs-task-chip { margin-top: 4px; font-size: 10.5px; font-weight: 700; color: var(--text-4); background: var(--bg-3); border: 1px solid var(--border-2); border-radius: 999px; padding: 2px 9px; cursor: pointer; }
+  .rs-task-chip:hover { color: var(--text-1); border-color: var(--border-3); }
+  .rs-task-chip:focus-visible { outline: 2px solid var(--ui-accent, #F5C400); outline-offset: 2px; }
+  @media (max-width: 767px) { .rs-task-chip { min-height: 44px; padding: 2px 14px; } }
   .rs-resp { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); white-space: nowrap; }
   .rs-avatar { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: #111; flex-shrink: 0; }
   .rs-phase-tag { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
@@ -8813,7 +8855,16 @@ const RESUMO_CSS = `
   .rs-empty { text-align: center; padding: 40px 0; color: var(--text-6); font-size: 13px; }
 `;
 
-function ResumoTable({ rows, orderMap, phases, accent, todayISO, onOpen }) {
+function TaskCountChip({ counts, onOpenTasks }) {
+  if (!counts || !counts.total) return null;
+  return (
+    <button type="button" className="rs-task-chip" onClick={(e) => { e.stopPropagation(); onOpenTasks(); }} title="Ver as tarefas de reunião vinculadas a esta atividade">
+      {counts.total} tarefa{counts.total === 1 ? '' : 's'} · {counts.open} aberta{counts.open === 1 ? '' : 's'}
+    </button>
+  );
+}
+
+function ResumoTable({ rows, orderMap, phases, accent, todayISO, onOpen, taskCounts, onOpenTasks }) {
   return (
     <div className="rs-table-wrap">
       <table className="rs-table">
@@ -8845,6 +8896,7 @@ function ResumoTable({ rows, orderMap, phases, accent, todayISO, onOpen }) {
                       <div className="rs-activity-title" title={a.title}>{a.title}</div>
                       {a.desc ? <div className="rs-activity-desc" title={a.desc}>{a.desc}</div> : null}
                       {subs.length > 0 && <div className="rs-activity-subs">{doneSubs}/{subs.length} subatividades</div>}
+                      <TaskCountChip counts={taskCounts && taskCounts[a.id]} onOpenTasks={() => onOpenTasks(a.id)} />
                     </div>
                   </div>
                 </td>
@@ -8866,7 +8918,7 @@ function ResumoTable({ rows, orderMap, phases, accent, todayISO, onOpen }) {
   );
 }
 
-function ResumoCard({ a, orderMap, phases, accent, todayISO, onOpen }) {
+function ResumoCard({ a, orderMap, phases, accent, todayISO, onOpen, taskCounts, onOpenTasks }) {
   const phase = phases.find((p) => p.id === a.phase);
   const cd = resumoCountdown(a, todayISO);
   const tone = COUNTDOWN_TONE_META[cd.tone];
@@ -8883,6 +8935,7 @@ function ResumoCard({ a, orderMap, phases, accent, todayISO, onOpen }) {
         <span className="rs-countdown-pill" style={{ color: tone.color, background: tone.bg }}>{cd.label}</span>
       </div>
       {subs.length > 0 && <div className="rs-activity-subs">{doneSubs}/{subs.length} subatividades</div>}
+      <TaskCountChip counts={taskCounts && taskCounts[a.id]} onOpenTasks={() => onOpenTasks(a.id)} />
       <div className="rs-card-bottom">
         <span className="rs-date-cell">
           {resumoDateLabel(a)}
@@ -8903,7 +8956,7 @@ function ResumoCard({ a, orderMap, phases, accent, todayISO, onOpen }) {
   );
 }
 
-function ResumoView({ activities, orderMap, phases, pid, openDetail, companyColor }) {
+function ResumoView({ activities, orderMap, phases, pid, openDetail, companyColor, taskCounts, onOpenTasks }) {
   const isMobile = useIsMobile();
   const accent = companyColor || '#F5C400';
   const todayISO = toISODate(startOfDay(new Date()));
@@ -9071,15 +9124,15 @@ function ResumoView({ activities, orderMap, phases, pid, openDetail, companyColo
             </button>
             {!collapsedMonths[g.key] && (
               isMobile
-                ? <div className="rs-cards">{g.items.map((a) => <ResumoCard key={a.id} a={a} orderMap={orderMap} phases={phases} accent={accent} todayISO={todayISO} onOpen={() => openDetail(pid, a.id)} />)}</div>
-                : <ResumoTable rows={g.items} orderMap={orderMap} phases={phases} accent={accent} todayISO={todayISO} onOpen={(id) => openDetail(pid, id)} />
+                ? <div className="rs-cards">{g.items.map((a) => <ResumoCard key={a.id} a={a} orderMap={orderMap} phases={phases} accent={accent} todayISO={todayISO} onOpen={() => openDetail(pid, a.id)} taskCounts={taskCounts} onOpenTasks={onOpenTasks} />)}</div>
+                : <ResumoTable rows={g.items} orderMap={orderMap} phases={phases} accent={accent} todayISO={todayISO} onOpen={(id) => openDetail(pid, id)} taskCounts={taskCounts} onOpenTasks={onOpenTasks} />
             )}
           </div>
         ))
       ) : (
         isMobile
-          ? <div className="rs-cards">{filtered.map((a) => <ResumoCard key={a.id} a={a} orderMap={orderMap} phases={phases} accent={accent} todayISO={todayISO} onOpen={() => openDetail(pid, a.id)} />)}</div>
-          : <ResumoTable rows={filtered} orderMap={orderMap} phases={phases} accent={accent} todayISO={todayISO} onOpen={(id) => openDetail(pid, id)} />
+          ? <div className="rs-cards">{filtered.map((a) => <ResumoCard key={a.id} a={a} orderMap={orderMap} phases={phases} accent={accent} todayISO={todayISO} onOpen={() => openDetail(pid, a.id)} taskCounts={taskCounts} onOpenTasks={onOpenTasks} />)}</div>
+          : <ResumoTable rows={filtered} orderMap={orderMap} phases={phases} accent={accent} todayISO={todayISO} onOpen={(id) => openDetail(pid, id)} taskCounts={taskCounts} onOpenTasks={onOpenTasks} />
       )}
     </div>
   );
