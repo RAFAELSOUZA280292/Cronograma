@@ -52,7 +52,7 @@ function EvalCard({ ops, mode }) {
     <div className="knw-metric-card">
       <div className="knw-metric-card-title">Avaliação de qualidade (casos de teste)</div>
       <div style={{ fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
-        Roda 35 tarefas de exemplo (de uma empresa fictícia, sem dado de cliente) pelo mesmo caminho das sugestões reais e confere se a RENATA acerta. Uma rodada faz 1 chamada de IA. As respostas esperadas são uma primeira leitura: o time deve conferir e ajustar em <code>server/evals/taskLinkEval.js</code>.
+        Roda as tarefas de exemplo (de uma empresa fictícia, sem dado de cliente) pelo mesmo caminho das sugestões reais e confere se a RENATA acerta. Uma rodada faz 1 chamada de IA. As respostas esperadas são uma primeira leitura: o time deve conferir e ajustar em <code>server/evals/taskLinkEval.js</code>.
       </div>
       {mode !== 'normal' && <div style={{ marginTop: 8 }}><span className="lk-pill warn">Modo do ambiente: {mode === 'off' ? 'sugestões desligadas' : 'sem IA (só aprendido e regra)'}</span></div>}
       {last && !r && <div className="knw-metric-row" style={{ marginTop: 10 }}><span>Última avaliação ({when(last.at)})</span><b>{last.passed ? 'Passou' : 'Não passou'} · precisão {pct(last.precision)} · cobertura {pct(last.coverage)}</b></div>}
