@@ -88,7 +88,11 @@ export function applySuggestions(items, suggestions) {
 }
 
 // Ponto de entrada. `client` = SDK da Anthropic (injetável em teste); sem client ou se a IA falhar, só a regra de reserva.
-export async function suggestActivityLinks({ client, activities, phases, tasks, meeting, learn }) {
+// Chave de emergência (variável do Railway `TASK_LINK_MODE`): 'off' não sugere nada; 'sem-ia' só usa aprendido + regra (zero custo de IA).
+export async function suggestActivityLinks({ client: clientIn, activities, phases, tasks, meeting, learn }) {
+  const mode = process.env.TASK_LINK_MODE;
+  if (mode === 'off') return { suggestions: {}, usage: { input: 0, output: 0 }, usedAI: false, aiError: '', learned: 0, disabled: true };
+  const client = mode === 'sem-ia' ? null : clientIn;
   const acts = liveActivities(activities);
   const result = { suggestions: {}, usage: { input: 0, output: 0 }, usedAI: false, aiError: '' };
   if (!acts.length || !tasks.length) return result;

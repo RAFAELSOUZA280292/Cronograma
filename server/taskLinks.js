@@ -11,6 +11,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { activityKey as keyOf, loadLedgerExamples } from './taskLinkLearn.js';
 import { suggestActivityLinks } from './taskLinkSuggest.js';
 import { logMetric } from './metrics.js';
+import { runTaskLinkEval } from './evals/taskLinkEval.js';
 
 export const DECISIONS = ['escolheu', 'confirmou', 'corrigiu', 'nenhuma'];
 const clip = (s, n) => String(s || '').slice(0, n);
@@ -179,6 +180,20 @@ export function learningPatterns(rows, labelOfKey, floor = 3) {
   }));
 }
 
+// Custo e erros dos últimos 30 dias (métricas `task_link_suggest`/`task_link_eval` já gravadas). Função pura.
+export function opsStats(events) {
+  const sug = events.filter((e) => e.event_type === 'task_link_suggest');
+  const sum = (k) => sug.reduce((a, e) => a + (Number((e.metadata || {})[k]) || 0), 0);
+  const evals = events.filter((e) => e.event_type === 'task_link_eval');
+  const last = evals[0];
+  return {
+    runs: sug.length, tasks: sum('tasks'), suggested: sum('suggested'), learned: sum('learned'),
+    aiRuns: sug.filter((e) => (e.metadata || {}).usedAI).length, aiFailed: sug.filter((e) => (e.metadata || {}).aiError).length,
+    inputTokens: sum('inputTokens'), outputTokens: sum('outputTokens'),
+    lastEval: last ? { at: last.created_at.toISOString(), passed: !!last.metadata.passed, precision: last.metadata.precision ?? null, coverage: last.metadata.coverage ?? null, falsePositive: last.metadata.falsePositive ?? null, usedAI: !!last.metadata.usedAI } : null,
+  };
+}
+
 router.get('/learning', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
   try {
     const orgId = req.user.isSuperAdmin && req.query.asOrg ? req.query.asOrg : req.user.orgId;
@@ -215,7 +230,9 @@ router.get('/learning', requireAuth, requireMasterOrPricetax, async (req, res, n
       chosen: r.chosen_activity_key ? labelOfKey(r.chosen_activity_key) : '', suggested: r.suggested_activity_key ? labelOfKey(r.suggested_activity_key) : '',
       confidence: r.confidence == null ? null : Number(r.confidence), ignored: !!r.ignored, at: r.created_at.toISOString(),
     }));
-    res.json({ ...learningStats(rows), state, patterns: learningPatterns(rows, labelOfKey), recent, canForget: isAdmin(req.user) });
+    const { rows: ev } = await pool.query(
+      `SELECT event_type, metadata, created_at FROM ai_metrics_events WHERE org_id=$1 AND event_type IN ('task_link_suggest','task_link_eval') AND created_at > now() - interval '30 days' ORDER BY created_at DESC LIMIT 1000`, [orgId]);
+    res.json({ ...learningStats(rows), state, patterns: learningPatterns(rows, labelOfKey), recent, canForget: isAdmin(req.user), ops: opsStats(ev), mode: process.env.TASK_LINK_MODE || 'normal' });
   } catch (e) { next(e); }
 });
 
@@ -231,5 +248,23 @@ router.post('/forget', requireAuth, requireMasterOrPricetax, async (req, res, ne
     if (!pr[0] || !canAccessProject(req.user, pr[0].data, pr[0].org_id) || pr[0].org_id !== row.org_id) return res.status(404).json({ message: 'Decisão não encontrada.' });
     await pool.query('UPDATE task_activity_links SET ignored=$2 WHERE id=$1', [id, ignored !== false]);
     res.json({ ok: true, ignored: ignored !== false });
+  } catch (e) { next(e); }
+});
+
+// Avaliação de qualidade (Fase 5): roda os casos sintéticos de server/evals/taskLinkEval.js pelo MESMO caminho de produção, com a IA real
+// do ambiente. Só administrador; não lê nem grava dado de empresa; no máximo 3 por hora por usuário (cada rodada = 1 chamada de IA).
+const evalRate = new Map();
+router.post('/eval', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
+  try {
+    if (!isAdmin(req.user)) return res.status(403).json({ message: 'Só administradores podem rodar a avaliação.' });
+    if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ message: 'IA não configurada neste ambiente (falta ANTHROPIC_API_KEY).' });
+    const now = Date.now();
+    const recent = (evalRate.get(req.user.id) || []).filter((t) => now - t < 60 * 60 * 1000);
+    if (recent.length >= 3) return res.status(429).json({ message: 'Limite de 3 avaliações por hora. Tente mais tarde.' });
+    evalRate.set(req.user.id, [...recent, now]);
+    const report = await runTaskLinkEval({ client: process.env.TASK_LINK_MODE === 'sem-ia' ? null : new Anthropic() });
+    const m = report.metrics;
+    logMetric(pool, { orgId: req.user.orgId, projectId: null, eventType: 'task_link_eval', metadata: { passed: report.passed, precision: m.precision, coverage: m.coverage, falsePositive: m.falsePositive, high: m.high, usedAI: report.usedAI, aiError: report.aiError || undefined, inputTokens: report.usage.input, outputTokens: report.usage.output, ms: report.ms, mode: process.env.TASK_LINK_MODE || 'normal' } }).catch(() => {});
+    res.json(report);
   } catch (e) { next(e); }
 });
