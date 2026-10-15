@@ -1,6 +1,6 @@
 # Plano — aprimorar o cronograma padrão com o guia do Felipe (sem mexer em prazos)
 
-Criado em 2026-10-15. **Plano, nada implementado.** Base: `server/db.js` (`defaultActivities`, 12 atividades) × guia HTML do Felipe (87 ações, 10 áreas) — estudo em `docs/ESTUDO_GUIA_NORTE_RT2027.md`.
+Criado em 2026-10-15. **Aprovado e implementado em 2026-10-15** (modelo novo + aba Padrão da Visão Geral para as empresas existentes; ver PROJECT_CONTEXT §65). Fica de fora a atividade opcional "Operação assistida". Base: `server/db.js` (`defaultActivities`, 12 atividades) × guia HTML do Felipe (87 ações, 10 áreas) — estudo em `docs/ESTUDO_GUIA_NORTE_RT2027.md`.
 
 ## Regras do plano (pedido do Rafael)
 1. **Não mexer em prazos, datas, status, responsáveis nem no que já foi concluído** (nem no modelo, nem nas empresas).

@@ -1,5 +1,6 @@
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
+import { improveTemplate } from './standardPlan.js';
 
 const { Pool } = pg;
 
@@ -25,7 +26,7 @@ function defaultPhases() {
 }
 
 function defaultTeam() {
-  return ['PRICETAX', 'Compras', 'Comercial', 'Financeiro', 'Fiscal', 'Jurídico', 'Logística', 'Controladoria', 'TI', 'Diretoria', 'Todas'];
+  return ['PRICETAX', 'Compras', 'Comercial', 'Financeiro', 'Fiscal', 'Jurídico', 'Logística', 'Controladoria', 'Contábil', 'RH', 'TI', 'Diretoria', 'Todas'];
 }
 
 function normalizeActivity(a) {
@@ -43,7 +44,7 @@ function normalizeActivity(a) {
 }
 
 function defaultActivities() {
-  return [
+  return improveTemplate([
     { id: 'm1', month: 1, phase: 1, title: 'Kickoff único no cliente', desc: 'Mapeamento + captura de documentos + validação inicial, tudo em uma só visita', responsible: 'PRICETAX', date: '2026-08-07', endDate: '2026-08-11', status: 'nao-iniciado', required: true, notes: '', attachments: [],
       subactivities: [
         { id: uid('s'), title: 'Mapear processos e sistemas', done: false },
@@ -61,7 +62,7 @@ function defaultActivities() {
     { id: 'm10', month: 10, phase: 3, title: 'Adaptação de sistemas', desc: 'Parametrização e homologação final do ERP', responsible: 'TI', date: '2027-05-14', endDate: '2027-05-14', status: 'nao-iniciado', required: true, subactivities: [], notes: '', attachments: [] },
     { id: 'm11', month: 11, phase: 3, title: 'Tira-dúvidas geral', desc: 'Todas as áreas juntas para fechar pendências soltas', responsible: 'Todas', date: '2027-06-11', endDate: '2027-06-11', status: 'nao-iniciado', required: false, subactivities: [], notes: '', attachments: [] },
     { id: 'm12', month: 12, phase: 3, title: 'Encerramento', desc: 'Retrospectiva do ano e plano do Ano 2', responsible: 'Diretoria', date: '2027-07-09', endDate: '2027-07-09', status: 'nao-iniciado', required: true, subactivities: [], notes: '', attachments: [] },
-  ];
+  ], uid);
 }
 
 export function blankProject() {

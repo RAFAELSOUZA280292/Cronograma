@@ -1,0 +1,70 @@
+// Padrão de cronograma aprimorado — empresas que JÁ existem (2026-10-15; docs/PLANO_APRIMORAMENTO_CRONOGRAMA_PADRAO.md). Prévia por empresa (equipe PRICETAX)
+// e aplicação com confirmação (só administrador). O servidor RECALCULA o plano dentro da transação (FOR UPDATE) e só acrescenta: descrição que ainda era a do
+// modelo antigo, subatividades que faltam e as atividades novas sem data. Nunca toca em data, status, responsável, fase, prioridade nem no que já foi
+// concluído (rede de segurança em `applyPlanToData`). Log na empresa, sem notificação, sem reindexar a memória (nada disso entra nos trechos das reuniões).
+import { Router } from 'express';
+import { requireAuth, requireMasterOrPricetax } from './auth.js';
+import { pool } from './db.js';
+import { canAccessProject, effectiveOrgId } from './routes.js';
+import { planForProject, applyPlanToData } from './standardPlan.js';
+
+export const router = Router();
+router.use(requireAuth, requireMasterOrPricetax);
+const isAdmin = (u) => !!u && (u.isSuperAdmin || u.role === 'master');
+const labelOf = (data) => (data && data.company && (data.company.nomeFantasia || data.company.name)) || 'Empresa';
+const MAX_APPLY = 100;
+
+async function accessible(user, orgId) {
+  const { rows } = await pool.query('SELECT id, org_id, data FROM projects WHERE org_id=$1', [orgId]);
+  return rows.filter((r) => canAccessProject(user, r.data, r.org_id));
+}
+
+const summarize = (plan) => [
+  ...plan.descriptions.map((d) => `Descrição de "${d.title}"`),
+  ...plan.subs.map((s) => `+${s.items.length} subatividade${s.items.length === 1 ? '' : 's'} em "${s.title}"`),
+  ...plan.creates.map((c) => `Nova atividade "${c.title}" (sem data, ${c.subs} subatividades)`),
+];
+
+router.get('/preview', async (req, res, next) => {
+  try {
+    const rows = await accessible(req.user, effectiveOrgId(req));
+    const companies = rows.map((r) => {
+      const plan = planForProject(r.data || {});
+      return { id: r.id, label: labelOf(r.data), paused: !!(r.data.company && r.data.company.status === 'pausado'), counts: plan.counts, pending: !plan.empty, items: summarize(plan), skipped: plan.skipped };
+    }).sort((a, b) => Number(b.pending) - Number(a.pending) || a.label.localeCompare(b.label, 'pt-BR'));
+    const sum = (k) => companies.reduce((n, c) => n + c.counts[k], 0);
+    res.json({ canApply: isAdmin(req.user), totals: { companies: companies.length, pending: companies.filter((c) => c.pending).length, descriptions: sum('descriptions'), subs: sum('subs'), creates: sum('creates') }, companies });
+  } catch (e) { next(e); }
+});
+
+router.post('/apply', async (req, res, next) => {
+  try {
+    if (!isAdmin(req.user)) return res.status(403).json({ message: 'Só administradores aplicam o padrão nas empresas.' });
+    const ids = [...new Set(Array.isArray(req.body && req.body.projectIds) ? req.body.projectIds.filter((x) => typeof x === 'string') : [])];
+    if (!ids.length) return res.status(400).json({ message: 'Escolha ao menos uma empresa.' });
+    if (ids.length > MAX_APPLY) return res.status(400).json({ message: `Aplique em no máximo ${MAX_APPLY} empresas por vez.` });
+    const allowed = new Map((await accessible(req.user, effectiveOrgId(req))).map((r) => [r.id, r]));
+    const who = req.user.name || req.user.username || '';
+    const results = [];
+    for (const id of ids) {
+      if (!allowed.has(id)) { results.push({ id, status: 'sem-acesso' }); continue; }
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const cur = await client.query('SELECT data FROM projects WHERE id=$1 FOR UPDATE', [id]);
+        const before = cur.rows[0].data;
+        const { data, counts, plan } = applyPlanToData(before);
+        if (plan.empty) { await client.query('ROLLBACK'); results.push({ id, label: labelOf(before), status: 'em-dia' }); continue; }
+        const next = { ...data, log: [{ ts: new Date().toISOString(), action: `Padrão de cronograma aprimorado aplicado, confirmado por ${who}: ${counts.descriptions} descrição(ões), ${counts.subs} subatividade(s) e ${counts.creates} atividade(s) nova(s) sem data. Datas, status e responsáveis não foram alterados.`, user: who, activityId: null }, ...(before.log || [])].slice(0, 300) };
+        await client.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(next), id]);
+        await client.query('COMMIT');
+        results.push({ id, label: labelOf(before), status: 'aplicado', counts });
+      } catch (e) {
+        try { await client.query('ROLLBACK'); } catch { /* conexão já encerrada */ }
+        console.error('Padrão aprimorado: falha na empresa', id, e.message);
+        results.push({ id, status: 'erro', message: String(e.message || e).slice(0, 160) });
+      } finally { client.release(); }
+    }
+    res.json({ results, applied: results.filter((r) => r.status === 'aplicado').length });
+  } catch (e) { next(e); }
+});
