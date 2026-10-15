@@ -16,6 +16,7 @@ import { useHistoryValue, readHistoryValue } from '../lib/nav.js';
 import { S, BrandLogo, STATUS_META, PRIORITY_META, PRIORITY_ORDER } from '../App.jsx';
 import InventoryView from './Inventory.jsx';
 import GapsView from './Gaps.jsx';
+import StandardPlanView from './StandardPlan.jsx';
 import './macro.css';
 
 const RANGE_OPTIONS = [
@@ -161,7 +162,7 @@ export default function MacroOverviewScreen({
           <BrandLogo theme={theme} style={S.logoImg} />
           <div>
             <h1 style={{ margin: 0, fontSize: 'inherit', fontWeight: 800 }}>Visão Geral</h1>
-            <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{tab === 'inventory' ? 'Todas as empresas, por fase e responsável' : tab === 'gaps' ? 'Atividades-padrão que faltam em cada cronograma' : 'Todas as empresas, por data'}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-5)' }}>{tab === 'inventory' ? 'Todas as empresas, por fase e responsável' : tab === 'gaps' ? 'Atividades-padrão que faltam em cada cronograma' : tab === 'standard' ? 'Aplicar o padrão aprimorado nas empresas existentes' : 'Todas as empresas, por data'}</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -170,10 +171,10 @@ export default function MacroOverviewScreen({
       </div>
 
       <div className="mac-pad" style={{ paddingTop: 14 }}>
-        <Segmented label="Tipo de visão" value={tab} onChange={setTab} options={[{ value: 'date', label: 'Por data' }, { value: 'inventory', label: 'Levantamento' }, { value: 'gaps', label: 'Lacunas' }]} />
+        <Segmented label="Tipo de visão" value={tab} onChange={setTab} options={[{ value: 'date', label: 'Por data' }, { value: 'inventory', label: 'Levantamento' }, { value: 'gaps', label: 'Lacunas' }, { value: 'standard', label: 'Padrão' }]} />
       </div>
 
-      {tab === 'gaps' ? <GapsView /> : tab === 'inventory' ? <InventoryView onOpenActivity={onOpenActivity} onOpenTodo={onOpenTodo} activityModalOpen={activityModalOpen} /> : (<>
+      {tab === 'standard' ? <StandardPlanView /> : tab === 'gaps' ? <GapsView /> : tab === 'inventory' ? <InventoryView onOpenActivity={onOpenActivity} onOpenTodo={onOpenTodo} activityModalOpen={activityModalOpen} /> : (<>
       <div className="mac-today mac-pad" style={{ paddingTop: 18 }}>
         <span className="mac-today-l">Hoje</span>
         <span className="mac-today-d">{fmtTodayFull()}</span>
