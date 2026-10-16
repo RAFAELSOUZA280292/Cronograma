@@ -524,7 +524,7 @@ export async function getMetrics(pool, { orgId, accessibleProjectIds, dateFrom, 
        FROM ai_metrics_events
        WHERE event_type='anthropic_api_call' AND org_id=$1 AND (project_id IS NULL OR project_id = ANY($2::text[]))${dateClause}
        GROUP BY metadata->>'feature', metadata->>'model'
-       ORDER BY cache_read + cache_creation + uncached_input DESC`,
+       ORDER BY COALESCE(SUM((metadata->>'cacheReadTokens')::bigint), 0) + COALESCE(SUM((metadata->>'cacheCreationTokens')::bigint), 0) + COALESCE(SUM((metadata->>'inputTokens')::bigint), 0) DESC`,
       params,
     ).then((r) => r.rows),
   ]);
