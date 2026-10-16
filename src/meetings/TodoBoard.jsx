@@ -8,7 +8,7 @@
 // origem, e vice-versa. O painel de detalhe fica em TodoDrawer.jsx (arquivo
 // separado, pra este aqui não virar um componente gigante).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import * as XLSX from 'xlsx';
+import { loadXlsx } from '../lib/xlsxLoader.js';
 import {
   ListChecks, Search, Download, Plus, X, ChevronDown, ChevronRight,
   Filter, ArrowUpDown, MoreHorizontal,
@@ -307,7 +307,9 @@ export function TodoBoardView({
     setOpenPopover(null);
   }
 
-  function exportExcel() {
+  async function exportExcel() {
+    let XLSX;
+    try { XLSX = await loadXlsx(); } catch (e) { notify('Não foi possível preparar a planilha agora. Recarregue a página e tente de novo.', { tone: 'error' }); return; }
     const rows = allRows.map((r) => ({
       Reunião: r.meetingTitle,
       'Data da reunião': r.meetingDate ? fmtDate(r.meetingDate) : '',
