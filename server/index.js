@@ -73,8 +73,16 @@ app.use('/api', (err, req, res, next) => {
   res.status(500).json({ message: 'Erro interno do servidor.' });
 });
 
-app.use(express.static(distDir));
+// Arquivos de /assets têm o hash do conteúdo no nome (Vite): podem ficar guardados no navegador por 1 ano. O index.html NÃO (é ele que aponta
+// para os arquivos novos a cada deploy). Um arquivo de /assets que não existe responde 404 de verdade — antes caía no index.html com 200 (text/html),
+// o que mascarava o erro quando uma aba antiga pedia um pedaço (chunk) já removido por um deploy novo.
+app.use(express.static(distDir, {
+  setHeaders: (res, filePath) => {
+    if (filePath.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  },
+}));
 app.get('*', (req, res) => {
+  if (req.path.startsWith('/assets/')) return res.status(404).type('text/plain').send('Arquivo não encontrado.');
   res.sendFile(path.join(distDir, 'index.html'));
 });
 

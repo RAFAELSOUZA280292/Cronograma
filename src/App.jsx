@@ -8,7 +8,8 @@ import {
   ArrowLeft, Globe, Lock, RefreshCw, Pause, Play, Archive, Bug, Gauge, Home, Paperclip, Sparkles, Briefcase, FolderOpen,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import * as XLSX from 'xlsx';
+import { loadXlsx } from './lib/xlsxLoader.js';
+import { lazyRetry } from './lib/lazyRetry.jsx';
 import {
   DndContext, DragOverlay, MouseSensor, TouchSensor, KeyboardSensor, useSensor, useSensors, closestCorners, useDroppable,
 } from '@dnd-kit/core';
@@ -25,18 +26,10 @@ import DailyPrefs from './daily/DailyPrefs.jsx';
 import { useWelcomeSetup } from './daily/useWelcomeSetup.jsx';
 import pricetaxLogoBranco from './assets/brand/pricetax-logo-branco.png';
 import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
-import XFlowScreen from './xflow/XFlow.jsx';
-import AgendaScreen from './agenda/Agenda.jsx';
-import MacroOverviewScreen from './macro/MacroOverview.jsx';
 import { MeetingsView, todoStatusMeta } from './meetings/Meetings.jsx';
 import { MeetingDetailModal, MeetingPrintReport, PublicMeetingScreen } from './meetings/MeetingDetail.jsx';
-import { TodoBoardView } from './meetings/TodoBoard.jsx';
 import { ProjectAssistant } from './assistant/ProjectAssistant.jsx';
 import RenataHome from './assistant/RenataHome.jsx';
-import KnowledgeCenterScreen from './knowledge/KnowledgeCenter.jsx';
-import PareceresScreen from './pareceres/Pareceres.jsx';
-import ModelosScreen from './modelos/Modelos.jsx';
-import PersonalStatsPanel from './personal/PersonalStats.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
 import { activate, activateRow, Tabs, ConfirmDialog, Button, IconButton, SaveStatus, RecordSaveStatus, Segmented } from './ui/index.jsx';
 import { ownerIdsOf, principalOf, shortName, ownerInitials, OwnerBadges, OwnersField, BulkOwnersModal, mergeOwners, readCompanyView, saveCompanyView, OWNERS_CSS } from './companies/CompanyOwners.jsx';
@@ -48,7 +41,6 @@ import { useHistoryValue, readHistoryValue, withoutLayer, useEscClose } from './
 import { useAutosave } from './lib/useAutosave.js';
 import { loadNotifPrefs, resetNotifPrefs, useNotifPrefs, visibleNotifications, requestNotifSettings, hiddenTodaySources } from './lib/notifPrefs.js';
 import NotificationPrefs from './shell/NotificationPrefs.jsx';
-import RichNote from './ui/RichNote.jsx';
 import { noteToPlain } from './lib/richNote.js';
 import { calendarDaysSince } from './lib/dates.js';
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
@@ -61,7 +53,17 @@ import DaySummary from './personal/DaySummary.jsx';
 import { QuickNew, QuickViews } from './personal/QuickBits.jsx';
 import { setCardStatusInBoard, setCardDueDateInBoard, findCard } from './today/boardActions.js';
 // CRM (2026-09-20, PROJECT_CONTEXT.md §54): módulo grande e opcional — carregado só quando alguém abre o CRM.
-const CrmScreen = React.lazy(() => import('./crm/CrmScreen.jsx'));
+const CrmScreen = lazyRetry(() => import('./crm/CrmScreen.jsx'));
+// Code-splitting (2026-10-16): módulos inteiros e o editor de texto saem do pacote principal e só são baixados quando usados.
+const XFlowScreen = lazyRetry(() => import('./xflow/XFlow.jsx'));
+const AgendaScreen = lazyRetry(() => import('./agenda/Agenda.jsx'));
+const MacroOverviewScreen = lazyRetry(() => import('./macro/MacroOverview.jsx'));
+const KnowledgeCenterScreen = lazyRetry(() => import('./knowledge/KnowledgeCenter.jsx'));
+const PareceresScreen = lazyRetry(() => import('./pareceres/Pareceres.jsx'));
+const ModelosScreen = lazyRetry(() => import('./modelos/Modelos.jsx'));
+const PersonalStatsPanel = lazyRetry(() => import('./personal/PersonalStats.jsx'));
+const RichNote = lazyRetry(() => import('./ui/RichNote.jsx'));
+const TodoBoardView = lazyRetry(() => import('./meetings/TodoBoard.jsx').then((m) => ({ default: m.TodoBoardView })));
 // Fica aqui (e não em crm/crmMeta.js) pra o CSS do CRM não entrar no pacote principal.
 const CRM_ROLE_OPTIONS = [
   ['', 'Sem acesso'], ['admin', 'Administrador'], ['diretor', 'Diretor'], ['gestor', 'Gestor Comercial'], ['vendedor', 'Vendedor'],
@@ -1313,6 +1315,25 @@ function AppScreens({ shellRef, bump }) {
     };
   }, [currentUser?.id]);
 
+  // Pré-carrega, quando o navegador está ocioso, os dois pedaços de uso mais comum (editor de texto do cartão e a lista de tarefas das reuniões),
+  // para a primeira abertura não mostrar "Carregando…". Respeita o "economizar dados" do navegador.
+  useEffect(() => {
+    if (!currentUser) return undefined;
+    const run = () => {
+      try {
+        if (navigator.connection && navigator.connection.saveData) return;
+        import('./ui/RichNote.jsx').catch(() => {});
+        import('./meetings/TodoBoard.jsx').catch(() => {});
+      } catch (e) { /* ignora: é só otimização */ }
+    };
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(run, { timeout: 8000 });
+      return () => window.cancelIdleCallback && window.cancelIdleCallback(id);
+    }
+    const t = setTimeout(run, 4000);
+    return () => clearTimeout(t);
+  }, [currentUser?.id]);
+
   // Link permanente por TASK do XFlow (2026-08, pedido do Rafael): um link
   // tipo ".../#30" precisa cair direto dentro do XFlow (não só no gate),
   // pra XFlowScreen então abrir a TASK #30 específica (ver hashOpenDone lá).
@@ -1897,6 +1918,7 @@ function AppScreens({ shellRef, bump }) {
 
   if (effectiveMode === 'xflow') {
     return (
+      <React.Suspense fallback={<LoadingScreen theme={theme} />}>
       <XFlowScreen
         currentUser={currentUser}
         onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
@@ -1910,6 +1932,7 @@ function AppScreens({ shellRef, bump }) {
         pendingOpenTicketId={pendingXflowOpen} onPendingOpenConsumed={() => setPendingXflowOpen(null)}
         onTicketViewed={markTicketNotificationsReadLocally}
       />
+      </React.Suspense>
     );
   }
 
@@ -1939,6 +1962,7 @@ function AppScreens({ shellRef, bump }) {
 
   if (effectiveMode === 'agenda') {
     return (
+      <React.Suspense fallback={<LoadingScreen theme={theme} />}>
       <AgendaScreen
         currentUser={currentUser}
         onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
@@ -1951,12 +1975,14 @@ function AppScreens({ shellRef, bump }) {
         notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
         onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
       />
+      </React.Suspense>
     );
   }
 
   if (effectiveMode === 'macro') {
     return (
       <>
+        <React.Suspense fallback={<LoadingScreen theme={theme} />}>
         <MacroOverviewScreen
           currentUser={currentUser}
           onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
@@ -1978,6 +2004,7 @@ function AppScreens({ shellRef, bump }) {
           }}
           activityModalOpen={!!openActivityId}
         />
+        </React.Suspense>
         {renderActivityDetailModal()}
       </>
     );
@@ -1985,6 +2012,7 @@ function AppScreens({ shellRef, bump }) {
 
   if (effectiveMode === 'knowledge') {
     return (
+      <React.Suspense fallback={<LoadingScreen theme={theme} />}>
       <KnowledgeCenterScreen
         currentUser={currentUser}
         onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
@@ -1999,6 +2027,7 @@ function AppScreens({ shellRef, bump }) {
           openMeetingDetail(pid, meetingId);
         }}
       />
+      </React.Suspense>
     );
   }
 
@@ -2022,6 +2051,7 @@ function AppScreens({ shellRef, bump }) {
 
   if (effectiveMode === 'modelos') {
     return (
+      <React.Suspense fallback={<LoadingScreen theme={theme} />}>
       <ModelosScreen
         currentUser={currentUser}
         pendingOpenId={pendingModeloOpen}
@@ -2031,11 +2061,13 @@ function AppScreens({ shellRef, bump }) {
         theme={theme}
         onToggleTheme={toggleTheme}
       />
+      </React.Suspense>
     );
   }
 
   if (effectiveMode === 'pareceres') {
     return (
+      <React.Suspense fallback={<LoadingScreen theme={theme} />}>
       <PareceresScreen
         currentUser={currentUser}
         pendingOpenId={pendingParecerOpen}
@@ -2045,6 +2077,7 @@ function AppScreens({ shellRef, bump }) {
         theme={theme}
         onToggleTheme={toggleTheme}
       />
+      </React.Suspense>
     );
   }
 
@@ -3126,7 +3159,9 @@ function AppScreens({ shellRef, bump }) {
     }
   }
 
-  function exportExcel() {
+  async function exportExcel() {
+    let XLSX;
+    try { XLSX = await loadXlsx(); } catch (e) { notify('Não foi possível preparar a planilha agora. Recarregue a página e tente de novo.', { tone: 'error' }); return; }
     if (isMulti) {
       const rows = multiActivities.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).map((a) => ({
         Empresa: a._companyName,
@@ -3429,6 +3464,7 @@ function AppScreens({ shellRef, bump }) {
           />
         )}
         {!isMulti && view === 'todo' && (
+          <React.Suspense fallback={<div style={S.emptyMuted}>Carregando…</div>}>
           <TodoBoardView
             meetings={activeProject.meetings || []}
             team={activeProject.team}
@@ -3459,6 +3495,7 @@ function AppScreens({ shellRef, bump }) {
             addAttachment={addTodoAttachment}
             deleteAttachment={deleteTodoAttachment}
           />
+          </React.Suspense>
         )}
         {!isMulti && view === 'timeline' && (
           <TimelineView
@@ -6529,7 +6566,9 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
           <TagEditor tags={card.tags || []} onChange={(tags) => onUpdate({ tags }, 'Tags atualizadas')} suggestions={allTags} />
 
           <div style={S.subSectionLabel}>Descrição</div>
+          <React.Suspense fallback={<div style={{ minHeight: 96, border: '1px solid var(--border-2)', borderRadius: 8, background: 'var(--bg-1)' }} aria-busy="true" aria-label="Carregando o editor" />}>
           <RichNote value={descField.draft} format={card.descFormat} readOnly={readOnly} onChange={descField.onChange} onBlur={descField.flush} placeholder="Descrição, anotações..." />
+          </React.Suspense>
 
           <div style={S.subSectionLabel}><ListChecks size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Checklist {card.checklist && card.checklist.length > 0 ? `(${doneCount}/${card.checklist.length})` : ''}</div>
           <div style={S.checklistList}>
@@ -7886,7 +7925,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings
         <PersonalArchivePanel archiveItems={archiveItems} onClose={() => setShowArchive(false)} onRestore={restoreArchivedCard} />
       )}
 
-      {showStats && <PersonalStatsPanel onClose={() => setShowStats(false)} />}
+      {showStats && <React.Suspense fallback={null}><PersonalStatsPanel onClose={() => setShowStats(false)} /></React.Suspense>}
 
       {showShareModal && activeBoard && (
         <BoardShareModal
