@@ -57,6 +57,8 @@ import TodayPanel from './today/TodayPanel.jsx';
 import WeekSummary from './today/WeekSummary.jsx';
 import ContinueStrip from './today/ContinueStrip.jsx';
 import { buildTodayItems, addDaysIso } from './today/todayItems.js';
+import DaySummary from './personal/DaySummary.jsx';
+import { QuickNew, QuickViews } from './personal/QuickBits.jsx';
 import { setCardStatusInBoard, setCardDueDateInBoard, findCard } from './today/boardActions.js';
 // CRM (2026-09-20, PROJECT_CONTEXT.md §54): módulo grande e opcional — carregado só quando alguém abre o CRM.
 const CrmScreen = React.lazy(() => import('./crm/CrmScreen.jsx'));
@@ -1927,6 +1929,7 @@ function AppScreens({ shellRef, bump }) {
         theme={theme}
         onToggleTheme={toggleTheme}
         pendingOpen={pendingPersonalOpen} onPendingOpenConsumed={() => setPendingPersonalOpen(null)}
+        todayMeetings={buildTodayItems({ projects, personalBoard: null, user: currentUser, todayIso: todayISOStr() }).meetings}
         saveState={personalBoardSaveState}
         notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
         onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
@@ -6335,6 +6338,9 @@ function PersonalColumn({
         </div>
         <span style={S.kanbanCount}>{totalVisibleCount}</span>
         {!readOnly && (
+          <button aria-label={`Adicionar atividade em ${column.name || 'esta coluna'}`} title="Adicionar atividade" style={S.iconBtnGhost} onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} onClick={() => setShowQuickAdd(true)}><Plus aria-hidden="true" size={14} /></button>
+        )}
+        {!readOnly && (
           <div style={{ position: 'relative' }} onKeyDown={(e) => e.stopPropagation()}>
             <button aria-label="Mais ações" title="Mais ações" style={S.iconBtnGhost} onClick={() => setMenuOpen((v) => !v)}><MoreHorizontal aria-hidden="true" size={14} /></button>
             {menuOpen && (
@@ -6845,7 +6851,7 @@ function BoardActivityLogModal({ board, onClose }) {
   );
 }
 
-function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMutate, onExit, onGoCompany, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName, embedded, publicAction, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
+function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings, board, onMutate, onExit, onGoCompany, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName, embedded, publicAction, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
   // Histórico do navegador — Nível 2 (2026-08): trocar de página do quadro
   // pessoal. Nunca ativo em publicMode (/quadro/:token é a única rota que
   // usa URL de verdade — ver PROJECT_CONTEXT.md §9, não mexer nisso aqui).
@@ -6966,6 +6972,20 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
 
   const activeBoard = board.boards.find((b) => b.id === activeBoardId) || null;
   const viewPrefs = (activeBoard && activeBoard.viewPrefs) || { view: 'kanban', sortMode: 'manual' };
+  // Resumo do dia: abrir um cartão de qualquer página do quadro.
+  function openFromSummary(boardId, colId, cardId) { goToBoardPage(boardId); openCardDetail(colId, cardId); }
+  // Visões rápidas (2026-10-16): atalhos para os MESMOS filtros que já existem (prazo, prioridade, status); nada novo é salvo.
+  const quickViewItems = (() => {
+    if (!activeBoard) return [];
+    const alive = activeBoard.columns.flatMap((c) => c.cards.filter((cd) => !cd.deleted && !cd.archived));
+    const toggle = (key, value) => () => setFilters((f) => ({ ...f, [key]: f[key] === value ? '' : value }));
+    return [
+      { key: 'today', label: 'Hoje', count: alive.filter((c) => dueDateTone(c) === 'today').length, active: filters.dueBucket === 'today', onClick: toggle('dueBucket', 'today') },
+      { key: 'overdue', label: 'Atrasadas', danger: true, count: alive.filter((c) => dueDateTone(c) === 'overdue').length, active: filters.dueBucket === 'overdue', onClick: toggle('dueBucket', 'overdue') },
+      { key: 'urgent', label: 'Urgentes', count: alive.filter((c) => !c.completed && c.priority === 'urgente').length, active: filters.priority.length === 1 && filters.priority[0] === 'urgente', onClick: () => setFilters((f) => ({ ...f, priority: f.priority.length === 1 && f.priority[0] === 'urgente' ? [] : ['urgente'] })) },
+      { key: 'doing', label: 'Em andamento', count: alive.filter((c) => !c.completed && cardStatusOf(c) === 'em-andamento').length, active: filters.status === 'em-andamento', onClick: toggle('status', 'em-andamento') },
+    ];
+  })();
 
   function mutateBoardTree(bid, updater, logMsg) {
     onMutate((prev) => ({
@@ -7669,8 +7689,13 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
         />
       )}
 
+      {activeBoard && !activeLinked && !publicMode && !embedded && !readOnly && (
+        <DaySummary boards={board.boards} meetings={todayMeetings} todayIso={todayISOStr()} isMobile={isMobile} onOpenCard={openFromSummary} />
+      )}
+
       {activeBoard && !activeLinked && (
         <div style={S.personalToolbar}>
+          <QuickNew columns={activeBoard.columns} enabled={!publicMode && !embedded && !readOnly && !openCard && !showStats && !showTrash && !showArchive && !showShareModal && !showActivityLog} onCreate={addCard} />
           <div style={S.personalViewToggle}>
             <button style={{ ...S.personalViewToggleBtn, ...(viewPrefs.view !== 'list' ? S.personalViewToggleBtnActive : {}) }} onClick={() => setViewPrefs({ view: 'kanban' })}><Columns3 size={13} /> Quadro</button>
             <button style={{ ...S.personalViewToggleBtn, ...(viewPrefs.view === 'list' ? S.personalViewToggleBtnActive : {}) }} onClick={() => setViewPrefs({ view: 'list' })}><LayoutList size={13} /> Lista</button>
@@ -7720,6 +7745,8 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, board, onMuta
           </select>
         </div>
       )}
+
+      {activeBoard && !activeLinked && <QuickViews items={quickViewItems} />}
 
       {activeBoard && !activeLinked && anyFilterActive && (
         <div style={S.personalActiveFilters} role="status">
