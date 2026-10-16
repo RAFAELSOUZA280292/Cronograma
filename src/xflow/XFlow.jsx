@@ -14,7 +14,7 @@ import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { useEditor, EditorContent, Extension } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
-import TextStyle from '@tiptap/extension-text-style';
+import { TextStyle } from '@tiptap/extension-text-style';
 import FontFamily from '@tiptap/extension-font-family';
 import TextAlign from '@tiptap/extension-text-align';
 import Link from '@tiptap/extension-link';
@@ -650,9 +650,9 @@ const Indent = Extension.create({
     }];
   },
   addCommands() {
+    const { types } = this.options;
     function shiftIndent(delta) {
       return () => ({ tr, state, dispatch }) => {
-        const { types } = this.options;
         let changed = false;
         state.doc.nodesBetween(state.selection.from, state.selection.to, (node, pos) => {
           if (types.includes(node.type.name)) {
@@ -667,7 +667,7 @@ const Indent = Extension.create({
         return changed;
       };
     }
-    return { indent: shiftIndent(1).bind(this), outdent: shiftIndent(-1).bind(this) };
+    return { indent: shiftIndent(1), outdent: shiftIndent(-1) };
   },
 });
 
@@ -764,7 +764,7 @@ function RichTextEditor({ value, onChange, onCommit, disabled, placeholder, tick
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [2, 3] } }),
+      StarterKit.configure({ heading: { levels: [2, 3] }, link: false, underline: false, trailingNode: false, listKeymap: false }),
       Underline,
       TextStyle,
       FontFamily,
@@ -778,6 +778,7 @@ function RichTextEditor({ value, onChange, onCommit, disabled, placeholder, tick
     ],
     content: sanitizeRichText(value || ''),
     editable: !disabled,
+    shouldRerenderOnTransaction: true, // v3: a barra de formatação lê o estado do editor no render
     editorProps: {
       attributes: { class: 'xflow-rte-body' },
       handlePaste: (view, event) => {
@@ -811,7 +812,7 @@ function RichTextEditor({ value, onChange, onCommit, disabled, placeholder, tick
   useEffect(() => {
     if (!editor || editor.isFocused) return;
     const html = sanitizeRichText(value || '');
-    if (sanitizeRichText(editor.getHTML()) !== html) editor.commands.setContent(html, false);
+    if (sanitizeRichText(editor.getHTML()) !== html) editor.commands.setContent(html, { emitUpdate: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, editor]);
 

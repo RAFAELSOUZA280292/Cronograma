@@ -41,12 +41,14 @@ export default function RichNote({ value, format, onChange, onBlur, readOnly, pl
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: false, blockquote: false, codeBlock: false, code: false, horizontalRule: false, strike: false }),
+      StarterKit.configure({ heading: false, blockquote: false, codeBlock: false, code: false, horizontalRule: false, strike: false, link: false, underline: false, trailingNode: false, listKeymap: false }),
       Link.configure({ openOnClick: true, autolink: true, HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer nofollow' } }),
       Placeholder.configure({ placeholder: placeholder || '' }),
     ],
     content: noteToEditorHtml(value, format),
     editable: !readOnly,
+    // v3: por padrão o componente NÃO re-renderiza a cada transação; a barra lê `editor.isActive` no render, então precisa disso ligado.
+    shouldRerenderOnTransaction: true,
     editorProps: { attributes: { 'aria-label': label, role: 'textbox', 'aria-multiline': 'true' } },
     onUpdate: ({ editor: ed, transaction }) => { if (!transaction.docChanged) return; editedRef.current = true; if (onChangeRef.current) onChangeRef.current(ed.isEmpty ? '' : sanitizeNote(ed.getHTML())); },
     onFocus: () => setFocused(true),
@@ -62,7 +64,7 @@ export default function RichNote({ value, format, onChange, onBlur, readOnly, pl
     if (!editor || editor.isFocused) return;
     const next = noteToEditorHtml(value, fmt());
     const current = editor.isEmpty ? '' : sanitizeNote(editor.getHTML());
-    if (current !== next) editor.commands.setContent(next, false);
+    if (current !== next) editor.commands.setContent(next, { emitUpdate: false });
   }, [value, editor]);
 
   if (!editor) return null;
