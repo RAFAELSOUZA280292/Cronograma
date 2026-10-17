@@ -26,6 +26,7 @@ import { router as connectRouter } from './connect.js';
 import { startCrmScheduler } from './crm/scheduler.js';
 import { startTodoScheduler } from './todoNotifications.js';
 import { pool } from './db.js';
+import { countMaps } from './sourcemaps.js';
 import { seedQuoteFacts, embedQuoteFacts } from './inspirationQuotes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -78,6 +79,13 @@ app.use('/api', (err, req, res, next) => {
 // Arquivos de /assets têm o hash do conteúdo no nome (Vite): podem ficar guardados no navegador por 1 ano. O index.html NÃO (é ele que aponta
 // para os arquivos novos a cada deploy). Um arquivo de /assets que não existe responde 404 de verdade — antes caía no index.html com 200 (text/html),
 // o que mascarava o erro quando uma aba antiga pedia um pedaço (chunk) já removido por um deploy novo.
+// Sourcemaps (dist/assets/*.map, build "hidden") são só do servidor, para traduzir pilhas no log — nunca saem para o público.
+// (os .map já ficam fora de dist/; este filtro é a 2ª barreira e olha o caminho DECODIFICADO — "x.js%2emap" também é bloqueado)
+app.use((req, res, next) => {
+  let p = req.path;
+  try { p = decodeURIComponent(req.path); } catch (e) { /* caminho malformado: o static também recusa */ }
+  return /\.map$/i.test(p) ? res.status(404).type('text/plain').send('Arquivo não encontrado.') : next();
+});
 app.use(express.static(distDir, {
   setHeaders: (res, filePath) => {
     if (filePath.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
@@ -105,6 +113,7 @@ async function start() {
   } catch (e) { console.error('RENATA: não consegui registrar as frases de inspiração:', e.message); }
   app.listen(port, () => {
     console.log(`Cronograma server ouvindo na porta ${port}`);
+    countMaps().then((n) => console.log(`sourcemaps (só para o log de erros): ${n} arquivo(s) disponíveis`));
     startCrmScheduler();
     startTodoScheduler();
   });

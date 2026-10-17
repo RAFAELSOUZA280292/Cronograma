@@ -10,6 +10,7 @@ import { createNotification, rowToNotification } from './notifications.js';
 import { sanitizeBoardNotes } from './richNote.js';
 import { readExtras, buildExtrasPatch } from './personalExtras.js';
 import { allowReport, formatClientError } from './clientError.js';
+import { symbolicate, MAPS_DIR } from './sourcemaps.js';
 import { readMuted, publicCategories, loadMutedPatterns, NOTIFICATION_CATEGORIES, TODAY_SOURCES, readTodayHidden, publicTodaySources } from './notificationPrefs.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { CRM_ROLES } from './crm/permissions.js';
@@ -740,8 +741,12 @@ router.put('/personal-extras', requireAuth, async (req, res, next) => {
 
 // Erro de tela capturado por um limite de erro do navegador → uma linha no log do servidor. Só com login, com limite por pessoa.
 router.post('/client-error', requireAuth, (req, res) => {
-  if (allowReport(req.user.id, req.body && req.body.kind)) console.error('[client-error]', formatClientError(req.user, req.body));
-  res.status(204).end();
+  res.status(204).end(); // responde já; a tradução da pilha e o log acontecem depois, sem fazer o navegador esperar
+  if (!allowReport(req.user.id, req.body && req.body.kind)) return;
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  Promise.all([symbolicate(body.stack, MAPS_DIR), symbolicate(body.componentStack, MAPS_DIR)])
+    .then(([stack, componentStack]) => console.error('[client-error]', formatClientError(req.user, { ...body, stack, componentStack })))
+    .catch(() => console.error('[client-error]', formatClientError(req.user, body)));
 });
 
 router.patch('/notifications/:id', requireAuth, async (req, res, next) => {

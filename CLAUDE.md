@@ -40,7 +40,7 @@ está em `PROJECT_CONTEXT.md` §3.)
 
 ```bash
 npm run dev       # vite + node --watch server/index.js, :5173 (proxy /api -> :3001)
-npm run build     # vite build -> dist/
+npm run build     # vite build -> dist/ (+ move os sourcemaps para .sourcemaps/, fora da pasta pública)
 npm run preview   # serve dist/ localmente
 npm start         # produção: node server/index.js
 ```
@@ -53,7 +53,7 @@ ser dito como **não testado** e entrar na §15 do `PROJECT_CONTEXT.md`.
 ## Arquivos que NÃO devem ser mexidos sem necessidade explícita
 
 - `package-lock.json` — não editar manualmente.
-- `dist/` — gerado, nunca editar à mão nem commitar mudança manual.
+- `dist/` e `.sourcemaps/` — gerados, nunca editar à mão nem commitar (os sourcemaps são só do servidor, para o log de erros; nunca servir ao público).
 - `.env` — segredos locais, nunca commitar.
 - `server/db.js` (schema SQL) — sensível, afeta produção; só mexa se a
   tarefa pedir explicitamente um campo relacional novo (não JSONB).
