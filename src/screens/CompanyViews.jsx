@@ -1427,11 +1427,19 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
       setDragOffsetY(0);
       dragOverIdRef.current = null;
     }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    function onCancel() {
+      setDragActId(null);
+      setDragOverId(null);
+      setDragOffsetY(0);
+      dragOverIdRef.current = null;
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragActId]);
@@ -1556,7 +1564,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
         <div style={S.tableWrap}>
           {!isMobile && (
           <div style={{ ...S.tableHeaderRow, minWidth: TABLE_MIN_W }}>
-            <div style={{ ...S.th, width: 20 }}></div>
+            <div className="tbl-grip" style={{ ...S.th, width: 20 }}></div>
             <div style={{ ...S.th, width: 46 }}>#</div>
             {multiMode && <div style={{ ...S.th, width: 150 }}>Empresa</div>}
             <div style={{ ...S.th, flex: 2, minWidth: 260 }}>Atividade</div>
@@ -1615,8 +1623,9 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                 {!isMobile && (
                 <div style={S.tableRow}>
                   <div
-                    style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: multiMode ? 'default' : (isDragging ? 'grabbing' : 'grab'), opacity: multiMode ? 0.25 : 1, flexShrink: 0 }}
-                    onMouseDown={(e) => startRowDrag(e, a.id)}
+                    className="tbl-grip tbl-grip-row"
+                    style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: multiMode ? 'default' : (isDragging ? 'grabbing' : 'grab'), opacity: multiMode ? 0.25 : 1, flexShrink: 0, touchAction: 'none' }}
+                    onPointerDown={(e) => startRowDrag(e, a.id)}
                     title={multiMode ? undefined : 'Arraste para reordenar (ajusta a data de início)'}
                   >
                     <GripVertical size={14} color="var(--text-7)" />
@@ -2093,11 +2102,12 @@ export function TimelineView({ activities, phases, granularity, setGranularity, 
     function onMove(e) {
       setDragBar((d) => (d ? { ...d, offsetPx: e.clientX - d.startX } : d));
     }
+    function onCancel() { setDragBar(null); }
     function onUp(e) {
       setDragBar((d) => {
         if (d) {
           const pxMoved = e.clientX - d.startX;
-          if (Math.abs(pxMoved) < 4) {
+          if (Math.abs(pxMoved) < (d.touch ? 8 : 4)) {
             openDetail(pid, d.id);
           } else {
             const deltaDays = Math.round((pxMoved / colW) * daysPerCol);
@@ -2111,11 +2121,13 @@ export function TimelineView({ activities, phases, granularity, setGranularity, 
         return null;
       });
     }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
     };
   }, [dragBar, colW, daysPerCol, pid, updateActivity, openDetail]);
 
@@ -2199,11 +2211,13 @@ export function TimelineView({ activities, phases, granularity, setGranularity, 
                       boxShadow: dragBar && dragBar.id === row.act.id ? '0 6px 16px rgba(0,0,0,.5)' : undefined,
                       zIndex: dragBar && dragBar.id === row.act.id ? 5 : undefined,
                       userSelect: 'none',
+                      touchAction: 'none',
                     }}
                     title={`${row.act.title}\n${fmtDate(row.act.date)} – ${fmtDate(row.act.endDate || row.act.date)}\nClique para abrir · arraste para reagendar`}
-                    onMouseDown={(e) => {
+                    onPointerDown={(e) => {
+                      if (e.pointerType === 'mouse' && e.button !== 0) return;
                       e.preventDefault();
-                      setDragBar({ id: row.act.id, title: row.act.title, startX: e.clientX, origDate: row.act.date, origEndDate: row.act.endDate || row.act.date, offsetPx: 0 });
+                      setDragBar({ id: row.act.id, title: row.act.title, startX: e.clientX, origDate: row.act.date, origEndDate: row.act.endDate || row.act.date, offsetPx: 0, touch: e.pointerType !== 'mouse' });
                     }}
                   >
                     <span style={{ ...S.ganttBarDot, background: STATUS_META[row.act.status].color }} />
