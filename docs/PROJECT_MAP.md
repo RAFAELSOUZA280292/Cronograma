@@ -290,7 +290,7 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 950 | `PersonalBoardScreen` | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros, `publicMode`/`readOnly` props) |
 | 2056 | `PublicBoardScreen` | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
 
-**`src/screens/CompanyViews.jsx`** (2225 linhas)
+**`src/screens/CompanyViews.jsx`** (2226 linhas)
 
 | Linha | Componente | Responsabilidade |
 |---|---|---|
@@ -324,8 +324,8 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 1003 | `ResumoView` | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
 | 1351 | `TableView` | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades; chip "N tarefas · M abertas" via props `taskCounts`/`onOpenTasks` — no modo multiempresa `taskCounts` é por empresa `{pid:{activityId:…}}` e o clique abre a empresa na aba Tarefas (2026-10-17)) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
 | 1845 | `PhasesView` | View "Fases"; chip "N tarefas · M abertas" no card via props `taskCounts` (mapa por atividade da empresa da seção) e `onOpenTasks` (2026-10-17) |
-| 1977 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal); chip "N tarefas · M abertas" no card, em todos os modos (props `taskCounts` por empresa `{pid:{activityId:…}}` e `onOpenTasks`, 2026-10-17) |
-| 2066 | `TimelineView` | View "Gantt"; chip "N tarefas · M abertas" na coluna de rótulos via props `taskCounts` (mapa por atividade da empresa da seção) e `onOpenTasks` (2026-10-17) |
+| 1978 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal); chip "N tarefas · M abertas" no card, em todos os modos (props `taskCounts` por empresa `{pid:{activityId:…}}` e `onOpenTasks`, 2026-10-17) |
+| 2067 | `TimelineView` | View "Gantt"; chip "N tarefas · M abertas" na coluna de rótulos via props `taskCounts` (mapa por atividade da empresa da seção) e `onOpenTasks` (2026-10-17) |
 
 **`src/screens/CompanyWorkspace.jsx`** (789 linhas)
 

@@ -89,8 +89,9 @@
       }
       /* Evita zoom automático do iOS ao focar campos (exige fonte >= 16px). Só em telas pequenas — desktop mantém o tamanho de fonte de cada componente. */
       @media (max-width: 767px) {
-        input[type=text], input[type=email], input[type=password], input[type=number],
-        input[type=date], input[type=tel], input[type=search], select, textarea {
+        input:not([type]), input[type=text], input[type=email], input[type=password], input[type=number],
+        input[type=date], input[type=tel], input[type=search], input[type=url], input[type=time],
+        input[type=datetime-local], input[type=month], select, textarea, [contenteditable="true"] {
           font-size: 16px !important;
         }
       }
