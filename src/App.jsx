@@ -16,8 +16,6 @@ import { useWelcomeSetup } from './daily/useWelcomeSetup.jsx';
 import pricetaxLogoBranco from './assets/brand/pricetax-logo-branco.png';
 import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
 
-import { MeetingDetailModal, PublicMeetingScreen } from './meetings/MeetingDetail.jsx';
-import { ProjectAssistant } from './assistant/ProjectAssistant.jsx';
 import RenataHome from './assistant/RenataHome.jsx';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
 
@@ -76,6 +74,10 @@ const TimelineView = lazyRetry(() => import('./screens/CompanyViews.jsx').then((
 const ResumoView = lazyRetry(() => import('./screens/CompanyViews.jsx').then((m) => ({ default: m.ResumoView })));
 const ActivityDetailModal = lazyRetry(() => import('./screens/CompanyViews.jsx').then((m) => ({ default: m.ActivityDetailModal })));
 const PrintReport = lazyRetry(() => import('./screens/CompanyViews.jsx').then((m) => ({ default: m.PrintReport })));
+// Detalhe de reunião e assistente por empresa (2026-10-17): helpers de status saíram de Meetings.jsx (meetings/todoStatus.js), o que permitiu carregá-los sob demanda.
+const MeetingDetailModal = lazyRetry(() => import('./meetings/MeetingDetail.jsx').then((m) => ({ default: m.MeetingDetailModal })));
+const PublicMeetingScreen = lazyRetry(() => import('./meetings/MeetingDetail.jsx').then((m) => ({ default: m.PublicMeetingScreen })));
+const ProjectAssistant = lazyRetry(() => import('./assistant/ProjectAssistant.jsx').then((m) => ({ default: m.ProjectAssistant })));
 const CompanyWorkspace = lazyRetry(() => import('./screens/CompanyWorkspace.jsx').then((m) => ({ default: m.CompanyWorkspace })));
 
 const LOCAL_PREFS_KEY = 'pricetax-cronograma-prefs-v1';
@@ -1527,7 +1529,7 @@ function AppScreens({ shellRef, bump }) {
 
   const publicMeetingMatch = window.location.pathname.match(/^\/reuniao\/([A-Za-z0-9_-]+)/);
   if (publicMeetingMatch) {
-    return <PublicMeetingScreen token={publicMeetingMatch[1]} theme={theme} onToggleTheme={toggleTheme} />;
+    return <React.Suspense fallback={<LoadingScreen theme={theme} />}><PublicMeetingScreen token={publicMeetingMatch[1]} theme={theme} onToggleTheme={toggleTheme} /></React.Suspense>;
   }
 
   if (!sessionChecked) {
@@ -1732,6 +1734,7 @@ function AppScreens({ shellRef, bump }) {
           const rp = projects.find((p) => p.id === renataProjectId);
           if (!rp) return null;
           return (
+            <React.Suspense fallback={null}>
             <ProjectAssistant
               key={renataProjectId}
               projectId={rp.id}
@@ -1744,6 +1747,7 @@ function AppScreens({ shellRef, bump }) {
               onOpenAgenda={() => { setRenataProjectId(null); setTimeout(() => goToWorkspace('agenda'), 160); }}
               canStudyPareceres={currentUser.isSuperAdmin || currentUser.role === 'master' || currentUser.role === 'pricetax'}
             />
+            </React.Suspense>
           );
         })()}
       </>

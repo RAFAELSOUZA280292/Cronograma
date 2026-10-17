@@ -143,6 +143,7 @@ server/personalActivity.js  Indicadores da Gestão de Atividades (2026-10-04, §
 src/lib/lazyRetry.jsx  `lazyRetry` = React.lazy com aviso "O sistema foi atualizado" se o pedaço não puder ser baixado (code-splitting, 2026-10-16, §65). `src/lib/xlsxLoader.js`: `loadXlsx()` baixa a biblioteca de planilhas só ao exportar. Desde a Onda 2 (2026-10-16, §65) a lib é o SheetJS 0.20.3 vendorizado em `vendor/xlsx-0.20.3.tgz` e o editor é Tiptap 3 (`RichNote.jsx`, `xflow/XFlow.jsx` com `shouldRerenderOnTransaction: true`).
 src/personal/QuickBits.jsx  Atalhos do quadro pessoal (2026-10-16, §65): `QuickNew` (botão global "Nova atividade" + tecla N) e `QuickViews` (Hoje/Atrasadas/Urgentes/Em andamento ligados aos filtros existentes).
 src/personal/DaySummary.jsx  "Resumo do dia" recolhível no topo da Gestão de Atividades: Foco de hoje, Prioridades e Próximas reuniões; `focusOf`/`topPriorities` puras; só lê dados existentes.
+src/meetings/todoStatus.js  (2026-10-17, §65) `TODO_STATUS_META`/`TODO_STATUS_ORDER`/`todoStatusMeta` (status das tarefas de reunião), antes em Meetings.jsx; arquivo puro. `MeetingDetail`, `PublicMeetingScreen` e `ProjectAssistant` carregam sob demanda no App.jsx.
 src/personal/Waiting.jsx  Marcador "Aguardando" do cartão (2026-10-16, §65): `isWaiting`, `waitingLabel`, `WaitingField` (modal do cartão); `card.waiting={who,since}`, não é status.
 src/screens/AdminScreens.jsx  (2026-10-17, §65) Telas de administração carregadas sob demanda: `UsersManagementScreen`, `SuperAdminScreen`, `CompanySelectorScreen`, `MyProfileModal` e seus modais (novo/editar usuário, criar/editar empresa). Extraído do App.jsx; o App só tem `lazyRetry(() => import(...))`.
 src/screens/PersonalBoard.jsx  (2026-10-17, §65) Gestão de Atividades sob demanda: `PersonalBoardScreen`, `PublicBoardScreen` (quadro por link), colunas, cartões, lista, painéis de lixeira/concluídas/histórico/compartilhar.
@@ -175,69 +176,70 @@ Não há `server/routes/`, `server/models/`, `src/components/` — tudo é flat.
 
 Helpers/constantes de topo: linhas 1–440 (formatação de data, `STATUS_META`, `PRIORITY_META`, `CARD_*_META`, hooks e componentes pequenos). O objeto de estilos `S` **não mora mais aqui**: está em `src/styles/S.js` (e `STATUS_ORDER` em `src/lib/statusOrder.js`); o App.jsx o importa e re-exporta (`export { S }`) para quem ainda importa de lá.
 
-`AppScreens()` (L439, antigo `App()` — a raiz `App` fica no fim do arquivo (L3196) e só monta `ShellHost` + `AppScreens`; ver §81) — **linhas 439 a ~3195**. Contém o estado global, os efeitos de bootstrap (sessão, projetos, quadro, URL por módulo, boas-vindas), os ramos antecipados de renderização (login → tela inicial → módulo) e o `return` final, que monta `<CompanyWorkspace ctx={{…}} />` (a área da empresa). **As funções de mutação saíram para `src/app/*.js`** (2026-10-17, §65): são *fábricas* (`createNotificationActions`, `createCompanyActivityActions`, `createMeetingActions`, `createCompanyAdminActions`, `createUserOrgActions`, `createTeamPhaseActions`) que o `AppScreens` chama a cada render, num único ponto logo depois do último `useState`/`useRef` (comentário "Ações do app" ~L528), passando o estado e devolvendo as ações; o código das funções é o mesmo de antes. **`src/App.jsx` tem ~3.200 linhas** (eram ~10.900 até 2026-10-17): telas pesadas em **`src/screens/`** (`AdminScreens.jsx`, `PersonalBoard.jsx`, `CompanyViews.jsx`, `CompanyWorkspace.jsx`), que carregam sob demanda — ver `PROJECT_CONTEXT.md` §65. Módulos novos moram em `src/*/` (ver §2).
+`AppScreens()` (L441, antigo `App()` — a raiz `App` fica no fim do arquivo (L3200) e só monta `ShellHost` + `AppScreens`; ver §81) — **linhas 441 a ~3199**. Contém o estado global, os efeitos de bootstrap (sessão, projetos, quadro, URL por módulo, boas-vindas), os ramos antecipados de renderização (login → tela inicial → módulo) e o `return` final, que monta `<CompanyWorkspace ctx={{…}} />` (a área da empresa). **As funções de mutação saíram para `src/app/*.js`** (2026-10-17, §65): são *fábricas* (`createNotificationActions`, `createCompanyActivityActions`, `createMeetingActions`, `createCompanyAdminActions`, `createUserOrgActions`, `createTeamPhaseActions`) que o `AppScreens` chama a cada render, num único ponto logo depois do último `useState`/`useRef` (comentário "Ações do app" ~L528), passando o estado e devolvendo as ações; o código das funções é o mesmo de antes. **`src/App.jsx` tem ~3.200 linhas** (eram ~10.900 até 2026-10-17): telas pesadas em **`src/screens/`** (`AdminScreens.jsx`, `PersonalBoard.jsx`, `CompanyViews.jsx`, `CompanyWorkspace.jsx`), que carregam sob demanda — ver `PROJECT_CONTEXT.md` §65. Módulos novos moram em `src/*/` (ver §2).
 
 Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do código em 2026-10-17** (linhas exatas naquele dia; descrições antigas foram mantidas, as novas vêm do comentário acima da declaração — `—` = ainda sem descrição):
 
-**`src/App.jsx`** (3209 linhas)
+**`src/App.jsx`** (3213 linhas)
 
 | Linha | Componente | Responsabilidade |
 |---|---|---|
-| 66 | `UsersManagementScreen` | Painel admin de usuários (master) |
-| 67 | `SuperAdminScreen` | Tela "Organizações (Super Admin)": lista, cria e entra numa organização |
-| 68 | `CompanySelectorScreen` | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, filtros por Tipo/Status/Regime (2026-08), atalho p/ Gestão de Atividades |
-| 69 | `MyProfileModal` | Avatar do usuário logado + seção "Trocar senha" (2026-08, `POST /api/auth/change-password`) |
-| 70 | `PersonalBoardScreen` | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros, `publicMode`/`readOnly` props) |
-| 71 | `PublicBoardScreen` | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
-| 72 | `TableView` | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades; chip "N tarefas · M abertas" via props `taskCounts`/`onOpenTasks`, só no modo uma empresa — 2026-10-16) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
-| 73 | `PhasesView` | View "Fases" |
-| 74 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
-| 75 | `TimelineView` | View "Gantt" |
-| 76 | `ResumoView` | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
-| 77 | `ActivityDetailModal` | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários (com anexo de imagem/PDF e link por comentário, 2026-08), histórico, campo opcional `meetingTime` (2026-08, "Horário da reunião") e checkbox `clientDateConfirmed` (2026-08, "Data confirmada com o cliente?") |
-| 78 | `PrintReport` | Relatório em PDF dedicado (2026-08) — KPIs/progresso/próximas etapas, `display:none` na tela, só aparece em `@media print` — ver `PROJECT_CONTEXT.md` §13 |
-| 84 | `BrandLogo` | Logo PRICETAX, troca PNG conforme tema |
-| 88 | `ThemeToggleBtn` | Botão sol/lua |
-| 153 | `initials` | Iniciais de um nome (avatar) |
-| 161 | `uid` | Gera id curto com prefixo |
-| 162 | `genShareToken` | Gera token de link público |
-| 164 | `todayISOStr` | Hoje em AAAA-MM-DD (fuso local) |
-| 170 | `useMediaQuery` | Hook de media query |
-| 183 | `useIsMobile` | Hook: viewport < 768px |
-| 190 | `useDirtyForm` | Guarda de "alterações não salvas" — padrão único reusado em todo modal de formulário-rascunho (useDirtyForm) e em todo modal autosave-por-campo (useAutosaveTimestamp), pra nunca fechar e perder informação em silêncio. currentValue |
-| 219 | `useDebouncedField` | Campo de texto com autosave DEBOUNCED, não por tecla (2026-09-17, bug real relatado pelo Rafael: "escrevo 3-4 letras e o texto é apagado por um fantasma"). Causa raiz: nos modais de autosave-por-campo, CADA tecla disparava a funçã |
-| 261 | `useAutosaveTimestamp` | record = a prop vinda do pai (activity/ticket/card) que já muda sozinha toda vez que um autosave de campo grava — não precisa instrumentar cada handler individual, só observa o resultado. |
-| 274 | `ConfirmDiscardModal` | Modal "Salvar e sair / Sair sem salvar / Continuar editando" (§16, guarda de alterações não salvas) |
-| 295 | `normalizeTeam` | Normaliza `project.team` (vínculo com usuários) |
-| 303 | `normalizeProject` | Preenche defaults de um projeto carregado |
-| 308 | `fmtDate` | Data em pt-BR |
-| 314 | `fmtTs` | Data e hora em pt-BR (exportado, usado pelos módulos) |
-| 322 | `groupRootId` | Grupo Empresarial: o Master é sua própria raiz de grupo (isGroupMaster=true, sem precisar de groupId apontando pra si mesmo); filhas têm company.groupId = id do Master. |
-| 326 | `groupMembers` | Membros de um grupo empresarial (§12) |
-| 331 | `parseDate` | AAAA-MM-DD → Date |
-| 332 | `toISODate` | Date → AAAA-MM-DD |
-| 333 | `startOfDay` | Início do dia |
-| 334 | `addDays` | Soma dias |
-| 335 | `calcDeadline` | Prazo a partir de início + duração |
-| 344 | `fmtYearLabel` | Ano |
-| 347 | `sortActivities` | Ordena atividades (data/fase/prioridade) |
-| 356 | `buildOrderMap` | Mapa de ordem manual de atividades |
-| 367 | `AreaRow` | Extraído do .map() de "Áreas e responsáveis" (tela de configurações da empresa) pra poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo bug de digitação do PROJECT_CONTEXT.md §45/§46. onCommit recebe o valor r |
-| 392 | `PhaseRow` | Extraído do .map() de "Fases" (SidePanel de fases do projeto) pelo mesmo motivo do AreaRow acima. O log de "Fase renomeada"/"Descrição alterada" usa o draft local (nameField.draft) em vez de p.name/p.sub das props — essas só atual |
-| 2393 | `LoadingScreen` | Tela de carregamento inicial |
-| 2426 | `LoginGate` | Formulário de login + modo "Trocar senha" (2026-08, `POST /api/auth/change-password-login`) |
-| 2530 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
-| 2866 | `UserAvatar` | Avatar (emoji) do usuário |
-| 2885 | `TeamLinkBadge` | Selo "vinculado a usuário" da equipe |
-| 2893 | `CompanySectionHeader` | Cabeçalho de seção de empresa na visão multi-empresa |
-| 2909 | `GroupActivityCompaniesModal` | Escolha das empresas envolvidas numa atividade de grupo (§12) |
-| 2964 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades vs XFlow vs Agenda — é a própria "Home" |
-| 3035 | `useToasts` | Hook de avisos temporários (toasts) |
-| 3044 | `ToastStack` | Pilha de toasts |
-| 3047 | `PersonalBoardSkeleton` | Esqueleto de carregamento do quadro pessoal |
-| 3069 | `NoAccessScreen` | Tela para quem não tem acesso a nenhum módulo |
-| 3093 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
-| 3116 | `NotificationBell` | Central de Notificações (2026-08) — componente compartilhado, usado nas 3 telas (Empresas em App(), Gestão de Atividades em PersonalBoardScreen, XFlow em XflowScreen) via o mesmo estado/lista levantados em App(), pra contador e li |
+| 64 | `UsersManagementScreen` | Painel admin de usuários (master) |
+| 65 | `SuperAdminScreen` | Tela "Organizações (Super Admin)": lista, cria e entra numa organização |
+| 66 | `CompanySelectorScreen` | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, filtros por Tipo/Status/Regime (2026-08), atalho p/ Gestão de Atividades |
+| 67 | `MyProfileModal` | Avatar do usuário logado + seção "Trocar senha" (2026-08, `POST /api/auth/change-password`) |
+| 68 | `PersonalBoardScreen` | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros, `publicMode`/`readOnly` props) |
+| 69 | `PublicBoardScreen` | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
+| 70 | `TableView` | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades; chip "N tarefas · M abertas" via props `taskCounts`/`onOpenTasks`, só no modo uma empresa — 2026-10-16) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
+| 71 | `PhasesView` | View "Fases" |
+| 72 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
+| 73 | `TimelineView` | View "Gantt" |
+| 74 | `ResumoView` | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
+| 75 | `ActivityDetailModal` | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários (com anexo de imagem/PDF e link por comentário, 2026-08), histórico, campo opcional `meetingTime` (2026-08, "Horário da reunião") e checkbox `clientDateConfirmed` (2026-08, "Data confirmada com o cliente?") |
+| 76 | `PrintReport` | Relatório em PDF dedicado (2026-08) — KPIs/progresso/próximas etapas, `display:none` na tela, só aparece em `@media print` — ver `PROJECT_CONTEXT.md` §13 |
+| 81 | `CompanyWorkspace` | Área principal de uma empresa (cabeçalho, filtros, abas Resumo/Reuniões/Tarefas/Gantt/Tabela/Fases/Quadro, modais da empresa). Recebe tudo do `AppScreens` num objeto `ctx` (129 nomes, desestruturados no topo; monte o `ctx` em `AppScreens` ao incluir algo novo). Importa as views direto de `./CompanyViews.jsx` |
+| 86 | `BrandLogo` | Logo PRICETAX, troca PNG conforme tema |
+| 90 | `ThemeToggleBtn` | Botão sol/lua |
+| 155 | `initials` | Iniciais de um nome (avatar) |
+| 163 | `uid` | Gera id curto com prefixo |
+| 164 | `genShareToken` | Gera token de link público |
+| 166 | `todayISOStr` | Hoje em AAAA-MM-DD (fuso local) |
+| 172 | `useMediaQuery` | Hook de media query |
+| 185 | `useIsMobile` | Hook: viewport < 768px |
+| 192 | `useDirtyForm` | Guarda de "alterações não salvas" — padrão único reusado em todo modal de formulário-rascunho (useDirtyForm) e em todo modal autosave-por-campo (useAutosaveTimestamp), pra nunca fechar e perder informação em silêncio. currentValue |
+| 221 | `useDebouncedField` | Campo de texto com autosave DEBOUNCED, não por tecla (2026-09-17, bug real relatado pelo Rafael: "escrevo 3-4 letras e o texto é apagado por um fantasma"). Causa raiz: nos modais de autosave-por-campo, CADA tecla disparava a funçã |
+| 263 | `useAutosaveTimestamp` | record = a prop vinda do pai (activity/ticket/card) que já muda sozinha toda vez que um autosave de campo grava — não precisa instrumentar cada handler individual, só observa o resultado. |
+| 276 | `ConfirmDiscardModal` | Modal "Salvar e sair / Sair sem salvar / Continuar editando" (§16, guarda de alterações não salvas) |
+| 297 | `normalizeTeam` | Normaliza `project.team` (vínculo com usuários) |
+| 305 | `normalizeProject` | Preenche defaults de um projeto carregado |
+| 310 | `fmtDate` | Data em pt-BR |
+| 316 | `fmtTs` | Data e hora em pt-BR (exportado, usado pelos módulos) |
+| 324 | `groupRootId` | Grupo Empresarial: o Master é sua própria raiz de grupo (isGroupMaster=true, sem precisar de groupId apontando pra si mesmo); filhas têm company.groupId = id do Master. |
+| 328 | `groupMembers` | Membros de um grupo empresarial (§12) |
+| 333 | `parseDate` | AAAA-MM-DD → Date |
+| 334 | `toISODate` | Date → AAAA-MM-DD |
+| 335 | `startOfDay` | Início do dia |
+| 336 | `addDays` | Soma dias |
+| 337 | `calcDeadline` | Prazo a partir de início + duração |
+| 346 | `fmtYearLabel` | Ano |
+| 349 | `sortActivities` | Ordena atividades (data/fase/prioridade) |
+| 358 | `buildOrderMap` | Mapa de ordem manual de atividades |
+| 369 | `AreaRow` | Extraído do .map() de "Áreas e responsáveis" (tela de configurações da empresa) pra poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo bug de digitação do PROJECT_CONTEXT.md §45/§46. onCommit recebe o valor r |
+| 394 | `PhaseRow` | Extraído do .map() de "Fases" (SidePanel de fases do projeto) pelo mesmo motivo do AreaRow acima. O log de "Fase renomeada"/"Descrição alterada" usa o draft local (nameField.draft) em vez de p.name/p.sub das props — essas só atual |
+| 2397 | `LoadingScreen` | Tela de carregamento inicial |
+| 2430 | `LoginGate` | Formulário de login + modo "Trocar senha" (2026-08, `POST /api/auth/change-password-login`) |
+| 2534 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| 2870 | `UserAvatar` | Avatar (emoji) do usuário |
+| 2889 | `TeamLinkBadge` | Selo "vinculado a usuário" da equipe |
+| 2897 | `CompanySectionHeader` | Cabeçalho de seção de empresa na visão multi-empresa |
+| 2913 | `GroupActivityCompaniesModal` | Escolha das empresas envolvidas numa atividade de grupo (§12) |
+| 2968 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades vs XFlow vs Agenda — é a própria "Home" |
+| 3039 | `useToasts` | Hook de avisos temporários (toasts) |
+| 3048 | `ToastStack` | Pilha de toasts |
+| 3051 | `PersonalBoardSkeleton` | Esqueleto de carregamento do quadro pessoal |
+| 3073 | `NoAccessScreen` | Tela para quem não tem acesso a nenhum módulo |
+| 3097 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
+| 3120 | `NotificationBell` | Central de Notificações (2026-08) — componente compartilhado, usado nas 3 telas (Empresas em App(), Gestão de Atividades em PersonalBoardScreen, XFlow em XflowScreen) via o mesmo estado/lista levantados em App(), pra contador e li |
 
 **`src/screens/AdminScreens.jsx`** (1499 linhas)
 

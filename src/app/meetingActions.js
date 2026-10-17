@@ -4,7 +4,7 @@
 import { NO_ACTIVITY, applySuggestionsToMeetings } from '../meetings/ActivityLink.jsx';
 import { apiPost } from '../lib/api.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
-import { todoStatusMeta } from '../meetings/Meetings.jsx';
+import { todoStatusMeta } from '../meetings/todoStatus.js';
 import { DELETE_CONFIRM_PHRASE, fmtDate, genShareToken, todayISOStr, uid } from '../App.jsx';
 
 export function createMeetingActions({ currentUser, flushProjectSave, mutateProject, openMeetingDetail, projects, pushAppUndoToast }) {

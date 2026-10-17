@@ -18,7 +18,7 @@ import { apiGet } from '../lib/api.js';
 import { useDialog } from '../lib/nav.js';
 import { DialogOverlay } from '../ui/dialog.jsx';
 import { RecordSaveStatus } from '../ui/index.jsx';
-import { TODO_STATUS_META, todoStatusMeta } from './Meetings.jsx';
+import { TODO_STATUS_META, todoStatusMeta } from './todoStatus.js';
 import { ActivityRow, ACTIVITY_ROW_CSS } from './ActivityRow.jsx';
 import { ConfirmSuggestionsButton } from './ActivityLink.jsx';
 import { TodoDrawer } from './TodoDrawer.jsx';
