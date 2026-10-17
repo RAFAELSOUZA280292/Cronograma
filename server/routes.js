@@ -8,6 +8,7 @@ import {
 import { lookupCnpj, cleanCnpj, formatCnpj } from './cnpjLookup.js';
 import { createNotification, rowToNotification } from './notifications.js';
 import { sanitizeBoardNotes } from './richNote.js';
+import { readExtras, buildExtrasPatch } from './personalExtras.js';
 import { readMuted, publicCategories, loadMutedPatterns, NOTIFICATION_CATEGORIES, TODAY_SOURCES, readTodayHidden, publicTodaySources } from './notificationPrefs.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { CRM_ROLES } from './crm/permissions.js';
@@ -712,6 +713,27 @@ router.put('/notifications/preferences', requireAuth, async (req, res, next) => 
     );
     const prefs = rows[0] && rows[0].preferences;
     res.json({ categories: publicCategories(readMuted(prefs)), todaySources: publicTodaySources(readTodayHidden(prefs)) });
+  } catch (e) { next(e); }
+});
+
+// Anotações rápidas e atalhos da pessoa (users.preferences.personalExtras) — fora do quadro porque o quadro pode ter link público.
+router.get('/personal-extras', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT preferences FROM users WHERE id=$1', [req.user.id]);
+    res.json(readExtras(rows[0] && rows[0].preferences));
+  } catch (e) { next(e); }
+});
+
+router.put('/personal-extras', requireAuth, async (req, res, next) => {
+  try {
+    const { patch, error } = buildExtrasPatch(req.body);
+    if (error) return res.status(400).json({ message: error });
+    const { rows } = await pool.query(
+      `UPDATE users SET preferences = jsonb_set(COALESCE(preferences, '{}'::jsonb), '{personalExtras}',
+         COALESCE(preferences->'personalExtras', '{}'::jsonb) || $1::jsonb, true) WHERE id=$2 RETURNING preferences`,
+      [JSON.stringify(patch), req.user.id]
+    );
+    res.json(readExtras(rows[0] && rows[0].preferences));
   } catch (e) { next(e); }
 });
 
