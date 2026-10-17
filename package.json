@@ -48,6 +48,11 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.2",
     "concurrently": "^10.0.6",
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "vite-plugin-pwa": "^2.0.0",
+    "workbox-core": "^7.4.1",
+    "workbox-expiration": "^7.4.1",
+    "workbox-routing": "^7.4.1",
+    "workbox-strategies": "^7.4.1"
   }
 }
