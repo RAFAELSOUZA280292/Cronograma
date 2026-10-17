@@ -23,7 +23,7 @@ import { router as widgetRouter } from './widget.js';
 import { router as dailyRouter } from './daily.js';
 import { router as templatesRouter } from './documentTemplates.js';
 import { router as connectRouter } from './connect.js';
-import { router as pushRouter } from './push.js';
+import { router as pushRouter, pushEnabled } from './push.js';
 import { startCrmScheduler } from './crm/scheduler.js';
 import { startTodoScheduler } from './todoNotifications.js';
 import { pool } from './db.js';
@@ -116,6 +116,7 @@ async function start() {
   app.listen(port, () => {
     console.log(`Cronograma server ouvindo na porta ${port}`);
     countMaps().then((n) => console.log(`sourcemaps (só para o log de erros): ${n} arquivo(s) disponíveis`));
+    console.log(pushEnabled() ? 'notificações push: ATIVADAS (chaves VAPID presentes)' : 'notificações push: desativadas (sem chaves VAPID)');
     startCrmScheduler();
     startTodoScheduler();
   });
