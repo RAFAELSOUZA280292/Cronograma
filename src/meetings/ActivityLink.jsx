@@ -31,6 +31,23 @@ export function taskCountsByActivity(meetings) {
   return out;
 }
 
+// Tarefas vivas ligadas a uma atividade, para a lista do detalhe: abertas primeiro (prazo mais próximo antes; sem prazo por último), depois as encerradas.
+export function linkedTasksForActivity(meetings, activityId) {
+  const out = [];
+  for (const m of meetings || []) {
+    if (!m || m.deleted) continue;
+    for (const it of m.actionItems || []) {
+      if (!it || it.deleted || it.activityId !== activityId) continue;
+      out.push({
+        id: it.id, meetingId: m.id, meetingTitle: m.title || '', meetingDate: m.date || '',
+        title: it.title || '', status: it.status, responsible: it.responsible || '', dueDate: it.dueDate || '',
+        done: it.status === 'concluida' || it.status === 'nao-relevante',
+      });
+    }
+  }
+  return out.sort((a, b) => (a.done - b.done) || (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || a.title.localeCompare(b.title));
+}
+
 export function linkState(row, options) {
   const id = row && row.activityId;
   if (id) {

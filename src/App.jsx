@@ -18,6 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from './lib/api.js';
+import LinkedTasks from './meetings/LinkedTasks.jsx';
 import { buildActivityOptions, taskCountsByActivity, applySuggestionsToMeetings, NO_ACTIVITY } from './meetings/ActivityLink.jsx';
 import WidgetSection from './widget/WidgetSection.jsx';
 import ConnectSection from './connect/ConnectSection.jsx';
@@ -883,6 +884,26 @@ function AppScreens({ shellRef, bump }) {
   // a Visão Geral (§23) também precisa montar esse mesmo modal — editar uma
   // atividade a partir de lá tem que abrir o ActivityDetailModal de verdade,
   // não uma cópia, senão a edição não reflete no resto do app.
+  // Da lista "Tarefas de reunião" do detalhe da atividade: fecha o detalhe SEM history.back() (o popstate reaplicaria o módulo anterior e
+  // desfaria a navegação, que pode vir da Visão Geral) e leva à tarefa na reunião de origem ou à aba Tarefas filtrada pela atividade.
+  function leaveActivityDetailFor(pid) {
+    if (!canOpenMode('company', currentUser)) { notify('Você não tem acesso a este módulo.', { tone: 'error' }); return false; }
+    try { const { detailActivity, ...rest } = withoutLayer(window.history.state || {}); window.history.replaceState(rest, '', window.location.href); } catch (e) { /* ignora */ }
+    setOpenActivityId(null);
+    if (workspaceMode !== 'company' || selectedProjectIds.length !== 1 || selectedProjectIds[0] !== pid) openCompanyWorkspace([pid]);
+    return true;
+  }
+  function openLinkedTask(pid, meetingId, itemId) {
+    if (!leaveActivityDetailFor(pid)) return;
+    setView('meetings');
+    setPendingTodoOpen({ pid, meetingId, itemId });
+    openMeetingDetail(pid, meetingId);
+  }
+  function openActivityTasks(pid, activityId) {
+    if (!leaveActivityDetailFor(pid)) return;
+    setView('todo');
+    setTodoFocusActivityId(activityId);
+  }
   function renderActivityDetailModal() {
     if (!openActivityId) return null;
     const project = projects.find((p) => p.id === openActivityId.pid);
@@ -916,6 +937,9 @@ function AppScreens({ shellRef, bump }) {
         addLink={addLink}
         removeLink={removeLink}
         toggleParticipant={toggleParticipant}
+        meetings={project.meetings}
+        onOpenLinkedTask={(meetingId, itemId) => openLinkedTask(project.id, meetingId, itemId)}
+        onOpenLinkedTasks={() => openActivityTasks(project.id, activity.id)}
       />
     );
   }
@@ -8265,7 +8289,7 @@ function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSu
   );
 }
 
-function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, flushProjectSave, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachments, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant }) {
+function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, flushProjectSave, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachments, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant, meetings, onOpenLinkedTask, onOpenLinkedTasks }) {
   const [dragSubId, setDragSubId] = useState(null);
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [linkLabelDraft, setLinkLabelDraft] = useState('');
@@ -8598,6 +8622,8 @@ function ActivityDetailModal({ activity: a, orderMap, phases, team, log, company
               ))}
             </div>
             <button style={S.addSubBtn} onClick={() => addSub(pid, a.id)}><Plus size={12} /> Subatividade</button>
+
+            <LinkedTasks meetings={meetings} activityId={a.id} labelStyle={S.subSectionLabel} onOpenTask={onOpenLinkedTask} onOpenAll={onOpenLinkedTasks} />
 
             <button style={{ ...S.iconBtn, marginTop: 20, color: '#e2574c', borderColor: 'rgba(226,87,76,.35)' }} onClick={() => deleteActivity(pid, a.id)}><Trash2 size={14} /> Excluir atividade</button>
           </div>
