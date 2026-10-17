@@ -9,10 +9,12 @@ import ActivityForm from './ActivityForm.jsx';
 import { Modal, Field, CancelButton, useDirty } from './ui.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { fmtDateBR, fmtDateTimeBR, BUCKET_META, PRIORITY_META, activityTypeLabel } from './crmMeta.js';
+import { guardedModal } from '../ui/SafeBoundary.jsx';
+
 
 const ICONS = { task: CheckSquare, call: Phone, email: Mail, meeting: Video, whatsapp: MessageCircle, visit: MapPin, followup: Repeat };
 
-function CompleteDialog({ activity, onCancel, onDone }) {
+function CompleteDialogImpl({ activity, onCancel, onDone }) {
   const [outcome, setOutcome] = useState('');
   const [next, setNext] = useState(activity.status === 'open' && !!activity.dealId);
   const [busy, setBusy] = useState(false);
@@ -38,6 +40,8 @@ function CompleteDialog({ activity, onCancel, onDone }) {
     </Modal>
   );
 }
+
+const CompleteDialog = guardedModal(CompleteDialogImpl, 'a conclusão da atividade', 'crm-complete-activity');
 
 export default function ActivityList({ activities, caps, options, currentUserId, onChanged, onOpenCompany, onOpenDeal, showCompany, emptyText, grouped }) {
   const [completing, setCompleting] = useState(null);

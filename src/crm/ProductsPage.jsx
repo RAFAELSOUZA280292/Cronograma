@@ -7,8 +7,10 @@ import { crm } from './crmApi.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { Modal, Field, CancelButton, useDirty } from './ui.jsx';
 import { fmtMoney, BILLING_LABELS, moneyToNumber } from './crmMeta.js';
+import { guardedModal } from '../ui/SafeBoundary.jsx';
 
-function ProductForm({ initial, onSaved, onCancel }) {
+
+function ProductFormImpl({ initial, onSaved, onCancel }) {
   const editing = !!initial;
   const [f, setF] = useState(() => ({
     name: initial ? initial.name : '', category: initial ? initial.category : '', description: initial ? initial.description : '',
@@ -54,6 +56,8 @@ function ProductForm({ initial, onSaved, onCancel }) {
     </Modal>
   );
 }
+
+const ProductForm = guardedModal(ProductFormImpl, 'o formulário de produto', 'crm-product-form');
 
 export default function ProductsPage({ caps, onChanged }) {
   const [items, setItems] = useState([]);

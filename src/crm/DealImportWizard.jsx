@@ -6,6 +6,8 @@ import { Upload, Check, Download } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { Modal } from './ui.jsx';
 import { guessMapping } from './importMapping.js';
+import { guardedModal } from '../ui/SafeBoundary.jsx';
+
 
 const STATUS_LABEL = { new: 'Nova', already: 'Já importada', no_company: 'Sem empresa', company_not_found: 'Empresa não está no CRM', discarded: 'Lixeira', invalid: 'Inválida' };
 const STATUS_COLOR = { new: '#3ecf6e', already: '#9a9a9a', no_company: '#ff9f40', company_not_found: '#ff9f40', discarded: '#9a9a9a', invalid: '#e2574c' };
@@ -22,7 +24,7 @@ function downloadCsv(name, rows) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
-export default function DealImportWizard({ options, onClose, onDone }) {
+function DealImportWizard({ options, onClose, onDone }) {
   const [step, setStep] = useState(1);
   const [fileName, setFileName] = useState('');
   const [headers, setHeaders] = useState([]);
@@ -200,3 +202,5 @@ export default function DealImportWizard({ options, onClose, onDone }) {
     </Modal>
   );
 }
+
+export default guardedModal(DealImportWizard, 'a importação de negócios', 'crm-deal-import');

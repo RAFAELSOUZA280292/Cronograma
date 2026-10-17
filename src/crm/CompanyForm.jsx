@@ -6,6 +6,8 @@ import { Search, Loader2 } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { Modal, Field, DuplicatesAlert, CancelButton, useDirty, useDraftGuard } from './ui.jsx';
 import { fmtCnpj, sourceLabel } from './crmMeta.js';
+import { guardedModal } from '../ui/SafeBoundary.jsx';
+
 
 const EMPTY = {
   legalName: '', tradeName: '', cnpj: '', economicGroup: '', branchType: '', website: '', segment: '', cnae: '', city: '', state: '', country: 'Brasil',
@@ -19,7 +21,7 @@ function fromCompany(c) {
   return f;
 }
 
-export default function CompanyForm({ initial, options, onSaved, onCancel, onOpenCompany, prefillOwnerId }) {
+function CompanyForm({ initial, options, onSaved, onCancel, onOpenCompany, prefillOwnerId }) {
   const editing = !!(initial && initial.id);
   const [form, setForm] = useState(() => (editing ? fromCompany(initial) : { ...EMPTY, ownerId: prefillOwnerId || '' }));
   const [more, setMore] = useState(editing);
@@ -179,3 +181,5 @@ export default function CompanyForm({ initial, options, onSaved, onCancel, onOpe
     </Modal>
   );
 }
+
+export default guardedModal(CompanyForm, 'o formulário de empresa', 'crm-company-form');
