@@ -12,7 +12,8 @@ import {
   Mic, Plus, X, Trash2, Share2, Download, Pencil, Copy, Lock, Globe,
   FileText, FileDown, Calendar, Clock, Building2, Users, ListChecks, ChevronDown,
 } from 'lucide-react';
-import { S, fmtDate, useIsMobile, useAutosaveTimestamp, useDirtyForm, useDebouncedField, ConfirmDiscardModal } from '../App.jsx';
+import { fmtDate, useIsMobile, useAutosaveTimestamp, useDirtyForm, useDebouncedField, ConfirmDiscardModal } from '../App.jsx';
+import { S } from '../styles/S.js';
 import { apiGet } from '../lib/api.js';
 import { useDialog } from '../lib/nav.js';
 import { DialogOverlay } from '../ui/dialog.jsx';

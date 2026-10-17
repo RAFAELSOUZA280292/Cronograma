@@ -11,7 +11,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import pricetaxLogoBranco from '../assets/brand/pricetax-logo-branco.png';
 import { useEscClose } from '../lib/nav.js';
-import { CLIENT_TYPE_META, ConfirmDiscardModal, MAX_ATTACHMENT_BYTES, PRIORITY_META, PRIORITY_ORDER, S, STATUS_META, STATUS_ORDER, TeamLinkBadge, addDays, calcDeadline, fmtDate, fmtTs, parseDate, sortActivities, startOfDay, toISODate, uid, useAutosaveTimestamp, useDebouncedField, useDirtyForm, useIsMobile, useMediaQuery } from '../App.jsx';
+import { CLIENT_TYPE_META, ConfirmDiscardModal, MAX_ATTACHMENT_BYTES, PRIORITY_META, PRIORITY_ORDER, STATUS_META, STATUS_ORDER, TeamLinkBadge, addDays, calcDeadline, fmtDate, fmtTs, parseDate, sortActivities, startOfDay, toISODate, uid, useAutosaveTimestamp, useDebouncedField, useDirtyForm, useIsMobile, useMediaQuery } from '../App.jsx';
+import { S } from '../styles/S.js';
 
 const SUB_ROW_CSS = `
   .sub-row-card { transition:border-color .12s, box-shadow .12s; }

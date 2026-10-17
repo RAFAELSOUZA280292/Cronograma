@@ -20,7 +20,8 @@ import { calendarDaysSince } from '../lib/dates.js';
 import { lazyRetry } from '../lib/lazyRetry.jsx';
 import { noteToPlain } from '../lib/richNote.js';
 import { withoutLayer } from '../lib/nav.js';
-import { CARD_STATUS_META, COLUMN_COLOR_META, ConfirmDiscardModal, LoadingScreen, S, SidePanel, ThemeToggleBtn, ToastStack, addDays, fmtDate, fmtTs, genShareToken, parseDate, toISODate, todayISOStr, uid, useAutosaveTimestamp, useDebouncedField, useIsMobile, useToasts } from '../App.jsx';
+import { CARD_STATUS_META, COLUMN_COLOR_META, ConfirmDiscardModal, LoadingScreen, SidePanel, ThemeToggleBtn, ToastStack, addDays, fmtDate, fmtTs, genShareToken, parseDate, toISODate, todayISOStr, uid, useAutosaveTimestamp, useDebouncedField, useIsMobile, useToasts } from '../App.jsx';
+import { S } from '../styles/S.js';
 
 const PersonalStatsPanel = lazyRetry(() => import('../personal/PersonalStats.jsx'));
 

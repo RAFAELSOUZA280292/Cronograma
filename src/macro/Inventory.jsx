@@ -6,7 +6,8 @@ import { ChevronDown, ChevronRight, Download, AlertTriangle, X, Search, Mic, Cal
 import { Chip, ChipRow, Segmented, Select, Button, EmptyState, SkeletonCards, Kpi, KpiGrid, ErrorState, activate } from '../ui/index.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
-import { S, STATUS_META, PRIORITY_META } from '../App.jsx';
+import { STATUS_META, PRIORITY_META } from '../App.jsx';
+import { S } from '../styles/S.js';
 
 const GROUPINGS = [
   { value: 'phase_responsible', label: 'Fase › Responsável' },

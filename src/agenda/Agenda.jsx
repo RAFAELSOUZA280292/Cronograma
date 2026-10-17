@@ -18,7 +18,8 @@ import { loadPrefs } from './agendaPrefs.js';
 import NewEventModal, { defaultSlot } from './NewEventModal.jsx';
 import RsvpButtons from './RsvpButtons.jsx';
 import { canRespond, useRespond } from './agendaActions.js';
-import { S, BrandLogo } from '../App.jsx';
+import { BrandLogo } from '../App.jsx';
+import { S } from '../styles/S.js';
 import { useHistoryValue, readHistoryValue } from '../lib/nav.js';
 import './agenda.css';
 
