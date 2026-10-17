@@ -3,7 +3,7 @@
 import React from 'react';
 import { ListChecks, ChevronRight } from 'lucide-react';
 import { fmtDate } from '../App.jsx';
-import { todoStatusMeta } from './Meetings.jsx';
+import { todoStatusMeta } from './todoStatus.js';
 import { linkedTasksForActivity } from './ActivityLink.jsx';
 import { todayIso } from './todoUtils.js';
 

@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import { fmtDate, useIsMobile } from '../App.jsx';
 import { S } from '../styles/S.js';
-import { MEETINGS_CSS, TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } from './Meetings.jsx';
+import { MEETINGS_CSS } from './Meetings.jsx';
+import { TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } from './todoStatus.js';
 import { TodoDrawer } from './TodoDrawer.jsx';
 import { ActivityRow, ACTIVITY_ROW_CSS } from './ActivityRow.jsx';
 import { isItemOverdue, todayIso, greetingPeriod } from './todoUtils.js';

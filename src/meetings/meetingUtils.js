@@ -2,7 +2,7 @@
 // "AI Meeting Workspace") — parsing de transcrição bruta, corte por
 // tópico e montagem do .txt de exportação. Nada aqui toca estado ou API.
 import { fmtDate } from '../App.jsx';
-import { todoStatusMeta } from './Meetings.jsx';
+import { todoStatusMeta } from './todoStatus.js';
 
 // parseTranscript/sliceEntriesByTopics/splitDecisionLines moraram aqui
 // até a Fase 1 do Assistente Inteligente de Projetos (2026-09) — foram
