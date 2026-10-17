@@ -898,6 +898,7 @@ const RESUMO_CSS = `
   .rs-card-secondary { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-1); }
   .rs-empty { text-align: center; padding: 40px 0; color: var(--text-6); font-size: 13px; }
   @media (max-width: 767px) { .rs-selects select { min-height: 44px; } .rs-group-toggle { min-height: 44px; } }
+  @media (min-width: 768px) and (max-width: 1023px), (min-width: 768px) and (pointer: coarse) { .rs-group-toggle { min-height: 44px; } }
 `;
 
 function TaskCountChip({ counts, onOpenTasks, style }) {
@@ -1349,6 +1350,9 @@ function RowActionsMenu({ title, required, confirmed, onToggleRequired, onToggle
   );
 }
 
+// Largura mínima da tabela no layout de desktop: abaixo disso (tablet, janela estreita) o contêiner rola na horizontal em vez de espremer as colunas (Fase 0, achado F).
+const TABLE_MIN_W = 1060;
+
 export function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor, groupInfo, taskCounts, onOpenTasks }) {
   const isMobile = useIsMobile();
   const isCompact = useIsCompact();
@@ -1548,10 +1552,10 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
       </div>
       )}
 
-      <div style={{ flex: 1, minWidth: 0, ...(isMobile ? { alignSelf: 'stretch' } : null) }}>
+      <div style={{ flex: 1, minWidth: 0, ...(isCompact ? { alignSelf: 'stretch' } : null) }}>
         <div style={S.tableWrap}>
           {!isMobile && (
-          <div style={S.tableHeaderRow}>
+          <div style={{ ...S.tableHeaderRow, minWidth: TABLE_MIN_W }}>
             <div style={{ ...S.th, width: 20 }}></div>
             <div style={{ ...S.th, width: 46 }}>#</div>
             {multiMode && <div style={{ ...S.th, width: 150 }}>Empresa</div>}
@@ -1599,6 +1603,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                 className="act-row"
                 style={{
                   ...S.tableGroup,
+                  ...(!isMobile ? { minWidth: TABLE_MIN_W } : null),
                   borderLeft: `3px solid ${rowAccent}`,
                   position: 'relative',
                   transform: isDragging ? `translateY(${dragOffsetY}px)` : (rowShift ? `translateY(${rowShift}px)` : undefined),

@@ -103,6 +103,13 @@
         [role=dialog] .cmp-file-name { display: inline-flex; align-items: center; min-height: 44px; }
         [role=dialog] input[type=checkbox], [role=dialog] input[type=radio] { width: 24px !important; height: 24px !important; }
       }
+      /* Tablet (Fase 0, achado F, 2026-10-17): de 768 a 1023 px — e em qualquer tela de toque grossa (iPad na horizontal) — o app usa o layout de desktop,
+         com botões de 32 px e ícones de 17–26 px. Mesma altura mínima de 44 px do celular, sem mudar o layout. A parte `pointer: coarse` não foi testada em aparelho. */
+      @media (min-width: 768px) and (max-width: 1023px), (min-width: 768px) and (pointer: coarse) {
+        button, select, [role=button], [role=tab], [role=menuitem],
+        input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=hidden]):not([type=file]):not([type=range]) { min-height: 44px !important; }
+        button { min-width: 44px !important; }
+      }
     </style>
   </head>
   <body>
