@@ -6717,6 +6717,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
 }
 
 function PersonalListView({ board, filterFn, onOpenCard, onToggleComplete, readOnly }) {
+  const isMobile = useIsMobile();
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState(1);
 
@@ -6773,9 +6774,15 @@ function PersonalListView({ board, filterFn, onOpenCard, onToggleComplete, readO
             return (
               <tr key={r.id} style={S.personalListRow} {...activateRow(() => onOpenCard(r._colId, r.id))}>
                 <td style={S.personalListTd}><input type="checkbox" checked={r.completed} disabled={readOnly} onClick={(e) => e.stopPropagation()} onChange={() => onToggleComplete(r._colId, r.id)} /></td>
-                <td style={{ ...S.personalListTd, ...(r.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{r.title}</td>
+                <td style={{ ...S.personalListTd, ...(r.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>
+                  {r.title}
+                  {isWaiting(r) && isMobile && <span title={`${waitingLabel(r, localTodayIso())} (desde ${fmtDate(r.waiting.since)})`} style={{ ...S.personalCardBadge, display: 'block', width: 'fit-content', maxWidth: 'min(280px, 62vw)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 4, color: '#b9a2f7', background: 'rgba(155,122,245,.14)', textDecoration: 'none' }}>⏳ {waitingLabel(r, localTodayIso())}</span>}
+                </td>
                 <td style={S.personalListTd}>{r._colName}</td>
-                <td style={S.personalListTd}><span style={{ color: CARD_STATUS_META[cardStatusOf(r)].color }}>{CARD_STATUS_META[cardStatusOf(r)].label}</span></td>
+                <td style={S.personalListTd}>
+                  <span style={{ color: CARD_STATUS_META[cardStatusOf(r)].color }}>{CARD_STATUS_META[cardStatusOf(r)].label}</span>
+                  {isWaiting(r) && !isMobile && <span title={`${waitingLabel(r, localTodayIso())} (desde ${fmtDate(r.waiting.since)})`} style={{ ...S.personalCardBadge, display: 'inline-block', marginLeft: 6, color: '#b9a2f7', background: 'rgba(155,122,245,.14)', whiteSpace: 'nowrap' }}>⏳ {waitingLabel(r, localTodayIso())}</span>}
+                </td>
                 <td style={S.personalListTd}>{priorityMeta ? <span style={{ color: priorityMeta.color }}>{priorityMeta.label}</span> : '—'}</td>
                 <td style={{ ...S.personalListTd, ...(tone === 'overdue' ? S.dueOverdue : tone === 'today' ? S.dueToday : {}) }}>{r.dueDate ? fmtDate(r.dueDate) : '—'}</td>
                 <td style={S.personalListTd}>{(r.tags || []).join(', ') || '—'}</td>
