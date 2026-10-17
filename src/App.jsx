@@ -451,6 +451,8 @@ function AppScreens({ shellRef, bump }) {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const [sessionChecked, setSessionChecked] = useState(false);
+  const [bootOffline, setBootOffline] = useState(false);
+  const bootOfflineRef = useRef(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [projects, setProjects] = useState([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
@@ -953,17 +955,31 @@ function AppScreens({ shellRef, bump }) {
       }
     } catch (e) { /* nada salvo ainda */ }
 
-    (async () => {
-      try {
-        const res = await apiGet('/api/auth/me');
-        setCurrentUser(res.user);
-      } catch (e) {
-        setCurrentUser(null);
-      } finally {
-        setSessionChecked(true);
-      }
-    })();
+    checkSession();
+    // Voltou a conexão com a tela "Sem conexão" aberta: tenta de novo sozinho.
+    const onOnline = () => { if (bootOfflineRef.current) checkSession(); };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Sessão: erro de REDE (sem status HTTP — app instalado abrindo sem internet) mostra "Sem conexão" em vez de cair na tela de login, que
+  // pareceria "deslogado" e não deixaria entrar. Resposta do servidor (401 etc.) segue como antes: sem sessão → login.
+  async function checkSession() {
+    try {
+      const res = await apiGet('/api/auth/me');
+      bootOfflineRef.current = false;
+      setBootOffline(false);
+      setCurrentUser(res.user);
+      setSessionChecked(true);
+    } catch (e) {
+      if (e && !e.status) { bootOfflineRef.current = true; setBootOffline(true); setSessionChecked(true); return; }
+      bootOfflineRef.current = false;
+      setBootOffline(false);
+      setCurrentUser(null);
+      setSessionChecked(true);
+    }
+  }
 
   useEffect(() => {
     try { window.localStorage.setItem(LOCAL_PREFS_KEY, JSON.stringify({ usersLog })); }
@@ -1534,6 +1550,10 @@ function AppScreens({ shellRef, bump }) {
 
   if (!sessionChecked) {
     return <LoadingScreen theme={theme} />;
+  }
+
+  if (bootOffline) {
+    return <OfflineScreen theme={theme} onRetry={() => { setSessionChecked(false); checkSession(); }} />;
   }
 
   if (!currentUser) {
@@ -2392,6 +2412,21 @@ function AppScreens({ shellRef, bump }) {
         windowAnchor,
       }} />
     </React.Suspense>
+  );
+}
+
+function OfflineScreen({ theme, onRetry }) {
+  return (
+    <div className="page-root" style={S.page}>
+      <div style={S.loginWrap}>
+        <div style={S.loginBox} role="alert">
+          <BrandLogo theme={theme} style={S.loginLogo} />
+          <div style={{ ...S.loginSub, color: 'var(--text-2)', fontWeight: 700 }}>Sem conexão</div>
+          <div style={{ ...S.loginSub, marginBottom: 16 }}>Não foi possível falar com o servidor. Confira a internet — o sistema tenta de novo sozinho quando a conexão voltar.</div>
+          <button type="button" style={{ ...S.primaryBtn, minHeight: 44, width: '100%' }} onClick={onRetry}>Tentar de novo</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

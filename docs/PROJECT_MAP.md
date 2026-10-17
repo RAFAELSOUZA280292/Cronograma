@@ -148,6 +148,8 @@ src/meetings/todoStatus.js  (2026-10-17, §65) `TODO_STATUS_META`/`TODO_STATUS_O
 src/personal/Waiting.jsx  Marcador "Aguardando" do cartão (2026-10-16, §65): `isWaiting`, `waitingLabel`, `WaitingField` (modal do cartão); `card.waiting={who,since}`, não é status.
 src/screens/AdminScreens.jsx  (2026-10-17, §65) Telas de administração carregadas sob demanda: `UsersManagementScreen`, `SuperAdminScreen`, `CompanySelectorScreen`, `MyProfileModal` e seus modais (novo/editar usuário, criar/editar empresa). Extraído do App.jsx; o App só tem `lazyRetry(() => import(...))`.
 src/screens/PersonalBoard.jsx  (2026-10-17, §65) Gestão de Atividades sob demanda: `PersonalBoardScreen`, `PublicBoardScreen` (quadro por link), colunas, cartões, lista, painéis de lixeira/concluídas/histórico/compartilhar.
+src/sw.js  (2026-10-17, §65) Service worker do PWA (Workbox: NavigationRoute rede-primeiro com casca em cache; /assets cache-primeiro; nunca /api; sem precache). Gerado para `dist/sw.js` pelo `vite-plugin-pwa` (`vite.config.js`: manifesto, atalhos, ícones).
+public/  (2026-10-17, §65) Arquivos servidos na raiz: `favicon.png`, `apple-touch-icon.png`, `icons/` (192/512 any + maskable) — marca da pasta `PRICETAX_MARCA`.
 src/screens/CompanyWorkspace.jsx  (2026-10-17, §65) `CompanyWorkspace({ ctx })`: o JSX da área da empresa, extraído do `return` do `AppScreens` sem mudar o texto; lazy no App.jsx.
 src/app/notificationActions.js · companyActivityActions.js · meetingActions.js · companyAdminActions.js · userOrgActions.js · teamPhaseActions.js  (2026-10-17, §65) Fábricas `createXActions({estado…}) → {ações…}` chamadas a cada render pelo `AppScreens`: notificações; atividades/subatividades/comentários/anexos da empresa; reuniões e tarefas de reunião; criar/clonar/excluir/editar empresa; usuários e organizações; time, áreas e fases. Importam helpers de `'../App.jsx'` (ciclo seguro: só são usados dentro das funções, em runtime).
 src/styles/S.js  (2026-10-17, §65) Objeto de estilos `S` (450 linhas), antes dentro do App.jsx; importado por App.jsx, screens/ e módulos (agenda, macro, meetings, xflow…). `src/lib/statusOrder.js`: `STATUS_ORDER`.
@@ -181,7 +183,7 @@ Helpers/constantes de topo: linhas 1–440 (formatação de data, `STATUS_META`,
 
 Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do código em 2026-10-17** (linhas exatas naquele dia; descrições antigas foram mantidas, as novas vêm do comentário acima da declaração — `—` = ainda sem descrição):
 
-**`src/App.jsx`** (3214 linhas)
+**`src/App.jsx`** (3249 linhas)
 
 | Linha | Componente | Responsabilidade |
 |---|---|---|
@@ -227,20 +229,20 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 358 | `buildOrderMap` | Mapa de ordem manual de atividades |
 | 369 | `AreaRow` | Extraído do .map() de "Áreas e responsáveis" (tela de configurações da empresa) pra poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo bug de digitação do PROJECT_CONTEXT.md §45/§46. onCommit recebe o valor r |
 | 394 | `PhaseRow` | Extraído do .map() de "Fases" (SidePanel de fases do projeto) pelo mesmo motivo do AreaRow acima. O log de "Fase renomeada"/"Descrição alterada" usa o draft local (nameField.draft) em vez de p.name/p.sub das props — essas só atual |
-| 2398 | `LoadingScreen` | Tela de carregamento inicial |
-| 2431 | `LoginGate` | Formulário de login + modo "Trocar senha" (2026-08, `POST /api/auth/change-password-login`) |
-| 2535 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
-| 2871 | `UserAvatar` | Avatar (emoji) do usuário |
-| 2890 | `TeamLinkBadge` | Selo "vinculado a usuário" da equipe |
-| 2898 | `CompanySectionHeader` | Cabeçalho de seção de empresa na visão multi-empresa |
-| 2914 | `GroupActivityCompaniesModal` | Escolha das empresas envolvidas numa atividade de grupo (§12) |
-| 2969 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades vs XFlow vs Agenda — é a própria "Home" |
-| 3040 | `useToasts` | Hook de avisos temporários (toasts) |
-| 3049 | `ToastStack` | Pilha de toasts |
-| 3052 | `PersonalBoardSkeleton` | Esqueleto de carregamento do quadro pessoal |
-| 3074 | `NoAccessScreen` | Tela para quem não tem acesso a nenhum módulo |
-| 3098 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
-| 3121 | `NotificationBell` | Central de Notificações (2026-08) — componente compartilhado, usado nas 3 telas (Empresas em App(), Gestão de Atividades em PersonalBoardScreen, XFlow em XflowScreen) via o mesmo estado/lista levantados em App(), pra contador e li |
+| 2433 | `LoadingScreen` | Tela de carregamento inicial |
+| 2466 | `LoginGate` | Formulário de login + modo "Trocar senha" (2026-08, `POST /api/auth/change-password-login`) |
+| 2570 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| 2906 | `UserAvatar` | Avatar (emoji) do usuário |
+| 2925 | `TeamLinkBadge` | Selo "vinculado a usuário" da equipe |
+| 2933 | `CompanySectionHeader` | Cabeçalho de seção de empresa na visão multi-empresa |
+| 2949 | `GroupActivityCompaniesModal` | Escolha das empresas envolvidas numa atividade de grupo (§12) |
+| 3004 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades vs XFlow vs Agenda — é a própria "Home" |
+| 3075 | `useToasts` | Hook de avisos temporários (toasts) |
+| 3084 | `ToastStack` | Pilha de toasts |
+| 3087 | `PersonalBoardSkeleton` | Esqueleto de carregamento do quadro pessoal |
+| 3109 | `NoAccessScreen` | Tela para quem não tem acesso a nenhum módulo |
+| 3133 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
+| 3156 | `NotificationBell` | Central de Notificações (2026-08) — componente compartilhado, usado nas 3 telas (Empresas em App(), Gestão de Atividades em PersonalBoardScreen, XFlow em XflowScreen) via o mesmo estado/lista levantados em App(), pra contador e li |
 
 **`src/screens/AdminScreens.jsx`** (1499 linhas)
 
