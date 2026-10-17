@@ -375,6 +375,8 @@ export function CompanyWorkspace({ ctx }) {
             pid={activeProject.id}
             updateActivity={updateActivity}
             openDetail={openActivityDetail}
+            taskCounts={taskCountsByActivity(activeProject.meetings)}
+            onOpenTasks={(activityId) => { setView('todo'); setTodoFocusActivityId(activityId); }}
           />
         )}
         {!isMulti && view === 'table' && (
@@ -432,6 +434,8 @@ export function CompanyWorkspace({ ctx }) {
               pid={p.id}
               updateActivity={updateActivity}
               openDetail={openActivityDetail}
+              taskCounts={multiTaskCounts[p.id]}
+              onOpenTasks={(activityId) => openActivityTasks(p.id, activityId)}
             />
           </div>
         ))}

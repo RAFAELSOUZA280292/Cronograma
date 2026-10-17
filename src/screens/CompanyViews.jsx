@@ -2061,7 +2061,7 @@ export function KanbanView({ activities, orderMap, phases, pid, dragId, setDragI
 
 const GANTT_DAYS_PER_COL = { dia: 1, semana: 7, mes: 30.4368, ano: 365.25 };
 
-export function TimelineView({ activities, phases, granularity, setGranularity, windowAnchor, setWindowAnchor, pid, updateActivity, openDetail }) {
+export function TimelineView({ activities, phases, granularity, setGranularity, windowAnchor, setWindowAnchor, pid, updateActivity, openDetail, taskCounts, onOpenTasks }) {
   const columns = buildTimelineColumns(granularity, activities, windowAnchor);
   const noDate = activities.filter((a) => !a.date);
   const windowed = granularity === 'dia' || granularity === 'semana';
@@ -2131,6 +2131,7 @@ export function TimelineView({ activities, phases, granularity, setGranularity, 
 
   return (
     <div>
+      {onOpenTasks && <style>{TASK_CHIP_CSS}</style>}
       <div className="no-print" style={S.timelineToolbar}>
         <div style={S.granularityGroup}>
           {[{ id: 'dia', l: 'Dia' }, { id: 'semana', l: 'Semana' }, { id: 'mes', l: 'Mês' }, { id: 'ano', l: 'Ano' }].map((g) => (
@@ -2166,7 +2167,14 @@ export function TimelineView({ activities, phases, granularity, setGranularity, 
               <React.Fragment key={row.act.id}>
                 <div style={{ gridRow: row.row + 1, gridColumn: 1, ...S.ganttLabelCell }}>
                   <div style={S.ganttLabelTitle}>{row.act.title}</div>
-                  <div style={S.ganttLabelMeta}>{row.act.responsible}</div>
+                  {onOpenTasks && taskCounts && taskCounts[row.act.id] ? (
+                    <div style={{ ...S.ganttLabelMeta, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.act.responsible}</span>
+                      <span className="no-print" style={{ flexShrink: 0 }}>
+                        <TaskCountChip counts={taskCounts[row.act.id]} onOpenTasks={() => onOpenTasks(row.act.id)} style={{ marginTop: 0, minHeight: 0, padding: '0 7px', fontSize: 9.5, lineHeight: '15px' }} />
+                      </span>
+                    </div>
+                  ) : <div style={S.ganttLabelMeta}>{row.act.responsible}</div>}
                 </div>
                 <div style={{ gridRow: row.row + 1, gridColumn: `${row.sIdx + 2} / ${row.eIdx + 3}`, ...S.ganttBarWrap }}>
                   <div
