@@ -35,6 +35,8 @@ const app = express();
 // Modelos de documentos aceitam arquivo de até 30 MB (base64 ≈ 40 MB): o parser maior precisa vir ANTES do global.
 app.use('/api/templates', express.json({ limit: '45mb' }));
 app.use(express.json({ limit: '15mb' }));
+// Express 5 deixa req.body indefinido quando a requisição não traz corpo JSON (no 4 era {}); os handlers desestruturam req.body.
+app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });
 app.use(cookieParser());
 
 app.use('/api', apiRouter);
@@ -81,7 +83,7 @@ app.use(express.static(distDir, {
     if (filePath.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   },
 }));
-app.get('*', (req, res) => {
+app.get('/{*splat}', (req, res) => {
   if (req.path.startsWith('/assets/')) return res.status(404).type('text/plain').send('Arquivo não encontrado.');
   res.sendFile(path.join(distDir, 'index.html'));
 });

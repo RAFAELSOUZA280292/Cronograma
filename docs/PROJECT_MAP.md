@@ -7,7 +7,7 @@ depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
 
 ## 1. Arquitetura geral
 
-- **Frontend**: SPA React 18 (Vite), sem biblioteca de roteamento — navegação é
+- **Frontend**: SPA React 19 (Vite 8), sem biblioteca de roteamento — navegação é
   estado em memória (`view`, `workspaceMode`, `openActivityId`, `openMeetingId`,
   etc. em `App()`) **espelhado na URL por módulo** (`src/lib/routes.js`, §74 do
   CONTEXT). Quase todo o app (telas, modais, estilos) está em
