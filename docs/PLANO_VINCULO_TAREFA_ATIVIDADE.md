@@ -68,7 +68,7 @@ Confiança baixa ou empate → **não sugere** (mostra "escolher atividade"), em
 - **Aba Tarefas (reunião e lista):** nova coluna/etiqueta **"Atividade"**. Sugerida = etiqueta tracejada "Sugerido: Compras · 87%"
   com **✓ Confirmar**, **✎ Trocar** (busca, agrupada por fase) e **✕ Nenhuma dessas**. Cima da reunião: **"Confirmar todas as
   sugestões de confiança alta"** (revisão em bloco). Filtro **"Sem atividade"**.
-- **Aba Resumo/Gantt:** cada atividade mostra **"N tarefas · M abertas"** e abre a lista das vinculadas. **Desde 2026-10-16 a aba Tabela mostra o mesmo chip** (linha desktop e card de celular), no modo de uma empresa; no modo multiempresa a Tabela não mostra o chip (não há uma aba Tarefas única para abrir). O status da atividade **não**
+- **Aba Resumo/Gantt:** cada atividade mostra **"N tarefas · M abertas"** e abre a lista das vinculadas. **Desde 2026-10-16 a aba Tabela mostra o mesmo chip** (linha desktop e card de celular), no modo de uma empresa; no modo multiempresa a Tabela não mostra o chip (não há uma aba Tarefas única para abrir). **O detalhe da atividade também lista as tarefas vinculadas** ("Tarefas de reunião", até 6 linhas; clicar abre a tarefa na reunião de origem; botão leva à aba Tarefas filtrada). O status da atividade **não**
   muda sozinho (decisão 5).
 - **Levantamento / Inventário:** coluna Atividade nas tarefas de reunião.
 - **Painel "O que a RENATA aprendeu"** (Conhecimento): taxa de acerto por semana (confirmou ÷ sugeriu), padrões mais fortes, e
