@@ -740,7 +740,7 @@ router.put('/personal-extras', requireAuth, async (req, res, next) => {
 
 // Erro de tela capturado por um limite de erro do navegador → uma linha no log do servidor. Só com login, com limite por pessoa.
 router.post('/client-error', requireAuth, (req, res) => {
-  if (allowReport(req.user.id)) console.error('[client-error]', formatClientError(req.user, req.body));
+  if (allowReport(req.user.id, req.body && req.body.kind)) console.error('[client-error]', formatClientError(req.user, req.body));
   res.status(204).end();
 });
 
