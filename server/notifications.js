@@ -3,6 +3,8 @@
 // server/routes.js (menção/vínculo em atividade de empresa). Ver
 // PROJECT_CONTEXT.md §20 pro desenho completo (schema, geração, leitura).
 
+import { schedulePushForNotification } from './push.js';
+
 function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
 }
@@ -11,11 +13,14 @@ function uid(p) {
 // (BEGIN/COMMIT feito por quem chama) — mesma convenção de logEvent() no
 // XFlow.
 export async function createNotification(client, { orgId, userId, type, title, body, actorName, target }) {
+  const id = uid('ntf');
   await client.query(
     `INSERT INTO notifications (id, org_id, user_id, type, title, body, actor_name, target)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [uid('ntf'), orgId, userId, type, title, body, actorName || '', JSON.stringify(target || {})]
+    [id, orgId, userId, type, title, body, actorName || '', JSON.stringify(target || {})]
   );
+  schedulePushForNotification(id); // aviso no celular (só se o servidor tiver as chaves VAPID); confere no banco antes de enviar
+  return id;
 }
 
 export function rowToNotification(row) {

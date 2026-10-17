@@ -9,6 +9,7 @@ import { clientsClaim } from 'workbox-core';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
 import { CacheFirst } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
+import { parsePush, safePath, urlBase64ToUint8Array } from './lib/pushPayload.js';
 
 self.skipWaiting();
 clientsClaim();
@@ -41,3 +42,43 @@ registerRoute(
     plugins: [new ExpirationPlugin({ maxEntries: 150, maxAgeSeconds: 60 * 60 * 24 * 60, purgeOnQuotaError: true })],
   }),
 );
+
+// ---------- Notificações push (2026-10-17) ----------
+// O servidor (server/push.js) manda {title, body, url, tag}. Todo push precisa mostrar uma notificação (regra do navegador, e do iOS em especial).
+self.addEventListener('push', (event) => {
+  const p = parsePush(event.data ? event.data.text() : '');
+  event.waitUntil(self.registration.showNotification(p.title, {
+    body: p.body,
+    icon: '/icons/icon-192.png',
+    tag: p.tag,
+    data: { url: p.url },
+  }));
+});
+
+// Toque no aviso: foca uma janela já aberta do sistema e vai para o módulo certo; se não houver, abre uma.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = safePath(event.notification.data && event.notification.data.url);
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const w of wins) {
+      if (new URL(w.url).origin === self.location.origin) {
+        try { await w.focus(); if ('navigate' in w && new URL(w.url).pathname !== url) await w.navigate(url); } catch { /* cai para abrir janela */ return self.clients.openWindow(url); }
+        return undefined;
+      }
+    }
+    return self.clients.openWindow(url);
+  })());
+});
+
+// O serviço de push trocou/expirou a inscrição: tenta se reinscrever sozinho (precisa de sessão válida; se não houver, a pessoa reativa no perfil).
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil((async () => {
+    try {
+      const cfg = await (await fetch('/api/push/config', { credentials: 'include' })).json();
+      if (!cfg || !cfg.enabled || !cfg.publicKey) return;
+      const sub = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(cfg.publicKey) });
+      await fetch('/api/push/subscribe', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub.toJSON()) });
+    } catch { /* sem sessão ou sem rede: a pessoa reativa depois */ }
+  })());
+});

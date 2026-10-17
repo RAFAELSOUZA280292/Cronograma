@@ -356,6 +356,23 @@ export async function initDb() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications(user_id, read, created_at DESC)`);
 
+  // Notificações push (2026-10-17): um registro por aparelho/navegador inscrito. Relacional (e não JSONB) porque a chave natural é o `endpoint`
+  // (único no mundo), a consulta é por usuário e o envio apaga linha a linha quando o serviço de push responde 404/410.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id          TEXT PRIMARY KEY,
+      user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      endpoint    TEXT NOT NULL UNIQUE,
+      p256dh      TEXT NOT NULL,
+      auth        TEXT NOT NULL,
+      ua          TEXT NOT NULL DEFAULT '',
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_ok_at  TIMESTAMPTZ,
+      last_error  TEXT NOT NULL DEFAULT ''
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions(user_id)`);
+
   // Sincronização com Google Calendar (2026-08) — cada usuário conecta a
   // própria conta (não existe "conexão única pra todo mundo"). Só guarda
   // os tokens; qual evento do Google corresponde a qual TASK fica em

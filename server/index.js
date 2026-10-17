@@ -23,6 +23,7 @@ import { router as widgetRouter } from './widget.js';
 import { router as dailyRouter } from './daily.js';
 import { router as templatesRouter } from './documentTemplates.js';
 import { router as connectRouter } from './connect.js';
+import { router as pushRouter } from './push.js';
 import { startCrmScheduler } from './crm/scheduler.js';
 import { startTodoScheduler } from './todoNotifications.js';
 import { pool } from './db.js';
@@ -60,6 +61,7 @@ app.use('/api/widget', widgetRouter);
 app.use('/api/daily', dailyRouter);
 app.use('/api/templates', templatesRouter);
 app.use('/api/connect', connectRouter);
+app.use('/api/push', pushRouter);
 
 // Rota inexistente sob /api responde 404 em JSON — antes caía no fallback do SPA e devolvia o index.html com 200,
 // o que enganava qualquer cliente da API (inclusive a de conectividade, §80).
