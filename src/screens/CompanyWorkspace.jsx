@@ -145,6 +145,7 @@ export function CompanyWorkspace({ ctx }) {
     view,
     windowAnchor,
   } = ctx;
+  const multiTaskCounts = isMulti ? Object.fromEntries(selectedProjects.map((p) => [p.id, taskCountsByActivity(p.meetings)])) : null;
 
   return (
     <div className="page-root" style={S.page}>
@@ -448,7 +449,7 @@ export function CompanyWorkspace({ ctx }) {
             openDetail={openActivityDetail}
             multiMode
             groupInfo={groupInfo}
-            taskCounts={Object.fromEntries(selectedProjects.map((p) => [p.id, taskCountsByActivity(p.meetings)]))}
+            taskCounts={multiTaskCounts}
             onOpenTasks={(activityId, rowPid) => openActivityTasks(rowPid, activityId)}
           />
         )}
@@ -468,6 +469,8 @@ export function CompanyWorkspace({ ctx }) {
             openDetail={openActivityDetail}
             multiMode
             groupInfo={groupInfo}
+            taskCounts={multiTaskCounts}
+            onOpenTasks={(activityId, rowPid) => openActivityTasks(rowPid, activityId)}
           />
         )}
         </React.Suspense>

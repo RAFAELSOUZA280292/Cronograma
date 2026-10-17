@@ -1972,7 +1972,7 @@ export function PhasesView({ activities, orderMap, phases, pid, updateActivity, 
   );
 }
 
-export function KanbanView({ activities, orderMap, phases, pid, dragId, setDragId, updateActivity, addActivity, openDetail, multiMode, groupInfo }) {
+export function KanbanView({ activities, orderMap, phases, pid, dragId, setDragId, updateActivity, addActivity, openDetail, multiMode, groupInfo, taskCounts, onOpenTasks }) {
   const isMobile = useIsMobile();
   const [filterCompany, setFilterCompany] = useState('');
   function keyPid(a) { return pid || a._pid; }
@@ -1995,6 +1995,7 @@ export function KanbanView({ activities, orderMap, phases, pid, dragId, setDragI
   });
   return (
     <div>
+      {onOpenTasks && <style>{TASK_CHIP_CSS}</style>}
       {groupInfo && (
         <div style={S.filterGroup}>
           <div style={S.filterLabel}>Empresa do grupo</div>
@@ -2043,6 +2044,7 @@ export function KanbanView({ activities, orderMap, phases, pid, dragId, setDragI
                     <span>{a.responsible}</span>
                     <span>{fmtDate(a.date)}</span>
                   </div>
+                  {onOpenTasks && <TaskCountChip counts={taskCounts && taskCounts[rowPid] && taskCounts[rowPid][a.id]} onOpenTasks={() => onOpenTasks(a.id, rowPid)} style={{ marginTop: 6 }} />}
                 </div>
               );
             })}
