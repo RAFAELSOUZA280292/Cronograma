@@ -27,7 +27,7 @@ Antes de qualquer tarefa nova, siga esta ordem:
 
 ## Stack (resumo — detalhes em `PROJECT_CONTEXT.md`)
 
-React 18 + Vite (`src/App.jsx` + módulos em `src/*/`) · Express/Node ESM (`server/`)
+React 19 + Vite 8 (`src/App.jsx` + módulos em `src/*/`) · Express 5/Node ESM (`server/`)
 · Postgres via `pg`, sem ORM · JWT+bcrypt · IA Anthropic (+ Voyage para embeddings) ·
 Railway (deploy automático em push na `main`). Working dir local **não é** repo git —
 deploy é fetch/rsync/build/commit/push num clone separado. **Política vigente (Rafael,

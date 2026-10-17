@@ -20,7 +20,7 @@ Também: **Meu perfil** (avatar, senha, **Meu dia**, agenda, widget do iPhone), 
 
 ## Stack
 
-React 18 + Vite · Express (Node, ESM) · PostgreSQL via `pg` (sem ORM) · autenticação JWT em cookie + bcrypt ·
+React 19 + Vite 8 · Express 5 (Node, ESM) · PostgreSQL via `pg` (sem ORM) · autenticação JWT em cookie + bcrypt ·
 IA Anthropic (+ Voyage para busca semântica) · Google Calendar · deploy no Railway (automático a cada push na `main`).
 
 ## Rodando localmente
