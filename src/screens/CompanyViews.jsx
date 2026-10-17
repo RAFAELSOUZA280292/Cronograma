@@ -897,6 +897,7 @@ const RESUMO_CSS = `
   .rs-card-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
   .rs-card-secondary { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-1); }
   .rs-empty { text-align: center; padding: 40px 0; color: var(--text-6); font-size: 13px; }
+  @media (max-width: 767px) { .rs-selects select { min-height: 44px; } .rs-group-toggle { min-height: 44px; } }
 `;
 
 function TaskCountChip({ counts, onOpenTasks, style }) {
@@ -2065,6 +2066,7 @@ export function KanbanView({ activities, orderMap, phases, pid, dragId, setDragI
 const GANTT_DAYS_PER_COL = { dia: 1, semana: 7, mes: 30.4368, ano: 365.25 };
 
 export function TimelineView({ activities, phases, granularity, setGranularity, windowAnchor, setWindowAnchor, pid, updateActivity, openDetail, taskCounts, onOpenTasks }) {
+  const isMobile = useIsMobile();
   const columns = buildTimelineColumns(granularity, activities, windowAnchor);
   const noDate = activities.filter((a) => !a.date);
   const windowed = granularity === 'dia' || granularity === 'semana';
@@ -2138,7 +2140,7 @@ export function TimelineView({ activities, phases, granularity, setGranularity, 
       <div className="no-print" style={S.timelineToolbar}>
         <div style={S.granularityGroup}>
           {[{ id: 'dia', l: 'Dia' }, { id: 'semana', l: 'Semana' }, { id: 'mes', l: 'Mês' }, { id: 'ano', l: 'Ano' }].map((g) => (
-            <button key={g.id} onClick={() => setGranularity(g.id)} style={{ ...S.granBtn, ...(granularity === g.id ? S.granBtnActive : {}) }}>{g.l}</button>
+            <button key={g.id} onClick={() => setGranularity(g.id)} style={{ ...S.granBtn, ...(isMobile ? { minWidth: 44, minHeight: 44 } : null), ...(granularity === g.id ? S.granBtnActive : {}) }}>{g.l}</button>
           ))}
         </div>
         {windowed && (
