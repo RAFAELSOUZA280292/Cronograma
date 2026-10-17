@@ -61,7 +61,7 @@ export default function RichNote({ value, format, onChange, onBlur, readOnly, pl
 
   // Valor que mudou por fora (outra aba, API, "desfazer" do quadro) entra no editor só se o usuário não está digitando.
   useEffect(() => {
-    if (!editor || editor.isFocused) return;
+    if (!editor || editor.isDestroyed || editor.isFocused) return;
     const next = noteToEditorHtml(value, fmt());
     const current = editor.isEmpty ? '' : sanitizeNote(editor.getHTML());
     if (current !== next) editor.commands.setContent(next, { emitUpdate: false });

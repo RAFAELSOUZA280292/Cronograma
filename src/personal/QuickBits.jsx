@@ -1,8 +1,8 @@
 // Atalhos de uso do quadro pessoal (2026-10-16, melhorias visuais 1 e 2 do pedido do Rafael): botão global "Nova atividade" com a tecla N e
-// "visões rápidas" (Hoje, Atrasadas, Urgentes, Em andamento). Só apresentação: quem grava é o App (`addCard`) e os filtros são os MESMOS que
+// "visões rápidas" (Hoje, Atrasadas, Urgentes, Aguardando, Em andamento). Só apresentação: quem grava é o App (`addCard`) e os filtros são os MESMOS que
 // já existiam (`filters`), então nada muda no modelo do quadro nem no que é salvo.
 import React, { useEffect, useRef, useState } from 'react';
-import { Plus, CalendarClock, AlertTriangle, Flame, Play } from 'lucide-react';
+import { Plus, CalendarClock, AlertTriangle, Flame, Play, Hourglass } from 'lucide-react';
 
 export const QUICK_CSS = `
   .qb-new { position:relative; display:inline-flex; }
@@ -100,7 +100,7 @@ export function QuickNew({ columns, enabled, onCreate }) {
   );
 }
 
-const ICONS = { today: CalendarClock, overdue: AlertTriangle, urgent: Flame, doing: Play };
+const ICONS = { today: CalendarClock, overdue: AlertTriangle, urgent: Flame, doing: Play, waiting: Hourglass };
 
 export function QuickViews({ items }) {
   return (

@@ -51,6 +51,8 @@ import WeekSummary from './today/WeekSummary.jsx';
 import ContinueStrip from './today/ContinueStrip.jsx';
 import { buildTodayItems, addDaysIso } from './today/todayItems.js';
 import DaySummary from './personal/DaySummary.jsx';
+import SafeBoundary from './ui/SafeBoundary.jsx';
+import { WaitingField, isWaiting, waitingLabel, localTodayIso } from './personal/Waiting.jsx';
 import { QuickNew, QuickViews } from './personal/QuickBits.jsx';
 import { setCardStatusInBoard, setCardDueDateInBoard, findCard } from './today/boardActions.js';
 // CRM (2026-09-20, PROJECT_CONTEXT.md §54): módulo grande e opcional — carregado só quando alguém abre o CRM.
@@ -64,6 +66,7 @@ const PareceresScreen = lazyRetry(() => import('./pareceres/Pareceres.jsx'));
 const ModelosScreen = lazyRetry(() => import('./modelos/Modelos.jsx'));
 const PersonalStatsPanel = lazyRetry(() => import('./personal/PersonalStats.jsx'));
 const RichNote = lazyRetry(() => import('./ui/RichNote.jsx'));
+const Workbench = lazyRetry(() => import('./personal/Workbench.jsx'));
 const TodoBoardView = lazyRetry(() => import('./meetings/TodoBoard.jsx').then((m) => ({ default: m.TodoBoardView })));
 // Fica aqui (e não em crm/crmMeta.js) pra o CSS do CRM não entrar no pacote principal.
 const CRM_ROLE_OPTIONS = [
@@ -6049,7 +6052,8 @@ function sortCards(cards, mode) {
   return list;
 }
 
-function cardMatchesFilters(card, { search, priority, dueBucket, tags, status }) {
+function cardMatchesFilters(card, { search, priority, dueBucket, tags, status, waiting }) {
+  if (waiting && !isWaiting(card)) return false;
   if (status) {
     const cardStat = cardStatusOf(card);
     if (status === 'nao-concluida' && cardStat === 'concluida') return false;
@@ -6280,7 +6284,8 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
   const staleDays = daysSinceCardMovement(card);
   const stale = staleTone(staleDays);
   const showStaleBadge = !card.completed;
-  const hasMeta = !!priorityMeta || showStatusBadge || !!card.dueDate || (card.comments || []).length > 0 || (card.checklist || []).length > 0 || showStaleBadge;
+  const waiting = isWaiting(card);
+  const hasMeta = !!priorityMeta || showStatusBadge || waiting || !!card.dueDate || (card.comments || []).length > 0 || (card.checklist || []).length > 0 || showStaleBadge;
 
   return (
     <div
@@ -6320,6 +6325,7 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
         <div style={S.personalCardMeta}>
           {showStatusBadge && <span style={{ ...S.personalCardBadge, color: CARD_STATUS_META[status].color, background: CARD_STATUS_META[status].bg }}>{CARD_STATUS_META[status].label}</span>}
           {priorityMeta && <span style={{ ...S.personalCardBadge, color: priorityMeta.color, background: priorityMeta.bg }}>● {priorityMeta.label}</span>}
+          {waiting && <span title={`${waitingLabel(card, localTodayIso())} (desde ${fmtDate(card.waiting.since)})`} style={{ ...S.personalCardBadge, color: '#b9a2f7', background: 'rgba(155,122,245,.14)' }}>⏳ {waitingLabel(card, localTodayIso())}</span>}
           {card.dueDate && (
             <span style={{ ...S.personalCardBadge, ...(tone === 'overdue' ? S.dueOverdue : tone === 'today' ? S.dueToday : tone === 'soon' ? S.dueSoon : {}) }}>
               📅 {fmtDate(card.dueDate)}
@@ -6587,6 +6593,8 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
               <input type="date" value={card.dueDate || ''} onChange={(e) => onUpdate({ dueDate: e.target.value }, e.target.value ? `Prazo alterado: ${fmtDate(e.target.value)}` : 'Prazo removido')} />
             </div>
           </div>
+
+          {!card.completed && <WaitingField card={card} onUpdate={onUpdate} readOnly={readOnly} labelStyle={S.subSectionLabel} />}
 
           <div style={S.subSectionLabel}><Tag size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Tags</div>
           <TagEditor tags={card.tags || []} onChange={(tags) => onUpdate({ tags }, 'Tags atualizadas')} suggestions={allTags} />
@@ -6955,13 +6963,13 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings
   const [showArchive, setShowArchive] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [search, setSearch] = useState('');
-  const [filters, setFilters] = useState({ priority: [], dueBucket: '', tags: [], status: '' });
+  const [filters, setFilters] = useState({ priority: [], dueBucket: '', tags: [], status: '', waiting: false });
   const [showFilters, setShowFilters] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showActivityLog, setShowActivityLog] = useState(false);
-  const activeFilterCount = (filters.status ? 1 : 0) + (filters.priority.length > 0 ? 1 : 0) + (filters.dueBucket ? 1 : 0);
+  const activeFilterCount = (filters.status ? 1 : 0) + (filters.priority.length > 0 ? 1 : 0) + (filters.dueBucket ? 1 : 0) + (filters.waiting ? 1 : 0);
   const anyFilterActive = activeFilterCount > 0 || filters.tags.length > 0 || !!search.trim();
-  function clearAllFilters() { setSearch(''); setFilters({ priority: [], dueBucket: '', tags: [], status: '' }); }
+  function clearAllFilters() { setSearch(''); setFilters({ priority: [], dueBucket: '', tags: [], status: '', waiting: false }); }
   const [activeDragItem, setActiveDragItem] = useState(null);
   const { toasts, pushToast, pushUndoToast, dismissToast } = useToasts();
   const isMobile = useIsMobile();
@@ -7048,6 +7056,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings
       { key: 'today', label: 'Hoje', count: alive.filter((c) => dueDateTone(c) === 'today').length, active: filters.dueBucket === 'today', onClick: toggle('dueBucket', 'today') },
       { key: 'overdue', label: 'Atrasadas', danger: true, count: alive.filter((c) => dueDateTone(c) === 'overdue').length, active: filters.dueBucket === 'overdue', onClick: toggle('dueBucket', 'overdue') },
       { key: 'urgent', label: 'Urgentes', count: alive.filter((c) => !c.completed && c.priority === 'urgente').length, active: filters.priority.length === 1 && filters.priority[0] === 'urgente', onClick: () => setFilters((f) => ({ ...f, priority: f.priority.length === 1 && f.priority[0] === 'urgente' ? [] : ['urgente'] })) },
+      { key: 'waiting', label: 'Aguardando', count: alive.filter(isWaiting).length, active: !!filters.waiting, onClick: () => setFilters((f) => ({ ...f, waiting: !f.waiting })) },
       { key: 'doing', label: 'Em andamento', count: alive.filter((c) => !c.completed && cardStatusOf(c) === 'em-andamento').length, active: filters.status === 'em-andamento', onClick: toggle('status', 'em-andamento') },
     ];
   })();
@@ -7245,7 +7254,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings
   }
 
   // ---- cards ----
-  function addCard(colId, title) {
+  function addCard(colId, title, extra) {
     const t = (title || '').trim();
     if (!t || !activeBoard) return;
     const now = new Date().toISOString();
@@ -7258,8 +7267,10 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings
       deletedFromColumnId: '', deletedFromColumnName: '', deletedFromBoardId: '', deletedFromBoardName: '',
       archived: false, archivedAt: '', archivedFromColumnId: '', archivedFromColumnName: '', archivedFromBoardId: '', archivedFromBoardName: '',
       createdAt: now, createdBy: currentUser.name, updatedAt: now, updatedBy: currentUser.name,
+      ...(extra || {}),
     };
     mutateColumnTree(activeBoard.id, colId, (c) => ({ ...c, cards: [...c.cards, nc] }), `Tarefa criada: "${t}"`);
+    return nc.id;
   }
   function updateCard(colId, cardId, patch, historyMsg) {
     const now = new Date().toISOString();
@@ -7614,7 +7625,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings
   }, [activeBoard]);
 
   function cardMatches(card) {
-    return cardMatchesFilters(card, { search, priority: filters.priority, dueBucket: filters.dueBucket, tags: filters.tags, status: filters.status });
+    return cardMatchesFilters(card, { search, priority: filters.priority, dueBucket: filters.dueBucket, tags: filters.tags, status: filters.status, waiting: filters.waiting });
   }
 
   const columnIds = activeBoard ? activeBoard.columns.map((c) => c.id) : [];
@@ -7758,6 +7769,21 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings
         <DaySummary boards={board.boards} meetings={todayMeetings} todayIso={todayISOStr()} isMobile={isMobile} onOpenCard={openFromSummary} />
       )}
 
+      {activeBoard && !activeLinked && !publicMode && !embedded && !readOnly && (
+        <SafeBoundary label="o painel de calendário, anotações e atalhos" onError={() => { try { window.localStorage.setItem('pricetax-pb-tools-v1', '0'); } catch (e) { /* ignora */ } }}>
+        <React.Suspense fallback={null}>
+          <Workbench boards={board.boards} todayIso={todayISOStr()} onOpenCard={openFromSummary} readOnly={readOnly}
+            onCreateCard={(title, desc) => {
+              const col = activeBoard.columns[0]; const bid = activeBoard.id;
+              if (!col) return null;
+              const id = addCard(col.id, title, desc ? { desc, descFormat: 'html' } : undefined);
+              // devolve o "desfazer": tira o cartão recém-criado (some de vez, não vai para a lixeira), pois a criação foi desfeita na hora
+              return id ? () => mutateColumnTree(bid, col.id, (c) => ({ ...c, cards: c.cards.filter((cd) => cd.id !== id) }), `Criação desfeita: "${title}"`) : null;
+            }} />
+        </React.Suspense>
+        </SafeBoundary>
+      )}
+
       {activeBoard && !activeLinked && (
         <div style={S.personalToolbar}>
           <QuickNew columns={activeBoard.columns} enabled={!publicMode && !embedded && !readOnly && !openCard && !showStats && !showTrash && !showArchive && !showShareModal && !showActivityLog} onCreate={addCard} />
@@ -7820,6 +7846,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings
           {filters.status && <button type="button" style={S.personalFilterChip} onClick={() => setFilters((f) => ({ ...f, status: '' }))} title="Remover este filtro">{filters.status === 'nao-concluida' ? 'Sem concluídas' : `Status: ${CARD_STATUS_META[filters.status] ? CARD_STATUS_META[filters.status].label : filters.status}`} <X size={11} /></button>}
           {filters.priority.length > 0 && <button type="button" style={S.personalFilterChip} onClick={() => setFilters((f) => ({ ...f, priority: [] }))} title="Remover este filtro">Prioridade: {CARD_PRIORITY_META[filters.priority[0]] ? CARD_PRIORITY_META[filters.priority[0]].label : filters.priority[0]} <X size={11} /></button>}
           {filters.dueBucket && <button type="button" style={S.personalFilterChip} onClick={() => setFilters((f) => ({ ...f, dueBucket: '' }))} title="Remover este filtro">Prazo: {{ overdue: 'vencido', today: 'hoje', week: 'próximos dias', none: 'sem prazo' }[filters.dueBucket] || filters.dueBucket} <X size={11} /></button>}
+          {filters.waiting && <button type="button" style={S.personalFilterChip} onClick={() => setFilters((f) => ({ ...f, waiting: false }))} title="Remover este filtro">Só aguardando <X size={11} /></button>}
           {filters.tags.length > 0 && <button type="button" style={S.personalFilterChip} onClick={() => setFilters((f) => ({ ...f, tags: [] }))} title="Remover este filtro">Tags: {filters.tags.join(', ')} <X size={11} /></button>}
           <button type="button" style={{ ...S.personalFilterChip, background: 'transparent', fontWeight: 800 }} onClick={clearAllFilters}>Limpar tudo</button>
         </div>
