@@ -403,7 +403,7 @@ export function CompanyWorkspace({ ctx }) {
           />
         )}
         {!isMulti && view === 'phases' && (
-          <PhasesView activities={activitiesSorted} orderMap={orderMap} phases={activeProject.phases} pid={activeProject.id} updateActivity={updateActivity} openDetail={openActivityDetail} companyColor={activeProject.company.color} />
+          <PhasesView activities={activitiesSorted} orderMap={orderMap} phases={activeProject.phases} pid={activeProject.id} updateActivity={updateActivity} openDetail={openActivityDetail} companyColor={activeProject.company.color} taskCounts={taskCountsByActivity(activeProject.meetings)} onOpenTasks={(activityId) => { setView('todo'); setTodoFocusActivityId(activityId); }} />
         )}
         {!isMulti && view === 'kanban' && (
           <KanbanView
@@ -462,7 +462,7 @@ export function CompanyWorkspace({ ctx }) {
         {isMulti && view === 'phases' && selectedProjects.map((p) => (
           <div key={p.id} style={S.companySection}>
             <CompanySectionHeader project={p} onEditPhases={() => { setPhasesEditingProjectId(p.id); setShowPhases(true); }} />
-            <PhasesView activities={perCompanySorted[p.id]} orderMap={perCompanyOrderMap[p.id]} phases={p.phases} pid={p.id} updateActivity={updateActivity} openDetail={openActivityDetail} companyColor={p.company.color} />
+            <PhasesView activities={perCompanySorted[p.id]} orderMap={perCompanyOrderMap[p.id]} phases={p.phases} pid={p.id} updateActivity={updateActivity} openDetail={openActivityDetail} companyColor={p.company.color} taskCounts={multiTaskCounts[p.id]} onOpenTasks={(activityId) => openActivityTasks(p.id, activityId)} />
             <button style={{ ...S.iconBtn, marginTop: 8 }} onClick={() => addActivity(p.id)}><Plus size={14} /> Nova atividade em {p.company.name || 'empresa'}</button>
           </div>
         ))}

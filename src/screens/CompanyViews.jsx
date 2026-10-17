@@ -1842,7 +1842,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
   );
 }
 
-export function PhasesView({ activities, orderMap, phases, pid, updateActivity, openDetail, companyColor }) {
+export function PhasesView({ activities, orderMap, phases, pid, updateActivity, openDetail, companyColor, taskCounts, onOpenTasks }) {
   const accent = companyColor || '#F5C400';
   const [collapsed, setCollapsed] = useState({});
   function toggle(id) { setCollapsed((c) => ({ ...c, [id]: !c[id] })); }
@@ -1871,6 +1871,7 @@ export function PhasesView({ activities, orderMap, phases, pid, updateActivity, 
 
   return (
     <div>
+      {onOpenTasks && <style>{TASK_CHIP_CSS}</style>}
       <div style={S.phasesSummaryCard}>
         <div style={S.phasesSummaryDonutWrap}>
           <svg viewBox="0 0 80 80" width="72" height="72">
@@ -1953,6 +1954,7 @@ export function PhasesView({ activities, orderMap, phases, pid, updateActivity, 
                         <StatusPill status={a.status} onClick={(e) => { e.stopPropagation(); cycleStatus(a); }} />
                       </div>
                       {a.desc && <div style={S.phaseActDesc}>{a.desc}</div>}
+                      {onOpenTasks && <div><TaskCountChip counts={taskCounts && taskCounts[a.id]} onOpenTasks={() => onOpenTasks(a.id)} style={{ marginTop: 6 }} /></div>}
                       <div style={S.phaseCardFooter}>
                         <div style={S.phaseCardOwner}>
                           <span style={{ ...S.avatarDot, background: accent }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>
