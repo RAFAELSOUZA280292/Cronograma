@@ -2,7 +2,7 @@
 
 Para quem for testar o PRICETAX Cronograma (https://painel.pricetax.com.br) em aparelho de verdade. Cobre o que foi feito no plano mobile (instalar como app, sem conexão, zoom do iPhone, telas cortadas, alvos de toque, arrastar com o dedo, tablet) e que **não dá para provar no navegador do computador**. A versão para marcar no próprio celular está publicada como página (peça o link ao Rafael); este arquivo tem o mesmo conteúdo.
 
-**36 testes, 23 prioritários (P1).** Cada aparelho leva cerca de 25 minutos só com os P1.
+**42 testes, 26 prioritários (P1).** Cada aparelho leva cerca de 25 minutos só com os P1.
 
 ## Antes de começar
 
@@ -10,6 +10,7 @@ Para quem for testar o PRICETAX Cronograma (https://painel.pricetax.com.br) em a
 - Anote o aparelho, a versão do sistema (iOS/Android) e o navegador (Safari, Chrome, app instalado ou aba).
 - Faça os testes **P1** primeiro (cerca de 25 minutos por aparelho). Os **P2** são complementares.
 - Para cada falha: print ou gravação de tela, o ID do teste (ex.: L1), o aparelho e o que aconteceu.
+- Os testes do grupo **Notificações push** só funcionam depois que o servidor tiver as chaves de notificação configuradas. Se aparecer "Ainda não está disponível", pule o grupo e avise o Rafael.
 
 Legenda de aparelho: **iPhone**, **Android**, **Tablet** (iPad ou Android grande). Marque o resultado de cada teste como **Passou**, **Falhou** ou **Não se aplica**.
 
@@ -313,6 +314,61 @@ Legenda de aparelho: **iPhone**, **Android**, **Tablet** (iPad ou Android grande
 
 **Resultado:** ☐ Passou  ☐ Falhou  ☐ Não se aplica  — Anotação: ______________________
 
+## Notificações push
+
+### N1 · Ativar neste aparelho  _(P1 · iPhone · Android · Tablet)_
+
+1. No sistema, toque no sino → "Escolher o que ver" → bloco "Avisos neste aparelho (push)".
+2. Toque em "Ativar neste aparelho" e permita quando o aparelho perguntar.
+
+**Esperado:** O bloco passa para "Ativadas neste aparelho". **No iPhone** só funciona com o app instalado; numa aba do Safari deve aparecer "Instale o app primeiro".
+
+**Resultado:** ☐ Passou  ☐ Falhou  ☐ Não se aplica  — Anotação: ______________________
+
+### N2 · Enviar um teste  _(P1 · iPhone · Android · Tablet)_
+
+1. Toque em "Enviar um teste".
+2. Repita com o app **fechado** (peça para alguém clicar no teste de outro aparelho com seu usuário, ou feche o app logo após tocar).
+
+**Esperado:** Chega um aviso "PRICETAX — Teste: as notificações neste aparelho estão funcionando." em poucos segundos, com o app aberto e com ele fechado. Anote o tempo.
+
+**Resultado:** ☐ Passou  ☐ Falhou  ☐ Não se aplica  — Anotação: ______________________
+
+### N3 · Aviso de verdade e toque  _(P1 · iPhone · Android · Tablet)_
+
+1. Peça a outra pessoa para atribuir uma atividade a você ou mencionar você num comentário.
+2. Com o app fechado, espere o aviso e toque nele.
+
+**Esperado:** Chega o aviso com o mesmo título e texto do sino. O toque abre o sistema no módulo certo (Empresas, XFlow, CRM, Pareceres…).
+
+**Resultado:** ☐ Passou  ☐ Falhou  ☐ Não se aplica  — Anotação: ______________________
+
+### N4 · Tela bloqueada  _(P2 · iPhone · Android · Tablet)_
+
+1. Bloqueie o aparelho e dispare um teste.
+
+**Esperado:** Anote se o texto aparece na tela bloqueada e se isso é aceitável para vocês (hoje o texto é o mesmo do sino, com nomes de empresas e pessoas).
+
+**Resultado:** ☐ Passou  ☐ Falhou  ☐ Não se aplica  — Anotação: ______________________
+
+### N5 · Silenciar uma categoria  _(P2 · iPhone · Android · Tablet)_
+
+1. Em "Notificações (sino)", desmarque "Empresas".
+2. Peça outra atribuição de atividade.
+
+**Esperado:** Nenhum aviso chega para essa categoria. Marque de novo ao terminar.
+
+**Resultado:** ☐ Passou  ☐ Falhou  ☐ Não se aplica  — Anotação: ______________________
+
+### N6 · Desativar  _(P2 · iPhone · Android · Tablet)_
+
+1. Toque em "Desativar neste aparelho".
+2. Peça uma nova atribuição.
+
+**Esperado:** O bloco volta a "Desativadas" e nenhum aviso chega neste aparelho.
+
+**Resultado:** ☐ Passou  ☐ Falhou  ☐ Não se aplica  — Anotação: ______________________
+
 ## Tablet (iPad)
 
 ### P1 · Tabela em retrato e paisagem  _(P1 · Tablet)_
@@ -355,5 +411,6 @@ Mande, para cada falha: **ID do teste** (ex.: L1), **aparelho e modelo**, **vers
 - Os botões são fáceis de tocar? (T1–T6)
 - Dá para arrastar com o dedo (quadro, Gantt, Tabela, CRM)? (A1–A7)
 - O teclado atrapalha? (K1–K2)
+- As notificações push chegam, com o app fechado, e o toque abre o módulo certo? (N1–N6)
 - O iPad funciona bem? (P1–P2)
 - O app instalado atualiza depois de um deploy? (U1)
