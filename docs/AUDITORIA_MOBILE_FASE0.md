@@ -85,3 +85,5 @@ Medição, sem alterar o app. Objetivo: trocar palpite por evidência antes de p
 **2026-10-17 — roteiro de teste em aparelho real criado**: `docs/ROTEIRO_TESTE_MOBILE.md` (36 testes, 23 prioritários P1, ~25 min por aparelho) cobre o que o navegador do computador não prova: instalar (Android/iPhone), tela cheia e barra de status, sem conexão, zoom do iPhone, telas cortadas, alvos de toque, arrastar com o dedo (inclui Quadro da empresa e CRM, nunca testados no toque), teclado, iPad e atualização depois de um deploy. Há também uma versão para marcar no próprio celular (página publicada, privada; resultado copiável para enviar ao Rafael).
 
 **2026-10-17 — notificações push feitas (dormentes até configurar as chaves em produção)**: ver `PROJECT_CONTEXT.md` §65 ("Notificações push"). Testado com serviço de push falso e interface com permissão simulada; **não** testado: entrega real, iPhone, Android, eventos do service worker em aparelho. Roteiro: grupo N1–N6 em `docs/ROTEIRO_TESTE_MOBILE.md`.
+
+**2026-10-17 — chaves de push configuradas em produção** (Railway, `VAPID_*`; log de boot: "notificações push: ATIVADAS"). Falta rodar N1–N3 do roteiro num aparelho real.
