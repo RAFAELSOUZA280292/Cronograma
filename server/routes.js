@@ -9,6 +9,7 @@ import { lookupCnpj, cleanCnpj, formatCnpj } from './cnpjLookup.js';
 import { createNotification, rowToNotification } from './notifications.js';
 import { sanitizeBoardNotes } from './richNote.js';
 import { readExtras, buildExtrasPatch } from './personalExtras.js';
+import { allowReport, formatClientError } from './clientError.js';
 import { readMuted, publicCategories, loadMutedPatterns, NOTIFICATION_CATEGORIES, TODAY_SOURCES, readTodayHidden, publicTodaySources } from './notificationPrefs.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { CRM_ROLES } from './crm/permissions.js';
@@ -735,6 +736,12 @@ router.put('/personal-extras', requireAuth, async (req, res, next) => {
     );
     res.json(readExtras(rows[0] && rows[0].preferences));
   } catch (e) { next(e); }
+});
+
+// Erro de tela capturado por um limite de erro do navegador → uma linha no log do servidor. Só com login, com limite por pessoa.
+router.post('/client-error', requireAuth, (req, res) => {
+  if (allowReport(req.user.id)) console.error('[client-error]', formatClientError(req.user, req.body));
+  res.status(204).end();
 });
 
 router.patch('/notifications/:id', requireAuth, async (req, res, next) => {

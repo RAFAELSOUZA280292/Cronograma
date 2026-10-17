@@ -1904,13 +1904,22 @@ function AppScreens({ shellRef, bump }) {
     ) : null,
   };
 
+  // Limites de erro (2026-10-16): uma tela que falha ao desenhar vira um aviso no lugar dela, com "Voltar ao início", e não mais o app em branco.
+  // O estado do AppScreens (projetos, quadro, rascunhos) é preservado; só a tela que falhou é descartada. resetKey = a própria tela.
+  const guard = (key, label, node) => (
+    <SafeBoundary resetKey={key} label={label} where={key} actions={availableModes.length > 1 ? [{ label: 'Voltar ao início', onClick: () => goToWorkspace(null) }] : undefined}>{node}</SafeBoundary>
+  );
+  const guardModal = (key, label, onClose, node) => (
+    <SafeBoundary variant="floating" resetKey={key} label={label} where={key.split(':')[0]} actions={[{ label: 'Fechar', onClick: onClose }]}>{node}</SafeBoundary>
+  );
+
   if (availableModes.length === 0) {
     shellRef.current = null;
     return <NoAccessScreen user={currentUser} onLogout={handleLogout} onHome={availableModes.length > 0 ? () => goToWorkspace(null) : null} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   if (!effectiveMode) {
-    return (
+    return guard('gate', 'a tela inicial', (
       <>
       <WorkspaceGateScreen
         user={currentUser}
@@ -1940,11 +1949,11 @@ function AppScreens({ shellRef, bump }) {
         continueItems={buildContinueItems()}
       />
       </>
-    );
+    ));
   }
 
   if (effectiveMode === 'xflow') {
-    return (
+    return guard('xflow', 'o XFlow', (
       <React.Suspense fallback={<LoadingScreen theme={theme} />}>
       <XFlowScreen
         currentUser={currentUser}
@@ -1960,14 +1969,14 @@ function AppScreens({ shellRef, bump }) {
         onTicketViewed={markTicketNotificationsReadLocally}
       />
       </React.Suspense>
-    );
+    ));
   }
 
   if (effectiveMode === 'personal') {
     if (!personalBoardLoaded || !personalBoard) {
       return <PersonalBoardSkeleton theme={theme} />;
     }
-    return (
+    return guard('personal', 'a Gestão de Atividades', (
       <PersonalBoardScreen
         board={personalBoard}
         onMutate={mutatePersonalBoard}
@@ -1984,11 +1993,11 @@ function AppScreens({ shellRef, bump }) {
         notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
         onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
       />
-    );
+    ));
   }
 
   if (effectiveMode === 'agenda') {
-    return (
+    return guard('agenda', 'a Agenda', (
       <React.Suspense fallback={<LoadingScreen theme={theme} />}>
       <AgendaScreen
         currentUser={currentUser}
@@ -2003,11 +2012,11 @@ function AppScreens({ shellRef, bump }) {
         onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
       />
       </React.Suspense>
-    );
+    ));
   }
 
   if (effectiveMode === 'macro') {
-    return (
+    return guard('macro', 'a Visão Geral', (
       <>
         <React.Suspense fallback={<LoadingScreen theme={theme} />}>
         <MacroOverviewScreen
@@ -2032,13 +2041,13 @@ function AppScreens({ shellRef, bump }) {
           activityModalOpen={!!openActivityId}
         />
         </React.Suspense>
-        {renderActivityDetailModal()}
+        {guardModal(openActivityId ? `activity-detail:${openActivityId.pid}:${openActivityId.id}` : 'activity-detail:', 'o detalhe da atividade', closeActivityDetail, renderActivityDetailModal())}
       </>
-    );
+    ));
   }
 
   if (effectiveMode === 'knowledge') {
-    return (
+    return guard('knowledge', 'a Central de Conhecimento', (
       <React.Suspense fallback={<LoadingScreen theme={theme} />}>
       <KnowledgeCenterScreen
         currentUser={currentUser}
@@ -2055,11 +2064,11 @@ function AppScreens({ shellRef, bump }) {
         }}
       />
       </React.Suspense>
-    );
+    ));
   }
 
   if (effectiveMode === 'crm') {
-    return (
+    return guard('crm', 'o CRM', (
       <React.Suspense fallback={<LoadingScreen theme={theme} />}>
         <CrmScreen
           currentUser={currentUser}
@@ -2073,11 +2082,11 @@ function AppScreens({ shellRef, bump }) {
           onOpenProject={(projectId) => openCompanyWorkspace([projectId])}
         />
       </React.Suspense>
-    );
+    ));
   }
 
   if (effectiveMode === 'modelos') {
-    return (
+    return guard('modelos', 'os Modelos de documentos', (
       <React.Suspense fallback={<LoadingScreen theme={theme} />}>
       <ModelosScreen
         currentUser={currentUser}
@@ -2089,11 +2098,11 @@ function AppScreens({ shellRef, bump }) {
         onToggleTheme={toggleTheme}
       />
       </React.Suspense>
-    );
+    ));
   }
 
   if (effectiveMode === 'pareceres') {
-    return (
+    return guard('pareceres', 'os Pareceres', (
       <React.Suspense fallback={<LoadingScreen theme={theme} />}>
       <PareceresScreen
         currentUser={currentUser}
@@ -2105,14 +2114,14 @@ function AppScreens({ shellRef, bump }) {
         onToggleTheme={toggleTheme}
       />
       </React.Suspense>
-    );
+    ));
   }
 
   const registeredProjects = projects.filter((p) => p.company.cnpj);
   const canPickCompanies = currentUser.companiesAccess && projects.length > 1;
 
   if (canPickCompanies && currentUser.isSuperAdmin && !actingOrg && !companySelectionConfirmed) {
-    return (
+    return guard('orgs', 'a escolha de organização', (
       <SuperAdminScreen
         organizations={organizations}
         error={orgAdminError}
@@ -2125,11 +2134,11 @@ function AppScreens({ shellRef, bump }) {
         theme={theme}
         onToggleTheme={toggleTheme}
       />
-    );
+    ));
   }
 
   if ((showUsers || effectiveMode === 'users') && currentUser.role === 'master') {
-    return (
+    return guard('users', 'a gestão de usuários', (
       <UsersManagementScreen
         users={users}
         access={userAccess}
@@ -2149,11 +2158,11 @@ function AppScreens({ shellRef, bump }) {
         theme={theme}
         onToggleTheme={toggleTheme}
       />
-    );
+    ));
   }
 
   if (canPickCompanies && !companySelectionConfirmed) {
-    return (
+    return guard('company-picker', 'a escolha de empresas', (
       <>
         <CompanySelectorScreen
           projects={projects}
@@ -2205,11 +2214,11 @@ function AppScreens({ shellRef, bump }) {
         )}
         <ToastStack toasts={appToasts} onDismiss={dismissAppToast} />
       </>
-    );
+    ));
   }
 
   if (showOrgAdmin && currentUser.isSuperAdmin) {
-    return (
+    return guard('org-admin', 'a administração de organizações', (
       <SuperAdminScreen
         organizations={organizations}
         error={orgAdminError}
@@ -2220,7 +2229,7 @@ function AppScreens({ shellRef, bump }) {
         theme={theme}
         onToggleTheme={toggleTheme}
       />
-    );
+    ));
   }
 
   const selectedProjects = projects.filter((p) => selectedProjectIds.includes(p.id));
@@ -3462,6 +3471,7 @@ function AppScreens({ shellRef, bump }) {
       </div>
 
       <main className="no-print" style={{ ...S.main, ...(isMobile ? { padding: `14px 12px ${isMulti ? 0 : 64}px 12px` } : null) }}>
+        <SafeBoundary resetKey={`company:${view}:${isMulti ? 'multi' : (activeProject ? activeProject.id : '')}`} label="esta aba" where="company-view" actions={isMulti && view === 'table' ? undefined : (view === 'table' ? [{ label: 'Ir para o Resumo', onClick: () => setView('resumo') }] : [{ label: 'Ir para a Tabela', onClick: () => setView('table') }])}>
         {!isMulti && view === 'resumo' && (
           <ResumoView
             activities={activitiesSorted}
@@ -3629,6 +3639,7 @@ function AppScreens({ shellRef, bump }) {
             groupInfo={groupInfo}
           />
         )}
+        </SafeBoundary>
       </main>
 
       <PrintReport projects={isMulti ? selectedProjects : [activeProject]} generatedAt={fmtDate(todayISOStr())} />
@@ -3882,8 +3893,8 @@ function AppScreens({ shellRef, bump }) {
         );
       })()}
 
-      {renderActivityDetailModal()}
-      {renderMeetingDetailModal()}
+      {guardModal(openActivityId ? `activity-detail:${openActivityId.pid}:${openActivityId.id}` : 'activity-detail:', 'o detalhe da atividade', closeActivityDetail, renderActivityDetailModal())}
+      {guardModal(openMeetingId ? `meeting-detail:${openMeetingId.pid}:${openMeetingId.id}` : 'meeting-detail:', 'o detalhe da reunião', closeMeetingDetail, renderMeetingDetailModal())}
 
       {showCreateCompany && (
         <CreateCompanyModal
@@ -7935,6 +7946,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings
         const card = col && col.cards.find((cd) => cd.id === openCard.cardId);
         if (!card) return null;
         return (
+          <SafeBoundary variant="floating" resetKey={`card:${card.id}`} label="o detalhe da atividade" where="card-detail" actions={[{ label: 'Fechar', onClick: closeCardDetail }]}>
           <PersonalCardDetailModal
             card={card}
             columnId={col.id}
@@ -7958,6 +7970,7 @@ function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings
             onUpdateChecklistItem={(id, text) => updateChecklistItem(col.id, card.id, id, text)}
             onRemoveChecklistItem={(id) => removeChecklistItem(col.id, card.id, id)}
           />
+          </SafeBoundary>
         );
       })()}
 
@@ -10800,7 +10813,9 @@ export default function App() {
     <>
       <style>{TOUCH_CSS}</style>
       <ShellHost shellRef={shellRef} />
-      <AppScreensMemo shellRef={shellRef} bump={bump} />
+      <SafeBoundary variant="page" label="o sistema" where="app-screens">
+        <AppScreensMemo shellRef={shellRef} bump={bump} />
+      </SafeBoundary>
       <DialogHost />
     </>
   );
