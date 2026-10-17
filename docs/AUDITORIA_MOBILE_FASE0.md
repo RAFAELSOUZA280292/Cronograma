@@ -44,3 +44,15 @@ Medição, sem alterar o app. Objetivo: trocar palpite por evidência antes de p
 
 - Instalar o Xcode completo (simulador/Safari) **ou** testar no iPhone real de quem usa; e um Android real.
 - Medir `/api/projects` em produção (peso real com anexos) — hoje só há o dado do banco de teste.
+
+## Status das correções
+
+**2026-10-17 — itens A, B e C corrigidos** (um deploy; só celular, o desktop não mudou):
+
+- **A (Tabela cortada)**: a causa real não era largura de campo. O contêiner da tabela é uma **coluna flex com `align-items: flex-start`**, então o bloco tomava a largura mínima do conteúdo (365 px) em vez da disponível (320 px em 360 px de tela). Correção: `alignSelf: 'stretch'` no contêiner da Tabela quando `isMobile`; as duas colunas de data (Início/Fim) também ganharam `minWidth: 0`. (O diagnóstico anterior — "filho com ~100% de largura" — estava errado; foi corrigido com medição.)
+- **B (Fases cortada)**: grade de cards passa a `repeat(2, minmax(0, 1fr))` (antes `1fr 1fr`, que não deixa o card encolher) e **uma coluna** no celular (`S.phaseCardGridMobile`). Também resolveu 820 px.
+- **C (zoom do iOS)**: o seletor de `index.html` agora inclui `input:not([type])`, `url`, `time`, `datetime-local`, `month` e **`[contenteditable="true"]`** (o editor Tiptap do cartão tinha 13,5 px). Falsos positivos descartados: `input[type=color]` não abre teclado.
+
+**Verificação** (navegador embutido em modo celular, build de produção local, usuário de teste): rolagem lateral e estouro de largura = **0** em Gestão, cartão, Resumo, Tabela, Fases, Quadro e Gantt nas larguras **360, 375, 390 e 430**; campos < 16 px = 0 (exceto `type=color`); Fases também zerou a **820 px**; capturas de tela da Tabela (360 px) e das Fases conferidas; desktop (1400 px) conferido: Fases em duas colunas de 661 px, Tabela inalterada.
+
+**Não corrigido / não testado**: Tabela a 820 px (tablet vertical) continua sendo item F; zoom do iOS em si **não** foi testado em aparelho (a correção segue a regra conhecida do Safari de 16 px); Safari/Android reais; o cabeçalho de fase em coluna única fica estreito (título quebra em várias linhas) — ajuste visual possível depois.

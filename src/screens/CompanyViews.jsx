@@ -1547,7 +1547,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
       </div>
       )}
 
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: 1, minWidth: 0, ...(isMobile ? { alignSelf: 'stretch' } : null) }}>
         <div style={S.tableWrap}>
           {!isMobile && (
           <div style={S.tableHeaderRow}>
@@ -1735,7 +1735,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                         </select>
                       </div>
                       <div style={{ display: 'flex', gap: 10 }}>
-                        <div style={{ flex: 1 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={S.mobileFieldLabel}>Início</div>
                           <input type="date" aria-label={`Início de ${a.title}`} style={{ minHeight: 44 }} value={a.date} onChange={(e) => {
                             const v = e.target.value;
@@ -1745,7 +1745,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                             updateActivity(rowPid, a.id, patch, `Início alterado em "${a.title}": ${fmtDate(v)}`);
                           }} />
                         </div>
-                        <div style={{ flex: 1 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={S.mobileFieldLabel}>Fim</div>
                           <input type="date" aria-label={`Fim de ${a.title}`} style={{ minHeight: 44 }} value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(rowPid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
                         </div>
@@ -1844,6 +1844,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
 
 export function PhasesView({ activities, orderMap, phases, pid, updateActivity, openDetail, companyColor, taskCounts, onOpenTasks }) {
   const accent = companyColor || '#F5C400';
+  const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState({});
   function toggle(id) { setCollapsed((c) => ({ ...c, [id]: !c[id] })); }
 
@@ -1936,7 +1937,7 @@ export function PhasesView({ activities, orderMap, phases, pid, updateActivity, 
             </div>
 
             {!isCollapsed && (
-              <div style={S.phaseCardGrid}>
+              <div style={{ ...S.phaseCardGrid, ...(isMobile ? S.phaseCardGridMobile : null) }}>
                 {phaseActs.map((a) => {
                   const rowPid = pid || a._pid;
                   const rowOrder = orderMap ? orderMap[a.id] : a._order;
