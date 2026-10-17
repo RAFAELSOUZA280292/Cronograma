@@ -2364,6 +2364,7 @@ function AppScreens({ shellRef, bump }) {
         setShowSettings,
         setShowTrash,
         setTodoFocusActivityId,
+        openActivityTasks,
         setTodoFocusMeetingId,
         setView,
         setWindowAnchor,

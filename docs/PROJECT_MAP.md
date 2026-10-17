@@ -177,11 +177,11 @@ Não há `server/routes/`, `server/models/`, `src/components/` — tudo é flat.
 
 Helpers/constantes de topo: linhas 1–440 (formatação de data, `STATUS_META`, `PRIORITY_META`, `CARD_*_META`, hooks e componentes pequenos). O objeto de estilos `S` **não mora mais aqui**: está em `src/styles/S.js` (e `STATUS_ORDER` em `src/lib/statusOrder.js`); o App.jsx o importa e re-exporta (`export { S }`) para quem ainda importa de lá.
 
-`AppScreens()` (L441, antigo `App()` — a raiz `App` fica no fim do arquivo (L3200) e só monta `ShellHost` + `AppScreens`; ver §81) — **linhas 441 a ~3199**. Contém o estado global, os efeitos de bootstrap (sessão, projetos, quadro, URL por módulo, boas-vindas), os ramos antecipados de renderização (login → tela inicial → módulo) e o `return` final, que monta `<CompanyWorkspace ctx={{…}} />` (a área da empresa). **As funções de mutação saíram para `src/app/*.js`** (2026-10-17, §65): são *fábricas* (`createNotificationActions`, `createCompanyActivityActions`, `createMeetingActions`, `createCompanyAdminActions`, `createUserOrgActions`, `createTeamPhaseActions`) que o `AppScreens` chama a cada render, num único ponto logo depois do último `useState`/`useRef` (comentário "Ações do app" ~L528), passando o estado e devolvendo as ações; o código das funções é o mesmo de antes. **`src/App.jsx` tem ~3.200 linhas** (eram ~10.900 até 2026-10-17): telas pesadas em **`src/screens/`** (`AdminScreens.jsx`, `PersonalBoard.jsx`, `CompanyViews.jsx`, `CompanyWorkspace.jsx`), que carregam sob demanda — ver `PROJECT_CONTEXT.md` §65. Módulos novos moram em `src/*/` (ver §2).
+`AppScreens()` (L441, antigo `App()` — a raiz `App` fica no fim do arquivo (L3201) e só monta `ShellHost` + `AppScreens`; ver §81) — **linhas 441 a ~3199**. Contém o estado global, os efeitos de bootstrap (sessão, projetos, quadro, URL por módulo, boas-vindas), os ramos antecipados de renderização (login → tela inicial → módulo) e o `return` final, que monta `<CompanyWorkspace ctx={{…}} />` (a área da empresa). **As funções de mutação saíram para `src/app/*.js`** (2026-10-17, §65): são *fábricas* (`createNotificationActions`, `createCompanyActivityActions`, `createMeetingActions`, `createCompanyAdminActions`, `createUserOrgActions`, `createTeamPhaseActions`) que o `AppScreens` chama a cada render, num único ponto logo depois do último `useState`/`useRef` (comentário "Ações do app" ~L528), passando o estado e devolvendo as ações; o código das funções é o mesmo de antes. **`src/App.jsx` tem ~3.200 linhas** (eram ~10.900 até 2026-10-17): telas pesadas em **`src/screens/`** (`AdminScreens.jsx`, `PersonalBoard.jsx`, `CompanyViews.jsx`, `CompanyWorkspace.jsx`), que carregam sob demanda — ver `PROJECT_CONTEXT.md` §65. Módulos novos moram em `src/*/` (ver §2).
 
 Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do código em 2026-10-17** (linhas exatas naquele dia; descrições antigas foram mantidas, as novas vêm do comentário acima da declaração — `—` = ainda sem descrição):
 
-**`src/App.jsx`** (3213 linhas)
+**`src/App.jsx`** (3214 linhas)
 
 | Linha | Componente | Responsabilidade |
 |---|---|---|
@@ -191,7 +191,7 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 67 | `MyProfileModal` | Avatar do usuário logado + seção "Trocar senha" (2026-08, `POST /api/auth/change-password`) |
 | 68 | `PersonalBoardScreen` | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros, `publicMode`/`readOnly` props) |
 | 69 | `PublicBoardScreen` | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
-| 70 | `TableView` | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades; chip "N tarefas · M abertas" via props `taskCounts`/`onOpenTasks`, só no modo uma empresa — 2026-10-16) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
+| 70 | `TableView` | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades; chip "N tarefas · M abertas" via props `taskCounts`/`onOpenTasks` — no modo multiempresa `taskCounts` é por empresa `{pid:{activityId:…}}` e o clique abre a empresa na aba Tarefas (2026-10-17)) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
 | 71 | `PhasesView` | View "Fases" |
 | 72 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
 | 73 | `TimelineView` | View "Gantt" |
@@ -227,20 +227,20 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 358 | `buildOrderMap` | Mapa de ordem manual de atividades |
 | 369 | `AreaRow` | Extraído do .map() de "Áreas e responsáveis" (tela de configurações da empresa) pra poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo bug de digitação do PROJECT_CONTEXT.md §45/§46. onCommit recebe o valor r |
 | 394 | `PhaseRow` | Extraído do .map() de "Fases" (SidePanel de fases do projeto) pelo mesmo motivo do AreaRow acima. O log de "Fase renomeada"/"Descrição alterada" usa o draft local (nameField.draft) em vez de p.name/p.sub das props — essas só atual |
-| 2397 | `LoadingScreen` | Tela de carregamento inicial |
-| 2430 | `LoginGate` | Formulário de login + modo "Trocar senha" (2026-08, `POST /api/auth/change-password-login`) |
-| 2534 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
-| 2870 | `UserAvatar` | Avatar (emoji) do usuário |
-| 2889 | `TeamLinkBadge` | Selo "vinculado a usuário" da equipe |
-| 2897 | `CompanySectionHeader` | Cabeçalho de seção de empresa na visão multi-empresa |
-| 2913 | `GroupActivityCompaniesModal` | Escolha das empresas envolvidas numa atividade de grupo (§12) |
-| 2968 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades vs XFlow vs Agenda — é a própria "Home" |
-| 3039 | `useToasts` | Hook de avisos temporários (toasts) |
-| 3048 | `ToastStack` | Pilha de toasts |
-| 3051 | `PersonalBoardSkeleton` | Esqueleto de carregamento do quadro pessoal |
-| 3073 | `NoAccessScreen` | Tela para quem não tem acesso a nenhum módulo |
-| 3097 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
-| 3120 | `NotificationBell` | Central de Notificações (2026-08) — componente compartilhado, usado nas 3 telas (Empresas em App(), Gestão de Atividades em PersonalBoardScreen, XFlow em XflowScreen) via o mesmo estado/lista levantados em App(), pra contador e li |
+| 2398 | `LoadingScreen` | Tela de carregamento inicial |
+| 2431 | `LoginGate` | Formulário de login + modo "Trocar senha" (2026-08, `POST /api/auth/change-password-login`) |
+| 2535 | `CreateCompanyModal` | Cadastro de empresa (CNPJ lookup, clientType, clone) — mesmo seletor de organização visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| 2871 | `UserAvatar` | Avatar (emoji) do usuário |
+| 2890 | `TeamLinkBadge` | Selo "vinculado a usuário" da equipe |
+| 2898 | `CompanySectionHeader` | Cabeçalho de seção de empresa na visão multi-empresa |
+| 2914 | `GroupActivityCompaniesModal` | Escolha das empresas envolvidas numa atividade de grupo (§12) |
+| 2969 | `WorkspaceGateScreen` | Pós-login: escolher Empresas vs Gestão de Atividades vs XFlow vs Agenda — é a própria "Home" |
+| 3040 | `useToasts` | Hook de avisos temporários (toasts) |
+| 3049 | `ToastStack` | Pilha de toasts |
+| 3052 | `PersonalBoardSkeleton` | Esqueleto de carregamento do quadro pessoal |
+| 3074 | `NoAccessScreen` | Tela para quem não tem acesso a nenhum módulo |
+| 3098 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
+| 3121 | `NotificationBell` | Central de Notificações (2026-08) — componente compartilhado, usado nas 3 telas (Empresas em App(), Gestão de Atividades em PersonalBoardScreen, XFlow em XflowScreen) via o mesmo estado/lista levantados em App(), pra contador e li |
 
 **`src/screens/AdminScreens.jsx`** (1499 linhas)
 
@@ -322,12 +322,12 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 911 | `ResumoTable` | Tabela desktop da aba Resumo (2026-08) |
 | 965 | `ResumoCard` | Card mobile da aba Resumo (2026-08) — mesmos dados de `ResumoTable`, layout empilhado |
 | 1003 | `ResumoView` | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
-| 1351 | `TableView` | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades; chip "N tarefas · M abertas" via props `taskCounts`/`onOpenTasks`, só no modo uma empresa — 2026-10-16) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
+| 1351 | `TableView` | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades; chip "N tarefas · M abertas" via props `taskCounts`/`onOpenTasks` — no modo multiempresa `taskCounts` é por empresa `{pid:{activityId:…}}` e o clique abre a empresa na aba Tarefas (2026-10-17)) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
 | 1845 | `PhasesView` | View "Fases" |
 | 1975 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal) |
 | 2062 | `TimelineView` | View "Gantt" |
 
-**`src/screens/CompanyWorkspace.jsx`** (777 linhas)
+**`src/screens/CompanyWorkspace.jsx`** (780 linhas)
 
 | Linha | Componente | Responsabilidade |
 |---|---|---|
