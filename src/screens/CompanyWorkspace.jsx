@@ -414,6 +414,8 @@ export function CompanyWorkspace({ ctx }) {
             updateActivity={updateActivity}
             addActivity={() => addActivity(activeProject.id)}
             openDetail={openActivityDetail}
+            taskCounts={{ [activeProject.id]: taskCountsByActivity(activeProject.meetings) }}
+            onOpenTasks={(activityId) => { setView('todo'); setTodoFocusActivityId(activityId); }}
           />
         )}
 
