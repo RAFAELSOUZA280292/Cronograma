@@ -3529,6 +3529,8 @@ function AppScreens({ shellRef, bump }) {
             removeAttachment={removeAttachment}
             openDetail={openActivityDetail}
             companyColor={activeProject.company.color}
+            taskCounts={taskCountsByActivity(activeProject.meetings)}
+            onOpenTasks={(activityId) => { setView('todo'); setTodoFocusActivityId(activityId); }}
           />
         )}
         {!isMulti && view === 'phases' && (
@@ -8886,6 +8888,14 @@ function resumoDateLabel(a) {
   return fmtDate(a.endDate || a.date);
 }
 
+// Chip "N tarefas · M abertas": usado no Resumo e na Tabela, então o CSS é injetado pelas duas telas.
+const TASK_CHIP_CSS = `
+  .rs-task-chip { margin-top: 4px; font-size: 10.5px; font-weight: 700; color: var(--text-4); background: var(--bg-3); border: 1px solid var(--border-2); border-radius: 999px; padding: 2px 9px; cursor: pointer; }
+  .rs-task-chip:hover { color: var(--text-1); border-color: var(--border-3); }
+  .rs-task-chip:focus-visible { outline: 2px solid var(--ui-accent, #F5C400); outline-offset: 2px; }
+  @media (max-width: 767px) { .rs-task-chip { min-height: 44px; padding: 2px 14px; } }
+`;
+
 const RESUMO_CSS = `
   .resumo-view { padding-bottom: 24px; }
   .rs-title { font-size: 22px; font-weight: 800; letter-spacing: .02em; margin: 0 0 16px; color: var(--text-1); }
@@ -8922,10 +8932,6 @@ const RESUMO_CSS = `
   .rs-activity-title { font-weight: 700; color: var(--text-1); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .rs-activity-desc { font-size: 11px; color: var(--text-5); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .rs-activity-subs { font-size: 10.5px; color: var(--text-6); margin-top: 3px; }
-  .rs-task-chip { margin-top: 4px; font-size: 10.5px; font-weight: 700; color: var(--text-4); background: var(--bg-3); border: 1px solid var(--border-2); border-radius: 999px; padding: 2px 9px; cursor: pointer; }
-  .rs-task-chip:hover { color: var(--text-1); border-color: var(--border-3); }
-  .rs-task-chip:focus-visible { outline: 2px solid var(--ui-accent, #F5C400); outline-offset: 2px; }
-  @media (max-width: 767px) { .rs-task-chip { min-height: 44px; padding: 2px 14px; } }
   .rs-resp { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); white-space: nowrap; }
   .rs-avatar { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: #111; flex-shrink: 0; }
   .rs-phase-tag { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
@@ -8948,10 +8954,10 @@ const RESUMO_CSS = `
   .rs-empty { text-align: center; padding: 40px 0; color: var(--text-6); font-size: 13px; }
 `;
 
-function TaskCountChip({ counts, onOpenTasks }) {
+function TaskCountChip({ counts, onOpenTasks, style }) {
   if (!counts || !counts.total) return null;
   return (
-    <button type="button" className="rs-task-chip" onClick={(e) => { e.stopPropagation(); onOpenTasks(); }} title="Ver as tarefas de reunião vinculadas a esta atividade">
+    <button type="button" className="rs-task-chip" style={style} onClick={(e) => { e.stopPropagation(); onOpenTasks(); }} title="Ver as tarefas de reunião vinculadas a esta atividade">
       {counts.total} tarefa{counts.total === 1 ? '' : 's'} · {counts.open} aberta{counts.open === 1 ? '' : 's'}
     </button>
   );
@@ -9139,6 +9145,7 @@ function ResumoView({ activities, orderMap, phases, pid, openDetail, companyColo
   return (
     <div className="resumo-view">
       <style>{RESUMO_CSS}</style>
+      <style>{TASK_CHIP_CSS}</style>
       <div className="rs-title">RESUMO</div>
 
       <div className="rs-kpis">
@@ -9396,7 +9403,7 @@ function RowActionsMenu({ title, required, confirmed, onToggleRequired, onToggle
   );
 }
 
-function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor, groupInfo }) {
+function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor, groupInfo, taskCounts, onOpenTasks }) {
   const isMobile = useIsMobile();
   const isCompact = useIsCompact();
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -9532,6 +9539,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
   return (
     <div style={{ ...S.tableLayout, ...(isCompact ? S.tableLayoutCompact : null) }}>
       <style>{SUB_ROW_CSS}</style>
+      <style>{TASK_CHIP_CSS}</style>
       {isCompact && (
         <button style={{ ...S.filterToggleBtn, minHeight: 44 }} aria-expanded={showMobileFilters} onClick={() => setShowMobileFilters((v) => !v)}>
           <SlidersHorizontal size={14} /> Filtros{filtersActive ? ' •' : ''} {showMobileFilters ? '▲' : '▼'}
@@ -9694,6 +9702,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                         {subs.length > 0 ? `${doneSubs}/${subs.length} subatividades` : 'Detalhes'}
                       </button>
                       <ActivityMetaChips a={a} phaseName={phaseOf(a)?.name} phaseColor={phaseColor} />
+                      {onOpenTasks && <TaskCountChip counts={taskCounts && taskCounts[a.id]} onOpenTasks={() => onOpenTasks(a.id)} style={{ marginTop: 0 }} />}
                     </div>
                   </div>
                   <div style={{ width: 170, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -9760,6 +9769,7 @@ function TableView({ activities, orderMap, phases, team, pid, expanded, setExpan
                           </div>
                         )}
                         <DebouncedTextInput value={a.desc} onCommit={(v) => updateActivity(rowPid, a.id, { desc: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 6, opacity: .8, minHeight: 44 }} />
+                        {onOpenTasks && <TaskCountChip counts={taskCounts && taskCounts[a.id]} onOpenTasks={() => onOpenTasks(a.id)} style={{ marginTop: 0 }} />}
                       </div>
                     </div>
 
