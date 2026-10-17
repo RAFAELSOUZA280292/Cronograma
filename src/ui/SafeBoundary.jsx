@@ -57,3 +57,19 @@ export default class SafeBoundary extends React.Component {
     );
   }
 }
+
+// Envolve um componente de modal/gaveta com um limite flutuante (2026-10-16): se ele falhar ao desenhar — no corpo dele OU em qualquer filho —, o modal some,
+// a tela de trás segue funcionando e a faixa oferece "Tentar de novo" e "Fechar" (chama o `onCancel`/`onClose` que o próprio modal recebeu). Os modais
+// do CRM e do XFlow são montados só enquanto abertos (`estado && modal`), então ao fechar o limite é desmontado e rearma sozinho na próxima abertura.
+export function guardedModal(Impl, label, where) {
+  function Guarded(props) {
+    const close = props.onCancel || props.onClose;
+    return (
+      <SafeBoundary variant="floating" label={label} where={where} actions={close ? [{ label: 'Fechar', onClick: () => close() }] : undefined}>
+        {React.createElement(Impl, props)}
+      </SafeBoundary>
+    );
+  }
+  Guarded.displayName = `Guarded(${Impl.displayName || Impl.name || where})`;
+  return Guarded;
+}

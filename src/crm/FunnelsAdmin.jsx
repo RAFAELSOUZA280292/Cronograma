@@ -7,11 +7,13 @@ import { ArrowUp, ArrowDown, Trash2, Plus, Star } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { Modal } from './ui.jsx';
 import { askConfirm } from '../ui/dialogs.jsx';
+import { guardedModal } from '../ui/SafeBoundary.jsx';
+
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const toDraft = (p) => p.stages.filter((s) => s.kind === 'open').map((s) => ({ id: s.id, name: s.name, probability: String(s.probability), deals: s.deals }));
 
-export default function FunnelsAdmin({ initialId, onClose, onChanged }) {
+function FunnelsAdmin({ initialId, onClose, onChanged }) {
   const [pipelines, setPipelines] = useState(null);
   const [selId, setSelId] = useState(initialId || null);
   const [draft, setDraft] = useState([]);
@@ -118,3 +120,5 @@ export default function FunnelsAdmin({ initialId, onClose, onChanged }) {
     </Modal>
   );
 }
+
+export default guardedModal(FunnelsAdmin, 'a administração de funis', 'crm-funnels-admin');

@@ -5,8 +5,10 @@ import React, { useState } from 'react';
 import { crm } from './crmApi.js';
 import { Modal, Field, CancelButton, useDirty } from './ui.jsx';
 import { fmtMoney, REL_META } from './crmMeta.js';
+import { guardedModal } from '../ui/SafeBoundary.jsx';
 
-export default function CloseDealDialog({ deal, stage, reasons, onCancel, onDone }) {
+
+function CloseDealDialog({ deal, stage, reasons, onCancel, onDone }) {
   const won = stage.kind === 'won';
   const [reason, setReason] = useState('');
   const [detail, setDetail] = useState('');
@@ -61,3 +63,5 @@ export default function CloseDealDialog({ deal, stage, reasons, onCancel, onDone
     </Modal>
   );
 }
+
+export default guardedModal(CloseDealDialog, 'o fechamento do negócio', 'crm-close-deal');

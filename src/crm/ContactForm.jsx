@@ -4,10 +4,12 @@ import React, { useEffect, useState } from 'react';
 import { crm } from './crmApi.js';
 import { Modal, Field, DuplicatesAlert, CancelButton, useDirty } from './ui.jsx';
 import { DECISION_ROLES } from './crmMeta.js';
+import { guardedModal } from '../ui/SafeBoundary.jsx';
+
 
 const EMPTY = { firstName: '', lastName: '', jobTitle: '', department: '', email: '', phone: '', whatsapp: '', linkedin: '', decisionRole: '', influence: '', relationshipStrength: '', isPrimary: false };
 
-export default function ContactForm({ initial, company, onSaved, onCancel }) {
+function ContactForm({ initial, company, onSaved, onCancel }) {
   const editing = !!(initial && initial.id);
   const [form, setForm] = useState(() => {
     if (!editing) return { ...EMPTY };
@@ -111,3 +113,5 @@ export default function ContactForm({ initial, company, onSaved, onCancel }) {
     </Modal>
   );
 }
+
+export default guardedModal(ContactForm, 'o formulário de contato', 'crm-contact-form');

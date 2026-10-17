@@ -6,10 +6,12 @@ import React, { useEffect, useState } from 'react';
 import { crm } from './crmApi.js';
 import { Modal, Field, RelPill, CancelButton, useDirty } from './ui.jsx';
 import { ACTIVITY_TYPES, PRIORITY_META } from './crmMeta.js';
+import { guardedModal } from '../ui/SafeBoundary.jsx';
+
 
 const todayLocal = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 
-export default function ActivityForm({ initial, company, prefill, options, currentUserId, onSaved, onCancel }) {
+function ActivityForm({ initial, company, prefill, options, currentUserId, onSaved, onCancel }) {
   const editing = !!(initial && initial.id);
   const [form, setForm] = useState(() => (editing ? {
     title: initial.title, activityType: initial.activityType, dueDate: initial.dueDate, dueTime: initial.dueTime || '', priority: initial.priority,
@@ -120,3 +122,5 @@ export default function ActivityForm({ initial, company, prefill, options, curre
     </Modal>
   );
 }
+
+export default guardedModal(ActivityForm, 'o formulário de atividade', 'crm-activity-form');

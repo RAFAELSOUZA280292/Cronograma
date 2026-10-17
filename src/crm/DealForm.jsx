@@ -7,6 +7,8 @@ import { Plus, Trash2 } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { Modal, Field, RelPill, CancelButton, useDirty } from './ui.jsx';
 import { fmtMoney, sourceLabel, moneyToNumber } from './crmMeta.js';
+import { guardedModal } from '../ui/SafeBoundary.jsx';
+
 
 const CUSTOM = '__custom';
 const numStr = (n) => (n == null ? '' : String(n).replace('.', ','));
@@ -19,7 +21,7 @@ function fromDeal(d) {
   };
 }
 
-export default function DealForm({ initial, company, defaultType, defaultPipelineId, options, currentUserId, onSaved, onCancel }) {
+function DealForm({ initial, company, defaultType, defaultPipelineId, options, currentUserId, onSaved, onCancel }) {
   const editing = !!(initial && initial.id);
   const [form, setForm] = useState(() => (editing ? fromDeal(initial) : {
     title: '', dealType: defaultType || 'new', value: '', expectedCloseDate: '', probabilityOverride: '', ownerId: currentUserId || '', primaryContactId: '', source: '', description: '',
@@ -174,3 +176,5 @@ export default function DealForm({ initial, company, defaultType, defaultPipelin
     </Modal>
   );
 }
+
+export default guardedModal(DealForm, 'o formulário de negócio', 'crm-deal-form');

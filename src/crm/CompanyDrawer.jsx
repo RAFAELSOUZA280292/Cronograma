@@ -18,6 +18,8 @@ import {
   fmtCnpj, fmtCep, fmtMoney, fmtDateBR, fmtDateTimeBR, daysLabel, staleColor, DECISION_ROLES, roleLabel, STRENGTH_META, INFLUENCE_LABELS,
   sourceLabel, TIMELINE_KIND, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor,
 } from './crmMeta.js';
+import { guardedModal } from '../ui/SafeBoundary.jsx';
+
 
 function KV({ k, v }) {
   return <div><div className="k">{k}</div><div className="v">{v || <span className="crm-muted">—</span>}</div></div>;
@@ -36,7 +38,7 @@ function Person({ c, onOpen }) {
   );
 }
 
-export default function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, onClose, onChanged, onOpenCompany, onOpenDeal, onOpenProject, canAskRenata, closeRef }) {
+function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, onClose, onChanged, onOpenCompany, onOpenDeal, onOpenProject, canAskRenata, closeRef }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState(initialTab || 'overview');
@@ -410,3 +412,5 @@ export default function CompanyDrawer({ companyId, caps, options, initialTab, cu
     </>
   );
 }
+
+export default guardedModal(CompanyDrawer, 'a ficha da empresa', 'crm-company-drawer');

@@ -14,6 +14,8 @@ import { useDraftGuard, NoteComposer, NoteThread } from './ui.jsx';
 import { useDialog } from '../lib/nav.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { fmtMoney, fmtDateBR, fmtDateTimeBR, DEAL_TYPE_META, DEAL_STATUS_META, TIMELINE_KIND, sourceLabel, stageAgeColor } from './crmMeta.js';
+import { guardedModal } from '../ui/SafeBoundary.jsx';
+
 
 // A auditoria guarda os valores crus (new/open/won…); na tela vão em português.
 const AUDIT_LABELS = { dealType: { new: 'Novo negócio', upsell: 'Upsell' }, status: { open: 'Em aberto', won: 'Ganho', lost: 'Perdido' } };
@@ -23,7 +25,7 @@ function KV({ k, v }) {
   return <div><div className="k">{k}</div><div className="v">{v || <span className="crm-muted">—</span>}</div></div>;
 }
 
-export default function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, onOpenCompany, canAskRenata, closeRef }) {
+function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, onOpenCompany, canAskRenata, closeRef }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('summary');
@@ -248,3 +250,5 @@ export default function DealDrawer({ dealId, caps, options, currentUserId, onClo
     </>
   );
 }
+
+export default guardedModal(DealDrawer, 'a ficha do negócio', 'crm-deal-drawer');

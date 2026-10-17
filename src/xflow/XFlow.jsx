@@ -25,6 +25,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { S, uid, fmtDate, fmtTs, useIsMobile, BrandLogo, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, COLUMN_COLOR_META } from '../App.jsx';
 import { DialogOverlay } from '../ui/dialog.jsx';
+import { guardedModal } from '../ui/SafeBoundary.jsx';
 import { ComposeBox, CommentThread, AddMenu } from '../ui/ComposeBox.jsx';
 import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
 import { RecordSaveStatus, Button } from '../ui/index.jsx';
@@ -1019,7 +1020,7 @@ function blankTicketForm() {
   };
 }
 
-function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
+function NewTicketModalImpl({ onClose, onCreate, affectedCompanies }) {
   const [form, setForm] = useState(blankTicketForm());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -1281,6 +1282,8 @@ function NewTicketModal({ onClose, onCreate, affectedCompanies }) {
   );
 }
 
+const NewTicketModal = guardedModal(NewTicketModalImpl, 'o formulário de nova TASK', 'xflow-new-ticket');
+
 function TriageMenu({ onAction }) {
   const [open, setOpen] = useState(false);
   const items = [
@@ -1372,7 +1375,7 @@ function renderCommentText(text, team, ticketsByNumber, onOpenTicketRef) {
   return out;
 }
 
-function TicketDetailModal({ ticket, team, currentUser, onClose, onAction, onCreateSpinoff, affectedCompanies, allTickets, onOpenTicket, onViewed, backGuardRef }) {
+function TicketDetailModalImpl({ ticket, team, currentUser, onClose, onAction, onCreateSpinoff, affectedCompanies, allTickets, onOpenTicket, onViewed, backGuardRef }) {
   const isMobile = useIsMobile();
   const role = effectiveXflowRole(currentUser);
   const [events, setEvents] = useState([]);
@@ -2334,6 +2337,8 @@ function fmtHours(seconds) {
   return `${(h / 24).toFixed(1)}d`;
 }
 
+const TicketDetailModal = guardedModal(TicketDetailModalImpl, 'o detalhe da TASK', 'xflow-ticket-detail');
+
 function StatCard({ label, count, active, onClick, tone: cardTone }) {
   return (
     <button
@@ -2740,7 +2745,7 @@ function LixeiraView({ tickets, teamById, filters, setFilters, onOpen, onRestore
 // Modal pequeno pro nível 2 do drag do Quadro — pede o único campo que a
 // ação exige (motivo do bloqueio / nota) antes de confirmar. Mesmo padrão
 // visual de modal pequeno de ConfirmDiscardModal.
-function DragFieldPromptModal({ title, field, saving, onConfirm, onCancel }) {
+function DragFieldPromptModalImpl({ title, field, saving, onConfirm, onCancel }) {
   const [value, setValue] = useState('');
   const valid = value.trim().length > 0;
   return (
@@ -2767,6 +2772,8 @@ function DragFieldPromptModal({ title, field, saving, onConfirm, onCancel }) {
     </DialogOverlay>
   );
 }
+
+const DragFieldPromptModal = guardedModal(DragFieldPromptModalImpl, 'a confirmação de mudança de status', 'xflow-field-prompt');
 
 function XflowBoardCard({ ticket, teamById, columnId, columnTerminal, showRealStatus, onOpen }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({

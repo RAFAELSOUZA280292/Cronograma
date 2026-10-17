@@ -5,10 +5,12 @@ import { Check } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { Modal, CancelButton } from './ui.jsx';
 import { fmtCnpj } from './crmMeta.js';
+import { guardedModal } from '../ui/SafeBoundary.jsx';
+
 
 const ACTION_LABEL = { create: 'Criar empresa', link_existing: 'Ligar à empresa existente', possible_duplicate: 'Possível duplicada' };
 
-export default function BootstrapDialog({ onClose, onDone }) {
+function BootstrapDialog({ onClose, onDone }) {
   const [items, setItems] = useState(null);
   const [picked, setPicked] = useState(new Set());
   const [withContacts, setWithContacts] = useState(true);
@@ -74,3 +76,5 @@ export default function BootstrapDialog({ onClose, onDone }) {
     </Modal>
   );
 }
+
+export default guardedModal(BootstrapDialog, 'a importação de clientes do painel', 'crm-bootstrap');

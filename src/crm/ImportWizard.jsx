@@ -7,11 +7,13 @@ import { Upload, Check } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { Modal, CancelButton } from './ui.jsx';
 import { guessMapping } from './importMapping.js';
+import { guardedModal } from '../ui/SafeBoundary.jsx';
+
 
 const STATUS_LABEL = { new: 'Nova', duplicate: 'Duplicada', possible_duplicate: 'Possível duplicada', invalid: 'Inválida' };
 const STATUS_COLOR = { new: '#3ecf6e', duplicate: '#e2574c', possible_duplicate: '#ff9f40', invalid: '#e2574c' };
 
-export default function ImportWizard({ onClose, onDone }) {
+function ImportWizard({ onClose, onDone }) {
   const [step, setStep] = useState(1);
   const [target, setTarget] = useState('companies');
   const [fileName, setFileName] = useState('');
@@ -167,3 +169,5 @@ export default function ImportWizard({ onClose, onDone }) {
     </Modal>
   );
 }
+
+export default guardedModal(ImportWizard, 'a importação de planilha', 'crm-import');
