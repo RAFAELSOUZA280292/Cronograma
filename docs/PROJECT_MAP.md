@@ -261,7 +261,7 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 913 | `EditCompanyModal` | Edição de empresa já criada |
 | 1094 | `CompanySelectorScreen` | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, filtros por Tipo/Status/Regime (2026-08), atalho p/ Gestão de Atividades |
 
-**`src/screens/PersonalBoard.jsx`** (2198 linhas)
+**`src/screens/PersonalBoard.jsx`** (2234 linhas)
 
 | Linha | Componente | Responsabilidade |
 |---|---|---|
@@ -287,10 +287,10 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 855 | `PersonalArchivePanel` | Painel de concluídas arquivadas |
 | 873 | `BoardShareModal` | Modal de visibilidade da página (Privado/Público por link, copiar/gerar link) |
 | 927 | `BoardActivityLogModal` | Painel de histórico do quadro — agrega `board.log` + `card.history` de todas as colunas |
-| 950 | `PersonalBoardScreen` | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros, `publicMode`/`readOnly` props) |
-| 2056 | `PublicBoardScreen` | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
+| 971 | `PersonalBoardScreen` | Tela raiz do quadro pessoal (tabs de páginas, dnd-kit, filtros, `publicMode`/`readOnly` props) |
+| 2092 | `PublicBoardScreen` | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
 
-**`src/screens/CompanyViews.jsx`** (2226 linhas)
+**`src/screens/CompanyViews.jsx`** (2228 linhas)
 
 | Linha | Componente | Responsabilidade |
 |---|---|---|
@@ -319,13 +319,13 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 811 | `resumoMonthLabel` | Rótulo de mês do resumo |
 | 817 | `resumoCountdown` | Contagem regressiva do resumo |
 | 830 | `resumoDateLabel` | Rótulo de data do resumo |
-| 911 | `ResumoTable` | Tabela desktop da aba Resumo (2026-08) |
-| 965 | `ResumoCard` | Card mobile da aba Resumo (2026-08) — mesmos dados de `ResumoTable`, layout empilhado |
-| 1003 | `ResumoView` | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
-| 1351 | `TableView` | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades; chip "N tarefas · M abertas" via props `taskCounts`/`onOpenTasks` — no modo multiempresa `taskCounts` é por empresa `{pid:{activityId:…}}` e o clique abre a empresa na aba Tarefas (2026-10-17)) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
-| 1845 | `PhasesView` | View "Fases"; chip "N tarefas · M abertas" no card via props `taskCounts` (mapa por atividade da empresa da seção) e `onOpenTasks` (2026-10-17) |
-| 1978 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal); chip "N tarefas · M abertas" no card, em todos os modos (props `taskCounts` por empresa `{pid:{activityId:…}}` e `onOpenTasks`, 2026-10-17) |
-| 2067 | `TimelineView` | View "Gantt"; chip "N tarefas · M abertas" na coluna de rótulos via props `taskCounts` (mapa por atividade da empresa da seção) e `onOpenTasks` (2026-10-17) |
+| 912 | `ResumoTable` | Tabela desktop da aba Resumo (2026-08) |
+| 966 | `ResumoCard` | Card mobile da aba Resumo (2026-08) — mesmos dados de `ResumoTable`, layout empilhado |
+| 1004 | `ResumoView` | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
+| 1352 | `TableView` | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades; chip "N tarefas · M abertas" via props `taskCounts`/`onOpenTasks` — no modo multiempresa `taskCounts` é por empresa `{pid:{activityId:…}}` e o clique abre a empresa na aba Tarefas (2026-10-17)) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
+| 1846 | `PhasesView` | View "Fases"; chip "N tarefas · M abertas" no card via props `taskCounts` (mapa por atividade da empresa da seção) e `onOpenTasks` (2026-10-17) |
+| 1979 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal); chip "N tarefas · M abertas" no card, em todos os modos (props `taskCounts` por empresa `{pid:{activityId:…}}` e `onOpenTasks`, 2026-10-17) |
+| 2068 | `TimelineView` | View "Gantt"; chip "N tarefas · M abertas" na coluna de rótulos via props `taskCounts` (mapa por atividade da empresa da seção) e `onOpenTasks` (2026-10-17) |
 
 **`src/screens/CompanyWorkspace.jsx`** (789 linhas)
 

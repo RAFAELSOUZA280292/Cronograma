@@ -947,6 +947,27 @@ function BoardActivityLogModal({ board, onClose }) {
   );
 }
 
+// Menu "Mais ações" do cabeçalho no celular (2026-10-17, Fase 0 achado E): reúne Lixeira, Concluídas, Indicadores, Compartilhar e Histórico,
+// que ocupavam ~100 px de altura antes do primeiro cartão. No desktop os botões seguem como sempre.
+function PbMoreMenu({ items }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: 'relative', marginLeft: 'auto' }}>
+      <button type="button" className="pb-ghost" aria-label="Mais ações" aria-expanded={open} aria-haspopup="menu" style={{ ...S.pbGhostBtn, minWidth: 44, minHeight: 44, justifyContent: 'center' }} onClick={() => setOpen((v) => !v)}><MoreHorizontal size={18} /></button>
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => setOpen(false)} />
+          <div role="menu" style={{ ...S.dropdownMenu, minWidth: 220 }}>
+            {items.map((it) => (
+              <button key={it.label} type="button" role="menuitem" style={{ ...S.dropdownItem, fontSize: 14, minHeight: 44 }} onClick={() => { setOpen(false); it.onClick(); }}><it.icon size={15} /> {it.label}</button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings, board, onMutate, onExit, onGoCompany, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName, embedded, publicAction, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
   // Histórico do navegador — Nível 2 (2026-08): trocar de página do quadro
   // pessoal. Nunca ativo em publicMode (/quadro/:token é a única rota que
@@ -1708,16 +1729,27 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
         .pb-addbtn:hover { background: var(--bg-3); color: var(--text-2); }
       `}</style>
       {!embedded && (
-      <div className="no-print t44" style={S.topbar}>
+      <div className="no-print t44" style={{ ...S.topbar, ...(isMobile ? { padding: '8px 12px' } : null) }}>
         <div style={S.brandRow}>
           <div style={S.logoPlaceholder}><Columns3 size={18} color="#F5C400" /></div>
           <div>
             <div style={S.brandName}>Gestão de Atividades</div>
             <div style={S.brandCnpj}>{publicMode ? (publicOwnerName ? `Quadro de ${publicOwnerName}` : 'Quadro compartilhado') : currentUser.name}</div>
           </div>
-          {!readOnly && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira{trashItems.length > 0 ? ` (${trashItems.length})` : ''}</button>}
-          {!readOnly && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowArchive(true)}><Archive size={15} /> Concluídas{archiveItems.length > 0 ? ` (${archiveItems.length})` : ''}</button>}
-          {!readOnly && !publicMode && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowStats(true)}><Gauge size={15} /> Indicadores</button>}
+          {!readOnly && !isMobile && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira{trashItems.length > 0 ? ` (${trashItems.length})` : ''}</button>}
+          {!readOnly && !isMobile && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowArchive(true)}><Archive size={15} /> Concluídas{archiveItems.length > 0 ? ` (${archiveItems.length})` : ''}</button>}
+          {!readOnly && !publicMode && !isMobile && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowStats(true)}><Gauge size={15} /> Indicadores</button>}
+          {isMobile && (() => {
+            const boardActions = activeBoard && !activeLinked;
+            const items = [
+              !readOnly && { icon: Trash2, label: `Lixeira${trashItems.length > 0 ? ` (${trashItems.length})` : ''}`, onClick: () => setShowTrash(true) },
+              !readOnly && { icon: Archive, label: `Concluídas${archiveItems.length > 0 ? ` (${archiveItems.length})` : ''}`, onClick: () => setShowArchive(true) },
+              !readOnly && !publicMode && { icon: Gauge, label: 'Indicadores', onClick: () => setShowStats(true) },
+              boardActions && !publicMode && { icon: activeBoard.visibility === 'public' ? Globe : Lock, label: activeBoard.visibility === 'public' ? 'Público por link' : 'Compartilhar', onClick: () => setShowShareModal(true) },
+              boardActions && activeBoard.visibility === 'public' && !readOnly && { icon: History, label: 'Histórico', onClick: () => setShowActivityLog(true) },
+            ].filter(Boolean);
+            return items.length ? <PbMoreMenu items={items} /> : null;
+          })()}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {publicMode && <SaveStatus state={saveState} errorText="Não foi possível salvar — alteração desfeita." />}
@@ -1733,7 +1765,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
           <SaveStatus state={saveState} errorText="Não foi possível salvar — alteração desfeita." />
         </div>
       ) : publicMode ? (
-        <div style={S.personalTabs}>
+        <div style={{ ...S.personalTabs, ...(isMobile ? { padding: '8px 12px 0' } : null) }}>
           <div style={{ ...S.personalTab, ...S.personalTabActive, cursor: 'default' }}>
             <span style={S.personalTabInput}>{activeBoard ? activeBoard.name : ''}</span>
             <span style={S.publicBadge}><Globe size={11} /> Público por link</span>
@@ -1742,7 +1774,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
           {publicAction && <div style={{ alignSelf: 'center', marginLeft: 12 }}>{publicAction}</div>}
         </div>
       ) : (
-        <div style={S.personalTabs}>
+        <div style={{ ...S.personalTabs, ...(isMobile ? { padding: '8px 12px 0' } : null) }}>
           {board.boards.map((b) => (
             <div
               key={b.id}
@@ -1808,13 +1840,13 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
       )}
 
       {activeBoard && !activeLinked && (
-        <div style={S.personalToolbar}>
+        <div style={{ ...S.personalToolbar, ...(isMobile ? { padding: '8px 12px' } : null) }}>
           <QuickNew columns={activeBoard.columns} enabled={!publicMode && !embedded && !readOnly && !openCard && !showStats && !showTrash && !showArchive && !showShareModal && !showActivityLog} onCreate={addCard} />
           <div style={S.personalViewToggle}>
             <button style={{ ...S.personalViewToggleBtn, ...(viewPrefs.view !== 'list' ? S.personalViewToggleBtnActive : {}) }} onClick={() => setViewPrefs({ view: 'kanban' })}><Columns3 size={13} /> Quadro</button>
             <button style={{ ...S.personalViewToggleBtn, ...(viewPrefs.view === 'list' ? S.personalViewToggleBtnActive : {}) }} onClick={() => setViewPrefs({ view: 'list' })}><LayoutList size={13} /> Lista</button>
           </div>
-          <div style={S.personalSearchWrap}>
+          <div style={{ ...S.personalSearchWrap, ...(isMobile ? { flex: '1 1 150px', minWidth: 0 } : null) }}>
             <Search size={13} color="var(--text-6)" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar..." style={S.personalSearchInput} />
           </div>
@@ -1825,16 +1857,16 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
           >
             <SlidersHorizontal size={13} /> Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
           </button>
-          {!publicMode && (
+          {!publicMode && !isMobile && (
             <button className="pb-ghost" style={{ ...S.pbGhostBtn, ...(activeBoard.visibility === 'public' ? { color: '#3ea6ff', borderColor: '#3ea6ff' } : {}) }} onClick={() => setShowShareModal(true)}>
               {activeBoard.visibility === 'public' ? <Globe size={13} /> : <Lock size={13} />} {activeBoard.visibility === 'public' ? 'Público por link' : 'Compartilhar'}
             </button>
           )}
-          {activeBoard.visibility === 'public' && !readOnly && (
+          {activeBoard.visibility === 'public' && !readOnly && !isMobile && (
             <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowActivityLog(true)}><History size={13} /> Histórico</button>
           )}
           {showFilters && (
-            <>
+            <div style={isMobile ? { display: 'flex', flexWrap: 'wrap', gap: 8, flexBasis: '100%' } : { display: 'contents' }}>
               <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))} style={S.personalFilterSelect}>
                 <option value="">Todo status</option>
                 <option value="nao-concluida">Ocultar concluídas</option>
@@ -1851,12 +1883,16 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
                 <option value="week">Próximos dias</option>
                 <option value="none">Sem prazo</option>
               </select>
-            </>
-          )}
-          <select value={viewPrefs.sortMode || 'manual'} onChange={(e) => setViewPrefs({ sortMode: e.target.value })} style={S.personalFilterSelect}>
+              {isMobile && <select value={viewPrefs.sortMode || 'manual'} onChange={(e) => setViewPrefs({ sortMode: e.target.value })} aria-label="Ordenar atividades" style={S.personalFilterSelect}>
             <option value="manual">Ordem manual</option>
             {SORT_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-          </select>
+          </select>}
+            </div>
+          )}
+          {!isMobile && <select value={viewPrefs.sortMode || 'manual'} onChange={(e) => setViewPrefs({ sortMode: e.target.value })} aria-label="Ordenar atividades" style={S.personalFilterSelect}>
+            <option value="manual">Ordem manual</option>
+            {SORT_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>}
         </div>
       )}
 
@@ -1882,7 +1918,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
       {activeBoard && !activeLinked && viewPrefs.view !== 'list' && (
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
-            <div style={S.personalBoardArea}>
+            <div style={{ ...S.personalBoardArea, ...(isMobile ? { padding: '12px 12px 32px' } : null) }}>
               {activeBoard.columns.map((col, idx) => {
                 const alive = col.cards.filter((cd) => !cd.deleted && !cd.archived);
                 const visible = sortCards(
