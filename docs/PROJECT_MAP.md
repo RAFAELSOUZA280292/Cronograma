@@ -193,7 +193,7 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 69 | `PublicBoardScreen` | Embed de UMA página via `/quadro/:token` — busca sessão opcional + `GET /api/public-board/:token`, decide `readOnly` por `canEdit` |
 | 70 | `TableView` | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades; chip "N tarefas · M abertas" via props `taskCounts`/`onOpenTasks` — no modo multiempresa `taskCounts` é por empresa `{pid:{activityId:…}}` e o clique abre a empresa na aba Tarefas (2026-10-17)) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
 | 71 | `PhasesView` | View "Fases" |
-| 72 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal); chip "N tarefas · M abertas" no card só no modo multiempresa (props `taskCounts`/`onOpenTasks`, 2026-10-17) |
+| 72 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal); chip "N tarefas · M abertas" no card, em todos os modos (props `taskCounts` por empresa `{pid:{activityId:…}}` e `onOpenTasks`, 2026-10-17) |
 | 73 | `TimelineView` | View "Gantt" |
 | 74 | `ResumoView` | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
 | 75 | `ActivityDetailModal` | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários (com anexo de imagem/PDF e link por comentário, 2026-08), histórico, campo opcional `meetingTime` (2026-08, "Horário da reunião") e checkbox `clientDateConfirmed` (2026-08, "Data confirmada com o cliente?") |
@@ -324,10 +324,10 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 1003 | `ResumoView` | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
 | 1351 | `TableView` | View "Tabela" das atividades de empresa (drag reorder, quick-expand de subatividades; chip "N tarefas · M abertas" via props `taskCounts`/`onOpenTasks` — no modo multiempresa `taskCounts` é por empresa `{pid:{activityId:…}}` e o clique abre a empresa na aba Tarefas (2026-10-17)) — edição inline inclui Horário da reunião e "Data confirmada com o cliente?" (2026-08, colunas próprias, desktop e mobile) |
 | 1845 | `PhasesView` | View "Fases" |
-| 1975 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal); chip "N tarefas · M abertas" no card só no modo multiempresa (props `taskCounts`/`onOpenTasks`, 2026-10-17) |
+| 1975 | `KanbanView` | View "Quadro" (empresa, diferente do Kanban pessoal); chip "N tarefas · M abertas" no card, em todos os modos (props `taskCounts` por empresa `{pid:{activityId:…}}` e `onOpenTasks`, 2026-10-17) |
 | 2064 | `TimelineView` | View "Gantt" |
 
-**`src/screens/CompanyWorkspace.jsx`** (783 linhas)
+**`src/screens/CompanyWorkspace.jsx`** (785 linhas)
 
 | Linha | Componente | Responsabilidade |
 |---|---|---|
