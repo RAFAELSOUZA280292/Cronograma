@@ -15,7 +15,7 @@ Antes de qualquer tarefa nova, siga esta ordem:
    `docs/PROJECT_MAP.md`) sempre que uma alteração mudar arquitetura, regra
    de negócio, infraestrutura ou comportamento relevante — na mesma sessão.
 6. Evite carregar arquivos grandes ou módulos não relacionados no contexto
-   (`src/App.jsx` tem ~5.000 linhas e as telas pesadas estão em `src/screens/` — leia com `offset`/`limit` ou `grep`,
+   (`src/App.jsx` tem ~3.200 linhas; telas pesadas em `src/screens/`, ações em `src/app/`, estilos `S` em `src/styles/S.js` — leia com `offset`/`limit` ou `grep`,
    nunca o arquivo inteiro sem motivo). Comece pelo **§0 do `PROJECT_CONTEXT.md`**
    (mapa dos módulos, endereços, acessos e linha do tempo) para saber onde fica cada coisa.
 7. Investigue progressivamente: **documentação → arquivos relacionados →

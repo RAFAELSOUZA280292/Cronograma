@@ -13,7 +13,8 @@ import {
   ListChecks, Search, Download, Plus, X, ChevronDown, ChevronRight,
   Filter, ArrowUpDown, MoreHorizontal,
 } from 'lucide-react';
-import { S, fmtDate, useIsMobile } from '../App.jsx';
+import { fmtDate, useIsMobile } from '../App.jsx';
+import { S } from '../styles/S.js';
 import { MEETINGS_CSS, TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } from './Meetings.jsx';
 import { TodoDrawer } from './TodoDrawer.jsx';
 import { ActivityRow, ACTIVITY_ROW_CSS } from './ActivityRow.jsx';

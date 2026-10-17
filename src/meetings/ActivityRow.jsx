@@ -4,7 +4,8 @@
 // dado nenhum, só decide como uma linha é desenhada e reage a clique.
 import React, { useState } from 'react';
 import { X, Mic, Check, MessageSquare, Copy, Calendar } from 'lucide-react';
-import { S, fmtDate } from '../App.jsx';
+import { fmtDate } from '../App.jsx';
+import { S } from '../styles/S.js';
 import { TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } from './Meetings.jsx';
 import { initials, avatarColor, daysOverdue, isItemOverdue } from './todoUtils.js';
 import { ActivityLinkSelect, ACTIVITY_LINK_CSS } from './ActivityLink.jsx';

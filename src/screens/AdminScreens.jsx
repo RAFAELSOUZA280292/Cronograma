@@ -14,7 +14,8 @@ import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
 import { useAutosave } from '../lib/useAutosave.js';
 import { useEffect, useMemo, useState } from 'react';
 import { useMentionUsers } from '../ui/ComposeBox.jsx';
-import { BrandLogo, CLIENT_TYPE_META, CLIENT_TYPE_ORDER, COMPANY_STATUS_META, ConfirmDiscardModal, PHASE_COLORS, ROLE_META, S, UserAvatar, fmtDate, fmtTs, groupMembers, todayISOStr, useDirtyForm, useIsMobile } from '../App.jsx';
+import { BrandLogo, CLIENT_TYPE_META, CLIENT_TYPE_ORDER, COMPANY_STATUS_META, ConfirmDiscardModal, PHASE_COLORS, ROLE_META, UserAvatar, fmtDate, fmtTs, groupMembers, todayISOStr, useDirtyForm, useIsMobile } from '../App.jsx';
+import { S } from '../styles/S.js';
 
 // Fica aqui (e não em crm/crmMeta.js) pra o CSS do CRM não entrar no pacote principal.
 const CRM_ROLE_OPTIONS = [

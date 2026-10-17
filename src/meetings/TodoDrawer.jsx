@@ -7,7 +7,8 @@
 // passamos o id do item de TO_DO no lugar do id da atividade.
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Mic, Plus, Trash2, Download, Paperclip, Copy, Check } from 'lucide-react';
-import { S, fmtDate, fmtTs, useIsMobile, useAutosaveTimestamp, useDebouncedField } from '../App.jsx';
+import { fmtDate, fmtTs, useIsMobile, useAutosaveTimestamp, useDebouncedField } from '../App.jsx';
+import { S } from '../styles/S.js';
 import { TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } from './Meetings.jsx';
 import { useDialog } from '../lib/nav.js';
 import { notify } from '../ui/dialogs.jsx';

@@ -13,7 +13,8 @@ import { SlidersHorizontal, RefreshCw, AlertTriangle, Clock3, CalendarDays, Cale
 import { Chip, ChipRow, Select, Button, EmptyState, SkeletonCards, Segmented, activate } from '../ui/index.jsx';
 import { apiGet } from '../lib/api.js';
 import { useHistoryValue, readHistoryValue } from '../lib/nav.js';
-import { S, BrandLogo, STATUS_META, PRIORITY_META, PRIORITY_ORDER } from '../App.jsx';
+import { BrandLogo, STATUS_META, PRIORITY_META, PRIORITY_ORDER } from '../App.jsx';
+import { S } from '../styles/S.js';
 import InventoryView from './Inventory.jsx';
 import GapsView from './Gaps.jsx';
 import StandardPlanView from './StandardPlan.jsx';
