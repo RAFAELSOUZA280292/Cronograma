@@ -118,6 +118,7 @@ export function CompanyWorkspace({ ctx }) {
     setShowSettings,
     setShowTrash,
     setTodoFocusActivityId,
+    openActivityTasks,
     setTodoFocusMeetingId,
     setView,
     setWindowAnchor,
@@ -447,6 +448,8 @@ export function CompanyWorkspace({ ctx }) {
             openDetail={openActivityDetail}
             multiMode
             groupInfo={groupInfo}
+            taskCounts={Object.fromEntries(selectedProjects.map((p) => [p.id, taskCountsByActivity(p.meetings)]))}
+            onOpenTasks={(activityId, rowPid) => openActivityTasks(rowPid, activityId)}
           />
         )}
         {isMulti && view === 'phases' && selectedProjects.map((p) => (

@@ -1647,7 +1647,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                         {subs.length > 0 ? `${doneSubs}/${subs.length} subatividades` : 'Detalhes'}
                       </button>
                       <ActivityMetaChips a={a} phaseName={phaseOf(a)?.name} phaseColor={phaseColor} />
-                      {onOpenTasks && <TaskCountChip counts={taskCounts && taskCounts[a.id]} onOpenTasks={() => onOpenTasks(a.id)} style={{ marginTop: 0 }} />}
+                      {onOpenTasks && <TaskCountChip counts={taskCounts && (multiMode ? taskCounts[rowPid] && taskCounts[rowPid][a.id] : taskCounts[a.id])} onOpenTasks={() => onOpenTasks(a.id, rowPid)} style={{ marginTop: 0 }} />}
                     </div>
                   </div>
                   <div style={{ width: 170, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1714,7 +1714,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                           </div>
                         )}
                         <DebouncedTextInput value={a.desc} onCommit={(v) => updateActivity(rowPid, a.id, { desc: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 6, opacity: .8, minHeight: 44 }} />
-                        {onOpenTasks && <TaskCountChip counts={taskCounts && taskCounts[a.id]} onOpenTasks={() => onOpenTasks(a.id)} style={{ marginTop: 0 }} />}
+                        {onOpenTasks && <TaskCountChip counts={taskCounts && (multiMode ? taskCounts[rowPid] && taskCounts[rowPid][a.id] : taskCounts[a.id])} onOpenTasks={() => onOpenTasks(a.id, rowPid)} style={{ marginTop: 0 }} />}
                       </div>
                     </div>
 
