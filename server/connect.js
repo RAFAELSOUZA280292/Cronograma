@@ -13,11 +13,13 @@ import { canAccessProject } from './routes.js';
 import { syncCardEvents } from './personalActivity.js';
 import { getConnectionStatus, listEvents } from './googleCalendar.js';
 import { todayInSp } from './widgetSummary.js';
+import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 
 export const router = Router();
 
 const PREFIX = 'pxk_';
-export const SCOPES = { read: 'Só leitura', read_create: 'Ler e criar atividades' };
+export const SCOPES = { read: 'Só leitura', read_create: 'Ler e criar atividades', read_write: 'Ler, criar atividades e ajustar o cronograma de empresas' };
+const SCOPE_RANK = { read: 0, read_create: 1, read_write: 2 };
 const VALID_DAYS = [30, 90, 180, 365];
 const MAX_ACTIVE_TOKENS = 10;
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
@@ -41,6 +43,7 @@ router.post('/tokens', requireAuth, async (req, res, next) => {
     const days = VALID_DAYS.includes(Number((req.body || {}).days)) ? Number(req.body.days) : 180;
     if (!name) return res.status(400).json({ message: 'Dê um nome ao token (ex.: "Claude Code do XPED").' });
     if (!scope) return res.status(400).json({ message: 'Escolha o que o token pode fazer.' });
+    if (scope === 'read_write' && !(req.user.isSuperAdmin || req.user.role === 'master')) return res.status(403).json({ message: 'Só administradores geram um token que ajusta o cronograma das empresas.' });
     const { rows: active } = await pool.query(`SELECT count(*)::int n FROM api_tokens WHERE user_id=$1 AND revoked_at IS NULL AND expires_at > now()`, [req.user.id]);
     if (active[0].n >= MAX_ACTIVE_TOKENS) return res.status(400).json({ message: `Você já tem ${MAX_ACTIVE_TOKENS} tokens ativos. Revogue algum antes de criar outro.` });
     const token = PREFIX + crypto.randomBytes(32).toString('base64url');
@@ -70,6 +73,7 @@ export const ENDPOINTS = [
   { method: 'GET', path: '/api/connect/companies', scope: 'read', what: 'Empresas (cronogramas) que o dono do token pode ver. Query: q=texto.' },
   { method: 'GET', path: '/api/connect/companies/:id', scope: 'read', what: 'Uma empresa: equipe, fases, atividades e lista de reuniões (sem transcrição).' },
   { method: 'GET', path: '/api/connect/companies/:id/meetings/:meetingId', scope: 'read', what: 'Uma reunião: resumo, decisões, itens de ação, participantes. Query: transcript=1 inclui a transcrição (até 60.000 caracteres).' },
+  { method: 'POST', path: '/api/connect/companies/:id/plan', scope: 'read_write', what: 'Ajusta o cronograma de uma empresa (só administrador). Corpo: ops (até 200: activity.set, sub.set, sub.add, activity.add), dryRun (padrão true: só mostra), note. Tudo ou nada, nunca apaga, grava no Log da empresa.' },
   { method: 'GET', path: '/api/connect/agenda', scope: 'read', what: 'Compromissos do Google Calendar do dono. Query: days=1..14 (padrão 7). Só os aceitos ou próprios.' },
 ];
 
@@ -130,8 +134,9 @@ async function bearer(req, res, next) {
 
 function needScope(scope) {
   return (req, res, next) => {
-    if (scope === 'read_create' && req.apiToken.scope !== 'read_create') return res.status(403).json({ message: 'Este token é só de leitura. Gere um token com "Ler e criar atividades".' });
-    next();
+    if ((SCOPE_RANK[req.apiToken.scope] ?? -1) >= SCOPE_RANK[scope]) return next();
+    if (scope === 'read_write') return res.status(403).json({ message: 'Este token não ajusta cronograma de empresa. Gere um token com "Ler, criar atividades e ajustar o cronograma de empresas".' });
+    res.status(403).json({ message: 'Este token é só de leitura. Gere um token com "Ler e criar atividades".' });
   };
 }
 
@@ -275,7 +280,7 @@ router.get('/companies', async (req, res, next) => {
       const acts = alive(r.data.activities);
       return {
         id: r.id, name: companyName(r.data), legalName: (r.data.company && r.data.company.name) || '', cnpj: (r.data.company && r.data.company.cnpj) || '',
-        status: (r.data.company && r.data.company.status) || '', activities: acts.length, activitiesDone: acts.filter((a) => a.status === 'concluida').length, meetings: alive(r.data.meetings).length,
+        status: (r.data.company && r.data.company.status) || '', activities: acts.length, activitiesDone: acts.filter((a) => a.status === 'concluido').length, meetings: alive(r.data.meetings).length,
       };
     }).filter((c) => !q || `${c.name} ${c.legalName} ${c.cnpj}`.toLowerCase().includes(q)).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
     res.json({ total: list.length, companies: list });
@@ -301,7 +306,7 @@ router.get('/companies/:id', async (req, res, next) => {
       id: r.id, name: companyName(d), company: { name: (d.company && d.company.name) || '', cnpj: (d.company && d.company.cnpj) || '', status: (d.company && d.company.status) || '', regimeTributario: (d.company && d.company.regimeTributario) || '' },
       team: alive(d.team).map((t) => ({ name: t.name, role: t.role || '' })),
       phases: phases.map((p) => ({ id: p.id, name: p.name })),
-      activities: alive(d.activities).slice(0, 500).map((a) => ({ id: a.id, title: clip(a.title, 200), phase: phaseName(a.phase), status: a.status || '', date: a.date || '', endDate: a.endDate || '', responsible: a.responsible || '', priority: a.priority || '' })),
+      activities: alive(d.activities).slice(0, 500).map((a) => ({ id: a.id, title: clip(a.title, 200), phase: phaseName(a.phase), status: a.status || '', date: a.date || '', endDate: a.endDate || '', responsible: a.responsible || '', priority: a.priority || '', subs: alive(a.subactivities).slice(0, 100).map((x) => ({ id: x.id, title: clip(x.title, 200), done: !!x.done, date: x.date || '', responsible: x.responsible || '' })) })),
       meetings: alive(d.meetings).map((m) => ({ id: m.id, date: m.date || '', title: clip(m.title, 200), hasSummary: !!m.summary, actionItems: alive(m.actionItems).length })).sort((a, b) => b.date.localeCompare(a.date)),
     });
   } catch (e) { next(e); }
@@ -343,4 +348,144 @@ router.get('/agenda', async (req, res, next) => {
         .map((e) => ({ title: clip(e.title, 200), start: e.start, end: e.end, allDay: !!e.allDay, location: clip(e.location, 200), guests: e.guests || 0 })),
     });
   } catch (e) { next(e); }
+});
+
+// ------------------------------------------------------------------ ajuste do cronograma de uma empresa (2026-10-19, escopo read_write)
+// Pedido do Rafael na urgência da Alcast: o token precisa AJUSTAR o cronograma de uma empresa (status, datas, subatividades, atividades novas). API estreita e declarativa:
+// uma lista de operações, tudo-ou-nada numa transação com FOR UPDATE, `dryRun` (padrão) mostra o que mudaria sem gravar, nunca apaga nada e nunca toca em reuniões.
+// Cada chamada que grava deixa uma linha no Log da empresa. `undo` devolve as operações que desfazem os ajustes de campos (atividades e subatividades criadas voltam em `created`).
+const STATUSES = ['nao-iniciado', 'em-andamento', 'pausado', 'concluido'];
+const PLAN_PRIORITIES = ['', 'urgente', 'alta', 'media', 'baixa'];
+const MAX_OPS = 200;
+const isISODay = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+const normText = (v) => String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+function findRef(list, ref, what) {
+  const items = alive(list);
+  const id = ref && typeof ref === 'object' ? ref.id : '';
+  if (id) { const x = items.find((i) => i.id === id); if (!x) throw new Error(`${what} não encontrada (id ${id}).`); return x; }
+  const t = normText(typeof ref === 'string' ? ref : ref && ref.title);
+  if (!t) throw new Error(`Informe o id ou o título da ${what}.`);
+  const hit = items.filter((i) => normText(i.title) === t);
+  if (hit.length !== 1) throw new Error(hit.length ? `Há mais de uma ${what} com o título "${t}"; use o id.` : `${what} "${t}" não encontrada.`);
+  return hit[0];
+}
+
+function phaseId(data, v) {
+  const phases = Array.isArray(data.phases) ? data.phases : [];
+  const hit = phases.find((p) => p.id === v || normText(p.name) === normText(v));
+  if (!hit) throw new Error(`Fase "${v}" não existe nesta empresa.`);
+  return hit.id;
+}
+
+function checkTeam(data, name) {
+  if (name === '') return '';
+  const team = alive(data.team).map((t) => t.name);
+  if (!team.includes(name)) throw new Error(`Responsável "${name}" não está na equipe da empresa (${team.join(', ')}).`);
+  return name;
+}
+
+const SET_ACT = {
+  status: (d, v) => { if (!STATUSES.includes(v)) throw new Error(`status inválido: ${v}`); return v; },
+  date: (d, v) => { if (v !== '' && !isISODay(v)) throw new Error(`data inválida: ${v}`); return v; },
+  endDate: (d, v) => { if (v !== '' && !isISODay(v)) throw new Error(`data final inválida: ${v}`); return v; },
+  responsible: (d, v) => checkTeam(d, String(v)),
+  desc: (d, v) => clip(v, 2000),
+  priority: (d, v) => { if (!PLAN_PRIORITIES.includes(v)) throw new Error(`prioridade inválida: ${v}`); return v; },
+  required: (d, v) => !!v,
+  phase: (d, v) => phaseId(d, v),
+};
+const SET_SUB = {
+  title: (d, v) => { const t = clip(v, 300).trim(); if (!t) throw new Error('título vazio'); return t; },
+  done: (d, v) => !!v,
+  date: (d, v) => { if (v !== '' && !isISODay(v)) throw new Error(`data inválida: ${v}`); return v; },
+  responsible: (d, v) => checkTeam(d, String(v)),
+};
+
+function applyPlanOps(data, ops, who) {
+  const next = structuredClone(data);
+  const results = []; const undo = []; const created = []; const errors = [];
+  const stamp = new Date().toISOString();
+  ops.forEach((op, index) => {
+    try {
+      if (!op || typeof op !== 'object') throw new Error('operação inválida');
+      if (op.op === 'activity.set') {
+        const a = findRef(next.activities, op.ref, 'atividade');
+        const set = op.set && typeof op.set === 'object' ? op.set : null;
+        if (!set || !Object.keys(set).length) throw new Error('set vazio');
+        const prev = {};
+        for (const [k, v] of Object.entries(set)) {
+          if (!SET_ACT[k]) throw new Error(`campo não permitido em atividade: ${k}`);
+          prev[k] = k === 'phase' ? a.phase : (a[k] === undefined ? '' : a[k]);
+          a[k] = SET_ACT[k](next, v);
+        }
+        undo.push({ op: 'activity.set', ref: { id: a.id }, set: prev });
+        results.push({ index, ok: true, what: `Atividade "${a.title}": ${Object.keys(set).join(', ')}` });
+      } else if (op.op === 'sub.set') {
+        const a = findRef(next.activities, op.activity, 'atividade');
+        const x = findRef(a.subactivities, op.sub, 'subatividade');
+        const set = op.set && typeof op.set === 'object' ? op.set : null;
+        if (!set || !Object.keys(set).length) throw new Error('set vazio');
+        const prev = {};
+        for (const [k, v] of Object.entries(set)) {
+          if (!SET_SUB[k]) throw new Error(`campo não permitido em subatividade: ${k}`);
+          prev[k] = x[k] === undefined ? (k === 'done' ? false : '') : x[k];
+          x[k] = SET_SUB[k](next, v);
+          if (k === 'done') { if (x.done) { x.doneAt = stamp; x.doneBy = who; } else { delete x.doneAt; delete x.doneBy; } }
+        }
+        undo.push({ op: 'sub.set', activity: { id: a.id }, sub: { id: x.id }, set: prev });
+        results.push({ index, ok: true, what: `Subatividade "${clip(x.title, 80)}" de "${a.title}": ${Object.keys(set).join(', ')}` });
+      } else if (op.op === 'sub.add') {
+        const a = findRef(next.activities, op.activity, 'atividade');
+        const sub = op.sub && typeof op.sub === 'object' ? op.sub : {};
+        const title = SET_SUB.title(next, sub.title);
+        const x = { id: uid('s'), title, done: false, responsible: sub.responsible ? SET_SUB.responsible(next, sub.responsible) : '', date: sub.date ? SET_SUB.date(next, sub.date) : '' };
+        a.subactivities = [...(a.subactivities || []), x];
+        created.push({ type: 'sub', id: x.id, activity: a.id });
+        results.push({ index, ok: true, what: `Nova subatividade "${clip(title, 80)}" em "${a.title}"` });
+      } else if (op.op === 'activity.add') {
+        const title = clip(op.title, 200).trim();
+        if (!title) throw new Error('título vazio');
+        const acts = Array.isArray(next.activities) ? next.activities : [];
+        if (acts.some((x) => !x.deleted && normText(x.title) === normText(title))) throw new Error(`Já existe uma atividade "${title}".`);
+        const date = op.date ? SET_ACT.date(next, op.date) : ''; const endDate = op.endDate ? SET_ACT.endDate(next, op.endDate) : date;
+        const a = {
+          id: uid('act'), month: acts.length ? Math.max(...acts.map((x) => x.month || 1)) + 1 : 1, phase: phaseId(next, op.phase), title, desc: clip(op.desc, 2000),
+          responsible: op.responsible ? checkTeam(next, String(op.responsible)) : '', priority: op.priority ? SET_ACT.priority(next, op.priority) : '', participants: [], date, endDate, durationDays: '',
+          status: 'nao-iniciado', required: !!op.required, notes: '', attachments: [], comments: [], links: [], transcript: '', clientDateConfirmed: false,
+          subactivities: (Array.isArray(op.subs) ? op.subs : []).slice(0, 40).map((s) => ({ id: uid('s'), title: SET_SUB.title(next, s.title), done: false, responsible: s.responsible ? SET_SUB.responsible(next, s.responsible) : '', date: s.date ? SET_SUB.date(next, s.date) : '' })),
+        };
+        next.activities = [...acts, a];
+        created.push({ type: 'activity', id: a.id, title });
+        results.push({ index, ok: true, what: `Nova atividade "${title}"${date ? ` (${date}${endDate && endDate !== date ? ` a ${endDate}` : ''})` : ''}` });
+      } else throw new Error(`operação desconhecida: ${op && op.op}`);
+    } catch (e) { errors.push({ index, message: e.message }); }
+  });
+  return { next, results, undo, created, errors };
+}
+
+router.post('/companies/:id/plan', needScope('read_write'), async (req, res, next) => {
+  const ops = req.body && req.body.ops;
+  if (!Array.isArray(ops) || !ops.length || ops.length > MAX_OPS) return res.status(400).json({ message: `Envie de 1 a ${MAX_OPS} operações em "ops".` });
+  if (!req.apiUser.companiesAccess) return res.status(403).json({ message: 'O dono do token não tem acesso a Empresas.' });
+  if (!(req.apiUser.isSuperAdmin || req.apiUser.role === 'master')) return res.status(403).json({ message: 'Só administradores ajustam o cronograma das empresas.' });
+  const dryRun = !(req.body && req.body.dryRun === false);
+  const note = clip(req.body && req.body.note, 300);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT id, org_id, data FROM projects WHERE id=$1 FOR UPDATE', [req.params.id]);
+    const r = rows[0];
+    if (!r || r.org_id !== req.apiUser.orgId || !canAccessProject(req.apiUser, r.data, r.org_id)) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Empresa não encontrada.' }); }
+    const who = req.apiUser.name || req.apiUser.username || '';
+    const out = applyPlanOps(r.data, ops, who);
+    if (out.errors.length) { await client.query('ROLLBACK'); return res.status(400).json({ message: 'Nada foi gravado: há operações inválidas.', errors: out.errors }); }
+    if (dryRun) { await client.query('ROLLBACK'); return res.json({ dryRun: true, applied: 0, wouldApply: out.results.length, results: out.results }); }
+    const entry = { ts: new Date().toISOString(), action: `Cronograma ajustado pela API (chave "${req.apiToken.name}") a pedido de ${who}: ${out.results.length} alteração(ões). ${note}`.trim(), user: who, activityId: null };
+    out.next.log = [entry, ...(Array.isArray(out.next.log) ? out.next.log : [])].slice(0, 300);
+    await client.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(out.next), r.id]);
+    await client.query('COMMIT');
+    res.json({ dryRun: false, applied: out.results.length, results: out.results, created: out.created, undo: out.undo });
+    syncProjectMemoryFromDiff(pool, r.org_id, r.id, r.data, out.next).catch((e) => console.error('Falha ao reindexar memória após ajuste por API', e.message));
+  } catch (e) { try { await client.query('ROLLBACK'); } catch { /* conexão já encerrada */ } next(e); } finally { client.release(); }
 });
