@@ -19,7 +19,7 @@ import { MEETINGS_CSS } from './meetingsCss.js';
 import { TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } from './todoStatus.js';
 import { TodoDrawer } from './TodoDrawer.jsx';
 import { ActivityRow, ACTIVITY_ROW_CSS } from './ActivityRow.jsx';
-import { isItemOverdue, todayIso, greetingPeriod } from './todoUtils.js';
+import { TASK_KINDS, greetingPeriod, isItemOverdue, kindOf, todayIso } from './todoUtils.js';
 import { activate } from '../ui/index.jsx';
 import { linkState, ConfirmSuggestionsButton, SuggestLinksButton } from './ActivityLink.jsx';
 
@@ -164,6 +164,7 @@ export function TodoBoardView({
   const [statusFilter, setStatusFilter] = useState(() => new Set());
   const [ownerFilter, setOwnerFilter] = useState('todos');
   const [reuniaoFilter, setReuniaoFilter] = useState('');
+  const [kindFilter, setKindFilter] = useState(''); // '' = todos os tipos | tarefa | decisao | risco | pendencia
   const [activityFilter, setActivityFilter] = useState(''); // '' = todas | SEM_ATIVIDADE | id da atividade
   const [semPrazoOnly, setSemPrazoOnly] = useState(false);
   const [comSubtarefasOnly, setComSubtarefasOnly] = useState(false);
@@ -253,6 +254,7 @@ export function TodoBoardView({
       if (statusFilter.size > 0 && !statusFilter.has(r.status)) return false;
       if (ownerFilter !== 'todos' && (r.owner === 'cliente' ? 'cliente' : 'pricetax') !== ownerFilter) return false;
       if (reuniaoFilter && r.meetingId !== reuniaoFilter) return false;
+      if (kindFilter && kindOf(r) !== kindFilter) return false;
       if (activityFilter) {
         const linked = !!r.activityId && (activityOptions || []).some((o) => o.id === r.activityId);
         if (activityFilter === COM_SUGESTAO) { if (linkState(r, activityOptions).kind !== 'suggested') return false; }
@@ -268,7 +270,7 @@ export function TodoBoardView({
         || (r.responsible || '').toLowerCase().includes(q)
         || (r.meetingTitle || '').toLowerCase().includes(q);
     });
-  }, [allRows, search, quickFilter, statusFilter, ownerFilter, reuniaoFilter, activityFilter, activityOptions, semPrazoOnly, comSubtarefasOnly, criadasPorMimOnly, currentUser, today]);
+  }, [allRows, search, quickFilter, statusFilter, ownerFilter, reuniaoFilter, kindFilter, activityFilter, activityOptions, semPrazoOnly, comSubtarefasOnly, criadasPorMimOnly, currentUser, today]);
 
   const groups = useMemo(() => {
     if (groupBy === 'responsavel') {
@@ -316,6 +318,7 @@ export function TodoBoardView({
       Reunião: r.meetingTitle,
       'Data da reunião': r.meetingDate ? fmtDate(r.meetingDate) : '',
       Título: r.title || '',
+      Tipo: (TASK_KINDS.find(([v]) => v === kindOf(r)) || [])[1] || 'Tarefa',
       Lado: r.owner === 'cliente' ? (clientName || 'Cliente') : 'PRICETAX',
       Responsável: r.responsible || '',
       Status: todoStatusMeta(r.status).label,
@@ -427,7 +430,7 @@ export function TodoBoardView({
 
         <div style={{ position: 'relative' }}>
           <button type="button" className="todo-filter-chip" onClick={() => togglePopover('filters')} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Filter size={12} /> Filtros{(statusFilter.size > 0 || ownerFilter !== 'todos' || reuniaoFilter || activityFilter || semPrazoOnly || comSubtarefasOnly || criadasPorMimOnly) ? ` (${[statusFilter.size > 0, ownerFilter !== 'todos', !!reuniaoFilter, !!activityFilter, semPrazoOnly, comSubtarefasOnly, criadasPorMimOnly].filter(Boolean).length})` : ''}
+            <Filter size={12} /> Filtros{(statusFilter.size > 0 || ownerFilter !== 'todos' || reuniaoFilter || kindFilter || activityFilter || semPrazoOnly || comSubtarefasOnly || criadasPorMimOnly) ? ` (${[statusFilter.size > 0, ownerFilter !== 'todos', !!reuniaoFilter, !!kindFilter, !!activityFilter, semPrazoOnly, comSubtarefasOnly, criadasPorMimOnly].filter(Boolean).length})` : ''}
           </button>
           {filtersOpen && (
             <div className="todo-popover" onClick={(e) => e.stopPropagation()}>
@@ -442,6 +445,11 @@ export function TodoBoardView({
                 <option value="todos">Todos</option>
                 <option value="pricetax">PRICETAX</option>
                 <option value="cliente">{clientName || 'Cliente'}</option>
+              </select>
+              <div className="todo-popover-label">Tipo</div>
+              <select aria-label="Filtrar por tipo" value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
+                <option value="">Todos</option>
+                {TASK_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
               <div className="todo-popover-label">Reunião</div>
               <select aria-label="Filtrar por reunião" value={reuniaoFilter} onChange={(e) => setReuniaoFilter(e.target.value)}>

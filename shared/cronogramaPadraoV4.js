@@ -142,9 +142,17 @@ function guide(type, a, variant) {
   }
   return '';
 }
+const REGISTRO_GUIDE = ['Objetivo: não deixar nada combinado nas reuniões sem dono, prazo e status.',
+  'Como registrar a cada reunião:\n1. Cole a transcrição na aba Reuniões (caixa de transcrições) ou crie a reunião à mão. A IA preenche o resumo, o campo "Decisões tomadas" e as tarefas.\n2. Confira o campo "Decisões tomadas" e corrija o que a IA errou.\n3. Nas tarefas, confirme responsável e prazo e escolha o tipo: tarefa, decisão, risco ou pendência.\n4. Vincule cada tarefa à atividade do cronograma a que ela pertence. O que for do próprio comitê vai para "Comitê de reforma tributária".\n5. Na subatividade da reunião (semanal ou mensal), use "Reunião vinculada" para ligar a ata.',
+  'Onde consultar: aba Tarefas, filtrando por tipo e por atividade; o detalhe da atividade "Comitê de reforma tributária" lista as tarefas vinculadas; o Dossiê junta todas as reuniões do cliente.',
+  'Concluído quando: a ata da última reunião está registrada e nenhuma tarefa, risco ou pendência ficou sem responsável e prazo.'].join('\n');
+const WEEKLY_GUIDE = ['Objetivo: acompanhar o andamento entre as reuniões mensais.', 'Quem participa: coordenador da PRICETAX e os responsáveis das áreas com frente aberta.', 'Duração: 30 min.',
+  'Pauta: o que venceu e o que vence na semana; riscos novos; bloqueios que precisam da diretoria.', 'Sai do encontro: tarefas novas com dono e prazo e pendências atualizadas.',
+  'Fica registrado em: ata curta na aba Reuniões e tarefas vinculadas à atividade "Comitê de reforma tributária". Esta subatividade é recorrente: ligue-a à reunião mais recente em "Reunião vinculada".',
+  'Concluído quando: a reunião da semana foi registrada.'].join('\n');
 const MONTHLY_GUIDE = ['Objetivo: aprovar o portão da etapa e decidir o que depende da diretoria.', 'Quem participa: patrocinador, responsável de cada área, coordenador e consultores da PRICETAX.', 'Duração: 90 min (60 min nos meses de rotina).',
   'Pauta fixa:\n1. Andamento contra o plano\n2. Portão da etapa: aprovado ou pendente\n3. Riscos e pendências críticas\n4. Decisões que precisam da diretoria\n5. Próximos 30 dias\n6. Números (impacto e créditos), quando houver',
-  'Sai do encontro: ata em até 2 dias úteis, decisões e tarefas na aba Reuniões e um resumo de uma página.', 'Fica registrado em: aba Reuniões; registro vivo de decisões, riscos e pendências atualizado.', 'Concluído quando: o patrocinador aprovou a ata.'].join('\n');
+  'Sai do encontro: ata em até 2 dias úteis, decisões e tarefas na aba Reuniões e um resumo de uma página.', 'Fica registrado em: aba Reuniões (ata, decisões tomadas e tarefas com tipo); vincule a ata a esta subatividade em "Reunião vinculada"; registro vivo de decisões, riscos e pendências atualizado.', 'Concluído quando: o patrocinador aprovou a ata.'].join('\n');
 
 const V3_PRIO = { P1: 'alta', P2: 'media', P3: 'baixa' };
 export function buildItems() {
@@ -180,10 +188,10 @@ export function buildItems() {
   for (const a of AREAS) { const id = idsFor(a); add({ code: id.rot, main: 'operacao', title: `Acompanhar ${a.n} na rotina${a.opt ? ' (quando houver)' : ''}`, resp: a.r, apl: apl(a), pred: [a.m.includes('P') ? id.pro : a.m.includes('R') ? id.tre : id.val], guide: guide('rot', a) }); }
   add({ code: 'OPE-REF', main: 'operacao', title: 'Reforço de treinamento depois da primeira apuração', resp: 'Todas', pred: ['B15.1'], fixed: 210 });
   // Comitê
-  add({ code: 'COM-SEM', main: 'comite', title: 'Reunião semanal de acompanhamento (recorrente)', resp: 'Diretoria', rec: 'semanal', fixed: 7, prio: 'alta' });
+  add({ code: 'COM-SEM', main: 'comite', title: 'Reunião semanal de acompanhamento (recorrente)', resp: 'Diretoria', rec: 'semanal', fixed: 7, prio: 'alta', guide: WEEKLY_GUIDE });
   const MONTH = [30, 60, 90, 120, 148, 180, 210, 240];
   MONTH.forEach((d, i) => add({ code: `COM-M${i + 1}`, main: 'comite', title: `Reunião mensal com a empresa ${i + 1} de 8: portão da etapa, riscos, decisões`, resp: 'Diretoria', prio: 'alta', fixed: d, guide: MONTHLY_GUIDE, pred: i ? [`COM-M${i}`] : [] }));
-  add({ code: 'COM-REG', main: 'comite', title: 'Registro vivo de decisões, riscos e pendências', resp: 'PRICETAX', rec: 'contínuo', fixed: 7 });
+  add({ code: 'COM-REG', main: 'comite', title: 'Registro vivo de decisões, riscos e pendências (a cada reunião)', resp: 'PRICETAX', rec: 'contínuo', fixed: 7, guide: REGISTRO_GUIDE });
   add({ code: 'COM-CMP', main: 'comite', title: 'Plano de comunicação do projeto', resp: 'PRICETAX', fixed: 10 });
   const byCode = Object.fromEntries(items.map((x) => [x.code, x]));
   const OFI = { Diretoria: 'OFI-DIR', Fiscal: 'OFI-FIS', Compras: 'OFI-CPR', TI: 'OFI-TI', Financeiro: 'OFI-FIN', Contábil: 'OFI-CTB', Jurídico: 'OFI-JUR' };

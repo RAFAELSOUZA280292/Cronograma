@@ -2,7 +2,8 @@
 // âncora do prazo, limite (data, tipo, fonte, conferência), predecessoras e código. Servem ao cronograma padrão versionado e a toda empresa criada a partir dele.
 // Mostra uma linha de selos só do que estiver preenchido (nada muda para subatividades antigas) e um painel "Detalhes" para editar (equipe PRICETAX).
 // Dados na própria subatividade (JSON do projeto): priority, executor, areas[], applicability, recurrence, anchor, limit{date,type,source,conf,checked}, predecessors[] (ids), code,
-// guide (Roteiro do encontro, 2026-10-19: pauta, o que a empresa traz, o que sai e quando está concluído; só a equipe PRICETAX vê e edita).
+// guide (Roteiro do encontro, 2026-10-19: pauta, o que a empresa traz, o que sai e quando está concluído; só a equipe PRICETAX vê e edita),
+// meetingId (Reunião vinculada, 2026-10-19: id de uma reunião da aba Reuniões da própria empresa; só equipe PRICETAX; nunca vai para o cronograma padrão nem para empresa nova).
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Lock, LockOpen, X } from 'lucide-react';
 import { PRIORITY_META, fmtDate, todayISOStr, useDebouncedField } from '../App.jsx';
@@ -24,6 +25,8 @@ export const SUB_EXTRAS_CSS = `
   .sx-chip { display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:700; border-radius:999px; padding:1px 8px; border:1px solid var(--border-2); color:var(--text-3); white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
   .sx-chip.ok { color:#3ecf6e; border-color:rgba(62,207,110,.5); } .sx-chip.warn { color:#ff9f40; border-color:rgba(255,159,64,.5); }
   .sx-chip.bad { color:#e2574c; border-color:rgba(226,87,76,.5); } .sx-chip.info { color:#6aa9ff; border-color:rgba(62,166,255,.5); }
+  .sx-chip.btn { cursor:pointer; background:none; font-family:inherit; }
+  .sx-chip.btn:hover { background:var(--bg-4); }
   .sx-toggle { background:none; border:0; padding:2px 4px; color:var(--text-4); font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:3px; }
   .sx-toggle:hover { color:var(--text-2); }
   .sx-panel { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:8px 10px; background:var(--bg-3); border:1px solid var(--border-1); border-radius:8px; padding:9px 10px; }
@@ -71,7 +74,7 @@ export function SubOutcome({ s, pid, actId, updateSub }) {
 
 const predTitle = (all, id) => { const x = (all || []).find((o) => o.id === id); return x ? x.title || '(sem título)' : null; };
 
-export function SubExtras({ s, pid, actId, allSubs, canEdit, updateSub }) {
+export function SubExtras({ s, pid, actId, allSubs, canEdit, updateSub, meetings, onOpenMeeting }) {
   const [open, setOpen] = useState(false);
   const set = (patch) => updateSub(pid, actId, s.id, patch);
   const lim = s.limit || {};
@@ -83,7 +86,10 @@ export function SubExtras({ s, pid, actId, allSubs, canEdit, updateSub }) {
   const compressed = !!(s.compressed && lim.date && s.date === lim.date);
   const lateOrder = !!(s.date && preds.some((id) => { const x = (allSubs || []).find((o) => o.id === id); return x && x.date && x.date > s.date; }));
   const limitSoon = !!(lim.date && !s.done && lim.date <= today);
-  const showChips = hasExtras(s) || (canEdit && !!s.guide);
+  const showChips = hasExtras(s) || (canEdit && (!!s.guide || !!s.meetingId));
+  const liveMeetings = (meetings || []).filter((m) => m && !m.deleted).sort((a, b) => `${b.date || ''}`.localeCompare(`${a.date || ''}`));
+  const linkedMeeting = s.meetingId ? (meetings || []).find((m) => m && !m.deleted && m.id === s.meetingId) : null;
+  const meetingText = (m) => `${m.date ? `${fmtDate(m.date)} · ` : ''}${m.title || 'Reunião sem título'}`;
   if (!showChips && !canEdit) return null;
   // Não oferece quem já depende (direta ou indiretamente) desta subatividade: evita ciclo de predecessoras.
   const dependsOnMe = (id, seen = new Set()) => { if (id === s.id) return true; if (seen.has(id)) return false; seen.add(id); const x = (allSubs || []).find((o) => o.id === id); return !!x && (x.predecessors || []).some((p) => dependsOnMe(p, seen)); };
@@ -95,6 +101,9 @@ export function SubExtras({ s, pid, actId, allSubs, canEdit, updateSub }) {
         <div className="sx-chips">
           {s.done && s.skipped && <span className="sx-chip warn" title={s.skipReason ? `Pulada: ${s.skipReason}` : 'Esta subatividade foi pulada (não foi feita)'}>Pulada</span>}
           {s.code && <span className="sx-chip" title="Código do item no cronograma padrão">{s.code}</span>}
+          {canEdit && s.meetingId && (linkedMeeting
+            ? <button type="button" className="sx-chip info btn" onClick={() => onOpenMeeting && onOpenMeeting(linkedMeeting.id)} title="Abrir a ata desta reunião">Reunião: {meetingText(linkedMeeting).length > 46 ? `${meetingText(linkedMeeting).slice(0, 46)}…` : meetingText(linkedMeeting)}</button>
+            : <span className="sx-chip warn" title="A reunião vinculada foi excluída ou não existe mais">Reunião excluída</span>)}
           {canEdit && s.guide && <span className="sx-chip info" title="Esta subatividade tem roteiro: abra Detalhes para ler">Roteiro</span>}
           {s.dateLocked && <span className="sx-chip warn" title="A data não acompanha o ajuste automático de datas"><Lock size={10} aria-hidden="true" /> Data travada</span>}
           {s.priority && <span className="sx-chip" title={PRIO_TEXT[s.priority]} style={{ color: PRIORITY_META[s.priority].color, borderColor: PRIORITY_META[s.priority].border }}>{PRIO_LABEL[s.priority]}</span>}
@@ -122,6 +131,15 @@ export function SubExtras({ s, pid, actId, allSubs, canEdit, updateSub }) {
           <Field label="Roteiro do encontro" wide>
             <DebouncedText value={s.guide || ''} onCommit={(v) => set({ guide: v })} placeholder="Objetivo, quem participa, duração, o que a empresa traz, o que sai e quando está concluído" aria-label="Roteiro do encontro" />
           </Field>
+          {(liveMeetings.length > 0 || s.meetingId) && (
+            <Field label="Reunião vinculada" wide>
+              <select value={s.meetingId || ''} onChange={(e) => set({ meetingId: e.target.value })} aria-label="Reunião vinculada a esta subatividade">
+                <option value="">Nenhuma reunião vinculada</option>
+                {s.meetingId && !linkedMeeting && <option value={s.meetingId}>Reunião excluída</option>}
+                {liveMeetings.map((m) => <option key={m.id} value={m.id}>{meetingText(m)}</option>)}
+              </select>
+            </Field>
+          )}
           <Field label="Prioridade">
             <select value={s.priority || ''} onChange={(e) => set({ priority: e.target.value })}>
               <option value="">Sem prioridade</option>

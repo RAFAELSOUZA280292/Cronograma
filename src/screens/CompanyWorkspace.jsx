@@ -129,6 +129,7 @@ export function CompanyWorkspace({ ctx }) {
     setShowTrash,
     setTodoFocusActivityId,
     openActivityTasks,
+    openLinkedMeeting,
     setTodoFocusMeetingId,
     setView,
     setWindowAnchor,
@@ -434,6 +435,8 @@ export function CompanyWorkspace({ ctx }) {
         {!isMulti && view === 'table' && (
           <TableView
             staff={currentUser.role === 'master' || currentUser.role === 'pricetax'}
+            meetingsByPid={{ [activeProject.id]: activeProject.meetings || [] }}
+            onOpenMeeting={openLinkedMeeting}
             activities={shownActs}
             orderMap={orderMap}
             phases={activeProject.phases}
@@ -499,6 +502,8 @@ export function CompanyWorkspace({ ctx }) {
         {isMulti && view === 'table' && (
           <TableView
             staff={currentUser.role === 'master' || currentUser.role === 'pricetax'}
+            meetingsByPid={Object.fromEntries(selectedProjects.map((p) => [p.id, p.meetings || []]))}
+            onOpenMeeting={openLinkedMeeting}
             activities={shownMulti}
             expanded={expanded}
             setExpanded={setExpanded}

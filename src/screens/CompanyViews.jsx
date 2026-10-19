@@ -201,7 +201,7 @@ function OrderBadge({ n, title, color, phaseName, onOpen }) {
   );
 }
 
-function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSub, deleteSub, reorderSub, allSubs, canEditExtras }) {
+function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSub, deleteSub, reorderSub, allSubs, canEditExtras, meetings, onOpenMeeting }) {
   const titleField = useDebouncedField(s.title, (v) => updateSub(pid, actId, s.id, { title: v }));
   // Título da subatividade quebra em linhas (cresce com o texto) em vez de cortar: o painel é largo e o nome inteiro precisa aparecer.
   const titleRef = useRef(null);
@@ -231,12 +231,12 @@ function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSu
         <input type="date" className="sub-meta-date" value={s.date || ''} onChange={(e) => updateSub(pid, actId, s.id, { date: e.target.value })} style={S.subMetaDate} title="Prazo da subatividade" />
         <SubOutcome s={s} pid={pid} actId={actId} updateSub={updateSub} />
       </div>
-      <SubExtras s={s} pid={pid} actId={actId} allSubs={allSubs} canEdit={canEditExtras} updateSub={updateSub} />
+      <SubExtras s={s} pid={pid} actId={actId} allSubs={allSubs} canEdit={canEditExtras} updateSub={updateSub} meetings={meetings} onOpenMeeting={onOpenMeeting} />
     </div>
   );
 }
 
-export function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, flushProjectSave, deleteActivity, addSub, updateSub, deleteSub, reorderSub, allSubs, addAttachments, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant, meetings, onOpenLinkedTask, onOpenLinkedTasks }) {
+export function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, flushProjectSave, deleteActivity, addSub, updateSub, deleteSub, reorderSub, allSubs, addAttachments, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant, meetings, onOpenLinkedTask, onOpenLinkedTasks, onOpenMeeting }) {
   const [dragSubId, setDragSubId] = useState(null);
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [linkLabelDraft, setLinkLabelDraft] = useState('');
@@ -413,6 +413,7 @@ export function ActivityDetailModal({ activity: a, orderMap, phases, team, log, 
                     dragSubId={dragSubId} setDragSubId={setDragSubId}
                     team={team} updateSub={updateSub} deleteSub={deleteSub} reorderSub={reorderSub}
                     allSubs={allSubs} canEditExtras={!!currentUser && (currentUser.role === 'master' || currentUser.role === 'pricetax')}
+                    meetings={meetings} onOpenMeeting={onOpenMeeting}
                   />
                 ))}
                 {!(a.subactivities || []).some((x) => !x.deleted) && <div style={S.emptyMuted}>Nenhuma subatividade ainda.</div>}
@@ -1398,7 +1399,7 @@ const TABLE_MIN_W = 1060;
 // Subatividades (não apagadas) do projeto da linha, para escolher predecessoras. Em várias empresas, as atividades trazem `_pid`.
 const subsOfProject = (activities, rowPid, singlePid) => (activities || []).filter((x) => !x.deleted && (singlePid || x._pid) === rowPid).flatMap((x) => (x.subactivities || []).filter((y) => !y.deleted).map((y) => ({ id: y.id, title: y.title, code: y.code, done: !!y.done, date: y.date, predecessors: y.predecessors })));
 
-export function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor, groupInfo, taskCounts, onOpenTasks, staff }) {
+export function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor, groupInfo, taskCounts, onOpenTasks, staff, meetingsByPid, onOpenMeeting }) {
   const isMobile = useIsMobile();
   const isCompact = useIsCompact();
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -1872,7 +1873,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                             <input type="date" className="sub-meta-date" value={s.date || ''} onChange={(e) => updateSub(rowPid, a.id, s.id, { date: e.target.value })} style={S.subMetaDate} title="Prazo da subatividade" />
                             <SubOutcome s={s} pid={rowPid} actId={a.id} updateSub={updateSub} />
                           </div>
-                          <SubExtras s={s} pid={rowPid} actId={a.id} allSubs={subsOfProject(activities, rowPid, pid)} canEdit={!!staff} updateSub={updateSub} />
+                          <SubExtras s={s} pid={rowPid} actId={a.id} allSubs={subsOfProject(activities, rowPid, pid)} canEdit={!!staff} updateSub={updateSub} meetings={meetingsByPid && meetingsByPid[rowPid]} onOpenMeeting={(id) => onOpenMeeting && onOpenMeeting(rowPid, id)} />
                         </div>
                       ))}
                     </div>

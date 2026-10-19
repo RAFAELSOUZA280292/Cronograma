@@ -7,7 +7,7 @@ import { X, Mic, Check, MessageSquare, Copy, Calendar } from 'lucide-react';
 import { fmtDate } from '../App.jsx';
 import { S } from '../styles/S.js';
 import { TODO_STATUS_META, TODO_STATUS_ORDER, todoStatusMeta } from './todoStatus.js';
-import { initials, avatarColor, daysOverdue, isItemOverdue } from './todoUtils.js';
+import { TASK_KIND_META, avatarColor, daysOverdue, initials, isItemOverdue, kindOf } from './todoUtils.js';
 import { ActivityLinkSelect, ACTIVITY_LINK_CSS } from './ActivityLink.jsx';
 
 // CSS da linha em si (não do entorno/board) — exportada pra qualquer
@@ -26,6 +26,7 @@ export const ACTIVITY_ROW_CSS = `
   .todo-check:hover { border-color:#3ecf6e; transform:scale(1.06); }
   .todo-check.checked { background:#3ecf6e; border-color:#3ecf6e; }
   .todo-title-wrap { flex:1; min-width:0; }
+  .todo-kind-chip { display:inline-block; font-size:10px; font-weight:800; border-radius:999px; padding:1px 8px; margin-right:6px; vertical-align:1px; }
   .todo-title-text { font-weight:700; font-size:13.5px; line-height:1.4; color:var(--text-1); word-break:break-word; }
   .todo-title-text.done { text-decoration:line-through; opacity:.6; }
   .todo-subtitle-text { font-size:11.5px; color:var(--text-5); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -104,7 +105,7 @@ export function ActivityRow({
         </button>
 
         <div className="todo-title-wrap">
-          <div className={`todo-title-text ${isDone ? 'done' : ''}`}>{row.title}</div>
+          <div className={`todo-title-text ${isDone ? 'done' : ''}`}>{kindOf(row) !== 'tarefa' && <span className="todo-kind-chip" style={{ color: TASK_KIND_META[kindOf(row)].color, background: TASK_KIND_META[kindOf(row)].bg }}>{TASK_KIND_META[kindOf(row)].label}</span>}{row.title}</div>
           {row.subtitle && <div className="todo-subtitle-text" title={row.subtitle}>{row.subtitle}</div>}
         </div>
 

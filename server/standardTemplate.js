@@ -155,7 +155,7 @@ export function templateFromProject(p) {
   const src = p && typeof p === 'object' ? p : {};
   const arr = (x) => (Array.isArray(x) ? x : []);
   const phases = arr(src.phases).filter((f) => f && f.id !== undefined && f.id !== null).map((f) => ({ id: f.id, name: str(f.name), sub: str(f.sub), color: str(f.color) }));
-  const activities = arr(src.activities).filter((a) => a && typeof a === 'object' && typeof a.id === 'string' && a.id).map((a) => ({ ...a, attachments: [] }));
+  const activities = arr(src.activities).filter((a) => a && typeof a === 'object' && typeof a.id === 'string' && a.id).map((a) => ({ ...a, attachments: [], subactivities: arr(a.subactivities).map((s) => { if (!s || typeof s !== 'object' || !('meetingId' in s)) return s; const { meetingId, ...rest } = s; return rest; }) }));
   const team = [...new Set(arr(src.team).map((m) => (typeof m === 'string' ? m : m && m.name)).filter((n) => typeof n === 'string' && n.trim()))];
   return { kickoffDate: isoOk(src.kickoffDate) ? src.kickoffDate : '', phases, activities, team };
 }
@@ -238,7 +238,7 @@ export function instantiateTemplate(t, kickoffISO, opts = {}) {
     subactivities: (a.subactivities || []).map((s) => {
       const fixed = s.anchor === 'virada' || s.anchor === 'fixa';
       const out = { ...s, id: subIds.get(s.id), done: false, date: fixed ? (s.date || '') : shift(s.date) };
-      delete out.compressed; delete out.compressedFrom; delete out.skipped; delete out.skipReason; delete out.doneAt; delete out.doneBy;
+      delete out.meetingId; delete out.compressed; delete out.compressedFrom; delete out.skipped; delete out.skipReason; delete out.doneAt; delete out.doneBy;
       const limit = s.limit && isoOk(s.limit.date) ? s.limit.date : '';
       if (limit && out.date && out.date > limit) { out.compressedFrom = out.date; out.date = limit; out.compressed = true; }
       if (Array.isArray(s.predecessors)) out.predecessors = s.predecessors.map((id) => subIds.get(id)).filter(Boolean);
