@@ -1217,6 +1217,13 @@ export function CompanySelectorScreen({ projects, initialSelected, onConfirm, on
         }
         select:focus { outline:none; border-color:#F5C400; }
         input[type=checkbox]{ accent-color:#F5C400; width:18px; height:18px; }
+        .company-card-check { flex:0 0 46px; align-self:stretch; display:flex; align-items:center; justify-content:center; border-right:1px solid var(--border-2); margin-right:8px; cursor:pointer; border-radius:12px 0 0 12px; transition:background .12s; }
+        .company-card-check:hover { background:var(--bg-4); }
+        .company-card-open { flex:1 1 0; min-width:0; display:flex; align-items:center; gap:10px; padding:9px 6px; cursor:pointer; border-radius:10px; }
+        .company-card-open:hover { background:var(--bg-4); }
+        .company-card-open:hover .company-card-name-t { text-decoration:underline; text-underline-offset:3px; }
+        .company-card-open:focus-visible { outline:2px solid #F5C400; outline-offset:1px; }
+        @media (max-width: 767px) { .company-card-check { flex-basis:38px; margin-right:4px; } .company-card-open { padding:8px 2px; gap:8px; } }
         .company-card .company-card-actions { opacity: .8; transition: opacity .12s; }
         .company-card:hover .company-card-actions, .company-card:focus-within .company-card-actions { opacity: 1; }
         @media (hover:none) { .company-card .company-card-actions { opacity: 1; } }
@@ -1227,7 +1234,7 @@ export function CompanySelectorScreen({ projects, initialSelected, onConfirm, on
           <BrandLogo theme={theme} style={{ ...S.loginLogo, marginBottom: 0 }} />
         </div>
         <h1 style={S.loginTitle}>Quais empresas você quer acompanhar?</h1>
-        <p style={S.loginSub}>Escolha uma, várias, ou marque "Selecionar todas" para ter a visão geral. Dá pra trocar depois clicando em "Trocar empresas".</p>
+        <p style={S.loginSub}>Clique no nome ou no logotipo para entrar direto na empresa. Para ver várias juntas, marque as caixinhas ao lado e use "Continuar". Dá pra trocar depois clicando em "Trocar empresas".</p>
 
         {actingOrg && (
           <div style={S.companyActingOrgRow}>
@@ -1359,22 +1366,28 @@ export function CompanySelectorScreen({ projects, initialSelected, onConfirm, on
                 const nextOverdue = next && next.date < todayISOStr();
                 const donutCircumference = 2 * Math.PI * 13;
                 const isPaused = (p.company.status || 'ativo') === 'pausado';
+                const cardName = p.company.nomeFantasia || p.company.name || 'Empresa sem nome';
+                const openCard = () => onConfirm(p.company.isGroupMaster ? groupMembers(projects, p.id).map((m) => m.id) : [p.id]);
                 return (
                   <div key={p.id} className="company-card" style={{ ...S.companyCard, ...(isMobile ? S.companyCardMobile : null), borderLeft: `3px solid ${isPaused ? COMPANY_STATUS_META.pausado.color : isSelected ? accent : 'var(--border-2)'}`, ...(isPaused ? { opacity: .78 } : {}) }}>
-                    <label style={{ ...S.companyCardMain, ...(isMobile ? S.companyCardMainMobile : null) }}>
-                      <input type="checkbox" checked={isSelected} onChange={() => toggle(p.id)} />
+                    <div style={{ ...S.companyCardMain, ...(isMobile ? S.companyCardMainMobile : null), padding: 0, cursor: 'default', gap: 0 }}>
+                      <label className="company-card-check" title="Marcar para abrir várias empresas juntas (use Continuar)">
+                        <input type="checkbox" checked={isSelected} onChange={() => toggle(p.id)} aria-label={`Selecionar ${cardName}`} />
+                      </label>
+                      <div
+                        className="company-card-open"
+                        role="link"
+                        tabIndex={0}
+                        aria-label={p.company.isGroupMaster ? `Abrir o grupo ${cardName}` : `Abrir ${cardName}`}
+                        title={p.company.isGroupMaster ? 'Clique para entrar no grupo (todas as empresas vinculadas)' : 'Clique para entrar nesta empresa'}
+                        onClick={openCard}
+                        onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); openCard(); } }}
+                      >
                       {p.company.logo ? <img src={p.company.logo} alt="" style={S.companyCardLogo} /> : <div style={{ ...S.companyCardLogoEmpty, background: p.company.color || 'var(--bg-4)' }}><Building2 size={16} color="#111" /></div>}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={S.companyCardNameRow}>
-                          <div
-                            style={{ ...S.companyCardName, cursor: 'pointer' }}
-                            title={p.company.isGroupMaster ? 'Duplo clique para entrar direto no grupo (todas as empresas vinculadas)' : 'Duplo clique para entrar direto nessa empresa'}
-                            onDoubleClick={(e) => {
-                              e.preventDefault();
-                              onConfirm(p.company.isGroupMaster ? groupMembers(projects, p.id).map((m) => m.id) : [p.id]);
-                            }}
-                          >
-                            {p.company.nomeFantasia || p.company.name || 'Empresa sem nome'}
+                          <div className="company-card-name-t" style={S.companyCardName}>
+                            {cardName}
                           </div>
                           {p.company.isGroupMaster && (
                             <button
@@ -1414,7 +1427,8 @@ export function CompanySelectorScreen({ projects, initialSelected, onConfirm, on
                           </ul>
                         )}
                       </div>
-                    </label>
+                      </div>
+                    </div>
                     <div style={{ ...S.companyCardProgress, ...(isMobile ? S.companyCardProgressMobile : null) }}>
                       <div style={S.companyCardDonutWrap}>
                         <svg viewBox="0 0 32 32" width="46" height="46">
