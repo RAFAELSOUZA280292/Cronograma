@@ -29,6 +29,7 @@ import { router as pushRouter, pushEnabled } from './push.js';
 import { startCrmScheduler } from './crm/scheduler.js';
 import { startTodoScheduler } from './todoNotifications.js';
 import { pool } from './db.js';
+import { failOrphanedDossiers } from './dossier.js';
 import { countMaps } from './sourcemaps.js';
 import { seedQuoteFacts, embedQuoteFacts } from './inspirationQuotes.js';
 
@@ -116,6 +117,10 @@ async function start() {
     const n = await markV2Provisional();
     if (n) console.log(`cronograma padrão: nota da versão 2.0 marcada como provisória em ${n} organização(ões).`);
   } catch (e) { console.error('cronograma padrão: não consegui marcar a 2.0 como provisória:', e.message); }
+  try {
+    const n = await failOrphanedDossiers(pool);
+    if (n) console.log(`Dossiê: ${n} geração(ões) interrompida(s) por reinício do servidor marcada(s) como erro.`);
+  } catch (e) { console.error('Dossiê: não consegui limpar gerações interrompidas:', e.message); }
   // Memória da RENATA: frases de inspiração (§77). Não fatal — o app sobe mesmo se falhar.
   try {
     const n = await seedQuoteFacts(pool);
