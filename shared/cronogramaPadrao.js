@@ -38,7 +38,7 @@ export const CRONOGRAMA_PADRAO = {
   {
    "id": 4,
    "nome": "Virada",
-   "marco": "22/12: decisão de seguir ou não (go/no-go)",
+   "marco": "22/12: ata de prontidão; 01/01/2027: a reforma entra",
    "dia": 69,
    "diaFim": 85
   },
@@ -2248,11 +2248,11 @@ export const CRONOGRAMA_PADRAO = {
   },
   {
    "key": "prontidao",
-   "titulo": "Prontidão da virada (go/no-go)",
+   "titulo": "Prontidão da virada",
    "responsavel": "Diretoria",
    "origem": "novo-modelo",
    "modeloKey": "prontidao",
-   "descricao": "Critérios mínimos de prontidão, plano de suporte de janeiro e a decisão de seguir ou não com a virada.",
+   "descricao": "Critérios mínimos de prontidão, plano de suporte de janeiro e a ata de prontidão, com as pendências aceitas. A reforma entra em 01/01/2027 de qualquer forma.",
    "validacao": "a-validar",
    "filhas": [
     {
@@ -2279,7 +2279,7 @@ export const CRONOGRAMA_PADRAO = {
     },
     {
      "id": "G3",
-     "titulo": "Decidir o go/no-go da virada com base nos critérios mínimos de prontidão",
+     "titulo": "Formalizar em ata a prontidão da virada, com as pendências aceitas e a contingência de cada uma",
      "area": "Diretoria e PMO",
      "fase": 4,
      "dia": 76,

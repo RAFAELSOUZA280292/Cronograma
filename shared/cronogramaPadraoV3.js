@@ -38,9 +38,9 @@ export const ITEMS = [
   { id: 'A7.2', main: 'A7', t: 'Apresentar os impactos ao Conselho (quando o cliente pedir)', ex: 'PriceTax', ar: ['Diretoria'], p: 'P3', crit: 'opcional, depende do cliente', anc: 'kickoff', n: 47, pred: ['A7.1'], apl: 'cliente pede', o: ['fluxo real: Reunião do Conselho'] },
 
   // ===== Trilha B — implementação no cliente (âncora: virada de 01/01/2027, D−n; datas absolutas só quando há limite) =====
-  { id: 'B1.1', main: 'B1', t: 'Definir os critérios mínimos de prontidão por área: operações mapeadas, documentos testados, ERP homologado, apuração e escrituração testadas, equipes orientadas', ex: 'Cliente', ar: ['Diretoria'], p: 'P2', crit: 'base do go/no-go', anc: 'virada', n: 41, o: ['v2: Prontidão (critérios)'] },
+  { id: 'B1.1', main: 'B1', t: 'Definir os critérios mínimos de prontidão por área: operações mapeadas, documentos testados, ERP homologado, apuração e escrituração testadas, equipes orientadas', ex: 'Cliente', ar: ['Diretoria'], p: 'P2', crit: 'base da ata de prontidão', anc: 'virada', n: 41, o: ['v2: Prontidão (critérios)'] },
   { id: 'B1.2', main: 'B1', t: 'Aprovar o plano de suporte de janeiro e o escalonamento de incidentes', ex: 'Cliente', ar: ['Diretoria', 'TI'], p: 'P2', crit: 'risco operacional no primeiro mês', anc: 'virada', n: 17, o: ['G2'] },
-  { id: 'B1.3', main: 'B1', t: 'Decidir o go/no-go da virada, com ata e lista de pendências aceitas', ex: 'Cliente', ar: ['Diretoria'], p: 'P1', crit: 'decisão que antecede a virada', anc: 'fixa', lim: { d: '2026-12-22', tipo: DEC, fonte: 'Decisão de projeto (coincide com o limite do art. 349 §2º da LC 214 para a alíquota)', conf: 'não é prazo legal' }, pred: ['B14.1', 'B14.2', 'B14.3'], o: ['G3', 'T50'] },
+  { id: 'B1.3', main: 'B1', t: 'Formalizar a prontidão da virada em ata: situação de cada área, pendências aceitas com a contingência de cada uma e plano de suporte de janeiro', ex: 'Cliente', ar: ['Diretoria'], p: 'P1', crit: 'a reforma entra em 01/01/2027 de qualquer forma; a ata registra o que ficou pendente e quem responde', anc: 'fixa', lim: { d: '2026-12-22', tipo: DEC, fonte: 'Decisão de projeto: ata de prontidão antes da virada (coincide com o limite do art. 349 §2º da LC 214 para a alíquota)', conf: 'não é prazo legal' }, pred: ['B14.1', 'B14.2', 'B14.3'], o: ['G3', 'T50'] },
 
   { id: 'B2.1', main: 'B2', t: 'Disponibilizar o ambiente de homologação, separado da produção e ligado à SEFAZ de homologação, e entregar o calendário de versões por funcionalidade', ex: 'ERP', ar: ['TI', 'Fiscal'], p: 'P1', crit: 'sem ambiente não há teste; destrava 14 ações do fornecedor', anc: 'virada', n: 69, pred: ['A1.3'], o: ['T2', 'T3', 'T01'] },
   { id: 'B2.2', main: 'B2', t: 'Carregar as tabelas oficiais de cClassTrib, CST e cCredPres e criar a rotina de atualização a cada versão', ex: 'ERP', ar: ['Fiscal', 'TI'], p: 'P1', crit: 'define quais grupos e campos cada nota precisa', anc: 'virada', n: 82, o: ['T16 (guia)', 'T02'], obs: 'Prazo do guia já passou (09/10).' },
@@ -114,7 +114,7 @@ export const ITEMS = [
   { id: 'B12.1', main: 'B12', t: 'Validar com o Fiscal os fluxos físicos e documentais: transferências, remessas, retornos, entregas e devoluções', ex: 'Cliente', ar: ['Logística', 'Fiscal'], p: 'P2', crit: 'trava a movimentação se o documento estiver errado, mas depende de B4.1', anc: 'virada', n: 32, o: ['L1'] },
 
   { id: 'B13.1', main: 'B13', t: 'Treinar Fiscal, Compras, Faturamento, Financeiro, Contabilidade e Cadastro nos novos procedimentos', ex: 'Cliente', ar: ['Todas'], p: 'P2', crit: 'risco de erro operacional', anc: 'virada', n: 17, o: ['P5'] },
-  { id: 'B13.2', main: 'B13', t: 'Consolidar as pendências abertas, cada uma com responsável, prazo e contingência', ex: 'Cliente', ar: ['Todas'], p: 'P2', crit: 'insumo do go/no-go', anc: 'virada', n: 24, o: ['v2: Tira-dúvidas (pendências)'] },
+  { id: 'B13.2', main: 'B13', t: 'Consolidar as pendências abertas, cada uma com responsável, prazo e contingência', ex: 'Cliente', ar: ['Todas'], p: 'P2', crit: 'insumo da ata de prontidão', anc: 'virada', n: 24, o: ['v2: Tira-dúvidas (pendências)'] },
 
   { id: 'B14.1', main: 'B14', t: 'Teste integrado em homologação com a premissa de alíquota (CBS 9,20% + IBS 0,10%): ERP, faturamento, compras, estoque, financeiro, contabilidade e apuração', ex: 'Cliente', ar: ['Todas'], p: 'P1', crit: 'sem teste o erro só aparece em fevereiro', anc: 'virada', n: 36, pred: ['B3.1', 'B4.4'], o: ['F6', 'T26 (guia)', 'T49'], obs: 'A lista da Tecumseh dizia "CBS em torno de 9,3%": em 2027 são CBS 9,20% e IBS 0,10% (LC 214, art. 347, redução de 0,1 p.p. na CBS).' },
   { id: 'B14.2', main: 'B14', t: 'Repetir o teste integrado quando a alíquota da CBS for publicada (Senado até 15/12 em 2026)', ex: 'Cliente', ar: ['Fiscal', 'TI'], p: 'P1', crit: 'confirma o cálculo com a alíquota oficial', anc: 'fixa', lim: { d: '2026-12-15', tipo: LEI, fonte: 'LC 214, arts. 349 §1º II e 353 §2º', conf: 'conferido no texto da norma' }, pred: ['B14.1', 'B2.4'], o: ['F6'] },
@@ -135,7 +135,7 @@ export const MAINS_DESC = {
   A5: 'Apresentação prévia dos cenários ao cliente.',
   A6: 'Preparação e realização do workshop com as áreas.',
   A7: 'Relatório final, plano de ação por frente e, se o cliente pedir, reunião do Conselho.',
-  B1: 'Critérios de prontidão, plano de suporte e decisão de go/no-go.',
+  B1: 'Critérios de prontidão, plano de suporte e ata de prontidão da virada (a reforma entra em 01/01/2027 de qualquer forma).',
   B2: 'Ambiente de homologação, tabelas oficiais, CNPJ alfanumérico e alíquotas no ERP.',
   B3: 'NF-e, DANFE, devolução, notas de débito e crédito, eventos, NFS-e, CT-e e importação.',
   B4: 'Matriz de operações, parametrização de 2027, benefícios, apuração, obrigações e saldos credores.',

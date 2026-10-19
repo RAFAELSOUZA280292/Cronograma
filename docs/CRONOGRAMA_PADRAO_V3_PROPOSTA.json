@@ -452,7 +452,7 @@
     "Diretoria"
    ],
    "p": "P2",
-   "crit": "base do go/no-go",
+   "crit": "base da ata de prontidão",
    "anc": "virada",
    "n": 41,
    "o": [
@@ -479,18 +479,18 @@
   {
    "id": "B1.3",
    "main": "B1",
-   "t": "Decidir o go/no-go da virada, com ata e lista de pendências aceitas",
+   "t": "Formalizar a prontidão da virada em ata: situação de cada área, pendências aceitas com a contingência de cada uma e plano de suporte de janeiro",
    "ex": "Cliente",
    "ar": [
     "Diretoria"
    ],
    "p": "P1",
-   "crit": "decisão que antecede a virada",
+   "crit": "a reforma entra em 01/01/2027 de qualquer forma; a ata registra o que ficou pendente e quem responde",
    "anc": "fixa",
    "lim": {
     "d": "2026-12-22",
     "tipo": "decisão de projeto",
-    "fonte": "Decisão de projeto (coincide com o limite do art. 349 §2º da LC 214 para a alíquota)",
+    "fonte": "Decisão de projeto: ata de prontidão antes da virada (coincide com o limite do art. 349 §2º da LC 214 para a alíquota)",
     "conf": "não é prazo legal"
    },
    "pred": [
@@ -1768,7 +1768,7 @@
     "Todas"
    ],
    "p": "P2",
-   "crit": "insumo do go/no-go",
+   "crit": "insumo da ata de prontidão",
    "anc": "virada",
    "n": 24,
    "o": [
