@@ -8,6 +8,8 @@ const DAY = 86400000;
 const iso = (s) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? Date.parse(`${s}T00:00:00Z`) : NaN);
 const fmt = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : '—');
 const fmtShort = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : '');
+// Quem responde: PRICETAX, a empresa (qualquer área do cliente) ou os dois ("Todas"). Sem responsável fica sem etiqueta.
+const sideOf = (r) => { const t = String(r || '').trim(); return /pricetax/i.test(t) ? 'pricetax' : /^todas?$/i.test(t) ? 'ambos' : t ? 'empresa' : 'indef'; };
 const addDays = (s, n) => new Date(Date.parse(`${s}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
 const mondayOf = (s) => { const d = new Date(`${s}T00:00:00Z`).getUTCDay(); return addDays(s, -((d + 6) % 7)); };
 const DOW = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -50,6 +52,11 @@ const CSS = `
   .pc-next { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:6px 12px; align-items:center; padding:9px 0; border-top:1px solid var(--border-1); font-size:13.5px; }
   .pc-next .pc-chip { justify-self:start; }
   .pc-next:first-of-type { border-top:none; }
+  .pc-end { display:flex; gap:6px; align-items:flex-start; justify-content:flex-end; flex-wrap:wrap; }
+  .pc-side { display:inline-block; font-size:11px; font-weight:800; letter-spacing:.04em; padding:2px 9px; border-radius:6px; line-height:1.5; white-space:nowrap; text-transform:uppercase; }
+  .pc-side.pricetax { background:#17171f; color:#F5C400; border:1px solid #F5C40088; }
+  .pc-side.empresa { background:#3ea6ff; color:#06223d; }
+  .pc-side.ambos { background:var(--bg-3); color:var(--text-1); border:1px solid var(--border-3); }
   .pc-who { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 10px; }
   .pc-wk { margin:14px 0 4px; font-size:12px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--text-4); display:flex; justify-content:space-between; gap:10px; }
   .pc-wk.late { color:#e2574c; }
@@ -83,7 +90,7 @@ const CSS = `
   .pc-tbl tr.a td { font-weight:700; }
   .pc-tbl tr.s td:nth-child(2) { padding-left:30px; color:var(--text-3); }
   .pc-foot { margin:22px 0 8px; font-size:12px; color:var(--text-5); text-align:center; }
-  @media (max-width:767px) { .pc-step { grid-template-columns:64px minmax(0,1fr); } .pc-step .pc-chip { grid-column:2; justify-self:start; } .pc-title { font-size:21px; } .pc-ph { grid-template-columns:100px minmax(0,1fr) 40px; } .pc-gl { flex-basis:170px; } .pc-next { grid-template-columns:1fr; } }
+  @media (max-width:767px) { .pc-step { grid-template-columns:64px minmax(0,1fr); } .pc-step .pc-end { grid-column:2; justify-self:start; justify-content:flex-start; } .pc-title { font-size:21px; } .pc-ph { grid-template-columns:100px minmax(0,1fr) 40px; } .pc-gl { flex-basis:170px; } .pc-next { grid-template-columns:1fr; } }
   @media print { .no-print { display:none !important; } .pc-scroll { overflow:visible; } body { background:#fff; } }
 `;
 
@@ -156,6 +163,7 @@ export default function PublicCompanyScreen({ token }) {
   }
 
   const c = state.data.company;
+  const companyShort = String(c.name || 'Empresa').toUpperCase().slice(0, 16);
   const px = (s) => ((iso(s) - view.min) / DAY / 7) * WEEK_PX;
   const gw = view.weeks * WEEK_PX;
   const weekLabels = Array.from({ length: view.weeks }, (_, i) => { const d = new Date(view.min + i * 7 * DAY).toISOString().slice(0, 10); return fmtShort(d); });
@@ -216,14 +224,17 @@ export default function PublicCompanyScreen({ token }) {
                         <div className="pc-muted">{a.responsible || 'Sem responsável'} · {a.date ? `${fmtShort(a.date)} a ${fmtShort(a.endDate || a.date)}` : 'Sem data'}{a.subs.length ? ` · ${a.subs.filter((x) => x.done).length} de ${a.subs.length} subatividades` : ''}</div>
                         {pend.length > 0 && <div className="pc-muted" style={{ marginTop: 3 }}>Próximos: {pend.map((x) => `${x.title}${x.date ? ` (${fmtShort(x.date)})` : ''}`).join(' · ')}</div>}
                       </div>
-                      <Chip kind={a.eff} />
+                      <div className="pc-end">
+                        {sideOf(a.responsible) !== 'indef' && <span className={`pc-side ${sideOf(a.responsible)}`} title={`Quem responde: ${a.responsible}`}>{sideOf(a.responsible) === 'pricetax' ? 'PRICETAX' : sideOf(a.responsible) === 'ambos' ? 'Os dois' : companyShort}</span>}
+                        <Chip kind={a.eff} />
+                      </div>
                     </div>
                   );
                 })}
               </div>
             )}
             {(() => {
-              const mine = (r) => (who === 'pricetax' ? /pricetax/i.test(r) : who === 'empresa' ? !/pricetax/i.test(r) : true);
+              const mine = (r) => { const sd = sideOf(r); return who === 'pricetax' ? sd === 'pricetax' || sd === 'ambos' : who === 'empresa' ? sd === 'empresa' || sd === 'ambos' : true; };
               const list = view.steps.filter((x) => mine(x.resp || ''));
               const mon = mondayOf(view.today);
               const groups = []; const idx = new Map();
@@ -255,7 +266,10 @@ export default function PublicCompanyScreen({ token }) {
                         <div className="pc-step" key={x.id} style={i > 0 && g.items[i - 1].date === x.date ? { borderTopStyle: 'dotted' } : undefined}>
                           <span className="d">{i > 0 && g.items[i - 1].date === x.date ? '' : (x.date ? fmtDay(x.date) : '—')}</span>
                           <div><div className="t">{x.title}</div><div className="pc-muted">{x.parent ? `${x.parent} · ` : ''}{x.resp || 'Sem responsável'}</div></div>
-                          <Chip kind={x.eff} />
+                          <div className="pc-end">
+                            {sideOf(x.resp) !== 'indef' && <span className={`pc-side ${sideOf(x.resp)}`} title={`Quem responde: ${x.resp}`}>{sideOf(x.resp) === 'pricetax' ? 'PRICETAX' : sideOf(x.resp) === 'ambos' ? 'Os dois' : companyShort}</span>}
+                            <Chip kind={x.eff} />
+                          </div>
                         </div>
                       ))}
                     </div>
