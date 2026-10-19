@@ -87,7 +87,7 @@ export const S = {
   subList: { display: 'flex', flexDirection: 'column', gap: 6 },
   subRowWrap: { display: 'flex', flexDirection: 'column', gap: 5, padding: '6px 8px 7px 5px', borderRadius: 8, background: 'var(--bg-2)', border: '1px solid var(--border-1)' },
   subRow: { display: 'flex', alignItems: 'center', gap: 7 },
-  subMetaRow: { display: 'flex', gap: 6, paddingLeft: 34 },
+  subMetaRow: { display: 'flex', gap: 6, paddingLeft: 34, flexWrap: 'wrap' },
   subDragHandle: { display: 'flex', alignItems: 'center', cursor: 'grab', flexShrink: 0 },
   subTitleInput: { flex: 1, minWidth: 60 },
   subMetaSelect: { flex: '0 1 160px', minWidth: 0 },

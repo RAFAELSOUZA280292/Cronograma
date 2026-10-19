@@ -13,7 +13,8 @@ import pricetaxLogoBranco from '../assets/brand/pricetax-logo-branco.png';
 import { useEscClose } from '../lib/nav.js';
 import { CLIENT_TYPE_META, ConfirmDiscardModal, MAX_ATTACHMENT_BYTES, PRIORITY_META, PRIORITY_ORDER, STATUS_META, STATUS_ORDER, TeamLinkBadge, addDays, calcDeadline, fmtDate, fmtTs, parseDate, sortActivities, startOfDay, toISODate, uid, useAutosaveTimestamp, useDebouncedField, useDirtyForm, useIsMobile, useMediaQuery } from '../App.jsx';
 import { S } from '../styles/S.js';
-import { SUB_EXTRAS_CSS, SubExtras } from './SubExtras.jsx';
+import { SUB_EXTRAS_CSS, SubExtras, SubOutcome } from './SubExtras.jsx';
+import { ActivityGauge } from './ActivityGauge.jsx';
 
 const SUB_ROW_CSS = `
   .sub-row-card { transition:border-color .12s, box-shadow .12s; }
@@ -210,6 +211,7 @@ function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSu
           {team.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
         </select>
         <input type="date" className="sub-meta-date" value={s.date || ''} onChange={(e) => updateSub(pid, actId, s.id, { date: e.target.value })} style={S.subMetaDate} title="Prazo da subatividade" />
+        <SubOutcome s={s} pid={pid} actId={actId} updateSub={updateSub} />
       </div>
       <SubExtras s={s} pid={pid} actId={actId} allSubs={allSubs} canEdit={canEditExtras} updateSub={updateSub} />
     </div>
@@ -382,9 +384,10 @@ export function ActivityDetailModal({ activity: a, orderMap, phases, team, log, 
 
             <div className="sub-section" data-testid="subs-section">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginTop: 18, marginBottom: 6 }}>
-                <span style={{ ...S.subSectionLabel, margin: 0 }}>Subatividades{(() => { const live = (a.subactivities || []).filter((x) => !x.deleted); return live.length ? ` (${live.filter((x) => x.done).length} de ${live.length} concluídas)` : ''; })()}</span>
+                <span style={{ ...S.subSectionLabel, margin: 0 }}>Subatividades{(() => { const live = (a.subactivities || []).filter((x) => !x.deleted); return live.length ? ` (${live.filter((x) => x.done).length} de ${live.length} resolvidas)` : ''; })()}</span>
                 <button style={S.addSubBtn} onClick={() => addSub(pid, a.id)}><Plus size={12} /> Subatividade</button>
               </div>
+              <ActivityGauge activity={a} />
               <div style={S.subList}>
                 {(a.subactivities || []).filter((s) => !s.deleted).map((s) => (
                   <SubactivityRow
@@ -1849,6 +1852,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                               {rowTeam.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
                             </select>
                             <input type="date" className="sub-meta-date" value={s.date || ''} onChange={(e) => updateSub(rowPid, a.id, s.id, { date: e.target.value })} style={S.subMetaDate} title="Prazo da subatividade" />
+                            <SubOutcome s={s} pid={rowPid} actId={a.id} updateSub={updateSub} />
                           </div>
                           <SubExtras s={s} pid={rowPid} actId={a.id} allSubs={subsOfProject(activities, rowPid, pid)} canEdit={!!staff} updateSub={updateSub} />
                         </div>

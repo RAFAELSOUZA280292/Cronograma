@@ -126,7 +126,14 @@ export function createCompanyActivityActions({ currentUser, mutateProject, openA
     setExpanded((e) => ({ ...e, [actId]: true }));
   }
 
-  function updateSub(targetPid, actId, subId, patch) {
+  function updateSub(targetPid, actId, subId, rawPatch) {
+    // Marcar/desmarcar "concluída" registra quando e por quem (base para medir depois quais subatividades funcionam) e zera "pulada" ao desmarcar. A caixinha em si não muda.
+    let patch = rawPatch;
+    if (Object.prototype.hasOwnProperty.call(rawPatch, 'done')) {
+      patch = rawPatch.done
+        ? { ...rawPatch, skipped: false, skipReason: '', doneAt: new Date().toISOString(), doneBy: currentUser ? currentUser.name : '' }
+        : { ...rawPatch, skipped: false, skipReason: '', doneAt: '', doneBy: '' };
+    }
     const apply = (acts) => acts.map((a) => a.id !== actId ? a : { ...a, subactivities: (a.subactivities || []).map((s) => s.id === subId ? { ...s, ...patch } : s) });
     if (Object.prototype.hasOwnProperty.call(patch, 'date')) {
       const rp = withRipple(targetPid, { kind: 'sub', actId, subId, patch }, apply);
