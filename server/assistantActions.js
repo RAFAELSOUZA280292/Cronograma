@@ -7,7 +7,6 @@
 // explicitamente pelo painel (`POST /api/assistant/messages/:id/action`,
 // `server/assistant.js`).
 import { reindexMeetingMemory } from './memoryIngest.js';
-import { normalizeName } from './assistantContext.js';
 import { createEvent as createGoogleCalendarEvent } from './googleCalendar.js';
 import { saveKnowledgeFact, saveConflictPair } from './knowledgeFacts.js';
 import { logMetric } from './metrics.js';
@@ -97,45 +96,6 @@ async function executeDeleteMeetingTodo(pool, orgId, projectId, project, action,
     .catch((e) => console.error('Assistente do Projeto: falha ao reindexar memoria apos exclusao de pendencia', e.message));
 
   return { meetingId: updatedMeeting.id, meetingTitle: updatedMeeting.title, todoTitle: item.title };
-}
-
-// Criar uma atividade nova no cronograma oficial (Gantt/Tabela/Fases/
-// Quadro -- mesma base, `project.activities`). Mesmos defaults de
-// `addActivity` (src/App.jsx): mes seguinte ao ultimo cadastrado, fase
-// resolvida por nome (nunca um id inventado pela IA -- mesmo principio
-// de defesa em profundidade usado em toda parte deste arquivo) caindo
-// pra ultima fase da lista quando nao bate com nenhuma.
-async function executeCreateScheduleActivity(pool, projectId, project, action, actingUserName) {
-  const activities = project.activities || [];
-  const phases = project.phases || [];
-  if (!phases.length) throw new Error('Este projeto ainda nao tem nenhuma fase cadastrada no cronograma.');
-
-  const nextMonth = activities.length ? Math.max(...activities.map((a) => a.month || 1)) + 1 : 1;
-  const matchedPhase = action.phaseName
-    ? phases.find((p) => normalizeName(p.name) === normalizeName(action.phaseName))
-    : null;
-  const phaseId = matchedPhase ? matchedPhase.id : phases[phases.length - 1].id;
-
-  const newActivity = {
-    id: uid('act'), month: nextMonth, phase: phaseId,
-    title: (action.title || '').trim() || 'Atividade criada pelo Assistente do Projeto',
-    desc: '', responsible: action.responsible || (project.team && project.team[0] && project.team[0].name) || 'PRICETAX',
-    priority: '', participants: [],
-    date: action.dueDate || '', endDate: action.dueDate || '', durationDays: '',
-    status: 'nao-iniciado', required: false, subactivities: [],
-    notes: '', attachments: [], comments: [], links: [], transcript: '', clientDateConfirmed: false,
-  };
-  const nextData = {
-    ...project,
-    activities: [...activities, newActivity],
-    log: [
-      { ts: new Date().toISOString(), action: `Atividade criada no cronograma via Assistente do Projeto, confirmado por ${actingUserName || 'usuario'}: "${newActivity.title}"`, user: actingUserName || 'Assistente do Projeto', activityId: newActivity.id },
-      ...(project.log || []),
-    ].slice(0, 300),
-  };
-
-  await pool.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(nextData), projectId]);
-  return { activityId: newActivity.id, activityTitle: newActivity.title, date: newActivity.date };
 }
 
 // Excluir (soft-delete) uma atividade do cronograma oficial. Mesma
@@ -320,7 +280,8 @@ export async function executeProposedAction(pool, orgId, projectId, action, acti
     return executeRescheduleActivity(pool, projectId, project, action, actingUserName);
   }
   if (action.type === 'create_schedule_activity') {
-    return executeCreateScheduleActivity(pool, projectId, project, action, actingUserName);
+    // Regra do Rafael (2026-10-19): a RENATA não cria atividade do cronograma. Propostas antigas, ainda pendentes de confirmação, também são recusadas.
+    throw new Error('A RENATA não cria atividades do cronograma. Crie a atividade pela tela, ou vincule a tarefa a uma atividade que já existe.');
   }
   if (action.type === 'delete_schedule_activity') {
     return executeDeleteScheduleActivity(pool, projectId, project, action, actingUserName);
