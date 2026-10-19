@@ -3,7 +3,7 @@
 // do guia) é criada na primeira vez que a organização usa o padrão. Salvar uma versão nova é sempre uma ação explícita; o rascunho só guarda o que está sendo editado.
 import { pool } from './db.js';
 import {
-  V1_NOTE, V2_NOTE, V2_NOTE_ORIGINAL, buildV1, buildV2, countTemplate, diffTemplates, instantiateTemplate, purgeDeleted, sameTemplate, templateFromProject, templateValid,
+  V1_NOTE, V2_NOTE, V2_NOTE_ORIGINAL, buildV1, buildV2, buildV3, countTemplate, diffTemplates, instantiateTemplate, purgeDeleted, sameTemplate, templateFromProject, templateValid,
 } from './standardTemplate.js';
 
 export const STD_PLAN_ID = 'std-plan';
@@ -120,6 +120,21 @@ export async function saveVersion(orgId, user, note) {
     );
     await c.query('DELETE FROM standard_plan_draft WHERE org_id=$1', [orgId]);
     return { version: n, label: labelOf(n) };
+  });
+}
+
+// Propostas que ainda não são versão (hoje só a v3 de 19/10/2026): contagem para mostrar no histórico e carga no rascunho.
+export const PROPOSALS = { v3: { label: 'Proposta v3', description: 'Cronograma funcional em duas trilhas (diagnóstico PRICETAX e implementação no cliente), com prioridade, limite da norma e predecessoras. Rascunho para validação; não vira versão até alguém salvar.' } };
+export const listProposals = () => Object.entries(PROPOSALS).map(([key, p]) => ({ key, ...p, counts: countTemplate(buildV3()) }));
+export async function loadProposal(orgId, user, key) {
+  if (key !== 'v3') { const e = new Error('Proposta não encontrada.'); e.status = 404; throw e; }
+  const data = buildV3();
+  return withOrgLock(orgId, async (c) => {
+    await c.query(
+      `INSERT INTO standard_plan_draft (org_id, data, updated_by, updated_by_name, updated_at) VALUES ($1,$2,$3,$4,now())
+       ON CONFLICT (org_id) DO UPDATE SET data=EXCLUDED.data, updated_by=EXCLUDED.updated_by, updated_by_name=EXCLUDED.updated_by_name, updated_at=now()`,
+      [orgId, JSON.stringify(data), user.id, user.name || ''],
+    );
   });
 }
 

@@ -85,11 +85,18 @@ function SaveModal({ nextLabelHint, fetchDiff, onSave, onClose }) {
   );
 }
 
-function VersionsModal({ fetchVersions, dirty, onRestore, onClose }) {
+function VersionsModal({ fetchVersions, fetchProposals, dirty, onRestore, onLoadProposal, onClose }) {
   const [versions, setVersions] = useState(null);
+  const [proposals, setProposals] = useState([]);
   const [error, setError] = useState('');
   const load = () => { setVersions(null); setError(''); fetchVersions().then(setVersions).catch((e) => setError((e && e.message) || 'Não foi possível carregar as versões.')); };
   useEffect(load, []);
+  useEffect(() => { fetchProposals().then(setProposals).catch(() => setProposals([])); }, []);
+  async function loadProposal(p) {
+    const ok = await askConfirm({ title: `Carregar a ${p.label}?`, message: dirty ? 'O rascunho atual, com alterações não salvas, será substituído. Nenhuma versão salva é alterada.' : 'O rascunho passa a ser esta proposta. Nenhuma versão salva é alterada; ela só vira versão quando você salvar.', confirmLabel: 'Carregar no rascunho' });
+    if (!ok) return;
+    try { await onLoadProposal(p.key, p.label); onClose(); } catch (e) { notify((e && e.message) || 'Não foi possível carregar a proposta.', { tone: 'error' }); }
+  }
   async function restore(v) {
     const ok = await askConfirm({ title: `Carregar a versão ${v.label}?`, message: dirty ? 'O rascunho atual, com alterações não salvas, será substituído. Nada que já foi salvo como versão se perde.' : 'O rascunho passa a ser uma cópia desta versão. Ao salvar, vira uma versão nova; a versão atual continua guardada.', confirmLabel: 'Carregar no rascunho' });
     if (!ok) return;
@@ -101,6 +108,18 @@ function VersionsModal({ fetchVersions, dirty, onRestore, onClose }) {
       <div className="spb-list spb-modal">
         {!versions && !error && <SkeletonCards count={3} />}
         {error && <ErrorState title="Não foi possível carregar" message={error} onRetry={load} />}
+        {proposals.map((p) => (
+          <div className="spb-v" key={p.key} style={{ borderStyle: 'dashed' }}>
+            <div className="spb-vt">
+              <span className="spb-vn">{p.label}</span>
+              <span className="spb-chip">Proposta, ainda não é versão</span>
+              <span className="spb-grow" />
+              <Button onClick={() => loadProposal(p)}>Carregar no rascunho</Button>
+            </div>
+            <div>{p.description}</div>
+            <div className="spb-meta">{p.counts ? `${plural(p.counts.activities, 'atividade', 'atividades')} · ${plural(p.counts.subs, 'subatividade', 'subatividades')}` : ''}</div>
+          </div>
+        ))}
         {versions && versions.map((v) => (
           <div className={`spb-v${v.current ? ' cur' : ''}`} key={v.version}>
             <div className="spb-vt">
@@ -153,7 +172,7 @@ export default function StandardPlanBar({ info, project, actions }) {
         <span className="spb-note">Cada data aqui vira “dias depois do kickoff”: ao cadastrar uma empresa, você informa o kickoff dela e as datas são recalculadas. Mudar este campo move o padrão inteiro.</span>
       </div>
       {modal === 'save' && <SaveModal nextLabelHint={nextHint} fetchDiff={actions.fetchStandardDiff} onSave={actions.saveStandardVersion} onClose={() => setModal('')} />}
-      {modal === 'versions' && <VersionsModal fetchVersions={actions.fetchStandardVersions} dirty={info.dirty} onRestore={actions.restoreStandardVersion} onClose={() => setModal('')} />}
+      {modal === 'versions' && <VersionsModal fetchVersions={actions.fetchStandardVersions} fetchProposals={actions.fetchStandardProposals} dirty={info.dirty} onRestore={actions.restoreStandardVersion} onLoadProposal={actions.loadStandardProposal} onClose={() => setModal('')} />}
     </div>
   );
 }
