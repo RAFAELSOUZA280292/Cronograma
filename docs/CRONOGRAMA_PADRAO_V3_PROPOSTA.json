@@ -1,0 +1,2071 @@
+{
+ "geradoEm": "2026-10-19",
+ "status": "rascunho (fase 1; nada aplicado)",
+ "mains": [
+  {
+   "id": "A1",
+   "trilha": "A",
+   "nome": "Kickoff e governança"
+  },
+  {
+   "id": "A2",
+   "trilha": "A",
+   "nome": "Dados do cliente"
+  },
+  {
+   "id": "A3",
+   "trilha": "A",
+   "nome": "Validação documental"
+  },
+  {
+   "id": "A4",
+   "trilha": "A",
+   "nome": "Cenários e número geral"
+  },
+  {
+   "id": "A5",
+   "trilha": "A",
+   "nome": "Apresentação prévia"
+  },
+  {
+   "id": "A6",
+   "trilha": "A",
+   "nome": "Workshop por áreas"
+  },
+  {
+   "id": "A7",
+   "trilha": "A",
+   "nome": "Report final e plano de ação"
+  },
+  {
+   "id": "B1",
+   "trilha": "B",
+   "nome": "Governança e prontidão da virada"
+  },
+  {
+   "id": "B2",
+   "trilha": "B",
+   "nome": "Sistemas: base do ERP"
+  },
+  {
+   "id": "B3",
+   "trilha": "B",
+   "nome": "Sistemas: documentos fiscais"
+  },
+  {
+   "id": "B4",
+   "trilha": "B",
+   "nome": "Fiscal e tributário"
+  },
+  {
+   "id": "B5",
+   "trilha": "B",
+   "nome": "Cadastros"
+  },
+  {
+   "id": "B6",
+   "trilha": "B",
+   "nome": "Compras"
+  },
+  {
+   "id": "B7",
+   "trilha": "B",
+   "nome": "Vendas e preço"
+  },
+  {
+   "id": "B8",
+   "trilha": "B",
+   "nome": "Financeiro e caixa"
+  },
+  {
+   "id": "B9",
+   "trilha": "B",
+   "nome": "Contábil e controladoria"
+  },
+  {
+   "id": "B10",
+   "trilha": "B",
+   "nome": "Jurídico e contratos"
+  },
+  {
+   "id": "B11",
+   "trilha": "B",
+   "nome": "RH, benefícios e folha"
+  },
+  {
+   "id": "B12",
+   "trilha": "B",
+   "nome": "Logística"
+  },
+  {
+   "id": "B13",
+   "trilha": "B",
+   "nome": "Treinamento e pendências"
+  },
+  {
+   "id": "B14",
+   "trilha": "B",
+   "nome": "Testes e contingência"
+  },
+  {
+   "id": "B15",
+   "trilha": "B",
+   "nome": "Operação assistida e rotina contínua"
+  }
+ ],
+ "itens": [
+  {
+   "id": "A1.1",
+   "main": "A1",
+   "t": "Kickoff com a diretoria e as áreas: escopo, calendário e dados necessários",
+   "ex": "PriceTax",
+   "ar": [
+    "Diretoria",
+    "Todas"
+   ],
+   "p": "P1",
+   "crit": "abre a trilha; sem ele nada começa",
+   "anc": "kickoff",
+   "n": 0,
+   "o": [
+    "modelo: Kickoff único"
+   ]
+  },
+  {
+   "id": "A1.2",
+   "main": "A1",
+   "t": "Nomear o responsável de cada área e instituir a reunião semanal de riscos e evidências",
+   "ex": "Cliente",
+   "ar": [
+    "Diretoria"
+   ],
+   "p": "P1",
+   "crit": "sem dono por área as pendências só aparecem em janeiro",
+   "anc": "kickoff",
+   "n": 7,
+   "o": [
+    "G1"
+   ]
+  },
+  {
+   "id": "A1.3",
+   "main": "A1",
+   "t": "Reunião de alinhamento com o fornecedor do ERP: homologação, campos de IBS/CBS, valor líquido, DANFE, notas de débito e crédito, calendário de versões",
+   "ex": "Cliente",
+   "ar": [
+    "TI",
+    "Fiscal"
+   ],
+   "p": "P1",
+   "crit": "destrava as ações do ERP (B2 e B3)",
+   "anc": "kickoff",
+   "n": 10,
+   "o": [
+    "T1"
+   ]
+  },
+  {
+   "id": "A2.1",
+   "main": "A2",
+   "t": "Extrair do ERP fornecedores, clientes, pagamentos e recebimentos com CNPJ, número da nota e datas",
+   "ex": "Cliente",
+   "ar": [
+    "Financeiro",
+    "TI"
+   ],
+   "p": "P1",
+   "crit": "base de todos os cenários",
+   "anc": "kickoff",
+   "n": 10,
+   "o": [
+    "FN1"
+   ],
+   "obs": "No guia o prazo caía fora da fase; aqui foi reposicionado."
+  },
+  {
+   "id": "A2.2",
+   "main": "A2",
+   "t": "Enviar as bases combinadas no kickoff (compras, vendas e cadastros)",
+   "ex": "Cliente",
+   "ar": [
+    "Fiscal",
+    "Compras",
+    "Comercial"
+   ],
+   "p": "P1",
+   "crit": "entrega do cliente que libera a análise",
+   "anc": "kickoff",
+   "n": 14,
+   "pred": [
+    "A2.1"
+   ],
+   "o": [
+    "fluxo real: Envio dos dados"
+   ]
+  },
+  {
+   "id": "A2.3",
+   "main": "A2",
+   "t": "Validar o regime tributário dos principais fornecedores",
+   "ex": "PriceTax",
+   "ar": [
+    "Compras"
+   ],
+   "p": "P2",
+   "crit": "melhora a precisão do custo de compras",
+   "anc": "kickoff",
+   "n": 14,
+   "pred": [
+    "A2.2"
+   ],
+   "o": [
+    "C0"
+   ]
+  },
+  {
+   "id": "A3.1",
+   "main": "A3",
+   "t": "Mapear as operações da base (CFOP, CST, direção) e conferir contra o SPED e os XMLs",
+   "ex": "PriceTax",
+   "ar": [
+    "Fiscal"
+   ],
+   "p": "P1",
+   "crit": "erro aqui contamina todos os cenários",
+   "anc": "kickoff",
+   "n": 21,
+   "pred": [
+    "A2.2"
+   ],
+   "o": [
+    "fluxo real: Análise e Validação Documental"
+   ]
+  },
+  {
+   "id": "A3.2",
+   "main": "A3",
+   "t": "Rodar a bateria de verificação do motor e tratar as divergências",
+   "ex": "PriceTax",
+   "ar": [
+    "Fiscal"
+   ],
+   "p": "P1",
+   "crit": "garante que o cálculo não inventa nem perde linhas",
+   "anc": "kickoff",
+   "n": 25,
+   "pred": [
+    "A3.1"
+   ],
+   "o": [
+    "processo interno PRICETAX"
+   ]
+  },
+  {
+   "id": "A3.3",
+   "main": "A3",
+   "t": "Validar com o cliente as pendências e lacunas da base",
+   "ex": "PriceTax",
+   "ar": [
+    "Fiscal",
+    "Compras",
+    "Comercial"
+   ],
+   "p": "P1",
+   "crit": "fecha a base antes dos cenários",
+   "anc": "kickoff",
+   "n": 28,
+   "pred": [
+    "A3.2"
+   ],
+   "o": [
+    "fluxo real: Análise e Validação Documental"
+   ]
+  },
+  {
+   "id": "A4.1",
+   "main": "A4",
+   "t": "Calcular os cenários de compras, vendas, DRE e caixa",
+   "ex": "PriceTax",
+   "ar": [
+    "Compras",
+    "Comercial",
+    "Controladoria",
+    "Financeiro"
+   ],
+   "p": "P1",
+   "crit": "entrega central do diagnóstico",
+   "anc": "kickoff",
+   "n": 35,
+   "pred": [
+    "A3.3"
+   ],
+   "o": [
+    "modelo: Retorno com o número geral"
+   ]
+  },
+  {
+   "id": "A4.2",
+   "main": "A4",
+   "t": "Estudo de fluxo de caixa com um mês-base: pagamentos, recebimentos, recolhimentos e compensações, com e sem recolhimento pelo adquirente e com o IPI zerado ou mantido",
+   "ex": "PriceTax",
+   "ar": [
+    "Financeiro"
+   ],
+   "p": "P1",
+   "crit": "o caixa é onde a reforma mais pesa",
+   "anc": "kickoff",
+   "n": 38,
+   "pred": [
+    "A4.1"
+   ],
+   "o": [
+    "FN2"
+   ]
+  },
+  {
+   "id": "A4.3",
+   "main": "A4",
+   "t": "Devolver o número geral à diretoria",
+   "ex": "PriceTax",
+   "ar": [
+    "Diretoria"
+   ],
+   "p": "P1",
+   "crit": "marco do diagnóstico",
+   "anc": "kickoff",
+   "n": 42,
+   "pred": [
+    "A4.2"
+   ],
+   "o": [
+    "modelo: Retorno com o número geral"
+   ]
+  },
+  {
+   "id": "A5.1",
+   "main": "A5",
+   "t": "Apresentar os cenários ao cliente antes do relatório final e recolher ajustes",
+   "ex": "PriceTax",
+   "ar": [
+    "Diretoria",
+    "Fiscal"
+   ],
+   "p": "P1",
+   "crit": "evita retrabalho no relatório final",
+   "anc": "kickoff",
+   "n": 49,
+   "pred": [
+    "A4.3"
+   ],
+   "o": [
+    "fluxo real: Apresentação Prévia (cenário AR; AR e DR)"
+   ],
+   "obs": "A Vellore tem duas apresentações prévias; aqui uma só, para decisão."
+  },
+  {
+   "id": "A6.1",
+   "main": "A6",
+   "t": "Montar a agenda do workshop com as áreas envolvidas e os casos práticos da empresa",
+   "ex": "PriceTax",
+   "ar": [
+    "Todas"
+   ],
+   "p": "P2",
+   "crit": "preparação",
+   "anc": "kickoff",
+   "n": 49,
+   "pred": [
+    "A5.1"
+   ],
+   "o": [
+    "agenda do workshop modelo"
+   ]
+  },
+  {
+   "id": "A6.2",
+   "main": "A6",
+   "t": "Realizar o workshop por áreas: mitos e verdades, transição, split payment, benefícios fiscais e casos práticos",
+   "ex": "PriceTax",
+   "ar": [
+    "Todas"
+   ],
+   "p": "P1",
+   "crit": "passa o diagnóstico para as áreas",
+   "anc": "kickoff",
+   "n": 56,
+   "pred": [
+    "A6.1"
+   ],
+   "o": [
+    "agenda do workshop modelo"
+   ]
+  },
+  {
+   "id": "A7.1",
+   "main": "A7",
+   "t": "Entregar o relatório final com o plano de ação por frente, com dono e data",
+   "ex": "PriceTax",
+   "ar": [
+    "Diretoria"
+   ],
+   "p": "P1",
+   "crit": "entrega final do diagnóstico",
+   "anc": "kickoff",
+   "n": 63,
+   "pred": [
+    "A6.2"
+   ],
+   "o": [
+    "fluxo real: Report Final + Workshop"
+   ]
+  },
+  {
+   "id": "A7.2",
+   "main": "A7",
+   "t": "Apresentar os impactos ao Conselho (quando o cliente pedir)",
+   "ex": "PriceTax",
+   "ar": [
+    "Diretoria"
+   ],
+   "p": "P3",
+   "crit": "opcional, depende do cliente",
+   "anc": "kickoff",
+   "n": 70,
+   "pred": [
+    "A7.1"
+   ],
+   "apl": "cliente pede",
+   "o": [
+    "fluxo real: Reunião do Conselho"
+   ]
+  },
+  {
+   "id": "B1.1",
+   "main": "B1",
+   "t": "Definir os critérios mínimos de prontidão por área: operações mapeadas, documentos testados, ERP homologado, apuração e escrituração testadas, equipes orientadas",
+   "ex": "Cliente",
+   "ar": [
+    "Diretoria"
+   ],
+   "p": "P2",
+   "crit": "base do go/no-go",
+   "anc": "virada",
+   "n": 41,
+   "o": [
+    "v2: Prontidão (critérios)"
+   ]
+  },
+  {
+   "id": "B1.2",
+   "main": "B1",
+   "t": "Aprovar o plano de suporte de janeiro e o escalonamento de incidentes",
+   "ex": "Cliente",
+   "ar": [
+    "Diretoria",
+    "TI"
+   ],
+   "p": "P2",
+   "crit": "risco operacional no primeiro mês",
+   "anc": "virada",
+   "n": 17,
+   "o": [
+    "G2"
+   ]
+  },
+  {
+   "id": "B1.3",
+   "main": "B1",
+   "t": "Decidir o go/no-go da virada, com ata e lista de pendências aceitas",
+   "ex": "Cliente",
+   "ar": [
+    "Diretoria"
+   ],
+   "p": "P1",
+   "crit": "decisão que antecede a virada",
+   "anc": "fixa",
+   "lim": {
+    "d": "2026-12-22",
+    "tipo": "decisão de projeto",
+    "fonte": "Decisão de projeto (coincide com o limite do art. 349 §2º da LC 214 para a alíquota)",
+    "conf": "não é prazo legal"
+   },
+   "pred": [
+    "B14.1",
+    "B14.2",
+    "B14.3"
+   ],
+   "o": [
+    "G3",
+    "T50"
+   ]
+  },
+  {
+   "id": "B2.1",
+   "main": "B2",
+   "t": "Disponibilizar o ambiente de homologação, separado da produção e ligado à SEFAZ de homologação, e entregar o calendário de versões por funcionalidade",
+   "ex": "ERP",
+   "ar": [
+    "TI",
+    "Fiscal"
+   ],
+   "p": "P1",
+   "crit": "sem ambiente não há teste; destrava 14 ações do fornecedor",
+   "anc": "virada",
+   "n": 69,
+   "pred": [
+    "A1.3"
+   ],
+   "o": [
+    "T2",
+    "T3",
+    "T01"
+   ]
+  },
+  {
+   "id": "B2.2",
+   "main": "B2",
+   "t": "Carregar as tabelas oficiais de cClassTrib, CST e cCredPres e criar a rotina de atualização a cada versão",
+   "ex": "ERP",
+   "ar": [
+    "Fiscal",
+    "TI"
+   ],
+   "p": "P1",
+   "crit": "define quais grupos e campos cada nota precisa",
+   "anc": "virada",
+   "n": 82,
+   "o": [
+    "T16 (guia)",
+    "T02"
+   ],
+   "obs": "Prazo do guia já passou (09/10)."
+  },
+  {
+   "id": "B2.3",
+   "main": "B2",
+   "t": "Garantir CNPJ alfanumérico (inclusive na chave de acesso) em cadastros, validações e integrações",
+   "ex": "ERP",
+   "ar": [
+    "TI",
+    "Cadastro"
+   ],
+   "p": "P1",
+   "crit": "obrigação já em curso (a verificar a data na fonte oficial)",
+   "anc": "fixa",
+   "lim": {
+    "d": "",
+    "tipo": "lei",
+    "fonte": "Regra do CNPJ alfanumérico (julho/2026)",
+    "conf": "a verificar"
+   },
+   "o": [
+    "T4",
+    "T13"
+   ],
+   "obs": "Na lista da Tecumseh estava P2 apesar de \"já em vigor\"."
+  },
+  {
+   "id": "B2.4",
+   "main": "B2",
+   "t": "Carregar a tabela de alíquotas da CBS por vigência e a tabela de CFOP (coluna indExcIBSCBS), sem alíquota fixa no sistema",
+   "ex": "ERP",
+   "ar": [
+    "Fiscal",
+    "TI"
+   ],
+   "p": "P1",
+   "crit": "cálculo da nota depende da alíquota e do CFOP",
+   "anc": "fixa",
+   "lim": {
+    "d": "2026-11-16",
+    "tipo": "nota técnica",
+    "fonte": "Tabela de CFOP: NT em produção em 16/11. Alíquota da CBS: Senado fixa até 15/12/2026 (LC 214, arts. 349 §1º II e 353 §2º: 31/10 + 45 dias)",
+    "conf": "alíquota: conferido no texto da LC; CFOP: fonte secundária"
+   },
+   "pred": [
+    "B2.1"
+   ],
+   "o": [
+    "T8",
+    "T06"
+   ]
+  },
+  {
+   "id": "B3.1",
+   "main": "B3",
+   "t": "NF-e e NFC-e: grupo IBS, CBS e IS por item, valor líquido, composição do valor do produto e novos totais",
+   "ex": "ERP",
+   "ar": [
+    "Fiscal",
+    "Vendas"
+   ],
+   "p": "P1",
+   "crit": "a nota sai errada ou rejeitada",
+   "anc": "fixa",
+   "lim": {
+    "d": "2026-11-16",
+    "tipo": "nota técnica",
+    "fonte": "NT 2025.002 v1.52, NT 2026.007 e NT 2026.008: produção em 16/11/2026",
+    "conf": "fonte secundária (a conferir no Portal Nacional da NF-e)"
+   },
+   "pred": [
+    "B2.1",
+    "B2.2"
+   ],
+   "o": [
+    "T5",
+    "T17 (guia)",
+    "T05"
+   ],
+   "obs": "A homologação (26/10) também é marco; a NT já foi adiada uma vez."
+  },
+  {
+   "id": "B3.2",
+   "main": "B3",
+   "t": "Novo DANFE com o bloco de IBS, CBS e IS e os dados tributários por item",
+   "ex": "ERP",
+   "ar": [
+    "Fiscal",
+    "Logística"
+   ],
+   "p": "P1",
+   "crit": "documento que acompanha a mercadoria",
+   "anc": "fixa",
+   "lim": {
+    "d": "2026-12-01",
+    "tipo": "nota técnica",
+    "fonte": "Data do guia e da lista da Tecumseh",
+    "conf": "sem fonte encontrada; a verificar"
+   },
+   "pred": [
+    "B3.1"
+   ],
+   "o": [
+    "T6",
+    "T08"
+   ]
+  },
+  {
+   "id": "B3.3",
+   "main": "B3",
+   "t": "Devolução referenciada item a item (DFeReferenciado) com estorno do IBS/CBS da nota original; o refNFe deixa de valer",
+   "ex": "ERP",
+   "ar": [
+    "Fiscal",
+    "Vendas",
+    "Logística"
+   ],
+   "p": "P1",
+   "crit": "devolução sem referência é rejeitada",
+   "anc": "fixa",
+   "lim": {
+    "d": "2026-11-16",
+    "tipo": "nota técnica",
+    "fonte": "NT 2025.002 v1.52, NT 2026.007 e NT 2026.008: produção em 16/11/2026",
+    "conf": "fonte secundária (a conferir no Portal Nacional da NF-e)"
+   },
+   "o": [
+    "T19 (guia)",
+    "T09"
+   ]
+  },
+  {
+   "id": "B3.4",
+   "main": "B3",
+   "t": "Validação cadastral na Receita: regime do emitente e CNPJ do destinatário e dos locais de entrega e retirada",
+   "ex": "ERP",
+   "ar": [
+    "Fiscal",
+    "Cadastro"
+   ],
+   "p": "P1",
+   "crit": "a SEFAZ passa a validar na emissão",
+   "anc": "fixa",
+   "lim": {
+    "d": "2026-11-16",
+    "tipo": "nota técnica",
+    "fonte": "NT 2025.002 v1.52, NT 2026.007 e NT 2026.008: produção em 16/11/2026",
+    "conf": "fonte secundária (a conferir no Portal Nacional da NF-e)"
+   },
+   "o": [
+    "T20 (guia)",
+    "T10"
+   ]
+  },
+  {
+   "id": "B3.5",
+   "main": "B3",
+   "t": "Notas de débito (finNFe 6) e de crédito (finNFe 5) com tipo e referência à nota original; definir quem emite juros, multas e ajustes",
+   "ex": "ERP",
+   "ar": [
+    "Financeiro",
+    "Fiscal",
+    "Contábil"
+   ],
+   "p": "P1",
+   "crit": "sem a nota não há como ajustar valores",
+   "anc": "virada",
+   "n": 62,
+   "o": [
+    "T7",
+    "T11"
+   ],
+   "obs": "Marcado \"em vigor\" na lista da Tecumseh; a conferir na NT."
+  },
+  {
+   "id": "B3.6",
+   "main": "B3",
+   "t": "Eventos da NF-e do emitente e do destinatário (crédito presumido, perda, uso pessoal, imobilização, aceite de nota de crédito) e quem trata cada um",
+   "ex": "ERP",
+   "ar": [
+    "Fiscal"
+   ],
+   "p": "P2",
+   "crit": "impacta crédito, não bloqueia a emissão",
+   "anc": "virada",
+   "n": 34,
+   "o": [
+    "T18 (guia)",
+    "F7",
+    "T12"
+   ]
+  },
+  {
+   "id": "B3.7",
+   "main": "B3",
+   "t": "NFS-e nacional: emissão com cClassTrib correto (inclusive de redução) e leitura das notas tomadas pelo ambiente nacional",
+   "ex": "ERP",
+   "ar": [
+    "Fiscal",
+    "Compras"
+   ],
+   "p": "P1",
+   "crit": "emissão de serviço",
+   "anc": "virada",
+   "n": 69,
+   "o": [
+    "T12 (guia)",
+    "T10 (guia)",
+    "T32"
+   ],
+   "obs": "Texto sobre limitação do ERP de um cliente foi retirado."
+  },
+  {
+   "id": "B3.8",
+   "main": "B3",
+   "t": "CT-e (tomador com IBS/CBS, evento de crédito presumido do frete de autônomo e MEI) e faturas de energia, telecomunicações, água e gás",
+   "ex": "ERP",
+   "ar": [
+    "Logística",
+    "Fiscal"
+   ],
+   "p": "P2",
+   "crit": "crédito do frete e das concessionárias",
+   "anc": "fixa",
+   "lim": {
+    "d": "2026-11-16",
+    "tipo": "nota técnica",
+    "fonte": "Leitura do CT-e e das faturas: NT em produção em 16/11; evento do frete em 14/12",
+    "conf": "fonte secundária parcial; evento de 14/12 a verificar"
+   },
+   "o": [
+    "T23 (guia)",
+    "T24 (guia)",
+    "T29",
+    "T34"
+   ],
+   "obs": "Na lista da Tecumseh as faturas estavam P3 com limite anterior ao prazo de P3."
+  },
+  {
+   "id": "B3.9",
+   "main": "B3",
+   "t": "Importação (DUIMP) com IBS/CBS no desembaraço e crédito, e regimes aduaneiros com suspensão (Recof)",
+   "ex": "ERP",
+   "ar": [
+    "Comex",
+    "Fiscal"
+   ],
+   "p": "P1",
+   "crit": "cálculo na importação",
+   "anc": "fixa",
+   "lim": {
+    "d": "2027-01-01",
+    "tipo": "lei",
+    "fonte": "ADCT art. 126 (EC 132/2023)",
+    "conf": "conferido no texto da norma"
+   },
+   "apl": "importa ou usa regime aduaneiro especial",
+   "o": [
+    "F13",
+    "T28"
+   ],
+   "obs": "Limite = início da CBS; regras de importação a conferir no regulamento."
+  },
+  {
+   "id": "B3.10",
+   "main": "B3",
+   "t": "Decidir e parametrizar o cálculo de ICMS e ISS com IBS/CBS na base, inclusive nos serviços prestados, de forma configurável",
+   "ex": "Cliente",
+   "ar": [
+    "Fiscal",
+    "Jurídico",
+    "Vendas"
+   ],
+   "p": "P1",
+   "crit": "decisão que antecede a parametrização do ERP",
+   "anc": "virada",
+   "n": 62,
+   "o": [
+    "F1",
+    "T13 (guia)",
+    "T07"
+   ]
+  },
+  {
+   "id": "B4.1",
+   "main": "B4",
+   "t": "Mapear todas as operações (vendas, serviços, compras, devoluções, transferências, remessas, retornos, industrialização, amostras, brindes e bonificações) e definir CST, cClassTrib e CFOP de cada uma",
+   "ex": "Cliente",
+   "ar": [
+    "Fiscal",
+    "Logística"
+   ],
+   "p": "P1",
+   "crit": "alimenta o cálculo de todas as notas",
+   "anc": "virada",
+   "n": 62,
+   "o": [
+    "F2",
+    "F4",
+    "F12",
+    "T04"
+   ]
+  },
+  {
+   "id": "B4.2",
+   "main": "B4",
+   "t": "Garantir regra de cClassTrib, CST e redutores por NCM, benefício e regime em todo NCM ativo, ou bloquear o faturamento de item sem regra",
+   "ex": "Cliente",
+   "ar": [
+    "Fiscal",
+    "Compras",
+    "Vendas"
+   ],
+   "p": "P1",
+   "crit": "item sem regra emite errado",
+   "anc": "virada",
+   "n": 69,
+   "pred": [
+    "B2.2"
+   ],
+   "o": [
+    "F11",
+    "T03"
+   ],
+   "obs": "O texto do guia citava a situação de um cliente (13 de 30); retirado."
+  },
+  {
+   "id": "B4.3",
+   "main": "B4",
+   "t": "Parametrizar os benefícios que a empresa usa: Zona Franca de Manaus e áreas de livre comércio, exportação, regimes aduaneiros e reduções de 60% e 100%",
+   "ex": "Cliente",
+   "ar": [
+    "Fiscal",
+    "Vendas",
+    "Comex"
+   ],
+   "p": "P1",
+   "crit": "benefício mal parametrizado vira tributo",
+   "anc": "virada",
+   "n": 62,
+   "apl": "ZFM, exportação, Recof ou redução",
+   "o": [
+    "F18",
+    "F13",
+    "T16"
+   ]
+  },
+  {
+   "id": "B4.4",
+   "main": "B4",
+   "t": "Parametrizar 2027: desligar PIS/Cofins e IPI com CST de alíquota zero (sem excluir o tributo), com exceção por NCM para produtos com incentivo na Zona Franca de Manaus",
+   "ex": "ERP",
+   "ar": [
+    "Fiscal",
+    "Vendas",
+    "Compras"
+   ],
+   "p": "P1",
+   "crit": "obrigação legal em 01/01/2027",
+   "anc": "fixa",
+   "lim": {
+    "d": "2027-01-01",
+    "tipo": "lei",
+    "fonte": "ADCT art. 126 (EC 132/2023)",
+    "conf": "conferido no texto da norma"
+   },
+   "o": [
+    "F5",
+    "T22 (guia)",
+    "T14",
+    "T15"
+   ],
+   "obs": "Devoluções de vendas de 2026 seguem com PIS/Cofins pela data do fato gerador (a conferir)."
+  },
+  {
+   "id": "B4.5",
+   "main": "B4",
+   "t": "Conferir as notas recebidas antes do pagamento: regime do emitente, destaque correto de IBS/CBS, notas de débito e crédito; reter a nota divergente",
+   "ex": "PriceTax",
+   "ar": [
+    "Fiscal",
+    "Compras",
+    "Financeiro"
+   ],
+   "p": "P2",
+   "crit": "protege o crédito (LC 214, art. 48 e parágrafo único); não bloqueia a emissão",
+   "anc": "virada",
+   "n": 32,
+   "o": [
+    "F8",
+    "T26",
+    "T27",
+    "T30"
+   ],
+   "obs": "Na lista da Tecumseh estava P1."
+  },
+  {
+   "id": "B4.6",
+   "main": "B4",
+   "t": "Preparar a apuração mensal de IBS e CBS: bases, alíquotas, reduções, créditos, ajustes e conta corrente com a Receita",
+   "ex": "Cliente",
+   "ar": [
+    "Fiscal",
+    "Contábil"
+   ],
+   "p": "P1",
+   "crit": "apuração por período, separada para IBS e CBS (LC 214, art. 45)",
+   "anc": "virada",
+   "n": 32,
+   "o": [
+    "F19",
+    "T48"
+   ]
+  },
+  {
+   "id": "B4.7",
+   "main": "B4",
+   "t": "Confirmar obrigações acessórias e leiautes de 2027 e gerar a EFD ICMS/IPI do novo leiaute e a última EFD-Contribuições",
+   "ex": "ERP",
+   "ar": [
+    "Fiscal"
+   ],
+   "p": "P1",
+   "crit": "obrigação acessória",
+   "anc": "fixa",
+   "lim": {
+    "d": "2027-01-01",
+    "tipo": "nota técnica",
+    "fonte": "Leiaute e prazos da EFD de 2027",
+    "conf": "a verificar"
+   },
+   "o": [
+    "F20",
+    "T25 (guia)",
+    "T45"
+   ]
+  },
+  {
+   "id": "B4.8",
+   "main": "B4",
+   "t": "Retirar PIS/Cofins das retenções sobre serviços (CSRF) e ajustar a EFD-Reinf",
+   "ex": "ERP",
+   "ar": [
+    "Fiscal",
+    "Financeiro",
+    "RH"
+   ],
+   "p": "P1",
+   "crit": "obrigação legal em 01/01/2027",
+   "anc": "fixa",
+   "lim": {
+    "d": "2027-01-01",
+    "tipo": "lei",
+    "fonte": "ADCT art. 126 (EC 132/2023)",
+    "conf": "conferido no texto da norma"
+   },
+   "o": [
+    "P1",
+    "T44"
+   ]
+  },
+  {
+   "id": "B4.9",
+   "main": "B4",
+   "t": "Levantar os saldos credores por tributo e definir o caminho de cada um: PIS/Cofins escriturado até 31/12/2026 (LC 214, art. 378), IPI (pedir ainda em 2026), ICMS e CBS/IBS",
+   "ex": "Cliente",
+   "ar": [
+    "Fiscal",
+    "Contábil"
+   ],
+   "p": "P1",
+   "crit": "crédito não escriturado até a extinção se perde (art. 378, II)",
+   "anc": "fixa",
+   "lim": {
+    "d": "2026-12-31",
+    "tipo": "lei",
+    "fonte": "LC 214, art. 378, II (créditos registrados no ambiente de escrituração) e ADCT art. 126, II",
+    "conf": "conferido no texto da norma"
+   },
+   "o": [
+    "F9",
+    "T47"
+   ]
+  },
+  {
+   "id": "B4.10",
+   "main": "B4",
+   "t": "Acompanhar as normas: alíquota da CBS de 2027, lista de exceções do IPI, regulamentos, notas técnicas e novas versões",
+   "ex": "PriceTax",
+   "ar": [
+    "Fiscal",
+    "Jurídico"
+   ],
+   "p": "P2",
+   "crit": "rotina de vigilância",
+   "anc": "virada",
+   "n": 0,
+   "rec": "semanal",
+   "lim": {
+    "d": "2026-12-15",
+    "tipo": "lei",
+    "fonte": "Alíquota de 2027: TCU até 30/10 e Senado até 15/12 (LC 214, arts. 349 e 353 §2º); se o Senado passar de 22/12, valem as do TCU (art. 349 §2º)",
+    "conf": "conferido no texto da norma"
+   },
+   "o": [
+    "F10",
+    "F17",
+    "J3"
+   ]
+  },
+  {
+   "id": "B4.11",
+   "main": "B4",
+   "t": "Revisar a matriz de ICMS interestadual, alíquotas internas, DIFAL e FCP e a origem cadastrada de cada produto",
+   "ex": "Cliente",
+   "ar": [
+    "Fiscal"
+   ],
+   "p": "P2",
+   "crit": "ICMS segue até 2032",
+   "anc": "virada",
+   "n": 48,
+   "o": [
+    "F14"
+   ]
+  },
+  {
+   "id": "B4.12",
+   "main": "B4",
+   "t": "Validar as alíquotas de ISS, PIS e Cofins dos serviços prestados",
+   "ex": "PriceTax",
+   "ar": [
+    "Fiscal"
+   ],
+   "p": "P2",
+   "crit": "base do cálculo dos serviços",
+   "anc": "virada",
+   "n": 85,
+   "o": [
+    "F16"
+   ],
+   "obs": "Prazo do guia já passou (09/10)."
+  },
+  {
+   "id": "B4.13",
+   "main": "B4",
+   "t": "Cadastrar a habilitação dos clientes na Zona Franca de Manaus e guardar a prova de internamento por nota",
+   "ex": "Cliente",
+   "ar": [
+    "Fiscal",
+    "Vendas",
+    "Jurídico"
+   ],
+   "p": "P2",
+   "crit": "sem prova o benefício se perde com encargos (LC 214, art. 445)",
+   "anc": "virada",
+   "n": 62,
+   "apl": "vende para a ZFM ou ALC",
+   "o": [
+    "deck Tecumseh (benefícios)"
+   ],
+   "obs": "Item novo; art. 442 e 445 da LC 214 a conferir antes de publicar."
+  },
+  {
+   "id": "B5.1",
+   "main": "B5",
+   "t": "Cadastro de fornecedores: regime (Simples, híbrido, Presumido, Real) como campo obrigatório, CNAE e curva ABC",
+   "ex": "Cliente",
+   "ar": [
+    "Compras",
+    "Cadastro"
+   ],
+   "p": "P2",
+   "crit": "define o crédito de cada compra",
+   "anc": "virada",
+   "n": 69,
+   "o": [
+    "C1",
+    "C2",
+    "T19"
+   ]
+  },
+  {
+   "id": "B5.2",
+   "main": "B5",
+   "t": "Cadastro de itens: NCM e NBS, origem, cClassTrib e uso e consumo por item ou por faixa",
+   "ex": "Cliente",
+   "ar": [
+    "Fiscal",
+    "Compras",
+    "Cadastro"
+   ],
+   "p": "P1",
+   "crit": "cClassTrib é por item",
+   "anc": "virada",
+   "n": 55,
+   "o": [
+    "C2",
+    "F3",
+    "T20"
+   ]
+  },
+  {
+   "id": "B5.3",
+   "main": "B5",
+   "t": "Cadastro de clientes: regime, habilitação na Zona Franca de Manaus e uso do recolhimento pelo adquirente",
+   "ex": "Cliente",
+   "ar": [
+    "Vendas",
+    "Fiscal"
+   ],
+   "p": "P2",
+   "crit": "preço e recebimento por perfil",
+   "anc": "virada",
+   "n": 48,
+   "o": [
+    "T21"
+   ]
+  },
+  {
+   "id": "B6.1",
+   "main": "B6",
+   "t": "Simular, por fornecedor e item, o custo atual após créditos contra o novo custo com CBS e IBS",
+   "ex": "PriceTax",
+   "ar": [
+    "Compras",
+    "Custos"
+   ],
+   "p": "P2",
+   "crit": "base da negociação",
+   "anc": "virada",
+   "n": 48,
+   "o": [
+    "C3",
+    "T18"
+   ]
+  },
+  {
+   "id": "B6.2",
+   "main": "B6",
+   "t": "Negociar com base na simulação: redução com Lucro Real, contenção com Presumido, revisão dos fornecedores do Simples",
+   "ex": "Cliente",
+   "ar": [
+    "Compras"
+   ],
+   "p": "P2",
+   "crit": "risco de custo",
+   "anc": "virada",
+   "n": 20,
+   "pred": [
+    "B6.1"
+   ],
+   "o": [
+    "C4"
+   ]
+  },
+  {
+   "id": "B6.3",
+   "main": "B6",
+   "t": "Cotar insumos por menor custo após crédito (curva ABC)",
+   "ex": "PriceTax",
+   "ar": [
+    "Compras"
+   ],
+   "p": "P3",
+   "crit": "melhoria",
+   "anc": "virada",
+   "n": 20,
+   "o": [
+    "T31"
+   ]
+  },
+  {
+   "id": "B6.4",
+   "main": "B6",
+   "t": "Avaliar adiar para janeiro as compras de itens com IPI não creditável",
+   "ex": "Cliente",
+   "ar": [
+    "Compras"
+   ],
+   "p": "P3",
+   "crit": "otimização pontual",
+   "anc": "virada",
+   "n": 31,
+   "o": [
+    "C6"
+   ]
+  },
+  {
+   "id": "B7.1",
+   "main": "B7",
+   "t": "Preparar o argumento comercial sobre o IPI e ajustar produção e estoque de dezembro",
+   "ex": "Cliente",
+   "ar": [
+    "Vendas",
+    "Produção"
+   ],
+   "p": "P2",
+   "crit": "risco comercial",
+   "anc": "virada",
+   "n": 69,
+   "o": [
+    "V1"
+   ]
+  },
+  {
+   "id": "B7.2",
+   "main": "B7",
+   "t": "Definir onde a precificação será feita (ERP ou PriceTax), mapeando onde ela ocorre atualmente",
+   "ex": "Cliente",
+   "ar": [
+    "Vendas",
+    "TI"
+   ],
+   "p": "P2",
+   "crit": "decisão que antecede B7.3",
+   "anc": "virada",
+   "n": 62,
+   "o": [
+    "T14 (guia)"
+   ],
+   "obs": "Texto do guia descrevia a situação de um cliente; reescrito como levantamento."
+  },
+  {
+   "id": "B7.3",
+   "main": "B7",
+   "t": "Refazer a formação de preço: valor líquido, IBS/CBS por fora, ICMS e ISS, e atributo e fórmula de IBS/CBS no sistema de preços",
+   "ex": "Cliente",
+   "ar": [
+    "Vendas",
+    "Controladoria"
+   ],
+   "p": "P2",
+   "crit": "risco de margem",
+   "anc": "virada",
+   "n": 48,
+   "pred": [
+    "B7.2",
+    "B6.1"
+   ],
+   "o": [
+    "V2",
+    "T17"
+   ],
+   "obs": "Na lista da Tecumseh estava P1."
+  },
+  {
+   "id": "B7.4",
+   "main": "B7",
+   "t": "Definir a política de preço por perfil de cliente (regime regular, Simples, consumidor final): quanto reter e quanto repassar",
+   "ex": "Cliente",
+   "ar": [
+    "Vendas",
+    "Diretoria"
+   ],
+   "p": "P2",
+   "crit": "risco de margem",
+   "anc": "virada",
+   "n": 41,
+   "o": [
+    "V3"
+   ]
+  },
+  {
+   "id": "B7.5",
+   "main": "B7",
+   "t": "Definir o tratamento dos adiantamentos recebidos e pagos em 2026 para entrega em 2027",
+   "ex": "Cliente",
+   "ar": [
+    "Vendas",
+    "Financeiro",
+    "Fiscal"
+   ],
+   "p": "P2",
+   "crit": "imposto antecipado e mudança de regime",
+   "anc": "virada",
+   "n": 34,
+   "o": [
+    "V5",
+    "T39"
+   ]
+  },
+  {
+   "id": "B7.6",
+   "main": "B7",
+   "t": "Redefinir a base de comissões e metas, sem o tributo cobrado por fora",
+   "ex": "Cliente",
+   "ar": [
+    "Comercial",
+    "RH"
+   ],
+   "p": "P3",
+   "crit": "melhoria",
+   "anc": "virada",
+   "n": 20,
+   "o": [
+    "V7",
+    "T24"
+   ]
+  },
+  {
+   "id": "B7.7",
+   "main": "B7",
+   "t": "Comunicar os clientes sobre a nova nota (valor líquido, IBS/CBS por fora, notas de débito e crédito) e atualizar cadastro e recebimento de documentos",
+   "ex": "Cliente",
+   "ar": [
+    "Vendas"
+   ],
+   "p": "P2",
+   "crit": "evita rejeição pelo cliente",
+   "anc": "virada",
+   "n": 17,
+   "o": [
+    "V8"
+   ]
+  },
+  {
+   "id": "B8.1",
+   "main": "B8",
+   "t": "Definir a política do recolhimento pelo adquirente (RAD): em quais fornecedores usar (risco ou crédito grande) e quais clientes vão usar, com o preço e o recebimento de cada caso",
+   "ex": "Cliente",
+   "ar": [
+    "Financeiro",
+    "Compras",
+    "Vendas",
+    "Fiscal"
+   ],
+   "p": "P2",
+   "crit": "protege o crédito (LC 214, arts. 36, 47 e 48)",
+   "anc": "virada",
+   "n": 34,
+   "o": [
+    "C5",
+    "V4",
+    "T22",
+    "T30"
+   ],
+   "obs": "Uma decisão só no lugar de quatro espalhadas."
+  },
+  {
+   "id": "B8.2",
+   "main": "B8",
+   "t": "Títulos com mercadoria e tributo separados, baixa parcial e guia por documento, com controle contra pagamento em duplicidade",
+   "ex": "ERP",
+   "ar": [
+    "Financeiro"
+   ],
+   "p": "P2",
+   "crit": "risco financeiro; só obrigatório quando houver recolhimento pelo adquirente",
+   "anc": "virada",
+   "n": 34,
+   "pred": [
+    "B8.1"
+   ],
+   "o": [
+    "T9 (guia)",
+    "FN5",
+    "T35"
+   ],
+   "obs": "Na lista da Tecumseh estava P1."
+  },
+  {
+   "id": "B8.3",
+   "main": "B8",
+   "t": "Revisar contas a pagar e a receber: retenções, valores líquidos e brutos, e controle de crédito por documento",
+   "ex": "Cliente",
+   "ar": [
+    "Financeiro"
+   ],
+   "p": "P2",
+   "crit": "risco financeiro",
+   "anc": "virada",
+   "n": 32,
+   "o": [
+    "FN4",
+    "T37"
+   ]
+  },
+  {
+   "id": "B8.4",
+   "main": "B8",
+   "t": "Montar o orçamento de caixa de janeiro a março de 2027 e, se preciso, negociar capital de giro",
+   "ex": "Cliente",
+   "ar": [
+    "Financeiro",
+    "Controladoria"
+   ],
+   "p": "P2",
+   "crit": "risco de caixa",
+   "anc": "virada",
+   "n": 27,
+   "o": [
+    "FN3",
+    "T38"
+   ]
+  },
+  {
+   "id": "B8.5",
+   "main": "B8",
+   "t": "Plano de recuperação dos saldos credores por tributo: pedido mensal de ressarcimento de CBS e IBS (30, 60 ou 180 dias), saldo antigo de PIS/Cofins, IPI, ICMS pelas regras estaduais",
+   "ex": "Cliente",
+   "ar": [
+    "Financeiro",
+    "Fiscal"
+   ],
+   "p": "P2",
+   "crit": "caixa preso; começa na primeira apuração",
+   "anc": "virada",
+   "n": -60,
+   "pred": [
+    "B4.9"
+   ],
+   "lim": {
+    "d": "",
+    "tipo": "lei",
+    "fonte": "CBS: pedido até o último dia útil do mês seguinte (Decreto 12.955, art. 39); intenção até o último dia do período (art. 39 §4º); prazos de análise (LC 214, arts. 39 e 40)",
+    "conf": "conferido no texto das normas"
+   },
+   "rec": "mensal",
+   "o": [
+    "FN6",
+    "T36"
+   ],
+   "obs": "A lista da Tecumseh somava ICMS ao valor de CBS/IBS a ressarcir; aqui cada tributo tem seu caminho."
+  },
+  {
+   "id": "B8.6",
+   "main": "B8",
+   "t": "Acompanhar com bancos e credenciadoras a implantação do split payment e o vínculo do boleto ou Pix com a nota",
+   "ex": "Cliente",
+   "ar": [
+    "Financeiro"
+   ],
+   "p": "P3",
+   "crit": "preparação para 2028",
+   "anc": "virada",
+   "n": -365,
+   "rec": "contínuo",
+   "lim": {
+    "d": "2028-01-01",
+    "tipo": "previsão",
+    "fonte": "Receita Federal indica obrigatoriedade entre empresas em 2028; sem prazo fixado em lei",
+    "conf": "fonte secundária; a conferir nos atos do Comitê Gestor"
+   },
+   "o": [
+    "FN7",
+    "T40"
+   ],
+   "obs": "Na lista da Tecumseh aparecia como \"limite legal: 2028\"."
+  },
+  {
+   "id": "B8.7",
+   "main": "B8",
+   "t": "Relatório de crédito apurado e liberado, por fornecedor e por documento",
+   "ex": "ERP",
+   "ar": [
+    "Fiscal",
+    "Financeiro",
+    "Controladoria"
+   ],
+   "p": "P2",
+   "crit": "controle do crédito (art. 47: nasce com a extinção do débito)",
+   "anc": "virada",
+   "n": 20,
+   "o": [
+    "T11 (guia)",
+    "T33"
+   ]
+  },
+  {
+   "id": "B9.1",
+   "main": "B9",
+   "t": "Ajustar o plano de contas e o de-para: CBS, IBS estadual e IBS municipal a recolher, a recuperar pendente e liberado, e saldo credor",
+   "ex": "Cliente",
+   "ar": [
+    "Contábil",
+    "Controladoria"
+   ],
+   "p": "P2",
+   "crit": "sem as contas a escrituração de janeiro não fecha; não é prazo legal",
+   "anc": "virada",
+   "n": 55,
+   "o": [
+    "CT1",
+    "T41"
+   ]
+  },
+  {
+   "id": "B9.2",
+   "main": "B9",
+   "t": "Definir a contabilização de venda, compra, recolhimento pelo adquirente, notas de débito e crédito e devolução, com conta transitória entre recebimento e inventário e tratamento do tributo não pago",
+   "ex": "Cliente",
+   "ar": [
+    "Contábil",
+    "Custos"
+   ],
+   "p": "P2",
+   "crit": "fechamento de janeiro",
+   "anc": "virada",
+   "n": 41,
+   "pred": [
+    "B9.1"
+   ],
+   "o": [
+    "CT2",
+    "T42"
+   ]
+  },
+  {
+   "id": "B9.3",
+   "main": "B9",
+   "t": "Ajustar a DRE e o orçamento de 2027: receita sem os tributos por fora, deduções e base de IRPJ e CSLL",
+   "ex": "Cliente",
+   "ar": [
+    "Controladoria",
+    "Contábil"
+   ],
+   "p": "P2",
+   "crit": "risco de gestão",
+   "anc": "virada",
+   "n": 34,
+   "o": [
+    "CT3",
+    "T46"
+   ]
+  },
+  {
+   "id": "B9.4",
+   "main": "B9",
+   "t": "Fazer o inventário físico em 31/12 e valorizar o estoque sem tributos recuperáveis",
+   "ex": "Cliente",
+   "ar": [
+    "Contábil",
+    "Custos",
+    "Logística"
+   ],
+   "p": "P2",
+   "crit": "ponto de corte do estoque",
+   "anc": "fixa",
+   "lim": {
+    "d": "2026-12-31",
+    "tipo": "decisão de projeto",
+    "fonte": "Ponto de corte contábil, não prazo legal específico",
+    "conf": "não é prazo legal"
+   },
+   "o": [
+    "CT6",
+    "T43"
+   ]
+  },
+  {
+   "id": "B9.5",
+   "main": "B9",
+   "t": "Definir o tratamento contábil dos saldos antigos de PIS/Cofins e IPI e dos ajustes de transição",
+   "ex": "Cliente",
+   "ar": [
+    "Contábil",
+    "Fiscal"
+   ],
+   "p": "P2",
+   "crit": "risco contábil",
+   "anc": "virada",
+   "n": 17,
+   "pred": [
+    "B4.9"
+   ],
+   "o": [
+    "CT7",
+    "T47"
+   ]
+  },
+  {
+   "id": "B9.6",
+   "main": "B9",
+   "t": "Criar o checklist mensal de fechamento: documentos fiscais, escrituração, apuração, razão contábil e conta corrente da Receita",
+   "ex": "Cliente",
+   "ar": [
+    "Contábil",
+    "Fiscal"
+   ],
+   "p": "P2",
+   "crit": "controle recorrente",
+   "anc": "virada",
+   "n": 20,
+   "rec": "mensal",
+   "o": [
+    "CT5"
+   ]
+  },
+  {
+   "id": "B10.1",
+   "main": "B10",
+   "t": "Avaliar a tese de IBS e CBS fora da base do ICMS e do ISS",
+   "ex": "Cliente",
+   "ar": [
+    "Jurídico"
+   ],
+   "p": "P3",
+   "crit": "tese, não bloqueia nada",
+   "anc": "virada",
+   "n": 32,
+   "o": [
+    "J1"
+   ]
+  },
+  {
+   "id": "B10.2",
+   "main": "B10",
+   "t": "Revisar contratos com clientes e fornecedores, tabelas e propostas de 2027: cláusula tributária (preço líquido, tributos destacados, revisão em 2029 e 2033), \"impostos inclusos\", recolhimento pelo adquirente e reequilíbrio",
+   "ex": "Cliente",
+   "ar": [
+    "Jurídico",
+    "Compras",
+    "Vendas"
+   ],
+   "p": "P2",
+   "crit": "risco contratual",
+   "anc": "virada",
+   "n": 20,
+   "o": [
+    "J2",
+    "C7",
+    "V6"
+   ],
+   "obs": "Três revisões do mesmo contrato viraram uma."
+  },
+  {
+   "id": "B11.1",
+   "main": "B11",
+   "t": "Verificar quais benefícios aos empregados geram crédito (LC 214, art. 57 §3º, IV) e o que depende de acordo ou convenção coletiva; exigir nota em nome da empresa",
+   "ex": "Cliente",
+   "ar": [
+    "RH",
+    "Fiscal"
+   ],
+   "p": "P3",
+   "crit": "oportunidade de crédito",
+   "anc": "virada",
+   "n": 34,
+   "o": [
+    "P2",
+    "T23"
+   ]
+  },
+  {
+   "id": "B11.2",
+   "main": "B11",
+   "t": "Simular a reoneração gradual da folha (CPRB), se aplicável",
+   "ex": "Cliente",
+   "ar": [
+    "RH",
+    "Controladoria"
+   ],
+   "p": "P3",
+   "crit": "depende do setor",
+   "anc": "virada",
+   "n": 34,
+   "apl": "setor com CPRB",
+   "o": [
+    "P3"
+   ]
+  },
+  {
+   "id": "B11.3",
+   "main": "B11",
+   "t": "Comparar mão de obra própria e contratada, com avaliação de risco trabalhista",
+   "ex": "Cliente",
+   "ar": [
+    "RH",
+    "Jurídico"
+   ],
+   "p": "P3",
+   "crit": "análise estratégica",
+   "anc": "virada",
+   "n": -89,
+   "o": [
+    "P4"
+   ]
+  },
+  {
+   "id": "B12.1",
+   "main": "B12",
+   "t": "Validar com o Fiscal os fluxos físicos e documentais: transferências, remessas, retornos, entregas e devoluções",
+   "ex": "Cliente",
+   "ar": [
+    "Logística",
+    "Fiscal"
+   ],
+   "p": "P2",
+   "crit": "trava a movimentação se o documento estiver errado, mas depende de B4.1",
+   "anc": "virada",
+   "n": 32,
+   "o": [
+    "L1"
+   ]
+  },
+  {
+   "id": "B13.1",
+   "main": "B13",
+   "t": "Treinar Fiscal, Compras, Faturamento, Financeiro, Contabilidade e Cadastro nos novos procedimentos",
+   "ex": "Cliente",
+   "ar": [
+    "Todas"
+   ],
+   "p": "P2",
+   "crit": "risco de erro operacional",
+   "anc": "virada",
+   "n": 17,
+   "o": [
+    "P5"
+   ]
+  },
+  {
+   "id": "B13.2",
+   "main": "B13",
+   "t": "Consolidar as pendências abertas, cada uma com responsável, prazo e contingência",
+   "ex": "Cliente",
+   "ar": [
+    "Todas"
+   ],
+   "p": "P2",
+   "crit": "insumo do go/no-go",
+   "anc": "virada",
+   "n": 24,
+   "o": [
+    "v2: Tira-dúvidas (pendências)"
+   ]
+  },
+  {
+   "id": "B14.1",
+   "main": "B14",
+   "t": "Teste integrado em homologação com a premissa de alíquota (CBS 9,20% + IBS 0,10%): ERP, faturamento, compras, estoque, financeiro, contabilidade e apuração",
+   "ex": "Cliente",
+   "ar": [
+    "Todas"
+   ],
+   "p": "P1",
+   "crit": "sem teste o erro só aparece em fevereiro",
+   "anc": "virada",
+   "n": 36,
+   "pred": [
+    "B3.1",
+    "B4.4"
+   ],
+   "o": [
+    "F6",
+    "T26 (guia)",
+    "T49"
+   ],
+   "obs": "A lista da Tecumseh dizia \"CBS em torno de 9,3%\": em 2027 são CBS 9,20% e IBS 0,10% (LC 214, art. 347, redução de 0,1 p.p. na CBS)."
+  },
+  {
+   "id": "B14.2",
+   "main": "B14",
+   "t": "Repetir o teste integrado quando a alíquota da CBS for publicada (Senado até 15/12 em 2026)",
+   "ex": "Cliente",
+   "ar": [
+    "Fiscal",
+    "TI"
+   ],
+   "p": "P1",
+   "crit": "confirma o cálculo com a alíquota oficial",
+   "anc": "fixa",
+   "lim": {
+    "d": "2026-12-15",
+    "tipo": "lei",
+    "fonte": "LC 214, arts. 349 §1º II e 353 §2º",
+    "conf": "conferido no texto da norma"
+   },
+   "pred": [
+    "B14.1",
+    "B2.4"
+   ],
+   "o": [
+    "F6"
+   ]
+  },
+  {
+   "id": "B14.3",
+   "main": "B14",
+   "t": "Testar a contabilização e a apuração em homologação com alíquotas cheias",
+   "ex": "Cliente",
+   "ar": [
+    "Contábil",
+    "Fiscal"
+   ],
+   "p": "P2",
+   "crit": "fechamento e apuração de janeiro",
+   "anc": "virada",
+   "n": 20,
+   "pred": [
+    "B9.2",
+    "B4.6"
+   ],
+   "o": [
+    "CT4"
+   ]
+  },
+  {
+   "id": "B14.4",
+   "main": "B14",
+   "t": "Repetir os testes de cálculo a cada nova versão do ERP ou da tabela de cClassTrib",
+   "ex": "Cliente",
+   "ar": [
+    "Fiscal",
+    "TI"
+   ],
+   "p": "P2",
+   "crit": "rotina",
+   "anc": "virada",
+   "n": 0,
+   "rec": "por versão",
+   "o": [
+    "F15",
+    "T52"
+   ]
+  },
+  {
+   "id": "B14.5",
+   "main": "B14",
+   "t": "Plano de contingência para falha de emissão, de atualização de tabelas ou indisponibilidade do ERP ou da SEFAZ",
+   "ex": "Cliente",
+   "ar": [
+    "TI",
+    "Fiscal",
+    "Logística"
+   ],
+   "p": "P2",
+   "crit": "risco operacional",
+   "anc": "virada",
+   "n": 17,
+   "o": [
+    "T27 (guia)",
+    "T53"
+   ]
+  },
+  {
+   "id": "B15.1",
+   "main": "B15",
+   "t": "Operação assistida de janeiro a março, com a primeira apuração de CBS e IBS em fevereiro",
+   "ex": "PriceTax",
+   "ar": [
+    "Todas"
+   ],
+   "p": "P1",
+   "crit": "primeiro ciclo real",
+   "anc": "fixa",
+   "lim": {
+    "d": "2027-02-26",
+    "tipo": "lei",
+    "fonte": "Apuração e pagamento até o último dia útil do mês seguinte (Decreto 12.955, arts. 44 §6º e 45); janeiro vence em 26/02/2027",
+    "conf": "conferido no texto da norma (data calculada pelo calendário)"
+   },
+   "rec": "mensal",
+   "o": [
+    "T51",
+    "guia: fase 5"
+   ]
+  },
+  {
+   "id": "B15.2",
+   "main": "B15",
+   "t": "Ciclo mensal: apurar, conferir a conta corrente, pagar o saldo devedor ou pedir o ressarcimento até o último dia útil do mês seguinte",
+   "ex": "Cliente",
+   "ar": [
+    "Fiscal",
+    "Financeiro",
+    "Contábil"
+   ],
+   "p": "P1",
+   "crit": "obrigação mensal",
+   "anc": "fixa",
+   "lim": {
+    "d": "",
+    "tipo": "lei",
+    "fonte": "Decreto 12.955, arts. 39, 44 e 45",
+    "conf": "conferido no texto da norma"
+   },
+   "rec": "mensal",
+   "o": [
+    "rotina nova"
+   ]
+  },
+  {
+   "id": "B15.3",
+   "main": "B15",
+   "t": "Revisão anual de preços, custos, contratos e parametrização a cada degrau da transição (2029 a 2033)",
+   "ex": "Cliente",
+   "ar": [
+    "Todas"
+   ],
+   "p": "P3",
+   "crit": "preparação",
+   "anc": "virada",
+   "n": -730,
+   "rec": "anual",
+   "lim": {
+    "d": "2029-01-01",
+    "tipo": "lei",
+    "fonte": "ADCT art. 128 (EC 132/2023): ICMS e ISS a 9/10 em 2029, 8/10 em 2030, 7/10 em 2031 e 6/10 em 2032; saldo credor de ICMS ao final de 2032: ADCT art. 134",
+    "conf": "conferido no texto da norma"
+   },
+   "o": [
+    "T25",
+    "plano de ação da Tecumseh"
+   ]
+  }
+ ],
+ "marcos": [
+  {
+   "Data": "14/09/2026",
+   "Marco": "Receita envia ao TCU a proposta de cálculo da alíquota de referência",
+   "Tipo": "lei",
+   "Fonte": "LC 214, art. 349 §5º, II e art. 353 §2º (31/07 + 45 dias)",
+   "Conferência": "conferido no texto da norma (cálculo); envio confirmado em fonte secundária",
+   "Observação": "passado"
+  },
+  {
+   "Data": "26/10/2026",
+   "Marco": "Homologação da NT 2025.002 v1.52 (NF-e e NFC-e)",
+   "Tipo": "nota técnica",
+   "Fonte": "Receita Federal: adiada de 05/10",
+   "Conferência": "fonte secundária; a conferir no Portal Nacional da NF-e",
+   "Observação": "mudou uma vez"
+  },
+  {
+   "Data": "30/10/2026",
+   "Marco": "TCU envia os cálculos da alíquota ao Senado",
+   "Tipo": "lei",
+   "Fonte": "LC 214, art. 349 §1º, I e art. 353 §2º (15/09 + 45 dias)",
+   "Conferência": "conferido no texto da norma",
+   "Observação": ""
+  },
+  {
+   "Data": "16/11/2026",
+   "Marco": "NT 2025.002 v1.52, NT 2026.007 e NT 2026.008 em produção",
+   "Tipo": "nota técnica",
+   "Fonte": "Receita Federal",
+   "Conferência": "fonte secundária; a conferir no Portal Nacional da NF-e",
+   "Observação": ""
+  },
+  {
+   "Data": "01/12/2026",
+   "Marco": "Novo DANFE",
+   "Tipo": "nota técnica",
+   "Fonte": "Data usada no guia e na lista da Tecumseh",
+   "Conferência": "sem fonte encontrada; a verificar",
+   "Observação": ""
+  },
+  {
+   "Data": "14/12/2026",
+   "Marco": "Evento de crédito presumido do frete (CT-e)",
+   "Tipo": "nota técnica",
+   "Fonte": "Data usada no guia e na lista da Tecumseh",
+   "Conferência": "a verificar",
+   "Observação": ""
+  },
+  {
+   "Data": "15/12/2026",
+   "Marco": "Senado fixa a alíquota de referência da CBS para 2027",
+   "Tipo": "lei",
+   "Fonte": "LC 214, art. 349 §1º, II e art. 353 §2º (31/10 + 45 dias)",
+   "Conferência": "conferido no texto da norma",
+   "Observação": ""
+  },
+  {
+   "Data": "22/12/2026",
+   "Marco": "Se o Senado passar desta data, valem as alíquotas calculadas pelo TCU",
+   "Tipo": "lei",
+   "Fonte": "LC 214, art. 349 §2º",
+   "Conferência": "conferido no texto da norma",
+   "Observação": "coincide com a data proposta para o go/no-go (decisão de projeto)"
+  },
+  {
+   "Data": "31/12/2026",
+   "Marco": "Créditos de PIS/Cofins precisam estar escriturados até a extinção das contribuições",
+   "Tipo": "lei",
+   "Fonte": "LC 214, art. 378, II; ADCT art. 126, II",
+   "Conferência": "conferido no texto da norma",
+   "Observação": "o pedido de IPI em 2026 é recomendação (Parecer 21/2026), não prazo legal"
+  },
+  {
+   "Data": "01/01/2027",
+   "Marco": "CBS cobrada; PIS/Cofins extintos; IPI com alíquota zero (exceto produtos com incentivo na Zona Franca de Manaus); CBS com redução de 0,1 p.p. em 2027 e 2028",
+   "Tipo": "lei",
+   "Fonte": "ADCT art. 126 (EC 132/2023); LC 214, art. 347",
+   "Conferência": "conferido no texto da norma",
+   "Observação": "no documento de 2027: CBS 9,20% e IBS 0,10%"
+  },
+  {
+   "Data": "26/02/2027",
+   "Marco": "Primeiro vencimento de apuração e pagamento (competência janeiro): último dia útil do mês seguinte",
+   "Tipo": "lei",
+   "Fonte": "Decreto 12.955/2026, arts. 44 §6º e 45",
+   "Conferência": "conferido no texto da norma; data calculada pelo calendário",
+   "Observação": "depende do feriado local do estabelecimento matriz"
+  },
+  {
+   "Data": "2028",
+   "Marco": "Split payment obrigatório entre empresas",
+   "Tipo": "previsão",
+   "Fonte": "Receita Federal; sem prazo fixado em lei",
+   "Conferência": "fonte secundária; a conferir nos atos do Comitê Gestor",
+   "Observação": "não tratar como limite legal"
+  },
+  {
+   "Data": "2029 a 2032",
+   "Marco": "ICMS e ISS a 9/10, 8/10, 7/10 e 6/10; IBS sobe na mesma medida",
+   "Tipo": "lei",
+   "Fonte": "ADCT art. 128 (EC 132/2023)",
+   "Conferência": "conferido no texto da norma",
+   "Observação": ""
+  },
+  {
+   "Data": "31/12/2032",
+   "Marco": "Saldos credores de ICMS existentes ao final de 2032 seguem regra própria",
+   "Tipo": "lei",
+   "Fonte": "ADCT art. 134 (EC 132/2023)",
+   "Conferência": "conferido no texto da norma",
+   "Observação": ""
+  },
+  {
+   "Data": "julho/2026",
+   "Marco": "CNPJ alfanumérico",
+   "Tipo": "lei",
+   "Fonte": "Regra do CNPJ alfanumérico",
+   "Conferência": "a verificar na fonte oficial",
+   "Observação": ""
+  }
+ ]
+}

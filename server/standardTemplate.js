@@ -72,7 +72,8 @@ export function buildV2() {
 }
 
 export const V1_NOTE = 'Modelo que as empresas novas recebiam até 19/10/2026: 12 atividades do modelo, mais Contábil, RH/Folha/DP e Prontidão da virada (sem data), com as melhorias de 15/10.';
-export const V2_NOTE = 'Proposta inicial: as 87 ações do guia da Reforma Tributária como subatividades de 20 atividades principais, em 5 fases, com prazos em dias após o kickoff. As datas de Envio dos dados, Análise e validação documental, Apresentação prévia, Report final e workshop, Reunião do Conselho e Encerramento foram propostas sem base no guia: ajuste.';
+export const V2_NOTE_ORIGINAL = 'Proposta inicial: as 87 ações do guia da Reforma Tributária como subatividades de 20 atividades principais, em 5 fases, com prazos em dias após o kickoff. As datas de Envio dos dados, Análise e validação documental, Apresentação prévia, Report final e workshop, Reunião do Conselho e Encerramento foram propostas sem base no guia: ajuste.';
+export const V2_NOTE = `Versão provisória: será substituída pela 3.0 depois da validação. ${V2_NOTE_ORIGINAL}`;
 
 // ---------- o que o cliente envia ----------
 
