@@ -437,8 +437,8 @@ const SHELL_MODES = [
 ];
 
 // Abas do workspace de empresa; as 3 primeiras só existem para UMA empresa (a visão de várias não as tem).
-const COMPANY_VIEW_IDS = ['resumo', 'meetings', 'todo', 'timeline', 'table', 'phases', 'kanban'];
-const SINGLE_ONLY_VIEWS = ['resumo', 'meetings', 'todo'];
+const COMPANY_VIEW_IDS = ['resumo', 'meetings', 'todo', 'timeline', 'table', 'phases', 'kanban', 'arvore'];
+const SINGLE_ONLY_VIEWS = ['resumo', 'meetings', 'todo', 'arvore'];
 
 function AppScreens({ shellRef, bump }) {
   const [theme, setTheme] = useState(() => {

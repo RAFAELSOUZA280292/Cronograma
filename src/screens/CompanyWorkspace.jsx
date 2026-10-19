@@ -1,7 +1,7 @@
 // Área de trabalho de uma empresa (cabeçalho, abas, vistas, modais e relatório de impressão).
 // Extraído do `return` final de AppScreens (src/App.jsx) em 2026-10-17 ("dividir o AppScreens e o S"): carregado sob demanda. O JSX é o mesmo de antes;
 // tudo o que ele usava do AppScreens (estado, funções, valores calculados) chega no objeto `ctx`, montado a cada render com os valores atuais.
-import { ShieldCheck, Briefcase, Building2, CalendarDays, Clock, Columns3, FileSpreadsheet, FileText, Gauge, LayoutGrid, List, ListChecks, Mic, MoreHorizontal, Pause, Plus, Settings, Trash2, Undo2, Upload, X } from 'lucide-react';
+import { ShieldCheck, Briefcase, Building2, CalendarDays, Clock, Columns3, FileSpreadsheet, FileText, Gauge, LayoutGrid, List, ListChecks, Mic, MoreHorizontal, Network, Pause, Plus, Settings, Trash2, Undo2, Upload, X } from 'lucide-react';
 import { MeetingPrintReport } from '../meetings/MeetingDetail.jsx';
 import { MeetingsView } from '../meetings/Meetings.jsx';
 import { ProjectAssistant } from '../assistant/ProjectAssistant.jsx';
@@ -13,6 +13,7 @@ import { buildActivityOptions, taskCountsByActivity } from '../meetings/Activity
 import { AreaRow, CLIENT_TYPE_META, CLIENT_TYPE_ORDER, COMPANY_STATUS_META, CompanySectionHeader, CreateCompanyModal, GroupActivityCompaniesModal, PhaseRow, SidePanel, TeamLinkBadge, ToastStack, TodoBoardView, fmtDate, fmtTs, todayISOStr } from '../App.jsx';
 import { KanbanView, PhasesView, PrintReport, ResumoView, TableView, TimelineView } from './CompanyViews.jsx';
 import { AutoDatesToggle } from './AutoDates.jsx';
+import TreeView from './TreeView.jsx';
 
 const StandardAuditModal = lazyRetry(() => import('../macro/StandardAudit.jsx'));
 const StandardPlanBar = lazyRetry(() => import('../macro/StandardPlanBar.jsx'));
@@ -309,6 +310,7 @@ export function CompanyWorkspace({ ctx }) {
           { id: 'table', label: 'Tabela', icon: List },
           { id: 'phases', label: 'Fases', icon: LayoutGrid },
           { id: 'kanban', label: 'Quadro', icon: Columns3 },
+          !isMulti && { id: 'arvore', label: 'Árvore', icon: Network },
         ].filter(Boolean).map((t) => {
           const Icon = t.icon;
           return (
@@ -441,6 +443,10 @@ export function CompanyWorkspace({ ctx }) {
             taskCounts={{ [activeProject.id]: taskCountsByActivity(activeProject.meetings) }}
             onOpenTasks={(activityId) => { setView('todo'); setTodoFocusActivityId(activityId); }}
           />
+        )}
+
+        {!isMulti && view === 'arvore' && (
+          <TreeView pid={activeProject.id} activities={activitiesSorted} orderMap={orderMap} phases={activeProject.phases} companyName={activeProject.company.name} companyColor={activeProject.company.color} openDetail={openActivityDetail} />
         )}
 
         {isMulti && view === 'timeline' && selectedProjects.map((p) => (
