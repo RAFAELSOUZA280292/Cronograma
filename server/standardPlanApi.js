@@ -4,9 +4,10 @@
 // concluído (rede de segurança em `applyPlanToData`). Log na empresa, sem notificação, sem reindexar a memória (nada disso entra nos trechos das reuniões).
 import { Router } from 'express';
 import { requireAuth, requireMasterOrPricetax } from './auth.js';
-import { pool } from './db.js';
+import { pool, blankProject } from './db.js';
 import { canAccessProject, effectiveOrgId } from './routes.js';
 import { planForProject, applyPlanToData } from './standardPlan.js';
+import { auditProject } from './standardAudit.js';
 
 export const router = Router();
 router.use(requireAuth, requireMasterOrPricetax);
@@ -34,6 +35,17 @@ router.get('/preview', async (req, res, next) => {
     }).sort((a, b) => Number(b.pending) - Number(a.pending) || a.label.localeCompare(b.label, 'pt-BR'));
     const sum = (k) => companies.reduce((n, c) => n + c.counts[k], 0);
     res.json({ canApply: isAdmin(req.user), totals: { companies: companies.length, pending: companies.filter((c) => c.pending).length, descriptions: sum('descriptions'), subs: sum('subs'), creates: sum('creates') }, companies });
+  } catch (e) { next(e); }
+});
+
+// Auditoria de UMA empresa contra o padrão (2026-10-19): somente leitura, equipe PRICETAX/master. Ver server/standardAudit.js.
+router.get('/audit/:id', async (req, res, next) => {
+  try {
+    const rows = await accessible(req.user, effectiveOrgId(req));
+    const row = rows.find((r) => r.id === req.params.id);
+    if (!row) return res.status(404).json({ message: 'Empresa não encontrada ou sem acesso.' });
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    res.json({ audit: { id: row.id, ...auditProject(row.data || {}, blankProject(), { today }) } });
   } catch (e) { next(e); }
 });
 

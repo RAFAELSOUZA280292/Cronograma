@@ -5,10 +5,10 @@
 // 2027, ADCT art. 126; CBS menos 0,1 p.p. em 2027-2028, ADCT art. 127 e LC 214 art. 347).
 // Módulo sem dependências (db.js importa daqui).
 
-const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+export const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 const STOP = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'a', 'o', 'as', 'os', 'para', 'com', 'em', 'no', 'na', 'nos', 'nas', 'um', 'uma', 'por', 'ao', 'que', 'se', 'ou']);
-const tokens = (s) => new Set(norm(s).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter((w) => w && !STOP.has(w)).map((w) => (w.length > 4 && w.endsWith('s') ? w.slice(0, -1) : w)));
-const jaccard = (a, b) => { if (!a.size || !b.size) return 0; let i = 0; for (const x of a) if (b.has(x)) i += 1; return i / (a.size + b.size - i); };
+export const tokens = (s) => new Set(norm(s).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter((w) => w && !STOP.has(w)).map((w) => (w.length > 4 && w.endsWith('s') ? w.slice(0, -1) : w)));
+export const jaccard = (a, b) => { if (!a.size || !b.size) return 0; let i = 0; for (const x of a) if (b.has(x)) i += 1; return i / (a.size + b.size - i); };
 const sub = (k, t) => ({ k, t });
 
 // Atividades que já existem no modelo: o título identifica; `oldDesc` é o texto antigo (só se a descrição da empresa ainda for IGUAL a ele é que ela troca).
@@ -161,7 +161,7 @@ export const PROTECTED_FIELDS = ['id', 'date', 'endDate', 'status', 'responsible
 
 const live = (arr) => (arr || []).filter((x) => x && !x.deleted);
 const findModelActivity = (data, m) => live(data.activities).find((a) => norm(a.title) === norm(m.title));
-const hasSub = (activity, s) => {
+export const hasSub = (activity, s) => {
   const t = tokens(s.t);
   return (activity.subactivities || []).some((x) => x && (x.stdId === s.k || norm(x.title) === norm(s.t) || jaccard(t, tokens(x.title)) >= 0.6));
 };

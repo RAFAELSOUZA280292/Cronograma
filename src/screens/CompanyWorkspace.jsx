@@ -1,16 +1,19 @@
 // Área de trabalho de uma empresa (cabeçalho, abas, vistas, modais e relatório de impressão).
 // Extraído do `return` final de AppScreens (src/App.jsx) em 2026-10-17 ("dividir o AppScreens e o S"): carregado sob demanda. O JSX é o mesmo de antes;
 // tudo o que ele usava do AppScreens (estado, funções, valores calculados) chega no objeto `ctx`, montado a cada render com os valores atuais.
-import { Briefcase, Building2, CalendarDays, Clock, Columns3, FileSpreadsheet, FileText, Gauge, LayoutGrid, List, ListChecks, Mic, MoreHorizontal, Pause, Plus, Settings, Trash2, Undo2, Upload, X } from 'lucide-react';
+import { ShieldCheck, Briefcase, Building2, CalendarDays, Clock, Columns3, FileSpreadsheet, FileText, Gauge, LayoutGrid, List, ListChecks, Mic, MoreHorizontal, Pause, Plus, Settings, Trash2, Undo2, Upload, X } from 'lucide-react';
 import { MeetingPrintReport } from '../meetings/MeetingDetail.jsx';
 import { MeetingsView } from '../meetings/Meetings.jsx';
 import { ProjectAssistant } from '../assistant/ProjectAssistant.jsx';
 import React from 'react';
+import { lazyRetry } from '../lib/lazyRetry.jsx';
 import { S } from '../styles/S.js';
 import SafeBoundary from '../ui/SafeBoundary.jsx';
 import { buildActivityOptions, taskCountsByActivity } from '../meetings/ActivityLink.jsx';
 import { AreaRow, CLIENT_TYPE_META, CLIENT_TYPE_ORDER, COMPANY_STATUS_META, CompanySectionHeader, CreateCompanyModal, GroupActivityCompaniesModal, PhaseRow, SidePanel, TeamLinkBadge, ToastStack, TodoBoardView, fmtDate, fmtTs, todayISOStr } from '../App.jsx';
 import { KanbanView, PhasesView, PrintReport, ResumoView, TableView, TimelineView } from './CompanyViews.jsx';
+
+const StandardAuditModal = lazyRetry(() => import('../macro/StandardAudit.jsx'));
 
 export function CompanyWorkspace({ ctx }) {
   const {
@@ -125,6 +128,8 @@ export function CompanyWorkspace({ ctx }) {
     showCreateCompany,
     showGroupActivityModal,
     showLog,
+    showAudit,
+    setShowAudit,
     showMeetingsTrash,
     showMoreMenu,
     showPhases,
@@ -254,6 +259,9 @@ export function CompanyWorkspace({ ctx }) {
           {!isMobile && currentUser.isSuperAdmin && <button style={S.iconBtn} onClick={() => goToOrgAdmin(true)}><Building2 size={15} /> Organizações</button>}
           {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); }}><LayoutGrid size={15} /> Fases</button>
+          )}
+          {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
+            <button style={S.iconBtn} onClick={() => setShowAudit(true)}><ShieldCheck size={15} /> Auditoria</button>
           )}
           {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowLog(true)}><Clock size={15} /> Log ({(activeProject.log || []).length})</button>
@@ -736,6 +744,10 @@ export function CompanyWorkspace({ ctx }) {
         );
       })()}
 
+      {showAudit && activeProject && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && guardModal(`audit:${activeProject.id}`, 'a auditoria do padrão', () => setShowAudit(false), (
+        <StandardAuditModal projectId={activeProject.id} companyLabel={activeProject.company.nomeFantasia || activeProject.company.name || 'Empresa'} onClose={() => setShowAudit(false)}
+          onOpenActivity={(id) => { setShowAudit(false); openActivityDetail(activeProject.id, id); }} />
+      ))}
       {guardModal(openActivityId ? `activity-detail:${openActivityId.pid}:${openActivityId.id}` : 'activity-detail:', 'o detalhe da atividade', closeActivityDetail, renderActivityDetailModal())}
       {guardModal(openMeetingId ? `meeting-detail:${openMeetingId.pid}:${openMeetingId.id}` : 'meeting-detail:', 'o detalhe da reunião', closeMeetingDetail, renderMeetingDetailModal())}
 

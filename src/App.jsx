@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen } from 'lucide-react';
+import { ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen } from 'lucide-react';
 
 import { loadXlsx } from './lib/xlsxLoader.js';
 import { lazyRetry } from './lib/lazyRetry.jsx';
@@ -487,6 +487,7 @@ function AppScreens({ shellRef, bump }) {
   const [todoFocusActivityId, setTodoFocusActivityId] = useState(null);
   const [meetingToPrint, setMeetingToPrint] = useState(null);
   const [showLog, setShowLog] = useState(false);
+  const [showAudit, setShowAudit] = useState(false); // auditoria contra o padrão (2026-10-19)
   const [showTrash, setShowTrash] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -2271,6 +2272,7 @@ function AppScreens({ shellRef, bump }) {
     (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Plus, label: 'Cadastrar empresa', onClick: () => setShowCreateCompany(true) },
     currentUser.isSuperAdmin && { icon: Building2, label: 'Organizações', onClick: () => goToOrgAdmin(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: LayoutGrid, label: 'Fases', onClick: () => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); } },
+    !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: ShieldCheck, label: 'Auditoria do padrão', onClick: () => setShowAudit(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Clock, label: `Log (${(activeProject.log || []).length})`, onClick: () => setShowLog(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Trash2, label: 'Lixeira', onClick: () => setShowTrash(true) },
     { icon: FileSpreadsheet, label: 'Excel', onClick: exportExcel },
@@ -2378,6 +2380,8 @@ function AppScreens({ shellRef, bump }) {
         setShowCreateCompany,
         setShowGroupActivityModal,
         setShowLog,
+        showAudit,
+        setShowAudit,
         setShowMeetingsTrash,
         setShowMoreMenu,
         setShowPhases,
