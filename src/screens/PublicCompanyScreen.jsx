@@ -8,8 +8,13 @@ const DAY = 86400000;
 const iso = (s) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? Date.parse(`${s}T00:00:00Z`) : NaN);
 const fmt = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : '—');
 const fmtShort = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : '');
+const addDays = (s, n) => new Date(Date.parse(`${s}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
+const mondayOf = (s) => { const d = new Date(`${s}T00:00:00Z`).getUTCDay(); return addDays(s, -((d + 6) % 7)); };
+const DOW = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const fmtDay = (s) => `${DOW[new Date(`${s}T00:00:00Z`).getUTCDay()]} ${fmtShort(s)}`;
 const STATUS = {
   'nao-iniciado': { label: 'Não iniciado', color: 'var(--text-6)' },
+  pendente: { label: 'Pendente', color: 'var(--text-6)' },
   'em-andamento': { label: 'Em andamento', color: '#F5C400' },
   pausado: { label: 'Pausado', color: '#ff9f40' },
   concluido: { label: 'Concluído', color: '#3ecf6e' },
@@ -45,6 +50,14 @@ const CSS = `
   .pc-next { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:6px 12px; align-items:center; padding:9px 0; border-top:1px solid var(--border-1); font-size:13.5px; }
   .pc-next .pc-chip { justify-self:start; }
   .pc-next:first-of-type { border-top:none; }
+  .pc-who { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 10px; }
+  .pc-wk { margin:14px 0 4px; font-size:12px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--text-4); display:flex; justify-content:space-between; gap:10px; }
+  .pc-wk.late { color:#e2574c; }
+  .pc-step { display:grid; grid-template-columns:78px minmax(0,1fr) auto; gap:4px 12px; align-items:start; padding:9px 0; border-top:1px solid var(--border-1); font-size:13.5px; }
+  .pc-step .d { font-weight:800; font-variant-numeric:tabular-nums; color:var(--text-2); }
+  .pc-step .t { font-weight:700; color:var(--text-1); }
+  .pc-doing { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 12px; padding:9px 0; border-top:1px solid var(--border-1); }
+  .pc-doing:first-of-type { border-top:none; }
   .pc-muted { color:var(--text-5); font-size:12px; }
   .pc-scroll { overflow-x:auto; border:1px solid var(--border-1); border-radius:12px; background:var(--bg-2); }
   .pc-g { position:relative; }
@@ -69,7 +82,7 @@ const CSS = `
   .pc-tbl tr.a td { font-weight:700; }
   .pc-tbl tr.s td:nth-child(2) { padding-left:30px; color:var(--text-3); }
   .pc-foot { margin:22px 0 8px; font-size:12px; color:var(--text-5); text-align:center; }
-  @media (max-width:767px) { .pc-title { font-size:21px; } .pc-ph { grid-template-columns:100px minmax(0,1fr) 40px; } .pc-gl { flex-basis:170px; } .pc-next { grid-template-columns:1fr; } }
+  @media (max-width:767px) { .pc-step { grid-template-columns:64px minmax(0,1fr); } .pc-step .pc-chip { grid-column:2; justify-self:start; } .pc-title { font-size:21px; } .pc-ph { grid-template-columns:100px minmax(0,1fr) 40px; } .pc-gl { flex-basis:170px; } .pc-next { grid-template-columns:1fr; } }
   @media print { .no-print { display:none !important; } .pc-scroll { overflow:visible; } body { background:#fff; } }
 `;
 
@@ -82,6 +95,8 @@ export default function PublicCompanyScreen({ token }) {
   const [state, setState] = useState({ loading: true, error: '', data: null });
   const [tab, setTab] = useState('resumo');
   const [open, setOpen] = useState(() => new Set());
+  const [who, setWho] = useState('todos');
+  const [allWeeks, setAllWeeks] = useState(false);
 
   useEffect(() => {
     let meta = document.querySelector('meta[name="robots"]');
@@ -96,7 +111,7 @@ export default function PublicCompanyScreen({ token }) {
     const d = state.data; if (!d) return null;
     const today = d.today;
     const late = (a) => a.status !== 'concluido' && (a.endDate || a.date) && (a.endDate || a.date) < today;
-    const acts = d.activities.map((a) => ({ ...a, eff: late(a) ? 'atrasada' : a.status, subs: a.subs.map((s) => ({ ...s, eff: s.done ? 'concluido' : (s.date && s.date < today ? 'atrasada' : 'nao-iniciado') })) }));
+    const acts = d.activities.map((a) => ({ ...a, eff: late(a) ? 'atrasada' : a.status, subs: a.subs.map((s) => ({ ...s, eff: s.done ? 'concluido' : (s.date && s.date < today ? 'atrasada' : 'pendente') })) }));
     const phases = d.phases.map((p, i) => ({ ...p, color: PHASE_COLORS[i % PHASE_COLORS.length], list: acts.filter((a) => a.phase === p.id) })).filter((p) => p.list.length);
     const loose = acts.filter((a) => !d.phases.some((p) => p.id === a.phase));
     if (loose.length) phases.push({ id: 'x', name: 'Outras', color: PHASE_COLORS[4], list: loose });
@@ -111,8 +126,18 @@ export default function PublicCompanyScreen({ token }) {
     const weeks = Math.min(80, Math.ceil((max - min) / (7 * DAY)) + 1);
     return {
       today, acts, phases, done, total: acts.length, pct: acts.length ? Math.round((done / acts.length) * 100) : 0,
-      doing: count('em-andamento'), lateN: count('atrasada'), min, weeks,
-      next: acts.filter((a) => a.eff !== 'concluido').sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999')).slice(0, 10),
+      doingN: count('em-andamento'), lateN: count('atrasada'), min, weeks,
+      doing: acts.filter((a) => a.eff === 'em-andamento'),
+      steps: (() => {
+        const out = [];
+        for (const a of acts) {
+          if (a.eff === 'concluido') continue;
+          const open = a.subs.filter((x) => !x.done);
+          if (a.subs.length === 0) out.push({ id: a.id, date: a.date, title: a.title, parent: '', resp: a.responsible, eff: a.eff });
+          else for (const x of open) out.push({ id: x.id, date: x.date || a.date, title: x.title, parent: a.title, resp: x.responsible || a.responsible, eff: x.eff });
+        }
+        return out.sort((x, y) => (x.date || '9999').localeCompare(y.date || '9999') || x.parent.localeCompare(y.parent));
+      })(),
     };
   }, [state.data]);
 
@@ -156,7 +181,7 @@ export default function PublicCompanyScreen({ token }) {
         <div className="pc-kpis">
           <div className="pc-kpi"><b>{view.total}</b><span>Atividades</span></div>
           <div className="pc-kpi"><b style={{ color: '#3ecf6e' }}>{view.done}</b><span>Concluídas</span></div>
-          <div className="pc-kpi"><b style={{ color: '#F5C400' }}>{view.doing}</b><span>Em andamento</span></div>
+          <div className="pc-kpi"><b style={{ color: '#F5C400' }}>{view.doingN}</b><span>Em andamento</span></div>
           <div className="pc-kpi"><b style={{ color: view.lateN ? '#e2574c' : 'var(--text-1)' }}>{view.lateN}</b><span>Atrasadas</span></div>
         </div>
 
@@ -178,17 +203,67 @@ export default function PublicCompanyScreen({ token }) {
                 })}
               </div>
             </div>
-            <div className="pc-card">
-              <div style={{ fontWeight: 800, marginBottom: 6 }}>Próximas etapas</div>
-              {view.next.length === 0 && <div className="pc-muted">Todas as atividades foram concluídas.</div>}
-              {view.next.map((a) => (
-                <div className="pc-next" key={a.id}>
-                  <div><b>{a.title}</b><div className="pc-muted">{a.responsible || 'Sem responsável'}{a.subs.length ? ` · ${a.subs.filter((s) => s.done).length} de ${a.subs.length} subatividades` : ''}</div></div>
-                  <span className="pc-muted">{a.date ? `${fmtShort(a.date)}${a.endDate && a.endDate !== a.date ? ` a ${fmtShort(a.endDate)}` : ''}` : 'Sem data'}</span>
-                  <Chip kind={a.eff} />
+            {view.doing.length > 0 && (
+              <div className="pc-card">
+                <div style={{ fontWeight: 800, marginBottom: 6 }}>Em andamento agora</div>
+                {view.doing.map((a) => {
+                  const pend = a.subs.filter((x) => !x.done).sort((x, y) => (x.date || '9999').localeCompare(y.date || '9999')).slice(0, 3);
+                  return (
+                    <div className="pc-doing" key={a.id}>
+                      <div>
+                        <b>{a.title}</b>
+                        <div className="pc-muted">{a.responsible || 'Sem responsável'} · {a.date ? `${fmtShort(a.date)} a ${fmtShort(a.endDate || a.date)}` : 'Sem data'}{a.subs.length ? ` · ${a.subs.filter((x) => x.done).length} de ${a.subs.length} subatividades` : ''}</div>
+                        {pend.length > 0 && <div className="pc-muted" style={{ marginTop: 3 }}>Próximos: {pend.map((x) => `${x.title}${x.date ? ` (${fmtShort(x.date)})` : ''}`).join(' · ')}</div>}
+                      </div>
+                      <Chip kind={a.eff} />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {(() => {
+              const mine = (r) => (who === 'pricetax' ? /pricetax/i.test(r) : who === 'empresa' ? !/pricetax/i.test(r) : true);
+              const list = view.steps.filter((x) => mine(x.resp || ''));
+              const mon = mondayOf(view.today);
+              const groups = []; const idx = new Map();
+              const push = (key, label, late) => { if (!idx.has(key)) { idx.set(key, groups.length); groups.push({ key, label, late, items: [] }); } return groups[idx.get(key)]; };
+              for (const x of list) {
+                if (x.date && x.date < view.today) push('late', 'Atrasados', true).items.push(x);
+                else if (!x.date) push('nodate', 'Sem data definida', false).items.push(x);
+                else {
+                  const wm = mondayOf(x.date); const diff = Math.round((Date.parse(`${wm}T00:00:00Z`) - Date.parse(`${mon}T00:00:00Z`)) / DAY / 7);
+                  const range = `${fmtShort(wm)} a ${fmtShort(addDays(wm, 6))}`;
+                  push(wm, diff === 0 ? `Esta semana · ${range}` : diff === 1 ? `Próxima semana · ${range}` : range, false).items.push(x);
+                }
+              }
+              const MAXW = 5; const shownGroups = allWeeks ? groups : groups.slice(0, MAXW + (groups[0] && groups[0].late ? 1 : 0));
+              return (
+                <div className="pc-card">
+                  <div style={{ fontWeight: 800 }}>Calendário dos próximos passos</div>
+                  <div className="pc-muted">Cada passo com a data, quem responde e a situação. Os que já passaram da data aparecem primeiro.</div>
+                  <div className="pc-who no-print" role="group" aria-label="Filtrar por quem responde">
+                    {[['todos', 'Todos'], ['pricetax', 'PRICETAX'], ['empresa', `Equipe da ${state.data.company.name}`]].map(([id, label]) => (
+                      <button key={id} type="button" className="pc-tab" aria-pressed={who === id} aria-selected={who === id} onClick={() => setWho(id)} style={{ minHeight: 34, padding: '0 12px' }}>{label}</button>
+                    ))}
+                  </div>
+                  {list.length === 0 && <div className="pc-muted">Nenhum passo pendente para este filtro.</div>}
+                  {shownGroups.map((g) => (
+                    <div key={g.key}>
+                      <div className={`pc-wk${g.late ? ' late' : ''}`}><span>{g.label}</span><span>{g.items.length} {g.items.length === 1 ? 'passo' : 'passos'}</span></div>
+                      {g.items.map((x, i) => (
+                        <div className="pc-step" key={x.id} style={i > 0 && g.items[i - 1].date === x.date ? { borderTopStyle: 'dotted' } : undefined}>
+                          <span className="d">{i > 0 && g.items[i - 1].date === x.date ? '' : (x.date ? fmtDay(x.date) : '—')}</span>
+                          <div><div className="t">{x.title}</div><div className="pc-muted">{x.parent ? `${x.parent} · ` : ''}{x.resp || 'Sem responsável'}</div></div>
+                          <Chip kind={x.eff} />
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  {groups.length > shownGroups.length && <div className="no-print" style={{ marginTop: 10 }}><button type="button" className="pc-btn" onClick={() => setAllWeeks(true)}>Mostrar o calendário completo ({list.length} passos)</button></div>}
+                  {allWeeks && groups.length > MAXW + 1 && <div className="no-print" style={{ marginTop: 10 }}><button type="button" className="pc-btn" onClick={() => setAllWeeks(false)}>Mostrar só as próximas semanas</button></div>}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
           </>
         )}
 
