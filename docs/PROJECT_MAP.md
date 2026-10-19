@@ -83,6 +83,7 @@ server/routes.js        Rotas REST de auth, users, projects, personal-board, cnp
 server/permissions.js  listAccessibleProjectIds(pool, user, orgId) (Fase 8, 2026-09-11) — reusa canAccessProject linha a linha pra devolver o CONJUNTO de projetos acessíveis (não um booleano por projeto), base do isolamento cross-projeto da Central de Conhecimento — ver PROJECT_CONTEXT.md §39.
 server/xflow.js         Rotas REST do módulo XFlow (team, tickets, events, view) — router próprio montado em /api/xflow.
 server/standardAudit.js  (2026-10-19, §65) Auditoria de uma empresa contra o padrão (função pura, somente leitura): equivalência exata/provável/possível, ausentes, comparativo de datas (absoluto e a partir do kickoff), conteúdo, alertas de coerência, fases e extras. Rota `GET /api/standard-plan/audit/:id` em standardPlanApi.js.
+src/screens/SubExtras.jsx  (2026-10-19, §65) Campos novos da subatividade (prioridade, executor, áreas, limite, predecessoras, recorrência, âncora, código): selos e painel Detalhes na Tabela e no detalhe da atividade.
 src/macro/StandardPlanBar.jsx  (2026-10-19, §65) Faixa do cronograma padrão na tela de empresa: versão atual, salvar nova versão (resumo do que mudou), descartar, histórico de versões, kickoff de referência, voltar.
 src/app/standardPlanActions.js  (2026-10-19, §65) Fábrica das ações do cronograma padrão: abrir/fechar, salvar versão, descartar, carregar versão antiga, mudar kickoff.
 src/lib/stdPlan.js  (2026-10-19, §65) STD_PLAN_ID (id fixo do "projeto" que representa o padrão aberto).

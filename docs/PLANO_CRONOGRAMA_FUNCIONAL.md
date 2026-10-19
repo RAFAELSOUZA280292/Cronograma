@@ -16,7 +16,7 @@ Criado em 2026-10-19, a pedido do Rafael ("usando tudo que já conhecemos, remov
 - Descoberta ao conferir: as datas de 30/10 (TCU) e 15/12 (Senado) estão certas; o prazo de 2026 foi prorrogado em 45 dias (LC 214, art. 353 §2º).
 
 ## Fases seguintes (aguardam o Rafael validar a planilha)
-2. **Campos novos no app** por subatividade: prioridade, limite (data, tipo, fonte, conferido em), predecessoras, executor, áreas, aplicabilidade, recorrência. Sem isso não dá para carregar o rascunho no editor sem perder informação.
+2. **Campos novos no app (FEITO em 2026-10-19; ver PROJECT_CONTEXT §65)** por subatividade: prioridade, limite (data, tipo, fonte, conferido em), predecessoras, executor, áreas, aplicabilidade, recorrência. Sem isso não dá para carregar o rascunho no editor sem perder informação.
 3. **Criação da empresa:** âncoras (kickoff e virada), regra B (limite manda, "comprimido"), aviso das atividades já vencidas ao nascer (T16 e F16 já passaram).
 4. Salvar como **3.0** (só quando o Rafael mandar).
 5. Trocar a base da **Auditoria** e da aba **Padrão** pela versão atual do banco (hoje comparam com o modelo antigo).

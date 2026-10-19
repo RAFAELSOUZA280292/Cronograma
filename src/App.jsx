@@ -884,6 +884,7 @@ function AppScreens({ shellRef, bump }) {
         updateSub={updateSub}
         deleteSub={deleteSub}
         reorderSub={reorderSub}
+        allSubs={project.activities.filter((x) => !x.deleted).flatMap((x) => (x.subactivities || []).filter((y) => !y.deleted).map((y) => ({ id: y.id, title: y.title, code: y.code, done: !!y.done, predecessors: y.predecessors })))}
         addAttachments={addAttachments}
         removeAttachment={removeAttachment}
         addComment={addComment}

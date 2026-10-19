@@ -400,6 +400,7 @@ export function CompanyWorkspace({ ctx }) {
         )}
         {!isMulti && view === 'table' && (
           <TableView
+            staff={currentUser.role === 'master' || currentUser.role === 'pricetax'}
             activities={activitiesSorted}
             orderMap={orderMap}
             phases={activeProject.phases}
@@ -460,6 +461,7 @@ export function CompanyWorkspace({ ctx }) {
         ))}
         {isMulti && view === 'table' && (
           <TableView
+            staff={currentUser.role === 'master' || currentUser.role === 'pricetax'}
             activities={multiActivities}
             expanded={expanded}
             setExpanded={setExpanded}
