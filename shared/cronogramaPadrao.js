@@ -1,7 +1,6 @@
-// Cronograma padrão PRICETAX — PROPOSTA 0.1, rascunho para validação do Rafael (2026-10-19). NÃO alimenta ainda as empresas novas (isso continua em
-// server/standardPlan.js + server/db.js) nem a Auditoria: só a tela "Ver cronograma padrão". Quando for validado, este passa a ser a fonte única.
-// Origem: (1) as 87 ações do guia "Reforma Tributária 2027 · Guia por área" (texto limpo de casos de cliente), (2) as 15 atividades do modelo atual,
-// (3) o fluxo real da Vellore. Prazos em dias a contar do kickoff (D+n; D0 = início da Mobilização do guia). Dado puro, sem dependências.
+// Fonte das atividades da versão 2.0 do cronograma padrão (2026-10-19): as 87 ações do guia "Reforma Tributária 2027 · Guia por área" (texto limpo de casos de cliente),
+// agrupadas em 20 atividades principais (12 do modelo atual + Contábil/RH/Prontidão + 5 etapas do fluxo da Vellore). Só alimenta a SEMENTE (server/standardTemplate.js, buildV2);
+// depois de salva, a 2.0 vive no banco e quem edita é a tela do cronograma padrão. Prazos em dias após o kickoff (D+n; D0 = dataBase). Dado puro, sem dependências.
 export const CRONOGRAMA_PADRAO = {
  "versao": "0.1",
  "status": "rascunho",
@@ -202,7 +201,7 @@ export const CRONOGRAMA_PADRAO = {
    "responsavel": "Cliente",
    "origem": "fluxo-vellore",
    "modeloKey": null,
-   "descricao": "O cliente envia as bases combinadas no kickoff (compras, vendas, cadastros). Existe no fluxo real da Vellore; ainda não está no modelo.",
+   "descricao": "O cliente envia as bases combinadas no kickoff: compras, vendas e cadastros.",
    "validacao": "a-validar",
    "filhas": []
   },
@@ -212,7 +211,7 @@ export const CRONOGRAMA_PADRAO = {
    "responsavel": "PRICETAX",
    "origem": "fluxo-vellore",
    "modeloKey": null,
-   "descricao": "A PRICETAX valida os documentos e as bases recebidas antes de calcular o cenário. Existe no fluxo real da Vellore; ainda não está no modelo.",
+   "descricao": "A PRICETAX valida os documentos e as bases recebidas antes de calcular o cenário.",
    "validacao": "a-validar",
    "filhas": []
   },
@@ -222,7 +221,7 @@ export const CRONOGRAMA_PADRAO = {
    "responsavel": "PRICETAX",
    "origem": "modelo",
    "modeloKey": "numero-geral",
-   "descricao": "Impacto em preço de compra, preço de venda, DRE e caixa. No guia, entra o estudo de fluxo de caixa.",
+   "descricao": "Impacto em preço de compra, preço de venda, DRE e caixa, com o estudo de fluxo de caixa.",
    "validacao": "a-validar",
    "filhas": [
     {
@@ -255,7 +254,7 @@ export const CRONOGRAMA_PADRAO = {
    "responsavel": "PRICETAX",
    "origem": "fluxo-vellore",
    "modeloKey": null,
-   "descricao": "Apresentação do cenário antes do relatório final. Na Vellore são duas (cenário AR e AR e DR); aqui está como uma só, para você decidir.",
+   "descricao": "Apresentação prévia dos cenários ao cliente, antes do relatório final.",
    "validacao": "a-validar",
    "filhas": []
   },
@@ -2308,7 +2307,7 @@ export const CRONOGRAMA_PADRAO = {
    "responsavel": "PRICETAX",
    "origem": "fluxo-vellore",
    "modeloKey": null,
-   "descricao": "Entrega do relatório final e workshop com a diretoria. Existe no fluxo real da Vellore; ainda não está no modelo.",
+   "descricao": "Entrega do relatório final e workshop com a diretoria.",
    "validacao": "a-validar",
    "filhas": []
   },
@@ -2318,7 +2317,7 @@ export const CRONOGRAMA_PADRAO = {
    "responsavel": "Diretoria",
    "origem": "fluxo-vellore",
    "modeloKey": null,
-   "descricao": "Apresentação dos impactos da reforma ao Conselho. Existe no fluxo real da Vellore; é opcional (depende do cliente).",
+   "descricao": "Apresentação dos impactos da reforma ao Conselho, quando o cliente pedir.",
    "validacao": "a-validar",
    "filhas": []
   },
@@ -2331,86 +2330,6 @@ export const CRONOGRAMA_PADRAO = {
    "descricao": "Retrospectiva do ciclo, balanço das pendências aceitas e plano do ano seguinte.",
    "validacao": "a-validar",
    "filhas": []
-  }
- ],
- "pontos": [
-  {
-   "id": "duracao",
-   "tema": "Duração do padrão",
-   "situacao": "O guia é um plano de cerca de 6 meses (out/2026 a mar/2027), pensado para quem já está perto da virada. O modelo atual das empresas novas dura 12 meses (ago/2026 a jul/2027). Qual vale como padrão?",
-   "sugestao": "Manter o ritmo do guia e usar prazos contados a partir do kickoff (D+n), para servir a qualquer empresa, não só às que começam em outubro."
-  },
-  {
-   "id": "fases",
-   "tema": "Fases",
-   "situacao": "O guia tem 5 fases (Mobilização, Desenho e parametrização, Homologação integrada, Virada, Operação assistida). O modelo atual tem 3 (Leitura Real, Mão na Massa por Área, Consolidação).",
-   "sugestao": "Usar as 5 do guia, com o diagnóstico da PRICETAX (kickoff, dados, número geral) dentro da Mobilização."
-  },
-  {
-   "id": "granularidade",
-   "tema": "Quantidade de atividades filhas",
-   "situacao": "Este rascunho traz as 87 ações do guia como filhas. O modelo atual tem 15 atividades e cerca de 55 subatividades, resumindo as mesmas ações.",
-   "sugestao": "Decidir se o padrão é completo (87) ou resumido; a empresa poderia começar no resumido e abrir o completo por área."
-  },
-  {
-   "id": "fluxo-vellore",
-   "tema": "Etapas do fluxo da Vellore",
-   "situacao": "Envio dos dados, Análise e validação documental, Apresentação prévia, Report final e workshop e Reunião do Conselho existem no fluxo real da Vellore, mas não no modelo nem no guia. Entram sem filhas, porque não tenho o detalhe delas. A Vellore tem duas apresentações prévias (cenário AR e AR e DR); aqui está uma só.",
-   "sugestao": "Dizer quais entram no padrão, se são obrigatórias ou opcionais, e quais são as filhas de cada uma."
-  },
-  {
-   "id": "fora-da-fase",
-   "tema": "Prazos fora da janela da fase",
-   "situacao": "14 ações têm prazo fora da janela da fase em que o guia as colocou (FN1, T2, T3, C1, V1, F11, F2, T12, T13, T17, T4, T23, T24, T8). Estão marcadas em cada linha.",
-   "sugestao": "Ajustar o prazo ou a fase de cada uma ao validar."
-  },
-  {
-   "id": "conferir-norma",
-   "tema": "Referências de norma do guia",
-   "situacao": "21 ações trazem datas e referências de norma do guia (NT, homologação, produção): FN7, F18, F13, F2, F8, F17, T16, T17, T4, T19, T20, T5, T7, T10, T18, T6, T23, T24, T8, T25, T22. Não foram conferidas na norma oficial; entram marcadas \"a conferir\".",
-   "sugestao": "Conferir no texto oficial (método IVANA) antes de o padrão ser aplicado a clientes."
-  },
-  {
-   "id": "sugeridos",
-   "tema": "Prazos sugeridos pelo guia",
-   "situacao": "10 ações têm prazo que o próprio guia marca como sugerido, sem norma por trás: F18, F8, T12, T13, T17, T4, T14, T7, T18, T25.",
-   "sugestao": "Confirmar ou ajustar."
-  },
-  {
-   "id": "texto-cliente",
-   "tema": "Textos que descreviam um cliente",
-   "situacao": "Três ações do guia traziam a situação de um cliente (F11, T12, T14). O texto foi limpo para valer para qualquer empresa. Também troquei a sigla \"RAD\" por \"recolhimento pelo adquirente\" e \"ZFM\" por \"Zona Franca de Manaus\", como o modelo atual já faz.",
-   "sugestao": "Conferir se a leitura dos três casos está certa."
-  },
-  {
-   "id": "recorrentes",
-   "tema": "Itens recorrentes",
-   "situacao": "4 ações não têm prazo, e sim frequência (FN7, F10, F15, J3: semanal, por versão, contínuo).",
-   "sugestao": "Decidir se viram atividade recorrente, lembrete ou ficam só como orientação."
-  },
-  {
-   "id": "executor",
-   "tema": "Quem executa",
-   "situacao": "O guia separa quem executa (Cliente, ERP ou PriceTax). O cronograma de hoje tem um responsável por atividade, e o ERP não é uma pessoa da equipe.",
-   "sugestao": "Decidir se \"ERP\" vira um responsável externo ou só um rótulo."
-  },
-  {
-   "id": "vocabulario",
-   "tema": "Vocabulário",
-   "situacao": "O guia usa prioridade Crítica/Alta/Média/Baixa e a área \"Contábil\"; o app usa P1/P2/P3 e \"Controladoria\".",
-   "sugestao": "Escolher um vocabulário e padronizar."
-  },
-  {
-   "id": "aliquota",
-   "tema": "Alíquota da CBS",
-   "situacao": "O resumo do guia cita 9,3% para a CBS. Pelo Parecer 25/2026, o documento de 2027 traz CBS 9,20% e IBS 0,10%. Nenhuma ação deste rascunho cita percentual.",
-   "sugestao": "Manter percentuais fora dos textos do padrão, ou usar o Parecer."
-  },
-  {
-   "id": "aplicar",
-   "tema": "Quando vira padrão de verdade",
-   "situacao": "Este rascunho é só para visualizar. Empresas novas continuam recebendo o modelo de 12 atividades, e a Auditoria compara com ele.",
-   "sugestao": "Depois da sua validação, o padrão aprovado passa a alimentar a empresa nova e a Auditoria."
   }
  ]
 };

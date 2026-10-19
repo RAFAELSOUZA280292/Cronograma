@@ -27,9 +27,9 @@ export function createCompanyAdminActions({
   }
 
   async function createCompany(company) {
-    const { orgId, ...rawBody } = company;
+    const { orgId, kickoffDate, ...rawBody } = company;
     const companyBody = withDefaultOwner(rawBody, orgId);
-    const res = await apiPost(withActingOrg('/api/projects', orgId), { company: companyBody });
+    const res = await apiPost(withActingOrg('/api/projects', orgId), { company: companyBody, kickoffDate });
     const currentOrgId = actingOrg ? actingOrg.id : currentUser.orgId;
     const crossOrg = !!orgId && orgId !== currentOrgId;
     if (!crossOrg) {
