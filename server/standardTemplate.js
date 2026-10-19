@@ -212,7 +212,7 @@ export function instantiateTemplate(t, kickoffISO, opts = {}) {
     subactivities: (a.subactivities || []).map((s) => {
       const fixed = s.anchor === 'virada' || s.anchor === 'fixa';
       const out = { ...s, id: subIds.get(s.id), done: false, date: fixed ? (s.date || '') : shift(s.date) };
-      delete out.compressed; delete out.compressedFrom;
+      delete out.compressed; delete out.compressedFrom; delete out.skipped; delete out.skipReason; delete out.doneAt; delete out.doneBy;
       const limit = s.limit && isoOk(s.limit.date) ? s.limit.date : '';
       if (limit && out.date && out.date > limit) { out.compressedFrom = out.date; out.date = limit; out.compressed = true; }
       if (Array.isArray(s.predecessors)) out.predecessors = s.predecessors.map((id) => subIds.get(id)).filter(Boolean);

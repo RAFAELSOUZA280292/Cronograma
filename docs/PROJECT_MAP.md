@@ -83,6 +83,8 @@ server/routes.js        Rotas REST de auth, users, projects, personal-board, cnp
 server/permissions.js  listAccessibleProjectIds(pool, user, orgId) (Fase 8, 2026-09-11) — reusa canAccessProject linha a linha pra devolver o CONJUNTO de projetos acessíveis (não um booleano por projeto), base do isolamento cross-projeto da Central de Conhecimento — ver PROJECT_CONTEXT.md §39.
 server/xflow.js         Rotas REST do módulo XFlow (team, tickets, events, view) — router próprio montado em /api/xflow.
 server/standardAudit.js  (2026-10-19, §65) Auditoria de uma empresa contra o padrão (função pura, somente leitura): equivalência exata/provável/possível, ausentes, comparativo de datas (absoluto e a partir do kickoff), conteúdo, alertas de coerência, fases e extras. Rota `GET /api/standard-plan/audit/:id` em standardPlanApi.js.
+src/screens/ActivityGauge.jsx  (2026-10-19, §65) Velocímetro da atividade (concluídas, puladas, faltam) no detalhe; números em src/lib/subStats.js.
+src/lib/subStats.js  (2026-10-19, §65) Contagem de subatividades concluídas, puladas e pendentes (pulada = concluída com skipped).
 src/screens/AutoDates.jsx  (2026-10-19, §65) Caixa "Ajustar datas automaticamente" (por empresa e por pessoa) no alto das vistas de atividades; texto "Como funciona".
 src/lib/dateRipple.js  (2026-10-19, §65) Regra pura do ajuste automático de datas (computeRipple/applyFieldChanges/rippleText).
 src/lib/autoDates.js  (2026-10-19, §65) Preferência "ajustar datas automaticamente" no localStorage por empresa (useAutoDates).

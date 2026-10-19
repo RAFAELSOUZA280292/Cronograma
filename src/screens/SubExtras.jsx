@@ -15,7 +15,7 @@ const PRIO_LABEL = { alta: 'P1', media: 'P2', baixa: 'P3' };
 const PRIO_TEXT = { alta: 'P1 · Alta', media: 'P2 · Média', baixa: 'P3 · Baixa' };
 const CONF_TONE = { 'conferido no texto da norma': 'ok', 'fonte secundária': 'warn', 'a verificar': 'bad' };
 
-export const hasExtras = (s) => !!(s.priority || s.executor || (s.areas && s.areas.length) || s.applicability || s.recurrence || s.anchor || (s.limit && (s.limit.date || s.limit.type || s.limit.source)) || (s.predecessors && s.predecessors.length) || s.code || s.compressed || s.dateLocked);
+export const hasExtras = (s) => !!(s.priority || s.executor || (s.areas && s.areas.length) || s.applicability || s.recurrence || s.anchor || (s.limit && (s.limit.date || s.limit.type || s.limit.source)) || (s.predecessors && s.predecessors.length) || s.code || s.compressed || s.dateLocked || s.skipped);
 
 export const SUB_EXTRAS_CSS = `
   .sx { padding:2px 0 0 34px; display:flex; flex-direction:column; gap:6px; max-width:720px; }
@@ -31,6 +31,8 @@ export const SUB_EXTRAS_CSS = `
   .sx-f input, .sx-f select { font-size:12px; padding:5px 7px; border-radius:6px; background:var(--bg-2); border:1px solid var(--border-2); color:var(--text-2); min-width:0; width:100%; box-sizing:border-box; }
   .sx-f input:focus, .sx-f select:focus { outline:none; border-color:#F5C400; }
   .sx-wide { grid-column:1 / -1; }
+  .sx-reason { flex:1 1 180px; min-width:140px; }
+  .sub-row-card .sx-outcome { flex:0 0 104px; width:104px; }
   .sx-hint { font-size:11px; color:var(--text-5); line-height:1.4; }
   .sx-pred { display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
   .sx-pred button { background:none; border:0; padding:0 0 0 2px; color:inherit; cursor:pointer; display:inline-flex; }
@@ -42,6 +44,22 @@ function Field({ label, children, wide }) { return <label className={`sx-f${wide
 function DebouncedInput({ value, onCommit, ...rest }) {
   const f = useDebouncedField(value || '', onCommit);
   return <input type="text" value={f.draft} onChange={(e) => f.onChange(e.target.value)} onBlur={f.flush} {...rest} />;
+}
+
+// Resultado de uma subatividade já marcada como concluída: feita de verdade ou pulada (com o motivo, opcional). Só aparece depois de marcar a caixinha; a caixinha
+// continua igual. Pulada conta como concluída em todo o resto do app; a diferença serve ao velocímetro e à análise de quais atividades funcionam no dia a dia.
+export function SubOutcome({ s, pid, actId, updateSub }) {
+  if (!s.done) return null;
+  const set = (patch) => updateSub(pid, actId, s.id, patch);
+  return (
+    <>
+      <select className="sub-meta-select sx-outcome" value={s.skipped ? 'pulada' : 'feita'} onChange={(e) => set(e.target.value === 'pulada' ? { skipped: true } : { skipped: false, skipReason: '' })} title="Concluída de verdade ou pulada?" aria-label="Resultado da subatividade concluída">
+        <option value="feita">Feita</option>
+        <option value="pulada">Pulada</option>
+      </select>
+      {s.skipped && <DebouncedInput className="sub-meta-select sx-reason" value={s.skipReason || ''} onCommit={(v) => set({ skipReason: v })} placeholder="Por que pulamos? (opcional)" aria-label="Motivo de ter pulado a subatividade" />}
+    </>
+  );
 }
 
 const predTitle = (all, id) => { const x = (all || []).find((o) => o.id === id); return x ? x.title || '(sem título)' : null; };
@@ -68,6 +86,7 @@ export function SubExtras({ s, pid, actId, allSubs, canEdit, updateSub }) {
     <div className="sx">
       {showChips && (
         <div className="sx-chips">
+          {s.done && s.skipped && <span className="sx-chip warn" title={s.skipReason ? `Pulada: ${s.skipReason}` : 'Esta subatividade foi pulada (não foi feita)'}>Pulada</span>}
           {s.code && <span className="sx-chip" title="Código do item no cronograma padrão">{s.code}</span>}
           {s.dateLocked && <span className="sx-chip warn" title="A data não acompanha o ajuste automático de datas"><Lock size={10} aria-hidden="true" /> Data travada</span>}
           {s.priority && <span className="sx-chip" title={PRIO_TEXT[s.priority]} style={{ color: PRIORITY_META[s.priority].color, borderColor: PRIORITY_META[s.priority].border }}>{PRIO_LABEL[s.priority]}</span>}

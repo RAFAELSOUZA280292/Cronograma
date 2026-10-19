@@ -97,7 +97,7 @@ export function createCompanyAdminActions({
       comments: [],
       transcript: '',
       clientDateConfirmed: false,
-      subactivities: (a.subactivities || []).filter((s) => !s.deleted).map((s) => ({ ...s, id: uid('s'), done: false, date: shift(s.date) })),
+      subactivities: (a.subactivities || []).filter((s) => !s.deleted).map((s) => ({ ...s, id: uid('s'), done: false, skipped: false, skipReason: '', doneAt: '', doneBy: '', date: shift(s.date) })),
     }));
 
     const team = source.team.map((m) => ({ ...m, id: uid('team') }));
