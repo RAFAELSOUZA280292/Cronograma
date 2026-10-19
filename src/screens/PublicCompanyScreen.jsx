@@ -10,6 +10,16 @@ const fmt = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : 
 const fmtShort = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : '');
 // Quem responde: PRICETAX, a empresa (qualquer área do cliente) ou os dois ("Todas"). Sem responsável fica sem etiqueta.
 const sideOf = (r) => { const t = String(r || '').trim(); return /pricetax/i.test(t) ? 'pricetax' : /^todas?$/i.test(t) ? 'ambos' : t ? 'empresa' : 'indef'; };
+// Marcos legais da reforma (nacionais, iguais para toda empresa). Cada um traz a fonte; o que não está na norma conferida fica marcado "a confirmar".
+// Conferido em 2026-10-19 no texto da EC 132/2023 (ADCT arts. 125 a 129 e 134) e da LC 214/2025 (art. 378). `link` casa passos do cronograma da empresa com o marco.
+const LEGAL = [
+  { id: 'teste', date: '2026-01-01', until: '2026-12-31', title: 'Ano de teste da reforma (2026)', text: 'CBS a 0,9% e IBS a 0,1%, compensáveis com PIS e COFINS. Quem cumpre as obrigações acessórias pode ser dispensado do recolhimento.', src: 'EC 132/2023, ADCT art. 125', link: null },
+  { id: 'aliq', date: '2026-12-15', title: 'Alíquota de referência da CBS', text: 'Divulgação da alíquota que vale em 2027 (estimativa de trabalho de 9,2% a 9,3%).', src: 'Informado nas reuniões; a confirmar na norma', tentative: true, link: /cartas com o preço esperado|pedido de compra e tabela|congelar o preço/i },
+  { id: 'pis', date: '2026-12-31', title: 'Último dia de PIS e COFINS', text: 'PIS e COFINS acabam com a entrada da CBS. Os créditos que sobrarem continuam válidos se estiverem registrados na escrituração: compensam a CBS ou podem ser ressarcidos.', src: 'EC 132, ADCT art. 126, II; LC 214, art. 378', link: /levantar os saldos credores|registrar o que precisa|EFD Contribuições|aprovar o plano|inventário de pendências/i },
+  { id: 'cbs', date: '2027-01-01', title: 'A CBS passa a valer', text: 'CBS cobrada, PIS e COFINS extintos, IPI com alíquota zero (exceto produtos com industrialização incentivada na Zona Franca de Manaus) e Imposto Seletivo. O IBS começa com 0,05% estadual mais 0,05% municipal em 2027 e 2028, e a CBS é reduzida em 0,1 ponto.', src: 'EC 132, ADCT arts. 126 e 127', link: /prontidão d|ata de prontidão|primeira nota/i },
+  { id: 'icms', date: '2029-01-01', title: 'ICMS e ISS começam a sair', text: 'As alíquotas de ICMS e ISS caem para 9/10 em 2029, 8/10 em 2030, 7/10 em 2031 e 6/10 em 2032, e os benefícios fiscais caem na mesma proporção.', src: 'EC 132, ADCT art. 128', link: /TTD|benefício/i },
+  { id: 'fim', date: '2033-01-01', title: 'ICMS e ISS extintos', text: 'Os saldos credores de ICMS que existirem no fim de 2032 e forem homologados são compensados com o IBS, nos termos de lei complementar.', src: 'EC 132, ADCT arts. 129 e 134', link: null },
+];
 const addDays = (s, n) => new Date(Date.parse(`${s}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
 const mondayOf = (s) => { const d = new Date(`${s}T00:00:00Z`).getUTCDay(); return addDays(s, -((d + 6) % 7)); };
 const DOW = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -57,6 +67,16 @@ const CSS = `
   .pc-side.pricetax { background:#17171f; color:#F5C400; border:1px solid #F5C40088; }
   .pc-side.empresa { background:#3ea6ff; color:#06223d; }
   .pc-side.ambos { background:var(--bg-3); color:var(--text-1); border:1px solid var(--border-3); }
+  .pc-wait .pc-step:first-of-type { border-top:none; }
+  .pc-lg { display:grid; grid-template-columns:104px minmax(0,1fr); gap:6px 16px; padding:14px 0; border-top:1px solid var(--border-1); }
+  .pc-lg:first-of-type { border-top:none; }
+  .pc-lg .dt { font-weight:800; font-variant-numeric:tabular-nums; color:var(--text-1); font-size:15px; }
+  .pc-lg .tt { font-weight:800; font-size:15px; color:var(--text-1); }
+  .pc-lg .tx { color:var(--text-2); font-size:13.5px; line-height:1.55; margin-top:2px; }
+  .pc-src { display:inline-block; font-size:11px; font-weight:700; padding:1px 8px; border-radius:6px; border:1px solid var(--border-3); color:var(--text-4); margin-top:6px; }
+  .pc-src.tent { border-color:#ff9f40; color:#ff9f40; }
+  .pc-link { margin-top:8px; padding:8px 12px; background:var(--bg-3); border-radius:8px; font-size:12.5px; color:var(--text-3); }
+  .pc-link b { color:var(--text-1); }
   .pc-who { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 10px; }
   .pc-wk { margin:14px 0 4px; font-size:12px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--text-4); display:flex; justify-content:space-between; gap:10px; }
   .pc-wk.late { color:#e2574c; }
@@ -71,9 +91,9 @@ const CSS = `
   .pc-g { position:relative; }
   .pc-gr { display:flex; border-top:1px solid var(--border-1); min-height:40px; }
   .pc-gr.ph { background:var(--bg-3); font-weight:800; font-size:12.5px; min-height:34px; }
-  .pc-gl { flex:0 0 250px; position:sticky; left:0; z-index:2; background:inherit; background-color:var(--bg-2); padding:7px 10px; border-right:1px solid var(--border-1); display:flex; align-items:center; gap:6px; font-size:13px; min-width:0; }
+  .pc-gl { flex:0 0 280px; position:sticky; left:0; z-index:2; background:inherit; background-color:var(--bg-2); padding:7px 10px; border-right:1px solid var(--border-1); display:flex; align-items:center; gap:6px; font-size:13px; min-width:0; }
   .pc-gr.ph .pc-gl { background-color:var(--bg-3); }
-  .pc-gl span.t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pc-gl span.t { overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-height:1.3; }
   .pc-gl.sub { padding-left:30px; font-size:12.5px; color:var(--text-3); }
   .pc-gt { position:relative; flex:1 0 auto; }
   .pc-gh { display:flex; }
@@ -90,7 +110,7 @@ const CSS = `
   .pc-tbl tr.a td { font-weight:700; }
   .pc-tbl tr.s td:nth-child(2) { padding-left:30px; color:var(--text-3); }
   .pc-foot { margin:22px 0 8px; font-size:12px; color:var(--text-5); text-align:center; }
-  @media (max-width:767px) { .pc-step { grid-template-columns:64px minmax(0,1fr); } .pc-step .pc-end { grid-column:2; justify-self:start; justify-content:flex-start; } .pc-title { font-size:21px; } .pc-ph { grid-template-columns:100px minmax(0,1fr) 40px; } .pc-gl { flex-basis:170px; } .pc-next { grid-template-columns:1fr; } }
+  @media (max-width:767px) { .pc-lg { grid-template-columns:1fr; } .pc-step { grid-template-columns:64px minmax(0,1fr); } .pc-step .pc-end { grid-column:2; justify-self:start; justify-content:flex-start; } .pc-title { font-size:21px; } .pc-ph { grid-template-columns:100px minmax(0,1fr) 40px; } .pc-gl { flex-basis:170px; } .pc-next { grid-template-columns:1fr; } }
   @media print { .no-print { display:none !important; } .pc-scroll { overflow:visible; } body { background:#fff; } }
 `;
 
@@ -133,7 +153,7 @@ export default function PublicCompanyScreen({ token }) {
     max = Math.max(max, Date.parse(`${today}T00:00:00Z`) + 14 * DAY);
     const weeks = Math.min(80, Math.ceil((max - min) / (7 * DAY)) + 1);
     return {
-      today, acts, phases, done, total: acts.length, pct: acts.length ? Math.round((done / acts.length) * 100) : 0,
+      diasVirada: Math.max(0, Math.round((Date.parse('2027-01-01T00:00:00Z') - Date.parse(`${today}T00:00:00Z`)) / DAY)), today, acts, phases, done, total: acts.length, pct: acts.length ? Math.round((done / acts.length) * 100) : 0,
       doingN: count('em-andamento'), lateN: count('atrasada'), min, weeks,
       doing: acts.filter((a) => a.eff === 'em-andamento'),
       steps: (() => {
@@ -164,6 +184,7 @@ export default function PublicCompanyScreen({ token }) {
 
   const c = state.data.company;
   const companyShort = String(c.name || 'Empresa').toUpperCase().slice(0, 16);
+  const sideLabel = (r) => (sideOf(r) === 'pricetax' ? 'PRICETAX' : sideOf(r) === 'ambos' ? 'Os dois' : companyShort);
   const px = (s) => ((iso(s) - view.min) / DAY / 7) * WEEK_PX;
   const gw = view.weeks * WEEK_PX;
   const weekLabels = Array.from({ length: view.weeks }, (_, i) => { const d = new Date(view.min + i * 7 * DAY).toISOString().slice(0, 10); return fmtShort(d); });
@@ -192,10 +213,11 @@ export default function PublicCompanyScreen({ token }) {
           <div className="pc-kpi"><b style={{ color: '#3ecf6e' }}>{view.done}</b><span>Concluídas</span></div>
           <div className="pc-kpi"><b style={{ color: '#F5C400' }}>{view.doingN}</b><span>Em andamento</span></div>
           <div className="pc-kpi"><b style={{ color: view.lateN ? '#e2574c' : 'var(--text-1)' }}>{view.lateN}</b><span>Atrasadas</span></div>
+          <div className="pc-kpi"><b>{view.diasVirada}</b><span>Dias para a virada (01/01/2027)</span></div>
         </div>
 
         <div className="pc-tabs no-print" role="tablist" aria-label="Visões do acompanhamento">
-          {[['resumo', 'Resumo'], ['gantt', 'Cronograma'], ['tabela', 'Tabela']].map(([id, label]) => (
+          {[['resumo', 'Resumo'], ['gantt', 'Cronograma'], ['tabela', 'Tabela'], ['prazos', 'Prazos legais']].map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={tab === id} className="pc-tab" onClick={() => setTab(id)}>{label}</button>
           ))}
         </div>
@@ -212,6 +234,25 @@ export default function PublicCompanyScreen({ token }) {
                 })}
               </div>
             </div>
+            {(() => {
+              const mine = view.steps.filter((x) => { const sd = sideOf(x.resp); return sd === 'empresa' || sd === 'ambos'; }).slice(0, 6);
+              const total = view.steps.filter((x) => { const sd = sideOf(x.resp); return sd === 'empresa' || sd === 'ambos'; }).length;
+              if (!mine.length) return null;
+              return (
+                <div className="pc-card pc-wait">
+                  <div style={{ fontWeight: 800 }}>Aguardando a {c.name}</div>
+                  <div className="pc-muted">Os próximos passos que dependem do time de vocês, em ordem de data.</div>
+                  {mine.map((x) => (
+                    <div className="pc-step" key={x.id}>
+                      <span className="d">{x.date ? fmtDay(x.date) : '—'}</span>
+                      <div><div className="t">{x.title}</div><div className="pc-muted">{x.parent ? `${x.parent} · ` : ''}{x.resp}</div></div>
+                      <div className="pc-end"><Chip kind={x.eff} /></div>
+                    </div>
+                  ))}
+                  {total > mine.length && <div className="no-print" style={{ marginTop: 10 }}><button type="button" className="pc-btn" onClick={() => { setWho('empresa'); setAllWeeks(false); setTimeout(() => { const el = document.getElementById('pc-cal'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 50); }}>Ver os {total} passos do lado da {c.name}</button></div>}
+                </div>
+              );
+            })()}
             {view.doing.length > 0 && (
               <div className="pc-card">
                 <div style={{ fontWeight: 800, marginBottom: 6 }}>Em andamento agora</div>
@@ -250,7 +291,7 @@ export default function PublicCompanyScreen({ token }) {
               }
               const MAXW = 5; const shownGroups = allWeeks ? groups : groups.slice(0, MAXW + (groups[0] && groups[0].late ? 1 : 0));
               return (
-                <div className="pc-card">
+                <div className="pc-card" id="pc-cal">
                   <div style={{ fontWeight: 800 }}>Calendário dos próximos passos</div>
                   <div className="pc-muted">Cada passo com a data, quem responde e a situação. Os que já passaram da data aparecem primeiro.</div>
                   <div className="pc-who no-print" role="group" aria-label="Filtrar por quem responde">
@@ -288,7 +329,7 @@ export default function PublicCompanyScreen({ token }) {
               <button type="button" className="pc-btn" onClick={() => setOpen(allOpen ? new Set() : new Set(view.acts.filter((a) => a.subs.length).map((a) => a.id)))}>{allOpen ? 'Recolher subatividades' : 'Mostrar todas as subatividades'}</button>
             </div>
             <div className="pc-scroll">
-              <div className="pc-g" style={{ minWidth: 250 + gw }}>
+              <div className="pc-g" style={{ minWidth: 280 + gw }}>
                 <div className="pc-gr" style={{ minHeight: 0 }}><div className="pc-gl" style={{ padding: 0 }} /><div className="pc-gt" style={{ width: gw }}><div className="pc-gh">{weekLabels.map((w, i) => <div key={i}>{w}</div>)}</div></div></div>
                 {view.phases.map((p) => (
                   <React.Fragment key={p.id}>
@@ -336,12 +377,41 @@ export default function PublicCompanyScreen({ token }) {
               <tbody>
                 {view.phases.map((p) => p.list.map((a) => (
                   <React.Fragment key={a.id}>
-                    <tr className="a"><td>{p.name}</td><td>{a.title}</td><td>{a.responsible || '—'}</td><td>{fmt(a.date)}</td><td>{fmt(a.endDate || a.date)}</td><td><Chip kind={a.eff} /></td></tr>
-                    {a.subs.map((x) => <tr className="s" key={x.id}><td /><td>{x.title}</td><td>{x.responsible || '—'}</td><td>{fmt(x.date)}</td><td>{fmt(x.date)}</td><td><Chip kind={x.eff} /></td></tr>)}
+                    <tr className="a"><td>{p.name}</td><td>{a.title}</td><td>{a.responsible || '—'}{sideOf(a.responsible) !== 'indef' && <> <span className={`pc-side ${sideOf(a.responsible)}`}>{sideLabel(a.responsible)}</span></>}</td><td>{fmt(a.date)}</td><td>{fmt(a.endDate || a.date)}</td><td><Chip kind={a.eff} /></td></tr>
+                    {a.subs.map((x) => { const rr = x.responsible || a.responsible; return <tr className="s" key={x.id}><td /><td>{x.title}</td><td>{rr || '—'}{sideOf(rr) !== 'indef' && <> <span className={`pc-side ${sideOf(rr)}`}>{sideLabel(rr)}</span></>}</td><td>{fmt(x.date)}</td><td>{fmt(x.date)}</td><td><Chip kind={x.eff} /></td></tr>; })}
                   </React.Fragment>
                 )))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {tab === 'prazos' && (
+          <div className="pc-card">
+            <div style={{ fontWeight: 800 }}>Prazos legais da reforma e o que o cronograma faz até cada um</div>
+            <div className="pc-muted">Marcos da transição, com a norma de cada um. Abaixo de cada marco, os passos do cronograma da {c.name} que ainda estão pendentes e se ligam a ele.</div>
+            {LEGAL.map((m) => {
+              const past = (m.until || m.date) < view.today;
+              const dias = Math.round((Date.parse(`${m.date}T00:00:00Z`) - Date.parse(`${view.today}T00:00:00Z`)) / DAY);
+              const linked = m.link ? view.steps.filter((x) => m.link.test(x.title)).slice(0, 6) : [];
+              return (
+                <div className="pc-lg" key={m.id}>
+                  <div>
+                    <div className="dt">{m.until ? `${fmt(m.date).slice(6)}` : fmt(m.date)}</div>
+                    <div className="pc-muted">{m.until ? 'ano inteiro' : past ? 'já passou' : dias === 0 ? 'hoje' : `em ${dias} ${dias === 1 ? 'dia' : 'dias'}`}</div>
+                  </div>
+                  <div>
+                    <div className="tt">{m.title}</div>
+                    <div className="tx">{m.text}</div>
+                    <span className={`pc-src${m.tentative ? ' tent' : ''}`}>{m.tentative ? 'A confirmar · ' : 'Norma · '}{m.src}</span>
+                    {linked.length > 0 && (
+                      <div className="pc-link"><b>No cronograma:</b>{linked.map((x) => <div key={x.id}>{x.date ? fmtShort(x.date) : 'sem data'} · {x.title} · {sideLabel(x.resp)}</div>)}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            <div className="pc-muted" style={{ marginTop: 10 }}>Resumo para acompanhamento, não substitui a leitura da norma. Conferido no texto da EC 132/2023 e da LC 214/2025.</div>
           </div>
         )}
 
