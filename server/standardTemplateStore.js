@@ -3,7 +3,7 @@
 // do guia) é criada na primeira vez que a organização usa o padrão. Salvar uma versão nova é sempre uma ação explícita; o rascunho só guarda o que está sendo editado.
 import { pool } from './db.js';
 import {
-  V1_NOTE, V2_NOTE, V2_NOTE_ORIGINAL, buildV1, buildV2, buildV3, countTemplate, diffTemplates, instantiateTemplate, purgeDeleted, sameTemplate, templateFromProject, templateValid,
+  V1_NOTE, V2_NOTE, V2_NOTE_ORIGINAL, buildV1, buildV2, buildV3, buildV4, countTemplate, diffTemplates, instantiateTemplate, purgeDeleted, sameTemplate, templateFromProject, templateValid,
 } from './standardTemplate.js';
 
 export const STD_PLAN_ID = 'std-plan';
@@ -123,12 +123,14 @@ export async function saveVersion(orgId, user, note) {
   });
 }
 
-// Propostas que ainda não são versão (hoje só a v3 de 19/10/2026): contagem para mostrar no histórico e carga no rascunho.
-export const PROPOSALS = { v3: { label: 'Proposta v3', description: 'Cronograma de 8 meses contados da assinatura do contrato, em duas trilhas (diagnóstico PRICETAX e implementação no cliente), com e-mail de boas-vindas no primeiro dia, prioridade, limite da norma e predecessoras. Rascunho para validação; não vira versão até alguém salvar.' } };
-export const listProposals = () => Object.entries(PROPOSALS).map(([key, p]) => ({ key, ...p, counts: countTemplate(buildV3()) }));
+// Propostas que ainda não são versão (v3 e v4 de 19/10/2026): contagem para mostrar no histórico e carga no rascunho.
+export const PROPOSALS = { v3: { label: 'Proposta v3', description: 'Cronograma de 8 meses contados da assinatura do contrato, em duas trilhas (diagnóstico PRICETAX e implementação no cliente), com e-mail de boas-vindas no primeiro dia, prioridade, limite da norma e predecessoras. Rascunho para validação; não vira versão até alguém salvar.' },
+  v4: { label: 'Proposta v4 (modelo ideal)', description: 'Modelo ideal do comitê de reforma tributária em 8 meses: 6 fases e o comitê transversal, entrevistas com todas as áreas, agenda por área (entrevista, oficina de decisão, validação do desenho, teste de aceite, treinamento, prontidão e rotina), reunião mensal com a empresa e um roteiro em cada encontro. Rascunho para validação; não vira versão até alguém salvar.' } };
+const BUILDERS = { v3: buildV3, v4: buildV4 };
+export const listProposals = () => Object.entries(PROPOSALS).map(([key, p]) => ({ key, ...p, counts: countTemplate(BUILDERS[key]()) }));
 export async function loadProposal(orgId, user, key) {
-  if (key !== 'v3') { const e = new Error('Proposta não encontrada.'); e.status = 404; throw e; }
-  const data = buildV3();
+  if (!BUILDERS[key]) { const e = new Error('Proposta não encontrada.'); e.status = 404; throw e; }
+  const data = BUILDERS[key]();
   return withOrgLock(orgId, async (c) => {
     await c.query(
       `INSERT INTO standard_plan_draft (org_id, data, updated_by, updated_by_name, updated_at) VALUES ($1,$2,$3,$4,now())
