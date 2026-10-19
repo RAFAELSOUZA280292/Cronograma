@@ -17,6 +17,8 @@ const DESC_LABEL = { 'padrao-novo': 'Padrão novo', 'padrao-antigo': 'Padrão an
 const DESC_TONE = { 'padrao-novo': 'ok', 'padrao-antigo': 'warn', personalizada: 'info', vazia: 'bad' };
 const SEV_LABEL = { naoConforme: 'Não conforme', atencao: 'Atenção', info: 'Informativo' };
 const SEV_TONE = { naoConforme: 'bad', atencao: 'warn', info: 'info' };
+const kindLabel = (k) => (k === 'nova' ? 'Nova no padrão' : k === 'modelo' ? 'Do modelo' : 'Do padrão');
+const standardText = (st) => (st && st.source === 'versao' ? `versão ${st.label} do cronograma padrão (a atual): ${st.activities} atividades e ${st.subs} subatividades` : 'modelo de 12 atividades mais 3 novas (esta organização ainda não usa o cronograma padrão versionado)');
 const diffText = (n) => (n === null || n === undefined ? '—' : n === 0 ? 'igual' : `${n > 0 ? '+' : '−'}${Math.abs(n)} dia${Math.abs(n) === 1 ? '' : 's'}`);
 
 const CSS = `
@@ -56,6 +58,7 @@ function Chip({ tone, children }) { return <span className={`sa-chip ${tone || '
 function buildText(a) {
   const s = a.summary; const L = [];
   L.push(`AUDITORIA DO PADRÃO — ${a.company.label}`);
+  L.push(`Padrão usado: ${standardText(a.standard)}.`);
   L.push(`Gerada em ${fd(a.today)}. Referência de datas: kickoff da empresa em ${fd(a.reference.kickoffCompany)} (padrão: ${fd(a.reference.kickoffStandard)}); tolerância de ${a.toleranceDays} dias.`);
   L.push('');
   L.push(`Atividades do padrão presentes: ${s.present} de ${s.standardTotal} (${s.exact} exatas, ${s.toConfirm} a confirmar). Ausentes: ${s.missing}. Extras do engajamento: ${s.extras}.`);
@@ -64,9 +67,9 @@ function buildText(a) {
   L.push(`Alertas: ${s.findings.naoConforme} não conforme(s), ${s.findings.atencao} de atenção, ${s.findings.info} informativo(s).`);
   L.push('');
   L.push('ATIVIDADES AUSENTES:'); if (!a.missing.length) L.push('- nenhuma');
-  a.missing.forEach((m) => L.push(`- ${m.title} (${m.kind === 'nova' ? 'nova no padrão' : 'do modelo'}; responsável ${m.responsible}; fase ${m.phase})${m.suggestion ? ` — possível equivalente: ${m.suggestion.title}` : ''}`));
+  a.missing.forEach((m) => L.push(`- ${m.title} (${kindLabel(m.kind).toLowerCase()}; responsável ${m.responsible}; fase ${m.phase})${m.suggestion ? ` — possível equivalente: ${m.suggestion.title}` : ''}`));
   L.push(''); L.push('COMPARATIVO DE DATAS (diferença em relação ao padrão deslocado para o kickoff da empresa):');
-  a.matches.forEach((m) => L.push(`- ${m.title} ↔ ${m.activity.title}: padrão ${fd(m.dates.std)} → a partir do kickoff ${fd(m.dates.stdRel)}; empresa ${fd(m.dates.company)}; ${DATE_LABEL[m.dates.status]} (${diffText(m.dates.diffRel)})`));
+  a.matches.forEach((m) => L.push(`- ${m.title} ↔ ${m.activity.title}: padrão ${fd(m.dates.std)} → ${m.dates.basis === 'data fixa' ? 'data fixa' : 'a partir do kickoff'} ${fd(m.dates.stdRel)}; empresa ${fd(m.dates.company)}; ${DATE_LABEL[m.dates.status]} (${diffText(m.dates.diffRel)})`));
   L.push(''); L.push('EQUIVALÊNCIAS A CONFIRMAR:'); const tc = a.matches.filter((m) => m.level === 'provavel'); if (!tc.length) L.push('- nenhuma');
   tc.forEach((m) => L.push(`- padrão "${m.title}" ↔ empresa "${m.activity.title}" (${m.why})`));
   L.push(''); L.push('ALERTAS:'); if (!a.findings.length) L.push('- nenhum');
@@ -82,11 +85,11 @@ async function downloadXlsx(a) {
   const s = a.summary;
   const wb = X.utils.book_new();
   const add = (name, rows) => X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(rows), name);
-  add('Resumo', [['Auditoria do padrão', a.company.label], ['Gerada em', fd(a.today)], ['Kickoff da empresa', fd(a.reference.kickoffCompany)], ['Kickoff do padrão', fd(a.reference.kickoffStandard)],
+  add('Resumo', [['Auditoria do padrão', a.company.label], ['Padrão usado', standardText(a.standard)], ['Gerada em', fd(a.today)], ['Kickoff da empresa', fd(a.reference.kickoffCompany)], ['Kickoff do padrão', fd(a.reference.kickoffStandard)],
     ['Atividades do padrão presentes', `${s.present} de ${s.standardTotal}`], ['Ausentes', s.missing], ['A confirmar', s.toConfirm], ['Extras', s.extras],
     ['Datas no prazo', s.dates.onTime], ['Datas depois do padrão', s.dates.after], ['Datas antes do padrão', s.dates.before], ['Sem data', s.dates.noDate],
     ['Subatividades do padrão', `${s.subs.present} de ${s.subs.expected}`], ['Fases', s.phasesStatus], ['Alertas não conformes', s.findings.naoConforme], ['Alertas de atenção', s.findings.atencao]]);
-  add('Ausentes', [['Atividade do padrão', 'Tipo', 'Responsável', 'Fase', 'Subatividades', 'Possível equivalente'], ...a.missing.map((m) => [m.title, m.kind === 'nova' ? 'Nova no padrão' : 'Do modelo', m.responsible, m.phase, m.subs.length, m.suggestion ? m.suggestion.title : ''])]);
+  add('Ausentes', [['Atividade do padrão', 'Tipo', 'Responsável', 'Fase', 'Subatividades', 'Possível equivalente'], ...a.missing.map((m) => [m.title, kindLabel(m.kind), m.responsible, m.phase, m.subs.length, m.suggestion ? m.suggestion.title : ''])]);
   add('Datas', [['Atividade do padrão', 'Atividade da empresa', 'Equivalência', 'Padrão (absoluto)', 'Padrão a partir do kickoff da empresa', 'Empresa (início)', 'Empresa (fim)', 'Diferença (dias)', 'Situação'],
     ...a.matches.map((m) => [m.title, m.activity.title, m.level === 'exato' ? 'Exata' : 'A confirmar', fd(m.dates.std), fd(m.dates.stdRel), fd(m.dates.company), fd(m.dates.companyEnd), m.dates.diffRel ?? '', DATE_LABEL[m.dates.status]])]);
   add('Conteúdo', [['Atividade do padrão', 'Atividade da empresa', 'Descrição', 'Subatividades presentes', 'Subatividades esperadas', 'Faltando'],
@@ -131,7 +134,7 @@ export default function StandardAuditModal({ projectId, companyLabel, onClose, o
             <div className="sa-tile"><b>{s.extras}</b><span>extras do engajamento (fora do padrão)</span></div>
           </div>
           <div className="sa-note">
-            Padrão usado: modelo de {s.standardTotal} atividades ({plural(s.standardTotal - 3, 'do modelo', 'do modelo')} + 3 novas). Datas comparadas a partir do kickoff: kickoff da empresa em <b>{fd(audit.reference.kickoffCompany)}</b> ({audit.reference.basedOn === 'kickoff' ? 'atividade equivalente ao Kickoff' : 'data mais antiga, pois não há Kickoff equivalente'}); no padrão, em {fd(audit.reference.kickoffStandard)}. Tolerância de {audit.toleranceDays} dias. Esta tela só lê: nada é alterado.
+            Padrão usado: {standardText(audit.standard)}. Atividades que andam com o kickoff são comparadas a partir dele; as de data fixa, em data absoluta. Referência do kickoff: kickoff da empresa em <b>{fd(audit.reference.kickoffCompany)}</b> ({audit.reference.basedOn === 'kickoff' ? 'atividade equivalente ao Kickoff' : 'data mais antiga, pois não há Kickoff equivalente'}); no padrão, em {fd(audit.reference.kickoffStandard)}. Tolerância de {audit.toleranceDays} dias. Esta tela só lê: nada é alterado.
           </div>
 
           <section>
@@ -140,7 +143,7 @@ export default function StandardAuditModal({ projectId, companyLabel, onClose, o
               <div className="sa-list">
                 {audit.missing.map((m) => (
                   <div key={m.key} className="sa-card">
-                    <div className="sa-card-top"><span className="sa-title">{m.title}</span><Chip tone={m.kind === 'nova' ? 'info' : 'warn'}>{m.kind === 'nova' ? 'Nova no padrão' : 'Do modelo'}</Chip><Chip>{m.responsible}</Chip><Chip>{m.phase}</Chip></div>
+                    <div className="sa-card-top"><span className="sa-title">{m.title}</span><Chip tone={m.kind === 'modelo' ? 'warn' : 'info'}>{kindLabel(m.kind)}</Chip><Chip>{m.responsible}</Chip><Chip>{m.phase}</Chip></div>
                     <div className="sa-sub">{m.desc}</div>
                     <div className="sa-sub">{plural(m.subs.length, 'subatividade', 'subatividades')} no padrão{m.stdDate ? ` · data no padrão: ${fd(m.stdDate)}` : ' · sem data no padrão (o time define)'}</div>
                     {m.suggestion && <div className="sa-sub">Possível equivalente: <button type="button" className="sa-link" onClick={() => open(m.suggestion.activityId)}>{m.suggestion.title}</button> (só o título lembra; confirme)</div>}
@@ -161,7 +164,7 @@ export default function StandardAuditModal({ projectId, companyLabel, onClose, o
                       <td><b>{m.title}</b></td>
                       <td><button type="button" className="sa-link" onClick={() => open(m.activity.id)}>{m.activity.title}</button>{m.level === 'provavel' && <> <Chip tone="warn">a confirmar</Chip></>}</td>
                       <td className="sa-num">{fd(m.dates.std)}{m.dates.stdEnd && m.dates.stdEnd !== m.dates.std ? ` → ${fd(m.dates.stdEnd)}` : ''}</td>
-                      <td className="sa-num">{fd(m.dates.stdRel)}</td>
+                      <td className="sa-num">{fd(m.dates.stdRel)}{m.dates.basis === 'data fixa' ? <span className="sa-sub"> (data fixa)</span> : null}</td>
                       <td className="sa-num">{fd(m.dates.company)}{m.dates.companyEnd && m.dates.companyEnd !== m.dates.company ? ` → ${fd(m.dates.companyEnd)}` : ''}</td>
                       <td className="sa-num">{diffText(m.dates.diffRel)}</td>
                       <td><Chip tone={DATE_TONE[m.dates.status]}>{DATE_LABEL[m.dates.status]}</Chip></td>

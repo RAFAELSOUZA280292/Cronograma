@@ -19,7 +19,7 @@ Criado em 2026-10-19, a pedido do Rafael ("usando tudo que já conhecemos, remov
 2. **Campos novos no app (FEITO em 2026-10-19; ver PROJECT_CONTEXT §65)** por subatividade: prioridade, limite (data, tipo, fonte, conferido em), predecessoras, executor, áreas, aplicabilidade, recorrência. Sem isso não dá para carregar o rascunho no editor sem perder informação.
 3. **Carga da v3 no editor (FEITA em 2026-10-19):** cartão "Proposta v3" em Versões, Carregar no rascunho. **Criação da empresa (FEITA em 2026-10-19: âncoras, regra do limite, avisos e prévia no cadastro):** âncoras (kickoff e virada), regra B (limite manda, "comprimido"), aviso das atividades já vencidas ao nascer (T16 e F16 já passaram).
 4. Salvar como **3.0** (só quando o Rafael mandar).
-5. Trocar a base da **Auditoria** e da aba **Padrão** pela versão atual do banco (hoje comparam com o modelo antigo).
+5. **Auditoria** usando a versão atual do banco (FEITA em 2026-10-19; a aba **Padrão** da Visão Geral ainda compara com o modelo antigo).
 6. "Aplicar às empresas existentes" pela aba Padrão.
 
 ## Pendências de conferência
