@@ -83,6 +83,7 @@ server/routes.js        Rotas REST de auth, users, projects, personal-board, cnp
 server/permissions.js  listAccessibleProjectIds(pool, user, orgId) (Fase 8, 2026-09-11) — reusa canAccessProject linha a linha pra devolver o CONJUNTO de projetos acessíveis (não um booleano por projeto), base do isolamento cross-projeto da Central de Conhecimento — ver PROJECT_CONTEXT.md §39.
 server/xflow.js         Rotas REST do módulo XFlow (team, tickets, events, view) — router próprio montado em /api/xflow.
 server/standardAudit.js  (2026-10-19, §65) Auditoria de uma empresa contra o padrão (função pura, somente leitura): equivalência exata/provável/possível, ausentes, comparativo de datas (absoluto e a partir do kickoff), conteúdo, alertas de coerência, fases e extras. Rota `GET /api/standard-plan/audit/:id` em standardPlanApi.js.
+src/macro/StandardPlanView.jsx  (2026-10-19, §65) Modal "Ver cronograma padrão" (botão no seletor de empresas, só equipe): proposta 0.1 fases → atividades principais → filhas, 3 visões, busca, copiar, Excel; lê shared/cronogramaPadrao.js.
 src/macro/StandardAudit.jsx  (2026-10-19, §65) Modal "Auditoria do padrão" (botão "Auditoria" no cabeçalho da empresa): relatório, copiar texto, baixar Excel.
 server/push.js  (2026-10-17, §65) Notificações push (Web Push/VAPID): rotas `/api/push/*`, envio por `createNotification`, lista de serviços aceitos (SSRF), limpeza em 404/410. Desligado sem `VAPID_*`.
 server/notifications.js    Central de Notificações (2026-08) — createNotification()/rowToNotification(), usado por xflow.js e routes.js.
@@ -109,6 +110,7 @@ server/memoryIngest.js    Assistente Inteligente de Projetos — chunking/indexa
 server/memoryRetrieval.js  Assistente Inteligente de Projetos — busca HÍBRIDA sobre `project_memory_chunks`: lexical (full-text search + unaccent, com fallback OR — §30) + semântica (embeddings via server/embeddings.js, Fase 3, 2026-09-10 — §31), combinadas por id de chunk; filtro por participante/reunião/data/tipo comum às duas; getMeetingTranscriptChunks() busca a transcrição inteira de uma reunião sem ranking, pra explicar contexto de atividade — ver PROJECT_CONTEXT.md §27/§30/§31.
 server/embeddings.js  Embeddings via Voyage AI (`voyage-3`, REST puro via fetch, sem SDK) pra busca semântica da RENATA — voyageConfigured()/embedTexts(texts, inputType)/cosineSimilarity() (Fase 3, 2026-09-10) — ver PROJECT_CONTEXT.md §31.
 server/scripts/reindexAllMeetings.js  Backfill manual da memória do projeto pra reuniões já existentes (2026-09) — ver PROJECT_CONTEXT.md §27.
+shared/cronogramaPadrao.js  (2026-10-19, §65) CRONOGRAMA_PADRAO: proposta 0.1 do cronograma padrão (5 fases, 20 principais, 87 filhas do guia, 13 pontos para validar) — dado puro, rascunho, ainda NÃO alimenta empresas novas nem a Auditoria.
 shared/transcriptParser.js  Funções puras de parsing de transcrição (parseTranscript/sliceEntriesByTopics/splitDecisionLines, 2026-09) — sem dependência de React/Express, usadas tanto por src/meetings/meetingUtils.js quanto por server/memoryIngest.js.
 server/assistantRetrieval.js  Assistente Inteligente de Projetos — pipeline de 2 chamadas à IA (resolveQuery/synthesizeAnswer/askProjectAssistant), citações validadas contra os chunks recuperados; ProposedActionSchema com 8 tipos de ação (6 da Fase 4 + save_knowledge_fact da Fase 7 + flag_knowledge_conflict de 2026-09-12, campos knowledgeType/validFrom/scope de 3 valores desde a Fase 7.1, entityMentions desde a Fase 8, conflictingContent desde 2026-09-12) e contexto de Agenda (getConnectionStatus/listEvents); SynthesizeAnswerSchema resposta ESTRUTURADA (introduction/sections/insights, Fase 5) + citedFactIds (Fase 8, mesmo padrão de citedChunkIds) + flattenStructuredAnswer(); resolveQuery em claude-sonnet-5 + cache_control nos dois system prompts (Fase 6); askProjectAssistant integra cache semântico de Q&A (lookupCachedAnswer/saveCachedAnswer, com dependency_meeting_ids/dependency_fact_ids desde a Fase 7.1, citedFactIds desde a Fase 8) e CONHECIMENTO ACUMULADO (loadRelevantFacts, substitui o antigo ai_project_insights/learnedFact — Fase 7); grava cited_fact_ids/from_cache em ai_messages (Fase 8); logMetric nos pontos de question_asked/cache_hit/cache_miss/cache_rejected_stale/fact_proposed/conflict_flagged_from_answer (Fase 7.1 + 2026-09-12); decideProposedAction aceita `overrides` (Fase 7.1, o usuário escolhe o escopo final antes de confirmar) pra save_knowledge_fact E flag_knowledge_conflict. 2026-09-13: askProjectAssistant ganha parâmetro opcional `trace` (Eval Harness, server/evals/) — aditivo, populado com resolveQuery/chunks/fatos/synthesizeAnswer/latências quando passado, nunca influencia o pipeline, nunca usado por server/assistant.js. 2026-09-14 (auditoria de Prompt Cache): cache_control dos 2 system prompts ganha `ttl:'1h'`; a frase condicional de googleConnected saiu do bloco cacheado de synthesizeAnswer e virou linha dinâmica em `messages`; novo logAnthropicUsage() loga evento `anthropic_api_call` (feature/model/cacheReadTokens/cacheCreationTokens) por chamada; ai_messages ganha prompt_cache_read_tokens/prompt_cache_creation_tokens — ver PROJECT_CONTEXT.md §27/§32/§34/§35/§37/§38/§39/§40/§41/§42.
 server/knowledgeFacts.js  Memória de conhecimento em camadas da RENATA (Fase 7, 2026-09-11) — findSimilarFact (antigo findConflictingFact)/saveKnowledgeFact (detecção de conflito por embedding do CONTEÚDO do fato, não do assunto — ver §37 por quê)/loadRelevantFacts (retorna {text, factIds} desde a Fase 7.1). Fase 7.1: classifyRelation — 4 categorias (duplicate/update/conflict/complement, ver §38) substitui a lógica binária duplicata/conflito da Fase 7; saveKnowledgeFact preenche superseded_by/valid_until de verdade numa atualização temporal; loadRelevantFacts ganha filtro por conversa (scope='conversation'). Fase 8: saveKnowledgeFact grava conflicts_with nos dois lados de um conflito, source_meeting_id, chama linkFactEntities (server/knowledgeEntities.js) e corrige project_id pra scope='conversation'; findSimilarFact/loadRelevantFacts filtram valid_until vencido; DUPLICATE_SIMILARITY_THRESHOLD/CONFLICT_SIMILARITY_THRESHOLD exportados. 2026-09-12: saveConflictPair (novo) — registra um conflito que a própria RENATA detectou entre duas fontes já existentes (não o usuário ensinando um fato), grava as duas linhas já `disputed`+`conflicts_with` cruzado direto, sem passar por classifyRelation. 2026-09-13: classifyRelation exportado (mesmo corpo, zero mudança de comportamento) pra teste unitário determinístico no Eval Harness (server/evals/runUnitEval.mjs) — ver PROJECT_CONTEXT.md §37/§38/§39/§40/§41.
@@ -248,24 +250,24 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 3133 | `SidePanel` | Painel lateral genérico (Log, Lixeira, Menções) |
 | 3156 | `NotificationBell` | Central de Notificações (2026-08) — componente compartilhado, usado nas 3 telas (Empresas em App(), Gestão de Atividades em PersonalBoardScreen, XFlow em XflowScreen) via o mesmo estado/lista levantados em App(), pra contador e li |
 
-**`src/screens/AdminScreens.jsx`** (1499 linhas)
+**`src/screens/AdminScreens.jsx`** (1515 linhas)
 
 | Linha | Componente | Responsabilidade |
 |---|---|---|
-| 33 | `isExpiredNotYetFlagged` | Usuário com acesso expirado ainda não sinalizado |
-| 37 | `projectProgress` | % de conclusão de um projeto |
-| 44 | `projectNextActivity` | Próxima atividade de um projeto |
-| 53 | `UserPasswordReset` | Modal de reset de senha de um usuário (master) |
-| 69 | `SuperAdminScreen` | Tela "Organizações (Super Admin)": lista, cria e entra numa organização |
-| 163 | `fmtAccessPlace` | Texto do local de um acesso (cidade/UF/país) — §67 |
-| 173 | `UserAccessHistory` | Gaveta com o histórico de acessos de um usuário — §67 |
-| 207 | `UsersManagementScreen` | Painel admin de usuários (master) |
-| 481 | `NewUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
-| 589 | `EditUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
-| 732 | `MyProfileModal` | Avatar do usuário logado + seção "Trocar senha" (2026-08, `POST /api/auth/change-password`) |
-| 895 | `AvatarPicker` | Seletor de avatar (`AVATAR_EMOJIS`) |
-| 913 | `EditCompanyModal` | Edição de empresa já criada |
-| 1094 | `CompanySelectorScreen` | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, filtros por Tipo/Status/Regime (2026-08), atalho p/ Gestão de Atividades |
+| 36 | `isExpiredNotYetFlagged` | Usuário com acesso expirado ainda não sinalizado |
+| 40 | `projectProgress` | % de conclusão de um projeto |
+| 47 | `projectNextActivity` | Próxima atividade de um projeto |
+| 56 | `UserPasswordReset` | Modal de reset de senha de um usuário (master) |
+| 72 | `SuperAdminScreen` | Tela "Organizações (Super Admin)": lista, cria e entra numa organização |
+| 166 | `fmtAccessPlace` | Texto do local de um acesso (cidade/UF/país) — §67 |
+| 176 | `UserAccessHistory` | Gaveta com o histórico de acessos de um usuário — §67 |
+| 210 | `UsersManagementScreen` | Painel admin de usuários (master) |
+| 484 | `NewUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| 592 | `EditUserModal` | Criar/editar usuário — `NewUserModal` tem seletor "Organização (base)" visível só pra `isSuperAdmin` (2026-08, Fase 3) |
+| 735 | `MyProfileModal` | Avatar do usuário logado + seção "Trocar senha" (2026-08, `POST /api/auth/change-password`) |
+| 898 | `AvatarPicker` | Seletor de avatar (`AVATAR_EMOJIS`) |
+| 916 | `EditCompanyModal` | Edição de empresa já criada |
+| 1097 | `CompanySelectorScreen` | Tela "Quais empresas você quer acompanhar" — busca, seleção múltipla, filtros por Tipo/Status/Regime (2026-08), atalho p/ Gestão de Atividades |
 
 **`src/screens/PersonalBoard.jsx`** (2234 linhas)
 
