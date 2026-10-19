@@ -8,7 +8,7 @@ import { pool, blankProject } from './db.js';
 import { canAccessProject, effectiveOrgId } from './routes.js';
 import { planForProject, applyPlanToData } from './standardPlan.js';
 import { auditProject } from './standardAudit.js';
-import { isISODate } from './standardTemplate.js';
+import { countTemplate, isISODate } from './standardTemplate.js';
 import { STD_PLAN_ID, discardDraft, draftDiff, getDraft, listProposals, listVersions, loadProposal, previewInstantiate, restoreVersion, saveDraft, saveVersion } from './standardTemplateStore.js';
 
 export const router = Router();
@@ -47,7 +47,13 @@ router.get('/audit/:id', async (req, res, next) => {
     const row = rows.find((r) => r.id === req.params.id);
     if (!row) return res.status(404).json({ message: 'Empresa não encontrada ou sem acesso.' });
     const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(new Date());
-    res.json({ audit: { id: row.id, ...auditProject(row.data || {}, blankProject(), { today }) } });
+    // O padrão é a versão ATUAL (a mais recente) do cronograma padrão da organização da empresa. Organização que nunca abriu o padrão versionado segue sendo
+    // comparada com o modelo de sempre (não cria a semente só por auditar).
+    const { rows: vers } = await pool.query('SELECT version, data, created_by_name, created_at FROM standard_plan_versions WHERE org_id=$1 ORDER BY version DESC', [row.org_id]);
+    if (!vers.length) return res.json({ audit: { id: row.id, ...auditProject(row.data || {}, blankProject(), { today, standardInfo: { source: 'modelo' } }) } });
+    const cur = vers[0]; const c = countTemplate(cur.data);
+    const info = { source: 'versao', version: cur.version, label: `${cur.version}.0`, createdAt: cur.created_at, createdBy: cur.created_by_name || 'Sistema', activities: c.activities, subs: c.subs };
+    res.json({ audit: { id: row.id, ...auditProject(row.data || {}, cur.data, { today, fromVersion: true, previous: vers.slice(1).map((v) => v.data), standardInfo: info }) } });
   } catch (e) { next(e); }
 });
 

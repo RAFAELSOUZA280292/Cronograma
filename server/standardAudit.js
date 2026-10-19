@@ -27,12 +27,31 @@ function buildStandard(std) {
   return out;
 }
 
+// Padrão a partir de uma versão do cronograma padrão (2026-10-19): cada atividade da versão é uma atividade do padrão; as subatividades vêm da versão.
+// `anchor`: 'fixa' quando a maioria das subatividades tem data absoluta (virada ou fixa): essas se comparam em data absoluta; as demais, a partir do kickoff.
+// `previous`: dados das versões anteriores, só para reconhecer a descrição antiga do padrão ("padrão antigo, atualizável").
+function buildStandardFromVersion(ver, previous) {
+  const phaseName = (id) => arr(ver && ver.phases).find((p) => p.id === id)?.name || '';
+  const olds = new Map();
+  for (const pv of arr(previous)) for (const a of live(pv && pv.activities)) { const k = norm(a.title); if (k && a.desc) olds.set(k, [...(olds.get(k) || []), a.desc]); }
+  return live(ver && ver.activities).map((a) => {
+    const subs = live(a.subactivities);
+    const abs = subs.filter((x) => x.anchor === 'virada' || x.anchor === 'fixa').length;
+    return {
+      key: a.stdKey || a.id, title: a.title, kind: 'padrao', oldDesc: '', oldDescs: (olds.get(norm(a.title)) || []).filter((d) => norm(d) !== norm(a.desc)), newDesc: a.desc || '',
+      subs: subs.map((x) => ({ k: x.id, t: x.title, code: x.code || '' })), date: a.date || '', endDate: a.endDate || a.date || '', responsible: a.responsible || '', phase: phaseName(a.phase), aliases: [],
+      anchor: subs.length && abs * 2 > subs.length ? 'fixa' : 'kickoff',
+    };
+  });
+}
+const versionSubPresent = (activity, spec) => { const t = tokens(spec.t); return (activity.subactivities || []).some((x) => x && ((spec.code && x.code === spec.code) || x.stdId === spec.k || norm(x.title) === norm(spec.t) || jaccard(t, tokens(x.title)) >= 0.6)); };
+
 const subset = (x, y) => x.size > 0 && [...x].every((t) => y.has(t));
 
 function candidate(S, a) {
   if ((a.stdKey && a.stdKey === S.key) || norm(a.title) === norm(S.title)) return { level: 3, why: 'título igual ao do padrão' };
   const st = tokens(S.title); const at = tokens(a.title);
-  const descSim = Math.max(0, ...[S.oldDesc, S.newDesc].filter(Boolean).map((d) => jaccard(tokens(d), tokens(a.desc))));
+  const descSim = Math.max(0, ...[S.oldDesc, S.newDesc, ...(S.oldDescs || [])].filter(Boolean).map((d) => jaccard(tokens(d), tokens(a.desc))));
   let r = null;
   if (at.size && (subset(st, at) || subset(at, st))) r = { level: 2, why: 'título parecido com o do padrão' };
   else if (descSim >= 0.8) r = { level: 2, why: 'descrição igual à do padrão' };
@@ -43,7 +62,8 @@ function candidate(S, a) {
 
 export function auditProject(data, standardData, opts = {}) {
   const todayN = dayNum(opts.today) ?? dayNum(new Date().toISOString().slice(0, 10));
-  const std = buildStandard(standardData);
+  const fromVersion = !!opts.fromVersion;
+  const std = fromVersion ? buildStandardFromVersion(standardData, opts.previous) : buildStandard(standardData);
   const acts = live(data.activities);
   const label = (data.company && (data.company.nomeFantasia || data.company.name)) || 'Empresa';
 
@@ -62,12 +82,13 @@ export function auditProject(data, standardData, opts = {}) {
   }
 
   // referência de datas: kickoff da empresa (se casou e tem data) senão a data mais antiga
-  const stdKick = std.find((s) => s.key === 'kickoff');
-  const kickMatch = matchBy.get('kickoff');
+  // Referência de datas: no modelo antigo, a atividade 'kickoff'; numa versão, a atividade do padrão que anda com o kickoff e tem a data mais cedo.
+  const stdKick = fromVersion ? std.filter((x) => x.anchor !== 'fixa' && x.date).sort((x, y) => x.date.localeCompare(y.date))[0] : std.find((s) => s.key === 'kickoff');
+  const kickMatch = stdKick ? matchBy.get(stdKick.key) : null;
   const datedAll = acts.map((a) => dayNum(a.date)).filter((n) => n !== null);
   const earliest = datedAll.length ? Math.min(...datedAll) : null;
   const kickN = kickMatch && dayNum(kickMatch.a.date) !== null ? dayNum(kickMatch.a.date) : earliest;
-  const stdKickN = dayNum(stdKick && stdKick.date);
+  const stdKickN = dayNum(stdKick && stdKick.date) ?? (fromVersion ? dayNum(standardData && standardData.kickoffDate) : null);
 
   const matches = []; const missing = [];
   for (const S of std) {
@@ -84,18 +105,19 @@ export function auditProject(data, standardData, opts = {}) {
     let dates;
     if (!S.date) dates = { status: aN === null ? 'sem-data' : 'padrao-sem-data', company: a.date || '', companyEnd: a.endDate || a.date || '', std: '', stdRel: '', diffRel: null, diffAbs: null };
     else {
-      const stdRelN = kickN !== null && stdKickN !== null && sN !== null ? kickN + (sN - stdKickN) : null;
+      const absolute = S.anchor === 'fixa';
+      const stdRelN = absolute ? sN : (kickN !== null && stdKickN !== null && sN !== null ? kickN + (sN - stdKickN) : null);
       const diffRel = aN !== null && stdRelN !== null ? aN - stdRelN : null;
       const diffAbs = aN !== null && sN !== null ? aN - sN : null;
       const status = aN === null ? 'sem-data' : diffRel === null ? 'sem-referencia' : Math.abs(diffRel) <= TOL_DAYS ? 'no-prazo' : diffRel > 0 ? 'depois' : 'antes';
-      dates = { status, company: a.date || '', companyEnd: a.endDate || a.date || '', std: S.date, stdEnd: S.endDate, stdRel: stdRelN !== null ? toIso(stdRelN) : '', diffRel, diffAbs };
+      dates = { status, company: a.date || '', companyEnd: a.endDate || a.date || '', std: S.date, stdEnd: S.endDate, stdRel: stdRelN !== null ? toIso(stdRelN) : '', diffRel, diffAbs, basis: absolute ? 'data fixa' : 'kickoff' };
     }
     // descrição
     const d = norm(a.desc);
-    const desc = !d ? 'vazia' : (S.newDesc && d === norm(S.newDesc)) ? 'padrao-novo' : (S.oldDesc && d === norm(S.oldDesc)) ? 'padrao-antigo' : 'personalizada';
+    const desc = !d ? 'vazia' : (S.newDesc && d === norm(S.newDesc)) ? 'padrao-novo' : ((S.oldDesc && d === norm(S.oldDesc)) || (S.oldDescs || []).some((o) => norm(o) === d)) ? 'padrao-antigo' : 'personalizada';
     // subatividades
     const subsLive = live(a.subactivities);
-    const missingSubs = S.subs.filter((s) => !hasSub({ subactivities: subsLive }, s)).map((s) => s.t);
+    const missingSubs = S.subs.filter((s) => !(fromVersion ? versionSubPresent : hasSub)({ subactivities: subsLive }, s)).map((s) => s.t);
     matches.push({
       key: S.key, title: S.title, kind: S.kind, level: p.level === 3 ? 'exato' : 'provavel', why: p.why,
       activity: { id: a.id, title: a.title, status: a.status || '', responsible: a.responsible || '', phase: (arr(data.phases).find((x) => x && x.id === a.phase) || {}).name || '', subsTotal: subsLive.length, subsDone: subsLive.filter((x) => x.done).length },
@@ -113,24 +135,36 @@ export function auditProject(data, standardData, opts = {}) {
   for (const a of acts) { const k = norm(a.title); if (!k) continue; byTitle.set(k, [...(byTitle.get(k) || []), a]); }
   for (const [, list] of byTitle) if (list.length > 1) for (const a of list) add('naoConforme', 'duplicada', 'Título repetido', `Há ${list.length} atividades com o título "${a.title}". Se são etapas diferentes, renomeie; se é repetição, exclua uma.`, a);
   const spread = earliest === null ? null : earliest + MAX_SPREAD_DAYS;
+  // Numa versão do padrão, atividade com intervalo longo ou data distante PREVISTOS no próprio padrão (split em 2028, revisão anual) não é erro de digitação.
+  const stdOf = new Map([...matchBy.values()].map((p) => [p.a.id, p.S]));
+  const stdDates = std.map((x) => dayNum(x.date)).filter((n) => n !== null);
+  const stdEarliest = stdDates.length ? Math.min(...stdDates) : null;
+  const stdLong = (a) => { const S = fromVersion ? stdOf.get(a.id) : null; if (!S) return false; const sa = dayNum(S.date); const se = dayNum(S.endDate); return sa !== null && se !== null && se - sa > MAX_SPAN_DAYS; };
+  const stdFar = (a) => { const S = fromVersion ? stdOf.get(a.id) : null; if (!S || stdEarliest === null) return false; const se = dayNum(S.endDate || S.date); return se !== null && se > stdEarliest + MAX_SPREAD_DAYS; };
+  const subById = new Map(acts.flatMap((x) => live(x.subactivities).map((y) => [y.id, y])));
   const teamNames = new Set(arr(data.team).map((t) => norm(typeof t === 'string' ? t : t && t.name)).filter(Boolean));
   for (const a of acts) {
     if (norm(a.title).replace(/[^a-z0-9]/g, '').length < 3) add('naoConforme', 'titulo-vazio', 'Título sem sentido', `O título "${a.title || ''}" parece um resto de edição. Renomeie ou exclua.`, a);
     const s = dayNum(a.date); const e = dayNum(a.endDate);
     if (s === null) add('atencao', 'sem-prazo', 'Sem prazo', 'A atividade não tem data.', a);
     if (s !== null && e !== null && e < s) add('naoConforme', 'fim-antes-inicio', 'Fim antes do início', `Início ${a.date} e fim ${a.endDate}.`, a);
-    if (s !== null && e !== null && e >= s && e - s > MAX_SPAN_DAYS) add('atencao', 'duracao-longa', 'Duração muito longa', `De ${a.date} a ${a.endDate} são ${e - s} dias. Confira o ano do fim.`, a);
-    for (const [n, iso] of [[s, a.date], [e, a.endDate]]) if (n !== null && spread !== null && n > spread) { add('atencao', 'ano-fora', 'Data muito distante das demais', `${iso} fica mais de um ano depois da data mais antiga da empresa. Confira o ano.`, a); break; }
+    if (s !== null && e !== null && e >= s && e - s > MAX_SPAN_DAYS && !stdLong(a)) add('atencao', 'duracao-longa', 'Duração muito longa', `De ${a.date} a ${a.endDate} são ${e - s} dias. Confira o ano do fim.`, a);
+    for (const [n, iso] of [[s, a.date], [e, a.endDate]]) if (n !== null && spread !== null && n > spread && !stdFar(a)) { add('atencao', 'ano-fora', 'Data muito distante das demais', `${iso} fica mais de um ano depois da data mais antiga da empresa. Confira o ano.`, a); break; }
     const end = e !== null ? e : s;
     if (a.status !== 'concluido' && end !== null && end < todayN) add('atencao', 'atrasada', 'Atrasada', `Venceu há ${todayN - end} dia${todayN - end === 1 ? '' : 's'} e está "${a.status === 'nao-iniciado' ? 'não iniciada' : a.status === 'em-andamento' ? 'em andamento' : a.status === 'pausado' ? 'pausada' : a.status || 'sem status'}".`, a);
     const sl = live(a.subactivities);
     if (a.status === 'concluido' && sl.length && sl.some((x) => !x.done)) add('atencao', 'concluida-subs-abertas', 'Concluída com subatividades abertas', `${sl.filter((x) => x.done).length} de ${sl.length} subatividades concluídas.`, a);
+    for (const sb of sl) {
+      const lim = sb.limit && sb.limit.date;
+      if (!sb.done && lim && sb.date && sb.date > lim) add('atencao', 'passa-do-limite', 'Prazo passa do limite da norma', `"${sb.title}": prazo ${sb.date} e limite ${lim}${sb.limit.type ? ` (${sb.limit.type})` : ''}.`, a);
+      for (const pid of arr(sb.predecessors)) { const pr = subById.get(pid); if (!sb.done && pr && !pr.done && pr.date && sb.date && pr.date > sb.date) add('atencao', 'predecessora-depois', 'Predecessora vence depois', `"${sb.title}" vence em ${sb.date}, antes da predecessora "${pr.title}" (${pr.date}).`, a); }
+    }
     if (a.responsible && teamNames.size && !teamNames.has(norm(a.responsible))) add('atencao', 'responsavel-fora-equipe', 'Responsável fora da equipe', `"${a.responsible}" não está na equipe cadastrada da empresa.`, a);
   }
   // datas fora de ordem na lista (informativo)
   const seq = acts.map((a) => dayNum(a.date)).filter((n) => n !== null);
   let inv = 0; for (let i = 1; i < seq.length; i += 1) if (seq[i] < seq[i - 1]) inv += 1;
-  if (inv) findings.push({ sev: 'info', code: 'ordem', title: 'Datas fora de ordem na lista', detail: `${inv} atividade${inv === 1 ? '' : 's'} com data anterior à da atividade de cima.`, activityId: null, activityTitle: '' });
+  if (inv && !fromVersion) findings.push({ sev: 'info', code: 'ordem', title: 'Datas fora de ordem na lista', detail: `${inv} atividade${inv === 1 ? '' : 's'} com data anterior à da atividade de cima.`, activityId: null, activityTitle: '' });
 
   // ---- 3) fases ----
   const stdPhases = arr(standardData && standardData.phases).map((p) => p && p.name);
@@ -151,8 +185,8 @@ export function auditProject(data, standardData, opts = {}) {
     phasesStatus: phases.status,
   };
   return {
-    company: { label }, today: toIso(todayN), toleranceDays: TOL_DAYS,
-    reference: { kickoffCompany: kickN !== null ? toIso(kickN) : '', kickoffStandard: stdKick ? stdKick.date : '', basedOn: kickMatch && dayNum(kickMatch.a.date) !== null ? 'kickoff' : 'data-mais-antiga' },
+    company: { label }, today: toIso(todayN), toleranceDays: TOL_DAYS, standard: opts.standardInfo || { source: 'modelo' },
+    reference: { kickoffCompany: kickN !== null ? toIso(kickN) : '', kickoffStandard: stdKick ? stdKick.date : (fromVersion && standardData && standardData.kickoffDate) || '', basedOn: kickMatch && dayNum(kickMatch.a.date) !== null ? 'kickoff' : 'data-mais-antiga' },
     summary, matches, missing, extras, findings, phases,
   };
 }
