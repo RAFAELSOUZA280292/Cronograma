@@ -86,7 +86,7 @@ const V3_PHASES = [
   { id: 1, name: 'Mobilização', sub: '24/10: ambiente de homologação e cronograma do ERP recebidos', ini: '2026-10-07', fim: '2026-10-18' },
   { id: 2, name: 'Desenho e parametrização', sub: '14/11: regras fiscais aprovadas; notas técnicas e DANFE entregues pelo ERP', ini: '2026-10-19', fim: '2026-11-15' },
   { id: 3, name: 'Homologação integrada', sub: '12/12: testes aprovados por Fiscal, Contábil e Financeiro', ini: '2026-11-16', fim: '2026-12-13' },
-  { id: 4, name: 'Virada', sub: '22/12: decisão de seguir ou não (go/no-go)', ini: '2026-12-14', fim: '2026-12-31' },
+  { id: 4, name: 'Virada', sub: '22/12: ata de prontidão; 01/01/2027: a reforma entra', ini: '2026-12-14', fim: '2026-12-31' },
   { id: 5, name: 'Operação assistida', sub: 'Fevereiro/2027: primeira apuração de CBS e IBS', ini: '2027-01-01', fim: '9999-12-31' },
 ];
 const v3PhaseOf = (iso) => (iso ? (V3_PHASES.find((p) => iso <= p.fim) || V3_PHASES[4]).id : 1);

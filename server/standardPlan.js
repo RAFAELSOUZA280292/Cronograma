@@ -146,13 +146,13 @@ export const NEW_ACTIVITIES = [
       sub('rh-cprb', 'Simular a reoneração gradual da folha (CPRB), se aplicável'),
       sub('rh-mao-de-obra', 'Comparar mão de obra própria e contratada, com avaliação de risco trabalhista'),
     ] },
-  { key: 'prontidao', title: 'Prontidão da virada (go/no-go)', area: 'Diretoria', responsible: 'Diretoria', phaseName: 'Consolidação',
-    desc: 'Critérios mínimos de prontidão, plano de suporte de janeiro e a decisão de seguir ou não com a virada.',
+  { key: 'prontidao', title: 'Prontidão da virada', area: 'Diretoria', responsible: 'Diretoria', phaseName: 'Consolidação',
+    desc: 'Critérios mínimos de prontidão, plano de suporte de janeiro e a ata de prontidão, com as pendências aceitas. A reforma entra em 01/01/2027 de qualquer forma.',
     aliases: ['prontidao', 'go', 'nogo', 'virada'],
     subs: [
       sub('pront-criterios', 'Definir os critérios mínimos de prontidão por área: operações mapeadas, documentos testados, ERP homologado, apuração e escrituração testadas, equipes orientadas'),
       sub('pront-suporte', 'Aprovar o plano de suporte de janeiro e o escalonamento de incidentes'),
-      sub('pront-decisao', 'Decidir o go/no-go da virada, com ata e lista de pendências aceitas'),
+      sub('pront-decisao', 'Formalizar em ata a prontidão da virada, com as pendências aceitas e a contingência de cada uma'),
     ] },
 ];
 
