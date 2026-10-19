@@ -142,7 +142,7 @@
    "p": "P1",
    "crit": "sem dono por área as pendências só aparecem em janeiro",
    "anc": "kickoff",
-   "n": 7,
+   "n": 2,
    "o": [
     "G1"
    ]
@@ -159,7 +159,7 @@
    "p": "P1",
    "crit": "destrava as ações do ERP (B2 e B3)",
    "anc": "kickoff",
-   "n": 10,
+   "n": 4,
    "o": [
     "T1"
    ]
@@ -176,7 +176,10 @@
    "p": "P1",
    "crit": "base de todos os cenários",
    "anc": "kickoff",
-   "n": 10,
+   "n": 9,
+   "pred": [
+    "A1.3"
+   ],
    "o": [
     "FN1"
    ],
@@ -195,7 +198,7 @@
    "p": "P1",
    "crit": "entrega do cliente que libera a análise",
    "anc": "kickoff",
-   "n": 14,
+   "n": 12,
    "pred": [
     "A2.1"
    ],
@@ -233,9 +236,10 @@
    "p": "P1",
    "crit": "erro aqui contamina todos os cenários",
    "anc": "kickoff",
-   "n": 21,
+   "n": 19,
    "pred": [
-    "A2.2"
+    "A2.2",
+    "A2.3"
    ],
    "o": [
     "fluxo real: Análise e Validação Documental"
@@ -252,7 +256,7 @@
    "p": "P1",
    "crit": "garante que o cálculo não inventa nem perde linhas",
    "anc": "kickoff",
-   "n": 25,
+   "n": 22,
    "pred": [
     "A3.1"
    ],
@@ -273,7 +277,7 @@
    "p": "P1",
    "crit": "fecha a base antes dos cenários",
    "anc": "kickoff",
-   "n": 28,
+   "n": 24,
    "pred": [
     "A3.2"
    ],
@@ -295,7 +299,7 @@
    "p": "P1",
    "crit": "entrega central do diagnóstico",
    "anc": "kickoff",
-   "n": 35,
+   "n": 29,
    "pred": [
     "A3.3"
    ],
@@ -314,7 +318,7 @@
    "p": "P1",
    "crit": "o caixa é onde a reforma mais pesa",
    "anc": "kickoff",
-   "n": 38,
+   "n": 32,
    "pred": [
     "A4.1"
    ],
@@ -333,7 +337,7 @@
    "p": "P1",
    "crit": "marco do diagnóstico",
    "anc": "kickoff",
-   "n": 42,
+   "n": 34,
    "pred": [
     "A4.2"
    ],
@@ -353,7 +357,7 @@
    "p": "P1",
    "crit": "evita retrabalho no relatório final",
    "anc": "kickoff",
-   "n": 49,
+   "n": 37,
    "pred": [
     "A4.3"
    ],
@@ -373,7 +377,7 @@
    "p": "P2",
    "crit": "preparação",
    "anc": "kickoff",
-   "n": 49,
+   "n": 39,
    "pred": [
     "A5.1"
    ],
@@ -392,7 +396,7 @@
    "p": "P1",
    "crit": "passa o diagnóstico para as áreas",
    "anc": "kickoff",
-   "n": 56,
+   "n": 42,
    "pred": [
     "A6.1"
    ],
@@ -411,7 +415,7 @@
    "p": "P1",
    "crit": "entrega final do diagnóstico",
    "anc": "kickoff",
-   "n": 63,
+   "n": 45,
    "pred": [
     "A6.2"
    ],
@@ -430,7 +434,7 @@
    "p": "P3",
    "crit": "opcional, depende do cliente",
    "anc": "kickoff",
-   "n": 70,
+   "n": 47,
    "pred": [
     "A7.1"
    ],
