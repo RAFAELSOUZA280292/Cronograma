@@ -88,7 +88,7 @@ export default function ConnectSection({ onAtRiskChange }) {
 
   const baseUrl = window.location.origin;
   const exportLine = fresh ? `export PRICETAX_URL="${baseUrl}"\nexport PRICETAX_TOKEN="${fresh.token}"` : '';
-  const guide = buildGuide({ baseUrl, canCreate: !!fresh && fresh.scope === 'read_create' });
+  const guide = buildGuide({ baseUrl, canCreate: !!fresh && (fresh.scope === 'read_create' || fresh.scope === 'read_write') });
 
   return (
     <div className="cnx">
@@ -117,6 +117,7 @@ export default function ConnectSection({ onAtRiskChange }) {
           </div>
           <div className="cnx-scope" role="radiogroup" aria-label="O que a chave de acesso pode fazer">
             <label className={`cnx-opt${scope === 'read_create' ? ' on' : ''}`}><input type="radio" name="cnx-scope" checked={scope === 'read_create'} onChange={() => setScope('read_create')} /><div><b>Ler e criar atividades</b><span>Lê atividades, empresas, reuniões e agenda; cria atividades no seu quadro pessoal. Não edita nem apaga nada existente.</span></div></label>
+            <label className={`cnx-opt${scope === 'read_write' ? ' on' : ''}`}><input type="radio" name="cnx-scope" checked={scope === 'read_write'} onChange={() => setScope('read_write')} /><div><b>Ler e ajustar o cronograma das empresas</b><span>Tudo do primeiro item e mais: muda status, datas e subatividades e cria atividades no cronograma de uma empresa, tudo de uma vez ou nada, sem apagar e com registro no Log. Só administrador.</span></div></label>
             <label className={`cnx-opt${scope === 'read' ? ' on' : ''}`}><input type="radio" name="cnx-scope" checked={scope === 'read'} onChange={() => setScope('read')} /><div><b>Só ler</b><span>Consulta tudo acima e não altera nada.</span></div></label>
           </div>
           <div>
@@ -137,7 +138,7 @@ export default function ConnectSection({ onAtRiskChange }) {
             <div key={t.id} className="cnx-tok">
               <div className="cnx-tok-main">
                 <b>{t.name}</b>
-                <span>{t.scope === 'read_create' ? 'Ler e criar atividades' : 'Só leitura'} · {t.expired ? 'vencida em' : 'vence em'} {fmt(t.expires_at)}</span>
+                <span>{t.scope === 'read_write' ? 'Ler e ajustar cronograma' : t.scope === 'read_create' ? 'Ler e criar atividades' : 'Só leitura'} · {t.expired ? 'vencida em' : 'vence em'} {fmt(t.expires_at)}</span>
                 <span>{t.last_used_at ? `Último uso: ${fmtTs(t.last_used_at)}` : 'Ainda não usada'}</span>
               </div>
               <button type="button" className="cnx-x" aria-label={`Revogar a chave ${t.name}`} title="Revogar chave" onClick={() => revoke(t)}><Trash2 size={15} /></button>
