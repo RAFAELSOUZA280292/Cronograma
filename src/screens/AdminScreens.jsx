@@ -2,7 +2,7 @@
 // Extraído de src/App.jsx (2026-10-16, "dividir o App.jsx"): carregado sob demanda (lazyRetry no App.jsx) para sair do pacote principal.
 // O código é o mesmo de antes; o que vem do App.jsx é importado de lá (e lá foi exportado).
 
-import { ArrowLeft, Building2, Check, ChevronDown, Copy, Lock, Pause, Pencil, Play, Plus, Search, Trash2, Upload, UserCog, Users, X } from 'lucide-react';
+import { ArrowLeft, Building2, Check, ChevronDown, Copy, ListTree, Lock, Pause, Pencil, Play, Plus, Search, Trash2, Upload, UserCog, Users, X } from 'lucide-react';
 import { BulkOwnersModal, OWNERS_CSS, OwnerBadges, OwnersField, mergeOwners, ownerIdsOf, ownerInitials, principalOf, readCompanyView, saveCompanyView, shortName } from '../companies/CompanyOwners.jsx';
 import { Button, ConfirmDialog, SaveStatus, Segmented, Tabs } from '../ui/index.jsx';
 import ConnectSection from '../connect/ConnectSection.jsx';
@@ -12,10 +12,13 @@ import WidgetSection from '../widget/WidgetSection.jsx';
 import { apiGet, apiPost, apiPut } from '../lib/api.js';
 import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
 import { useAutosave } from '../lib/useAutosave.js';
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import SafeBoundary from '../ui/SafeBoundary.jsx';
+import { lazyRetry } from '../lib/lazyRetry.jsx';
 import { useMentionUsers } from '../ui/ComposeBox.jsx';
 import { BrandLogo, CLIENT_TYPE_META, CLIENT_TYPE_ORDER, COMPANY_STATUS_META, ConfirmDiscardModal, PHASE_COLORS, ROLE_META, UserAvatar, fmtDate, fmtTs, groupMembers, todayISOStr, useDirtyForm, useIsMobile } from '../App.jsx';
 import { S } from '../styles/S.js';
+const StandardPlanViewModal = lazyRetry(() => import('../macro/StandardPlanView.jsx'));
 
 // Fica aqui (e não em crm/crmMeta.js) pra o CSS do CRM não entrar no pacote principal.
 const CRM_ROLE_OPTIONS = [
@@ -1098,6 +1101,8 @@ export function CompanySelectorScreen({ projects, initialSelected, onConfirm, on
   const [filterType, setFilterType] = useState('');
   const [filterRegime, setFilterRegime] = useState('');
   const [expandedGroups, setExpandedGroups] = useState(() => new Set());
+  const [showStdPlan, setShowStdPlan] = useState(false);
+  const canStdPlan = !!currentUser && (currentUser.role === 'master' || currentUser.role === 'pricetax');
   // Responsáveis por empresa (2026-10-09): por padrão só as empresas em que EU sou responsável; pausadas ficam arquivadas (ocultas).
   const staffUsers = useMentionUsers();
   const usersById = useMemo(() => new Map(staffUsers.map((u) => [u.id, u.name])), [staffUsers]);
@@ -1232,6 +1237,17 @@ export function CompanySelectorScreen({ projects, initialSelected, onConfirm, on
             <Building2 size={13} /> Organização: <strong>{actingOrg.name}</strong>
             {onSwitchOrg && <button style={S.companySwitchOrgBtn} onClick={onSwitchOrg}>Trocar organização</button>}
           </div>
+        )}
+
+        {canStdPlan && (
+          <div style={{ marginBottom: 18 }}>
+            <Button onClick={() => setShowStdPlan(true)} title="Ver a proposta de cronograma padrão, com atividades principais e filhas (rascunho para validação)"><ListTree size={14} /> Ver cronograma padrão</Button>
+          </div>
+        )}
+        {showStdPlan && (
+          <SafeBoundary variant="floating" resetKey="stdplan" label="o cronograma padrão" where="stdplan" actions={[{ label: 'Fechar', onClick: () => setShowStdPlan(false) }]}>
+            <React.Suspense fallback={null}><StandardPlanViewModal onClose={() => setShowStdPlan(false)} /></React.Suspense>
+          </SafeBoundary>
         )}
 
         {projects.length === 0 ? (
