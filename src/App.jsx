@@ -2219,6 +2219,21 @@ function AppScreens({ shellRef, bump }) {
   }
 
 
+  // Uma subatividade por linha (2026-10-19): segunda aba "Subatividades" ao lado da aba "Cronograma" (que continua com uma atividade por linha).
+  function subActivityRows(list, phaseNameOf, orderOf, companyOf) {
+    const rows = [];
+    list.slice().sort((x, y) => (x.date || '').localeCompare(y.date || '')).forEach((a) => {
+      (a.subactivities || []).filter((s) => !s.deleted).forEach((s) => {
+        rows.push({
+          ...(companyOf ? { Empresa: companyOf(a) } : {}),
+          Nº: orderOf(a), Fase: phaseNameOf(a), Atividade: a.title, Subatividade: s.title, Responsável: s.responsible || '',
+          Data: fmtDate(s.date), Situação: s.done ? 'Concluída' : 'Pendente',
+        });
+      });
+    });
+    return rows;
+  }
+
   async function exportExcel() {
     let XLSX;
     try { XLSX = await loadXlsx(); } catch (e) { notify('Não foi possível preparar a planilha agora. Recarregue a página e tente de novo.', { tone: 'error' }); return; }
@@ -2240,6 +2255,9 @@ function AppScreens({ shellRef, bump }) {
       ws['!cols'] = [{ wch: 22 }, { wch: 6 }, { wch: 22 }, { wch: 26 }, { wch: 40 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 50 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Cronograma');
+      const subWs = XLSX.utils.json_to_sheet(subActivityRows(multiActivities, (a) => (a._phases.find((p) => p.id === a.phase) || {}).name || '', (a) => a._order, (a) => a._companyName));
+      subWs['!cols'] = [{ wch: 22 }, { wch: 6 }, { wch: 22 }, { wch: 28 }, { wch: 60 }, { wch: 14 }, { wch: 12 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, subWs, 'Subatividades');
       XLSX.writeFile(wb, 'cronograma-visao-geral.xlsx');
       selectedProjects.forEach((p) => addLog(p.id, 'Cronograma exportado para Excel (visão geral)'));
       return;
@@ -2261,6 +2279,9 @@ function AppScreens({ shellRef, bump }) {
     ws['!cols'] = [{ wch: 6 }, { wch: 22 }, { wch: 26 }, { wch: 40 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 50 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Cronograma');
+    const subWs = XLSX.utils.json_to_sheet(subActivityRows(activities, (a) => activeProject.phases.find((p) => p.id === a.phase)?.name || '', (a) => orderMap[a.id]));
+    subWs['!cols'] = [{ wch: 6 }, { wch: 22 }, { wch: 28 }, { wch: 60 }, { wch: 14 }, { wch: 12 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, subWs, 'Subatividades');
     const fname = `cronograma-${(activeProject.company.name || 'reforma-tributaria').toLowerCase().replace(/\s+/g, '-')}.xlsx`;
     XLSX.writeFile(wb, fname);
     addLog(pid, 'Cronograma exportado para Excel');
