@@ -3,7 +3,7 @@
 // Mostra uma linha de selos só do que estiver preenchido (nada muda para subatividades antigas) e um painel "Detalhes" para editar (equipe PRICETAX).
 // Dados na própria subatividade (JSON do projeto): priority, executor, areas[], applicability, recurrence, anchor, limit{date,type,source,conf,checked}, predecessors[] (ids), code.
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Lock, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Lock, LockOpen, X } from 'lucide-react';
 import { PRIORITY_META, fmtDate, todayISOStr, useDebouncedField } from '../App.jsx';
 
 export const EXECUTORS = ['Cliente', 'ERP', 'PriceTax', 'Portal X'];
@@ -15,7 +15,7 @@ const PRIO_LABEL = { alta: 'P1', media: 'P2', baixa: 'P3' };
 const PRIO_TEXT = { alta: 'P1 · Alta', media: 'P2 · Média', baixa: 'P3 · Baixa' };
 const CONF_TONE = { 'conferido no texto da norma': 'ok', 'fonte secundária': 'warn', 'a verificar': 'bad' };
 
-export const hasExtras = (s) => !!(s.priority || s.executor || (s.areas && s.areas.length) || s.applicability || s.recurrence || s.anchor || (s.limit && (s.limit.date || s.limit.type || s.limit.source)) || (s.predecessors && s.predecessors.length) || s.code || s.compressed);
+export const hasExtras = (s) => !!(s.priority || s.executor || (s.areas && s.areas.length) || s.applicability || s.recurrence || s.anchor || (s.limit && (s.limit.date || s.limit.type || s.limit.source)) || (s.predecessors && s.predecessors.length) || s.code || s.compressed || s.dateLocked);
 
 export const SUB_EXTRAS_CSS = `
   .sx { padding:2px 0 0 34px; display:flex; flex-direction:column; gap:6px; max-width:720px; }
@@ -69,6 +69,7 @@ export function SubExtras({ s, pid, actId, allSubs, canEdit, updateSub }) {
       {showChips && (
         <div className="sx-chips">
           {s.code && <span className="sx-chip" title="Código do item no cronograma padrão">{s.code}</span>}
+          {s.dateLocked && <span className="sx-chip warn" title="A data não acompanha o ajuste automático de datas"><Lock size={10} aria-hidden="true" /> Data travada</span>}
           {s.priority && <span className="sx-chip" title={PRIO_TEXT[s.priority]} style={{ color: PRIORITY_META[s.priority].color, borderColor: PRIORITY_META[s.priority].border }}>{PRIO_LABEL[s.priority]}</span>}
           {s.executor && <span className="sx-chip" title="Quem executa">{s.executor}</span>}
           {lim.date && <span className={`sx-chip ${overLimit || limitSoon ? 'bad' : (CONF_TONE[lim.conf] || '')}`} title={[lim.type && `Tipo: ${lim.type}`, lim.source, lim.conf && `Conferência: ${lim.conf}`, lim.checked && `Verificado em ${fmtDate(lim.checked)}`].filter(Boolean).join(' · ')}>Limite {fmtDate(lim.date)}{lim.type ? ` · ${lim.type}` : ''}</span>}
@@ -84,8 +85,9 @@ export function SubExtras({ s, pid, actId, allSubs, canEdit, updateSub }) {
         </div>
       )}
       {canEdit && (
-        <div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           <button type="button" className="sx-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? <ChevronDown size={12} aria-hidden="true" /> : <ChevronRight size={12} aria-hidden="true" />} Detalhes</button>
+          <button type="button" className="sx-toggle" aria-pressed={!!s.dateLocked} onClick={() => set({ dateLocked: !s.dateLocked })} title={s.dateLocked ? 'Destravar: a data volta a acompanhar o ajuste automático de datas' : 'Travar a data: não acompanha o ajuste automático de datas'}>{s.dateLocked ? <Lock size={12} aria-hidden="true" /> : <LockOpen size={12} aria-hidden="true" />} {s.dateLocked ? 'Data travada' : 'Travar data'}</button>
         </div>
       )}
       {canEdit && open && (

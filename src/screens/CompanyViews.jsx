@@ -3,7 +3,7 @@
 // O código é o mesmo de antes; o que vem do App.jsx é importado de lá (e lá foi exportado).
 
 import { AddMenu, AttachmentList, CommentThread, ComposeBox } from '../ui/ComposeBox.jsx';
-import { AlertTriangle, Building2, Check, ChevronDown, GripVertical, History, Maximize2, MessageSquare, Mic, MoreHorizontal, Paperclip, Plus, SlidersHorizontal, Trash2, Upload, Users, X } from 'lucide-react';
+import { AlertTriangle, Building2, Check, ChevronDown, GripVertical, History, Lock, Maximize2, MessageSquare, Mic, MoreHorizontal, Paperclip, Plus, SlidersHorizontal, Trash2, Upload, Users, X } from 'lucide-react';
 import { Button, IconButton, RecordSaveStatus, activate, activateRow } from '../ui/index.jsx';
 import { DialogOverlay } from '../ui/dialog.jsx';
 import LinkedTasks from '../meetings/LinkedTasks.jsx';
@@ -522,6 +522,9 @@ export function ActivityDetailModal({ activity: a, orderMap, phases, team, log, 
 
             <div style={S.subSectionLabel}>Fim</div>
             <input type="date" value={a.endDate || a.date} min={a.date} onChange={(e) => updateActivity(pid, a.id, { endDate: e.target.value }, `Fim alterado em "${a.title}": ${fmtDate(e.target.value)}`)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-3)', marginTop: 6, cursor: 'pointer' }} title="Datas travadas não acompanham o ajuste automático de datas">
+              <input type="checkbox" checked={!!a.dateLocked} onChange={(e) => updateActivity(pid, a.id, { dateLocked: e.target.checked }, `Data ${e.target.checked ? 'travada' : 'destravada'} em "${a.title}"`)} /> Travar a data (ajuste automático)
+            </label>
 
             <div style={{ ...S.subSectionLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
               <input type="checkbox" checked={a.required} onChange={(e) => updateActivity(pid, a.id, { required: e.target.checked }, `Obrigatoriedade alterada em "${a.title}"`)} /> Obrigatória
@@ -1267,7 +1270,7 @@ function ActivityMoreFields({ a, rowPid, rowPhases, phaseColor, updateActivity, 
 }
 
 // Menu "⋯ Mais ações" por linha: renderizado num portal (a tabela rola na horizontal e cortaria um menu absoluto).
-function RowActionsMenu({ title, required, confirmed, onToggleRequired, onToggleConfirmed, onOpenFull, onMoreFields, onDelete, isMobile }) {
+function RowActionsMenu({ title, required, confirmed, locked, onToggleRequired, onToggleConfirmed, onToggleLocked, onOpenFull, onMoreFields, onDelete, isMobile }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(null);
   const btnRef = useRef(null);
@@ -1300,7 +1303,7 @@ function RowActionsMenu({ title, required, confirmed, onToggleRequired, onToggle
     if (open) { close(true); return; }
     const r = btnRef.current.getBoundingClientRect();
     const w = 280;
-    const h = 5 * (isMobile ? 48 : 38) + 14;
+    const h = 6 * (isMobile ? 48 : 38) + 14;
     const left = Math.min(Math.max(8, r.right - w), Math.max(8, window.innerWidth - w - 8));
     let top = r.bottom + 4;
     if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 4);
@@ -1344,6 +1347,9 @@ function RowActionsMenu({ title, required, confirmed, onToggleRequired, onToggle
           </button>
           <button type="button" role="menuitemcheckbox" aria-checked={!!confirmed} tabIndex={-1} className="row-menu-item" style={itemStyle} onClick={onToggleConfirmed}>
             <span aria-hidden="true" style={S.rowMenuCheck}>{confirmed ? <Check size={13} /> : null}</span> Data confirmada com o cliente
+          </button>
+          <button type="button" role="menuitemcheckbox" aria-checked={!!locked} tabIndex={-1} className="row-menu-item" style={itemStyle} onClick={onToggleLocked} title="Datas travadas não acompanham o ajuste automático de datas">
+            <span aria-hidden="true" style={S.rowMenuCheck}>{locked ? <Check size={13} /> : null}</span> Travar a data (ajuste automático)
           </button>
           <div role="separator" style={{ height: 1, background: 'var(--border-1)', margin: '4px 0' }} />
           <button type="button" role="menuitem" tabIndex={-1} className="row-menu-item" style={{ ...itemStyle, color: '#e5484d' }} onClick={run(onDelete)}><Trash2 size={14} aria-hidden="true" /> Excluir atividade</button>
@@ -1498,7 +1504,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
     } else {
       newEnd = newDate;
     }
-    updateActivity(pid, dragged.id, { date: newDate, endDate: newEnd }, `Atividade "${dragged.title}" reordenada: novo início ${fmtDate(newDate)}`);
+    updateActivity(pid, dragged.id, { date: newDate, endDate: newEnd }, `Atividade "${dragged.title}" reordenada: novo início ${fmtDate(newDate)}`, { noRipple: true });
   }
 
   return (
@@ -1695,13 +1701,16 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                     </select>
                   </div>
                   <div style={S.actionsCell}>
+                    {a.dateLocked && <button aria-label={`Data travada em ${a.title || '(sem título)'}: destravar`} title="Data travada: não acompanha o ajuste automático de datas. Clique para destravar" className="act-row-actions" style={{ ...S.rowMenuBtn, color: '#F5C400', opacity: 1 }} onClick={() => updateActivity(rowPid, a.id, { dateLocked: false }, `Data destravada em "${a.title}"`)}><Lock size={13} aria-hidden="true" /></button>}
                     <button aria-label={`Abrir em tela cheia a atividade ${a.title || '(sem título)'}`} title="Abrir em tela cheia" className="act-row-actions" style={S.rowMenuBtn} onClick={() => openDetail(rowPid, a.id)}><Maximize2 size={14} aria-hidden="true" /></button>
                     <RowActionsMenu
                       title={a.title}
                       required={a.required}
                       confirmed={a.clientDateConfirmed}
+                      locked={a.dateLocked}
                       onToggleRequired={() => updateActivity(rowPid, a.id, { required: !a.required }, `Obrigatoriedade alterada em "${a.title}"`)}
                       onToggleConfirmed={() => updateActivity(rowPid, a.id, { clientDateConfirmed: !a.clientDateConfirmed }, `Data confirmada com o cliente ${!a.clientDateConfirmed ? 'marcada' : 'desmarcada'} em "${a.title}"`)}
+                      onToggleLocked={() => updateActivity(rowPid, a.id, { dateLocked: !a.dateLocked }, `Data ${!a.dateLocked ? 'travada' : 'destravada'} em "${a.title}"`)}
                       onOpenFull={() => openDetail(rowPid, a.id)}
                       onMoreFields={() => setExpanded((e) => ({ ...e, [`${rowPid}-${a.id}`]: true }))}
                       onDelete={() => deleteActivity(rowPid, a.id)}
@@ -1790,8 +1799,10 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                         title={a.title}
                         required={a.required}
                         confirmed={a.clientDateConfirmed}
+                      locked={a.dateLocked}
                         onToggleRequired={() => updateActivity(rowPid, a.id, { required: !a.required }, `Obrigatoriedade alterada em "${a.title}"`)}
                         onToggleConfirmed={() => updateActivity(rowPid, a.id, { clientDateConfirmed: !a.clientDateConfirmed }, `Data confirmada com o cliente ${!a.clientDateConfirmed ? 'marcada' : 'desmarcada'} em "${a.title}"`)}
+                      onToggleLocked={() => updateActivity(rowPid, a.id, { dateLocked: !a.dateLocked }, `Data ${!a.dateLocked ? 'travada' : 'destravada'} em "${a.title}"`)}
                         onOpenFull={() => openDetail(rowPid, a.id)}
                         onMoreFields={() => setExpanded((e) => ({ ...e, [`${rowPid}-${a.id}`]: true }))}
                         onDelete={() => deleteActivity(rowPid, a.id)}

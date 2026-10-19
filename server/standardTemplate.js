@@ -153,8 +153,8 @@ export const sameTemplate = (a, b) => canonical(purgeDeleted(a)) === canonical(p
 
 // ---------- comparação entre versões ----------
 
-const ACT_FIELDS = [['title', 'título'], ['desc', 'descrição'], ['responsible', 'responsável'], ['priority', 'prioridade'], ['phase', 'fase'], ['date', 'data'], ['endDate', 'data final'], ['required', 'obrigatória']];
-const SUB_FIELDS = [['title', 'título'], ['responsible', 'responsável'], ['date', 'data'], ['priority', 'prioridade'], ['executor', 'executor'], ['areas', 'áreas'], ['applicability', 'aplicabilidade'], ['recurrence', 'recorrência'], ['anchor', 'âncora do prazo'], ['limit', 'limite'], ['predecessors', 'predecessoras'], ['code', 'código']];
+const ACT_FIELDS = [['title', 'título'], ['desc', 'descrição'], ['responsible', 'responsável'], ['priority', 'prioridade'], ['phase', 'fase'], ['date', 'data'], ['endDate', 'data final'], ['required', 'obrigatória'], ['dateLocked', 'data travada']];
+const SUB_FIELDS = [['title', 'título'], ['responsible', 'responsável'], ['date', 'data'], ['priority', 'prioridade'], ['executor', 'executor'], ['areas', 'áreas'], ['applicability', 'aplicabilidade'], ['recurrence', 'recorrência'], ['anchor', 'âncora do prazo'], ['limit', 'limite'], ['predecessors', 'predecessoras'], ['code', 'código'], ['dateLocked', 'data travada']];
 const live = (t) => (t && Array.isArray(t.activities) ? t.activities.filter((a) => !a.deleted) : []);
 const liveSubs = (a) => (Array.isArray(a.subactivities) ? a.subactivities.filter((s) => !s.deleted) : []);
 const norm0 = (x) => (x === undefined || x === null || (Array.isArray(x) && !x.length) ? '' : typeof x === 'object' ? canonical(x) : x);
