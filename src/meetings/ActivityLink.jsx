@@ -42,6 +42,7 @@ export function linkedTasksForActivity(meetings, activityId) {
         id: it.id, meetingId: m.id, meetingTitle: m.title || '', meetingDate: m.date || '',
         title: it.title || '', status: it.status, responsible: it.responsible || '', dueDate: it.dueDate || '',
         done: it.status === 'concluida' || it.status === 'nao-relevante',
+        auto: !!(it.activityLink && it.activityLink.status === 'auto'),
       });
     }
   }
@@ -52,7 +53,11 @@ export function linkState(row, options) {
   const id = row && row.activityId;
   if (id) {
     const found = (options || []).find((o) => o.id === id);
-    return found ? { kind: 'linked', option: found } : { kind: 'orphan' };
+    if (!found) return { kind: 'orphan' };
+    const l = row.activityLink;
+    // `auto` = a RENATA vinculou sozinha e ninguém validou ainda (só vínculo validado propaga conclusão).
+    if (l && l.status === 'auto') return { kind: 'auto', option: found, confidence: Number(l.confidence) || 0, reason: l.reason || '', source: l.source || '' };
+    return { kind: 'linked', option: found };
   }
   if (row && row.activityLink && row.activityLink.status === 'none') return { kind: 'none' };
   const l = row && row.activityLink;
@@ -67,7 +72,7 @@ export function linkState(row, options) {
 export function highConfidenceRows(rows, options) {
   return (rows || []).filter((r) => {
     const st = linkState(r, options);
-    return st.kind === 'suggested' && st.confidence >= HIGH_CONFIDENCE;
+    return (st.kind === 'suggested' || st.kind === 'auto') && st.confidence >= HIGH_CONFIDENCE;
   });
 }
 
@@ -78,6 +83,7 @@ export const ACTIVITY_LINK_CSS = `
   .alink-bulk:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
   @media (max-width: 767px) { .alink-bulk { min-height:44px; } }
   .alink-sug { display:inline-flex; align-items:center; gap:4px; max-width:100%; border:1px dashed var(--ui-accent, #F5C400); border-radius:8px; padding:2px 4px 2px 8px; background:rgba(245,196,0,.08); }
+  .alink-sug.auto { border-style:solid; border-color:rgba(62,207,110,.65); background:rgba(62,207,110,.08); }
   .alink-sug-text { font-size:11.5px; font-weight:600; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px; }
   .alink-sug button { display:inline-flex; align-items:center; justify-content:center; gap:3px; border:1px solid var(--border-2); background:var(--bg-2); color:var(--text-3); border-radius:6px; font-size:11px; font-weight:700; padding:3px 7px; cursor:pointer; }
   .alink-sug button:hover { color:var(--text-1); border-color:var(--border-3); }
@@ -87,7 +93,7 @@ export const ACTIVITY_LINK_CSS = `
   .alink { display:inline-flex; align-items:center; gap:5px; max-width:100%; }
   .alink select { width:auto; max-width:230px; font-size:11.5px; font-weight:600; padding:4px 6px; border-radius:7px; text-overflow:ellipsis; }
   .alink.linked select { color:var(--text-1); border-color:var(--border-3); background:var(--bg-3); }
-  .alink.empty select, .alink.orphan select { color:var(--text-5); border-style:dashed; }
+  .alink.empty select, .alink.orphan select { color:var(--text-3); border-style:dashed; border-color:var(--ui-accent, #F5C400); }
   .alink.orphan select { color:#e2574c; border-color:rgba(226,87,76,.5); }
   .alink svg { flex-shrink:0; color:var(--text-6); }
   @media (max-width: 767px) { .alink select { min-height:44px; max-width:100%; font-size:16px; } }
@@ -96,6 +102,18 @@ export const ACTIVITY_LINK_CSS = `
 export function ActivityLinkSelect({ row, options, onLink, labelled }) {
   const st = linkState(row, options);
   const [changing, setChanging] = useState(false);
+  if (st.kind === 'auto' && !changing) {
+    const pct = Math.round(st.confidence * 100);
+    return (
+      <span className="alink-sug auto" onClick={(e) => e.stopPropagation()}>
+        <Sparkles size={12} aria-hidden="true" color="#3ecf6e" />
+        <span className="alink-sug-text" title={st.reason || undefined}>Automática: {st.option.title}{pct ? ` · ${pct}%` : ''}</span>
+        <button type="button" className="ok" onClick={() => onLink(st.option.id)} title={`Validar: ${st.option.title}`} aria-label={`Validar a vinculação automática com ${st.option.title}`}><Check size={12} aria-hidden="true" /> Validar</button>
+        <button type="button" onClick={() => setChanging(true)} title="Escolher outra atividade" aria-label="Trocar a atividade vinculada automaticamente">Trocar</button>
+        <button type="button" onClick={() => onLink('')} title="Desvincular: a tarefa fica sem atividade" aria-label="Desvincular a atividade automática"><X size={12} aria-hidden="true" /></button>
+      </span>
+    );
+  }
   if (st.kind === 'suggested' && !changing) {
     const pct = Math.round(st.confidence * 100);
     return (
@@ -108,7 +126,7 @@ export function ActivityLinkSelect({ row, options, onLink, labelled }) {
       </span>
     );
   }
-  const value = st.kind === 'suggested' ? '' : st.kind === 'linked' ? row.activityId : st.kind === 'orphan' ? row.activityId : st.kind === 'none' ? NO_ACTIVITY : '';
+  const value = st.kind === 'suggested' ? '' : st.kind === 'auto' ? row.activityId : st.kind === 'linked' ? row.activityId : st.kind === 'orphan' ? row.activityId : st.kind === 'none' ? NO_ACTIVITY : '';
   const groups = [];
   for (const o of options || []) {
     let g = groups[groups.length - 1];
@@ -144,13 +162,13 @@ export function ConfirmSuggestionsButton({ rows, options, onConfirmOne }) {
   const hi = highConfidenceRows(rows, options);
   if (!hi.length) return null;
   async function run() {
-    const ok = await askConfirm({ title: 'Confirmar sugestões', message: `Confirmar ${hi.length} sugestão${hi.length === 1 ? '' : 'ões'} de confiança alta (${Math.round(HIGH_CONFIDENCE * 100)}% ou mais)? Cada tarefa será vinculada à atividade sugerida; você pode trocar depois.`, confirmLabel: 'Confirmar todas' });
+    const ok = await askConfirm({ title: 'Validar vinculações', message: `Validar ${hi.length} vinculaç${hi.length === 1 ? 'ão' : 'ões'} de confiança alta (${Math.round(HIGH_CONFIDENCE * 100)}% ou mais)? Cada tarefa será vinculada à atividade sugerida; você pode trocar depois.`, confirmLabel: 'Confirmar todas' });
     if (!ok) return;
     hi.forEach((r) => onConfirmOne(r));
     notify(`${hi.length} tarefa${hi.length === 1 ? '' : 's'} vinculada${hi.length === 1 ? '' : 's'} à atividade do cronograma.`);
   }
   return (
-    <button type="button" className="alink-bulk" onClick={run}><Sparkles size={12} aria-hidden="true" /> Confirmar {hi.length} sugest{hi.length === 1 ? 'ão' : 'ões'} de confiança alta</button>
+    <button type="button" className="alink-bulk" onClick={run}><Sparkles size={12} aria-hidden="true" /> Validar {hi.length} vinculaç{hi.length === 1 ? 'ão' : 'ões'} de confiança alta</button>
   );
 }
 

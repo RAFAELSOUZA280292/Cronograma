@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { revertLinkedSync, syncLinkedStatus } from '../shared/linkSync.js';
 import { Share2, ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen } from 'lucide-react';
 
 import { loadXlsx } from './lib/xlsxLoader.js';
@@ -1572,13 +1573,26 @@ function AppScreens({ shellRef, bump }) {
     });
   }
 
-  function mutateProject(pid, updater, logMsg, activityId) {
+  // `opts.skipSync` desliga a sincronia de conclusão (usado só pelo "Desfazer" dela).
+  const syncToastsRef = useRef(new Map());
+  function mutateProject(pid, updater, logMsg, activityId, opts) {
+    const callId = `mut-${Math.random().toString(36).slice(2, 9)}`;
+    const skipSync = !!(opts && opts.skipSync);
     setProjects((prev) => {
       let saved = null;
       const nextArr = prev.map((p) => {
         if (p.id !== pid) return p;
         let next = updater(p);
         if (logMsg) next = { ...next, log: [{ ts: new Date().toISOString(), action: logMsg, user: currentUser ? currentUser.name : '', activityId: activityId || null }, ...(next.log || [])].slice(0, 300) };
+        // Concluiu em um (tarefa ou atividade vinculada e VALIDADA), conclui no outro (regra do Rafael, 2026-10-19; ver shared/linkSync.js).
+        if (!skipSync) {
+          const sy = syncLinkedStatus(p, next);
+          if (sy.changed) {
+            next = sy.project;
+            if (sy.logs.length) next = { ...next, log: [...sy.logs.map((action) => ({ ts: new Date().toISOString(), action, user: currentUser ? currentUser.name : '', activityId: null })), ...(next.log || [])].slice(0, 300) };
+            if (sy.messages.length) syncToastsRef.current.set(callId, { pid, messages: sy.messages, undo: sy.undo });
+          }
+        }
         saved = next;
         return next;
       });
@@ -1586,6 +1600,15 @@ function AppScreens({ shellRef, bump }) {
       return nextArr;
     });
   }
+  useEffect(() => {
+    if (!syncToastsRef.current.size) return;
+    const items = [...syncToastsRef.current.values()];
+    syncToastsRef.current.clear();
+    items.forEach((it) => pushAppToast({
+      message: it.messages.join(' '), actionLabel: 'Desfazer', ttlMs: 12000,
+      onAction: () => mutateProject(it.pid, (p) => revertLinkedSync(p, it.undo), 'Propagação de conclusão desfeita', null, { skipSync: true }),
+    }));
+  }, [projects]);
 
   // Casca única (§81, Onda 1): cada render publica em shellRef o que a barra do topo precisa; a barra só re-renderiza
   // quando a assinatura muda (os callbacks são lidos na hora do clique, então nunca ficam velhos).

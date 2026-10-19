@@ -10,6 +10,7 @@ import { norm } from './inventory.js';
 import { titleTokens, jaccard } from './gaps.js';
 import { STUDY_MODEL } from './parecerStudy.js';
 import { learnedSuggest, sameCompanyExamples } from './taskLinkLearn.js';
+import { dictPromptLine, keywordScore } from './activityDictionary.js';
 
 export const MIN_CONFIDENCE = 0.5;   // abaixo disso não sugere (mostra "escolher atividade")
 export const HIGH_CONFIDENCE = 0.8;  // acima disso entra no "confirmar todas"
@@ -24,12 +25,11 @@ const AREA_WORDS = {
 
 const liveActivities = (activities) => (activities || []).filter((a) => a && !a.deleted && a.id && a.title);
 
-// Atividade padrão = veio do cronograma padrão (`stdKey`) ou é do modelo (`required: true`). Atividade criada à mão na tela nasce com `required: false` e sem `stdKey`.
-// Regra do Rafael (2026-10-19): a IA só enquadra tarefa em atividade padrão que já existe; se não houver nenhuma marcada (empresa toda personalizada), usa as que existem.
+// Conjunto fechado (regra do Rafael, 2026-10-19): a RENATA só vincula a atividades que JÁ EXISTEM na empresa — todas as vivas, padrão ou criadas à mão — e nunca cria nenhuma.
+// (Antes, 2026-10-19 de manhã, o filtro `onlyStandard` deixava de fora as atividades sem `stdKey` e sem `required`; isso tirava do alcance, por exemplo, as atividades montadas
+// à mão na Alcast. O nome foi mantido por compatibilidade.)
 export function onlyStandard(activities) {
-  const live = liveActivities(activities);
-  const std = live.filter((a) => a.stdKey || a.required === true);
-  return std.length ? std : live;
+  return liveActivities(activities);
 }
 
 // Regra de reserva (função pura): devolve { activityId, confidence, reason } ou null.
@@ -43,6 +43,12 @@ export function ruleSuggest(task, activities) {
     });
     if (hit) return { activityId: hit.id, confidence: 0.6, reason: `A tarefa é da área ${task.area}, que é o foco da atividade "${hit.title}".` };
   }
+  let kw = null;
+  for (const a of acts) {
+    const sc = keywordScore(a, task.title);
+    if (sc >= 2 && (!kw || sc > kw.sc)) kw = { a, sc };
+  }
+  if (kw) return { activityId: kw.a.id, confidence: 0.55, reason: `Palavras da tarefa batem com o escopo de "${kw.a.title}".` };
   const tt = titleTokens(task.title);
   let best = null;
   for (const a of acts) {
@@ -62,11 +68,11 @@ const SuggestSchema = z.object({
   })),
 });
 
-export const SYSTEM = 'Você é a RENATA, assistente da consultoria PRICETAX (Reforma Tributária). Cada empresa-cliente tem um cronograma com atividades macro (ex.: Kickoff, envio de dados, apresentação prévia, workshop por área como Compras ou Fiscal, validação, comitê). Dada uma lista de tarefas que saíram de uma reunião, diga a qual atividade DO CRONOGRAMA DESTA EMPRESA cada tarefa pertence — a atividade que a tarefa faz andar. Escolha somente entre as atividades listadas e copie o id exatamente. Se nenhuma se encaixa com segurança, devolva activityId null: é melhor não sugerir do que chutar. Quando houver EXEMPLOS já confirmados por pessoas desta empresa, siga o mesmo critério deles. Responda só o JSON pedido.';
+export const SYSTEM = 'Você é a RENATA, assistente da consultoria PRICETAX (Reforma Tributária). Cada empresa-cliente tem um cronograma com atividades macro (ex.: Kickoff, envio de dados, apresentação prévia, workshop por área como Compras ou Fiscal, validação, comitê). Dada uma lista de tarefas que saíram de uma reunião, diga a qual atividade DO CRONOGRAMA DESTA EMPRESA cada tarefa pertence — a atividade que a tarefa faz andar. Escolha somente entre as atividades listadas e copie o id exatamente. Se nenhuma se encaixa com segurança, devolva activityId null: é melhor não sugerir do que chutar. Cada atividade pode trazer ENTRA (o que pertence a ela), NÃO ENTRA (o que pertence a outra) e exemplos: use isso para decidir, e nunca escolha uma atividade cujo NÃO ENTRA descreve a tarefa. Quando houver EXEMPLOS já confirmados por pessoas desta empresa, siga o mesmo critério deles. Responda só o JSON pedido.';
 
 export function buildPrompt({ activities, phases, tasks, meeting, examples }) {
   const phaseName = new Map((phases || []).map((p) => [p.id, p.name]));
-  const acts = liveActivities(activities).map((a) => `- id=${a.id} | ${a.title} | fase: ${phaseName.get(a.phase) || '—'}${a.responsible ? ` | responsável: ${a.responsible}` : ''}${a.date ? ` | data: ${a.date}` : ''}${a.desc ? ` | ${clip(a.desc, 140)}` : ''}`);
+  const acts = liveActivities(activities).map((a) => `- id=${a.id} | ${a.title} | fase: ${phaseName.get(a.phase) || '—'}${a.responsible ? ` | responsável: ${a.responsible}` : ''}${a.date ? ` | data: ${a.date}` : ''}${a.desc ? ` | ${clip(a.desc, 140)}` : ''}${dictPromptLine(a)}`);
   const ts = tasks.map((t) => `- id=${t.id} | ${clip(t.title, 220)}${t.area ? ` | área: ${t.area}` : ''} | lado: ${t.owner === 'cliente' ? 'cliente' : 'PRICETAX'}${t.responsible ? ` | responsável: ${t.responsible}` : ''}`);
   const ex = (examples || []).map((e) => `- "${clip(e.title, 140)}" → ${e.activity}`);
   return `ATIVIDADES DO CRONOGRAMA:\n${acts.join('\n')}\n\n${ex.length ? `EXEMPLOS JÁ CONFIRMADOS POR PESSOAS DESTA EMPRESA:\n${ex.join('\n')}\n\n` : ''}REUNIÃO: ${clip(meeting && meeting.title, 120)}\n${meeting && meeting.summary ? `Resumo: ${clip(meeting.summary, 900)}\n` : ''}\nTAREFAS:\n${ts.join('\n')}`;
@@ -86,11 +92,18 @@ export function validateAi(parsed, tasks, activities) {
   return out;
 }
 
-// Junta sugestões às tarefas (função pura). Tarefa que já tem vínculo humano não é tocada.
-export function applySuggestions(items, suggestions) {
+// Junta as escolhas da RENATA às tarefas (função pura). Regra do Rafael (2026-10-19): a partir de MIN_CONFIDENCE (50%) a tarefa já nasce VINCULADA, com selo `auto`
+// (ainda NÃO validada por uma pessoa: só vínculo validado propaga conclusão — ver shared/linkSync.js). Tarefa com vínculo humano, decidida ("nenhuma") ou já vinculada nunca é tocada.
+// `TASK_LINK_AUTO=off` (Railway) volta ao modo antigo: só sugere, a pessoa confirma.
+export function applySuggestions(items, suggestions, nowIso = new Date().toISOString()) {
+  const auto = process.env.TASK_LINK_AUTO !== 'off';
   return items.map((it) => {
     const s = suggestions[it.id];
-    if (!s || it.activityId || (it.activityLink && it.activityLink.status === 'confirmed')) return it;
+    const st = it.activityLink && it.activityLink.status;
+    if (!s || it.activityId || st === 'confirmed' || st === 'none' || st === 'auto') return it;
+    if (auto && Number(s.confidence) >= MIN_CONFIDENCE) {
+      return { ...it, activityId: s.activityId, activityLink: { status: 'auto', suggestedId: s.activityId, confidence: s.confidence, reason: s.reason, source: s.source, at: nowIso } };
+    }
     return { ...it, activityId: '', activityLink: { status: 'suggested', suggestedId: s.activityId, confidence: s.confidence, reason: s.reason, source: s.source } };
   });
 }

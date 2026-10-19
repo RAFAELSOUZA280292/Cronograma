@@ -221,16 +221,17 @@ export function createMeetingActions({ currentUser, flushProjectSave, mutateProj
     const act = value && value !== NO_ACTIVITY ? (project.activities || []).find((a) => a.id === value && !a.deleted) : null;
     if (value && value !== NO_ACTIVITY && !act) return;
     const now = new Date().toISOString();
-    const sug = item.activityLink && item.activityLink.status === 'suggested' ? item.activityLink : null; // sugestão da RENATA ainda pendente
-    const base = { confirmedBy: who, confirmedAt: now, source: sug ? 'sugestao' : 'manual', ...(sug ? { suggestedId: sug.suggestedId, confidence: sug.confidence } : {}) };
+    const sug = item.activityLink && (item.activityLink.status === 'suggested' || item.activityLink.status === 'auto') ? item.activityLink : null; // sugestão ou vínculo automático da RENATA ainda sem validação
+    const wasAuto = !!(item.activityLink && item.activityLink.status === 'auto');
+    const base = { confirmedBy: who, confirmedAt: now, source: sug ? (wasAuto ? 'auto-validada' : 'sugestao') : 'manual', ...(sug ? { suggestedId: sug.suggestedId, confidence: sug.confidence } : {}) };
     const patch = !value
       ? { activityId: '', activityLink: null }
       : act
         ? { activityId: act.id, activityLink: { status: 'confirmed', ...base } }
         : { activityId: '', activityLink: { status: 'none', ...base } };
     const suggestedTitle = sug ? ((project.activities || []).find((a) => a.id === sug.suggestedId) || {}).title : '';
-    const logMsg = !value ? (sug ? `${who} dispensou a sugestão de atividade da tarefa "${item.title}"` : `${who} removeu o vínculo da tarefa "${item.title}" com o cronograma`)
-      : act ? (sug && act.id === sug.suggestedId ? `${who} confirmou a sugestão da RENATA: tarefa "${item.title}" na atividade "${act.title}"`
+    const logMsg = !value ? (sug ? (wasAuto ? `${who} desvinculou a vinculação automática da tarefa "${item.title}"` : `${who} dispensou a sugestão de atividade da tarefa "${item.title}"`) : `${who} removeu o vínculo da tarefa "${item.title}" com o cronograma`)
+      : act ? (sug && act.id === sug.suggestedId ? (wasAuto ? `${who} validou a vinculação automática da RENATA: tarefa "${item.title}" na atividade "${act.title}"` : `${who} confirmou a sugestão da RENATA: tarefa "${item.title}" na atividade "${act.title}"`)
         : sug ? `${who} trocou a sugestão da RENATA${suggestedTitle ? ` ("${suggestedTitle}")` : ''}: tarefa "${item.title}" vinculada à atividade "${act.title}"`
           : `${who} vinculou a tarefa "${item.title}" à atividade "${act.title}"`)
         : `${who} marcou que nenhuma atividade do cronograma se aplica à tarefa "${item.title}"`;
