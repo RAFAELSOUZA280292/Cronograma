@@ -415,6 +415,16 @@ async function failStaleJobs(pool, projectId) {
   );
 }
 
+// Ao subir o servidor, qualquer geração 'generating' é de um processo que morreu (o job roda dentro do processo; cada deploy ou reinício o mata). Sem isto a linha ficava
+// "gerando" por até 45 min e o botão ficava travado (2026-10-19: dossiê da Alcast "eternamente gerando" depois de uma sequência de deploys no mesmo dia).
+export async function failOrphanedDossiers(pool) {
+  const r = await pool.query(
+    `UPDATE project_dossiers SET status='error', error='A geração foi interrompida porque o servidor reiniciou (uma atualização do sistema). Gere de novo.', progress='{}', finished_at=now()
+     WHERE status='generating'`,
+  );
+  return r.rowCount;
+}
+
 export function computeStaleness(projectData, sources) {
   const current = new Map(liveMeetings(projectData).map((m) => [m.id, meetingSourceHash(m)]));
   const old = new Map((sources || []).map((s) => [s.id, s.hash]));
