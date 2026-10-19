@@ -41,6 +41,11 @@ const CSS = `
   .spb-chip.cur { color:#F5C400; border-color:rgba(245,196,0,.6); }
   .spb details summary { cursor:pointer; font-size:12px; color:var(--text-3); }
   .spb details ul { margin:4px 0 0; padding-left:18px; font-size:12px; color:var(--text-3); line-height:1.55; }
+  .spb-v.arch { opacity:.75; border-style:dashed; }
+  .spb-clean { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:8px 12px; border:1px solid var(--border-2); border-radius:10px; background:var(--bg-3); font-size:12.5px; color:var(--text-3); }
+  .spb-more { all:unset; cursor:pointer; align-self:flex-start; font-size:12.5px; font-weight:700; color:var(--text-3); text-decoration:underline; padding:6px 2px; }
+  .spb-more:focus-visible, .spb-props summary:focus-visible { outline:2px solid #3ea6ff; outline-offset:2px; }
+  .spb-props > summary { cursor:pointer; font-size:12.5px; font-weight:700; color:var(--text-3); padding:6px 2px; }
   .spb-ta { width:100%; min-height:84px; resize:vertical; background:var(--bg-3); border:1px solid var(--border-2); border-radius:8px; color:var(--text-1); padding:8px 10px; font:inherit; font-size:13px; box-sizing:border-box; }
   .spb-ta:focus { outline:none; border-color:#F5C400; }
   .spb-err { color:#e2574c; font-size:12.5px; }
@@ -85,8 +90,10 @@ function SaveModal({ nextLabelHint, fetchDiff, onSave, onClose }) {
   );
 }
 
-function VersionsModal({ fetchVersions, fetchProposals, dirty, onRestore, onLoadProposal, onClose }) {
+function VersionsModal({ fetchVersions, fetchProposals, dirty, onRestore, onLoadProposal, onArchive, onClose }) {
   const [versions, setVersions] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [proposals, setProposals] = useState([]);
   const [error, setError] = useState('');
   const load = () => { setVersions(null); setError(''); fetchVersions().then(setVersions).catch((e) => setError((e && e.message) || 'Não foi possível carregar as versões.')); };
@@ -102,38 +109,78 @@ function VersionsModal({ fetchVersions, fetchProposals, dirty, onRestore, onLoad
     if (!ok) return;
     try { await onRestore(v.version); onClose(); } catch (e) { notify((e && e.message) || 'Não foi possível carregar a versão.', { tone: 'error' }); }
   }
+  async function archive(list, title, message, confirmLabel) {
+    const ok = await askConfirm({ title, message, confirmLabel });
+    if (!ok) return;
+    setBusy(true);
+    try { await onArchive(list, true); load(); } catch (e) { notify((e && e.message) || 'Não foi possível arquivar.', { tone: 'error' }); }
+    setBusy(false);
+  }
+  async function unarchive(v) {
+    setBusy(true);
+    try { await onArchive([v.version], false); load(); } catch (e) { notify((e && e.message) || 'Não foi possível desarquivar.', { tone: 'error' }); }
+    setBusy(false);
+  }
+  const archivable = (v) => !v.current && v.version !== 1;
+  const shown = (versions || []).filter((v) => !v.archived);
+  const hidden = (versions || []).filter((v) => v.archived);
+  const toArchive = shown.filter(archivable);
+  const row = (v) => (
+    <div className={`spb-v${v.current ? ' cur' : ''}${v.archived ? ' arch' : ''}`} key={v.version}>
+      <div className="spb-vt">
+        <span className="spb-vn">{v.label}</span>
+        {v.current && <span className="spb-chip cur">Atual</span>}
+        {v.seed && v.version === 1 && <span className="spb-chip">Modelo do sistema</span>}
+        {v.archived && <span className="spb-chip">Arquivada</span>}
+        <span className="spb-meta">{fdt(v.createdAt)} · {v.createdBy}</span>
+        <span className="spb-grow" />
+        {!v.current && <Button onClick={() => restore(v)} disabled={busy}>Carregar no rascunho</Button>}
+        {v.archived && <Button onClick={() => unarchive(v)} disabled={busy}>Desarquivar</Button>}
+        {!v.archived && archivable(v) && <Button onClick={() => archive([v.version], `Arquivar a versão ${v.label}?`, 'Ela some desta lista, mas continua guardada e pode ser mostrada de novo. Nada é apagado.', 'Arquivar')} disabled={busy}>Arquivar</Button>}
+      </div>
+      {v.note && <div>{v.note}</div>}
+      <div className="spb-meta">{v.counts ? `${plural(v.counts.activities, 'atividade', 'atividades')} · ${plural(v.counts.subs, 'subatividade', 'subatividades')}` : ''}{v.diff && !v.seed ? ` · ${sumDiff(v.diff)}` : ''}</div>
+      {v.diff && !v.seed && <Lines diff={v.diff} />}
+    </div>
+  );
   return (
     <Modal title="Versões do cronograma padrão" subtitle="A mais recente é a que as empresas novas seguem" size="lg" width="min(760px, 100%)" onClose={onClose}>
       <style>{CSS}</style>
       <div className="spb-list spb-modal">
         {!versions && !error && <SkeletonCards count={3} />}
         {error && <ErrorState title="Não foi possível carregar" message={error} onRetry={load} />}
-        {proposals.map((p) => (
-          <div className="spb-v" key={p.key} style={{ borderStyle: 'dashed' }}>
-            <div className="spb-vt">
-              <span className="spb-vn">{p.label}</span>
-              <span className="spb-chip">Proposta, ainda não é versão</span>
-              <span className="spb-grow" />
-              <Button onClick={() => loadProposal(p)}>Carregar no rascunho</Button>
-            </div>
-            <div>{p.description}</div>
-            <div className="spb-meta">{p.counts ? `${plural(p.counts.activities, 'atividade', 'atividades')} · ${plural(p.counts.subs, 'subatividade', 'subatividades')}` : ''}</div>
+        {versions && toArchive.length > 0 && (
+          <div className="spb-clean">
+            <span>{plural(toArchive.length, 'versão intermediária', 'versões intermediárias')} no histórico.</span>
+            <span className="spb-grow" />
+            <Button onClick={() => archive('old', 'Arquivar as versões intermediárias?', `Ficam só a 1.0 e a versão atual. As outras ${toArchive.length} saem desta lista, continuam guardadas (a Auditoria ainda as usa) e podem ser mostradas de novo.`, 'Arquivar')} disabled={busy}>Manter só a 1.0 e a atual</Button>
           </div>
-        ))}
-        {versions && versions.map((v) => (
-          <div className={`spb-v${v.current ? ' cur' : ''}`} key={v.version}>
-            <div className="spb-vt">
-              <span className="spb-vn">{v.label}</span>
-              {v.current && <span className="spb-chip cur">Atual</span>}
-              <span className="spb-meta">{fdt(v.createdAt)} · {v.createdBy}</span>
-              <span className="spb-grow" />
-              {!v.current && <Button onClick={() => restore(v)}>Carregar no rascunho</Button>}
+        )}
+        {versions && shown.map(row)}
+        {versions && hidden.length > 0 && (
+          <>
+            <button type="button" className="spb-more" onClick={() => setShowArchived((x) => !x)} aria-expanded={showArchived}>{showArchived ? 'Esconder' : 'Mostrar'} {plural(hidden.length, 'versão arquivada', 'versões arquivadas')}</button>
+            {showArchived && hidden.map(row)}
+          </>
+        )}
+        {proposals.length > 0 && (
+          <details className="spb-props">
+            <summary>Propostas de modelo ({proposals.length}) · ainda não são versão</summary>
+            <div className="spb-list" style={{ marginTop: 8 }}>
+              {proposals.map((p) => (
+                <div className="spb-v" key={p.key} style={{ borderStyle: 'dashed' }}>
+                  <div className="spb-vt">
+                    <span className="spb-vn">{p.label}</span>
+                    <span className="spb-grow" />
+                    <Button onClick={() => loadProposal(p)} disabled={busy}>Carregar no rascunho</Button>
+                  </div>
+                  <div>{p.description}</div>
+                  <div className="spb-meta">{p.counts ? `${plural(p.counts.activities, 'atividade', 'atividades')} · ${plural(p.counts.subs, 'subatividade', 'subatividades')}` : ''}</div>
+                </div>
+              ))}
             </div>
-            {v.note && <div>{v.note}</div>}
-            <div className="spb-meta">{v.counts ? `${plural(v.counts.activities, 'atividade', 'atividades')} · ${plural(v.counts.subs, 'subatividade', 'subatividades')}` : ''}{v.diff && !v.seed ? ` · ${sumDiff(v.diff)}` : ''}</div>
-            {v.diff && !v.seed && <Lines diff={v.diff} />}
-          </div>
-        ))}
+          </details>
+        )}
       </div>
     </Modal>
   );
@@ -172,7 +219,7 @@ export default function StandardPlanBar({ info, project, actions }) {
         <span className="spb-note">Cada data aqui vira “dias depois do início do projeto” (a assinatura do contrato): ao cadastrar uma empresa, você informa o início dela e as datas são recalculadas. Mudar este campo move o padrão inteiro.</span>
       </div>
       {modal === 'save' && <SaveModal nextLabelHint={nextHint} fetchDiff={actions.fetchStandardDiff} onSave={actions.saveStandardVersion} onClose={() => setModal('')} />}
-      {modal === 'versions' && <VersionsModal fetchVersions={actions.fetchStandardVersions} fetchProposals={actions.fetchStandardProposals} dirty={info.dirty} onRestore={actions.restoreStandardVersion} onLoadProposal={actions.loadStandardProposal} onClose={() => setModal('')} />}
+      {modal === 'versions' && <VersionsModal fetchVersions={actions.fetchStandardVersions} fetchProposals={actions.fetchStandardProposals} dirty={info.dirty} onRestore={actions.restoreStandardVersion} onLoadProposal={actions.loadStandardProposal} onArchive={actions.archiveStandardVersions} onClose={() => setModal('')} />}
     </div>
   );
 }

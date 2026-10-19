@@ -77,6 +77,7 @@ export function createStandardPlanActions({ flushProjectSave, goToWorkspace, mut
   }
 
   const fetchStandardVersions = async () => (await apiGet(withActingOrg(`${BASE}/versions`))).versions;
+  const archiveStandardVersions = async (versions, archived = true) => apiPost(withActingOrg(`${BASE}/versions/archive`), { versions, archived });
   async function fetchStandardDiff() { await settle(); return apiGet(withActingOrg(`${BASE}/draft/diff`)); }
 
   // Muda o kickoff de referência movendo o padrão inteiro: cada atividade e subatividade guarda os mesmos dias após o kickoff.
@@ -92,5 +93,5 @@ export function createStandardPlanActions({ flushProjectSave, goToWorkspace, mut
     });
   }
 
-  return { closeStandardPlan, discardStandardDraft, fetchStandardDiff, fetchStandardProposals, fetchStandardVersions, loadStandardProposal, openStandardPlan, restoreStandardVersion, saveStandardVersion, setStandardKickoff };
+  return { archiveStandardVersions, closeStandardPlan, discardStandardDraft, fetchStandardDiff, fetchStandardProposals, fetchStandardVersions, loadStandardProposal, openStandardPlan, restoreStandardVersion, saveStandardVersion, setStandardKickoff };
 }

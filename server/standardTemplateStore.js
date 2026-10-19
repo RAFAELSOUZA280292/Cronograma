@@ -41,6 +41,7 @@ async function withOrgLock(orgId, fn) {
 const metaOf = (r) => ({
   version: r.version, label: labelOf(r.version), createdAt: r.created_at, createdBy: r.created_by_name || 'Sistema', note: r.note || '',
   counts: (r.summary && r.summary.counts) || null, diff: (r.summary && r.summary.diff) || null, seed: !!(r.summary && r.summary.seed),
+  archived: !!(r.summary && r.summary.archived),
 });
 
 async function latestRow(client, orgId) {
@@ -58,6 +59,23 @@ export async function listVersions(orgId) {
   return withOrgLock(orgId, async (c) => {
     const { rows } = await c.query('SELECT version, note, summary, created_by_name, created_at FROM standard_plan_versions WHERE org_id=$1 ORDER BY version DESC', [orgId]);
     return rows.map((r, i) => ({ ...metaOf(r), current: i === 0 }));
+  });
+}
+
+// Arquivar versão (2026-10-19, Rafael: "manter só a 1.0 e a 9.0"): NÃO apaga nada. Marca `summary.archived` e a tela esconde a versão (dá para mostrar e desarquivar).
+// A linha continua no banco porque a Auditoria compara as empresas com as versões anteriores (`previous` em /audit/:id). A 1.0 e a versão atual nunca são arquivadas.
+export async function setArchived(orgId, versions, archived) {
+  return withOrgLock(orgId, async (c) => {
+    const cur = await latestRow(c, orgId);
+    const all = (await c.query('SELECT version FROM standard_plan_versions WHERE org_id=$1', [orgId])).rows.map((r) => r.version);
+    const wanted = versions === 'old' ? all.filter((v) => v !== 1 && v !== cur.version) : [...new Set(versions)].filter((v) => all.includes(v));
+    if (archived && wanted.some((v) => v === 1 || v === cur.version)) { const e = new Error('A versão 1.0 e a versão atual não podem ser arquivadas.'); e.status = 400; throw e; }
+    if (!wanted.length) return { changed: 0 };
+    const r = await c.query(
+      `UPDATE standard_plan_versions SET summary = CASE WHEN $3::boolean THEN COALESCE(summary,'{}'::jsonb) || '{"archived":true}'::jsonb ELSE COALESCE(summary,'{}'::jsonb) - 'archived' END
+       WHERE org_id=$1 AND version = ANY($2::int[])`, [orgId, wanted, archived],
+    );
+    return { changed: r.rowCount };
   });
 }
 
