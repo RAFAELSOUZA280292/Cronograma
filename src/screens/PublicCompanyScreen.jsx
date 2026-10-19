@@ -46,7 +46,7 @@ const CSS = `
   .pc-tabs { display:flex; gap:6px; margin:6px 0 12px; flex-wrap:wrap; }
   .pc-tab { min-height:40px; padding:0 16px; border-radius:10px; border:1px solid var(--border-2); background:transparent; color:var(--text-3); font-weight:700; font-size:13px; cursor:pointer; }
   .pc-tab[aria-selected="true"] { background:var(--bg-3); color:var(--text-1); border-color:var(--border-3); }
-  .pc-chip { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; color:#17171f; white-space:nowrap; }
+  .pc-chip { display:inline-block; align-self:start; line-height:1.5; font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; color:#17171f; white-space:nowrap; }
   .pc-next { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:6px 12px; align-items:center; padding:9px 0; border-top:1px solid var(--border-1); font-size:13.5px; }
   .pc-next .pc-chip { justify-self:start; }
   .pc-next:first-of-type { border-top:none; }
@@ -56,7 +56,8 @@ const CSS = `
   .pc-step { display:grid; grid-template-columns:78px minmax(0,1fr) auto; gap:4px 12px; align-items:start; padding:9px 0; border-top:1px solid var(--border-1); font-size:13.5px; }
   .pc-step .d { font-weight:800; font-variant-numeric:tabular-nums; color:var(--text-2); }
   .pc-step .t { font-weight:700; color:var(--text-1); }
-  .pc-doing { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 12px; padding:9px 0; border-top:1px solid var(--border-1); }
+  .pc-doing { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 12px; align-items:start; padding:9px 0; border-top:1px solid var(--border-1); }
+  .pc-doing .pc-chip { align-self:start; justify-self:end; }
   .pc-doing:first-of-type { border-top:none; }
   .pc-muted { color:var(--text-5); font-size:12px; }
   .pc-scroll { overflow-x:auto; border:1px solid var(--border-1); border-radius:12px; background:var(--bg-2); }
