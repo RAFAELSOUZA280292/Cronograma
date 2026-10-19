@@ -1981,7 +1981,7 @@ export function PhasesView({ activities, orderMap, phases, pid, updateActivity, 
         </div>
       </div>
 
-      {phases.map((p) => {
+      {phases.map((p, pi) => {
         const phaseActs = activities.filter((a) => a.phase === p.id).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
         const phaseDone = phaseActs.filter((a) => a.status === 'concluido').length;
         const phasePct = phaseActs.length ? Math.round((phaseDone / phaseActs.length) * 100) : 0;
@@ -1989,7 +1989,7 @@ export function PhasesView({ activities, orderMap, phases, pid, updateActivity, 
         return (
           <section key={p.id} style={{ ...S.phaseSection, borderLeft: `3px solid ${accent}` }}>
             <div style={S.phaseHead2} onClick={() => toggle(p.id)}>
-              <div style={{ ...S.phaseNum, color: p.color }}>0{p.id}</div>
+              <div style={{ ...S.phaseNum, color: p.color }}>{String(pi + 1).padStart(2, '0')}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={S.phaseTitle}>{p.name}</div>
                 <div style={S.phaseSub}>{p.sub}</div>
