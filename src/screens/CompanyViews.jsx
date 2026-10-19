@@ -33,6 +33,10 @@ const SUB_ROW_CSS = `
   }
   .sub-row-card .sub-meta-select:hover, .sub-row-card .sub-meta-date:hover { color:var(--text-2); border-color:var(--border-3); }
   .sub-row-card input[type=checkbox] { width:16px; height:16px; cursor:pointer; flex-shrink:0; }
+  .ord-badge { cursor:pointer; border:0; font-family:inherit; line-height:1.2; transition:transform .12s, box-shadow .12s, filter .12s; }
+  .ord-badge:hover { transform:translateY(-1px); box-shadow:0 2px 7px rgba(0,0,0,.4); filter:brightness(1.1); }
+  .ord-badge:focus-visible { outline:2px solid var(--text-1); outline-offset:2px; }
+  @media (max-width: 767px) { .ord-badge { min-height:32px; min-width:38px; } }
   .act-row .act-row-actions { opacity:.45; transition:opacity .12s; }
   .act-row:hover .act-row-actions, .act-row:focus-within .act-row-actions, .act-row .act-row-actions[data-open="true"] { opacity:1; }
   @media (hover:none) { .act-row .act-row-actions { opacity:1; } }
@@ -183,6 +187,20 @@ function StatusPill({ status, onClick }) {
 // poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo
 // bug de digitação do PROJECT_CONTEXT.md §45/§46 (não coberto pelo fix do
 // §45, que só tratou os 4 campos do nível principal da atividade).
+// Selo "#N" da atividade na Tabela (2026-10-19): botão que ABRE a atividade, com a cor da fase (texto preto ou branco conforme o contraste).
+const badgeInk = (hex) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+  if (!m) return '#111';
+  const n = parseInt(m[1], 16); const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
+  return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) > 0.4 ? '#111' : '#fff';
+};
+function OrderBadge({ n, title, color, phaseName, onOpen }) {
+  const bg = /^#/.test(color || '') ? color : '#F5C400';
+  return (
+    <button type="button" className="ord-badge" onClick={onOpen} aria-label={`Abrir a atividade ${n}: ${title || 'sem título'}`} title={`Abrir atividade${phaseName ? ` · ${phaseName}` : ''}`} style={{ ...S.monthBadgeSm, background: bg, color: badgeInk(bg) }}>#{n}</button>
+  );
+}
+
 function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSub, deleteSub, reorderSub, allSubs, canEditExtras }) {
   const titleField = useDebouncedField(s.title, (v) => updateSub(pid, actId, s.id, { title: v }));
   // Título da subatividade quebra em linhas (cresce com o texto) em vez de cortar: o painel é largo e o nome inteiro precisa aparecer.
@@ -1657,7 +1675,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                   >
                     <GripVertical size={14} color="var(--text-7)" />
                   </div>
-                  <div style={{ width: 46, paddingTop: 6 }}><span style={S.monthBadgeSm}>#{rowOrder}</span></div>
+                  <div style={{ width: 46, paddingTop: 6 }}><OrderBadge n={rowOrder} title={a.title} color={phaseColor} phaseName={phaseOf(a)?.name} onOpen={() => openDetail(rowPid, a.id)} /></div>
                   {multiMode && (
                     <div style={{ width: 150 }}>
                       <CompanyBadge name={a._companyName} color={a._companyColor} logo={a._companyLogo} />
@@ -1676,7 +1694,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                   <div style={{ flex: 2, minWidth: 260 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {a.priority && <span title={`Prioridade ${PRIORITY_META[a.priority].label}`} style={{ ...S.priorityDot, background: PRIORITY_META[a.priority].color }} />}
-                      <DebouncedTextInput aria-label="Título da atividade" value={a.title} onCommit={(v) => updateActivity(rowPid, a.id, { title: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} style={{ flex: 1 }} />
+                      <DebouncedTextInput aria-label="Título da atividade" value={a.title} onCommit={(v) => updateActivity(rowPid, a.id, { title: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Título alterado: "${a.title}"`)} style={{ flex: 1, fontWeight: 700 }} />
                     </div>
                     <DebouncedTextInput value={a.desc} onCommit={(v) => updateActivity(rowPid, a.id, { desc: v })} onBlurLog={() => updateActivity(rowPid, a.id, {}, `Descrição alterada em "${a.title}"`)} placeholder="Descrição" style={{ marginTop: 4, opacity: .8 }} />
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -1737,7 +1755,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                 {isMobile && (
                   <div style={S.mobileActCard}>
                     <div style={S.mobileActTopRow}>
-                      <span style={S.monthBadgeSm}>#{rowOrder}</span>
+                      <OrderBadge n={rowOrder} title={a.title} color={phaseColor} phaseName={phaseOf(a)?.name} onOpen={() => openDetail(rowPid, a.id)} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           {a.priority && <span title={`Prioridade ${PRIORITY_META[a.priority].label}`} style={{ ...S.priorityDot, background: PRIORITY_META[a.priority].color, flexShrink: 0 }} />}
