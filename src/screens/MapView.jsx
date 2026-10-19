@@ -1,7 +1,8 @@
 // Aba MAPA (2026-10-19, pedido do Rafael; nome final "Mapa", antes "Árvore"): mapa mental do cronograma de UMA empresa — empresa → grupos (fase, responsável ou situação) → atividades →
 // subatividades. Só leitura: clicar numa atividade (ou numa subatividade) abre o mesmo detalhe de sempre. Usa os mesmos dados das outras abas, sem campo novo.
-import { Maximize2, Minus, Plus, SlidersHorizontal, X } from 'lucide-react';
+import { Maximize2, Minimize2, Minus, Plus, SlidersHorizontal, X } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { STATUS_META, fmtDate, todayISOStr, useIsMobile } from '../App.jsx';
 import { subStats } from '../lib/subStats.js';
 
@@ -86,6 +87,7 @@ export default function MapView({ pid, activities, orderMap, phases, companyName
   const [showFilters, setShowFilters] = useState(false);
   const [cam, setCam] = useState({ x: PAD, y: PAD, k: isMobile ? 0.6 : 1 });
   const [fitTick, setFitTick] = useState(0);
+  const [full, setFull] = useState(false); // tela cheia (2026-10-19): o mapa ocupa a janela inteira; "Ajustar tela" abre e Esc fecha
   const boxRef = useRef(null);
   const camRef = useRef(cam);
   camRef.current = cam;
@@ -254,6 +256,16 @@ export default function MapView({ pid, activities, orderMap, phases, companyName
     setCam({ k, x: layout.width * k < cw ? (cw - layout.width * k) / 2 : m, y: layout.height * k < ch ? (ch - layout.height * k) / 2 : m });
   }
   useEffect(() => { fit(); }, [fitTick]);
+  // Tela cheia: trava a rolagem da página, Esc fecha e o mapa se reajusta ao novo tamanho.
+  useEffect(() => {
+    if (!full) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onEsc = (e) => { if (e.key === 'Escape' && !document.querySelector('[role="dialog"]')) setFull(false); };
+    window.addEventListener('keydown', onEsc);
+    return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onEsc); };
+  }, [full]);
+  useEffect(() => { const id = requestAnimationFrame(() => setFitTick((t) => t + 1)); return () => cancelAnimationFrame(id); }, [full]);
   useEffect(() => {
     const a = anchor.current;
     if (!a) return;
@@ -412,15 +424,22 @@ export default function MapView({ pid, activities, orderMap, phases, companyName
 
   if (!all.length) return <div style={{ padding: 24, color: 'var(--text-4)' }}>Nenhuma atividade para mostrar no mapa.</div>;
 
-  return (
-    <div>
+  const inner = (
+    <div style={full ? { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 } : undefined}>
       <style>{CSS}</style>
-      {isMobile && (
+      {full && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <b style={{ fontSize: 15 }}>Mapa{companyName ? ` · ${companyName}` : ''}</b>
+          <span style={{ flex: 1 }} />
+          <button type="button" className="tv-chip" onClick={() => setFull(false)} aria-label="Fechar a tela cheia"><Minimize2 size={14} /> Fechar tela cheia (Esc)</button>
+        </div>
+      )}
+      {(isMobile || full) && (
         <button type="button" className="tv-chip" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)} style={{ marginBottom: 10 }}>
           <SlidersHorizontal size={13} /> Filtros{filtersOn || groupBy !== 'fase' ? ' (ativos)' : ''}
         </button>
       )}
-      <div style={{ display: isMobile && !showFilters ? 'none' : 'block' }}>
+      <div style={{ display: (isMobile || full) && !showFilters ? 'none' : 'block' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 10 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-4)', whiteSpace: 'nowrap' }}>Agrupar por
           <select className="tv-ctl" value={groupBy} onChange={onFilter(setGroupBy)} aria-label="Agrupar o mapa por">
@@ -464,7 +483,7 @@ export default function MapView({ pid, activities, orderMap, phases, companyName
           <button type="button" className="tv-iconbtn"  onClick={() => zoomCenter(1 / 1.25)} aria-label="Diminuir o zoom" title="Diminuir"><Minus size={14} /></button>
           <span style={{ minWidth: 42, textAlign: 'center', fontSize: 12, color: 'var(--text-3)' }} aria-live="polite">{Math.round(cam.k * 100)}%</span>
           <button type="button" className="tv-iconbtn" onClick={() => zoomCenter(1.25)} aria-label="Aumentar o zoom" title="Aumentar"><Plus size={14} /></button>
-          <button type="button" className="tv-iconbtn" onClick={fit} aria-label="Ajustar o mapa à tela" title="Ajustar à tela (duplo clique no fundo)"><Maximize2 size={14} /></button>
+          <button type="button" className="tv-chip" onClick={() => (full ? fit() : setFull(true))} aria-label={full ? 'Ajustar o mapa à tela' : 'Ajustar tela: abre o mapa em tela cheia'} title={full ? 'Ajustar o mapa ao espaço (duplo clique no fundo)' : 'Abre o mapa em tela cheia, ajustado à janela'}><Maximize2 size={14} /> {full ? 'Ajustar' : 'Ajustar tela'}</button>
         </div>
         <span style={{ fontSize: 12, color: 'var(--text-4)' }}>
           {filtersOn ? `${shown.length} de ${all.length} atividades` : plural(all.length, 'atividade', 'atividades')} · role para dar zoom, arraste para mover, clique numa atividade para abri-la
@@ -486,7 +505,7 @@ export default function MapView({ pid, activities, orderMap, phases, companyName
           onClickCapture={onClickCapture}
           onDoubleClick={onDoubleClick}
           onKeyDown={onKeyDown}
-          style={{ position: 'relative', overflow: 'hidden', height: isMobile ? '62vh' : 'calc(100vh - 300px)', minHeight: 380, border: '1px solid var(--border-2)', borderRadius: 12, background: 'var(--bg-1)', cursor: 'grab', touchAction: 'none', userSelect: 'none' }}
+          style={{ position: 'relative', overflow: 'hidden', ...(full ? { flex: '1 1 auto', minHeight: 0 } : { height: isMobile ? '62vh' : 'calc(100vh - 300px)', minHeight: 380 }), border: '1px solid var(--border-2)', borderRadius: 12, background: 'var(--bg-1)', cursor: 'grab', touchAction: 'none', userSelect: 'none' }}
         >
           <div style={{ position: 'absolute', left: 0, top: 0, width: layout.width, height: layout.height, transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.k})`, transformOrigin: '0 0', willChange: 'transform' }}>
             <svg width={layout.width} height={layout.height} style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }} aria-hidden="true">
@@ -505,4 +524,5 @@ export default function MapView({ pid, activities, orderMap, phases, companyName
       )}
     </div>
   );
+  return full ? createPortal(<div role="region" aria-label="Mapa em tela cheia" style={{ position: 'fixed', inset: 0, zIndex: 45, background: 'var(--bg-page)', color: 'var(--text-1)', padding: 14, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', sans-serif", overflow: 'auto' }}>{inner}</div>, document.body) : inner;
 }
