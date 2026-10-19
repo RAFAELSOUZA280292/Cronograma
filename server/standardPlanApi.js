@@ -8,7 +8,7 @@ import { pool, blankProject } from './db.js';
 import { canAccessProject, effectiveOrgId } from './routes.js';
 import { planForProject, applyPlanToData } from './standardPlan.js';
 import { auditProject } from './standardAudit.js';
-import { STD_PLAN_ID, discardDraft, draftDiff, getDraft, listVersions, restoreVersion, saveDraft, saveVersion } from './standardTemplateStore.js';
+import { STD_PLAN_ID, discardDraft, draftDiff, getDraft, listProposals, listVersions, loadProposal, restoreVersion, saveDraft, saveVersion } from './standardTemplateStore.js';
 
 export const router = Router();
 router.use(requireAuth, requireMasterOrPricetax);
@@ -152,6 +152,23 @@ router.post('/template/restore/:version', async (req, res, next) => {
     const n = Number(req.params.version);
     if (!Number.isInteger(n) || n < 1) return res.status(400).json({ message: 'Versão inválida.' });
     await restoreVersion(orgId, req.user, n);
+    res.json({ ok: true });
+  } catch (e) { fail(res, next, e); }
+});
+
+router.get('/template/proposals', async (req, res, next) => {
+  try {
+    const orgId = orgOf(req, res); if (!orgId) return;
+    await listVersions(orgId);
+    res.json({ proposals: listProposals() });
+  } catch (e) { fail(res, next, e); }
+});
+
+router.post('/template/proposals/:key/load', async (req, res, next) => {
+  try {
+    const orgId = orgOf(req, res); if (!orgId) return;
+    await listVersions(orgId);
+    await loadProposal(orgId, req.user, req.params.key);
     res.json({ ok: true });
   } catch (e) { fail(res, next, e); }
 });

@@ -10,7 +10,7 @@ export const EXECUTORS = ['Cliente', 'ERP', 'PriceTax', 'Portal X'];
 export const RECURRENCES = ['semanal', 'mensal', 'anual', 'por versão', 'contínuo'];
 export const LIMIT_TYPES = ['lei', 'nota técnica', 'previsão', 'decisão de projeto'];
 export const LIMIT_CONFS = ['conferido no texto da norma', 'fonte secundária', 'a verificar'];
-export const ANCHORS = [['kickoff', 'Kickoff da empresa (dias depois)'], ['fixa', 'Data fixa']];
+export const ANCHORS = [['kickoff', 'Kickoff da empresa (dias depois)'], ['virada', 'Virada de 01/01/2027 (dias antes)'], ['fixa', 'Data fixa']];
 const PRIO_LABEL = { alta: 'P1', media: 'P2', baixa: 'P3' };
 const PRIO_TEXT = { alta: 'P1 · Alta', media: 'P2 · Média', baixa: 'P3 · Baixa' };
 const CONF_TONE = { 'conferido no texto da norma': 'ok', 'fonte secundária': 'warn', 'a verificar': 'bad' };
@@ -74,6 +74,7 @@ export function SubExtras({ s, pid, actId, allSubs, canEdit, updateSub }) {
           {s.recurrence && <span className="sx-chip info" title="Atividade recorrente">{s.recurrence}</span>}
           {s.applicability && <span className="sx-chip info" title="Só vale quando se aplica">Se: {s.applicability}</span>}
           {s.anchor === 'fixa' && <span className="sx-chip" title="A data não muda com o kickoff da empresa">Data fixa</span>}
+          {s.anchor === 'virada' && <span className="sx-chip" title="Prazo contado para trás a partir da virada de 01/01/2027; não muda com o kickoff da empresa">Virada</span>}
           {preds.map((id) => { const t = predTitle(allSubs, id); return <span key={id} className="sx-chip" title={t ? `Depende de: ${t}` : 'Predecessora que não existe mais'}>{t ? `Depende de: ${t.length > 28 ? `${t.slice(0, 28)}…` : t}` : 'Predecessora removida'}</span>; })}
           {!s.done && pending.length > 0 && <span className="sx-chip warn" title="Há predecessora ainda não concluída"><Lock size={10} aria-hidden="true" /> Aguarda {pending.length}</span>}
         </div>

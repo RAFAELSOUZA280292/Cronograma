@@ -68,6 +68,14 @@ export function createStandardPlanActions({ flushProjectSave, goToWorkspace, mut
     notify(`Versão ${n}.0 carregada no rascunho. Salve para criar uma versão nova a partir dela.`, { tone: 'success' });
   }
 
+  const fetchStandardProposals = async () => (await apiGet(withActingOrg(`${BASE}/proposals`))).proposals;
+  async function loadStandardProposal(key, label) {
+    await settle();
+    await apiPost(withActingOrg(`${BASE}/proposals/${key}/load`), {});
+    await loadDraft();
+    notify(`${label} carregada no rascunho. Revise e, quando estiver certo, use "Salvar nova versão".`, { tone: 'success' });
+  }
+
   const fetchStandardVersions = async () => (await apiGet(withActingOrg(`${BASE}/versions`))).versions;
   async function fetchStandardDiff() { await settle(); return apiGet(withActingOrg(`${BASE}/draft/diff`)); }
 
@@ -84,5 +92,5 @@ export function createStandardPlanActions({ flushProjectSave, goToWorkspace, mut
     });
   }
 
-  return { closeStandardPlan, discardStandardDraft, fetchStandardDiff, fetchStandardVersions, openStandardPlan, restoreStandardVersion, saveStandardVersion, setStandardKickoff };
+  return { closeStandardPlan, discardStandardDraft, fetchStandardDiff, fetchStandardProposals, fetchStandardVersions, loadStandardProposal, openStandardPlan, restoreStandardVersion, saveStandardVersion, setStandardKickoff };
 }
