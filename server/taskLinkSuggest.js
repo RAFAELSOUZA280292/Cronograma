@@ -24,6 +24,14 @@ const AREA_WORDS = {
 
 const liveActivities = (activities) => (activities || []).filter((a) => a && !a.deleted && a.id && a.title);
 
+// Atividade padrão = veio do cronograma padrão (`stdKey`) ou é do modelo (`required: true`). Atividade criada à mão na tela nasce com `required: false` e sem `stdKey`.
+// Regra do Rafael (2026-10-19): a IA só enquadra tarefa em atividade padrão que já existe; se não houver nenhuma marcada (empresa toda personalizada), usa as que existem.
+export function onlyStandard(activities) {
+  const live = liveActivities(activities);
+  const std = live.filter((a) => a.stdKey || a.required === true);
+  return std.length ? std : live;
+}
+
 // Regra de reserva (função pura): devolve { activityId, confidence, reason } ou null.
 export function ruleSuggest(task, activities) {
   const acts = liveActivities(activities);
@@ -89,7 +97,8 @@ export function applySuggestions(items, suggestions) {
 
 // Ponto de entrada. `client` = SDK da Anthropic (injetável em teste); sem client ou se a IA falhar, só a regra de reserva.
 // Chave de emergência (variável do Railway `TASK_LINK_MODE`): 'off' não sugere nada; 'sem-ia' só usa aprendido + regra (zero custo de IA).
-export async function suggestActivityLinks({ client: clientIn, activities, phases, tasks, meeting, learn }) {
+export async function suggestActivityLinks({ client: clientIn, activities: activitiesIn, phases, tasks, meeting, learn }) {
+  const activities = onlyStandard(activitiesIn);
   const mode = process.env.TASK_LINK_MODE;
   if (mode === 'off') return { suggestions: {}, usage: { input: 0, output: 0 }, usedAI: false, aiError: '', learned: 0, disabled: true };
   const client = mode === 'sem-ia' ? null : clientIn;
