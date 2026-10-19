@@ -233,8 +233,8 @@ const refDay = dayNum(V4_KICKOFF);
 const limitDay = (lim) => (lim && lim.d ? dayNum(lim.d) - refDay : null);
 
 // Atribui o dia (D+n) de cada subatividade dentro da janela da sua atividade, em ordem; respeita data fixa, limite da norma e predecessoras.
-export function schedule(items) {
-  const win = Object.fromEntries(MAINS.map((m) => [m[0], m[4]]));
+export function schedule(items, mains = MAINS) {
+  const win = Object.fromEntries(mains.map((m) => [m[0], m[4]]));
   const pos = Object.fromEntries(V3_ITEMS.map((it, i) => [it.id, i]));
   const byMain = {};
   items.forEach((it, i) => { it.seq = i; (byMain[it.main] ||= []).push(it); });
@@ -265,3 +265,28 @@ export function schedule(items) {
 }
 
 export function descOf(mainKey) { return (MAINS.find((m) => m[0] === mainKey) || [])[5] || ''; }
+
+// ---------- Proposta v5 (2026-10-19): v4 + atividade própria de saldos credores ----------
+// Pedido do Rafael na Alcast: o padrão tinha o tema espalhado (B4.9 em Validação e inventários, B9.5 e B10.1 nas Oficinas, B8.5 na Operação assistida) e nenhuma atividade
+// que levasse do levantamento ao plano de ação aprovado. A v5 cria "Saldos credores e plano de recuperação" (fase 02, D+40 a D+140): reúne B4.9, B9.5 e B10.1 e acrescenta as
+// etapas que faltavam. A execução em 2027 (B8.5, monetização do ICMS, ressarcimento) continua na Operação assistida. A v4 não muda.
+export const SALDOS_MAIN = ['saldos', 2, 'Saldos credores e plano de recuperação', 'Fiscal', [40, 140],
+  'Levantamento dos saldos credores de ICMS, IPI, PIS e COFINS por tributo e por filial, conciliação com a escrituração, análise legal das vias de aproveitamento na transição, simulação de caixa, decisão da estratégia e registro do que vence em 2026. Termina com o plano de ação tributário de 2027 a 2033, aprovado pela diretoria; a execução em 2027 está na Operação assistida.'];
+export const MAINS_V5 = (() => { const out = [...MAINS]; out.splice(out.findIndex((m) => m[0] === 'oficinas'), 0, SALDOS_MAIN); return out; })();
+export const PHASES_V5 = PHASES.map((f) => (f.id === 2 ? { ...f, sub: 'Decisões registradas por área, saldos credores com plano aprovado e requisitos entregues ao ERP (até D+140)' } : f));
+ORDER.saldos = ['B4.9', 'SAL-1', 'SAL-2', 'B10.1', 'SAL-3', 'SAL-4', 'B9.5', 'SAL-5', 'SAL-6', 'SAL-7'];
+
+export function applySaldosV5(items) {
+  for (const it of items) if (['B4.9', 'B9.5', 'B10.1'].includes(it.code)) it.main = 'saldos';
+  const b85 = items.find((x) => x.code === 'B8.5');
+  b85.title = `Executar o p${b85.title.slice(1)}`;
+  const add = (o) => items.push({ lim: null, pred: [], apl: '', rec: '', guide: '', fixed: null, isNew: true, ar: [o.resp], prio: 'alta', ex: 'PriceTax', main: 'saldos', ...o });
+  add({ code: 'SAL-1', title: 'Conciliar o saldo de cada tributo com a escrituração e o balancete', resp: 'Contábil', ar: ['Contábil', 'Fiscal'], ex: 'Cliente', pred: ['B4.9'] });
+  add({ code: 'SAL-2', title: 'Analisar as vias legais de aproveitamento por tributo: PIS/Cofins (LC 214, art. 378), IPI, ICMS (ADCT, art. 134) e CBS/IBS', resp: 'Jurídico', ar: ['Jurídico', 'Fiscal'], pred: ['SAL-1'] });
+  add({ code: 'SAL-3', title: 'Simular o fluxo de recuperação dos saldos em 2027, com e sem compensação, mês a mês', resp: 'Financeiro', ar: ['Financeiro', 'Fiscal'], pred: ['SAL-2'] });
+  add({ code: 'SAL-4', title: 'Oficina de decisão da estratégia de uso, compensação ou recuperação por tributo', resp: 'Diretoria', ar: ['Diretoria', 'Fiscal', 'Financeiro'], pred: ['SAL-3', 'B10.1'] });
+  add({ code: 'SAL-5', title: 'Registrar o que precisa ser feito em 2026: saldos de PIS/Cofins na escrituração e pedido do saldo de IPI (prazo do IPI a confirmar)', resp: 'Fiscal', ar: ['Fiscal'], ex: 'Cliente', pred: ['SAL-4'], lim: { d: '2026-12-31', tipo: 'Lei', fonte: 'LC 214, art. 378, II: o crédito de PIS/Cofins precisa estar registrado na escrituração; prazo do IPI a confirmar', conf: 'parcial' } });
+  add({ code: 'SAL-6', title: 'Plano de ação tributário de 2027 a 2033, por tributo: via, passos, responsável, prazo e valor', resp: 'PRICETAX', ar: ['Diretoria', 'Fiscal', 'Financeiro'], pred: ['SAL-4', 'B9.5'] });
+  add({ code: 'SAL-7', title: 'Aprovar o plano de ação dos saldos credores na reunião do comitê', resp: 'Diretoria', ar: ['Diretoria'], ex: 'Cliente', pred: ['SAL-6'] });
+  return items;
+}

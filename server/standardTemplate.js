@@ -3,7 +3,7 @@
 // server/standardTemplateStore.js. Forma de uma versão (`data`): { kickoffDate, phases, activities, team } — a mesma de um projeto, sem empresa/log/reuniões.
 import { blankProject, nextPhaseColor } from './db.js';
 import { CRONOGRAMA_PADRAO } from '../shared/cronogramaPadrao.js';
-import { MAINS as V4_MAINS, PHASES as V4_PHASES, TEAM as V4_TEAM, V4_KICKOFF, buildItems as v4BuildItems, schedule as v4Schedule } from '../shared/cronogramaPadraoV4.js';
+import { MAINS as V4_MAINS, MAINS_V5, PHASES as V4_PHASES, PHASES_V5, TEAM as V4_TEAM, V4_KICKOFF, applySaldosV5, buildItems as v4BuildItems, schedule as v4Schedule } from '../shared/cronogramaPadraoV4.js';
 import { ITEMS as V3_ITEMS, MAINS as V3_MAINS, MAINS_DESC as V3_DESC, PHASE_OF as V3_PHASE_OF, WINDOWS as V3_WINDOWS } from '../shared/cronogramaPadraoV3.js';
 
 export const uid = (p) => `${p}-${Math.random().toString(36).slice(2, 9)}`;
@@ -122,10 +122,9 @@ export function buildV3() {
 }
 
 // ---------- proposta v4: modelo ideal do comitê de reforma tributária (2026-10-19) ----------
-export function buildV4() {
-  const items = v4Schedule(v4BuildItems());
+function assembleV4Like({ items, mains, phases }) {
   const idOf = new Map(items.map((it) => [it.code, uid('s')]));
-  const activities = V4_MAINS.map(([key, phase, title, resp, [ini, fim], desc], i) => {
+  const activities = mains.map(([key, phase, title, resp, [ini, fim], desc], i) => {
     const subs = items.filter((x) => x.main === key).sort((a, b) => a.n - b.n || a.seq - b.seq).map((it) => {
       const sub = { id: idOf.get(it.code), title: it.title, done: false, responsible: it.resp, date: shiftISO(V4_KICKOFF, it.n), priority: it.prio, executor: it.ex, areas: it.ar, anchor: 'kickoff', code: it.code };
       if (it.apl) sub.applicability = it.apl;
@@ -142,8 +141,12 @@ export function buildV4() {
       subactivities: subs, notes: '', attachments: [], comments: [], links: [], transcript: '', clientDateConfirmed: false,
     };
   });
-  return { kickoffDate: V4_KICKOFF, phases: V4_PHASES.map((f) => ({ ...f })), activities, team: [...V4_TEAM] };
+  return { kickoffDate: V4_KICKOFF, phases: phases.map((f) => ({ ...f })), activities, team: [...V4_TEAM] };
 }
+
+export function buildV4() { return assembleV4Like({ items: v4Schedule(v4BuildItems()), mains: V4_MAINS, phases: V4_PHASES }); }
+// Proposta v5 (2026-10-19): v4 + atividade própria de saldos credores (ver shared/cronogramaPadraoV4.js).
+export function buildV5() { return assembleV4Like({ items: v4Schedule(applySaldosV5(v4BuildItems()), MAINS_V5), mains: MAINS_V5, phases: PHASES_V5 }); }
 
 // ---------- o que o cliente envia ----------
 
