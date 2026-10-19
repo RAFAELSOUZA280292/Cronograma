@@ -13,6 +13,7 @@ import pricetaxLogoBranco from '../assets/brand/pricetax-logo-branco.png';
 import { useEscClose } from '../lib/nav.js';
 import { CLIENT_TYPE_META, ConfirmDiscardModal, MAX_ATTACHMENT_BYTES, PRIORITY_META, PRIORITY_ORDER, STATUS_META, STATUS_ORDER, TeamLinkBadge, addDays, calcDeadline, fmtDate, fmtTs, parseDate, sortActivities, startOfDay, toISODate, uid, useAutosaveTimestamp, useDebouncedField, useDirtyForm, useIsMobile, useMediaQuery } from '../App.jsx';
 import { S } from '../styles/S.js';
+import { SUB_EXTRAS_CSS, SubExtras } from './SubExtras.jsx';
 
 const SUB_ROW_CSS = `
   .sub-row-card { transition:border-color .12s, box-shadow .12s; }
@@ -36,6 +37,7 @@ const SUB_ROW_CSS = `
   .row-menu-btn:hover { background:var(--bg-3); color:var(--text-1); }
   .row-menu-btn:focus-visible, .row-menu-item:focus-visible { outline:2px solid #F5C400; outline-offset:-2px; }
   .row-menu-item:hover, .row-menu-item:focus { background:var(--bg-3); }
+  ${SUB_EXTRAS_CSS}
 `;
 
 const TABLET_BP = 1024;
@@ -179,7 +181,7 @@ function StatusPill({ status, onClick }) {
 // poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo
 // bug de digitação do PROJECT_CONTEXT.md §45/§46 (não coberto pelo fix do
 // §45, que só tratou os 4 campos do nível principal da atividade).
-function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSub, deleteSub, reorderSub }) {
+function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSub, deleteSub, reorderSub, allSubs, canEditExtras }) {
   const titleField = useDebouncedField(s.title, (v) => updateSub(pid, actId, s.id, { title: v }));
   return (
     <div
@@ -203,11 +205,12 @@ function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSu
         </select>
         <input type="date" className="sub-meta-date" value={s.date || ''} onChange={(e) => updateSub(pid, actId, s.id, { date: e.target.value })} style={S.subMetaDate} title="Prazo da subatividade" />
       </div>
+      <SubExtras s={s} pid={pid} actId={actId} allSubs={allSubs} canEdit={canEditExtras} updateSub={updateSub} />
     </div>
   );
 }
 
-export function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, flushProjectSave, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachments, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant, meetings, onOpenLinkedTask, onOpenLinkedTasks }) {
+export function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, flushProjectSave, deleteActivity, addSub, updateSub, deleteSub, reorderSub, allSubs, addAttachments, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant, meetings, onOpenLinkedTask, onOpenLinkedTasks }) {
   const [dragSubId, setDragSubId] = useState(null);
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [linkLabelDraft, setLinkLabelDraft] = useState('');
@@ -536,6 +539,7 @@ export function ActivityDetailModal({ activity: a, orderMap, phases, team, log, 
                   key={s.id} s={s} pid={pid} actId={a.id}
                   dragSubId={dragSubId} setDragSubId={setDragSubId}
                   team={team} updateSub={updateSub} deleteSub={deleteSub} reorderSub={reorderSub}
+                  allSubs={allSubs} canEditExtras={!!currentUser && (currentUser.role === 'master' || currentUser.role === 'pricetax')}
                 />
               ))}
             </div>
@@ -1353,7 +1357,10 @@ function RowActionsMenu({ title, required, confirmed, onToggleRequired, onToggle
 // Largura mínima da tabela no layout de desktop: abaixo disso (tablet, janela estreita) o contêiner rola na horizontal em vez de espremer as colunas (Fase 0, achado F).
 const TABLE_MIN_W = 1060;
 
-export function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor, groupInfo, taskCounts, onOpenTasks }) {
+// Subatividades (não apagadas) do projeto da linha, para escolher predecessoras. Em várias empresas, as atividades trazem `_pid`.
+const subsOfProject = (activities, rowPid, singlePid) => (activities || []).filter((x) => !x.deleted && (singlePid || x._pid) === rowPid).flatMap((x) => (x.subactivities || []).filter((y) => !y.deleted).map((y) => ({ id: y.id, title: y.title, code: y.code, done: !!y.done, predecessors: y.predecessors })));
+
+export function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor, groupInfo, taskCounts, onOpenTasks, staff }) {
   const isMobile = useIsMobile();
   const isCompact = useIsCompact();
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -1821,6 +1828,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                             </select>
                             <input type="date" className="sub-meta-date" value={s.date || ''} onChange={(e) => updateSub(rowPid, a.id, s.id, { date: e.target.value })} style={S.subMetaDate} title="Prazo da subatividade" />
                           </div>
+                          <SubExtras s={s} pid={rowPid} actId={a.id} allSubs={subsOfProject(activities, rowPid, pid)} canEdit={!!staff} updateSub={updateSub} />
                         </div>
                       ))}
                     </div>

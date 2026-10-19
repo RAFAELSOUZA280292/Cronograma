@@ -110,10 +110,11 @@ export const sameTemplate = (a, b) => canonical(purgeDeleted(a)) === canonical(p
 // ---------- comparação entre versões ----------
 
 const ACT_FIELDS = [['title', 'título'], ['desc', 'descrição'], ['responsible', 'responsável'], ['priority', 'prioridade'], ['phase', 'fase'], ['date', 'data'], ['endDate', 'data final'], ['required', 'obrigatória']];
-const SUB_FIELDS = [['title', 'título'], ['responsible', 'responsável'], ['date', 'data']];
+const SUB_FIELDS = [['title', 'título'], ['responsible', 'responsável'], ['date', 'data'], ['priority', 'prioridade'], ['executor', 'executor'], ['areas', 'áreas'], ['applicability', 'aplicabilidade'], ['recurrence', 'recorrência'], ['anchor', 'âncora do prazo'], ['limit', 'limite'], ['predecessors', 'predecessoras'], ['code', 'código']];
 const live = (t) => (t && Array.isArray(t.activities) ? t.activities.filter((a) => !a.deleted) : []);
 const liveSubs = (a) => (Array.isArray(a.subactivities) ? a.subactivities.filter((s) => !s.deleted) : []);
-const differ = (x, y) => (x === undefined || x === null ? '' : x) !== (y === undefined || y === null ? '' : y);
+const norm0 = (x) => (x === undefined || x === null || (Array.isArray(x) && !x.length) ? '' : typeof x === 'object' ? canonical(x) : x);
+const differ = (x, y) => norm0(x) !== norm0(y);
 
 export function countTemplate(t) {
   const acts = live(t);
@@ -153,10 +154,16 @@ export function instantiateTemplate(t, kickoffISO) {
   const delta = base && isoOk(kickoffISO) ? daysBetween(base, kickoffISO) : 0;
   const shift = (iso) => (iso && delta ? shiftISO(iso, delta) : iso || '');
   const clean = purgeDeleted(t);
+  // Predecessoras apontam para ids de subatividade: como os ids são recriados, remapeia (some a que não existe mais).
+  const subIds = new Map(clean.activities.flatMap((a) => (a.subactivities || []).map((s) => [s.id, uid('s')])));
   const activities = clean.activities.map((a) => ({
     ...a, id: uid('m'), date: shift(a.date), endDate: shift(a.endDate), status: 'nao-iniciado', notes: '', attachments: [], comments: [], links: [], transcript: '',
     clientDateConfirmed: false,
-    subactivities: (a.subactivities || []).map((s) => ({ ...s, id: uid('s'), done: false, date: shift(s.date) })),
+    subactivities: (a.subactivities || []).map((s) => {
+      const out = { ...s, id: subIds.get(s.id), done: false, date: shift(s.date) };
+      if (Array.isArray(s.predecessors)) out.predecessors = s.predecessors.map((id) => subIds.get(id)).filter(Boolean);
+      return out;
+    }),
   }));
   return { phases: clean.phases.map((f) => ({ ...f })), activities, team: [...clean.team] };
 }
