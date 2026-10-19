@@ -3,7 +3,7 @@
 // do guia) é criada na primeira vez que a organização usa o padrão. Salvar uma versão nova é sempre uma ação explícita; o rascunho só guarda o que está sendo editado.
 import { pool } from './db.js';
 import {
-  V1_NOTE, V2_NOTE, buildV1, buildV2, countTemplate, diffTemplates, instantiateTemplate, purgeDeleted, sameTemplate, templateFromProject, templateValid,
+  V1_NOTE, V2_NOTE, V2_NOTE_ORIGINAL, buildV1, buildV2, countTemplate, diffTemplates, instantiateTemplate, purgeDeleted, sameTemplate, templateFromProject, templateValid,
 } from './standardTemplate.js';
 
 export const STD_PLAN_ID = 'std-plan';
@@ -46,6 +46,12 @@ const metaOf = (r) => ({
 async function latestRow(client, orgId) {
   const { rows } = await client.query('SELECT * FROM standard_plan_versions WHERE org_id=$1 ORDER BY version DESC LIMIT 1', [orgId]);
   return rows[0];
+}
+
+// 2026-10-19 (pedido do Rafael): a 2.0 é provisória até a 3.0. Atualiza SÓ a nota da 2.0 e só se ainda for o texto original da semente; idempotente.
+export async function markV2Provisional() {
+  const r = await pool.query('UPDATE standard_plan_versions SET note=$1 WHERE version=2 AND note=$2', [V2_NOTE, V2_NOTE_ORIGINAL]);
+  return r.rowCount;
 }
 
 export async function listVersions(orgId) {

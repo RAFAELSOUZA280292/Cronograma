@@ -13,6 +13,7 @@ import { router as inventoryEditRouter } from './inventoryEdit.js';
 import { router as taskLinksRouter } from './taskLinks.js';
 import { router as taskLinkBackfillRouter } from './taskLinkBackfill.js';
 import { router as standardPlanRouter } from './standardPlanApi.js';
+import { markV2Provisional } from './standardTemplateStore.js';
 import { router as gapsRouter } from './gaps.js';
 import { router as meetingInboxRouter } from './meetingInbox.js';
 import { router as assistantRouter } from './assistant.js';
@@ -107,6 +108,10 @@ async function start() {
   await migrateAccessModel();
   await migrateXflowBoardOrder();
   await migrateInsightsToKnowledgeFacts();
+  try {
+    const n = await markV2Provisional();
+    if (n) console.log(`cronograma padrão: nota da versão 2.0 marcada como provisória em ${n} organização(ões).`);
+  } catch (e) { console.error('cronograma padrão: não consegui marcar a 2.0 como provisória:', e.message); }
   // Memória da RENATA: frases de inspiração (§77). Não fatal — o app sobe mesmo se falhar.
   try {
     const n = await seedQuoteFacts(pool);
