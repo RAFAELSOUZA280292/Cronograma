@@ -7,7 +7,7 @@ import { AlertTriangle, Building2, Check, ChevronDown, GripVertical, History, Lo
 import { Button, IconButton, RecordSaveStatus, activate, activateRow } from '../ui/index.jsx';
 import { DialogOverlay } from '../ui/dialog.jsx';
 import LinkedTasks from '../meetings/LinkedTasks.jsx';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import pricetaxLogoBranco from '../assets/brand/pricetax-logo-branco.png';
 import { useEscClose } from '../lib/nav.js';
@@ -24,6 +24,7 @@ const SUB_ROW_CSS = `
   .sub-row-card:hover .sub-del-btn { opacity:1; }
   .sub-row-card .sub-del-btn:hover { color:#e5484d; }
   .sub-row-card .sub-title-input { background:transparent; border:1px solid transparent; padding:4px 6px; font-size:13px; border-radius:5px; }
+  .sub-row-card textarea.sub-title-input { resize:none; overflow:hidden; line-height:1.4; font-family:inherit; display:block; box-sizing:border-box; min-height:28px; }
   .sub-row-card .sub-title-input:hover { background:var(--bg-3); }
   .sub-row-card .sub-title-input:focus { background:var(--bg-4); border-color:#F5C400; }
   .sub-row-card .sub-meta-select, .sub-row-card .sub-meta-date {
@@ -183,6 +184,11 @@ function StatusPill({ status, onClick }) {
 // §45, que só tratou os 4 campos do nível principal da atividade).
 function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSub, deleteSub, reorderSub, allSubs, canEditExtras }) {
   const titleField = useDebouncedField(s.title, (v) => updateSub(pid, actId, s.id, { title: v }));
+  // Título da subatividade quebra em linhas (cresce com o texto) em vez de cortar: o painel é largo e o nome inteiro precisa aparecer.
+  const titleRef = useRef(null);
+  const fit = () => { const el = titleRef.current; if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } };
+  useLayoutEffect(fit, [titleField.draft]);
+  useEffect(() => { window.addEventListener('resize', fit); return () => window.removeEventListener('resize', fit); }, []);
   return (
     <div
       className="sub-row-card"
@@ -195,7 +201,7 @@ function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSu
           <GripVertical size={13} color="var(--text-8)" />
         </div>
         <input type="checkbox" checked={s.done} onChange={(e) => updateSub(pid, actId, s.id, { done: e.target.checked })} />
-        <input type="text" className="sub-title-input" value={titleField.draft} onChange={(e) => titleField.onChange(e.target.value)} onBlur={titleField.flush} style={{ ...S.subTitleInput, textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
+        <textarea ref={titleRef} rows={1} className="sub-title-input" aria-label="Título da subatividade" value={titleField.draft} onChange={(e) => titleField.onChange(e.target.value)} onBlur={titleField.flush} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }} style={{ ...S.subTitleInput, textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
         <button aria-label="Excluir subatividade" title="Excluir subatividade" className="sub-del-btn" style={S.iconBtnGhost} onClick={() => deleteSub(pid, actId, s.id)}><X aria-hidden="true" size={13} /></button>
       </div>
       <div style={S.subMetaRow}>
@@ -374,37 +380,22 @@ export function ActivityDetailModal({ activity: a, orderMap, phases, team, log, 
               />
             )}
 
-            <div style={S.subSectionLabel}><MessageSquare size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Comentários {(a.comments || []).length > 0 ? `(${(a.comments || []).length})` : ''}</div>
-            <ComposeBox
-              ref={composeRef}
-              draftKey={`act:${a.id}`}
-              mentionCandidates={mentionCandidates}
-              maxFileBytes={MAX_ATTACHMENT_BYTES}
-              submitLabel="Comentar"
-              placeholder="Escreva um comentário…"
-              onDirtyChange={setComposeDirty}
-              onSubmit={async ({ text, mentions, attachments, links }) => { addComment(pid, a.id, text, mentions, attachments, links); }}
-            />
-            <div style={{ marginTop: 10 }}>
-              <CommentThread
-                comments={threadComments}
-                currentUserId={currentUser ? currentUser.id : ''}
-                canModerate={isMaster}
-                mentionNames={mentionNames}
-                onEdit={(id, text) => updateComment(pid, a.id, id, text)}
-                onDelete={(id) => removeComment(pid, a.id, id)}
-              />
-            </div>
-
-            <div style={{ ...S.subSectionLabel, marginTop: 18 }}><History size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Histórico desta atividade</div>
-            <div style={S.historyList}>
-              {activityHistory.length === 0 && <div style={S.emptyMuted}>Nenhuma alteração registrada ainda.</div>}
-              {activityHistory.map((l, i) => (
-                <div key={i} style={S.logRow}>
-                  <div style={S.logTs}>{fmtTs(l.ts)}{l.user ? ` · ${l.user}` : ''}</div>
-                  <div style={S.logAction}>{l.action}</div>
-                </div>
-              ))}
+            <div className="sub-section" data-testid="subs-section">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginTop: 18, marginBottom: 6 }}>
+                <span style={{ ...S.subSectionLabel, margin: 0 }}>Subatividades{(() => { const live = (a.subactivities || []).filter((x) => !x.deleted); return live.length ? ` (${live.filter((x) => x.done).length} de ${live.length} concluídas)` : ''; })()}</span>
+                <button style={S.addSubBtn} onClick={() => addSub(pid, a.id)}><Plus size={12} /> Subatividade</button>
+              </div>
+              <div style={S.subList}>
+                {(a.subactivities || []).filter((s) => !s.deleted).map((s) => (
+                  <SubactivityRow
+                    key={s.id} s={s} pid={pid} actId={a.id}
+                    dragSubId={dragSubId} setDragSubId={setDragSubId}
+                    team={team} updateSub={updateSub} deleteSub={deleteSub} reorderSub={reorderSub}
+                    allSubs={allSubs} canEditExtras={!!currentUser && (currentUser.role === 'master' || currentUser.role === 'pricetax')}
+                  />
+                ))}
+                {!(a.subactivities || []).some((x) => !x.deleted) && <div style={S.emptyMuted}>Nenhuma subatividade ainda.</div>}
+              </div>
             </div>
           </div>
 
@@ -535,18 +526,38 @@ export function ActivityDetailModal({ activity: a, orderMap, phases, team, log, 
               {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
             </select>
 
-            <div style={S.subSectionLabel}>Subatividades</div>
-            <div style={S.subList}>
-              {(a.subactivities || []).filter((s) => !s.deleted).map((s) => (
-                <SubactivityRow
-                  key={s.id} s={s} pid={pid} actId={a.id}
-                  dragSubId={dragSubId} setDragSubId={setDragSubId}
-                  team={team} updateSub={updateSub} deleteSub={deleteSub} reorderSub={reorderSub}
-                  allSubs={allSubs} canEditExtras={!!currentUser && (currentUser.role === 'master' || currentUser.role === 'pricetax')}
-                />
+            <div style={S.subSectionLabel}><MessageSquare size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Comentários {(a.comments || []).length > 0 ? `(${(a.comments || []).length})` : ''}</div>
+            <ComposeBox
+              ref={composeRef}
+              draftKey={`act:${a.id}`}
+              mentionCandidates={mentionCandidates}
+              maxFileBytes={MAX_ATTACHMENT_BYTES}
+              submitLabel="Comentar"
+              placeholder="Escreva um comentário…"
+              onDirtyChange={setComposeDirty}
+              onSubmit={async ({ text, mentions, attachments, links }) => { addComment(pid, a.id, text, mentions, attachments, links); }}
+            />
+            <div style={{ marginTop: 10 }}>
+              <CommentThread
+                comments={threadComments}
+                currentUserId={currentUser ? currentUser.id : ''}
+                canModerate={isMaster}
+                mentionNames={mentionNames}
+                onEdit={(id, text) => updateComment(pid, a.id, id, text)}
+                onDelete={(id) => removeComment(pid, a.id, id)}
+              />
+            </div>
+
+            <div style={{ ...S.subSectionLabel, marginTop: 18 }}><History size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Histórico desta atividade</div>
+            <div style={S.historyList}>
+              {activityHistory.length === 0 && <div style={S.emptyMuted}>Nenhuma alteração registrada ainda.</div>}
+              {activityHistory.map((l, i) => (
+                <div key={i} style={S.logRow}>
+                  <div style={S.logTs}>{fmtTs(l.ts)}{l.user ? ` · ${l.user}` : ''}</div>
+                  <div style={S.logAction}>{l.action}</div>
+                </div>
               ))}
             </div>
-            <button style={S.addSubBtn} onClick={() => addSub(pid, a.id)}><Plus size={12} /> Subatividade</button>
 
             <LinkedTasks meetings={meetings} activityId={a.id} labelStyle={S.subSectionLabel} onOpenTask={onOpenLinkedTask} onOpenAll={onOpenLinkedTasks} />
 
