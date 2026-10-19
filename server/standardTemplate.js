@@ -3,7 +3,7 @@
 // server/standardTemplateStore.js. Forma de uma versão (`data`): { kickoffDate, phases, activities, team } — a mesma de um projeto, sem empresa/log/reuniões.
 import { blankProject, nextPhaseColor } from './db.js';
 import { CRONOGRAMA_PADRAO } from '../shared/cronogramaPadrao.js';
-import { ITEMS as V3_ITEMS, MAINS as V3_MAINS, MAINS_DESC as V3_DESC } from '../shared/cronogramaPadraoV3.js';
+import { A_WINDOWS as V3_WINDOWS, ITEMS as V3_ITEMS, MAINS as V3_MAINS, MAINS_DESC as V3_DESC } from '../shared/cronogramaPadraoV3.js';
 
 export const uid = (p) => `${p}-${Math.random().toString(36).slice(2, 9)}`;
 const DAY = 86400000;
@@ -95,7 +95,8 @@ export function buildV3() {
   const dateOf = (it) => (it.anc === 'kickoff' ? shiftISO(V3_KICKOFF, it.n) : it.anc === 'virada' ? shiftISO(V3_VIRADA, -it.n) : (it.lim && it.lim.d) || '');
   const idOf = new Map(V3_ITEMS.map((it) => [it.id, uid('s')]));
   const respOf = (it, main) => (it.ar || []).find((a) => V3_TEAM.includes(a)) || (it.ex === 'PriceTax' ? 'PRICETAX' : it.ex === 'ERP' ? 'TI' : V3_MAIN_RESP[main]);
-  const phases = [...V3_PHASES.map((f, i) => ({ id: f.id, name: f.name, sub: f.sub, color: nextPhaseColor(i) })), { id: 6, name: 'Diagnóstico PRICETAX', sub: 'Entregas da PRICETAX a partir do kickoff', color: nextPhaseColor(5) }];
+  // O Diagnóstico PRICETAX é a primeira fase (pedido do Rafael); as demais mantêm a cor de sempre.
+  const phases = [{ id: 6, name: 'Diagnóstico PRICETAX', sub: 'Entregas da PRICETAX a partir do kickoff', color: nextPhaseColor(5) }, ...V3_PHASES.map((f, i) => ({ id: f.id, name: f.name, sub: f.sub, color: nextPhaseColor(i) }))];
   const activities = V3_MAINS.map(([mid, trilha, nome], i) => {
     const its = V3_ITEMS.filter((it) => it.main === mid);
     const subs = its.map((it) => {
@@ -112,7 +113,7 @@ export function buildV3() {
     const prios = subs.map((x) => x.priority);
     return {
       id: `m-${mid}`, month: i + 1, phase: trilha === 'A' ? 6 : v3PhaseOf(dates[0]), title: nome, desc: V3_DESC[mid] || '', responsible: V3_MAIN_RESP[mid], priority: prios.includes('alta') ? 'alta' : prios.includes('media') ? 'media' : prios.includes('baixa') ? 'baixa' : '',
-      participants: [], date: dates[0] || '', endDate: dates[dates.length - 1] || '', durationDays: '', status: 'nao-iniciado', required: true, stdKey: mid,
+      participants: [], date: V3_WINDOWS[mid] ? shiftISO(V3_KICKOFF, V3_WINDOWS[mid][0]) : dates[0] || '', endDate: V3_WINDOWS[mid] ? shiftISO(V3_KICKOFF, V3_WINDOWS[mid][1]) : dates[dates.length - 1] || '', durationDays: '', status: 'nao-iniciado', required: true, stdKey: mid,
       subactivities: subs, notes: '', attachments: [], comments: [], links: [], transcript: '', clientDateConfirmed: false,
     };
   });
@@ -219,9 +220,10 @@ export function instantiateTemplate(t, kickoffISO, opts = {}) {
       return out;
     }),
   }));
-  // Atividade principal de um padrão com âncoras ou limites: o intervalo vem das datas das subatividades (no padrão antigo, anda com o kickoff como sempre).
+  // Atividade principal com subatividades de data fixa/virada ou comprimidas: o intervalo vem das datas das subatividades. Quando TODAS andam com o kickoff (ex.: o Diagnóstico),
+  // vale o intervalo da própria atividade, que anda com o kickoff como sempre (2026-10-19: antes ele era sobrescrito pelo das subatividades).
   for (const a of activities) {
-    if (!a.subactivities.some((s) => s.anchor || s.compressed)) continue;
+    if (!a.subactivities.some((s) => s.anchor === 'virada' || s.anchor === 'fixa' || s.compressed)) continue;
     const ds = a.subactivities.map((s) => s.date).filter(Boolean).sort();
     if (ds.length) { a.date = ds[0]; a.endDate = ds[ds.length - 1]; }
   }
