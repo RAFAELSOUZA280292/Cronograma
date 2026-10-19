@@ -607,6 +607,9 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
             <div>
               <div style={S.fieldHint}>Prazo</div>
               <input type="date" value={card.dueDate || ''} onChange={(e) => onUpdate({ dueDate: e.target.value }, e.target.value ? `Prazo alterado: ${fmtDate(e.target.value)}` : 'Prazo removido')} />
+              <button type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, marginTop: 6, justifyContent: 'center', width: '100%', minHeight: 36 }}
+                disabled={card.dueDate === todayISOStr()} title={card.dueDate === todayISOStr() ? 'O prazo já é hoje.' : 'Define o prazo para a data de hoje.'}
+                onClick={() => { const t = todayISOStr(); onUpdate({ dueDate: t }, `Prazo alterado: ${fmtDate(t)}`); }}>Hoje</button>
             </div>
           </div>
 
