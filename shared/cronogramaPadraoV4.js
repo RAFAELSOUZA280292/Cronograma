@@ -31,23 +31,23 @@ export const MAINS = [
   ['apresentacao', 1, 'Apresentação prévia', 'PRICETAX', [55, 57], 'Apresentação prévia dos cenários ao cliente, antes do relatório final.'],
   ['workshop', 1, 'Workshop por áreas', 'PRICETAX', [58, 62], 'Passa o diagnóstico para as áreas: mitos e verdades, transição, split payment, benefícios fiscais e casos práticos.'],
   ['report', 1, 'Report final e plano de ação', 'PRICETAX', [63, 67], 'Relatório final com o plano de ação por frente, com dono e data.'],
-  ['oficinas', 2, 'Oficinas de decisão com as áreas', 'PRICETAX', [68, 85], 'Uma oficina por área para mostrar o impacto e decidir as políticas; as decisões de preço, compras, financeiro, contábil e contratos saem daqui.'],
+  ['oficinas', 2, 'Oficinas de decisão com as áreas', 'PRICETAX', [68, 85], 'Uma oficina por área para mostrar o impacto e decidir as políticas; as decisões de preço, compras, financeiro, contábil e contratos saem daqui. Inclui, quando a diretoria pedir, a avaliação de investimentos e estrutura societária.'],
   ['desenho', 2, 'Desenho dos processos e requisitos', 'PRICETAX', [72, 90], 'Processos futuros por área, matriz de operações e requisitos entregues ao ERP e ao fornecedor.'],
   ['validacao', 2, 'Validação do desenho com as áreas', 'PRICETAX', [80, 95], 'Cada área confirma que o desenho reflete a decisão e a operação real antes de construir.'],
   ['erp', 3, 'Sistemas: base do ERP', 'TI', [70, 87], 'Ambiente de homologação, tabelas oficiais, CNPJ alfanumérico e tabelas de alíquotas e CFOP.'],
-  ['docs', 3, 'Sistemas: documentos fiscais', 'TI', [80, 125], 'NF-e, DANFE, devolução, validação cadastral, notas de débito e crédito, eventos, NFS-e, CT-e e importação.'],
-  ['fiscal', 3, 'Fiscal e tributário', 'Fiscal', [88, 125], 'Parametrização fiscal inteira: regras por NCM, benefícios, 2027, conferência de notas, apuração, obrigações acessórias e CSRF.'],
+  ['docs', 3, 'Sistemas: documentos fiscais', 'TI', [80, 125], 'NF-e, DANFE, devolução, validação cadastral, notas de débito e crédito, eventos, NFS-e, CT-e e importação. Inclui o tratamento do adiantamento no ERP.'],
+  ['fiscal', 3, 'Fiscal e tributário', 'Fiscal', [88, 125], 'Parametrização fiscal inteira: regras por NCM, benefícios, 2027, conferência de notas, apuração, obrigações acessórias e CSRF. Inclui o monitoramento mensal da situação fiscal de fornecedores e clientes.'],
   ['cadastros', 3, 'Cadastros', 'Fiscal', [89, 115], 'Fornecedores com regime, itens com NCM e NBS, clientes com regime e Zona Franca.'],
-  ['compras', 3, 'Compras', 'Compras', [90, 110], 'Negociação com base na simulação e cotação por menor custo após crédito.'],
+  ['compras', 3, 'Compras', 'Compras', [90, 110], 'Negociação com base na simulação e cotação por menor custo após crédito. Inclui a carta a cada fornecedor e a atualização do pedido de compra e da tabela de janeiro.'],
   ['vendas', 3, 'Vendas e preço', 'Comercial', [91, 118], 'Argumento comercial, formação de preço pelo valor líquido e base de comissões.'],
-  ['financeiro', 3, 'Financeiro e caixa', 'Financeiro', [92, 120], 'Títulos separados, contas a pagar e a receber, orçamento de caixa e relatório de crédito.'],
-  ['contabil', 3, 'Contábil e controladoria', 'Contábil', [93, 120], 'Plano de contas e de-para, DRE e orçamento e checklist mensal de fechamento.'],
-  ['juridico', 3, 'Jurídico e contratos', 'Jurídico', [94, 110], 'Revisão de contratos, tabelas e propostas com a cláusula tributária.'],
+  ['financeiro', 3, 'Financeiro e caixa', 'Financeiro', [92, 120], 'Títulos separados, contas a pagar e a receber, orçamento de caixa e relatório de crédito. Inclui o programa de conformidade do ressarcimento e a projeção do fim do diferimento do ICMS, quando houver.'],
+  ['contabil', 3, 'Contábil e controladoria', 'Contábil', [93, 120], 'Plano de contas e de-para, DRE e orçamento e checklist mensal de fechamento. Inclui o ajuste do módulo de custo do ERP.'],
+  ['juridico', 3, 'Jurídico e contratos', 'Jurídico', [94, 110], 'Revisão de contratos, tabelas e propostas com a cláusula tributária. Inclui a renegociação com prestadores de benefícios e a revisão dos contratos de frete.'],
   ['testes', 4, 'Testes e contingência', 'Todas', [105, 135], 'Testes integrados em homologação, repetição quando a alíquota da CBS for publicada e plano de contingência.'],
   ['aceite', 4, 'Validação por área (aceite)', 'Todas', [108, 138], 'Cada área testa seus fluxos reais no ambiente de homologação e dá o aceite.'],
   ['treinamento', 4, 'Treinamento e comunicação', 'PRICETAX', [118, 140], 'Treinamento de cada área nos novos procedimentos e comunicação a clientes e fornecedores.'],
   ['prontidao', 5, 'Prontidão da virada', 'Diretoria', [126, 149], 'Avaliação de prontidão de cada área, pendências aceitas com contingência, plano de suporte, ata e corte contábil. A reforma entra em vigor de qualquer forma.'],
-  ['operacao', 6, 'Operação assistida e rotina', 'PRICETAX', [150, 242], 'Primeira apuração, ciclo mensal acompanhado, recuperação de créditos, reforço de treinamento e encerramento com a passagem para a rotina.'],
+  ['operacao', 6, 'Operação assistida e rotina', 'PRICETAX', [150, 242], 'Primeira apuração, ciclo mensal acompanhado, recuperação de créditos, reforço de treinamento e encerramento com a passagem para a rotina. Inclui a conferência da primeira nota de 2027, o indicador de repasse e o plano anual de monetização do ICMS.'],
   ['comite', 7, 'Comitê de reforma tributária', 'Diretoria', [0, 242], 'Reunião mensal com a empresa (aprova o portão da etapa), acompanhamento semanal, registro vivo de decisões, riscos e pendências e vigília das normas.'],
 ];
 
@@ -64,6 +64,19 @@ put('B9.1 B9.3 B9.6', 'contabil'); put('B10.2', 'juridico'); put('B14.1 B14.2 B1
 put('B1.2 B1.3 B13.2 B9.4', 'prontidao'); put('B15.1 B15.2 B15.3 B15.4 B8.5 B8.6 B14.4', 'operacao'); put('B4.10', 'comite');
 
 // Predecessoras que mudam por causa da nova ordem (a decisão agora vem antes da construção).
+// Ajustes de título pedidos pelo cruzamento com o Tecumseh (2026-10-19): cada função recebe o título da v3 e devolve o novo.
+const TITLE_FIX = {
+  'B11.1': (t) => `${t}; confirmar como a parcela do empregado entra no eSocial`,
+  'A2.3': (t) => `${t} e classificá-los por risco de crédito`,
+  'B6.2': (t) => `${t}, e alinhar o prazo de pagamento ao giro do crédito`,
+  'B7.3': (t) => `${t}; revisar ano a ano a política regional de preço pelo destino do IBS`,
+  'B8.7': (t) => `${t}, com o estoque de crédito e o prazo médio de recuperação para a pauta da diretoria`,
+  'B10.1': (t) => `${t} e a de compensar a CBS com outros tributos federais`,
+  'B7.5': (t) => `Levantar os contratos com pagamento antecipado e ${t.charAt(0).toLowerCase()}${t.slice(1)}`,
+  'B8.6': (t) => `${t} e o split entre empresas do grupo, quando houver (2028)`,
+  'B8.3': (t) => `${t} e rever os prazos de pagamento e recebimento por causa do split`,
+  'B15.4': (t) => `${t.replace(' e o plano da rotina contínua', ', o plano da rotina contínua')} e o plano de execução e acompanhamento de 2027 a 2033`,
+};
 const PRED_FIX = { 'B9.2': [], 'B9.1': ['B9.2'], 'B9.5': ['B4.9'] };
 // Ordem dentro de cada atividade (os que não aparecem vão no fim, na ordem da v3).
 const ORDER = {
@@ -79,12 +92,12 @@ const AREAS = [
   { n: 'Fiscal e tributário', k: 'FIS', r: 'Fiscal', m: 'EDVTRPA', q: ['Quais operações e CFOP existem (venda, serviço, transferência, remessa, importação, industrialização)?', 'Quais benefícios e regimes especiais?', 'Qual o saldo credor por tributo e quais teses ou autuações abertas?', 'Quais obrigações e quem as faz?'], d: ['Tratamento de cada operação', 'Uso dos benefícios e destino dos saldos credores'], e: ['Matriz de operações', 'Inventário de benefícios, saldos credores e obrigações'] },
   { n: 'Contábil e controladoria', k: 'CTB', r: 'Contábil', m: 'EDVTRPA', q: ['Como é o plano de contas e o fechamento?', 'Quais provisões e estoques são afetados?', 'Como o orçamento trata os tributos?'], d: ['Contabilização das novas contas', 'Tratamento dos saldos antigos, DRE e orçamento'], e: ['Plano de contas e de-para', 'Rotina de fechamento e impacto na DRE'] },
   { n: 'Financeiro e tesouraria', k: 'FIN', r: 'Financeiro', m: 'EDVTRPA', q: ['Quais os prazos de pagamento e recebimento e as retenções?', 'Como o caixa reage ao tributo por fora e ao split payment?', 'Quem são os bancos e as credenciadoras?'], d: ['Política de recolhimento pelo adquirente', 'Títulos separados e orçamento de caixa do primeiro trimestre'], e: ['Fluxo de caixa de um mês-base', 'Contratos com bancos e rotina de contas a pagar e receber'] },
-  { n: 'Compras e suprimentos', k: 'CPR', r: 'Compras', m: 'EDVTRPA', q: ['Qual a curva ABC de fornecedores e o regime de cada um (Simples, Presumido, Real)?', 'Quais contratos de fornecimento têm cláusula tributária?', 'Há importação e regime aduaneiro?', 'Como entram uso e consumo e ativo?'], d: ['Estratégia por fornecedor e renegociação', 'Quando comprar de quem'], e: ['Base de fornecedores com regime e crédito', 'Simulação de custo atual contra o novo'] },
+  { n: 'Compras e suprimentos', k: 'CPR', r: 'Compras', m: 'EDVTRPA', q: ['Qual a curva ABC de fornecedores e o regime de cada um (Simples, Presumido, Real)?', 'Quais contratos de fornecimento têm cláusula tributária?', 'Há importação e regime aduaneiro?', 'Como entram uso e consumo e ativo?'], d: ['Estratégia por fornecedor e renegociação', 'Consolidar os fornecedores que repassam a redução', 'Quando comprar de quem'], e: ['Base de fornecedores com regime e crédito', 'Simulação de custo atual contra o novo'] },
   { n: 'Comercial e vendas', k: 'CML', r: 'Comercial', m: 'EDVTRPA', q: ['Como e onde o preço é formado?', 'Quais tabelas, descontos, bonificações e comissões?', 'Qual o perfil dos clientes (regime, Zona Franca, exportação)?', 'Quais contratos e adiantamentos?'], d: ['Política de preço por perfil de cliente', 'Comunicação e comissões'], e: ['Tabelas e contratos de venda', 'Perfil de clientes e regras de preço'] },
   { n: 'TI e ERP', k: 'TI', r: 'TI', m: 'EDVTPA', q: ['Quais sistemas e integrações existem?', 'Qual a versão do ERP e o cronograma do fornecedor?', 'Quais customizações calculam imposto?', 'Quais ambientes de teste?'], d: ['O que o ERP faz e o que fica fora dele', 'Janela de congelamento'], e: ['Mapa de sistemas e integrações', 'Plano do fornecedor e lista de customizações'] },
   { n: 'Jurídico e contratos', k: 'JUR', r: 'Jurídico', m: 'EDVPA', q: ['Quais contratos têm cláusula tributária e vigência longa?', 'Quais teses e contencioso tributário?', 'Quais normas acompanhar?'], d: ['Cláusula-padrão', 'Quais contratos renegociar e quais teses manter'], e: ['Inventário de contratos relevantes', 'Inventário do contencioso tributário'] },
-  { n: 'RH e folha', k: 'RH', r: 'RH', m: 'EDVRA', q: ['Quais benefícios existem e o que dizem as convenções coletivas?', 'Há terceirização e mão de obra própria?', 'Como está a folha e a desoneração?'], d: ['O que levar ao acordo coletivo', 'Mão de obra própria ou contratada'], e: ['Benefícios e contratos de terceiros, com custo e crédito potencial'] },
-  { n: 'Logística e operações', k: 'LOG', r: 'Logística', m: 'EDVTRPA', q: ['Quais fluxos físicos existem (transferência, remessa, retorno, devolução)?', 'Como são os fretes e as transportadoras?', 'Quais armazéns e centros de distribuição?', 'Quais documentos acompanham a mercadoria?'], d: ['Ajustes de fluxo', 'Quem emite cada documento'], e: ['Fluxos físicos contra documentos', 'Contratos de frete e locais de estoque'] },
+  { n: 'RH e folha', k: 'RH', r: 'RH', m: 'EDVRA', q: ['Quais benefícios existem e o que dizem as convenções coletivas?', 'A parcela do empregado nos benefícios entra no eSocial?', 'Há terceirização e mão de obra própria?', 'Como está a folha e a desoneração?'], d: ['O que levar ao acordo coletivo', 'Redesenho dos benefícios sem nota (saúde, creche, PCD, viagens) para gerar crédito', 'Mão de obra própria ou contratada'], e: ['Benefícios e contratos de terceiros, com custo e crédito potencial'] },
+  { n: 'Logística e operações', k: 'LOG', r: 'Logística', m: 'EDVTRPA', q: ['Quais fluxos físicos existem (transferência, remessa, retorno, devolução)?', 'Como são os fretes e as transportadoras?', 'Quais armazéns e centros de distribuição?', 'Quais documentos acompanham a mercadoria?'], d: ['Ajustes de fluxo', 'Revisão da malha e dos prazos com o crédito do frete', 'Quem emite cada documento'], e: ['Fluxos físicos contra documentos', 'Contratos de frete e locais de estoque'] },
   { n: 'Cadastros e dados mestres', k: 'CAD', r: 'Cadastros', m: 'EDVTRPA', q: ['Qual a qualidade de NCM, NBS e origem dos itens?', 'Há regime de fornecedores e clientes no cadastro?', 'Quem mantém o cadastro?'], d: ['Campos obrigatórios', 'Rotina de atualização'], e: ['Base de itens, fornecedores e clientes com as lacunas'] },
   { n: 'Comércio exterior', k: 'CEX', r: 'Comex', m: 'EDVTPA', opt: true, q: ['Há importação (DUIMP), exportação, Recof, drawback ou Zona Franca?', 'Quais os regimes e os créditos de cada um?'], d: ['Tratamento e crédito por regime'], e: ['Operações e regimes aduaneiros'] },
 ];
@@ -162,7 +175,7 @@ export function buildItems() {
   for (const it of V3_ITEMS) {
     if (it.id === 'B13.1') continue;
     const main = DEST[it.id]; if (!main) throw new Error('sem destino: ' + it.id);
-    items.push({ code: it.id, main, title: it.t, resp: respOf(it, main), ex: it.ex, ar: it.ar, prio: V3_PRIO[it.p] || '', lim: it.lim || null, pred: PRED_FIX[it.id] || it.pred || [], apl: it.apl || '', rec: it.rec || '', guide: '', fixed: FIXED[it.id] ?? null, isNew: false });
+    items.push({ code: it.id, main, title: TITLE_FIX[it.id] ? TITLE_FIX[it.id](it.t) : it.t, resp: respOf(it, main), ex: it.ex, ar: it.ar, prio: V3_PRIO[it.p] || '', lim: it.lim || null, pred: PRED_FIX[it.id] || it.pred || [], apl: it.apl || '', rec: it.rec || '', guide: '', fixed: FIXED[it.id] ?? null, isNew: false });
   }
   const add = (o) => items.push({ lim: null, pred: [], apl: '', rec: '', guide: '', fixed: null, isNew: true, ar: [o.resp], prio: 'media', ex: 'PriceTax', ...o });
   const key = (a) => a.k;
@@ -187,6 +200,20 @@ export function buildItems() {
   // Operação assistida
   for (const a of AREAS) { const id = idsFor(a); add({ code: id.rot, main: 'operacao', title: `Acompanhar ${a.n} na rotina${a.opt ? ' (quando houver)' : ''}`, resp: a.r, apl: apl(a), pred: [a.m.includes('P') ? id.pro : a.m.includes('R') ? id.tre : id.val], guide: guide('rot', a) }); }
   add({ code: 'OPE-REF', main: 'operacao', title: 'Reforço de treinamento depois da primeira apuração', resp: 'Todas', pred: ['B15.1'], fixed: 210 });
+  // Lacunas do cruzamento com o Tecumseh (2026-10-19): itens novos
+  add({ code: 'CUS-ERP', main: 'contabil', title: 'Ajustar o módulo de custo do ERP: custo sem IBS/CBS e crédito conforme o regime do fornecedor', resp: 'Controladoria', ex: 'ERP', ar: ['Controladoria', 'TI'], prio: 'alta', pred: ['B5.1', 'B6.1'] });
+  add({ code: 'FIS-REG', main: 'fiscal', title: 'Monitorar a situação fiscal de fornecedores e clientes e indicar quando usar o recolhimento pelo adquirente', resp: 'Fiscal', ex: 'Cliente', rec: 'mensal', pred: ['B5.1'] });
+  add({ code: 'FIN-DIF', main: 'financeiro', title: 'Projetar o caixa extra do fim do diferimento do ICMS com os fornecedores e negociar prazo', resp: 'Financeiro', ex: 'Cliente', apl: 'quando houver diferimento de ICMS' });
+  add({ code: 'FIN-CONF', main: 'financeiro', title: 'Aderir ao programa de conformidade para ressarcir CBS e IBS no prazo mais curto', resp: 'Financeiro', ex: 'Cliente', prio: 'alta' });
+  add({ code: 'CPR-CARTA', main: 'compras', title: 'Enviar a cada fornecedor relevante a carta com o preço esperado de 2027 e pedir a abertura do preço líquido e dos tributos', resp: 'Compras', ex: 'Cliente', pred: ['B6.1'] });
+  add({ code: 'CPR-PO', main: 'compras', title: 'Atualizar o pedido de compra e a tabela de preço de janeiro de 2027 para o preço esperado', resp: 'Compras', ex: 'Cliente', pred: ['CPR-CARTA'] });
+  add({ code: 'CPR-NF1', main: 'operacao', title: 'Conferir a primeira nota de 2027 de cada fornecedor contra o preço esperado; divergência bloqueia o pagamento', resp: 'Compras', ex: 'Cliente', pred: ['CPR-PO'], fixed: 156 });
+  add({ code: 'CPR-REP', main: 'operacao', title: 'Medir o repasse da redução de preço por fornecedor e por comprador, todo trimestre', resp: 'Compras', ex: 'Cliente', rec: 'contínuo', pred: ['CPR-NF1'], fixed: 190 });
+  add({ code: 'FIN-ICMS', main: 'operacao', title: 'Montar o plano anual de monetização do crédito acumulado de ICMS (transferir a fornecedores, usar em importação)', resp: 'Fiscal', ex: 'Cliente', rec: 'anual', apl: 'quando houver crédito acumulado de ICMS', pred: ['B8.5'], fixed: 195 });
+  add({ code: 'ERP-ADI', main: 'docs', title: 'Tratar o adiantamento no ERP: imposto antecipado no recebimento e ajuste na entrega', resp: 'Fiscal', ex: 'ERP', ar: ['Fiscal', 'TI', 'Financeiro'], pred: ['B7.5'] });
+  add({ code: 'JUR-BEN', main: 'juridico', title: 'Renegociar com os prestadores de benefícios (saúde, creche, alimentação, uniformes) a nota em nome da empresa', resp: 'RH', ex: 'Cliente', pred: ['OFI-RH'] });
+  add({ code: 'JUR-FRT', main: 'juridico', title: 'Rever os contratos de frete e armazenagem, com atenção aos transportadores do Simples Nacional', resp: 'Logística', ex: 'Cliente' });
+  add({ code: 'DIR-INV', main: 'oficinas', title: 'Avaliar investimentos e estrutura societária à luz da reforma', resp: 'Diretoria', prio: 'baixa', apl: 'quando a diretoria pedir', pred: ['OFI-DIR'] });
   // Comitê
   add({ code: 'COM-SEM', main: 'comite', title: 'Reunião semanal de acompanhamento (recorrente)', resp: 'Diretoria', rec: 'semanal', fixed: 7, prio: 'alta', guide: WEEKLY_GUIDE });
   const MONTH = [30, 60, 90, 120, 148, 180, 210, 240];
