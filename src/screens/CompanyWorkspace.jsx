@@ -12,6 +12,7 @@ import SafeBoundary from '../ui/SafeBoundary.jsx';
 import { buildActivityOptions, taskCountsByActivity } from '../meetings/ActivityLink.jsx';
 import { AreaRow, CLIENT_TYPE_META, CLIENT_TYPE_ORDER, COMPANY_STATUS_META, CompanySectionHeader, CreateCompanyModal, GroupActivityCompaniesModal, PhaseRow, SidePanel, TeamLinkBadge, ToastStack, TodoBoardView, fmtDate, fmtTs, todayISOStr } from '../App.jsx';
 import { KanbanView, PhasesView, PrintReport, ResumoView, TableView, TimelineView } from './CompanyViews.jsx';
+import { AutoDatesToggle } from './AutoDates.jsx';
 
 const StandardAuditModal = lazyRetry(() => import('../macro/StandardAudit.jsx'));
 const StandardPlanBar = lazyRetry(() => import('../macro/StandardPlanBar.jsx'));
@@ -319,6 +320,7 @@ export function CompanyWorkspace({ ctx }) {
       </div>
 
       <main className="no-print" style={{ ...S.main, ...(isMobile ? { padding: `14px 12px ${isMulti ? 0 : 64}px 12px` } : null) }}>
+        {!isMulti && activeProject && ['table', 'timeline', 'phases', 'kanban'].includes(view) && <AutoDatesToggle pid={activeProject.id} />}
         <SafeBoundary resetKey={`company:${view}:${isMulti ? 'multi' : (activeProject ? activeProject.id : '')}`} label="esta aba" where="company-view" actions={isMulti && view === 'table' ? undefined : (view === 'table' ? [{ label: 'Ir para o Resumo', onClick: () => setView('resumo') }] : [{ label: 'Ir para a Tabela', onClick: () => setView('table') }])}>
         <React.Suspense fallback={<div style={S.emptyMuted}>Carregando…</div>}>
         {!isMulti && view === 'resumo' && (

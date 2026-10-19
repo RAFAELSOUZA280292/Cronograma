@@ -4,17 +4,40 @@
 import { askConfirm } from '../ui/dialogs.jsx';
 import { readFileAsAttachment } from '../ui/ComposeBox.jsx';
 import { DELETE_CONFIRM_PHRASE, MAX_ATTACHMENT_BYTES, uid } from '../App.jsx';
+import { applyFieldChanges, computeRipple, rippleText } from '../lib/dateRipple.js';
+import { readAutoDates } from '../lib/autoDates.js';
 
 export function createCompanyActivityActions({ currentUser, mutateProject, openActivityDetail, projects, pushAppUndoToast, setExpanded }) {
   function addLog(targetPid, action) {
     mutateProject(targetPid, (p) => p, action);
   }
 
-  function updateActivity(targetPid, id, patch, logMsg) {
+  // "Ajustar datas automaticamente" (src/lib/dateRipple.js): com a opção ligada para a empresa, mudar uma data empurra as seguintes. O cálculo que vale roda sobre o
+  // estado mais recente (dentro do updater); o aviso com "Desfazer" usa a foto atual, e desfazer só volta campos que ainda estão com o valor aplicado.
+  function withRipple(targetPid, change, applyOwn, opts) {
+    const on = readAutoDates(targetPid) && !(opts && opts.noRipple);
+    const project = projects.find((p) => p.id === targetPid);
+    const preview = on && project ? computeRipple(project.activities, change) : null;
+    const updater = (p) => {
+      const own = applyOwn(p.activities);
+      const r = on ? computeRipple(p.activities, change) : null;
+      return { ...p, activities: r ? applyFieldChanges(own, r.changes, 'to') : own };
+    };
+    if (preview && preview.changes.length > 1) {
+      const undoAll = () => mutateProject(targetPid, (p) => ({ ...p, activities: applyFieldChanges(p.activities, preview.changes, 'from') }), 'Ajuste automático de datas desfeito');
+      return { updater, after: () => pushAppUndoToast(rippleText(preview.summary), undoAll, 12000) };
+    }
+    return { updater, after: () => {} };
+  }
+
+  // opts.noRipple: edição que só reposiciona (ex.: arrastar para reordenar na Tabela) não deve empurrar as outras datas.
+  function updateActivity(targetPid, id, patch, logMsg, opts) {
     const sourceProject = projects.find((p) => p.id === targetPid);
     const sourceActivity = sourceProject && sourceProject.activities.find((a) => a.id === id);
 
-    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => (a.id === id ? { ...a, ...patch } : a)) }), logMsg, id);
+    const rp = withRipple(targetPid, { kind: 'activity', actId: id, patch }, (acts) => acts.map((a) => (a.id === id ? { ...a, ...patch } : a)), opts);
+    mutateProject(targetPid, rp.updater, logMsg, id);
+    rp.after();
 
     // Atividade de grupo: título/descrição/datas/fase/obrigatoriedade ficam sincronizados
     // entre as cópias irmãs; status/responsável/comentários/etc. continuam independentes.
@@ -104,7 +127,14 @@ export function createCompanyActivityActions({ currentUser, mutateProject, openA
   }
 
   function updateSub(targetPid, actId, subId, patch) {
-    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => a.id !== actId ? a : { ...a, subactivities: (a.subactivities || []).map((s) => s.id === subId ? { ...s, ...patch } : s) }) }), undefined, actId);
+    const apply = (acts) => acts.map((a) => a.id !== actId ? a : { ...a, subactivities: (a.subactivities || []).map((s) => s.id === subId ? { ...s, ...patch } : s) });
+    if (Object.prototype.hasOwnProperty.call(patch, 'date')) {
+      const rp = withRipple(targetPid, { kind: 'sub', actId, subId, patch }, apply);
+      mutateProject(targetPid, rp.updater, undefined, actId);
+      rp.after();
+      return;
+    }
+    mutateProject(targetPid, (p) => ({ ...p, activities: apply(p.activities) }), undefined, actId);
   }
 
   function deleteSub(targetPid, actId, subId) {
