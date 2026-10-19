@@ -1115,27 +1115,43 @@ function AppScreens({ shellRef, bump }) {
     const currentSrc = currentScript && currentScript.getAttribute('src');
     if (!currentSrc) return undefined; // dev (Vite sem build) não serve assets com hash — nada a comparar
     let cancelled = false;
-    let notified = false;
+    let notifiedSrc = null; // última versão JÁ avisada: um deploy NOVO volta a avisar mesmo que o aviso anterior tenha sido fechado ou ignorado
+    let toastId = null;
+    let busy = false;
     async function check() {
+      if (busy) return;
+      busy = true;
       try {
         const res = await fetch('/', { cache: 'no-store' });
         const html = await res.text();
-        if (cancelled || notified) return;
+        if (cancelled) return;
         const m = html.match(/<script[^>]+type="module"[^>]+src="([^"]+)"/);
-        if (m && m[1] && m[1] !== currentSrc) {
-          notified = true;
-          pushAppToast({
+        if (m && m[1] && m[1] !== currentSrc && m[1] !== notifiedSrc) {
+          notifiedSrc = m[1];
+          if (toastId) dismissToastGlobal(toastId); // não empilha avisos velhos
+          toastId = pushAppToast({
             message: 'Uma nova versão do Cronograma está disponível.',
             actionLabel: 'Atualizar agora',
             onAction: () => window.location.reload(),
             ttlMs: 0,
           });
         }
-      } catch (e) { /* falha pontual de rede — tenta de novo no próximo ciclo */ }
+      } catch (e) { /* falha pontual de rede — tenta de novo no próximo ciclo */ } finally { busy = false; }
     }
+    // Checa ao abrir, a cada 1 minuto (o arquivo tem ~4 KB) e sempre que a pessoa volta para a aba/janela ou a rede volta: aba em segundo plano pode ficar
+    // com os temporizadores pausados pelo navegador, e esperar o próximo ciclo atrasava o aviso.
+    const onVisible = () => { if (!document.hidden) check(); };
     check();
-    const timer = setInterval(check, 4 * 60 * 1000);
-    return () => { cancelled = true; clearInterval(timer); };
+    const timer = setInterval(check, 60 * 1000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', check);
+    window.addEventListener('online', check);
+    return () => {
+      cancelled = true; clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', check);
+      window.removeEventListener('online', check);
+    };
   }, []);
 
   // Auto-atualização da memória da RENATA ao entrar numa empresa
