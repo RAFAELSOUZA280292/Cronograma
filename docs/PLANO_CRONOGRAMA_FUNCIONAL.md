@@ -8,7 +8,7 @@ Criado em 2026-10-19, a pedido do Rafael ("usando tudo que já conhecemos, remov
 - **C. Começar pela fase 1** (rascunho, sem mexer no app): sim.
 - **D. Versão 2.0:** marcar como provisória (só a nota; feito por rotina de subida em `server/index.js`, `markV2Provisional`).
 
-## Fase 1 (feita): `exports/cronograma-padrao-v3-proposta_v01.xlsx` e `docs/CRONOGRAMA_PADRAO_V3_PROPOSTA.json`
+## Fase 1 (feita): `exports/cronograma-padrao-v3-proposta_v02.xlsx` e `docs/CRONOGRAMA_PADRAO_V3_PROPOSTA.json`
 - 90 itens (17 do diagnóstico, 73 da implementação) em 22 atividades principais. 74 itens vêm das 140 linhas do guia (87) e da lista da Tecumseh (53); 16 são novos. Mapeamento 1 linha → item(ns) na aba "Mapeamento": todas as 140 linhas estão cobertas.
 - Prioridade com critério único (P1 trava emissão, cálculo, apuração ou obrigação legal em data fixa; P2 risco financeiro, contratual ou de crédito; P3 melhoria). 26 P1 na implementação (a lista da Tecumseh tinha 33).
 - Cada limite tem tipo (lei, nota técnica, previsão, decisão de projeto), fonte e situação de conferência. **Conferido no texto da norma** (arquivos em `~/Downloads/reforma-tributaria-normas`): LC 214 arts. 36, 39, 40, 45, 47, 48, 347, 349, 353 §2º e 378; ADCT arts. 126, 128 e 134 (EC 132); Decreto 12.955 arts. 39, 44 e 45. **Fonte secundária** (notícia): datas de nota técnica (26/10 e 16/11) e split em 2028. **A verificar**: DANFE em 01/12, evento do frete em 14/12, CNPJ alfanumérico, EFD de 2027.
@@ -17,7 +17,7 @@ Criado em 2026-10-19, a pedido do Rafael ("usando tudo que já conhecemos, remov
 
 ## Fases seguintes (aguardam o Rafael validar a planilha)
 2. **Campos novos no app (FEITO em 2026-10-19; ver PROJECT_CONTEXT §65)** por subatividade: prioridade, limite (data, tipo, fonte, conferido em), predecessoras, executor, áreas, aplicabilidade, recorrência. Sem isso não dá para carregar o rascunho no editor sem perder informação.
-3. **Carga da v3 no editor (FEITA em 2026-10-19):** cartão "Proposta v3" em Versões, Carregar no rascunho. **Criação da empresa (âncoras FEITAS; falta a regra do limite e os avisos):** âncoras (kickoff e virada), regra B (limite manda, "comprimido"), aviso das atividades já vencidas ao nascer (T16 e F16 já passaram).
+3. **Carga da v3 no editor (FEITA em 2026-10-19):** cartão "Proposta v3" em Versões, Carregar no rascunho. **Criação da empresa (FEITA em 2026-10-19: âncoras, regra do limite, avisos e prévia no cadastro):** âncoras (kickoff e virada), regra B (limite manda, "comprimido"), aviso das atividades já vencidas ao nascer (T16 e F16 já passaram).
 4. Salvar como **3.0** (só quando o Rafael mandar).
 5. Trocar a base da **Auditoria** e da aba **Padrão** pela versão atual do banco (hoje comparam com o modelo antigo).
 6. "Aplicar às empresas existentes" pela aba Padrão.

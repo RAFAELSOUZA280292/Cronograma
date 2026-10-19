@@ -787,7 +787,8 @@
    ],
    "p": "P1",
    "crit": "cálculo na importação",
-   "anc": "fixa",
+   "anc": "virada",
+   "n": 48,
    "lim": {
     "d": "2027-01-01",
     "tipo": "lei",
@@ -897,7 +898,8 @@
    ],
    "p": "P1",
    "crit": "obrigação legal em 01/01/2027",
-   "anc": "fixa",
+   "anc": "virada",
+   "n": 48,
    "lim": {
     "d": "2027-01-01",
     "tipo": "lei",
@@ -962,7 +964,8 @@
    ],
    "p": "P1",
    "crit": "obrigação acessória",
-   "anc": "fixa",
+   "anc": "virada",
+   "n": 20,
    "lim": {
     "d": "2027-01-01",
     "tipo": "nota técnica",
@@ -987,7 +990,8 @@
    ],
    "p": "P1",
    "crit": "obrigação legal em 01/01/2027",
-   "anc": "fixa",
+   "anc": "virada",
+   "n": 20,
    "lim": {
     "d": "2027-01-01",
     "tipo": "lei",
@@ -1010,7 +1014,8 @@
    ],
    "p": "P1",
    "crit": "crédito não escriturado até a extinção se perde (art. 378, II)",
-   "anc": "fixa",
+   "anc": "virada",
+   "n": 32,
    "lim": {
     "d": "2026-12-31",
     "tipo": "lei",
@@ -1034,7 +1039,7 @@
    "p": "P2",
    "crit": "rotina de vigilância",
    "anc": "virada",
-   "n": 0,
+   "n": 17,
    "rec": "semanal",
    "lim": {
     "d": "2026-12-15",

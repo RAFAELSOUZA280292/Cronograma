@@ -1358,7 +1358,7 @@ function RowActionsMenu({ title, required, confirmed, onToggleRequired, onToggle
 const TABLE_MIN_W = 1060;
 
 // Subatividades (não apagadas) do projeto da linha, para escolher predecessoras. Em várias empresas, as atividades trazem `_pid`.
-const subsOfProject = (activities, rowPid, singlePid) => (activities || []).filter((x) => !x.deleted && (singlePid || x._pid) === rowPid).flatMap((x) => (x.subactivities || []).filter((y) => !y.deleted).map((y) => ({ id: y.id, title: y.title, code: y.code, done: !!y.done, predecessors: y.predecessors })));
+const subsOfProject = (activities, rowPid, singlePid) => (activities || []).filter((x) => !x.deleted && (singlePid || x._pid) === rowPid).flatMap((x) => (x.subactivities || []).filter((y) => !y.deleted).map((y) => ({ id: y.id, title: y.title, code: y.code, done: !!y.done, date: y.date, predecessors: y.predecessors })));
 
 export function TableView({ activities, orderMap, phases, team, pid, expanded, setExpanded, updateActivity, deleteActivity, addSub, updateSub, deleteSub, reorderSub, addAttachment, removeAttachment, openDetail, multiMode, companyColor, groupInfo, taskCounts, onOpenTasks, staff }) {
   const isMobile = useIsMobile();

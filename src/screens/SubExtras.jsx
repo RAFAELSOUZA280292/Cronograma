@@ -15,7 +15,7 @@ const PRIO_LABEL = { alta: 'P1', media: 'P2', baixa: 'P3' };
 const PRIO_TEXT = { alta: 'P1 · Alta', media: 'P2 · Média', baixa: 'P3 · Baixa' };
 const CONF_TONE = { 'conferido no texto da norma': 'ok', 'fonte secundária': 'warn', 'a verificar': 'bad' };
 
-export const hasExtras = (s) => !!(s.priority || s.executor || (s.areas && s.areas.length) || s.applicability || s.recurrence || s.anchor || (s.limit && (s.limit.date || s.limit.type || s.limit.source)) || (s.predecessors && s.predecessors.length) || s.code);
+export const hasExtras = (s) => !!(s.priority || s.executor || (s.areas && s.areas.length) || s.applicability || s.recurrence || s.anchor || (s.limit && (s.limit.date || s.limit.type || s.limit.source)) || (s.predecessors && s.predecessors.length) || s.code || s.compressed);
 
 export const SUB_EXTRAS_CSS = `
   .sx { padding:2px 0 0 34px; display:flex; flex-direction:column; gap:6px; max-width:720px; }
@@ -55,6 +55,8 @@ export function SubExtras({ s, pid, actId, allSubs, canEdit, updateSub }) {
   const preds = (s.predecessors || []).filter(Boolean);
   const pending = preds.filter((id) => { const x = (allSubs || []).find((o) => o.id === id); return x && !x.done; });
   const overLimit = !!(s.date && lim.date && s.date > lim.date);
+  const compressed = !!(s.compressed && lim.date && s.date === lim.date);
+  const lateOrder = !!(s.date && preds.some((id) => { const x = (allSubs || []).find((o) => o.id === id); return x && x.date && x.date > s.date; }));
   const limitSoon = !!(lim.date && !s.done && lim.date <= today);
   const showChips = hasExtras(s);
   if (!showChips && !canEdit) return null;
@@ -71,6 +73,8 @@ export function SubExtras({ s, pid, actId, allSubs, canEdit, updateSub }) {
           {s.executor && <span className="sx-chip" title="Quem executa">{s.executor}</span>}
           {lim.date && <span className={`sx-chip ${overLimit || limitSoon ? 'bad' : (CONF_TONE[lim.conf] || '')}`} title={[lim.type && `Tipo: ${lim.type}`, lim.source, lim.conf && `Conferência: ${lim.conf}`, lim.checked && `Verificado em ${fmtDate(lim.checked)}`].filter(Boolean).join(' · ')}>Limite {fmtDate(lim.date)}{lim.type ? ` · ${lim.type}` : ''}</span>}
           {overLimit && <span className="sx-chip bad" title="O prazo desta atividade passa do limite da norma">Passa do limite</span>}
+          {compressed && <span className="sx-chip warn" title={`O padrão daria ${fmtDate(s.compressedFrom)}, depois do limite da norma (${fmtDate(lim.date)}). Vale o limite.`}>Prazo comprimido</span>}
+          {lateOrder && <span className="sx-chip warn" title="Uma predecessora vence depois desta subatividade">Predecessora vence depois</span>}
           {s.recurrence && <span className="sx-chip info" title="Atividade recorrente">{s.recurrence}</span>}
           {s.applicability && <span className="sx-chip info" title="Só vale quando se aplica">Se: {s.applicability}</span>}
           {s.anchor === 'fixa' && <span className="sx-chip" title="A data não muda com o kickoff da empresa">Data fixa</span>}
