@@ -1,7 +1,8 @@
 // Campos novos das subatividades (2026-10-19, fase 2 do plano do cronograma funcional): prioridade, executor, áreas envolvidas, aplicabilidade, recorrência,
 // âncora do prazo, limite (data, tipo, fonte, conferência), predecessoras e código. Servem ao cronograma padrão versionado e a toda empresa criada a partir dele.
 // Mostra uma linha de selos só do que estiver preenchido (nada muda para subatividades antigas) e um painel "Detalhes" para editar (equipe PRICETAX).
-// Dados na própria subatividade (JSON do projeto): priority, executor, areas[], applicability, recurrence, anchor, limit{date,type,source,conf,checked}, predecessors[] (ids), code.
+// Dados na própria subatividade (JSON do projeto): priority, executor, areas[], applicability, recurrence, anchor, limit{date,type,source,conf,checked}, predecessors[] (ids), code,
+// guide (Roteiro do encontro, 2026-10-19: pauta, o que a empresa traz, o que sai e quando está concluído; só a equipe PRICETAX vê e edita).
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Lock, LockOpen, X } from 'lucide-react';
 import { PRIORITY_META, fmtDate, todayISOStr, useDebouncedField } from '../App.jsx';
@@ -29,17 +30,23 @@ export const SUB_EXTRAS_CSS = `
   .sx-f { display:flex; flex-direction:column; gap:3px; min-width:0; }
   .sx-f > span { font-size:10.5px; font-weight:700; color:var(--text-5); text-transform:uppercase; letter-spacing:.03em; }
   .sx-f input, .sx-f select { font-size:12px; padding:5px 7px; border-radius:6px; background:var(--bg-2); border:1px solid var(--border-2); color:var(--text-2); min-width:0; width:100%; box-sizing:border-box; }
-  .sx-f input:focus, .sx-f select:focus { outline:none; border-color:#F5C400; }
+  .sx-f input:focus, .sx-f select:focus, .sx-f textarea:focus { outline:none; border-color:#F5C400; }
+  .sx-f textarea { font-size:12px; padding:6px 8px; border-radius:6px; background:var(--bg-2); border:1px solid var(--border-2); color:var(--text-2); width:100%; box-sizing:border-box; min-height:150px; resize:vertical; line-height:1.5; font-family:inherit; }
   .sx-wide { grid-column:1 / -1; }
   .sx-reason { flex:1 1 180px; min-width:140px; }
   .sub-row-card .sx-outcome { flex:0 0 104px; width:104px; }
   .sx-hint { font-size:11px; color:var(--text-5); line-height:1.4; }
   .sx-pred { display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
   .sx-pred button { background:none; border:0; padding:0 0 0 2px; color:inherit; cursor:pointer; display:inline-flex; }
-  @media (max-width: 767px) { .sx { padding-left:0; } .sx-toggle { min-height:44px; } .sx-f input, .sx-f select { min-height:44px; font-size:16px; } .sx-pred button { min-width:32px; min-height:32px; align-items:center; justify-content:center; } }
+  @media (max-width: 767px) { .sx-f textarea { font-size:16px; } .sx { padding-left:0; } .sx-toggle { min-height:44px; } .sx-f input, .sx-f select { min-height:44px; font-size:16px; } .sx-pred button { min-width:32px; min-height:32px; align-items:center; justify-content:center; } }
 `;
 
 function Field({ label, children, wide }) { return <label className={`sx-f${wide ? ' sx-wide' : ''}`}><span>{label}</span>{children}</label>; }
+
+function DebouncedText({ value, onCommit, ...rest }) {
+  const f = useDebouncedField(value || '', onCommit);
+  return <textarea value={f.draft} onChange={(e) => f.onChange(e.target.value)} onBlur={f.flush} {...rest} />;
+}
 
 function DebouncedInput({ value, onCommit, ...rest }) {
   const f = useDebouncedField(value || '', onCommit);
@@ -76,7 +83,7 @@ export function SubExtras({ s, pid, actId, allSubs, canEdit, updateSub }) {
   const compressed = !!(s.compressed && lim.date && s.date === lim.date);
   const lateOrder = !!(s.date && preds.some((id) => { const x = (allSubs || []).find((o) => o.id === id); return x && x.date && x.date > s.date; }));
   const limitSoon = !!(lim.date && !s.done && lim.date <= today);
-  const showChips = hasExtras(s);
+  const showChips = hasExtras(s) || (canEdit && !!s.guide);
   if (!showChips && !canEdit) return null;
   // Não oferece quem já depende (direta ou indiretamente) desta subatividade: evita ciclo de predecessoras.
   const dependsOnMe = (id, seen = new Set()) => { if (id === s.id) return true; if (seen.has(id)) return false; seen.add(id); const x = (allSubs || []).find((o) => o.id === id); return !!x && (x.predecessors || []).some((p) => dependsOnMe(p, seen)); };
@@ -88,6 +95,7 @@ export function SubExtras({ s, pid, actId, allSubs, canEdit, updateSub }) {
         <div className="sx-chips">
           {s.done && s.skipped && <span className="sx-chip warn" title={s.skipReason ? `Pulada: ${s.skipReason}` : 'Esta subatividade foi pulada (não foi feita)'}>Pulada</span>}
           {s.code && <span className="sx-chip" title="Código do item no cronograma padrão">{s.code}</span>}
+          {canEdit && s.guide && <span className="sx-chip info" title="Esta subatividade tem roteiro: abra Detalhes para ler">Roteiro</span>}
           {s.dateLocked && <span className="sx-chip warn" title="A data não acompanha o ajuste automático de datas"><Lock size={10} aria-hidden="true" /> Data travada</span>}
           {s.priority && <span className="sx-chip" title={PRIO_TEXT[s.priority]} style={{ color: PRIORITY_META[s.priority].color, borderColor: PRIORITY_META[s.priority].border }}>{PRIO_LABEL[s.priority]}</span>}
           {s.executor && <span className="sx-chip" title="Quem executa">{s.executor}</span>}
@@ -111,6 +119,9 @@ export function SubExtras({ s, pid, actId, allSubs, canEdit, updateSub }) {
       )}
       {canEdit && open && (
         <div className="sx-panel">
+          <Field label="Roteiro do encontro" wide>
+            <DebouncedText value={s.guide || ''} onCommit={(v) => set({ guide: v })} placeholder="Objetivo, quem participa, duração, o que a empresa traz, o que sai e quando está concluído" aria-label="Roteiro do encontro" />
+          </Field>
           <Field label="Prioridade">
             <select value={s.priority || ''} onChange={(e) => set({ priority: e.target.value })}>
               <option value="">Sem prioridade</option>

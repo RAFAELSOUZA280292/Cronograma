@@ -3,6 +3,7 @@
 // server/standardTemplateStore.js. Forma de uma versão (`data`): { kickoffDate, phases, activities, team } — a mesma de um projeto, sem empresa/log/reuniões.
 import { blankProject, nextPhaseColor } from './db.js';
 import { CRONOGRAMA_PADRAO } from '../shared/cronogramaPadrao.js';
+import { MAINS as V4_MAINS, PHASES as V4_PHASES, TEAM as V4_TEAM, V4_KICKOFF, buildItems as v4BuildItems, schedule as v4Schedule } from '../shared/cronogramaPadraoV4.js';
 import { ITEMS as V3_ITEMS, MAINS as V3_MAINS, MAINS_DESC as V3_DESC, PHASE_OF as V3_PHASE_OF, WINDOWS as V3_WINDOWS } from '../shared/cronogramaPadraoV3.js';
 
 export const uid = (p) => `${p}-${Math.random().toString(36).slice(2, 9)}`;
@@ -120,6 +121,30 @@ export function buildV3() {
   return { kickoffDate: V3_KICKOFF, phases, activities, team: [...V3_TEAM] };
 }
 
+// ---------- proposta v4: modelo ideal do comitê de reforma tributária (2026-10-19) ----------
+export function buildV4() {
+  const items = v4Schedule(v4BuildItems());
+  const idOf = new Map(items.map((it) => [it.code, uid('s')]));
+  const activities = V4_MAINS.map(([key, phase, title, resp, [ini, fim], desc], i) => {
+    const subs = items.filter((x) => x.main === key).sort((a, b) => a.n - b.n || a.seq - b.seq).map((it) => {
+      const sub = { id: idOf.get(it.code), title: it.title, done: false, responsible: it.resp, date: shiftISO(V4_KICKOFF, it.n), priority: it.prio, executor: it.ex, areas: it.ar, anchor: 'kickoff', code: it.code };
+      if (it.apl) sub.applicability = it.apl;
+      if (it.rec) sub.recurrence = it.rec;
+      if (it.guide) sub.guide = it.guide;
+      if (it.lim) sub.limit = { date: it.lim.d || '', type: it.lim.tipo, source: it.lim.fonte, conf: it.lim.conf, checked: '' };
+      if (it.pred.length) sub.predecessors = it.pred.map((c) => idOf.get(c)).filter(Boolean);
+      return sub;
+    });
+    const prios = subs.map((x) => x.priority);
+    return {
+      id: `m-${key}`, month: i + 1, phase, title, desc, responsible: resp, priority: prios.includes('alta') ? 'alta' : prios.includes('media') ? 'media' : prios.includes('baixa') ? 'baixa' : '',
+      participants: [], date: shiftISO(V4_KICKOFF, ini), endDate: shiftISO(V4_KICKOFF, fim), durationDays: '', status: 'nao-iniciado', required: true, stdKey: key,
+      subactivities: subs, notes: '', attachments: [], comments: [], links: [], transcript: '', clientDateConfirmed: false,
+    };
+  });
+  return { kickoffDate: V4_KICKOFF, phases: V4_PHASES.map((f) => ({ ...f })), activities, team: [...V4_TEAM] };
+}
+
 // ---------- o que o cliente envia ----------
 
 const str = (x) => (typeof x === 'string' ? x : '');
@@ -154,8 +179,8 @@ export const sameTemplate = (a, b) => canonical(purgeDeleted(a)) === canonical(p
 
 // ---------- comparação entre versões ----------
 
-const ACT_FIELDS = [['title', 'título'], ['desc', 'descrição'], ['responsible', 'responsável'], ['priority', 'prioridade'], ['phase', 'fase'], ['date', 'data'], ['endDate', 'data final'], ['required', 'obrigatória'], ['dateLocked', 'data travada']];
-const SUB_FIELDS = [['title', 'título'], ['responsible', 'responsável'], ['date', 'data'], ['priority', 'prioridade'], ['executor', 'executor'], ['areas', 'áreas'], ['applicability', 'aplicabilidade'], ['recurrence', 'recorrência'], ['anchor', 'âncora do prazo'], ['limit', 'limite'], ['predecessors', 'predecessoras'], ['code', 'código'], ['dateLocked', 'data travada']];
+const ACT_FIELDS = [['title', 'título'], ['desc', 'descrição'], ['responsible', 'responsável'], ['priority', 'prioridade'], ['phase', 'fase'], ['date', 'data'], ['endDate', 'data final'], ['required', 'obrigatória'], ['dateLocked', 'data travada'], ['guide', 'roteiro']];
+const SUB_FIELDS = [['title', 'título'], ['responsible', 'responsável'], ['date', 'data'], ['priority', 'prioridade'], ['executor', 'executor'], ['areas', 'áreas'], ['applicability', 'aplicabilidade'], ['recurrence', 'recorrência'], ['anchor', 'âncora do prazo'], ['limit', 'limite'], ['predecessors', 'predecessoras'], ['code', 'código'], ['dateLocked', 'data travada'], ['guide', 'roteiro']];
 const live = (t) => (t && Array.isArray(t.activities) ? t.activities.filter((a) => !a.deleted) : []);
 const liveSubs = (a) => (Array.isArray(a.subactivities) ? a.subactivities.filter((s) => !s.deleted) : []);
 const norm0 = (x) => (x === undefined || x === null || (Array.isArray(x) && !x.length) ? '' : typeof x === 'object' ? canonical(x) : x);
