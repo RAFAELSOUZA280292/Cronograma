@@ -115,6 +115,24 @@
  ],
  "itens": [
   {
+   "id": "A1.0",
+   "main": "A1",
+   "t": "Enviar o e-mail de boas-vindas ao cliente e solicitar a documentação necessária para o diagnóstico",
+   "ex": "PriceTax",
+   "resp": "PRICETAX",
+   "ar": [
+    "Diretoria",
+    "Todas"
+   ],
+   "p": "P1",
+   "crit": "abre o projeto no dia da assinatura do contrato e dispara a coleta de documentos",
+   "anc": "kickoff",
+   "n": 0,
+   "o": [
+    "pedido do Rafael (2026-10-19)"
+   ]
+  },
+  {
    "id": "A1.1",
    "main": "A1",
    "t": "Kickoff com a diretoria e as áreas: escopo, calendário e dados necessários",
@@ -126,7 +144,10 @@
    "p": "P1",
    "crit": "abre a trilha; sem ele nada começa",
    "anc": "kickoff",
-   "n": 0,
+   "n": 2,
+   "pred": [
+    "A1.0"
+   ],
    "o": [
     "modelo: Kickoff único"
    ]
@@ -142,7 +163,7 @@
    "p": "P1",
    "crit": "sem dono por área as pendências só aparecem em janeiro",
    "anc": "kickoff",
-   "n": 2,
+   "n": 3,
    "o": [
     "G1"
    ]
@@ -453,8 +474,8 @@
    ],
    "p": "P2",
    "crit": "base da ata de prontidão",
-   "anc": "virada",
-   "n": 41,
+   "anc": "kickoff",
+   "n": 45,
    "o": [
     "v2: Prontidão (critérios)"
    ]
@@ -470,8 +491,8 @@
    ],
    "p": "P2",
    "crit": "risco operacional no primeiro mês",
-   "anc": "virada",
-   "n": 17,
+   "anc": "kickoff",
+   "n": 69,
    "o": [
     "G2"
    ]
@@ -486,7 +507,8 @@
    ],
    "p": "P1",
    "crit": "a reforma entra em 01/01/2027 de qualquer forma; a ata registra o que ficou pendente e quem responde",
-   "anc": "fixa",
+   "anc": "kickoff",
+   "n": 76,
    "lim": {
     "d": "2026-12-22",
     "tipo": "decisão de projeto",
@@ -514,8 +536,8 @@
    ],
    "p": "P1",
    "crit": "sem ambiente não há teste; destrava 14 ações do fornecedor",
-   "anc": "virada",
-   "n": 69,
+   "anc": "kickoff",
+   "n": 17,
    "pred": [
     "A1.3"
    ],
@@ -536,8 +558,8 @@
    ],
    "p": "P1",
    "crit": "define quais grupos e campos cada nota precisa",
-   "anc": "virada",
-   "n": 82,
+   "anc": "kickoff",
+   "n": 4,
    "o": [
     "T16 (guia)",
     "T02"
@@ -555,7 +577,8 @@
    ],
    "p": "P1",
    "crit": "obrigação já em curso (a verificar a data na fonte oficial)",
-   "anc": "fixa",
+   "anc": "kickoff",
+   "n": 14,
    "lim": {
     "d": "",
     "tipo": "lei",
@@ -579,7 +602,8 @@
    ],
    "p": "P1",
    "crit": "cálculo da nota depende da alíquota e do CFOP",
-   "anc": "fixa",
+   "anc": "kickoff",
+   "n": 21,
    "lim": {
     "d": "2026-11-16",
     "tipo": "nota técnica",
@@ -605,7 +629,8 @@
    ],
    "p": "P1",
    "crit": "a nota sai errada ou rejeitada",
-   "anc": "fixa",
+   "anc": "kickoff",
+   "n": 40,
    "lim": {
     "d": "2026-11-16",
     "tipo": "nota técnica",
@@ -634,7 +659,8 @@
    ],
    "p": "P1",
    "crit": "documento que acompanha a mercadoria",
-   "anc": "fixa",
+   "anc": "kickoff",
+   "n": 55,
    "lim": {
     "d": "2026-12-01",
     "tipo": "nota técnica",
@@ -661,7 +687,8 @@
    ],
    "p": "P1",
    "crit": "devolução sem referência é rejeitada",
-   "anc": "fixa",
+   "anc": "kickoff",
+   "n": 40,
    "lim": {
     "d": "2026-11-16",
     "tipo": "nota técnica",
@@ -684,7 +711,8 @@
    ],
    "p": "P1",
    "crit": "a SEFAZ passa a validar na emissão",
-   "anc": "fixa",
+   "anc": "kickoff",
+   "n": 40,
    "lim": {
     "d": "2026-11-16",
     "tipo": "nota técnica",
@@ -708,8 +736,8 @@
    ],
    "p": "P1",
    "crit": "sem a nota não há como ajustar valores",
-   "anc": "virada",
-   "n": 62,
+   "anc": "kickoff",
+   "n": 24,
    "o": [
     "T7",
     "T11"
@@ -726,8 +754,8 @@
    ],
    "p": "P2",
    "crit": "impacta crédito, não bloqueia a emissão",
-   "anc": "virada",
-   "n": 34,
+   "anc": "kickoff",
+   "n": 52,
    "o": [
     "T18 (guia)",
     "F7",
@@ -745,8 +773,8 @@
    ],
    "p": "P1",
    "crit": "emissão de serviço",
-   "anc": "virada",
-   "n": 69,
+   "anc": "kickoff",
+   "n": 17,
    "o": [
     "T12 (guia)",
     "T10 (guia)",
@@ -765,7 +793,8 @@
    ],
    "p": "P2",
    "crit": "crédito do frete e das concessionárias",
-   "anc": "fixa",
+   "anc": "kickoff",
+   "n": 40,
    "lim": {
     "d": "2026-11-16",
     "tipo": "nota técnica",
@@ -791,8 +820,8 @@
    ],
    "p": "P1",
    "crit": "cálculo na importação",
-   "anc": "virada",
-   "n": 48,
+   "anc": "kickoff",
+   "n": 38,
    "lim": {
     "d": "2027-01-01",
     "tipo": "lei",
@@ -818,8 +847,8 @@
    ],
    "p": "P1",
    "crit": "decisão que antecede a parametrização do ERP",
-   "anc": "virada",
-   "n": 62,
+   "anc": "kickoff",
+   "n": 24,
    "o": [
     "F1",
     "T13 (guia)",
@@ -837,8 +866,8 @@
    ],
    "p": "P1",
    "crit": "alimenta o cálculo de todas as notas",
-   "anc": "virada",
-   "n": 62,
+   "anc": "kickoff",
+   "n": 24,
    "o": [
     "F2",
     "F4",
@@ -858,8 +887,8 @@
    ],
    "p": "P1",
    "crit": "item sem regra emite errado",
-   "anc": "virada",
-   "n": 69,
+   "anc": "kickoff",
+   "n": 26,
    "pred": [
     "B2.2"
    ],
@@ -881,8 +910,8 @@
    ],
    "p": "P1",
    "crit": "benefício mal parametrizado vira tributo",
-   "anc": "virada",
-   "n": 62,
+   "anc": "kickoff",
+   "n": 24,
    "apl": "ZFM, exportação, Recof ou redução",
    "o": [
     "F18",
@@ -902,8 +931,8 @@
    ],
    "p": "P1",
    "crit": "obrigação legal em 01/01/2027",
-   "anc": "virada",
-   "n": 48,
+   "anc": "kickoff",
+   "n": 38,
    "lim": {
     "d": "2027-01-01",
     "tipo": "lei",
@@ -930,8 +959,8 @@
    ],
    "p": "P2",
    "crit": "protege o crédito (LC 214, art. 48 e parágrafo único); não bloqueia a emissão",
-   "anc": "virada",
-   "n": 32,
+   "anc": "kickoff",
+   "n": 54,
    "o": [
     "F8",
     "T26",
@@ -951,8 +980,8 @@
    ],
    "p": "P1",
    "crit": "apuração por período, separada para IBS e CBS (LC 214, art. 45)",
-   "anc": "virada",
-   "n": 32,
+   "anc": "kickoff",
+   "n": 54,
    "o": [
     "F19",
     "T48"
@@ -968,8 +997,8 @@
    ],
    "p": "P1",
    "crit": "obrigação acessória",
-   "anc": "virada",
-   "n": 20,
+   "anc": "kickoff",
+   "n": 66,
    "lim": {
     "d": "2027-01-01",
     "tipo": "nota técnica",
@@ -994,8 +1023,8 @@
    ],
    "p": "P1",
    "crit": "obrigação legal em 01/01/2027",
-   "anc": "virada",
-   "n": 20,
+   "anc": "kickoff",
+   "n": 66,
    "lim": {
     "d": "2027-01-01",
     "tipo": "lei",
@@ -1018,8 +1047,8 @@
    ],
    "p": "P1",
    "crit": "crédito não escriturado até a extinção se perde (art. 378, II)",
-   "anc": "virada",
-   "n": 32,
+   "anc": "kickoff",
+   "n": 54,
    "lim": {
     "d": "2026-12-31",
     "tipo": "lei",
@@ -1042,8 +1071,8 @@
    ],
    "p": "P2",
    "crit": "rotina de vigilância",
-   "anc": "virada",
-   "n": 17,
+   "anc": "kickoff",
+   "n": 69,
    "rec": "semanal",
    "lim": {
     "d": "2026-12-15",
@@ -1067,8 +1096,8 @@
    ],
    "p": "P2",
    "crit": "ICMS segue até 2032",
-   "anc": "virada",
-   "n": 48,
+   "anc": "kickoff",
+   "n": 38,
    "o": [
     "F14"
    ]
@@ -1083,8 +1112,8 @@
    ],
    "p": "P2",
    "crit": "base do cálculo dos serviços",
-   "anc": "virada",
-   "n": 85,
+   "anc": "kickoff",
+   "n": 22,
    "o": [
     "F16"
    ],
@@ -1102,8 +1131,8 @@
    ],
    "p": "P2",
    "crit": "sem prova o benefício se perde com encargos (LC 214, art. 445)",
-   "anc": "virada",
-   "n": 62,
+   "anc": "kickoff",
+   "n": 24,
    "apl": "vende para a ZFM ou ALC",
    "o": [
     "deck Tecumseh (benefícios)"
@@ -1121,8 +1150,8 @@
    ],
    "p": "P2",
    "crit": "define o crédito de cada compra",
-   "anc": "virada",
-   "n": 69,
+   "anc": "kickoff",
+   "n": 17,
    "o": [
     "C1",
     "C2",
@@ -1141,8 +1170,8 @@
    ],
    "p": "P1",
    "crit": "cClassTrib é por item",
-   "anc": "virada",
-   "n": 55,
+   "anc": "kickoff",
+   "n": 31,
    "o": [
     "C2",
     "F3",
@@ -1160,8 +1189,8 @@
    ],
    "p": "P2",
    "crit": "preço e recebimento por perfil",
-   "anc": "virada",
-   "n": 48,
+   "anc": "kickoff",
+   "n": 38,
    "o": [
     "T21"
    ]
@@ -1177,8 +1206,8 @@
    ],
    "p": "P2",
    "crit": "base da negociação",
-   "anc": "virada",
-   "n": 48,
+   "anc": "kickoff",
+   "n": 38,
    "o": [
     "C3",
     "T18"
@@ -1194,8 +1223,8 @@
    ],
    "p": "P2",
    "crit": "risco de custo",
-   "anc": "virada",
-   "n": 20,
+   "anc": "kickoff",
+   "n": 66,
    "pred": [
     "B6.1"
    ],
@@ -1213,8 +1242,8 @@
    ],
    "p": "P3",
    "crit": "melhoria",
-   "anc": "virada",
-   "n": 20,
+   "anc": "kickoff",
+   "n": 66,
    "o": [
     "T31"
    ]
@@ -1229,8 +1258,8 @@
    ],
    "p": "P3",
    "crit": "otimização pontual",
-   "anc": "virada",
-   "n": 31,
+   "anc": "kickoff",
+   "n": 55,
    "o": [
     "C6"
    ]
@@ -1246,8 +1275,8 @@
    ],
    "p": "P2",
    "crit": "risco comercial",
-   "anc": "virada",
-   "n": 69,
+   "anc": "kickoff",
+   "n": 17,
    "o": [
     "V1"
    ]
@@ -1263,8 +1292,8 @@
    ],
    "p": "P2",
    "crit": "decisão que antecede B7.3",
-   "anc": "virada",
-   "n": 62,
+   "anc": "kickoff",
+   "n": 24,
    "o": [
     "T14 (guia)"
    ],
@@ -1281,8 +1310,8 @@
    ],
    "p": "P2",
    "crit": "risco de margem",
-   "anc": "virada",
-   "n": 48,
+   "anc": "kickoff",
+   "n": 38,
    "pred": [
     "B7.2",
     "B6.1"
@@ -1304,8 +1333,8 @@
    ],
    "p": "P2",
    "crit": "risco de margem",
-   "anc": "virada",
-   "n": 41,
+   "anc": "kickoff",
+   "n": 45,
    "o": [
     "V3"
    ]
@@ -1322,8 +1351,8 @@
    ],
    "p": "P2",
    "crit": "imposto antecipado e mudança de regime",
-   "anc": "virada",
-   "n": 34,
+   "anc": "kickoff",
+   "n": 52,
    "o": [
     "V5",
     "T39"
@@ -1340,8 +1369,8 @@
    ],
    "p": "P3",
    "crit": "melhoria",
-   "anc": "virada",
-   "n": 20,
+   "anc": "kickoff",
+   "n": 66,
    "o": [
     "V7",
     "T24"
@@ -1357,8 +1386,8 @@
    ],
    "p": "P2",
    "crit": "evita rejeição pelo cliente",
-   "anc": "virada",
-   "n": 17,
+   "anc": "kickoff",
+   "n": 69,
    "o": [
     "V8"
    ]
@@ -1376,8 +1405,8 @@
    ],
    "p": "P2",
    "crit": "protege o crédito (LC 214, arts. 36, 47 e 48)",
-   "anc": "virada",
-   "n": 34,
+   "anc": "kickoff",
+   "n": 52,
    "o": [
     "C5",
     "V4",
@@ -1396,8 +1425,8 @@
    ],
    "p": "P2",
    "crit": "risco financeiro; só obrigatório quando houver recolhimento pelo adquirente",
-   "anc": "virada",
-   "n": 34,
+   "anc": "kickoff",
+   "n": 52,
    "pred": [
     "B8.1"
    ],
@@ -1418,8 +1447,8 @@
    ],
    "p": "P2",
    "crit": "risco financeiro",
-   "anc": "virada",
-   "n": 32,
+   "anc": "kickoff",
+   "n": 54,
    "o": [
     "FN4",
     "T37"
@@ -1436,8 +1465,8 @@
    ],
    "p": "P2",
    "crit": "risco de caixa",
-   "anc": "virada",
-   "n": 27,
+   "anc": "kickoff",
+   "n": 59,
    "o": [
     "FN3",
     "T38"
@@ -1454,8 +1483,8 @@
    ],
    "p": "P2",
    "crit": "caixa preso; começa na primeira apuração",
-   "anc": "virada",
-   "n": -60,
+   "anc": "kickoff",
+   "n": 146,
    "pred": [
     "B4.9"
    ],
@@ -1482,8 +1511,8 @@
    ],
    "p": "P3",
    "crit": "preparação para 2028",
-   "anc": "virada",
-   "n": -365,
+   "anc": "kickoff",
+   "n": 200,
    "rec": "contínuo",
    "lim": {
     "d": "2028-01-01",
@@ -1509,8 +1538,8 @@
    ],
    "p": "P2",
    "crit": "controle do crédito (art. 47: nasce com a extinção do débito)",
-   "anc": "virada",
-   "n": 20,
+   "anc": "kickoff",
+   "n": 66,
    "o": [
     "T11 (guia)",
     "T33"
@@ -1527,8 +1556,8 @@
    ],
    "p": "P2",
    "crit": "sem as contas a escrituração de janeiro não fecha; não é prazo legal",
-   "anc": "virada",
-   "n": 55,
+   "anc": "kickoff",
+   "n": 31,
    "o": [
     "CT1",
     "T41"
@@ -1545,8 +1574,8 @@
    ],
    "p": "P2",
    "crit": "fechamento de janeiro",
-   "anc": "virada",
-   "n": 41,
+   "anc": "kickoff",
+   "n": 45,
    "pred": [
     "B9.1"
    ],
@@ -1566,8 +1595,8 @@
    ],
    "p": "P2",
    "crit": "risco de gestão",
-   "anc": "virada",
-   "n": 34,
+   "anc": "kickoff",
+   "n": 52,
    "o": [
     "CT3",
     "T46"
@@ -1585,7 +1614,8 @@
    ],
    "p": "P2",
    "crit": "ponto de corte do estoque",
-   "anc": "fixa",
+   "anc": "kickoff",
+   "n": 85,
    "lim": {
     "d": "2026-12-31",
     "tipo": "decisão de projeto",
@@ -1608,8 +1638,8 @@
    ],
    "p": "P2",
    "crit": "risco contábil",
-   "anc": "virada",
-   "n": 17,
+   "anc": "kickoff",
+   "n": 69,
    "pred": [
     "B4.9"
    ],
@@ -1629,8 +1659,8 @@
    ],
    "p": "P2",
    "crit": "controle recorrente",
-   "anc": "virada",
-   "n": 20,
+   "anc": "kickoff",
+   "n": 66,
    "rec": "mensal",
    "o": [
     "CT5"
@@ -1646,8 +1676,8 @@
    ],
    "p": "P3",
    "crit": "tese, não bloqueia nada",
-   "anc": "virada",
-   "n": 32,
+   "anc": "kickoff",
+   "n": 54,
    "o": [
     "J1"
    ]
@@ -1664,8 +1694,8 @@
    ],
    "p": "P2",
    "crit": "risco contratual",
-   "anc": "virada",
-   "n": 20,
+   "anc": "kickoff",
+   "n": 66,
    "o": [
     "J2",
     "C7",
@@ -1684,8 +1714,8 @@
    ],
    "p": "P3",
    "crit": "oportunidade de crédito",
-   "anc": "virada",
-   "n": 34,
+   "anc": "kickoff",
+   "n": 52,
    "o": [
     "P2",
     "T23"
@@ -1702,8 +1732,8 @@
    ],
    "p": "P3",
    "crit": "depende do setor",
-   "anc": "virada",
-   "n": 34,
+   "anc": "kickoff",
+   "n": 52,
    "apl": "setor com CPRB",
    "o": [
     "P3"
@@ -1720,8 +1750,8 @@
    ],
    "p": "P3",
    "crit": "análise estratégica",
-   "anc": "virada",
-   "n": -89,
+   "anc": "kickoff",
+   "n": 175,
    "o": [
     "P4"
    ]
@@ -1737,8 +1767,8 @@
    ],
    "p": "P2",
    "crit": "trava a movimentação se o documento estiver errado, mas depende de B4.1",
-   "anc": "virada",
-   "n": 32,
+   "anc": "kickoff",
+   "n": 54,
    "o": [
     "L1"
    ]
@@ -1753,8 +1783,8 @@
    ],
    "p": "P2",
    "crit": "risco de erro operacional",
-   "anc": "virada",
-   "n": 17,
+   "anc": "kickoff",
+   "n": 69,
    "o": [
     "P5"
    ]
@@ -1769,8 +1799,8 @@
    ],
    "p": "P2",
    "crit": "insumo da ata de prontidão",
-   "anc": "virada",
-   "n": 24,
+   "anc": "kickoff",
+   "n": 62,
    "o": [
     "v2: Tira-dúvidas (pendências)"
    ]
@@ -1785,8 +1815,8 @@
    ],
    "p": "P1",
    "crit": "sem teste o erro só aparece em fevereiro",
-   "anc": "virada",
-   "n": 36,
+   "anc": "kickoff",
+   "n": 50,
    "pred": [
     "B3.1",
     "B4.4"
@@ -1809,7 +1839,8 @@
    ],
    "p": "P1",
    "crit": "confirma o cálculo com a alíquota oficial",
-   "anc": "fixa",
+   "anc": "kickoff",
+   "n": 69,
    "lim": {
     "d": "2026-12-15",
     "tipo": "lei",
@@ -1835,8 +1866,8 @@
    ],
    "p": "P2",
    "crit": "fechamento e apuração de janeiro",
-   "anc": "virada",
-   "n": 20,
+   "anc": "kickoff",
+   "n": 66,
    "pred": [
     "B9.2",
     "B4.6"
@@ -1856,8 +1887,8 @@
    ],
    "p": "P2",
    "crit": "rotina",
-   "anc": "virada",
-   "n": 0,
+   "anc": "kickoff",
+   "n": 86,
    "rec": "por versão",
    "o": [
     "F15",
@@ -1876,8 +1907,8 @@
    ],
    "p": "P2",
    "crit": "risco operacional",
-   "anc": "virada",
-   "n": 17,
+   "anc": "kickoff",
+   "n": 69,
    "o": [
     "T27 (guia)",
     "T53"
@@ -1893,7 +1924,8 @@
    ],
    "p": "P1",
    "crit": "primeiro ciclo real",
-   "anc": "fixa",
+   "anc": "kickoff",
+   "n": 142,
    "lim": {
     "d": "2027-02-26",
     "tipo": "lei",
@@ -1918,7 +1950,8 @@
    ],
    "p": "P1",
    "crit": "obrigação mensal",
-   "anc": "fixa",
+   "anc": "kickoff",
+   "n": 150,
    "lim": {
     "d": "",
     "tipo": "lei",
@@ -1940,8 +1973,8 @@
    ],
    "p": "P3",
    "crit": "preparação",
-   "anc": "virada",
-   "n": -730,
+   "anc": "kickoff",
+   "n": 238,
    "rec": "anual",
    "lim": {
     "d": "2029-01-01",
@@ -1952,6 +1985,25 @@
    "o": [
     "T25",
     "plano de ação da Tecumseh"
+   ]
+  },
+  {
+   "id": "B15.4",
+   "main": "B15",
+   "t": "Encerrar o projeto: relatório final com o que foi implantado, o crédito recuperado e o plano da rotina contínua",
+   "ex": "PriceTax",
+   "ar": [
+    "Diretoria"
+   ],
+   "p": "P2",
+   "crit": "fecha os 8 meses e passa a rotina ao cliente",
+   "anc": "kickoff",
+   "n": 242,
+   "pred": [
+    "B15.1"
+   ],
+   "o": [
+    "fechamento do cronograma de 8 meses"
    ]
   }
  ],

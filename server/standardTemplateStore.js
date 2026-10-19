@@ -124,7 +124,7 @@ export async function saveVersion(orgId, user, note) {
 }
 
 // Propostas que ainda não são versão (hoje só a v3 de 19/10/2026): contagem para mostrar no histórico e carga no rascunho.
-export const PROPOSALS = { v3: { label: 'Proposta v3', description: 'Cronograma funcional em duas trilhas (diagnóstico PRICETAX e implementação no cliente), com prioridade, limite da norma e predecessoras. Rascunho para validação; não vira versão até alguém salvar.' } };
+export const PROPOSALS = { v3: { label: 'Proposta v3', description: 'Cronograma de 8 meses contados da assinatura do contrato, em duas trilhas (diagnóstico PRICETAX e implementação no cliente), com e-mail de boas-vindas no primeiro dia, prioridade, limite da norma e predecessoras. Rascunho para validação; não vira versão até alguém salvar.' } };
 export const listProposals = () => Object.entries(PROPOSALS).map(([key, p]) => ({ key, ...p, counts: countTemplate(buildV3()) }));
 export async function loadProposal(orgId, user, key) {
   if (key !== 'v3') { const e = new Error('Proposta não encontrada.'); e.status = 404; throw e; }

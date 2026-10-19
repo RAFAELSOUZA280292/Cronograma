@@ -3,7 +3,7 @@
 // server/standardTemplateStore.js. Forma de uma versão (`data`): { kickoffDate, phases, activities, team } — a mesma de um projeto, sem empresa/log/reuniões.
 import { blankProject, nextPhaseColor } from './db.js';
 import { CRONOGRAMA_PADRAO } from '../shared/cronogramaPadrao.js';
-import { A_WINDOWS as V3_WINDOWS, ITEMS as V3_ITEMS, MAINS as V3_MAINS, MAINS_DESC as V3_DESC } from '../shared/cronogramaPadraoV3.js';
+import { ITEMS as V3_ITEMS, MAINS as V3_MAINS, MAINS_DESC as V3_DESC, PHASE_OF as V3_PHASE_OF, WINDOWS as V3_WINDOWS } from '../shared/cronogramaPadraoV3.js';
 
 export const uid = (p) => `${p}-${Math.random().toString(36).slice(2, 9)}`;
 const DAY = 86400000;
@@ -83,20 +83,20 @@ const V3_PRIO = { P1: 'alta', P2: 'media', P3: 'baixa' };
 const V3_TEAM = ['PRICETAX', 'Cliente', 'Compras', 'Comercial', 'Financeiro', 'Fiscal', 'Jurídico', 'Logística', 'Controladoria', 'Contábil', 'RH', 'TI', 'Diretoria', 'Todas'];
 const V3_MAIN_RESP = { A1: 'PRICETAX', A2: 'Cliente', A3: 'PRICETAX', A4: 'PRICETAX', A5: 'PRICETAX', A6: 'PRICETAX', A7: 'PRICETAX', B1: 'Diretoria', B2: 'TI', B3: 'TI', B4: 'Fiscal', B5: 'Fiscal', B6: 'Compras', B7: 'Comercial', B8: 'Financeiro', B9: 'Contábil', B10: 'Jurídico', B11: 'RH', B12: 'Logística', B13: 'Todas', B14: 'TI', B15: 'Todas' };
 const V3_PHASES = [
-  { id: 1, name: 'Mobilização', sub: '24/10: ambiente de homologação e cronograma do ERP recebidos', ini: '2026-10-07', fim: '2026-10-18' },
-  { id: 2, name: 'Desenho e parametrização', sub: '14/11: regras fiscais aprovadas; notas técnicas e DANFE entregues pelo ERP', ini: '2026-10-19', fim: '2026-11-15' },
-  { id: 3, name: 'Homologação integrada', sub: '12/12: testes aprovados por Fiscal, Contábil e Financeiro', ini: '2026-11-16', fim: '2026-12-13' },
-  { id: 4, name: 'Virada', sub: '22/12: ata de prontidão; 01/01/2027: a reforma entra', ini: '2026-12-14', fim: '2026-12-31' },
-  { id: 5, name: 'Operação assistida', sub: 'Fevereiro/2027: primeira apuração de CBS e IBS', ini: '2027-01-01', fim: '9999-12-31' },
+  { id: 1, name: 'Mobilização', sub: 'Ambiente de homologação e cronograma do ERP recebidos (até D+21)', ini: '2026-10-07', fim: '2026-10-18' },
+  { id: 2, name: 'Desenho e parametrização', sub: 'Regras fiscais aprovadas; notas técnicas e DANFE entregues pelo ERP (até D+55)', ini: '2026-10-19', fim: '2026-11-15' },
+  { id: 3, name: 'Homologação integrada', sub: 'Testes aprovados por Fiscal, Contábil e Financeiro (até D+69)', ini: '2026-11-16', fim: '2026-12-13' },
+  { id: 4, name: 'Virada', sub: 'Ata de prontidão (D+76); a reforma entra em 01/01/2027 de qualquer forma', ini: '2026-12-14', fim: '2026-12-31' },
+  { id: 5, name: 'Operação assistida', sub: 'Primeira apuração de CBS e IBS em fevereiro/2027; encerramento aos 8 meses (D+242)', ini: '2027-01-01', fim: '9999-12-31' },
 ];
 const v3PhaseOf = (iso) => (iso ? (V3_PHASES.find((p) => iso <= p.fim) || V3_PHASES[4]).id : 1);
 
 export function buildV3() {
   const dateOf = (it) => (it.anc === 'kickoff' ? shiftISO(V3_KICKOFF, it.n) : it.anc === 'virada' ? shiftISO(V3_VIRADA, -it.n) : (it.lim && it.lim.d) || '');
   const idOf = new Map(V3_ITEMS.map((it) => [it.id, uid('s')]));
-  const respOf = (it, main) => (it.ar || []).find((a) => V3_TEAM.includes(a)) || (it.ex === 'PriceTax' ? 'PRICETAX' : it.ex === 'ERP' ? 'TI' : V3_MAIN_RESP[main]);
+  const respOf = (it, main) => it.resp || (it.ar || []).find((a) => V3_TEAM.includes(a)) || (it.ex === 'PriceTax' ? 'PRICETAX' : it.ex === 'ERP' ? 'TI' : V3_MAIN_RESP[main]);
   // O Diagnóstico PRICETAX é a primeira fase (pedido do Rafael); as demais mantêm a cor de sempre.
-  const phases = [{ id: 6, name: 'Diagnóstico PRICETAX', sub: 'Entregas da PRICETAX a partir do kickoff', color: nextPhaseColor(5) }, ...V3_PHASES.map((f, i) => ({ id: f.id, name: f.name, sub: f.sub, color: nextPhaseColor(i) }))];
+  const phases = [{ id: 6, name: 'Diagnóstico PRICETAX', sub: 'Entregas da PRICETAX nas primeiras 7 semanas (D+0 a D+47)', color: nextPhaseColor(5) }, ...V3_PHASES.map((f, i) => ({ id: f.id, name: f.name, sub: f.sub, color: nextPhaseColor(i) }))];
   const activities = V3_MAINS.map(([mid, trilha, nome], i) => {
     const its = V3_ITEMS.filter((it) => it.main === mid);
     const subs = its.map((it) => {
@@ -112,7 +112,7 @@ export function buildV3() {
     const dates = subs.map((x) => x.date).filter(Boolean).sort();
     const prios = subs.map((x) => x.priority);
     return {
-      id: `m-${mid}`, month: i + 1, phase: trilha === 'A' ? 6 : v3PhaseOf(dates[0]), title: nome, desc: V3_DESC[mid] || '', responsible: V3_MAIN_RESP[mid], priority: prios.includes('alta') ? 'alta' : prios.includes('media') ? 'media' : prios.includes('baixa') ? 'baixa' : '',
+      id: `m-${mid}`, month: i + 1, phase: V3_PHASE_OF[mid] || (trilha === 'A' ? 6 : v3PhaseOf(dates[0])), title: nome, desc: V3_DESC[mid] || '', responsible: V3_MAIN_RESP[mid], priority: prios.includes('alta') ? 'alta' : prios.includes('media') ? 'media' : prios.includes('baixa') ? 'baixa' : '',
       participants: [], date: V3_WINDOWS[mid] ? shiftISO(V3_KICKOFF, V3_WINDOWS[mid][0]) : dates[0] || '', endDate: V3_WINDOWS[mid] ? shiftISO(V3_KICKOFF, V3_WINDOWS[mid][1]) : dates[dates.length - 1] || '', durationDays: '', status: 'nao-iniciado', required: true, stdKey: mid,
       subactivities: subs, notes: '', attachments: [], comments: [], links: [], transcript: '', clientDateConfirmed: false,
     };
@@ -220,12 +220,16 @@ export function instantiateTemplate(t, kickoffISO, opts = {}) {
       return out;
     }),
   }));
-  // Atividade principal com subatividades de data fixa/virada ou comprimidas: o intervalo vem das datas das subatividades. Quando TODAS andam com o kickoff (ex.: o Diagnóstico),
-  // vale o intervalo da própria atividade, que anda com o kickoff como sempre (2026-10-19: antes ele era sobrescrito pelo das subatividades).
+  // Intervalo da atividade principal. Subatividades de data fixa/virada (padrões antigos): o intervalo vem das datas das subatividades. Tudo contado do início (como o Diagnóstico e
+  // a v3 de 8 meses): vale a janela própria da atividade, deslocada pelo início do projeto. Se alguma subatividade foi COMPRIMIDA por um limite, a janela mantém o início (ou o da
+  // primeira subatividade, se ela caiu antes) e termina na última subatividade, para a barra não ficar maior que o trabalho.
   for (const a of activities) {
-    if (!a.subactivities.some((s) => s.anchor === 'virada' || s.anchor === 'fixa' || s.compressed)) continue;
     const ds = a.subactivities.map((s) => s.date).filter(Boolean).sort();
-    if (ds.length) { a.date = ds[0]; a.endDate = ds[ds.length - 1]; }
+    if (!ds.length) continue;
+    if (a.subactivities.some((s) => s.anchor === 'virada' || s.anchor === 'fixa')) { a.date = ds[0]; a.endDate = ds[ds.length - 1]; continue; }
+    if (!a.subactivities.some((s) => s.compressed)) continue;
+    const start = a.date && a.date < ds[0] ? a.date : ds[0];
+    a.date = start; a.endDate = ds[ds.length - 1] >= start ? ds[ds.length - 1] : start;
   }
   // Avisos
   const all = activities.flatMap((a) => a.subactivities.map((s) => ({ s, main: a.title })));
@@ -240,6 +244,6 @@ export function instantiateTemplate(t, kickoffISO, opts = {}) {
   }
   return {
     phases: clean.phases.map((f) => ({ ...f })), activities, team: [...clean.team],
-    summary: { total: all.length, compressed, lateAtBirth: late, orderConflicts: order, today, items },
+    summary: { total: all.length, compressed, lateAtBirth: late, orderConflicts: order, today, endDate: [...activities.map((x) => x.endDate || x.date), ...all.map((x) => x.s.date)].filter(Boolean).sort().pop() || '', items },
   };
 }
