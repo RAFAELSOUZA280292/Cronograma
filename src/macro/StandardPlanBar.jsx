@@ -169,7 +169,7 @@ export default function StandardPlanBar({ info, project, actions }) {
         <label className="spb-kick">Kickoff de referência (D+0)
           <input type="date" value={project.kickoffDate || ''} onChange={(e) => actions.setStandardKickoff(e.target.value)} aria-label="Kickoff de referência do cronograma padrão" />
         </label>
-        <span className="spb-note">Cada data aqui vira “dias depois do kickoff”: ao cadastrar uma empresa, você informa o kickoff dela e as datas são recalculadas. Mudar este campo move o padrão inteiro.</span>
+        <span className="spb-note">Cada data aqui vira “dias depois do início do projeto” (a assinatura do contrato): ao cadastrar uma empresa, você informa o início dela e as datas são recalculadas. Mudar este campo move o padrão inteiro.</span>
       </div>
       {modal === 'save' && <SaveModal nextLabelHint={nextHint} fetchDiff={actions.fetchStandardDiff} onSave={actions.saveStandardVersion} onClose={() => setModal('')} />}
       {modal === 'versions' && <VersionsModal fetchVersions={actions.fetchStandardVersions} fetchProposals={actions.fetchStandardProposals} dirty={info.dirty} onRestore={actions.restoreStandardVersion} onLoadProposal={actions.loadStandardProposal} onClose={() => setModal('')} />}
