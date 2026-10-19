@@ -43,3 +43,13 @@ export function greetingPeriod() {
   if (h < 18) return 'Boa tarde';
   return 'Boa noite';
 }
+
+// Tipo da tarefa de reunião (2026-10-19): tarefa (padrão), decisão, risco ou pendência. Itens antigos, sem `kind`, são tarefa. A IA da caixa de transcrições sugere o tipo.
+export const TASK_KINDS = [['tarefa', 'Tarefa'], ['decisao', 'Decisão'], ['risco', 'Risco'], ['pendencia', 'Pendência']];
+export const TASK_KIND_META = {
+  tarefa: { label: 'Tarefa' },
+  decisao: { label: 'Decisão', color: '#6aa9ff', bg: 'rgba(62,166,255,.16)' },
+  risco: { label: 'Risco', color: '#e2574c', bg: 'rgba(226,87,76,.16)' },
+  pendencia: { label: 'Pendência', color: '#ff9f40', bg: 'rgba(255,159,64,.16)' },
+};
+export const kindOf = (r) => (r && TASK_KIND_META[r.kind] ? r.kind : 'tarefa');

@@ -854,6 +854,11 @@ function AppScreens({ shellRef, bump }) {
     setPendingTodoOpen({ pid, meetingId, itemId });
     openMeetingDetail(pid, meetingId);
   }
+  function openLinkedMeeting(pid, meetingId) {
+    if (!leaveActivityDetailFor(pid)) return;
+    setView('meetings');
+    openMeetingDetail(pid, meetingId);
+  }
   function openActivityTasks(pid, activityId) {
     if (!leaveActivityDetailFor(pid)) return;
     setView('todo');
@@ -895,6 +900,7 @@ function AppScreens({ shellRef, bump }) {
         toggleParticipant={toggleParticipant}
         meetings={project.meetings}
         onOpenLinkedTask={(meetingId, itemId) => openLinkedTask(project.id, meetingId, itemId)}
+        onOpenMeeting={(meetingId) => openLinkedMeeting(project.id, meetingId)}
         onOpenLinkedTasks={() => openActivityTasks(project.id, activity.id)}
       />
     );
@@ -2448,6 +2454,7 @@ function AppScreens({ shellRef, bump }) {
         setShowTrash,
         setTodoFocusActivityId,
         openActivityTasks,
+        openLinkedMeeting,
         setTodoFocusMeetingId,
         setView,
         setWindowAnchor,

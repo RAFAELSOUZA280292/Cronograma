@@ -50,7 +50,9 @@ async function appendProjectLog(projectId, action, user) {
   await pool.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(nextData), projectId]);
 }
 
-const MeetingExtractionSchema = z.object({
+export const TASK_KINDS = ['tarefa', 'decisao', 'risco', 'pendencia'];
+
+export const MeetingExtractionSchema = z.object({
   title: z.string().describe('Título curto e descritivo da reunião, em português'),
   date: z.string().nullable().describe('Data da reunião em YYYY-MM-DD — só se estiver explícita no texto (ex.: "10 de agosto de 2026"); nunca deduza a partir de um dia da semana sozinho ("quarta-feira")'),
   time: z.string().nullable().describe('Horário de início em HH:MM, formato 24h — só se explicitamente mencionado'),
@@ -61,6 +63,7 @@ const MeetingExtractionSchema = z.object({
     title: z.string().describe('O que precisa ser feito — ação concreta e curta, sem o nome do responsável embutido no texto (o nome já vai no campo "responsible" à parte)'),
     responsible: z.string().nullable().describe('Nome da pessoa física responsável por executar, exatamente como ela é chamada na transcrição (ex.: "Evanio Santinon", "Rogeria Guerra", "Daniela") — nunca um cargo genérico, nunca o nome de uma empresa. Se duas pessoas dividem a tarefa (ex.: "Gustavo, com a Francine"), coloque as duas nesse mesmo campo, separadas por vírgula. null se a transcrição não deixar claro quem executa.'),
     owner: z.enum(['pricetax', 'cliente']).describe('De qual lado é essa entrega: "pricetax" quando quem precisa produzir/entregar algo é a própria equipe da consultoria PRICETAX (ex.: fazer uma análise, montar uma prévia, agendar um retorno); "cliente" quando quem precisa produzir/entregar algo é alguém do lado da empresa contratante — a pessoa em "responsible" normalmente já indica de qual lado é, mas classifique mesmo quando "responsible" ficar null'),
+    kind: z.enum(TASK_KINDS).describe('Tipo do item: "tarefa" = ação concreta a fazer; "decisao" = algo que foi decidido na reunião e precisa ficar registrado e acompanhado (o título é a decisão em uma frase curta; "responsible" é quem responde por ela); "risco" = algo que pode dar errado e precisa de atenção, com dono; "pendencia" = ficou em aberto, falta uma resposta, um dado ou uma definição que alguém precisa trazer. Na dúvida, "tarefa".'),
     dueDate: z.string().nullable().describe('Prazo em YYYY-MM-DD — só se explicitamente mencionado'),
     area: z.enum(AREAS).nullable().describe('Área do cliente que esta ação envolve (Fiscal, Compras, Financeiro, Contábil, Controladoria, Comercial, Jurídico, Logística, Diretoria, RH, TI) — escolha a mais provável pelo assunto da ação; null se não der para decidir com segurança (nunca chute).'),
   })).describe('Lista de atividades e próximos passos definidos na reunião, um item por ação concreta — não agrupe várias ações numa linha só'),
@@ -81,7 +84,7 @@ const MeetingExtractionSchema = z.object({
 // 'confirmar'. Ações do lado do cliente não são mexidas (gente de fora da equipe). Função pura.
 export function normalizeActionItems(items, candidates) {
   return (items || []).map((it) => {
-    const base = { area: AREAS.includes(it.area) ? it.area : '', responsibleOriginal: '', responsibleStatus: '' };
+    const base = { area: AREAS.includes(it.area) ? it.area : '', kind: TASK_KINDS.includes(it.kind) ? it.kind : 'tarefa', responsibleOriginal: '', responsibleStatus: '' };
     const name = String(it.responsible || '').trim();
     if (!name || it.owner === 'cliente') return { ...it, ...base, responsible: name };
     const m = matchPerson(name, candidates);
@@ -117,7 +120,7 @@ async function extractMeetingFromTranscript(transcript, clientCompanyName, roste
     // fingir o contrário.
     system: [{
       type: 'text',
-      text: 'Você extrai informações estruturadas de transcrições de reuniões de negócio em português do Brasil. Seja fiel ao conteúdo — nunca invente datas, nomes ou decisões que não estejam no texto. Quando algo não for mencionado explicitamente, deixe null (ou lista/string vazia). Preste atenção especial a quem fala cada trecho (os nomes de interlocutor na transcrição) para saber de que lado (PRICETAX ou cliente) vem cada compromisso assumido. Para "topics" e "highlights", cite timestamps e trechos exatamente como aparecem no texto bruto — nunca invente marcação de tempo que não esteja lá, e nunca copie a transcrição inteira nesses campos (eles são só um índice leve, o texto original já está preservado à parte).',
+      text: 'Você extrai informações estruturadas de transcrições de reuniões de negócio em português do Brasil. Seja fiel ao conteúdo — nunca invente datas, nomes ou decisões que não estejam no texto. Quando algo não for mencionado explicitamente, deixe null (ou lista/string vazia). Preste atenção especial a quem fala cada trecho (os nomes de interlocutor na transcrição) para saber de que lado (PRICETAX ou cliente) vem cada compromisso assumido. Para "topics" e "highlights", cite timestamps e trechos exatamente como aparecem no texto bruto — nunca invente marcação de tempo que não esteja lá, e nunca copie a transcrição inteira nesses campos (eles são só um índice leve, o texto original já está preservado à parte). Em "actionItems", além das tarefas, registre como itens separados cada decisão explícita (kind "decisao"), cada risco levantado (kind "risco") e cada pendência em aberto (kind "pendencia"), sempre com uma frase curta no título; nunca invente itens que não estejam no texto e não duplique: uma mesma fala vira um único item.',
       cache_control: { type: 'ephemeral', ttl: '1h' },
     }],
     messages: [{ role: 'user', content: `${contexto}${equipe}Extraia as informações estruturadas desta transcrição de reunião:\n\n${transcript}` }],
@@ -194,6 +197,7 @@ async function processSubmission(submissionId) {
         responsibleStatus: it.responsibleStatus || undefined,
         area: it.area || undefined,
         owner: it.owner === 'cliente' ? 'cliente' : 'pricetax',
+        kind: it.kind || 'tarefa',
         dueDate: it.dueDate || '',
         status: 'nao-iniciado',
         deleted: false,

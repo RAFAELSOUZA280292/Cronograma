@@ -14,7 +14,7 @@ import { useDialog } from '../lib/nav.js';
 import { notify } from '../ui/dialogs.jsx';
 import { RecordSaveStatus } from '../ui/index.jsx';
 import { ComposeBox, CommentThread } from '../ui/ComposeBox.jsx';
-import { daysOverdue, isItemOverdue } from './todoUtils.js';
+import { TASK_KINDS, daysOverdue, isItemOverdue, kindOf } from './todoUtils.js';
 import { ActivityLinkSelect, ACTIVITY_LINK_CSS } from './ActivityLink.jsx';
 
 const MAX_TODO_ATTACHMENT_BYTES = 8 * 1024 * 1024;
@@ -177,6 +177,12 @@ export function TodoDrawer({
                   color: owner === 'pricetax' ? '#F5C400' : '#3ea6ff',
                 }}
               >{owner === 'pricetax' ? 'PRICETAX' : (clientName || 'Cliente')}</button>
+            </div>
+            <div>
+              <div className="todo-drawer-meta-label">Tipo</div>
+              <select aria-label="Tipo da tarefa" value={kindOf(item)} onChange={(e) => updateActionItem(pid, meeting.id, item.id, { kind: e.target.value })}>
+                {TASK_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
             </div>
             <div>
               <div className="todo-drawer-meta-label">Responsável</div>
