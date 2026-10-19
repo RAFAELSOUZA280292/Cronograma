@@ -373,6 +373,32 @@ export async function initDb() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions(user_id)`);
 
+  // Cronograma padrão versionado (2026-10-19): `standard_plan_versions` guarda cada versão salva (imutável) e `standard_plan_draft` o rascunho
+  // compartilhado que a equipe edita antes de salvar uma versão nova. Por organização. Relacional porque a chave é (org, número) e a lista de
+  // versões é consultada sem carregar o JSONB.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS standard_plan_versions (
+      org_id     TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      version    INT  NOT NULL,
+      data       JSONB NOT NULL,
+      note       TEXT NOT NULL DEFAULT '',
+      summary    JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_by TEXT NOT NULL DEFAULT '',
+      created_by_name TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (org_id, version)
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS standard_plan_draft (
+      org_id     TEXT PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+      data       JSONB NOT NULL,
+      updated_by TEXT NOT NULL DEFAULT '',
+      updated_by_name TEXT NOT NULL DEFAULT '',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+
   // Sincronização com Google Calendar (2026-08) — cada usuário conecta a
   // própria conta (não existe "conexão única pra todo mundo"). Só guarda
   // os tokens; qual evento do Google corresponde a qual TASK fica em

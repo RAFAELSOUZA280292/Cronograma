@@ -12,13 +12,10 @@ import WidgetSection from '../widget/WidgetSection.jsx';
 import { apiGet, apiPost, apiPut } from '../lib/api.js';
 import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
 import { useAutosave } from '../lib/useAutosave.js';
-import React, { useEffect, useMemo, useState } from 'react';
-import SafeBoundary from '../ui/SafeBoundary.jsx';
-import { lazyRetry } from '../lib/lazyRetry.jsx';
+import { useEffect, useMemo, useState } from 'react';
 import { useMentionUsers } from '../ui/ComposeBox.jsx';
 import { BrandLogo, CLIENT_TYPE_META, CLIENT_TYPE_ORDER, COMPANY_STATUS_META, ConfirmDiscardModal, PHASE_COLORS, ROLE_META, UserAvatar, fmtDate, fmtTs, groupMembers, todayISOStr, useDirtyForm, useIsMobile } from '../App.jsx';
 import { S } from '../styles/S.js';
-const StandardPlanViewModal = lazyRetry(() => import('../macro/StandardPlanView.jsx'));
 
 // Fica aqui (e não em crm/crmMeta.js) pra o CSS do CRM não entrar no pacote principal.
 const CRM_ROLE_OPTIONS = [
@@ -1094,14 +1091,14 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
   );
 }
 
-export function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, onGoUsers, onGoXFlow, onGoAgenda, onGoHome, actingOrg, onSwitchOrg, theme, onToggleTheme, currentUser, onOpenProfile }) {
+export function CompanySelectorScreen({ projects, initialSelected, onConfirm, onLogout, onCreateNew, onUpdateCompany, onDeleteCompany, onCloneCompany, onGoPersonal, onGoUsers, onGoXFlow, onGoAgenda, onGoHome, onOpenStandardPlan, actingOrg, onSwitchOrg, theme, onToggleTheme, currentUser, onOpenProfile }) {
   const [selected, setSelected] = useState(() => new Set(initialSelected));
   const [editingProject, setEditingProject] = useState(null);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterRegime, setFilterRegime] = useState('');
   const [expandedGroups, setExpandedGroups] = useState(() => new Set());
-  const [showStdPlan, setShowStdPlan] = useState(false);
+  const [openingStdPlan, setOpeningStdPlan] = useState(false);
   const canStdPlan = !!currentUser && (currentUser.role === 'master' || currentUser.role === 'pricetax');
   // Responsáveis por empresa (2026-10-09): por padrão só as empresas em que EU sou responsável; pausadas ficam arquivadas (ocultas).
   const staffUsers = useMentionUsers();
@@ -1239,15 +1236,10 @@ export function CompanySelectorScreen({ projects, initialSelected, onConfirm, on
           </div>
         )}
 
-        {canStdPlan && (
+        {canStdPlan && onOpenStandardPlan && (
           <div style={{ marginBottom: 18 }}>
-            <Button onClick={() => setShowStdPlan(true)} title="Ver a proposta de cronograma padrão, com atividades principais e filhas (rascunho para validação)"><ListTree size={14} /> Ver cronograma padrão</Button>
+            <Button onClick={async () => { setOpeningStdPlan(true); try { await onOpenStandardPlan(); } finally { setOpeningStdPlan(false); } }} disabled={openingStdPlan} title={openingStdPlan ? 'Abrindo…' : 'Abrir o cronograma padrão: o modelo que as empresas novas seguem, com versões'}><ListTree size={14} /> {openingStdPlan ? 'Abrindo…' : 'Ver cronograma padrão'}</Button>
           </div>
-        )}
-        {showStdPlan && (
-          <SafeBoundary variant="floating" resetKey="stdplan" label="o cronograma padrão" where="stdplan" actions={[{ label: 'Fechar', onClick: () => setShowStdPlan(false) }]}>
-            <React.Suspense fallback={null}><StandardPlanViewModal onClose={() => setShowStdPlan(false)} /></React.Suspense>
-          </SafeBoundary>
         )}
 
         {projects.length === 0 ? (

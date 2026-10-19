@@ -14,6 +14,7 @@ import { AreaRow, CLIENT_TYPE_META, CLIENT_TYPE_ORDER, COMPANY_STATUS_META, Comp
 import { KanbanView, PhasesView, PrintReport, ResumoView, TableView, TimelineView } from './CompanyViews.jsx';
 
 const StandardAuditModal = lazyRetry(() => import('../macro/StandardAudit.jsx'));
+const StandardPlanBar = lazyRetry(() => import('../macro/StandardPlanBar.jsx'));
 
 export function CompanyWorkspace({ ctx }) {
   const {
@@ -104,6 +105,8 @@ export function CompanyWorkspace({ ctx }) {
     restoreSub,
     selectedGroupRoots,
     selectedProjects,
+    stdInfo,
+    stdPlanActions,
     setDragId,
     setDragPhaseId,
     setExpanded,
@@ -150,6 +153,8 @@ export function CompanyWorkspace({ ctx }) {
     view,
     windowAnchor,
   } = ctx;
+  // Cronograma padrão aberto na tela de empresa (2026-10-19): sem dados de empresa, reuniões, tarefas de reunião, auditoria nem RENATA; a faixa de versões fica no alto.
+  const isTpl = !!activeProject && activeProject.id === 'std-plan';
   const multiTaskCounts = isMulti ? Object.fromEntries(selectedProjects.map((p) => [p.id, taskCountsByActivity(p.meetings)])) : null;
 
   return (
@@ -204,7 +209,7 @@ export function CompanyWorkspace({ ctx }) {
             </>
           ) : (
             <>
-              {activeProject.company.logo ? <img src={activeProject.company.logo} alt="logo" style={S.logoImg} /> : <div style={S.logoPlaceholder}><Building2 size={18} color={activeProject.company.color || '#F5C400'} /></div>}
+              {isTpl ? <div style={S.logoPlaceholder}><ListChecks size={18} color="#F5C400" /></div> : activeProject.company.logo ? <img src={activeProject.company.logo} alt="logo" style={S.logoImg} /> : <div style={S.logoPlaceholder}><Building2 size={18} color={activeProject.company.color || '#F5C400'} /></div>}
               <div>
                 <div style={S.brandNameRow}>
                   <div style={S.brandName}>{activeProject.company.nomeFantasia || activeProject.company.name || 'Cliente não cadastrado'}</div>
@@ -223,15 +228,15 @@ export function CompanyWorkspace({ ctx }) {
                   <div style={S.brandSecondary}>{activeProject.company.name}</div>
                 )}
                 <div style={S.brandCnpj}>
-                  {activeProject.company.cnpj ? `CNPJ ${activeProject.company.cnpj}` : 'CNPJ não informado'}
-                  {activeProject.company.regimeTributario ? ` · ${activeProject.company.regimeTributario}` : ''}
+                  {isTpl ? 'Modelo que as empresas novas seguem' : activeProject.company.cnpj ? `CNPJ ${activeProject.company.cnpj}` : 'CNPJ não informado'}
+                  {!isTpl && activeProject.company.regimeTributario ? ` · ${activeProject.company.regimeTributario}` : ''}
                 </div>
               </div>
-              {!isMobile && <button style={S.iconBtn} onClick={() => setShowSettings(true)}><Settings size={15} /> Empresa</button>}
-              {!isMobile && currentUser.crmAccess && <button style={S.iconBtn} onClick={openProjectInCrm} title="Abrir esta empresa no CRM"><Briefcase size={15} /> Abrir no CRM</button>}
+              {!isMobile && !isTpl && <button style={S.iconBtn} onClick={() => setShowSettings(true)}><Settings size={15} /> Empresa</button>}
+              {!isMobile && !isTpl && currentUser.crmAccess && <button style={S.iconBtn} onClick={openProjectInCrm} title="Abrir esta empresa no CRM"><Briefcase size={15} /> Abrir no CRM</button>}
             </>
           )}
-          {!isMobile && canPickCompanies && (
+          {!isMobile && canPickCompanies && !isTpl && (
             <button style={S.iconBtn} onClick={() => goToCompanySelector()}><Building2 size={15} /> Trocar empresas</button>
           )}
         </div>
@@ -253,17 +258,17 @@ export function CompanyWorkspace({ ctx }) {
               )}
             </div>
           )}
-          {!isMobile && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
+          {!isMobile && !isTpl && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowCreateCompany(true)}><Plus size={15} /> Cadastrar empresa</button>
           )}
-          {!isMobile && currentUser.isSuperAdmin && <button style={S.iconBtn} onClick={() => goToOrgAdmin(true)}><Building2 size={15} /> Organizações</button>}
+          {!isMobile && !isTpl && currentUser.isSuperAdmin && <button style={S.iconBtn} onClick={() => goToOrgAdmin(true)}><Building2 size={15} /> Organizações</button>}
           {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); }}><LayoutGrid size={15} /> Fases</button>
           )}
-          {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
+          {!isMobile && !isMulti && !isTpl && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowAudit(true)}><ShieldCheck size={15} /> Auditoria</button>
           )}
-          {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
+          {!isMobile && !isMulti && !isTpl && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowLog(true)}><Clock size={15} /> Log ({(activeProject.log || []).length})</button>
           )}
           {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
@@ -288,11 +293,17 @@ export function CompanyWorkspace({ ctx }) {
         </div>
       </div>
 
+      {isTpl && (
+        <SafeBoundary variant="block" resetKey="stdplan-bar" label="a faixa do cronograma padrão" where="stdplan-bar">
+          <React.Suspense fallback={null}><StandardPlanBar info={stdInfo} project={activeProject} actions={stdPlanActions} /></React.Suspense>
+        </SafeBoundary>
+      )}
+
       <div className="no-print t44" style={S.tabs}>
         {[
           !isMulti && { id: 'resumo', label: 'Resumo', icon: Gauge },
-          !isMulti && { id: 'meetings', label: 'Reuniões', icon: Mic },
-          !isMulti && { id: 'todo', label: 'Tarefas', icon: ListChecks },
+          !isMulti && !isTpl && { id: 'meetings', label: 'Reuniões', icon: Mic },
+          !isMulti && !isTpl && { id: 'todo', label: 'Tarefas', icon: ListChecks },
           { id: 'timeline', label: 'Gantt', icon: CalendarDays },
           { id: 'table', label: 'Tabela', icon: List },
           { id: 'phases', label: 'Fases', icon: LayoutGrid },
@@ -775,7 +786,7 @@ export function CompanyWorkspace({ ctx }) {
 
       <ToastStack toasts={appToasts} onDismiss={dismissAppToast} />
 
-      {!isMulti && (() => {
+      {!isMulti && !isTpl && (() => {
         const openMeeting = openMeetingId && openMeetingId.pid === activeProject.id
           ? (activeProject.meetings || []).find((m) => m.id === openMeetingId.id)
           : null;

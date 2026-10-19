@@ -8,6 +8,7 @@ import { pool, blankProject } from './db.js';
 import { canAccessProject, effectiveOrgId } from './routes.js';
 import { planForProject, applyPlanToData } from './standardPlan.js';
 import { auditProject } from './standardAudit.js';
+import { STD_PLAN_ID, discardDraft, draftDiff, getDraft, listVersions, restoreVersion, saveDraft, saveVersion } from './standardTemplateStore.js';
 
 export const router = Router();
 router.use(requireAuth, requireMasterOrPricetax);
@@ -79,4 +80,78 @@ router.post('/apply', async (req, res, next) => {
     }
     res.json({ results, applied: results.filter((r) => r.status === 'aplicado').length });
   } catch (e) { next(e); }
+});
+
+
+// ---------- Cronograma padrão versionado (2026-10-19) ----------
+// A equipe (master/pricetax) edita um rascunho compartilhado na tela de empresa e salva versões (1.0, 2.0, 3.0…). Empresas novas seguem a versão mais recente.
+
+const orgOf = (req, res) => {
+  const orgId = effectiveOrgId(req);
+  if (!orgId) { res.status(400).json({ message: 'Escolha uma organização para ver o cronograma padrão.' }); return null; }
+  return orgId;
+};
+const fail = (res, next, e) => (e && e.status ? res.status(e.status).json({ message: e.message }) : next(e));
+
+// Forma de "empresa" que a tela de empresa entende (id fixo; só vive na tela enquanto o padrão está aberto).
+const asProject = (draft) => ({
+  id: STD_PLAN_ID, isStandardTemplate: true, kickoffDate: draft.kickoffDate || '',
+  company: { cnpj: '', name: 'Cronograma padrão', nomeFantasia: 'Cronograma padrão', logo: '', color: '#F5C400', areas: [], status: 'ativo' },
+  phases: draft.phases, activities: draft.activities, team: draft.team, log: [], meetings: [], externalContacts: [],
+});
+
+router.get('/template/draft', async (req, res, next) => {
+  try {
+    const orgId = orgOf(req, res); if (!orgId) return;
+    const d = await getDraft(orgId);
+    res.json({ project: asProject(d.draft), current: d.current, dirty: d.dirty, updatedBy: d.updatedBy, updatedAt: d.updatedAt });
+  } catch (e) { fail(res, next, e); }
+});
+
+router.get('/template/draft/diff', async (req, res, next) => {
+  try {
+    const orgId = orgOf(req, res); if (!orgId) return;
+    res.json(await draftDiff(orgId));
+  } catch (e) { fail(res, next, e); }
+});
+
+router.patch('/template/draft', async (req, res, next) => {
+  try {
+    const orgId = orgOf(req, res); if (!orgId) return;
+    const r = await saveDraft(orgId, req.user, req.body && req.body.project);
+    res.json(r);
+  } catch (e) { fail(res, next, e); }
+});
+
+router.post('/template/draft/discard', async (req, res, next) => {
+  try {
+    const orgId = orgOf(req, res); if (!orgId) return;
+    await discardDraft(orgId);
+    res.json({ ok: true });
+  } catch (e) { fail(res, next, e); }
+});
+
+router.get('/template/versions', async (req, res, next) => {
+  try {
+    const orgId = orgOf(req, res); if (!orgId) return;
+    res.json({ versions: await listVersions(orgId) });
+  } catch (e) { fail(res, next, e); }
+});
+
+router.post('/template/versions', async (req, res, next) => {
+  try {
+    const orgId = orgOf(req, res); if (!orgId) return;
+    const saved = await saveVersion(orgId, req.user, req.body && req.body.note);
+    res.status(201).json(saved);
+  } catch (e) { fail(res, next, e); }
+});
+
+router.post('/template/restore/:version', async (req, res, next) => {
+  try {
+    const orgId = orgOf(req, res); if (!orgId) return;
+    const n = Number(req.params.version);
+    if (!Number.isInteger(n) || n < 1) return res.status(400).json({ message: 'Versão inválida.' });
+    await restoreVersion(orgId, req.user, n);
+    res.json({ ok: true });
+  } catch (e) { fail(res, next, e); }
 });

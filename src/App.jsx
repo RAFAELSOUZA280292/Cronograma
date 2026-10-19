@@ -47,6 +47,8 @@ import { createNotificationActions } from './app/notificationActions.js';
 import { createCompanyActivityActions } from './app/companyActivityActions.js';
 import { createMeetingActions } from './app/meetingActions.js';
 import { createCompanyAdminActions } from './app/companyAdminActions.js';
+import { createStandardPlanActions } from './app/standardPlanActions.js';
+import { STD_PLAN_ID } from './lib/stdPlan.js';
 import { createUserOrgActions } from './app/userOrgActions.js';
 import { createTeamPhaseActions } from './app/teamPhaseActions.js';
 export { S };
@@ -456,6 +458,9 @@ function AppScreens({ shellRef, bump }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [projects, setProjects] = useState([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
+  // Cronograma padrão versionado (2026-10-19): enquanto está aberto, entra em `projects` como um projeto de id fixo (STD_PLAN_ID); `stdInfo` guarda versão atual e se há rascunho.
+  const [stdInfo, setStdInfo] = useState(null);
+  const stdSaveRef = useRef(null);
   const [users, setUsers] = useState([]);
   const [userAccess, setUserAccess] = useState({});
   const [selectedProjectIds, setSelectedProjectIds] = useState([]);
@@ -614,6 +619,9 @@ function AppScreens({ shellRef, bump }) {
     setProjects,
     setSelectedProjectIds,
     withActingOrg,
+  });
+  const stdPlanActions = createStandardPlanActions({
+    flushProjectSave, goToWorkspace, mutateProject, pushLocation, setCompanySelectionConfirmed, setProjects, setSelectedProjectIds, setStdInfo, setView, stdSaveRef, view, withActingOrg,
   });
   const {
     addUser,
@@ -1033,13 +1041,13 @@ function AppScreens({ shellRef, bump }) {
     try {
       const res = await apiGet(withActingOrg('/api/projects'));
       const fresh = res.projects.map(normalizeProject);
-      if (!background) { setProjects(fresh); return; }
-      setProjects((prev) => fresh.map((p) => {
+      if (!background) { setProjects((prev) => [...fresh, ...prev.filter((x) => x.id === STD_PLAN_ID)]); return; }
+      setProjects((prev) => [...fresh.map((p) => {
         const pending = saveTimers.current[p.id] || inFlightProjectSaves.current[p.id];
         if (!pending) return p;
         const local = prev.find((x) => x.id === p.id);
         return local || p;
-      }));
+      }), ...prev.filter((x) => x.id === STD_PLAN_ID)]);
     } catch (e) {
       console.error('Falha ao carregar projetos', e);
       // Falha no poll silencioso não pode apagar o que já está na tela — só o carregamento
@@ -1145,11 +1153,26 @@ function AppScreens({ shellRef, bump }) {
   // o endpoint barato /reindex-needed (só leitura no Postgres, sem
   // custo de IA) e só chama /reindex de verdade quando ele confirma que
   // falta alguma coisa de verdade.
+  // O cronograma padrão só existe em `projects` enquanto está aberto: ao sair dele (voltar ao seletor, trocar de módulo, botão Voltar), sai da lista.
+  useEffect(() => {
+    if (!projects.some((p) => p.id === STD_PLAN_ID)) return;
+    if (selectedProjectIds.includes(STD_PLAN_ID) && companySelectionConfirmed && workspaceMode === 'company') return;
+    setProjects((prev) => prev.filter((p) => p.id !== STD_PLAN_ID));
+    setSelectedProjectIds((prev) => prev.filter((id) => id !== STD_PLAN_ID));
+    setStdInfo(null);
+  }, [projects, selectedProjectIds, companySelectionConfirmed, workspaceMode]);
+
+  // Voltar do navegador até uma tela de empresa sem nenhuma empresa escolhida (ex.: depois de sair do cronograma padrão) leva ao seletor, não a uma tela sem empresa.
+  useEffect(() => {
+    if (!projectsLoaded || workspaceMode !== 'company' || !companySelectionConfirmed || selectedProjectIds.length) return;
+    if (projects.filter((p) => p.id !== STD_PLAN_ID).length > 1) setCompanySelectionConfirmed(false);
+  }, [projectsLoaded, workspaceMode, companySelectionConfirmed, selectedProjectIds, projects]);
+
   const autoReindexedRef = useRef(new Set());
   useEffect(() => {
     if (!currentUser || selectedProjectIds.length !== 1) return;
     const pid = selectedProjectIds[0];
-    if (autoReindexedRef.current.has(pid)) return;
+    if (pid === STD_PLAN_ID || autoReindexedRef.current.has(pid)) return;
     autoReindexedRef.current.add(pid);
     apiGet(`/api/assistant/reindex-needed?projectId=${pid}`)
       .then((res) => {
@@ -1480,6 +1503,15 @@ function AppScreens({ shellRef, bump }) {
     return promise;
   }
 
+  // Envia o projeto inteiro. O cronograma padrão (STD_PLAN_ID) vai para o RASCUNHO da organização (nunca vira versão sozinho) e a resposta diz se há alterações.
+  function sendProject(pid, data) {
+    if (pid !== STD_PLAN_ID) return trackInFlightSave(pid, apiPatch(`/api/projects/${pid}`, { project: data }));
+    const req = apiPatch(withActingOrg('/api/standard-plan/template/draft'), { project: data });
+    stdSaveRef.current = req;
+    req.then((r) => { if (r && typeof r.dirty === 'boolean') setStdInfo((i) => (i ? { ...i, dirty: r.dirty } : i)); }, () => {});
+    return trackInFlightSave(pid, req);
+  }
+
   function persistProjectDebounced(pid, projectData) {
     pendingProjectData.current[pid] = projectData;
     if (saveTimers.current[pid]) clearTimeout(saveTimers.current[pid]);
@@ -1487,7 +1519,7 @@ function AppScreens({ shellRef, bump }) {
       delete saveTimers.current[pid];
       const data = pendingProjectData.current[pid];
       delete pendingProjectData.current[pid];
-      trackInFlightSave(pid, apiPatch(`/api/projects/${pid}`, { project: data })).catch((e) => {
+      sendProject(pid, data).catch((e) => {
         console.error('Falha ao salvar projeto', e);
         pushAppToast({ message: 'Não foi possível salvar a última alteração. Verifique sua conexão.', ttlMs: 8000 });
       });
@@ -1508,7 +1540,7 @@ function AppScreens({ shellRef, bump }) {
     const data = pendingProjectData.current[pid];
     delete pendingProjectData.current[pid];
     if (!data) return Promise.resolve();
-    return trackInFlightSave(pid, apiPatch(`/api/projects/${pid}`, { project: data })).catch((e) => {
+    return sendProject(pid, data).catch((e) => {
       console.error('Falha ao salvar projeto', e);
       pushAppToast({ message: 'Não foi possível salvar a última alteração. Verifique sua conexão.', ttlMs: 8000 });
       throw e;
@@ -1605,6 +1637,7 @@ function AppScreens({ shellRef, bump }) {
     const items = shellModes.map((m) => ({ id: `m-${m.key}`, kind: 'module', rid: m.key, group: 'Ir para', label: m.label, icon: m.icon, run: () => goToWorkspace(m.key) }));
     if (hasCompanies) {
       for (const p of projects) {
+        if (p.id === STD_PLAN_ID) continue;
         const name = p.company.nomeFantasia || p.company.name || 'Sem nome';
         const openCompany = () => openCompanyWorkspace([p.id]);
         items.push({ id: `c-${p.id}`, kind: 'company', rid: p.id, group: 'Empresas', label: name, hint: p.company.cnpj || '', icon: Building2, run: openCompany });
@@ -1746,7 +1779,7 @@ function AppScreens({ shellRef, bump }) {
             userName={currentUser.name}
             canSweep={currentUser.role === 'master' || currentUser.role === 'pricetax'}
             initialQuestion={renataHome.question}
-            projects={projects.map((p) => ({ id: p.id, name: p.company.nomeFantasia || p.company.name || 'Sem nome' }))}
+            projects={projects.filter((p) => p.id !== STD_PLAN_ID).map((p) => ({ id: p.id, name: p.company.nomeFantasia || p.company.name || 'Sem nome' }))}
             onClose={() => setRenataHome(null)}
             onOpenCompany={(pid) => { setRenataHome(null); setTimeout(() => setRenataProjectId(pid), 160); }}
           />
@@ -2000,8 +2033,8 @@ function AppScreens({ shellRef, bump }) {
     ));
   }
 
-  const registeredProjects = projects.filter((p) => p.company.cnpj);
-  const canPickCompanies = currentUser.companiesAccess && projects.length > 1;
+  const registeredProjects = projects.filter((p) => p.id !== STD_PLAN_ID && p.company.cnpj);
+  const canPickCompanies = currentUser.companiesAccess && projects.filter((p) => p.id !== STD_PLAN_ID).length > 1;
 
   if (canPickCompanies && currentUser.isSuperAdmin && !actingOrg && !companySelectionConfirmed) {
     return guard('orgs', 'a escolha de organização', (
@@ -2048,7 +2081,8 @@ function AppScreens({ shellRef, bump }) {
     return guard('company-picker', 'a escolha de empresas', (
       <>
         <CompanySelectorScreen
-          projects={projects}
+          projects={projects.filter((p) => p.id !== STD_PLAN_ID)}
+          onOpenStandardPlan={stdPlanActions.openStandardPlan}
           initialSelected={selectedProjectIds}
           onConfirm={confirmCompanySelection}
           onLogout={handleLogout}
@@ -2265,7 +2299,13 @@ function AppScreens({ shellRef, bump }) {
     }
   }
 
-  const moreMenuItems = [
+  const isStdPlanOpen = !!activeProject && activeProject.id === STD_PLAN_ID;
+  const moreMenuItems = isStdPlanOpen ? [
+    { icon: LayoutGrid, label: 'Fases', onClick: () => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); } },
+    { icon: Trash2, label: 'Lixeira', onClick: () => setShowTrash(true) },
+    { icon: FileSpreadsheet, label: 'Excel', onClick: exportExcel },
+    { icon: FileText, label: 'PDF', onClick: exportPdf },
+  ] : [
     !isMulti && { icon: Settings, label: 'Empresa', onClick: () => setShowSettings(true) },
     !isMulti && currentUser.crmAccess && { icon: Briefcase, label: 'Abrir no CRM', onClick: () => openProjectInCrm() },
     canPickCompanies && { icon: Building2, label: 'Trocar empresas', onClick: () => goToCompanySelector() },
@@ -2369,6 +2409,8 @@ function AppScreens({ shellRef, bump }) {
         restoreSub,
         selectedGroupRoots,
         selectedProjects,
+        stdInfo,
+        stdPlanActions,
         setDragId,
         setDragPhaseId,
         setExpanded,
@@ -2577,7 +2619,7 @@ export function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmi
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [fetched, setFetched] = useState(null);
-  const [form, setForm] = useState({ name: '', nomeFantasia: '', color: PHASE_COLORS[0], logo: '', clientType: '', orgId: '', structureType: 'individual', groupName: '' });
+  const [form, setForm] = useState({ name: '', nomeFantasia: '', color: PHASE_COLORS[0], logo: '', clientType: '', orgId: '', structureType: 'individual', groupName: '', kickoffDate: todayISOStr() });
   const [children, setChildren] = useState([]);
   const [linkGroupId, setLinkGroupId] = useState('');
   const isMobile = useIsMobile();
@@ -2661,6 +2703,9 @@ export function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmi
     };
   }
 
+  // Data do kickoff: as datas do cronograma da empresa nova são esta data mais os dias de cada atividade no cronograma padrão (a clonagem tem a própria regra).
+  const withKickoff = (payload) => (cloneSource || !form.kickoffDate ? payload : { ...payload, kickoffDate: form.kickoffDate });
+
   async function submit() {
     if (!form.name.trim()) { setError('Preencha a razão social antes de continuar.'); return; }
     if (!form.clientType) { setError('Selecione o tipo de cliente antes de continuar.'); return; }
@@ -2672,11 +2717,11 @@ export function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmi
         await onCreate({
           structureType: 'grupo',
           groupName: form.groupName.trim() || form.name,
-          master: buildCompanyPayload({ cnpj, name: form.name, nomeFantasia: form.nomeFantasia, logo: form.logo }, fetched),
-          children: validChildren.map((c) => buildCompanyPayload(c, c.fetched)),
+          master: withKickoff(buildCompanyPayload({ cnpj, name: form.name, nomeFantasia: form.nomeFantasia, logo: form.logo }, fetched)),
+          children: validChildren.map((c) => withKickoff(buildCompanyPayload(c, c.fetched))),
         });
       } else {
-        const payload = buildCompanyPayload({ cnpj, name: form.name, nomeFantasia: form.nomeFantasia, logo: form.logo }, fetched);
+        const payload = withKickoff(buildCompanyPayload({ cnpj, name: form.name, nomeFantasia: form.nomeFantasia, logo: form.logo }, fetched));
         if (linkGroupId) payload.groupId = linkGroupId;
         await onCreate(payload);
       }
@@ -2806,6 +2851,14 @@ export function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmi
               ))}
             </div>
             {!form.clientType && <div style={{ ...S.fieldHint, color: '#e2574c', marginTop: 4 }}>Selecione o tipo de cliente pra continuar.</div>}
+
+            {!cloneSource && (
+              <>
+                <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Data do kickoff</div>
+                <input type="date" value={form.kickoffDate} onChange={(e) => setForm((f) => ({ ...f, kickoffDate: e.target.value }))} aria-label="Data do kickoff" />
+                <div style={S.fieldHint}>As datas do cronograma nascem a partir dela, seguindo o cronograma padrão mais recente. Dá para ajustar depois.</div>
+              </>
+            )}
 
             <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Cor master da empresa</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
