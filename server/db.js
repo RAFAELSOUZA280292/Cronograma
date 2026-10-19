@@ -1009,6 +1009,23 @@ export async function initDb() {
     )
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS document_templates_org_idx ON document_templates(org_id, created_at DESC)`);
+  // Link público de acompanhamento da empresa (2026-10-19): um link ativo por empresa (o anterior é revogado ao gerar outro); o token vive aqui, fora do JSON do projeto.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS company_share_links (
+      id              TEXT PRIMARY KEY,
+      org_id          TEXT NOT NULL REFERENCES organizations(id),
+      project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      token           TEXT NOT NULL UNIQUE,
+      created_by      TEXT NOT NULL DEFAULT '',
+      created_by_name TEXT NOT NULL DEFAULT '',
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+      expires_at      TIMESTAMPTZ,
+      revoked_at      TIMESTAMPTZ,
+      views           INTEGER NOT NULL DEFAULT 0,
+      last_viewed_at  TIMESTAMPTZ
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS company_share_links_project_idx ON company_share_links(project_id, created_at DESC)`);
   // API de conectividade (2026-10-05, §80): um token por janela do Claude Code, cada um com o seu escopo. Só o hash fica no banco.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS api_tokens (

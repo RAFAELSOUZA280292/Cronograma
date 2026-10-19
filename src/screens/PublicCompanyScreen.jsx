@@ -1,0 +1,262 @@
+// Página pública de acompanhamento da empresa (2026-10-19): /acompanhamento/<token>. Só leitura, sem login; "Entrar para editar" leva ao login normal.
+// O servidor (server/companyShare.js) só manda título, fase, status, datas, responsável e subatividades. Resumo, Cronograma (Gantt com subatividades) e Tabela (uma subatividade por linha).
+import React, { useEffect, useMemo, useState } from 'react';
+import { apiGet } from '../lib/api.js';
+import { S } from '../styles/S.js';
+
+const DAY = 86400000;
+const iso = (s) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? Date.parse(`${s}T00:00:00Z`) : NaN);
+const fmt = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : '—');
+const fmtShort = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : '');
+const STATUS = {
+  'nao-iniciado': { label: 'Não iniciado', color: 'var(--text-6)' },
+  'em-andamento': { label: 'Em andamento', color: '#F5C400' },
+  pausado: { label: 'Pausado', color: '#ff9f40' },
+  concluido: { label: 'Concluído', color: '#3ecf6e' },
+  atrasada: { label: 'Atrasada', color: '#e2574c' },
+};
+const PHASE_COLORS = ['#F5C400', '#3ea6ff', '#3ecf6e', '#b583ff', '#ff9f40'];
+const WEEK_PX = 64;
+
+const CSS = `
+  .pc-wrap { max-width:1180px; margin:0 auto; padding:20px 16px 0; }
+  .pc-head { display:flex; flex-wrap:wrap; align-items:center; gap:14px 18px; }
+  .pc-logo { width:52px; height:52px; border-radius:12px; background:#fff; object-fit:contain; border:1px solid var(--border-2); flex-shrink:0; }
+  .pc-ini { width:52px; height:52px; border-radius:12px; background:var(--bg-3); color:var(--text-1); font-weight:800; font-size:20px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .pc-eyebrow { font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--ui-accent, #F5C400); }
+  .pc-title { font-size:26px; font-weight:800; margin:2px 0 0; color:var(--text-1); }
+  .pc-sub { font-size:12.5px; color:var(--text-5); margin-top:2px; }
+  .pc-grow { flex:1 1 20px; }
+  .pc-btn { display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding:0 16px; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; border:1px solid var(--border-3); background:var(--bg-2); color:var(--text-1); }
+  .pc-btn.pri { background:var(--ui-accent, #F5C400); color:#17171f; border-color:transparent; }
+  .pc-btn:focus-visible, .pc-tab:focus-visible, .pc-exp:focus-visible { outline:2px solid #3ea6ff; outline-offset:2px; }
+  .pc-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin:20px 0 14px; }
+  .pc-kpi { background:var(--bg-2); border:1px solid var(--border-1); border-radius:12px; padding:12px 14px; }
+  .pc-kpi b { display:block; font-size:26px; font-weight:800; color:var(--text-1); }
+  .pc-kpi span { font-size:11.5px; color:var(--text-5); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .pc-card { background:var(--bg-2); border:1px solid var(--border-1); border-radius:12px; padding:14px 16px; margin-bottom:14px; }
+  .pc-bar { height:10px; border-radius:999px; background:var(--bg-3); overflow:hidden; }
+  .pc-bar > i { display:block; height:100%; border-radius:999px; }
+  .pc-ph { display:grid; grid-template-columns:140px minmax(0,1fr) 44px; gap:10px; align-items:center; font-size:13px; padding:5px 0; }
+  .pc-tabs { display:flex; gap:6px; margin:6px 0 12px; flex-wrap:wrap; }
+  .pc-tab { min-height:40px; padding:0 16px; border-radius:10px; border:1px solid var(--border-2); background:transparent; color:var(--text-3); font-weight:700; font-size:13px; cursor:pointer; }
+  .pc-tab[aria-selected="true"] { background:var(--bg-3); color:var(--text-1); border-color:var(--border-3); }
+  .pc-chip { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; color:#17171f; white-space:nowrap; }
+  .pc-next { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:6px 12px; align-items:center; padding:9px 0; border-top:1px solid var(--border-1); font-size:13.5px; }
+  .pc-next .pc-chip { justify-self:start; }
+  .pc-next:first-of-type { border-top:none; }
+  .pc-muted { color:var(--text-5); font-size:12px; }
+  .pc-scroll { overflow-x:auto; border:1px solid var(--border-1); border-radius:12px; background:var(--bg-2); }
+  .pc-g { position:relative; }
+  .pc-gr { display:flex; border-top:1px solid var(--border-1); min-height:40px; }
+  .pc-gr.ph { background:var(--bg-3); font-weight:800; font-size:12.5px; min-height:34px; }
+  .pc-gl { flex:0 0 250px; position:sticky; left:0; z-index:2; background:inherit; background-color:var(--bg-2); padding:7px 10px; border-right:1px solid var(--border-1); display:flex; align-items:center; gap:6px; font-size:13px; min-width:0; }
+  .pc-gr.ph .pc-gl { background-color:var(--bg-3); }
+  .pc-gl span.t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pc-gl.sub { padding-left:30px; font-size:12.5px; color:var(--text-3); }
+  .pc-gt { position:relative; flex:1 0 auto; }
+  .pc-gh { display:flex; }
+  .pc-gh div { flex:0 0 ${WEEK_PX}px; font-size:11px; font-weight:700; color:var(--text-4); padding:8px 0; text-align:center; border-right:1px solid var(--border-1); }
+  .pc-b { position:absolute; top:9px; height:22px; border-radius:7px; min-width:10px; }
+  .pc-bl { position:absolute; top:11px; font-size:11px; font-weight:700; color:#17171f; padding:0 7px; white-space:nowrap; line-height:18px; }
+  .pc-dm { position:absolute; top:13px; width:14px; height:14px; transform:rotate(45deg); border-radius:3px; margin-left:-7px; }
+  .pc-today { position:absolute; top:0; bottom:0; width:2px; background:#e2574c; z-index:1; }
+  .pc-exp { all:unset; cursor:pointer; width:22px; height:22px; flex:0 0 22px; text-align:center; font-weight:800; color:var(--text-3); border-radius:6px; }
+  .pc-exp:hover { background:var(--bg-4, var(--bg-3)); }
+  .pc-tbl { width:100%; border-collapse:collapse; font-size:13px; min-width:760px; }
+  .pc-tbl th { text-align:left; font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-5); padding:9px 10px; border-bottom:1px solid var(--border-2); background:var(--bg-3); }
+  .pc-tbl td { padding:8px 10px; border-top:1px solid var(--border-1); vertical-align:top; }
+  .pc-tbl tr.a td { font-weight:700; }
+  .pc-tbl tr.s td:nth-child(2) { padding-left:30px; color:var(--text-3); }
+  .pc-foot { margin:22px 0 8px; font-size:12px; color:var(--text-5); text-align:center; }
+  @media (max-width:767px) { .pc-title { font-size:21px; } .pc-ph { grid-template-columns:100px minmax(0,1fr) 40px; } .pc-gl { flex-basis:170px; } .pc-next { grid-template-columns:1fr; } }
+  @media print { .no-print { display:none !important; } .pc-scroll { overflow:visible; } body { background:#fff; } }
+`;
+
+function Chip({ kind }) {
+  const m = STATUS[kind] || STATUS['nao-iniciado'];
+  return <span className="pc-chip" style={{ background: m.color }}>{m.label}</span>;
+}
+
+export default function PublicCompanyScreen({ token }) {
+  const [state, setState] = useState({ loading: true, error: '', data: null });
+  const [tab, setTab] = useState('resumo');
+  const [open, setOpen] = useState(() => new Set());
+
+  useEffect(() => {
+    let meta = document.querySelector('meta[name="robots"]');
+    if (!meta) { meta = document.createElement('meta'); meta.name = 'robots'; document.head.appendChild(meta); }
+    meta.content = 'noindex, nofollow';
+    apiGet(`/api/public-company/${token}`)
+      .then((data) => setState({ loading: false, error: '', data }))
+      .catch((e) => setState({ loading: false, error: (e && e.message) || 'Este link não é válido ou foi desativado. Peça um novo a quem o enviou.', data: null }));
+  }, [token]);
+
+  const view = useMemo(() => {
+    const d = state.data; if (!d) return null;
+    const today = d.today;
+    const late = (a) => a.status !== 'concluido' && (a.endDate || a.date) && (a.endDate || a.date) < today;
+    const acts = d.activities.map((a) => ({ ...a, eff: late(a) ? 'atrasada' : a.status, subs: a.subs.map((s) => ({ ...s, eff: s.done ? 'concluido' : (s.date && s.date < today ? 'atrasada' : 'nao-iniciado') })) }));
+    const phases = d.phases.map((p, i) => ({ ...p, color: PHASE_COLORS[i % PHASE_COLORS.length], list: acts.filter((a) => a.phase === p.id) })).filter((p) => p.list.length);
+    const loose = acts.filter((a) => !d.phases.some((p) => p.id === a.phase));
+    if (loose.length) phases.push({ id: 'x', name: 'Outras', color: PHASE_COLORS[4], list: loose });
+    const count = (st) => acts.filter((a) => a.eff === st).length;
+    const done = count('concluido');
+    const dates = acts.flatMap((a) => [a.date, a.endDate, ...a.subs.map((s) => s.date)]).filter((x) => !Number.isNaN(iso(x)));
+    let min = dates.length ? Math.min(...dates.map(iso)) : Date.parse(`${today}T00:00:00Z`);
+    min = Math.min(min, Date.parse(`${today}T00:00:00Z`));
+    const wd = new Date(min).getUTCDay(); min -= ((wd + 6) % 7) * DAY;
+    let max = dates.length ? Math.max(...dates.map(iso)) : min + 28 * DAY;
+    max = Math.max(max, Date.parse(`${today}T00:00:00Z`) + 14 * DAY);
+    const weeks = Math.min(80, Math.ceil((max - min) / (7 * DAY)) + 1);
+    return {
+      today, acts, phases, done, total: acts.length, pct: acts.length ? Math.round((done / acts.length) * 100) : 0,
+      doing: count('em-andamento'), lateN: count('atrasada'), min, weeks,
+      next: acts.filter((a) => a.eff !== 'concluido').sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999')).slice(0, 10),
+    };
+  }, [state.data]);
+
+  if (state.loading) return <div className="page-root" style={S.page}><div style={S.loginWrap}><div style={S.loginBox}><p style={S.loginSub}>Carregando…</p></div></div></div>;
+  if (state.error || !view) {
+    return (
+      <div className="page-root" style={S.page}>
+        <div style={S.loginWrap}><div style={S.loginBox}>
+          <h1 style={S.loginTitle}>Link indisponível</h1>
+          <p style={S.loginSub}>{state.error}</p>
+          <a href="/" style={S.primaryBtn}>Entrar no painel</a>
+        </div></div>
+      </div>
+    );
+  }
+
+  const c = state.data.company;
+  const px = (s) => ((iso(s) - view.min) / DAY / 7) * WEEK_PX;
+  const gw = view.weeks * WEEK_PX;
+  const weekLabels = Array.from({ length: view.weeks }, (_, i) => { const d = new Date(view.min + i * 7 * DAY).toISOString().slice(0, 10); return fmtShort(d); });
+  const toggle = (id) => setOpen((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const allOpen = view.acts.filter((a) => a.subs.length).every((a) => open.has(a.id));
+  const todayX = px(view.today);
+
+  return (
+    <div className="page-root" style={S.page}>
+      <style>{CSS}</style>
+      <div className="pc-wrap">
+        <div className="pc-head">
+          {c.logo ? <img className="pc-logo" src={c.logo} alt="" /> : <div className="pc-ini" aria-hidden="true">{(c.name || '?').slice(0, 1).toUpperCase()}</div>}
+          <div>
+            <div className="pc-eyebrow">Acompanhamento do projeto</div>
+            <h1 className="pc-title">{c.name}</h1>
+            <div className="pc-sub">Atualizado em {fmt(view.today)} · só leitura</div>
+          </div>
+          <span className="pc-grow" />
+          <button type="button" className="pc-btn no-print" onClick={() => window.print()}>Imprimir ou salvar em PDF</button>
+          <a className="pc-btn pri no-print" href="/">Entrar para editar</a>
+        </div>
+
+        <div className="pc-kpis">
+          <div className="pc-kpi"><b>{view.total}</b><span>Atividades</span></div>
+          <div className="pc-kpi"><b style={{ color: '#3ecf6e' }}>{view.done}</b><span>Concluídas</span></div>
+          <div className="pc-kpi"><b style={{ color: '#F5C400' }}>{view.doing}</b><span>Em andamento</span></div>
+          <div className="pc-kpi"><b style={{ color: view.lateN ? '#e2574c' : 'var(--text-1)' }}>{view.lateN}</b><span>Atrasadas</span></div>
+        </div>
+
+        <div className="pc-tabs no-print" role="tablist" aria-label="Visões do acompanhamento">
+          {[['resumo', 'Resumo'], ['gantt', 'Cronograma'], ['tabela', 'Tabela']].map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={tab === id} className="pc-tab" onClick={() => setTab(id)}>{label}</button>
+          ))}
+        </div>
+
+        {tab === 'resumo' && (
+          <>
+            <div className="pc-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, marginBottom: 8 }}><span>Progresso geral</span><span>{view.pct}%</span></div>
+              <div className="pc-bar"><i style={{ width: `${view.pct}%`, background: '#F5C400' }} /></div>
+              <div style={{ marginTop: 12 }}>
+                {view.phases.map((p) => {
+                  const dn = p.list.filter((a) => a.eff === 'concluido').length; const pc = Math.round((dn / p.list.length) * 100);
+                  return <div className="pc-ph" key={p.id}><span style={{ fontWeight: 700 }}>{p.name}</span><div className="pc-bar"><i style={{ width: `${pc}%`, background: p.color }} /></div><span style={{ textAlign: 'right' }}>{pc}%</span></div>;
+                })}
+              </div>
+            </div>
+            <div className="pc-card">
+              <div style={{ fontWeight: 800, marginBottom: 6 }}>Próximas etapas</div>
+              {view.next.length === 0 && <div className="pc-muted">Todas as atividades foram concluídas.</div>}
+              {view.next.map((a) => (
+                <div className="pc-next" key={a.id}>
+                  <div><b>{a.title}</b><div className="pc-muted">{a.responsible || 'Sem responsável'}{a.subs.length ? ` · ${a.subs.filter((s) => s.done).length} de ${a.subs.length} subatividades` : ''}</div></div>
+                  <span className="pc-muted">{a.date ? `${fmtShort(a.date)}${a.endDate && a.endDate !== a.date ? ` a ${fmtShort(a.endDate)}` : ''}` : 'Sem data'}</span>
+                  <Chip kind={a.eff} />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {tab === 'gantt' && (
+          <>
+            <div className="no-print" style={{ margin: '0 0 8px' }}>
+              <button type="button" className="pc-btn" onClick={() => setOpen(allOpen ? new Set() : new Set(view.acts.filter((a) => a.subs.length).map((a) => a.id)))}>{allOpen ? 'Recolher subatividades' : 'Mostrar todas as subatividades'}</button>
+            </div>
+            <div className="pc-scroll">
+              <div className="pc-g" style={{ minWidth: 250 + gw }}>
+                <div className="pc-gr" style={{ minHeight: 0 }}><div className="pc-gl" style={{ padding: 0 }} /><div className="pc-gt" style={{ width: gw }}><div className="pc-gh">{weekLabels.map((w, i) => <div key={i}>{w}</div>)}</div></div></div>
+                {view.phases.map((p) => (
+                  <React.Fragment key={p.id}>
+                    <div className="pc-gr ph"><div className="pc-gl"><span style={{ width: 10, height: 10, borderRadius: 99, background: p.color, flex: '0 0 10px' }} /><span className="t">{p.name}</span></div><div className="pc-gt" style={{ width: gw }} /></div>
+                    {p.list.map((a) => {
+                      const has = a.subs.length > 0; const isOpen = open.has(a.id);
+                      const s = a.date || a.endDate; const e = a.endDate || a.date; const col = (STATUS[a.eff] || STATUS['nao-iniciado']).color;
+                      return (
+                        <React.Fragment key={a.id}>
+                          <div className="pc-gr">
+                            <div className="pc-gl">
+                              {has ? <button type="button" className="pc-exp" aria-expanded={isOpen} aria-label={`${isOpen ? 'Recolher' : 'Mostrar'} as ${a.subs.length} subatividades de ${a.title}`} onClick={() => toggle(a.id)}>{isOpen ? '−' : '+'}</button> : <span style={{ width: 22, flex: '0 0 22px' }} />}
+                              <span className="t" title={a.title} style={{ fontWeight: 700 }}>{a.title}</span>
+                            </div>
+                            <div className="pc-gt" style={{ width: gw }}>
+                              {s && !Number.isNaN(iso(s)) && <div className="pc-b" style={{ left: px(s), width: Math.max(10, px(e) - px(s) + WEEK_PX / 7), background: col }} title={`${a.title}: ${fmt(a.date)} a ${fmt(a.endDate || a.date)}`} />}
+                              {s && !Number.isNaN(iso(s)) && px(e) - px(s) > 70 && <span className="pc-bl" style={{ left: px(s) }}>{STATUS[a.eff].label}</span>}
+                              <div className="pc-today" style={{ left: todayX }} />
+                            </div>
+                          </div>
+                          {isOpen && a.subs.map((x) => (
+                            <div className="pc-gr" key={x.id} style={{ minHeight: 34 }}>
+                              <div className="pc-gl sub"><span className="t" title={x.title}>{x.title}</span></div>
+                              <div className="pc-gt" style={{ width: gw }}>
+                                {x.date && !Number.isNaN(iso(x.date)) && <div className="pc-dm" style={{ left: px(x.date) + WEEK_PX / 14, top: 10, background: (STATUS[x.eff]).color }} title={`${x.title}: ${fmt(x.date)}`} />}
+                                <div className="pc-today" style={{ left: todayX }} />
+                              </div>
+                            </div>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+            <div className="pc-muted" style={{ marginTop: 8 }}>A linha vermelha é hoje. Os losangos são as datas das subatividades.</div>
+          </>
+        )}
+
+        {tab === 'tabela' && (
+          <div className="pc-scroll">
+            <table className="pc-tbl">
+              <thead><tr><th>Fase</th><th>Atividade e subatividades</th><th>Responsável</th><th>Início</th><th>Fim</th><th>Situação</th></tr></thead>
+              <tbody>
+                {view.phases.map((p) => p.list.map((a) => (
+                  <React.Fragment key={a.id}>
+                    <tr className="a"><td>{p.name}</td><td>{a.title}</td><td>{a.responsible || '—'}</td><td>{fmt(a.date)}</td><td>{fmt(a.endDate || a.date)}</td><td><Chip kind={a.eff} /></td></tr>
+                    {a.subs.map((x) => <tr className="s" key={x.id}><td /><td>{x.title}</td><td>{x.responsible || '—'}</td><td>{fmt(x.date)}</td><td>{fmt(x.date)}</td><td><Chip kind={x.eff} /></td></tr>)}
+                  </React.Fragment>
+                )))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="pc-foot no-print">Página só de leitura. Para alterar algo, use “Entrar para editar” com o seu login e senha.</div>
+      </div>
+    </div>
+  );
+}

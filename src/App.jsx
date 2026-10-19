@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen } from 'lucide-react';
+import { Share2, ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen } from 'lucide-react';
 
 import { loadXlsx } from './lib/xlsxLoader.js';
 import { lazyRetry } from './lib/lazyRetry.jsx';
@@ -78,6 +78,7 @@ const ActivityDetailModal = lazyRetry(() => import('./screens/CompanyViews.jsx')
 const PrintReport = lazyRetry(() => import('./screens/CompanyViews.jsx').then((m) => ({ default: m.PrintReport })));
 // Detalhe de reunião e assistente por empresa (2026-10-17): helpers de status saíram de Meetings.jsx (meetings/todoStatus.js), o que permitiu carregá-los sob demanda.
 const MeetingDetailModal = lazyRetry(() => import('./meetings/MeetingDetail.jsx').then((m) => ({ default: m.MeetingDetailModal })));
+const PublicCompanyScreen = lazyRetry(() => import('./screens/PublicCompanyScreen.jsx'));
 const PublicMeetingScreen = lazyRetry(() => import('./meetings/MeetingDetail.jsx').then((m) => ({ default: m.PublicMeetingScreen })));
 const ProjectAssistant = lazyRetry(() => import('./assistant/ProjectAssistant.jsx').then((m) => ({ default: m.ProjectAssistant })));
 const CompanyWorkspace = lazyRetry(() => import('./screens/CompanyWorkspace.jsx').then((m) => ({ default: m.CompanyWorkspace })));
@@ -492,6 +493,7 @@ function AppScreens({ shellRef, bump }) {
   const [todoFocusActivityId, setTodoFocusActivityId] = useState(null);
   const [meetingToPrint, setMeetingToPrint] = useState(null);
   const [showLog, setShowLog] = useState(false);
+  const [showShareLink, setShowShareLink] = useState(false); // link público de acompanhamento (2026-10-19)
   const [showAudit, setShowAudit] = useState(false); // auditoria contra o padrão (2026-10-19)
   const [showTrash, setShowTrash] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -1304,10 +1306,10 @@ function AppScreens({ shellRef, bump }) {
     const mode = modeForPath(window.location.pathname);
     if (!mode) {
       // Endereço que não é de módulo nenhum: limpa pra "/". EXCETO os links públicos (/quadro/:token e
-      // /reuniao/:token): os hooks rodam antes do `return` que desenha a tela pública, então reescrever a URL aqui
+      // /reuniao/:token e /acompanhamento/:token): os hooks rodam antes do `return` que desenha a tela pública, então reescrever a URL aqui
       // faria o link de quem está logado abrir a tela inicial em vez do quadro/reunião compartilhado.
       const p = window.location.pathname;
-      if (p !== '/' && !/^\/(quadro|reuniao)\//.test(p)) { try { window.history.replaceState({ navTag: 'gate' }, '', '/'); } catch (e) { /* ignora */ } }
+      if (p !== '/' && !/^\/(quadro|reuniao|acompanhamento)\//.test(p)) { try { window.history.replaceState({ navTag: 'gate' }, '', '/'); } catch (e) { /* ignora */ } }
       return;
     }
     try {
@@ -1597,6 +1599,11 @@ function AppScreens({ shellRef, bump }) {
   const publicBoardMatch = window.location.pathname.match(/^\/quadro\/([A-Za-z0-9_-]+)/);
   if (publicBoardMatch) {
     return <React.Suspense fallback={<LoadingScreen theme={theme} />}><PublicBoardScreen token={publicBoardMatch[1]} theme={theme} onToggleTheme={toggleTheme} /></React.Suspense>;
+  }
+
+  const publicCompanyMatch = window.location.pathname.match(/^\/acompanhamento\/([A-Za-z0-9_-]+)/);
+  if (publicCompanyMatch) {
+    return <React.Suspense fallback={<LoadingScreen theme={theme} />}><PublicCompanyScreen token={publicCompanyMatch[1]} /></React.Suspense>;
   }
 
   const publicMeetingMatch = window.location.pathname.match(/^\/reuniao\/([A-Za-z0-9_-]+)/);
@@ -2335,6 +2342,7 @@ function AppScreens({ shellRef, bump }) {
     (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Plus, label: 'Cadastrar empresa', onClick: () => setShowCreateCompany(true) },
     currentUser.isSuperAdmin && { icon: Building2, label: 'Organizações', onClick: () => goToOrgAdmin(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: LayoutGrid, label: 'Fases', onClick: () => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); } },
+    !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Share2, label: 'Link para o cliente', onClick: () => setShowShareLink(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: ShieldCheck, label: 'Auditoria do padrão', onClick: () => setShowAudit(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Clock, label: `Log (${(activeProject.log || []).length})`, onClick: () => setShowLog(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Trash2, label: 'Lixeira', onClick: () => setShowTrash(true) },
@@ -2447,6 +2455,8 @@ function AppScreens({ shellRef, bump }) {
         setShowLog,
         showAudit,
         setShowAudit,
+        showShareLink,
+        setShowShareLink,
         setShowMeetingsTrash,
         setShowMoreMenu,
         setShowPhases,
