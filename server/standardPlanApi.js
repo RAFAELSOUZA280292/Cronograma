@@ -8,7 +8,8 @@ import { pool, blankProject } from './db.js';
 import { canAccessProject, effectiveOrgId } from './routes.js';
 import { planForProject, applyPlanToData } from './standardPlan.js';
 import { auditProject } from './standardAudit.js';
-import { STD_PLAN_ID, discardDraft, draftDiff, getDraft, listProposals, listVersions, loadProposal, restoreVersion, saveDraft, saveVersion } from './standardTemplateStore.js';
+import { isISODate } from './standardTemplate.js';
+import { STD_PLAN_ID, discardDraft, draftDiff, getDraft, listProposals, listVersions, loadProposal, previewInstantiate, restoreVersion, saveDraft, saveVersion } from './standardTemplateStore.js';
 
 export const router = Router();
 router.use(requireAuth, requireMasterOrPricetax);
@@ -170,5 +171,15 @@ router.post('/template/proposals/:key/load', async (req, res, next) => {
     await listVersions(orgId);
     await loadProposal(orgId, req.user, req.params.key);
     res.json({ ok: true });
+  } catch (e) { fail(res, next, e); }
+});
+
+// Prévia do cadastro de empresa: com este kickoff, quantas atividades terão prazo comprimido, já nascem vencidas ou têm predecessora que vence depois.
+router.get('/template/instantiate-preview', async (req, res, next) => {
+  try {
+    const orgId = orgOf(req, res); if (!orgId) return;
+    const kick = String(req.query.kickoff || '');
+    if (!isISODate(kick)) return res.status(400).json({ message: 'Informe o kickoff (AAAA-MM-DD).' });
+    res.json({ preview: await previewInstantiate(orgId, kick) });
   } catch (e) { fail(res, next, e); }
 });

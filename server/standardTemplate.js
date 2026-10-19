@@ -192,8 +192,14 @@ export function diffTemplates(prev, next) {
 
 // ---------- empresa nova ----------
 
-// Cronograma de uma empresa nova a partir de uma versão: as datas são o kickoff da empresa mais os dias que cada atividade tinha depois do kickoff do padrão.
-export function instantiateTemplate(t, kickoffISO) {
+export const todaySP = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+
+// Cronograma de uma empresa nova a partir de uma versão. Datas: subatividade "kickoff" (ou de padrão antigo, sem âncora) = kickoff da empresa + os dias do padrão;
+// "virada" e "fixa" mantêm a data absoluta. REGRA DO LIMITE (decidida pelo Rafael em 2026-10-19): se a data passa do limite da norma, vale o limite e a
+// subatividade nasce com `compressed` (e `compressedFrom` = a data que o padrão daria). Devolve também um resumo de avisos: prazos comprimidos, atividades que já
+// nascem vencidas (data antes de hoje) e predecessoras que vencem depois da sucessora.
+export function instantiateTemplate(t, kickoffISO, opts = {}) {
+  const today = isoOk(opts.today) ? opts.today : todaySP();
   const base = isoOk(t.kickoffDate) ? t.kickoffDate : '';
   const delta = base && isoOk(kickoffISO) ? daysBetween(base, kickoffISO) : 0;
   const shift = (iso) => (iso && delta ? shiftISO(iso, delta) : iso || '');
@@ -204,18 +210,34 @@ export function instantiateTemplate(t, kickoffISO) {
     ...a, id: uid('m'), date: shift(a.date), endDate: shift(a.endDate), status: 'nao-iniciado', notes: '', attachments: [], comments: [], links: [], transcript: '',
     clientDateConfirmed: false,
     subactivities: (a.subactivities || []).map((s) => {
-      // Âncora (fase 2): prazo "virada" ou "fixa" não anda com o kickoff da empresa; sem âncora (versões antigas) ou "kickoff", anda.
       const fixed = s.anchor === 'virada' || s.anchor === 'fixa';
       const out = { ...s, id: subIds.get(s.id), done: false, date: fixed ? (s.date || '') : shift(s.date) };
+      delete out.compressed; delete out.compressedFrom;
+      const limit = s.limit && isoOk(s.limit.date) ? s.limit.date : '';
+      if (limit && out.date && out.date > limit) { out.compressedFrom = out.date; out.date = limit; out.compressed = true; }
       if (Array.isArray(s.predecessors)) out.predecessors = s.predecessors.map((id) => subIds.get(id)).filter(Boolean);
       return out;
     }),
   }));
-  // Atividade principal de um padrão com âncoras: o intervalo vem das datas das subatividades (no padrão antigo, anda com o kickoff como sempre).
+  // Atividade principal de um padrão com âncoras ou limites: o intervalo vem das datas das subatividades (no padrão antigo, anda com o kickoff como sempre).
   for (const a of activities) {
-    if (!a.subactivities.some((s) => s.anchor)) continue;
+    if (!a.subactivities.some((s) => s.anchor || s.compressed)) continue;
     const ds = a.subactivities.map((s) => s.date).filter(Boolean).sort();
     if (ds.length) { a.date = ds[0]; a.endDate = ds[ds.length - 1]; }
   }
-  return { phases: clean.phases.map((f) => ({ ...f })), activities, team: [...clean.team] };
+  // Avisos
+  const all = activities.flatMap((a) => a.subactivities.map((s) => ({ s, main: a.title })));
+  const byId = new Map(all.map((x) => [x.s.id, x.s]));
+  const items = [];
+  const push = (kind, x, extra) => { if (items.length < 80) items.push({ kind, code: x.s.code || '', title: x.s.title, main: x.main, date: x.s.date || '', ...extra }); };
+  let compressed = 0; let late = 0; let order = 0;
+  for (const x of all) {
+    if (x.s.compressed) { compressed += 1; push('comprimido', x, { from: x.s.compressedFrom, limit: x.s.limit.date }); }
+    if (x.s.date && x.s.date < today) { late += 1; push('vencida', x, {}); }
+    for (const pid of x.s.predecessors || []) { const p = byId.get(pid); if (p && p.date && x.s.date && p.date > x.s.date) { order += 1; push('ordem', x, { pred: p.title, predDate: p.date }); } }
+  }
+  return {
+    phases: clean.phases.map((f) => ({ ...f })), activities, team: [...clean.team],
+    summary: { total: all.length, compressed, lateAtBirth: late, orderConflicts: order, today, items },
+  };
 }

@@ -463,11 +463,17 @@ router.post('/projects', requireAuth, requireMasterOrPricetax, async (req, res, 
 
     // Empresa nova segue a versão MAIS RECENTE do cronograma padrão da organização (datas = kickoff + dias de cada atividade). Clonar manda as
     // atividades prontas e não passa por aqui. Se algo falhar, nasce com o modelo de sempre (blankProject) em vez de impedir o cadastro.
+    let standardSummary = null;
     if (!Array.isArray(req.body.activities)) {
       try {
         const kick = isISODate(req.body.kickoffDate) ? req.body.kickoffDate : new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
         const std = await instantiateStandard(effectiveOrgId(req), kick);
-        if (std) { project.activities = std.activities; project.phases = std.phases; project.team = std.team; project.standardVersion = std.version; }
+        if (std) {
+          project.activities = std.activities; project.phases = std.phases; project.team = std.team; project.standardVersion = std.version; standardSummary = std.summary;
+          const sm = std.summary;
+          const partes = [sm.compressed && `${sm.compressed} com prazo comprimido (passava do limite da norma)`, sm.lateAtBirth && `${sm.lateAtBirth} já nascem vencidas`, sm.orderConflicts && `${sm.orderConflicts} com predecessora vencendo depois`].filter(Boolean);
+          project.log = [{ ts: new Date().toISOString(), action: `Cronograma criado pelo padrão ${std.version}.0 (kickoff ${kick.split('-').reverse().join('/')}): ${sm.total} subatividades${partes.length ? `; ${partes.join('; ')}` : ''}`, user: req.user.name || '' }, ...(project.log || [])];
+        }
       } catch (e) { console.error('Cronograma padrão indisponível, usando o modelo de sempre:', e.message); }
     }
 
@@ -487,7 +493,7 @@ router.post('/projects', requireAuth, requireMasterOrPricetax, async (req, res, 
       }
     }
 
-    res.status(201).json({ project });
+    res.status(201).json({ project, standardSummary });
   } catch (e) { next(e); }
 });
 

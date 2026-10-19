@@ -884,7 +884,7 @@ function AppScreens({ shellRef, bump }) {
         updateSub={updateSub}
         deleteSub={deleteSub}
         reorderSub={reorderSub}
-        allSubs={project.activities.filter((x) => !x.deleted).flatMap((x) => (x.subactivities || []).filter((y) => !y.deleted).map((y) => ({ id: y.id, title: y.title, code: y.code, done: !!y.done, predecessors: y.predecessors })))}
+        allSubs={project.activities.filter((x) => !x.deleted).flatMap((x) => (x.subactivities || []).filter((y) => !y.deleted).map((y) => ({ id: y.id, title: y.title, code: y.code, done: !!y.done, date: y.date, predecessors: y.predecessors })))}
         addAttachments={addAttachments}
         removeAttachment={removeAttachment}
         addComment={addComment}
@@ -2628,6 +2628,18 @@ export function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmi
   const availableGroups = (projects || []).filter((p) => p.company.isGroupMaster);
   const isDirty = useDirtyForm({ cnpj, form, children, linkGroupId });
   const [showGuard, setShowGuard] = useState(false);
+  // Prévia do cronograma padrão para o kickoff escolhido: quantas atividades terão prazo comprimido, já nascem vencidas ou têm predecessora vencendo depois.
+  const [kickPreview, setKickPreview] = useState(null);
+  useEffect(() => {
+    if (cloneSource || !form.kickoffDate) { setKickPreview(null); return undefined; }
+    let off = false;
+    const timer = setTimeout(() => {
+      apiGet(`/api/standard-plan/template/instantiate-preview?kickoff=${form.kickoffDate}${form.orgId ? `&asOrg=${encodeURIComponent(form.orgId)}` : ''}`)
+        .then((r) => { if (!off) setKickPreview((r && r.preview) || null); })
+        .catch(() => { if (!off) setKickPreview(null); });
+    }, 400);
+    return () => { off = true; clearTimeout(timer); };
+  }, [form.kickoffDate, form.orgId, cloneSource]);
   function requestClose() { if (isDirty) setShowGuard(true); else onClose(); }
 
   function handleLogoPick(e) {
@@ -2858,6 +2870,24 @@ export function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmi
                 <div style={{ ...S.subSectionLabel, marginTop: 14 }}>Data do kickoff</div>
                 <input type="date" value={form.kickoffDate} onChange={(e) => setForm((f) => ({ ...f, kickoffDate: e.target.value }))} aria-label="Data do kickoff" />
                 <div style={S.fieldHint}>As datas do cronograma nascem a partir dela, seguindo o cronograma padrão mais recente. Dá para ajustar depois.</div>
+                {kickPreview && (() => {
+                  const sm = kickPreview.summary;
+                  const warn = sm.compressed + sm.lateAtBirth + sm.orderConflicts > 0;
+                  const KIND = { comprimido: 'Prazo comprimido', vencida: 'Já nasce vencida', ordem: 'Predecessora vence depois' };
+                  return (
+                    <div role="status" style={{ ...S.fieldHint, marginTop: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${warn ? 'rgba(255,159,64,.5)' : 'var(--border-2)'}`, color: 'var(--text-2)' }}>
+                      <div><b>Padrão {kickPreview.label}:</b> {sm.total} subatividades{warn ? `. Com este kickoff: ${[sm.compressed && `${sm.compressed} com prazo comprimido (vale o limite da norma)`, sm.lateAtBirth && `${sm.lateAtBirth} já nascem vencidas`, sm.orderConflicts && `${sm.orderConflicts} com predecessora vencendo depois`].filter(Boolean).join(', ')}.` : '. Nenhum prazo comprimido nem vencido com este kickoff.'}</div>
+                      {warn && (
+                        <details style={{ marginTop: 4 }}>
+                          <summary style={{ cursor: 'pointer' }}>Ver quais ({Math.min(sm.items.length, 15)}{sm.items.length > 15 ? ' de ' + sm.items.length : ''})</summary>
+                          <ul style={{ margin: '4px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
+                            {sm.items.slice(0, 15).map((it, n) => <li key={n}>{KIND[it.kind]}: {it.code ? `${it.code} · ` : ''}{it.title.length > 80 ? `${it.title.slice(0, 80)}…` : it.title} ({fmtDate(it.date)}{it.kind === 'comprimido' ? `, o padrão daria ${fmtDate(it.from)}` : ''})</li>)}
+                          </ul>
+                        </details>
+                      )}
+                    </div>
+                  );
+                })()}
               </>
             )}
 

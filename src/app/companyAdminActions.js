@@ -35,6 +35,12 @@ export function createCompanyAdminActions({
     if (!crossOrg) {
       setProjects((prev) => [...prev, normalizeProject(res.project)]);
     }
+    // Cronograma criado pelo padrão versionado: avisa o que a regra do limite fez (o detalhe fica no Log da empresa).
+    const sm = res.standardSummary;
+    if (sm) {
+      const partes = [sm.compressed && `${sm.compressed} com prazo comprimido`, sm.lateAtBirth && `${sm.lateAtBirth} já nascem vencidas`, sm.orderConflicts && `${sm.orderConflicts} com predecessora vencendo depois`].filter(Boolean);
+      notify(`Cronograma criado pelo padrão (versão ${res.project.standardVersion}.0): ${sm.total} subatividades${partes.length ? `. Atenção: ${partes.join(', ')}. Veja o Log da empresa.` : '.'}`, { tone: partes.length ? 'info' : 'success', ttlMs: partes.length ? 12000 : undefined });
+    }
     const org = orgId && organizations.find((o) => o.id === orgId);
     return { id: res.project.id, crossOrg, orgName: org ? org.name : null };
   }

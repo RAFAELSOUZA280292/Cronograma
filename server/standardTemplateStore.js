@@ -159,3 +159,10 @@ export async function instantiateStandard(orgId, kickoffISO) {
   if (!rows.length) return null;
   return { ...instantiateTemplate(rows[0].data, kickoffISO), version: rows[0].version };
 }
+
+// Prévia para o cadastro da empresa: o que acontece com este kickoff (sem criar nada). Null se a organização ainda não usa o padrão versionado.
+export async function previewInstantiate(orgId, kickoffISO) {
+  const r = await instantiateStandard(orgId, kickoffISO);
+  if (!r) return null;
+  return { version: r.version, label: labelOf(r.version), summary: r.summary };
+}
