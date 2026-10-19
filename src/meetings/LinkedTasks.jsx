@@ -47,6 +47,7 @@ export default function LinkedTasks({ meetings, activityId, labelStyle, onOpenTa
                 <span className="lt-title">{t.title || '(sem título)'}</span>
                 <span className="lt-meta">
                   <span className="lt-pill" style={{ color: meta.color, background: meta.bg, borderColor: meta.border }}>{meta.label}</span>
+                  {t.auto && <span className="lt-pill" style={{ color: '#3ecf6e', borderColor: 'rgba(62,207,110,.5)' }} title="A RENATA vinculou sozinha e ninguém validou ainda; só vínculo validado propaga a conclusão">Automática, a validar</span>}
                   {t.responsible && <span>{t.responsible}</span>}
                   {t.dueDate && <span className={late ? 'lt-late' : undefined}>{late ? 'Atrasada · ' : 'Prazo '}{fmtDate(t.dueDate)}</span>}
                   <span>Reunião: {t.meetingTitle || 'sem título'}{t.meetingDate ? ` · ${fmtDate(t.meetingDate)}` : ''}</span>

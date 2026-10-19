@@ -135,3 +135,9 @@ Ordem recomendada: 0 → 1 → 2 → 3 → 4 → 5. A fase 1 entrega valor sozin
 - **Isolamento**: testado por HTTP (2 organizações, usuário restrito por CNPJ, cliente, sem login).
 
 - **Avaliação real em produção (2026-10-13 19:20, rodada pelo Rafael): PASSOU — precisão 100%, cobertura 98%** (56 casos, IA de produção). Pendente: o time conferir os casos à mão e acompanhar a taxa de acerto com transcrições reais.
+
+## Atualização de 2026-10-19 (decisões do Rafael, ver PROJECT_CONTEXT.md §80)
+- **Decisão 4 mudou:** a RENATA agora **vincula sozinha a partir de 50%** (selo "Automática"; a pessoa valida ou troca). Abaixo disso, "Vincular atividade…".
+- **Conjunto fechado = todas as atividades vivas da empresa**; a RENATA nunca cria atividade.
+- **Dicionário de atividades** (`server/activityDictionary.js`): o que entra e o que não entra em cada atividade, lido só pelo servidor.
+- **Decisão 5 mudou:** a conclusão **propaga** entre tarefa e atividade, **só para vínculo validado** (`shared/linkSync.js`), com "Desfazer".
