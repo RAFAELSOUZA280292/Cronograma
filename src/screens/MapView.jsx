@@ -1,7 +1,7 @@
-// Aba ÁRVORE (2026-10-19, pedido do Rafael): mapa mental do cronograma de UMA empresa — empresa → grupos (fase, responsável ou situação) → atividades →
+// Aba MAPA (2026-10-19, pedido do Rafael; nome final "Mapa", antes "Árvore"): mapa mental do cronograma de UMA empresa — empresa → grupos (fase, responsável ou situação) → atividades →
 // subatividades. Só leitura: clicar numa atividade (ou numa subatividade) abre o mesmo detalhe de sempre. Usa os mesmos dados das outras abas, sem campo novo.
-import { Maximize2, Minus, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
-import React, { useMemo, useRef, useState } from 'react';
+import { Maximize2, Minus, Plus, SlidersHorizontal, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { STATUS_META, fmtDate, todayISOStr, useIsMobile } from '../App.jsx';
 import { subStats } from '../lib/subStats.js';
 
@@ -74,7 +74,7 @@ const CSS = `
 @media (max-width:767px){.tv-ctl{height:40px}.tv-iconbtn{width:40px;height:40px}.tv-seg button,.tv-chip{min-height:40px}}
 `;
 
-export default function TreeView({ pid, activities, orderMap, phases, companyName, companyColor, openDetail }) {
+export default function MapView({ pid, activities, orderMap, phases, companyName, companyColor, openDetail }) {
   const isMobile = useIsMobile();
   const today = todayISOStr();
   const thisYear = today.slice(0, 4);
@@ -82,12 +82,17 @@ export default function TreeView({ pid, activities, orderMap, phases, companyNam
   const [fPhase, setFPhase] = useState('');
   const [fResp, setFResp] = useState('');
   const [fSit, setFSit] = useState('');
-  const [query, setQuery] = useState('');
   const [open, setOpen] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [scale, setScale] = useState(isMobile ? 0.75 : 1);
+  const [cam, setCam] = useState({ x: PAD, y: PAD, k: isMobile ? 0.6 : 1 });
+  const [fitTick, setFitTick] = useState(0);
   const boxRef = useRef(null);
-  const pan = useRef(null);
+  const camRef = useRef(cam);
+  camRef.current = cam;
+  const ptrs = useRef(new Map());
+  const gesture = useRef(null);
+  const suppressClick = useRef(false);
+  const anchor = useRef(null);
 
   const all = useMemo(() => (activities || []).filter((a) => !a.deleted), [activities]);
   const phaseList = phases || [];
@@ -99,18 +104,14 @@ export default function TreeView({ pid, activities, orderMap, phases, companyNam
     return c;
   }, [all, today]);
 
-  const q = query.trim().toLowerCase();
-  const filtersOn = !!(fPhase || fResp || fSit || q);
+  const filtersOn = !!(fPhase || fResp || fSit);
   const shown = useMemo(() => all.filter((a) => {
     if (fPhase && (a.phase || '') !== fPhase) return false;
     if (fResp && (a.responsible || '') !== fResp) return false;
     if (fSit && sitOf(a, today) !== fSit) return false;
-    if (q) {
-      const hay = [a.title, a.responsible, ...(a.subactivities || []).filter((s) => !s.deleted).map((s) => s.title)].join(' ').toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
     return true;
-  }), [all, fPhase, fResp, fSit, q, today]);
+  }), [all, fPhase, fResp, fSit, today]);
+  const shownKey = shown.map((a) => a.id).join('|');
 
   const groupOf = (a) => (groupBy === 'fase' ? (phaseById[a.phase] ? a.phase : '__none') : groupBy === 'resp' ? (a.responsible || '__none') : sitOf(a, today));
   const groupDefs = useMemo(() => {
@@ -181,16 +182,20 @@ export default function TreeView({ pid, activities, orderMap, phases, companyNam
     if (n >= 2) allGroupIds.forEach((i) => s.add(i));
     if (n >= 3) allActIds.forEach((i) => s.add(i));
     setOpen(s);
+    setFitTick((t) => t + 1);
   }
   function toggle(id) {
+    const n = layout.nodes.find((x) => x.id === id);
+    if (n) anchor.current = { id, sx: n.x * camRef.current.k + camRef.current.x, sy: n.y * camRef.current.k + camRef.current.y };
     setOpen((prev) => {
       const s = new Set(prev || level2);
       if (s.has(id)) s.delete(id); else s.add(id);
       return s;
     });
   }
-  const resetView = () => setOpen(null);
-  const onFilter = (set) => (e) => { set(e.target.value); resetView(); };
+  const onFilter = (set) => (e) => set(e.target.value);
+
+  useEffect(() => { setOpen(null); setFitTick((t) => t + 1); }, [groupBy, shownKey]);
 
   const layout = useMemo(() => {
     const colX = [];
@@ -222,25 +227,116 @@ export default function TreeView({ pid, activities, orderMap, phases, companyNam
     return { nodes, edges, width: maxX + PAD + 14, height: tree.sh + PAD * 2 };
   }, [tree, effOpen]);
 
-  function fit() {
-    const w = boxRef.current ? boxRef.current.clientWidth : 0;
-    if (w) setScale(Math.max(0.35, Math.min(1, Math.round((w / layout.width) * 100) / 100)));
+  // Navegação como num mapa: roda do mouse dá zoom em volta do cursor, arrastar move, pinça no toque, duplo clique no fundo ajusta, setas e +/- no teclado.
+  const MIN_K = 0.1;
+  const MAX_K = 2.5;
+  const clampK = (k) => Math.max(MIN_K, Math.min(MAX_K, k));
+  function zoomAt(factor, cx, cy) {
+    setCam((c) => {
+      const k = clampK(c.k * factor);
+      const r = k / c.k;
+      return { k, x: cx - (cx - c.x) * r, y: cy - (cy - c.y) * r };
+    });
   }
-  const zoom = (d) => setScale((s) => Math.max(0.35, Math.min(1.5, Math.round((s + d) * 100) / 100)));
-  function onPointerDown(e) {
-    if (e.button !== 0 || e.target.closest('button,select,input')) return;
+  function zoomCenter(factor) {
     const el = boxRef.current;
-    pan.current = { x: e.clientX, y: e.clientY, l: el.scrollLeft, t: el.scrollTop };
-    el.setPointerCapture(e.pointerId);
-    el.style.cursor = 'grabbing';
+    if (el) zoomAt(factor, el.clientWidth / 2, el.clientHeight / 2);
+  }
+  function fit() {
+    const el = boxRef.current;
+    if (!el || !el.clientWidth) return;
+    const m = 24;
+    const cw = el.clientWidth;
+    const ch = el.clientHeight;
+    const kW = (cw - 2 * m) / layout.width;
+    const kAll = Math.min(kW, (ch - 2 * m) / layout.height);
+    const k = clampK(Math.min(1, Math.max(kAll, cw < 600 ? 0.5 : Math.min(kW, 0.6))));
+    setCam({ k, x: layout.width * k < cw ? (cw - layout.width * k) / 2 : m, y: layout.height * k < ch ? (ch - layout.height * k) / 2 : m });
+  }
+  useEffect(() => { fit(); }, [fitTick]);
+  useEffect(() => {
+    const a = anchor.current;
+    if (!a) return;
+    anchor.current = null;
+    const n = layout.nodes.find((x) => x.id === a.id);
+    if (n) setCam((c) => ({ ...c, x: a.sx - n.x * c.k, y: a.sy - n.y * c.k }));
+  }, [layout]);
+  const hasTree = shown.length > 0;
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return undefined;
+    const onWheel = (e) => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      const raw = e.deltaY * (e.deltaMode === 1 ? 16 : 1) * (e.ctrlKey ? 0.01 : 0.0016);
+      zoomAt(Math.exp(-Math.max(-0.6, Math.min(0.6, raw))), e.clientX - r.left, e.clientY - r.top);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [hasTree]);
+  const startGesture = () => {
+    const pts = [...ptrs.current.values()];
+    const c = { ...camRef.current };
+    if (pts.length === 1) gesture.current = { type: 'pan', sx: pts[0].x, sy: pts[0].y, cam: c, active: false };
+    else if (pts.length >= 2) {
+      const r = boxRef.current.getBoundingClientRect();
+      gesture.current = { type: 'pinch', d0: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1, mx: (pts[0].x + pts[1].x) / 2 - r.left, my: (pts[0].y + pts[1].y) / 2 - r.top, cam: c, active: true };
+    } else gesture.current = null;
+  };
+  function onPointerDown(e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    startGesture();
   }
   function onPointerMove(e) {
-    if (!pan.current) return;
-    const el = boxRef.current;
-    el.scrollLeft = pan.current.l - (e.clientX - pan.current.x);
-    el.scrollTop = pan.current.t - (e.clientY - pan.current.y);
+    if (!ptrs.current.has(e.pointerId)) return;
+    ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const g = gesture.current;
+    if (!g) return;
+    if (g.type === 'pan') {
+      const dx = e.clientX - g.sx;
+      const dy = e.clientY - g.sy;
+      if (!g.active) {
+        if (Math.hypot(dx, dy) < 5) return;
+        g.active = true;
+        try { boxRef.current.setPointerCapture(e.pointerId); } catch { /* ignora */ }
+        boxRef.current.style.cursor = 'grabbing';
+      }
+      suppressClick.current = true;
+      setCam({ ...g.cam, x: g.cam.x + dx, y: g.cam.y + dy });
+    } else {
+      const pts = [...ptrs.current.values()];
+      if (pts.length < 2) return;
+      suppressClick.current = true;
+      const r = boxRef.current.getBoundingClientRect();
+      const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+      const mx = (pts[0].x + pts[1].x) / 2 - r.left;
+      const my = (pts[0].y + pts[1].y) / 2 - r.top;
+      const k = clampK(g.cam.k * (d / g.d0));
+      const wx = (g.mx - g.cam.x) / g.cam.k;
+      const wy = (g.my - g.cam.y) / g.cam.k;
+      setCam({ k, x: mx - wx * k, y: my - wy * k });
+    }
   }
-  function onPointerUp() { pan.current = null; if (boxRef.current) boxRef.current.style.cursor = 'grab'; }
+  function onPointerUp(e) {
+    ptrs.current.delete(e.pointerId);
+    startGesture();
+    if (!ptrs.current.size) {
+      if (boxRef.current) boxRef.current.style.cursor = 'grab';
+      setTimeout(() => { suppressClick.current = false; }, 0);
+    }
+  }
+  const onClickCapture = (e) => { if (suppressClick.current) { e.stopPropagation(); e.preventDefault(); } };
+  function onDoubleClick(e) { if (!e.target.closest('.tv-node')) fit(); }
+  function onKeyDown(e) {
+    if (e.target !== e.currentTarget) return;
+    const step = 80;
+    const moves = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+    if (moves[e.key]) { e.preventDefault(); setCam((c) => ({ ...c, x: c.x + moves[e.key][0], y: c.y + moves[e.key][1] })); }
+    else if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomCenter(1.2); }
+    else if (e.key === '-') { e.preventDefault(); zoomCenter(1 / 1.2); }
+    else if (e.key === '0') { e.preventDefault(); fit(); }
+  }
 
   const openAct = (id) => openDetail(pid, id);
   const toggleBtn = (n) => {
@@ -314,20 +410,20 @@ export default function TreeView({ pid, activities, orderMap, phases, companyNam
     );
   }
 
-  if (!all.length) return <div style={{ padding: 24, color: 'var(--text-4)' }}>Nenhuma atividade para mostrar na árvore.</div>;
+  if (!all.length) return <div style={{ padding: 24, color: 'var(--text-4)' }}>Nenhuma atividade para mostrar no mapa.</div>;
 
   return (
     <div>
       <style>{CSS}</style>
       {isMobile && (
         <button type="button" className="tv-chip" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)} style={{ marginBottom: 10 }}>
-          <SlidersHorizontal size={13} /> Filtros e busca{filtersOn || groupBy !== 'fase' ? ' (ativos)' : ''}
+          <SlidersHorizontal size={13} /> Filtros{filtersOn || groupBy !== 'fase' ? ' (ativos)' : ''}
         </button>
       )}
       <div style={{ display: isMobile && !showFilters ? 'none' : 'block' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 10 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-4)', whiteSpace: 'nowrap' }}>Agrupar por
-          <select className="tv-ctl" value={groupBy} onChange={onFilter(setGroupBy)} aria-label="Agrupar a árvore por">
+          <select className="tv-ctl" value={groupBy} onChange={onFilter(setGroupBy)} aria-label="Agrupar o mapa por">
             {GROUP_MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
           </select>
         </label>
@@ -343,18 +439,14 @@ export default function TreeView({ pid, activities, orderMap, phases, companyNam
             {responsibles.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         )}
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <Search size={14} style={{ position: 'absolute', left: 9, color: 'var(--text-5)', pointerEvents: 'none' }} />
-          <input className="tv-ctl" value={query} onChange={onFilter(setQuery)} placeholder="Buscar atividade ou subatividade" aria-label="Buscar na árvore" style={{ paddingLeft: 28, width: isMobile ? 220 : 250 }} />
-        </div>
         {filtersOn && (
-          <button type="button" className="tv-chip" onClick={() => { setFPhase(''); setFResp(''); setFSit(''); setQuery(''); resetView(); }}><X size={12} /> Limpar filtros</button>
+          <button type="button" className="tv-chip" onClick={() => { setFPhase(''); setFResp(''); setFSit(''); }}><X size={12} /> Limpar filtros</button>
         )}
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 10 }} role="group" aria-label="Filtrar por situação">
         {SIT_ORDER.map((k) => (
-          <button key={k} type="button" className="tv-chip" aria-pressed={fSit === k} onClick={() => { setFSit(fSit === k ? '' : k); resetView(); }}>
+          <button key={k} type="button" className="tv-chip" aria-pressed={fSit === k} onClick={() => setFSit(fSit === k ? '' : k)}>
             <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: 5, background: SIT[k].color }} />
             {SIT[k].plural} <b>{counts[k]}</b>
           </button>
@@ -363,19 +455,19 @@ export default function TreeView({ pid, activities, orderMap, phases, companyNam
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 10 }}>
-        <div className="tv-seg" role="group" aria-label="Quanto da árvore mostrar">
+        <div className="tv-seg" role="group" aria-label="Quanto do mapa mostrar">
           <button type="button" aria-pressed={level === 1} onClick={() => setLevel(1)}>Só grupos</button>
           <button type="button" aria-pressed={level === 2} onClick={() => setLevel(2)}>Atividades</button>
           <button type="button" aria-pressed={level === 3} onClick={() => setLevel(3)}>Subatividades</button>
         </div>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          <button type="button" className="tv-iconbtn" onClick={() => zoom(-0.1)} aria-label="Diminuir o zoom" title="Diminuir"><Minus size={14} /></button>
-          <span style={{ minWidth: 42, textAlign: 'center', fontSize: 12, color: 'var(--text-3)' }} aria-live="polite">{Math.round(scale * 100)}%</span>
-          <button type="button" className="tv-iconbtn" onClick={() => zoom(0.1)} aria-label="Aumentar o zoom" title="Aumentar"><Plus size={14} /></button>
-          <button type="button" className="tv-iconbtn" onClick={fit} aria-label="Ajustar a árvore à largura da tela" title="Ajustar à largura"><Maximize2 size={14} /></button>
+          <button type="button" className="tv-iconbtn"  onClick={() => zoomCenter(1 / 1.25)} aria-label="Diminuir o zoom" title="Diminuir"><Minus size={14} /></button>
+          <span style={{ minWidth: 42, textAlign: 'center', fontSize: 12, color: 'var(--text-3)' }} aria-live="polite">{Math.round(cam.k * 100)}%</span>
+          <button type="button" className="tv-iconbtn" onClick={() => zoomCenter(1.25)} aria-label="Aumentar o zoom" title="Aumentar"><Plus size={14} /></button>
+          <button type="button" className="tv-iconbtn" onClick={fit} aria-label="Ajustar o mapa à tela" title="Ajustar à tela (duplo clique no fundo)"><Maximize2 size={14} /></button>
         </div>
         <span style={{ fontSize: 12, color: 'var(--text-4)' }}>
-          {filtersOn ? `${shown.length} de ${all.length} atividades` : plural(all.length, 'atividade', 'atividades')} · arraste o fundo para andar pela árvore; clique numa atividade para abri-la
+          {filtersOn ? `${shown.length} de ${all.length} atividades` : plural(all.length, 'atividade', 'atividades')} · role para dar zoom, arraste para mover, clique numa atividade para abri-la
         </span>
       </div>
 
@@ -384,26 +476,30 @@ export default function TreeView({ pid, activities, orderMap, phases, companyNam
       ) : (
         <div
           ref={boxRef}
+          tabIndex={0}
+          role="application"
+          aria-label="Mapa do cronograma. Arraste para mover, role o mouse para dar zoom, setas movem, mais e menos dão zoom, zero ajusta à tela."
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
-          style={{ overflow: 'auto', maxHeight: isMobile ? '68vh' : 'calc(100vh - 290px)', minHeight: 320, border: '1px solid var(--border-2)', borderRadius: 12, background: 'var(--bg-1)', cursor: 'grab', touchAction: 'pan-x pan-y' }}
+          onClickCapture={onClickCapture}
+          onDoubleClick={onDoubleClick}
+          onKeyDown={onKeyDown}
+          style={{ position: 'relative', overflow: 'hidden', height: isMobile ? '62vh' : 'calc(100vh - 300px)', minHeight: 380, border: '1px solid var(--border-2)', borderRadius: 12, background: 'var(--bg-1)', cursor: 'grab', touchAction: 'none', userSelect: 'none' }}
         >
-          <div style={{ width: layout.width * scale, height: layout.height * scale }}>
-            <div style={{ position: 'relative', width: layout.width, height: layout.height, transform: `scale(${scale})`, transformOrigin: '0 0' }}>
-              <svg width={layout.width} height={layout.height} style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }} aria-hidden="true">
-                {layout.edges.map((e) => {
-                  const x1 = e.from.x + e.from.w;
-                  const y1 = e.from.y + e.from.h / 2;
-                  const x2 = e.to.x;
-                  const y2 = e.to.y + e.to.h / 2;
-                  const dx = (x2 - x1) * 0.55;
-                  return <path key={`${e.from.id}>${e.to.id}`} d={`M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`} fill="none" stroke={/^#/.test(e.color || '') ? `${e.color}99` : 'var(--border-3)'} strokeWidth="1.6" />;
-                })}
-              </svg>
-              {layout.nodes.map(renderNode)}
-            </div>
+          <div style={{ position: 'absolute', left: 0, top: 0, width: layout.width, height: layout.height, transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.k})`, transformOrigin: '0 0', willChange: 'transform' }}>
+            <svg width={layout.width} height={layout.height} style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }} aria-hidden="true">
+              {layout.edges.map((e) => {
+                const x1 = e.from.x + e.from.w;
+                const y1 = e.from.y + e.from.h / 2;
+                const x2 = e.to.x;
+                const y2 = e.to.y + e.to.h / 2;
+                const dx = (x2 - x1) * 0.55;
+                return <path key={`${e.from.id}>${e.to.id}`} d={`M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`} fill="none" stroke={/^#/.test(e.color || '') ? `${e.color}99` : 'var(--border-3)'} strokeWidth="1.6" />;
+              })}
+            </svg>
+            {layout.nodes.map(renderNode)}
           </div>
         </div>
       )}

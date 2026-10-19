@@ -10,10 +10,12 @@ import { lazyRetry } from '../lib/lazyRetry.jsx';
 import { S } from '../styles/S.js';
 import SafeBoundary from '../ui/SafeBoundary.jsx';
 import { buildActivityOptions, taskCountsByActivity } from '../meetings/ActivityLink.jsx';
-import { AreaRow, CLIENT_TYPE_META, CLIENT_TYPE_ORDER, COMPANY_STATUS_META, CompanySectionHeader, CreateCompanyModal, GroupActivityCompaniesModal, PhaseRow, SidePanel, TeamLinkBadge, ToastStack, TodoBoardView, fmtDate, fmtTs, todayISOStr } from '../App.jsx';
+import { AreaRow, CLIENT_TYPE_META, CLIENT_TYPE_ORDER, COMPANY_STATUS_META, CompanySectionHeader, CreateCompanyModal, GroupActivityCompaniesModal, PhaseRow, SidePanel, TeamLinkBadge, ToastStack, TodoBoardView, fmtDate, fmtTs, todayISOStr, useMediaQuery } from '../App.jsx';
 import { KanbanView, PhasesView, PrintReport, ResumoView, TableView, TimelineView } from './CompanyViews.jsx';
 import { AutoDatesToggle } from './AutoDates.jsx';
-import TreeView from './TreeView.jsx';
+import MapView from './MapView.jsx';
+import { ScreenSearchBox, ScreenSearchNote } from './ScreenSearch.jsx';
+import { countLiveItems, filterActivities, filterMeetings, filterTodoMeetings, queryTerms } from '../lib/screenSearch.js';
 
 const StandardAuditModal = lazyRetry(() => import('../macro/StandardAudit.jsx'));
 const StandardPlanBar = lazyRetry(() => import('../macro/StandardPlanBar.jsx'));
@@ -158,6 +160,30 @@ export function CompanyWorkspace({ ctx }) {
   // Cronograma padrão aberto na tela de empresa (2026-10-19): sem dados de empresa, reuniões, tarefas de reunião, auditoria nem RENATA; a faixa de versões fica no alto.
   const isTpl = !!activeProject && activeProject.id === 'std-plan';
   const multiTaskCounts = isMulti ? Object.fromEntries(selectedProjects.map((p) => [p.id, taskCountsByActivity(p.meetings)])) : null;
+
+  // Busca da tela aberta (2026-10-19): um texto POR ABA (trocar de aba não leva o filtro junto) e zerado ao trocar de empresa.
+  const searchScope = isMulti ? selectedProjects.map((p) => p.id).join(',') : (activeProject ? activeProject.id : '');
+  const [searches, setSearches] = React.useState({});
+  React.useEffect(() => { setSearches({}); }, [searchScope]);
+  const wideTabs = useMediaQuery('(min-width: 1180px)');
+  const searchQ = searches[view] || '';
+  const setSearchQ = (v) => setSearches((prev) => ({ ...prev, [view]: v }));
+  const searching = queryTerms(searchQ).length > 0;
+  const liveActs = (list) => (list || []).filter((a) => !a.deleted);
+  const shownActs = !isMulti && activeProject ? filterActivities(activitiesSorted, searchQ, activeProject.phases, orderMap) : activitiesSorted;
+  const shownMulti = isMulti ? filterActivities(multiActivities, searchQ, null, null) : multiActivities;
+  const shownPer = isMulti && searching
+    ? Object.fromEntries(selectedProjects.map((p) => [p.id, filterActivities(perCompanySorted[p.id] || [], searchQ, p.phases, perCompanyOrderMap[p.id])]))
+    : perCompanySorted;
+  const shownMeetings = !isMulti && activeProject && view === 'meetings' ? filterMeetings(activeProject.meetings || [], searchQ) : (activeProject ? activeProject.meetings || [] : []);
+  const shownTodoMeetings = !isMulti && activeProject && view === 'todo' ? filterTodoMeetings(activeProject.meetings || [], searchQ) : (activeProject ? activeProject.meetings || [] : []);
+  const searchInfo = (() => {
+    if (view === 'meetings') return { placeholder: 'Buscar reuniões', noun: { one: 'reunião', many: 'reuniões', fem: true }, total: (activeProject?.meetings || []).filter((m) => !m.deleted).length, shown: shownMeetings.filter((m) => !m.deleted).length };
+    if (view === 'todo') return { placeholder: 'Buscar tarefas', noun: { one: 'tarefa', many: 'tarefas', fem: true }, total: countLiveItems(activeProject?.meetings), shown: countLiveItems(shownTodoMeetings) };
+    const total = isMulti ? liveActs(multiActivities).length : liveActs(activitiesSorted).length;
+    const shown = isMulti ? liveActs(shownMulti).length : liveActs(shownActs).length;
+    return { placeholder: 'Buscar atividades', noun: { one: 'atividade', many: 'atividades', fem: true }, total, shown };
+  })();
 
   return (
     <div className="page-root" style={S.page}>
@@ -310,7 +336,7 @@ export function CompanyWorkspace({ ctx }) {
           { id: 'table', label: 'Tabela', icon: List },
           { id: 'phases', label: 'Fases', icon: LayoutGrid },
           { id: 'kanban', label: 'Quadro', icon: Columns3 },
-          !isMulti && { id: 'arvore', label: 'Árvore', icon: Network },
+          !isMulti && { id: 'mapa', label: 'Mapa', icon: Network },
         ].filter(Boolean).map((t) => {
           const Icon = t.icon;
           return (
@@ -319,15 +345,18 @@ export function CompanyWorkspace({ ctx }) {
             </button>
           );
         })}
+        {wideTabs && <div style={{ marginLeft: 'auto', paddingLeft: 12, alignSelf: 'center' }}><ScreenSearchBox value={searchQ} onChange={setSearchQ} placeholder={searchInfo.placeholder} /></div>}
       </div>
+      {!wideTabs && <div className="no-print" style={{ padding: isMobile ? '10px 12px 0' : '10px 24px 0', display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end' }}><ScreenSearchBox value={searchQ} onChange={setSearchQ} placeholder={searchInfo.placeholder} /></div>}
 
       <main className="no-print" style={{ ...S.main, ...(isMobile ? { padding: `14px 12px ${isMulti ? 0 : 64}px 12px` } : null) }}>
+        <ScreenSearchNote value={searchQ} shown={searchInfo.shown} total={searchInfo.total} noun={searchInfo.noun} onClear={() => setSearchQ('')} />
         {!isMulti && activeProject && ['table', 'timeline', 'phases', 'kanban'].includes(view) && <AutoDatesToggle pid={activeProject.id} />}
         <SafeBoundary resetKey={`company:${view}:${isMulti ? 'multi' : (activeProject ? activeProject.id : '')}`} label="esta aba" where="company-view" actions={isMulti && view === 'table' ? undefined : (view === 'table' ? [{ label: 'Ir para o Resumo', onClick: () => setView('resumo') }] : [{ label: 'Ir para a Tabela', onClick: () => setView('table') }])}>
         <React.Suspense fallback={<div style={S.emptyMuted}>Carregando…</div>}>
         {!isMulti && view === 'resumo' && (
           <ResumoView
-            activities={activitiesSorted}
+            activities={shownActs}
             orderMap={orderMap}
             phases={activeProject.phases}
             pid={activeProject.id}
@@ -339,7 +368,7 @@ export function CompanyWorkspace({ ctx }) {
         )}
         {!isMulti && view === 'meetings' && (
           <MeetingsView
-            meetings={activeProject.meetings || []}
+            meetings={shownMeetings}
             team={activeProject.team}
             pid={activeProject.id}
             companyName={activeProject.company.nomeFantasia || activeProject.company.name || ''}
@@ -356,7 +385,7 @@ export function CompanyWorkspace({ ctx }) {
         {!isMulti && view === 'todo' && (
           <React.Suspense fallback={<div style={S.emptyMuted}>Carregando…</div>}>
           <TodoBoardView
-            meetings={activeProject.meetings || []}
+            meetings={shownTodoMeetings}
             team={activeProject.team}
             externalContacts={activeProject.externalContacts || []}
             clientName={activeProject.company && activeProject.company.name}
@@ -389,7 +418,7 @@ export function CompanyWorkspace({ ctx }) {
         )}
         {!isMulti && view === 'timeline' && (
           <TimelineView
-            activities={activitiesSorted}
+            activities={shownActs}
             phases={activeProject.phases}
             granularity={granularity}
             setGranularity={setGranularity}
@@ -405,7 +434,7 @@ export function CompanyWorkspace({ ctx }) {
         {!isMulti && view === 'table' && (
           <TableView
             staff={currentUser.role === 'master' || currentUser.role === 'pricetax'}
-            activities={activitiesSorted}
+            activities={shownActs}
             orderMap={orderMap}
             phases={activeProject.phases}
             team={activeProject.team}
@@ -427,11 +456,11 @@ export function CompanyWorkspace({ ctx }) {
           />
         )}
         {!isMulti && view === 'phases' && (
-          <PhasesView activities={activitiesSorted} orderMap={orderMap} phases={activeProject.phases} pid={activeProject.id} updateActivity={updateActivity} openDetail={openActivityDetail} companyColor={activeProject.company.color} taskCounts={taskCountsByActivity(activeProject.meetings)} onOpenTasks={(activityId) => { setView('todo'); setTodoFocusActivityId(activityId); }} />
+          <PhasesView activities={shownActs} orderMap={orderMap} phases={activeProject.phases} pid={activeProject.id} updateActivity={updateActivity} openDetail={openActivityDetail} companyColor={activeProject.company.color} taskCounts={taskCountsByActivity(activeProject.meetings)} onOpenTasks={(activityId) => { setView('todo'); setTodoFocusActivityId(activityId); }} />
         )}
         {!isMulti && view === 'kanban' && (
           <KanbanView
-            activities={activitiesSorted}
+            activities={shownActs}
             orderMap={orderMap}
             phases={activeProject.phases}
             pid={activeProject.id}
@@ -445,15 +474,15 @@ export function CompanyWorkspace({ ctx }) {
           />
         )}
 
-        {!isMulti && view === 'arvore' && (
-          <TreeView pid={activeProject.id} activities={activitiesSorted} orderMap={orderMap} phases={activeProject.phases} companyName={activeProject.company.name} companyColor={activeProject.company.color} openDetail={openActivityDetail} />
+        {!isMulti && view === 'mapa' && (
+          <MapView pid={activeProject.id} activities={shownActs} orderMap={orderMap} phases={activeProject.phases} companyName={activeProject.company.name} companyColor={activeProject.company.color} openDetail={openActivityDetail} />
         )}
 
         {isMulti && view === 'timeline' && selectedProjects.map((p) => (
           <div key={p.id} style={S.companySection}>
             <CompanySectionHeader project={p} onEditPhases={() => { setPhasesEditingProjectId(p.id); setShowPhases(true); }} />
             <TimelineView
-              activities={perCompanySorted[p.id]}
+              activities={shownPer[p.id]}
               phases={p.phases}
               granularity={granularity}
               setGranularity={setGranularity}
@@ -470,7 +499,7 @@ export function CompanyWorkspace({ ctx }) {
         {isMulti && view === 'table' && (
           <TableView
             staff={currentUser.role === 'master' || currentUser.role === 'pricetax'}
-            activities={multiActivities}
+            activities={shownMulti}
             expanded={expanded}
             setExpanded={setExpanded}
             updateActivity={updateActivity}
@@ -491,13 +520,13 @@ export function CompanyWorkspace({ ctx }) {
         {isMulti && view === 'phases' && selectedProjects.map((p) => (
           <div key={p.id} style={S.companySection}>
             <CompanySectionHeader project={p} onEditPhases={() => { setPhasesEditingProjectId(p.id); setShowPhases(true); }} />
-            <PhasesView activities={perCompanySorted[p.id]} orderMap={perCompanyOrderMap[p.id]} phases={p.phases} pid={p.id} updateActivity={updateActivity} openDetail={openActivityDetail} companyColor={p.company.color} taskCounts={multiTaskCounts[p.id]} onOpenTasks={(activityId) => openActivityTasks(p.id, activityId)} />
+            <PhasesView activities={shownPer[p.id]} orderMap={perCompanyOrderMap[p.id]} phases={p.phases} pid={p.id} updateActivity={updateActivity} openDetail={openActivityDetail} companyColor={p.company.color} taskCounts={multiTaskCounts[p.id]} onOpenTasks={(activityId) => openActivityTasks(p.id, activityId)} />
             <button style={{ ...S.iconBtn, marginTop: 8 }} onClick={() => addActivity(p.id)}><Plus size={14} /> Nova atividade em {p.company.name || 'empresa'}</button>
           </div>
         ))}
         {isMulti && view === 'kanban' && (
           <KanbanView
-            activities={multiActivities}
+            activities={shownMulti}
             dragId={dragId}
             setDragId={setDragId}
             updateActivity={updateActivity}
