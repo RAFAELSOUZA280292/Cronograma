@@ -89,7 +89,7 @@ src/screens/AutoDates.jsx  (2026-10-19, §65) Caixa "Ajustar datas automaticamen
 src/lib/dateRipple.js  (2026-10-19, §65) Regra pura do ajuste automático de datas (computeRipple/applyFieldChanges/rippleText).
 src/lib/autoDates.js  (2026-10-19, §65) Preferência "ajustar datas automaticamente" no localStorage por empresa (useAutoDates).
 src/screens/SubExtras.jsx  (2026-10-19, §65) Campos novos da subatividade (prioridade, executor, áreas, limite, predecessoras, recorrência, âncora, código): selos e painel Detalhes na Tabela e no detalhe da atividade.
-src/macro/StandardPlanBar.jsx  (2026-10-19, §65) Faixa do cronograma padrão na tela de empresa: versão atual, salvar nova versão (resumo do que mudou), descartar, histórico de versões, kickoff de referência, voltar.
+src/macro/StandardPlanBar.jsx  (2026-10-19, §65) Faixa do cronograma padrão na tela de empresa: versão atual, salvar nova versão (resumo do que mudou), descartar, histórico de versões (arquivar/desarquivar, propostas recolhidas), kickoff de referência, voltar.
 src/app/standardPlanActions.js  (2026-10-19, §65) Fábrica das ações do cronograma padrão: abrir/fechar, salvar versão, descartar, carregar versão antiga, mudar kickoff.
 src/lib/stdPlan.js  (2026-10-19, §65) STD_PLAN_ID (id fixo do "projeto" que representa o padrão aberto).
 server/standardTemplate.js  (2026-10-19, §65) Puro: sementes 1.0/2.0, sanitização, igualdade, diff entre versões, instanciar versão numa empresa nova (datas = kickoff + dias).

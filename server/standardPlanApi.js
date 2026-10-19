@@ -9,7 +9,7 @@ import { canAccessProject, effectiveOrgId } from './routes.js';
 import { planForProject, applyPlanToData } from './standardPlan.js';
 import { auditProject } from './standardAudit.js';
 import { countTemplate, isISODate } from './standardTemplate.js';
-import { STD_PLAN_ID, discardDraft, draftDiff, getDraft, listProposals, listVersions, loadProposal, previewInstantiate, restoreVersion, saveDraft, saveVersion } from './standardTemplateStore.js';
+import { STD_PLAN_ID, discardDraft, draftDiff, getDraft, listProposals, listVersions, loadProposal, previewInstantiate, restoreVersion, saveDraft, saveVersion, setArchived } from './standardTemplateStore.js';
 
 export const router = Router();
 router.use(requireAuth, requireMasterOrPricetax);
@@ -150,6 +150,19 @@ router.post('/template/versions', async (req, res, next) => {
     const orgId = orgOf(req, res); if (!orgId) return;
     const saved = await saveVersion(orgId, req.user, req.body && req.body.note);
     res.status(201).json(saved);
+  } catch (e) { fail(res, next, e); }
+});
+
+// Arquivar/desarquivar versões do histórico (não apaga). `versions` = lista de números ou "old" (todas menos a 1.0 e a atual).
+router.post('/template/versions/archive', async (req, res, next) => {
+  try {
+    const orgId = orgOf(req, res); if (!orgId) return;
+    const raw = req.body && req.body.versions;
+    const versions = raw === 'old' ? 'old' : (Array.isArray(raw) ? raw.map(Number).filter((n) => Number.isInteger(n) && n >= 1) : []);
+    if (versions !== 'old' && !versions.length) return res.status(400).json({ message: 'Escolha ao menos uma versão.' });
+    const archived = !(req.body && req.body.archived === false);
+    if (!archived && versions === 'old') return res.status(400).json({ message: 'Para desarquivar, informe as versões.' });
+    res.json(await setArchived(orgId, versions, archived));
   } catch (e) { fail(res, next, e); }
 });
 
