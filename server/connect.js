@@ -73,7 +73,7 @@ export const ENDPOINTS = [
   { method: 'GET', path: '/api/connect/companies', scope: 'read', what: 'Empresas (cronogramas) que o dono do token pode ver. Query: q=texto.' },
   { method: 'GET', path: '/api/connect/companies/:id', scope: 'read', what: 'Uma empresa: equipe, fases, atividades e lista de reuniões (sem transcrição).' },
   { method: 'GET', path: '/api/connect/companies/:id/meetings/:meetingId', scope: 'read', what: 'Uma reunião: resumo, decisões, itens de ação, participantes. Query: transcript=1 inclui a transcrição (até 60.000 caracteres).' },
-  { method: 'POST', path: '/api/connect/companies/:id/plan', scope: 'read_write', what: 'Ajusta o cronograma de uma empresa (só administrador). Corpo: ops (até 200: activity.set, sub.set, sub.add, activity.add), dryRun (padrão true: só mostra), note. Tudo ou nada, nunca apaga, grava no Log da empresa.' },
+  { method: 'POST', path: '/api/connect/companies/:id/plan', scope: 'read_write', what: 'Ajusta o cronograma de uma empresa (só administrador). Corpo: ops (até 200: activity.set, sub.set, sub.add, sub.move, activity.add), dryRun (padrão true: só mostra), note. Tudo ou nada, nunca apaga, grava no Log da empresa.' },
   { method: 'GET', path: '/api/connect/agenda', scope: 'read', what: 'Compromissos do Google Calendar do dono. Query: days=1..14 (padrão 7). Só os aceitos ou próprios.' },
 ];
 
@@ -353,7 +353,7 @@ router.get('/agenda', async (req, res, next) => {
 // ------------------------------------------------------------------ ajuste do cronograma de uma empresa (2026-10-19, escopo read_write)
 // Pedido do Rafael na urgência da Alcast: o token precisa AJUSTAR o cronograma de uma empresa (status, datas, subatividades, atividades novas). API estreita e declarativa:
 // uma lista de operações, tudo-ou-nada numa transação com FOR UPDATE, `dryRun` (padrão) mostra o que mudaria sem gravar, nunca apaga nada e nunca toca em reuniões.
-// Cada chamada que grava deixa uma linha no Log da empresa. `undo` devolve as operações que desfazem os ajustes de campos (atividades e subatividades criadas voltam em `created`).
+// Cada chamada que grava deixa uma linha no Log da empresa. `undo` devolve as operações que desfazem os ajustes de campos e as movimentações (atividades e subatividades criadas voltam em `created`).
 const STATUSES = ['nao-iniciado', 'em-andamento', 'pausado', 'concluido'];
 const PLAN_PRIORITIES = ['', 'urgente', 'alta', 'media', 'baixa'];
 const MAX_OPS = 200;
@@ -443,6 +443,16 @@ function applyPlanOps(data, ops, who) {
         a.subactivities = [...(a.subactivities || []), x];
         created.push({ type: 'sub', id: x.id, activity: a.id });
         results.push({ index, ok: true, what: `Nova subatividade "${clip(title, 80)}" em "${a.title}"` });
+      } else if (op.op === 'sub.move') {
+        // Move (não apaga): a subatividade sai de uma atividade e entra em outra, com o mesmo id, data e estado. `undo` devolve ao lugar.
+        const from = findRef(next.activities, op.from, 'atividade de origem');
+        const x = findRef(from.subactivities, op.sub, 'subatividade');
+        const to = findRef(next.activities, op.to, 'atividade de destino');
+        if (to.id === from.id) throw new Error('A origem e o destino são a mesma atividade.');
+        from.subactivities = (from.subactivities || []).filter((y) => y.id !== x.id);
+        to.subactivities = [...(to.subactivities || []), x];
+        undo.push({ op: 'sub.move', from: { id: to.id }, sub: { id: x.id }, to: { id: from.id } });
+        results.push({ index, ok: true, what: `Subatividade "${clip(x.title, 80)}" movida de "${from.title}" para "${to.title}"` });
       } else if (op.op === 'activity.add') {
         const title = clip(op.title, 200).trim();
         if (!title) throw new Error('título vazio');
