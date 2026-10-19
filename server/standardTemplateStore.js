@@ -3,7 +3,7 @@
 // do guia) é criada na primeira vez que a organização usa o padrão. Salvar uma versão nova é sempre uma ação explícita; o rascunho só guarda o que está sendo editado.
 import { pool } from './db.js';
 import {
-  V1_NOTE, V2_NOTE, V2_NOTE_ORIGINAL, buildV1, buildV2, buildV3, buildV4, countTemplate, diffTemplates, instantiateTemplate, purgeDeleted, sameTemplate, templateFromProject, templateValid,
+  V1_NOTE, V2_NOTE, V2_NOTE_ORIGINAL, buildV1, buildV2, buildV3, buildV4, buildV5, countTemplate, diffTemplates, instantiateTemplate, purgeDeleted, sameTemplate, templateFromProject, templateValid,
 } from './standardTemplate.js';
 
 export const STD_PLAN_ID = 'std-plan';
@@ -143,8 +143,9 @@ export async function saveVersion(orgId, user, note) {
 
 // Propostas que ainda não são versão (v3 e v4 de 19/10/2026): contagem para mostrar no histórico e carga no rascunho.
 export const PROPOSALS = { v3: { label: 'Proposta v3', description: 'Cronograma de 8 meses contados da assinatura do contrato, em duas trilhas (diagnóstico PRICETAX e implementação no cliente), com e-mail de boas-vindas no primeiro dia, prioridade, limite da norma e predecessoras. Rascunho para validação; não vira versão até alguém salvar.' },
-  v4: { label: 'Proposta v4 (modelo ideal)', description: 'Modelo ideal do comitê de reforma tributária em 8 meses: 6 fases e o comitê transversal, entrevistas com todas as áreas, agenda por área (entrevista, oficina de decisão, validação do desenho, teste de aceite, treinamento, prontidão e rotina), reunião mensal com a empresa e um roteiro em cada encontro. Rascunho para validação; não vira versão até alguém salvar.' } };
-const BUILDERS = { v3: buildV3, v4: buildV4 };
+  v4: { label: 'Proposta v4 (modelo ideal)', description: 'Modelo ideal do comitê de reforma tributária em 8 meses: 6 fases e o comitê transversal, entrevistas com todas as áreas, agenda por área (entrevista, oficina de decisão, validação do desenho, teste de aceite, treinamento, prontidão e rotina), reunião mensal com a empresa e um roteiro em cada encontro. Rascunho para validação; não vira versão até alguém salvar.' },
+  v5: { label: 'Proposta v5 (v4 com saldos credores)', description: 'A v4 inteira mais uma atividade própria de saldos credores (ICMS, IPI, PIS e COFINS): levantamento, conciliação, análise legal, simulação de caixa, decisão, registro do que vence em 2026 e plano de ação de 2027 a 2033 aprovado pela diretoria (D+40 a D+140). Reúne B4.9, B9.5 e B10.1; a execução em 2027 segue na Operação assistida. Rascunho para validação; não vira versão até alguém salvar.' } };
+const BUILDERS = { v3: buildV3, v4: buildV4, v5: buildV5 };
 export const listProposals = () => Object.entries(PROPOSALS).map(([key, p]) => ({ key, ...p, counts: countTemplate(BUILDERS[key]()) }));
 export async function loadProposal(orgId, user, key) {
   if (!BUILDERS[key]) { const e = new Error('Proposta não encontrada.'); e.status = 404; throw e; }
