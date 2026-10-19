@@ -63,7 +63,7 @@ export const MeetingExtractionSchema = z.object({
     title: z.string().describe('O que precisa ser feito — ação concreta e curta, sem o nome do responsável embutido no texto (o nome já vai no campo "responsible" à parte)'),
     responsible: z.string().nullable().describe('Nome da pessoa física responsável por executar, exatamente como ela é chamada na transcrição (ex.: "Evanio Santinon", "Rogeria Guerra", "Daniela") — nunca um cargo genérico, nunca o nome de uma empresa. Se duas pessoas dividem a tarefa (ex.: "Gustavo, com a Francine"), coloque as duas nesse mesmo campo, separadas por vírgula. null se a transcrição não deixar claro quem executa.'),
     owner: z.enum(['pricetax', 'cliente']).describe('De qual lado é essa entrega: "pricetax" quando quem precisa produzir/entregar algo é a própria equipe da consultoria PRICETAX (ex.: fazer uma análise, montar uma prévia, agendar um retorno); "cliente" quando quem precisa produzir/entregar algo é alguém do lado da empresa contratante — a pessoa em "responsible" normalmente já indica de qual lado é, mas classifique mesmo quando "responsible" ficar null'),
-    kind: z.enum(TASK_KINDS).describe('Tipo do item: "tarefa" = ação concreta a fazer; "decisao" = algo que foi decidido na reunião e precisa ficar registrado e acompanhado (o título é a decisão em uma frase curta; "responsible" é quem responde por ela); "risco" = algo que pode dar errado e precisa de atenção, com dono; "pendencia" = ficou em aberto, falta uma resposta, um dado ou uma definição que alguém precisa trazer. Na dúvida, "tarefa".'),
+    kind: z.string().describe('Tipo do item (exatamente um de: tarefa, decisao, risco, pendencia, sem acento): "tarefa" = ação concreta a fazer; "decisao" = algo que foi decidido na reunião e precisa ficar registrado e acompanhado (o título é a decisão em uma frase curta; "responsible" é quem responde por ela); "risco" = algo que pode dar errado e precisa de atenção, com dono; "pendencia" = ficou em aberto, falta uma resposta, um dado ou uma definição que alguém precisa trazer. Na dúvida, "tarefa".'),
     dueDate: z.string().nullable().describe('Prazo em YYYY-MM-DD — só se explicitamente mencionado'),
     area: z.enum(AREAS).nullable().describe('Área do cliente que esta ação envolve (Fiscal, Compras, Financeiro, Contábil, Controladoria, Comercial, Jurídico, Logística, Diretoria, RH, TI) — escolha a mais provável pelo assunto da ação; null se não der para decidir com segurança (nunca chute).'),
   })).describe('Lista de atividades e próximos passos definidos na reunião, um item por ação concreta — não agrupe várias ações numa linha só'),
@@ -82,9 +82,12 @@ export const MeetingExtractionSchema = z.object({
 // lado PRICETAX, amarra à pessoa da equipe quando só há UMA correspondência (nome completo; guarda o original em
 // `responsibleOriginal` e marca `responsibleStatus: 'auto'`); se for ambíguo ou desconhecido, mantém o texto e marca
 // 'confirmar'. Ações do lado do cliente não são mexidas (gente de fora da equipe). Função pura.
+// A IA às vezes devolve "decisão" (com acento) ou maiúscula; um tipo fora da lista nunca pode derrubar a transcrição inteira.
+const normalizeKind = (v) => { const k = String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase(); return TASK_KINDS.includes(k) ? k : 'tarefa'; };
+
 export function normalizeActionItems(items, candidates) {
   return (items || []).map((it) => {
-    const base = { area: AREAS.includes(it.area) ? it.area : '', kind: TASK_KINDS.includes(it.kind) ? it.kind : 'tarefa', responsibleOriginal: '', responsibleStatus: '' };
+    const base = { area: AREAS.includes(it.area) ? it.area : '', kind: normalizeKind(it.kind), responsibleOriginal: '', responsibleStatus: '' };
     const name = String(it.responsible || '').trim();
     if (!name || it.owner === 'cliente') return { ...it, ...base, responsible: name };
     const m = matchPerson(name, candidates);
