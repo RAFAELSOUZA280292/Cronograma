@@ -3,11 +3,12 @@
 // O código é o mesmo de antes; o que vem do App.jsx é importado de lá (e lá foi exportado).
 
 import { AddMenu, AttachmentList, CommentThread, ComposeBox } from '../ui/ComposeBox.jsx';
-import { AlertTriangle, Building2, Check, ChevronDown, GripVertical, History, Lock, Maximize2, MessageSquare, Mic, MoreHorizontal, Paperclip, Plus, SlidersHorizontal, Trash2, Upload, Users, X } from 'lucide-react';
+import { AlertTriangle, Building2, Check, ChevronDown, ChevronUp, ChevronsUp, GripVertical, History, Lock, Maximize2, MessageSquare, Mic, MoreHorizontal, Paperclip, Plus, SlidersHorizontal, Trash2, Upload, Users, X } from 'lucide-react';
 import { Button, IconButton, RecordSaveStatus, activate, activateRow } from '../ui/index.jsx';
 import { DialogOverlay } from '../ui/dialog.jsx';
 import LinkedTasks from '../meetings/LinkedTasks.jsx';
-import { linkPatch, meetingAbove, pautaItems } from '../../shared/pauta.js';
+import { findSub, linkPatch, meetingAbove, pautaItems } from '../../shared/pauta.js';
+import PautaPicker from './PautaPicker.jsx';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import pricetaxLogoBranco from '../assets/brand/pricetax-logo-branco.png';
@@ -25,6 +26,10 @@ const SUB_ROW_CSS = `
   .sub-row-card .sub-del-btn { opacity:.4; transition:opacity .12s, color .12s; }
   .sub-row-card:hover .sub-del-btn { opacity:1; }
   .sub-row-card .sub-del-btn:hover { color:#e5484d; }
+  .sub-row-card .sub-pauta-btn { opacity:1; }
+  .sub-row-card .sub-pauta-btn:hover:not(:disabled) { color:var(--text-1); border-color:var(--ui-accent, #F5C400); }
+  .sub-row-card .sub-pauta-btn:disabled { opacity:.3; cursor:default; }
+  .sub-row-card .sub-pauta-btn:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
   .sub-row-card .sub-title-input { background:transparent; border:1px solid transparent; padding:4px 6px; font-size:13px; border-radius:5px; }
   .sub-row-card textarea.sub-title-input { resize:none; overflow:hidden; line-height:1.4; font-family:inherit; display:block; box-sizing:border-box; min-height:28px; }
   .sub-row-card .sub-title-input:hover { background:var(--bg-3); }
@@ -202,10 +207,14 @@ function OrderBadge({ n, title, color, phaseName, onOpen }) {
   );
 }
 
-function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSub, deleteSub, reorderSub, allSubs, canEditExtras, meetings, onOpenMeeting, meetingConflicts, siblings }) {
-  const pautaMeeting = s.pautaDe ? (siblings || []).find((x) => x.id === s.pautaDe && !x.deleted) : null;
+function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSub, deleteSub, reorderSub, allSubs, canEditExtras, meetings, onOpenMeeting, meetingConflicts, siblings, projectActivities, moveSub, linkPautaTo, linkPautaBelow, subIndex, subCount }) {
+  const [pickOpen, setPickOpen] = useState(false);
+  const pautaHit = s.pautaDe ? findSub(projectActivities || [{ id: actId, subactivities: siblings }], s.pautaDe) : null;
+  const pautaMeeting = pautaHit ? pautaHit.sub : null;
+  const pautaOtherAct = pautaHit && pautaHit.act.id !== actId ? pautaHit.act : null;
   const aboveMeeting = s.kind !== 'reuniao' && !s.pautaDe ? meetingAbove(siblings, s.id) : null;
-  const pautaCount = s.kind === 'reuniao' ? pautaItems(siblings, s.id).length : 0;
+  const pautaCount = s.kind === 'reuniao' ? (projectActivities || [{ id: actId, subactivities: siblings }]).flatMap((x) => (x.deleted ? [] : x.subactivities || [])).filter((x) => !x.deleted && !x.done && x.pautaDe === s.id).length : 0;
+  const belowN = s.kind === 'reuniao' && linkPautaBelow ? (() => { const l = (siblings || []).filter((x) => !x.deleted); const i = l.findIndex((x) => x.id === s.id); let n = 0; for (let k = i + 1; k < l.length && l[k].kind !== 'reuniao'; k += 1) if (!l[k].done && l[k].pautaDe !== s.id) n += 1; return n; })() : 0;
   const conflict = s.kind === 'reuniao' && !s.done ? (meetingConflicts || []).find((c) => c.items.some((i) => i.key === `${actId}#${s.id}`)) : null;
   const titleField = useDebouncedField(s.title, (v) => updateSub(pid, actId, s.id, { title: v }));
   // Título da subatividade quebra em linhas (cresce com o texto) em vez de cortar: o painel é largo e o nome inteiro precisa aparecer.
@@ -226,6 +235,13 @@ function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSu
         </div>
         <input type="checkbox" checked={s.done} onChange={(e) => updateSub(pid, actId, s.id, { done: e.target.checked })} />
         <textarea ref={titleRef} rows={1} className="sub-title-input" aria-label="Título da subatividade" value={titleField.draft} onChange={(e) => titleField.onChange(e.target.value)} onBlur={titleField.flush} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }} style={{ ...S.subTitleInput, textDecoration: s.done ? 'line-through' : 'none', opacity: s.done ? .6 : 1 }} />
+        {moveSub && subCount > 1 && (
+          <span style={{ display: 'inline-flex', gap: 2 }}>
+            <button type="button" aria-label="Mover para o topo da lista" title="Mover para o topo" className="sub-pauta-btn" style={S.iconBtnGhost} disabled={subIndex === 0} onClick={() => moveSub(pid, actId, s.id, 'top')}><ChevronsUp aria-hidden="true" size={13} /></button>
+            <button type="button" aria-label="Subir uma posição" title="Subir" className="sub-pauta-btn" style={S.iconBtnGhost} disabled={subIndex === 0} onClick={() => moveSub(pid, actId, s.id, 'up')}><ChevronUp aria-hidden="true" size={13} /></button>
+            <button type="button" aria-label="Descer uma posição" title="Descer" className="sub-pauta-btn" style={S.iconBtnGhost} disabled={subIndex === subCount - 1} onClick={() => moveSub(pid, actId, s.id, 'down')}><ChevronDown aria-hidden="true" size={13} /></button>
+          </span>
+        )}
         <button aria-label="Excluir subatividade" title="Excluir subatividade" className="sub-del-btn" style={S.iconBtnGhost} onClick={() => deleteSub(pid, actId, s.id)}><X aria-hidden="true" size={13} /></button>
       </div>
       <div style={S.subMetaRow}>
@@ -244,14 +260,21 @@ function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSu
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', margin: '4px 0 0 28px', fontSize: 11.5 }}>
           {pautaMeeting ? (
             <>
-              <span style={{ color: 'var(--text-3)' }}>Pauta da reunião <b style={{ color: 'var(--text-1)' }}>{pautaMeeting.title}</b>{pautaMeeting.date ? ` · ${fmtDate(pautaMeeting.date)}` : ''} (a data acompanha a reunião)</span>
-              <button type="button" className="sub-del-btn" style={{ ...S.iconBtnGhost, fontSize: 11, padding: '2px 8px' }} onClick={() => updateSub(pid, actId, s.id, { pautaDe: '' })} title="Desvincular da reunião (a data fica como está)">Desvincular</button>
+              <span style={{ color: 'var(--text-3)' }}>Pauta da reunião <b style={{ color: 'var(--text-1)' }}>{pautaMeeting.title}</b>{pautaOtherAct ? ` (${pautaOtherAct.title})` : ''}{pautaMeeting.date ? ` · ${fmtDate(pautaMeeting.date)}` : ''} (a data acompanha a reunião)</span>
+              <button type="button" className="sub-pauta-btn" style={{ ...S.iconBtnGhost, fontSize: 11, padding: '2px 8px' }} onClick={() => updateSub(pid, actId, s.id, { pautaDe: '' })} title="Desvincular da reunião (a data fica como está)">Desvincular</button>
             </>
           ) : (
-            <button type="button" className="sub-del-btn" style={{ ...S.iconBtnGhost, fontSize: 11.5, padding: '3px 9px', color: 'var(--text-1)', fontWeight: 700 }} onClick={() => updateSub(pid, actId, s.id, linkPatch(aboveMeeting))} title={`Trata este item na mesma agenda da reunião "${aboveMeeting.title}" e usa a data dela${aboveMeeting.date ? '' : ' (a reunião ainda não tem data)'}`}>Tratar na reunião de cima{aboveMeeting.date ? ` (${fmtDate(aboveMeeting.date)})` : ''}</button>
+            <button type="button" className="sub-pauta-btn" style={{ ...S.iconBtnGhost, fontSize: 11.5, padding: '3px 9px', color: 'var(--text-1)', fontWeight: 700 }} onClick={() => updateSub(pid, actId, s.id, linkPatch(aboveMeeting))} title={`Trata este item na mesma agenda da reunião "${aboveMeeting.title}" e usa a data dela${aboveMeeting.date ? '' : ' (a reunião ainda não tem data)'}`}>Tratar na reunião de cima{aboveMeeting.date ? ` (${fmtDate(aboveMeeting.date)})` : ''}</button>
           )}
         </div>
       )}
+      {s.kind === 'reuniao' && !s.done && (linkPautaBelow || linkPautaTo) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', margin: '4px 0 0 28px', fontSize: 11.5 }}>
+          {linkPautaBelow && belowN > 0 && <button type="button" className="sub-pauta-btn" style={{ ...S.iconBtnGhost, fontSize: 11.5, padding: '3px 9px', color: 'var(--text-1)', fontWeight: 700 }} onClick={() => linkPautaBelow(pid, actId, s.id)} title="Leva os itens de trabalho que estão abaixo desta reunião para a pauta dela e para a data dela">Vincular os {belowN} itens abaixo</button>}
+          {linkPautaTo && <button type="button" className="sub-pauta-btn" style={{ ...S.iconBtnGhost, fontSize: 11.5, padding: '3px 9px', color: 'var(--text-1)', fontWeight: 700 }} onClick={() => setPickOpen(true)} title="Escolhe itens de trabalho desta atividade ou de outras frentes para esta reunião">Vincular itens de outras frentes…</button>}
+        </div>
+      )}
+      {pickOpen && <PautaPicker activities={projectActivities || []} meeting={s} meetingActId={actId} onConfirm={(items) => linkPautaTo(pid, actId, s.id, items)} onClose={() => setPickOpen(false)} />}
       {pautaCount > 0 && <div style={{ margin: '4px 0 0 28px', fontSize: 11.5, color: 'var(--text-3)' }}>Pauta: {pautaCount} {pautaCount === 1 ? 'item de trabalho vinculado' : 'itens de trabalho vinculados'}; a data deles acompanha esta reunião.</div>}
       {conflict && <div role="note" style={{ display: 'flex', gap: 6, alignItems: 'flex-start', fontSize: 11.5, color: '#e0a21a', margin: '2px 0 0 28px', lineHeight: 1.4 }}><AlertTriangle size={12} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} /><span>Outra reunião neste mesmo dia ({fmtDate(conflict.day)}): {conflict.items.filter((i) => i.key !== `${actId}#${s.id}`).map((i) => i.title).join('; ')}. Só pode haver uma por dia.</span></div>}
       <SubExtras s={s} pid={pid} actId={actId} allSubs={allSubs} canEdit={canEditExtras} updateSub={updateSub} meetings={meetings} onOpenMeeting={onOpenMeeting} />
@@ -259,7 +282,7 @@ function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSu
   );
 }
 
-export function ActivityDetailModal({ meetingConflicts = [], activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, flushProjectSave, deleteActivity, addSub, updateSub, deleteSub, reorderSub, allSubs, addAttachments, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant, meetings, onOpenLinkedTask, onOpenLinkedTasks, onOpenMeeting }) {
+export function ActivityDetailModal({ meetingConflicts = [], projectActivities, moveSub, linkPautaTo, linkPautaBelow, activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, flushProjectSave, deleteActivity, addSub, updateSub, deleteSub, reorderSub, allSubs, addAttachments, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant, meetings, onOpenLinkedTask, onOpenLinkedTasks, onOpenMeeting }) {
   const [dragSubId, setDragSubId] = useState(null);
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [linkLabelDraft, setLinkLabelDraft] = useState('');
@@ -436,7 +459,8 @@ export function ActivityDetailModal({ meetingConflicts = [], activity: a, orderM
                     dragSubId={dragSubId} setDragSubId={setDragSubId}
                     team={team} updateSub={updateSub} deleteSub={deleteSub} reorderSub={reorderSub}
                     allSubs={allSubs} canEditExtras={!!currentUser && (currentUser.role === 'master' || currentUser.role === 'pricetax')}
-                    meetings={meetings} onOpenMeeting={onOpenMeeting} meetingConflicts={meetingConflicts} siblings={a.subactivities}
+                    meetings={meetings} onOpenMeeting={onOpenMeeting} meetingConflicts={meetingConflicts} siblings={a.subactivities} projectActivities={projectActivities} moveSub={moveSub} linkPautaTo={linkPautaTo} linkPautaBelow={linkPautaBelow}
+                    subIndex={(a.subactivities || []).filter((x) => !x.deleted).findIndex((x) => x.id === s.id)} subCount={(a.subactivities || []).filter((x) => !x.deleted).length}
                   />
                 ))}
                 {!(a.subactivities || []).some((x) => !x.deleted) && <div style={S.emptyMuted}>Nenhuma subatividade ainda.</div>}

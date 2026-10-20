@@ -106,6 +106,7 @@ export function CompanyWorkspace({ ctx }) {
     renderMeetingDetailModal,
     reorderPhase,
     reorderSub,
+    linkPautaTo,
     requestTaskSuggestions,
     resetTaskLinks,
     restoreActivity,
@@ -494,7 +495,7 @@ export function CompanyWorkspace({ ctx }) {
         )}
 
         {!isMulti && !isTpl && view === 'triagem' && (
-          <CompanyTriage project={activeProject} updateActivity={updateActivity} updateSub={updateSub} openDetail={openActivityDetail} onReserve={() => setShowCalendarBlock(true)} pushUndoToast={pushAppUndoToast} />
+          <CompanyTriage project={activeProject} updateActivity={updateActivity} updateSub={updateSub} openDetail={openActivityDetail} onReserve={() => setShowCalendarBlock(true)} pushUndoToast={pushAppUndoToast} linkPautaTo={linkPautaTo} />
         )}
 
         {!isMulti && view === 'mapa' && (

@@ -1,12 +1,12 @@
 // Ações sobre as atividades de uma empresa (criar, editar, excluir, subatividades, anexos, comentários, links e participantes).
 // Extraído de AppScreens (src/App.jsx) em 2026-10-17 ("dividir o AppScreens e o S"). É uma FÁBRICA chamada a cada render: recebe o estado e as funções
 // atuais do AppScreens e devolve as ações — o mesmo código de antes, em outro arquivo (as funções são recriadas a cada render, como sempre foram).
-import { askConfirm } from '../ui/dialogs.jsx';
+import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { readFileAsAttachment } from '../ui/ComposeBox.jsx';
 import { DELETE_CONFIRM_PHRASE, MAX_ATTACHMENT_BYTES, uid } from '../App.jsx';
 import { applyFieldChanges, computeRipple, rippleText } from '../lib/dateRipple.js';
 import { readAutoDates } from '../lib/autoDates.js';
-import { reconcilePauta, unlinkPauta } from '../../shared/pauta.js';
+import { linkPautaItems, linkableItems, moveSubIn, reconcilePautaProject, revertPautaItems, unlinkPautaProject, findSub } from '../../shared/pauta.js';
 
 export function createCompanyActivityActions({ currentUser, mutateProject, openActivityDetail, projects, pushAppUndoToast, setExpanded }) {
   function addLog(targetPid, action) {
@@ -135,14 +135,15 @@ export function createCompanyActivityActions({ currentUser, mutateProject, openA
         ? { ...rawPatch, skipped: false, skipReason: '', doneAt: new Date().toISOString(), doneBy: currentUser ? currentUser.name : '' }
         : { ...rawPatch, skipped: false, skipReason: '', doneAt: '', doneBy: '' };
     }
-    const apply = (acts) => acts.map((a) => a.id !== actId ? a : { ...a, subactivities: reconcilePauta((a.subactivities || []).map((s) => s.id === subId ? { ...s, ...patch } : s), subId, patch) });
+    const apply = (acts) => acts.map((a) => a.id !== actId ? a : { ...a, subactivities: (a.subactivities || []).map((s) => s.id === subId ? { ...s, ...patch } : s) });
+    const applyAll = (acts) => reconcilePautaProject(apply(acts), subId, patch);
     if (Object.prototype.hasOwnProperty.call(patch, 'date')) {
-      const rp = withRipple(targetPid, { kind: 'sub', actId, subId, patch }, apply);
+      const rp = withRipple(targetPid, { kind: 'sub', actId, subId, patch }, applyAll);
       mutateProject(targetPid, rp.updater, undefined, actId);
       rp.after();
       return;
     }
-    mutateProject(targetPid, (p) => ({ ...p, activities: apply(p.activities) }), undefined, actId);
+    mutateProject(targetPid, (p) => ({ ...p, activities: applyAll(p.activities) }), undefined, actId);
   }
 
   function deleteSub(targetPid, actId, subId) {
@@ -151,10 +152,10 @@ export function createCompanyActivityActions({ currentUser, mutateProject, openA
     const sub = act && (act.subactivities || []).find((s) => s.id === subId);
     mutateProject(targetPid, (p) => ({
       ...p,
-      activities: p.activities.map((a) => a.id !== actId ? a : {
+      activities: unlinkPautaProject(p.activities.map((a) => a.id !== actId ? a : {
         ...a,
-        subactivities: unlinkPauta((a.subactivities || []).map((s) => s.id === subId ? { ...s, deleted: true, deletedAt: new Date().toISOString(), deletedBy: currentUser ? currentUser.name : '' } : s), subId),
-      }),
+        subactivities: (a.subactivities || []).map((s) => s.id === subId ? { ...s, deleted: true, deletedAt: new Date().toISOString(), deletedBy: currentUser ? currentUser.name : '' } : s),
+      }), subId),
     }), sub ? `Subatividade excluída em "${act.title}": ${sub.title}` : undefined, actId);
     if (sub) pushAppUndoToast(`Subatividade "${sub.title}" excluída.`, () => restoreSub(targetPid, actId, subId), 8000);
   }
@@ -201,6 +202,41 @@ export function createCompanyActivityActions({ currentUser, mutateProject, openA
         return { ...a, subactivities: list };
       }),
     }), undefined, actId);
+  }
+
+  // Mover a subatividade na lista da atividade por clique (o arrastar pela alça continua em `reorderSub`): 'top' | 'up' | 'down' | 'bottom'.
+  function moveSub(targetPid, actId, subId, where) {
+    mutateProject(targetPid, (p) => ({ ...p, activities: p.activities.map((a) => (a.id !== actId ? a : { ...a, subactivities: moveSubIn(a.subactivities, subId, where) })) }), undefined, actId);
+  }
+
+  // Pauta em lote (2026-10-20): liga itens de trabalho a uma reunião (subatividade do tipo Reunião) e leva a data dela. Aceita itens de OUTRAS atividades.
+  function linkPautaTo(targetPid, meetingActId, meetingSubId, items) {
+    const project = projects.find((p) => p.id === targetPid);
+    const hit = project && findSub(project.activities, meetingSubId);
+    if (!hit || !items.length) return 0;
+    const preview = linkPautaItems(project.activities, meetingSubId, items);
+    if (!preview.changed.length) return 0;
+    const changed = preview.changed;
+    const who = currentUser ? currentUser.name : 'Alguém';
+    mutateProject(targetPid, (p) => ({ ...p, activities: linkPautaItems(p.activities, meetingSubId, items).activities }), `${who} vinculou ${changed.length} item${changed.length === 1 ? '' : 's'} à pauta da reunião "${hit.sub.title}"`, meetingActId);
+    pushAppUndoToast(`${changed.length} item${changed.length === 1 ? '' : 's'} na pauta de "${hit.sub.title}"${hit.sub.date ? ' e na data da reunião' : ''}.`, () => mutateProject(targetPid, (p) => ({ ...p, activities: revertPautaItems(p.activities, changed) }), 'Vínculo com a pauta desfeito', meetingActId), 10000);
+    return changed.length;
+  }
+
+  // "Vincular os itens abaixo": os itens de trabalho que estão abaixo da reunião na MESMA atividade (até a próxima reunião).
+  async function linkPautaBelow(targetPid, actId, meetingSubId) {
+    const project = projects.find((p) => p.id === targetPid);
+    const act = project && project.activities.find((a) => a.id === actId);
+    const list = ((act && act.subactivities) || []).filter((s) => !s.deleted);
+    const i = list.findIndex((s) => s.id === meetingSubId);
+    if (i < 0) return;
+    const items = [];
+    for (let k = i + 1; k < list.length && list[k].kind !== 'reuniao'; k += 1) if (!list[k].done) items.push({ actId, subId: list[k].id });
+    const meeting = list[i];
+    const todo = linkPautaItems(project.activities, meetingSubId, items).changed;
+    if (!todo.length) { notify('Nenhum item novo abaixo desta reunião para vincular.', { tone: 'info' }); return; }
+    const ok = await askConfirm({ title: 'Vincular os itens abaixo?', message: `${todo.length} item${todo.length === 1 ? '' : 's'} de trabalho abaixo de "${meeting.title}" ${todo.length === 1 ? 'vai' : 'vão'} para a pauta desta reunião${meeting.date ? ` e para a data dela (${meeting.date.split('-').reverse().join('/')})` : ''}. Dá para desfazer em seguida.`, confirmLabel: 'Vincular' });
+    if (ok) linkPautaTo(targetPid, actId, meetingSubId, items);
   }
 
   async function addAttachments(targetPid, actId, files) {
@@ -311,6 +347,9 @@ export function createCompanyActivityActions({ currentUser, mutateProject, openA
     removeComment,
     removeLink,
     reorderSub,
+    moveSub,
+    linkPautaTo,
+    linkPautaBelow,
     restoreActivity,
     restoreSub,
     toggleParticipant,

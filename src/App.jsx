@@ -579,6 +579,9 @@ function AppScreens({ shellRef, bump }) {
     removeComment,
     removeLink,
     reorderSub,
+    moveSub,
+    linkPautaTo,
+    linkPautaBelow,
     restoreActivity,
     restoreSub,
     toggleParticipant,
@@ -896,6 +899,10 @@ function AppScreens({ shellRef, bump }) {
         updateSub={updateSub}
         deleteSub={deleteSub}
         reorderSub={reorderSub}
+        moveSub={moveSub}
+        linkPautaTo={linkPautaTo}
+        linkPautaBelow={linkPautaBelow}
+        projectActivities={project.activities}
         allSubs={project.activities.filter((x) => !x.deleted).flatMap((x) => (x.subactivities || []).filter((y) => !y.deleted).map((y) => ({ id: y.id, title: y.title, code: y.code, done: !!y.done, date: y.date, predecessors: y.predecessors })))}
         addAttachments={addAttachments}
         removeAttachment={removeAttachment}
@@ -2483,6 +2490,7 @@ function AppScreens({ shellRef, bump }) {
         renderMeetingDetailModal,
         reorderPhase,
         reorderSub,
+        linkPautaTo,
         requestTaskSuggestions,
         resetTaskLinks,
         restoreActivity,
