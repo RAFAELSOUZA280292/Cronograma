@@ -105,6 +105,7 @@ export function CompanyWorkspace({ ctx }) {
     reorderPhase,
     reorderSub,
     requestTaskSuggestions,
+    resetTaskLinks,
     restoreActivity,
     restoreMeeting,
     restoreSub,
@@ -406,7 +407,8 @@ export function CompanyWorkspace({ ctx }) {
             onClearFocusActivity={() => setTodoFocusActivityId(null)}
             activityOptions={buildActivityOptions(activeProject.activities, activeProject.phases)}
             onLinkActivity={canLinkTasks ? linkTaskToActivity : undefined}
-            onSuggestLinks={canLinkTasks ? () => requestTaskSuggestions(activeProject.id) : undefined}
+            onSuggestLinks={canLinkTasks ? (mode) => requestTaskSuggestions(activeProject.id, mode) : undefined}
+            onResetLinks={canLinkTasks ? (opts) => resetTaskLinks(activeProject.id, opts) : undefined}
             onOpenMeeting={(id) => { setView('meetings'); openMeetingDetail(activeProject.id, id); }}
             onAddItem={(meetingId, overrides) => addMeetingActionItem(activeProject.id, meetingId, overrides)}
             updateActionItem={updateMeetingActionItem}

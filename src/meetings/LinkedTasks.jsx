@@ -1,7 +1,8 @@
 // Lista "Tarefas de reunião vinculadas" no detalhe da atividade (2026-10-16). Só LÊ `actionItems[].activityId` (mesma fonte do chip
 // "N tarefas · M abertas" do Resumo e da Tabela); nada novo é gravado. Clicar numa linha abre a tarefa na reunião de origem.
 import React from 'react';
-import { ListChecks, ChevronRight } from 'lucide-react';
+import { ListChecks, ChevronRight, AlertTriangle } from 'lucide-react';
+import { dateMismatch, lateTasksInOnTimeActivity } from '../../shared/linkSync.js';
 import { fmtDate } from '../App.jsx';
 import { todoStatusMeta } from './todoStatus.js';
 import { linkedTasksForActivity } from './ActivityLink.jsx';
@@ -21,26 +22,31 @@ const CSS = `
   .lt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 3px; font-size: 10.5px; color: var(--text-5); }
   .lt-pill { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 999px; border: 1px solid; padding: 1px 7px; white-space: nowrap; }
   .lt-late { color: #e2574c; font-weight: 700; }
+  .lt-warn { display: flex; align-items: flex-start; gap: 6px; margin: 0 0 6px; font-size: 11.5px; line-height: 1.4; color: #e0a21a; }
+  .lt-warn svg { flex-shrink: 0; margin-top: 1px; }
   .lt-go { flex-shrink: 0; color: var(--text-6); margin-top: 2px; }
   .lt-all { margin-top: 6px; background: transparent; border: 0; padding: 4px 2px; color: var(--text-4); font-size: 11.5px; font-weight: 700; cursor: pointer; text-decoration: underline; }
   .lt-all:hover { color: var(--text-1); }
   @media (max-width: 767px) { .lt-row { min-height: 44px; padding: 9px 10px; } .lt-all { min-height: 44px; } }
 `;
 
-export default function LinkedTasks({ meetings, activityId, labelStyle, onOpenTask, onOpenAll }) {
+export default function LinkedTasks({ meetings, activityId, activity, labelStyle, onOpenTask, onOpenAll }) {
   const tasks = linkedTasksForActivity(meetings, activityId);
   if (!tasks.length) return null;
   const today = todayIso();
   const shown = tasks.slice(0, MAX_ROWS);
   const open = tasks.filter((t) => !t.done).length;
+  const lateN = lateTasksInOnTimeActivity(tasks, activity, today);
   return (
     <div className="lt-wrap">
       <style>{CSS}</style>
       <div style={labelStyle}><ListChecks size={12} aria-hidden="true" style={{ verticalAlign: -2, marginRight: 4 }} />Tarefas de reunião ({tasks.length}{open !== tasks.length ? ` · ${open} aberta${open === 1 ? '' : 's'}` : ''})</div>
+      {lateN > 0 && <div className="lt-warn" role="note"><AlertTriangle size={13} aria-hidden="true" /><span>{lateN} tarefa{lateN === 1 ? '' : 's'} atrasada{lateN === 1 ? '' : 's'} em atividade que ainda está dentro do prazo. Só um aviso: as datas do cronograma não foram alteradas.</span></div>}
       <div className="lt-list">
         {shown.map((t) => {
           const meta = todoStatusMeta(t.status);
           const late = !t.done && t.dueDate && t.dueDate < today;
+          const mism = !t.done ? dateMismatch(t, activity) : null;
           return (
             <button key={`${t.meetingId}-${t.id}`} type="button" className={`lt-row${t.done ? ' done' : ''}`} onClick={() => onOpenTask(t.meetingId, t.id)} title="Abrir esta tarefa na reunião de origem">
               <span className="lt-main">
@@ -48,6 +54,7 @@ export default function LinkedTasks({ meetings, activityId, labelStyle, onOpenTa
                 <span className="lt-meta">
                   <span className="lt-pill" style={{ color: meta.color, background: meta.bg, borderColor: meta.border }}>{meta.label}</span>
                   {t.auto && <span className="lt-pill" style={{ color: '#3ecf6e', borderColor: 'rgba(62,207,110,.5)' }} title="A RENATA vinculou sozinha e ninguém validou ainda; só vínculo validado propaga a conclusão">Automática, a validar</span>}
+                  {mism && <span className="lt-warn" style={{ margin: 0 }} title={mism.text}><AlertTriangle size={11} aria-hidden="true" />Vence depois do fim da atividade</span>}
                   {t.responsible && <span>{t.responsible}</span>}
                   {t.dueDate && <span className={late ? 'lt-late' : undefined}>{late ? 'Atrasada · ' : 'Prazo '}{fmtDate(t.dueDate)}</span>}
                   <span>Reunião: {t.meetingTitle || 'sem título'}{t.meetingDate ? ` · ${fmtDate(t.meetingDate)}` : ''}</span>

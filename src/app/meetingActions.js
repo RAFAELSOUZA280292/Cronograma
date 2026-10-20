@@ -1,7 +1,8 @@
 // Ações sobre reuniões e tarefas de reunião (criar/editar, compartilhar, participantes, tarefas, vínculo com atividade, subtarefas, comentários e anexos).
 // Extraído de AppScreens (src/App.jsx) em 2026-10-17 ("dividir o AppScreens e o S"). É uma FÁBRICA chamada a cada render: recebe o estado e as funções
 // atuais do AppScreens e devolve as ações — o mesmo código de antes, em outro arquivo (as funções são recriadas a cada render, como sempre foram).
-import { NO_ACTIVITY, applySuggestionsToMeetings } from '../meetings/ActivityLink.jsx';
+import { NO_ACTIVITY, applySuggestionsToMeetings, buildActivityOptions, needsSuggestion, promoteSuggestedToAuto } from '../meetings/ActivityLink.jsx';
+import { resetTaskLinks as resetLinksPure, revertTaskLinksReset } from '../../shared/linkSync.js';
 import { apiPost } from '../lib/api.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { todoStatusMeta } from '../meetings/todoStatus.js';
@@ -195,22 +196,70 @@ export function createMeetingActions({ currentUser, flushProjectSave, mutateProj
   // Vínculo tarefa → atividade do cronograma (Fase 1, docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). `value`: id da atividade, NO_ACTIVITY ("nenhuma se
   // aplica") ou '' (limpar). O campo vai junto do projeto (autosave); a decisão humana também vai pro livro-razão (aprendizado), sem bloquear.
   // "Sugerir atividades" para as tarefas pendentes de vínculo (Fase 3): grava antes, pede ao servidor, aplica só como SUGESTÃO (a pessoa confirma).
-  async function requestTaskSuggestions(targetPid) {
+  // `mode`: 'auto' (vincula sozinha com 50% ou mais, selo "Automática, a validar") ou 'suggest' (só sugere). Em qualquer modo só mexe no vínculo da tarefa:
+  // nada de atividade, data ou status do cronograma. Pede em lotes de 80 tarefas (limite do servidor).
+  async function requestTaskSuggestions(targetPid, mode = 'suggest') {
+    const auto = mode === 'auto';
+    const who = currentUser ? currentUser.name : 'Alguém';
     try {
       await flushProjectSave(targetPid);
-      const r = await apiPost('/api/task-links/suggest', { projectId: targetPid });
-      const sugg = (r && r.suggestions) || {};
-      const project = projects.find((p) => p.id === targetPid);
-      const applied = applySuggestionsToMeetings((project && project.meetings) || [], sugg).count;
-      if (applied > 0) {
-        mutateProject(targetPid, (p) => ({ ...p, meetings: applySuggestionsToMeetings(p.meetings || [], sugg).meetings }),
-          `${currentUser ? currentUser.name : 'Alguém'} pediu sugestões da RENATA: ${applied} tarefa${applied === 1 ? '' : 's'} com atividade do cronograma sugerida (a confirmar)`);
+      const project0 = projects.find((p) => p.id === targetPid);
+      const options0 = buildActivityOptions(project0 && project0.activities, project0 && project0.phases);
+      const ids = [];
+      for (const m of (project0 && project0.meetings) || []) {
+        if (!m || m.deleted) continue;
+        for (const it of m.actionItems || []) if (needsSuggestion(it, options0) && !it.activityId) ids.push(it.id);
       }
-      const rest = r && r.remaining > 0 ? ` Restam ${r.remaining} tarefas: clique de novo para continuar.` : '';
-      notify(applied > 0 ? `A RENATA sugeriu a atividade de ${applied} de ${r.considered} tarefas. Revise e confirme.${rest}` : `A RENATA não achou atividade com segurança para essas ${r.considered} tarefas.${rest}`, { tone: applied > 0 ? 'success' : 'info', ttlMs: 8000 });
+      const sugg = {};
+      let considered = 0;
+      let stopped = '';
+      for (let i = 0; i < ids.length; i += 80) {
+        try {
+          const r = await apiPost('/api/task-links/suggest', { projectId: targetPid, taskIds: ids.slice(i, i + 80) });
+          Object.assign(sugg, (r && r.suggestions) || {});
+          considered += (r && r.considered) || 0;
+        } catch (e) { stopped = (e && e.message) || 'Não foi possível pedir as sugestões agora.'; break; }
+      }
+      const stamp = new Date().toISOString();
+      const applied = Object.keys(sugg).length ? applySuggestionsToMeetings((project0 && project0.meetings) || [], sugg, { auto, now: stamp }).count : 0;
+      const promoted = auto ? promoteSuggestedToAuto((project0 && project0.meetings) || [], options0, stamp).count : 0;
+      if (applied > 0 || promoted > 0) {
+        mutateProject(targetPid, (p) => {
+          const opts = buildActivityOptions(p.activities, p.phases);
+          let meetings = applySuggestionsToMeetings(p.meetings || [], sugg, { auto, now: stamp }).meetings;
+          if (auto) meetings = promoteSuggestedToAuto(meetings, opts, stamp).meetings;
+          return { ...p, meetings };
+        }, auto
+          ? `${who} pediu à RENATA para vincular as tarefas às atividades: ${applied + promoted} tarefa${applied + promoted === 1 ? '' : 's'} com atividade (automática, a validar, de 50% ou mais; o resto ficou como sugestão)`
+          : `${who} pediu sugestões da RENATA: ${applied} tarefa${applied === 1 ? '' : 's'} com atividade do cronograma sugerida (a confirmar)`, null, { skipSync: true });
+      }
+      const rest = stopped ? ` Parou antes de terminar: ${stopped}` : '';
+      const total = applied + promoted;
+      notify(total > 0
+        ? (auto ? `A RENATA analisou ${considered} tarefas e vinculou/sugeriu ${total}. As automáticas aparecem com o selo "Automática": valide ou troque. O cronograma não foi alterado.${rest}`
+          : `A RENATA sugeriu a atividade de ${applied} de ${considered} tarefas. Revise e confirme.${rest}`)
+        : `A RENATA não achou atividade com segurança para ${considered} tarefa${considered === 1 ? '' : 's'}.${rest}`, { tone: total > 0 ? 'success' : 'info', ttlMs: 9000 });
     } catch (e) {
       notify((e && e.message) || 'Não foi possível pedir as sugestões agora.', { tone: 'error' });
     }
+  }
+
+  // "Zerar vínculos": remove só o vínculo da tarefa (padrão: automáticos, sugeridos e os que apontam para atividade excluída; `includeValidated` também os validados
+  // e os "nenhuma se aplica"). Não muda status/data de nada; desfazível. Sem propagação de conclusão (skipSync).
+  function resetTaskLinks(targetPid, { includeValidated = false } = {}) {
+    const project = projects.find((p) => p.id === targetPid);
+    if (!project) return;
+    const r = resetLinksPure(project, { includeValidated });
+    if (!r.changed) { notify('Nenhum vínculo para zerar com essa escolha.', { tone: 'info' }); return; }
+    const who = currentUser ? currentUser.name : 'Alguém';
+    const k = r.clearedKinds;
+    const parts = [k.auto && `${k.auto} automática${k.auto === 1 ? '' : 's'}`, k.sugerido && `${k.sugerido} sugerida${k.sugerido === 1 ? '' : 's'}`, k.orfao && `${k.orfao} de atividade excluída`, k.validado && `${k.validado} validada${k.validado === 1 ? '' : 's'}`, k.nenhuma && `${k.nenhuma} "nenhuma se aplica"`].filter(Boolean).join(', ');
+    mutateProject(targetPid, (p) => resetLinksPure(p, { includeValidated }).project,
+      `${who} zerou os vínculos de ${r.cleared} tarefa${r.cleared === 1 ? '' : 's'} com atividades do cronograma (${parts})`, null, { skipSync: true });
+    notify(`${r.cleared} vínculo${r.cleared === 1 ? '' : 's'} zerado${r.cleared === 1 ? '' : 's'} (${parts}). O cronograma não foi alterado.`, {
+      tone: 'success', ttlMs: 12000,
+      undo: () => mutateProject(targetPid, (p) => revertTaskLinksReset(p, r.undo), `${who} desfez o "Zerar vínculos" (${r.cleared} tarefa${r.cleared === 1 ? '' : 's'})`, null, { skipSync: true }),
+    });
   }
   const canLinkTasks = !!currentUser && (currentUser.isSuperAdmin || currentUser.role === 'master' || currentUser.role === 'pricetax');
   function linkTaskToActivity(targetPid, meetingId, itemId, value) {
@@ -340,6 +389,7 @@ export function createMeetingActions({ currentUser, flushProjectSave, mutateProj
     linkTaskToActivity,
     regenerateMeetingShareLink,
     requestTaskSuggestions,
+    resetTaskLinks,
     restoreMeeting,
     toggleMeetingParticipant,
     toggleMeetingShare,

@@ -581,7 +581,7 @@ export function ActivityDetailModal({ activity: a, orderMap, phases, team, log, 
               ))}
             </div>
 
-            <LinkedTasks meetings={meetings} activityId={a.id} labelStyle={S.subSectionLabel} onOpenTask={onOpenLinkedTask} onOpenAll={onOpenLinkedTasks} />
+            <LinkedTasks meetings={meetings} activityId={a.id} activity={a} labelStyle={S.subSectionLabel} onOpenTask={onOpenLinkedTask} onOpenAll={onOpenLinkedTasks} />
 
             <button style={{ ...S.iconBtn, marginTop: 20, color: '#e2574c', borderColor: 'rgba(226,87,76,.35)' }} onClick={() => deleteActivity(pid, a.id)}><Trash2 size={14} /> Excluir atividade</button>
           </div>
