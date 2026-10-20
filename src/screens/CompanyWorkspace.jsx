@@ -1,7 +1,7 @@
 // Área de trabalho de uma empresa (cabeçalho, abas, vistas, modais e relatório de impressão).
 // Extraído do `return` final de AppScreens (src/App.jsx) em 2026-10-17 ("dividir o AppScreens e o S"): carregado sob demanda. O JSX é o mesmo de antes;
 // tudo o que ele usava do AppScreens (estado, funções, valores calculados) chega no objeto `ctx`, montado a cada render com os valores atuais.
-import { Share2, ShieldCheck, Briefcase, Building2, CalendarDays, Clock, Columns3, FileSpreadsheet, FileText, Gauge, LayoutGrid, List, ListChecks, Mic, MoreHorizontal, Network, Pause, Plus, Settings, Trash2, Undo2, Upload, X } from 'lucide-react';
+import { CalendarCheck, Share2, ShieldCheck, Briefcase, Building2, CalendarDays, Clock, Columns3, FileSpreadsheet, FileText, Gauge, LayoutGrid, List, ListChecks, Mic, MoreHorizontal, Network, Pause, Plus, Settings, Trash2, Undo2, Upload, X } from 'lucide-react';
 import { MeetingPrintReport } from '../meetings/MeetingDetail.jsx';
 import { MeetingsView } from '../meetings/Meetings.jsx';
 import { ProjectAssistant } from '../assistant/ProjectAssistant.jsx';
@@ -14,6 +14,7 @@ import { AreaRow, CLIENT_TYPE_META, CLIENT_TYPE_ORDER, COMPANY_STATUS_META, Comp
 import { KanbanView, PhasesView, PrintReport, ResumoView, TableView, TimelineView } from './CompanyViews.jsx';
 import { AutoDatesToggle } from './AutoDates.jsx';
 import MapView from './MapView.jsx';
+import CompanyTriage from './CompanyTriage.jsx';
 import { ScreenSearchBox, ScreenSearchNote } from './ScreenSearch.jsx';
 import { countLiveItems, filterActivities, filterMeetings, filterTodoMeetings, queryTerms } from '../lib/screenSearch.js';
 
@@ -351,6 +352,7 @@ export function CompanyWorkspace({ ctx }) {
           { id: 'phases', label: 'Fases', icon: LayoutGrid },
           { id: 'kanban', label: 'Quadro', icon: Columns3 },
           !isMulti && { id: 'mapa', label: 'Mapa', icon: Network },
+          !isMulti && !isTpl && { id: 'triagem', label: 'Triagem', icon: CalendarCheck },
         ].filter(Boolean).map((t) => {
           const Icon = t.icon;
           return (
@@ -489,6 +491,10 @@ export function CompanyWorkspace({ ctx }) {
             taskCounts={{ [activeProject.id]: taskCountsByActivity(activeProject.meetings) }}
             onOpenTasks={(activityId) => { setView('todo'); setTodoFocusActivityId(activityId); }}
           />
+        )}
+
+        {!isMulti && !isTpl && view === 'triagem' && (
+          <CompanyTriage project={activeProject} updateActivity={updateActivity} updateSub={updateSub} openDetail={openActivityDetail} onReserve={() => setShowCalendarBlock(true)} pushUndoToast={pushAppUndoToast} />
         )}
 
         {!isMulti && view === 'mapa' && (
