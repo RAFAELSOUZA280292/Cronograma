@@ -388,6 +388,7 @@ function checkTeam(data, name) {
 }
 
 const SET_ACT = {
+  title: (d, v) => { const x = clip(v, 200).trim(); if (!x) throw new Error('título vazio'); if ((d.activities || []).some((a) => !a.deleted && normText(a.title) === normText(x))) throw new Error(`Já existe uma atividade "${x}".`); return x; },
   status: (d, v) => { if (!STATUSES.includes(v)) throw new Error(`status inválido: ${v}`); return v; },
   date: (d, v) => { if (v !== '' && !isISODay(v)) throw new Error(`data inválida: ${v}`); return v; },
   endDate: (d, v) => { if (v !== '' && !isISODay(v)) throw new Error(`data final inválida: ${v}`); return v; },
