@@ -1025,6 +1025,7 @@ export async function initDb() {
       last_viewed_at  TIMESTAMPTZ
     )
   `);
+  await pool.query(`ALTER TABLE company_share_links ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'page'`); // 'page' = link do cliente; 'data' = link de dados (CSV/JSON, 2026-10-19)
   await pool.query(`CREATE INDEX IF NOT EXISTS company_share_links_project_idx ON company_share_links(project_id, created_at DESC)`);
   // API de conectividade (2026-10-05, §80): um token por janela do Claude Code, cada um com o seu escopo. Só o hash fica no banco.
   await pool.query(`

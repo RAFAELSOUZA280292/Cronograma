@@ -1311,7 +1311,7 @@ function AppScreens({ shellRef, bump }) {
       // /reuniao/:token e /acompanhamento/:token): os hooks rodam antes do `return` que desenha a tela pública, então reescrever a URL aqui
       // faria o link de quem está logado abrir a tela inicial em vez do quadro/reunião compartilhado.
       const p = window.location.pathname;
-      if (p !== '/' && !/^\/(quadro|reuniao|acompanhamento)\//.test(p)) { try { window.history.replaceState({ navTag: 'gate' }, '', '/'); } catch (e) { /* ignora */ } }
+      if (p !== '/' && !/^\/(quadro|reuniao|acompanhamento|a)\//.test(p)) { try { window.history.replaceState({ navTag: 'gate' }, '', '/'); } catch (e) { /* ignora */ } }
       return;
     }
     try {
@@ -1625,7 +1625,7 @@ function AppScreens({ shellRef, bump }) {
     return <React.Suspense fallback={<LoadingScreen theme={theme} />}><PublicBoardScreen token={publicBoardMatch[1]} theme={theme} onToggleTheme={toggleTheme} /></React.Suspense>;
   }
 
-  const publicCompanyMatch = window.location.pathname.match(/^\/acompanhamento\/([A-Za-z0-9_-]+)/);
+  const publicCompanyMatch = window.location.pathname.match(/^\/(?:acompanhamento|a)\/([A-Za-z0-9_-]+)/);
   if (publicCompanyMatch) {
     return <React.Suspense fallback={<LoadingScreen theme={theme} />}><PublicCompanyScreen token={publicCompanyMatch[1]} /></React.Suspense>;
   }
