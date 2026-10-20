@@ -6,6 +6,7 @@ import { readFileAsAttachment } from '../ui/ComposeBox.jsx';
 import { DELETE_CONFIRM_PHRASE, MAX_ATTACHMENT_BYTES, uid } from '../App.jsx';
 import { applyFieldChanges, computeRipple, rippleText } from '../lib/dateRipple.js';
 import { readAutoDates } from '../lib/autoDates.js';
+import { reconcilePauta, unlinkPauta } from '../../shared/pauta.js';
 
 export function createCompanyActivityActions({ currentUser, mutateProject, openActivityDetail, projects, pushAppUndoToast, setExpanded }) {
   function addLog(targetPid, action) {
@@ -134,7 +135,7 @@ export function createCompanyActivityActions({ currentUser, mutateProject, openA
         ? { ...rawPatch, skipped: false, skipReason: '', doneAt: new Date().toISOString(), doneBy: currentUser ? currentUser.name : '' }
         : { ...rawPatch, skipped: false, skipReason: '', doneAt: '', doneBy: '' };
     }
-    const apply = (acts) => acts.map((a) => a.id !== actId ? a : { ...a, subactivities: (a.subactivities || []).map((s) => s.id === subId ? { ...s, ...patch } : s) });
+    const apply = (acts) => acts.map((a) => a.id !== actId ? a : { ...a, subactivities: reconcilePauta((a.subactivities || []).map((s) => s.id === subId ? { ...s, ...patch } : s), subId, patch) });
     if (Object.prototype.hasOwnProperty.call(patch, 'date')) {
       const rp = withRipple(targetPid, { kind: 'sub', actId, subId, patch }, apply);
       mutateProject(targetPid, rp.updater, undefined, actId);
@@ -152,7 +153,7 @@ export function createCompanyActivityActions({ currentUser, mutateProject, openA
       ...p,
       activities: p.activities.map((a) => a.id !== actId ? a : {
         ...a,
-        subactivities: (a.subactivities || []).map((s) => s.id === subId ? { ...s, deleted: true, deletedAt: new Date().toISOString(), deletedBy: currentUser ? currentUser.name : '' } : s),
+        subactivities: unlinkPauta((a.subactivities || []).map((s) => s.id === subId ? { ...s, deleted: true, deletedAt: new Date().toISOString(), deletedBy: currentUser ? currentUser.name : '' } : s), subId),
       }),
     }), sub ? `Subatividade excluída em "${act.title}": ${sub.title}` : undefined, actId);
     if (sub) pushAppUndoToast(`Subatividade "${sub.title}" excluída.`, () => restoreSub(targetPid, actId, subId), 8000);

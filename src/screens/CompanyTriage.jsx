@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarCheck, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { fmtDate, todayISOStr } from '../App.jsx';
 import { meetingConflicts } from '../../shared/calendarDays.js';
+import { linkPatch, meetingAbove, pautaItems } from '../../shared/pauta.js';
 
 const CSS = `
   .tg-wrap { max-width: 1040px; }
@@ -58,6 +59,10 @@ const CSS = `
   .tg-chip.T { background:rgba(62,207,110,.12); border-color:rgba(62,207,110,.7); }
   .tg-chip.A { font-weight:700; }
   .tg-chip.done { opacity:.5; text-decoration:line-through; }
+  .tg-pauta { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:3px; font-size:11.5px; color:var(--text-3); }
+  .tg-pauta button { font:inherit; font-size:11.5px; padding:2px 8px; border:1px solid var(--border-2); background:var(--bg-3); color:var(--text-1); border-radius:6px; cursor:pointer; font-weight:700; }
+  .tg-pauta button.q { font-weight:400; color:var(--text-3); }
+  .tg-pauta button:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
   .tg-more { font-size:11px; color:var(--text-4); padding-left:4px; }
   .tg-day { margin:12px 0 0; border:1px solid var(--border-2); border-radius:12px; overflow:hidden; background:var(--bg-2); }
   .tg-day > .tg-h { font-size:14px; font-weight:700; color:var(--text-1); }
@@ -206,6 +211,28 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
   const dayList = byDay.get(selDay) || [];
   const dayConf = conflictDays.has(selDay);
 
+  // Pauta: item de TRABALHO tratado numa reunião da mesma atividade (a data acompanha a reunião). Botão "Tratar na reunião de cima" faz o vínculo e usa a data dela.
+  function pautaUi(a, s) {
+    if (!s || s.kind === 'reuniao' || s.done) return null;
+    const subs = a.subactivities || [];
+    const mt = s.pautaDe ? subs.find((x) => x.id === s.pautaDe && !x.deleted) : null;
+    const above = !mt ? meetingAbove(subs, s.id) : null;
+    if (!mt && !above) return null;
+    return (
+      <span className="tg-pauta">
+        {mt ? (
+          <>
+            <span>Pauta da reunião <b style={{ color: 'var(--text-1)', fontWeight: 700 }}>{mt.title}</b>{mt.date ? ` · ${fmtDate(mt.date)}` : ''}</span>
+            <button type="button" className="q" onClick={() => updateSub(pid, a.id, s.id, { pautaDe: '' })} title="Desvincular da reunião (a data fica como está)">Desvincular</button>
+          </>
+        ) : (
+          <button type="button" onClick={() => updateSub(pid, a.id, s.id, linkPatch(above))} title={`Trata este item na agenda da reunião "${above.title}" e usa a data dela${above.date ? '' : ' (a reunião ainda não tem data)'}`}>Tratar na reunião de cima{above.date ? ` (${fmtDate(above.date)})` : ''}</button>
+        )}
+      </span>
+    );
+  }
+  const pautaCountOf = (a, s) => (s && s.kind === 'reuniao' ? pautaItems(a.subactivities, s.id).length : 0);
+
   function renderRow(e) {
     const a = (project.activities || []).find((x) => x.id === e.actId);
     const s = e.isAct ? null : (a && (a.subactivities || []).find((x) => x.id === e.subId));
@@ -222,6 +249,8 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
         <span className="tt">
           <span style={e.done ? { textDecoration: 'line-through', color: 'var(--text-5)' } : undefined}>{e.title}</span>
           {!e.isAct && <span className="sub">{e.actTitle}</span>}
+          {!e.isAct && pautaUi(a, s)}
+          {!e.isAct && pautaCountOf(a, s) > 0 && <span className="sub">Pauta: {pautaCountOf(a, s)} {pautaCountOf(a, s) === 1 ? 'item de trabalho' : 'itens de trabalho'} (a data deles acompanha esta reunião)</span>}
           {c && <span className="w"><AlertTriangle size={12} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />Outra reunião no mesmo dia: {c.items.filter((i) => i.key !== e.key).map((i) => i.title).join('; ')}</span>}
         </span>
         <Seg value={e.kind} label={`Tipo de ${e.title}`} onChange={(v) => (e.isAct ? updateActivity(pid, a.id, { kind: v }, `Tipo alterado em "${a.title}": ${v === 'reuniao' ? 'Reunião' : 'Trabalho'}`) : updateSub(pid, a.id, s.id, { kind: v }))} />
@@ -342,6 +371,8 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
                       <span className="tt">
                         <span style={s.done ? { textDecoration: 'line-through', color: 'var(--text-5)' } : undefined}>{s.title}</span>
                         {late && <span className="late">atrasada</span>}
+                        {pautaUi(a, s)}
+                        {pautaCountOf(a, s) > 0 && <span className="sub">Pauta: {pautaCountOf(a, s)} {pautaCountOf(a, s) === 1 ? 'item de trabalho' : 'itens de trabalho'} (a data deles acompanha esta reunião)</span>}
                         {c && <span className="w"><AlertTriangle size={12} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />Outra reunião no mesmo dia ({dayLabel(c.day)}): {c.items.filter((i) => i.key !== key).map((i) => i.title).join('; ')}</span>}
                       </span>
                       <Seg value={s.kind === 'reuniao' ? 'reuniao' : 'trabalho'} label={`Tipo de ${s.title}`} onChange={(v) => updateSub(pid, a.id, s.id, { kind: v })} />
