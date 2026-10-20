@@ -1,6 +1,7 @@
 // Reservar na agenda (2026-10-19, pedido do Rafael): cada ATIVIDADE do cronograma da empresa vira UM bloco de agenda (padrão de call: 60 min) para a equipe PRICETAX.
 // Funções puras (sem rede nem banco), testadas em Node. Quem fala com o Google é server/companyCalendar.js.
 import crypto from 'node:crypto';
+import { inWindow } from '../shared/calendarDays.js';
 
 export const DEFAULT_TIME = '10:00';
 export const DEFAULT_DURATION = 60;
@@ -52,7 +53,8 @@ export function addMinutes(date, time, minutes) {
   return `${t.getUTCFullYear()}-${p(t.getUTCMonth() + 1)}-${p(t.getUTCDate())}T${p(t.getUTCHours())}:${p(t.getUTCMinutes())}:00`;
 }
 
-export function buildEventBody(row, companyName, { time, durationMin, emails, projectId, appUrl }) {
+export function buildEventBody(row, companyName, { time, durationMin, emails, projectId, appUrl, day }) {
+  const when = day || row.date;
   const periodo = row.endDate && row.endDate !== row.date ? `${br(row.date)} a ${br(row.endDate)}` : br(row.date);
   const linhas = [
     `Atividade do cronograma de Reforma Tributária da ${companyName}.`,
@@ -65,8 +67,8 @@ export function buildEventBody(row, companyName, { time, durationMin, emails, pr
   return {
     summary: `${companyName} · ${row.title}`,
     description: linhas.join('\n'),
-    start: { dateTime: `${row.date}T${time}:00`, timeZone: TZ },
-    end: { dateTime: addMinutes(row.date, time, durationMin), timeZone: TZ },
+    start: { dateTime: `${when}T${time}:00`, timeZone: TZ },
+    end: { dateTime: addMinutes(when, time, durationMin), timeZone: TZ },
     attendees: emails.map((email) => ({ email })),
     transparency: 'opaque',
     guestsCanModify: false,
@@ -84,7 +86,8 @@ export function fingerprint(body) {
 // Estado de cada linha em relação ao que já foi reservado: 'nova' | 'reservada' (igual) | 'desatualizada' (a atividade mudou depois da reserva).
 export function rowStatus(row, mapping, companyName, ctx) {
   if (!mapping) return 'nova';
-  const body = buildEventBody(row, companyName, { ...ctx, time: mapping.start_time, durationMin: mapping.duration_min, emails: mapping.emails || [] });
+  if (!inWindow(row, mapping.start_date)) return 'desatualizada'; // a atividade mudou de período e o bloco ficou fora dele
+  const body = buildEventBody(row, companyName, { ...ctx, day: mapping.start_date, time: mapping.start_time, durationMin: mapping.duration_min, emails: mapping.emails || [] });
   return fingerprint(body) === mapping.fingerprint ? 'reservada' : 'desatualizada';
 }
 
