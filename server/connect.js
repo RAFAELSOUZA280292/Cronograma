@@ -4,6 +4,7 @@
 //  - credencial só no cabeçalho Authorization (nunca na URL); limite por token; usuário bloqueado/expirado = 403;
 //  - API propositalmente ESTREITA e estável (não é a API interna do app): o token nunca vale como a sessão inteira do usuário;
 //  - tudo respeita o que o usuário já pode ver (mesmo canAccessProject das telas) e a organização dele.
+import { findSub as findSubAny, linkPautaItems, reconcilePautaProject, revertPautaItems } from '../shared/pauta.js';
 import { noteToText } from './richNote.js';
 import { Router } from 'express';
 import crypto from 'node:crypto';
@@ -73,7 +74,7 @@ export const ENDPOINTS = [
   { method: 'GET', path: '/api/connect/companies', scope: 'read', what: 'Empresas (cronogramas) que o dono do token pode ver. Query: q=texto.' },
   { method: 'GET', path: '/api/connect/companies/:id', scope: 'read', what: 'Uma empresa: equipe, fases, atividades e lista de reuniões (sem transcrição).' },
   { method: 'GET', path: '/api/connect/companies/:id/meetings/:meetingId', scope: 'read', what: 'Uma reunião: resumo, decisões, itens de ação, participantes. Query: transcript=1 inclui a transcrição (até 60.000 caracteres).' },
-  { method: 'POST', path: '/api/connect/companies/:id/plan', scope: 'read_write', what: 'Ajusta o cronograma de uma empresa (só administrador). Corpo: ops (até 200: activity.set, sub.set, sub.add, sub.move, activity.add), dryRun (padrão true: só mostra), note. Tudo ou nada, nunca apaga, grava no Log da empresa.' },
+  { method: 'POST', path: '/api/connect/companies/:id/plan', scope: 'read_write', what: 'Ajusta o cronograma de uma empresa (só administrador). Corpo: ops (até 200: activity.set, sub.set, sub.add (position top|end, kind, guide, pautaDe), sub.move, activity.add, pauta.link), dryRun (padrão true: só mostra), note. Tudo ou nada, nunca apaga, grava no Log da empresa.' },
   { method: 'GET', path: '/api/connect/agenda', scope: 'read', what: 'Compromissos do Google Calendar do dono. Query: days=1..14 (padrão 7). Só os aceitos ou próprios.' },
 ];
 
@@ -306,7 +307,7 @@ router.get('/companies/:id', async (req, res, next) => {
       id: r.id, name: companyName(d), company: { name: (d.company && d.company.name) || '', cnpj: (d.company && d.company.cnpj) || '', status: (d.company && d.company.status) || '', regimeTributario: (d.company && d.company.regimeTributario) || '' },
       team: alive(d.team).map((t) => ({ name: t.name, role: t.role || '' })),
       phases: phases.map((p) => ({ id: p.id, name: p.name })),
-      activities: alive(d.activities).slice(0, 500).map((a) => ({ id: a.id, title: clip(a.title, 200), phase: phaseName(a.phase), status: a.status || '', date: a.date || '', endDate: a.endDate || '', responsible: a.responsible || '', priority: a.priority || '', kind: a.kind === 'reuniao' ? 'reuniao' : 'trabalho', subs: alive(a.subactivities).slice(0, 100).map((x) => ({ id: x.id, title: clip(x.title, 200), done: !!x.done, date: x.date || '', responsible: x.responsible || '', kind: x.kind === 'reuniao' ? 'reuniao' : 'trabalho' })) })),
+      activities: alive(d.activities).slice(0, 500).map((a) => ({ id: a.id, title: clip(a.title, 200), phase: phaseName(a.phase), status: a.status || '', date: a.date || '', endDate: a.endDate || '', responsible: a.responsible || '', priority: a.priority || '', kind: a.kind === 'reuniao' ? 'reuniao' : 'trabalho', subs: alive(a.subactivities).slice(0, 100).map((x) => ({ id: x.id, title: clip(x.title, 200), done: !!x.done, date: x.date || '', responsible: x.responsible || '', kind: x.kind === 'reuniao' ? 'reuniao' : 'trabalho', pautaDe: x.pautaDe || '', guide: clip(x.guide, 600) })) })),
       meetings: alive(d.meetings).map((m) => ({ id: m.id, date: m.date || '', title: clip(m.title, 200), hasSummary: !!m.summary, actionItems: alive(m.actionItems).length })).sort((a, b) => b.date.localeCompare(a.date)),
     });
   } catch (e) { next(e); }
@@ -402,6 +403,9 @@ const SET_SUB = {
   date: (d, v) => { if (v !== '' && !isISODay(v)) throw new Error(`data inválida: ${v}`); return v; },
   responsible: (d, v) => checkTeam(d, String(v)),
   kind: (d, v) => { if (!['reuniao', 'trabalho'].includes(v)) throw new Error(`tipo inválido: ${v} (use reuniao ou trabalho)`); return v; },
+  guide: (d, v) => clip(v, 4000),
+  // `pautaDe`: id de uma subatividade do tipo Reunião (de qualquer atividade) em cuja pauta este item é tratado; '' desvincula. Para vincular E levar a data da reunião use `pauta.link`.
+  pautaDe: (d, v) => { if (v === '' || v == null) return ''; const hit = findSubAny(d.activities, String(v)); if (!hit || hit.sub.kind !== 'reuniao') throw new Error(`pautaDe: "${v}" não é uma subatividade do tipo Reunião`); return String(v); },
 };
 
 export function applyPlanOps(data, ops, who) {
@@ -435,16 +439,31 @@ export function applyPlanOps(data, ops, who) {
           x[k] = SET_SUB[k](next, v);
           if (k === 'done') { if (x.done) { x.doneAt = stamp; x.doneBy = who; } else { delete x.doneAt; delete x.doneBy; } }
         }
+        next.activities = reconcilePautaProject(next.activities, x.id, set);
         undo.push({ op: 'sub.set', activity: { id: a.id }, sub: { id: x.id }, set: prev });
         results.push({ index, ok: true, what: `Subatividade "${clip(x.title, 80)}" de "${a.title}": ${Object.keys(set).join(', ')}` });
       } else if (op.op === 'sub.add') {
         const a = findRef(next.activities, op.activity, 'atividade');
         const sub = op.sub && typeof op.sub === 'object' ? op.sub : {};
         const title = SET_SUB.title(next, sub.title);
-        const x = { id: uid('s'), title, done: false, responsible: sub.responsible ? SET_SUB.responsible(next, sub.responsible) : '', date: sub.date ? SET_SUB.date(next, sub.date) : '', ...(sub.kind ? { kind: SET_SUB.kind(next, sub.kind) } : {}) };
-        a.subactivities = [...(a.subactivities || []), x];
+        const x = { id: uid('s'), title, done: false, responsible: sub.responsible ? SET_SUB.responsible(next, sub.responsible) : '', date: sub.date ? SET_SUB.date(next, sub.date) : '', ...(sub.kind ? { kind: SET_SUB.kind(next, sub.kind) } : {}), ...(sub.guide ? { guide: SET_SUB.guide(next, sub.guide) } : {}), ...(sub.pautaDe ? { pautaDe: SET_SUB.pautaDe(next, sub.pautaDe) } : {}) };
+        a.subactivities = op.position === 'top' ? [x, ...(a.subactivities || [])] : [...(a.subactivities || []), x];
         created.push({ type: 'sub', id: x.id, activity: a.id });
         results.push({ index, ok: true, what: `Nova subatividade "${clip(title, 80)}" em "${a.title}"` });
+      } else if (op.op === 'pauta.link') {
+        // Vincula itens de trabalho (de qualquer atividade) à pauta de uma reunião e leva a data dela. `undo` devolve (`pauta.restore`).
+        const ma = findRef(next.activities, op.meeting && op.meeting.activity, 'atividade da reunião');
+        const mt = findRef(ma.subactivities, op.meeting && op.meeting.sub, 'reunião');
+        if (mt.kind !== 'reuniao') throw new Error(`"${clip(mt.title, 60)}" não é do tipo Reunião`);
+        const items = (Array.isArray(op.items) ? op.items : []).slice(0, 80).map((it) => { const ia = findRef(next.activities, it.activity, 'atividade do item'); const is = findRef(ia.subactivities, it.sub, 'item'); return { actId: ia.id, subId: is.id }; });
+        if (!items.length) throw new Error('items vazio');
+        const r = linkPautaItems(next.activities, mt.id, items);
+        next.activities = r.activities;
+        undo.push({ op: 'pauta.restore', changed: r.changed });
+        results.push({ index, ok: true, what: `Pauta de "${clip(mt.title, 80)}": ${r.changed.length} item(ns) vinculado(s)${mt.date ? ` para ${mt.date}` : ''}` });
+      } else if (op.op === 'pauta.restore') {
+        next.activities = revertPautaItems(next.activities, Array.isArray(op.changed) ? op.changed : []);
+        results.push({ index, ok: true, what: `Pauta restaurada (${(op.changed || []).length} item(ns))` });
       } else if (op.op === 'sub.move') {
         // Move (não apaga): a subatividade sai de uma atividade e entra em outra, com o mesmo id, data e estado. `undo` devolve ao lugar.
         const from = findRef(next.activities, op.from, 'atividade de origem');
