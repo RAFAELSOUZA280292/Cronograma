@@ -5,7 +5,7 @@
 //  - API propositalmente ESTREITA e estável (não é a API interna do app): o token nunca vale como a sessão inteira do usuário;
 //  - tudo respeita o que o usuário já pode ver (mesmo canAccessProject das telas) e a organização dele.
 import { fitPeriods } from '../shared/period.js';
-import { findSub as findSubAny, linkPautaItems, reconcilePautaProject, revertPautaItems } from '../shared/pauta.js';
+import { findSub as findSubAny, linkPautaItems, reconcilePautaProject, revertPautaItems, unlinkPautaProject } from '../shared/pauta.js';
 import { noteToText } from './richNote.js';
 import { Router } from 'express';
 import crypto from 'node:crypto';
@@ -75,7 +75,7 @@ export const ENDPOINTS = [
   { method: 'GET', path: '/api/connect/companies', scope: 'read', what: 'Empresas (cronogramas) que o dono do token pode ver. Query: q=texto.' },
   { method: 'GET', path: '/api/connect/companies/:id', scope: 'read', what: 'Uma empresa: equipe, fases, atividades e lista de reuniões (sem transcrição).' },
   { method: 'GET', path: '/api/connect/companies/:id/meetings/:meetingId', scope: 'read', what: 'Uma reunião: resumo, decisões, itens de ação, participantes. Query: transcript=1 inclui a transcrição (até 60.000 caracteres).' },
-  { method: 'POST', path: '/api/connect/companies/:id/plan', scope: 'read_write', what: 'Ajusta o cronograma de uma empresa (só administrador). Corpo: ops (até 200: activity.set, sub.set, sub.add (position top|end, kind, guide, pautaDe), sub.move, activity.add, pauta.link), dryRun (padrão true: só mostra), note. Tudo ou nada, nunca apaga, grava no Log da empresa.' },
+  { method: 'POST', path: '/api/connect/companies/:id/plan', scope: 'read_write', what: 'Ajusta o cronograma de uma empresa (só administrador). Corpo: ops (até 200: activity.set, sub.set, sub.add (position top|end, kind, guide, pautaDe), sub.move, activity.add, pauta.link, activity.delete e sub.delete (exclusão com volta pela lixeira; activity.restore e sub.restore desfazem)), dryRun (padrão true: só mostra), note. Tudo ou nada, nada some de verdade, grava no Log da empresa.' },
   { method: 'GET', path: '/api/connect/agenda', scope: 'read', what: 'Compromissos do Google Calendar do dono. Query: days=1..14 (padrão 7). Só os aceitos ou próprios.' },
 ];
 
@@ -354,7 +354,7 @@ router.get('/agenda', async (req, res, next) => {
 
 // ------------------------------------------------------------------ ajuste do cronograma de uma empresa (2026-10-19, escopo read_write)
 // Pedido do Rafael na urgência da Alcast: o token precisa AJUSTAR o cronograma de uma empresa (status, datas, subatividades, atividades novas). API estreita e declarativa:
-// uma lista de operações, tudo-ou-nada numa transação com FOR UPDATE, `dryRun` (padrão) mostra o que mudaria sem gravar, nunca apaga nada e nunca toca em reuniões.
+// uma lista de operações, tudo-ou-nada numa transação com FOR UPDATE, `dryRun` (padrão) mostra o que mudaria sem gravar; só exclui com activity.delete/sub.delete (soft delete, volta pela lixeira).
 // Cada chamada que grava deixa uma linha no Log da empresa. `undo` devolve as operações que desfazem os ajustes de campos e as movimentações (atividades e subatividades criadas voltam em `created`).
 const STATUSES = ['nao-iniciado', 'em-andamento', 'pausado', 'concluido'];
 const PLAN_PRIORITIES = ['', 'urgente', 'alta', 'media', 'baixa'];
@@ -490,6 +490,26 @@ export function applyPlanOps(data, ops, who) {
         next.activities = [...acts, a];
         created.push({ type: 'activity', id: a.id, title });
         results.push({ index, ok: true, what: `Nova atividade "${title}"${date ? ` (${date}${endDate && endDate !== date ? ` a ${endDate}` : ''})` : ''}` });
+      } else if (op.op === 'activity.delete' || op.op === 'activity.restore') {
+        // Exclui como o painel (soft delete, volta pela lixeira); `undo` restaura. Não apaga nada de verdade.
+        const del = op.op === 'activity.delete';
+        const id = op.ref && typeof op.ref === 'object' ? op.ref.id : '';
+        const a = del ? findRef(next.activities, op.ref, 'atividade') : (next.activities || []).find((x) => x.id === id && x.deleted);
+        if (!a) throw new Error('atividade não encontrada na lixeira');
+        Object.assign(a, del ? { deleted: true, deletedAt: stamp, deletedBy: who } : { deleted: false, deletedAt: '', deletedBy: '' });
+        undo.push({ op: del ? 'activity.restore' : 'activity.delete', ref: { id: a.id } });
+        results.push({ index, ok: true, what: `Atividade "${a.title}" ${del ? 'excluída (fica na lixeira)' : 'restaurada'}` });
+      } else if (op.op === 'sub.delete' || op.op === 'sub.restore') {
+        const del = op.op === 'sub.delete';
+        const a = (next.activities || []).find((x) => x.id === (op.activity && op.activity.id) && !x.deleted);
+        if (!a) throw new Error('atividade não encontrada');
+        const subId = op.sub && typeof op.sub === 'object' ? op.sub.id : '';
+        const x = del ? findRef(a.subactivities, op.sub, 'subatividade') : (a.subactivities || []).find((y) => y.id === subId && y.deleted);
+        if (!x) throw new Error('subatividade não encontrada');
+        Object.assign(x, del ? { deleted: true, deletedAt: stamp, deletedBy: who } : { deleted: false, deletedAt: '', deletedBy: '' });
+        if (del) next.activities = unlinkPautaProject(next.activities, x.id);
+        undo.push({ op: del ? 'sub.restore' : 'sub.delete', activity: { id: a.id }, sub: { id: x.id } });
+        results.push({ index, ok: true, what: `Subatividade "${clip(x.title, 80)}" de "${a.title}" ${del ? 'excluída (fica na lixeira)' : 'restaurada'}` });
       } else throw new Error(`operação desconhecida: ${op && op.op}`);
     } catch (e) { errors.push({ index, message: e.message }); }
   });
