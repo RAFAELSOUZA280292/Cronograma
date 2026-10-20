@@ -64,6 +64,10 @@ const CSS = `
   .tg-pauta button { font:inherit; font-size:11.5px; padding:2px 8px; border:1px solid var(--border-2); background:var(--bg-3); color:var(--text-1); border-radius:6px; cursor:pointer; font-weight:700; }
   .tg-pauta button.q { font-weight:400; color:var(--text-3); }
   .tg-pauta button:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  .tg-guide { margin-top:4px; padding:6px 9px; background:var(--bg-3); border:1px solid var(--border-2); border-radius:8px; font-size:12px; line-height:1.45; color:var(--text-3); white-space:pre-wrap; overflow-wrap:anywhere; }
+  .tg-guide .cl { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .tg-guide-h { display:flex; gap:6px; align-items:center; margin-top:4px; font-size:11px; font-weight:700; color:var(--text-4); text-transform:uppercase; letter-spacing:.04em; }
+  .tg-guide-h button { font:inherit; font-size:11.5px; font-weight:400; text-transform:none; letter-spacing:0; background:none; border:0; color:var(--text-3); text-decoration:underline; cursor:pointer; padding:0; }
   .tg-more { font-size:11px; color:var(--text-4); padding-left:4px; }
   .tg-day { margin:12px 0 0; border:1px solid var(--border-2); border-radius:12px; overflow:hidden; background:var(--bg-2); }
   .tg-day > .tg-h { font-size:14px; font-weight:700; color:var(--text-1); }
@@ -115,11 +119,13 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
   const [showActs, setShowActs] = useState(prefs0.showActs !== false);
   const [month, setMonth] = useState(today.slice(0, 7));
   const [selDay, setSelDay] = useState(today);
+  const [showGuides, setShowGuides] = useState(prefs0.showGuides !== false);
+  const [openGuides, setOpenGuides] = useState({});
   const [pickFor, setPickFor] = useState(null); // { actId, sub } da reunião que vai receber itens na pauta
   const [dragKey, setDragKey] = useState('');
   const [overDay, setOverDay] = useState('');
   const hi = plusDays(today, 60);
-  useEffect(() => { writePrefs({ mode, tipo, showActs }); }, [mode, tipo, showActs]);
+  useEffect(() => { writePrefs({ mode, tipo, showActs, showGuides }); }, [mode, tipo, showActs, showGuides]);
 
   const matchTipo = (kind) => tipo === 'ambos' || (tipo === 'reuniao' ? kind === 'reuniao' : kind !== 'reuniao');
   const conflicts = useMemo(() => meetingConflicts(project, today), [project, today]);
@@ -152,7 +158,7 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
       if (showActs && a.date && (showDone || a.status !== 'concluido') && matchTipo(a.kind)) out.push({ key: a.id, isAct: true, actId: a.id, subId: '', title: a.title, actTitle: a.title, date: a.date, kind: a.kind === 'reuniao' ? 'reuniao' : 'trabalho', done: a.status === 'concluido' });
       for (const s of a.subactivities || []) {
         if (s.deleted || !s.date || (s.done && !showDone) || !matchTipo(s.kind)) continue;
-        out.push({ key: `${a.id}#${s.id}`, isAct: false, actId: a.id, subId: s.id, title: s.title, actTitle: a.title, date: s.date, kind: s.kind === 'reuniao' ? 'reuniao' : 'trabalho', done: !!s.done });
+        out.push({ key: `${a.id}#${s.id}`, isAct: false, actId: a.id, subId: s.id, title: s.title, guide: (s.guide || '').trim(), actTitle: a.title, date: s.date, kind: s.kind === 'reuniao' ? 'reuniao' : 'trabalho', done: !!s.done });
       }
     }
     return out;
@@ -213,6 +219,20 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
   const dayList = byDay.get(selDay) || [];
   const dayConf = conflictDays.has(selDay);
 
+  // Roteiro do encontro (campo `guide` da subatividade): aparece sob o item, em duas linhas, com "ver tudo". Só leitura aqui; para editar, "Abrir".
+  function guideUi(key, text) {
+    const t = (text || '').trim();
+    if (!showGuides || !t) return null;
+    const open = !!openGuides[key];
+    const long = t.length > 140 || t.split('\n').length > 2;
+    return (
+      <>
+        <span className="tg-guide-h">Roteiro{long && <button type="button" onClick={() => setOpenGuides((o) => ({ ...o, [key]: !open }))} aria-expanded={open}>{open ? 'ocultar' : 'ver tudo'}</button>}</span>
+        <span className="tg-guide" style={{ display: 'block' }}><span className={long && !open ? 'cl' : undefined}>{t}</span></span>
+      </>
+    );
+  }
+
   // Pauta: item de TRABALHO tratado numa reunião da mesma atividade (a data acompanha a reunião). Botão "Tratar na reunião de cima" faz o vínculo e usa a data dela.
   function pautaUi(a, s) {
     if (!s || s.kind === 'reuniao' || s.done) return null;
@@ -255,6 +275,7 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
           {!e.isAct && <span className="sub">{e.actTitle}</span>}
           {!e.isAct && pautaUi(a, s)}
           {!e.isAct && pautaBtn(a, s)}
+          {!e.isAct && s && guideUi(e.key, s.guide)}
           {!e.isAct && pautaCountOf(a, s) > 0 && <span className="sub">Pauta: {pautaCountOf(a, s)} {pautaCountOf(a, s) === 1 ? 'item de trabalho' : 'itens de trabalho'} (a data deles acompanha esta reunião)</span>}
           {c && <span className="w"><AlertTriangle size={12} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />Outra reunião no mesmo dia: {c.items.filter((i) => i.key !== e.key).map((i) => i.title).join('; ')}</span>}
         </span>
@@ -290,6 +311,7 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
         )}
         {mode === 'calendario' && <label><input type="checkbox" checked={showActs} onChange={(e) => setShowActs(e.target.checked)} /> Mostrar atividades</label>}
         <label><input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} /> Mostrar concluídas</label>
+        {mode === 'lista' && <label><input type="checkbox" checked={showGuides} onChange={(e) => setShowGuides(e.target.checked)} /> Mostrar roteiros</label>}
         <button type="button" className="tg-x" style={{ width: 'auto', padding: '0 12px', height: 30, marginLeft: 'auto', gap: 6, color: 'var(--text-1)', fontWeight: 700, fontSize: 12.5 }} onClick={onReserve} title="Abrir a reserva de agenda com as reuniões deste cronograma"><CalendarCheck size={14} aria-hidden="true" /> Reservar na agenda</button>
       </div>
 
@@ -323,7 +345,7 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
                   onDrop={(ev) => { ev.preventDefault(); const e = entries.find((x) => x.key === dragKey); setDragKey(''); setOverDay(''); if (e) moveEntry(e, d); }}>
                   <span className="dn">{Number(d.slice(8))}</span>
                   {shown.map((e) => (
-                    <span key={e.key} className={`tg-chip ${e.kind === 'reuniao' ? 'R' : 'T'}${e.isAct ? ' A' : ''}${e.done ? ' done' : ''}`} title={`${e.isAct ? 'Atividade' : e.actTitle}: ${e.title}`}
+                    <span key={e.key} className={`tg-chip ${e.kind === 'reuniao' ? 'R' : 'T'}${e.isAct ? ' A' : ''}${e.done ? ' done' : ''}`} title={`${e.isAct ? 'Atividade' : e.actTitle}: ${e.title}${e.guide ? `\n\nRoteiro: ${e.guide.slice(0, 200)}${e.guide.length > 200 ? '…' : ''}` : ''}`}
                       draggable={!e.isAct} onDragStart={(ev) => { setDragKey(e.key); try { ev.dataTransfer.setData('text/plain', e.key); ev.dataTransfer.effectAllowed = 'move'; } catch (er) { /* ignora */ } }} onDragEnd={() => { setDragKey(''); setOverDay(''); }}>
                       {e.title}
                     </span>
@@ -334,7 +356,7 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
             })}
           </div>
           <section className="tg-day" aria-label={`Itens de ${dayLabel(selDay)}`}>
-            <div className="tg-h">{dayLabel(selDay)}{dayConf && <span style={{ color: '#e0a21a', fontSize: 12, fontWeight: 600 }}>duas reuniões neste dia</span>}<span className="pe">{dayList.length} {dayList.length === 1 ? 'item' : 'itens'}</span></div>
+            <div className="tg-h">{dayLabel(selDay)}{dayConf && <span style={{ color: '#e0a21a', fontSize: 12, fontWeight: 600 }}>duas reuniões neste dia</span>}<label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 400, color: 'var(--text-3)', cursor: 'pointer' }}><input type="checkbox" checked={showGuides} onChange={(e) => setShowGuides(e.target.checked)} /> Mostrar roteiros</label><span className="pe">{dayList.length} {dayList.length === 1 ? 'item' : 'itens'}</span></div>
             {dayList.length === 0 && <div className="tg-empty">Nada neste dia. Arraste um item do calendário para cá, ou use a Lista para datar o que está sem data.</div>}
             {dayList.map((e) => renderRow(e))}
           </section>
@@ -378,6 +400,7 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
                         {late && <span className="late">atrasada</span>}
                         {pautaUi(a, s)}
                         {pautaBtn(a, s)}
+                        {guideUi(key, s.guide)}
                         {pautaCountOf(a, s) > 0 && <span className="sub">Pauta: {pautaCountOf(a, s)} {pautaCountOf(a, s) === 1 ? 'item de trabalho' : 'itens de trabalho'} (a data deles acompanha esta reunião)</span>}
                         {c && <span className="w"><AlertTriangle size={12} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />Outra reunião no mesmo dia ({dayLabel(c.day)}): {c.items.filter((i) => i.key !== key).map((i) => i.title).join('; ')}</span>}
                       </span>
