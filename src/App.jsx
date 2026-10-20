@@ -494,6 +494,7 @@ function AppScreens({ shellRef, bump }) {
   const [todoFocusActivityId, setTodoFocusActivityId] = useState(null);
   const [meetingToPrint, setMeetingToPrint] = useState(null);
   const [showLog, setShowLog] = useState(false);
+  const [showCalendarBlock, setShowCalendarBlock] = useState(false); // "Reservar na agenda" (2026-10-19)
   const [showShareLink, setShowShareLink] = useState(false); // link público de acompanhamento (2026-10-19)
   const [showAudit, setShowAudit] = useState(false); // auditoria contra o padrão (2026-10-19)
   const [showTrash, setShowTrash] = useState(false);
@@ -2388,6 +2389,7 @@ function AppScreens({ shellRef, bump }) {
     currentUser.isSuperAdmin && { icon: Building2, label: 'Organizações', onClick: () => goToOrgAdmin(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: LayoutGrid, label: 'Fases', onClick: () => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); } },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Share2, label: 'Link para o cliente', onClick: () => setShowShareLink(true) },
+    !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: CalendarDays, label: 'Reservar na agenda', onClick: () => setShowCalendarBlock(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: ShieldCheck, label: 'Auditoria do padrão', onClick: () => setShowAudit(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Clock, label: `Log (${(activeProject.log || []).length})`, onClick: () => setShowLog(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Trash2, label: 'Lixeira', onClick: () => setShowTrash(true) },
@@ -2503,6 +2505,8 @@ function AppScreens({ shellRef, bump }) {
         setShowAudit,
         showShareLink,
         setShowShareLink,
+        showCalendarBlock,
+        setShowCalendarBlock,
         setShowMeetingsTrash,
         setShowMoreMenu,
         setShowPhases,

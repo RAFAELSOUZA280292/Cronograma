@@ -246,3 +246,34 @@ export async function deleteTicketEvent(userId, googleEventId) {
     if (e.code !== 404 && e.code !== 410) throw e;
   }
 }
+
+// Bloco de agenda de uma atividade do cronograma (2026-10-19, "Reservar na agenda"). Cria o evento ou, se `eventId` já existe, atualiza o MESMO evento
+// preservando a resposta (aceitou/recusou) de quem já estava convidado. Convidados recebem e-mail do Google (sendUpdates 'all').
+export async function upsertBlockEvent(userId, eventId, body) {
+  const client = await getAuthedClientForUser(userId);
+  if (!client) throw Object.assign(new Error('A conta do Google desta pessoa não está conectada.'), { status: 409 });
+  const calendar = google.calendar({ version: 'v3', auth: client });
+  if (eventId) {
+    try {
+      const cur = await calendar.events.get({ calendarId: 'primary', eventId });
+      if (cur.data.status !== 'cancelled') {
+        const keep = new Map((cur.data.attendees || []).map((a) => [String(a.email || '').toLowerCase(), a]));
+        const attendees = (body.attendees || []).map((a) => keep.get(String(a.email).toLowerCase()) || a);
+        const res = await calendar.events.patch({ calendarId: 'primary', eventId, requestBody: { ...body, attendees }, sendUpdates: 'all' });
+        return { id: res.data.id, htmlLink: res.data.htmlLink || '', created: false };
+      }
+    } catch (e) {
+      if (e.code !== 404 && e.code !== 410) throw e;
+    }
+  }
+  const res = await calendar.events.insert({ calendarId: 'primary', requestBody: body, sendUpdates: 'all' });
+  return { id: res.data.id, htmlLink: res.data.htmlLink || '', created: true };
+}
+
+// Cancela o bloco (os convidados recebem o cancelamento). Evento que já não existe no Google não é erro.
+export async function removeBlockEvent(userId, eventId) {
+  const client = await getAuthedClientForUser(userId);
+  if (!client) throw Object.assign(new Error('A conta do Google desta pessoa não está conectada.'), { status: 409 });
+  const calendar = google.calendar({ version: 'v3', auth: client });
+  try { await calendar.events.delete({ calendarId: 'primary', eventId, sendUpdates: 'all' }); } catch (e) { if (e.code !== 404 && e.code !== 410) throw e; }
+}

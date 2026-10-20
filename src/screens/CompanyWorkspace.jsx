@@ -19,6 +19,7 @@ import { countLiveItems, filterActivities, filterMeetings, filterTodoMeetings, q
 
 const StandardAuditModal = lazyRetry(() => import('../macro/StandardAudit.jsx'));
 const CompanyShareLinkModal = lazyRetry(() => import('./CompanyShareLink.jsx'));
+const CompanyCalendarModal = lazyRetry(() => import('./CompanyCalendar.jsx'));
 const StandardPlanBar = lazyRetry(() => import('../macro/StandardPlanBar.jsx'));
 
 export function CompanyWorkspace({ ctx }) {
@@ -142,6 +143,8 @@ export function CompanyWorkspace({ ctx }) {
     setShowAudit,
     showShareLink,
     setShowShareLink,
+    showCalendarBlock,
+    setShowCalendarBlock,
     showMeetingsTrash,
     showMoreMenu,
     showPhases,
@@ -299,7 +302,10 @@ export function CompanyWorkspace({ ctx }) {
             <button style={S.iconBtn} onClick={() => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); }}><LayoutGrid size={15} /> Fases</button>
           )}
           {!isMobile && !isMulti && !isTpl && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
-            <button style={S.iconBtn} onClick={() => setShowShareLink(true)}><Share2 size={15} /> Link para o cliente</button>
+            <>
+              <button style={S.iconBtn} onClick={() => setShowShareLink(true)}><Share2 size={15} /> Link para o cliente</button>
+              <button style={S.iconBtn} onClick={() => setShowCalendarBlock(true)}><CalendarDays size={15} /> Reservar na agenda</button>
+            </>
           )}
           {!isMobile && !isMulti && !isTpl && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowAudit(true)}><ShieldCheck size={15} /> Auditoria</button>
@@ -807,6 +813,9 @@ export function CompanyWorkspace({ ctx }) {
         );
       })()}
 
+      {showCalendarBlock && activeProject && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
+        <CompanyCalendarModal projectId={activeProject.id} companyLabel={activeProject.company.nomeFantasia || activeProject.company.name || 'Empresa'} onClose={() => setShowCalendarBlock(false)} />
+      )}
       {showShareLink && activeProject && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
         <CompanyShareLinkModal projectId={activeProject.id} companyLabel={activeProject.company.nomeFantasia || activeProject.company.name || 'Empresa'} onClose={() => setShowShareLink(false)} />
       )}
