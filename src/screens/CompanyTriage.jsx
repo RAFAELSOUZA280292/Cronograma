@@ -68,6 +68,22 @@ const CSS = `
   .tg-guide .cl { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
   .tg-guide-h { display:flex; gap:6px; align-items:center; margin-top:4px; font-size:11px; font-weight:700; color:var(--text-4); text-transform:uppercase; letter-spacing:.04em; }
   .tg-guide-h button { font:inherit; font-size:11.5px; font-weight:400; text-transform:none; letter-spacing:0; background:none; border:0; color:var(--text-3); text-decoration:underline; cursor:pointer; padding:0; }
+  .tg-mt { border-bottom:1px solid var(--border-2); }
+  .tg-mt-h { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 12px 4px; }
+  .tg-mt-h .mt { font-size:14.5px; font-weight:700; color:var(--text-1); }
+  .tg-mt-h .ar { font-size:12px; color:var(--text-5); }
+  .tg-mt-b { padding:0 12px 10px; }
+  .tg-pg { margin:8px 0 0; border:1px solid var(--border-2); border-radius:9px; overflow:hidden; background:var(--bg-3); }
+  .tg-pg-h { padding:5px 10px; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4); background:var(--bg-3); }
+  .tg-pg-a { padding:4px 10px 2px; font-size:11.5px; color:var(--text-5); border-top:1px solid var(--border-2); }
+  .tg-pi { display:flex; align-items:center; gap:8px; padding:4px 10px; border-top:1px solid var(--border-2); font-size:12.5px; color:var(--text-2); background:var(--bg-2); }
+  .tg-pi .t { flex:1; min-width:0; overflow-wrap:anywhere; line-height:1.35; }
+  .tg-pi .g { font-size:11px; color:var(--text-5); }
+  .tg-gh { font:inherit; font-size:11.5px; padding:2px 8px; border:1px solid var(--border-2); background:var(--bg-3); color:var(--text-3); border-radius:6px; cursor:pointer; }
+  .tg-gh:hover { color:var(--text-1); border-color:var(--border-3); }
+  .tg-gh.pri { color:var(--text-1); font-weight:700; }
+  .tg-gh:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  .tg-sec { padding:8px 12px 4px; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--text-4); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .tg-more { font-size:11px; color:var(--text-4); padding-left:4px; }
   .tg-day { margin:12px 0 0; border:1px solid var(--border-2); border-radius:12px; overflow:hidden; background:var(--bg-2); }
   .tg-day > .tg-h { font-size:14px; font-weight:700; color:var(--text-1); }
@@ -158,7 +174,7 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
       if (showActs && a.date && (showDone || a.status !== 'concluido') && matchTipo(a.kind)) out.push({ key: a.id, isAct: true, actId: a.id, subId: '', title: a.title, actTitle: a.title, date: a.date, kind: a.kind === 'reuniao' ? 'reuniao' : 'trabalho', done: a.status === 'concluido' });
       for (const s of a.subactivities || []) {
         if (s.deleted || !s.date || (s.done && !showDone) || !matchTipo(s.kind)) continue;
-        out.push({ key: `${a.id}#${s.id}`, isAct: false, actId: a.id, subId: s.id, title: s.title, guide: (s.guide || '').trim(), actTitle: a.title, date: s.date, kind: s.kind === 'reuniao' ? 'reuniao' : 'trabalho', done: !!s.done });
+        out.push({ key: `${a.id}#${s.id}`, isAct: false, actId: a.id, subId: s.id, title: s.title, guide: (s.guide || '').trim(), pautaDe: s.pautaDe || '', actTitle: a.title, date: s.date, kind: s.kind === 'reuniao' ? 'reuniao' : 'trabalho', done: !!s.done });
       }
     }
     return out;
@@ -170,6 +186,20 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
     for (const l of m.values()) l.sort((x, y) => (x.isAct - y.isAct) || (x.kind === y.kind ? 0 : x.kind === 'reuniao' ? -1 : 1) || x.title.localeCompare(y.title));
     return m;
   }, [entries]);
+
+  // Modelo de cada dia: reuniões (com a pauta vinculada que cai no mesmo dia), itens vinculados e "outros itens" (sem vínculo com reunião do dia).
+  const models = useMemo(() => {
+    const out = new Map();
+    for (const [day, list] of byDay) {
+      const meetings = list.filter((e) => !e.isAct && e.kind === 'reuniao' && !e.done);
+      const ids = new Set(meetings.map((m) => m.subId));
+      const pauta = new Map(meetings.map((m) => [m.subId, list.filter((e) => !e.isAct && e.pautaDe === m.subId)]));
+      const linked = new Set([...pauta.values()].flat().map((e) => e.key));
+      const others = list.filter((e) => !(e.subId && ids.has(e.subId)) && !linked.has(e.key));
+      out.set(day, { meetings, pauta, linked, others, total: list.length });
+    }
+    return out;
+  }, [byDay]);
 
   const cells = useMemo(() => {
     const first = new Date(`${month}-01T00:00:00`);
@@ -217,6 +247,7 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
   }, [project.activities, range, showDone, tipo, hi, today]);
 
   const dayList = byDay.get(selDay) || [];
+  const dm = models.get(selDay) || { meetings: [], pauta: new Map(), linked: new Set(), others: [], total: 0 };
   const dayConf = conflictDays.has(selDay);
 
   // Roteiro do encontro (campo `guide` da subatividade): aparece sob o item, em duas linhas, com "ver tudo". Só leitura aqui; para editar, "Abrir".
@@ -249,7 +280,7 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
             <button type="button" className="q" onClick={() => updateSub(pid, a.id, s.id, { pautaDe: '' })} title="Desvincular da reunião (a data fica como está)">Desvincular</button>
           </>
         ) : (
-          <button type="button" onClick={() => updateSub(pid, a.id, s.id, linkPatch(above))} title={`Trata este item na agenda da reunião "${above.title}" e usa a data dela${above.date ? '' : ' (a reunião ainda não tem data)'}`}>Tratar na reunião de cima{above.date ? ` (${fmtDate(above.date)})` : ''}</button>
+          <button type="button" onClick={() => updateSub(pid, a.id, s.id, linkPatch(above))} title={`Vincula este item à pauta de "${above.title}" e leva a data dela${above.date ? '' : ' (a reunião ainda não tem data)'}`}>Vincular à reunião da área: {above.title}{above.date ? ` → ${fmtDate(above.date)}` : ''}</button>
         )}
       </span>
     );
@@ -257,7 +288,7 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
   const pautaCountOf = (a, s) => (s && s.kind === 'reuniao' ? pautaTitles(project.activities, a.id, s.id).length : 0);
   const pautaBtn = (a, s) => (s && s.kind === 'reuniao' && !s.done && linkPautaTo ? <span className="tg-pauta"><button type="button" onClick={() => setPickFor({ actId: a.id, sub: s })} title="Escolhe itens de trabalho desta atividade ou de outras frentes para esta reunião">Vincular itens à pauta…</button></span> : null);
 
-  function renderRow(e) {
+  function renderRow(e, todayMeetings) {
     const a = (project.activities || []).find((x) => x.id === e.actId);
     const s = e.isAct ? null : (a && (a.subactivities || []).find((x) => x.id === e.subId));
     if (!a) return null;
@@ -274,6 +305,9 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
           <span style={e.done ? { textDecoration: 'line-through', color: 'var(--text-5)' } : undefined}>{e.title}</span>
           {!e.isAct && <span className="sub">{e.actTitle}</span>}
           {!e.isAct && pautaUi(a, s)}
+          {!e.isAct && e.kind !== 'reuniao' && !e.pautaDe && todayMeetings && todayMeetings.length > 0 && (
+            <span className="tg-pauta">{todayMeetings.slice(0, 3).map((m) => <button key={m.key} type="button" onClick={() => updateSub(pid, e.actId, e.subId, linkPatch({ id: m.subId, date: m.date }))} title={`Vincula este item à pauta de "${m.title}" (mesmo dia)`}>Vincular a «{m.title.length > 34 ? `${m.title.slice(0, 34)}…` : m.title}»</button>)}</span>
+          )}
           {!e.isAct && pautaBtn(a, s)}
           {!e.isAct && s && guideUi(e.key, s.guide)}
           {!e.isAct && pautaCountOf(a, s) > 0 && <span className="sub">Pauta: {pautaCountOf(a, s)} {pautaCountOf(a, s) === 1 ? 'item de trabalho' : 'itens de trabalho'} (a data deles acompanha esta reunião)</span>}
@@ -335,7 +369,9 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
               const out = d.slice(0, 7) !== month;
               const wd = new Date(`${d}T00:00:00`).getDay();
               const cf = conflictDays.has(d) && list.some((e) => e.kind === 'reuniao' && !e.done);
-              const shown = list.slice(0, 3);
+              const md = models.get(d);
+              const chipList = md ? list.filter((e) => !md.linked.has(e.key)) : list;
+              const shown = chipList.slice(0, 3);
               return (
                 <div key={d} role="gridcell" tabIndex={0} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setSelDay(d); } }} className={`tg-cell${out ? ' out' : ''}${wd === 0 || wd === 6 ? ' we' : ''}${d === today ? ' today' : ''}${d === selDay ? ' sel' : ''}${overDay === d ? ' over' : ''}${cf ? ' cf' : ''}`}
                   aria-label={`${dayLabel(d)}: ${list.length} ${list.length === 1 ? 'item' : 'itens'}${cf ? ', com duas reuniões' : ''}`} aria-selected={d === selDay}
@@ -347,18 +383,71 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
                   {shown.map((e) => (
                     <span key={e.key} className={`tg-chip ${e.kind === 'reuniao' ? 'R' : 'T'}${e.isAct ? ' A' : ''}${e.done ? ' done' : ''}`} title={`${e.isAct ? 'Atividade' : e.actTitle}: ${e.title}${e.guide ? `\n\nRoteiro: ${e.guide.slice(0, 200)}${e.guide.length > 200 ? '…' : ''}` : ''}`}
                       draggable={!e.isAct} onDragStart={(ev) => { setDragKey(e.key); try { ev.dataTransfer.setData('text/plain', e.key); ev.dataTransfer.effectAllowed = 'move'; } catch (er) { /* ignora */ } }} onDragEnd={() => { setDragKey(''); setOverDay(''); }}>
-                      {e.title}
+                      {e.title}{md && md.pauta.get(e.subId) && md.pauta.get(e.subId).length ? ` (+${md.pauta.get(e.subId).length})` : ''}
                     </span>
                   ))}
-                  {list.length > 3 && <span className="tg-more">+{list.length - 3} mais</span>}
+                  {chipList.length > 3 && <span className="tg-more">+{chipList.length - 3} mais</span>}
                 </div>
               );
             })}
           </div>
           <section className="tg-day" aria-label={`Itens de ${dayLabel(selDay)}`}>
-            <div className="tg-h">{dayLabel(selDay)}{dayConf && <span style={{ color: '#e0a21a', fontSize: 12, fontWeight: 600 }}>duas reuniões neste dia</span>}<label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 400, color: 'var(--text-3)', cursor: 'pointer' }}><input type="checkbox" checked={showGuides} onChange={(e) => setShowGuides(e.target.checked)} /> Mostrar roteiros</label><span className="pe">{dayList.length} {dayList.length === 1 ? 'item' : 'itens'}</span></div>
+            <div className="tg-h">{dayLabel(selDay)}{dayConf && <span style={{ color: '#e0a21a', fontSize: 12, fontWeight: 600 }}>duas reuniões neste dia</span>}<label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 400, color: 'var(--text-3)', cursor: 'pointer' }}><input type="checkbox" checked={showGuides} onChange={(e) => setShowGuides(e.target.checked)} /> Mostrar roteiros</label><span className="pe">{dm.meetings.length} {dm.meetings.length === 1 ? 'reunião' : 'reuniões'} · {dm.linked.size} na pauta · {dm.others.length} {dm.others.length === 1 ? 'outro item' : 'outros itens'}</span></div>
             {dayList.length === 0 && <div className="tg-empty">Nada neste dia. Arraste um item do calendário para cá, ou use a Lista para datar o que está sem data.</div>}
-            {dayList.map((e) => renderRow(e))}
+            {dm.meetings.map((m) => {
+              const a = (project.activities || []).find((x) => x.id === m.actId);
+              const sub = a && (a.subactivities || []).find((x) => x.id === m.subId);
+              if (!a || !sub) return null;
+              const c = conflictOf.get(m.key);
+              const items = dm.pauta.get(m.subId) || [];
+              const groups = [];
+              for (const it of items) { let g = groups.find((x) => x.actId === it.actId); if (!g) { g = { actId: it.actId, title: it.actTitle, list: [] }; groups.push(g); } g.list.push(it); }
+              return (
+                <div key={m.key} className="tg-mt">
+                  <div className="tg-mt-h">
+                    <span className="mt">{m.title}</span><span className="ar">{m.actTitle}</span>
+                    <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                      {linkPautaTo && <button type="button" className="tg-gh pri" onClick={() => setPickFor({ actId: a.id, sub })} title="Escolhe itens de trabalho desta atividade ou de outras frentes para esta reunião">Vincular itens…</button>}
+                      <Seg value="reuniao" label={`Tipo de ${m.title}`} onChange={(v) => updateSub(pid, a.id, sub.id, { kind: v })} />
+                      <button type="button" className="tg-gh" onClick={() => openDetail && openDetail(pid, a.id)} title="Abrir a atividade">Abrir</button>
+                    </span>
+                  </div>
+                  <div className="tg-mt-b">
+                    {c && <span className="tg-r conf" style={{ border: 0, padding: '2px 0' }}><span className="tt"><span className="w"><AlertTriangle size={12} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />Outra reunião no mesmo dia: {c.items.filter((i) => i.key !== m.key).map((i) => i.title).join('; ')}</span></span></span>}
+                    {guideUi(m.key, sub.guide)}
+                    <div className="tg-pg">
+                      <div className="tg-pg-h">Pauta · {items.length} {items.length === 1 ? 'item' : 'itens'} <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>(a data acompanha a reunião)</span></div>
+                      {items.length === 0 && <div className="tg-pi"><span className="t" style={{ color: 'var(--text-5)' }}>Nenhum item vinculado ainda. Use "Vincular itens…".</span></div>}
+                      {groups.map((g) => (
+                        <React.Fragment key={g.actId}>
+                          {(groups.length > 1 || g.actId !== m.actId) && <div className="tg-pg-a">{g.title}</div>}
+                          {g.list.map((it) => (
+                            <div key={it.key} className="tg-pi">
+                              <span className="t" style={it.done ? { textDecoration: 'line-through', color: 'var(--text-5)' } : undefined}>{it.title}{it.guide && showGuides ? <span className="g"> · roteiro: {it.guide.length > 90 ? `${it.guide.slice(0, 90)}…` : it.guide}</span> : null}</span>
+                              <button type="button" className="tg-gh" onClick={() => updateSub(pid, it.actId, it.subId, { pautaDe: '' })} title="Tira da pauta (a data fica como está)">Desvincular</button>
+                              <button type="button" className="tg-gh" onClick={() => openDetail && openDetail(pid, it.actId)} title="Abrir a atividade">Abrir</button>
+                            </div>
+                          ))}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {dm.others.length > 0 && (
+              <>
+                <div className="tg-sec">
+                  {dm.meetings.length ? 'Outros itens deste dia (não estão na pauta de nenhuma reunião)' : 'Itens deste dia'}
+                  {dm.meetings.length === 1 && linkPautaTo && (() => {
+                    const m = dm.meetings[0];
+                    const eligible = dm.others.filter((e) => !e.isAct && e.kind !== 'reuniao' && !e.done);
+                    return eligible.length > 0 ? <button type="button" className="tg-gh pri" style={{ textTransform: 'none', letterSpacing: 0 }} onClick={() => linkPautaTo(pid, m.actId, m.subId, eligible.map((e) => ({ actId: e.actId, subId: e.subId })))}>Vincular os {eligible.length} à «{m.title.length > 30 ? `${m.title.slice(0, 30)}…` : m.title}»</button> : null;
+                  })()}
+                </div>
+                {dm.others.map((e) => renderRow(e, dm.meetings))}
+              </>
+            )}
           </section>
         </>
       )}
