@@ -6,7 +6,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarCheck, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { fmtDate, todayISOStr } from '../App.jsx';
 import { meetingConflicts } from '../../shared/calendarDays.js';
-import { linkPatch, meetingAbove, pautaItems } from '../../shared/pauta.js';
+import { findSub, linkPatch, meetingAbove, pautaTitles } from '../../shared/pauta.js';
+import PautaPicker from './PautaPicker.jsx';
 
 const CSS = `
   .tg-wrap { max-width: 1040px; }
@@ -103,7 +104,7 @@ function TipoFilter({ value, onChange }) {
   );
 }
 
-export default function CompanyTriage({ project, updateActivity, updateSub, openDetail, onReserve, pushUndoToast }) {
+export default function CompanyTriage({ project, updateActivity, updateSub, openDetail, onReserve, pushUndoToast, linkPautaTo }) {
   const pid = project.id;
   const today = todayISOStr();
   const prefs0 = useMemo(readPrefs, []);
@@ -114,6 +115,7 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
   const [showActs, setShowActs] = useState(prefs0.showActs !== false);
   const [month, setMonth] = useState(today.slice(0, 7));
   const [selDay, setSelDay] = useState(today);
+  const [pickFor, setPickFor] = useState(null); // { actId, sub } da reunião que vai receber itens na pauta
   const [dragKey, setDragKey] = useState('');
   const [overDay, setOverDay] = useState('');
   const hi = plusDays(today, 60);
@@ -215,14 +217,15 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
   function pautaUi(a, s) {
     if (!s || s.kind === 'reuniao' || s.done) return null;
     const subs = a.subactivities || [];
-    const mt = s.pautaDe ? subs.find((x) => x.id === s.pautaDe && !x.deleted) : null;
+    const hit = s.pautaDe ? findSub(project.activities, s.pautaDe) : null;
+    const mt = hit ? hit.sub : null;
     const above = !mt ? meetingAbove(subs, s.id) : null;
     if (!mt && !above) return null;
     return (
       <span className="tg-pauta">
         {mt ? (
           <>
-            <span>Pauta da reunião <b style={{ color: 'var(--text-1)', fontWeight: 700 }}>{mt.title}</b>{mt.date ? ` · ${fmtDate(mt.date)}` : ''}</span>
+            <span>Pauta da reunião <b style={{ color: 'var(--text-1)', fontWeight: 700 }}>{mt.title}</b>{hit.act.id !== a.id ? ` (${hit.act.title})` : ''}{mt.date ? ` · ${fmtDate(mt.date)}` : ''}</span>
             <button type="button" className="q" onClick={() => updateSub(pid, a.id, s.id, { pautaDe: '' })} title="Desvincular da reunião (a data fica como está)">Desvincular</button>
           </>
         ) : (
@@ -231,7 +234,8 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
       </span>
     );
   }
-  const pautaCountOf = (a, s) => (s && s.kind === 'reuniao' ? pautaItems(a.subactivities, s.id).length : 0);
+  const pautaCountOf = (a, s) => (s && s.kind === 'reuniao' ? pautaTitles(project.activities, a.id, s.id).length : 0);
+  const pautaBtn = (a, s) => (s && s.kind === 'reuniao' && !s.done && linkPautaTo ? <span className="tg-pauta"><button type="button" onClick={() => setPickFor({ actId: a.id, sub: s })} title="Escolhe itens de trabalho desta atividade ou de outras frentes para esta reunião">Vincular itens à pauta…</button></span> : null);
 
   function renderRow(e) {
     const a = (project.activities || []).find((x) => x.id === e.actId);
@@ -250,6 +254,7 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
           <span style={e.done ? { textDecoration: 'line-through', color: 'var(--text-5)' } : undefined}>{e.title}</span>
           {!e.isAct && <span className="sub">{e.actTitle}</span>}
           {!e.isAct && pautaUi(a, s)}
+          {!e.isAct && pautaBtn(a, s)}
           {!e.isAct && pautaCountOf(a, s) > 0 && <span className="sub">Pauta: {pautaCountOf(a, s)} {pautaCountOf(a, s) === 1 ? 'item de trabalho' : 'itens de trabalho'} (a data deles acompanha esta reunião)</span>}
           {c && <span className="w"><AlertTriangle size={12} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />Outra reunião no mesmo dia: {c.items.filter((i) => i.key !== e.key).map((i) => i.title).join('; ')}</span>}
         </span>
@@ -372,6 +377,7 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
                         <span style={s.done ? { textDecoration: 'line-through', color: 'var(--text-5)' } : undefined}>{s.title}</span>
                         {late && <span className="late">atrasada</span>}
                         {pautaUi(a, s)}
+                        {pautaBtn(a, s)}
                         {pautaCountOf(a, s) > 0 && <span className="sub">Pauta: {pautaCountOf(a, s)} {pautaCountOf(a, s) === 1 ? 'item de trabalho' : 'itens de trabalho'} (a data deles acompanha esta reunião)</span>}
                         {c && <span className="w"><AlertTriangle size={12} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />Outra reunião no mesmo dia ({dayLabel(c.day)}): {c.items.filter((i) => i.key !== key).map((i) => i.title).join('; ')}</span>}
                       </span>
@@ -384,6 +390,7 @@ export default function CompanyTriage({ project, updateActivity, updateSub, open
           })}
         </>
       )}
+      {pickFor && <PautaPicker activities={project.activities || []} meeting={pickFor.sub} meetingActId={pickFor.actId} onConfirm={(items) => linkPautaTo(pid, pickFor.actId, pickFor.sub.id, items)} onClose={() => setPickFor(null)} />}
     </div>
   );
 }
