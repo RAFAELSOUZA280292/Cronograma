@@ -87,8 +87,8 @@ export function buildPublicPayload(data, today) {
     },
     phases: alive(data && data.phases).map((p) => ({ id: p.id, name: clip(p.name, 80) })),
     activities: alive(data && data.activities).slice(0, 500).map((a) => ({
-      id: a.id, title: clip(a.title, 200), phase: a.phase, status: a.status || 'nao-iniciado', date: a.date || '', endDate: a.endDate || '', responsible: clip(a.responsible, 80),
-      subs: alive(a.subactivities).slice(0, 100).map((s) => ({ id: s.id, title: clip(s.title, 240), done: !!s.done, date: s.date || '', responsible: clip(s.responsible, 80) })),
+      id: a.id, title: clip(a.title, 200), phase: a.phase, status: a.status || 'nao-iniciado', kind: a.kind === 'reuniao' ? 'reuniao' : 'trabalho', date: a.date || '', endDate: a.endDate || '', responsible: clip(a.responsible, 80),
+      subs: alive(a.subactivities).slice(0, 100).map((s) => ({ id: s.id, title: clip(s.title, 240), kind: s.kind === 'reuniao' ? 'reuniao' : 'trabalho', done: !!s.done, date: s.date || '', responsible: clip(s.responsible, 80) })),
     })),
   };
 }
@@ -131,12 +131,12 @@ export function buildDataTables(data, today) {
     const situacao = a.status !== 'concluido' && late(fim) ? 'atrasada' : a.status;
     const fase = phaseName.get(a.phase) || 'Outras';
     atividades.push({
-      atividade_id: a.id, fase, atividade: a.title, status: a.status, situacao: STATUS_ROTULO[situacao] || situacao, inicio: a.date, fim, responsavel: a.responsible,
+      atividade_id: a.id, fase, atividade: a.title, tipo: a.kind === 'reuniao' ? 'Reunião' : 'Trabalho', status: a.status, situacao: STATUS_ROTULO[situacao] || situacao, inicio: a.date, fim, responsavel: a.responsible,
       subatividades_total: a.subs.length, subatividades_concluidas: a.subs.filter((x) => x.done).length,
     });
     for (const x of a.subs) {
       const sit = x.done ? 'concluido' : late(x.date) ? 'atrasada' : 'pendente';
-      subatividades.push({ subatividade_id: x.id, atividade_id: a.id, fase, atividade: a.title, subatividade: x.title, concluida: x.done ? 'Sim' : 'Não', situacao: STATUS_ROTULO[sit], data: x.date, responsavel: x.responsible });
+      subatividades.push({ subatividade_id: x.id, atividade_id: a.id, fase, atividade: a.title, subatividade: x.title, tipo: x.kind === 'reuniao' ? 'Reunião' : 'Trabalho', concluida: x.done ? 'Sim' : 'Não', situacao: STATUS_ROTULO[sit], data: x.date, responsavel: x.responsible });
     }
   }
   return { empresa: pub.company.name, gerado_em: today, fases: pub.phases.map((p) => p.name), atividades, subatividades };
@@ -153,8 +153,8 @@ export function toCsv(rows, columns) {
 }
 
 export const dataRouter = Router();
-const ATIV_COLS = ['atividade_id', 'fase', 'atividade', 'status', 'situacao', 'inicio', 'fim', 'responsavel', 'subatividades_total', 'subatividades_concluidas'];
-const SUB_COLS = ['subatividade_id', 'atividade_id', 'fase', 'atividade', 'subatividade', 'concluida', 'situacao', 'data', 'responsavel'];
+const ATIV_COLS = ['atividade_id', 'fase', 'atividade', 'tipo', 'status', 'situacao', 'inicio', 'fim', 'responsavel', 'subatividades_total', 'subatividades_concluidas'];
+const SUB_COLS = ['subatividade_id', 'atividade_id', 'fase', 'atividade', 'subatividade', 'tipo', 'concluida', 'situacao', 'data', 'responsavel'];
 const DATA_FILES = { 'atividades.csv': 'atividades', 'subatividades.csv': 'subatividades' };
 dataRouter.get('/:token/:file', async (req, res, next) => {
   try {

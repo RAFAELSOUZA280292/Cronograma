@@ -201,7 +201,8 @@ function OrderBadge({ n, title, color, phaseName, onOpen }) {
   );
 }
 
-function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSub, deleteSub, reorderSub, allSubs, canEditExtras, meetings, onOpenMeeting }) {
+function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSub, deleteSub, reorderSub, allSubs, canEditExtras, meetings, onOpenMeeting, meetingConflicts }) {
+  const conflict = s.kind === 'reuniao' && !s.done ? (meetingConflicts || []).find((c) => c.items.some((i) => i.key === `${actId}#${s.id}`)) : null;
   const titleField = useDebouncedField(s.title, (v) => updateSub(pid, actId, s.id, { title: v }));
   // Título da subatividade quebra em linhas (cresce com o texto) em vez de cortar: o painel é largo e o nome inteiro precisa aparecer.
   const titleRef = useRef(null);
@@ -229,14 +230,19 @@ function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSu
           {team.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
         </select>
         <input type="date" className="sub-meta-date" value={s.date || ''} onChange={(e) => updateSub(pid, actId, s.id, { date: e.target.value })} style={S.subMetaDate} title="Prazo da subatividade" />
+        <select className="sub-meta-select" aria-label="Tipo da subatividade" value={s.kind === 'reuniao' ? 'reuniao' : 'trabalho'} onChange={(e) => updateSub(pid, actId, s.id, { kind: e.target.value })} style={s.kind === 'reuniao' ? { ...S.subMetaSelect, borderColor: 'var(--ui-accent, #F5C400)' } : S.subMetaSelect} title="Reunião = call com gente junto ao mesmo tempo. Trabalho = execução. Só reunião entra em Reservar na agenda, e só pode haver uma por dia na empresa.">
+          <option value="trabalho">Trabalho</option>
+          <option value="reuniao">Reunião</option>
+        </select>
         <SubOutcome s={s} pid={pid} actId={actId} updateSub={updateSub} />
       </div>
+      {conflict && <div role="note" style={{ display: 'flex', gap: 6, alignItems: 'flex-start', fontSize: 11.5, color: '#e0a21a', margin: '2px 0 0 28px', lineHeight: 1.4 }}><AlertTriangle size={12} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} /><span>Outra reunião neste mesmo dia ({fmtDate(conflict.day)}): {conflict.items.filter((i) => i.key !== `${actId}#${s.id}`).map((i) => i.title).join('; ')}. Só pode haver uma por dia.</span></div>}
       <SubExtras s={s} pid={pid} actId={actId} allSubs={allSubs} canEdit={canEditExtras} updateSub={updateSub} meetings={meetings} onOpenMeeting={onOpenMeeting} />
     </div>
   );
 }
 
-export function ActivityDetailModal({ activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, flushProjectSave, deleteActivity, addSub, updateSub, deleteSub, reorderSub, allSubs, addAttachments, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant, meetings, onOpenLinkedTask, onOpenLinkedTasks, onOpenMeeting }) {
+export function ActivityDetailModal({ meetingConflicts = [], activity: a, orderMap, phases, team, log, companyName, currentUser, pid, groupChildren, onClose, updateActivity, flushProjectSave, deleteActivity, addSub, updateSub, deleteSub, reorderSub, allSubs, addAttachments, removeAttachment, addComment, removeComment, updateComment, addLink, removeLink, toggleParticipant, meetings, onOpenLinkedTask, onOpenLinkedTasks, onOpenMeeting }) {
   const [dragSubId, setDragSubId] = useState(null);
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [linkLabelDraft, setLinkLabelDraft] = useState('');
@@ -413,7 +419,7 @@ export function ActivityDetailModal({ activity: a, orderMap, phases, team, log, 
                     dragSubId={dragSubId} setDragSubId={setDragSubId}
                     team={team} updateSub={updateSub} deleteSub={deleteSub} reorderSub={reorderSub}
                     allSubs={allSubs} canEditExtras={!!currentUser && (currentUser.role === 'master' || currentUser.role === 'pricetax')}
-                    meetings={meetings} onOpenMeeting={onOpenMeeting}
+                    meetings={meetings} onOpenMeeting={onOpenMeeting} meetingConflicts={meetingConflicts}
                   />
                 ))}
                 {!(a.subactivities || []).some((x) => !x.deleted) && <div style={S.emptyMuted}>Nenhuma subatividade ainda.</div>}
@@ -422,6 +428,17 @@ export function ActivityDetailModal({ activity: a, orderMap, phases, team, log, 
           </div>
 
           <div style={{ ...S.detailSide, ...(isMobile ? S.detailSideMobile : null) }}>
+            <div style={S.subSectionLabel}>Tipo</div>
+            <select aria-label="Tipo da atividade" value={a.kind === 'reuniao' ? 'reuniao' : 'trabalho'} onChange={(e) => updateActivity(pid, a.id, { kind: e.target.value }, `Tipo alterado em "${a.title}": ${e.target.value === 'reuniao' ? 'Reunião' : 'Trabalho'}`)}>
+              <option value="trabalho">Trabalho (execução)</option>
+              <option value="reuniao">Reunião (call)</option>
+            </select>
+            <div style={{ ...S.fieldHint, marginTop: 4 }}>Reunião = precisa de gente junto ao mesmo tempo. Só reunião entra em "Reservar na agenda", e só pode haver uma por dia na empresa. Os encontros de uma frente podem ser subatividades do tipo Reunião.</div>
+            {(() => {
+              const c = a.kind === 'reuniao' && a.status !== 'concluido' ? meetingConflicts.find((x) => x.items.some((i) => i.key === a.id)) : null;
+              return c ? <div role="note" style={{ display: 'flex', gap: 6, alignItems: 'flex-start', fontSize: 12, color: '#e0a21a', marginTop: 6, lineHeight: 1.4 }}><AlertTriangle size={13} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} /><span>Outra reunião no mesmo dia ({fmtDate(c.day)}): {c.items.filter((i) => i.key !== a.id).map((i) => i.title).join('; ')}. Só pode haver uma por dia.</span></div> : null;
+            })()}
+
             <div style={S.subSectionLabel}>Fase</div>
             <select value={a.phase} onChange={(e) => { const id = Number(e.target.value); updateActivity(pid, a.id, { phase: id }, `Fase alterada em "${a.title}": ${phases.find((p) => p.id === id)?.name}`); }}>
               {phases.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

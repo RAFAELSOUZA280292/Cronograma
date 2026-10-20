@@ -7,9 +7,9 @@ import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import { canAccessProject } from './routes.js';
 import { todayInSp } from './widgetSummary.js';
 import * as realGcal from './googleCalendar.js';
-import { inWindow } from '../shared/calendarDays.js';
+import { assignDays, duplicateDays, inWindow, meetingConflicts } from '../shared/calendarDays.js';
 import {
-  DEFAULT_DURATION, DEFAULT_TIME, DURATIONS, MAX_EMAILS, MAX_ITEMS, buildEventBody, candidateActivities, fingerprint, isTime, obsoleteMappings, parseEmails, rowStatus,
+  DEFAULT_DURATION, DEFAULT_TIME, DURATIONS, MAX_EMAILS, MAX_ITEMS, buildEventBody, candidateMeetings, fingerprint, isTime, obsoleteMappings, parseEmails, rowStatus,
 } from './companyCalendarPlan.js';
 
 const companyName = (data) => { const c = (data && data.company) || {}; return String(c.nomeFantasia || c.name || 'Empresa').slice(0, 80); };
@@ -44,13 +44,24 @@ export function createCalendarRouter(gcal = realGcal, now = () => todayInSp()) {
       const name = companyName(p.data);
       const maps = await loadMappings(p.id);
       const byAct = new Map(maps.map((m) => [m.activity_id, m]));
-      const { rows, past } = candidateActivities(p.data, today);
+      const { rows, past, semData } = candidateMeetings(p.data, today);
       const ctx = { projectId: p.id, appUrl: appUrl() };
       const obsolete = obsoleteMappings(p.data, maps);
+      const obsoleteIds = new Set(obsolete.map((m) => m.activity_id));
+      const status = new Map(rows.map((r) => [r.activityId, rowStatus(r, byAct.get(r.activityId), name, ctx)]));
+      // Dias ocupados por reuniões da empresa: reservas que continuam (válidas) e reservas de reuniões fora da lista (ex.: concluídas), de hoje em diante.
+      const taken = new Set();
+      const takenList = [];
+      for (const m of maps) {
+        if (obsoleteIds.has(m.activity_id) || m.start_date < today) continue;
+        if (status.has(m.activity_id) && status.get(m.activity_id) !== 'reservada') continue;
+        taken.add(m.start_date); takenList.push({ activityId: m.activity_id, day: m.start_date });
+      }
+      const placed = assignDays(rows.filter((r) => status.get(r.activityId) !== 'reservada'), taken, today);
       const out = rows.map((r) => {
         const m = byAct.get(r.activityId);
-        const st = rowStatus(r, m, name, ctx);
-        return { ...r, status: st, day: m && st === 'reservada' ? m.start_date : r.date, time: m ? m.start_time : DEFAULT_TIME, reservedAt: m ? m.updated_at : null };
+        const st = status.get(r.activityId);
+        return { ...r, status: st, day: st === 'reservada' ? m.start_date : (placed.days[r.activityId] || r.date), time: m ? m.start_time : (r.meetingTime || DEFAULT_TIME), reservedAt: m ? m.updated_at : null, conflict: placed.unresolved.includes(r.activityId) };
       });
       const lastEmails = maps.slice().sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))[0];
       const connected = gcal.googleConfigured() ? (await gcal.getConnectionStatus(req.user.id)).connected : false;
@@ -59,7 +70,7 @@ export function createCalendarRouter(gcal = realGcal, now = () => todayInSp()) {
         today,
         google: { configured: gcal.googleConfigured(), connected },
         emails: lastEmails ? lastEmails.emails : [], durationMin: lastEmails ? lastEmails.duration_min : DEFAULT_DURATION, defaultTime: DEFAULT_TIME,
-        rows: out, pastCount: past, reservedCount: maps.length, reservedIds: maps.map((m) => m.activity_id),
+        rows: out, pastCount: past, semData, scheduleConflicts: meetingConflicts(p.data, today), takenDays: takenList, reservedCount: maps.length, reservedIds: maps.map((m) => m.activity_id),
         obsolete: obsolete.map((m) => ({ activityId: m.activity_id, date: m.start_date })),
       });
     } catch (e) { next(e); }
@@ -77,7 +88,7 @@ export function createCalendarRouter(gcal = realGcal, now = () => todayInSp()) {
       if (invalid.length) return res.status(400).json({ message: `E-mail inválido: ${invalid.slice(0, 3).join(', ')}.` });
       if (items.length && !emails.length) return res.status(400).json({ message: 'Digite ao menos um e-mail da equipe para convidar.' });
       if (emails.length > MAX_EMAILS) return res.status(400).json({ message: `No máximo ${MAX_EMAILS} e-mails por reserva.` });
-      if (items.length > MAX_ITEMS) return res.status(400).json({ message: `No máximo ${MAX_ITEMS} atividades por vez.` });
+      if (items.length > MAX_ITEMS) return res.status(400).json({ message: `No máximo ${MAX_ITEMS} reuniões por vez.` });
       const durationMin = DURATIONS.includes(Number(b.durationMin)) ? Number(b.durationMin) : DEFAULT_DURATION;
       if (!items.length && !cancel.length) return res.status(400).json({ message: 'Nada selecionado.' });
       if (items.length && gcal.googleConfigured() && !(await gcal.getConnectionStatus(req.user.id)).connected) {
@@ -85,23 +96,31 @@ export function createCalendarRouter(gcal = realGcal, now = () => todayInSp()) {
       }
       const name = companyName(p.data);
       const today = now();
-      const cand = new Map(candidateActivities(p.data, today).rows.map((r) => [r.activityId, r]));
+      const cand = new Map(candidateMeetings(p.data, today).rows.map((r) => [r.activityId, r]));
       const maps = new Map((await loadMappings(p.id)).map((m) => [m.activity_id, m]));
       const ctx = { projectId: p.id, appUrl: appUrl() };
       const results = [];
-      // O dia do bloco precisa estar dentro do período da atividade. Várias atividades no mesmo dia são permitidas.
+      // O dia do bloco precisa estar dentro do período da reunião.
       const chosen = [];
       for (const it of items) {
         const row = cand.get(it && it.activityId);
         if (!row) continue;
         const day = /^\d{4}-\d{2}-\d{2}$/.test(String(it.day || '')) ? it.day : row.date;
-        if (!inWindow(row, day) || day < today) return res.status(400).json({ message: `"${row.title}": o dia do bloco precisa estar dentro do período da atividade (${row.date}${row.endDate ? ` a ${row.endDate}` : ''}) e não pode ser passado.` });
-        chosen.push({ activityId: row.activityId, day });
+        if (!inWindow(row, day) || day < today) return res.status(400).json({ message: `"${row.title}": o dia do bloco precisa estar dentro do período da reunião (${row.date}${row.endDate ? ` a ${row.endDate}` : ''}) e não pode ser passado.` });
+        chosen.push({ activityId: row.activityId, day, title: row.title });
+      }
+      // Regra do Rafael: no máximo UMA reunião por dia na mesma empresa (trabalho/atividade pode repetir). Vale entre as escolhidas e as reservas que continuam.
+      const cancelSet = new Set(cancel);
+      const staying = [...maps.values()].filter((m) => !chosen.some((c) => c.activityId === m.activity_id) && !cancelSet.has(m.activity_id) && m.start_date >= today).map((m) => ({ activityId: m.activity_id, day: m.start_date, title: (cand.get(m.activity_id) || {}).title || 'outra reunião reservada' }));
+      const dup = Object.entries(duplicateDays([...chosen, ...staying]))[0];
+      if (dup) {
+        const names = [...chosen, ...staying].filter((e) => e.day === dup[0]).map((e) => `"${e.title}"`).join(' e ');
+        return res.status(400).json({ message: `Duas reuniões no mesmo dia (${dup[0].slice(8, 10)}/${dup[0].slice(5, 7)}): ${names}. Na mesma empresa só pode haver uma reunião por dia: mude o dia de uma delas.` });
       }
       const dayOf = new Map(chosen.map((c) => [c.activityId, c.day]));
       for (const it of items) {
         const row = cand.get(it && it.activityId);
-        if (!row) { results.push({ activityId: it && it.activityId, ok: false, error: 'Atividade não está mais disponível para reservar (concluída, passada ou excluída).' }); continue; }
+        if (!row) { results.push({ activityId: it && it.activityId, ok: false, error: 'Reunião não está mais disponível para reservar (concluída, passada, excluída ou deixou de ser do tipo Reunião).' }); continue; }
         const time = isTime(it.time) ? it.time : DEFAULT_TIME;
         const day = dayOf.get(row.activityId);
         const body = buildEventBody(row, name, { ...ctx, day, time, durationMin, emails });

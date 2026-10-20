@@ -1,7 +1,7 @@
 // Reservar na agenda (2026-10-19, pedido do Rafael): cada ATIVIDADE do cronograma da empresa vira UM bloco de agenda (padrão de call: 60 min) para a equipe PRICETAX.
 // Funções puras (sem rede nem banco), testadas em Node. Quem fala com o Google é server/companyCalendar.js.
 import crypto from 'node:crypto';
-import { inWindow } from '../shared/calendarDays.js';
+import { inWindow, meetingItems } from '../shared/calendarDays.js';
 
 export const DEFAULT_TIME = '10:00';
 export const DEFAULT_DURATION = 60;
@@ -10,7 +10,6 @@ export const MAX_EMAILS = 20;
 export const MAX_ITEMS = 60;
 const TZ = 'America/Sao_Paulo';
 const EMAIL_RE = /^[^\s@,;<>()"]+@[^\s@,;<>()"]+\.[^\s@,;<>()"]{2,}$/;
-const alive = (arr) => (Array.isArray(arr) ? arr.filter((x) => x && !x.deleted) : []);
 const clip = (v, n) => String(v == null ? '' : v).slice(0, n);
 
 export const isTime = (t) => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(t || ''));
@@ -28,18 +27,20 @@ export function parseEmails(text) {
   return { emails, invalid };
 }
 
-// Atividades que podem virar bloco: vivas, com data, ainda não concluídas e de hoje em diante (não se reserva no passado).
-export function candidateActivities(project, today) {
-  const phaseName = new Map(alive(project && project.phases).map((p) => [p.id, p.name]));
+// Reuniões que podem virar bloco (atividade ou subatividade do tipo Reunião): com data, não concluídas e de hoje em diante (não se reserva no passado).
+// Trabalho (execução) não gera convite. `semData` = reuniões sem data, que não dá para reservar. `activityId` guarda a chave (atividade, ou "atividade#sub").
+export function candidateMeetings(project, today) {
   const rows = [];
   let past = 0;
-  for (const a of alive(project && project.activities)) {
-    if (!a.date || !a.title || a.status === 'concluido') continue;
-    if (a.date < today) { past += 1; continue; }
-    rows.push({ activityId: a.id, title: clip(a.title, 200), phaseName: phaseName.get(a.phase) || '', date: a.date, endDate: a.endDate || '', responsible: clip(a.responsible, 80) });
+  let semData = 0;
+  for (const m of meetingItems(project)) {
+    if (m.done || !m.title) continue;
+    if (!m.date) { semData += 1; continue; }
+    if (m.date < today) { past += 1; continue; }
+    rows.push({ activityId: m.key, title: clip(m.title, 240), phaseName: m.phaseName, date: m.date, endDate: m.endDate, responsible: clip(m.responsible, 80), isSub: !!m.subId, meetingTime: m.meetingTime || '' });
   }
   rows.sort((x, y) => x.date.localeCompare(y.date) || x.title.localeCompare(y.title));
-  return { rows, past };
+  return { rows, past, semData };
 }
 
 const br = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
@@ -57,9 +58,9 @@ export function buildEventBody(row, companyName, { time, durationMin, emails, pr
   const when = day || row.date;
   const periodo = row.endDate && row.endDate !== row.date ? `${br(row.date)} a ${br(row.endDate)}` : br(row.date);
   const linhas = [
-    `Atividade do cronograma de Reforma Tributária da ${companyName}.`,
+    `Reunião do cronograma de Reforma Tributária da ${companyName}.`,
     row.phaseName ? `Fase: ${row.phaseName}` : '',
-    `Período da atividade: ${periodo}`,
+    row.isSub ? `Data prevista no cronograma: ${periodo}` : `Período da atividade: ${periodo}`,
     row.responsible ? `Responsável: ${row.responsible}` : '',
     appUrl ? `\nAbrir no painel: ${appUrl}/empresas` : '',
     '\nBloco reservado pelo painel PRICETAX (equipe interna).',
@@ -91,8 +92,8 @@ export function rowStatus(row, mapping, companyName, ctx) {
   return fingerprint(body) === mapping.fingerprint ? 'reservada' : 'desatualizada';
 }
 
-// Reservas cuja atividade não existe mais (excluída) ou ficou sem data: candidatas a cancelamento.
+// Reservas cuja reunião deixou de existir (excluída, passou a ser Trabalho ou ficou sem data): candidatas a cancelamento.
 export function obsoleteMappings(project, mappings) {
-  const byId = new Map(alive(project && project.activities).map((a) => [a.id, a]));
-  return mappings.filter((m) => { const a = byId.get(m.activity_id); return !a || !a.date; });
+  const keys = new Set(meetingItems(project).filter((m) => m.date).map((m) => m.key));
+  return mappings.filter((m) => !keys.has(m.activity_id));
 }
