@@ -123,3 +123,108 @@ export function revertLinkedSync(project, undo) {
   });
   return { ...project, meetings, activities };
 }
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Zerar vínculos e aviso de datas (2026-10-19, pedido do Rafael). Nada aqui muda atividade, data ou status: só o campo de vínculo da tarefa.
+const br = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
+
+// Situação do vínculo de uma tarefa: 'validado' (pessoa escolheu/confirmou), 'auto' (RENATA vinculou, ninguém validou), 'sugerido', 'nenhuma' ("nenhuma atividade se aplica"),
+// 'orfao' (aponta para atividade que não existe mais) ou 'vazio'. `liveIds` = ids das atividades vivas da empresa.
+export function linkKind(task, liveIds) {
+  if (!task) return 'vazio';
+  const st = task.activityLink && task.activityLink.status;
+  if (task.activityId) {
+    if (liveIds && !liveIds.has(task.activityId)) return 'orfao';
+    return st === 'auto' ? 'auto' : 'validado';
+  }
+  if (st === 'none') return 'nenhuma';
+  if (st === 'suggested') return 'sugerido';
+  return 'vazio';
+}
+
+const emptyCounts = () => ({ auto: 0, sugerido: 0, orfao: 0, validado: 0, nenhuma: 0, vazio: 0 });
+
+// Contagem de vínculos por situação sobre linhas de tarefa já achatadas (ou tarefas), ignorando excluídas.
+export function countLinks(rows, liveIds) {
+  const c = emptyCounts();
+  for (const r of rows || []) if (r && !r.deleted) c[linkKind(r, liveIds)] += 1;
+  return c;
+}
+
+// Zera o vínculo das tarefas. Padrão: só automáticos, sugeridos e órfãos (apontam para atividade excluída: refletir a vida real do cronograma). `includeValidated` também
+// tira os validados por pessoas e as marcas "nenhuma se aplica". Mantém o status da tarefa e da atividade; só limpa as marcas `closedWith` que dependiam do vínculo.
+export function resetTaskLinks(project, { includeValidated = false } = {}) {
+  const liveIds = new Set(live(project && project.activities).map((a) => a.id));
+  const counts = emptyCounts();
+  const undo = { tasks: [], activities: [] };
+  const touchedActs = new Set();
+  const meetings = (project.meetings || []).map((m) => {
+    if (!m || m.deleted) return m;
+    let mChanged = false;
+    const actionItems = (m.actionItems || []).map((it) => {
+      if (!it || it.deleted) return it;
+      const k = linkKind(it, liveIds);
+      counts[k] += 1;
+      const clear = k === 'auto' || k === 'sugerido' || k === 'orfao' || (includeValidated && (k === 'validado' || k === 'nenhuma'));
+      if (!clear) return it;
+      undo.tasks.push({ meetingId: m.id, itemId: it.id, activityId: it.activityId || '', activityLink: it.activityLink || null, closedWith: it.closedWith });
+      if (it.activityId) touchedActs.add(it.activityId);
+      mChanged = true;
+      const out = { ...it, activityId: '', activityLink: null };
+      delete out.closedWith;
+      return out;
+    });
+    return mChanged ? { ...m, actionItems } : m;
+  });
+  const cleared = undo.tasks.length;
+  if (!cleared) return { project, changed: false, counts, cleared: 0, undo };
+  const activities = (project.activities || []).map((a) => {
+    if (!a || !touchedActs.has(a.id) || !a.closedWith || a.closedWith.by !== 'tasks') return a;
+    undo.activities.push({ id: a.id, closedWith: a.closedWith });
+    const out = { ...a };
+    delete out.closedWith;
+    return out;
+  });
+  const clearedKinds = emptyCounts();
+  for (const u of undo.tasks) {
+    const t = (project.meetings || []).find((m) => m && m.id === u.meetingId);
+    const it = t && (t.actionItems || []).find((x) => x.id === u.itemId);
+    clearedKinds[linkKind(it, liveIds)] += 1;
+  }
+  return { project: { ...project, meetings, activities }, changed: true, counts, cleared, clearedKinds, undo };
+}
+
+export function revertTaskLinksReset(project, undo) {
+  if (!project || !undo) return project;
+  const byTask = new Map((undo.tasks || []).map((u) => [`${u.meetingId}|${u.itemId}`, u]));
+  const byAct = new Map((undo.activities || []).map((u) => [u.id, u]));
+  const meetings = (project.meetings || []).map((m) => ({
+    ...m,
+    actionItems: (m.actionItems || []).map((it) => {
+      const u = byTask.get(`${m.id}|${it.id}`);
+      if (!u) return it;
+      const out = { ...it, activityId: u.activityId, activityLink: u.activityLink };
+      if (u.closedWith) out.closedWith = u.closedWith;
+      return out;
+    }),
+  }));
+  const activities = (project.activities || []).map((a) => (byAct.has(a.id) ? { ...a, closedWith: byAct.get(a.id).closedWith } : a));
+  return { ...project, meetings, activities };
+}
+
+// Aviso de datas que não batem (só avisa; nunca muda data): tarefa que vence depois do fim da atividade a que está vinculada.
+export function dateMismatch(task, activity) {
+  if (!task || !activity || !task.dueDate) return null;
+  const end = activity.endDate || activity.date;
+  if (!end) return null;
+  if (task.dueDate > end) return { kind: 'depois', text: `Vence em ${br(task.dueDate)}, depois do fim da atividade (${br(end)}).` };
+  return null;
+}
+
+// Resumo para o detalhe da atividade: tarefas atrasadas numa atividade que ainda está dentro do prazo (só aviso).
+export function lateTasksInOnTimeActivity(tasks, activity, today) {
+  if (!activity || activity.status === 'concluido') return 0;
+  const end = activity.endDate || activity.date;
+  if (end && end < today) return 0;
+  return (tasks || []).filter((t) => !t.done && t.dueDate && t.dueDate < today).length;
+}
