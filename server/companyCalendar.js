@@ -7,7 +7,7 @@ import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import { canAccessProject } from './routes.js';
 import { todayInSp } from './widgetSummary.js';
 import * as realGcal from './googleCalendar.js';
-import { assignDays, duplicateDays, inWindow } from '../shared/calendarDays.js';
+import { inWindow } from '../shared/calendarDays.js';
 import {
   DEFAULT_DURATION, DEFAULT_TIME, DURATIONS, MAX_EMAILS, MAX_ITEMS, buildEventBody, candidateActivities, fingerprint, isTime, obsoleteMappings, parseEmails, rowStatus,
 } from './companyCalendarPlan.js';
@@ -46,26 +46,11 @@ export function createCalendarRouter(gcal = realGcal, now = () => todayInSp()) {
       const byAct = new Map(maps.map((m) => [m.activity_id, m]));
       const { rows, past } = candidateActivities(p.data, today);
       const ctx = { projectId: p.id, appUrl: appUrl() };
-      const candIds = new Set(rows.map((r) => r.activityId));
       const obsolete = obsoleteMappings(p.data, maps);
-      const obsoleteIds = new Set(obsolete.map((m) => m.activity_id));
-      const status = new Map(rows.map((r) => [r.activityId, rowStatus(r, byAct.get(r.activityId), name, ctx)]));
-      // Dias ocupados na empresa: reservas que ficam (válidas) e reservas de atividades fora da lista (concluídas), de hoje em diante.
-      const taken = new Set();
-      const takenList = [];
-      for (const m of maps) {
-        if (obsoleteIds.has(m.activity_id) || m.start_date < today) continue;
-        const r = rows.find((x) => x.activityId === m.activity_id);
-        if (r && status.get(r.activityId) !== 'reservada') continue;
-        taken.add(m.start_date); takenList.push({ activityId: m.activity_id, day: m.start_date });
-      }
-      const toPlace = rows.filter((r) => status.get(r.activityId) !== 'reservada');
-      const placed = assignDays(toPlace, taken, today);
       const out = rows.map((r) => {
         const m = byAct.get(r.activityId);
-        const st = status.get(r.activityId);
-        const day = st === 'reservada' ? m.start_date : (placed.days[r.activityId] || r.date);
-        return { ...r, status: st, day, time: m ? m.start_time : DEFAULT_TIME, reservedAt: m ? m.updated_at : null, conflict: placed.unresolved.includes(r.activityId) };
+        const st = rowStatus(r, m, name, ctx);
+        return { ...r, status: st, day: m && st === 'reservada' ? m.start_date : r.date, time: m ? m.start_time : DEFAULT_TIME, reservedAt: m ? m.updated_at : null };
       });
       const lastEmails = maps.slice().sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))[0];
       const connected = gcal.googleConfigured() ? (await gcal.getConnectionStatus(req.user.id)).connected : false;
@@ -75,7 +60,7 @@ export function createCalendarRouter(gcal = realGcal, now = () => todayInSp()) {
         google: { configured: gcal.googleConfigured(), connected },
         emails: lastEmails ? lastEmails.emails : [], durationMin: lastEmails ? lastEmails.duration_min : DEFAULT_DURATION, defaultTime: DEFAULT_TIME,
         rows: out, pastCount: past, reservedCount: maps.length, reservedIds: maps.map((m) => m.activity_id),
-        takenDays: takenList, obsolete: obsolete.map((m) => ({ activityId: m.activity_id, date: m.start_date })),
+        obsolete: obsolete.map((m) => ({ activityId: m.activity_id, date: m.start_date })),
       });
     } catch (e) { next(e); }
   });
@@ -104,22 +89,14 @@ export function createCalendarRouter(gcal = realGcal, now = () => todayInSp()) {
       const maps = new Map((await loadMappings(p.id)).map((m) => [m.activity_id, m]));
       const ctx = { projectId: p.id, appUrl: appUrl() };
       const results = [];
-      // Regra: na mesma empresa, um bloco por dia. Valida antes de falar com o Google (nada é enviado se houver conflito).
+      // O dia do bloco precisa estar dentro do período da atividade. Várias atividades no mesmo dia são permitidas.
       const chosen = [];
       for (const it of items) {
         const row = cand.get(it && it.activityId);
         if (!row) continue;
         const day = /^\d{4}-\d{2}-\d{2}$/.test(String(it.day || '')) ? it.day : row.date;
         if (!inWindow(row, day) || day < today) return res.status(400).json({ message: `"${row.title}": o dia do bloco precisa estar dentro do período da atividade (${row.date}${row.endDate ? ` a ${row.endDate}` : ''}) e não pode ser passado.` });
-        chosen.push({ activityId: row.activityId, day, title: row.title });
-      }
-      const cancelSet = new Set(cancel);
-      const staying = [...maps.values()].filter((m) => !chosen.some((c) => c.activityId === m.activity_id) && !cancelSet.has(m.activity_id) && m.start_date >= today).map((m) => ({ activityId: m.activity_id, day: m.start_date, title: (cand.get(m.activity_id) || {}).title || 'outra reserva desta empresa' }));
-      const dup = duplicateDays([...chosen, ...staying]);
-      const firstDup = Object.entries(dup)[0];
-      if (firstDup) {
-        const names = [...chosen, ...staying].filter((e) => e.day === firstDup[0]).map((e) => `"${e.title}"`).join(' e ');
-        return res.status(400).json({ message: `Dois blocos no mesmo dia (${firstDup[0].slice(8, 10)}/${firstDup[0].slice(5, 7)}): ${names}. Na mesma empresa só pode haver um por dia: mude o dia de um deles.` });
+        chosen.push({ activityId: row.activityId, day });
       }
       const dayOf = new Map(chosen.map((c) => [c.activityId, c.day]));
       for (const it of items) {
