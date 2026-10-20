@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { revertLinkedSync, syncLinkedStatus } from '../shared/linkSync.js';
+import { meetingConflicts } from '../shared/calendarDays.js';
 import { Share2, ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen } from 'lucide-react';
 
 import { loadXlsx } from './lib/xlsxLoader.js';
@@ -877,6 +878,7 @@ function AppScreens({ shellRef, bump }) {
     const om = buildOrderMap(sortActivities(project.activities));
     return (
       <ActivityDetailModal
+        meetingConflicts={meetingConflicts(project, todayISOStr())}
         activity={activity}
         orderMap={om}
         phases={project.phases}

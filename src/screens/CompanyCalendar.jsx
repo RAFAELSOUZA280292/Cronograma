@@ -1,11 +1,11 @@
-// Janela "Reservar na agenda" (2026-10-19): cada atividade do cronograma vira UM bloco de agenda (padrão 60 min) para a equipe PRICETAX, com convite do Google aos e-mails digitados.
+// Janela "Reservar na agenda" (2026-10-19): cada REUNIÃO do cronograma (atividade ou subatividade do tipo Reunião) vira UM bloco de agenda (padrão 60 min) para a equipe PRICETAX, com convite do Google aos e-mails digitados.
 // O cliente nunca é convidado. Organiza quem clicar, com a conta do Google que conectou (ex.: a conta @pricetax). Só master e PRICETAX. Back-end: server/companyCalendar.js.
 import React, { useEffect, useMemo, useState } from 'react';
 import { apiGet, apiPost } from '../lib/api.js';
 import { Modal } from '../ui/dialog.jsx';
 import { Button, ErrorState, SkeletonCards } from '../ui/index.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
-import { inWindow } from '../../shared/calendarDays.js';
+import { assignDays, duplicateDays, inWindow } from '../../shared/calendarDays.js';
 
 const br = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '');
 const STATUS = { nova: ['Nova', 'var(--text-3)'], reservada: ['Já reservada', '#3ecf6e'], desatualizada: ['Mudou: atualizar', '#e0a21a'] };
@@ -44,9 +44,23 @@ export default function CompanyCalendarModal({ projectId, companyLabel, onClose 
   const invalid = emails.filter((e) => !EMAIL_RE.test(e));
   const items = plan ? plan.rows.filter((r) => pick[r.activityId]) : [];
   const cancels = plan ? (plan.obsolete || []).filter((o) => cancelPick[o.activityId]) : [];
+  // Regra do Rafael: no máximo UMA reunião por dia na mesma empresa (trabalho pode repetir). Conta as escolhidas e as reservas que continuam.
+  const dupMap = useMemo(() => {
+    if (!plan) return {};
+    const picked = new Set(items.map((r) => r.activityId));
+    return duplicateDays([...items.map((r) => ({ key: r.activityId, day: days[r.activityId] || r.day })), ...(plan.takenDays || []).filter((t) => !picked.has(t.activityId)).map((t) => ({ key: t.activityId, day: t.day }))]);
+  }, [plan, items, days]);
+  const dupDay = Object.keys(dupMap)[0];
   const outside = items.find((r) => !inWindow(r, days[r.activityId] || r.day));
+  function redistribute() {
+    const picked = new Set(items.map((r) => r.activityId));
+    const taken = new Set((plan.takenDays || []).filter((t) => !picked.has(t.activityId)).map((t) => t.day));
+    const r = assignDays(items, taken, plan.today);
+    setDays({ ...days, ...r.days });
+    notify(r.unresolved.length ? `${r.unresolved.length} reunião${r.unresolved.length === 1 ? '' : 's'} sem dia livre no período (dia fixo repetido). Desmarque uma ou mude a data no cronograma.` : 'Dias distribuídos: uma reunião por dia, dentro do período de cada uma.', { tone: r.unresolved.length ? 'error' : 'success' });
+  }
   const changes = items.filter((r) => r.status !== 'reservada').length + cancels.length;
-  const reason = !plan ? '' : outside ? `O dia de "${outside.title}" está fora do período da atividade.` : !plan.google.configured ? 'O Google Calendar não está configurado neste servidor.' : !plan.google.connected ? 'Conecte o Google Calendar antes.' : items.length && !emails.length ? 'Digite ao menos um e-mail.' : invalid.length ? `E-mail inválido: ${invalid[0]}` : !items.length && !cancels.length ? 'Marque ao menos uma atividade.' : '';
+  const reason = !plan ? '' : dupDay ? `Duas reuniões no mesmo dia (${br(dupDay)}). Use "Distribuir dias" ou mude uma delas.` : outside ? `O dia de "${outside.title}" está fora do período da atividade.` : !plan.google.configured ? 'O Google Calendar não está configurado neste servidor.' : !plan.google.connected ? 'Conecte o Google Calendar antes.' : items.length && !emails.length ? 'Digite ao menos um e-mail.' : invalid.length ? `E-mail inválido: ${invalid[0]}` : !items.length && !cancels.length ? 'Marque ao menos uma atividade.' : '';
 
   async function send() {
     const ok = await askConfirm({
@@ -107,11 +121,23 @@ export default function CompanyCalendarModal({ projectId, companyLabel, onClose 
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>Duração de cada bloco
               <select value={duration} onChange={(e) => setDuration(Number(e.target.value))} aria-label="Duração de cada bloco">{DUR.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
             </label>
-            {plan.rows.length === 0 && <div>Nenhuma atividade com data de hoje em diante{plan.pastCount ? ` (${plan.pastCount} já passaram e não são reservadas)` : ''}.</div>}
+            {plan.rows.length === 0 && <div style={{ lineHeight: 1.55 }}><b>Nenhuma reunião para reservar.</b> Só entram aqui atividades e subatividades do tipo <b>Reunião</b>, com data de hoje em diante{plan.pastCount ? ` (${plan.pastCount} já passaram)` : ''}{plan.semData ? `; ${plan.semData} reunião${plan.semData === 1 ? ' está' : 'ões estão'} sem data` : ''}. Abra a atividade ou a subatividade e escolha o tipo.</div>}
+            {plan.rows.length > 0 && plan.semData > 0 && <div style={{ fontSize: 12.5, color: 'var(--text-4)' }}>{plan.semData} reunião{plan.semData === 1 ? '' : 'ões'} sem data não aparece{plan.semData === 1 ? '' : 'm'} aqui: coloque a data no cronograma.</div>}
+            {(plan.scheduleConflicts || []).length > 0 && (
+              <div role="note" style={{ border: '1px solid rgba(224,162,26,.5)', borderRadius: 10, padding: 10, fontSize: 12.5, lineHeight: 1.5 }}>
+                <b style={{ color: '#e0a21a' }}>No cronograma há dias com mais de uma reunião:</b> {(plan.scheduleConflicts || []).map((c) => `${br(c.day)} (${c.items.map((i) => i.title).join(' e ')})`).join('; ')}. Aqui a lista já vem distribuída; ajuste as datas no cronograma para ficar igual.
+              </div>
+            )}
+            {plan.rows.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <Button onClick={redistribute} disabled={!items.length} title={!items.length ? 'Marque ao menos uma reunião' : 'Escolhe um dia livre para cada uma, dentro do período dela, sem repetir dia'}>Distribuir dias</Button>
+                <span style={{ fontSize: 12.5, color: dupDay ? '#e2574c' : 'var(--text-4)' }}>{dupDay ? `Duas reuniões no mesmo dia (${br(dupDay)}). Na mesma empresa só pode haver uma por dia.` : 'Uma reunião por dia nesta empresa. O dia fica dentro do período de cada uma.'}</span>
+              </div>
+            )}
             {plan.rows.length > 0 && (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead><tr style={{ textAlign: 'left', color: 'var(--text-4)', fontSize: 12 }}><th style={{ padding: '4px 6px' }} aria-label="Reservar" /><th style={{ padding: '4px 6px' }}>Atividade</th><th style={{ padding: '4px 6px' }}>Dia do bloco</th><th style={{ padding: '4px 6px' }}>Início</th><th style={{ padding: '4px 6px' }}>Situação</th></tr></thead>
+                  <thead><tr style={{ textAlign: 'left', color: 'var(--text-4)', fontSize: 12 }}><th style={{ padding: '4px 6px' }} aria-label="Reservar" /><th style={{ padding: '4px 6px' }}>Reunião</th><th style={{ padding: '4px 6px' }}>Dia do bloco</th><th style={{ padding: '4px 6px' }}>Início</th><th style={{ padding: '4px 6px' }}>Situação</th></tr></thead>
                   <tbody>
                     {plan.rows.map((r) => {
                       const st = STATUS[r.status];
@@ -120,7 +146,8 @@ export default function CompanyCalendarModal({ projectId, companyLabel, onClose 
                           <td style={{ padding: '6px' }}><input type="checkbox" checked={!!pick[r.activityId]} onChange={(e) => setPick({ ...pick, [r.activityId]: e.target.checked })} aria-label={`Reservar ${r.title}`} /></td>
                           <td style={{ padding: '6px' }}><div style={{ fontWeight: 600, color: 'var(--text-1)' }}>{r.title}</div><div style={{ fontSize: 11.5, color: 'var(--text-4)' }}>{[r.phaseName, r.responsible].filter(Boolean).join(' · ')}{r.endDate && r.endDate !== r.date ? ` · até ${br(r.endDate)}` : ''}</div></td>
                           <td style={{ padding: '6px', whiteSpace: 'nowrap' }}>
-                            <input type="date" value={days[r.activityId] || r.day} min={r.date} max={r.endDate && r.endDate >= r.date ? r.endDate : r.date} onChange={(e) => setDays({ ...days, [r.activityId]: e.target.value })} aria-label={`Dia do bloco de ${r.title}`} />
+                            <input type="date" value={days[r.activityId] || r.day} min={r.date} max={r.endDate && r.endDate >= r.date ? r.endDate : r.date} onChange={(e) => setDays({ ...days, [r.activityId]: e.target.value })} aria-label={`Dia do bloco de ${r.title}`} style={pick[r.activityId] && dupMap[days[r.activityId] || r.day] ? { borderColor: '#e2574c', color: '#e2574c' } : undefined} />
+                            {pick[r.activityId] && dupMap[days[r.activityId] || r.day] && <div style={{ color: '#e2574c', fontSize: 11, fontWeight: 700 }}>Dia repetido</div>}
                           </td>
                           <td style={{ padding: '6px' }}><input type="time" value={times[r.activityId] || '10:00'} onChange={(e) => setTimes({ ...times, [r.activityId]: e.target.value })} aria-label={`Horário de ${r.title}`} /></td>
                           <td style={{ padding: '6px', whiteSpace: 'nowrap', color: st[1], fontWeight: 700, fontSize: 12 }}>{st[0]}</td>
@@ -133,7 +160,7 @@ export default function CompanyCalendarModal({ projectId, companyLabel, onClose 
             )}
             {(plan.obsolete || []).length > 0 && (
               <div style={{ border: '1px solid rgba(226,87,76,.4)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <b style={{ color: '#e2574c' }}>Reservas de atividade que foi excluída</b>
+                <b style={{ color: '#e2574c' }}>Reservas de reunião que foi excluída, ficou sem data ou virou Trabalho</b>
                 {plan.obsolete.map((o) => (
                   <label key={o.activityId} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <input type="checkbox" checked={!!cancelPick[o.activityId]} onChange={(e) => setCancelPick({ ...cancelPick, [o.activityId]: e.target.checked })} /> Cancelar o bloco de {br(o.date) || 'data antiga'}
@@ -142,7 +169,7 @@ export default function CompanyCalendarModal({ projectId, companyLabel, onClose 
               </div>
             )}
             <div style={{ fontSize: 12.5, color: 'var(--text-4)', lineHeight: 1.55 }}>
-              Cada atividade vira um bloco de {duration} min no <b>dia de início</b> dela (você pode escolher outro dia dentro do período; o período completo vai na descrição). Várias atividades no mesmo dia são permitidas. Atividades concluídas ou com data passada não entram. O evento fica como "ocupado" na agenda. Se uma data mudar no cronograma, a lista marca "Mudou: atualizar" e o envio atualiza o <b>mesmo</b> evento, sem duplicar. Nada é enviado antes de você confirmar.
+              Cada <b>reunião</b> (atividade ou subatividade do tipo Reunião) vira um bloco de {duration} min. Trabalho/execução não gera convite e pode se acumular no mesmo dia; <b>reunião só uma por dia</b> na empresa. O dia padrão é o de início, ajustado para não repetir; dá para escolher outro dentro do período. Concluídas e passadas não entram. O evento fica como "ocupado" na agenda. Se uma data mudar no cronograma, a lista marca "Mudou: atualizar" e o envio atualiza o <b>mesmo</b> evento, sem duplicar. Nada é enviado antes de você confirmar.
             </div>
             {plan.reservedCount > 0 && <div><Button onClick={cancelAll} disabled={busy} title={busy ? 'Aguarde terminar' : undefined}>Cancelar todas as reservas ({plan.reservedCount})</Button></div>}
           </>

@@ -306,7 +306,7 @@ router.get('/companies/:id', async (req, res, next) => {
       id: r.id, name: companyName(d), company: { name: (d.company && d.company.name) || '', cnpj: (d.company && d.company.cnpj) || '', status: (d.company && d.company.status) || '', regimeTributario: (d.company && d.company.regimeTributario) || '' },
       team: alive(d.team).map((t) => ({ name: t.name, role: t.role || '' })),
       phases: phases.map((p) => ({ id: p.id, name: p.name })),
-      activities: alive(d.activities).slice(0, 500).map((a) => ({ id: a.id, title: clip(a.title, 200), phase: phaseName(a.phase), status: a.status || '', date: a.date || '', endDate: a.endDate || '', responsible: a.responsible || '', priority: a.priority || '', subs: alive(a.subactivities).slice(0, 100).map((x) => ({ id: x.id, title: clip(x.title, 200), done: !!x.done, date: x.date || '', responsible: x.responsible || '' })) })),
+      activities: alive(d.activities).slice(0, 500).map((a) => ({ id: a.id, title: clip(a.title, 200), phase: phaseName(a.phase), status: a.status || '', date: a.date || '', endDate: a.endDate || '', responsible: a.responsible || '', priority: a.priority || '', kind: a.kind === 'reuniao' ? 'reuniao' : 'trabalho', subs: alive(a.subactivities).slice(0, 100).map((x) => ({ id: x.id, title: clip(x.title, 200), done: !!x.done, date: x.date || '', responsible: x.responsible || '', kind: x.kind === 'reuniao' ? 'reuniao' : 'trabalho' })) })),
       meetings: alive(d.meetings).map((m) => ({ id: m.id, date: m.date || '', title: clip(m.title, 200), hasSummary: !!m.summary, actionItems: alive(m.actionItems).length })).sort((a, b) => b.date.localeCompare(a.date)),
     });
   } catch (e) { next(e); }
@@ -394,15 +394,17 @@ const SET_ACT = {
   priority: (d, v) => { if (!PLAN_PRIORITIES.includes(v)) throw new Error(`prioridade inválida: ${v}`); return v; },
   required: (d, v) => !!v,
   phase: (d, v) => phaseId(d, v),
+  kind: (d, v) => { if (!['reuniao', 'trabalho'].includes(v)) throw new Error(`tipo inválido: ${v} (use reuniao ou trabalho)`); return v; },
 };
 const SET_SUB = {
   title: (d, v) => { const t = clip(v, 300).trim(); if (!t) throw new Error('título vazio'); return t; },
   done: (d, v) => !!v,
   date: (d, v) => { if (v !== '' && !isISODay(v)) throw new Error(`data inválida: ${v}`); return v; },
   responsible: (d, v) => checkTeam(d, String(v)),
+  kind: (d, v) => { if (!['reuniao', 'trabalho'].includes(v)) throw new Error(`tipo inválido: ${v} (use reuniao ou trabalho)`); return v; },
 };
 
-function applyPlanOps(data, ops, who) {
+export function applyPlanOps(data, ops, who) {
   const next = structuredClone(data);
   const results = []; const undo = []; const created = []; const errors = [];
   const stamp = new Date().toISOString();
@@ -416,7 +418,7 @@ function applyPlanOps(data, ops, who) {
         const prev = {};
         for (const [k, v] of Object.entries(set)) {
           if (!SET_ACT[k]) throw new Error(`campo não permitido em atividade: ${k}`);
-          prev[k] = k === 'phase' ? a.phase : (a[k] === undefined ? '' : a[k]);
+          prev[k] = k === 'phase' ? a.phase : k === 'kind' ? (a.kind || 'trabalho') : (a[k] === undefined ? '' : a[k]);
           a[k] = SET_ACT[k](next, v);
         }
         undo.push({ op: 'activity.set', ref: { id: a.id }, set: prev });
@@ -429,7 +431,7 @@ function applyPlanOps(data, ops, who) {
         const prev = {};
         for (const [k, v] of Object.entries(set)) {
           if (!SET_SUB[k]) throw new Error(`campo não permitido em subatividade: ${k}`);
-          prev[k] = x[k] === undefined ? (k === 'done' ? false : '') : x[k];
+          prev[k] = x[k] === undefined ? (k === 'done' ? false : k === 'kind' ? 'trabalho' : '') : x[k];
           x[k] = SET_SUB[k](next, v);
           if (k === 'done') { if (x.done) { x.doneAt = stamp; x.doneBy = who; } else { delete x.doneAt; delete x.doneBy; } }
         }
@@ -439,7 +441,7 @@ function applyPlanOps(data, ops, who) {
         const a = findRef(next.activities, op.activity, 'atividade');
         const sub = op.sub && typeof op.sub === 'object' ? op.sub : {};
         const title = SET_SUB.title(next, sub.title);
-        const x = { id: uid('s'), title, done: false, responsible: sub.responsible ? SET_SUB.responsible(next, sub.responsible) : '', date: sub.date ? SET_SUB.date(next, sub.date) : '' };
+        const x = { id: uid('s'), title, done: false, responsible: sub.responsible ? SET_SUB.responsible(next, sub.responsible) : '', date: sub.date ? SET_SUB.date(next, sub.date) : '', ...(sub.kind ? { kind: SET_SUB.kind(next, sub.kind) } : {}) };
         a.subactivities = [...(a.subactivities || []), x];
         created.push({ type: 'sub', id: x.id, activity: a.id });
         results.push({ index, ok: true, what: `Nova subatividade "${clip(title, 80)}" em "${a.title}"` });
@@ -462,8 +464,8 @@ function applyPlanOps(data, ops, who) {
         const a = {
           id: uid('act'), month: acts.length ? Math.max(...acts.map((x) => x.month || 1)) + 1 : 1, phase: phaseId(next, op.phase), title, desc: clip(op.desc, 2000),
           responsible: op.responsible ? checkTeam(next, String(op.responsible)) : '', priority: op.priority ? SET_ACT.priority(next, op.priority) : '', participants: [], date, endDate, durationDays: '',
-          status: 'nao-iniciado', required: !!op.required, notes: '', attachments: [], comments: [], links: [], transcript: '', clientDateConfirmed: false,
-          subactivities: (Array.isArray(op.subs) ? op.subs : []).slice(0, 40).map((s) => ({ id: uid('s'), title: SET_SUB.title(next, s.title), done: false, responsible: s.responsible ? SET_SUB.responsible(next, s.responsible) : '', date: s.date ? SET_SUB.date(next, s.date) : '' })),
+          status: 'nao-iniciado', required: !!op.required, ...(op.kind ? { kind: SET_ACT.kind(next, op.kind) } : {}), notes: '', attachments: [], comments: [], links: [], transcript: '', clientDateConfirmed: false,
+          subactivities: (Array.isArray(op.subs) ? op.subs : []).slice(0, 40).map((s) => ({ id: uid('s'), title: SET_SUB.title(next, s.title), done: false, responsible: s.responsible ? SET_SUB.responsible(next, s.responsible) : '', date: s.date ? SET_SUB.date(next, s.date) : '', ...(s.kind ? { kind: SET_SUB.kind(next, s.kind) } : {}) })),
         };
         next.activities = [...acts, a];
         created.push({ type: 'activity', id: a.id, title });
