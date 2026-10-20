@@ -1027,6 +1027,23 @@ export async function initDb() {
   `);
   await pool.query(`ALTER TABLE company_share_links ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'page'`); // 'page' = link do cliente; 'data' = link de dados (CSV/JSON, 2026-10-19)
   await pool.query(`CREATE INDEX IF NOT EXISTS company_share_links_project_idx ON company_share_links(project_id, created_at DESC)`);
+  // "Reservar na agenda" (2026-10-19): uma reserva de agenda por atividade; guarda o evento do Google, quem organizou e a impressão digital do que foi enviado.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS company_calendar_events (
+      project_id        TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      activity_id       TEXT NOT NULL,
+      organizer_user_id TEXT NOT NULL,
+      google_event_id   TEXT NOT NULL,
+      start_date        TEXT NOT NULL DEFAULT '',
+      start_time        TEXT NOT NULL DEFAULT '10:00',
+      duration_min      INTEGER NOT NULL DEFAULT 60,
+      emails            JSONB NOT NULL DEFAULT '[]'::jsonb,
+      fingerprint       TEXT NOT NULL DEFAULT '',
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (project_id, activity_id)
+    )
+  `);
   // API de conectividade (2026-10-05, §80): um token por janela do Claude Code, cada um com o seu escopo. Só o hash fica no banco.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS api_tokens (
