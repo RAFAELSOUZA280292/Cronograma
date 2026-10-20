@@ -1,5 +1,6 @@
 // Reuniões no cronograma e dias de agenda (2026-10-19, regra do Rafael): ATIVIDADE e SUBATIVIDADE têm tipo — 'reuniao' (call, precisa de gente junto ao mesmo tempo) ou 'trabalho' (padrão).
 // Trabalho pode se acumular no mesmo dia; REUNIÃO: no máximo uma por dia na mesma empresa. Funções puras, usadas no servidor e na tela.
+import { pautaItems } from './pauta.js';
 const DAY = 86400000;
 const t = (iso) => Date.parse(`${iso}T00:00:00Z`);
 const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -18,7 +19,7 @@ export function meetingItems(project) {
     const phase = phaseName.get(a.phase) || '';
     if (isMeeting(a)) out.push({ key: a.id, activityId: a.id, subId: '', title: a.title || '', phaseName: phase, date: a.date || '', endDate: a.endDate || '', responsible: a.responsible || '', done: a.status === 'concluido', meetingTime: /^([01]\d|2[0-3]):[0-5]\d$/.test(a.meetingTime || '') ? a.meetingTime : '' });
     for (const s of alive(a.subactivities)) {
-      if (isMeeting(s)) out.push({ key: `${a.id}#${s.id}`, activityId: a.id, subId: s.id, title: `${a.title || ''} — ${s.title || ''}`, phaseName: phase, date: s.date || '', endDate: '', responsible: s.responsible || a.responsible || '', done: !!s.done });
+      if (isMeeting(s)) out.push({ key: `${a.id}#${s.id}`, activityId: a.id, subId: s.id, title: `${a.title || ''} — ${s.title || ''}`, phaseName: phase, date: s.date || '', endDate: '', responsible: s.responsible || a.responsible || '', done: !!s.done, pauta: pautaItems(a.subactivities, s.id).map((x) => x.title || '') });
     }
   }
   return out;

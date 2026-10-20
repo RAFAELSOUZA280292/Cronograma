@@ -7,6 +7,7 @@ import { AlertTriangle, Building2, Check, ChevronDown, GripVertical, History, Lo
 import { Button, IconButton, RecordSaveStatus, activate, activateRow } from '../ui/index.jsx';
 import { DialogOverlay } from '../ui/dialog.jsx';
 import LinkedTasks from '../meetings/LinkedTasks.jsx';
+import { linkPatch, meetingAbove, pautaItems } from '../../shared/pauta.js';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import pricetaxLogoBranco from '../assets/brand/pricetax-logo-branco.png';
@@ -201,7 +202,10 @@ function OrderBadge({ n, title, color, phaseName, onOpen }) {
   );
 }
 
-function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSub, deleteSub, reorderSub, allSubs, canEditExtras, meetings, onOpenMeeting, meetingConflicts }) {
+function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSub, deleteSub, reorderSub, allSubs, canEditExtras, meetings, onOpenMeeting, meetingConflicts, siblings }) {
+  const pautaMeeting = s.pautaDe ? (siblings || []).find((x) => x.id === s.pautaDe && !x.deleted) : null;
+  const aboveMeeting = s.kind !== 'reuniao' && !s.pautaDe ? meetingAbove(siblings, s.id) : null;
+  const pautaCount = s.kind === 'reuniao' ? pautaItems(siblings, s.id).length : 0;
   const conflict = s.kind === 'reuniao' && !s.done ? (meetingConflicts || []).find((c) => c.items.some((i) => i.key === `${actId}#${s.id}`)) : null;
   const titleField = useDebouncedField(s.title, (v) => updateSub(pid, actId, s.id, { title: v }));
   // Título da subatividade quebra em linhas (cresce com o texto) em vez de cortar: o painel é largo e o nome inteiro precisa aparecer.
@@ -236,6 +240,19 @@ function SubactivityRow({ s, pid, actId, dragSubId, setDragSubId, team, updateSu
         </select>
         <SubOutcome s={s} pid={pid} actId={actId} updateSub={updateSub} />
       </div>
+      {s.kind !== 'reuniao' && !s.done && (pautaMeeting || aboveMeeting) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', margin: '4px 0 0 28px', fontSize: 11.5 }}>
+          {pautaMeeting ? (
+            <>
+              <span style={{ color: 'var(--text-3)' }}>Pauta da reunião <b style={{ color: 'var(--text-1)' }}>{pautaMeeting.title}</b>{pautaMeeting.date ? ` · ${fmtDate(pautaMeeting.date)}` : ''} (a data acompanha a reunião)</span>
+              <button type="button" className="sub-del-btn" style={{ ...S.iconBtnGhost, fontSize: 11, padding: '2px 8px' }} onClick={() => updateSub(pid, actId, s.id, { pautaDe: '' })} title="Desvincular da reunião (a data fica como está)">Desvincular</button>
+            </>
+          ) : (
+            <button type="button" className="sub-del-btn" style={{ ...S.iconBtnGhost, fontSize: 11.5, padding: '3px 9px', color: 'var(--text-1)', fontWeight: 700 }} onClick={() => updateSub(pid, actId, s.id, linkPatch(aboveMeeting))} title={`Trata este item na mesma agenda da reunião "${aboveMeeting.title}" e usa a data dela${aboveMeeting.date ? '' : ' (a reunião ainda não tem data)'}`}>Tratar na reunião de cima{aboveMeeting.date ? ` (${fmtDate(aboveMeeting.date)})` : ''}</button>
+          )}
+        </div>
+      )}
+      {pautaCount > 0 && <div style={{ margin: '4px 0 0 28px', fontSize: 11.5, color: 'var(--text-3)' }}>Pauta: {pautaCount} {pautaCount === 1 ? 'item de trabalho vinculado' : 'itens de trabalho vinculados'}; a data deles acompanha esta reunião.</div>}
       {conflict && <div role="note" style={{ display: 'flex', gap: 6, alignItems: 'flex-start', fontSize: 11.5, color: '#e0a21a', margin: '2px 0 0 28px', lineHeight: 1.4 }}><AlertTriangle size={12} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} /><span>Outra reunião neste mesmo dia ({fmtDate(conflict.day)}): {conflict.items.filter((i) => i.key !== `${actId}#${s.id}`).map((i) => i.title).join('; ')}. Só pode haver uma por dia.</span></div>}
       <SubExtras s={s} pid={pid} actId={actId} allSubs={allSubs} canEdit={canEditExtras} updateSub={updateSub} meetings={meetings} onOpenMeeting={onOpenMeeting} />
     </div>
@@ -419,7 +436,7 @@ export function ActivityDetailModal({ meetingConflicts = [], activity: a, orderM
                     dragSubId={dragSubId} setDragSubId={setDragSubId}
                     team={team} updateSub={updateSub} deleteSub={deleteSub} reorderSub={reorderSub}
                     allSubs={allSubs} canEditExtras={!!currentUser && (currentUser.role === 'master' || currentUser.role === 'pricetax')}
-                    meetings={meetings} onOpenMeeting={onOpenMeeting} meetingConflicts={meetingConflicts}
+                    meetings={meetings} onOpenMeeting={onOpenMeeting} meetingConflicts={meetingConflicts} siblings={a.subactivities}
                   />
                 ))}
                 {!(a.subactivities || []).some((x) => !x.deleted) && <div style={S.emptyMuted}>Nenhuma subatividade ainda.</div>}

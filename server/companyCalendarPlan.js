@@ -37,7 +37,7 @@ export function candidateMeetings(project, today) {
     if (m.done || !m.title) continue;
     if (!m.date) { semData += 1; continue; }
     if (m.date < today) { past += 1; continue; }
-    rows.push({ activityId: m.key, title: clip(m.title, 240), phaseName: m.phaseName, date: m.date, endDate: m.endDate, responsible: clip(m.responsible, 80), isSub: !!m.subId, meetingTime: m.meetingTime || '' });
+    rows.push({ activityId: m.key, title: clip(m.title, 240), phaseName: m.phaseName, date: m.date, endDate: m.endDate, responsible: clip(m.responsible, 80), isSub: !!m.subId, meetingTime: m.meetingTime || '', pauta: (m.pauta || []).map((x) => clip(x, 160)).slice(0, 20) });
   }
   rows.sort((x, y) => x.date.localeCompare(y.date) || x.title.localeCompare(y.title));
   return { rows, past, semData };
@@ -62,6 +62,7 @@ export function buildEventBody(row, companyName, { time, durationMin, emails, pr
     row.phaseName ? `Fase: ${row.phaseName}` : '',
     row.isSub ? `Data prevista no cronograma: ${periodo}` : `Período da atividade: ${periodo}`,
     row.responsible ? `Responsável: ${row.responsible}` : '',
+    row.pauta && row.pauta.length ? `\nPauta:\n${row.pauta.map((x) => `- ${x}`).join('\n')}` : '',
     appUrl ? `\nAbrir no painel: ${appUrl}/empresas` : '',
     '\nBloco reservado pelo painel PRICETAX (equipe interna).',
   ].filter((x) => x !== '');
