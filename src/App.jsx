@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { revertLinkedSync, syncLinkedStatus } from '../shared/linkSync.js';
 import { meetingConflicts } from '../shared/calendarDays.js';
+import { fitPeriods } from '../shared/period.js';
 import { Share2, ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen } from 'lucide-react';
 
 import { loadXlsx } from './lib/xlsxLoader.js';
@@ -1595,6 +1596,12 @@ function AppScreens({ shellRef, bump }) {
         if (p.id !== pid) return p;
         let next = updater(p);
         if (logMsg) next = { ...next, log: [{ ts: new Date().toISOString(), action: logMsg, user: currentUser ? currentUser.name : '', activityId: activityId || null }, ...(next.log || [])].slice(0, 300) };
+        // A atividade estica sozinha para cobrir subatividade que mudou de data (shared/period.js; só estica, nunca encolhe).
+        const fpd = fitPeriods(p.activities, next.activities);
+        if (fpd.changed.length) {
+          const br = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '');
+          next = { ...next, activities: fpd.activities, log: [{ ts: new Date().toISOString(), action: `Período esticado para cobrir as subatividades: ${fpd.changed.slice(0, 4).map((c) => `"${c.title}" (${br(c.from.date)}–${br(c.from.endDate)} → ${br(c.to.date)}–${br(c.to.endDate)})`).join('; ')}${fpd.changed.length > 4 ? `; e mais ${fpd.changed.length - 4}` : ''}`, user: currentUser ? currentUser.name : '', activityId: null }, ...(next.log || [])].slice(0, 300) };
+        }
         // Concluiu em um (tarefa ou atividade vinculada e VALIDADA), conclui no outro (regra do Rafael, 2026-10-19; ver shared/linkSync.js).
         if (!skipSync) {
           const sy = syncLinkedStatus(p, next);

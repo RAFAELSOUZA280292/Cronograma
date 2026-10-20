@@ -4,6 +4,7 @@
 //  - credencial só no cabeçalho Authorization (nunca na URL); limite por token; usuário bloqueado/expirado = 403;
 //  - API propositalmente ESTREITA e estável (não é a API interna do app): o token nunca vale como a sessão inteira do usuário;
 //  - tudo respeita o que o usuário já pode ver (mesmo canAccessProject das telas) e a organização dele.
+import { fitPeriods } from '../shared/period.js';
 import { findSub as findSubAny, linkPautaItems, reconcilePautaProject, revertPautaItems } from '../shared/pauta.js';
 import { noteToText } from './richNote.js';
 import { Router } from 'express';
@@ -492,6 +493,17 @@ export function applyPlanOps(data, ops, who) {
       } else throw new Error(`operação desconhecida: ${op && op.op}`);
     } catch (e) { errors.push({ index, message: e.message }); }
   });
+  // A atividade estica sozinha para cobrir as subatividades que mudaram (shared/period.js).
+  if (!errors.length) {
+    const fp = fitPeriods(data.activities, next.activities);
+    if (fp.changed.length) {
+      next.activities = fp.activities;
+      for (const c of fp.changed) {
+        undo.push({ op: 'activity.set', ref: { id: c.id }, set: { date: c.from.date, endDate: c.from.endDate } });
+        results.push({ index: ops.length, ok: true, what: `Período de "${clip(c.title, 80)}" esticado para cobrir as subatividades: ${c.from.date} a ${c.from.endDate} → ${c.to.date} a ${c.to.endDate}` });
+      }
+    }
+  }
   return { next, results, undo, created, errors };
 }
 
