@@ -11,7 +11,9 @@ import { S } from '../styles/S.js';
 import SafeBoundary from '../ui/SafeBoundary.jsx';
 import { buildActivityOptions, taskCountsByActivity } from '../meetings/ActivityLink.jsx';
 import { AreaRow, CLIENT_TYPE_META, CLIENT_TYPE_ORDER, COMPANY_STATUS_META, CompanySectionHeader, CreateCompanyModal, GroupActivityCompaniesModal, PhaseRow, SidePanel, TeamLinkBadge, ToastStack, TodoBoardView, fmtDate, fmtTs, todayISOStr, useMediaQuery } from '../App.jsx';
-import { KanbanView, PhasesView, PrintReport, ResumoView, TableView, TimelineView } from './CompanyViews.jsx';
+import { KanbanView, PhasesView, ResumoView, TableView, TimelineView } from './CompanyViews.jsx';
+import { PrintReport } from '../pdf/PrintReport.jsx';
+import { PdfExportModal } from '../pdf/PdfExportModal.jsx';
 import { AutoDatesToggle } from './AutoDates.jsx';
 import MapView from './MapView.jsx';
 import CompanyTriage from './CompanyTriage.jsx';
@@ -64,6 +66,10 @@ export function CompanyWorkspace({ ctx }) {
     expanded,
     exportExcel,
     exportPdf,
+    pdfDialog,
+    setPdfDialog,
+    pdfOptions,
+    confirmPdfExport,
     fileInputRef,
     goToCompanySelector,
     goToOrgAdmin,
@@ -214,7 +220,6 @@ export function CompanyWorkspace({ ctx }) {
         ::-webkit-scrollbar-thumb{ background:var(--border-3); border-radius:4px; }
         @media print {
           .no-print { display:none !important; }
-          body, .page-root { background:#0B0E1A !important; color:#FFFFFF !important; }
           * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
         }
       `}</style>
@@ -568,9 +573,10 @@ export function CompanyWorkspace({ ctx }) {
       </main>
 
       <React.Suspense fallback={null}>
-        <PrintReport projects={isMulti ? selectedProjects : [activeProject]} generatedAt={fmtDate(todayISOStr())} />
+        <PrintReport projects={isMulti ? selectedProjects : [activeProject]} generatedAt={fmtDate(todayISOStr())} options={pdfOptions} />
       </React.Suspense>
-      {meetingToPrint && <MeetingPrintReport meeting={meetingToPrint.meeting} companyName={meetingToPrint.companyName} />}
+      {meetingToPrint && <MeetingPrintReport meeting={meetingToPrint.meeting} companyName={meetingToPrint.companyName} theme={meetingToPrint.theme} />}
+      {pdfDialog && <PdfExportModal mode={pdfDialog.mode} prefs={pdfOptions} onConfirm={confirmPdfExport} onClose={() => setPdfDialog(null)} />}
 
       <div className="no-print" style={S.hint}>
         Alterações são salvas automaticamente e registradas no log. {isMulti ? `Você está vendo a visão geral de ${selectedProjects.length} empresas.` : `Você está vendo o projeto de ${activeProject.company.name || 'um cliente sem nome cadastrado'}.`}

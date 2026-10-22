@@ -9,6 +9,7 @@ import { X, RefreshCw, Copy, Download, Printer, Loader2, AlertTriangle, Check, S
 import { useIsMobile } from '../App.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 import { DialogOverlay } from '../ui/dialog.jsx';
+import { loadPdfPrefs, savePdfPrefs } from '../pdf/pdfTheme.js';
 import { dossierToMarkdown, dossierToHtml, fmtBR, WORKSTREAM_STATUS, DECISION_STATE, TODO_STATUS } from './dossierExport.js';
 
 const DOSSIER_CSS = `
@@ -75,6 +76,7 @@ export default function DossierPanel({ pid, companyName, onClose, onOpenMeeting 
   const [actionError, setActionError] = useState('');
   const [starting, setStarting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [pdfTheme, setPdfTheme] = useState(() => loadPdfPrefs().theme);
 
   const load = useCallback(async () => {
     try {
@@ -115,10 +117,11 @@ export default function DossierPanel({ pid, companyName, onClose, onOpenMeeting 
     const a = document.createElement('a'); a.href = url; a.download = `${fileBase}.md`; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  function pickPdfTheme(v) { setPdfTheme(v); savePdfPrefs({ ...loadPdfPrefs(), theme: v }); }
   function printPdf() {
     const w = window.open('', '_blank');
     if (!w) { setActionError('O navegador bloqueou a janela de impressão — libere pop-ups para este site e tente de novo.'); return; }
-    w.document.open(); w.document.write(dossierToHtml(content)); w.document.close(); w.focus();
+    w.document.open(); w.document.write(dossierToHtml(content, { theme: pdfTheme })); w.document.close(); w.focus();
     setTimeout(() => { try { w.print(); } catch (e) { /* o usuário imprime pelo menu */ } }, 400);
   }
 
@@ -142,7 +145,15 @@ export default function DossierPanel({ pid, companyName, onClose, onOpenMeeting 
           <div className="dos-actions">
             {content && <button type="button" className="dos-btn" onClick={copyMd}>{copied ? <Check size={13} /> : <Copy size={13} />} {copied ? 'Copiado' : 'Copiar (Markdown)'}</button>}
             {content && <button type="button" className="dos-btn" onClick={downloadMd}><Download size={13} /> Baixar .md</button>}
-            {content && <button type="button" className="dos-btn" onClick={printPdf}><Printer size={13} /> PDF / Imprimir</button>}
+            {content && (
+              <>
+                <select className="dos-btn" aria-label="Visual do PDF" value={pdfTheme} onChange={(e) => pickPdfTheme(e.target.value)} style={{ width: 'auto' }}>
+                  <option value="dark">PDF escuro</option>
+                  <option value="light">PDF claro</option>
+                </select>
+                <button type="button" className="dos-btn" onClick={printPdf}><Printer size={13} /> PDF / Imprimir</button>
+              </>
+            )}
             {state && !generating && <button type="button" className={`dos-btn ${content ? '' : 'dos-btn-primary'}`} onClick={start} disabled={starting || !state.meetingsNow} title={starting ? 'Aguarde terminar' : !state.meetingsNow ? 'Nenhuma reunião para compilar' : undefined}><RefreshCw size={13} className={starting ? 'dos-spin' : ''} /> {content ? 'Gerar de novo' : 'Gerar dossiê'}</button>}
             <button type="button" className="dos-btn" onClick={onClose} aria-label="Fechar"><X size={14} /></button>
           </div>
