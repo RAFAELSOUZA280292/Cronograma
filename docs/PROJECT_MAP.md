@@ -228,7 +228,7 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 73 | `TimelineView` | View "Gantt"; chip "N tarefas · M abertas" na coluna de rótulos via props `taskCounts` (mapa por atividade da empresa da seção) e `onOpenTasks` (2026-10-17) |
 | 74 | `ResumoView` | Aba "Resumo" do workspace de Empresas (2026-08) — KPIs, progresso, filtros/ordenação/agrupamento por mês, só `!isMulti` — ver `PROJECT_CONTEXT.md` §13 |
 | 75 | `ActivityDetailModal` | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários (com anexo de imagem/PDF e link por comentário, 2026-08), histórico, campo opcional `meetingTime` (2026-08, "Horário da reunião") e checkbox `clientDateConfirmed` (2026-08, "Data confirmada com o cliente?") |
-| 76 | `PrintReport` | Relatório em PDF dedicado (2026-08) — KPIs/progresso/próximas etapas, `display:none` na tela, só aparece em `@media print` — ver `PROJECT_CONTEXT.md` §13 |
+| 76 | `PrintReport` | Relatório em PDF dedicado (2026-08) — ver `PROJECT_CONTEXT.md` §13. **Desde 2026-10-22 vive em `src/pdf/PrintReport.jsx`** (tema escuro/claro, seções opcionais, linha do tempo), com `src/pdf/pdfTheme.js` e a janela `src/pdf/PdfExportModal.jsx` |
 | 81 | `CompanyWorkspace` | Área principal de uma empresa (cabeçalho, filtros, abas Resumo/Reuniões/Tarefas/Gantt/Tabela/Fases/Quadro, modais da empresa). Recebe tudo do `AppScreens` num objeto `ctx` (129 nomes, desestruturados no topo; monte o `ctx` em `AppScreens` ao incluir algo novo). Importa as views direto de `./CompanyViews.jsx` |
 | 86 | `BrandLogo` | Logo PRICETAX, troca PNG conforme tema |
 | 90 | `ThemeToggleBtn` | Botão sol/lua |
@@ -345,8 +345,7 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 166 | `StatusPill` | Selo de status de atividade |
 | 182 | `SubactivityRow` | Extraído do .map() de subatividades dentro de ActivityDetailModal pra poder usar useDebouncedField por linha sem violar Rules of Hooks — mesmo bug de digitação do PROJECT_CONTEXT.md §45/§46 (não coberto pelo fix do §45, que só tra |
 | 210 | `ActivityDetailModal` | Modal fullscreen de uma atividade (empresa) — descrição, subatividades, comentários (com anexo de imagem/PDF e link por comentário, 2026-08), histórico, campo opcional `meetingTime` (2026-08, "Horário da reunião") e checkbox `clientDateConfirmed` (2026-08, "Data confirmada com o cliente?") |
-| 632 | `PrintActivityTable` | Tabela de atividades do relatório em PDF (usada em "Em atraso" e "Próximas etapas") |
-| 678 | `PrintReport` | Relatório em PDF dedicado (2026-08) — KPIs/progresso/próximas etapas, `display:none` na tela, só aparece em `@media print` — ver `PROJECT_CONTEXT.md` §13 |
+| — | `PrintReport` | Movido em 2026-10-22 para `src/pdf/PrintReport.jsx` (ver acima); `PrintActivityTable` virou `ActivityTable` dentro dele |
 | 811 | `resumoMonthLabel` | Rótulo de mês do resumo |
 | 817 | `resumoCountdown` | Contagem regressiva do resumo |
 | 830 | `resumoDateLabel` | Rótulo de data do resumo |

@@ -513,26 +513,32 @@ export function MeetingDetailModal({
 // `@media print`, ativado por exportMeetingPdf() (App.jsx) via
 // window.print(). Não reaproveita o PrintReport em si (aquele é
 // cronograma inteiro) — só o mesmo mecanismo de CSS.
-const MEETING_PRINT_CSS = `
+const MEETING_PRINT_CSS = (theme) => {
+  const dark = theme === 'dark';
+  const c = dark ? { bg: '#0B0E1A', text: '#FFFFFF', muted: '#B8BCC8', line: '#262C46', accent: '#FEDC04' } : { bg: '#FFFFFF', text: '#111111', muted: '#444444', line: '#CCCCCC', accent: '#7A6200' };
+  return `
   .mtg-print-report { display: none; }
   @media print {
+    @page { size: A4 portrait; margin: 14mm 12mm; background: ${c.bg}; }
     .mtg-print-report { display: block !important; }
-    body, .page-root { background: #ffffff !important; color: #111 !important; }
+    html, body, .page-root { background: ${c.bg} !important; color: ${c.text} !important; }
   }
   .mtg-print-report, .mtg-print-report * { box-sizing: border-box; }
-  .mtg-print-report { font-family: 'Arial', 'Helvetica', sans-serif; color: #111; background: #fff; padding: 12mm; }
-  .mtg-print-report h1 { font-size: 20px; margin: 0 0 4px; }
-  .mtg-print-report h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 18px 0 6px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+  .mtg-print-report { font-family: 'Arial', 'Helvetica', sans-serif; color: ${c.text}; background: ${c.bg}; padding: 0; }
+  .mtg-print-report h1 { font-size: 20px; margin: 0 0 4px; border-bottom: 2px solid #FEDC04; padding-bottom: 8px; }
+  .mtg-print-report h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 18px 0 6px; border-bottom: 1px solid ${c.line}; padding-bottom: 4px; color: ${c.accent}; break-after: avoid; }
   .mtg-print-report p { font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
-  .mtg-print-report .mtg-print-meta { font-size: 12px; color: #444; margin-bottom: 10px; }
+  .mtg-print-report .mtg-print-meta { font-size: 12px; color: ${c.muted}; margin-bottom: 10px; }
   .mtg-print-report ul { margin: 0; padding-left: 18px; font-size: 12px; }
+  .mtg-print-report li { break-inside: avoid; margin-bottom: 3px; }
 `;
+};
 
-export function MeetingPrintReport({ meeting, companyName }) {
+export function MeetingPrintReport({ meeting, companyName, theme = 'light' }) {
   const items = (meeting.actionItems || []).filter((it) => !it.deleted);
   return (
     <div className="mtg-print-report">
-      <style>{MEETING_PRINT_CSS}</style>
+      <style>{MEETING_PRINT_CSS(theme)}</style>
       <h1>{meeting.title || 'Reunião sem título'}</h1>
       <div className="mtg-print-meta">
         {companyName || '—'} · {meeting.date ? fmtDate(meeting.date) : 'sem data'}{meeting.time ? ` às ${meeting.time}` : ''}

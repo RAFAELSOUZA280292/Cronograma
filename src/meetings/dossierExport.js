@@ -68,8 +68,12 @@ export function dossierToMarkdown(content) {
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const paras = (s) => String(s || '').split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
 
-export function dossierToHtml(content) {
+export function dossierToHtml(content, opts = {}) {
   const c = content || {};
+  const dark = opts.theme === 'dark';
+  const K = dark
+    ? { bg: '#0B0E1A', text: '#FFFFFF', muted: '#B8BCC8', faint: '#7B8098', warn: '#F0954D', line: '#262C46', card: '#161B2E', head: '#1D2338', tag: '#262C46', late: 'rgba(255,107,107,.14)', alt: '#5a3a1a', rev: '#5a2424', vig: '#1c4a31', inc: '#4d4a1c' }
+    : { bg: '#FFFFFF', text: '#111111', muted: '#555555', faint: '#666666', warn: '#8a4b00', line: '#dddddd', card: '#FFFFFF', head: '#f4f4f4', tag: '#eeeeee', late: '#fff1f0', alt: '#ffe8cc', rev: '#ffd9d6', vig: '#d9f2e0', inc: '#f2f2c9' };
   const byId = indexMeetings(c);
   const st = c.stats || {};
   const srcHtml = (ids) => { const l = cites(ids, byId); return l.length ? `<div class="src">Fontes: ${l.map(esc).join('; ')}</div>` : ''; };
@@ -87,15 +91,17 @@ export function dossierToHtml(content) {
   const meetings = (c.meetings || []).map((m) => `<li>${esc(sourceLabel(m))}${!m.hasContent ? ' <i>(sem conteúdo registrado)</i>' : m.fromTranscript ? ' <i>(resumo gerado da transcrição)</i>' : ''}</li>`).join('');
 
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Dossiê${c.company ? ` — ${esc(c.company)}` : ''}</title><style>
-  @page { margin: 16mm; }
-  body { font-family: Arial, Helvetica, sans-serif; color:#111; background:#fff; line-height:1.45; font-size:12.5px; max-width:900px; margin:0 auto; padding:20px; }
-  h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:16px; margin:22px 0 8px; padding-bottom:4px; border-bottom:2px solid #F5C400; } h3 { font-size:13.5px; margin:12px 0 4px; }
-  .meta { color:#555; font-size:11.5px; margin-bottom:10px; } ul { padding-left:18px; } li { margin-bottom:6px; }
-  .src { color:#666; font-size:10.5px; margin-top:2px; } .note { color:#8a4b00; font-size:11.5px; margin-top:2px; }
-  .card { border:1px solid #ddd; border-radius:6px; padding:8px 12px; margin-bottom:8px; page-break-inside:avoid; }
-  .tag { display:inline-block; font-size:10px; font-weight:700; padding:1px 7px; border-radius:99px; background:#eee; color:#333; vertical-align:middle; }
-  .tag.alterada { background:#ffe8cc; } .tag.revogada { background:#ffd9d6; } .tag.vigente { background:#d9f2e0; } .tag.incerta { background:#f2f2c9; }
-  table { width:100%; border-collapse:collapse; font-size:11px; } th, td { border:1px solid #ddd; padding:4px 6px; text-align:left; vertical-align:top; } th { background:#f4f4f4; } tr.late td { background:#fff1f0; }
+  @page { margin: 16mm; background: ${K.bg}; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html { background:${K.bg}; }
+  body { font-family: Arial, Helvetica, sans-serif; color:${K.text}; background:${K.bg}; line-height:1.45; font-size:12.5px; max-width:900px; margin:0 auto; padding:20px; }
+  h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:16px; margin:22px 0 8px; padding-bottom:4px; border-bottom:2px solid #F5C400; break-after:avoid; } h3 { font-size:13.5px; margin:12px 0 4px; break-after:avoid; }
+  .meta { color:${K.muted}; font-size:11.5px; margin-bottom:10px; } ul { padding-left:18px; } li { margin-bottom:6px; }
+  .src { color:${K.faint}; font-size:10.5px; margin-top:2px; } .note { color:${K.warn}; font-size:11.5px; margin-top:2px; }
+  .card { border:1px solid ${K.line}; background:${K.card}; border-radius:6px; padding:8px 12px; margin-bottom:8px; page-break-inside:avoid; }
+  .tag { display:inline-block; font-size:10px; font-weight:700; padding:1px 7px; border-radius:99px; background:${K.tag}; color:${K.text}; vertical-align:middle; }
+  .tag.alterada { background:${K.alt}; } .tag.revogada { background:${K.rev}; } .tag.vigente { background:${K.vig}; } .tag.incerta { background:${K.inc}; }
+  table { width:100%; border-collapse:collapse; font-size:11px; } thead { display:table-header-group; } tr { break-inside:avoid; } th, td { border:1px solid ${K.line}; padding:4px 6px; text-align:left; vertical-align:top; } th { background:${K.head}; } tr.late td { background:${K.late}; }
   </style></head><body>
   <h1>Dossiê do cliente${c.company ? ` — ${esc(c.company)}` : ''}</h1>
   <div class="meta">Compilado pela RENATA em ${esc(fmtBR(c.generatedAt))} a partir de ${st.meetingsTotal || 0} reunião(ões)${esc(period)}. Conteúdo gerado por IA com base apenas nas reuniões registradas — confira nas fontes citadas antes de usar em decisão.</div>

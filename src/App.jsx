@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { revertLinkedSync, syncLinkedStatus } from '../shared/linkSync.js';
 import { meetingConflicts } from '../shared/calendarDays.js';
 import { fitPeriods } from '../shared/period.js';
+import { loadPdfPrefs, mergePdfPrefs, savePdfPrefs } from './pdf/pdfTheme.js';
 import { Share2, ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen } from 'lucide-react';
 
 import { loadXlsx } from './lib/xlsxLoader.js';
@@ -78,7 +79,6 @@ const KanbanView = lazyRetry(() => import('./screens/CompanyViews.jsx').then((m)
 const TimelineView = lazyRetry(() => import('./screens/CompanyViews.jsx').then((m) => ({ default: m.TimelineView })));
 const ResumoView = lazyRetry(() => import('./screens/CompanyViews.jsx').then((m) => ({ default: m.ResumoView })));
 const ActivityDetailModal = lazyRetry(() => import('./screens/CompanyViews.jsx').then((m) => ({ default: m.ActivityDetailModal })));
-const PrintReport = lazyRetry(() => import('./screens/CompanyViews.jsx').then((m) => ({ default: m.PrintReport })));
 // Detalhe de reunião e assistente por empresa (2026-10-17): helpers de status saíram de Meetings.jsx (meetings/todoStatus.js), o que permitiu carregá-los sob demanda.
 const MeetingDetailModal = lazyRetry(() => import('./meetings/MeetingDetail.jsx').then((m) => ({ default: m.MeetingDetailModal })));
 const PublicCompanyScreen = lazyRetry(() => import('./screens/PublicCompanyScreen.jsx'));
@@ -495,6 +495,8 @@ function AppScreens({ shellRef, bump }) {
   const [todoFocusMeetingId, setTodoFocusMeetingId] = useState(null);
   const [todoFocusActivityId, setTodoFocusActivityId] = useState(null);
   const [meetingToPrint, setMeetingToPrint] = useState(null);
+  const [pdfDialog, setPdfDialog] = useState(null);
+  const [pdfOptions, setPdfOptions] = useState(() => loadPdfPrefs());
   const [showLog, setShowLog] = useState(false);
   const [showCalendarBlock, setShowCalendarBlock] = useState(false); // "Reservar na agenda" (2026-10-19)
   const [showShareLink, setShowShareLink] = useState(false); // link público de acompanhamento (2026-10-19)
@@ -2328,25 +2330,29 @@ function AppScreens({ shellRef, bump }) {
     addLog(pid, 'Cronograma exportado para Excel');
   }
 
-  function exportPdf() {
-    if (isMulti) selectedProjects.forEach((p) => addLog(p.id, 'Cronograma exportado para PDF (visão geral)'));
-    else addLog(pid, 'Cronograma exportado para PDF');
-    const prevTitle = document.title;
-    const companyLabel = isMulti ? 'visao-geral' : (activeProject.company.nomeFantasia || activeProject.company.name || 'cronograma');
-    document.title = `Relatorio PRICETAX - ${companyLabel} - ${fmtDate(todayISOStr())}`;
-    window.print();
-    document.title = prevTitle;
-  }
+  // "Exportar PDF" abre a janela de opções (tema claro/escuro, orientação, seções); o PDF sai da impressão do navegador.
+  function exportPdf() { setPdfDialog({ mode: 'company' }); }
 
-  function exportMeetingPdf(meeting, companyName) {
-    const prevTitle = document.title;
-    document.title = `Reuniao PRICETAX - ${meeting.title || 'sem-titulo'} - ${fmtDate(meeting.date || todayISOStr())}`;
-    setMeetingToPrint({ meeting, companyName });
-    setTimeout(() => {
-      window.print();
-      document.title = prevTitle;
-      setMeetingToPrint(null);
-    }, 50);
+  function exportMeetingPdf(meeting, companyName) { setPdfDialog({ mode: 'meeting', meeting, companyName }); }
+
+  function confirmPdfExport(opts) {
+    const dialog = pdfDialog; const prefs = mergePdfPrefs(opts);
+    savePdfPrefs(prefs); setPdfOptions(prefs); setPdfDialog(null);
+    const prevTitle = document.title; const root = document.documentElement;
+    const done = () => { delete root.dataset.printTheme; document.title = prevTitle; setMeetingToPrint(null); window.removeEventListener('afterprint', done); };
+    if (dialog && dialog.mode === 'meeting') {
+      const { meeting, companyName } = dialog;
+      document.title = `Reuniao PRICETAX - ${meeting.title || 'sem-titulo'} - ${fmtDate(meeting.date || todayISOStr())}`;
+      setMeetingToPrint({ meeting, companyName, theme: prefs.theme });
+    } else {
+      if (isMulti) selectedProjects.forEach((p) => addLog(p.id, `Cronograma exportado para PDF (visão geral, tema ${prefs.theme === 'light' ? 'claro' : 'escuro'})`));
+      else addLog(pid, `Cronograma exportado para PDF (tema ${prefs.theme === 'light' ? 'claro' : 'escuro'})`);
+      const companyLabel = isMulti ? 'visao-geral' : (activeProject.company.nomeFantasia || activeProject.company.name || 'cronograma');
+      document.title = `Relatorio PRICETAX - ${companyLabel} - ${fmtDate(todayISOStr())}`;
+    }
+    root.dataset.printTheme = prefs.theme;
+    window.addEventListener('afterprint', done);
+    setTimeout(() => { window.print(); done(); }, 120);
   }
 
   const activitiesSorted = activeProject ? sortActivities(activeProject.activities.filter((a) => !a.deleted)) : [];
@@ -2455,6 +2461,10 @@ function AppScreens({ shellRef, bump }) {
         expanded,
         exportExcel,
         exportPdf,
+        pdfDialog,
+        setPdfDialog,
+        pdfOptions,
+        confirmPdfExport,
         fileInputRef,
         goToCompanySelector,
         goToOrgAdmin,
