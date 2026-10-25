@@ -332,9 +332,9 @@ ok('conferência final sem nenhuma divergência', rep.ok === true && rep.diverge
   ok('funis: todo funil do PipeRun existe (mesmo sem negócio)', raw('pipelines').every((p) => (await_name(p, crmStages))), raw('pipelines').map((p) => p.name));
   const slaWant = wantStages.filter((st) => Number(st.days_limit) > 0).length;
   ok('prazo (days_limit) virou o SLA da etapa, com o mesmo número de dias', crmStages.filter((r) => r.sla_days).length === slaWant && wantStages.filter((st) => Number(st.days_limit) > 0).every((st) => crmStages.some((r) => r.name.trim().toLowerCase() === String(st.name).trim().toLowerCase() && r.sla_days === Number(st.days_limit))), { slaWant, got: crmStages.filter((r) => r.sla_days).length });
-  const prodWant = raw('items').filter((i) => !Number(i.deleted));
-  const { rows: crmProd } = await q(`SELECT name, billing FROM crm_products WHERE org_id=$1 AND deleted_at IS NULL`, [ORG]);
-  ok('produtos do PipeRun no catálogo (tipo 1 = recorrente, 2 = avulso)', prodWant.length === crmProd.length && prodWant.every((i) => crmProd.some((r) => r.name === i.name.trim() && r.billing === (Number(i.type) === 1 ? 'recurring' : 'one_time'))), { want: prodWant.length, got: crmProd.length });
+  const prodWant = raw('items');
+  const { rows: crmProd } = await q(`SELECT name, billing, active FROM crm_products WHERE org_id=$1 AND deleted_at IS NULL`, [ORG]);
+  ok('produtos do PipeRun no catálogo (tipo 1 = recorrente, 2 = avulso; os apagados no PipeRun entram inativos)', prodWant.length === crmProd.length && prodWant.every((i) => crmProd.some((r) => r.name === i.name.trim() && r.billing === (Number(i.type) === 1 ? 'recurring' : 'one_time') && r.active === !Number(i.deleted))), { want: prodWant.length, got: crmProd.length });
   const wantMrr = Math.round(liveDeals.reduce((t, d) => t + (Number(d.value_mrr) > 0 ? Number(d.value_mrr) : 0), 0) * 100) / 100;
   ok('MRR: soma no CRM igual à do PipeRun (conta independente)', Math.abs(Number((await q(`SELECT coalesce(sum(mrr),0) AS n FROM crm_deals WHERE org_id=$1 AND external_source='piperun'`, [ORG])).rows[0].n) - wantMrr) < 0.005 && wantMrr > 0, { wantMrr });
   const wantExp = liveDeals.filter((d) => d.probably_closed_at).length;

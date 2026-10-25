@@ -192,8 +192,8 @@ export function funnelDefs(ctx) {
   }));
 }
 export function productRows(ctx) {
-  return (ctx.raw.items || []).filter((i) => !Number(i.deleted) && s(i.name)).map((i) => ({
-    pid: String(i.id), name: s(i.name), description: htmlToText(i.description), billing: Number(i.type) === 1 ? 'recurring' : 'one_time', active: true,
+  return (ctx.raw.items || []).filter((i) => s(i.name)).map((i) => ({
+    pid: String(i.id), name: s(i.name), description: htmlToText(i.description), billing: Number(i.type) === 1 ? 'recurring' : 'one_time', active: !Number(i.deleted),
   }));
 }
 export const tagRows = (ctx) => (ctx.raw.tags || []).filter((t) => s(t.name)).map((t) => ({ pid: String(t.id), name: s(t.name), color: s(t.color) || 'default' }));
