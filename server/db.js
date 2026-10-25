@@ -1,6 +1,8 @@
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
 import { improveTemplate } from './standardPlan.js';
+import { installProjectAudit } from './projectAudit.js';
+import { ensureProjectVersionsSchema } from './projectVersionsSchema.js';
 
 const { Pool } = pg;
 
@@ -10,6 +12,7 @@ export const pool = new Pool({
     ? false
     : { rejectUnauthorized: false },
 });
+installProjectAudit(pool); // quem gravou em `projects` (versionamento do cronograma, §83)
 
 function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
@@ -1430,6 +1433,8 @@ export async function initDb() {
   await pool.query(`CREATE INDEX IF NOT EXISTS crm_activities_company_idx ON crm_activities(company_id, status, due_date) WHERE deleted_at IS NULL`);
   await pool.query(`CREATE INDEX IF NOT EXISTS crm_activities_deal_idx ON crm_activities(deal_id, status) WHERE deleted_at IS NULL AND deal_id IS NOT NULL`);
   await pool.query(`CREATE INDEX IF NOT EXISTS crm_activities_reminder_idx ON crm_activities(due_date) WHERE status = 'open' AND due_notified_at IS NULL AND deleted_at IS NULL`);
+  // Histórico de versões do cronograma + gatilhos (§83). Se a DDL falhar, o painel sobe mesmo assim (sem versionamento) e o erro fica no log.
+  try { await ensureProjectVersionsSchema(pool); } catch (e) { console.error('ERRO: versionamento do cronograma NÃO foi instalado:', e.message); }
 }
 
 // Migração one-shot (Fase 7, 2026-09-11) — copia os aprendizados já

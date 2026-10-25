@@ -16,6 +16,7 @@ import { syncCardEvents } from './personalActivity.js';
 import { getConnectionStatus, listEvents } from './googleCalendar.js';
 import { todayInSp } from './widgetSummary.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
+import { originOf, setActor } from './projectAudit.js';
 
 export const router = Router();
 
@@ -130,6 +131,7 @@ async function bearer(req, res, next) {
     req.apiHash = hash;
     req.apiUserRow = row;
     req.apiUser = rowToUser(row);
+    setActor({ id: req.apiUser.id, name: `${req.apiUser.name || req.apiUser.username} (API, chave "${clip(t.name, 40)}")`, origin: `API ${originOf(req)}` });
     next();
   } catch (e) { next(e); }
 }

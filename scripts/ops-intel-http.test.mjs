@@ -10,7 +10,9 @@ const BASE = process.env.BASE || 'http://localhost:3001';
 const PASS = crypto.randomBytes(12).toString('base64url');
 const DB = process.env.DATABASE_URL || 'postgres://localhost:5432/cronograma_dev';
 if (!/localhost|127\.0\.0\.1/.test(DB)) { console.error('Recusado: este teste só roda contra banco local.'); process.exit(2); }
-const OI_USERS = { master: 'oitmp_master', master2: 'oitmp_master2', staff: 'oitmp_staff', cli: 'oitmp_cli' };
+// Ids novos a cada execução: o limite de envios do servidor é em memória, por pessoa, por minuto — repetir o teste não pode herdar a contagem da rodada anterior.
+const RUN = crypto.randomBytes(3).toString('hex');
+const OI_USERS = { master: `oitmp_master_${RUN}`, master2: `oitmp_master2_${RUN}`, staff: `oitmp_staff_${RUN}`, cli: `oitmp_cli_${RUN}` };
 
 let failed = 0;
 const ok = (name, cond, extra) => { if (cond) console.log(`ok   ${name}`); else { failed += 1; console.log(`FAIL ${name}${extra ? ` -> ${extra}` : ''}`); } };
@@ -39,10 +41,10 @@ async function cleanup() {
 }
 await cleanup();
 await pool.query(`INSERT INTO organizations (id, slug, name) VALUES ($1,'oitmp','OITMP') ON CONFLICT (id) DO NOTHING`, [ORG_B]);
-await mk('oitmp_master', 'Master Teste OI', 'master', ORG_A);
-await mk('oitmp_master2', 'Master Outra Org', 'master', ORG_B);
-await mk('oitmp_staff', 'Staff Teste OI', 'pricetax', ORG_A);
-await mk('oitmp_cli', 'Cliente Teste OI', 'cliente', ORG_A);
+await mk(OI_USERS.master, 'Master Teste OI', 'master', ORG_A);
+await mk(OI_USERS.master2, 'Master Outra Org', 'master', ORG_B);
+await mk(OI_USERS.staff, 'Staff Teste OI', 'pricetax', ORG_A);
+await mk(OI_USERS.cli, 'Cliente Teste OI', 'cliente', ORG_A);
 const sessions = {};
 for (const [k, u] of Object.entries(OI_USERS)) sessions[k] = (await login(u)).cookie;
 ok('login dos 4 usuários temporários', Object.values(sessions).every(Boolean));

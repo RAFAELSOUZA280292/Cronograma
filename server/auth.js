@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pool } from './db.js';
+import { originOf, setActor } from './projectAudit.js';
 
 const COOKIE_NAME = 'cronograma_token';
 const TOKEN_TTL = '7d';
@@ -98,6 +99,7 @@ export async function requireAuth(req, res, next) {
     if (!row) return res.status(401).json({ message: 'Sessão inválida. Faça login novamente.' });
     req.userRow = row;
     req.user = rowToUser(row);
+    setActor({ id: req.user.id, name: req.user.name || req.user.username, origin: originOf(req) });
     next();
   } catch (e) {
     next(e);
@@ -118,6 +120,7 @@ export async function optionalAuth(req, res, next) {
     if (row) {
       req.userRow = row;
       req.user = rowToUser(row);
+      setActor({ id: req.user.id, name: req.user.name || req.user.username, origin: originOf(req) });
     }
     next();
   } catch (e) {

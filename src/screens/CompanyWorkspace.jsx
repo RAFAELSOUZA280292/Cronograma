@@ -1,7 +1,7 @@
 // Área de trabalho de uma empresa (cabeçalho, abas, vistas, modais e relatório de impressão).
 // Extraído do `return` final de AppScreens (src/App.jsx) em 2026-10-17 ("dividir o AppScreens e o S"): carregado sob demanda. O JSX é o mesmo de antes;
 // tudo o que ele usava do AppScreens (estado, funções, valores calculados) chega no objeto `ctx`, montado a cada render com os valores atuais.
-import { CalendarCheck, Share2, ShieldCheck, Briefcase, Building2, CalendarDays, Clock, Columns3, FileSpreadsheet, FileText, Gauge, LayoutGrid, List, ListChecks, Mic, MoreHorizontal, Network, Pause, Plus, Settings, Trash2, Undo2, Upload, X } from 'lucide-react';
+import { ArchiveRestore, History, CalendarCheck, Share2, ShieldCheck, Briefcase, Building2, CalendarDays, Clock, Columns3, FileSpreadsheet, FileText, Gauge, LayoutGrid, List, ListChecks, Mic, MoreHorizontal, Network, Pause, Plus, Settings, Trash2, Undo2, Upload, X } from 'lucide-react';
 import { MeetingPrintReport } from '../meetings/MeetingDetail.jsx';
 import { MeetingsView } from '../meetings/Meetings.jsx';
 import { ProjectAssistant } from '../assistant/ProjectAssistant.jsx';
@@ -24,6 +24,8 @@ const StandardAuditModal = lazyRetry(() => import('../macro/StandardAudit.jsx'))
 const CompanyShareLinkModal = lazyRetry(() => import('./CompanyShareLink.jsx'));
 const CompanyCalendarModal = lazyRetry(() => import('./CompanyCalendar.jsx'));
 const StandardPlanBar = lazyRetry(() => import('../macro/StandardPlanBar.jsx'));
+const VersionHistoryModal = lazyRetry(() => import('../versions/VersionHistory.jsx'));
+const DeletedCompaniesModal = lazyRetry(() => import('../versions/VersionHistory.jsx').then((m) => ({ default: m.DeletedCompaniesModal })));
 
 export function CompanyWorkspace({ ctx }) {
   const {
@@ -105,6 +107,11 @@ export function CompanyWorkspace({ ctx }) {
     projects,
     pushAppUndoToast,
     reloadProjects,
+    flushProjectSave,
+    setShowVersions,
+    showVersions,
+    setShowDeletedCompanies,
+    showDeletedCompanies,
     removeAreaRow,
     removeAttachment,
     removeMember,
@@ -304,6 +311,9 @@ export function CompanyWorkspace({ ctx }) {
           {!isMobile && !isTpl && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowCreateCompany(true)}><Plus size={15} /> Cadastrar empresa</button>
           )}
+          {!isMobile && !isTpl && currentUser.role === 'master' && (
+            <button style={S.iconBtn} onClick={() => setShowDeletedCompanies(true)}><ArchiveRestore size={15} /> Empresas excluídas</button>
+          )}
           {!isMobile && !isTpl && currentUser.isSuperAdmin && <button style={S.iconBtn} onClick={() => goToOrgAdmin(true)}><Building2 size={15} /> Organizações</button>}
           {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => { setPhasesEditingProjectId(activeProject.id); setShowPhases(true); }}><LayoutGrid size={15} /> Fases</button>
@@ -319,6 +329,9 @@ export function CompanyWorkspace({ ctx }) {
           )}
           {!isMobile && !isMulti && !isTpl && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowLog(true)}><Clock size={15} /> Log ({(activeProject.log || []).length})</button>
+          )}
+          {!isMobile && !isMulti && !isTpl && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
+            <button style={S.iconBtn} onClick={() => setShowVersions(true)}><History size={15} /> Versões</button>
           )}
           {!isMobile && !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
             <button style={S.iconBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira ({activeProject.activities.filter((a) => a.deleted).length + activeProject.activities.reduce((n, a) => n + (a.deleted ? 0 : (a.subactivities || []).filter((s) => s.deleted).length), 0)})</button>
@@ -581,6 +594,13 @@ export function CompanyWorkspace({ ctx }) {
       <div className="no-print" style={S.hint}>
         Alterações são salvas automaticamente e registradas no log. {isMulti ? `Você está vendo a visão geral de ${selectedProjects.length} empresas.` : `Você está vendo o projeto de ${activeProject.company.name || 'um cliente sem nome cadastrado'}.`}
       </div>
+
+      <React.Suspense fallback={null}>
+        {showVersions && activeProject && !isMulti && !isTpl && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
+          <VersionHistoryModal projectId={activeProject.id} companyLabel={activeProject.company.name || 'Empresa'} onClose={() => setShowVersions(false)} flushSave={() => flushProjectSave(activeProject.id)} onRestored={() => reloadProjects()} />
+        )}
+        {showDeletedCompanies && currentUser.role === 'master' && <DeletedCompaniesModal onClose={() => setShowDeletedCompanies(false)} onRestored={() => reloadProjects()} />}
+      </React.Suspense>
 
       {showLog && activeProject && (currentUser.role === 'master' || currentUser.role === 'pricetax') && (
         <SidePanel title="Log de alterações" onClose={() => setShowLog(false)}>

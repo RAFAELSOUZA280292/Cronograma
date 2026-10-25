@@ -3,7 +3,7 @@ import { revertLinkedSync, syncLinkedStatus } from '../shared/linkSync.js';
 import { meetingConflicts } from '../shared/calendarDays.js';
 import { fitPeriods } from '../shared/period.js';
 import { loadPdfPrefs, mergePdfPrefs, savePdfPrefs } from './pdf/pdfTheme.js';
-import { Activity, Share2, ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen } from 'lucide-react';
+import { Activity, Share2, ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen, History, ArchiveRestore } from 'lucide-react';
 
 import { loadXlsx } from './lib/xlsxLoader.js';
 import { lazyRetry } from './lib/lazyRetry.jsx';
@@ -501,6 +501,8 @@ function AppScreens({ shellRef, bump }) {
   const [pdfDialog, setPdfDialog] = useState(null);
   const [pdfOptions, setPdfOptions] = useState(() => loadPdfPrefs());
   const [showLog, setShowLog] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
+  const [showDeletedCompanies, setShowDeletedCompanies] = useState(false);
   const [showCalendarBlock, setShowCalendarBlock] = useState(false); // "Reservar na agenda" (2026-10-19)
   const [showShareLink, setShowShareLink] = useState(false); // link público de acompanhamento (2026-10-19)
   const [showAudit, setShowAudit] = useState(false); // auditoria contra o padrão (2026-10-19)
@@ -2441,6 +2443,8 @@ function AppScreens({ shellRef, bump }) {
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: CalendarDays, label: 'Reservar na agenda', onClick: () => setShowCalendarBlock(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: ShieldCheck, label: 'Auditoria do padrão', onClick: () => setShowAudit(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Clock, label: `Log (${(activeProject.log || []).length})`, onClick: () => setShowLog(true) },
+    !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: History, label: 'Versões', onClick: () => setShowVersions(true) },
+    currentUser.role === 'master' && { icon: ArchiveRestore, label: 'Empresas excluídas', onClick: () => setShowDeletedCompanies(true) },
     !isMulti && (currentUser.role === 'master' || currentUser.role === 'pricetax') && { icon: Trash2, label: 'Lixeira', onClick: () => setShowTrash(true) },
     { icon: FileSpreadsheet, label: 'Excel', onClick: exportExcel },
     { icon: FileText, label: 'PDF', onClick: exportPdf },
@@ -2555,6 +2559,11 @@ function AppScreens({ shellRef, bump }) {
         setShowCreateCompany,
         setShowGroupActivityModal,
         setShowLog,
+        setShowVersions,
+        showVersions,
+        setShowDeletedCompanies,
+        showDeletedCompanies,
+        flushProjectSave,
         showAudit,
         setShowAudit,
         showShareLink,

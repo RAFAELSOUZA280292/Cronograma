@@ -29,6 +29,7 @@ import { router as companyShareRouter, publicRouter as publicCompanyRouter, data
 import { router as pushRouter, pushEnabled } from './push.js';
 import { router as opsIntelRouter } from './opsIntel.js';
 import { startRetentionJob } from './usageLog.js';
+import { router as projectVersionsRouter, startVersionRetentionJob } from './projectVersions.js';
 import { startCrmScheduler } from './crm/scheduler.js';
 import { startTodoScheduler } from './todoNotifications.js';
 import { pool } from './db.js';
@@ -73,6 +74,7 @@ app.use('/api/public-company', publicCompanyRouter);
 app.use('/d', companyDataRouter);
 app.use('/api/push', pushRouter);
 app.use('/api/ops-intel', opsIntelRouter);
+app.use('/api/project-history', projectVersionsRouter);
 
 // Rota inexistente sob /api responde 404 em JSON — antes caía no fallback do SPA e devolvia o index.html com 200,
 // o que enganava qualquer cliente da API (inclusive a de conectividade, §80).
@@ -140,6 +142,7 @@ async function start() {
     startCrmScheduler();
     startTodoScheduler();
     startRetentionJob();
+    startVersionRetentionJob();
   });
 }
 

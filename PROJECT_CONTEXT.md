@@ -34,7 +34,7 @@ O painel (painel.pricetax.com.br) virou o **ecossistema de trabalho da PRICETAX*
 | **Inteligência Operacional** | `/inteligencia` | master | §82 | `src/opsintel/`, `server/opsIntel.js`, `server/usageLog.js`, `shared/usageMetrics.js` |
 
 Transversais (não são "abas"): **RENATA** (assistente de IA: §27–§42, §50, §63, §70), **Meu perfil** em abas — Perfil · Meu dia ·
-Agenda · iPhone · Privacidade (§82) — com **boas-vindas** na primeira entrada e a **Mensagem do dia** na tela inicial (§77), **Widget do iPhone** (§76),
+Agenda · iPhone · Privacidade (§82); empresa › **Versões** (§83) — com **boas-vindas** na primeira entrada e a **Mensagem do dia** na tela inicial (§77), **Widget do iPhone** (§76),
 Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (§67), **API de conectividade** para outra janela do Claude Code (§80).
 
 **Linha do tempo** (o "porquê" de cada coisa está na seção citada):
@@ -119,7 +119,7 @@ Fonte da verdade: `.env` local (não commitado, `.gitignore`) + Railway env vars
 Local: `set -a && source .env && set +a` antes de rodar, ou script wrapper com
 `export VAR="..."` (sandbox bloqueia `source .env` em alguns ambientes).
 
-## 5. Banco de dados (Postgres, 46 tabelas, sem ORM)
+## 5. Banco de dados (Postgres, 47 tabelas, sem ORM)
 
 `initDb()` roda `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ADD COLUMN IF NOT
 EXISTS` a cada boot (idempotente, sem migration tool). `migrateToPricetaxOrg()`
@@ -135,7 +135,7 @@ roda logo depois, também todo boot.
 | `xflow_tickets` | `id, ticket_number SERIAL, org_id FK, title, status, severity, priority, suggested_priority, product, reporter_id FK, assignee_id FK, data JSONB, created_at, updated_at, status_entered_at, time_breakdown JSONB, ball_holder_type/user_id, waiting_on_type, reopen_count, homolog_reject_count, sla_first_response_due_at/met_at, sla_resolution_due_at/met_at, sla_paused_at, sla_paused_seconds` | 1 linha = 1 BUG/ticket do módulo XFlow (§18); `status` **sem** `CHECK` de propósito (lista evolui sem migration) |
 | `xflow_events` | `id, ticket_id FK CASCADE, org_id FK, type, field, old_value, new_value, note, user_id FK, created_at` | Log estruturado de toda ação do XFlow — fonte de verdade da timeline (§18), substitui o `data.history[]` de texto livre da v1 (mantido só como fallback de leitura pra tickets antigos) |
 
-**As outras 39 tabelas** (criadas depois das 7 acima; descrição de cada uma em `docs/PROJECT_MAP.md` §6 e na seção citada):
+**As outras 40 tabelas** (criadas depois das 7 acima; descrição de cada uma em `docs/PROJECT_MAP.md` §6 e na seção citada):
 
 | Grupo | Tabelas | Seção |
 |---|---|---|
@@ -143,7 +143,7 @@ roda logo depois, também todo boot.
 | Reuniões / Dossiê | `meeting_submissions`, `project_dossiers`, `project_meeting_digests` | §24, §49, §63 |
 | Pareceres / Modelos | `pareceres`, `parecer_studies`, `meeting_parecer_advice`, **`document_templates`, `document_template_items`** | §48, §70, §78 |
 | Notificações / Google | `notifications`, `google_calendar_connections` | §20, §21 |
-| Auditoria / indicadores | `user_access_events`, `ip_geo_cache`, `personal_card_events`, `user_usage_events` | §65, §67, §82 |
+| Auditoria / indicadores | `user_access_events`, `ip_geo_cache`, `personal_card_events`, `user_usage_events`, `project_versions` | §65, §67, §82, §83 |
 | Meu dia | **`daily_content`** (cache diário das fontes, PK `kind,key,day`) | §77 |
 | Conectividade | **`api_tokens`** (token por janela do Claude Code: hash, escopo, validade, revogação, último uso) | §80 |
 | CRM (relacional, UUID, soft delete) | `crm_companies`, `crm_contacts`, `crm_notes`, `crm_company_projects`, `crm_pipelines`, `crm_pipeline_stages`, `crm_deals`, `crm_deal_items`, `crm_deal_stage_history`, `crm_products`, `crm_activities`, `crm_timeline_events`, `crm_audit_logs` | §54–§58 |
@@ -7533,11 +7533,28 @@ navegador: visão geral, mapa com tiles e ponto vermelho, linha do tempo, metodo
 **NÃO testado (§15):** dados reais de produção (a medição começa do zero no deploy; o passado é só estimativa); precisão da geolocalização por IP em produção (VPN/rede móvel); retenção ao longo do tempo; efeito do rastreador em aparelho real/aba em segundo plano de verdade.
 **Limites conhecidos:** o histórico das empresas guarda só 300 ações e identifica por nome (nomes repetidos ficam de fora, contados em `unmatchedLogs`); quem faz uma coisa a cada 40 min aparece com pouco tempo estimado; tempo medido só cobre quem tem a aba aberta e visível.
 
+## 83. Versionamento, backup e restauração do cronograma (2026-10-25, pedido do Rafael)
+
+Documento técnico completo: `docs/VERSIONAMENTO_CRONOGRAMA.md` (arquitetura, armazenamento, regras, procedimentos, falhas, limites, testes).
+
+**Diagnóstico:** não havia backup nem versão. A empresa é UM JSONB (`projects.data`) regravado inteiro por 17 pontos (PATCH da tela, API pxk_, RENATA, triagem, padrão…), última gravação vence; o Log (`data.log`) é texto do cliente, sem valor antes/depois; rollback só pela lixeira de atividade/sub; **excluir empresa era DELETE físico** (cascata em 13 tabelas).
+
+**Solução:** tabela `project_versions` (sem FK, sobrevive à exclusão) alimentada por **gatilho do Postgres** (`BEFORE UPDATE OF data` guarda o estado ANTERIOR de activities/phases/team; `BEFORE DELETE` guarda o documento inteiro) — cobre todos os pontos de gravação sem tocar neles; falha do gatilho vira WARNING e a gravação segue. Autoria via `AsyncLocalStorage` → variáveis `app.actor_*` da sessão (`server/projectAudit.js`, instalado em `db.js` sobre `pool.query/connect`; `requireAuth`, `optionalAuth` e a API de conectividade preenchem). Autosave coalescido (mesma pessoa+origem em 5 min = 1 ponto). Mudança só em log/reuniões não gera versão.
+
+**Telas/rotas:** `src/versions/VersionHistory.jsx` — botão **Versões** (ao lado do Log; Master e PRICETAX): lista, **comparar** duas versões ou versão×atual campo a campo (antes vermelho → depois verde), **criar ponto de restauração**, **Restaurar…** (só Master): simulação, parcial por atividade, confirmação digitando `RESTAURAR`, backup automático `pre_restore`, aviso **Desfazer**; **Empresas excluídas** (Master) recria a empresa. Rotas `/api/project-history/:id/{versions,diff}`, `/versions/:vid/restore` (`dryRun`/`confirm`/`activityIds`), `/deleted/list`, `/deleted/:vid/restore` (`server/projectVersions.js`). Cliente nunca vê; outra organização = 404.
+
+**Integridade (puro, `shared/scheduleVersion.js`):** restaurar NUNCA apaga — o que nasceu depois vai para a lixeira; comentários/anexos/links de hoje são mantidos; sub movida não duplica; fases usadas e equipe (união) permanecem; pauta órfã é desvinculada; id repetido bloqueia (409). `company`, reuniões e Log ficam intocados; cada restauração escreve no Log.
+
+**Retenção:** 730 dias (`VERSIONS_KEEP_DAYS`); automáticas > 90 dias (`VERSIONS_FULL_DAYS`) viram 1/semana; empresa excluída 365 dias (`VERSIONS_DELETED_DAYS`). **Bugs achados pelos testes e corrigidos:** comparar com "atual" usava o objeto errado; sub movida de atividade duplicava na restauração; sem `sessionId` a captura de uso dava 500 (§82).
+
+**Testado:** `node scripts/schedule-version.test.mjs` (14) e `node scripts/project-versions-http.test.mjs` (≈75, local, cria/apaga usuários `oitmp`): gatilho, autoria (tela, API em transação, SQL direto), coalescência, RBAC, isolamento por organização, comparação, restauração completa/parcial/bloqueada, desfazer idêntico ao estado anterior, exclusão e recriação, falha do gatilho isolada, documento malformado, desempenho (178 KB: 28 ms/gravação, 1 versão de 12 kB), retenção; navegador: lista, comparação, simulação, confirmação, restauração, desfazer, mobile 375 px. **NÃO testado (§15):** produção real (volume de versões, backup do banco do Railway — fora do repositório), concorrência real de duas pessoas editando juntas (continua "última gravação vence"; agora é recuperável), `company_calendar_events` após restaurar. **Limite:** restaurar empresa excluída não recria as 13 tabelas filhas (atas enviadas, dossiês, links públicos, reservas, memória/conversas da RENATA).
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
 | Regras de padrão de código, arquivos que não mexer, comandos | `CLAUDE.md` |
 | Detalhe de responsividade mobile por tela | `docs/RESPONSIVE_ARCHITECTURE.md` |
+| Backup, versões, comparação e restauração do cronograma (arquitetura, SQL de emergência, limites) | `docs/VERSIONAMENTO_CRONOGRAMA.md` (resumo: §83) |
 | Estudo de integração via Telegram Bot (não implementado) | `docs/TELEGRAM_BOT_ESTUDO.md` |
 | Plano (não implementado) de vincular tarefa de reunião à atividade do cronograma, com a RENATA aprendendo | `docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md` |
 | Brief original completo da identidade/princípios da RENATA | `docs/RENATA_BRIEF.md` (resumo do que foi implementado em `PROJECT_CONTEXT.md` §27) |
