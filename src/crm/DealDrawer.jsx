@@ -11,6 +11,7 @@ import ActivityForm from './ActivityForm.jsx';
 import ActivityList from './ActivityList.jsx';
 import RenataAsk from './RenataAsk.jsx';
 import { useDraftGuard, NoteComposer, NoteThread } from './ui.jsx';
+import DealTags from './DealTags.jsx';
 import { useDialog } from '../lib/nav.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { fmtMoney, fmtDateBR, fmtDateTimeBR, DEAL_TYPE_META, DEAL_STATUS_META, TIMELINE_KIND, sourceLabel, stageAgeColor } from './crmMeta.js';
@@ -142,10 +143,13 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
                 <div className="crm-cards">
                   <div className="crm-card"><div className="crm-kpi-value">{fmtMoney(d.value) || 'R$ 0'}</div><div className="crm-kpi-label">Valor</div><div className="crm-kpi-sub">{d.items.length ? `${d.items.length} produto(s)` : 'informado à mão'}</div></div>
                   <div className="crm-card"><div className="crm-kpi-value">{d.probability}%</div><div className="crm-kpi-label">Probabilidade</div><div className="crm-kpi-sub">{d.probabilityOverride != null ? 'definida à mão' : `da etapa ${d.stageName}`}</div></div>
+                  {d.mrr > 0 && <div className="crm-card"><div className="crm-kpi-value">{fmtMoney(d.mrr)}</div><div className="crm-kpi-label">MRR</div><div className="crm-kpi-sub">recorrente mensal</div></div>}
                   <div className="crm-card"><div className="crm-kpi-value">{fmtMoney(d.weightedValue) || 'R$ 0'}</div><div className="crm-kpi-label">Valor ponderado</div></div>
-                  <div className="crm-card"><div className="crm-kpi-value" style={{ color: d.status === 'open' ? stageAgeColor(d.daysInStage) : undefined, fontSize: 20 }}>{d.daysInStage == null ? '—' : `${d.daysInStage} ${d.daysInStage === 1 ? 'dia' : 'dias'}`}</div><div className="crm-kpi-label">Na etapa {d.stageName}</div></div>
+                  <div className="crm-card"><div className="crm-kpi-value" style={{ color: d.status === 'open' ? stageAgeColor(d.daysInStage) : undefined, fontSize: 20 }}>{d.daysInStage == null ? '—' : `${d.daysInStage} ${d.daysInStage === 1 ? 'dia' : 'dias'}`}</div><div className="crm-kpi-label">Na etapa {d.stageName}</div>{d.slaDays && d.status === 'open' && <div className="crm-kpi-sub" style={{ color: d.slaExceeded ? '#e2574c' : undefined }}>prazo {d.slaDays} d{d.slaExceeded ? ' — estourado' : ''}</div>}</div>
                   <div className="crm-card"><div className="crm-kpi-value" style={{ color: d.overdue ? '#e2574c' : undefined, fontSize: 18 }}>{fmtDateBR(d.expectedCloseDate) || '—'}</div><div className="crm-kpi-label">Previsão de fechamento</div>{d.overdue && <div className="crm-kpi-sub" style={{ color: '#e2574c' }}>vencida</div>}</div>
                 </div>
+
+                <DealTags dealId={dealId} tags={d.tags} canEdit={!!caps.write} onChanged={afterChange} />
 
                 <DealFiles dealId={dealId} />
 

@@ -4,7 +4,7 @@ import { pool } from '../../db.js';
 import { personNameKey } from '../text.js';
 import { loadRaw } from './extract.js';
 import { prepare } from './migrate.js';
-import { importableNotes, historyEvents } from './transform.js';
+import { importableNotes, historyEvents, funnelDefs, productRows } from './transform.js';
 import { SOURCE_SYSTEM } from '../dealImporter.js';
 
 const money = (n) => Math.round(Number(n || 0) * 100) / 100;
@@ -73,8 +73,27 @@ export async function reconcile(orgId) {
     row('Atividades (com negócio)', importableActs.length, importableActs.filter((a) => mAct.has(a.pid)).length, `${P.acts.length - importableActs.length} sem negócio ficam só no backup`),
     row('Documentos (PDF, DOCX…)', docs.length, docs.filter((f) => mFile.has(f.pid)).length, 'imagens e áudios ficam só no backup'),
   ];
+  // 2ª leva (§85): conferidos, mas "informativos" — quem edita MRR/tags/previsão no CRM depois da migração muda o número sem que isso seja erro.
+  const liveIds = live.map((d) => d.id);
+  const { rows: ex } = liveIds.length ? await pool.query(
+    `SELECT coalesce(sum(mrr),0) AS mrr, count(*) FILTER (WHERE expected_close_date IS NOT NULL)::int AS expected, (SELECT count(*)::int FROM crm_deal_tags WHERE deal_id = ANY($1::uuid[])) AS tag_links FROM crm_deals WHERE id = ANY($1::uuid[])`, [liveIds]) : { rows: [{ mrr: 0, expected: 0, tag_links: 0 }] };
+  const defs = funnelDefs(P.ctx);
+  const { rows: stg } = await pool.query(`SELECT p.name AS pipeline, s.name FROM crm_pipeline_stages s JOIN crm_pipelines p ON p.id = s.pipeline_id WHERE s.org_id=$1 AND s.deleted_at IS NULL AND s.kind='open' AND p.deleted_at IS NULL`, [orgId]);
+  const stgSet = new Set(stg.map((x) => `${personNameKey(x.pipeline)}|${personNameKey(x.name)}`));
+  const wantStages = defs.flatMap((d) => d.stages.map((x) => `${personNameKey(d.name)}|${personNameKey(x.name)}`));
+  const { rows: prodRows } = await pool.query('SELECT name FROM crm_products WHERE org_id=$1 AND deleted_at IS NULL', [orgId]);
+  const prodSet = new Set(prodRows.map((x) => personNameKey(x.name)));
+  const prods = productRows(P.ctx);
+  const info = (label, piperun, crm, note) => ({ ...row(label, piperun, crm, note), info: true });
+  summary.push(
+    info('Etapas dos funis (todas, mesmo sem negócio)', wantStages.length, wantStages.filter((k) => stgSet.has(k)).length, 'com o prazo (SLA) de cada etapa'),
+    info('Produtos do catálogo', prods.length, prods.filter((p) => prodSet.has(personNameKey(p.name))).length, 'o PipeRun não ligava produtos aos negócios (só às propostas)'),
+    info('Tags aplicadas aos negócios', P.plan.rows.reduce((n, r) => n + new Set(r.tagNames.map((t) => t.toLowerCase())).size, 0), Number(ex[0].tag_links), 'depende de a extração trazer as tags dos negócios'),
+    info('Previsão de fechamento (negócios com data)', P.plan.rows.filter((r) => r.expectedDate).length, Number(ex[0].expected), 'datas editadas depois no CRM mudam este número'),
+    info('MRR somado (R$)', money(P.plan.rows.reduce((n, r) => n + r.mrr, 0)), money(ex[0].mrr), 'MRR editado depois no CRM muda este número'),
+  );
   const provIds = [...mProv.values()];
   const { rows: pend } = provIds.length ? await pool.query(`SELECT id, legal_name FROM crm_companies WHERE org_id=$1 AND id = ANY($2::uuid[]) AND deleted_at IS NULL AND COALESCE(cnpj,'') = '' ORDER BY legal_name`, [orgId, provIds]) : { rows: [] };
-  const ok = summary.every((x) => x.ok) && bySituation.every((x) => x.piperun === x.crm && x.piperunValue === x.crmValue) && byFunnel.every((x) => x.piperun === x.crm) && !divergences.length;
+  const ok = summary.filter((x) => !x.info).every((x) => x.ok) && bySituation.every((x) => x.piperun === x.crm && x.piperunValue === x.crmValue) && byFunnel.every((x) => x.piperun === x.crm) && !divergences.length;
   return { ready: true, ok, summary, bySituation, byFunnel, divergences: divergences.slice(0, 1000), divergenceCount: divergences.length, provisionalToComplete: pend.map((r) => ({ id: r.id, name: r.legal_name })) };
 }

@@ -1,6 +1,6 @@
 // Cliente da API do CRM (/api/crm) — Fase 1. Só monta URL/corpo; regra de
 // negócio e permissão ficam no servidor (server/crm).
-import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
+import { apiGet, apiPost, apiPatch, apiDelete, apiPut } from '../lib/api.js';
 
 function qs(o) {
   const p = new URLSearchParams();
@@ -24,6 +24,8 @@ export const crm = {
   dealFiles: (id) => apiGet(`${B}/deals/${id}/files`),
   dealFileUrl: (fileId) => `${B}/deal-files/${fileId}/download`,
   options: () => apiGet(`${B}/options`),
+  tags: () => apiGet(`${B}/tags`),
+  setDealTags: (id, tags) => apiPut(`${B}/deals/${id}/tags`, { tags }),
   overview: () => apiGet(`${B}/overview`),
   search: (q) => apiGet(`${B}/search${qs({ q })}`),
   cnpj: (c) => apiGet(`${B}/cnpj/${encodeURIComponent(c)}`),

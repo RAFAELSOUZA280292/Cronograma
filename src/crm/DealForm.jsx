@@ -15,7 +15,7 @@ const numStr = (n) => (n == null ? '' : String(n).replace('.', ','));
 
 function fromDeal(d) {
   return {
-    title: d.title || '', dealType: d.dealType || 'new', value: d.value ? numStr(d.value) : '', expectedCloseDate: d.expectedCloseDate || '',
+    title: d.title || '', dealType: d.dealType || 'new', value: d.value ? numStr(d.value) : '', mrr: d.mrr ? numStr(d.mrr) : '', expectedCloseDate: d.expectedCloseDate || '',
     probabilityOverride: d.probabilityOverride == null ? '' : String(d.probabilityOverride), ownerId: d.ownerId || '', primaryContactId: d.primaryContactId || '',
     source: d.source || '', description: d.description || '',
   };
@@ -24,7 +24,7 @@ function fromDeal(d) {
 function DealForm({ initial, company, defaultType, defaultPipelineId, options, currentUserId, onSaved, onCancel }) {
   const editing = !!(initial && initial.id);
   const [form, setForm] = useState(() => (editing ? fromDeal(initial) : {
-    title: '', dealType: defaultType || 'new', value: '', expectedCloseDate: '', probabilityOverride: '', ownerId: currentUserId || '', primaryContactId: '', source: '', description: '',
+    title: '', dealType: defaultType || 'new', value: '', mrr: '', expectedCloseDate: '', probabilityOverride: '', ownerId: currentUserId || '', primaryContactId: '', source: '', description: '',
   }));
   const [items, setItems] = useState(() => (editing && initial.items ? initial.items.map((i) => ({ productId: i.productId || CUSTOM, name: i.name, quantity: String(i.quantity), unitPrice: numStr(i.unitPrice) })) : []));
   const [picked, setPicked] = useState(company || (editing ? { id: initial.companyId, legalName: initial.companyName, relationship: initial.companyRelationship } : null));
@@ -74,10 +74,12 @@ function DealForm({ initial, company, defaultType, defaultPipelineId, options, c
     setError('');
     const value = moneyToNumber(form.value);
     if (Number.isNaN(value)) { setError('Valor inválido.'); return; }
+    const mrr = moneyToNumber(form.mrr);
+    if (Number.isNaN(mrr)) { setError('MRR inválido.'); return; }
     const payloadItems = items.filter((i) => i.productId || i.name.trim()).map((i) => ({ productId: i.productId === CUSTOM ? null : i.productId, name: i.name, quantity: Number(String(i.quantity).replace(',', '.')) || 0, unitPrice: moneyToNumber(i.unitPrice) }));
     if (payloadItems.some((i) => Number.isNaN(i.unitPrice))) { setError('Há um preço inválido nos produtos.'); return; }
     const body = {
-      title: form.title, dealType: form.dealType, value: value == null ? 0 : value, expectedCloseDate: form.expectedCloseDate || null,
+      title: form.title, dealType: form.dealType, value: value == null ? 0 : value, mrr: mrr == null ? 0 : mrr, expectedCloseDate: form.expectedCloseDate || null,
       probabilityOverride: form.probabilityOverride === '' ? null : Number(form.probabilityOverride), ownerId: form.ownerId || null,
       primaryContactId: form.primaryContactId || null, source: form.source, description: form.description, items: payloadItems,
     };
@@ -151,6 +153,7 @@ function DealForm({ initial, company, defaultType, defaultPipelineId, options, c
           {items.length > 0 && <div className="crm-total" style={{ marginTop: 10 }}><span>Valor do negócio (soma dos produtos)</span><span>{fmtMoney(itemsTotal)}</span></div>}
         </div>
         {items.length === 0 && <Field label="Valor do negócio (R$)"><input inputMode="decimal" value={form.value} onChange={(e) => set('value', e.target.value)} placeholder="Ex.: 20.000,00" /></Field>}
+        <Field label="MRR — receita recorrente mensal (R$)"><input inputMode="decimal" value={form.mrr} onChange={(e) => set('mrr', e.target.value)} placeholder="Ex.: 3.500,00" /></Field>
         <Field label="Previsão de fechamento"><input type="date" value={form.expectedCloseDate} onChange={(e) => set('expectedCloseDate', e.target.value)} /></Field>
         <Field label="Probabilidade manual (%)"><input type="number" min="0" max="100" value={form.probabilityOverride} onChange={(e) => set('probabilityOverride', e.target.value)} placeholder="Vazio = a da etapa" /></Field>
 

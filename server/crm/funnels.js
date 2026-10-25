@@ -18,11 +18,11 @@ export async function listPipelines(orgId) {
   await ensureDefaultPipeline(orgId);
   const { rows: ps } = await pool.query('SELECT id, name, is_default, on_won_pipeline_id, on_won_stage_id, on_won_from_stage_id FROM crm_pipelines WHERE org_id=$1 AND deleted_at IS NULL ORDER BY is_default DESC, created_at, name', [orgId]);
   const { rows: st } = await pool.query(
-    `SELECT s.id, s.pipeline_id, s.name, s.position, s.probability, s.kind, s.color,
+    `SELECT s.id, s.pipeline_id, s.name, s.position, s.probability, s.kind, s.color, s.sla_days,
             (SELECT count(*)::int FROM crm_deals d WHERE d.stage_id = s.id AND d.deleted_at IS NULL) AS deals
      FROM crm_pipeline_stages s WHERE s.org_id=$1 AND s.deleted_at IS NULL ORDER BY s.position`, [orgId]);
   return ps.map((p) => {
-    const stages = st.filter((s) => s.pipeline_id === p.id).map((s) => ({ id: s.id, name: s.name, position: s.position, probability: s.probability, kind: s.kind, color: s.color, deals: s.deals }));
+    const stages = st.filter((s) => s.pipeline_id === p.id).map((s) => ({ id: s.id, name: s.name, position: s.position, probability: s.probability, kind: s.kind, color: s.color, slaDays: s.sla_days || null, deals: s.deals }));
     return { id: p.id, name: p.name, isDefault: p.is_default, stages, dealCount: stages.reduce((n, s) => n + s.deals, 0), onWon: p.on_won_pipeline_id && p.on_won_stage_id ? { pipelineId: p.on_won_pipeline_id, stageId: p.on_won_stage_id, fromStageId: p.on_won_from_stage_id || '' } : null };
   });
 }
@@ -126,7 +126,7 @@ export async function saveStages(orgId, actor, pipelineId, input) {
     const { rows: pr } = await c.query('SELECT id, name FROM crm_pipelines WHERE id=$1 AND org_id=$2 AND deleted_at IS NULL FOR UPDATE', [pipelineId, orgId]);
     if (!pr[0]) throw new CrmError(404, 'Funil não encontrado.');
     const { rows: cur } = await c.query(
-      `SELECT s.id, s.name, s.position, s.probability, s.kind, s.color, (SELECT count(*)::int FROM crm_deals d WHERE d.stage_id = s.id AND d.deleted_at IS NULL) AS deals
+      `SELECT s.id, s.name, s.position, s.probability, s.kind, s.color, s.sla_days, (SELECT count(*)::int FROM crm_deals d WHERE d.stage_id = s.id AND d.deleted_at IS NULL) AS deals
        FROM crm_pipeline_stages s WHERE s.pipeline_id=$1 AND s.deleted_at IS NULL ORDER BY s.position`, [pipelineId]);
     const byId = new Map(cur.map((s) => [s.id, s]));
     const wonLost = cur.filter((s) => s.kind !== 'open');
@@ -144,7 +144,9 @@ export async function saveStages(orgId, actor, pipelineId, input) {
         if (!ex) throw new CrmError(400, 'Etapa desconhecida neste funil.');
         if (ex.kind !== 'open') throw new CrmError(400, `"${ex.name}" é uma etapa de fechamento — o nome dela não muda aqui e ela fica sempre no fim.`);
       }
-      opens.push({ id: raw.id || null, name, probability: prob });
+      const sla = raw.slaDays === '' || raw.slaDays == null ? null : Number(raw.slaDays);
+      if (sla != null && (!Number.isInteger(sla) || sla < 1 || sla > 365)) throw new CrmError(400, `Prazo inválido na etapa "${name}" (1 a 365 dias, ou vazio).`);
+      opens.push({ id: raw.id || null, name, probability: prob, slaDays: sla });
     }
     for (const w of wonLost) if (seen.has(nameKey(w.name))) throw new CrmError(400, `"${w.name}" já é uma etapa de fechamento — use outro nome.`);
     const keptIds = new Set(opens.filter((o) => o.id).map((o) => o.id));
@@ -154,14 +156,14 @@ export async function saveStages(orgId, actor, pipelineId, input) {
     let pos = 1;
     for (let i = 0; i < opens.length; i += 1) {
       const o = opens[i];
-      if (o.id) await c.query('UPDATE crm_pipeline_stages SET name=$1, probability=$2, position=$3 WHERE id=$4', [o.name, o.probability, pos, o.id]);
-      else await c.query('INSERT INTO crm_pipeline_stages (id, org_id, pipeline_id, name, position, probability, kind, color) VALUES ($1,$2,$3,$4,$5,$6,\'open\',$7)', [randomUUID(), orgId, pipelineId, o.name, pos, o.probability, STAGE_COLORS[i % STAGE_COLORS.length]]);
+      if (o.id) await c.query('UPDATE crm_pipeline_stages SET name=$1, probability=$2, position=$3, sla_days=$5 WHERE id=$4', [o.name, o.probability, pos, o.id, o.slaDays]);
+      else await c.query('INSERT INTO crm_pipeline_stages (id, org_id, pipeline_id, name, position, probability, kind, color, sla_days) VALUES ($1,$2,$3,$4,$5,$6,\'open\',$7,$8)', [randomUUID(), orgId, pipelineId, o.name, pos, o.probability, STAGE_COLORS[i % STAGE_COLORS.length], o.slaDays]);
       pos += 1;
     }
     for (const w of wonLost.sort((a, b) => (a.kind === 'won' ? -1 : 1) - (b.kind === 'won' ? -1 : 1))) { await c.query('UPDATE crm_pipeline_stages SET position=$1 WHERE id=$2', [pos, w.id]); pos += 1; }
     for (const r of removed) await c.query('UPDATE crm_pipeline_stages SET deleted_at=now() WHERE id=$1', [r.id]);
-    const before = cur.filter((s) => s.kind === 'open').map((s) => `${s.name} (${s.probability}%)`).join(' → ');
-    const after = opens.map((o) => `${o.name} (${o.probability}%)`).join(' → ');
+    const before = cur.filter((s) => s.kind === 'open').map((s) => `${s.name} (${s.probability}%${s.sla_days ? `, prazo ${s.sla_days} d` : ''})`).join(' → ');
+    const after = opens.map((o) => `${o.name} (${o.probability}%${o.slaDays ? `, prazo ${o.slaDays} d` : ''})`).join(' → ');
     if (before !== after) await addAudit(c, { orgId, entityType: 'pipeline', entityId: pipelineId, action: 'update', actor, changes: [{ field: 'stages', label: 'Etapas', from: before, to: after }] });
   });
   return listPipelines(orgId);

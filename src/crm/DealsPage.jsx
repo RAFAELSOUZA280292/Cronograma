@@ -72,7 +72,10 @@ function DealCard({ deal, stages, canDrag, canWrite, dragging, onOpen, onMove, o
         <span className="crm-deal-value">{deal.value ? fmtMoney(deal.value) : <span className="crm-muted">sem valor</span>}</span>
         {!closed && <span>{deal.probability}%</span>}
       </div>
+      {deal.mrr > 0 && <div className="crm-deal-line" title="Receita recorrente mensal">MRR {fmtMoney(deal.mrr)}</div>}
       <div className="crm-tags">
+        {(deal.tags || []).map((t) => <span key={t} className="crm-tag" style={{ color: 'var(--text-4)' }}>{t}</span>)}
+        {!closed && deal.slaExceeded && <span className="crm-tag" title={`Prazo da etapa: ${deal.slaDays} dia(s)`} style={{ color: '#e2574c' }}>Prazo da etapa estourado ({deal.daysInStage}/{deal.slaDays} d)</span>}
         {deal.dealType === 'upsell' && <span className="crm-tag" style={{ color: DEAL_TYPE_META.upsell.color }}>Upsell</span>}
         {deal.status === 'lost' && <span className="crm-tag" style={{ color: DEAL_STATUS_META.lost.color }}>{deal.lostReasonLabel || 'Perdido'}</span>}
         {deal.overdue && <span className="crm-tag" style={{ color: '#e2574c' }}>Previsão vencida</span>}
@@ -127,7 +130,8 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
   const [showPipeRun, setShowPipeRun] = useState(false);
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
-  const [filters, setFilters] = useState({ type: '', ownerId: '', source: '', attention: '' });
+  const [filters, setFilters] = useState({ type: '', ownerId: '', source: '', tag: '', attention: '' });
+  const [tagList, setTagList] = useState([]);
   const [exporting, setExporting] = useState(false);
   const [listStatus, setListStatus] = useState('open');
   const [board, setBoard] = useState(null);
@@ -140,6 +144,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
   const [localKey, setLocalKey] = useState(0);
   const reload = useCallback(() => setLocalKey((k) => k + 1), []);
 
+  useEffect(() => { crm.tags().then((r) => setTagList(r.tags || [])).catch(() => {}); }, [localKey]);
   useEffect(() => { const t = setTimeout(() => setDebouncedQ(q), 300); return () => clearTimeout(t); }, [q]);
   function changePipeline(v) { setPipelineId(v); try { window.localStorage.setItem(PIPE_KEY, v); } catch { /* sem storage */ } }
   function changeView(v) { setView(v); try { window.localStorage.setItem(VIEW_KEY, v); } catch { /* sem storage: só não lembra */ } }
@@ -148,7 +153,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
     let cancelled = false;
     setLoading(true);
     // Quadro mostra UM funil (vazio = o padrão); a lista pode juntar todos ('all'/vazio).
-    const f = { q: debouncedQ, type: filters.type, ownerId: filters.ownerId, source: filters.source, attention: filters.attention, pipelineId: pipelineId === 'all' ? '' : pipelineId };
+    const f = { q: debouncedQ, type: filters.type, ownerId: filters.ownerId, source: filters.source, tag: filters.tag, attention: filters.attention, pipelineId: pipelineId === 'all' ? '' : pipelineId };
     const req = view === 'board' ? crm.board(f).then((r) => { if (!cancelled) setBoard(r); }) : crm.deals({ ...f, status: listStatus, limit: 100, sort: 'recent' }).then((r) => { if (!cancelled) setList(r); });
     req.then(() => { if (!cancelled) { setError(''); setLoading(false); } }).catch((e) => { if (!cancelled) { setError(e.message || 'Não foi possível carregar os negócios.'); setLoading(false); } });
     return () => { cancelled = true; };
@@ -159,7 +164,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
   const defaultPipe = pipelines.find((p) => p.isDefault) || pipelines[0];
   const selectedPipe = view === 'board' ? ((board && board.pipeline && board.pipeline.id) || (pipelineId && pipelineId !== 'all' ? pipelineId : (defaultPipe && defaultPipe.id) || '')) : (pipelineId || 'all');
   const setF = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
-  const hasFilter = debouncedQ || filters.type || filters.ownerId || filters.source || filters.attention;
+  const hasFilter = debouncedQ || filters.type || filters.ownerId || filters.source || filters.tag || filters.attention;
   const sources = (options && options.dealSources) || [];
   const reasons = (options && options.lostReasons) || [];
 
@@ -193,7 +198,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
   }
   async function doExport() {
     setExporting(true);
-    try { const n = await exportDealsCsv({ q: debouncedQ, type: filters.type, ownerId: filters.ownerId, source: filters.source, attention: filters.attention, status: listStatus, pipelineId: pipelineId === 'all' ? '' : pipelineId }); notify(`${n} negócio(s) exportado(s).`, { tone: 'success' }); } catch (e) { notify(e.message || 'Não foi possível exportar.', { tone: 'error' }); } finally { setExporting(false); }
+    try { const n = await exportDealsCsv({ q: debouncedQ, type: filters.type, ownerId: filters.ownerId, source: filters.source, tag: filters.tag, attention: filters.attention, status: listStatus, pipelineId: pipelineId === 'all' ? '' : pipelineId }); notify(`${n} negócio(s) exportado(s).`, { tone: 'success' }); } catch (e) { notify(e.message || 'Não foi possível exportar.', { tone: 'error' }); } finally { setExporting(false); }
   }
 
   const totalOpen = board ? board.stages.filter((s) => s.kind === 'open').reduce((a, s) => ({ n: a.n + s.count, v: a.v + s.value, w: a.w + s.weighted }), { n: 0, v: 0, w: 0 }) : null;
@@ -238,6 +243,11 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
             <option value="">Toda origem</option>{sources.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
         )}
+        {tagList.some((t) => t.deals > 0) && (
+          <select value={filters.tag} onChange={(e) => setF('tag', e.target.value)} aria-label="Tag do negócio">
+            <option value="">Toda tag</option>{tagList.filter((t) => t.deals > 0).map((t) => <option key={t.id} value={t.name}>{t.name} ({t.deals})</option>)}
+          </select>
+        )}
         {currentUserId && <button type="button" className={`crm-chip${filters.ownerId === currentUserId ? ' active' : ''}`} aria-pressed={filters.ownerId === currentUserId} onClick={() => setF('ownerId', filters.ownerId === currentUserId ? '' : currentUserId)}>Meus negócios</button>}
         {view === 'list' && (
           <select value={listStatus} onChange={(e) => setListStatus(e.target.value)} aria-label="Situação">
@@ -245,7 +255,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
           </select>
         )}
         {view === 'list' && <button type="button" className="crm-btn" onClick={doExport} disabled={exporting} title={exporting ? 'Aguarde terminar a exportação' : 'Baixar os negócios desta lista em planilha (CSV)'}><Download size={14} /> {exporting ? 'Exportando…' : 'Exportar'}</button>}
-        {hasFilter && <button type="button" className="crm-btn" onClick={() => { setQ(''); setFilters({ type: '', ownerId: '', source: '', attention: '' }); }}>Limpar</button>}
+        {hasFilter && <button type="button" className="crm-btn" onClick={() => { setQ(''); setFilters({ type: '', ownerId: '', source: '', tag: '', attention: '' }); }}>Limpar</button>}
       </div>
 
       <div className="crm-filters" role="group" aria-label="Negócios que pedem atenção" style={{ marginTop: -4 }}>

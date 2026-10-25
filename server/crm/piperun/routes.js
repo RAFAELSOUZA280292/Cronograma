@@ -3,7 +3,7 @@
 import { pool } from '../../db.js';
 import { CrmError } from '../errors.js';
 import { requireUuid } from '../service.js';
-import { rawCounts, runExtract, purgeRaw, storeRaw } from './extract.js';
+import { rawCounts, runExtract, purgeRaw, storeRaw, patchRawDealTags } from './extract.js';
 import { previewMigration, runMigration } from './migrate.js';
 import { reconcile } from './reconcile.js';
 import { startRun, progressWriter, finishRun, failRun, latestRuns, getRun } from './runs.js';
@@ -40,6 +40,12 @@ export function registerPiperunRoutes(router, { need, h, orgOf, actorOf }) {
     if (bad.length) throw new CrmError(400, `${bad.length} evento(s) sem id ou sem negócio — nada foi gravado.`);
     await storeRaw(orgOf(req), 'histories', rows);
     res.json({ stored: rows.length });
+  }));
+
+  router.post('/migration/piperun/raw/deal-tags', need('admin'), h(async (req, res) => {
+    const rows = (req.body || {}).rows;
+    if (!Array.isArray(rows) || !rows.length || rows.length > 2000 || rows.some((r) => !r || r.id === undefined || !Array.isArray(r.tags))) throw new CrmError(400, 'Envie a lista { id, tags[] } dos negócios (rows).');
+    res.json({ patched: await patchRawDealTags(orgOf(req), rows) });
   }));
 
   router.get('/migration/piperun/preview', need('admin'), h(async (req, res) => {

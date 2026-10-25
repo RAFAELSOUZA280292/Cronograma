@@ -172,6 +172,7 @@ export function dealPlan(ctx, todayISO) {
       ownerName: s(owner && owner.name), ownerEmail: s(owner && owner.email), source: s((ctx.origins.get(String(d.origin_id)) || {}).name), notes: htmlToText(d.observation), description: desc, tags: '',
       companyCnpj, companyName: companyNameForRow, personName: person ? s(person.name) : '', personEmail: (ev.find((e) => e.main) || ev[0] || {}).email || '',
       lostReasonKey: lr ? lr.key : '', lostDetail: lr ? lr.detail : '', provisional: !!provisionalKey, proposals: props.length,
+      mrr: Number(d.value_mrr) > 0 ? Number(d.value_mrr) : 0, expectedDate: toDate(d.probably_closed_at), tagNames: (Array.isArray(d.tags) ? d.tags : []).map((t) => s(t && t.name)).filter(Boolean),
     });
   }
   const stageHints = {};
@@ -181,6 +182,21 @@ export function dealPlan(ctx, todayISO) {
   }
   return { rows, provisional: [...provisional.values()].map((e) => ({ ...e, personPids: [...e.personPids] })), personCompany, stageHints, stats };
 }
+
+// ---------- funis completos (com etapas sem negócio e prazo/SLA), catálogo de produtos e de tags ----------
+export function funnelDefs(ctx) {
+  return [...ctx.pipelines.values()].sort((a, b) => Number(a.order) - Number(b.order)).map((p) => ({
+    name: s(p.name),
+    stages: [...ctx.stages.values()].filter((x) => String(x.pipeline_id) === String(p.id)).sort((a, b) => Number(a.order) - Number(b.order))
+      .map((x) => ({ name: s(x.name), slaDays: Number(x.days_limit) > 0 ? Number(x.days_limit) : null })),
+  }));
+}
+export function productRows(ctx) {
+  return (ctx.raw.items || []).filter((i) => !Number(i.deleted) && s(i.name)).map((i) => ({
+    pid: String(i.id), name: s(i.name), description: htmlToText(i.description), billing: Number(i.type) === 1 ? 'recurring' : 'one_time', active: true,
+  }));
+}
+export const tagRows = (ctx) => (ctx.raw.tags || []).filter((t) => s(t.name)).map((t) => ({ pid: String(t.id), name: s(t.name), color: s(t.color) || 'default' }));
 
 // ---------- notas, propostas, atividades, arquivos ----------
 const STATUS_PROP = { 0: 'aberta', 1: 'aprovada', 2: 'negada', 3: 'cancelada', 4: 'aguardando assinatura', 5: 'assinada' };

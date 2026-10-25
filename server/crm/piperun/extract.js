@@ -8,7 +8,7 @@ export const RESOURCES = [
   ['customFields', 'customFields', {}], ['segments', 'segments', {}], ['tags', 'tags', {}], ['items', 'items', {}],
   ['companies', 'companies', { with: 'city,contactEmails,contactPhones,customFields' }],
   ['persons', 'persons', { with: 'contactEmails,contactPhones,customFields' }],
-  ['deals', 'deals', { with: 'customFields' }],
+  ['deals', 'deals', { with: 'customFields,tags' }],
   ['activities', 'activities', {}], ['notes', 'notes', {}], ['proposals', 'proposals', { with: 'items' }], ['files', 'files', {}], ['emails', 'emails', {}], ['histories', 'histories', {}],
 ];
 
@@ -19,6 +19,17 @@ export async function storeRaw(orgId, entity, rows) {
     const params = [orgId, entity]; const tuples = chunk.map((r, j) => { params.push(String(r.id), JSON.stringify(r)); return `($1,$2,$${j * 2 + 3},$${j * 2 + 4}::jsonb)`; });
     await pool.query(`INSERT INTO piperun_raw (org_id, entity, pid, payload) VALUES ${tuples.join(',')} ON CONFLICT (org_id, entity, pid) DO UPDATE SET payload=EXCLUDED.payload, fetched_at=now()`, params);
   }
+}
+
+// Acrescenta as tags a negócios já extraídos sem elas (a 1ª extração não pedia `tags`); só mexe na chave `tags` do negócio.
+export async function patchRawDealTags(orgId, rows) {
+  let n = 0;
+  for (const r of rows) {
+    const tags = (Array.isArray(r.tags) ? r.tags : []).map((t) => ({ name: String(typeof t === 'string' ? t : (t && t.name) || '').trim() })).filter((t) => t.name);
+    const u = await pool.query(`UPDATE piperun_raw SET payload = payload || jsonb_build_object('tags', $3::jsonb) WHERE org_id=$1 AND entity='deals' AND pid=$2`, [orgId, String(r.id), JSON.stringify(tags)]);
+    n += u.rowCount;
+  }
+  return n;
 }
 
 export async function loadRaw(orgId) {

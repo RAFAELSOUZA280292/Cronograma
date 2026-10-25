@@ -62,6 +62,9 @@ function synthetic() {
 }
 const REAL = loadBackup();
 const RAW = REAL || synthetic();
+// A cópia antiga da API não trazia tags (a extração nova pede `tags`): semeia algumas, com repetição de maiúsculas, para testar a regra.
+if (!RAW.deals.some((d) => Array.isArray(d.tags) && d.tags.length)) RAW.deals.filter((d) => !Number(d.deleted)).slice(0, 6).forEach((d, i) => { d.tags = [{ name: 'RESP · Teste' }, { name: i % 2 ? 'serv · teste a' : 'SERV · Teste A' }, ...(i === 0 ? [{ name: 'RESP · TESTE' }] : [])]; });
+if (!RAW.deals.some((d) => Number(d.value_mrr) > 0)) RAW.deals.filter((d) => !Number(d.deleted)).slice(0, 3).forEach((d, i) => { d.value_mrr = 100 * (i + 1); d.probably_closed_at = '2026-12-1' + i; });
 console.log(`     (dados: ${REAL ? 'BACKUP REAL da API' : 'sintéticos'} — ${RAW.deals.length} negócios)`);
 
 // ---------- PipeRun simulado ----------
@@ -96,7 +99,7 @@ async function cleanup() {
     await c.query('ALTER TABLE crm_audit_logs DISABLE TRIGGER USER');
     await c.query('ALTER TABLE crm_deal_stage_history DISABLE TRIGGER USER');
     await c.query('DELETE FROM crm_company_projects WHERE company_id IN (SELECT id FROM crm_companies WHERE org_id = ANY($1::text[]))', [orgs]);
-    for (const t of ['crm_deal_files', 'crm_activities', 'crm_notes', 'crm_deal_stage_history', 'crm_deal_items', 'crm_deals', 'crm_pipeline_stages', 'crm_pipelines', 'crm_contacts', 'crm_timeline_events', 'crm_audit_logs', 'crm_companies', 'piperun_raw', 'piperun_map', 'piperun_runs']) {
+    for (const t of ['crm_deal_files', 'crm_deal_tags', 'crm_activities', 'crm_notes', 'crm_deal_stage_history', 'crm_deal_items', 'crm_deals', 'crm_tags', 'crm_products', 'crm_pipeline_stages', 'crm_pipelines', 'crm_contacts', 'crm_timeline_events', 'crm_audit_logs', 'crm_companies', 'piperun_raw', 'piperun_map', 'piperun_runs']) {
       await c.query(`DELETE FROM ${t} WHERE org_id = ANY($1::text[])`, [orgs]);
     }
     await c.query('ALTER TABLE crm_timeline_events ENABLE TRIGGER USER');
@@ -188,9 +191,7 @@ if (d1) { const lr = (RAW.lostReasons || []).find((r) => r.id === d1.lost_reason
 const pipeName = (id) => (RAW.pipelines.find((p) => p.id === id) || {}).name;
 let orderOk = true; let orderInfo = '';
 for (const p of RAW.pipelines) {
-  const usedStages = new Set(P.plan.rows.filter((r) => r.pipelineName === p.name).map((r) => r.stageName));
-  if (!usedStages.size) continue;
-  const want = RAW.stages.filter((s) => s.pipeline_id === p.id).sort((a, b) => a.order - b.order).map((s) => s.name).filter((nm) => usedStages.has(nm));
+  const want = RAW.stages.filter((s) => s.pipeline_id === p.id).sort((a, b) => a.order - b.order).map((s) => s.name);
   const got = (await q(`SELECT s.name FROM crm_pipeline_stages s JOIN crm_pipelines pl ON pl.id=s.pipeline_id WHERE s.org_id=$1 AND pl.name=$2 AND s.kind='open' AND s.deleted_at IS NULL ORDER BY s.position`, [ORG, p.name])).rows.map((r) => r.name);
   if (JSON.stringify(got) !== JSON.stringify(want)) { orderOk = false; orderInfo = `${p.name}: ${JSON.stringify(got)} ≠ ${JSON.stringify(want)}`; }
 }
@@ -318,6 +319,63 @@ ok('2ª rodada não rebaixa imagens (já anexadas)', res2.noteImages.alreadyAtta
 ok('nota só-imagem foi importada com texto vazio e o anexo', imgNotesP.filter((x) => !x.text).length === 0 || imgMapped.some((r) => r.body === '' && r.attachments.length));
 rep = await reconcile(ORG);
 ok('conferência final sem nenhuma divergência', rep.ok === true && rep.divergenceCount === 0, rep.divergences.slice(0, 5));
+
+// ---------- 6b. 2ª leva: funis completos + SLA, produtos, tags, MRR e previsão ----------
+{
+  const raw = (e) => RAW[e] || [];
+  const pipesByName = new Map(raw('pipelines').map((p) => [p.name.trim().toLowerCase(), p]));
+  const { rows: crmStages } = await q(`SELECT p.name AS pipeline, s.name, s.sla_days FROM crm_pipeline_stages s JOIN crm_pipelines p ON p.id=s.pipeline_id WHERE s.org_id=$1 AND s.kind='open' AND s.deleted_at IS NULL AND p.deleted_at IS NULL`, [ORG]);
+  const have = new Set(crmStages.map((r) => `${r.pipeline.trim().toLowerCase()}|${r.name.trim().toLowerCase()}`));
+  const wantStages = raw('stages').filter((st) => pipesByName.has(String((raw('pipelines').find((p) => String(p.id) === String(st.pipeline_id)) || {}).name || '').trim().toLowerCase()));
+  const missingSt = wantStages.filter((st) => !have.has(`${String(raw('pipelines').find((p) => String(p.id) === String(st.pipeline_id)).name).trim().toLowerCase()}|${String(st.name).trim().toLowerCase()}`));
+  ok('funis: TODAS as etapas do PipeRun existem no CRM (inclusive as sem negócio)', wantStages.length > 0 && missingSt.length === 0, missingSt.map((x) => x.name));
+  ok('funis: todo funil do PipeRun existe (mesmo sem negócio)', raw('pipelines').every((p) => (await_name(p, crmStages))), raw('pipelines').map((p) => p.name));
+  const slaWant = wantStages.filter((st) => Number(st.days_limit) > 0).length;
+  ok('prazo (days_limit) virou o SLA da etapa, com o mesmo número de dias', crmStages.filter((r) => r.sla_days).length === slaWant && wantStages.filter((st) => Number(st.days_limit) > 0).every((st) => crmStages.some((r) => r.name.trim().toLowerCase() === String(st.name).trim().toLowerCase() && r.sla_days === Number(st.days_limit))), { slaWant, got: crmStages.filter((r) => r.sla_days).length });
+  const prodWant = raw('items').filter((i) => !Number(i.deleted));
+  const { rows: crmProd } = await q(`SELECT name, billing FROM crm_products WHERE org_id=$1 AND deleted_at IS NULL`, [ORG]);
+  ok('produtos do PipeRun no catálogo (tipo 1 = recorrente, 2 = avulso)', prodWant.length === crmProd.length && prodWant.every((i) => crmProd.some((r) => r.name === i.name.trim() && r.billing === (Number(i.type) === 1 ? 'recurring' : 'one_time'))), { want: prodWant.length, got: crmProd.length });
+  const wantMrr = Math.round(liveDeals.reduce((t, d) => t + (Number(d.value_mrr) > 0 ? Number(d.value_mrr) : 0), 0) * 100) / 100;
+  ok('MRR: soma no CRM igual à do PipeRun (conta independente)', Math.abs(Number((await q(`SELECT coalesce(sum(mrr),0) AS n FROM crm_deals WHERE org_id=$1 AND external_source='piperun'`, [ORG])).rows[0].n) - wantMrr) < 0.005 && wantMrr > 0, { wantMrr });
+  const wantExp = liveDeals.filter((d) => d.probably_closed_at).length;
+  ok('previsão de fechamento: mesmo número de negócios com data, e a data é a do PipeRun', await n(`SELECT count(*)::int n FROM crm_deals WHERE org_id=$1 AND external_source='piperun' AND expected_close_date IS NOT NULL`) === wantExp && wantExp > 0, wantExp);
+  const dExp = liveDeals.find((d) => d.probably_closed_at);
+  ok('a data de previsão de um negócio confere', (await q(`SELECT to_char(expected_close_date,'YYYY-MM-DD') AS d FROM crm_deals WHERE org_id=$1 AND external_id=$2`, [ORG, String(dExp.hash)])).rows[0].d === String(dExp.probably_closed_at).slice(0, 10));
+  const wantTags = liveDeals.reduce((t, d) => t + new Set((d.tags || []).map((x) => String(x.name).trim().toLowerCase())).size, 0);
+  ok('tags: mesma quantidade de atribuições (maiúsculas/minúsculas contam como a mesma tag)', wantTags > 0 && await n(`SELECT count(*)::int n FROM crm_deal_tags WHERE org_id=$1`) === wantTags, { wantTags });
+  ok('tags: catálogo sem duplicata e com todas as tags do PipeRun', await n(`SELECT count(*)::int n FROM crm_tags WHERE org_id=$1`) === new Set([...raw('tags'), ...liveDeals.flatMap((d) => d.tags || [])].map((x) => String(x.name).trim().toLowerCase())).size);
+  const tDeal = liveDeals.find((d) => (d.tags || []).length);
+  const tRow = (await q(`SELECT id FROM crm_deals WHERE org_id=$1 AND external_id=$2`, [ORG, String(tDeal.hash)])).rows[0];
+  const det = await call(C.vend, 'GET', `/api/crm/deals/${tRow.id}`);
+  ok('a ficha do negócio traz as tags e o MRR', det.status === 200 && det.json.deal.tags.length === new Set(tDeal.tags.map((x) => x.name.trim().toLowerCase())).size, det.json && det.json.deal && det.json.deal.tags);
+  const flt = await call(C.vend, 'GET', `/api/crm/deals?tag=${encodeURIComponent('resp · teste')}&status=all&limit=100`);
+  ok('filtro por tag devolve só os negócios com a tag (sem diferenciar maiúsculas)', flt.status === 200 && flt.json.items.length > 0 && flt.json.items.every((d) => d.tags.some((t) => t.toLowerCase() === 'resp · teste')), flt.json && flt.json.items && flt.json.items.length);
+  const put = await call(C.vend, 'PUT', `/api/crm/deals/${tRow.id}/tags`, { tags: ['Nova tag X', 'resp · teste', 'NOVA TAG x'] });
+  ok('vendedor edita as tags do negócio (cria a nova no catálogo, sem duplicar)', put.status === 200 && put.json.tags.length === 2 && put.json.tags.includes('Nova tag X') && await n(`SELECT count(*)::int n FROM crm_tags WHERE org_id=$1 AND name_key='nova tag x'`) === 1, put.json);
+  ok('mudança de tags fica na auditoria e na linha do tempo', await n(`SELECT count(*)::int n FROM crm_audit_logs WHERE org_id=$1 AND entity_id=$2 AND changes::text LIKE '%"tags"%'`, [ORG, tRow.id]) >= 1 && await n(`SELECT count(*)::int n FROM crm_timeline_events WHERE org_id=$1 AND entity_id=$2 AND summary LIKE '%tags%'`, [ORG, tRow.id]) >= 1);
+  ok('tags: lista inválida → 400; outra organização não mexe (404)', (await call(C.vend, 'PUT', `/api/crm/deals/${tRow.id}/tags`, { tags: 'x' })).status === 400 && (await call(C.admin2, 'PUT', `/api/crm/deals/${tRow.id}/tags`, { tags: ['a'] })).status === 404);
+  const mp = await call(C.vend, 'PATCH', `/api/crm/deals/${tRow.id}`, { mrr: 1234.5 });
+  ok('MRR editável pela API (com auditoria)', mp.status === 200 && mp.json.deal.mrr === 1234.5 && await n(`SELECT count(*)::int n FROM crm_audit_logs WHERE org_id=$1 AND entity_id=$2 AND changes::text LIKE '%"mrr"%'`, [ORG, tRow.id]) >= 1);
+  const bad = await call(C.vend, 'PATCH', `/api/crm/deals/${tRow.id}`, { mrr: 'abc' });
+  ok('MRR inválido → 400', bad.status === 400, bad.status);
+  // SLA estourado: a etapa tem prazo de 1 dia e o negócio está lá há mais tempo
+  await q(`UPDATE crm_pipeline_stages SET sla_days=1 WHERE id=(SELECT stage_id FROM crm_deals WHERE id=$1)`, [tRow.id]);
+  await q(`UPDATE crm_deals SET status='open', stage_entered_at=now() - interval '10 days' WHERE id=$1`, [tRow.id]);
+  const sl = await call(C.vend, 'GET', `/api/crm/deals/${tRow.id}`);
+  ok('negócio aberto além do prazo da etapa vem marcado como estourado', sl.json.deal.slaExceeded === true && sl.json.deal.slaDays === 1, { sla: sl.json.deal.slaDays, ex: sl.json.deal.slaExceeded });
+  const sv = (await q(`SELECT s.pipeline_id, s.id, s.name, s.probability, s.sla_days FROM crm_pipeline_stages s WHERE s.id=(SELECT stage_id FROM crm_deals WHERE id=$1)`, [tRow.id])).rows[0];
+  const pl = (await call(C.admin, 'GET', '/api/crm/pipelines')).json.pipelines.find((x) => x.id === sv.pipeline_id);
+  const saved = await call(C.admin, 'POST', `/api/crm/pipelines/${sv.pipeline_id}/stages`, { stages: pl.stages.filter((x) => x.kind === 'open').map((x) => ({ id: x.id, name: x.name, probability: x.probability, slaDays: x.id === sv.id ? 7 : x.slaDays })) });
+  ok('tela de funis salva o prazo da etapa; prazo inválido → 400', saved.status === 200 && Number((await q(`SELECT sla_days AS n FROM crm_pipeline_stages WHERE id=$1`, [sv.id])).rows[0].n) === 7 && (await call(C.admin, 'POST', `/api/crm/pipelines/${sv.pipeline_id}/stages`, { stages: pl.stages.filter((x) => x.kind === 'open').map((x) => ({ id: x.id, name: x.name, probability: x.probability, slaDays: 0.5 })) })).status === 400);
+  const dtOk = await call(C.admin, 'POST', '/api/crm/migration/piperun/raw/deal-tags', { rows: [{ id: String(tDeal.id), tags: ['RESP · Teste', { name: 'Outra' }] }] });
+  ok('carregar tags no backup bruto: admin 200 e grava; vendedor 403; corpo inválido 400', dtOk.status === 200 && dtOk.json.patched === 1 && (await call(C.vend, 'POST', '/api/crm/migration/piperun/raw/deal-tags', { rows: [] })).status === 403 && (await call(C.admin, 'POST', '/api/crm/migration/piperun/raw/deal-tags', { rows: [] })).status === 400);
+  await q(`UPDATE piperun_raw SET payload = payload || jsonb_build_object('tags', $2::jsonb) WHERE org_id=$1 AND entity='deals' AND pid=$3`, [ORG, JSON.stringify(tDeal.tags), String(tDeal.id)]);
+}
+const rrX = await runMigration(ORG, actor, { ownerMap, includeFiles: true, maxFiles: Infinity, fetchImpl: fileStub.impl });
+ok('2ª leva é repetível: reimportar não duplica tags, produtos nem funis e não pisa no MRR/prazo editados', rrX.dealExtras.deals === 0 && rrX.dealExtras.alreadyApplied > 0 && rrX.products.created === 0 && rrX.funnels.createdFunnels.length === 0 && Number((await q(`SELECT mrr AS n FROM crm_deals WHERE org_id=$1 AND external_id=$2`, [ORG, String(liveDeals.find((d) => (d.tags || []).length).hash)])).rows[0].n) === 1234.5, { de: rrX.dealExtras, pr: rrX.products, fu: rrX.funnels });
+const repX = await reconcile(ORG);
+ok('conferência mostra as linhas da 2ª leva como informativas (não derrubam o "ok")', repX.summary.filter((x) => x.info).length >= 5 && repX.ok === true, repX.summary.filter((x) => !x.ok).map((x) => [x.label, x.piperun, x.crm]));
+function await_name(p, stages) { return stages.some((r) => r.pipeline.trim().toLowerCase() === p.name.trim().toLowerCase()) || false; }
 
 // ---------- 7. Arquivos pela API + isolamento ----------
 const anyDeal = (await q(`SELECT deal_id FROM crm_deal_files WHERE org_id=$1 LIMIT 1`, [ORG])).rows[0];

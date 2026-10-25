@@ -10,6 +10,7 @@ import { commitDealImport, SOURCE_SYSTEM } from '../dealImporter.js';
 import { listPipelines } from '../funnels.js';
 import { loadRaw } from './extract.js';
 import * as T from './transform.js';
+import { completeFunnels, importProducts, importDealExtras } from './extrasImport.js';
 
 const todayBR = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const MAX_FILE_BYTES = 30 * 1024 * 1024;
@@ -207,6 +208,10 @@ export async function runMigration(orgId, actor, { ownerMap = {}, includeFiles =
   }
   result.contacts = { created: cCreated, linkedToExisting: cLinked, skippedWithoutCompany: cSkipped, additionalEmailsNotStored: extraEmails };
 
+  // 3b) funis completos (todas as etapas do PipeRun, mesmo sem negócio, com o prazo/SLA) e catálogo de produtos
+  result.funnels = await completeFunnels(orgId, actor, T.funnelDefs(P.ctx));
+  result.products = await importProducts(orgId, actor, T.productRows(P.ctx));
+
   // 4) negócios (reaproveita o importador de negócios: funis, etapas na ordem real, histórico, promoção a cliente)
   step('Negócios', 0, P.plan.rows.length);
   const ownerMapForDeals = {}; people.forEach((p) => { if (p.userId) ownerMapForDeals[p.key] = p.userId; });
@@ -277,6 +282,9 @@ export async function runMigration(orgId, actor, { ownerMap = {}, includeFiles =
     } finally { c.release(); }
   }
   result.history = { deals: hDeals, stageMoves: hRows, timelineEvents: tRows, skippedAlreadyMoved: hSkipped, alreadyMigrated: mHist.size };
+
+  // 4c) tags, MRR e previsão de fechamento de cada negócio (aplicados uma vez por negócio)
+  result.dealExtras = await importDealExtras(orgId, T.tagRows(P.ctx), P.plan.rows, dealMap, await mapAll(orgId, 'extras'), (pid, id) => mapSet(orgId, 'extras', pid, id));
 
   // 5) notas + propostas (como nota do negócio)
   const contactIds = await mapAll(orgId, 'contact');

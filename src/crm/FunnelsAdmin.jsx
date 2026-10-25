@@ -11,7 +11,7 @@ import { guardedModal } from '../ui/SafeBoundary.jsx';
 
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const toDraft = (p) => p.stages.filter((s) => s.kind === 'open').map((s) => ({ id: s.id, name: s.name, probability: String(s.probability), deals: s.deals }));
+const toDraft = (p) => p.stages.filter((s) => s.kind === 'open').map((s) => ({ id: s.id, name: s.name, probability: String(s.probability), slaDays: s.slaDays ? String(s.slaDays) : '', deals: s.deals }));
 
 function FunnelsAdmin({ initialId, onClose, onChanged }) {
   const [pipelines, setPipelines] = useState(null);
@@ -26,7 +26,7 @@ function FunnelsAdmin({ initialId, onClose, onChanged }) {
 
   const sel = pipelines && (pipelines.find((p) => p.id === selId) || pipelines[0]);
   const baseline = sel ? toDraft(sel) : [];
-  const dirty = !!sel && !same(baseline.map((s) => ({ ...s, probability: String(s.probability) })), draft);
+  const dirty = !!sel && !same(baseline.map((s) => ({ ...s, probability: String(s.probability), slaDays: s.slaDays ? String(s.slaDays) : '' })), draft);
 
   function adopt(list, keepId) {
     setPipelines(list);
@@ -57,7 +57,7 @@ function FunnelsAdmin({ initialId, onClose, onChanged }) {
   const autoInvalid = auto.enabled && (!auto.pipelineId || !auto.stageId);
   const saveAuto = () => run(() => crm.updatePipeline(sel.id, { onWon: auto.enabled ? { pipelineId: auto.pipelineId, stageId: auto.stageId, fromStageId: auto.fromStageId || '' } : null }), sel.id, auto.enabled ? 'Automação salva: ao ganhar, o CRM cria a cópia sozinho.' : 'Automação desligada.');
 
-  const invalid = draft.some((r) => !r.name.trim() || r.probability === '' || Number.isNaN(Number(r.probability)) || Number(r.probability) < 0 || Number(r.probability) > 100);
+  const invalid = draft.some((r) => !r.name.trim() || r.probability === '' || Number.isNaN(Number(r.probability)) || Number(r.probability) < 0 || Number(r.probability) > 100 || (r.slaDays !== '' && (!Number.isInteger(Number(r.slaDays)) || Number(r.slaDays) < 1 || Number(r.slaDays) > 365)));
   const closed = sel ? sel.stages.filter((s) => s.kind !== 'open') : [];
 
   return (
@@ -92,12 +92,13 @@ function FunnelsAdmin({ initialId, onClose, onChanged }) {
 
             <div className="crm-table-wrap" style={{ marginBottom: 10 }}>
               <table className="crm-table" style={{ minWidth: 520 }}>
-                <thead><tr><th>Etapa (ordem do funil)</th><th style={{ width: 110 }}>Chance %</th><th className="crm-num" style={{ width: 80 }}>Negócios</th><th style={{ width: 130 }} /></tr></thead>
+                <thead><tr><th>Etapa (ordem do funil)</th><th style={{ width: 110 }}>Chance %</th><th style={{ width: 120 }} title="Dias que um negócio pode ficar na etapa antes de ser marcado como estourado. Vazio = sem prazo.">Prazo (dias)</th><th className="crm-num" style={{ width: 80 }}>Negócios</th><th style={{ width: 130 }} /></tr></thead>
                 <tbody>
                   {draft.map((r, i) => (
                     <tr key={r.id || `new-${i}`} style={{ cursor: 'default' }}>
                       <td><input value={r.name} onChange={(e) => setRow(i, { name: e.target.value })} aria-label={`Nome da etapa ${i + 1}`} style={{ width: '100%', padding: '6px 9px', borderRadius: 7 }} /></td>
                       <td><input type="number" min="0" max="100" value={r.probability} onChange={(e) => setRow(i, { probability: e.target.value })} aria-label={`Chance da etapa ${r.name}`} style={{ width: 80, padding: '6px 9px', borderRadius: 7 }} /></td>
+                      <td><input type="number" min="1" max="365" value={r.slaDays} onChange={(e) => setRow(i, { slaDays: e.target.value })} aria-label={`Prazo em dias da etapa ${r.name}`} placeholder="sem prazo" style={{ width: 90, padding: '6px 9px', borderRadius: 7 }} /></td>
                       <td className="crm-num">{r.id ? r.deals : '—'}</td>
                       <td>
                         <div style={{ display: 'flex', gap: 2 }}>
@@ -118,10 +119,10 @@ function FunnelsAdmin({ initialId, onClose, onChanged }) {
               </table>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-              <button type="button" className="crm-btn" onClick={() => setDraft((l) => [...l, { id: null, name: '', probability: '50', deals: 0 }])}><Plus size={14} /> Adicionar etapa</button>
+              <button type="button" className="crm-btn" onClick={() => setDraft((l) => [...l, { id: null, name: '', probability: '50', slaDays: '', deals: 0 }])}><Plus size={14} /> Adicionar etapa</button>
               <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 {dirty && !busy && <span className="crm-muted">{invalid ? 'Preencha o nome e a chance (0 a 100) de todas as etapas para salvar' : 'Alterações não salvas'}</span>}
-                <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !dirty || invalid} title={busy ? 'Aguarde terminar de salvar' : !dirty ? 'Nenhuma alteração para salvar' : invalid ? 'Preencha o nome e a chance (0 a 100) de todas as etapas' : undefined} onClick={() => run(() => crm.saveStages(sel.id, draft.map((r) => ({ id: r.id || undefined, name: r.name, probability: Number(r.probability) }))), sel.id, 'Etapas salvas.')}>{busy ? 'Salvando…' : 'Salvar etapas'}</button>
+                <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !dirty || invalid} title={busy ? 'Aguarde terminar de salvar' : !dirty ? 'Nenhuma alteração para salvar' : invalid ? 'Preencha o nome e a chance (0 a 100) de todas as etapas' : undefined} onClick={() => run(() => crm.saveStages(sel.id, draft.map((r) => ({ id: r.id || undefined, name: r.name, slaDays: r.slaDays === '' ? null : Number(r.slaDays), probability: Number(r.probability) }))), sel.id, 'Etapas salvas.')}>{busy ? 'Salvando…' : 'Salvar etapas'}</button>
               </span>
             </div>
             <div className="crm-muted" style={{ marginTop: 10 }}>A “chance” é o ponto de partida do valor ponderado do funil. Ganho vale sempre 100% e Perdido 0%. Etapa removida é arquivada: o histórico dos negócios antigos continua intacto.</div>

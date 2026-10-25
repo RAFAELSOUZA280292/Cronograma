@@ -26,14 +26,15 @@ export async function applyWonAutomation(c, orgId, actor, row, prevStageId) {
   const { rows: ord } = await c.query('SELECT COALESCE(max(board_order),0)+1 AS n FROM crm_deals WHERE stage_id=$1 AND deleted_at IS NULL', [tgt[0].id]);
   const note = `\n\nCriado automaticamente ao ganhar o negócio "${row.title}" (funil ${rule.name}).`;
   const ins = await c.query(
-    `INSERT INTO crm_deals (id, org_id, company_id, pipeline_id, stage_id, board_order, title, deal_type, value, owner_id, primary_contact_id, source, description, status,
+    `INSERT INTO crm_deals (id, org_id, company_id, pipeline_id, stage_id, board_order, title, deal_type, value, mrr, owner_id, primary_contact_id, source, description, status,
                             stage_entered_at, created_by, updated_by, external_source, external_id)
-     SELECT $1, d.org_id, d.company_id, $2, $3, $4, d.title, d.deal_type, d.value, d.owner_id, d.primary_contact_id, d.source, left(d.description || $5, 3000), 'open', now(), $6, $6, $7, d.id::text
+     SELECT $1, d.org_id, d.company_id, $2, $3, $4, d.title, d.deal_type, d.value, d.mrr, d.owner_id, d.primary_contact_id, d.source, left(d.description || $5, 3000), 'open', now(), $6, $6, $7, d.id::text
      FROM crm_deals d WHERE d.id=$8 AND d.org_id=$9
      ON CONFLICT (org_id, external_source, external_id) WHERE external_id <> '' DO NOTHING RETURNING id`,
     [id, rule.on_won_pipeline_id, tgt[0].id, Number(ord[0].n), note, actor.id || null, AUTO_SOURCE, row.id, orgId]);
   if (!ins.rows[0]) return null;
   await c.query(`INSERT INTO crm_deal_items (id, org_id, deal_id, product_id, name, quantity, unit_price, position) SELECT gen_random_uuid(), org_id, $1, product_id, name, quantity, unit_price, position FROM crm_deal_items WHERE deal_id=$2`, [id, row.id]);
+  await c.query(`INSERT INTO crm_deal_tags (org_id, deal_id, tag_id) SELECT org_id, $1, tag_id FROM crm_deal_tags WHERE deal_id=$2 ON CONFLICT DO NOTHING`, [id, row.id]);
   await c.query(
     `INSERT INTO crm_deal_stage_history (id, org_id, deal_id, company_id, from_stage_id, to_stage_id, from_stage_name, to_stage_name, days_in_from, actor_id, actor_name)
      VALUES ($1,$2,$3,$4,NULL,$5,'',$6,NULL,$7,$8)`, [randomUUID(), orgId, id, row.company_id, tgt[0].id, tgt[0].name, actor.id || null, actor.name || '']);

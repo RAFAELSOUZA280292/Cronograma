@@ -16,6 +16,7 @@ export const DEAL_SPEC = [
   { key: 'title', col: 'title', label: 'Título', type: 'text' },
   { key: 'dealType', col: 'deal_type', label: 'Tipo', type: 'enum', values: DEAL_TYPES },
   { key: 'value', col: 'value', label: 'Valor', type: 'number' },
+  { key: 'mrr', col: 'mrr', label: 'MRR (recorrente mensal)', type: 'number' },
   { key: 'expectedCloseDate', col: 'expected_close_date', label: 'Previsão de fechamento', type: 'date' },
   { key: 'probabilityOverride', col: 'probability_override', label: 'Probabilidade manual (%)', type: 'int' },
   { key: 'ownerId', col: 'owner_id', label: 'Responsável', type: 'user' },
@@ -24,11 +25,12 @@ export const DEAL_SPEC = [
   { key: 'description', col: 'description', label: 'Descrição', type: 'longtext' },
 ];
 
-export const DEAL_SELECT = `d.id, d.org_id, d.company_id, d.pipeline_id, d.stage_id, d.title, d.deal_type, d.value,
+export const DEAL_SELECT = `d.id, d.org_id, d.company_id, d.pipeline_id, d.stage_id, d.title, d.deal_type, d.value, d.mrr,
   to_char(d.expected_close_date,'YYYY-MM-DD') AS expected_close_date, d.probability_override, d.owner_id, d.primary_contact_id, d.source, d.description,
   d.status, d.lost_reason, d.lost_detail, d.closed_at, d.stage_entered_at, d.board_order, d.created_at, d.updated_at, d.deleted_at,
   to_char(d.stage_entered_at AT TIME ZONE 'America/Sao_Paulo','YYYY-MM-DD') AS stage_entered_date,
-  s.name AS stage_name, s.probability AS stage_probability, s.kind AS stage_kind, s.color AS stage_color, s.position AS stage_position,
+  s.name AS stage_name, s.probability AS stage_probability, s.kind AS stage_kind, s.color AS stage_color, s.position AS stage_position, s.sla_days AS stage_sla_days,
+  (SELECT COALESCE(array_agg(t.name ORDER BY t.name), '{}') FROM crm_deal_tags dt JOIN crm_tags t ON t.id = dt.tag_id WHERE dt.deal_id = d.id) AS tags,
   c.legal_name AS company_name, c.trade_name AS company_trade_name, c.relationship AS company_relationship,
   (SELECT count(*)::int FROM crm_activities ax WHERE ax.deal_id = d.id AND ax.status = 'open' AND ax.deleted_at IS NULL) AS open_activities,
   (SELECT to_char(min(ax.due_date),'YYYY-MM-DD') FROM crm_activities ax WHERE ax.deal_id = d.id AND ax.status = 'open' AND ax.deleted_at IS NULL) AS next_activity_date,
@@ -55,13 +57,14 @@ export function mapDeal(row) {
   const open = row.status === 'open';
   const probability = row.status === 'won' ? 100 : row.status === 'lost' ? 0 : (row.probability_override != null ? row.probability_override : row.stage_probability);
   return {
-    id: row.id, ...spec, value: Number(row.value || 0),
+    id: row.id, ...spec, value: Number(row.value || 0), mrr: Number(row.mrr || 0), tags: row.tags || [],
     companyId: row.company_id, companyName: row.company_name || '', companyTradeName: row.company_trade_name || '', companyRelationship: row.company_relationship || '',
     pipelineId: row.pipeline_id, stageId: row.stage_id, stageName: row.stage_name, stageKind: row.stage_kind, stageColor: row.stage_color, stagePosition: row.stage_position,
     status: row.status, probability, weightedValue: Math.round(Number(row.value || 0) * probability) / 100,
     ownerName: row.owner_name || '', contactName: row.contact_name || '',
     lostReason: row.lost_reason || '', lostReasonLabel: LOST_REASONS[row.lost_reason] || '', lostDetail: row.lost_detail || '',
     closedAt: row.closed_at || null, stageEnteredAt: row.stage_entered_at, daysInStage: daysBetween(row.stage_entered_date, today),
+    slaDays: row.stage_sla_days || null, slaExceeded: open && !!row.stage_sla_days && daysBetween(row.stage_entered_date, today) > row.stage_sla_days,
     overdue: open && !!row.expected_close_date && row.expected_close_date < today,
     nextActivityTitle: row.next_activity_title || '', nextActivityTime: row.next_activity_time || '', companyCity: row.company_city || '', companyState: row.company_state || '',
     openActivities: row.open_activities || 0, nextActivityDate: row.next_activity_date || null, nextActivityOverdue: !!row.next_activity_date && row.next_activity_date < today,

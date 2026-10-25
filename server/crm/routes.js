@@ -23,6 +23,7 @@ import * as P from './products.js';
 import * as A from './activities.js';
 import * as AQ from './activityQueries.js';
 import * as F from './funnels.js';
+import * as X from './extras.js';
 import * as DI from './dealImporter.js';
 import { mapCnpjSuggestion } from './cnpjSuggestion.js';
 import { registerPiperunRoutes } from './piperun/routes.js';
@@ -133,6 +134,8 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
   router.post('/deals', need('write'), h(async (req, res) => res.status(201).json({ deal: await D.createDeal(orgOf(req), actorOf(req), req.body || {}) })));
   router.get('/deals/:id', h(async (req, res) => res.json(await DQ.getDealDetail(orgOf(req), req.params.id))));
   router.patch('/deals/:id', need('write'), h(async (req, res) => res.json({ deal: await D.updateDeal(orgOf(req), actorOf(req), req.params.id, req.body || {}, { canEditClosed: crmCan(req.user, 'remove') }) })));
+  router.get('/tags', h(async (req, res) => res.json({ tags: await X.listTags(orgOf(req)) })));
+  router.put('/deals/:id/tags', need('write'), h(async (req, res) => res.json({ tags: await X.setDealTags(orgOf(req), actorOf(req), req.params.id, (req.body || {}).tags) })));
   router.post('/deals/:id/move', need('write'), h(async (req, res) => res.json({ deal: await D.moveDeal(orgOf(req), actorOf(req), req.params.id, req.body || {}) })));
   router.delete('/deals/:id', need('remove'), h(async (req, res) => res.json(await D.deleteDeal(orgOf(req), actorOf(req), req.params.id))));
   router.get('/deals/:id/audit', need('remove'), h(async (req, res) => res.json({ logs: await Q.listAudit(orgOf(req), 'deal', req.params.id) })));
