@@ -4,7 +4,7 @@ import { pool } from '../../db.js';
 import { personNameKey } from '../text.js';
 import { loadRaw } from './extract.js';
 import { prepare } from './migrate.js';
-import { importableNotes } from './transform.js';
+import { importableNotes, historyEvents } from './transform.js';
 import { SOURCE_SYSTEM } from '../dealImporter.js';
 
 const money = (n) => Math.round(Number(n || 0) * 100) / 100;
@@ -20,7 +20,7 @@ export async function reconcile(orgId) {
   const raw = await loadRaw(orgId);
   if (!raw.deals || !raw.deals.length) return { ready: false, message: 'Não há dados extraídos do PipeRun para conferir.' };
   const P = prepare(raw);
-  const [mComp, mProv, mContact, mNote, mAct, mFile] = await Promise.all(['company', 'provisional', 'contact', 'note', 'activity', 'file'].map((e) => mapSet(orgId, e)));
+  const [mComp, mProv, mContact, mNote, mAct, mFile, mHist] = await Promise.all(['company', 'provisional', 'contact', 'note', 'activity', 'file', 'history'].map((e) => mapSet(orgId, e)));
   const hashes = P.plan.rows.map((r) => r.externalId);
   const { rows: crmDeals } = await pool.query(
     `SELECT d.id, d.external_id, d.value, d.status, d.title, d.deleted_at, p.name AS pipeline FROM crm_deals d JOIN crm_pipelines p ON p.id = d.pipeline_id
@@ -47,10 +47,13 @@ export async function reconcile(orgId) {
   const notesOk = importableNotes(P.notes, P.plan);
   miss(notesOk, mNote, 'Nota/proposta não importada', (n) => n.text.slice(0, 80));
   const dealPids = new Set(P.plan.rows.map((r) => r.pid));
+  const histMap = historyEvents(P.ctx, P.plan);
   const importableActs = P.acts.filter((a) => a.dealPid && dealPids.has(a.dealPid));
   const docs = P.files.docs.filter((f) => dealPids.has(f.dealPid));
   miss(importableActs, mAct, 'Atividade não importada', (a) => a.title);
   miss(docs, mFile, 'Documento não importado', (f) => f.name);
+  const withHist = P.plan.rows.filter((r) => histMap.has(r.pid));
+  miss(withHist, mHist, 'Histórico de etapas não aplicado', (r) => r.title);
 
   // totais por situação e por funil (somente negócios da migração)
   const bySituation = ['open', 'won', 'lost'].map((k) => {
@@ -65,6 +68,7 @@ export async function reconcile(orgId) {
     row('Empresas provisórias (negócio sem empresa)', P.plan.provisional.length, P.plan.provisional.filter((p) => mProv.has(p.key)).length, 'a completar: razão social e CNPJ'),
     row('Contatos (com empresa, direta ou pelo negócio)', importableContacts.length, importableContacts.filter((c) => mContact.has(c.pid)).length, `${P.contacts.length - importableContacts.length} pessoas sem empresa e sem negócio ficam só no backup`),
     row('Negócios (sem a lixeira)', P.plan.rows.length, live.length, `${P.plan.stats.trashed} na lixeira do PipeRun não entram`),
+    row('Histórico real de etapas (negócios com eventos)', P.plan.rows.filter((r) => histMap.has(r.pid)).length, P.plan.rows.filter((r) => histMap.has(r.pid) && mHist.has(r.pid)).length, 'percurso pelas etapas com data e autor reais'),
     row('Notas e propostas (com texto, de negócios que entram)', notesOk.length, notesOk.filter((n) => mNote.has(n.pid)).length, `${P.notes.length - notesOk.length} eram de negócios na lixeira do PipeRun; notas vazias não entram`),
     row('Atividades (com negócio)', importableActs.length, importableActs.filter((a) => mAct.has(a.pid)).length, `${P.acts.length - importableActs.length} sem negócio ficam só no backup`),
     row('Documentos (PDF, DOCX…)', docs.length, docs.filter((f) => mFile.has(f.pid)).length, 'imagens e áudios ficam só no backup'),

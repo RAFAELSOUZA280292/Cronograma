@@ -37,6 +37,7 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
   const [dealDrawer, setDealDrawer] = useState(null); // id do negócio aberto
   const [dealForm, setDealForm] = useState(null); // {company?, type?}
   const [activityForm, setActivityForm] = useState(null); // {company?}
+  const [overdueMine, setOverdueMine] = useState(0);
   const [showImport, setShowImport] = useState(false);
   const [showBootstrap, setShowBootstrap] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -45,6 +46,7 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
   useEffect(() => {
     crm.me().then((r) => setCaps(r.capabilities)).catch((e) => setError(e.message || 'Sem acesso ao CRM.'));
     crm.options().then(setOptions).catch(() => {});
+    crm.activities({ ownerId: 'me', bucket: 'overdue', limit: 1 }).then((r) => setOverdueMine((r.counts && r.counts.overdue) || 0)).catch(() => {});
   }, [refreshKey]);
 
   // Um painel lateral por vez: abrir empresa fecha o negócio e vice-versa.
@@ -86,12 +88,12 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
         </div>
         <div className="crm-layout">
           <nav className="crm-nav" aria-label="Menu do CRM">
-            {NAV.map(([k, label, Icon]) => <button key={k} type="button" className={page === k ? 'active' : ''} onClick={() => setPage(k)}><Icon size={15} /> {label}</button>)}
+            {NAV.map(([k, label, Icon]) => <button key={k} type="button" className={page === k ? 'active' : ''} onClick={() => setPage(k)}><Icon size={15} /> {label}{k === 'agenda' && overdueMine > 0 && <span className="crm-nav-badge" title={`${overdueMine} atividade(s) atrasada(s) sob sua responsabilidade`} aria-label={`${overdueMine} atividades atrasadas`}>{overdueMine > 99 ? '99+' : overdueMine}</span>}</button>)}
           </nav>
           <main className="crm-main">
             {page === 'overview' && <OverviewPage caps={caps} refreshKey={refreshKey} onOpenCompany={openCompany} onOpenDeal={openDeal} onGoDeals={() => setPage('deals')} onGoAgenda={() => setPage('agenda')} onBootstrap={() => setShowBootstrap(true)} />}
             {page === 'agenda' && <AgendaPage caps={caps} options={options} currentUserId={currentUser && currentUser.id} refreshKey={refreshKey} onOpenCompany={openCompany} onOpenDeal={openDeal} onNewActivity={(o) => setActivityForm(o || {})} onChanged={refresh} />}
-            {page === 'deals' && <DealsPage caps={caps} options={options} refreshKey={refreshKey} onOpenDeal={openDeal} onNewDeal={(o) => setDealForm(o || {})} onChanged={refresh} />}
+            {page === 'deals' && <DealsPage caps={caps} options={options} refreshKey={refreshKey} currentUserId={currentUser && currentUser.id} onOpenDeal={openDeal} onOpenCompany={openCompany} onNewDeal={(o) => setDealForm(o || {})} onNewActivity={(o) => setActivityForm(o || {})} onChanged={refresh} />}
             {page === 'companies' && <CompaniesPage caps={caps} options={options} refreshKey={refreshKey} onOpenCompany={openCompany} onNewCompany={() => setCompanyForm(true)} onImport={() => setShowImport(true)} />}
             {page === 'products' && <ProductsPage caps={caps} onChanged={refresh} />}
             {page === 'contacts' && <ContactsPage caps={caps} refreshKey={refreshKey} onOpenCompany={openCompany} onNewContact={() => setContactForm({})} onEditContact={(c) => setContactForm({ contact: c })} />}
@@ -101,7 +103,7 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
 
       {drawer && <CompanyDrawer key={drawer.id} closeRef={drawerCloseRef} companyId={drawer.id} initialTab={drawer.tab} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDrawer(null)} onChanged={refresh} onOpenCompany={(id) => setDrawer({ id, tab: 'overview' })} onOpenDeal={openDeal} onOpenProject={onOpenProject} canAskRenata={canAskRenata} />}
       {dealDrawer && <DealDrawer key={dealDrawer} closeRef={drawerCloseRef} dealId={dealDrawer} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDealDrawer(null)} onChanged={refresh} onOpenCompany={(id) => openCompany(id)} canAskRenata={canAskRenata} />}
-      {activityForm && <ActivityForm company={activityForm.company} options={options} currentUserId={currentUser && currentUser.id} onCancel={() => setActivityForm(null)} onSaved={() => { setActivityForm(null); refresh(); }} />}
+      {activityForm && <ActivityForm company={activityForm.company} prefill={activityForm.prefill} options={options} currentUserId={currentUser && currentUser.id} onCancel={() => setActivityForm(null)} onSaved={() => { setActivityForm(null); refresh(); }} />}
       {dealForm && <DealForm company={dealForm.company} defaultType={dealForm.type} defaultPipelineId={dealForm.pipelineId} options={options} currentUserId={currentUser && currentUser.id} onCancel={() => setDealForm(null)} onSaved={(d) => { setDealForm(null); refresh(); openAfterModal(() => openDeal(d.id)); }} />}
       {companyForm && <CompanyForm options={options} prefillOwnerId={currentUser && currentUser.id} onCancel={() => setCompanyForm(false)} onOpenCompany={(id) => { setCompanyForm(false); openAfterModal(() => openCompany(id)); }}
         onSaved={(c) => { setCompanyForm(false); refresh(); openAfterModal(() => openCompany(c.id)); }} />}

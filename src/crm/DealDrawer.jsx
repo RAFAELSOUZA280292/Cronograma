@@ -105,6 +105,19 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
                 <button type="button" className="crm-icon-btn" onClick={close} title="Fechar" aria-label="Fechar"><X size={18} aria-hidden="true" /></button>
               </div>
             </div>
+            {d && (
+              <div className="crm-stepwrap">
+                <div className="crm-stepbar" role="group" aria-label="Etapas do funil">
+                  {data.stages.filter((x) => x.kind === 'open').map((x) => {
+                    const current = x.id === d.stageId;
+                    const passed = d.status !== 'open' || data.stages.findIndex((y) => y.id === x.id) < data.stages.findIndex((y) => y.id === d.stageId);
+                    return <button key={x.id} type="button" className={`crm-step${current ? ' current' : ''}${passed && !current ? ' passed' : ''}`} aria-current={current ? 'step' : undefined} disabled={!caps.write || current} title={!caps.write ? 'Sem permissão para mover' : current ? 'Etapa atual' : `Mover para ${x.name}`} onClick={() => changeStage(x.id)}>{x.name}</button>;
+                  })}
+                  {d.status !== 'open' && <span className={`crm-step end ${d.status}`}>{d.status === 'won' ? 'Ganho' : 'Perdido'}</span>}
+                </div>
+                {d.status === 'open' && d.daysInStage != null && <div className="crm-muted" style={{ fontSize: 12, marginTop: 6, color: d.daysInStage > 14 ? stageAgeColor(d.daysInStage) : undefined }}>{d.daysInStage === 0 ? 'Entrou nesta etapa hoje' : `${d.daysInStage} dia(s) nesta etapa`}{d.daysInStage > 14 ? ' · está parado' : ''}</div>}
+              </div>
+            )}
             {d && caps.write && (
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 12 }}>
                 <label className="crm-muted" htmlFor="crm-deal-stage">Etapa</label>

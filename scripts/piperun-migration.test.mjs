@@ -50,6 +50,13 @@ function synthetic() {
     activities: [mk(400, { deal_id: 300, activity_type_id: 50, title: 'Ligar', status: 0, start_at: '2027-02-01 09:00:00', priority: 3, owner_id: 1, created_at: '2026-01-06 10:00:00' }), mk(401, { deal_id: null, activity_type_id: 50, title: 'Sem negócio', status: 0, start_at: '2027-02-01 09:00:00', priority: 3, created_at: '2026-01-06 10:00:00' })],
     notes: [mk(500, { deal_id: 300, text: '<p>Primeira&nbsp;nota<br>linha 2</p>', user_id: 1, user_name: 'Rafael Souza', created_at: '2026-01-07 10:00:00' }), mk(501, { deal_id: 300, text: '<p><br></p>', user_name: 'x', created_at: '2026-01-07 10:00:00' })],
     files: [mk(600, { deal_id: 300, format: 'pdf', name: 'proposta', url: 'https://files.test/600', created_at: '2026-01-08 10:00:00' }), mk(601, { deal_id: 300, format: 'png', name: 'imagem', url: 'https://files.test/601' })],
+    histories: [
+      mk(900, { deal_id: 300, type: 22, user_id: 1, date: '2026-01-05T13:00:00.000000Z', description: '{"posicao":"Primeiro"}' }),
+      mk(901, { deal_id: 300, type: 10, user_id: 1, date: '2026-01-10T13:00:00.000000Z', description: '{"old":"Primeiro","new":"Segundo"}' }),
+      mk(902, { deal_id: 300, type: 21, user_id: 1, date: '2026-01-11T13:00:00.000000Z', description: '{"old":null,"new":"1000.00"}' }),
+      mk(903, { deal_id: 301, type: 22, user_id: 1, date: '2026-02-01T13:00:00.000000Z', description: '{"posicao":"Primeiro"}' }),
+      mk(904, { deal_id: 301, type: 8, user_id: 1, date: '2026-03-01T13:00:00.000000Z', description: '{"old":"Segundo","new":1}' }),
+    ],
     proposals: [mk(700, { deal_id: 300, name: 'PRO1', status: 0, value: 0, value_mrr: 3500, items: [{ product_name: 'Consultoria', quantity: 1, value: 3500 }], created_at: '2026-01-09 10:00:00' })],
   };
 }
@@ -210,7 +217,22 @@ ok('anotações: todas as que têm texto e cujo negócio entra (+ propostas como
 ok('nenhuma anotação ficou com HTML', (await n(`SELECT count(*)::int n FROM crm_notes WHERE org_id=$1 AND (body LIKE '%<p>%' OR body LIKE '%<br%' OR body LIKE '%&nbsp;%')`)) === 0);
 const n0 = (RAW.notes || []).find((x) => strip(x.text) && x.deal_id && liveDeals.some((d) => String(d.id) === String(x.deal_id)));
 if (n0) { const row = (await q(`SELECT to_char(n.created_at AT TIME ZONE 'America/Sao_Paulo','YYYY-MM-DD HH24:MI:SS') AS ts FROM crm_notes n JOIN piperun_map m ON m.crm_id = n.id::text AND m.entity='note' AND m.pid=$2 WHERE n.org_id=$1`, [ORG, `note:${n0.id}`])).rows[0]; ok('data e hora originais da anotação preservadas', row && row.ts === n0.created_at, row); }
-ok('anotação de autor sem usuário no CRM guarda o nome do autor no texto', (await n(`SELECT count(*)::int n FROM crm_notes WHERE org_id=$1 AND body LIKE '%(PipeRun)'`)) >= 0);
+const eduarda = (RAW.users || []).find((u) => /eduarda/i.test(u.name));
+if (eduarda) {
+  const wantE = (RAW.notes || []).filter((x) => String(x.user_id) === String(eduarda.id) && strip(x.text) && (x.deal_id ? liveIds.has(String(x.deal_id)) : true)).length;
+  ok('autor sem usuário no CRM (Eduarda) continua sendo ela — não vira quem importou', (await n(`SELECT count(*)::int n FROM crm_notes WHERE org_id=$1 AND author_name=$2 AND created_by IS NULL`, [ORG, eduarda.name])) === wantE && wantE > 0, { wantE, got: await n(`SELECT count(*)::int n FROM crm_notes WHERE org_id=$1 AND author_name=$2`, [ORG, eduarda.name]) });
+  ok('nenhuma anotação ficou sem autor, e nenhuma carrega rodapé de autoria no texto', (await n(`SELECT count(*)::int n FROM crm_notes WHERE org_id=$1 AND created_by IS NULL AND author_name='' AND id IN (SELECT crm_id::uuid FROM piperun_map WHERE org_id=$1 AND entity='note')`)) === 0 && (await n(`SELECT count(*)::int n FROM crm_notes WHERE org_id=$1 AND body LIKE '%(PipeRun)'`)) === 0);
+  const actsE = P.acts.filter((a) => !['Rafael Souza', 'Felipe Dal Santo'].includes(a.ownerName) && a.dealPid && liveDeals.some((d) => String(d.id) === a.dealPid)).length;
+  ok('atividades de quem não tem usuário ficam SEM responsável (não vão para a Agenda de quem importou)', (await n(`SELECT count(*)::int n FROM crm_activities WHERE org_id=$1 AND owner_id IS NULL`)) === actsE && actsE > 0, { actsE });
+  const dealApi = (await q(`SELECT d.id FROM crm_deals d JOIN crm_notes n ON n.entity_id = d.id AND n.author_name=$2 WHERE d.org_id=$1 LIMIT 1`, [ORG, eduarda.name])).rows[0];
+  const detail = await call(C.admin, 'GET', `/api/crm/deals/${dealApi.id}`);
+  ok('a ficha do negócio mostra o nome do autor real da anotação', detail.status === 200 && detail.json.notes.some((x) => x.createdByName === eduarda.name && x.createdBy === null), detail.json && detail.json.notes && detail.json.notes.slice(0, 2).map((x) => x.createdByName));
+  // reparo de rodadas antigas: volta 5 notas e 3 atividades ao estado errado de antes e confere que a próxima rodada conserta
+  await q(`UPDATE crm_notes SET created_by=$2, updated_by=$2, author_name='', body = body || E'\n\n— ' || 'Eduarda Costa' || ' (PipeRun)' WHERE id IN (SELECT id FROM crm_notes WHERE org_id=$1 AND author_name='Eduarda Costa' LIMIT 5)`, [ORG, actor.id]);
+  await q(`UPDATE crm_activities SET owner_id=$2 WHERE id IN (SELECT id FROM crm_activities WHERE org_id=$1 AND owner_id IS NULL LIMIT 3)`, [ORG, actor.id]);
+  const rr2 = await runMigration(ORG, actor, { includeFiles: false });
+  ok('reparo de autoria: notas e atividades de rodadas antigas voltam ao autor/responsável certo', rr2.authorshipFixes.notes === 5 && rr2.authorshipFixes.activities === 3 && (await n(`SELECT count(*)::int n FROM crm_notes WHERE org_id=$1 AND body LIKE '%(PipeRun)'`)) === 0, rr2.authorshipFixes);
+}
 // atividades
 const actsOk = P.acts.filter((a) => a.dealPid && liveDeals.some((d) => String(d.id) === a.dealPid));
 ok('atividades: todas as que têm negócio entraram; as sem negócio foram reportadas', (await n(`SELECT count(*)::int n FROM crm_activities WHERE org_id=$1`)) === actsOk.length && res.activities.skipped === P.acts.length - actsOk.length, { got: await n(`SELECT count(*)::int n FROM crm_activities WHERE org_id=$1`), esperado: actsOk.length });
@@ -227,6 +249,46 @@ ok('imagens e áudios NÃO sobem (só documentos)', P.files.docs.every((f) => ['
 ok('empresas do PipeRun importadas (as que têm nome/CNPJ)', (await n(`SELECT count(*)::int n FROM piperun_map WHERE org_id=$1 AND entity='company'`)) === P.companies.filter((c) => c.usable).length - res.issues.filter((i) => i.phase === 'Empresas').length, res.issues.filter((i) => i.phase === 'Empresas').slice(0, 3));
 const orphan = await n(`SELECT count(*)::int n FROM crm_deals d LEFT JOIN crm_companies c ON c.id=d.company_id WHERE d.org_id=$1 AND c.id IS NULL`);
 ok('integridade: nenhum negócio aponta para empresa inexistente', orphan === 0);
+
+// ---------- 4b. Histórico real de etapas ----------
+const EVT = new Set([22, 10, 30, 8, 9]);
+const histRaw = (RAW.histories || []).filter((h) => liveIds.has(String(h.deal_id)));
+const stageEvents = histRaw.filter((h) => EVT.has(h.type));
+if (stageEvents.length) {
+  const gotHist = await n(`SELECT count(*)::int n FROM crm_deal_stage_history h JOIN crm_deals d ON d.id = h.deal_id WHERE h.org_id=$1 AND d.external_source='piperun'`);
+  ok('histórico real: cada evento de etapa do PipeRun virou uma linha do percurso (nenhum a mais, nenhum a menos)', gotHist === stageEvents.length && res.history.stageMoves === stageEvents.length, { gotHist, esperado: stageEvents.length, res: res.history });
+  const syntheticLeft = await n(`SELECT count(*)::int n FROM crm_deal_stage_history h JOIN crm_deals d ON d.id=h.deal_id WHERE h.org_id=$1 AND d.external_source='piperun' AND h.days_in_from IS NULL AND h.from_stage_name <> ''`);
+  ok('o percurso sintético da 1ª importação foi substituído (nenhuma linha "sem origem" fora da criação)', syntheticLeft === 0, syntheticLeft);
+  const sample = liveDeals.find((d) => stageEvents.filter((h) => String(h.deal_id) === String(d.id)).length >= 3);
+  if (sample) {
+    const evs = stageEvents.filter((h) => String(h.deal_id) === String(sample.id)).sort((a, b) => Date.parse(a.date) - Date.parse(b.date) || a.id - b.id);
+    const rows = (await q(`SELECT to_char(moved_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS') AS at, to_stage_name, from_stage_name, actor_name FROM crm_deal_stage_history h JOIN crm_deals d ON d.id=h.deal_id WHERE d.org_id=$1 AND d.external_id=$2 ORDER BY moved_at, h.id`, [ORG, sample.hash])).rows;
+    ok('percurso de um negócio: mesmas datas (UTC) e mesma ordem dos eventos do PipeRun', rows.length === evs.length && rows.every((r, i) => r.at === evs[i].date.slice(0, 19)), { rows: rows.map((r) => r.at).slice(0, 4), evs: evs.map((e) => e.date.slice(0, 19)).slice(0, 4) });
+    ok('percurso: a 1ª linha é a criação e as seguintes encadeiam (de → para)', rows[0].from_stage_name === '' && rows.slice(1).every((r) => r.from_stage_name !== ''));
+  }
+  const felipe = (RAW.users || []).find((u) => /felipe/i.test(u.name));
+  if (felipe) {
+    const want = stageEvents.filter((h) => String(h.user_id) === String(felipe.id)).length;
+    ok('autor real de cada mudança de etapa preservado (Felipe)', want === 0 || (await n(`SELECT count(*)::int n FROM crm_deal_stage_history h JOIN crm_deals d ON d.id=h.deal_id WHERE h.org_id=$1 AND d.external_source='piperun' AND h.actor_name=$2`, [ORG, felipe.name])) === want, { want });
+  }
+  const openLast = (await q(`SELECT count(*)::int n FROM crm_deals d WHERE d.org_id=$1 AND d.external_source='piperun' AND d.status='open' AND NOT EXISTS (SELECT 1 FROM crm_deal_stage_history h WHERE h.deal_id=d.id)`, [ORG])).rows[0].n;
+  ok('todo negócio do PipeRun tem percurso no CRM', openLast === 0, openLast);
+  const noNeg = (await q(`SELECT count(*)::int n FROM crm_deal_stage_history WHERE org_id=$1 AND days_in_from < 0`, [ORG])).rows[0].n;
+  ok('dias em cada etapa nunca negativos', noNeg === 0);
+  const tlWant = histRaw.filter((h) => [21, 79, 20, 18, 55].includes(h.type)).length;
+  ok('eventos de valor/MRR/origem/contato/congelamento entraram na linha do tempo, com data original', (await n(`SELECT count(*)::int n FROM crm_timeline_events WHERE org_id=$1 AND event_type IN ('deal_value_changed','deal_mrr_changed','deal_source_changed','deal_contact_changed','deal_frozen','deal_unfrozen')`)) === tlWant, { tlWant });
+}
+// guarda: negócio que já foi movido no CRM depois da importação não tem o percurso trocado
+const guardDeal = (await q(`SELECT d.id, d.external_id, m.pid FROM crm_deals d JOIN piperun_map m ON m.crm_id = d.id::text AND m.entity='history' AND m.org_id=d.org_id WHERE d.org_id=$1 LIMIT 1`, [ORG])).rows[0];
+if (guardDeal) {
+  const cnt = async () => Number((await q(`SELECT count(*)::int n FROM crm_deal_stage_history WHERE deal_id=$1`, [guardDeal.id])).rows[0].n);
+  await q(`INSERT INTO crm_deal_stage_history (id, org_id, deal_id, company_id, to_stage_id, from_stage_name, to_stage_name, days_in_from, actor_name) SELECT gen_random_uuid(), org_id, id, company_id, stage_id, 'X', 'Movido por alguém no CRM', 3, 'Teste' FROM crm_deals WHERE id=$1`, [guardDeal.id]);
+  await q(`DELETE FROM piperun_map WHERE org_id=$1 AND entity='history' AND pid=$2`, [ORG, guardDeal.pid]);
+  const before = await cnt();
+  const rg = await runMigration(ORG, actor, { includeFiles: false });
+  ok('negócio movido no CRM depois da importação mantém o percurso (não é sobrescrito) e é reportado', (await cnt()) === before && rg.history.skippedAlreadyMoved === 1 && rg.issues.some((i) => i.phase === 'Histórico de etapas'), { before, after: await cnt(), h: rg.history });
+  await q(`INSERT INTO piperun_map (org_id, entity, pid, crm_id, note) VALUES ($1,'history',$2,$3,'') ON CONFLICT DO NOTHING`, [ORG, guardDeal.pid, guardDeal.id]);
+}
 
 // ---------- 5. Conferência ----------
 let rep = await reconcile(ORG);

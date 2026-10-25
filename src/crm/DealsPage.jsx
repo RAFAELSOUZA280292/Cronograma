@@ -2,10 +2,10 @@
 // de etapa; soltar em Ganho/Perdido abre o diálogo de fechamento (motivo da
 // perda é obrigatório). O mesmo funil serve novo negócio e upsell — o filtro de
 // tipo separa. Arrastar não existe no celular: lá o cartão tem o seletor “Mover para…” (e a etapa também muda na ficha do negócio).
-import React, { useCallback, useEffect, useState } from 'react';
-import { Plus, Kanban, List, Sparkles, Settings2, Upload, DatabaseBackup } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Plus, Kanban, List, Sparkles, Settings2, Upload, DatabaseBackup, MoreVertical, User, Download, CalendarPlus, StickyNote, Trophy, ThumbsDown, Building2 } from 'lucide-react';
 import { crm } from './crmApi.js';
-import { notify } from '../ui/dialogs.jsx';
+import { notify, askText } from '../ui/dialogs.jsx';
 import CloseDealDialog from './CloseDealDialog.jsx';
 import FunnelsAdmin from './FunnelsAdmin.jsx';
 import DealImportWizard from './DealImportWizard.jsx';
@@ -17,15 +17,57 @@ const PIPE_KEY = 'crm-deals-pipeline';
 function readPipe() { try { return window.localStorage.getItem(PIPE_KEY) || ''; } catch { return ''; } }
 function readView() { try { return window.localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'board'; } catch { return 'board'; } }
 
-function DealCard({ deal, stages, canDrag, dragging, onOpen, onMove, onDragStart, onDragEnd }) {
+const initialsOf = (name) => String(name || '').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
+const fmtShort = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? `${m[3]}/${m[2]}` : ''; };
+
+// Ações rápidas do cartão (como o ⋮ do PipeRun): agendar, anotar, ganhar, perder e abrir a empresa, sem abrir a ficha.
+function QuickMenu({ deal, canWrite, onQuick }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const off = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', off); document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', off); document.removeEventListener('keydown', esc); };
+  }, [open]);
+  const run = (a) => (e) => { e.stopPropagation(); setOpen(false); onQuick(a, deal); };
+  const isOpen = deal.status === 'open';
+  return (
+    <div className="crm-quick" ref={ref} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      <button type="button" className="crm-icon-btn" aria-label={`Ações do negócio ${deal.title}`} aria-haspopup="menu" aria-expanded={open} title="Ações rápidas" onClick={() => setOpen((o) => !o)}><MoreVertical size={15} aria-hidden="true" /></button>
+      {open && (
+        <div className="crm-quick-menu" role="menu">
+          {canWrite && isOpen && <button type="button" role="menuitem" onClick={run('activity')}><CalendarPlus size={14} /> Agendar atividade</button>}
+          {canWrite && <button type="button" role="menuitem" onClick={run('note')}><StickyNote size={14} /> Adicionar nota</button>}
+          {canWrite && isOpen && <button type="button" role="menuitem" onClick={run('won')}><Trophy size={14} color="#3ecf6e" /> Ganhar</button>}
+          {canWrite && isOpen && <button type="button" role="menuitem" onClick={run('lost')}><ThumbsDown size={14} color="#e2574c" /> Perder</button>}
+          <button type="button" role="menuitem" onClick={run('company')}><Building2 size={14} /> Abrir a empresa</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DealCard({ deal, stages, canDrag, canWrite, dragging, onOpen, onMove, onQuick, onDragStart, onDragEnd }) {
   const closed = deal.status !== 'open';
+  const tone = !closed && deal.nextActivityOverdue ? ' tone-late' : (!closed && deal.noNextStep ? ' tone-warn' : '');
+  const place = [deal.companyCity, deal.companyState].filter(Boolean).join('/');
   return (
     // div (não button): o Firefox não inicia arrasto em <button>. Teclado abre com Enter/Espaço.
-    <div role="button" tabIndex={0} className={`crm-deal${dragging ? ' dragging' : ''}`} draggable={canDrag} onClick={() => onOpen(deal.id)}
+    <div role="button" tabIndex={0} className={`crm-deal${dragging ? ' dragging' : ''}${tone}`} draggable={canDrag} onClick={() => onOpen(deal.id)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(deal.id); } }}
       onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', deal.id); onDragStart(deal.id); }} onDragEnd={onDragEnd}>
-      <div className="crm-deal-title">{deal.title}</div>
-      <div className="crm-deal-co">{deal.companyName}</div>
+      <div className="crm-deal-top">
+        <div className="crm-deal-title">{deal.title}</div>
+        <div className="crm-deal-tools">
+          {deal.ownerName && <span className="crm-avatar" title={`Responsável: ${deal.ownerName}`} aria-label={`Responsável: ${deal.ownerName}`}>{initialsOf(deal.ownerName)}</span>}
+          <QuickMenu deal={deal} canWrite={canWrite} onQuick={onQuick} />
+        </div>
+      </div>
+      <div className="crm-deal-co">{deal.companyName}{place ? ` · ${place}` : ''}</div>
+      {deal.contactName && <div className="crm-deal-line"><User size={11} aria-hidden="true" /> {deal.contactName}</div>}
+      {deal.source && <div className="crm-deal-line crm-muted">Origem: {deal.source}</div>}
       <div className="crm-deal-meta">
         <span className="crm-deal-value">{deal.value ? fmtMoney(deal.value) : <span className="crm-muted">sem valor</span>}</span>
         {!closed && <span>{deal.probability}%</span>}
@@ -35,10 +77,10 @@ function DealCard({ deal, stages, canDrag, dragging, onOpen, onMove, onDragStart
         {deal.status === 'lost' && <span className="crm-tag" style={{ color: DEAL_STATUS_META.lost.color }}>{deal.lostReasonLabel || 'Perdido'}</span>}
         {deal.overdue && <span className="crm-tag" style={{ color: '#e2574c' }}>Previsão vencida</span>}
         {deal.noNextStep && <span className="crm-tag" style={{ color: '#ff9f40' }}>Sem próximo passo</span>}
-        {!closed && deal.nextActivityDate && <span className="crm-tag" style={{ color: deal.nextActivityOverdue ? '#e2574c' : 'var(--text-5)' }}>{deal.nextActivityOverdue ? 'Passo atrasado ' : 'Próx. '}{fmtDateBR(deal.nextActivityDate).slice(0, 5)}</span>}
+        {!closed && deal.nextActivityDate && <span className="crm-tag" title={deal.nextActivityTitle || undefined} style={{ color: deal.nextActivityOverdue ? '#e2574c' : 'var(--text-5)' }}>{deal.nextActivityOverdue ? 'Passo atrasado ' : 'Próx. '}{fmtShort(deal.nextActivityDate)}{deal.nextActivityTime ? ` ${deal.nextActivityTime}` : ''}{deal.nextActivityTitle ? ` · ${deal.nextActivityTitle}` : ''}</span>}
         {!closed && (deal.daysInStage || 0) > 14 && <span className="crm-tag" style={{ color: stageAgeColor(deal.daysInStage) }}>{deal.daysInStage} dias parado</span>}
-        {deal.ownerName && <span className="crm-muted" style={{ fontSize: 11 }}>{deal.ownerName}</span>}
       </div>
+      <div className="crm-deal-foot">{deal.ownerName ? deal.ownerName : <span className="crm-muted">Sem responsável</span>}<span className="crm-muted"> · criado {fmtDateBR(deal.createdAt)}</span></div>
       {canDrag && (
         <div className="crm-deal-move" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           <select value="" aria-label={`Mover o negócio ${deal.title} para outra etapa`} onChange={(e) => { if (e.target.value) onMove(deal, e.target.value); }}>
@@ -51,7 +93,33 @@ function DealCard({ deal, stages, canDrag, dragging, onOpen, onMove, onDragStart
   );
 }
 
-export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNewDeal, onChanged }) {
+// Exportação: o que está na lista, com os mesmos filtros, em planilha aberta pelo Excel (CSV com ; e BOM).
+async function exportDealsCsv(f) {
+  const rows = []; let offset = 0;
+  for (;;) {
+    const r = await crm.deals({ ...f, limit: 200, offset, sort: 'recent' });
+    rows.push(...r.items);
+    offset += 200;
+    if (offset >= r.total || rows.length >= 5000) break;
+  }
+  const SIT = { open: 'Aberto', won: 'Ganho', lost: 'Perdido' };
+  const cols = [['Negócio', (d) => d.title], ['Empresa', (d) => d.companyName], ['Cidade/UF', (d) => [d.companyCity, d.companyState].filter(Boolean).join('/')], ['Contato', (d) => d.contactName], ['Origem', (d) => d.source],
+    ['Etapa', (d) => d.stageName], ['Situação', (d) => SIT[d.status]], ['Motivo da perda', (d) => d.lostReasonLabel], ['Valor', (d) => String(d.value || 0).replace('.', ',')], ['Probabilidade (%)', (d) => (d.status === 'open' ? d.probability : '')],
+    ['Responsável', (d) => d.ownerName], ['Tipo', (d) => DEAL_TYPE_META[d.dealType].label], ['Criado em', (d) => fmtDateBR(d.createdAt)], ['Fechado em', (d) => fmtDateBR(d.closedAt)], ['Previsão', (d) => fmtDateBR(d.expectedCloseDate)],
+    ['Dias na etapa', (d) => (d.status === 'open' ? d.daysInStage : '')], ['Próxima atividade', (d) => [fmtDateBR(d.nextActivityDate), d.nextActivityTime, d.nextActivityTitle].filter(Boolean).join(' ')]];
+  const esc = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const body = [cols.map((c) => esc(c[0])).join(';'), ...rows.map((d) => cols.map((c) => esc(c[1](d))).join(';'))].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([`\ufeff${body}`], { type: 'text/csv;charset=utf-8' }));
+  a.download = `negocios-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  return rows.length;
+}
+
+const ATTENTION = [['late', 'Passo atrasado'], ['nonext', 'Sem próximo passo'], ['stalled', 'Parados +14 dias'], ['overdue', 'Previsão vencida']];
+
+export default function DealsPage({ caps, options, refreshKey, currentUserId, onOpenDeal, onOpenCompany, onNewDeal, onNewActivity, onChanged }) {
   const [view, setView] = useState(readView);
   const [pipelineId, setPipelineId] = useState(readPipe); // '' = padrão; 'all' = todos (só na lista)
   const [showFunnels, setShowFunnels] = useState(false);
@@ -59,7 +127,8 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
   const [showPipeRun, setShowPipeRun] = useState(false);
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
-  const [filters, setFilters] = useState({ type: '', ownerId: '' });
+  const [filters, setFilters] = useState({ type: '', ownerId: '', source: '', attention: '' });
+  const [exporting, setExporting] = useState(false);
   const [listStatus, setListStatus] = useState('open');
   const [board, setBoard] = useState(null);
   const [list, setList] = useState({ total: 0, totalValue: 0, totalWeighted: 0, items: [] });
@@ -79,7 +148,7 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
     let cancelled = false;
     setLoading(true);
     // Quadro mostra UM funil (vazio = o padrão); a lista pode juntar todos ('all'/vazio).
-    const f = { q: debouncedQ, type: filters.type, ownerId: filters.ownerId, pipelineId: pipelineId === 'all' ? '' : pipelineId };
+    const f = { q: debouncedQ, type: filters.type, ownerId: filters.ownerId, source: filters.source, attention: filters.attention, pipelineId: pipelineId === 'all' ? '' : pipelineId };
     const req = view === 'board' ? crm.board(f).then((r) => { if (!cancelled) setBoard(r); }) : crm.deals({ ...f, status: listStatus, limit: 100, sort: 'recent' }).then((r) => { if (!cancelled) setList(r); });
     req.then(() => { if (!cancelled) { setError(''); setLoading(false); } }).catch((e) => { if (!cancelled) { setError(e.message || 'Não foi possível carregar os negócios.'); setLoading(false); } });
     return () => { cancelled = true; };
@@ -90,7 +159,8 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
   const defaultPipe = pipelines.find((p) => p.isDefault) || pipelines[0];
   const selectedPipe = view === 'board' ? ((board && board.pipeline && board.pipeline.id) || (pipelineId && pipelineId !== 'all' ? pipelineId : (defaultPipe && defaultPipe.id) || '')) : (pipelineId || 'all');
   const setF = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
-  const hasFilter = debouncedQ || filters.type || filters.ownerId;
+  const hasFilter = debouncedQ || filters.type || filters.ownerId || filters.source || filters.attention;
+  const sources = (options && options.dealSources) || [];
   const reasons = (options && options.lostReasons) || [];
 
   async function drop(stage) {
@@ -105,6 +175,25 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
     if (deal.stageId === stage.id) return;
     if (stage.kind !== 'open') { setClosing({ deal, stage }); return; }
     try { await crm.moveDeal(deal.id, { stageId: stage.id }); reload(); if (onChanged) onChanged(); } catch (e) { notify(e.message || 'Não foi possível mover o negócio.', { tone: 'error' }); reload(); }
+  }
+
+  async function quick(action, deal) {
+    if (action === 'company') { if (onOpenCompany) onOpenCompany(deal.companyId); return; }
+    if (action === 'activity') { if (onNewActivity) onNewActivity({ company: { id: deal.companyId, legalName: deal.companyName }, prefill: { dealId: deal.id, contactId: deal.primaryContactId || '' } }); return; }
+    if (action === 'won' || action === 'lost') {
+      const st = board && board.stages.find((x) => x.kind === action);
+      if (st) setClosing({ deal, stage: st });
+      return;
+    }
+    if (action === 'note') {
+      const body = await askText({ title: `Nota sobre "${deal.title}"`, label: 'Nota', multiline: true, confirmLabel: 'Adicionar nota' });
+      if (!body) return;
+      try { await crm.addNote({ entityType: 'deal', entityId: deal.id, body }); notify('Nota adicionada.', { tone: 'success' }); reload(); } catch (e) { notify(e.message || 'Não foi possível adicionar a nota.', { tone: 'error' }); }
+    }
+  }
+  async function doExport() {
+    setExporting(true);
+    try { const n = await exportDealsCsv({ q: debouncedQ, type: filters.type, ownerId: filters.ownerId, source: filters.source, attention: filters.attention, status: listStatus, pipelineId: pipelineId === 'all' ? '' : pipelineId }); notify(`${n} negócio(s) exportado(s).`, { tone: 'success' }); } catch (e) { notify(e.message || 'Não foi possível exportar.', { tone: 'error' }); } finally { setExporting(false); }
   }
 
   const totalOpen = board ? board.stages.filter((s) => s.kind === 'open').reduce((a, s) => ({ n: a.n + s.count, v: a.v + s.value, w: a.w + s.weighted }), { n: 0, v: 0, w: 0 }) : null;
@@ -144,12 +233,27 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
         <select value={filters.ownerId} onChange={(e) => setF('ownerId', e.target.value)} aria-label="Responsável">
           <option value="">Todo responsável</option><option value="none">Sem responsável</option>{owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
         </select>
+        {sources.length > 0 && (
+          <select value={filters.source} onChange={(e) => setF('source', e.target.value)} aria-label="Origem do negócio">
+            <option value="">Toda origem</option>{sources.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        )}
+        {currentUserId && <button type="button" className={`crm-chip${filters.ownerId === currentUserId ? ' active' : ''}`} aria-pressed={filters.ownerId === currentUserId} onClick={() => setF('ownerId', filters.ownerId === currentUserId ? '' : currentUserId)}>Meus negócios</button>}
         {view === 'list' && (
           <select value={listStatus} onChange={(e) => setListStatus(e.target.value)} aria-label="Situação">
             <option value="open">Em aberto</option><option value="won">Ganhos</option><option value="lost">Perdidos</option><option value="all">Todos</option>
           </select>
         )}
-        {hasFilter && <button type="button" className="crm-btn" onClick={() => { setQ(''); setFilters({ type: '', ownerId: '' }); }}>Limpar</button>}
+        {view === 'list' && <button type="button" className="crm-btn" onClick={doExport} disabled={exporting} title={exporting ? 'Aguarde terminar a exportação' : 'Baixar os negócios desta lista em planilha (CSV)'}><Download size={14} /> {exporting ? 'Exportando…' : 'Exportar'}</button>}
+        {hasFilter && <button type="button" className="crm-btn" onClick={() => { setQ(''); setFilters({ type: '', ownerId: '', source: '', attention: '' }); }}>Limpar</button>}
+      </div>
+
+      <div className="crm-filters" role="group" aria-label="Negócios que pedem atenção" style={{ marginTop: -4 }}>
+        <span className="crm-muted" style={{ fontSize: 12 }}>Pedem atenção:</span>
+        {ATTENTION.map(([k, l]) => {
+          const n = board && board.attention ? board.attention[k] : null;
+          return <button key={k} type="button" className={`crm-chip${filters.attention === k ? ' active' : ''}`} aria-pressed={filters.attention === k} onClick={() => setF('attention', filters.attention === k ? '' : k)}>{l}{view === 'board' && n != null ? ` (${n})` : ''}</button>;
+        })}
       </div>
 
       {error && <div className="crm-alert crm-alert-danger">{error}</div>}
@@ -167,7 +271,7 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
                   <div className="crm-col-sum">{s.count ? `${fmtMoney(s.value) || 'R$ 0'}${s.kind === 'open' ? ` · pond. ${fmtMoney(s.weighted) || 'R$ 0'}` : ''}` : (s.kind === 'open' ? `${s.probability}% de chance` : '—')}</div>
                 </div>
                 <div className="crm-col-body">
-                  {s.deals.map((d) => <DealCard key={d.id} deal={d} stages={board.stages} canDrag={caps.write} dragging={dragId === d.id} onOpen={onOpenDeal} onMove={(deal, stageId) => moveDeal(deal, board.stages.find((s) => s.id === stageId))} onDragStart={setDragId} onDragEnd={() => { setDragId(null); setOverStage(null); }} />)}
+                  {s.deals.map((d) => <DealCard key={d.id} deal={d} stages={board.stages} canDrag={caps.write} canWrite={caps.write} onQuick={quick} dragging={dragId === d.id} onOpen={onOpenDeal} onMove={(deal, stageId) => moveDeal(deal, board.stages.find((s) => s.id === stageId))} onDragStart={setDragId} onDragEnd={() => { setDragId(null); setOverStage(null); }} />)}
                   {s.deals.length === 0 && <div className="crm-col-empty">{s.kind === 'open' ? 'Nenhum negócio aqui.' : `Sem ${s.kind === 'won' ? 'ganhos' : 'perdas'} nos últimos ${board.closedWindowDays} dias.`}</div>}
                 </div>
               </div>

@@ -55,6 +55,8 @@ export async function ensurePiperunSchema(pool) {
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
       deleted_at  TIMESTAMPTZ
     )`);
+  // Autor de anotação importada cujo usuário não existe no CRM (nome do PipeRun). Aditivo: vazio = vale o usuário de created_by.
+  await pool.query(`ALTER TABLE crm_notes ADD COLUMN IF NOT EXISTS author_name TEXT NOT NULL DEFAULT ''`);
   await pool.query(`CREATE INDEX IF NOT EXISTS crm_deal_files_deal_idx ON crm_deal_files(org_id, deal_id) WHERE deleted_at IS NULL`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS crm_deal_files_ext_uidx ON crm_deal_files(org_id, source, external_id) WHERE external_id <> '' AND deleted_at IS NULL`);
 }

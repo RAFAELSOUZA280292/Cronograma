@@ -48,6 +48,9 @@ export function buildContext(raw) {
     users: byId(g('users')), origins: byId(g('origins')), lostReasons: byId(g('lostReasons')), activityTypes: byId(g('activityTypes')), pipelines: byId(g('pipelines')), stages: byId(g('stages')),
     segments: byId(g('segments')), companies: byId(g('companies')), persons: byId(g('persons')), cnaes: byId(g('cnaes')), customFieldDefs: byId(g('customFields')), deals: byId(g('deals')),
   };
+  // Autor de um evento: usuários da conta + quem assinou alguma anotação (cobre usuários que já saíram do PipeRun).
+  ctx.userNames = new Map([...ctx.users.entries()].map(([k, u]) => [k, s(u.name)]));
+  g('notes').forEach((n) => { if (n.user_id && s(n.user_name) && !ctx.userNames.has(String(n.user_id))) ctx.userNames.set(String(n.user_id), s(n.user_name)); });
   ctx.proposalsByDeal = new Map();
   g('proposals').forEach((p) => { const k = String(p.deal_id); ctx.proposalsByDeal.set(k, [...(ctx.proposalsByDeal.get(k) || []), p]); });
   return ctx;
@@ -236,4 +239,53 @@ export function fileRows(ctx) {
 export function importableNotes(notes, plan) {
   const live = new Set(plan.rows.map((r) => r.pid));
   return notes.filter((n) => (n.dealPid ? live.has(n.dealPid) : !!(n.companyPid || n.personPid)));
+}
+
+// ---------- histórico real (API `histories`): percurso do negócio pelas etapas e eventos da linha do tempo ----------
+const parseJson = (v) => { try { const o = JSON.parse(v); return o && typeof o === 'object' ? o : null; } catch { return null; } };
+const splitPath = (v) => { const parts = s(v).split('\u00bb').map((x) => x.trim()); return parts.length > 1 ? { pipeline: parts[0], stage: parts.slice(1).join(' \u00bb ') } : { pipeline: '', stage: parts[0] || '' }; };
+const money = (n) => (n === null || n === undefined || n === '' ? 'sem valor' : fmtMoney(n));
+const utc = (v) => { const t = Date.parse(s(v)); return Number.isFinite(t) ? new Date(t).toISOString() : ''; };
+
+// Por negócio: `events` (criado, mudou de etapa/funil, ganho, perdido — com funil de cada lado, deduzido de trás para frente a partir do funil atual) e `timeline` (valor, MRR, origem, contato, congelado).
+export function historyEvents(ctx, plan) {
+  const finalPipe = new Map(plan.rows.map((r) => [r.pid, r.pipelineName]));
+  const byDeal = new Map();
+  for (const h of ctx.raw.histories || []) {
+    if (!h.deal_id || !finalPipe.has(String(h.deal_id))) continue;
+    const k = String(h.deal_id); (byDeal.get(k) || byDeal.set(k, []).get(k)).push(h);
+  }
+  const out = new Map();
+  for (const [pid, list] of byDeal) {
+    list.sort((a, b) => Date.parse(a.date) - Date.parse(b.date) || Number(a.id) - Number(b.id));
+    const actor = (h) => (h.user_id ? (ctx.userNames.get(String(h.user_id)) || `Usuário ${h.user_id} (PipeRun)`) : 'PipeRun');
+    const events = []; const timeline = [];
+    for (const h of list) {
+      const d = parseJson(h.description) || {}; const at = utc(h.date); if (!at) continue;
+      const base = { at, actorName: actor(h), actorUserId: h.user_id ? String(h.user_id) : '' };
+      if (h.type === 22) events.push({ ...base, kind: 'created', from: null, to: { stage: s(d.posicao) } });
+      else if (h.type === 10) events.push({ ...base, kind: 'stage', from: { stage: s(d.old) }, to: { stage: s(d.new) } });
+      else if (h.type === 30) events.push({ ...base, kind: 'pipeline', from: splitPath(d.old), to: splitPath(d.new) });
+      else if (h.type === 8) events.push({ ...base, kind: 'won', from: { stage: s(d.old) }, to: null });
+      else if (h.type === 9) events.push({ ...base, kind: 'lost', from: { stage: s(d.old) }, to: null, reason: htmlToText(d.motivo) });
+      else if (h.type === 21) timeline.push({ ...base, type: 'deal_value_changed', summary: `alterou o valor do negócio de ${money(d.old)} para ${money(d.new)} (PipeRun).` });
+      else if (h.type === 79) timeline.push({ ...base, type: 'deal_mrr_changed', summary: `alterou o MRR do negócio de ${money(d.old)} para ${money(d.new)} (PipeRun).` });
+      else if (h.type === 20) timeline.push({ ...base, type: 'deal_source_changed', summary: s(d.old) ? `mudou a origem do negócio de "${s(d.old)}" para "${s(d.new)}" (PipeRun).` : `definiu a origem do negócio como "${s(d.new)}" (PipeRun).` });
+      else if (h.type === 18) timeline.push({ ...base, type: 'deal_contact_changed', summary: s(d.pessoa_old) ? `trocou a pessoa do negócio de "${s(d.pessoa_old)}" para "${s(d.pessoa_new)}" (PipeRun).` : `vinculou a pessoa "${s(d.pessoa_new)}" ao negócio (PipeRun).` });
+      else if (h.type === 55) timeline.push({ ...base, type: Number(d.new) === 1 ? 'deal_frozen' : 'deal_unfrozen', summary: `${Number(d.new) === 1 ? 'congelou' : 'descongelou'} o negócio${htmlToText(d.comment) ? `: ${htmlToText(d.comment)}` : ''} (PipeRun).` });
+    }
+    // Negócio duplicado no PipeRun grava um 2º "criado" no meio do percurso: vira uma mudança a partir da etapa em que ele estava.
+    for (let i = 1; i < events.length; i += 1) {
+      const e = events[i]; const prev = events[i - 1];
+      if (e.kind === 'created') { e.kind = 'stage'; e.from = { stage: prev.kind === 'won' ? 'Ganho' : prev.kind === 'lost' ? 'Perdido' : (prev.to ? prev.to.stage : '') }; }
+    }
+    let cur = finalPipe.get(pid) || '';
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+      const e = events[i]; e.toPipeline = cur;
+      if (e.kind === 'pipeline') { e.fromPipeline = e.from.pipeline; cur = e.from.pipeline || cur; } else e.fromPipeline = cur;
+      if (e.kind === 'pipeline') { e.toPipeline = e.to.pipeline || e.toPipeline; }
+    }
+    if (events.length || timeline.length) out.set(pid, { events, timeline });
+  }
+  return out;
 }

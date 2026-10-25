@@ -89,7 +89,7 @@ export async function previewMigration(orgId, { ownerMap = {} } = {}) {
   const cls = usable.length ? await classifyCompanies(orgId, usable.map((c) => c.row)) : [];
   const c = { new: 0, duplicate: 0, possible_duplicate: 0, invalid: 0 };
   cls.forEach((r) => { c[r.status] += 1; });
-  const [mCompanies, mContacts, mNotes, mActs, mFiles] = await Promise.all(['company', 'contact', 'note', 'activity', 'file'].map((e) => mapAll(orgId, e)));
+  const [mCompanies, mContacts, mNotes, mActs, mFiles, mHist] = await Promise.all(['company', 'contact', 'note', 'activity', 'file', 'history'].map((e) => mapAll(orgId, e)));
   const { rows: ex } = await pool.query(`SELECT external_id FROM crm_deals WHERE org_id=$1 AND external_source=$2 AND external_id <> ''`, [orgId, SOURCE_SYSTEM]);
   const have = new Set(ex.map((r) => r.external_id));
   const pipes = await listPipelines(orgId);
@@ -107,6 +107,7 @@ export async function previewMigration(orgId, { ownerMap = {} } = {}) {
     contacts: { raw: P.contacts.length, withCompany: P.contacts.filter((x) => x.companyPid).length, viaDeal: P.contacts.filter((x) => !x.companyPid && P.plan.personCompany.has(x.pid)).length, withoutAnyCompany: orphanPersons, alreadyMigrated: mContacts.size },
     deals: { total: P.plan.stats.total, trashed: P.plan.stats.trashed, toImport: P.plan.rows.length, alreadyImported: P.plan.rows.filter((r) => have.has(r.externalId)).length, bySituation: sit, funnels },
     notes: { total: (raw.notes || []).length, willImport: T.importableNotes(P.notes, P.plan).filter((n) => n.kind === 'note').length, ofTrashedDeals: P.notes.length - T.importableNotes(P.notes, P.plan).length, empty: (raw.notes || []).length - P.notes.filter((n) => n.kind === 'note').length, proposals: P.notes.filter((n) => n.kind === 'proposal').length, alreadyMigrated: mNotes.size },
+    history: { dealsWithHistory: [...T.historyEvents(P.ctx, P.plan).keys()].length, events: (raw.histories || []).length, alreadyMigrated: mHist.size },
     activities: { total: P.acts.length, withoutDeal: P.acts.filter((a) => !a.dealPid).length, alreadyMigrated: mActs.size },
     files: { total: P.files.total, documents: docs.length, ignored: P.files.total - docs.length, ignoredByFormat: P.files.skipped, alreadyMigrated: mFiles.size },
     people: collectPeople(P.ctx, P.plan, P.notes, P.acts, users, ownerMap), crmUsers: users.map((u) => ({ id: u.id, name: u.name })),
@@ -122,8 +123,9 @@ export async function runMigration(orgId, actor, { ownerMap = {}, includeFiles =
   const people = collectPeople(P.ctx, P.plan, P.notes, P.acts, users, ownerMap);
   const userOfKey = new Map(people.map((p) => [p.key, p.userId || null]));
   const userFor = (name, email) => userOfKey.get(personKey(name, email)) || null;
+  const userByName = new Map(people.filter((p) => p.userId && p.name).map((p) => [personNameKey(p.name), p.userId]));
   const issues = []; const issue = (phase, pid, title, message) => { if (issues.length < ISSUE_CAP) issues.push({ phase, pid: String(pid || ''), title: String(title || ''), message }); };
-  const result = { companies: {}, provisional: {}, contacts: {}, deals: {}, notes: {}, activities: {}, files: {}, issues };
+  const result = { companies: {}, provisional: {}, contacts: {}, deals: {}, history: {}, notes: {}, activities: {}, files: {}, issues };
   const step = (phase, done, total) => onProgress({ phase, done, total });
 
   // 1) empresas (as que existem no PipeRun e têm nome/CNPJ)
@@ -215,6 +217,65 @@ export async function runMigration(orgId, actor, { ownerMap = {}, includeFiles =
   const dealMap = new Map();
   for (const r of P.plan.rows) { const d = byHash.get(r.externalId); if (d) { dealMap.set(r.pid, { id: d.id, companyId: d.company_id }); await mapSet(orgId, 'deal', r.pid, d.id, d.company_id); } }
 
+  // 4b) histórico REAL de etapas e eventos (API `histories`). Troca o percurso sintético da 1ª importação (só "etapa atual → fechamento") pelo verdadeiro,
+  //     somente nos negócios que ninguém moveu depois no CRM. A tabela do percurso é somente-inserção (gatilho); a troca desliga esse gatilho só dentro da transação.
+  const mHist = await mapAll(orgId, 'history');
+  const hist = T.historyEvents(P.ctx, P.plan);
+  const crmPipes = await listPipelines(orgId);
+  const stageOf = (pipe, name) => { const pp = crmPipes.find((x) => personNameKey(x.name) === personNameKey(pipe)); const st = pp && pp.stages.find((y) => personNameKey(y.name) === personNameKey(name)); return st ? st.id : null; };
+  const closedOf = (pipe, kind) => { const pp = crmPipes.find((x) => personNameKey(x.name) === personNameKey(pipe)); const st = pp && pp.stages.find((y) => y.kind === kind); return st ? st.id : null; };
+  let hDeals = 0; let hRows = 0; let hSkipped = 0; let tRows = 0;
+  const hPending = [...dealMap.entries()].filter(([pid]) => hist.has(pid) && !mHist.has(pid));
+  const { rows: curStage } = await pool.query('SELECT id, stage_id, pipeline_id, status FROM crm_deals WHERE org_id=$1 AND external_source=$2', [orgId, SOURCE_SYSTEM]);
+  const dealNow = new Map(curStage.map((r) => [r.id, r]));
+  for (let i = 0; i < hPending.length; i += 40) {
+    const chunk = hPending.slice(i, i + 40); step('Histórico de etapas', i, hPending.length);
+    const c = await pool.connect();
+    let chunkRows = 0; let chunkTl = 0; let chunkDeals = 0; let chunkSkipped = 0;
+    try {
+      await c.query('BEGIN');
+      await c.query('ALTER TABLE crm_deal_stage_history DISABLE TRIGGER crm_deal_stage_history_append_only');
+      for (const [pid, d] of chunk) {
+        const h = hist.get(pid); const row = P.plan.rows.find((r) => r.pid === pid);
+        const { rows: moved } = await c.query('SELECT count(*)::int AS n FROM crm_deal_stage_history WHERE deal_id=$1 AND days_in_from IS NOT NULL', [d.id]);
+        if (moved[0].n > 0) { chunkSkipped += 1; issue('Histórico de etapas', pid, row ? row.title : '', 'O negócio já foi movido no CRM depois da importação — mantive o percurso atual.'); continue; }
+        await c.query('DELETE FROM crm_deal_stage_history WHERE deal_id=$1', [d.id]);
+        const now = dealNow.get(d.id);
+        let prev = null; let lastStageAt = null;
+        for (const e of h.events) {
+          const fromPipe = e.fromPipeline || (row && row.pipelineName); const toPipe = e.toPipeline || (row && row.pipelineName);
+          const toId = e.kind === 'won' ? closedOf(toPipe, 'won') : e.kind === 'lost' ? closedOf(toPipe, 'lost') : stageOf(toPipe, e.to && e.to.stage);
+          const fromId = e.from && e.from.stage ? stageOf(fromPipe, e.from.stage) : null;
+          const toName = e.kind === 'won' ? 'Ganho' : e.kind === 'lost' ? 'Perdido' : (e.kind === 'pipeline' ? `${toPipe} › ${e.to.stage}` : e.to.stage);
+          const fromName = !e.from ? '' : (e.kind === 'pipeline' ? `${fromPipe} › ${e.from.stage}` : e.from.stage);
+          const days = prev ? Math.max(0, Math.round(((Date.parse(e.at) - Date.parse(prev)) / 86400000) * 100) / 100) : null;
+          await c.query(
+            `INSERT INTO crm_deal_stage_history (id, org_id, deal_id, company_id, from_stage_id, to_stage_id, from_stage_name, to_stage_name, days_in_from, actor_id, actor_name, moved_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::timestamptz)`,
+            [randomUUID(), orgId, d.id, d.companyId, fromId, toId || (now && now.stage_id), fromName, `${toName}${e.reason ? ` — ${e.reason}` : ''}`.slice(0, 300), days, userByName.get(personNameKey(e.actorName)) || null, e.actorName, e.at]);
+          chunkRows += 1; prev = e.at; if (['created', 'stage', 'pipeline'].includes(e.kind)) lastStageAt = e.at;
+        }
+        for (const t of h.timeline) {
+          await c.query(
+            `INSERT INTO crm_timeline_events (id, org_id, company_id, entity_type, entity_id, event_type, summary, data, actor_id, actor_name, occurred_at) VALUES ($1,$2,$3,'deal',$4,$5,$6,$7,$8,$9,$10::timestamptz)`,
+            [randomUUID(), orgId, d.companyId, d.id, t.type, `${t.actorName} ${t.summary}`.slice(0, 500), JSON.stringify({ dealId: d.id, imported: true, source: 'piperun' }), userByName.get(personNameKey(t.actorName)) || null, t.actorName, t.at]);
+          chunkTl += 1;
+        }
+        if (lastStageAt && now && now.status === 'open') await c.query(`UPDATE crm_deals SET stage_entered_at=$2::timestamptz WHERE id=$1 AND status='open'`, [d.id, lastStageAt]);
+        await c.query(`INSERT INTO piperun_map (org_id, entity, pid, crm_id, note) VALUES ($1,'history',$2,$3,'') ON CONFLICT DO NOTHING`, [orgId, pid, d.id]);
+        chunkDeals += 1;
+      }
+      await c.query('ALTER TABLE crm_deal_stage_history ENABLE TRIGGER crm_deal_stage_history_append_only');
+      await c.query('COMMIT');
+      hRows += chunkRows; tRows += chunkTl; hDeals += chunkDeals; hSkipped += chunkSkipped;
+    } catch (e) {
+      await c.query('ROLLBACK').catch(() => {});
+      await c.query('ALTER TABLE crm_deal_stage_history ENABLE TRIGGER crm_deal_stage_history_append_only').catch(() => {});
+      issue('Histórico de etapas', '', `lote ${Math.floor(i / 40) + 1}`, `não aplicado (nada foi alterado neste lote): ${e.message}`);
+    } finally { c.release(); }
+  }
+  result.history = { deals: hDeals, stageMoves: hRows, timelineEvents: tRows, skippedAlreadyMoved: hSkipped, alreadyMigrated: mHist.size };
+
   // 5) notas + propostas (como nota do negócio)
   const contactIds = await mapAll(orgId, 'contact');
   const mNote = await mapAll(orgId, 'note');
@@ -231,12 +292,12 @@ export async function runMigration(orgId, actor, { ownerMap = {}, includeFiles =
         else if (n.personPid && contactCompany.has(n.personPid)) target = { type: 'contact', id: contactIds.get(n.personPid).id, company: contactCompany.get(n.personPid) };
         if (!target) { nSkipped += 1; issue('Notas', n.pid, n.text.slice(0, 60), 'A nota aponta para um negócio/empresa/pessoa que não foi importado.'); continue; }
         const uid = userFor(n.authorName, n.authorEmail);
-        const body = (uid || !n.authorName ? n.text : `${n.text}\n\n— ${n.authorName} (PipeRun)`).slice(0, 10000);
         const id = randomUUID();
+        // Sem usuário no CRM: o autor continua sendo quem escreveu no PipeRun (nome em author_name), não quem importou.
         await c.query(
-          `INSERT INTO crm_notes (id, org_id, entity_type, entity_id, company_id, body, created_at, created_by, updated_at, updated_by)
-           VALUES ($1,$2,$3,$4,$5,$6, COALESCE(NULLIF($7::text,'')::timestamp AT TIME ZONE 'America/Sao_Paulo', now()), $8, COALESCE(NULLIF($7::text,'')::timestamp AT TIME ZONE 'America/Sao_Paulo', now()), $8)`,
-          [id, orgId, target.type, target.id, target.company, body, n.createdAt, uid || actor.id || null]);
+          `INSERT INTO crm_notes (id, org_id, entity_type, entity_id, company_id, body, created_at, created_by, updated_at, updated_by, author_name)
+           VALUES ($1,$2,$3,$4,$5,$6, COALESCE(NULLIF($7::text,'')::timestamp AT TIME ZONE 'America/Sao_Paulo', now()), $8, COALESCE(NULLIF($7::text,'')::timestamp AT TIME ZONE 'America/Sao_Paulo', now()), $8, $9)`,
+          [id, orgId, target.type, target.id, target.company, n.text.slice(0, 10000), n.createdAt, uid || null, uid ? '' : (n.authorName || 'PipeRun')]);
         await c.query(`INSERT INTO piperun_map (org_id, entity, pid, crm_id, note) VALUES ($1,'note',$2,$3,$4) ON CONFLICT DO NOTHING`, [orgId, n.pid, id, target.company]);
         nCreated += 1;
       }
@@ -254,7 +315,7 @@ export async function runMigration(orgId, actor, { ownerMap = {}, includeFiles =
     const d = a.dealPid ? dealMap.get(a.dealPid) : null;
     if (!d) { aSkipped += 1; issue('Atividades', a.pid, a.title, a.dealPid ? 'O negócio da atividade não foi importado.' : 'Atividade sem negócio no PipeRun — não importada (continua no backup).'); continue; }
     try {
-      const owner = userFor(a.ownerName, a.ownerEmail) || actor.id || null;
+      const owner = userFor(a.ownerName, a.ownerEmail) || null; // sem usuário no CRM: fica SEM responsável (aparece em "Sem responsável"), não vira do Rafael
       const id = randomUUID(); const done = a.state === 'done';
       await pool.query(
         `INSERT INTO crm_activities (id, org_id, company_id, deal_id, activity_type, title, description, due_date, due_time, priority, status, owner_id, completed_at, completed_by, outcome, due_notified_at, created_at, created_by, updated_at, updated_by)
@@ -297,6 +358,21 @@ export async function runMigration(orgId, actor, { ownerMap = {}, includeFiles =
     } catch (e) { fFailed += 1; issue('Arquivos', f.pid, f.name, e.message); }
   }
   result.files = { created: fCreated, failed: fFailed, skipped: fSkipped, alreadyMigrated: mFile.size, documents: P.files.docs.length, imagesAndAudioKeptOnlyInBackup: P.files.total - P.files.docs.length, includeFiles };
+  // 8) Reparo de autoria do que entrou em rodadas anteriores: anotações/atividades de gente sem usuário no CRM tinham ficado em nome de quem importou.
+  const fixN = await pool.query(
+    `UPDATE crm_notes n SET author_name = substring(n.body from '\\n\\n\u2014 (.+) \\(PipeRun\\)$'), created_by = NULL, updated_by = NULL,
+            body = regexp_replace(n.body, '\\n\\n\u2014 .+ \\(PipeRun\\)$', '')
+     WHERE n.org_id=$1 AND n.author_name = '' AND n.body ~ '\\n\\n\u2014 .+ \\(PipeRun\\)$'
+       AND EXISTS (SELECT 1 FROM piperun_map m WHERE m.org_id=n.org_id AND m.entity='note' AND m.crm_id = n.id::text)`, [orgId]);
+  let fixA = 0;
+  const actMap = await mapAll(orgId, 'activity');
+  for (const a of P.acts.filter((x) => !userFor(x.ownerName, x.ownerEmail))) {
+    const m = actMap.get(a.pid);
+    if (!m) continue;
+    const r = await pool.query(`UPDATE crm_activities SET owner_id = NULL WHERE id=$1 AND org_id=$2 AND owner_id = $3`, [m.id, orgId, actor.id || '']);
+    fixA += r.rowCount;
+  }
+  result.authorshipFixes = { notes: fixN.rowCount, activities: fixA };
   step('Concluído', 1, 1);
   return result;
 }

@@ -9,7 +9,7 @@ export const RESOURCES = [
   ['companies', 'companies', { with: 'city,contactEmails,contactPhones,customFields' }],
   ['persons', 'persons', { with: 'contactEmails,contactPhones,customFields' }],
   ['deals', 'deals', { with: 'customFields' }],
-  ['activities', 'activities', {}], ['notes', 'notes', {}], ['proposals', 'proposals', { with: 'items' }], ['files', 'files', {}], ['emails', 'emails', {}],
+  ['activities', 'activities', {}], ['notes', 'notes', {}], ['proposals', 'proposals', { with: 'items' }], ['files', 'files', {}], ['emails', 'emails', {}], ['histories', 'histories', {}],
 ];
 
 export async function storeRaw(orgId, entity, rows) {

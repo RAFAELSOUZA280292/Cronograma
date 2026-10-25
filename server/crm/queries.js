@@ -122,7 +122,7 @@ export async function getCompanyOverview(orgId, id) {
 
 export async function listNotes(orgId, companyId, { limit = 100 } = {}) {
   const { rows } = await pool.query(
-    `SELECT n.id, n.entity_type, n.entity_id, n.body, n.attachments, n.links, n.edited_at, n.created_at, n.created_by, u.name AS created_by_name,
+    `SELECT n.id, n.entity_type, n.entity_id, n.body, n.attachments, n.links, n.edited_at, n.created_at, n.created_by, COALESCE(NULLIF(n.author_name, ''), u.name) AS created_by_name,
             CASE WHEN n.entity_type = 'contact' THEN (SELECT trim(k.first_name || ' ' || k.last_name) FROM crm_contacts k WHERE k.id = n.entity_id) END AS contact_name,
             CASE WHEN n.entity_type = 'deal' THEN (SELECT d.title FROM crm_deals d WHERE d.id = n.entity_id) END AS deal_title
      FROM crm_notes n LEFT JOIN users u ON u.id = n.created_by
@@ -200,7 +200,9 @@ export async function options(orgId) {
   const { rows: segs } = await pool.query(`SELECT DISTINCT segment FROM crm_companies WHERE org_id=$1 AND deleted_at IS NULL AND segment <> '' ORDER BY segment LIMIT 100`, [orgId]);
   const { rows: owners } = await pool.query(
     `SELECT id, name FROM users WHERE org_id=$1 AND role <> 'cliente' AND blocked = false AND (role = 'master' OR is_super_admin OR crm_role <> '') ORDER BY lower(name)`, [orgId]);
+  const { rows: dsrc } = await pool.query(`SELECT source, count(*)::int AS n FROM crm_deals WHERE org_id=$1 AND deleted_at IS NULL AND source <> '' GROUP BY source ORDER BY count(*) DESC, source LIMIT 60`, [orgId]);
   return {
+    dealSources: dsrc.map((r) => r.source),
     relationships: Object.entries(RELATIONSHIP_LABELS).map(([value, label]) => ({ value, label })),
     sources: SOURCES, taxRegimes: TAX_REGIMES, companySizes: COMPANY_SIZES, enums: ENUMS,
     segments: segs.map((r) => r.segment), owners,

@@ -18,6 +18,14 @@ function dealFilters(orgId, f, params) {
   if (['new', 'upsell'].includes(f.type)) where.push(`d.deal_type=${add(f.type)}`);
   if (f.ownerId === 'none') where.push('d.owner_id IS NULL'); else if (f.ownerId) where.push(`d.owner_id=${add(f.ownerId)}`);
   if (f.pipelineId && isUuid(f.pipelineId)) where.push(`d.pipeline_id=${add(f.pipelineId)}`);
+  if (f.source) where.push(`lower(d.source)=lower(${add(String(f.source).slice(0, 200))})`);
+  // Atenção (lista): o quadro filtra em JS porque precisa dos contadores de todas as faixas.
+  const open = (extra) => where.push(`d.status='open' AND ${extra}`);
+  const live = `EXISTS (SELECT 1 FROM crm_activities ax WHERE ax.deal_id = d.id AND ax.status='open' AND ax.deleted_at IS NULL`;
+  if (f.attention === 'late') open(`${live} AND ax.due_date < ${add(todayBR())})`);
+  else if (f.attention === 'nonext') open(`NOT ${live})`);
+  else if (f.attention === 'stalled') open(`d.stage_entered_at < now() - interval '14 days'`);
+  else if (f.attention === 'overdue') open(`d.expected_close_date < ${add(todayBR())}`);
   if (f.companyId) where.push(`d.company_id=${add(isUuid(f.companyId) ? f.companyId : '00000000-0000-0000-0000-000000000000')}`);
   const q = String(f.q || '').trim();
   if (q) {
@@ -54,11 +62,16 @@ export async function getBoard(orgId, f = {}) {
   // Funil pedido; se não existir mais (arquivado), cai no padrão — a tela atualiza a escolha pela resposta.
   const pipeline = (await resolvePipeline(pool, orgId, isUuid(f.pipelineId) ? f.pipelineId : null)) || (await resolvePipeline(pool, orgId, null));
   const params = [orgId];
-  const where = dealFilters(orgId, { ...f, pipelineId: pipeline.id }, params);
+  const where = dealFilters(orgId, { ...f, pipelineId: pipeline.id, attention: '' }, params);
   where.push(`(d.status='open' OR d.closed_at >= now() - interval '${BOARD_CLOSED_DAYS} days')`);
   const { rows } = await pool.query(`SELECT ${DEAL_SELECT} FROM ${DEAL_FROM} WHERE ${where.join(' AND ')} ORDER BY d.board_order ASC, d.created_at ASC`, params);
-  const deals = rows.map(mapDeal);
+  const all = rows.map(mapDeal);
+  const opens = all.filter((d) => d.status === 'open');
+  const attention = { late: opens.filter((d) => d.nextActivityOverdue).length, nonext: opens.filter((d) => d.noNextStep).length, stalled: opens.filter((d) => (d.daysInStage || 0) > 14).length, overdue: opens.filter((d) => d.overdue).length };
+  const keep = { late: (d) => d.nextActivityOverdue, nonext: (d) => d.noNextStep, stalled: (d) => (d.daysInStage || 0) > 14, overdue: (d) => d.overdue }[f.attention];
+  const deals = keep ? all.filter((d) => d.status === 'open' && keep(d)) : all;
   return {
+    attention,
     pipeline: { id: pipeline.id, name: pipeline.name }, closedWindowDays: BOARD_CLOSED_DAYS,
     pipelines: (await listPipelines(orgId)).map((p) => ({ id: p.id, name: p.name, isDefault: p.isDefault, dealCount: p.dealCount })),
     stages: pipeline.stages.map((s) => {
@@ -80,7 +93,7 @@ export async function getDealDetail(orgId, id) {
   const [hist, tl, notes, pipe, activities] = await Promise.all([
     pool.query('SELECT id, from_stage_name, to_stage_name, days_in_from, actor_name, moved_at FROM crm_deal_stage_history WHERE deal_id=$1 ORDER BY moved_at, id', [id]),
     pool.query(`SELECT id, event_type, summary, actor_name, occurred_at FROM crm_timeline_events WHERE org_id=$1 AND entity_type='deal' AND entity_id=$2 ORDER BY occurred_at DESC, created_at DESC LIMIT 60`, [orgId, id]),
-    pool.query(`SELECT n.id, n.body, n.attachments, n.links, n.edited_at, n.created_at, n.created_by, u.name AS created_by_name FROM crm_notes n LEFT JOIN users u ON u.id = n.created_by
+    pool.query(`SELECT n.id, n.body, n.attachments, n.links, n.edited_at, n.created_at, n.created_by, COALESCE(NULLIF(n.author_name, ''), u.name) AS created_by_name FROM crm_notes n LEFT JOIN users u ON u.id = n.created_by
                 WHERE n.org_id=$1 AND n.entity_type='deal' AND n.entity_id=$2 AND n.deleted_at IS NULL ORDER BY n.created_at DESC`, [orgId, id]),
     getPipeline(orgId, deal.pipelineId),
     activitiesForDeal(orgId, id),

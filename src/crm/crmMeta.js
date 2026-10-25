@@ -259,6 +259,31 @@ export const CRM_CSS = `
   .crm-deal[draggable="true"] { cursor:grab; }
   .crm-deal:hover, .crm-deal:focus-visible { border-color:var(--border-3); }
   .crm-deal.dragging { opacity:.4; }
+  .crm-stepwrap { margin-top:12px; }
+  .crm-stepbar { display:flex; gap:3px; overflow-x:auto; padding-bottom:2px; }
+  .crm-step { flex:1 1 0; min-width:96px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:11.5px; font-weight:700; padding:8px 16px 8px 20px; border:0; background:var(--bg-3); color:var(--text-4); cursor:pointer; font-family:inherit;
+    clip-path:polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%, 10px 50%); }
+  .crm-step:first-child { padding-left:14px; clip-path:polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%); }
+  .crm-step.passed { background:color-mix(in srgb, #F5C400 22%, var(--bg-3)); color:var(--text-2); }
+  .crm-step.current { background:#F5C400; color:#0B0E1A; cursor:default; }
+  .crm-step:disabled { cursor:default; }
+  .crm-step:not(:disabled):hover, .crm-step:not(:disabled):focus-visible { filter:brightness(1.15); }
+  .crm-step.end { flex:0 0 auto; padding:8px 18px; font-weight:800; cursor:default; }
+  .crm-step.end.won { background:#3ecf6e; color:#06240f; } .crm-step.end.lost { background:#e2574c; color:#fff; }
+  .crm-nav-badge { margin-left:auto; min-width:18px; height:18px; padding:0 5px; border-radius:99px; background:#e2574c; color:#fff; font-size:10.5px; font-weight:800; display:inline-grid; place-items:center; }
+  .crm-deal { position:relative; flex-shrink:0; }
+  .crm-deal.tone-late { background:color-mix(in srgb, #e2574c 9%, var(--bg-1)); border-color:color-mix(in srgb, #e2574c 40%, var(--border-1)); }
+  .crm-deal.tone-warn { background:color-mix(in srgb, #ff9f40 8%, var(--bg-1)); border-color:color-mix(in srgb, #ff9f40 35%, var(--border-1)); }
+  .crm-deal-top { display:flex; justify-content:space-between; align-items:flex-start; gap:6px; }
+  .crm-deal-tools { display:flex; align-items:center; gap:4px; flex-shrink:0; margin:-3px -4px 0 0; }
+  .crm-avatar { width:22px; height:22px; border-radius:50%; background:var(--bg-4); border:1px solid var(--border-2); color:var(--text-2); font-size:9.5px; font-weight:800; display:inline-grid; place-items:center; }
+  .crm-deal-line { font-size:11px; color:var(--text-3); margin-top:3px; display:flex; align-items:center; gap:4px; overflow-wrap:anywhere; }
+  .crm-deal-foot { font-size:10.5px; color:var(--text-4); margin-top:7px; padding-top:6px; border-top:1px dashed var(--border-1); }
+  .crm-quick { position:relative; }
+  .crm-quick .crm-icon-btn { width:26px; height:26px; }
+  .crm-quick-menu { position:absolute; right:0; top:28px; z-index:30; min-width:178px; background:var(--bg-2); border:1px solid var(--border-3); border-radius:10px; padding:4px; box-shadow:0 10px 28px rgba(0,0,0,.35); display:flex; flex-direction:column; }
+  .crm-quick-menu button { display:flex; align-items:center; gap:8px; background:transparent; border:0; color:var(--text-1); font-size:12.5px; padding:8px 10px; border-radius:7px; cursor:pointer; text-align:left; font-family:inherit; }
+  .crm-quick-menu button:hover, .crm-quick-menu button:focus-visible { background:var(--bg-3); }
   .crm-deal-move { display:none; margin-top:8px; }
   .crm-deal-move select { width:100%; padding:8px 10px; font-size:13px; border-radius:8px; }
   @media (pointer: coarse) { .crm-deal-move { display:block; } }

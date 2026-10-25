@@ -17,7 +17,7 @@ API `https://api.pipe.run/v1`, token no cabeçalho `token`. Limite **120 requisi
 | Arquivos | 707 (470 MB; 117 documentos ligados a negócio) | não vinha |
 | Propostas | 7 (MRR e itens) | — |
 | Ligações / e-mails | 0 / 1 | — |
-| Histórico de etapas | **não existe endpoint** (só `last_stage_updated_at`) | parcial |
+| Histórico de etapas e eventos | **existe**: `histories` (3.211 registros: criação, mudança de etapa/funil, ganho, perda, valor, MRR, origem, contato, congelamento; data em UTC e autor) e `deals/{id}/histories` | parcial |
 
 147 negócios ativos **não têm empresa no PipeRun** (68 com pessoa; 79 sem pessoa e sem empresa, R$ 499 mil em valor, 135 com anotações). A API não resolve isso; a decisão do Rafael foi **importar todos**, criando **empresa provisória**.
 
@@ -71,16 +71,22 @@ Reimportar é seguro: `piperun_map` e `crm_deals.external_id` impedem duplicar; 
 
 ## 6. Limites
 
-- **Histórico de etapas** não existe na API: o negócio entra com a etapa atual e o fechamento.
 - Ligações (0) e e-mails (1) não existem na conta; imagens e áudios não sobem.
 - E-mails/telefones extras de uma pessoa: o telefone junta todos; e-mail extra não é guardado.
 - A importação em produção e a primeira extração com token real **não foram executadas pela IA** (o token passou pelo chat durante a análise; foi removido do `.env`). Tudo foi testado com a API **simulada** alimentada pelos dados reais extraídos.
 - Dados pessoais: `piperun_raw` é acesso só do administrador do CRM; apague depois da virada.
 
-## 7. Execução em produção (25/10/2026)
+## 7. Fidelidade do histórico e da autoria (2ª fase, 25/10/2026)
+
+- **Percurso real nas etapas:** a API `histories` entrega cada mudança de etapa/funil, ganho e perda com data (UTC) e autor. A importação troca o percurso sintético da 1ª rodada (só "etapa atual → fechamento") pelo verdadeiro: 1.046 movimentos em 307 negócios, com **dias em cada etapa**, e acerta "dias parado" pela data da última mudança. O percurso é somente-inserção (gatilho); a troca desliga o gatilho `crm_deal_stage_history_append_only` **só dentro de uma transação**, e **só em negócio que ninguém moveu no CRM** (movido depois = mantém e reporta). Negócio duplicado no PipeRun (2º "criado") vira mudança a partir da etapa anterior.
+- **Linha do tempo:** valor, MRR, origem, contato e congelamento viram eventos com a data original.
+- **Autoria:** anotação de quem não tem usuário no CRM (Eduarda, Maurício…) mostra o **nome de quem escreveu** (`crm_notes.author_name`, coluna nova e aditiva), sem rodapé no texto e sem virar do Rafael. **Atividade sem usuário fica sem responsável** (filtro "Sem responsável" na Agenda) em vez de cair na Agenda de quem importou. Rodadas antigas são reparadas na próxima importação (`authorshipFixes`).
+- **CRM no dia a dia (comparado ao PipeRun):** cartão do quadro com contato, origem, cidade/UF, próxima atividade com data, hora e título, criado em, avatar do responsável, tom vermelho (passo atrasado) ou âmbar (sem próximo passo) e menu ⋮ (agendar, nota, ganhar, perder, abrir empresa); filtros **Pedem atenção** (passo atrasado, sem próximo passo, parados +14 dias, previsão vencida, com contagem), **Meus negócios** e **Origem**; **Exportar** a lista em CSV; ficha com **barra de etapas** clicável e dias na etapa; selo de **atividades atrasadas** na Agenda; funil padrão = **Empresas**.
+
+## 8. Execução em produção (25/10/2026)
 
 Extração e importação feitas pelo Rafael na tela; a conferência final deu **ok, 0 divergências** (138 empresas + 143 provisórias; 507 contatos; 307 negócios — 192 abertos, 30 ganhos R$ 279.766,28, 85 perdidos R$ 133.077,00; 912 notas/propostas; 138 atividades; 114 documentos). Dois PDFs de 23,1 MB passaram do limite de 20 MB e entraram numa 2ª rodada depois de subir o limite para 30 MB. Só no backup: 7 pessoas, 4 atividades, 15 notas e 3 PDFs ligados a negócios que estavam na lixeira do PipeRun, e 590 imagens/áudios.
 
-## 8. Testes
+## 9. Testes
 
 `node scripts/piperun-migration.test.mjs` (≈75 verificações; servidor e Postgres locais; org descartável; **dados reais do backup** ou sintéticos): extração com API simulada (401, 429, paginação, total conferido, CNAEs, token só no cabeçalho), prévia que não grava, permissões (vendedor/gestor 403, outra organização isolada), importação (situação e valores por situação conferidos por conta independente do código, motivo de perda real, ordem real das etapas, datas originais, provisórias, congeladas, campos personalizados, MRR, anotações com data original, atividades sem lembrete em massa, contatos sem duplicar, documentos), conferência, **reimportação sem duplicar**, arquivos por API, token ausente do banco, trava de execução simultânea e purga da cópia bruta.
