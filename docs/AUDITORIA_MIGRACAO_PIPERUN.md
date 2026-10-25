@@ -72,3 +72,6 @@ Histórico real aplicado (execução 7): 1.463 eventos do backup (tipos usados p
 2. **Backup em segundo meio:** não há disco externo no Mac; copiar `~/Downloads/PIPERUN_BACKUP/PIPERUN_2026-10-25_completo.zip` (sha256 em `.zip.sha256`) para HD externo ou nuvem da empresa — contém dados pessoais de clientes (LGPD).
 3. **Revogar tokens** (PipeRun e `pxk_`): alteração de segurança, a fazer pelo Rafael.
 4. **"Funil comercial" vazio:** arquivar em *Funis e etapas › Arquivar* (0 negócios).
+
+## Atualização — Atendimento/WhatsApp descartado (25/10/2026)
+O Rafael confirmou que o Atendimento (WhatsApp) do PipeRun **nunca foi usado**: item 1 da lista "em aberto" encerrado, sem conversas a guardar. Restam apenas: backup em segundo meio, revogar tokens e (opcional) arquivar o "Funil comercial" vazio.
