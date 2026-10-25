@@ -41,6 +41,7 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
   const [showImport, setShowImport] = useState(false);
   const [showBootstrap, setShowBootstrap] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [queueSignal, setQueueSignal] = useState(0);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   useEffect(() => {
@@ -53,6 +54,18 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
   // Vindo de uma notificação: abre direto o negócio (se houver) ou a aba Atividades da empresa.
   useEffect(() => {
     if (!pendingOpen || !caps) return;
+    if (pendingOpen.action) {
+      // Comandos da paleta (Ctrl+K): abrir formulário de criação, ir para uma página ou abrir a fila de follow-ups.
+      const a = pendingOpen.action;
+      if (a.startsWith('page:')) setPage(a.slice(5));
+      else if (a === 'queue') { setPage('agenda'); setQueueSignal((k) => k + 1); }
+      else if (caps.write && a === 'new-deal') setDealForm({});
+      else if (caps.write && a === 'new-activity') setActivityForm({});
+      else if (caps.write && a === 'new-company') setCompanyForm(true);
+      else if (caps.write && a === 'new-contact') setContactForm({});
+      if (onPendingOpenConsumed) onPendingOpenConsumed();
+      return;
+    }
     if (pendingOpen.dealId) { setDrawer(null); setDealDrawer(pendingOpen.dealId); } else if (pendingOpen.companyId) { setDealDrawer(null); setDrawer({ id: pendingOpen.companyId, tab: 'activities' }); }
     if (onPendingOpenConsumed) onPendingOpenConsumed();
   }, [pendingOpen, caps]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -92,7 +105,7 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
           </nav>
           <main className="crm-main">
             {page === 'overview' && <OverviewPage caps={caps} refreshKey={refreshKey} onOpenCompany={openCompany} onOpenDeal={openDeal} onGoDeals={() => setPage('deals')} onGoAgenda={() => setPage('agenda')} onBootstrap={() => setShowBootstrap(true)} />}
-            {page === 'agenda' && <AgendaPage caps={caps} options={options} currentUserId={currentUser && currentUser.id} refreshKey={refreshKey} onOpenCompany={openCompany} onOpenDeal={openDeal} onNewActivity={(o) => setActivityForm(o || {})} onChanged={refresh} />}
+            {page === 'agenda' && <AgendaPage queueSignal={queueSignal} onQueueConsumed={() => setQueueSignal(0)} caps={caps} options={options} currentUserId={currentUser && currentUser.id} refreshKey={refreshKey} onOpenCompany={openCompany} onOpenDeal={openDeal} onNewActivity={(o) => setActivityForm(o || {})} onChanged={refresh} />}
             {page === 'deals' && <DealsPage caps={caps} options={options} refreshKey={refreshKey} currentUserId={currentUser && currentUser.id} onOpenDeal={openDeal} onOpenCompany={openCompany} onNewDeal={(o) => setDealForm(o || {})} onNewActivity={(o) => setActivityForm(o || {})} onChanged={refresh} />}
             {page === 'companies' && <CompaniesPage caps={caps} options={options} refreshKey={refreshKey} onOpenCompany={openCompany} onNewCompany={() => setCompanyForm(true)} onImport={() => setShowImport(true)} />}
             {page === 'products' && <ProductsPage caps={caps} onChanged={refresh} />}

@@ -10,7 +10,7 @@ import ActivityList from './ActivityList.jsx';
 import FollowUpQueue from './FollowUpQueue.jsx';
 import { ACTIVITY_TYPES, BUCKET_META } from './crmMeta.js';
 
-export default function AgendaPage({ caps, options, currentUserId, refreshKey, onOpenCompany, onOpenDeal, onNewActivity, onChanged }) {
+export default function AgendaPage({ queueSignal, onQueueConsumed, caps, options, currentUserId, refreshKey, onOpenCompany, onOpenDeal, onNewActivity, onChanged }) {
   const [owner, setOwner] = useState('me');
   const [type, setType] = useState('');
   const [q, setQ] = useState('');
@@ -21,6 +21,7 @@ export default function AgendaPage({ caps, options, currentUserId, refreshKey, o
   const [error, setError] = useState('');
   const [localKey, setLocalKey] = useState(0);
   const [queue, setQueue] = useState(false);
+  useEffect(() => { if (queueSignal > 0) { if (caps.write) setQueue(true); if (onQueueConsumed) onQueueConsumed(); } }, [queueSignal]); // eslint-disable-line react-hooks/exhaustive-deps
   const owners = (options && options.owners) || [];
 
   useEffect(() => { const t = setTimeout(() => setDebouncedQ(q), 300); return () => clearTimeout(t); }, [q]);

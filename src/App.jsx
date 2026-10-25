@@ -3,7 +3,8 @@ import { revertLinkedSync, syncLinkedStatus } from '../shared/linkSync.js';
 import { meetingConflicts } from '../shared/calendarDays.js';
 import { fitPeriods } from '../shared/period.js';
 import { loadPdfPrefs, mergePdfPrefs, savePdfPrefs } from './pdf/pdfTheme.js';
-import { Activity, Share2, ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen, History, ArchiveRestore } from 'lucide-react';
+import { Activity, Share2, ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen, History, ArchiveRestore, CalendarCheck, Users as UsersGlyph } from 'lucide-react';
+import { crm as crmClient } from './crm/crmApi.js';
 
 import { loadXlsx } from './lib/xlsxLoader.js';
 import { lazyRetry } from './lib/lazyRetry.jsx';
@@ -1726,6 +1727,17 @@ function AppScreens({ shellRef, bump }) {
   const shellCurrent = (showUsers || effectiveMode === 'users') && currentUser.role === 'master' ? 'users' : effectiveMode;
   // Itens da busca global (Ctrl+K), dos recentes e dos favoritos. `kind`+`rid` identificam o item de forma estável (é só isso
   // que os recentes/favoritos guardam); `run` é reconstruído aqui a cada vez, a partir dos dados atuais.
+  // Negócios, empresas e contatos do CRM para a paleta (Ctrl+K): vêm do servidor, só a partir de 2 letras.
+  async function buildRemoteSearchItems(q) {
+    if (!hasCrm || String(q || '').trim().length < 2) return [];
+    const r = await crmClient.search(q);
+    const open = (patch) => { goToWorkspace('crm'); setPendingCrmOpen(patch); };
+    return [
+      ...(r.deals || []).slice(0, 6).map((d) => ({ id: `crm-d-${d.id}`, group: 'Negócios (CRM)', label: d.title, hint: [d.companyName, d.stageName].filter(Boolean).join(' · '), icon: Briefcase, run: () => open({ dealId: d.id }) })),
+      ...(r.companies || []).slice(0, 4).map((c) => ({ id: `crm-c-${c.id}`, group: 'Empresas (CRM)', label: c.legalName, hint: [c.tradeName, c.cnpj].filter(Boolean).join(' · '), icon: Building2, run: () => open({ companyId: c.id }) })),
+      ...(r.contacts || []).slice(0, 4).map((c) => ({ id: `crm-k-${c.id}`, group: 'Contatos (CRM)', label: c.name || 'Contato', hint: [c.companyName, c.email].filter(Boolean).join(' · '), icon: UsersGlyph, run: () => open({ companyId: c.companyId }) })),
+    ];
+  }
   function buildSearchItems() {
     const items = shellModes.map((m) => ({ id: `m-${m.key}`, kind: 'module', rid: m.key, group: 'Ir para', label: m.label, icon: m.icon, run: () => goToWorkspace(m.key) }));
     if (hasCompanies) {
@@ -1743,6 +1755,17 @@ function AppScreens({ shellRef, bump }) {
           items.push({ id: `r-${p.id}-${m.id}`, kind: 'meeting', rid: `${p.id}/${m.id}`, group: 'Reuniões', label: m.title || '(sem título)', hint: name, icon: Mic, run: () => { openCompany(); setView('meetings'); openMeetingDetail(p.id, m.id); } });
         }
       }
+    }
+    if (hasCrm) {
+      // Comandos do CRM (Ctrl+K): executam a ação; o formulário abre dentro do CRM (CrmScreen lê `pendingCrmOpen.action`).
+      const act = (id, label, hint, keywords, icon, action) => items.push({ id: `act-${id}`, group: 'Ações', label, hint, keywords, icon, run: () => { goToWorkspace('crm'); setPendingCrmOpen({ action }); } });
+      act('new-deal', 'Criar negócio', 'CRM', 'novo lead oportunidade adicionar cadastrar negocio venda', Plus, 'new-deal');
+      act('new-activity', 'Criar atividade', 'CRM', 'novo follow up ligar agendar tarefa lembrete', Plus, 'new-activity');
+      act('new-company', 'Criar empresa', 'CRM', 'nova cadastrar cliente prospect', Plus, 'new-company');
+      act('new-contact', 'Criar contato', 'CRM', 'novo pessoa telefone whatsapp', Plus, 'new-contact');
+      act('queue', 'Abrir a fila de follow-ups', 'CRM · um por vez, do mais atrasado', 'fila atrasadas hoje follow-up concluir proximo', ListChecks, 'queue');
+      act('agenda', 'Agenda do CRM', 'CRM', 'atividades atrasadas hoje', CalendarCheck, 'page:agenda');
+      act('deals', 'Negócios do CRM', 'CRM', 'funil quadro lista pipeline', Briefcase, 'page:deals');
     }
     if (hasPersonal && personalBoard) {
       for (const b of personalBoard.boards || []) {
@@ -1858,6 +1881,7 @@ function AppScreens({ shellRef, bump }) {
     onGo: (k) => goToWorkspace(k),
     onHome: goHome ? () => goToWorkspace(null) : null,
     getSearchItems: buildSearchItems,
+    getRemoteSearchItems: buildRemoteSearchItems,
     onToggleNotifications: () => setShowNotifications((v) => !v),
     onOpenNotification: goToNotificationTarget, onMarkNotificationRead: markNotificationRead, onMarkAllNotificationsRead: markAllNotificationsRead,
     onOpenProfile: () => openProfile('perfil'),
@@ -3453,7 +3477,7 @@ function ShellHost({ shellRef }) {
     <>
       <ModuleShell
         user={p.user} current={p.current} modes={p.modes} theme={p.theme}
-        onGo={call('onGo')} onHome={p.onHome ? call('onHome') : null} getSearchItems={call('getSearchItems')}
+        onGo={call('onGo')} onHome={p.onHome ? call('onHome') : null} getSearchItems={call('getSearchItems')} getRemoteSearchItems={call('getRemoteSearchItems')}
         notifications={p.notifications} showNotifications={p.showNotifications}
         onToggleNotifications={call('onToggleNotifications')} onOpenNotification={call('onOpenNotification')}
         onMarkNotificationRead={call('onMarkNotificationRead')} onMarkAllNotificationsRead={call('onMarkAllNotificationsRead')}

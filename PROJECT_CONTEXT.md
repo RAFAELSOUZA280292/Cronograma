@@ -8008,3 +8008,11 @@ Estudo de UX (Linear/Notion/Figma/Monday/Asana/Slack, NN/G) comparado com o pain
 - `GET /api/crm/options` passou a trazer `stages` (id, nome, tipo) em cada funil.
 - Teste: `scripts/crm-eduarda.test.mjs`. Verificado no navegador: valor 4.321,50 salvo com auditoria, Desfazer devolve o valor, previsão e etapa trocadas direto, 46 linhas com os controles.
 - Backlog restante do estudo (§93): paleta de comandos com ações, visões salvas e dashboard por função, mensagens de erro do servidor, medição de atrito/CSAT sem vigilância.
+
+## 95. Paleta de comandos (Ctrl/⌘ K) com ações e busca no CRM (2026-10-25, backlog P1 do estudo de UX)
+A busca global (`src/shell/CommandPalette.jsx`, itens montados em `App.jsx` `buildSearchItems`) deixou de ser só navegação:
+- **Grupo "Ações"** (só para quem tem CRM): Criar negócio / atividade / empresa / contato, **Abrir a fila de follow-ups**, Agenda do CRM, Negócios do CRM. A palavra-chave é tolerante ("novo lead", "ligar", "atrasadas"). Sem texto, as 5 primeiras ações aparecem logo abaixo da RENATA.
+- **Busca no CRM** (`buildRemoteSearchItems` → `GET /api/crm/search`, a partir de 2 letras, com espera de 220 ms e descarte de resposta velha): grupos "Negócios (CRM)", "Empresas (CRM)" e "Contatos (CRM)"; Enter abre a ficha.
+- **Como a ação chega ao CRM:** `App` troca para o módulo e grava `pendingCrmOpen = { action | dealId | companyId }`; `CrmScreen` consome (abre o formulário, a página ou a fila; criação só com permissão de escrita). A fila usa `queueSignal` (consumido pela Agenda para não reabrir ao voltar à página).
+- Verificado no navegador com os dados reais: de fora do CRM, "criar neg" + Enter abre o CRM com "Novo negócio"; "fila de" abre a Agenda com a Fila; "daniel" mostra negócios, empresas e contatos do CRM e Enter abre a ficha.
+- Backlog restante do estudo: visões salvas e dashboard por função, mensagens de erro do servidor, medição de atrito/CSAT sem vigilância.

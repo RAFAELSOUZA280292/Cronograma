@@ -89,7 +89,7 @@ function Menu({ label, align = 'left', trigger, children }) {
 }
 
 export default function ModuleShell({
-  user, current, modes, onGo, onHome, getSearchItems, onOpenRenata,
+  user, current, modes, onGo, onHome, getSearchItems, getRemoteSearchItems, onOpenRenata,
   notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead,
   onOpenProfile, theme, onToggleTheme, onLogout,
 }) {
@@ -166,7 +166,7 @@ export default function ModuleShell({
           <button type="button" role="menuitem" className="shell-menu-item" onClick={onLogout}><LogOut size={15} aria-hidden="true" /> Sair</button>
         </Menu>
       </header>
-      {palette && <CommandPalette getItems={getSearchItems} onAskRenata={onOpenRenata} onClose={() => setPalette(false)} />}
+      {palette && <CommandPalette getItems={getSearchItems} getRemoteItems={getRemoteSearchItems} onAskRenata={onOpenRenata} onClose={() => setPalette(false)} />}
     </>
   );
 }
