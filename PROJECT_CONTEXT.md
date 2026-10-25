@@ -858,6 +858,8 @@ mecanismo.
 ## 15. Pendências / roadmap conhecido
 
 **Produto e infraestrutura**
+- **PipeRun (§85):** copiar `PIPERUN_2026-10-25_completo.zip` para um 2º meio (HD/nuvem da empresa); revogar o token do PipeRun e os `pxk_` (Rafael); arquivar o "Funil comercial" vazio no CRM; só então reemitir o parecer (hoje NÃO APROVADO apenas por causa do backup em 1 meio).
+- Consolidar a documentação de 2026-10-06 a 10-24 (sem seção própria; ver linha do tempo).
 - Enforcement de `organizations.status` (suspensa/bloqueada não bloqueia login/acesso ainda, é só rótulo).
 - Planos/limites/cobrança (`plan`, `max_users`, `max_companies` no schema, nada lê/aplica) — "Fase 4" do multi-tenant.
 - Banner "Super Admin — visualizando como X" não aparece em `CompanySelectorScreen` (só no topbar principal).
