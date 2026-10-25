@@ -338,3 +338,22 @@ export const CRM_CSS = `
     .crm-topbar { padding:10px 14px; }
   }
 `;
+
+// ---- telefone / WhatsApp / nome de contato (o PipeRun grava "Nome não informado" quando a pessoa só tem telefone)
+export const realName = (n) => (/^\s*nome\s+n[aã]o\s+informado\s*$/i.test(String(n || '')) ? '' : String(n || '').trim());
+const digitsOf = (v) => String(v || '').replace(/\D/g, '');
+// Número no formato internacional do Brasil (wa.me exige DDI): 10/11 dígitos ganham 55.
+export function waNumber(v) { const d = digitsOf(v); if (d.length < 10) return ''; return d.length <= 11 ? `55${d}` : d; }
+export function fmtPhone(v) {
+  const d0 = digitsOf(v); if (!d0) return '';
+  const d = d0.length >= 12 && d0.startsWith('55') ? d0.slice(2) : d0;
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return String(v).trim();
+}
+export const telHref = (v) => { const n = waNumber(v); return n ? `tel:+${n}` : ''; };
+export const waHref = (v) => { const n = waNumber(v); return n ? `https://wa.me/${n}` : ''; };
+export function contactLabel(c) {
+  const n = realName(`${c.firstName || ''} ${c.lastName || ''}`);
+  return n || fmtPhone(c.whatsapp || c.phone) || c.email || 'Sem nome';
+}

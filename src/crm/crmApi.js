@@ -24,6 +24,7 @@ export const crm = {
   dealFiles: (id) => apiGet(`${B}/deals/${id}/files`),
   dealFileUrl: (fileId) => `${B}/deal-files/${fileId}/download`,
   options: () => apiGet(`${B}/options`),
+  quickLead: (body) => apiPost(`${B}/leads`, body),
   tags: () => apiGet(`${B}/tags`),
   setDealTags: (id, tags) => apiPut(`${B}/deals/${id}/tags`, { tags }),
   overview: () => apiGet(`${B}/overview`),

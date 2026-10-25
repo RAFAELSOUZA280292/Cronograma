@@ -619,3 +619,6 @@ export function validateContactInput(input) {
   if (!values.first_name) errors.push('Informe o nome do contato.');
   return { values, errors };
 }
+
+// Anexos de nota na LISTA vão sem o conteúdo (uma nota pode ter vários MB em base64): a tela carrega cada um sob demanda por `url`.
+export const lightAttachments = (noteId, atts) => (Array.isArray(atts) ? atts : []).map((a) => ({ id: a.id, name: a.name, size: a.size, type: a.type, url: `/api/crm/notes/${noteId}/attachments/${encodeURIComponent(a.id)}` }));

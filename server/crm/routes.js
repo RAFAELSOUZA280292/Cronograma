@@ -134,6 +134,19 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
   router.post('/deals', need('write'), h(async (req, res) => res.status(201).json({ deal: await D.createDeal(orgOf(req), actorOf(req), req.body || {}) })));
   router.get('/deals/:id', h(async (req, res) => res.json(await DQ.getDealDetail(orgOf(req), req.params.id))));
   router.patch('/deals/:id', need('write'), h(async (req, res) => res.json({ deal: await D.updateDeal(orgOf(req), actorOf(req), req.params.id, req.body || {}, { canEditClosed: crmCan(req.user, 'remove') }) })));
+  router.post('/leads', need('write'), h(async (req, res) => res.status(201).json(await X.quickLead(orgOf(req), actorOf(req), req.body || {}))));
+  // Conteúdo de um anexo de nota (imagem/PDF), sob demanda: a lista de notas vem só com nome/tipo/tamanho e esta `url`.
+  router.get('/notes/:noteId/attachments/:attId', need('read'), h(async (req, res) => {
+    S.requireUuid(req.params.noteId, 'Nota');
+    const { rows } = await pool.query(`SELECT attachments FROM crm_notes WHERE id=$1 AND org_id=$2 AND deleted_at IS NULL`, [req.params.noteId, orgOf(req)]);
+    const att = rows[0] && (rows[0].attachments || []).find((a) => a.id === req.params.attId);
+    const m = att && /^data:([^;,]+)(;base64)?,([\s\S]*)$/.exec(String(att.dataUrl || ''));
+    if (!m) throw new CrmError(404, 'Anexo não encontrado.');
+    const type = /^(image\/(png|jpe?g|gif|webp)|application\/pdf)$/i.test(m[1]) ? m[1].toLowerCase() : 'application/octet-stream';
+    res.set({ 'Content-Type': type, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400', 'Content-Security-Policy': "default-src 'none'; sandbox",
+      ...(type === 'application/octet-stream' || type === 'application/pdf' ? { 'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(att.name || 'anexo')}` } : {}) });
+    res.send(m[2] ? Buffer.from(m[3], 'base64') : Buffer.from(decodeURIComponent(m[3])));
+  }));
   router.get('/tags', h(async (req, res) => res.json({ tags: await X.listTags(orgOf(req)) })));
   router.put('/deals/:id/tags', need('write'), h(async (req, res) => res.json({ tags: await X.setDealTags(orgOf(req), actorOf(req), req.params.id, (req.body || {}).tags) })));
   router.post('/deals/:id/move', need('write'), h(async (req, res) => res.json({ deal: await D.moveDeal(orgOf(req), actorOf(req), req.params.id, req.body || {}) })));

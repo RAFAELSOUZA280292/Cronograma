@@ -8,6 +8,7 @@ import { crm } from './crmApi.js';
 import CompanyForm from './CompanyForm.jsx';
 import ContactForm from './ContactForm.jsx';
 import DealForm from './DealForm.jsx';
+import ContactLinks from './ContactLinks.jsx';
 import ActivityForm from './ActivityForm.jsx';
 import ActivityList from './ActivityList.jsx';
 import RenataAsk from './RenataAsk.jsx';
@@ -16,8 +17,7 @@ import { useDialog } from '../lib/nav.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import {
   fmtCnpj, fmtCep, fmtMoney, fmtDateBR, fmtDateTimeBR, daysLabel, staleColor, DECISION_ROLES, roleLabel, STRENGTH_META, INFLUENCE_LABELS,
-  sourceLabel, TIMELINE_KIND, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor,
-} from './crmMeta.js';
+  sourceLabel, TIMELINE_KIND, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor, contactLabel } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
 
 
@@ -31,7 +31,7 @@ function Person({ c, onOpen }) {
     <div className="crm-person" onClick={() => onOpen(c)} title={st ? `Relacionamento ${st.label.toLowerCase()}` : 'Relacionamento não avaliado'}>
       <span className="crm-dot" style={{ background: st ? st.color : 'var(--border-3)' }} />
       <div style={{ minWidth: 0 }}>
-        <div className="crm-person-name">{`${c.firstName} ${c.lastName}`.trim()}{c.isPrimary ? ' ★' : ''}</div>
+        <div className="crm-person-name">{contactLabel(c)}{c.isPrimary ? ' ★' : ''}</div>
         <div className="crm-muted" style={{ fontSize: 11.5 }}>{c.jobTitle || c.department || c.email || ''}</div>
       </div>
     </div>
@@ -104,7 +104,7 @@ function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, on
   }
 
   async function removeContact(c) {
-    if (!(await askConfirm({ title: `Remover o contato ${`${c.firstName} ${c.lastName}`.trim()}?`, confirmLabel: 'Remover', danger: true }))) return;
+    if (!(await askConfirm({ title: `Remover o contato ${contactLabel(c)}?`, confirmLabel: 'Remover', danger: true }))) return;
     try { await crm.deleteContact(c.id); await afterChange(); } catch (e) { fail(e); }
   }
 
@@ -241,8 +241,8 @@ function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, on
                     <tbody>
                       {data.contacts.map((c) => (
                         <tr key={c.id} onClick={() => caps.write && setContactForm({ contact: c })}>
-                          <td><span className="crm-name">{`${c.firstName} ${c.lastName}`.trim()}</span>{c.isPrimary && ' ★'}<div className="crm-muted">{roleLabel(c.decisionRole)}</div></td>
-                          <td>{c.jobTitle || c.department}</td><td>{c.email}</td><td>{c.phone || c.whatsapp}</td><td>{INFLUENCE_LABELS[c.influence] || ''}</td>
+                          <td><span className="crm-name">{contactLabel(c)}</span>{c.isPrimary && ' ★'}<div className="crm-muted">{roleLabel(c.decisionRole)}</div></td>
+                          <td>{c.jobTitle || c.department}</td><td>{c.email}</td><td><ContactLinks phone={c.phone} whatsapp={c.whatsapp} compact /></td><td>{INFLUENCE_LABELS[c.influence] || ''}</td>
                           <td onClick={(e) => e.stopPropagation()}>{caps.write && <button type="button" className="crm-icon-btn" title="Remover contato" aria-label="Remover contato" onClick={() => removeContact(c)}><Trash2 size={14} aria-hidden="true" /></button>}</td>
                         </tr>
                       ))}
@@ -303,7 +303,7 @@ function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, on
                 <h3 className="crm-section-title"><span><StickyNote size={13} style={{ verticalAlign: -2, marginRight: 5 }} />Nova nota</span>
                   <select value={noteAbout} onChange={(e) => setNoteAbout(e.target.value)} aria-label="Sobre quem é a nota" style={{ width: 'auto', fontSize: 12, padding: '4px 8px' }}>
                     <option value="company">Sobre a empresa</option>
-                    {data.contacts.map((c) => <option key={c.id} value={c.id}>Sobre {`${c.firstName} ${c.lastName}`.trim()}</option>)}
+                    {data.contacts.map((c) => <option key={c.id} value={c.id}>Sobre {contactLabel(c)}</option>)}
                     {data.deals.filter((d) => d.status === 'open').map((d) => <option key={d.id} value={`deal:${d.id}`}>Sobre o negócio {d.title}</option>)}
                   </select>
                 </h3>

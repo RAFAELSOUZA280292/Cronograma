@@ -29,7 +29,7 @@ export default function OverviewPage({ caps, refreshKey, onOpenCompany, onOpenDe
 
   return (
     <div>
-      <div className="crm-page-head"><div><h1 className="crm-h1">Visão geral</h1><div className="crm-sub">O retrato das contas e do funil hoje. Metas e forecast por período chegam com a fase de inteligência.</div></div></div>
+      <div className="crm-page-head"><div><h1 className="crm-h1">Visão geral</h1><div className="crm-sub">O retrato das contas e do funil hoje.</div></div></div>
 
       {pending > 0 && (
         <div className="crm-alert crm-alert-info" style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>

@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { pool } from '../db.js';
 import { CrmError } from './errors.js';
+import { realName } from './text.js';
 import { applyWonAutomation } from './automation.js';
 import { resolvePipeline, DEAL_TYPES, DEAL_TYPE_LABELS, LOST_REASONS } from './pipeline.js';
 import {
@@ -38,7 +39,10 @@ export const DEAL_SELECT = `d.id, d.org_id, d.company_id, d.pipeline_id, d.stage
   (SELECT ax.due_time FROM crm_activities ax WHERE ax.deal_id = d.id AND ax.status = 'open' AND ax.deleted_at IS NULL ORDER BY ax.due_date, ax.due_time LIMIT 1) AS next_activity_time,
   c.city AS company_city, c.state AS company_state,
   (SELECT name FROM users u WHERE u.id = d.owner_id) AS owner_name,
-  (SELECT trim(k.first_name || ' ' || k.last_name) FROM crm_contacts k WHERE k.id = d.primary_contact_id) AS contact_name`;
+  (SELECT trim(k.first_name || ' ' || k.last_name) FROM crm_contacts k WHERE k.id = d.primary_contact_id) AS contact_name,
+  (SELECT k.phone FROM crm_contacts k WHERE k.id = d.primary_contact_id) AS contact_phone,
+  (SELECT k.whatsapp FROM crm_contacts k WHERE k.id = d.primary_contact_id) AS contact_whatsapp,
+  (SELECT k.email FROM crm_contacts k WHERE k.id = d.primary_contact_id) AS contact_email`;
 export const DEAL_FROM = `crm_deals d JOIN crm_pipeline_stages s ON s.id = d.stage_id JOIN crm_companies c ON c.id = d.company_id`;
 
 function daysBetween(fromDate, toDate) {
@@ -61,7 +65,7 @@ export function mapDeal(row) {
     companyId: row.company_id, companyName: row.company_name || '', companyTradeName: row.company_trade_name || '', companyRelationship: row.company_relationship || '',
     pipelineId: row.pipeline_id, stageId: row.stage_id, stageName: row.stage_name, stageKind: row.stage_kind, stageColor: row.stage_color, stagePosition: row.stage_position,
     status: row.status, probability, weightedValue: Math.round(Number(row.value || 0) * probability) / 100,
-    ownerName: row.owner_name || '', contactName: row.contact_name || '',
+    ownerName: row.owner_name || '', contactName: realName(row.contact_name), contactPhone: row.contact_phone || '', contactWhatsapp: row.contact_whatsapp || '', contactEmail: row.contact_email || '',
     lostReason: row.lost_reason || '', lostReasonLabel: LOST_REASONS[row.lost_reason] || '', lostDetail: row.lost_detail || '',
     closedAt: row.closed_at || null, stageEnteredAt: row.stage_entered_at, daysInStage: daysBetween(row.stage_entered_date, today),
     slaDays: row.stage_sla_days || null, slaExceeded: open && !!row.stage_sla_days && daysBetween(row.stage_entered_date, today) > row.stage_sla_days,
@@ -167,7 +171,7 @@ export async function createDeal(orgId, actor, input) {
     await assertContactOfCompany(c, orgId, values.primary_contact_id, company.id);
     const items = 'items' in src ? await resolveItems(c, orgId, src.items) : [];
     values.value = items.length ? sumItems(items) : (values.value || 0);
-    const cols = { ...values, expected_close_date: values.expected_close_date || null };
+    const cols = { ...values, mrr: values.mrr || 0, expected_close_date: values.expected_close_date || null };
     const names = Object.keys(cols);
     await c.query(
       `INSERT INTO crm_deals (id, org_id, company_id, pipeline_id, stage_id, board_order, ${names.join(', ')}, created_by, updated_by)
@@ -217,7 +221,7 @@ export async function updateDeal(orgId, actor, id, input, { canEditClosed = fals
     const params = [];
     changes.filter((ch) => ch.field !== 'items').forEach((ch) => {
       const f = DEAL_SPEC.find((x) => x.key === ch.field);
-      params.push(after[ch.field] === '' && ['date', 'number', 'int', 'user'].includes(f.type) ? null : after[ch.field]);
+      params.push(ch.field === 'mrr' ? (Number(after.mrr) || 0) : (after[ch.field] === '' && ['date', 'number', 'int', 'user'].includes(f.type) ? null : after[ch.field]));
       sets.push(`${f.col}=$${params.length}`);
     });
     if (itemsChanged) await writeItems(c, orgId, id, items);

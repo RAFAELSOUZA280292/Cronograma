@@ -12,6 +12,7 @@ import ActivityList from './ActivityList.jsx';
 import RenataAsk from './RenataAsk.jsx';
 import { useDraftGuard, NoteComposer, NoteThread } from './ui.jsx';
 import DealTags from './DealTags.jsx';
+import ContactLinks from './ContactLinks.jsx';
 import { useDialog } from '../lib/nav.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { fmtMoney, fmtDateBR, fmtDateTimeBR, DEAL_TYPE_META, DEAL_STATUS_META, TIMELINE_KIND, sourceLabel, stageAgeColor } from './crmMeta.js';
@@ -148,6 +149,15 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
                   <div className="crm-card"><div className="crm-kpi-value" style={{ color: d.status === 'open' ? stageAgeColor(d.daysInStage) : undefined, fontSize: 20 }}>{d.daysInStage == null ? '—' : `${d.daysInStage} ${d.daysInStage === 1 ? 'dia' : 'dias'}`}</div><div className="crm-kpi-label">Na etapa {d.stageName}</div>{d.slaDays && d.status === 'open' && <div className="crm-kpi-sub" style={{ color: d.slaExceeded ? '#e2574c' : undefined }}>prazo {d.slaDays} d{d.slaExceeded ? ' — estourado' : ''}</div>}</div>
                   <div className="crm-card"><div className="crm-kpi-value" style={{ color: d.overdue ? '#e2574c' : undefined, fontSize: 18 }}>{fmtDateBR(d.expectedCloseDate) || '—'}</div><div className="crm-kpi-label">Previsão de fechamento</div>{d.overdue && <div className="crm-kpi-sub" style={{ color: '#e2574c' }}>vencida</div>}</div>
                 </div>
+
+                {(d.contactName || d.contactPhone || d.contactWhatsapp || d.contactEmail) && (
+                  <div className="crm-section" style={{ marginTop: 10 }}>
+                    <h3 className="crm-section-title">Contato</h3>
+                    {d.contactName && <div style={{ fontWeight: 700, marginBottom: 6 }}>{d.contactName}</div>}
+                    <ContactLinks phone={d.contactPhone} whatsapp={d.contactWhatsapp} email={d.contactEmail} />
+                    {!d.contactPhone && !d.contactWhatsapp && !d.contactEmail && <span className="crm-muted">Sem telefone nem e-mail cadastrado — abra a empresa para completar.</span>}
+                  </div>
+                )}
 
                 <DealTags dealId={dealId} tags={d.tags} canEdit={!!caps.write} onChanged={afterChange} />
 

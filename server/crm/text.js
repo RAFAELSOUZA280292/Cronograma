@@ -84,3 +84,6 @@ export function splitCnae(v) {
 }
 
 export const firstEmail = (v) => (String(v == null ? '' : v).split(/[;,\s]+/).find((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x)) || '').toLowerCase();
+
+// O PipeRun grava "Nome não informado" quando a pessoa só tem telefone: na tela isso é ruído (o telefone é o que importa).
+export const realName = (n) => (/^\s*nome\s+n[aã]o\s+informado\s*$/i.test(String(n || '')) ? '' : String(n || '').trim());

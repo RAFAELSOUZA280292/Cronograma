@@ -6,6 +6,7 @@
 // interação" da empresa; tarefa e follow-up não (são trabalho interno).
 import { randomUUID } from 'node:crypto';
 import { CrmError } from './errors.js';
+import { realName } from './text.js';
 import { createNotification } from '../notifications.js';
 import {
   sanitize, tx, addAudit, addTimeline, diffApi, mapBySpec, loadCompany, requireUuid, assertUserInOrg, changeSummary, todayBR,
@@ -31,9 +32,10 @@ export const ACTIVITY_SELECT = `a.id, a.org_id, a.company_id, a.deal_id, a.conta
   to_char(a.due_date,'YYYY-MM-DD') AS due_date, a.due_time, a.priority, a.status, a.owner_id, a.completed_at, a.completed_by, a.outcome,
   a.created_at, a.updated_at, a.deleted_at,
   c.legal_name AS company_name, d.title AS deal_title, trim(k.first_name || ' ' || k.last_name) AS contact_name,
+  COALESCE(NULLIF(k.phone,''), NULLIF(pk.phone,'')) AS contact_phone, COALESCE(NULLIF(k.whatsapp,''), NULLIF(pk.whatsapp,'')) AS contact_whatsapp, COALESCE(NULLIF(k.email,''), NULLIF(pk.email,'')) AS contact_email,
   u.name AS owner_name, cu.name AS completed_by_name`;
 export const ACTIVITY_FROM = `crm_activities a JOIN crm_companies c ON c.id = a.company_id
-  LEFT JOIN crm_deals d ON d.id = a.deal_id AND d.deleted_at IS NULL LEFT JOIN crm_contacts k ON k.id = a.contact_id
+  LEFT JOIN crm_deals d ON d.id = a.deal_id AND d.deleted_at IS NULL LEFT JOIN crm_contacts k ON k.id = a.contact_id LEFT JOIN crm_contacts pk ON pk.id = d.primary_contact_id
   LEFT JOIN users u ON u.id = a.owner_id LEFT JOIN users cu ON cu.id = a.completed_by`;
 
 function addDaysISO(dateStr, n) { return new Date(new Date(`${dateStr}T12:00:00Z`).getTime() + n * 86400000).toISOString().slice(0, 10); }
@@ -51,7 +53,7 @@ export function mapActivity(row) {
   if (!row) return null;
   return {
     id: row.id, ...mapBySpec(ACTIVITY_SPEC, row), companyId: row.company_id, companyName: row.company_name || '', dealTitle: row.deal_title || '',
-    contactName: row.contact_name || '', ownerName: row.owner_name || '', status: row.status, bucket: dueBucket(row.status, row.due_date),
+    contactName: realName(row.contact_name), contactPhone: row.contact_phone || '', contactWhatsapp: row.contact_whatsapp || '', contactEmail: row.contact_email || '', ownerName: row.owner_name || '', status: row.status, bucket: dueBucket(row.status, row.due_date),
     completedAt: row.completed_at || null, completedByName: row.completed_by_name || '', outcome: row.outcome || '',
     createdAt: row.created_at, updatedAt: row.updated_at,
   };

@@ -10,6 +10,7 @@ import CloseDealDialog from './CloseDealDialog.jsx';
 import FunnelsAdmin from './FunnelsAdmin.jsx';
 import DealImportWizard from './DealImportWizard.jsx';
 import PipeRunMigration from './PipeRunMigration.jsx';
+import ContactLinks from './ContactLinks.jsx';
 import { fmtMoney, fmtDateBR, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor } from './crmMeta.js';
 
 const VIEW_KEY = 'crm-deals-view';
@@ -67,6 +68,7 @@ function DealCard({ deal, stages, canDrag, canWrite, dragging, onOpen, onMove, o
       </div>
       <div className="crm-deal-co">{deal.companyName}{place ? ` · ${place}` : ''}</div>
       {deal.contactName && <div className="crm-deal-line"><User size={11} aria-hidden="true" /> {deal.contactName}</div>}
+      <ContactLinks phone={deal.contactPhone} whatsapp={deal.contactWhatsapp} email={deal.contactEmail} compact />
       {deal.source && <div className="crm-deal-line crm-muted">Origem: {deal.source}</div>}
       <div className="crm-deal-meta">
         <span className="crm-deal-value">{deal.value ? fmtMoney(deal.value) : <span className="crm-muted">sem valor</span>}</span>
@@ -146,6 +148,18 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
 
   useEffect(() => { crm.tags().then((r) => setTagList(r.tags || [])).catch(() => {}); }, [localKey]);
   useEffect(() => { const t = setTimeout(() => setDebouncedQ(q), 300); return () => clearTimeout(t); }, [q]);
+  // 1º acesso (sem funil lembrado): abre o funil onde a pessoa tem mais negócios em aberto, em vez do funil padrão.
+  useEffect(() => {
+    if (readPipe() || !currentUserId) return undefined;
+    let cancelled = false;
+    crm.deals({ ownerId: currentUserId, status: 'open', limit: 200 }).then((r) => {
+      if (cancelled) return;
+      const n = {}; (r.items || []).forEach((d) => { n[d.pipelineId] = (n[d.pipelineId] || 0) + 1; });
+      const best = Object.entries(n).sort((a, b) => b[1] - a[1])[0];
+      if (best && !readPipe()) { setPipelineId(best[0]); try { window.localStorage.setItem(PIPE_KEY, best[0]); } catch { /* sem storage */ } }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentUserId]);
   function changePipeline(v) { setPipelineId(v); try { window.localStorage.setItem(PIPE_KEY, v); } catch { /* sem storage */ } }
   function changeView(v) { setView(v); try { window.localStorage.setItem(VIEW_KEY, v); } catch { /* sem storage: só não lembra */ } }
 

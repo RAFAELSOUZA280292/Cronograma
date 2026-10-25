@@ -77,11 +77,11 @@ export function AttachmentList({ attachments = [], links = [], onRemoveAttachmen
         return (
           <div key={a.id} className="cmp-file">
             {isImg
-              ? <button type="button" className="cmp-thumb" onClick={() => setView(a)} aria-label={`Ver imagem ${a.name}`} title="Ver imagem"><img src={a.dataUrl} alt="" /></button>
+              ? <button type="button" className="cmp-thumb" onClick={() => setView(a)} aria-label={`Ver imagem ${a.name}`} title="Ver imagem"><img src={a.dataUrl || a.url} alt="" loading="lazy" /></button>
               : <FileText size={15} aria-hidden="true" />}
             {isImg
               ? <span className="cmp-file-name">{a.name}</span>
-              : <a className="cmp-file-name" href={a.dataUrl} download={a.name}>{a.name}</a>}
+              : <a className="cmp-file-name" href={a.dataUrl || a.url} download={a.name}>{a.name}</a>}
             <span className="cmp-file-size">{fmtSize(a.size)}</span>
             {onRemoveAttachment && <IconButton size="sm" label={`Remover anexo ${a.name}`} icon={X} onClick={() => onRemoveAttachment(a.id)} />}
           </div>
@@ -94,7 +94,7 @@ export function AttachmentList({ attachments = [], links = [], onRemoveAttachmen
           {onRemoveLink && <IconButton size="sm" label={`Remover link ${l.label || l.url}`} icon={X} onClick={() => onRemoveLink(l.id)} />}
         </div>
       ))}
-      {view && <ImageLightbox src={view.dataUrl} name={view.name} onClose={() => setView(null)} />}
+      {view && <ImageLightbox src={view.dataUrl || view.url} name={view.name} onClose={() => setView(null)} />}
     </div>
   );
 }

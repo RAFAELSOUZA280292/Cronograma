@@ -2,7 +2,8 @@
 import { randomUUID } from 'node:crypto';
 import { pool } from '../db.js';
 import { CrmError } from './errors.js';
-import { tx, addAudit, addTimeline, requireUuid } from './service.js';
+import { tx, addAudit, addTimeline, requireUuid, createCompany, createContact } from './service.js';
+import { createDeal } from './deals.js';
 
 export async function ensureCrmExtrasSchema(db) {
   await db.query(`ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS mrr NUMERIC(14,2) NOT NULL DEFAULT 0`);
@@ -70,4 +71,27 @@ export async function setDealTags(orgId, actor, dealId, names) {
       summary: `${actor.name} alterou as tags do negócio "${dr[0].title}": ${nextNames.join(', ') || 'nenhuma'}.`, data: { dealId, tags: nextNames } });
     return nextNames;
   });
+}
+
+// Lead rápido (rotina de quem prospecta): empresa nova + contato com telefone/WhatsApp + negócio num passo só, como o formulário do PipeRun.
+// Empresa parecida já cadastrada → 409 com a lista (a tela oferece "usar esta" ou "criar mesmo assim", `force`). Os 3 registros nascem pelas
+// mesmas funções da tela (validação, auditoria, linha do tempo); se o passo seguinte falhar, o que já foi criado fica (é um cadastro válido).
+export async function quickLead(orgId, actor, input) {
+  const src = input || {};
+  const companyName = String(src.companyName || '').trim();
+  if (companyName.length < 2) throw new CrmError(400, 'Informe o nome da empresa.');
+  const contactName = String(src.contactName || '').trim();
+  const phone = String(src.phone || '').trim();
+  const email = String(src.email || '').trim();
+  const company = await createCompany(orgId, actor, { legalName: companyName, relationship: 'prospect', ownerId: actor.id || null }, { force: !!src.force, timelineSummary: `${actor.name} cadastrou a empresa como lead rápido.` });
+  let contact = null;
+  if (contactName || phone || email) {
+    const [first, ...rest] = (contactName || 'Contato').split(/\s+/);
+    contact = await createContact(orgId, actor, { companyId: company.id, firstName: first, lastName: rest.join(' '), phone, whatsapp: phone, email, isPrimary: true }, { force: true });
+  }
+  const deal = await createDeal(orgId, actor, {
+    companyId: company.id, title: String(src.title || '').trim() || companyName, pipelineId: src.pipelineId || null, stageId: src.stageId || undefined,
+    primaryContactId: contact ? contact.id : undefined, source: String(src.source || '').slice(0, 200), value: 0,
+  });
+  return { deal, company, contact };
 }

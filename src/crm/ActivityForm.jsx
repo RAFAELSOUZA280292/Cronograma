@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { crm } from './crmApi.js';
 import { Modal, Field, RelPill, CancelButton, useDirty } from './ui.jsx';
-import { ACTIVITY_TYPES, PRIORITY_META } from './crmMeta.js';
+import { ACTIVITY_TYPES, PRIORITY_META, contactLabel } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
 
 
@@ -95,7 +95,7 @@ function ActivityForm({ initial, company, prefill, options, currentUserId, onSav
         </Field>
         <Field label="Contato">
           <select value={form.contactId} onChange={(e) => set('contactId', e.target.value)} disabled={!picked}>
-            <option value="">—</option>{contacts.map((c) => <option key={c.id} value={c.id}>{`${c.firstName} ${c.lastName}`.trim()}{c.jobTitle ? ` (${c.jobTitle})` : ''}</option>)}
+            <option value="">—</option>{contacts.map((c) => <option key={c.id} value={c.id}>{contactLabel(c)}{c.jobTitle ? ` (${c.jobTitle})` : ''}</option>)}
           </select>
         </Field>
         <Field label="Negócio (para não perder o próximo passo dele)" full>

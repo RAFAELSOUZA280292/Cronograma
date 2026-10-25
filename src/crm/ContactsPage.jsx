@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { crm } from './crmApi.js';
-import { DECISION_ROLES, roleLabel, STRENGTH_META, INFLUENCE_LABELS } from './crmMeta.js';
+import { DECISION_ROLES, roleLabel, STRENGTH_META, INFLUENCE_LABELS, contactLabel } from './crmMeta.js';
 
 const PAGE = 50;
 
@@ -46,7 +46,7 @@ export default function ContactsPage({ caps, refreshKey, onOpenCompany, onNewCon
               const st = STRENGTH_META[c.relationshipStrength];
               return (
                 <tr key={c.id} onClick={() => (caps.write ? onEditContact(c) : onOpenCompany(c.companyId, 'contacts'))}>
-                  <td><span className="crm-name">{`${c.firstName} ${c.lastName}`.trim()}</span>{c.isPrimary && ' ★'}</td>
+                  <td><span className="crm-name">{contactLabel(c)}</span>{c.isPrimary && ' ★'}</td>
                   <td onClick={(e) => { e.stopPropagation(); onOpenCompany(c.companyId, 'contacts'); }}><span style={{ textDecoration: 'underline', textDecorationColor: 'var(--border-3)' }}>{c.companyName}</span></td>
                   <td>{c.jobTitle || c.department}</td>
                   <td>{roleLabel(c.decisionRole)}</td>

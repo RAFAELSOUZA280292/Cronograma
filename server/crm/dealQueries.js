@@ -2,7 +2,7 @@
 import { pool } from '../db.js';
 import { CrmError } from './errors.js';
 import { companyNameKey } from './text.js';
-import { isUuid, todayBR } from './service.js';
+import { isUuid, todayBR, lightAttachments } from './service.js';
 import { resolvePipeline, SELECTABLE_LOST_REASONS } from './pipeline.js';
 import { listPipelines } from './funnels.js';
 import { DEAL_SELECT, DEAL_FROM, mapDeal, fetchDeal } from './deals.js';
@@ -103,7 +103,7 @@ export async function getDealDetail(orgId, id) {
     deal, activities,
     stageHistory: hist.rows.map((r) => ({ id: r.id, from: r.from_stage_name, to: r.to_stage_name, daysInFrom: r.days_in_from == null ? null : Number(r.days_in_from), actorName: r.actor_name, movedAt: r.moved_at })),
     timeline: tl.rows.map((r) => ({ id: r.id, eventType: r.event_type, summary: r.summary, actorName: r.actor_name, occurredAt: r.occurred_at })),
-    notes: notes.rows.map((r) => ({ id: r.id, body: r.body, attachments: r.attachments || [], links: r.links || [], editedAt: r.edited_at, createdAt: r.created_at, createdBy: r.created_by, createdByName: r.created_by_name || '' })),
+    notes: notes.rows.map((r) => ({ id: r.id, body: r.body, attachments: lightAttachments(r.id, r.attachments), links: r.links || [], editedAt: r.edited_at, createdAt: r.created_at, createdBy: r.created_by, createdByName: r.created_by_name || '' })),
     stages: pipe.stages, lostReasons: pipe.lostReasons,
   };
 }

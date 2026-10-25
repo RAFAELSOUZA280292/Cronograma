@@ -10,6 +10,7 @@ import { Modal, Field, CancelButton, useDirty } from './ui.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { fmtDateBR, fmtDateTimeBR, BUCKET_META, PRIORITY_META, activityTypeLabel } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
+import ContactLinks from './ContactLinks.jsx';
 
 
 const ICONS = { task: CheckSquare, call: Phone, email: Mail, meeting: Video, whatsapp: MessageCircle, visit: MapPin, followup: Repeat };
@@ -79,6 +80,7 @@ export default function ActivityList({ activities, caps, options, currentUserId,
             {a.status === 'done' && a.completedAt && <span>Concluída em {fmtDateTimeBR(a.completedAt)}{a.completedByName ? ` por ${a.completedByName}` : ''}</span>}
             {a.status === 'cancelled' && <span>Cancelada</span>}
           </div>
+          {open && <div style={{ marginTop: 4 }}><ContactLinks phone={a.contactPhone} whatsapp={a.contactWhatsapp} email={a.contactEmail} compact /></div>}
           {a.description && open && <div className="crm-muted" style={{ marginTop: 3 }}>{a.description}</div>}
           {a.outcome && <div className="crm-act-outcome">{a.outcome}</div>}
         </div>

@@ -10,7 +10,7 @@ import { INTERACTION_TYPES } from './activities.js';
 import { listProducts, BILLING } from './products.js';
 import { DEAL_TYPE_LABELS, SELECTABLE_LOST_REASONS } from './pipeline.js';
 import { listPipelines } from './funnels.js';
-import { COMPANY_SELECT, CONTACT_SELECT, mapCompany, mapContact, isUuid, todayBR, SOURCES, TAX_REGIMES, COMPANY_SIZES, ENUMS, RELATIONSHIP_LABELS } from './service.js';
+import { COMPANY_SELECT, CONTACT_SELECT, mapCompany, mapContact, isUuid, todayBR, lightAttachments, SOURCES, TAX_REGIMES, COMPANY_SIZES, ENUMS, RELATIONSHIP_LABELS } from './service.js';
 
 const SP_DATE = `to_char((now() AT TIME ZONE 'America/Sao_Paulo')::date,'YYYY-MM-DD')`;
 
@@ -127,7 +127,7 @@ export async function listNotes(orgId, companyId, { limit = 100 } = {}) {
             CASE WHEN n.entity_type = 'deal' THEN (SELECT d.title FROM crm_deals d WHERE d.id = n.entity_id) END AS deal_title
      FROM crm_notes n LEFT JOIN users u ON u.id = n.created_by
      WHERE n.org_id=$1 AND n.company_id=$2 AND n.deleted_at IS NULL ORDER BY n.created_at DESC LIMIT $3`, [orgId, companyId, limit]);
-  return rows.map((r) => ({ id: r.id, entityType: r.entity_type, entityId: r.entity_id, body: r.body, attachments: r.attachments || [], links: r.links || [], editedAt: r.edited_at, createdAt: r.created_at, createdBy: r.created_by, createdByName: r.created_by_name || '', contactName: r.contact_name || '', dealTitle: r.deal_title || '' }));
+  return rows.map((r) => ({ id: r.id, entityType: r.entity_type, entityId: r.entity_id, body: r.body, attachments: lightAttachments(r.id, r.attachments), links: r.links || [], editedAt: r.edited_at, createdAt: r.created_at, createdBy: r.created_by, createdByName: r.created_by_name || '', contactName: r.contact_name || '', dealTitle: r.deal_title || '' }));
 }
 
 export async function listContacts(orgId, f = {}) {

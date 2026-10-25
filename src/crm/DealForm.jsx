@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { Modal, Field, RelPill, CancelButton, useDirty } from './ui.jsx';
-import { fmtMoney, sourceLabel, moneyToNumber } from './crmMeta.js';
+import { fmtMoney, sourceLabel, moneyToNumber, contactLabel } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
 
 
@@ -29,14 +29,19 @@ function DealForm({ initial, company, defaultType, defaultPipelineId, options, c
   const [items, setItems] = useState(() => (editing && initial.items ? initial.items.map((i) => ({ productId: i.productId || CUSTOM, name: i.name, quantity: String(i.quantity), unitPrice: numStr(i.unitPrice) })) : []));
   const [picked, setPicked] = useState(company || (editing ? { id: initial.companyId, legalName: initial.companyName, relationship: initial.companyRelationship } : null));
   const pipelines = (options && options.pipelines) || [];
-  const [pipelineId, setPipelineId] = useState(() => (defaultPipelineId && pipelines.some((p) => p.id === defaultPipelineId) ? defaultPipelineId : ((pipelines.find((p) => p.isDefault) || pipelines[0] || {}).id || '')));
+  const [pipelineId, setPipelineId] = useState(() => {
+    const remembered = (() => { try { return window.localStorage.getItem('crm-deals-pipeline') || ''; } catch { return ''; } })(); // o funil em que a pessoa trabalha
+    const pick = [defaultPipelineId, remembered].find((id) => id && pipelines.some((p) => p.id === id));
+    return pick || ((pipelines.find((p) => p.isDefault) || pipelines[0] || {}).id || '');
+  });
   const [q, setQ] = useState('');
+  const [quick, setQuick] = useState(null); // lead rápido: { contactName, phone, email, dups }
   const [results, setResults] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  const dirty = useDirty({ form, items, company: picked && picked.id, pipelineId });
+  const dirty = useDirty({ form, items, company: picked && picked.id, pipelineId, quick });
   const products = (options && options.products) || [];
   const owners = (options && options.owners) || [];
   const isClient = picked && picked.relationship === 'client';
@@ -68,7 +73,7 @@ function DealForm({ initial, company, defaultType, defaultPipelineId, options, c
     setItem(idx, { productId, name: p ? p.name : '', unitPrice: p && p.listPrice != null ? numStr(p.listPrice) : '' });
   }
 
-  const blockReason = busy ? 'Aguarde terminar de salvar' : !picked ? 'Escolha a empresa para salvar' : !form.title.trim() ? 'Preencha o título do negócio para salvar' : '';
+  const blockReason = busy ? 'Aguarde terminar de salvar' : !picked && !quick ? 'Escolha a empresa (ou cadastre como lead rápido) para salvar' : !form.title.trim() && !quick ? 'Preencha o título do negócio para salvar' : '';
 
   async function save() {
     setError('');
@@ -85,9 +90,17 @@ function DealForm({ initial, company, defaultType, defaultPipelineId, options, c
     };
     setBusy(true);
     try {
+      if (!editing && !picked && quick) {
+        const r = await crm.quickLead({ companyName: q.trim(), contactName: quick.contactName, phone: quick.phone, email: quick.email, title: form.title, pipelineId, source: form.source, force: !!quick.force });
+        onSaved(r.deal);
+        return;
+      }
       if (editing) onSaved((await crm.updateDeal(initial.id, body)).deal);
       else onSaved((await crm.createDeal({ ...body, companyId: picked.id, ...(pipelineId ? { pipelineId } : {}) })).deal);
-    } catch (e) { setError(e.message || 'Não foi possível salvar.'); } finally { setBusy(false); }
+    } catch (e) {
+      const dups = e && e.data && e.data.duplicates && e.data.duplicates.byName;
+      if (quick && e && e.status === 409 && dups && dups.length) { setQuick((x) => ({ ...x, dups })); setError(''); } else setError(e.message || 'Não foi possível salvar.');
+    } finally { setBusy(false); }
   }
 
   return (
@@ -107,11 +120,34 @@ function DealForm({ initial, company, defaultType, defaultPipelineId, options, c
                   {r.legalName}<small>{r.tradeName}</small>
                 </button>
               ))}
-              {q.trim().length >= 2 && !results.length && <div className="crm-muted" style={{ marginTop: 6 }}>Empresa não encontrada. Cadastre em “+ Empresa” antes de abrir o negócio.</div>}
+              {q.trim().length >= 2 && !results.length && !quick && (
+                <div style={{ marginTop: 6 }}>
+                  <span className="crm-muted">Empresa não encontrada. </span>
+                  <button type="button" className="crm-btn" onClick={() => setQuick({ contactName: '', phone: '', email: '' })}><Plus size={14} /> Cadastrar “{q.trim()}” como lead novo</button>
+                </div>
+              )}
+              {quick && (
+                <div className="crm-section" style={{ marginTop: 8 }}>
+                  <h3 className="crm-section-title">Lead novo: {q.trim()} <button type="button" className="crm-btn" style={{ marginLeft: 8 }} onClick={() => setQuick(null)}>Cancelar</button></h3>
+                  <div className="crm-muted" style={{ marginBottom: 6 }}>Cria a empresa (sem CNPJ, a completar depois), o contato e o negócio de uma vez, com você como responsável.</div>
+                  <div className="crm-form-grid">
+                    <Field label="Nome do contato"><input value={quick.contactName} onChange={(e) => setQuick((x) => ({ ...x, contactName: e.target.value }))} placeholder="Quem atende" /></Field>
+                    <Field label="Telefone / WhatsApp"><input inputMode="tel" value={quick.phone} onChange={(e) => setQuick((x) => ({ ...x, phone: e.target.value }))} placeholder="Ex.: (41) 99999-0000" /></Field>
+                    <Field label="E-mail"><input type="email" value={quick.email} onChange={(e) => setQuick((x) => ({ ...x, email: e.target.value }))} /></Field>
+                  </div>
+                  {quick.dups && quick.dups.length > 0 && (
+                    <div className="crm-alert crm-alert-warn" style={{ marginTop: 8 }}>
+                      <strong>Já existe empresa parecida:</strong>
+                      {quick.dups.slice(0, 4).map((d) => <div key={d.id} style={{ marginTop: 4 }}>{d.legalName} <button type="button" className="crm-btn" onClick={() => { setPicked({ id: d.id, legalName: d.legalName, relationship: d.relationship }); setQuick(null); }}>Usar esta</button></div>)}
+                      <div style={{ marginTop: 6 }}><button type="button" className="crm-btn" onClick={() => setQuick((x) => ({ ...x, force: true, dups: null }))}>É outra empresa — criar mesmo assim</button></div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </Field>
-        <Field label="Título do negócio *" full><input value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="Ex.: Diagnóstico da Reforma Tributária" autoFocus={!!picked && !editing} /></Field>
+        <Field label={quick ? 'Título do negócio (vazio = nome da empresa)' : 'Título do negócio *'} full><input value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="Ex.: Diagnóstico da Reforma Tributária" autoFocus={!!picked && !editing} /></Field>
         {!editing && pipelines.length > 1 && (
           <Field label="Funil" full>
             <select value={pipelineId} onChange={(e) => setPipelineId(e.target.value)}>
@@ -160,7 +196,7 @@ function DealForm({ initial, company, defaultType, defaultPipelineId, options, c
         <div className="crm-form-group">Contexto</div>
         <Field label="Contato principal">
           <select value={form.primaryContactId} onChange={(e) => set('primaryContactId', e.target.value)} disabled={!picked}>
-            <option value="">—</option>{contacts.map((c) => <option key={c.id} value={c.id}>{`${c.firstName} ${c.lastName}`.trim()}{c.jobTitle ? ` (${c.jobTitle})` : ''}</option>)}
+            <option value="">—</option>{contacts.map((c) => <option key={c.id} value={c.id}>{contactLabel(c)}{c.jobTitle ? ` (${c.jobTitle})` : ''}</option>)}
           </select>
         </Field>
         <Field label="Origem">
