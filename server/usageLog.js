@@ -75,6 +75,8 @@ export const RETENTION = {
 export async function purgeTelemetry() {
   const a = await pool.query(`DELETE FROM user_usage_events WHERE at < now() - ($1 || ' days')::interval`, [String(RETENTION.usageDays)]);
   const b = await pool.query(`DELETE FROM user_access_events WHERE at < now() - ($1 || ' days')::interval`, [String(RETENTION.accessDays)]);
+  await pool.query(`DELETE FROM product_events WHERE at < now() - ($1 || ' days')::interval`, [String(RETENTION.usageDays)]).catch(() => {});
+  await pool.query(`DELETE FROM product_csat WHERE at < now() - ($1 || ' days')::interval`, [String(RETENTION.usageDays)]).catch(() => {});
   return { usage: a.rowCount, access: b.rowCount };
 }
 

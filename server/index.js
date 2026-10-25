@@ -1,4 +1,5 @@
 import { apiErrorHandler } from './errorHandler.js';
+import { router as experienceRouter } from './experience.js';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
@@ -75,6 +76,7 @@ app.use('/api/public-company', publicCompanyRouter);
 app.use('/d', companyDataRouter);
 app.use('/api/push', pushRouter);
 app.use('/api/ops-intel', opsIntelRouter);
+app.use('/api/experience', experienceRouter);
 app.use('/api/project-history', projectVersionsRouter);
 
 // Rota inexistente sob /api responde 404 em JSON — antes caía no fallback do SPA e devolvia o index.html com 200,

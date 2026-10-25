@@ -10,6 +10,7 @@ export function usagePolicy() {
       'Entradas no sistema: data, hora, endereço IP, cidade, estado e país aproximados (pelo IP), navegador e sistema operacional.',
       'Tempo com a aba visível e tempo com interação (mouse, teclado, rolagem), por módulo, tela e empresa aberta. Só para a equipe PRICETAX (perfis Master e PRICETAX).',
       'Ações pontuais: exportar PDF ou Excel, enviar transcrição ou arquivo, criar link de compartilhamento.',
+      'Experiência de uso (só a equipe): para cada fluxo do CRM — nome do fluxo, resultado (concluído, erro ou desfeito), duração e, nos erros, o tipo de rota e o status — e a nota de satisfação de 1 a 5, com comentário opcional nas notas baixas. Mostrado agregado por FLUXO, nunca por pessoa.',
       'Registros que o sistema já guardava: histórico de alterações das empresas, cartões, XFlow, CRM, perguntas à RENATA e envio de reuniões.',
     ],
     notCollected: [
@@ -17,6 +18,7 @@ export function usagePolicy() {
       'O que a pessoa faz em outros sites ou programas, ou com a aba em segundo plano.',
       'Localização exata: a cidade vem do IP e é aproximada (centro da cidade, margem de dezenas de km; redes móveis e VPN podem apontar para outro lugar).',
       'Tempo medido de clientes (perfil Cliente): só os acessos de segurança.',
+      'Na experiência de uso: nada digitado, nenhum movimento de mouse e nenhum tempo de tela; o identificador da pessoa serve só para limitar a frequência do pedido de nota (no máximo 1 a cada 14 dias) e nunca aparece nas telas de resultado.',
     ],
     access: 'Somente administradores (perfil Master) da mesma organização veem os dados individuais. Cada pessoa pode ver aqui como é medida.',
     retention: `Telemetria de uso: ${Math.round(RETENTION.usageDays / 30)} meses. Registros de acesso: ${Math.round(RETENTION.accessDays / 30)} meses. Depois disso são apagados automaticamente.`,

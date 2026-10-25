@@ -8,6 +8,7 @@
 //
 // Fila: um diálogo por vez (FIFO). Toasts: um só empilhamento para o app todo (o useToasts do App usa o mesmo store).
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import CsatHost from './CsatHost.jsx';
 import { X } from 'lucide-react';
 import { ConfirmDialog } from './index.jsx';
 import { useDialog } from '../lib/nav.js';
@@ -117,6 +118,7 @@ export function DialogHost() {
       )}
       {cur && cur.kind === 'text' && <PromptDialog key={queue.length + (cur.opts.title || '')} opts={cur.opts} onSubmit={(v) => finish(v)} onCancel={() => finish(null)} />}
       <ToastStack />
+      <CsatHost />
     </>
   );
 }

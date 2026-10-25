@@ -2,12 +2,13 @@
 // obrigatória: com `company` fixa (aberto pela ficha) não pergunta; sem ela,
 // busca. Com produtos na lista o valor passa a ser a soma deles (o servidor faz
 // a mesma conta) — o campo de valor só vale para negócio sem produtos.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { Modal, Field, RelPill, CancelButton, useDirty } from './ui.jsx';
 import { fmtMoney, sourceLabel, moneyToNumber, contactLabel } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
+import { trackFlow } from '../lib/experience.js';
 
 
 const CUSTOM = '__custom';
@@ -35,6 +36,7 @@ function DealForm({ initial, company, defaultType, defaultPipelineId, options, c
     return pick || ((pipelines.find((p) => p.isDefault) || pipelines[0] || {}).id || '');
   });
   const [q, setQ] = useState('');
+  const t0 = useRef(Date.now());
   const [quick, setQuick] = useState(null); // lead rápido: { contactName, phone, email, dups }
   const [results, setResults] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -92,12 +94,14 @@ function DealForm({ initial, company, defaultType, defaultPipelineId, options, c
     try {
       if (!editing && !picked && quick) {
         const r = await crm.quickLead({ companyName: q.trim(), contactName: quick.contactName, phone: quick.phone, email: quick.email, title: form.title, pipelineId, source: form.source, force: !!quick.force });
+        trackFlow('crm.lead_rapido', 'ok', Date.now() - t0.current);
         onSaved(r.deal);
         return;
       }
       if (editing) onSaved((await crm.updateDeal(initial.id, body)).deal);
-      else onSaved((await crm.createDeal({ ...body, companyId: picked.id, ...(pipelineId ? { pipelineId } : {}) })).deal);
+      else { const created = (await crm.createDeal({ ...body, companyId: picked.id, ...(pipelineId ? { pipelineId } : {}) })).deal; trackFlow('crm.negocio.criar', 'ok', Date.now() - t0.current); onSaved(created); }
     } catch (e) {
+      if (!editing) trackFlow(quick && !picked ? 'crm.lead_rapido' : 'crm.negocio.criar', 'error', Date.now() - t0.current);
       const dups = e && e.data && e.data.duplicates && e.data.duplicates.byName;
       if (quick && e && e.status === 409 && dups && dups.length) { setQuick((x) => ({ ...x, dups })); setError(''); } else setError(e.message || 'Não foi possível salvar.');
     } finally { setBusy(false); }

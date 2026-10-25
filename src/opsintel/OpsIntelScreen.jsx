@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, AlertTriangle, ArrowLeft, Clock, Globe, ShieldCheck, Users as UsersIcon, BarChart3 } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowLeft, Clock, Globe, ShieldCheck, Users as UsersIcon, BarChart3, Smile } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
 import { Button, Tabs } from '../ui/index.jsx';
 import { S } from '../styles/S.js';
@@ -144,7 +144,7 @@ export function OpsIntelScreen({ currentUser, onClose }) {
 
         <Tabs label="Seções da central" active={tab} onChange={setTab} tabs={[
           { id: 'geral', label: 'Visão geral', icon: BarChart3 }, { id: 'pessoas', label: 'Pessoas', icon: UsersIcon }, { id: 'pessoa', label: 'Linha do tempo', icon: Clock },
-          { id: 'mapa', label: 'Mapa de acessos', icon: Globe }, { id: 'alertas', label: 'Alertas', icon: AlertTriangle, count: ov ? ov.alerts.high : 0 }, { id: 'metodo', label: 'Metodologia e privacidade', icon: ShieldCheck },
+          { id: 'mapa', label: 'Mapa de acessos', icon: Globe }, { id: 'experiencia', label: 'Experiência de uso', icon: Smile }, { id: 'alertas', label: 'Alertas', icon: AlertTriangle, count: ov ? ov.alerts.high : 0 }, { id: 'metodo', label: 'Metodologia e privacidade', icon: ShieldCheck },
         ]} />
 
         <div style={{ marginTop: 14 }}>
@@ -153,6 +153,7 @@ export function OpsIntelScreen({ currentUser, onClose }) {
           {tab === 'pessoas' && <People ov={ov} loading={overview.loading} onOpenUser={openUser} />}
           {tab === 'pessoa' && <PersonTimeline qs={qs} userId={userId} people={people} peopleAll={peopleAll} onPick={setUserId} />}
           {tab === 'mapa' && <MapTab qs={qs} />}
+          {tab === 'experiencia' && <ExperienceTab range={range} />}
           {tab === 'alertas' && <AlertsTab userId={userId} profile={profile} />}
           {tab === 'metodo' && <Method />}
         </div>
@@ -325,6 +326,53 @@ function AlertsTab({ userId, profile }) {
   );
 }
 
+// Satisfação e atrito POR FLUXO (nunca por pessoa): execuções, taxa de sucesso, desfeitos, tempo mediano, nota de 1 a 5 e onde mais dá erro.
+const tone = (ok) => (ok == null ? undefined : { color: ok ? '#3ecf6e' : '#e2574c', fontWeight: 700 });
+const secs = (ms) => (ms == null ? '—' : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1).replace('.', ',')} s`);
+function ExperienceTab({ range }) {
+  const st = useApi(`/api/ops-intel/experience?from=${range.from}&to=${range.to}`, [range.from, range.to]);
+  const d = st.data;
+  const goals = d ? d.goals : { csat: 4.5, success: 0.9 };
+  const active = d ? d.flows.filter((f) => f.runs > 0 || f.csat.n > 0) : [];
+  return (
+    <>
+      <div className="oi-banner"><ShieldCheck size={16} style={{ flexShrink: 0, marginTop: 1 }} /><span>Mede o <strong>produto</strong>, não a pessoa: cada linha é um fluxo (ex.: "Concluir follow-up"), com resultado, duração e nota de 1 clique. Não guarda texto digitado, mouse nem tempo de tela, e nenhuma tela mostra quem fez. Metas iniciais de validação: sucesso ≥ {Math.round(goals.success * 100)}% e nota ≥ {String(goals.csat).replace('.', ',')}/5.</span></div>
+      {st.error && <div className="oi-err" role="alert">{st.error}</div>}
+      {st.loading && !d ? <div className="oi-empty">Carregando…</div> : (
+        <>
+          {!active.length && <div className="oi-empty">Ainda não há execuções medidas neste período. Os fluxos do CRM começam a aparecer conforme a equipe usa o painel.</div>}
+          {active.length > 0 && (
+            <div className="oi-card"><div className="oi-table-wrap"><table className="oi-table">
+              <thead><tr><th>Fluxo</th><th className="num">Execuções</th><th className="num">Sucesso</th><th className="num">Erros</th><th className="num">Desfeitos</th><th className="num">Tempo mediano</th><th className="num">90% em até</th><th className="num">Nota (respostas)</th></tr></thead>
+              <tbody>{active.map((f) => (
+                <tr key={f.flow}>
+                  <td>{f.label}</td><td className="num">{f.runs}</td>
+                  <td className="num" style={tone(f.successRate == null ? null : f.successRate / 100 >= goals.success)}>{f.successRate == null ? '—' : `${String(f.successRate).replace('.', ',')}%`}</td>
+                  <td className="num" style={f.errors ? { color: '#e2574c', fontWeight: 700 } : undefined}>{f.errors}</td>
+                  <td className="num">{f.undo}{f.runs ? ` (${String(f.undoRate).replace('.', ',')}%)` : ''}</td>
+                  <td className="num">{secs(f.p50Ms)}</td><td className="num">{secs(f.p90Ms)}</td>
+                  <td className="num" style={tone(f.csat.avg == null ? null : f.csat.avg >= goals.csat)}>{f.csat.avg == null ? '—' : `${String(f.csat.avg).replace('.', ',')} (${f.csat.n})`}</td>
+                </tr>))}</tbody>
+            </table></div></div>
+          )}
+          {d && d.errorRoutes.length > 0 && (
+            <div className="oi-card" style={{ marginTop: 12 }}><h3 style={{ marginTop: 0 }}>Onde mais dá erro</h3>
+              <div className="oi-table-wrap"><table className="oi-table"><thead><tr><th>Rota (tipo)</th><th className="num">Status</th><th className="num">Vezes</th></tr></thead>
+                <tbody>{d.errorRoutes.map((r, i) => <tr key={i}><td>{r.route}</td><td className="num">{r.status || 'sem rede'}</td><td className="num">{r.n}</td></tr>)}</tbody></table></div>
+              <div style={{ marginTop: 6, color: 'var(--text-4)', fontSize: 12 }}>Status 4xx são recusas esperadas (validação, permissão); 5xx e "sem rede" são falhas do produto ou da conexão.</div>
+            </div>
+          )}
+          {d && d.comments.length > 0 && (
+            <div className="oi-card" style={{ marginTop: 12 }}><h3 style={{ marginTop: 0 }}>O que atrapalhou (notas até 3, sem nome)</h3>
+              <ul>{d.comments.map((c, i) => <li key={i}><strong>{c.label}</strong> · nota {c.score} · {new Date(c.at).toLocaleDateString('pt-BR')} — {c.comment}</li>)}</ul>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
 function Method() {
   const st = useApi('/api/ops-intel/policy', []);
   const p = st.data && st.data.policy;
@@ -337,6 +385,7 @@ function Method() {
         <li><strong>Estimado.</strong> Onde não há medição (antes do rastreador ou perfis não medidos), usamos eventos que já existiam: acessos, histórico das empresas, cartões, XFlow, CRM, perguntas à RENATA e envio de reuniões. Um intervalo entre dois eventos seguidos conta no máximo <code>5 min</code>, o último evento de cada sessão conta <code>1 min</code>, e uma sessão termina após <code>30 min</code> sem evidência. Quem faz uma coisa a cada 40 minutos aparece com pouco tempo: é o limite da estimativa, não um julgamento.</li>
         <li><strong>Dia com medição</strong> usa só o medido; <strong>dia sem medição mas com eventos</strong> usa a estimativa; <strong>dia sem nada</strong> fica de fora (indisponível).</li>
         <li><strong>Operações registradas</strong> = ações medidas (exportar, enviar, compartilhar) + registros do sistema. O histórico das empresas guarda só as últimas 300 ações de cada empresa e identifica a pessoa pelo nome; nomes repetidos ficam de fora.</li>
+        <li><strong>Experiência de uso.</strong> A aba própria mede fluxos do produto (nome do fluxo, resultado, duração, tipo de rota que falhou) e a nota de 1 clique. Não coleta texto digitado, mouse nem tempo de tela; agrega por fluxo e nunca por pessoa. O pedido de nota é raro (no máximo 1 a cada 14 dias por pessoa) e pode ser dispensado.</li>
         <li><strong>Local.</strong> Cidade, estado e país vêm do IP por um serviço externo (ipwho.is); o ponto no mapa é o centro da cidade com círculo de 25 km. Não é coordenada exata.</li>
         <li><strong>Alertas.</strong> Regras fixas e visíveis: país novo, cidade nova, dispositivo novo (comparados ao histórico da própria pessoa, com mínimo de 5 a 10 acessos), dois locais a mais de 300 km a mais de 900 km/h, 3 senhas erradas em 24 h, 3 IPs em 1 h, madrugada fora do padrão e um IP errando várias contas.</li>
       </ul>

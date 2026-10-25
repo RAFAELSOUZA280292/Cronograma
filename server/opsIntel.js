@@ -5,6 +5,7 @@ import { effectiveOrgId } from './routes.js';
 import { backfillCoords, deviceLabel } from './accessLog.js';
 import { RETENTION } from './usageLog.js';
 import { usagePolicy } from './usagePolicy.js';
+import { summary as experienceSummary } from './experience.js';
 import { BASIS, activityIndex, aggregateMap, combineDays, dayOf, detectAlerts, heatFromTimestamps, hourOf, maskIp, pctChange, sessionize, summarizeSlices } from '../shared/usageMetrics.js';
 
 // Central de Inteligência Operacional (2026-10-25). Só master, mesma organização. Toda resposta separa o que foi MEDIDO
@@ -125,6 +126,13 @@ async function gather(req, q, period) {
   const [access, usage, ev] = await Promise.all([loadAccess(ids, period.fromMs, period.toMs), loadUsage(ids, period.fromMs, period.toMs), loadEvidence(users, orgId, period.fromMs, period.toMs)]);
   return { users, orgId, access, usage, evidence: ev.events, unmatchedLogs: ev.unmatchedLogs, projectNames: ev.projectNames };
 }
+
+router.get('/experience', async (req, res, next) => {
+  try {
+    const p = parsePeriod(req.query);
+    res.json({ from: p.from, to: p.to, ...(await experienceSummary(effectiveOrgId(req), new Date(p.fromMs).toISOString(), new Date(p.toMs).toISOString())) });
+  } catch (e) { next(e); }
+});
 
 router.get('/policy', (req, res) => res.json({ policy: usagePolicy(), retention: RETENTION }));
 

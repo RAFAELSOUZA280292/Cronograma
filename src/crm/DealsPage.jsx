@@ -13,6 +13,7 @@ import PipeRunMigration from './PipeRunMigration.jsx';
 import ContactLinks from './ContactLinks.jsx';
 import { InlineMoney, InlineDate, InlineSelect } from './InlineCells.jsx';
 import { fmtMoney, fmtDateBR, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor, cadenceNotice } from './crmMeta.js';
+import { trackFlow } from '../lib/experience.js';
 
 const VIEW_KEY = 'crm-deals-view';
 const PIPE_KEY = 'crm-deals-pipeline';
@@ -194,7 +195,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
   async function moveDeal(deal, stage) {
     if (deal.stageId === stage.id) return;
     if (stage.kind !== 'open') { setClosing({ deal, stage }); return; }
-    try { const r = await crm.moveDeal(deal.id, { stageId: stage.id }); const m = cadenceNotice(r.cadence); if (m) notify(m, { tone: 'success', ttlMs: 7000 }); reload(); if (onChanged) onChanged(); } catch (e) { notify(e.message || 'Não foi possível mover o negócio.', { tone: 'error' }); reload(); }
+    try { const r = await crm.moveDeal(deal.id, { stageId: stage.id }); trackFlow('crm.negocio.mover_etapa', 'ok'); const m = cadenceNotice(r.cadence); if (m) notify(m, { tone: 'success', ttlMs: 7000 }); reload(); if (onChanged) onChanged(); } catch (e) { notify(e.message || 'Não foi possível mover o negócio.', { tone: 'error' }); reload(); }
   }
 
   // Edição direta na lista: salva na hora; se o servidor recusar (ou ignorar), avisa e recarrega o valor real.
@@ -203,10 +204,11 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
       const r = await crm.updateDeal(deal.id, patch);
       if (patch.value !== undefined && Number(r.deal.value) !== Number(patch.value)) notify('O valor deste negócio vem dos produtos dele — edite os produtos na ficha.', { tone: 'info', ttlMs: 6000 });
       else {
+        trackFlow('crm.negocio.editar_direto', 'ok');
         const prev = {}; Object.keys(patch).forEach((k) => { prev[k] = k === 'value' ? Number(deal.value || 0) : (deal[k] === undefined ? null : deal[k]); });
-        notify('Salvo.', { tone: 'success', undo: async () => { try { await crm.updateDeal(deal.id, prev); } catch (e) { notify(e.message || 'Não foi possível desfazer.', { tone: 'error' }); } reload(); if (onChanged) onChanged(); } });
+        notify('Salvo.', { tone: 'success', undo: async () => { trackFlow('crm.negocio.editar_direto', 'undo'); try { await crm.updateDeal(deal.id, prev); } catch (e) { notify(e.message || 'Não foi possível desfazer.', { tone: 'error' }); } reload(); if (onChanged) onChanged(); } });
       }
-    } catch (e) { notify(e.message || 'Não foi possível salvar.', { tone: 'error' }); }
+    } catch (e) { trackFlow('crm.negocio.editar_direto', 'error'); notify(e.message || 'Não foi possível salvar.', { tone: 'error' }); }
     reload(); if (onChanged) onChanged();
   }
   const pipeStages = (pid) => { const p = ((options && options.pipelines) || []).find((x) => x.id === pid); return p ? p.stages || [] : []; };

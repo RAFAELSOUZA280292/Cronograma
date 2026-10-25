@@ -17,6 +17,7 @@ import { useDialog } from '../lib/nav.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { fmtMoney, fmtDateBR, fmtDateTimeBR, DEAL_TYPE_META, DEAL_STATUS_META, TIMELINE_KIND, sourceLabel, stageAgeColor, cadenceNotice } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
+import { trackFlow } from '../lib/experience.js';
 
 
 // A auditoria guarda os valores crus (new/open/won…); na tela vão em português.
@@ -66,7 +67,7 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
     const stage = data.stages.find((s) => s.id === stageId);
     if (!stage || stage.id === data.deal.stageId) return;
     if (stage.kind !== 'open') { setClosing(stage); return; }
-    try { const r = await crm.moveDeal(dealId, { stageId }); const m = cadenceNotice(r.cadence); if (m) notify(m, { tone: 'success', ttlMs: 7000 }); await afterChange(); } catch (e) { fail(e); }
+    try { const r = await crm.moveDeal(dealId, { stageId }); trackFlow('crm.negocio.mover_etapa', 'ok'); const m = cadenceNotice(r.cadence); if (m) notify(m, { tone: 'success', ttlMs: 7000 }); await afterChange(); } catch (e) { fail(e); }
   }
 
   async function removeDeal() {

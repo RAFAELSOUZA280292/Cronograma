@@ -1,12 +1,13 @@
 // Fila de follow-ups (§93): uma atividade por vez, da mais atrasada para a mais nova, com o contato a um toque (ligar / WhatsApp),
 // as últimas anotações do negócio, o resultado em uma linha e o próximo passo agendado sem sair da tela. Concluir → já vem a próxima.
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Clock, ExternalLink, SkipForward, CalendarClock, CheckCircle2 } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { Modal } from './ui.jsx';
 import ContactLinks from './ContactLinks.jsx';
 import { activityTypeLabel, fmtDateBR, realName } from './crmMeta.js';
 import { notify } from '../ui/dialogs.jsx';
+import { trackFlow } from '../lib/experience.js';
 
 const QUICK = ['Falei com o contato', 'Sem resposta', 'Deixei mensagem', 'Pediu para retornar depois'];
 const todayISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
@@ -26,6 +27,8 @@ export default function FollowUpQueue({ onClose, onChanged, onOpenDeal }) {
   const [done, setDone] = useState(0);
   const [initial, setInitial] = useState(0);
   const cur = items && items[0];
+  const t0 = useRef(Date.now());
+  useEffect(() => { t0.current = Date.now(); }, [cur && cur.id]);
 
   useEffect(() => {
     crm.activities({ ownerId: 'me', status: 'open', limit: 300 }).then((r) => { setItems(r.items || []); setInitial((r.items || []).length); }).catch((e) => setError(e.message || 'Não foi possível carregar a fila.'));
@@ -42,15 +45,17 @@ export default function FollowUpQueue({ onClose, onChanged, onOpenDeal }) {
     setBusy(true); setError('');
     try {
       const r = await crm.completeActivity(cur.id, outcome);
+      trackFlow('crm.followup.concluir', 'ok', Date.now() - t0.current);
       setDone((n) => n + 1); if (onChanged) onChanged();
       if (r.next) { notify(`Cadência: "${r.next.title}" agendado para ${fmtDateBR(r.next.dueDate)}.`, { tone: 'success', ttlMs: 6000 }); advance(); }
       else if (cur.dealId) { setLast(cur); setPhase('next'); } else advance();
-    } catch (e) { setError(e.message || 'Não foi possível concluir.'); } finally { setBusy(false); }
+    } catch (e) { trackFlow('crm.followup.concluir', 'error', Date.now() - t0.current); setError(e.message || 'Não foi possível concluir.'); } finally { setBusy(false); }
   }
   async function schedule(days) {
     setBusy(true); setError('');
     try {
       await crm.createActivity({ companyId: last.companyId, dealId: last.dealId, contactId: last.contactId || undefined, ownerId: last.ownerId || undefined, title: nextTitle(last.title), activityType: last.activityType, dueDate: plus(days), priority: 'normal' });
+      trackFlow('crm.followup.agendar_proximo', 'ok', Date.now() - t0.current);
       notify(`Próximo passo agendado para ${fmtDateBR(plus(days))}.`, { tone: 'success', ttlMs: 4000 }); if (onChanged) onChanged(); advance();
     } catch (e) { setError(e.message || 'Não foi possível agendar.'); } finally { setBusy(false); }
   }

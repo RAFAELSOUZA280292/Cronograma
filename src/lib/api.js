@@ -1,4 +1,5 @@
 import { beginSave } from './saveState.js';
+import { reportApiError } from './experience.js';
 
 // Mensagem em português claro para cada tipo de falha (§96): o que houve e o que a pessoa pode fazer. O servidor já manda mensagem boa nos
 // erros que conhece (validação, permissão, 409…); aqui cobrimos o que não chega do servidor (sem rede, proxy fora do ar) e os casos sem texto.
@@ -34,6 +35,7 @@ async function rawRequest(method, path, body) {
       ? 'Você está sem internet. Assim que a conexão voltar, tente de novo — nada foi perdido.'
       : 'Não conseguimos falar com o servidor. Confira sua internet e tente de novo.');
     err.status = 0; err.offline = true;
+    reportApiError(method, path, 0);
     throw err;
   }
   let data = null;
@@ -45,6 +47,7 @@ async function rawRequest(method, path, body) {
     err.message = message;
     err.ref = (data && data.ref) || '';
     err.data = data; // corpo completo do erro (ex.: lista de duplicados do CRM)
+    reportApiError(method, path, res.status);
     throw err;
   }
   return data;

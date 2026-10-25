@@ -7,6 +7,7 @@ import { Search, Star, Sparkles } from 'lucide-react';
 import { useDialog } from '../lib/nav.js';
 import { IconButton } from '../ui/index.jsx';
 import { getFavorites, getRecents, toggleFavorite } from '../lib/recents.js';
+import { trackFlow } from '../lib/experience.js';
 
 const fold = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const MAX = 40;
@@ -77,6 +78,7 @@ export default function CommandPalette({ getItems, getRemoteItems, onClose, onAs
   function run(item) {
     if (!item) return;
     onClose();
+    if (String(item.id).startsWith('act-')) trackFlow('paleta.acao', 'ok'); else if (String(item.id).startsWith('crm-')) trackFlow('paleta.busca_crm', 'ok');
     setTimeout(() => item.run(), 0);
   }
   function toggleFav(item) {

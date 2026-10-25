@@ -11,6 +11,7 @@ import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { fmtDateBR, fmtDateTimeBR, BUCKET_META, PRIORITY_META, activityTypeLabel } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
 import ContactLinks from './ContactLinks.jsx';
+import { trackFlow, startFlow } from '../lib/experience.js';
 
 
 const ICONS = { task: CheckSquare, call: Phone, email: Mail, meeting: Video, whatsapp: MessageCircle, visit: MapPin, followup: Repeat };
@@ -21,9 +22,10 @@ function CompleteDialogImpl({ activity, onCancel, onDone }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const dirty = useDirty({ outcome, next });
+  const t0 = useRef(Date.now());
   async function confirm() {
     setBusy(true); setError('');
-    try { const r = await crm.completeActivity(activity.id, outcome); if (r.next) notify(`Cadência: "${r.next.title}" agendado para ${fmtDateBR(r.next.dueDate)}.`, { tone: 'success', ttlMs: 7000 }); onDone(r.activity, next, !!r.next); } catch (e) { setError(e.message || 'Não foi possível concluir.'); } finally { setBusy(false); }
+    try { const r = await crm.completeActivity(activity.id, outcome); trackFlow('crm.followup.concluir', 'ok', Date.now() - t0.current); if (r.next) notify(`Cadência: "${r.next.title}" agendado para ${fmtDateBR(r.next.dueDate)}.`, { tone: 'success', ttlMs: 7000 }); onDone(r.activity, next, !!r.next); } catch (e) { trackFlow('crm.followup.concluir', 'error', Date.now() - t0.current); setError(e.message || 'Não foi possível concluir.'); } finally { setBusy(false); }
   }
   return (
     <Modal title="Concluir atividade" onClose={onCancel} width={500} dirty={dirty} locked={busy}>
@@ -98,7 +100,7 @@ export default function ActivityList({ activities, caps, options, currentUserId,
         </div>
         {caps.write && (
           <div className="crm-act-actions">
-            {open && caps.write && <Reschedule activity={a} onPick={(d) => act(() => crm.updateActivity(a.id, { dueDate: d }))} />}
+            {open && caps.write && <Reschedule activity={a} onPick={(d) => { const f = startFlow('crm.atividade.reagendar'); act(() => crm.updateActivity(a.id, { dueDate: d }).then(() => f('ok'), (e) => { f('error'); throw e; })); }} />}
             {open && <button type="button" className="crm-icon-btn" title="Editar atividade" aria-label="Editar atividade" onClick={() => setEditing(a)}><Pencil size={14} aria-hidden="true" /></button>}
             {open && <button type="button" className="crm-icon-btn" title="Cancelar atividade" aria-label="Cancelar atividade" onClick={() => act(() => crm.cancelActivity(a.id), { title: `Cancelar a atividade "${a.title}"?`, message: 'Ela sai da agenda, mas o histórico registra.', confirmLabel: 'Cancelar atividade', cancelLabel: 'Manter atividade', danger: true })}><Ban size={14} aria-hidden="true" /></button>}
             {!open && <button type="button" className="crm-icon-btn" title="Reabrir atividade" aria-label="Reabrir atividade" onClick={() => act(() => crm.reopenActivity(a.id))}><RotateCcw size={14} aria-hidden="true" /></button>}
