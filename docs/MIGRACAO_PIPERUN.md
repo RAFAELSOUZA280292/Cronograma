@@ -43,7 +43,7 @@ Tabelas novas (nada do CRM existente muda): `piperun_raw`, `piperun_map`, `piper
 - **Contato:** pessoa com empresa (direta, ou pela empresa do negócio dela). Dedupe por e-mail ou nome dentro da empresa. Pessoa sem empresa e sem negócio fica só no backup. E-mails extras não são guardados (o CRM tem 1 por contato).
 - **Anotações:** HTML → texto; data e hora originais; autor = usuário do CRM quando casa (e-mail, nome ou nome muito parecido com um só usuário); senão o nome vai no fim do texto. Anotações de negócio na lixeira do PipeRun não entram. **Propostas** viram anotação do negócio (valor, MRR, itens).
 - **Atividades:** tipo por nome (Ligação, E-mail, Reunião, WhatsApp, Follow Up…); aberta/feita/cancelada (no-show); data e hora da atividade; prioridade "normal" (a conta tem tudo com 3). Atividade antiga **não dispara lembrete** em massa. Sem negócio → fica só no backup.
-- **Arquivos:** só documentos (PDF, DOCX, XLS…) ligados a negócio, baixados do PipeRun, máximo 20 MB cada, guardados em `crm_deal_files`. Imagens e áudios ficam **só no backup**.
+- **Arquivos:** só documentos (PDF, DOCX, XLS…) ligados a negócio, baixados do PipeRun, máximo 30 MB cada, guardados em `crm_deal_files`. Imagens e áudios ficam **só no backup**.
 
 ## 4. Roteiro de operação (produção)
 

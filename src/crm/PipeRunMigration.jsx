@@ -155,7 +155,7 @@ function PipeRunMigration({ onClose, onDone }) {
                   </div>
                 ))}
               </div>
-              <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}><input type="checkbox" checked={includeFiles} onChange={(e) => setIncludeFiles(e.target.checked)} /> Subir os {preview.files.documents} documentos (PDF/DOCX…) para o CRM (baixados do PipeRun; máximo 20 MB cada)</label>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}><input type="checkbox" checked={includeFiles} onChange={(e) => setIncludeFiles(e.target.checked)} /> Subir os {preview.files.documents} documentos (PDF/DOCX…) para o CRM (baixados do PipeRun; máximo 30 MB cada)</label>
               <div className="crm-form-foot">
                 <button type="button" className="crm-btn" onClick={() => setStep(1)}>Voltar</button>
                 <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !!running} title={running ? 'Já há uma execução em andamento' : busy ? 'Aguarde' : undefined} onClick={importNow}>Importar agora</button>

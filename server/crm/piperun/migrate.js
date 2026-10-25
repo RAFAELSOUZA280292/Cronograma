@@ -12,7 +12,7 @@ import { loadRaw } from './extract.js';
 import * as T from './transform.js';
 
 const todayBR = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_FILE_BYTES = 30 * 1024 * 1024;
 const ISSUE_CAP = 400;
 
 // ---------- apoio ----------
@@ -283,10 +283,10 @@ export async function runMigration(orgId, actor, { ownerMap = {}, includeFiles =
         const res = await fetchImpl(f.url, { signal: ac.signal });
         if (!res.ok) throw new Error(`o PipeRun respondeu ${res.status}`);
         const len = Number(res.headers.get('content-length'));
-        if (Number.isFinite(len) && len > MAX_FILE_BYTES) throw new Error(`arquivo grande demais (${Math.round(len / 1048576)} MB; limite 20 MB)`);
+        if (Number.isFinite(len) && len > MAX_FILE_BYTES) throw new Error(`arquivo grande demais (${Math.round(len / 1048576)} MB; limite 30 MB)`);
         buf = Buffer.from(await res.arrayBuffer());
       } finally { clearTimeout(to); }
-      if (buf.length > MAX_FILE_BYTES) throw new Error('arquivo grande demais (limite 20 MB)');
+      if (buf.length > MAX_FILE_BYTES) throw new Error('arquivo grande demais (limite 30 MB)');
       if (!buf.length) throw new Error('arquivo vazio');
       const id = randomUUID();
       await pool.query(
