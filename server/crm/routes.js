@@ -131,7 +131,10 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
   router.post('/pipelines/:id/stages', need('funnel'), h(async (req, res) => res.json({ pipelines: await F.saveStages(orgOf(req), actorOf(req), req.params.id, (req.body || {}).stages) })));
   router.get('/board', h(async (req, res) => res.json(await DQ.getBoard(orgOf(req), req.query))));
   router.get('/deals', h(async (req, res) => res.json(await DQ.listDeals(orgOf(req), req.query))));
-  router.post('/deals', need('write'), h(async (req, res) => res.status(201).json({ deal: await D.createDeal(orgOf(req), actorOf(req), req.body || {}) })));
+  router.post('/deals', need('write'), h(async (req, res) => {
+    const deal = await D.createDeal(orgOf(req), actorOf(req), req.body || {});
+    res.status(201).json({ deal, cadence: await X.cadenceAfterMove(orgOf(req), actorOf(req), deal) });
+  }));
   router.get('/deals/:id', h(async (req, res) => res.json(await DQ.getDealDetail(orgOf(req), req.params.id))));
   router.patch('/deals/:id', need('write'), h(async (req, res) => res.json({ deal: await D.updateDeal(orgOf(req), actorOf(req), req.params.id, req.body || {}, { canEditClosed: crmCan(req.user, 'remove') }) })));
   router.post('/leads', need('write'), h(async (req, res) => res.status(201).json(await X.quickLead(orgOf(req), actorOf(req), req.body || {}))));
@@ -147,9 +150,16 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
       ...(type === 'application/octet-stream' || type === 'application/pdf' ? { 'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(att.name || 'anexo')}` } : {}) });
     res.send(m[2] ? Buffer.from(m[3], 'base64') : Buffer.from(decodeURIComponent(m[3])));
   }));
+  router.get('/cadences', h(async (req, res) => res.json({ cadences: await X.listCadences(orgOf(req)) })));
+  router.post('/cadences', need('funnel'), h(async (req, res) => res.status(201).json({ cadence: await X.saveCadence(orgOf(req), actorOf(req), req.body || {}) })));
+  router.patch('/cadences/:id', need('funnel'), h(async (req, res) => res.json({ cadence: await X.saveCadence(orgOf(req), actorOf(req), req.body || {}, req.params.id) })));
+  router.delete('/cadences/:id', need('funnel'), h(async (req, res) => res.json(await X.deleteCadence(orgOf(req), actorOf(req), req.params.id))));
   router.get('/tags', h(async (req, res) => res.json({ tags: await X.listTags(orgOf(req)) })));
   router.put('/deals/:id/tags', need('write'), h(async (req, res) => res.json({ tags: await X.setDealTags(orgOf(req), actorOf(req), req.params.id, (req.body || {}).tags) })));
-  router.post('/deals/:id/move', need('write'), h(async (req, res) => res.json({ deal: await D.moveDeal(orgOf(req), actorOf(req), req.params.id, req.body || {}) })));
+  router.post('/deals/:id/move', need('write'), h(async (req, res) => {
+    const deal = await D.moveDeal(orgOf(req), actorOf(req), req.params.id, req.body || {});
+    res.json({ deal, cadence: await X.cadenceAfterMove(orgOf(req), actorOf(req), deal) });
+  }));
   router.delete('/deals/:id', need('remove'), h(async (req, res) => res.json(await D.deleteDeal(orgOf(req), actorOf(req), req.params.id))));
   router.get('/deals/:id/audit', need('remove'), h(async (req, res) => res.json({ logs: await Q.listAudit(orgOf(req), 'deal', req.params.id) })));
 
@@ -160,7 +170,10 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
     res.status(201).json({ activity: await A.createActivity(orgOf(req), actorOf(req), input, { alreadyDone: !!alreadyDone }) });
   }));
   router.patch('/activities/:id', need('write'), h(async (req, res) => res.json({ activity: await A.updateActivity(orgOf(req), actorOf(req), req.params.id, req.body || {}) })));
-  router.post('/activities/:id/complete', need('write'), h(async (req, res) => res.json({ activity: await A.completeActivity(orgOf(req), actorOf(req), req.params.id, req.body || {}) })));
+  router.post('/activities/:id/complete', need('write'), h(async (req, res) => {
+    const activity = await A.completeActivity(orgOf(req), actorOf(req), req.params.id, req.body || {});
+    res.json({ activity, next: await X.cadenceAfterComplete(orgOf(req), actorOf(req), activity.id) });
+  }));
   router.post('/activities/:id/cancel', need('write'), h(async (req, res) => res.json({ activity: await A.cancelActivity(orgOf(req), actorOf(req), req.params.id) })));
   router.post('/activities/:id/reopen', need('write'), h(async (req, res) => res.json({ activity: await A.reopenActivity(orgOf(req), actorOf(req), req.params.id) })));
   router.delete('/activities/:id', need('remove'), h(async (req, res) => res.json(await A.deleteActivity(orgOf(req), actorOf(req), req.params.id))));

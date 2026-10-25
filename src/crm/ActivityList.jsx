@@ -23,7 +23,7 @@ function CompleteDialogImpl({ activity, onCancel, onDone }) {
   const dirty = useDirty({ outcome, next });
   async function confirm() {
     setBusy(true); setError('');
-    try { const r = await crm.completeActivity(activity.id, outcome); onDone(r.activity, next); } catch (e) { setError(e.message || 'Não foi possível concluir.'); } finally { setBusy(false); }
+    try { const r = await crm.completeActivity(activity.id, outcome); if (r.next) notify(`Cadência: "${r.next.title}" agendado para ${fmtDateBR(r.next.dueDate)}.`, { tone: 'success', ttlMs: 7000 }); onDone(r.activity, next, !!r.next); } catch (e) { setError(e.message || 'Não foi possível concluir.'); } finally { setBusy(false); }
   }
   return (
     <Modal title="Concluir atividade" onClose={onCancel} width={500} dirty={dirty} locked={busy}>
@@ -113,7 +113,7 @@ export default function ActivityList({ activities, caps, options, currentUserId,
           );
         })
         : <div>{activities.map(renderRow)}</div>}
-      {completing && <CompleteDialog activity={completing} onCancel={() => setCompleting(null)} onDone={(done, wantsNext) => { setCompleting(null); changed(); if (wantsNext) setScheduling(done); }} />}
+      {completing && <CompleteDialog activity={completing} onCancel={() => setCompleting(null)} onDone={(done, wantsNext, cadenceScheduled) => { setCompleting(null); changed(); if (wantsNext && !cadenceScheduled) setScheduling(done); }} />}
       {editing && <ActivityForm initial={editing} options={options} currentUserId={currentUserId} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); changed(); }} />}
       {scheduling && (
         <ActivityForm company={{ id: scheduling.companyId, legalName: scheduling.companyName }} options={options} currentUserId={currentUserId}

@@ -23,6 +23,8 @@ Método: dados reais do backup do PipeRun carregados num **sandbox local** (`scr
 3. **Lead rápido**: em "Criar negócio", se a empresa não existe → "Cadastrar … como lead novo" cria **empresa + contato (telefone/WhatsApp) + negócio num passo só**, com ela de responsável (como o formulário do PipeRun). Empresa parecida → avisa e oferece "usar esta".
 4. **Primeiro acesso abre o funil onde ela mais trabalha** (Tributaristas e Contadores), e o formulário de negócio já vem nesse funil.
 5. Tags, MRR, prazo de etapa, previsão (entregues antes) aparecem nos cartões.
+6. **Fila de follow-ups** (botão na Agenda): uma atividade por vez, com ligar/WhatsApp, últimas anotações, resultado em 1 linha e "Concluir e próximo".
+7. **Cadência de follow-up** configurável por etapa (Funis e etapas): o CRM agenda o 1º/2º/3º follow-up sozinho (§93).
 
 ## Critério objetivo de aprovação (APROVADO só se TODOS forem verdadeiros)
 - **C1** Acesso: ela entra, vê o módulo CRM e o perfil dele permite o que ela faz (ler, criar, editar, mover, concluir).

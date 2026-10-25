@@ -11,7 +11,7 @@ import FunnelsAdmin from './FunnelsAdmin.jsx';
 import DealImportWizard from './DealImportWizard.jsx';
 import PipeRunMigration from './PipeRunMigration.jsx';
 import ContactLinks from './ContactLinks.jsx';
-import { fmtMoney, fmtDateBR, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor } from './crmMeta.js';
+import { fmtMoney, fmtDateBR, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor, cadenceNotice } from './crmMeta.js';
 
 const VIEW_KEY = 'crm-deals-view';
 const PIPE_KEY = 'crm-deals-pipeline';
@@ -193,7 +193,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
   async function moveDeal(deal, stage) {
     if (deal.stageId === stage.id) return;
     if (stage.kind !== 'open') { setClosing({ deal, stage }); return; }
-    try { await crm.moveDeal(deal.id, { stageId: stage.id }); reload(); if (onChanged) onChanged(); } catch (e) { notify(e.message || 'Não foi possível mover o negócio.', { tone: 'error' }); reload(); }
+    try { const r = await crm.moveDeal(deal.id, { stageId: stage.id }); const m = cadenceNotice(r.cadence); if (m) notify(m, { tone: 'success', ttlMs: 7000 }); reload(); if (onChanged) onChanged(); } catch (e) { notify(e.message || 'Não foi possível mover o negócio.', { tone: 'error' }); reload(); }
   }
 
   async function quick(action, deal) {

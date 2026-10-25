@@ -10,11 +10,32 @@ const ORG = 'sandbox-edu';
 let failed = 0;
 const ok = (name, cond, extra) => { if (cond) console.log(`ok   ${name}`); else { failed += 1; console.log(`FAIL ${name}${extra !== undefined ? ` -> ${typeof extra === 'string' ? extra : JSON.stringify(extra)}` : ''}`); } };
 const pool = new pg.Pool({ connectionString: DB });
+// limpeza dos registros de teste (o histórico do CRM é somente-inserção: desliga os gatilhos só aqui, no banco local)
+const HIST = ['crm_timeline_events', 'crm_audit_logs', 'crm_deal_stage_history'];
+async function limpar() {
+  for (const t of HIST) await pool.query(`ALTER TABLE ${t} DISABLE TRIGGER USER`);
+  const { rows: cs } = await pool.query(`SELECT id FROM crm_companies WHERE org_id=$1 AND legal_name LIKE $2`, [ORG, 'Lead Teste Rápido%']);
+  const ids = cs.map((r) => r.id);
+  await pool.query(`DELETE FROM crm_timeline_events WHERE org_id=$1 AND company_id = ANY($2::uuid[])`, [ORG, ids]);
+  await pool.query(`DELETE FROM crm_audit_logs WHERE org_id=$1 AND (entity_id IN (SELECT id FROM crm_activities WHERE company_id = ANY($2::uuid[])) OR entity_id = ANY($2::uuid[]) OR entity_id IN (SELECT id FROM crm_deals WHERE company_id = ANY($2::uuid[])) OR entity_id IN (SELECT id FROM crm_contacts WHERE company_id = ANY($2::uuid[])))`, [ORG, ids]);
+  await pool.query(`DELETE FROM crm_deal_stage_history WHERE deal_id IN (SELECT id FROM crm_deals WHERE company_id = ANY($1::uuid[]))`, [ids]);
+  await pool.query(`DELETE FROM crm_activities WHERE company_id = ANY($1::uuid[])`, [ids]);
+  await pool.query(`DELETE FROM crm_notes WHERE company_id = ANY($1::uuid[])`, [ids]);
+  await pool.query(`DELETE FROM crm_deals WHERE company_id = ANY($1::uuid[])`, [ids]);
+  await pool.query(`DELETE FROM crm_contacts WHERE company_id = ANY($1::uuid[])`, [ids]);
+  await pool.query(`DELETE FROM crm_companies WHERE id = ANY($1::uuid[])`, [ids]);
+  await pool.query(`DELETE FROM crm_cadences WHERE org_id=$1`, [ORG]);
+  for (const t of HIST) await pool.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`);
+}
+await limpar();
 const lr = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'sbx_eduarda', password: PASS }) });
 const cookie = (lr.headers.get('set-cookie') || '').split(';')[0];
 ok('login da Eduarda (sandbox)', lr.status === 200 && !!cookie, lr.status);
 const call = async (method, path, body) => { const x = await fetch(`${BASE}${path}`, { method, headers: { Cookie: cookie, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined }); let json = null; try { json = await x.json(); } catch { /* sem corpo */ } return { status: x.status, json }; };
 
+const lr2 = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'sbx_admin', password: PASS }) });
+const cookieAdmin = (lr2.headers.get('set-cookie') || '').split(';')[0];
+const callAs = async (ck, method, path, body) => { const x = await fetch(`${BASE}${path}`, { method, headers: { Cookie: ck, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined }); let json = null; try { json = await x.json(); } catch { /* sem corpo */ } return { status: x.status, json }; };
 const me = await call('GET', '/api/crm/me');
 ok('perfil Vendedor: lê e escreve; não exclui, não importa, não configura funil', me.json.capabilities.write && me.json.capabilities.read && !me.json.capabilities.remove && !me.json.capabilities.import && !me.json.capabilities.funnel, me.json.capabilities);
 const mine = await call('GET', '/api/crm/deals?status=all&limit=200&ownerId=sbx_eduarda');
@@ -59,18 +80,53 @@ ok('"criar mesmo assim" (force) cria', l3.status === 201, l3.status);
 ok('lead sem nome da empresa → 400', (await call('POST', '/api/crm/leads', { companyName: ' ' })).status === 400);
 const noAuth = await fetch(`${BASE}/api/crm/leads`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"companyName":"x"}' });
 ok('lead sem login → 401', noAuth.status === 401);
-// limpeza dos registros de teste (o histórico do CRM é somente-inserção: desliga os gatilhos só aqui, no banco local)
-const HIST = ['crm_timeline_events', 'crm_audit_logs', 'crm_deal_stage_history'];
-for (const t of HIST) await pool.query(`ALTER TABLE ${t} DISABLE TRIGGER USER`);
-const { rows: cs } = await pool.query(`SELECT id FROM crm_companies WHERE org_id=$1 AND legal_name=$2`, [ORG, NAME]);
-const ids = cs.map((r) => r.id);
-await pool.query(`DELETE FROM crm_timeline_events WHERE org_id=$1 AND company_id = ANY($2::uuid[])`, [ORG, ids]);
-await pool.query(`DELETE FROM crm_audit_logs WHERE org_id=$1 AND (entity_id = ANY($2::uuid[]) OR entity_id IN (SELECT id FROM crm_deals WHERE company_id = ANY($2::uuid[])) OR entity_id IN (SELECT id FROM crm_contacts WHERE company_id = ANY($2::uuid[])))`, [ORG, ids]);
-await pool.query(`DELETE FROM crm_deal_stage_history WHERE deal_id IN (SELECT id FROM crm_deals WHERE company_id = ANY($1::uuid[]))`, [ids]);
-await pool.query(`DELETE FROM crm_deals WHERE company_id = ANY($1::uuid[])`, [ids]);
-await pool.query(`DELETE FROM crm_contacts WHERE company_id = ANY($1::uuid[])`, [ids]);
-await pool.query(`DELETE FROM crm_companies WHERE id = ANY($1::uuid[])`, [ids]);
-for (const t of HIST) await pool.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`);
+// ---------- Cadência de follow-up ----------
+await pool.query(`DELETE FROM crm_cadences WHERE org_id=$1`, [ORG]);
+const stagesT = trib.stages.filter((x) => x.kind === 'open');
+const conexao = stagesT.find((x) => x.name === 'Conexão'); const mapeamento = stagesT.find((x) => x.name === 'Mapeamento');
+const STEPS = [{ title: '1º Follow Up', type: 'followup', days: 1 }, { title: '2º Follow Up', type: 'followup', days: 3 }, { title: '3º Follow Up', type: 'whatsapp', days: 7 }];
+ok('vendedor não configura cadência (403)', (await call('POST', '/api/crm/cadences', { pipelineId: trib.id, stageId: conexao.id, steps: STEPS })).status === 403);
+const cadBad = await callAs(cookieAdmin, 'POST', '/api/crm/cadences', { pipelineId: trib.id, stageId: conexao.id, steps: [] });
+ok('cadência sem passos → 400; dias inválidos → 400', cadBad.status === 400 && (await callAs(cookieAdmin, 'POST', '/api/crm/cadences', { pipelineId: trib.id, stageId: conexao.id, steps: [{ title: 'x', days: -1 }] })).status === 400);
+const lead = (await call('POST', '/api/crm/leads', { companyName: `${NAME} Cad`, contactName: 'Cadência Teste', phone: '41977776666', pipelineId: trib.id, force: true })).json;
+const cadOk = await callAs(cookieAdmin, 'POST', '/api/crm/cadences', { pipelineId: trib.id, stageId: conexao.id, steps: STEPS });
+ok('administrador cria a cadência da etapa (201)', cadOk.status === 201 && cadOk.json.cadence.steps.length === 3, cadOk.json);
+ok('segunda cadência na mesma etapa → 409', (await callAs(cookieAdmin, 'POST', '/api/crm/cadences', { pipelineId: trib.id, stageId: conexao.id, steps: STEPS })).status === 409);
+ok('lead nasce em "Leads": sem cadência ainda (nada agendado)', !lead.cadence.scheduled, lead.cadence);
+const actsOf = async (dealId) => (await call('GET', `/api/crm/activities?dealId=${dealId}&status=all&limit=50`)).json.items;
+const mv = await call('POST', `/api/crm/deals/${lead.deal.id}/move`, { stageId: conexao.id });
+ok('mover para a etapa da cadência agenda o 1º passo, com ela de responsável, vencendo amanhã', mv.status === 200 && mv.json.cadence.scheduled && mv.json.cadence.scheduled.title === '1º Follow Up' && mv.json.cadence.scheduled.ownerId === 'sbx_eduarda', mv.json.cadence);
+const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+ok('o passo vence amanhã e aponta o contato do negócio', mv.json.cadence.scheduled.dueDate === tomorrow && !!mv.json.cadence.scheduled.contactId, { due: mv.json.cadence.scheduled.dueDate, tomorrow });
+const mv2 = await call('POST', `/api/crm/deals/${lead.deal.id}/move`, { stageId: conexao.id });
+ok('mover de novo para a mesma etapa não duplica o passo', (await actsOf(lead.deal.id)).filter((a) => a.status === 'open').length === 1, mv2.status);
+const c1 = await call('POST', `/api/crm/activities/${mv.json.cadence.scheduled.id}/complete`, { outcome: 'Falei com o contato' });
+ok('concluir o passo 1 agenda o passo 2 (+3 dias)', c1.status === 200 && c1.json.next && c1.json.next.title === '2º Follow Up' && c1.json.next.cadenceStep === 2, c1.json.next);
+const c2 = await call('POST', `/api/crm/activities/${c1.json.next.id}/complete`, { outcome: 'Sem resposta' });
+ok('concluir o passo 2 agenda o 3º (WhatsApp, +7 dias)', c2.json.next && c2.json.next.title === '3º Follow Up' && c2.json.next.activityType === 'whatsapp', c2.json.next);
+const c3 = await call('POST', `/api/crm/activities/${c2.json.next.id}/complete`, {});
+ok('depois do último passo não agenda mais nada', c3.status === 200 && c3.json.next === null, c3.json.next);
+const manual = (await call('POST', '/api/crm/activities', { companyId: lead.company.id, dealId: lead.deal.id, title: 'Atividade manual', activityType: 'task', dueDate: tomorrow })).json.activity;
+const c4 = await call('POST', `/api/crm/activities/${manual.id}/complete`, {});
+ok('atividade manual (fora da cadência) não dispara passo seguinte', c4.json.next === null);
+// sair da etapa cancela o que sobrou
+const lead2 = (await call('POST', '/api/crm/leads', { companyName: `${NAME} Cad2`, contactName: 'Outro', phone: '41966665555', pipelineId: trib.id, force: true })).json;
+const a2 = await call('POST', `/api/crm/deals/${lead2.deal.id}/move`, { stageId: conexao.id });
+const out2 = await call('POST', `/api/crm/deals/${lead2.deal.id}/move`, { stageId: mapeamento.id });
+const acts2 = await actsOf(lead2.deal.id);
+ok('sair da etapa cancela o passo aberto da cadência', a2.json.cadence.scheduled && out2.json.cadence.cancelled === 1 && acts2.filter((a) => a.status === 'open').length === 0 && acts2.some((a) => a.status === 'cancelled'), { out: out2.json.cadence, acts: acts2.map((a) => a.status) });
+// fechar cancela
+await call('POST', `/api/crm/deals/${lead2.deal.id}/move`, { stageId: conexao.id });
+const lost = await call('POST', `/api/crm/deals/${lead2.deal.id}/move`, { stageId: trib.stages.find((x) => x.kind === 'lost').id, lostReason: 'preco' });
+ok('perder o negócio cancela os passos abertos', lost.status === 200 && (await actsOf(lead2.deal.id)).filter((a) => a.status === 'open').length === 0, lost.json && lost.json.message);
+// desligar a cadência
+await callAs(cookieAdmin, 'PATCH', `/api/crm/cadences/${cadOk.json.cadence.id}`, { active: false, steps: STEPS });
+const lead3 = (await call('POST', '/api/crm/leads', { companyName: `${NAME} Cad3`, contactName: 'Três', phone: '41955554444', pipelineId: trib.id, force: true })).json;
+const a3 = await call('POST', `/api/crm/deals/${lead3.deal.id}/move`, { stageId: conexao.id });
+ok('cadência desligada não agenda nada', a3.json.cadence.scheduled === null, a3.json.cadence);
+ok('cadência aparece na lista e some ao remover', (await call('GET', '/api/crm/cadences')).json.cadences.length === 1 && (await callAs(cookieAdmin, 'DELETE', `/api/crm/cadences/${cadOk.json.cadence.id}`)).status === 200 && (await call('GET', '/api/crm/cadences')).json.cadences.length === 0);
+
+await limpar();
 await pool.end();
 console.log(failed ? `\n${failed} FALHA(S)` : '\ntodos os testes da rotina da Eduarda ok');
 process.exit(failed ? 1 : 0);

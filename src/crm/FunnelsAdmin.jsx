@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowUp, ArrowDown, Trash2, Plus, Star } from 'lucide-react';
 import { crm } from './crmApi.js';
+import CadenceEditor from './CadenceEditor.jsx';
 import { Modal } from './ui.jsx';
 import { askConfirm } from '../ui/dialogs.jsx';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
@@ -126,6 +127,7 @@ function FunnelsAdmin({ initialId, onClose, onChanged }) {
               </span>
             </div>
             <div className="crm-muted" style={{ marginTop: 10 }}>A “chance” é o ponto de partida do valor ponderado do funil. Ganho vale sempre 100% e Perdido 0%. Etapa removida é arquivada: o histórico dos negócios antigos continua intacto.</div>
+            <CadenceEditor pipeline={sel} />
             <div className="crm-section" style={{ marginTop: 16 }}>
               <h3 className="crm-section-title">Automação ao ganhar</h3>
               <div className="crm-muted" style={{ marginBottom: 8 }}>Ao ganhar um negócio deste funil, o CRM pode criar sozinho uma cópia dele em outro funil (por exemplo, passar do comercial para o pós-venda). A cópia leva empresa, valor, responsável, contato, origem e produtos, e nasce em aberto. Ganhar de novo não duplica.</div>

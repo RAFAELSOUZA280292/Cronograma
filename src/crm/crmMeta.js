@@ -357,3 +357,12 @@ export function contactLabel(c) {
   const n = realName(`${c.firstName || ''} ${c.lastName || ''}`);
   return n || fmtPhone(c.whatsapp || c.phone) || c.email || 'Sem nome';
 }
+
+// Mensagem curta do que a cadência fez ao mover o negócio ou concluir um passo ({ scheduled, cancelled } ou a atividade seguinte).
+export function cadenceNotice(c) {
+  if (!c) return '';
+  const parts = [];
+  if (c.scheduled) parts.push(`Cadência: "${c.scheduled.title}" agendado para ${fmtDateBR(c.scheduled.dueDate)}.`);
+  if (c.cancelled) parts.push(`${c.cancelled} passo(s) da cadência cancelado(s).`);
+  return parts.join(' ');
+}

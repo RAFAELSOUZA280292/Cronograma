@@ -4,9 +4,10 @@
 // nunca é trocada por "Carregando" depois da 1ª carga — assim os diálogos de
 // concluir/próximo passo não somem no meio do fluxo.
 import React, { useEffect, useState } from 'react';
-import { Plus, CalendarCheck } from 'lucide-react';
+import { Plus, CalendarCheck, ListChecks } from 'lucide-react';
 import { crm } from './crmApi.js';
 import ActivityList from './ActivityList.jsx';
+import FollowUpQueue from './FollowUpQueue.jsx';
 import { ACTIVITY_TYPES, BUCKET_META } from './crmMeta.js';
 
 export default function AgendaPage({ caps, options, currentUserId, refreshKey, onOpenCompany, onOpenDeal, onNewActivity, onChanged }) {
@@ -19,6 +20,7 @@ export default function AgendaPage({ caps, options, currentUserId, refreshKey, o
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [localKey, setLocalKey] = useState(0);
+  const [queue, setQueue] = useState(false);
   const owners = (options && options.owners) || [];
 
   useEffect(() => { const t = setTimeout(() => setDebouncedQ(q), 300); return () => clearTimeout(t); }, [q]);
@@ -39,7 +41,7 @@ export default function AgendaPage({ caps, options, currentUserId, refreshKey, o
     <div>
       <div className="crm-page-head">
         <div><h1 className="crm-h1">Agenda</h1><div className="crm-sub">O que precisa ser feito, por urgência. Concluir uma ligação, reunião ou e-mail conta como interação com a empresa.</div></div>
-        <div className="crm-actions">{caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={() => onNewActivity({})}><Plus size={14} /> Criar atividade</button>}</div>
+        <div className="crm-actions">{caps.write && (c ? c.overdue + c.today : 0) > 0 && <button type="button" className="crm-btn crm-btn-primary" onClick={() => setQueue(true)}><ListChecks size={14} /> Fila de follow-ups ({c.overdue + c.today})</button>}{caps.write && <button type="button" className="crm-btn" onClick={() => onNewActivity({})}><Plus size={14} /> Criar atividade</button>}</div>
       </div>
 
       <div className="crm-chips">
@@ -82,6 +84,7 @@ export default function AgendaPage({ caps, options, currentUserId, refreshKey, o
           {data.total > data.items.length && <div className="crm-muted" style={{ marginTop: 10 }}>Mostrando {data.items.length} de {data.total}. Use os filtros para refinar.</div>}
         </>
       )}
+      {queue && <FollowUpQueue onClose={() => { setQueue(false); reload(); }} onChanged={() => {}} onOpenDeal={(id) => { setQueue(false); reload(); if (onOpenDeal) onOpenDeal(id); }} />}
     </div>
   );
 }

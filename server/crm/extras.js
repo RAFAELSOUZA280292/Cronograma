@@ -3,7 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { pool } from '../db.js';
 import { CrmError } from './errors.js';
 import { tx, addAudit, addTimeline, requireUuid, createCompany, createContact } from './service.js';
-import { createDeal } from './deals.js';
+import { createDeal, loadDeal } from './deals.js';
+import { createActivity, cancelActivity, ACTIVITY_TYPES } from './activities.js';
+import { todayBR } from './service.js';
 
 export async function ensureCrmExtrasSchema(db) {
   await db.query(`ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS mrr NUMERIC(14,2) NOT NULL DEFAULT 0`);
@@ -26,6 +28,25 @@ export async function ensureCrmExtrasSchema(db) {
       PRIMARY KEY (deal_id, tag_id)
     )`);
   await db.query(`CREATE INDEX IF NOT EXISTS crm_deal_tags_tag_idx ON crm_deal_tags(tag_id)`);
+  // Cadência de follow-up: regra por etapa de funil que agenda a atividade seguinte sozinha (§93).
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS crm_cadences (
+      id          UUID PRIMARY KEY,
+      org_id      TEXT NOT NULL REFERENCES organizations(id),
+      pipeline_id UUID NOT NULL REFERENCES crm_pipelines(id),
+      stage_id    UUID NOT NULL REFERENCES crm_pipeline_stages(id),
+      name        TEXT NOT NULL,
+      steps       JSONB NOT NULL DEFAULT '[]'::jsonb,
+      active      BOOLEAN NOT NULL DEFAULT true,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      created_by  TEXT,
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      deleted_at  TIMESTAMPTZ
+    )`);
+  await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS crm_cadences_stage_uidx ON crm_cadences(stage_id) WHERE deleted_at IS NULL`);
+  await db.query(`ALTER TABLE crm_activities ADD COLUMN IF NOT EXISTS cadence_id UUID`);
+  await db.query(`ALTER TABLE crm_activities ADD COLUMN IF NOT EXISTS cadence_step INTEGER`);
+  await db.query(`CREATE INDEX IF NOT EXISTS crm_activities_cadence_idx ON crm_activities(deal_id) WHERE cadence_id IS NOT NULL AND status = 'open'`);
 }
 
 export const TAG_COLORS = ['default', 'primary', 'success', 'info', 'warning', 'danger'];
@@ -93,5 +114,113 @@ export async function quickLead(orgId, actor, input) {
     companyId: company.id, title: String(src.title || '').trim() || companyName, pipelineId: src.pipelineId || null, stageId: src.stageId || undefined,
     primaryContactId: contact ? contact.id : undefined, source: String(src.source || '').slice(0, 200), value: 0,
   });
-  return { deal, company, contact };
+  return { deal, company, contact, cadence: await cadenceAfterMove(orgId, actor, deal) };
+}
+
+// ---------------------------------------------------------------- Cadência de follow-up (§93)
+// Regra por ETAPA: ao entrar na etapa agenda o 1º passo; ao concluir um passo agenda o seguinte (dias contados da conclusão); ao sair da etapa
+// ou fechar o negócio cancela o que sobrou. Os passos são atividades comuns (aparecem na Agenda/fila, têm auditoria e linha do tempo).
+const CADENCE_TYPES = Object.keys(ACTIVITY_TYPES);
+function cleanSteps(raw) {
+  if (!Array.isArray(raw) || raw.length < 1 || raw.length > 8) throw new CrmError(400, 'A cadência precisa de 1 a 8 passos.');
+  return raw.map((x, i) => {
+    const title = String((x && x.title) || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+    if (!title) throw new CrmError(400, `O passo ${i + 1} precisa de um título.`);
+    const type = CADENCE_TYPES.includes(x.type) ? x.type : 'followup';
+    const days = Number(x.days);
+    if (!Number.isInteger(days) || days < 0 || days > 90) throw new CrmError(400, `Prazo inválido no passo ${i + 1} (0 a 90 dias).`);
+    return { title, type, days };
+  });
+}
+const cadenceOut = (r) => ({ id: r.id, pipelineId: r.pipeline_id, stageId: r.stage_id, pipelineName: r.pipeline_name || '', stageName: r.stage_name || '', name: r.name, steps: r.steps, active: r.active });
+
+export async function listCadences(orgId) {
+  const { rows } = await pool.query(
+    `SELECT c.*, p.name AS pipeline_name, s.name AS stage_name FROM crm_cadences c JOIN crm_pipelines p ON p.id = c.pipeline_id JOIN crm_pipeline_stages s ON s.id = c.stage_id
+     WHERE c.org_id=$1 AND c.deleted_at IS NULL ORDER BY p.name, s.position`, [orgId]);
+  return rows.map(cadenceOut);
+}
+
+export async function saveCadence(orgId, actor, input, id = null) {
+  const src = input || {};
+  if (id) requireUuid(id, 'Cadência');
+  const steps = cleanSteps(src.steps);
+  const name = String(src.name || '').trim().slice(0, 80);
+  return tx(async (c) => {
+    let cur = null;
+    if (id) { const r = await c.query('SELECT * FROM crm_cadences WHERE id=$1 AND org_id=$2 AND deleted_at IS NULL FOR UPDATE', [id, orgId]); cur = r.rows[0]; if (!cur) throw new CrmError(404, 'Cadência não encontrada.'); }
+    const stageId = cur ? cur.stage_id : src.stageId; const pipelineId = cur ? cur.pipeline_id : src.pipelineId;
+    requireUuid(stageId, 'Etapa'); requireUuid(pipelineId, 'Funil');
+    const { rows: st } = await c.query(`SELECT s.id, s.name FROM crm_pipeline_stages s JOIN crm_pipelines p ON p.id = s.pipeline_id WHERE s.id=$1 AND s.pipeline_id=$2 AND s.org_id=$3 AND s.kind='open' AND s.deleted_at IS NULL AND p.deleted_at IS NULL`, [stageId, pipelineId, orgId]);
+    if (!st[0]) throw new CrmError(400, 'Escolha uma etapa em aberto do funil.');
+    const active = src.active === undefined ? (cur ? cur.active : true) : !!src.active;
+    const nm = name || `Cadência de ${st[0].name}`;
+    let outId = id;
+    if (cur) await c.query('UPDATE crm_cadences SET name=$2, steps=$3::jsonb, active=$4, updated_at=now() WHERE id=$1', [id, nm, JSON.stringify(steps), active]);
+    else {
+      const dup = await c.query('SELECT 1 FROM crm_cadences WHERE stage_id=$1 AND deleted_at IS NULL', [stageId]);
+      if (dup.rows[0]) throw new CrmError(409, 'Esta etapa já tem uma cadência — edite a existente.');
+      outId = randomUUID();
+      await c.query('INSERT INTO crm_cadences (id, org_id, pipeline_id, stage_id, name, steps, active, created_by) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8)', [outId, orgId, pipelineId, stageId, nm, JSON.stringify(steps), active, actor.id || null]);
+    }
+    await addAudit(c, { orgId, entityType: 'pipeline', entityId: pipelineId, action: cur ? 'update' : 'create', actor,
+      changes: [{ field: 'cadence', label: `Cadência da etapa ${st[0].name}`, from: cur ? cur.steps.map((x) => `${x.title} (+${x.days} d)`).join(' → ') : null, to: `${active ? '' : '[desligada] '}${steps.map((x) => `${x.title} (+${x.days} d)`).join(' → ')}` }] });
+    const r = await c.query(`SELECT c.*, p.name AS pipeline_name, s.name AS stage_name FROM crm_cadences c JOIN crm_pipelines p ON p.id=c.pipeline_id JOIN crm_pipeline_stages s ON s.id=c.stage_id WHERE c.id=$1`, [outId]);
+    return cadenceOut(r.rows[0]);
+  });
+}
+
+export async function deleteCadence(orgId, actor, id) {
+  requireUuid(id, 'Cadência');
+  return tx(async (c) => {
+    const r = await c.query('UPDATE crm_cadences SET deleted_at=now() WHERE id=$1 AND org_id=$2 AND deleted_at IS NULL RETURNING pipeline_id, stage_id', [id, orgId]);
+    if (!r.rows[0]) throw new CrmError(404, 'Cadência não encontrada.');
+    await addAudit(c, { orgId, entityType: 'pipeline', entityId: r.rows[0].pipeline_id, action: 'update', actor, changes: [{ field: 'cadence', label: 'Cadência', from: 'ativa', to: 'removida' }] });
+    return { removed: true };
+  });
+}
+
+const addDays = (n) => new Date(new Date(`${todayBR()}T12:00:00Z`).getTime() + n * 86400000).toISOString().slice(0, 10);
+
+async function scheduleStep(orgId, actor, deal, cad, index) {
+  const step = cad.steps[index];
+  const a = await createActivity(orgId, actor, {
+    companyId: deal.companyId, dealId: deal.id, contactId: deal.primaryContactId || undefined, ownerId: deal.ownerId || actor.id, title: step.title, activityType: step.type,
+    dueDate: addDays(step.days), priority: 'normal', description: `Cadência "${cad.name}" — passo ${index + 1} de ${cad.steps.length}.`,
+  });
+  await pool.query('UPDATE crm_activities SET cadence_id=$2, cadence_step=$3 WHERE id=$1', [a.id, cad.id, index]);
+  return { ...a, cadenceStep: index + 1, cadenceSteps: cad.steps.length };
+}
+
+// Depois de criar ou mover um negócio: fecha → cancela os passos abertos; saiu da etapa → cancela; entrou numa etapa com cadência → agenda o passo 1.
+// Melhor esforço (nunca derruba a operação principal): erro vai para o log e a tela segue.
+export async function cadenceAfterMove(orgId, actor, deal) {
+  const out = { scheduled: null, cancelled: 0 };
+  try {
+    const { rows: open } = await pool.query(`SELECT a.id, a.cadence_id, c.stage_id AS cad_stage FROM crm_activities a JOIN crm_cadences c ON c.id = a.cadence_id WHERE a.deal_id=$1 AND a.org_id=$2 AND a.status='open' AND a.deleted_at IS NULL`, [deal.id, orgId]);
+    const stale = open.filter((x) => deal.status !== 'open' || x.cad_stage !== deal.stageId);
+    for (const x of stale) { await cancelActivity(orgId, actor, x.id); out.cancelled += 1; }
+    if (deal.status !== 'open') return out;
+    const { rows: cads } = await pool.query(`SELECT * FROM crm_cadences WHERE stage_id=$1 AND org_id=$2 AND active AND deleted_at IS NULL`, [deal.stageId, orgId]);
+    const cad = cads[0];
+    if (cad && !open.some((x) => x.cad_stage === deal.stageId && !stale.includes(x))) out.scheduled = await scheduleStep(orgId, actor, deal, cad, 0);
+  } catch (e) { console.error('Cadência (entrada/saída de etapa):', e.message); }
+  return out;
+}
+
+// Depois de concluir uma atividade da cadência: agenda o passo seguinte (se o negócio segue aberto, na mesma etapa, e não há outro passo aberto).
+export async function cadenceAfterComplete(orgId, actor, activityId) {
+  try {
+    const { rows } = await pool.query(`SELECT a.deal_id, a.cadence_id, a.cadence_step, c.steps, c.name, c.stage_id, c.active, c.pipeline_id, c.org_id FROM crm_activities a JOIN crm_cadences c ON c.id = a.cadence_id WHERE a.id=$1 AND a.org_id=$2 AND a.deleted_at IS NULL AND c.deleted_at IS NULL`, [activityId, orgId]);
+    const r = rows[0];
+    if (!r || !r.active || !r.deal_id) return null;
+    const next = Number(r.cadence_step) + 1;
+    if (next >= r.steps.length) return null;
+    const deal = await loadDeal(pool, orgId, r.deal_id);
+    if (!deal || deal.status !== 'open' || deal.stage_id !== r.stage_id) return null;
+    const { rows: still } = await pool.query(`SELECT 1 FROM crm_activities WHERE deal_id=$1 AND cadence_id=$2 AND status='open' AND deleted_at IS NULL LIMIT 1`, [r.deal_id, r.cadence_id]);
+    if (still[0]) return null;
+    const mapped = { id: deal.id, companyId: deal.company_id, primaryContactId: deal.primary_contact_id, ownerId: deal.owner_id };
+    return await scheduleStep(orgId, actor, mapped, { id: r.cadence_id, name: r.name, steps: r.steps }, next);
+  } catch (e) { console.error('Cadência (passo seguinte):', e.message); return null; }
 }
