@@ -45,6 +45,9 @@ Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (
 - **2026-10-04** — Indicadores de atividades (§65), pausar → fim da coluna (§66), auditoria de acessos (§67), Usuários na tela inicial (§68), Pareceres redesenhado (§69), RENATA estuda os Pareceres (§70), fonte em todo o app (§71), peças visuais comuns + acessibilidade medida (§72).
 - **2026-10-05** — tela inicial verdadeira (§73), endereço por módulo (§74), idade do cartão em dias de calendário (§75), Widget do iPhone com visões e um script por visão (§76), Meu dia + boas-vindas + Meu perfil em abas + Mensagem do dia (§77), Modelos de documentos com vários anexos (§78), consolidação da documentação (§79), API de conectividade com tokens (§80).
 
+- **2026-10-25** — Central de Inteligência Operacional (§82), versionamento/backup/restauração do cronograma (§83), migração do PipeRun para o CRM (§84) e auditoria + 3 levas de complemento (§85).
+- **2026-10-06 a 10-24** — ⚠ **sem seção própria neste arquivo** (RENATA geral, notificações por categoria, levantamento de atividades, responsável por empresa, vínculo tarefa→atividade, guia norte RT 2027, plano de aprimorar o padrão, mobile fase 0, cronograma padrão v3–v5, aba Mapa, triagem, link público de acompanhamento, reservar na agenda, PDF do cronograma, API de conectividade read_write…). Fontes hoje: `git log`, `docs/PLANO_*`/`ESTUDO_*` e a memória de sessão; consolidação pendente.
+
 **Em aberto** (lista única e atual: §15). **Armadilhas que mais pegam** (regras fixas: §16 e §16.1).
 
 ## 1. O que é
@@ -7574,11 +7577,22 @@ Documento operacional completo (medições, regras, roteiro de produção, falha
 | Migração PipeRun → CRM (medições da API, regras, roteiro de produção, falhas) | `docs/MIGRACAO_PIPERUN.md` (resumo: §84) |
 | Backup, versões, comparação e restauração do cronograma (arquitetura, SQL de emergência, limites) | `docs/VERSIONAMENTO_CRONOGRAMA.md` (resumo: §83) |
 | Estudo de integração via Telegram Bot (não implementado) | `docs/TELEGRAM_BOT_ESTUDO.md` |
-| Plano (não implementado) de vincular tarefa de reunião à atividade do cronograma, com a RENATA aprendendo | `docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md` |
+| Plano de vincular tarefa de reunião à atividade do cronograma, com a RENATA aprendendo (Fases 1–5 implementadas em 10/2026; ver §da Fase 1) | `docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md` |
 | Brief original completo da identidade/princípios da RENATA | `docs/RENATA_BRIEF.md` (resumo do que foi implementado em `PROJECT_CONTEXT.md` §27) |
 | Histórico de decisões de produto/por quê de uma feature | memória de sessão (fora do repo) ou pedir contexto ao usuário |
 
-- **Auditoria da migração PipeRun (25/10/2026):** parecer NÃO APROVADO para cancelar o PipeRun — ver `docs/AUDITORIA_MIGRACAO_PIPERUN.md` (backup completo + restauração testada, tabela origem×destino, pendências: histórico real, imagens de notas, tags, previsão, produtos, formulários).
-- **Pós-auditoria PipeRun (25/10/2026):** imagens das anotações viram anexo da nota (`migrate.js` 5b) e o histórico real pode ser carregado do backup pela tela (`POST /migration/piperun/raw/histories`). Detalhes em `docs/MIGRACAO_PIPERUN.md` §9.
-- **2ª leva PipeRun (25/10/2026, §85):** MRR (`crm_deals.mrr`), tags (`crm_tags`/`crm_deal_tags`), previsão de fechamento, catálogo de produtos e etapas completas com prazo/SLA (`crm_pipeline_stages.sla_days`) — `server/crm/extras.js`, `server/crm/piperun/extrasImport.js`; `docs/MIGRACAO_PIPERUN.md` §10.
-- **3ª leva PipeRun (25/10/2026, §85):** formulários/assinaturas na linha do tempo + anotação com a trilha da assinatura, comentário do motivo de perda (`server/crm/piperun/extrasImport.js` `importExtraHistory`); referência da configuração do PipeRun em `docs/PIPERUN_CONFIG_REFERENCIA.md`.
+## 85. Pós-migração PipeRun: auditoria, backup e três levas de complemento (2026-10-25, pedido do Rafael)
+
+**Pedido**: "auditoria completa e minuciosa da migração … garantindo que absolutamente nenhuma informação relevante tenha ficado para trás" e parecer APROVADO/NÃO APROVADO para cancelar o PipeRun (sem executar o cancelamento).
+
+**Auditoria** (`docs/AUDITORIA_MIGRACAO_PIPERUN.md`): extração nova e completa (28 recursos, totais conferidos) × produção. Negócios ativos 307 = 307 (13 na lixeira só no backup); valores por situação idênticos. Achados materiais: histórico real não aplicado, imagens das anotações (385 notas, 0 migradas), tags, previsão, MRR, produtos, etapas/SLA, formulários, assinaturas. **Backup**: `~/Downloads/PIPERUN_BACKUP/2026-10-25_completo/` + zip (sha256 em `.zip.sha256`): 1.096 binários, hashes conferidos, restauração testada em pasta nova (plano reconstruído = produção). Só existe neste Mac (2º meio pendente).
+
+**O que foi corrigido em produção** (detalhes e regras em `docs/MIGRACAO_PIPERUN.md` §9–§11):
+1. Imagens coladas nas anotações → anexo da própria nota (`migrate.js` passo 5b; notas só-imagem passam a existir; `<img>` apontando para PDF vira anexo; `blob:` do WhatsApp Web não é recuperável).
+2. Histórico real de etapas (1.046 movimentos + 417 eventos) via `POST /migration/piperun/raw/histories` (seletor de arquivo na tela, sem token).
+3. 2ª leva: MRR (`crm_deals.mrr`), tags (`crm_tags`/`crm_deal_tags`, editor na ficha, filtro, `PUT /deals/:id/tags`), previsão de fechamento, produtos (7; 2 apagados entram inativos), etapas completas com prazo/SLA (`crm_pipeline_stages.sla_days`, aviso "Prazo da etapa estourado"). Código: `server/crm/extras.js`, `server/crm/piperun/extrasImport.js`, `src/crm/DealTags.jsx`. Aplicado uma vez por negócio (`piperun_map` entidade `extras`).
+4. 3ª leva: formulários respondidos e assinaturas na linha do tempo + anotação com a trilha da assinatura (sem CPF/nascimento) + comentário livre do motivo de perda (`importExtraHistory`, entidade `extra2`). Estrutura de campos/formulários/funis/SLA/tags/origens/automações do PipeRun em `docs/PIPERUN_CONFIG_REFERENCIA.md`.
+
+**Decisões**: produtos não viram itens de negócio (o PipeRun só ligava produto a propostas; item faria o valor virar a soma dos itens); Atendimento/WhatsApp do PipeRun nunca foi usado (descartado); webhooks 0, equipes 0, nenhum formulário público.
+
+**Em aberto (§15)**: copiar o zip para um 2º meio; revogar tokens do PipeRun e `pxk_` (segurança, do Rafael); arquivar o "Funil comercial" vazio; reemitir o parecer depois disso. Teste: `scripts/piperun-migration.test.mjs` (118 verificações, Postgres local).
