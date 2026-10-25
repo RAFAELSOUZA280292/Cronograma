@@ -16,14 +16,14 @@ const clean = (v) => String(v == null ? '' : v).trim().replace(/\s+/g, ' ').slic
 
 export async function listPipelines(orgId) {
   await ensureDefaultPipeline(orgId);
-  const { rows: ps } = await pool.query('SELECT id, name, is_default FROM crm_pipelines WHERE org_id=$1 AND deleted_at IS NULL ORDER BY is_default DESC, created_at, name', [orgId]);
+  const { rows: ps } = await pool.query('SELECT id, name, is_default, on_won_pipeline_id, on_won_stage_id, on_won_from_stage_id FROM crm_pipelines WHERE org_id=$1 AND deleted_at IS NULL ORDER BY is_default DESC, created_at, name', [orgId]);
   const { rows: st } = await pool.query(
     `SELECT s.id, s.pipeline_id, s.name, s.position, s.probability, s.kind, s.color,
             (SELECT count(*)::int FROM crm_deals d WHERE d.stage_id = s.id AND d.deleted_at IS NULL) AS deals
      FROM crm_pipeline_stages s WHERE s.org_id=$1 AND s.deleted_at IS NULL ORDER BY s.position`, [orgId]);
   return ps.map((p) => {
     const stages = st.filter((s) => s.pipeline_id === p.id).map((s) => ({ id: s.id, name: s.name, position: s.position, probability: s.probability, kind: s.kind, color: s.color, deals: s.deals }));
-    return { id: p.id, name: p.name, isDefault: p.is_default, stages, dealCount: stages.reduce((n, s) => n + s.deals, 0) };
+    return { id: p.id, name: p.name, isDefault: p.is_default, stages, dealCount: stages.reduce((n, s) => n + s.deals, 0), onWon: p.on_won_pipeline_id && p.on_won_stage_id ? { pipelineId: p.on_won_pipeline_id, stageId: p.on_won_stage_id, fromStageId: p.on_won_from_stage_id || '' } : null };
   });
 }
 
@@ -73,6 +73,28 @@ export async function updatePipeline(orgId, actor, id, input) {
       await c.query('UPDATE crm_pipelines SET is_default=false WHERE org_id=$1 AND is_default', [orgId]);
       await c.query('UPDATE crm_pipelines SET is_default=true WHERE id=$1', [id]);
       changes.push({ field: 'isDefault', label: 'Funil padrão', from: false, to: true });
+    }
+    if ('onWon' in src) {
+      const ow = src.onWon;
+      if (ow === null || (ow && !ow.pipelineId)) {
+        await c.query('UPDATE crm_pipelines SET on_won_pipeline_id=NULL, on_won_stage_id=NULL, on_won_from_stage_id=NULL WHERE id=$1', [id]);
+        changes.push({ field: 'onWon', label: 'Automação ao ganhar', from: 'ligada', to: 'desligada' });
+      } else if (ow) {
+        requireUuid(ow.pipelineId, 'Funil de destino'); requireUuid(ow.stageId, 'Etapa de destino');
+        if (ow.pipelineId === id) throw new CrmError(400, 'A cópia precisa ir para OUTRO funil.');
+        const { rows: t } = await c.query(
+          `SELECT s.id, s.name, p.name AS pipeline FROM crm_pipeline_stages s JOIN crm_pipelines p ON p.id=s.pipeline_id WHERE s.id=$1 AND s.pipeline_id=$2 AND s.kind='open' AND s.deleted_at IS NULL AND p.deleted_at IS NULL AND p.org_id=$3`, [ow.stageId, ow.pipelineId, orgId]);
+        if (!t[0]) throw new CrmError(400, 'Etapa de destino inválida (precisa ser uma etapa em aberto do funil escolhido).');
+        let from = null;
+        if (ow.fromStageId) {
+          requireUuid(ow.fromStageId, 'Etapa de origem');
+          const { rows: f } = await c.query(`SELECT id, name FROM crm_pipeline_stages WHERE id=$1 AND pipeline_id=$2 AND kind='open' AND deleted_at IS NULL`, [ow.fromStageId, id]);
+          if (!f[0]) throw new CrmError(400, 'A etapa de origem precisa ser uma etapa em aberto deste funil.');
+          from = f[0];
+        }
+        await c.query('UPDATE crm_pipelines SET on_won_pipeline_id=$1, on_won_stage_id=$2, on_won_from_stage_id=$3 WHERE id=$4', [ow.pipelineId, ow.stageId, from ? from.id : null, id]);
+        changes.push({ field: 'onWon', label: 'Automação ao ganhar', from: null, to: `copiar para ${t[0].pipeline} › ${t[0].name}${from ? ` (só ao ganhar a partir de ${from.name})` : ''}` });
+      }
     }
     if (changes.length) await addAudit(c, { orgId, entityType: 'pipeline', entityId: id, action: 'update', actor, changes });
   });

@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { pool } from '../db.js';
 import { CrmError } from './errors.js';
+import { applyWonAutomation } from './automation.js';
 import { resolvePipeline, DEAL_TYPES, DEAL_TYPE_LABELS, LOST_REASONS } from './pipeline.js';
 import {
   sanitize, tx, addAudit, addTimeline, diffApi, mapBySpec, loadCompany, requireUuid, assertUserInOrg, changeSummary, todayBR, RELATIONSHIP_LABELS,
@@ -273,7 +274,10 @@ export async function moveDeal(orgId, actor, id, { stageId, lostReason = '', los
       await addTimeline(c, { orgId, companyId: row.company_id, entityType: 'company', entityId: row.company_id, eventType: 'relationship_changed', actor,
         summary: `Relação alterada de ${RELATIONSHIP_LABELS[row.company_relationship]} para Cliente (negócio "${row.title}" ganho).`, data: { from: row.company_relationship, to: 'client', automatic: true, dealId: id } });
     }
-    return fetchDeal(c, orgId, id);
+    let autoCopy = null;
+    if (to.kind === 'won' && row.status !== 'won') autoCopy = await applyWonAutomation(c, orgId, actor, row, row.stage_id);
+    const out = await fetchDeal(c, orgId, id);
+    return autoCopy ? { ...out, autoCopy } : out;
   });
 }
 

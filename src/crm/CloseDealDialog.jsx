@@ -6,6 +6,7 @@ import { crm } from './crmApi.js';
 import { Modal, Field, CancelButton, useDirty } from './ui.jsx';
 import { fmtMoney, REL_META } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
+import { notify } from '../ui/dialogs.jsx';
 
 
 function CloseDealDialog({ deal, stage, reasons, onCancel, onDone }) {
@@ -22,6 +23,7 @@ function CloseDealDialog({ deal, stage, reasons, onCancel, onDone }) {
     setBusy(true); setError('');
     try {
       const r = await crm.moveDeal(deal.id, { stageId: stage.id, lostReason: won ? '' : reason, lostDetail: won ? '' : detail });
+      if (r.deal && r.deal.autoCopy) notify(`Negócio ganho. Criei a cópia em ${r.deal.autoCopy.pipelineName} › ${r.deal.autoCopy.stageName}.`, { tone: 'success', ttlMs: 9000 });
       onDone(r.deal);
     } catch (e) { setError(e.message || 'Não foi possível atualizar o negócio.'); } finally { setBusy(false); }
   }

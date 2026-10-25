@@ -333,6 +333,45 @@ const runsList = await latestRuns(ORG);
 ok('execução falha registra erro legível (sem token) e libera a próxima', runsList[0].status === 'failed' && runsList[0].error === 'teste' && (await startRun(ORG, 'extract', actor)).id > 0);
 await q(`UPDATE piperun_runs SET status='failed' WHERE org_id=$1 AND status='running'`, [ORG]);
 
+// ---------- 8b. Automação "ao ganhar" (cópia no Pós Vendas) ----------
+const pipesRes = await call(C.admin, 'GET', '/api/crm/pipelines');
+const emp = pipesRes.json.pipelines.find((p) => p.name === 'Empresas'); const pos = pipesRes.json.pipelines.find((p) => p.name === 'Pós Vendas');
+if (emp && pos) {
+  const contrato = emp.stages.find((x) => x.name === 'Contrato' && x.kind === 'open'); const ganhosPos = pos.stages.find((x) => x.name === 'Ganhos' && x.kind === 'open');
+  const wonEmp = emp.stages.find((x) => x.kind === 'won'); const mapeamento = emp.stages.find((x) => x.name === 'Mapeamento');
+  const patch = (c, body) => call(c, 'PATCH', `/api/crm/pipelines/${emp.id}`, body);
+  ok('automação: só quem configura funis (vendedor não) — 403', (await patch(C.vend, { onWon: { pipelineId: pos.id, stageId: ganhosPos.id } })).status === 403);
+  ok('automação: cópia para o MESMO funil é recusada (400)', (await patch(C.admin, { onWon: { pipelineId: emp.id, stageId: contrato.id } })).status === 400);
+  ok('automação: etapa de fechamento como destino é recusada (400)', (await patch(C.admin, { onWon: { pipelineId: pos.id, stageId: pos.stages.find((x) => x.kind === 'won').id } })).status === 400);
+  const cfg = await patch(C.admin, { onWon: { pipelineId: pos.id, stageId: ganhosPos.id, fromStageId: contrato.id } });
+  const empAfter = cfg.json && cfg.json.pipelines.find((p) => p.id === emp.id);
+  ok('automação salva e devolvida na lista de funis', cfg.status === 200 && empAfter.onWon && empAfter.onWon.pipelineId === pos.id && empAfter.onWon.stageId === ganhosPos.id && empAfter.onWon.fromStageId === contrato.id, empAfter && empAfter.onWon);
+  const openIn = async (stageName) => (await q(`SELECT d.id, d.title, d.company_id, d.value, d.owner_id FROM crm_deals d JOIN crm_pipeline_stages s ON s.id=d.stage_id WHERE d.org_id=$1 AND d.pipeline_id=$2 AND d.status='open' AND s.name=$3 AND d.deleted_at IS NULL ORDER BY d.created_at LIMIT 2`, [ORG, emp.id, stageName])).rows;
+  const [dealA, dealB] = await openIn('Leads');
+  const copies = async () => Number((await q(`SELECT count(*)::int n FROM crm_deals WHERE org_id=$1 AND external_source='auto-won'`, [ORG])).rows[0].n);
+  const c0 = await copies();
+  await call(C.admin, 'POST', `/api/crm/deals/${dealA.id}/move`, { stageId: contrato.id });
+  const win = await call(C.admin, 'POST', `/api/crm/deals/${dealA.id}/move`, { stageId: wonEmp.id });
+  ok('ganhar a partir da etapa configurada cria a cópia e avisa na resposta', win.status === 200 && win.json.deal.autoCopy && win.json.deal.autoCopy.pipelineName === 'Pós Vendas' && (await copies()) === c0 + 1, win.json && win.json.deal && win.json.deal.autoCopy);
+  const cp = (await q(`SELECT d.*, s.name AS stage, p.name AS pipeline FROM crm_deals d JOIN crm_pipeline_stages s ON s.id=d.stage_id JOIN crm_pipelines p ON p.id=d.pipeline_id WHERE d.org_id=$1 AND d.external_source='auto-won' AND d.external_id=$2`, [ORG, dealA.id])).rows[0];
+  ok('a cópia nasce em aberto no funil e etapa certos, com empresa, título, valor e responsável do original', cp && cp.status === 'open' && cp.pipeline === 'Pós Vendas' && cp.stage === 'Ganhos' && cp.company_id === dealA.company_id && cp.title === dealA.title && Number(cp.value) === Number(dealA.value) && cp.owner_id === dealA.owner_id, cp && { st: cp.status, p: cp.pipeline, s: cp.stage });
+  ok('a cópia tem percurso (entrou na etapa) e a linha do tempo dos dois negócios registra a automação', (await n(`SELECT count(*)::int n FROM crm_deal_stage_history WHERE deal_id=$1`, [cp.id])) === 1 && (await n(`SELECT count(*)::int n FROM crm_timeline_events WHERE org_id=$1 AND event_type='deal_copied' AND entity_id=$2`, [ORG, dealA.id])) === 1);
+  await call(C.admin, 'POST', `/api/crm/deals/${dealA.id}/move`, { stageId: contrato.id });
+  await call(C.admin, 'POST', `/api/crm/deals/${dealA.id}/move`, { stageId: wonEmp.id });
+  ok('reabrir e ganhar de novo NÃO duplica a cópia', (await copies()) === c0 + 1);
+  // gatilho por etapa: ganhar direto de outra etapa não copia
+  await call(C.admin, 'POST', `/api/crm/deals/${dealB.id}/move`, { stageId: mapeamento.id });
+  const winB = await call(C.admin, 'POST', `/api/crm/deals/${dealB.id}/move`, { stageId: wonEmp.id });
+  ok('ganhar a partir de outra etapa (não a configurada) não cria cópia', winB.status === 200 && !winB.json.deal.autoCopy && (await copies()) === c0 + 1);
+  // desligar
+  const [dealC] = await openIn('Leads');
+  const off = await patch(C.admin, { onWon: null });
+  ok('automação pode ser desligada', off.status === 200 && off.json.pipelines.find((p) => p.id === emp.id).onWon === null);
+  await call(C.admin, 'POST', `/api/crm/deals/${dealC.id}/move`, { stageId: contrato.id });
+  const winC = await call(C.admin, 'POST', `/api/crm/deals/${dealC.id}/move`, { stageId: wonEmp.id });
+  ok('desligada, ganhar não cria cópia', winC.status === 200 && !winC.json.deal.autoCopy && (await copies()) === c0 + 1);
+}
+
 // ---------- 9. Apagar a cópia bruta depois da virada ----------
 ok('apagar a cópia bruta exige confirmação', (await call(C.admin, 'POST', '/api/crm/migration/piperun/purge', {})).status === 400 && (await rawCounts(ORG)).counts.deals > 0);
 const mapBefore = await n(`SELECT count(*)::int n FROM piperun_map WHERE org_id=$1`);

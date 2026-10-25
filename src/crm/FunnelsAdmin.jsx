@@ -22,6 +22,7 @@ function FunnelsAdmin({ initialId, onClose, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  const [auto, setAuto] = useState({ enabled: false, pipelineId: '', stageId: '', fromStageId: '' });
 
   const sel = pipelines && (pipelines.find((p) => p.id === selId) || pipelines[0]);
   const baseline = sel ? toDraft(sel) : [];
@@ -44,6 +45,17 @@ function FunnelsAdmin({ initialId, onClose, onChanged }) {
   }
   function move(i, d) { setDraft((l) => { const n = [...l]; const j = i + d; if (j < 0 || j >= n.length) return l; [n[i], n[j]] = [n[j], n[i]]; return n; }); }
   const setRow = (i, patch) => setDraft((l) => l.map((r, k) => (k === i ? { ...r, ...patch } : r)));
+
+  const selOnWon = sel && sel.onWon;
+  useEffect(() => {
+    if (!sel) return;
+    setAuto(selOnWon ? { enabled: true, pipelineId: selOnWon.pipelineId, stageId: selOnWon.stageId, fromStageId: selOnWon.fromStageId || '' } : { enabled: false, pipelineId: '', stageId: '', fromStageId: '' });
+  }, [sel && sel.id, selOnWon && selOnWon.pipelineId, selOnWon && selOnWon.stageId, selOnWon && selOnWon.fromStageId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const targets = pipelines ? pipelines.filter((p) => !sel || p.id !== sel.id) : [];
+  const targetPipe = targets.find((p) => p.id === auto.pipelineId);
+  const autoDirty = sel && (auto.enabled !== !!selOnWon || (auto.enabled && (auto.pipelineId !== (selOnWon ? selOnWon.pipelineId : '') || auto.stageId !== (selOnWon ? selOnWon.stageId : '') || auto.fromStageId !== (selOnWon ? (selOnWon.fromStageId || '') : ''))));
+  const autoInvalid = auto.enabled && (!auto.pipelineId || !auto.stageId);
+  const saveAuto = () => run(() => crm.updatePipeline(sel.id, { onWon: auto.enabled ? { pipelineId: auto.pipelineId, stageId: auto.stageId, fromStageId: auto.fromStageId || '' } : null }), sel.id, auto.enabled ? 'Automação salva: ao ganhar, o CRM cria a cópia sozinho.' : 'Automação desligada.');
 
   const invalid = draft.some((r) => !r.name.trim() || r.probability === '' || Number.isNaN(Number(r.probability)) || Number(r.probability) < 0 || Number(r.probability) > 100);
   const closed = sel ? sel.stages.filter((s) => s.kind !== 'open') : [];
@@ -113,6 +125,27 @@ function FunnelsAdmin({ initialId, onClose, onChanged }) {
               </span>
             </div>
             <div className="crm-muted" style={{ marginTop: 10 }}>A “chance” é o ponto de partida do valor ponderado do funil. Ganho vale sempre 100% e Perdido 0%. Etapa removida é arquivada: o histórico dos negócios antigos continua intacto.</div>
+            <div className="crm-section" style={{ marginTop: 16 }}>
+              <h3 className="crm-section-title">Automação ao ganhar</h3>
+              <div className="crm-muted" style={{ marginBottom: 8 }}>Ao ganhar um negócio deste funil, o CRM pode criar sozinho uma cópia dele em outro funil (por exemplo, passar do comercial para o pós-venda). A cópia leva empresa, valor, responsável, contato, origem e produtos, e nasce em aberto. Ganhar de novo não duplica.</div>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}><input type="checkbox" checked={auto.enabled} onChange={(e) => setAuto((a) => ({ ...a, enabled: e.target.checked }))} /> Criar uma cópia em outro funil quando um negócio daqui for ganho</label>
+              {auto.enabled && (
+                <div style={{ display: 'grid', gap: 8, maxWidth: 520 }}>
+                  <select aria-label="Funil de destino da cópia" value={auto.pipelineId} onChange={(e) => setAuto((a) => ({ ...a, pipelineId: e.target.value, stageId: '' }))}>
+                    <option value="">Escolha o funil de destino…</option>{targets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <select aria-label="Etapa de destino da cópia" value={auto.stageId} disabled={!targetPipe} title={!targetPipe ? 'Escolha primeiro o funil de destino' : undefined} onChange={(e) => setAuto((a) => ({ ...a, stageId: e.target.value }))}>
+                    <option value="">Escolha a etapa em que a cópia nasce…</option>{targetPipe && targetPipe.stages.filter((x) => x.kind === 'open').map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </select>
+                  <select aria-label="Só quando o negócio ganho estava nesta etapa" value={auto.fromStageId} onChange={(e) => setAuto((a) => ({ ...a, fromStageId: e.target.value }))}>
+                    <option value="">Em qualquer etapa deste funil</option>{sel.stages.filter((x) => x.kind === 'open').map((x) => <option key={x.id} value={x.id}>Só se estava em: {x.name}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="crm-form-foot" style={{ justifyContent: 'flex-start' }}>
+                <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !autoDirty || autoInvalid} title={busy ? 'Aguarde terminar de salvar' : !autoDirty ? 'Nenhuma alteração para salvar' : autoInvalid ? 'Escolha o funil e a etapa de destino' : undefined} onClick={saveAuto}>Salvar automação</button>
+              </div>
+            </div>
             {note && <div className="crm-alert crm-alert-info" style={{ marginTop: 10 }}>{note}</div>}
           </div>
         </div>
