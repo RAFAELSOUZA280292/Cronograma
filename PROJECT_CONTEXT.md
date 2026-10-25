@@ -866,15 +866,14 @@ mecanismo.
 
 **Produto e infraestrutura**
 - **PipeRun (§85):** copiar `PIPERUN_2026-10-25_completo.zip` para um 2º meio (HD/nuvem da empresa); revogar o token do PipeRun e os `pxk_` (Rafael); arquivar o "Funil comercial" vazio no CRM; só então reemitir o parecer (hoje NÃO APROVADO apenas por causa do backup em 1 meio).
-- **Débitos conhecidos achados na consolidação de 2026-10-25 (defeitos de CÓDIGO; nada foi alterado):**
-  - Texto da tela `src/knowledge/LinksTab.jsx` (~l.157) diz que "a RENATA nunca vincula sozinha", mas desde `f63e1d9` ela vincula como `auto` a partir de 50%.
-  - `sameCompanyExamples` (`server/taskLinkLearn.js`) pode incluir vínculos `auto` ainda não validados nos "exemplos confirmados" do prompt da IA (a IA se realimenta dos próprios palpites).
-  - API `pxk_` (`applyPlanOps`, `server/connect.js`) não limpa `skipped`/`skipReason` ao desmarcar `done` (o painel limpa).
-  - `POST /api/gaps/create` calcula as lacunas e devolve 409 antes do `BEGIN/FOR UPDATE`: dois cliques simultâneos podem duplicar atividades. "Definir responsáveis" em lote grava uma empresa por vez (falha parcial possível).
-  - `src/connect/ConnectSection.jsx` descreve `read_write` como "sem apagar" (existem `activity.delete`/`sub.delete`, soft delete) e `src/connect/guide.js` não cita `/plan`, `dryRun`, `undo`.
-  - Caixa de busca da tela aparece na Triagem mas não filtra (`CompanyTriage` não recebe `shownActs`). Criar/revogar link público não grava no Log da empresa.
-  - `responsibleStatus:'confirmar'` é gravado mas nenhuma tela lê; `reconcilePauta`/`unlinkPauta` (`shared/pauta.js`) sem chamador; `dataset.printTheme` sem seletor; rótulo da âncora "Virada" em `SubExtras.jsx` não bate com o código (virada = data fixa).
-  - Eventos `step_done` nunca são apagados (desmarcar não retira o ganho já registrado).
+- **Débitos de código achados na consolidação de 2026-10-25 — CORRIGIDOS no mesmo dia** (testes: `scripts/gaps-http.test.mjs`, `scripts/connect-fixes.test.mjs`):
+  - Texto da tela de vínculos (`LinksTab.jsx`) dizia que a RENATA nunca vincula sozinha → agora descreve o vínculo automático (≥ 50%, marcado "automática").
+  - `sameCompanyExamples` não traz mais vínculos `auto` ainda não validados para o prompt da IA.
+  - API `pxk_` (`applyPlanOps`): mudar `done` zera `skipped`/`skipReason` (igual ao painel) e o desfazer devolve o estado; `skipped`/`skipReason` passam a ser campos aceitos em `sub.set`.
+  - `POST /api/gaps/create`: recalcula as lacunas DEPOIS da trava da empresa — dois cliques simultâneos não duplicam mais (reproduzido antes da correção: 2 atividades iguais).
+  - `ConnectSection.jsx` (texto do escopo) e `guide.js` (guia colado no Claude Code) agora descrevem `read_write`, `/plan`, `dryRun` e `undo`; exclusão com lixeira.
+  - Busca da tela vale na Triagem; criar/revogar link público grava no Log da empresa (sem o token); rótulo da âncora "Virada" diz "data fixa" (é o que o código faz).
+- **Débitos que ficaram (decisão, não defeito):** "Definir responsáveis" em lote segue o modelo de salvamento do app (cada empresa salva por autosave, com retry); eventos `step_done` nunca são apagados (desmarcar não retira o ganho já registrado — intencional, ganho do dia é livro-razão); `responsibleStatus:'confirmar'` é gravado mas sem tela que o leia; `reconcilePauta`/`unlinkPauta` (`shared/pauta.js`) sem chamador; `dataset.printTheme` sem seletor.
   - Testes descritos em §65/§80/§81 (t2–t34, 17 casos puros etc.) eram descartáveis e **não estão em `scripts/`**.
 - Enforcement de `organizations.status` (suspensa/bloqueada não bloqueia login/acesso ainda, é só rótulo).
 - Planos/limites/cobrança (`plan`, `max_users`, `max_companies` no schema, nada lê/aplica) — "Fase 4" do multi-tenant.

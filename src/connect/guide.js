@@ -1,6 +1,20 @@
 // Guia que o usuário cola na OUTRA janela do Claude Code (2026-10-05, §80). Não leva o token: ele vai pela variável de ambiente
 // PRICETAX_TOKEN, para não ficar em arquivo nem em histórico de conversa. Mantido em sincronia com `ENDPOINTS` de server/connect.js.
-export function buildGuide({ baseUrl, canCreate }) {
+export function buildGuide({ baseUrl, canCreate, canWrite = false }) {
+  const write = canWrite
+    ? `
+### Ajustar o cronograma de uma empresa (este token pode; só administrador)
+\`\`\`bash
+curl -s -X POST "$PRICETAX_URL/api/connect/companies/{id}/plan" \\
+  -H "Authorization: Bearer $PRICETAX_TOKEN" -H "Content-Type: application/json" \\
+  -d '{"dryRun":true,"note":"por quê","ops":[{"op":"sub.set","activity":{"id":"…"},"sub":{"id":"…"},"set":{"done":true}}]}'
+\`\`\`
+- **\`dryRun\` é \`true\` por padrão**: só mostra o que faria. Mande \`"dryRun":false\` para gravar, e só depois de eu aprovar o que o dry-run mostrou.
+- Tudo ou nada (até 200 operações): se uma falhar, nada é gravado. Fica registrado no Log da empresa.
+- Operações: \`activity.set\`, \`sub.set\`, \`sub.add\` (\`position\` top|end, \`kind\`, \`guide\`, \`pautaDe\`), \`sub.move\`, \`activity.add\`, \`pauta.link\`, \`activity.delete\` / \`sub.delete\` (vão para a lixeira; \`activity.restore\` / \`sub.restore\` desfazem). A lista exata e os campos aceitos estão em \`$PRICETAX_URL/api/connect\`.
+- A resposta de uma gravação traz \`undo\`: mande esse array de volta como \`ops\` para desfazer.
+`
+    : '';
   const create = canCreate
     ? `
 ### Criar atividade (este token pode)
@@ -46,7 +60,7 @@ Exemplo:
 \`\`\`bash
 curl -s "$PRICETAX_URL/api/connect/activities?status=overdue" -H "Authorization: Bearer $PRICETAX_TOKEN"
 \`\`\`
-${create}
+${create}${write}
 ## Regras
 - Os dados são do Rafael e de clientes dele: **não copie para arquivos do repositório, logs ou issues** mais do que o necessário para a tarefa.
 - Erros: 401 token inválido/revogado/expirado · 403 sem permissão (escopo ou acesso) · 404 não achou · 429 limite (120/min) · 400 dado inválido (a mensagem diz o quê).

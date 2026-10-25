@@ -103,7 +103,7 @@ export function sameCompanyExamples(data, tasks, max = 8) {
   for (const m of (data && data.meetings) || []) {
     if (!m || m.deleted) continue;
     for (const it of m.actionItems || []) {
-      if (it && !it.deleted && it.activityId && acts.has(it.activityId) && it.title) pool.push({ title: it.title, activity: acts.get(it.activityId), tokens: titleTokens(it.title) });
+      if (it && !it.deleted && it.activityId && acts.has(it.activityId) && it.title && !(it.activityLink && it.activityLink.status === 'auto')) pool.push({ title: it.title, activity: acts.get(it.activityId), tokens: titleTokens(it.title) });
     }
   }
   if (!pool.length) return [];

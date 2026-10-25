@@ -206,8 +206,13 @@ router.post('/create', async (req, res, next) => {
     await client.query('BEGIN');
     const cur = await client.query('SELECT data FROM projects WHERE id=$1 FOR UPDATE', [projectId]);
     const before = cur.rows[0].data;
+    // Com a trava na mão, recalcula: um 2º clique (ou outra aba) que entrou antes pode já ter criado essas atividades.
+    const rows2 = await loadAccessible(req.user, orgId, client);
+    const a2 = analyze(rows2, min);
+    const gaps2 = gapsForCompany(a2.clusters, a2.byPid.get(projectId) || [], a2.min, a2.total).filter((g) => want.has(g.key));
+    if (!gaps2.length) { await client.query('ROLLBACK'); client.release(); return res.status(409).json({ message: 'Essas atividades já não são lacunas (o cronograma mudou). Atualize a lista.' }); }
     const month = (before.activities || []).length ? Math.max(...before.activities.map((x) => x.month || 1)) + 1 : 1;
-    const created = gaps.map((g) => newActivityFrom(g, before, month));
+    const created = gaps2.map((g) => newActivityFrom(g, before, month));
     const who = req.user.name || req.user.username || '';
     const next = {
       ...before, activities: [...(before.activities || []), ...created],

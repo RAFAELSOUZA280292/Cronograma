@@ -39,6 +39,17 @@ async function activeLink(client, projectId, kind) {
   return rows[0] || null;
 }
 
+// Registra no Log da empresa quem criou/revogou o link (nunca o token). Trava a linha do projeto como as demais gravações do servidor.
+async function logLinkAction(client, projectId, user, action) {
+  const cur = await client.query('SELECT data FROM projects WHERE id=$1 FOR UPDATE', [projectId]);
+  if (!cur.rows[0]) return;
+  const data = cur.rows[0].data;
+  const entry = { ts: new Date().toISOString(), action, user: user.name || user.username || '', activityId: null };
+  data.log = [entry, ...(Array.isArray(data.log) ? data.log : [])].slice(0, 300);
+  await client.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(data), projectId]);
+}
+const KIND_LABEL = { page: 'link público de acompanhamento', data: 'link de dados (Power BI)' };
+
 router.get('/:projectId', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
   try {
     const p = await loadProject(req, res); if (!p) return;
@@ -61,6 +72,7 @@ router.post('/:projectId', requireAuth, requireMasterOrPricetax, async (req, res
       `INSERT INTO company_share_links (id, org_id, project_id, token, created_by, created_by_name, expires_at, kind)
        VALUES ($1,$2,$3,$4,$5,$6, CASE WHEN $7::int > 0 THEN now() + ($7::int || ' days')::interval ELSE NULL END, $8) RETURNING *`,
       [uid('shl'), p.org_id, p.id, token, req.user.id, clip(req.user.name, 80), days, kind]);
+    await logLinkAction(client, p.id, req.user, `Gerou um novo ${KIND_LABEL[kind] || 'link'} (${days > 0 ? `vale ${days} dias` : 'sem validade'}); o anterior, se havia, deixou de funcionar.`);
     await client.query('COMMIT');
     res.set('Cache-Control', 'no-store');
     res.status(201).json({ link: linkMeta(rows[0]) });
@@ -70,8 +82,15 @@ router.post('/:projectId', requireAuth, requireMasterOrPricetax, async (req, res
 router.delete('/:projectId', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
   try {
     const p = await loadProject(req, res); if (!p) return;
-    const r = await pool.query('UPDATE company_share_links SET revoked_at=now() WHERE project_id=$1 AND kind=$2 AND revoked_at IS NULL', [p.id, kindOf(req.query.kind)]);
-    res.json({ revoked: r.rowCount });
+    const kind = kindOf(req.query.kind);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const r = await client.query('UPDATE company_share_links SET revoked_at=now() WHERE project_id=$1 AND kind=$2 AND revoked_at IS NULL', [p.id, kind]);
+      if (r.rowCount) await logLinkAction(client, p.id, req.user, `Revogou o ${KIND_LABEL[kind] || 'link'}: ele deixou de funcionar.`);
+      await client.query('COMMIT');
+      res.json({ revoked: r.rowCount });
+    } catch (e) { try { await client.query('ROLLBACK'); } catch { /* conexão já encerrada */ } throw e; } finally { client.release(); }
   } catch (e) { next(e); }
 });
 

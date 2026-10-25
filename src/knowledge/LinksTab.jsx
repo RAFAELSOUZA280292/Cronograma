@@ -152,9 +152,9 @@ export function LinksTab() {
           <Accuracy label="Abaixo de 80%" a={accuracy.byBand.low} />
         </div>
         <div className="knw-metric-card">
-          <div className="knw-metric-card-title">Aplicar sozinha? Ainda não</div>
+          <div className="knw-metric-card-title">Vínculo automático</div>
           <div style={{ fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
-            Por decisão da PRICETAX, a RENATA nunca vincula sozinha. Este é o critério para <b>reavaliar</b> (nada é ativado automaticamente): pelo menos {gate.minDecisions} sugestões de confiança alta decididas, com {Math.round(gate.minRate * 100)}% ou mais de acerto.
+            A RENATA vincula sozinha quando a confiança é de 50% ou mais (a tarefa fica marcada como automática e dá para trocar ou tirar). Abaixo disso ela só sugere. Este é o critério de qualidade para <b>continuar confiando</b> nesse modo: pelo menos {gate.minDecisions} sugestões de confiança alta decididas, com {Math.round(gate.minRate * 100)}% ou mais de acerto.
           </div>
           <div className="knw-metric-row" style={{ marginTop: 10 }}><span>Sugestões de confiança alta decididas</span><b>{gate.high.n} / {gate.minDecisions}</b></div>
           <div className="lk-gate" aria-hidden="true"><i style={{ width: `${gateN * 100}%` }} /></div>

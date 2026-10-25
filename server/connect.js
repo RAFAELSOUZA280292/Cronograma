@@ -404,6 +404,8 @@ const SET_ACT = {
 const SET_SUB = {
   title: (d, v) => { const t = clip(v, 300).trim(); if (!t) throw new Error('título vazio'); return t; },
   done: (d, v) => !!v,
+  skipped: (d, v) => !!v,
+  skipReason: (d, v) => clip(v, 300),
   date: (d, v) => { if (v !== '' && !isISODay(v)) throw new Error(`data inválida: ${v}`); return v; },
   responsible: (d, v) => checkTeam(d, String(v)),
   kind: (d, v) => { if (!['reuniao', 'trabalho'].includes(v)) throw new Error(`tipo inválido: ${v} (use reuniao ou trabalho)`); return v; },
@@ -442,6 +444,11 @@ export function applyPlanOps(data, ops, who) {
           prev[k] = x[k] === undefined ? (k === 'done' ? false : k === 'kind' ? 'trabalho' : '') : x[k];
           x[k] = SET_SUB[k](next, v);
           if (k === 'done') { if (x.done) { x.doneAt = stamp; x.doneBy = who; } else { delete x.doneAt; delete x.doneBy; } }
+        }
+        // Mudar `done` zera "pulada" e o motivo (igual ao painel), a menos que a mesma operação diga o contrário; o desfazer devolve o que havia.
+        if ('done' in set && !('skipped' in set) && !('skipReason' in set)) {
+          prev.skipped = !!x.skipped; prev.skipReason = x.skipReason || '';
+          x.skipped = false; x.skipReason = '';
         }
         next.activities = reconcilePautaProject(next.activities, x.id, set);
         undo.push({ op: 'sub.set', activity: { id: a.id }, sub: { id: x.id }, set: prev });

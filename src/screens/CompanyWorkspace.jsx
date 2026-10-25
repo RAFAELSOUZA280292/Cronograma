@@ -513,7 +513,7 @@ export function CompanyWorkspace({ ctx }) {
         )}
 
         {!isMulti && !isTpl && view === 'triagem' && (
-          <CompanyTriage project={activeProject} updateActivity={updateActivity} updateSub={updateSub} openDetail={openActivityDetail} onReserve={() => setShowCalendarBlock(true)} pushUndoToast={pushAppUndoToast} linkPautaTo={linkPautaTo} />
+          <CompanyTriage project={searching ? { ...activeProject, activities: shownActs } : activeProject} updateActivity={updateActivity} updateSub={updateSub} openDetail={openActivityDetail} onReserve={() => setShowCalendarBlock(true)} pushUndoToast={pushAppUndoToast} linkPautaTo={linkPautaTo} />
         )}
 
         {!isMulti && view === 'mapa' && (
