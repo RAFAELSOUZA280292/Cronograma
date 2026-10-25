@@ -80,6 +80,17 @@ function PipeRunMigration({ onClose, onDone }) {
     setError(''); setBusy(true);
     try { await crm.pipeRunExtract(token.trim()); setToken(''); await refresh(); setPreview(null); } catch (e) { setError(e.message || 'Não foi possível iniciar a extração.'); } finally { setBusy(false); }
   }
+  async function loadHistoryFile(file) {
+    if (!file) return;
+    setError(''); setBusy(true);
+    try {
+      const rows = JSON.parse(await file.text());
+      if (!Array.isArray(rows) || !rows.length || !rows.every((r) => r && r.id !== undefined && 'deal_id' in r)) throw new Error('Este arquivo não é o histories.json do backup do PipeRun.');
+      const r = await crm.pipeRunLoadHistories(rows);
+      notify(`${r.stored} eventos de histórico carregados. Agora é só importar para aplicar o percurso real.`, { tone: 'success', ttlMs: 9000 });
+      await refresh();
+    } catch (e) { setError(e.message || 'Não foi possível carregar o arquivo.'); } finally { setBusy(false); }
+  }
   async function importNow() {
     const p = preview;
     const ok = await askConfirm({ title: 'Importar do PipeRun para o CRM?', confirmLabel: 'Importar agora', message: `Vão entrar ${p.deals.toImport - p.deals.alreadyImported} negócios novos, ${p.provisional.toCreate} empresas provisórias, contatos, anotações e atividades. Rodar de novo não duplica nada. Nada é alterado no PipeRun.` });
@@ -118,7 +129,9 @@ function PipeRunMigration({ onClose, onDone }) {
           {status && status.counts && Object.keys(status.counts).length > 0 && !running && (
             <div className="crm-section"><h3 className="crm-section-title">Já extraído {status.fetchedAt ? `em ${fdt(status.fetchedAt)}` : ''}</h3>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{Object.entries(status.counts).filter(([k]) => ['deals', 'companies', 'persons', 'activities', 'notes', 'files', 'proposals'].includes(k)).map(([k, v]) => <span key={k} className="crm-pill">{v} {ENTITY_LABEL[k]}</span>)}</div>
-              <div className="crm-form-foot" style={{ justifyContent: 'flex-start' }}><button type="button" className="crm-btn crm-btn-primary" onClick={() => setStep(2)}>Continuar com estes dados</button></div></div>
+              <div className="crm-form-foot" style={{ justifyContent: 'flex-start' }}><button type="button" className="crm-btn crm-btn-primary" onClick={() => setStep(2)}>Continuar com estes dados</button></div>
+              <div style={{ marginTop: 12 }}><label className="crm-muted" htmlFor="pr-hist">Histórico real de etapas ({status.counts.histories || 0} eventos na cópia). Para carregar do backup em arquivo, escolha o histories.json:</label><br />
+                <input id="pr-hist" type="file" accept="application/json,.json" disabled={busy} onChange={(e) => { loadHistoryFile(e.target.files && e.target.files[0]); e.target.value = ''; }} /></div></div>
           )}
           {lastRun && lastRun.kind === 'extract' && lastRun.status === 'failed' && <div className="crm-alert crm-alert-danger"><strong>A última extração falhou:</strong> {lastRun.error}</div>}
         </>

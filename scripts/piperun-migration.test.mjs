@@ -65,11 +65,13 @@ const RAW = REAL || synthetic();
 console.log(`     (dados: ${REAL ? 'BACKUP REAL da API' : 'sintéticos'} — ${RAW.deals.length} negócios)`);
 
 // ---------- PipeRun simulado ----------
+const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 function makeStub(raw, { rateLimitOnce = true } = {}) {
   let limited = !rateLimitOnce; const seenTokens = new Set(); let calls = 0;
   const impl = async (url, init = {}) => {
     calls += 1;
     const u = new URL(url);
+    if (u.hostname === 'assets.pipe.run') return new Response(PNG_1PX, { status: 200, headers: { 'content-type': 'image/png' } });
     if (u.hostname === 'files.test' || u.hostname === 'api.pipe.run' && /\/files\//.test(u.pathname)) return new Response(Buffer.from('%PDF-1.4 simulado'), { status: 200, headers: { 'content-type': 'application/pdf', 'content-length': '17' } });
     const token = init.headers && init.headers.token; seenTokens.add(token);
     if (token !== FAKE_TOKEN) return new Response('{}', { status: 401 });
@@ -156,6 +158,7 @@ for (const [who, c] of [['vendedor', C.vend], ['gestor', C.felipe]]) {
 ok('sem login → 401', (await call('', 'GET', '/api/crm/migration/piperun')).status === 401);
 ok('administrador do CRM vê a situação da migração', (await call(C.admin, 'GET', '/api/crm/migration/piperun')).status === 200);
 ok('prévia pela API devolve o mesmo que a função', (await call(C.admin, 'GET', '/api/crm/migration/piperun/preview')).json.deals.toImport === pv.deals.toImport);
+ok('carregar histórico do backup: vendedor 403, lista vazia 400, evento sem id 400', (await call(C.vend, 'POST', '/api/crm/migration/piperun/raw/histories', { rows: [{ id: 1, deal_id: 2 }] })).status === 403 && (await call(C.admin, 'POST', '/api/crm/migration/piperun/raw/histories', { rows: [] })).status === 400 && (await call(C.admin, 'POST', '/api/crm/migration/piperun/raw/histories', { rows: [{ deal_id: 2 }] })).status === 400);
 ok('extração sem token → 400', (await call(C.admin, 'POST', '/api/crm/migration/piperun/extract', {})).status === 400);
 ok('administrador de OUTRA organização não vê nada', (await call(C.admin2, 'GET', '/api/crm/migration/piperun/preview')).json.ready === false);
 
@@ -210,16 +213,17 @@ const ownersWith = await n(`SELECT count(*)::int n FROM crm_deals WHERE org_id=$
 ok('donos casados por e-mail/nome com usuários do CRM', ownersWith > 0, ownersWith);
 // notas
 const strip = (t) => String(t || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+const hasContent = (t) => !!strip(t) || /<img[^>]+src=["']/i.test(String(t || ''));
 const liveIds = new Set(liveDeals.map((d) => String(d.id)));
-const notesWithText = (RAW.notes || []).filter((x) => strip(x.text) && (x.deal_id ? liveIds.has(String(x.deal_id)) : true)).length;
+const notesWithText = (RAW.notes || []).filter((x) => hasContent(x.text) && (x.deal_id ? liveIds.has(String(x.deal_id)) : true)).length;
 const noteMapped = await n(`SELECT count(*)::int n FROM piperun_map WHERE org_id=$1 AND entity='note'`);
 ok('anotações: todas as que têm texto e cujo negócio entra (+ propostas como nota)', noteMapped === notesWithText + (RAW.proposals || []).filter((x) => liveIds.has(String(x.deal_id))).length, { noteMapped, esperado: notesWithText + (RAW.proposals || []).filter((x) => liveIds.has(String(x.deal_id))).length });
 ok('nenhuma anotação ficou com HTML', (await n(`SELECT count(*)::int n FROM crm_notes WHERE org_id=$1 AND (body LIKE '%<p>%' OR body LIKE '%<br%' OR body LIKE '%&nbsp;%')`)) === 0);
-const n0 = (RAW.notes || []).find((x) => strip(x.text) && x.deal_id && liveDeals.some((d) => String(d.id) === String(x.deal_id)));
+const n0 = (RAW.notes || []).find((x) => hasContent(x.text) && x.deal_id && liveDeals.some((d) => String(d.id) === String(x.deal_id)));
 if (n0) { const row = (await q(`SELECT to_char(n.created_at AT TIME ZONE 'America/Sao_Paulo','YYYY-MM-DD HH24:MI:SS') AS ts FROM crm_notes n JOIN piperun_map m ON m.crm_id = n.id::text AND m.entity='note' AND m.pid=$2 WHERE n.org_id=$1`, [ORG, `note:${n0.id}`])).rows[0]; ok('data e hora originais da anotação preservadas', row && row.ts === n0.created_at, row); }
 const eduarda = (RAW.users || []).find((u) => /eduarda/i.test(u.name));
 if (eduarda) {
-  const wantE = (RAW.notes || []).filter((x) => String(x.user_id) === String(eduarda.id) && strip(x.text) && (x.deal_id ? liveIds.has(String(x.deal_id)) : true)).length;
+  const wantE = (RAW.notes || []).filter((x) => String(x.user_id) === String(eduarda.id) && hasContent(x.text) && (x.deal_id ? liveIds.has(String(x.deal_id)) : true)).length;
   ok('autor sem usuário no CRM (Eduarda) continua sendo ela — não vira quem importou', (await n(`SELECT count(*)::int n FROM crm_notes WHERE org_id=$1 AND author_name=$2 AND created_by IS NULL`, [ORG, eduarda.name])) === wantE && wantE > 0, { wantE, got: await n(`SELECT count(*)::int n FROM crm_notes WHERE org_id=$1 AND author_name=$2`, [ORG, eduarda.name]) });
   ok('nenhuma anotação ficou sem autor, e nenhuma carrega rodapé de autoria no texto', (await n(`SELECT count(*)::int n FROM crm_notes WHERE org_id=$1 AND created_by IS NULL AND author_name='' AND id IN (SELECT crm_id::uuid FROM piperun_map WHERE org_id=$1 AND entity='note')`)) === 0 && (await n(`SELECT count(*)::int n FROM crm_notes WHERE org_id=$1 AND body LIKE '%(PipeRun)'`)) === 0);
   const actsE = P.acts.filter((a) => !['Rafael Souza', 'Felipe Dal Santo'].includes(a.ownerName) && a.dealPid && liveDeals.some((d) => String(d.id) === a.dealPid)).length;
@@ -305,6 +309,13 @@ const after = await snap();
 ok('reimportar não duplica empresa, contato, negócio, nota nem atividade', JSON.stringify({ ...before, files: 0 }) === JSON.stringify({ ...after, files: 0 }), { before, after });
 ok('a 2ª rodada completa os documentos que faltavam (sem repetir os já guardados)', after.files === P.files.docs.filter((f) => liveDeals.some((d) => String(d.id) === f.dealPid)).length && res2.files.created === after.files - before.files, { before: before.files, after: after.files });
 ok('2ª rodada: 0 empresas, 0 negócios, 0 notas, 0 atividades novos', res2.companies.created === 0 && res2.provisional.created === 0 && res2.deals.created === 0 && res2.notes.created === 0 && res2.activities.created === 0, { c: res2.companies.created, p: res2.provisional.created, d: res2.deals.created, n: res2.notes.created, a: res2.activities.created });
+// imagens coladas nas anotações: viram anexo da própria nota (miniatura na tela), inclusive as notas só-imagem; repetível
+const imgNotesP = P.notes.filter((x) => x.kind === 'note' && x.images && x.images.length);
+const imgMapped = (await q(`SELECT n.id, n.body, n.attachments FROM crm_notes n JOIN piperun_map m ON m.crm_id = n.id::text AND m.entity='note' AND m.org_id=n.org_id WHERE n.org_id=$1 AND m.pid = ANY($2::text[])`, [ORG, imgNotesP.map((x) => x.pid)])).rows;
+ok('anotações com imagem: todas as importadas ganharam os anexos (nada de nota com imagem sem anexo)', imgMapped.length > 0 === imgNotesP.length > 0 && imgMapped.every((r) => Array.isArray(r.attachments) && r.attachments.length >= 1), { notas: imgMapped.length, semAnexo: imgMapped.filter((r) => !(r.attachments || []).length).length });
+ok('o anexo é imagem de verdade (data URL, tipo, tamanho)', imgMapped.every((r) => r.attachments.every((a) => a.type === 'image/png' && a.dataUrl.startsWith('data:image/png;base64,') && a.size > 0 && a.name)));
+ok('2ª rodada não rebaixa imagens (já anexadas)', res2.noteImages.alreadyAttached === imgMapped.length && res2.noteImages.failed === 0, res2.noteImages);
+ok('nota só-imagem foi importada com texto vazio e o anexo', imgNotesP.filter((x) => !x.text).length === 0 || imgMapped.some((r) => r.body === '' && r.attachments.length));
 rep = await reconcile(ORG);
 ok('conferência final sem nenhuma divergência', rep.ok === true && rep.divergenceCount === 0, rep.divergences.slice(0, 5));
 

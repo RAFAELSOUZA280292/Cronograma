@@ -184,15 +184,27 @@ export function dealPlan(ctx, todayISO) {
 
 // ---------- notas, propostas, atividades, arquivos ----------
 const STATUS_PROP = { 0: 'aberta', 1: 'aprovada', 2: 'negada', 3: 'cancelada', 4: 'aguardando assinatura', 5: 'assinada' };
+// Imagens coladas na anotação (<img src>): só http(s) dá para baixar; blob:/data: eram links do navegador de quem colou.
+export function noteImages(html) {
+  const urls = []; let lost = 0;
+  for (const m of s(html).matchAll(/<img[^>]+src=["']([^"']+)["']/gi)) {
+    const u = m[1].replace(/&amp;/g, '&');
+    if (/^https?:\/\//i.test(u)) { if (!urls.includes(u)) urls.push(u); } else lost += 1;
+  }
+  return { urls, lost };
+}
+
 export function noteRows(ctx) {
   const rows = [];
   const raw = ctx.raw.notes || [];
   for (const n of raw) {
-    const text = htmlToText(n.text);
-    if (!text) continue;
+    const imgs = noteImages(n.text);
+    let text = htmlToText(n.text);
+    if (!text && !imgs.urls.length && imgs.lost) text = 'Imagem colada no PipeRun que não pôde ser recuperada (era um link temporário do navegador, sem arquivo no PipeRun).';
+    if (!text && !imgs.urls.length) continue;
     const u = n.user_id ? ctx.users.get(String(n.user_id)) : null;
     rows.push({ pid: `note:${n.id}`, kind: 'note', dealPid: n.deal_id ? String(n.deal_id) : '', companyPid: n.company_id ? String(n.company_id) : '', personPid: n.person_id ? String(n.person_id) : '',
-      text, createdAt: toTs(n.created_at), authorName: s(n.user_name) || (u ? s(u.name) : ''), authorEmail: u ? s(u.email) : '' });
+      text, images: imgs.urls, createdAt: toTs(n.created_at), authorName: s(n.user_name) || (u ? s(u.name) : ''), authorEmail: u ? s(u.email) : '' });
   }
   for (const p of ctx.raw.proposals || []) {
     const items = (p.items || []).map((i) => `${s(i.product_name || (i.item && i.item.name))} ×${Number(i.quantity) || 1} (${fmtMoney(i.value)})`).join('; ');

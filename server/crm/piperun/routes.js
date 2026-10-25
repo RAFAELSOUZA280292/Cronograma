@@ -3,7 +3,7 @@
 import { pool } from '../../db.js';
 import { CrmError } from '../errors.js';
 import { requireUuid } from '../service.js';
-import { rawCounts, runExtract, purgeRaw } from './extract.js';
+import { rawCounts, runExtract, purgeRaw, storeRaw } from './extract.js';
 import { previewMigration, runMigration } from './migrate.js';
 import { reconcile } from './reconcile.js';
 import { startRun, progressWriter, finishRun, failRun, latestRuns, getRun } from './runs.js';
@@ -30,6 +30,16 @@ export function registerPiperunRoutes(router, { need, h, orgOf, actorOf }) {
     runExtract(orgId, token, { onProgress: (p) => pw.set(p) })
       .then(async (r) => { await pw.flush(); await finishRun(started.id, r); })
       .catch(async (e) => { await pw.flush(); await failRun(started.id, e && e.message); });
+  }));
+
+  // Carrega na cópia bruta só o histórico (`histories`) vindo do backup em arquivo — evita refazer a extração (e digitar o token) para aplicar o percurso real.
+  router.post('/migration/piperun/raw/histories', need('admin'), h(async (req, res) => {
+    const rows = (req.body || {}).rows;
+    if (!Array.isArray(rows) || !rows.length || rows.length > 20000) throw new CrmError(400, 'Envie a lista de eventos do histórico (rows).');
+    const bad = rows.filter((r) => !r || typeof r !== 'object' || r.id === undefined || r.id === null || r.deal_id === undefined);
+    if (bad.length) throw new CrmError(400, `${bad.length} evento(s) sem id ou sem negócio — nada foi gravado.`);
+    await storeRaw(orgOf(req), 'histories', rows);
+    res.json({ stored: rows.length });
   }));
 
   router.get('/migration/piperun/preview', need('admin'), h(async (req, res) => {

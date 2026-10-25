@@ -43,7 +43,7 @@ Tabelas novas (nada do CRM existente muda): `piperun_raw`, `piperun_map`, `piper
 - **Contato:** pessoa com empresa (direta, ou pela empresa do negócio dela). Dedupe por e-mail ou nome dentro da empresa. Pessoa sem empresa e sem negócio fica só no backup. E-mails extras não são guardados (o CRM tem 1 por contato).
 - **Anotações:** HTML → texto; data e hora originais; autor = usuário do CRM quando casa (e-mail, nome ou nome muito parecido com um só usuário); senão o nome vai no fim do texto. Anotações de negócio na lixeira do PipeRun não entram. **Propostas** viram anotação do negócio (valor, MRR, itens).
 - **Atividades:** tipo por nome (Ligação, E-mail, Reunião, WhatsApp, Follow Up…); aberta/feita/cancelada (no-show); data e hora da atividade; prioridade "normal" (a conta tem tudo com 3). Atividade antiga **não dispara lembrete** em massa. Sem negócio → fica só no backup.
-- **Arquivos:** só documentos (PDF, DOCX, XLS…) ligados a negócio, baixados do PipeRun, máximo 30 MB cada, guardados em `crm_deal_files`. Imagens e áudios ficam **só no backup**.
+- **Arquivos:** só documentos (PDF, DOCX, XLS…) ligados a negócio, baixados do PipeRun, máximo 30 MB cada, guardados em `crm_deal_files`. Áudios e imagens soltas na conta ficam **só no backup**; as **imagens coladas nas anotações** sobem como anexo da própria nota (§9).
 
 ## 4. Roteiro de operação (produção)
 
@@ -93,3 +93,8 @@ Extração e importação feitas pelo Rafael na tela; a conferência final deu *
 ## 9. Testes
 
 `node scripts/piperun-migration.test.mjs` (≈75 verificações; servidor e Postgres locais; org descartável; **dados reais do backup** ou sintéticos): extração com API simulada (401, 429, paginação, total conferido, CNAEs, token só no cabeçalho), prévia que não grava, permissões (vendedor/gestor 403, outra organização isolada), importação (situação e valores por situação conferidos por conta independente do código, motivo de perda real, ordem real das etapas, datas originais, provisórias, congeladas, campos personalizados, MRR, anotações com data original, atividades sem lembrete em massa, contatos sem duplicar, documentos), conferência, **reimportação sem duplicar**, arquivos por API, token ausente do banco, trava de execução simultânea e purga da cópia bruta.
+
+## 9. Pós-auditoria (25/10/2026): imagens das anotações e histórico real
+- **Imagens das anotações** (`<img>` com URL http(s) no texto da nota do PipeRun): `migrate.js` passo 5b baixa cada imagem (máx. 5 MB) e grava em `crm_notes.attachments` no formato dos anexos do CRM (`{id,name,size,type,dataUrl}` → miniatura na tela). Repetível: só mexe em nota sem anexo. Notas **só-imagem** (antes descartadas por ficarem sem texto) agora entram com texto vazio + anexo. Imagem `blob:` (link temporário do navegador, 1 caso) não é recuperável: a nota entra com um aviso.
+- **Histórico real sem token:** `POST /migration/piperun/raw/histories` (admin) grava na cópia bruta o `histories.json` do backup; na tela *Migrar do PipeRun › Extrair* há o seletor de arquivo. Depois, *Importar* aplica o percurso real (regra de sempre: negócio movido no CRM depois da importação mantém o percurso atual).
+- Teste: `scripts/piperun-migration.test.mjs` (anotações com imagem, só-imagem, 2ª rodada sem rebaixar, endpoint do histórico).

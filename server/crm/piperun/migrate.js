@@ -13,6 +13,8 @@ import * as T from './transform.js';
 
 const todayBR = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const MAX_FILE_BYTES = 30 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const sniffImageMime = (b) => (b.slice(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])) ? 'image/png' : b.slice(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])) ? 'image/jpeg' : b.slice(0, 3).toString() === 'GIF' ? 'image/gif' : b.slice(8, 12).toString() === 'WEBP' ? 'image/webp' : '');
 const ISSUE_CAP = 400;
 
 // ---------- apoio ----------
@@ -305,6 +307,43 @@ export async function runMigration(orgId, actor, { ownerMap = {}, includeFiles =
     } catch (e) { await c.query('ROLLBACK').catch(() => {}); issue('Notas', '', `lote ${i}`, e.message); } finally { c.release(); }
   }
   result.notes = { created: nCreated, skipped: nSkipped, alreadyMigrated: mNote.size, emptyIgnored: (raw.notes || []).length - P.notes.filter((n) => n.kind === 'note').length };
+
+  // 5b) imagens coladas nas anotações (prints etc.): baixa do PipeRun e guarda na própria nota, no mesmo formato dos anexos do CRM (aparece como miniatura). Repetível: só mexe em nota sem anexo.
+  const imgNotes = P.notes.filter((n) => n.kind === 'note' && n.images && n.images.length);
+  let iCreated = 0; let iFailed = 0; let iNotes = 0; let iAlready = 0;
+  if (includeFiles && imgNotes.length) {
+    const freshMap = await mapAll(orgId, 'note');
+    const ids = imgNotes.map((n) => (freshMap.get(n.pid) || {}).id).filter(Boolean);
+    const { rows: cur } = ids.length ? await pool.query(`SELECT id, attachments FROM crm_notes WHERE org_id=$1 AND id = ANY($2::uuid[]) AND deleted_at IS NULL`, [orgId, ids]) : { rows: [] };
+    const attOf = new Map(cur.map((r) => [r.id, r.attachments || []]));
+    for (let i = 0; i < imgNotes.length; i += 1) {
+      const n = imgNotes[i]; step('Imagens das anotações', i, imgNotes.length);
+      const crmId = (freshMap.get(n.pid) || {}).id;
+      if (!crmId || !attOf.has(crmId)) continue;
+      if ((attOf.get(crmId) || []).length) { iAlready += 1; continue; }
+      const att = [];
+      for (const url of n.images.slice(0, 12)) {
+        try {
+          const ac = new AbortController(); const to = setTimeout(() => ac.abort(), 60000);
+          let buf; let mime = '';
+          try {
+            const res = await fetchImpl(url, { signal: ac.signal });
+            if (!res.ok) throw new Error(`o PipeRun respondeu ${res.status}`);
+            mime = String(res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+            buf = Buffer.from(await res.arrayBuffer());
+          } finally { clearTimeout(to); }
+          if (!buf.length) throw new Error('imagem vazia');
+          if (buf.length > MAX_IMAGE_BYTES) throw new Error(`imagem grande demais (${Math.round(buf.length / 1048576)} MB)`);
+          if (!mime.startsWith('image/')) mime = sniffImageMime(buf);
+          if (!mime) throw new Error('o arquivo não é uma imagem');
+          const base = decodeURIComponent(String(url).split('?')[0].split('/').pop() || '') || 'imagem';
+          att.push({ id: randomUUID(), name: base.slice(0, 200), size: buf.length, type: mime, dataUrl: `data:${mime};base64,${buf.toString('base64')}` });
+        } catch (e) { iFailed += 1; issue('Imagens das anotações', n.pid, url.slice(-60), e.message); }
+      }
+      if (att.length) { await pool.query(`UPDATE crm_notes SET attachments=$2::jsonb WHERE id=$1`, [crmId, JSON.stringify(att)]); iCreated += att.length; iNotes += 1; }
+    }
+  }
+  result.noteImages = { images: iCreated, notes: iNotes, failed: iFailed, alreadyAttached: iAlready, notesWithImages: P.notes.filter((n) => n.kind === 'note' && n.images && n.images.length).length };
 
   // 6) atividades
   const mAct = await mapAll(orgId, 'activity');

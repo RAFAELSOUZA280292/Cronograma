@@ -7579,3 +7579,4 @@ Documento operacional completo (medições, regras, roteiro de produção, falha
 | Histórico de decisões de produto/por quê de uma feature | memória de sessão (fora do repo) ou pedir contexto ao usuário |
 
 - **Auditoria da migração PipeRun (25/10/2026):** parecer NÃO APROVADO para cancelar o PipeRun — ver `docs/AUDITORIA_MIGRACAO_PIPERUN.md` (backup completo + restauração testada, tabela origem×destino, pendências: histórico real, imagens de notas, tags, previsão, produtos, formulários).
+- **Pós-auditoria PipeRun (25/10/2026):** imagens das anotações viram anexo da nota (`migrate.js` 5b) e o histórico real pode ser carregado do backup pela tela (`POST /migration/piperun/raw/histories`). Detalhes em `docs/MIGRACAO_PIPERUN.md` §9.

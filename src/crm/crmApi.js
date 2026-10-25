@@ -18,6 +18,7 @@ export const crm = {
   pipeRunExtract: (token) => apiPost(`${B}/migration/piperun/extract`, { token }),
   pipeRunPreview: (ownerMap) => apiGet(`${B}/migration/piperun/preview${qs({ ownerMap: ownerMap && Object.keys(ownerMap).length ? JSON.stringify(ownerMap) : '' })}`),
   pipeRunImport: (body) => apiPost(`${B}/migration/piperun/import`, body),
+  pipeRunLoadHistories: (rows) => apiPost(`${B}/migration/piperun/raw/histories`, { rows }),
   pipeRunReport: () => apiGet(`${B}/migration/piperun/report`),
   pipeRunPurge: () => apiPost(`${B}/migration/piperun/purge`, { confirm: true }),
   dealFiles: (id) => apiGet(`${B}/deals/${id}/files`),
