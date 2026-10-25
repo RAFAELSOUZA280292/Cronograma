@@ -14,7 +14,7 @@ import * as T from './transform.js';
 const todayBR = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const MAX_FILE_BYTES = 30 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const sniffImageMime = (b) => (b.slice(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])) ? 'image/png' : b.slice(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])) ? 'image/jpeg' : b.slice(0, 3).toString() === 'GIF' ? 'image/gif' : b.slice(8, 12).toString() === 'WEBP' ? 'image/webp' : '');
+const sniffImageMime = (b) => (b.slice(0, 4).toString() === '%PDF' ? 'application/pdf' : b.slice(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])) ? 'image/png' : b.slice(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])) ? 'image/jpeg' : b.slice(0, 3).toString() === 'GIF' ? 'image/gif' : b.slice(8, 12).toString() === 'WEBP' ? 'image/webp' : '');
 const ISSUE_CAP = 400;
 
 // ---------- apoio ----------
@@ -334,8 +334,8 @@ export async function runMigration(orgId, actor, { ownerMap = {}, includeFiles =
           } finally { clearTimeout(to); }
           if (!buf.length) throw new Error('imagem vazia');
           if (buf.length > MAX_IMAGE_BYTES) throw new Error(`imagem grande demais (${Math.round(buf.length / 1048576)} MB)`);
-          if (!mime.startsWith('image/')) mime = sniffImageMime(buf);
-          if (!mime) throw new Error('o arquivo não é uma imagem');
+          if (!mime.startsWith('image/') && mime !== 'application/pdf') mime = sniffImageMime(buf);
+          if (!mime) throw new Error('o arquivo não é uma imagem nem um PDF');
           const base = decodeURIComponent(String(url).split('?')[0].split('/').pop() || '') || 'imagem';
           att.push({ id: randomUUID(), name: base.slice(0, 200), size: buf.length, type: mime, dataUrl: `data:${mime};base64,${buf.toString('base64')}` });
         } catch (e) { iFailed += 1; issue('Imagens das anotações', n.pid, url.slice(-60), e.message); }
