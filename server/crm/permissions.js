@@ -33,9 +33,18 @@ export function crmCan(user, capability) {
   return !!role && (CAPABILITIES[capability] || []).includes(role);
 }
 
+// Painéis da Visão geral por função (§98): o primeiro de cada lista é o que abre por padrão.
+export const LENSES_BY_ROLE = {
+  admin: ['team', 'mine', 'revenue', 'accounts'], diretor: ['team', 'mine', 'revenue', 'accounts'], gestor: ['team', 'mine', 'revenue', 'accounts'],
+  vendedor: ['mine', 'accounts'], consultor: ['mine', 'accounts'], financeiro: ['revenue', 'accounts'], visualizacao: ['team', 'revenue', 'accounts'],
+};
+
+export function crmLenses(user) { return LENSES_BY_ROLE[crmRoleOf(user)] || []; }
+
 export function crmCapabilities(user) {
   const role = crmRoleOf(user);
   return {
+    lenses: crmLenses(user),
     role,
     roleLabel: CRM_ROLE_LABELS[role] || '',
     read: crmCan(user, 'read'), write: crmCan(user, 'write'), remove: crmCan(user, 'remove'),

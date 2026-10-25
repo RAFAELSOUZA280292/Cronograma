@@ -5,11 +5,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus, Kanban, List, Sparkles, Settings2, Upload, DatabaseBackup, MoreVertical, User, Download, CalendarPlus, StickyNote, Trophy, ThumbsDown, Building2 } from 'lucide-react';
 import { crm } from './crmApi.js';
-import { notify, askText } from '../ui/dialogs.jsx';
+import { notify, askText, askConfirm } from '../ui/dialogs.jsx';
 import CloseDealDialog from './CloseDealDialog.jsx';
 import FunnelsAdmin from './FunnelsAdmin.jsx';
 import DealImportWizard from './DealImportWizard.jsx';
 import PipeRunMigration from './PipeRunMigration.jsx';
+import SavedViewsBar, { ViewDialogGuarded } from './SavedViews.jsx';
 import ContactLinks from './ContactLinks.jsx';
 import { InlineMoney, InlineDate, InlineSelect } from './InlineCells.jsx';
 import { fmtMoney, fmtDateBR, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor, cadenceNotice } from './crmMeta.js';
@@ -126,7 +127,12 @@ async function exportDealsCsv(f) {
 
 const ATTENTION = [['late', 'Passo atrasado'], ['nonext', 'Sem próximo passo'], ['stalled', 'Parados +14 dias'], ['overdue', 'Previsão vencida']];
 
-export default function DealsPage({ caps, options, refreshKey, currentUserId, onOpenDeal, onOpenCompany, onNewDeal, onNewActivity, onChanged }) {
+const EMPTY_FILTERS = { type: '', ownerId: '', source: '', tag: '', attention: '' };
+const fieldsOf = (c) => ({ type: c.type || '', ownerId: c.ownerId || '', source: c.source || '', tag: c.tag || '', attention: c.attention || '', q: c.q || '', listStatus: c.listStatus || 'open' });
+const sameFields = (a, b) => ['type', 'ownerId', 'source', 'tag', 'attention', 'q', 'listStatus'].every((k) => a[k] === b[k]);
+
+// preset: filtros vindos dos painéis da Visão geral (ex.: "negócios sem próximo passo", "do Fulano") — aplicados uma vez.
+export default function DealsPage({ caps, options, refreshKey, currentUserId, preset, onPresetConsumed, onOpenDeal, onOpenCompany, onNewDeal, onNewActivity, onChanged }) {
   const [view, setView] = useState(readView);
   const [pipelineId, setPipelineId] = useState(readPipe); // '' = padrão; 'all' = todos (só na lista)
   const [showFunnels, setShowFunnels] = useState(false);
@@ -134,7 +140,13 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
   const [showPipeRun, setShowPipeRun] = useState(false);
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
-  const [filters, setFilters] = useState({ type: '', ownerId: '', source: '', tag: '', attention: '' });
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [views, setViews] = useState([]);
+  const [viewDefault, setViewDefault] = useState('');
+  const [activeView, setActiveView] = useState(''); // id de visão salva em uso ('' = nenhuma)
+  const [viewDialog, setViewDialog] = useState(null); // {view?} (view = edição)
+  const [ready, setReady] = useState(false); // só carrega negócios depois de saber a visão padrão
+  const presetRef = useRef(preset);
   const [tagList, setTagList] = useState([]);
   const [exporting, setExporting] = useState(false);
   const [listStatus, setListStatus] = useState('open');
@@ -165,7 +177,59 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
   function changePipeline(v) { setPipelineId(v); try { window.localStorage.setItem(PIPE_KEY, v); } catch { /* sem storage */ } }
   function changeView(v) { setView(v); try { window.localStorage.setItem(VIEW_KEY, v); } catch { /* sem storage: só não lembra */ } }
 
+  // Aplica uma configuração de visão na tela. ownerId 'me' vira a pessoa logada; campos que a visão não define ficam como estão.
+  function applyConfig(c, id = '') {
+    if (c.view) changeView(c.view === 'list' ? 'list' : 'board');
+    if (c.pipelineId !== undefined) changePipeline(c.pipelineId);
+    const f = fieldsOf(c);
+    setQ(f.q); setDebouncedQ(f.q); setListStatus(f.listStatus);
+    setFilters({ type: f.type, ownerId: f.ownerId === 'me' ? (currentUserId || '') : f.ownerId, source: f.source, tag: f.tag, attention: f.attention });
+    setActiveView(id);
+  }
+  const configOf = (ref) => (ref === 'all' ? { ...EMPTY_FILTERS, q: '', listStatus: 'open' } : ref === 'mine' ? { ...EMPTY_FILTERS, ownerId: 'me', q: '', listStatus: 'open' } : (views.find((v) => v.id === ref) || {}).config);
+  function pickView(ref) { const c = configOf(ref); if (c) { applyConfig(c, views.some((v) => v.id === ref) ? ref : ''); trackFlow('crm.visao.aplicar', 'ok'); } }
+
   useEffect(() => {
+    let cancelled = false;
+    crm.views('deals').then((r) => {
+      if (cancelled) return;
+      const list = r.views || []; const def = (r.defaults && r.defaults.deals) || '';
+      setViews(list); setViewDefault(def);
+      if (!presetRef.current && def) {
+        const saved = list.find((v) => v.id === def);
+        if (saved) applyConfig(saved.config, saved.id); else if (def === 'mine') applyConfig({ ...EMPTY_FILTERS, ownerId: 'me', q: '', listStatus: 'open' });
+      }
+    }).catch(() => {}).finally(() => { if (!cancelled) setReady(true); });
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!preset || !ready) return;
+    applyConfig({ ...EMPTY_FILTERS, q: '', listStatus: 'open', ...preset });
+    if (onPresetConsumed) onPresetConsumed();
+  }, [preset, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A configuração que está na tela agora, no formato salvo (a própria pessoa vira 'me', para a visão servir a qualquer um).
+  const currentConfig = () => ({ view, pipelineId: view === 'board' ? selectedPipe : (pipelineId || 'all'), q: debouncedQ, type: filters.type, ownerId: filters.ownerId === currentUserId && currentUserId ? 'me' : filters.ownerId, source: filters.source, tag: filters.tag, attention: filters.attention, listStatus });
+  const effPipe = (p) => p || (defaultPipe && defaultPipe.id) || '';
+  async function saveViews(fn, quiet) { try { await fn(); const r = await crm.views('deals'); setViews(r.views || []); setViewDefault((r.defaults && r.defaults.deals) || ''); } catch (e) { if (!quiet) notify(e.message || 'Não foi possível salvar a visão.', { tone: 'error' }); throw e; } }
+  async function submitViewDialog(v, { name, shared }) {
+    await saveViews(async () => {
+      if (v) await crm.updateView(v.id, { name, shared });
+      else { const r = await crm.createView({ scope: 'deals', name, shared, config: currentConfig() }); setActiveView(r.view.id); trackFlow('crm.visao.salvar', 'ok'); }
+    }, true); // erro aparece dentro do diálogo
+    setViewDialog(null); notify(v ? 'Visão atualizada.' : 'Visão salva. Ela fica na barra “Visões”.', { tone: 'success' });
+  }
+  async function updateViewFilters(v) { try { await saveViews(() => crm.updateView(v.id, { config: currentConfig() })); notify(`Visão “${v.name}” atualizada.`, { tone: 'success' }); } catch { /* aviso já mostrado */ } }
+  async function toggleShare(v) { try { await saveViews(() => crm.updateView(v.id, { shared: !v.shared })); notify(v.shared ? 'Agora só você vê esta visão.' : 'Visão compartilhada com o time.', { tone: 'success' }); } catch { /* aviso já mostrado */ } }
+  async function setDefaultView(ref) { try { const off = viewDefault === ref; await saveViews(() => crm.setViewDefault('deals', off ? null : ref)); notify(off ? 'Negócios volta a abrir sem visão.' : 'Esta visão passa a abrir ao entrar em Negócios.', { tone: 'success' }); } catch { /* aviso já mostrado */ } }
+  async function removeView(v) {
+    const ok = await askConfirm({ title: `Excluir a visão “${v.name}”?`, message: v.shared ? 'Ela some para todo o time.' : 'Os filtros que ela guardava não são afetados.', confirmLabel: 'Excluir', danger: true });
+    if (!ok) return;
+    try { await saveViews(() => crm.deleteView(v.id)); if (activeView === v.id) setActiveView(''); notify('Visão excluída.', { tone: 'success' }); } catch { /* aviso já mostrado */ }
+  }
+
+  useEffect(() => {
+    if (!ready) return undefined;
     let cancelled = false;
     setLoading(true);
     // Quadro mostra UM funil (vazio = o padrão); a lista pode juntar todos ('all'/vazio).
@@ -173,16 +237,22 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
     const req = view === 'board' ? crm.board(f).then((r) => { if (!cancelled) setBoard(r); }) : crm.deals({ ...f, status: listStatus, limit: 100, sort: 'recent' }).then((r) => { if (!cancelled) setList(r); });
     req.then(() => { if (!cancelled) { setError(''); setLoading(false); } }).catch((e) => { if (!cancelled) { setError(e.message || 'Não foi possível carregar os negócios.'); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [view, pipelineId, debouncedQ, filters, listStatus, refreshKey, localKey]);
+  }, [ready, view, pipelineId, debouncedQ, filters, listStatus, refreshKey, localKey]);
 
   const owners = (options && options.owners) || [];
   const pipelines = (options && options.pipelines) || [];
+  // Funil lembrado que não existe mais (arquivado, ou de outra conta): volta ao padrão em vez de mostrar uma lista vazia.
+  useEffect(() => { if (options && options.pipelines && pipelineId && pipelineId !== 'all' && !options.pipelines.some((p) => p.id === pipelineId)) changePipeline(''); }, [options, pipelineId]); // eslint-disable-line react-hooks/exhaustive-deps
   const defaultPipe = pipelines.find((p) => p.isDefault) || pipelines[0];
   const selectedPipe = view === 'board' ? ((board && board.pipeline && board.pipeline.id) || (pipelineId && pipelineId !== 'all' ? pipelineId : (defaultPipe && defaultPipe.id) || '')) : (pipelineId || 'all');
   const setF = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
   const hasFilter = debouncedQ || filters.type || filters.ownerId || filters.source || filters.tag || filters.attention;
   const sources = (options && options.dealSources) || [];
   const reasons = (options && options.lostReasons) || [];
+  const activeSaved = views.find((v) => v.id === activeView);
+  const viewDirty = !!activeSaved && (!sameFields(fieldsOf(currentConfig()), fieldsOf(activeSaved.config)) || currentConfig().view !== activeSaved.config.view || effPipe(currentConfig().pipelineId) !== effPipe(activeSaved.config.pipelineId));
+  const builtinActive = (() => { if (activeSaved) return ''; const cur = fieldsOf(currentConfig()); const flt = (c) => ({ ...fieldsOf(c), listStatus: '' }); return ['all', 'mine'].find((b) => sameFields({ ...cur, listStatus: '' }, flt(configOf(b)))) || ''; })();
+
 
   async function drop(stage) {
     const id = dragId;
@@ -255,6 +325,9 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
         </div>
       </div>
 
+      <SavedViewsBar views={views} activeId={activeView} dirty={viewDirty} builtinActive={builtinActive} defaultRef={viewDefault} canShare={!!caps.funnel}
+        onPick={pickView} onSaveNew={() => setViewDialog({})} onUpdate={updateViewFilters} onEdit={(v) => setViewDialog({ view: v })} onToggleShare={toggleShare} onDefault={setDefaultView} onDelete={removeView} />
+
       <div className="crm-filters">
         {pipelines.length > 1 && (
           <select value={selectedPipe} onChange={(e) => changePipeline(e.target.value)} aria-label="Funil" style={{ fontWeight: 800 }}>
@@ -286,7 +359,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
           </select>
         )}
         {view === 'list' && <button type="button" className="crm-btn" onClick={doExport} disabled={exporting} title={exporting ? 'Aguarde terminar a exportação' : 'Baixar os negócios desta lista em planilha (CSV)'}><Download size={14} /> {exporting ? 'Exportando…' : 'Exportar'}</button>}
-        {hasFilter && <button type="button" className="crm-btn" onClick={() => { setQ(''); setFilters({ type: '', ownerId: '', source: '', tag: '', attention: '' }); }}>Limpar</button>}
+        {hasFilter && <button type="button" className="crm-btn" onClick={() => { setQ(''); setFilters(EMPTY_FILTERS); }}>Limpar</button>}
       </div>
 
       <div className="crm-filters" role="group" aria-label="Negócios que pedem atenção" style={{ marginTop: -4 }}>
@@ -369,6 +442,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
       )}
       {view === 'board' && !board && !error && <div className="crm-empty">Carregando…</div>}
 
+      {viewDialog && <ViewDialogGuarded initial={viewDialog.view} canShare={!!caps.funnel} onCancel={() => setViewDialog(null)} onSubmit={(v) => submitViewDialog(viewDialog.view, v)} />}
       {showFunnels && <FunnelsAdmin initialId={view === 'board' ? selectedPipe : (pipelineId !== 'all' ? pipelineId : '')} onClose={() => setShowFunnels(false)} onChanged={() => { reload(); if (onChanged) onChanged(); }} />}
       {showPipeRun && <PipeRunMigration onClose={() => setShowPipeRun(false)} onDone={() => { reload(); if (onChanged) onChanged(); }} />}
       {showImport && <DealImportWizard options={options} onClose={() => setShowImport(false)} onDone={() => { reload(); if (onChanged) onChanged(); }} />}

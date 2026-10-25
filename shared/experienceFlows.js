@@ -9,6 +9,8 @@ export const FLOWS = {
   'crm.negocio.mover_etapa': { label: 'Mover negócio de etapa', askAfter: 8 },
   'crm.negocio.editar_direto': { label: 'Editar na lista de negócios', askAfter: 6 },
   'crm.atividade.reagendar': { label: 'Reagendar atividade', askAfter: 5 },
+  'crm.visao.aplicar': { label: 'Aplicar uma visão salva de negócios', askAfter: 6 },
+  'crm.visao.salvar': { label: 'Salvar uma visão de negócios', askAfter: 2 },
   'paleta.acao': { label: 'Usar a paleta de comandos (Ctrl+K)', askAfter: 6 },
   'paleta.busca_crm': { label: 'Achar negócio/empresa pela busca (Ctrl+K)', askAfter: 6 },
 };

@@ -9,7 +9,7 @@ import { requireAuth } from '../auth.js';
 import { effectiveOrgId } from '../routes.js';
 import { lookupCnpj } from '../cnpjLookup.js';
 import { CrmError } from './errors.js';
-import { crmCan, crmCapabilities } from './permissions.js';
+import { crmCan, crmCapabilities, crmLenses } from './permissions.js';
 import { onlyDigits } from './text.js';
 import { isValidCnpj } from './cnpj.js';
 import { findCompanyDuplicates, findContactDuplicates } from './duplicates.js';
@@ -24,6 +24,8 @@ import * as A from './activities.js';
 import * as AQ from './activityQueries.js';
 import * as F from './funnels.js';
 import * as X from './extras.js';
+import * as V from './views.js';
+import * as DB from './dashboards.js';
 import * as DI from './dealImporter.js';
 import { mapCnpjSuggestion } from './cnpjSuggestion.js';
 import { registerPiperunRoutes } from './piperun/routes.js';
@@ -50,7 +52,20 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
 
   router.get('/me', (req, res) => res.json({ capabilities: crmCapabilities(req.user) }));
   router.get('/options', h(async (req, res) => res.json(await Q.options(orgOf(req)))));
-  router.get('/overview', h(async (req, res) => res.json(await Q.overview(orgOf(req), req.user.id))));
+  router.get('/overview', h(async (req, res) => {
+    const lens = String(req.query.lens || '');
+    if (!lens) return res.json(await Q.overview(orgOf(req), req.user.id));
+    if (!V.LENSES.includes(lens)) throw new CrmError(400, 'Painel inválido.');
+    if (!crmLenses(req.user).includes(lens)) throw new CrmError(403, 'Este painel não faz parte do seu perfil.');
+    return res.json(lens === 'accounts' ? { lens, ...(await Q.overview(orgOf(req), req.user.id)) } : await DB.lensOverview(orgOf(req), req.user.id, lens));
+  }));
+
+  // Visões salvas (filtros de Negócios) e página inicial por pessoa (§98). Pessoal: qualquer um que lê; compartilhada: quem tem 'funnel'.
+  router.get('/views', h(async (req, res) => res.json({ views: await V.listViews(orgOf(req), req.user.id, req.query.scope || 'deals'), defaults: await V.getDefaults(orgOf(req), req.user.id) })));
+  router.post('/views', h(async (req, res) => res.status(201).json({ view: await V.createView(orgOf(req), req.user, req.body || {}, { canShare: crmCan(req.user, 'funnel') }) })));
+  router.put('/views-default', h(async (req, res) => res.json(await V.setDefault(orgOf(req), req.user, (req.body || {}).scope, (req.body || {}).ref))));
+  router.patch('/views/:id', h(async (req, res) => res.json({ view: await V.updateView(orgOf(req), req.user, req.params.id, req.body || {}, { canShare: crmCan(req.user, 'funnel') }) })));
+  router.delete('/views/:id', h(async (req, res) => res.json(await V.deleteView(orgOf(req), req.user, req.params.id, { canShare: crmCan(req.user, 'funnel') }))));
   router.get('/search', h(async (req, res) => res.json(await Q.search(orgOf(req), req.query.q))));
 
   // Cadastro rápido: digita o CNPJ, o resto vem da Receita (com cache) — e já diz se é duplicado.

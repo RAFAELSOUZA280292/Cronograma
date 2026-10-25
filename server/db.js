@@ -6,6 +6,7 @@ import { ensureProjectVersionsSchema } from './projectVersionsSchema.js';
 import { ensurePiperunSchema } from './crm/piperun/schema.js';
 import { ensureAutomationSchema } from './crm/automation.js';
 import { ensureCrmExtrasSchema } from './crm/extras.js';
+import { ensureViewsSchema } from './crm/views.js';
 import { ensureExperienceSchema } from './experience.js';
 
 const { Pool } = pg;
@@ -1439,6 +1440,7 @@ export async function initDb() {
   await pool.query(`CREATE INDEX IF NOT EXISTS crm_activities_reminder_idx ON crm_activities(due_date) WHERE status = 'open' AND due_notified_at IS NULL AND deleted_at IS NULL`);
   // Automação "ao ganhar" do funil (§84): colunas aditivas em crm_pipelines; se falhar, o CRM segue sem a automação.
   try { await ensureExperienceSchema(pool); } catch (e) { console.error('ERRO: tabelas de experiência de uso NÃO foram instaladas:', e.message); }
+  try { await ensureViewsSchema(pool); } catch (e) { console.error('ERRO: visões salvas do CRM NÃO foram instaladas:', e.message); }
   try { await ensureCrmExtrasSchema(pool); } catch (e) { console.error('ERRO: campos extras do CRM (MRR, tags, SLA) NÃO foram instalados:', e.message); }
   try { await ensureAutomationSchema(pool); } catch (e) { console.error('ERRO: automação ao ganhar NÃO foi instalada:', e.message); }
   // Migração PipeRun → CRM (§84): tabelas novas e independentes; se falhar, o CRM segue funcionando.

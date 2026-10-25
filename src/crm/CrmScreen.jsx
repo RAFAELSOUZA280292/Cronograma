@@ -42,6 +42,8 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
   const [showBootstrap, setShowBootstrap] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [queueSignal, setQueueSignal] = useState(0);
+  const [dealsPreset, setDealsPreset] = useState(null); // filtros vindos dos painéis da Visão geral
+  const goDeals = useCallback((preset) => { setDealsPreset({ ...(preset || {}), nonce: Date.now() }); setPage('deals'); }, [setPage]);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   useEffect(() => {
@@ -104,9 +106,9 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
             {NAV.map(([k, label, Icon]) => <button key={k} type="button" className={page === k ? 'active' : ''} onClick={() => setPage(k)}><Icon size={15} /> {label}{k === 'agenda' && overdueMine > 0 && <span className="crm-nav-badge" title={`${overdueMine} atividade(s) atrasada(s) sob sua responsabilidade`} aria-label={`${overdueMine} atividades atrasadas`}>{overdueMine > 99 ? '99+' : overdueMine}</span>}</button>)}
           </nav>
           <main className="crm-main">
-            {page === 'overview' && <OverviewPage caps={caps} refreshKey={refreshKey} onOpenCompany={openCompany} onOpenDeal={openDeal} onGoDeals={() => setPage('deals')} onGoAgenda={() => setPage('agenda')} onBootstrap={() => setShowBootstrap(true)} />}
+            {page === 'overview' && <OverviewPage caps={caps} refreshKey={refreshKey} onOpenCompany={openCompany} onOpenDeal={openDeal} onGoDeals={goDeals} onGoAgenda={() => setPage('agenda')} onBootstrap={() => setShowBootstrap(true)} />}
             {page === 'agenda' && <AgendaPage queueSignal={queueSignal} onQueueConsumed={() => setQueueSignal(0)} caps={caps} options={options} currentUserId={currentUser && currentUser.id} refreshKey={refreshKey} onOpenCompany={openCompany} onOpenDeal={openDeal} onNewActivity={(o) => setActivityForm(o || {})} onChanged={refresh} />}
-            {page === 'deals' && <DealsPage caps={caps} options={options} refreshKey={refreshKey} currentUserId={currentUser && currentUser.id} onOpenDeal={openDeal} onOpenCompany={openCompany} onNewDeal={(o) => setDealForm(o || {})} onNewActivity={(o) => setActivityForm(o || {})} onChanged={refresh} />}
+            {page === 'deals' && <DealsPage caps={caps} options={options} refreshKey={refreshKey} currentUserId={currentUser && currentUser.id} preset={dealsPreset} onPresetConsumed={() => setDealsPreset(null)} onOpenDeal={openDeal} onOpenCompany={openCompany} onNewDeal={(o) => setDealForm(o || {})} onNewActivity={(o) => setActivityForm(o || {})} onChanged={refresh} />}
             {page === 'companies' && <CompaniesPage caps={caps} options={options} refreshKey={refreshKey} onOpenCompany={openCompany} onNewCompany={() => setCompanyForm(true)} onImport={() => setShowImport(true)} />}
             {page === 'products' && <ProductsPage caps={caps} onChanged={refresh} />}
             {page === 'contacts' && <ContactsPage caps={caps} refreshKey={refreshKey} onOpenCompany={openCompany} onNewContact={() => setContactForm({})} onEditContact={(c) => setContactForm({ contact: c })} />}
