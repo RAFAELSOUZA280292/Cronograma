@@ -49,7 +49,7 @@ Lacunas já conhecidas (não contam como falha, mas precisam de decisão): relat
 ## Depois do cancelamento (Rafael)
 - [ ] Segundo meio com o zip do backup (≈ 630 MB) conferido.
 - [ ] Token do PipeRun e tokens `pxk_` revogados.
-- [ ] Funil "Comercial" vazio arquivado (Negócios › Funis › Arquivar).
+- [ ] Funil comercial vazio arquivado (Negócios › Funis › Arquivar).
 - [ ] Usuário do Maurício criado (31 negócios e 36 atividades estão sem responsável).
 - [ ] Cadência de follow-up decidida (ver abaixo). Só vale para negócios que **entrarem** na etapa depois de criada.
 
