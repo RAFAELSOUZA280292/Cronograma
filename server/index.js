@@ -1,3 +1,4 @@
+import { apiErrorHandler } from './errorHandler.js';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
@@ -82,14 +83,7 @@ app.use('/api', (req, res) => {
   res.status(404).json({ message: 'Rota não encontrada.' });
 });
 
-// eslint-disable-next-line no-unused-vars
-app.use('/api', (err, req, res, next) => {
-  // Erros de validação conhecidos (4xx lançados com `status`, ex.: anexo grande demais) voltam com a mensagem; o resto é 500 genérico.
-  if (err && err.type === 'entity.too.large') return res.status(413).json({ message: 'O conteúdo enviado é grande demais. Reduza o tamanho dos anexos e tente de novo.' });
-  if (err && err.status >= 400 && err.status < 500 && err.message) return res.status(err.status).json({ message: err.message });
-  console.error(err);
-  res.status(500).json({ message: 'Erro interno do servidor.' });
-});
+app.use('/api', apiErrorHandler);
 
 // Arquivos de /assets têm o hash do conteúdo no nome (Vite): podem ficar guardados no navegador por 1 ano. O index.html NÃO (é ele que aponta
 // para os arquivos novos a cada deploy). Um arquivo de /assets que não existe responde 404 de verdade — antes caía no index.html com 200 (text/html),
