@@ -5,7 +5,7 @@ Método: dados reais do backup do PipeRun carregados num **sandbox local** (`scr
 ## Pergunta central
 > Amanhã a Eduarda consegue trabalhar só no painel, sem sentir falta de nada?
 
-**Resposta: SIM para a rotina dela (follow-ups, prospecção, funil), DEPOIS que o Rafael liberar o acesso dela ao CRM (bloqueador B1). "Sem sentir falta de absolutamente nada": NÃO — há 5 recursos do PipeRun que ela não terá (lista na seção "Lacunas").**
+**Resposta: SIM para a rotina dela (follow-ups, prospecção, funil) — o acesso ao CRM (B1) foi liberado e confirmado. "Sem sentir falta de absolutamente nada": NÃO — há 5 recursos do PipeRun que ela não terá (lista na seção "Lacunas").**
 
 ## Perfil de uso dela no PipeRun (do backup)
 25 negócios (19 abertos, 5 perdidos, 1 ganho; 13 no funil Tributaristas e Contadores), 92 atividades (70 abertas, quase todas "1º Follow Up"), 428 anotações, 913 eventos de histórico. Perfil SDR: lead → follow-up por WhatsApp/telefone → anotação → mover de etapa. Nunca usou Atendimento, e-mail integrado, ligações do PipeRun nem propostas (as 7 propostas são do Maurício/Felipe). Google Agenda: só 4 atividades.
@@ -13,7 +13,7 @@ Método: dados reais do backup do PipeRun carregados num **sandbox local** (`scr
 ## Bloqueadores (podem impedir a operação amanhã)
 | # | Problema | Estado |
 |---|---|---|
-| **B1** | **Eduarda NÃO tem acesso ao CRM em produção** (`crmRole` vazio, `crmAccess=false`): o cartão "CRM" nem aparece para ela. | **Pendente — precisa do Rafael** (o sistema bloqueou a concessão automática como concessão de permissão). Gestão de Usuários › Eduarda Costa › CRM = **Vendedor**. Sem isso, nada do resto vale. |
+| **B1** | **Eduarda NÃO tem acesso ao CRM em produção** (`crmRole` vazio, `crmAccess=false`): o cartão "CRM" nem aparece para ela. | **RESOLVIDO em 25/10 (Rafael)**: perfil **Gestor Comercial** (`crmRole=gestor`, `crmAccess=true`), confirmado em produção; ela já aparece na lista de responsáveis do CRM. Como Gestor ela também importa planilhas, exclui, edita negócio fechado e configura funis/catálogo. |
 | B2 | `createDeal` sem o campo `mrr` quebrava (erro 500 "null value in column mrr") desde o deploy do MRR — o formulário da tela sempre mandava `mrr`, mas qualquer outro caminho (API, lead rápido) falhava. | **Corrigido** (achado pelo teste do lead rápido). |
 | B3 | Abrir negócios com imagens nas anotações baixava até **16,9 MB** (≈ 2 s; pior no celular) — regressão da importação das imagens. | **Corrigido**: a lista de notas vem leve e cada imagem carrega sob demanda (`/api/crm/notes/:id/attachments/:id`). |
 
@@ -37,7 +37,7 @@ Método: dados reais do backup do PipeRun carregados num **sandbox local** (`scr
 | Área | Item | Status | Evidência |
 |---|---|---|---|
 | Acesso | Entrar com o usuário dela | ✅ | usuário existe, ativo, sem expiração |
-| Acesso | Ver o módulo CRM | ⛔ B1 | `crmAccess=false` em produção |
+| Acesso | Ver o módulo CRM | ✅ | `crmRole=gestor`, `crmAccess=true` em produção (conferido) |
 | Acesso | Perfil Vendedor: ler/escrever; sem excluir/importar/configurar | ✅ | teste HTTP (403 nos proibidos) |
 | Dados | 25 negócios dela (19/5/1) | ✅ | produção e sandbox: 25; status batem |
 | Dados | 67 atividades abertas com responsável | ✅ | 70 no PipeRun: 3 eram lembretes **sem negócio** (ver Lacunas) |
@@ -65,7 +65,7 @@ Método: dados reais do backup do PipeRun carregados num **sandbox local** (`scr
 | **3 lembretes avulsos** (sem negócio) "Verificar se a Priscila colocou as informações do cliente…" (duplicados de set/2026, vencidos) | Baixo | Recriar 1 como atividade/anotação se ainda valer; estão no backup. |
 | **Relatórios e Forecast por período** do PipeRun | Baixo para SDR; alto para gestão | A Visão geral tem funil, ponderado, "a fechar em 30 dias", ganhos do mês. Relatórios por período: roadmap (Fase 4 do CRM). |
 | **Proposta (editor, PDF, assinatura eletrônica)** | Zero para ela (não criava) | Time decide a ferramenta (7 propostas históricas estão como anotação + PDFs no backup). |
-| **Importar planilha de leads**: perfil Vendedor não importa | Médio se ela importa listas de eventos | Decisão do Rafael: dar a ela o perfil **Gestor** (importa/exclui) ou fazer a importação por um gestor. |
+| ~~Importar planilha de leads~~ | — | Resolvido: ela é Gestor Comercial e importa. |
 | **Ações em lote** (transferir/mover vários negócios) | Baixo | Não existe; avaliar se o time usava. |
 | **Duração da atividade (30/60 min)** do PipeRun | Baixo | A atividade tem data/hora; duração não é guardada. |
 | App nativo do PipeRun | Baixo | O painel é instalável (PWA) e responsivo; testado em 375 px. |
