@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { improveTemplate } from './standardPlan.js';
 import { installProjectAudit } from './projectAudit.js';
 import { ensureProjectVersionsSchema } from './projectVersionsSchema.js';
+import { ensurePiperunSchema } from './crm/piperun/schema.js';
 
 const { Pool } = pg;
 
@@ -1433,6 +1434,8 @@ export async function initDb() {
   await pool.query(`CREATE INDEX IF NOT EXISTS crm_activities_company_idx ON crm_activities(company_id, status, due_date) WHERE deleted_at IS NULL`);
   await pool.query(`CREATE INDEX IF NOT EXISTS crm_activities_deal_idx ON crm_activities(deal_id, status) WHERE deleted_at IS NULL AND deal_id IS NOT NULL`);
   await pool.query(`CREATE INDEX IF NOT EXISTS crm_activities_reminder_idx ON crm_activities(due_date) WHERE status = 'open' AND due_notified_at IS NULL AND deleted_at IS NULL`);
+  // Migração PipeRun → CRM (§84): tabelas novas e independentes; se falhar, o CRM segue funcionando.
+  try { await ensurePiperunSchema(pool); } catch (e) { console.error('ERRO: tabelas da migração PipeRun NÃO foram criadas:', e.message); }
   // Histórico de versões do cronograma + gatilhos (§83). Se a DDL falhar, o painel sobe mesmo assim (sem versionamento) e o erro fica no log.
   try { await ensureProjectVersionsSchema(pool); } catch (e) { console.error('ERRO: versionamento do cronograma NÃO foi instalado:', e.message); }
 }

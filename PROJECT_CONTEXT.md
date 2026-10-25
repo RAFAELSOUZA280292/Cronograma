@@ -119,7 +119,7 @@ Fonte da verdade: `.env` local (não commitado, `.gitignore`) + Railway env vars
 Local: `set -a && source .env && set +a` antes de rodar, ou script wrapper com
 `export VAR="..."` (sandbox bloqueia `source .env` em alguns ambientes).
 
-## 5. Banco de dados (Postgres, 47 tabelas, sem ORM)
+## 5. Banco de dados (Postgres, 51 tabelas, sem ORM)
 
 `initDb()` roda `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ADD COLUMN IF NOT
 EXISTS` a cada boot (idempotente, sem migration tool). `migrateToPricetaxOrg()`
@@ -135,7 +135,7 @@ roda logo depois, também todo boot.
 | `xflow_tickets` | `id, ticket_number SERIAL, org_id FK, title, status, severity, priority, suggested_priority, product, reporter_id FK, assignee_id FK, data JSONB, created_at, updated_at, status_entered_at, time_breakdown JSONB, ball_holder_type/user_id, waiting_on_type, reopen_count, homolog_reject_count, sla_first_response_due_at/met_at, sla_resolution_due_at/met_at, sla_paused_at, sla_paused_seconds` | 1 linha = 1 BUG/ticket do módulo XFlow (§18); `status` **sem** `CHECK` de propósito (lista evolui sem migration) |
 | `xflow_events` | `id, ticket_id FK CASCADE, org_id FK, type, field, old_value, new_value, note, user_id FK, created_at` | Log estruturado de toda ação do XFlow — fonte de verdade da timeline (§18), substitui o `data.history[]` de texto livre da v1 (mantido só como fallback de leitura pra tickets antigos) |
 
-**As outras 40 tabelas** (criadas depois das 7 acima; descrição de cada uma em `docs/PROJECT_MAP.md` §6 e na seção citada):
+**As outras 44 tabelas** (criadas depois das 7 acima; descrição de cada uma em `docs/PROJECT_MAP.md` §6 e na seção citada):
 
 | Grupo | Tabelas | Seção |
 |---|---|---|
@@ -144,6 +144,7 @@ roda logo depois, também todo boot.
 | Pareceres / Modelos | `pareceres`, `parecer_studies`, `meeting_parecer_advice`, **`document_templates`, `document_template_items`** | §48, §70, §78 |
 | Notificações / Google | `notifications`, `google_calendar_connections` | §20, §21 |
 | Auditoria / indicadores | `user_access_events`, `ip_geo_cache`, `personal_card_events`, `user_usage_events`, `project_versions` | §65, §67, §82, §83 |
+| Migração PipeRun | `piperun_raw`, `piperun_map`, `piperun_runs`, `crm_deal_files` | §84 |
 | Meu dia | **`daily_content`** (cache diário das fontes, PK `kind,key,day`) | §77 |
 | Conectividade | **`api_tokens`** (token por janela do Claude Code: hash, escopo, validade, revogação, último uso) | §80 |
 | CRM (relacional, UUID, soft delete) | `crm_companies`, `crm_contacts`, `crm_notes`, `crm_company_projects`, `crm_pipelines`, `crm_pipeline_stages`, `crm_deals`, `crm_deal_items`, `crm_deal_stage_history`, `crm_products`, `crm_activities`, `crm_timeline_events`, `crm_audit_logs` | §54–§58 |
@@ -7549,11 +7550,24 @@ Documento técnico completo: `docs/VERSIONAMENTO_CRONOGRAMA.md` (arquitetura, ar
 
 **Testado:** `node scripts/schedule-version.test.mjs` (14) e `node scripts/project-versions-http.test.mjs` (≈75, local, cria/apaga usuários `oitmp`): gatilho, autoria (tela, API em transação, SQL direto), coalescência, RBAC, isolamento por organização, comparação, restauração completa/parcial/bloqueada, desfazer idêntico ao estado anterior, exclusão e recriação, falha do gatilho isolada, documento malformado, desempenho (178 KB: 28 ms/gravação, 1 versão de 12 kB), retenção; navegador: lista, comparação, simulação, confirmação, restauração, desfazer, mobile 375 px. **NÃO testado (§15):** produção real (volume de versões, backup do banco do Railway — fora do repositório), concorrência real de duas pessoas editando juntas (continua "última gravação vence"; agora é recuperável), `company_calendar_events` após restaurar. **Limite:** restaurar empresa excluída não recria as 13 tabelas filhas (atas enviadas, dossiês, links públicos, reservas, memória/conversas da RENATA).
 
+## 84. Migração PipeRun → CRM pela API (2026-10-25, pedido do Rafael)
+
+Documento operacional completo (medições, regras, roteiro de produção, falhas, limites): `docs/MIGRACAO_PIPERUN.md`. **Supera o "Passo 3 aguarda reexport" do §57/§58**: atividades, pessoas, anotações e arquivos agora vêm pela API.
+
+**Por quê:** a planilha do PipeRun deixou buracos (156 de 305 negócios sem empresa, atividades/pessoas/ligações com 0 linhas, sem motivo de perda, ordem de etapas estimada). A API oficial (`https://api.pipe.run/v1`, token no cabeçalho `token`, 120 req, 200 por página, `page`) entrega 320 negócios, 514 pessoas, 150 empresas, 142 atividades, 1.029 anotações, 707 arquivos, 7 propostas e o motivo de perda das 85 perdidas. **Não existe endpoint de histórico de etapas.** 147 negócios ativos não têm empresa no PipeRun (decisão do Rafael: importar todos com **empresa provisória**).
+
+**Desenho:** `server/crm/piperun/` — `extract` (API só-GET → cópia bruta `piperun_raw`; token só na memória, nunca gravado), `transform.js` (PURO), `migrate.js` (prévia sem gravar + importação em fases: empresas → provisórias → contatos → negócios → anotações/propostas → atividades → documentos), `reconcile.js` (PipeRun × CRM: contagens, valor por situação e por funil, divergências linha a linha), `runs.js` (execução única por org, progresso), `routes.js` (`/api/crm/migration/piperun/*`, **só administrador do CRM**; `GET /deals/:id/files`, `/deal-files/:id/download` seguem a leitura do CRM). Tabelas **novas**: `piperun_raw`, `piperun_map` (id PipeRun → id CRM; impede duplicar), `piperun_runs`, `crm_deal_files` (BYTEA, como os Pareceres). Nada do CRM existente mudou de estrutura. Reaproveita `createCompany/createContact/addNote` e o importador de negócios (§58), que ganhou `lostReasonKey/lostDetail` por linha e `stageHints` (ordem real das etapas). Tela `src/crm/PipeRunMigration.jsx` (CRM › Negócios › **Migrar do PipeRun**): Extrair › Revisar › Importar › Conferir (+ CSV de avisos/divergências, apagar a cópia bruta). Ficha do negócio lista os arquivos.
+
+**Regras fechadas:** nenhum negócio fica de fora; congelado entra aberto; motivo de perda real (texto original no detalhe); ordem real das etapas; campos personalizados e MRR viram texto na descrição; só documentos (PDF/DOCX…, ≤ 20 MB) sobem como arquivo; imagens/áudios ficam no backup; anotação com data/hora/autor originais; atividade importada não dispara lembrete em massa; propostas viram anotação; pessoa sem empresa e sem negócio, atividade sem negócio e itens de negócio na lixeira ficam só no backup (reportados).
+
+**Testado:** `node scripts/piperun-migration.test.mjs` (≈75, local, org descartável, **dados reais do backup**, API do PipeRun **simulada**): extração (401, 429, paginação, total conferido, CNAEs, token só no cabeçalho), prévia que não grava, RBAC (vendedor/gestor 403, outra org isolada), importação (307 negócios; abertos/ganhos/perdidos e **valor por situação batendo ao centavo** contra conta independente; motivo real; ordem real; datas originais; 143 provisórias; 912 notas; 138 atividades; 504 contatos sem duplicar), conferência sem divergência, **reimportação sem duplicar**, arquivos por API, token fora do banco, trava de execução, purga. Navegador: prévia, importação, progresso, conferência e nota do negócio com data/autor. Importar leva ~2 s sem documentos. **NÃO testado (§15):** extração com o token real em produção e importação em produção (feitas pelo Rafael); download dos documentos em volume (só simulado + 1 PDF real de teste manual); `X-RateLimit` real sob carga. **Segurança:** o token passou pelo chat durante a análise e foi removido do `.env`; o Rafael deve revogá-lo e gerar outro. O backup bruto da API ficou em `~/Downloads/PIPERUN_BACKUP/2026-10-25_api/` (dados pessoais; fora do repositório).
+
 | Preciso de... | Vá para |
 |---|---|
 | Localizar componente/função por linha em `App.jsx` | `docs/PROJECT_MAP.md` |
 | Regras de padrão de código, arquivos que não mexer, comandos | `CLAUDE.md` |
 | Detalhe de responsividade mobile por tela | `docs/RESPONSIVE_ARCHITECTURE.md` |
+| Migração PipeRun → CRM (medições da API, regras, roteiro de produção, falhas) | `docs/MIGRACAO_PIPERUN.md` (resumo: §84) |
 | Backup, versões, comparação e restauração do cronograma (arquitetura, SQL de emergência, limites) | `docs/VERSIONAMENTO_CRONOGRAMA.md` (resumo: §83) |
 | Estudo de integração via Telegram Bot (não implementado) | `docs/TELEGRAM_BOT_ESTUDO.md` |
 | Plano (não implementado) de vincular tarefa de reunião à atividade do cronograma, com a RENATA aprendendo | `docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md` |

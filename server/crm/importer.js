@@ -94,7 +94,7 @@ function assertRows(rows) {
 }
 
 // Devolve, por linha, o input normalizado + status. Não grava nada.
-async function classifyCompanies(orgId, rows) {
+export async function classifyCompanies(orgId, rows) {
   assertRows(rows);
   const index = await loadCompanyIndex(orgId);
   const owners = await loadOwners(orgId);

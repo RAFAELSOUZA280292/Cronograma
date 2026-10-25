@@ -3,7 +3,7 @@
 // etapa passa por aqui também — o select cobre teclado e celular, onde arrastar
 // no quadro não funciona.
 import React, { useCallback, useEffect, useState } from 'react';
-import { X, Pencil, Trash2, Trophy, ThumbsDown, StickyNote, Building2, Plus, AlertTriangle } from 'lucide-react';
+import { X, Pencil, Trash2, Trophy, ThumbsDown, StickyNote, Building2, Plus, AlertTriangle, Paperclip } from 'lucide-react';
 import { crm } from './crmApi.js';
 import DealForm from './DealForm.jsx';
 import CloseDealDialog from './CloseDealDialog.jsx';
@@ -134,6 +134,8 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
                   <div className="crm-card"><div className="crm-kpi-value" style={{ color: d.overdue ? '#e2574c' : undefined, fontSize: 18 }}>{fmtDateBR(d.expectedCloseDate) || '—'}</div><div className="crm-kpi-label">Previsão de fechamento</div>{d.overdue && <div className="crm-kpi-sub" style={{ color: '#e2574c' }}>vencida</div>}</div>
                 </div>
 
+                <DealFiles dealId={dealId} />
+
                 {d.status === 'open' && !data.activities.some((a) => a.status === 'open') && (
                   <div className="crm-alert crm-alert-warn" style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                     <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}><AlertTriangle size={15} /> <span><strong>Sem próximo passo.</strong> Negócio sem atividade agendada tende a esfriar.</span></span>
@@ -248,6 +250,21 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
       {editing && d && <DealForm initial={d} options={options} currentUserId={currentUserId} onCancel={() => setEditing(false)} onSaved={async () => { setEditing(false); await afterChange(); }} />}
       {closing && d && <CloseDealDialog deal={d} stage={closing} reasons={data.lostReasons} onCancel={() => setClosing(null)} onDone={async () => { setClosing(null); await afterChange(); }} />}
     </>
+  );
+}
+
+function DealFiles({ dealId }) {
+  const [files, setFiles] = useState(null);
+  useEffect(() => { let alive = true; crm.dealFiles(dealId).then((r) => { if (alive) setFiles(r.files); }).catch(() => { if (alive) setFiles([]); }); return () => { alive = false; }; }, [dealId]);
+  if (!files || !files.length) return null;
+  const kb = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+  return (
+    <div className="crm-section">
+      <h3 className="crm-section-title"><Paperclip size={14} aria-hidden="true" /> Arquivos ({files.length})</h3>
+      {files.map((f) => (
+        <div key={f.id} className="crm-map-row"><a href={crm.dealFileUrl(f.id)} download={f.name} style={{ overflowWrap: 'anywhere' }}>{f.name}</a><span className="crm-muted">{kb(f.size)}{f.source === 'piperun' ? ' · importado do PipeRun' : ''}</span></div>
+      ))}
+    </div>
   );
 }
 

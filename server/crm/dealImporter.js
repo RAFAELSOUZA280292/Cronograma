@@ -17,6 +17,7 @@ import { tx, addAudit, addTimeline, parseNumberBR, todayBR, createContact, RELAT
 import { listPipelines, createPipelineTx, appendOpenStageTx } from './funnels.js';
 import { MAX_IMPORT_ROWS, isPlaceholderName } from './importer.js';
 import { brl } from './deals.js';
+import { LOST_REASONS } from './pipeline.js';
 
 export const SOURCE_SYSTEM = 'piperun';
 
@@ -31,8 +32,10 @@ export const DEAL_IMPORT_FIELDS = [
 // o que não está aqui vai depois, em ordem alfabética — o Rafael reordena na tela de funis.
 const STAGE_ORDER = ['suspect', 'leads', 'lead', 'cadencia iniciada', 'conexao', 'reuniao agendada', 'mapeamento', 'reuniao de levantamento de informacoes para simulacao',
   'apresentacao do programa pricetax', 'acesso teste', 'oportunidade estruturada', 'proposta', 'negociacao', 'contrato', 'ganhos'];
-export function orderStageNames(names) {
-  const idx = (n) => { const i = STAGE_ORDER.indexOf(personNameKey(n)); return i < 0 ? 999 : i; };
+// `hint`: ordem REAL das etapas vinda da origem (API do PipeRun, §84). Sem ela, a lista de nomes conhecidos acima.
+export function orderStageNames(names, hint = null) {
+  const real = Array.isArray(hint) && hint.length ? hint.map((n) => personNameKey(n)) : null;
+  const idx = (n) => { const i = (real || STAGE_ORDER).indexOf(personNameKey(n)); return i < 0 ? 999 : i; };
   return [...names].sort((a, b) => idx(a) - idx(b) || String(a).localeCompare(String(b), 'pt'));
 }
 
@@ -135,6 +138,7 @@ export async function classifyDeals(orgId, rows) {
       value: Number.isFinite(v) && v > 0 ? v : 0, created, closed: kind === 'open' ? null : closed, stageEntered, owner,
       source: String(raw.source || '').trim().slice(0, 200), notes: String(raw.notes || '').trim(), description: String(raw.description || '').trim(), tags: String(raw.tags || '').trim(),
       personName: base.person, personEmail: base.personEmail,
+      lostReasonKey: LOST_REASONS[raw.lostReasonKey] && raw.lostReasonKey !== 'nao_informado' ? raw.lostReasonKey : '', lostDetail: String(raw.lostDetail || '').trim().slice(0, 500),
     };
   });
   return { ctx, results };
@@ -211,7 +215,7 @@ async function insertDeal(c, orgId, actor, r, pipeline, stageId, etapaStageId, o
      VALUES ($1,$2,$3,$4,$5,$6,'new',$7,$8,$9,$10,$11,$12,$13,$14,
              (NULLIF($15::text, '')::date + time '12:00') AT TIME ZONE 'America/Sao_Paulo', ${ts(16)}, $17, ${ts(18)}, $19, ${ts(20)}, $19, $21, $22)`,
     [id, orgId, r.companyId, pipeline.id, stageId, r.title.slice(0, 400), r.value, ownerId, contactId, r.source, descParts.join('\n').slice(0, 3000), r.kind,
-      lost ? 'nao_informado' : '', lost ? 'Importado do PipeRun — o motivo da perda não vem no export.' : '',
+      lost ? (r.lostReasonKey || 'nao_informado') : '', lost ? (r.lostDetail || 'Importado do PipeRun — o motivo da perda não vem no export.') : '',
       r.closed || '', r.stageEntered, Number(ord[0].n), r.created, actor.id || null, r.closed || r.stageEntered, SOURCE_SYSTEM, r.externalId]);
   // Histórico de etapas: só o que o export permite afirmar (etapa atual/última + fechamento).
   const hist = async (fromId, fromName, toId, toName, when) => c.query(
@@ -244,7 +248,7 @@ async function insertDeal(c, orgId, actor, r, pipeline, stageId, etapaStageId, o
   return { id, promoted };
 }
 
-export async function commitDealImport(orgId, actor, rows, { ownerMap = {} } = {}) {
+export async function commitDealImport(orgId, actor, rows, { ownerMap = {}, stageHints = {} } = {}) {
   const { ctx, results } = await classifyDeals(orgId, rows);
   const news = results.filter((r) => r.status === 'new');
   const out = { created: 0, alreadyImported: 0, failed: [], createdFunnels: [], createdStages: [], promotedCompanies: 0, skipped: results.filter((r) => r.status !== 'new' && r.status !== 'already').map(skippedRow),
@@ -258,11 +262,11 @@ export async function commitDealImport(orgId, actor, rows, { ownerMap = {} } = {
   for (const [k, g] of groups) {
     const existing = pipeByKey.get(k);
     if (!existing) {
-      await tx((c) => createPipelineTx(c, orgId, actor, { name: g.name, openStageNames: orderStageNames([...g.stages]) }));
+      await tx((c) => createPipelineTx(c, orgId, actor, { name: g.name, openStageNames: orderStageNames([...g.stages], stageHints[k]) }));
       out.createdFunnels.push(g.name); g.stages.forEach((n) => out.createdStages.push(`${g.name} › ${n}`));
     } else {
       const have = new Set(existing.stages.map((s) => personNameKey(s.name)));
-      for (const n of orderStageNames([...g.stages]).filter((x) => !have.has(personNameKey(x)))) {
+      for (const n of orderStageNames([...g.stages], stageHints[k]).filter((x) => !have.has(personNameKey(x)))) {
         await tx((c) => appendOpenStageTx(c, orgId, existing.id, n));
         out.createdStages.push(`${existing.name} › ${n}`);
       }

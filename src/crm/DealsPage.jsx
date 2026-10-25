@@ -3,12 +3,13 @@
 // perda é obrigatório). O mesmo funil serve novo negócio e upsell — o filtro de
 // tipo separa. Arrastar não existe no celular: lá o cartão tem o seletor “Mover para…” (e a etapa também muda na ficha do negócio).
 import React, { useCallback, useEffect, useState } from 'react';
-import { Plus, Kanban, List, Sparkles, Settings2, Upload } from 'lucide-react';
+import { Plus, Kanban, List, Sparkles, Settings2, Upload, DatabaseBackup } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { notify } from '../ui/dialogs.jsx';
 import CloseDealDialog from './CloseDealDialog.jsx';
 import FunnelsAdmin from './FunnelsAdmin.jsx';
 import DealImportWizard from './DealImportWizard.jsx';
+import PipeRunMigration from './PipeRunMigration.jsx';
 import { fmtMoney, fmtDateBR, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor } from './crmMeta.js';
 
 const VIEW_KEY = 'crm-deals-view';
@@ -55,6 +56,7 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
   const [pipelineId, setPipelineId] = useState(readPipe); // '' = padrão; 'all' = todos (só na lista)
   const [showFunnels, setShowFunnels] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showPipeRun, setShowPipeRun] = useState(false);
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [filters, setFilters] = useState({ type: '', ownerId: '' });
@@ -123,6 +125,7 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
           </div>
           {caps.funnel && <button type="button" className="crm-btn" onClick={() => setShowFunnels(true)}><Settings2 size={14} /> Funis</button>}
           {caps.import && <button type="button" className="crm-btn" onClick={() => setShowImport(true)}><Upload size={14} /> Importar negócios</button>}
+          {caps.admin && <button type="button" className="crm-btn" onClick={() => setShowPipeRun(true)}><DatabaseBackup size={14} /> Migrar do PipeRun</button>}
           {caps.write && <button type="button" className="crm-btn crm-btn-primary" onClick={() => onNewDeal({ pipelineId: view === 'board' ? selectedPipe : (pipelineId !== 'all' ? pipelineId : '') })}><Plus size={14} /> Criar negócio</button>}
         </div>
       </div>
@@ -210,6 +213,7 @@ export default function DealsPage({ caps, options, refreshKey, onOpenDeal, onNew
       {view === 'board' && !board && !error && <div className="crm-empty">Carregando…</div>}
 
       {showFunnels && <FunnelsAdmin initialId={view === 'board' ? selectedPipe : (pipelineId !== 'all' ? pipelineId : '')} onClose={() => setShowFunnels(false)} onChanged={() => { reload(); if (onChanged) onChanged(); }} />}
+      {showPipeRun && <PipeRunMigration onClose={() => setShowPipeRun(false)} onDone={() => { reload(); if (onChanged) onChanged(); }} />}
       {showImport && <DealImportWizard options={options} onClose={() => setShowImport(false)} onDone={() => { reload(); if (onChanged) onChanged(); }} />}
       {closing && <CloseDealDialog deal={closing.deal} stage={closing.stage} reasons={reasons} onCancel={() => setClosing(null)} onDone={() => { setClosing(null); reload(); if (onChanged) onChanged(); }} />}
     </div>

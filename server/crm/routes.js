@@ -25,6 +25,7 @@ import * as AQ from './activityQueries.js';
 import * as F from './funnels.js';
 import * as DI from './dealImporter.js';
 import { mapCnpjSuggestion } from './cnpjSuggestion.js';
+import { registerPiperunRoutes } from './piperun/routes.js';
 
 const need = (cap) => (req, res, next) => {
   if (!crmCan(req.user, cap)) return res.status(403).json({ message: 'Você não tem permissão pra isso no CRM.' });
@@ -180,6 +181,8 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
     const { keys, withContacts } = req.body || {};
     res.json(await BS.commitBootstrap(orgOf(req), actorOf(req), { keys: Array.isArray(keys) ? keys : [], withContacts: withContacts !== false }));
   }));
+
+  registerPiperunRoutes(router, { need, h, orgOf, actorOf }); // migração PipeRun → CRM (§84)
 
   return router;
 }

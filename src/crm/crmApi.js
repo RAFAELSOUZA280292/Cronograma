@@ -13,6 +13,15 @@ const B = '/api/crm';
 
 export const crm = {
   me: () => apiGet(`${B}/me`),
+  // Migração PipeRun → CRM (§84). O token só vai no corpo da extração; nunca é guardado.
+  pipeRunStatus: () => apiGet(`${B}/migration/piperun`),
+  pipeRunExtract: (token) => apiPost(`${B}/migration/piperun/extract`, { token }),
+  pipeRunPreview: (ownerMap) => apiGet(`${B}/migration/piperun/preview${qs({ ownerMap: ownerMap && Object.keys(ownerMap).length ? JSON.stringify(ownerMap) : '' })}`),
+  pipeRunImport: (body) => apiPost(`${B}/migration/piperun/import`, body),
+  pipeRunReport: () => apiGet(`${B}/migration/piperun/report`),
+  pipeRunPurge: () => apiPost(`${B}/migration/piperun/purge`, { confirm: true }),
+  dealFiles: (id) => apiGet(`${B}/deals/${id}/files`),
+  dealFileUrl: (fileId) => `${B}/deal-files/${fileId}/download`,
   options: () => apiGet(`${B}/options`),
   overview: () => apiGet(`${B}/overview`),
   search: (q) => apiGet(`${B}/search${qs({ q })}`),
