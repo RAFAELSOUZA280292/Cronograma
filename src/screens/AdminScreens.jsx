@@ -8,6 +8,7 @@ import { Button, ConfirmDialog, SaveStatus, Segmented, Tabs } from '../ui/index.
 import ConnectSection from '../connect/ConnectSection.jsx';
 import DailyPrefs from '../daily/DailyPrefs.jsx';
 import { DialogOverlay } from '../ui/dialog.jsx';
+import PrivacyNotice from '../opsintel/PrivacyNotice.jsx';
 import WidgetSection from '../widget/WidgetSection.jsx';
 import { apiGet, apiPost, apiPut } from '../lib/api.js';
 import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
@@ -813,6 +814,7 @@ export function MyProfileModal({ user, onClose, onAvatar, googleConnectResult, i
             { id: 'dia', label: 'Meu dia' },
             { id: 'agenda', label: 'Agenda' },
             { id: 'iphone', label: 'iPhone' },
+            { id: 'privacidade', label: 'Privacidade' },
             { id: 'conectar', label: 'Integrações (avançado)' },
           ]} />
         </div>
@@ -875,6 +877,7 @@ export function MyProfileModal({ user, onClose, onAvatar, googleConnectResult, i
         </>)}
 
         {tab === 'iphone' && <WidgetSection />}
+        {tab === 'privacidade' && <PrivacyNotice />}
         <div style={{ display: tab === 'conectar' ? 'block' : 'none' }}><ConnectSection onAtRiskChange={setTokenAtRisk} /></div>
       </div>
       {showTokenGuard && (

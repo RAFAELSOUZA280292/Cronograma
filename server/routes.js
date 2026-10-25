@@ -18,6 +18,8 @@ import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { CRM_ROLES } from './crm/permissions.js';
 import { searchProjectMemory } from './memoryRetrieval.js';
 import { recordAccess, noteVisit, noteFirstUse, accessSummary, recentAccess } from './accessLog.js';
+import { recordUsage } from './usageLog.js';
+import { usagePolicy } from './usagePolicy.js';
 import { syncCardEvents, getActivityStats, getDayDetail, cardEventsOf } from './personalActivity.js';
 
 function uid(p) {
@@ -208,6 +210,17 @@ router.post('/activity/ping', requireAuth, (req, res) => {
   noteFirstUse(req.user.id, req);
   res.json({ ok: true });
 });
+
+// Rastreador de uso (Central de Inteligência Operacional): fatias de tempo e ações pontuais, só da equipe. Nunca guarda conteúdo.
+router.post('/activity/usage', requireAuth, async (req, res, next) => {
+  try {
+    const r = await recordUsage(req.user, req.body || {});
+    res.json({ ok: true, stored: r.stored });
+  } catch (e) { next(e); }
+});
+
+// Transparência: toda a equipe pode ler como o uso é medido.
+router.get('/activity/policy', requireAuth, (req, res) => res.json({ policy: usagePolicy() }));
 
 router.patch('/auth/me', requireAuth, async (req, res, next) => {
   try {

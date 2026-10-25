@@ -205,6 +205,26 @@ export async function initDb() {
       fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // Central de Inteligência Operacional (2026-10-25): coordenadas APROXIMADAS (centro da cidade informado pelo IP) e telemetria de uso.
+  await pool.query(`ALTER TABLE ip_geo_cache ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION`);
+  await pool.query(`ALTER TABLE ip_geo_cache ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_usage_events (
+      id          BIGSERIAL PRIMARY KEY,
+      user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      session_id  TEXT NOT NULL DEFAULT '',
+      kind        TEXT NOT NULL,
+      module      TEXT NOT NULL DEFAULT '',
+      view        TEXT NOT NULL DEFAULT '',
+      project_id  TEXT NOT NULL DEFAULT '',
+      connected_s INTEGER NOT NULL DEFAULT 0,
+      active_s    INTEGER NOT NULL DEFAULT 0,
+      action      TEXT NOT NULL DEFAULT '',
+      at          TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS user_usage_events_user_idx ON user_usage_events(user_id, at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS user_usage_events_at_idx ON user_usage_events(at)`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS personal_card_events (
       user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

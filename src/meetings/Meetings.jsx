@@ -6,6 +6,7 @@
 // de `project.activities`). Mesmo padrão de mutação/autosave/soft-delete
 // do resto do app — ver PROJECT_CONTEXT.md §13a.
 
+import { trackAction } from '../lib/usageTracker.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, Plus, X, Trash2, Undo2, Clock, Users, CalendarDays, ChevronDown, FileText, Sparkles, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
 import { fmtDate, fmtTs, useIsMobile, SidePanel, useDirtyForm } from '../App.jsx';
@@ -303,6 +304,7 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
     setError('');
     try {
       const res = await apiPost('/api/meeting-inbox', { projectId: pid, transcript: text, date, time });
+      trackAction('meeting_submit');
       onSubmitted({
         id: res.submissionId,
         status: 'pending',

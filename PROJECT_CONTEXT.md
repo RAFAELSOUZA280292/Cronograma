@@ -31,9 +31,10 @@ O painel (painel.pricetax.com.br) virou o **ecossistema de trabalho da PRICETAX*
 | **Modelos de documentos** | `/modelos` | master/pricetax | §78 | `src/modelos/`, `server/documentTemplates.js` |
 | CRM | `/crm` | `crm_role` (master/super admin sempre) | §54–§58 | `src/crm/`, `server/crm/` |
 | Gestão de Usuários | `/usuarios` | master | §7, §67–§68 | `src/App.jsx` (`UsersManagementScreen`) |
+| **Inteligência Operacional** | `/inteligencia` | master | §82 | `src/opsintel/`, `server/opsIntel.js`, `server/usageLog.js`, `shared/usageMetrics.js` |
 
 Transversais (não são "abas"): **RENATA** (assistente de IA: §27–§42, §50, §63, §70), **Meu perfil** em abas — Perfil · Meu dia ·
-Agenda · iPhone — com **boas-vindas** na primeira entrada e a **Mensagem do dia** na tela inicial (§77), **Widget do iPhone** (§76),
+Agenda · iPhone · Privacidade (§82) — com **boas-vindas** na primeira entrada e a **Mensagem do dia** na tela inicial (§77), **Widget do iPhone** (§76),
 Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (§67), **API de conectividade** para outra janela do Claude Code (§80).
 
 **Linha do tempo** (o "porquê" de cada coisa está na seção citada):
@@ -118,7 +119,7 @@ Fonte da verdade: `.env` local (não commitado, `.gitignore`) + Railway env vars
 Local: `set -a && source .env && set +a` antes de rodar, ou script wrapper com
 `export VAR="..."` (sandbox bloqueia `source .env` em alguns ambientes).
 
-## 5. Banco de dados (Postgres, 45 tabelas, sem ORM)
+## 5. Banco de dados (Postgres, 46 tabelas, sem ORM)
 
 `initDb()` roda `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ADD COLUMN IF NOT
 EXISTS` a cada boot (idempotente, sem migration tool). `migrateToPricetaxOrg()`
@@ -134,7 +135,7 @@ roda logo depois, também todo boot.
 | `xflow_tickets` | `id, ticket_number SERIAL, org_id FK, title, status, severity, priority, suggested_priority, product, reporter_id FK, assignee_id FK, data JSONB, created_at, updated_at, status_entered_at, time_breakdown JSONB, ball_holder_type/user_id, waiting_on_type, reopen_count, homolog_reject_count, sla_first_response_due_at/met_at, sla_resolution_due_at/met_at, sla_paused_at, sla_paused_seconds` | 1 linha = 1 BUG/ticket do módulo XFlow (§18); `status` **sem** `CHECK` de propósito (lista evolui sem migration) |
 | `xflow_events` | `id, ticket_id FK CASCADE, org_id FK, type, field, old_value, new_value, note, user_id FK, created_at` | Log estruturado de toda ação do XFlow — fonte de verdade da timeline (§18), substitui o `data.history[]` de texto livre da v1 (mantido só como fallback de leitura pra tickets antigos) |
 
-**As outras 38 tabelas** (criadas depois das 7 acima; descrição de cada uma em `docs/PROJECT_MAP.md` §6 e na seção citada):
+**As outras 39 tabelas** (criadas depois das 7 acima; descrição de cada uma em `docs/PROJECT_MAP.md` §6 e na seção citada):
 
 | Grupo | Tabelas | Seção |
 |---|---|---|
@@ -142,7 +143,7 @@ roda logo depois, também todo boot.
 | Reuniões / Dossiê | `meeting_submissions`, `project_dossiers`, `project_meeting_digests` | §24, §49, §63 |
 | Pareceres / Modelos | `pareceres`, `parecer_studies`, `meeting_parecer_advice`, **`document_templates`, `document_template_items`** | §48, §70, §78 |
 | Notificações / Google | `notifications`, `google_calendar_connections` | §20, §21 |
-| Auditoria / indicadores | `user_access_events`, `ip_geo_cache`, `personal_card_events` | §65, §67 |
+| Auditoria / indicadores | `user_access_events`, `ip_geo_cache`, `personal_card_events`, `user_usage_events` | §65, §67, §82 |
 | Meu dia | **`daily_content`** (cache diário das fontes, PK `kind,key,day`) | §77 |
 | Conectividade | **`api_tokens`** (token por janela do Claude Code: hash, escopo, validade, revogação, último uso) | §80 |
 | CRM (relacional, UUID, soft delete) | `crm_companies`, `crm_contacts`, `crm_notes`, `crm_company_projects`, `crm_pipelines`, `crm_pipeline_stages`, `crm_deals`, `crm_deal_items`, `crm_deal_stage_history`, `crm_products`, `crm_activities`, `crm_timeline_events`, `crm_audit_logs` | §54–§58 |
@@ -7494,6 +7495,43 @@ Testado: sanitizador contra script/onclick/javascript:/iframe/img onerror; ida e
 
 **RENATA geral + status dos pareceres (2026-10-06, pedido do Rafael)**: (1) **RENATA disponível de qualquer tela**, sem estar presa a uma empresa: botão **"RENATA"** na barra do topo (só ícone no celular) e item **"Falar com a RENATA"** / **"Perguntar à RENATA: «texto»"** na busca Ctrl+K (com texto digitado ela vem por ÚLTIMO — Enter continua abrindo o melhor resultado; sem resultado nenhum, Enter pergunta). Painel `src/assistant/RenataHome.jsx` (Drawer): sugestões, conversa guardada no `sessionStorage` por usuário (o servidor só recebe as últimas 8 mensagens; **nada novo é gravado no banco** além da métrica `assistant_general`), "Nova conversa", "Tentar de novo", e seletor **"Perguntar sobre uma empresa"** que abre a RENATA da empresa (`ProjectAssistant`, agora montado pelo `shellRef.renataNode`). Servidor: `server/assistantGeneral.js` + `POST /api/assistant/general/ask {question, history}` (503 sem `ANTHROPIC_API_KEY`) — o contexto é montado a cada pergunta com o que a PESSOA já vê: quadro pessoal, resumo de cada empresa acessível (`canAccessProject`; atividades em aberto/atrasadas, minhas atividades e tarefas de reunião, próximas reuniões), agenda do Google (7 dias, se conectada) e **conhecimento acumulado** (`loadRelevantFacts` com `projectId=null`: fatos da organização + pareceres estudados de escopo Geral, só para a equipe). Limites assumidos: **não** busca no texto de reuniões (isso é da RENATA da empresa — o prompt manda orientar a abri-la), **não** cria/altera nada (só consulta; diz em que tela fazer) e pareceres "Cliente específico" não entram (sem empresa para validar o escopo). (2) **Memória de pareceres**: antes o estudo era MANUAL; agora é **automático ao enviar** (ver abaixo) e o botão manual continua para os que falharam/enviados sem IA. A tela **Pareceres** agora mostra o status ("A RENATA estudou X de Y pareceres" + botão **"Estudar os pendentes"**, com confirmação e acompanhamento a cada 5 s; `GET /api/pareceres/study` é só SQL). **Decidido pelo Rafael (2026-10-06): estudar automaticamente ao enviar** — `POST /api/pareceres` dispara `autoStudy` (`server/parecerStudy.js`) em segundo plano depois de responder ao upload: estuda só os `new`/`changed` (não reprocessa em loop os `failed` — esses ficam no aviso e no botão manual), sem chave de IA não faz nada, e um PDF enviado durante um estudo em andamento marca `autoFollowUp` e é pego quando o job termina. Testado com cliente de IA simulado (estuda ao enviar, follow-up, sem repetir falhados); **a IA real não foi testada localmente**.
 **Testado**: servidor — contexto real contra o Postgres local, `summarizeProject`/`sanitizeHistory`, `askGeneral` com **cliente de IA simulado** (histórico, prompt), validações HTTP (401/400/503); browser — botão na barra, painel, conversa com resposta simulada (histórico enviado, formatação, "Tentar de novo"), busca (item RENATA, Enter), abrir a RENATA da empresa e Esc, banner de pareceres e o fluxo de confirmação, celular (barra 44 px, painel). **Não testado**: **chamada real ao modelo** (sem chave local — a qualidade/limites da resposta e o tamanho do contexto com muitas empresas só se veem em produção); o painel com conta de usuário `cliente`; "Estudar os pendentes" com IA real.
+
+## 82. Central de Inteligência Operacional (2026-10-25, pedido do Rafael)
+
+Tela **Inteligência** (`/inteligencia`, **só Master**, mesma organização): como a plataforma é usada pela equipe. Nasceu de um
+diagnóstico do que já era registrado e do que faltava; nada é número inventado — cada indicador leva o selo **Medido**,
+**Estimado**, **Misto** ou **Indisponível**.
+
+**Diagnóstico (o que já existia):** `user_access_events` (login, volta à sessão, primeiro uso do dia, senha errada — IP, cidade, UA; §67), `ip_geo_cache` (ipwho.is),
+histórico de alterações em `projects.data->log` (últimas 300 ações por empresa, identifica a pessoa só pelo NOME), `personal_card_events`, `xflow_events`,
+`crm_audit_logs`, `ai_messages` (perguntas à RENATA), `meeting_submissions`. **Lacunas:** não havia tempo de tela, módulo/tela usada, empresa aberta,
+exportações, nem coordenadas do IP. **Reaproveitado:** tudo acima vira "estimativa" no passado; a captura nova só cobre o futuro.
+
+**Captura nova** (`src/lib/usageTracker.js` → `POST /api/activity/usage` → `server/usageLog.js` → tabela `user_usage_events`): a cada 15 s o app conta se a aba está visível
+(*conectado*) e se houve mouse/teclado/rolagem nos últimos 60 s (*ativo*), no módulo/tela/empresa abertos; fatias de até 120 s, envio a cada 60 s, `sendBeacon` ao esconder a aba.
+Ações pontuais (lista fechada `ACTIONS`: export_pdf, export_excel, upload_transcript, upload_file, share_link_create, meeting_submit, search).
+**Só perfis master e pricetax são medidos**; cliente tem só os acessos de segurança. Servidor sanitiza: nomes `^[a-z0-9_:-]{0,40}$`, ids `^[A-Za-z0-9_-]{0,40}$`, ≤40 fatias/envio, ≤120 s/fatia, ativo ≤ conectado, 20 envios/min por pessoa. Nunca recebe texto digitado, senha ou conteúdo.
+Bug achado no teste HTTP e corrigido: sem `sessionId` o `String(undefined)` passava na regex e a gravação dava 500.
+
+**Fórmulas** (`shared/usageMetrics.js`, funções puras com 22 testes): `sessão` = eventos separados por ≤30 min; **tempo estimado** = soma dos intervalos entre eventos consecutivos, cada um limitado a 5 min, +1 min no último evento da sessão;
+`dia` usa o MEDIDO se houver fatias nele, senão o ESTIMADO se houver eventos, senão fica de fora (indisponível) — `combineDays`; **ocioso** = conectado − ativo; **índice de atividade** = ativo ÷ conectado, só em dias medidos
+(não é produtividade: resultado entregue = operações registradas, contadas à parte); variação = % contra o período anterior de mesmo tamanho (`pctChange`, sem base → sem seta).
+**Alertas** (`detectAlerts`, regras fixas): país novo (alta), cidade nova (média), dispositivo novo (baixa) — comparados ao histórico ANTERIOR à janela recente (30 dias; precisa ≥5/≥10 acessos antes);
+viagem impossível (>300 km a >900 km/h, alta); ≥3 senhas erradas em 24 h; ≥3 IPs em 1 h; madrugada atípica (precisa ≥20 acessos); um IP errando ≥3 contas. São sinais, não acusações.
+
+**Mapa** (`src/opsintel/AccessMap.jsx`, Leaflet + tiles OSM): ponto = centro da cidade informado pelo IP, círculo de 25 km de incerteza; vermelho = tem alerta; `ip_geo_cache` ganhou `latitude/longitude` e
+`backfillCoords` (≤12 IPs por consulta) completa o histórico aos poucos. IP sai mascarado na API (`maskIp`); acessos sem coordenadas ficam só na lista e a tela diz quantos.
+
+**Privacidade/LGPD:** texto único em `server/usagePolicy.js` (finalidade, base legal "legítimo interesse — revisar com o DPO", o que coleta/não coleta, quem vê, retenção, como interpretar) exibido a TODA a equipe em
+**Meu perfil › Privacidade** (`src/opsintel/PrivacyNotice.jsx`, `GET /api/activity/policy`) e na aba Metodologia da central. Retenção: uso 395 dias, acessos 730 dias (`USAGE_RETENTION_DAYS`/`ACCESS_RETENTION_DAYS`), `purgeTelemetry` 60 s depois da subida e a cada 24 h.
+
+**Código:** `server/opsIntel.js` (router `/api/ops-intel`: `/policy`, `/overview`, `/users/:id`, `/map`, `/alerts`; `requireAuth, requireMaster`, `effectiveOrgId`), `src/opsintel/OpsIntelScreen.jsx` (abas Visão geral · Pessoas · Linha do tempo · Mapa de acessos · Alertas · Metodologia e privacidade; filtros período/pessoa/equipe/módulo/empresa),
+`charts.jsx` (SVG/CSS próprio, sem biblioteca), `src/lib/routes.js` (`ops`), `src/App.jsx` (gate, `shellModeKeys`, rastreador). Dependência nova: `leaflet`.
+
+**Testado:** `node scripts/usage-metrics.test.mjs` (22 ok); `node scripts/ops-intel-http.test.mjs` contra o Postgres local com 4 usuários temporários (RBAC 401/403, isolamento entre organizações, sanitização, limite de envio, soma medida × gravada, índice, IP mascarado, política) — todos ok;
+navegador: visão geral, mapa com tiles e ponto vermelho, linha do tempo, metodologia, Privacidade como PRICETAX (que não vê a central), mobile 375 px sem rolagem horizontal; build/scope-check/ui-audit limpos.
+**NÃO testado (§15):** dados reais de produção (a medição começa do zero no deploy; o passado é só estimativa); precisão da geolocalização por IP em produção (VPN/rede móvel); retenção ao longo do tempo; efeito do rastreador em aparelho real/aba em segundo plano de verdade.
+**Limites conhecidos:** o histórico das empresas guarda só 300 ações e identifica por nome (nomes repetidos ficam de fora, contados em `unmatchedLogs`); quem faz uma coisa a cada 40 min aparece com pouco tempo estimado; tempo medido só cobre quem tem a aba aberta e visível.
 
 | Preciso de... | Vá para |
 |---|---|

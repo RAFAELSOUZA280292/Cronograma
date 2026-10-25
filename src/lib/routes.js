@@ -13,6 +13,7 @@ export const MODE_PATHS = {
   modelos: '/modelos',
   crm: '/crm',
   users: '/usuarios',
+  ops: '/inteligencia',
 };
 
 // Variantes que a pessoa pode digitar (sem hífen, nome antigo); sempre normalizadas pro endereço oficial.
@@ -20,6 +21,7 @@ const ALIASES = {
   '/gestaoatividades': 'personal', '/gestao-de-atividades': 'personal', '/atividades': 'personal',
   '/visaogeral': 'macro', '/visao-geral-empresas': 'macro',
   '/usuario': 'users', '/gestao-usuarios': 'users', '/gestao-de-usuarios': 'users',
+  '/inteligencia-operacional': 'ops', '/central': 'ops',
 };
 
 const norm = (p) => String(p || '/').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\/+$/, '') || '/';
@@ -60,6 +62,7 @@ export function canOpenMode(mode, user) {
     case 'modelos': return isStaff;
     case 'crm': return !!user.crmAccess;
     case 'users': return user.role === 'master';
+    case 'ops': return user.role === 'master';
     default: return false;
   }
 }

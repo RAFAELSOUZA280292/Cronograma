@@ -27,6 +27,8 @@ import { router as connectRouter } from './connect.js';
 import { router as companyCalendarRouter } from './companyCalendar.js';
 import { router as companyShareRouter, publicRouter as publicCompanyRouter, dataRouter as companyDataRouter } from './companyShare.js';
 import { router as pushRouter, pushEnabled } from './push.js';
+import { router as opsIntelRouter } from './opsIntel.js';
+import { startRetentionJob } from './usageLog.js';
 import { startCrmScheduler } from './crm/scheduler.js';
 import { startTodoScheduler } from './todoNotifications.js';
 import { pool } from './db.js';
@@ -70,6 +72,7 @@ app.use('/api/company-calendar', companyCalendarRouter);
 app.use('/api/public-company', publicCompanyRouter);
 app.use('/d', companyDataRouter);
 app.use('/api/push', pushRouter);
+app.use('/api/ops-intel', opsIntelRouter);
 
 // Rota inexistente sob /api responde 404 em JSON — antes caía no fallback do SPA e devolvia o index.html com 200,
 // o que enganava qualquer cliente da API (inclusive a de conectividade, §80).
@@ -136,6 +139,7 @@ async function start() {
     console.log(pushEnabled() ? 'notificações push: ATIVADAS (chaves VAPID presentes)' : 'notificações push: desativadas (sem chaves VAPID)');
     startCrmScheduler();
     startTodoScheduler();
+    startRetentionJob();
   });
 }
 

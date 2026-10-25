@@ -3,6 +3,7 @@
 //  - Link de dados (/d/<token>/...): CSV e JSON para Power BI, Excel, Make/Zapier e scripts. É um link À PARTE: desativar um não derruba o outro.
 import React, { useEffect, useState } from 'react';
 import { apiDelete, apiGet, apiPost } from '../lib/api.js';
+import { trackAction } from '../lib/usageTracker.js';
 import { Modal } from '../ui/dialog.jsx';
 import { Button, ErrorState, SkeletonCards } from '../ui/index.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
@@ -47,7 +48,7 @@ function LinkBlock({ kind, projectId }) {
       if (!ok) return;
     }
     setBusy(true);
-    try { const r = await apiPost(base, { days, kind }); setLink(r.link); notify('Link gerado.', { tone: 'success' }); } catch (e) { notify((e && e.message) || 'Não foi possível gerar o link.', { tone: 'error' }); }
+    try { const r = await apiPost(base, { days, kind }); trackAction('share_link_create'); setLink(r.link); notify('Link gerado.', { tone: 'success' }); } catch (e) { notify((e && e.message) || 'Não foi possível gerar o link.', { tone: 'error' }); }
     setBusy(false);
   }
   async function revoke() {

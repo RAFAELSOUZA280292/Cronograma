@@ -19,7 +19,7 @@ export function clientIp(req) {
   return raw.replace(/^::ffff:/, '').slice(0, 64);
 }
 
-function isPrivateIp(ip) {
+export function isPrivateIp(ip) {
   if (!ip) return true;
   if (ip === '::1' || ip === '127.0.0.1' || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|fc|fd|fe80)/i.test(ip)) return true;
   return false;
@@ -40,13 +40,14 @@ async function lookupGeo(ip) {
   const missAt = geoMiss.get(ip);
   if (missAt && Date.now() - missAt < GEO_RETRY_MS) return null;
   try {
-    const res = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}?fields=success,city,region_code,country`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}?fields=success,city,region_code,country,latitude,longitude`, { signal: AbortSignal.timeout(3000) });
     const j = await res.json();
     if (!j || !j.success) throw new Error('sem resultado');
     const geo = { city: j.city || '', region: j.region_code || '', country: j.country || '' };
+    const lat = Number.isFinite(j.latitude) ? j.latitude : null; const lng = Number.isFinite(j.longitude) ? j.longitude : null;
     await pool.query(
-      `INSERT INTO ip_geo_cache (ip, city, region, country) VALUES ($1,$2,$3,$4) ON CONFLICT (ip) DO NOTHING`,
-      [ip, geo.city, geo.region, geo.country],
+      `INSERT INTO ip_geo_cache (ip, city, region, country, latitude, longitude) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (ip) DO NOTHING`,
+      [ip, geo.city, geo.region, geo.country, lat, lng],
     );
     return geo;
   } catch (e) {
@@ -137,4 +138,25 @@ export async function recentAccess(userId, limit = 25) {
     [userId, limit],
   );
   return rows.map(rowToEvent);
+}
+
+// Coordenadas aproximadas (centro da cidade) para IPs que entraram no cache antes de guardarmos latitude/longitude.
+// Uma consulta por IP, no máximo `limit` por chamada, em série (o serviço gratuito tem limite). Falha = sem coordenadas, nada inventado.
+export async function backfillCoords(ips, limit = 12) {
+  if (!ips.length) return 0;
+  const { rows } = await pool.query('SELECT ip FROM ip_geo_cache WHERE ip = ANY($1) AND latitude IS NULL', [ips]);
+  let done = 0;
+  for (const r of rows.slice(0, limit)) {
+    if (isPrivateIp(r.ip)) continue;
+    const miss = geoMiss.get(`c:${r.ip}`);
+    if (miss && Date.now() - miss < GEO_RETRY_MS) continue;
+    try {
+      const res = await fetch(`https://ipwho.is/${encodeURIComponent(r.ip)}?fields=success,latitude,longitude`, { signal: AbortSignal.timeout(3000) });
+      const j = await res.json();
+      if (!j || !j.success || !Number.isFinite(j.latitude) || !Number.isFinite(j.longitude)) throw new Error('sem coordenadas');
+      await pool.query('UPDATE ip_geo_cache SET latitude=$2, longitude=$3 WHERE ip=$1', [r.ip, j.latitude, j.longitude]);
+      done += 1;
+    } catch (e) { geoMiss.set(`c:${r.ip}`, Date.now()); }
+  }
+  return done;
 }

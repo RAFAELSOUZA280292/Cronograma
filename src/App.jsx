@@ -3,13 +3,14 @@ import { revertLinkedSync, syncLinkedStatus } from '../shared/linkSync.js';
 import { meetingConflicts } from '../shared/calendarDays.js';
 import { fitPeriods } from '../shared/period.js';
 import { loadPdfPrefs, mergePdfPrefs, savePdfPrefs } from './pdf/pdfTheme.js';
-import { Share2, ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen } from 'lucide-react';
+import { Activity, Share2, ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen } from 'lucide-react';
 
 import { loadXlsx } from './lib/xlsxLoader.js';
 import { lazyRetry } from './lib/lazyRetry.jsx';
 
 
 import { apiGet, apiPost, apiPatch } from './lib/api.js';
+import { setUsageContext, startUsageTracking, trackAction } from './lib/usageTracker.js';
 
 import { buildActivityOptions } from './meetings/ActivityLink.jsx';
 
@@ -67,6 +68,7 @@ const PareceresScreen = lazyRetry(() => import('./pareceres/Pareceres.jsx'));
 const ModelosScreen = lazyRetry(() => import('./modelos/Modelos.jsx'));
 export const TodoBoardView = lazyRetry(() => import('./meetings/TodoBoard.jsx').then((m) => ({ default: m.TodoBoardView })));
 // Telas pesadas movidas para src/screens/ (2026-10-16): só baixam quando alguém abre a tela correspondente.
+const OpsIntelScreen = lazyRetry(() => import('./opsintel/OpsIntelScreen.jsx').then((m) => ({ default: m.OpsIntelScreen })));
 const UsersManagementScreen = lazyRetry(() => import('./screens/AdminScreens.jsx').then((m) => ({ default: m.UsersManagementScreen })));
 const SuperAdminScreen = lazyRetry(() => import('./screens/AdminScreens.jsx').then((m) => ({ default: m.SuperAdminScreen })));
 const CompanySelectorScreen = lazyRetry(() => import('./screens/AdminScreens.jsx').then((m) => ({ default: m.CompanySelectorScreen })));
@@ -438,6 +440,7 @@ const SHELL_MODES = [
   { key: 'pareceres', label: 'Pareceres', icon: FileText },
   { key: 'modelos', label: 'Modelos', icon: FolderOpen },
   { key: 'users', label: 'Usuários', icon: UserCog },
+  { key: 'ops', label: 'Inteligência', icon: Activity },
 ];
 
 // Abas do workspace de empresa; as 3 primeiras só existem para UMA empresa (a visão de várias não as tem).
@@ -688,6 +691,7 @@ function AppScreens({ shellRef, bump }) {
     if (mode === 'crm') return 'crm';
     if (mode === 'personal') return 'personal';
     if (mode === 'users') return 'users';
+    if (mode === 'ops') return 'ops';
     if (mode === 'knowledge') return 'knowledge';
     if (mode === 'pareceres') return 'pareceres';
     if (mode === 'modelos') return 'modelos';
@@ -764,6 +768,7 @@ function AppScreens({ shellRef, bump }) {
     else if (tag === 'macro') { setWorkspaceMode('macro'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'crm') { setWorkspaceMode('crm'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'users') { setWorkspaceMode('users'); setShowUsers(false); setShowOrgAdmin(false); }
+    else if (tag === 'ops') { setWorkspaceMode('ops'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'knowledge') { setWorkspaceMode('knowledge'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'pareceres') { setWorkspaceMode('pareceres'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'modelos') { setWorkspaceMode('modelos'); setShowUsers(false); setShowOrgAdmin(false); }
@@ -1280,6 +1285,19 @@ function AppScreens({ shellRef, bump }) {
     };
   }, [currentUser?.id]);
 
+  // Central de Inteligência Operacional: mede tempo conectado e tempo com interação, por módulo/tela/empresa, só da equipe
+  // (Master e PRICETAX). Nunca envia conteúdo. Ver §85 do PROJECT_CONTEXT.md.
+  useEffect(() => {
+    if (!currentUser || (currentUser.role !== 'master' && currentUser.role !== 'pricetax')) return undefined;
+    return startUsageTracking({
+      send: (payload) => apiPost('/api/activity/usage', payload),
+      beacon: (payload) => { try { navigator.sendBeacon('/api/activity/usage', new Blob([JSON.stringify(payload)], { type: 'application/json' })); } catch (e) { /* sem beacon: a próxima fatia segue */ } },
+    });
+  }, [currentUser?.id, currentUser?.role]);
+  useEffect(() => {
+    setUsageContext({ module: workspaceMode || 'inicio', view: workspaceMode === 'company' ? view : '', projectId: workspaceMode === 'company' && selectedProjectIds.length === 1 ? selectedProjectIds[0] : '' });
+  }, [workspaceMode, view, selectedProjectIds]);
+
   // Pré-carrega, quando o navegador está ocioso, os dois pedaços de uso mais comum (editor de texto do cartão e a lista de tarefas das reuniões),
   // para a primeira abertura não mostrar "Carregando…". Respeita o "economizar dados" do navegador.
   useEffect(() => {
@@ -1701,7 +1719,7 @@ function AppScreens({ shellRef, bump }) {
   // pro mesmo lugar sem fazer nada.
   const goHome = availableModes.length > 1 ? () => goToWorkspace(null) : null;
 
-  const shellModeKeys = [...availableModes, currentUser.role === 'master' && 'users'].filter(Boolean);
+  const shellModeKeys = [...availableModes, currentUser.role === 'master' && 'users', currentUser.role === 'master' && 'ops'].filter(Boolean);
   const shellModes = SHELL_MODES.filter((m) => shellModeKeys.includes(m.key));
   const shellCurrent = (showUsers || effectiveMode === 'users') && currentUser.role === 'master' ? 'users' : effectiveMode;
   // Itens da busca global (Ctrl+K), dos recentes e dos favoritos. `kind`+`rid` identificam o item de forma estável (é só isso
@@ -1923,6 +1941,7 @@ function AppScreens({ shellRef, bump }) {
         onPickModelos={hasModelos ? () => goToWorkspace('modelos') : undefined}
         onPickCrm={hasCrm ? () => goToWorkspace('crm') : undefined}
         onPickUsers={currentUser.role === 'master' ? () => goToWorkspace('users') : undefined}
+        onPickOps={currentUser.role === 'master' ? () => goToWorkspace('ops') : undefined}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -2126,6 +2145,12 @@ function AppScreens({ shellRef, bump }) {
     ));
   }
 
+  if (effectiveMode === 'ops' && currentUser.role === 'master') {
+    return guard('ops', 'a Central de Inteligência Operacional', (
+      <OpsIntelScreen currentUser={currentUser} onClose={() => goToWorkspace(null)} theme={theme} onToggleTheme={toggleTheme} />
+    ));
+  }
+
   if ((showUsers || effectiveMode === 'users') && currentUser.role === 'master') {
     return guard('users', 'a gestão de usuários', (
       <UsersManagementScreen
@@ -2278,6 +2303,7 @@ function AppScreens({ shellRef, bump }) {
   }
 
   async function exportExcel() {
+    trackAction('export_excel');
     let XLSX;
     try { XLSX = await loadXlsx(); } catch (e) { notify('Não foi possível preparar a planilha agora. Recarregue a página e tente de novo.', { tone: 'error' }); return; }
     if (isMulti) {
@@ -2338,6 +2364,7 @@ function AppScreens({ shellRef, bump }) {
   function confirmPdfExport(opts) {
     const dialog = pdfDialog; const prefs = mergePdfPrefs(opts);
     savePdfPrefs(prefs); setPdfOptions(prefs); setPdfDialog(null);
+    trackAction('export_pdf');
     const prevTitle = document.title; const root = document.documentElement;
     const done = () => { delete root.dataset.printTheme; document.title = prevTitle; setMeetingToPrint(null); window.removeEventListener('afterprint', done); };
     if (dialog && dialog.mode === 'meeting') {
@@ -3199,7 +3226,7 @@ export function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }
 }
 
 
-function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickModelos, onPickCrm, onPickUsers, onLogout, theme, onToggleTheme, onOpenProfile, onConfigureDaily, dailyReload, projects, notifications, todayIso, todayActions, showWeek, onOpenStats, continueItems }) {
+function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickModelos, onPickCrm, onPickUsers, onPickOps, onLogout, theme, onToggleTheme, onOpenProfile, onConfigureDaily, dailyReload, projects, notifications, todayIso, todayActions, showWeek, onOpenStats, continueItems }) {
   const todayPrefs = useNotifPrefs();
   const overdueNow = useMemo(() => buildTodayItems({ projects, personalBoard, user, todayIso, hiddenSources: hiddenTodaySources(todayPrefs.todaySources) }).overdue.length, [projects, personalBoard, user, todayIso, todayPrefs.todaySources]);
   const gateGroups = [
@@ -3220,6 +3247,7 @@ function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersona
     ] },
     { id: 'admin', title: 'Administração', items: [
       onPickUsers && { id: 'users', Icon: UserCog, title: 'Gestão de Usuários', desc: 'Acessos, permissões e senhas.', onPick: onPickUsers },
+      onPickOps && { id: 'ops', Icon: Activity, title: 'Inteligência Operacional', desc: 'Uso da plataforma, atividade da equipe e acessos.', onPick: onPickOps },
     ] },
   ].map((g) => ({ ...g, items: g.items.filter(Boolean) })).filter((g) => g.items.length > 0);
   return (
