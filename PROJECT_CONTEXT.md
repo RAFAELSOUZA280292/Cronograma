@@ -7577,3 +7577,5 @@ Documento operacional completo (medições, regras, roteiro de produção, falha
 | Plano (não implementado) de vincular tarefa de reunião à atividade do cronograma, com a RENATA aprendendo | `docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md` |
 | Brief original completo da identidade/princípios da RENATA | `docs/RENATA_BRIEF.md` (resumo do que foi implementado em `PROJECT_CONTEXT.md` §27) |
 | Histórico de decisões de produto/por quê de uma feature | memória de sessão (fora do repo) ou pedir contexto ao usuário |
+
+- **Auditoria da migração PipeRun (25/10/2026):** parecer NÃO APROVADO para cancelar o PipeRun — ver `docs/AUDITORIA_MIGRACAO_PIPERUN.md` (backup completo + restauração testada, tabela origem×destino, pendências: histórico real, imagens de notas, tags, previsão, produtos, formulários).
