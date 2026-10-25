@@ -77,6 +77,10 @@ Reimportar é seguro: `piperun_map` e `crm_deals.external_id` impedem duplicar; 
 - A importação em produção e a primeira extração com token real **não foram executadas pela IA** (o token passou pelo chat durante a análise; foi removido do `.env`). Tudo foi testado com a API **simulada** alimentada pelos dados reais extraídos.
 - Dados pessoais: `piperun_raw` é acesso só do administrador do CRM; apague depois da virada.
 
-## 7. Testes
+## 7. Execução em produção (25/10/2026)
+
+Extração e importação feitas pelo Rafael na tela; a conferência final deu **ok, 0 divergências** (138 empresas + 143 provisórias; 507 contatos; 307 negócios — 192 abertos, 30 ganhos R$ 279.766,28, 85 perdidos R$ 133.077,00; 912 notas/propostas; 138 atividades; 114 documentos). Dois PDFs de 23,1 MB passaram do limite de 20 MB e entraram numa 2ª rodada depois de subir o limite para 30 MB. Só no backup: 7 pessoas, 4 atividades, 15 notas e 3 PDFs ligados a negócios que estavam na lixeira do PipeRun, e 590 imagens/áudios.
+
+## 8. Testes
 
 `node scripts/piperun-migration.test.mjs` (≈75 verificações; servidor e Postgres locais; org descartável; **dados reais do backup** ou sintéticos): extração com API simulada (401, 429, paginação, total conferido, CNAEs, token só no cabeçalho), prévia que não grava, permissões (vendedor/gestor 403, outra organização isolada), importação (situação e valores por situação conferidos por conta independente do código, motivo de perda real, ordem real das etapas, datas originais, provisórias, congeladas, campos personalizados, MRR, anotações com data original, atividades sem lembrete em massa, contatos sem duplicar, documentos), conferência, **reimportação sem duplicar**, arquivos por API, token ausente do banco, trava de execução simultânea e purga da cópia bruta.
