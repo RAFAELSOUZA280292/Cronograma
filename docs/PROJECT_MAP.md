@@ -790,3 +790,64 @@ status — fonte única de verdade do status derivado de `card.completed`.
 3. Leia só o trecho necessário (`Read` com `offset`/`limit`), não o arquivo inteiro.
 4. Valide com o código antes de alterar — o mapa localiza, não substitui a leitura pontual.
 5. Atualize este arquivo só quando descobrir algo estrutural novo (não para mudanças triviais).
+
+## 12. Adições de 2026-10-06 a 10-22 (consolidação de 2026-10-25)
+
+Entradas conferidas contra o código (seções de referência: §86–§91 do `PROJECT_CONTEXT.md`). Correções de defasagem conhecidas: a v3 do cronograma padrão É carregada no rascunho (`buildV3`); o `MapView.jsx` pertence a §90 (não §65); `TableView`, `CompanySelectorScreen` e `toggleChecklistItem` estão em `src/screens/`; a avaliação do vínculo tem 56 casos (não 35); `task_activity_links` e `company_calendar_events` são tabelas do banco.
+
+- `src/companies/CompanyOwners.jsx` → **falta no mapa**: responsáveis por empresa (etiquetas, `OwnersField`, `BulkOwnersModal`, `mergeOwners`, preferência `ptx-company-view:<id>`); a tela que o usa é `CompanySelectorScreen` em `src/screens/AdminScreens.jsx`.
+- `src/macro/Gaps.jsx` → aba Visão Geral › Lacunas (overview por empresa → detalhe por fase, "parecido" desmarcado, criação em lote com confirmação); hoje só `server/gaps.js` está listado (l.105).
+- `server/inventoryEdit.js` / `server/areas.js` → conferir que a linha 103 cita `/area`, `/responsible`, `/suggest-areas`, `/areas` e a lista de 11 áreas (com "Contábil").
+- `server/assistantSweep.js`, `server/memoryRetrieval.js#searchMemoryAcross` → varredura entre empresas; mapa cita só o primeiro.
+- `src/screens/PersonalBoard.jsx` → `toggleChecklistItem`, `PersonalCardDetailModal` (RichNote) — o mapa e o §65 ainda apontam `App.jsx`.
+- `server/taskLinkSuggest.js` → acrescentar: `MIN_CONFIDENCE` 0,5 = vínculo `auto`, `TASK_LINK_MODE`/`TASK_LINK_AUTO`, conjunto fechado = todas as atividades vivas, `onlyStandard` é alias (§87).
+- `server/taskLinks.js` → `/suggest`, `/learning`, `/forget`, `/eval`, `GATE`, `learningStats`, `opsStats`; decisão derivada no servidor (já não "futuras").
+- `server/taskLinkBackfill.js` → `/backfill*` (admin), `/pending`, `/decide`, `/confirm-high` (§87.7); só grava `suggested`.
+- `server/activityDictionary.js` → 40 entradas, `dictFor`, `dictPromptLine`, `keywordScore` (só servidor).
+- `server/evals/taskLinkEval.js` → 19 atividades, 56 casos (corrigir "35 casos"), `RELEASE_GATE`, `runTaskLinkEval`, `scoreEval`.
+- `shared/linkSync.js` → `syncLinkedStatus`, `revertLinkedSync`, `resetTaskLinks`, `revertTaskLinksReset`, `linkKind`, `countLinks`, `dateMismatch`, `lateTasksInOnTimeActivity`.
+- `src/meetings/ActivityLink.jsx` → `linkState`, `ActivityLinkSelect`, `ConfirmSuggestionsButton`, `LinkToolsButtons`, `promoteSuggestedToAuto`, `applySuggestionsToMeetings`, `needsSuggestion`, `taskCountsByActivity`, `linkedTasksForActivity`.
+- `src/app/meetingActions.js` → `linkTaskToActivity`, `requestTaskSuggestions`, `resetTaskLinks`, `canLinkTasks` (vínculo mora aqui, não em `App.jsx`).
+- `src/screens/CompanyViews.jsx` → `TaskCountChip` (~783) e `ActivityDetailModal` com `LinkedTasks`; `src/screens/CompanyWorkspace.jsx` → `multiTaskCounts`, props `taskCounts`/`onOpenTasks`.
+- `src/meetings/LinkedTasks.jsx` → lista "Tarefas de reunião" do detalhe (`MAX_ROWS` 6); `src/knowledge/LinksTab.jsx`/`PendingLinks.jsx` → painel e revisão central.
+- `src/screens/SubExtras.jsx` → `meetingId` ("Reunião vinculada"); `src/meetings/todoUtils.js` → `TASK_KINDS`, `kindOf`; `server/meetingInbox.js` → `normalizeKind`, `TASK_KINDS`; `server/dossier.js` → `failOrphanedDossiers`; `server/assistantActions.js` → recusa `create_schedule_activity`.
+- `vite.config.js` — `VitePWA` (injectManifest, manifesto, atalhos) e `build.sourcemap:'hidden'`; `server.proxy` `/api` e `/d/` → :3001 (já tem linhas; acrescentar o `/d/`).
+- `src/App.jsx` — corrigir cabeçalho: **3.484 linhas** (2026-10-25), `AppScreens` L450, raiz `App` L3471; efeitos: sessão/`OfflineScreen` (`checkSession` ~L1008, `OfflineScreen` L2611), aviso de nova versão (~L1140), pré-carga ociosa (~L1310), `guard`/`guardModal` (~L1918).
+- `src/lib/lazyRetry.jsx` / `src/lib/xlsxLoader.js` — já constam; acrescentar a regra "não importar telas lazy de forma estática".
+- `src/lib/clientError.js` + `server/clientError.js` — captura global e de limites; `shouldIgnore`, cotas `boundary`/`global`, `POST /api/client-error` (routes.js ~L774).
+- `scripts/stash-sourcemaps.mjs` — move `dist/**/*.map` para `.sourcemaps/` (inclui `sw.js.map`); parte do `npm run build`.
+- `index.html` — camada mobile: regra 16 px (iOS), alvos de 44 px (`[role=dialog]`, 768–1023/`pointer:coarse`), metas PWA/iOS, `.tbl-grip` de 44 px.
+- `public/` + `dist/manifest.webmanifest` + `dist/sw.js` — arquivos do PWA (o manifesto/SW são gerados no build, não existem em `public/`).
+- `server/push.js` + `src/sw.js` + `src/lib/push*.js` + `src/shell/NotificationPrefs.jsx` — já constam; acrescentar variáveis `VAPID_*`/`PUSH_EXTRA_HOSTS` e o log de boot.
+- `src/screens/CompanyViews.jsx` — acrescentar `useIsCompact` (L57), `TABLE_MIN_W` (L1236) e arrasto por Pointer Events (Tabela ~L1321, Gantt ~L2016).
+- `docs/AUDITORIA_MOBILE_FASE0.md`, `docs/ROTEIRO_TESTE_MOBILE.md` — relatório e roteiro de aparelho real (pendente rodar).
+- `server/standardPlanApi.js` → (atualizar) além de `/preview` e `/apply`, traz as rotas `/template/*` (rascunho, versões, arquivar, restaurar, propostas, prévia do cadastro) e `/audit/:id`; tudo `requireMasterOrPricetax`.
+- `server/standardTemplate.js` → (atualizar) sementes `buildV1/V2` e propostas `buildV3/V4/V5`, `templateFromProject`, `diffTemplates` (`ACT_FIELDS`/`SUB_FIELDS`), `instantiateTemplate` (âncora, limite/comprimido, resumo de avisos).
+- `server/standardTemplateStore.js` → (atualizar) `withOrgLock`, `setArchived`, `PROPOSALS`/`BUILDERS` (v3, v4, v5), `instantiateStandard`, `previewInstantiate`, `markV2Provisional`.
+- `server/standardAudit.js` → (atualizar) modo versão: `buildStandardFromVersion`, tolerância 7 dias, achados "passa do limite" e "predecessora vence depois".
+- `shared/cronogramaPadraoV3.js` → v3 de 8 meses: 22 atividades, 92 subatividades, `WINDOWS`, `PHASE_OF`; (corrigir o cabeçalho "91 itens").
+- `shared/cronogramaPadraoV4.js` → v4/v5: `MAINS`, `DEST`, `buildItems`, `schedule`, `SALDOS_MAIN`, `applySaldosV5`; 26/206 e 27/213.
+- `shared/period.js` → `fitPeriods`: a atividade estica sozinha (cliente `mutateProject`, API `applyPlanOps`).
+- `src/lib/dateRipple.js` / `src/lib/autoDates.js` / `src/screens/AutoDates.jsx` → regra pura do ajuste, preferência em `localStorage` por empresa, caixa nas vistas; `withRipple` em `src/app/companyActivityActions.js`.
+- `src/screens/ActivityGauge.jsx` / `src/lib/subStats.js` → velocímetro e contagem feita/pulada/faltam (também usado em `MapView.jsx`).
+- `docs/CRONOGRAMA_PADRAO_V3_PROPOSTA.json` → (corrigir) 92 itens e status "rascunho (fase 1; nada aplicado)" desatualizado: a v3 já é carregável no app.
+- `src/macro/StandardPlanView.jsx` → **removido** (`9467d89`), nenhuma entrada deve apontar para ele.
+- `src/screens/MapView.jsx` — corrigir a referência "§65" para "§90.1"; acrescentar tela cheia (portal, z-index 45, Esc) e limites do zoom (0,1–2,5).
+- `src/lib/screenSearch.js` / `src/screens/ScreenSearch.jsx` — acrescentar "não vale na Triagem (caixa aparece mas não filtra)".
+- `src/screens/CompanyViews.jsx` — `OrderBadge`/`badgeInk` (selo #N, ~l. 197–206); `PhasesView` numera por posição.
+- `src/screens/AdminScreens.jsx` — `CompanySelectorScreen`: um clique no nome/logo entra (`.company-card-open`), caixinha em coluna própria.
+- `src/screens/PublicCompanyScreen.jsx` — página pública `/a/:token` e `/acompanhamento/:token`; `sideOf`, `LEGAL`, abas Resumo/Cronograma/Tabela/Prazos legais.
+- `src/screens/CompanyShareLink.jsx` — janela "Links para compartilhar" (blocos page e data).
+- `server/companyShare.js` — `buildPublicPayload`, `buildDataTables`, `toCsv`, `dataRouter` (`/d`), `publicRouter`, `router`; tabela `company_share_links` (coluna `kind`).
+- Tabela de rotas do PROJECT_MAP (perto da l. 715): acrescentar `/api/company-share/:projectId`, `/api/public-company/:token`, `/d/:token/:arquivo`, `/api/company-calendar/:projectId[/apply]`.
+- `shared/calendarDays.js` — `meetingItems`, `meetingConflicts`, `duplicateDays`, `assignDays`, `windowOf`, `inWindow` (tipo Reunião/Trabalho, uma reunião por dia).
+- `shared/pauta.js` — acrescentar que `reconcilePauta`/`unlinkPauta` (por atividade) estão sem uso; o fluxo real usa as versões `*Project`.
+- `shared/period.js` — `fitPeriods` (atividade estica para cobrir subatividades), usado pelo `PATCH` do painel e por `applyPlanOps`.
+- `server/companyCalendar.js` / `companyCalendarPlan.js` — rotas `/api/company-calendar/:projectId` e `/apply`; tabela `company_calendar_events` (ausente da lista de tabelas do PROJECT_MAP §6 e do §0 do PROJECT_CONTEXT).
+- `server/googleCalendar.js` — `upsertBlockEvent`, `removeBlockEvent` (~l. 252–279).
+- `src/screens/CompanyCalendar.jsx` — janela "Reservar na agenda".
+- `src/screens/CompanyTriage.jsx` — Calendário/Lista, painel do dia, `ptx-triagem-prefs`.
+- `src/screens/PautaPicker.jsx` — "Vincular itens…" entre atividades.
+- `server/connect.js` — acrescentar `POST /companies/:id/plan` (escopo `read_write`), `applyPlanOps` e a lista de operações; a tabela de rotas (linha `/api/connect`, ~l. 715) não cita `/plan`.
+- `src/connect/ConnectSection.jsx` — terceira opção de escopo; `src/connect/guide.js` — sem `/plan`.
+- `src/pdf/PdfExportModal.jsx`, `src/pdf/PrintReport.jsx`, `src/pdf/pdfTheme.js` — já listados; acrescentar `dataset.printTheme` sem consumidor e dependência de margin boxes (Chrome).

@@ -1,3 +1,5 @@
+> **Atualização 2026-10-25:** as Fases 1–5 estão implementadas. Diferenças do plano: rota `POST /api/task-links` (só registra), status `suggested|confirmed|auto|none` (há o `auto`), chip em todos os modos (inclusive multiempresa), avaliação com 56 casos. Estado atual: `PROJECT_CONTEXT.md` §87.
+
 # Plano — vincular cada tarefa de reunião à atividade do cronograma (e a RENATA aprender com as confirmações)
 
 Criado em 2026-10-13. **Aprovado pelo Rafael (7 recomendações) em 2026-10-13. Fases 1 a 5 implementadas; 1ª avaliação com IA real em produção PASSOU; falta a conferência dos casos pelo time e o acompanhamento com transcrições reais.** (Fase 3: aprendizado por palavras, sem embeddings — a Voyage grátis não comporta; ver §65.) (Desvio na Fase 1: a rota só registra a decisão no livro-razão; o campo da tarefa vai pelo caminho normal do cliente — ver PROJECT_CONTEXT §65.) Pedido do Rafael: ao gerar tarefas a partir de uma transcrição, achar a

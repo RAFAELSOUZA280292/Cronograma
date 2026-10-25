@@ -1,3 +1,5 @@
+> **Atualização 2026-10-25:** documento histórico. O que ele descreve como pendente (trilha B em D−n da virada, fases 2–6) foi implementado em D+n a partir do kickoff; o estado atual está em `PROJECT_CONTEXT.md` §89.
+
 # Plano: cronograma padrão funcional (v3)
 
 Criado em 2026-10-19, a pedido do Rafael ("usando tudo que já conhecemos, remova a redundância, acerte os erros, traga um plano"). **Fase 1 entregue; nada foi aplicado no app além da nota da 2.0.**

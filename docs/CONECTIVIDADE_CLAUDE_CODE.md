@@ -1,3 +1,5 @@
+> **Atualização 2026-10-25:** este guia descreve só os escopos `read` e `read_create`. O código também tem `read_write` (ajustar o cronograma de uma empresa: `POST /companies/:id/plan`, `dryRun`, tudo-ou-nada, Log e desfazer, `sub.move`, `sub.add`/`pauta.link`, `activity.delete`/`sub.delete` com lixeira, renomear). Fonte atual: `PROJECT_CONTEXT.md` §91.5 e `server/connect.js`.
+
 # Conectividade — usar o painel PRICETAX a partir de outra janela do Claude Code
 
 > Documento de referência (2026-10-05, `PROJECT_CONTEXT.md` §80). O bloco **"Guia para colar no Claude Code"** abaixo é o mesmo texto que o painel entrega em *Meu perfil › Conectar*; aqui ele aparece com o endereço de produção e a variante "ler e criar".
