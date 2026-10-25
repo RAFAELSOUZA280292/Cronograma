@@ -11,6 +11,7 @@ import FunnelsAdmin from './FunnelsAdmin.jsx';
 import DealImportWizard from './DealImportWizard.jsx';
 import PipeRunMigration from './PipeRunMigration.jsx';
 import ContactLinks from './ContactLinks.jsx';
+import { InlineMoney, InlineDate, InlineSelect } from './InlineCells.jsx';
 import { fmtMoney, fmtDateBR, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor, cadenceNotice } from './crmMeta.js';
 
 const VIEW_KEY = 'crm-deals-view';
@@ -196,6 +197,20 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
     try { const r = await crm.moveDeal(deal.id, { stageId: stage.id }); const m = cadenceNotice(r.cadence); if (m) notify(m, { tone: 'success', ttlMs: 7000 }); reload(); if (onChanged) onChanged(); } catch (e) { notify(e.message || 'Não foi possível mover o negócio.', { tone: 'error' }); reload(); }
   }
 
+  // Edição direta na lista: salva na hora; se o servidor recusar (ou ignorar), avisa e recarrega o valor real.
+  async function patchDeal(deal, patch) {
+    try {
+      const r = await crm.updateDeal(deal.id, patch);
+      if (patch.value !== undefined && Number(r.deal.value) !== Number(patch.value)) notify('O valor deste negócio vem dos produtos dele — edite os produtos na ficha.', { tone: 'info', ttlMs: 6000 });
+      else {
+        const prev = {}; Object.keys(patch).forEach((k) => { prev[k] = k === 'value' ? Number(deal.value || 0) : (deal[k] === undefined ? null : deal[k]); });
+        notify('Salvo.', { tone: 'success', undo: async () => { try { await crm.updateDeal(deal.id, prev); } catch (e) { notify(e.message || 'Não foi possível desfazer.', { tone: 'error' }); } reload(); if (onChanged) onChanged(); } });
+      }
+    } catch (e) { notify(e.message || 'Não foi possível salvar.', { tone: 'error' }); }
+    reload(); if (onChanged) onChanged();
+  }
+  const pipeStages = (pid) => { const p = ((options && options.pipelines) || []).find((x) => x.id === pid); return p ? p.stages || [] : []; };
+
   async function quick(action, deal) {
     if (action === 'company') { if (onOpenCompany) onOpenCompany(deal.companyId); return; }
     if (action === 'activity') { if (onNewActivity) onNewActivity({ company: { id: deal.companyId, legalName: deal.companyName }, prefill: { dealId: deal.id, contactId: deal.primaryContactId || '' } }); return; }
@@ -316,20 +331,32 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, on
         <>
           <div className="crm-table-wrap">
             <table className="crm-table">
-              <thead><tr><th>Negócio</th><th>Empresa</th><th>Etapa</th><th className="crm-num">Valor</th><th className="crm-num">Prob.</th><th>Previsão</th><th>Responsável</th><th>Tipo</th></tr></thead>
+              <thead><tr><th>Negócio</th><th>Contato</th><th>Etapa</th><th className="crm-num">Valor</th><th className="crm-num">Prob.</th><th>Previsão</th><th>Próximo passo</th><th>Responsável</th></tr></thead>
               <tbody>
-                {list.items.map((d) => (
-                  <tr key={d.id} onClick={() => onOpenDeal(d.id)}>
-                    <td><div className="crm-name">{d.title}</div>{d.status === 'lost' && <div className="crm-muted">Perdido — {d.lostReasonLabel}</div>}</td>
-                    <td>{d.companyName}</td>
-                    <td><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="crm-dot" style={{ background: d.stageColor || 'var(--border-3)' }} />{d.stageName}</span>{d.status === 'open' && (d.daysInStage || 0) > 14 && <div style={{ color: stageAgeColor(d.daysInStage), fontSize: 11 }}>{d.daysInStage} dias parado</div>}{d.noNextStep && <div style={{ color: '#ff9f40', fontSize: 11 }}>Sem próximo passo</div>}</td>
-                    <td className="crm-num">{d.value ? fmtMoney(d.value) : <span className="crm-muted">—</span>}</td>
-                    <td className="crm-num">{d.status === 'open' ? `${d.probability}%` : <span className="crm-muted">—</span>}</td>
-                    <td style={{ color: d.overdue ? '#e2574c' : undefined, fontWeight: d.overdue ? 700 : undefined }}>{fmtDateBR(d.expectedCloseDate) || <span className="crm-muted">—</span>}</td>
-                    <td>{d.ownerName}</td>
-                    <td><span className="crm-tag" style={{ color: DEAL_TYPE_META[d.dealType].color }}>{DEAL_TYPE_META[d.dealType].label}</span></td>
-                  </tr>
-                ))}
+                {list.items.map((d) => {
+                  const can = caps.write && (d.status === 'open' || caps.remove);
+                  const why = !caps.write ? 'Você não tem permissão para editar' : 'Negócio fechado: só gestores editam';
+                  return (
+                    <tr key={d.id} onClick={() => onOpenDeal(d.id)}>
+                      <td>
+                        <div className="crm-name">{d.title}</div>
+                        <div className="crm-muted">{d.companyName}{d.dealType === 'upsell' ? ' · Upsell' : ''}{d.status === 'lost' ? ` · Perdido — ${d.lostReasonLabel}` : ''}{d.mrr > 0 ? ` · MRR ${fmtMoney(d.mrr)}` : ''}</div>
+                        {(d.tags || []).length > 0 && <div className="crm-tags" style={{ marginTop: 3 }}>{d.tags.slice(0, 3).map((t) => <span key={t} className="crm-tag" style={{ color: 'var(--text-4)' }}>{t}</span>)}{d.tags.length > 3 && <span className="crm-muted">+{d.tags.length - 3}</span>}</div>}
+                      </td>
+                      <td>{d.contactName && <div>{d.contactName}</div>}<ContactLinks phone={d.contactPhone} whatsapp={d.contactWhatsapp} email={d.contactEmail} compact /></td>
+                      <td>
+                        <InlineSelect label={`Etapa de ${d.title}`} value={d.stageId} width={170} disabled={!can} disabledTitle={why}
+                          options={pipeStages(d.pipelineId).length ? pipeStages(d.pipelineId) : [{ id: d.stageId, name: d.stageName }]} onSave={(id) => { const st = pipeStages(d.pipelineId).find((x) => x.id === id); if (st) moveDeal(d, st); }} />
+                        {d.status === 'open' && (d.daysInStage || 0) > 14 && <div style={{ color: stageAgeColor(d.daysInStage), fontSize: 11, fontWeight: 700 }}>{d.daysInStage} dias parado</div>}
+                      </td>
+                      <td className="crm-num"><InlineMoney value={d.value} label={d.title} disabled={!can} disabledTitle={why} onSave={(n) => patchDeal(d, { value: n })} /></td>
+                      <td className="crm-num">{d.status === 'open' ? `${d.probability}%` : <span className="crm-muted">—</span>}</td>
+                      <td><InlineDate value={d.expectedCloseDate} label={d.title} overdue={d.overdue} disabled={!can} disabledTitle={why} onSave={(v) => patchDeal(d, { expectedCloseDate: v })} /></td>
+                      <td>{d.status === 'open' ? (d.nextActivityDate ? <span style={{ color: d.nextActivityOverdue ? '#e2574c' : undefined, fontWeight: d.nextActivityOverdue ? 700 : undefined }}>{d.nextActivityTitle || 'Atividade'} · {fmtDateBR(d.nextActivityDate)}</span> : <span style={{ color: '#ff9f40' }}>Sem próximo passo</span>) : <span className="crm-muted">—</span>}</td>
+                      <td><InlineSelect label={`Responsável de ${d.title}`} value={d.ownerId} empty="Sem responsável" options={owners} width={140} disabled={!can} disabledTitle={why} onSave={(v) => patchDeal(d, { ownerId: v || null })} /></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             {!loading && list.items.length === 0 && <div className="crm-empty">{hasFilter ? 'Nenhum negócio com esses filtros.' : 'Nenhum negócio nesta situação.'}</div>}

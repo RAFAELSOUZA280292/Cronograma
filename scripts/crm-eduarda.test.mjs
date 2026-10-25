@@ -65,6 +65,18 @@ ok('tipo perigoso (SVG) nunca é servido como imagem executável', svg.headers.g
 ok('sem login não lê o anexo (401) e anexo inexistente → 404', (await fetch(`${BASE}${note.attachments[0].url}`)).status === 401 && (await fetch(`${BASE}/api/crm/notes/${nrow.id}/attachments/nao-existe`, { headers: { Cookie: cookie } })).status === 404);
 await pool.query(`UPDATE crm_notes SET attachments='[]'::jsonb WHERE id=$1`, [nrow.id]);
 
+// Edição direta na lista: as etapas de cada funil vêm nas opções (select de etapa por linha) e os campos editáveis aceitam PATCH
+const optsJson = (await call('GET', '/api/crm/options')).json;
+ok('opções trazem as etapas de cada funil (para trocar a etapa direto na lista)', optsJson.pipelines.every((p) => Array.isArray(p.stages) && p.stages.length >= 3) && optsJson.pipelines.some((p) => p.stages.some((x) => x.kind === 'lost')));
+const aberto = mine.json.items.find((d) => d.status === 'open');
+const pv = await call('PATCH', `/api/crm/deals/${aberto.id}`, { expectedCloseDate: '2026-12-15' });
+ok('previsão de fechamento editável direto (PATCH) e desfazível', pv.status === 200 && pv.json.deal.expectedCloseDate === '2026-12-15' && (await call('PATCH', `/api/crm/deals/${aberto.id}`, { expectedCloseDate: aberto.expectedCloseDate || null })).json.deal.expectedCloseDate === (aberto.expectedCloseDate || null));
+const fechado = mine.json.items.find((d) => d.status === 'lost');
+ok('vendedor NÃO edita negócio fechado (403): a lista bloqueia a célula e o servidor recusa', (await call('PATCH', `/api/crm/deals/${fechado.id}`, { value: 1 })).status === 403);
+const act1 = acts.json.items[0];
+const rs = await call('PATCH', `/api/crm/activities/${act1.id}`, { dueDate: '2026-12-20' });
+ok('reagendar atividade escolhendo a data (PATCH) funciona e volta ao valor original', rs.status === 200 && rs.json.activity.dueDate === '2026-12-20' && (await call('PATCH', `/api/crm/activities/${act1.id}`, { dueDate: act1.dueDate })).json.activity.dueDate === act1.dueDate);
+
 // Lead rápido
 const NAME = `Lead Teste Rápido ${Date.now()}`;
 const pipes = (await call('GET', '/api/crm/pipelines')).json.pipelines;

@@ -2,8 +2,8 @@
 // Cuida sozinha de concluir/editar/cancelar/reabrir/excluir e dos diálogos, e
 // oferece "Agendar próximo passo" ao concluir — é assim que o negócio não fica
 // sem próximo passo. `onChanged` avisa quem hospeda pra recarregar.
-import React, { useState } from 'react';
-import { Phone, Mail, Video, MessageCircle, MapPin, CheckSquare, Repeat, Check, Pencil, Ban, RotateCcw, Trash2, Clock } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Phone, Mail, Video, MessageCircle, MapPin, CheckSquare, Repeat, Check, Pencil, Ban, RotateCcw, Trash2, Clock, CalendarClock } from 'lucide-react';
 import { crm } from './crmApi.js';
 import ActivityForm from './ActivityForm.jsx';
 import { Modal, Field, CancelButton, useDirty } from './ui.jsx';
@@ -39,6 +39,18 @@ function CompleteDialogImpl({ activity, onCancel, onDone }) {
         <button type="button" className="crm-btn crm-btn-primary" disabled={busy} title={busy ? 'Aguarde terminar de salvar' : undefined} onClick={confirm}>{busy ? 'Salvando…' : 'Concluir'}</button>
       </div>
     </Modal>
+  );
+}
+
+// Reagendar sem abrir formulário: o ícone abre o calendário do navegador e a escolha já salva.
+function Reschedule({ activity, onPick }) {
+  const ref = useRef(null);
+  const open = () => { const el = ref.current; if (!el) return; try { el.showPicker(); } catch { el.focus(); el.click(); } };
+  return (
+    <>
+      <button type="button" className="crm-icon-btn" title="Reagendar (escolher nova data)" aria-label={`Reagendar ${activity.title}`} onClick={open}><CalendarClock size={14} aria-hidden="true" /></button>
+      <input ref={ref} type="date" tabIndex={-1} aria-hidden="true" defaultValue={activity.dueDate} onChange={(e) => { if (e.target.value && e.target.value !== activity.dueDate) onPick(e.target.value); }} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }} />
+    </>
   );
 }
 
@@ -86,6 +98,7 @@ export default function ActivityList({ activities, caps, options, currentUserId,
         </div>
         {caps.write && (
           <div className="crm-act-actions">
+            {open && caps.write && <Reschedule activity={a} onPick={(d) => act(() => crm.updateActivity(a.id, { dueDate: d }))} />}
             {open && <button type="button" className="crm-icon-btn" title="Editar atividade" aria-label="Editar atividade" onClick={() => setEditing(a)}><Pencil size={14} aria-hidden="true" /></button>}
             {open && <button type="button" className="crm-icon-btn" title="Cancelar atividade" aria-label="Cancelar atividade" onClick={() => act(() => crm.cancelActivity(a.id), { title: `Cancelar a atividade "${a.title}"?`, message: 'Ela sai da agenda, mas o histórico registra.', confirmLabel: 'Cancelar atividade', cancelLabel: 'Manter atividade', danger: true })}><Ban size={14} aria-hidden="true" /></button>}
             {!open && <button type="button" className="crm-icon-btn" title="Reabrir atividade" aria-label="Reabrir atividade" onClick={() => act(() => crm.reopenActivity(a.id))}><RotateCcw size={14} aria-hidden="true" /></button>}

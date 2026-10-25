@@ -208,7 +208,7 @@ export async function options(orgId) {
     segments: segs.map((r) => r.segment), owners,
     products: await listProducts(orgId),
     lostReasons: SELECTABLE_LOST_REASONS,
-    pipelines: (await listPipelines(orgId)).map((p) => ({ id: p.id, name: p.name, isDefault: p.isDefault })),
+    pipelines: (await listPipelines(orgId)).map((p) => ({ id: p.id, name: p.name, isDefault: p.isDefault, stages: p.stages.map((x) => ({ id: x.id, name: x.name, kind: x.kind })) })),
     dealTypes: Object.entries(DEAL_TYPE_LABELS).map(([value, label]) => ({ value, label })),
     billing: Object.entries(BILLING).map(([value, label]) => ({ value, label })),
   };

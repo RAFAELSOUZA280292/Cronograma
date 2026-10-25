@@ -184,6 +184,10 @@ export const CRM_CSS = `
   .crm-table tbody tr { cursor:pointer; }
   .crm-table tbody tr:hover td { background:var(--bg-3); }
   .crm-name { font-weight:800; color:var(--text-1); font-size:13px; }
+  .crm-inline { background:transparent; border:1px dashed transparent; border-radius:6px; padding:2px 6px; color:inherit; font:inherit; cursor:text; }
+  .crm-inline:hover, .crm-inline:focus-visible { border-color:var(--border-3); background:var(--bg-3, rgba(255,255,255,.04)); }
+  .crm-inline-input { background:transparent; border:1px solid transparent; border-radius:6px; padding:3px 4px; color:inherit; font:inherit; font-size:12px; }
+  .crm-inline-input:hover:not(:disabled), .crm-inline-input:focus-visible { border-color:var(--border-3); }
   .crm-pill { display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:800; padding:2px 9px; border-radius:999px; border:1px solid currentColor; white-space:nowrap; }
   .crm-bar { width:64px; height:6px; border-radius:999px; background:var(--bg-3); overflow:hidden; display:inline-block; vertical-align:middle; }
   .crm-bar > span { display:block; height:100%; border-radius:999px; }
