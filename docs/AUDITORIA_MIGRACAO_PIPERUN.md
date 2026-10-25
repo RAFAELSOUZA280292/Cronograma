@@ -57,3 +57,6 @@ Extração nova e completa do PipeRun (API v1, só GET, 154 chamadas, total decl
 
 ## Atualização — item 2 resolvido em produção (25/10/2026)
 Imagens das anotações aplicadas (execuções 5 e 6): 387 notas com 419 anexos (386 + 1 `<img>` que apontava para PDF); 105 notas que eram só-imagem ou só tinham link temporário passaram a existir (anotações 912 → 1.017, reconciliação ok, 0 divergências). As 5 notas com imagem restantes pertencem a negócios da lixeira (só backup). Conferido na tela (negócio "Georges - Player Contabilidade": 3 miniaturas carregadas, autor e data originais). Item 1 (histórico real) pendente de um clique do Rafael: *Migrar do PipeRun › Extrair › escolher `histories.json`* e depois *Importar*.
+
+## Atualização — item 1 resolvido em produção (25/10/2026)
+Histórico real aplicado (execução 7): 1.463 eventos do backup (tipos usados pela importação; integridade conferida por sha1 do conteúdo descomprimido) → **307 negócios com percurso real, 1.046 movimentos de etapa e 417 eventos de linha do tempo — iguais aos da origem**; 0 problemas; reconciliação ok, 0 divergências ("Histórico real de etapas" 307 = 307). Os dados foram levados à página de produção em blocos com hash porque o navegador do app bloqueia chamadas a localhost; o seletor de arquivo da tela continua disponível. Pendências restantes da auditoria: itens 3–8.
