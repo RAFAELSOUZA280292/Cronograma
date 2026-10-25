@@ -63,3 +63,12 @@ Histórico real aplicado (execução 7): 1.463 eventos do backup (tipos usados p
 
 ## Atualização — itens 3 e 4 resolvidos em produção (25/10/2026)
 2ª leva aplicada (execuções 8 e 9): **tags** 72 atribuições (30 tags no catálogo, 17 em uso), **previsão de fechamento** 48/48, **MRR** R$ 119.290,20 = R$ 119.290,20 (29 negócios), **produtos** 7/7 (2 apagados no PipeRun entram inativos), **etapas** 41/41 (funil "Outbound PriceTax" criado, etapas vazias criadas) com **prazo/SLA** nas 17 etapas que tinham `days_limit`. Conferência ok, 0 divergências; reimportar não duplica nada (`alreadyApplied` 307). Conferido na tela: filtro "Toda tag", chips de tag, "MRR R$ …" e "Prazo da etapa estourado" nos cartões. Pendências restantes: formulários, assinaturas (só backup), integrações de captura de leads, backup em 2º meio, revogar tokens.
+
+## Atualização — formulários e assinaturas (25/10/2026)
+3ª leva aplicada (execução 10): **19 eventos** na linha do tempo (15 formulários respondidos, 3 pedidos de assinatura, 1 assinatura concluída), **1 anotação** com a trilha da assinatura do contrato Grupo Amom (convidados, quem concluiu, data/hora, IP; sem CPF/nascimento), **12 comentários** de motivo de perda ("Fechou com a Evox/Eauditor…") no detalhe da perda. Os 4 formulários do PipeRun **não têm link público** (são internos, sem captura externa) e a estrutura deles está em `docs/PIPERUN_CONFIG_REFERENCIA.md`. Webhooks 0, equipes 0, chat desligado, nenhum formulário público.
+
+### O que continua em aberto (não é código)
+1. **Atendimento/WhatsApp do PipeRun:** não verificável pela API e o usuário do Rafael não tem permissão de atendente. Quem atende (Felipe/Eduarda) precisa abrir o módulo e confirmar se há número de WhatsApp conectado e conversas a guardar.
+2. **Backup em segundo meio:** não há disco externo no Mac; copiar `~/Downloads/PIPERUN_BACKUP/PIPERUN_2026-10-25_completo.zip` (sha256 em `.zip.sha256`) para HD externo ou nuvem da empresa — contém dados pessoais de clientes (LGPD).
+3. **Revogar tokens** (PipeRun e `pxk_`): alteração de segurança, a fazer pelo Rafael.
+4. **"Funil comercial" vazio:** arquivar em *Funis e etapas › Arquivar* (0 negócios).
