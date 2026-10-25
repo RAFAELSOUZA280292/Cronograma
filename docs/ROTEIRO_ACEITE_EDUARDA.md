@@ -51,9 +51,9 @@ Lacunas já conhecidas (não contam como falha, mas precisam de decisão): relat
 - [ ] Token do PipeRun e tokens `pxk_` revogados.
 - [ ] Funil comercial vazio arquivado (Negócios › Funis › Arquivar).
 - [ ] Usuário do Maurício criado (31 negócios e 36 atividades estão sem responsável).
-- [ ] Cadência de follow-up decidida (ver abaixo). Só vale para negócios que **entrarem** na etapa depois de criada.
+- [x] Cadência de follow-up criada em 25/10 (ver abaixo). Só vale para negócios que **entrarem** na etapa depois de criada.
 
-## Cadência sugerida (decisão do Rafael)
+## Cadência (criada em produção em 25/10)
 Funil **Tributaristas e Contadores › Leads** (é onde a Eduarda mais trabalha), três passos do tipo Follow-up: **1º Follow Up** em +1 dia, **2º Follow Up** em +3 dias, **3º Follow Up** em +7 dias. O 1º conta da entrada na etapa; os seguintes, da conclusão do anterior. Sair da etapa ou fechar o negócio cancela os passos que sobraram. Criação: Negócios › **Funis** › Tributaristas e Contadores › etapa Leads › Cadência.
 
 ## Depois de uma semana
