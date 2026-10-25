@@ -371,8 +371,23 @@ ok('conferência final sem nenhuma divergência', rep.ok === true && rep.diverge
   ok('carregar tags no backup bruto: admin 200 e grava; vendedor 403; corpo inválido 400', dtOk.status === 200 && dtOk.json.patched === 1 && (await call(C.vend, 'POST', '/api/crm/migration/piperun/raw/deal-tags', { rows: [] })).status === 403 && (await call(C.admin, 'POST', '/api/crm/migration/piperun/raw/deal-tags', { rows: [] })).status === 400);
   await q(`UPDATE piperun_raw SET payload = payload || jsonb_build_object('tags', $2::jsonb) WHERE org_id=$1 AND entity='deals' AND pid=$3`, [ORG, JSON.stringify(tDeal.tags), String(tDeal.id)]);
 }
+// 3ª leva: formulário respondido, assinatura (linha do tempo + anotação) e comentário do motivo de perda
+{
+  const liveSet = new Set(liveDeals.map((d) => String(d.id)));
+  const evs = (RAW.histories || []).filter((h) => [1007, 59, 76].includes(Number(h.type)) && h.deal_id && liveSet.has(String(h.deal_id)));
+  ok('formulários e assinaturas: cada evento do PipeRun virou um evento na linha do tempo do negócio', await n(`SELECT count(*)::int n FROM crm_timeline_events WHERE org_id=$1 AND event_type IN ('form_answered','contract_signed','signature_requested')`) === evs.length, { esperado: evs.length });
+  const signed = evs.find((h) => Number(h.type) === 59);
+  if (signed) {
+    const dealRow = (await q(`SELECT id FROM crm_deals WHERE org_id=$1 AND external_id=$2`, [ORG, String(liveDeals.find((d) => String(d.id) === String(signed.deal_id)).hash)])).rows[0];
+    const nt = (await q(`SELECT body, author_name FROM crm_notes WHERE org_id=$1 AND entity_id=$2 AND body LIKE 'Assinatura eletrônica no PipeRun%'`, [ORG, dealRow.id])).rows;
+    ok('trilha da assinatura vira UMA anotação (convidados, quem assinou, quando e IP) — sem CPF nem nascimento', nt.length === 1 && /Assinatura concluída por/.test(nt[0].body) && /Convites enviados para/.test(nt[0].body) && !/\d{3}\.\d{3}\.\d{3}-\d{2}/.test(nt[0].body) && !/1991/.test(nt[0].body), nt[0] && nt[0].body);
+  }
+  const rcWant = liveDeals.filter((d) => Number(d.status) === 3 && d.reason_close && /[\p{L}\p{N}]/u.test(d.reason_close));
+  let rcOk = 0; for (const d of rcWant) { if ((await q(`SELECT lost_detail FROM crm_deals WHERE org_id=$1 AND external_id=$2`, [ORG, String(d.hash)])).rows[0].lost_detail.includes(String(d.reason_close).trim())) rcOk += 1; }
+  ok('comentário livre do motivo de perda (ex.: "Fechou com a Evox") está no detalhe da perda', rcOk === rcWant.length, { rcOk, de: rcWant.length });
+}
 const rrX = await runMigration(ORG, actor, { ownerMap, includeFiles: true, maxFiles: Infinity, fetchImpl: fileStub.impl });
-ok('2ª leva é repetível: reimportar não duplica tags, produtos nem funis e não pisa no MRR/prazo editados', rrX.dealExtras.deals === 0 && rrX.dealExtras.alreadyApplied > 0 && rrX.products.created === 0 && rrX.funnels.createdFunnels.length === 0 && Number((await q(`SELECT mrr AS n FROM crm_deals WHERE org_id=$1 AND external_id=$2`, [ORG, String(liveDeals.find((d) => (d.tags || []).length).hash)])).rows[0].n) === 1234.5, { de: rrX.dealExtras, pr: rrX.products, fu: rrX.funnels });
+ok('2ª leva é repetível: reimportar não duplica tags, produtos nem funis e não pisa no MRR/prazo editados', rrX.dealExtras.deals === 0 && rrX.dealExtras.alreadyApplied > 0 && rrX.extraHistory.timeline === 0 && rrX.extraHistory.signatureNotes === 0 && rrX.extraHistory.reasonClose === 0 && rrX.products.created === 0 && rrX.funnels.createdFunnels.length === 0 && Number((await q(`SELECT mrr AS n FROM crm_deals WHERE org_id=$1 AND external_id=$2`, [ORG, String(liveDeals.find((d) => (d.tags || []).length).hash)])).rows[0].n) === 1234.5, { de: rrX.dealExtras, pr: rrX.products, fu: rrX.funnels });
 const repX = await reconcile(ORG);
 ok('conferência mostra as linhas da 2ª leva como informativas (não derrubam o "ok")', repX.summary.filter((x) => x.info).length >= 5 && repX.ok === true, repX.summary.filter((x) => !x.ok).map((x) => [x.label, x.piperun, x.crm]));
 function await_name(p, stages) { return stages.some((r) => r.pipeline.trim().toLowerCase() === p.name.trim().toLowerCase()) || false; }

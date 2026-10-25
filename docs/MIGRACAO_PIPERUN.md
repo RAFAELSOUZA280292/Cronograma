@@ -108,3 +108,9 @@ Fecha as pendências 3–4 da auditoria (`docs/AUDITORIA_MIGRACAO_PIPERUN.md`). 
 - **Etapas e prazo:** `completeFunnels` garante TODAS as etapas de cada funil na ordem do PipeRun (inclui o funil "Outbound PriceTax" e as etapas sem negócio) e grava `days_limit` em `crm_pipeline_stages.sla_days` (tela *Funis e etapas › Prazo (dias)*). Negócio aberto há mais dias que o prazo da etapa ganha o aviso "Prazo da etapa estourado" no card e na ficha.
 - Aplicado **uma vez por negócio** (`piperun_map` entidade `extras`) para não sobrescrever edição feita depois no CRM. A conferência ganhou 5 linhas informativas (etapas, produtos, tags, previsão, MRR) que não derrubam o "ok".
 - Teste: `scripts/piperun-migration.test.mjs` (115 verificações).
+
+## 11. 3ª leva (25/10/2026): formulários, assinaturas, motivo de perda e referência de configuração
+- **Formulários respondidos** (histórico tipo 1007, 15 eventos), **pedidos de assinatura** (76) e **assinatura concluída** (59) viram eventos da linha do tempo do negócio com a data original (`form_answered`, `signature_requested`, `contract_signed`); a trilha da assinatura (convidados, quem concluiu, quando, IP) vira **uma anotação** por contrato. CPF e nascimento do signatário ficam só no backup. Cada item uma vez (`piperun_map` entidade `extra2`).
+- **Comentário livre do motivo de perda** (`reason_close`, 13 negócios perdidos — ex.: "Fechou com a Evox") é somado ao detalhe da perda.
+- **Os 4 formulários do PipeRun não têm link público** (são internos); como não há recurso de formulário no CRM, a estrutura (campos, opções, funis, SLA, tags, origens, automações) está em `docs/PIPERUN_CONFIG_REFERENCIA.md`.
+- Webhooks 0, equipes 0, chat desligado, nenhum formulário público: nada na API indica captura automática de leads. **Atendimento (WhatsApp) não é verificável pela API** nem pelo usuário do Rafael (sem permissão de atendente) — conferir com quem atende antes de cancelar.

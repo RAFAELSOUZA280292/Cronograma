@@ -10,7 +10,7 @@ import { commitDealImport, SOURCE_SYSTEM } from '../dealImporter.js';
 import { listPipelines } from '../funnels.js';
 import { loadRaw } from './extract.js';
 import * as T from './transform.js';
-import { completeFunnels, importProducts, importDealExtras } from './extrasImport.js';
+import { completeFunnels, importProducts, importDealExtras, importExtraHistory } from './extrasImport.js';
 
 const todayBR = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const MAX_FILE_BYTES = 30 * 1024 * 1024;
@@ -285,6 +285,10 @@ export async function runMigration(orgId, actor, { ownerMap = {}, includeFiles =
 
   // 4c) tags, MRR e previsão de fechamento de cada negócio (aplicados uma vez por negócio)
   result.dealExtras = await importDealExtras(orgId, T.tagRows(P.ctx), P.plan.rows, dealMap, await mapAll(orgId, 'extras'), (pid, id) => mapSet(orgId, 'extras', pid, id));
+
+  // 4d) formulários respondidos e assinaturas na linha do tempo, trilha da assinatura em anotação, comentário livre do motivo de perda
+  const doneExtra = await mapAll(orgId, 'extra2');
+  result.extraHistory = await importExtraHistory(orgId, { events: T.extraHistory(P.ctx), sigNotes: T.signatureNotes(P.ctx), planRows: P.plan.rows, dealMap, userByName, done: doneExtra, mark: (pid, id) => mapSet(orgId, 'extra2', pid, id) });
 
   // 5) notas + propostas (como nota do negócio)
   const contactIds = await mapAll(orgId, 'contact');

@@ -171,7 +171,7 @@ export function dealPlan(ctx, todayISO) {
       createdAt: toDate(d.created_at), closedAt: toDate(d.closed_at), stageDays: daysSince(d.last_stage_updated_at || d.stage_changed_at || d.created_at, todayISO),
       ownerName: s(owner && owner.name), ownerEmail: s(owner && owner.email), source: s((ctx.origins.get(String(d.origin_id)) || {}).name), notes: htmlToText(d.observation), description: desc, tags: '',
       companyCnpj, companyName: companyNameForRow, personName: person ? s(person.name) : '', personEmail: (ev.find((e) => e.main) || ev[0] || {}).email || '',
-      lostReasonKey: lr ? lr.key : '', lostDetail: lr ? lr.detail : '', provisional: !!provisionalKey, proposals: props.length,
+      lostReasonKey: lr ? lr.key : '', lostDetail: lr ? lr.detail : '', provisional: !!provisionalKey, proposals: props.length, reasonClose: s(d.reason_close),
       mrr: Number(d.value_mrr) > 0 ? Number(d.value_mrr) : 0, expectedDate: toDate(d.probably_closed_at), tagNames: (Array.isArray(d.tags) ? d.tags : []).map((t) => s(t && t.name)).filter(Boolean),
     });
   }
@@ -181,6 +181,48 @@ export function dealPlan(ctx, todayISO) {
     stageHints[personNameKey(p.name)] = list;
   }
   return { rows, provisional: [...provisional.values()].map((e) => ({ ...e, personPids: [...e.personPids] })), personCompany, stageHints, stats };
+}
+
+// ---------- eventos que o percurso não cobre: formulário respondido (1007), pedido de assinatura (76) e assinatura concluída (59) ----------
+const brt = (iso) => new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+export function extraHistory(ctx) {
+  const out = [];
+  for (const h of ctx.raw.histories || []) {
+    const type = Number(h.type);
+    if (![1007, 59, 76].includes(type) || !h.deal_id) continue;
+    const at = utc(h.date); if (!at) continue;
+    const d = parseJson(h.description) || {};
+    const actorName = (h.user_id && ctx.userNames.get(String(h.user_id))) || 'PipeRun';
+    let ev;
+    if (type === 1007) ev = { type: 'form_answered', summary: `registrou: ${s(h.description).replace(/\.$/, '')} (PipeRun).` };
+    else if (type === 59) ev = { type: 'contract_signed', summary: `${s(d.member_name) || 'Um signatário'} concluiu a assinatura eletrônica de "${s(d.document_title)}"${d.member_host_ip ? ` (IP ${s(d.member_host_ip)})` : ''} (PipeRun).` };
+    else ev = { type: 'signature_requested', summary: `pediu a assinatura de "${s(d.signature)}" a ${s(d.email)} (PipeRun).` };
+    out.push({ hid: String(h.id), dealPid: String(h.deal_id), at, actorName, ...ev });
+  }
+  return out;
+}
+
+// Uma anotação por contrato assinado: quem foi convidado, quem concluiu, quando e de onde (a trilha que só existe no PipeRun). CPF e nascimento do signatário ficam só no backup.
+export function signatureNotes(ctx) {
+  const by = new Map();
+  for (const h of ctx.raw.histories || []) {
+    const type = Number(h.type);
+    if (![59, 76].includes(type) || !h.deal_id) continue;
+    const d = parseJson(h.description) || {};
+    const title = s(d.document_title || d.signature); if (!title) continue;
+    const k = `${h.deal_id}|${title}`;
+    const e = by.get(k) || { dealPid: String(h.deal_id), title, invited: [], signed: [], at: '' };
+    if (type === 76 && s(d.email) && !e.invited.includes(s(d.email))) e.invited.push(s(d.email));
+    if (type === 59) e.signed.push({ name: s(d.member_name), email: s(d.member_email), ip: s(d.member_host_ip), at: utc(h.date) });
+    const at = utc(h.date); if (at && (!e.at || at > e.at)) e.at = at;
+    by.set(k, e);
+  }
+  return [...by.values()].map((e) => ({
+    pid: `sig:${e.dealPid}:${e.title}`, dealPid: e.dealPid, at: e.at,
+    text: [`Assinatura eletrônica no PipeRun — "${e.title}".`, e.invited.length ? `Convites enviados para: ${e.invited.join(', ')}.` : '',
+      ...e.signed.map((x) => `Assinatura concluída por ${x.name || 'signatário'}${x.email ? ` <${x.email}>` : ''} em ${brt(x.at)} (horário de Brasília)${x.ip ? `, IP ${x.ip}` : ''}.`),
+      !e.signed.length ? 'O PipeRun não registrou nenhuma assinatura concluída.' : ''].filter(Boolean).join('\n'),
+  }));
 }
 
 // ---------- funis completos (com etapas sem negócio e prazo/SLA), catálogo de produtos e de tags ----------

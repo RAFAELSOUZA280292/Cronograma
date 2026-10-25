@@ -73,3 +73,28 @@ export async function importDealExtras(orgId, tagCatalog, planRows, dealMap, app
   }
   return res;
 }
+
+// Formulário respondido / assinatura na linha do tempo (com a data original), anotação com a trilha da assinatura e comentário livre do motivo de perda. Cada item uma vez (piperun_map).
+export async function importExtraHistory(orgId, { events, sigNotes, planRows, dealMap, userByName, done, mark }) {
+  const res = { timeline: 0, signatureNotes: 0, reasonClose: 0 };
+  for (const e of events) {
+    const d = dealMap.get(e.dealPid); if (!d || done.has(`tl:${e.hid}`)) continue;
+    await pool.query(
+      `INSERT INTO crm_timeline_events (id, org_id, company_id, entity_type, entity_id, event_type, summary, data, actor_id, actor_name, occurred_at) VALUES ($1,$2,$3,'deal',$4,$5,$6,$7,$8,$9,$10::timestamptz)`,
+      [randomUUID(), orgId, d.companyId, d.id, e.type, `${e.actorName} ${e.summary}`.slice(0, 500), JSON.stringify({ dealId: d.id, imported: true, source: 'piperun' }), userByName.get(personNameKey(e.actorName)) || null, e.actorName, e.at]);
+    await mark(`tl:${e.hid}`, d.id); res.timeline += 1;
+  }
+  for (const n of sigNotes) {
+    const d = dealMap.get(n.dealPid); if (!d || done.has(n.pid)) continue;
+    const id = randomUUID();
+    await pool.query(`INSERT INTO crm_notes (id, org_id, entity_type, entity_id, company_id, body, created_at, updated_at, author_name) VALUES ($1,$2,'deal',$3,$4,$5,$6::timestamptz,$6::timestamptz,'PipeRun')`, [id, orgId, d.id, d.companyId, n.text.slice(0, 5000), n.at]);
+    await mark(n.pid, id); res.signatureNotes += 1;
+  }
+  for (const r of planRows) {
+    const d = dealMap.get(r.pid); const key = `rc:${r.pid}`;
+    if (!d || !r.reasonClose || !/[\p{L}\p{N}]/u.test(r.reasonClose) || done.has(key)) continue;
+    await pool.query(`UPDATE crm_deals SET lost_detail = CASE WHEN lost_detail = '' THEN $2 ELSE left(lost_detail || ' — ' || $2, 2000) END WHERE id=$1 AND org_id=$3 AND status='lost' AND position($2 in lost_detail) = 0`, [d.id, r.reasonClose, orgId]);
+    await mark(key, d.id); res.reasonClose += 1;
+  }
+  return res;
+}
