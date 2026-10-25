@@ -54,3 +54,6 @@ Extração nova e completa do PipeRun (API v1, só GET, 154 chamadas, total decl
 | 6 | Formulários e integrações de captura | Alta se usados | inventário com o time; recriar |
 | 7 | Backup em 2º meio | Alta | copiar zip + conferir sha256 |
 | 8 | Revogar token PipeRun e pxk_ | Segurança | só depois dos itens 1–2 |
+
+## Atualização — item 2 resolvido em produção (25/10/2026)
+Imagens das anotações aplicadas (execuções 5 e 6): 387 notas com 419 anexos (386 + 1 `<img>` que apontava para PDF); 105 notas que eram só-imagem ou só tinham link temporário passaram a existir (anotações 912 → 1.017, reconciliação ok, 0 divergências). As 5 notas com imagem restantes pertencem a negócios da lixeira (só backup). Conferido na tela (negócio "Georges - Player Contabilidade": 3 miniaturas carregadas, autor e data originais). Item 1 (histórico real) pendente de um clique do Rafael: *Migrar do PipeRun › Extrair › escolher `histories.json`* e depois *Importar*.
