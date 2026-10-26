@@ -84,7 +84,7 @@ async function actorInOrg(c, orgId, actor) {
 // Quem recebe uma atividade de outra pessoa precisa ficar sabendo (Central de
 // Notificações existente). Quem atribui a si mesmo não é avisado.
 async function notifyAssigned(c, orgId, actor, api, ownerId) {
-  if (!ownerId || ownerId === actor.id) return;
+  if (!ownerId || ownerId === actor.id || actor.silentNotify) return; // silentNotify: só pela chave de API, em reatribuição em lote (§99)
   await createNotification(c, {
     orgId, userId: ownerId, type: 'crm_activity_assigned', actorName: actor.name,
     title: 'Nova atividade no CRM',

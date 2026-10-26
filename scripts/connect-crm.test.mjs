@@ -35,6 +35,7 @@ async function cleanup() {
   await pool.query(`DELETE FROM api_token_actions WHERE user_id LIKE 'oicc_%'`).catch(() => {});
   await pool.query(`DELETE FROM api_tokens WHERE user_id LIKE 'oicc_%'`);
   await pool.query(`DELETE FROM users WHERE id LIKE 'oicc_%'`);
+  await pool.query(`DELETE FROM notifications WHERE user_id LIKE 'oicc_%'`).catch(() => {});
 }
 await cleanup();
 await pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,companies_access,all_companies_access) VALUES ($1,$1,$2,'Admin Teste CC','master',$3,true,true)`, [U.adm, hash, ORG]);
@@ -82,6 +83,14 @@ try {
   ok('registra nota', (await call(H(), 'POST', '/api/connect/crm/notes', { entityType: 'deal', entityId: dealId, body: 'Nota registrada pelo Claude Code.' })).status === 201);
   const ac = await call(H(), 'POST', '/api/connect/crm/activities', { companyId, dealId, title: 'Follow-up de teste', activityType: 'followup', dueDate: '2030-01-10' });
   ok('cria atividade', ac.status === 201, ac.json);
+  const ac2 = await call(H(), 'POST', '/api/connect/crm/activities', { companyId, dealId, title: 'Atividade para reatribuir', activityType: 'task', dueDate: '2030-02-10' });
+  const nBefore = (await pool.query(`SELECT count(*)::int n FROM notifications WHERE user_id=$1`, [U.vend])).rows[0].n;
+  await call(H(), 'PATCH', `/api/connect/crm/activities/${ac2.json.activity.id}`, { ownerId: U.vend, silentNotify: true });
+  const nQuiet = (await pool.query(`SELECT count(*)::int n FROM notifications WHERE user_id=$1`, [U.vend])).rows[0].n;
+  await call(H(), 'PATCH', `/api/connect/crm/activities/${ac2.json.activity.id}`, { ownerId: U.adm });
+  await call(H(), 'PATCH', `/api/connect/crm/activities/${ac2.json.activity.id}`, { ownerId: U.vend });
+  const nLoud = (await pool.query(`SELECT count(*)::int n FROM notifications WHERE user_id=$1`, [U.vend])).rows[0].n;
+  ok('reatribuir com silentNotify não avisa a pessoa; sem ele avisa (e a troca fica no histórico)', nQuiet === nBefore && nLoud === nBefore + 1, { nBefore, nQuiet, nLoud });
   ok('conclui atividade', (await call(H(), 'POST', `/api/connect/crm/activities/${ac.json.activity.id}/complete`, { result: 'ok' })).status === 200);
   const cad = await call(H(), 'POST', '/api/connect/crm/cadences', { pipelineId: pipe.id, stageId: open[open.length - 1].id, name: `${TAG} cadência`, steps: [{ title: 'Passo', type: 'followup', days: 1 }] });
   ok('cria cadência (regra persistente também vai pela chave)', cad.status === 201, cad.json);

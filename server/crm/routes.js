@@ -185,7 +185,11 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
     const { alreadyDone, ...input } = req.body || {};
     res.status(201).json({ activity: await A.createActivity(orgOf(req), actorOf(req), input, { alreadyDone: !!alreadyDone }) });
   }));
-  router.patch('/activities/:id', need('write'), h(async (req, res) => res.json({ activity: await A.updateActivity(orgOf(req), actorOf(req), req.params.id, req.body || {}) })));
+  router.patch('/activities/:id', need('write'), h(async (req, res) => {
+    // `silentNotify:true` (só pela chave de API) reatribui sem disparar o aviso "atividade atribuída a você" — para transferências em lote.
+    const quiet = !!(req.crmActor && req.body && req.body.silentNotify === true);
+    res.json({ activity: await A.updateActivity(orgOf(req), quiet ? { ...actorOf(req), silentNotify: true } : actorOf(req), req.params.id, req.body || {}) });
+  }));
   router.post('/activities/:id/complete', need('write'), h(async (req, res) => {
     const activity = await A.completeActivity(orgOf(req), actorOf(req), req.params.id, req.body || {});
     res.json({ activity, next: await X.cadenceAfterComplete(orgOf(req), actorOf(req), activity.id) });
