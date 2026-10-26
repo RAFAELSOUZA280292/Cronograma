@@ -5,7 +5,7 @@
 **Legenda:** ✅ implementada e exercitada por teste ponta a ponta · 🟡 parcial/limitada (explicado) · ⬜ pendente · 🚫 fora do alcance de propósito (segurança)
 
 ## Resumo
-- **97 ferramentas estruturadas** em 11 módulos (33 de consulta, 45 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
+- **98 ferramentas estruturadas** em 11 módulos (33 de consulta, 46 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
 - **294 rotas** no servidor: 64 cobertas por ferramenta própria, 119 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 111 excluídas de propósito.
 - **56 funcionalidades humanas mapeadas**: 35 ✅, 12 🟡, 4 ⬜, 5 🚫.
 - **Critério "100% das funcionalidades" NÃO está atendido ainda**: as linhas 🟡 e ⬜ abaixo são o que falta. As rotas "genéricas" já são alcançáveis (com confirmação), mas sem esquema de parâmetros; as ⬜ precisam de trabalho novo (arquivos, edição de documentos inteiros).
@@ -68,7 +68,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | Empresas | Links públicos e compartilhamento externo | — | 🚫 | Gerados pela própria pessoa na tela. |
 | Gestão de Atividades | Cartões: criar, editar (título, prazo, prioridade, status, coluna), concluir, excluir | quadro_criar_atividade, quadro_atualizar_atividade, quadro_concluir_atividade, quadro_excluir_atividade | ✅ | renata (T6), renata-tools |
 | Gestão de Atividades | Listar o quadro | quadro_listar | ✅ | renata-tools |
-| Gestão de Atividades | Checklist (itens, marcar, prazo por item), comentários, criar páginas e colunas | quadro_checklist (inclui prazo do item), quadro_comentar, quadro_criar_pagina, quadro_criar_coluna | ✅ | renata-tools. Edição local ainda não salva vence a da RENATA (a tela recarrega em até ~12 s). |
+| Gestão de Atividades | Checklist (itens, marcar, prazo por item), comentários, criar páginas e colunas | quadro_checklist (inclui prazo do item), quadro_responsavel, quadro_comentar, quadro_criar_pagina, quadro_criar_coluna | ✅ | renata-tools. Edição local ainda não salva vence a da RENATA (a tela recarrega em até ~12 s). |
 | Gestão de Atividades | Anexos e tags do cartão; renomear/excluir/reordenar páginas e colunas; arquivar | — | ⬜ | Ainda sem ferramenta (anexos exigem arquivo). |
 | Gestão de Atividades | Quadro público compartilhado | — | 🚫 | Link público gerado na tela. |
 | Agenda | Listar compromissos | agenda_listar | ✅ | renata-tools (sem Google conectado devolve vazio) |
@@ -205,6 +205,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `quadro_concluir_atividade` | escrita | sob medida | Conclui um cartão do quadro pessoal. |
 | `quadro_excluir_atividade` | crítica (confirma) | sob medida | Exclui um cartão do quadro pessoal (vai para a lixeira do quadro). |
 | `quadro_checklist` | escrita | sob medida | Mexe no checklist de um cartão: adicionar item, marcar/desmarcar (por itemId ou texto) ou remover. |
+| `quadro_responsavel` | escrita | sob medida | Atribui ou remove um responsável de um cartão do quadro pessoal (o responsável é criado na lista da página se ainda não existir). |
 | `quadro_comentar` | escrita | sob medida | Adiciona um comentário a um cartão do quadro pessoal. |
 | `quadro_criar_coluna` | escrita | sob medida | Cria uma coluna numa página do quadro pessoal. |
 | `quadro_criar_pagina` | escrita | sob medida | Cria uma página nova no quadro pessoal (com as colunas A fazer, Em andamento e Concluído). |

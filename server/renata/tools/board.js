@@ -173,6 +173,30 @@ export function registerBoard(registry) {
       f.col.cards[f.idx] = withHistory({ ...f.card, checklist: list }, `Checklist alterado pela RENATA: ${i.acao}${item ? ` “${item.text}”` : ''}`, now, w);
       return { status: 200, json: { cartao: { id: f.card.id, title: f.card.title }, item: { id: item.id, text: item.text, done: !!item.done, prazo: item.dueDate || '' }, anteriorPrazo, itens: list.length, feitos: list.filter((x) => x.done).length } };
     }), summarize: (i, r) => `Checklist de “${r.cartao.title}”: ${i.acao} “${r.item.text}” (${r.feitos}/${r.itens}).` });
+  registry.add({ ...base, name: 'quadro_responsavel', summary: 'Atribui ou remove um responsável de um cartão do quadro pessoal (o responsável é criado na lista da página se ainda não existir).', risk: 'write',
+    params: T.obj({ id: T.str('Id do cartão'), acao: T.enm('atribuir ou remover', ['atribuir', 'remover']), nome: T.str('Nome do responsável') }, ['id', 'acao', 'nome']),
+    before: cardBefore, describe: (i, b) => `${i.acao === 'atribuir' ? 'Atribuir' : 'Remover'} o responsável “${i.nome}” no cartão “${(b && b.title) || i.id}”.`,
+    undo: (i, b, r) => (r && r.mudou ? { tool: 'quadro_responsavel', input: { id: i.id, acao: i.acao === 'atribuir' ? 'remover' : 'atribuir', nome: i.nome }, label: i.acao === 'atribuir' ? 'remover o responsável' : 'atribuir de novo' } : null),
+    run: (ctx, i) => withBoard(ctx, ({ boards, now, who: w }) => {
+      const f = findCard(boards, i.id);
+      if (!f) return { status: 404, json: { message: 'Cartão não encontrado.' } };
+      const nome = String(i.nome || '').trim().slice(0, 60);
+      if (!nome) return { status: 400, json: { message: 'Informe o nome do responsável.' } };
+      const norm = (v) => String(v || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+      f.board.responsibles = f.board.responsibles || [];
+      let resp = f.board.responsibles.find((x) => norm(x.name) === norm(nome));
+      const ids = f.card.responsibleIds || [];
+      let mudou = false;
+      if (i.acao === 'atribuir') {
+        if (!resp) { resp = { id: uid('resp'), name: nome }; f.board.responsibles.push(resp); }
+        if (!ids.includes(resp.id)) { ids.push(resp.id); mudou = true; }
+      } else {
+        if (!resp || !ids.includes(resp.id)) return { status: 404, json: { message: `“${nome}” não é responsável por este cartão. Responsáveis: ${ids.map((id) => (f.board.responsibles.find((x) => x.id === id) || {}).name).filter(Boolean).join(', ') || '(nenhum)'}.` } };
+        ids.splice(ids.indexOf(resp.id), 1); mudou = true;
+      }
+      f.col.cards[f.idx] = withHistory({ ...f.card, responsibleIds: ids }, `Responsável ${i.acao === 'atribuir' ? 'atribuído' : 'removido'} pela RENATA: ${resp.name}`, now, w);
+      return { status: 200, json: { cartao: { id: f.card.id, title: f.card.title }, responsavel: resp.name, mudou, responsaveis: ids.map((id) => (f.board.responsibles.find((x) => x.id === id) || {}).name).filter(Boolean) } };
+    }), summarize: (i, r) => `${r.mudou ? (i.acao === 'atribuir' ? 'Responsável atribuído' : 'Responsável removido') : 'Sem mudança'}: ${r.responsavel} em “${r.cartao.title}”.` });
   registry.add({ ...base, name: 'quadro_comentar', summary: 'Adiciona um comentário a um cartão do quadro pessoal.', risk: 'write', creates: true, params: T.obj({ id: T.str('Id do cartão'), texto: T.str('Comentário', { minLength: 1, maxLength: 2000 }) }, ['id', 'texto']),
     before: cardBefore, describe: (i, b) => `Comentar no cartão “${(b && b.title) || i.id}”: “${i.texto.slice(0, 80)}”.`,
     run: (ctx, i) => withBoard(ctx, ({ boards, now, who: w }) => {

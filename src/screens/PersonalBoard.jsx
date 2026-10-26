@@ -2,7 +2,7 @@
 // Extraído de src/App.jsx (2026-10-16, "dividir o App.jsx"): carregado sob demanda (lazyRetry no App.jsx) para sair do pacote principal.
 // O código é o mesmo de antes; o que vem do App.jsx é importado de lá (e lá foi exportado).
 
-import { AlertTriangle, Archive, ArrowLeftRight, CalendarDays, Check, Clock, Columns3, Copy, Gauge, Globe, GripVertical, History, LayoutList, Link2, ListChecks, Lock, LogOut, Maximize2, MessageSquare, MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Tag, Trash2, Undo2, X } from 'lucide-react';
+import { AlertTriangle, Archive, ArrowLeftRight, CalendarDays, Check, Clock, Columns3, Copy, Gauge, Globe, GripVertical, History, LayoutList, Link2, ListChecks, Lock, LogOut, Maximize2, MessageSquare, MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Tag, Trash2, Undo2, UserPlus, Users, X } from 'lucide-react';
 import { CommentThread, ComposeBox } from '../ui/ComposeBox.jsx';
 import { ConfirmDialog, RecordSaveStatus, SaveStatus, activateRow } from '../ui/index.jsx';
 import DaySummary from '../personal/DaySummary.jsx';
@@ -16,6 +16,7 @@ import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable,
 import { WaitingField, isWaiting, localTodayIso, waitingLabel } from '../personal/Waiting.jsx';
 import { apiGet, apiPatch, apiPost } from '../lib/api.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
+import { avatarColor, initials } from '../meetings/todoUtils.js';
 import { calendarDaysSince } from '../lib/dates.js';
 import { lazyRetry } from '../lib/lazyRetry.jsx';
 import { noteToPlain } from '../lib/richNote.js';
@@ -326,6 +327,61 @@ function ChecklistDate({ item, readOnly, onChange }) {
   );
 }
 
+
+const RespCtx = React.createContext([]);
+const normResp = (n) => (n || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+
+function RespAvatar({ name, size = 20 }) {
+  const c = avatarColor(name);
+  return <span title={name} style={{ width: size, height: size, borderRadius: '50%', background: c.bg, color: c.fg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(size * 0.42), fontWeight: 700, flexShrink: 0, border: '1.5px solid var(--bg-2)' }}>{initials(name)}</span>;
+}
+
+function cardResponsibles(card, all) {
+  const ids = card.responsibleIds || [];
+  return ids.map((id) => all.find((r) => r.id === id)).filter(Boolean);
+}
+
+function ResponsiblesField({ card, readOnly, onSet, onCreate }) {
+  const all = React.useContext(RespCtx);
+  const [draft, setDraft] = useState('');
+  const mine = cardResponsibles(card, all);
+  const available = all.filter((r) => !(card.responsibleIds || []).includes(r.id));
+  function submit() {
+    const v = draft.trim();
+    if (!v) return;
+    onCreate(v);
+    setDraft('');
+  }
+  return (
+    <div>
+      <div style={S.subSectionLabel}><Users size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Responsáveis</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+        {mine.length === 0 && <span style={S.fieldHint}>{readOnly ? 'Sem responsável.' : 'Ninguém atribuído ainda.'}</span>}
+        {mine.map((r) => (
+          <span key={r.id} style={{ ...S.personalCardTag, fontSize: 12, padding: '3px 8px 3px 4px', gap: 6 }}>
+            <RespAvatar name={r.name} size={18} />{r.name}
+            {!readOnly && <button type="button" aria-label={`Remover ${r.name}`} title="Remover desta atividade" style={S.chipX} onClick={() => onSet((card.responsibleIds || []).filter((id) => id !== r.id))}><X aria-hidden="true" size={12} /></button>}
+          </span>
+        ))}
+      </div>
+      {!readOnly && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+          {available.map((r) => (
+            <button key={r.id} type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, minHeight: 30, padding: '2px 9px', gap: 6 }} title="Atribuir a esta atividade" onClick={() => onSet([...(card.responsibleIds || []), r.id])}>
+              <RespAvatar name={r.name} size={16} />{r.name}
+            </button>
+          ))}
+          <div style={{ display: 'flex', gap: 6, flex: '1 1 220px', minWidth: 0 }}>
+            <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={60} placeholder="Novo responsável (nome)…" style={{ flex: 1, minWidth: 0 }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} />
+            <button type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, minHeight: 36 }} disabled={!draft.trim()} title={draft.trim() ? 'Cria o responsável e atribui a esta atividade' : 'Digite o nome do responsável.'} onClick={submit}><UserPlus size={14} /> Criar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen, onToggleComplete, onDelete, onDuplicate, onSetPriority, onSetStatus, onMoveTo }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id, data: { type: 'card', columnId }, disabled: disabled || readOnly });
@@ -339,6 +395,8 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
   const stale = staleTone(staleDays);
   const showStaleBadge = !card.completed;
   const waiting = isWaiting(card);
+  const respAll = React.useContext(RespCtx);
+  const cardResp = cardResponsibles(card, respAll);
   const hasMeta = !!priorityMeta || showStatusBadge || waiting || !!card.dueDate || (card.comments || []).length > 0 || (card.checklist || []).length > 0 || showStaleBadge;
 
   return (
@@ -395,6 +453,13 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
               ⏱ {staleDays}d
             </span>
           )}
+        </div>
+      )}
+      {cardResp.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', marginTop: 6 }} title={`Responsáveis: ${cardResp.map((r) => r.name).join(', ')}`}>
+          {cardResp.slice(0, 3).map((r, i) => <span key={r.id} style={{ marginLeft: i ? -6 : 0 }}><RespAvatar name={r.name} /></span>)}
+          {cardResp.length > 3 && <span style={{ ...S.fieldHint, marginLeft: 6 }}>+{cardResp.length - 3}</span>}
+          {cardResp.length === 1 && <span style={{ ...S.fieldHint, marginLeft: 6 }}>{cardResp[0].name}</span>}
         </div>
       )}
       {(card.tags || []).length > 0 && (
@@ -537,7 +602,7 @@ function PersonalColumn({
   );
 }
 
-function PersonalCardDetailModal({ onSetChecklistDate, card, columnId, columnName, boardName, otherColumns, onMoveTo, allTags, currentUserId, readOnly, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onUpdateChecklistItem, onRemoveChecklistItem }) {
+function PersonalCardDetailModal({ onSetResponsibles, onCreateResponsible, onSetChecklistDate, card, columnId, columnName, boardName, otherColumns, onMoveTo, allTags, currentUserId, readOnly, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onUpdateChecklistItem, onRemoveChecklistItem }) {
   const [checklistDraft, setChecklistDraft] = useState('');
   const [checklistDraftDate, setChecklistDraftDate] = useState('');
   const [composeDirty, setComposeDirty] = useState(false);
@@ -654,6 +719,8 @@ function PersonalCardDetailModal({ onSetChecklistDate, card, columnId, columnNam
           </div>
 
           {!card.completed && <WaitingField card={card} onUpdate={onUpdate} readOnly={readOnly} labelStyle={S.subSectionLabel} />}
+
+          <ResponsiblesField card={card} readOnly={readOnly} onSet={onSetResponsibles} onCreate={onCreateResponsible} />
 
           <div style={S.subSectionLabel}><Tag size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Tags</div>
           <TagEditor tags={card.tags || []} onChange={(tags) => onUpdate({ tags }, 'Tags atualizadas')} suggestions={allTags} />
@@ -1537,6 +1604,35 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, comments: (cd.comments || []).filter((c) => c.id !== commentId) }));
   }
 
+  // ---- responsáveis (lista do quadro + ids por atividade) ----
+  function setCardResponsibles(colId, cardId, ids) {
+    const all = activeBoard.responsibles || [];
+    const valid = [...new Set(ids)].filter((id) => all.some((r) => r.id === id));
+    const nameOf = (id) => (all.find((r) => r.id === id) || {}).name;
+    const before = new Set((findCardById(cardId) || {}).responsibleIds || []);
+    const added = valid.filter((id) => !before.has(id)).map(nameOf);
+    const removed = [...before].filter((id) => !valid.includes(id)).map(nameOf).filter(Boolean);
+    const msg = [added.length ? `Responsável atribuído: ${added.join(', ')}` : '', removed.length ? `Responsável removido: ${removed.join(', ')}` : ''].filter(Boolean).join(' · ') || 'Responsáveis atualizados';
+    updateCard(colId, cardId, { responsibleIds: valid }, msg);
+  }
+  function createCardResponsible(colId, cardId, name) {
+    const v = (name || '').trim().slice(0, 60);
+    if (!v) return;
+    const key = normResp(v);
+    const existing = (activeBoard.responsibles || []).find((r) => normResp(r.name) === key);
+    if (existing) {
+      const cur = (findCardById(cardId) || {}).responsibleIds || [];
+      if (!cur.includes(existing.id)) setCardResponsibles(colId, cardId, [...cur, existing.id]);
+      return;
+    }
+    const resp = { id: uid('resp'), name: v };
+    mutateBoardTree(activeBoard.id, (b) => ({
+      ...b,
+      responsibles: [...(b.responsibles || []), resp],
+      columns: b.columns.map((c) => (c.id !== colId ? c : { ...c, cards: c.cards.map((cd) => (cd.id !== cardId ? cd : { ...cd, responsibleIds: [...(cd.responsibleIds || []), resp.id], updatedAt: new Date().toISOString(), updatedBy: currentUser.name, history: [{ ts: new Date().toISOString(), user: currentUser.name, action: `Responsável criado e atribuído: ${v}` }, ...(cd.history || [])] })) })),
+    }), `Responsável criado e atribuído: ${v}`);
+  }
+
   // ---- checklist ----
   function addChecklistItem(colId, cardId, text, dueDate) {
     const v = (text || '').trim();
@@ -1724,6 +1820,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
   const columnIds = activeBoard ? activeBoard.columns.map((c) => c.id) : [];
 
   return (
+    <RespCtx.Provider value={(activeBoard && activeBoard.responsibles) || []}>
     <div className={embedded ? undefined : 'page-root t44'} style={embedded ? undefined : S.page}>
       <style>{`
         @keyframes personalSkeletonPulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
@@ -2064,6 +2161,8 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
             onRemoveComment={(id) => removeCardComment(col.id, card.id, id)}
             onAddChecklistItem={(text, date) => addChecklistItem(col.id, card.id, text, date)}
             onSetChecklistDate={(id, date) => setChecklistItemDate(col.id, card.id, id, date)}
+            onSetResponsibles={(ids) => setCardResponsibles(col.id, card.id, ids)}
+            onCreateResponsible={(name) => createCardResponsible(col.id, card.id, name)}
             onToggleChecklistItem={(id) => toggleChecklistItem(col.id, card.id, id)}
             onUpdateChecklistItem={(id, text) => updateChecklistItem(col.id, card.id, id, text)}
             onRemoveChecklistItem={(id) => removeChecklistItem(col.id, card.id, id)}
@@ -2127,6 +2226,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
       )}
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
+    </RespCtx.Provider>
   );
 }
 

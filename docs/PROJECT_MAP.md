@@ -330,7 +330,7 @@ Componentes de tela/modal (nome → linha → responsabilidade). **Regenerado do
 | 244 | `PersonalCardMenu` | Menu do cartão (mover, concluir, excluir…) |
 | 291 | `PersonalCard` | Cartão do quadro pessoal |
 | 372 | `PersonalColumn` | Coluna do quadro pessoal (drag and drop) |
-| 502 | `PersonalCardDetailModal` | Modal de detalhe do cartão (campos, checklist, comentários, "Mover para…", §61–§62) |
+| 502 | `PersonalCardDetailModal` (+ `ResponsiblesField`/`RespCtx`/`RespAvatar` logo acima de `PersonalCard`, §103) | Modal de detalhe do cartão (campos, checklist, comentários, "Mover para…", §61–§62) |
 | 724 | `PersonalListView` | Visão em lista do quadro pessoal |
 | 807 | `ReassignCardsModal` | Reatribui cartões ao excluir uma coluna |
 | 836 | `PersonalTrashPanel` | Lixeira do quadro pessoal |

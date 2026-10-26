@@ -8117,3 +8117,12 @@ A busca global (`src/shell/CommandPalette.jsx`, itens montados em `App.jsx` `bui
 - **RENATA** (`quadro_checklist`): `adicionar` aceita `prazo`; nova ação `definir_prazo` (`prazo` ou `limparPrazo`), com desfazer que devolve o prazo anterior; teste em `renata-tools.test.mjs`.
 - Verificado no navegador (sandbox, desktop e celular): selos 24/10 vermelho e 26/10 amarelo, definir 05/11 num item sem data (gravado: `/api/personal-board` devolve `dueDate`), marcar o item vencido como feito apaga o vermelho, Esc fecha o campo sem fechar o cartão. **Não testado:** aparelho real; ordenação/filtro por prazo de item (não existe).
 
+
+## 103. Responsáveis por atividade no quadro (inclui o painel público) (2026-10-26, pedido do Rafael)
+**Pedido:** "em um Painel público permita criar responsáveis por atividade".
+- **Dado (aditivo, nada migrado):** `board.responsibles = [{id:'resp-…', name}]` (lista da página; nome único ignorando caixa, acento e espaços) e `card.responsibleIds = string[]` (vários por cartão). Cartão/página sem as chaves funcionam como antes. Persiste pelo PATCH de quadro inteiro já existente (`/api/personal-board` e `/api/public-board/:token` não filtram campos).
+- **Tela** (`src/screens/PersonalBoard.jsx`): `RespCtx` (lista da página) + `RespAvatar` + `ResponsiblesField` (seção "Responsáveis" no modal, antes das Tags): chips com X para tirar do cartão, botões para atribuir quem já existe na página e campo "Novo responsável (nome)…" + Criar (Enter também) — cria na lista e atribui no mesmo `mutateBoardTree` (atômico). Cartão mostra avatares com iniciais (até 3, "+N"; com 1, o nome). Histórico do cartão e log da página pública registram "Responsável criado e atribuído/atribuído/removido".
+- **Público:** quem abre `/quadro/:token` logado com edição cria/atribui normalmente; visitante só-leitura vê os chips e avatares, sem controles (`readOnly`).
+- **RENATA:** nova ferramenta `quadro_responsavel` (atribuir/remover por nome; cria na lista se não existir; desfazer simétrico). 98 ferramentas; matriz regenerada; teste em `renata-tools.test.mjs`.
+- **Não feito (deliberado):** filtro/busca por responsável e excluir um responsável da lista da página (a pessoa some só do cartão). Responsável é nome livre, sem vínculo com usuário/notificação.
+- Verificado no navegador (sandbox, desktop e celular): criar pelo modal do quadro pessoal e pelo link público (mesmo cartão, 2 responsáveis, gravados no banco e lidos de volta por `/api/public-board`).
