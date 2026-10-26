@@ -175,6 +175,31 @@ try {
   const advDeal2 = await api('GET', `/deals/${deals.find((d) => d.externalId === adv.id).id}`);
   ok('interação vira nota do lead uma única vez; o valor da equipe NÃO altera o valor do negócio', r4.notes.interactions === 1 && r5.notes.interactions === 0 && advDeal2.notes.filter((n) => n.body.startsWith('[evento int int1]')).length === 1 && advDeal2.deal.value === 0, [r4.notes.interactions, r5.notes.interactions, advDeal2.deal.value]);
 
+  // responsável: a importação coloca os negócios (e o contato combinado) no nome de quem foi pedido, sem sobrescrever dono que o time já definiu
+  const rOwner = await I.run({ ...base, event: ev2, apply: true, ownerName: 'Admin Teste Evento' });
+  const ownedDeals = (await api('GET', `/deals?status=all&externalSource=${I.EXT_SOURCE}&limit=200`)).items;
+  ok('responsável: todos os negócios do evento ficam no nome pedido (só os sem dono; os do time ficam)', rOwner.failed.length === 0 && rOwner.ownersSet === ownedDeals.filter((d) => d.ownerName === 'Admin Teste Evento').length && ownedDeals.every((d) => d.ownerName === 'Admin Teste Evento'), { set: rOwner.ownersSet, owners: ownedDeals.map((d) => d.ownerName) });
+  ok('responsável: o contato combinado no evento também passa para ele', (await api('GET', `/deals/${dFol.id}`)).activities.filter((a) => /Contato combinado/.test(a.title)).every((a) => a.ownerName === 'Admin Teste Evento'));
+  ok('responsável inexistente é recusado antes de gravar qualquer coisa', await I.run({ ...base, apply: true, ownerName: 'Fulano Que Nao Existe' }).then(() => false, (e) => /nenhum usuário/.test(e.message)));
+
+  // e-mail corporativo desempata: empresas que o domínio prova serem a mesma são UNIDAS (contratos de teste: Contplan × Contplan Contabilidade; sem-empresa × Bruning Tecnometal)
+  const DOM = ['Ld38f52c7', 'Lc4e1874d', 'Ld4933ad0', 'L520d68e8'];
+  const legacy = I.loadEvent(EVDIR);
+  legacy.leads.filter((l) => DOM.includes(l.id)).forEach((l) => { l.email = `${l.id.toLowerCase()}@gmail.com`; });   // como era antes: sem o domínio como prova
+  const domBase = { api, pipelineName: FUNIL, only: DOM };
+  const p1 = await I.run({ ...domBase, event: legacy, apply: true });
+  const compOf = async (leadId) => (await api('GET', `/deals?status=all&externalSource=${I.EXT_SOURCE}&externalId=${leadId}`)).items[0];
+  const before = await Promise.all(DOM.map(compOf));
+  ok('antes: sem o domínio, 4 empresas separadas (duas com nome parecido, uma provisória)', p1.failed.length === 0 && new Set(before.map((d) => d.companyId)).size === 4, before.map((d) => d.companyName));
+  const p2 = await I.run({ ...domBase, event: I.loadEvent(EVDIR), apply: true });
+  const after = await Promise.all(DOM.map(compOf));
+  ok('com o domínio do e-mail: Contplan e Contplan Contabilidade viram UMA empresa (a de nome mais completo)', p2.failed.length === 0 && after[0].companyId === after[1].companyId && after[0].companyName === 'Contplan Contabilidade', after.map((d) => d.companyName));
+  ok('lead sem empresa (provisória) entra na empresa do mesmo domínio: Bruning Tecnometal', after[2].companyId === after[3].companyId && after[2].companyName === 'Bruning Tecnometal', after.map((d) => d.companyName));
+  ok('as empresas absorvidas foram excluídas (lógico) e o histórico registrou a união', (await count(`SELECT count(*)::int n FROM crm_companies WHERE org_id=$1 AND id = ANY($2::uuid[]) AND deleted_at IS NOT NULL`, [ORG, before.map((d) => d.companyId)])) === 2 && (await count(`SELECT count(*)::int n FROM crm_timeline_events WHERE org_id=$1 AND event_type='company_merged'`, [ORG])) === 2 && p2.merges.length === 2, p2.merges);
+  ok('contatos e negócios foram junto: a empresa que ficou tem os 2 contatos e os 2 negócios', (await count(`SELECT count(*)::int n FROM crm_contacts WHERE company_id=$1 AND deleted_at IS NULL`, [after[0].companyId])) === 2 && (await count(`SELECT count(*)::int n FROM crm_deals WHERE company_id=$1 AND deleted_at IS NULL`, [after[0].companyId])) === 2);
+  const p3 = await I.run({ ...domBase, event: I.loadEvent(EVDIR), apply: true });
+  ok('reimportar depois da união não une nem recria nada', p3.failed.length === 0 && p3.merges.length === 0 && p3.created.length === 0);
+
   // segurança do contrato
   const bad = (await fetch(`${BASE}/api/connect/crm/deals`, { method: 'POST', headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ companyId: coV.id, title: 'Repetido', pipelineId: pipe.id, externalSource: I.EXT_SOURCE, externalId: IDS.simples[1] }) }));
   ok('a chave externa é única: segundo cadastro com o mesmo L… é recusado (409), não duplica', bad.status === 409, bad.status);

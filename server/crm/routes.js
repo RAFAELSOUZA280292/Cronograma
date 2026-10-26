@@ -102,6 +102,7 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
   }));
   router.delete('/companies/:id', need('remove'), h(async (req, res) => res.json(await S.deleteCompany(orgOf(req), actorOf(req), req.params.id))));
   router.post('/companies/:id/restore', need('admin'), h(async (req, res) => res.json({ company: await S.restoreCompany(orgOf(req), actorOf(req), req.params.id) })));
+  router.post('/companies/:id/merge', need('remove'), h(async (req, res) => res.json(await S.mergeCompanies(orgOf(req), actorOf(req), req.params.id, (req.body || {}).intoId))));
   router.get('/companies/:id/timeline', h(async (req, res) => res.json({ events: await Q.listTimeline(orgOf(req), req.params.id, { limit: req.query.limit, before: req.query.before || null }) })));
   router.get('/companies/:id/audit', need('remove'), h(async (req, res) => res.json({ logs: await Q.listAudit(orgOf(req), 'company', req.params.id) })));
   router.post('/companies/:id/projects', need('write'), h(async (req, res) => res.json(await S.linkProject(orgOf(req), actorOf(req), req.params.id, String((req.body || {}).projectId || '')))));

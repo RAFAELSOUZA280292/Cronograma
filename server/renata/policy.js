@@ -23,6 +23,7 @@ export const EXCLUDED = [
   { re: /^\/api\/google\b/, why: 'Conexão OAuth com o Google: a pessoa autoriza na tela.' },
   { re: /^\/api\/_internal\b/, why: 'Rota interna de verificação.' },
   { re: /^\/api\/crm\/migration\b/, why: 'Migração do PipeRun: operação administrativa feita só pela tela.' },
+  { re: /^\/api\/crm\/companies\/:id\/merge$/, why: 'Unir empresas move contatos, negócios e histórico: operação administrativa feita pela chave de API ou pela tela, com conferência humana.' },
   { re: /^\/api\/crm\/(import|bootstrap)\b/, why: 'Importações em massa por planilha: precisam do arquivo e da conferência na tela.' },
   { re: /^\/api\/(personal-board)$|^\/api\/(public-board)/, why: 'O quadro pessoal inteiro é regravado pela tela; a RENATA usa as ferramentas quadro_* (cartão a cartão).' },
   { re: /^\/api\/projects\/:id$/, methods: ['PATCH'], why: 'O projeto inteiro é regravado pela tela; a RENATA usa cronograma_*/tarefa_reuniao_* (operação a operação, com log).' },

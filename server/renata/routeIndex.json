@@ -1,6 +1,6 @@
 {
  "geradoPor": "scripts/renata-route-index.mjs",
- "total": 294,
+ "total": 295,
  "routes": [
   {
    "method": "POST",
@@ -300,6 +300,11 @@
   {
    "method": "GET",
    "path": "/api/crm/companies/:id/audit",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/companies/:id/merge",
    "file": "crm/routes.js"
   },
   {

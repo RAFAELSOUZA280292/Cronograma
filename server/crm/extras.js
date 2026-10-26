@@ -104,7 +104,11 @@ export async function quickLead(orgId, actor, input) {
   const contactName = String(src.contactName || '').trim();
   const phone = String(src.phone || '').trim();
   const email = String(src.email || '').trim();
-  const company = await createCompany(orgId, actor, { legalName: companyName, relationship: 'prospect', ownerId: actor.id || null }, { force: !!src.force, timelineSummary: `${actor.name} cadastrou a empresa como lead rápido.` });
+  // Dados vindos da consulta do CNPJ (Receita): só campos conhecidos da empresa; nada além disso entra.
+  const COMPANY_KEYS = ['tradeName', 'city', 'state', 'cnae', 'segment', 'taxRegime', 'companySize', 'phone', 'zipCode', 'street', 'streetNumber', 'complement', 'district', 'foundedAt', 'shareCapital', 'website'];
+  const extra = {};
+  if (src.companyData && typeof src.companyData === 'object') COMPANY_KEYS.forEach((k) => { const v = src.companyData[k]; if (v !== undefined && v !== null && v !== '') extra[k] = v; });
+  const company = await createCompany(orgId, actor, { ...extra, ...(src.cnpj ? { cnpj: src.cnpj } : {}), legalName: companyName, relationship: 'prospect', ownerId: actor.id || null }, { force: !!src.force, timelineSummary: `${actor.name} cadastrou a empresa como lead rápido.` });
   let contact = null;
   if (contactName || phone || email) {
     const [first, ...rest] = (contactName || 'Contato').split(/\s+/);

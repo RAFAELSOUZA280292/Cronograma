@@ -1,7 +1,7 @@
 // Cadastro/edição de empresa. Estado local do formulário + botão Salvar (nada
 // é gravado por tecla — a auditoria fica limpa, um evento por salvamento).
 // Cadastro rápido = só o essencial; "Mais campos" abre o resto (PRD 51).
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Search, Loader2 } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { Modal, Field, DuplicatesAlert, CancelButton, useDirty, useDraftGuard } from './ui.jsx';
@@ -56,6 +56,13 @@ function CompanyForm({ initial, options, onSaved, onCancel, onOpenCompany, prefi
       setError(e.message || 'Não foi possível consultar o CNPJ.');
     } finally { setLookingUp(false); }
   }
+
+  // Como no PipeRun: completou os 14 dígitos do CNPJ, a Receita (BrasilAPI) já preenche o que estiver vazio.
+  const lastCnpj = useRef(editing ? form.cnpj.replace(/\D/g, '') : '');
+  useEffect(() => {
+    const d = form.cnpj.replace(/\D/g, '');
+    if (d.length === 14 && d !== lastCnpj.current && !lookingUp) { lastCnpj.current = d; lookup(); }
+  }, [form.cnpj]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function save(force) {
     setError(''); setBusy(true);

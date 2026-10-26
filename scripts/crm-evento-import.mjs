@@ -39,6 +39,24 @@ export const firstNameKey = (n) => norm(String(n || '').trim().split(/\s+/)[0] |
 // Curva ABCD (ESTIMATIVA): A ≥ 70 · B 40–69 · C 25–39 · D < 25 pontos (score_est do contrato). O contrato só tem A/B/C; a D é a subdivisão da C
 // que reúne quem foi só captado, sem interesse anotado — criada aqui a pedido do Rafael, não vem da planilha.
 export const curvaOf = (score) => { const n = Number(score); return n >= 70 ? 'A' : n >= 40 ? 'B' : n >= 25 ? 'C' : 'D'; };
+// Domínio do e-mail corporativo = empresa onde a pessoa trabalha (desempata nomes parecidos). Provedores de e-mail livre não contam.
+const FREE_DOMAINS = new Set('gmail.com googlemail.com hotmail.com hotmail.com.br outlook.com outlook.com.br yahoo.com yahoo.com.br icloud.com me.com live.com msn.com bol.com.br uol.com.br terra.com.br ig.com.br globo.com globomail.com protonmail.com proton.me zoho.com aol.com'.split(' '));
+export const domainOf = (email) => { const d = String(email || '').trim().toLowerCase().split('@')[1] || ''; return d && d.includes('.') && !FREE_DOMAINS.has(d) ? d : ''; };
+// Por domínio corporativo, o nome "oficial" da empresa entre os leads: o mais frequente; empate → o mais completo (mais longo).
+export function canonicalByDomain(leads) {
+  const by = new Map();
+  for (const l of leads) {
+    const d = domainOf(l.email); const name = String(l.empresa || '').trim();
+    if (!d || !name) continue;
+    if (!by.has(d)) by.set(d, new Map());
+    const m = by.get(d); const k = companyKey(name);
+    if (!m.has(k)) m.set(k, { name, count: 0 });
+    const e = m.get(k); e.count += 1; if (name.length > e.name.length) e.name = name;
+  }
+  const out = new Map();
+  for (const [d, m] of by) { const best = [...m.values()].sort((a, b) => b.count - a.count || b.name.length - a.name.length)[0]; out.set(d, { name: best.name, key: companyKey(best.name) }); }
+  return out;
+}
 export const stageNumber = (estagio) => { const m = /^(\d)/.exec(String(estagio || '')); return m ? Number(m[1]) : 7; };
 export const splitName = (full) => { const [first, ...rest] = String(full || '').trim().split(/\s+/); return { first: first || '', last: rest.join(' ') }; };
 const ddmm = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}${iso.length > 10 ? ` ${iso.slice(11, 16)}` : ''}` : '');
@@ -189,7 +207,8 @@ export async function snapshot(api, pipelineName) {
   const companies = await pageAll(api, '/companies', 'items', 200);
   const openDeals = await pageAll(api, '/deals?status=open', 'items', 200);
   const eventDeals = await pageAll(api, `/deals?status=all&externalSource=${encodeURIComponent(EXT_SOURCE)}`, 'items', 200);
-  return { pipe, stageByName, contacts, companies, openDeals, eventDeals };
+  const owners = ((await api('GET', '/options')).owners) || [];
+  return { pipe, stageByName, contacts, companies, openDeals, eventDeals, owners };
 }
 
 export function buildIndex(snap) {
@@ -198,10 +217,18 @@ export function buildIndex(snap) {
   snap.contacts.forEach((c) => { add(byPhone, phoneKey(c.phone), c); add(byPhone, phoneKey(c.whatsapp), c); add(byEmail, emailKey(c.email), c); });
   const companyByKey = new Map();
   snap.companies.forEach((c) => { const k = companyKey(c.legalName); if (k && !companyByKey.has(k)) companyByKey.set(k, c); });
+  const compById = new Map(snap.companies.map((c) => [c.id, c]));
+  const companyByDomain = new Map(); const ambiguous = new Set();
+  snap.contacts.forEach((c) => {
+    const d = domainOf(c.email); const co = compById.get(c.companyId);
+    if (!d || !co || co.source === SOURCE) return;
+    if (companyByDomain.has(d) && companyByDomain.get(d).id !== co.id) ambiguous.add(d); else companyByDomain.set(d, co);
+  });
+  ambiguous.forEach((d) => companyByDomain.delete(d));
   const dealByExt = new Map(snap.eventDeals.map((d) => [d.externalId, d]));
   const openByContact = new Map();
   snap.openDeals.filter((d) => d.externalSource !== EXT_SOURCE).forEach((d) => { if (d.primaryContactId) { if (!openByContact.has(d.primaryContactId)) openByContact.set(d.primaryContactId, []); openByContact.get(d.primaryContactId).push(d); } });
-  return { byPhone, byEmail, companyByKey, dealByExt, openByContact };
+  return { byPhone, byEmail, companyByKey, companyByDomain, compById, dealByExt, openByContact };
 }
 export function findExistingContact(idx, l) {
   const fk = firstNameKey(l.nome);
@@ -253,34 +280,52 @@ async function ensureViews(api, snap, rep, apply) {
 }
 
 export async function run(opts) {
-  const { api, event, interacoes = [], apply = false, pipelineName = DEFAULT_PIPELINE, only = null, log = () => {} } = opts;
+  const { api, event, interacoes = [], apply = false, pipelineName = DEFAULT_PIPELINE, only = null, ownerName = '', log = () => {} } = opts;
   const t0 = Date.now();
   const snap = await snapshot(api, pipelineName);
   const idx = buildIndex(snap);
+  let owner = null;
+  if (ownerName) {
+    const hits = snap.owners.filter((o) => norm(o.name).includes(norm(ownerName)));
+    if (hits.length !== 1) throw new Error(`Responsável "${ownerName}": ${hits.length ? 'mais de um usuário encontrado' : 'nenhum usuário encontrado'} (${snap.owners.map((o) => o.name).join(', ')}).`);
+    owner = hits[0];
+  }
+  const canon = canonicalByDomain(event.leads);
+  const leadCompany = new Map();
+  const mergedInto = new Map();
+  const resolveCompany = (id) => { let x = id; for (let i = 0; i < 5 && mergedInto.has(x); i += 1) x = mergedInto.get(x); return x; };
   const groupsById = new Map(event.empresas.map((g) => [g.id, g]));
   const leads = event.leads.filter((l) => !only || only.includes(l.id));
   const capsByLead = new Map();
   event.capturas.forEach((c) => { if (!capsByLead.has(c.lead_id)) capsByLead.set(c.lead_id, []); capsByLead.get(c.lead_id).push(c); });
   const intsByLead = new Map();
   interacoes.forEach((d) => { if (!intsByLead.has(d.lead_id)) intsByLead.set(d.lead_id, []); intsByLead.get(d.lead_id).push(d); });
-  const rep = { startedAt: new Date().toISOString(), apply, pipeline: snap.pipe.name, total: leads.length, created: [], linked: [], updated: [], ignored: [], failed: [], companiesCreated: [], companiesReused: [], similarCompanies: [], groupsNoted: 0, notes: { captures: 0, comments: 0, gifts: 0, interactions: 0, groups: 0 }, views: { created: [], existing: [] }, activities: 0, stageCounts: {}, tagsApplied: 0 };
+  const rep = { startedAt: new Date().toISOString(), apply, pipeline: snap.pipe.name, total: leads.length, created: [], linked: [], updated: [], ignored: [], failed: [], companiesCreated: [], companiesReused: [], similarCompanies: [], groupsNoted: 0, notes: { captures: 0, comments: 0, gifts: 0, interactions: 0, groups: 0 }, views: { created: [], existing: [] }, owner: owner ? owner.name : '', ownersSet: 0, merges: [], domainMatches: [], activities: 0, stageCounts: {}, tagsApplied: 0 };
   const companyInRun = new Map(); // companyKey → company (criadas/lidas nesta execução)
   const leadsOfCompany = new Map();
 
   async function ensureCompany(l, plan) {
     if (plan.contact) return { id: plan.contact.companyId, reused: true, existing: true };
-    const key = l.empresa ? companyKey(l.empresa) : '';
-    if (key) {
-      const hit = companyInRun.get(key) || idx.companyByKey.get(key);
-      if (hit) { const existing = !!idx.companyByKey.get(key); rep.companiesReused.push({ lead: l.id, empresa: l.empresa, company: hit.legalName, existente: existing }); return { id: hit.id, reused: true }; }
+    // Nome efetivo: o do domínio do e-mail (quando há 2+ leads do mesmo domínio ou o lead não informou empresa) > o que veio na planilha.
+    const dom = domainOf(l.email);
+    const c = dom && canon.get(dom);
+    const effective = c ? c.name : String(l.empresa || '').trim();
+    const key = effective ? companyKey(effective) : '';
+    let hit = key ? (companyInRun.get(key) || idx.companyByKey.get(key)) : null;
+    let porDominio = false;
+    if (!hit && dom && idx.companyByDomain.get(dom)) { hit = idx.companyByDomain.get(dom); porDominio = true; }
+    if (hit) {
+      const existing = !companyInRun.has(key) || porDominio;
+      rep.companiesReused.push({ lead: l.id, empresa: l.empresa, company: hit.legalName, existente: !!idx.compById.get(hit.id) && existing, dominio: porDominio ? dom : (c && companyKey(l.empresa || '') !== key ? dom : '') });
+      return { id: hit.id, reused: true };
     }
-    const legalName = l.empresa || `${l.nome} (empresa não informada)`;
+    const legalName = effective || `${l.nome} (empresa não informada)`;
     const sim = await api('POST', '/companies/check-duplicates', { legalName }).then((d) => (d.byName || []).map((x) => x.legalName || x.legal_name || x.name).filter(Boolean)).catch(() => []);
-    if (sim.length) rep.similarCompanies.push({ lead: l.id, novo: legalName, parecidas: sim.slice(0, 3) });
-    if (!apply) { const fake = { id: `novo:${key || l.id}`, legalName }; if (key) companyInRun.set(key, fake); rep.companiesCreated.push({ lead: l.id, legalName, provisional: !l.empresa }); return { id: fake.id, created: true, dry: true }; }
-    const created = (await api('POST', '/companies', { legalName, relationship: 'prospect', source: SOURCE, ownerId: null, enteredAt: (l.primeira_captura || '').slice(0, 10) || undefined, force: true })).company;
+    if (sim.length) rep.similarCompanies.push({ lead: l.id, novo: legalName, parecidas: sim.slice(0, 3), dominio: dom || '' });
+    if (!apply) { const fake = { id: `novo:${key || l.id}`, legalName }; if (key) companyInRun.set(key, fake); rep.companiesCreated.push({ lead: l.id, legalName, provisional: !effective }); return { id: fake.id, created: true, dry: true }; }
+    const created = (await api('POST', '/companies', { legalName, relationship: 'prospect', source: SOURCE, ownerId: owner ? owner.id : null, enteredAt: (l.primeira_captura || '').slice(0, 10) || undefined, force: true })).company;
     if (key) companyInRun.set(key, created);
-    rep.companiesCreated.push({ lead: l.id, legalName, id: created.id, provisional: !l.empresa });
+    rep.companiesCreated.push({ lead: l.id, legalName, id: created.id, provisional: !effective });
     return { id: created.id, created: true };
   }
   async function ensureContact(l, plan, companyId) {
@@ -317,7 +362,7 @@ export async function run(opts) {
     if (!l.follow_up || !/^\d{4}-\d{2}-\d{2}$/.test(l.follow_up)) return false;
     const title = `Contato combinado no evento${l.responsavel_citado ? ` (${l.responsavel_citado})` : ''}`;
     if ((existingActs || []).some((a) => a.title === title && a.dueDate === l.follow_up)) return false;
-    if (apply) await api('POST', '/activities', { companyId, dealId, contactId: contactId || undefined, title, activityType: 'followup', dueDate: l.follow_up, description: `Data de contato anotada no estande (fato da planilha do evento). ${clip(l.anotacoes, 300)}`.trim(), ownerId: null });
+    if (apply) await api('POST', '/activities', { companyId, dealId, contactId: contactId || undefined, title, activityType: 'followup', dueDate: l.follow_up, description: `Data de contato anotada no estande (fato da planilha do evento). ${clip(l.anotacoes, 300)}`.trim(), ownerId: owner ? owner.id : null });
     rep.activities += 1;
     return true;
   }
@@ -333,12 +378,17 @@ export async function run(opts) {
       rep.stageCounts[plan.stageName] = (rep.stageCounts[plan.stageName] || 0) + 1;
       const tags = leadTags(l, group);
       const block = eventBlock(l, group);
-      const title = clip(l.empresa ? `${l.nome} · ${l.empresa}` : l.nome, 180);
+      const dom0 = domainOf(l.email);
+      const effName = (dom0 && canon.get(dom0) ? canon.get(dom0).name : '') || l.empresa;
+      const title = clip(effName ? `${l.nome} · ${effName}` : l.nome, 180);
 
       if (plan.mode === 'update') {
         const detail = await api('GET', `/deals/${plan.deal.id}`);
         const d = detail.deal;
         let changed = false;
+        leadCompany.set(l.id, d.companyId);
+        if (owner && !d.ownerId) { if (apply) await api('PATCH', `/deals/${d.id}`, { ownerId: owner.id }); rep.ownersSet += 1; changed = true; }
+        if (owner) for (const a of detail.activities || []) { if (/^Contato combinado no evento/.test(a.title) && !a.ownerId && a.status === 'open') { if (apply) await api('PATCH', `/activities/${a.id}`, { ownerId: owner.id, silentNotify: true }); changed = true; } }
         const newDesc = mergeBlock(d.description, block);
         if (newDesc !== (d.description || '')) { if (apply) await api('PATCH', `/deals/${d.id}`, { description: newDesc }); changed = true; }
         if (apply ? await syncTags(d.id, d.tags, tags) : (() => { const keep = (d.tags || []).filter((t) => !MANAGED_TAG.test(t)); const nx = [...new Set([...keep, ...tags])]; return !(nx.length === (d.tags || []).length && nx.every((t) => (d.tags || []).includes(t))); })()) changed = true;
@@ -374,9 +424,10 @@ export async function run(opts) {
       // create
       const company = await ensureCompany(l, plan);
       const contact = await ensureContact(l, plan, company.id);
+      leadCompany.set(l.id, company.id);
       let dealId = `novo:${l.id}`;
       if (apply) {
-        const deal = (await api('POST', '/deals', { companyId: company.id, title, pipelineId: snap.pipe.id, stageId: stage.id, primaryContactId: contact.id, source: SOURCE, description: block, ownerId: null, externalSource: EXT_SOURCE, externalId: l.id, skipCadence: true })).deal;
+        const deal = (await api('POST', '/deals', { companyId: company.id, title, pipelineId: snap.pipe.id, stageId: stage.id, primaryContactId: contact.id, source: SOURCE, description: block, ownerId: owner ? owner.id : null, externalSource: EXT_SOURCE, externalId: l.id, skipCadence: true })).deal;
         dealId = deal.id;
         await syncTags(deal.id, [], tags);
         await syncNotes(deal.id, l, []);
@@ -392,13 +443,34 @@ export async function run(opts) {
     }
   }
 
+  // Unir empresas do evento que o e-mail corporativo prova serem a mesma (ex.: "Contplan" e "Contplan Contabilidade", ou a "provisória" de quem não informou empresa).
+  try { await consolidateByDomain(); } catch (e) { rep.failed.push({ grupo: 'unir empresas', erro: e.message }); }
+  async function consolidateByDomain() {
+    const byDom = new Map();
+    for (const l of leads) { const d = domainOf(l.email); const cid = leadCompany.get(l.id); if (d && cid) { if (!byDom.has(d)) byDom.set(d, []); byDom.get(d).push({ l, cid }); } }
+    for (const [d, list] of byDom) {
+      const ids = [...new Set(list.map((x) => x.cid))].filter((x) => !String(x).startsWith('novo:'));
+      if (ids.length < 2) continue;
+      const info = (id) => idx.compById.get(id) || [...companyInRun.values()].find((c) => c.id === id) || { id, legalName: id, source: SOURCE };
+      const wantKey = canon.get(d) ? canon.get(d).key : '';
+      const eventMade = ids.filter((id) => (info(id).source || SOURCE) === SOURCE);
+      const target = ids.find((id) => wantKey && companyKey(info(id).legalName) === wantKey) || ids.find((id) => (info(id).source || SOURCE) !== SOURCE) || ids[0];
+      for (const id of eventMade) {
+        if (id === target) continue;
+        rep.merges.push({ dominio: d, de: info(id).legalName, para: info(target).legalName });
+        if (apply) { await api('POST', `/companies/${id}/merge`, { intoId: target }); mergedInto.set(id, target); }
+      }
+      ids.filter((id) => !eventMade.includes(id) && id !== target).forEach((id) => rep.merges.push({ dominio: d, de: info(id).legalName, para: info(target).legalName, naoUnida: 'empresa não criada pelo evento — conferir à mão' }));
+    }
+  }
+
   // grupos de empresas (cross-sell): uma nota por empresa do CRM que reúne 2+ pessoas do evento
   const groups = event.empresas.filter((g) => !only || event.leads.some((l) => l.empresa_grupo === g.id && only.includes(l.id)));
   for (const g of groups) {
     try {
       const members = event.leads.filter((l) => l.empresa_grupo === g.id);
-      const keyed = companyKey(g.empresa);
-      const comp = companyInRun.get(keyed) || idx.companyByKey.get(keyed);
+      const firstId = members.map((l) => leadCompany.get(l.id)).find(Boolean);
+      const comp = firstId ? { id: resolveCompany(firstId) } : null;
       if (!comp || String(comp.id).startsWith('novo:')) { if (comp) rep.groupsNoted += 1; continue; }
       const marker = `[evento grupo ${g.id}]`;
       const body = groupNote(g, members).slice(0, 4900);
@@ -418,11 +490,12 @@ export async function run(opts) {
 export function reportMarkdown(rep, event) {
   const L = [];
   L.push(`# Importação do ${SOURCE} para o CRM — ${rep.apply ? 'GRAVADA' : 'PRÉVIA (nada foi gravado)'}`, '', `Funil: **${rep.pipeline}** · ${rep.startedAt}`, '');
-  L.push('| | |', '|---|---|', `| Leads lidos | ${rep.total} |`, `| Criados | ${rep.created.length} |`, `| Vinculados a registro existente | ${rep.linked.length} |`, `| Atualizados (reimportação) | ${rep.updated.length} |`, `| Ignorados | ${rep.ignored.length} |`, `| Falhas | ${rep.failed.length} |`, `| Empresas novas | ${rep.companiesCreated.length} (${rep.companiesCreated.filter((c) => c.provisional).length} provisórias, sem empresa na planilha) |`, `| Empresas que já existiam no CRM e foram reaproveitadas | ${rep.companiesReused.filter((c) => c.existente).length} |`, `| Várias pessoas da mesma empresa do evento (empresa reaproveitada dentro da importação) | ${rep.companiesReused.filter((c) => !c.existente).length} |`, `| Notas: capturas / comentários / brindes / interações / grupos | ${rep.notes.captures} / ${rep.notes.comments} / ${rep.notes.gifts} / ${rep.notes.interactions} / ${rep.notes.groups} |`, `| Visões salvas do funil (criadas / já existiam) | ${rep.views.created.length} / ${rep.views.existing.length} |`, `| Atividades de contato combinado | ${rep.activities} |`, '');
+  L.push('| | |', '|---|---|', `| Leads lidos | ${rep.total} |`, `| Criados | ${rep.created.length} |`, `| Vinculados a registro existente | ${rep.linked.length} |`, `| Atualizados (reimportação) | ${rep.updated.length} |`, `| Ignorados | ${rep.ignored.length} |`, `| Falhas | ${rep.failed.length} |`, `| Empresas novas | ${rep.companiesCreated.length} (${rep.companiesCreated.filter((c) => c.provisional).length} provisórias, sem empresa na planilha) |`, `| Empresas que já existiam no CRM e foram reaproveitadas | ${rep.companiesReused.filter((c) => c.existente).length} |`, `| Várias pessoas da mesma empresa do evento (empresa reaproveitada dentro da importação) | ${rep.companiesReused.filter((c) => !c.existente).length} |`, `| Notas: capturas / comentários / brindes / interações / grupos | ${rep.notes.captures} / ${rep.notes.comments} / ${rep.notes.gifts} / ${rep.notes.interactions} / ${rep.notes.groups} |`, `| Responsável dos negócios | ${rep.owner || '—'} (${rep.ownersSet} definidos nesta execução) |`, `| Empresas unidas pelo domínio do e-mail | ${rep.merges.filter((m) => !m.naoUnida).length} |`, `| Visões salvas do funil (criadas / já existiam) | ${rep.views.created.length} / ${rep.views.existing.length} |`, `| Atividades de contato combinado | ${rep.activities} |`, '');
   L.push('## Etapas (estágio do evento → etapa do funil)', '', ...Object.entries(rep.stageCounts).map(([k, v]) => `- ${k}: ${v}`), '');
   L.push('## Vinculados (já existiam no CRM)', '');
   rep.linked.forEach((x) => L.push(`- ${x.nome} (${x.lead}) → contato em **${x.empresaCRM || '—'}**${x.negocioExistente ? `; negócio existente "${x.negocioExistente.titulo}" (${x.negocioExistente.etapa}, ${x.negocioExistente.funil}) recebeu tag e nota` : '; sem negócio aberto — foi criado um negócio do evento ligado a ele'}`));
   if (!rep.linked.length) L.push('- Nenhum.');
+  if (rep.merges.length) { L.push('', '## Empresas unidas pelo domínio do e-mail', ''); rep.merges.forEach((m) => L.push(`- ${m.de} → **${m.para}** (@${m.dominio})${m.naoUnida ? ` — ${m.naoUnida}` : ''}`)); }
   if (rep.similarCompanies.length) { L.push('', '## Empresas novas com nome parecido de outra existente (NÃO unidas — conferir)', ''); rep.similarCompanies.forEach((x) => L.push(`- "${x.novo}" ≈ ${x.parecidas.filter(Boolean).join('; ')}`)); }
   if (rep.failed.length) { L.push('', '## Falhas', ''); rep.failed.forEach((x) => L.push(`- ${x.nome || x.grupo} (${x.lead || ''}): ${x.erro}`)); }
   return L.join('\n');
@@ -442,7 +515,7 @@ if (isMain) {
   const event = loadEvent(dir);
   const interacoes = loadInteractions(arg('--interacoes'));
   const only = arg('--only') ? arg('--only').split(',') : null;
-  const rep = await run({ api: makeApi(url, token), event, interacoes, apply, pipelineName: arg('--funil', DEFAULT_PIPELINE), only, log: (m) => console.error(m) });
+  const rep = await run({ api: makeApi(url, token), event, interacoes, apply, pipelineName: arg('--funil', DEFAULT_PIPELINE), only, ownerName: arg('--owner', 'Eduarda'), log: (m) => console.error(m) });
   const outDir = path.join(dir, 'crm_import');
   fs.mkdirSync(outDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);

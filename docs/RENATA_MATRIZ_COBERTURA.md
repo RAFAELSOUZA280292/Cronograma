@@ -6,7 +6,7 @@
 
 ## Resumo
 - **98 ferramentas estruturadas** em 11 módulos (33 de consulta, 46 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
-- **294 rotas** no servidor: 64 cobertas por ferramenta própria, 119 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 111 excluídas de propósito.
+- **295 rotas** no servidor: 64 cobertas por ferramenta própria, 119 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 112 excluídas de propósito.
 - **56 funcionalidades humanas mapeadas**: 35 ✅, 12 🟡, 4 ⬜, 5 🚫.
 - **Critério "100% das funcionalidades" NÃO está atendido ainda**: as linhas 🟡 e ⬜ abaixo são o que falta. As rotas "genéricas" já são alcançáveis (com confirmação), mas sem esquema de parâmetros; as ⬜ precisam de trabalho novo (arquivos, edição de documentos inteiros).
 
@@ -297,6 +297,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `POST /api/crm/cadences` | ferramenta | crm_criar_cadencia |
 | `GET /api/crm/cnpj/:cnpj` | ferramenta | crm_consultar_cnpj |
 | `GET /api/crm/companies/:id/audit` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/crm/companies/:id/merge` | excluída | fora do alcance: Unir empresas move contatos, negócios e histórico: operação administrativa feita pela chave de API ou pela tela, com conferência humana. |
 | `DELETE /api/crm/companies/:id/projects/:projectId` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/crm/companies/:id/projects` | ferramenta | crm_vincular_projeto |
 | `POST /api/crm/companies/:id/restore` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |

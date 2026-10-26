@@ -642,3 +642,37 @@ export function validateContactInput(input) {
 
 // Anexos de nota na LISTA vão sem o conteúdo (uma nota pode ter vários MB em base64): a tela carrega cada um sob demanda por `url`.
 export const lightAttachments = (noteId, atts) => (Array.isArray(atts) ? atts : []).map((a) => ({ id: a.id, name: a.name, size: a.size, type: a.type, url: `/api/crm/notes/${noteId}/attachments/${encodeURIComponent(a.id)}` }));
+
+// Unir empresas (2026-10-26): `sourceId` (a duplicada) é absorvida por `targetId` (a que fica). Move contatos, negócios, atividades, notas, arquivos e projetos;
+// a empresa absorvida é excluída (lógica, restaurável) e o histórico (linha do tempo/etapas, somente-inserção) continua onde foi escrito, com um registro de "união" na que fica.
+const MERGE_TABLES = ['crm_contacts', 'crm_deals', 'crm_activities', 'crm_notes', 'crm_deal_files'];
+export async function mergeCompanies(orgId, actor, sourceId, targetId) {
+  requireUuid(sourceId, 'Empresa a unir');
+  requireUuid(targetId, 'Empresa que fica');
+  if (sourceId === targetId) throw new CrmError(400, 'Escolha duas empresas diferentes.');
+  return tx(async (c) => {
+    const [a, b] = [sourceId, targetId].sort();
+    await c.query('SELECT id FROM crm_companies WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE', [[a, b]]);
+    const src = await loadCompany(c, orgId, sourceId, { lock: false });
+    const tgt = await loadCompany(c, orgId, targetId, { lock: false });
+    if (!src || !tgt) throw new CrmError(404, 'Empresa não encontrada.');
+    const moved = {};
+    const { rows: prim } = await c.query('SELECT 1 FROM crm_contacts WHERE company_id=$1 AND is_primary AND deleted_at IS NULL LIMIT 1', [targetId]);
+    for (const t of MERGE_TABLES) {
+      const { rows: ex } = await c.query('SELECT to_regclass($1) AS r', [`public.${t}`]);
+      if (!ex[0].r) continue;
+      const extra = t === 'crm_contacts' && prim[0] ? ', is_primary=false' : '';
+      const r = await c.query(`UPDATE ${t} SET company_id=$1${extra} WHERE company_id=$2 AND org_id=$3`, [targetId, sourceId, orgId]);
+      moved[t] = r.rowCount;
+    }
+    await c.query(`UPDATE crm_notes SET entity_id=$1 WHERE entity_type='company' AND entity_id=$2 AND org_id=$3`, [targetId, sourceId, orgId]);
+    await c.query('UPDATE crm_company_projects SET company_id=$1 WHERE company_id=$2', [targetId, sourceId]);
+    await c.query(`UPDATE crm_companies SET deleted_at=now(), deleted_by=$1, updated_at=now(), updated_by=$1 WHERE id=$2`, [actor.id || null, sourceId]);
+    await addAudit(c, { orgId, entityType: 'company', entityId: targetId, action: 'update', actor, changes: [{ field: 'merge', label: 'Empresa unida', from: src.legal_name, to: tgt.legal_name }] });
+    await addAudit(c, { orgId, entityType: 'company', entityId: sourceId, action: 'delete', actor, changes: [{ field: 'merge', label: 'Unida a', from: null, to: tgt.legal_name }] });
+    const parts = [`${moved.crm_contacts || 0} contato(s)`, `${moved.crm_deals || 0} negócio(s)`, `${moved.crm_activities || 0} atividade(s)`, `${moved.crm_notes || 0} nota(s)`];
+    await addTimeline(c, { orgId, companyId: targetId, entityType: 'company', entityId: targetId, eventType: 'company_merged', actor,
+      summary: `${actor.name} uniu a empresa "${src.legal_name}" a esta (vieram ${parts.join(', ')}).`, data: { fromCompanyId: sourceId, moved } });
+    return { ok: true, targetId, sourceId, moved };
+  });
+}
