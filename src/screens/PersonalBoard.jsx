@@ -353,31 +353,50 @@ function ResponsiblePicker({ ids, readOnly, onSet, onCreate, compact }) {
     onCreate(v);
     setDraft('');
   }
+  const av = compact ? 14 : 18;
+  const chip = compact ? { ...S.personalCardTag, fontSize: 11, padding: '1px 6px 1px 3px', gap: 4 } : { ...S.personalCardTag, fontSize: 12, padding: '3px 8px 3px 4px', gap: 6 };
+  const addBtn = compact ? { ...S.pbGhostBtn, minHeight: 22, fontSize: 11, padding: '0 7px', gap: 4 } : { ...S.pbGhostBtn, minHeight: 30, padding: '2px 9px', gap: 6 };
+  const makeBtn = (
+    <button type="button" className="pb-ghost" style={compact ? { ...S.pbGhostBtn, minHeight: 26, padding: '0 8px', fontSize: 11 } : { ...S.pbGhostBtn, minHeight: 36 }} disabled={!draft.trim()} title={draft.trim() ? 'Cria o responsável e atribui' : 'Digite o nome do responsável.'} onClick={submit}><UserPlus size={compact ? 12 : 14} />{compact ? '' : ' Criar'}</button>
+  );
+  const chips = (
+    <>
+      {mine.map((r) => (
+        <span key={r.id} style={chip}>
+          <RespAvatar name={r.name} size={av} />{r.name}
+          {!readOnly && <button type="button" aria-label={`Remover ${r.name}`} title="Remover responsável" style={S.chipX} onClick={() => onSet(cur.filter((id) => id !== r.id))}><X aria-hidden="true" size={compact ? 10 : 12} /></button>}
+        </span>
+      ))}
+      {!readOnly && available.map((r) => (
+        <button key={r.id} type="button" className="pb-ghost" style={addBtn} title="Atribuir" onClick={() => onSet([...cur, r.id])}>
+          <RespAvatar name={r.name} size={compact ? 13 : 16} />{r.name}
+        </button>
+      ))}
+    </>
+  );
+  const input = !readOnly && (
+    <>
+      <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={60} placeholder="Novo responsável…" aria-label="Nome do novo responsável"
+        style={compact ? { flex: '1 1 130px', minWidth: 0, minHeight: 26, height: 26, fontSize: 12, padding: '0 8px' } : { flex: '1 1 160px', minWidth: 0 }}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} />
+      {makeBtn}
+    </>
+  );
+  if (compact) {
+    return (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+        {mine.length === 0 && readOnly && <span style={S.fieldHint}>Sem responsável.</span>}
+        {chips}{input}
+      </div>
+    );
+  }
   return (
     <div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
         {mine.length === 0 && <span style={S.fieldHint}>{readOnly ? 'Sem responsável.' : 'Ninguém atribuído ainda.'}</span>}
-        {mine.map((r) => (
-          <span key={r.id} style={{ ...S.personalCardTag, fontSize: 12, padding: '3px 8px 3px 4px', gap: 6 }}>
-            <RespAvatar name={r.name} size={18} />{r.name}
-            {!readOnly && <button type="button" aria-label={`Remover ${r.name}`} title="Remover responsável" style={S.chipX} onClick={() => onSet(cur.filter((id) => id !== r.id))}><X aria-hidden="true" size={12} /></button>}
-          </span>
-        ))}
+        {chips}
       </div>
-      {!readOnly && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-          {available.map((r) => (
-            <button key={r.id} type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, minHeight: compact ? 28 : 30, padding: '2px 9px', gap: 6 }} title="Atribuir" onClick={() => onSet([...cur, r.id])}>
-              <RespAvatar name={r.name} size={16} />{r.name}
-            </button>
-          ))}
-          <div style={{ display: 'flex', gap: 6, flex: '1 1 220px', minWidth: 0 }}>
-            <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={60} placeholder="Novo responsável (nome)…" style={{ flex: 1, minWidth: 0 }}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} />
-            <button type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, minHeight: 36 }} disabled={!draft.trim()} title={draft.trim() ? 'Cria o responsável e atribui' : 'Digite o nome do responsável.'} onClick={submit}><UserPlus size={14} /> Criar</button>
-          </div>
-        </div>
-      )}
+      {!readOnly && <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>{input}</div>}
     </div>
   );
 }
@@ -808,7 +827,7 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
                 )}
               </div>
               {respOpenId === item.id && (
-                <div style={{ margin: '6px 0 6px 26px', padding: '8px 10px', border: '1px solid var(--border-2)', borderRadius: 8, background: 'var(--bg-3)' }}>
+                <div style={{ margin: '3px 0 5px 26px', padding: '4px 6px', border: '1px solid var(--border-2)', borderRadius: 7, background: 'var(--bg-3)' }}>
                   <ResponsiblePicker compact ids={item.responsibleIds} readOnly={readOnly} onSet={(ids) => onSetChecklistResponsibles(item.id, ids)} onCreate={(name) => onCreateChecklistResponsible(item.id, name)} />
                 </div>
               )}
