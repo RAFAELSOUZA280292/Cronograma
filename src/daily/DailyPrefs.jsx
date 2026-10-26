@@ -6,7 +6,7 @@ export const CARD_INFO = {
   wisdom: { title: 'Sabedoria do dia', desc: 'Um provérbio bíblico por dia.' },
   horoscope: { title: 'Horóscopo', desc: 'A previsão do seu signo. Entretenimento.', birth: true },
   chinese: { title: 'Horóscopo chinês', desc: 'Seu animal e o texto do dia, gerado por IA. Entretenimento.', birth: true },
-  inspiration: { title: 'Inspiração', desc: 'Uma frase do dia de Ayrton Senna ou Henry Ford, sempre com a fonte oficial.' },
+  inspiration: { title: 'Inspiração', desc: 'Uma frase do dia de Senna, Henry Ford, Churchill, Thatcher, Reagan, Steve Jobs, Peter Drucker ou Soichiro Honda, sempre com a fonte conferida e uma orientação prática.' },
 };
 
 export const DAILY_CSS = `
