@@ -22,6 +22,8 @@ import { router as assistantRouter } from './assistant.js';
 import { router as knowledgeRouter } from './knowledge.js';
 import { router as pareceresRouter } from './pareceres.js';
 import { router as crmRouter } from './crm/routes.js';
+import { router as renataRouter } from './renata/routes.js';
+import { setServerPort } from './renata/internalCall.js';
 import { router as widgetRouter } from './widget.js';
 import { router as dailyRouter } from './daily.js';
 import { router as templatesRouter } from './documentTemplates.js';
@@ -66,6 +68,7 @@ app.use('/api/assistant', assistantRouter);
 app.use('/api/knowledge', knowledgeRouter);
 app.use('/api/pareceres', pareceresRouter);
 app.use('/api/crm', crmRouter);
+app.use('/api/renata', renataRouter);
 app.use('/api/widget', widgetRouter);
 app.use('/api/daily', dailyRouter);
 app.use('/api/templates', templatesRouter);
@@ -131,6 +134,7 @@ async function start() {
     if (n) console.log(`RENATA: ${n} fato(s) de frases de inspiração registrados na memória.`);
     embedQuoteFacts(pool).catch((e) => console.error('RENATA: embeddings das frases ficaram para depois:', e.message));
   } catch (e) { console.error('RENATA: não consegui registrar as frases de inspiração:', e.message); }
+  setServerPort(port);
   app.listen(port, () => {
     console.log(`Cronograma server ouvindo na porta ${port}`);
     countMaps().then((n) => console.log(`sourcemaps (só para o log de erros): ${n} arquivo(s) disponíveis`));

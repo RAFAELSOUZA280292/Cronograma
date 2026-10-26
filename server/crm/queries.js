@@ -152,6 +152,13 @@ export async function listContacts(orgId, f = {}) {
   return { total: rows[0] ? Number(rows[0].total) : 0, items: rows.map(mapContact) };
 }
 
+export async function getContact(orgId, id) {
+  if (!isUuid(id)) throw new CrmError(404, 'Contato não encontrado.');
+  const { rows } = await pool.query(`SELECT ${CONTACT_SELECT} FROM crm_contacts k JOIN crm_companies c ON c.id = k.company_id WHERE k.id=$1 AND k.org_id=$2 AND k.deleted_at IS NULL AND c.deleted_at IS NULL`, [id, orgId]);
+  if (!rows[0]) throw new CrmError(404, 'Contato não encontrado.');
+  return mapContact(rows[0]);
+}
+
 export async function listTimeline(orgId, companyId, { limit = 50, before = null } = {}) {
   if (!isUuid(companyId)) throw new CrmError(404, 'Empresa não encontrada.');
   const { rows } = await pool.query(

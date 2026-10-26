@@ -44,7 +44,9 @@ const h = (fn) => async (req, res, next) => {
 
 const orgOf = (req) => effectiveOrgId(req);
 // `req.crmActor` só existe na entrada por chave de API (/api/connect/crm, §99): a ação fica registrada como "Claude Code (por <dono da chave>)".
-const actorOf = (req) => req.crmActor || { id: req.user.id, name: req.user.name || req.user.username };
+const actorOf = (req) => req.crmActor || (req.renataCommandId !== undefined
+  ? { id: req.user.id, name: `RENATA (IA, a pedido de ${req.user.name || req.user.username})`, viaApi: true }
+  : { id: req.user.id, name: req.user.name || req.user.username });
 
 export function createCrmRouter({ auth = [requireAuth] } = {}) {
   const router = Router();
@@ -122,6 +124,7 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
 
   // ---- contatos
   router.get('/contacts', h(async (req, res) => res.json(await Q.listContacts(orgOf(req), req.query))));
+  router.get('/contacts/:id', h(async (req, res) => res.json({ contact: await Q.getContact(orgOf(req), req.params.id) })));
   router.post('/contacts/check-duplicates', need('write'), h(async (req, res) => {
     const b = req.body || {};
     res.json({ contacts: await findContactDuplicates(pool, orgOf(req), { email: b.email, phone: b.phone, whatsapp: b.whatsapp, excludeId: S.isUuid(b.excludeId) ? b.excludeId : null }) });
@@ -181,13 +184,19 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
 
   // ---- atividades / follow-ups (Fase 3). ownerId=me vira o usuário logado.
   router.get('/activities', h(async (req, res) => res.json(await AQ.listActivities(orgOf(req), { ...req.query, ownerId: req.query.ownerId === 'me' ? req.user.id : req.query.ownerId }))));
+  router.get('/activities/:id', h(async (req, res) => {
+    S.requireUuid(req.params.id, 'Atividade');
+    const row = await A.loadActivity(pool, orgOf(req), req.params.id);
+    if (!row) throw new CrmError(404, 'Atividade não encontrada.');
+    res.json({ activity: A.mapActivity(row) });
+  }));
   router.post('/activities', need('write'), h(async (req, res) => {
     const { alreadyDone, ...input } = req.body || {};
     res.status(201).json({ activity: await A.createActivity(orgOf(req), actorOf(req), input, { alreadyDone: !!alreadyDone }) });
   }));
   router.patch('/activities/:id', need('write'), h(async (req, res) => {
     // `silentNotify:true` (só pela chave de API) reatribui sem disparar o aviso "atividade atribuída a você" — para transferências em lote.
-    const quiet = !!(req.crmActor && req.body && req.body.silentNotify === true);
+    const quiet = !!((req.crmActor || req.renataCommandId !== undefined) && req.body && req.body.silentNotify === true);
     res.json({ activity: await A.updateActivity(orgOf(req), quiet ? { ...actorOf(req), silentNotify: true } : actorOf(req), req.params.id, req.body || {}) });
   }));
   router.post('/activities/:id/complete', need('write'), h(async (req, res) => {

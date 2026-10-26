@@ -77,6 +77,8 @@ export async function purgeTelemetry() {
   const b = await pool.query(`DELETE FROM user_access_events WHERE at < now() - ($1 || ' days')::interval`, [String(RETENTION.accessDays)]);
   await pool.query(`DELETE FROM product_events WHERE at < now() - ($1 || ' days')::interval`, [String(RETENTION.usageDays)]).catch(() => {});
   await pool.query(`DELETE FROM product_csat WHERE at < now() - ($1 || ' days')::interval`, [String(RETENTION.usageDays)]).catch(() => {});
+  // Conversas da RENATA guardam resultados de consultas (dados de clientes): 90 dias. O registro de ações (auditoria) NÃO é apagado.
+  await pool.query(`DELETE FROM renata_conversations WHERE updated_at < now() - interval '90 days'`).catch(() => {});
   return { usage: a.rowCount, access: b.rowCount };
 }
 

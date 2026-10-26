@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Briefcase, LayoutDashboard, Building2, Users, Plus, Kanban, Package, CalendarCheck } from 'lucide-react';
 import { readHistoryValue, useHistoryValue, useBackLayer } from '../lib/nav.js';
 import { crm } from './crmApi.js';
+import { setScreenContext } from '../renata/screenContext.js';
 import { CRM_CSS } from './crmMeta.js';
 import GlobalSearch from './GlobalSearch.jsx';
 import OverviewPage from './OverviewPage.jsx';
@@ -45,6 +46,12 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
   const [dealsPreset, setDealsPreset] = useState(null); // filtros vindos dos painéis da Visão geral
   const goDeals = useCallback((preset) => { setDealsPreset({ ...(preset || {}), nonce: Date.now() }); setPage('deals'); }, [setPage]);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  // A RENATA sabe em que parte do CRM a pessoa está e qual registro está aberto (§101).
+  useEffect(() => {
+    const labels = { overview: 'Visão geral', agenda: 'Agenda', deals: 'Negócios', companies: 'Empresas', contacts: 'Contatos', products: 'Produtos' };
+    const entity = dealDrawer ? { type: 'negócio', id: dealDrawer, title: '' } : drawer ? { type: 'empresa do CRM', id: drawer.id, title: '' } : null;
+    setScreenContext({ module: 'CRM', view: labels[page] || page, entity });
+  }, [page, dealDrawer, drawer]);
 
   useEffect(() => {
     crm.me().then((r) => setCaps(r.capabilities)).catch((e) => setError(e.message || 'Sem acesso ao CRM.'));

@@ -23,6 +23,8 @@ import pricetaxLogoBranco from './assets/brand/pricetax-logo-branco.png';
 import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
 
 import RenataHome from './assistant/RenataHome.jsx';
+import RenataChat from './renata/RenataChat.jsx';
+import { setScreenContext, MODULE_LABELS } from './renata/screenContext.js';
 import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
 
 
@@ -1299,7 +1301,10 @@ function AppScreens({ shellRef, bump }) {
   }, [currentUser?.id, currentUser?.role]);
   useEffect(() => {
     setUsageContext({ module: workspaceMode || 'inicio', view: workspaceMode === 'company' ? view : '', projectId: workspaceMode === 'company' && selectedProjectIds.length === 1 ? selectedProjectIds[0] : '' });
-  }, [workspaceMode, view, selectedProjectIds]);
+    // A RENATA sabe em que tela a pessoa está (§101). Empresa aberta vira "registro em foco"; o CRM complementa com o negócio/empresa aberto.
+    const one = workspaceMode === 'company' && selectedProjectIds.length === 1 ? projects.find((p) => p.id === selectedProjectIds[0]) : null;
+    if (workspaceMode !== 'crm') setScreenContext({ module: MODULE_LABELS[workspaceMode || 'inicio'] || '', view: workspaceMode === 'company' ? view : '', entity: one ? { type: 'empresa', id: one.id, title: (one.company && (one.company.nomeFantasia || one.company.name)) || '' } : null });
+  }, [workspaceMode, view, selectedProjectIds, projects]);
 
   // Pré-carrega, quando o navegador está ocioso, os dois pedaços de uso mais comum (editor de texto do cartão e a lista de tarefas das reuniões),
   // para a primeira abertura não mostrar "Carregando…". Respeita o "economizar dados" do navegador.
@@ -1889,7 +1894,17 @@ function AppScreens({ shellRef, bump }) {
     onToggleTheme: toggleTheme, onLogout: handleLogout,
     renataNode: (
       <>
-        {renataHome && (
+        {renataHome && currentUser.role !== 'cliente' && (
+          <RenataChat
+            key={renataHome.n}
+            userId={currentUser.id}
+            userName={currentUser.name}
+            isAdmin={currentUser.role === 'master' || !!currentUser.isSuperAdmin}
+            initialQuestion={renataHome.question}
+            onClose={() => setRenataHome(null)}
+          />
+        )}
+        {renataHome && currentUser.role === 'cliente' && (
           <RenataHome
             key={renataHome.n}
             userId={currentUser.id}

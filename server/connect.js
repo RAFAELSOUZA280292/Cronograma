@@ -219,7 +219,7 @@ export function flattenCards(data, today) {
   return out;
 }
 
-function filterCards(list, status, q) {
+export function filterCards(list, status, q) {
   const s = String(q || '').trim().toLowerCase();
   let r = list;
   if (status === 'open') r = r.filter((c) => !c.completed);

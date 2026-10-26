@@ -1,0 +1,1476 @@
+{
+ "geradoPor": "scripts/renata-route-index.mjs",
+ "total": 294,
+ "routes": [
+  {
+   "method": "POST",
+   "path": "/api/_internal/memory-search",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/activity/ping",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/activity/policy",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/activity/usage",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/agenda/events/:id/respond",
+   "file": "agenda.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/agenda/events",
+   "file": "agenda.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/agenda",
+   "file": "agenda.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/assistant/ask",
+   "file": "assistant.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/assistant/conversation/clear",
+   "file": "assistant.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/assistant/conversation",
+   "file": "assistant.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/assistant/dossier",
+   "file": "assistant.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/assistant/dossier",
+   "file": "assistant.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/assistant/general/ask",
+   "file": "assistant.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/assistant/messages/:id/action",
+   "file": "assistant.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/assistant/messages/:id/feedback",
+   "file": "assistant.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/assistant/reindex-needed",
+   "file": "assistant.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/assistant/reindex",
+   "file": "assistant.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/auth/change-password-login",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/auth/change-password",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/auth/login",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/auth/logout",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/auth/me",
+   "file": "routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/auth/me",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/client-error",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/cnpj/lookup",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/company-calendar/:projectId/apply",
+   "file": "companyCalendar.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/company-calendar/:projectId",
+   "file": "companyCalendar.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/company-share/:projectId",
+   "file": "companyShare.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/company-share/:projectId",
+   "file": "companyShare.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/company-share/:projectId",
+   "file": "companyShare.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/connect/actions",
+   "file": "connect.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/connect/activities",
+   "file": "connect.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/connect/activities",
+   "file": "connect.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/connect/agenda",
+   "file": "connect.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/connect/companies/:id/meetings/:meetingId",
+   "file": "connect.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/connect/companies/:id/plan",
+   "file": "connect.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/connect/companies/:id",
+   "file": "connect.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/connect/companies",
+   "file": "connect.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/connect/me",
+   "file": "connect.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/connect/tokens/:id",
+   "file": "connect.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/connect/tokens",
+   "file": "connect.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/connect/tokens",
+   "file": "connect.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/connect",
+   "file": "connect.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/activities/:id/cancel",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/activities/:id/complete",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/activities/:id/reopen",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/crm/activities/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/activities/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/crm/activities/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/activities",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/activities",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/board",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/bootstrap/commit",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/bootstrap/preview",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/crm/cadences/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/crm/cadences/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/cadences",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/cadences",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/cnpj/:cnpj",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/companies/:id/audit",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/crm/companies/:id/projects/:projectId",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/companies/:id/projects",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/companies/:id/restore",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/companies/:id/timeline",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/crm/companies/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/companies/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/crm/companies/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/companies/by-project/:projectId",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/companies/check-duplicates",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/companies",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/companies",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/crm/contacts/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/contacts/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/crm/contacts/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/contacts/check-duplicates",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/contacts",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/contacts",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/deal-files/:fileId/download",
+   "file": "crm/piperun/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/deals/:id/audit",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/deals/:id/files",
+   "file": "crm/piperun/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/deals/:id/move",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/crm/deals/:id/tags",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/crm/deals/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/deals/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/crm/deals/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/deals",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/deals",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/import/commit",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/import/deals/commit",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/import/deals/fields",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/import/deals/preview",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/import/fields",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/import/preview",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/leads",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/me",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/migration/piperun/extract",
+   "file": "crm/piperun/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/migration/piperun/import",
+   "file": "crm/piperun/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/migration/piperun/preview",
+   "file": "crm/piperun/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/migration/piperun/purge",
+   "file": "crm/piperun/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/migration/piperun/raw/deal-tags",
+   "file": "crm/piperun/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/migration/piperun/raw/histories",
+   "file": "crm/piperun/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/migration/piperun/report",
+   "file": "crm/piperun/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/migration/piperun/runs/:id",
+   "file": "crm/piperun/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/migration/piperun",
+   "file": "crm/piperun/routes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/crm/notes/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/crm/notes/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/notes/:noteId/attachments/:attId",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/notes",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/options",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/overview",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/pipeline",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/pipelines/:id/stages",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/crm/pipelines/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/crm/pipelines/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/pipelines",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/pipelines",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/crm/products/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/crm/products/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/products",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/products",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/projects-available",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/search",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/tags",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/crm/views-default",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/crm/views/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/crm/views/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/views",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/views",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/daily/onboarding-complete",
+   "file": "daily.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/daily/options",
+   "file": "daily.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/daily/preferences",
+   "file": "daily.js"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/daily/preferences",
+   "file": "daily.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/daily",
+   "file": "daily.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/experience/csat/eligible",
+   "file": "experience.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/experience/csat",
+   "file": "experience.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/experience/events",
+   "file": "experience.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/gaps/company/:id",
+   "file": "gaps.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/gaps/create",
+   "file": "gaps.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/gaps/overview",
+   "file": "gaps.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/google/disconnect",
+   "file": "google.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/google/oauth/callback",
+   "file": "google.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/google/oauth/start",
+   "file": "google.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/google/status",
+   "file": "google.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/inventory/area",
+   "file": "inventoryEdit.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/inventory/areas",
+   "file": "inventoryEdit.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/inventory/export.xlsx",
+   "file": "inventory.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/inventory/quality",
+   "file": "inventory.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/inventory/responsible",
+   "file": "inventoryEdit.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/inventory/suggest-areas",
+   "file": "inventoryEdit.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/inventory",
+   "file": "inventory.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/knowledge/conflicts/resolve",
+   "file": "knowledge.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/knowledge/conflicts",
+   "file": "knowledge.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/knowledge/entities/:id",
+   "file": "knowledge.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/knowledge/entities",
+   "file": "knowledge.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/knowledge/facts/:id/edit",
+   "file": "knowledge.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/knowledge/facts/:id/entities/:entityId",
+   "file": "knowledge.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/knowledge/facts/:id/entities",
+   "file": "knowledge.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/knowledge/facts/:id",
+   "file": "knowledge.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/knowledge/facts",
+   "file": "knowledge.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/knowledge/metrics",
+   "file": "knowledge.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/knowledge/overview",
+   "file": "knowledge.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/macro",
+   "file": "macro.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/meeting-inbox/:id/retry",
+   "file": "meetingInbox.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/meeting-inbox/retry-failed",
+   "file": "meetingInbox.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/meeting-inbox",
+   "file": "meetingInbox.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/meeting-inbox",
+   "file": "meetingInbox.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mentions/users",
+   "file": "routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/notifications/:id",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/notifications/mark-read-for-target",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/notifications/preferences",
+   "file": "routes.js"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/notifications/preferences",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/notifications/read-all",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/notifications",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/ops-intel/alerts",
+   "file": "opsIntel.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/ops-intel/experience",
+   "file": "opsIntel.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/ops-intel/map",
+   "file": "opsIntel.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/ops-intel/overview",
+   "file": "opsIntel.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/ops-intel/policy",
+   "file": "opsIntel.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/ops-intel/users/:id",
+   "file": "opsIntel.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/organizations/:id",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/organizations",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/organizations",
+   "file": "routes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/pareceres/:id/comments/:commentId",
+   "file": "pareceres.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/pareceres/:id/comments/:commentId",
+   "file": "pareceres.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/pareceres/:id/comments",
+   "file": "pareceres.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/pareceres/:id/file",
+   "file": "pareceres.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/pareceres/:id",
+   "file": "pareceres.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/pareceres/:id",
+   "file": "pareceres.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/pareceres/advice",
+   "file": "pareceres.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/pareceres/advice",
+   "file": "pareceres.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/pareceres/study",
+   "file": "pareceres.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/pareceres/study",
+   "file": "pareceres.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/pareceres",
+   "file": "pareceres.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/pareceres",
+   "file": "pareceres.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/personal-board/linked",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/personal-board/stats/day",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/personal-board/stats",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/personal-board/version",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/personal-board",
+   "file": "routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/personal-board",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/personal-extras",
+   "file": "routes.js"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/personal-extras",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/project-history/:id/diff",
+   "file": "projectVersions.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/project-history/:id/versions/:vid/restore",
+   "file": "projectVersions.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/project-history/:id/versions",
+   "file": "projectVersions.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/project-history/:id/versions",
+   "file": "projectVersions.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/project-history/deleted/:vid/restore",
+   "file": "projectVersions.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/project-history/deleted/list",
+   "file": "projectVersions.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/projects/:id/team-candidates",
+   "file": "routes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/projects/:id",
+   "file": "routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/projects/:id",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/projects/lite",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/projects/versions",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/projects",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/projects",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/public-board/:token",
+   "file": "routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/public-board/:token",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/public-company/:token",
+   "file": "companyShare.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/public-meeting/:token",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/push/config",
+   "file": "push.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/push/status",
+   "file": "push.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/push/subscribe",
+   "file": "push.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/push/test",
+   "file": "push.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/push/unsubscribe",
+   "file": "push.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/renata/actions/:id/undo",
+   "file": "renata/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/renata/actions",
+   "file": "renata/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/renata/catalog",
+   "file": "renata/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/renata/chat",
+   "file": "renata/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/renata/conversations/:id/decide",
+   "file": "renata/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/renata/conversations/:id",
+   "file": "renata/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/renata/conversations",
+   "file": "renata/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/renata/status",
+   "file": "renata/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/standard-plan/apply",
+   "file": "standardPlanApi.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/standard-plan/audit/:id",
+   "file": "standardPlanApi.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/standard-plan/preview",
+   "file": "standardPlanApi.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/standard-plan/template/draft/diff",
+   "file": "standardPlanApi.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/standard-plan/template/draft/discard",
+   "file": "standardPlanApi.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/standard-plan/template/draft",
+   "file": "standardPlanApi.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/standard-plan/template/draft",
+   "file": "standardPlanApi.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/standard-plan/template/instantiate-preview",
+   "file": "standardPlanApi.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/standard-plan/template/proposals/:key/load",
+   "file": "standardPlanApi.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/standard-plan/template/proposals",
+   "file": "standardPlanApi.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/standard-plan/template/restore/:version",
+   "file": "standardPlanApi.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/standard-plan/template/versions/archive",
+   "file": "standardPlanApi.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/standard-plan/template/versions",
+   "file": "standardPlanApi.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/standard-plan/template/versions",
+   "file": "standardPlanApi.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/task-links/backfill/cancel",
+   "file": "taskLinkBackfill.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/task-links/backfill/estimate",
+   "file": "taskLinkBackfill.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/task-links/backfill/status",
+   "file": "taskLinkBackfill.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/task-links/backfill",
+   "file": "taskLinkBackfill.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/task-links/confirm-high",
+   "file": "taskLinkBackfill.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/task-links/decide",
+   "file": "taskLinkBackfill.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/task-links/eval",
+   "file": "taskLinks.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/task-links/forget",
+   "file": "taskLinks.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/task-links/learning",
+   "file": "taskLinks.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/task-links/pending",
+   "file": "taskLinkBackfill.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/task-links/suggest",
+   "file": "taskLinks.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/task-links",
+   "file": "taskLinks.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/templates/:id/comments/:commentId",
+   "file": "documentTemplates.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/templates/:id/comments/:commentId",
+   "file": "documentTemplates.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/templates/:id/comments",
+   "file": "documentTemplates.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/templates/:id/file",
+   "file": "documentTemplates.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/templates/:id/items/:itemId/file",
+   "file": "documentTemplates.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/templates/:id/items/:itemId",
+   "file": "documentTemplates.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/templates/:id/items/:itemId",
+   "file": "documentTemplates.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/templates/:id/items",
+   "file": "documentTemplates.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/templates/:id",
+   "file": "documentTemplates.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/templates/:id",
+   "file": "documentTemplates.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/templates",
+   "file": "documentTemplates.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/templates",
+   "file": "documentTemplates.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/users/:id/access",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/users/:id/block",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/users/:id/renew",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/users/:id/reset-password",
+   "file": "routes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/users/:id",
+   "file": "routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/users/:id",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/users",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/users",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/widget/status",
+   "file": "widget.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/widget/summary",
+   "file": "widget.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/widget/token",
+   "file": "widget.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/widget/token",
+   "file": "widget.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/widget/token",
+   "file": "widget.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/widget/views",
+   "file": "widget.js"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/widget/views",
+   "file": "widget.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/xflow/affected-companies",
+   "file": "xflow.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/xflow/team",
+   "file": "xflow.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/xflow/tickets/:id/events",
+   "file": "xflow.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/xflow/tickets/:id/view",
+   "file": "xflow.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/xflow/tickets/:id",
+   "file": "xflow.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/xflow/tickets/:id",
+   "file": "xflow.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/xflow/tickets",
+   "file": "xflow.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/xflow/tickets",
+   "file": "xflow.js"
+  },
+  {
+   "method": "GET",
+   "path": "/d/:token/:file",
+   "file": "companyShare.js"
+  }
+ ]
+}

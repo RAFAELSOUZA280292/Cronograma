@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pool } from './db.js';
 import { originOf, setActor } from './projectAudit.js';
+import { readInternal } from './renata/internalAuth.js';
 
 const COOKIE_NAME = 'cronograma_token';
 const TOKEN_TTL = '7d';
@@ -87,6 +88,17 @@ export async function findUserByUsername(username) {
 
 export async function requireAuth(req, res, next) {
   try {
+    // Chamada interna da RENATA (§101): mesma identidade e mesmas permissões de quem pediu; só vale por loopback com o segredo do processo.
+    const internal = readInternal(req);
+    if (internal) {
+      const irow = await findUserById(internal.userId);
+      if (!irow || irow.blocked || (irow.expires_at && new Date(irow.expires_at) < new Date())) return res.status(403).json({ message: 'Acesso do usuário indisponível.' });
+      req.userRow = irow;
+      req.user = rowToUser(irow);
+      req.renataCommandId = internal.commandId;
+      setActor({ id: req.user.id, name: `RENATA (IA, a pedido de ${req.user.name || req.user.username})`, origin: 'RENATA' });
+      return next();
+    }
     const token = req.cookies && req.cookies[COOKIE_NAME];
     if (!token) return res.status(401).json({ message: 'Sessão inválida. Faça login novamente.' });
     let payload;
