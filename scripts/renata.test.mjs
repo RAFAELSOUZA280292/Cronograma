@@ -205,6 +205,14 @@ try {
   const ntf = await rows(`SELECT type, body, actor_name FROM notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1`, [U.vend]);
   ok('tarefa atribuída pela RENATA avisa o responsável, com o autor "RENATA (IA, a pedido de …)"', ntf[0] && ntf[0].type === 'todo_assigned' && ntf[0].actor_name === 'RENATA (IA, a pedido de Admin Teste RENATA)', ntf);
 
+  // laço de consulta: a mesma chamada pela 3ª vez na mesma resposta é cortada; e o cronograma devolve reuniões ANTES das atividades (o que é cortado por tamanho são as atividades)
+  const loopy = await chat('adm', `[TX] ${JSON.stringify({ calls: [{ name: 'crm_listar_funis' }, { name: 'crm_listar_funis' }, { name: 'crm_listar_funis' }] })}`);
+  ok('laço de consulta: a 3ª chamada idêntica é recusada com orientação para usar o que já tem', loopy.json.steps.length === 3 && loopy.json.steps[0].ok && loopy.json.steps[2].ok === false && loopy.json.steps[2].summary === 'chamada repetida', loopy.json.steps);
+  await chat('adm', `[TX] ${JSON.stringify({ calls: [{ name: 'empresa_ver_cronograma', input: { id: PROJ } }] })}`);
+  const ver = await last(U.adm, 'empresa_ver_cronograma');
+  const keys = Object.keys(ver.after);
+  ok('empresa_ver_cronograma: reuniões e equipe vêm antes das atividades (e as subatividades só com atividadeId)', keys.indexOf('reunioes') > -1 && keys.indexOf('reunioes') < keys.indexOf('atividades') && ver.after.atividades.every((a) => typeof a.subatividades === 'number' && !a.detalheSubatividades), keys);
+
   // ---- T9 relatórios
   const c9 = await chat('adm', '[T9] o que a equipe fez hoje e o que está atrasado?');
   ok('T9: relatórios da equipe (hoje e atrasos) consultados', c9.json.steps.length === 2 && c9.json.steps.every((s) => s.ok), c9.json.steps);

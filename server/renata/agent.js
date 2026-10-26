@@ -76,7 +76,7 @@ export function createAgent({ pool, registry, executor, getClient, generalContex
     if (tools.length) tools[tools.length - 1] = { ...tools[tools.length - 1], cache_control: { type: 'ephemeral' } }; // as ~95 definições de ferramenta repetem a cada passo: ficam em cache
     const system = buildSystem({ user, today, context, generalText: conv.generalText });
     const client = getClient();
-    const stepsOut = []; let pending = [];
+    const stepsOut = []; let pending = []; const seen = new Map();
     for (let step = 0; step < MAX_STEPS; step++) {
       const res = await client.messages.create({ model, max_tokens: 2500, system, tools, messages: conv.messages });
       logUsage(res, step);
@@ -87,6 +87,14 @@ export function createAgent({ pool, registry, executor, getClient, generalContex
       const results = [];
       pending = [];
       for (const tu of uses) {
+        // Chamada idêntica repetida na mesma resposta: não repete (a IA já tem o dado) — corta laços de consulta.
+        const sig = `${tu.name}|${JSON.stringify(tu.input)}`;
+        seen.set(sig, (seen.get(sig) || 0) + 1);
+        if (seen.get(sig) > 2) {
+          stepsOut.push({ toolUseId: tu.id, tool: tu.name, risk: 'read', status: 'failed', ok: false, summary: 'chamada repetida', actionId: '', undoable: false });
+          results.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify({ ok: false, erro: 'Você já fez esta mesma chamada duas vezes e o resultado não muda. Use os dados que já recebeu para responder.' }), is_error: true });
+          continue;
+        }
         const out = await executor.executeTool({ user, orgId: user.orgId, command, conversationId: conv.id, toolUseId: tu.id }, tu.name, tu.input);
         stepsOut.push({ toolUseId: tu.id, tool: tu.name, risk: (registry.get(tu.name) || {}).risk || 'read', status: out.status, ok: out.ok, summary: out.summary || out.preview || out.error || '', actionId: out.actionId, undoable: !!out.undoable });
         if (out.status === 'needs_confirmation') { pending.push({ toolUseId: tu.id, actionId: out.actionId, tool: out.tool, risk: out.risk, preview: out.preview, before: out.before, input: out.input }); results.push({ tool_use_id: tu.id, deferred: true, actionId: out.actionId }); }

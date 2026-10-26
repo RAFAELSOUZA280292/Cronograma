@@ -81,22 +81,26 @@ export function registerEmpresas(registry) {
         .filter((c) => !q || norm(`${c.nome} ${c.cnpj}`).includes(q)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
       return { status: 200, json: { total: list.length, empresas: list.slice(0, 60) } };
     } });
-  registry.add({ ...base, name: 'empresa_ver_cronograma', summary: 'Mostra uma empresa: equipe, fases, atividades (com ids, status, datas, responsável e subatividades) e reuniões. Use antes de ajustar o cronograma.', risk: 'read',
-    params: T.obj({ id: T.str('Id da empresa (empresas_listar)'), somenteAtrasadas: T.bool('Só atividades abertas com prazo vencido') }, ['id']),
+  registry.add({ ...base, name: 'empresa_ver_cronograma', summary: 'Mostra uma empresa: equipe, fases, reuniões (com tarefas abertas) e atividades (id, status, datas, responsável, fase, nº de subatividades). Para ver as SUBATIVIDADES (e predecessoras) de uma atividade, passe atividadeId. Use antes de ajustar o cronograma.', risk: 'read',
+    params: T.obj({ id: T.str('Id da empresa (empresas_listar)'), somenteAtrasadas: T.bool('Só atividades abertas com prazo vencido'), atividadeId: T.str('Id de uma atividade: devolve também as subatividades dela'), limit: T.int('Máximo de atividades (padrão 60)', { minimum: 1, maximum: 200 }) }, ['id']),
     run: async (ctx, i) => {
       const r = (await loadVisible(ctx)).find((x) => x.id === i.id);
       if (!r) return { status: 404, json: { message: 'Empresa não encontrada (ou sem acesso).' } };
       const d = r.data; const today = todayInSp();
       const phases = alive(d.phases).map((p) => ({ id: p.id, nome: p.name }));
       const pn = Object.fromEntries(phases.map((p) => [p.id, p.nome]));
-      let acts = alive(d.activities).map((a) => ({
-        id: a.id, titulo: a.title, status: a.status, inicio: a.date || '', fim: a.endDate || a.date || '', responsavel: a.responsible || '', fase: pn[a.phase] || '', prioridade: a.priority || '',
-        atrasada: a.status !== 'concluido' && !!(a.endDate || a.date) && (a.endDate || a.date) < today,
-        subatividades: alive(a.subactivities).map((s) => ({ id: s.id, titulo: s.title, feita: !!s.done, pulada: !!s.skipped, data: s.date || '', responsavel: s.responsible || '', tipo: s.kind || 'trabalho', ...(Array.isArray(s.predecessors) && s.predecessors.length ? { predecessoras: s.predecessors } : {}) })),
-      }));
+      const subs = new Map(alive(d.activities).flatMap((a) => alive(a.subactivities).map((s) => [s.id, s])));
+      let acts = alive(d.activities).map((a) => {
+        const sl = alive(a.subactivities);
+        const base = { id: a.id, titulo: a.title, status: a.status, inicio: a.date || '', fim: a.endDate || a.date || '', responsavel: a.responsible || '', fase: pn[a.phase] || '', prioridade: a.priority || '', atrasada: a.status !== 'concluido' && !!(a.endDate || a.date) && (a.endDate || a.date) < today, subatividades: sl.length, subatividadesAbertas: sl.filter((s) => !s.done && !s.skipped).length };
+        if (i.atividadeId && a.id === i.atividadeId) base.detalheSubatividades = sl.map((s) => ({ id: s.id, titulo: s.title, feita: !!s.done, pulada: !!s.skipped, data: s.date || '', responsavel: s.responsible || '', tipo: s.kind || 'trabalho', ...(Array.isArray(s.predecessors) && s.predecessors.length ? { predecessoras: s.predecessors.map((pid) => ({ id: pid, titulo: (subs.get(pid) || {}).title || '(removida)', data: (subs.get(pid) || {}).date || '' })) } : {}) }));
+        return base;
+      });
       if (i.somenteAtrasadas) acts = acts.filter((a) => a.atrasada);
-      const meetings = alive(d.meetings).sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 12).map((m) => ({ id: m.id, titulo: m.title, data: m.date, tarefasAbertas: alive(m.actionItems).filter((t) => !['concluida', 'nao-relevante'].includes(t.status)).length }));
-      return { status: 200, json: { hoje: today, empresa: name(d), status: (d.company && d.company.status) || '', equipe: alive(d.team).map((t) => ({ nome: t.name, papel: t.role || '' })), fases: phases, atividades: acts, reunioes: meetings } };
+      const total = acts.length;
+      const meetings = alive(d.meetings).sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 15).map((m) => ({ id: m.id, titulo: m.title, data: m.date, hora: m.time || '', tarefasAbertas: alive(m.actionItems).filter((t) => !['concluida', 'nao-relevante'].includes(t.status)).length, tarefasTotal: alive(m.actionItems).length }));
+      // ordem das chaves importa: o que é curto vem primeiro, as atividades por último (se algo for cortado por tamanho, são elas)
+      return { status: 200, json: { hoje: today, empresa: name(d), status: (d.company && d.company.status) || '', equipe: alive(d.team).map((t) => t.name), fases: phases, reunioes: meetings, totalAtividades: total, atividades: acts.slice(0, i.limit || 60) } };
     } });
   registry.add({ ...base, name: 'cronograma_simular', summary: 'SIMULA ajustes no cronograma de uma empresa sem gravar nada: mostra o que mudaria e aponta operações inválidas. Sempre simule antes de aplicar mudanças grandes.', risk: 'read',
     params: T.obj({ id: T.str('Id da empresa'), ops: opsSchema }, ['id', 'ops']),

@@ -134,7 +134,7 @@ export function createExecutor({ pool, registry, call = callInternal, now = () =
     const summary = ok && tool.summarize ? tool.summarize(input, resultBody, before) : (ok ? preview : `${preview} — ${errMsg}`);
     await closeRow(id, { status, after: ok ? resultBody : { erro: errMsg, detalhes: out.json && out.json.duplicates ? { duplicates: out.json.duplicates } : undefined }, error: errMsg, summary, undo, authorization, before });
     if (!ok) return { ok: false, status, actionId: id, error: errMsg, details: out.json && (out.json.duplicates || out.json.errors) ? { duplicates: out.json.duplicates, errors: out.json.errors } : undefined };
-    return { ok: true, status, actionId: id, summary, data: compact(resultBody, tool.risk === 'read' ? 9000 : 4000), undoable: !!undo };
+    return { ok: true, status, actionId: id, summary, data: compact(resultBody, tool.risk === 'read' ? 12000 : 4000), undoable: !!undo };
   }
 
   async function loadAction(id, user) {
