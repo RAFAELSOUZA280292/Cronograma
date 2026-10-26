@@ -156,12 +156,29 @@ export function registerCrm(registry) {
   // ---------- lote
   add({ name: 'crm_lote_atualizar_negocios', summary: 'Aplica a MESMA alteração a vários negócios de uma vez (até 100): responsável, previsão ou origem. Sempre pede confirmação e informa quantos serão alterados.', risk: 'critical', cap: 'write',
     params: T.obj({ ids: T.arr('Ids dos negócios', T.uuid('id'), { minItems: 1, maxItems: 100 }), ownerId: T.str('Novo responsável (id)'), expectedCloseDate: T.date('Nova previsão'), source: T.str('Nova origem') }, ['ids']),
-    bulk: (i) => i.ids.length, describe: (i) => `ALTERAR ${i.ids.length} negócio(s): ${['ownerId', 'expectedCloseDate', 'source'].filter((k) => i[k] !== undefined).join(', ')}.`,
+    bulk: (i) => i.ids.length, describe: (i) => `ALTERAR ${i.ids.length} negócio(s): ${['ownerId', 'expectedCloseDate', 'source'].filter((k) => i[k] !== undefined).map((k) => `${{ ownerId: 'responsável', expectedCloseDate: 'previsão', source: 'origem' }[k]} → ${i[k]}`).join('; ')}.`,
+    undo: (i, b, r) => (r && r.anteriores && r.anteriores.length ? { tool: 'crm_lote_restaurar_valores', input: { tipo: 'negocios', itens: r.anteriores.slice(0, 100) }, label: 'devolver os valores anteriores dos negócios' } : null),
     run: async (ctx, i) => bulkPatch(ctx, '/api/crm/deals/', i.ids, pick(i, ['ownerId', 'expectedCloseDate', 'source'])) });
   add({ name: 'crm_lote_atualizar_atividades', summary: 'Aplica a MESMA alteração a várias atividades do CRM (até 100): responsável, data, prioridade. Sempre pede confirmação. Reatribuição em lote não notifica uma a uma.', risk: 'critical', cap: 'write',
     params: T.obj({ ids: T.arr('Ids das atividades', T.uuid('id'), { minItems: 1, maxItems: 100 }), ownerId: T.str('Novo responsável (id)'), dueDate: T.date('Nova data'), priority: T.enm('Prioridade', ['low', 'normal', 'high']) }, ['ids']),
-    bulk: (i) => i.ids.length, describe: (i) => `ALTERAR ${i.ids.length} atividade(s): ${['ownerId', 'dueDate', 'priority'].filter((k) => i[k] !== undefined).join(', ')}.`,
+    bulk: (i) => i.ids.length, describe: (i) => `ALTERAR ${i.ids.length} atividade(s): ${['ownerId', 'dueDate', 'priority'].filter((k) => i[k] !== undefined).map((k) => `${{ ownerId: 'responsável', dueDate: 'data', priority: 'prioridade' }[k]} → ${i[k]}`).join('; ')}.`,
+    undo: (i, b, r) => (r && r.anteriores && r.anteriores.length ? { tool: 'crm_lote_restaurar_valores', input: { tipo: 'atividades', itens: r.anteriores.slice(0, 100) }, label: 'devolver os valores anteriores das atividades' } : null),
     run: async (ctx, i) => bulkPatch(ctx, '/api/crm/activities/', i.ids, pick(i, ['ownerId', 'dueDate', 'priority'])) });
+  // Uso interno do "Desfazer" de um lote: devolve, registro a registro, os valores que o lote trocou. Não é oferecida à IA.
+  add({ name: 'crm_lote_restaurar_valores', internal: true, summary: 'Desfazer de um lote: devolve os valores anteriores de vários registros.', risk: 'write', cap: 'write',
+    params: T.obj({ tipo: T.enm('Tipo', ['negocios', 'atividades']), itens: T.arr('Registros', T.obj({ id: T.uuid('id'), valores: { type: 'object', additionalProperties: true, properties: {} } }, ['id', 'valores']), { minItems: 1, maxItems: 100 }) }, ['tipo', 'itens']),
+    describe: (i) => `Devolver os valores anteriores de ${i.itens.length} registro(s).`,
+    run: async (ctx, i) => {
+      const { callInternal } = await import('../internalCall.js');
+      const base = i.tipo === 'negocios' ? '/api/crm/deals/' : '/api/crm/activities/';
+      let n = 0; const falhas = [];
+      for (const it of i.itens) {
+        const body = i.tipo === 'atividades' ? { ...it.valores, silentNotify: true } : it.valores;
+        const r = await callInternal({ userId: ctx.user.id, commandId: ctx.actionId, method: 'PATCH', path: `${base}${encodeURIComponent(it.id)}`, body });
+        if (r.status >= 200 && r.status < 300) n += 1; else falhas.push({ id: it.id, motivo: (r.json && r.json.message) || `HTTP ${r.status}` });
+      }
+      return { status: n ? 200 : 400, partial: n > 0 && falhas.length > 0, json: { restaurados: n, falhas: falhas.length, falhas_detalhe: falhas.slice(0, 10) } };
+    } });
 }
 
 const pick = (o, ks) => Object.fromEntries(ks.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]));
@@ -179,12 +196,14 @@ async function closeDeal(ctx, id, kind, extra) {
 async function bulkPatch(ctx, base, ids, patch) {
   if (!Object.keys(patch).length) return { status: 400, json: { message: 'Informe o que alterar (responsável, data, prioridade, previsão ou origem).' } };
   const { callInternal } = await import('../internalCall.js');
-  const done = []; const failed = [];
+  const done = []; const failed = []; const anteriores = [];
   for (const id of [...new Set(ids)]) {
     const body = base.includes('activities') ? { ...patch, silentNotify: true } : patch; // lote não dispara um aviso por atividade
+    const cur = await callInternal({ userId: ctx.user.id, method: 'GET', path: `${base}${encodeURIComponent(id)}` });
+    const ent = cur.status === 200 && cur.json ? (cur.json.deal || cur.json.activity) : null;
     const r = await callInternal({ userId: ctx.user.id, commandId: ctx.actionId, method: 'PATCH', path: `${base}${encodeURIComponent(id)}`, body });
-    if (r.status >= 200 && r.status < 300) done.push(id); else failed.push({ id, motivo: (r.json && r.json.message) || `HTTP ${r.status}` });
+    if (r.status >= 200 && r.status < 300) { done.push(id); if (ent) anteriores.push({ id, valores: Object.fromEntries(Object.keys(patch).map((k) => [k, ent[k] === undefined ? null : ent[k]])) }); } else failed.push({ id, motivo: (r.json && r.json.message) || `HTTP ${r.status}` });
   }
   const ok = done.length > 0;
-  return { status: ok ? 200 : 400, partial: ok && failed.length > 0, json: { alterados: done.length, falhas: failed.length, ids_alterados: done, falhas_detalhe: failed.slice(0, 20) } };
+  return { status: ok ? 200 : 400, partial: ok && failed.length > 0, json: { alterados: done.length, falhas: failed.length, ids_alterados: done, falhas_detalhe: failed.slice(0, 20), anteriores } };
 }

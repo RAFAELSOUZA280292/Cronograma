@@ -19,11 +19,11 @@ export function buildSystem({ user, today, context, generalText }) {
 COMO TRABALHAR
 1. Entenda o resultado desejado, planeje os passos e execute com as ferramentas. Não ensine a clicar; faça. Se a pessoa só quer saber algo, consulte e responda.
 2. Nunca invente id, nome, valor, data ou resultado. Traduza nomes em ids consultando (crm_buscar, crm_listar_opcoes, empresas_listar, plataforma_pessoas, quadro_listar…). Se houver mais de um candidato plausível, pergunte qual.
-2b. Escolha do lugar certo para uma tarefa: trabalho sobre um lead/negócio do CRM → crm_criar_atividade (com ownerId da pessoa); item de ação de uma reunião de um cliente (cronograma) → tarefa_reuniao_criar; lembrete do próprio usuário → quadro_criar_atividade; ajuste de prazo/status de atividade do cronograma → cronograma_aplicar. Se o pedido não deixa claro qual, pergunte em uma linha.
+2b. Escolha do lugar certo para uma tarefa: trabalho sobre um lead/negócio do CRM → crm_criar_atividade (com ownerId da pessoa e, quando for sobre um negócio, o dealId dele); item de ação de uma reunião de um cliente (cronograma) → tarefa_reuniao_criar; lembrete do próprio usuário → quadro_criar_atividade; ajuste de prazo/status de atividade do cronograma → cronograma_aplicar. Se o pedido não deixa claro qual, pergunte em uma linha.
 3. Datas: hoje é ${today} (${wd}). Converta "amanhã", "sexta", "dia 10" para AAAA-MM-DD a partir de hoje (próxima ocorrência).
 4. Faltou dado ESSENCIAL (qual cliente? qual prazo?), pergunte de forma curta e objetiva; o que não for essencial, use o padrão sensato e diga qual usou.
 5. Ações críticas, destrutivas, irreversíveis ou em lote: chame a ferramenta normalmente — o sistema pausa e mostra um cartão de confirmação ao usuário. NÃO peça confirmação em texto antes de chamar (só para resolver ambiguidade). Em lote, primeiro consulte e diga a contagem; depois chame. Depois que o usuário confirmar, continue o plano.
-6. Ações simples e reversíveis (criar, editar, mover, concluir) você executa direto; tudo fica registrado em seu nome, com o pedido do usuário, e pode ser desfeito pelo registro.
+6. Para alterar 3 ou mais registros do MESMO tipo, use as ferramentas de lote (crm_lote_*) em vez de uma chamada por registro. Ações simples e reversíveis (criar, editar, mover, concluir) você executa direto; tudo fica registrado em seu nome, com o pedido do usuário, e pode ser desfeito pelo registro.
 7. Depois de executar, confira o resultado devolvido pela ferramenta e resuma o que mudou (antes → depois) em poucas linhas. Se uma ferramenta falhar, leia o erro, corrija o pedido e tente de novo (uma vez); se persistir, explique o que impediu e o que a pessoa pode fazer.
 8. Permissão negada: não tente contornar; explique com franqueza e diga quem pode fazer.
 9. "Me avise quando concluir": a plataforma não envia aviso por evento. Crie um lembrete de acompanhamento para a pessoa (quadro_criar_atividade com prazo) e diga isso com clareza.
@@ -76,7 +76,7 @@ export function createAgent({ pool, registry, executor, getClient, generalContex
     if (tools.length) tools[tools.length - 1] = { ...tools[tools.length - 1], cache_control: { type: 'ephemeral' } }; // as ~95 definições de ferramenta repetem a cada passo: ficam em cache
     const system = buildSystem({ user, today, context, generalText: conv.generalText });
     const client = getClient();
-    const stepsOut = []; let pending = []; const seen = new Map();
+    const stepsOut = []; let pending = []; const seen = new Map(); const turnWrites = new Map();
     for (let step = 0; step < MAX_STEPS; step++) {
       const res = await client.messages.create({ model, max_tokens: 2500, system, tools, messages: conv.messages });
       logUsage(res, step);
@@ -95,7 +95,7 @@ export function createAgent({ pool, registry, executor, getClient, generalContex
           results.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify({ ok: false, erro: 'Você já fez esta mesma chamada duas vezes e o resultado não muda. Use os dados que já recebeu para responder.' }), is_error: true });
           continue;
         }
-        const out = await executor.executeTool({ user, orgId: user.orgId, command, conversationId: conv.id, toolUseId: tu.id }, tu.name, tu.input);
+        const out = await executor.executeTool({ user, orgId: user.orgId, command, conversationId: conv.id, toolUseId: tu.id, turnWrites }, tu.name, tu.input);
         stepsOut.push({ toolUseId: tu.id, tool: tu.name, risk: (registry.get(tu.name) || {}).risk || 'read', status: out.status, ok: out.ok, summary: out.summary || out.preview || out.error || '', actionId: out.actionId, undoable: !!out.undoable });
         if (out.status === 'needs_confirmation') { pending.push({ toolUseId: tu.id, actionId: out.actionId, tool: out.tool, risk: out.risk, preview: out.preview, before: out.before, input: out.input }); results.push({ tool_use_id: tu.id, deferred: true, actionId: out.actionId }); }
         else results.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(modelView(out)), is_error: !out.ok });

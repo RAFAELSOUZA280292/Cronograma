@@ -30,7 +30,7 @@ export function createRegistry() {
     get: (n) => tools.get(n),
     all: () => [...tools.values()],
     // Só as ferramentas que ESTE usuário pode usar (o servidor ainda confere de novo ao executar).
-    forUser(user) { return [...tools.values()].filter((t) => !t.visible || t.visible(user)); },
+    forUser(user) { return [...tools.values()].filter((t) => !t.internal && (!t.visible || t.visible(user))); },
     forModel(user) {
       return this.forUser(user).map((t) => ({
         name: t.name,

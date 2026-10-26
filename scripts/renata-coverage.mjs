@@ -14,7 +14,7 @@ const { registry } = await import('../server/renata/index.js');
 const { routeIndex, matchRoute, curatedSet, classify } = await import('../server/renata/policy.js');
 
 const problems = [];
-const tools = registry.all();
+const tools = registry.all().filter((t) => !t.internal);
 for (const t of tools) {
   if (t.route) {
     const p = t.route.path.replace(/\{(\w+)\}/g, ':$1');

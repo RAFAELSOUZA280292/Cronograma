@@ -106,9 +106,11 @@ export function createExecutor({ pool, registry, call = callInternal, now = () =
     const before = await fetchBefore(ctx, tool, input);
     const preview = tool.describe ? tool.describe(input, before) : (tool.label || tool.name);
 
-    if (!confirm && needsConfirmation(tool, input)) {
+    // Contenção de "lote disfarçado": mais de 5 escritas da MESMA ferramenta no mesmo pedido, uma a uma, passam a pedir confirmação.
+    const turnN = ctx.turnWrites && tool.risk !== 'read' ? (ctx.turnWrites.get(tool.name) || 0) : 0;
+    if (!confirm && (needsConfirmation(tool, input) || turnN >= 5)) {
       const id = await insertRow(ctx, tool, { input, before, status: 'pending', summary: preview, authorization: { mode: 'aguardando confirmação', pedidoEm: now().toISOString() } });
-      return { ok: true, status: 'needs_confirmation', actionId: id, tool: tool.name, risk: tool.risk, preview, before: before === undefined ? undefined : compact(before, 2500), input };
+      return { ok: true, status: 'needs_confirmation', actionId: id, tool: tool.name, risk: tool.risk, preview: turnN >= 5 && !needsConfirmation(tool, input) ? `${preview} (já foram ${turnN} alterações iguais neste pedido: confirme o conjunto)` : preview, before: before === undefined ? undefined : compact(before, 2500), input };
     }
 
     const idemKey = tool.creates ? crypto.createHash('sha1').update(`${tool.name}|${stable(input)}`).digest('hex') : '';
@@ -132,6 +134,7 @@ export function createExecutor({ pool, registry, call = callInternal, now = () =
     const resultBody = out.json;
     const undo = ok && tool.undo ? (tool.undo(input, before, resultBody) || null) : null;
     const summary = ok && tool.summarize ? tool.summarize(input, resultBody, before) : (ok ? preview : `${preview} — ${errMsg}`);
+    if (ok && ctx.turnWrites && tool.risk !== 'read') ctx.turnWrites.set(tool.name, (ctx.turnWrites.get(tool.name) || 0) + 1);
     await closeRow(id, { status, after: ok ? resultBody : { erro: errMsg, detalhes: out.json && out.json.duplicates ? { duplicates: out.json.duplicates } : undefined }, error: errMsg, summary, undo, authorization, before });
     if (!ok) return { ok: false, status, actionId: id, error: errMsg, details: out.json && (out.json.duplicates || out.json.errors) ? { duplicates: out.json.duplicates, errors: out.json.errors } : undefined };
     return { ok: true, status, actionId: id, summary, data: compact(resultBody, tool.risk === 'read' ? 12000 : 4000), undoable: !!undo };

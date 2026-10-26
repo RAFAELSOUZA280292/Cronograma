@@ -154,6 +154,11 @@ try {
   const pr = await rows(`SELECT priority FROM crm_activities WHERE id = ANY($1::uuid[])`, [acts]);
   ok('T5: confirmado → as 2 atividades mudaram e o resultado do lote foi informado', d5.json.executed[0].ok && pr.every((x) => x.priority === 'high') && /alterados/.test(d5.json.reply), d5.json);
 
+  const a5 = await last(U.adm, 'crm_lote_atualizar_atividades');
+  const un5 = await call(sess.adm, 'POST', `/api/renata/actions/${a5.id}/undo`);
+  const pr2 = await rows(`SELECT priority FROM crm_activities WHERE id = ANY($1::uuid[])`, [acts]);
+  ok('T5: desfazer o lote devolve a prioridade de cada atividade (valores anteriores guardados registro a registro)', un5.status === 200 && pr2.every((x) => x.priority === 'low'), { un5: un5.json, pr2 });
+
   // ---- T6 quadro pessoal
   const c6 = await chat('adm', '[T6] crie um lembrete para revisar o cronograma do cliente X');
   const board = (await rows(`SELECT data FROM personal_boards WHERE user_id=$1`, [U.adm]))[0].data;
@@ -204,6 +209,11 @@ try {
   await new Promise((r) => setTimeout(r, 400));
   const ntf = await rows(`SELECT type, body, actor_name FROM notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1`, [U.vend]);
   ok('tarefa atribuída pela RENATA avisa o responsável, com o autor "RENATA (IA, a pedido de …)"', ntf[0] && ntf[0].type === 'todo_assigned' && ntf[0].actor_name === 'RENATA (IA, a pedido de Admin Teste RENATA)', ntf);
+
+  // lote disfarçado: 7 criações iguais, uma a uma, no mesmo pedido → as 5 primeiras executam, as seguintes pedem confirmação do conjunto
+  const many = await chat('adm', `[TX] ${JSON.stringify({ calls: Array.from({ length: 7 }, (_, n) => ({ name: 'quadro_criar_atividade', input: { title: `Cartão em série ${n + 1}` } })) })}`);
+  ok('lote disfarçado: 5 cartões criados direto e os 2 seguintes pedem confirmação do conjunto', many.json.steps.filter((s) => s.ok && s.status === 'success').length === 5 && many.json.pending.length === 2 && /confirme o conjunto/.test(many.json.pending[0].preview), { ok: many.json.steps.map((s) => s.status), p: many.json.pending.map((x) => x.preview) });
+  await call(sess.adm, 'POST', `/api/renata/conversations/${many.json.conversationId}/decide`, { decisions: many.json.pending.map((p) => ({ actionId: p.actionId, decision: 'cancel' })) });
 
   // laço de consulta: a mesma chamada pela 3ª vez na mesma resposta é cortada; e o cronograma devolve reuniões ANTES das atividades (o que é cortado por tamanho são as atividades)
   const loopy = await chat('adm', `[TX] ${JSON.stringify({ calls: [{ name: 'crm_listar_funis' }, { name: 'crm_listar_funis' }, { name: 'crm_listar_funis' }] })}`);
