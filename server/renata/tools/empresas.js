@@ -146,7 +146,8 @@ export function registerEmpresas(registry) {
       if (i.limparPrazo) { f.t.dueDate = ''; ch.push('prazo removido'); } else if (i.dueDate !== undefined) { f.t.dueDate = i.dueDate; ch.push('prazo'); }
       return { status: 200, next: data, logText: `Tarefa "${clip(f.t.title, 80)}" alterada (${ch.join(', ')})`, json: { anterior: prev, tarefa: { id: f.t.id, titulo: f.t.title, responsavel: f.t.responsible, prazo: f.t.dueDate, status: f.t.status }, alteracoes: ch } };
     }), summarize: (i, r) => `Tarefa “${r.tarefa.titulo}” atualizada (${r.alteracoes.join(', ')}).` });
-  registry.add({ ...base, name: 'tarefa_reuniao_excluir', summary: 'Exclui uma tarefa de reunião (lixeira).', risk: 'critical', params: T.obj({ empresaId: T.str('Id da empresa'), id: T.str('Id da tarefa') }, ['empresaId', 'id']), describe: (i) => `EXCLUIR a tarefa de reunião ${i.id}.`,
+  registry.add({ ...base, name: 'tarefa_reuniao_excluir', summary: 'Exclui uma tarefa de reunião (lixeira).', risk: 'critical', params: T.obj({ empresaId: T.str('Id da empresa'), id: T.str('Id da tarefa') }, ['empresaId', 'id']), before: async (ctx, i) => { const r = (await loadVisible(ctx)).find((x) => x.id === i.empresaId); const f = r && findTodo(r.data, i.id); return f ? { titulo: f.t.title, responsavel: f.t.responsible || '', prazo: f.t.dueDate || '', reuniao: f.m.title, empresa: name(r.data) } : undefined; },
+    describe: (i, b) => `EXCLUIR a tarefa de reunião “${(b && b.titulo) || i.id}”${b && b.empresa ? ` de ${b.empresa}` : ''}.`,
     run: (ctx, i) => withProject(ctx, i.empresaId, (data, h) => {
       const f = findTodo(data, i.id);
       if (!f) return { status: 404, json: { message: 'Tarefa não encontrada.' } };

@@ -66,6 +66,7 @@ export function createExecutor({ pool, registry, call = callInternal, now = () =
   async function fetchBefore(ctx, tool, input) {
     if (!tool.before) return undefined;
     try {
+      if (typeof tool.before === 'function') return await tool.before(ctx, input);
       const { path } = fill(tool.before.path, input);
       const r = await call({ userId: ctx.user.id, method: 'GET', path });
       if (r.status !== 200) return undefined;

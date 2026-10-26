@@ -43,6 +43,15 @@ function findCard(boards, id) {
 const publicCard = (f) => ({ id: f.card.id, title: f.card.title, board: f.board.name, column: f.col.name, priority: f.card.priority || '', dueDate: f.card.dueDate || '', status: f.card.status || (f.card.completed ? 'concluida' : 'nao-iniciada'), completed: !!f.card.completed });
 const withHistory = (card, msg, now, w) => ({ ...card, history: [{ ts: now, action: msg, user: w }, ...(card.history || [])].slice(0, 200), updatedAt: now, updatedBy: w });
 
+// Estado atual do cartão (para a confirmação mostrar o NOME do cartão, e não só o id).
+async function cardBefore(ctx, input) {
+  if (!ctx.user.personalAccess) return undefined;
+  const { rows } = await pool.query('SELECT data FROM personal_boards WHERE user_id=$1', [ctx.user.id]);
+  if (!rows[0]) return undefined;
+  const f = findCard(rows[0].data.boards || [], input.id);
+  return f ? { title: f.card.title, coluna: f.col.name, prazo: f.card.dueDate || '', prioridade: f.card.priority || '', concluido: !!f.card.completed } : undefined;
+}
+
 export function registerBoard(registry) {
   const base = { module: 'Gestão de Atividades', visible };
   registry.add({ ...base, name: 'quadro_listar', summary: 'Lista os cartões do quadro pessoal de quem pediu (status: open, overdue, today, urgent, done, all).', risk: 'read',
@@ -73,7 +82,7 @@ export function registerBoard(registry) {
     }) });
   registry.add({ ...base, name: 'quadro_atualizar_atividade', summary: 'Altera um cartão do quadro pessoal: título, descrição, prazo, prioridade, status, coluna. limparPrazo=true remove o prazo.', risk: 'write',
     params: T.obj({ id: T.str('Id do cartão (use quadro_listar)'), title: T.str('Título'), desc: T.str('Descrição'), dueDate: T.date('Novo prazo'), limparPrazo: T.bool('Remover o prazo'), priority: T.enm('Prioridade', PRI), status: T.enm('Status', STATUS), column: T.str('Mover para a coluna (nome)') }, ['id']),
-    describe: (i) => `Alterar o cartão ${i.id}: ${Object.keys(i).filter((k) => k !== 'id').join(', ')}.`,
+    before: cardBefore, describe: (i, b) => `Alterar o cartão “${(b && b.title) || i.id}”: ${Object.keys(i).filter((k) => k !== 'id').join(', ')}.`,
     undo: (i, b, r) => {
       const a = r && r.anterior; if (!a) return null;
       const input = { id: i.id };
@@ -110,7 +119,7 @@ export function registerBoard(registry) {
       return { status: 200, json: { anterior: prev, cartao: { id: card.id, title: card.title, board: f.board.name, column: destName, dueDate: card.dueDate, priority: card.priority || '', status: card.status || prev.status, completed: !!card.completed }, alteracoes: changes } };
     }),
     summarize: (i, r) => `Cartão “${r.cartao.title}” atualizado (${r.alteracoes.join(', ')}).` });
-  registry.add({ ...base, name: 'quadro_concluir_atividade', summary: 'Conclui um cartão do quadro pessoal.', risk: 'write', params: T.obj({ id: T.str('Id do cartão') }, ['id']), describe: (i) => `Concluir o cartão ${i.id}.`,
+  registry.add({ ...base, name: 'quadro_concluir_atividade', summary: 'Conclui um cartão do quadro pessoal.', risk: 'write', params: T.obj({ id: T.str('Id do cartão') }, ['id']), before: cardBefore, describe: (i, b) => `Concluir o cartão “${(b && b.title) || i.id}”.`,
     undo: (i) => ({ tool: 'quadro_atualizar_atividade', input: { id: i.id, status: 'nao-iniciada' }, label: 'reabrir o cartão' }),
     run: (ctx, i) => withBoard(ctx, ({ boards, now, who: w }) => {
       const f = findCard(boards, i.id);
@@ -120,7 +129,7 @@ export function registerBoard(registry) {
       f.col.cards.splice(f.idx, 1); f.col.cards.push(card);
       return { status: 200, json: { cartao: { ...publicCard({ ...f, card }), completed: true } } };
     }), summarize: (i, r) => (r.jaConcluido ? 'O cartão já estava concluído.' : `Cartão “${r.cartao.title}” concluído.`) });
-  registry.add({ ...base, name: 'quadro_excluir_atividade', summary: 'Exclui um cartão do quadro pessoal (vai para a lixeira do quadro).', risk: 'critical', params: T.obj({ id: T.str('Id do cartão') }, ['id']), describe: (i) => `EXCLUIR o cartão ${i.id} do quadro pessoal.`,
+  registry.add({ ...base, name: 'quadro_excluir_atividade', summary: 'Exclui um cartão do quadro pessoal (vai para a lixeira do quadro).', risk: 'critical', params: T.obj({ id: T.str('Id do cartão') }, ['id']), before: cardBefore, describe: (i, b) => `EXCLUIR o cartão “${(b && b.title) || i.id}” do quadro pessoal.`,
     run: (ctx, i) => withBoard(ctx, ({ boards, now, who: w }) => {
       const f = findCard(boards, i.id);
       if (!f) return { status: 404, json: { message: 'Cartão não encontrado.' } };
