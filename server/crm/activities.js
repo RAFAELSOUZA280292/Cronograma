@@ -9,7 +9,7 @@ import { CrmError } from './errors.js';
 import { realName } from './text.js';
 import { createNotification } from '../notifications.js';
 import {
-  sanitize, tx, addAudit, addTimeline, diffApi, mapBySpec, loadCompany, requireUuid, assertUserInOrg, changeSummary, todayBR,
+  sanitize, tx, addAudit, addTimeline, diffApi, mapBySpec, loadCompany, requireUuid, assertUserInOrg, changeSummary, changeSummaryNamed, todayBR,
 } from './service.js';
 
 export const ACTIVITY_TYPES = { task: 'Tarefa', call: 'Ligação', email: 'E-mail', meeting: 'Reunião', whatsapp: 'WhatsApp', visit: 'Visita', followup: 'Follow-up' };
@@ -170,7 +170,7 @@ export async function updateActivity(orgId, actor, id, input) {
     await c.query(`UPDATE crm_activities SET ${sets.join(', ')}, updated_at=now() WHERE id=$${params.length}`, params);
     await addAudit(c, { orgId, entityType: 'activity', entityId: id, action: 'update', changes, actor });
     await addTimeline(c, { orgId, companyId: row.company_id, entityType: 'activity', entityId: id, eventType: 'activity_updated', actor,
-      summary: `${actor.name} alterou a atividade "${after.title}": ${changeSummary(ACTIVITY_SPEC, changes)}.`, data: { activityId: id, changes } });
+      summary: `${actor.name} alterou a atividade "${after.title}": ${await changeSummaryNamed(c, ACTIVITY_SPEC, changes)}.`, data: { activityId: id, changes } });
     const api = mapActivity(await loadActivity(c, orgId, id));
     if (changes.some((ch) => ch.field === 'ownerId')) await notifyAssigned(c, orgId, actor, api, api.ownerId);
     return api;

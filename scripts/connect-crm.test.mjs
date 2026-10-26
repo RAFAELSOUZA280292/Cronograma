@@ -95,6 +95,9 @@ try {
   const cad = await call(H(), 'POST', '/api/connect/crm/cadences', { pipelineId: pipe.id, stageId: open[open.length - 1].id, name: `${TAG} cadência`, steps: [{ title: 'Passo', type: 'followup', days: 1 }] });
   ok('cria cadência (regra persistente também vai pela chave)', cad.status === 201, cad.json);
   const idsToExclude = { activity: ac.json.activity.id };
+  await call(H(), 'PATCH', `/api/connect/crm/deals/${dealId}`, { ownerId: U.vend });
+  const { rows: ownTl } = await pool.query(`SELECT summary FROM crm_timeline_events WHERE entity_id=$1 AND summary LIKE '%Responsável%' ORDER BY occurred_at DESC LIMIT 1`, [dealId]);
+  ok('troca de responsável aparece na linha do tempo pelo NOME (não pelo id), e a auditoria guarda o id', ownTl.length === 1 && ownTl[0].summary.includes('Vendedor Teste CC') && !ownTl[0].summary.includes(U.vend), ownTl);
   ok('exclui atividade (exclusão lógica, como na tela)', (await call(H(), 'DELETE', `/api/connect/crm/activities/${idsToExclude.activity}`)).status === 200);
   ok('exclui a cadência', (await call(H(), 'DELETE', `/api/connect/crm/cadences/${cad.json.cadence.id}`)).status === 200);
   ok('exclui negócio e empresa', (await call(H(), 'DELETE', `/api/connect/crm/deals/${dealId}`)).status === 200 && (await call(H(), 'DELETE', `/api/connect/crm/companies/${companyId}`)).status === 200);

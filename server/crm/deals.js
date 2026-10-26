@@ -10,7 +10,7 @@ import { realName } from './text.js';
 import { applyWonAutomation } from './automation.js';
 import { resolvePipeline, DEAL_TYPES, DEAL_TYPE_LABELS, LOST_REASONS } from './pipeline.js';
 import {
-  sanitize, tx, addAudit, addTimeline, diffApi, mapBySpec, loadCompany, requireUuid, assertUserInOrg, changeSummary, todayBR, RELATIONSHIP_LABELS,
+  sanitize, tx, addAudit, addTimeline, diffApi, mapBySpec, loadCompany, requireUuid, assertUserInOrg, changeSummary, changeSummaryNamed, todayBR, RELATIONSHIP_LABELS,
 } from './service.js';
 
 export const DEAL_SPEC = [
@@ -230,7 +230,7 @@ export async function updateDeal(orgId, actor, id, input, { canEditClosed = fals
     await c.query(`UPDATE crm_deals SET ${sets.join(', ')}, updated_at=now() WHERE id=$${params.length}`, params);
     await addAudit(c, { orgId, entityType: 'deal', entityId: id, action: 'update', changes, actor });
     await addTimeline(c, { orgId, companyId: row.company_id, entityType: 'deal', entityId: id, eventType: 'deal_updated', actor,
-      summary: `${actor.name} alterou o negócio "${after.title}": ${changeSummary(DEAL_SPEC, changes)}.`, data: { dealId: id, changes } });
+      summary: `${actor.name} alterou o negócio "${after.title}": ${await changeSummaryNamed(c, DEAL_SPEC, changes)}.`, data: { dealId: id, changes } });
     return fetchDeal(c, orgId, id);
   });
 }

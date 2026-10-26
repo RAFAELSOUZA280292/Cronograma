@@ -249,6 +249,26 @@ export function diffApi(spec, before, after) {
   return changes;
 }
 
+// Igual a changeSummary, mas campos que guardam um id (responsável, contato, negócio) aparecem pelo NOME no texto da linha do tempo.
+// A auditoria continua guardando o id. Falhou a busca → mostra o valor como está.
+export async function changeSummaryNamed(db, spec, changes, limit = 5) {
+  const idFields = new Set(spec.filter((f) => f.type === 'user').map((f) => f.key));
+  const ids = [...new Set(changes.filter((ch) => idFields.has(ch.field)).flatMap((ch) => [ch.from, ch.to]).filter(Boolean).map(String))];
+  const names = new Map();
+  if (ids.length) {
+    try {
+      const uuids = ids.filter((x) => isUuid(x));
+      const u = await db.query('SELECT id, name FROM users WHERE id = ANY($1::text[])', [ids]); u.rows.forEach((r) => names.set(r.id, r.name));
+      if (uuids.length) {
+        const k = await db.query(`SELECT id::text AS id, trim(first_name || ' ' || last_name) AS name FROM crm_contacts WHERE id = ANY($1::uuid[])`, [uuids]); k.rows.forEach((r) => names.set(r.id, r.name || 'contato'));
+        const d = await db.query('SELECT id::text AS id, title AS name FROM crm_deals WHERE id = ANY($1::uuid[])', [uuids]); d.rows.forEach((r) => { if (!names.has(r.id)) names.set(r.id, r.name); });
+      }
+    } catch { /* sem nomes: cai no valor bruto */ }
+  }
+  const shown = changes.map((ch) => (idFields.has(ch.field) ? { ...ch, from: ch.from && names.get(String(ch.from)) || ch.from, to: ch.to && names.get(String(ch.to)) || ch.to } : ch));
+  return changeSummary(spec, shown, limit);
+}
+
 function fmtChangeValue(f, v) {
   if (v == null || v === '') return 'vazio';
   if (f === 'relationship') return RELATIONSHIP_LABELS[v] || v;
@@ -359,7 +379,7 @@ export async function updateCompany(orgId, actor, id, input, { force = false } =
       const others = changes.filter((ch) => ch.field !== 'relationship' && !(rel && ch.field === 'clientSince' && rel.to === 'client'));
       if (others.length) {
         await addTimeline(c, { orgId, companyId: id, entityType: 'company', entityId: id, eventType: 'company_updated', actor,
-          summary: `${actor.name} alterou o cadastro: ${changeSummary(COMPANY_SPEC, others)}.`, data: { changes: others } });
+          summary: `${actor.name} alterou o cadastro: ${await changeSummaryNamed(c, COMPANY_SPEC, others)}.`, data: { changes: others } });
       }
       return mapCompany(await loadCompany(c, orgId, id));
     });
@@ -510,7 +530,7 @@ export async function updateContact(orgId, actor, id, input, { force = false } =
     await c.query(`UPDATE crm_contacts SET ${sets.join(', ')}, updated_at=now() WHERE id=$${params.length}`, params);
     await addAudit(c, { orgId, entityType: 'contact', entityId: id, action: 'update', changes, actor });
     await addTimeline(c, { orgId, companyId: before.companyId, entityType: 'contact', entityId: id, eventType: 'contact_updated', actor,
-      summary: `${actor.name} atualizou o contato ${fullName(after)}: ${changeSummary(CONTACT_SPEC, changes)}.`, data: { contactId: id, changes } });
+      summary: `${actor.name} atualizou o contato ${fullName(after)}: ${await changeSummaryNamed(c, CONTACT_SPEC, changes)}.`, data: { contactId: id, changes } });
     return mapContact(await loadContact(c, orgId, id));
   });
 }
