@@ -68,7 +68,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | Empresas | Links públicos e compartilhamento externo | — | 🚫 | Gerados pela própria pessoa na tela. |
 | Gestão de Atividades | Cartões: criar, editar (título, prazo, prioridade, status, coluna), concluir, excluir | quadro_criar_atividade, quadro_atualizar_atividade, quadro_concluir_atividade, quadro_excluir_atividade | ✅ | renata (T6), renata-tools |
 | Gestão de Atividades | Listar o quadro | quadro_listar | ✅ | renata-tools |
-| Gestão de Atividades | Checklist, comentários, criar páginas e colunas | quadro_checklist, quadro_comentar, quadro_criar_pagina, quadro_criar_coluna | ✅ | renata-tools. Edição local ainda não salva vence a da RENATA (a tela recarrega em até ~12 s). |
+| Gestão de Atividades | Checklist (itens, marcar, prazo por item), comentários, criar páginas e colunas | quadro_checklist (inclui prazo do item), quadro_comentar, quadro_criar_pagina, quadro_criar_coluna | ✅ | renata-tools. Edição local ainda não salva vence a da RENATA (a tela recarrega em até ~12 s). |
 | Gestão de Atividades | Anexos e tags do cartão; renomear/excluir/reordenar páginas e colunas; arquivar | — | ⬜ | Ainda sem ferramenta (anexos exigem arquivo). |
 | Gestão de Atividades | Quadro público compartilhado | — | 🚫 | Link público gerado na tela. |
 | Agenda | Listar compromissos | agenda_listar | ✅ | renata-tools (sem Google conectado devolve vazio) |

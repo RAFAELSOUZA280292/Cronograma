@@ -207,7 +207,9 @@ try {
   ]);
   Object.keys(m2.byTool || {}).forEach((t) => exercised.add(t));
   const ck2 = (await rows(`SELECT data FROM personal_boards WHERE user_id=$1`, [ADM]))[0].data.boards.find((b) => b.name === 'Página RENATA').columns.find((c) => c.name === 'Coluna RENATA').cards[0];
-  const m3 = await run('adm', [{ name: 'quadro_checklist', input: { id: ck.id, acao: 'marcar', texto: 'Primeiro item' } }]);
+  const m3 = await run('adm', [{ name: 'quadro_checklist', input: { id: ck.id, acao: 'marcar', texto: 'Primeiro item' } }, { name: 'quadro_checklist', input: { id: ck.id, acao: 'adicionar', texto: 'Item com prazo', prazo: '2026-11-15' } }, { name: 'quadro_checklist', input: { id: ck.id, acao: 'definir_prazo', texto: 'Primeiro item', prazo: '2026-11-20' } }]);
+  const ckp = (await rows(`SELECT data FROM personal_boards WHERE user_id=$1`, [ADM]))[0].data.boards.find((b) => b.name === 'Página RENATA').columns.find((c) => c.name === 'Coluna RENATA').cards[0].checklist;
+  ok('checklist com prazo: item novo com prazo e prazo definido num item existente (campo dueDate do item)', allOk(m3, ['quadro_checklist']) && ckp.find((x) => x.text === 'Item com prazo').dueDate === '2026-11-15' && ckp.find((x) => x.text === 'Primeiro item').dueDate === '2026-11-20', ckp);
   const ck3 = (await rows(`SELECT data FROM personal_boards WHERE user_id=$1`, [ADM]))[0].data.boards.find((b) => b.name === 'Página RENATA').columns.find((c) => c.name === 'Coluna RENATA').cards[0];
   pj2 = (await rows(`SELECT data FROM projects WHERE id=$1`, [PROJ]))[0].data;
   ok('reunião, fase, checklist e comentário alterados de fato (item marcado, comentário com autor RENATA)', allOk(m2, ['reuniao_atualizar', 'empresa_fase_atualizar', 'quadro_checklist', 'quadro_comentar']) && allOk(m3, ['quadro_checklist']) && pj2.meetings.find((m) => m.id === mt.id).summary === 'Resumo da RENATA' && pj2.phases.find((p) => p.name === 'Fase RENATA').sub === 'Descrição RENATA' && ck2.checklist.length === 1 && ck3.checklist[0].done === true && /RENATA/.test(ck3.comments[0].author), { bad: bad(m2), ck3 });

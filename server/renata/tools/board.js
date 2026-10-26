@@ -139,32 +139,39 @@ export function registerBoard(registry) {
 
   // ---------- checklist, comentários, páginas e colunas
   registry.add({ ...base, name: 'quadro_checklist', summary: 'Mexe no checklist de um cartão: adicionar item, marcar/desmarcar (por itemId ou texto) ou remover.', risk: 'write',
-    params: T.obj({ id: T.str('Id do cartão'), acao: T.enm('O que fazer', ['adicionar', 'marcar', 'desmarcar', 'remover']), texto: T.str('Texto do item (novo, ou para localizar o item)'), itemId: T.str('Id do item') }, ['id', 'acao']),
+    params: T.obj({ id: T.str('Id do cartão'), acao: T.enm('O que fazer: adicionar, marcar, desmarcar, remover ou definir_prazo (altera/remove o prazo do item)', ['adicionar', 'marcar', 'desmarcar', 'remover', 'definir_prazo']), texto: T.str('Texto do item (novo, ou para localizar o item)'), itemId: T.str('Id do item'), prazo: T.date('Prazo do item (opcional) em adicionar; novo prazo em definir_prazo'), limparPrazo: T.bool('Remover o prazo do item (definir_prazo)') }, ['id', 'acao']),
     before: cardBefore, describe: (i, b) => `Checklist do cartão “${(b && b.title) || i.id}”: ${i.acao}${i.texto ? ` “${i.texto}”` : ''}.`,
     undo: (i, b, r) => {
       if (!r || !r.item) return null;
       if (i.acao === 'adicionar') return { tool: 'quadro_checklist', input: { id: i.id, acao: 'remover', itemId: r.item.id }, label: 'remover o item' };
       if (i.acao === 'marcar') return { tool: 'quadro_checklist', input: { id: i.id, acao: 'desmarcar', itemId: r.item.id }, label: 'desmarcar o item' };
       if (i.acao === 'desmarcar') return { tool: 'quadro_checklist', input: { id: i.id, acao: 'marcar', itemId: r.item.id }, label: 'marcar o item' };
+      if (i.acao === 'definir_prazo') return r.anteriorPrazo ? { tool: 'quadro_checklist', input: { id: i.id, acao: 'definir_prazo', itemId: r.item.id, prazo: r.anteriorPrazo }, label: 'devolver o prazo anterior' } : { tool: 'quadro_checklist', input: { id: i.id, acao: 'definir_prazo', itemId: r.item.id, limparPrazo: true }, label: 'remover o prazo' };
       return null;
     },
     run: (ctx, i) => withBoard(ctx, ({ boards, now, who: w }) => {
       const f = findCard(boards, i.id);
       if (!f) return { status: 404, json: { message: 'Cartão não encontrado.' } };
       const list = [...(f.card.checklist || [])];
-      let item;
+      let item; let anteriorPrazo = '';
       if (i.acao === 'adicionar') {
         if (!i.texto) return { status: 400, json: { message: 'Informe o texto do item.' } };
-        item = { id: uid('chk'), text: i.texto, done: false }; list.push(item);
+        item = { id: uid('chk'), text: i.texto, done: false, ...(i.prazo ? { dueDate: i.prazo } : {}) }; list.push(item);
       } else {
         const idx = i.itemId ? list.findIndex((x) => x.id === i.itemId) : list.findIndex((x) => same(x.text, i.texto));
         if (idx < 0) return { status: 404, json: { message: 'Item do checklist não encontrado. Itens: ' + (list.map((x) => `“${x.text}”`).join(', ') || '(nenhum)') } };
         item = list[idx];
-        if (i.acao === 'remover') list.splice(idx, 1); else list[idx] = { ...item, done: i.acao === 'marcar' };
+        if (i.acao === 'remover') list.splice(idx, 1);
+        else if (i.acao === 'definir_prazo') {
+          if (!i.prazo && !i.limparPrazo) return { status: 400, json: { message: 'Informe o prazo (AAAA-MM-DD) ou limparPrazo=true.' } };
+          anteriorPrazo = item.dueDate || '';
+          const { dueDate, ...rest } = item;
+          list[idx] = i.limparPrazo ? rest : { ...rest, dueDate: i.prazo };
+        } else list[idx] = { ...item, done: i.acao === 'marcar' };
         if (i.acao !== 'remover') item = list[idx];
       }
       f.col.cards[f.idx] = withHistory({ ...f.card, checklist: list }, `Checklist alterado pela RENATA: ${i.acao}${item ? ` “${item.text}”` : ''}`, now, w);
-      return { status: 200, json: { cartao: { id: f.card.id, title: f.card.title }, item: { id: item.id, text: item.text, done: !!item.done }, itens: list.length, feitos: list.filter((x) => x.done).length } };
+      return { status: 200, json: { cartao: { id: f.card.id, title: f.card.title }, item: { id: item.id, text: item.text, done: !!item.done, prazo: item.dueDate || '' }, anteriorPrazo, itens: list.length, feitos: list.filter((x) => x.done).length } };
     }), summarize: (i, r) => `Checklist de “${r.cartao.title}”: ${i.acao} “${r.item.text}” (${r.feitos}/${r.itens}).` });
   registry.add({ ...base, name: 'quadro_comentar', summary: 'Adiciona um comentário a um cartão do quadro pessoal.', risk: 'write', creates: true, params: T.obj({ id: T.str('Id do cartão'), texto: T.str('Comentário', { minLength: 1, maxLength: 2000 }) }, ['id', 'texto']),
     before: cardBefore, describe: (i, b) => `Comentar no cartão “${(b && b.title) || i.id}”: “${i.texto.slice(0, 80)}”.`,

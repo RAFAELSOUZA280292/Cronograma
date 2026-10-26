@@ -2,7 +2,7 @@
 // Extraído de src/App.jsx (2026-10-16, "dividir o App.jsx"): carregado sob demanda (lazyRetry no App.jsx) para sair do pacote principal.
 // O código é o mesmo de antes; o que vem do App.jsx é importado de lá (e lá foi exportado).
 
-import { AlertTriangle, Archive, ArrowLeftRight, Check, Clock, Columns3, Copy, Gauge, Globe, GripVertical, History, LayoutList, Link2, ListChecks, Lock, LogOut, Maximize2, MessageSquare, MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Tag, Trash2, Undo2, X } from 'lucide-react';
+import { AlertTriangle, Archive, ArrowLeftRight, CalendarDays, Check, Clock, Columns3, Copy, Gauge, Globe, GripVertical, History, LayoutList, Link2, ListChecks, Lock, LogOut, Maximize2, MessageSquare, MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Tag, Trash2, Undo2, X } from 'lucide-react';
 import { CommentThread, ComposeBox } from '../ui/ComposeBox.jsx';
 import { ConfirmDialog, RecordSaveStatus, SaveStatus, activateRow } from '../ui/index.jsx';
 import DaySummary from '../personal/DaySummary.jsx';
@@ -288,6 +288,44 @@ function PersonalCardMenu({ card, otherColumns, onClose, onOpen, onSetPriority, 
   );
 }
 
+// Prazo de um item do checklist (opcional, além do prazo do cartão). O dado é só `item.dueDate` ('AAAA-MM-DD'); item sem prazo continua igual.
+const isIsoDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '') && !Number.isNaN(Date.parse(`${v}T12:00:00Z`));
+const checklistTone = (item) => dueDateTone({ dueDate: item.dueDate, completed: !!item.done });
+const shortDay = (iso) => { const [, m, d] = String(iso || '').split('-'); return d ? `${d}/${m}` : ''; };
+// Pior situação entre os itens abertos com prazo (vira a cor do selo ✓ x/y do cartão).
+function checklistWorstTone(card) {
+  const tones = (card.checklist || []).map(checklistTone);
+  return tones.includes('overdue') ? 'overdue' : tones.includes('today') ? 'today' : 'none';
+}
+
+function ChecklistDate({ item, readOnly, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(item.dueDate || '');
+  useEffect(() => { if (!open) setDraft(item.dueDate || ''); }, [item.dueDate, open]);
+  const tone = checklistTone(item);
+  const toneStyle = tone === 'overdue' ? S.dueOverdue : tone === 'today' ? S.dueToday : tone === 'soon' ? S.dueSoon : {};
+  if (!open) {
+    if (item.dueDate) {
+      const label = `Prazo do item: ${fmtDate(item.dueDate)}${tone === 'overdue' ? ' (vencido)' : tone === 'today' ? ' (hoje)' : ''}`;
+      return readOnly
+        ? <span title={label} style={{ ...S.personalCardBadge, ...toneStyle, flexShrink: 0 }}>📅 {shortDay(item.dueDate)}</span>
+        : <button type="button" title={`${label} — clique para alterar`} aria-label={`${label}. Alterar prazo do item`} onClick={() => setOpen(true)} style={{ ...S.personalCardBadge, ...toneStyle, flexShrink: 0, cursor: 'pointer', border: 'none', font: 'inherit' }}>📅 {shortDay(item.dueDate)}</button>;
+    }
+    if (readOnly) return null;
+    return <button type="button" style={S.chipX} title="Definir prazo do item" aria-label="Definir prazo do item" onClick={() => setOpen(true)}><CalendarDays aria-hidden="true" size={12} /></button>;
+  }
+  const commit = (v) => { onChange(v); setOpen(false); };
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+      <input type="date" autoFocus value={draft} aria-label="Prazo do item do checklist" style={{ width: 128, minHeight: 28, fontSize: 12 }}
+        onChange={(e) => { setDraft(e.target.value); if (isIsoDay(e.target.value)) commit(e.target.value); }}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (isIsoDay(draft)) commit(draft); else setOpen(false); } else if (e.key === 'Escape') { e.preventDefault(); setOpen(false); } }}
+        onBlur={() => { if (!draft && item.dueDate) onChange(''); setOpen(false); }} />
+      <button type="button" style={S.chipX} title="Remover o prazo do item" aria-label="Remover o prazo do item" onMouseDown={(e) => e.preventDefault()} onClick={() => commit('')}><X aria-hidden="true" size={12} /></button>
+    </span>
+  );
+}
+
 function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen, onToggleComplete, onDelete, onDuplicate, onSetPriority, onSetStatus, onMoveTo }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id, data: { type: 'card', columnId }, disabled: disabled || readOnly });
@@ -348,7 +386,7 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
             </span>
           )}
           {(card.comments || []).length > 0 && <span style={S.personalCardBadge}>💬 {card.comments.length}</span>}
-          {(card.checklist || []).length > 0 && <span style={S.personalCardBadge}>✓ {doneCount}/{card.checklist.length}</span>}
+          {(card.checklist || []).length > 0 && (() => { const ct = checklistWorstTone(card); return <span title={ct === 'overdue' ? 'Há item do checklist com prazo vencido' : ct === 'today' ? 'Há item do checklist com prazo para hoje' : undefined} style={{ ...S.personalCardBadge, ...(ct === 'overdue' ? S.dueOverdue : ct === 'today' ? S.dueToday : {}) }}>✓ {doneCount}/{card.checklist.length}</span>; })()}
           {showStaleBadge && (
             <span
               title={`Sem movimentação há ${staleDays} dia${staleDays === 1 ? '' : 's'} (última: ${fmtDateOnly(card.updatedAt || card.createdAt)})`}
@@ -499,8 +537,9 @@ function PersonalColumn({
   );
 }
 
-function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherColumns, onMoveTo, allTags, currentUserId, readOnly, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onUpdateChecklistItem, onRemoveChecklistItem }) {
+function PersonalCardDetailModal({ onSetChecklistDate, card, columnId, columnName, boardName, otherColumns, onMoveTo, allTags, currentUserId, readOnly, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onUpdateChecklistItem, onRemoveChecklistItem }) {
   const [checklistDraft, setChecklistDraft] = useState('');
+  const [checklistDraftDate, setChecklistDraftDate] = useState('');
   const [composeDirty, setComposeDirty] = useState(false);
   const composeRef = useRef(null);
   const [editingChecklistId, setEditingChecklistId] = useState(null);
@@ -531,8 +570,9 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
   }
   function submitChecklist() {
     if (!checklistDraft.trim()) return;
-    onAddChecklistItem(checklistDraft);
+    onAddChecklistItem(checklistDraft, isIsoDay(checklistDraftDate) ? checklistDraftDate : '');
     setChecklistDraft('');
+    setChecklistDraftDate('');
   }
 
   const doneCount = (card.checklist || []).filter((i) => i.done).length;
@@ -654,6 +694,7 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
                     >
                       {item.text}
                     </span>
+                    <ChecklistDate item={item} readOnly={readOnly} onChange={(v) => onSetChecklistDate(item.id, v)} />
                     {!readOnly && (
                       <button style={S.chipX} title="Editar" onClick={() => { setEditingChecklistId(item.id); setEditingChecklistText(item.text); }}><Pencil size={11} /></button>
                     )}
@@ -664,14 +705,15 @@ function PersonalCardDetailModal({ card, columnId, columnName, boardName, otherC
             ))}
           </div>
           {!readOnly && (
-            <div style={S.commentInputRow}>
+            <div style={{ ...S.commentInputRow, flexWrap: 'wrap' }}>
               <input
                 value={checklistDraft}
                 onChange={(e) => setChecklistDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitChecklist(); } }}
                 placeholder="Adicionar item..."
-                style={{ flex: 1 }}
+                style={{ flex: '1 1 150px', minWidth: 0 }}
               />
+              <input type="date" value={checklistDraftDate} onChange={(e) => setChecklistDraftDate(e.target.value)} aria-label="Prazo do novo item (opcional)" title="Prazo do item (opcional)" style={{ width: 128, flexShrink: 0 }} />
               <button aria-label="Adicionar item ao checklist" title="Adicionar item ao checklist" style={S.iconBtn} onClick={submitChecklist}><Plus aria-hidden="true" size={13} /></button>
             </div>
           )}
@@ -1496,14 +1538,18 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
   }
 
   // ---- checklist ----
-  function addChecklistItem(colId, cardId, text) {
+  function addChecklistItem(colId, cardId, text, dueDate) {
     const v = (text || '').trim();
     if (!v) return;
-    const item = { id: uid('chk'), text: v, done: false };
+    const item = { id: uid('chk'), text: v, done: false, ...(isIsoDay(dueDate) ? { dueDate } : {}) };
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: [...(cd.checklist || []), item], updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
   }
   function toggleChecklistItem(colId, cardId, itemId) {
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).map((i) => (i.id === itemId ? (i.done ? { ...i, done: false, doneAt: '' } : { ...i, done: true, doneAt: new Date().toISOString() }) : i)), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
+  }
+  function setChecklistItemDate(colId, cardId, itemId, date) {
+    const v = isIsoDay(date) ? date : '';
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).map((i) => { if (i.id !== itemId) return i; const { dueDate, ...rest } = i; return v ? { ...rest, dueDate: v } : rest; }), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
   }
   function updateChecklistItem(colId, cardId, itemId, text) {
     const v = (text || '').trim();
@@ -2016,7 +2062,8 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
             onAddComment={(text, attachments, links) => addCardComment(col.id, card.id, text, attachments, links)}
             onUpdateComment={(id, text) => updateCardComment(col.id, card.id, id, text)}
             onRemoveComment={(id) => removeCardComment(col.id, card.id, id)}
-            onAddChecklistItem={(text) => addChecklistItem(col.id, card.id, text)}
+            onAddChecklistItem={(text, date) => addChecklistItem(col.id, card.id, text, date)}
+            onSetChecklistDate={(id, date) => setChecklistItemDate(col.id, card.id, id, date)}
             onToggleChecklistItem={(id) => toggleChecklistItem(col.id, card.id, id)}
             onUpdateChecklistItem={(id, text) => updateChecklistItem(col.id, card.id, id, text)}
             onRemoveChecklistItem={(id) => removeChecklistItem(col.id, card.id, id)}
