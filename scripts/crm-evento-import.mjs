@@ -239,7 +239,7 @@ export async function run(opts) {
     const key = l.empresa ? companyKey(l.empresa) : '';
     if (key) {
       const hit = companyInRun.get(key) || idx.companyByKey.get(key);
-      if (hit) { rep.companiesReused.push({ lead: l.id, empresa: l.empresa, company: hit.legalName }); return { id: hit.id, reused: true }; }
+      if (hit) { const existing = !!idx.companyByKey.get(key); rep.companiesReused.push({ lead: l.id, empresa: l.empresa, company: hit.legalName, existente: existing }); return { id: hit.id, reused: true }; }
     }
     const legalName = l.empresa || `${l.nome} (empresa não informada)`;
     const sim = await api('POST', '/companies/check-duplicates', { legalName }).then((d) => (d.byName || []).map((x) => x.legalName || x.legal_name || x.name).filter(Boolean)).catch(() => []);
@@ -383,7 +383,7 @@ export async function run(opts) {
 export function reportMarkdown(rep, event) {
   const L = [];
   L.push(`# Importação do ${SOURCE} para o CRM — ${rep.apply ? 'GRAVADA' : 'PRÉVIA (nada foi gravado)'}`, '', `Funil: **${rep.pipeline}** · ${rep.startedAt}`, '');
-  L.push('| | |', '|---|---|', `| Leads lidos | ${rep.total} |`, `| Criados | ${rep.created.length} |`, `| Vinculados a registro existente | ${rep.linked.length} |`, `| Atualizados (reimportação) | ${rep.updated.length} |`, `| Ignorados | ${rep.ignored.length} |`, `| Falhas | ${rep.failed.length} |`, `| Empresas novas | ${rep.companiesCreated.length} (${rep.companiesCreated.filter((c) => c.provisional).length} provisórias, sem empresa na planilha) |`, `| Empresas já existentes reaproveitadas | ${rep.companiesReused.length} |`, `| Notas: capturas / brindes / interações / grupos | ${rep.notes.captures} / ${rep.notes.gifts} / ${rep.notes.interactions} / ${rep.notes.groups} |`, `| Atividades de contato combinado | ${rep.activities} |`, '');
+  L.push('| | |', '|---|---|', `| Leads lidos | ${rep.total} |`, `| Criados | ${rep.created.length} |`, `| Vinculados a registro existente | ${rep.linked.length} |`, `| Atualizados (reimportação) | ${rep.updated.length} |`, `| Ignorados | ${rep.ignored.length} |`, `| Falhas | ${rep.failed.length} |`, `| Empresas novas | ${rep.companiesCreated.length} (${rep.companiesCreated.filter((c) => c.provisional).length} provisórias, sem empresa na planilha) |`, `| Empresas que já existiam no CRM e foram reaproveitadas | ${rep.companiesReused.filter((c) => c.existente).length} |`, `| Várias pessoas da mesma empresa do evento (empresa reaproveitada dentro da importação) | ${rep.companiesReused.filter((c) => !c.existente).length} |`, `| Notas: capturas / brindes / interações / grupos | ${rep.notes.captures} / ${rep.notes.gifts} / ${rep.notes.interactions} / ${rep.notes.groups} |`, `| Atividades de contato combinado | ${rep.activities} |`, '');
   L.push('## Etapas (estágio do evento → etapa do funil)', '', ...Object.entries(rep.stageCounts).map(([k, v]) => `- ${k}: ${v}`), '');
   L.push('## Vinculados (já existiam no CRM)', '');
   rep.linked.forEach((x) => L.push(`- ${x.nome} (${x.lead}) → contato em **${x.empresaCRM || '—'}**${x.negocioExistente ? `; negócio existente "${x.negocioExistente.titulo}" (${x.negocioExistente.etapa}, ${x.negocioExistente.funil}) recebeu tag e nota` : '; sem negócio aberto — foi criado um negócio do evento ligado a ele'}`));
