@@ -646,6 +646,7 @@ Não há storage externo nem fila: anexos de atividade são base64 inline no PAT
 | `cnpj_cache` | Cache de 60 dias das respostas de lookup de CNPJ — **não** tem `org_id`, é compartilhado entre organizações de propósito | Nenhum |
 | `personal_boards` | 1 linha por usuário, `data JSONB` = quadro Kanban pessoal — **não** tem `org_id` (sempre buscado por `user_id`; o scan de `shareToken` público é cross-org de propósito) | FK `user_id → users.id` |
 | `document_templates` / `document_template_items` | Modelos de documentos (2026-10-05, §78): o modelo (título, categoria, descrição, comentários) e seus até 12 anexos (arquivo em BYTEA ou link com `link_meta`/`preview_text`). Colunas de arquivo/link de `document_templates` são legado migrado | `org_id → organizations.id`; `template_id → document_templates.id` (CASCADE) |
+| `api_token_actions` | Gravações no CRM por chave de API (§99): `token_id`, `user_id`, `method`, `path`, `status` (sem corpo); lista em `GET /api/connect/actions` | `token_id → api_tokens.id` (CASCADE) |
 | `api_tokens` | Tokens da API de conectividade (2026-10-05, §80): um por janela do Claude Code, `token_hash` (sha256, único), `scope` (`read`/`read_create`), `expires_at`, `last_used_at`, `revoked_at` | `user_id → users.id` (CASCADE) |
 | `daily_content` | Cache diário das fontes do Meu dia (2026-10-05, §77): PK `(kind, key, day)`, `payload` JSONB; evangelho/versículo/sabedoria/horóscopo por signo/texto de IA do dia | — |
 | `ai_eval_runs` | Registro de execução do eval da RENATA (`server/evals/`, §41) | — |
@@ -717,7 +718,7 @@ migration manual.
 | `/api/daily` | `GET /` (conteúdo do usuário), `GET/PUT /preferences`, `POST /onboarding-complete`, `GET /options` | daily.js (+ dailyContent.js) |
 | `/api/templates` | `GET /`, `POST /`, `PATCH/DELETE /:id`, `POST /:id/items`, `PATCH/DELETE /:id/items/:itemId`, `GET /:id/items/:itemId/file`, comentários | documentTemplates.js |
 | `/api/pareceres` | CRUD + `/:id/file`, comentários, `/study`, `/advice` | pareceres.js |
-| `/api/connect` | `GET /` (índice público), `/tokens` (cookie), `/me`, `/activities` (GET/POST), `/companies[/:id[/meetings/:mid]]`, `/agenda` — Bearer `pxk_…` | connect.js |
+| `/api/connect` | `GET /` (índice público), `/tokens` e `/actions` (cookie), `/crm/*` (escopo `crm_operate`: o CRM inteiro como "Claude Code", §99), `/me`, `/activities` (GET/POST), `/companies[/:id[/meetings/:mid]]`, `/agenda` — Bearer `pxk_…` | connect.js |
 | `/api/crm` | 57 rotas (empresas, contatos, negócios, funis, atividades, importadores) | crm/routes.js |
 
 `GET/POST /projects` e `GET/POST /users` aceitam `?asOrg=<orgId>` — só

@@ -562,8 +562,8 @@ export async function addNote(orgId, actor, { entityType, entityId, body, attach
       about = ` sobre ${`${k.first_name} ${k.last_name}`.trim()}`;
     }
     const id = randomUUID();
-    await c.query(`INSERT INTO crm_notes (id, org_id, entity_type, entity_id, company_id, body, created_by, updated_by, attachments, links) VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9)`,
-      [id, orgId, entityType, entityId, companyId, text, actor.id || null, JSON.stringify(att), JSON.stringify(lk)]);
+    await c.query(`INSERT INTO crm_notes (id, org_id, entity_type, entity_id, company_id, body, created_by, updated_by, attachments, links, author_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10)`,
+      [id, orgId, entityType, entityId, companyId, text, actor.id || null, JSON.stringify(att), JSON.stringify(lk), actor.viaApi ? actor.name : '']); // entrada por chave de API (§99): a nota mostra "Claude Code (por …)", não o dono
     await addAudit(c, { orgId, entityType: 'note', entityId: id, action: 'create', changes: [{ field: 'body', label: 'Nota', from: null, to: text }], actor });
     const excerpt = text.length > 160 ? `${text.slice(0, 160)}…` : text;
     await addTimeline(c, { orgId, companyId, entityType: 'note', entityId: id, eventType: 'note_added', actor,

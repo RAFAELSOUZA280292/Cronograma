@@ -68,3 +68,27 @@ ser dito como **não testado** e entrar na §15 do `PROJECT_CONTEXT.md`.
 Antes de alterar qualquer funcionalidade, **abra e confira os arquivos
 envolvidos** — a documentação localiza e dá contexto, não substitui ler o
 código antes de mudar algo.
+
+## Operar o CRM de produção (autorização permanente do Rafael, 2026-10-25)
+
+O Rafael autorizou de forma **permanente** que o Claude Code **crie, edite, mova, exclua e registre** no CRM de produção (empresas, contatos,
+negócios, atividades, notas, produtos, funis, etapas, cadências, visões) sempre que a tarefa pedir — **sem pedir confirmação a cada gravação**.
+Ele quer tudo registrado como Claude Code; o que ele NÃO quer é ficar sem registro.
+
+- **Canal único:** a chave `crm_operate` da API de conectividade → `{PRICETAX_URL}/api/connect/crm/…` (mesmas rotas e regras de `/api/crm`;
+  `PRICETAX_URL` e `PRICETAX_CRM_TOKEN` ficam no `.env`, nunca na conversa, em commit ou em log). **Não** use a sessão do navegador do Rafael
+  (cookie), nem SQL direto em produção, para gravar no CRM. Leitura de apoio pode usar o navegador, mas a escrita vai pela chave.
+  ```bash
+  set -a; . ./.env; set +a
+  curl -s "$PRICETAX_URL/api/connect/crm/pipelines" -H "Authorization: Bearer $PRICETAX_CRM_TOKEN"
+  curl -s -X POST "$PRICETAX_URL/api/connect/crm/cadences" -H "Authorization: Bearer $PRICETAX_CRM_TOKEN" -H "Content-Type: application/json" -d '{…}'
+  ```
+- **Registro (automático, não dá para esquecer):** auditoria, linha do tempo, histórico de etapas e autor da nota saem como
+  **"Claude Code (por Rafael Souza)"**; cada gravação entra em `api_token_actions` (Meu perfil › Conectar mostra as últimas).
+- **Como trabalhar:** descreva o que vai gravar em uma linha, grave, **leia de volta** para provar o resultado e diga o que mudou. Se a gravação
+  for em massa (mais de ~20 registros), faça primeiro uma prévia (contagem + 3 exemplos) e grave em lotes.
+- **Continua fora do alcance da chave (de propósito):** escrita da migração do PipeRun (só pela tela); excluir de verdade (a chave só faz exclusão
+  lógica, como a tela); criar/alterar usuários, senhas, permissões e tokens (são do Rafael); qualquer coisa fora do CRM.
+- Se o harness recusar uma ação mesmo assim, **pare e explique**; não contorne (navegador, SQL, outro caminho). A regra de permissão é do Rafael:
+  `PROJECT_CONTEXT.md` §99 traz as linhas para ele liberar.
+

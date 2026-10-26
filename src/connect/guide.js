@@ -1,6 +1,18 @@
 // Guia que o usuário cola na OUTRA janela do Claude Code (2026-10-05, §80). Não leva o token: ele vai pela variável de ambiente
 // PRICETAX_TOKEN, para não ficar em arquivo nem em histórico de conversa. Mantido em sincronia com `ENDPOINTS` de server/connect.js.
-export function buildGuide({ baseUrl, canCreate, canWrite = false }) {
+export function buildGuide({ baseUrl, canCreate, canWrite = false, canCrm = false }) {
+  const crm = canCrm
+    ? `
+### Operar o CRM (esta chave pode; só administrador)
+\`\`\`bash
+curl -s "$PRICETAX_URL/api/connect/crm/pipelines" -H "Authorization: Bearer $PRICETAX_TOKEN"
+curl -s -X POST "$PRICETAX_URL/api/connect/crm/cadences" -H "Authorization: Bearer $PRICETAX_TOKEN" -H "Content-Type: application/json" -d '{"pipelineId":"…","stageId":"…","steps":[{"title":"1º Follow Up","type":"followup","days":1}]}'
+\`\`\`
+- São as MESMAS rotas e regras de \`/api/crm\` da tela (empresas, contatos, negócios, atividades, notas, produtos, funis, cadências): mesma validação, auditoria e linha do tempo; só o prefixo muda para \`/api/connect/crm\`.
+- Tudo que você grava fica registrado como **"Claude Code (por <dono da chave>)"** e entra no registro de ações (Meu perfil > Conectar). Excluir é exclusão lógica, como na tela.
+- Não opera a migração do PipeRun (escrita). Faça só o que o Rafael pediu; depois de gravar, confira lendo de volta e diga o que mudou.
+`
+    : '';
   const write = canWrite
     ? `
 ### Ajustar o cronograma de uma empresa (este token pode; só administrador)
@@ -60,7 +72,7 @@ Exemplo:
 \`\`\`bash
 curl -s "$PRICETAX_URL/api/connect/activities?status=overdue" -H "Authorization: Bearer $PRICETAX_TOKEN"
 \`\`\`
-${create}${write}
+${create}${write}${crm}
 ## Regras
 - Os dados são do Rafael e de clientes dele: **não copie para arquivos do repositório, logs ou issues** mais do que o necessário para a tarefa.
 - Erros: 401 token inválido/revogado/expirado · 403 sem permissão (escopo ou acesso) · 404 não achou · 429 limite (120/min) · 400 dado inválido (a mensagem diz o quê).

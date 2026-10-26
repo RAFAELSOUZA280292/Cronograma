@@ -17,12 +17,14 @@ import { getConnectionStatus, listEvents } from './googleCalendar.js';
 import { todayInSp } from './widgetSummary.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { originOf, setActor } from './projectAudit.js';
+import { createCrmRouter } from './crm/routes.js';
 
 export const router = Router();
 
 const PREFIX = 'pxk_';
-export const SCOPES = { read: 'Só leitura', read_create: 'Ler e criar atividades', read_write: 'Ler, criar atividades e ajustar o cronograma de empresas' };
-const SCOPE_RANK = { read: 0, read_create: 1, read_write: 2 };
+export const SCOPES = { read: 'Só leitura', read_create: 'Ler e criar atividades', read_write: 'Ler, criar atividades e ajustar o cronograma de empresas', crm_operate: 'Operar o CRM como Claude Code (criar, editar, mover, excluir e registrar), além de ler' };
+// crm_operate só abre /api/connect/crm; nas demais rotas vale como leitura (rank 0) — nunca herda criar atividade nem ajustar cronograma.
+const SCOPE_RANK = { read: 0, read_create: 1, read_write: 2, crm_operate: 0 };
 const VALID_DAYS = [30, 90, 180, 365];
 const MAX_ACTIVE_TOKENS = 10;
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
@@ -35,7 +37,7 @@ router.get('/tokens', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, scope, created_at, expires_at, last_used_at FROM api_tokens WHERE user_id=$1 AND revoked_at IS NULL ORDER BY created_at DESC`, [req.user.id]);
-    res.json({ tokens: rows.map((r) => ({ ...r, expired: new Date(r.expires_at) < new Date() })), scopes: SCOPES });
+    res.json({ tokens: rows.map((r) => ({ ...r, expired: new Date(r.expires_at) < new Date() })), scopes: SCOPES, canAdmin: !!(req.user.isSuperAdmin || req.user.role === 'master') });
   } catch (e) { next(e); }
 });
 
@@ -46,7 +48,7 @@ router.post('/tokens', requireAuth, async (req, res, next) => {
     const days = VALID_DAYS.includes(Number((req.body || {}).days)) ? Number(req.body.days) : 180;
     if (!name) return res.status(400).json({ message: 'Dê um nome ao token (ex.: "Claude Code do XPED").' });
     if (!scope) return res.status(400).json({ message: 'Escolha o que o token pode fazer.' });
-    if (scope === 'read_write' && !(req.user.isSuperAdmin || req.user.role === 'master')) return res.status(403).json({ message: 'Só administradores geram um token que ajusta o cronograma das empresas.' });
+    if ((scope === 'read_write' || scope === 'crm_operate') && !(req.user.isSuperAdmin || req.user.role === 'master')) return res.status(403).json({ message: 'Só administradores geram uma chave que altera cronograma de empresas ou opera o CRM.' });
     const { rows: active } = await pool.query(`SELECT count(*)::int n FROM api_tokens WHERE user_id=$1 AND revoked_at IS NULL AND expires_at > now()`, [req.user.id]);
     if (active[0].n >= MAX_ACTIVE_TOKENS) return res.status(400).json({ message: `Você já tem ${MAX_ACTIVE_TOKENS} tokens ativos. Revogue algum antes de criar outro.` });
     const token = PREFIX + crypto.randomBytes(32).toString('base64url');
@@ -56,6 +58,16 @@ router.post('/tokens', requireAuth, async (req, res, next) => {
       [id, req.user.id, name, scope, sha256(token), String(days)]);
     res.set('Cache-Control', 'no-store');
     res.status(201).json({ token, id, name, scope, ...rows[0] });
+  } catch (e) { next(e); }
+});
+
+// O que o Claude Code alterou no CRM pelas chaves do próprio administrador (últimas 100 gravações).
+router.get('/actions', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT a.at, a.method, a.path, a.status, t.name AS token_name FROM api_token_actions a JOIN api_tokens t ON t.id = a.token_id
+       WHERE a.user_id=$1 ORDER BY a.at DESC LIMIT 100`, [req.user.id]);
+    res.json({ actions: rows });
   } catch (e) { next(e); }
 });
 
@@ -77,6 +89,7 @@ export const ENDPOINTS = [
   { method: 'GET', path: '/api/connect/companies/:id', scope: 'read', what: 'Uma empresa: equipe, fases, atividades e lista de reuniões (sem transcrição).' },
   { method: 'GET', path: '/api/connect/companies/:id/meetings/:meetingId', scope: 'read', what: 'Uma reunião: resumo, decisões, itens de ação, participantes. Query: transcript=1 inclui a transcrição (até 60.000 caracteres).' },
   { method: 'POST', path: '/api/connect/companies/:id/plan', scope: 'read_write', what: 'Ajusta o cronograma de uma empresa (só administrador). Corpo: ops (até 200: activity.set, sub.set, sub.add (position top|end, kind, guide, pautaDe), sub.move, activity.add, pauta.link, activity.delete e sub.delete (exclusão com volta pela lixeira; activity.restore e sub.restore desfazem)), dryRun (padrão true: só mostra), note. Tudo ou nada, nada some de verdade, grava no Log da empresa.' },
+  { method: '*', path: '/api/connect/crm/…', scope: 'crm_operate', what: 'O CRM inteiro (mesmas rotas e regras de /api/crm: empresas, contatos, negócios, atividades, notas, produtos, funis, cadências), pelo perfil de administrador do dono da chave. Toda gravação fica registrada como "Claude Code (por <dono>)". Fora: escrita da migração do PipeRun.' },
   { method: 'GET', path: '/api/connect/agenda', scope: 'read', what: 'Compromissos do Google Calendar do dono. Query: days=1..14 (padrão 7). Só os aceitos ou próprios.' },
 ];
 
@@ -145,6 +158,28 @@ function needScope(scope) {
 }
 
 router.use(bearer);
+
+// ------------------------------------------------------------------ CRM por chave (§99)
+// O Claude Code opera o CRM com as MESMAS regras e rotas da tela (/api/crm), pelo perfil do dono da chave, mas toda gravação fica
+// registrada como "Claude Code (por <dono>)" na auditoria e na linha do tempo, e cada chamada que altera algo entra em api_token_actions.
+// Nunca vale para a migração do PipeRun (escrita) nem para token sem o escopo crm_operate.
+const CRM_BLOCKED = /^\/migration(\/|$)/;
+function crmViaToken(req, res, next) {
+  if (req.apiToken.scope !== 'crm_operate') return res.status(403).json({ message: 'Esta chave não opera o CRM. Gere uma chave "Operar o CRM como Claude Code" em Meu perfil > Conectar (só administrador).' });
+  if (!(req.apiUser.isSuperAdmin || req.apiUser.role === 'master')) return res.status(403).json({ message: 'O dono da chave deixou de ser administrador.' });
+  if (req.method !== 'GET') {
+    const path = clip(String(req.originalUrl || '').split('?')[0], 200);
+    res.on('finish', () => {
+      pool.query('INSERT INTO api_token_actions (id, org_id, token_id, user_id, method, path, status) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [uid('act'), req.apiUser.orgId || null, req.apiToken.id, req.apiUser.id, req.method, path, res.statusCode]).catch(() => {});
+    });
+  }
+  if (req.method !== 'GET' && CRM_BLOCKED.test(req.path)) return res.status(403).json({ message: 'A migração do PipeRun só é operada pela tela, por um administrador.' });
+  req.user = req.apiUser;
+  req.crmActor = { id: req.apiUser.id, name: `Claude Code (por ${req.apiUser.name || req.apiUser.username})`, viaApi: true };
+  next();
+}
+router.use('/crm', crmViaToken, createCrmRouter({ auth: [(req, res, next) => next()] }));
 
 router.get('/me', (req, res) => {
   const u = req.apiUser;

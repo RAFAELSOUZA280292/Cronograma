@@ -43,7 +43,8 @@ const h = (fn) => async (req, res, next) => {
 };
 
 const orgOf = (req) => effectiveOrgId(req);
-const actorOf = (req) => ({ id: req.user.id, name: req.user.name || req.user.username });
+// `req.crmActor` só existe na entrada por chave de API (/api/connect/crm, §99): a ação fica registrada como "Claude Code (por <dono da chave>)".
+const actorOf = (req) => req.crmActor || { id: req.user.id, name: req.user.name || req.user.username };
 
 export function createCrmRouter({ auth = [requireAuth] } = {}) {
   const router = Router();

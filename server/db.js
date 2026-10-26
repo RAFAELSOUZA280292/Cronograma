@@ -1087,6 +1087,19 @@ export async function initDb() {
     )
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS api_tokens_user_idx ON api_tokens(user_id, created_at DESC)`);
+  // Gravações feitas no CRM por chave de API (§99): quem (dono), qual chave, o quê e o resultado. Sem corpo da requisição.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS api_token_actions (
+      id       TEXT PRIMARY KEY,
+      org_id   TEXT,
+      token_id TEXT NOT NULL REFERENCES api_tokens(id) ON DELETE CASCADE,
+      user_id  TEXT NOT NULL,
+      at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      method   TEXT NOT NULL,
+      path     TEXT NOT NULL,
+      status   INTEGER NOT NULL
+    )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS api_token_actions_user_idx ON api_token_actions(user_id, at DESC)`);
   // Um modelo com VÁRIOS anexos (2026-10-05, §78): o mesmo documento em Word, Excel, PDF, HTML, link… As colunas de arquivo/link
   // da tabela acima ficam como legado (só leitura da migração); o conteúdo vive aqui.
   await pool.query(`

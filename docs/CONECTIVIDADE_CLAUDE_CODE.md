@@ -38,6 +38,9 @@ token na URL → 401, o token **não** abre `/api/users` e rota inexistente → 
 - **Usuário bloqueado ou com acesso vencido** perde o token na hora (403).
 - **Dados de cliente**: o guia manda o Claude Code não copiar dados para repositórios/logs além do necessário.
 
+## Operar o CRM (§99, 2026-10-25)
+Escopo `crm_operate` ("Operar o CRM como Claude Code"), só administrador. Usa `/api/connect/crm/…` com as mesmas rotas e regras de `/api/crm`; tudo que for gravado fica registrado como **"Claude Code (por <dono>)"** (auditoria, linha do tempo, histórico de etapas, autor da nota) e cada gravação entra no registro de ações em Meu perfil › Conectar. Não opera a escrita da migração do PipeRun. Detalhes: `PROJECT_CONTEXT.md` §99.
+
 ## O que NÃO está na API (de propósito, por ora)
 
 Editar ou apagar atividades; Pareceres, Modelos, CRM, XFlow, RENATA (perguntas), Conhecimento; usuários e administração. Dizer ao Rafael se precisar de alguma dessas rotas: cada uma exige decisão de escopo.
