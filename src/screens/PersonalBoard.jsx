@@ -651,11 +651,12 @@ function PersonalColumn({
 function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibles, onCreateChecklistResponsible, onSetResponsibles, onCreateResponsible, onSetChecklistDate, card, columnId, columnName, boardName, otherColumns, onMoveTo, allTags, currentUserId, readOnly, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onUpdateChecklistItem, onRemoveChecklistItem }) {
   const [checklistDraft, setChecklistDraft] = useState('');
   const [checklistDraftDate, setChecklistDraftDate] = useState('');
-  const [respOpenId, setRespOpenId] = useState(null);
   const [composeDirty, setComposeDirty] = useState(false);
   const composeRef = useRef(null);
   const [editingChecklistId, setEditingChecklistId] = useState(null);
   const [editingChecklistText, setEditingChecklistText] = useState('');
+  const [respOpenId, setRespOpenId] = useState(null);
+  useEffect(() => { if (editingChecklistId !== null) setRespOpenId(null); }, [editingChecklistId]);
   // Sair do campo (Escape) tira o foco, e o blur dispararia logo em seguida — sem essa flag, o
   // blur salvaria o texto "cancelado" por cima do Escape (testado e achado ao vivo, não hipotético).
   const cancelingChecklistRef = useRef(false);
