@@ -218,6 +218,13 @@ try {
   const ck3 = (await rows(`SELECT data FROM personal_boards WHERE user_id=$1`, [ADM]))[0].data.boards.find((b) => b.name === 'Página RENATA').columns.find((c) => c.name === 'Coluna RENATA').cards[0];
   pj2 = (await rows(`SELECT data FROM projects WHERE id=$1`, [PROJ]))[0].data;
   ok('reunião, fase, checklist e comentário alterados de fato (item marcado, comentário com autor RENATA)', allOk(m2, ['reuniao_atualizar', 'empresa_fase_atualizar', 'quadro_checklist', 'quadro_comentar']) && allOk(m3, ['quadro_checklist']) && pj2.meetings.find((m) => m.id === mt.id).summary === 'Resumo da RENATA' && pj2.phases.find((p) => p.name === 'Fase RENATA').sub === 'Descrição RENATA' && ck2.checklist.length === 1 && ck3.checklist[0].done === true && /RENATA/.test(ck3.comments[0].author), { bad: bad(m2), ck3 });
+  const ckItens = (await rows(`SELECT data FROM personal_boards WHERE user_id=$1`, [ADM]))[0].data.boards.find((b) => b.name === 'Página RENATA').columns.find((c) => c.name === 'Coluna RENATA').cards[0].checklist;
+  const primeiroItem = ckItens[0].text;
+  const mi = await run('adm', [{ name: 'quadro_checklist', input: { id: ck.id, acao: 'mover_baixo', itemId: ckItens[0].id } }, { name: 'quadro_checklist', input: { id: ck.id, acao: 'atribuir_responsavel', itemId: ckItens[0].id, nome: 'Ana Lima' } }, { name: 'quadro_checklist', input: { id: ck.id, acao: 'atribuir_responsavel', itemId: ckItens[0].id, nome: 'Nova Pessoa' } }, { name: 'quadro_checklist', input: { id: ck.id, acao: 'remover_responsavel', itemId: ckItens[0].id, nome: 'Nova Pessoa' } }]);
+  const pgI = (await rows(`SELECT data FROM personal_boards WHERE user_id=$1`, [ADM]))[0].data.boards.find((b) => b.name === 'Página RENATA');
+  const ckI = pgI.columns.find((c) => c.name === 'Coluna RENATA').cards[0].checklist;
+  const movido = ckI.find((x) => x.id === ckItens[0].id);
+  ok('checklist: mover item de posição e responsável por item (atribuir cria na lista da página, remover tira só do item)', allOk(mi, ['quadro_checklist']) && ckI.indexOf(movido) === 1 && ckI[0].id === ckItens[1].id && movido.responsibleIds.length === 1 && pgI.responsibles.some((r) => r.name === 'Nova Pessoa') && primeiroItem === movido.text);
   const tk = (await call(A, 'POST', '/api/xflow/tickets', { title: 'Teste RENATA ticket da ação' })).json.ticket;
   const crit2 = await run('adm', [
     { name: 'reuniao_excluir', input: { empresaId: PROJ, id: mt.id } }, { name: 'empresa_equipe_remover', input: { id: PROJ, name: 'Equipe Nova' } },

@@ -139,13 +139,17 @@ export function registerBoard(registry) {
 
   // ---------- checklist, comentários, páginas e colunas
   registry.add({ ...base, name: 'quadro_checklist', summary: 'Mexe no checklist de um cartão: adicionar item, marcar/desmarcar (por itemId ou texto) ou remover.', risk: 'write',
-    params: T.obj({ id: T.str('Id do cartão'), acao: T.enm('O que fazer: adicionar, marcar, desmarcar, remover ou definir_prazo (altera/remove o prazo do item)', ['adicionar', 'marcar', 'desmarcar', 'remover', 'definir_prazo']), texto: T.str('Texto do item (novo, ou para localizar o item)'), itemId: T.str('Id do item'), prazo: T.date('Prazo do item (opcional) em adicionar; novo prazo em definir_prazo'), limparPrazo: T.bool('Remover o prazo do item (definir_prazo)') }, ['id', 'acao']),
+    params: T.obj({ id: T.str('Id do cartão'), acao: T.enm('O que fazer: adicionar, marcar, desmarcar, remover, definir_prazo (altera/remove o prazo do item), mover_cima, mover_baixo (muda a ordem do item) ou atribuir_responsavel / remover_responsavel (pelo nome)', ['adicionar', 'marcar', 'desmarcar', 'remover', 'definir_prazo', 'mover_cima', 'mover_baixo', 'atribuir_responsavel', 'remover_responsavel']), nome: T.str('Nome do responsável (atribuir_responsavel / remover_responsavel)'), texto: T.str('Texto do item (novo, ou para localizar o item)'), itemId: T.str('Id do item'), prazo: T.date('Prazo do item (opcional) em adicionar; novo prazo em definir_prazo'), limparPrazo: T.bool('Remover o prazo do item (definir_prazo)') }, ['id', 'acao']),
     before: cardBefore, describe: (i, b) => `Checklist do cartão “${(b && b.title) || i.id}”: ${i.acao}${i.texto ? ` “${i.texto}”` : ''}.`,
     undo: (i, b, r) => {
       if (!r || !r.item) return null;
       if (i.acao === 'adicionar') return { tool: 'quadro_checklist', input: { id: i.id, acao: 'remover', itemId: r.item.id }, label: 'remover o item' };
       if (i.acao === 'marcar') return { tool: 'quadro_checklist', input: { id: i.id, acao: 'desmarcar', itemId: r.item.id }, label: 'desmarcar o item' };
       if (i.acao === 'desmarcar') return { tool: 'quadro_checklist', input: { id: i.id, acao: 'marcar', itemId: r.item.id }, label: 'marcar o item' };
+      if (i.acao === 'mover_cima') return r.mudou ? { tool: 'quadro_checklist', input: { id: i.id, acao: 'mover_baixo', itemId: r.item.id }, label: 'devolver o item à posição anterior' } : null;
+      if (i.acao === 'mover_baixo') return r.mudou ? { tool: 'quadro_checklist', input: { id: i.id, acao: 'mover_cima', itemId: r.item.id }, label: 'devolver o item à posição anterior' } : null;
+      if (i.acao === 'atribuir_responsavel') return r.mudou ? { tool: 'quadro_checklist', input: { id: i.id, acao: 'remover_responsavel', itemId: r.item.id, nome: i.nome }, label: 'tirar o responsável do item' } : null;
+      if (i.acao === 'remover_responsavel') return r.mudou ? { tool: 'quadro_checklist', input: { id: i.id, acao: 'atribuir_responsavel', itemId: r.item.id, nome: i.nome }, label: 'atribuir de novo' } : null;
       if (i.acao === 'definir_prazo') return r.anteriorPrazo ? { tool: 'quadro_checklist', input: { id: i.id, acao: 'definir_prazo', itemId: r.item.id, prazo: r.anteriorPrazo }, label: 'devolver o prazo anterior' } : { tool: 'quadro_checklist', input: { id: i.id, acao: 'definir_prazo', itemId: r.item.id, limparPrazo: true }, label: 'remover o prazo' };
       return null;
     },
@@ -153,7 +157,7 @@ export function registerBoard(registry) {
       const f = findCard(boards, i.id);
       if (!f) return { status: 404, json: { message: 'Cartão não encontrado.' } };
       const list = [...(f.card.checklist || [])];
-      let item; let anteriorPrazo = '';
+      let item; let anteriorPrazo = ''; let mudou = true;
       if (i.acao === 'adicionar') {
         if (!i.texto) return { status: 400, json: { message: 'Informe o texto do item.' } };
         item = { id: uid('chk'), text: i.texto, done: false, ...(i.prazo ? { dueDate: i.prazo } : {}) }; list.push(item);
@@ -162,16 +166,34 @@ export function registerBoard(registry) {
         if (idx < 0) return { status: 404, json: { message: 'Item do checklist não encontrado. Itens: ' + (list.map((x) => `“${x.text}”`).join(', ') || '(nenhum)') } };
         item = list[idx];
         if (i.acao === 'remover') list.splice(idx, 1);
-        else if (i.acao === 'definir_prazo') {
+        else if (i.acao === 'mover_cima' || i.acao === 'mover_baixo') {
+          const j = idx + (i.acao === 'mover_cima' ? -1 : 1);
+          if (j < 0 || j >= list.length) mudou = false; else [list[idx], list[j]] = [list[j], list[idx]];
+        } else if (i.acao === 'atribuir_responsavel' || i.acao === 'remover_responsavel') {
+          const nome = String(i.nome || '').trim().slice(0, 60);
+          if (!nome) return { status: 400, json: { message: 'Informe o nome do responsável.' } };
+          const norm = (v) => String(v || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+          f.board.responsibles = f.board.responsibles || [];
+          let resp = f.board.responsibles.find((x) => norm(x.name) === norm(nome));
+          const ids = [...(item.responsibleIds || [])];
+          if (i.acao === 'atribuir_responsavel') {
+            if (!resp) { resp = { id: uid('resp'), name: nome }; f.board.responsibles.push(resp); }
+            if (ids.includes(resp.id)) mudou = false; else ids.push(resp.id);
+          } else {
+            if (!resp || !ids.includes(resp.id)) return { status: 404, json: { message: `“${nome}” não é responsável por este item.` } };
+            ids.splice(ids.indexOf(resp.id), 1);
+          }
+          list[idx] = { ...item, responsibleIds: ids };
+        } else if (i.acao === 'definir_prazo') {
           if (!i.prazo && !i.limparPrazo) return { status: 400, json: { message: 'Informe o prazo (AAAA-MM-DD) ou limparPrazo=true.' } };
           anteriorPrazo = item.dueDate || '';
           const { dueDate, ...rest } = item;
           list[idx] = i.limparPrazo ? rest : { ...rest, dueDate: i.prazo };
         } else list[idx] = { ...item, done: i.acao === 'marcar' };
-        if (i.acao !== 'remover') item = list[idx];
+        if (i.acao !== 'remover') item = list.find((x) => x.id === item.id);
       }
-      f.col.cards[f.idx] = withHistory({ ...f.card, checklist: list }, `Checklist alterado pela RENATA: ${i.acao}${item ? ` “${item.text}”` : ''}`, now, w);
-      return { status: 200, json: { cartao: { id: f.card.id, title: f.card.title }, item: { id: item.id, text: item.text, done: !!item.done, prazo: item.dueDate || '' }, anteriorPrazo, itens: list.length, feitos: list.filter((x) => x.done).length } };
+      f.col.cards[f.idx] = withHistory({ ...f.card, checklist: list }, `Checklist alterado pela RENATA: ${i.acao}${item ? ` “${item.text}”` : ''}${i.nome && /responsavel/.test(i.acao) ? ` (${i.nome})` : ''}`, now, w);
+      return { status: 200, json: { cartao: { id: f.card.id, title: f.card.title }, item: { id: item.id, text: item.text, done: !!item.done, prazo: item.dueDate || '', responsaveis: (item.responsibleIds || []).map((rid) => ((f.board.responsibles || []).find((x) => x.id === rid) || {}).name).filter(Boolean) }, mudou, anteriorPrazo, itens: list.length, feitos: list.filter((x) => x.done).length } };
     }), summarize: (i, r) => `Checklist de “${r.cartao.title}”: ${i.acao} “${r.item.text}” (${r.feitos}/${r.itens}).` });
   registry.add({ ...base, name: 'quadro_responsavel', summary: 'Atribui ou remove um responsável de um cartão do quadro pessoal (o responsável é criado na lista da página se ainda não existir).', risk: 'write',
     params: T.obj({ id: T.str('Id do cartão'), acao: T.enm('atribuir ou remover', ['atribuir', 'remover']), nome: T.str('Nome do responsável') }, ['id', 'acao', 'nome']),

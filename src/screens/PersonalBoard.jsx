@@ -2,7 +2,7 @@
 // Extraído de src/App.jsx (2026-10-16, "dividir o App.jsx"): carregado sob demanda (lazyRetry no App.jsx) para sair do pacote principal.
 // O código é o mesmo de antes; o que vem do App.jsx é importado de lá (e lá foi exportado).
 
-import { AlertTriangle, Archive, ArrowLeftRight, CalendarDays, Check, Clock, Columns3, Copy, Gauge, Globe, GripVertical, History, LayoutList, Link2, ListChecks, Lock, LogOut, Maximize2, MessageSquare, MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Tag, Trash2, Undo2, UserPlus, Users, X } from 'lucide-react';
+import { AlertTriangle, Archive, ArrowLeftRight, CalendarDays, Check, ChevronDown, ChevronUp, Clock, Columns3, Copy, Gauge, Globe, GripVertical, History, LayoutList, Link2, ListChecks, Lock, LogOut, Maximize2, MessageSquare, MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Tag, Trash2, Undo2, UserPlus, Users, X } from 'lucide-react';
 import { CommentThread, ComposeBox } from '../ui/ComposeBox.jsx';
 import { ConfirmDialog, RecordSaveStatus, SaveStatus, activateRow } from '../ui/index.jsx';
 import DaySummary from '../personal/DaySummary.jsx';
@@ -341,11 +341,12 @@ function cardResponsibles(card, all) {
   return ids.map((id) => all.find((r) => r.id === id)).filter(Boolean);
 }
 
-function ResponsiblesField({ card, readOnly, onSet, onCreate }) {
+function ResponsiblePicker({ ids, readOnly, onSet, onCreate, compact }) {
   const all = React.useContext(RespCtx);
   const [draft, setDraft] = useState('');
-  const mine = cardResponsibles(card, all);
-  const available = all.filter((r) => !(card.responsibleIds || []).includes(r.id));
+  const cur = ids || [];
+  const mine = cur.map((id) => all.find((r) => r.id === id)).filter(Boolean);
+  const available = all.filter((r) => !cur.includes(r.id));
   function submit() {
     const v = draft.trim();
     if (!v) return;
@@ -354,31 +355,57 @@ function ResponsiblesField({ card, readOnly, onSet, onCreate }) {
   }
   return (
     <div>
-      <div style={S.subSectionLabel}><Users size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Responsáveis</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
         {mine.length === 0 && <span style={S.fieldHint}>{readOnly ? 'Sem responsável.' : 'Ninguém atribuído ainda.'}</span>}
         {mine.map((r) => (
           <span key={r.id} style={{ ...S.personalCardTag, fontSize: 12, padding: '3px 8px 3px 4px', gap: 6 }}>
             <RespAvatar name={r.name} size={18} />{r.name}
-            {!readOnly && <button type="button" aria-label={`Remover ${r.name}`} title="Remover desta atividade" style={S.chipX} onClick={() => onSet((card.responsibleIds || []).filter((id) => id !== r.id))}><X aria-hidden="true" size={12} /></button>}
+            {!readOnly && <button type="button" aria-label={`Remover ${r.name}`} title="Remover responsável" style={S.chipX} onClick={() => onSet(cur.filter((id) => id !== r.id))}><X aria-hidden="true" size={12} /></button>}
           </span>
         ))}
       </div>
       {!readOnly && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
           {available.map((r) => (
-            <button key={r.id} type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, minHeight: 30, padding: '2px 9px', gap: 6 }} title="Atribuir a esta atividade" onClick={() => onSet([...(card.responsibleIds || []), r.id])}>
+            <button key={r.id} type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, minHeight: compact ? 28 : 30, padding: '2px 9px', gap: 6 }} title="Atribuir" onClick={() => onSet([...cur, r.id])}>
               <RespAvatar name={r.name} size={16} />{r.name}
             </button>
           ))}
           <div style={{ display: 'flex', gap: 6, flex: '1 1 220px', minWidth: 0 }}>
             <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={60} placeholder="Novo responsável (nome)…" style={{ flex: 1, minWidth: 0 }}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} />
-            <button type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, minHeight: 36 }} disabled={!draft.trim()} title={draft.trim() ? 'Cria o responsável e atribui a esta atividade' : 'Digite o nome do responsável.'} onClick={submit}><UserPlus size={14} /> Criar</button>
+            <button type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, minHeight: 36 }} disabled={!draft.trim()} title={draft.trim() ? 'Cria o responsável e atribui' : 'Digite o nome do responsável.'} onClick={submit}><UserPlus size={14} /> Criar</button>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+function ResponsiblesField({ card, readOnly, onSet, onCreate }) {
+  return (
+    <div>
+      <div style={S.subSectionLabel}><Users size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Responsáveis</div>
+      <ResponsiblePicker ids={card.responsibleIds} readOnly={readOnly} onSet={onSet} onCreate={onCreate} />
+    </div>
+  );
+}
+
+function ChecklistResp({ item, readOnly, open, onToggle }) {
+  const all = React.useContext(RespCtx);
+  const mine = cardResponsibles(item, all);
+  if (readOnly && mine.length === 0) return null;
+  const label = mine.length ? `Responsável: ${mine.map((r) => r.name).join(', ')}` : 'Atribuir responsável ao item';
+  return (
+    <button type="button" aria-expanded={open} aria-label={label} title={label} onClick={onToggle}
+      style={{ ...S.chipX, flexShrink: 0, display: 'inline-flex', alignItems: 'center', ...(open ? { outline: '1px solid var(--border-2)' } : {}) }}>
+      {mine.length === 0 ? <UserPlus aria-hidden="true" size={12} /> : (
+        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+          {mine.slice(0, 2).map((r, i) => <span key={r.id} style={{ marginLeft: i ? -5 : 0 }}><RespAvatar name={r.name} size={18} /></span>)}
+          {mine.length > 2 && <span style={{ ...S.fieldHint, marginLeft: 3 }}>+{mine.length - 2}</span>}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -602,9 +629,10 @@ function PersonalColumn({
   );
 }
 
-function PersonalCardDetailModal({ onSetResponsibles, onCreateResponsible, onSetChecklistDate, card, columnId, columnName, boardName, otherColumns, onMoveTo, allTags, currentUserId, readOnly, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onUpdateChecklistItem, onRemoveChecklistItem }) {
+function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibles, onCreateChecklistResponsible, onSetResponsibles, onCreateResponsible, onSetChecklistDate, card, columnId, columnName, boardName, otherColumns, onMoveTo, allTags, currentUserId, readOnly, onClose, onUpdate, onDelete, onToggleComplete, onSetStatus, onAddComment, onUpdateComment, onRemoveComment, onAddChecklistItem, onToggleChecklistItem, onUpdateChecklistItem, onRemoveChecklistItem }) {
   const [checklistDraft, setChecklistDraft] = useState('');
   const [checklistDraftDate, setChecklistDraftDate] = useState('');
+  const [respOpenId, setRespOpenId] = useState(null);
   const [composeDirty, setComposeDirty] = useState(false);
   const composeRef = useRef(null);
   const [editingChecklistId, setEditingChecklistId] = useState(null);
@@ -732,8 +760,9 @@ function PersonalCardDetailModal({ onSetResponsibles, onCreateResponsible, onSet
 
           <div style={S.subSectionLabel}><ListChecks size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Checklist {card.checklist && card.checklist.length > 0 ? `(${doneCount}/${card.checklist.length})` : ''}</div>
           <div style={S.checklistList}>
-            {(card.checklist || []).map((item) => (
-              <div key={item.id} style={S.checklistRow}>
+            {(card.checklist || []).map((item, itemIdx, itemList) => (
+              <div key={item.id}>
+              <div style={{ ...S.checklistRow, flexWrap: 'wrap', rowGap: 4 }}>
                 <input type="checkbox" checked={item.done} onChange={() => onToggleChecklistItem(item.id)} />
                 {editingChecklistId === item.id ? (
                   <>
@@ -756,18 +785,33 @@ function PersonalCardDetailModal({ onSetResponsibles, onCreateResponsible, onSet
                 ) : (
                   <>
                     <span
-                      style={{ flex: 1, cursor: readOnly ? 'default' : 'text', ...(item.done ? { textDecoration: 'line-through', opacity: .6 } : {}) }}
+                      style={{ flex: '1 1 140px', minWidth: 0, cursor: readOnly ? 'default' : 'text', ...(item.done ? { textDecoration: 'line-through', opacity: .6 } : {}) }}
                       onClick={() => { if (!readOnly) { setEditingChecklistId(item.id); setEditingChecklistText(item.text); } }}
                     >
                       {item.text}
                     </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0 }}>
                     <ChecklistDate item={item} readOnly={readOnly} onChange={(v) => onSetChecklistDate(item.id, v)} />
+                    <ChecklistResp item={item} readOnly={readOnly} open={respOpenId === item.id} onToggle={() => setRespOpenId(respOpenId === item.id ? null : item.id)} />
+                    {!readOnly && (
+                      <>
+                        <button type="button" aria-label="Mover item para cima" title={itemIdx === 0 ? 'Já é o primeiro item' : 'Mover item para cima'} style={{ ...S.chipX, ...(itemIdx === 0 ? { opacity: .35, cursor: 'default' } : {}) }} disabled={itemIdx === 0} onClick={() => onMoveChecklistItem(item.id, -1)}><ChevronUp aria-hidden="true" size={13} /></button>
+                        <button type="button" aria-label="Mover item para baixo" title={itemIdx === itemList.length - 1 ? 'Já é o último item' : 'Mover item para baixo'} style={{ ...S.chipX, ...(itemIdx === itemList.length - 1 ? { opacity: .35, cursor: 'default' } : {}) }} disabled={itemIdx === itemList.length - 1} onClick={() => onMoveChecklistItem(item.id, 1)}><ChevronDown aria-hidden="true" size={13} /></button>
+                      </>
+                    )}
                     {!readOnly && (
                       <button style={S.chipX} title="Editar" onClick={() => { setEditingChecklistId(item.id); setEditingChecklistText(item.text); }}><Pencil size={11} /></button>
                     )}
                     <button aria-label="Remover item do checklist" title="Remover item do checklist" style={S.chipX} onClick={() => onRemoveChecklistItem(item.id)}><X aria-hidden="true" size={12} /></button>
+                    </span>
                   </>
                 )}
+              </div>
+              {respOpenId === item.id && (
+                <div style={{ margin: '6px 0 6px 26px', padding: '8px 10px', border: '1px solid var(--border-2)', borderRadius: 8, background: 'var(--bg-3)' }}>
+                  <ResponsiblePicker compact ids={item.responsibleIds} readOnly={readOnly} onSet={(ids) => onSetChecklistResponsibles(item.id, ids)} onCreate={(name) => onCreateChecklistResponsible(item.id, name)} />
+                </div>
+              )}
               </div>
             ))}
           </div>
@@ -1647,6 +1691,38 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
     const v = isIsoDay(date) ? date : '';
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).map((i) => { if (i.id !== itemId) return i; const { dueDate, ...rest } = i; return v ? { ...rest, dueDate: v } : rest; }), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
   }
+  function moveChecklistItem(colId, cardId, itemId, dir) {
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => {
+      const list = [...(cd.checklist || [])];
+      const i = list.findIndex((x) => x.id === itemId);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= list.length) return cd;
+      [list[i], list[j]] = [list[j], list[i]];
+      return { ...cd, checklist: list, updatedAt: new Date().toISOString(), updatedBy: currentUser.name };
+    });
+  }
+  function setChecklistResponsibles(colId, cardId, itemId, ids) {
+    const valid = [...new Set(ids)].filter((id) => (activeBoard.responsibles || []).some((r) => r.id === id));
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).map((i) => (i.id === itemId ? { ...i, responsibleIds: valid } : i)), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
+  }
+  function createChecklistResponsible(colId, cardId, itemId, name) {
+    const v = (name || '').trim().slice(0, 60);
+    if (!v) return;
+    const existing = (activeBoard.responsibles || []).find((r) => normResp(r.name) === normResp(v));
+    const cardNow = findCardById(cardId);
+    const item = cardNow && (cardNow.checklist || []).find((i) => i.id === itemId);
+    if (!item) return;
+    if (existing) {
+      if (!(item.responsibleIds || []).includes(existing.id)) setChecklistResponsibles(colId, cardId, itemId, [...(item.responsibleIds || []), existing.id]);
+      return;
+    }
+    const resp = { id: uid('resp'), name: v };
+    mutateBoardTree(activeBoard.id, (b) => ({
+      ...b,
+      responsibles: [...(b.responsibles || []), resp],
+      columns: b.columns.map((c) => (c.id !== colId ? c : { ...c, cards: c.cards.map((cd) => (cd.id !== cardId ? cd : { ...cd, checklist: (cd.checklist || []).map((i) => (i.id === itemId ? { ...i, responsibleIds: [...(i.responsibleIds || []), resp.id] } : i)), updatedAt: new Date().toISOString(), updatedBy: currentUser.name })) })),
+    }), `Responsável criado e atribuído a um item do checklist: ${v}`);
+  }
   function updateChecklistItem(colId, cardId, itemId, text) {
     const v = (text || '').trim();
     if (!v) return;
@@ -2161,6 +2237,9 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
             onRemoveComment={(id) => removeCardComment(col.id, card.id, id)}
             onAddChecklistItem={(text, date) => addChecklistItem(col.id, card.id, text, date)}
             onSetChecklistDate={(id, date) => setChecklistItemDate(col.id, card.id, id, date)}
+            onMoveChecklistItem={(id, dir) => moveChecklistItem(col.id, card.id, id, dir)}
+            onSetChecklistResponsibles={(id, ids) => setChecklistResponsibles(col.id, card.id, id, ids)}
+            onCreateChecklistResponsible={(id, name) => createChecklistResponsible(col.id, card.id, id, name)}
             onSetResponsibles={(ids) => setCardResponsibles(col.id, card.id, ids)}
             onCreateResponsible={(name) => createCardResponsible(col.id, card.id, name)}
             onToggleChecklistItem={(id) => toggleChecklistItem(col.id, card.id, id)}
