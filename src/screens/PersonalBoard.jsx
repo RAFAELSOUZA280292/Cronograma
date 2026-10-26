@@ -313,6 +313,16 @@ function PersonalCardMenu({ card, otherColumns, onClose, onOpen, onSetPriority, 
 
 // Prazo de um item do checklist (opcional, além do prazo do cartão). O dado é só `item.dueDate` ('AAAA-MM-DD'); item sem prazo continua igual.
 const isIsoDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '') && !Number.isNaN(Date.parse(`${v}T12:00:00Z`));
+
+// Prazo da atividade = o prazo mais distante entre as subatividades que têm data. Só mexe quando
+// alguma subatividade tem data (sem datas, o prazo da atividade fica como está).
+const latestChecklistDate = (list) => (list || []).map((i) => i.dueDate).filter(isIsoDay).sort().pop() || '';
+function autoDue(cd, who) {
+  const latest = latestChecklistDate(cd.checklist);
+  if (!latest || cd.dueDate === latest) return cd;
+  const ts = new Date().toISOString();
+  return { ...cd, dueDate: latest, history: [{ ts, action: `Prazo ajustado automaticamente: ${fmtDate(latest)} (subatividade mais distante)`, user: who }, ...(cd.history || [])].slice(0, 200) };
+}
 const checklistTone = (item) => dueDateTone({ dueDate: item.dueDate, completed: !!item.done });
 const shortDay = (iso) => { const [, m, d] = String(iso || '').split('-'); return d ? `${d}/${m}` : ''; };
 // Pior situação entre os itens abertos com prazo (vira a cor do selo ✓ x/y do cartão).
@@ -805,6 +815,13 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
               <button type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, marginTop: 6, justifyContent: 'center', width: '100%', minHeight: 36 }}
                 disabled={card.dueDate === todayISOStr()} title={card.dueDate === todayISOStr() ? 'O prazo já é hoje.' : 'Define o prazo para a data de hoje.'}
                 onClick={() => { const t = todayISOStr(); onUpdate({ dueDate: t }, `Prazo alterado: ${fmtDate(t)}`); }}>Hoje</button>
+              {latestChecklistDate(card.checklist) && (
+                <div style={{ ...S.fieldHint, marginTop: 6 }}>
+                  {latestChecklistDate(card.checklist) === card.dueDate
+                    ? `Automático: segue a subatividade mais distante (${fmtDate(card.dueDate)}).`
+                    : <>As subatividades vão até {fmtDate(latestChecklistDate(card.checklist))}. {!readOnly && <button type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, minHeight: 28, padding: '0 8px', display: 'inline-flex' }} title="Define o prazo da atividade como a data da subatividade mais distante." onClick={() => { const d = latestChecklistDate(card.checklist); onUpdate({ dueDate: d }, `Prazo ajustado: ${fmtDate(d)} (subatividade mais distante)`); }}>Usar {fmtDate(latestChecklistDate(card.checklist))}</button>}</>}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1701,7 +1718,8 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
       const list = [...(cd[field] || [])];
       if (list.some((x) => x.id === item.id)) return cd;
       list.splice(Math.min(index, list.length), 0, item);
-      return { ...cd, [field]: list };
+      const next = { ...cd, [field]: list };
+      return field === 'checklist' ? autoDue(next, currentUser.name) : next;
     });
   }
   function removeCardComment(colId, cardId, commentId) {
@@ -1746,14 +1764,14 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
     const v = (text || '').trim();
     if (!v) return;
     const item = { id: uid('chk'), text: v, done: false, ...(isIsoDay(dueDate) ? { dueDate } : {}) };
-    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: [...(cd.checklist || []), item], updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => autoDue({ ...cd, checklist: [...(cd.checklist || []), item], updatedAt: new Date().toISOString(), updatedBy: currentUser.name }, currentUser.name));
   }
   function toggleChecklistItem(colId, cardId, itemId) {
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).map((i) => (i.id === itemId ? (i.done ? { ...i, done: false, doneAt: '' } : { ...i, done: true, doneAt: new Date().toISOString() }) : i)), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
   }
   function setChecklistItemDate(colId, cardId, itemId, date) {
     const v = isIsoDay(date) ? date : '';
-    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).map((i) => { if (i.id !== itemId) return i; const { dueDate, ...rest } = i; return v ? { ...rest, dueDate: v } : rest; }), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => autoDue({ ...cd, checklist: (cd.checklist || []).map((i) => { if (i.id !== itemId) return i; const { dueDate, ...rest } = i; return v ? { ...rest, dueDate: v } : rest; }), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }, currentUser.name));
   }
   function moveChecklistItem(colId, cardId, itemId, dir) {
     mutateCardTree(activeBoard.id, colId, cardId, (cd) => {
@@ -1797,7 +1815,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
     const it = cardNow && (cardNow.checklist || []).find((i) => i.id === itemId);
     const idx = cardNow ? (cardNow.checklist || []).findIndex((i) => i.id === itemId) : -1;
     if (it) pushUndoToast(`Item "${it.text || it.title || 'do checklist'}" removido.`, () => reinsertInCard(colId, cardId, 'checklist', it, idx), 8000);
-    mutateCardTree(activeBoard.id, colId, cardId, (cd) => ({ ...cd, checklist: (cd.checklist || []).filter((i) => i.id !== itemId), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }));
+    mutateCardTree(activeBoard.id, colId, cardId, (cd) => autoDue({ ...cd, checklist: (cd.checklist || []).filter((i) => i.id !== itemId), updatedAt: new Date().toISOString(), updatedBy: currentUser.name }, currentUser.name));
   }
 
   // ---- trash (cross-board) ----

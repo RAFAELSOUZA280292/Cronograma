@@ -192,8 +192,10 @@ export function registerBoard(registry) {
         } else list[idx] = { ...item, done: i.acao === 'marcar' };
         if (i.acao !== 'remover') item = list.find((x) => x.id === item.id);
       }
-      f.col.cards[f.idx] = withHistory({ ...f.card, checklist: list }, `Checklist alterado pela RENATA: ${i.acao}${item ? ` “${item.text}”` : ''}${i.nome && /responsavel/.test(i.acao) ? ` (${i.nome})` : ''}`, now, w);
-      return { status: 200, json: { cartao: { id: f.card.id, title: f.card.title }, item: { id: item.id, text: item.text, done: !!item.done, prazo: item.dueDate || '', responsaveis: (item.responsibleIds || []).map((rid) => ((f.board.responsibles || []).find((x) => x.id === rid) || {}).name).filter(Boolean) }, mudou, anteriorPrazo, itens: list.length, feitos: list.filter((x) => x.done).length } };
+      const maisLonge = list.map((x) => x.dueDate).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '')).sort().pop() || '';
+      const prazoAuto = ['adicionar', 'remover', 'definir_prazo'].includes(i.acao) && maisLonge && f.card.dueDate !== maisLonge;
+      f.col.cards[f.idx] = withHistory({ ...f.card, checklist: list, ...(prazoAuto ? { dueDate: maisLonge } : {}) }, `Checklist alterado pela RENATA: ${i.acao}${item ? ` “${item.text}”` : ''}${i.nome && /responsavel/.test(i.acao) ? ` (${i.nome})` : ''}`, now, w);
+      return { status: 200, json: { cartao: { id: f.card.id, title: f.card.title }, item: { id: item.id, text: item.text, done: !!item.done, prazo: item.dueDate || '', responsaveis: (item.responsibleIds || []).map((rid) => ((f.board.responsibles || []).find((x) => x.id === rid) || {}).name).filter(Boolean) }, mudou, anteriorPrazo, prazoDaAtividade: prazoAuto ? maisLonge : (f.card.dueDate || ''), itens: list.length, feitos: list.filter((x) => x.done).length } };
     }), summarize: (i, r) => `Checklist de “${r.cartao.title}”: ${i.acao} “${r.item.text}” (${r.feitos}/${r.itens}).` });
   registry.add({ ...base, name: 'quadro_responsavel', summary: 'Atribui ou remove um responsável de um cartão do quadro pessoal (o responsável é criado na lista da página se ainda não existir).', risk: 'write',
     params: T.obj({ id: T.str('Id do cartão'), acao: T.enm('atribuir ou remover', ['atribuir', 'remover']), nome: T.str('Nome do responsável') }, ['id', 'acao', 'nome']),
