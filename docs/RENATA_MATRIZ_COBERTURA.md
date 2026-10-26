@@ -6,7 +6,7 @@
 
 ## Resumo
 - **98 ferramentas estruturadas** em 11 módulos (33 de consulta, 46 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
-- **295 rotas** no servidor: 64 cobertas por ferramenta própria, 119 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 112 excluídas de propósito.
+- **296 rotas** no servidor: 64 cobertas por ferramenta própria, 120 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 112 excluídas de propósito.
 - **56 funcionalidades humanas mapeadas**: 35 ✅, 12 🟡, 4 ⬜, 5 🚫.
 - **Critério "100% das funcionalidades" NÃO está atendido ainda**: as linhas 🟡 e ⬜ abaixo são o que falta. As rotas "genéricas" já são alcançáveis (com confirmação), mas sem esquema de parâmetros; as ⬜ precisam de trabalho novo (arquivos, edição de documentos inteiros).
 
@@ -446,6 +446,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `POST /api/project-history/:id/versions` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/project-history/deleted/:vid/restore` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/project-history/deleted/list` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/projects/:id/meetings` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/projects/:id/team-candidates` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `DELETE /api/projects/:id` | ferramenta | ferramenta sob medida |
 | `PATCH /api/projects/:id` | excluída | fora do alcance: O projeto inteiro é regravado pela tela; a RENATA usa cronograma_*/tarefa_reuniao_* (operação a operação, com log). |

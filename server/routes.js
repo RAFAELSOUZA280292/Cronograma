@@ -576,6 +576,59 @@ router.patch('/projects/:id', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Registrar uma reunião inteira de uma vez (2026-10-26): título, data, participantes, transcrição, resumo, decisões e tarefas. Faz o mesmo que preencher a aba
+// Reuniões à mão, mas numa transação travada (não pisa em quem está editando) e sem limite de tamanho prático no texto. Só equipe PRICETAX. Idempotente: mesma
+// data + mesmo título já registrados → 409 (a menos que `force`). O responsável de cada tarefa precisa ser da equipe da empresa (senão fica vazio).
+router.post('/projects/:id/meetings', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
+  const clipS = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+  const b = req.body || {};
+  const title = clipS(b.title, 200);
+  const date = String(b.date || '');
+  if (!title) return res.status(400).json({ message: 'Informe o título da reunião.' });
+  if (!isISODate(date)) return res.status(400).json({ message: 'Informe a data da reunião (AAAA-MM-DD).' });
+  const time = /^\d{2}:\d{2}$/.test(String(b.time || '')) ? b.time : '';
+  const participants = [...new Set((Array.isArray(b.participants) ? b.participants : []).map((x) => clipS(x, 120)).filter(Boolean))].slice(0, 40);
+  const items = (Array.isArray(b.actionItems) ? b.actionItems : []).slice(0, 60);
+  const via = clipS(b.via, 40);
+  const who = `${req.user.name || req.user.username}${via ? ` (via ${via})` : ''}`;
+  const client = await pool.connect();
+  let before; let after; let row; let created;
+  try {
+    await client.query('BEGIN');
+    const q = await client.query('SELECT id, org_id, data FROM projects WHERE id=$1 FOR UPDATE', [req.params.id]);
+    row = q.rows[0];
+    if (!row) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Projeto não encontrado.' }); }
+    if (!canAccessProject(req.user, row.data, row.org_id)) { await client.query('ROLLBACK'); return res.status(403).json({ message: 'Sem acesso a este projeto.' }); }
+    before = row.data;
+    const data = structuredClone(row.data);
+    const dup = (data.meetings || []).find((m) => !m.deleted && m.date === date && String(m.title).trim().toLowerCase() === title.toLowerCase());
+    if (dup && !b.force) { await client.query('ROLLBACK'); return res.status(409).json({ message: `Já existe a reunião "${dup.title}" em ${date}.`, meetingId: dup.id }); }
+    const now = new Date().toISOString();
+    const team = new Map((data.team || []).map((t) => [String(t.name || '').trim().toLowerCase(), t.name]));
+    const id = `mtg-${Math.random().toString(36).slice(2, 9)}`;
+    const actionItems = items.map((it) => ({
+      id: `mai-${Math.random().toString(36).slice(2, 9)}`, title: clipS(it.title, 300), responsible: team.get(String(it.responsible || '').trim().toLowerCase()) || '',
+      owner: it.owner === 'cliente' ? 'cliente' : 'pricetax', dueDate: isISODate(it.dueDate) ? it.dueDate : '', status: 'nao-iniciado', deleted: false, subtitle: '',
+      notes: clipS(it.notes, 2000), subtasks: [], comments: [], attachments: [], createdBy: who, createdAt: now,
+    })).filter((it) => it.title);
+    created = { id, title, date, time, participants, transcript: String(b.transcript || '').slice(0, 400000), summary: clipS(b.summary, 20000), decisions: clipS(b.decisions, 20000), actionItems, createdAt: now, deleted: false, deletedAt: '', deletedBy: '' };
+    data.meetings = [...(data.meetings || []), created];
+    // Participantes novos viram contato externo reutilizável (sugestão nas próximas reuniões), sem repetir quem já existe.
+    const known = new Set((data.externalContacts || []).map((c) => String(c.name || '').trim().toLowerCase()));
+    const teamNames = new Set([...team.keys()]);
+    data.externalContacts = [...(data.externalContacts || []), ...participants.filter((n) => !known.has(n.toLowerCase()) && !teamNames.has(n.toLowerCase())).map((name) => ({ name, email: '' }))];
+    data.log = [{ ts: now, action: `Reunião registrada: "${title}" (${date}) com ${actionItems.length} tarefa(s) — ${who}`, user: who, activityId: null }, ...(Array.isArray(data.log) ? data.log : [])].slice(0, 300);
+    after = data;
+    await client.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(after), req.params.id]);
+    await client.query('COMMIT');
+  } catch (e) { try { await client.query('ROLLBACK'); } catch { /* já encerrada */ } client.release(); return next(e); }
+  client.release();
+  const projectName = (after.company && (after.company.nomeFantasia || after.company.name)) || 'Empresa';
+  notifyTodoChanges(req, req.params.id, projectName, before, after).catch(() => {});
+  syncProjectMemoryFromDiff(pool, row.org_id, req.params.id, before, after).catch((e) => console.error('Falha ao reindexar memória do projeto', e.message));
+  res.status(201).json({ meeting: { id: created.id, title: created.title, date: created.date, participants: created.participants, actionItems: created.actionItems.map((a) => ({ id: a.id, title: a.title, responsible: a.responsible, dueDate: a.dueDate })) } });
+});
+
 // Rota interna de verificação da Fase 1 do Assistente Inteligente de
 // Projetos — NÃO é o chat (que ainda não existe, ver PROJECT_CONTEXT.md).
 // Só permite provar que a memória do projeto está sendo indexada e
