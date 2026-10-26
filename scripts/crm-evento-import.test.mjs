@@ -124,6 +124,12 @@ try {
   ok('comentários do estande viram nota com o texto original', r1.notes.comments === pick.filter((id) => String(byId.get(id).anotacoes || '').trim()).length && (await api('GET', `/deals/${deals.find((d) => d.externalId === IDS.follow).id}`)).notes.some((n) => n.body.startsWith(`[evento comentario ${IDS.follow}]`) && n.body.includes(byId.get(IDS.follow).anotacoes.trim().slice(0, 30))), r1.notes);
   const vs = (await api('GET', '/views?scope=deals')).views.filter((v) => /^Ponto Fora da Curva ·/.test(v.name));
   ok('visões salvas compartilhadas (evento, curvas A–D, quentes, estandes, grupos) criadas com o filtro de várias tags', r1.views.created.length === 10 && vs.length === 10 && vs.every((v) => v.shared) && vs.find((v) => v.name.endsWith('Curva A')).config.tag === 'Ponto Fora da Curva|Curva A (est.)' && vs.find((v) => v.name.endsWith('Curva A')).config.pipelineId === pipe.id, vs.map((v) => v.name));
+  const find = async (qq) => (await api('GET', `/deals?status=all&q=${encodeURIComponent(qq)}&limit=200`)).items.map((d) => d.externalId);
+  const folNote = byId.get(IDS.follow).anotacoes;
+  ok('busca livre acha pelo COMENTÁRIO (nota) do negócio, sem acento e sem diferenciar maiúscula', (await find('REVISAO FOLHA')).includes(IDS.follow) && (await find('revisão CAPAG')).includes(IDS.follow) && folNote.toLowerCase().includes('capag'));
+  ok('busca livre acha pela TAG, pelo nome do contato e pelo e-mail', (await find('Curva')).length >= 10 && (await find(byId.get(IDS.follow).nome.split(' ')[0])).includes(IDS.follow) && (await find(byId.get(IDS.follow).email.split('@')[0])).includes(IDS.follow));
+  ok('busca livre acha pelo valor citado na descrição ("Preço citado") ou nas notas', await (async () => { const pc = event.leads.find((l) => pick.includes(l.id) && l.precos_citados); return !pc || (await find(pc.precos_citados.replace(/[^\d,]/g, '').slice(0, 6))).includes(pc.id); })());
+  ok('busca por texto que não existe devolve vazio', (await find('zzzxyznaoexiste')).length === 0);
   const dBr = deals.find((d) => d.externalId === IDS.brinde);
   const brDet = await api('GET', `/deals/${dBr.id}`);
   ok('brinde entra como ESTIMATIVA (nota e tag com "(est.)")', brDet.notes.some((n) => /Brinde \(ESTIMATIVA/.test(n.body)) && brDet.deal.tags.includes('Brinde registrado (est.)'), brDet.deal.tags);

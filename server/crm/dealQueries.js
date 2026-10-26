@@ -8,6 +8,10 @@ import { listPipelines } from './funnels.js';
 import { DEAL_SELECT, DEAL_FROM, mapDeal, fetchDeal } from './deals.js';
 import { activitiesForDeal } from './activityQueries.js';
 
+// Minúscula e sem acento, igual em JS e em SQL (translate), para a busca achar "contábil" digitando "contabil".
+const FROM_CH = 'áàâãäéèêëíìîïóòôõöúùûüçñ'; const TO_CH = 'aaaaaeeeeiiiiooooouuuucn';
+const foldText = (v) => String(v || '').toLowerCase().replace(/./gu, (ch) => { const i = FROM_CH.indexOf(ch); return i >= 0 ? TO_CH[i] : ch; });
+const FOLD = (col) => `translate(lower(${col}), '${FROM_CH}', '${TO_CH}')`;
 const PROB = `(CASE d.status WHEN 'won' THEN 100 WHEN 'lost' THEN 0 ELSE COALESCE(d.probability_override, s.probability) END)`;
 const WEIGHTED = `(d.value * ${PROB} / 100.0)`;
 const BOARD_CLOSED_DAYS = 60;
@@ -33,11 +37,19 @@ function dealFilters(orgId, f, params) {
   else if (f.attention === 'stalled') open(`d.stage_entered_at < now() - interval '14 days'`);
   else if (f.attention === 'overdue') open(`d.expected_close_date < ${add(todayBR())}`);
   if (f.companyId) where.push(`d.company_id=${add(isUuid(f.companyId) ? f.companyId : '00000000-0000-0000-0000-000000000000')}`);
-  const q = String(f.q || '').trim();
+  // Busca livre: título, descrição, empresa, contatos (nome, e-mail, telefone), tags, COMENTÁRIOS (notas do negócio e da empresa) e atividades —
+  // sem diferenciar maiúscula nem acento. Ex.: "249,90" acha o negócio cuja nota diz "R$ 249,90: TINTAX + XClass…"; "tintax" acha por tag, descrição ou nota.
+  const q = String(f.q || '').trim().slice(0, 100);
   if (q) {
+    const needle = foldText(q);
+    const p = add(`%${needle.replace(/[\\%_]/g, (m) => `\\${m}`)}%`);
     const key = companyNameKey(q);
-    const ors = [`lower(d.title) LIKE ${add(`%${q.toLowerCase()}%`)}`];
+    const ors = [`${FOLD('d.title')} LIKE ${p}`, `${FOLD('d.description')} LIKE ${p}`, `${FOLD('c.legal_name')} LIKE ${p}`, `${FOLD('c.trade_name')} LIKE ${p}`];
     if (key) ors.push(`c.name_norm LIKE ${add(`%${key}%`)}`);
+    ors.push(`EXISTS (SELECT 1 FROM crm_contacts kq WHERE kq.company_id = d.company_id AND kq.deleted_at IS NULL AND (${FOLD("kq.first_name || ' ' || kq.last_name")} LIKE ${p} OR lower(kq.email) LIKE ${p}${/^[\d\s()+.-]{4,}$/.test(q) ? ` OR regexp_replace(kq.phone || kq.whatsapp, '\\D', '', 'g') LIKE ${add(`%${q.replace(/\D/g, '')}%`)}` : ''}))`);
+    ors.push(`EXISTS (SELECT 1 FROM crm_deal_tags dtq JOIN crm_tags tq ON tq.id = dtq.tag_id WHERE dtq.deal_id = d.id AND ${FOLD('tq.name')} LIKE ${p})`);
+    ors.push(`EXISTS (SELECT 1 FROM crm_notes nq WHERE nq.org_id = d.org_id AND nq.deleted_at IS NULL AND ((nq.entity_type = 'deal' AND nq.entity_id = d.id) OR (nq.entity_type = 'company' AND nq.entity_id = d.company_id)) AND ${FOLD('nq.body')} LIKE ${p})`);
+    ors.push(`EXISTS (SELECT 1 FROM crm_activities aq WHERE aq.deal_id = d.id AND aq.deleted_at IS NULL AND ${FOLD("aq.title || ' ' || aq.description || ' ' || aq.outcome")} LIKE ${p})`);
     where.push(`(${ors.join(' OR ')})`);
   }
   return where;

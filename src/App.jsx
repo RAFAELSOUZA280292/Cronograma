@@ -1163,7 +1163,7 @@ function AppScreens({ shellRef, bump }) {
           notifiedSrc = m[1];
           if (toastId) dismissToastGlobal(toastId); // não empilha avisos velhos
           toastId = pushAppToast({
-            message: 'Uma nova versão do Cronograma está disponível.',
+            message: 'Uma nova versão está disponível.',
             actionLabel: 'Atualizar agora',
             onAction: () => window.location.reload(),
             ttlMs: 0,

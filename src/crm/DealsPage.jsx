@@ -336,7 +336,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
             {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}{p.isDefault ? ' (padrão)' : ''}</option>)}
           </select>
         )}
-        <input aria-label="Buscar negócio ou empresa" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por negócio ou empresa…" style={{ minWidth: 230 }} />
+        <input aria-label="Buscar negócio, empresa, contato, tag ou comentário" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar: negócio, empresa, contato, tag, comentário…" title="Procura no título, na descrição, na empresa, nos contatos, nas tags, nos comentários e nas atividades" style={{ minWidth: 230 }} />
         <select value={filters.type} onChange={(e) => setF('type', e.target.value)} aria-label="Tipo de negócio">
           <option value="">Novo negócio e upsell</option><option value="new">Só novos negócios</option><option value="upsell">Só upsell</option>
         </select>
