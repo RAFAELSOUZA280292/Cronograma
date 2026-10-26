@@ -10,6 +10,7 @@ import { requireAuth } from './auth.js';
 import { pool } from './db.js';
 import { getConnectionStatus, listEvents, createEvent, respondToEvent, googleConfigured } from './googleCalendar.js';
 import { crmAgendaEvents } from './crm/agendaFeed.js';
+import { linkedGoogleEventIds } from './crm/googleSync.js';
 
 export const router = Router();
 
@@ -25,7 +26,9 @@ router.get('/', requireAuth, async (req, res, next) => {
 
     if (status.connected) {
       const googleEvents = await listEvents(req.user.id, start, end);
-      events.push(...googleEvents);
+      // Atividade do CRM espelhada no Google aparece UMA vez: some o evento do Google, fica a atividade (que abre o CRM).
+      const mirrored = await linkedGoogleEventIds(req.user.id);
+      events.push(...googleEvents.filter((ev) => !mirrored.has(String(ev.id || '').replace(/^google-/, ''))));
     }
 
     const { rows: ticketRows } = await pool.query(

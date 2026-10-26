@@ -16,12 +16,13 @@ import path from 'node:path';
 export const SOURCE = 'Evento 22–23/10/2026';
 export const EXT_SOURCE = 'evento-2026-10-22';
 export const CHANNEL_TAG = 'Canal: Estande';
+export const EVENT_TAG = 'Ponto Fora da Curva';
 export const DEFAULT_PIPELINE = 'Tributaristas e Contadores';
 // estágio do evento (prefixo numérico de `estagio`) → etapa do funil
 export const STAGE_MAP = { 7: 'Leads', 6: 'Mapeamento', 5: 'Acesso Teste', 4: 'Conexão', 3: 'Conexão', 2: 'Negociação', 1: 'Contrato' };
 const BLOCK_START = '══ DADOS DO EVENTO 22–23/10/2026 (importação automática; é reescrito a cada importação) ══';
 const BLOCK_END = '══ fim dos dados do evento ══';
-const MANAGED_TAG = /^(Evento 22–23\/10\/2026|Canal: Estande|Estande: .+|Quente no evento|Prioridade est\. [ABC]|Brinde (registrado|possível) \(est\.\)|Teste Tintax \(est\.\)|Grupo no evento|Venda registrada \(planilha\)|Fechamento sinalizado \(planilha\))$/;
+const MANAGED_TAG = /^(Evento 22–23\/10\/2026|Ponto Fora da Curva|Curva [A-D] \(est\.\)|Prioridade est\. [ABC]|Canal: Estande|Estande: .+|Quente no evento|Prioridade est\. [ABC]|Brinde (registrado|possível) \(est\.\)|Teste Tintax \(est\.\)|Grupo no evento|Venda registrada \(planilha\)|Fechamento sinalizado \(planilha\))$/;
 
 // ---------------------------------------------------------------- utilidades puras
 export const stripAccents = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -35,16 +36,19 @@ export function companyKey(v) {
 export const phoneKey = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 8 ? d.slice(-9) : ''; };
 export const emailKey = (e) => String(e || '').trim().toLowerCase();
 export const firstNameKey = (n) => norm(String(n || '').trim().split(/\s+/)[0] || '');
+// Curva ABCD (ESTIMATIVA): A ≥ 70 · B 40–69 · C 25–39 · D < 25 pontos (score_est do contrato). O contrato só tem A/B/C; a D é a subdivisão da C
+// que reúne quem foi só captado, sem interesse anotado — criada aqui a pedido do Rafael, não vem da planilha.
+export const curvaOf = (score) => { const n = Number(score); return n >= 70 ? 'A' : n >= 40 ? 'B' : n >= 25 ? 'C' : 'D'; };
 export const stageNumber = (estagio) => { const m = /^(\d)/.exec(String(estagio || '')); return m ? Number(m[1]) : 7; };
 export const splitName = (full) => { const [first, ...rest] = String(full || '').trim().split(/\s+/); return { first: first || '', last: rest.join(' ') }; };
 const ddmm = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}${iso.length > 10 ? ` ${iso.slice(11, 16)}` : ''}` : '');
 const clip = (s, n) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
 
 export function leadTags(l, group) {
-  const t = [SOURCE, CHANNEL_TAG];
+  const t = [SOURCE, EVENT_TAG, CHANNEL_TAG];
   String(l.estandes || '').split('+').map((s) => s.trim()).filter(Boolean).forEach((s) => t.push(`Estande: ${s}`));
   if (l.temperatura === 'Quente') t.push('Quente no evento');
-  if (l.prioridade_est) t.push(`Prioridade est. ${l.prioridade_est}`);
+  t.push(`Curva ${curvaOf(l.score_est)} (est.)`);
   if (l.brinde === 'Registrado') t.push('Brinde registrado (est.)');
   if (l.brinde === 'Possível') t.push('Brinde possível (est.)');
   if (l.teste_tintax === 'Sim') t.push('Teste Tintax (est.)');
@@ -74,6 +78,7 @@ export function eventBlock(l, group) {
   if (l.brinde) e.push(`- Brinde: ${l.brinde}${l.brindes ? ` — ${l.brindes}` : ''}${l.brinde_data ? ` (${l.brinde_data})` : ''}`);
   if (l.teste_tintax) e.push(`- Teste do Tintax: ${l.teste_tintax}`);
   e.push(`- Estágio no evento: ${l.estagio} · pontuação ${l.score_est} · prioridade ${l.prioridade_est}`);
+  e.push(`- Curva (est.): ${curvaOf(l.score_est)} — A ≥70 · B 40–69 · C 25–39 · D <25 pontos`);
   if (l.urgencia) e.push(`- Urgência: ${l.urgencia}`);
   if (l.proximo_passo) e.push(`- Próximo passo sugerido: ${l.proximo_passo}`);
   if (l.valor_potencial_est != null) e.push(`- Valor potencial estimado: R$ ${l.valor_potencial_est}`);
@@ -97,6 +102,7 @@ export function mergeBlock(current, block) {
   return cur ? `${cur.trim()}\n\n${block}` : block;
 }
 export const captureNote = (c) => `[evento ${c.cap_id}] Captura no estande ${c.estande} em ${ddmm(c.capturado_em)} — tipo: ${c.tipo || '—'}${c.produto ? ` · produto/tema: ${c.produto}` : ''}${c.nota ? `\nNota: ${clip(c.nota, 600)}` : ''}\n(Fato registrado na planilha do evento, importado automaticamente.)`;
+export const commentNote = (l) => `[evento comentario ${l.id}] Comentários anotados no estande (fato da planilha, texto original):\n${String(l.anotacoes || '').trim().slice(0, 1800)}`;
 export const giftNote = (l) => `[evento brinde ${l.id}] Brinde (ESTIMATIVA: ${l.brinde}${l.brinde === 'Registrado' ? ' — a nota diz que ganhou/roleta/brinde/cortesia' : ' — item citado sem dizer que foi entregue'}): ${l.brindes || 'item não descrito'}${l.brinde_data ? ` · data ${l.brinde_data}` : ''}.\nEntrega não confirmada pelo sistema; conferir antes de contar como entregue.`;
 export const interactionNote = (d) => `[evento int ${d.id}] Interação da equipe (Registro Comercial) — ${d.tipo || 'interação'} em ${ddmm(d.data)}${d.produto ? ` · produto: ${d.produto}` : ''}${d.valor != null && d.valor !== '' ? ` · valor informado pela equipe: R$ ${d.valor}${d.recorrencia ? ` (${d.recorrencia})` : ''}` : ''}${d.status_proposta ? ` · proposta: ${d.status_proposta}` : ''}\n${clip(d.resumo, 1500)}${d.proxima_acao || d.proxima_data ? `\nPróxima ação: ${d.proxima_acao || '—'}${d.proxima_data ? ` em ${ddmm(d.proxima_data)}` : ''}` : ''}\n(Registrado por ${d.autor || 'alguém da equipe'} no Registro Comercial; o valor NÃO foi aplicado ao valor do negócio.)`;
 export const groupNote = (g, leadsOfGroup) => `[evento grupo ${g.id}] Empresa com ${g.participantes} participantes no evento 22–23/10/2026 (${g.estandes}) — oportunidade de cross-sell.\nParticipantes: ${g.nomes}\nQuentes: ${g.quentes} · decisores (est.): ${g.decisores} · brindes (est.): ${g.brindes}\nInteresses: ${g.interesses || '—'}\nMelhor estágio no evento: ${g.melhor_estagio}\nOportunidade sugerida (ESTIMATIVA): ${g.oportunidade_est || '—'}\nNegócios no CRM: ${leadsOfGroup.length}.`;
@@ -219,6 +225,33 @@ export function planLead(l, idx, snap) {
   return { mode: 'create', lead: l, stageName, num, contact: null };
 }
 
+// Visões salvas COMPARTILHADAS no funil: um clique para o evento todo, cada curva, quentes, estandes, grupos e brindes. Só cria o que falta (pelo nome).
+export const VIEW_DEFS = (pipelineId) => {
+  const base = { view: 'board', pipelineId, q: '', type: '', ownerId: '', source: '', attention: '', listStatus: 'open' };
+  const v = (name, tag, extra = {}) => ({ name, config: { ...base, tag, ...extra } });
+  return [
+    v('Ponto Fora da Curva · todos', EVENT_TAG),
+    v('Ponto Fora da Curva · Curva A', `${EVENT_TAG}|Curva A (est.)`),
+    v('Ponto Fora da Curva · Curva B', `${EVENT_TAG}|Curva B (est.)`),
+    v('Ponto Fora da Curva · Curva C', `${EVENT_TAG}|Curva C (est.)`),
+    v('Ponto Fora da Curva · Curva D', `${EVENT_TAG}|Curva D (est.)`),
+    v('Ponto Fora da Curva · Quentes', `${EVENT_TAG}|Quente no evento`),
+    v('Ponto Fora da Curva · TINTAX', `${EVENT_TAG}|Estande: TINTAX`),
+    v('Ponto Fora da Curva · IBPTLA', `${EVENT_TAG}|Estande: IBPTLA`),
+    v('Ponto Fora da Curva · Gmaster', `${EVENT_TAG}|Estande: Gmaster`),
+    v('Ponto Fora da Curva · Grupos (cross-sell)', `${EVENT_TAG}|Grupo no evento`, { view: 'list' }),
+  ];
+};
+async function ensureViews(api, snap, rep, apply) {
+  let existing = [];
+  try { existing = (await api('GET', '/views?scope=deals')).views || []; } catch (e) { rep.failed.push({ grupo: 'visões', erro: e.message }); return; }
+  const has = new Set(existing.map((x) => norm(x.name)));
+  for (const d of VIEW_DEFS(snap.pipe.id)) {
+    if (has.has(norm(d.name))) { rep.views.existing.push(d.name); continue; }
+    try { if (apply) await api('POST', '/views', { scope: 'deals', name: d.name, shared: true, config: d.config }); rep.views.created.push(d.name); } catch (e) { rep.failed.push({ grupo: `visão ${d.name}`, erro: e.message }); }
+  }
+}
+
 export async function run(opts) {
   const { api, event, interacoes = [], apply = false, pipelineName = DEFAULT_PIPELINE, only = null, log = () => {} } = opts;
   const t0 = Date.now();
@@ -230,7 +263,7 @@ export async function run(opts) {
   event.capturas.forEach((c) => { if (!capsByLead.has(c.lead_id)) capsByLead.set(c.lead_id, []); capsByLead.get(c.lead_id).push(c); });
   const intsByLead = new Map();
   interacoes.forEach((d) => { if (!intsByLead.has(d.lead_id)) intsByLead.set(d.lead_id, []); intsByLead.get(d.lead_id).push(d); });
-  const rep = { startedAt: new Date().toISOString(), apply, pipeline: snap.pipe.name, total: leads.length, created: [], linked: [], updated: [], ignored: [], failed: [], companiesCreated: [], companiesReused: [], similarCompanies: [], groupsNoted: 0, notes: { captures: 0, gifts: 0, interactions: 0, groups: 0 }, activities: 0, stageCounts: {}, tagsApplied: 0 };
+  const rep = { startedAt: new Date().toISOString(), apply, pipeline: snap.pipe.name, total: leads.length, created: [], linked: [], updated: [], ignored: [], failed: [], companiesCreated: [], companiesReused: [], similarCompanies: [], groupsNoted: 0, notes: { captures: 0, comments: 0, gifts: 0, interactions: 0, groups: 0 }, views: { created: [], existing: [] }, activities: 0, stageCounts: {}, tagsApplied: 0 };
   const companyInRun = new Map(); // companyKey → company (criadas/lidas nesta execução)
   const leadsOfCompany = new Map();
 
@@ -271,6 +304,7 @@ export async function run(opts) {
     let added = 0;
     const need = [];
     (capsByLead.get(l.id) || []).forEach((c) => need.push({ marker: `[evento ${c.cap_id}]`, body: captureNote(c), kind: 'captures' }));
+    if (String(l.anotacoes || '').trim()) need.push({ marker: `[evento comentario ${l.id}]`, body: commentNote(l), kind: 'comments', refresh: true });
     if (l.brinde) need.push({ marker: `[evento brinde ${l.id}]`, body: giftNote(l), kind: 'gifts', refresh: true });
     (intsByLead.get(l.id) || []).forEach((d) => need.push({ marker: `[evento int ${d.id}]`, body: interactionNote(d), kind: 'interactions' }));
     for (const n of need) {
@@ -374,6 +408,7 @@ export async function run(opts) {
       rep.groupsNoted += 1;
     } catch (e) { rep.failed.push({ grupo: g.id, erro: e.message }); }
   }
+  await ensureViews(api, snap, rep, apply);
   rep.finishedAt = new Date().toISOString();
   rep.seconds = Math.round((Date.now() - t0) / 1000);
   rep.apiCalls = api.calls();
@@ -383,7 +418,7 @@ export async function run(opts) {
 export function reportMarkdown(rep, event) {
   const L = [];
   L.push(`# Importação do ${SOURCE} para o CRM — ${rep.apply ? 'GRAVADA' : 'PRÉVIA (nada foi gravado)'}`, '', `Funil: **${rep.pipeline}** · ${rep.startedAt}`, '');
-  L.push('| | |', '|---|---|', `| Leads lidos | ${rep.total} |`, `| Criados | ${rep.created.length} |`, `| Vinculados a registro existente | ${rep.linked.length} |`, `| Atualizados (reimportação) | ${rep.updated.length} |`, `| Ignorados | ${rep.ignored.length} |`, `| Falhas | ${rep.failed.length} |`, `| Empresas novas | ${rep.companiesCreated.length} (${rep.companiesCreated.filter((c) => c.provisional).length} provisórias, sem empresa na planilha) |`, `| Empresas que já existiam no CRM e foram reaproveitadas | ${rep.companiesReused.filter((c) => c.existente).length} |`, `| Várias pessoas da mesma empresa do evento (empresa reaproveitada dentro da importação) | ${rep.companiesReused.filter((c) => !c.existente).length} |`, `| Notas: capturas / brindes / interações / grupos | ${rep.notes.captures} / ${rep.notes.gifts} / ${rep.notes.interactions} / ${rep.notes.groups} |`, `| Atividades de contato combinado | ${rep.activities} |`, '');
+  L.push('| | |', '|---|---|', `| Leads lidos | ${rep.total} |`, `| Criados | ${rep.created.length} |`, `| Vinculados a registro existente | ${rep.linked.length} |`, `| Atualizados (reimportação) | ${rep.updated.length} |`, `| Ignorados | ${rep.ignored.length} |`, `| Falhas | ${rep.failed.length} |`, `| Empresas novas | ${rep.companiesCreated.length} (${rep.companiesCreated.filter((c) => c.provisional).length} provisórias, sem empresa na planilha) |`, `| Empresas que já existiam no CRM e foram reaproveitadas | ${rep.companiesReused.filter((c) => c.existente).length} |`, `| Várias pessoas da mesma empresa do evento (empresa reaproveitada dentro da importação) | ${rep.companiesReused.filter((c) => !c.existente).length} |`, `| Notas: capturas / comentários / brindes / interações / grupos | ${rep.notes.captures} / ${rep.notes.comments} / ${rep.notes.gifts} / ${rep.notes.interactions} / ${rep.notes.groups} |`, `| Visões salvas do funil (criadas / já existiam) | ${rep.views.created.length} / ${rep.views.existing.length} |`, `| Atividades de contato combinado | ${rep.activities} |`, '');
   L.push('## Etapas (estágio do evento → etapa do funil)', '', ...Object.entries(rep.stageCounts).map(([k, v]) => `- ${k}: ${v}`), '');
   L.push('## Vinculados (já existiam no CRM)', '');
   rep.linked.forEach((x) => L.push(`- ${x.nome} (${x.lead}) → contato em **${x.empresaCRM || '—'}**${x.negocioExistente ? `; negócio existente "${x.negocioExistente.titulo}" (${x.negocioExistente.etapa}, ${x.negocioExistente.funil}) recebeu tag e nota` : '; sem negócio aberto — foi criado um negócio do evento ligado a ele'}`));

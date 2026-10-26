@@ -45,3 +45,11 @@ Não dispara a cadência da etapa (`skipCadence` no `POST /deals`), não notific
 
 ## Servidor (aditivo)
 `POST /deals` aceita `externalSource`/`externalId` (409 se a chave já existe) e `skipCadence`; `GET /deals` filtra por `externalSource`/`externalId`; `mapDeal` devolve os dois campos. Teste: `scripts/crm-evento-import.test.mjs` (sandbox local; 40 verificações: prévia sem gravar, vincular × colega, reimportação sem duplicar, avanço de etapa, preservação do que o time fez, interações, chave única).
+
+## Ponto Fora da Curva: tags, curva A–D, comentários e filtros (2026-10-26, 2ª entrega)
+- **Tags do evento:** `Ponto Fora da Curva` (o evento), `Evento 22–23/10/2026`, `Canal: Estande`, `Estande: …`, `Quente no evento`, `Brinde … (est.)`, `Grupo no evento` e a **curva**: `Curva A/B/C/D (est.)`. A antiga `Prioridade est. A/B/C` foi substituída (a reimportação troca sozinha).
+- **Curva (ESTIMATIVA):** pontuação do consolidar_leads — **A ≥ 70 · B 40–69 · C 25–39 · D < 25**. O contrato só tem A/B/C; a **D** é a subdivisão da C dos que foram só captados, sem interesse anotado (criada aqui a pedido do Rafael, regra no código `curvaOf`). Hoje: A 25 · B 46 · C 163 · D 79.
+- **Comentários:** além da nota de cada captura, cada lead com anotação ganha a nota `[evento comentario L…]` com o texto original do estande.
+- **Filtros fáceis no funil (Negócios):** botão **Tags** com busca e várias caixas (o negócio precisa ter TODAS as marcadas) + atalhos de um clique "Evento e curva: Ponto Fora da Curva · Curva A · B · C · D" (somam entre si). Tags coloridas por tipo (curva A verde, B azul, C âmbar, D cinza, evento amarelo, estande roxo…).
+- **Visões salvas compartilhadas (1 clique):** "Ponto Fora da Curva · todos / Curva A / B / C / D / Quentes / TINTAX / IBPTLA / Gmaster / Grupos (cross-sell)" — criadas pelo importador se faltarem.
+- Servidor: `GET /deals?tag=a|b` (E de várias tags; também aceita `tag` repetida); visões aceitam `tag` com várias tags separadas por `|`.

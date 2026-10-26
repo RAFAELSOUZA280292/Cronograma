@@ -93,6 +93,30 @@ export const DEAL_STATUS_META = { open: { label: 'Em aberto', color: 'var(--text
 export const BILLING_LABELS = { one_time: 'Projeto (pontual)', recurring: 'Recorrente (mensal)' };
 
 // Atividades (Fase 3). O ícone vem do componente (ActivityList) pra este arquivo não importar React.
+
+// Cor por tipo de tag (CRM com vida: a curva, o evento e o estande se reconhecem de longe). Devolve a cor do texto/borda; o fundo sai de `tagTint`.
+export function tagColor(name) {
+  const n = String(name || '');
+  if (/^Curva A\b/.test(n)) return '#2ecc8f';
+  if (/^Curva B\b/.test(n)) return '#3ea6ff';
+  if (/^Curva C\b/.test(n)) return '#f5a524';
+  if (/^Curva D\b/.test(n)) return '#9aa0ad';
+  if (/Ponto Fora da Curva|^Evento /.test(n)) return '#FEDB00';
+  if (/^Estande:/.test(n)) return '#b98af5';
+  if (/^Canal:/.test(n)) return '#2fc4c4';
+  if (/^Quente/.test(n)) return '#ff6b4a';
+  if (/^Brinde/.test(n)) return '#f06fb0';
+  if (/^(Venda|Fechamento)/.test(n)) return '#7bd66a';
+  if (/^Grupo/.test(n)) return '#ff9f40';
+  return 'var(--text-4)';
+}
+export const tagTint = (name) => { const c = tagColor(name); return c.startsWith('#') ? `${c}1f` : 'transparent'; };
+
+export const ACTIVITY_COLORS = { task: '#8f9bb3', call: '#3ea6ff', email: '#b98af5', meeting: '#ff9f40', whatsapp: '#2ecc8f', visit: '#2fc4c4', followup: '#FEDB00' };
+// Avatar com cor própria por pessoa (a mesma pessoa sempre cai na mesma cor).
+export function avatarHue(name) { let h = 0; for (const ch of String(name || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return [4, 28, 48, 96, 152, 176, 200, 224, 262, 292, 322][h % 11]; }
+export const avatarStyle = (name) => { const h = avatarHue(name); return { background: `hsl(${h} 70% 38%)`, borderColor: `hsl(${h} 70% 55%)`, color: '#fff' }; };
+
 export const ACTIVITY_TYPES = [['task', 'Tarefa'], ['call', 'Ligação'], ['email', 'E-mail'], ['meeting', 'Reunião'], ['whatsapp', 'WhatsApp'], ['visit', 'Visita'], ['followup', 'Follow-up']];
 export const activityTypeLabel = (v) => (ACTIVITY_TYPES.find(([k]) => k === v) || [null, v])[1];
 export const PRIORITY_META = { low: { label: 'Baixa', color: 'var(--text-6)' }, normal: { label: 'Normal', color: 'var(--text-5)' }, high: { label: 'Alta', color: '#e2574c' } };
@@ -295,6 +319,47 @@ export const CRM_CSS = `
   .crm-deal-co { font-size:11.5px; color:var(--text-5); margin-top:2px; overflow-wrap:anywhere; }
   .crm-deal-meta { display:flex; justify-content:space-between; align-items:center; gap:6px; margin-top:8px; font-size:11.5px; color:var(--text-5); }
   .crm-deal-value { font-weight:800; color:var(--text-1); font-variant-numeric:tabular-nums; font-size:12.5px; }
+  .crm-tagfilter { display:inline-block; position:relative; }
+  .crm-btn-on { border-color:#FEDB00; box-shadow:0 0 0 2px rgba(254,219,0,.22); }
+  .crm-tagbtn { display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:800; padding:3px 10px; border-radius:999px; border:1px solid currentColor; background:transparent; font-family:inherit; cursor:default; white-space:nowrap; }
+  button.crm-tagbtn { cursor:pointer; }
+  button.crm-tagbtn:hover { filter:brightness(1.15); }
+  .crm-tagbtn-x { display:inline-flex; border:0; background:transparent; color:inherit; padding:0 0 0 2px; cursor:pointer; }
+  .crm-quicktags { display:flex; flex-wrap:wrap; align-items:center; gap:6px; flex-basis:100%; margin-top:2px; }
+  .crm-link-btn { border:0; background:none; color:var(--text-4); text-decoration:underline; font:inherit; font-size:12px; cursor:pointer; }
+  .crm-tagpop { z-index:10050; width:min(340px, calc(100vw - 24px)); background:var(--bg-2); color:var(--text-1); border:1px solid var(--border-3); border-radius:12px; box-shadow:0 18px 48px rgba(0,0,0,.38); padding:10px; display:flex; flex-direction:column; overflow:hidden; }
+  .crm-tagpop > input { margin-bottom:8px; }
+  .crm-tagpop-list { overflow:auto; display:flex; flex-direction:column; gap:1px; min-height:0; }
+  .crm-tagpop-row { display:flex; align-items:center; gap:8px; padding:6px 6px; border-radius:7px; cursor:pointer; font-size:13px; }
+  .crm-tagpop-row:hover { background:var(--bg-4); }
+  .crm-tagpop-row input { width:auto; }
+  .crm-tagpop-row small { color:var(--text-5); font-variant-numeric:tabular-nums; }
+  .crm-tagdot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+
+  /* ---- CRM com vida (2026-10-26): cor da etapa, ícones por tipo, avatares, navegação e indicadores ---- */
+  .crm-col { --stage:var(--border-3); border-top:3px solid var(--stage); background:linear-gradient(180deg, color-mix(in srgb, var(--stage) 9%, var(--bg-2)) 0, var(--bg-2) 140px); }
+  .crm-col-count { background:color-mix(in srgb, var(--stage) 24%, transparent); color:var(--text-1); }
+  .crm-col-title .crm-dot { box-shadow:0 0 0 3px color-mix(in srgb, var(--stage) 28%, transparent); }
+  .crm-deal { --stage:var(--border-3); box-shadow:inset 3px 0 0 var(--stage); transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease; }
+  .crm-deal:hover, .crm-deal:focus-visible { transform:translateY(-1px); box-shadow:inset 3px 0 0 var(--stage), 0 8px 20px rgba(0,0,0,.28); }
+  .crm-deal-value { color:#2ecc8f; }
+  html[data-theme="light"] .crm-deal-value { color:#0f8a5f; }
+  .crm-avatar { border-width:1.5px; }
+  .crm-act-ico { background:color-mix(in srgb, var(--act, #8f9bb3) 20%, var(--bg-3)); color:var(--act, var(--text-4)); }
+  .crm-act.done .crm-act-ico { filter:grayscale(.7); opacity:.7; }
+  .crm-h1 { display:inline-block; padding-bottom:3px; border-bottom:3px solid #FEDB00; }
+  .crm-nav button svg { color:var(--nav, var(--text-5)); flex-shrink:0; }
+  .crm-nav button:nth-child(1) { --nav:#FEDB00; } .crm-nav button:nth-child(2) { --nav:#3ea6ff; } .crm-nav button:nth-child(3) { --nav:#2ecc8f; }
+  .crm-nav button:nth-child(4) { --nav:#b98af5; } .crm-nav button:nth-child(5) { --nav:#2fc4c4; } .crm-nav button:nth-child(6) { --nav:#ff9f40; }
+  .crm-nav button.active { background:color-mix(in srgb, var(--nav, #F5C400) 14%, var(--bg-3)); box-shadow:inset 3px 0 0 var(--nav, #F5C400); }
+  .crm-cards .crm-card { border-top:3px solid var(--kpi, var(--border-3)); background:linear-gradient(180deg, color-mix(in srgb, var(--kpi, transparent) 8%, var(--bg-2)), var(--bg-2) 70%); }
+  .crm-cards .crm-card:nth-child(6n+1) { --kpi:#3ea6ff; } .crm-cards .crm-card:nth-child(6n+2) { --kpi:#b98af5; } .crm-cards .crm-card:nth-child(6n+3) { --kpi:#2ecc8f; }
+  .crm-cards .crm-card:nth-child(6n+4) { --kpi:#FEDB00; } .crm-cards .crm-card:nth-child(6n+5) { --kpi:#ff6b4a; } .crm-cards .crm-card:nth-child(6n+6) { --kpi:#2fc4c4; }
+  .crm-section { border-top:2px solid color-mix(in srgb, #FEDB00 55%, var(--border-1)); }
+  .crm-btn-primary { box-shadow:0 2px 10px rgba(254,219,0,.22); }
+  .crm-btn:not(.crm-btn-primary):hover { border-color:#FEDB00; }
+  .crm-topbar { background:linear-gradient(90deg, color-mix(in srgb, #FEDB00 7%, transparent), transparent 55%); }
+  @media (prefers-reduced-motion: reduce) { .crm-deal { transition:none; } .crm-deal:hover, .crm-deal:focus-visible { transform:none; } }
   .crm-tags { display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; }
   .crm-tag { font-size:10px; font-weight:800; padding:1px 7px; border-radius:999px; border:1px solid currentColor; white-space:nowrap; }
   .crm-items-row { display:grid; grid-template-columns:minmax(0,1fr) 78px 118px 30px; gap:8px; align-items:center; margin-bottom:8px; }

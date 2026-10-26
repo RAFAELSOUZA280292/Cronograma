@@ -7,6 +7,7 @@ import { crm } from './crmApi.js';
 import { Modal, Field, RelPill, CancelButton, useDirty } from './ui.jsx';
 import { ACTIVITY_TYPES, PRIORITY_META, contactLabel } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
+import { DateField, TimeField } from '../ui/DateTimeFields.jsx';
 
 
 const todayLocal = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
@@ -86,8 +87,8 @@ function ActivityForm({ initial, company, prefill, options, currentUserId, onSav
         <Field label="Prioridade">
           <select value={form.priority} onChange={(e) => set('priority', e.target.value)}>{Object.entries(PRIORITY_META).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}</select>
         </Field>
-        <Field label={done ? 'Quando aconteceu *' : 'Data *'}><input type="date" value={form.dueDate} max={done ? todayLocal() : undefined} onChange={(e) => set('dueDate', e.target.value)} /></Field>
-        <Field label="Horário (opcional)"><input type="time" value={form.dueTime} onChange={(e) => set('dueTime', e.target.value)} /></Field>
+        <Field label={done ? 'Quando aconteceu *' : 'Data *'}><DateField value={form.dueDate} max={done ? todayLocal() : undefined} onChange={(v) => set('dueDate', v)} ariaLabel={done ? 'Quando aconteceu' : 'Data da atividade'} /></Field>
+        <Field label="Horário (opcional)"><TimeField value={form.dueTime} onChange={(v) => set('dueTime', v)} ariaLabel="Horário da atividade" /></Field>
         <Field label="Responsável">
           <select value={form.ownerId} onChange={(e) => set('ownerId', e.target.value)}>
             <option value="">Sem responsável</option>{owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}

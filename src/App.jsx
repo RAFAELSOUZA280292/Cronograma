@@ -1356,6 +1356,13 @@ function AppScreens({ shellRef, bump }) {
     try {
       if (canOpenMode(mode, currentUser)) {
         if (mode === 'company') restoreCompanyPending.current = true;
+        if (mode === 'crm') {
+          // Link vindo da agenda do Google (…/crm?negocio=ID ou ?empresa=ID): abre direto o negócio ou a empresa.
+          const q = new URLSearchParams(window.location.search);
+          const uuid = /^[0-9a-f-]{36}$/i;
+          if (uuid.test(q.get('negocio') || '')) setPendingCrmOpen({ dealId: q.get('negocio') });
+          else if (uuid.test(q.get('empresa') || '')) setPendingCrmOpen({ companyId: q.get('empresa') });
+        }
         setWorkspaceMode(mode);
         window.history.replaceState({ navTag: modeForTag(mode) }, '', pathForMode(mode));
       } else {

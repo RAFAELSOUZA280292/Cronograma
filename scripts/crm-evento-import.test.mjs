@@ -46,7 +46,8 @@ async function cleanup() {
   await pool.query(`DELETE FROM crm_cadences WHERE pipeline_id = ANY($1::uuid[])`, [pids]);
   await pool.query(`DELETE FROM crm_pipeline_stages WHERE pipeline_id = ANY($1::uuid[])`, [pids]);
   await pool.query(`DELETE FROM crm_pipelines WHERE id = ANY($1::uuid[])`, [pids]);
-  await pool.query(`DELETE FROM crm_tags WHERE org_id=$1 AND (name LIKE 'Estande: %' OR name IN ('Evento 22–23/10/2026','Canal: Estande','Grupo no evento','Quente no evento','Tag da equipe'))`, [ORG]).catch(() => {});
+  await pool.query(`DELETE FROM crm_saved_views WHERE org_id=$1 AND name LIKE 'Ponto Fora da Curva ·%'`, [ORG]).catch(() => {});
+  await pool.query(`DELETE FROM crm_tags WHERE org_id=$1 AND (name LIKE 'Curva _ (est.)' OR name = 'Ponto Fora da Curva' OR name LIKE 'Estande: %' OR name IN ('Evento 22–23/10/2026','Canal: Estande','Grupo no evento','Quente no evento','Tag da equipe'))`, [ORG]).catch(() => {});
   for (const t of HIST) await pool.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`);
   await pool.query(`DELETE FROM api_token_actions WHERE user_id LIKE 'oiev_%'`).catch(() => {});
   await pool.query(`DELETE FROM api_tokens WHERE user_id LIKE 'oiev_%'`);
@@ -108,7 +109,9 @@ try {
   const detail = (await api('GET', `/deals/${dSimple.id}`));
   ok('estágio 7 → etapa Leads; valor 0 (nada inventado); sem responsável', dSimple.stageName === 'Leads' && dSimple.value === 0 && !dSimple.ownerName, dSimple);
   ok('descrição separa FATOS, ESTIMATIVAS e NÃO IDENTIFICADO', /FATOS/.test(detail.deal.description) && /ESTIMATIVAS/.test(detail.deal.description) && /não informado/.test(detail.deal.description) && /Valor de venda: não informado/.test(detail.deal.description), detail.deal.description);
-  ok('tags de origem, canal e estande', ['Evento 22–23/10/2026', 'Canal: Estande', 'Estande: TINTAX'].every((t) => detail.deal.tags.includes(t)), detail.deal.tags);
+  ok('tags de origem, evento, canal, estande e curva (A–D)', ['Evento 22–23/10/2026', 'Ponto Fora da Curva', 'Canal: Estande', 'Estande: TINTAX'].every((t) => detail.deal.tags.includes(t)) && detail.deal.tags.some((t) => /^Curva [A-D] \(est\.\)$/.test(t)), detail.deal.tags);
+  ok('curva D = pontuação < 25 (lead só captado); descrição explica a regra', I.curvaOf(10) === 'D' && I.curvaOf(24) === 'D' && I.curvaOf(25) === 'C' && I.curvaOf(39) === 'C' && I.curvaOf(40) === 'B' && I.curvaOf(70) === 'A' && detail.deal.tags.includes(`Curva ${I.curvaOf(byId.get(IDS.simples[1]).score_est)} (est.)`) && /Curva \(est\.\): [A-D] — A ≥70/.test(detail.deal.description), detail.deal.tags);
+  ok('filtro por VÁRIAS tags (E): evento + curva traz só quem tem as duas', await (async () => { const cv = `Curva ${I.curvaOf(byId.get(IDS.simples[1]).score_est)} (est.)`; const a = await api('GET', `/deals?status=all&tag=${encodeURIComponent(`Ponto Fora da Curva|${cv}`)}&limit=200`); const b = await api('GET', `/deals?status=all&tag=${encodeURIComponent('Ponto Fora da Curva|Curva A (est.)|Curva D (est.)')}&limit=200`); return a.total >= 1 && a.items.every((d) => d.tags.includes(cv)) && b.total === 0; })());
   ok('cadência da etapa Leads NÃO foi disparada pela importação', (await count(`SELECT count(*)::int n FROM crm_activities WHERE org_id=$1 AND title='Passo de cadência' AND deleted_at IS NULL`, [ORG])) === 0);
   const noEmp = deals.find((d) => d.externalId === IDS.semEmpresa);
   ok('lead sem empresa → empresa provisória com o nome da pessoa; estágio 5 → Acesso Teste', noEmp && /\(empresa não informada\)/.test(noEmp.companyName) && noEmp.stageName === 'Acesso Teste', noEmp && [noEmp.companyName, noEmp.stageName]);
@@ -118,6 +121,9 @@ try {
   ok('data de contato combinada vira atividade (follow-up) no dia anotado, sem dono', dfDet.activities.some((a) => a.dueDate === fol.follow_up && /Contato combinado/.test(a.title)), dfDet.activities);
   const capN = event.capturas.filter((c) => pick.includes(c.lead_id) && c.lead_id !== IDS.venda).length + event.capturas.filter((c) => c.lead_id === IDS.venda).length;
   ok('capturas viram notas do histórico (uma por captura)', r1.notes.captures === capN, { got: r1.notes.captures, capN });
+  ok('comentários do estande viram nota com o texto original', r1.notes.comments === pick.filter((id) => String(byId.get(id).anotacoes || '').trim()).length && (await api('GET', `/deals/${deals.find((d) => d.externalId === IDS.follow).id}`)).notes.some((n) => n.body.startsWith(`[evento comentario ${IDS.follow}]`) && n.body.includes(byId.get(IDS.follow).anotacoes.trim().slice(0, 30))), r1.notes);
+  const vs = (await api('GET', '/views?scope=deals')).views.filter((v) => /^Ponto Fora da Curva ·/.test(v.name));
+  ok('visões salvas compartilhadas (evento, curvas A–D, quentes, estandes, grupos) criadas com o filtro de várias tags', r1.views.created.length === 10 && vs.length === 10 && vs.every((v) => v.shared) && vs.find((v) => v.name.endsWith('Curva A')).config.tag === 'Ponto Fora da Curva|Curva A (est.)' && vs.find((v) => v.name.endsWith('Curva A')).config.pipelineId === pipe.id, vs.map((v) => v.name));
   const dBr = deals.find((d) => d.externalId === IDS.brinde);
   const brDet = await api('GET', `/deals/${dBr.id}`);
   ok('brinde entra como ESTIMATIVA (nota e tag com "(est.)")', brDet.notes.some((n) => /Brinde \(ESTIMATIVA/.test(n.body)) && brDet.deal.tags.includes('Brinde registrado (est.)'), brDet.deal.tags);
@@ -134,7 +140,7 @@ try {
   const nComp = await count(`SELECT count(*)::int n FROM crm_companies WHERE org_id=$1 AND deleted_at IS NULL`, [ORG]);
   const nAct = await count(`SELECT count(*)::int n FROM crm_activities WHERE org_id=$1 AND deleted_at IS NULL`, [ORG]);
   const r2 = await I.run({ ...base, apply: true });
-  ok('2ª importação sem falhas e sem criar nada', r2.failed.length === 0 && r2.created.length === 0, { f: r2.failed, c: r2.created.length });
+  ok('2ª importação sem falhas e sem criar nada (nem visões repetidas)', r2.failed.length === 0 && r2.created.length === 0 && r2.views.created.length === 0 && r2.views.existing.length === 10, { f: r2.failed, c: r2.created.length, v: r2.views });
   ok('nada duplicado (negócios, notas, contatos, empresas, atividades)', (await count(`SELECT count(*)::int n FROM crm_deals WHERE org_id=$1 AND deleted_at IS NULL`, [ORG])) === nDeals && (await count(`SELECT count(*)::int n FROM crm_notes WHERE org_id=$1 AND deleted_at IS NULL`, [ORG])) === nNotes && (await count(`SELECT count(*)::int n FROM crm_contacts WHERE org_id=$1 AND deleted_at IS NULL`, [ORG])) === nCont && (await count(`SELECT count(*)::int n FROM crm_companies WHERE org_id=$1 AND deleted_at IS NULL`, [ORG])) === nComp && (await count(`SELECT count(*)::int n FROM crm_activities WHERE org_id=$1 AND deleted_at IS NULL`, [ORG])) === nAct, { nDeals, nNotes });
   ok('2ª importação: tudo "ignorado" (já estava igual)', r2.ignored.length + r2.updated.length + r2.linked.length === pick.length && r2.updated.length === 0, { i: r2.ignored.length, u: r2.updated.length, l: r2.linked.length });
 
@@ -154,7 +160,7 @@ try {
   ok('3ª importação (lista nova) sem falhas', r3.failed.length === 0, r3.failed);
   const advDeal = (await api('GET', `/deals/${deals.find((d) => d.externalId === adv.id).id}`));
   ok('lead que avançou de estágio sobe de etapa (Leads → Conexão) quando o time não mexeu', advDeal.deal.stageName === 'Conexão', advDeal.deal.stageName);
-  ok('descrição e tags refletem a lista nova; captura nova virou nota (e as antigas não duplicaram)', /Estágio no evento: 4/.test(advDeal.deal.description) && advDeal.deal.tags.includes('Quente no evento') && advDeal.deal.tags.includes('Prioridade est. A') && !advDeal.deal.tags.includes('Prioridade est. C') && advDeal.notes.filter((n) => n.body.startsWith('[evento C999]')).length === 1, [advDeal.deal.tags, advDeal.notes.length]);
+  ok('descrição e tags refletem a lista nova; captura nova virou nota (e as antigas não duplicaram)', /Estágio no evento: 4/.test(advDeal.deal.description) && advDeal.deal.tags.includes('Quente no evento') && advDeal.deal.tags.includes('Curva A (est.)') && !advDeal.deal.tags.includes('Curva D (est.)') && !advDeal.deal.tags.some((t) => /^Prioridade est\./.test(t)) && advDeal.notes.filter((n) => n.body.startsWith('[evento C999]')).length === 1, [advDeal.deal.tags, advDeal.notes.length]);
   const tAfter = await api('GET', `/deals/${tDeal.id}`);
   ok('negócio que o time moveu NÃO é movido de volta pela importação; tag da equipe preservada', tAfter.deal.stageName === 'Proposta' && tAfter.deal.tags.includes('Tag da equipe'), [tAfter.deal.stageName, tAfter.deal.tags]);
   ok('histórico mantido: movimentos de etapa e notas anteriores continuam', tAfter.stageHistory.length >= 2 && (await api('GET', `/deals/${deals.find((d) => d.externalId === adv.id).id}`)).notes.length >= 2, tAfter.stageHistory.length);

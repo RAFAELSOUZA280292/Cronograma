@@ -95,7 +95,7 @@ async function notifyAssigned(c, orgId, actor, api, ownerId) {
 
 const lc = (s) => String(s).toLowerCase();
 
-export async function createActivity(orgId, actor, input, { alreadyDone = false } = {}) {
+async function createActivityCore(orgId, actor, input, { alreadyDone = false } = {}) {
   const src = input || {};
   const { values, errors } = sanitize(ACTIVITY_SPEC, src);
   if (!values.title) errors.push('Informe o título da atividade.');
@@ -137,7 +137,7 @@ export async function createActivity(orgId, actor, input, { alreadyDone = false 
   });
 }
 
-export async function updateActivity(orgId, actor, id, input) {
+async function updateActivityCore(orgId, actor, id, input) {
   requireUuid(id, 'Atividade');
   const src = input || {};
   const { values, errors } = sanitize(ACTIVITY_SPEC, src, { partial: true });
@@ -192,7 +192,7 @@ async function transition(orgId, actor, id, { from, to, fn }) {
 }
 
 // Concluir uma ligação/reunião/e-mail/etc. registra o resultado — é o "pós-reunião" da Fase 3.
-export async function completeActivity(orgId, actor, id, { outcome = '' } = {}) {
+async function completeActivityCore(orgId, actor, id, { outcome = '' } = {}) {
   const text = String(outcome || '').trim().slice(0, 3000);
   return transition(orgId, actor, id, {
     from: ['open'], to: 'done',
@@ -205,7 +205,7 @@ export async function completeActivity(orgId, actor, id, { outcome = '' } = {}) 
   });
 }
 
-export async function cancelActivity(orgId, actor, id) {
+async function cancelActivityCore(orgId, actor, id) {
   return transition(orgId, actor, id, {
     from: ['open'], to: 'cancelled',
     fn: {
@@ -216,7 +216,7 @@ export async function cancelActivity(orgId, actor, id) {
   });
 }
 
-export async function reopenActivity(orgId, actor, id) {
+async function reopenActivityCore(orgId, actor, id) {
   return transition(orgId, actor, id, {
     from: ['done', 'cancelled'], to: 'open',
     fn: {
@@ -229,7 +229,7 @@ export async function reopenActivity(orgId, actor, id) {
   });
 }
 
-export async function deleteActivity(orgId, actor, id) {
+async function deleteActivityCore(orgId, actor, id) {
   requireUuid(id, 'Atividade');
   return tx(async (c) => {
     const row = await loadActivity(c, orgId, id, { lock: true });
@@ -240,3 +240,16 @@ export async function deleteActivity(orgId, actor, id) {
     return { ok: true };
   });
 }
+
+// Gancho depois de cada mudança numa atividade (hoje: espelho no Google Calendar do responsável — googleSync.js registra aqui). Nunca derruba a operação.
+export const activityHooks = { after: null };
+async function after(orgId, actor, id) {
+  if (!activityHooks.after) return;
+  try { await activityHooks.after(orgId, id, actor); } catch (e) { console.error('Gancho de atividade:', e.message); }
+}
+export async function createActivity(orgId, actor, input, opts) { const r = await createActivityCore(orgId, actor, input, opts); await after(orgId, actor, r.id); return r; }
+export async function updateActivity(orgId, actor, id, input) { const r = await updateActivityCore(orgId, actor, id, input); await after(orgId, actor, id); return r; }
+export async function completeActivity(orgId, actor, id, input) { const r = await completeActivityCore(orgId, actor, id, input); await after(orgId, actor, id); return r; }
+export async function cancelActivity(orgId, actor, id) { const r = await cancelActivityCore(orgId, actor, id); await after(orgId, actor, id); return r; }
+export async function reopenActivity(orgId, actor, id) { const r = await reopenActivityCore(orgId, actor, id); await after(orgId, actor, id); return r; }
+export async function deleteActivity(orgId, actor, id) { const r = await deleteActivityCore(orgId, actor, id); await after(orgId, actor, id); return r; }

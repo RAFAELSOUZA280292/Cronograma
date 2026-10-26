@@ -21,7 +21,10 @@ function dealFilters(orgId, f, params) {
   if (f.source) where.push(`lower(d.source)=lower(${add(String(f.source).slice(0, 200))})`);
   if (f.externalSource) where.push(`d.external_source=${add(String(f.externalSource).slice(0, 60))}`);
   if (f.externalId) where.push(`d.external_id=${add(String(f.externalId).slice(0, 80))}`);
-  if (f.tag) where.push(`EXISTS (SELECT 1 FROM crm_deal_tags dtf JOIN crm_tags tf ON tf.id = dtf.tag_id WHERE dtf.deal_id = d.id AND tf.name_key = ${add(String(f.tag).trim().replace(/\s+/g, ' ').toLowerCase().slice(0, 80))})`);
+  // Tags: uma ou várias (separadas por "|" ou repetidas na URL) — o negócio precisa ter TODAS (E). Ex.: "Ponto Fora da Curva|Curva A (est.)".
+  for (const t of [...new Set([].concat(f.tag || []).flatMap((x) => String(x).split('|')).map((x) => x.trim().replace(/\s+/g, ' ').toLowerCase().slice(0, 80)).filter(Boolean))].slice(0, 6)) {
+    where.push(`EXISTS (SELECT 1 FROM crm_deal_tags dtf JOIN crm_tags tf ON tf.id = dtf.tag_id WHERE dtf.deal_id = d.id AND tf.name_key = ${add(t)})`);
+  }
   // Atenção (lista): o quadro filtra em JS porque precisa dos contadores de todas as faixas.
   const open = (extra) => where.push(`d.status='open' AND ${extra}`);
   const live = `EXISTS (SELECT 1 FROM crm_activities ax WHERE ax.deal_id = d.id AND ax.status='open' AND ax.deleted_at IS NULL`;

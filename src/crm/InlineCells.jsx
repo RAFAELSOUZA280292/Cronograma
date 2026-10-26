@@ -1,6 +1,7 @@
 // Edição direta na célula (§94): clicar e digitar/escolher salva na hora, sem abrir formulário. Esc cancela. Não propaga o clique (a linha abre a ficha).
 import React, { useEffect, useRef, useState } from 'react';
 import { fmtMoney, moneyToNumber } from './crmMeta.js';
+import { DateField } from '../ui/DateTimeFields.jsx';
 
 const stop = (e) => e.stopPropagation();
 const numStr = (n) => (n == null || n === '' ? '' : String(n).replace('.', ','));
@@ -28,9 +29,8 @@ export function InlineMoney({ value, disabled, disabledTitle, label, onSave }) {
 
 export function InlineDate({ value, disabled, disabledTitle, label, overdue, onSave }) {
   return (
-    <span onClick={stop} onKeyDown={stop}>
-      <input type="date" className="crm-inline-input" value={value || ''} disabled={disabled} title={disabled ? disabledTitle : 'Previsão de fechamento'} aria-label={`Previsão de fechamento — ${label}`}
-        onChange={(e) => { if (e.target.value !== (value || '')) onSave(e.target.value || null); }} style={{ color: overdue ? '#e2574c' : undefined, fontWeight: overdue ? 700 : undefined }} />
+    <span onClick={stop} onKeyDown={stop} style={{ display: 'inline-block', minWidth: 150 }}>
+      <DateField value={value || ''} disabled={disabled} ariaLabel={`Previsão de fechamento — ${label}`} allowClear onChange={(v) => { if (v !== (value || '')) onSave(v || null); }} className={overdue ? 'dt-overdue' : ''} />
     </span>
   );
 }

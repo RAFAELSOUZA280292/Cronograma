@@ -7,6 +7,7 @@ import { crm } from './crmApi.js';
 import { Modal, Field, DuplicatesAlert, CancelButton, useDirty, useDraftGuard } from './ui.jsx';
 import { fmtCnpj, sourceLabel } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
+import { DateField } from '../ui/DateTimeFields.jsx';
 
 
 const EMPTY = {
@@ -142,8 +143,8 @@ function CompanyForm({ initial, options, onSaved, onCancel, onOpenCompany, prefi
             <Field label="Complemento"><input value={form.complement} onChange={(e) => set('complement', e.target.value)} /></Field>
             <Field label="Bairro"><input value={form.district} onChange={(e) => set('district', e.target.value)} /></Field>
             <div className="crm-form-group">Comercial</div>
-            <Field label="Data de entrada"><input type="date" value={form.enteredAt} onChange={(e) => set('enteredAt', e.target.value)} /></Field>
-            <Field label="Cliente desde"><input type="date" value={form.clientSince} onChange={(e) => set('clientSince', e.target.value)} /></Field>
+            <Field label="Data de entrada"><DateField value={form.enteredAt} onChange={(v) => set('enteredAt', v)} ariaLabel="Data de entrada" allowClear /></Field>
+            <Field label="Cliente desde"><DateField value={form.clientSince} onChange={(v) => set('clientSince', v)} ariaLabel="Cliente desde" allowClear /></Field>
             <div className="crm-form-group">Econômico</div>
             <Field label="Porte">
               <select value={form.companySize} onChange={(e) => set('companySize', e.target.value)}>
@@ -155,7 +156,7 @@ function CompanyForm({ initial, options, onSaved, onCancel, onOpenCompany, prefi
                 <option value="">—</option>{((options && options.taxRegimes) || []).map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </Field>
-            <Field label="Data de fundação"><input type="date" value={form.foundedAt} onChange={(e) => set('foundedAt', e.target.value)} /></Field>
+            <Field label="Data de fundação"><DateField value={form.foundedAt} onChange={(v) => set('foundedAt', v)} ariaLabel="Data de fundação" allowClear /></Field>
             <Field label="Capital social (R$)"><input value={form.shareCapital} onChange={(e) => set('shareCapital', e.target.value)} placeholder="ex.: 50.000,00" /></Field>
             <Field label="Faturamento estimado (R$)"><input value={form.revenueEstimate} onChange={(e) => set('revenueEstimate', e.target.value)} placeholder="ex.: 1.500.000,00" /></Field>
             <Field label="Nº de funcionários"><input type="number" min="0" value={form.employees} onChange={(e) => set('employees', e.target.value)} /></Field>

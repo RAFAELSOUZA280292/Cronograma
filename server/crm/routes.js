@@ -27,6 +27,7 @@ import * as X from './extras.js';
 import * as V from './views.js';
 import * as DB from './dashboards.js';
 import * as DI from './dealImporter.js';
+import './googleSync.js'; // registra o espelho das atividades no Google Calendar do responsável
 import { mapCnpjSuggestion } from './cnpjSuggestion.js';
 import { registerPiperunRoutes } from './piperun/routes.js';
 
@@ -44,7 +45,7 @@ const h = (fn) => async (req, res, next) => {
 
 const orgOf = (req) => effectiveOrgId(req);
 // `req.crmActor` só existe na entrada por chave de API (/api/connect/crm, §99): a ação fica registrada como "Claude Code (por <dono da chave>)".
-const actorOf = (req) => req.crmActor || (req.renataCommandId !== undefined
+const actorOf = (req) => (req.crmActor ? { ...req.crmActor, skipGoogle: !(req.body && req.body.syncGoogle === true) } : null) || (req.renataCommandId !== undefined
   ? { id: req.user.id, name: `RENATA (IA, a pedido de ${req.user.name || req.user.username})`, viaApi: true }
   : { id: req.user.id, name: req.user.name || req.user.username });
 

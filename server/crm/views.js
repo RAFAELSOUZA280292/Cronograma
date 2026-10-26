@@ -58,7 +58,7 @@ export function cleanConfig(scope, raw) {
     type: ['new', 'upsell'].includes(type) ? type : '',
     ownerId: ['none', 'me'].includes(owner) || /^[A-Za-z0-9_.@:-]{1,64}$/.test(owner) ? owner : '', // users.id é texto livre, não UUID
     source: clip(c.source, 200),
-    tag: clip(c.tag, 80),
+    tag: clip(c.tag, 400), // uma ou várias tags separadas por "|" (o negócio precisa ter todas)
     attention: ATTENTION.includes(attention) ? attention : '',
     listStatus: ['open', 'won', 'lost', 'all'].includes(status) ? status : 'open',
   };

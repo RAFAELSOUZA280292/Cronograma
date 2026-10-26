@@ -9,6 +9,7 @@ import { Modal, Field, RelPill, CancelButton, useDirty } from './ui.jsx';
 import { fmtMoney, sourceLabel, moneyToNumber, contactLabel } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
 import { trackFlow } from '../lib/experience.js';
+import { DateField } from '../ui/DateTimeFields.jsx';
 
 
 const CUSTOM = '__custom';
@@ -194,7 +195,7 @@ function DealForm({ initial, company, defaultType, defaultPipelineId, options, c
         </div>
         {items.length === 0 && <Field label="Valor do negócio (R$)"><input inputMode="decimal" value={form.value} onChange={(e) => set('value', e.target.value)} placeholder="Ex.: 20.000,00" /></Field>}
         <Field label="MRR — receita recorrente mensal (R$)"><input inputMode="decimal" value={form.mrr} onChange={(e) => set('mrr', e.target.value)} placeholder="Ex.: 3.500,00" /></Field>
-        <Field label="Previsão de fechamento"><input type="date" value={form.expectedCloseDate} onChange={(e) => set('expectedCloseDate', e.target.value)} /></Field>
+        <Field label="Previsão de fechamento"><DateField value={form.expectedCloseDate} onChange={(v) => set('expectedCloseDate', v)} ariaLabel="Previsão de fechamento" allowClear /></Field>
         <Field label="Probabilidade manual (%)"><input type="number" min="0" max="100" value={form.probabilityOverride} onChange={(e) => set('probabilityOverride', e.target.value)} placeholder="Vazio = a da etapa" /></Field>
 
         <div className="crm-form-group">Contexto</div>

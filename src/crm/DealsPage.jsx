@@ -13,8 +13,9 @@ import PipeRunMigration from './PipeRunMigration.jsx';
 import SavedViewsBar, { ViewDialogGuarded } from './SavedViews.jsx';
 import ContactLinks from './ContactLinks.jsx';
 import { InlineMoney, InlineDate, InlineSelect } from './InlineCells.jsx';
-import { fmtMoney, fmtDateBR, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor, cadenceNotice } from './crmMeta.js';
+import { fmtMoney, fmtDateBR, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor, cadenceNotice, tagColor, tagTint, avatarStyle } from './crmMeta.js';
 import { trackFlow } from '../lib/experience.js';
+import TagFilter from './TagFilter.jsx';
 
 const VIEW_KEY = 'crm-deals-view';
 const PIPE_KEY = 'crm-deals-pipeline';
@@ -59,13 +60,13 @@ function DealCard({ deal, stages, canDrag, canWrite, dragging, onOpen, onMove, o
   const place = [deal.companyCity, deal.companyState].filter(Boolean).join('/');
   return (
     // div (não button): o Firefox não inicia arrasto em <button>. Teclado abre com Enter/Espaço.
-    <div role="button" tabIndex={0} className={`crm-deal${dragging ? ' dragging' : ''}${tone}`} draggable={canDrag} onClick={() => onOpen(deal.id)}
+    <div role="button" tabIndex={0} className={`crm-deal${dragging ? ' dragging' : ''}${tone}`} style={deal.stageColor ? { '--stage': deal.stageColor } : undefined} draggable={canDrag} onClick={() => onOpen(deal.id)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(deal.id); } }}
       onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', deal.id); onDragStart(deal.id); }} onDragEnd={onDragEnd}>
       <div className="crm-deal-top">
         <div className="crm-deal-title">{deal.title}</div>
         <div className="crm-deal-tools">
-          {deal.ownerName && <span className="crm-avatar" title={`Responsável: ${deal.ownerName}`} aria-label={`Responsável: ${deal.ownerName}`}>{initialsOf(deal.ownerName)}</span>}
+          {deal.ownerName && <span className="crm-avatar" style={avatarStyle(deal.ownerName)} title={`Responsável: ${deal.ownerName}`} aria-label={`Responsável: ${deal.ownerName}`}>{initialsOf(deal.ownerName)}</span>}
           <QuickMenu deal={deal} canWrite={canWrite} onQuick={onQuick} />
         </div>
       </div>
@@ -79,7 +80,7 @@ function DealCard({ deal, stages, canDrag, canWrite, dragging, onOpen, onMove, o
       </div>
       {deal.mrr > 0 && <div className="crm-deal-line" title="Receita recorrente mensal">MRR {fmtMoney(deal.mrr)}</div>}
       <div className="crm-tags">
-        {(deal.tags || []).map((t) => <span key={t} className="crm-tag" style={{ color: 'var(--text-4)' }}>{t}</span>)}
+        {(deal.tags || []).map((t) => <span key={t} className="crm-tag" style={{ color: tagColor(t), background: tagTint(t) }}>{t}</span>)}
         {!closed && deal.slaExceeded && <span className="crm-tag" title={`Prazo da etapa: ${deal.slaDays} dia(s)`} style={{ color: '#e2574c' }}>Prazo da etapa estourado ({deal.daysInStage}/{deal.slaDays} d)</span>}
         {deal.dealType === 'upsell' && <span className="crm-tag" style={{ color: DEAL_TYPE_META.upsell.color }}>Upsell</span>}
         {deal.status === 'lost' && <span className="crm-tag" style={{ color: DEAL_STATUS_META.lost.color }}>{deal.lostReasonLabel || 'Perdido'}</span>}
@@ -347,11 +348,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
             <option value="">Toda origem</option>{sources.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
         )}
-        {tagList.some((t) => t.deals > 0) && (
-          <select value={filters.tag} onChange={(e) => setF('tag', e.target.value)} aria-label="Tag do negócio">
-            <option value="">Toda tag</option>{tagList.filter((t) => t.deals > 0).map((t) => <option key={t.id} value={t.name}>{t.name} ({t.deals})</option>)}
-          </select>
-        )}
+        <TagFilter tagList={tagList} value={filters.tag} onChange={(v) => setF('tag', v)} />
         {currentUserId && <button type="button" className={`crm-chip${filters.ownerId === currentUserId ? ' active' : ''}`} aria-pressed={filters.ownerId === currentUserId} onClick={() => setF('ownerId', filters.ownerId === currentUserId ? '' : currentUserId)}>Meus negócios</button>}
         {view === 'list' && (
           <select value={listStatus} onChange={(e) => setListStatus(e.target.value)} aria-label="Situação">
@@ -376,7 +373,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
         <>
           <div className="crm-board">
             {board.stages.map((s) => (
-              <div key={s.id} className={`crm-col${overStage === s.id ? ' over' : ''}`}
+              <div key={s.id} className={`crm-col${overStage === s.id ? ' over' : ''}`} style={s.color ? { '--stage': s.color } : undefined}
                 onDragOver={(e) => { if (dragId && caps.write) { e.preventDefault(); if (overStage !== s.id) setOverStage(s.id); } }}
                 onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget) && overStage === s.id) setOverStage(null); }}
                 onDrop={(e) => { e.preventDefault(); drop(s); }}>

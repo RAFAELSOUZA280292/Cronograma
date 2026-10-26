@@ -8,10 +8,11 @@ import { crm } from './crmApi.js';
 import ActivityForm from './ActivityForm.jsx';
 import { Modal, Field, CancelButton, useDirty } from './ui.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
-import { fmtDateBR, fmtDateTimeBR, BUCKET_META, PRIORITY_META, activityTypeLabel } from './crmMeta.js';
+import { fmtDateBR, fmtDateTimeBR, BUCKET_META, PRIORITY_META, activityTypeLabel, ACTIVITY_COLORS } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
 import ContactLinks from './ContactLinks.jsx';
 import { trackFlow, startFlow } from '../lib/experience.js';
+import { DatePopButton } from '../ui/DateTimeFields.jsx';
 
 
 const ICONS = { task: CheckSquare, call: Phone, email: Mail, meeting: Video, whatsapp: MessageCircle, visit: MapPin, followup: Repeat };
@@ -46,13 +47,10 @@ function CompleteDialogImpl({ activity, onCancel, onDone }) {
 
 // Reagendar sem abrir formulário: o ícone abre o calendário do navegador e a escolha já salva.
 function Reschedule({ activity, onPick }) {
-  const ref = useRef(null);
-  const open = () => { const el = ref.current; if (!el) return; try { el.showPicker(); } catch { el.focus(); el.click(); } };
   return (
-    <>
-      <button type="button" className="crm-icon-btn" title="Reagendar (escolher nova data)" aria-label={`Reagendar ${activity.title}`} onClick={open}><CalendarClock size={14} aria-hidden="true" /></button>
-      <input ref={ref} type="date" tabIndex={-1} aria-hidden="true" defaultValue={activity.dueDate} onChange={(e) => { if (e.target.value && e.target.value !== activity.dueDate) onPick(e.target.value); }} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }} />
-    </>
+    <DatePopButton value={activity.dueDate} title="Reagendar (escolher nova data)" ariaLabel={`Reagendar ${activity.title}`} onPick={(iso) => { if (iso && iso !== activity.dueDate) onPick(iso); }}>
+      <CalendarClock size={14} aria-hidden="true" />
+    </DatePopButton>
   );
 }
 
@@ -78,7 +76,7 @@ export default function ActivityList({ activities, caps, options, currentUserId,
         {open
           ? <button type="button" className="crm-check" title={caps.write ? 'Concluir' : 'Você não tem permissão para concluir atividades'} aria-label={`Concluir ${a.title}`} disabled={!caps.write} onClick={() => setCompleting(a)}><Check size={13} /></button>
           : <span className={`crm-check ${a.status === 'done' ? 'on' : ''}`} style={{ cursor: 'default' }}>{a.status === 'done' ? <Check size={13} /> : <Ban size={12} />}</span>}
-        <div className="crm-act-ico" title={activityTypeLabel(a.activityType)}><Icon size={15} /></div>
+        <div className="crm-act-ico" style={{ '--act': ACTIVITY_COLORS[a.activityType] }} title={activityTypeLabel(a.activityType)}><Icon size={15} /></div>
         <div className="crm-act-body">
           <div className="crm-act-title">{a.title}</div>
           <div className="crm-act-meta">
