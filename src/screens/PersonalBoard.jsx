@@ -1184,6 +1184,130 @@ function BoardActivityLogModal({ board, onClose }) {
   );
 }
 
+
+// Daily: lista por responsável com a atividade principal e as subatividades dele (data, situação), para a reunião diária.
+function buildDaily(board, { cardId, showDone }) {
+  const resp = board.responsibles || [];
+  const groups = new Map();
+  const groupOf = (key) => { if (!groups.has(key)) groups.set(key, new Map()); return groups.get(key); };
+  const entryOf = (key, col, card) => { const g = groupOf(key); if (!g.has(card.id)) g.set(card.id, { card, col, subs: [], isOwner: false }); return g.get(card.id); };
+  (board.columns || []).forEach((col) => (col.cards || []).forEach((card) => {
+    if (card.deleted || card.archived) return;
+    if (cardId && card.id !== cardId) return;
+    if (card.completed && !showDone) return;
+    const subs = (card.checklist || []).filter((it) => showDone || !it.done);
+    const ownerIds = (card.responsibleIds || []).filter((id) => resp.some((r) => r.id === id));
+    ownerIds.forEach((id) => { entryOf(id, col, card).isOwner = true; });
+    let anyAssigned = ownerIds.length > 0;
+    subs.forEach((it) => {
+      const ids = (it.responsibleIds || []).filter((id) => resp.some((r) => r.id === id));
+      if (ids.length) { anyAssigned = true; ids.forEach((id) => entryOf(id, col, card).subs.push(it)); }
+      else entryOf('none', col, card).subs.push(it);
+    });
+    if (!anyAssigned && !subs.length) entryOf('none', col, card);
+  }));
+  const dateKey = (e) => [...e.subs.map((x) => x.dueDate), e.card.dueDate].filter(isIsoDay).sort()[0] || '9999-99-99';
+  const people = [...resp.map((r) => ({ id: r.id, name: r.name })), { id: 'none', name: 'Sem responsável' }]
+    .map((pe) => {
+      const entries = [...(groups.get(pe.id) || new Map()).values()].sort((a, b) => dateKey(a).localeCompare(dateKey(b)) || a.card.title.localeCompare(b.card.title, 'pt-BR'));
+      entries.forEach((e) => e.subs.sort((a, b) => (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99')));
+      const open = entries.reduce((n, e) => n + e.subs.filter((x) => !x.done).length, 0);
+      const late = entries.reduce((n, e) => n + e.subs.filter((x) => checklistTone(x) === 'overdue').length, 0);
+      const today = entries.reduce((n, e) => n + e.subs.filter((x) => checklistTone(x) === 'today').length, 0);
+      return { ...pe, entries, open, late, today };
+    })
+    .filter((pe) => pe.entries.length > 0);
+  return people;
+}
+
+function dailyText(board, people, today) {
+  const lines = [`DAILY — ${board.name} — ${fmtDate(today)}`];
+  people.forEach((pe) => {
+    lines.push('', `${pe.name.toUpperCase()} (${pe.open} aberta${pe.open === 1 ? '' : 's'}${pe.late ? `, ${pe.late} atrasada${pe.late === 1 ? '' : 's'}` : ''})`);
+    pe.entries.forEach((e) => {
+      lines.push(`• ${e.card.title}${e.card.dueDate ? ` — prazo ${fmtDate(e.card.dueDate)}` : ''}${e.isOwner ? '' : ' (contexto)'}`);
+      e.subs.forEach((it) => lines.push(`   ${it.done ? '[x]' : '[ ]'} ${it.text}${it.dueDate ? ` — ${fmtDate(it.dueDate)}${checklistTone(it) === 'overdue' ? ' (atrasada)' : checklistTone(it) === 'today' ? ' (hoje)' : ''}` : ''}`));
+    });
+  });
+  return lines.join('\n');
+}
+
+function DailyPanel({ board, readOnly, onClose, onToggleItem, onOpenCard }) {
+  const [cardId, setCardId] = useState('');
+  const [showDone, setShowDone] = useState(false);
+  const [picked, setPicked] = useState([]);
+  const all = useMemo(() => buildDaily(board, { cardId, showDone }), [board, cardId, showDone]);
+  const people = picked.length ? all.filter((pe) => picked.includes(pe.id)) : all;
+  const today = todayISOStr();
+  const cardsList = useMemo(() => (board.columns || []).flatMap((c) => (c.cards || []).filter((cd) => !cd.deleted && !cd.archived && !cd.completed && (cd.checklist || []).length > 0).map((cd) => ({ id: cd.id, title: cd.title }))), [board]);
+  const toggle = (id) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const resp = board.responsibles || [];
+  async function copy() {
+    try { await navigator.clipboard.writeText(dailyText(board, people, today)); notify('Daily copiada — é só colar.'); } catch (e) { notify('Não foi possível copiar. Selecione o texto e copie.', { tone: 'error' }); }
+  }
+  return (
+    <SidePanel title={`Daily — ${board.name}`} onClose={onClose} width="min(920px, 100vw)">
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+        <select aria-label="Filtrar por atividade" value={cardId} onChange={(e) => setCardId(e.target.value)} style={{ ...S.personalFilterSelect, maxWidth: 300 }}>
+          <option value="">Todas as atividades</option>
+          {cardsList.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+        </select>
+        <label style={{ ...S.fieldHint, display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}><input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} /> Mostrar concluídas</label>
+        <button type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, marginLeft: 'auto' }} onClick={copy} disabled={people.length === 0} title={people.length ? 'Copia a lista em texto para colar no chat ou na ata.' : 'Não há nada para copiar.'}><Copy size={13} /> Copiar texto</button>
+      </div>
+      {resp.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          {all.map((pe) => (
+            <button key={pe.id} type="button" className="pb-ghost" aria-pressed={picked.includes(pe.id)} title={picked.includes(pe.id) ? 'Mostrar todos de novo' : `Ver só ${pe.name}`}
+              style={{ ...S.pbGhostBtn, minHeight: 28, padding: '0 9px', gap: 6, ...(picked.includes(pe.id) ? S.pbGhostBtnActive : {}) }} onClick={() => toggle(pe.id)}>
+              {pe.id !== 'none' && <RespAvatar name={pe.name} size={16} />}{pe.name} <span style={S.fieldHint}>{pe.open}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {people.length === 0 && <div style={S.emptyMuted}>{resp.length === 0 ? 'Ainda não há responsáveis nesta página. Abra uma atividade ou subatividade e crie os responsáveis; eles aparecem aqui agrupados.' : 'Nada em aberto para mostrar com estes filtros.'}</div>}
+      {people.map((pe) => {
+        const body = pe.entries.map((e) => {
+          const ct = dueDateTone(e.card);
+          return (
+            <div key={e.card.id} style={{ margin: '0 0 10px 0' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', alignItems: 'center' }}>
+                <button type="button" onClick={() => onOpenCard(e.col.id, e.card.id)} title="Abrir a atividade" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', fontWeight: 700, color: 'var(--text-1)', textAlign: 'left', minWidth: 0, overflowWrap: 'anywhere' }}>{e.card.title}</button>
+                {e.card.dueDate && <span style={{ ...S.personalCardBadge, ...(ct === 'overdue' ? S.dueOverdue : ct === 'today' ? S.dueToday : ct === 'soon' ? S.dueSoon : {}) }}>📅 prazo {fmtDate(e.card.dueDate)}</span>}
+                <span style={S.fieldHint}>{e.col.name}{e.isOwner ? '' : ' · só subatividades'}</span>
+              </div>
+              {e.subs.map((it) => {
+                const t = checklistTone(it);
+                const others = itemRespNames(it, board.responsibles).filter((n) => n !== pe.name);
+                return (
+                  <div key={it.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2px 8px', margin: '4px 0 0 18px', fontSize: 12.5 }}>
+                    <input type="checkbox" checked={!!it.done} disabled={readOnly} title={readOnly ? 'Somente visualização.' : it.done ? 'Reabrir subatividade' : 'Concluir subatividade'} aria-label={`Concluir: ${it.text}`} onChange={() => onToggleItem(e.col.id, e.card.id, it.id)} />
+                    <span style={{ flex: '1 1 200px', minWidth: 0, overflowWrap: 'anywhere', ...(it.done ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{it.text}</span>
+                    {others.length > 0 && <span style={S.fieldHint} title="Também é responsável">com {others.join(', ')}</span>}
+                    {it.dueDate ? <span style={{ ...S.personalCardBadge, flexShrink: 0, ...(t === 'overdue' ? S.dueOverdue : t === 'today' ? S.dueToday : t === 'soon' ? S.dueSoon : {}) }}>📅 {fmtDate(it.dueDate)}{t === 'overdue' ? ' · atrasada' : t === 'today' ? ' · hoje' : ''}</span> : <span style={S.fieldHint}>sem data</span>}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        });
+        const head = (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {pe.id !== 'none' && <RespAvatar name={pe.name} size={24} />}
+            <strong style={{ fontSize: 14 }}>{pe.name}</strong>
+            <span style={S.fieldHint}>{pe.open} aberta{pe.open === 1 ? '' : 's'}</span>
+            {pe.late > 0 && <span style={{ ...S.personalCardBadge, ...S.dueOverdue }}>{pe.late} atrasada{pe.late === 1 ? '' : 's'}</span>}
+            {pe.today > 0 && <span style={{ ...S.personalCardBadge, ...S.dueToday }}>{pe.today} para hoje</span>}
+          </span>
+        );
+        return pe.id === 'none'
+          ? <details key={pe.id} style={{ marginTop: 14, padding: '10px 12px', border: '1px dashed var(--border-2)', borderRadius: 10 }}><summary style={{ cursor: 'pointer' }}>{head}</summary><div style={{ marginTop: 10 }}>{body}</div></details>
+          : <section key={pe.id} aria-label={pe.name} style={{ marginTop: 14, padding: '10px 12px', border: '1px solid var(--border-2)', borderRadius: 10, background: 'var(--bg-2)' }}><div style={{ marginBottom: 8 }}>{head}</div>{body}</section>;
+      })}
+    </SidePanel>
+  );
+}
+
 // Menu "Mais ações" do cabeçalho no celular (2026-10-17, Fase 0 achado E): reúne Lixeira, Concluídas, Indicadores, Compartilhar e Histórico,
 // que ocupavam ~100 px de altura antes do primeiro cartão. No desktop os botões seguem como sempre.
 function PbMoreMenu({ items }) {
@@ -1248,6 +1372,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
   const [showFilters, setShowFilters] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showActivityLog, setShowActivityLog] = useState(false);
+  const [showDaily, setShowDaily] = useState(false);
   const activeFilterCount = (filters.status ? 1 : 0) + (filters.priority.length > 0 ? 1 : 0) + (filters.dueBucket ? 1 : 0) + (filters.waiting ? 1 : 0);
   const anyFilterActive = activeFilterCount > 0 || filters.tags.length > 0 || !!search.trim();
   function clearAllFilters() { setSearch(''); setFilters({ priority: [], dueBucket: '', tags: [], status: '', waiting: false }); }
@@ -2047,6 +2172,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
           {isMobile && (() => {
             const boardActions = activeBoard && !activeLinked;
             const items = [
+              { icon: Users, label: 'Daily', onClick: () => setShowDaily(true) },
               !readOnly && { icon: Trash2, label: `Lixeira${trashItems.length > 0 ? ` (${trashItems.length})` : ''}`, onClick: () => setShowTrash(true) },
               !readOnly && { icon: Archive, label: `Concluídas${archiveItems.length > 0 ? ` (${archiveItems.length})` : ''}`, onClick: () => setShowArchive(true) },
               !readOnly && !publicMode && { icon: Gauge, label: 'Indicadores', onClick: () => setShowStats(true) },
@@ -2162,6 +2288,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
           >
             <SlidersHorizontal size={13} /> Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
           </button>
+          <button className="pb-ghost" style={S.pbGhostBtn} title="Lista por responsável, com a atividade principal e as subatividades, para a reunião diária." onClick={() => setShowDaily(true)}><Users size={13} /> Daily</button>
           {!publicMode && !isMobile && (
             <button className="pb-ghost" style={{ ...S.pbGhostBtn, ...(activeBoard.visibility === 'public' ? { color: '#3ea6ff', borderColor: '#3ea6ff' } : {}) }} onClick={() => setShowShareModal(true)}>
               {activeBoard.visibility === 'public' ? <Globe size={13} /> : <Lock size={13} />} {activeBoard.visibility === 'public' ? 'Público por link' : 'Compartilhar'}
@@ -2361,6 +2488,9 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
         />
       )}
 
+      {showDaily && activeBoard && (
+        <DailyPanel board={activeBoard} readOnly={readOnly} onClose={() => setShowDaily(false)} onToggleItem={toggleChecklistItem} onOpenCard={(colId, cardId) => { setShowDaily(false); openCardDetail(colId, cardId); }} />
+      )}
       {showActivityLog && activeBoard && (
         <BoardActivityLogModal board={activeBoard} onClose={() => setShowActivityLog(false)} />
       )}
