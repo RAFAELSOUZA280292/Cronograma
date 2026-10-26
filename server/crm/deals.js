@@ -27,7 +27,7 @@ export const DEAL_SPEC = [
 ];
 
 export const DEAL_SELECT = `d.id, d.org_id, d.company_id, d.pipeline_id, d.stage_id, d.title, d.deal_type, d.value, d.mrr,
-  to_char(d.expected_close_date,'YYYY-MM-DD') AS expected_close_date, d.probability_override, d.owner_id, d.primary_contact_id, d.source, d.description,
+  to_char(d.expected_close_date,'YYYY-MM-DD') AS expected_close_date, d.probability_override, d.owner_id, d.primary_contact_id, d.source, d.description, d.external_source, d.external_id,
   d.status, d.lost_reason, d.lost_detail, d.closed_at, d.stage_entered_at, d.board_order, d.created_at, d.updated_at, d.deleted_at,
   to_char(d.stage_entered_at AT TIME ZONE 'America/Sao_Paulo','YYYY-MM-DD') AS stage_entered_date,
   s.name AS stage_name, s.probability AS stage_probability, s.kind AS stage_kind, s.color AS stage_color, s.position AS stage_position, s.sla_days AS stage_sla_days,
@@ -61,7 +61,7 @@ export function mapDeal(row) {
   const open = row.status === 'open';
   const probability = row.status === 'won' ? 100 : row.status === 'lost' ? 0 : (row.probability_override != null ? row.probability_override : row.stage_probability);
   return {
-    id: row.id, ...spec, value: Number(row.value || 0), mrr: Number(row.mrr || 0), tags: row.tags || [],
+    id: row.id, ...spec, externalSource: row.external_source || '', externalId: row.external_id || '', value: Number(row.value || 0), mrr: Number(row.mrr || 0), tags: row.tags || [],
     companyId: row.company_id, companyName: row.company_name || '', companyTradeName: row.company_trade_name || '', companyRelationship: row.company_relationship || '',
     pipelineId: row.pipeline_id, stageId: row.stage_id, stageName: row.stage_name, stageKind: row.stage_kind, stageColor: row.stage_color, stagePosition: row.stage_position,
     status: row.status, probability, weightedValue: Math.round(Number(row.value || 0) * probability) / 100,
@@ -172,6 +172,16 @@ export async function createDeal(orgId, actor, input) {
     const items = 'items' in src ? await resolveItems(c, orgId, src.items) : [];
     values.value = items.length ? sumItems(items) : (values.value || 0);
     const cols = { ...values, mrr: values.mrr || 0, expected_close_date: values.expected_close_date || null };
+    // Chave externa (ex.: id do lead de um evento): única por org+origem; um segundo cadastro com a mesma chave é recusado, não duplicado.
+    const extSource = String(src.externalSource || '').trim().slice(0, 60);
+    const extId = String(src.externalId || '').trim().slice(0, 80);
+    if (extId) {
+      if (!extSource) throw new CrmError(400, 'Informe a origem da chave externa (externalSource).');
+      const { rows: dup } = await c.query('SELECT id FROM crm_deals WHERE org_id=$1 AND external_source=$2 AND external_id=$3', [orgId, extSource, extId]);
+      if (dup[0]) throw new CrmError(409, `Já existe um negócio com a chave externa ${extSource}/${extId}.`, { dealId: dup[0].id });
+      cols.external_source = extSource;
+      cols.external_id = extId;
+    }
     const names = Object.keys(cols);
     await c.query(
       `INSERT INTO crm_deals (id, org_id, company_id, pipeline_id, stage_id, board_order, ${names.join(', ')}, created_by, updated_by)
@@ -185,6 +195,7 @@ export async function createDeal(orgId, actor, input) {
     const changes = DEAL_SPEC.filter((f) => api[f.key] != null && api[f.key] !== '' && !(f.key === 'value' && !api.value)).map((f) => ({ field: f.key, label: f.label, from: null, to: api[f.key] }));
     if (items.length) changes.push({ field: 'items', label: 'Produtos', from: null, to: itemsSummary(items) });
     changes.push({ field: 'stage', label: 'Etapa', from: null, to: stage.name });
+    if (extId) changes.push({ field: 'externalId', label: 'Chave externa (origem_id)', from: null, to: `${extSource}/${extId}` });
     await addAudit(c, { orgId, entityType: 'deal', entityId: id, action: 'create', changes, actor });
     await addTimeline(c, { orgId, companyId: company.id, entityType: 'deal', entityId: id, eventType: 'deal_created', actor,
       summary: `${actor.name} criou o negócio "${api.title}" (${DEAL_TYPE_LABELS[api.dealType]}) na etapa ${stage.name}${api.value ? ` — ${brl(api.value)}` : ''}.`, data: { dealId: id, dealType: api.dealType, stage: stage.name, value: api.value } });

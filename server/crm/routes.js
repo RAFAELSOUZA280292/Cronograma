@@ -152,7 +152,7 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
   router.get('/deals', h(async (req, res) => res.json(await DQ.listDeals(orgOf(req), req.query))));
   router.post('/deals', need('write'), h(async (req, res) => {
     const deal = await D.createDeal(orgOf(req), actorOf(req), req.body || {});
-    res.status(201).json({ deal, cadence: await X.cadenceAfterMove(orgOf(req), actorOf(req), deal) });
+    res.status(201).json({ deal, cadence: (req.body || {}).skipCadence ? { scheduled: null, cancelled: 0, skipped: true } : await X.cadenceAfterMove(orgOf(req), actorOf(req), deal) });
   }));
   router.get('/deals/:id', h(async (req, res) => res.json(await DQ.getDealDetail(orgOf(req), req.params.id))));
   router.patch('/deals/:id', need('write'), h(async (req, res) => res.json({ deal: await D.updateDeal(orgOf(req), actorOf(req), req.params.id, req.body || {}, { canEditClosed: crmCan(req.user, 'remove') }) })));
