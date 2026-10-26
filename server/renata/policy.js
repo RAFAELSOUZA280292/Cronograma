@@ -44,7 +44,7 @@ const sig = (m, p) => `${m} ${p.replace(/:[^/]+/g, ':x')}`;
 // Rotas que alguma ferramenta curada já cobre (as com `route`, mais as ferramentas sob medida, listadas à mão).
 export const CURATED_EXTRA = [
   ['GET', '/api/personal-board'], ['PATCH', '/api/personal-board'], ['PATCH', '/api/projects/:id'], ['GET', '/api/projects'], ['GET', '/api/projects/lite'],
-  ['GET', '/api/crm/overview'], ['GET', '/api/mentions/users'], ['GET', '/api/auth/me'], ['GET', '/api/crm/me'],
+  ['DELETE', '/api/projects/:id'], ['GET', '/api/crm/overview'], ['GET', '/api/mentions/users'], ['GET', '/api/auth/me'], ['GET', '/api/crm/me'],
 ];
 export function curatedSet(registry) {
   const s = new Set(CURATED_EXTRA.map(([m, p]) => sig(m, p)));

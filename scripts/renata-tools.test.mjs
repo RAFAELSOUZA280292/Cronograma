@@ -46,7 +46,7 @@ async function cleanup() {
   await pool.query(`DELETE FROM renata_conversations WHERE user_id LIKE 'oitl_%'`);
   await pool.query(`DELETE FROM personal_boards WHERE user_id LIKE 'oitl_%'`);
   await pool.query(`DELETE FROM notifications WHERE user_id LIKE 'oitl_%'`).catch(() => {});
-  await pool.query(`DELETE FROM projects WHERE id=$1`, [PROJ]);
+  await pool.query(`DELETE FROM projects WHERE id=$1 OR (org_id=$2 AND data->'company'->>'name' LIKE 'Teste RENATA Nova%')`, [PROJ, ORG]);
   await pool.query('ALTER TABLE renata_actions ENABLE TRIGGER USER');
   for (const t of HIST) await pool.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`);
   await pool.query(`DELETE FROM users WHERE id LIKE 'oitl_%'`);
@@ -220,6 +220,16 @@ try {
   pj2 = (await rows(`SELECT data FROM projects WHERE id=$1`, [PROJ]))[0].data;
   const tk2 = (await rows(`SELECT status FROM xflow_tickets WHERE id=$1`, [tk.id]))[0];
   ok('críticas de empresa e XFlow pedem confirmação e, confirmadas, executam (reunião na lixeira, equipe, fase, ticket aceito)', allOk(crit2, ['reuniao_excluir', 'empresa_equipe_remover', 'empresa_fase_excluir', 'xflow_acao']) && crit2.pending.length === 4 && pj2.meetings.find((m) => m.id === mt.id).deleted === true && !pj2.team.some((t) => t.name === 'Equipe Nova') && !pj2.phases.some((p) => p.name === 'Fase RENATA') && tk2.status === 'atribuida', { bad: bad(crit2), tk2 });
+
+  // ---- 2c) empresa nova (confirma) e exclusão definitiva (nome digitado + confirmação)
+  const nova = await run('adm', [{ name: 'empresa_criar', input: { name: 'Teste RENATA Nova Empresa SA', nomeFantasia: 'Teste RENATA Nova' } }]);
+  Object.keys(nova.byTool || {}).forEach((t) => exercised.add(t));
+  const novaRow = (await rows(`SELECT id FROM projects WHERE org_id=$1 AND data->'company'->>'name'='Teste RENATA Nova Empresa SA'`, [ORG]))[0];
+  ok('empresa_criar: pediu confirmação e criou a empresa com cronograma', nova.pending.length === 1 && allOk(nova, ['empresa_criar']) && !!novaRow, bad(nova));
+  const exErr = await run('adm', [{ name: 'empresa_excluir', input: { id: novaRow.id, nomeConfirmado: 'outro nome' } }]);
+  ok('empresa_excluir: nome errado → recusada MESMO depois da confirmação, nada some', !allOk(exErr, ['empresa_excluir']) && (await rows(`SELECT 1 FROM projects WHERE id=$1`, [novaRow.id])).length === 1, exErr.byTool);
+  const exOk = await run('adm', [{ name: 'empresa_excluir', input: { id: novaRow.id, nomeConfirmado: 'Teste RENATA Nova' } }]);
+  ok('empresa_excluir: com o nome digitado e a confirmação, exclui de vez', allOk(exOk, ['empresa_excluir']) && (await rows(`SELECT 1 FROM projects WHERE id=$1`, [novaRow.id])).length === 0, bad(exOk));
 
   // ---- 3) AÇÕES CRÍTICAS e de configuração (sempre pedem confirmação; o teste confirma)
   const crit = await run('adm', [

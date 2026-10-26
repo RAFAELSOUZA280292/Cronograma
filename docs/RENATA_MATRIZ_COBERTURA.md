@@ -5,9 +5,9 @@
 **Legenda:** ✅ implementada e exercitada por teste ponta a ponta · 🟡 parcial/limitada (explicado) · ⬜ pendente · 🚫 fora do alcance de propósito (segurança)
 
 ## Resumo
-- **95 ferramentas estruturadas** em 11 módulos (33 de consulta, 44 de escrita de baixo risco/reversível, 18 críticas com confirmação obrigatória).
-- **294 rotas** no servidor: 62 cobertas por ferramenta própria, 121 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 111 excluídas de propósito.
-- **56 funcionalidades humanas mapeadas**: 34 ✅, 13 🟡, 4 ⬜, 5 🚫.
+- **97 ferramentas estruturadas** em 11 módulos (33 de consulta, 45 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
+- **294 rotas** no servidor: 64 cobertas por ferramenta própria, 119 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 111 excluídas de propósito.
+- **56 funcionalidades humanas mapeadas**: 35 ✅, 12 🟡, 4 ⬜, 5 🚫.
 - **Critério "100% das funcionalidades" NÃO está atendido ainda**: as linhas 🟡 e ⬜ abaixo são o que falta. As rotas "genéricas" já são alcançáveis (com confirmação), mas sem esquema de parâmetros; as ⬜ precisam de trabalho novo (arquivos, edição de documentos inteiros).
 
 ## 1. Onde a RENATA está disponível
@@ -62,7 +62,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | Empresas | Reuniões: criar, editar (título, data, hora, participantes, resumo, decisões), excluir | reuniao_criar, reuniao_atualizar, reuniao_excluir (confirmação) | ✅ | renata-tools |
 | Empresas | Enviar/colar transcrição para processar (caixa de entrada de reuniões) | plataforma_executar (meeting-inbox) | 🟡 | Sem ferramenta própria (a IA de processamento roda no servidor). |
 | Empresas | Cadastro (razão social, nome fantasia, pausar/ativar), equipe e fases | empresa_atualizar_cadastro, empresa_equipe_adicionar/remover, empresa_fase_criar/atualizar/excluir | ✅ | renata-tools (remover equipe e excluir fase pedem confirmação) |
-| Empresas | Criar / excluir empresa nova | plataforma_executar (POST/DELETE /api/projects) | 🟡 | Acesso genérico com confirmação; sem teste próprio. |
+| Empresas | Criar empresa nova (com cronograma padrão) e excluir de vez | empresa_criar (confirmação), empresa_excluir (nome digitado + confirmação) | ✅ | renata-tools. Exclusão é definitiva (a tela também não tem lixeira): por isso exige o nome exato. |
 | Empresas | CNPJ, logo, áreas e contatos externos da empresa | — | ⬜ | CNPJ controla acesso (de propósito não se altera por aqui); logo/áreas/contatos ainda sem ferramenta. |
 | Empresas | Vínculo tarefa↔atividade, levantamento, lacunas, cronograma padrão, histórico de versões | plataforma_consultar / plataforma_executar | 🟡 | Acesso genérico (confirmação em tudo que altera). |
 | Empresas | Links públicos e compartilhamento externo | — | 🚫 | Gerados pela própria pessoa na tela. |
@@ -76,7 +76,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | Agenda | Responder convite | agenda_responder_convite | 🟡 | Testada só a falha tratada (sem Google). |
 | Agenda | Conectar o Google | — | 🚫 | OAuth: a pessoa autoriza na tela. |
 | XFlow | Listar e abrir ticket | xflow_listar, xflow_criar | ✅ | renata-tools |
-| XFlow | Ações do ticket (triagem, desenvolvimento, homologação, publicação, validação, bloquear, pausar, fechar, lixeira…) | xflow_acao (confirmação) | ✅ | renata-tools (ação "aceitar" ponta a ponta; as demais passam pela mesma máquina de estados e permissões do servidor). Comentários e edição de campos do ticket ainda não. |
+| XFlow | Ações do ticket (triagem, desenvolvimento, homologação, publicação, validação, bloquear, pausar, fechar, lixeira…) | xflow_acao (confirmação) | ✅ | renata-tools (ação "aceitar" ponta a ponta; as demais — inclusive comentar e editar campo — passam pela mesma máquina de estados e permissões do servidor, sem teste próprio de cada uma). |
 | Conhecimento | Buscar na memória da RENATA | conhecimento_buscar | ✅ | renata-tools |
 | Conhecimento | Editar fatos, resolver conflitos, entidades | plataforma_executar | 🟡 | Sem ferramenta própria. |
 | Pareceres / Modelos | Listar | pareceres_listar, modelos_listar | ✅ | renata-tools |
@@ -213,7 +213,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | Ferramenta | Risco | Rota / execução | O que faz |
 |---|---|---|---|
 | `empresas_listar` | consulta | sob medida | Lista as empresas (cronogramas de clientes) que o usuário pode ver, com contagens. Use para achar o id de uma empresa pelo nome. |
-| `empresa_ver_cronograma` | consulta | sob medida | Mostra uma empresa: equipe, fases, atividades (com ids, status, datas, responsável e subatividades) e reuniões. Use antes de ajustar o cronograma. |
+| `empresa_ver_cronograma` | consulta | sob medida | Mostra uma empresa: equipe, fases, reuniões (com tarefas abertas) e atividades (id, status, datas, responsável, fase, nº de subatividades). Para ver a |
 | `cronograma_simular` | consulta | sob medida | SIMULA ajustes no cronograma de uma empresa sem gravar nada: mostra o que mudaria e aponta operações inválidas. Sempre simule antes de aplicar mudança |
 | `cronograma_aplicar` | escrita (confirma em certos casos) | sob medida | APLICA ajustes no cronograma de uma empresa (status, datas, responsáveis, subatividades, atividades novas; excluir vai para a lixeira). Tudo ou nada.  |
 | `tarefas_reuniao_listar` | consulta | sob medida | Lista tarefas de reunião (itens de ação) das empresas que o usuário vê. Filtros: empresa, responsável (parte do nome), status, só vencidas. |
@@ -229,6 +229,8 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `empresa_fase_criar` | escrita | sob medida | Cria uma fase no cronograma da empresa. |
 | `empresa_fase_atualizar` | escrita | sob medida | Renomeia uma fase ou altera a descrição. |
 | `empresa_fase_excluir` | crítica (confirma) | sob medida | Exclui uma fase; as atividades dela passam para outra fase (a primeira restante). Sempre pede confirmação. |
+| `empresa_criar` | escrita (confirma em certos casos) | POST /api/projects | Cria uma empresa (cliente) com o cronograma padrão da casa a partir da data de kickoff. Sempre pede confirmação (cria cronograma completo e libera o C |
+| `empresa_excluir` | crítica (confirma) | sob medida | EXCLUI DE VEZ uma empresa e todo o cronograma dela (não há lixeira). Exige que a pessoa digite o nome exato da empresa (nomeConfirmado) e sempre pede  |
 
 ## 4. Todas as rotas do servidor e como a RENATA as alcança
 
@@ -443,12 +445,12 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `POST /api/project-history/deleted/:vid/restore` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/project-history/deleted/list` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/projects/:id/team-candidates` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
-| `DELETE /api/projects/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `DELETE /api/projects/:id` | ferramenta | ferramenta sob medida |
 | `PATCH /api/projects/:id` | excluída | fora do alcance: O projeto inteiro é regravado pela tela; a RENATA usa cronograma_*/tarefa_reuniao_* (operação a operação, com log). |
 | `GET /api/projects/lite` | ferramenta | ferramenta sob medida |
 | `GET /api/projects/versions` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/projects` | ferramenta | ferramenta sob medida |
-| `POST /api/projects` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/projects` | ferramenta | empresa_criar |
 | `GET /api/public-board/:token` | excluída | fora do alcance: Links públicos e compartilhamento externo: são gerados pela pessoa na tela. |
 | `PATCH /api/public-board/:token` | excluída | fora do alcance: Links públicos e compartilhamento externo: são gerados pela pessoa na tela. |
 | `GET /api/public-company/:token` | excluída | fora do alcance: Links públicos e compartilhamento externo: são gerados pela pessoa na tela. |

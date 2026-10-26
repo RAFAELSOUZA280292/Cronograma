@@ -9,6 +9,7 @@ import { applyPlanOps } from '../../connect.js';
 import { syncProjectMemoryFromDiff } from '../../memoryIngest.js';
 import { todayInSp } from '../../widgetSummary.js';
 import { notifyTodoChanges } from '../../todoNotifications.js';
+import { callInternal } from '../internalCall.js';
 
 const uid = (p) => `${p}-${crypto.randomBytes(5).toString('base64url')}`;
 const alive = (a) => (Array.isArray(a) ? a.filter((x) => x && !x.deleted) : []);
@@ -272,4 +273,25 @@ export function registerEmpresas(registry) {
       data.phases = list.filter((x) => x.id !== ph.id);
       return { status: 200, next: data, logText: `Fase removida: "${ph.name}" (atividades movidas para "${fb.name}")`, json: { excluida: ph.name, atividadesMovidasPara: fb.name } };
     }) });
+
+  // ---------- empresa nova / excluir empresa
+  registry.add({ ...base, name: 'empresa_criar', summary: 'Cria uma empresa (cliente) com o cronograma padrão da casa a partir da data de kickoff. Sempre pede confirmação (cria cronograma completo e libera o CNPJ para quem a cria).', risk: 'write', confirm: 'always', creates: true,
+    visible: (u) => isStaff(u) && canSee(u),
+    params: T.obj({ name: T.str('Razão social', { maxLength: 200 }), nomeFantasia: T.str('Nome fantasia'), cnpj: T.str('CNPJ (14 dígitos)'), kickoffDate: T.date('Data de kickoff (padrão hoje)') }, ['name']),
+    route: { method: 'POST', path: '/api/projects' }, map: (i) => ({ company: { name: i.name, ...(i.nomeFantasia ? { nomeFantasia: i.nomeFantasia } : {}), ...(i.cnpj ? { cnpj: i.cnpj } : {}) }, ...(i.kickoffDate ? { kickoffDate: i.kickoffDate } : {}) }),
+    describe: (i) => `CRIAR a empresa “${i.nomeFantasia || i.name}” com o cronograma padrão${i.kickoffDate ? ` (kickoff ${i.kickoffDate})` : ''}.`,
+    summarize: (i, r) => `Empresa “${(r.project && r.project.company && (r.project.company.nomeFantasia || r.project.company.name)) || i.name}” criada (id ${r.project && r.project.id}).` });
+  registry.add({ ...base, name: 'empresa_excluir', summary: 'EXCLUI DE VEZ uma empresa e todo o cronograma dela (não há lixeira). Exige que a pessoa digite o nome exato da empresa (nomeConfirmado) e sempre pede confirmação. Só use se a pessoa pediu isso explicitamente.', risk: 'critical',
+    visible: (u) => isStaff(u) && canSee(u),
+    params: T.obj({ id: T.str('Id da empresa'), nomeConfirmado: T.str('Nome da empresa exatamente como a PESSOA digitou para confirmar') }, ['id', 'nomeConfirmado']),
+    before: async (ctx, i) => { const r = (await loadVisible(ctx)).find((x) => x.id === i.id); return r ? { empresa: name(r.data), atividades: alive(r.data.activities).length, reunioes: alive(r.data.meetings).length } : undefined; },
+    describe: (i, b) => `EXCLUIR DE VEZ a empresa “${(b && b.empresa) || i.id}”${b ? ` (${b.atividades} atividades, ${b.reunioes} reuniões)` : ''} — sem lixeira.`,
+    run: async (ctx, i) => {
+      const r = (await loadVisible(ctx)).find((x) => x.id === i.id);
+      if (!r) return { status: 404, json: { message: 'Empresa não encontrada (ou sem acesso).' } };
+      const nm = name(r.data);
+      if (norm(nm) !== norm(i.nomeConfirmado) && norm(r.data.company && r.data.company.name) !== norm(i.nomeConfirmado)) return { status: 400, json: { message: `O nome confirmado não confere com a empresa (“${nm}”). Peça à pessoa para digitar o nome exato antes de excluir.` } };
+      const out = await callInternal({ userId: ctx.user.id, commandId: ctx.actionId, method: 'DELETE', path: `/api/projects/${encodeURIComponent(i.id)}` });
+      return out.status === 200 ? { status: 200, json: { excluida: { id: i.id, empresa: nm } } } : out;
+    } });
 }
