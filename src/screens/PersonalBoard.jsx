@@ -104,7 +104,28 @@ function sortCards(cards, mode) {
   return list;
 }
 
-function cardMatchesFilters(card, { search, priority, dueBucket, tags, status, waiting }) {
+const foldText = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+function itemRespNames(item, responsibles) {
+  return (item.responsibleIds || []).map((id) => ((responsibles || []).find((r) => r.id === id) || {}).name).filter(Boolean);
+}
+
+// Subatividades (itens do checklist) que casam com a busca: pelo texto ou pelo nome de quem é responsável.
+function matchingSubitems(card, search, responsibles) {
+  const q = foldText((search || '').trim());
+  if (!q) return [];
+  return (card.checklist || []).filter((it) => foldText(it.text).includes(q) || itemRespNames(it, responsibles).some((n) => foldText(n).includes(q)));
+}
+
+function Hl({ text, q }) {
+  const t = String(text || '');
+  const needle = (q || '').trim().toLowerCase();
+  const i = needle ? t.toLowerCase().indexOf(needle) : -1;
+  if (i < 0) return t;
+  return <>{t.slice(0, i)}<mark style={{ background: 'rgba(245,196,0,.38)', color: 'inherit', borderRadius: 3, padding: '0 1px' }}>{t.slice(i, i + needle.length)}</mark>{t.slice(i + needle.length)}</>;
+}
+
+function cardMatchesFilters(card, { search, priority, dueBucket, tags, status, waiting, responsibles }) {
   if (waiting && !isWaiting(card)) return false;
   if (status) {
     const cardStat = cardStatusOf(card);
@@ -121,8 +142,9 @@ function cardMatchesFilters(card, { search, priority, dueBucket, tags, status, w
     if (dueBucket === 'none' && card.dueDate) return false;
   }
   if (search) {
-    const q = search.toLowerCase();
-    const hay = `${card.title} ${noteToPlain(card.desc, card.descFormat)} ${(card.tags || []).join(' ')}`.toLowerCase();
+    const q = foldText(search);
+    const respNames = [...itemRespNames(card, responsibles), ...(card.checklist || []).flatMap((it) => itemRespNames(it, responsibles))].join(' ');
+    const hay = foldText(`${card.title} ${noteToPlain(card.desc, card.descFormat)} ${(card.tags || []).join(' ')} ${(card.checklist || []).map((it) => it.text).join(' ')} ${respNames}`);
     if (!hay.includes(q)) return false;
   }
   return true;
@@ -329,6 +351,7 @@ function ChecklistDate({ item, readOnly, onChange }) {
 
 
 const RespCtx = React.createContext([]);
+const SearchCtx = React.createContext('');
 const normResp = (n) => (n || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
 
 function RespAvatar({ name, size = 20 }) {
@@ -442,6 +465,8 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
   const showStaleBadge = !card.completed;
   const waiting = isWaiting(card);
   const respAll = React.useContext(RespCtx);
+  const searchQ = React.useContext(SearchCtx);
+  const subHits = matchingSubitems(card, searchQ, respAll);
   const cardResp = cardResponsibles(card, respAll);
   const hasMeta = !!priorityMeta || showStatusBadge || waiting || !!card.dueDate || (card.comments || []).length > 0 || (card.checklist || []).length > 0 || showStaleBadge;
 
@@ -499,6 +524,17 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
               ⏱ {staleDays}d
             </span>
           )}
+        </div>
+      )}
+      {subHits.length > 0 && (
+        <div style={{ marginTop: 6, padding: '5px 8px', borderRadius: 6, background: 'rgba(245,196,0,.12)', border: '1px solid rgba(245,196,0,.35)', fontSize: 11.5, color: 'var(--text-2)' }}>
+          <div style={{ ...S.fieldHint, fontWeight: 700, marginBottom: 2 }}>Encontrado em {subHits.length === 1 ? 'subatividade' : `${subHits.length} subatividades`} desta atividade:</div>
+          {subHits.slice(0, 3).map((it) => (
+            <div key={it.id} style={{ display: 'flex', gap: 5, alignItems: 'baseline', ...(it.done ? { textDecoration: 'line-through', opacity: .65 } : {}) }}>
+              <span aria-hidden="true">↳</span><span style={{ minWidth: 0, overflowWrap: 'anywhere' }}><Hl text={it.text} q={searchQ} /></span>
+            </div>
+          ))}
+          {subHits.length > 3 && <div style={S.fieldHint}>+{subHits.length - 3} {subHits.length - 3 === 1 ? 'outra' : 'outras'}</div>}
         </div>
       )}
       {cardResp.length > 0 && (
@@ -656,6 +692,12 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
   const [editingChecklistId, setEditingChecklistId] = useState(null);
   const [editingChecklistText, setEditingChecklistText] = useState('');
   const [respOpenId, setRespOpenId] = useState(null);
+  const searchQ = React.useContext(SearchCtx);
+  const respAllM = React.useContext(RespCtx);
+  const hitIds = new Set(matchingSubitems(card, searchQ, respAllM).map((x) => x.id));
+  const firstHitId = [...hitIds][0];
+  const firstHitRef = useRef(null);
+  useEffect(() => { if (firstHitRef.current && firstHitRef.current.scrollIntoView) firstHitRef.current.scrollIntoView({ block: 'center' }); }, []);
   useEffect(() => { if (editingChecklistId !== null) setRespOpenId(null); }, [editingChecklistId]);
   // Sair do campo (Escape) tira o foco, e o blur dispararia logo em seguida — sem essa flag, o
   // blur salvaria o texto "cancelado" por cima do Escape (testado e achado ao vivo, não hipotético).
@@ -781,7 +823,7 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
           <div style={S.subSectionLabel}><ListChecks size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Checklist {card.checklist && card.checklist.length > 0 ? `(${doneCount}/${card.checklist.length})` : ''}</div>
           <div style={S.checklistList}>
             {(card.checklist || []).map((item, itemIdx, itemList) => (
-              <div key={item.id}>
+              <div key={item.id} ref={item.id === firstHitId ? firstHitRef : undefined} style={hitIds.has(item.id) ? { background: 'rgba(245,196,0,.14)', borderRadius: 6, padding: '2px 4px', margin: '0 -4px' } : undefined}>
               <div style={{ ...S.checklistRow, flexWrap: 'wrap', rowGap: 4 }}>
                 <input type="checkbox" checked={item.done} onChange={() => onToggleChecklistItem(item.id)} />
                 {editingChecklistId === item.id ? (
@@ -898,6 +940,7 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
 }
 
 function PersonalListView({ board, filterFn, onOpenCard, onToggleComplete, readOnly }) {
+  const searchQ = React.useContext(SearchCtx);
   const isMobile = useIsMobile();
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState(1);
@@ -957,6 +1000,7 @@ function PersonalListView({ board, filterFn, onOpenCard, onToggleComplete, readO
                 <td style={S.personalListTd}><input type="checkbox" checked={r.completed} disabled={readOnly} onClick={(e) => e.stopPropagation()} onChange={() => onToggleComplete(r._colId, r.id)} /></td>
                 <td style={{ ...S.personalListTd, ...(r.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>
                   {r.title}
+                  {matchingSubitems(r, searchQ, board.responsibles).map((it) => <div key={it.id} style={{ ...S.fieldHint, fontWeight: 400, textDecoration: 'none' }}>↳ subatividade: <Hl text={it.text} q={searchQ} /></div>)}
                   {isWaiting(r) && isMobile && <span title={`${waitingLabel(r, localTodayIso())} (desde ${fmtDate(r.waiting.since)})`} style={{ ...S.personalCardBadge, display: 'block', width: 'fit-content', maxWidth: 'min(280px, 62vw)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 4, color: '#b9a2f7', background: 'rgba(155,122,245,.14)', textDecoration: 'none' }}>⏳ {waitingLabel(r, localTodayIso())}</span>}
                 </td>
                 <td style={S.personalListTd}>{r._colName}</td>
@@ -1910,13 +1954,14 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
   }, [activeBoard]);
 
   function cardMatches(card) {
-    return cardMatchesFilters(card, { search, priority: filters.priority, dueBucket: filters.dueBucket, tags: filters.tags, status: filters.status, waiting: filters.waiting });
+    return cardMatchesFilters(card, { search, priority: filters.priority, dueBucket: filters.dueBucket, tags: filters.tags, status: filters.status, waiting: filters.waiting, responsibles: (activeBoard && activeBoard.responsibles) || [] });
   }
 
   const columnIds = activeBoard ? activeBoard.columns.map((c) => c.id) : [];
 
   return (
     <RespCtx.Provider value={(activeBoard && activeBoard.responsibles) || []}>
+    <SearchCtx.Provider value={search}>
     <div className={embedded ? undefined : 'page-root t44'} style={embedded ? undefined : S.page}>
       <style>{`
         @keyframes personalSkeletonPulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
@@ -2325,6 +2370,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
       )}
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
+    </SearchCtx.Provider>
     </RespCtx.Provider>
   );
 }

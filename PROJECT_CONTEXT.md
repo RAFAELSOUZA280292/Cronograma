@@ -8135,3 +8135,9 @@ A busca global (`src/shell/CommandPalette.jsx`, itens montados em `App.jsx` `bui
 - Painel de responsável do item e edição de texto de outro item são exclusivos: ao começar a editar um item, o painel aberto fecha (efeito sobre `editingChecklistId`).
 - **Não feito:** arrastar-e-soltar para ordenar (só setas); responsável de item não gera notificação; sem filtro por responsável.
 - Verificado no navegador (sandbox, desktop e celular 375 px): mover (ordem gravada no banco), criar "Carla Dias" no item pelo painel (gravado em `board.responsibles` + `responsibleIds` do item), sem rolagem lateral, ui-audit 0/0/0.
+
+## 105. Buscar encontra sub-atividades (2026-10-26, pedido do Rafael)
+**Pedido:** o "Buscar" do quadro deve achar sub-atividades e dizer claramente em qual atividade estão.
+- `src/screens/PersonalBoard.jsx`: `cardMatchesFilters` agora também procura no texto dos itens do checklist e nos nomes dos responsáveis (do cartão e dos itens), sem diferenciar maiúscula/acento (`foldText`). O cartão que casa só por um item continua aparecendo.
+- **Indicação:** no cartão (Quadro) aparece uma caixa amarela "Encontrado em subatividade desta atividade: ↳ texto" (até 3 + "+N outras"; trecho buscado destacado); na Lista, uma linha "↳ subatividade: …" sob o título; ao abrir o cartão, os itens que casam ficam com fundo destacado e o primeiro é rolado para o centro. Contexto `SearchCtx` (valor = texto buscado) provido junto com `RespCtx`; `matchingSubitems`/`Hl` são helpers do módulo.
+- Busca só atua na página (quadro) aberta; não varre outras páginas nem a busca global do topo (Ctrl+K). Verificado no navegador local: "konen" e "carla" (responsável do item).
