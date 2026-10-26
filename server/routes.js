@@ -629,6 +629,35 @@ router.post('/projects/:id/meetings', requireAuth, requireMasterOrPricetax, asyn
   res.status(201).json({ meeting: { id: created.id, title: created.title, date: created.date, participants: created.participants, actionItems: created.actionItems.map((a) => ({ id: a.id, title: a.title, responsible: a.responsible, dueDate: a.dueDate })) } });
 });
 
+// Ajustar o cronograma de uma empresa por operações (mesmo motor do /api/connect/companies/:id/plan, mas pela sessão — 2026-10-26): activity.set/add, sub.set/add/move/delete…
+// Padrão é SIMULAR (dryRun); só grava com `dryRun:false`. Transação travada; só administrador (master). Registra no Log da empresa e devolve as operações de desfazer.
+router.post('/projects/:id/plan', requireAuth, requireMaster, async (req, res, next) => {
+  const ops = req.body && req.body.ops;
+  if (!Array.isArray(ops) || !ops.length || ops.length > 100) return res.status(400).json({ message: 'Envie de 1 a 100 operações em "ops".' });
+  const dryRun = !(req.body && req.body.dryRun === false);
+  const note = String((req.body && req.body.note) || '').trim().slice(0, 300);
+  const via = String((req.body && req.body.via) || '').trim().slice(0, 40);
+  const { applyPlanOps } = await import('./connect.js');
+  const client = await pool.connect();
+  let r; let out;
+  try {
+    await client.query('BEGIN');
+    r = (await client.query('SELECT id, org_id, data FROM projects WHERE id=$1 FOR UPDATE', [req.params.id])).rows[0];
+    if (!r) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Projeto não encontrado.' }); }
+    if (!canAccessProject(req.user, r.data, r.org_id)) { await client.query('ROLLBACK'); return res.status(403).json({ message: 'Sem acesso a este projeto.' }); }
+    const who = `${req.user.name || req.user.username}${via ? ` (via ${via})` : ''}`;
+    out = applyPlanOps(r.data, ops, who);
+    if (out.errors.length) { await client.query('ROLLBACK'); return res.status(400).json({ message: 'Nada foi gravado: há operações inválidas.', errors: out.errors }); }
+    if (dryRun) { await client.query('ROLLBACK'); return res.json({ dryRun: true, applied: 0, wouldApply: out.results.length, results: out.results }); }
+    out.next.log = [{ ts: new Date().toISOString(), action: `Cronograma ajustado: ${out.results.length} alteração(ões) — ${who}${note ? `. ${note}` : ''}`, user: who, activityId: null }, ...(Array.isArray(out.next.log) ? out.next.log : [])].slice(0, 300);
+    await client.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(out.next), r.id]);
+    await client.query('COMMIT');
+  } catch (e) { try { await client.query('ROLLBACK'); } catch { /* já encerrada */ } client.release(); return next(e); }
+  client.release();
+  res.json({ dryRun: false, applied: out.results.length, results: out.results, created: out.created, undo: out.undo });
+  syncProjectMemoryFromDiff(pool, r.org_id, r.id, r.data, out.next).catch((e) => console.error('Falha ao reindexar memória após ajuste do cronograma', e.message));
+});
+
 // Rota interna de verificação da Fase 1 do Assistente Inteligente de
 // Projetos — NÃO é o chat (que ainda não existe, ver PROJECT_CONTEXT.md).
 // Só permite provar que a memória do projeto está sendo indexada e

@@ -1,6 +1,6 @@
 {
  "geradoPor": "scripts/renata-route-index.mjs",
- "total": 296,
+ "total": 297,
  "routes": [
   {
    "method": "POST",
@@ -1050,6 +1050,11 @@
   {
    "method": "POST",
    "path": "/api/projects/:id/meetings",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/projects/:id/plan",
    "file": "routes.js"
   },
   {

@@ -39,6 +39,18 @@ try {
   ok('sem título → 400; data inválida → 400', (await post({ date: '2026-10-23' })).status === 400 && (await post({ title: 'x', date: '23/10/2026' })).status === 400);
   ok('projeto inexistente → 404', (await post({ title: 'x', date: '2026-10-23' }, 'proj-naoexiste')).status === 404);
   ok('sem login → 401', (await post({ title: 'x', date: '2026-10-23' }, PID, {})).status === 401);
+  // ajuste do cronograma por operações (POST /projects/:id/plan)
+  const d2 = await proj(); d2.activities = [{ id: 'a1', title: 'Atividade A', date: '2026-11-04', endDate: '2026-11-12', status: 'nao-iniciado', responsible: 'PRICETAX', subactivities: [{ id: 's1', title: 'Sub 1', date: '2026-11-04', done: false, guide: 'Objetivo: X.' }] }];
+  await pool.query('UPDATE projects SET data=$1 WHERE id=$2', [JSON.stringify(d2), PID]);
+  const plan = (body) => fetch(`${BASE}/api/projects/${PID}/plan`, { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(async (r) => ({ status: r.status, json: await r.json().catch(() => ({})) }));
+  const ops = [{ op: 'activity.set', ref: { id: 'a1' }, set: { date: '2026-10-28' } }, { op: 'sub.set', activity: { id: 'a1' }, sub: { id: 's1' }, set: { date: '2026-10-28', guide: 'Objetivo: X. Pela PRICETAX: Felipe.' } }];
+  const pr = await plan({ ops });
+  ok('plano: por padrão só SIMULA (nada é gravado)', pr.status === 200 && pr.json.dryRun === true && pr.json.wouldApply >= 2 && (await proj()).activities[0].date === '2026-11-04', pr);
+  const pg = await plan({ ops, dryRun: false, note: 'teste', via: 'Claude Code' });
+  const d3 = await proj();
+  ok('plano: com dryRun:false grava, devolve desfazer e registra no Log', pg.status === 200 && pg.json.applied >= 2 && Array.isArray(pg.json.undo) && d3.activities[0].date === '2026-10-28' && d3.activities[0].subactivities[0].guide.endsWith('Felipe.') && /Cronograma ajustado.*Rafael Teste \(via Claude Code\)/.test(d3.log[0].action), pg.json);
+  ok('plano: operação inválida → 400 e nada muda', (await plan({ ops: [{ op: 'sub.set', activity: { id: 'a1' }, sub: { id: 'nao-existe' }, set: { done: true } }], dryRun: false })).status === 400);
+  ok('plano: sem ops → 400', (await plan({})).status === 400);
 } catch (e) { failed += 1; console.log('FAIL exceção:', e.stack || e); } finally { await cleanup(); await pool.end(); }
 console.log(failed ? `\n${failed} falha(s)` : '\ntodos os testes do registro de reunião ok');
 process.exit(failed ? 1 : 0);
