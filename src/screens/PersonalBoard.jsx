@@ -2,13 +2,15 @@
 // Extraído de src/App.jsx (2026-10-16, "dividir o App.jsx"): carregado sob demanda (lazyRetry no App.jsx) para sair do pacote principal.
 // O código é o mesmo de antes; o que vem do App.jsx é importado de lá (e lá foi exportado).
 
-import { AlertTriangle, Archive, ArrowLeftRight, CalendarDays, Check, ChevronDown, ChevronUp, Clock, Columns3, Copy, Gauge, Globe, GripVertical, History, LayoutList, Link2, ListChecks, Lock, LogOut, Maximize2, MessageSquare, MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Tag, Trash2, Undo2, UserPlus, Users, X } from 'lucide-react';
+import { AlertTriangle, Archive, ArrowLeftRight, CalendarDays, Check, ChevronDown, ChevronUp, Clock, Columns3, Copy, Download, Gauge, Globe, GripVertical, History, LayoutList, Link2, ListChecks, Lock, LogOut, Maximize2, MessageSquare, MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Tag, Trash2, Undo2, UserPlus, Users, X } from 'lucide-react';
 import { CommentThread, ComposeBox } from '../ui/ComposeBox.jsx';
 import { ConfirmDialog, RecordSaveStatus, SaveStatus, activateRow } from '../ui/index.jsx';
 import DaySummary from '../personal/DaySummary.jsx';
+import { DateField } from '../ui/DateTimeFields.jsx';
 import { DialogOverlay } from '../ui/dialog.jsx';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, closestCorners, useDroppable, useSensor, useSensors } from '@dnd-kit/core';
+import { DUE_FILTERS, dailyRows, dailySummary, dailyToHtml, dueFilterLabel, dueMatches } from '../personal/dailyExport.js';
 import { QuickNew, QuickViews } from '../personal/QuickBits.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SafeBoundary from '../ui/SafeBoundary.jsx';
@@ -19,6 +21,7 @@ import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { avatarColor, initials } from '../meetings/todoUtils.js';
 import { calendarDaysSince } from '../lib/dates.js';
 import { lazyRetry } from '../lib/lazyRetry.jsx';
+import { loadXlsx } from '../lib/xlsxLoader.js';
 import { noteToPlain } from '../lib/richNote.js';
 import { withoutLayer } from '../lib/nav.js';
 import { CARD_STATUS_META, COLUMN_COLOR_META, ConfirmDiscardModal, LoadingScreen, SidePanel, ThemeToggleBtn, ToastStack, addDays, fmtDate, fmtTs, genShareToken, parseDate, toISODate, todayISOStr, uid, useAutosaveTimestamp, useDebouncedField, useIsMobile, useToasts } from '../App.jsx';
@@ -1186,7 +1189,9 @@ function BoardActivityLogModal({ board, onClose }) {
 
 
 // Daily: lista por responsável com a atividade principal e as subatividades dele (data, situação), para a reunião diária.
-function buildDaily(board, { cardId, showDone }) {
+function buildDaily(board, { cardId, showDone, due }) {
+  const today = todayISOStr();
+  const dated = !!due && due.kind !== 'all';
   const resp = board.responsibles || [];
   const groups = new Map();
   const groupOf = (key) => { if (!groups.has(key)) groups.set(key, new Map()); return groups.get(key); };
@@ -1195,7 +1200,9 @@ function buildDaily(board, { cardId, showDone }) {
     if (card.deleted || card.archived) return;
     if (cardId && card.id !== cardId) return;
     if (card.completed && !showDone) return;
-    const subs = (card.checklist || []).filter((it) => showDone || !it.done);
+    const hasChecklist = (card.checklist || []).length > 0;
+    if (dated && !hasChecklist && !dueMatches(due, card.dueDate, card.completed, today)) return;
+    const subs = (card.checklist || []).filter((it) => (showDone || !it.done) && (!dated || dueMatches(due, it.dueDate, it.done, today)));
     const ownerIds = (card.responsibleIds || []).filter((id) => resp.some((r) => r.id === id));
     ownerIds.forEach((id) => { entryOf(id, col, card).isOwner = true; });
     let anyAssigned = ownerIds.length > 0;
@@ -1209,7 +1216,7 @@ function buildDaily(board, { cardId, showDone }) {
   const dateKey = (e) => [...e.subs.map((x) => x.dueDate), e.card.dueDate].filter(isIsoDay).sort()[0] || '9999-99-99';
   const people = [...resp.map((r) => ({ id: r.id, name: r.name })), { id: 'none', name: 'Sem responsável' }]
     .map((pe) => {
-      const entries = [...(groups.get(pe.id) || new Map()).values()].sort((a, b) => dateKey(a).localeCompare(dateKey(b)) || a.card.title.localeCompare(b.card.title, 'pt-BR'));
+      const entries = [...(groups.get(pe.id) || new Map()).values()].filter((e) => !dated || e.subs.length > 0 || !(e.card.checklist || []).length).sort((a, b) => dateKey(a).localeCompare(dateKey(b)) || a.card.title.localeCompare(b.card.title, 'pt-BR'));
       entries.forEach((e) => e.subs.sort((a, b) => (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99')));
       const open = entries.reduce((n, e) => n + e.subs.filter((x) => !x.done).length, 0);
       const late = entries.reduce((n, e) => n + e.subs.filter((x) => checklistTone(x) === 'overdue').length, 0);
@@ -1220,8 +1227,9 @@ function buildDaily(board, { cardId, showDone }) {
   return people;
 }
 
-function dailyText(board, people, today) {
+function dailyText(board, people, today, filters = []) {
   const lines = [`DAILY — ${board.name} — ${fmtDate(today)}`];
+  if (filters.filter(Boolean).length) lines.push(filters.filter(Boolean).join(' · '));
   people.forEach((pe) => {
     lines.push('', `${pe.name.toUpperCase()} (${pe.open} aberta${pe.open === 1 ? '' : 's'}${pe.late ? `, ${pe.late} atrasada${pe.late === 1 ? '' : 's'}` : ''})`);
     pe.entries.forEach((e) => {
@@ -1236,14 +1244,43 @@ function DailyPanel({ board, readOnly, onClose, onToggleItem, onOpenCard }) {
   const [cardId, setCardId] = useState('');
   const [showDone, setShowDone] = useState(false);
   const [picked, setPicked] = useState([]);
-  const all = useMemo(() => buildDaily(board, { cardId, showDone }), [board, cardId, showDone]);
-  const people = picked.length ? all.filter((pe) => picked.includes(pe.id)) : all;
+  const [due, setDue] = useState({ kind: 'all', from: '', to: '' });
   const today = todayISOStr();
+  const all = useMemo(() => buildDaily(board, { cardId, showDone, due }), [board, cardId, showDone, due]);
+  const people = picked.length ? all.filter((pe) => picked.includes(pe.id)) : all;
+  const names = (it) => itemRespNames(it, board.responsibles);
   const cardsList = useMemo(() => (board.columns || []).flatMap((c) => (c.cards || []).filter((cd) => !cd.deleted && !cd.archived && !cd.completed && (cd.checklist || []).length > 0).map((cd) => ({ id: cd.id, title: cd.title }))), [board]);
+  const cardTitle = (cardsList.find((c) => c.id === cardId) || {}).title;
+  const filtersText = [cardTitle && `Atividade: ${cardTitle}`, picked.length && `Responsável: ${all.filter((pe) => picked.includes(pe.id)).map((pe) => pe.name).join(', ')}`, dueFilterLabel(due, today), showDone && 'inclui concluídas'];
+  const totals = people.reduce((t, pe) => ({ acts: t.acts + pe.entries.length, open: t.open + pe.open, late: t.late + pe.late }), { acts: 0, open: 0, late: 0 });
+  const setKind = (kind) => setDue((d) => ({ ...d, kind }));
+  const fileBase = `daily-${String(board.name || 'quadro').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${today}`;
   const toggle = (id) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const resp = board.responsibles || [];
   async function copy() {
-    try { await navigator.clipboard.writeText(dailyText(board, people, today)); notify('Daily copiada — é só colar.'); } catch (e) { notify('Não foi possível copiar. Selecione o texto e copie.', { tone: 'error' }); }
+    try { await navigator.clipboard.writeText(dailyText(board, people, today, filtersText)); notify('Daily copiada — é só colar.'); } catch (e) { notify('Não foi possível copiar. Selecione o texto e copie.', { tone: 'error' }); }
+  }
+  async function exportExcel() {
+    let XLSX;
+    try { XLSX = await loadXlsx(); } catch (e) { notify('Não foi possível preparar a planilha agora. Recarregue a página e tente de novo.', { tone: 'error' }); return; }
+    const toDate = (iso) => (iso ? new Date(`${iso}T12:00:00`) : '');
+    const rows = dailyRows(people, today, names).map((r) => ({ ...r, 'Prazo da atividade': toDate(r['Prazo da atividade']), 'Prazo da subatividade': toDate(r['Prazo da subatividade']) }));
+    const ws = XLSX.utils.json_to_sheet(rows, { dateNF: 'dd/mm/yyyy' });
+    ws['!cols'] = [{ wch: 18 }, { wch: 44 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 56 }, { wch: 18 }, { wch: 12 }, { wch: 22 }];
+    ws['!autofilter'] = { ref: ws['!ref'] };
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Daily');
+    const wsR = XLSX.utils.json_to_sheet(dailySummary(people));
+    wsR['!cols'] = [{ wch: 22 }, { wch: 12 }, { wch: 22 }, { wch: 12 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, wsR, 'Resumo');
+    XLSX.writeFile(wb, `${fileBase}.xlsx`, { cellDates: true });
+    notify('Planilha da Daily baixada.');
+  }
+  function exportPdf() {
+    const w = window.open('', '_blank');
+    if (!w) { notify('O navegador bloqueou a janela de impressão. Libere pop-ups para este site e tente de novo.', { tone: 'error' }); return; }
+    w.document.open(); w.document.write(dailyToHtml({ boardName: board.name, today, people, filtersText, namesOf: names })); w.document.close(); w.focus();
+    setTimeout(() => { try { w.print(); } catch (e) { /* o usuário imprime pelo menu */ } }, 400);
   }
   return (
     <SidePanel title={`Daily — ${board.name}`} onClose={onClose} width="min(920px, 100vw)">
@@ -1253,8 +1290,31 @@ function DailyPanel({ board, readOnly, onClose, onToggleItem, onOpenCard }) {
           {cardsList.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
         </select>
         <label style={{ ...S.fieldHint, display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}><input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} /> Mostrar concluídas</label>
-        <button type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, marginLeft: 'auto' }} onClick={copy} disabled={people.length === 0} title={people.length ? 'Copia a lista em texto para colar no chat ou na ata.' : 'Não há nada para copiar.'}><Copy size={13} /> Copiar texto</button>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+          <button type="button" className="pb-ghost" style={S.pbGhostBtn} onClick={copy} disabled={people.length === 0} title={people.length ? 'Copia a lista em texto para colar no chat ou na ata.' : 'Não há nada para copiar.'}><Copy size={13} /> Copiar texto</button>
+          <button type="button" className="pb-ghost" style={S.pbGhostBtn} onClick={exportPdf} disabled={people.length === 0} title={people.length ? 'Abre a Daily pronta para imprimir ou salvar em PDF (respeita os filtros).' : 'Não há nada para exportar.'}><Download size={13} /> PDF</button>
+          <button type="button" className="pb-ghost" style={S.pbGhostBtn} onClick={exportExcel} disabled={people.length === 0} title={people.length ? 'Baixa a planilha Excel (uma linha por subatividade, respeita os filtros).' : 'Não há nada para exportar.'}><Download size={13} /> Excel</button>
+        </span>
       </div>
+      <div role="group" aria-label="Filtrar por prazo" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 10 }}>
+        <span style={S.fieldHint}>Prazo:</span>
+        {DUE_FILTERS.map(([k, label]) => (
+          <button key={k} type="button" className="pb-ghost" aria-pressed={due.kind === k} style={{ ...S.pbGhostBtn, minHeight: 28, padding: '0 10px', ...(due.kind === k ? { background: '#FEDB00', border: '1px solid #FEDB00', color: '#1b1700', fontWeight: 700 } : {}) }} onClick={() => setKind(k)}>{label}</button>
+        ))}
+        {due.kind === 'range' && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={S.fieldHint}>de</span>
+            <span style={{ width: 160 }}><DateField value={due.from} onChange={(v) => setDue((d) => ({ ...d, from: v }))} allowClear ariaLabel="Prazo a partir de" max={due.to || undefined} /></span>
+            <span style={S.fieldHint}>até</span>
+            <span style={{ width: 160 }}><DateField value={due.to} onChange={(v) => setDue((d) => ({ ...d, to: v }))} allowClear ariaLabel="Prazo até" min={due.from || undefined} /></span>
+          </span>
+        )}
+      </div>
+      {people.length > 0 && (
+        <div style={{ ...S.fieldHint, marginBottom: 10 }}>
+          {totals.acts} atividade{totals.acts === 1 ? '' : 's'} · {totals.open} subatividade{totals.open === 1 ? '' : 's'} em aberto{totals.late ? ` · ${totals.late} atrasada${totals.late === 1 ? '' : 's'}` : ''}{filtersText.filter(Boolean).length ? ` — ${filtersText.filter(Boolean).join(' · ')}` : ''}
+        </div>
+      )}
       {resp.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
           {all.map((pe) => (
