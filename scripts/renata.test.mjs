@@ -70,7 +70,7 @@ try {
   await pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,crm_role) VALUES ($1,$1,$2,'Cliente Teste RENATA','cliente',$3,'vendedor')`, [U.cli, hash, ORG]);
   await pool.query(`INSERT INTO projects (id, org_id, data) VALUES ($1,$2,$3::jsonb)`, [PROJ, ORG, JSON.stringify({
     id: PROJ, company: { cnpj: '00.000.000/0001-00', name: 'Empresa Teste RENATA', areas: [] }, phases: [{ id: 'ph1', name: 'Fase 1', color: '#888' }],
-    activities: [{ id: 'a1', title: 'Atividade A', status: 'nao-iniciado', phase: 'ph1', date: '2026-10-20', endDate: '2026-10-25', responsible: 'Fulano', subactivities: [], deleted: false }, { id: 'a2', title: 'Atividade B', status: 'nao-iniciado', phase: 'ph1', date: '2026-10-21', endDate: '2026-10-26', responsible: 'Fulano', subactivities: [], deleted: false }],
+    activities: [{ id: 'a1', title: 'Atividade A', status: 'nao-iniciado', phase: 'ph1', date: '2026-10-20', endDate: '2026-10-25', responsible: 'Fulano', subactivities: [], deleted: false }, { id: 'a2', title: 'Atividade B', status: 'nao-iniciado', phase: 'ph1', date: '2026-10-21', endDate: '2026-10-26', responsible: 'Fulano', subactivities: [{ id: 'sA', title: 'Sub A', done: false, date: '2026-11-10', deleted: false }, { id: 'sB', title: 'Sub B', done: false, date: '2026-11-12', predecessors: ['sA'], deleted: false }], deleted: false }],
     team: [{ id: 't1', name: 'Fulano', role: 'Analista' }, { id: 't2', name: 'Beltrano', role: 'Analista' }], meetings: [{ id: 'm1', title: 'Reunião 1', date: '2026-10-20', actionItems: [], deleted: false }], log: [], externalContacts: [] }) ]);
   await startServer();
   for (const [k, id] of Object.entries(U)) { const r = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: id, password: PASS }) }); sess[k] = (r.headers.get('set-cookie') || '').split(';')[0]; }
@@ -175,6 +175,23 @@ try {
   ok('T7: desfazer o ajuste devolve a data e o responsável originais', un7.status === 200 && proj.activities[1].date === '2026-10-21' && proj.activities[1].responsible === 'Fulano', { un7: un7.json, b: proj.activities[1], a7: { status: a7.status, undo: a7.undo, id: a7.id } });
   const bad = await call(sess.adm, 'POST', `/api/renata/chat`, { message: '[T7] ajuste proj=inexistente' });
   ok('T7: empresa que não existe → erro tratado, sem 500', bad.status === 200 && bad.json.steps[0].ok === false);
+
+  // ---- dependências entre subatividades: a simulação avisa, o ajuste que quebraria é recusado, e só vale com aceite explícito
+  const depOp = [{ op: 'sub.set', activity: { id: 'a2' }, sub: { id: 'sA' }, set: { date: '2026-11-20' } }];
+  const dsim = await chat('adm', `[TX] ${JSON.stringify({ calls: [{ name: 'cronograma_simular', input: { id: PROJ, ops: depOp } }] })}`);
+  const dsimRow = await last(U.adm, 'cronograma_simular');
+  ok('dependências: a simulação mostra a subatividade que ficaria ANTES da predecessora e avisa', dsim.json.steps[0].ok && dsimRow.after.dependenciasQuebradas.length === 1 && /predecessora/.test(dsimRow.after.aviso) && dsimRow.after.dependenciasQuebradas[0].subatividade === 'Sub B', dsimRow.after);
+  const dap = await chat('adm', `[TX] ${JSON.stringify({ calls: [{ name: 'cronograma_aplicar', input: { id: PROJ, ops: depOp } }] })}`);
+  proj = (await rows(`SELECT data FROM projects WHERE id=$1`, [PROJ]))[0].data;
+  ok('dependências: o ajuste que quebraria a dependência é RECUSADO e nada é gravado', dap.json.steps[0].ok === false && proj.activities[1].subactivities[0].date === '2026-11-10', dap.json.steps);
+  const dok = await chat('adm', `[TX] ${JSON.stringify({ calls: [{ name: 'cronograma_aplicar', input: { id: PROJ, ops: depOp, aceitarDependenciasQuebradas: true } }] })}`);
+  proj = (await rows(`SELECT data FROM projects WHERE id=$1`, [PROJ]))[0].data;
+  ok('dependências: com aceite explícito o ajuste é aplicado (e fica no Log)', dok.json.steps[0].ok && proj.activities[1].subactivities[0].date === '2026-11-20', dok.json.steps);
+  const dfix = await chat('adm', `[TX] ${JSON.stringify({ calls: [{ name: 'cronograma_aplicar', input: { id: PROJ, ops: [{ op: 'sub.set', activity: { id: 'a2' }, sub: { id: 'sB' }, set: { date: '2026-11-25' } }, { op: 'sub.set', activity: { id: 'a2' }, sub: { id: 'sA' }, set: { date: '2026-11-22' } }] } }] })}`);
+  ok('dependências: ajustando também a dependente (2 operações, com confirmação) não há quebra', dfix.json.pending.length === 1 && dfix.json.steps[0].status === 'needs_confirmation');
+  await decide('adm', dfix.json.conversationId, [{ actionId: dfix.json.pending[0].actionId, decision: 'confirm' }]);
+  proj = (await rows(`SELECT data FROM projects WHERE id=$1`, [PROJ]))[0].data;
+  ok('dependências: dependente e predecessora ajustadas juntas', proj.activities[1].subactivities[1].date === '2026-11-25' && proj.activities[1].subactivities[0].date === '2026-11-22');
 
   // ---- T8 tarefas de reunião
   const c8 = await chat('adm', `[T8] crie a tarefa proj=${PROJ}`);

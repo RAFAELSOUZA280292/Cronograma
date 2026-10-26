@@ -136,4 +136,61 @@ export function registerBoard(registry) {
       f.col.cards[f.idx] = withHistory({ ...f.card, deleted: true, deletedAt: now, deletedBy: w, deletedFromColumnId: f.col.id, deletedFromColumnName: f.col.name, deletedFromBoardId: f.board.id, deletedFromBoardName: f.board.name }, 'Excluído pela RENATA', now, w);
       return { status: 200, json: { excluido: { id: f.card.id, title: f.card.title } } };
     }) });
+
+  // ---------- checklist, comentários, páginas e colunas
+  registry.add({ ...base, name: 'quadro_checklist', summary: 'Mexe no checklist de um cartão: adicionar item, marcar/desmarcar (por itemId ou texto) ou remover.', risk: 'write',
+    params: T.obj({ id: T.str('Id do cartão'), acao: T.enm('O que fazer', ['adicionar', 'marcar', 'desmarcar', 'remover']), texto: T.str('Texto do item (novo, ou para localizar o item)'), itemId: T.str('Id do item') }, ['id', 'acao']),
+    before: cardBefore, describe: (i, b) => `Checklist do cartão “${(b && b.title) || i.id}”: ${i.acao}${i.texto ? ` “${i.texto}”` : ''}.`,
+    undo: (i, b, r) => {
+      if (!r || !r.item) return null;
+      if (i.acao === 'adicionar') return { tool: 'quadro_checklist', input: { id: i.id, acao: 'remover', itemId: r.item.id }, label: 'remover o item' };
+      if (i.acao === 'marcar') return { tool: 'quadro_checklist', input: { id: i.id, acao: 'desmarcar', itemId: r.item.id }, label: 'desmarcar o item' };
+      if (i.acao === 'desmarcar') return { tool: 'quadro_checklist', input: { id: i.id, acao: 'marcar', itemId: r.item.id }, label: 'marcar o item' };
+      return null;
+    },
+    run: (ctx, i) => withBoard(ctx, ({ boards, now, who: w }) => {
+      const f = findCard(boards, i.id);
+      if (!f) return { status: 404, json: { message: 'Cartão não encontrado.' } };
+      const list = [...(f.card.checklist || [])];
+      let item;
+      if (i.acao === 'adicionar') {
+        if (!i.texto) return { status: 400, json: { message: 'Informe o texto do item.' } };
+        item = { id: uid('chk'), text: i.texto, done: false }; list.push(item);
+      } else {
+        const idx = i.itemId ? list.findIndex((x) => x.id === i.itemId) : list.findIndex((x) => same(x.text, i.texto));
+        if (idx < 0) return { status: 404, json: { message: 'Item do checklist não encontrado. Itens: ' + (list.map((x) => `“${x.text}”`).join(', ') || '(nenhum)') } };
+        item = list[idx];
+        if (i.acao === 'remover') list.splice(idx, 1); else list[idx] = { ...item, done: i.acao === 'marcar' };
+        if (i.acao !== 'remover') item = list[idx];
+      }
+      f.col.cards[f.idx] = withHistory({ ...f.card, checklist: list }, `Checklist alterado pela RENATA: ${i.acao}${item ? ` “${item.text}”` : ''}`, now, w);
+      return { status: 200, json: { cartao: { id: f.card.id, title: f.card.title }, item: { id: item.id, text: item.text, done: !!item.done }, itens: list.length, feitos: list.filter((x) => x.done).length } };
+    }), summarize: (i, r) => `Checklist de “${r.cartao.title}”: ${i.acao} “${r.item.text}” (${r.feitos}/${r.itens}).` });
+  registry.add({ ...base, name: 'quadro_comentar', summary: 'Adiciona um comentário a um cartão do quadro pessoal.', risk: 'write', creates: true, params: T.obj({ id: T.str('Id do cartão'), texto: T.str('Comentário', { minLength: 1, maxLength: 2000 }) }, ['id', 'texto']),
+    before: cardBefore, describe: (i, b) => `Comentar no cartão “${(b && b.title) || i.id}”: “${i.texto.slice(0, 80)}”.`,
+    run: (ctx, i) => withBoard(ctx, ({ boards, now, who: w }) => {
+      const f = findCard(boards, i.id);
+      if (!f) return { status: 404, json: { message: 'Cartão não encontrado.' } };
+      const c = { id: uid('cm'), text: i.texto, ts: now, author: w, authorId: ctx.user.id };
+      f.col.cards[f.idx] = withHistory({ ...f.card, comments: [...(f.card.comments || []), c] }, 'Comentário adicionado pela RENATA', now, w);
+      return { status: 201, json: { cartao: { id: f.card.id, title: f.card.title }, comentario: { id: c.id } } };
+    }), summarize: (i, r) => `Comentário adicionado ao cartão “${r.cartao.title}”.` });
+  registry.add({ ...base, name: 'quadro_criar_coluna', summary: 'Cria uma coluna numa página do quadro pessoal.', risk: 'write', creates: true, params: T.obj({ board: T.str('Página (nome); padrão a primeira'), name: T.str('Nome da coluna', { maxLength: 80 }) }, ['name']),
+    describe: (i) => `Criar a coluna “${i.name}”.`,
+    run: (ctx, i) => withBoard(ctx, ({ boards }) => {
+      const b = i.board ? boards.find((x) => x.id === i.board || same(x.name, i.board)) : boards[0];
+      if (!b) return { status: 404, json: { message: `Página “${i.board}” não existe. Páginas: ${boards.map((x) => x.name).join(', ')}.` } };
+      if (b.columns.some((c) => same(c.name, i.name))) return { status: 409, json: { message: `Já existe a coluna “${i.name}” em “${b.name}”.` } };
+      const col = { id: uid('col'), name: i.name, cards: [] };
+      b.columns.push(col);
+      return { status: 201, json: { coluna: { id: col.id, name: col.name, pagina: b.name } } };
+    }), summarize: (i, r) => `Coluna “${r.coluna.name}” criada em “${r.coluna.pagina}”.` });
+  registry.add({ ...base, name: 'quadro_criar_pagina', summary: 'Cria uma página nova no quadro pessoal (com as colunas A fazer, Em andamento e Concluído).', risk: 'write', creates: true, params: T.obj({ name: T.str('Nome da página', { maxLength: 80 }) }, ['name']),
+    describe: (i) => `Criar a página “${i.name}” no quadro.`,
+    run: (ctx, i) => withBoard(ctx, ({ boards }) => {
+      if (boards.some((b) => same(b.name, i.name))) return { status: 409, json: { message: `Já existe a página “${i.name}”.` } };
+      const b = { id: uid('board'), name: i.name, visibility: 'private', shareToken: '', log: [], columns: ['A fazer', 'Em andamento', 'Concluído'].map((n) => ({ id: uid('col'), name: n, cards: [] })) };
+      boards.push(b);
+      return { status: 201, json: { pagina: { id: b.id, name: b.name } } };
+    }), summarize: (i, r) => `Página “${r.pagina.name}” criada no quadro.` });
 }

@@ -5,9 +5,9 @@
 **Legenda:** ✅ implementada e exercitada por teste ponta a ponta · 🟡 parcial/limitada (explicado) · ⬜ pendente · 🚫 fora do alcance de propósito (segurança)
 
 ## Resumo
-- **81 ferramentas estruturadas** em 11 módulos (33 de consulta, 33 de escrita de baixo risco/reversível, 15 críticas com confirmação obrigatória).
-- **294 rotas** no servidor: 61 cobertas por ferramenta própria, 122 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 111 excluídas de propósito.
-- **52 funcionalidades humanas mapeadas**: 29 ✅, 15 🟡, 3 ⬜, 5 🚫.
+- **95 ferramentas estruturadas** em 11 módulos (33 de consulta, 44 de escrita de baixo risco/reversível, 18 críticas com confirmação obrigatória).
+- **294 rotas** no servidor: 62 cobertas por ferramenta própria, 121 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 111 excluídas de propósito.
+- **56 funcionalidades humanas mapeadas**: 34 ✅, 13 🟡, 4 ⬜, 5 🚫.
 - **Critério "100% das funcionalidades" NÃO está atendido ainda**: as linhas 🟡 e ⬜ abaixo são o que falta. As rotas "genéricas" já são alcançáveis (com confirmação), mas sem esquema de parâmetros; as ⬜ precisam de trabalho novo (arquivos, edição de documentos inteiros).
 
 ## 1. Onde a RENATA está disponível
@@ -57,22 +57,26 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | Empresas | Listar empresas e ver o cronograma (atividades, subatividades, equipe, fases, reuniões) | empresas_listar, empresa_ver_cronograma | ✅ | renata-tools |
 | Empresas | Ajustar atividade (status, datas, responsável, prioridade, fase, tipo) | cronograma_simular, cronograma_aplicar (desfazer; vários ajustes pedem confirmação) | ✅ | renata (T7: simula, aplica, confirma, desfaz e confere o Log) |
 | Empresas | Subatividades: marcar feita, pular, mover, criar, excluir/restaurar; criar atividade; vincular pauta | cronograma_aplicar (ops sub.* / activity.add / pauta.link) | 🟡 | Mesmo motor testado (renata, connect-fixes), mas estas operações não têm teste próprio na RENATA. |
-| Empresas | Reorganizar preservando dependências entre atividades | cronograma_aplicar | 🟡 | O motor não lê nem ajusta predecessoras; hoje reordena datas sem recalcular dependências. |
+| Empresas | Reorganizar preservando dependências entre subatividades | cronograma_simular (avisa), cronograma_aplicar (recusa se quebrar; aceite explícito) | ✅ | renata (dependências: avisa, recusa, aceita e ajuste conjunto). Limite: lê as predecessoras (campo `predecessors` da subatividade) mas não as edita; não recalcula datas sozinha em cascata — a RENATA inclui as dependentes nas operações. |
 | Empresas | Tarefas de reunião: criar, editar (responsável, prazo, status), excluir, listar | tarefa_reuniao_criar/atualizar/excluir, tarefas_reuniao_listar | ✅ | renata (T8), renata-tools |
-| Empresas | Criar reunião, editar pauta/transcrição, enviar transcrição | plataforma_executar (meeting-inbox) | 🟡 | Sem ferramenta própria. |
-| Empresas | Criar / excluir / pausar empresa; equipe, fases e cadastro da empresa | plataforma_executar (POST/DELETE /api/projects) | 🟡 | Equipe, fases e cadastro são parte do documento do projeto, que só a tela regrava: ainda sem ferramenta (⬜ para essas edições). |
+| Empresas | Reuniões: criar, editar (título, data, hora, participantes, resumo, decisões), excluir | reuniao_criar, reuniao_atualizar, reuniao_excluir (confirmação) | ✅ | renata-tools |
+| Empresas | Enviar/colar transcrição para processar (caixa de entrada de reuniões) | plataforma_executar (meeting-inbox) | 🟡 | Sem ferramenta própria (a IA de processamento roda no servidor). |
+| Empresas | Cadastro (razão social, nome fantasia, pausar/ativar), equipe e fases | empresa_atualizar_cadastro, empresa_equipe_adicionar/remover, empresa_fase_criar/atualizar/excluir | ✅ | renata-tools (remover equipe e excluir fase pedem confirmação) |
+| Empresas | Criar / excluir empresa nova | plataforma_executar (POST/DELETE /api/projects) | 🟡 | Acesso genérico com confirmação; sem teste próprio. |
+| Empresas | CNPJ, logo, áreas e contatos externos da empresa | — | ⬜ | CNPJ controla acesso (de propósito não se altera por aqui); logo/áreas/contatos ainda sem ferramenta. |
 | Empresas | Vínculo tarefa↔atividade, levantamento, lacunas, cronograma padrão, histórico de versões | plataforma_consultar / plataforma_executar | 🟡 | Acesso genérico (confirmação em tudo que altera). |
 | Empresas | Links públicos e compartilhamento externo | — | 🚫 | Gerados pela própria pessoa na tela. |
 | Gestão de Atividades | Cartões: criar, editar (título, prazo, prioridade, status, coluna), concluir, excluir | quadro_criar_atividade, quadro_atualizar_atividade, quadro_concluir_atividade, quadro_excluir_atividade | ✅ | renata (T6), renata-tools |
 | Gestão de Atividades | Listar o quadro | quadro_listar | ✅ | renata-tools |
-| Gestão de Atividades | Checklist, comentários, anexos, tags; páginas e colunas; arquivar | — | ⬜ | O quadro é regravado pela tela; só cartão a cartão por enquanto. Edição local não salva vence a da RENATA (a tela recarrega em até ~12 s). |
+| Gestão de Atividades | Checklist, comentários, criar páginas e colunas | quadro_checklist, quadro_comentar, quadro_criar_pagina, quadro_criar_coluna | ✅ | renata-tools. Edição local ainda não salva vence a da RENATA (a tela recarrega em até ~12 s). |
+| Gestão de Atividades | Anexos e tags do cartão; renomear/excluir/reordenar páginas e colunas; arquivar | — | ⬜ | Ainda sem ferramenta (anexos exigem arquivo). |
 | Gestão de Atividades | Quadro público compartilhado | — | 🚫 | Link público gerado na tela. |
 | Agenda | Listar compromissos | agenda_listar | ✅ | renata-tools (sem Google conectado devolve vazio) |
 | Agenda | Criar compromisso (com convidados pede confirmação) | agenda_criar_evento | 🟡 | Confirmação com convidados testada; criação real depende do Google conectado (testada só a falha clara). |
 | Agenda | Responder convite | agenda_responder_convite | 🟡 | Testada só a falha tratada (sem Google). |
 | Agenda | Conectar o Google | — | 🚫 | OAuth: a pessoa autoriza na tela. |
 | XFlow | Listar e abrir ticket | xflow_listar, xflow_criar | ✅ | renata-tools |
-| XFlow | Ações do ticket (triagem, aprovar, fechar, comentar, mover, SLA) | plataforma_executar (PATCH /api/xflow/tickets/:id) | 🟡 | Sem ferramenta própria (cada ação tem regra de papel e transição). |
+| XFlow | Ações do ticket (triagem, desenvolvimento, homologação, publicação, validação, bloquear, pausar, fechar, lixeira…) | xflow_acao (confirmação) | ✅ | renata-tools (ação "aceitar" ponta a ponta; as demais passam pela mesma máquina de estados e permissões do servidor). Comentários e edição de campos do ticket ainda não. |
 | Conhecimento | Buscar na memória da RENATA | conhecimento_buscar | ✅ | renata-tools |
 | Conhecimento | Editar fatos, resolver conflitos, entidades | plataforma_executar | 🟡 | Sem ferramenta própria. |
 | Pareceres / Modelos | Listar | pareceres_listar, modelos_listar | ✅ | renata-tools |
@@ -120,6 +124,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 |---|---|---|---|
 | `xflow_listar` | consulta | GET /api/xflow/tickets | Lista os tickets (bugs/tarefas) do XFlow da organização. |
 | `xflow_criar` | escrita | POST /api/xflow/tickets | Abre um ticket no XFlow (bug ou tarefa). |
+| `xflow_acao` | escrita (confirma em certos casos) | PATCH /api/xflow/tickets/{id} | Executa uma ação sobre um ticket do XFlow (triagem, desenvolvimento, homologação, publicação, validação, bloqueio, pausa, fechamento, exclusão para a  |
 
 ### Plataforma
 | Ferramenta | Risco | Rota / execução | O que faz |
@@ -199,6 +204,10 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `quadro_atualizar_atividade` | escrita | sob medida | Altera um cartão do quadro pessoal: título, descrição, prazo, prioridade, status, coluna. limparPrazo=true remove o prazo. |
 | `quadro_concluir_atividade` | escrita | sob medida | Conclui um cartão do quadro pessoal. |
 | `quadro_excluir_atividade` | crítica (confirma) | sob medida | Exclui um cartão do quadro pessoal (vai para a lixeira do quadro). |
+| `quadro_checklist` | escrita | sob medida | Mexe no checklist de um cartão: adicionar item, marcar/desmarcar (por itemId ou texto) ou remover. |
+| `quadro_comentar` | escrita | sob medida | Adiciona um comentário a um cartão do quadro pessoal. |
+| `quadro_criar_coluna` | escrita | sob medida | Cria uma coluna numa página do quadro pessoal. |
+| `quadro_criar_pagina` | escrita | sob medida | Cria uma página nova no quadro pessoal (com as colunas A fazer, Em andamento e Concluído). |
 
 ### Empresas (cronogramas)
 | Ferramenta | Risco | Rota / execução | O que faz |
@@ -211,6 +220,15 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `tarefa_reuniao_criar` | escrita | sob medida | Cria uma tarefa (item de ação) numa reunião de uma empresa, com responsável, prazo e dono (pricetax ou cliente). |
 | `tarefa_reuniao_atualizar` | escrita | sob medida | Altera uma tarefa de reunião: título, responsável, prazo, status (nao-iniciado, em-andamento, concluida, nao-relevante), dono, observações. |
 | `tarefa_reuniao_excluir` | crítica (confirma) | sob medida | Exclui uma tarefa de reunião (lixeira). |
+| `reuniao_criar` | escrita | sob medida | Cria uma reunião no cronograma de uma empresa (título, data, hora, participantes, resumo, decisões). Tarefas da reunião: tarefa_reuniao_criar. |
+| `reuniao_atualizar` | escrita | sob medida | Altera uma reunião: título, data, hora, participantes, resumo, decisões. |
+| `reuniao_excluir` | crítica (confirma) | sob medida | Exclui uma reunião (lixeira da empresa). |
+| `empresa_atualizar_cadastro` | escrita | sob medida | Altera o cadastro de uma empresa do cronograma: razão social, nome fantasia e situação (ativo/pausado). O CNPJ não se altera por aqui (ele controla o  |
+| `empresa_equipe_adicionar` | escrita | sob medida | Adiciona uma pessoa/área à equipe de uma empresa (responsáveis das atividades vêm da equipe). |
+| `empresa_equipe_remover` | crítica (confirma) | sob medida | Remove uma pessoa/área da equipe de uma empresa (atividades que já a citam continuam com o nome). |
+| `empresa_fase_criar` | escrita | sob medida | Cria uma fase no cronograma da empresa. |
+| `empresa_fase_atualizar` | escrita | sob medida | Renomeia uma fase ou altera a descrição. |
+| `empresa_fase_excluir` | crítica (confirma) | sob medida | Exclui uma fase; as atividades dela passam para outra fase (a primeira restante). Sempre pede confirmação. |
 
 ## 4. Todas as rotas do servidor e como a RENATA as alcança
 
@@ -506,7 +524,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `GET /api/xflow/tickets/:id/events` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/xflow/tickets/:id/view` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `DELETE /api/xflow/tickets/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
-| `PATCH /api/xflow/tickets/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `PATCH /api/xflow/tickets/:id` | ferramenta | xflow_acao |
 | `GET /api/xflow/tickets` | ferramenta | xflow_listar |
 | `POST /api/xflow/tickets` | ferramenta | xflow_criar |
 | `GET /d/:token/:file` | excluída | fora do alcance: Links públicos e compartilhamento externo: são gerados pela pessoa na tela. |

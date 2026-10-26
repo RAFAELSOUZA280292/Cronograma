@@ -73,6 +73,7 @@ export function createAgent({ pool, registry, executor, getClient, generalContex
   // Roda o laço de ferramentas até uma resposta final ou até uma confirmação pendente.
   async function loop({ conv, user, command, context, today }) {
     const tools = registry.forModel(user);
+    if (tools.length) tools[tools.length - 1] = { ...tools[tools.length - 1], cache_control: { type: 'ephemeral' } }; // as ~95 definições de ferramenta repetem a cada passo: ficam em cache
     const system = buildSystem({ user, today, context, generalText: conv.generalText });
     const client = getClient();
     const stepsOut = []; let pending = [];

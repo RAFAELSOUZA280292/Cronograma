@@ -181,6 +181,46 @@ try {
   Object.keys(tq.byTool || {}).forEach((t) => exercised.add(t));
   ok('tarefas de reunião e cronograma: atualizar, excluir (confirmação), simular e aplicar', allOk(tq, ['tarefa_reuniao_atualizar', 'tarefa_reuniao_excluir', 'cronograma_simular', 'cronograma_aplicar']), bad(tq));
 
+  // ---- 2b) cadastro, reuniões, equipe, fases, checklist, comentários, páginas/colunas e XFlow
+  const m1 = await run('adm', [
+    { name: 'reuniao_criar', input: { empresaId: PROJ, title: 'Reunião RENATA', date: '2026-11-03', participants: ['Fulano'] } },
+    { name: 'empresa_atualizar_cadastro', input: { id: PROJ, nomeFantasia: 'Fantasia RENATA' } },
+    { name: 'empresa_equipe_adicionar', input: { id: PROJ, name: 'Equipe Nova' } },
+    { name: 'empresa_fase_criar', input: { id: PROJ, name: 'Fase RENATA' } },
+    { name: 'quadro_criar_pagina', input: { name: 'Página RENATA' } },
+    { name: 'quadro_criar_coluna', input: { board: 'Página RENATA', name: 'Coluna RENATA' } },
+    { name: 'quadro_criar_atividade', input: { title: 'Cartão do checklist', board: 'Página RENATA', column: 'Coluna RENATA' } },
+  ]);
+  Object.keys(m1.byTool || {}).forEach((t) => exercised.add(t));
+  ok('cadastro/reunião/equipe/fase/página/coluna criados direto, sem confirmação', allOk(m1, ['reuniao_criar', 'empresa_atualizar_cadastro', 'empresa_equipe_adicionar', 'empresa_fase_criar', 'quadro_criar_pagina', 'quadro_criar_coluna', 'quadro_criar_atividade']) && m1.pending.length === 0, bad(m1));
+  let pj2 = (await rows(`SELECT data FROM projects WHERE id=$1`, [PROJ]))[0].data;
+  const mt = pj2.meetings.find((m) => m.title === 'Reunião RENATA');
+  const bd2 = (await rows(`SELECT data FROM personal_boards WHERE user_id=$1`, [ADM]))[0].data;
+  const pg = bd2.boards.find((b) => b.name === 'Página RENATA');
+  const ck = pg.columns.find((c) => c.name === 'Coluna RENATA').cards[0];
+  ok('estado no banco: reunião, nome fantasia, equipe, fase, página, coluna e cartão', !!mt && pj2.company.nomeFantasia === 'Fantasia RENATA' && pj2.team.some((t) => t.name === 'Equipe Nova') && pj2.phases.some((p) => p.name === 'Fase RENATA') && !!pg && !!ck, { mt: !!mt, pg: !!pg, ck: !!ck });
+  const m2 = await run('adm', [
+    { name: 'reuniao_atualizar', input: { empresaId: PROJ, id: mt.id, summary: 'Resumo da RENATA', time: '10:00' } },
+    { name: 'empresa_fase_atualizar', input: { id: PROJ, fase: 'Fase RENATA', sub: 'Descrição RENATA' } },
+    { name: 'quadro_checklist', input: { id: ck.id, acao: 'adicionar', texto: 'Primeiro item' } },
+    { name: 'quadro_comentar', input: { id: ck.id, texto: 'Comentário da RENATA' } },
+  ]);
+  Object.keys(m2.byTool || {}).forEach((t) => exercised.add(t));
+  const ck2 = (await rows(`SELECT data FROM personal_boards WHERE user_id=$1`, [ADM]))[0].data.boards.find((b) => b.name === 'Página RENATA').columns.find((c) => c.name === 'Coluna RENATA').cards[0];
+  const m3 = await run('adm', [{ name: 'quadro_checklist', input: { id: ck.id, acao: 'marcar', texto: 'Primeiro item' } }]);
+  const ck3 = (await rows(`SELECT data FROM personal_boards WHERE user_id=$1`, [ADM]))[0].data.boards.find((b) => b.name === 'Página RENATA').columns.find((c) => c.name === 'Coluna RENATA').cards[0];
+  pj2 = (await rows(`SELECT data FROM projects WHERE id=$1`, [PROJ]))[0].data;
+  ok('reunião, fase, checklist e comentário alterados de fato (item marcado, comentário com autor RENATA)', allOk(m2, ['reuniao_atualizar', 'empresa_fase_atualizar', 'quadro_checklist', 'quadro_comentar']) && allOk(m3, ['quadro_checklist']) && pj2.meetings.find((m) => m.id === mt.id).summary === 'Resumo da RENATA' && pj2.phases.find((p) => p.name === 'Fase RENATA').sub === 'Descrição RENATA' && ck2.checklist.length === 1 && ck3.checklist[0].done === true && /RENATA/.test(ck3.comments[0].author), { bad: bad(m2), ck3 });
+  const tk = (await call(A, 'POST', '/api/xflow/tickets', { title: 'Teste RENATA ticket da ação' })).json.ticket;
+  const crit2 = await run('adm', [
+    { name: 'reuniao_excluir', input: { empresaId: PROJ, id: mt.id } }, { name: 'empresa_equipe_remover', input: { id: PROJ, name: 'Equipe Nova' } },
+    { name: 'empresa_fase_excluir', input: { id: PROJ, fase: 'Fase RENATA' } }, { name: 'xflow_acao', input: { id: tk.id, action: 'aceitar', payload: {} } },
+  ]);
+  Object.keys(crit2.byTool || {}).forEach((t) => exercised.add(t));
+  pj2 = (await rows(`SELECT data FROM projects WHERE id=$1`, [PROJ]))[0].data;
+  const tk2 = (await rows(`SELECT status FROM xflow_tickets WHERE id=$1`, [tk.id]))[0];
+  ok('críticas de empresa e XFlow pedem confirmação e, confirmadas, executam (reunião na lixeira, equipe, fase, ticket aceito)', allOk(crit2, ['reuniao_excluir', 'empresa_equipe_remover', 'empresa_fase_excluir', 'xflow_acao']) && crit2.pending.length === 4 && pj2.meetings.find((m) => m.id === mt.id).deleted === true && !pj2.team.some((t) => t.name === 'Equipe Nova') && !pj2.phases.some((p) => p.name === 'Fase RENATA') && tk2.status === 'atribuida', { bad: bad(crit2), tk2 });
+
   // ---- 3) AÇÕES CRÍTICAS e de configuração (sempre pedem confirmação; o teste confirma)
   const crit = await run('adm', [
     { name: 'crm_excluir_empresa', input: { id: CE } }, { name: 'crm_excluir_contato', input: { id: K2 } }, { name: 'crm_excluir_atividade', input: { id: A2 } }, { name: 'crm_excluir_nota', input: { id: N2 } },

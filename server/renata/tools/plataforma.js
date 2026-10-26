@@ -4,6 +4,7 @@
 import { T } from '../validate.js';
 import { callInternal } from '../internalCall.js';
 import { routeIndex, matchRoute, excludedReason, curatedSet, classify } from '../policy.js';
+import { XFLOW_TRANSITIONS } from '../../xflowTransitions.js';
 
 const staff = (u) => !!u && (u.isSuperAdmin || u.role === 'master' || u.role === 'pricetax');
 
@@ -29,6 +30,12 @@ export function registerPlataforma(registry) {
   registry.add({ ...mod('XFlow'), name: 'xflow_criar', summary: 'Abre um ticket no XFlow (bug ou tarefa).', risk: 'write', creates: true, visible: xf,
     params: T.obj({ title: T.str('Título'), description: T.str('Descrição'), expectedResult: T.str('Resultado esperado'), reproSteps: T.str('Passos para reproduzir'), module: T.str('Módulo afetado'), priority: T.str('Prioridade'), product: T.str('Produto') }, ['title']),
     route: { method: 'POST', path: '/api/xflow/tickets' }, describe: (i) => `Abrir o ticket “${i.title}” no XFlow.` });
+
+  const ACOES = Object.keys(XFLOW_TRANSITIONS);
+  const ajuda = ACOES.map((a) => `${a}${(XFLOW_TRANSITIONS[a].requiresFields || []).length ? ` (exige ${(XFLOW_TRANSITIONS[a].requiresFields || []).join('+')} em payload)` : ''}`).join('; ');
+  registry.add({ ...mod('XFlow'), name: 'xflow_acao', summary: `Executa uma ação sobre um ticket do XFlow (triagem, desenvolvimento, homologação, publicação, validação, bloqueio, pausa, fechamento, exclusão para a lixeira…). O servidor confere papel e transição de status; erro de regra volta com a explicação. Sempre pede confirmação. Ações: ${ajuda}.`, risk: 'write', confirm: 'always', visible: xf,
+    params: T.obj({ id: T.str('Id do ticket (xflow_listar)'), action: T.enm('Ação', ACOES), payload: { type: 'object', description: 'Campos exigidos pela ação (ex.: note, blockedReason, closureReason, closureJustification, duplicateOfTicketId, assigneeId)', additionalProperties: true, properties: {} } }, ['id', 'action']),
+    route: { method: 'PATCH', path: '/api/xflow/tickets/{id}' }, map: (i) => ({ action: i.action, payload: i.payload || {} }), describe: (i) => `XFlow: executar “${i.action}” no ticket ${i.id}.` });
 
   // ---------- acesso genérico
   registry.add({ ...mod('Plataforma'), name: 'plataforma_rotas', summary: 'Descobre as operações da plataforma que ainda não têm ferramenta própria: lista rotas (método e caminho) por módulo. Depois use plataforma_consultar (GET) ou plataforma_executar (altera, com confirmação). Para o CRM, quadro e cronogramas, prefira as ferramentas específicas.', risk: 'read',
