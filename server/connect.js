@@ -18,6 +18,7 @@ import { todayInSp } from './widgetSummary.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { originOf, setActor } from './projectAudit.js';
 import { createCrmRouter } from './crm/routes.js';
+import { crmCan } from './crm/permissions.js';
 
 export const router = Router();
 
@@ -37,7 +38,7 @@ router.get('/tokens', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, scope, created_at, expires_at, last_used_at FROM api_tokens WHERE user_id=$1 AND revoked_at IS NULL ORDER BY created_at DESC`, [req.user.id]);
-    res.json({ tokens: rows.map((r) => ({ ...r, expired: new Date(r.expires_at) < new Date() })), scopes: SCOPES, canAdmin: !!(req.user.isSuperAdmin || req.user.role === 'master') });
+    res.json({ tokens: rows.map((r) => ({ ...r, expired: new Date(r.expires_at) < new Date() })), scopes: SCOPES, canAdmin: !!(req.user.isSuperAdmin || req.user.role === 'master'), canCrm: crmCan(req.user, 'admin') });
   } catch (e) { next(e); }
 });
 
@@ -48,7 +49,8 @@ router.post('/tokens', requireAuth, async (req, res, next) => {
     const days = VALID_DAYS.includes(Number((req.body || {}).days)) ? Number(req.body.days) : 180;
     if (!name) return res.status(400).json({ message: 'Dê um nome ao token (ex.: "Claude Code do XPED").' });
     if (!scope) return res.status(400).json({ message: 'Escolha o que o token pode fazer.' });
-    if ((scope === 'read_write' || scope === 'crm_operate') && !(req.user.isSuperAdmin || req.user.role === 'master')) return res.status(403).json({ message: 'Só administradores geram uma chave que altera cronograma de empresas ou opera o CRM.' });
+    if (scope === 'read_write' && !(req.user.isSuperAdmin || req.user.role === 'master')) return res.status(403).json({ message: 'Só administradores geram uma chave que ajusta o cronograma de empresas.' });
+    if (scope === 'crm_operate' && !crmCan(req.user, 'admin')) return res.status(403).json({ message: 'Só administrador do CRM gera uma chave que opera o CRM.' });
     const { rows: active } = await pool.query(`SELECT count(*)::int n FROM api_tokens WHERE user_id=$1 AND revoked_at IS NULL AND expires_at > now()`, [req.user.id]);
     if (active[0].n >= MAX_ACTIVE_TOKENS) return res.status(400).json({ message: `Você já tem ${MAX_ACTIVE_TOKENS} tokens ativos. Revogue algum antes de criar outro.` });
     const token = PREFIX + crypto.randomBytes(32).toString('base64url');
@@ -64,9 +66,11 @@ router.post('/tokens', requireAuth, async (req, res, next) => {
 // O que o Claude Code alterou no CRM pelas chaves do próprio administrador (últimas 100 gravações).
 router.get('/actions', requireAuth, async (req, res, next) => {
   try {
+    // Administrador do CRM vê as gravações de todas as chaves da organização (inclusive de um usuário dedicado "Claude Code"); os demais, só as próprias.
+    const all = crmCan(req.user, 'admin') && req.user.orgId;
     const { rows } = await pool.query(
-      `SELECT a.at, a.method, a.path, a.status, t.name AS token_name FROM api_token_actions a JOIN api_tokens t ON t.id = a.token_id
-       WHERE a.user_id=$1 ORDER BY a.at DESC LIMIT 100`, [req.user.id]);
+      `SELECT a.at, a.method, a.path, a.status, t.name AS token_name, u.name AS owner_name FROM api_token_actions a JOIN api_tokens t ON t.id = a.token_id LEFT JOIN users u ON u.id = a.user_id
+       WHERE ${all ? 'a.org_id=$1' : 'a.user_id=$1'} ORDER BY a.at DESC LIMIT 100`, [all ? req.user.orgId : req.user.id]);
     res.json({ actions: rows });
   } catch (e) { next(e); }
 });
@@ -166,7 +170,7 @@ router.use(bearer);
 const CRM_BLOCKED = /^\/migration(\/|$)/;
 function crmViaToken(req, res, next) {
   if (req.apiToken.scope !== 'crm_operate') return res.status(403).json({ message: 'Esta chave não opera o CRM. Gere uma chave "Operar o CRM como Claude Code" em Meu perfil > Conectar (só administrador).' });
-  if (!(req.apiUser.isSuperAdmin || req.apiUser.role === 'master')) return res.status(403).json({ message: 'O dono da chave deixou de ser administrador.' });
+  if (!crmCan(req.apiUser, 'admin')) return res.status(403).json({ message: 'O dono da chave deixou de ser administrador do CRM.' });
   if (req.method !== 'GET') {
     const path = clip(String(req.originalUrl || '').split('?')[0], 200);
     res.on('finish', () => {
@@ -176,7 +180,9 @@ function crmViaToken(req, res, next) {
   }
   if (req.method !== 'GET' && CRM_BLOCKED.test(req.path)) return res.status(403).json({ message: 'A migração do PipeRun só é operada pela tela, por um administrador.' });
   req.user = req.apiUser;
-  req.crmActor = { id: req.apiUser.id, name: `Claude Code (por ${req.apiUser.name || req.apiUser.username})`, viaApi: true };
+  // Usuário dedicado chamado "Claude Code": o registro sai só "Claude Code". Chave de uma pessoa: "Claude Code (por <pessoa>)".
+  const owner = req.apiUser.name || req.apiUser.username;
+  req.crmActor = { id: req.apiUser.id, name: /^claude code$/i.test(String(owner).trim()) ? 'Claude Code' : `Claude Code (por ${owner})`, viaApi: true };
   next();
 }
 router.use('/crm', crmViaToken, createCrmRouter({ auth: [(req, res, next) => next()] }));

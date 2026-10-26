@@ -11,7 +11,7 @@ if (!/localhost|127\.0\.0\.1/.test(DB)) { console.error('Recusado: só banco loc
 const ORG = 'sandbox-edu';
 const PASS = crypto.randomBytes(12).toString('base64url');
 const RUN = crypto.randomBytes(3).toString('hex');
-const U = { adm: `oicc_adm_${RUN}`, vend: `oicc_vend_${RUN}` };
+const U = { adm: `oicc_adm_${RUN}`, vend: `oicc_vend_${RUN}`, cc: `oicc_cc_${RUN}` };
 const TAG = `Teste Claude Code ${RUN}`;
 let failed = 0;
 const ok = (n, c, e) => { if (c) console.log(`ok   ${n}`); else { failed += 1; console.log(`FAIL ${n}${e !== undefined ? ` -> ${JSON.stringify(e)}` : ''}`); } };
@@ -39,8 +39,9 @@ async function cleanup() {
 await cleanup();
 await pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,companies_access,all_companies_access) VALUES ($1,$1,$2,'Admin Teste CC','master',$3,true,true)`, [U.adm, hash, ORG]);
 await pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,crm_role) VALUES ($1,$1,$2,'Vendedor Teste CC','pricetax',$3,'vendedor')`, [U.vend, hash, ORG]);
+await pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,crm_role) VALUES ($1,$1,$2,'Claude Code','pricetax',$3,'admin')`, [U.cc, hash, ORG]);
 const login = async (u) => { const r = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: PASS }) }); return (r.headers.get('set-cookie') || '').split(';')[0]; };
-const ck = { adm: await login(U.adm), vend: await login(U.vend) };
+const ck = { adm: await login(U.adm), vend: await login(U.vend), cc: await login(U.cc) };
 const call = async (headers, method, path, body) => { const r = await fetch(`${BASE}${path}`, { method, headers: { ...headers, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined }); let json = null; try { json = await r.json(); } catch { /* sem corpo */ } return { status: r.status, json }; };
 const asCk = (k) => ({ Cookie: ck[k] });
 const bearer = (t) => ({ Authorization: `Bearer ${t}` });
@@ -55,7 +56,7 @@ try {
   const tokCreate = (await mint('adm', 'read_create', 'só atividades')).json.token;
   const tokRead = (await mint('adm', 'read', 'só leitura')).json.token;
   const list = await call(asCk('adm'), 'GET', '/api/connect/tokens');
-  ok('a tela sabe que é administrador e lista o escopo novo', list.json.canAdmin === true && list.json.scopes.crm_operate && list.json.tokens.some((t) => t.scope === 'crm_operate'));
+  ok('a tela sabe que é administrador e lista o escopo novo', list.json.canCrm === true && (await call(asCk('vend'), 'GET', '/api/connect/tokens')).json.canCrm === false && list.json.scopes.crm_operate && list.json.tokens.some((t) => t.scope === 'crm_operate'));
 
   // quem pode usar
   ok('sem chave → 401', (await call({}, 'GET', '/api/connect/crm/me')).status === 401);
@@ -107,6 +108,19 @@ try {
   ok('o registro lista as gravações (POST/PATCH/DELETE) com chave e resultado; GET não entra', acts.json.actions.length >= 12 && posts >= 6 && acts.json.actions.every((a) => a.method !== 'GET' && a.token_name === 'Claude Code do teste') && acts.json.actions.some((a) => a.method === 'DELETE'), acts.json.actions.length);
   ok('o registro não guarda corpo nem query', acts.json.actions.every((a) => !a.path.includes('?') && !('body' in a)));
   ok('o registro é só do dono (o vendedor vê vazio e sem permissão de admin)', (await call(asCk('vend'), 'GET', '/api/connect/actions')).json.actions.length === 0);
+
+  // usuário dedicado "Claude Code" (perfil Equipe + CRM Administrador, sem ser master): gera a chave e o registro sai só "Claude Code"
+  const tcc = await mint('cc', 'crm_operate', 'Chave do usuário Claude Code');
+  ok('usuário dedicado (não é master, é administrador do CRM) gera a chave do CRM', tcc.status === 201, tcc.status);
+  const cco = await call(bearer(tcc.json.token), 'POST', '/api/connect/crm/companies', { legalName: `${TAG} Dedicado`, relationship: 'prospect' });
+  ok('a chave do usuário dedicado opera o CRM', cco.status === 201, cco.json);
+  const { rows: ccAudit } = await pool.query(`SELECT DISTINCT actor_name, actor_id FROM crm_audit_logs WHERE org_id=$1 AND actor_id=$2`, [ORG, U.cc]);
+  ok('a auditoria registra só "Claude Code", com o id do usuário dedicado (separado do administrador)', ccAudit.length === 1 && ccAudit[0].actor_name === 'Claude Code', ccAudit);
+  const ccRead = await call(asCk('adm'), 'GET', '/api/connect/actions');
+  ok('o administrador vê no registro as gravações da chave do usuário dedicado, com o dono', ccRead.json.actions.some((a) => a.owner_name === 'Claude Code' && a.method === 'POST'), ccRead.json.actions.slice(0, 2));
+  ok('o usuário dedicado não vira administrador do painel: não gera chave de cronograma', (await mint('cc', 'read_write')).status === 403);
+  await pool.query(`UPDATE users SET crm_role='vendedor' WHERE id=$1`, [U.cc]);
+  ok('usuário dedicado rebaixado no CRM: a chave para de operar (403)', (await call(bearer(tcc.json.token), 'GET', '/api/connect/crm/me')).status === 403);
 
   // limites
   ok('migração do PipeRun: escrita recusada pela chave (403), leitura segue', (await call(H(), 'POST', '/api/connect/crm/migration/piperun/purge', { confirm: true })).status === 403 && (await call(H(), 'POST', '/api/connect/crm/migration/piperun/import', {})).status === 403);

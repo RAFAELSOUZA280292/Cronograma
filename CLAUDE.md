@@ -84,7 +84,7 @@ Ele quer tudo registrado como Claude Code; o que ele NÃO quer é ficar sem regi
   curl -s -X POST "$PRICETAX_URL/api/connect/crm/cadences" -H "Authorization: Bearer $PRICETAX_CRM_TOKEN" -H "Content-Type: application/json" -d '{…}'
   ```
 - **Registro (automático, não dá para esquecer):** auditoria, linha do tempo, histórico de etapas e autor da nota saem como
-  **"Claude Code (por Rafael Souza)"**; cada gravação entra em `api_token_actions` (Meu perfil › Conectar mostra as últimas).
+  **"Claude Code"** (usuário dedicado) ou **"Claude Code (por Rafael Souza)"** (chave dele); cada gravação entra em `api_token_actions` (Meu perfil › Conectar mostra as últimas).
 - **Como trabalhar:** descreva o que vai gravar em uma linha, grave, **leia de volta** para provar o resultado e diga o que mudou. Se a gravação
   for em massa (mais de ~20 registros), faça primeiro uma prévia (contagem + 3 exemplos) e grave em lotes.
 - **Continua fora do alcance da chave (de propósito):** escrita da migração do PipeRun (só pela tela); excluir de verdade (a chave só faz exclusão

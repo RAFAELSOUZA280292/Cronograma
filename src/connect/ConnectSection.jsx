@@ -51,7 +51,7 @@ const fmtTs = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle:
 
 export default function ConnectSection({ onAtRiskChange }) {
   const [tokens, setTokens] = useState(null);
-  const [canAdmin, setCanAdmin] = useState(false);
+  const [canCrm, setCanCrm] = useState(false);
   const [actions, setActions] = useState([]);
   const [name, setName] = useState('');
   const [scope, setScope] = useState('read_create');
@@ -64,7 +64,7 @@ export default function ConnectSection({ onAtRiskChange }) {
   const [everCopied, setEverCopied] = useState(false);
 
   async function load() {
-    try { const r = await apiGet('/api/connect/tokens'); setTokens(r.tokens); setCanAdmin(!!r.canAdmin); if (r.canAdmin) apiGet('/api/connect/actions').then((a) => setActions(a.actions || [])).catch(() => {}); } catch { setTokens([]); }
+    try { const r = await apiGet('/api/connect/tokens'); setTokens(r.tokens); setCanCrm(!!r.canCrm); if (r.canCrm) apiGet('/api/connect/actions').then((a) => setActions(a.actions || [])).catch(() => {}); } catch { setTokens([]); }
   }
   useEffect(() => { load(); }, []);
   useEffect(() => { if (onAtRiskChange) onAtRiskChange(!!fresh && !everCopied); }, [fresh, everCopied]);
@@ -120,7 +120,7 @@ export default function ConnectSection({ onAtRiskChange }) {
           <div className="cnx-scope" role="radiogroup" aria-label="O que a chave de acesso pode fazer">
             <label className={`cnx-opt${scope === 'read_create' ? ' on' : ''}`}><input type="radio" name="cnx-scope" checked={scope === 'read_create'} onChange={() => setScope('read_create')} /><div><b>Ler e criar atividades</b><span>Lê atividades, empresas, reuniões e agenda; cria atividades no seu quadro pessoal. Não edita nem apaga nada existente.</span></div></label>
             <label className={`cnx-opt${scope === 'read_write' ? ' on' : ''}`}><input type="radio" name="cnx-scope" checked={scope === 'read_write'} onChange={() => setScope('read_write')} /><div><b>Ler e ajustar o cronograma das empresas</b><span>Tudo do primeiro item e mais: muda status, datas e subatividades e cria atividades no cronograma de uma empresa, tudo de uma vez ou nada, com registro no Log. Excluir só com volta pela lixeira (nada some de verdade). Só administrador.</span></div></label>
-            {canAdmin && <label className={`cnx-opt${scope === 'crm_operate' ? ' on' : ''}`}><input type="radio" name="cnx-scope" checked={scope === 'crm_operate'} onChange={() => setScope('crm_operate')} /><div><b>Operar o CRM como Claude Code</b><span>Lê tudo e cria, edita, move, exclui e registra no CRM com as mesmas regras da tela. Cada alteração fica registrada como “Claude Code (por você)”. Não opera a migração do PipeRun.</span></div></label>}
+            {canCrm && <label className={`cnx-opt${scope === 'crm_operate' ? ' on' : ''}`}><input type="radio" name="cnx-scope" checked={scope === 'crm_operate'} onChange={() => setScope('crm_operate')} /><div><b>Operar o CRM como Claude Code</b><span>Lê tudo e cria, edita, move, exclui e registra no CRM com as mesmas regras da tela. Cada alteração fica registrada como “Claude Code” (com o seu nome, se a chave for sua). Não opera a migração do PipeRun.</span></div></label>}
             <label className={`cnx-opt${scope === 'read' ? ' on' : ''}`}><input type="radio" name="cnx-scope" checked={scope === 'read'} onChange={() => setScope('read')} /><div><b>Só ler</b><span>Consulta tudo acima e não altera nada.</span></div></label>
           </div>
           <div>
@@ -150,11 +150,11 @@ export default function ConnectSection({ onAtRiskChange }) {
         </div>
       )}
 
-      {canAdmin && actions.length > 0 && (
+      {canCrm && actions.length > 0 && (
         <div className="cnx-list">
           <div className="cnx-label">O que o Claude Code alterou no CRM (últimas {actions.length})</div>
           {actions.slice(0, 15).map((a, i) => (
-            <div key={`${a.at}-${i}`} className="cnx-tok"><div className="cnx-tok-main"><b>{a.method} {a.path.replace('/api/connect/crm', '')}</b><span>{fmtTs(a.at)} · chave “{a.token_name}” · {a.status >= 400 ? `recusado (${a.status})` : `ok (${a.status})`}</span></div></div>
+            <div key={`${a.at}-${i}`} className="cnx-tok"><div className="cnx-tok-main"><b>{a.method} {a.path.replace('/api/connect/crm', '')}</b><span>{fmtTs(a.at)} · chave “{a.token_name}” ({a.owner_name}) · {a.status >= 400 ? `recusado (${a.status})` : `ok (${a.status})`}</span></div></div>
           ))}
           {actions.length > 15 && <p>Mais {actions.length - 15} no registro.</p>}
         </div>
