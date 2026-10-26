@@ -79,7 +79,7 @@ Ele quer tudo registrado como Claude Code; o que ele NÃO quer é ficar sem regi
   `PRICETAX_URL` e `PRICETAX_CRM_TOKEN` ficam no `.env`, nunca na conversa, em commit ou em log). **Não** use a sessão do navegador do Rafael
   (cookie), nem SQL direto em produção, para gravar no CRM. Leitura de apoio pode usar o navegador, mas a escrita vai pela chave.
   ```bash
-  set -a; . ./.env; set +a
+  export $(grep -E '^PRICETAX_(URL|CRM_TOKEN)=' .env | xargs)   # não use `. ./.env`: há linha com espaço sem aspas
   curl -s "$PRICETAX_URL/api/connect/crm/pipelines" -H "Authorization: Bearer $PRICETAX_CRM_TOKEN"
   curl -s -X POST "$PRICETAX_URL/api/connect/crm/cadences" -H "Authorization: Bearer $PRICETAX_CRM_TOKEN" -H "Content-Type: application/json" -d '{…}'
   ```
