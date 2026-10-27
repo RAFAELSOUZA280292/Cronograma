@@ -5,7 +5,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Sparkles, Send, RotateCcw, Building2 } from 'lucide-react';
 import { apiPost } from '../lib/api.js';
+import ChatExport, { CHAT_EXPORT_CSS, CopyMessageButton } from './ChatExport.jsx';
 import { Drawer } from '../ui/dialog.jsx';
+import { fromSimpleMessages } from './chatExport.js';
 import { Button } from '../ui/index.jsx';
 
 const SUGGESTIONS = [
@@ -115,6 +117,7 @@ export default function RenataHome({ userId, userName, canSweep, projects, initi
   return (
     <Drawer title="RENATA" subtitle="Assistente da PRICETAX — responde com o que você já vê e com o conhecimento da casa." onClose={onClose} footer={footer} label="RENATA, assistente da PRICETAX">
       <style>{CSS}</style>
+      <style>{CHAT_EXPORT_CSS}</style>
       <div className="rnh">
         {msgs.length === 0 && (
           <>
@@ -126,8 +129,12 @@ export default function RenataHome({ userId, userName, canSweep, projects, initi
             </div>
           </>
         )}
+        {msgs.length > 0 && <ChatExport getData={() => ({ title: 'RENATA — conversa', subtitle: 'Assistente geral da PRICETAX', messages: fromSimpleMessages(msgs) })} />}
         {msgs.map((m, i) => (
-          <div key={i} className={`rnh-msg ${m.role === 'user' ? 'user' : 'bot'}`}>{m.role === 'user' ? m.text : <Formatted text={m.text} />}</div>
+          <div key={i} className={`cx-wrap ${m.role === 'user' ? 'user' : 'bot'}`}>
+            <div className={`rnh-msg ${m.role === 'user' ? 'user' : 'bot'}`}>{m.role === 'user' ? m.text : <Formatted text={m.text} />}</div>
+            <CopyMessageButton message={fromSimpleMessages([m])[0]} />
+          </div>
         ))}
         {busy && <div className="rnh-think" role="status">A RENATA está pensando…</div>}
         {error && (

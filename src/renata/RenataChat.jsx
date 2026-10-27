@@ -4,7 +4,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Sparkles, Send, RotateCcw, Check, X, Undo2, ListChecks, MessageSquare, ShieldAlert, Loader2, MapPin } from 'lucide-react';
 import { apiGet, apiPost } from '../lib/api.js';
+import ChatExport, { CHAT_EXPORT_CSS, CopyMessageButton } from '../assistant/ChatExport.jsx';
 import { Drawer } from '../ui/dialog.jsx';
+import { fromSimpleMessages } from '../assistant/chatExport.js';
 import { Button } from '../ui/index.jsx';
 import { notify } from '../ui/dialogs.jsx';
 import { getScreenContext } from './screenContext.js';
@@ -210,6 +212,7 @@ export default function RenataChat({ userId, userName, isAdmin, initialQuestion,
   return (
     <Drawer title="RENATA" subtitle="Colaboradora digital: você pede, ela executa no sistema, com as suas permissões, e deixa tudo registrado." onClose={onClose} footer={footer} label="RENATA, colaboradora digital da PRICETAX">
       <style>{CSS}</style>
+      <style>{CHAT_EXPORT_CSS}</style>
       <div className="rnc">
         <div className="rnc-tabs" role="tablist" aria-label="Seções da RENATA">
           <button type="button" role="tab" aria-selected={tab === 'chat'} className={`rnc-tab${tab === 'chat' ? ' on' : ''}`} onClick={() => setTab('chat')}><MessageSquare size={13} /> Conversa</button>
@@ -225,10 +228,11 @@ export default function RenataChat({ userId, userName, isAdmin, initialQuestion,
                 <div className="rnc-chips">{chips.map((s) => <button key={s} type="button" className="rnc-chip" onClick={() => (s.endsWith(' ') ? (setInput(s), taRef.current && taRef.current.focus()) : send(s))}>{s}</button>)}</div>
               </>
             )}
+            {msgs.length > 0 && <ChatExport getData={() => ({ title: 'RENATA — conversa', subtitle: 'Colaboradora digital da PRICETAX', messages: fromSimpleMessages(msgs) })} />}
             {msgs.map((m, i) => (
               m.role === 'user'
-                ? <div key={i} className="rnc-msg user">{m.text}</div>
-                : (<React.Fragment key={i}>{m.text && <div className="rnc-msg bot"><Formatted text={m.text} /></div>}<Steps steps={m.steps} onUndo={undo} busyUndo={busyUndo} /></React.Fragment>)
+                ? <div key={i} className="cx-wrap user"><div className="rnc-msg user">{m.text}</div><CopyMessageButton message={fromSimpleMessages([m])[0]} /></div>
+                : (<React.Fragment key={i}>{m.text && <div className="cx-wrap bot"><div className="rnc-msg bot"><Formatted text={m.text} /></div><CopyMessageButton message={fromSimpleMessages([{ ...m, steps: [] }])[0]} /></div>}<Steps steps={m.steps} onUndo={undo} busyUndo={busyUndo} /></React.Fragment>)
             ))}
             {pending.map((p) => <PendingCard key={p.actionId} p={p} onDecide={decide} busy={busy} />)}
             {busy && <div className="rnc-think" role="status"><Loader2 size={14} className="rnc-spin" /> A RENATA está trabalhando…</div>}

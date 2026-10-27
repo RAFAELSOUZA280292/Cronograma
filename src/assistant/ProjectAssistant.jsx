@@ -15,7 +15,9 @@ import {
 } from 'lucide-react';
 import { fmtDate, useIsMobile } from '../App.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
+import ChatExport, { CHAT_EXPORT_CSS, CopyMessageButton } from './ChatExport.jsx';
 import ParecerStudyModal from './ParecerStudyModal.jsx';
+import { fromProjectMessages } from './chatExport.js';
 import { DialogOverlay } from '../ui/dialog.jsx';
 
 const ASSISTANT_CSS = `
@@ -393,6 +395,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
   return (
     <>
       <style>{ASSISTANT_CSS}</style>
+      <style>{CHAT_EXPORT_CSS}</style>
       {!open && !defaultOpen && (
         <button type="button" className="asst-fab" onClick={() => setOpen(true)}>
           <Sparkles size={16} /> RENATA
@@ -413,6 +416,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                 )}
                 {canStudyPareceres && <button type="button" title="Estudar Pareceres da PRICETAX" aria-label="Estudar Pareceres da PRICETAX" onClick={() => setShowStudy(true)}><BookOpen size={16} aria-hidden="true" /></button>}
                 <button type="button" disabled={reindexing} title={reindexing ? 'Aguarde terminar' : 'Atualizar memória da RENATA'} aria-label="Atualizar memória da RENATA" onClick={handleReindex}><RefreshCw size={16} className={reindexing ? 'asst-spin' : ''} aria-hidden="true" /></button>
+                <ChatExport variant="icons" getData={() => ({ title: `RENATA — ${projectName}`, subtitle: 'Conversa com a assistente do projeto', messages: fromProjectMessages(messages) })} />
                 <button type="button" title="Limpar esta conversa" aria-label="Limpar esta conversa" onClick={clearConversation}><Trash2 size={16} aria-hidden="true" /></button>
                 <button type="button" title="Fechar assistente" aria-label="Fechar assistente" onClick={() => setOpen(false)}><X size={20} aria-hidden="true" /></button>
               </div>
@@ -430,7 +434,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                     <div key={m.id} className="asst-msg-row user">
                       <div className="asst-user-msg">
                         <div className="asst-msg-bubble user">{m.content}</div>
-                        <div className="asst-user-meta">{fmtTime(m.createdAt)} <Check size={10} /></div>
+                        <div className="asst-user-meta">{fmtTime(m.createdAt)} <Check size={10} /> <CopyMessageButton message={fromProjectMessages([m])[0]} label="" /></div>
                       </div>
                     </div>
                   );
@@ -443,6 +447,7 @@ export function ProjectAssistant({ projectId, projectName, view, openMeetingId, 
                         <span className="asst-assistant-icon"><Sparkles size={11} color="#F5C400" /></span>
                         <span className="asst-assistant-name">RENATA</span>
                         <span className="asst-assistant-time">{fmtTime(m.createdAt)}</span>
+                        <span style={{ marginLeft: 'auto' }}><CopyMessageButton message={fromProjectMessages([m])[0] || { role: 'assistant', text: '', sources: [] }} /></span>
                       </div>
 
                       {m.structured ? (
