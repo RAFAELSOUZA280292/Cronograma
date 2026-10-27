@@ -930,6 +930,15 @@ async function findBoardByShareToken(token) {
   return null;
 }
 
+// "Voltar ao quadro anterior" (2026-10-27, §120): a página pública pode apontar (`backBoardId`) para OUTRA página do mesmo dono; só vale se
+// essa outra também for pública (tem link) — nunca expõe uma página privada.
+export function resolveBackBoard(ownerData, board) {
+  const id = board && board.backBoardId;
+  if (!id || id === board.id) return null;
+  const b = ((ownerData && ownerData.boards) || []).find((x) => x.id === id);
+  return b && b.visibility === 'public' && b.shareToken ? { token: b.shareToken, name: b.name || 'Quadro' } : null;
+}
+
 router.get('/public-board/:token', optionalAuth, async (req, res, next) => {
   try {
     const found = await findBoardByShareToken(req.params.token);
@@ -950,7 +959,7 @@ router.get('/public-board/:token', optionalAuth, async (req, res, next) => {
       const { rows: mine } = await pool.query('SELECT data FROM personal_boards WHERE user_id=$1', [req.user.id]);
       alreadyLinked = !!(mine[0] && ((mine[0].data && mine[0].data.linkedBoards) || []).some((l) => l.token === req.params.token));
     }
-    res.json({ board: found.board, updatedAt: found.updatedAt, canEdit: !!req.user, ownerName, isOwner: !!req.user && req.user.id === found.ownerId, alreadyLinked });
+    res.json({ board: found.board, updatedAt: found.updatedAt, back: resolveBackBoard(found.ownerData, found.board), canEdit: !!req.user, ownerName, isOwner: !!req.user && req.user.id === found.ownerId, alreadyLinked });
   } catch (e) { next(e); }
 });
 
@@ -1017,7 +1026,11 @@ router.patch('/public-board/:token', requireAuth, async (req, res, next) => {
         await client.query('ROLLBACK'); client.release();
         return res.status(409).json({ message: 'O quadro foi alterado em outro lugar.', conflict: true, board: ownerData.boards[idx], updatedAt: cur.rows[0].updated_at });
       }
-      nextData = { ...ownerData, boards: ownerData.boards.map((b, i) => (i === idx ? patchedBoard : b)) };
+      const stored = ownerData.boards[idx];
+      // Quem colabora pelo link não decide para onde o botão "Voltar" leva: isso é do dono.
+      const kept = { ...patchedBoard };
+      if (stored.backBoardId) kept.backBoardId = stored.backBoardId; else delete kept.backBoardId;
+      nextData = { ...ownerData, boards: ownerData.boards.map((b, i) => (i === idx ? kept : b)) };
       const up = await client.query('UPDATE personal_boards SET data=$1, updated_at=now() WHERE user_id=$2 RETURNING updated_at', [JSON.stringify(nextData), found.ownerId]);
       updatedAt = up.rows[0].updated_at;
       await client.query('COMMIT');
@@ -1028,7 +1041,7 @@ router.patch('/public-board/:token', requireAuth, async (req, res, next) => {
     }
     client.release();
     await syncCardEvents(pool, found.ownerId, nextData);
-    res.json({ board: patchedBoard, updatedAt });
+    res.json({ board: nextData.boards.find((b) => b.id === patchedBoard.id) || patchedBoard, updatedAt });
   } catch (e) { next(e); }
 });
 

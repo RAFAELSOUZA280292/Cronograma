@@ -2,7 +2,7 @@
 // Extraído de src/App.jsx (2026-10-16, "dividir o App.jsx"): carregado sob demanda (lazyRetry no App.jsx) para sair do pacote principal.
 // O código é o mesmo de antes; o que vem do App.jsx é importado de lá (e lá foi exportado).
 
-import { AlertTriangle, Archive, ArrowLeftRight, CalendarDays, Check, ChevronDown, ChevronUp, Clock, Columns3, Copy, Download, Gauge, Globe, GripVertical, History, LayoutList, Link2, ListChecks, Lock, LogOut, Maximize2, MessageSquare, MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Tag, Trash2, Undo2, UserPlus, Users, X } from 'lucide-react';
+import { AlertTriangle, Archive, ArrowLeftRight, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronUp, Clock, Columns3, Copy, Download, Gauge, Globe, GripVertical, History, LayoutList, Link2, ListChecks, Lock, LogOut, Maximize2, MessageSquare, MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Tag, Trash2, Undo2, UserPlus, Users, X } from 'lucide-react';
 import { CommentThread, ComposeBox } from '../ui/ComposeBox.jsx';
 import { ConfirmDialog, RecordSaveStatus, SaveStatus, activateRow } from '../ui/index.jsx';
 import DaySummary from '../personal/DaySummary.jsx';
@@ -1112,7 +1112,7 @@ function PersonalArchivePanel({ archiveItems, onClose, onRestore }) {
   );
 }
 
-function BoardShareModal({ board, onClose, onSetVisibility, onRegenerateLink }) {
+function BoardShareModal({ board, otherBoards, onClose, onSetVisibility, onRegenerateLink, onSetBack }) {
   const [copied, setCopied] = useState(false);
   const isPublic = board.visibility === 'public';
   const publicUrl = isPublic && board.shareToken ? `${window.location.origin}/quadro/${board.shareToken}` : '';
@@ -1152,6 +1152,18 @@ function BoardShareModal({ board, onClose, onSetVisibility, onRegenerateLink }) 
               <input value={publicUrl} readOnly onFocus={(e) => e.target.select()} style={{ flex: 1 }} />
               <button style={S.primaryBtn} onClick={copyLink}>{copied ? 'Copiado!' : 'Copiar link'}</button>
             </div>
+            {otherBoards.length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <label style={S.subSectionLabel} htmlFor="board-back-select">Quem abrir o link poderá voltar para</label>
+                <select id="board-back-select" value={board.backBoardId || ''} onChange={(e) => onSetBack(e.target.value)} style={{ width: '100%', marginTop: 6 }}>
+                  <option value="">Nenhum quadro (sem botão de voltar)</option>
+                  {otherBoards.map((b) => <option key={b.id} value={b.id}>{b.name}{b.visibility === 'public' ? ' — já é público' : ' — passa a ser público'}</option>)}
+                </select>
+                <div style={{ ...S.fieldHint, marginTop: 6, lineHeight: 1.5 }}>
+                  A página do link mostra o botão <b>"← Voltar para …"</b>. O quadro escolhido também fica <b>público por link</b> (qualquer pessoa com o link dele pode ver).
+                </div>
+              </div>
+            )}
             <button
               className="pb-ghost"
               style={{ ...S.pbGhostBtn, marginTop: 10 }}
@@ -1391,7 +1403,7 @@ function PbMoreMenu({ items }) {
   );
 }
 
-export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings, board, onMutate, onExit, onGoCompany, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, onRetrySave, publicMode, readOnly, publicOwnerName, embedded, publicAction, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
+export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings, board, onMutate, onExit, onGoCompany, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, onRetrySave, publicMode, readOnly, publicOwnerName, publicBack, embedded, publicAction, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
   // Histórico do navegador — Nível 2 (2026-08): trocar de página do quadro
   // pessoal. Nunca ativo em publicMode (/quadro/:token é a única rota que
   // usa URL de verdade — ver PROJECT_CONTEXT.md §9, não mexer nisso aqui).
@@ -1579,6 +1591,34 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
         return { ...next, log: [{ ts: new Date().toISOString(), action: msg, user: currentUser.name }, ...(next.log || [])].slice(0, 300) };
       }),
     }));
+  }
+  // Define para onde o botão "Voltar" da página pública leva. O quadro de destino precisa ser público (tem que ter link): se ainda não é,
+  // vira público junto, com registro nos dois históricos.
+  function setBoardBack(boardId, backId) {
+    onMutate((prev) => {
+      const target = backId ? prev.boards.find((b) => b.id === backId) : null;
+      if (backId && !target) return prev;
+      const now = new Date().toISOString();
+      const entry = (action) => ({ ts: now, action, user: currentUser.name });
+      const src = prev.boards.find((b) => b.id === boardId);
+      return {
+        ...prev,
+        boards: prev.boards.map((b) => {
+          if (b.id === boardId) {
+            const { backBoardId: _old, ...rest } = b;
+            return { ...rest, ...(backId ? { backBoardId: backId } : {}), log: [entry(backId ? `Botão "Voltar" aponta para "${target.name}"` : 'Botão "Voltar" removido'), ...(b.log || [])].slice(0, 300) };
+          }
+          if (target && b.id === backId && !(b.visibility === 'public' && b.shareToken)) {
+            return { ...b, visibility: 'public', shareToken: b.shareToken || genShareToken(), log: [entry(`Quadro tornado público por link (destino do "Voltar" de "${src ? src.name : ''}")`), ...(b.log || [])].slice(0, 300) };
+          }
+          return b;
+        }),
+      };
+    });
+  }
+  function copyBoardLink(b) {
+    if (!b || b.visibility !== 'public' || !b.shareToken) return;
+    navigator.clipboard.writeText(`${window.location.origin}/quadro/${b.shareToken}`).then(() => notify('Link copiado — é só colar e enviar.')).catch(() => notify('Não foi possível copiar. Abra "Público por link" e copie de lá.', { tone: 'error' }));
   }
   function regenerateShareLink(boardId) {
     onMutate((prev) => ({
@@ -2264,6 +2304,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
             <span style={S.personalTabInput}>{activeBoard ? activeBoard.name : ''}</span>
             <span style={S.publicBadge}><Globe size={11} /> Público por link</span>
           </div>
+          {publicBack && <a href={`/quadro/${publicBack.token}`} className="pb-ghost" style={{ ...S.pbGhostBtn, alignSelf: 'center', marginLeft: 10, textDecoration: 'none' }} title="Voltar ao quadro anterior"><ChevronLeft size={14} aria-hidden="true" /> Voltar para {publicBack.name}</a>}
           {readOnly && <div style={{ ...S.fieldHint, alignSelf: 'center', marginLeft: 8 }}>Somente visualização — <a href="/" style={{ color: '#F5C400' }}>faça login</a> para colaborar</div>}
           {publicAction && <div style={{ alignSelf: 'center', marginLeft: 12 }}>{publicAction}</div>}
         </div>
@@ -2356,6 +2397,9 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
             <button className="pb-ghost" style={{ ...S.pbGhostBtn, ...(activeBoard.visibility === 'public' ? { color: '#3ea6ff', borderColor: '#3ea6ff' } : {}) }} onClick={() => setShowShareModal(true)}>
               {activeBoard.visibility === 'public' ? <Globe size={13} /> : <Lock size={13} />} {activeBoard.visibility === 'public' ? 'Público por link' : 'Compartilhar'}
             </button>
+          )}
+          {!publicMode && !isMobile && activeBoard.visibility === 'public' && activeBoard.shareToken && (
+            <button className="pb-ghost" style={S.pbGhostBtn} title="Copia o link público deste quadro para você colar e enviar" onClick={() => copyBoardLink(activeBoard)}><Link2 size={13} /> Copiar link</button>
           )}
           {activeBoard.visibility === 'public' && !readOnly && !isMobile && (
             <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowActivityLog(true)}><History size={13} /> Histórico</button>
@@ -2545,6 +2589,8 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
       {showShareModal && activeBoard && (
         <BoardShareModal
           board={activeBoard}
+          otherBoards={board.boards.filter((b) => b.id !== activeBoard.id)}
+          onSetBack={(id) => setBoardBack(activeBoard.id, id)}
           onClose={() => setShowShareModal(false)}
           onSetVisibility={(v) => setBoardVisibility(activeBoard.id, v)}
           onRegenerateLink={() => regenerateShareLink(activeBoard.id)}
@@ -2596,7 +2642,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
 // - `embedded` recarrega o quadro a cada 45s (a menos que haja edição
 //   pendente/em voo) pra enxergar o que o dono mexeu.
 export function PublicBoardScreen({ token, theme, onToggleTheme, embedded, currentUser, onRemove, onSeen }) {
-  const [state, setState] = useState({ loading: true, error: '', gone: false, board: null, canEdit: false, ownerName: '', isOwner: false, alreadyLinked: false, localViewPrefs: null });
+  const [state, setState] = useState({ loading: true, error: '', gone: false, board: null, canEdit: false, ownerName: '', isOwner: false, alreadyLinked: false, back: null, localViewPrefs: null });
   const [viewerUser, setViewerUser] = useState(embedded ? currentUser : null);
   const [saveState, setSaveState] = useState('idle');
   const [adding, setAdding] = useState(false);
@@ -2618,7 +2664,7 @@ export function PublicBoardScreen({ token, theme, onToggleTheme, embedded, curre
         if (!initial && prev.board && JSON.stringify(prev.board) === JSON.stringify(res.board)) return prev;
         return {
           ...prev, loading: false, error: '', gone: false, board: res.board, canEdit: !!res.canEdit,
-          ownerName: res.ownerName || '', isOwner: !!res.isOwner, alreadyLinked: !!res.alreadyLinked,
+          ownerName: res.ownerName || '', isOwner: !!res.isOwner, alreadyLinked: !!res.alreadyLinked, back: res.back || null,
         };
       });
       if (onSeenRef.current) onSeenRef.current({ name: res.board.name, ownerName: res.ownerName || '' });
@@ -2791,6 +2837,7 @@ export function PublicBoardScreen({ token, theme, onToggleTheme, embedded, curre
       publicAction={publicAction}
       readOnly={!state.canEdit}
       publicOwnerName={state.ownerName}
+      publicBack={embedded ? null : state.back}
     />
   );
 }
