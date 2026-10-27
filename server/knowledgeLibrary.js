@@ -101,9 +101,11 @@ export const MaterialStudySchema = z.object({
 const STUDY_SYSTEM = [
   'Você é a RENATA, assistente da consultoria PRICETAX, estudando um material de referência (apresentação, nota técnica, estudo, planilha, artigo) para se tornar especialista no tema.',
   'Regras: (1) use SOMENTE o que está no material — não complete com conhecimento próprio, não invente artigos, alíquotas, números ou prazos; (2) o que o material não diz fica vazio; (3) preserve números, percentuais, prazos e condições exatamente como aparecem; (4) se o material tratar do antes e do depois da reforma tributária, monte o comparativo ponto a ponto; (5) se houver sinal de desatualização (datas antigas, norma citada como projeto), registre em "limits".',
+  '(6) seja conciso: cada item em até 2 frases; se o material for uma norma extensa, estude os temas e as regras mais relevantes em vez de percorrer artigo por artigo.',
   'Escreva em português do Brasil, objetivo, para consultores tributários.',
 ].join('\n');
 
+const COMPACT_HINT = 'ATENÇÃO: o estudo anterior ficou grande demais e foi cortado. Seja enxuto: no máximo 8 pontos-chave, 8 itens de comparativo, 6 perguntas, 8 temas e 6 sinais de uso; cada item em 1 a 2 frases curtas; não liste artigo por artigo — priorize o que mais importa para a consultoria.';
 const NOTES_SYSTEM = 'Você é a RENATA. Leia a parte do material abaixo e escreva ANOTAÇÕES densas em português (até 5.000 caracteres): fatos, números, prazos, regras, comparativos antes × depois, normas citadas e perguntas que o trecho responde. Somente o que o texto diz; nada de suposições.';
 const PART_CHARS = 100_000;
 
@@ -147,13 +149,21 @@ export async function studyMaterial({ title, topic, note, text }) {
     }
     body = `(O material é longo; abaixo estão as anotações de cada parte, feitas a partir do texto completo.)\n\n${notes.join('\n\n')}`;
   }
-  const response = await withRetry(() => client.messages.parse({
+  const ask = (compact) => withRetry(() => client.messages.parse({
     model: STUDY_MODEL,
-    max_tokens: 9000,
+    max_tokens: 16000,
     system: [{ type: 'text', text: STUDY_SYSTEM, cache_control: { type: 'ephemeral', ttl: '1h' } }],
-    messages: [{ role: 'user', content: `Estude este material. Título no sistema: "${title}".${topic ? ` Tema indicado por quem enviou: ${topic}.` : ''}${note ? ` Orientação de uso dada por quem enviou: ${note}` : ''}\n\n=== MATERIAL ===\n${body}` }],
+    messages: [{ role: 'user', content: `Estude este material. Título no sistema: "${title}".${topic ? ` Tema indicado por quem enviou: ${topic}.` : ''}${note ? ` Orientação de uso dada por quem enviou: ${note}` : ''}${compact ? `\n\n${COMPACT_HINT}` : ''}\n\n=== MATERIAL ===\n${body}` }],
     output_config: { format: zodOutputFormat(MaterialStudySchema) },
   }));
+  // Texto normativo longo (ex.: uma lei inteira) gera um estudo maior que o limite de saída: a resposta vem cortada no meio do JSON.
+  // Primeira tentativa com folga; se ainda cortar, repete pedindo o estudo enxuto.
+  const truncated = (e) => /Unterminated|Failed to parse structured output|max_tokens|cortada/i.test(String((e && e.message) || e));
+  let response;
+  try { response = await ask(false); if (response.stop_reason === 'max_tokens') throw new Error('Resposta cortada por tamanho (max_tokens).'); } catch (e) {
+    if (!truncated(e)) throw e;
+    response = await ask(true);
+  }
   if (response.stop_reason === 'max_tokens') throw new Error('Resposta cortada por tamanho (max_tokens).');
   if (!response.parsed_output) throw new Error('A IA não conseguiu estruturar o estudo.');
   return response.parsed_output;

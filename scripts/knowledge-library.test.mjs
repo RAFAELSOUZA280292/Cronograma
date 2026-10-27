@@ -121,5 +121,20 @@ await assert.rejects(() => lib.suggestMetadata({ text: long }), /não conseguiu 
 lib.deps.client = () => { throw new Error('A IA não está configurada neste ambiente (falta a ANTHROPIC_API_KEY).'); };
 await assert.rejects(() => lib.suggestMetadata({ text: long }), /ANTHROPIC_API_KEY/); n++;
 
+// estudo cortado por tamanho (LC 214 inteira, 2026-10-27): 1ª resposta vem cortada no meio do JSON → repete pedindo o estudo enxuto
+const okStudy = { subject: 's', executiveSummary: 'r', keyPoints: [], comparisons: [], faq: [], themes: [], appliesTo: '', usageTriggers: [], legalBasis: [], limits: '' };
+const asked = [];
+lib.deps.client = () => ({ messages: { parse: async (req) => { asked.push(req); if (asked.length === 1) throw new Error('Failed to parse structured output: Error: Failed to parse structured output as JSON: Unterminated string in JSON at position 13264'); return { stop_reason: 'end_turn', parsed_output: okStudy }; } } });
+const st = await lib.studyMaterial({ title: 'LC 214', topic: '', note: '', text: 'Art. 1º. '.repeat(500) });
+ok(st.subject === 's' && asked.length === 2 && !/ATENÇÃO/.test(asked[0].messages[0].content) && /ATENÇÃO[^\n]*enxuto/.test(asked[1].messages[0].content) && asked[0].max_tokens >= 16000, 'estudo cortado: repete uma vez, em versão enxuta, com mais espaço de saída');
+asked.length = 0;
+lib.deps.client = () => ({ messages: { parse: async (req) => { asked.push(req); return { stop_reason: 'max_tokens', parsed_output: null }; } } });
+await assert.rejects(() => lib.studyMaterial({ title: 'x', topic: '', note: '', text: 'Art. 1º. '.repeat(500) }), /cortada/); n++;
+ok(asked.length === 2, 'cortado de novo: desiste depois de 2 tentativas (sem laço)');
+asked.length = 0;
+lib.deps.client = () => ({ messages: { parse: async (req) => { asked.push(req); throw new Error('401 invalid x-api-key'); } } });
+await assert.rejects(() => lib.studyMaterial({ title: 'x', topic: '', note: '', text: 'Art. 1º. '.repeat(500) }), /x-api-key/); n++;
+ok(asked.length === 1, 'erro que não é de tamanho não repete');
+
 await pool.query(`DELETE FROM ai_knowledge_facts WHERE org_id=$1 AND reference LIKE 'Material PRICETAX:%'`, [ORG]); await pool.query(`DELETE FROM knowledge_materials WHERE org_id=$1`, [ORG]);
 console.log(`knowledge-library: ${n} checagens OK`); await pool.end();
