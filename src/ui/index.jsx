@@ -60,7 +60,7 @@ export function ErrorState({ title = 'Não foi possível carregar', message, onR
   );
 }
 
-// Estado de gravação: o mesmo texto em todo lugar. state: 'idle' | 'draft' (digitado, ainda não gravado) | 'saving' | 'saved' | 'error'.
+// Estado de gravação: o mesmo texto em todo lugar. state: 'idle' | 'draft' (digitado, ainda não gravado) | 'saving' | 'saved' | 'retrying' (falhou por rede/servidor, tentando sozinho) | 'error'.
 // `idleText` aparece no estado idle (ex.: "Todas as alterações estão salvas"); `errorText` troca o texto do erro.
 export function SaveStatus({ state, savedAt, onRetry, idleText, errorText }) {
   if (!state || (state === 'idle' && !idleText)) return null;
@@ -70,6 +70,7 @@ export function SaveStatus({ state, savedAt, onRetry, idleText, errorText }) {
       {state === 'draft' && 'Alterações ainda não salvas'}
       {state === 'saving' && 'Salvando…'}
       {state === 'saved' && `Salvo${savedAt ? ` às ${savedAt}` : ''}`}
+      {state === 'retrying' && <>Sem conexão — tentando salvar de novo…{onRetry && <button type="button" className="ui-save-retry" onClick={onRetry}>Tentar agora</button>}</>}
       {state === 'error' && <>{errorText || 'Não foi possível salvar'}{onRetry && <button type="button" className="ui-save-retry" onClick={onRetry}>Tentar de novo</button>}</>}
     </span>
   );

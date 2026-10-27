@@ -18,6 +18,7 @@ import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable,
 import { WaitingField, isWaiting, localTodayIso, waitingLabel } from '../personal/Waiting.jsx';
 import { apiGet, apiPatch, apiPost } from '../lib/api.js';
 import { mergePage } from '../personal/boardMerge.js';
+import { isTransientSaveError, retryDelay } from '../lib/saveRetry.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { avatarColor, initials } from '../meetings/todoUtils.js';
 import { calendarDaysSince } from '../lib/dates.js';
@@ -1390,7 +1391,7 @@ function PbMoreMenu({ items }) {
   );
 }
 
-export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings, board, onMutate, onExit, onGoCompany, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, publicMode, readOnly, publicOwnerName, embedded, publicAction, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
+export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings, board, onMutate, onExit, onGoCompany, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, onRetrySave, publicMode, readOnly, publicOwnerName, embedded, publicAction, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
   // Histórico do navegador — Nível 2 (2026-08): trocar de página do quadro
   // pessoal. Nunca ativo em publicMode (/quadro/:token é a única rota que
   // usa URL de verdade — ver PROJECT_CONTEXT.md §9, não mexer nisso aqui).
@@ -2244,7 +2245,8 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
           })()}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {publicMode && <SaveStatus state={saveState} errorText="Não foi possível salvar — alteração desfeita." />}
+          {publicMode && <SaveStatus state={saveState} errorText="Não foi possível salvar — alteração desfeita." onRetry={onRetrySave} />}
+          {!publicMode && !readOnly && saveState === 'retrying' && <SaveStatus state="retrying" onRetry={onRetrySave} />}
           {publicMode && <ThemeToggleBtn theme={theme} onToggle={onToggleTheme} />}
           {publicMode && onLogout && <button style={S.iconBtnGhost} title="Sair" onClick={onLogout}><LogOut size={15} /></button>}
         </div>
@@ -2254,7 +2256,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
       {embedded ? (
         <div className="no-print t44" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 24px 0' }}>
           <span style={S.publicBadge}><Globe size={11} /> Quadro de {publicOwnerName || 'outra pessoa'}</span>
-          <SaveStatus state={saveState} errorText="Não foi possível salvar — alteração desfeita." />
+          <SaveStatus state={saveState} errorText="Não foi possível salvar — alteração desfeita." onRetry={onRetrySave} />
         </div>
       ) : publicMode ? (
         <div style={{ ...S.personalTabs, ...(isMobile ? { padding: '8px 12px 0' } : null) }}>
@@ -2602,6 +2604,8 @@ export function PublicBoardScreen({ token, theme, onToggleTheme, embedded, curre
   const savingRef = useRef(false);
   const lastGoodRef = useRef(null);
   const versionRef = useRef('');
+  const retryTimer = useRef(null);
+  const pendingRef = useRef(null);
   const onSeenRef = useRef(onSeen);
   onSeenRef.current = onSeen;
 
@@ -2644,25 +2648,50 @@ export function PublicBoardScreen({ token, theme, onToggleTheme, embedded, curre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  // Falha de rede/servidor: a edição fica na tela e é reenviada sozinha (§118); erro de permissão/validação desfaz, como antes.
+  function savePageNow(nextBoard, attempt) {
+    savingRef.current = true;
+    sendPage(nextBoard)
+      .then(({ res, saved }) => {
+        lastGoodRef.current = saved;
+        versionRef.current = (res && res.updatedAt) || versionRef.current;
+        // Se o dono (ou outra pessoa) gravou antes, o que ficou gravado tem mais coisas do que esta tela enviou: traz para a tela
+        // preservando o que foi digitado enquanto isso.
+        if (saved !== nextBoard) setState((s) => (s.board === nextBoard ? { ...s, board: saved } : { ...s, board: mergePage(nextBoard, s.board, saved) }));
+        setSaveState(saveTimer.current ? 'saving' : 'saved');
+      })
+      .catch((e) => {
+        if (saveTimer.current || retryTimer.current) return;
+        if (isTransientSaveError(e)) {
+          setSaveState('retrying');
+          retryTimer.current = setTimeout(() => { retryTimer.current = null; savePageNow(pendingRef.current, attempt + 1); }, retryDelay(attempt));
+          return;
+        }
+        setSaveState('error'); setState((s) => ({ ...s, board: lastGoodRef.current }));
+      })
+      .finally(() => { if (!retryTimer.current) savingRef.current = false; });
+  }
   function persistDebounced(nextBoard) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (retryTimer.current) { clearTimeout(retryTimer.current); retryTimer.current = null; }
+    pendingRef.current = nextBoard;
     setSaveState('saving');
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
-      savingRef.current = true;
-      sendPage(nextBoard)
-        .then(({ res, saved }) => {
-          lastGoodRef.current = saved;
-          versionRef.current = (res && res.updatedAt) || versionRef.current;
-          // Se o dono (ou outra pessoa) gravou antes, o que ficou gravado tem mais coisas do que esta tela enviou: traz para a tela
-          // preservando o que foi digitado enquanto isso.
-          if (saved !== nextBoard) setState((s) => (s.board === nextBoard ? { ...s, board: saved } : { ...s, board: mergePage(nextBoard, s.board, saved) }));
-          setSaveState('saved');
-        })
-        .catch(() => { setSaveState('error'); setState((s) => ({ ...s, board: lastGoodRef.current })); })
-        .finally(() => { savingRef.current = false; });
+      savePageNow(nextBoard, 0);
     }, 500);
   }
+  function retrySaveNow() {
+    if (!retryTimer.current) return;
+    clearTimeout(retryTimer.current); retryTimer.current = null;
+    setSaveState('saving');
+    savePageNow(pendingRef.current, 0);
+  }
+  useEffect(() => {
+    window.addEventListener('online', retrySaveNow);
+    return () => { window.removeEventListener('online', retrySaveNow); clearTimeout(retryTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Mesmo mecanismo da Gestão de Atividades (§117): se o servidor avisa (409) que o quadro do dono mudou desde a versão que esta tela
   // conhecia, funde (três vias) e reenvia, em vez de sobrescrever o trabalho de quem gravou antes.
   async function sendPage(page) {
@@ -2680,7 +2709,7 @@ export function PublicBoardScreen({ token, theme, onToggleTheme, embedded, curre
         version = e.data.updatedAt || '';
       }
     }
-    throw new Error('O quadro continua mudando em outro lugar. Tente de novo em instantes.');
+    throw Object.assign(new Error('O quadro continua mudando em outro lugar. Tente de novo em instantes.'), { retryLater: true });
   }
   function mutateBoard(updater) {
     setState((prev) => {
@@ -2756,6 +2785,7 @@ export function PublicBoardScreen({ token, theme, onToggleTheme, embedded, curre
       theme={theme}
       onToggleTheme={onToggleTheme}
       saveState={state.canEdit ? saveState : 'idle'}
+      onRetrySave={retrySaveNow}
       publicMode
       embedded={embedded}
       publicAction={publicAction}

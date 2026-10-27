@@ -58,6 +58,7 @@ import { createCompanyAdminActions } from './app/companyAdminActions.js';
 import { createStandardPlanActions } from './app/standardPlanActions.js';
 import { STD_PLAN_ID } from './lib/stdPlan.js';
 import { mergeBoards } from './personal/boardMerge.js';
+import { isTransientSaveError, retryDelay } from './lib/saveRetry.js';
 import { createUserOrgActions } from './app/userOrgActions.js';
 import { createTeamPhaseActions } from './app/teamPhaseActions.js';
 export { S };
@@ -481,6 +482,8 @@ function AppScreens({ shellRef, bump }) {
   const [personalBoardLoaded, setPersonalBoardLoaded] = useState(false);
   const [personalBoardSaveState, setPersonalBoardSaveState] = useState('idle');
   const personalBoardSaveTimer = useRef(null);
+  const personalBoardRetryTimer = useRef(null);
+  const personalBoardPendingRef = useRef(null);
   const lastGoodPersonalBoardRef = useRef(null);
   const personalBoardVersionRef = useRef('');
   const personalBoardBusyRef = useRef(false);
@@ -1459,34 +1462,68 @@ function AppScreens({ shellRef, bump }) {
         version = e.data.updatedAt || '';
       }
     }
-    throw new Error('O quadro continua mudando em outro lugar. Tente de novo em instantes.');
+    throw Object.assign(new Error('O quadro continua mudando em outro lugar. Tente de novo em instantes.'), { retryLater: true });
+  }
+
+  // Salva o quadro atual. Falha de rede/servidor (isTransientSaveError): a edição FICA na tela e é reenviada sozinha (2s, 5s, 10s, 20s,
+  // depois a cada 30s) e na hora em que a internet volta (§118); erro de permissão/validação segue desfazendo, como antes.
+  function savePersonalBoardNow(board, attempt) {
+    sendPersonalBoard(board)
+      .then(({ res, saved }) => {
+        const edited = !!personalBoardSaveTimer.current;
+        lastGoodPersonalBoardRef.current = saved;
+        personalBoardVersionRef.current = (res && res.updatedAt) || personalBoardVersionRef.current;
+        // O que ficou gravado pode ter mais coisas do que esta aba enviou (atividade da API de conectividade, §80, ou trabalho de
+        // outra aba fundido no conflito): traz para a tela, preservando o que foi digitado enquanto isso.
+        if (saved !== board) setPersonalBoard((cur) => (cur === board ? saved : mergeBoards(board, cur, saved)));
+        if (!edited) personalBoardBusyRef.current = false;
+        setPersonalBoardSaveState(edited ? 'saving' : 'saved');
+      })
+      .catch((e) => {
+        console.error('Falha ao salvar Gestão de Atividades', e);
+        // Já há uma edição mais nova esperando para ser enviada (ou uma retentativa agendada): ela leva tudo junto.
+        if (personalBoardSaveTimer.current || personalBoardRetryTimer.current) return;
+        if (isTransientSaveError(e)) {
+          setPersonalBoardSaveState('retrying');
+          personalBoardRetryTimer.current = setTimeout(() => {
+            personalBoardRetryTimer.current = null;
+            savePersonalBoardNow(personalBoardPendingRef.current, attempt + 1);
+          }, retryDelay(attempt));
+          return;
+        }
+        personalBoardBusyRef.current = false;
+        setPersonalBoardSaveState('error');
+        setPersonalBoard(lastGoodPersonalBoardRef.current);
+      });
   }
 
   function persistPersonalBoardDebounced(board) {
     if (personalBoardSaveTimer.current) clearTimeout(personalBoardSaveTimer.current);
+    if (personalBoardRetryTimer.current) { clearTimeout(personalBoardRetryTimer.current); personalBoardRetryTimer.current = null; }
+    personalBoardPendingRef.current = board;
     personalBoardBusyRef.current = true;
     setPersonalBoardSaveState('saving');
     personalBoardSaveTimer.current = setTimeout(() => {
       personalBoardSaveTimer.current = null;
-      sendPersonalBoard(board)
-        .then(({ res, saved }) => {
-          const edited = !!personalBoardSaveTimer.current;
-          lastGoodPersonalBoardRef.current = saved;
-          personalBoardVersionRef.current = (res && res.updatedAt) || personalBoardVersionRef.current;
-          // O que ficou gravado pode ter mais coisas do que esta aba enviou (atividade da API de conectividade, §80, ou trabalho de
-          // outra aba fundido no conflito): traz para a tela, preservando o que foi digitado enquanto isso.
-          if (saved !== board) setPersonalBoard((cur) => (cur === board ? saved : mergeBoards(board, cur, saved)));
-          if (!edited) personalBoardBusyRef.current = false;
-          setPersonalBoardSaveState('saved');
-        })
-        .catch((e) => {
-          console.error('Falha ao salvar Gestão de Atividades', e);
-          if (!personalBoardSaveTimer.current) personalBoardBusyRef.current = false;
-          setPersonalBoardSaveState('error');
-          setPersonalBoard(lastGoodPersonalBoardRef.current);
-        });
+      savePersonalBoardNow(board, 0);
     }, 500);
   }
+
+  // Internet voltou (ou "Tentar agora"): não espera o relógio da retentativa.
+  function retryPersonalBoardNow() {
+    if (!personalBoardRetryTimer.current) return;
+    clearTimeout(personalBoardRetryTimer.current);
+    personalBoardRetryTimer.current = null;
+    setPersonalBoardSaveState('saving');
+    savePersonalBoardNow(personalBoardPendingRef.current, 0);
+  }
+  useEffect(() => {
+    window.addEventListener('online', retryPersonalBoardNow);
+    // Fechar a aba com edição ainda não gravada (retentativa pendente) perderia o trabalho: o navegador avisa.
+    const warn = (e) => { if (personalBoardRetryTimer.current || personalBoardSaveTimer.current) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', warn);
+    return () => { window.removeEventListener('online', retryPersonalBoardNow); window.removeEventListener('beforeunload', warn); clearTimeout(personalBoardRetryTimer.current); };
+  }, []);
 
   // Outra origem pode alterar o quadro (outra aba, a API de conectividade, §80; o quadro público). Consulta só o carimbo e, quando
   // mudou, junta o que veio com o que esta aba tem na tela (nunca substitui às cegas) — e só sem gravação pendente/em voo.
@@ -2063,6 +2100,7 @@ function AppScreens({ shellRef, bump }) {
         pendingOpen={pendingPersonalOpen} onPendingOpenConsumed={() => setPendingPersonalOpen(null)}
         todayMeetings={buildTodayItems({ projects, personalBoard: null, user: currentUser, todayIso: todayISOStr() }).meetings}
         saveState={personalBoardSaveState}
+        onRetrySave={retryPersonalBoardNow}
         notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
         onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
       />

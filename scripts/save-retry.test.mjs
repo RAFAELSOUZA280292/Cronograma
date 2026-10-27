@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { isTransientSaveError, retryDelay } from '../src/lib/saveRetry.js';
+let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
+ok(isTransientSaveError({ status: 0, offline: true }), 'sem rede');
+ok(isTransientSaveError({ status: 502 }) && isTransientSaveError({ status: 503 }) && isTransientSaveError({ status: 504 }) && isTransientSaveError({ status: 500 }), '5xx');
+ok(isTransientSaveError({ status: 408 }) && isTransientSaveError({ status: 429 }), 'tempo esgotado e excesso');
+ok(!isTransientSaveError({ status: 401 }) && !isTransientSaveError({ status: 403 }) && !isTransientSaveError({ status: 400 }) && !isTransientSaveError({ status: 413 }) && !isTransientSaveError({ status: 404 }), '4xx não repete');
+ok(!isTransientSaveError({ status: 409 }), '409 é tratado pela fusão, não por retentativa');
+ok(!isTransientSaveError(new Error('x')) && !isTransientSaveError(null), 'erro sem status (bug de código) não fica em laço');
+ok(isTransientSaveError({ offline: true }), 'offline sem status');
+ok(isTransientSaveError(Object.assign(new Error('x'), { retryLater: true })), 'conflitos em sequência esperam e repetem');
+ok([0, 1, 2, 3, 4, 5, 50].map(retryDelay).join() === '2000,5000,10000,20000,30000,30000,30000', 'espera crescente com teto de 30s');
+ok(retryDelay(-1) === 2000, 'índice negativo');
+console.log(`save-retry: ${n} checagens OK`);

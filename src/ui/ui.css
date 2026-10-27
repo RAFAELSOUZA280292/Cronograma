@@ -181,6 +181,7 @@ html[data-theme="light"] .ui-empty-icon { color: #7a5f00; }
 .ui-save { font-size: 12px; font-weight: 600; color: var(--text-4); display: inline-flex; align-items: center; gap: 8px; }
 .ui-save.s-saved { color: var(--ui-ok); }
 .ui-save.s-error { color: var(--ui-danger); }
+.ui-save.s-retrying { color: var(--ui-warn); }
 .ui-save-retry { border: 0; background: transparent; color: inherit; font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; padding: 0; }
 .ui-frame-overlay { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.6); display: flex; padding: 16px; font-family: 'Inter', sans-serif; }
 .ui-frame-overlay.modal { align-items: center; justify-content: center; }
