@@ -231,7 +231,7 @@ function TagEditor({ tags, onChange, suggestions }) {
   );
 }
 
-function PersonalColumnMenu({ column, canMoveLeft, canMoveRight, onClose, onAddCard, onRename, onColorChange, onToggleHideCompleted, onMoveLeft, onMoveRight, onDuplicate, onSortNow, onDelete }) {
+function PersonalColumnMenu({ column, canMoveLeft, canMoveRight, onClose, onAddCard, onRename, onColorChange, onToggleHideCompleted, onMoveLeft, onMoveRight, onDuplicate, onSortNow, onDelete, onShare, onCopyLink }) {
   const [mode, setMode] = useState('root');
   return (
     <div style={S.dropdownMenu} onClick={(e) => e.stopPropagation()}>
@@ -247,6 +247,9 @@ function PersonalColumnMenu({ column, canMoveLeft, canMoveRight, onClose, onAddC
           <label style={S.dropdownItem}>
             <input type="checkbox" checked={!!column.hideCompleted} onChange={onToggleHideCompleted} /> Ocultar concluídas
           </label>
+          <div style={S.dropdownDivider} />
+          <button style={S.dropdownItem} onClick={() => { onShare(); onClose(); }}>{column.visibility === 'public' ? <Globe size={13} /> : <Lock size={13} />} {column.visibility === 'public' ? 'Compartilhamento da coluna' : 'Compartilhar coluna'}</button>
+          {column.visibility === 'public' && column.shareToken && <button style={S.dropdownItem} onClick={() => { onCopyLink(); onClose(); }}><Link2 size={13} /> Copiar link da coluna</button>}
           <div style={S.dropdownDivider} />
           <button style={{ ...S.dropdownItem, color: '#e2574c' }} onClick={() => { onDelete(); onClose(); }}><Trash2 size={13} /> Excluir coluna</button>
         </>
@@ -572,7 +575,7 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
 function PersonalColumn({
   column, cardsToRender, totalVisibleCount, hiddenByFilter, hiddenCompleted, onClearFilters, dragDisabled, readOnly, canMoveLeft, canMoveRight, otherColumns,
   onAddCard, onOpenCard, onToggleComplete, onDeleteCard, onDuplicateCard, onSetPriority, onSetStatus, onMoveCardTo,
-  onRenameColumn, onColorChange, onToggleHideCompleted, onMoveLeft, onMoveRight, onDuplicateColumn, onSortColumnNow, onDeleteColumn,
+  onRenameColumn, onColorChange, onToggleHideCompleted, onMoveLeft, onMoveRight, onDuplicateColumn, onSortColumnNow, onDeleteColumn, onShareColumn, onCopyColumnLink, lockColumn,
 }) {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [draft, setDraft] = useState('');
@@ -613,7 +616,7 @@ function PersonalColumn({
           <input
             ref={nameInputRef}
             value={nameField.draft}
-            readOnly={readOnly}
+            readOnly={readOnly || lockColumn}
             onChange={(e) => nameField.onChange(e.target.value)}
             onBlur={nameField.flush}
             onKeyDown={(e) => e.stopPropagation()}
@@ -625,7 +628,7 @@ function PersonalColumn({
         {!readOnly && (
           <button aria-label={`Adicionar atividade em ${column.name || 'esta coluna'}`} title="Adicionar atividade" style={S.iconBtnGhost} onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} onClick={() => setShowQuickAdd(true)}><Plus aria-hidden="true" size={14} /></button>
         )}
-        {!readOnly && (
+        {!readOnly && !lockColumn && (
           <div style={{ position: 'relative' }} onKeyDown={(e) => e.stopPropagation()}>
             <button aria-label="Mais ações" title="Mais ações" style={S.iconBtnGhost} onClick={() => setMenuOpen((v) => !v)}><MoreHorizontal aria-hidden="true" size={14} /></button>
             {menuOpen && (
@@ -643,6 +646,8 @@ function PersonalColumn({
                 onDuplicate={onDuplicateColumn}
                 onSortNow={onSortColumnNow}
                 onDelete={onDeleteColumn}
+                onShare={onShareColumn}
+                onCopyLink={onCopyColumnLink}
               />
             )}
           </div>
@@ -1112,7 +1117,8 @@ function PersonalArchivePanel({ archiveItems, onClose, onRestore }) {
   );
 }
 
-function BoardShareModal({ board, otherBoards, onClose, onSetVisibility, onRegenerateLink, onSetBack }) {
+// `board` = a página OU a coluna que está sendo compartilhada (têm `name`, `visibility`, `shareToken`); `backOptions` = [{ value, label, isPublic }].
+function BoardShareModal({ board, subject = 'página', backOptions, backValue, onClose, onSetVisibility, onRegenerateLink, onSetBack }) {
   const [copied, setCopied] = useState(false);
   const isPublic = board.visibility === 'public';
   const publicUrl = isPublic && board.shareToken ? `${window.location.origin}/quadro/${board.shareToken}` : '';
@@ -1129,7 +1135,7 @@ function BoardShareModal({ board, otherBoards, onClose, onSetVisibility, onRegen
     <DialogOverlay style={S.detailOverlay} onClose={onClose}>
       <div style={{ ...S.detailBox, width: 'min(480px, 100%)' }} onClick={(e) => e.stopPropagation()}>
         <div style={S.detailTopBar}>
-          <div style={S.subSectionLabel}>Visibilidade da página "{board.name}"</div>
+          <div style={S.subSectionLabel}>Visibilidade da {subject} "{board.name}"</div>
           <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={onClose}><X aria-hidden="true" size={18} /></button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 }}>
@@ -1152,15 +1158,16 @@ function BoardShareModal({ board, otherBoards, onClose, onSetVisibility, onRegen
               <input value={publicUrl} readOnly onFocus={(e) => e.target.select()} style={{ flex: 1 }} />
               <button style={S.primaryBtn} onClick={copyLink}>{copied ? 'Copiado!' : 'Copiar link'}</button>
             </div>
-            {otherBoards.length > 0 && (
+            {subject === 'coluna' && <div style={{ ...S.fieldHint, marginTop: 8, lineHeight: 1.5 }}>Quem abrir o link vê <b>só esta coluna</b> — as outras colunas e páginas do seu quadro não aparecem.</div>}
+            {backOptions.length > 0 && (
               <div style={{ marginTop: 14 }}>
                 <label style={S.subSectionLabel} htmlFor="board-back-select">Quem abrir o link poderá voltar para</label>
-                <select id="board-back-select" value={board.backBoardId || ''} onChange={(e) => onSetBack(e.target.value)} style={{ width: '100%', marginTop: 6 }}>
+                <select id="board-back-select" value={backValue || ''} onChange={(e) => onSetBack(e.target.value)} style={{ width: '100%', marginTop: 6 }}>
                   <option value="">Nenhum quadro (sem botão de voltar)</option>
-                  {otherBoards.map((b) => <option key={b.id} value={b.id}>{b.name}{b.visibility === 'public' ? ' — já é público' : ' — passa a ser público'}</option>)}
+                  {backOptions.map((b) => <option key={b.value} value={b.value}>{b.label}{b.isPublic ? ' — já é público' : ' — passa a ser público'}</option>)}
                 </select>
                 <div style={{ ...S.fieldHint, marginTop: 6, lineHeight: 1.5 }}>
-                  A página do link mostra o botão <b>"← Voltar para …"</b>. O quadro escolhido também fica <b>público por link</b> (qualquer pessoa com o link dele pode ver).
+                  A página do link mostra o botão <b>"← Voltar para …"</b>. O destino escolhido também fica <b>público por link</b> (qualquer pessoa com o link dele pode ver).
                 </div>
               </div>
             )}
@@ -1445,6 +1452,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
   const [filters, setFilters] = useState({ priority: [], dueBucket: '', tags: [], status: '', waiting: false });
   const [showFilters, setShowFilters] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [shareColumnId, setShareColumnId] = useState(null);
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [showDaily, setShowDaily] = useState(false);
   const activeFilterCount = (filters.status ? 1 : 0) + (filters.priority.length > 0 ? 1 : 0) + (filters.dueBucket ? 1 : 0) + (filters.waiting ? 1 : 0);
@@ -1524,6 +1532,17 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
   }, [board.boards.map((b) => b.id).join(',')]);
 
   const activeBoard = board.boards.find((b) => b.id === activeBoardId) || null;
+  // Link de COLUNA (§121): a página pública é "virtual", com só essa coluna — sem comandos que mexam na estrutura do quadro do dono.
+  const columnShare = !!(activeBoard && activeBoard.kind === 'column');
+  const isPubl = (x) => x.visibility === 'public' && !!x.shareToken;
+  const pageBackOptions = activeBoard ? board.boards.filter((b) => b.id !== activeBoard.id).map((b) => ({ value: b.id, label: b.name, isPublic: isPubl(b) })) : [];
+  const shareColumn = shareColumnId ? (board.boards.flatMap((b) => b.columns).find((c) => c.id === shareColumnId) || null) : null;
+  const columnBackOptions = shareColumn
+    ? [
+      ...board.boards.map((b) => ({ value: `p:${b.id}`, label: `Página inteira: ${b.name} (todas as colunas)`, isPublic: isPubl(b) })),
+      ...board.boards.flatMap((b) => b.columns.filter((c) => c.id !== shareColumn.id).map((c) => ({ value: `c:${c.id}`, label: `Coluna: ${c.name || 'sem nome'} (${b.name})`, isPublic: isPubl(c) }))),
+    ]
+    : [];
   const viewPrefs = (activeBoard && activeBoard.viewPrefs) || { view: 'kanban', sortMode: 'manual' };
   // Resumo do dia: abrir um cartão de qualquer página do quadro.
   function openFromSummary(boardId, colId, cardId) { goToBoardPage(boardId); openCardDetail(colId, cardId); }
@@ -1616,6 +1635,49 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
       };
     });
   }
+  // ---- compartilhar UMA COLUNA (§121): link próprio; quem abre vê só essa coluna ----
+  function updateColumnShare(colId, fn) {
+    onMutate((prev) => ({ ...prev, boards: prev.boards.map((b) => (b.columns.some((c) => c.id === colId) ? { ...b, columns: b.columns.map((c) => (c.id === colId ? fn(c) : c)) } : b)) }));
+  }
+  function logOnBoardOfColumn(prevBoard, colId, action) {
+    return { ...prevBoard, log: [{ ts: new Date().toISOString(), action, user: currentUser.name }, ...(prevBoard.log || [])].slice(0, 300) };
+  }
+  function setColumnVisibility(colId, visibility) {
+    onMutate((prev) => ({
+      ...prev,
+      boards: prev.boards.map((b) => {
+        const col = b.columns.find((c) => c.id === colId);
+        if (!col) return b;
+        const next = { ...col, visibility, shareToken: visibility === 'public' && !col.shareToken ? genShareToken() : col.shareToken };
+        return logOnBoardOfColumn({ ...b, columns: b.columns.map((c) => (c.id === colId ? next : c)) }, colId, visibility === 'public' ? `Coluna "${col.name}" tornada pública por link` : `Coluna "${col.name}" tornada privada`);
+      }),
+    }));
+  }
+  function regenerateColumnLink(colId) {
+    updateColumnShare(colId, (c) => ({ ...c, shareToken: genShareToken() }));
+  }
+  // Destino do "Voltar" de uma coluna: 'p:<página>' ou 'c:<coluna>'. O destino precisa ser público: se ainda não é, vira junto.
+  function setColumnBack(colId, ref) {
+    onMutate((prev) => {
+      const m = /^([pc]):(.+)$/.exec(ref || '');
+      return {
+        ...prev,
+        boards: prev.boards.map((b) => {
+          let next = b;
+          if (b.columns.some((c) => c.id === colId)) {
+            next = { ...next, columns: next.columns.map((c) => { if (c.id !== colId) return c; const { backTo: _old, ...rest } = c; return m ? { ...rest, backTo: ref } : rest; }) };
+          }
+          if (m && m[1] === 'p' && b.id === m[2] && !(b.visibility === 'public' && b.shareToken)) next = { ...next, visibility: 'public', shareToken: b.shareToken || genShareToken() };
+          if (m && m[1] === 'c' && next.columns.some((c) => c.id === m[2] && !(c.visibility === 'public' && c.shareToken))) next = { ...next, columns: next.columns.map((c) => (c.id === m[2] ? { ...c, visibility: 'public', shareToken: c.shareToken || genShareToken() } : c)) };
+          return next;
+        }),
+      };
+    });
+  }
+  function copyColumnLink(col) {
+    if (!col || col.visibility !== 'public' || !col.shareToken) return;
+    navigator.clipboard.writeText(`${window.location.origin}/quadro/${col.shareToken}`).then(() => notify('Link da coluna copiado — é só colar e enviar.')).catch(() => notify('Não foi possível copiar. Abra "Compartilhar coluna" e copie de lá.', { tone: 'error' }));
+  }
   function copyBoardLink(b) {
     if (!b || b.visibility !== 'public' || !b.shareToken) return;
     navigator.clipboard.writeText(`${window.location.origin}/quadro/${b.shareToken}`).then(() => notify('Link copiado — é só colar e enviar.')).catch(() => notify('Não foi possível copiar. Abra "Público por link" e copie de lá.', { tone: 'error' }));
@@ -1700,8 +1762,9 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
     const col = activeBoard.columns.find((c) => c.id === colId);
     if (!col) return;
     const now = new Date().toISOString();
+    const { shareToken: _t, visibility: _v, backTo: _b, ...colNoShare } = col; // a cópia NÃO herda o link público da original
     const clone = {
-      ...col,
+      ...colNoShare,
       id: uid('col'),
       name: `${col.name} (cópia)`,
       cards: col.cards.filter((cd) => !cd.deleted).map((cd) => ({
@@ -2500,10 +2563,13 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
                     onDuplicateColumn={() => duplicateColumn(col.id)}
                     onSortColumnNow={(mode) => sortColumnNow(col.id, mode)}
                     onDeleteColumn={() => requestDeleteColumn(col.id)}
+                    onShareColumn={() => setShareColumnId(col.id)}
+                    onCopyColumnLink={() => copyColumnLink(col)}
+                    lockColumn={columnShare}
                   />
                 );
               })}
-              {!readOnly && <button className="pb-addbtn" style={S.personalAddCol} onClick={addColumn}><Plus size={14} /> Nova coluna</button>}
+              {!readOnly && !columnShare && <button className="pb-addbtn" style={S.personalAddCol} onClick={addColumn}><Plus size={14} /> Nova coluna</button>}
             </div>
           </SortableContext>
           <DragOverlay>
@@ -2586,10 +2652,24 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
 
       {showStats && <React.Suspense fallback={null}><PersonalStatsPanel onClose={() => setShowStats(false)} /></React.Suspense>}
 
+      {shareColumn && (
+        <BoardShareModal
+          board={shareColumn}
+          subject="coluna"
+          backOptions={columnBackOptions}
+          backValue={shareColumn.backTo || ''}
+          onClose={() => setShareColumnId(null)}
+          onSetVisibility={(v) => setColumnVisibility(shareColumn.id, v)}
+          onRegenerateLink={() => regenerateColumnLink(shareColumn.id)}
+          onSetBack={(ref) => setColumnBack(shareColumn.id, ref)}
+        />
+      )}
+
       {showShareModal && activeBoard && (
         <BoardShareModal
           board={activeBoard}
-          otherBoards={board.boards.filter((b) => b.id !== activeBoard.id)}
+          backOptions={pageBackOptions}
+          backValue={activeBoard.backBoardId || ''}
           onSetBack={(id) => setBoardBack(activeBoard.id, id)}
           onClose={() => setShowShareModal(false)}
           onSetVisibility={(v) => setBoardVisibility(activeBoard.id, v)}

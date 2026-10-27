@@ -920,12 +920,26 @@ router.post('/notifications/mark-read-for-target', requireAuth, async (req, res,
 // A busca abaixo varre todas as linhas de personal_boards (poucas dezenas de usuários hoje) —
 // não escala pra milhares de usuários, mas evita criar um índice relacional só pra isso.
 
+// Link público de uma PÁGINA inteira (`board.shareToken`) ou de UMA COLUNA (`column.shareToken`, §121). Para coluna, `board` é uma página
+// "virtual" com só essa coluna — o resto do quadro do dono (outras colunas, outras pessoas) nunca sai daqui.
+export function columnAsBoard(page, col) {
+  return { id: page.id, name: col.name || 'Coluna', kind: 'column', visibility: col.visibility === 'public' ? 'public' : 'private', shareToken: col.shareToken || '',
+    log: [], viewPrefs: page.viewPrefs || { view: 'kanban', sortMode: 'manual' }, columns: [col] };
+}
+
 async function findBoardByShareToken(token) {
   const { rows } = await pool.query('SELECT user_id, data, updated_at FROM personal_boards');
   for (const row of rows) {
     const boards = (row.data && row.data.boards) || [];
     const idx = boards.findIndex((b) => b.shareToken && b.shareToken === token);
-    if (idx !== -1) return { ownerId: row.user_id, ownerData: row.data, boardIndex: idx, board: boards[idx], updatedAt: row.updated_at };
+    if (idx !== -1) return { kind: 'page', ownerId: row.user_id, ownerData: row.data, boardIndex: idx, board: boards[idx], updatedAt: row.updated_at };
+    for (let bi = 0; bi < boards.length; bi += 1) {
+      const ci = (boards[bi].columns || []).findIndex((c) => c.shareToken && c.shareToken === token);
+      if (ci !== -1) {
+        const col = boards[bi].columns[ci];
+        return { kind: 'column', ownerId: row.user_id, ownerData: row.data, boardIndex: bi, colIndex: ci, page: boards[bi], column: col, board: columnAsBoard(boards[bi], col), updatedAt: row.updated_at };
+      }
+    }
   }
   return null;
 }
@@ -933,10 +947,20 @@ async function findBoardByShareToken(token) {
 // "Voltar ao quadro anterior" (2026-10-27, §120): a página pública pode apontar (`backBoardId`) para OUTRA página do mesmo dono; só vale se
 // essa outra também for pública (tem link) — nunca expõe uma página privada.
 export function resolveBackBoard(ownerData, board) {
-  const id = board && board.backBoardId;
-  if (!id || id === board.id) return null;
-  const b = ((ownerData && ownerData.boards) || []).find((x) => x.id === id);
-  return b && b.visibility === 'public' && b.shareToken ? { token: b.shareToken, name: b.name || 'Quadro' } : null;
+  const ref = board && board.kind === 'column' ? ((board.columns && board.columns[0] && board.columns[0].backTo) || '') : (board && board.backBoardId ? `p:${board.backBoardId}` : '');
+  const m = /^([pc]):(.+)$/.exec(ref || '');
+  if (!m) return null;
+  const pages = (ownerData && ownerData.boards) || [];
+  if (m[1] === 'p') {
+    if (m[2] === board.id && board.kind !== 'column') return null;
+    const b = pages.find((x) => x.id === m[2]);
+    return b && b.visibility === 'public' && b.shareToken ? { token: b.shareToken, name: b.name || 'Quadro' } : null;
+  }
+  for (const pg of pages) {
+    const c = (pg.columns || []).find((x) => x.id === m[2]);
+    if (c) return c.visibility === 'public' && c.shareToken && c.shareToken !== board.shareToken ? { token: c.shareToken, name: c.name || 'Coluna' } : null;
+  }
+  return null;
 }
 
 router.get('/public-board/:token', optionalAuth, async (req, res, next) => {
@@ -999,6 +1023,36 @@ router.post('/personal-board/linked', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Acha a coluna compartilhada dentro dos dados do dono (usado já com a linha TRAVADA no PATCH).
+export function locateColumn(ownerData, token) {
+  const boards = (ownerData && ownerData.boards) || [];
+  for (let bi = 0; bi < boards.length; bi += 1) {
+    const ci = (boards[bi].columns || []).findIndex((c) => c.shareToken && c.shareToken === token);
+    if (ci !== -1) return { bi, ci, page: boards[bi], col: boards[bi].columns[ci] };
+  }
+  return null;
+}
+
+// Grava o que a pessoa fez numa COLUNA compartilhada: só os cartões daquela coluna mudam. Nome, cor, link, destino do "Voltar", as outras
+// colunas e as outras páginas do dono ficam como estão; cartão com id que já existe em outro lugar é descartado (não duplica nem sobrescreve);
+// o histórico da página só recebe as entradas novas.
+export function applyColumnPatch(ownerData, token, patched) {
+  const loc = locateColumn(ownerData, token);
+  if (!loc || loc.col.visibility !== 'public') return { status: 404, message: 'Link inválido ou o quadro não é mais público.' };
+  const { bi, ci, page, col } = loc;
+  if (!patched || patched.id !== page.id || !Array.isArray(patched.columns) || patched.columns.length !== 1 || patched.columns[0].id !== col.id) return { status: 400, message: 'Quadro inválido.' };
+  const taken = new Set();
+  for (const pg of ownerData.boards) for (const c of pg.columns || []) if (c !== col) for (const k of c.cards || []) taken.add(k.id);
+  const seen = new Set();
+  const cards = (patched.columns[0].cards || []).filter((k) => k && typeof k.id === 'string' && !taken.has(k.id) && !seen.has(k.id) && seen.add(k.id));
+  const key = (e) => `${e.ts}|${e.user}|${e.action}`;
+  const have = new Set((page.log || []).map(key));
+  const fresh = (Array.isArray(patched.log) ? patched.log : []).filter((e) => e && typeof e.ts === 'string' && !have.has(key(e)));
+  const newCol = { ...col, cards };
+  const newPage = { ...page, columns: page.columns.map((c, i) => (i === ci ? newCol : c)), log: [...fresh, ...(page.log || [])].slice(0, 300) };
+  return { nextData: { ...ownerData, boards: ownerData.boards.map((b, i) => (i === bi ? newPage : b)) }, board: columnAsBoard(newPage, newCol) };
+}
+
 router.patch('/public-board/:token', requireAuth, async (req, res, next) => {
   try {
     const patchedBoard = req.body && req.body.board;
@@ -1013,13 +1067,30 @@ router.patch('/public-board/:token', requireAuth, async (req, res, next) => {
     }
     const base = typeof req.body.baseUpdatedAt === 'string' ? req.body.baseUpdatedAt : '';
     const mergeable = req.body.mergeable === true;
-    let nextData; let updatedAt;
+    let nextData; let updatedAt; let responseBoard; let released = false;
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       // Relê o quadro do dono TRAVADO: o dono (ou outra pessoa) pode ter gravado entre a busca acima e agora.
       const cur = await client.query('SELECT data, updated_at FROM personal_boards WHERE user_id=$1 FOR UPDATE', [found.ownerId]);
       const ownerData = cur.rows[0] && cur.rows[0].data;
+      if (found.kind === 'column') {
+        const loc = locateColumn(ownerData, req.params.token);
+        if (!loc || loc.col.visibility !== 'public') { await client.query('ROLLBACK'); client.release(); return res.status(404).json({ message: 'Link inválido ou o quadro não é mais público.' }); }
+        if (mergeable && base && !sameStamp(cur.rows[0].updated_at, base)) {
+          await client.query('ROLLBACK'); client.release();
+          return res.status(409).json({ message: 'O quadro foi alterado em outro lugar.', conflict: true, board: columnAsBoard(loc.page, loc.col), updatedAt: cur.rows[0].updated_at });
+        }
+        const r = applyColumnPatch(ownerData, req.params.token, patchedBoard);
+        if (r.status) { await client.query('ROLLBACK'); client.release(); return res.status(r.status).json({ message: r.message }); }
+        nextData = r.nextData; responseBoard = r.board;
+        const up = await client.query('UPDATE personal_boards SET data=$1, updated_at=now() WHERE user_id=$2 RETURNING updated_at', [JSON.stringify(nextData), found.ownerId]);
+        updatedAt = up.rows[0].updated_at;
+        await client.query('COMMIT');
+        released = true; client.release();
+        await syncCardEvents(pool, found.ownerId, nextData);
+        return res.json({ board: responseBoard, updatedAt });
+      }
       const idx = ownerData && Array.isArray(ownerData.boards) ? ownerData.boards.findIndex((b) => b.id === patchedBoard.id && b.shareToken === req.params.token) : -1;
       if (idx === -1) { await client.query('ROLLBACK'); client.release(); return res.status(404).json({ message: 'Link inválido ou o quadro não é mais público.' }); }
       if (mergeable && base && !sameStamp(cur.rows[0].updated_at, base)) {
@@ -1035,8 +1106,7 @@ router.patch('/public-board/:token', requireAuth, async (req, res, next) => {
       updatedAt = up.rows[0].updated_at;
       await client.query('COMMIT');
     } catch (e) {
-      try { await client.query('ROLLBACK'); } catch { /* conexão já encerrada */ }
-      client.release();
+      if (!released) { try { await client.query('ROLLBACK'); } catch { /* conexão já encerrada */ } client.release(); }
       throw e;
     }
     client.release();
