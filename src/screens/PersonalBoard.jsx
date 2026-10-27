@@ -17,6 +17,7 @@ import SafeBoundary from '../ui/SafeBoundary.jsx';
 import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { WaitingField, isWaiting, localTodayIso, waitingLabel } from '../personal/Waiting.jsx';
 import { apiGet, apiPatch, apiPost } from '../lib/api.js';
+import { mergePage } from '../personal/boardMerge.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { avatarColor, initials } from '../meetings/todoUtils.js';
 import { calendarDaysSince } from '../lib/dates.js';
@@ -2600,6 +2601,7 @@ export function PublicBoardScreen({ token, theme, onToggleTheme, embedded, curre
   const saveTimer = useRef(null);
   const savingRef = useRef(false);
   const lastGoodRef = useRef(null);
+  const versionRef = useRef('');
   const onSeenRef = useRef(onSeen);
   onSeenRef.current = onSeen;
 
@@ -2607,6 +2609,7 @@ export function PublicBoardScreen({ token, theme, onToggleTheme, embedded, curre
     try {
       const res = await apiGet(`/api/public-board/${token}`);
       lastGoodRef.current = res.board;
+      versionRef.current = res.updatedAt || '';
       setState((prev) => {
         if (!initial && prev.board && JSON.stringify(prev.board) === JSON.stringify(res.board)) return prev;
         return {
@@ -2647,11 +2650,37 @@ export function PublicBoardScreen({ token, theme, onToggleTheme, embedded, curre
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
       savingRef.current = true;
-      apiPatch(`/api/public-board/${token}`, { board: nextBoard })
-        .then(() => { lastGoodRef.current = nextBoard; setSaveState('saved'); })
+      sendPage(nextBoard)
+        .then(({ res, saved }) => {
+          lastGoodRef.current = saved;
+          versionRef.current = (res && res.updatedAt) || versionRef.current;
+          // Se o dono (ou outra pessoa) gravou antes, o que ficou gravado tem mais coisas do que esta tela enviou: traz para a tela
+          // preservando o que foi digitado enquanto isso.
+          if (saved !== nextBoard) setState((s) => (s.board === nextBoard ? { ...s, board: saved } : { ...s, board: mergePage(nextBoard, s.board, saved) }));
+          setSaveState('saved');
+        })
         .catch(() => { setSaveState('error'); setState((s) => ({ ...s, board: lastGoodRef.current })); })
         .finally(() => { savingRef.current = false; });
     }, 500);
+  }
+  // Mesmo mecanismo da Gestão de Atividades (§117): se o servidor avisa (409) que o quadro do dono mudou desde a versão que esta tela
+  // conhecia, funde (três vias) e reenvia, em vez de sobrescrever o trabalho de quem gravou antes.
+  async function sendPage(page) {
+    let toSend = page;
+    let base = lastGoodRef.current;
+    let version = versionRef.current;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        const res = await apiPatch(`/api/public-board/${token}`, { board: toSend, baseUpdatedAt: version, mergeable: true });
+        return { res, saved: toSend };
+      } catch (e) {
+        if (!(e && e.status === 409 && e.data && e.data.board)) throw e;
+        toSend = mergePage(base, toSend, e.data.board);
+        base = e.data.board;
+        version = e.data.updatedAt || '';
+      }
+    }
+    throw new Error('O quadro continua mudando em outro lugar. Tente de novo em instantes.');
   }
   function mutateBoard(updater) {
     setState((prev) => {

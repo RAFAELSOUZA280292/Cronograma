@@ -57,6 +57,7 @@ import { createMeetingActions } from './app/meetingActions.js';
 import { createCompanyAdminActions } from './app/companyAdminActions.js';
 import { createStandardPlanActions } from './app/standardPlanActions.js';
 import { STD_PLAN_ID } from './lib/stdPlan.js';
+import { mergeBoards } from './personal/boardMerge.js';
 import { createUserOrgActions } from './app/userOrgActions.js';
 import { createTeamPhaseActions } from './app/teamPhaseActions.js';
 export { S };
@@ -1441,25 +1442,40 @@ function AppScreens({ shellRef, bump }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, personalBoardLoaded]);
 
+  // Grava o quadro inteiro. Se o servidor avisar (409) que outra aba/pessoa gravou antes, funde o que ele tem com o que esta aba quer
+  // gravar (três vias, ver src/personal/boardMerge.js) e reenvia — assim uma aba desatualizada nunca apaga o trabalho de outra (§117).
+  async function sendPersonalBoard(board) {
+    let toSend = board;
+    let base = lastGoodPersonalBoardRef.current;
+    let version = personalBoardVersionRef.current;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        const res = await apiPatch('/api/personal-board', { board: toSend, baseUpdatedAt: version, mergeable: true });
+        return { res, saved: (res && res.merged && res.board) || toSend };
+      } catch (e) {
+        if (!(e && e.status === 409 && e.data && e.data.board)) throw e;
+        toSend = mergeBoards(base, toSend, e.data.board);
+        base = e.data.board;
+        version = e.data.updatedAt || '';
+      }
+    }
+    throw new Error('O quadro continua mudando em outro lugar. Tente de novo em instantes.');
+  }
+
   function persistPersonalBoardDebounced(board) {
     if (personalBoardSaveTimer.current) clearTimeout(personalBoardSaveTimer.current);
     personalBoardBusyRef.current = true;
     setPersonalBoardSaveState('saving');
     personalBoardSaveTimer.current = setTimeout(() => {
       personalBoardSaveTimer.current = null;
-      apiPatch('/api/personal-board', { board, baseUpdatedAt: personalBoardVersionRef.current })
-        .then((res) => {
+      sendPersonalBoard(board)
+        .then(({ res, saved }) => {
           const edited = !!personalBoardSaveTimer.current;
-          if (res && res.merged && res.board && !edited) {
-            // Uma atividade criada pela API de conectividade (§80) estava fora do que o painel conhecia: o servidor a devolveu ao quadro.
-            setPersonalBoard(res.board);
-            lastGoodPersonalBoardRef.current = res.board;
-            personalBoardVersionRef.current = res.updatedAt || personalBoardVersionRef.current;
-          } else {
-            lastGoodPersonalBoardRef.current = board;
-            // Com edição nova pendente, mantém a versão antiga: o próximo salvamento será mesclado de novo.
-            if (!(res && res.merged)) personalBoardVersionRef.current = (res && res.updatedAt) || personalBoardVersionRef.current;
-          }
+          lastGoodPersonalBoardRef.current = saved;
+          personalBoardVersionRef.current = (res && res.updatedAt) || personalBoardVersionRef.current;
+          // O que ficou gravado pode ter mais coisas do que esta aba enviou (atividade da API de conectividade, §80, ou trabalho de
+          // outra aba fundido no conflito): traz para a tela, preservando o que foi digitado enquanto isso.
+          if (saved !== board) setPersonalBoard((cur) => (cur === board ? saved : mergeBoards(board, cur, saved)));
           if (!edited) personalBoardBusyRef.current = false;
           setPersonalBoardSaveState('saved');
         })
@@ -1472,8 +1488,8 @@ function AppScreens({ shellRef, bump }) {
     }, 500);
   }
 
-  // Outra origem pode alterar o quadro (a API de conectividade, §80; o quadro público). Consulta só o carimbo e recarrega o quadro
-  // quando mudou — e só se não há edição local pendente, para nunca sobrescrever o que a pessoa acabou de digitar.
+  // Outra origem pode alterar o quadro (outra aba, a API de conectividade, §80; o quadro público). Consulta só o carimbo e, quando
+  // mudou, junta o que veio com o que esta aba tem na tela (nunca substitui às cegas) — e só sem gravação pendente/em voo.
   useEffect(() => {
     if (!currentUser || !currentUser.personalAccess || !personalBoardLoaded) return undefined;
     let stop = false;
@@ -1484,9 +1500,10 @@ function AppScreens({ shellRef, bump }) {
         if (stop || !v || !v.updatedAt || v.updatedAt === personalBoardVersionRef.current || personalBoardBusyRef.current) return;
         const res = await apiGet('/api/personal-board');
         if (stop || personalBoardBusyRef.current) return;
-        setPersonalBoard(res.board);
+        const known = lastGoodPersonalBoardRef.current;
         lastGoodPersonalBoardRef.current = res.board;
         personalBoardVersionRef.current = res.updatedAt || '';
+        setPersonalBoard((cur) => (cur === known || !cur ? res.board : mergeBoards(known, cur, res.board)));
       } catch { /* sem rede: tenta no próximo ciclo */ }
     }
     const timer = setInterval(check, 12000);

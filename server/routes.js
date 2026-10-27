@@ -724,16 +724,31 @@ export function mergeApiCards(stored, incoming, baseUpdatedAt) {
   return { board: merged ? { ...incoming, boards } : incoming, merged };
 }
 
+// O carimbo viaja como ISO com milissegundos; o banco guarda microssegundos. Compara no milissegundo.
+export function sameStamp(a, b) {
+  const x = new Date(a).getTime(); const y = new Date(b).getTime();
+  return Number.isFinite(x) && Number.isFinite(y) && x === y;
+}
+
 router.patch('/personal-board', requireAuth, async (req, res, next) => {
   const incoming = req.body && req.body.board;
   if (!incoming) return res.status(400).json({ message: 'Payload inválido.' });
   sanitizeBoardNotes(incoming);
   const base = typeof req.body.baseUpdatedAt === 'string' ? req.body.baseUpdatedAt : '';
+  // `mergeable` (2026-10-27, §117): o painel novo sabe juntar o quadro quando outra aba/pessoa gravou antes. Nesse caso uma gravação feita
+  // em cima de versão antiga NÃO sobrescreve: o servidor devolve 409 com o quadro atual e o painel funde e reenvia. Painéis antigos
+  // (sem a flag) seguem como antes.
+  const mergeable = req.body.mergeable === true;
   let saved;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const cur = await client.query('SELECT data FROM personal_boards WHERE user_id=$1 FOR UPDATE', [req.user.id]);
+    const cur = await client.query('SELECT data, updated_at FROM personal_boards WHERE user_id=$1 FOR UPDATE', [req.user.id]);
+    if (mergeable && base && cur.rows[0] && !sameStamp(cur.rows[0].updated_at, base)) {
+      await client.query('ROLLBACK');
+      client.release();
+      return res.status(409).json({ message: 'O quadro foi alterado em outro lugar.', conflict: true, board: cur.rows[0].data, updatedAt: cur.rows[0].updated_at });
+    }
     const { board, merged } = cur.rows[0] ? mergeApiCards(cur.rows[0].data, incoming, base) : { board: incoming, merged: 0 };
     const up = await client.query(
       `INSERT INTO personal_boards (user_id, data) VALUES ($1,$2)
@@ -906,11 +921,11 @@ router.post('/notifications/mark-read-for-target', requireAuth, async (req, res,
 // não escala pra milhares de usuários, mas evita criar um índice relacional só pra isso.
 
 async function findBoardByShareToken(token) {
-  const { rows } = await pool.query('SELECT user_id, data FROM personal_boards');
+  const { rows } = await pool.query('SELECT user_id, data, updated_at FROM personal_boards');
   for (const row of rows) {
     const boards = (row.data && row.data.boards) || [];
     const idx = boards.findIndex((b) => b.shareToken && b.shareToken === token);
-    if (idx !== -1) return { ownerId: row.user_id, ownerData: row.data, boardIndex: idx, board: boards[idx] };
+    if (idx !== -1) return { ownerId: row.user_id, ownerData: row.data, boardIndex: idx, board: boards[idx], updatedAt: row.updated_at };
   }
   return null;
 }
@@ -935,7 +950,7 @@ router.get('/public-board/:token', optionalAuth, async (req, res, next) => {
       const { rows: mine } = await pool.query('SELECT data FROM personal_boards WHERE user_id=$1', [req.user.id]);
       alreadyLinked = !!(mine[0] && ((mine[0].data && mine[0].data.linkedBoards) || []).some((l) => l.token === req.params.token));
     }
-    res.json({ board: found.board, canEdit: !!req.user, ownerName, isOwner: !!req.user && req.user.id === found.ownerId, alreadyLinked });
+    res.json({ board: found.board, updatedAt: found.updatedAt, canEdit: !!req.user, ownerName, isOwner: !!req.user && req.user.id === found.ownerId, alreadyLinked });
   } catch (e) { next(e); }
 });
 
@@ -987,13 +1002,33 @@ router.patch('/public-board/:token', requireAuth, async (req, res, next) => {
     if (patchedBoard.id !== found.board.id) {
       return res.status(400).json({ message: 'Quadro inválido.' });
     }
-    const nextData = {
-      ...found.ownerData,
-      boards: found.ownerData.boards.map((b, i) => (i === found.boardIndex ? patchedBoard : b)),
-    };
-    await pool.query('UPDATE personal_boards SET data=$1, updated_at=now() WHERE user_id=$2', [JSON.stringify(nextData), found.ownerId]);
+    const base = typeof req.body.baseUpdatedAt === 'string' ? req.body.baseUpdatedAt : '';
+    const mergeable = req.body.mergeable === true;
+    let nextData; let updatedAt;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Relê o quadro do dono TRAVADO: o dono (ou outra pessoa) pode ter gravado entre a busca acima e agora.
+      const cur = await client.query('SELECT data, updated_at FROM personal_boards WHERE user_id=$1 FOR UPDATE', [found.ownerId]);
+      const ownerData = cur.rows[0] && cur.rows[0].data;
+      const idx = ownerData && Array.isArray(ownerData.boards) ? ownerData.boards.findIndex((b) => b.id === patchedBoard.id && b.shareToken === req.params.token) : -1;
+      if (idx === -1) { await client.query('ROLLBACK'); client.release(); return res.status(404).json({ message: 'Link inválido ou o quadro não é mais público.' }); }
+      if (mergeable && base && !sameStamp(cur.rows[0].updated_at, base)) {
+        await client.query('ROLLBACK'); client.release();
+        return res.status(409).json({ message: 'O quadro foi alterado em outro lugar.', conflict: true, board: ownerData.boards[idx], updatedAt: cur.rows[0].updated_at });
+      }
+      nextData = { ...ownerData, boards: ownerData.boards.map((b, i) => (i === idx ? patchedBoard : b)) };
+      const up = await client.query('UPDATE personal_boards SET data=$1, updated_at=now() WHERE user_id=$2 RETURNING updated_at', [JSON.stringify(nextData), found.ownerId]);
+      updatedAt = up.rows[0].updated_at;
+      await client.query('COMMIT');
+    } catch (e) {
+      try { await client.query('ROLLBACK'); } catch { /* conexão já encerrada */ }
+      client.release();
+      throw e;
+    }
+    client.release();
     await syncCardEvents(pool, found.ownerId, nextData);
-    res.json({ board: patchedBoard });
+    res.json({ board: patchedBoard, updatedAt });
   } catch (e) { next(e); }
 });
 
