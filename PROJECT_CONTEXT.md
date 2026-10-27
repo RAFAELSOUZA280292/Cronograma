@@ -88,8 +88,11 @@ Verificação = `npm run build` limpo + teste manual no browser.
   continua obrigatório é o `fetch`/checagem de divergência antes e a **verificação em produção depois** (o hash do bundle
   em `https://painel.pricetax.com.br/` muda e uma rota nova responde 401/200 em JSON em vez de cair no `index.html`; **não existe `/api/health`** — e, desde 2026-10-05, rota desconhecida sob `/api` responde **404 em JSON** (`{"message":"Rota não encontrada."}`); antes caía no fallback do SPA e devolvia o `index.html` com 200, o que enganava clientes da API. Fora de `/api`, o fallback do SPA segue valendo). O texto antigo
   "sempre confirmar antes do push" foi superado por essa instrução.
-- **Logs de produção**: `RAILWAY_TOKEN` no `.env` local dá leitura dos logs do deploy atual (`railway logs`); é a primeira coisa a olhar
-  num erro reportado em produção (§33).
+- **Logs de produção** (atualizado 2026-10-27): o `RAILWAY_TOKEN` antigo (de projeto) ficou inválido; hoje o `.env` tem `RAILWAY_API_TOKEN`
+  (token de **workspace** "PAINEL", criado em Account → Tokens; **acesso a todos os 16 projetos, inclusive deploy/exclusão — o Rafael assumiu
+  o risco por escrito no chat**). A CLI `railway` **não aceita** esse tipo; use `node scripts/railway-logs.mjs [regex] [--deploy N] [--limit N]`
+  (API GraphQL, só leitura; projeto `Painel`, serviço `Cronograma`, `production`). O servidor **não registra requisições** — só inicialização,
+  erros e `client-error`; sirva para achar exceções, não para reconstruir quem gravou o quê. Primeira coisa a olhar num erro em produção (§33).
 - **Railway**: sem `railway.json`/`Procfile`/`nixpacks.toml` — detecção
   automática via `package.json` (`npm install` → `npm run build` → `npm start`,
   que serve `dist/` + API no mesmo processo Node, porta via `$PORT`).
@@ -124,7 +127,7 @@ Fonte da verdade: `.env` local (não commitado, `.gitignore`) + Railway env vars
 | `TASK_LINK_MODE` | Vínculo tarefa→atividade (§87): `off` desliga sugestões e a varredura; `sem-ia` só usa o aprendido + regra | Não |
 | `TASK_LINK_AUTO` | `off` = a RENATA só sugere, nunca vincula sozinha (§87) | Não |
 | `GIT_COMMIT` | Só rótulo do registro de execução do eval da RENATA (`server/evals/runFullEval.mjs`, §41) | Não |
-| `RAILWAY_TOKEN` | **Só local** (`.env`): acesso de leitura aos logs de produção pela CLI — o app não lê | Não |
+| `RAILWAY_API_TOKEN` | **Só local** (`.env`): token de workspace da Railway, lido por `scripts/railway-logs.mjs` (logs de produção) — o app não lê; **amplo** (ver a nota "Logs de produção" acima) | Não |
 
 Local: `set -a && source .env && set +a` antes de rodar, ou script wrapper com
 `export VAR="..."` (sandbox bloqueia `source .env` em alguns ambientes).
