@@ -17,7 +17,9 @@ try {
   const cRafael = col('Rafael', [card('SEGREDO do Rafael')]);
   const cAmanda = col('Amanda', [card('Garcia Monteiro'), card('Simepar')], { visibility: 'public', shareToken: 'tok_col_' + uid('t') });
   const cOutra = col('Outra pessoa', [card('Confidencial da Outra')], { visibility: 'private' });
-  const page = { id: uid('board'), name: 'OPERAÇÕES', visibility: 'private', shareToken: '', log: [{ ts: '2026-10-01T10:00:00Z', action: 'log antigo do dono', user: 'Rafael' }], viewPrefs: { view: 'kanban', sortMode: 'manual' }, columns: [cRafael, cAmanda, cOutra] };
+  const fixLog = (l) => l.map((e) => (e.col === 'COL_AMANDA' ? { ...e, col: cAmanda.id } : e.col === 'COL_RAFAEL' ? { ...e, col: cRafael.id } : e));
+  const page = { id: uid('board'), name: 'OPERAÇÕES', visibility: 'private', shareToken: '', log: [{ ts: '2026-10-01T10:00:00Z', action: 'log antigo do dono', user: 'Rafael' }, { ts: '2026-10-02T10:00:00Z', action: 'Tarefa criada: "Garcia Monteiro"', user: 'Rafael', col: 'COL_AMANDA' }, { ts: '2026-10-03T10:00:00Z', action: 'HISTORICO SECRETO DA COLUNA RAFAEL', user: 'Rafael', col: 'COL_RAFAEL' }], viewPrefs: { view: 'kanban', sortMode: 'manual' }, columns: [cRafael, cAmanda, cOutra] };
+  page.log = fixLog(page.log);
   const other = { id: uid('board'), name: 'Daily', visibility: 'private', shareToken: '', log: [], columns: [col('Daily', [card('x')])] };
   let r = await save({ ...initial.board, boards: [page, other] }); ok(r.status === 200, 'semente');
   const T = cAmanda.shareToken;
@@ -25,7 +27,8 @@ try {
   let g = await anon('GET', `/api/public-board/${T}`);
   const raw = JSON.stringify(g.data);
   ok(g.status === 200 && g.data.board.columns.length === 1 && g.data.board.columns[0].name === 'Amanda' && g.data.board.name === 'Amanda' && g.data.board.kind === 'column', 'link da coluna devolve só a coluna');
-  ok(!raw.includes('SEGREDO') && !raw.includes('Confidencial') && !raw.includes('log antigo') && !raw.includes('Daily'), 'nenhum dado de outras colunas/páginas/log vaza');
+  ok(!raw.includes('SEGREDO') && !raw.includes('Confidencial') && !raw.includes('log antigo') && !raw.includes('Daily') && !raw.includes('HISTORICO SECRETO'), 'nenhum dado de outras colunas/páginas/log vaza');
+  ok(g.data.board.log.length === 1 && g.data.board.log[0].action.includes('Garcia Monteiro'), 'o histórico da PRÓPRIA coluna aparece (e só ele)');
   ok(g.data.canEdit === false && g.data.back === null, 'anônimo só lê; sem voltar por enquanto');
   // 2) coluna privada ou sem link → 404
   const cPriv = { ...cAmanda, visibility: 'private' }; await save({ ...initial.board, boards: [{ ...page, columns: [cRafael, cPriv, cOutra] }, other] });
@@ -53,6 +56,12 @@ try {
   ok(pg.columns.map((c) => c.name).join() === 'Rafael,Amanda,Outra pessoa' && pg.columns[0].cards.length === 1 && pg.columns[2].cards.length === 1, 'as outras colunas ficaram intactas');
   ok(pg.columns[1].cards.map((k) => k.title).join() === 'Garcia Monteiro (editado pela Amanda),Simepar,Nova da Amanda', 'cartões da coluna atualizados');
   ok(pg.log[0].action.includes('Nova da Amanda') && pg.log.some((e) => e.action === 'log antigo do dono'), 'histórico da página recebe só a entrada nova e preserva o antigo');
+  ok(pg.log[0].col === cAmanda.id && pg.log[0].user === 'Eduarda Costa', 'entrada carimbada com a coluna e com o NOME DA SESSÃO (o navegador disse "Eduarda")');
+  const spoof = clone((await guest('GET', `/api/public-board/${T}`)).data); const sp = clone(spoof.board); sp.log = [...sp.log, { ts: '2026-10-27T16:00:00Z', action: 'Fingindo ser o Rafael', user: 'Rafael Souza' }];
+  await guest('PATCH', `/api/public-board/${T}`, { board: sp, baseUpdatedAt: spoof.updatedAt, mergeable: true });
+  pg = (await getOwn()).boards.find((x) => x.id === page.id); const fe = pg.log.find((e) => e.action === 'Fingindo ser o Rafael');
+  ok(fe && fe.user === 'Eduarda Costa' && fe.col === cAmanda.id, 'quem escreveu é sempre o usuário da sessão — não dá para assinar como outra pessoa');
+  const vv = (await anon('GET', `/api/public-board/${T}`)).data.board.log; ok(vv.some((e) => e.action.includes('Nova da Amanda')) && vv.length === 3, 'o histórico da coluna é o mesmo para quem abre depois (dono + colaboradora)');
   // repetir o mesmo log não duplica
   g = await guest('GET', `/api/public-board/${T}`); const again = clone(g.data.board); again.log = edited.log;
   await guest('PATCH', `/api/public-board/${T}`, { board: again, baseUpdatedAt: g.data.updatedAt, mergeable: true });

@@ -1560,21 +1560,24 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
     ];
   })();
 
-  function mutateBoardTree(bid, updater, logMsg) {
+  // `colId`: a ação foi numa coluna — a entrada do histórico leva `col`, e é registrada também quando só a COLUNA é pública (§122): o histórico
+  // da coluna compartilhada é o mesmo para o dono e para quem colabora pelo link.
+  function mutateBoardTree(bid, updater, logMsg, colId) {
     onMutate((prev) => ({
       ...prev,
       boards: prev.boards.map((b) => {
         if (b.id !== bid) return b;
         let next = updater(b);
-        if (logMsg && next.visibility === 'public') {
-          next = { ...next, log: [{ ts: new Date().toISOString(), action: logMsg, user: currentUser.name }, ...(next.log || [])].slice(0, 300) };
+        const colShared = !!colId && (next.columns || []).some((c) => c.id === colId && c.visibility === 'public');
+        if (logMsg && (next.visibility === 'public' || colShared)) {
+          next = { ...next, log: [{ ts: new Date().toISOString(), action: logMsg, user: currentUser.name, ...(colId ? { col: colId } : {}) }, ...(next.log || [])].slice(0, 300) };
         }
         return next;
       }),
     }));
   }
   function mutateColumnTree(bid, colId, updater, logMsg) {
-    mutateBoardTree(bid, (b) => ({ ...b, columns: b.columns.map((c) => (c.id !== colId ? c : updater(c))) }), logMsg);
+    mutateBoardTree(bid, (b) => ({ ...b, columns: b.columns.map((c) => (c.id !== colId ? c : updater(c))) }), logMsg, colId);
   }
   function mutateCardTree(bid, colId, cardId, updater, logMsg) {
     mutateColumnTree(bid, colId, (c) => ({ ...c, cards: c.cards.map((cd) => (cd.id !== cardId ? cd : updater(cd))) }), logMsg);
@@ -2766,11 +2769,11 @@ export function PublicBoardScreen({ token, theme, onToggleTheme, embedded, curre
       await fetchBoard(true);
     })();
     if (!embedded) return undefined;
-    const t = setInterval(() => {
-      if (document.hidden || saveTimer.current || savingRef.current) return;
-      fetchBoard(false);
-    }, 45000);
-    return () => clearInterval(t);
+    // Quadro compartilhado fixado na minha Gestão de Atividades: enxerga o que o dono (ou outra pessoa) mexeu em até ~15 s e ao voltar para a aba.
+    const refresh = () => { if (document.hidden || saveTimer.current || savingRef.current || retryTimer.current) return; fetchBoard(false); };
+    const t = setInterval(refresh, 15000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', refresh); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 

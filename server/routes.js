@@ -924,11 +924,15 @@ router.post('/notifications/mark-read-for-target', requireAuth, async (req, res,
 // "virtual" com só essa coluna — o resto do quadro do dono (outras colunas, outras pessoas) nunca sai daqui.
 export function columnAsBoard(page, col) {
   return { id: page.id, name: col.name || 'Coluna', kind: 'column', visibility: col.visibility === 'public' ? 'public' : 'private', shareToken: col.shareToken || '',
-    log: [], viewPrefs: page.viewPrefs || { view: 'kanban', sortMode: 'manual' }, columns: [col] };
+    log: (page.log || []).filter((e) => e && e.col === col.id), viewPrefs: page.viewPrefs || { view: 'kanban', sortMode: 'manual' }, columns: [col] };
 }
 
 async function findBoardByShareToken(token) {
-  const { rows } = await pool.query('SELECT user_id, data, updated_at FROM personal_boards');
+  // Só traz do banco a linha que contém o token (página OU coluna) — antes lia o quadro de todo mundo a cada acesso/atualização do link.
+  if (typeof token !== 'string' || !token || token.length > 200) return null;
+  const { rows } = await pool.query(
+    `SELECT user_id, data, updated_at FROM personal_boards WHERE data @> $1::jsonb OR data @> $2::jsonb`,
+    [JSON.stringify({ boards: [{ shareToken: token }] }), JSON.stringify({ boards: [{ columns: [{ shareToken: token }] }] })]);
   for (const row of rows) {
     const boards = (row.data && row.data.boards) || [];
     const idx = boards.findIndex((b) => b.shareToken && b.shareToken === token);
@@ -1036,7 +1040,7 @@ export function locateColumn(ownerData, token) {
 // Grava o que a pessoa fez numa COLUNA compartilhada: só os cartões daquela coluna mudam. Nome, cor, link, destino do "Voltar", as outras
 // colunas e as outras páginas do dono ficam como estão; cartão com id que já existe em outro lugar é descartado (não duplica nem sobrescreve);
 // o histórico da página só recebe as entradas novas.
-export function applyColumnPatch(ownerData, token, patched) {
+export function applyColumnPatch(ownerData, token, patched, actorName) {
   const loc = locateColumn(ownerData, token);
   if (!loc || loc.col.visibility !== 'public') return { status: 404, message: 'Link inválido ou o quadro não é mais público.' };
   const { bi, ci, page, col } = loc;
@@ -1045,9 +1049,11 @@ export function applyColumnPatch(ownerData, token, patched) {
   for (const pg of ownerData.boards) for (const c of pg.columns || []) if (c !== col) for (const k of c.cards || []) taken.add(k.id);
   const seen = new Set();
   const cards = (patched.columns[0].cards || []).filter((k) => k && typeof k.id === 'string' && !taken.has(k.id) && !seen.has(k.id) && seen.add(k.id));
-  const key = (e) => `${e.ts}|${e.user}|${e.action}`;
-  const have = new Set((page.log || []).map(key));
-  const fresh = (Array.isArray(patched.log) ? patched.log : []).filter((e) => e && typeof e.ts === 'string' && !have.has(key(e)));
+  // Histórico: só entram entradas novas, marcadas com a coluna e com o NOME DA SESSÃO (não o que o navegador disser).
+  const key = (e) => `${e.ts}|${e.action}`;
+  const have = new Set((page.log || []).filter((e) => e && e.col === col.id).map(key));
+  const fresh = (Array.isArray(patched.log) ? patched.log : []).filter((e) => e && typeof e.ts === 'string' && typeof e.action === 'string' && !have.has(key(e)))
+    .map((e) => ({ ts: e.ts, action: String(e.action).slice(0, 300), user: actorName || String(e.user || '').slice(0, 80), col: col.id }));
   const newCol = { ...col, cards };
   const newPage = { ...page, columns: page.columns.map((c, i) => (i === ci ? newCol : c)), log: [...fresh, ...(page.log || [])].slice(0, 300) };
   return { nextData: { ...ownerData, boards: ownerData.boards.map((b, i) => (i === bi ? newPage : b)) }, board: columnAsBoard(newPage, newCol) };
@@ -1081,7 +1087,7 @@ router.patch('/public-board/:token', requireAuth, async (req, res, next) => {
           await client.query('ROLLBACK'); client.release();
           return res.status(409).json({ message: 'O quadro foi alterado em outro lugar.', conflict: true, board: columnAsBoard(loc.page, loc.col), updatedAt: cur.rows[0].updated_at });
         }
-        const r = applyColumnPatch(ownerData, req.params.token, patchedBoard);
+        const r = applyColumnPatch(ownerData, req.params.token, patchedBoard, req.user && req.user.name);
         if (r.status) { await client.query('ROLLBACK'); client.release(); return res.status(r.status).json({ message: r.message }); }
         nextData = r.nextData; responseBoard = r.board;
         const up = await client.query('UPDATE personal_boards SET data=$1, updated_at=now() WHERE user_id=$2 RETURNING updated_at', [JSON.stringify(nextData), found.ownerId]);
