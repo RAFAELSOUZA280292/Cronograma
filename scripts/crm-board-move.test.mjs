@@ -1,6 +1,6 @@
 // Teste descartável do movimento otimista do quadro do CRM (2026-10-27).
 import assert from 'node:assert/strict';
-import { moveDealInBoard } from '../src/crm/boardMove.js';
+import { moveDealInBoard, replaceDealInBoard } from '../src/crm/boardMove.js';
 let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
 const deal = (id, value, extra = {}) => ({ id, title: id, value, weightedValue: value * 0.1, probability: 10, probabilityOverride: null, stageId: 'leads', stageName: 'Leads', status: 'open', daysInStage: 20, ...extra });
 const board = () => ({ pipeline: { id: 'p' }, closedWindowDays: 60, stages: [
@@ -34,4 +34,13 @@ ok(back.stages[0].count === 3 && back.stages[1].count === 1 && back.stages[0].va
 // dois movimentos seguidos acumulam
 const two = moveDealInBoard(moveDealInBoard(b0, 'a', 'cx'), 'c', 'cx');
 ok(two.stages[1].deals.map((d) => d.id).join() === 'x,a,c' && two.stages[0].count === 1, 'dois movimentos acumulam');
+// replaceDealInBoard: troca pelo que o servidor devolveu, sem recarregar tudo
+const opt = moveDealInBoard(board(), 'b', 'cx');
+const srv = { ...opt.stages[1].deals[1], value: 200, weightedValue: 61, probability: 30.5, daysInStage: 0, nextActivityDate: '2026-11-01' };
+const rep = replaceDealInBoard(opt, srv);
+ok(rep.stages[1].deals[1] === srv && rep.stages[1].deals.length === 2, 'troca no mesmo lugar, sem duplicar');
+ok(rep.stages[1].weighted === 15 + 61 && rep.stages[0] === opt.stages[0], 'recalcula só a etapa do cartão; as outras ficam idênticas');
+const elsewhere = replaceDealInBoard(opt, { ...srv, stageId: 'leads', stageName: 'Leads' });
+ok(elsewhere.stages[0].deals.some((d) => d.id === 'b') && !elsewhere.stages[1].deals.some((d) => d.id === 'b') && elsewhere.stages[1].count === 1, 'se o servidor pôs em outra etapa, realoca');
+ok(replaceDealInBoard(opt, { id: 'nao-existe', stageId: 'cx' }) === opt && replaceDealInBoard(opt, null) === opt && replaceDealInBoard(null, srv) === null, 'casos sem efeito');
 console.log(`crm-board-move: ${n} checagens OK`);

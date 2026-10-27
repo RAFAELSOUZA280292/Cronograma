@@ -287,6 +287,8 @@ export const CRM_CSS = `
   .crm-deal[draggable="true"] { cursor:grab; }
   .crm-deal:hover, .crm-deal:focus-visible { border-color:var(--border-3); }
   .crm-deal.dragging { opacity:.4; }
+  /* fora da tela o navegador nem calcula o layout do cartão: poupa muito em quadro grande/computador velho (§119) */
+  .crm-deal { content-visibility:auto; contain-intrinsic-size:auto 170px; }
   .crm-stepwrap { margin-top:12px; }
   .crm-stepbar { display:flex; gap:3px; overflow-x:auto; padding-bottom:2px; }
   .crm-step { flex:1 1 0; min-width:96px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:11.5px; font-weight:700; padding:8px 16px 8px 20px; border:0; background:var(--bg-3); color:var(--text-4); cursor:pointer; font-family:inherit;

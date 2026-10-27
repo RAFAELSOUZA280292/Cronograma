@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Kanban, List, Sparkles, Settings2, Upload, DatabaseBackup, MoreVertical, User, Download, CalendarPlus, StickyNote, Trophy, ThumbsDown, Building2 } from 'lucide-react';
 import { crm } from './crmApi.js';
-import { moveDealInBoard } from './boardMove.js';
+import { moveDealInBoard, replaceDealInBoard } from './boardMove.js';
 import { isTransientSaveError, retryDelay } from '../lib/saveRetry.js';
 import { notify, askText, askConfirm } from '../ui/dialogs.jsx';
 import CloseDealDialog from './CloseDealDialog.jsx';
@@ -56,16 +56,18 @@ function QuickMenu({ deal, canWrite, onQuick }) {
   );
 }
 
+// O seletor "Mover para…" só existe em tela de toque (no desktop o CSS o esconde): não o criar lá poupa ~10 elementos por cartão (§119).
+const IS_TOUCH = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 // memo: com centenas de cartões, arrastar não pode re-renderizar o quadro inteiro a cada passo (§119). As funções chegam estáveis (cardOpen, cardQuick…).
-const DealCard = React.memo(function DealCard({ deal, stages, canDrag, canWrite, dragging, onOpen, onMove, onQuick, onDragStart, onDragEnd }) {
+const DealCard = React.memo(function DealCard({ deal, stages, canDrag, canWrite, onOpen, onMove, onQuick, onDragStart, onDragEnd }) {
   const closed = deal.status !== 'open';
   const tone = !closed && deal.nextActivityOverdue ? ' tone-late' : (!closed && deal.noNextStep ? ' tone-warn' : '');
   const place = [deal.companyCity, deal.companyState].filter(Boolean).join('/');
   return (
     // div (não button): o Firefox não inicia arrasto em <button>. Teclado abre com Enter/Espaço.
-    <div role="button" tabIndex={0} className={`crm-deal${dragging ? ' dragging' : ''}${tone}`} style={deal.stageColor ? { '--stage': deal.stageColor } : undefined} draggable={canDrag} onClick={() => onOpen(deal.id)}
+    <div role="button" tabIndex={0} className={`crm-deal${tone}`} style={deal.stageColor ? { '--stage': deal.stageColor } : undefined} draggable={canDrag} onClick={() => onOpen(deal.id)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(deal.id); } }}
-      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', deal.id); onDragStart(deal.id); }} onDragEnd={onDragEnd}>
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', deal.id); e.currentTarget.classList.add('dragging'); onDragStart(deal.id); }} onDragEnd={(e) => { e.currentTarget.classList.remove('dragging'); onDragEnd(); }}>
       <div className="crm-deal-top">
         <div className="crm-deal-title">{deal.title}</div>
         <div className="crm-deal-tools">
@@ -93,7 +95,7 @@ const DealCard = React.memo(function DealCard({ deal, stages, canDrag, canWrite,
         {!closed && (deal.daysInStage || 0) > 14 && <span className="crm-tag" style={{ color: stageAgeColor(deal.daysInStage) }}>{deal.daysInStage} dias parado</span>}
       </div>
       <div className="crm-deal-foot">{deal.ownerName ? deal.ownerName : <span className="crm-muted">Sem responsável</span>}<span className="crm-muted"> · criado {fmtDateBR(deal.createdAt)}</span></div>
-      {canDrag && (
+      {canDrag && IS_TOUCH && (
         <div className="crm-deal-move" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           <select value="" aria-label={`Mover o negócio ${deal.title} para outra etapa`} onChange={(e) => { if (e.target.value) onMove(deal, e.target.value); }}>
             <option value="">Mover para…</option>
@@ -158,8 +160,6 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
   const [list, setList] = useState({ total: 0, totalValue: 0, totalWeighted: 0, items: [] });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [dragId, setDragId] = useState(null);
-  const [overStage, setOverStage] = useState(null);
   const [closing, setClosing] = useState(null); // {deal, stage}
   const [localKey, setLocalKey] = useState(0);
   const reload = useCallback(() => setLocalKey((k) => k + 1), []);
@@ -167,12 +167,18 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
   // re-renderizado (num computador lento isso levava segundos e o navegador soltava o cartão sem gravar).
   const dragIdRef = useRef(null);
   const pendingMoves = useRef(0);
+  const syncTimer = useRef(null);
+  useEffect(() => () => clearTimeout(syncTimer.current), []);
   const latest = useRef({});
   const cardOpen = useCallback((id) => latest.current.onOpenDeal(id), []);
   const cardQuick = useCallback((a, d) => latest.current.quick(a, d), []);
   const cardMove = useCallback((deal, stageId) => latest.current.moveToStageId(deal, stageId), []);
-  const cardDragStart = useCallback((id) => { dragIdRef.current = id; setDragId(id); }, []);
-  const cardDragEnd = useCallback(() => { dragIdRef.current = null; setDragId(null); setOverStage(null); }, []);
+  // Durante o arrasto NADA vai para o estado do React (cada passo redesenharia a tela inteira): o cartão arrastado e a coluna de destino
+  // são marcados direto no elemento (classes `dragging` e `over`), e o id fica em ref.
+  const overColRef = useRef(null);
+  const clearOver = () => { if (overColRef.current) { overColRef.current.classList.remove('over'); overColRef.current = null; } };
+  const cardDragStart = useCallback((id) => { dragIdRef.current = id; }, []);
+  const cardDragEnd = useCallback(() => { dragIdRef.current = null; if (overColRef.current) { overColRef.current.classList.remove('over'); overColRef.current = null; } }, []);
   // Só {id, nome} das etapas, com identidade estável enquanto as etapas não mudam: mover um cartão não pode invalidar o `memo` dos outros.
   const stageKey = board ? board.stages.map((x) => `${x.id}:${x.name}`).join('|') : '';
   const stageOptions = useMemo(() => (board ? board.stages.map((x) => ({ id: x.id, name: x.name })) : []), [stageKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -272,24 +278,34 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
 
 
   async function drop(stage) {
-    const id = dragIdRef.current || dragId;
+    const id = dragIdRef.current;
     dragIdRef.current = null;
-    setDragId(null); setOverStage(null);
+    clearOver();
     if (!id || !board) return;
     const deal = board.stages.flatMap((s) => s.deals).find((d) => d.id === id);
     if (deal) await moveDeal(deal, stage);
   }
 
-  // Mover de etapa: o cartão muda de coluna NA HORA (o quadro só mostrava a mudança depois da volta do servidor — em máquina lenta ou
-  // quadro grande eram vários segundos, e parecia que "não gravou"). Se o servidor recusar, volta atrás com a mensagem; ao terminar, a tela
-  // recarrega com os números exatos. Ganhar/perder continua passando pelo diálogo de fechamento.
-  async function moveDeal(deal, stage) {
+  // Mover de etapa: o cartão muda de coluna NA HORA (o quadro só mostrava a mudança depois da volta do servidor — em máquina lenta ou quadro
+  // grande eram vários segundos, e parecia que "não gravou"). Quando o servidor confirma, o cartão é trocado pelo que ele devolveu (números
+  // exatos) SEM baixar o quadro inteiro de novo (redesenhar centenas de cartões travava a tela por ~2 s a cada movimento num computador
+  // lento); a sincronização completa roda sozinha 20 s depois do último movimento. Se o servidor recusar, volta atrás com a mensagem.
+  // Ganhar/perder continua passando pelo diálogo de fechamento.
+  function scheduleSync() {
+    clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => {
+      if (pendingMoves.current > 0 || dragIdRef.current || document.hidden) { scheduleSync(); return; } // não recarrega no meio de um arrasto
+      reload(); if (onChanged) onChanged();
+    }, 20000);
+  }
+  async function moveDeal(deal, stage, opts = {}) {
     if (deal.stageId === stage.id) return;
     if (stage.kind !== 'open') { setClosing({ deal, stage }); return; }
     const fromId = deal.stageId;
     const fromStage = board && board.stages.find((s) => s.id === fromId);
+    const onBoard = view === 'board';
     pendingMoves.current += 1;
-    if (view === 'board') setBoard((b) => moveDealInBoard(b, deal.id, stage.id));
+    if (onBoard) setBoard((b) => moveDealInBoard(b, deal.id, stage.id));
     try {
       // Mover para a mesma etapa de novo é inofensivo (o servidor ignora): por isso falha de rede/servidor repete sozinha antes de desistir.
       let r = null;
@@ -300,25 +316,30 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
           await new Promise((res) => setTimeout(res, retryDelay(attempt)));
         }
       }
-      trackFlow('crm.negocio.mover_etapa', 'ok');
-      notify(`Movido para ${stage.name}.`, { tone: 'success', ttlMs: 5000, ...(!fromStage || fromStage.kind === 'open' ? { undo: () => undoMove(deal, fromId) } : {}) });
+      trackFlow('crm.negocio.mover_etapa', opts.undo ? 'undo' : 'ok');
+      if (opts.undo) notify('Desfeito.', { tone: 'success', ttlMs: 3000 });
+      else notify(`Movido para ${stage.name}.`, { tone: 'success', ttlMs: 5000, ...(!fromStage || fromStage.kind === 'open' ? { undo: () => undoMove(deal, fromId, stage.id) } : {}) });
       const m = cadenceNotice(r.cadence); if (m) notify(m, { tone: 'success', ttlMs: 7000 });
-      if (onChanged) onChanged();
+      // onChanged recarrega a tela inteira do CRM (inclusive este quadro): no quadro só vale na hora se a cadência de atividades mudou;
+      // do contrário fica para a sincronização de 20 s. Na lista, recarrega como sempre.
+      const cadenceChanged = !!(r.cadence && (r.cadence.scheduled || r.cadence.cancelled));
+      if (onBoard && r.deal) { setBoard((b) => replaceDealInBoard(b, r.deal)); if (cadenceChanged) { if (onChanged) onChanged(); } else scheduleSync(); }
+      else if (onChanged) onChanged();
     } catch (e) {
       trackFlow('crm.negocio.mover_etapa', 'error');
-      if (view === 'board') setBoard((b) => moveDealInBoard(b, deal.id, fromId));
+      if (onBoard) setBoard((b) => moveDealInBoard(b, deal.id, fromId));
       notify(e.message || 'Não foi possível mover o negócio.', { tone: 'error' });
+      reload(); // o cartão volta ao fim da coluna de origem; o recarregamento restaura a posição exata
     } finally {
       pendingMoves.current -= 1;
-      if (pendingMoves.current === 0) reload();
+      if (pendingMoves.current === 0 && !onBoard) reload();
     }
   }
-  async function undoMove(deal, fromId) {
-    trackFlow('crm.negocio.mover_etapa', 'undo');
-    try { await crm.moveDeal(deal.id, { stageId: fromId }); } catch (e) { notify(e.message || 'Não foi possível desfazer.', { tone: 'error' }); }
-    reload(); if (onChanged) onChanged();
+  function undoMove(deal, fromId, toId) {
+    const back = latest.current.stageById(fromId);
+    if (back) moveDeal({ ...deal, stageId: toId }, back, { undo: true });
   }
-  latest.current = { onOpenDeal, quick, moveToStageId: (deal, stageId) => { const st = board && board.stages.find((x) => x.id === stageId); if (st) moveDeal(deal, st); } };
+  latest.current = { onOpenDeal, quick, stageById: (id) => (board && board.stages.find((x) => x.id === id)) || null, moveToStageId: (deal, stageId) => { const st = board && board.stages.find((x) => x.id === stageId); if (st) moveDeal(deal, st); } };
 
   // Edição direta na lista: salva na hora; se o servidor recusar (ou ignorar), avisa e recarrega o valor real.
   async function patchDeal(deal, patch) {
@@ -424,16 +445,16 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
         <>
           <div className="crm-board">
             {board.stages.map((s) => (
-              <div key={s.id} className={`crm-col${overStage === s.id ? ' over' : ''}`} style={s.color ? { '--stage': s.color } : undefined}
-                onDragOver={(e) => { if (dragIdRef.current && caps.write) { e.preventDefault(); if (overStage !== s.id) setOverStage(s.id); } }}
-                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget) && overStage === s.id) setOverStage(null); }}
+              <div key={s.id} className="crm-col" style={s.color ? { '--stage': s.color } : undefined}
+                onDragOver={(e) => { if (dragIdRef.current && caps.write) { e.preventDefault(); if (overColRef.current !== e.currentTarget) { clearOver(); e.currentTarget.classList.add('over'); overColRef.current = e.currentTarget; } } }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget) && overColRef.current === e.currentTarget) clearOver(); }}
                 onDrop={(e) => { e.preventDefault(); drop(s); }}>
                 <div className="crm-col-head">
                   <div className="crm-col-title"><span className="crm-dot" style={{ background: s.color || 'var(--border-3)' }} />{s.name}<span className="crm-col-count">{s.count}</span></div>
                   <div className="crm-col-sum">{s.count ? `${fmtMoney(s.value) || 'R$ 0'}${s.kind === 'open' ? ` · pond. ${fmtMoney(s.weighted) || 'R$ 0'}` : ''}` : (s.kind === 'open' ? `${s.probability}% de chance` : '—')}</div>
                 </div>
                 <div className="crm-col-body">
-                  {s.deals.map((d) => <DealCard key={d.id} deal={d} stages={stageOptions} canDrag={caps.write} canWrite={caps.write} onQuick={cardQuick} dragging={dragId === d.id} onOpen={cardOpen} onMove={cardMove} onDragStart={cardDragStart} onDragEnd={cardDragEnd} />)}
+                  {s.deals.map((d) => <DealCard key={d.id} deal={d} stages={stageOptions} canDrag={caps.write} canWrite={caps.write} onQuick={cardQuick} onOpen={cardOpen} onMove={cardMove} onDragStart={cardDragStart} onDragEnd={cardDragEnd} />)}
                   {s.deals.length === 0 && <div className="crm-col-empty">{s.kind === 'open' ? 'Nenhum negócio aqui.' : `Sem ${s.kind === 'won' ? 'ganhos' : 'perdas'} nos últimos ${board.closedWindowDays} dias.`}</div>}
                 </div>
               </div>

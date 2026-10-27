@@ -25,3 +25,23 @@ export function moveDealInBoard(board, dealId, toStageId, nowIso = new Date().to
     }),
   };
 }
+
+// Troca o cartão pelo que o SERVIDOR devolveu depois de gravar (valores exatos), sem baixar o quadro inteiro de novo: em computador lento
+// recarregar e redesenhar centenas de cartões travava a tela por vários segundos a cada movimento. Se o servidor colocou o negócio em outra
+// etapa que a estimada aqui, ele é realocado.
+export function replaceDealInBoard(board, deal) {
+  if (!board || !Array.isArray(board.stages) || !deal) return board;
+  const cur = board.stages.find((s) => s.deals.some((d) => d.id === deal.id));
+  const dest = board.stages.find((s) => s.id === deal.stageId);
+  if (!cur || !dest) return board;
+  const sums = (deals) => ({ count: deals.length, value: deals.reduce((n, d) => n + Number(d.value || 0), 0), weighted: round2(deals.reduce((n, d) => n + Number(d.weightedValue || 0), 0)) });
+  return {
+    ...board,
+    stages: board.stages.map((s) => {
+      if (cur.id === dest.id && s.id === cur.id) { const deals = s.deals.map((d) => (d.id === deal.id ? deal : d)); return { ...s, ...sums(deals), deals }; }
+      if (s.id === cur.id) { const deals = s.deals.filter((d) => d.id !== deal.id); return { ...s, ...sums(deals), deals }; }
+      if (s.id === dest.id) { const deals = [...s.deals, deal]; return { ...s, ...sums(deals), deals }; }
+      return s;
+    }),
+  };
+}
