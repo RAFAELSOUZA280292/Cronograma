@@ -6,7 +6,7 @@
 // novo workspaceMode em src/App.jsx.
 import React, { useState } from 'react';
 import {
-  Sparkles, LayoutDashboard, Search, AlertTriangle, Users, Building2, BarChart3, CheckCircle2, TrendingUp, Link2,
+  Sparkles, LayoutDashboard, Search, AlertTriangle, Users, Building2, BarChart3, CheckCircle2, TrendingUp, Link2, Library,
 } from 'lucide-react';
 import { Tabs, Kpi, KpiGrid, Section, EmptyState, SkeletonKpis, SkeletonCards, activate } from '../ui/index.jsx';
 import { apiGet } from '../lib/api.js';
@@ -17,10 +17,12 @@ import { ConflictsTab } from './ConflictsTab.jsx';
 import { EntitiesTab } from './EntitiesTab.jsx';
 import { MetricsTab } from './MetricsTab.jsx';
 import { LinksTab } from './LinksTab.jsx';
+import { LibraryTab } from './LibraryTab.jsx';
 import { FactDrawer } from './FactDrawer.jsx';
 
 const TABS = [
   { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
+  { id: 'library', label: 'Biblioteca', icon: Library },
   { id: 'memories', label: 'Memórias', icon: Search },
   { id: 'conflicts', label: 'Conflitos', icon: AlertTriangle },
   { id: 'people', label: 'Pessoas', icon: Users },
@@ -89,7 +91,7 @@ function OverviewTab({ onOpenFact, onGoTab, refreshKey }) {
         <div className="knw-section">
           <div className="knw-section-title"><Sparkles size={13} color="#F5C400" /> RENATA aprendeu recentemente</div>
           {recentlyLearned.length === 0 ? (
-            <EmptyState compact icon={Sparkles} title="A RENATA ainda não aprendeu nada" description="Aparece aqui quando alguém confirma o que ela propõe numa conversa, ou quando ela estuda os Pareceres (botão no painel da RENATA)." />
+            <EmptyState compact icon={Sparkles} title="A RENATA ainda não aprendeu nada" description="Aparece aqui quando alguém confirma o que ela propõe numa conversa, quando ela estuda os Pareceres ou quando você envia material na aba Biblioteca." />
           ) : recentlyLearned.map((f) => (
             <div key={f.id} className="knw-fact-card" {...activate(() => onOpenFact(f.id))}>
               <div className="knw-fact-head">
@@ -169,6 +171,7 @@ export default function KnowledgeCenterScreen({ currentUser, onExit, onNavigateT
         <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} label="Seções da Central de Conhecimento" />
         <div className="knw-body">
           {activeTab === 'overview' && <OverviewTab onOpenFact={openFact} onGoTab={setActiveTab} refreshKey={refreshKey} />}
+          {activeTab === 'library' && <LibraryTab refreshKey={refreshKey} onChanged={() => setRefreshKey((k) => k + 1)} />}
           {activeTab === 'memories' && <MemoriesTab onOpenFact={openFact} refreshKey={refreshKey} />}
           {activeTab === 'conflicts' && <ConflictsTab />}
           {activeTab === 'people' && <EntitiesTab types={['PERSON']} emptyLabel="Nenhuma pessoa identificada ainda." onOpenFact={openFact} />}

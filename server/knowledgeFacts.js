@@ -18,6 +18,7 @@ import { QUOTE_FACT_PREFIX, QUOTE_TRIGGER } from './inspirationQuotes.js';
 import { logMetric } from './metrics.js';
 import { linkFactEntities } from './knowledgeEntities.js';
 import { parecerUsableFor, loadProjectIdentity } from './parecerScope.js';
+import { MATERIAL_REF_PREFIX, materialPromptLines } from './knowledgeLibrary.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -325,6 +326,8 @@ const PARECER_FACT_SQL = `(k.origin = 'internal_document' AND k.reference LIKE '
 // Frases de inspiração (Senna, §77) também ficam FORA da janela geral dos 30 fatos mais recentes — são ~17 de uma vez e empurrariam o
 // conhecimento de verdade para fora de toda pergunta. Só entram quando a pergunta fala de frase/citação/inspiração/Senna.
 const QUOTE_FACT_SQL = `k.id LIKE '${QUOTE_FACT_PREFIX}%'`;
+// Materiais da Biblioteca (§116) também ficam fora da janela geral: entram pela busca (`materialPromptLines`), só os trechos que a pergunta toca.
+const MATERIAL_FACT_SQL = `(k.origin = 'internal_document' AND k.reference LIKE '${MATERIAL_REF_PREFIX}%')`;
 export const MAX_PARECERES_PER_QUESTION = 3;
 
 const GENERIC_WORDS = new Set([
@@ -387,6 +390,7 @@ export async function loadRelevantFacts(pool, orgId, projectId, conversationId, 
      WHERE ${baseWhere}
        AND NOT ${PARECER_FACT_SQL}
        AND NOT ${QUOTE_FACT_SQL}
+       AND NOT ${MATERIAL_FACT_SQL}
        AND (
          k.scope = 'org'
          OR (k.scope = 'project' AND k.project_id = $2)
@@ -424,8 +428,10 @@ export async function loadRelevantFacts(pool, orgId, projectId, conversationId, 
     );
     quotes = q;
   }
+  let materialLines = []; let materialFactIds = [];
+  if (opts.query && opts.isStaff) { const m = await materialPromptLines(orgId, opts.query); materialLines = m.lines; materialFactIds = m.factIds; }
   const rows = [...general, ...pareceres, ...quotes];
-  if (!rows.length) return { text: '(nenhum conhecimento acumulado registrado ainda para este projeto/organização/conversa)', factIds: [], pareceresIncluded: 0 };
+  if (!rows.length && !materialLines.length) return { text: '(nenhum conhecimento acumulado registrado ainda para este projeto/organização/conversa)', factIds: [], pareceresIncluded: 0 };
   const text = rows.map((r) => {
     const scopeLabel = r.scope === 'org' ? 'PRICETAX (toda a organização)' : r.scope === 'conversation' ? 'só esta conversa' : 'específico deste projeto';
     const who = r.source_user_name ? `informado por ${r.source_user_name}` : 'origem não registrada';
@@ -438,5 +444,6 @@ export async function loadRelevantFacts(pool, orgId, projectId, conversationId, 
     // usou, e a Central de Conhecimento rastrear "onde isso foi usado".
     return `- [id=${r.id}] [${r.knowledge_type}] [${r.subject}] ${r.content}${vigencia} (${scopeLabel}, ${who}, em ${dateLabel})${flag}`;
   }).join('\n');
-  return { text, factIds: rows.map((r) => r.id), pareceresIncluded: pareceres.length };
+  const all = [text, ...materialLines].filter(Boolean).join('\n');
+  return { text: all, factIds: [...rows.map((r) => r.id), ...materialFactIds], pareceresIncluded: pareceres.length, materialsIncluded: materialLines.length };
 }

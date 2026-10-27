@@ -5,8 +5,8 @@
 **Legenda:** ✅ implementada e exercitada por teste ponta a ponta · 🟡 parcial/limitada (explicado) · ⬜ pendente · 🚫 fora do alcance de propósito (segurança)
 
 ## Resumo
-- **98 ferramentas estruturadas** em 11 módulos (33 de consulta, 46 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
-- **297 rotas** no servidor: 64 cobertas por ferramenta própria, 121 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 112 excluídas de propósito.
+- **99 ferramentas estruturadas** em 11 módulos (34 de consulta, 46 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
+- **306 rotas** no servidor: 64 cobertas por ferramenta própria, 121 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 121 excluídas de propósito.
 - **56 funcionalidades humanas mapeadas**: 35 ✅, 12 🟡, 4 ⬜, 5 🚫.
 - **Critério "100% das funcionalidades" NÃO está atendido ainda**: as linhas 🟡 e ⬜ abaixo são o que falta. As rotas "genéricas" já são alcançáveis (com confirmação), mas sem esquema de parâmetros; as ⬜ precisam de trabalho novo (arquivos, edição de documentos inteiros).
 
@@ -108,6 +108,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | Ferramenta | Risco | Rota / execução | O que faz |
 |---|---|---|---|
 | `conhecimento_buscar` | consulta | GET /api/knowledge/facts | Busca na memória da RENATA (fatos da organização e pareceres estudados) por texto. |
+| `biblioteca_consultar` | consulta | sob medida | Procura na Biblioteca de conhecimento (materiais que a PRICETAX enviou: estudos, apresentações, notas técnicas) os trechos que tratam do assunto e dev |
 
 ### Pareceres
 | Ferramenta | Risco | Rota / execução | O que faz |
@@ -388,6 +389,15 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `POST /api/inventory/responsible` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/inventory/suggest-areas` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/inventory` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/knowledge-library/:id/file` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
+| `POST /api/knowledge-library/:id/reprocess` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
+| `POST /api/knowledge-library/:id/restore` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
+| `DELETE /api/knowledge-library/:id` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
+| `GET /api/knowledge-library/:id` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
+| `PATCH /api/knowledge-library/:id` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
+| `POST /api/knowledge-library/search` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
+| `GET /api/knowledge-library` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
+| `POST /api/knowledge-library` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
 | `POST /api/knowledge/conflicts/resolve` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/knowledge/conflicts` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/knowledge/entities/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |

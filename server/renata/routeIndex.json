@@ -1,6 +1,6 @@
 {
  "geradoPor": "scripts/renata-route-index.mjs",
- "total": 297,
+ "total": 306,
  "routes": [
   {
    "method": "POST",
@@ -756,6 +756,51 @@
    "method": "GET",
    "path": "/api/inventory",
    "file": "inventory.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/knowledge-library/:id/file",
+   "file": "knowledgeLibraryRoutes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/knowledge-library/:id/reprocess",
+   "file": "knowledgeLibraryRoutes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/knowledge-library/:id/restore",
+   "file": "knowledgeLibraryRoutes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/knowledge-library/:id",
+   "file": "knowledgeLibraryRoutes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/knowledge-library/:id",
+   "file": "knowledgeLibraryRoutes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/knowledge-library/:id",
+   "file": "knowledgeLibraryRoutes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/knowledge-library/search",
+   "file": "knowledgeLibraryRoutes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/knowledge-library",
+   "file": "knowledgeLibraryRoutes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/knowledge-library",
+   "file": "knowledgeLibraryRoutes.js"
   },
   {
    "method": "POST",

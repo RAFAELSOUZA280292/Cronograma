@@ -6,6 +6,7 @@ import { ensureProjectVersionsSchema } from './projectVersionsSchema.js';
 import { ensurePiperunSchema } from './crm/piperun/schema.js';
 import { ensureAutomationSchema } from './crm/automation.js';
 import { ensureCrmGoogleSchema } from './crm/googleSync.js';
+import { ensureKnowledgeLibrarySchema } from './knowledgeLibrary.js';
 import { ensureCrmExtrasSchema } from './crm/extras.js';
 import { ensureViewsSchema } from './crm/views.js';
 import { ensureRenataSchema } from './renata/schema.js';
@@ -1459,6 +1460,7 @@ export async function initDb() {
   try { await ensureViewsSchema(pool); } catch (e) { console.error('ERRO: visões salvas do CRM NÃO foram instaladas:', e.message); }
   try { await ensureCrmExtrasSchema(pool); } catch (e) { console.error('ERRO: campos extras do CRM (MRR, tags, SLA) NÃO foram instalados:', e.message); }
   try { await ensureAutomationSchema(pool); } catch (e) { console.error('ERRO: automação ao ganhar NÃO foi instalada:', e.message); }
+  try { await ensureKnowledgeLibrarySchema(pool); } catch (e) { console.error('ERRO: biblioteca de conhecimento da RENATA NÃO foi instalada:', e.message); }
   try { await ensureCrmGoogleSchema(pool); } catch (e) { console.error('ERRO: espelho de atividades no Google Calendar NÃO foi instalado:', e.message); }
   // Migração PipeRun → CRM (§84): tabelas novas e independentes; se falhar, o CRM segue funcionando.
   try { await ensurePiperunSchema(pool); } catch (e) { console.error('ERRO: tabelas da migração PipeRun NÃO foram criadas:', e.message); }
