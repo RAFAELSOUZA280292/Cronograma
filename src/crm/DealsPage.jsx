@@ -2,9 +2,11 @@
 // de etapa; soltar em Ganho/Perdido abre o diálogo de fechamento (motivo da
 // perda é obrigatório). O mesmo funil serve novo negócio e upsell — o filtro de
 // tipo separa. Arrastar não existe no celular: lá o cartão tem o seletor “Mover para…” (e a etapa também muda na ficha do negócio).
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Kanban, List, Sparkles, Settings2, Upload, DatabaseBackup, MoreVertical, User, Download, CalendarPlus, StickyNote, Trophy, ThumbsDown, Building2 } from 'lucide-react';
 import { crm } from './crmApi.js';
+import { moveDealInBoard } from './boardMove.js';
+import { isTransientSaveError, retryDelay } from '../lib/saveRetry.js';
 import { notify, askText, askConfirm } from '../ui/dialogs.jsx';
 import CloseDealDialog from './CloseDealDialog.jsx';
 import FunnelsAdmin from './FunnelsAdmin.jsx';
@@ -54,7 +56,8 @@ function QuickMenu({ deal, canWrite, onQuick }) {
   );
 }
 
-function DealCard({ deal, stages, canDrag, canWrite, dragging, onOpen, onMove, onQuick, onDragStart, onDragEnd }) {
+// memo: com centenas de cartões, arrastar não pode re-renderizar o quadro inteiro a cada passo (§119). As funções chegam estáveis (cardOpen, cardQuick…).
+const DealCard = React.memo(function DealCard({ deal, stages, canDrag, canWrite, dragging, onOpen, onMove, onQuick, onDragStart, onDragEnd }) {
   const closed = deal.status !== 'open';
   const tone = !closed && deal.nextActivityOverdue ? ' tone-late' : (!closed && deal.noNextStep ? ' tone-warn' : '');
   const place = [deal.companyCity, deal.companyState].filter(Boolean).join('/');
@@ -100,7 +103,7 @@ function DealCard({ deal, stages, canDrag, canWrite, dragging, onOpen, onMove, o
       )}
     </div>
   );
-}
+});
 
 // Exportação: o que está na lista, com os mesmos filtros, em planilha aberta pelo Excel (CSV com ; e BOM).
 async function exportDealsCsv(f) {
@@ -160,6 +163,19 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
   const [closing, setClosing] = useState(null); // {deal, stage}
   const [localKey, setLocalKey] = useState(0);
   const reload = useCallback(() => setLocalKey((k) => k + 1), []);
+  // Arrastar (§119): o id arrastado e os movimentos em andamento ficam em refs — o `drop` e o `dragover` não podem depender de o React já ter
+  // re-renderizado (num computador lento isso levava segundos e o navegador soltava o cartão sem gravar).
+  const dragIdRef = useRef(null);
+  const pendingMoves = useRef(0);
+  const latest = useRef({});
+  const cardOpen = useCallback((id) => latest.current.onOpenDeal(id), []);
+  const cardQuick = useCallback((a, d) => latest.current.quick(a, d), []);
+  const cardMove = useCallback((deal, stageId) => latest.current.moveToStageId(deal, stageId), []);
+  const cardDragStart = useCallback((id) => { dragIdRef.current = id; setDragId(id); }, []);
+  const cardDragEnd = useCallback(() => { dragIdRef.current = null; setDragId(null); setOverStage(null); }, []);
+  // Só {id, nome} das etapas, com identidade estável enquanto as etapas não mudam: mover um cartão não pode invalidar o `memo` dos outros.
+  const stageKey = board ? board.stages.map((x) => `${x.id}:${x.name}`).join('|') : '';
+  const stageOptions = useMemo(() => (board ? board.stages.map((x) => ({ id: x.id, name: x.name })) : []), [stageKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { crm.tags().then((r) => setTagList(r.tags || [])).catch(() => {}); }, [localKey]);
   useEffect(() => { const t = setTimeout(() => setDebouncedQ(q), 300); return () => clearTimeout(t); }, [q]);
@@ -256,18 +272,53 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
 
 
   async function drop(stage) {
-    const id = dragId;
+    const id = dragIdRef.current || dragId;
+    dragIdRef.current = null;
     setDragId(null); setOverStage(null);
     if (!id || !board) return;
     const deal = board.stages.flatMap((s) => s.deals).find((d) => d.id === id);
     if (deal) await moveDeal(deal, stage);
   }
 
+  // Mover de etapa: o cartão muda de coluna NA HORA (o quadro só mostrava a mudança depois da volta do servidor — em máquina lenta ou
+  // quadro grande eram vários segundos, e parecia que "não gravou"). Se o servidor recusar, volta atrás com a mensagem; ao terminar, a tela
+  // recarrega com os números exatos. Ganhar/perder continua passando pelo diálogo de fechamento.
   async function moveDeal(deal, stage) {
     if (deal.stageId === stage.id) return;
     if (stage.kind !== 'open') { setClosing({ deal, stage }); return; }
-    try { const r = await crm.moveDeal(deal.id, { stageId: stage.id }); trackFlow('crm.negocio.mover_etapa', 'ok'); const m = cadenceNotice(r.cadence); if (m) notify(m, { tone: 'success', ttlMs: 7000 }); reload(); if (onChanged) onChanged(); } catch (e) { notify(e.message || 'Não foi possível mover o negócio.', { tone: 'error' }); reload(); }
+    const fromId = deal.stageId;
+    const fromStage = board && board.stages.find((s) => s.id === fromId);
+    pendingMoves.current += 1;
+    if (view === 'board') setBoard((b) => moveDealInBoard(b, deal.id, stage.id));
+    try {
+      // Mover para a mesma etapa de novo é inofensivo (o servidor ignora): por isso falha de rede/servidor repete sozinha antes de desistir.
+      let r = null;
+      for (let attempt = 0; ; attempt += 1) {
+        try { r = await crm.moveDeal(deal.id, { stageId: stage.id }); break; } catch (e) {
+          if (!isTransientSaveError(e) || attempt >= 2) throw e;
+          if (attempt === 0) notify('Sem conexão com o servidor — tentando mover de novo…', { tone: 'info', ttlMs: 5000 });
+          await new Promise((res) => setTimeout(res, retryDelay(attempt)));
+        }
+      }
+      trackFlow('crm.negocio.mover_etapa', 'ok');
+      notify(`Movido para ${stage.name}.`, { tone: 'success', ttlMs: 5000, ...(!fromStage || fromStage.kind === 'open' ? { undo: () => undoMove(deal, fromId) } : {}) });
+      const m = cadenceNotice(r.cadence); if (m) notify(m, { tone: 'success', ttlMs: 7000 });
+      if (onChanged) onChanged();
+    } catch (e) {
+      trackFlow('crm.negocio.mover_etapa', 'error');
+      if (view === 'board') setBoard((b) => moveDealInBoard(b, deal.id, fromId));
+      notify(e.message || 'Não foi possível mover o negócio.', { tone: 'error' });
+    } finally {
+      pendingMoves.current -= 1;
+      if (pendingMoves.current === 0) reload();
+    }
   }
+  async function undoMove(deal, fromId) {
+    trackFlow('crm.negocio.mover_etapa', 'undo');
+    try { await crm.moveDeal(deal.id, { stageId: fromId }); } catch (e) { notify(e.message || 'Não foi possível desfazer.', { tone: 'error' }); }
+    reload(); if (onChanged) onChanged();
+  }
+  latest.current = { onOpenDeal, quick, moveToStageId: (deal, stageId) => { const st = board && board.stages.find((x) => x.id === stageId); if (st) moveDeal(deal, st); } };
 
   // Edição direta na lista: salva na hora; se o servidor recusar (ou ignorar), avisa e recarrega o valor real.
   async function patchDeal(deal, patch) {
@@ -374,7 +425,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
           <div className="crm-board">
             {board.stages.map((s) => (
               <div key={s.id} className={`crm-col${overStage === s.id ? ' over' : ''}`} style={s.color ? { '--stage': s.color } : undefined}
-                onDragOver={(e) => { if (dragId && caps.write) { e.preventDefault(); if (overStage !== s.id) setOverStage(s.id); } }}
+                onDragOver={(e) => { if (dragIdRef.current && caps.write) { e.preventDefault(); if (overStage !== s.id) setOverStage(s.id); } }}
                 onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget) && overStage === s.id) setOverStage(null); }}
                 onDrop={(e) => { e.preventDefault(); drop(s); }}>
                 <div className="crm-col-head">
@@ -382,7 +433,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
                   <div className="crm-col-sum">{s.count ? `${fmtMoney(s.value) || 'R$ 0'}${s.kind === 'open' ? ` · pond. ${fmtMoney(s.weighted) || 'R$ 0'}` : ''}` : (s.kind === 'open' ? `${s.probability}% de chance` : '—')}</div>
                 </div>
                 <div className="crm-col-body">
-                  {s.deals.map((d) => <DealCard key={d.id} deal={d} stages={board.stages} canDrag={caps.write} canWrite={caps.write} onQuick={quick} dragging={dragId === d.id} onOpen={onOpenDeal} onMove={(deal, stageId) => moveDeal(deal, board.stages.find((s) => s.id === stageId))} onDragStart={setDragId} onDragEnd={() => { setDragId(null); setOverStage(null); }} />)}
+                  {s.deals.map((d) => <DealCard key={d.id} deal={d} stages={stageOptions} canDrag={caps.write} canWrite={caps.write} onQuick={cardQuick} dragging={dragId === d.id} onOpen={cardOpen} onMove={cardMove} onDragStart={cardDragStart} onDragEnd={cardDragEnd} />)}
                   {s.deals.length === 0 && <div className="crm-col-empty">{s.kind === 'open' ? 'Nenhum negócio aqui.' : `Sem ${s.kind === 'won' ? 'ganhos' : 'perdas'} nos últimos ${board.closedWindowDays} dias.`}</div>}
                 </div>
               </div>
