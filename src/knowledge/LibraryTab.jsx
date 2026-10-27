@@ -1,7 +1,7 @@
 // Aba Biblioteca da Central de Conhecimento (2026-10-27, §116): onde a equipe ENSINA a RENATA com material próprio (PDF, Word, PowerPoint, Excel, texto).
 // A RENATA lê, divide em trechos, estuda e passa a usar nas respostas (RENATA do projeto e RENATA geral, só para a equipe PRICETAX).
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BookOpen, Download, FileText, Loader2, Plus, RefreshCw, Search, Trash2, Undo2, Upload } from 'lucide-react';
+import { AlertTriangle, BookOpen, Check, Download, FileText, Loader2, Plus, RefreshCw, Search, Trash2, Undo2, Upload } from 'lucide-react';
 import { Button, Callout, Chip, EmptyState, Segmented, SkeletonCards } from '../ui/index.jsx';
 import { Drawer, Modal } from '../ui/dialog.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
@@ -35,6 +35,8 @@ const CSS = `
 .lib-form input[type=text], .lib-form textarea { padding:9px 12px; border-radius:10px; font-size:13.5px; font-weight:400; }
 .lib-form textarea { min-height:90px; resize:vertical; line-height:1.5; }
 .lib-drop { border:2px dashed var(--border-3); border-radius:12px; padding:18px 14px; text-align:center; font-size:13px; color:var(--text-4); cursor:pointer; background:var(--bg-2); }
+.lib-auto { display:flex; align-items:flex-start; gap:7px; font-size:12.5px; line-height:1.45; color:var(--text-3); margin-top:8px; }
+.lib-auto svg { flex:none; margin-top:2px; } .lib-auto.ok { color:#2f9e57; } .lib-auto.warn { color:#c9741a; }
 .lib-drop:hover, .lib-drop.over { border-color:#F5C400; background:var(--bg-3); } .lib-drop strong { color:var(--text-1); display:block; margin-bottom:3px; }
 .lib-d h4 { margin:18px 0 6px; font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--text-5); }
 .lib-d p, .lib-d li { font-size:13px; color:var(--text-2); line-height:1.55; } .lib-d ul { margin:0; padding-left:18px; } .lib-d li { margin-bottom:4px; }
@@ -67,6 +69,8 @@ const readBase64 = (file) => new Promise((resolve, reject) => {
   r.readAsDataURL(file);
 });
 
+const SUGGEST_WAIT_MS = 25000;
+
 function AddModal({ info, onClose, onAdded }) {
   const [kind, setKind] = useState('file');
   const [file, setFile] = useState(null);
@@ -78,15 +82,64 @@ function AddModal({ info, onClose, onAdded }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [over, setOver] = useState(false);
+  // A RENATA lê o material ao ser escolhido e preenche título, tema e etiquetas; o que a pessoa já escreveu nunca é sobrescrito (`touched`).
+  const [auto, setAuto] = useState({ phase: 'idle', message: '' });
+  const touched = useRef({ title: false, topic: false, tags: false });
+  const seq = useRef(0);
+  const pending = useRef(null);
+  const lastText = useRef('');
   const input = useRef(null);
   const dirty = !!(file || title || topic || tags || note || text);
   const maxMb = (info && info.maxFileMb) || 10;
+  useEffect(() => () => { seq.current += 1; }, []);
+
+  const edit = (key, set) => (e) => { touched.current[key] = true; set(e.target.value); };
+
+  function suggest(getBody) {
+    const mine = seq.current + 1; seq.current = mine;
+    setAuto({ phase: 'reading', message: '' });
+    const run = (async () => {
+      const result = await Promise.race([
+        apiPost('/api/knowledge-library/suggest', await getBody()),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('A leitura demorou demais.')), SUGGEST_WAIT_MS * 2)),
+      ]);
+      if (seq.current !== mine) return null;
+      if (result.duplicate) { setAuto({ phase: 'dup', message: `Este conteúdo já está na biblioteca como "${result.duplicate.title}".` }); return null; }
+      const s = result.suggestion;
+      if (!s) { setAuto({ phase: 'failed', message: result.aiMessage || 'A RENATA não conseguiu sugerir agora.' }); return null; }
+      const applied = { title: s.title, topic: s.topic, tags: (s.tags || []).join(', ') };
+      if (!touched.current.title && s.title) setTitle(s.title);
+      if (!touched.current.topic && s.topic) setTopic(s.topic);
+      if (!touched.current.tags && applied.tags) setTags(applied.tags);
+      setAuto({ phase: 'done', message: '' });
+      return applied;
+    })().catch((e) => {
+      if (seq.current !== mine) return null;
+      if (e && e.status >= 400 && e.status < 500) { setError(e.message); setAuto({ phase: 'idle', message: '' }); } else setAuto({ phase: 'failed', message: (e && e.message) || 'A RENATA não conseguiu sugerir agora.' });
+      return null;
+    });
+    pending.current = run;
+    return run;
+  }
 
   function pick(f) {
     if (!f) return;
     if (f.size > maxMb * 1024 * 1024) { setError(`O arquivo tem ${kb(f.size)} e o limite é ${maxMb} MB. Divida em partes menores ou cole o texto.`); return; }
     setError(''); setFile(f);
-    if (!title.trim()) setTitle(f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim());
+    if (!touched.current.title) setTitle(f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim());
+    if (!touched.current.topic) setTopic('');
+    if (!touched.current.tags) setTags('');
+    suggest(async () => ({ kind: 'file', fileName: f.name, mimeType: f.type, dataBase64: await readBase64(f) }));
+  }
+  function textLeft() {
+    const t = text.trim();
+    if (t.length < 200 || t === lastText.current) return;
+    lastText.current = t;
+    suggest(async () => ({ kind: 'text', text: t }));
+  }
+  function changeKind(v) {
+    setKind(v); setError('');
+    seq.current += 1; setAuto({ phase: 'idle', message: '' });
   }
   async function close() {
     if (busy) return;
@@ -95,23 +148,39 @@ function AddModal({ info, onClose, onAdded }) {
   }
   async function submit() {
     setError('');
-    if (!title.trim()) { setError('Dê um título ao material.'); return; }
     if (kind === 'file' && !file) { setError('Escolha um arquivo.'); return; }
     if (kind === 'text' && text.trim().length < 200) { setError('O texto está curto demais (mínimo de 200 caracteres).'); return; }
     setBusy(true);
     try {
-      const body = { kind, title, topic, tags, note };
+      // se a RENATA ainda está lendo, espera um pouco para o título sugerido entrar (nunca por cima do que a pessoa escreveu)
+      const sug = pending.current ? await Promise.race([pending.current, new Promise((r) => setTimeout(() => r(null), SUGGEST_WAIT_MS))]) : null;
+      const final = (k, cur) => (!touched.current[k] && sug && sug[k] ? sug[k] : cur);
+      const fTitle = final('title', title);
+      if (!fTitle.trim()) { setError('Dê um título ao material.'); setBusy(false); return; }
+      const body = { kind, title: fTitle, topic: final('topic', topic), tags: final('tags', tags), note };
       if (kind === 'file') Object.assign(body, { fileName: file.name, mimeType: file.type, dataBase64: await readBase64(file) }); else body.text = text;
       const res = await apiPost('/api/knowledge-library', body);
       notify('Material enviado. A RENATA está lendo — leva de alguns segundos a poucos minutos.', { tone: 'success' });
       onAdded(res.material);
     } catch (e) { setError(e.message || 'Não foi possível enviar.'); setBusy(false); }
   }
+  const reading = auto.phase === 'reading';
+  const status = auto.phase === 'idle' ? null : (
+    <div className={`lib-auto${auto.phase === 'done' ? ' ok' : auto.phase === 'reading' ? '' : ' warn'}`} role="status" aria-live="polite">
+      {reading ? <Loader2 size={14} className="lib-spin" aria-hidden="true" /> : auto.phase === 'done' ? <Check size={14} aria-hidden="true" /> : <AlertTriangle size={14} aria-hidden="true" />}
+      <span>
+        {reading && 'A RENATA está lendo o material para sugerir título, tema e etiquetas…'}
+        {auto.phase === 'done' && 'Título, tema e etiquetas sugeridos pela RENATA. Confira e ajuste se quiser.'}
+        {auto.phase === 'failed' && `Não consegui sugerir os campos automaticamente: ${auto.message} Preencha à mão.`}
+        {auto.phase === 'dup' && auto.message}
+      </span>
+    </div>
+  );
   return (
     <Modal title="Ensinar a RENATA" subtitle="Envie um material e ela passa a usá-lo nas respostas." onClose={close} busy={busy} error={error} width="min(640px, 96vw)"
       footer={<><Button onClick={close} disabled={busy} disabledReason="Aguarde terminar">Cancelar</Button><Button variant="primary" icon={Upload} loading={busy} onClick={submit}>Enviar e estudar</Button></>}>
       <div className="lib-form">
-        <Segmented label="Como enviar" value={kind} onChange={(v) => { setKind(v); setError(''); }} options={[{ value: 'file', label: 'Arquivo' }, { value: 'text', label: 'Colar texto' }]} />
+        <Segmented label="Como enviar" value={kind} onChange={changeKind} options={[{ value: 'file', label: 'Arquivo' }, { value: 'text', label: 'Colar texto' }]} />
         {kind === 'file' ? (
           <div>
             <div className={`lib-drop${over ? ' over' : ''}`} role="button" tabIndex={0} onClick={() => input.current && input.current.click()} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.current.click(); } }}
@@ -119,21 +188,25 @@ function AddModal({ info, onClose, onAdded }) {
               <strong>{file ? `${file.name} · ${kb(file.size)}` : 'Clique ou arraste o arquivo até aqui'}</strong>
               PDF (com texto), Word, PowerPoint, Excel, CSV, texto, Markdown ou HTML · até {maxMb} MB
             </div>
-            <input ref={input} type="file" accept={ACCEPT} style={{ display: 'none' }} aria-label="Escolher arquivo" onChange={(e) => pick(e.target.files && e.target.files[0])} />
+            <input ref={input} type="file" accept={ACCEPT} style={{ display: 'none' }} aria-label="Escolher arquivo" onChange={(e) => { pick(e.target.files && e.target.files[0]); e.target.value = ''; }} />
+            {status}
           </div>
         ) : (
-          <label>Texto do material <small>Cole o conteúdo completo (artigo, nota técnica, roteiro…).</small>
-            <textarea value={text} onChange={(e) => setText(e.target.value)} style={{ minHeight: 180 }} aria-label="Texto do material" />
-          </label>
+          <div>
+            <label>Texto do material <small>Cole o conteúdo completo (artigo, nota técnica, roteiro…). Ao sair do campo, a RENATA sugere título, tema e etiquetas.</small>
+              <textarea value={text} onChange={(e) => setText(e.target.value)} onBlur={textLeft} style={{ minHeight: 180 }} aria-label="Texto do material" />
+            </label>
+            {status}
+          </div>
         )}
         <label>Título
-          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex.: Produtor Rural — antes e depois da reforma" maxLength={200} />
+          <input type="text" value={title} onChange={edit('title', setTitle)} placeholder={reading ? 'A RENATA está lendo…' : 'Ex.: Produtor Rural — antes e depois da reforma'} maxLength={200} aria-busy={reading} />
         </label>
         <label>Tema <small>Opcional. Ajuda a RENATA a achar o material (ex.: Produtor Rural, Split Payment).</small>
-          <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} maxLength={120} />
+          <input type="text" value={topic} onChange={edit('topic', setTopic)} placeholder={reading ? 'A RENATA está lendo…' : ''} maxLength={120} aria-busy={reading} />
         </label>
         <label>Etiquetas <small>Opcional, separadas por vírgula.</small>
-          <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="agro, LC 214, regime regular" />
+          <input type="text" value={tags} onChange={edit('tags', setTags)} placeholder={reading ? 'A RENATA está lendo…' : 'agro, LC 214, regime regular'} aria-busy={reading} />
         </label>
         <label>Como a RENATA deve usar este material <small>Opcional. Ex.: “Material de 2026; vale mais que o parecer antigo.”</small>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={1500} style={{ minHeight: 64 }} />

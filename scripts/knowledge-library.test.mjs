@@ -104,5 +104,22 @@ const big = 'Frase longa sobre apuração assistida. '.repeat(7000);
 const idC = await mk('Material enorme', big); await lib.processMaterial(idC);
 ok(calls.notes === Math.ceil(big.length / 100000), `anotações por parte: ${calls.notes}`);
 
+// sugestão de título/tema/etiquetas ao escolher o arquivo
+const long = 'Introdução. '.repeat(3000) + 'MEIO-ÚNICO ' + 'texto. '.repeat(3000) + 'FIM-ÚNICO';
+const smp = lib.sampleForMetadata(long);
+ok(smp.startsWith('Introdução.') && smp.length < 9000 + 3 * 1900 + 40 && smp.includes('[…]') && lib.sampleForMetadata('curto') === 'curto', 'amostra: começo + trechos do resto, texto curto inteiro');
+let seen = null;
+lib.deps.client = () => ({ messages: { parse: async (req) => { seen = req; return { stop_reason: 'end_turn', parsed_output: { title: 'Produtor Rural — antes e depois da reforma.', topic: 'Produtor Rural', tags: ['agro', '#LC 214', 'Agro', ' ', 'regime regular', 'a', 'b', 'c', 'd', 'e'] } }; } } });
+const sg = await lib.suggestMetadata({ text: long, fileName: 'produtor_rural.pdf', known: { topics: ['Split Payment'], tags: ['agro'] } });
+ok(sg.title === 'Produtor Rural — antes e depois da reforma' && sg.topic === 'Produtor Rural', 'título sem ponto final, tema');
+ok(sg.tags.join('|') === 'agro|LC 214|regime regular|a|b|c|d|e', `etiquetas limpas, sem repetir/vazias, no máximo 8: ${sg.tags}`);
+const prompt = seen.messages[0].content;
+ok(/produtor_rural\.pdf/.test(prompt) && /Temas já usados[^\n]*Split Payment/.test(prompt) && /Etiquetas já usadas[^\n]*agro/.test(prompt), 'IA recebe o nome do arquivo e o vocabulário já usado');
+ok(seen.model === 'claude-haiku-4-5-20251001' && seen.max_tokens <= 1000, 'modelo rápido e saída curta');
+lib.deps.client = () => ({ messages: { parse: async () => ({ stop_reason: 'end_turn', parsed_output: null }) } });
+await assert.rejects(() => lib.suggestMetadata({ text: long }), /não conseguiu sugerir/); n++;
+lib.deps.client = () => { throw new Error('A IA não está configurada neste ambiente (falta a ANTHROPIC_API_KEY).'); };
+await assert.rejects(() => lib.suggestMetadata({ text: long }), /ANTHROPIC_API_KEY/); n++;
+
 await pool.query(`DELETE FROM ai_knowledge_facts WHERE org_id=$1 AND reference LIKE 'Material PRICETAX:%'`, [ORG]); await pool.query(`DELETE FROM knowledge_materials WHERE org_id=$1`, [ORG]);
 console.log(`knowledge-library: ${n} checagens OK`); await pool.end();

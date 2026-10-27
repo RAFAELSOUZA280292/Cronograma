@@ -159,6 +159,46 @@ export async function studyMaterial({ title, topic, note, text }) {
   return response.parsed_output;
 }
 
+// ---------- sugestão de título, tema e etiquetas (ao escolher o arquivo, antes de enviar) ----------
+export const MetadataSchema = z.object({
+  title: z.string().describe('Título claro e específico do material, até 100 caracteres, como um consultor o nomearia na biblioteca (ex.: "Produtor Rural — antes e depois da reforma"). Use o título do próprio documento quando ele existir.'),
+  topic: z.string().describe('Tema principal em 1 a 4 palavras (ex.: "Produtor Rural", "Split Payment"). Prefira um tema já existente da lista quando for o mesmo assunto.'),
+  tags: z.array(z.string()).describe('De 3 a 8 etiquetas curtas (1 a 3 palavras): tributos, normas, setores, institutos. Reaproveite etiquetas já existentes quando couberem.'),
+});
+
+const METADATA_SYSTEM = 'Você organiza a biblioteca de materiais de uma consultoria tributária (PRICETAX). Leia o trecho do material e proponha título, tema e etiquetas para ele ser encontrado depois. Use somente o que o texto mostra; não invente norma, número ou assunto. Português do Brasil, sem aspas nem ponto final no título.';
+const METADATA_MODEL = 'claude-haiku-4-5-20251001';
+
+// Começo do documento (onde ficam título e sumário) + amostras do meio e do fim, para não mandar 1,5 milhão de caracteres só para dar nome ao arquivo.
+export function sampleForMetadata(text, { head = 9000, slice = 1800, slices = 3 } = {}) {
+  const t = String(text || '');
+  if (t.length <= head + slice * slices) return t;
+  const rest = t.length - head; const parts = [t.slice(0, head)];
+  for (let i = 1; i <= slices; i += 1) { const at = head + Math.floor((rest * i) / (slices + 1)) - Math.floor(slice / 2); parts.push(`[…]\n${t.slice(at, at + slice)}`); }
+  return parts.join('\n\n');
+}
+
+export async function suggestMetadata({ text, fileName = '', known = {} }) {
+  const client = deps.client();
+  const lists = [
+    (known.topics || []).length ? `Temas já usados na biblioteca: ${known.topics.join('; ')}.` : '',
+    (known.tags || []).length ? `Etiquetas já usadas na biblioteca: ${known.tags.join('; ')}.` : '',
+  ].filter(Boolean).join('\n');
+  const response = await withRetry(() => client.messages.parse({
+    model: METADATA_MODEL,
+    max_tokens: 600,
+    system: [{ type: 'text', text: METADATA_SYSTEM }],
+    messages: [{ role: 'user', content: `${fileName ? `Nome do arquivo: ${fileName}\n` : ''}${lists ? `${lists}\n` : ''}\n=== MATERIAL (início e amostras) ===\n${sampleForMetadata(text)}` }],
+    output_config: { format: zodOutputFormat(MetadataSchema) },
+  }));
+  if (response.stop_reason === 'max_tokens') throw new Error('Resposta cortada por tamanho (max_tokens).');
+  const o = response.parsed_output;
+  if (!o) throw new Error('A IA não conseguiu sugerir título, tema e etiquetas.');
+  const seen = new Set();
+  const tags = (o.tags || []).map((x) => String(x).trim().replace(/^#/, '').slice(0, 40)).filter((x) => { const k = x.toLowerCase(); if (!x || seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
+  return { title: clip(o.title, 120).replace(/[.\s]+$/, ''), topic: clip(o.topic, 60), tags };
+}
+
 export function factContentOf(m, study) {
   const head = `Material de referência PRICETAX "${clip(m.title, 120)}"${m.topic ? ` (tema: ${clip(m.topic, 80)})` : ''}.`;
   if (!study) return `${head} ${clip(m.note || m.full_text, 500)}`.trim();

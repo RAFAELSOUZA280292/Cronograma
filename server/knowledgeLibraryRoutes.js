@@ -4,7 +4,7 @@ import { pool } from './db.js';
 import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import { effectiveOrgId } from './routes.js';
 import { cleanText, extractText, MAX_TEXT_CHARS, SUPPORTED } from './materialText.js';
-import { MAX_FILE_BYTES, STALE_MS, clip, deps, processMaterial, running, searchMaterial, sha256, uid } from './knowledgeLibrary.js';
+import { MAX_FILE_BYTES, STALE_MS, clip, deps, friendlyError, processMaterial, running, searchMaterial, sha256, suggestMetadata, uid } from './knowledgeLibrary.js';
 
 // ---------- rotas ----------
 const LIST_COLS = `id, title, topic, tags, note, source_kind, file_name, mime_type, file_size, char_count, chunk_count, status, stage, progress, error, study_error,
@@ -41,25 +41,33 @@ router.get('/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Lê o que veio da tela (arquivo em base64 ou texto colado) e devolve o texto; erro de leitura sai com o status e a mensagem para o usuário.
+async function readInput(b) {
+  const fail = (status, message) => Object.assign(new Error(message), { status });
+  if (b.kind === 'text') {
+    const text = cleanText(b.text);
+    if (text.length < 200) throw fail(400, 'O texto está curto demais para virar conhecimento (mínimo 200 caracteres).');
+    return { text, fileName: '', mime: '', data: null };
+  }
+  const fileName = String(b.fileName || '').slice(0, 200); const mime = String(b.mimeType || '').slice(0, 120);
+  if (!fileName || !b.dataBase64) throw fail(400, 'Escolha um arquivo.');
+  const data = Buffer.from(String(b.dataBase64), 'base64');
+  if (!data.length) throw fail(400, 'O arquivo veio vazio.');
+  if (data.length > MAX_FILE_BYTES) throw fail(413, `O arquivo passa de ${MAX_FILE_BYTES / 1024 / 1024} MB. Divida em partes menores ou cole o texto.`);
+  let text;
+  try { text = await extractText({ buffer: data, fileName }); } catch (e) { throw fail(422, e.message || 'Não consegui ler este arquivo.'); }
+  if (text.length < 200) throw fail(422, 'O arquivo não tem texto suficiente para virar conhecimento.');
+  return { text, fileName, mime, data };
+}
+const sendFail = (res, next, e) => (e && e.status ? res.status(e.status).json({ message: e.message }) : next(e));
+
 router.post('/', async (req, res, next) => {
   try {
     const orgId = effectiveOrgId(req);
     const b = req.body || {};
     const title = String(b.title || '').trim().slice(0, 200);
     if (!title) return res.status(400).json({ message: 'Dê um título ao material.' });
-    let text = ''; let fileName = ''; let mime = ''; let data = null;
-    if (b.kind === 'text') {
-      text = cleanText(b.text);
-      if (text.length < 200) return res.status(400).json({ message: 'O texto está curto demais para virar conhecimento (mínimo 200 caracteres).' });
-    } else {
-      fileName = String(b.fileName || '').slice(0, 200); mime = String(b.mimeType || '').slice(0, 120);
-      if (!fileName || !b.dataBase64) return res.status(400).json({ message: 'Escolha um arquivo.' });
-      data = Buffer.from(String(b.dataBase64), 'base64');
-      if (!data.length) return res.status(400).json({ message: 'O arquivo veio vazio.' });
-      if (data.length > MAX_FILE_BYTES) return res.status(413).json({ message: `O arquivo passa de ${MAX_FILE_BYTES / 1024 / 1024} MB. Divida em partes menores ou cole o texto.` });
-      try { text = await extractText({ buffer: data, fileName }); } catch (e) { return res.status(422).json({ message: e.message || 'Não consegui ler este arquivo.' }); }
-      if (text.length < 200) return res.status(422).json({ message: 'O arquivo não tem texto suficiente para virar conhecimento.' });
-    }
+    const { text, fileName, mime, data } = await readInput(b);
     const hash = sha256(text);
     const { rows: [dup] } = await pool.query('SELECT id, title FROM knowledge_materials WHERE org_id=$1 AND text_hash=$2 AND archived_at IS NULL', [orgId, hash]);
     if (dup) return res.status(409).json({ message: `Este conteúdo já está na biblioteca como "${dup.title}".`, id: dup.id });
@@ -72,7 +80,29 @@ router.post('/', async (req, res, next) => {
     processMaterial(id).catch(() => {});
     const { rows: [r] } = await pool.query(`SELECT ${LIST_COLS} FROM knowledge_materials WHERE id=$1`, [id]);
     res.status(202).json({ material: publicRow(r), truncated: text.length >= MAX_TEXT_CHARS });
-  } catch (e) { next(e); }
+  } catch (e) { sendFail(res, next, e); }
+});
+
+// A RENATA lê o material ao ser escolhido e sugere título, tema e etiquetas (a tela preenche os campos que a pessoa ainda não escreveu). Não grava nada.
+// Só a sugestão falha de forma suave (200 com `suggestion: null` e o motivo); erro de leitura do arquivo é 4xx igual ao envio.
+router.post('/suggest', async (req, res, next) => {
+  try {
+    const orgId = effectiveOrgId(req);
+    const { text, fileName } = await readInput(req.body || {});
+    const { rows: [dup] } = await pool.query('SELECT id, title FROM knowledge_materials WHERE org_id=$1 AND text_hash=$2 AND archived_at IS NULL', [orgId, sha256(text)]);
+    const duplicate = dup ? { id: dup.id, title: dup.title } : null;
+    if (duplicate) return res.json({ suggestion: null, duplicate, charCount: text.length });
+    const { rows: tp } = await pool.query(`SELECT topic, count(*) AS n FROM knowledge_materials WHERE org_id=$1 AND archived_at IS NULL AND topic <> '' GROUP BY topic ORDER BY n DESC, topic LIMIT 30`, [orgId]);
+    const { rows: tg } = await pool.query(
+      `SELECT t AS tag, count(*) AS n FROM knowledge_materials m, jsonb_array_elements_text(m.tags) t WHERE m.org_id=$1 AND m.archived_at IS NULL GROUP BY t ORDER BY n DESC, t LIMIT 40`, [orgId]);
+    try {
+      const suggestion = await suggestMetadata({ text, fileName, known: { topics: tp.map((r) => r.topic), tags: tg.map((r) => r.tag) } });
+      res.json({ suggestion, duplicate: null, charCount: text.length });
+    } catch (e) {
+      console.error('Biblioteca: sugestão de título/tema falhou:', e.message);
+      res.json({ suggestion: null, duplicate: null, charCount: text.length, aiMessage: friendlyError(e.message) });
+    }
+  } catch (e) { sendFail(res, next, e); }
 });
 
 router.post('/search', async (req, res, next) => {

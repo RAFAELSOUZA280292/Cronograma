@@ -33,6 +33,16 @@ r = await api(`/${id}`, { method: 'DELETE' }); ok(r.status === 200, 'arquivar');
 ok(!(await (await api('/search', { method: 'POST', body: { query: 'produtor rural isenção' } })).json()).passages.length, 'arquivado fora da busca');
 ok((await (await api('/')).json()).materials.find((x) => x.id === id).archived === true, 'lista marca arquivado');
 r = await api(`/${id}/restore`, { method: 'POST' }); ok(r.status === 200 && (await (await api('/search', { method: 'POST', body: { query: 'produtor rural isenção' } })).json()).passages.length >= 1, 'restaurar volta à busca');
+// sugestão de título/tema/etiquetas (sem chave de IA local: leitura e duplicado funcionam, a sugestão falha de forma suave e nada é gravado)
+const countBefore = (await pool.query(`SELECT count(*)::int AS n FROM knowledge_materials WHERE org_id='sandbox-edu'`)).rows[0].n;
+ok((await fetch(`${BASE}/api/knowledge-library/suggest`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status === 401, 'suggest sem login: 401');
+r = await api('/suggest', { method: 'POST', body: { kind: 'text', text: 'pouco' } }); ok(r.status === 400, 'suggest: texto curto 400');
+r = await api('/suggest', { method: 'POST', body: { kind: 'file', fileName: 'a.exe', dataBase64: Buffer.from('abc').toString('base64') } }); ok(r.status === 422, 'suggest: formato não aceito 422');
+r = await api('/suggest', { method: 'POST', body: { kind: 'file', fileName: 'novo.md', dataBase64: Buffer.from(text + ' conteúdo inédito de teste do suggest').toString('base64') } }); j = await r.json();
+ok(r.status === 200 && j.suggestion === null && j.duplicate === null && /não está configurada/.test(j.aiMessage) && j.charCount > 200, `suggest sem IA: soft fail (${r.status} ${JSON.stringify(j)})`);
+r = await api('/suggest', { method: 'POST', body: { kind: 'file', fileName: 'repetido.md', dataBase64: Buffer.from(text).toString('base64') } }); j = await r.json();
+ok(r.status === 200 && j.duplicate && j.duplicate.id === id && j.suggestion === null, 'suggest: conteúdo já existente avisa o duplicado antes do envio');
+ok((await pool.query(`SELECT count(*)::int AS n FROM knowledge_materials WHERE org_id='sandbox-edu'`)).rows[0].n === countBefore, 'suggest não grava nada');
 ok((await api('/mat-naoexiste')).status === 404, '404');
 await pool.query(`DELETE FROM ai_knowledge_facts WHERE org_id='sandbox-edu' AND reference LIKE 'Material PRICETAX:%'`); await pool.query(`DELETE FROM knowledge_materials WHERE org_id='sandbox-edu'`); await pool.end();
 console.log(`knowledge-library-http: ${n} checagens OK`);
