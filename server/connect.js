@@ -19,13 +19,14 @@ import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { originOf, setActor } from './projectAudit.js';
 import { createCrmRouter } from './crm/routes.js';
 import { crmCan } from './crm/permissions.js';
+import { InboxError, createSubmission, listSubmissions, reprocessSubmission } from './meetingInbox.js';
 
 export const router = Router();
 
 const PREFIX = 'pxk_';
-export const SCOPES = { read: 'Só leitura', read_create: 'Ler e criar atividades', read_write: 'Ler, criar atividades e ajustar o cronograma de empresas', crm_operate: 'Operar o CRM como Claude Code (criar, editar, mover, excluir e registrar), além de ler' };
+export const SCOPES = { read: 'Só leitura', read_create: 'Ler e criar atividades', read_write: 'Ler, criar atividades e ajustar o cronograma de empresas', crm_operate: 'Operar o CRM como Claude Code (criar, editar, mover, excluir e registrar), além de ler', transcripts: 'Ler e enviar transcrições de reunião para a RENATA do painel processar (não cria atividade solta nem ajusta cronograma)' };
 // crm_operate só abre /api/connect/crm; nas demais rotas vale como leitura (rank 0) — nunca herda criar atividade nem ajustar cronograma.
-const SCOPE_RANK = { read: 0, read_create: 1, read_write: 2, crm_operate: 0 };
+const SCOPE_RANK = { read: 0, read_create: 1, read_write: 2, crm_operate: 0, transcripts: 0 };
 const VALID_DAYS = [30, 90, 180, 365];
 const MAX_ACTIVE_TOKENS = 10;
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
@@ -38,7 +39,7 @@ router.get('/tokens', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, scope, created_at, expires_at, last_used_at FROM api_tokens WHERE user_id=$1 AND revoked_at IS NULL ORDER BY created_at DESC`, [req.user.id]);
-    res.json({ tokens: rows.map((r) => ({ ...r, expired: new Date(r.expires_at) < new Date() })), scopes: SCOPES, canAdmin: !!(req.user.isSuperAdmin || req.user.role === 'master'), canCrm: crmCan(req.user, 'admin') });
+    res.json({ tokens: rows.map((r) => ({ ...r, expired: new Date(r.expires_at) < new Date() })), scopes: SCOPES, canAdmin: !!(req.user.isSuperAdmin || req.user.role === 'master'), canCrm: crmCan(req.user, 'admin'), canTranscripts: !!req.user.companiesAccess });
   } catch (e) { next(e); }
 });
 
@@ -50,6 +51,7 @@ router.post('/tokens', requireAuth, async (req, res, next) => {
     if (!name) return res.status(400).json({ message: 'Dê um nome ao token (ex.: "Claude Code do XPED").' });
     if (!scope) return res.status(400).json({ message: 'Escolha o que o token pode fazer.' });
     if (scope === 'read_write' && !(req.user.isSuperAdmin || req.user.role === 'master')) return res.status(403).json({ message: 'Só administradores geram uma chave que ajusta o cronograma de empresas.' });
+    if (scope === 'transcripts' && !req.user.companiesAccess) return res.status(403).json({ message: 'Só quem tem acesso a Empresas gera uma chave que envia transcrições.' });
     if (scope === 'crm_operate' && !crmCan(req.user, 'admin')) return res.status(403).json({ message: 'Só administrador do CRM gera uma chave que opera o CRM.' });
     const { rows: active } = await pool.query(`SELECT count(*)::int n FROM api_tokens WHERE user_id=$1 AND revoked_at IS NULL AND expires_at > now()`, [req.user.id]);
     if (active[0].n >= MAX_ACTIVE_TOKENS) return res.status(400).json({ message: `Você já tem ${MAX_ACTIVE_TOKENS} tokens ativos. Revogue algum antes de criar outro.` });
@@ -93,6 +95,9 @@ export const ENDPOINTS = [
   { method: 'GET', path: '/api/connect/companies/:id', scope: 'read', what: 'Uma empresa: equipe, fases, atividades e lista de reuniões (sem transcrição).' },
   { method: 'GET', path: '/api/connect/companies/:id/meetings/:meetingId', scope: 'read', what: 'Uma reunião: resumo, decisões, itens de ação, participantes. Query: transcript=1 inclui a transcrição (até 60.000 caracteres).' },
   { method: 'POST', path: '/api/connect/companies/:id/plan', scope: 'read_write', what: 'Ajusta o cronograma de uma empresa (só administrador). Corpo: ops (até 200: activity.set, sub.set, sub.add (position top|end, kind, guide, pautaDe), sub.move, activity.add, pauta.link, activity.delete e sub.delete (exclusão com volta pela lixeira; activity.restore e sub.restore desfazem)), dryRun (padrão true: só mostra), note. Tudo ou nada, nada some de verdade, grava no Log da empresa.' },
+  { method: 'POST', path: '/api/connect/companies/:id/transcripts', scope: 'transcripts', what: 'Envia a transcrição de uma reunião para a RENATA do painel processar (igual ao botão "Enviar transcrição" da aba Reuniões). Corpo: transcript (obrigatório, texto bruto completo), date (AAAA-MM-DD), time (HH:MM). Responde 202 com submissionId; o MESMO texto não é processado duas vezes (duplicate:true). Limite: 30 envios por hora por chave.' },
+  { method: 'GET', path: '/api/connect/companies/:id/transcripts[/:submissionId]', scope: 'transcripts', what: 'Situação dos envios da empresa (pending, processing, done, failed). Quando done, traz meetingId e um resumo da reunião criada. Consulte a cada ~5 s.' },
+  { method: 'POST', path: '/api/connect/companies/:id/transcripts/:submissionId/retry', scope: 'transcripts', what: 'Reprocessa um envio que falhou.' },
   { method: '*', path: '/api/connect/crm/…', scope: 'crm_operate', what: 'O CRM inteiro (mesmas rotas e regras de /api/crm: empresas, contatos, negócios, atividades, notas, produtos, funis, cadências), pelo perfil de administrador do dono da chave. Toda gravação fica registrada como "Claude Code (por <dono>)". Fora: escrita da migração do PipeRun.' },
   { method: 'GET', path: '/api/connect/agenda', scope: 'read', what: 'Compromissos do Google Calendar do dono. Query: days=1..14 (padrão 7). Só os aceitos ou próprios.' },
 ];
@@ -366,7 +371,7 @@ router.get('/companies/:id/meetings/:meetingId', async (req, res, next) => {
     const out = {
       id: m.id, date: m.date || '', title: m.title || '', company: companyName(r.data), participants: Array.isArray(m.participants) ? m.participants : [],
       summary: clip(m.summary, 20000), decisions: clip(m.decisions, 20000),
-      actionItems: alive(m.actionItems).map((a) => ({ id: a.id, title: clip(a.title, 300), status: a.status || '', dueDate: a.dueDate || '', responsible: a.responsible || '', owner: a.owner || '' })),
+      actionItems: alive(m.actionItems).map((a) => ({ id: a.id, title: clip(a.title, 300), status: a.status || '', dueDate: a.dueDate || '', responsible: a.responsible || '', owner: a.owner || '', kind: a.kind || 'tarefa', area: a.area || '' })),
     };
     if (req.query.transcript === '1') {
       const t = typeof m.transcript === 'string' ? m.transcript : '';
@@ -375,6 +380,88 @@ router.get('/companies/:id/meetings/:meetingId', async (req, res, next) => {
     }
     res.json(out);
   } catch (e) { next(e); }
+});
+
+// ------------------------------------------------------------------ transcrições de reunião (§116d)
+// Uma IA externa (que tem as reuniões gravadas) envia a transcrição pelo MESMO caminho da tela: cria o envio, a RENATA do painel extrai
+// título/participantes/resumo/decisões/atividades e registra a reunião na empresa. A IA externa NÃO faz o trabalho da RENATA, só entrega o texto
+// e acompanha a situação. Escopo `transcripts` (ou `read_write`); a chave age como o dono: só empresas que ele pode ver.
+const transcriptsLimit = new Map();
+function needTranscripts(req, res, next) {
+  if (['transcripts', 'read_write'].includes(req.apiToken.scope)) return next();
+  return res.status(403).json({ message: 'Esta chave não envia transcrições. Gere uma chave "Enviar transcrições de reunião" em Meu perfil > Conectar.' });
+}
+const inboxErr = (res, next, e) => (e instanceof InboxError ? res.status(e.status).json({ message: e.message }) : next(e));
+const MAX_TRANSCRIPT_CHARS = 400000;
+
+function meetingOut(r, meetingId) {
+  const m = alive(r.data.meetings).find((x) => x.id === meetingId);
+  if (!m) return null;
+  return {
+    id: m.id, title: m.title || '', date: m.date || '', time: m.time || '', participants: Array.isArray(m.participants) ? m.participants : [],
+    summary: clip(m.summary, 20000), decisions: clip(m.decisions, 20000),
+    actionItems: alive(m.actionItems).map((a) => ({ id: a.id, title: clip(a.title, 300), kind: a.kind || 'tarefa', owner: a.owner || '', responsible: a.responsible || '', area: a.area || '', dueDate: a.dueDate || '', status: a.status || '' })),
+  };
+}
+
+router.post('/companies/:id/transcripts', needTranscripts, async (req, res, next) => {
+  try {
+    const r = await loadOne(req, res);
+    if (!r) return;
+    const b = req.body || {};
+    const transcript = typeof b.transcript === 'string' ? b.transcript.trim() : '';
+    if (!transcript) return res.status(400).json({ message: 'Informe transcript (o texto bruto completo da reunião).' });
+    if (transcript.length < 200) return res.status(400).json({ message: 'A transcrição está curta demais (mínimo de 200 caracteres). Envie o texto completo da reunião.' });
+    if (transcript.length > MAX_TRANSCRIPT_CHARS) return res.status(413).json({ message: `A transcrição passa de ${MAX_TRANSCRIPT_CHARS.toLocaleString('pt-BR')} caracteres. Envie em partes por reunião (uma reunião por envio).` });
+    const date = b.date == null || b.date === '' ? '' : String(b.date);
+    const time = b.time == null || b.time === '' ? '' : String(b.time);
+    if (date && !(/^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(`${date}T12:00:00Z`)))) return res.status(400).json({ message: 'date deve ser AAAA-MM-DD (ex.: 2026-10-28).' });
+    if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return res.status(400).json({ message: 'time deve ser HH:MM em 24 h (ex.: 14:30).' });
+    // cada envio é uma chamada de IA paga: limite por chave (duplicado devolvido não conta)
+    const existing = await pool.query(`SELECT 1 FROM meeting_submissions WHERE project_id=$1 AND md5(transcript)=md5($2) AND status IN ('pending','processing','done') LIMIT 1`, [r.id, transcript]);
+    if (!existing.rows[0] && bump(transcriptsLimit, req.apiHash, 3600 * 1000, 30)) return res.status(429).json({ message: 'Limite de 30 transcrições por hora nesta chave. Espere um pouco.' });
+    const out = await createSubmission({ user: req.apiUser, projectId: r.id, transcript, date, time, dedupe: true, via: `via chave de API "${clip(req.apiToken.name, 40)}"` });
+    res.status(out.duplicate ? 200 : 202).json({
+      submissionId: out.submissionId, status: out.status, duplicate: out.duplicate, meetingId: out.meetingId,
+      next: `Consulte GET /api/connect/companies/${r.id}/transcripts/${out.submissionId} a cada ~5 s até status done (ou failed).`,
+    });
+  } catch (e) { inboxErr(res, next, e); }
+});
+
+router.get('/companies/:id/transcripts', needTranscripts, async (req, res, next) => {
+  try {
+    const r = await loadOne(req, res);
+    if (!r) return;
+    res.json({ submissions: await listSubmissions(req.apiUser, r.id) });
+  } catch (e) { inboxErr(res, next, e); }
+});
+
+router.get('/companies/:id/transcripts/:submissionId', needTranscripts, async (req, res, next) => {
+  try {
+    const r = await loadOne(req, res);
+    if (!r) return;
+    const sub = (await listSubmissions(req.apiUser, r.id)).find((x) => x.id === req.params.submissionId);
+    if (!sub) return res.status(404).json({ message: 'Envio não encontrado.' });
+    const out = { submissionId: sub.id, status: sub.status, errorMessage: sub.errorMessage || '', createdAt: sub.createdAt, processedAt: sub.processedAt, meetingId: sub.meetingId || null };
+    if (sub.status === 'done' && sub.meetingId) {
+      const fresh = (await pool.query('SELECT id, data FROM projects WHERE id=$1', [r.id])).rows[0];
+      out.meeting = fresh ? meetingOut(fresh, sub.meetingId) : null;
+      if (!out.meeting) out.note = 'A reunião criada foi apagada depois na tela.';
+    }
+    res.json(out);
+  } catch (e) { inboxErr(res, next, e); }
+});
+
+router.post('/companies/:id/transcripts/:submissionId/retry', needTranscripts, async (req, res, next) => {
+  try {
+    const r = await loadOne(req, res);
+    if (!r) return;
+    const sub = (await listSubmissions(req.apiUser, r.id)).find((x) => x.id === req.params.submissionId);
+    if (!sub) return res.status(404).json({ message: 'Envio não encontrado.' });
+    if (sub.status !== 'failed') return res.status(409).json({ message: `Só envio que falhou pode ser reprocessado (este está "${sub.status}").` });
+    await reprocessSubmission({ user: req.apiUser, submissionId: sub.id, projectId: r.id });
+    res.status(202).json({ submissionId: sub.id, status: 'pending' });
+  } catch (e) { inboxErr(res, next, e); }
 });
 
 // ------------------------------------------------------------------ agenda (Google)

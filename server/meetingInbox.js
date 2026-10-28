@@ -282,86 +282,104 @@ async function processSubmission(submissionId) {
   }
 }
 
+// ---------- operações compartilhadas entre a tela (cookie) e a API de conectividade (chave `transcripts`, §116d) ----------
+export class InboxError extends Error { constructor(status, message) { super(message); this.status = status; } }
+const AI_OFF = 'Processamento por IA não configurado nesse ambiente (falta ANTHROPIC_API_KEY).';
+
+async function loadAccessibleProject(user, projectId) {
+  const { rows } = await pool.query('SELECT id, data, org_id FROM projects WHERE id=$1', [projectId]);
+  if (!rows[0]) throw new InboxError(404, 'Empresa não encontrada.');
+  if (!canAccessProject(user, rows[0].data, rows[0].org_id)) throw new InboxError(403, 'Sem acesso a essa empresa.');
+  return rows[0];
+}
+
+// Cria o envio e dispara a RENATA (fire-and-forget). `dedupe` (API): o MESMO texto na mesma empresa, já em fila/processando/concluído, devolve o envio existente
+// em vez de gastar outra chamada de IA e criar reunião duplicada. `via` entra no log da empresa ("enviou … (via chave de API)").
+export async function createSubmission({ user, projectId, transcript, date, time, dedupe = false, via = '' }) {
+  if (!anthropicConfigured()) throw new InboxError(503, AI_OFF);
+  const text = (transcript || '').trim();
+  if (!projectId || !text) throw new InboxError(400, 'Informe projectId e transcript.');
+  const project = await loadAccessibleProject(user, projectId);
+  if (dedupe) {
+    const { rows: dup } = await pool.query(
+      `SELECT id, status, meeting_id FROM meeting_submissions WHERE project_id=$1 AND md5(transcript)=md5($2) AND status IN ('pending','processing','done') ORDER BY created_at DESC LIMIT 1`,
+      [projectId, text]);
+    if (dup[0]) return { submissionId: dup[0].id, status: dup[0].status, meetingId: dup[0].meeting_id || null, duplicate: true };
+  }
+  const id = uid('msub');
+  await pool.query(
+    `INSERT INTO meeting_submissions (id, org_id, project_id, submitted_by, transcript, manual_date, manual_time)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [id, project.org_id, projectId, user.id, text, date || '', time || ''],
+  );
+  // Aguarda o log ANTES de disparar o processamento: os dois gravam o `data` inteiro do projeto (ler, alterar, gravar) e, em paralelo, um apagava a
+  // linha do outro (achado no teste de ponta a ponta de 2026-10-28: a linha "enviou uma transcrição" sumia do log da empresa).
+  await appendProjectLog(projectId, `${user.name} enviou uma transcrição de reunião pra processamento por IA${via ? ` (${via})` : ''}`, user.name)
+    .catch((e) => console.error('Falha ao registrar log de envio de transcrição', e.message));
+  // Não segura a resposta HTTP na chamada pra Claude API (pode levar dezenas de segundos numa transcrição grande) — mesmo padrão
+  // fire-and-forget do sync com Google Calendar.
+  processSubmission(id).catch((e) => console.error('Falha fire-and-forget ao processar submissão', e.message));
+  return { submissionId: id, status: 'pending', meetingId: null, duplicate: false };
+}
+
+const subView = (r) => ({
+  id: r.id, status: r.status, errorMessage: friendlyAiError(r.error_message), meetingId: r.meeting_id,
+  createdAt: r.created_at, processedAt: r.processed_at, submittedByName: r.submitted_by_name,
+});
+
+// Lista os últimos 50 envios da empresa (já com a auto-recuperação de envio órfão, ver comentário abaixo).
+export async function listSubmissions(user, projectId) {
+  await loadAccessibleProject(user, projectId);
+  // Auto-recuperação de submissão órfã (2026-09-16, bug real relatado pelo Rafael: transcrição travada em "Processando..." pra sempre) —
+  // o processamento é fire-and-forget (ver processSubmission acima); se o servidor reiniciar no meio (ex.: um deploy) o processo que estava
+  // rodando simplesmente morre, e como nada mais toca aquela linha, ela fica em 'processing' pra sempre. Nenhuma extração real (mesmo
+  // transcrição grande) deveria levar mais que uns poucos minutos, então uma 'processing' mais velha que isso é tratada como órfã e vira
+  // 'failed' automaticamente — o que já reaproveita o botão "Tentar novamente" da tela de Reuniões.
+  await pool.query(
+    `UPDATE meeting_submissions
+     SET status='failed', error_message='Processamento interrompido (provável reinício do servidor) — clique em tentar novamente.', processed_at=now()
+     WHERE project_id=$1 AND status='processing' AND COALESCE(processed_at, created_at) < now() - interval '5 minutes'`,
+    [projectId],
+  ).catch((e) => console.error('Falha ao recuperar submissões travadas', e.message));
+  const { rows } = await pool.query(
+    `SELECT ms.id, ms.status, ms.error_message, ms.meeting_id, ms.created_at, ms.processed_at, u.name AS submitted_by_name
+     FROM meeting_submissions ms JOIN users u ON u.id = ms.submitted_by
+     WHERE ms.project_id=$1 ORDER BY ms.created_at DESC LIMIT 50`,
+    [projectId],
+  );
+  return rows.map(subView);
+}
+
+// Reprocessa um envio (falhou, ou o servidor reiniciou no meio).
+export async function reprocessSubmission({ user, submissionId, projectId = null }) {
+  const { rows } = await pool.query(
+    `SELECT ms.project_id, ms.status, p.data AS project_data, p.org_id AS project_org_id
+     FROM meeting_submissions ms JOIN projects p ON p.id = ms.project_id WHERE ms.id=$1`, [submissionId]);
+  if (!rows[0] || (projectId && rows[0].project_id !== projectId)) throw new InboxError(404, 'Envio não encontrado.');
+  if (!canAccessProject(user, rows[0].project_data, rows[0].project_org_id)) throw new InboxError(403, 'Sem acesso a essa empresa.');
+  if (!anthropicConfigured()) throw new InboxError(503, AI_OFF);
+  await pool.query(`UPDATE meeting_submissions SET status='pending', error_message='' WHERE id=$1`, [submissionId]);
+  appendProjectLog(rows[0].project_id, `${user.name} tentou reprocessar uma transcrição de reunião que tinha falhado`, user.name)
+    .catch((e) => console.error('Falha ao registrar log de nova tentativa de transcrição', e.message));
+  processSubmission(submissionId).catch((e) => console.error('Falha fire-and-forget ao reprocessar submissão', e.message));
+}
+
+const sendErr = (res, next, e) => (e instanceof InboxError ? res.status(e.status).json({ message: e.message }) : next(e));
+
 router.post('/', requireAuth, async (req, res, next) => {
   try {
-    if (!anthropicConfigured()) {
-      return res.status(503).json({ message: 'Processamento por IA não configurado nesse ambiente (falta ANTHROPIC_API_KEY).' });
-    }
     const { projectId, transcript, date, time } = req.body || {};
-    const text = (transcript || '').trim();
-    if (!projectId || !text) {
-      return res.status(400).json({ message: 'Informe projectId e transcript.' });
-    }
-    const { rows } = await pool.query('SELECT id, data, org_id FROM projects WHERE id=$1', [projectId]);
-    if (!rows[0]) return res.status(404).json({ message: 'Empresa não encontrada.' });
-    if (!canAccessProject(req.user, rows[0].data, rows[0].org_id)) {
-      return res.status(403).json({ message: 'Sem acesso a essa empresa.' });
-    }
-
-    const id = uid('msub');
-    await pool.query(
-      `INSERT INTO meeting_submissions (id, org_id, project_id, submitted_by, transcript, manual_date, manual_time)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [id, rows[0].org_id, projectId, req.user.id, text, date || '', time || ''],
-    );
-    appendProjectLog(projectId, `${req.user.name} enviou uma transcrição de reunião pra processamento por IA`, req.user.name)
-      .catch((e) => console.error('Falha ao registrar log de envio de transcrição', e.message));
-
-    // Não segura a resposta HTTP na chamada pra Claude API (pode levar
-    // dezenas de segundos numa transcrição grande) — mesmo padrão
-    // fire-and-forget do sync com Google Calendar.
-    processSubmission(id).catch((e) => console.error('Falha fire-and-forget ao processar submissão', e.message));
-
-    res.status(202).json({ submissionId: id });
-  } catch (e) { next(e); }
+    const r = await createSubmission({ user: req.user, projectId, transcript, date, time });
+    res.status(202).json({ submissionId: r.submissionId });
+  } catch (e) { sendErr(res, next, e); }
 });
 
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const { projectId } = req.query;
     if (!projectId) return res.status(400).json({ message: 'Informe projectId.' });
-    const { rows: projRows } = await pool.query('SELECT data, org_id FROM projects WHERE id=$1', [projectId]);
-    if (!projRows[0]) return res.status(404).json({ message: 'Empresa não encontrada.' });
-    if (!canAccessProject(req.user, projRows[0].data, projRows[0].org_id)) {
-      return res.status(403).json({ message: 'Sem acesso a essa empresa.' });
-    }
-    // Auto-recuperação de submissão órfã (2026-09-16, bug real relatado
-    // pelo Rafael: transcrição travada em "Processando..." pra sempre) —
-    // o processamento é fire-and-forget (ver processSubmission acima); se
-    // o servidor reiniciar no meio (ex.: um deploy) o processo que estava
-    // rodando simplesmente morre, e como nada mais toca aquela linha, ela
-    // fica em 'processing' pra sempre — sem isso, a única forma de
-    // recuperar seria alguém rodar um UPDATE manual direto no banco de
-    // produção. Nenhuma extração real (mesmo transcrição grande) deveria
-    // legitimamente levar mais que uns poucos minutos, então uma
-    // 'processing' mais velha que isso é tratada como órfã e vira
-    // 'failed' automaticamente — o que já reaproveita o botão "Tentar
-    // novamente" que a tela de Reuniões já mostra pra status='failed',
-    // sem precisar de nenhuma tela/rota nova.
-    await pool.query(
-      `UPDATE meeting_submissions
-       SET status='failed', error_message='Processamento interrompido (provável reinício do servidor) — clique em tentar novamente.', processed_at=now()
-       WHERE project_id=$1 AND status='processing' AND COALESCE(processed_at, created_at) < now() - interval '5 minutes'`,
-      [projectId],
-    ).catch((e) => console.error('Falha ao recuperar submissões travadas', e.message));
-    const { rows } = await pool.query(
-      `SELECT ms.id, ms.status, ms.error_message, ms.meeting_id, ms.created_at, ms.processed_at, u.name AS submitted_by_name
-       FROM meeting_submissions ms JOIN users u ON u.id = ms.submitted_by
-       WHERE ms.project_id=$1 ORDER BY ms.created_at DESC LIMIT 50`,
-      [projectId],
-    );
-    res.json({
-      submissions: rows.map((r) => ({
-        id: r.id,
-        status: r.status,
-        errorMessage: friendlyAiError(r.error_message),
-        meetingId: r.meeting_id,
-        createdAt: r.created_at,
-        processedAt: r.processed_at,
-        submittedByName: r.submitted_by_name,
-      })),
-    });
-  } catch (e) { next(e); }
+    res.json({ submissions: await listSubmissions(req.user, projectId) });
+  } catch (e) { sendErr(res, next, e); }
 });
 
 // Reprocessa de uma vez todas as transcrições com falha de uma empresa
@@ -401,24 +419,7 @@ router.post('/retry-failed', requireAuth, async (req, res, next) => {
 
 router.post('/:id/retry', requireAuth, async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { rows } = await pool.query(
-      `SELECT ms.project_id, ms.status, p.data AS project_data, p.org_id AS project_org_id
-       FROM meeting_submissions ms JOIN projects p ON p.id = ms.project_id
-       WHERE ms.id=$1`,
-      [id],
-    );
-    if (!rows[0]) return res.status(404).json({ message: 'Envio não encontrado.' });
-    if (!canAccessProject(req.user, rows[0].project_data, rows[0].project_org_id)) {
-      return res.status(403).json({ message: 'Sem acesso a essa empresa.' });
-    }
-    if (!anthropicConfigured()) {
-      return res.status(503).json({ message: 'Processamento por IA não configurado nesse ambiente (falta ANTHROPIC_API_KEY).' });
-    }
-    await pool.query(`UPDATE meeting_submissions SET status='pending', error_message='' WHERE id=$1`, [id]);
-    appendProjectLog(rows[0].project_id, `${req.user.name} tentou reprocessar uma transcrição de reunião que tinha falhado`, req.user.name)
-      .catch((e) => console.error('Falha ao registrar log de nova tentativa de transcrição', e.message));
-    processSubmission(id).catch((e) => console.error('Falha fire-and-forget ao reprocessar submissão', e.message));
+    await reprocessSubmission({ user: req.user, submissionId: req.params.id });
     res.json({ message: 'Reprocessando.' });
-  } catch (e) { next(e); }
+  } catch (e) { sendErr(res, next, e); }
 });
