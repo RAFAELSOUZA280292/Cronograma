@@ -15,18 +15,19 @@ import { canAccessProject } from './routes.js';
 import { syncCardEvents } from './personalActivity.js';
 import { getConnectionStatus, listEvents } from './googleCalendar.js';
 import { todayInSp } from './widgetSummary.js';
-import { syncProjectMemoryFromDiff } from './memoryIngest.js';
+import { syncProjectMemoryFromDiff, reindexMeetingMemory } from './memoryIngest.js';
 import { originOf, setActor } from './projectAudit.js';
 import { createCrmRouter } from './crm/routes.js';
 import { crmCan } from './crm/permissions.js';
 import { InboxError, createSubmission, listSubmissions, reprocessSubmission } from './meetingInbox.js';
+import { applyMeetingEdit, isISODay as isMeetingDay } from './meetingEdit.js';
 
 export const router = Router();
 
 const PREFIX = 'pxk_';
-export const SCOPES = { read: 'Só leitura', read_create: 'Ler e criar atividades', read_write: 'Ler, criar atividades e ajustar o cronograma de empresas', crm_operate: 'Operar o CRM como Claude Code (criar, editar, mover, excluir e registrar), além de ler', transcripts: 'Ler e enviar transcrições de reunião para a RENATA do painel processar (não cria atividade solta nem ajusta cronograma)' };
+export const SCOPES = { read: 'Só leitura', read_create: 'Ler e criar atividades', read_write: 'Ler, criar atividades e ajustar o cronograma de empresas', crm_operate: 'Operar o CRM como Claude Code (criar, editar, mover, excluir e registrar), além de ler', transcripts: 'Ler e enviar transcrições de reunião para a RENATA do painel processar (não cria atividade solta nem ajusta cronograma)', meetings_edit: 'Ler, enviar transcrições e corrigir reuniões já registradas (título, resumo, decisões, participantes e tarefas; não ajusta cronograma nem opera o CRM)' };
 // crm_operate só abre /api/connect/crm; nas demais rotas vale como leitura (rank 0) — nunca herda criar atividade nem ajustar cronograma.
-const SCOPE_RANK = { read: 0, read_create: 1, read_write: 2, crm_operate: 0, transcripts: 0 };
+const SCOPE_RANK = { read: 0, read_create: 1, read_write: 2, crm_operate: 0, transcripts: 0, meetings_edit: 0 };
 const VALID_DAYS = [30, 90, 180, 365];
 const MAX_ACTIVE_TOKENS = 10;
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
@@ -52,6 +53,7 @@ router.post('/tokens', requireAuth, async (req, res, next) => {
     if (!scope) return res.status(400).json({ message: 'Escolha o que o token pode fazer.' });
     if (scope === 'read_write' && !(req.user.isSuperAdmin || req.user.role === 'master')) return res.status(403).json({ message: 'Só administradores geram uma chave que ajusta o cronograma de empresas.' });
     if (scope === 'transcripts' && !req.user.companiesAccess) return res.status(403).json({ message: 'Só quem tem acesso a Empresas gera uma chave que envia transcrições.' });
+    if (scope === 'meetings_edit' && !req.user.companiesAccess) return res.status(403).json({ message: 'Só quem tem acesso a Empresas gera uma chave que corrige reuniões.' });
     if (scope === 'crm_operate' && !crmCan(req.user, 'admin')) return res.status(403).json({ message: 'Só administrador do CRM gera uma chave que opera o CRM.' });
     const { rows: active } = await pool.query(`SELECT count(*)::int n FROM api_tokens WHERE user_id=$1 AND revoked_at IS NULL AND expires_at > now()`, [req.user.id]);
     if (active[0].n >= MAX_ACTIVE_TOKENS) return res.status(400).json({ message: `Você já tem ${MAX_ACTIVE_TOKENS} tokens ativos. Revogue algum antes de criar outro.` });
@@ -93,11 +95,14 @@ export const ENDPOINTS = [
   { method: 'POST', path: '/api/connect/activities', scope: 'read_create', what: 'Cria uma atividade no quadro pessoal. Corpo: title (obrigatório), desc, dueDate (AAAA-MM-DD), priority (urgente|alta|media|baixa), board, column (nome ou id), ref (chave de idempotência).' },
   { method: 'GET', path: '/api/connect/companies', scope: 'read', what: 'Empresas (cronogramas) que o dono do token pode ver. Query: q=texto.' },
   { method: 'GET', path: '/api/connect/companies/:id', scope: 'read', what: 'Uma empresa: equipe, fases, atividades e lista de reuniões (sem transcrição).' },
-  { method: 'GET', path: '/api/connect/companies/:id/meetings/:meetingId', scope: 'read', what: 'Uma reunião: resumo, decisões, itens de ação, participantes. Query: transcript=1 inclui a transcrição (até 60.000 caracteres).' },
+  { method: 'GET', path: '/api/connect/companies/:id/meetings/:meetingId', scope: 'read', what: 'Uma reunião: resumo, decisões, itens de ação (com id, vínculo sugerido/confirmado com o cronograma em activityLink), participantes. Query: transcript=1 inclui a transcrição (até 60.000 caracteres).' },
   { method: 'POST', path: '/api/connect/companies/:id/plan', scope: 'read_write', what: 'Ajusta o cronograma de uma empresa (só administrador). Corpo: ops (até 200: activity.set, sub.set, sub.add (position top|end, kind, guide, pautaDe), sub.move, activity.add, pauta.link, activity.delete e sub.delete (exclusão com volta pela lixeira; activity.restore e sub.restore desfazem)), dryRun (padrão true: só mostra), note. Tudo ou nada, nada some de verdade, grava no Log da empresa.' },
   { method: 'POST', path: '/api/connect/companies/:id/transcripts', scope: 'transcripts', what: 'Envia a transcrição de uma reunião para a RENATA do painel processar (igual ao botão "Enviar transcrição" da aba Reuniões). Corpo: transcript (obrigatório, texto bruto completo), date (AAAA-MM-DD), time (HH:MM). Responde 202 com submissionId; o MESMO texto não é processado duas vezes (duplicate:true). Limite: 30 envios por hora por chave.' },
   { method: 'GET', path: '/api/connect/companies/:id/transcripts[/:submissionId]', scope: 'transcripts', what: 'Situação dos envios da empresa (pending, processing, done, failed). Quando done, traz meetingId e um resumo da reunião criada. Consulte a cada ~5 s.' },
   { method: 'POST', path: '/api/connect/companies/:id/transcripts/:submissionId/retry', scope: 'transcripts', what: 'Reprocessa um envio que falhou.' },
+  { method: 'PATCH', path: '/api/connect/companies/:id/meetings/:meetingId', scope: 'meetings_edit', what: 'Corrige uma reunião já registrada. Corpo (só estes campos; qualquer outro dá 400): title, date, time, summary, decisions, participants (lista inteira ou {add,remove,rename}), actionItems (operações: {op:"set",id,set:{title,responsible,kind,dueDate,area,owner}}, {op:"add",title,…}, {op:"delete",id}, {op:"restore",id}), dryRun (true = mostra antes e depois sem gravar), note. Tudo ou nada; não mexe no vínculo tarefa→atividade; grava no Log da empresa e no histórico de correções; responde com editId e `undo` (corpo que desfaz).' },
+  { method: 'GET', path: '/api/connect/companies/:id/meetings/:meetingId/edits', scope: 'meetings_edit', what: 'Histórico das correções da reunião (quem, quando, antes e depois, se já foi desfeita).' },
+  { method: 'POST', path: '/api/connect/companies/:id/meetings/:meetingId/edits/:editId/undo', scope: 'meetings_edit', what: 'Desfaz uma correção (corpo opcional: dryRun, note). Dá 409 se já foi desfeita ou se a reunião mudou de forma que não dá para voltar.' },
   { method: '*', path: '/api/connect/crm/…', scope: 'crm_operate', what: 'O CRM inteiro (mesmas rotas e regras de /api/crm: empresas, contatos, negócios, atividades, notas, produtos, funis, cadências), pelo perfil de administrador do dono da chave. Toda gravação fica registrada como "Claude Code (por <dono>)". Fora: escrita da migração do PipeRun.' },
   { method: 'GET', path: '/api/connect/agenda', scope: 'read', what: 'Compromissos do Google Calendar do dono. Query: days=1..14 (padrão 7). Só os aceitos ou próprios.' },
 ];
@@ -362,6 +367,18 @@ router.get('/companies/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Item de ação como a API devolve: com o `id` (para apontar na correção) e o vínculo com o cronograma (`activityLink`: situação, atividade sugerida/confirmada, confiança e motivo).
+function itemOut(data, a) {
+  const acts = alive(data.activities);
+  const title = (id) => (acts.find((x) => x.id === id) || {}).title || '';
+  const l = a.activityLink && typeof a.activityLink === 'object' ? a.activityLink : null;
+  return {
+    id: a.id, title: clip(a.title, 300), status: a.status || '', dueDate: a.dueDate || '', responsible: a.responsible || '', responsibleStatus: a.responsibleStatus || '', owner: a.owner || '', kind: a.kind || 'tarefa', area: a.area || '',
+    activityId: a.activityId || '', activityTitle: a.activityId ? title(a.activityId) : '',
+    activityLink: l ? { status: l.status || '', suggestedId: l.suggestedId || '', suggestedTitle: l.suggestedId ? title(l.suggestedId) : '', confidence: typeof l.confidence === 'number' ? l.confidence : null, reason: clip(l.reason, 300) } : null,
+  };
+}
+
 router.get('/companies/:id/meetings/:meetingId', async (req, res, next) => {
   try {
     const r = await loadOne(req, res);
@@ -371,7 +388,7 @@ router.get('/companies/:id/meetings/:meetingId', async (req, res, next) => {
     const out = {
       id: m.id, date: m.date || '', title: m.title || '', company: companyName(r.data), participants: Array.isArray(m.participants) ? m.participants : [],
       summary: clip(m.summary, 20000), decisions: clip(m.decisions, 20000),
-      actionItems: alive(m.actionItems).map((a) => ({ id: a.id, title: clip(a.title, 300), status: a.status || '', dueDate: a.dueDate || '', responsible: a.responsible || '', owner: a.owner || '', kind: a.kind || 'tarefa', area: a.area || '' })),
+      time: m.time || '', actionItems: alive(m.actionItems).map((a) => itemOut(r.data, a)),
     };
     if (req.query.transcript === '1') {
       const t = typeof m.transcript === 'string' ? m.transcript : '';
@@ -388,7 +405,7 @@ router.get('/companies/:id/meetings/:meetingId', async (req, res, next) => {
 // e acompanha a situação. Escopo `transcripts` (ou `read_write`); a chave age como o dono: só empresas que ele pode ver.
 const transcriptsLimit = new Map();
 function needTranscripts(req, res, next) {
-  if (['transcripts', 'read_write'].includes(req.apiToken.scope)) return next();
+  if (['transcripts', 'meetings_edit', 'read_write'].includes(req.apiToken.scope)) return next();
   return res.status(403).json({ message: 'Esta chave não envia transcrições. Gere uma chave "Enviar transcrições de reunião" em Meu perfil > Conectar.' });
 }
 const inboxErr = (res, next, e) => (e instanceof InboxError ? res.status(e.status).json({ message: e.message }) : next(e));
@@ -400,7 +417,7 @@ function meetingOut(r, meetingId) {
   return {
     id: m.id, title: m.title || '', date: m.date || '', time: m.time || '', participants: Array.isArray(m.participants) ? m.participants : [],
     summary: clip(m.summary, 20000), decisions: clip(m.decisions, 20000),
-    actionItems: alive(m.actionItems).map((a) => ({ id: a.id, title: clip(a.title, 300), kind: a.kind || 'tarefa', owner: a.owner || '', responsible: a.responsible || '', area: a.area || '', dueDate: a.dueDate || '', status: a.status || '' })),
+    actionItems: alive(m.actionItems).map((a) => itemOut(r.data, a)),
   };
 }
 
@@ -415,7 +432,7 @@ router.post('/companies/:id/transcripts', needTranscripts, async (req, res, next
     if (transcript.length > MAX_TRANSCRIPT_CHARS) return res.status(413).json({ message: `A transcrição passa de ${MAX_TRANSCRIPT_CHARS.toLocaleString('pt-BR')} caracteres. Envie em partes por reunião (uma reunião por envio).` });
     const date = b.date == null || b.date === '' ? '' : String(b.date);
     const time = b.time == null || b.time === '' ? '' : String(b.time);
-    if (date && !(/^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(`${date}T12:00:00Z`)))) return res.status(400).json({ message: 'date deve ser AAAA-MM-DD (ex.: 2026-10-28).' });
+    if (date && !isMeetingDay(date)) return res.status(400).json({ message: 'date deve ser AAAA-MM-DD (ex.: 2026-10-28).' });
     if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return res.status(400).json({ message: 'time deve ser HH:MM em 24 h (ex.: 14:30).' });
     // cada envio é uma chamada de IA paga: limite por chave (duplicado devolvido não conta)
     const existing = await pool.query(`SELECT 1 FROM meeting_submissions WHERE project_id=$1 AND md5(transcript)=md5($2) AND status IN ('pending','processing','done') LIMIT 1`, [r.id, transcript]);
@@ -462,6 +479,92 @@ router.post('/companies/:id/transcripts/:submissionId/retry', needTranscripts, a
     await reprocessSubmission({ user: req.apiUser, submissionId: sub.id, projectId: r.id });
     res.status(202).json({ submissionId: sub.id, status: 'pending' });
   } catch (e) { inboxErr(res, next, e); }
+});
+
+// ------------------------------------------------------------------ correção de reunião registrada (§116e, escopo meetings_edit)
+// A IA externa corrige o que a RENATA registrou (responsável errado, título impreciso, decisão mal formulada) com o mesmo cuidado das outras escritas: só campos da lista,
+// tudo-ou-nada numa transação com FOR UPDATE, `dryRun` mostra antes e depois sem gravar, Log da empresa + api_token_actions + `meeting_edits` (antes/depois e corpo que desfaz;
+// o `project_versions` só versiona cronograma, não reunião) e a memória da RENATA daquela reunião é reindexada. O vínculo tarefa→atividade nunca é alterado por aqui.
+const MAX_EDIT_PER_HOUR = 200;
+const editLimit = new Map();
+function needMeetingsEdit(req, res, next) {
+  if (req.apiToken.scope !== 'meetings_edit') return res.status(403).json({ message: 'Esta chave não corrige reuniões. Gere uma chave "Corrigir reuniões registradas" em Meu perfil > Conectar.' });
+  if (!req.apiUser.companiesAccess) return res.status(403).json({ message: 'O dono do token não tem acesso a Empresas.' });
+  next();
+}
+const claudeName = (u) => { const owner = u.name || u.username || ''; return /^claude code$/i.test(String(owner).trim()) ? 'Claude Code' : `Claude Code (por ${owner})`; };
+
+// `undoOf` = linha de meeting_edits que esta chamada desfaz (a correção original fica marcada como desfeita na mesma transação).
+async function runMeetingEdit(req, res, next, body, undoOf) {
+  const dryRun = body.dryRun === true;
+  const note = clip(body.note, 300);
+  if (!dryRun && bump(editLimit, req.apiHash, 3600 * 1000, MAX_EDIT_PER_HOUR)) return res.status(429).json({ message: `Limite de ${MAX_EDIT_PER_HOUR} correções por hora nesta chave.` });
+  const client = await pool.connect();
+  let committed = null;
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT id, org_id, data FROM projects WHERE id=$1 FOR UPDATE', [req.params.id]);
+    const r = rows[0];
+    if (!r || r.org_id !== req.apiUser.orgId || !canAccessProject(req.apiUser, r.data, r.org_id)) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Empresa não encontrada.' }); }
+    let toApply = body;
+    if (undoOf) {
+      const e = (await client.query('SELECT * FROM meeting_edits WHERE id=$1 AND project_id=$2 AND meeting_id=$3 FOR UPDATE', [undoOf, r.id, req.params.meetingId])).rows[0];
+      if (!e) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Correção não encontrada.' }); }
+      if (e.undone_at) { await client.query('ROLLBACK'); return res.status(409).json({ message: 'Esta correção já foi desfeita.' }); }
+      toApply = { ...(e.undo || {}), ...(dryRun ? { dryRun: true } : {}), note: note || `Desfaz a correção ${e.id}` };
+    }
+    const who = claudeName(req.apiUser);
+    const out = applyMeetingEdit(r.data, req.params.meetingId, toApply, who, { fromUndo: !!undoOf });
+    if (out.notFound) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Reunião não encontrada.' }); }
+    if (out.errors) { await client.query('ROLLBACK'); return res.status(undoOf ? 409 : 400).json({ message: undoOf ? 'Não deu para desfazer: a reunião mudou desde a correção. Nada foi gravado.' : 'Nada foi gravado: há campos inválidos.', errors: out.errors }); }
+    const touched = [...new Set(out.changes.map((c) => (c.target === 'meeting' ? c.field : 'actionItems')))];
+    if (dryRun) {
+      await client.query('ROLLBACK');
+      return res.json({ dryRun: true, applied: 0, wouldChange: out.changes.length, changes: out.changes });
+    }
+    const editId = uid('medit');
+    const text = undoOf ? `desfez a correção ${undoOf}` : 'corrigida pela API';
+    const entry = { ts: new Date().toISOString(), action: `Reunião "${clip(out.meeting.title, 80)}" ${text} (chave "${clip(req.apiToken.name, 40)}"): ${touched.join(', ')} — ${out.changes.length} alteração(ões). ${toApply.note || ''}`.trim(), user: who, activityId: null };
+    out.next.log = [entry, ...(Array.isArray(out.next.log) ? out.next.log : [])].slice(0, 300);
+    await client.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(out.next), r.id]);
+    await client.query('INSERT INTO meeting_edits (id, org_id, project_id, meeting_id, token_id, actor_name, note, changes, undo) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+      [editId, r.org_id, r.id, req.params.meetingId, req.apiToken.id, who, clip(toApply.note, 300), JSON.stringify(out.changes), JSON.stringify(out.undo)]);
+    if (undoOf) await client.query('UPDATE meeting_edits SET undone_at=now() WHERE id=$1', [undoOf]);
+    await client.query('COMMIT');
+    committed = { r, out };
+    res.json({ dryRun: false, editId, applied: out.changes.length, changes: out.changes, undoWith: `POST /api/connect/companies/${r.id}/meetings/${req.params.meetingId}/edits/${editId}/undo`, meeting: meetingOut({ data: out.next }, req.params.meetingId), memory: 'reindexando' });
+  } catch (e) { try { await client.query('ROLLBACK'); } catch { /* conexão já encerrada */ } next(e); } finally { client.release(); }
+  if (committed) {
+    const { r, out } = committed;
+    pool.query('INSERT INTO api_token_actions (id, org_id, token_id, user_id, method, path, status) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+      [uid('act'), r.org_id || null, req.apiToken.id, req.apiUser.id, req.method, clip(String(req.originalUrl || '').split('?')[0], 200), 200]).catch(() => {});
+    reindexMeetingMemory(pool, r.org_id, r.id, out.meeting).catch((e) => console.error('Falha ao reindexar memória após correção de reunião por API', e.message));
+  }
+}
+
+const jsonBody = (req) => (req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : null);
+const badControl = (b) => (b.dryRun !== undefined && typeof b.dryRun !== 'boolean' ? 'dryRun deve ser true ou false.' : b.note !== undefined && typeof b.note !== 'string' ? 'note deve ser texto.' : '');
+
+router.patch('/companies/:id/meetings/:meetingId', needMeetingsEdit, async (req, res, next) => {
+  const body = jsonBody(req);
+  if (!body) return res.status(400).json({ message: 'Envie um objeto JSON com os campos a corrigir.' });
+  const bad = badControl(body); if (bad) return res.status(400).json({ message: bad });
+  runMeetingEdit(req, res, next, body, null);
+});
+
+router.get('/companies/:id/meetings/:meetingId/edits', needMeetingsEdit, async (req, res, next) => {
+  try {
+    const r = await loadOne(req, res);
+    if (!r) return;
+    const { rows } = await pool.query('SELECT id, created_at, actor_name, note, changes, undone_at FROM meeting_edits WHERE project_id=$1 AND meeting_id=$2 ORDER BY created_at DESC LIMIT 50', [r.id, req.params.meetingId]);
+    res.json({ edits: rows.map((e) => ({ id: e.id, at: e.created_at, by: e.actor_name, note: e.note, changes: e.changes, undone: !!e.undone_at })) });
+  } catch (e) { next(e); }
+});
+
+router.post('/companies/:id/meetings/:meetingId/edits/:editId/undo', needMeetingsEdit, async (req, res, next) => {
+  const body = jsonBody(req) || {};
+  const bad = badControl(body); if (bad) return res.status(400).json({ message: bad });
+  runMeetingEdit(req, res, next, { dryRun: body.dryRun, note: body.note }, req.params.editId);
 });
 
 // ------------------------------------------------------------------ agenda (Google)

@@ -32,6 +32,7 @@ export PRICETAX_TOKEN="<a chave pxk_… que o Rafael entregou — não escreva e
 
 - Toda chamada leva `-H "Authorization: Bearer $PRICETAX_TOKEN"`. **Nunca** ponha a chave na URL.
 - A chave só enxerga **as empresas que o dono dela pode ver**. Ela não cria atividade solta, não mexe em cronograma e não opera o CRM (se tentar, recebe 403 — não procure contorno).
+- **Duas chaves possíveis.** "Enviar transcrições de reunião" (`"scope":"transcripts"`) lê e envia transcrições. "Corrigir reuniões registradas" (`"scope":"meetings_edit"`) faz tudo isso **e também** corrige uma reunião já registrada (Passo 7b). Só use o Passo 7b se a sua chave for `meetings_edit`; com a outra, o `PATCH` dá 403.
 - Limites: 120 requisições por minuto e **30 transcrições por hora** por chave. Cada transcrição é uma chamada de IA paga: **só envie o que o Rafael pediu**, uma reunião por vez.
 
 **Primeiro passo: confirmar a conexão.**
@@ -40,7 +41,7 @@ export PRICETAX_TOKEN="<a chave pxk_… que o Rafael entregou — não escreva e
 curl -s "$PRICETAX_URL/api/connect/me" -H "Authorization: Bearer $PRICETAX_TOKEN"
 ```
 
-Esperado: JSON com o nome do dono, `"scope":"transcripts"` e a validade. Se vier 401, a chave está errada, revogada ou vencida: **pare e avise o Rafael**.
+Esperado: JSON com o nome do dono, `"scope":"transcripts"` (ou `"meetings_edit"`) e a validade. Se vier 401, a chave está errada, revogada ou vencida: **pare e avise o Rafael**.
 
 ---
 
@@ -142,16 +143,55 @@ Com `status: "done"` a resposta traz `meeting`:
   "meeting": { "id": "mtg-xyz", "title": "…", "date": "2026-10-28", "time": "10:00",
     "participants": ["…"], "summary": "…", "decisions": "…",
     "actionItems": [ { "id": "mai-…", "title": "…", "kind": "tarefa|decisao|risco|pendencia",
-                       "owner": "pricetax|cliente", "responsible": "…", "area": "Financeiro", "dueDate": "2026-11-04", "status": "nao-iniciado" } ] } }
+                       "owner": "pricetax|cliente", "responsible": "…", "area": "Financeiro", "dueDate": "2026-11-04", "status": "nao-iniciado",
+                       "activityId": "", "activityLink": { "status": "suggested|auto|confirmed|none", "suggestedId": "act-…", "suggestedTitle": "…", "confidence": 0.7, "reason": "…" } } ] } }
 ```
 
-Confira, sem alterar nada: a **data e o horário** são os que você informou? A **empresa** é a certa? Há **participantes**, **resumo** e **próximos passos** (uma reunião longa sem nenhum próximo passo merece um aviso)? Se algo estiver errado, **não tente corrigir por outra rota**: relate ao Rafael, que ajusta na tela (aba Reuniões da empresa).
+`activityLink` é a sugestão da RENATA de qual atividade do cronograma a tarefa cumpre (`null` se não houve sugestão). Quem confirma é uma pessoa, na tela; você nunca altera esse vínculo.
+
+Confira, sem alterar nada: a **data e o horário** são os que você informou? A **empresa** é a certa? Há **participantes**, **resumo** e **próximos passos** (uma reunião longa sem nenhum próximo passo merece um aviso)? Se algo estiver errado, **não tente corrigir por outra rota**: com chave `meetings_edit`, corrija como no Passo 7b; com a chave de transcrições, relate ao Rafael, que ajusta na tela (aba Reuniões da empresa).
 
 Se precisar ler a reunião completa de novo (por exemplo, com a transcrição):
 
 ```bash
 curl -s "$PRICETAX_URL/api/connect/companies/{id}/meetings/{meetingId}?transcript=1" -H "Authorization: Bearer $PRICETAX_TOKEN"
 ```
+
+### Passo 7b — Corrigir o que voltou (só com a chave "Corrigir reuniões registradas")
+
+Use quando o Rafael pedir uma correção (responsável errado, título impreciso, decisão mal formulada, participante com nome trocado). **Corrija só o que ele pediu**; não reescreva o que a RENATA acertou. Leia a reunião antes (Passo 7) para pegar os `id` das tarefas.
+
+```bash
+curl -s -X PATCH "$PRICETAX_URL/api/connect/companies/{id}/meetings/{meetingId}" -H "Authorization: Bearer $PRICETAX_TOKEN" -H "Content-Type: application/json" \
+  --data-binary @/tmp/correcao.json
+```
+
+Corpo (monte o JSON por programa, como no Passo 5). **Só estes campos**; qualquer outro volta 400 e **nada é gravado**:
+
+```json
+{
+  "dryRun": true,
+  "note": "Correção pedida pelo Rafael em 28/10",
+  "title": "Alinhamento do fluxo de caixa — ALCAST",
+  "date": "2026-10-28", "time": "10:00",
+  "summary": "texto corrido", "decisions": "texto corrido",
+  "participants": { "add": ["Maiara Silva"], "remove": ["Fulano que não estava"], "rename": { "Roberto Cassaniga": "Roberto Cassaniga Jr." } },
+  "actionItems": [
+    { "op": "set", "id": "mai-abc1234", "set": { "responsible": "Maiara Silva", "kind": "decisao", "dueDate": "2026-11-04", "area": "Financeiro", "owner": "cliente", "title": "Enviar PMP e PMR por filial" } },
+    { "op": "add", "title": "Confirmar a data do workshop", "responsible": "Rafael Souza", "owner": "pricetax", "kind": "tarefa", "dueDate": "2026-11-05", "area": "Diretoria" },
+    { "op": "delete", "id": "mai-def5678" },
+    { "op": "restore", "id": "mai-def5678" }
+  ]
+}
+```
+
+- `participants` também aceita a **lista inteira** (`["A","B"]`), que substitui a atual. `actionItems` é sempre por **operações**: nunca reenvie a lista toda. `kind` = `tarefa|decisao|risco|pendencia`; `owner` = `pricetax|cliente`; `area` = uma das áreas do painel (Comercial, Compras, Contábil, Controladoria, Diretoria, Financeiro, Fiscal, Jurídico, Logística, RH, TI) ou `""`; datas `AAAA-MM-DD` (ou `""` para limpar), hora `HH:MM`.
+- **Faça sempre primeiro com `"dryRun": true`**: a resposta traz `changes` (cada uma com `before` e `after`) e **não grava**. Confira com o pedido do Rafael e **só então** repita o mesmo corpo sem `dryRun` (ou com `"dryRun": false`).
+- É **tudo ou nada**: se uma operação for inválida, a resposta é 400 com `errors` (cada um com `target` e `message`) e nenhuma é aplicada.
+- `delete` é exclusão lógica (a tarefa some da lista e pode voltar com `restore`). Não existe exclusão definitiva.
+- **O vínculo da tarefa com o cronograma (`activityId`/`activityLink`) não muda por aqui**: é decisão de uma pessoa, na tela.
+- A resposta de uma gravação traz `editId` (e `undoWith`, o caminho que desfaz). **Para desfazer**: `POST {PRICETAX_URL}/api/connect/companies/{id}/meetings/{meetingId}/edits/{editId}/undo` (corpo opcional `{"dryRun": true}`), que dá 409 se a correção já foi desfeita ou se a reunião mudou de modo que não dá para voltar. `GET …/meetings/{meetingId}/edits` lista as correções (quem, quando, antes e depois). Cada correção também vai para o **Log da empresa**, e a memória da RENATA daquela reunião é atualizada.
+- Depois de gravar, leia a reunião de novo (Passo 7) e confirme que ficou como o Rafael pediu.
 
 ### Passo 8 — Relatar ao Rafael
 
@@ -185,11 +225,11 @@ O que você faz por API é o equivalente a: Painel › Empresas › (empresa) �
 | Código | Significado | O que fazer |
 |---|---|---|
 | 401 | Chave ausente, errada, revogada ou vencida | Pare e avise o Rafael |
-| 403 | A chave não envia transcrição / o dono não acessa Empresas | Pare e avise o Rafael |
+| 403 | A chave não envia transcrição (ou não corrige reunião: `PATCH` exige `meetings_edit`) / o dono não acessa Empresas | Pare e avise o Rafael |
 | 404 | Empresa não encontrada **ou fora do acesso do dono** | Releia a lista de empresas; pergunte ao Rafael |
-| 400 | Dado inválido (a mensagem diz o quê: `date`, `time`, texto curto…) | Corrija e reenvie |
+| 400 | Dado inválido (a mensagem diz o quê: `date`, `time`, texto curto…; no `PATCH`, `errors` lista cada campo/operação e **nada foi gravado**) | Corrija e reenvie |
 | 413 | Transcrição acima de 400.000 caracteres | Avise o Rafael; não corte por conta própria |
-| 429 | Limite (120/min ou 30 transcrições/hora) | Espere e continue |
+| 429 | Limite (120/min; 30 transcrições/hora; 200 correções/hora) | Espere e continue |
 | 503 | A IA do painel não está configurada | Avise o Rafael |
 | `failed` (`errorMessage`) | A RENATA não conseguiu processar | Se for "Sem créditos", "Limite de uso", "sobrecarregada" ou "conexão": espere e use `POST …/transcripts/{submissionId}/retry` (até 2 vezes). Se persistir ou for outro erro: avise o Rafael |
 
@@ -214,6 +254,7 @@ curl -s "$PRICETAX_URL/api/connect/companies/{id}/transcripts" -H "Authorization
 - Não enviar para a empresa errada "porque parecia a mais próxima".
 - Não enviar reunião que o Rafael não pediu; não varrer todas as reuniões "por conta própria".
 - Não criar atividades, reuniões ou notas por outras rotas para "ajudar" a RENATA.
+- Não gravar uma correção sem ter feito antes o `dryRun`; não corrigir o que o Rafael não pediu; não tentar mexer no vínculo da tarefa com o cronograma.
 - Não expor a chave (conversa, arquivo, log, URL, commit).
 - Não copiar dados dos clientes para fora do necessário para a tarefa.
 - Não fazer laço sem fim nem consultas em rajada (consulte a cada ~5 s).

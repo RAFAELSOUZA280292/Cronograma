@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { improveTemplate } from './standardPlan.js';
 import { installProjectAudit } from './projectAudit.js';
 import { ensureProjectVersionsSchema } from './projectVersionsSchema.js';
+import { ensureMeetingEditsSchema } from './meetingEditsSchema.js';
 import { ensurePiperunSchema } from './crm/piperun/schema.js';
 import { ensureAutomationSchema } from './crm/automation.js';
 import { ensureCrmGoogleSchema } from './crm/googleSync.js';
@@ -1466,6 +1467,7 @@ export async function initDb() {
   try { await ensurePiperunSchema(pool); } catch (e) { console.error('ERRO: tabelas da migração PipeRun NÃO foram criadas:', e.message); }
   // Histórico de versões do cronograma + gatilhos (§83). Se a DDL falhar, o painel sobe mesmo assim (sem versionamento) e o erro fica no log.
   try { await ensureProjectVersionsSchema(pool); } catch (e) { console.error('ERRO: versionamento do cronograma NÃO foi instalado:', e.message); }
+  try { await ensureMeetingEditsSchema(pool); } catch (e) { console.error('ERRO: histórico de correções de reunião NÃO foi instalado:', e.message); }
 }
 
 // Migração one-shot (Fase 7, 2026-09-11) — copia os aprendizados já

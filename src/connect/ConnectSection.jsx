@@ -91,7 +91,7 @@ export default function ConnectSection({ onAtRiskChange }) {
 
   const baseUrl = window.location.origin;
   const exportLine = fresh ? `export PRICETAX_URL="${baseUrl}"\nexport PRICETAX_TOKEN="${fresh.token}"` : '';
-  const guide = buildGuide({ baseUrl, canCreate: !!fresh && (fresh.scope === 'read_create' || fresh.scope === 'read_write'), canWrite: !!fresh && fresh.scope === 'read_write', canCrm: !!fresh && fresh.scope === 'crm_operate', canTranscripts: !!fresh && (fresh.scope === 'transcripts' || fresh.scope === 'read_write') });
+  const guide = buildGuide({ baseUrl, canCreate: !!fresh && (fresh.scope === 'read_create' || fresh.scope === 'read_write'), canWrite: !!fresh && fresh.scope === 'read_write', canCrm: !!fresh && fresh.scope === 'crm_operate', canTranscripts: !!fresh && ['transcripts', 'meetings_edit', 'read_write'].includes(fresh.scope), canMeetingsEdit: !!fresh && fresh.scope === 'meetings_edit' });
 
   return (
     <div className="cnx">
@@ -122,6 +122,7 @@ export default function ConnectSection({ onAtRiskChange }) {
             <label className={`cnx-opt${scope === 'read_create' ? ' on' : ''}`}><input type="radio" name="cnx-scope" checked={scope === 'read_create'} onChange={() => setScope('read_create')} /><div><b>Ler e criar atividades</b><span>Lê atividades, empresas, reuniões e agenda; cria atividades no seu quadro pessoal. Não edita nem apaga nada existente.</span></div></label>
             <label className={`cnx-opt${scope === 'read_write' ? ' on' : ''}`}><input type="radio" name="cnx-scope" checked={scope === 'read_write'} onChange={() => setScope('read_write')} /><div><b>Ler e ajustar o cronograma das empresas</b><span>Tudo do primeiro item e mais: muda status, datas e subatividades e cria atividades no cronograma de uma empresa, tudo de uma vez ou nada, com registro no Log. Excluir só com volta pela lixeira (nada some de verdade). Só administrador.</span></div></label>
             {canTranscripts && <label className={`cnx-opt${scope === 'transcripts' ? ' on' : ''}`}><input type="radio" name="cnx-scope" checked={scope === 'transcripts'} onChange={() => setScope('transcripts')} /><div><b>Enviar transcrições de reunião</b><span>Lê empresas e reuniões e envia a transcrição de uma reunião para a RENATA do painel processar (participantes, resumo, decisões e atividades), como o botão “Enviar transcrição”. Não cria atividade solta nem ajusta cronograma.</span></div></label>}
+            {canTranscripts && <label className={`cnx-opt${scope === 'meetings_edit' ? ' on' : ''}`}><input type="radio" name="cnx-scope" checked={scope === 'meetings_edit'} onChange={() => setScope('meetings_edit')} /><div><b>Corrigir reuniões registradas</b><span>Tudo da opção anterior (ler e enviar transcrições) e também corrige o que a RENATA registrou numa reunião: título, data, horário, resumo, decisões, participantes e tarefas (responsável, tipo, prazo, área, lado). Cada correção entra no Log da empresa e no histórico de correções, com prévia e desfazer. Não ajusta cronograma nem opera o CRM.</span></div></label>}
             {canCrm && <label className={`cnx-opt${scope === 'crm_operate' ? ' on' : ''}`}><input type="radio" name="cnx-scope" checked={scope === 'crm_operate'} onChange={() => setScope('crm_operate')} /><div><b>Operar o CRM como Claude Code</b><span>Lê tudo e cria, edita, move, exclui e registra no CRM com as mesmas regras da tela. Cada alteração fica registrada como “Claude Code” (com o seu nome, se a chave for sua). Não opera a migração do PipeRun.</span></div></label>}
             <label className={`cnx-opt${scope === 'read' ? ' on' : ''}`}><input type="radio" name="cnx-scope" checked={scope === 'read'} onChange={() => setScope('read')} /><div><b>Só ler</b><span>Consulta tudo acima e não altera nada.</span></div></label>
           </div>
@@ -143,7 +144,7 @@ export default function ConnectSection({ onAtRiskChange }) {
             <div key={t.id} className="cnx-tok">
               <div className="cnx-tok-main">
                 <b>{t.name}</b>
-                <span>{t.scope === 'crm_operate' ? 'Operar o CRM (Claude Code)' : t.scope === 'transcripts' ? 'Enviar transcrições de reunião' : t.scope === 'read_write' ? 'Ler e ajustar cronograma' : t.scope === 'read_create' ? 'Ler e criar atividades' : 'Só leitura'} · {t.expired ? 'vencida em' : 'vence em'} {fmt(t.expires_at)}</span>
+                <span>{t.scope === 'crm_operate' ? 'Operar o CRM (Claude Code)' : t.scope === 'meetings_edit' ? 'Corrigir reuniões registradas' : t.scope === 'transcripts' ? 'Enviar transcrições de reunião' : t.scope === 'read_write' ? 'Ler e ajustar cronograma' : t.scope === 'read_create' ? 'Ler e criar atividades' : 'Só leitura'} · {t.expired ? 'vencida em' : 'vence em'} {fmt(t.expires_at)}</span>
                 <span>{t.last_used_at ? `Último uso: ${fmtTs(t.last_used_at)}` : 'Ainda não usada'}</span>
               </div>
               <button type="button" className="cnx-x" aria-label={`Revogar a chave ${t.name}`} title="Revogar chave" onClick={() => revoke(t)}><Trash2 size={15} /></button>

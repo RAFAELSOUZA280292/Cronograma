@@ -1,6 +1,6 @@
 // Guia que o usuário cola na OUTRA janela do Claude Code (2026-10-05, §80). Não leva o token: ele vai pela variável de ambiente
 // PRICETAX_TOKEN, para não ficar em arquivo nem em histórico de conversa. Mantido em sincronia com `ENDPOINTS` de server/connect.js.
-export function buildGuide({ baseUrl, canCreate, canWrite = false, canCrm = false, canTranscripts = false }) {
+export function buildGuide({ baseUrl, canCreate, canWrite = false, canCrm = false, canTranscripts = false, canMeetingsEdit = false }) {
   const transcripts = canTranscripts
     ? `
 ### Enviar transcrição de reunião para a RENATA (esta chave pode)
@@ -13,6 +13,17 @@ curl -s "$PRICETAX_URL/api/connect/companies/{id}/transcripts/{submissionId}" -H
 - \`transcript\` = texto bruto completo (com quem fala e marcações de tempo, se houver; mínimo 200 caracteres). \`date\` (AAAA-MM-DD) e \`time\` (HH:MM) são os da reunião; o que você informar vale mais que o extraído do texto.
 - Responde 202 com \`submissionId\`; consulte a cada ~5 s até \`status\` = \`done\` (traz a reunião criada) ou \`failed\` (\`errorMessage\`; dá para \`POST …/transcripts/{submissionId}/retry\`). O mesmo texto na mesma empresa não é processado duas vezes (\`duplicate:true\`). Limite: 30 envios por hora.
 - Cada envio é uma chamada de IA paga: **só envie quando o Rafael pedir** e uma reunião por vez.
+${canMeetingsEdit ? `
+### Corrigir uma reunião já registrada (esta chave pode)
+\`\`\`bash
+curl -s "$PRICETAX_URL/api/connect/companies/{id}/meetings/{meetingId}" -H "Authorization: Bearer $PRICETAX_TOKEN"
+curl -s -X PATCH "$PRICETAX_URL/api/connect/companies/{id}/meetings/{meetingId}" -H "Authorization: Bearer $PRICETAX_TOKEN" -H "Content-Type: application/json" \\
+  -d '{"dryRun":true,"title":"…","actionItems":[{"op":"set","id":"mai-…","set":{"responsible":"…","kind":"decisao"}}]}'
+\`\`\`
+- Leia a reunião antes (cada tarefa vem com \`id\` e o vínculo com o cronograma em \`activityLink\`). Campos aceitos: \`title\`, \`date\`, \`time\`, \`summary\`, \`decisions\`, \`participants\` (lista inteira ou \`{add,remove,rename}\`) e \`actionItems\` por operações (\`set\`, \`add\`, \`delete\`, \`restore\`; nunca reenvie a lista toda). Qualquer outro campo dá 400.
+- **Sempre faça primeiro com \`"dryRun":true\`** (mostra antes e depois sem gravar), confira, e só então repita sem o dryRun. Tudo ou nada. A resposta traz \`editId\`: \`POST …/meetings/{meetingId}/edits/{editId}/undo\` desfaz a correção (\`GET …/edits\` lista o histórico). Não mexe no vínculo tarefa→atividade (isso é da tela). Cada correção vai para o Log da empresa.
+- Corrija **só o que o Rafael pediu**; não reescreva o que a RENATA acertou.
+` : ''}
 `
     : '';
   const crm = canCrm

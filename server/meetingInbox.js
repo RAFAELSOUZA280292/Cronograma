@@ -98,6 +98,10 @@ export function normalizeActionItems(items, candidates) {
   });
 }
 
+export const EXTRACTION_MAX_TOKENS = 16000;
+const COMPACT_HINT = 'ATENÇÃO: a tentativa anterior ficou grande demais e foi cortada. Seja enxuto: resumo de até 6 parágrafos curtos; no máximo 4 tópicos e 6 destaques (citações de uma frase); itens de ação só os concretos, com títulos curtos; sem repetir o que já está no resumo.';
+export const isTruncated = (e) => /Unterminated|Failed to parse structured output|max_tokens|cortada|Unexpected end of JSON/i.test(String((e && e.message) || e));
+
 async function extractMeetingFromTranscript(transcript, clientCompanyName, roster = []) {
   const client = new Anthropic();
   const contexto = clientCompanyName
@@ -106,9 +110,9 @@ async function extractMeetingFromTranscript(transcript, clientCompanyName, roste
   const equipe = roster.length
     ? `Equipe da PRICETAX: ${roster.join('; ')}. Quando o responsável por uma ação for uma destas pessoas, escreva o nome COMPLETO exatamente como está nesta lista, mesmo que na fala ela tenha sido chamada só pelo primeiro nome ou por apelido.\n\n`
     : '';
-  const response = await client.messages.parse({
+  const ask = (compact) => client.messages.parse({
     model: 'claude-opus-5',
-    max_tokens: 10000,
+    max_tokens: EXTRACTION_MAX_TOKENS,
     // cache_control (auditoria de Prompt Cache, 2026-09-14): antes disto o
     // system era uma STRING solta — impossível de marcar com cache_control
     // (só um content block aceita isso). Convertido pra array de bloco de
@@ -126,9 +130,17 @@ async function extractMeetingFromTranscript(transcript, clientCompanyName, roste
       text: 'Você extrai informações estruturadas de transcrições de reuniões de negócio em português do Brasil. Seja fiel ao conteúdo — nunca invente datas, nomes ou decisões que não estejam no texto. Quando algo não for mencionado explicitamente, deixe null (ou lista/string vazia). Preste atenção especial a quem fala cada trecho (os nomes de interlocutor na transcrição) para saber de que lado (PRICETAX ou cliente) vem cada compromisso assumido. Para "topics" e "highlights", cite timestamps e trechos exatamente como aparecem no texto bruto — nunca invente marcação de tempo que não esteja lá, e nunca copie a transcrição inteira nesses campos (eles são só um índice leve, o texto original já está preservado à parte). Em "actionItems", além das tarefas, registre como itens separados cada decisão explícita (kind "decisao"), cada risco levantado (kind "risco") e cada pendência em aberto (kind "pendencia"), sempre com uma frase curta no título; nunca invente itens que não estejam no texto e não duplique: uma mesma fala vira um único item.',
       cache_control: { type: 'ephemeral', ttl: '1h' },
     }],
-    messages: [{ role: 'user', content: `${contexto}${equipe}Extraia as informações estruturadas desta transcrição de reunião:\n\n${transcript}` }],
+    messages: [{ role: 'user', content: `${contexto}${equipe}${compact ? `${COMPACT_HINT}\n\n` : ''}Extraia as informações estruturadas desta transcrição de reunião:\n\n${transcript}` }],
     output_config: { format: zodOutputFormat(MeetingExtractionSchema) },
   });
+  // Reunião longa (uma hora de fala) pode gerar um JSON maior que o limite de saída: a resposta vem cortada no meio. Primeira tentativa com folga;
+  // se ainda cortar, repete uma vez pedindo o registro enxuto (nada some do texto bruto, que já fica guardado à parte).
+  let response;
+  try { response = await ask(false); if (response.stop_reason === 'max_tokens') throw new Error('Resposta cortada por tamanho (max_tokens).'); } catch (e) {
+    if (!isTruncated(e)) throw e;
+    response = await ask(true);
+  }
+  if (response.stop_reason === 'max_tokens') throw new Error('A IA não conseguiu terminar de estruturar essa reunião (resposta cortada por tamanho). Tente novamente.');
   if (!response.parsed_output) throw new Error('A IA não conseguiu estruturar essa transcrição.');
   return { output: response.parsed_output, usage: response.usage };
 }
@@ -145,6 +157,7 @@ export function friendlyAiError(raw) {
   if (/rate_limit|^429\b/i.test(msg)) return 'Limite de uso da API da Anthropic atingido agora — aguarde um minuto e tente novamente.';
   if (/overloaded|^(529|503)\b/i.test(msg)) return 'A IA está sobrecarregada no momento — tente novamente em alguns minutos.';
   if (/timed? ?out|ETIMEDOUT|ECONNRESET|ENOTFOUND|fetch failed|Connection error/i.test(msg)) return 'A conexão com a IA falhou — tente novamente em instantes.';
+  if (/Unterminated|Failed to parse structured output|max_tokens|resposta cortada/i.test(msg)) return 'A IA não conseguiu terminar de estruturar essa reunião (a resposta veio cortada; reunião muito longa). Tente novamente em instantes.';
   return msg;
 }
 
