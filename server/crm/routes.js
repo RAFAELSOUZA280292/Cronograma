@@ -19,6 +19,7 @@ import * as I from './importer.js';
 import * as BS from './bootstrap.js';
 import * as D from './deals.js';
 import * as DQ from './dealQueries.js';
+import { exportDealsXlsx } from './dealExport.js';
 import * as P from './products.js';
 import * as A from './activities.js';
 import * as AQ from './activityQueries.js';
@@ -155,6 +156,16 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
   router.post('/deals', need('write'), h(async (req, res) => {
     const deal = await D.createDeal(orgOf(req), actorOf(req), req.body || {});
     res.status(201).json({ deal, cadence: (req.body || {}).skipCadence ? { scheduled: null, cancelled: 0, skipped: true } : await X.cadenceAfterMove(orgOf(req), actorOf(req), deal) });
+  }));
+  // Excel dos negócios com os mesmos filtros da tela (§116c). Vem antes de /deals/:id para "export.xlsx" não virar um id.
+  router.get('/deals/export.xlsx', h(async (req, res) => {
+    const q = req.query || {};
+    const r = await exportDealsXlsx(orgOf(req), { q: q.q, type: q.type, ownerId: q.ownerId, source: q.source, tag: q.tag, attention: q.attention, status: q.status, pipelineId: q.pipelineId, stageId: q.stageId });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${r.filename}"; filename*=UTF-8''${encodeURIComponent(r.filename)}`);
+    res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Export-Count', String(r.count)); res.setHeader('X-Export-Total', String(r.total));
+    res.send(r.buffer);
   }));
   router.get('/deals/:id', h(async (req, res) => res.json(await DQ.getDealDetail(orgOf(req), req.params.id))));
   router.patch('/deals/:id', need('write'), h(async (req, res) => res.json({ deal: await D.updateDeal(orgOf(req), actorOf(req), req.params.id, req.body || {}, { canEditClosed: crmCan(req.user, 'remove') }) })));

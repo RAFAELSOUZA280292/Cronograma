@@ -107,28 +107,22 @@ const DealCard = React.memo(function DealCard({ deal, stages, canDrag, canWrite,
   );
 });
 
-// Exportação: o que está na lista, com os mesmos filtros, em planilha aberta pelo Excel (CSV com ; e BOM).
-async function exportDealsCsv(f) {
-  const rows = []; let offset = 0;
-  for (;;) {
-    const r = await crm.deals({ ...f, limit: 200, offset, sort: 'recent' });
-    rows.push(...r.items);
-    offset += 200;
-    if (offset >= r.total || rows.length >= 5000) break;
-  }
-  const SIT = { open: 'Aberto', won: 'Ganho', lost: 'Perdido' };
-  const cols = [['Negócio', (d) => d.title], ['Empresa', (d) => d.companyName], ['Cidade/UF', (d) => [d.companyCity, d.companyState].filter(Boolean).join('/')], ['Contato', (d) => d.contactName], ['Origem', (d) => d.source],
-    ['Etapa', (d) => d.stageName], ['Situação', (d) => SIT[d.status]], ['Motivo da perda', (d) => d.lostReasonLabel], ['Valor', (d) => String(d.value || 0).replace('.', ',')], ['Probabilidade (%)', (d) => (d.status === 'open' ? d.probability : '')],
-    ['Responsável', (d) => d.ownerName], ['Tipo', (d) => DEAL_TYPE_META[d.dealType].label], ['Criado em', (d) => fmtDateBR(d.createdAt)], ['Fechado em', (d) => fmtDateBR(d.closedAt)], ['Previsão', (d) => fmtDateBR(d.expectedCloseDate)],
-    ['Dias na etapa', (d) => (d.status === 'open' ? d.daysInStage : '')], ['Próxima atividade', (d) => [fmtDateBR(d.nextActivityDate), d.nextActivityTime, d.nextActivityTitle].filter(Boolean).join(' ')]];
-  const esc = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
-  const body = [cols.map((c) => esc(c[0])).join(';'), ...rows.map((d) => cols.map((c) => esc(c[1](d))).join(';'))].join('\r\n');
+// Exportação para Excel (§116c): o servidor monta a planilha com os MESMOS filtros da tela (busca, tipo, responsável, origem, tags, atenção, situação, funil),
+// com e-mail, telefone e link do WhatsApp do contato. No Quadro vale o que está em aberto; na Lista, a situação escolhida.
+async function exportDealsXlsx(f) {
+  const q = new URLSearchParams();
+  Object.entries(f).forEach(([k, v]) => { if (v) q.set(k, v); });
+  let res;
+  try { res = await fetch(`/api/crm/deals/export.xlsx?${q}`, { credentials: 'include' }); } catch (e) { throw new Error('Não conseguimos falar com o servidor. Confira sua internet e tente de novo.'); }
+  if (!res.ok) { let m = ''; try { m = (await res.json()).message; } catch (e) { /* sem corpo */ } throw new Error(m || 'Não foi possível exportar. Tente de novo.'); }
+  const count = Number(res.headers.get('X-Export-Count') || 0); const total = Number(res.headers.get('X-Export-Total') || 0);
+  if (!count) return { count: 0, total };
+  const name = ((res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/) || [])[1] || `negocios-${new Date().toISOString().slice(0, 10)}.xlsx`;
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([`\ufeff${body}`], { type: 'text/csv;charset=utf-8' }));
-  a.download = `negocios-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.href = URL.createObjectURL(await res.blob()); a.download = name;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  return rows.length;
+  return { count, total };
 }
 
 const ATTENTION = [['late', 'Passo atrasado'], ['nonext', 'Sem próximo passo'], ['stalled', 'Parados +14 dias'], ['overdue', 'Previsão vencida']];
@@ -372,7 +366,11 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
   }
   async function doExport() {
     setExporting(true);
-    try { const n = await exportDealsCsv({ q: debouncedQ, type: filters.type, ownerId: filters.ownerId, source: filters.source, tag: filters.tag, attention: filters.attention, status: listStatus, pipelineId: pipelineId === 'all' ? '' : pipelineId }); notify(`${n} negócio(s) exportado(s).`, { tone: 'success' }); } catch (e) { notify(e.message || 'Não foi possível exportar.', { tone: 'error' }); } finally { setExporting(false); }
+    try {
+      const r = await exportDealsXlsx({ q: debouncedQ, type: filters.type, ownerId: filters.ownerId, source: filters.source, tag: filters.tag, attention: filters.attention, status: view === 'list' ? listStatus : 'open', pipelineId: pipelineId === 'all' ? '' : pipelineId });
+      if (!r.count) notify('Nenhum negócio nesse filtro para exportar.', { tone: 'error' });
+      else notify(r.total > r.count ? `${r.count} de ${r.total} negócios exportados (limite por planilha). Refine o filtro para o resto.` : `${r.count} negócio(s) exportado(s) para Excel.`, { tone: 'success' });
+    } catch (e) { notify(e.message || 'Não foi possível exportar.', { tone: 'error' }); } finally { setExporting(false); }
   }
 
   const totalOpen = board ? board.stages.filter((s) => s.kind === 'open').reduce((a, s) => ({ n: a.n + s.count, v: a.v + s.value, w: a.w + s.weighted }), { n: 0, v: 0, w: 0 }) : null;
@@ -427,7 +425,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
             <option value="open">Em aberto</option><option value="won">Ganhos</option><option value="lost">Perdidos</option><option value="all">Todos</option>
           </select>
         )}
-        {view === 'list' && <button type="button" className="crm-btn" onClick={doExport} disabled={exporting} title={exporting ? 'Aguarde terminar a exportação' : 'Baixar os negócios desta lista em planilha (CSV)'}><Download size={14} /> {exporting ? 'Exportando…' : 'Exportar'}</button>}
+        <button type="button" className="crm-btn" onClick={doExport} disabled={exporting} title={exporting ? 'Aguarde terminar a exportação' : `Baixar em Excel os negócios ${view === 'list' ? 'desta lista' : 'em aberto deste quadro'}, com os filtros aplicados (inclui e-mail, telefone e link do WhatsApp)`}><Download size={14} /> {exporting ? 'Exportando…' : 'Exportar Excel'}</button>
         {hasFilter && <button type="button" className="crm-btn" onClick={() => { setQ(''); setFilters(EMPTY_FILTERS); }}>Limpar</button>}
       </div>
 
