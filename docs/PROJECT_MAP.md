@@ -155,7 +155,7 @@ src/lib/routes.js  Endereço por módulo (2026-10-05, §74): MODE_PATHS (/gestao
 src/widget/         Widget do iPhone (§76): WidgetSection.jsx (seção em Meu perfil) + scriptableScript.js (gera o script do Scriptable com token).
 src/daily/          Meu dia (§77): DailyCards (tela inicial), DailyPrefs (escolha de conteúdos, usada nas boas-vindas e em Meu perfil), WelcomeSetup + useWelcomeSetup (3 passos, raiz React própria).
 src/modelos/         Modelos de documentos (§78): Modelos.jsx (grade, gaveta com prévia, adicionar arquivo/link) + modelosMeta.js (tipos, CSS mdl-*; reaproveita par-* dos Pareceres). Rota /modelos em src/lib/routes.js.
-src/crm/DealTags.jsx  Tags do negócio (§85): chips, remoção, campo com sugestões; usado na ficha (DealDrawer)
+src/crm/DealTags.jsx  Tags do negócio (§85): chips, remoção, campo com sugestões; usado na ficha (DealDrawer) 2026-10-28: DealDrawer ganha botão Copiar link (`/crm?negocio=ID`, exige login; ver PROJECT_CONTEXT.md §116b)
 src/renata/RenataChat.jsx + screenContext.js  Painel da RENATA operacional (§101): conversa, passos com Desfazer, cartão de confirmação, aba Registro de ações; `setScreenContext` informa módulo/tela/registro.
 src/crm/SavedViews.jsx  Barra de visões salvas de Negócios (§98): SavedViewsBar, ViewDialog (guardedModal), BUILTIN_VIEWS; lógica de aplicar/salvar/padrão em DealsPage.jsx (`applyConfig`, `currentConfig`, `preset`).
 src/crm/OverviewPage.jsx + OverviewLenses.jsx  Visão geral por função (§98): MineLens/TeamLens/RevenueLens/AccountsLens; `lastLens`, padrão em `crm_view_defaults`.

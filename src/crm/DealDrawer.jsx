@@ -3,7 +3,7 @@
 // etapa passa por aqui também — o select cobre teclado e celular, onde arrastar
 // no quadro não funciona.
 import React, { useCallback, useEffect, useState } from 'react';
-import { X, Pencil, Trash2, Trophy, ThumbsDown, StickyNote, Building2, Plus, AlertTriangle, Paperclip } from 'lucide-react';
+import { X, Pencil, Trash2, Trophy, ThumbsDown, StickyNote, Building2, Plus, AlertTriangle, Paperclip, Link2 } from 'lucide-react';
 import { crm } from './crmApi.js';
 import DealForm from './DealForm.jsx';
 import CloseDealDialog from './CloseDealDialog.jsx';
@@ -75,6 +75,12 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
     try { await crm.deleteDeal(dealId); if (onChanged) onChanged(); onClose(); } catch (e) { fail(e); }
   }
 
+  // Mesmo endereço que os links da agenda do Google (App.jsx abre `/crm?negocio=ID`): quem não está logado cai no login e volta para este negócio.
+  async function copyLink() {
+    const url = `${window.location.origin}/crm?negocio=${dealId}`;
+    try { await navigator.clipboard.writeText(url); notify('Link copiado. Só abre para quem tem login e senha do painel.', { tone: 'success' }); } catch (e) { notify(`Não foi possível copiar. Copie o endereço: ${url}`, { tone: 'error', ttlMs: 12000 }); }
+  }
+
   const d = data && data.deal;
   const canEdit = d && caps.write && (d.status === 'open' || caps.remove);
   const tabs = [['summary', 'Resumo'], ['history', 'Histórico']];
@@ -103,6 +109,7 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
                 ) : <h2 className="crm-h1">{error ? 'Negócio' : 'Carregando…'}</h2>}
               </div>
               <div className="crm-actions">
+                {d && <button type="button" className="crm-btn" onClick={copyLink} title="Copiar o link deste negócio — só abre para quem tem login e senha"><Link2 size={14} /> Copiar link</button>}
                 {canEdit && <button type="button" className="crm-btn" onClick={() => setEditing(true)}><Pencil size={14} /> Editar</button>}
                 {d && caps.remove && <button type="button" className="crm-btn crm-btn-danger" onClick={removeDeal}><Trash2 size={14} /> Excluir</button>}
                 <button type="button" className="crm-icon-btn" onClick={close} title="Fechar" aria-label="Fechar"><X size={18} aria-hidden="true" /></button>

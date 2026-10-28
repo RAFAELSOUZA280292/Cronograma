@@ -1371,6 +1371,7 @@ function AppScreens({ shellRef, bump }) {
         window.history.replaceState({ navTag: modeForTag(mode) }, '', pathForMode(mode));
       } else {
         window.history.replaceState({ navTag: 'gate' }, '', '/');
+        notify('Você não tem acesso a essa área do painel. Se precisar, peça acesso a um administrador.', { tone: 'error', ttlMs: 9000 });
       }
     } catch (e) { /* ignora */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
