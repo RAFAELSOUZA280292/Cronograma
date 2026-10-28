@@ -10,6 +10,7 @@ curl -s -X POST "$PRICETAX_URL/api/connect/crm/cadences" -H "Authorization: Bear
 \`\`\`
 - São as MESMAS rotas e regras de \`/api/crm\` da tela (empresas, contatos, negócios, atividades, notas, produtos, funis, cadências): mesma validação, auditoria e linha do tempo; só o prefixo muda para \`/api/connect/crm\`.
 - Tudo que você grava fica registrado como **"Claude Code (por <dono da chave>)"** e entra no registro de ações (Meu perfil > Conectar). Excluir é exclusão lógica, como na tela.
+- **Extrair para Excel:** \`curl -s "$PRICETAX_URL/api/connect/crm/deals/export.xlsx?tag=NOME&status=open" -H "Authorization: Bearer $PRICETAX_TOKEN" -o negocios.xlsx\` — mesmos filtros da lista (\`q\`, \`tag\` (várias com \`|\`), \`ownerId\`, \`source\`, \`type\`, \`attention\`, \`status\`=open|won|lost|all, \`pipelineId\`); vem com e-mail, telefone e link do WhatsApp; o cabeçalho \`X-Export-Count\` diz quantos negócios. Para ler dados em JSON use \`GET /api/connect/crm/deals\` (até 200 por página, \`offset\` para a próxima) e \`/companies\`, \`/contacts\`.
 - Não opera a migração do PipeRun (escrita). Faça só o que o Rafael pediu; depois de gravar, confira lendo de volta e diga o que mudou.
 `
     : '';

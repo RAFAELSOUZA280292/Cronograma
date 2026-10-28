@@ -81,6 +81,11 @@ try {
   ok('edita negócio', (await call(H(), 'PATCH', `/api/connect/crm/deals/${dealId}`, { value: 2500 })).json.deal.value === 2500);
   ok('move de etapa', (await call(H(), 'POST', `/api/connect/crm/deals/${dealId}/move`, { stageId: open[1].id })).json.deal.stageId === open[1].id);
   ok('registra nota', (await call(H(), 'POST', '/api/connect/crm/notes', { entityType: 'deal', entityId: dealId, body: 'Nota registrada pelo Claude Code.' })).status === 201);
+  // extrair: a planilha do CRM (§116c) também sai pela chave, com os mesmos filtros da tela
+  const ex = await fetch(`${BASE}/api/connect/crm/deals/export.xlsx?status=all&q=${encodeURIComponent(TAG)}`, { headers: bearer(tokCrm) });
+  const exBuf = Buffer.from(await ex.arrayBuffer());
+  ok('extrai em Excel pela chave (arquivo .xlsx com o negócio do teste)', ex.status === 200 && /spreadsheetml/.test(ex.headers.get('content-type')) && ex.headers.get('x-export-count') === '1' && exBuf.subarray(0, 2).toString() === 'PK', { st: ex.status, n: ex.headers.get('x-export-count') });
+  ok('extrair sem chave não passa (401)', (await fetch(`${BASE}/api/connect/crm/deals/export.xlsx`)).status === 401);
   const ac = await call(H(), 'POST', '/api/connect/crm/activities', { companyId, dealId, title: 'Follow-up de teste', activityType: 'followup', dueDate: '2030-01-10' });
   ok('cria atividade', ac.status === 201, ac.json);
   const ac2 = await call(H(), 'POST', '/api/connect/crm/activities', { companyId, dealId, title: 'Atividade para reatribuir', activityType: 'task', dueDate: '2030-02-10' });
