@@ -5,7 +5,7 @@
 **Legenda:** ✅ implementada e exercitada por teste ponta a ponta · 🟡 parcial/limitada (explicado) · ⬜ pendente · 🚫 fora do alcance de propósito (segurança)
 
 ## Resumo
-- **99 ferramentas estruturadas** em 11 módulos (34 de consulta, 46 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
+- **101 ferramentas estruturadas** em 11 módulos (36 de consulta, 46 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
 - **306 rotas** no servidor: 64 cobertas por ferramenta própria, 121 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 121 excluídas de propósito.
 - **56 funcionalidades humanas mapeadas**: 35 ✅, 12 🟡, 4 ⬜, 5 🚫.
 - **Critério "100% das funcionalidades" NÃO está atendido ainda**: as linhas 🟡 e ⬜ abaixo são o que falta. As rotas "genéricas" já são alcançáveis (com confirmação), mas sem esquema de parâmetros; as ⬜ precisam de trabalho novo (arquivos, edição de documentos inteiros).
@@ -216,6 +216,8 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 |---|---|---|---|
 | `empresas_listar` | consulta | sob medida | Lista as empresas (cronogramas de clientes) que o usuário pode ver, com contagens. Use para achar o id de uma empresa pelo nome. |
 | `empresa_ver_cronograma` | consulta | sob medida | Mostra uma empresa: equipe, fases, reuniões (com tarefas abertas) e atividades (id, status, datas, responsável, fase, nº de subatividades). Para ver a |
+| `reuniao_ver` | consulta | sob medida | Lê uma reunião de uma empresa: participantes, resumo, decisões e tarefas (com responsável, prazo e status). Sem reuniaoId, devolve a reunião mais rece |
+| `reunioes_buscar` | consulta | sob medida | Busca um tema na memória das reuniões de UMA empresa (resumos, decisões, trechos da conversa) e devolve os trechos mais relevantes com reunião e data. |
 | `cronograma_simular` | consulta | sob medida | SIMULA ajustes no cronograma de uma empresa sem gravar nada: mostra o que mudaria e aponta operações inválidas. Sempre simule antes de aplicar mudança |
 | `cronograma_aplicar` | escrita (confirma em certos casos) | sob medida | APLICA ajustes no cronograma de uma empresa (status, datas, responsáveis, subatividades, atividades novas; excluir vai para a lixeira). Tudo ou nada.  |
 | `tarefas_reuniao_listar` | consulta | sob medida | Lista tarefas de reunião (itens de ação) das empresas que o usuário vê. Filtros: empresa, responsável (parte do nome), status, só vencidas. |

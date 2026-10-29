@@ -2,13 +2,13 @@
 // mostra o que fez, pede confirmação nas ações críticas/em lote e deixa tudo no registro de auditoria. A conversa fica no servidor e continua quando você
 // navega para outra tela ou volta depois; o painel sabe em que módulo/registro você está.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Sparkles, Send, RotateCcw, Check, X, Undo2, ListChecks, MessageSquare, ShieldAlert, Loader2, MapPin } from 'lucide-react';
+import { Sparkles, Send, Check, X, Undo2, ListChecks, MessageSquare, ShieldAlert, Loader2, MapPin, Trash2, RefreshCw } from 'lucide-react';
 import { apiGet, apiPost } from '../lib/api.js';
 import ChatExport, { CHAT_EXPORT_CSS, CopyMessageButton } from '../assistant/ChatExport.jsx';
 import { Drawer } from '../ui/dialog.jsx';
 import { fromSimpleMessages } from '../assistant/chatExport.js';
 import { Button } from '../ui/index.jsx';
-import { notify } from '../ui/dialogs.jsx';
+import { notify, askConfirm } from '../ui/dialogs.jsx';
 import { getScreenContext } from './screenContext.js';
 
 const CSS = `
@@ -32,6 +32,9 @@ const CSS = `
 .rnc-step .t { flex:1; min-width:0; overflow-wrap:anywhere; }
 .rnc-step button { border:1px solid var(--border-3); background:transparent; color:var(--text-3); border-radius:8px; font:inherit; font-size:12px; padding:4px 8px; cursor:pointer; display:inline-flex; gap:4px; align-items:center; min-height:30px; }
 .rnc-step button:hover:not(:disabled) { color:var(--text-1); background:var(--bg-3); }
+.rnc-bar { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.rnc-time { font-size:11px; color:var(--text-5); padding:0 4px; margin-top:-4px; font-variant-numeric:tabular-nums; }
+.rnc-time.user { align-self:flex-end; } .rnc-time.bot { align-self:flex-start; }
 .rnc-reads { align-self:flex-start; font-size:12px; color:var(--text-5); padding:0 4px; }
 .rnc-think { align-self:flex-start; display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--text-4); padding:6px 2px; }
 .rnc-spin { animation:rnc-spin 1s linear infinite; } @keyframes rnc-spin { to { transform:rotate(360deg); } }
@@ -72,6 +75,23 @@ const BY_MODULE = {
   'Gestão de Atividades': ['O que está atrasado ou vence hoje no meu quadro?', 'Crie um lembrete para '],
 };
 const DEFAULT_CHIPS = ['O que preciso fazer hoje?', 'Mostre o que a minha equipe fez hoje e o que está atrasado', 'Crie uma tarefa para '];
+// Horário das mensagens sempre em Brasília, com o GMT na etiqueta (hoje GMT-3; o próprio Intl informa se mudar).
+const BR_TZ = 'America/Sao_Paulo';
+function fmtBr(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return '';
+  const day = d.toLocaleDateString('pt-BR', { timeZone: BR_TZ, day: '2-digit', month: '2-digit' });
+  const time = d.toLocaleTimeString('pt-BR', { timeZone: BR_TZ, hour: '2-digit', minute: '2-digit' });
+  const gmt = (new Intl.DateTimeFormat('en-US', { timeZone: BR_TZ, timeZoneName: 'shortOffset' }).formatToParts(d).find((x) => x.type === 'timeZoneName') || {}).value || 'GMT-3';
+  return `${day} ${time} · ${gmt}`;
+}
+// Respostas só de consulta, uma atrás da outra, viram uma linha ("Consultei 12 informações") em vez de uma linha por passo.
+const mergeReads = (list) => list.reduce((acc, m) => {
+  const prev = acc[acc.length - 1];
+  if (m.role !== 'user' && !m.text && prev && prev.role !== 'user' && !prev.text) acc[acc.length - 1] = { ...prev, steps: [...(prev.steps || []), ...(m.steps || [])], at: m.at || prev.at };
+  else acc.push(m);
+  return acc;
+}, []);
 const fmtTs = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '');
 const keyOf = (userId) => `renata-conv:${userId || 'anon'}`;
 const readConv = (userId) => { try { return window.localStorage.getItem(keyOf(userId)) || ''; } catch { return ''; } };
@@ -149,6 +169,7 @@ export default function RenataChat({ userId, userName, isAdmin, initialQuestion,
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [busyUndo, setBusyUndo] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(!readConv(userId));
   const endRef = useRef(null); const taRef = useRef(null); const sentInitial = useRef(false);
@@ -156,7 +177,7 @@ export default function RenataChat({ userId, userName, isAdmin, initialQuestion,
 
   const apply = useCallback((r, userText) => {
     if (r.conversationId) { setConvId(r.conversationId); writeConv(userId, r.conversationId); }
-    setMsgs((m) => [...m, ...(r.reply || (r.steps && r.steps.length) ? [{ role: 'assistant', text: r.reply || '', steps: r.steps || [] }] : [])]);
+    setMsgs((m) => [...m, ...(r.reply || (r.steps && r.steps.length) ? [{ role: 'assistant', text: r.reply || '', steps: r.steps || [], at: r.at || new Date().toISOString() }] : [])]);
     setPending(r.pending || []);
     if (userText === undefined && r.executed && r.executed.length && !(r.reply)) setMsgs((m) => [...m, { role: 'assistant', text: '', steps: r.executed.map((e) => ({ actionId: e.actionId, tool: '', risk: 'write', status: e.ok ? 'success' : e.decision === 'cancel' ? 'cancelled' : 'failed', summary: e.summary, undoable: e.undoable })) }]);
   }, [userId]);
@@ -171,7 +192,7 @@ export default function RenataChat({ userId, userName, isAdmin, initialQuestion,
   async function send(text) {
     const q = String(text || '').trim();
     if (!q || busy) return;
-    setMsgs((m) => [...m, { role: 'user', text: q }]); setInput(''); setBusy(true); setError(''); setPending([]);
+    setMsgs((m) => [...m, { role: 'user', text: q, at: new Date().toISOString() }]); setInput(''); setBusy(true); setError(''); setPending([]);
     try { apply(await apiPost('/api/renata/chat', { message: q, conversationId: convId || undefined, context: getScreenContext() }), q); }
     catch (e) { setError((e && e.message) || 'A RENATA não conseguiu agora. Tente de novo.'); }
     finally { setBusy(false); }
@@ -195,6 +216,19 @@ export default function RenataChat({ userId, userName, isAdmin, initialQuestion,
       notify('Desfeito. O registro guarda as duas ações.', { tone: 'success' });
     } catch (e) { notify((e && e.message) || 'Não consegui desfazer.', { tone: 'error' }); }
     finally { setBusyUndo(''); }
+  }
+  async function refresh() {
+    if (busy || refreshing) return;
+    setError('');
+    if (!convId) { notify('Nada para atualizar: a conversa ainda não começou.', { tone: 'info' }); return; }
+    setRefreshing(true);
+    try { const r = await apiGet(`/api/renata/conversations/${convId}`); setMsgs(r.messages || []); setPending(r.pending || []); notify('Conversa atualizada.', { tone: 'success' }); }
+    catch (e) { setError((e && e.message) || 'Não consegui atualizar a conversa agora. Tente de novo.'); }
+    finally { setRefreshing(false); }
+  }
+  async function clearConversation() {
+    if (!(await askConfirm({ title: 'Limpar esta conversa?', message: 'A conversa some da tela e a RENATA começa do zero. O Registro de ações continua guardando tudo o que ela fez.', confirmLabel: 'Limpar conversa', danger: true }))) return;
+    newConversation();
   }
   function newConversation() { writeConv(userId, ''); setConvId(''); setMsgs([]); setPending([]); setError(''); setLoaded(true); }
   useEffect(() => { if (initialQuestion && !sentInitial.current && loaded) { sentInitial.current = true; send(initialQuestion); } }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -221,6 +255,10 @@ export default function RenataChat({ userId, userName, isAdmin, initialQuestion,
         {tab === 'log' && <ActionLog isAdmin={isAdmin} />}
         {tab === 'chat' && (
           <>
+            <div className="rnc-bar" role="toolbar" aria-label="Ações da conversa">
+              <Button size="sm" icon={RefreshCw} onClick={refresh} loading={refreshing} disabled={busy} disabledReason="Aguarde a RENATA terminar">Atualizar</Button>
+              <Button size="sm" icon={Trash2} onClick={clearConversation} disabled={busy || (!msgs.length && !convId)} disabledReason={busy ? 'Aguarde a RENATA terminar' : 'Não há conversa para limpar'}>Limpar conversa</Button>
+            </div>
             {(screen.module || screen.entity) && <div className="rnc-where"><MapPin size={13} aria-hidden="true" /> Você está em <b>{screen.module || 'Início'}</b>{screen.view ? ` › ${screen.view}` : ''}{screen.entity && screen.entity.title ? ` · ${screen.entity.title}` : ''}</div>}
             {loaded && msgs.length === 0 && !busy && (
               <>
@@ -229,16 +267,15 @@ export default function RenataChat({ userId, userName, isAdmin, initialQuestion,
               </>
             )}
             {msgs.length > 0 && <ChatExport getData={() => ({ title: 'RENATA — conversa', subtitle: 'Colaboradora digital da PRICETAX', messages: fromSimpleMessages(msgs) })} />}
-            {msgs.map((m, i) => (
+            {mergeReads(msgs).map((m, i) => (
               m.role === 'user'
-                ? <div key={i} className="cx-wrap user"><div className="rnc-msg user">{m.text}</div><CopyMessageButton message={fromSimpleMessages([m])[0]} /></div>
-                : (<React.Fragment key={i}>{m.text && <div className="cx-wrap bot"><div className="rnc-msg bot"><Formatted text={m.text} /></div><CopyMessageButton message={fromSimpleMessages([{ ...m, steps: [] }])[0]} /></div>}<Steps steps={m.steps} onUndo={undo} busyUndo={busyUndo} /></React.Fragment>)
+                ? <React.Fragment key={i}><div className="cx-wrap user"><div className="rnc-msg user">{m.text}</div><CopyMessageButton message={fromSimpleMessages([m])[0]} /></div>{m.at && <div className="rnc-time user" title={`Enviada em ${fmtBr(m.at)}`}>{fmtBr(m.at)}</div>}</React.Fragment>
+                : (<React.Fragment key={i}>{m.text && <div className="cx-wrap bot"><div className="rnc-msg bot"><Formatted text={m.text} /></div><CopyMessageButton message={fromSimpleMessages([{ ...m, steps: [] }])[0]} /></div>}{m.text && m.at && <div className="rnc-time bot" title={`Respondida em ${fmtBr(m.at)}`}>{fmtBr(m.at)}</div>}<Steps steps={m.steps} onUndo={undo} busyUndo={busyUndo} /></React.Fragment>)
             ))}
             {pending.map((p) => <PendingCard key={p.actionId} p={p} onDecide={decide} busy={busy} />)}
             {busy && <div className="rnc-think" role="status"><Loader2 size={14} className="rnc-spin" /> A RENATA está trabalhando…</div>}
             {error && <div className="rnc-err" role="alert">{error}</div>}
             <div ref={endRef} />
-            {msgs.length > 0 && !busy && <div><Button size="sm" icon={RotateCcw} onClick={newConversation}>Nova conversa</Button></div>}
           </>
         )}
       </div>

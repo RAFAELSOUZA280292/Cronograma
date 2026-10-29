@@ -10,6 +10,7 @@ import { syncProjectMemoryFromDiff } from '../../memoryIngest.js';
 import { todayInSp } from '../../widgetSummary.js';
 import { notifyTodoChanges } from '../../todoNotifications.js';
 import { callInternal } from '../internalCall.js';
+import { searchProjectMemory } from '../../memoryRetrieval.js';
 
 const uid = (p) => `${p}-${crypto.randomBytes(5).toString('base64url')}`;
 const alive = (a) => (Array.isArray(a) ? a.filter((x) => x && !x.deleted) : []);
@@ -102,6 +103,33 @@ export function registerEmpresas(registry) {
       const meetings = alive(d.meetings).sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 15).map((m) => ({ id: m.id, titulo: m.title, data: m.date, hora: m.time || '', tarefasAbertas: alive(m.actionItems).filter((t) => !['concluida', 'nao-relevante'].includes(t.status)).length, tarefasTotal: alive(m.actionItems).length }));
       // ordem das chaves importa: o que é curto vem primeiro, as atividades por último (se algo for cortado por tamanho, são elas)
       return { status: 200, json: { hoje: today, empresa: name(d), status: (d.company && d.company.status) || '', equipe: alive(d.team).map((t) => t.name), fases: phases, reunioes: meetings, totalAtividades: total, atividades: acts.slice(0, i.limit || 60) } };
+    } });
+  // Leitura do CONTEÚDO das reuniões (resumo, decisões, participantes, tarefas, transcrição) — antes a RENATA só via a lista, sem o que foi dito, e
+  // procurava em rotas genéricas até estourar o limite de consultas (2026-10-29).
+  registry.add({ ...base, name: 'reuniao_ver', summary: 'Lê uma reunião de uma empresa: participantes, resumo, decisões e tarefas (com responsável, prazo e status). Sem reuniaoId, devolve a reunião mais recente que já aconteceu. Use para saber O QUE FOI DITO/DECIDIDO ("o que o cliente perguntou na última reunião?"). A transcrição (só equipe) vem em trecho e só se transcricao=true.', risk: 'read',
+    params: T.obj({ empresaId: T.str('Id da empresa (empresas_listar)'), reuniaoId: T.str('Id da reunião (vem em empresa_ver_cronograma); vazio = a mais recente'), transcricao: T.bool('Incluir trecho da transcrição (até 8.000 caracteres)') }, ['empresaId']),
+    run: async (ctx, i) => {
+      const r = (await loadVisible(ctx)).find((x) => x.id === i.empresaId);
+      if (!r) return { status: 404, json: { message: 'Empresa não encontrada (ou sem acesso).' } };
+      const today = todayInSp();
+      const list = alive(r.data.meetings).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+      const m = i.reuniaoId ? list.find((x) => x.id === i.reuniaoId) : (list.find((x) => x.date && x.date <= today) || list[0]);
+      if (!m) return { status: 404, json: { message: i.reuniaoId ? 'Reunião não encontrada nesta empresa.' : 'Esta empresa não tem reunião registrada.' } };
+      return { status: 200, json: {
+        empresa: name(r.data), id: m.id, titulo: m.title || '', data: m.date || '', hora: m.time || '', participantes: Array.isArray(m.participants) ? m.participants : [],
+        resumo: clip(m.summary, 6000), decisoes: clip(m.decisions, 4000),
+        tarefas: alive(m.actionItems).slice(0, 40).map((t) => ({ id: t.id, titulo: clip(t.title, 200), responsavel: t.responsible || '', ladoCliente: t.owner === 'cliente', prazo: t.dueDate || '', status: t.status || '', area: t.area || '' })),
+        outrasReunioes: list.filter((x) => x.id !== m.id).slice(0, 8).map((x) => ({ id: x.id, titulo: clip(x.title, 80), data: x.date || '' })),
+        ...(i.transcricao && isStaff(ctx.user) ? { transcricao: clip(m.transcript, 8000), transcricaoCortada: String(m.transcript || '').length > 8000 } : {}),
+      } };
+    } });
+  registry.add({ ...base, name: 'reunioes_buscar', summary: 'Busca um tema na memória das reuniões de UMA empresa (resumos, decisões, trechos da conversa) e devolve os trechos mais relevantes com reunião e data. Use para achar ONDE um assunto foi tratado ("saldo credor de PIS/COFINS na KUHN"); depois leia a reunião com reuniao_ver.', risk: 'read',
+    params: T.obj({ empresaId: T.str('Id da empresa (empresas_listar)'), consulta: T.str('O assunto, em poucas palavras', { maxLength: 300 }), limite: T.int('Máximo de trechos (padrão 8)', { minimum: 1, maximum: 15 }) }, ['empresaId', 'consulta']),
+    run: async (ctx, i) => {
+      const r = (await loadVisible(ctx)).find((x) => x.id === i.empresaId);
+      if (!r) return { status: 404, json: { message: 'Empresa não encontrada (ou sem acesso).' } };
+      const chunks = await searchProjectMemory(pool, { orgId: ctx.orgId, projectId: r.id, query: i.consulta, limit: i.limite || 8 });
+      return { status: 200, json: { empresa: name(r.data), total: chunks.length, trechos: chunks.map((c) => ({ reuniaoId: c.meetingId || '', reuniao: clip(c.meetingTitle, 80), data: c.meetingDate || '', tipo: c.kind, texto: clip(c.content, 900) })) } };
     } });
   registry.add({ ...base, name: 'cronograma_simular', summary: 'SIMULA ajustes no cronograma de uma empresa sem gravar nada: mostra o que mudaria e aponta operações inválidas. Sempre simule antes de aplicar mudanças grandes.', risk: 'read',
     params: T.obj({ id: T.str('Id da empresa'), ops: opsSchema }, ['id', 'ops']),

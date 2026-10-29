@@ -62,12 +62,12 @@ router.get('/conversations/:id', wrap(async (req, res) => {
   const byUse = new Map(acts.map((a) => [a.tool_use_id, a]));
   const messages = [];
   for (const m of conv.messages || []) {
-    if (m.role === 'user' && typeof m.content === 'string') messages.push({ role: 'user', text: m.content });
+    if (m.role === 'user' && typeof m.content === 'string') messages.push({ role: 'user', text: m.content, at: m._at || null });
     else if (m.role === 'assistant' && Array.isArray(m.content)) {
       const text = m.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
       const steps = m.content.filter((b) => b.type === 'tool_use').map((b) => { const a = byUse.get(b.id); return a ? { actionId: a.id, tool: a.tool, risk: a.risk, status: a.status, summary: a.summary, undoable: a.undoable && !a.undone_at, undone: !!a.undone_at } : { tool: b.name, status: 'unknown' }; });
-      if (text && text !== '…') messages.push({ role: 'assistant', text, steps });
-      else if (steps.length) messages.push({ role: 'assistant', text: '', steps });
+      if (text && text !== '…') messages.push({ role: 'assistant', text, steps, at: m._at || null });
+      else if (steps.length) messages.push({ role: 'assistant', text: '', steps, at: m._at || null });
     }
   }
   const pt = conv.context && conv.context.pendingTurn;
