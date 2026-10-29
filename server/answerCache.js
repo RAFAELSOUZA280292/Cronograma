@@ -32,8 +32,10 @@ const CACHE_SIMILARITY_THRESHOLD = 0.85;
 // que invalida por DEPENDÊNCIA real (reunião/fato específico), sem
 // precisar derrubar o cache do projeto inteiro por uma edição que não
 // tem nada a ver com a pergunta cacheada.
-export function computeFingerprint(projectUpdatedAt, todayIsoStr) {
-  return `${new Date(projectUpdatedAt).toISOString()}|${todayIsoStr}`;
+// `audience` ('staff' | 'cliente'): resposta feita para a equipe pode conter orientação de pareceres, agenda e fatos internos — nunca pode ser servida a um
+// usuário `cliente` pelo cache (e vice-versa). Entra na impressão digital, então os dois públicos nunca compartilham resposta (sem mudar o banco).
+export function computeFingerprint(projectUpdatedAt, todayIsoStr, audience = 'cliente') {
+  return `${new Date(projectUpdatedAt).toISOString()}|${todayIsoStr}|${audience === 'staff' ? 'staff' : 'cliente'}`;
 }
 
 // Fase 7.1 (pedido do Rafael: "não quero apenas TTL como segurança") —

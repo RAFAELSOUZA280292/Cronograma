@@ -4,6 +4,7 @@
 import crypto from 'node:crypto';
 import pg from 'pg';
 import { buildGeneralContext } from '../server/assistantGeneral.js';
+import { computeFingerprint } from '../server/answerCache.js';
 import { loadMeetingAdviceDigest, loadGeneralAdviceDigest, formatAdviceDigest } from '../server/parecerStudy.js';
 
 const DB = process.env.DATABASE_URL || 'postgres://localhost:5432/cronograma_dev';
@@ -77,6 +78,9 @@ try {
   ok('geral (contexto completo): traz o bloco de orientação para a equipe', /ORIENTAÇÃO DOS PARECERES JÁ ASSOCIADA ÀS REUNIÕES DAS EMPRESAS/.test(ctx.text) && /sigiloso/.test(ctx.text), ctx.text.slice(-600));
   const ctxCli = await buildGeneralContext({ pool, user: master, orgId: ORG, question: 'o que fazer?', isStaff: false, listEventsFn: async () => [] });
   ok('geral (contexto completo): sem o bloco quando não é equipe', !/ORIENTAÇÃO DOS PARECERES/.test(ctxCli.text));
+  const fpS = computeFingerprint('2026-10-29T00:00:00Z', '2026-10-29', 'staff'); const fpC = computeFingerprint('2026-10-29T00:00:00Z', '2026-10-29', 'cliente');
+  ok('cache de respostas: equipe e cliente têm impressão digital DIFERENTE (nunca compartilham resposta)', fpS !== fpC && /staff$/.test(fpS) && /cliente$/.test(fpC), [fpS, fpC]);
+  ok('cache de respostas: sem informar o público, vale o mais restrito (cliente)', computeFingerprint('2026-10-29T00:00:00Z', '2026-10-29') === fpC);
   const big = formatAdviceDigest(Array.from({ length: 50 }, (_, i) => ({ meetingTitle: `R${i}`, meetingDate: '2026-10-01', parecerTitle: 'P', topic: 't'.repeat(100), relevance: 'r'.repeat(300), steps: ['s'.repeat(300)], caution: '' })), 1000);
   ok('o bloco respeita o tamanho máximo', big.length <= 1200 && big.split('\n').length >= 1);
 } catch (e) { failed += 1; console.error('ERRO NO TESTE', e); }

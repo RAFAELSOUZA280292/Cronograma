@@ -433,7 +433,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
       if (voyageConfigured()) {
         try {
           [queryEmbedding] = await embedTexts([scope.standaloneQuery], 'query');
-          fingerprint = computeFingerprint(projectUpdatedAt, todayIso());
+          fingerprint = computeFingerprint(projectUpdatedAt, todayIso(), isStaff ? 'staff' : 'cliente');
           const cacheResult = await lookupCachedAnswer(pool, {
             orgId, projectId, fingerprint,
             participant: resolvedParticipantOut,
