@@ -875,6 +875,15 @@ router.get('/personal-board/versions', requireAuth, requirePersonalAccess, async
   } catch (e) { next(e); }
 });
 
+router.get('/personal-board/versions/:id', requireAuth, requirePersonalAccess, async (req, res, next) => {
+  if (!/^\d{1,18}$/.test(req.params.id)) return res.status(400).json({ message: 'Versão inválida.' });
+  try {
+    const { rows } = await pool.query('SELECT id, reason, created_at, data FROM personal_board_versions WHERE id=$1 AND user_id=$2', [req.params.id, req.user.id]);
+    if (!rows[0]) return res.status(404).json({ message: 'Versão não encontrada.' });
+    res.json({ version: { id: String(rows[0].id), reason: rows[0].reason, createdAt: rows[0].created_at, board: rows[0].data } });
+  } catch (e) { next(e); }
+});
+
 router.post('/personal-board/versions/:id/restore', requireAuth, requirePersonalAccess, async (req, res, next) => {
   if (!/^\d{1,18}$/.test(req.params.id)) return res.status(400).json({ message: 'Versão inválida.' });
   const client = await pool.connect();

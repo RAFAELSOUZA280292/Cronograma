@@ -219,8 +219,9 @@ Todos que têm XFlow **veem** todas as TASKs da organização; o que muda por pa
 7. **Filtros e busca:** **Buscar...** (acha também subatividades do checklist e comentários), **Filtros** (status, prioridade, prazo), **Visões rápidas** (Atrasadas, Urgentes, Aguardando, Em andamento, Hoje). Cada filtro ligado aparece em **Filtros ativos:** com **Limpar tudo**. Colunas dizem quantas ficaram escondidas pelo filtro.
 8. **Ver como lista:** botões **Quadro** / **Lista**. **Ordenar atividades**: **Ordem manual** ou outro critério (arrastar só funciona em "Ordem manual", e em Prioridade as pausadas ficam depois das ativas).
 9. **Daily:** botão **Daily** monta uma lista por responsável, com a atividade principal e as subatividades, para reunião diária. Filtros de atividade e de prazo; **Copiar texto**, **PDF**, **Excel**.
-10. **Indicadores:** botão **Indicadores** (**Meus indicadores**): atividades abertas e encerradas por dia, dia da semana e horário com mais aberturas e encerramentos, "ritmo de encerramento"; períodos **30 dias**, **90 dias**, **Tudo**.
-11. **Painel de apoio** sob o cabeçalho: **Resumo do dia**, **Calendário** (prazos e compromissos), **Anotações rápidas** e **Links e atalhos** (sites que você usa todo dia).
+10. **Versões:** botão **Versões** (no celular, menu ⋯ → **Versões do quadro**). O sistema guarda uma cópia do seu quadro a cada 10 minutos de edição e sempre que ele encolhe de repente (30 dias, as 40 mais recentes). **Abrir** uma cópia mostra os cartões que estavam lá e já não estão no quadro: **Recuperar** (um, ou **Recuperar todos**) devolve para a coluna de origem; **Restaurar quadro inteiro** troca tudo pela cópia — o quadro de agora fica guardado como "Antes de uma restauração".
+11. **Indicadores:** botão **Indicadores** (**Meus indicadores**): atividades abertas e encerradas por dia, dia da semana e horário com mais aberturas e encerramentos, "ritmo de encerramento"; períodos **30 dias**, **90 dias**, **Tudo**.
+12. **Painel de apoio** sob o cabeçalho: **Resumo do dia**, **Calendário** (prazos e compromissos), **Anotações rápidas** e **Links e atalhos** (sites que você usa todo dia).
 
 **Compartilhar (links públicos)**
 1. Botão **Compartilhar** (página inteira) ou menu da coluna → **Compartilhar coluna** (só aquela coluna; depois fica **Compartilhamento da coluna**).

@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **319 rotas** em **29 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **320 rotas** em **29 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
@@ -43,7 +43,7 @@ Total: **319 rotas** em **29 grupos**. Cada linha mostra o método, o endereço 
 
 Montagens extras (fora do `index.js`): `/api/connect/crm` = o roteador do CRM (`server/crm/routes.js`) reaproveitado por `server/connect.js` para a chave `crm_operate`/`write_all`/`read_all`; `/api/templates` tem limite de corpo próprio (45 MB) definido no `index.js`.
 
-## `/api` — 52 rotas
+## `/api` — 53 rotas
 
 Arquivos: `server/routes.js`.
 
@@ -82,25 +82,26 @@ Arquivos: `server/routes.js`.
 | GET | `/api/personal-board/version` | `requireAuth` `requirePersonalAccess` | Versão barata do quadro (só o carimbo): o cliente consulta de tempos em tempos para saber se OUTRA origem (a API de conectividade, §80, ou o quadro público) alterou o qu… | `server/routes.js:773` |
 | PATCH | `/api/personal-board` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:824` |
 | GET | `/api/personal-board/versions` | `requireAuth` `requirePersonalAccess` | Histórico do quadro pessoal (M11): lista as fotos guardadas e restaura uma (a atual vira uma foto "antes de restaurar", então dá para voltar atrás). | `server/routes.js:871` |
-| POST | `/api/personal-board/versions/:id/restore` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:878` |
-| GET | `/api/personal-board/stats` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:898` |
-| GET | `/api/personal-board/stats/day` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:911` |
-| GET | `/api/notifications` | `requireAuth` |  | `server/routes.js:929` |
-| GET | `/api/notifications/preferences` | `requireAuth` | Quais categorias o usuário quer ver — por usuário, fica salvo até ele mudar (users.preferences.notifications). | `server/routes.js:941` |
-| PUT | `/api/notifications/preferences` | `requireAuth` |  | `server/routes.js:949` |
-| GET | `/api/personal-extras` | `requireAuth` | Anotações rápidas e atalhos da pessoa (users.preferences.personalExtras) — fora do quadro porque o quadro pode ter link público. | `server/routes.js:976` |
-| PUT | `/api/personal-extras` | `requireAuth` |  | `server/routes.js:983` |
-| POST | `/api/client-error` | `requireAuth` | Erro de tela capturado por um limite de erro do navegador → uma linha no log do servidor. Só com login, com limite por pessoa. | `server/routes.js:997` |
-| PATCH | `/api/notifications/:id` | `requireAuth` |  | `server/routes.js:1006` |
-| POST | `/api/notifications/read-all` | `requireAuth` |  | `server/routes.js:1019` |
-| POST | `/api/notifications/mark-read-for-target` | `requireAuth` | atividade) — regra do Rafael: só sai do contador quando lida OU quando acessada, nunca só por abrir o painel do sino. | `server/routes.js:1030` |
-| GET | `/api/public-board/:token` | `optionalAuth` |  | `server/routes.js:1096` |
-| POST | `/api/personal-board/linked` | `requireAuth` |  | `server/routes.js:1156` |
-| PATCH | `/api/public-board/:token` | `requireAuth` |  | `server/routes.js:1199` |
-| GET | `/api/public-meeting/:token` | `optionalAuth` |  | `server/routes.js:1298` |
-| GET | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1341` |
-| POST | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1353` |
-| PATCH | `/api/organizations/:id` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1369` |
+| GET | `/api/personal-board/versions/:id` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:878` |
+| POST | `/api/personal-board/versions/:id/restore` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:887` |
+| GET | `/api/personal-board/stats` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:907` |
+| GET | `/api/personal-board/stats/day` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:920` |
+| GET | `/api/notifications` | `requireAuth` |  | `server/routes.js:938` |
+| GET | `/api/notifications/preferences` | `requireAuth` | Quais categorias o usuário quer ver — por usuário, fica salvo até ele mudar (users.preferences.notifications). | `server/routes.js:950` |
+| PUT | `/api/notifications/preferences` | `requireAuth` |  | `server/routes.js:958` |
+| GET | `/api/personal-extras` | `requireAuth` | Anotações rápidas e atalhos da pessoa (users.preferences.personalExtras) — fora do quadro porque o quadro pode ter link público. | `server/routes.js:985` |
+| PUT | `/api/personal-extras` | `requireAuth` |  | `server/routes.js:992` |
+| POST | `/api/client-error` | `requireAuth` | Erro de tela capturado por um limite de erro do navegador → uma linha no log do servidor. Só com login, com limite por pessoa. | `server/routes.js:1006` |
+| PATCH | `/api/notifications/:id` | `requireAuth` |  | `server/routes.js:1015` |
+| POST | `/api/notifications/read-all` | `requireAuth` |  | `server/routes.js:1028` |
+| POST | `/api/notifications/mark-read-for-target` | `requireAuth` | atividade) — regra do Rafael: só sai do contador quando lida OU quando acessada, nunca só por abrir o painel do sino. | `server/routes.js:1039` |
+| GET | `/api/public-board/:token` | `optionalAuth` |  | `server/routes.js:1105` |
+| POST | `/api/personal-board/linked` | `requireAuth` |  | `server/routes.js:1165` |
+| PATCH | `/api/public-board/:token` | `requireAuth` |  | `server/routes.js:1208` |
+| GET | `/api/public-meeting/:token` | `optionalAuth` |  | `server/routes.js:1307` |
+| GET | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1350` |
+| POST | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1362` |
+| PATCH | `/api/organizations/:id` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1378` |
 
 ## `(sem prefixo conhecido)` — 2 rotas
 

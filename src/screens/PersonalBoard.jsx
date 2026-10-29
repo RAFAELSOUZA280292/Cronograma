@@ -30,6 +30,7 @@ import { CARD_STATUS_META, COLUMN_COLOR_META, ConfirmDiscardModal, LoadingScreen
 import { S } from '../styles/S.js';
 
 const PersonalStatsPanel = lazyRetry(() => import('../personal/PersonalStats.jsx'));
+const BoardHistoryPanel = lazyRetry(() => import('../personal/BoardHistory.jsx'));
 
 const RichNote = lazyRetry(() => import('../ui/RichNote.jsx'));
 
@@ -1410,7 +1411,7 @@ function PbMoreMenu({ items }) {
   );
 }
 
-export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings, board, onMutate, onExit, onGoCompany, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, onRetrySave, publicMode, readOnly, publicOwnerName, publicBack, embedded, publicAction, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
+export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayMeetings, board, onMutate, onExit, onGoCompany, onGoXFlow, currentUser, onLogout, theme, onToggleTheme, saveState, onRetrySave, onBoardRestored, publicMode, readOnly, publicOwnerName, publicBack, embedded, publicAction, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead }) {
   // Histórico do navegador — Nível 2 (2026-08): trocar de página do quadro
   // pessoal. Nunca ativo em publicMode (/quadro/:token é a única rota que
   // usa URL de verdade — ver PROJECT_CONTEXT.md §9, não mexer nisso aqui).
@@ -1448,6 +1449,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
   const [showTrash, setShowTrash] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ priority: [], dueBucket: '', tags: [], status: '', waiting: false });
   const [showFilters, setShowFilters] = useState(false);
@@ -2337,6 +2339,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
           {!readOnly && !isMobile && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowTrash(true)}><Trash2 size={15} /> Lixeira{trashItems.length > 0 ? ` (${trashItems.length})` : ''}</button>}
           {!readOnly && !isMobile && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowArchive(true)}><Archive size={15} /> Concluídas{archiveItems.length > 0 ? ` (${archiveItems.length})` : ''}</button>}
           {!readOnly && !publicMode && !isMobile && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowStats(true)}><Gauge size={15} /> Indicadores</button>}
+          {!readOnly && !publicMode && !embedded && !isMobile && <button className="pb-ghost" style={S.pbGhostBtn} onClick={() => setShowHistory(true)}><Clock size={15} /> Versões</button>}
           {isMobile && (() => {
             const boardActions = activeBoard && !activeLinked;
             const items = [
@@ -2344,6 +2347,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
               !readOnly && { icon: Trash2, label: `Lixeira${trashItems.length > 0 ? ` (${trashItems.length})` : ''}`, onClick: () => setShowTrash(true) },
               !readOnly && { icon: Archive, label: `Concluídas${archiveItems.length > 0 ? ` (${archiveItems.length})` : ''}`, onClick: () => setShowArchive(true) },
               !readOnly && !publicMode && { icon: Gauge, label: 'Indicadores', onClick: () => setShowStats(true) },
+              !readOnly && !publicMode && { icon: Clock, label: 'Versões do quadro', onClick: () => setShowHistory(true) },
               boardActions && !publicMode && { icon: activeBoard.visibility === 'public' ? Globe : Lock, label: activeBoard.visibility === 'public' ? 'Público por link' : 'Compartilhar', onClick: () => setShowShareModal(true) },
               boardActions && activeBoard.visibility === 'public' && !readOnly && { icon: History, label: 'Histórico', onClick: () => setShowActivityLog(true) },
             ].filter(Boolean);
@@ -2654,6 +2658,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
       )}
 
       {showStats && <React.Suspense fallback={null}><PersonalStatsPanel onClose={() => setShowStats(false)} /></React.Suspense>}
+      {showHistory && <React.Suspense fallback={null}><BoardHistoryPanel board={board} saveState={saveState} currentUser={currentUser} onMutate={onMutate} onRestored={onBoardRestored} onClose={() => setShowHistory(false)} /></React.Suspense>}
 
       {shareColumn && (
         <BoardShareModal

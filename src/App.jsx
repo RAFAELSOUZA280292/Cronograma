@@ -1513,6 +1513,19 @@ function AppScreens({ shellRef, bump }) {
       });
   }
 
+  // Restauração de uma versão do histórico (servidor já gravou): a tela passa a ser o quadro restaurado e a base de comparação também,
+  // senão o próximo salvamento fundiria o quadro velho de volta por cima.
+  function adoptRestoredPersonalBoard(board, updatedAt) {
+    if (personalBoardSaveTimer.current) { clearTimeout(personalBoardSaveTimer.current); personalBoardSaveTimer.current = null; }
+    if (personalBoardRetryTimer.current) { clearTimeout(personalBoardRetryTimer.current); personalBoardRetryTimer.current = null; }
+    lastGoodPersonalBoardRef.current = board;
+    personalBoardVersionRef.current = updatedAt || '';
+    personalBoardPendingRef.current = null;
+    personalBoardBusyRef.current = false;
+    setPersonalBoard(board);
+    setPersonalBoardSaveState('saved');
+  }
+
   function persistPersonalBoardDebounced(board) {
     if (personalBoardSaveTimer.current) clearTimeout(personalBoardSaveTimer.current);
     if (personalBoardRetryTimer.current) { clearTimeout(personalBoardRetryTimer.current); personalBoardRetryTimer.current = null; }
@@ -2149,6 +2162,7 @@ function AppScreens({ shellRef, bump }) {
         todayMeetings={buildTodayItems({ projects, personalBoard: null, user: currentUser, todayIso: todayISOStr() }).meetings}
         saveState={personalBoardSaveState}
         onRetrySave={retryPersonalBoardNow}
+        onBoardRestored={adoptRestoredPersonalBoard}
         notifications={notifications} showNotifications={showNotifications} onToggleNotifications={() => setShowNotifications((v) => !v)}
         onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
       />

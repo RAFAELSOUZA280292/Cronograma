@@ -345,6 +345,9 @@ try {
   ok('M11: restaurar devolve os 6 cartões', rest.status === 200 && afterRest.board.boards[0].columns[0].cards.length === 6, rest.status);
   const hv2 = await call(bru.cookie, 'GET', '/api/personal-board/versions');
   ok('M11: restaurar guarda o estado anterior como foto (dá para voltar atrás)', (hv2.json.versions || []).some((v) => /antes de restaurar/.test(v.reason) && v.cards === 1), hv2.json);
+  const det = await call(bru.cookie, 'GET', `/api/personal-board/versions/${dropV.id}`);
+  ok('M11 (tela de Histórico): abrir uma versão devolve o quadro daquela cópia; de outra pessoa dá 404; id malformado 400', det.status === 200 && det.json.version.id === dropV.id && Array.isArray(det.json.version.board && det.json.version.board.boards)
+    && (await call(vend.cookie, 'GET', `/api/personal-board/versions/${dropV.id}`)).status === 404 && (await call(bru.cookie, 'GET', '/api/personal-board/versions/abc')).status === 400);
   ok('M11: versão de outra pessoa ou inexistente não restaura (404) e id malformado dá 400', (await call(vend.cookie, 'POST', `/api/personal-board/versions/${dropV.id}/restore`)).status === 404 && (await call(bru.cookie, 'POST', '/api/personal-board/versions/abc/restore')).status === 400);
 
   // ---- M8: atividade do CRM só pelo responsável/criador/gestão; empresa excluída; lead rápido sem sobra
@@ -403,7 +406,7 @@ try {
   const nac = await login(NAC, PASS, '203.0.113.84');
   const nacGet = await call(nac.cookie, 'GET', '/api/personal-board');
   ok('B8: sem acesso à Gestão de Atividades o GET devolve quadro vazio e NÃO cria nada no banco', nacGet.status === 200 && nacGet.json.updatedAt === null && (await pool.query('SELECT 1 FROM personal_boards WHERE user_id=$1', [NAC])).rows.length === 0, nacGet);
-  ok('B8: sem acesso, gravar/versões/estatísticas dão 403', (await call(nac.cookie, 'PATCH', '/api/personal-board', { board: { boards: [{ id: 'x', columns: [] }] } })).status === 403 && (await call(nac.cookie, 'GET', '/api/personal-board/versions')).status === 403 && (await call(nac.cookie, 'GET', '/api/personal-board/stats')).status === 403);
+  ok('B8: sem acesso, gravar/versões/estatísticas dão 403', (await call(nac.cookie, 'PATCH', '/api/personal-board', { board: { boards: [{ id: 'x', columns: [] }] } })).status === 403 && (await call(nac.cookie, 'GET', '/api/personal-board/versions')).status === 403 && (await call(nac.cookie, 'GET', '/api/personal-board/versions/1')).status === 403 && (await call(nac.cookie, 'GET', '/api/personal-board/stats')).status === 403);
   ok('B8: quem tem o acesso segue normal (200)', (await call(adm.cookie, 'GET', '/api/personal-board')).status === 200);
 
   const ORG3 = `sga_org3_${RUN}`;
