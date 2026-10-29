@@ -124,7 +124,7 @@ Lista exata de rotas: `docs/gerado/ROTAS.md`, grupo `/api/connect`. Rota inexist
 | Tabela | Uso | Leitura/gravação | Observação |
 |---|---|---|---|
 | `api_tokens` | chaves (hash, escopo, validade, `last_used_at`, `revoked_at`) | lê/grava; **nunca apaga** (só revoga) | `UNIQUE(token_hash)`; `ON DELETE CASCADE` do usuário |
-| `api_token_actions` | auditoria das gravações por chave (CRM e correção de reunião) | só insere | FK para `api_tokens`; índice `(user_id, at DESC)`; sem rotina de limpeza |
+| `api_token_actions` | auditoria das gravações por chave (CRM e correção de reunião) | só insere | FK para `api_tokens`; índice `(user_id, at DESC)`; apagada após 400 dias (`purgeTelemetry`); a chave que tem registro não é apagada antes |
 | `meeting_edits` | antes/depois e corpo que desfaz, por correção | insere; marca `undone_at` | criada por `server/meetingEditsSchema.js` |
 | `personal_boards` | onde `POST /activities` grava o cartão (`createdVia:'api'`, `apiRef`) | grava | `mergeApiCards` (`server/routes.js`) impede o painel aberto de apagar cartão da API |
 | `projects.data` | `/plan` e correção de reunião gravam o JSON inteiro | grava | gatilho de versionamento do cronograma registra quem (via `projectAudit.js`) |
@@ -382,7 +382,7 @@ Só o que é desta área (o resto do calendário está em outro documento). **N�
 | `user_access_events` | 730 dias (mínimo 90) | `ACCESS_RETENTION_DAYS` | idem |
 | `renata_conversations` | 90 dias por `updated_at` (guardam resultados de consultas com dados de clientes); a auditoria `renata_actions` **não** é apagada | fixo | idem |
 | Versões do cronograma | ver `docs` de versionamento | `VERSIONS_*` | `server/projectVersions.js` |
-| `ip_geo_cache`, `api_tokens`, `api_token_actions`, `company_share_links` | **sem rotina de limpeza** | — | (grep não achou `DELETE`) |
+| `ip_geo_cache` (90 dias), `api_tokens` (expirada/revogada há >90 dias e sem registro de ações), `api_token_actions` (400 dias), `company_share_links` (revogado/expirado há >90 dias), `notifications` (lidas >90 dias; qualquer uma >365), `personal_card_events` (3 anos), `daily_content` (60 dias) | fixos no código (desde 2026-10-29) | `purgeTelemetry` |
 A rotina roda 60 s depois do boot e a cada 24 h (`startRetentionJob`); falha é só log.
 
 ## Registro de quem gravou em `projects` (`projectAudit.js`)

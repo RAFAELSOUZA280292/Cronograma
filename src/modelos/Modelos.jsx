@@ -483,7 +483,7 @@ function Drawer({ t, currentUser, categories, onClose, onChanged, onDeleted }) {
       </div>
 
       <div className="par-drawer-actions" style={{ marginTop: 18 }}>
-        <Button variant="danger" icon={Trash2} onClick={() => { setDlgError(''); setConfirmDelete(true); }}>Excluir modelo</Button>
+        {(t.created_by === currentUser.id || currentUser.role === 'master' || currentUser.isSuperAdmin) && <Button variant="danger" icon={Trash2} onClick={() => { setDlgError(''); setConfirmDelete(true); }}>Excluir modelo</Button>}
       </div>
     </ModulePanel>
     {confirmDelete && (

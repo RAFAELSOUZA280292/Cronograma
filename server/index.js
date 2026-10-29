@@ -91,6 +91,7 @@ app.use('/api/company-share', companyShareRouter);
 app.use('/api/company-calendar', companyCalendarRouter);
 app.use('/api/public-company', publicCompanyRouter);
 app.use('/d', companyDataRouter);
+app.use('/d', apiErrorHandler); // erro nas rotas /d também sai em JSON e sem detalhe técnico (antes caía no erro padrão do Express)
 app.use('/api/push', pushRouter);
 app.use('/api/ops-intel', opsIntelRouter);
 app.use('/api/experience', experienceRouter);

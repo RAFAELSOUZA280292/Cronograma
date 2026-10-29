@@ -46,7 +46,9 @@ export function registerPlataforma(registry) {
       return { status: 200, json: { total: list.length, rotas: list.slice(0, 80).map((r) => `${r.method} ${r.path}`), dica: 'Caminhos com :id pedem o id real. O corpo esperado aparece na mensagem de erro (400) se faltar algo.' } };
     } });
   const checkPath = (method, p, registryRef) => {
-    if (!/^\/api\//.test(String(p)) || String(p).includes('..')) return 'Caminho inválido (use /api/…).';
+    // Só letras, números e `_ - . / : @` no caminho (sem `%` nem barra invertida): nada de `%2e%2e`, `..`, `//` ou outro truque para sair do que foi liberado (B9).
+    const pathOnly = String(p).split('?')[0];
+    if (!/^\/api\/[A-Za-z0-9_\-./:@]+$/.test(pathOnly) || pathOnly.includes('..') || pathOnly.includes('//')) return 'Caminho inválido (use /api/…).';
     const r = matchRoute(method, p);
     if (!r) return `Não existe a rota ${method} ${p}. Use plataforma_rotas para ver as disponíveis.`;
     const why = excludedReason(r.method, r.path);

@@ -14,6 +14,9 @@ function requireSecret() {
   return secret;
 }
 
+// Hash de uma senha que ninguém conhece: o login de um usuário que NÃO existe gasta o mesmo tempo de bcrypt que o de um que existe (não dá para descobrir contas pelo tempo de resposta).
+export const DUMMY_HASH = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10);
+
 export function hashPassword(plain) {
   return bcrypt.hash(plain, 10);
 }

@@ -181,8 +181,12 @@ router.delete('/:id/items/:itemId', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Exclusão é física (sem cópia): só quem criou o modelo ou um administrador (Master/Super Admin) — antes qualquer Master/PRICETAX apagava qualquer modelo (B, 2026-10-29).
 router.delete('/:id', async (req, res, next) => {
   try {
+    const own = await pool.query('SELECT created_by FROM document_templates WHERE id=$1 AND org_id=$2', [req.params.id, effectiveOrgId(req)]);
+    if (!own.rows[0]) return res.status(404).json({ message: 'Modelo não encontrado.' });
+    if (own.rows[0].created_by !== req.user.id && !(req.user.role === 'master' || req.user.isSuperAdmin)) return res.status(403).json({ message: 'Só quem criou o modelo ou um administrador (Master) pode excluí-lo.' });
     const { rowCount } = await pool.query('DELETE FROM document_templates WHERE id=$1 AND org_id=$2', [req.params.id, effectiveOrgId(req)]);
     if (!rowCount) return res.status(404).json({ message: 'Modelo não encontrado.' });
     res.json({ ok: true });

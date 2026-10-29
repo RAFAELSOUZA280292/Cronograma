@@ -1,8 +1,8 @@
 // Sincronização com Google Calendar (2026-08) — cada usuário conecta a
 // própria conta via OAuth (nada de "conexão única pra todo mundo"). Escopo
-// pedido é só `calendar.events` (criar/editar/apagar evento), nunca lê a
-// agenda de volta — unidirecional, PRICETAX escreve, Google só recebe. Ver
-// PROJECT_CONTEXT.md §21 pro desenho completo.
+// pedido é só `calendar.events` (criar/editar/apagar e LER eventos: a Agenda,
+// o widget e a resposta a convites usam `listEvents`/`respondToEvent`). Os
+// tokens ficam cifrados (`secretBox.js`). Ver PROJECT_CONTEXT.md §21 e §116o.
 
 import { google } from 'googleapis';
 import { pool } from './db.js';

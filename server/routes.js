@@ -5,7 +5,7 @@ import { pool, blankProject, blankPersonalBoard } from './db.js';
 import { instantiateStandard } from './standardTemplateStore.js';
 import { isISODate } from './standardTemplate.js';
 import {
-  hashPassword, comparePassword, signToken, orgInactive, ORG_INACTIVE_MSG, setAuthCookie, clearAuthCookie,
+  hashPassword, comparePassword, DUMMY_HASH, signToken, orgInactive, ORG_INACTIVE_MSG, setAuthCookie, clearAuthCookie,
   rowToUser, findUserByUsername, findUserById, requireAuth, requireMaster, requireMasterOrPricetax, requireSuperAdmin, optionalAuth, toISODateSafe,
 } from './auth.js';
 import { lookupCnpj, cleanCnpj, formatCnpj } from './cnpjLookup.js';
@@ -135,8 +135,14 @@ router.post('/auth/login', async (req, res, next) => {
     const wait = loginBlockedFor(username, req);
     if (wait) return res.status(429).json({ message: `Muitas tentativas. Tente de novo em ${Math.ceil(wait / 60)} min.` });
     const row = await findUserByUsername(username);
-    if (!row) { noteLoginFailure(username, req); return res.status(401).json({ message: 'Usuário ou senha inválidos.' }); }
-
+    // A senha é conferida PRIMEIRO e sempre (com um hash falso se o usuário não existe): bloqueio, expiração e organização suspensa só aparecem para quem acertou a
+    // senha — antes qualquer pessoa descobria quais contas existem e quais estão bloqueadas (B1, 2026-10-29).
+    const ok = await comparePassword(password, row ? row.password_hash : DUMMY_HASH);
+    if (!row || !ok) {
+      noteLoginFailure(username, req);
+      if (row) recordAccess(row.id, 'login_failed', req);
+      return res.status(401).json({ message: 'Usuário ou senha inválidos.' });
+    }
     if (!row.blocked && row.expires_at && toISODateSafe(row.expires_at) < todayISO()) {
       await pool.query(
         `UPDATE users SET blocked = true, block_reason = 'Acesso expirado', updated_at = now() WHERE id = $1`,
@@ -148,13 +154,6 @@ router.post('/auth/login', async (req, res, next) => {
       return res.status(403).json({ message: row.block_reason || 'Acesso bloqueado. Fale com um PRICETAX Master.' });
     }
     if (orgInactive(row)) return res.status(403).json({ message: ORG_INACTIVE_MSG });
-
-    const ok = await comparePassword(password, row.password_hash);
-    if (!ok) {
-      noteLoginFailure(username, req);
-      recordAccess(row.id, 'login_failed', req);
-      return res.status(401).json({ message: 'Usuário ou senha inválidos.' });
-    }
     noteLoginSuccess(username, req);
 
     const token = signToken(row.id, row.password_hash);
@@ -180,8 +179,12 @@ router.post('/auth/change-password-login', async (req, res, next) => {
     const wait = loginBlockedFor(username, req);
     if (wait) return res.status(429).json({ message: `Muitas tentativas. Tente de novo em ${Math.ceil(wait / 60)} min.` });
     const row = await findUserByUsername(username);
-    if (!row) { noteLoginFailure(username, req); return res.status(401).json({ message: 'Usuário ou senha inválidos.' }); }
-
+    const ok = await comparePassword(currentPassword, row ? row.password_hash : DUMMY_HASH); // mesma regra do login: senha primeiro, resposta única (B1)
+    if (!row || !ok) {
+      noteLoginFailure(username, req);
+      if (row) recordAccess(row.id, 'login_failed', req);
+      return res.status(401).json({ message: 'Usuário ou senha inválidos.' });
+    }
     if (!row.blocked && row.expires_at && toISODateSafe(row.expires_at) < todayISO()) {
       await pool.query(
         `UPDATE users SET blocked = true, block_reason = 'Acesso expirado', updated_at = now() WHERE id = $1`,
@@ -192,9 +195,7 @@ router.post('/auth/change-password-login', async (req, res, next) => {
     if (row.blocked) {
       return res.status(403).json({ message: row.block_reason || 'Acesso bloqueado. Fale com um PRICETAX Master.' });
     }
-
-    const ok = await comparePassword(currentPassword, row.password_hash);
-    if (!ok) { noteLoginFailure(username, req); recordAccess(row.id, 'login_failed', req); return res.status(401).json({ message: 'Senha atual incorreta.' }); }
+    if (orgInactive(row)) return res.status(403).json({ message: ORG_INACTIVE_MSG });
     noteLoginSuccess(username, req);
 
     const hash = await hashPassword(newPassword);
@@ -298,6 +299,9 @@ router.get('/users/:id/access', requireAuth, requireMaster, async (req, res, nex
   } catch (e) { next(e); }
 });
 
+// Valores aceitos (B4): papel inválido virava erro 500 e o papel do XFlow era texto livre.
+const USER_ROLES = ['master', 'pricetax', 'cliente'];
+const XFLOW_ROLES = ['', 'reporter', 'dev', 'gestao']; // 'admin' no XFlow é automático para Master/Super Admin, nunca atribuído à mão
 router.post('/users', requireAuth, requireMaster, async (req, res, next) => {
   try {
     const { username, password, name, email, role, cnpj, allowedCnpjs, avatar, personalOnly, xflowRole, companiesAccess, allCompaniesAccess, personalAccess } = req.body || {};
@@ -305,6 +309,8 @@ router.post('/users', requireAuth, requireMaster, async (req, res, next) => {
       return res.status(400).json({ message: 'Usuário, senha, nome e papel são obrigatórios.' });
     }
     if (passwordTooShort(password)) return res.status(400).json({ message: PASSWORD_MSG });
+    if (!USER_ROLES.includes(role)) return res.status(400).json({ message: 'Papel inválido.' });
+    if (xflowRole !== undefined && xflowRole !== null && !XFLOW_ROLES.includes(xflowRole)) return res.status(400).json({ message: 'Papel do XFlow inválido.' });
     const existing = await findUserByUsername(username);
     if (existing) return res.status(409).json({ message: 'Usuário já existe.' });
 
@@ -323,6 +329,8 @@ router.patch('/users/:id', requireAuth, requireMaster, async (req, res, next) =>
   try {
     const { id } = req.params;
     const patch = req.body || {};
+    if (patch.role !== undefined && !USER_ROLES.includes(patch.role)) return res.status(400).json({ message: 'Papel inválido.' });
+    if (patch.xflowRole !== undefined && patch.xflowRole !== null && !XFLOW_ROLES.includes(patch.xflowRole)) return res.status(400).json({ message: 'Papel do XFlow inválido.' });
     const target = await findUserById(id);
     if (!target || !sameOrg(req, target.org_id)) return res.status(404).json({ message: 'Usuário não encontrado.' });
     if (target.is_super_admin && !req.user.isSuperAdmin) return res.status(403).json({ message: 'Só o Super Administrador altera outro Super Administrador.' });
@@ -745,8 +753,13 @@ router.post('/_internal/memory-search', requireAuth, async (req, res, next) => {
 
 // ---------- Personal board (per-user, not tied to any company) ----------
 
+// O acesso à Gestão de Atividades (`personal_access`) é conferido no SERVIDOR também (B8, 2026-10-29): sem ele a tela já nem abre, mas as rotas aceitavam qualquer login.
+const requirePersonalAccess = (req, res, next) => (req.user && req.user.personalAccess ? next() : res.status(403).json({ message: 'Você não tem acesso à Gestão de Atividades.' }));
+
 router.get('/personal-board', requireAuth, async (req, res, next) => {
   try {
+    // Sem acesso: a tela carrega o quadro ao entrar, então responde um quadro vazio que NÃO é guardado (nada é criado no banco).
+    if (!req.user.personalAccess) return res.json({ board: blankPersonalBoard(), updatedAt: null });
     const { rows } = await pool.query('SELECT data, updated_at FROM personal_boards WHERE user_id=$1', [req.user.id]);
     if (rows[0]) return res.json({ board: rows[0].data, updatedAt: rows[0].updated_at });
     const board = blankPersonalBoard();
@@ -757,7 +770,7 @@ router.get('/personal-board', requireAuth, async (req, res, next) => {
 
 // Versão barata do quadro (só o carimbo): o cliente consulta de tempos em tempos para saber se OUTRA origem (a API de conectividade,
 // §80, ou o quadro público) alterou o quadro, e recarrega quando não há edição local pendente.
-router.get('/personal-board/version', requireAuth, async (req, res, next) => {
+router.get('/personal-board/version', requireAuth, requirePersonalAccess, async (req, res, next) => {
   try {
     const { rows } = await pool.query('SELECT updated_at FROM personal_boards WHERE user_id=$1', [req.user.id]);
     res.json({ updatedAt: rows[0] ? rows[0].updated_at : null });
@@ -808,7 +821,7 @@ export function sameStamp(a, b) {
   return Number.isFinite(x) && Number.isFinite(y) && x === y;
 }
 
-router.patch('/personal-board', requireAuth, async (req, res, next) => {
+router.patch('/personal-board', requireAuth, requirePersonalAccess, async (req, res, next) => {
   const incoming = req.body && req.body.board;
   if (!incoming) return res.status(400).json({ message: 'Payload inválido.' });
   // Forma mínima (M11): lista de páginas com id e colunas em lista — um bug de tela não pode gravar lixo que quebra o quadro inteiro.
@@ -855,14 +868,14 @@ router.patch('/personal-board', requireAuth, async (req, res, next) => {
 });
 
 // Histórico do quadro pessoal (M11): lista as fotos guardadas e restaura uma (a atual vira uma foto "antes de restaurar", então dá para voltar atrás).
-router.get('/personal-board/versions', requireAuth, async (req, res, next) => {
+router.get('/personal-board/versions', requireAuth, requirePersonalAccess, async (req, res, next) => {
   try {
     const { rows } = await pool.query('SELECT id, reason, created_at, data FROM personal_board_versions WHERE user_id=$1 ORDER BY created_at DESC LIMIT 40', [req.user.id]);
     res.json({ versions: rows.map((r) => ({ id: String(r.id), reason: r.reason, createdAt: r.created_at, pages: Array.isArray(r.data && r.data.boards) ? r.data.boards.length : 0, cards: countCards(r.data) })) });
   } catch (e) { next(e); }
 });
 
-router.post('/personal-board/versions/:id/restore', requireAuth, async (req, res, next) => {
+router.post('/personal-board/versions/:id/restore', requireAuth, requirePersonalAccess, async (req, res, next) => {
   if (!/^\d{1,18}$/.test(req.params.id)) return res.status(400).json({ message: 'Versão inválida.' });
   const client = await pool.connect();
   try {
@@ -882,7 +895,7 @@ router.post('/personal-board/versions/:id/restore', requireAuth, async (req, res
   }
 });
 
-router.get('/personal-board/stats', requireAuth, async (req, res, next) => {
+router.get('/personal-board/stats', requireAuth, requirePersonalAccess, async (req, res, next) => {
   try {
     const d = parseInt(req.query.days, 10);
     const days = Number.isInteger(d) && d > 0 && d <= 3650 ? d : null;
@@ -895,7 +908,7 @@ router.get('/personal-board/stats', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.get('/personal-board/stats/day', requireAuth, async (req, res, next) => {
+router.get('/personal-board/stats/day', requireAuth, requirePersonalAccess, async (req, res, next) => {
   try {
     const date = String(req.query.date || '');
     const valid = /^\d{4}-\d{2}-\d{2}$/.test(date) && new Date(`${date}T12:00:00Z`).toISOString().slice(0, 10) === date;

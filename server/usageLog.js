@@ -80,6 +80,14 @@ export async function purgeTelemetry() {
   // Histórico do quadro pessoal: 30 dias e no máximo 40 versões por pessoa (M11).
   await pool.query(`DELETE FROM personal_board_versions WHERE created_at < now() - interval '30 days'`).catch(() => {});
   await pool.query(`DELETE FROM personal_board_versions v USING (SELECT id, row_number() OVER (PARTITION BY user_id ORDER BY created_at DESC) AS rn FROM personal_board_versions) r WHERE v.id = r.id AND r.rn > 40`).catch(() => {});
+  // Limpeza de tabelas que só cresciam (B, 2026-10-29). Janelas conservadoras; cada comando é independente e falha em silêncio.
+  const q = (sql) => pool.query(sql).catch(() => {});
+  await q(`DELETE FROM api_tokens WHERE ((expires_at < now() - interval '90 days') OR (revoked_at IS NOT NULL AND revoked_at < now() - interval '90 days')) AND NOT EXISTS (SELECT 1 FROM api_token_actions a WHERE a.token_id = api_tokens.id)`); // chave com gravações registradas fica até o registro expirar (a trilha de auditoria não some junto)
+  await q(`DELETE FROM api_token_actions WHERE at < now() - interval '400 days'`);
+  await q(`DELETE FROM company_share_links WHERE (expires_at IS NOT NULL AND expires_at < now() - interval '90 days') OR (revoked_at IS NOT NULL AND revoked_at < now() - interval '90 days')`);
+  await q(`DELETE FROM notifications WHERE (read = true AND created_at < now() - interval '90 days') OR created_at < now() - interval '365 days'`);
+  await q(`DELETE FROM personal_card_events WHERE occurred_at < now() - interval '1095 days'`);
+  await q(`DELETE FROM daily_content WHERE day < (now() - interval '60 days')::date`);
   // Cidade aproximada de cada IP (serviço externo ipwho.is): guardada por 90 dias e consultada de novo se o IP voltar (M20).
   await pool.query(`DELETE FROM ip_geo_cache WHERE fetched_at < now() - interval '90 days'`).catch(() => {});
   // Conversas da RENATA guardam resultados de consultas (dados de clientes): 90 dias. O registro de ações (auditoria) NÃO é apagado.

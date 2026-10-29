@@ -322,7 +322,7 @@ try {
   ok('M22: a chave de API é revogada (401)', (await fetch(`${BASE}/api/connect/companies`, { headers: { Authorization: `Bearer ${victKey.json.token}` } })).status === 401);
   ok('M22: o widget da pessoa para (401/403)', [401, 403].includes((await fetch(`${BASE}/api/widget/summary`, { headers: { Authorization: `Bearer ${victW.json.token}` } })).status));
   ok('M22: a conexão do Google e o push são apagados', (await pool.query('SELECT 1 FROM google_calendar_connections WHERE user_id=$1', [VICT])).rows.length === 0 && (await pool.query('SELECT 1 FROM push_subscriptions WHERE user_id=$1', [VICT])).rows.length === 0);
-  ok('M22: não entra mais com a senha antiga (403) e o login não pode ser recriado (409)', (await login(VICT, PASS, '203.0.113.71')).status === 403 && (await call(adm.cookie, 'POST', '/api/users', { username: VICT, password: 'outra-senha-12345', name: 'x', role: 'pricetax' })).status === 409);
+  ok('M22: não entra mais com a senha antiga (401, sem revelar que a conta existe) e o login não pode ser recriado (409)', (await login(VICT, PASS, '203.0.113.71')).status === 401 && (await call(adm.cookie, 'POST', '/api/users', { username: VICT, password: 'outra-senha-12345', name: 'x', role: 'pricetax' })).status === 409);
   const lastMaster = await call(adm.cookie, 'DELETE', `/api/users/${U.adm}`);
   ok('M22: continua não podendo remover a si mesmo (400)', lastMaster.status === 400);
   const back = await call(adm.cookie, 'POST', `/api/users/${VICT}/renew`, { days: 30 });
@@ -382,6 +382,62 @@ try {
   const { assertSignature } = await import('../server/materialText.js');
   const sigOk = (ext, str) => { try { assertSignature(ext, Buffer.from(str, 'latin1')); return true; } catch { return false; } };
   ok('M23: assinatura confere (pdf/docx/xlsx verdadeiros passam; texto disfarçado de pdf/docx/xlsx cai)', sigOk('pdf', '%PDF-1.7 x') && sigOk('docx', 'PK\x03\x04xx') && sigOk('xls', '\xD0\xCF\x11\xE0x') && !sigOk('pdf', 'texto') && !sigOk('docx', 'texto') && !sigOk('xlsx', '<html>') && sigOk('txt', 'qualquer coisa'));
+
+  // ---- BAIXOS: B1 enumeração de contas, B4 papéis, B7 XFlow 404, B8 acesso ao quadro, Modelos, retenção
+  const BLK = `sga_blk_${RUN}`;
+  await pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,companies_access,all_companies_access,blocked,block_reason) VALUES ($1,$1,$2,$1,'pricetax',$3,true,true,true,'Bloqueado por teste')`, [BLK, hash, ORG]);
+  const lNone = await login(`nao_existe_${RUN}`, 'qualquer-senha-1', '203.0.113.80');
+  const lBlkBad = await login(BLK, 'senha-errada-123', '203.0.113.81');
+  const lBlkOk = await login(BLK, PASS, '203.0.113.82');
+  ok('B1: senha errada em conta BLOQUEADA responde igual a usuário inexistente (401, mesma mensagem)', lNone.status === 401 && lBlkBad.status === 401 && lNone.json.message === lBlkBad.json.message, [lNone.json, lBlkBad.json]);
+  ok('B1: o motivo do bloqueio só aparece para quem acertou a senha (403)', lBlkOk.status === 403 && /Bloqueado por teste/.test(lBlkOk.json.message), lBlkOk);
+  const cplBad = await call('', 'POST', '/api/auth/change-password-login', { username: BLK, currentPassword: 'errada-errada', newPassword: 'nova-senha-1234' }, '203.0.113.83');
+  ok('B1: a troca de senha pela tela de login também não revela conta bloqueada (401)', cplBad.status === 401 && /inválidos/.test(cplBad.json.message), cplBad);
+  const badRole = await call(adm.cookie, 'POST', '/api/users', { username: `sga_r_${RUN}`, password: 'senha-forte-123', name: 'x', role: 'superchefe' });
+  const badX = await call(adm.cookie, 'POST', '/api/users', { username: `sga_x_${RUN}`, password: 'senha-forte-123', name: 'x', role: 'pricetax', xflowRole: 'qualquer-coisa' });
+  const badPatch = await call(adm.cookie, 'PATCH', `/api/users/${BLK}`, { role: 'lixo' });
+  ok('B4: papel inválido e papel do XFlow em texto livre dão 400 (antes: 500 / aceitos)', badRole.status === 400 && badX.status === 400 && badPatch.status === 400, [badRole.status, badX.status, badPatch.status]);
+
+  const NAC = `sga_nac_${RUN}`;
+  await pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,companies_access,all_companies_access,personal_access) VALUES ($1,$1,$2,$1,'pricetax',$3,true,true,false)`, [NAC, hash, ORG]);
+  const nac = await login(NAC, PASS, '203.0.113.84');
+  const nacGet = await call(nac.cookie, 'GET', '/api/personal-board');
+  ok('B8: sem acesso à Gestão de Atividades o GET devolve quadro vazio e NÃO cria nada no banco', nacGet.status === 200 && nacGet.json.updatedAt === null && (await pool.query('SELECT 1 FROM personal_boards WHERE user_id=$1', [NAC])).rows.length === 0, nacGet);
+  ok('B8: sem acesso, gravar/versões/estatísticas dão 403', (await call(nac.cookie, 'PATCH', '/api/personal-board', { board: { boards: [{ id: 'x', columns: [] }] } })).status === 403 && (await call(nac.cookie, 'GET', '/api/personal-board/versions')).status === 403 && (await call(nac.cookie, 'GET', '/api/personal-board/stats')).status === 403);
+  ok('B8: quem tem o acesso segue normal (200)', (await call(adm.cookie, 'GET', '/api/personal-board')).status === 200);
+
+  const ORG3 = `sga_org3_${RUN}`;
+  await pool.query(`INSERT INTO organizations (id, slug, name) VALUES ($1,$1,'Org Teste XFlow')`, [ORG3]);
+  await pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,xflow_role) VALUES ($1,$1,$2,$1,'pricetax',$3,'dev')`, [`sga_o3_${RUN}`, hash, ORG3]);
+  const o3 = await login(`sga_o3_${RUN}`, PASS, '203.0.113.85');
+  await pool.query(`UPDATE users SET xflow_role='admin' WHERE id=$1`, [U.adm]);
+  const tkB7 = await call(adm.cookie, 'POST', '/api/xflow/tickets', { title: `Ticket B7 ${RUN}` });
+  const tkB7id = tkB7.json && (tkB7.json.ticket ? tkB7.json.ticket.id : tkB7.json.id);
+  const o3ev = await call(o3.cookie, 'GET', `/api/xflow/tickets/${tkB7id}/events`);
+  const o3patch = await call(o3.cookie, 'PATCH', `/api/xflow/tickets/${tkB7id}`, { action: 'comentar', payload: { text: 'x' } });
+  ok('B7: ticket de OUTRA base responde 404 (não 403, que confirmaria que existe)', o3ev.status === 404 && o3patch.status === 404, [o3ev.status, o3patch.status]);
+  if (tkB7id) { await pool.query(`DELETE FROM xflow_events WHERE ticket_id=$1`, [tkB7id]).catch(() => {}); await pool.query(`DELETE FROM xflow_tickets WHERE id=$1`, [tkB7id]).catch(() => {}); }
+  await pool.query(`DELETE FROM users WHERE org_id=$1`, [ORG3]); await pool.query(`DELETE FROM organizations WHERE id=$1`, [ORG3]);
+
+  const tplA = await call(vend.cookie, 'POST', '/api/templates', { kind: 'link', url: 'https://example.com/modelo', title: `Modelo B ${RUN}` });
+  const tplId = tplA.json && tplA.json.id;
+  const gestTpl = await call(gest.cookie, 'DELETE', `/api/templates/${tplId}`);
+  ok('Modelos: outro PRICETAX (nem criador nem Master) NÃO exclui o modelo (403)', tplA.status === 201 && gestTpl.status === 403, [tplA.status, gestTpl.status]);
+  ok('Modelos: o criador exclui o próprio modelo (200)', (await call(vend.cookie, 'DELETE', `/api/templates/${tplId}`)).status === 200);
+  const tplB = await call(vend.cookie, 'POST', '/api/templates', { kind: 'link', url: 'https://example.com/modelo2', title: `Modelo C ${RUN}` });
+  ok('Modelos: o Master exclui modelo de outra pessoa (200)', tplB.status === 201 && (await call(adm.cookie, 'DELETE', `/api/templates/${tplB.json.id}`)).status === 200);
+
+  // retenção: limpa o que é velho e preserva a trilha de auditoria
+  const OLDT = `sga_oldt_${RUN}`; const KEEPT = `sga_keept_${RUN}`;
+  await pool.query(`INSERT INTO api_tokens (id,user_id,name,scope,token_hash,expires_at,revoked_at) VALUES ($1,$3,'velha','read',$4,now() - interval '200 days', now() - interval '150 days'), ($2,$3,'com registro','read',$5,now() - interval '200 days', now() - interval '150 days')`, [OLDT, KEEPT, U.adm, `h_${RUN}_a`, `h_${RUN}_b`]);
+  await pool.query(`INSERT INTO api_token_actions (id, org_id, token_id, user_id, method, path, status) VALUES ($3,$4,$1,$2,'POST','/api/connect/teste',200)`, [KEEPT, U.adm, `sga_act_${RUN}`, ORG]);
+  await pool.query(`INSERT INTO notifications (id, org_id, user_id, type, title, body, read, created_at) VALUES ($1,$2,$3,'teste','velha lida','x',true, now() - interval '120 days'), ($4,$2,$3,'teste','recente lida','x',true, now() - interval '5 days')`, [`sga_n1_${RUN}`, ORG, U.adm, `sga_n2_${RUN}`]);
+  const { purgeTelemetry } = await import('../server/usageLog.js');
+  await purgeTelemetry();
+  ok('Retenção: chave expirada/revogada há mais de 90 dias é apagada', (await pool.query('SELECT 1 FROM api_tokens WHERE id=$1', [OLDT])).rows.length === 0);
+  ok('Retenção: chave velha que TEM gravações registradas é mantida (a auditoria não some junto)', (await pool.query('SELECT 1 FROM api_tokens WHERE id=$1', [KEEPT])).rows.length === 1);
+  ok('Retenção: notificação lida há 120 dias some; a recente fica', (await pool.query(`SELECT 1 FROM notifications WHERE id=$1`, [`sga_n1_${RUN}`])).rows.length === 0 && (await pool.query(`SELECT 1 FROM notifications WHERE id=$1`, [`sga_n2_${RUN}`])).rows.length === 1);
+  await pool.query(`DELETE FROM notifications WHERE id LIKE 'sga_n%'`).catch(() => {}); await pool.query(`DELETE FROM api_token_actions WHERE token_id=$1`, [KEEPT]).catch(() => {}); await pool.query(`DELETE FROM api_tokens WHERE id=$1`, [KEEPT]).catch(() => {});
 
   // ---- M5/M10/M17/M21 e cabeçalhos
   const hd = await fetch(`${BASE}/api/auth/me`);

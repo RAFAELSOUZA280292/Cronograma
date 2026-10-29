@@ -75,7 +75,7 @@ Não existe "esqueci minha senha" por e-mail: quem redefine é um Master (`reset
 ### Bloqueio, expiração e remoção de usuário
 | Ação | Rota | Regra | Efeito |
 |---|---|---|---|
-| Bloquear / desbloquear | `POST /api/users/:id/block` | não bloqueia a si mesmo; alvo na mesma org | `blocked`, `block_reason`; vale no **login**, chave de API, widget e RENATA — **não derruba cookie já emitido** |
+| Bloquear / desbloquear | `POST /api/users/:id/block` | não bloqueia a si mesmo; alvo na mesma org | `blocked`, `block_reason`; vale no **login**, chave de API, widget e RENATA — **derruba a sessão aberta (desde 2026-10-29)** |
 | Renovar | `POST /api/users/:id/renew` | `days` (padrão 30) | `expires_at` novo e `blocked=false` |
 | Expirar | automático | checado no login (e marca `blocked`) **e** a cada chamada com cookie (derruba a sessão, sem gravar) | marca `blocked=true` com motivo "Acesso expirado" |
 | Excluir | `DELETE /api/users/:id` | não exclui a si mesmo; não exclui o último `master` da org | **desativa** (desde 2026-10-29): `blocked=true` com motivo "Conta removida pelo administrador", senha trocada por uma aleatória, chaves de API revogadas, widget, conexão do Google e push apagados; a linha, o histórico e o login ficam. Reativar: Renovar + Redefinir senha. O "último Master" conta só Masters **ativos** |
@@ -91,7 +91,7 @@ Não existe "esqueci minha senha" por e-mail: quem redefine é um Master (`reset
 | `role` = `master` / `pricetax` / `cliente` | `users.role` (CHECK no banco) | **só** permissão administrativa: gerir usuários, cadastrar/apagar empresa, ver Fases/Log/Versões/Lixeira, áreas internas |
 | `is_super_admin` | `users.is_super_admin` | atravessa organizações; é o usuário semente (`SEED_ADMIN_USERNAME`) |
 | Acesso a Empresas | `companies_access` + `all_companies_access` + `allowed_cnpjs` | quais empresas a pessoa enxerga (`canAccessProject`) — **não depende do papel** |
-| Acesso à Gestão de Atividades | `personal_access` | libera o módulo (só o front esconde) |
+| Acesso à Gestão de Atividades | `personal_access` | libera o módulo; **o servidor também confere** (2026-10-29): sem ele `GET /personal-board` devolve um quadro vazio sem gravar nada e as demais rotas do quadro dão 403 (`requirePersonalAccess`) |
 | Acesso ao XFlow | `xflow_role` (`reporter`/`dev`/`gestao`/`admin` ou vazio) | `requireXflowAccess` + `canDo` |
 | Acesso ao CRM | `crm_role` (vazio = sem acesso) | `crmCan`; master e super admin viram `admin` do CRM; `cliente` **nunca** |
 | `personal_only` | `users.personal_only` | legado do modelo antigo; hoje o acesso vem das colunas acima |
@@ -329,7 +329,7 @@ Datas `AAAA-MM-DD` conferidas ida e volta (`isISODate`, `isMeetingDay`); horári
 | Só equipe usa a RENATA operacional | `role==='cliente'` → 403 | `renata/routes.js` |
 | O que a RENATA nunca faz | `EXCLUDED`: `/api/auth`, `/api/users`, organizações, chaves/widget/push, links públicos, telemetria, Google, migração PipeRun, merge de empresas, importações, quadro inteiro, projeto inteiro, biblioteca, download de arquivo | `renata/policy.js` |
 | Ação crítica pede confirmação | `needsConfirmation`: `risk:'critical'` (excluir, fechar negócio...), `confirm:'always'` (criar produto, funil), lote com mais de 1, ou mais de 5 escritas iguais no mesmo pedido; fica `pending`, expira em 30 min, só quem pediu confirma | `renata/executor.js` |
-| Acesso genérico também confirma | `plataforma_executar` é `confirm:'always'`; `checkPath` recusa rotas excluídas e as que já têm ferramenta curada | `renata/tools/plataforma.js` |
+| Acesso genérico também confirma | `plataforma_executar` é `confirm:'always'`; `checkPath` só aceita caminho com letras, números e `_-./:@` (sem `%`, `..` nem `//`), recusa rotas excluídas e as que já têm ferramenta curada | `renata/tools/plataforma.js` |
 | Tudo fica registrado | `renata_actions`: executor, solicitante, comando, antes/depois, autorização, resultado — inclusive recusa e cancelamento; **imutável** (gatilho no banco) | `renata/executor.js`, `renata/schema.js` |
 | Desfazer | só quem pediu ou administrador; vira nova ação registrada | `undoAction` |
 | Limite de custo | 40 pedidos por 10 min por pessoa; mensagem até 4.000 caracteres; **10 passos** de ferramenta por pedido (depois força resposta final); `max_tokens` 2.500 | `renata/routes.js`, `renata/agent.js` (`MAX_STEPS`) |
@@ -459,6 +459,12 @@ O registro completo (gravidade, onde, como confirmar, plano de correção) fica 
 | Quadro pessoal: forma mínima validada; vincular quadro com a linha travada | gravar lixo que quebra o quadro; duas abas se apagarem | `routes.js` `PATCH /personal-board`, `addLinkedBoard` | 400 "Quadro inválido." |
 | Parecer só aceita PDF de verdade (`%PDF-` nos primeiros bytes) | arquivo disfarçado de PDF | `pareceres.js` | 400 "O arquivo não é um PDF válido." |
 | Equipe vista pelo cliente sem o login (`username`) | enumeração de contas | `routes.js` `team-candidates` | — |
+| Login: a senha é conferida primeiro (hash falso se o usuário não existe); bloqueio/expiração/organização suspensa só aparecem a quem acertou a senha | descobrir quais contas existem e quais estão bloqueadas, por mensagem ou por tempo | `routes.js` login e `change-password-login`; `auth.js` `DUMMY_HASH` | 401 "Usuário ou senha inválidos." para os dois casos |
+| Papel de usuário e papel do XFlow só dos valores válidos | papel inválido → 500; texto livre no XFlow | `routes.js` `USER_ROLES`, `XFLOW_ROLES` | 400 |
+| XFlow: ticket de outra base responde 404; anexos/links de comentário passam por `cleanCommentExtras` | confirmar que um ticket existe; anexo fora dos limites/`javascript:` | `xflow.js` | 404 / 400 |
+| Modelos de documentos: só o criador ou Master exclui | qualquer PRICETAX apagar o modelo de outra pessoa | `documentTemplates.js` | 403 |
+| Erros de `/d/…` saem em JSON e sem detalhe técnico | erro padrão do Express | `index.js` (`apiErrorHandler` em `/d`) | — |
+| Retenção: chaves expiradas/revogadas (>90 dias, sem gravações registradas), registro de ações (400 dias), links públicos revogados/expirados (>90 dias), notificações lidas (>90 dias) ou antigas (>365), eventos de cartão (3 anos), conteúdo do dia (60 dias) | tabelas que só cresciam | `usageLog.js` `purgeTelemetry` | — |
 | CRM: excluir contato (`remove`), Excel de negócios e arquivos do PipeRun (`export`) só para gestor+ | vendedor/consultor/financeiro levar a base de contatos embora ou apagar contato | `crm/permissions.js` (`export`), `crm/routes.js`, `crm/piperun/routes.js` | 403 "Você não tem permissão pra isso no CRM." |
 | Excluir empresa só Master/Super Admin (tela, rota e ferramenta da RENATA) | PRICETAX comum apagar o cronograma de um cliente | `routes.js` `DELETE /projects/:id`; `renata/tools/empresas.js` `empresa_excluir`; `AdminScreens.jsx` | 403 "Só administradores (Master) excluem empresas." |
 | Token do widget só em hash (mostrado uma vez; `GET /widget/token` = 410; coluna recuperável apagada no boot) | banco/backup ou o `JWT_SECRET` revelarem todos os tokens de widget | `widget.js` (`wipeRecoverableWidgetTokens`) | "A chave de acesso só aparece uma vez…" |

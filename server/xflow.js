@@ -5,6 +5,7 @@ import { requireAuth, requireXflowAccess } from './auth.js';
 import { canDo, effectiveXflowRole } from './xflowPermissions.js';
 import { checkTransition, XFLOW_TERMINAL_STATUSES } from './xflowTransitions.js';
 import { createNotification } from './notifications.js';
+import { cleanCommentExtras } from './commentExtras.js';
 import { syncTicketEvent, deleteTicketEvent } from './googleCalendar.js';
 
 function uid(p) {
@@ -262,7 +263,7 @@ router.get('/tickets/:id/events', requireAuth, requireXflowAccess, async (req, r
     const { id } = req.params;
     const { rows: ticketRows } = await pool.query('SELECT org_id FROM xflow_tickets WHERE id=$1', [id]);
     if (!ticketRows[0]) return res.status(404).json({ message: 'Ticket não encontrado.' });
-    if (ticketRows[0].org_id !== req.user.orgId) return res.status(403).json({ message: 'Sem acesso a este ticket.' });
+    if (ticketRows[0].org_id !== req.user.orgId) return res.status(404).json({ message: 'Ticket não encontrado.' });
     const { rows } = await pool.query('SELECT * FROM xflow_events WHERE ticket_id=$1 ORDER BY created_at ASC', [id]);
     res.json({ events: rows.map(rowToEvent) });
   } catch (e) { next(e); }
@@ -280,7 +281,7 @@ router.post('/tickets/:id/view', requireAuth, requireXflowAccess, async (req, re
     const { id } = req.params;
     const { rows: ticketRows } = await pool.query('SELECT org_id FROM xflow_tickets WHERE id=$1', [id]);
     if (!ticketRows[0]) return res.status(404).json({ message: 'Ticket não encontrado.' });
-    if (ticketRows[0].org_id !== req.user.orgId) return res.status(403).json({ message: 'Sem acesso a este ticket.' });
+    if (ticketRows[0].org_id !== req.user.orgId) return res.status(404).json({ message: 'Ticket não encontrado.' });
 
     const { rows: recent } = await pool.query(
       `SELECT id FROM xflow_events WHERE ticket_id=$1 AND user_id=$2 AND type='view' AND created_at > now() - interval '5 minutes' LIMIT 1`,
@@ -342,7 +343,7 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
     const { rows } = await client.query('SELECT * FROM xflow_tickets WHERE id=$1 FOR UPDATE', [id]);
     if (!rows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Ticket não encontrado.' }); }
     const row = rows[0];
-    if (row.org_id !== req.user.orgId) { await client.query('ROLLBACK'); return res.status(403).json({ message: 'Sem acesso a este ticket.' }); }
+    if (row.org_id !== req.user.orgId) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Ticket não encontrado.' }); }
 
     // Visibilidade é da org inteira (ver GET /tickets) — só a ação em si
     // continua checada por dono/papel, abaixo em canDo() (isOwner() em
@@ -602,8 +603,10 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
       case 'comentar': {
         const p = payload || {};
         const commentText = (p.text || '').trim();
-        const attachments = p.attachments || [];
-        const links = p.links || [];
+        // Anexos e links do comentário passam pelo mesmo validador dos Pareceres/Modelos (limites, só `data:` e só http/https) — B5; limites folgados para o que o XFlow já aceitava.
+        let attachments; let links;
+        try { ({ attachments, links } = cleanCommentExtras(p.attachments, p.links, { maxAttachments: 10, maxFileChars: 12 * 1024 * 1024 })); }
+        catch (e) { await client.query('ROLLBACK'); return res.status(e && e.status ? e.status : 400).json({ message: e.message }); }
         // Comentário só de anexo/link (sem texto) é válido — mesmo
         // critério das atividades de empresa (PROJECT_CONTEXT.md §13).
         if (!commentText && !attachments.length && !links.length) {
@@ -859,7 +862,7 @@ router.delete('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, 
     const { rows } = await pool.query('SELECT * FROM xflow_tickets WHERE id=$1', [id]);
     if (!rows[0]) return res.status(404).json({ message: 'Ticket não encontrado.' });
     const row = rows[0];
-    if (row.org_id !== req.user.orgId) return res.status(403).json({ message: 'Sem acesso a este ticket.' });
+    if (row.org_id !== req.user.orgId) return res.status(404).json({ message: 'Ticket não encontrado.' });
     if (!row.deleted) return res.status(400).json({ message: 'Só é possível apagar de vez um BUG que já está na Lixeira.' });
     if (!canDo('purgar', req.user, rowToTicket(row))) {
       return res.status(403).json({ message: 'Só o admin pode apagar um BUG de vez.' });

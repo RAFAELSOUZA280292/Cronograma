@@ -1,6 +1,6 @@
 {
  "geradoPor": "scripts/renata-route-index.mjs",
- "total": 306,
+ "total": 317,
  "routes": [
   {
    "method": "POST",
@@ -173,13 +173,48 @@
    "file": "connect.js"
   },
   {
+   "method": "POST",
+   "path": "/api/connect/companies/:id/meetings/:meetingId/edits/:editId/undo",
+   "file": "connect.js"
+  },
+  {
    "method": "GET",
+   "path": "/api/connect/companies/:id/meetings/:meetingId/edits",
+   "file": "connect.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/connect/companies/:id/meetings/:meetingId",
+   "file": "connect.js"
+  },
+  {
+   "method": "PATCH",
    "path": "/api/connect/companies/:id/meetings/:meetingId",
    "file": "connect.js"
   },
   {
    "method": "POST",
    "path": "/api/connect/companies/:id/plan",
+   "file": "connect.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/connect/companies/:id/transcripts/:submissionId/retry",
+   "file": "connect.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/connect/companies/:id/transcripts/:submissionId",
+   "file": "connect.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/connect/companies/:id/transcripts",
+   "file": "connect.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/connect/companies/:id/transcripts",
    "file": "connect.js"
   },
   {
@@ -430,6 +465,11 @@
   {
    "method": "PATCH",
    "path": "/api/crm/deals/:id",
+   "file": "crm/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/crm/deals/export.xlsx",
    "file": "crm/routes.js"
   },
   {
@@ -793,6 +833,11 @@
    "file": "knowledgeLibraryRoutes.js"
   },
   {
+   "method": "POST",
+   "path": "/api/knowledge-library/suggest",
+   "file": "knowledgeLibraryRoutes.js"
+  },
+  {
    "method": "GET",
    "path": "/api/knowledge-library",
    "file": "knowledgeLibraryRoutes.js"
@@ -1040,6 +1085,16 @@
   {
    "method": "GET",
    "path": "/api/personal-board/version",
+   "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/personal-board/versions/:id/restore",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/personal-board/versions",
    "file": "routes.js"
   },
   {
