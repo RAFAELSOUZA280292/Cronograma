@@ -474,30 +474,68 @@ export function formatAdviceDigest(entries, maxChars = 4500) {
   return lines.join('\n');
 }
 
+// Entradas de orientação de UM projeto: reuniões vivas, mais recentes primeiro, só pareceres ainda utilizáveis nesta empresa.
+function adviceEntriesFor(rows, projectData, alive, max) {
+  const meetings = new Map(((projectData && projectData.meetings) || []).filter((m) => m && !m.deleted).map((m) => [m.id, m]));
+  const ordered = rows.filter((r) => meetings.has(r.meeting_id))
+    .sort((a, b) => String(meetings.get(b.meeting_id).date || '').localeCompare(String(meetings.get(a.meeting_id).date || '')));
+  const entries = [];
+  for (const r of ordered) {
+    const m = meetings.get(r.meeting_id);
+    for (const it of ((r.advice && r.advice.items) || [])) {
+      if (!alive.has(it.parecerId) || !Array.isArray(it.steps) || !it.steps.length) continue;
+      entries.push({ meetingTitle: m.title || 'Reunião sem título', meetingDate: m.date, parecerId: it.parecerId, parecerTitle: it.parecerTitle, number: it.number, topic: it.topic, relevance: it.relevance, steps: it.steps, caution: it.caution });
+    }
+    if (entries.length >= max) break;
+  }
+  return entries.slice(0, max);
+}
+
+const identityOf = (projectId, data) => ({ id: projectId, names: [data && data.company && data.company.name, data && data.company && data.company.nomeFantasia].filter(Boolean) });
+const loadParecerRows = (pool, orgId) => pool.query(
+  `SELECT p.id, p.scope, p.company_name, p.company_project_id, ps.fact_id FROM pareceres p
+   LEFT JOIN parecer_studies ps ON ps.parecer_id = p.id AND ps.status = 'done' WHERE p.org_id=$1`, [orgId]).then((r) => r.rows);
+const aliveFor = (parecerRows, identity) => new Map(parecerRows.filter((r) => parecerUsableFor(r, identity)).map((r) => [r.id, r.fact_id]));
+
 export async function loadMeetingAdviceDigest(pool, orgId, projectId, { projectData, isStaff, max = 6 } = {}) {
   const empty = { text: '', factIds: [] };
   if (!isStaff || !projectId) return empty;
   const { rows } = await pool.query('SELECT meeting_id, advice FROM meeting_parecer_advice WHERE project_id=$1 AND org_id=$2', [projectId, orgId]);
   if (!rows.length) return empty;
   const identity = await loadProjectIdentity(pool, projectId);
-  const { rows: pareceres } = await pool.query(
-    `SELECT p.id, p.scope, p.company_name, p.company_project_id, ps.fact_id FROM pareceres p
-     LEFT JOIN parecer_studies ps ON ps.parecer_id = p.id AND ps.status = 'done' WHERE p.org_id=$1`, [orgId]);
-  const alive = new Map(pareceres.filter((r) => parecerUsableFor(r, identity)).map((r) => [r.id, r.fact_id]));
-  const meetings = new Map(((projectData && projectData.meetings) || []).filter((m) => m && !m.deleted).map((m) => [m.id, m]));
-  const entries = [];
-  const factIds = new Set();
-  const ordered = rows.filter((r) => meetings.has(r.meeting_id))
-    .sort((a, b) => String(meetings.get(b.meeting_id).date || '').localeCompare(String(meetings.get(a.meeting_id).date || '')));
-  for (const r of ordered) {
-    const m = meetings.get(r.meeting_id);
-    for (const it of ((r.advice && r.advice.items) || [])) {
-      if (!alive.has(it.parecerId) || !Array.isArray(it.steps) || !it.steps.length) continue;
-      entries.push({ meetingTitle: m.title || 'Reunião sem título', meetingDate: m.date, parecerTitle: it.parecerTitle, number: it.number, topic: it.topic, relevance: it.relevance, steps: it.steps, caution: it.caution });
-      if (alive.get(it.parecerId)) factIds.add(alive.get(it.parecerId));
-    }
-    if (entries.length >= max) break;
-  }
+  const alive = aliveFor(await loadParecerRows(pool, orgId), identity);
+  const entries = adviceEntriesFor(rows, projectData, alive, max);
   if (!entries.length) return empty;
-  return { text: formatAdviceDigest(entries.slice(0, max)), factIds: [...factIds] };
+  return { text: formatAdviceDigest(entries), factIds: [...new Set(entries.map((e) => alive.get(e.parecerId)).filter(Boolean))] };
+}
+
+// RENATA geral (sem projeto aberto): a mesma orientação, agrupada por empresa, só das empresas que a pessoa pode acessar
+// (`projects` = [{ id, data }] já filtrados por quem chama). Cada empresa usa a própria regra de escopo dos pareceres.
+export async function loadGeneralAdviceDigest(pool, orgId, projects, { isStaff, perCompany = 2, maxCompanies = 12, maxChars = 5000 } = {}) {
+  const empty = { text: '', factIds: [] };
+  if (!isStaff || !projects || !projects.length) return empty;
+  const ids = projects.map((p) => p.id);
+  const { rows } = await pool.query('SELECT project_id, meeting_id, advice FROM meeting_parecer_advice WHERE org_id=$1 AND project_id = ANY($2)', [orgId, ids]);
+  if (!rows.length) return empty;
+  const parecerRows = await loadParecerRows(pool, orgId);
+  const byProject = new Map();
+  for (const r of rows) { if (!byProject.has(r.project_id)) byProject.set(r.project_id, []); byProject.get(r.project_id).push(r); }
+  const blocks = [];
+  for (const p of projects) {
+    const mine = byProject.get(p.id);
+    if (!mine) continue;
+    const alive = aliveFor(parecerRows, identityOf(p.id, p.data));
+    const entries = adviceEntriesFor(mine, p.data, alive, perCompany);
+    if (!entries.length) continue;
+    blocks.push({ name: (p.data.company && (p.data.company.nomeFantasia || p.data.company.name)) || 'Empresa', latest: String(entries[0].meetingDate || ''), entries, facts: entries.map((e) => alive.get(e.parecerId)).filter(Boolean) });
+  }
+  if (!blocks.length) return empty;
+  blocks.sort((a, b) => b.latest.localeCompare(a.latest));
+  const out = []; const factIds = new Set(); let used = 0;
+  for (const b of blocks.slice(0, maxCompanies)) {
+    const text = `Empresa ${b.name}:\n${formatAdviceDigest(b.entries, maxChars)}`;
+    if (used + text.length > maxChars) break;
+    out.push(text); used += text.length; b.facts.forEach((f) => factIds.add(f));
+  }
+  return { text: out.join('\n'), factIds: [...factIds] };
 }
