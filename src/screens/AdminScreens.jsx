@@ -452,9 +452,9 @@ export function UsersManagementScreen({
 
       {confirmUser && confirmUser.kind === 'delete' && (
         <ConfirmDialog
-          title={`Remover ${confirmUser.user.name}?`}
-          message={`Isto apaga a conta de "${confirmUser.user.username}" de vez, junto com o quadro pessoal dela. Não dá para desfazer.\nSe você só quer impedir o acesso por enquanto, use Bloquear.`}
-          confirmLabel="Remover usuário"
+          title={`Desativar ${confirmUser.user.name}?`}
+          message={`Isto desativa a conta de "${confirmUser.user.username}": ela é bloqueada, perde a senha, as chaves de API, o widget do iPhone e a conexão com o Google. O histórico e o quadro pessoal ficam, e o login não pode ser reaproveitado.\nPara voltar atrás, use Renovar e depois Redefinir senha.`}
+          confirmLabel="Desativar usuário"
           danger
           requireText={confirmUser.user.username}
           busy={confirmUser.busy}

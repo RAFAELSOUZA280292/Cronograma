@@ -184,7 +184,7 @@ Todos exigem servidor e Postgres **locais** (recusam outro banco). **Sem teste:*
 # PARTE 2 — Widget do iPhone (`pxw_`)
 
 ## Como funciona
-1. Meu perfil > iPhone > "Gerar código" -> `POST /api/widget/token` (cookie): cria `pxw_`+32 bytes; grava **sha256** em `users.widget_token_hash` e **também a versão cifrada** (AES-256-GCM, chave derivada do `JWT_SECRET`) em `users.widget_token_enc` para o painel remontar scripts sem gerar código novo (`GET /token`, `no-store`).
+1. Meu perfil > iPhone > "Gerar código" -> `POST /api/widget/token` (cookie): cria `pxw_`+32 bytes; grava **só o sha256** em `users.widget_token_hash` e devolve o valor **uma única vez** (`no-store`). Desde 2026-10-29 o token NÃO é recuperável: `GET /token` responde 410, `status.recoverable` é sempre `false`, a coluna `widget_token_enc` é sempre `NULL` (o boot a limpa: `wipeRecoverableWidgetTokens`) e o painel só monta os scripts das visões enquanto a tela onde a chave foi gerada continua aberta. Para scripts novos depois, gera-se chave nova (isso desliga os widgets antigos).
 2. O usuário cola no app Scriptable um script por visão (`buildScriptableScript`, com endereço, token e nome da visão embutidos).
 3. A cada atualização do iOS (15–30 min, não é tempo real) o script chama `GET /api/widget/summary?view=<nome>` com `Authorization: Bearer pxw_…`.
 4. O servidor acha o usuário pelo hash, confere bloqueio/validade, lê `personal_boards` e a agenda (cache de 5 min por usuário; falha do Google não derruba) e devolve `buildSummary`.
@@ -205,7 +205,7 @@ Blocos válidos (`BLOCKS`): `overdue`, `today`, `urgent`, `meeting`, `agenda`. O
 | Token só no cabeçalho | `?token=` dá 401 | `GET /summary` |
 | Um código por usuário | Gerar outro invalida o anterior; widgets antigos param até colar o novo | `POST /token` |
 | Trocar `JWT_SECRET` | Tokens cifrados deixam de abrir (gera-se outro); o hash segue valendo para autenticar | `encKey` |
-| Token antigo (só hash) | Não é recuperável: o painel pede um código novo | `status.recoverable` |
+| Token já gerado (só hash) | Continua valendo; o valor não aparece de novo: o painel mostra o aviso e pede chave nova para montar scripts | `status.recoverable` (sempre `false`) |
 | Mudar blocos de uma visão | Não exige colar de novo; criar/renomear visão ou mudar o script, sim | `WidgetSection` |
 | Sem teste automatizado no repositório | A lógica pura foi testada em Node na sessão (§76), mas não há script em `scripts/` | — |
 

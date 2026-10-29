@@ -73,7 +73,7 @@ export default function WidgetSection() {
   async function generate() {
     if (status && status.active && !(await askConfirm({ title: 'Gerar uma chave de acesso nova?', message: 'Gerar uma chave nova desliga os widgets que já estão no seu iPhone até você colar os scripts novos.', confirmLabel: 'Gerar chave nova', danger: true }))) return;
     setBusy(true); setError('');
-    try { await apiPost('/api/widget/token'); await loadStatus(); } catch (e) { setError(e && e.message ? e.message : 'Não foi possível gerar a chave de acesso agora. Tente de novo em instantes.'); } finally { setBusy(false); }
+    try { const r = await apiPost('/api/widget/token'); await loadStatus(); setToken((r && r.token) || ''); } catch (e) { setError(e && e.message ? e.message : 'Não foi possível gerar a chave de acesso agora. Tente de novo em instantes.'); } finally { setBusy(false); }
   }
 
   async function revoke() {
@@ -117,10 +117,10 @@ export default function WidgetSection() {
           {status.active && (
             <p>Ligado desde {fmtTs(status.createdAt)}{status.lastUsedAt ? `. Última atualização no iPhone: ${fmtTs(status.lastUsedAt)}.` : '. Ainda não foi usado.'}</p>
           )}
-          {status.active && !status.recoverable && (
-            <div className="wgt-warn">Sua chave de acesso foi criada numa versão anterior e não dá para montar os scripts das visões a partir dela. Gere uma chave nova uma vez; depois os scripts ficam disponíveis aqui sempre que você quiser.</div>
+          {status.active && !status.recoverable && !token && (
+            <div className="wgt-warn">Por segurança, a chave de acesso só aparece uma vez, logo depois de gerada (o sistema guarda só uma impressão dela e não consegue mostrá-la de novo). Os widgets que já estão no seu iPhone continuam funcionando. Para copiar o script de uma visão nova, gere uma chave nova: isso desliga os widgets atuais até você colar os scripts novos.</div>
           )}
-          {(!status.active || !status.recoverable) && (
+          {(!status.active || (!status.recoverable && !token)) && (
             <button className="wgt-btn primary" disabled={busy} title={busy ? 'Aguarde terminar' : undefined} onClick={generate}>{busy ? 'Gerando...' : status.active ? 'Gerar chave de acesso nova' : 'Gerar chave de acesso'}</button>
           )}
         </>
@@ -170,6 +170,7 @@ export default function WidgetSection() {
 
       {ready && (
         <div className="wgt-views">
+          <div className="wgt-warn">Copie os scripts <b>agora</b>: a chave só aparece enquanto esta tela estiver aberta. Se sair daqui, será preciso gerar uma chave nova.</div>
           <div className="wgt-label">Como colocar um widget na tela</div>
           <ol>
             <li>Instale o <b>Scriptable</b> na App Store (grátis).</li>
@@ -187,7 +188,7 @@ export default function WidgetSection() {
           <button className="wgt-btn danger" type="button" disabled={busy} title={busy ? 'Aguarde terminar' : undefined} onClick={revoke}>Revogar chave de acesso</button>
         </div>
       )}
-      {status && status.active && !ready && status.recoverable && <p>Carregando a chave de acesso...</p>}
+      
       {error && <div className="wgt-err">{error}</div>}
     </div>
   );

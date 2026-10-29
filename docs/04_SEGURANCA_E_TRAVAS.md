@@ -78,7 +78,7 @@ Não existe "esqueci minha senha" por e-mail: quem redefine é um Master (`reset
 | Bloquear / desbloquear | `POST /api/users/:id/block` | não bloqueia a si mesmo; alvo na mesma org | `blocked`, `block_reason`; vale no **login**, chave de API, widget e RENATA — **não derruba cookie já emitido** |
 | Renovar | `POST /api/users/:id/renew` | `days` (padrão 30) | `expires_at` novo e `blocked=false` |
 | Expirar | automático | checado no login (e marca `blocked`) **e** a cada chamada com cookie (derruba a sessão, sem gravar) | marca `blocked=true` com motivo "Acesso expirado" |
-| Excluir | `DELETE /api/users/:id` | não exclui a si mesmo; não exclui o último `master` da org | **exclusão física** da linha (tokens e conexões caem em cascata) |
+| Excluir | `DELETE /api/users/:id` | não exclui a si mesmo; não exclui o último `master` da org | **desativa** (desde 2026-10-29): `blocked=true` com motivo "Conta removida pelo administrador", senha trocada por uma aleatória, chaves de API revogadas, widget, conexão do Google e push apagados; a linha, o histórico e o login ficam. Reativar: Renovar + Redefinir senha. O "último Master" conta só Masters **ativos** |
 
 ### Limite de tentativas de login
 **Existe limite desde 2026-10-29** (`server/loginLimit.js`, em memória, zera a cada deploy): em 15 min, 6 erros do mesmo usuário+IP, 20 do mesmo usuário ou 40 do mesmo IP → 429 "Muitas tentativas. Tente de novo em N min." (acerto limpa só a janela usuário+IP). Vale para `/auth/login` e `/auth/change-password-login`. O IP vem de `clientIp` (`X-Real-IP`/`X-Forwarded-For`, falsificável sem `trust proxy`: por isso há o limite por usuário). `login_failed` continua aparecendo na Gestão de Usuários (`failed30d`) e nos alertas da Central de Inteligência (`detectAlerts`).
@@ -315,7 +315,7 @@ Datas `AAAA-MM-DD` conferidas ida e volta (`isISODate`, `isMeetingDay`); horári
 ### Exclusão lógica, lixeira e versões
 - Atividade, subatividade, cartão, reunião, tarefa, ticket: **exclusão lógica** (`deleted`, `deletedAt`, `deletedBy`) com Lixeira/restauração. XFlow: lixeira → apagar de vez só `admin`.
 - CRM: `deleted_at`/`deleted_by`; restaurar empresa por administrador; a chave de API só faz exclusão lógica.
-- **Exclusão física**: linha de `projects` (`DELETE /projects/:id`) e de `users` (`DELETE /users/:id`). Para empresa há rede: gatilho `project_versions_del` guarda o documento inteiro (`kind='pre_delete'`) e só Master recupera (`/api/project-history/deleted/...`), por 365 dias. Para usuário não há rede.
+- **Exclusão física**: só a linha de `projects` (`DELETE /projects/:id`, só Master). Usuário **não** é mais apagado (`DELETE /users/:id` desativa). Para empresa há rede: gatilho `project_versions_del` guarda o documento inteiro (`kind='pre_delete'`) e só Master recupera (`/api/project-history/deleted/...`), por 365 dias. 
 - **Versionamento** (`project_versions`, gatilhos `project_versions_upd`/`_del` no banco): guarda o estado anterior de `activities`, `phases` e `team` (várias gravações em 5 minutos viram um ponto). **Não versiona reuniões** (só `meeting_edits`, para o que a API de chaves corrige, e o documento inteiro na exclusão da empresa). Restaurar: só Master, exige `confirm:true`, cria backup `pre_restore` antes e bloqueia (409) se quebrar vínculos.
 - Tabelas **só-acréscimo**: `crm_audit_logs`, `crm_timeline_events`, `crm_deal_stage_history` (gatilho recusa UPDATE/DELETE) e `renata_actions`.
 - Quem gravou fica registrado: `setActor` (identidade da requisição) → `app.actor_*` para o gatilho; `project.log` (até 300 linhas).
@@ -344,7 +344,7 @@ Chaves externas de IA (`ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`) ficam só no ambie
 ### Variáveis (só nomes; ver `docs/gerado/VARIAVEIS_DE_AMBIENTE.md`)
 | Variável | Para que serve | Observação de segurança |
 |---|---|---|
-| `JWT_SECRET` | assina o JWT; também deriva a chave AES-256-GCM do token do widget | sem ele o servidor **nem sobe**; trocar invalida todas as sessões e os tokens de widget guardados |
+| `JWT_SECRET` | assina o JWT; também deriva (com `TOKEN_ENC_KEY`, se houver) a chave que cifra os tokens do Google | sem ele o servidor **nem sobe**; trocar invalida as sessões e obriga a reconectar o Google |
 | `DATABASE_URL` | conexão com o Postgres | nunca em log ou commit |
 | `SEED_ADMIN_USERNAME`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_NAME` | cria o 1º admin; o usuário com esse nome vira Super Admin a cada subida | o Super Admin é **esse** usuário |
 | `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, `RENATA_MODEL` | IA e embeddings | sem chave: recursos de IA desligam |
@@ -461,6 +461,8 @@ O registro completo (gravidade, onde, como confirmar, plano de correção) fica 
 | Equipe vista pelo cliente sem o login (`username`) | enumeração de contas | `routes.js` `team-candidates` | — |
 | CRM: excluir contato (`remove`), Excel de negócios e arquivos do PipeRun (`export`) só para gestor+ | vendedor/consultor/financeiro levar a base de contatos embora ou apagar contato | `crm/permissions.js` (`export`), `crm/routes.js`, `crm/piperun/routes.js` | 403 "Você não tem permissão pra isso no CRM." |
 | Excluir empresa só Master/Super Admin (tela, rota e ferramenta da RENATA) | PRICETAX comum apagar o cronograma de um cliente | `routes.js` `DELETE /projects/:id`; `renata/tools/empresas.js` `empresa_excluir`; `AdminScreens.jsx` | 403 "Só administradores (Master) excluem empresas." |
+| Token do widget só em hash (mostrado uma vez; `GET /widget/token` = 410; coluna recuperável apagada no boot) | banco/backup ou o `JWT_SECRET` revelarem todos os tokens de widget | `widget.js` (`wipeRecoverableWidgetTokens`) | "A chave de acesso só aparece uma vez…" |
+| Remover usuário = desativar, revogando chaves, widget, Google e push | apagar histórico/auditoria; credenciais da conta removida continuarem valendo | `routes.js` `DELETE /users/:id` | 200 `{deactivated:true}` |
 | Métricas de IA da RENATA operacional gravadas com a base de quem perguntou | custo invisível | `renata/index.js` `logUsage` |
 | `isISODay` do `/plan` valida o dia de verdade | `2026-02-31` aceito | `connect.js` (reusa `meetingEdit.js`) |
 

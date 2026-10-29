@@ -163,12 +163,13 @@ export function createUserOrgActions({
   async function deleteUser(id) {
     if (id === currentUser.id) return 'Você não pode remover a si mesmo.';
     const target = users.find((u) => u.id === id);
-    const masters = users.filter((u) => u.role === 'master');
-    if (target && target.role === 'master' && masters.length <= 1) return 'Este é o único administrador (Master). Crie outro antes de remover este.';
+    const masters = users.filter((u) => u.role === 'master' && !u.blocked);
+    if (target && target.role === 'master' && !target.blocked && masters.length <= 1) return 'Este é o único administrador (Master) ativo. Crie outro antes de remover este.';
     try {
       await apiDelete(`/api/users/${id}`);
-      setUsers((prev) => prev.filter((u) => u.id !== id));
-      if (target) addUsersLog(`Usuário removido: ${target.name}`);
+      // O servidor desativa a conta (não apaga): ela continua na lista, bloqueada, com o motivo.
+      setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, blocked: true, blockReason: 'Conta removida pelo administrador' } : u)));
+      if (target) addUsersLog(`Usuário desativado: ${target.name}`);
       return '';
     } catch (e) {
       return e.message || 'Não foi possível remover o usuário.';

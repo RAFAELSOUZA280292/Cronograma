@@ -1,4 +1,5 @@
 import { notifyTodoChanges } from './todoNotifications.js';
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import { pool, blankProject, blankPersonalBoard } from './db.js';
 import { instantiateStandard } from './standardTemplateStore.js';
@@ -411,6 +412,10 @@ router.post('/users/:id/reset-password', requireAuth, requireMaster, async (req,
   } catch (e) { next(e); }
 });
 
+// "Excluir" usuário = DESATIVAR (M22, 2026-10-29). A linha NÃO é apagada: ela é referenciada por histórico, auditoria, CRM e XFlow (e apagar derrubava com erro de chave
+// estrangeira quem tinha atividade). A conta fica bloqueada com motivo, a senha vira uma aleatória que ninguém conhece (para voltar, o Master usa Renovar + Redefinir senha),
+// as chaves de API são revogadas e o widget, a conexão do Google e as inscrições de push são apagados. O quadro pessoal e o nome ficam; o login (username) não pode ser reaproveitado.
+export const REMOVED_REASON = 'Conta removida pelo administrador';
 router.delete('/users/:id', requireAuth, requireMaster, async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -420,12 +425,28 @@ router.delete('/users/:id', requireAuth, requireMaster, async (req, res, next) =
     if (!target || !sameOrg(req, target.org_id)) return res.status(404).json({ message: 'Usuário não encontrado.' });
     if (target.is_super_admin && !req.user.isSuperAdmin) return res.status(403).json({ message: 'Só o Super Administrador altera outro Super Administrador.' });
 
-    if (target.role === 'master') {
-      const { rows } = await pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE role='master' AND org_id=$1`, [target.org_id]);
-      if (rows[0].n <= 1) return res.status(400).json({ message: 'Deixe pelo menos um administrador.' });
+    if (target.role === 'master' && !target.blocked) {
+      const { rows } = await pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE role='master' AND blocked=false AND org_id=$1 AND id <> $2`, [target.org_id, id]);
+      if (rows[0].n < 1) return res.status(400).json({ message: 'Deixe pelo menos um administrador ativo.' });
     }
-    await pool.query('DELETE FROM users WHERE id=$1', [id]);
-    res.json({ ok: true });
+    const randomHash = await hashPassword(crypto.randomBytes(32).toString('base64url'));
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `UPDATE users SET blocked=true, block_reason=$2, password_hash=$3, widget_token_hash=NULL, widget_token_enc=NULL, widget_token_created_at=NULL, widget_last_used_at=NULL, updated_at=now() WHERE id=$1`,
+        [id, REMOVED_REASON, randomHash]);
+      await client.query('UPDATE api_tokens SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL', [id]);
+      await client.query('DELETE FROM google_calendar_connections WHERE user_id=$1', [id]);
+      await client.query('DELETE FROM push_subscriptions WHERE user_id=$1', [id]);
+      await client.query('COMMIT');
+    } catch (e) {
+      try { await client.query('ROLLBACK'); } catch { /* conexão já encerrada */ }
+      throw e;
+    } finally {
+      client.release();
+    }
+    res.json({ ok: true, deactivated: true });
   } catch (e) { next(e); }
 });
 

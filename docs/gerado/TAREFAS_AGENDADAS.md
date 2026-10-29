@@ -25,7 +25,7 @@ Não há fila externa (Redis etc.): tudo roda **dentro do processo do servidor**
 | setInterval | `server/crm/scheduler.js:54` | INTERVAL_MS | `tick` |
 | setInterval | `server/projectVersions.js:192` | 24 * 3600 * 1000 | `run` |
 | setInterval | `server/renata/routes.js:15` |  | `() => { const now = Date.now(` |
-| setInterval | `server/routes.js:1213` |  | `() => { const now = Date.now(` |
+| setInterval | `server/routes.js:1234` |  | `() => { const now = Date.now(` |
 | setInterval | `server/todoNotifications.js:105` | 30 * 60 * 1000 | `tick` |
 | setInterval | `server/usageLog.js:90` | 24 * 3600 * 1000 | `run` |
-| setInterval | `server/widget.js:46` |  | `() => { const now = Date.now(` |
+| setInterval | `server/widget.js:36` |  | `() => { const now = Date.now(` |

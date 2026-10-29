@@ -429,7 +429,7 @@ Endereço `/usuarios`. Cartões **Total**, **Ativos**, **Bloqueados**, **Admins*
 3. **Bloquear**: caixa **Bloqueado** (com **Motivo do bloqueio**) ou o cadeado da lista; pede confirmação. A pessoa perde o acesso agora; nada é apagado. Para voltar, **Desbloquear**.
 4. **Validade**: campo **Expira em**. Vencida, a pessoa é bloqueada na próxima tentativa de entrar; **Renovar por +30 dias**.
 5. **Redefinir senha**: digite a **Nova senha** (mínimo 8) → **Redefinir**. Avise a pessoa por outro canal. Redefinir a senha encerra as sessões abertas dela. Só o Super Administrador altera outro Super Administrador.
-6. **Excluir usuário**: **Remover <nome>?** pede que você digite o nome de usuário. Apaga a conta e o quadro pessoal dela. Não dá para desfazer; prefira **Bloquear**.
+6. **Excluir usuário**: **Desativar <nome>?** pede que você digite o nome de usuário. A conta fica **bloqueada** (motivo "Conta removida pelo administrador"), perde a senha, as chaves de API, o widget do iPhone e a conexão com o Google; o histórico e o quadro pessoal ficam e o login não pode ser reaproveitado. Para voltar atrás: **Renovar** e depois **Redefinir senha**.
 7. **Histórico de acessos** no fim da ficha: entradas com data, local aproximado pelo IP (cidade; é aproximado), aparelho.
 **Travas:** ninguém bloqueia nem exclui a si mesmo; precisa sobrar pelo menos um administrador (**Deixe pelo menos um administrador.**). Só o **Super Admin** vê **Organização (base)** ao criar usuário e o botão **Organizações**.
 
@@ -527,7 +527,7 @@ Existem ainda as "**Chaves específicas (avançado)**" (recolhidas): ler e criar
 
 ## 9. Widget do iPhone
 Mostra no iPhone, sem entrar no painel: atrasadas, vencem hoje, urgentes, agenda e próxima reunião. Usa o app gratuito **Scriptable** e uma chave só sua que **só lê**.
-1. **Meu perfil › iPhone** → **Gerar chave de acesso** (se já houver uma antiga que não permite montar scripts: **Gerar chave de acesso nova**; ela desliga os widgets antigos até você colar os scripts novos).
+1. **Meu perfil › iPhone** → **Gerar chave de acesso**. **A chave só aparece uma vez**, enquanto a tela estiver aberta: copie os scripts das visões logo (se sair da tela, só gerando **chave nova**, que desliga os widgets antigos até você colar os scripts novos).
 2. Em **Suas visões**, cada visão é um widget: dê um **Nome da visão**, monte o que ela mostra (grava sozinho) e clique em **Copiar script desta visão** (**Adicionar visão** cria outra).
 3. No iPhone, instale o **Scriptable** (App Store), crie um script novo, cole o script e toque em **Concluir**.
 4. Na tela inicial do iPhone: segure num espaço vazio → **+** → **Scriptable** → escolha o tamanho (o médio mostra os títulos). Segure o widget → **Editar Widget** → **Script** → escolha o da visão.

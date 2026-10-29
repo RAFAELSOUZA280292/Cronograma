@@ -280,6 +280,44 @@ try {
   const delAdm = await call(adm.cookie, 'DELETE', `/api/projects/${PID3}`);
   ok('M12: Master exclui (200)', delAdm.status === 200 && (await pool.query('SELECT 1 FROM projects WHERE id=$1', [PID3])).rows.length === 0, delAdm);
 
+  // ---- M3: token do widget só em hash, mostrado uma vez
+  const wt = await call(vend.cookie, 'POST', '/api/widget/token');
+  ok('M3: gerar o token do widget devolve o valor UMA vez', wt.status === 200 && /^pxw_/.test(wt.json.token), wt);
+  const wrow = (await pool.query('SELECT widget_token_hash, widget_token_enc FROM users WHERE id=$1', [U.vend])).rows[0];
+  ok('M3: o banco guarda só o hash (a coluna recuperável fica vazia)', wrow.widget_token_enc === null && wrow.widget_token_hash === crypto.createHash('sha256').update(wt.json.token).digest('hex'), wrow);
+  ok('M3: o token NÃO pode ser lido de novo (410) e o status diz que não é recuperável', (await call(vend.cookie, 'GET', '/api/widget/token')).status === 410 && (await call(vend.cookie, 'GET', '/api/widget/status')).json.recoverable === false);
+  const ws = await fetch(`${BASE}/api/widget/summary`, { headers: { Authorization: `Bearer ${wt.json.token}` } });
+  ok('M3: o widget segue funcionando com o token guardado em hash', ws.status === 200, ws.status);
+  await pool.query(`UPDATE users SET widget_token_enc='lixo-cifrado-antigo' WHERE id=$1`, [U.vend]);
+  const { wipeRecoverableWidgetTokens } = await import('../server/widget.js');
+  ok('M3: a limpeza do boot apaga o que ainda estava recuperável e não derruba o token', (await wipeRecoverableWidgetTokens()) >= 1 && (await pool.query('SELECT widget_token_enc FROM users WHERE id=$1', [U.vend])).rows[0].widget_token_enc === null && (await fetch(`${BASE}/api/widget/summary`, { headers: { Authorization: `Bearer ${wt.json.token}` } })).status === 200);
+  const wt2 = await call(vend.cookie, 'POST', '/api/widget/token');
+  ok('M3: gerar outro token invalida o antigo (401)', wt2.status === 200 && (await fetch(`${BASE}/api/widget/summary`, { headers: { Authorization: `Bearer ${wt.json.token}` } })).status === 401);
+
+  // ---- M22: "excluir" usuário = desativar (não apaga a linha), revoga o que dá acesso
+  const VICT = `sga_vict_${RUN}`;
+  await pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,companies_access,all_companies_access) VALUES ($1,$1,$2,$1,'pricetax',$3,true,true)`, [VICT, hash, ORG]);
+  const victS = await login(VICT, PASS, '203.0.113.70');
+  const victKey = await call(victS.cookie, 'POST', '/api/connect/tokens', { name: 'chave da vítima', scope: 'read', days: 30 });
+  const victW = await call(victS.cookie, 'POST', '/api/widget/token');
+  await pool.query(`INSERT INTO google_calendar_connections (user_id, access_token, refresh_token, token_expiry) VALUES ($1,'a','r', now())`, [VICT]);
+  await pool.query(`INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth) VALUES ($2,$1,$3,'k','a')`, [VICT, `sga_ps_${RUN}`, `https://fcm.googleapis.com/sga/${RUN}`]);
+  ok('M22: preparo — a vítima tem sessão, chave de API e widget', victS.status === 200 && victKey.status === 201 && victW.status === 200, [victKey.status, victW.status]);
+  const delU = await call(adm.cookie, 'DELETE', `/api/users/${VICT}`);
+  ok('M22: DELETE /users responde 200 e diz que DESATIVOU', delU.status === 200 && delU.json.ok === true && delU.json.deactivated === true, delU);
+  const vrow = (await pool.query('SELECT blocked, block_reason, widget_token_hash, password_hash FROM users WHERE id=$1', [VICT])).rows[0];
+  ok('M22: a linha continua no banco, bloqueada, com motivo, sem widget e com senha trocada', !!vrow && vrow.blocked === true && /removida/i.test(vrow.block_reason) && vrow.widget_token_hash === null && vrow.password_hash !== hash, vrow);
+  ok('M22: a sessão aberta da pessoa cai (401)', (await call(victS.cookie, 'GET', '/api/auth/me')).status === 401);
+  ok('M22: a chave de API é revogada (401)', (await fetch(`${BASE}/api/connect/companies`, { headers: { Authorization: `Bearer ${victKey.json.token}` } })).status === 401);
+  ok('M22: o widget da pessoa para (401/403)', [401, 403].includes((await fetch(`${BASE}/api/widget/summary`, { headers: { Authorization: `Bearer ${victW.json.token}` } })).status));
+  ok('M22: a conexão do Google e o push são apagados', (await pool.query('SELECT 1 FROM google_calendar_connections WHERE user_id=$1', [VICT])).rows.length === 0 && (await pool.query('SELECT 1 FROM push_subscriptions WHERE user_id=$1', [VICT])).rows.length === 0);
+  ok('M22: não entra mais com a senha antiga (403) e o login não pode ser recriado (409)', (await login(VICT, PASS, '203.0.113.71')).status === 403 && (await call(adm.cookie, 'POST', '/api/users', { username: VICT, password: 'outra-senha-12345', name: 'x', role: 'pricetax' })).status === 409);
+  const lastMaster = await call(adm.cookie, 'DELETE', `/api/users/${U.adm}`);
+  ok('M22: continua não podendo remover a si mesmo (400)', lastMaster.status === 400);
+  const back = await call(adm.cookie, 'POST', `/api/users/${VICT}/renew`, { days: 30 });
+  const back2 = await call(adm.cookie, 'POST', `/api/users/${VICT}/reset-password`, { newPassword: 'senha-nova-12345' });
+  ok('M22: dá para reativar (Renovar + Redefinir senha) e a pessoa volta a entrar', back.status === 200 && back2.status === 200 && (await login(VICT, 'senha-nova-12345', '203.0.113.72')).status === 200);
+
   // ---- M5/M10/M17/M21 e cabeçalhos
   const hd = await fetch(`${BASE}/api/auth/me`);
   ok('M4: cabeçalhos de segurança presentes', hd.headers.get('x-content-type-options') === 'nosniff' && hd.headers.get('x-frame-options') === 'SAMEORIGIN' && /strict-origin/.test(hd.headers.get('referrer-policy') || ''));

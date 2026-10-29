@@ -14,7 +14,7 @@ Só os **nomes** e onde são lidos; **nunca** valores. Os valores reais ficam no
 | `GOOGLE_CLIENT_ID` | `server/googleCalendar.js` | `process.env.GOOGLE_CLIENT_ID,` |
 | `GOOGLE_CLIENT_SECRET` | `server/googleCalendar.js` | `process.env.GOOGLE_CLIENT_SECRET,` |
 | `GOOGLE_REDIRECT_URI` | `server/googleCalendar.js` | `process.env.GOOGLE_REDIRECT_URI` |
-| `JWT_SECRET` | `server/auth.js`, `server/secretBox.js`, `server/widget.js` | `const secret = process.env.JWT_SECRET;` |
+| `JWT_SECRET` | `server/auth.js`, `server/secretBox.js` | `const secret = process.env.JWT_SECRET;` |
 | `NODE_ENV` | `server/auth.js`, `server/google.js`, `server/index.js`, `server/renata/scriptedClient.js` | `secure: process.env.NODE_ENV === 'production',` |
 | `PORT` | `server/index.js`, `server/renata/internalCall.js` | `const port = process.env.PORT \|\| 3001;` |
 | `PROD` | `src/main.jsx` | `if (import.meta.env.PROD && 'serviceWorker' in navigator) {` |

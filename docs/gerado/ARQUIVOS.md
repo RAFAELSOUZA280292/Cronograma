@@ -85,7 +85,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/gaps.js` | 232 | Lacunas entre cronogramas (Etapa 4 do plano, 2026-10-08; pedido do Felipe: "levantamento de tudo que temos de atividades ... para |
 | `server/google.js` | 59 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
 | `server/googleCalendar.js` | 290 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
-| `server/index.js` | 167 |  |
+| `server/index.js` | 169 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
 | `server/inventory.js` | 373 | Levantamento de atividades de TODAS as empresas (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md; pedido do |
 | `server/inventoryEdit.js` | 194 | Passo 3 do caminho combinado (2026-10-07): organizar o que já existe a partir do Levantamento — padronizar o nome do |
@@ -137,7 +137,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/tools/reports.js` | 66 | Relatórios e visão da equipe (somente leitura) — §101: "o que a minha equipe fez hoje", atrasos por responsável e quem sou eu / quem é a equipe. |
 | `server/renata/validate.js` | 81 | Validador de parâmetros das ferramentas da RENATA (§101): subconjunto de JSON Schema suficiente para o catálogo. Rejeita campo desconhecido |
 | `server/richNote.js` | 55 | Descrição formatada dos cartões do quadro pessoal (2026-10-07): o campo `desc` continua sendo uma string — texto simples |
-| `server/routes.js` | 1323 |  |
+| `server/routes.js` | 1344 |  |
 | `server/scripts/reindexAllMeetings.js` | 30 | Backfill manual da memória do projeto (2026-09, Fase 1 do Assistente |
 | `server/secretBox.js` | 30 | Cofre simples para segredos guardados no banco (M2, 2026-10-29): AES-256-GCM com chave derivada de TOKEN_ENC_KEY (ou, na falta, do JWT_SECRET). |
 | `server/shareTokens.js` | 41 | Tokens de link público (A9, 2026-10-29). A tela gera o token com `crypto.getRandomValues` (48 hex = 192 bits), mas o servidor não pode confiar nisso: |
@@ -154,7 +154,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/todoNotifications.js` | 109 | Notificações das TAREFAS DE REUNIÃO (Onda 5, §81): atribuída, comentada e vencida. As tarefas vivem dentro do JSON do |
 | `server/usageLog.js` | 92 | Rastreador de uso (Central de Inteligência Operacional). Recebe fatias de tempo do app: quanto tempo a aba ficou visível |
 | `server/usagePolicy.js` | 32 | Transparência e finalidade (LGPD): texto único, exibido a toda a equipe (Meu perfil) e à liderança (Central). |
-| `server/widget.js` | 134 | Widget do iPhone (Scriptable) — 2026-10-05, §76. O widget não faz login: usa um token secreto, só de leitura, |
+| `server/widget.js` | 120 | Widget do iPhone (Scriptable) — 2026-10-05, §76. O widget não faz login: usa um token secreto, só de leitura, |
 | `server/widgetSummary.js` | 120 | Resumo para o widget do iPhone (2026-10-05, §76). Funções puras: recebem o JSON do quadro pessoal, |
 | `server/xflow.js` | 870 |  |
 | `server/xflowPermissions.js` | 86 | Papel efetivo + regras de "quem pode fazer o quê" no XFlow. Regras vivem |
@@ -195,7 +195,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/app/notificationActions.js` | 117 | Ações das notificações (marcar como lida e abrir o destino de uma notificação). |
 | `src/app/standardPlanActions.js` | 98 | Ações do cronograma padrão versionado (2026-10-19). É uma FÁBRICA chamada a cada render (mesmo padrão de src/app/*.js): abrir/fechar a edição do padrão, |
 | `src/app/teamPhaseActions.js` | 116 | Ações do time, das áreas e das fases de uma empresa. |
-| `src/app/userOrgActions.js` | 194 | Ações de administração de usuários e organizações. |
+| `src/app/userOrgActions.js` | 195 | Ações de administração de usuários e organizações. |
 | `src/assistant/ChatExport.jsx` | 129 | Botões de copiar e exportar a conversa da RENATA (2026-10-27) — usados pelas três telas (do projeto, geral e operacional). |
 | `src/assistant/ParecerStudyModal.jsx` | 193 |  |
 | `src/assistant/ProjectAssistant.jsx` | 560 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
@@ -357,6 +357,6 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/ui/index.jsx` | 278 | Peças visuais comuns (2026-10-04, §72) — ver ui.css. Só apresentação: nenhuma lógica de negócio aqui, quem usa |
 | `src/ui/ui.css` | 266 | Peças visuais comuns do app (2026-10-04, §72). Antes cada módulo reinventava cartão, aba, etiqueta e botão |
 | `src/versions/VersionHistory.jsx` | 341 | Histórico de versões do cronograma (§83): consultar, comparar, criar ponto de restauração e restaurar (Master) com confirmação, backup automático e desfazer. |
-| `src/widget/WidgetSection.jsx` | 195 |  |
+| `src/widget/WidgetSection.jsx` | 196 |  |
 | `src/widget/scriptableScript.js` | 190 | Script do Scriptable (iOS) colado pelo usuário — mostra atrasadas, vencem hoje e próxima reunião. |
 | `src/xflow/XFlow.jsx` | 3394 |  |
