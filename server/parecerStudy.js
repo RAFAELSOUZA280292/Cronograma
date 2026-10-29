@@ -455,3 +455,49 @@ export async function getMeetingAdvice(pool, orgId, projectId, meetingId) {
     generating,
   };
 }
+
+// Orientação dos pareceres para o CHAT da RENATA (2026-10-29): leva ao prompt o que a sugestão de cada reunião já concluiu
+// (parecer que se aplica + caminhos), para ela orientar por conta própria quando a conversa toca aquele tema. Só equipe
+// PRICETAX; só reuniões em que algum parecer se aplicou (tema sem estudo não gera linha: "passa batido"); só pareceres
+// que ainda podem ser usados NESTA empresa. Não chama IA: lê o que já está gravado.
+const brDay = (iso) => (/^\d{4}-\d{2}-\d{2}/.test(String(iso || '')) ? String(iso).slice(0, 10).split('-').reverse().join('/') : 'sem data');
+
+export function formatAdviceDigest(entries, maxChars = 4500) {
+  const lines = [];
+  let used = 0;
+  for (const e of entries) {
+    const steps = (e.steps || []).map((x, i) => `${String.fromCharCode(97 + i)}) ${x}`).join('; ');
+    const line = `- Reunião "${clip(e.meetingTitle, 80)}" (${brDay(e.meetingDate)}) → ${e.number ? `Parecer Nº ${e.number} — ` : ''}"${clip(e.parecerTitle, 100)}" | tema: ${e.topic} | por que se aplica: ${e.relevance} | caminhos: ${steps}${e.caution ? ` | ressalva: ${e.caution}` : ''}`;
+    if (used + line.length > maxChars) break;
+    lines.push(line); used += line.length;
+  }
+  return lines.join('\n');
+}
+
+export async function loadMeetingAdviceDigest(pool, orgId, projectId, { projectData, isStaff, max = 6 } = {}) {
+  const empty = { text: '', factIds: [] };
+  if (!isStaff || !projectId) return empty;
+  const { rows } = await pool.query('SELECT meeting_id, advice FROM meeting_parecer_advice WHERE project_id=$1 AND org_id=$2', [projectId, orgId]);
+  if (!rows.length) return empty;
+  const identity = await loadProjectIdentity(pool, projectId);
+  const { rows: pareceres } = await pool.query(
+    `SELECT p.id, p.scope, p.company_name, p.company_project_id, ps.fact_id FROM pareceres p
+     LEFT JOIN parecer_studies ps ON ps.parecer_id = p.id AND ps.status = 'done' WHERE p.org_id=$1`, [orgId]);
+  const alive = new Map(pareceres.filter((r) => parecerUsableFor(r, identity)).map((r) => [r.id, r.fact_id]));
+  const meetings = new Map(((projectData && projectData.meetings) || []).filter((m) => m && !m.deleted).map((m) => [m.id, m]));
+  const entries = [];
+  const factIds = new Set();
+  const ordered = rows.filter((r) => meetings.has(r.meeting_id))
+    .sort((a, b) => String(meetings.get(b.meeting_id).date || '').localeCompare(String(meetings.get(a.meeting_id).date || '')));
+  for (const r of ordered) {
+    const m = meetings.get(r.meeting_id);
+    for (const it of ((r.advice && r.advice.items) || [])) {
+      if (!alive.has(it.parecerId) || !Array.isArray(it.steps) || !it.steps.length) continue;
+      entries.push({ meetingTitle: m.title || 'Reunião sem título', meetingDate: m.date, parecerTitle: it.parecerTitle, number: it.number, topic: it.topic, relevance: it.relevance, steps: it.steps, caution: it.caution });
+      if (alive.get(it.parecerId)) factIds.add(alive.get(it.parecerId));
+    }
+    if (entries.length >= max) break;
+  }
+  if (!entries.length) return empty;
+  return { text: formatAdviceDigest(entries.slice(0, max)), factIds: [...factIds] };
+}
