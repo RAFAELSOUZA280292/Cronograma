@@ -115,6 +115,12 @@
         .tbl-grip { width: 44px !important; }
         .tbl-grip-row { min-height: 44px !important; }
       }
+      /* Controles densos do quadro pessoal (2026-10-29, iPad): a regra acima inflava o círculo de concluir (17 px), o "+" e o "…" de cada cartão/coluna para 44 px
+         e o quadro virava metade vazio. Eles voltam ao tamanho do desenho e a área de toque cresce por fora (::after), sem ocupar espaço. */
+      @media (min-width: 768px) and (max-width: 1023px), (min-width: 768px) and (pointer: coarse) {
+        button.pb-dense { min-width: 0 !important; min-height: 0 !important; position: relative; }
+        button.pb-dense::after { content: ''; position: absolute; inset: -9px; }
+      }
     </style>
   </head>
   <body>

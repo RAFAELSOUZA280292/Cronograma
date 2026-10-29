@@ -499,13 +499,13 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
       onClick={onOpen}
     >
       <div style={S.personalCardTop}>
-        <button className="pb-check" style={S.personalCardCheck} onClick={(e) => { e.stopPropagation(); if (!readOnly) onToggleComplete(); }} title={card.completed ? 'Reabrir' : 'Marcar como concluída'}>
+        <button className="pb-check pb-dense" style={S.personalCardCheck} onClick={(e) => { e.stopPropagation(); if (!readOnly) onToggleComplete(); }} title={card.completed ? 'Reabrir' : 'Marcar como concluída'}>
           {card.completed ? <Check size={13} /> : <span style={S.personalCardCheckEmpty} />}
         </button>
         <div style={{ ...S.personalCardTitleText, ...(card.completed ? { textDecoration: 'line-through', opacity: .6 } : {}) }}>{card.title}</div>
         {!readOnly && (
           <div style={{ position: 'relative' }}>
-            <button aria-label="Mais ações" title="Mais ações" style={S.iconBtnGhost} onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}><MoreHorizontal aria-hidden="true" size={13} /></button>
+            <button className="pb-dense" aria-label="Mais ações" title="Mais ações" style={S.iconBtnGhost} onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}><MoreHorizontal aria-hidden="true" size={13} /></button>
             {menuOpen && (
               <PersonalCardMenu
                 card={card}
@@ -627,11 +627,11 @@ function PersonalColumn({
         </div>
         <span style={S.kanbanCount}>{totalVisibleCount}</span>
         {!readOnly && (
-          <button aria-label={`Adicionar atividade em ${column.name || 'esta coluna'}`} title="Adicionar atividade" style={S.iconBtnGhost} onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} onClick={() => setShowQuickAdd(true)}><Plus aria-hidden="true" size={14} /></button>
+          <button className="pb-dense" aria-label={`Adicionar atividade em ${column.name || 'esta coluna'}`} title="Adicionar atividade" style={S.iconBtnGhost} onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} onClick={() => setShowQuickAdd(true)}><Plus aria-hidden="true" size={14} /></button>
         )}
         {!readOnly && !lockColumn && (
           <div style={{ position: 'relative' }} onKeyDown={(e) => e.stopPropagation()}>
-            <button aria-label="Mais ações" title="Mais ações" style={S.iconBtnGhost} onClick={() => setMenuOpen((v) => !v)}><MoreHorizontal aria-hidden="true" size={14} /></button>
+            <button className="pb-dense" aria-label="Mais ações" title="Mais ações" style={S.iconBtnGhost} onClick={() => setMenuOpen((v) => !v)}><MoreHorizontal aria-hidden="true" size={14} /></button>
             {menuOpen && (
               <PersonalColumnMenu
                 column={column}
@@ -2451,7 +2451,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
             <button style={{ ...S.personalViewToggleBtn, ...(viewPrefs.view !== 'list' ? S.personalViewToggleBtnActive : {}) }} onClick={() => setViewPrefs({ view: 'kanban' })}><Columns3 size={13} /> Quadro</button>
             <button style={{ ...S.personalViewToggleBtn, ...(viewPrefs.view === 'list' ? S.personalViewToggleBtnActive : {}) }} onClick={() => setViewPrefs({ view: 'list' })}><LayoutList size={13} /> Lista</button>
           </div>
-          <div style={{ ...S.personalSearchWrap, ...(isMobile ? { flex: '1 1 150px', minWidth: 0 } : null) }}>
+          <div style={{ ...S.personalSearchWrap, ...(isMobile ? { flex: '1 1 150px', minWidth: 0, maxWidth: 'none' } : null) }}>
             <Search size={13} color="var(--text-6)" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar..." style={S.personalSearchInput} />
           </div>

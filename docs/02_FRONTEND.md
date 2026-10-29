@@ -231,6 +231,7 @@ O estado do `AppScreens` (projetos, quadro, rascunhos do pai) é preservado quan
 ### Acessibilidade e mobile (resumo de PROJECT_CONTEXT §16, §72, §88.5 e `docs/RESPONSIVE_ARCHITECTURE.md`)
 - **Breakpoints únicos:** `MOBILE_BP = 768` (`useIsMobile`, `App.jsx` L183/198) e `TABLET_BP = 1024` (`useIsCompact`, **definido em `src/screens/CompanyViews.jsx` L57**, não no `App.jsx`). Não crie outros.
 - **Variante mobile = chave nova** `S.algoMobile` espalhada por último quando `isMobile`; nunca sobrescrever a chave desktop, nunca `@media` por cima de estilo inline. **Exceção documentada:** o `index.html` usa `@media` com `!important` para alvos de toque de 44 px (≤767 px em botões com `title` e em `[role=dialog]`; 768-1023 px ou `pointer: coarse` em botões/campos) e para fonte de 16 px em campos (evita zoom do iOS). CSS de módulo (`agenda.css`, `macro.css`) também usa `@media (max-width: 767px)`.
+- **Controle denso no tablet:** a regra de tablet do `index.html` infla todo `button` para 44 px; controle de cartão/coluna (círculo de concluir, "+", "…") leva `className="pb-dense"` para manter o tamanho do desenho e ganhar área de toque por `::after` (PROJECT_CONTEXT §116v).
 - Alvo de toque ≥ 44 px no celular: opt-in por contêiner com `className="t44"` (`TOUCH_CSS` em `App.jsx`) para listas densas.
 - Todo botão desabilitado explica o motivo (`title`/`disabledReason`); todo botão só de ícone tem `aria-label` ou `title`.
 - Foco visível: campos ganham halo amarelo (`input:focus-visible` no `index.html`); `Card`/`Chip` têm `outline` próprio.
