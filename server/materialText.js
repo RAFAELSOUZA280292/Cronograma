@@ -65,9 +65,20 @@ async function sheetText(buffer) {
 
 const utf8 = (buffer) => buffer.toString('utf8').replace(/^﻿/, '');
 
+// A extensão sozinha não decide o formato (M23): os primeiros bytes têm de bater com o que a extensão promete.
+const SIGNATURES = { pdf: ['%PDF-'], docx: ['PK\x03\x04'], pptx: ['PK\x03\x04'], xlsx: ['PK\x03\x04'], xls: ['PK\x03\x04', '\xD0\xCF\x11\xE0'] };
+export function assertSignature(ext, buffer) {
+  const sigs = SIGNATURES[ext];
+  if (!sigs) return;
+  const head = buffer.subarray(0, 1024).toString('latin1');
+  const ok = ext === 'pdf' ? head.includes('%PDF-') : sigs.some((s) => head.startsWith(s));
+  if (!ok) throw new Error(`O arquivo não parece ser um .${ext} de verdade (o conteúdo não bate com a extensão).`);
+}
+
 export async function extractText({ buffer, fileName }) {
   const ext = extOf(fileName);
   if (!SUPPORTED.includes(ext)) throw new Error(`Formato .${ext || '?'} não é aceito. Use PDF, Word (.docx), PowerPoint (.pptx), Excel, CSV, texto, Markdown ou HTML.`);
+  assertSignature(ext, buffer);
   let text;
   if (ext === 'pdf') text = await pdfText(buffer);
   else if (ext === 'docx') text = await docxText(buffer);

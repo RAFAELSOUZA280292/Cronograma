@@ -271,7 +271,7 @@ Os modelos estão **escritos no código** (não há variável de ambiente), **ex
 | 12 | `knowledgeLibrary.js` | `suggestMetadata` | `messages.parse` | `claude-haiku-4-5-20251001` | 600 | Sugerir título, tema e etiquetas ao escolher o arquivo |
 | 13 | `dossier.js` | `digestTranscript` | `messages.create` | `claude-sonnet-5` | 1800 | Ficha de cada reunião (3 em paralelo) |
 | 14 | `dossier.js` | `consolidateOnce` | `messages.parse` | `claude-opus-5` | 16000 | Consolidar o dossiê (em blocos + união se grande) |
-| 15 | `dailyContent.js` | `generateAiDay` | `messages.parse` | `claude-haiku-4-5-20251001` | 3000 | Textos leves do dia (horóscopo de entretenimento) |
+| 15 | `dailyContent.js` | `generateAiDay` | `messages.parse` | `claude-haiku-4-5-20251001` | 3000 | Textos leves do dia (horóscopo de entretenimento); o custo é registrado na base `pricetax` (2026-10-29) |
 | 16 | `taskLinkSuggest.js` | `suggestActivityLinks` (L138) | `messages.parse` | `STUDY_MODEL` | 4000 | Sugerir a atividade do cronograma para cada tarefa de reunião |
 | 17 | `inventoryEdit.js` | `suggestAreas` | `messages.parse` | `STUDY_MODEL` | 4000 | Sugerir a área de cada atividade (Levantamento) |
 
@@ -287,7 +287,7 @@ O SDK lança "Unterminated string in JSON" / "Failed to parse structured output"
 | Biblioteca (#11) | Sim, 1x | `friendlyError` (`knowledgeLibrary.js`) |
 | Dossiê (#14) | Sim (`consolidateWithRetry`, sufixo mais conciso) | Mensagem própria do dossiê |
 | `resolveQuery`/`synthesizeAnswer` (#1, #2) | **Não**: `withRetry` repete 1x igual, 500 ms depois (a falha de corte é determinística e repete) | `resolveQuery`: segue com a pergunta literal; `synthesizeAnswer`: "Não consegui processar essa pergunta agora." |
-| RENATA geral (#3) e agente (#5) | Verificam `stop_reason==='max_tokens'` e acrescentam o aviso "(A resposta ficou longa e foi cortada aqui…)" (2026-10-29); não há repetição enxuta | — |
+| RENATA geral (#3) e agente (#5) | Verificam `stop_reason==='max_tokens'`, repetem UMA vez pedindo versão enxuta e, se cortar de novo, acrescentam o aviso "(A resposta ficou longa e foi cortada aqui…)" (2026-10-29); na RENATA da empresa (`resolveQuery`/`synthesizeAnswer`) a 2ª tentativa depois de um corte também vai em versão enxuta (`withRetry`, `COMPACT_HINT`) | — |
 
 Histórico: 500 tokens em `resolveQuery` e 1500 em `synthesizeAnswer` já cortaram o JSON em produção (§30, 2026-10-06); por isso 4000/8000. Prova do padrão: `scripts/parecer-study-truncation.test.mjs`.
 

@@ -159,8 +159,8 @@ Tudo sob `/api/crm` (cookie) e espelhado em `/api/connect/crm` (chave). Todas ex
 | GET/POST/PATCH/DELETE | `/cadences[/:id]` | read / funnel | `pipelineId, stageId, name, steps[], active` | `{cadence}` | 409 "Esta etapa já tem uma cadência"; 400 passos |
 | GET | `/tags` | read | — | tags com contagem | — |
 | GET | `/activities`, `/activities/:id` | read | `ownerId (me), companyId, dealId, type, q, status, bucket, limit≤300` | `{total, counts, items}` | 404 |
-| POST/PATCH | `/activities`, `/activities/:id` | write | campos, `alreadyDone`, `silentNotify` (só chave/RENATA) | `{activity}` | 400; 409 "Só dá para editar atividade em aberto." |
-| POST | `/activities/:id/complete`, `/cancel`, `/reopen` | write | `outcome` (≤3000) | `{activity, next}` | 409 estado inválido |
+| POST | `/activities` | write | campos, `alreadyDone`, `silentNotify` (só chave/RENATA) | `{activity}` | 400; 409 "Só dá para editar atividade em aberto." |
+| PATCH / POST | `/activities/:id`, `/activities/:id/complete`, `/cancel`, `/reopen` | write **e** ser o responsável, o criador ou ter `remove` (gestão) — `ownActivity`, 2026-10-29 | campos / `outcome` (≤3000) | `{activity, next}` | 403 "Só o responsável pela atividade, quem a criou ou a gestão pode alterá-la."; 409 estado inválido |
 | DELETE | `/activities/:id` | remove | — | `{ok}` | 404 |
 | GET/POST/PATCH/DELETE | `/products[/:id]` | read / catalog | `name, category, listPrice, billing, active`; `?all=true` (catalog) | `{product(s)}` | 409 nome repetido |
 | POST/PATCH/DELETE | `/notes[/:id]` | write | `entityType (company/contact/deal), entityId, body≤5000, attachments≤5, links, mentions` | `{note}` | 400; 403 só a própria nota (editar); delete: moderador = `remove` |

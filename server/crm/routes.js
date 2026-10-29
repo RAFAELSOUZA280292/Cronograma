@@ -37,6 +37,17 @@ const need = (cap) => (req, res, next) => {
   return next();
 };
 
+// Editar, concluir, cancelar ou reabrir uma atividade: só o responsável, quem a criou ou a gestão (`remove`) — M8, 2026-10-29. Atividade inexistente segue para o 404 de sempre.
+const ownActivity = async (req, res, next) => {
+  try {
+    if (crmCan(req.user, 'remove')) return next();
+    if (!/^[0-9a-f-]{36}$/i.test(req.params.id || '')) return next();
+    const { rows } = await pool.query('SELECT owner_id, created_by FROM crm_activities WHERE id=$1 AND org_id=$2 AND deleted_at IS NULL', [req.params.id, orgOf(req)]);
+    if (!rows[0] || rows[0].owner_id === req.user.id || rows[0].created_by === req.user.id) return next();
+    return res.status(403).json({ message: 'Só o responsável pela atividade, quem a criou ou a gestão pode alterá-la.' });
+  } catch (e) { return next(e); }
+};
+
 const h = (fn) => async (req, res, next) => {
   try { await fn(req, res, next); } catch (e) {
     if (e instanceof CrmError) return res.status(e.status).json({ message: e.message, ...e.extra });
@@ -96,7 +107,12 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
     const { force, ...input } = req.body || {};
     res.status(201).json({ company: await S.createCompany(orgOf(req), actorOf(req), input, { force: !!force }) });
   }));
-  router.get('/companies/:id', h(async (req, res) => res.json(await Q.getCompanyOverview(orgOf(req), req.params.id))));
+  router.get('/companies/:id', h(async (req, res) => {
+    const out = await Q.getCompanyOverview(orgOf(req), req.params.id);
+    // Empresa excluída só abre para o administrador (a tela de restaurar precisa dela); para os demais é como se não existisse (M8).
+    if (out && out.company && out.company.deletedAt && !crmCan(req.user, 'admin')) throw new CrmError(404, 'Empresa não encontrada.');
+    res.json(out);
+  }));
   router.patch('/companies/:id', need('write'), h(async (req, res) => {
     const { force, ...input } = req.body || {};
     res.json({ company: await S.updateCompany(orgOf(req), actorOf(req), req.params.id, input, { force: !!force }) });
@@ -207,17 +223,17 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
     const { alreadyDone, ...input } = req.body || {};
     res.status(201).json({ activity: await A.createActivity(orgOf(req), actorOf(req), input, { alreadyDone: !!alreadyDone }) });
   }));
-  router.patch('/activities/:id', need('write'), h(async (req, res) => {
+  router.patch('/activities/:id', need('write'), ownActivity, h(async (req, res) => {
     // `silentNotify:true` (só pela chave de API) reatribui sem disparar o aviso "atividade atribuída a você" — para transferências em lote.
     const quiet = !!((req.crmActor || req.renataCommandId !== undefined) && req.body && req.body.silentNotify === true);
     res.json({ activity: await A.updateActivity(orgOf(req), quiet ? { ...actorOf(req), silentNotify: true } : actorOf(req), req.params.id, req.body || {}) });
   }));
-  router.post('/activities/:id/complete', need('write'), h(async (req, res) => {
+  router.post('/activities/:id/complete', need('write'), ownActivity, h(async (req, res) => {
     const activity = await A.completeActivity(orgOf(req), actorOf(req), req.params.id, req.body || {});
     res.json({ activity, next: await X.cadenceAfterComplete(orgOf(req), actorOf(req), activity.id) });
   }));
-  router.post('/activities/:id/cancel', need('write'), h(async (req, res) => res.json({ activity: await A.cancelActivity(orgOf(req), actorOf(req), req.params.id) })));
-  router.post('/activities/:id/reopen', need('write'), h(async (req, res) => res.json({ activity: await A.reopenActivity(orgOf(req), actorOf(req), req.params.id) })));
+  router.post('/activities/:id/cancel', need('write'), ownActivity, h(async (req, res) => res.json({ activity: await A.cancelActivity(orgOf(req), actorOf(req), req.params.id) })));
+  router.post('/activities/:id/reopen', need('write'), ownActivity, h(async (req, res) => res.json({ activity: await A.reopenActivity(orgOf(req), actorOf(req), req.params.id) })));
   router.delete('/activities/:id', need('remove'), h(async (req, res) => res.json(await A.deleteActivity(orgOf(req), actorOf(req), req.params.id))));
 
   // ---- produtos (catálogo): todos leem; quem define o que se vende é gestor+

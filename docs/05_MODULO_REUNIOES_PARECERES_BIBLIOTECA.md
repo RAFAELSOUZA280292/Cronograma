@@ -240,7 +240,7 @@ Também exige `companiesAccess` do dono da chave (`needMeetingsEdit`, `loadOne`)
 | GET | `/` | — | Lista **sem** o arquivo (`LIST_COLUMNS`) | 403 |
 | POST | `/` | `title`, `description`, `fileName`, `mimeType`, `fileDataBase64`, `scope`, `companyName`, `companyProjectId` | 201 + dispara `autoStudy` | 400 título/arquivo/escopo/tamanho |
 | PATCH | `/:id` | `title`, `description`, `scope`, `companyName`, `companyProjectId` | **Não troca o arquivo** | 400, 404 |
-| DELETE | `/:id` | — | Arquiva o fato e **apaga de verdade** (cascade apaga estudo) | 404 |
+| DELETE | `/:id` | **só Master/Super Admin** (2026-10-29) | Arquiva o fato e **apaga de verdade** (cascade apaga estudo) | 403, 404 |
 | GET | `/:id/file` | — | PDF inline | 404 |
 | POST/PATCH/DELETE | `/:id/comments[/:commentId]` | `text` <=4.000, anexos, links, menções | Editar só o próprio; excluir o próprio ou ser `master` | 400, 403, 404 |
 | GET | `/study[?projectId=]` | — | Estado (só SQL); com `projectId` filtra pelo escopo da empresa | 404 empresa |
@@ -257,7 +257,7 @@ Também exige `companiesAccess` do dono da chave (`needMeetingsEdit`, `loadOne`)
 | POST | `/suggest` | mesmo corpo do envio | `{suggestion, duplicate, charCount, aiMessage}`; não grava | 400, 413, 422 |
 | POST | `/search` | `query` | `{materials, passages, embeddings}` | — |
 | PATCH | `/:id` | `title`, `topic`, `tags`, `note` | Material | 400, 404 |
-| POST | `/:id/reprocess[?only=study]` | — | 202 | 404; 409 já lendo |
+| POST | `/:id/reprocess[?only=study]` | — | 202 | 404; 409 já lendo ou **arquivado** (restaure antes; reprocessar não reativa) |
 | DELETE / POST `/:id/restore` | — | Arquiva/restaura (nunca apaga; fato vai a `archived`/`active`) | `{ok}` | 404 |
 | GET | `/:id/file` | — | Baixa o original (ou `.txt` do texto) com `nosniff` | 404 |
 

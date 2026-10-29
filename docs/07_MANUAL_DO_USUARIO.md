@@ -405,7 +405,7 @@ Só Master e PRICETAX. Endereços: `/conhecimento`, `/pareceres`, `/modelos`.
 1. **Novo Parecer** → **Identificação do arquivo ***, **Comentário / contexto (opcional)**, **Este parecer é** (**Geral** ou **Cliente específico**, com o nome do cliente), **Arquivo PDF *** (até 10 MB) → enviar.
 2. Procure em **Buscar pareceres** e pelos filtros (**Todos**, **Geral**, por cliente). Clique para abrir, ler, comentar, editar título, descrição e escopo.
 3. A RENATA estuda os pareceres sozinha ao serem enviados. O aviso **A RENATA estudar os pareceres pendentes?** → **Estudar agora**. Só parecer novo ou alterado gasta IA.
-4. **Excluir parecer** pede confirmação. Comentário: você só apaga o seu (o Master apaga todos).
+4. **Excluir parecer** (só Master; o botão não aparece para os outros) pede confirmação. Comentário: você só apaga o seu (o Master apaga todos).
 
 **Modelos de documentos** (contratos, propostas, planilhas)
 1. **Novo modelo** → título (opcional; se vazio, usa o nome do primeiro anexo), **Categoria**, **Para que serve**, e **Arquivos** (arraste ou clique; vários) e **Links** (até 12 anexos por modelo). Para links o painel busca título e imagem; páginas com login (Google Drive, SharePoint) mostram só o domínio.

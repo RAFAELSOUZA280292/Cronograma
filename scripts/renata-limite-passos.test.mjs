@@ -46,6 +46,9 @@ ok('se a chamada final falhar, ainda sai uma mensagem em português (nunca "…"
 
 const trunc = await run(() => ({ content: [{ type: 'text', text: 'Resposta que foi cortada no meio da fra' }], stop_reason: 'max_tokens', usage: {} }));
 ok('M19: resposta cortada por limite de tokens ganha o aviso (não parece completa)', /cortada aqui/.test(trunc.out.reply) && trunc.out.reply.startsWith('Resposta que foi cortada'), trunc.out.reply);
+let nTrunc = 0;
+const retryOk = await run((params) => { nTrunc += 1; return nTrunc === 1 ? { content: [{ type: 'text', text: 'Resposta longa cortada no mei' }], stop_reason: 'max_tokens', usage: {} } : { content: [{ type: 'text', text: 'Versão enxuta completa.' }], stop_reason: 'end_turn', usage: {} }; });
+ok('M19: cortou na 1ª → tenta UMA vez em versão enxuta e entrega a resposta completa (sem aviso)', retryOk.out.reply === 'Versão enxuta completa.' && retryOk.calls.length === 2 && JSON.stringify(retryOk.calls[1].messages.slice(-1)).includes('enxuta'), [retryOk.out.reply, retryOk.calls.length]);
 const d = await run(() => ({ content: [], stop_reason: 'end_turn', usage: {} }));
 ok('resposta vazia da IA não vira "…" na tela', d.out.reply === '', d.out.reply);
 

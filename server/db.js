@@ -193,6 +193,18 @@ export async function initDb() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // Histórico do quadro pessoal (M11, 2026-10-29, só acréscimo): foto do quadro ANTES de uma gravação que o encolhe muito ou a cada 10 min de edição;
+  // permite desfazer um bug de tela que apagou cartões. Retenção: 30 dias e no máximo 40 por pessoa (usageLog.js `purgeTelemetry`).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS personal_board_versions (
+      id         BIGSERIAL PRIMARY KEY,
+      user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      data       JSONB NOT NULL,
+      reason     TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS personal_board_versions_user_idx ON personal_board_versions(user_id, created_at DESC)`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS user_access_events (
       id            BIGSERIAL PRIMARY KEY,

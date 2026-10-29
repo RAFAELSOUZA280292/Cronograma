@@ -77,6 +77,9 @@ export async function purgeTelemetry() {
   const b = await pool.query(`DELETE FROM user_access_events WHERE at < now() - ($1 || ' days')::interval`, [String(RETENTION.accessDays)]);
   await pool.query(`DELETE FROM product_events WHERE at < now() - ($1 || ' days')::interval`, [String(RETENTION.usageDays)]).catch(() => {});
   await pool.query(`DELETE FROM product_csat WHERE at < now() - ($1 || ' days')::interval`, [String(RETENTION.usageDays)]).catch(() => {});
+  // Histórico do quadro pessoal: 30 dias e no máximo 40 versões por pessoa (M11).
+  await pool.query(`DELETE FROM personal_board_versions WHERE created_at < now() - interval '30 days'`).catch(() => {});
+  await pool.query(`DELETE FROM personal_board_versions v USING (SELECT id, row_number() OVER (PARTITION BY user_id ORDER BY created_at DESC) AS rn FROM personal_board_versions) r WHERE v.id = r.id AND r.rn > 40`).catch(() => {});
   // Cidade aproximada de cada IP (serviço externo ipwho.is): guardada por 90 dias e consultada de novo se o IP voltar (M20).
   await pool.query(`DELETE FROM ip_geo_cache WHERE fetched_at < now() - interval '90 days'`).catch(() => {});
   // Conversas da RENATA guardam resultados de consultas (dados de clientes): 90 dias. O registro de ações (auditoria) NÃO é apagado.

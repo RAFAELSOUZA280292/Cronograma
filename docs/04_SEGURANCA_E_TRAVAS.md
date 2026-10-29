@@ -463,6 +463,12 @@ O registro completo (gravidade, onde, como confirmar, plano de correção) fica 
 | Excluir empresa só Master/Super Admin (tela, rota e ferramenta da RENATA) | PRICETAX comum apagar o cronograma de um cliente | `routes.js` `DELETE /projects/:id`; `renata/tools/empresas.js` `empresa_excluir`; `AdminScreens.jsx` | 403 "Só administradores (Master) excluem empresas." |
 | Token do widget só em hash (mostrado uma vez; `GET /widget/token` = 410; coluna recuperável apagada no boot) | banco/backup ou o `JWT_SECRET` revelarem todos os tokens de widget | `widget.js` (`wipeRecoverableWidgetTokens`) | "A chave de acesso só aparece uma vez…" |
 | Remover usuário = desativar, revogando chaves, widget, Google e push | apagar histórico/auditoria; credenciais da conta removida continuarem valendo | `routes.js` `DELETE /users/:id` | 200 `{deactivated:true}` |
+| Atividade do CRM só pelo responsável, criador ou gestão (editar/concluir/cancelar/reabrir) | vendedor mexer na atividade de outro | `crm/routes.js` `ownActivity` | 403 "Só o responsável pela atividade…" |
+| Empresa excluída do CRM só abre para o administrador; lead rápido desfaz o que criou se falhar | ver empresa excluída; empresa solta sem negócio | `crm/routes.js`, `crm/extras.js` `quickLead` | 404 |
+| XFlow: criação de ticket só com campos conhecidos | gravar comentários/histórico/agenda forjados | `xflow.js` `POST /tickets` | campos ignorados |
+| Histórico do quadro pessoal (foto antes de encolher / a cada 10 min; restaurar) | um bug de tela apagar cartões sem volta | `routes.js` `snapshotBoardIfNeeded`; tabela `personal_board_versions` | `GET/POST /personal-board/versions` |
+| Parecer e material: bytes conferidos com a extensão; excluir parecer só Master; reprocessar não reativa material arquivado | arquivo disfarçado; apagar sem cópia | `pareceres.js`, `materialText.js` `assertSignature`, `knowledgeLibraryRoutes.js` | 400 / 403 / 409 |
+| Resposta da IA cortada: repete uma vez em versão enxuta | resposta pela metade | `assistantRetrieval.js` `withRetry`, `assistantGeneral.js`, `renata/agent.js` | — |
 | Métricas de IA da RENATA operacional gravadas com a base de quem perguntou | custo invisível | `renata/index.js` `logUsage` |
 | `isISODay` do `/plan` valida o dia de verdade | `2026-02-31` aceito | `connect.js` (reusa `meetingEdit.js`) |
 

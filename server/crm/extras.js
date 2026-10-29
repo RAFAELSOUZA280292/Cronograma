@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { pool } from '../db.js';
 import { CrmError } from './errors.js';
-import { tx, addAudit, addTimeline, requireUuid, createCompany, createContact } from './service.js';
+import { tx, addAudit, addTimeline, requireUuid, createCompany, createContact, deleteCompany, deleteContact } from './service.js';
 import { createDeal, loadDeal } from './deals.js';
 import { createActivity, cancelActivity, ACTIVITY_TYPES } from './activities.js';
 import { todayBR } from './service.js';
@@ -109,15 +109,22 @@ export async function quickLead(orgId, actor, input) {
   const extra = {};
   if (src.companyData && typeof src.companyData === 'object') COMPANY_KEYS.forEach((k) => { const v = src.companyData[k]; if (v !== undefined && v !== null && v !== '') extra[k] = v; });
   const company = await createCompany(orgId, actor, { ...extra, ...(src.cnpj ? { cnpj: src.cnpj } : {}), legalName: companyName, relationship: 'prospect', ownerId: actor.id || null }, { force: !!src.force, timelineSummary: `${actor.name} cadastrou a empresa como lead rápido.` });
-  let contact = null;
-  if (contactName || phone || email) {
-    const [first, ...rest] = (contactName || 'Contato').split(/\s+/);
-    contact = await createContact(orgId, actor, { companyId: company.id, firstName: first, lastName: rest.join(' '), phone, whatsapp: phone, email, isPrimary: true }, { force: true });
+  let contact = null; let deal;
+  // Empresa, contato e negócio nascem em passos separados: se um deles falhar, o que já foi criado é desfeito (exclusão lógica) para não sobrar empresa solta (M8).
+  try {
+    if (contactName || phone || email) {
+      const [first, ...rest] = (contactName || 'Contato').split(/\s+/);
+      contact = await createContact(orgId, actor, { companyId: company.id, firstName: first, lastName: rest.join(' '), phone, whatsapp: phone, email, isPrimary: true }, { force: true });
+    }
+    deal = await createDeal(orgId, actor, {
+      companyId: company.id, title: String(src.title || '').trim() || companyName, pipelineId: src.pipelineId || null, stageId: src.stageId || undefined,
+      primaryContactId: contact ? contact.id : undefined, source: String(src.source || '').slice(0, 200), value: 0,
+    });
+  } catch (e) {
+    if (contact) await deleteContact(orgId, actor, contact.id).catch((err) => console.error('quickLead: falha ao desfazer o contato', err.message));
+    await deleteCompany(orgId, actor, company.id).catch((err) => console.error('quickLead: falha ao desfazer a empresa', err.message));
+    throw e;
   }
-  const deal = await createDeal(orgId, actor, {
-    companyId: company.id, title: String(src.title || '').trim() || companyName, pipelineId: src.pipelineId || null, stageId: src.stageId || undefined,
-    primaryContactId: contact ? contact.id : undefined, source: String(src.source || '').slice(0, 200), value: 0,
-  });
   return { deal, company, contact, cadence: await cadenceAfterMove(orgId, actor, deal) };
 }
 

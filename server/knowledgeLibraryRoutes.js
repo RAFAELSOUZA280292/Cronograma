@@ -130,8 +130,9 @@ router.patch('/:id', async (req, res, next) => {
 // Ler de novo (refaz trechos e estudo) ou só estudar de novo (`?only=study`, mantém os trechos).
 router.post('/:id/reprocess', async (req, res, next) => {
   try {
-    const { rows: [m] } = await pool.query('SELECT id, status, chunk_count FROM knowledge_materials WHERE id=$1 AND org_id=$2', [req.params.id, effectiveOrgId(req)]);
+    const { rows: [m] } = await pool.query('SELECT id, status, chunk_count, archived_at FROM knowledge_materials WHERE id=$1 AND org_id=$2', [req.params.id, effectiveOrgId(req)]);
     if (!m) return res.status(404).json({ message: 'Material não encontrado.' });
+    if (m.archived_at) return res.status(409).json({ message: 'Este material está arquivado. Restaure-o antes de reprocessar (reprocessar não o reativa).' }); // M23
     if (running.has(m.id)) return res.status(409).json({ message: 'Este material já está sendo lido.' });
     processMaterial(m.id, { skipIndex: req.query.only === 'study' && m.chunk_count > 0 }).catch(() => {});
     res.status(202).json({ ok: true });

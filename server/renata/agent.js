@@ -96,7 +96,13 @@ export function createAgent({ pool, registry, executor, getClient, generalContex
       conv.messages.push({ role: 'assistant', content: content.length ? content : [{ type: 'text', text: '…' }], _at: nowIso() });
       if (res.stop_reason !== 'tool_use') {
         answered = true;
-        if (res.stop_reason === 'max_tokens') { // resposta cortada no meio da frase (M19): avisa em vez de parecer completa
+        if (res.stop_reason === 'max_tokens') { // resposta cortada no meio da frase (M19): tenta UMA vez em versão enxuta; se cortar de novo, avisa em vez de parecer completa
+          try {
+            const again = await client.messages.create({ model, max_tokens: 2500, system, tools, tool_choice: { type: 'none' }, messages: [...forApi(conv.messages.slice(0, -1)), { role: 'user', content: 'Sua resposta anterior foi cortada por ser longa demais. Responda de novo em versão BEM mais enxuta: só o essencial, listas curtas.' }] });
+            logUsage(again, step, user);
+            const txt = (again.content || []).filter((b) => b.type === 'text');
+            if (txt.length && again.stop_reason !== 'max_tokens') { conv.messages[conv.messages.length - 1] = { role: 'assistant', content: txt, _at: nowIso() }; break; }
+          } catch (e) { console.error('RENATA: nova tentativa enxuta falhou — mantendo a resposta cortada com aviso.', e.message); }
           const last = conv.messages[conv.messages.length - 1];
           const tb = (last.content || []).filter((b) => b.type === 'text');
           if (tb.length && tb[tb.length - 1].text && tb[tb.length - 1].text !== '…') tb[tb.length - 1].text = `${tb[tb.length - 1].text}\n\n(A resposta ficou longa e foi cortada aqui. Peça "continue" ou detalhe melhor o pedido.)`;

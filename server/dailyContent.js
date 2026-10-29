@@ -137,7 +137,8 @@ async function generateAiDay(client, day) {
     output_config: { format: zodOutputFormat(AiDaySchema) },
   });
   if (response.stop_reason === 'max_tokens' || !response.parsed_output) throw new Error('IA não devolveu o conteúdo do dia');
-  logMetric(pool, { orgId: null, projectId: null, eventType: 'anthropic_api_call', metadata: { feature: 'dailyContent', model: AI_MODEL, inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens } }).catch(() => {});
+  // O conteúdo do dia é igual para todas as bases: o custo entra na base da própria PRICETAX (a coluna org_id é obrigatória; antes ia `null` e o registro se perdia em silêncio) — M15.
+  pool.query('SELECT id FROM organizations WHERE slug=$1', ['pricetax']).then(({ rows }) => rows[0] && logMetric(pool, { orgId: rows[0].id, projectId: null, eventType: 'anthropic_api_call', metadata: { feature: 'dailyContent', model: AI_MODEL, inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens } })).catch(() => {});
   return response.parsed_output;
 }
 

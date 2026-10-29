@@ -20,6 +20,17 @@ const ok = (n, c, e) => { if (c) console.log(`ok   ${n}`); else { failed += 1; c
 const pool = new pg.Pool({ connectionString: DB });
 const hash = await bcrypt.hash(PASS, 10);
 async function cleanup() {
+  // CRM criado pelos usuários de teste (empresa, contato, negócio, atividade e o histórico que a descreve): apaga com os gatilhos de histórico desligados.
+  const HIST = ['crm_timeline_events', 'crm_audit_logs', 'crm_deal_stage_history'];
+  for (const t of HIST) await pool.query(`ALTER TABLE ${t} DISABLE TRIGGER USER`).catch(() => {});
+  const cos = (await pool.query(`SELECT id FROM crm_companies WHERE created_by LIKE 'sga_%'`).catch(() => ({ rows: [] }))).rows.map((r) => r.id);
+  if (cos.length) {
+    for (const [t, col] of [['crm_activities', 'company_id'], ['crm_deal_stage_history', 'company_id'], ['crm_timeline_events', 'company_id'], ['crm_notes', 'company_id'], ['crm_deals', 'company_id'], ['crm_contacts', 'company_id']]) await pool.query(`DELETE FROM ${t} WHERE ${col} = ANY($1::uuid[])`, [cos]).catch(() => {});
+    await pool.query(`DELETE FROM crm_audit_logs WHERE actor_id LIKE 'sga_%'`).catch(() => {});
+    await pool.query(`DELETE FROM crm_companies WHERE id = ANY($1::uuid[])`, [cos]).catch(() => {});
+  }
+  await pool.query(`DELETE FROM crm_audit_logs WHERE actor_id LIKE 'sga_%'`).catch(() => {});
+  for (const t of HIST) await pool.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`).catch(() => {});
   await pool.query(`DELETE FROM project_memory_chunks WHERE project_id LIKE 'sga_%'`).catch(() => {});
   await pool.query(`DELETE FROM projects WHERE id LIKE 'sga_%'`).catch(() => {});
   await pool.query(`DELETE FROM project_versions WHERE project_id LIKE 'sga_%'`).catch(() => {});
@@ -317,6 +328,60 @@ try {
   const back = await call(adm.cookie, 'POST', `/api/users/${VICT}/renew`, { days: 30 });
   const back2 = await call(adm.cookie, 'POST', `/api/users/${VICT}/reset-password`, { newPassword: 'senha-nova-12345' });
   ok('M22: dá para reativar (Renovar + Redefinir senha) e a pessoa volta a entrar', back.status === 200 && back2.status === 200 && (await login(VICT, 'senha-nova-12345', '203.0.113.72')).status === 200);
+
+  // ---- M11: histórico do quadro pessoal (foto antes de encolher; restaurar)
+  const cardsOf = (n) => Array.from({ length: n }, (_, i) => ({ id: `k${i}`, title: `Cartão ${i}`, checklist: [], tags: [], history: [] }));
+  const hb = async (n, stamp) => call(bru.cookie, 'PATCH', '/api/personal-board', { board: { boards: [{ id: 'hist', name: 'Histórico', visibility: 'private', shareToken: '', log: [], columns: [{ id: 'hc', name: 'c', cards: cardsOf(n) }] }] }, baseUpdatedAt: stamp });
+  const hCur = (await call(bru.cookie, 'GET', '/api/personal-board')).json;
+  const h6 = await hb(6, hCur.updatedAt);
+  ok('M11: gravar com 6 cartões', h6.status === 200, h6);
+  const h1 = await hb(1, h6.json.updatedAt);
+  ok('M11: gravar encolhendo 6 → 1 cartão funciona (200)', h1.status === 200, h1);
+  const hv = await call(bru.cookie, 'GET', '/api/personal-board/versions');
+  const dropV = (hv.json.versions || []).find((v) => /queda de 6 para 1/.test(v.reason));
+  ok('M11: o servidor guardou uma foto do quadro de 6 cartões ANTES da queda', !!dropV && dropV.cards === 6, hv.json);
+  const rest = await call(bru.cookie, 'POST', `/api/personal-board/versions/${dropV.id}/restore`);
+  const afterRest = (await call(bru.cookie, 'GET', '/api/personal-board')).json;
+  ok('M11: restaurar devolve os 6 cartões', rest.status === 200 && afterRest.board.boards[0].columns[0].cards.length === 6, rest.status);
+  const hv2 = await call(bru.cookie, 'GET', '/api/personal-board/versions');
+  ok('M11: restaurar guarda o estado anterior como foto (dá para voltar atrás)', (hv2.json.versions || []).some((v) => /antes de restaurar/.test(v.reason) && v.cards === 1), hv2.json);
+  ok('M11: versão de outra pessoa ou inexistente não restaura (404) e id malformado dá 400', (await call(vend.cookie, 'POST', `/api/personal-board/versions/${dropV.id}/restore`)).status === 404 && (await call(bru.cookie, 'POST', '/api/personal-board/versions/abc/restore')).status === 400);
+
+  // ---- M8: atividade do CRM só pelo responsável/criador/gestão; empresa excluída; lead rápido sem sobra
+  const mkAct = await call(gest.cookie, 'POST', '/api/crm/companies', { legalName: `Empresa M8 ${RUN}`, relationship: 'prospect' });
+  const coId = mkAct.json && mkAct.json.company && mkAct.json.company.id;
+  ok('M8: preparo — empresa criada pelo gestor', mkAct.status === 201 && !!coId, mkAct);
+  const actM8 = await call(gest.cookie, 'POST', '/api/crm/activities', { companyId: coId, title: 'Atividade do gestor', activityType: 'task', dueDate: '2030-01-10', ownerId: U.gest });
+  const actId = actM8.json && actM8.json.activity && actM8.json.activity.id;
+  ok('M8: preparo — atividade do gestor', actM8.status === 201 && !!actId, actM8);
+  ok('M8: vendedor (não é dono nem criador) NÃO edita, conclui, cancela nem reabre (403)', (await call(vend.cookie, 'PATCH', `/api/crm/activities/${actId}`, { title: 'invadida' })).status === 403 && (await call(vend.cookie, 'POST', `/api/crm/activities/${actId}/complete`, {})).status === 403 && (await call(vend.cookie, 'POST', `/api/crm/activities/${actId}/cancel`)).status === 403 && (await call(vend.cookie, 'POST', `/api/crm/activities/${actId}/reopen`)).status === 403);
+  ok('M8: o dono (gestor) edita e conclui normalmente', (await call(gest.cookie, 'PATCH', `/api/crm/activities/${actId}`, { title: 'do gestor, editada' })).status === 200 && (await call(gest.cookie, 'POST', `/api/crm/activities/${actId}/complete`, {})).status === 200);
+  const actV = await call(vend.cookie, 'POST', '/api/crm/activities', { companyId: coId, title: 'Atividade do vendedor', activityType: 'task', dueDate: '2030-01-11' });
+  const actVId = actV.json && actV.json.activity && actV.json.activity.id;
+  ok('M8: o vendedor edita e conclui a PRÓPRIA atividade; o gestor (gestão) edita a de qualquer um', actV.status === 201 && (await call(vend.cookie, 'PATCH', `/api/crm/activities/${actVId}`, { title: 'minha editada' })).status === 200 && (await call(gest.cookie, 'PATCH', `/api/crm/activities/${actVId}`, { title: 'gestão editou' })).status === 200 && (await call(vend.cookie, 'POST', `/api/crm/activities/${actVId}/complete`, {})).status === 200, [actV.status]);
+  ok('M8: atividade inexistente segue 404 para o vendedor', (await call(vend.cookie, 'PATCH', `/api/crm/activities/${FAKE}`, { title: 'x' })).status === 404);
+  const delCo = await call(gest.cookie, 'DELETE', `/api/crm/companies/${coId}`);
+  ok('M8: gestor exclui a empresa (exclusão lógica)', delCo.status === 200, delCo);
+  ok('M8: empresa EXCLUÍDA não abre para o vendedor (404) nem para o gestor, mas abre para o administrador', (await call(vend.cookie, 'GET', `/api/crm/companies/${coId}`)).status === 404 && (await call(gest.cookie, 'GET', `/api/crm/companies/${coId}`)).status === 404 && (await call(adm.cookie, 'GET', `/api/crm/companies/${coId}`)).status === 200);
+  const ql = await call(vend.cookie, 'POST', '/api/crm/leads', { companyName: `Lead M8 ${RUN}`, contactName: 'Fulano Teste', stageId: FAKE });
+  const sobra = await pool.query(`SELECT id, deleted_at FROM crm_companies WHERE org_id=$1 AND legal_name=$2`, [ORG, `Lead M8 ${RUN}`]);
+  ok('M8: lead rápido que falha na criação do negócio NÃO deixa empresa solta (ela é desfeita)', ql.status >= 400 && (sobra.rows.length === 0 || sobra.rows.every((r) => r.deleted_at !== null)), [ql.status, sobra.rows]);
+
+  // ---- M9: criação de ticket só com campos conhecidos
+  await pool.query(`UPDATE users SET xflow_role='admin' WHERE id=$1`, [U.adm]);
+  const tk2 = await call(adm.cookie, 'POST', '/api/xflow/tickets', { title: `Ticket M9 ${RUN}`, description: 'ok', comments: [{ id: 'forjado', text: 'comentário forjado' }], history: [{ note: 'forjado' }], googleEventId: 'evento-forjado', campoInventado: 'x', archived: true });
+  const tk2id = tk2.json && (tk2.json.ticket ? tk2.json.ticket.id : tk2.json.id);
+  const tk2data = tk2id ? (await pool.query('SELECT data FROM xflow_tickets WHERE id=$1', [tk2id])).rows[0].data : null;
+  ok('M9: ticket criado SEM os campos que o servidor controla nem campos inventados', tk2.status < 300 && tk2data && tk2data.description === 'ok' && tk2data.comments.length === 0 && tk2data.googleEventId === '' && !('campoInventado' in tk2data) && tk2data.archived === false, tk2data);
+  if (tk2id) { await pool.query(`DELETE FROM xflow_events WHERE ticket_id=$1`, [tk2id]).catch(() => {}); await pool.query(`DELETE FROM xflow_tickets WHERE id=$1`, [tk2id]).catch(() => {}); }
+
+  // ---- M23: parecer só PDF de verdade; excluir só Master; material com assinatura conferida
+  const badPdf = await call(adm.cookie, 'POST', '/api/pareceres', { title: 'Falso', fileName: 'falso.pdf', mimeType: 'application/pdf', fileDataBase64: Buffer.from('isto não é um pdf').toString('base64'), scope: 'geral' });
+  ok('M23: arquivo que não é PDF (mesmo com .pdf e tipo declarado) é recusado (400)', badPdf.status === 400 && /PDF válido/.test(badPdf.json.message), badPdf);
+  ok('M23: PRICETAX (não Master) NÃO exclui parecer (403)', (await call(vend.cookie, 'DELETE', '/api/pareceres/qualquer-id')).status === 403);
+  const { assertSignature } = await import('../server/materialText.js');
+  const sigOk = (ext, str) => { try { assertSignature(ext, Buffer.from(str, 'latin1')); return true; } catch { return false; } };
+  ok('M23: assinatura confere (pdf/docx/xlsx verdadeiros passam; texto disfarçado de pdf/docx/xlsx cai)', sigOk('pdf', '%PDF-1.7 x') && sigOk('docx', 'PK\x03\x04xx') && sigOk('xls', '\xD0\xCF\x11\xE0x') && !sigOk('pdf', 'texto') && !sigOk('docx', 'texto') && !sigOk('xlsx', '<html>') && sigOk('txt', 'qualquer coisa'));
 
   // ---- M5/M10/M17/M21 e cabeçalhos
   const hd = await fetch(`${BASE}/api/auth/me`);

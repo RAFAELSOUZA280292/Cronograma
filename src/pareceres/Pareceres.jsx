@@ -380,7 +380,7 @@ function ParecerDrawer({ parecer, currentUser, companies, onClose, onChanged, on
         <a className="ui-btn primary" href={`/api/pareceres/${parecer.id}/file`} target="_blank" rel="noreferrer">
           <ExternalLink size={14} aria-hidden="true" /> Abrir PDF
         </a>
-        <Button variant="danger" icon={Trash2} onClick={() => { setDeleteError(''); setConfirmDelete(true); }}>Excluir</Button>
+        {(currentUser.role === 'master' || currentUser.isSuperAdmin) && <Button variant="danger" icon={Trash2} onClick={() => { setDeleteError(''); setConfirmDelete(true); }}>Excluir</Button>}
       </div>
 
       <div className="par-drawer-section">

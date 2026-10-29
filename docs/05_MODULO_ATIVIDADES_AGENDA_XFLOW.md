@@ -24,6 +24,7 @@ Leia este documento quando o Rafael pedir algo como:
 | Arquivo | Função/componente (conferido) | O que faz | Quem chama / o que dispara |
 |---|---|---|---|
 | `server/routes.js` | `GET /personal-board` (684), `/version` (696), `PATCH` (733), `/stats` (772), `/stats/day` (785) | Lê/grava o quadro inteiro; carimbo barato; indicadores | Tela (login, poll de 12 s, autosave) |
+| `server/routes.js` | `snapshotBoardIfNeeded`, `GET /personal-board/versions`, `POST /personal-board/versions/:id/restore` | Histórico do quadro pessoal (2026-10-29): foto do estado anterior se a gravação encolhe o quadro (≥30% dos cartões) ou a cada 10 min; 30 dias, até 40 por pessoa; restaurar guarda o atual como foto. **Sem tela ainda** (só API) | tabela `personal_board_versions` |
 | `server/routes.js` | `mergeApiCards` (705), `sameStamp` (728) | Devolve ao quadro cartões criados pela API que a tela não conhecia; compara carimbos no milissegundo | `PATCH /personal-board` |
 | `server/routes.js` | `findBoardByShareToken` (930), `columnAsBoard` (925), `resolveBackBoard` (953), `locateColumn` (1031), `applyColumnPatch` (1043), `addLinkedBoard` (1000) | Link público de página ou coluna, botão "Voltar", fixar quadro de outra pessoa | `GET/PATCH /public-board/:token`, `POST /personal-board/linked` |
 | `server/db.js` | `blankPersonalBoard()` (103) | Quadro inicial: página "Minhas atividades" com A fazer / Em andamento / Concluído | Primeiro `GET /personal-board`; API de conectividade |
@@ -255,7 +256,7 @@ Catálogo completo e atualizado: `docs/gerado/ROTAS.md` (grupos `/api`, `/api/xf
 | GET | `/api/google/status`, `/oauth/start`, `/oauth/callback`; POST `/disconnect` | Logado | — | status / redirecionamento | 400 "não configurada" |
 | GET/POST | `/api/company-calendar/:projectId[/apply]` | Master ou PRICETAX com acesso à empresa | `{confirm:true, emails, items, cancel, durationMin}` | `{results[]}` por reunião | 400 (e-mail inválido, duas reuniões no mesmo dia), 409 (Google), 404 |
 | GET | `/api/xflow/team`, `/affected-companies`, `/tickets[?trash=1]`, `/tickets/:id/events` | Quem tem `xflow_role`; Lixeira só gestão/admin | — | listas | 403 "Você não tem acesso ao XFlow." |
-| POST | `/api/xflow/tickets`, `/tickets/:id/view` | Quem tem `xflow_role` | `title` obrigatório + campos | ticket | 400 "Título é obrigatório." |
+| POST | `/api/xflow/tickets`, `/tickets/:id/view` | Quem tem `xflow_role` | `title` obrigatório + só os campos conhecidos de `blankXflowTicketData` (comentários, histórico, agenda e fechamento são do servidor e ignorados na criação — 2026-10-29) | ticket | 400 "Título é obrigatório." |
 | PATCH | `/api/xflow/tickets/:id` | `xflow_role` + `canDo(ação)` | `{action, payload}` | `{ticket, relatedTicket}` | 400 (transição inválida/campo faltando), 403 "Você não tem permissão para fazer isso." |
 | DELETE | `/api/xflow/tickets/:id` | Só admin, só ticket na Lixeira | — | 204 | 400, 403 |
 | GET/POST | `/api/push/config`, `/status`, `/subscribe`, `/unsubscribe`, `/test` | Logado | inscrição Web Push | `{ok}` | 503 sem VAPID; 400 endpoint não aceito; 429 teste (8 s) |

@@ -77,13 +77,17 @@ function logAnthropicUsage(pool, { orgId, projectId, feature, model, usage }) {
 // erro de rede, saída estruturada que não bateu no schema numa tentativa
 // isolada) sem mascarar um erro persistente: se a segunda tentativa
 // também falhar, o erro sobe normal pro catch de `askProjectAssistant`.
+// Se a 1ª tentativa falhou porque a saída foi cortada (limite de tokens), a 2ª recebe `{ compact: true }` e pede uma versão ENXUTA — repetir igual dava o mesmo corte (M19).
+const TRUNCATION_ERROR = /Unterminated|Failed to parse structured output|max_tokens|resposta cortada|Unexpected end of JSON/i;
+const COMPACT_HINT = '\n\n(ATENÇÃO: sua resposta anterior foi cortada por ser longa demais. Responda de forma BEM mais enxuta e direta: só o essencial, listas curtas, sem repetir contexto.)';
 async function withRetry(fn, label) {
   try {
-    return await fn();
+    return await fn({ compact: false });
   } catch (e) {
-    console.error(`Assistente do Projeto: ${label} falhou na 1ª tentativa (${e.message}) — tentando de novo.`);
+    const truncated = TRUNCATION_ERROR.test(String(e && e.message));
+    console.error(`Assistente do Projeto: ${label} falhou na 1ª tentativa (${e.message}) — tentando de novo${truncated ? ' em versão enxuta' : ''}.`);
     await new Promise((resolve) => setTimeout(resolve, 500));
-    return await fn();
+    return await fn({ compact: truncated });
   }
 }
 
@@ -162,7 +166,7 @@ const SynthesizeAnswerSchema = z.object({
   proposedAction: ProposedActionSchema.describe('Preencha SOMENTE quando o usuário pedir explicitamente pra criar/excluir uma pendência, criar/reagendar/excluir uma atividade do cronograma, marcar um evento no Google Calendar, OU quando ele contar um fato durável que vale guardar (type="save_knowledge_fact" — ver descrição do campo type). Você NUNCA executa a ação — só propõe; o usuário confirma ou rejeita pelo painel depois. Se faltar informação pra ter certeza do alvo/conteúdo, NÃO proponha ainda — pergunte antes na própria resposta, com proposedAction=null, e proponha só no próximo turno depois que o usuário esclarecer. null na grande maioria das respostas.'),
 });
 
-async function resolveQuery({ question, history, context, projectSnapshot }) {
+async function resolveQuery({ question, history, context, projectSnapshot, compact = false }) {
   const client = new Anthropic();
   const historyText = history.length
     ? history.map((m) => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`).join('\n')
@@ -209,14 +213,14 @@ async function resolveQuery({ question, history, context, projectSnapshot }) {
       ].join(' '),
       cache_control: { type: 'ephemeral', ttl: '1h' },
     }],
-    messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nContexto: ${contextText}\n\nConversa até agora:\n${historyText}\n\nNova mensagem do usuário: ${question}` }],
+    messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nContexto: ${contextText}\n\nConversa até agora:\n${historyText}\n\nNova mensagem do usuário: ${question}${compact ? COMPACT_HINT : ''}` }],
     output_config: { format: zodOutputFormat(ResolveQuerySchema) },
   });
   if (!response.parsed_output) throw new Error('Falha ao interpretar a pergunta.');
   return { output: response.parsed_output, usage: response.usage };
 }
 
-async function synthesizeAnswer({ question, chunks, history, projectSnapshot, factsText, context, personLookupText, calendarContextText, googleConnected }) {
+async function synthesizeAnswer({ question, chunks, history, projectSnapshot, factsText, context, personLookupText, calendarContextText, googleConnected, compact = false }) {
   const client = new Anthropic();
   const historyText = history.length
     ? history.map((m) => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`).join('\n')
@@ -282,7 +286,7 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, fa
       ].join(' '),
       cache_control: { type: 'ephemeral', ttl: '1h' },
     }],
-    messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nCONHECIMENTO ACUMULADO (fatos ensinados por usuários, deste projeto e da PRICETAX em geral):\n${factsText}\n\n${meetingContextText}\n\n${personLookupText || ''}\n\nSTATUS DO GOOGLE CALENDAR: ${googleConnected ? 'conectado' : 'não conectado'}\n${calendarContextText || ''}\n\nConversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória de reuniões:\n\n${chunksText}` }],
+    messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nCONHECIMENTO ACUMULADO (fatos ensinados por usuários, deste projeto e da PRICETAX em geral):\n${factsText}\n\n${meetingContextText}\n\n${personLookupText || ''}\n\nSTATUS DO GOOGLE CALENDAR: ${googleConnected ? 'conectado' : 'não conectado'}\n${calendarContextText || ''}\n\nConversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória de reuniões:\n\n${chunksText}${compact ? COMPACT_HINT : ''}` }],
     output_config: { format: zodOutputFormat(SynthesizeAnswerSchema) },
   });
   if (!response.parsed_output) throw new Error('Falha ao gerar a resposta.');
@@ -371,7 +375,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
   try {
     const resolveStartedAt = Date.now();
     try {
-      resolved = await withRetry(() => resolveQuery({ question, history, context: context || {}, projectSnapshot }), 'resolveQuery');
+      resolved = await withRetry(({ compact }) => resolveQuery({ question, history, context: context || {}, projectSnapshot, compact }), 'resolveQuery');
     } catch (e) {
       // Interpretar a pergunta é só um refinamento: se falhar duas vezes, ainda dá para buscar e responder com a
       // pergunta como o usuário a escreveu (+ o turno anterior, para não perder o "essa"/"antes dela").
@@ -545,7 +549,7 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
 
         if (trace) trace.chunksConsidered = chunks;
         const synthesisStartedAt = Date.now();
-        synthesized = await withRetry(() => synthesizeAnswer({ question, chunks, history, projectSnapshot, factsText, context: context || {}, personLookupText, calendarContextText, googleConnected }), 'synthesizeAnswer');
+        synthesized = await withRetry(({ compact }) => synthesizeAnswer({ question, chunks, history, projectSnapshot, factsText, context: context || {}, personLookupText, calendarContextText, googleConnected, compact }), 'synthesizeAnswer');
         if (trace) { trace.synthesisLatencyMs = Date.now() - synthesisStartedAt; trace.synthesized = synthesized.output; trace.synthesisUsage = synthesized.usage; }
         {
           const usageCache = logAnthropicUsage(pool, { orgId, projectId, feature: 'synthesizeAnswer', model: 'claude-opus-5', usage: synthesized.usage });

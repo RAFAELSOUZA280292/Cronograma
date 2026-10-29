@@ -171,8 +171,10 @@ router.patch('/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Excluir parecer apaga o arquivo de vez (não há cópia): só administrador — Master ou Super Admin (M23, 2026-10-29).
 router.delete('/:id', async (req, res, next) => {
   try {
+    if (!(req.user.role === 'master' || req.user.isSuperAdmin)) return res.status(403).json({ message: 'Só administradores (Master) excluem pareceres.' });
     const orgId = effectiveOrgId(req);
     const own = await pool.query('SELECT 1 FROM pareceres WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
     if (own.rows.length) await archiveParecerFacts(pool, req.params.id);

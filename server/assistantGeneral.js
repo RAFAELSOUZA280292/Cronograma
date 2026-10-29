@@ -156,12 +156,17 @@ export async function askGeneral({ pool, client, user, orgId, question, history,
     try { sweep = await runSweep({ pool, user, orgId, question, history: msgs, client, now }); }
     catch (e) { console.error('RENATA geral: varredura de reuniões falhou — respondendo sem ela.', e.message); }
   }
-  const res = await client.messages.create({
+  const ask = (extra = '') => client.messages.create({
     model: STUDY_MODEL,
     max_tokens: sweep ? 2500 : 1400,
     system: [{ type: 'text', text: SYSTEM }, { type: 'text', text: `CONTEXTO:\n${ctx.text}${sweep ? `\n\n${sweep.text}` : ''}` }],
-    messages: [...msgs, { role: 'user', content: clip(question, 1500) }],
+    messages: [...msgs, { role: 'user', content: clip(question, 1500) + extra }],
   });
+  let res = await ask();
+  // Resposta cortada: repete UMA vez pedindo uma versão enxuta (repetir igual cortaria no mesmo ponto) — M19.
+  if (res.stop_reason === 'max_tokens') {
+    try { const again = await ask('\n\n(ATENÇÃO: sua resposta anterior foi cortada por ser longa demais. Responda de forma BEM mais enxuta: só o essencial, listas curtas.)'); if ((again.content || []).some((c) => c.type === 'text')) res = again; } catch (e) { console.error('RENATA geral: nova tentativa enxuta falhou — mantendo a resposta cortada com aviso.', e.message); }
+  }
   const answer = (res.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n').trim();
   logMetric(pool, {
     orgId, projectId: null, eventType: 'anthropic_api_call',

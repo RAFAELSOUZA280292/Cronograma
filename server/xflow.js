@@ -303,7 +303,11 @@ router.post('/tickets', requireAuth, requireXflowAccess, async (req, res, next) 
     const title = (body.title || '').trim();
     if (!title) return res.status(400).json({ message: 'Título é obrigatório.' });
     const id = uid('xtk');
-    const data = { ...blankXflowTicketData(), ...splitData(body) };
+    // Só campos conhecidos entram em `data`; os que o servidor controla (comentários, histórico, agenda, fechamento) nunca vêm do corpo da criação (M9).
+    const blank = blankXflowTicketData();
+    const SERVER_MANAGED = new Set(['comments', 'history', 'googleEventId', 'statusBeforeBlock', 'archived', 'closureReason', 'closureJustification']);
+    const extras = Object.fromEntries(Object.entries(splitData(body)).filter(([k]) => k in blank && !SERVER_MANAGED.has(k)));
+    const data = { ...blank, ...extras };
     if (data.description) data.description = sanitizeDescriptionHtml(data.description);
     const priority = body.priority || '';
     const slaConfig = await getSlaConfig(pool, req.user.orgId);

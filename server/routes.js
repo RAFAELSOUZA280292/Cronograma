@@ -789,6 +789,20 @@ export function mergeApiCards(stored, incoming, baseUpdatedAt) {
 }
 
 // O carimbo viaja como ISO com milissegundos; o banco guarda microssegundos. Compara no milissegundo.
+// Histórico do quadro pessoal (M11): foto do estado ANTERIOR quando a gravação o encolhe (cartões somem) ou a cada 10 min de edição; dentro da mesma transação da gravação.
+const countCards = (b) => (b && Array.isArray(b.boards) ? b.boards.reduce((n, p) => n + (p.columns || []).reduce((m, c) => m + ((c && c.cards) || []).length, 0), 0) : 0);
+export async function snapshotBoardIfNeeded(client, userId, previous, next) {
+  if (!previous) return false;
+  const before = countCards(previous); const after = countCards(next);
+  const shrinks = before >= 5 && after <= before * 0.7;
+  if (!shrinks) {
+    const { rows } = await client.query(`SELECT 1 FROM personal_board_versions WHERE user_id=$1 AND created_at > now() - interval '10 minutes' LIMIT 1`, [userId]);
+    if (rows.length) return false;
+  }
+  await client.query('INSERT INTO personal_board_versions (user_id, data, reason) VALUES ($1,$2,$3)', [userId, JSON.stringify(previous), shrinks ? `queda de ${before} para ${after} cartões` : 'automática']);
+  return true;
+}
+
 export function sameStamp(a, b) {
   const x = new Date(a).getTime(); const y = new Date(b).getTime();
   return Number.isFinite(x) && Number.isFinite(y) && x === y;
@@ -820,6 +834,7 @@ router.patch('/personal-board', requireAuth, async (req, res, next) => {
     const { board, merged: mergedApi } = cur.rows[0] ? mergeApiCards(cur.rows[0].data, incoming, base) : { board: incoming, merged: 0 };
     const tokensReplaced = enforceShareTokens(cur.rows[0] && cur.rows[0].data, board); // token novo fraco/escolhido é trocado por um do servidor (A9)
     const merged = mergedApi + tokensReplaced;
+    if (cur.rows[0]) await snapshotBoardIfNeeded(client, req.user.id, cur.rows[0].data, board);
     const up = await client.query(
       `INSERT INTO personal_boards (user_id, data) VALUES ($1,$2)
        ON CONFLICT (user_id) DO UPDATE SET data=$2, updated_at=now() RETURNING updated_at`,
@@ -837,6 +852,34 @@ router.patch('/personal-board', requireAuth, async (req, res, next) => {
     await syncCardEvents(pool, req.user.id, saved.board);
     res.json(saved);
   } catch (e) { next(e); }
+});
+
+// Histórico do quadro pessoal (M11): lista as fotos guardadas e restaura uma (a atual vira uma foto "antes de restaurar", então dá para voltar atrás).
+router.get('/personal-board/versions', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT id, reason, created_at, data FROM personal_board_versions WHERE user_id=$1 ORDER BY created_at DESC LIMIT 40', [req.user.id]);
+    res.json({ versions: rows.map((r) => ({ id: String(r.id), reason: r.reason, createdAt: r.created_at, pages: Array.isArray(r.data && r.data.boards) ? r.data.boards.length : 0, cards: countCards(r.data) })) });
+  } catch (e) { next(e); }
+});
+
+router.post('/personal-board/versions/:id/restore', requireAuth, async (req, res, next) => {
+  if (!/^\d{1,18}$/.test(req.params.id)) return res.status(400).json({ message: 'Versão inválida.' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const v = await client.query('SELECT data FROM personal_board_versions WHERE id=$1 AND user_id=$2', [req.params.id, req.user.id]);
+    if (!v.rows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Versão não encontrada.' }); }
+    const cur = await client.query('SELECT data FROM personal_boards WHERE user_id=$1 FOR UPDATE', [req.user.id]);
+    if (cur.rows[0]) await client.query('INSERT INTO personal_board_versions (user_id, data, reason) VALUES ($1,$2,$3)', [req.user.id, JSON.stringify(cur.rows[0].data), 'antes de restaurar uma versão']);
+    const up = await client.query(`INSERT INTO personal_boards (user_id, data) VALUES ($1,$2) ON CONFLICT (user_id) DO UPDATE SET data=$2, updated_at=now() RETURNING updated_at`, [req.user.id, JSON.stringify(v.rows[0].data)]);
+    await client.query('COMMIT');
+    res.json({ ok: true, board: v.rows[0].data, updatedAt: up.rows[0].updated_at });
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch { /* conexão já encerrada */ }
+    next(e);
+  } finally {
+    client.release();
+  }
 });
 
 router.get('/personal-board/stats', requireAuth, async (req, res, next) => {
