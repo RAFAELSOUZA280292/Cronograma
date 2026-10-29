@@ -33,10 +33,15 @@ export function signToken(userId, passwordHash) {
   return jwt.sign(payload, requireSecret(), { expiresIn: TOKEN_TTL });
 }
 
+// Base suspensa ou bloqueada (organizations.status): ninguém dela entra nem continua usando; o Super Administrador nunca é barrado por isso (M22).
+export const ORG_INACTIVE_MSG = 'O acesso desta organização está suspenso. Fale com a PRICETAX.';
+export const orgInactive = (row) => !!row && !row.is_super_admin && !!row.org_status && row.org_status !== 'active';
+
 // Sessão aberta só vale enquanto o usuário existe, não está bloqueado, não expirou e não trocou a senha desde a emissão do cookie.
 function sessionProblem(row, payload) {
   if (!row) return 'Sessão inválida. Faça login novamente.';
   if (row.blocked) return row.block_reason || 'Acesso bloqueado. Fale com um PRICETAX Master.';
+  if (orgInactive(row)) return ORG_INACTIVE_MSG;
   if (row.expires_at && toISODateSafe(row.expires_at) < new Date().toISOString().slice(0, 10)) return 'Acesso expirado. Fale com um PRICETAX Master para renovar.';
   if (payload && payload.pv && payload.pv !== passwordTag(row.password_hash)) return 'Senha alterada. Faça login novamente.';
   return '';
@@ -94,12 +99,12 @@ function rowToUser(row) {
 export { rowToUser };
 
 export async function findUserById(id) {
-  const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+  const { rows } = await pool.query('SELECT u.*, o.status AS org_status FROM users u LEFT JOIN organizations o ON o.id = u.org_id WHERE u.id = $1', [id]);
   return rows[0] || null;
 }
 
 export async function findUserByUsername(username) {
-  const { rows } = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+  const { rows } = await pool.query('SELECT u.*, o.status AS org_status FROM users u LEFT JOIN organizations o ON o.id = u.org_id WHERE u.username = $1', [username]);
   return rows[0] || null;
 }
 

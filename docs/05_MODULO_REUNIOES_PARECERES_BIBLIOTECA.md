@@ -145,7 +145,7 @@ Responsável (`normalizeActionItems` + `matchPerson` de `server/inventory.js`): 
 ### A7. Outros caminhos de criação de reunião
 - **À mão:** `addMeeting` (`meetingActions.js`) cria reunião em branco e abre a tela; tudo grava pelo `mutateProject` (autosave).
 - **Reunião inteira pronta** (`POST /api/projects/:id/meetings`, `routes.js`): só master/pricetax; transação com `FOR UPDATE`; mesma data+título já existente = 409 (a menos que `force`); o responsável precisa ser da equipe da empresa (senão fica vazio); transcrição até 400.000 caracteres. **Não** chama a IA de extração, **não** sugere vínculo com atividade e **não** gera sugestão de pareceres (a caixa mostra "Gerar").
-- **Link público:** `GET /api/public-meeting/:token` devolve a reunião inteira se `shareVisibility==='public'`.
+- **Link público:** `GET /api/public-meeting/:token` devolve uma **lista fechada** de campos (`publicMeetingView`) se `shareVisibility==='public'`.
 
 ### B1. Enviar e estudar um parecer
 1. **Gatilho:** "Novo Parecer" (`UploadParecerModal`): título, descrição, escopo (Geral ou Cliente específico), PDF até 10 MB (conferido no front por `f.type` e tamanho). O arquivo vai em base64 no JSON.
@@ -388,7 +388,7 @@ Sem test runner; cada script é descartável e usa banco **local** (recusa outro
 - Não executei nada contra IA real, banco de produção ou Railway; tudo vem da leitura do código e dos documentos.
 - `requireMasterOrPricetax` (`server/auth.js`) confere `role` master/pricetax e **não** `isSuperAdmin`; não verifiquei se o super admin sempre tem um desses perfis. Já o dossiê usa `canUseDossier`, que inclui super admin. A mensagem de 403 desse middleware diz "podem cadastrar empresas", enganosa para Pareceres/Biblioteca.
 - Se perfis `cliente` com `companiesAccess` veem a aba Reuniões (e portanto o botão "Enviar transcrição"): o servidor não bloqueia (`canAccessProject` apenas); não confirmei no front se a aba é escondida para eles.
-- `genShareToken` (`src/App.jsx`) agora usa `crypto.getRandomValues` (192 bits; antes `Math.random`). `GET /api/public-meeting/:token` percorre **todos** os projetos a cada chamada e devolve a reunião inteira (transcrição, comentários e anexos das tarefas, `shareToken`). É decisão antiga de produto (§26), mas é o ponto mais sensível desta área.
+- `genShareToken` (`src/App.jsx`) usa `crypto.getRandomValues` (192 bits) e o servidor só aceita token NOVO nesse formato (troca o fraco). `GET /api/public-meeting/:token` devolve lista fechada de campos e consulta o banco por contenção JSONB (1 linha), com limite de 60/min por IP.
 - `xlsx` (leitura de planilha em `materialText.js`) aparece como biblioteca desatualizada na auditoria de 2026-10-16; não conferi se continua vulnerável. Só equipe envia, mas o arquivo vem do usuário.
 - O comentário no topo do `StudyBanner` (`Pareceres.jsx`) ainda diz "O estudo é MANUAL (não roda ao enviar o PDF)", mas o servidor roda `autoStudy` após o envio (`server/pareceres.js`, `POST /`) e o texto do próprio aviso diz "estudados sozinhos". Vale corrigir o comentário.
 - O texto do §24 do `PROJECT_CONTEXT.md` descreve a reunião com poucos campos (`{id,title,responsible,dueDate,status,deleted}` por tarefa); o código atual tem muito mais (A3).

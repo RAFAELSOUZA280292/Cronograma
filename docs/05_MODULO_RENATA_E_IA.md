@@ -287,7 +287,7 @@ O SDK lança "Unterminated string in JSON" / "Failed to parse structured output"
 | Biblioteca (#11) | Sim, 1x | `friendlyError` (`knowledgeLibrary.js`) |
 | Dossiê (#14) | Sim (`consolidateWithRetry`, sufixo mais conciso) | Mensagem própria do dossiê |
 | `resolveQuery`/`synthesizeAnswer` (#1, #2) | **Não**: `withRetry` repete 1x igual, 500 ms depois (a falha de corte é determinística e repete) | `resolveQuery`: segue com a pergunta literal; `synthesizeAnswer`: "Não consegui processar essa pergunta agora." |
-| RENATA geral (#3) e agente (#5) | **Não verificam** `stop_reason`; se cortar, a resposta fica pela metade | — |
+| RENATA geral (#3) e agente (#5) | Verificam `stop_reason==='max_tokens'` e acrescentam o aviso "(A resposta ficou longa e foi cortada aqui…)" (2026-10-29); não há repetição enxuta | — |
 
 Histórico: 500 tokens em `resolveQuery` e 1500 em `synthesizeAnswer` já cortaram o JSON em produção (§30, 2026-10-06); por isso 4000/8000. Prova do padrão: `scripts/parecer-study-truncation.test.mjs`.
 
@@ -323,7 +323,7 @@ Cada área tem o seu tradutor de erro cru da API para português (créditos, cha
 | Mover só a atividade deixava subatividades | Prompt | §112; regra 2a | Simular antes (`cronograma_simular`) |
 | Fato duplicado "perdido" ou conflito não detectado | Limiares de similaridade | `RENATA_EVAL_BASELINE.md` (aberto) | Não confiar só em embedding para datas/nomes |
 | Cache de prompt "não cacheia" | `system` curto abaixo do mínimo; TTL 5 min | Auditoria 2026-09-14 (comentários) | Medir `cacheReadTokens`; não assumir |
-| Confirmação de ação grande falha (novo, ver Achados) | `compact` encurta o `input` guardado | Aberto | — |
+| Confirmação de ação grande | `compact` encurtava o `input` guardado | **Corrigido em 2026-10-29:** a pendência guarda o pedido inteiro (≤ 300 KB; maior é recusado). Teste: `scripts/renata-confirmacao-lote.test.mjs` | — |
 
 ## Achados de segurança
 Os achados de segurança desta área ficam no registro privado `docs/11_ACHADOS_E_PENDENCIAS.md` (não é publicado).
@@ -359,7 +359,7 @@ Os achados de segurança desta área ficam no registro privado `docs/11_ACHADOS_
 11. **"Quem mandou a RENATA fazer isso? Desfazer."** `GET /api/renata/actions` (campos `command`, `requester_name`, `autorizacao`, `before`/`after`); desfazer só em ação `success` com `undo`. Na tela do CRM/Empresa a autoria aparece como "RENATA (IA, a pedido de <nome>)" (`auth.js` `setActor`).
 12. **"Uma nova função de IA (não chat)."** Copiar o padrão: Zod achatado + `zodOutputFormat`, `max_tokens` folgado, repetição enxuta (`isTruncated`), tradutor de erro amigável, `logMetric` **com `orgId` válido**, cliente injetável para teste (como `studyOne(client, ...)`). Adicionar linha na tabela de chamadas deste documento.
 13. **"Limitar o uso da RENATA de consulta."** Criar o mesmo `limited()` de `renata/routes.js` em `assistant.js` (`/ask` e `/general/ask`) e um tamanho máximo para `question`.
-14. **"Corrigir a confirmação de lote."** Em `executor.js` gravar o `input` íntegro em `renata_actions.input` (só compactar para exibir), testar com 30 ids em `scripts/renata.test.mjs`.
+14. ~~Corrigir a confirmação de lote~~ — feito em 2026-10-29 (`executor.js` `insertRow`).
 
 ## Divergências entre documentos e código
 - `docs/RENATA_MATRIZ_COBERTURA.md` e `PROJECT_CONTEXT.md` §101 citam 294/306 rotas; `routeIndex.json` tem 306, `docs/gerado/ROTAS.md` tem 317.

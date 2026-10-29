@@ -131,6 +131,42 @@ try {
   ok('A9: colaborador não torna outra coluna pública', stored.columns[1].visibility === undefined && stored.columns[1].shareToken === undefined, stored.columns[1]);
   ok('A9: o cartão que o colaborador criou foi gravado', stored.columns[0].cards.some((c) => c.title === 'do colaborador'));
 
+  // ---- A9: token de link só forte (novo) / mantido (antigo); página pública com lista fechada
+  const bru = await login(U.bru, PASS, '203.0.113.99');
+  const strong = crypto.randomBytes(24).toString('hex');
+  const b0 = (await call(bru.cookie, 'GET', '/api/personal-board')).json;
+  const mkPage = (id, tok) => ({ id, name: id, visibility: 'public', shareToken: tok, log: [], columns: [{ id: `${id}c`, name: 'c', cards: [] }] });
+  const savedA9 = await call(bru.cookie, 'PATCH', '/api/personal-board', { board: { boards: [mkPage('pf', 'abc123'), mkPage('pg', strong)] }, baseUpdatedAt: b0.updatedAt });
+  const gotA9 = (await pool.query('SELECT data FROM personal_boards WHERE user_id=$1', [U.bru])).rows[0].data.boards;
+  ok('A9: token NOVO fraco/escolhido é trocado pelo servidor por um forte', savedA9.status === 200 && /^[0-9a-f]{48}$/.test(gotA9[0].shareToken) && gotA9[0].shareToken !== 'abc123', gotA9.map((b) => b.shareToken));
+  ok('A9: token novo forte é mantido como veio', gotA9[1].shareToken === strong);
+  ok('A9: a resposta já traz o quadro com o token do servidor (a tela adota)', savedA9.json.merged === true && savedA9.json.board.boards[0].shareToken === gotA9[0].shareToken);
+  const keepOld = await call(bru.cookie, 'PATCH', '/api/personal-board', { board: { boards: [{ ...gotA9[0], shareToken: gotA9[0].shareToken }, mkPage('ph', 'tok_antigo_do_dono')] }, baseUpdatedAt: savedA9.json.updatedAt });
+  ok('A9: quadro com forma inválida é recusado (400)', (await call(bru.cookie, 'PATCH', '/api/personal-board', { board: { boards: 'lixo' } })).status === 400 && (await call(bru.cookie, 'PATCH', '/api/personal-board', { board: { boards: [{ nome: 'sem id' }] } })).status === 400);
+  ok('A9: nova página com token fraco também é trocada', keepOld.status === 200 && keepOld.json.board.boards[1].shareToken !== 'tok_antigo_do_dono');
+
+  const pubTok = crypto.randomBytes(24).toString('hex');
+  const PID2 = `sga_pub_${RUN}`;
+  await pool.query('INSERT INTO projects (id, data, org_id) VALUES ($1,$2,$3)', [PID2, JSON.stringify({ id: PID2, company: { name: 'Empresa Pública Teste', cnpj: '55.444.333/0001-22' }, team: [], phases: [], activities: [], log: [{ ts: '2026-10-01T00:00:00Z', action: 'interno', user: 'x' }],
+    meetings: [{ id: 'mp1', title: 'Reunião pública', date: '2026-10-02', time: '10:00', participants: ['Ana'], summary: 'Resumo', decisions: 'Decisão', transcript: 'Transcrição', shareToken: pubTok, shareVisibility: 'public', createdBy: 'SEGREDO-AUTOR', notes: 'nota interna',
+      actionItems: [{ id: 'i1', title: 'Tarefa', status: 'nao-iniciado', responsible: 'Ana', dueDate: '2026-11-01', owner: 'cliente', notes: 'NOTA-INTERNA', comments: [{ text: 'COMENTARIO-INTERNO' }], attachments: [{ name: 'anexo', dataUrl: 'data:text/plain;base64,QQ==' }], createdBy: 'IA' }, { id: 'i2', title: 'Apagada', deleted: true }] },
+      { id: 'mp2', title: 'Privada', shareToken: crypto.randomBytes(24).toString('hex'), shareVisibility: 'private' }] }), ORG]);
+  const pm = await call('', 'GET', `/api/public-meeting/${pubTok}`);
+  ok('A9: reunião pública abre sem login', pm.status === 200 && pm.json.meeting.title === 'Reunião pública' && pm.json.companyName === 'Empresa Pública Teste', pm);
+  const raw = JSON.stringify(pm.json);
+  ok('A9: a página pública NÃO traz anexos, comentários, notas internas nem autor', !/SEGREDO-AUTOR|NOTA-INTERNA|COMENTARIO-INTERNO|nota interna|dataUrl|createdBy/.test(raw), raw);
+  ok('A9: traz o necessário (resumo, decisões, transcrição, tarefas ativas)', pm.json.meeting.summary === 'Resumo' && pm.json.meeting.transcript === 'Transcrição' && pm.json.meeting.actionItems.length === 1 && pm.json.meeting.actionItems[0].title === 'Tarefa');
+  ok('A9: reunião privada e token inexistente dão 404', (await call('', 'GET', `/api/public-meeting/${(await pool.query('SELECT data FROM projects WHERE id=$1', [PID2])).rows[0].data.meetings[1].shareToken}`)).status === 404 && (await call('', 'GET', '/api/public-meeting/inexistente-123456789')).status === 404);
+  const pmProj = (await call(adm.cookie, 'GET', '/api/projects')).json.projects.find((x) => x.id === PID2);
+  const withWeak = JSON.parse(JSON.stringify(pmProj)); withWeak.meetings.push({ id: 'mp3', title: 'Nova', shareToken: 'fraco', shareVisibility: 'public' });
+  const stampP = (await call(adm.cookie, 'GET', '/api/projects')).json.stamps[PID2];
+  await call(adm.cookie, 'PATCH', `/api/projects/${PID2}`, { project: withWeak, baseUpdatedAt: stampP, mergeable: true });
+  const m3 = (await pool.query('SELECT data FROM projects WHERE id=$1', [PID2])).rows[0].data.meetings.find((x) => x.id === 'mp3');
+  ok('A9: token novo fraco de reunião também é trocado pelo servidor', /^[0-9a-f]{48}$/.test(m3.shareToken), m3.shareToken);
+  const rate = [];
+  for (let i = 0; i < 70; i += 1) rate.push((await call('', 'GET', `/api/public-meeting/inexistente-123456789`, undefined, '198.51.100.7')).status);
+  ok('A9: consulta repetida demais ao link público leva 429', rate.includes(429), [...new Set(rate)]);
+
   // ---- A3/A4: visão e gravação do usuário `cliente`
   const proj = { id: PID, company: { name: 'Empresa Teste', cnpj: CNPJ }, team: [], phases: [], ownerIds: ['dono-1'], principalOwnerId: 'dono-1',
     activities: [{ id: 'act1', title: 'Atividade', status: 'pending', date: '2026-11-01' }],
@@ -202,6 +238,29 @@ try {
   ok('M9: comentário grava só as menções válidas (da mesma base)', cm.status === 200 && JSON.stringify(cmData.comments[0].mentions) === JSON.stringify([U.pt]), [cm.status, cmData.comments && cmData.comments[0] && cmData.comments[0].mentions]);
   await pool.query(`DELETE FROM xflow_events WHERE ticket_id=$1`, [tid]).catch(() => {});
   await pool.query(`DELETE FROM xflow_tickets WHERE id=$1`, [tid]).catch(() => {});
+
+  // ---- M22: organização suspensa não entra nem continua usando; Super Admin nunca é barrado
+  const ORG2 = `sga_org_${RUN}`;
+  await pool.query(`INSERT INTO organizations (id, slug, name) VALUES ($1,$1,'Org Teste Suspensão')`, [ORG2]);
+  await pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,companies_access,all_companies_access) VALUES ($1,$1,$2,$1,'pricetax',$3,true,true)`, [`sga_o2_${RUN}`, hash, ORG2]);
+  const o2 = await login(`sga_o2_${RUN}`, PASS, '203.0.113.50');
+  ok('M22: organização ativa entra normalmente', o2.status === 200 && (await call(o2.cookie, 'GET', '/api/auth/me')).status === 200, o2.status);
+  await pool.query(`UPDATE organizations SET status='suspended' WHERE id=$1`, [ORG2]);
+  const o2me = await call(o2.cookie, 'GET', '/api/auth/me');
+  ok('M22: suspender a organização derruba a sessão aberta (401 + motivo)', o2me.status === 401 && /suspenso/.test(o2me.json.message), o2me);
+  const o2login = await login(`sga_o2_${RUN}`, PASS, '203.0.113.51');
+  ok('M22: organização suspensa não loga (403)', o2login.status === 403 && /suspenso/.test(o2login.json.message), o2login);
+  await pool.query(`UPDATE users SET org_id=$2 WHERE id=$1`, [U.sup, ORG2]);
+  const supLogin = await login(U.sup, PASS, '203.0.113.52');
+  ok('M22: Super Administrador não é barrado pelo status da organização', supLogin.status === 200, supLogin.status);
+  await pool.query(`UPDATE users SET org_id=$2 WHERE id=$1`, [U.sup, ORG]);
+  await pool.query(`DELETE FROM users WHERE org_id=$1`, [ORG2]); await pool.query(`DELETE FROM organizations WHERE id=$1`, [ORG2]);
+
+  // ---- M13: o login (username) da equipe não vai para o cliente
+  const tc = await call(cc.cookie, 'GET', `/api/projects/${PID}/team-candidates`);
+  ok('M13: cliente recebe a equipe SEM o campo username', tc.status === 200 && tc.json.users.length > 0 && tc.json.users.every((u) => !('username' in u)), tc.json);
+  const tcStaff = await call(adm.cookie, 'GET', `/api/projects/${PID}/team-candidates`);
+  ok('M13: equipe continua recebendo o username', tcStaff.status === 200 && tcStaff.json.users.every((u) => 'username' in u));
 
   // ---- M5/M10/M17/M21 e cabeçalhos
   const hd = await fetch(`${BASE}/api/auth/me`);

@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 const URL = process.env.BASE || 'http://localhost:3001';
 let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
+const strongTok = () => [...Array(48)].map(() => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join(''); // o servidor só aceita token NOVO de 48 hex (A9)
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const uid = (p) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 function session() {
@@ -20,13 +21,13 @@ const initial = (await owner('GET', '/api/personal-board')).data; const backup =
 const page = (name, extra = {}) => ({ id: uid('board'), name, visibility: 'private', shareToken: '', log: [], columns: [{ id: uid('col'), name: 'A fazer', cards: [] }], ...extra });
 const save = async (board) => { const cur = (await owner('GET', '/api/personal-board')).data; return owner('PATCH', '/api/personal-board', { board, baseUpdatedAt: cur.updatedAt, mergeable: true }); };
 try {
-  const B = page('Daily anterior'); const A = page('Amanda', { visibility: 'public', shareToken: 'tok_A_' + uid('t'), backBoardId: B.id });
+  const B = page('Daily anterior'); const A = page('Amanda', { visibility: 'public', shareToken: strongTok(), backBoardId: B.id });
   let r = await save({ ...initial.board, boards: [B, A] }); ok(r.status === 200, 'semente');
   // 1) destino privado: nunca é exposto
   let g = await anon('GET', `/api/public-board/${A.shareToken}`);
   ok(g.status === 200 && g.data.back === null, 'destino PRIVADO → sem botão de voltar (não vaza página privada)');
   // 2) destino público: aparece com token e nome
-  B.visibility = 'public'; B.shareToken = 'tok_B_' + uid('t'); await save({ ...initial.board, boards: [B, A] });
+  B.visibility = 'public'; B.shareToken = strongTok(); await save({ ...initial.board, boards: [B, A] });
   g = await anon('GET', `/api/public-board/${A.shareToken}`);
   ok(g.data.back && g.data.back.token === B.shareToken && g.data.back.name === 'Daily anterior', 'destino público → back com token e nome');
   ok(g.data.canEdit === false, 'anônimo só lê');

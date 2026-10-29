@@ -392,13 +392,14 @@ export async function loadRelevantFacts(pool, orgId, projectId, conversationId, 
        AND NOT ${QUOTE_FACT_SQL}
        AND NOT ${MATERIAL_FACT_SQL}
        AND (
-         k.scope = 'org'
+         (k.scope = 'org' AND $5::boolean)
          OR (k.scope = 'project' AND k.project_id = $2)
          OR (k.scope = 'conversation' AND k.source_conversation_id = $3)
        )
      ORDER BY k.created_at DESC
      LIMIT $4`,
-    [orgId, projectId, conversationId || null, limit],
+    // Conhecimento de toda a organização (aprendido pela equipe) só vai para a equipe; o cliente recebe só o do próprio projeto e da própria conversa (M18).
+    [orgId, projectId, conversationId || null, limit, !!opts.isStaff],
   );
   // Pareceres só chegam à equipe PRICETAX (`opts.isStaff`) e só os que podem ser usados NESTA empresa: o
   // "Geral" e o do próprio cliente. O vínculo fato→parecer vem de parecer_studies.fact_id e o escopo é lido do

@@ -6,6 +6,7 @@
 
 import { google } from 'googleapis';
 import { pool } from './db.js';
+import { seal, open } from './secretBox.js';
 
 const SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
 
@@ -46,8 +47,15 @@ export async function saveConnection(userId, tokens) {
        access_token=$2,
        refresh_token=COALESCE($3, google_calendar_connections.refresh_token),
        token_expiry=$4`,
-    [userId, tokens.access_token, tokens.refresh_token || null, new Date(tokens.expiry_date)]
+    [userId, seal(tokens.access_token), seal(tokens.refresh_token) || null, new Date(tokens.expiry_date)]
   );
+}
+
+// Cifra, uma vez, o que foi gravado em texto puro antes do M2. Idempotente.
+export async function sealLegacyGoogleTokens() {
+  const { rows } = await pool.query(`SELECT user_id, access_token, refresh_token FROM google_calendar_connections WHERE access_token NOT LIKE 'enc1:%' OR (refresh_token IS NOT NULL AND refresh_token NOT LIKE 'enc1:%')`);
+  for (const r of rows) await pool.query('UPDATE google_calendar_connections SET access_token=$1, refresh_token=$2 WHERE user_id=$3', [seal(r.access_token), seal(r.refresh_token) || null, r.user_id]);
+  return rows.length;
 }
 
 export async function disconnectUser(userId) {
@@ -63,10 +71,11 @@ async function getAuthedClientForUser(userId) {
   const { rows } = await pool.query('SELECT * FROM google_calendar_connections WHERE user_id=$1', [userId]);
   if (!rows[0]) return null;
   const conn = rows[0];
+  if (open(conn.access_token) === null && open(conn.refresh_token) === null) return null; // segredo de cifra trocado: a pessoa precisa reconectar
   const client = oauthClient();
   client.setCredentials({
-    access_token: conn.access_token,
-    refresh_token: conn.refresh_token,
+    access_token: open(conn.access_token),
+    refresh_token: open(conn.refresh_token),
     expiry_date: new Date(conn.token_expiry).getTime(),
   });
   // googleapis atualiza o access_token sozinho quando expira (usando o
@@ -77,7 +86,7 @@ async function getAuthedClientForUser(userId) {
     if (!tokens.access_token) return;
     pool.query(
       `UPDATE google_calendar_connections SET access_token=$1, token_expiry=$2 WHERE user_id=$3`,
-      [tokens.access_token, new Date(tokens.expiry_date || Date.now() + 3500 * 1000), userId]
+      [seal(tokens.access_token), new Date(tokens.expiry_date || Date.now() + 3500 * 1000), userId]
     ).catch((e) => console.error('Falha ao persistir token renovado do Google', e.message));
   });
   return client;

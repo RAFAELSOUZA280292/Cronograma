@@ -1203,7 +1203,7 @@ export function CompanySelectorScreen({ projects, initialSelected, onConfirm, on
       {deleteTarget && (
         <ConfirmDialog
           title={`Excluir ${deleteTarget.company.name || 'esta empresa'}?`}
-          message="Isto apaga a empresa e todo o cronograma dela (atividades, reuniões, histórico). Não dá para desfazer."
+          message="Isto apaga a empresa e todo o cronograma dela (atividades, reuniões, histórico). Fica uma cópia por 1 ano, que só um administrador (Master) recupera em “Empresas excluídas”; links públicos, dossiê e reservas na agenda não voltam."
           confirmLabel="Excluir empresa"
           danger
           requireText={deleteTarget.company.name || 'EXCLUIR'}

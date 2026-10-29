@@ -44,6 +44,8 @@ ok('resposta normal: 1 chamada, sem passo forçado', b.calls.length === 1 && b.o
 const c = await run((params) => { if (params.tool_choice) throw new Error('IA fora do ar'); return toolUse(Math.random()); });
 ok('se a chamada final falhar, ainda sai uma mensagem em português (nunca "…" vazio)', /não consegui montar a resposta/.test(c.out.reply), c.out.reply);
 
+const trunc = await run(() => ({ content: [{ type: 'text', text: 'Resposta que foi cortada no meio da fra' }], stop_reason: 'max_tokens', usage: {} }));
+ok('M19: resposta cortada por limite de tokens ganha o aviso (não parece completa)', /cortada aqui/.test(trunc.out.reply) && trunc.out.reply.startsWith('Resposta que foi cortada'), trunc.out.reply);
 const d = await run(() => ({ content: [], stop_reason: 'end_turn', usage: {} }));
 ok('resposta vazia da IA não vira "…" na tela', d.out.reply === '', d.out.reply);
 

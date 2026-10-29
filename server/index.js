@@ -38,6 +38,7 @@ import { router as projectVersionsRouter, startVersionRetentionJob } from './pro
 import { startCrmScheduler } from './crm/scheduler.js';
 import { startTodoScheduler } from './todoNotifications.js';
 import { pool } from './db.js';
+import { sealLegacyGoogleTokens } from './googleCalendar.js';
 import { failOrphanedDossiers } from './dossier.js';
 import { countMaps } from './sourcemaps.js';
 import { seedQuoteFacts, embedQuoteFacts } from './inspirationQuotes.js';
@@ -131,6 +132,7 @@ async function start() {
   await migrateToPricetaxOrg();
   await migrateAccessModel();
   await migrateXflowBoardOrder();
+  try { const n = await sealLegacyGoogleTokens(); if (n) console.log(`Google Calendar: ${n} conexão(ões) tiveram os tokens cifrados`); } catch (e) { console.error('Falha ao cifrar tokens antigos do Google (seguem legíveis)', e.message); }
   await migrateInsightsToKnowledgeFacts();
   try {
     const n = await markV2Provisional();

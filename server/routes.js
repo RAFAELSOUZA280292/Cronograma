@@ -4,7 +4,7 @@ import { pool, blankProject, blankPersonalBoard } from './db.js';
 import { instantiateStandard } from './standardTemplateStore.js';
 import { isISODate } from './standardTemplate.js';
 import {
-  hashPassword, comparePassword, signToken, setAuthCookie, clearAuthCookie,
+  hashPassword, comparePassword, signToken, orgInactive, ORG_INACTIVE_MSG, setAuthCookie, clearAuthCookie,
   rowToUser, findUserByUsername, findUserById, requireAuth, requireMaster, requireMasterOrPricetax, requireSuperAdmin, optionalAuth, toISODateSafe,
 } from './auth.js';
 import { lookupCnpj, cleanCnpj, formatCnpj } from './cnpjLookup.js';
@@ -17,11 +17,12 @@ import { readMuted, publicCategories, loadMutedPatterns, NOTIFICATION_CATEGORIES
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { CRM_ROLES } from './crm/permissions.js';
 import { searchProjectMemory } from './memoryRetrieval.js';
-import { recordAccess, noteVisit, noteFirstUse, accessSummary, recentAccess } from './accessLog.js';
+import { clientIp, recordAccess, noteVisit, noteFirstUse, accessSummary, recentAccess } from './accessLog.js';
 import { recordUsage } from './usageLog.js';
 import { usagePolicy } from './usagePolicy.js';
 import { syncCardEvents, getActivityStats, getDayDetail, cardEventsOf } from './personalActivity.js';
 
+import { enforceShareTokens, publicMeetingView } from './shareTokens.js';
 import { isClientUser, projectForClient, applyClientWrite } from './clientView.js';
 import { loginBlockedFor, noteLoginFailure, noteLoginSuccess, passwordTooShort, PASSWORD_MSG } from './loginLimit.js';
 
@@ -145,6 +146,7 @@ router.post('/auth/login', async (req, res, next) => {
     if (row.blocked) {
       return res.status(403).json({ message: row.block_reason || 'Acesso bloqueado. Fale com um PRICETAX Master.' });
     }
+    if (orgInactive(row)) return res.status(403).json({ message: ORG_INACTIVE_MSG });
 
     const ok = await comparePassword(password, row.password_hash);
     if (!ok) {
@@ -564,7 +566,8 @@ router.get('/projects/:id/team-candidates', requireAuth, async (req, res, next) 
       `SELECT id, name, role, username FROM users WHERE org_id=$1 AND (role IN ('master','pricetax') OR (role='cliente' AND cnpj=$2)) ORDER BY name ASC`,
       [rows[0].org_id, cnpj]
     );
-    res.json({ users: userRows });
+    // O login (username) da equipe não vai para o usuário cliente (M13).
+    res.json({ users: isClientUser(req.user) ? userRows.map(({ username: _u, ...rest }) => rest) : userRows });
   } catch (e) { next(e); }
 });
 
@@ -592,6 +595,7 @@ router.patch('/projects/:id', requireAuth, async (req, res, next) => {
       return res.status(409).json({ message: 'A empresa foi alterada em outro lugar.', conflict: true, project: isClientUser(req.user) ? projectForClient(current) : current, updatedAt: rows[0].updated_at });
     }
     next_ = isClientUser(req.user) ? applyClientWrite(current, incoming) : incoming;
+    enforceShareTokens(current, next_); // token de link de reunião novo só com formato forte (A9)
     const up = await client.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2 RETURNING updated_at', [JSON.stringify(next_), id]);
     updatedAt = up.rows[0].updated_at;
     await client.query('COMMIT');
@@ -770,6 +774,10 @@ export function sameStamp(a, b) {
 router.patch('/personal-board', requireAuth, async (req, res, next) => {
   const incoming = req.body && req.body.board;
   if (!incoming) return res.status(400).json({ message: 'Payload inválido.' });
+  // Forma mínima (M11): lista de páginas com id e colunas em lista — um bug de tela não pode gravar lixo que quebra o quadro inteiro.
+  const shapeOk = Array.isArray(incoming.boards) && incoming.boards.length <= 300
+    && incoming.boards.every((b) => b && typeof b === 'object' && typeof b.id === 'string' && (b.columns === undefined || Array.isArray(b.columns)));
+  if (!shapeOk) return res.status(400).json({ message: 'Quadro inválido.' });
   sanitizeBoardNotes(incoming);
   const base = typeof req.body.baseUpdatedAt === 'string' ? req.body.baseUpdatedAt : '';
   // `mergeable` (2026-10-27, §117): o painel novo sabe juntar o quadro quando outra aba/pessoa gravou antes. Nesse caso uma gravação feita
@@ -786,7 +794,9 @@ router.patch('/personal-board', requireAuth, async (req, res, next) => {
       client.release();
       return res.status(409).json({ message: 'O quadro foi alterado em outro lugar.', conflict: true, board: cur.rows[0].data, updatedAt: cur.rows[0].updated_at });
     }
-    const { board, merged } = cur.rows[0] ? mergeApiCards(cur.rows[0].data, incoming, base) : { board: incoming, merged: 0 };
+    const { board, merged: mergedApi } = cur.rows[0] ? mergeApiCards(cur.rows[0].data, incoming, base) : { board: incoming, merged: 0 };
+    const tokensReplaced = enforceShareTokens(cur.rows[0] && cur.rows[0].data, board); // token novo fraco/escolhido é trocado por um do servidor (A9)
+    const merged = mergedApi + tokensReplaced;
     const up = await client.query(
       `INSERT INTO personal_boards (user_id, data) VALUES ($1,$2)
        ON CONFLICT (user_id) DO UPDATE SET data=$2, updated_at=now() RETURNING updated_at`,
@@ -1038,18 +1048,29 @@ export async function addLinkedBoard(user, token) {
   const found = await findBoardByShareToken(token);
   if (!found || found.board.visibility !== 'public') return { status: 404, message: 'Link inválido ou o quadro não é mais público.' };
   if (found.ownerId === user.id) return { status: 400, message: 'Esse quadro já é seu.' };
-  const { rows } = await pool.query('SELECT data FROM personal_boards WHERE user_id=$1', [user.id]);
-  const data = rows[0] ? rows[0].data : blankPersonalBoard();
-  const linked = data.linkedBoards || [];
-  const existing = linked.find((l) => l.token === token);
-  if (existing) return { status: 200, entry: existing, already: true };
   const ownerRow = await findUserById(found.ownerId);
   const entry = { token, name: found.board.name || 'Quadro compartilhado', ownerName: ownerRow ? ownerRow.name : '', addedAt: new Date().toISOString() };
-  await pool.query(
-    `INSERT INTO personal_boards (user_id, data) VALUES ($1,$2)
-     ON CONFLICT (user_id) DO UPDATE SET data=$2, updated_at=now()`,
-    [user.id, JSON.stringify({ ...data, linkedBoards: [...linked, entry] })],
-  );
+  // Lê e grava com a linha TRAVADA: duas abas adicionando quadros ao mesmo tempo não se apagam (M11).
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT data FROM personal_boards WHERE user_id=$1 FOR UPDATE', [user.id]);
+    const data = rows[0] ? rows[0].data : blankPersonalBoard();
+    const linked = data.linkedBoards || [];
+    const existing = linked.find((l) => l.token === token);
+    if (existing) { await client.query('ROLLBACK'); return { status: 200, entry: existing, already: true }; }
+    await client.query(
+      `INSERT INTO personal_boards (user_id, data) VALUES ($1,$2)
+       ON CONFLICT (user_id) DO UPDATE SET data=$2, updated_at=now()`,
+      [user.id, JSON.stringify({ ...data, linkedBoards: [...linked, entry] })],
+    );
+    await client.query('COMMIT');
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch { /* conexão já encerrada */ }
+    throw e;
+  } finally {
+    client.release();
+  }
   return { status: 201, entry, already: false };
 }
 
@@ -1174,23 +1195,35 @@ router.patch('/public-board/:token', requireAuth, async (req, res, next) => {
 // rota PATCH: quem recebe o link nunca edita nada, só visualiza resumo/
 // decisões/transcrição/atividades da reunião.
 
+// Uma consulta só, por contenção no JSONB (antes varria TODAS as empresas de todas as bases a cada acesso) — A9.
 async function findMeetingByShareToken(token) {
-  const { rows } = await pool.query('SELECT id, data FROM projects');
+  if (typeof token !== 'string' || token.length < 16 || token.length > 128) return null;
+  const { rows } = await pool.query('SELECT id, data FROM projects WHERE data @> $1::jsonb LIMIT 1', [JSON.stringify({ meetings: [{ shareToken: token }] })]);
   for (const row of rows) {
-    const meetings = (row.data && row.data.meetings) || [];
-    const meeting = meetings.find((m) => m.shareToken && m.shareToken === token && !m.deleted);
+    const meeting = ((row.data && row.data.meetings) || []).find((m) => m.shareToken && m.shareToken === token && !m.deleted);
     if (meeting) return { projectId: row.id, companyName: (row.data.company && row.data.company.name) || '', meeting };
   }
   return null;
 }
 
+// Limite brando por IP (anti-enumeração; o IP vem do cabeçalho do proxy, falsificável — não é segurança, é freio).
+const pubHits = new Map();
+setInterval(() => { const now = Date.now(); for (const [k, v] of pubHits) if (now - v.start > 60000) pubHits.delete(k); }, 60000).unref();
+function publicLimited(req) {
+  const ip = clientIp(req) || 'sem-ip';
+  const now = Date.now(); const rec = pubHits.get(ip);
+  if (!rec || now - rec.start > 60000) { pubHits.set(ip, { start: now, n: 1 }); return false; }
+  rec.n += 1; return rec.n > 60;
+}
+
 router.get('/public-meeting/:token', optionalAuth, async (req, res, next) => {
   try {
+    if (publicLimited(req)) return res.status(429).json({ message: 'Muitas consultas seguidas. Tente de novo em um minuto.' });
     const found = await findMeetingByShareToken(req.params.token);
     if (!found || found.meeting.shareVisibility !== 'public') {
       return res.status(404).json({ message: 'Link inválido ou a reunião não é mais pública.' });
     }
-    res.json({ meeting: found.meeting, companyName: found.companyName });
+    res.json({ meeting: publicMeetingView(found.meeting), companyName: found.companyName });
   } catch (e) { next(e); }
 });
 

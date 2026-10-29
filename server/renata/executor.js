@@ -53,7 +53,7 @@ export function createExecutor({ pool, registry, call = callInternal, now = () =
       `INSERT INTO renata_actions (id, org_id, conversation_id, tool_use_id, requester_id, requester_name, command, requested_at, module, tool, risk, summary, input, before, autorizacao, status, error, idem_key)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15::jsonb,$16,$17,$18)`,
       [id, ctx.orgId, ctx.conversationId || null, ctx.toolUseId || '', ctx.user.id, ctx.user.name || ctx.user.username || '', String(ctx.command || '').slice(0, 4000), now(), tool.module || '', tool.name, tool.risk,
-        fields.summary || '', JSON.stringify(compact(fields.input || {}, 6000)), fields.before === undefined ? null : JSON.stringify(compact(fields.before, 6000)), JSON.stringify(fields.authorization || {}), fields.status, fields.error || '', fields.idemKey || '']);
+        fields.summary || '', JSON.stringify(fields.status === 'pending' ? fields.input || {} : compact(fields.input || {}, 6000)), fields.before === undefined ? null : JSON.stringify(compact(fields.before, 6000)), JSON.stringify(fields.authorization || {}), fields.status, fields.error || '', fields.idemKey || '']);
     return id;
   }
   async function closeRow(id, fields) {
@@ -109,6 +109,8 @@ export function createExecutor({ pool, registry, call = callInternal, now = () =
     // Contenção de "lote disfarçado": mais de 5 escritas da MESMA ferramenta no mesmo pedido, uma a uma, passam a pedir confirmação.
     const turnN = ctx.turnWrites && tool.risk !== 'read' ? (ctx.turnWrites.get(tool.name) || 0) : 0;
     if (!confirm && (needsConfirmation(tool, input) || turnN >= 5)) {
+      // O que o usuário confirma é executado DEPOIS a partir do que ficou guardado: aqui o pedido vai INTEIRO (sem `compact`, que cortava listas e textos — M16).
+      if (JSON.stringify(input).length > 300000) return { ok: false, status: 'failed', error: 'O pedido é grande demais para confirmar de uma vez. Divida em partes menores.' };
       const id = await insertRow(ctx, tool, { input, before, status: 'pending', summary: preview, authorization: { mode: 'aguardando confirmação', pedidoEm: now().toISOString() } });
       return { ok: true, status: 'needs_confirmation', actionId: id, tool: tool.name, risk: tool.risk, preview: turnN >= 5 && !needsConfirmation(tool, input) ? `${preview} (já foram ${turnN} alterações iguais neste pedido: confirme o conjunto)` : preview, before: before === undefined ? undefined : compact(before, 2500), input };
     }

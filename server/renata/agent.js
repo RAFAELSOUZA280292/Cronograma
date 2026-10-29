@@ -94,7 +94,15 @@ export function createAgent({ pool, registry, executor, getClient, generalContex
       logUsage(res, step, user);
       const content = (res.content || []).filter((b) => b.type === 'text' || b.type === 'tool_use');
       conv.messages.push({ role: 'assistant', content: content.length ? content : [{ type: 'text', text: '…' }], _at: nowIso() });
-      if (res.stop_reason !== 'tool_use') { answered = true; break; }
+      if (res.stop_reason !== 'tool_use') {
+        answered = true;
+        if (res.stop_reason === 'max_tokens') { // resposta cortada no meio da frase (M19): avisa em vez de parecer completa
+          const last = conv.messages[conv.messages.length - 1];
+          const tb = (last.content || []).filter((b) => b.type === 'text');
+          if (tb.length && tb[tb.length - 1].text && tb[tb.length - 1].text !== '…') tb[tb.length - 1].text = `${tb[tb.length - 1].text}\n\n(A resposta ficou longa e foi cortada aqui. Peça "continue" ou detalhe melhor o pedido.)`;
+        }
+        break;
+      }
       const uses = content.filter((b) => b.type === 'tool_use');
       const results = [];
       pending = [];

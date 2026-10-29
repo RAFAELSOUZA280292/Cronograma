@@ -169,7 +169,7 @@ Lista completa e gerada: `docs/gerado/ROTAS.md` (grupos `/api`, `/api/project-hi
 | GET/POST | `/api/gaps/overview`, `/company/:id`, `/create` | Master ou PRICETAX | `keys`≤40, `min` | lacunas / 201 | **409** "já não são lacunas" |
 | GET | `/api/macro` | Logado com `companiesAccess` **e** `allCompaniesAccess` (não usa `canAccessProject`) | `range`: `overdue, current_week, next_week, next_30, no_date, paused` | itens + contadores | 403 |
 | GET/POST | `/api/company-calendar/:projectId`, `/apply` | Master ou PRICETAX + acesso | `confirm:true`, e-mails ≤20, itens ≤60 | resultados por item | 400 e-mail/dia; 409 Google não conectado |
-| GET | `/api/public-meeting/:token` | **Sem login** (token da reunião) | — | reunião inteira | 404 |
+| GET | `/api/public-meeting/:token` | **Sem login** (token da reunião) | — | lista fechada da reunião (`publicMeetingView`) | 404, 429 |
 
 ## Dados
 
@@ -394,7 +394,7 @@ Legenda: **S** = garantida no servidor; **F** = só no front (um cliente de API 
 | Hoje igual ao padrão "kickoff" mas datas erradas | Datas do padrão são "kickoff + dias"; âncora `virada`/`fixa` mantém data absoluta | `instantiateTemplate`; ver `anchor` em Dados |
 | Versão do padrão com erro | Versões são imutáveis | Corrigir = salvar versão nova. Propostas mudam no código sem mudar rascunhos já carregados: recarregar a proposta |
 | Dois editores no rascunho do padrão se sobrescrevem | Rascunho único por organização, sem merge | Combinar antes |
-| Link da reunião revela tudo | `GET /public-meeting/:token` devolve a reunião inteira (transcrição, tarefas com anexos base64) e varre **todos os projetos de todas as organizações** a cada acesso; token gerado no navegador (`genShareToken`, `App.jsx` l.177, agora com `crypto.getRandomValues`, 192 bits) | Não tratado (ver Achados) |
+| Link da reunião | Antes devolvia a reunião inteira e varria todas as empresas | **Corrigido em 2026-10-29:** lista fechada, uma consulta por contenção, token novo só forte, 60/min por IP (`server/shareTokens.js`) |
 | Excluir empresa avisa "Não dá para desfazer" | Texto antigo; Master pode recriar por `pre_delete` (mas tabelas filhas, links públicos, dossiês e reservas de agenda **não** voltam) | Ajustar o texto de `AdminScreens.jsx` (`CompanySelectorScreen`) se o Rafael quiser |
 | Reserva no Google não acompanha mudança de data do cronograma | Atualização é manual: reabrir a janela e reenviar | Linha vira "Mudou: atualizar" (`rowStatus`) |
 | `GET /api/macro` mostra datas pelo relógio do servidor, não por São Paulo | `macro.js` usa `new Date()` local | Não tratado (não verificado o fuso do Railway) |

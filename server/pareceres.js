@@ -108,6 +108,7 @@ router.post('/', async (req, res, next) => {
     if (!scopeResult.ok) return res.status(400).json({ message: scopeResult.message });
     const buffer = Buffer.from(fileDataBase64, 'base64');
     if (!buffer.length) return res.status(400).json({ message: 'Arquivo vazio ou inválido.' });
+    if (!buffer.subarray(0, 1024).includes('%PDF-')) return res.status(400).json({ message: 'O arquivo não é um PDF válido.' }); // confere os bytes, não só o tipo declarado (M23)
     if (buffer.length > MAX_FILE_BYTES) return res.status(400).json({ message: `Arquivo maior que ${Math.floor(MAX_FILE_BYTES / 1024 / 1024)}MB — não pode ser enviado.` });
     // Vínculo forte só quando o id realmente existe nessa org — se não, guarda só o nome (fallback
     // pra clientes que ainda nem viraram projeto no Cronograma).

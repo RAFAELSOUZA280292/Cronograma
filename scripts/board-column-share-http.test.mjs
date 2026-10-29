@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 const URL = process.env.BASE || 'http://localhost:3001';
 let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
+const strongTok = () => [...Array(48)].map(() => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join(''); // o servidor só aceita token NOVO de 48 hex (A9)
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const uid = (p) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 function session() { let cookie = ''; return async (method, path, body) => { const r = await fetch(URL + path, { method, headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0]; let data = null; try { data = await r.json(); } catch { /* */ } return { status: r.status, data }; }; }
@@ -15,7 +16,7 @@ const save = async (b) => { const cur = (await owner('GET', '/api/personal-board
 const getOwn = async () => (await owner('GET', '/api/personal-board')).data.board;
 try {
   const cRafael = col('Rafael', [card('SEGREDO do Rafael')]);
-  const cAmanda = col('Amanda', [card('Garcia Monteiro'), card('Simepar')], { visibility: 'public', shareToken: 'tok_col_' + uid('t') });
+  const cAmanda = col('Amanda', [card('Garcia Monteiro'), card('Simepar')], { visibility: 'public', shareToken: strongTok() });
   const cOutra = col('Outra pessoa', [card('Confidencial da Outra')], { visibility: 'private' });
   const fixLog = (l) => l.map((e) => (e.col === 'COL_AMANDA' ? { ...e, col: cAmanda.id } : e.col === 'COL_RAFAEL' ? { ...e, col: cRafael.id } : e));
   const page = { id: uid('board'), name: 'OPERAÇÕES', visibility: 'private', shareToken: '', log: [{ ts: '2026-10-01T10:00:00Z', action: 'log antigo do dono', user: 'Rafael' }, { ts: '2026-10-02T10:00:00Z', action: 'Tarefa criada: "Garcia Monteiro"', user: 'Rafael', col: 'COL_AMANDA' }, { ts: '2026-10-03T10:00:00Z', action: 'HISTORICO SECRETO DA COLUNA RAFAEL', user: 'Rafael', col: 'COL_RAFAEL' }], viewPrefs: { view: 'kanban', sortMode: 'manual' }, columns: [cRafael, cAmanda, cOutra] };
@@ -37,10 +38,10 @@ try {
   // 3) voltar: página pública / coluna pública / destino privado → nulo
   const withBack = (ref) => save({ ...initial.board, boards: [{ ...page, columns: [cRafael, { ...cAmanda, backTo: ref }, cOutra] }, other] });
   await withBack('p:' + other.id); ok((await anon('GET', `/api/public-board/${T}`)).data.back === null, 'voltar → página PRIVADA: nulo');
-  const otherPub = { ...other, visibility: 'public', shareToken: 'tok_p_' + uid('t') };
+  const otherPub = { ...other, visibility: 'public', shareToken: strongTok() };
   await save({ ...initial.board, boards: [{ ...page, columns: [cRafael, { ...cAmanda, backTo: 'p:' + other.id }, cOutra] }, otherPub] });
   let b = (await anon('GET', `/api/public-board/${T}`)).data.back; ok(b && b.token === otherPub.shareToken && b.name === 'Daily', 'voltar → página pública');
-  const cOutraPub = { ...cOutra, visibility: 'public', shareToken: 'tok_c2_' + uid('t') };
+  const cOutraPub = { ...cOutra, visibility: 'public', shareToken: strongTok() };
   await save({ ...initial.board, boards: [{ ...page, columns: [cRafael, { ...cAmanda, backTo: 'c:' + cOutra.id }, cOutraPub] }, otherPub] });
   b = (await anon('GET', `/api/public-board/${T}`)).data.back; ok(b && b.token === cOutraPub.shareToken && b.name === 'Outra pessoa', 'voltar → coluna pública');
   await save({ ...initial.board, boards: [{ ...page, columns: [cRafael, { ...cAmanda, backTo: 'c:' + cAmanda.id }, cOutra] }, otherPub] });
@@ -88,7 +89,7 @@ try {
   ok(r.status === 409 && r.data.board.columns.length === 1 && !JSON.stringify(r.data).includes('dono mexeu'), '409 devolve só a coluna (sem vazar o resto)');
   // 7) coluna duplicada pela tela não herda link — (regra do cliente); servidor: token repetido pega o primeiro, nunca o resto
   // 8) página inteira pública continua funcionando como antes
-  const pubPage = { ...page, visibility: 'public', shareToken: 'tok_page_' + uid('t') }; await save({ ...initial.board, boards: [pubPage, otherPub] });
+  const pubPage = { ...page, visibility: 'public', shareToken: strongTok() }; await save({ ...initial.board, boards: [pubPage, otherPub] });
   g = await anon('GET', `/api/public-board/${pubPage.shareToken}`); ok(g.status === 200 && g.data.board.columns.length === 3 && !g.data.board.kind, 'link de página inteira segue entregando a página toda');
   console.log(`board-column-share-http: ${n} checagens OK`);
 } finally {

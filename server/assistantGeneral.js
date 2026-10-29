@@ -167,7 +167,8 @@ export async function askGeneral({ pool, client, user, orgId, question, history,
     orgId, projectId: null, eventType: 'anthropic_api_call',
     metadata: { feature: 'assistant_general', model: STUDY_MODEL, inputTokens: (res.usage && res.usage.input_tokens) || 0, outputTokens: (res.usage && res.usage.output_tokens) || 0 },
   }).catch(() => {});
-  const body = stripInternalIds(answer) || 'Não consegui montar uma resposta agora. Tente reformular a pergunta.';
+  let body = stripInternalIds(answer) || 'Não consegui montar uma resposta agora. Tente reformular a pergunta.';
+  if (res.stop_reason === 'max_tokens' && answer) body += '\n\n(A resposta ficou longa e foi cortada aqui. Peça "continue" ou faça uma pergunta mais específica.)'; // M19
   return { answer: body + (sweep && answer ? stripInternalIds(sweep.footer) : ''), companies: ctx.companies, factIds: ctx.factIds, meetingSearch: sweep ? { ...sweep.stats, sources: sweep.sources } : null };
 }
 

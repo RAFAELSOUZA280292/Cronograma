@@ -4,7 +4,7 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 149 arquivos
+## `server/` — 151 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -16,10 +16,10 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/assistant.js` | 221 | Rotas do Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `server/assistantActions.js` | 294 | Agente executor do Assistente do Projeto (2026-09, pedido do Rafael: |
 | `server/assistantContext.js` | 281 | Perfil do projeto (2026-09) — resumo compacto e sempre atualizado da |
-| `server/assistantGeneral.js` | 180 | RENATA "geral" (2026-10-06): a assistente disponível de qualquer tela, sem estar presa a um projeto. Responde com o que a PESSOA |
+| `server/assistantGeneral.js` | 181 | RENATA "geral" (2026-10-06): a assistente disponível de qualquer tela, sem estar presa a um projeto. Responde com o que a PESSOA |
 | `server/assistantRetrieval.js` | 825 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `server/assistantSweep.js` | 122 | Varredura de reuniões de VÁRIAS empresas para a RENATA geral (Etapa 3 do plano, 2026-10-08; pedido do Felipe: "a RENATA faz |
-| `server/auth.js` | 191 |  |
+| `server/auth.js` | 196 |  |
 | `server/clientError.js` | 35 | Erros de tela capturados pelos limites de erro do navegador (2026-10-16): uma linha JSON no log do servidor (Railway), para que uma tela |
 | `server/clientView.js` | 32 | Visão do usuário `cliente` sobre o JSON da empresa (A3/A4, 2026-10-29). A tela já escondia Log/Lixeira/Versões; aqui o SERVIDOR faz o mesmo: |
 | `server/cnpjLookup.js` | 230 |  |
@@ -84,15 +84,15 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/experience.js` | 137 | Experiência de uso (§97): eventos de FLUXO (nome, resultado, duração, rota de erro) e nota de satisfação de 1 clique. Só equipe é medida |
 | `server/gaps.js` | 232 | Lacunas entre cronogramas (Etapa 4 do plano, 2026-10-08; pedido do Felipe: "levantamento de tudo que temos de atividades ... para |
 | `server/google.js` | 59 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
-| `server/googleCalendar.js` | 281 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
-| `server/index.js` | 165 |  |
+| `server/googleCalendar.js` | 290 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
+| `server/index.js` | 167 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
 | `server/inventory.js` | 373 | Levantamento de atividades de TODAS as empresas (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md; pedido do |
 | `server/inventoryEdit.js` | 194 | Passo 3 do caminho combinado (2026-10-07): organizar o que já existe a partir do Levantamento — padronizar o nome do |
 | `server/knowledge.js` | 167 | Central de Conhecimento — rotas (Fase 8, 2026-09-11). Área |
 | `server/knowledgeCenter.js` | 575 | Central de Conhecimento — regra de negócio do admin (Fase 8, |
 | `server/knowledgeEntities.js` | 148 | Grafo de entidades da RENATA — versão relacional (Fase 8, 2026-09-11, |
-| `server/knowledgeFacts.js` | 450 | Memória de conhecimento em camadas da RENATA (Fase 7, 2026-09-11; |
+| `server/knowledgeFacts.js` | 451 | Memória de conhecimento em camadas da RENATA (Fase 7, 2026-09-11; |
 | `server/knowledgeLibrary.js` | 404 | Biblioteca de conhecimento da RENATA (2026-10-27, pedido do Rafael: "um local para dar input de conhecimento — material sobre Produtor Rural antes e |
 | `server/knowledgeLibraryRoutes.js` | 173 | Rotas da Biblioteca de conhecimento (2026-10-27, §116) — só master/pricetax; ver server/knowledgeLibrary.js. |
 | `server/linkPreview.js` | 146 | Pré-visualização de links (título, descrição, imagem) — 2026-10-05, §78. O servidor busca a página, então a defesa é contra |
@@ -111,7 +111,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/opsIntel.js` | 274 |  |
 | `server/parecerScope.js` | 46 | Isolamento de pareceres por cliente (2026-10-04, §70): um parecer "Cliente específico" só pode ser usado — no |
 | `server/parecerStudy.js` | 542 | RENATA estuda os Pareceres PRICETAX (2026-10-04, pedido do Rafael) — ver PROJECT_CONTEXT.md §70. |
-| `server/pareceres.js` | 246 | Pareceres PRICETAX (2026-09-17, ver PROJECT_CONTEXT.md §48) — repositório |
+| `server/pareceres.js` | 247 | Pareceres PRICETAX (2026-09-17, ver PROJECT_CONTEXT.md §48) — repositório |
 | `server/permissions.js` | 18 | Central de Conhecimento — helper de permissão (Fase 8, 2026-09-11). |
 | `server/personalActivity.js` | 227 |  |
 | `server/personalExtras.js` | 67 | Anotações rápidas e atalhos de cada pessoa na Gestão de Atividades (2026-10-16, visão 5). Ficam em users.preferences.personalExtras — e NÃO no |
@@ -119,8 +119,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/projectVersions.js` | 194 | Histórico de versões do cronograma (§83): consultar, comparar, criar ponto de restauração, restaurar (com backup automático do estado atual) e recuperar empresa excluída. |
 | `server/projectVersionsSchema.js` | 105 | Versionamento do cronograma (§83): tabela `project_versions` + gatilhos em `projects`. A captura mora no BANCO de propósito: `projects.data` é gravado inteiro por ~17 pontos do |
 | `server/push.js` | 173 | Notificações push (2026-10-17). O sino já existia (tabela `notifications`); aqui cada notificação nova também vira um aviso no celular/computador de |
-| `server/renata/agent.js` | 192 | Agente da RENATA (§101): interpreta o pedido, escolhe as ferramentas do catálogo, executa pelo executor (que valida, confere permissão, pede confirmação, |
-| `server/renata/executor.js` | 186 | Executor de ferramentas da RENATA (§101). TODA operação passa por aqui: valida os parâmetros, checa permissão (as rotas do servidor decidem, em nome do |
+| `server/renata/agent.js` | 200 | Agente da RENATA (§101): interpreta o pedido, escolhe as ferramentas do catálogo, executa pelo executor (que valida, confere permissão, pede confirmação, |
+| `server/renata/executor.js` | 188 | Executor de ferramentas da RENATA (§101). TODA operação passa por aqui: valida os parâmetros, checa permissão (as rotas do servidor decidem, em nome do |
 | `server/renata/index.js` | 45 | Montagem da RENATA operacional (§101): catálogo de ferramentas + executor + agente + rotas. Módulo novo = um arquivo em tools/ registrado aqui. |
 | `server/renata/internalAuth.js` | 28 | Entrada interna da RENATA (§101): as ferramentas dela chamam as MESMAS rotas que a tela chama, por loopback (127.0.0.1) dentro do próprio |
 | `server/renata/internalCall.js` | 24 | Chamada interna (loopback) às rotas do próprio servidor, em nome de um usuário (§101). Devolve {status, json} — nunca lança por status HTTP: |
@@ -137,8 +137,10 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/tools/reports.js` | 66 | Relatórios e visão da equipe (somente leitura) — §101: "o que a minha equipe fez hoje", atrasos por responsável e quem sou eu / quem é a equipe. |
 | `server/renata/validate.js` | 81 | Validador de parâmetros das ferramentas da RENATA (§101): subconjunto de JSON Schema suficiente para o catálogo. Rejeita campo desconhecido |
 | `server/richNote.js` | 55 | Descrição formatada dos cartões do quadro pessoal (2026-10-07): o campo `desc` continua sendo uma string — texto simples |
-| `server/routes.js` | 1288 |  |
+| `server/routes.js` | 1321 |  |
 | `server/scripts/reindexAllMeetings.js` | 30 | Backfill manual da memória do projeto (2026-09, Fase 1 do Assistente |
+| `server/secretBox.js` | 30 | Cofre simples para segredos guardados no banco (M2, 2026-10-29): AES-256-GCM com chave derivada de TOKEN_ENC_KEY (ou, na falta, do JWT_SECRET). |
+| `server/shareTokens.js` | 41 | Tokens de link público (A9, 2026-10-29). A tela gera o token com `crypto.getRandomValues` (48 hex = 192 bits), mas o servidor não pode confiar nisso: |
 | `server/sourcemaps.js` | 61 | Tradução de pilhas de erro do navegador para o código-fonte, SÓ para o log (2026-10-16). O build gera os sourcemaps como "hidden" (vite.config.js): |
 | `server/standardAudit.js` | 193 | Auditoria de uma empresa contra o padrão de cronograma (2026-10-19, pedido do Rafael: "um botão para realizar a auditoria e confrontar com o padrão e ver |
 | `server/standardPlan.js` | 255 | Padrão de cronograma aprimorado (2026-10-15; plano em docs/PLANO_APRIMORAMENTO_CRONOGRAMA_PADRAO.md, aprovado pelo Rafael): descrições melhores, |
@@ -150,7 +152,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/taskLinkSuggest.js` | 166 | Sugestão da atividade do cronograma para cada tarefa que sai de uma transcrição (Fase 2 do plano, 2026-10-13; |
 | `server/taskLinks.js` | 271 | Vínculo tarefa de reunião → atividade do cronograma (plano em docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md, Fase 1, 2026-10-13). |
 | `server/todoNotifications.js` | 109 | Notificações das TAREFAS DE REUNIÃO (Onda 5, §81): atribuída, comentada e vencida. As tarefas vivem dentro do JSON do |
-| `server/usageLog.js` | 90 | Rastreador de uso (Central de Inteligência Operacional). Recebe fatias de tempo do app: quanto tempo a aba ficou visível |
+| `server/usageLog.js` | 92 | Rastreador de uso (Central de Inteligência Operacional). Recebe fatias de tempo do app: quanto tempo a aba ficou visível |
 | `server/usagePolicy.js` | 32 | Transparência e finalidade (LGPD): texto único, exibido a toda a equipe (Meu perfil) e à liderança (Central). |
 | `server/widget.js` | 134 | Widget do iPhone (Scriptable) — 2026-10-05, §76. O widget não faz login: usa um token secreto, só de leitura, |
 | `server/widgetSummary.js` | 120 | Resumo para o widget do iPhone (2026-10-05, §76). Funções puras: recebem o JSON do quadro pessoal, |

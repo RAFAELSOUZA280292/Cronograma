@@ -415,7 +415,7 @@ Nenhuma chamada de IA. `server/metrics.js` (`logMetric`) grava eventos da RENATA
 | Nomes iguais no histórico das empresas ficam de fora | o `log` identifica só por **nome** | contados em `coverage.unmatchedLogs` |
 | Cidade errada com VPN/rede móvel | geolocalização por IP | aviso fixo na tela do mapa |
 | IP vindo de cabeçalho forjável | `clientIp` usa `x-real-ip`, depois o 1º `x-forwarded-for` | não há `trust proxy`; se a Railway não sobrescrever esses cabeçalhos, o cliente pode forjar o IP do próprio acesso (não verificado) |
-| IP do usuário enviado a terceiro | `lookupGeo` chama `ipwho.is` com o IP | a política (`usagePolicy`) não cita esse serviço; revisar com o DPO |
+| IP do usuário enviado a terceiro | `lookupGeo` chama `ipwho.is` com o IP | a política (`usagePolicy`) cita o serviço desde 2026-10-29 e o cache `ip_geo_cache` é apagado após 90 dias; contrato com o terceiro é jurídico (DPO) |
 | Caminho com token no log de erros | `path` de `/client-error` é o `pathname` da tela; se a pessoa logada abrir `/quadro/<token>` o token pode ir ao log | cortado em 120 caracteres; não filtrado |
 
 ## Como testar

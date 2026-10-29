@@ -7,7 +7,7 @@ export function usagePolicy() {
     purpose: 'Segurança das contas (detectar acesso indevido) e gestão da operação (entender como a ferramenta é usada, achar gargalos e melhorar processos). Não é usada para vigiar atividades fora da plataforma nem como única base de avaliação de desempenho.',
     legalBasis: 'Legítimo interesse do controlador (segurança e gestão da operação), com transparência aos usuários. Revise com o encarregado de dados (DPO) antes de ampliar a finalidade.',
     collected: [
-      'Entradas no sistema: data, hora, endereço IP, cidade, estado e país aproximados (pelo IP), navegador e sistema operacional.',
+      'Entradas no sistema: data, hora, endereço IP, cidade, estado e país aproximados (pelo IP), navegador e sistema operacional. Para descobrir a cidade, o endereço IP é consultado no serviço externo ipwho.is (só o IP é enviado, nunca nome ou conta); o resultado fica guardado por 90 dias.',
       'Tempo com a aba visível e tempo com interação (mouse, teclado, rolagem), por módulo, tela e empresa aberta. Só para a equipe PRICETAX (perfis Master e PRICETAX).',
       'Ações pontuais: exportar PDF ou Excel, enviar transcrição ou arquivo, criar link de compartilhamento.',
       'Experiência de uso (só a equipe): para cada fluxo do CRM — nome do fluxo, resultado (concluído, erro ou desfeito), duração e, nos erros, o tipo de rota e o status — e a nota de satisfação de 1 a 5, com comentário opcional nas notas baixas. Mostrado agregado por FLUXO, nunca por pessoa.',

@@ -272,7 +272,7 @@ Catálogo completo e atualizado: `docs/gerado/ROTAS.md` (grupos `/api`, `/api/xf
 | `xflow_tickets` / `xflow_events` | Grava / só insere | Isolado por `org_id`; exclusão lógica (`deleted`), purga só admin |
 | `notifications` | Insere, marca lida | **Nunca é apagada** (a rota só devolve as 200 últimas) |
 | `push_subscriptions` | Insere/apaga | Apagada em 404/410 e no limite de 10 por pessoa |
-| `google_calendar_connections` | Grava tokens | Credenciais do Google da pessoa (ver `docs/11`, privado) |
+| `google_calendar_connections` | Grava tokens | Credenciais do Google da pessoa, **cifradas** (`secretBox.js`, prefixo `enc1:`) |
 | `company_calendar_events` | Grava reserva | Chave `(project_id, activity_id)` |
 | `daily_content` | Cache diário | Chave `(kind, key, day)`; **nunca é limpa** |
 | `product_events`, `product_csat` | Insere | Só equipe; sem texto digitado |

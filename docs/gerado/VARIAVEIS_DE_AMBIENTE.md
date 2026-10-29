@@ -14,7 +14,7 @@ Só os **nomes** e onde são lidos; **nunca** valores. Os valores reais ficam no
 | `GOOGLE_CLIENT_ID` | `server/googleCalendar.js` | `process.env.GOOGLE_CLIENT_ID,` |
 | `GOOGLE_CLIENT_SECRET` | `server/googleCalendar.js` | `process.env.GOOGLE_CLIENT_SECRET,` |
 | `GOOGLE_REDIRECT_URI` | `server/googleCalendar.js` | `process.env.GOOGLE_REDIRECT_URI` |
-| `JWT_SECRET` | `server/auth.js`, `server/widget.js` | `const secret = process.env.JWT_SECRET;` |
+| `JWT_SECRET` | `server/auth.js`, `server/secretBox.js`, `server/widget.js` | `const secret = process.env.JWT_SECRET;` |
 | `NODE_ENV` | `server/auth.js`, `server/google.js`, `server/index.js`, `server/renata/scriptedClient.js` | `secure: process.env.NODE_ENV === 'production',` |
 | `PORT` | `server/index.js`, `server/renata/internalCall.js` | `const port = process.env.PORT \|\| 3001;` |
 | `PROD` | `src/main.jsx` | `if (import.meta.env.PROD && 'serviceWorker' in navigator) {` |
@@ -26,6 +26,7 @@ Só os **nomes** e onde são lidos; **nunca** valores. Os valores reais ficam no
 | `SEED_ADMIN_USERNAME` | `server/db.js` | `const seedUsername = process.env.SEED_ADMIN_USERNAME;` |
 | `TASK_LINK_AUTO` | `server/taskLinkSuggest.js` | `const auto = process.env.TASK_LINK_AUTO !== 'off';` |
 | `TASK_LINK_MODE` | `server/taskLinkBackfill.js`, `server/taskLinkSuggest.js`, `server/taskLinks.js` | `res.json({ ...estimate(await accessibleProjects(req.user, effectiveOrgId(req))), mode: process.env.TASK_LINK_MODE \|\| 'normal', aiConfigured: !!proces…` |
+| `TOKEN_ENC_KEY` | `server/secretBox.js` | `const key = () => crypto.createHash('sha256').update(`secret-box\|${process.env.TOKEN_ENC_KEY \|\| process.env.JWT_SECRET \|\| ''}`).digest();` |
 | `USAGE_RETENTION_DAYS` | `server/usageLog.js` | `usageDays: Math.max(30, Number(process.env.USAGE_RETENTION_DAYS) \|\| 395),` |
 | `VAPID_PRIVATE_KEY` | `server/push.js` | `const PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY \|\| '';` |
 | `VAPID_PUBLIC_KEY` | `server/push.js` | `const PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY \|\| '';` |

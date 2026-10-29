@@ -252,7 +252,7 @@ A rotina roda 60 s após subir e a cada 24 h.
 | Acompanhamento da empresa (`/acompanhamento/:token`, API `/api/public-company/:token`) | master/PRICETAX | 12 caracteres de `crypto.randomBytes(9)` (72 bits), tabela `company_share_links` | **lista fechada**: nome, logo, fases, atividades (título, status, datas, responsável) e subatividades. Sem notas, comentários, anexos, log, reuniões, transcrições, descrições | 0/30/90/180/365 dias; novo link revoga o anterior; revogar registrado no log da empresa |
 | Dados (Power BI/CSV, `/d/:token/:file`) | master/PRICETAX | idem (`kind='data'`) | mesmos campos em CSV/JSON; célula que começa com `= + @` vira texto (anti fórmula do Excel) | idem; revogar um não derruba o outro |
 | Quadro pessoal (`/api/public-board/:token`) | dono do quadro | `shareToken` **gerado no navegador** | quadro/coluna inteiro; **qualquer usuário logado edita** | só o dono desliga/regenera |
-| Reunião (`/api/public-meeting/:token`) | quem tem a reunião | `shareToken` gerado no navegador | **o objeto da reunião inteiro** (inclui transcrição) | sem validade; só regenerar |
+| Reunião (`/api/public-meeting/:token`) | quem tem a reunião | `shareToken` de 192 bits (o servidor troca token novo fraco por um forte, `shareTokens.js`) | **lista fechada** (`publicMeetingView`: título, data, hora, participantes, resumo, decisões, transcrição, tópicos, destaques e tarefas ativas — sem anexos, comentários, notas internas nem autor) | sem validade; só regenerar; 60 consultas/min por IP; busca por contenção JSONB (1 consulta) |
 Limitador do link da empresa: 90 consultas/min por IP (primeiro IP do `X-Forwarded-For`, anti-abuso, **não é segurança forte**). `X-Robots-Tag: noindex` e `Cache-Control: no-store` nas respostas públicas da empresa; no SPA, só `/acompanhamento/` e `/a/` recebem o cabeçalho (`index.js:111`).
 
 ### O usuário "cliente" nunca vê (confirmado no servidor)
@@ -260,7 +260,7 @@ CRM; RENATA operacional; dossiê; Pareceres, Modelos, Conhecimento, Biblioteca; 
 **Não bloqueado no servidor** (só o front esconde): Log, Lixeira e Reuniões da empresa dentro do JSON do projeto, e a gravação do projeto inteiro (`PATCH /projects/:id`) — pendência registrada em `docs/11`.
 
 ### Outros pontos LGPD
-- IP vira cidade consultando o serviço externo `ipwho.is` (`accessLog.js` `lookupGeo`), com cache em `ip_geo_cache`: **o IP sai do nosso servidor para um terceiro**. O texto de transparência não menciona isso.
+- IP vira cidade consultando o serviço externo `ipwho.is` (`accessLog.js` `lookupGeo`), com cache em `ip_geo_cache` (apagado após 90 dias): **o IP sai do nosso servidor para um terceiro**; o texto de transparência (`usagePolicy`) já cita isso desde 2026-10-29.
 - Credenciais da integração com o Google: ponto de endurecimento registrado em `docs/11` (privado).
 - Base legal declarada: legítimo interesse; o texto pede revisão pelo encarregado (DPO) antes de ampliar a finalidade.
 
@@ -450,6 +450,15 @@ O registro completo (gravidade, onde, como confirmar, plano de correção) fica 
 | Agenda: datas válidas e só empresas que a pessoa pode abrir | 500; ver atividade de empresa sem acesso | `agenda.js` | 400 |
 | RENATA por pergunta: 40 a cada 10 min por pessoa (empresa + geral) e pergunta ≤ 4.000/1.500 caracteres | custo de IA sem limite | `assistant.js` `askLimited` | 429 "Muitas perguntas seguidas…" |
 | Log de erro da tela sem o token do link público | token em log | `clientError.js` `redactTokens` | — |
+| Token de link novo só com formato forte; reunião pública com lista fechada | adivinhar/escolher token; vazar anexos e notas por link público | `server/shareTokens.js`; `routes.js` `PATCH /personal-board`, `PATCH /projects/:id`, `GET /public-meeting/:token` | token fraco é trocado em silêncio; 429 após 60 consultas/min |
+| Tokens do Google cifrados (AES-256-GCM, `enc1:`), com migração no boot | banco/backup vazado entregar acesso à agenda das pessoas | `server/secretBox.js`, `googleCalendar.js` (`sealLegacyGoogleTokens`) | segredo de cifra trocado → a pessoa reconecta |
+| Organização suspensa/bloqueada não entra e perde a sessão aberta (Super Admin isento) | base suspensa continuar usando | `auth.js` `orgInactive`, `sessionProblem`; login | 401/403 "O acesso desta organização está suspenso." |
+| Ação da RENATA pendente guarda o pedido INTEIRO (até 300 KB) | confirmar um lote e executar um texto/lista cortado | `renata/executor.js` `insertRow` | "O pedido é grande demais…" |
+| Conhecimento de toda a organização só vai à RENATA da equipe | cliente receber o que a equipe ensinou à RENATA | `knowledgeFacts.js` `loadRelevantFacts` | — |
+| Resposta cortada (`max_tokens`) ganha aviso | resposta pela metade parecer completa | `assistantGeneral.js`, `renata/agent.js` | "(A resposta ficou longa e foi cortada aqui…)" |
+| Quadro pessoal: forma mínima validada; vincular quadro com a linha travada | gravar lixo que quebra o quadro; duas abas se apagarem | `routes.js` `PATCH /personal-board`, `addLinkedBoard` | 400 "Quadro inválido." |
+| Parecer só aceita PDF de verdade (`%PDF-` nos primeiros bytes) | arquivo disfarçado de PDF | `pareceres.js` | 400 "O arquivo não é um PDF válido." |
+| Equipe vista pelo cliente sem o login (`username`) | enumeração de contas | `routes.js` `team-candidates` | — |
 | Métricas de IA da RENATA operacional gravadas com a base de quem perguntou | custo invisível | `renata/index.js` `logUsage` |
 | `isISODay` do `/plan` valida o dia de verdade | `2026-02-31` aceito | `connect.js` (reusa `meetingEdit.js`) |
 
