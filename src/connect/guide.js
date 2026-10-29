@@ -1,6 +1,6 @@
 // Guia que o usuário cola na OUTRA janela do Claude Code (2026-10-05, §80). Não leva o token: ele vai pela variável de ambiente
 // PRICETAX_TOKEN, para não ficar em arquivo nem em histórico de conversa. Mantido em sincronia com `ENDPOINTS` de server/connect.js.
-export function buildGuide({ baseUrl, canCreate, canWrite = false, canCrm = false, canTranscripts = false, canMeetingsEdit = false }) {
+export function buildGuide({ baseUrl, canCreate, canWrite = false, canCrm = false, canTranscripts = false, canMeetingsEdit = false, readAll = false }) {
   const transcripts = canTranscripts
     ? `
 ### Enviar transcrição de reunião para a RENATA (esta chave pode)
@@ -39,6 +39,16 @@ curl -s -X POST "$PRICETAX_URL/api/connect/crm/cadences" -H "Authorization: Bear
 - Não opera a migração do PipeRun (escrita). Faça só o que o Rafael pediu; depois de gravar, confira lendo de volta e diga o que mudou.
 `
     : '';
+  const crmRead = readAll && !canCrm
+    ? `
+### Ler o CRM (esta chave pode; só leitura)
+\`\`\`bash
+curl -s "$PRICETAX_URL/api/connect/crm/pipelines" -H "Authorization: Bearer $PRICETAX_TOKEN"
+curl -s "$PRICETAX_URL/api/connect/crm/deals?limit=50" -H "Authorization: Bearer $PRICETAX_TOKEN"
+\`\`\`
+- Mesmas rotas de leitura de \`/api/crm\` da tela (funis, negócios, empresas, contatos, atividades, notas, produtos), com o acesso de leitura do dono da chave; só o prefixo muda para \`/api/connect/crm\`. Qualquer gravação (POST, PUT, PATCH, DELETE) devolve 403. Os dados têm e-mail e telefone de contatos: não copie para arquivos do repositório.
+`
+    : '';
   const write = canWrite
     ? `
 ### Ajustar o cronograma de uma empresa (este token pode; só administrador)
@@ -66,7 +76,7 @@ curl -s -X POST "$PRICETAX_URL/api/connect/activities" \\
 - A atividade aparece no quadro do Rafael em até ~12 s, marcada "via API". **Só crie quando eu pedir.**
 `
     : `
-> Este token é **só de leitura**: criar atividade devolve 403. Peça ao Rafael um token "Ler e criar atividades" se precisar.
+> Este token é **só de leitura**: criar atividade devolve 403. Peça ao Rafael uma chave "Ler e editar tudo" se precisar.
 `;
   return `# Painel PRICETAX — como se conectar (API de conectividade)
 
@@ -98,7 +108,7 @@ Exemplo:
 \`\`\`bash
 curl -s "$PRICETAX_URL/api/connect/activities?status=overdue" -H "Authorization: Bearer $PRICETAX_TOKEN"
 \`\`\`
-${create}${write}${crm}${transcripts}
+${create}${write}${crm}${crmRead}${transcripts}
 ## Regras
 - Os dados são do Rafael e de clientes dele: **não copie para arquivos do repositório, logs ou issues** mais do que o necessário para a tarefa.
 - Erros: 401 token inválido/revogado/expirado · 403 sem permissão (escopo ou acesso) · 404 não achou · 429 limite (120/min) · 400 dado inválido (a mensagem diz o quê).

@@ -1,3 +1,5 @@
+> **Atualização 2026-10-29 (§116f):** a tela passou a oferecer só duas chaves: **Ler tudo** (`read_all`: lê tudo, inclusive o CRM, nunca grava) e **Ler e editar tudo** (`write_all`: só administrador, validade padrão 90 dias, máximo 180; faz o que as chaves específicas abaixo fazem, sempre limitado ao que o dono pode). Os escopos descritos neste guia continuam valendo nas chaves já emitidas e ficam em "Chaves específicas (avançado)".
+
 > **Atualização 2026-10-25:** este guia descreve só os escopos `read` e `read_create`. O código também tem `read_write` (ajustar o cronograma de uma empresa: `POST /companies/:id/plan`, `dryRun`, tudo-ou-nada, Log e desfazer, `sub.move`, `sub.add`/`pauta.link`, `activity.delete`/`sub.delete` com lixeira, renomear). Fonte atual: `PROJECT_CONTEXT.md` §91.5 e `server/connect.js`.
 
 # Conectividade — usar o painel PRICETAX a partir de outra janela do Claude Code

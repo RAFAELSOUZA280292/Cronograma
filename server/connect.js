@@ -25,9 +25,13 @@ import { applyMeetingEdit, isISODay as isMeetingDay } from './meetingEdit.js';
 export const router = Router();
 
 const PREFIX = 'pxk_';
-export const SCOPES = { read: 'Só leitura', read_create: 'Ler e criar atividades', read_write: 'Ler, criar atividades e ajustar o cronograma de empresas', crm_operate: 'Operar o CRM como Claude Code (criar, editar, mover, excluir e registrar), além de ler', transcripts: 'Ler e enviar transcrições de reunião para a RENATA do painel processar (não cria atividade solta nem ajusta cronograma)', meetings_edit: 'Ler, enviar transcrições e corrigir reuniões já registradas (título, resumo, decisões, participantes e tarefas; não ajusta cronograma nem opera o CRM)' };
+export const SCOPES = { read_all: 'Ler tudo (empresas, reuniões, atividades, agenda e CRM); não altera nada', write_all: 'Ler e editar tudo (cronograma das empresas, reuniões, transcrições, atividades e CRM), com as permissões do dono da chave', read: 'Só leitura', read_create: 'Ler e criar atividades', read_write: 'Ler, criar atividades e ajustar o cronograma de empresas', crm_operate: 'Operar o CRM como Claude Code (criar, editar, mover, excluir e registrar), além de ler', transcripts: 'Ler e enviar transcrições de reunião para a RENATA do painel processar (não cria atividade solta nem ajusta cronograma)', meetings_edit: 'Ler, enviar transcrições e corrigir reuniões já registradas (título, resumo, decisões, participantes e tarefas; não ajusta cronograma nem opera o CRM)' };
 // crm_operate só abre /api/connect/crm; nas demais rotas vale como leitura (rank 0) — nunca herda criar atividade nem ajustar cronograma.
-const SCOPE_RANK = { read: 0, read_create: 1, read_write: 2, crm_operate: 0, transcripts: 0, meetings_edit: 0 };
+// read_all / write_all (2026-10-29) são as duas chaves oferecidas na tela; as demais continuam valendo (chaves já emitidas) e ficam em "Avançado".
+// read_all lê tudo, inclusive o CRM (só GET); write_all faz tudo que as chaves específicas fazem, sempre limitado ao que o dono pode (cada rota confere o acesso dele).
+const SCOPE_RANK = { read_all: 0, write_all: 2, read: 0, read_create: 1, read_write: 2, crm_operate: 0, transcripts: 0, meetings_edit: 0 };
+export const LEGACY_SCOPES = ['read', 'read_create', 'read_write', 'crm_operate', 'transcripts', 'meetings_edit'];
+const WRITE_ALL_MAX_DAYS = 180;
 const VALID_DAYS = [30, 90, 180, 365];
 const MAX_ACTIVE_TOKENS = 10;
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
@@ -40,7 +44,7 @@ router.get('/tokens', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, scope, created_at, expires_at, last_used_at FROM api_tokens WHERE user_id=$1 AND revoked_at IS NULL ORDER BY created_at DESC`, [req.user.id]);
-    res.json({ tokens: rows.map((r) => ({ ...r, expired: new Date(r.expires_at) < new Date() })), scopes: SCOPES, canAdmin: !!(req.user.isSuperAdmin || req.user.role === 'master'), canCrm: crmCan(req.user, 'admin'), canTranscripts: !!req.user.companiesAccess });
+    res.json({ tokens: rows.map((r) => ({ ...r, expired: new Date(r.expires_at) < new Date() })), scopes: SCOPES, legacyScopes: LEGACY_SCOPES, canAdmin: !!(req.user.isSuperAdmin || req.user.role === 'master'), canCrm: crmCan(req.user, 'admin'), canTranscripts: !!req.user.companiesAccess });
   } catch (e) { next(e); }
 });
 
@@ -48,9 +52,11 @@ router.post('/tokens', requireAuth, async (req, res, next) => {
   try {
     const name = clip((req.body || {}).name, 60).trim();
     const scope = Object.prototype.hasOwnProperty.call(SCOPES, (req.body || {}).scope) ? req.body.scope : null;
-    const days = VALID_DAYS.includes(Number((req.body || {}).days)) ? Number(req.body.days) : 180;
+    let days = VALID_DAYS.includes(Number((req.body || {}).days)) ? Number(req.body.days) : (scope === 'write_all' ? 90 : 180);
+    if (scope === 'write_all') days = Math.min(days, WRITE_ALL_MAX_DAYS);
     if (!name) return res.status(400).json({ message: 'Dê um nome ao token (ex.: "Claude Code do XPED").' });
     if (!scope) return res.status(400).json({ message: 'Escolha o que o token pode fazer.' });
+    if (scope === 'write_all' && !(req.user.isSuperAdmin || req.user.role === 'master')) return res.status(403).json({ message: 'Só administradores geram uma chave que edita tudo.' });
     if (scope === 'read_write' && !(req.user.isSuperAdmin || req.user.role === 'master')) return res.status(403).json({ message: 'Só administradores geram uma chave que ajusta o cronograma de empresas.' });
     if (scope === 'transcripts' && !req.user.companiesAccess) return res.status(403).json({ message: 'Só quem tem acesso a Empresas gera uma chave que envia transcrições.' });
     if (scope === 'meetings_edit' && !req.user.companiesAccess) return res.status(403).json({ message: 'Só quem tem acesso a Empresas gera uma chave que corrige reuniões.' });
@@ -103,7 +109,7 @@ export const ENDPOINTS = [
   { method: 'PATCH', path: '/api/connect/companies/:id/meetings/:meetingId', scope: 'meetings_edit', what: 'Corrige uma reunião já registrada. Corpo (só estes campos; qualquer outro dá 400): title, date, time, summary, decisions, participants (lista inteira ou {add,remove,rename}), actionItems (operações: {op:"set",id,set:{title,responsible,kind,dueDate,area,owner}}, {op:"add",title,…}, {op:"delete",id}, {op:"restore",id}), dryRun (true = mostra antes e depois sem gravar), note. Tudo ou nada; não mexe no vínculo tarefa→atividade; grava no Log da empresa e no histórico de correções; responde com editId e `undo` (corpo que desfaz).' },
   { method: 'GET', path: '/api/connect/companies/:id/meetings/:meetingId/edits', scope: 'meetings_edit', what: 'Histórico das correções da reunião (quem, quando, antes e depois, se já foi desfeita).' },
   { method: 'POST', path: '/api/connect/companies/:id/meetings/:meetingId/edits/:editId/undo', scope: 'meetings_edit', what: 'Desfaz uma correção (corpo opcional: dryRun, note). Dá 409 se já foi desfeita ou se a reunião mudou de forma que não dá para voltar.' },
-  { method: '*', path: '/api/connect/crm/…', scope: 'crm_operate', what: 'O CRM inteiro (mesmas rotas e regras de /api/crm: empresas, contatos, negócios, atividades, notas, produtos, funis, cadências), pelo perfil de administrador do dono da chave. Toda gravação fica registrada como "Claude Code (por <dono>)". Fora: escrita da migração do PipeRun.' },
+  { method: '*', path: '/api/connect/crm/…', scope: 'crm_operate', what: 'O CRM inteiro (mesmas rotas e regras de /api/crm: empresas, contatos, negócios, atividades, notas, produtos, funis, cadências), pelo perfil de administrador do dono da chave (com read_all, só GET, pelo acesso de leitura dele). Toda gravação fica registrada como "Claude Code (por <dono>)". Fora: escrita da migração do PipeRun.' },
   { method: 'GET', path: '/api/connect/agenda', scope: 'read', what: 'Compromissos do Google Calendar do dono. Query: days=1..14 (padrão 7). Só os aceitos ou próprios.' },
 ];
 
@@ -113,6 +119,7 @@ router.get('/', (req, res) => {
     name: 'PRICETAX — API de conectividade',
     auth: 'Authorization: Bearer <token pxk_…> (gere em Meu perfil > Conectar). Nunca coloque o token na URL.',
     scopes: SCOPES,
+    presets: 'Duas chaves cobrem tudo: read_all (lê tudo, inclusive o CRM; não altera nada) e write_all (lê e edita tudo o que o dono da chave pode; só administrador gera; validade padrão de 90 dias, máximo 180). Os escopos antigos (read, read_create, read_write, crm_operate, transcripts, meetings_edit) continuam valendo nas chaves já emitidas. Em `endpoints[].scope`, write_all vale para todo escopo que não seja de leitura e read_all para todo GET.',
     endpoints: ENDPOINTS,
     limits: '120 requisições por minuto por token; 60 atividades criadas por hora.',
     errors: '401 token ausente/inválido/revogado/expirado · 403 escopo insuficiente ou usuário bloqueado · 404 não encontrado · 429 limite · 400 dado inválido.',
@@ -166,8 +173,8 @@ async function bearer(req, res, next) {
 function needScope(scope) {
   return (req, res, next) => {
     if ((SCOPE_RANK[req.apiToken.scope] ?? -1) >= SCOPE_RANK[scope]) return next();
-    if (scope === 'read_write') return res.status(403).json({ message: 'Este token não ajusta cronograma de empresa. Gere um token com "Ler, criar atividades e ajustar o cronograma de empresas".' });
-    res.status(403).json({ message: 'Este token é só de leitura. Gere um token com "Ler e criar atividades".' });
+    if (scope === 'read_write') return res.status(403).json({ message: 'Este token não ajusta cronograma de empresa. Gere uma chave "Ler e editar tudo" em Meu perfil > Integrações (só administrador).' });
+    res.status(403).json({ message: 'Este token é só de leitura. Gere uma chave "Ler e editar tudo" em Meu perfil > Integrações.' });
   };
 }
 
@@ -179,7 +186,15 @@ router.use(bearer);
 // Nunca vale para a migração do PipeRun (escrita) nem para token sem o escopo crm_operate.
 const CRM_BLOCKED = /^\/migration(\/|$)/;
 function crmViaToken(req, res, next) {
-  if (req.apiToken.scope !== 'crm_operate') return res.status(403).json({ message: 'Esta chave não opera o CRM. Gere uma chave "Operar o CRM como Claude Code" em Meu perfil > Conectar (só administrador).' });
+  const scope = req.apiToken.scope;
+  if (scope === 'read_all') {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return res.status(403).json({ message: 'Esta chave só lê. Para alterar o CRM gere uma chave "Ler e editar tudo" em Meu perfil > Integrações (só administrador).' });
+    if (CRM_BLOCKED.test(req.path)) return res.status(403).json({ message: 'A migração do PipeRun só é aberta pela tela, por um administrador.' });
+    if (!crmCan(req.apiUser, 'read')) return res.status(403).json({ message: 'O dono da chave não tem acesso ao CRM.' });
+    req.user = req.apiUser;
+    return next();
+  }
+  if (scope !== 'crm_operate' && scope !== 'write_all') return res.status(403).json({ message: 'Esta chave não acessa o CRM. Gere uma chave "Ler tudo" ou "Ler e editar tudo" em Meu perfil > Integrações.' });
   if (!crmCan(req.apiUser, 'admin')) return res.status(403).json({ message: 'O dono da chave deixou de ser administrador do CRM.' });
   if (req.method !== 'GET') {
     const path = clip(String(req.originalUrl || '').split('?')[0], 200);
@@ -405,8 +420,9 @@ router.get('/companies/:id/meetings/:meetingId', async (req, res, next) => {
 // e acompanha a situação. Escopo `transcripts` (ou `read_write`); a chave age como o dono: só empresas que ele pode ver.
 const transcriptsLimit = new Map();
 function needTranscripts(req, res, next) {
-  if (['transcripts', 'meetings_edit', 'read_write'].includes(req.apiToken.scope)) return next();
-  return res.status(403).json({ message: 'Esta chave não envia transcrições. Gere uma chave "Enviar transcrições de reunião" em Meu perfil > Conectar.' });
+  if (['transcripts', 'meetings_edit', 'read_write', 'write_all'].includes(req.apiToken.scope)) return next();
+  if (req.apiToken.scope === 'read_all' && req.method === 'GET') return next();
+  return res.status(403).json({ message: 'Esta chave não envia transcrições. Gere uma chave "Ler e editar tudo" em Meu perfil > Integrações.' });
 }
 const inboxErr = (res, next, e) => (e instanceof InboxError ? res.status(e.status).json({ message: e.message }) : next(e));
 const MAX_TRANSCRIPT_CHARS = 400000;
@@ -488,7 +504,8 @@ router.post('/companies/:id/transcripts/:submissionId/retry', needTranscripts, a
 const MAX_EDIT_PER_HOUR = 200;
 const editLimit = new Map();
 function needMeetingsEdit(req, res, next) {
-  if (req.apiToken.scope !== 'meetings_edit') return res.status(403).json({ message: 'Esta chave não corrige reuniões. Gere uma chave "Corrigir reuniões registradas" em Meu perfil > Conectar.' });
+  const sc = req.apiToken.scope;
+  if (!(sc === 'meetings_edit' || sc === 'write_all' || (sc === 'read_all' && req.method === 'GET'))) return res.status(403).json({ message: 'Esta chave não corrige reuniões. Gere uma chave "Ler e editar tudo" em Meu perfil > Integrações.' });
   if (!req.apiUser.companiesAccess) return res.status(403).json({ message: 'O dono do token não tem acesso a Empresas.' });
   next();
 }
