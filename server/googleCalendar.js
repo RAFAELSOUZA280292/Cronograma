@@ -21,8 +21,9 @@ export function googleConfigured() {
   return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI);
 }
 
-export function getAuthUrl() {
+export function getAuthUrl(state) {
   return oauthClient().generateAuthUrl({
+    ...(state ? { state } : {}),
     access_type: 'offline',
     // Sempre força a tela de consentimento — é o único jeito de garantir
     // que o Google devolva um refresh_token de novo (ele só manda na

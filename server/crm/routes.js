@@ -189,7 +189,7 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
   router.get('/tags', h(async (req, res) => res.json({ tags: await X.listTags(orgOf(req)) })));
   router.put('/deals/:id/tags', need('write'), h(async (req, res) => res.json({ tags: await X.setDealTags(orgOf(req), actorOf(req), req.params.id, (req.body || {}).tags) })));
   router.post('/deals/:id/move', need('write'), h(async (req, res) => {
-    const deal = await D.moveDeal(orgOf(req), actorOf(req), req.params.id, req.body || {});
+    const deal = await D.moveDeal(orgOf(req), actorOf(req), req.params.id, req.body || {}, { canEditClosed: crmCan(req.user, 'remove') });
     res.json({ deal, cadence: await X.cadenceAfterMove(orgOf(req), actorOf(req), deal) });
   }));
   router.delete('/deals/:id', need('remove'), h(async (req, res) => res.json(await D.deleteDeal(orgOf(req), actorOf(req), req.params.id))));

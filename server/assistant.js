@@ -13,6 +13,16 @@ import { askGeneral, generalClient } from './assistantGeneral.js';
 
 export const router = Router();
 
+// Cada pergunta custa IA (Sonnet + Opus): 40 por 10 minutos por pessoa, somando a RENATA da empresa e a geral (M17).
+const askHits = new Map();
+setInterval(() => { const now = Date.now(); for (const [k, v] of askHits) if (now - v.start > 600000) askHits.delete(k); }, 60000).unref();
+function askLimited(userId) {
+  const now = Date.now(); const rec = askHits.get(userId);
+  if (!rec || now - rec.start > 600000) { askHits.set(userId, { start: now, n: 1 }); return false; }
+  rec.n += 1; return rec.n > 40;
+}
+const TOO_MANY = { message: 'Muitas perguntas seguidas. Espere alguns minutos e tente de novo.' };
+
 // Dossiê do cliente (ver server/dossier.js): compilação interna de TODAS as reuniões — só a equipe
 // (master/pricetax), nunca o usuário `cliente`, mesmo que ele enxergue a empresa.
 function canUseDossier(user) {
@@ -57,6 +67,8 @@ router.post('/ask', requireAuth, async (req, res, next) => {
     const { projectId, question, context } = req.body || {};
     const text = (question || '').trim();
     if (!text) return res.status(400).json({ message: 'Informe a pergunta.' });
+    if (text.length > 4000) return res.status(400).json({ message: 'Pergunta muito longa (máximo 4.000 caracteres).' });
+    if (askLimited(req.user.id)) return res.status(429).json(TOO_MANY);
     if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ message: 'Assistente não configurado nesse ambiente (falta ANTHROPIC_API_KEY).' });
     const project = await loadAuthorizedProject(req, res, projectId);
     if (!project) return;
@@ -198,6 +210,7 @@ router.post('/general/ask', requireAuth, async (req, res, next) => {
     const text = String(question || '').trim();
     if (!text) return res.status(400).json({ message: 'Escreva a pergunta.' });
     if (text.length > 1500) return res.status(400).json({ message: 'Pergunta muito longa (máximo 1.500 caracteres).' });
+    if (askLimited(req.user.id)) return res.status(429).json(TOO_MANY);
     const client = generalClient();
     if (!client) return res.status(503).json({ message: 'A RENATA ainda não está configurada neste ambiente (falta a chave da IA).' });
     const orgId = req.user.isSuperAdmin && req.query.asOrg ? String(req.query.asOrg) : req.user.orgId;

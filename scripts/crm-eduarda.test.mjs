@@ -73,6 +73,7 @@ const pv = await call('PATCH', `/api/crm/deals/${aberto.id}`, { expectedCloseDat
 ok('previsão de fechamento editável direto (PATCH) e desfazível', pv.status === 200 && pv.json.deal.expectedCloseDate === '2026-12-15' && (await call('PATCH', `/api/crm/deals/${aberto.id}`, { expectedCloseDate: aberto.expectedCloseDate || null })).json.deal.expectedCloseDate === (aberto.expectedCloseDate || null));
 const fechado = mine.json.items.find((d) => d.status === 'lost');
 ok('vendedor NÃO edita negócio fechado (403): a lista bloqueia a célula e o servidor recusa', (await call('PATCH', `/api/crm/deals/${fechado.id}`, { value: 1 })).status === 403);
+ok('vendedor NÃO move/reabre negócio fechado (403) — M5', (await call('POST', `/api/crm/deals/${fechado.id}/move`, { stageId: aberto.stageId })).status === 403);
 const act1 = acts.json.items[0];
 const rs = await call('PATCH', `/api/crm/activities/${act1.id}`, { dueDate: '2026-12-20' });
 ok('reagendar atividade escolhendo a data (PATCH) funciona e volta ao valor original', rs.status === 200 && rs.json.activity.dueDate === '2026-12-20' && (await call('PATCH', `/api/crm/activities/${act1.id}`, { dueDate: act1.dueDate })).json.activity.dueDate === act1.dueDate);

@@ -84,6 +84,14 @@ const DEFAULT_SLA = {
   },
 };
 
+// Só ids de usuários DA MESMA base valem como responsável ou menção (id inexistente derrubava o PATCH com 500; id de outra base vazava notificação) — M9.
+async function orgUserIds(client, orgId, ids) {
+  const list = [...new Set((Array.isArray(ids) ? ids : [ids]).filter((x) => typeof x === 'string' && x))];
+  if (!list.length) return new Set();
+  const { rows } = await client.query('SELECT id FROM users WHERE org_id=$1 AND id = ANY($2::text[])', [orgId, list]);
+  return new Set(rows.map((r) => r.id));
+}
+
 async function getSlaConfig(queryable, orgId) {
   const { rows } = await queryable.query('SELECT settings FROM organizations WHERE id=$1', [orgId]);
   const custom = (rows[0] && rows[0].settings && rows[0].settings.xflowSla) || {};
@@ -409,6 +417,7 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
         const changes = [];
         if (payload.product && payload.product !== row.product) { rel.product = payload.product; changes.push(`produto → ${payload.product}`); }
         if (payload.module !== undefined && payload.module !== data.module) { data.module = payload.module; changes.push(`módulo → ${payload.module}`); }
+        if (payload.assigneeId && !(await orgUserIds(client, row.org_id, payload.assigneeId)).size) { await client.query('ROLLBACK'); return res.status(400).json({ message: 'Responsável inválido.' }); }
         if (payload.assigneeId !== undefined && payload.assigneeId !== row.assignee_id) {
           rel.assignee_id = payload.assigneeId || null;
           changes.push('responsável alterado');
@@ -569,6 +578,7 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
       }
       case 'reatribuir': {
         const newAssignee = payload.assigneeId || null;
+        if (newAssignee && !(await orgUserIds(client, row.org_id, newAssignee)).size) { await client.query('ROLLBACK'); return res.status(400).json({ message: 'Responsável inválido.' }); }
         rel.assignee_id = newAssignee;
         historyNote = 'Responsável alterado';
         if (newAssignee && newAssignee !== row.assignee_id && newAssignee !== req.user.id) {
@@ -596,11 +606,12 @@ router.patch('/tickets/:id', requireAuth, requireXflowAccess, async (req, res, n
           await client.query('ROLLBACK');
           return res.status(400).json({ message: 'Comentário vazio.' });
         }
-        const comment = { id: uid('xc'), text: commentText, ts: new Date().toISOString(), author: userName, authorId: req.user.id, mentions: p.mentions || [], attachments, links };
+        const validMentions = [...(await orgUserIds(client, row.org_id, p.mentions || []))];
+        const comment = { id: uid('xc'), text: commentText, ts: new Date().toISOString(), author: userName, authorId: req.user.id, mentions: validMentions, attachments, links };
         data.comments = [comment, ...(data.comments || [])];
         historyNote = commentText || 'Comentário com anexo adicionado';
         const preview = commentText.length > 140 ? `${commentText.slice(0, 140)}…` : commentText;
-        (p.mentions || []).forEach((mentionedId) => {
+        validMentions.forEach((mentionedId) => {
           if (mentionedId && mentionedId !== req.user.id) {
             notificationsToCreate.push({
               userId: mentionedId, type: 'xflow_mention', title: ticketLabel,

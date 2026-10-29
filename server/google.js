@@ -2,11 +2,13 @@
 // própria conta pelo botão em "Meu perfil". Ver server/googleCalendar.js
 // pro helper de fato e PROJECT_CONTEXT.md §21 pro desenho completo.
 
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import { requireAuth } from './auth.js';
 import { getAuthUrl, exchangeCodeForTokens, saveConnection, disconnectUser, getConnectionStatus, googleConfigured } from './googleCalendar.js';
 
 export const router = Router();
+const STATE_COOKIE = 'g_oauth_state';
 
 router.get('/status', requireAuth, async (req, res, next) => {
   try {
@@ -20,17 +22,24 @@ router.get('/status', requireAuth, async (req, res, next) => {
 // window.location.href, não uma chamada fetch().
 router.get('/oauth/start', requireAuth, (req, res) => {
   if (!googleConfigured()) return res.status(400).send('Integração com Google Calendar não configurada no servidor.');
-  res.redirect(getAuthUrl());
+  // `state` aleatório guardado em cookie: o retorno só vale se vier do mesmo navegador que começou (impede alguém vincular a agenda DELE à conta de outra pessoa).
+  const state = crypto.randomBytes(24).toString('hex');
+  res.cookie(STATE_COOKIE, state, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 10 * 60 * 1000, path: '/api/google' });
+  res.redirect(getAuthUrl(state));
 });
 
 // O cookie de sessão (SameSite=Lax) sobrevive à ida-e-volta pro domínio do
 // Google numa navegação de topo (GET), então req.user já está disponível
-// aqui igual em qualquer outra rota autenticada — não precisa de `state`
-// carregando o id do usuário.
+// aqui; o `state` (cookie próprio) prova que o retorno é do fluxo que ESTE navegador iniciou.
 router.get('/oauth/callback', requireAuth, async (req, res) => {
   const base = process.env.APP_BASE_URL || '';
   try {
-    const { code, error } = req.query;
+    const { code, error, state } = req.query;
+    const expected = req.cookies && req.cookies[STATE_COOKIE];
+    res.clearCookie(STATE_COOKIE, { path: '/api/google' });
+    if (!expected || typeof state !== 'string' || state.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(state), Buffer.from(expected))) {
+      return res.redirect(`${base}/#google-calendar-error`);
+    }
     if (error || !code) return res.redirect(`${base}/#google-calendar-error`);
     const tokens = await exchangeCodeForTokens(code);
     await saveConnection(req.user.id, tokens);

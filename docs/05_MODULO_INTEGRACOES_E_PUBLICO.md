@@ -507,7 +507,7 @@ Lista gerada exata em `docs/gerado/VARIAVEIS_DE_AMBIENTE.md`. Aqui, agrupadas po
 
 ## Cabeçalhos de segurança e sessão
 - Cookie: `httpOnly`, `secure` só com `NODE_ENV=production`, `sameSite=lax`, 7 dias.
-- Cabeçalhos de segurança globais: ponto de endurecimento registrado em `docs/11` (privado). Hoje só há os de `documentTemplates.js` (arquivo HTML) e `X-Robots-Tag` nas páginas públicas.
+- Cabeçalhos de segurança globais (`server/index.js`, desde 2026-10-29): `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin` e, em produção, `Strict-Transport-Security` (180 dias). **Sem CSP** de propósito (exige teste de tela inteira no navegador).
 
 ## Receitas — infraestrutura e deploy
 1. **Publicar uma mudança:** seguir o bloco "Deploy" (fetch, rsync, build, commit por caminho, push) e depois conferir em produção: hash do bundle novo e a rota nova em JSON.

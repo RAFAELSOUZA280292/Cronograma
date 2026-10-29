@@ -12,18 +12,23 @@ if (!/localhost|127\.0\.0\.1/.test(DB)) { console.error('Recusado: só banco loc
 const ORG = 'sandbox-edu';
 const PASS = crypto.randomBytes(12).toString('base64url');
 const RUN = crypto.randomBytes(3).toString('hex');
-const U = { adm: `sga_adm_${RUN}`, sup: `sga_sup_${RUN}`, cli: `sga_cli_${RUN}`, pt: `sga_pt_${RUN}`, vic: `sga_vic_${RUN}`, bru: `sga_bru_${RUN}` };
+const PID = `sga_proj_${RUN}`;
+const CNPJ = '99.888.777/0001-66';
+const U = { cc: `sga_cc_${RUN}`, adm: `sga_adm_${RUN}`, sup: `sga_sup_${RUN}`, cli: `sga_cli_${RUN}`, pt: `sga_pt_${RUN}`, vic: `sga_vic_${RUN}`, bru: `sga_bru_${RUN}` };
 let failed = 0;
 const ok = (n, c, e) => { if (c) console.log(`ok   ${n}`); else { failed += 1; console.log(`FAIL ${n}${e !== undefined ? ` -> ${JSON.stringify(e)}` : ''}`); } };
 const pool = new pg.Pool({ connectionString: DB });
 const hash = await bcrypt.hash(PASS, 10);
 async function cleanup() {
+  await pool.query(`DELETE FROM project_memory_chunks WHERE project_id LIKE 'sga_%'`).catch(() => {});
+  await pool.query(`DELETE FROM projects WHERE id LIKE 'sga_%'`).catch(() => {});
   await pool.query(`DELETE FROM user_access_events WHERE user_id LIKE 'sga_%'`).catch(() => {});
   await pool.query(`DELETE FROM personal_boards WHERE user_id LIKE 'sga_%'`).catch(() => {});
   await pool.query(`DELETE FROM users WHERE id LIKE 'sga_%'`);
 }
 await cleanup();
 const mk = (id, role, extra = '') => pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,companies_access,all_companies_access${extra ? ',is_super_admin' : ''}) VALUES ($1,$1,$2,$1,$3,$4,true,true${extra ? ',true' : ''})`, [id, hash, role, ORG]);
+await pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,companies_access,all_companies_access,allowed_cnpjs) VALUES ($1,$1,$2,$1,'cliente',$3,true,false,$4)`, [U.cc, hash, ORG, JSON.stringify([CNPJ])]);
 await mk(U.adm, 'master'); await mk(U.sup, 'master', 'super'); await mk(U.cli, 'cliente'); await mk(U.pt, 'pricetax'); await mk(U.vic, 'pricetax'); await mk(U.bru, 'pricetax');
 
 const call = async (cookie, method, path, body, ip) => {
@@ -125,6 +130,66 @@ try {
   ok('A9: token da coluna compartilhada fica intacto', stored.columns[0].shareToken === `col_${RUN}` && stored.columns[0].visibility === 'public');
   ok('A9: colaborador não torna outra coluna pública', stored.columns[1].visibility === undefined && stored.columns[1].shareToken === undefined, stored.columns[1]);
   ok('A9: o cartão que o colaborador criou foi gravado', stored.columns[0].cards.some((c) => c.title === 'do colaborador'));
+
+  // ---- A3/A4: visão e gravação do usuário `cliente`
+  const proj = { id: PID, company: { name: 'Empresa Teste', cnpj: CNPJ }, team: [], phases: [], ownerIds: ['dono-1'], principalOwnerId: 'dono-1',
+    activities: [{ id: 'act1', title: 'Atividade', status: 'pending', date: '2026-11-01' }],
+    meetings: [{ id: 'mtg1', title: 'Reunião', date: '2026-10-01', transcript: 'TRANSCRICAO INTERNA', actionItems: [{ id: 'mai1', title: 'Tarefa', owner: 'cliente', status: 'nao-iniciado' }] }],
+    log: [{ ts: '2026-10-01T10:00:00Z', action: 'linha interna antiga', user: 'Equipe' }] };
+  await pool.query('INSERT INTO projects (id, data, org_id) VALUES ($1,$2,$3)', [PID, JSON.stringify(proj), ORG]);
+  const cc = await login(U.cc);
+  const gl = await call(cc.cookie, 'GET', '/api/projects');
+  const seen = (gl.json.projects || []).find((x) => x.id === PID);
+  ok('A4: cliente enxerga a própria empresa', !!seen, gl.status);
+  ok('A4: cliente NÃO recebe a transcrição bruta nem o log interno', seen && seen.meetings[0].transcript === '' && Array.isArray(seen.log) && seen.log.length === 0, seen && [seen.meetings[0].transcript, seen.log]);
+  ok('A4: cliente recebe o resto da reunião e das tarefas', seen.meetings[0].title === 'Reunião' && seen.meetings[0].actionItems[0].id === 'mai1');
+  const staffView = await call(adm.cookie, 'GET', '/api/projects');
+  const sv = (staffView.json.projects || []).find((x) => x.id === PID);
+  ok('equipe continua vendo transcrição e log', sv && sv.meetings[0].transcript === 'TRANSCRICAO INTERNA' && sv.log.length === 1);
+  const mine = JSON.parse(JSON.stringify(seen));
+  mine.company.cnpj = '11.111.111/0001-11'; mine.ownerIds = ['invasor']; mine.principalOwnerId = 'invasor'; mine.involvedCompanyIds = ['x'];
+  mine.activities[0].status = 'done'; mine.meetings[0].actionItems[0].status = 'concluido';
+  mine.log = [{ ts: '2026-10-29T12:00:00Z', action: 'cliente concluiu a atividade', user: 'Cliente' }];
+  const pc = await call(cc.cookie, 'PATCH', `/api/projects/${PID}`, { project: mine });
+  ok('A3: cliente grava a própria edição (200)', pc.status === 200, pc);
+  ok('A3: a resposta ao cliente também não traz transcrição nem log', pc.json.project.meetings[0].transcript === '' && pc.json.project.log.length === 0);
+  const db1 = (await pool.query('SELECT data FROM projects WHERE id=$1', [PID])).rows[0].data;
+  ok('A3: a edição legítima do cliente foi gravada (atividade e tarefa)', db1.activities[0].status === 'done' && db1.meetings[0].actionItems[0].status === 'concluido');
+  ok('A3: CNPJ (chave de acesso), responsáveis e grupo NÃO mudam pelo cliente', db1.company.cnpj === CNPJ && db1.ownerIds[0] === 'dono-1' && db1.principalOwnerId === 'dono-1' && db1.involvedCompanyIds === undefined, [db1.company.cnpj, db1.ownerIds]);
+  ok('A3: transcrição preservada mesmo o cliente tendo mandado vazio', db1.meetings[0].transcript === 'TRANSCRICAO INTERNA');
+  ok('A3: log só ganha a linha nova (a antiga continua)', db1.log.length === 2 && db1.log[0].action === 'cliente concluiu a atividade' && db1.log[1].action === 'linha interna antiga', db1.log);
+  const staffEdit = JSON.parse(JSON.stringify(sv)); staffEdit.company.cnpj = CNPJ; staffEdit.meetings[0].transcript = 'EDITADA PELA EQUIPE'; staffEdit.ownerIds = ['dono-2'];
+  const ps = await call(adm.cookie, 'PATCH', `/api/projects/${PID}`, { project: staffEdit });
+  const db2 = (await pool.query('SELECT data FROM projects WHERE id=$1', [PID])).rows[0].data;
+  ok('equipe segue gravando tudo (transcrição, responsáveis)', ps.status === 200 && db2.meetings[0].transcript === 'EDITADA PELA EQUIPE' && db2.ownerIds[0] === 'dono-2');
+  const naoExiste = await call(cc.cookie, 'PATCH', '/api/projects/nao-existe', { project: { id: 'nao-existe' } });
+  ok('projeto inexistente segue 404', naoExiste.status === 404);
+
+  // ---- M9: responsável e menção do XFlow só de usuário da mesma base
+  await pool.query(`UPDATE users SET xflow_role='admin' WHERE id=$1`, [U.adm]);
+  const tk = await call(adm.cookie, 'POST', '/api/xflow/tickets', { title: `Ticket teste ${RUN}`, type: 'TASK' });
+  const tid = tk.json && (tk.json.ticket ? tk.json.ticket.id : tk.json.id);
+  ok('XFlow: cria ticket de teste', tk.status < 300 && !!tid, tk);
+  const badAssign = await call(adm.cookie, 'PATCH', `/api/xflow/tickets/${tid}`, { action: 'reatribuir', payload: { assigneeId: 'usuario-que-nao-existe' } });
+  ok('M9: responsável inexistente dá 400 (antes: 500)', badAssign.status === 400, badAssign);
+  const outro = await pool.query(`SELECT id FROM users WHERE org_id <> $1 LIMIT 1`, [ORG]);
+  if (outro.rows[0]) {
+    const cross = await call(adm.cookie, 'PATCH', `/api/xflow/tickets/${tid}`, { action: 'reatribuir', payload: { assigneeId: outro.rows[0].id } });
+    ok('M9: responsável de OUTRA base é recusado (400)', cross.status === 400, cross);
+  }
+  const goodAssign = await call(adm.cookie, 'PATCH', `/api/xflow/tickets/${tid}`, { action: 'reatribuir', payload: { assigneeId: U.pt } });
+  ok('M9: responsável da mesma base continua valendo (200)', goodAssign.status === 200, goodAssign);
+  const cm = await call(adm.cookie, 'PATCH', `/api/xflow/tickets/${tid}`, { action: 'comentar', payload: { text: 'oi', mentions: [U.pt, 'fantasma', ...(outro.rows[0] ? [outro.rows[0].id] : [])] } });
+  const cmData = (await pool.query('SELECT data FROM xflow_tickets WHERE id=$1', [tid])).rows[0].data;
+  ok('M9: comentário grava só as menções válidas (da mesma base)', cm.status === 200 && JSON.stringify(cmData.comments[0].mentions) === JSON.stringify([U.pt]), [cm.status, cmData.comments && cmData.comments[0] && cmData.comments[0].mentions]);
+  await pool.query(`DELETE FROM xflow_events WHERE ticket_id=$1`, [tid]).catch(() => {});
+  await pool.query(`DELETE FROM xflow_tickets WHERE id=$1`, [tid]).catch(() => {});
+
+  // ---- M5/M10/M17/M21 e cabeçalhos
+  const hd = await fetch(`${BASE}/api/auth/me`);
+  ok('M4: cabeçalhos de segurança presentes', hd.headers.get('x-content-type-options') === 'nosniff' && hd.headers.get('x-frame-options') === 'SAMEORIGIN' && /strict-origin/.test(hd.headers.get('referrer-policy') || ''));
+  const ag = await call(adm.cookie, 'GET', '/api/agenda?start=lixo&end=2026-13-45');
+  ok('M10: agenda com datas inválidas dá 400 (antes: 500)', ag.status === 400, ag);
 } catch (e) {
   failed += 1; console.log('FAIL erro inesperado', e);
 } finally {

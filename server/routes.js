@@ -22,6 +22,7 @@ import { recordUsage } from './usageLog.js';
 import { usagePolicy } from './usagePolicy.js';
 import { syncCardEvents, getActivityStats, getDayDetail, cardEventsOf } from './personalActivity.js';
 
+import { isClientUser, projectForClient, applyClientWrite } from './clientView.js';
 import { loginBlockedFor, noteLoginFailure, noteLoginSuccess, passwordTooShort, PASSWORD_MSG } from './loginLimit.js';
 
 function uid(p) {
@@ -436,7 +437,8 @@ router.get('/projects', requireAuth, async (req, res, next) => {
       : 'SELECT data, org_id FROM projects WHERE org_id=$1 ORDER BY created_at ASC';
     const params = req.user.isSuperAdmin && !orgId ? [] : [orgId];
     const { rows } = await pool.query(sql, params);
-    const visible = rows.filter((r) => canAccessProject(req.user, r.data, r.org_id)).map((r) => r.data);
+    const asClient = isClientUser(req.user);
+    const visible = rows.filter((r) => canAccessProject(req.user, r.data, r.org_id)).map((r) => (asClient ? projectForClient(r.data) : r.data));
     res.json({ projects: visible });
   } catch (e) { next(e); }
 });
@@ -566,28 +568,35 @@ router.get('/projects/:id/team-candidates', requireAuth, async (req, res, next) 
 });
 
 router.patch('/projects/:id', requireAuth, async (req, res, next) => {
+  const { id } = req.params;
+  const incoming = req.body && req.body.project;
+  if (!incoming || incoming.id !== id) return res.status(400).json({ message: 'Payload de projeto inválido.' });
+  const client = await pool.connect();
+  let current; let next_; let orgId; let done = false;
   try {
-    const { id } = req.params;
-    const { rows } = await pool.query('SELECT data, org_id FROM projects WHERE id=$1', [id]);
-    if (!rows[0]) return res.status(404).json({ message: 'Projeto não encontrado.' });
-    const current = rows[0].data;
-    if (!canAccessProject(req.user, current, rows[0].org_id)) {
-      return res.status(403).json({ message: 'Sem acesso a este projeto.' });
-    }
-    const next_ = req.body && req.body.project;
-    if (!next_ || next_.id !== id) {
-      return res.status(400).json({ message: 'Payload de projeto inválido.' });
-    }
-    await pool.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(next_), id]);
+    await client.query('BEGIN');
+    // Trava a linha: duas gravações da mesma empresa não se misturam e o `current` usado nos avisos e na memória é o que de fato foi substituído.
+    const { rows } = await client.query('SELECT data, org_id FROM projects WHERE id=$1 FOR UPDATE', [id]);
+    if (!rows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Projeto não encontrado.' }); }
+    current = rows[0].data; orgId = rows[0].org_id;
+    if (!canAccessProject(req.user, current, orgId)) { await client.query('ROLLBACK'); return res.status(403).json({ message: 'Sem acesso a este projeto.' }); }
+    next_ = isClientUser(req.user) ? applyClientWrite(current, incoming) : incoming;
+    await client.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(next_), id]);
+    await client.query('COMMIT');
+    done = true;
+  } catch (e) {
+    if (!done) { try { await client.query('ROLLBACK'); } catch { /* conexão já encerrada */ } }
+    client.release();
+    return next(e);
+  }
+  client.release();
+  try {
     const projectName = (next_.company && (next_.company.nomeFantasia || next_.company.name)) || 'Empresa';
     await notifyActivityChanges(req, id, projectName, current, next_);
     await notifyTodoChanges(req, id, projectName, current, next_);
-    res.json({ project: next_ });
-    // Reindexação da memória do projeto (Assistente Inteligente de
-    // Projetos, Fase 1) — só SQL local (sem chamada de IA nesta fase),
-    // fire-and-forget depois da resposta, mesmo padrão de todo efeito
-    // colateral assíncrono já usado no resto do sistema.
-    syncProjectMemoryFromDiff(pool, rows[0].org_id, id, current, next_)
+    res.json({ project: isClientUser(req.user) ? projectForClient(next_) : next_ });
+    // Reindexação da memória do projeto (Assistente Inteligente de Projetos, Fase 1) — só SQL local, fire-and-forget depois da resposta.
+    syncProjectMemoryFromDiff(pool, orgId, id, current, next_)
       .catch((e) => console.error('Falha ao reindexar memória do projeto', e.message));
   } catch (e) { next(e); }
 });

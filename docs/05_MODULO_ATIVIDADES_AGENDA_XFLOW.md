@@ -138,7 +138,7 @@ cartão = { id, title, desc, descFormat:'html'|ausente, status, priority, dueDat
 
 ### 2. Agenda + Google Calendar
 
-**2.1 Conectar.** Meu perfil > Agenda abre `GET /api/google/oauth/start` (redireciona ao Google, escopo `calendar.events`, `access_type=offline`, `prompt=consent`). O Google volta em `/api/google/oauth/callback`; o servidor troca o código por tokens (`saveConnection`) e redireciona para `/#google-calendar-connected` (ou `-error`). Uma conexão por usuário (`google_calendar_connections.user_id` é PK). O `googleapis` renova o token sozinho e o servidor grava o novo (`client.on('tokens')`).
+**2.1 Conectar.** Meu perfil > Agenda abre `GET /api/google/oauth/start` (redireciona ao Google, escopo `calendar.events`, `access_type=offline`, `prompt=consent`). O Google volta em `/api/google/oauth/callback`; o servidor confere o `state` (aleatório, guardado no cookie `g_oauth_state` por 10 min; sem ele o retorno é recusado) e só então troca o código por tokens (`saveConnection`) e redireciona para `/#google-calendar-connected` (ou `-error`). Uma conexão por usuário (`google_calendar_connections.user_id` é PK). O `googleapis` renova o token sozinho e o servidor grava o novo (`client.on('tokens')`).
 
 **2.2 Ler a agenda.** `GET /api/agenda?start=&end=` monta num feed só:
 1. Eventos do Google (`listEvents`, calendário `primary`, recorrência expandida, máx. 250), exceto os espelhos de atividades do CRM (`linkedGoogleEventIds`), que aparecem uma vez só como atividade.
@@ -249,7 +249,7 @@ Catálogo completo e atualizado: `docs/gerado/ROTAS.md` (grupos `/api`, `/api/xf
 | GET/PUT | `/api/notifications/preferences` | Logado | `{muted[], todayHidden[]}` | categorias e fontes | 400 "Categoria de notificação desconhecida." |
 | PATCH | `/api/notifications/:id` | Dono do aviso | `{read}` | aviso | 404 |
 | POST | `/api/notifications/read-all`, `/mark-read-for-target` | Logado | `{kind, ticketId?, projectId?, activityId?}` | `{ok}` | 400 "kind é obrigatório." |
-| GET | `/api/agenda?start&end` | Logado | ISO obrigatórios | `{connected, events[]}` | 400; **data inválida vira 500 se o Google estiver conectado** (ver armadilhas) |
+| GET | `/api/agenda?start&end` | Logado | ISO obrigatórios | `{connected, events[]}` | 400 (datas inválidas também; só mostra atividades das empresas que a pessoa pode abrir) |
 | POST | `/api/agenda/events` | Logado com Google conectado | título, data, hora, duração, convidados | `{event:{id, htmlLink}}` | 400 (campos), 409 (Google não configurado/conectado) |
 | POST | `/api/agenda/events/:id/respond` | Logado | `{response: accepted|declined|tentative}`; id começa com `google-` | `{id, myResponse}` | 400, 404, 409 |
 | GET | `/api/google/status`, `/oauth/start`, `/oauth/callback`; POST `/disconnect` | Logado | — | status / redirecionamento | 400 "não configurada" |

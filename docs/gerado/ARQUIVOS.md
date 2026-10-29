@@ -4,23 +4,24 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 148 arquivos
+## `server/` — 149 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
 | `server/accessLog.js` | 163 |  |
 | `server/activityDictionary.js` | 182 | Dicionário de atividades (2026-10-19, pedido do Rafael: "um mega dicionário de todas as atividades"; ver PROJECT_CONTEXT.md §80). |
-| `server/agenda.js` | 136 | Agenda (2026-08) — junta, num só feed, o Google Calendar conectado do |
+| `server/agenda.js` | 139 | Agenda (2026-08) — junta, num só feed, o Google Calendar conectado do |
 | `server/answerCache.js` | 165 | Cache semântico de perguntas/respostas da RENATA (Fase 7, 2026-09-11) |
 | `server/areas.js` | 11 | Áreas (2026-10-07, Passo 3 do caminho combinado): lista fechada para classificar atividades e tarefas de reunião por tema. |
-| `server/assistant.js` | 208 | Rotas do Assistente do Projeto (2026-09, Fase 2 do Assistente |
+| `server/assistant.js` | 221 | Rotas do Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `server/assistantActions.js` | 294 | Agente executor do Assistente do Projeto (2026-09, pedido do Rafael: |
 | `server/assistantContext.js` | 281 | Perfil do projeto (2026-09) — resumo compacto e sempre atualizado da |
 | `server/assistantGeneral.js` | 180 | RENATA "geral" (2026-10-06): a assistente disponível de qualquer tela, sem estar presa a um projeto. Responde com o que a PESSOA |
 | `server/assistantRetrieval.js` | 825 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `server/assistantSweep.js` | 122 | Varredura de reuniões de VÁRIAS empresas para a RENATA geral (Etapa 3 do plano, 2026-10-08; pedido do Felipe: "a RENATA faz |
 | `server/auth.js` | 191 |  |
-| `server/clientError.js` | 33 | Erros de tela capturados pelos limites de erro do navegador (2026-10-16): uma linha JSON no log do servidor (Railway), para que uma tela |
+| `server/clientError.js` | 35 | Erros de tela capturados pelos limites de erro do navegador (2026-10-16): uma linha JSON no log do servidor (Railway), para que uma tela |
+| `server/clientView.js` | 32 | Visão do usuário `cliente` sobre o JSON da empresa (A3/A4, 2026-10-29). A tela já escondia Log/Lixeira/Versões; aqui o SERVIDOR faz o mesmo: |
 | `server/cnpjLookup.js` | 230 |  |
 | `server/commentExtras.js` | 40 | Anexos, links e @menções de comentário (Onda 3, §81) — um só validador/notificador para Pareceres, Modelos e notas do CRM. |
 | `server/companyCalendar.js` | 158 | "Reservar na agenda" (2026-10-19): bloco de agenda por atividade do cronograma, convidando só os e-mails que a equipe digita (equipe PRICETAX; cliente nunca é convidado). |
@@ -39,7 +40,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/crm/dealExport.js` | 76 | Exportação dos negócios para Excel (2026-10-28, §116c): mesmos filtros da lista/quadro, com os dados de contato (e-mail, telefone, link do WhatsApp). |
 | `server/crm/dealImporter.js` | 302 | CRM — importação de NEGÓCIOS a partir de planilha (Fase 2b, 2026-09-20, PROJECT_CONTEXT.md §58). |
 | `server/crm/dealQueries.js` | 176 | CRM — consultas de negócios/pipeline (Fase 2). Somente leitura. |
-| `server/crm/deals.js` | 313 | CRM — negócios (Fase 2, 2026-09-20, PROJECT_CONTEXT.md §55). Mesma regra da |
+| `server/crm/deals.js` | 314 | CRM — negócios (Fase 2, 2026-09-20, PROJECT_CONTEXT.md §55). Mesma regra da |
 | `server/crm/duplicates.js` | 61 | Detecção de duplicidade (PRD 42). CNPJ igual = bloqueia; nome parecido ou |
 | `server/crm/errors.js` | 8 |  |
 | `server/crm/extras.js` | 231 | CRM — campos que o PipeRun tinha e o CRM não: MRR do negócio, tags e prazo (SLA) por etapa (§85). Só colunas/tabelas NOVAS e aditivas. |
@@ -82,9 +83,9 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/evals/taskLinkEval.js` | 150 | Avaliação de qualidade da sugestão tarefa → atividade (Fase 5 do plano, 2026-10-13; docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). |
 | `server/experience.js` | 137 | Experiência de uso (§97): eventos de FLUXO (nome, resultado, duração, rota de erro) e nota de satisfação de 1 clique. Só equipe é medida |
 | `server/gaps.js` | 232 | Lacunas entre cronogramas (Etapa 4 do plano, 2026-10-08; pedido do Felipe: "levantamento de tudo que temos de atividades ... para |
-| `server/google.js` | 50 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
-| `server/googleCalendar.js` | 280 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
-| `server/index.js` | 155 |  |
+| `server/google.js` | 59 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
+| `server/googleCalendar.js` | 281 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
+| `server/index.js` | 165 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
 | `server/inventory.js` | 373 | Levantamento de atividades de TODAS as empresas (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md; pedido do |
 | `server/inventoryEdit.js` | 194 | Passo 3 do caminho combinado (2026-10-07): organizar o que já existe a partir do Levantamento — padronizar o nome do |
@@ -96,7 +97,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/knowledgeLibraryRoutes.js` | 173 | Rotas da Biblioteca de conhecimento (2026-10-27, §116) — só master/pricetax; ver server/knowledgeLibrary.js. |
 | `server/linkPreview.js` | 146 | Pré-visualização de links (título, descrição, imagem) — 2026-10-05, §78. O servidor busca a página, então a defesa é contra |
 | `server/loginLimit.js` | 49 | Limite de tentativas de login (A2, 2026-10-29). Em memória: reinicia com o servidor, o que basta para barrar tentativa em série. |
-| `server/macro.js` | 126 | Visão Macro (2026-08) — quadro de cronograma geral pra controle interno: |
+| `server/macro.js` | 128 | Visão Macro (2026-08) — quadro de cronograma geral pra controle interno: |
 | `server/materialText.js` | 141 | Biblioteca de conhecimento da RENATA (2026-10-27, §116): leitura de arquivos em texto e fatiamento em trechos. |
 | `server/meetingEdit.js` | 172 | Correção de uma reunião já registrada pela API de conectividade (§116e, escopo `meetings_edit`). Função pura sobre o `data` do projeto: |
 | `server/meetingEditsSchema.js` | 20 | Histórico das correções de reunião feitas pela API (§116e). O versionamento do cronograma (`project_versions`, §83) só enxerga atividades, fases e equipe — não reuniões —, |
@@ -136,7 +137,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/tools/reports.js` | 66 | Relatórios e visão da equipe (somente leitura) — §101: "o que a minha equipe fez hoje", atrasos por responsável e quem sou eu / quem é a equipe. |
 | `server/renata/validate.js` | 81 | Validador de parâmetros das ferramentas da RENATA (§101): subconjunto de JSON Schema suficiente para o catálogo. Rejeita campo desconhecido |
 | `server/richNote.js` | 55 | Descrição formatada dos cartões do quadro pessoal (2026-10-07): o campo `desc` continua sendo uma string — texto simples |
-| `server/routes.js` | 1267 |  |
+| `server/routes.js` | 1276 |  |
 | `server/scripts/reindexAllMeetings.js` | 30 | Backfill manual da memória do projeto (2026-09, Fase 1 do Assistente |
 | `server/sourcemaps.js` | 61 | Tradução de pilhas de erro do navegador para o código-fonte, SÓ para o log (2026-10-16). O build gera os sourcemaps como "hidden" (vite.config.js): |
 | `server/standardAudit.js` | 193 | Auditoria de uma empresa contra o padrão de cronograma (2026-10-19, pedido do Rafael: "um botão para realizar a auditoria e confrontar com o padrão e ver |
@@ -153,7 +154,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/usagePolicy.js` | 32 | Transparência e finalidade (LGPD): texto único, exibido a toda a equipe (Meu perfil) e à liderança (Central). |
 | `server/widget.js` | 134 | Widget do iPhone (Scriptable) — 2026-10-05, §76. O widget não faz login: usa um token secreto, só de leitura, |
 | `server/widgetSummary.js` | 120 | Resumo para o widget do iPhone (2026-10-05, §76). Funções puras: recebem o JSON do quadro pessoal, |
-| `server/xflow.js` | 859 |  |
+| `server/xflow.js` | 870 |  |
 | `server/xflowPermissions.js` | 86 | Papel efetivo + regras de "quem pode fazer o quê" no XFlow. Regras vivem |
 | `server/xflowTransitions.js` | 116 | Matriz de transições de status do XFlow. Cada ação nomeada sabe de quais |
 

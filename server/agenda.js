@@ -7,6 +7,7 @@
 
 import { Router } from 'express';
 import { requireAuth } from './auth.js';
+import { canAccessProject } from './routes.js';
 import { pool } from './db.js';
 import { getConnectionStatus, listEvents, createEvent, respondToEvent, googleConfigured } from './googleCalendar.js';
 import { crmAgendaEvents } from './crm/agendaFeed.js';
@@ -20,6 +21,7 @@ router.get('/', requireAuth, async (req, res, next) => {
     if (!start || !end) return res.status(400).json({ message: 'Informe start e end (datas ISO).' });
     const startDate = String(start).slice(0, 10);
     const endDate = String(end).slice(0, 10);
+    if (Number.isNaN(Date.parse(String(start))) || Number.isNaN(Date.parse(String(end)))) return res.status(400).json({ message: 'start e end precisam ser datas válidas (AAAA-MM-DD ou ISO).' });
 
     const status = await getConnectionStatus(req.user.id);
     const events = [];
@@ -54,8 +56,9 @@ router.get('/', requireAuth, async (req, res, next) => {
 
     const myName = (req.user.name || '').trim().toLowerCase();
     if (myName) {
-      const { rows: projectRows } = await pool.query('SELECT id, data FROM projects WHERE org_id=$1', [req.user.orgId]);
+      const { rows: projectRows } = await pool.query('SELECT id, data, org_id FROM projects WHERE org_id=$1', [req.user.orgId]);
       for (const p of projectRows) {
+        if (!canAccessProject(req.user, p.data, p.org_id)) continue; // só as empresas que a pessoa pode abrir (cliente por CNPJ, equipe sem acesso a Empresas não vê)
         const activities = (p.data && p.data.activities) || [];
         const companyLabel = (p.data.company && (p.data.company.nomeFantasia || p.data.company.name)) || 'Empresa';
         for (const a of activities) {

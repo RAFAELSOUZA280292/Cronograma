@@ -18,7 +18,9 @@ export function allowReport(userId, kind, now = Date.now()) {
   return true;
 }
 
-const cut = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]+/g, ' ').slice(0, n);
+// Links públicos levam o token no caminho (/quadro/<token>, /reuniao/<token>, /acompanhamento/<token>, /a/<token>, /d/<token>): o token nunca vai para o log (M21).
+const redactTokens = (v) => String(v == null ? '' : v).replace(/(\/(?:quadro|reuniao|acompanhamento|a|d)\/)[^/?#\s"')]+/gi, '$1[token]');
+const cut = (v, n) => redactTokens(v).replace(/[\u0000-\u001f\u007f]+/g, ' ').slice(0, n);
 
 // Linha de log com tudo truncado e sem quebras de linha (JSON.stringify escapa o resto): ninguém consegue forjar outra linha de log.
 export function formatClientError(user, body) {

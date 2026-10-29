@@ -250,12 +250,13 @@ export async function updateDeal(orgId, actor, id, input, { canEditClosed = fals
 // voltar de uma etapa fechada reabre. Ganhar promove a empresa a cliente — é
 // assim que "Lead vira cliente" acontece sem ninguém precisar lembrar de editar
 // o cadastro.
-export async function moveDeal(orgId, actor, id, { stageId, lostReason = '', lostDetail = '' } = {}) {
+export async function moveDeal(orgId, actor, id, { stageId, lostReason = '', lostDetail = '' } = {}, { canEditClosed = true } = {}) {
   requireUuid(id, 'Negócio');
   requireUuid(stageId, 'Etapa');
   return tx(async (c) => {
     const row = await loadDeal(c, orgId, id, { lock: true });
     if (!row) throw new CrmError(404, 'Negócio não encontrado.');
+    if (row.status !== 'open' && !canEditClosed) throw new CrmError(403, 'Negócio já fechado: só gestores podem movê-lo ou reabri-lo.');
     const { rows: st } = await c.query('SELECT id, name, kind, probability FROM crm_pipeline_stages WHERE id=$1 AND pipeline_id=$2 AND deleted_at IS NULL', [stageId, row.pipeline_id]);
     const to = st[0];
     if (!to) throw new CrmError(404, 'Etapa não encontrada neste funil.');

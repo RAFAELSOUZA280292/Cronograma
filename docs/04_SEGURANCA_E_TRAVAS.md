@@ -442,6 +442,14 @@ O registro completo (gravidade, onde, como confirmar, plano de correção) fica 
 | Prévia de link: IPv6 convertido em bytes antes de testar (cobre `::ffff:7f00:1`, NAT64, 6to4) | SSRF para rede interna/metadados | `linkPreview.js` `ipv6Bytes`, `isPrivateAddress` |
 | Token de link público com 192 bits de `crypto.getRandomValues`; colaborador do link não muda visibilidade/tokens do dono | adivinhar link; sequestrar link | `src/App.jsx` `genShareToken`; `routes.js` `PATCH /public-board/:token` |
 | Cache de respostas da RENATA separa equipe × cliente | cliente receber resposta feita para a equipe | `answerCache.js` `computeFingerprint` |
+| `cliente`: leitura sem `log` nem transcrições; gravação não altera CNPJ, responsáveis, grupo e transcrições, e o `log` só ganha linhas | cliente ler conteúdo interno ou desfazer o controle de acesso (o CNPJ é a chave) | `server/clientView.js`; `routes.js` `GET /projects`, `PATCH /projects/:id` (agora com `FOR UPDATE`) | o cliente não percebe: os campos protegidos voltam ao valor do servidor |
+| `state` aleatório no OAuth do Google (cookie `g_oauth_state`) | vincular a agenda de outra pessoa à conta da vítima | `server/google.js` | retorno vai para `/#google-calendar-error` |
+| Cabeçalhos `nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`, HSTS (produção) | clickjacking, adivinhação de tipo, token de link vazando por `Referer` | `server/index.js` | — |
+| Negócio fechado do CRM só é movido/reaberto por gestor+ | vendedor reabrir negócio ganho/perdido | `crm/deals.js` `moveDeal` | 403 "Negócio já fechado…" |
+| XFlow: responsável e menções só de usuários da mesma base | 500 por id inexistente; notificação para outra base | `xflow.js` `orgUserIds` | 400 "Responsável inválido." |
+| Agenda: datas válidas e só empresas que a pessoa pode abrir | 500; ver atividade de empresa sem acesso | `agenda.js` | 400 |
+| RENATA por pergunta: 40 a cada 10 min por pessoa (empresa + geral) e pergunta ≤ 4.000/1.500 caracteres | custo de IA sem limite | `assistant.js` `askLimited` | 429 "Muitas perguntas seguidas…" |
+| Log de erro da tela sem o token do link público | token em log | `clientError.js` `redactTokens` | — |
 | Métricas de IA da RENATA operacional gravadas com a base de quem perguntou | custo invisível | `renata/index.js` `logUsage` |
 | `isISODay` do `/plan` valida o dia de verdade | `2026-02-31` aceito | `connect.js` (reusa `meetingEdit.js`) |
 

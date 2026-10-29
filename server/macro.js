@@ -34,7 +34,9 @@ router.get('/', requireAuth, async (req, res, next) => {
       return res.status(403).json({ message: 'Sem acesso à Visão Geral de Empresas.' });
     }
     const range = RANGES.includes(req.query.range) ? req.query.range : 'current_week';
-    const today = new Date();
+    // hoje = o dia de Brasília (o servidor roda em UTC: depois das 21h o dia virava o seguinte)
+    const [ty, tm, td] = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }).split('-').map(Number);
+    const today = new Date(ty, tm - 1, td);
     const todayIso = isoDate(today);
     const { start, end } = rangeForQuery(range, today);
 

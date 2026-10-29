@@ -146,7 +146,7 @@ Lista completa e gerada: `docs/gerado/ROTAS.md` (grupos `/api`, `/api/project-hi
 | POST | `/api/projects` | `requireMasterOrPricetax` | `company{…}`, `kickoffDate`, opcional `activities/phases/team/log` | 201 `{project, standardSummary}` | 403 "Apenas Master ou PRICETAX…" |
 | DELETE | `/api/projects/:id` | `requireMasterOrPricetax` + `canAccessProject` | — | `{ok:true}` | 404, 403 |
 | GET | `/api/projects/:id/team-candidates` | Qualquer logado com acesso à empresa (inclui cliente) | — | usuários master/pricetax da org + clientes do CNPJ | 404, 403 |
-| PATCH | `/api/projects/:id` | Qualquer logado com acesso (**inclusive cliente**; sem checagem de papel nem de campo) | `{project}` com `project.id == :id`; corpo até 15 MB | `{project}` | 400 "Payload de projeto inválido.", 403, 404, 413 |
+| PATCH | `/api/projects/:id` | Qualquer logado com acesso. Linha travada (`FOR UPDATE`). Para o **cliente** o servidor (`server/clientView.js` `applyClientWrite`) devolve ao valor guardado o `company.cnpj`, `ownerIds`, `principalOwnerId`, `involvedCompanyIds` e a transcrição das reuniões, e só acrescenta linhas novas ao `log`; equipe grava tudo (última gravação vence, sem carimbo de versão) | `{project}` com `project.id == :id`; corpo até 15 MB | `{project}` | 400 "Payload de projeto inválido.", 403, 404, 413 |
 | POST | `/api/projects/:id/meetings` | `requireMasterOrPricetax` + acesso | `title`≤200, `date` AAAA-MM-DD, `time`, `participants`≤40, `actionItems`≤60, `transcript`≤400.000, `force` | 201 `{meeting}` | 400 título/data, **409** mesma data+título (salvo `force`) |
 | POST | `/api/projects/:id/plan` | `requireMaster` + acesso | `ops` 1–100, `dryRun` (padrão **true**), `note`≤300 | resultados/`undo` | 400 "Nada foi gravado…" |
 | GET | `/api/project-history/:id/versions` | Master, PRICETAX ou super admin (`canView`) + acesso | `limit`≤100, `before`, `kind` | versões + `current` | 403, 404 |
@@ -326,7 +326,7 @@ Legenda: **S** = garantida no servidor; **F** = só no front (um cliente de API 
 | Restaurar versão / recriar empresa só Master | PRICETAX restaurar | S: `canRestore` em `projectVersions.js` | 403 "Só administradores (Master) restauram versões." |
 | Ajustar cronograma por operações só Master | Outros alterarem em lote | S: `requireMaster` em `/projects/:id/plan` | 403 |
 | Aplicar padrão aprimorado e varredura de vínculos só administrador | PRICETAX aplicar em lote | S: `isAdmin` nas rotas | 403 |
-| Cliente não vê Versões, Log, Lixeira, Auditoria, botões de equipe | Poluir a tela do cliente | **F** (`CompanyWorkspace.jsx`, `role === 'master' \|\| 'pricetax'`) | Botões somem. **O servidor não bloqueia** `PATCH /projects/:id` do cliente (ver Achados) |
+| Cliente não vê Versões, Log, Lixeira, Auditoria, botões de equipe | Poluir a tela do cliente | **F** (`CompanyWorkspace.jsx`, `role === 'master' \|\| 'pricetax'`) | Botões somem. **Desde 2026-10-29 o servidor também filtra:** `GET /projects` e a resposta do `PATCH` entregam ao cliente `log: []` e reuniões com `transcript: ''` (`projectForClient`); o `PATCH` do cliente não altera CNPJ, responsáveis nem transcrições. O resto do JSON (atividades, tarefas, comentários) o cliente continua lendo e gravando |
 | Só equipe vincula tarefa a atividade | Cliente mexer no vínculo | **F** (`canLinkTasks`, `meetingActions.js`) + S só para o **livro-razão** (`requireMasterOrPricetax` em `POST /task-links`) | Seletor oculto; o campo no JSON não é protegido |
 | Cliente nunca vê visão consolidada de grupo | Grupo para cliente | `canAccessProject` (cliente só por CNPJ) + telas | — |
 
@@ -433,7 +433,7 @@ Não há runner (Jest). Verificação = `npm run build` limpo + scripts em `scri
 10. **Nova área na lista.** Editar só `server/areas.js` (`AREAS`); o servidor valida e entrega a lista à tela (`GET /api/inventory/areas`). A IA de área usa `z.enum(AREAS)`.
 11. **Nova coluna/filtro no Levantamento.** `server/inventory.js` (`buildItems`, `parseFilters`, `applyFilters`, `/export.xlsx`) e `src/macro/Inventory.jsx`.
 12. **Nova notificação de tarefa.** `server/todoNotifications.js` (`diffTodoEvents` + `notifyTodoChanges`; lembretes em `runTodoReminders`); tipos de notificação em `server/notifications.js` e categorias em `server/notificationPrefs.js` (não lidos nesta documentação).
-13. **Proteger o servidor contra edição de cliente.** Em `routes.js` PATCH, comparar `next_` com `current` e rejeitar campos de equipe (ver Achados); testar com `scripts/project-versions-http.test.mjs` como modelo (usuário cliente).
+13. **Mudar o que o cliente pode ler/gravar.** `server/clientView.js` (`projectForClient`, `applyClientWrite`, listas `PROTECTED_TOP`); teste em `scripts/seguranca-altos.test.mjs` (bloco A3/A4). Para proteger mais um campo, acrescente-o a `applyClientWrite` e ao teste.
 14. ~~Corrigir a corrida da transcrição~~ — feito em 2026-10-29 (ver acima).
 
 ## Não verificado / dúvidas

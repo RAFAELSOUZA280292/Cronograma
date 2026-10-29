@@ -145,7 +145,7 @@ Regra de dependência importante: **40 arquivos importam de `../App.jsx`** (`S`,
 | `SafeBoundary variant="block"` (padrão) | Aviso no lugar da peça; o resto da tela segue | `guard(key, label, node)` em `AppScreens` (um por módulo, com "Voltar ao início") |
 | `SafeBoundary variant="floating"` | Faixa no rodapé, para modais | `guardModal(...)`; `guardedModal(Impl, label, where)` no CRM (FunnelsAdmin, ImportWizard, DealDrawer, CompanyDrawer...) |
 | `resetKey` | Rearma o limite ao trocar de módulo/aba/fechar modal | `guard` usa a chave do módulo |
-| `reportClientError` | `POST /api/client-error` (uma vez por erro por sessão, até 20 por origem); rota exige login | `src/lib/clientError.js` |
+| `reportClientError` | `POST /api/client-error` (uma vez por erro por sessão, até 20 por origem); rota exige login; o servidor troca o token de link público (`/quadro/…`, `/reuniao/…`, `/a/…`, `/d/…`, `/acompanhamento/…`) por `[token]` antes de logar | `src/lib/clientError.js` |
 | `installGlobalErrorCapture` | Ouve `window` `error` e `unhandledrejection` (kind `global`); ignora ruído (script de terceiros, ResizeObserver, rede, chunk, 401) | `main.jsx` |
 
 O estado do `AppScreens` (projetos, quadro, rascunhos do pai) é preservado quando só um módulo falha; o estado da peça que falhou é descartado. Como investigar em produção: log do Railway filtrando `client-error` (PROJECT_CONTEXT §88.3).

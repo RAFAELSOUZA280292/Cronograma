@@ -231,7 +231,7 @@ Painéis (`LENSES_BY_ROLE`; o 1º é o que abre): admin/diretor/gestor = team, m
 |---|---|
 | Botões Criar/Importar/Funis/Migrar, aba Auditoria, Excluir | Sim: cada rota tem `need(...)`. O botão só some por conforto (`caps.*` vem de `GET /me`). |
 | Painéis por perfil | Só a rota **com** `lens` confere (403). o filtro "meu" das demais listas é de tela; detalhe do ponto de endurecimento em `docs/11` (privado). |
-| Negócio fechado "só gestor edita" | `PATCH /deals/:id` confere (403). mover entre etapas pelo `POST /deals/:id/move` segue a regra de `write` (detalhe em `docs/11`, privado). |
+| Negócio fechado "só gestor edita" | `PATCH /deals/:id` confere (403). `POST /deals/:id/move` num negócio já fechado exige `remove` (gestor+), igual ao `PATCH` (403 "Negócio já fechado…"); teste em `scripts/crm-eduarda.test.mjs`. |
 | Excluir contato | `DELETE /contacts/:id` exige só `write` (consultor/vendedor excluem contato; exclusão lógica, com auditoria). |
 
 ## Tipos de leitura e de saída

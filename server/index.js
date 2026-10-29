@@ -46,6 +46,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '..', 'dist');
 
 const app = express();
+// Cabeçalhos mínimos de segurança (M4, 2026-10-29): não deixa o painel ser embutido em outro site (clickjacking), impede o navegador de "adivinhar" o tipo
+// do arquivo, não manda o endereço completo (com token de link público) a sites externos e, em produção, manda usar sempre HTTPS. Sem CSP de propósito:
+// o painel carrega fontes e imagens de vários lugares e uma CSP exige teste de tela inteira no navegador.
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (process.env.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security', 'max-age=15552000');
+  next();
+});
 // Modelos de documentos aceitam arquivo de até 30 MB (base64 ≈ 40 MB): o parser maior precisa vir ANTES do global.
 app.use('/api/templates', express.json({ limit: '45mb' }));
 app.use(express.json({ limit: '15mb' }));
