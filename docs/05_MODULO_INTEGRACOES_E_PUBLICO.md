@@ -204,7 +204,7 @@ Blocos válidos (`BLOCKS`): `overdue`, `today`, `urgent`, `meeting`, `agenda`. O
 |---|---|---|
 | Token só no cabeçalho | `?token=` dá 401 | `GET /summary` |
 | Um código por usuário | Gerar outro invalida o anterior; widgets antigos param até colar o novo | `POST /token` |
-| Trocar `JWT_SECRET` | Tokens cifrados deixam de abrir (gera-se outro); o hash segue valendo para autenticar | `encKey` |
+| Trocar `JWT_SECRET` | Não afeta o widget (só o hash é guardado; desde 2026-10-29 não há versão cifrada). Afeta os tokens do Google (`secretBox.js`): a pessoa reconecta | `secretBox.js` |
 | Token já gerado (só hash) | Continua valendo; o valor não aparece de novo: o painel mostra o aviso e pede chave nova para montar scripts | `status.recoverable` (sempre `false`) |
 | Mudar blocos de uma visão | Não exige colar de novo; criar/renomear visão ou mudar o script, sim | `WidgetSection` |
 | Sem teste automatizado no repositório | A lógica pura foi testada em Node na sessão (§76), mas não há script em `scripts/` | — |
