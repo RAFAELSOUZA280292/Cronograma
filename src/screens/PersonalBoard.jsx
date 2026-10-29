@@ -2,7 +2,7 @@
 // Extraído de src/App.jsx (2026-10-16, "dividir o App.jsx"): carregado sob demanda (lazyRetry no App.jsx) para sair do pacote principal.
 // O código é o mesmo de antes; o que vem do App.jsx é importado de lá (e lá foi exportado).
 
-import { AlertTriangle, Archive, ArrowLeftRight, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronUp, Clock, Columns3, Copy, Download, Gauge, Globe, GripVertical, History, LayoutList, Link2, ListChecks, Lock, LogOut, Maximize2, MessageSquare, MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Tag, Trash2, Undo2, UserPlus, Users, X } from 'lucide-react';
+import { AlertTriangle, Archive, ArrowLeftRight, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronUp, Clock, Columns3, Copy, Download, Gauge, Globe, GripVertical, History, LayoutList, Link2, ListChecks, Lock, LogOut, Maximize2, MessageSquare, MoreHorizontal, Palette, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Tag, Target, Trash2, Undo2, UserPlus, Users, X } from 'lucide-react';
 import { CommentThread, ComposeBox } from '../ui/ComposeBox.jsx';
 import { ConfirmDialog, RecordSaveStatus, SaveStatus, activateRow } from '../ui/index.jsx';
 import DaySummary from '../personal/DaySummary.jsx';
@@ -31,6 +31,7 @@ import { S } from '../styles/S.js';
 
 const PersonalStatsPanel = lazyRetry(() => import('../personal/PersonalStats.jsx'));
 const BoardHistoryPanel = lazyRetry(() => import('../personal/BoardHistory.jsx'));
+const FocusScreen = lazyRetry(() => import('../personal/FocusScreen.jsx'));
 
 const RichNote = lazyRetry(() => import('../ui/RichNote.jsx'));
 
@@ -1450,6 +1451,14 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
   const [showArchive, setShowArchive] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  // Foco de hoje (2026-10-29): tela cheia para o iPad; /foco (favorito) abre direto nela. O App deixa o marcador ao reconhecer o endereço.
+  const [showFocus, setShowFocus] = useState(() => { try { return !publicMode && !readOnly && !embedded && !!window.sessionStorage.getItem('pb-open-focus'); } catch (e) { return false; } });
+  useEffect(() => { try { window.sessionStorage.removeItem('pb-open-focus'); } catch (e) { /* ignora */ } }, []);
+  useEffect(() => {
+    if (!showFocus) return undefined;
+    try { window.history.replaceState(window.history.state, '', '/foco'); } catch (e) { /* ignora */ }
+    return () => { try { if (/^\/foco\/?$/i.test(window.location.pathname)) window.history.replaceState(window.history.state, '', '/gestao-atividades'); } catch (e) { /* ignora */ } };
+  }, [showFocus]);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ priority: [], dueBucket: '', tags: [], status: '', waiting: false });
   const [showFilters, setShowFilters] = useState(false);
@@ -2462,6 +2471,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
           >
             <SlidersHorizontal size={13} /> Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
           </button>
+          {!publicMode && !readOnly && !embedded && <button className="pb-ghost" style={S.pbGhostBtn} title="Tela cheia para deixar aberta ao lado (iPad): o que está em andamento, o que vence e o que está esperando, por dia e por pessoa." onClick={() => setShowFocus(true)}><Target size={13} /> Foco</button>}
           <button className="pb-ghost" style={S.pbGhostBtn} title="Lista por responsável, com a atividade principal e as subatividades, para a reunião diária." onClick={() => setShowDaily(true)}><Users size={13} /> Daily</button>
           {!publicMode && !isMobile && (
             <button className="pb-ghost" style={{ ...S.pbGhostBtn, ...(activeBoard.visibility === 'public' ? { color: '#3ea6ff', borderColor: '#3ea6ff' } : {}) }} onClick={() => setShowShareModal(true)}>
@@ -2658,6 +2668,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
       )}
 
       {showStats && <React.Suspense fallback={null}><PersonalStatsPanel onClose={() => setShowStats(false)} /></React.Suspense>}
+      {showFocus && !publicMode && !readOnly && <React.Suspense fallback={null}><FocusScreen board={board} currentUser={currentUser} saveState={saveState} onMutate={onMutate} onOpenCard={(bid, colId, cardId) => { goToBoardPage(bid); openCardDetail(colId, cardId); }} onOpenDaily={() => { setShowFocus(false); setShowDaily(true); }} onClose={() => setShowFocus(false)} /></React.Suspense>}
       {showHistory && <React.Suspense fallback={null}><BoardHistoryPanel board={board} saveState={saveState} currentUser={currentUser} onMutate={onMutate} onRestored={onBoardRestored} onClose={() => setShowHistory(false)} /></React.Suspense>}
 
       {shareColumn && (

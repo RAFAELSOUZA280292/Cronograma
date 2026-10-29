@@ -1374,6 +1374,7 @@ function AppScreens({ shellRef, bump }) {
     }
     try {
       if (canOpenMode(mode, currentUser)) {
+        if (mode === 'personal' && /^\/foco\/?$/i.test(window.location.pathname)) { try { window.sessionStorage.setItem('pb-open-focus', '1'); } catch (e) { /* ignora */ } }
         if (mode === 'company') restoreCompanyPending.current = true;
         if (mode === 'crm') {
           // Link vindo da agenda do Google (…/crm?negocio=ID ou ?empresa=ID): abre direto o negócio ou a empresa.

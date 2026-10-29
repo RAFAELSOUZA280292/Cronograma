@@ -135,6 +135,8 @@ cartão = { id, title, desc, descFormat:'html'|ausente, status, priority, dueDat
 
 **1.7 Daily e exportação.** `DailyPanel` (PersonalBoard.jsx 1264) agrupa por responsável (atividade principal + subatividades) com filtro por prazo, pessoa e atividade; exporta Excel/PDF (`src/personal/dailyExport.js`). Não grava nada.
 
+**1.7b Foco de hoje (2026-10-29).** Tela cheia para segunda tela/iPad: `src/personal/FocusScreen.jsx` (UI, carregada sob demanda) + `src/personal/focus.js` (lógica pura). `buildFocus(board, { pageId, person, day, span, today })` separa cada atividade em **uma** coluna: aguardando → Atenção; `status === 'em-andamento'` → Agora; atrasada (prazo da atividade ou de um passo seu < hoje) → Atenção; prazo na janela do dia/semana → Próximos; o resto some. Um passo é "meu" se atribuído a mim, ou sem responsável numa atividade minha. Ações gravam pelo `onMutate` do quadro inteiro (`toggleStep`, `setCardStatus`), sem passar por `mutateBoardTree`: **não gravam o log público** de página compartilhada. Abre pelo botão **Foco** ou por `/foco` (rota apelido de `personal` em `routes.js`; o `App.jsx` deixa `pb-open-focus` no `sessionStorage` e `PersonalBoardScreen` consome). Camada `z-index: 46`, acima da barra do app (45) e abaixo dos diálogos (50/60). Preferências (pessoa, quadro) em `localStorage` `fx-prefs-<id>`; dia sempre volta a Hoje. Mantém a tela acesa por `navigator.wakeLock` (**não testado em iPad real**). Teste: `scripts/focus.test.mjs`.
+
 **1.8 Anotações e atalhos.** `GET/PUT /api/personal-extras` guardam em `users.preferences.personalExtras` (anotações HTML limpas + até 24 atalhos http/https). Ficam fora do quadro de propósito (o quadro pode ter link público).
 
 ### 2. Agenda + Google Calendar
@@ -361,6 +363,7 @@ Não há test runner; verificação = `npm run build` limpo + scripts descartáv
 | `scripts/e2e/board-coluna.mjs`, `board-voltar.mjs`, `board-adicionar-ao-painel.mjs` | Fluxos reais no Chromium (exigem `playwright-core` fora do projeto) |
 | `scripts/save-retry.test.mjs` | Quais erros repetem e em que tempo |
 | `scripts/daily-export.test.mjs` | Filtro de prazo e exportação da Daily |
+| `scripts/focus.test.mjs` | Foco de hoje: colunas, filtros de dia/pessoa/página, "eu", concluir passo e mudar status |
 | `scripts/inspiration-quotes.test.mjs` | Só frase conferida vai para a tela; nada reprovado entra |
 | `scripts/experience-http.test.mjs` | Só equipe é medida; resumo sem pessoa |
 | `scripts/renata-tools.test.mjs` | Ferramentas da RENATA no quadro (checklist, responsáveis, prazos) |

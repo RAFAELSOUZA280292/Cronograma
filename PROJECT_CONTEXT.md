@@ -8450,3 +8450,12 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - **Checklist:** os botões `S.chipX` (subir, descer, editar, remover, prazo, responsável) e a pílula de prazo ganharam `pb-dense` (§116v): voltam ao tamanho do desenho e a área de toque cresce por fora. As setas deixam de ficar desalinhadas e as linhas deixam de ocupar 44 px cada.
 - **Não testado:** aparelho real; medido em janela de 1000 px (mesma regra do iPad).
 
+## 116w. Foco de hoje: tela para o iPad como segunda/terceira tela (2026-10-29, pedido do Rafael)
+
+- **Pedido:** a Daily é um relatório lateral por quadro, feito para a reunião e para exportar. O Rafael queria algo **de relance**, filtrável por dia, pessoa e quadro, para deixar aberto no iPad: o que está fazendo, o que precisa fazer, o próximo passo. A Daily não mudou.
+- **O que é:** botão **Foco** (ao lado de Daily) ou `/foco`. Três colunas — **Agora** (em andamento, mostra 3, avisa se há mais), **Próximos** (vence no dia/semana, botão Começar), **Atenção** (atrasadas e "Aguardando") — mais **Feito hoje** em tela ≥ 1300 px. Cada atividade aparece uma vez. Toque no passo conclui; título abre o cartão por cima (a tela fica atrás); Esc sai.
+- **Regras que importam:** "Eu" = responsável com o nome do usuário (nome completo, ou primeiro nome se for único); passo sem responsável pertence a quem é dono da atividade; atividade sem prazo e fora de andamento não aparece (decisão de desenho: evitar o quadro inteiro na tela); atrasado e aguardando ignoram o dia escolhido.
+- **Arquivos:** `src/personal/focus.js` (lógica pura), `src/personal/FocusScreen.jsx`, ligação em `PersonalBoard.jsx` (botão, estado, `/foco`), `routes.js` (apelido `/foco`), `App.jsx` (marcador `pb-open-focus`), `scripts/focus.test.mjs` (14 checagens).
+- **Testado:** lógica em Node; no navegador em 1180 e 1366 px com dados locais (concluir passo, começar, Amanhã, Semana, outra pessoa, abrir cartão por cima, Esc, `/foco` direto, preferências lembradas); gravação e histórico conferidos no banco local.
+- **Não testado:** iPad real (toque, tela acesa por `wakeLock`, atalho na tela inicial em `/foco`); produção com os dados reais. **Limitações conhecidas:** as ações do Foco não entram no log público de uma página compartilhada; o Foco só enxerga as páginas do próprio quadro (não os quadros fixados de outras pessoas).
+

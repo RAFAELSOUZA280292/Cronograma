@@ -18,7 +18,7 @@ export const MODE_PATHS = {
 
 // Variantes que a pessoa pode digitar (sem hífen, nome antigo); sempre normalizadas pro endereço oficial.
 const ALIASES = {
-  '/gestaoatividades': 'personal', '/gestao-de-atividades': 'personal', '/atividades': 'personal',
+  '/gestaoatividades': 'personal', '/foco': 'personal', '/gestao-de-atividades': 'personal', '/atividades': 'personal',
   '/visaogeral': 'macro', '/visao-geral-empresas': 'macro',
   '/usuario': 'users', '/gestao-usuarios': 'users', '/gestao-de-usuarios': 'users',
   '/inteligencia-operacional': 'ops', '/central': 'ops',
