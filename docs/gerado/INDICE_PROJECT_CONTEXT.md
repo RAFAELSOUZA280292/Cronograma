@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8436 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8439 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -149,3 +149,4 @@ O `PROJECT_CONTEXT.md` tem 8436 linhas (a memória cronológica de cada decisão
 | 8413 | 120. Quadro público com botão "Voltar ao quadro anterior" (2026-10-27) | Pedido do Rafael (aba "Amanda" da Gestão de Atividades): link público para mandar um quadro a alguém, e a pessoa poder voltar ao quadro anterior, amb… |
 | 8420 | 121. Link público de UMA COLUNA da Gestão de Atividades (2026-10-27) | Correção do §120: no pedido "aba Amanda" eu li o print errado — AMANDA é uma coluna do quadro "OPERAÇÕES" (o cabeçalho do cartão mostra OPERAÇÕES / A… |
 | 8428 | 122. Coluna compartilhada no painel da pessoa, nos dois sentidos, com histórico (2026-10-27) | Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve poder adicionar o quadro ao próprio painel e, conforme cada um trabalha, … |
+| 8437 | 116u. Histórico do repositório público reescrito para tirar `exports/` (2026-10-29, ordem do Rafael) | git filter-branch --index-filter 'git rm -r --cached --ignore-unmatch exports' --prune-empty num clone espelho; main forçada com --force-with-lease c… |
