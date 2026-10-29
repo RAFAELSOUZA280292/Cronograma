@@ -74,12 +74,12 @@ export function registerPiperunRoutes(router, { need, h, orgOf, actorOf }) {
   }));
 
   // Arquivos do negócio (documentos importados do PipeRun)
-  router.get('/deals/:id/files', need('read'), h(async (req, res) => {
+  router.get('/deals/:id/files', need('export'), h(async (req, res) => {
     requireUuid(req.params.id, 'Negócio');
     const { rows } = await pool.query(`SELECT id, name, mime, size, source, created_at FROM crm_deal_files WHERE org_id=$1 AND deal_id=$2 AND deleted_at IS NULL ORDER BY created_at DESC`, [orgOf(req), req.params.id]);
     res.json({ files: rows.map((r) => ({ id: r.id, name: r.name, mime: r.mime, size: r.size, source: r.source, createdAt: r.created_at })) });
   }));
-  router.get('/deal-files/:fileId/download', need('read'), h(async (req, res) => {
+  router.get('/deal-files/:fileId/download', need('export'), h(async (req, res) => {
     requireUuid(req.params.fileId, 'Arquivo');
     const { rows } = await pool.query(`SELECT name, mime, data FROM crm_deal_files WHERE org_id=$1 AND id=$2 AND deleted_at IS NULL`, [orgOf(req), req.params.fileId]);
     if (!rows[0]) throw new CrmError(404, 'Arquivo não encontrado.');

@@ -188,10 +188,12 @@ ok('SQL direto (sem usuário) também é capturado, marcado como sistema', sql.a
 // 10. Excluir e recuperar empresa
 const delPid = 'oitmp-proj-2';
 await q(`INSERT INTO projects (id, data, org_id) VALUES ($1,$2,$3)`, [delPid, JSON.stringify({ ...baseProject(), id: delPid, company: { cnpj: '11.111.111/0001-11', name: 'Empresa Excluída Teste', areas: [] } }), ORG_A]);
-const dres = await call(C.staff, 'DELETE', `/api/projects/${delPid}`);
-ok('empresa excluída pela tela', dres.status === 200 && !(await q(`SELECT 1 FROM projects WHERE id=$1`, [delPid])).rows[0]);
+const dstaff = await call(C.staff, 'DELETE', `/api/projects/${delPid}`);
+ok('PRICETAX (não Master) NÃO exclui empresa (403) e ela continua (M12)', dstaff.status === 403 && !!(await q(`SELECT 1 FROM projects WHERE id=$1`, [delPid])).rows[0]);
+const dres = await call(C.master, 'DELETE', `/api/projects/${delPid}`);
+ok('empresa excluída pela tela (Master)', dres.status === 200 && !(await q(`SELECT 1 FROM projects WHERE id=$1`, [delPid])).rows[0]);
 const pd = (await versions(delPid)).rows;
-ok('a exclusão guardou o documento INTEIRO (pre_delete) e quem excluiu', pd.length === 1 && pd[0].kind === 'pre_delete' && pd[0].snapshot.company.name === 'Empresa Excluída Teste' && pd[0].snapshot.meetings !== undefined && pd[0].actor_name === 'Sergio Staff');
+ok('a exclusão guardou o documento INTEIRO (pre_delete) e quem excluiu', pd.length === 1 && pd[0].kind === 'pre_delete' && pd[0].snapshot.company.name === 'Empresa Excluída Teste' && pd[0].snapshot.meetings !== undefined && pd[0].actor_name === 'Marta Master');
 ok('PRICETAX não lista empresas excluídas (403)', (await call(C.staff, 'GET', '/api/project-history/deleted/list')).status === 403);
 const dl = await call(C.master, 'GET', '/api/project-history/deleted/list');
 ok('Master lista empresas excluídas', dl.status === 200 && dl.json.deleted.some((d) => d.projectId === delPid && d.companyName === 'Empresa Excluída Teste'));

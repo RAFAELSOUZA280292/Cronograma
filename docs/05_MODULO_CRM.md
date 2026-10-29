@@ -141,12 +141,13 @@ Tudo sob `/api/crm` (cookie) e espelhado em `/api/connect/crm` (chave). Todas ex
 | GET | `/projects-available` | write | — | projetos sem empresa | — |
 | GET | `/contacts`, `/contacts/:id` | read | `q, companyId, decisionRole, limit≤500` | `{total, items}` | 404 |
 | POST | `/contacts/check-duplicates`, `/contacts` | write | `email, phone, whatsapp`, `companyId, firstName…`, `force` | 201 `{contact}` | 409 duplicado (aviso); 404 empresa |
-| PATCH/DELETE | `/contacts/:id` | **write** (não `remove`) | campos | `{contact}` / `{ok}` | 404 |
+| PATCH | `/contacts/:id` | **write** | campos | `{contact}` | 404 |
+| DELETE | `/contacts/:id` | **remove** (gestor+; antes era `write`, 2026-10-29) | — | `{ok}` | 403, 404 |
 | GET | `/pipeline`, `/pipelines` | read | `pipelineId` | funil(is) e etapas | — |
 | POST/PATCH/DELETE | `/pipelines`, `/pipelines/:id`, POST `/pipelines/:id/stages` | funnel | `name`, `stages[]`, `isDefault`, `onWon` | `{pipelines[]}` | 409 nome repetido / funil padrão / funil com negócios; 409 etapa com negócios; 400 etapas |
 | GET | `/board` | read | `pipelineId, q, type, ownerId, source, tag, attention` | `{attention, pipeline, pipelines, stages[{deals[]}]}` | — |
 | GET | `/deals` | read | filtros abaixo | `{total, totalValue, totalWeighted, items[]}` | — |
-| GET | `/deals/export.xlsx` | **read** | mesmos filtros de `/deals` | arquivo `.xlsx` + cabeçalhos `X-Export-Count`, `X-Export-Total` | — |
+| GET | `/deals/export.xlsx` | **export** (gestor+, 2026-10-29) | mesmos filtros de `/deals` | arquivo `.xlsx` + cabeçalhos `X-Export-Count`, `X-Export-Total` | — |
 | GET | `/deals/:id` | read | — | negócio completo | 404 |
 | POST | `/deals` | write | `companyId, title, pipelineId, stageId, value, items[], ownerId, externalSource+externalId, skipCadence…` | 201 `{deal, cadence}` | 400/404; 409 chave externa repetida |
 | PATCH | `/deals/:id` | write (negócio **fechado**: só `remove`) | campos, `items[]` | `{deal}` | 403 "Negócio já fechado: só gestores podem editar." |
@@ -167,7 +168,7 @@ Tudo sob `/api/crm` (cookie) e espelhado em `/api/connect/crm` (chave). Todas ex
 | GET | `/import/fields` · POST `/import/preview`, `/import/commit` | import | `target (companies/contacts), rows[≤2000]` | contagens por status / `{created, skipped, failed[]}` | 400 limite de linhas |
 | GET | `/import/deals/fields` · POST `/import/deals/preview`, `/commit` | import | `rows[≤2000], ownerMap` | idem | 400 |
 | GET/POST | `/bootstrap/preview`, `/bootstrap/commit` | import | `keys[], withContacts` | `{created, linkedToExisting, projectsLinked…}` | — |
-| GET | `/deals/:id/files`, `/deal-files/:fileId/download` | read | — | lista / arquivo (BYTEA) | 404 |
+| GET | `/deals/:id/files`, `/deal-files/:fileId/download` | **export** (gestor+, 2026-10-29) | — | lista / arquivo (BYTEA) | 404 |
 | GET/POST | `/migration/piperun/*` | **admin** | ver "Importadores" | JSON | 409 execução em andamento |
 
 **Filtros de `GET /deals` e `/board`** (`dealFilters`): `q` (título, descrição, empresa, contatos, tags, notas do negócio e da empresa, atividades; sem acento/maiúscula), `type` (new/upsell), `ownerId` (id ou `none`), `pipelineId`, `source`, `tag` (várias, separadas por `|` ou repetidas; o negócio precisa ter **todas**), `attention` (`late`, `nonext`, `stalled` = +14 dias na etapa, `overdue` = previsão vencida), `companyId`, `externalSource`, `externalId`; só na lista: `status` (`open` padrão, `won`, `lost`, `all`), `stageId`, `sort` (`value`, `close`, `stage`; padrão `updated_at` desc), `limit≤200`, `offset`.
@@ -224,7 +225,7 @@ Fonte: `server/crm/permissions.js`. `master` e super admin viram **admin do CRM*
 
 Painéis (`LENSES_BY_ROLE`; o 1º é o que abre): admin/diretor/gestor = team, mine, revenue, accounts · vendedor/consultor = mine, accounts · financeiro = revenue, accounts · visualizacao = team, revenue, accounts.
 
-**Onde cada rota confere** (resumo; a tabela de rotas tem o detalhe): `read` = a barreira geral (`router.use(need('read'))`); `write` = criar/editar empresa, contato, negócio, atividade, nota, tags, lead rápido, mover negócio, consulta de CNPJ, projetos vinculados; `remove` = excluir empresa/negócio/atividade, unir empresas, ver auditoria, editar negócio fechado, moderar nota; `import` = `/import/*` e `/bootstrap/*`; `catalog` = produtos; `funnel` = funis, etapas, cadências e compartilhar visão; `admin` = restaurar empresa, ver empresas excluídas, migração PipeRun.
+**Onde cada rota confere** (resumo; a tabela de rotas tem o detalhe): `read` = a barreira geral (`router.use(need('read'))`); `write` = criar/editar empresa, contato, negócio, atividade, nota, tags, lead rápido, mover negócio, consulta de CNPJ, projetos vinculados; `remove` = excluir empresa/negócio/atividade/**contato**, unir empresas, ver auditoria, editar negócio fechado, moderar nota; `import` = `/import/*` e `/bootstrap/*`; `export` (nova, mesma régua de gestão: admin/diretor/gestor) = Excel de negócios e arquivos importados do PipeRun (`caps.export` esconde o botão e a seção de arquivos); `catalog` = produtos; `funnel` = funis, etapas, cadências e compartilhar visão; `admin` = restaurar empresa, ver empresas excluídas, migração PipeRun.
 
 **O que a tela esconde × o que o servidor garante**
 | Item | Servidor garante? |
@@ -232,7 +233,7 @@ Painéis (`LENSES_BY_ROLE`; o 1º é o que abre): admin/diretor/gestor = team, m
 | Botões Criar/Importar/Funis/Migrar, aba Auditoria, Excluir | Sim: cada rota tem `need(...)`. O botão só some por conforto (`caps.*` vem de `GET /me`). |
 | Painéis por perfil | Só a rota **com** `lens` confere (403). o filtro "meu" das demais listas é de tela; detalhe do ponto de endurecimento em `docs/11` (privado). |
 | Negócio fechado "só gestor edita" | `PATCH /deals/:id` confere (403). `POST /deals/:id/move` num negócio já fechado exige `remove` (gestor+), igual ao `PATCH` (403 "Negócio já fechado…"); teste em `scripts/crm-eduarda.test.mjs`. |
-| Excluir contato | `DELETE /contacts/:id` exige só `write` (consultor/vendedor excluem contato; exclusão lógica, com auditoria). |
+| Excluir contato | `DELETE /contacts/:id` exige `remove` (gestor+) desde 2026-10-29 (exclusão lógica, com auditoria). Vendedor/consultor não excluem: a tela esconde o botão. |
 
 ## Tipos de leitura e de saída
 | Leitura | Formato | Limites/ordenação |

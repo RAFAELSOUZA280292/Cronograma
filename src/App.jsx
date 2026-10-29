@@ -2337,7 +2337,7 @@ function AppScreens({ shellRef, bump }) {
           onLogout={handleLogout}
           onCreateNew={() => setShowCreateCompany(true)}
           onUpdateCompany={updateCompanyFields}
-          onDeleteCompany={deleteCompany}
+          onDeleteCompany={currentUser.role === 'master' || currentUser.isSuperAdmin ? deleteCompany : undefined}
           onCloneCompany={(p) => setCloningProject(p)}
           onGoPersonal={hasPersonal ? () => goToWorkspace('personal') : undefined}
           onGoUsers={currentUser.role === 'master' ? () => goToUsers(true) : undefined}

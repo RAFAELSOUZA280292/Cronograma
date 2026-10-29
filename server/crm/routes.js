@@ -140,7 +140,7 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
     const { force, ...input } = req.body || {};
     res.json({ contact: await S.updateContact(orgOf(req), actorOf(req), req.params.id, input, { force: !!force }) });
   }));
-  router.delete('/contacts/:id', need('write'), h(async (req, res) => res.json(await S.deleteContact(orgOf(req), actorOf(req), req.params.id))));
+  router.delete('/contacts/:id', need('remove'), h(async (req, res) => res.json(await S.deleteContact(orgOf(req), actorOf(req), req.params.id))));
 
   // ---- negócios / pipeline (Fase 2)
   router.get('/pipeline', h(async (req, res) => res.json(await DQ.getPipeline(orgOf(req), req.query.pipelineId || null))));
@@ -158,7 +158,7 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
     res.status(201).json({ deal, cadence: (req.body || {}).skipCadence ? { scheduled: null, cancelled: 0, skipped: true } : await X.cadenceAfterMove(orgOf(req), actorOf(req), deal) });
   }));
   // Excel dos negócios com os mesmos filtros da tela (§116c). Vem antes de /deals/:id para "export.xlsx" não virar um id.
-  router.get('/deals/export.xlsx', h(async (req, res) => {
+  router.get('/deals/export.xlsx', need('export'), h(async (req, res) => {
     const q = req.query || {};
     const r = await exportDealsXlsx(orgOf(req), { q: q.q, type: q.type, ownerId: q.ownerId, source: q.source, tag: q.tag, attention: q.attention, status: q.status, pipelineId: q.pipelineId, stageId: q.stageId });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

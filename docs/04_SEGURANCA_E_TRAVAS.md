@@ -459,6 +459,8 @@ O registro completo (gravidade, onde, como confirmar, plano de correção) fica 
 | Quadro pessoal: forma mínima validada; vincular quadro com a linha travada | gravar lixo que quebra o quadro; duas abas se apagarem | `routes.js` `PATCH /personal-board`, `addLinkedBoard` | 400 "Quadro inválido." |
 | Parecer só aceita PDF de verdade (`%PDF-` nos primeiros bytes) | arquivo disfarçado de PDF | `pareceres.js` | 400 "O arquivo não é um PDF válido." |
 | Equipe vista pelo cliente sem o login (`username`) | enumeração de contas | `routes.js` `team-candidates` | — |
+| CRM: excluir contato (`remove`), Excel de negócios e arquivos do PipeRun (`export`) só para gestor+ | vendedor/consultor/financeiro levar a base de contatos embora ou apagar contato | `crm/permissions.js` (`export`), `crm/routes.js`, `crm/piperun/routes.js` | 403 "Você não tem permissão pra isso no CRM." |
+| Excluir empresa só Master/Super Admin (tela, rota e ferramenta da RENATA) | PRICETAX comum apagar o cronograma de um cliente | `routes.js` `DELETE /projects/:id`; `renata/tools/empresas.js` `empresa_excluir`; `AdminScreens.jsx` | 403 "Só administradores (Master) excluem empresas." |
 | Métricas de IA da RENATA operacional gravadas com a base de quem perguntou | custo invisível | `renata/index.js` `logUsage` |
 | `isISODay` do `/plan` valida o dia de verdade | `2026-02-31` aceito | `connect.js` (reusa `meetingEdit.js`) |
 

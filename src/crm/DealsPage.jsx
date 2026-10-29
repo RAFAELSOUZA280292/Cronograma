@@ -425,7 +425,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
             <option value="open">Em aberto</option><option value="won">Ganhos</option><option value="lost">Perdidos</option><option value="all">Todos</option>
           </select>
         )}
-        <button type="button" className="crm-btn" onClick={doExport} disabled={exporting} title={exporting ? 'Aguarde terminar a exportação' : `Baixar em Excel os negócios ${view === 'list' ? 'desta lista' : 'em aberto deste quadro'}, com os filtros aplicados (inclui e-mail, telefone e link do WhatsApp)`}><Download size={14} /> {exporting ? 'Exportando…' : 'Exportar Excel'}</button>
+        {caps.export && <button type="button" className="crm-btn" onClick={doExport} disabled={exporting} title={exporting ? 'Aguarde terminar a exportação' : `Baixar em Excel os negócios ${view === 'list' ? 'desta lista' : 'em aberto deste quadro'}, com os filtros aplicados (inclui e-mail, telefone e link do WhatsApp)`}><Download size={14} /> {exporting ? 'Exportando…' : 'Exportar Excel'}</button>}
         {hasFilter && <button type="button" className="crm-btn" onClick={() => { setQ(''); setFilters(EMPTY_FILTERS); }}>Limpar</button>}
       </div>
 

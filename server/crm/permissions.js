@@ -15,6 +15,8 @@ const CAPABILITIES = {
   write: ['admin', 'diretor', 'gestor', 'vendedor', 'consultor'],
   remove: ['admin', 'diretor', 'gestor'],
   import: ['admin', 'diretor', 'gestor'],
+  // Levar dado em massa para fora (Excel de negócios com e-mail/telefone) e abrir os documentos importados do PipeRun: só gestão (M7, 2026-10-29).
+  export: ['admin', 'diretor', 'gestor'],
   admin: ['admin'],
   // Catálogo de produtos (Fase 2): quem define o que a PRICETAX vende.
   catalog: ['admin', 'diretor', 'gestor'],
@@ -48,6 +50,6 @@ export function crmCapabilities(user) {
     role,
     roleLabel: CRM_ROLE_LABELS[role] || '',
     read: crmCan(user, 'read'), write: crmCan(user, 'write'), remove: crmCan(user, 'remove'),
-    import: crmCan(user, 'import'), admin: crmCan(user, 'admin'), catalog: crmCan(user, 'catalog'), funnel: crmCan(user, 'funnel'),
+    import: crmCan(user, 'import'), export: crmCan(user, 'export'), admin: crmCan(user, 'admin'), catalog: crmCan(user, 'catalog'), funnel: crmCan(user, 'funnel'),
   };
 }

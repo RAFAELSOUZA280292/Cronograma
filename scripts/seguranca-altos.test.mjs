@@ -14,7 +14,7 @@ const PASS = crypto.randomBytes(12).toString('base64url');
 const RUN = crypto.randomBytes(3).toString('hex');
 const PID = `sga_proj_${RUN}`;
 const CNPJ = '99.888.777/0001-66';
-const U = { cc: `sga_cc_${RUN}`, adm: `sga_adm_${RUN}`, sup: `sga_sup_${RUN}`, cli: `sga_cli_${RUN}`, pt: `sga_pt_${RUN}`, vic: `sga_vic_${RUN}`, bru: `sga_bru_${RUN}` };
+const U = { gest: `sga_gest_${RUN}`, vend: `sga_vend_${RUN}`, cc: `sga_cc_${RUN}`, adm: `sga_adm_${RUN}`, sup: `sga_sup_${RUN}`, cli: `sga_cli_${RUN}`, pt: `sga_pt_${RUN}`, vic: `sga_vic_${RUN}`, bru: `sga_bru_${RUN}` };
 let failed = 0;
 const ok = (n, c, e) => { if (c) console.log(`ok   ${n}`); else { failed += 1; console.log(`FAIL ${n}${e !== undefined ? ` -> ${JSON.stringify(e)}` : ''}`); } };
 const pool = new pg.Pool({ connectionString: DB });
@@ -22,6 +22,7 @@ const hash = await bcrypt.hash(PASS, 10);
 async function cleanup() {
   await pool.query(`DELETE FROM project_memory_chunks WHERE project_id LIKE 'sga_%'`).catch(() => {});
   await pool.query(`DELETE FROM projects WHERE id LIKE 'sga_%'`).catch(() => {});
+  await pool.query(`DELETE FROM project_versions WHERE project_id LIKE 'sga_%'`).catch(() => {});
   await pool.query(`DELETE FROM user_access_events WHERE user_id LIKE 'sga_%'`).catch(() => {});
   await pool.query(`DELETE FROM personal_boards WHERE user_id LIKE 'sga_%'`).catch(() => {});
   await pool.query(`DELETE FROM users WHERE id LIKE 'sga_%'`);
@@ -29,6 +30,7 @@ async function cleanup() {
 await cleanup();
 const mk = (id, role, extra = '') => pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,companies_access,all_companies_access${extra ? ',is_super_admin' : ''}) VALUES ($1,$1,$2,$1,$3,$4,true,true${extra ? ',true' : ''})`, [id, hash, role, ORG]);
 await pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,companies_access,all_companies_access,allowed_cnpjs) VALUES ($1,$1,$2,$1,'cliente',$3,true,false,$4)`, [U.cc, hash, ORG, JSON.stringify([CNPJ])]);
+await pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,companies_access,all_companies_access,crm_role) VALUES ($1,$1,$2,$1,'pricetax',$3,true,true,'gestor'), ($4,$4,$2,$4,'pricetax',$3,true,true,'vendedor')`, [U.gest, hash, ORG, U.vend]);
 await mk(U.adm, 'master'); await mk(U.sup, 'master', 'super'); await mk(U.cli, 'cliente'); await mk(U.pt, 'pricetax'); await mk(U.vic, 'pricetax'); await mk(U.bru, 'pricetax');
 
 const call = async (cookie, method, path, body, ip) => {
@@ -261,6 +263,22 @@ try {
   ok('M13: cliente recebe a equipe SEM o campo username', tc.status === 200 && tc.json.users.length > 0 && tc.json.users.every((u) => !('username' in u)), tc.json);
   const tcStaff = await call(adm.cookie, 'GET', `/api/projects/${PID}/team-candidates`);
   ok('M13: equipe continua recebendo o username', tcStaff.status === 200 && tcStaff.json.users.every((u) => 'username' in u));
+
+  // ---- M6/M7: contato, Excel e arquivos do PipeRun só para gestão; M12: excluir empresa só Master
+  const vend = await login(U.vend, PASS, '203.0.113.60'); const gest = await login(U.gest, PASS, '203.0.113.61');
+  const FAKE = '00000000-0000-4000-8000-000000000001';
+  const capV = (await call(vend.cookie, 'GET', '/api/crm/me')).json.capabilities; const capG = (await call(gest.cookie, 'GET', '/api/crm/me')).json.capabilities;
+  ok('M7: o perfil expõe a capacidade `export` (vendedor não, gestor sim)', capV.export === false && capG.export === true, [capV, capG]);
+  ok('M7: vendedor NÃO baixa o Excel de negócios (403); gestor baixa (200)', (await call(vend.cookie, 'GET', '/api/crm/deals/export.xlsx')).status === 403 && (await fetch(`${BASE}/api/crm/deals/export.xlsx`, { headers: { Cookie: gest.cookie } })).status === 200);
+  ok('M7: vendedor NÃO lista nem baixa arquivos importados do PipeRun (403); gestor passa da trava', (await call(vend.cookie, 'GET', `/api/crm/deals/${FAKE}/files`)).status === 403 && (await call(vend.cookie, 'GET', `/api/crm/deal-files/${FAKE}/download`)).status === 403 && (await call(gest.cookie, 'GET', `/api/crm/deals/${FAKE}/files`)).status === 200 && (await call(gest.cookie, 'GET', `/api/crm/deal-files/${FAKE}/download`)).status === 404);
+  const dc = await call(vend.cookie, 'DELETE', `/api/crm/contacts/${FAKE}`);
+  ok('M6: vendedor NÃO exclui contato (403); gestor passa da trava (cai em 404 de contato inexistente)', dc.status === 403 && (await call(gest.cookie, 'DELETE', `/api/crm/contacts/${FAKE}`)).status === 404, dc);
+  const PID3 = `sga_del_${RUN}`;
+  await pool.query('INSERT INTO projects (id, data, org_id) VALUES ($1,$2,$3)', [PID3, JSON.stringify({ id: PID3, company: { name: 'Empresa Excluir Teste', cnpj: '77.666.555/0001-44' }, team: [], phases: [], activities: [], meetings: [], log: [] }), ORG]);
+  const delPt = await call(vend.cookie, 'DELETE', `/api/projects/${PID3}`);
+  ok('M12: usuário PRICETAX (não Master) NÃO exclui empresa (403) e a empresa continua lá', delPt.status === 403 && (await pool.query('SELECT 1 FROM projects WHERE id=$1', [PID3])).rows.length === 1, delPt);
+  const delAdm = await call(adm.cookie, 'DELETE', `/api/projects/${PID3}`);
+  ok('M12: Master exclui (200)', delAdm.status === 200 && (await pool.query('SELECT 1 FROM projects WHERE id=$1', [PID3])).rows.length === 0, delAdm);
 
   // ---- M5/M10/M17/M21 e cabeçalhos
   const hd = await fetch(`${BASE}/api/auth/me`);

@@ -47,7 +47,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/crm/funnels.js` | 184 | CRM — funis e etapas (Fase 2b, 2026-09-20, PROJECT_CONTEXT.md §58). A Fase 2 nasceu com um funil |
 | `server/crm/googleSync.js` | 114 | Atividade do CRM ↔ Google Calendar do RESPONSÁVEL (2026-10-26, pedido do Rafael: "quando a Eduarda criar uma atividade para ela, já adicione na |
 | `server/crm/importer.js` | 234 | Importação de planilha Excel/CSV (PRD 48) — a leitura do arquivo e o |
-| `server/crm/permissions.js` | 54 | Permissões do CRM (2026-09-20, ver PROJECT_CONTEXT.md §54). Coluna própria |
+| `server/crm/permissions.js` | 56 | Permissões do CRM (2026-09-20, ver PROJECT_CONTEXT.md §54). Coluna própria |
 | `server/crm/pipeline.js` | 84 | CRM — pipeline (Fase 2, 2026-09-20, PROJECT_CONTEXT.md §55). |
 | `server/crm/piperun/client.js` | 49 | Cliente da API do PipeRun (§84) — SÓ LEITURA (GET). O token vem de quem pediu a extração, fica na memória durante a execução e nunca é gravado nem registrado em log. |
 | `server/crm/piperun/extract.js` | 77 | Extração PipeRun → cópia bruta (§84). Só leitura na API; grava em piperun_raw (um registro por id, atualizado se rodar de novo). O token fica só na memória desta execução. |
@@ -137,7 +137,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/tools/reports.js` | 66 | Relatórios e visão da equipe (somente leitura) — §101: "o que a minha equipe fez hoje", atrasos por responsável e quem sou eu / quem é a equipe. |
 | `server/renata/validate.js` | 81 | Validador de parâmetros das ferramentas da RENATA (§101): subconjunto de JSON Schema suficiente para o catálogo. Rejeita campo desconhecido |
 | `server/richNote.js` | 55 | Descrição formatada dos cartões do quadro pessoal (2026-10-07): o campo `desc` continua sendo uma string — texto simples |
-| `server/routes.js` | 1321 |  |
+| `server/routes.js` | 1323 |  |
 | `server/scripts/reindexAllMeetings.js` | 30 | Backfill manual da memória do projeto (2026-09, Fase 1 do Assistente |
 | `server/secretBox.js` | 30 | Cofre simples para segredos guardados no banco (M2, 2026-10-29): AES-256-GCM com chave derivada de TOKEN_ENC_KEY (ou, na falta, do JWT_SECRET). |
 | `server/shareTokens.js` | 41 | Tokens de link público (A9, 2026-10-29). A tela gera o token com `crypto.getRandomValues` (48 hex = 192 bits), mas o servidor não pode confiar nisso: |

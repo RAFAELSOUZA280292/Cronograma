@@ -395,9 +395,10 @@ function await_name(p, stages) { return stages.some((r) => r.pipeline.trim().toL
 // ---------- 7. Arquivos pela API + isolamento ----------
 const anyDeal = (await q(`SELECT deal_id FROM crm_deal_files WHERE org_id=$1 LIMIT 1`, [ORG])).rows[0];
 if (anyDeal) {
-  const fl = await call(C.vend, 'GET', `/api/crm/deals/${anyDeal.deal_id}/files`);
-  ok('quem lê o CRM (vendedor) lista os arquivos do negócio', fl.status === 200 && fl.json.files.length >= 1 && fl.json.files[0].source === 'piperun');
-  const dl = await call(C.vend, 'GET', `/api/crm/deal-files/${fl.json.files[0].id}/download`);
+  ok('vendedor NÃO lista nem baixa arquivos do PipeRun (403, M7)', (await call(C.vend, 'GET', `/api/crm/deals/${anyDeal.deal_id}/files`)).status === 403);
+  const fl = await call(C.admin, 'GET', `/api/crm/deals/${anyDeal.deal_id}/files`);
+  ok('quem tem a capacidade de exportar (administrador) lista os arquivos do negócio', fl.status === 200 && fl.json.files.length >= 1 && fl.json.files[0].source === 'piperun');
+  const dl = await call(C.admin, 'GET', `/api/crm/deal-files/${fl.json.files[0].id}/download`);
   ok('download entrega o conteúdo, com cabeçalhos seguros', dl.status === 200 && dl.buf.length > 0 && dl.headers.get('x-content-type-options') === 'nosniff' && /attachment/.test(dl.headers.get('content-disposition')), { st: dl.status });
   ok('outra organização não baixa o arquivo (404)', (await call(C.admin2, 'GET', `/api/crm/deal-files/${fl.json.files[0].id}/download`)).status === 404);
   ok('outra organização não lista os arquivos', (await call(C.admin2, 'GET', `/api/crm/deals/${anyDeal.deal_id}/files`)).json.files.length === 0);

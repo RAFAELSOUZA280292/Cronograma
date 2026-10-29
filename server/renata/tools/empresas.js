@@ -309,8 +309,8 @@ export function registerEmpresas(registry) {
     route: { method: 'POST', path: '/api/projects' }, map: (i) => ({ company: { name: i.name, ...(i.nomeFantasia ? { nomeFantasia: i.nomeFantasia } : {}), ...(i.cnpj ? { cnpj: i.cnpj } : {}) }, ...(i.kickoffDate ? { kickoffDate: i.kickoffDate } : {}) }),
     describe: (i) => `CRIAR a empresa “${i.nomeFantasia || i.name}” com o cronograma padrão${i.kickoffDate ? ` (kickoff ${i.kickoffDate})` : ''}.`,
     summarize: (i, r) => `Empresa “${(r.project && r.project.company && (r.project.company.nomeFantasia || r.project.company.name)) || i.name}” criada (id ${r.project && r.project.id}).` });
-  registry.add({ ...base, name: 'empresa_excluir', summary: 'EXCLUI DE VEZ uma empresa e todo o cronograma dela (não há lixeira). Exige que a pessoa digite o nome exato da empresa (nomeConfirmado) e sempre pede confirmação. Só use se a pessoa pediu isso explicitamente.', risk: 'critical',
-    visible: (u) => isStaff(u) && canSee(u),
+  registry.add({ ...base, name: 'empresa_excluir', summary: 'EXCLUI uma empresa e todo o cronograma dela (some da lista; fica só uma cópia por 1 ano que apenas um Master recupera; links públicos, dossiê e reservas não voltam). Só administrador (Master). Exige que a pessoa digite o nome exato da empresa (nomeConfirmado) e sempre pede confirmação. Só use se a pessoa pediu isso explicitamente.', risk: 'critical',
+    visible: (u) => (u.role === 'master' || u.isSuperAdmin) && canSee(u),
     params: T.obj({ id: T.str('Id da empresa'), nomeConfirmado: T.str('Nome da empresa exatamente como a PESSOA digitou para confirmar') }, ['id', 'nomeConfirmado']),
     before: async (ctx, i) => { const r = (await loadVisible(ctx)).find((x) => x.id === i.id); return r ? { empresa: name(r.data), atividades: alive(r.data.activities).length, reunioes: alive(r.data.meetings).length } : undefined; },
     describe: (i, b) => `EXCLUIR DE VEZ a empresa “${(b && b.empresa) || i.id}”${b ? ` (${b.atividades} atividades, ${b.reunioes} reuniões)` : ''} — sem lixeira.`,

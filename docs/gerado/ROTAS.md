@@ -71,33 +71,33 @@ Arquivos: `server/routes.js`.
 | GET | `/api/projects/lite` | `requireAuth` | inteiro de cada projeto, que já é pesado (é por isso que Pareceres guarda o PDF numa tabela própria em vez de embutir em `projects.data`, ver PROJECT_CONTEXT.md §48). | `server/routes.js:475` |
 | POST | `/api/projects` | `requireAuth` `requireMasterOrPricetax` |  | `server/routes.js:488` |
 | POST | `/api/cnpj/lookup` | `requireAuth` `requireMasterOrPricetax` |  | `server/routes.js:534` |
-| DELETE | `/api/projects/:id` | `requireAuth` `requireMasterOrPricetax` |  | `server/routes.js:542` |
-| GET | `/api/projects/:id/team-candidates` | `requireAuth` |  | `server/routes.js:555` |
-| PATCH | `/api/projects/:id` | `requireAuth` |  | `server/routes.js:574` |
-| POST | `/api/projects/:id/meetings` | `requireAuth` `requireMasterOrPricetax` | Reuniões à mão, mas numa transação travada (não pisa em quem está editando) e sem limite de tamanho prático no texto. Só equipe PRICETAX. Idempotente: mesma data + mesmo… | `server/routes.js:623` |
-| POST | `/api/projects/:id/plan` | `requireAuth` `requireMaster` | Ajustar o cronograma de uma empresa por operações (mesmo motor do /api/connect/companies/:id/plan, mas pela sessão — 2026-10-26): activity.set/add, sub.set/add/move/dele… | `server/routes.js:675` |
-| POST | `/api/_internal/memory-search` | `requireAuth` | recuperada corretamente, com o mesmo isolamento de acesso de qualquer outra rota de projeto. | `server/routes.js:707` |
-| GET | `/api/personal-board` | `requireAuth` |  | `server/routes.js:725` |
-| GET | `/api/personal-board/version` | `requireAuth` | Versão barata do quadro (só o carimbo): o cliente consulta de tempos em tempos para saber se OUTRA origem (a API de conectividade, §80, ou o quadro público) alterou o qu… | `server/routes.js:737` |
-| PATCH | `/api/personal-board` | `requireAuth` |  | `server/routes.js:774` |
-| GET | `/api/personal-board/stats` | `requireAuth` |  | `server/routes.js:819` |
-| GET | `/api/personal-board/stats/day` | `requireAuth` |  | `server/routes.js:832` |
-| GET | `/api/notifications` | `requireAuth` |  | `server/routes.js:850` |
-| GET | `/api/notifications/preferences` | `requireAuth` | Quais categorias o usuário quer ver — por usuário, fica salvo até ele mudar (users.preferences.notifications). | `server/routes.js:862` |
-| PUT | `/api/notifications/preferences` | `requireAuth` |  | `server/routes.js:870` |
-| GET | `/api/personal-extras` | `requireAuth` | Anotações rápidas e atalhos da pessoa (users.preferences.personalExtras) — fora do quadro porque o quadro pode ter link público. | `server/routes.js:897` |
-| PUT | `/api/personal-extras` | `requireAuth` |  | `server/routes.js:904` |
-| POST | `/api/client-error` | `requireAuth` | Erro de tela capturado por um limite de erro do navegador → uma linha no log do servidor. Só com login, com limite por pessoa. | `server/routes.js:918` |
-| PATCH | `/api/notifications/:id` | `requireAuth` |  | `server/routes.js:927` |
-| POST | `/api/notifications/read-all` | `requireAuth` |  | `server/routes.js:940` |
-| POST | `/api/notifications/mark-read-for-target` | `requireAuth` | atividade) — regra do Rafael: só sai do contador quando lida OU quando acessada, nunca só por abrir o painel do sino. | `server/routes.js:951` |
-| GET | `/api/public-board/:token` | `optionalAuth` |  | `server/routes.js:1017` |
-| POST | `/api/personal-board/linked` | `requireAuth` |  | `server/routes.js:1077` |
-| PATCH | `/api/public-board/:token` | `requireAuth` |  | `server/routes.js:1120` |
-| GET | `/api/public-meeting/:token` | `optionalAuth` |  | `server/routes.js:1219` |
-| GET | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1262` |
-| POST | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1274` |
-| PATCH | `/api/organizations/:id` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1290` |
+| DELETE | `/api/projects/:id` | `requireAuth` | Excluir empresa é físico (fica só a cópia `pre_delete` em project_versions por 1 ano): só administrador — Master ou Super Admin (M12, 2026-10-29). | `server/routes.js:543` |
+| GET | `/api/projects/:id/team-candidates` | `requireAuth` |  | `server/routes.js:557` |
+| PATCH | `/api/projects/:id` | `requireAuth` |  | `server/routes.js:576` |
+| POST | `/api/projects/:id/meetings` | `requireAuth` `requireMasterOrPricetax` | Reuniões à mão, mas numa transação travada (não pisa em quem está editando) e sem limite de tamanho prático no texto. Só equipe PRICETAX. Idempotente: mesma data + mesmo… | `server/routes.js:625` |
+| POST | `/api/projects/:id/plan` | `requireAuth` `requireMaster` | Ajustar o cronograma de uma empresa por operações (mesmo motor do /api/connect/companies/:id/plan, mas pela sessão — 2026-10-26): activity.set/add, sub.set/add/move/dele… | `server/routes.js:677` |
+| POST | `/api/_internal/memory-search` | `requireAuth` | recuperada corretamente, com o mesmo isolamento de acesso de qualquer outra rota de projeto. | `server/routes.js:709` |
+| GET | `/api/personal-board` | `requireAuth` |  | `server/routes.js:727` |
+| GET | `/api/personal-board/version` | `requireAuth` | Versão barata do quadro (só o carimbo): o cliente consulta de tempos em tempos para saber se OUTRA origem (a API de conectividade, §80, ou o quadro público) alterou o qu… | `server/routes.js:739` |
+| PATCH | `/api/personal-board` | `requireAuth` |  | `server/routes.js:776` |
+| GET | `/api/personal-board/stats` | `requireAuth` |  | `server/routes.js:821` |
+| GET | `/api/personal-board/stats/day` | `requireAuth` |  | `server/routes.js:834` |
+| GET | `/api/notifications` | `requireAuth` |  | `server/routes.js:852` |
+| GET | `/api/notifications/preferences` | `requireAuth` | Quais categorias o usuário quer ver — por usuário, fica salvo até ele mudar (users.preferences.notifications). | `server/routes.js:864` |
+| PUT | `/api/notifications/preferences` | `requireAuth` |  | `server/routes.js:872` |
+| GET | `/api/personal-extras` | `requireAuth` | Anotações rápidas e atalhos da pessoa (users.preferences.personalExtras) — fora do quadro porque o quadro pode ter link público. | `server/routes.js:899` |
+| PUT | `/api/personal-extras` | `requireAuth` |  | `server/routes.js:906` |
+| POST | `/api/client-error` | `requireAuth` | Erro de tela capturado por um limite de erro do navegador → uma linha no log do servidor. Só com login, com limite por pessoa. | `server/routes.js:920` |
+| PATCH | `/api/notifications/:id` | `requireAuth` |  | `server/routes.js:929` |
+| POST | `/api/notifications/read-all` | `requireAuth` |  | `server/routes.js:942` |
+| POST | `/api/notifications/mark-read-for-target` | `requireAuth` | atividade) — regra do Rafael: só sai do contador quando lida OU quando acessada, nunca só por abrir o painel do sino. | `server/routes.js:953` |
+| GET | `/api/public-board/:token` | `optionalAuth` |  | `server/routes.js:1019` |
+| POST | `/api/personal-board/linked` | `requireAuth` |  | `server/routes.js:1079` |
+| PATCH | `/api/public-board/:token` | `requireAuth` |  | `server/routes.js:1122` |
+| GET | `/api/public-meeting/:token` | `optionalAuth` |  | `server/routes.js:1221` |
+| GET | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1264` |
+| POST | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1276` |
+| PATCH | `/api/organizations/:id` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1292` |
 
 ## `(sem prefixo conhecido)` — 2 rotas
 
@@ -197,8 +197,8 @@ Arquivos: `server/crm/piperun/routes.js`, `server/crm/routes.js`. Proteção do 
 | POST | `/api/crm/migration/piperun/import` | `need('admin')` |  | `server/crm/piperun/routes.js:57` |
 | GET | `/api/crm/migration/piperun/report` | `need('admin')` |  | `server/crm/piperun/routes.js:69` |
 | POST | `/api/crm/migration/piperun/purge` | `need('admin')` |  | `server/crm/piperun/routes.js:71` |
-| GET | `/api/crm/deals/:id/files` | `need('read')` | Arquivos do negócio (documentos importados do PipeRun) | `server/crm/piperun/routes.js:77` |
-| GET | `/api/crm/deal-files/:fileId/download` | `need('read')` |  | `server/crm/piperun/routes.js:82` |
+| GET | `/api/crm/deals/:id/files` | `need('export')` | Arquivos do negócio (documentos importados do PipeRun) | `server/crm/piperun/routes.js:77` |
+| GET | `/api/crm/deal-files/:fileId/download` | `need('export')` |  | `server/crm/piperun/routes.js:82` |
 | GET | `/api/crm/me` |  |  | `server/crm/routes.js:58` |
 | GET | `/api/crm/options` |  |  | `server/crm/routes.js:59` |
 | GET | `/api/crm/overview` |  |  | `server/crm/routes.js:60` |
@@ -228,7 +228,7 @@ Arquivos: `server/crm/piperun/routes.js`, `server/crm/routes.js`. Proteção do 
 | POST | `/api/crm/contacts/check-duplicates` | `need('write')` |  | `server/crm/routes.js:131` |
 | POST | `/api/crm/contacts` | `need('write')` |  | `server/crm/routes.js:135` |
 | PATCH | `/api/crm/contacts/:id` | `need('write')` |  | `server/crm/routes.js:139` |
-| DELETE | `/api/crm/contacts/:id` | `need('write')` |  | `server/crm/routes.js:143` |
+| DELETE | `/api/crm/contacts/:id` | `need('remove')` |  | `server/crm/routes.js:143` |
 | GET | `/api/crm/pipeline` |  | ---- negócios / pipeline (Fase 2) | `server/crm/routes.js:146` |
 | GET | `/api/crm/pipelines` |  | ---- funis e etapas (Fase 2b): todos leem; gestor+ configura | `server/crm/routes.js:149` |
 | POST | `/api/crm/pipelines` | `need('funnel')` |  | `server/crm/routes.js:150` |
@@ -238,7 +238,7 @@ Arquivos: `server/crm/piperun/routes.js`, `server/crm/routes.js`. Proteção do 
 | GET | `/api/crm/board` |  |  | `server/crm/routes.js:154` |
 | GET | `/api/crm/deals` |  |  | `server/crm/routes.js:155` |
 | POST | `/api/crm/deals` | `need('write')` |  | `server/crm/routes.js:156` |
-| GET | `/api/crm/deals/export.xlsx` |  | Excel dos negócios com os mesmos filtros da tela (§116c). Vem antes de /deals/:id para "export.xlsx" não virar um id. | `server/crm/routes.js:161` |
+| GET | `/api/crm/deals/export.xlsx` | `need('export')` | Excel dos negócios com os mesmos filtros da tela (§116c). Vem antes de /deals/:id para "export.xlsx" não virar um id. | `server/crm/routes.js:161` |
 | GET | `/api/crm/deals/:id` |  |  | `server/crm/routes.js:170` |
 | PATCH | `/api/crm/deals/:id` | `need('write')` |  | `server/crm/routes.js:171` |
 | POST | `/api/crm/leads` | `need('write')` |  | `server/crm/routes.js:172` |

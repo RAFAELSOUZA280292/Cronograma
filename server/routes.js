@@ -539,8 +539,10 @@ router.post('/cnpj/lookup', requireAuth, requireMasterOrPricetax, async (req, re
   } catch (e) { next(e); }
 });
 
-router.delete('/projects/:id', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
+// Excluir empresa é físico (fica só a cópia `pre_delete` em project_versions por 1 ano): só administrador — Master ou Super Admin (M12, 2026-10-29).
+router.delete('/projects/:id', requireAuth, async (req, res, next) => {
   try {
+    if (!(req.user.role === 'master' || req.user.isSuperAdmin)) return res.status(403).json({ message: 'Só administradores (Master) excluem empresas.' });
     const { id } = req.params;
     const { rows } = await pool.query('SELECT data, org_id FROM projects WHERE id=$1', [id]);
     if (!rows[0]) return res.status(404).json({ message: 'Projeto não encontrado.' });

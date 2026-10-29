@@ -169,7 +169,7 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
 
                 <DealTags dealId={dealId} tags={d.tags} canEdit={!!caps.write} onChanged={afterChange} />
 
-                <DealFiles dealId={dealId} />
+                {caps.export && <DealFiles dealId={dealId} />}
 
                 {d.status === 'open' && !data.activities.some((a) => a.status === 'open') && (
                   <div className="crm-alert crm-alert-warn" style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>

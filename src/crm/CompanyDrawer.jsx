@@ -243,7 +243,7 @@ function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, on
                         <tr key={c.id} onClick={() => caps.write && setContactForm({ contact: c })}>
                           <td><span className="crm-name">{contactLabel(c)}</span>{c.isPrimary && ' ★'}<div className="crm-muted">{roleLabel(c.decisionRole)}</div></td>
                           <td>{c.jobTitle || c.department}</td><td>{c.email}</td><td><ContactLinks phone={c.phone} whatsapp={c.whatsapp} compact /></td><td>{INFLUENCE_LABELS[c.influence] || ''}</td>
-                          <td onClick={(e) => e.stopPropagation()}>{caps.write && <button type="button" className="crm-icon-btn" title="Remover contato" aria-label="Remover contato" onClick={() => removeContact(c)}><Trash2 size={14} aria-hidden="true" /></button>}</td>
+                          <td onClick={(e) => e.stopPropagation()}>{caps.remove && <button type="button" className="crm-icon-btn" title="Remover contato" aria-label="Remover contato" onClick={() => removeContact(c)}><Trash2 size={14} aria-hidden="true" /></button>}</td>
                         </tr>
                       ))}
                     </tbody>

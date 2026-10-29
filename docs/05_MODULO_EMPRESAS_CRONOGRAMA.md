@@ -107,7 +107,7 @@ Este documento **não** cobre (ver outros): CRM (`/api/crm`), RENATA (chat/ferra
 ### 4. Pausar, excluir, restaurar
 - **Pausar** (`updateCompanyFields`, só front): `company.status='pausado'` e cada atividade ativa vira `pausado` guardando `statusBeforePause`; retomar devolve. A empresa some da lista principal.
 - **Excluir atividade/subatividade/reunião/tarefa:** exclusão lógica no JSON (`deleted:true, deletedAt, deletedBy`); a **Lixeira** (botão no cabeçalho, só PRICETAX/master) restaura atividades e subatividades.
-- **Excluir empresa:** `DELETE /api/projects/:id` é **exclusão física** (`DELETE FROM projects`). O gatilho `project_versions_del` antes guarda o documento inteiro como versão `pre_delete`; só Master recria (botão "Empresas excluídas"). As tabelas filhas com FK em `projects` (14 com `ON DELETE CASCADE`, 2 com `SET NULL`, conforme `docs/gerado/BANCO.md`) apagam ou perdem o vínculo (ver **Dados**). O texto de `docs/VERSIONAMENTO_CRONOGRAMA.md` diz 13; o banco gerado mostra 14.
+- **Excluir empresa** (só Master/Super Admin desde 2026-10-29; PRICETAX comum recebe 403 e não vê o botão; a ferramenta `empresa_excluir` da RENATA também só aparece para Master): `DELETE /api/projects/:id` é **exclusão física** (`DELETE FROM projects`). O gatilho `project_versions_del` antes guarda o documento inteiro como versão `pre_delete`; só Master recria (botão "Empresas excluídas"). As tabelas filhas com FK em `projects` (14 com `ON DELETE CASCADE`, 2 com `SET NULL`, conforme `docs/gerado/BANCO.md`) apagam ou perdem o vínculo (ver **Dados**). O texto de `docs/VERSIONAMENTO_CRONOGRAMA.md` diz 13; o banco gerado mostra 14.
 
 ### 5. Versionar e restaurar
 1. Toda gravação em `projects` passa por `installProjectAudit` (grava `app.actor_id/name/origin` na sessão do Postgres).
@@ -144,7 +144,7 @@ Lista completa e gerada: `docs/gerado/ROTAS.md` (grupos `/api`, `/api/project-hi
 | GET | `/api/projects/versions` | Idem | — | `{versions:[{id,updatedAt}]}` | — |
 | GET | `/api/projects/lite` | Idem | — | `{projects:[{id,name}]}` | — |
 | POST | `/api/projects` | `requireMasterOrPricetax` | `company{…}`, `kickoffDate`, opcional `activities/phases/team/log` | 201 `{project, standardSummary}` | 403 "Apenas Master ou PRICETAX…" |
-| DELETE | `/api/projects/:id` | `requireMasterOrPricetax` + `canAccessProject` | — | `{ok:true}` | 404, 403 |
+| DELETE | `/api/projects/:id` | **Master ou Super Admin** + `canAccessProject` | — | `{ok:true}` | 404, 403 |
 | GET | `/api/projects/:id/team-candidates` | Qualquer logado com acesso à empresa (inclui cliente) | — | usuários master/pricetax da org + clientes do CNPJ | 404, 403 |
 | PATCH | `/api/projects/:id` | Qualquer logado com acesso. Linha travada (`FOR UPDATE`). Para o **cliente** o servidor (`server/clientView.js` `applyClientWrite`) devolve ao valor guardado o `company.cnpj`, `ownerIds`, `principalOwnerId`, `involvedCompanyIds` e a transcrição das reuniões, e só acrescenta linhas novas ao `log`; equipe grava tudo. **Carimbo de versão (A3, 2026-10-29):** com `{mergeable:true, baseUpdatedAt}` e carimbo velho o servidor responde **409** `{conflict, project, updatedAt}` sem gravar; o PATCH bem-sucedido devolve `updatedAt`; `GET /projects` devolve `stamps` (`{id: updatedAt}`). Sem a marca (API de chaves, telas antigas) grava como sempre | `{project}` com `project.id == :id`; corpo até 15 MB | `{project}` | 400 "Payload de projeto inválido.", 403, 404, 413 |
 | POST | `/api/projects/:id/meetings` | `requireMasterOrPricetax` + acesso | `title`≤200, `date` AAAA-MM-DD, `time`, `participants`≤40, `actionItems`≤60, `transcript`≤400.000, `force` | 201 `{meeting}` | 400 título/data, **409** mesma data+título (salvo `force`) |
@@ -322,7 +322,7 @@ Legenda: **S** = garantida no servidor; **F** = só no front (um cliente de API 
 | Trava | O que impede | Onde é garantida | O que o usuário vê se violar |
 |---|---|---|---|
 | Isolamento por organização/CNPJ | Ler ou gravar empresa de outra base ou de CNPJ não liberado | S: `canAccessProject` em cada rota | 404/403 "Sem acesso a este projeto." |
-| Criar/excluir empresa só equipe | Cliente criar/apagar | S: `requireMasterOrPricetax` | 403 "Apenas Master ou PRICETAX podem cadastrar empresas." |
+| Criar empresa só equipe; **excluir só Master/Super Admin** (2026-10-29) | Cliente criar/apagar; PRICETAX comum apagar | S: `requireMasterOrPricetax` (criar); checagem de papel em `DELETE /projects/:id` | 403 |
 | Restaurar versão / recriar empresa só Master | PRICETAX restaurar | S: `canRestore` em `projectVersions.js` | 403 "Só administradores (Master) restauram versões." |
 | Ajustar cronograma por operações só Master | Outros alterarem em lote | S: `requireMaster` em `/projects/:id/plan` | 403 |
 | Aplicar padrão aprimorado e varredura de vínculos só administrador | PRICETAX aplicar em lote | S: `isAdmin` nas rotas | 403 |

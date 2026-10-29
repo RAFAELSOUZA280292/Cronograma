@@ -171,7 +171,8 @@ Cada módulo tem endereço próprio, que dá para favoritar: `/gestao-atividades
 | Ação | Master | PRICETAX | Cliente |
 |---|---|---|---|
 | Ver cronograma, reuniões, tarefas; editar atividades | sim | sim | sim, na empresa liberada (não verificado na tela: o servidor não separa o que o cliente pode editar) |
-| Cadastrar e excluir empresa | sim | sim | não (o servidor recusa) |
+| Cadastrar empresa | sim | sim | não (o servidor recusa) |
+| **Excluir** empresa | sim (Master e Super Admin) | **não** (o servidor recusa e o botão some) | não |
 | **Fases**, **Link para o cliente**, **Reservar na agenda**, **Auditoria**, **Log**, **Lixeira** | sim | sim | botões não aparecem |
 | **Versões** (ver e comparar, criar ponto) | sim | sim | não |
 | **Restaurar** versão, **Empresas excluídas** | sim | não | não |
@@ -179,15 +180,15 @@ Cada módulo tem endereço próprio, que dá para favoritar: `/gestao-atividades
 | **Excel** e **PDF** | sim | sim | sim |
 
 ### 5.3 Papéis do CRM
-| Papel | Ler | Criar/editar | Excluir | Importar planilha | Produtos | Funis e cadências | Migração PipeRun |
-|---|---|---|---|---|---|---|---|
-| Administrador (Master é automático) | sim | sim | sim | sim | sim | sim | sim |
-| Diretor | sim | sim | sim | sim | sim | sim | não |
-| Gestor Comercial | sim | sim | sim | sim | sim | sim | não |
-| Vendedor | sim | sim | não | não | não | não | não |
-| Consultor | sim | sim | não | não | não | não | não |
-| Financeiro | sim | não | não | não | não | não | não |
-| Visualização | sim | não | não | não | não | não | não |
+| Papel | Ler | Criar/editar | Excluir (empresa, negócio, atividade, **contato**) | Exportar Excel e abrir arquivos do PipeRun | Importar planilha | Produtos | Funis e cadências | Migração PipeRun |
+|---|---|---|---|---|---|---|---|---|
+| Administrador (Master é automático) | sim | sim | sim | sim | sim | sim | sim | sim |
+| Diretor | sim | sim | sim | sim | sim | sim | sim | não |
+| Gestor Comercial | sim | sim | sim | sim | sim | sim | sim | não |
+| Vendedor | sim | sim | não | não | não | não | não | não |
+| Consultor | sim | sim | não | não | não | não | não | não |
+| Financeiro | sim | não | não | não | não | não | não | não |
+| Visualização | sim | não | não | não | não | não | não | não |
 
 Quem tem CRM vê **todos** os negócios, empresas e contatos da organização (não há restrição por dono). O que muda por papel é o painel que abre primeiro na **Visão geral**: Vendedor e Consultor abrem em **Meu dia**; Gestor, Diretor e Admin em **Time**; Financeiro em **Receita**.
 
@@ -377,7 +378,7 @@ Botão **Reservar na agenda**: cria blocos no Google Calendar da conta @pricetax
 6. **Rotina do dia:** **Agenda** (do CRM) lista atividades por urgência com filtros **Atrasadas / Hoje / Próximos 7 dias / Mais adiante / Concluídas**. **Fila de follow-ups (N)** abre uma atividade por vez, da mais atrasada: ligar ou WhatsApp pelo botão do contato, últimas anotações, **Como foi? (resultado — opcional)**, **Concluir e próximo**, **Adiar** (**Amanhã**, **3 dias**, **1 semana**), **Pular**, **Abrir negócio**.
 7. **Editar na lista:** na **Lista**, etapa, valor e previsão editam direto; o aviso tem **Desfazer**.
 8. **Visões salvas:** com os filtros na tela, **Salvar visão** (nome, por exemplo "Minha carteira"). No menu da visão: **Atualizar com os filtros da tela**, **Renomear**, **Excluir**, abrir por padrão; **Compartilhar com o time** (só Gestor/Diretor/Admin).
-9. **Exportar:** **Exportar Excel** (em Negócios, Quadro ou Lista) baixa os negócios **com os filtros da tela**, com e-mail, telefone e link do WhatsApp. No quadro, só os em aberto.
+9. **Exportar** (só Gestor, Diretor e Admin; para os outros o botão não aparece): **Exportar Excel** (em Negócios, Quadro ou Lista) baixa os negócios **com os filtros da tela**, com e-mail, telefone e link do WhatsApp. No quadro, só os em aberto.
 10. **Visão geral:** painéis **Meu dia**, **Time**, **Receita**, **Contas** (os que seu papel permite). **Usar como início** define o que abre primeiro. **Trazer para o CRM** importa clientes do cronograma como empresas **Cliente**.
 
 **Empresas, contatos, produtos**
