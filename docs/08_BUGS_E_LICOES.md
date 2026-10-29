@@ -70,6 +70,9 @@ Cada classe tem 5 blocos: **Como reconhece**, **Causa típica**, **Onde já foi 
 
 ---
 
+## Armadilha — transação com saída antecipada sem devolver a conexão (2026-10-29)
+`const client = await pool.connect(); … if (!x) { ROLLBACK; return res.status(404) }` sem `client.release()` vaza a conexão; com o pool de 10, dez respostas 404/403/409 deixam o servidor sem responder (login e tudo mais ficam pendurados). Use uma função `release()` idempotente chamada em **toda** saída (ou `try/finally`). Prova: `scripts/seguranca-altos.test.mjs` (25 PATCH 404 seguidos). Veja §116n.
+
 ## Classe 2 — Perda de dados por concorrência (última gravação vence)
 
 **Como reconhece**
@@ -86,7 +89,8 @@ Cada classe tem 5 blocos: **Como reconhece**, **Causa típica**, **Onde já foi 
 **Onde já foi corrigido**
 | Problema | Arquivo / função | Seção |
 |---|---|---|
-| Fusão de 3 vias (base × minha × servidor) | `src/personal/boardMerge.js` `mergeBoards`/`mergePage` | §117 |
+| Fusão de 3 vias (base × minha × servidor) | `src/personal/boardMerge.js` `mergeBoards`/`mergePage`/`mergeProjects` (empresa, A3) | §117, §116n |
+| Carimbo + 409 da empresa | `server/routes.js` `PATCH /projects/:id` (`stamps` em `GET /projects`); `src/App.jsx` `sendProject`, `projectBaseRef` | §116n |
 | 409 com `mergeable: true` + `baseUpdatedAt` | `server/routes.js` `PATCH /api/personal-board` e `PATCH /api/public-board/:token`, `sameStamp` (l.728) | §117 |
 | Painel reenvia até 5 voltas no 409 | `src/App.jsx` `sendPersonalBoard`, `PublicBoardScreen` (`src/screens/PersonalBoard.jsx`) | §117 |
 | Retentativa em erro transitório | `src/lib/saveRetry.js` `isTransientSaveError`, `retryDelay` (2/5/10/20 s, depois 30 s) | §118 |

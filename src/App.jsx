@@ -57,7 +57,7 @@ import { createMeetingActions } from './app/meetingActions.js';
 import { createCompanyAdminActions } from './app/companyAdminActions.js';
 import { createStandardPlanActions } from './app/standardPlanActions.js';
 import { STD_PLAN_ID } from './lib/stdPlan.js';
-import { mergeBoards } from './personal/boardMerge.js';
+import { mergeBoards, mergeProjects } from './personal/boardMerge.js';
 import { isTransientSaveError, retryDelay } from './lib/saveRetry.js';
 import { createUserOrgActions } from './app/userOrgActions.js';
 import { createTeamPhaseActions } from './app/teamPhaseActions.js';
@@ -498,6 +498,9 @@ function AppScreens({ shellRef, bump }) {
   const [loginError, setLoginError] = useState(null);
   const [usersPanelError, setUsersPanelError] = useState('');
   const saveTimers = useRef({});
+  // Carimbo de versão da empresa (A3): o que esta tela sabe do servidor por empresa ({doc, updatedAt}) e a fila de envios (um por vez, por empresa).
+  const projectBaseRef = useRef({});
+  const projectSendChain = useRef({});
   const pendingProjectData = useRef({});
   // Conta PATCHs de projeto em voo (enviados, ainda sem resposta) — junto com saveTimers (agendado,
   // ainda nem enviado), cobre as 2 janelas em que existe edição local que o servidor ainda não tem.
@@ -1085,6 +1088,12 @@ function AppScreens({ shellRef, bump }) {
     try {
       const res = await apiGet(withActingOrg('/api/projects'));
       const fresh = res.projects.map(normalizeProject);
+      // Guarda o que o servidor tem (documento + carimbo). Empresa com edição agendada ou em voo mantém a base antiga: é a versão da qual a edição partiu.
+      const stamps = (res && res.stamps) || {};
+      for (const p of fresh) {
+        const pend = saveTimers.current[p.id] || inFlightProjectSaves.current[p.id];
+        if (stamps[p.id] && (!background || !pend || !projectBaseRef.current[p.id])) projectBaseRef.current[p.id] = { doc: p, updatedAt: stamps[p.id] };
+      }
       if (!background) { setProjects((prev) => [...fresh, ...prev.filter((x) => x.id === STD_PLAN_ID)]); return; }
       setProjects((prev) => [...fresh.map((p) => {
         const pending = saveTimers.current[p.id] || inFlightProjectSaves.current[p.id];
@@ -1639,7 +1648,39 @@ function AppScreens({ shellRef, bump }) {
 
   // Envia o projeto inteiro. O cronograma padrão (STD_PLAN_ID) vai para o RASCUNHO da organização (nunca vira versão sozinho) e a resposta diz se há alterações.
   function sendProject(pid, data) {
-    if (pid !== STD_PLAN_ID) return trackInFlightSave(pid, apiPatch(`/api/projects/${pid}`, { project: data }));
+    if (pid !== STD_PLAN_ID) {
+      // Uma gravação por vez por empresa; cada uma leva o carimbo que a tela conhece. Se o servidor avisar (409) que outra pessoa gravou antes,
+      // funde (base × minha × a dele, src/personal/boardMerge.js) e reenvia — uma aba/pessoa desatualizada nunca apaga o trabalho de outra (A3).
+      // A base é a que a tela conhecia QUANDO esta edição nasceu (não a de quando a vez dela na fila chegar): se uma gravação anterior da fila já trouxe
+      // trabalho de outra pessoa, o carimbo antigo provoca o 409 e a fusão incorpora esse trabalho em vez de sobrescrevê-lo.
+      let base = projectBaseRef.current[pid];
+      const run = async () => {
+        let toSend = data;
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          try {
+            const res = await apiPatch(`/api/projects/${pid}`, base && base.updatedAt ? { project: toSend, baseUpdatedAt: base.updatedAt, mergeable: true } : { project: toSend });
+            const saved = res && res.project ? normalizeProject(res.project) : toSend;
+            if (res && res.updatedAt) projectBaseRef.current[pid] = { doc: saved, updatedAt: res.updatedAt };
+            if (toSend !== data) {
+              // O que ficou gravado tem o trabalho da outra pessoa: traz para a tela (e para a edição agendada), preservando o que foi digitado enquanto isso.
+              setProjects((prev) => prev.map((p) => (p.id === pid ? (p === data ? saved : mergeProjects(data, p, saved)) : p)));
+              if (pendingProjectData.current[pid]) pendingProjectData.current[pid] = mergeProjects(data, pendingProjectData.current[pid], saved);
+            }
+            return res;
+          } catch (e) {
+            if (!(e && e.status === 409 && e.data && e.data.project && base)) throw e;
+            const theirs = normalizeProject(e.data.project);
+            toSend = mergeProjects(base.doc, toSend, theirs);
+            base = { doc: theirs, updatedAt: e.data.updatedAt || '' };
+            projectBaseRef.current[pid] = base;
+          }
+        }
+        throw Object.assign(new Error('A empresa continua mudando em outro lugar. Tente de novo em instantes.'), { retryLater: true });
+      };
+      const queued = (projectSendChain.current[pid] || Promise.resolve()).catch(() => {}).then(run);
+      projectSendChain.current[pid] = queued;
+      return trackInFlightSave(pid, queued);
+    }
     const req = apiPatch(withActingOrg('/api/standard-plan/template/draft'), { project: data });
     stdSaveRef.current = req;
     req.then((r) => { if (r && typeof r.dirty === 'boolean') setStdInfo((i) => (i ? { ...i, dirty: r.dirty } : i)); }, () => {});

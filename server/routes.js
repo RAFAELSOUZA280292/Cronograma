@@ -433,13 +433,14 @@ router.get('/projects', requireAuth, async (req, res, next) => {
   try {
     const orgId = effectiveOrgId(req);
     const sql = req.user.isSuperAdmin && !orgId
-      ? 'SELECT data, org_id FROM projects ORDER BY created_at ASC'
-      : 'SELECT data, org_id FROM projects WHERE org_id=$1 ORDER BY created_at ASC';
+      ? 'SELECT data, org_id, updated_at FROM projects ORDER BY created_at ASC'
+      : 'SELECT data, org_id, updated_at FROM projects WHERE org_id=$1 ORDER BY created_at ASC';
     const params = req.user.isSuperAdmin && !orgId ? [] : [orgId];
     const { rows } = await pool.query(sql, params);
     const asClient = isClientUser(req.user);
-    const visible = rows.filter((r) => canAccessProject(req.user, r.data, r.org_id)).map((r) => (asClient ? projectForClient(r.data) : r.data));
-    res.json({ projects: visible });
+    const allowed = rows.filter((r) => canAccessProject(req.user, r.data, r.org_id));
+    // `stamps` = carimbo de versão de cada empresa (o mesmo de GET /projects/versions): a tela devolve o carimbo ao gravar e o servidor avisa (409) se mudou (A3).
+    res.json({ projects: allowed.map((r) => (asClient ? projectForClient(r.data) : r.data)), stamps: Object.fromEntries(allowed.map((r) => [r.data.id, r.updated_at])) });
   } catch (e) { next(e); }
 });
 
@@ -572,29 +573,40 @@ router.patch('/projects/:id', requireAuth, async (req, res, next) => {
   const incoming = req.body && req.body.project;
   if (!incoming || incoming.id !== id) return res.status(400).json({ message: 'Payload de projeto inválido.' });
   const client = await pool.connect();
-  let current; let next_; let orgId; let done = false;
+  let released = false;
+  const release = () => { if (!released) { released = true; client.release(); } }; // toda saída (404, 403, 409, erro, sucesso) devolve a conexão ao pool
+  let current; let next_; let orgId; let updatedAt; let done = false;
   try {
     await client.query('BEGIN');
     // Trava a linha: duas gravações da mesma empresa não se misturam e o `current` usado nos avisos e na memória é o que de fato foi substituído.
-    const { rows } = await client.query('SELECT data, org_id FROM projects WHERE id=$1 FOR UPDATE', [id]);
-    if (!rows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Projeto não encontrado.' }); }
+    const { rows } = await client.query('SELECT data, org_id, updated_at FROM projects WHERE id=$1 FOR UPDATE', [id]);
+    if (!rows[0]) { await client.query('ROLLBACK'); release(); return res.status(404).json({ message: 'Projeto não encontrado.' }); }
     current = rows[0].data; orgId = rows[0].org_id;
-    if (!canAccessProject(req.user, current, orgId)) { await client.query('ROLLBACK'); return res.status(403).json({ message: 'Sem acesso a este projeto.' }); }
+    if (!canAccessProject(req.user, current, orgId)) { await client.query('ROLLBACK'); release(); return res.status(403).json({ message: 'Sem acesso a este projeto.' }); }
+    // Carimbo de versão (A3): com `mergeable` + `baseUpdatedAt`, quem grava em cima de uma versão antiga NÃO sobrescreve — recebe 409 com a empresa atual
+    // e funde no navegador (src/personal/boardMerge.js `mergeProjects`). Sem a marca (API de chaves, telas antigas) vale o comportamento de sempre.
+    const base = typeof req.body.baseUpdatedAt === 'string' ? req.body.baseUpdatedAt : '';
+    if (req.body.mergeable === true && base && !sameStamp(rows[0].updated_at, base)) {
+      await client.query('ROLLBACK');
+      release();
+      return res.status(409).json({ message: 'A empresa foi alterada em outro lugar.', conflict: true, project: isClientUser(req.user) ? projectForClient(current) : current, updatedAt: rows[0].updated_at });
+    }
     next_ = isClientUser(req.user) ? applyClientWrite(current, incoming) : incoming;
-    await client.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(next_), id]);
+    const up = await client.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2 RETURNING updated_at', [JSON.stringify(next_), id]);
+    updatedAt = up.rows[0].updated_at;
     await client.query('COMMIT');
     done = true;
   } catch (e) {
     if (!done) { try { await client.query('ROLLBACK'); } catch { /* conexão já encerrada */ } }
-    client.release();
+    release();
     return next(e);
   }
-  client.release();
+  release();
   try {
     const projectName = (next_.company && (next_.company.nomeFantasia || next_.company.name)) || 'Empresa';
     await notifyActivityChanges(req, id, projectName, current, next_);
     await notifyTodoChanges(req, id, projectName, current, next_);
-    res.json({ project: isClientUser(req.user) ? projectForClient(next_) : next_ });
+    res.json({ project: isClientUser(req.user) ? projectForClient(next_) : next_, updatedAt });
     // Reindexação da memória do projeto (Assistente Inteligente de Projetos, Fase 1) — só SQL local, fire-and-forget depois da resposta.
     syncProjectMemoryFromDiff(pool, orgId, id, current, next_)
       .catch((e) => console.error('Falha ao reindexar memória do projeto', e.message));

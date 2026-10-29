@@ -305,7 +305,7 @@ Datas `AAAA-MM-DD` conferidas ida e volta (`isISODate`, `isMeetingDay`); horári
 |---|---|---|
 | Quadro pessoal (`PATCH /personal-board`) | transação com `SELECT ... FOR UPDATE` + carimbo `baseUpdatedAt`; com `mergeable:true` e carimbo velho devolve **409** com o quadro atual; o painel funde (3 vias) e reenvia; cartões criados pela API depois da última versão conhecida são devolvidos ao quadro (`mergeApiCards`) | ninguém apaga o trabalho do outro |
 | Quadro público (`PATCH /public-board/:token`) | mesma ideia, trava o quadro do **dono**; botão "Voltar" é do dono (o colaborador não muda) | 409 + fusão |
-| Empresa pelo painel (`PATCH /projects/:id`) | regrava o projeto inteiro; o painel confere por polling (`GET /projects/versions`) e mescla do lado do navegador; o versionamento (§83) guarda o histórico | ver `docs/11` (privado) |
+| Empresa pelo painel (`PATCH /projects/:id`) | regrava o projeto inteiro, **com carimbo de versão** (`baseUpdatedAt` + `mergeable` → 409 + fusão no navegador, desde 2026-10-29); sem a marca (API de chaves) vale a última gravação; o versionamento (§83) guarda o histórico | 409 "A empresa foi alterada em outro lugar." (a tela funde e reenvia sozinha) |
 | Empresa por API, RENATA, reunião, padrão, lacunas, link | `BEGIN` + `SELECT ... FOR UPDATE` na linha do projeto, `ROLLBACK` em qualquer erro | serializa; nada se perde |
 | Operações em lote (`/plan`, correção de reunião, restauração) | tudo ou nada; `dryRun` mostra antes e depois; devolve operações de desfazer | sem gravação parcial |
 | Envio duplicado de transcrição | `md5(transcript)` na mesma empresa devolve o envio existente | não cria reunião duplicada |

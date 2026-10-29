@@ -142,3 +142,11 @@ export function mergePage(base, mine, theirs) {
   const [page] = dedupeCards([out], [mine]);
   return deepEqual(page, out) ? out : page;
 }
+
+// Empresa (cronograma) inteira — mesma regra do quadro, aplicada ao documento `projects.data` (A3, 2026-10-29): atividades, subatividades, reuniões, tarefas,
+// equipe e fases são fundidas por `id`; o `log` é a união (até 300); no MESMO campo vence quem está gravando; o que só um lado mexeu vale.
+export function mergeProjects(base, mine, theirs) {
+  if (!theirs) return mine;
+  if (!mine) return theirs;
+  return merge(base || undefined, mine, theirs);
+}

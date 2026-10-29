@@ -137,7 +137,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/tools/reports.js` | 66 | Relatórios e visão da equipe (somente leitura) — §101: "o que a minha equipe fez hoje", atrasos por responsável e quem sou eu / quem é a equipe. |
 | `server/renata/validate.js` | 81 | Validador de parâmetros das ferramentas da RENATA (§101): subconjunto de JSON Schema suficiente para o catálogo. Rejeita campo desconhecido |
 | `server/richNote.js` | 55 | Descrição formatada dos cartões do quadro pessoal (2026-10-07): o campo `desc` continua sendo uma string — texto simples |
-| `server/routes.js` | 1276 |  |
+| `server/routes.js` | 1288 |  |
 | `server/scripts/reindexAllMeetings.js` | 30 | Backfill manual da memória do projeto (2026-09, Fase 1 do Assistente |
 | `server/sourcemaps.js` | 61 | Tradução de pilhas de erro do navegador para o código-fonte, SÓ para o log (2026-10-16). O build gera os sourcemaps como "hidden" (vite.config.js): |
 | `server/standardAudit.js` | 193 | Auditoria de uma empresa contra o padrão de cronograma (2026-10-19, pedido do Rafael: "um botão para realizar a auditoria e confrontar com o padrão e ver |
@@ -178,7 +178,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
-| `src/App.jsx` | 3593 |  |
+| `src/App.jsx` | 3634 |  |
 | `src/agenda/Agenda.jsx` | 583 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/NewEventModal.jsx` | 225 | "Novo compromisso" da Agenda (Onda 5, §81). Cria no Google Calendar da pessoa (POST /api/agenda/events); |
 | `src/agenda/RenataAgendaBriefing.jsx` | 708 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
@@ -315,7 +315,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/personal/Waiting.jsx` | 84 | Marcador "Aguardando" do cartão (2026-10-16, visão 4 do pedido do Rafael): a atividade está parada esperando alguém (cliente, fornecedor, outro |
 | `src/personal/Workbench.jsx` | 361 | Painel "Calendário, anotações e atalhos" da Gestão de Atividades (2026-10-16, visões 5 e 6 do pedido do Rafael; inspirado no mockup "Mesa de |
 | `src/personal/boardAttention.js` | 43 | O que o quadro pessoal (Gestão de Atividades) tem de urgente hoje — usado pela RENATA da tela inicial |
-| `src/personal/boardMerge.js` | 145 | Fusão de três vias do quadro pessoal (2026-10-27, §117). O painel grava o quadro INTEIRO; com duas abas (ou duas pessoas) abertas, a |
+| `src/personal/boardMerge.js` | 153 | Fusão de três vias do quadro pessoal (2026-10-27, §117). O painel grava o quadro INTEIRO; com duas abas (ou duas pessoas) abertas, a |
 | `src/personal/dailyExport.js` | 118 | Daily do Meu quadro (2026-10-26): filtro por prazo e exportação (Excel e PDF). Funções PURAS (sem React/DOM) para testar em Node. |
 | `src/personal/workbenchUtils.js` | 81 | Funções puras do painel "Calendário, anotações e atalhos" (2026-10-16, visões 5 e 6). Sem React/DOM para poder testar em Node. |
 | `src/renata/RenataChat.jsx` | 285 | RENATA operacional (§101): o painel de conversa disponível em qualquer tela. Você pede, ela executa pelas ferramentas do sistema (com as suas permissões), |

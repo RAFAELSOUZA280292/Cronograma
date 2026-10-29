@@ -162,8 +162,26 @@ try {
   const ps = await call(adm.cookie, 'PATCH', `/api/projects/${PID}`, { project: staffEdit });
   const db2 = (await pool.query('SELECT data FROM projects WHERE id=$1', [PID])).rows[0].data;
   ok('equipe segue gravando tudo (transcrição, responsáveis)', ps.status === 200 && db2.meetings[0].transcript === 'EDITADA PELA EQUIPE' && db2.ownerIds[0] === 'dono-2');
+  // ---- A3: carimbo de versão
+  const g1 = await call(adm.cookie, 'GET', '/api/projects');
+  const stampNow = g1.json.stamps && g1.json.stamps[PID];
+  ok('A3: GET /projects devolve o carimbo de cada empresa', !!stampNow, g1.json.stamps);
+  const cur1 = (g1.json.projects || []).find((x) => x.id === PID);
+  const w1 = await call(adm.cookie, 'PATCH', `/api/projects/${PID}`, { project: { ...cur1, activities: cur1.activities.map((a) => ({ ...a, title: 'Editada A' })) }, baseUpdatedAt: stampNow, mergeable: true });
+  ok('A3: gravar com o carimbo atual funciona e devolve o carimbo novo', w1.status === 200 && !!w1.json.updatedAt && w1.json.updatedAt !== stampNow, w1);
+  const w2 = await call(adm.cookie, 'PATCH', `/api/projects/${PID}`, { project: { ...cur1, activities: cur1.activities.map((a) => ({ ...a, title: 'Editada B (desatualizada)' })) }, baseUpdatedAt: stampNow, mergeable: true });
+  ok('A3: gravar com carimbo ANTIGO leva 409 com a empresa atual e o carimbo novo', w2.status === 409 && w2.json.conflict === true && w2.json.project.activities[0].title === 'Editada A' && w2.json.updatedAt === w1.json.updatedAt, w2);
+  const dbAfter = (await pool.query('SELECT data FROM projects WHERE id=$1', [PID])).rows[0].data;
+  ok('A3: o 409 NÃO gravou nada', dbAfter.activities[0].title === 'Editada A');
+  const w3 = await call(adm.cookie, 'PATCH', `/api/projects/${PID}`, { project: { ...cur1, activities: cur1.activities.map((a) => ({ ...a, title: 'Sem carimbo (API/antigo)' })) } });
+  ok('A3: sem a marca `mergeable` o comportamento antigo continua (grava)', w3.status === 200 && !!w3.json.updatedAt, w3);
+  const cStale = await call(cc.cookie, 'PATCH', `/api/projects/${PID}`, { project: mine, baseUpdatedAt: stampNow, mergeable: true });
+  ok('A3: o 409 para o cliente também sai filtrado (sem log, sem transcrição)', cStale.status === 409 && cStale.json.project.log.length === 0 && cStale.json.project.meetings[0].transcript === '', cStale.json && cStale.json.project && [cStale.json.project.log, cStale.json.project.meetings && cStale.json.project.meetings[0].transcript]);
   const naoExiste = await call(cc.cookie, 'PATCH', '/api/projects/nao-existe', { project: { id: 'nao-existe' } });
   ok('projeto inexistente segue 404', naoExiste.status === 404);
+  for (let i = 0; i < 25; i += 1) await call(adm.cookie, 'PATCH', '/api/projects/nao-existe', { project: { id: 'nao-existe' } });
+  const alive = await call(adm.cookie, 'GET', '/api/projects');
+  ok('PATCH que sai cedo (404/403/409) devolve a conexão ao pool (25 seguidos e o servidor continua respondendo)', alive.status === 200);
 
   // ---- M9: responsável e menção do XFlow só de usuário da mesma base
   await pool.query(`UPDATE users SET xflow_role='admin' WHERE id=$1`, [U.adm]);

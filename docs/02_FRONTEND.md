@@ -166,7 +166,7 @@ O estado do `AppScreens` (projetos, quadro, rascunhos do pai) é preservado quan
 ### Quatro caminhos de gravação (use o certo)
 | Dado | Caminho único no front | Debounce | Rota | Conflito |
 |---|---|---|---|---|
-| Empresa/atividades/reuniões (`projects.data`) | `mutateProject(pid, updater, logMsg, activityId, opts)` → `persistProjectDebounced` → `sendProject` | 500 ms | `PATCH /api/projects/:id` (documento inteiro) | **Nenhum**: o servidor não compara versão; a última gravação vence (ver "Bugs e armadilhas") |
+| Empresa/atividades/reuniões (`projects.data`) | `mutateProject(pid, updater, logMsg, activityId, opts)` → `persistProjectDebounced` → `sendProject` | 500 ms | `PATCH /api/projects/:id` (documento inteiro) | **Carimbo de versão** (desde 2026-10-29): `sendProject` envia `baseUpdatedAt` + `mergeable`; no 409 funde (`mergeProjects`, base × minha × servidor) e reenvia, uma gravação por vez por empresa (`projectSendChain`); bases em `projectBaseRef` (atualizadas por `reloadProjects` e pela resposta do PATCH) |
 | Quadro pessoal | `mutatePersonalBoard(updater)` → `persistPersonalBoardDebounced` → `sendPersonalBoard` | 500 ms | `PATCH /api/personal-board` com `baseUpdatedAt` + `mergeable: true` | **409 + fusão de 3 vias** (`src/personal/boardMerge.js`), até 5 voltas |
 | Valor isolado (preferências, visões, avatar) | `useAutosave({ value, armed, validate, save })` (`src/lib/useAutosave.js`) | 700 ms | `PUT`/`PATCH` da rota própria | Último vence |
 | Ações discretas (XFlow, CRM, notificações) | `apiPost`/`apiPatch` direto da tela | nenhum | rota da ação | Servidor decide (XFlow tem matriz de transições; CRM tem permissões) |

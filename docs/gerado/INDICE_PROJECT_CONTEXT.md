@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8382 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8390 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -136,9 +136,10 @@ O `PROJECT_CONTEXT.md` tem 8382 linhas (a memória cronológica de cada decisão
 | 8294 | 116k. Documentação completa do sistema + separação equipe/cliente no cache da RENATA (2026-10-29) | Pedido do Rafael (madrugada): revisar toda a base e documentar tudo (arquitetura, rotas, segurança, manuais, travas, tipos de API, histórico) de form… |
 | 8301 | 116l. Correção dos achados de gravidade ALTA (2026-10-29, a pedido do Rafael: "corrige os itens altos e depoi… | Feito (código, com teste HTTP em scripts/seguranca-altos.test.mjs, 36 checagens, + regressão dos testes de quadro, chaves, transcrição, versões, expe… |
 | 8315 | 116m. A3/A4 (visão do cliente) e médios baratos (2026-10-29, "faz o A3/A4 e os médios mais baratos") | Feito (teste scripts/seguranca-altos.test.mjs, 60+ checagens; scripts/google-oauth-state.test.mjs; crm-eduarda com o caso M5): |
-| 8325 | 117. O "fantasma" que apagava o trabalho com duas abas abertas (2026-10-27) | Relato do Rafael: com duas abas da Gestão de Atividades abertas (uma na página "Price Tags Clack", outra na "26 de outubro da Maiara") e copiando de … |
-| 8335 | 118. Retentativa automática quando o salvamento falha (2026-10-27) | Pedido do Rafael, na sequência do §117. Antes: qualquer falha ao gravar o quadro (rede caiu, servidor reiniciando no deploy) desfazia a edição local … |
-| 8342 | 119. CRM: arrastar negócio de etapa "não grava" — o quadro agora acompanha na hora (2026-10-27) | Relato da Eduarda (time comercial, só usa o CRM): ao arrastar um lead para outra etapa (ex.: Leads → Conexão) "ele não fica, não está gravando". |
-| 8359 | 120. Quadro público com botão "Voltar ao quadro anterior" (2026-10-27) | Pedido do Rafael (aba "Amanda" da Gestão de Atividades): link público para mandar um quadro a alguém, e a pessoa poder voltar ao quadro anterior, amb… |
-| 8366 | 121. Link público de UMA COLUNA da Gestão de Atividades (2026-10-27) | Correção do §120: no pedido "aba Amanda" eu li o print errado — AMANDA é uma coluna do quadro "OPERAÇÕES" (o cabeçalho do cartão mostra OPERAÇÕES / A… |
-| 8374 | 122. Coluna compartilhada no painel da pessoa, nos dois sentidos, com histórico (2026-10-27) | Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve poder adicionar o quadro ao próprio painel e, conforme cada um trabalha, … |
+| 8325 | 116n. Carimbo de versão + fusão da empresa (A3, 2026-10-29, "faz o carimbo de versão com fusão do A3") | Problema: PATCH /api/projects/:id regravava o documento inteiro; quem gravava por último vencia (aba/pessoa desatualizada apagava o trabalho de outra… |
+| 8333 | 117. O "fantasma" que apagava o trabalho com duas abas abertas (2026-10-27) | Relato do Rafael: com duas abas da Gestão de Atividades abertas (uma na página "Price Tags Clack", outra na "26 de outubro da Maiara") e copiando de … |
+| 8343 | 118. Retentativa automática quando o salvamento falha (2026-10-27) | Pedido do Rafael, na sequência do §117. Antes: qualquer falha ao gravar o quadro (rede caiu, servidor reiniciando no deploy) desfazia a edição local … |
+| 8350 | 119. CRM: arrastar negócio de etapa "não grava" — o quadro agora acompanha na hora (2026-10-27) | Relato da Eduarda (time comercial, só usa o CRM): ao arrastar um lead para outra etapa (ex.: Leads → Conexão) "ele não fica, não está gravando". |
+| 8367 | 120. Quadro público com botão "Voltar ao quadro anterior" (2026-10-27) | Pedido do Rafael (aba "Amanda" da Gestão de Atividades): link público para mandar um quadro a alguém, e a pessoa poder voltar ao quadro anterior, amb… |
+| 8374 | 121. Link público de UMA COLUNA da Gestão de Atividades (2026-10-27) | Correção do §120: no pedido "aba Amanda" eu li o print errado — AMANDA é uma coluna do quadro "OPERAÇÕES" (o cabeçalho do cartão mostra OPERAÇÕES / A… |
+| 8382 | 122. Coluna compartilhada no painel da pessoa, nos dois sentidos, com histórico (2026-10-27) | Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve poder adicionar o quadro ao próprio painel e, conforme cada um trabalha, … |
