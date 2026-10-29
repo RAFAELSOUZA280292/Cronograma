@@ -22,6 +22,8 @@ import { recordUsage } from './usageLog.js';
 import { usagePolicy } from './usagePolicy.js';
 import { syncCardEvents, getActivityStats, getDayDetail, cardEventsOf } from './personalActivity.js';
 
+import { loginBlockedFor, noteLoginFailure, noteLoginSuccess, passwordTooShort, PASSWORD_MSG } from './loginLimit.js';
+
 function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
 }
@@ -127,8 +129,10 @@ router.post('/auth/login', async (req, res, next) => {
     if (!username || !password) {
       return res.status(400).json({ message: 'Informe usuário e senha.' });
     }
+    const wait = loginBlockedFor(username, req);
+    if (wait) return res.status(429).json({ message: `Muitas tentativas. Tente de novo em ${Math.ceil(wait / 60)} min.` });
     const row = await findUserByUsername(username);
-    if (!row) return res.status(401).json({ message: 'Usuário ou senha inválidos.' });
+    if (!row) { noteLoginFailure(username, req); return res.status(401).json({ message: 'Usuário ou senha inválidos.' }); }
 
     if (!row.blocked && row.expires_at && toISODateSafe(row.expires_at) < todayISO()) {
       await pool.query(
@@ -143,11 +147,13 @@ router.post('/auth/login', async (req, res, next) => {
 
     const ok = await comparePassword(password, row.password_hash);
     if (!ok) {
+      noteLoginFailure(username, req);
       recordAccess(row.id, 'login_failed', req);
       return res.status(401).json({ message: 'Usuário ou senha inválidos.' });
     }
+    noteLoginSuccess(username, req);
 
-    const token = signToken(row.id);
+    const token = signToken(row.id, row.password_hash);
     setAuthCookie(res, token);
     recordAccess(row.id, 'login', req);
     res.json({ user: rowToUser(row) });
@@ -164,11 +170,13 @@ router.post('/auth/change-password-login', async (req, res, next) => {
     if (!username || !currentPassword || !newPassword) {
       return res.status(400).json({ message: 'Preencha usuário, senha atual e nova senha.' });
     }
-    if (newPassword.length < 4) {
-      return res.status(400).json({ message: 'A nova senha precisa ter pelo menos 4 caracteres.' });
+    if (passwordTooShort(newPassword)) {
+      return res.status(400).json({ message: PASSWORD_MSG });
     }
+    const wait = loginBlockedFor(username, req);
+    if (wait) return res.status(429).json({ message: `Muitas tentativas. Tente de novo em ${Math.ceil(wait / 60)} min.` });
     const row = await findUserByUsername(username);
-    if (!row) return res.status(401).json({ message: 'Usuário ou senha inválidos.' });
+    if (!row) { noteLoginFailure(username, req); return res.status(401).json({ message: 'Usuário ou senha inválidos.' }); }
 
     if (!row.blocked && row.expires_at && toISODateSafe(row.expires_at) < todayISO()) {
       await pool.query(
@@ -182,14 +190,15 @@ router.post('/auth/change-password-login', async (req, res, next) => {
     }
 
     const ok = await comparePassword(currentPassword, row.password_hash);
-    if (!ok) return res.status(401).json({ message: 'Senha atual incorreta.' });
+    if (!ok) { noteLoginFailure(username, req); recordAccess(row.id, 'login_failed', req); return res.status(401).json({ message: 'Senha atual incorreta.' }); }
+    noteLoginSuccess(username, req);
 
     const hash = await hashPassword(newPassword);
     const { rows } = await pool.query(
       `UPDATE users SET password_hash=$1, updated_at=now() WHERE id=$2 RETURNING *`,
       [hash, row.id]
     );
-    const token = signToken(row.id);
+    const token = signToken(row.id, rows[0].password_hash);
     setAuthCookie(res, token);
     recordAccess(row.id, 'login', req);
     res.json({ user: rowToUser(rows[0]) });
@@ -239,14 +248,15 @@ router.patch('/auth/me', requireAuth, async (req, res, next) => {
 router.post('/auth/change-password', requireAuth, async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body || {};
-    if (!newPassword || newPassword.length < 4) {
-      return res.status(400).json({ message: 'A nova senha precisa ter pelo menos 4 caracteres.' });
+    if (passwordTooShort(newPassword)) {
+      return res.status(400).json({ message: PASSWORD_MSG });
     }
     const row = await findUserById(req.user.id);
     const ok = await comparePassword(currentPassword || '', row.password_hash);
     if (!ok) return res.status(401).json({ message: 'Senha atual incorreta.' });
     const hash = await hashPassword(newPassword);
     await pool.query(`UPDATE users SET password_hash=$1, updated_at=now() WHERE id=$2`, [hash, req.user.id]);
+    setAuthCookie(res, signToken(req.user.id, hash));
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
@@ -290,6 +300,7 @@ router.post('/users', requireAuth, requireMaster, async (req, res, next) => {
     if (!username || !password || !name || !role) {
       return res.status(400).json({ message: 'Usuário, senha, nome e papel são obrigatórios.' });
     }
+    if (passwordTooShort(password)) return res.status(400).json({ message: PASSWORD_MSG });
     const existing = await findUserByUsername(username);
     if (existing) return res.status(409).json({ message: 'Usuário já existe.' });
 
@@ -310,6 +321,7 @@ router.patch('/users/:id', requireAuth, requireMaster, async (req, res, next) =>
     const patch = req.body || {};
     const target = await findUserById(id);
     if (!target || !sameOrg(req, target.org_id)) return res.status(404).json({ message: 'Usuário não encontrado.' });
+    if (target.is_super_admin && !req.user.isSuperAdmin) return res.status(403).json({ message: 'Só o Super Administrador altera outro Super Administrador.' });
 
     if (patch.username && patch.username !== target.username) {
       const dup = await findUserByUsername(patch.username);
@@ -350,6 +362,7 @@ router.post('/users/:id/block', requireAuth, requireMaster, async (req, res, nex
     }
     const target = await findUserById(id);
     if (!target || !sameOrg(req, target.org_id)) return res.status(404).json({ message: 'Usuário não encontrado.' });
+    if (target.is_super_admin && !req.user.isSuperAdmin) return res.status(403).json({ message: 'Só o Super Administrador altera outro Super Administrador.' });
     const { rows } = await pool.query(
       `UPDATE users SET blocked=$1, block_reason=$2, updated_at=now() WHERE id=$3 RETURNING *`,
       [!!blocked, blocked ? (blockReason || 'Bloqueado manualmente') : '', id]
@@ -363,6 +376,7 @@ router.post('/users/:id/renew', requireAuth, requireMaster, async (req, res, nex
     const { id } = req.params;
     const target = await findUserById(id);
     if (!target || !sameOrg(req, target.org_id)) return res.status(404).json({ message: 'Usuário não encontrado.' });
+    if (target.is_super_admin && !req.user.isSuperAdmin) return res.status(403).json({ message: 'Só o Super Administrador altera outro Super Administrador.' });
     const days = Number(req.body && req.body.days) || 30;
     const newDate = new Date();
     newDate.setDate(newDate.getDate() + days);
@@ -379,11 +393,12 @@ router.post('/users/:id/reset-password', requireAuth, requireMaster, async (req,
   try {
     const { id } = req.params;
     const { newPassword } = req.body || {};
-    if (!newPassword || newPassword.length < 4) {
-      return res.status(400).json({ message: 'Senha muito curta.' });
+    if (passwordTooShort(newPassword)) {
+      return res.status(400).json({ message: PASSWORD_MSG });
     }
     const target = await findUserById(id);
     if (!target || !sameOrg(req, target.org_id)) return res.status(404).json({ message: 'Usuário não encontrado.' });
+    if (target.is_super_admin && !req.user.isSuperAdmin) return res.status(403).json({ message: 'Só o Super Administrador altera outro Super Administrador.' });
     const hash = await hashPassword(newPassword);
     await pool.query(
       `UPDATE users SET password_hash=$1, updated_at=now() WHERE id=$2`,
@@ -400,6 +415,7 @@ router.delete('/users/:id', requireAuth, requireMaster, async (req, res, next) =
 
     const target = await findUserById(id);
     if (!target || !sameOrg(req, target.org_id)) return res.status(404).json({ message: 'Usuário não encontrado.' });
+    if (target.is_super_admin && !req.user.isSuperAdmin) return res.status(403).json({ message: 'Só o Super Administrador altera outro Super Administrador.' });
 
     if (target.role === 'master') {
       const { rows } = await pool.query(`SELECT COUNT(*)::int AS n FROM users WHERE role='master' AND org_id=$1`, [target.org_id]);
@@ -1107,6 +1123,16 @@ router.patch('/public-board/:token', requireAuth, async (req, res, next) => {
       // Quem colabora pelo link não decide para onde o botão "Voltar" leva: isso é do dono.
       const kept = { ...patchedBoard };
       if (stored.backBoardId) kept.backBoardId = stored.backBoardId; else delete kept.backBoardId;
+      // Nem a visibilidade, nem o token do link (da página ou das colunas) são de quem colabora: só o dono decide o que fica público (A9).
+      kept.visibility = stored.visibility; kept.shareToken = stored.shareToken;
+      if (Array.isArray(kept.columns)) {
+        const storedCols = new Map((stored.columns || []).map((c) => [c.id, c]));
+        kept.columns = kept.columns.map((c) => {
+          const sc = storedCols.get(c && c.id);
+          const { visibility: _v, shareToken: _t, backTo: _b, ...rest } = c || {};
+          return sc ? { ...rest, ...(sc.visibility !== undefined ? { visibility: sc.visibility } : {}), ...(sc.shareToken !== undefined ? { shareToken: sc.shareToken } : {}), ...(sc.backTo !== undefined ? { backTo: sc.backTo } : {}) } : rest;
+        });
+      }
       nextData = { ...ownerData, boards: ownerData.boards.map((b, i) => (i === idx ? kept : b)) };
       const up = await client.query('UPDATE personal_boards SET data=$1, updated_at=now() WHERE user_id=$2 RETURNING updated_at', [JSON.stringify(nextData), found.ownerId]);
       updatedAt = up.rows[0].updated_at;

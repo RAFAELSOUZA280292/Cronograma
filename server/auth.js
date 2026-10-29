@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pool } from './db.js';
@@ -21,8 +22,24 @@ export function comparePassword(plain, hash) {
   return bcrypt.compare(plain, hash);
 }
 
-export function signToken(userId) {
-  return jwt.sign({ sub: userId }, requireSecret(), { expiresIn: TOKEN_TTL });
+// `pv` = impressão curta do hash da senha: trocar/redefinir a senha derruba as sessões abertas (tokens antigos, sem `pv`, seguem valendo até vencer).
+function passwordTag(passwordHash) {
+  return crypto.createHash('sha256').update(String(passwordHash || '')).digest('hex').slice(0, 12);
+}
+
+export function signToken(userId, passwordHash) {
+  const payload = { sub: userId };
+  if (passwordHash) payload.pv = passwordTag(passwordHash);
+  return jwt.sign(payload, requireSecret(), { expiresIn: TOKEN_TTL });
+}
+
+// Sessão aberta só vale enquanto o usuário existe, não está bloqueado, não expirou e não trocou a senha desde a emissão do cookie.
+function sessionProblem(row, payload) {
+  if (!row) return 'Sessão inválida. Faça login novamente.';
+  if (row.blocked) return row.block_reason || 'Acesso bloqueado. Fale com um PRICETAX Master.';
+  if (row.expires_at && toISODateSafe(row.expires_at) < new Date().toISOString().slice(0, 10)) return 'Acesso expirado. Fale com um PRICETAX Master para renovar.';
+  if (payload && payload.pv && payload.pv !== passwordTag(row.password_hash)) return 'Senha alterada. Faça login novamente.';
+  return '';
 }
 
 export function setAuthCookie(res, token) {
@@ -108,7 +125,11 @@ export async function requireAuth(req, res, next) {
       return res.status(401).json({ message: 'Sessão inválida. Faça login novamente.' });
     }
     const row = await findUserById(payload.sub);
-    if (!row) return res.status(401).json({ message: 'Sessão inválida. Faça login novamente.' });
+    const problem = sessionProblem(row, payload);
+    if (problem) {
+      clearAuthCookie(res);
+      return res.status(401).json({ message: problem });
+    }
     req.userRow = row;
     req.user = rowToUser(row);
     setActor({ id: req.user.id, name: req.user.name || req.user.username, origin: originOf(req) });
@@ -129,7 +150,7 @@ export async function optionalAuth(req, res, next) {
       return next();
     }
     const row = await findUserById(payload.sub);
-    if (row) {
+    if (row && !sessionProblem(row, payload)) {
       req.userRow = row;
       req.user = rowToUser(row);
       setActor({ id: req.user.id, name: req.user.name || req.user.username, origin: originOf(req) });

@@ -609,7 +609,7 @@ router.get('/agenda', async (req, res, next) => {
 const STATUSES = ['nao-iniciado', 'em-andamento', 'pausado', 'concluido'];
 const PLAN_PRIORITIES = ['', 'urgente', 'alta', 'media', 'baixa'];
 const MAX_OPS = 200;
-const isISODay = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+const isISODay = isMeetingDay; // valida o dia de verdade (2026-02-31 não vale)
 const normText = (v) => String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
 function findRef(list, ref, what) {

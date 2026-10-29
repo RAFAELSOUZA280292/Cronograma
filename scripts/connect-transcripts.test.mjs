@@ -25,7 +25,7 @@ const pool = new pg.Pool({ connectionString: DB });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------- Anthropic falsa ----------
-const fake = { mode: 'ok', extractionCalls: 0, otherCalls: 0 };
+const fake = { mode: 'ok', delayMs: 0, extractionCalls: 0, otherCalls: 0 };
 const extraction = {
   title: 'Alinhamento fluxo de caixa — ALCAST', date: '2026-01-01', time: '08:00',
   participants: ['Roberto Cassaniga', 'Rafael Souza'], summary: 'Mapeamento do caixa atual e dos prazos médios.', decisions: 'Nenhuma decisão: reunião de mapeamento.',
@@ -43,8 +43,8 @@ const fakeServer = http.createServer((req, res) => {
     if (!isExtraction) { fake.otherCalls += 1; res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'fake: só extração' } })); }
     fake.extractionCalls += 1;
     if (fake.mode === 'fail') { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API.' } })); }
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ id: 'msg_fake', type: 'message', role: 'assistant', model: 'claude-opus-5', content: [{ type: 'text', text: JSON.stringify(extraction) }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 10, output_tokens: 10 } }));
+    const send = () => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ id: 'msg_fake', type: 'message', role: 'assistant', model: 'claude-opus-5', content: [{ type: 'text', text: JSON.stringify(extraction) }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 10, output_tokens: 10 } })); };
+    if (fake.delayMs) setTimeout(send, fake.delayMs); else send();
   });
 });
 await new Promise((r) => fakeServer.listen(FAKE_PORT, r));
@@ -186,6 +186,17 @@ try {
   ok('limite de 30 envios por hora por chave (429)', first429 === 28, first429);
 
   // ---- revogação
+  // A8 (2026-10-29): o que a equipe editar ENQUANTO a IA trabalha não pode ser apagado quando a reunião é gravada
+  fake.delayMs = 1500;
+  const text3 = `${text}\n[03:00] Roberto Cassaniga: Terceiro assunto, edição concorrente. ${'Texto novo. '.repeat(9)}`;
+  const TR3 = (await mint('adm', 'transcripts')).json.token; // chave nova: a anterior já esgotou o limite por hora no teste de taxa
+  const slow = await call(bearer(TR3), 'POST', P, { transcript: text3 });
+  await sleep(500);
+  await pool.query(`UPDATE projects SET data = jsonb_set(data, '{editadoDuranteIA}', '"preservado"') WHERE id=$1`, [PID]);
+  const slowDone = await poll(TR3, `${P}/${slow.json.submissionId}`);
+  const after = (await pool.query('SELECT data FROM projects WHERE id=$1', [PID])).rows[0].data;
+  ok('A8: reunião gravada E a edição feita durante a IA preservada', slowDone.json.status === 'done' && after.editadoDuranteIA === 'preservado' && after.meetings.some((m) => m.id === slowDone.json.meeting.id), { slow: slow.status + JSON.stringify(slow.json), st: slowDone.json, kept: after.editadoDuranteIA });
+  fake.delayMs = 0;
   const del = await call(asCk('adm'), 'DELETE', `/api/connect/tokens/${tTr.json.id}`);
   ok('chave revogada para de valer na hora (401)', del.status === 200 && (await call(bearer(TR), 'GET', P)).status === 401);
 } catch (e) { failed += 1; console.log('ERRO no teste:', e.message); } finally {

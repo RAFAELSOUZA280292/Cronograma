@@ -10,17 +10,39 @@ const MAX_BYTES = 300 * 1024;
 const TIMEOUT_MS = 6000;
 const MAX_REDIRECTS = 3;
 
+// Converte um IPv6 em 16 bytes (aceita "::" e a cauda em IPv4 pontuado). Devolve null se não entender.
+function ipv6Bytes(ip) {
+  let x = String(ip).toLowerCase().split('%')[0];
+  const dotted = x.match(/(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) {
+    const p = dotted[1].split('.').map(Number);
+    if (p.some((n) => n > 255)) return null;
+    x = x.slice(0, -dotted[1].length) + ((p[0] << 8) | p[1]).toString(16) + ':' + ((p[2] << 8) | p[3]).toString(16);
+  }
+  const halves = x.split('::');
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const fill = halves.length === 2 ? 8 - head.length - tail.length : 0;
+  if (fill < 0 || (halves.length === 1 && head.length !== 8)) return null;
+  const groups = [...head, ...Array(fill).fill('0'), ...tail];
+  if (groups.length !== 8 || groups.some((g) => !/^[0-9a-f]{1,4}$/.test(g))) return null;
+  return groups.flatMap((g) => [parseInt(g, 16) >> 8, parseInt(g, 16) & 255]);
+}
+
 export function isPrivateAddress(ip) {
   if (net.isIPv4(ip)) {
     const [a, b] = ip.split('.').map(Number);
     return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 192 && b === 0) || (a === 198 && (b === 18 || b === 19)) || a >= 224;
   }
   if (net.isIPv6(ip)) {
-    const x = ip.toLowerCase();
-    if (x === '::' || x === '::1') return true;
-    const mapped = x.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    if (mapped) return isPrivateAddress(mapped[1]);
-    return /^(fc|fd)/.test(x) || /^fe[89ab]/.test(x) || x.startsWith('ff');
+    const b = ipv6Bytes(ip);
+    if (!b) return true;
+    const v4 = (o) => isPrivateAddress(`${b[o]}.${b[o + 1]}.${b[o + 2]}.${b[o + 3]}`);
+    if (b.slice(0, 10).every((n) => n === 0) && ((b[10] === 0xff && b[11] === 0xff) || (b[10] === 0 && b[11] === 0))) return b.slice(0, 15).every((n) => n === 0) || v4(12); // ::, ::1, ::ffff:a.b.c.d e ::a.b.c.d (qualquer escrita, inclusive hexadecimal)
+    if (b[0] === 0x00 && b[1] === 0x64 && b[2] === 0xff && b[3] === 0x9b && b.slice(4, 12).every((n) => n === 0)) return v4(12); // NAT64 64:ff9b::/96
+    if (b[0] === 0x20 && b[1] === 0x02) return v4(2); // 6to4 2002::/16
+    return (b[0] & 0xfe) === 0xfc || (b[0] === 0xfe && (b[1] & 0xc0) >= 0x80) || b[0] === 0xff; // fc00::/7, fe80::/10 e fec0::/10, ff00::/8
   }
   return true;
 }

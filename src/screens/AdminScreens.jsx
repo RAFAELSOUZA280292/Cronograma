@@ -782,7 +782,7 @@ export function MyProfileModal({ user, onClose, onAvatar, googleConnectResult, i
     setPwError('');
     setPwSuccess(false);
     if (!currentPassword || !newPassword) { setPwError('Preencha a senha atual e a nova senha.'); return; }
-    if (newPassword.length < 4) { setPwError('A nova senha precisa ter pelo menos 4 caracteres.'); return; }
+    if (newPassword.length < 8) { setPwError('A nova senha precisa ter pelo menos 8 caracteres.'); return; }
     if (newPassword !== confirmPassword) { setPwError('A confirmação não confere com a nova senha.'); return; }
     setPwSaving(true);
     try {

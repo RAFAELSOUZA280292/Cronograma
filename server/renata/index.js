@@ -40,5 +40,5 @@ export const agent = createAgent({
   pool, registry, executor,
   getClient: () => { if (scripted) return scripted; if (!real) real = new Anthropic(); return real; },
   generalContext: async ({ user, question }) => (await buildGeneralContext({ pool, user, orgId: user.orgId, question, isStaff: isStaff(user) })).text,
-  logUsage: (res) => { logMetric(pool, { orgId: null, projectId: null, eventType: 'anthropic_api_call', metadata: { feature: 'renata_agent', model: res.model || '', inputTokens: (res.usage && res.usage.input_tokens) || 0, outputTokens: (res.usage && res.usage.output_tokens) || 0 } }).catch(() => {}); },
+  logUsage: (res, _step, user) => { if (!user || !user.orgId) return; logMetric(pool, { orgId: user.orgId, projectId: null, eventType: 'anthropic_api_call', metadata: { feature: 'renata_agent', model: res.model || '', inputTokens: (res.usage && res.usage.input_tokens) || 0, outputTokens: (res.usage && res.usage.output_tokens) || 0 } }).catch(() => {}); },
 });

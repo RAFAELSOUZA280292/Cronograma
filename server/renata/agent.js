@@ -91,7 +91,7 @@ export function createAgent({ pool, registry, executor, getClient, generalContex
     const stepsOut = []; let pending = []; const seen = new Map(); const turnWrites = new Map();
     for (let step = 0; step < MAX_STEPS; step++) {
       const res = await client.messages.create({ model, max_tokens: 2500, system, tools, messages: forApi(conv.messages) });
-      logUsage(res, step);
+      logUsage(res, step, user);
       const content = (res.content || []).filter((b) => b.type === 'text' || b.type === 'tool_use');
       conv.messages.push({ role: 'assistant', content: content.length ? content : [{ type: 'text', text: '…' }], _at: nowIso() });
       if (res.stop_reason !== 'tool_use') { answered = true; break; }
@@ -119,7 +119,7 @@ export function createAgent({ pool, registry, executor, getClient, generalContex
     if (!answered && !pending.length) {
       try {
         const res = await client.messages.create({ model, max_tokens: 1500, system, tools, tool_choice: { type: 'none' }, messages: [...forApi(conv.messages), { role: 'user', content: FINAL_NUDGE }] });
-        logUsage(res, MAX_STEPS);
+        logUsage(res, MAX_STEPS, user);
         const text = (res.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
         conv.messages.push({ role: 'assistant', content: [{ type: 'text', text: text || 'Consultei o sistema, mas não consegui fechar uma resposta. Diga de outro jeito o que você precisa, ou escolha uma empresa ou reunião específica.' }], _at: nowIso() });
       } catch (e) {

@@ -174,7 +174,13 @@ function initials(name) {
 
 
 export function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
-export function genShareToken() { return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36); }
+export function genShareToken() {
+  try {
+    const b = new Uint8Array(24);
+    crypto.getRandomValues(b);
+    return Array.from(b, (n) => n.toString(16).padStart(2, '0')).join('');
+  } catch { return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36); }
+}
 
 export function todayISOStr() { return toISODate(startOfDay(new Date())); }
 
@@ -2788,7 +2794,7 @@ function LoginGate({ onLogin, onChangePasswordAndLogin, loginError, theme, onTog
     }
     setLocalError('');
     if (!username || !currentPassword || !newPassword) { setLocalError('Preencha usuário, senha atual e nova senha.'); return; }
-    if (newPassword.length < 4) { setLocalError('A nova senha precisa ter pelo menos 4 caracteres.'); return; }
+    if (newPassword.length < 8) { setLocalError('A nova senha precisa ter pelo menos 8 caracteres.'); return; }
     if (newPassword !== confirmPassword) { setLocalError('A confirmação não confere com a nova senha.'); return; }
     setSubmitting(true);
     await onChangePasswordAndLogin(username, currentPassword, newPassword);

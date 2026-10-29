@@ -17,7 +17,7 @@ import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
-import { requireAuth } from './auth.js';
+import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import { pool } from './db.js';
 import { canAccessProject } from './routes.js';
 import { reindexMeetingMemory } from './memoryIngest.js';
@@ -168,7 +168,8 @@ async function processSubmission(submissionId) {
     // 'processing'): o recupero de órfãs em GET / e o aviso "demorando" da
     // tela medem a partir dele, não de created_at — senão uma transcrição
     // antiga reenviada seria marcada como travada no mesmo instante.
-    await pool.query(`UPDATE meeting_submissions SET status='processing', processed_at=now() WHERE id=$1`, [submissionId]);
+    const claim = await pool.query(`UPDATE meeting_submissions SET status='processing', processed_at=now() WHERE id=$1 AND status <> 'processing' RETURNING id`, [submissionId]);
+    if (!claim.rows[0]) return; // já está sendo processada: não duplica a reunião
     const { rows } = await pool.query('SELECT * FROM meeting_submissions WHERE id=$1', [submissionId]);
     const sub = rows[0];
     if (!sub) return;
@@ -254,17 +255,29 @@ async function processSubmission(submissionId) {
       console.error('Vínculo tarefa→atividade: falha ao sugerir (reunião registrada sem sugestões)', e.message);
     }
 
-    const currentData = project.data || {};
-    const nextData = {
-      ...currentData,
-      meetings: [...(currentData.meetings || []), meeting],
-      log: [
-        { ts: new Date().toISOString(), action: `Reunião registrada a partir de transcrição enviada: "${meeting.title}"`, user: 'IA (transcrição)', activityId: null },
-        ...(currentData.log || []),
-      ].slice(0, 300),
-    };
-
-    await pool.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(nextData), project.id]);
+    // Relê o projeto TRAVADO na hora de gravar: a IA levou dezenas de segundos e a cópia lida no início pode estar velha (A8) —
+    // gravar `{...copiaVelha, meetings}` apagava o que a equipe editou nesse meio-tempo. Aqui só acrescenta a reunião e a linha do log.
+    const dbc = await pool.connect();
+    try {
+      await dbc.query('BEGIN');
+      const fresh = await dbc.query('SELECT data FROM projects WHERE id=$1 FOR UPDATE', [project.id]);
+      const currentData = (fresh.rows[0] && fresh.rows[0].data) || {};
+      const nextData = {
+        ...currentData,
+        meetings: [...(currentData.meetings || []), meeting],
+        log: [
+          { ts: new Date().toISOString(), action: `Reunião registrada a partir de transcrição enviada: "${meeting.title}"`, user: 'IA (transcrição)', activityId: null },
+          ...(currentData.log || []),
+        ].slice(0, 300),
+      };
+      await dbc.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2', [JSON.stringify(nextData), project.id]);
+      await dbc.query('COMMIT');
+    } catch (e) {
+      try { await dbc.query('ROLLBACK'); } catch { /* conexão já encerrada */ }
+      throw e;
+    } finally {
+      dbc.release();
+    }
     await pool.query(
       `UPDATE meeting_submissions SET status='done', meeting_id=$1, processed_at=now() WHERE id=$2`,
       [meeting.id, submissionId],
@@ -379,7 +392,7 @@ export async function reprocessSubmission({ user, submissionId, projectId = null
 
 const sendErr = (res, next, e) => (e instanceof InboxError ? res.status(e.status).json({ message: e.message }) : next(e));
 
-router.post('/', requireAuth, async (req, res, next) => {
+router.post('/', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
   try {
     const { projectId, transcript, date, time } = req.body || {};
     const r = await createSubmission({ user: req.user, projectId, transcript, date, time });
@@ -400,7 +413,7 @@ router.get('/', requireAuth, async (req, res, next) => {
 // meio de um lote de reuniões). Marca todas como 'pending' na hora (a tela
 // já mostra "Na fila") e processa UMA POR VEZ, em sequência — em paralelo
 // estouraria o rate limit da API justamente num lote grande.
-router.post('/retry-failed', requireAuth, async (req, res, next) => {
+router.post('/retry-failed', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
   try {
     const { projectId } = req.body || {};
     if (!projectId) return res.status(400).json({ message: 'Informe projectId.' });
@@ -430,7 +443,7 @@ router.post('/retry-failed', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/:id/retry', requireAuth, async (req, res, next) => {
+router.post('/:id/retry', requireAuth, requireMasterOrPricetax, async (req, res, next) => {
   try {
     await reprocessSubmission({ user: req.user, submissionId: req.params.id });
     res.json({ message: 'Reprocessando.' });

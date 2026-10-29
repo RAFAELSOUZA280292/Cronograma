@@ -174,6 +174,7 @@ router.post('/messages/:id/action', requireAuth, async (req, res, next) => {
   try {
     const { projectId, decision, overrides } = req.body || {};
     if (!['confirm', 'reject'].includes(decision)) return res.status(400).json({ message: 'Decisão inválida.' });
+    if (!canUseDossier(req.user)) return res.status(403).json({ message: 'Só a equipe PRICETAX confirma ações da RENATA.' });
     const project = await loadAuthorizedProject(req, res, projectId);
     if (!project) return;
     const result = await decideProposedAction(pool, project.org_id, projectId, req.user.id, req.params.id, decision, req.user.name, overrides || null);
