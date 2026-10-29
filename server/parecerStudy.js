@@ -70,6 +70,12 @@ const ADVICE_SYSTEM = [
   'Para cada parecer indicado, diga os caminhos a seguir com o cliente usando APENAS as orientações e conclusões registradas no estudo — nunca crie orientação nova, nunca cite norma que não esteja no estudo. Seja concreto e curto.',
 ].join('\n');
 
+export const STUDY_MAX_TOKENS = 16000;
+export const ADVICE_MAX_TOKENS = 8000;
+const COMPACT_HINT = '\n\nATENÇÃO: a resposta anterior ficou grande demais e foi cortada. Refaça de forma ENXUTA: frases curtas, no máximo 5 conclusões, 4 orientações, 8 temas e 5 sinais de uso; sem repetir o texto do documento.';
+// `messages.parse` lança erro de JSON (e não devolve stop_reason) quando a resposta estoura o limite de tokens: trata como corte.
+const isTruncatedError = (e) => /Failed to parse structured output|Unterminated string|Expected property name|Unexpected end of JSON|max_tokens|cortada/i.test(String((e && e.message) || e));
+
 async function withRetry(fn) {
   let lastErr;
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -97,15 +103,22 @@ export function friendlyStudyError(raw) {
 const isFatalForBatch = (msg) => /credit balance is too low|invalid x-api-key|authentication_error|^401\b/i.test(String(msg || ''));
 
 export async function studyOne(client, parecer, buffer) {
+  try { return await studyAttempt(client, parecer, buffer, ''); } catch (e) {
+    if (!isTruncatedError(e)) throw e;
+    return studyAttempt(client, parecer, buffer, COMPACT_HINT);
+  }
+}
+
+async function studyAttempt(client, parecer, buffer, hint) {
   const response = await withRetry(() => client.messages.parse({
     model: STUDY_MODEL,
-    max_tokens: 6000,
+    max_tokens: STUDY_MAX_TOKENS,
     system: [{ type: 'text', text: STUDY_SYSTEM, cache_control: { type: 'ephemeral', ttl: '1h' } }],
     messages: [{
       role: 'user',
       content: [
         { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: buffer.toString('base64') } },
-        { type: 'text', text: `Estude este parecer. Identificação dele no sistema: "${parecer.title}". Devolva o estudo estruturado.` },
+        { type: 'text', text: `Estude este parecer. Identificação dele no sistema: "${parecer.title}". Devolva o estudo estruturado.${hint}` },
       ],
     }],
     output_config: { format: zodOutputFormat(ParecerStudySchema) },
@@ -370,14 +383,22 @@ export async function generateMeetingAdvice({ pool, orgId, projectId, meeting, c
   }
 }
 
-async function buildAdvice({ pool, orgId, projectId, meeting, studies, aiClient }) {
-  const response = await withRetry(() => aiClient.messages.parse({
+function adviceAttempt({ studies, meeting, aiClient, hint }) {
+  return withRetry(() => aiClient.messages.parse({
     model: ADVICE_MODEL,
-    max_tokens: 3500,
+    max_tokens: ADVICE_MAX_TOKENS,
     system: [{ type: 'text', text: ADVICE_SYSTEM, cache_control: { type: 'ephemeral', ttl: '1h' } }],
-    messages: [{ role: 'user', content: `PARECERES ESTUDADOS:\n${studies.map(studyIndexLine).join('\n\n')}\n\n---\n\n${meetingDigest(meeting)}\n\nIndique, se houver, os pareceres que se aplicam a esta reunião e os caminhos a seguir com o cliente.` }],
+    messages: [{ role: 'user', content: `PARECERES ESTUDADOS:\n${studies.map(studyIndexLine).join('\n\n')}\n\n---\n\n${meetingDigest(meeting)}\n\nIndique, se houver, os pareceres que se aplicam a esta reunião e os caminhos a seguir com o cliente.${hint}` }],
     output_config: { format: zodOutputFormat(AdviceSchema) },
   }));
+}
+
+async function buildAdvice({ pool, orgId, projectId, meeting, studies, aiClient }) {
+  let response;
+  try { response = await adviceAttempt({ studies, meeting, aiClient, hint: '' }); } catch (e) {
+    if (!isTruncatedError(e)) throw e;
+    response = await adviceAttempt({ studies, meeting, aiClient, hint: COMPACT_HINT });
+  }
   if (response.stop_reason === 'max_tokens') throw new Error('Resposta cortada por tamanho (max_tokens).');
   if (!response.parsed_output) throw new Error('A IA não conseguiu estruturar as sugestões.');
   const byId = new Map(studies.map((s) => [s.id, s]));

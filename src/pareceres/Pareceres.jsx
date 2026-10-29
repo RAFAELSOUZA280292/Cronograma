@@ -450,6 +450,7 @@ function StudyBanner({ refreshKey }) {
         {running ? <>A RENATA está estudando os pareceres… <b>{done} de {st.total}</b> prontos.</>
           : upToDate ? <>A memória da RENATA está em dia: ela já estudou <b>{st.total === 1 ? 'o único parecer' : `os ${st.total} pareceres`}</b>.</>
             : <>A RENATA estudou <b>{done} de {st.total}</b> {st.total === 1 ? 'parecer' : 'pareceres'}. <b>{st.pending}</b> {st.pending === 1 ? 'aguarda' : 'aguardam'} estudo e ainda não entram nas respostas dela. Os novos são estudados sozinhos ao enviar; ficam aqui os que falharam ou foram enviados antes disso.</>}
+        {!running && (st.items || []).filter((i) => i.state === 'failed' && i.error).map((i) => <div key={i.id} style={{ marginTop: 6, fontSize: 12 }}>Falhou: <b>{i.title}</b> — {i.error}</div>)}
       </div>
       {!running && st.pending > 0 && <Button size="sm" variant="primary" onClick={start} loading={starting}>Estudar os pendentes</Button>}
     </div>
