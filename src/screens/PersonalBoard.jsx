@@ -212,7 +212,7 @@ function TagEditor({ tags, onChange, suggestions }) {
       <div style={S.tagEditorChips}>
         {tags.map((t) => (
           <span key={t} style={S.personalCardTag}>
-            {t} <button aria-label="Remover tag" title="Remover tag" style={S.chipX} onClick={() => onChange(tags.filter((x) => x !== t))}><X aria-hidden="true" size={10} /></button>
+            {t} <button className="pb-dense" aria-label="Remover tag" title="Remover tag" style={S.chipX} onClick={() => onChange(tags.filter((x) => x !== t))}><X aria-hidden="true" size={10} /></button>
           </span>
         ))}
         <input
@@ -351,10 +351,10 @@ function ChecklistDate({ item, readOnly, onChange }) {
       const label = `Prazo do item: ${fmtDate(item.dueDate)}${tone === 'overdue' ? ' (vencido)' : tone === 'today' ? ' (hoje)' : ''}`;
       return readOnly
         ? <span title={label} style={{ ...S.personalCardBadge, ...toneStyle, flexShrink: 0 }}>📅 {shortDay(item.dueDate)}</span>
-        : <button type="button" title={`${label} — clique para alterar`} aria-label={`${label}. Alterar prazo do item`} onClick={() => setOpen(true)} style={{ ...S.personalCardBadge, ...toneStyle, flexShrink: 0, cursor: 'pointer', border: 'none', font: 'inherit' }}>📅 {shortDay(item.dueDate)}</button>;
+        : <button className="pb-dense" type="button" title={`${label} — clique para alterar`} aria-label={`${label}. Alterar prazo do item`} onClick={() => setOpen(true)} style={{ ...S.personalCardBadge, ...toneStyle, flexShrink: 0, cursor: 'pointer', border: 'none', font: 'inherit' }}>📅 {shortDay(item.dueDate)}</button>;
     }
     if (readOnly) return null;
-    return <button type="button" style={S.chipX} title="Definir prazo do item" aria-label="Definir prazo do item" onClick={() => setOpen(true)}><CalendarDays aria-hidden="true" size={12} /></button>;
+    return <button className="pb-dense" type="button" style={S.chipX} title="Definir prazo do item" aria-label="Definir prazo do item" onClick={() => setOpen(true)}><CalendarDays aria-hidden="true" size={12} /></button>;
   }
   const commit = (v) => { onChange(v); setOpen(false); };
   return (
@@ -363,7 +363,7 @@ function ChecklistDate({ item, readOnly, onChange }) {
         onChange={(e) => { setDraft(e.target.value); if (isIsoDay(e.target.value)) commit(e.target.value); }}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (isIsoDay(draft)) commit(draft); else setOpen(false); } else if (e.key === 'Escape') { e.preventDefault(); setOpen(false); } }}
         onBlur={() => { if (!draft && item.dueDate) onChange(''); setOpen(false); }} />
-      <button type="button" style={S.chipX} title="Remover o prazo do item" aria-label="Remover o prazo do item" onMouseDown={(e) => e.preventDefault()} onClick={() => commit('')}><X aria-hidden="true" size={12} /></button>
+      <button className="pb-dense" type="button" style={S.chipX} title="Remover o prazo do item" aria-label="Remover o prazo do item" onMouseDown={(e) => e.preventDefault()} onClick={() => commit('')}><X aria-hidden="true" size={12} /></button>
     </span>
   );
 }
@@ -406,7 +406,7 @@ function ResponsiblePicker({ ids, readOnly, onSet, onCreate, compact }) {
       {mine.map((r) => (
         <span key={r.id} style={chip}>
           <RespAvatar name={r.name} size={av} />{r.name}
-          {!readOnly && <button type="button" aria-label={`Remover ${r.name}`} title="Remover responsável" style={S.chipX} onClick={() => onSet(cur.filter((id) => id !== r.id))}><X aria-hidden="true" size={compact ? 10 : 12} /></button>}
+          {!readOnly && <button className="pb-dense" type="button" aria-label={`Remover ${r.name}`} title="Remover responsável" style={S.chipX} onClick={() => onSet(cur.filter((id) => id !== r.id))}><X aria-hidden="true" size={compact ? 10 : 12} /></button>}
         </span>
       ))}
       {!readOnly && available.map((r) => (
@@ -458,7 +458,7 @@ function ChecklistResp({ item, readOnly, open, onToggle }) {
   if (readOnly && mine.length === 0) return null;
   const label = mine.length ? `Responsável: ${mine.map((r) => r.name).join(', ')}` : 'Atribuir responsável ao item';
   return (
-    <button type="button" aria-expanded={open} aria-label={label} title={label} onClick={onToggle}
+    <button className="pb-dense" type="button" aria-expanded={open} aria-label={label} title={label} onClick={onToggle}
       style={{ ...S.chipX, flexShrink: 0, display: 'inline-flex', alignItems: 'center', ...(open ? { outline: '1px solid var(--border-2)' } : {}) }}>
       {mine.length === 0 ? <UserPlus aria-hidden="true" size={12} /> : (
         <span style={{ display: 'inline-flex', alignItems: 'center' }}>
@@ -870,7 +870,7 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
                       style={{ flex: 1 }}
                       autoFocus
                     />
-                    <button aria-label="Cancelar edição" title="Cancelar edição" style={S.chipX} onClick={() => { cancelingChecklistRef.current = true; setEditingChecklistId(null); }}><X aria-hidden="true" size={12} /></button>
+                    <button className="pb-dense" aria-label="Cancelar edição" title="Cancelar edição" style={S.chipX} onClick={() => { cancelingChecklistRef.current = true; setEditingChecklistId(null); }}><X aria-hidden="true" size={12} /></button>
                   </>
                 ) : (
                   <>
@@ -885,14 +885,14 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
                     <ChecklistResp item={item} readOnly={readOnly} open={respOpenId === item.id} onToggle={() => setRespOpenId(respOpenId === item.id ? null : item.id)} />
                     {!readOnly && (
                       <>
-                        <button type="button" aria-label="Mover item para cima" title={itemIdx === 0 ? 'Já é o primeiro item' : 'Mover item para cima'} style={{ ...S.chipX, ...(itemIdx === 0 ? { opacity: .35, cursor: 'default' } : {}) }} disabled={itemIdx === 0} onClick={() => onMoveChecklistItem(item.id, -1)}><ChevronUp aria-hidden="true" size={13} /></button>
-                        <button type="button" aria-label="Mover item para baixo" title={itemIdx === itemList.length - 1 ? 'Já é o último item' : 'Mover item para baixo'} style={{ ...S.chipX, ...(itemIdx === itemList.length - 1 ? { opacity: .35, cursor: 'default' } : {}) }} disabled={itemIdx === itemList.length - 1} onClick={() => onMoveChecklistItem(item.id, 1)}><ChevronDown aria-hidden="true" size={13} /></button>
+                        <button className="pb-dense" type="button" aria-label="Mover item para cima" title={itemIdx === 0 ? 'Já é o primeiro item' : 'Mover item para cima'} style={{ ...S.chipX, ...(itemIdx === 0 ? { opacity: .35, cursor: 'default' } : {}) }} disabled={itemIdx === 0} onClick={() => onMoveChecklistItem(item.id, -1)}><ChevronUp aria-hidden="true" size={13} /></button>
+                        <button className="pb-dense" type="button" aria-label="Mover item para baixo" title={itemIdx === itemList.length - 1 ? 'Já é o último item' : 'Mover item para baixo'} style={{ ...S.chipX, ...(itemIdx === itemList.length - 1 ? { opacity: .35, cursor: 'default' } : {}) }} disabled={itemIdx === itemList.length - 1} onClick={() => onMoveChecklistItem(item.id, 1)}><ChevronDown aria-hidden="true" size={13} /></button>
                       </>
                     )}
                     {!readOnly && (
-                      <button style={S.chipX} title="Editar" onClick={() => { setEditingChecklistId(item.id); setEditingChecklistText(item.text); }}><Pencil size={11} /></button>
+                      <button className="pb-dense" style={S.chipX} title="Editar" onClick={() => { setEditingChecklistId(item.id); setEditingChecklistText(item.text); }}><Pencil size={11} /></button>
                     )}
-                    <button aria-label="Remover item do checklist" title="Remover item do checklist" style={S.chipX} onClick={() => onRemoveChecklistItem(item.id)}><X aria-hidden="true" size={12} /></button>
+                    <button className="pb-dense" aria-label="Remover item do checklist" title="Remover item do checklist" style={S.chipX} onClick={() => onRemoveChecklistItem(item.id)}><X aria-hidden="true" size={12} /></button>
                     </span>
                   </>
                 )}
@@ -2280,11 +2280,11 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
         @keyframes personalSkeletonPulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
         * { box-sizing: border-box; }
         input, select, textarea, button { font-family: 'Inter', sans-serif; }
-        input[type=text], input[type=date], input[type=email], input[type=password], input[type=number], select, textarea {
+        input:not([type]), input[type=text], input[type=date], input[type=email], input[type=password], input[type=number], select, textarea {
           background:var(--bg-3); border:1px solid var(--border-2); color:var(--text-1); border-radius:6px;
           padding:6px 8px; font-size:12.5px; width:100%;
         }
-        input[type=text]:focus, input[type=date]:focus, input[type=email]:focus, input[type=password]:focus, input[type=number]:focus, select:focus, textarea:focus {
+        input:not([type]):focus, input[type=text]:focus, input[type=date]:focus, input[type=email]:focus, input[type=password]:focus, input[type=number]:focus, select:focus, textarea:focus {
           outline:none; border-color:#F5C400;
         }
         input[type=checkbox]{ accent-color:#F5C400; width:15px; height:15px; }
@@ -2393,7 +2393,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
             >
               <input value={b.name} onChange={(e) => renameBoard(b.id, e.target.value)} style={S.personalTabInput} />
               {b.visibility === 'public' && <span style={S.publicBadge}><Globe size={11} /></span>}
-              <button aria-label="Excluir quadro" title="Excluir quadro" style={S.chipX} onClick={(e) => { e.stopPropagation(); deleteBoard(b.id); }}><X aria-hidden="true" size={11} /></button>
+              <button className="pb-dense" aria-label="Excluir quadro" title="Excluir quadro" style={S.chipX} onClick={(e) => { e.stopPropagation(); deleteBoard(b.id); }}><X aria-hidden="true" size={11} /></button>
             </div>
           ))}
           {linkedBoards.map((l) => (
@@ -2405,7 +2405,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
             >
               <span style={S.publicBadge}><Link2 size={11} /></span>
               <span style={{ ...S.personalTabInput, cursor: 'pointer' }}>{l.name}{l.ownerName ? ` · ${l.ownerName.split(' ')[0]}` : ''}</span>
-              <button style={S.chipX} title="Remover da minha lista" onClick={(e) => { e.stopPropagation(); removeLinked(l.token); }}><X size={11} /></button>
+              <button className="pb-dense" style={S.chipX} title="Remover da minha lista" onClick={(e) => { e.stopPropagation(); removeLinked(l.token); }}><X size={11} /></button>
             </div>
           ))}
           <button style={S.iconBtnGhost} onClick={addBoard} title="Nova página"><Plus size={16} /></button>

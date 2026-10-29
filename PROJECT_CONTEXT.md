@@ -8444,3 +8444,9 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - **Medido** (janela 1000 px, mesma regra do iPad): círculo 17 px, clique a 6 px fora acerta o botão, barra numa linha; em 1400 px nada mudou (busca 180, botões 31).
 - **Não testado:** aparelho real (a parte `pointer: coarse` só se confirma no iPad do Rafael). Com "Público por link" + "Copiar link" + "Histórico" a barra ainda quebra em 2 linhas no iPad (sobra largura para ~1.200 px de itens em ~1.030); aceito por ora.
 
+### 116v.1 Cartão aberto no iPad: campos brancos e checklist inflado (2026-10-29, 2º print do Rafael)
+
+- **Campos brancos:** o CSS do `PersonalBoard.jsx` estilizava `input[type=text]` etc., mas vários campos do cartão não têm atributo `type` ("Novo responsável…", "+ tag", "Adicionar item…") e caíam no branco do navegador — bug que existia também no desktop. Agora o seletor inclui `input:not([type])` (e o `:focus`). Os campos do quadro que têm estilo inline próprio (busca, nome da aba/coluna) seguem transparentes (conferido).
+- **Checklist:** os botões `S.chipX` (subir, descer, editar, remover, prazo, responsável) e a pílula de prazo ganharam `pb-dense` (§116v): voltam ao tamanho do desenho e a área de toque cresce por fora. As setas deixam de ficar desalinhadas e as linhas deixam de ocupar 44 px cada.
+- **Não testado:** aparelho real; medido em janela de 1000 px (mesma regra do iPad).
+
