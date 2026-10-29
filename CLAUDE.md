@@ -2,9 +2,17 @@
 
 Antes de qualquer tarefa nova, siga esta ordem:
 
+0. **Comece por `docs/00_COMECE_AQUI.md`** (2026-10-29): índice "pedido → documento"
+   do conjunto `docs/00…10` (arquitetura, front, backend/API, segurança e travas,
+   um documento por módulo, manuais, bugs, histórico, glossário) e das tabelas
+   **geradas do código** em `docs/gerado/` (rotas, banco, variáveis, testes, arquivos,
+   índice do `PROJECT_CONTEXT.md`). Leia só o documento do módulo do pedido — é o
+   caminho mais barato. `npm run docs:gerar` atualiza o gerado; `npm run docs:conferir`
+   confere caminhos/rotas/segredos citados nos textos.
 1. **Leia primeiro `CLAUDE.md`** (este arquivo) **e `PROJECT_CONTEXT.md`**
    (raiz) — memória técnica oficial: arquitetura, banco, deploy, regras de
-   negócio, decisões, bugs já resolvidos, pendências.
+   negócio, decisões, bugs já resolvidos, pendências. (`PROJECT_CONTEXT.md` tem
+   8.000+ linhas: ache a seção em `docs/gerado/INDICE_PROJECT_CONTEXT.md` e leia só o trecho.)
 2. Consulte código **só das áreas relacionadas à tarefa** — use
    `docs/PROJECT_MAP.md` para localizar componente/função por linha em
    `src/App.jsx` antes de abrir o arquivo.
@@ -15,7 +23,7 @@ Antes de qualquer tarefa nova, siga esta ordem:
    `docs/PROJECT_MAP.md`) sempre que uma alteração mudar arquitetura, regra
    de negócio, infraestrutura ou comportamento relevante — na mesma sessão.
 6. Evite carregar arquivos grandes ou módulos não relacionados no contexto
-   (`src/App.jsx` tem ~3.200 linhas; telas pesadas em `src/screens/`, ações em `src/app/`, estilos `S` em `src/styles/S.js` — leia com `offset`/`limit` ou `grep`,
+   (`src/App.jsx` tem ~3.600 linhas; telas pesadas em `src/screens/`, ações em `src/app/`, estilos `S` em `src/styles/S.js` — leia com `offset`/`limit` ou `grep`,
    nunca o arquivo inteiro sem motivo). Comece pelo **§0 do `PROJECT_CONTEXT.md`**
    (mapa dos módulos, endereços, acessos e linha do tempo) para saber onde fica cada coisa.
 7. Investigue progressivamente: **documentação → arquivos relacionados →
@@ -84,7 +92,7 @@ Ele quer tudo registrado como Claude Code; o que ele NÃO quer é ficar sem regi
   curl -s -X POST "$PRICETAX_URL/api/connect/crm/cadences" -H "Authorization: Bearer $PRICETAX_CRM_TOKEN" -H "Content-Type: application/json" -d '{…}'
   ```
 - **Registro (automático, não dá para esquecer):** auditoria, linha do tempo, histórico de etapas e autor da nota saem como
-  **"Claude Code"** (usuário dedicado) ou **"Claude Code (por Rafael Souza)"** (chave dele); cada gravação entra em `api_token_actions` (Meu perfil › Conectar mostra as últimas).
+  **"Claude Code"** (usuário dedicado) ou **"Claude Code (por Rafael Souza)"** (chave dele); cada gravação entra em `api_token_actions` (Meu perfil › Integrações mostra as últimas).
 - **Como trabalhar:** descreva o que vai gravar em uma linha, grave, **leia de volta** para provar o resultado e diga o que mudou. Se a gravação
   for em massa (mais de ~20 registros), faça primeiro uma prévia (contagem + 3 exemplos) e grave em lotes.
 - **Continua fora do alcance da chave (de propósito):** escrita da migração do PipeRun (só pela tela); excluir de verdade (a chave só faz exclusão

@@ -1,5 +1,7 @@
 # PROJECT_MAP.md — Índice técnico (PRICETAX Cronograma)
 
+> **2026-10-29:** o conjunto `docs/00_COMECE_AQUI.md` … `docs/11_*.md` e as tabelas geradas em `docs/gerado/` (rotas, banco, arquivos, testes) são o caminho mais curto para localizar código; este mapa de `App.jsx` pode estar defasado (ex.: `SubactivityRow` e `PersonalColumn` agora ficam em `src/screens/`; `savedStatusLabel` virou `RecordSaveStatus` em `src/ui/index.jsx`; `useIsCompact` está em `src/screens/CompanyViews.jsx`). Confirme sempre com `grep -n`.
+
 Mapa de localização, não documentação completa. Números de linha são
 aproximados no momento da escrita — **o índice de componentes de `App.jsx` (§3) foi regenerado do código em 2026-10-05** e a documentação toda foi reconciliada nessa data (`PROJECT_CONTEXT.md` §79). Se o arquivo tiver sido editado
 depois, confirme com `grep -n "nome_da_função" src/App.jsx` antes de usar
