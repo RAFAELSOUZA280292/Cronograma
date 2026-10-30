@@ -28,7 +28,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/companyCalendar.js` | 158 | "Reservar na agenda" (2026-10-19): bloco de agenda por atividade do cronograma, convidando só os e-mails que a equipe digita (equipe PRICETAX; cliente nunca é convidado). |
 | `server/companyCalendarPlan.js` | 101 | Reservar na agenda (2026-10-19, pedido do Rafael): cada ATIVIDADE do cronograma da empresa vira UM bloco de agenda (padrão de call: 60 min) para a equipe PRICETAX. |
 | `server/companyShare.js` | 197 | Link público de acompanhamento da empresa (2026-10-19, pedido do Rafael): o cliente abre o link SEM login e vê Resumo, Cronograma (Gantt com subatividades) e Tabela, só leitura. |
-| `server/connect.js` | 902 | API de conectividade (2026-10-05, §80): permite que OUTRA janela do Claude Code (ou qualquer script) leia o painel e crie atividades |
+| `server/connect.js` | 905 | API de conectividade (2026-10-05, §80): permite que OUTRA janela do Claude Code (ou qualquer script) leia o painel e crie atividades |
 | `server/crm/activities.js` | 256 | CRM — atividades e follow-ups (Fase 3, 2026-09-20, PROJECT_CONTEXT.md §56). |
 | `server/crm/activityQueries.js` | 103 | CRM — consultas de atividades (Fase 3). Somente leitura. |
 | `server/crm/agendaFeed.js` | 23 | CRM — atividades em aberto do usuário como eventos da Agenda existente |
@@ -205,7 +205,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/assistant/chatExport.js` | 131 | Copiar e exportar conversas da RENATA (2026-10-27). Funções PURAS (sem React/DOM) para testar em Node. |
 | `src/companies/CompanyOwners.jsx` | 195 | Responsáveis por empresa (2026-10-09, pedido do Rafael): cada empresa tem um responsável PRINCIPAL e pode ter outros da equipe |
 | `src/connect/ConnectSection.jsx` | 191 |  |
-| `src/connect/guide.js` | 119 | Guia que o usuário cola na OUTRA janela do Claude Code (2026-10-05, §80). Não leva o token: ele vai pela variável de ambiente |
+| `src/connect/guide.js` | 147 | Guia que o usuário cola na OUTRA janela do Claude Code (2026-10-05, §80). Não leva o token: ele vai pela variável de ambiente |
 | `src/crm/ActivityForm.jsx` | 128 | Cadastro/edição de atividade (estado local + Salvar). A empresa é sempre |
 | `src/crm/ActivityList.jsx` | 139 | Lista de atividades reutilizável (Agenda, ficha da empresa, ficha do negócio). |
 | `src/crm/AgendaPage.jsx` | 92 | Agenda do CRM (PRD 16/17): o que cada pessoa precisa fazer, por urgência. |

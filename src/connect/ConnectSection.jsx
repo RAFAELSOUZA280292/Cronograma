@@ -101,7 +101,7 @@ export default function ConnectSection({ onAtRiskChange }) {
 
   const baseUrl = window.location.origin;
   const exportLine = fresh ? `export PRICETAX_URL="${baseUrl}"\nexport PRICETAX_TOKEN="${fresh.token}"` : '';
-  const guide = buildGuide({ baseUrl, canCreate: !!fresh && ['read_create', 'read_write', 'write_all'].includes(fresh.scope), canWrite: !!fresh && ['read_write', 'write_all'].includes(fresh.scope), canCrm: !!fresh && ['crm_operate', 'write_all'].includes(fresh.scope), canTranscripts: !!fresh && ['transcripts', 'meetings_edit', 'read_write', 'write_all'].includes(fresh.scope), canMeetingsEdit: !!fresh && ['meetings_edit', 'write_all'].includes(fresh.scope), readAll: !!fresh && ['read_all', 'write_all'].includes(fresh.scope) });
+  const guide = buildGuide({ baseUrl, canCreate: !!fresh && ['read_create', 'read_write', 'write_all'].includes(fresh.scope), canWrite: !!fresh && ['read_write', 'write_all'].includes(fresh.scope), canCrm: !!fresh && ['crm_operate', 'write_all'].includes(fresh.scope), canTranscripts: !!fresh && ['transcripts', 'meetings_edit', 'read_write', 'write_all'].includes(fresh.scope), canMeetingsEdit: !!fresh && ['meetings_edit', 'write_all'].includes(fresh.scope), readAll: !!fresh && ['read_all', 'write_all'].includes(fresh.scope), canBoard: !!fresh && fresh.scope === 'write_all', canTeam: !!fresh && ['read_all', 'write_all'].includes(fresh.scope) });
 
   return (
     <div className="cnx">

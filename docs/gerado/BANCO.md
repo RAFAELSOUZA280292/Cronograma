@@ -738,7 +738,7 @@
 - `crm_deal_stage_history_deal_idx`: `USING btree (deal_id, moved_at)`
 
 **Gatilhos (triggers):**
-- `crm_deal_stage_history_append_only` (BEFORE UPDATE/DELETE): `EXECUTE FUNCTION crm_block_history_mutation()`
+- `crm_deal_stage_history_append_only` (BEFORE DELETE/UPDATE): `EXECUTE FUNCTION crm_block_history_mutation()`
 
 ## crm_deal_tags
 
@@ -993,7 +993,7 @@
 - `crm_timeline_company_idx`: `USING btree (company_id, occurred_at DESC)`
 
 **Gatilhos (triggers):**
-- `crm_timeline_events_append_only` (BEFORE UPDATE/DELETE): `EXECUTE FUNCTION crm_block_history_mutation()`
+- `crm_timeline_events_append_only` (BEFORE DELETE/UPDATE): `EXECUTE FUNCTION crm_block_history_mutation()`
 
 ## crm_view_defaults
 

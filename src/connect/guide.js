@@ -1,6 +1,6 @@
 // Guia que o usuário cola na OUTRA janela do Claude Code (2026-10-05, §80). Não leva o token: ele vai pela variável de ambiente
 // PRICETAX_TOKEN, para não ficar em arquivo nem em histórico de conversa. Mantido em sincronia com `ENDPOINTS` de server/connect.js.
-export function buildGuide({ baseUrl, canCreate, canWrite = false, canCrm = false, canTranscripts = false, canMeetingsEdit = false, readAll = false }) {
+export function buildGuide({ baseUrl, canCreate, canWrite = false, canCrm = false, canTranscripts = false, canMeetingsEdit = false, readAll = false, canBoard = false, canTeam = false }) {
   const transcripts = canTranscripts
     ? `
 ### Enviar transcrição de reunião para a RENATA (esta chave pode)
@@ -63,6 +63,33 @@ curl -s -X POST "$PRICETAX_URL/api/connect/companies/{id}/plan" \\
 - A resposta de uma gravação traz \`undo\`: mande esse array de volta como \`ops\` para desfazer.
 `
     : '';
+  const board = canBoard
+    ? `
+### Organizar o quadro pessoal do Rafael (esta chave pode; só administrador)
+\`\`\`bash
+curl -s "$PRICETAX_URL/api/connect/board?checklist=1" -H "Authorization: Bearer $PRICETAX_TOKEN"
+curl -s -X POST "$PRICETAX_URL/api/connect/board/plan" -H "Authorization: Bearer $PRICETAX_TOKEN" -H "Content-Type: application/json" \\
+  -d '{"operations":[{"op":"update_card","card":"card-abc123","set":{"dueDate":"2026-11-09","responsibles":["Felipe"]}},{"op":"move_card","card":"card-abc123","column":"FELIPE"}]}'
+\`\`\`
+- **Leia primeiro** (\`GET /board\`): devolve páginas, colunas e cartões com **ids**. Use os ids nas operações.
+- **Sem \`apply\` nada é gravado**: a resposta é a **prévia** (\`changes\` com antes → depois por cartão, \`counts\`, \`errors\` com o índice da operação e o \`digest\`). Mostre a prévia ao Rafael.
+- **Para gravar**, só depois do OK dele: repita o MESMO corpo com \`"apply":true,"confirm":true,"digest":"<digest da prévia>"\`. 409 = o quadro mudou desde a prévia (refaça a prévia); 422 = há operação com erro e nada foi gravado (tudo ou nada).
+- Operações (\`op\`): \`create_column\` {page,name,after?,color?} · \`rename_column\` {page,column,name} · \`create_card\` {page?,column,title,desc?,priority?,dueDate?,status?,tags?,responsibles?,checklist?,waiting?,ref?} · \`move_card\` {card,column,page?,position?} · \`update_card\` {card,set:{title,desc,priority,dueDate,status,tags,addTags,removeTags,responsibles,addResponsibles,waiting}} · \`add_checklist\` {card,items} · \`merge_cards\` {into,from:[ids]} (os originais vão para a Lixeira) · \`trash_card\` {card,reason?} · \`archive_card\` {card} (vai para Concluídas; só para o que já foi feito). Até 300 por chamada, 60 chamadas por hora.
+- **Pessoa é o campo \`responsibles\` do cartão, não a coluna.** O Foco de hoje, a Daily e os filtros usam esse campo. O Foco só mostra o que está em andamento ou tem prazo: ponha \`dueDate\` e/ou \`status\`. "Aguardando cliente" = \`waiting\` \`{"who":"cliente"}\`. Todo \`create_card\` leva uma \`ref\` estável (repetir não duplica).
+- Antes de gravar o servidor guarda uma cópia do quadro em Gestão de Atividades › **Versões**: é por lá que o Rafael desfaz. Não existe apagar de vez nem concluir cartão por esta rota.
+- Guia completo no repositório: \`docs/IA_EXTERNA_ORGANIZAR_QUADRO.md\`.
+`
+    : '';
+  const team = canTeam
+    ? `
+### Dia da equipe: entradas, saídas, telas e o que cada pessoa fez (só leitura; só administrador)
+\`\`\`bash
+curl -s "$PRICETAX_URL/api/connect/team-day?date=2026-10-29" -H "Authorization: Bearer $PRICETAX_TOKEN"
+\`\`\`
+- Por pessoa da equipe (Master e PRICETAX), num dia de Brasília: \`sessions\` (entrada e saída; a saída é exata só se a pessoa clicou em Sair, senão é a última atividade registrada), \`screens\` (telas por onde passou) e \`operations\` (o que fez, editou e incluiu). \`date\` padrão = hoje; \`userId\` filtra uma pessoa.
+- Dado de pessoa: use só para o que o Rafael pediu, não copie para arquivos do repositório. **Cada leitura fica registrada** em Meu perfil › Integrações.
+`
+    : '';
   const create = canCreate
     ? `
 ### Criar atividade (este token pode)
@@ -103,12 +130,13 @@ Mostra de quem é o token, o escopo, a validade e a data de hoje (America/Sao_Pa
 | \`GET /api/connect/companies/{id}\` | equipe, fases, atividades e lista de reuniões da empresa |
 | \`GET /api/connect/companies/{id}/meetings/{meetingId}?transcript=1\` | resumo, decisões, itens de ação (e transcrição, se pedir) |
 | \`GET /api/connect/agenda?days=7\` | compromissos aceitos do Google Calendar dele |
+| \`GET /api/connect/board?checklist=1\` | o quadro pessoal inteiro com ids (páginas, colunas, cartões, responsáveis, passos) |
 
 Exemplo:
 \`\`\`bash
 curl -s "$PRICETAX_URL/api/connect/activities?status=overdue" -H "Authorization: Bearer $PRICETAX_TOKEN"
 \`\`\`
-${create}${write}${crm}${crmRead}${transcripts}
+${create}${board}${write}${crm}${crmRead}${team}${transcripts}
 ## Regras
 - Os dados são do Rafael e de clientes dele: **não copie para arquivos do repositório, logs ou issues** mais do que o necessário para a tarefa.
 - Erros: 401 token inválido/revogado/expirado · 403 sem permissão (escopo ou acesso) · 404 não achou · 429 limite (120/min) · 400 dado inválido (a mensagem diz o quê).
