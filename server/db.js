@@ -1254,6 +1254,8 @@ export async function initDb() {
   await pool.query(`ALTER TABLE crm_notes ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await pool.query(`ALTER TABLE crm_notes ADD COLUMN IF NOT EXISTS links JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await pool.query(`ALTER TABLE crm_notes ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ`);
+  // Nota formatada (2026-10-30): `body` continua sendo o TEXTO PURO (busca, auditoria, RENATA, notificações); `body_html` guarda a versão formatada higienizada ('' = nota simples).
+  await pool.query(`ALTER TABLE crm_notes ADD COLUMN IF NOT EXISTS body_html TEXT NOT NULL DEFAULT ''`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_timeline_events (
       id          UUID PRIMARY KEY,

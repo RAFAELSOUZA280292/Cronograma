@@ -2,7 +2,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { ConfirmDialog } from '../ui/index.jsx';
-import { ComposeBox, CommentThread, useMentionUsers } from '../ui/ComposeBox.jsx';
+import { lazyRetry } from '../lib/lazyRetry.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { crm } from './crmApi.js';
 import { useDialog } from '../lib/nav.js';
@@ -111,32 +111,16 @@ export function DuplicatesAlert({ duplicates, blocking, onOpenCompany }) {
   );
 }
 
-// Notas do CRM (Onda 3): o mesmo compositor/lista de todo módulo. O servidor recusa anexo acima de 3 MB e mais de 5 por nota.
-export function NoteComposer({ about, placeholder, draftKey, onDirtyChange, onAdded }) {
-  const users = useMentionUsers();
-  async function submit({ text, mentions, attachments, links }) {
-    await crm.addNote({ ...about, body: text, attachments, links, mentions });
-    try { if (onAdded) await onAdded(); } catch (e) { /* a nota já foi gravada: não manter o rascunho */ }
-  }
-  return (
-    <ComposeBox onSubmit={submit} mentionCandidates={users} submitLabel="Adicionar nota" placeholder={placeholder} draftKey={draftKey}
-      maxFileBytes={3 * 1024 * 1024} maxFiles={5} onDirtyChange={onDirtyChange} />
-  );
+// Notas do CRM: texto formatado com emojis, modelos, @menção, anexos e print colado (src/crm/RichNotes.jsx, carregado sob demanda).
+// O servidor recusa anexo acima de 3 MB e mais de 5 por nota. Notas antigas (texto simples) continuam aparecendo e podem ser editadas no editor novo.
+const RichNoteComposer = lazyRetry(() => import('./RichNotes.jsx').then((m) => ({ default: m.RichNoteComposer })));
+const RichNoteThread = lazyRetry(() => import('./RichNotes.jsx').then((m) => ({ default: m.RichNoteThread })));
+const noteFallback = <div className="crm-muted" style={{ padding: 8 }}>Carregando o editor…</div>;
+
+export function NoteComposer(props) {
+  return <React.Suspense fallback={noteFallback}><RichNoteComposer {...props} /></React.Suspense>;
 }
 
-export function NoteThread({ notes, currentUserId, canModerate, onChanged, showContext }) {
-  const users = useMentionUsers();
-  const comments = notes.map((n) => {
-    const ctx = showContext ? `${n.contactName ? ` · sobre ${n.contactName}` : ''}${n.dealTitle ? ` · sobre o negócio ${n.dealTitle}` : ''}` : '';
-    return { id: n.id, text: n.body, ts: n.createdAt, author: `${n.createdByName || 'Alguém'}${ctx}`, authorId: n.createdBy, attachments: n.attachments || [], links: n.links || [], editedAt: n.editedAt };
-  });
-  async function edit(id, text) {
-    await crm.updateNote(id, { body: text });
-    if (onChanged) await onChanged();
-  }
-  async function remove(id) {
-    if (!(await askConfirm({ title: 'Remover esta nota?', message: 'O registro de que ela existiu continua no histórico.', confirmLabel: 'Remover', danger: true }))) return;
-    try { await crm.deleteNote(id); if (onChanged) await onChanged(); } catch (e) { notify((e && e.message) || 'Não foi possível concluir.', { tone: 'error' }); }
-  }
-  return <CommentThread comments={comments} currentUserId={currentUserId} canModerate={canModerate} onEdit={edit} onDelete={remove} mentionNames={users.map((u) => u.name)} />;
+export function NoteThread(props) {
+  return <React.Suspense fallback={noteFallback}><RichNoteThread {...props} /></React.Suspense>;
 }

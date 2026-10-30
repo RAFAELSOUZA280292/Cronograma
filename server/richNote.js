@@ -9,7 +9,7 @@ const MAX_NOTE = 50000;
 export function sanitizeNoteHtml(html) {
   return sanitizeHtml(String(html || '').slice(0, MAX_NOTE), {
     allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'a'],
-    allowedAttributes: { a: ['href'] },
+    allowedAttributes: { a: ['href', 'target', 'rel'] },
     allowedSchemes: ['http', 'https', 'mailto'],
     allowedSchemesAppliedToAttributes: ['href'],
     transformTags: {
@@ -21,6 +21,20 @@ export function sanitizeNoteHtml(html) {
   });
 }
 
+// Nota do CRM (2026-10-30): mais elementos que a descrição do cartão — títulos, sublinhado, tachado, citação e linha. Emoji passa como texto.
+export const MAX_CRM_NOTE_HTML = 30000;
+export function sanitizeCrmNoteHtml(html) {
+  return sanitizeHtml(String(html || '').slice(0, MAX_CRM_NOTE_HTML * 2), {
+    allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'h2', 'h3', 'ul', 'ol', 'li', 'blockquote', 'hr', 'a'],
+    allowedAttributes: { a: ['href', 'target', 'rel'] },
+    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+    allowedSchemesAppliedToAttributes: ['href'],
+    transformTags: {
+      a: (tagName, attribs) => ({ tagName: 'a', attribs: attribs.href ? { href: attribs.href, target: '_blank', rel: 'noopener noreferrer nofollow' } : {} }),
+    },
+  }).trim();
+}
+
 const ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' ' };
 
 // Texto puro de uma descrição (HTML ou não): quebras no fim de parágrafo/item, sem etiquetas.
@@ -29,7 +43,8 @@ export function noteToText(desc, format) {
   if (format !== 'html') return s;
   return s
     .replace(/<\s*br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|li)>/gi, '\n')
+    .replace(/<\/(p|li|h2|h3|blockquote)>/gi, '\n')
+    .replace(/<hr\s*\/?>/gi, '\n———\n')
     .replace(/<li[^>]*>/gi, '• ')
     .replace(/<[^>]+>/g, '')
     .replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (m) => ENTITIES[m])

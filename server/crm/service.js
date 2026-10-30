@@ -5,6 +5,7 @@
 // evento de timeline — é isso que garante PRD 9/43/55/57 (histórico completo,
 // nada some, quem/quando). Excluir é sempre soft delete (deleted_at/by).
 import { createNotification } from '../notifications.js';
+import { MAX_CRM_NOTE_HTML, noteToText, sanitizeCrmNoteHtml } from '../richNote.js';
 import { cleanCommentExtras, notifyMentions, ExtrasError } from '../commentExtras.js';
 import { randomUUID } from 'node:crypto';
 import { pool } from '../db.js';
@@ -551,6 +552,17 @@ export async function deleteContact(orgId, actor, id) {
 
 // ---------- NOTAS (PRD 52: qualquer objeto aceita nota; a nota entra na timeline) ----------
 
+// Nota formatada: o cliente manda HTML; o servidor higieniza e DERIVA o texto puro (é o que busca, auditoria, RENATA e notificações leem).
+export function cleanRichBody(bodyHtml) {
+  if (bodyHtml == null || bodyHtml === '') return null;
+  if (typeof bodyHtml !== 'string') throw new CrmError(400, 'bodyHtml deve ser texto.');
+  if (bodyHtml.length > MAX_CRM_NOTE_HTML) throw new CrmError(400, 'Nota formatada muito longa.');
+  const html = sanitizeCrmNoteHtml(bodyHtml);
+  const text = noteToText(html, 'html');
+  if (!text) return { html: '', text: '' };
+  return { html, text };
+}
+
 export function cleanNoteExtras(attachments, links) {
   try {
     const r = cleanCommentExtras(attachments, links, { maxAttachments: 5, maxFileChars: 4 * 1024 * 1024 });
@@ -558,10 +570,11 @@ export function cleanNoteExtras(attachments, links) {
   } catch (e) { if (e instanceof ExtrasError) throw new CrmError(400, e.message); throw e; }
 }
 
-export async function addNote(orgId, actor, { entityType, entityId, body, attachments, links, mentions }) {
+export async function addNote(orgId, actor, { entityType, entityId, body, bodyHtml, attachments, links, mentions }) {
   if (!['company', 'contact', 'deal'].includes(entityType)) throw new CrmError(400, 'Tipo de registro inválido para nota.');
   requireUuid(entityId);
-  const text = String(body || '').trim();
+  const rich = cleanRichBody(bodyHtml);
+  const text = rich ? rich.text : String(body || '').trim();
   const { att, lk } = cleanNoteExtras(attachments, links);
   if (!text && !att.length && !lk.length) throw new CrmError(400, 'Escreva a nota.');
   if (text.length > 5000) throw new CrmError(400, 'Nota muito longa (máximo 5.000 caracteres).');
@@ -582,8 +595,8 @@ export async function addNote(orgId, actor, { entityType, entityId, body, attach
       about = ` sobre ${`${k.first_name} ${k.last_name}`.trim()}`;
     }
     const id = randomUUID();
-    await c.query(`INSERT INTO crm_notes (id, org_id, entity_type, entity_id, company_id, body, created_by, updated_by, attachments, links, author_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10)`,
-      [id, orgId, entityType, entityId, companyId, text, actor.id || null, JSON.stringify(att), JSON.stringify(lk), actor.viaApi ? actor.name : '']); // entrada por chave de API (§99): a nota mostra "Claude Code (por …)", não o dono
+    await c.query(`INSERT INTO crm_notes (id, org_id, entity_type, entity_id, company_id, body, created_by, updated_by, attachments, links, author_name, body_html) VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10,$11)`,
+      [id, orgId, entityType, entityId, companyId, text, actor.id || null, JSON.stringify(att), JSON.stringify(lk), actor.viaApi ? actor.name : '', rich ? rich.html : '']); // entrada por chave de API (§99): a nota mostra "Claude Code (por …)", não o dono
     await addAudit(c, { orgId, entityType: 'note', entityId: id, action: 'create', changes: [{ field: 'body', label: 'Nota', from: null, to: text }], actor });
     const excerpt = text.length > 160 ? `${text.slice(0, 160)}…` : text;
     await addTimeline(c, { orgId, companyId, entityType: 'note', entityId: id, eventType: 'note_added', actor,
@@ -592,23 +605,24 @@ export async function addNote(orgId, actor, { entityType, entityId, body, attach
     await notifyMentions(c, { orgId, actor, mentions, type: 'crm_mention', title: 'Menção em nota do CRM',
       body: `${actor.name} mencionou você em uma nota${about}: "${excerpt}"`,
       target: { kind: 'crm_activity', companyId, dealId: entityType === 'deal' ? entityId : null } });
-    return { id, entityType, entityId, companyId, body: text, attachments: att, links: lk, createdAt: new Date().toISOString(), createdBy: actor.id || null, createdByName: actor.name };
+    return { id, entityType, entityId, companyId, body: text, bodyHtml: rich ? rich.html : '', attachments: att, links: lk, createdAt: new Date().toISOString(), createdBy: actor.id || null, createdByName: actor.name };
   });
 }
 
 // Editar a própria nota (só o texto; anexos e links ficam). Fica registrado como editada.
-export async function updateNote(orgId, actor, id, { body }) {
+export async function updateNote(orgId, actor, id, { body, bodyHtml }) {
   requireUuid(id, 'Nota');
-  const text = String(body || '').trim();
+  const rich = cleanRichBody(bodyHtml);
+  const text = rich ? rich.text : String(body || '').trim();
   if (text.length > 5000) throw new CrmError(400, 'Nota muito longa (máximo 5.000 caracteres).');
   return tx(async (c) => {
     const { rows } = await c.query('SELECT id, company_id, created_by, body, attachments, links FROM crm_notes WHERE id=$1 AND org_id=$2 AND deleted_at IS NULL FOR UPDATE', [id, orgId]);
     if (!rows[0]) throw new CrmError(404, 'Nota não encontrada.');
     if (rows[0].created_by !== actor.id) throw new CrmError(403, 'Você só pode editar as suas próprias notas.');
     if (!text && !(rows[0].attachments || []).length && !(rows[0].links || []).length) throw new CrmError(400, 'A nota não pode ficar vazia. Para apagar, use Remover.');
-    await c.query('UPDATE crm_notes SET body=$1, edited_at=now(), updated_at=now(), updated_by=$2 WHERE id=$3', [text, actor.id || null, id]);
+    await c.query('UPDATE crm_notes SET body=$1, body_html=$4, edited_at=now(), updated_at=now(), updated_by=$2 WHERE id=$3', [text, actor.id || null, id, rich ? rich.html : '']);
     await addAudit(c, { orgId, entityType: 'note', entityId: id, action: 'update', changes: [{ field: 'body', label: 'Nota', from: rows[0].body, to: text }], actor });
-    return { id, body: text, editedAt: new Date().toISOString() };
+    return { id, body: text, bodyHtml: rich ? rich.html : '', editedAt: new Date().toISOString() };
   });
 }
 

@@ -64,13 +64,13 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/crm/queries.js` | 253 | CRM — consultas (somente leitura). Ver service.js pras escritas. |
 | `server/crm/routes.js` | 278 | CRM PRICETAX — rotas (/api/crm). Fase 1 (2026-09-20, PROJECT_CONTEXT.md §54). |
 | `server/crm/scheduler.js` | 58 | CRM — agendador de lembretes (Fase 3, 2026-09-20, PROJECT_CONTEXT.md §56). |
-| `server/crm/service.js` | 679 | CRM PRICETAX — camada de serviço (Fase 1, 2026-09-20, PROJECT_CONTEXT.md §54). |
+| `server/crm/service.js` | 693 | CRM PRICETAX — camada de serviço (Fase 1, 2026-09-20, PROJECT_CONTEXT.md §54). |
 | `server/crm/text.js` | 90 | Normalizações de texto compartilhadas pelo CRM (busca, duplicidade, import). |
 | `server/crm/views.js` | 159 | CRM — visões salvas de Negócios e página inicial por pessoa (§98). |
 | `server/crm/xlsxExport.js` | 114 | Exportação nativa para Excel (2026-10-28, §116c): planilha .xlsx com visual (cabeçalho, linhas alternadas, filtro, cabeçalho fixo, links clicáveis). |
 | `server/daily.js` | 75 | "Meu dia" (2026-10-05, §77): preferências de conteúdo diário + boas-vindas na primeira entrada. Só o próprio usuário |
 | `server/dailyContent.js` | 222 | Conteúdo diário ("Meu dia", 2026-10-05, §77): evangelho, versículo, sabedoria, horóscopo, horóscopo chinês e inspiração. |
-| `server/db.js` | 1596 |  |
+| `server/db.js` | 1598 |  |
 | `server/documentTemplates.js` | 260 | Modelos de documentos (2026-10-05, §78) — irmã da aba Pareceres: biblioteca de modelos para sócios e colaboradores. Um MODELO |
 | `server/dossier.js` | 453 | Dossiê do cliente (2026-10-02, pedido da Amanda via Rafael: "um compilado de todas as reuniões |
 | `server/embeddings.js` | 63 | Embeddings pra busca semântica da RENATA (Fase 3, 2026-09 — ver |
@@ -137,7 +137,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/tools/plataforma.js` | 73 | Ferramentas de plataforma — §101: agenda, notificações, conhecimento, XFlow, pareceres/modelos e o ACESSO GENÉRICO às demais rotas do servidor (as mesmas da |
 | `server/renata/tools/reports.js` | 66 | Relatórios e visão da equipe (somente leitura) — §101: "o que a minha equipe fez hoje", atrasos por responsável e quem sou eu / quem é a equipe. |
 | `server/renata/validate.js` | 81 | Validador de parâmetros das ferramentas da RENATA (§101): subconjunto de JSON Schema suficiente para o catálogo. Rejeita campo desconhecido |
-| `server/richNote.js` | 55 | Descrição formatada dos cartões do quadro pessoal (2026-10-07): o campo `desc` continua sendo uma string — texto simples |
+| `server/richNote.js` | 70 | Descrição formatada dos cartões do quadro pessoal (2026-10-07): o campo `desc` continua sendo uma string — texto simples |
 | `server/routes.js` | 1410 |  |
 | `server/scripts/reindexAllMeetings.js` | 30 | Backfill manual da memória do projeto (2026-09, Fase 1 do Assistente |
 | `server/secretBox.js` | 30 | Cofre simples para segredos guardados no banco (M2, 2026-10-29): AES-256-GCM com chave derivada de TOKEN_ENC_KEY (ou, na falta, do JWT_SECRET). |
@@ -178,7 +178,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/transcriptParser.js` | 84 | Funções puras de parsing de texto de reunião — SEM import de React, |
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 
-## `src/` — 185 arquivos
+## `src/` — 186 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -234,13 +234,14 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/PipeRunMigration.jsx` | 254 | Migração PipeRun → CRM (§84). Só o administrador do CRM. Quatro etapas: Extrair (API, só leitura) › Revisar (prévia, nada gravado) › Importar › Conferir (relatório de divergências). |
 | `src/crm/ProductsPage.jsx` | 117 | Catálogo de produtos/serviços (PRD 14). Todos veem; gestor+ mantém. Produto que |
 | `src/crm/RenataAsk.jsx` | 40 | "Perguntar à RENATA" nas fichas do CRM (Onda 5, §81). A RENATA é por PROJETO do cronograma (ProjectAssistant), |
+| `src/crm/RichNotes.jsx` | 318 | Notas do CRM com texto formatado (2026-10-30, pedido do Rafael para incentivar o time): títulos, negrito, itálico, sublinhado, tachado, listas, |
 | `src/crm/SavedViews.jsx` | 101 | Visões salvas de Negócios (§98): atalhos para uma combinação de filtros + modo (quadro/lista). |
 | `src/crm/TagFilter.jsx` | 71 | Filtro por VÁRIAS tags (o negócio precisa ter todas) — 2026-10-26. O valor é o texto "tag1\|tag2" (mesmo formato do servidor e das visões salvas). |
 | `src/crm/boardMove.js` | 48 | Mover um negócio de etapa NA TELA, antes de o servidor responder (2026-10-27, §119). O quadro do funil é um objeto |
 | `src/crm/crmApi.js` | 94 | Cliente da API do CRM (/api/crm) — Fase 1. Só monta URL/corpo; regra de |
 | `src/crm/crmMeta.js` | 445 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
 | `src/crm/importMapping.js` | 51 | Reconhecimento automático das colunas da planilha (Import Wizard). Módulo puro, |
-| `src/crm/ui.jsx` | 143 | Peças de UI compartilhadas do CRM. |
+| `src/crm/ui.jsx` | 127 | Peças de UI compartilhadas do CRM. |
 | `src/daily/DailyCards.jsx` | 254 |  |
 | `src/daily/DailyPrefs.jsx` | 69 |  |
 | `src/daily/WelcomeSetup.jsx` | 109 |  |
@@ -267,7 +268,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/lib/push.js` | 56 | Notificações push no navegador (2026-10-17): ativar/desativar neste aparelho e enviar um teste. Nada daqui roda sozinho: o pedido de permissão só |
 | `src/lib/pushPayload.js` | 32 | Funções puras do aviso push (2026-10-17), usadas pelo service worker (src/sw.js) e testáveis em Node. |
 | `src/lib/recents.js` | 84 | Recentes, favoritos e "onde eu parei" (Onda 5, §81). Tudo por PESSOA, no localStorage do navegador (chave com o id do |
-| `src/lib/richNote.js` | 31 | Descrição formatada do cartão (2026-10-07): a string é texto simples (cartões antigos) ou HTML curto do editor — quem diz |
+| `src/lib/richNote.js` | 46 | Descrição formatada do cartão (2026-10-07): a string é texto simples (cartões antigos) ou HTML curto do editor — quem diz |
 | `src/lib/routes.js` | 69 | Endereços de cada módulo (2026-10-05, pedido do Rafael: "não consigo favoritar direto minha Gestão de |
 | `src/lib/saveRetry.js` | 18 | Retentativa automática de gravação (2026-10-27, §118): quando o salvamento falha por causa de rede ou do servidor, a edição fica na |
 | `src/lib/saveState.js` | 71 | Estado global de gravação (Onda 4, §81): "Salvando… / Salvo / Não foi possível salvar — tentar de novo" em UM lugar só. |

@@ -122,7 +122,7 @@ try {
   // registro de ações
   const acts = await call(asCk('adm'), 'GET', '/api/connect/actions');
   const posts = acts.json.actions.filter((a) => a.method === 'POST').length;
-  ok('o registro lista as gravações (POST/PATCH/DELETE) com chave e resultado; GET não entra', acts.json.actions.length >= 12 && posts >= 6 && acts.json.actions.every((a) => a.method !== 'GET' && a.token_name === 'Claude Code do teste') && acts.json.actions.some((a) => a.method === 'DELETE'), acts.json.actions.length);
+  ok('o registro lista as gravações (POST/PATCH/DELETE) com chave e resultado; GET não entra', acts.json.actions.length >= 12 && posts >= 6 && acts.json.actions.every((a) => (a.method !== 'GET' || /\/team-day$/.test(a.path)) && a.token_name === 'Claude Code do teste') && acts.json.actions.some((a) => a.method === 'DELETE'), acts.json.actions.length);
   ok('o registro não guarda corpo nem query', acts.json.actions.every((a) => !a.path.includes('?') && !('body' in a)));
   ok('o registro é só do dono (o vendedor vê vazio e sem permissão de admin)', (await call(asCk('vend'), 'GET', '/api/connect/actions')).json.actions.length === 0);
 

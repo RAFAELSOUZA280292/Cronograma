@@ -28,3 +28,18 @@ export function noteToPlain(value, format) {
   tmp.innerHTML = sanitizeNote(v.replace(/<\/(p|li)>/gi, '\n$&').replace(/<br\s*\/?>/gi, '\n'));
   return tmp.textContent.trim();
 }
+
+// Nota do CRM (2026-10-30): mais elementos que a descrição do cartão. O servidor higieniza de novo (server/richNote.js, sanitizeCrmNoteHtml).
+export function sanitizeCrmNote(html) {
+  return DOMPurify.sanitize(html || '', {
+    ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'h2', 'h3', 'ul', 'ol', 'li', 'blockquote', 'hr', 'a'],
+    ALLOWED_ATTR: ['href', 'target', 'rel'],
+    ALLOWED_URI_REGEXP: /^(https?:|mailto:|tel:)/i,
+  });
+}
+
+// Nota simples (antiga ou criada pela API) vira um parágrafo por linha; **assim** vira negrito, como na caixa de comentário.
+export function crmPlainToHtml(text) {
+  const bold = (s) => s.replace(/\*\*(?=\S)([^\n]*?\S)\*\*/g, '<strong>$1</strong>');
+  return String(text || '').split(/\r?\n/).map((line) => `<p>${bold(escapeHtml(line))}</p>`).join('');
+}

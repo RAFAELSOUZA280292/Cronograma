@@ -195,7 +195,7 @@ router.get('/team-day', async (req, res, next) => {
     const date = String(req.query.date || '').trim() || todayInSp();
     const out = await teamDay({ orgId, all: !!(req.apiUser.isSuperAdmin && !orgId) }, date, { userId: clip(req.query.userId, 60) });
     pool.query('INSERT INTO api_token_actions (id, org_id, token_id, user_id, method, path, status) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-      [uid('act'), orgId, req.apiToken.id, req.apiUser.id, 'GET', clip(String(req.originalUrl || '').split('?')[0] + `?date=${date}`, 200), 200]).catch(() => {});
+      [uid('act'), orgId, req.apiToken.id, req.apiUser.id, 'GET', clip(String(req.originalUrl || '').split('?')[0], 200), 200]).catch(() => {});
     res.json(out);
   } catch (e) { if (e && e.status === 400) return res.status(400).json({ message: e.message }); next(e); }
 });
