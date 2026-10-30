@@ -8487,3 +8487,10 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - **PDF:** não é necessário para a IA (Markdown/JSON é melhor que PDF, e a fonte viva é o guia + `GET /api/connect`, sem segredo). Um PDF só serviria de manual humano e envelheceria; o manual do usuário (§8) já cobre.
 - **Atenção:** o fluxo da tela usa a variável `PRICETAX_TOKEN` (botão 1 copia `export PRICETAX_URL…/PRICETAX_TOKEN…`, botão 2 o guia). Em janelas do Claude Code o `export` não persiste entre chamadas de shell; se isso ocorrer, a chave vai no `.env` da pasta da janela com o mesmo nome.
 
+## 116z. CRM: botão azul "Copiar número" ao lado do WhatsApp (2026-10-30, pedido do Rafael para a Eduarda)
+
+- **Pedido:** a Eduarda não usa o WhatsApp Web: copia o número, cola num grupo e depois chama. Botão azul ao lado do WhatsApp que põe na área de transferência só os dígitos, sem +55: (47) 99113-0619 → `47991130619`.
+- **Onde:** `src/crm/ContactLinks.jsx` (componente único de telefone/WhatsApp/e-mail do CRM), então aparece na ficha do negócio (Contato e Próximos passos), fila de follow-up, lista e quadro de negócios e contatos da empresa. Botão azul (`#3ea6ff`, fundo translúcido), "Copiar número" (rótulo "Copiar" nas telas compactas) e "Copiado ✓" por 2 s; leitor de tela anuncia o número copiado. Se o navegador recusar a cópia, tenta o caminho antigo (`execCommand`) e, falhando, mostra o número num aviso para copiar à mão.
+- **Regra do número:** `plainPhone` (`crmMeta.js`): só dígitos; tira o 55 quando há 12+ dígitos (mesma regra do `fmtPhone`). Copia o número do WhatsApp (ou o telefone, se não houver WhatsApp); se telefone e WhatsApp forem diferentes, há um botão para cada.
+- **Testado:** `plainPhone` em 9 formatos (Node); no navegador com negócio local (botão nos 2 lugares, cor azul, conteúdo copiado `47984838370`, estado "Copiado"). **Não testado:** iPad/iPhone reais (Safari pede gesto do usuário, que o clique é) e produção.
+

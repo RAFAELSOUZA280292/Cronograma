@@ -216,7 +216,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/CompanyDrawer.jsx` | 417 | Ficha 360º da empresa (PRD 8/9/11). Fase 1: Visão Geral, Contatos (com o |
 | `src/crm/CompanyForm.jsx` | 194 | Cadastro/edição de empresa. Estado local do formulário + botão Salvar (nada |
 | `src/crm/ContactForm.jsx` | 118 | Cadastro/edição de contato (estado local + Salvar). Sem empresa definida, o |
-| `src/crm/ContactLinks.jsx` | 21 | Telefone, WhatsApp e e-mail do contato como links de um toque (ligar, abrir conversa, escrever). Não propaga o clique (serve dentro de cartão clicável). |
+| `src/crm/ContactLinks.jsx` | 61 | Telefone, WhatsApp e e-mail do contato como links de um toque (ligar, abrir conversa, escrever) e um botão azul que copia o número (só dígitos). |
 | `src/crm/ContactsPage.jsx` | 74 | Lista de contatos (PRD 10). Papel na decisão e força do relacionamento à vista. |
 | `src/crm/CrmScreen.jsx` | 138 | CRM PRICETAX — shell do módulo (Fases 1-3, 2026-09-20, PROJECT_CONTEXT.md §54/§55/§56). |
 | `src/crm/DealDrawer.jsx` | 307 | Ficha do negócio (drawer). Resumo (valor, probabilidade, produtos), Histórico |
@@ -238,7 +238,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/TagFilter.jsx` | 71 | Filtro por VÁRIAS tags (o negócio precisa ter todas) — 2026-10-26. O valor é o texto "tag1\|tag2" (mesmo formato do servidor e das visões salvas). |
 | `src/crm/boardMove.js` | 48 | Mover um negócio de etapa NA TELA, antes de o servidor responder (2026-10-27, §119). O quadro do funil é um objeto |
 | `src/crm/crmApi.js` | 94 | Cliente da API do CRM (/api/crm) — Fase 1. Só monta URL/corpo; regra de |
-| `src/crm/crmMeta.js` | 440 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
+| `src/crm/crmMeta.js` | 445 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
 | `src/crm/importMapping.js` | 51 | Reconhecimento automático das colunas da planilha (Import Wizard). Módulo puro, |
 | `src/crm/ui.jsx` | 143 | Peças de UI compartilhadas do CRM. |
 | `src/daily/DailyCards.jsx` | 254 |  |

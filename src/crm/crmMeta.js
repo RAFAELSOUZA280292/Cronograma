@@ -422,6 +422,11 @@ export function fmtPhone(v) {
   if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return String(v).trim();
 }
+// Número para colar em grupo/contato (2026-10-30, pedido da Eduarda): só dígitos, DDD + número, sem +55 — (47) 99113-0619 → 47991130619.
+export function plainPhone(v) {
+  const d0 = digitsOf(v); if (!d0) return '';
+  return d0.length >= 12 && d0.startsWith('55') ? d0.slice(2) : d0;
+}
 export const telHref = (v) => { const n = waNumber(v); return n ? `tel:+${n}` : ''; };
 export const waHref = (v) => { const n = waNumber(v); return n ? `https://wa.me/${n}` : ''; };
 export function contactLabel(c) {

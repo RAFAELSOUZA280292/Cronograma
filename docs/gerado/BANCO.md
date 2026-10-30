@@ -126,8 +126,8 @@
 | `updated_at` | timestamp with time zone | não | now() |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
+- Chave estrangeira: `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
 - Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
 - Chave primária: `PRIMARY KEY (id)`
 
@@ -229,10 +229,10 @@
 | `content_tsv` | tsvector | sim |  |
 
 **Travas do banco:**
-- Regra (CHECK): `CHECK ((scope = ANY (ARRAY['conversation'::text, 'project'::text, 'org'::text, 'global'::text])))`
-- Regra (CHECK): `CHECK ((origin = ANY (ARRAY['conversation'::text, 'legislation'::text, 'internal_document'::text, 'methodology'::text, 'best_practice'::text, 'other'::text])))`
 - Regra (CHECK): `CHECK ((status = ANY (ARRAY['active'::text, 'disputed'::text, 'superseded'::text, 'pending_validation'::text, 'archived'::text])))`
+- Regra (CHECK): `CHECK ((origin = ANY (ARRAY['conversation'::text, 'legislation'::text, 'internal_document'::text, 'methodology'::text, 'best_practice'::text, 'other'::text])))`
 - Regra (CHECK): `CHECK ((knowledge_type = ANY (ARRAY['FACT'::text, 'DECISION'::text, 'PREFERENCE'::text, 'RULE'::text, 'HYPOTHESIS'::text, 'PROCEDURE'::text, 'DEFINITION'::text])))`
+- Regra (CHECK): `CHECK ((scope = ANY (ARRAY['conversation'::text, 'project'::text, 'org'::text, 'global'::text])))`
 - Chave estrangeira: `FOREIGN KEY (source_user_id) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (source_conversation_id) REFERENCES ai_conversations(id)`
 - Chave estrangeira: `FOREIGN KEY (disputed_reviewed_by) REFERENCES users(id)`
