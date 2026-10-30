@@ -22,6 +22,7 @@ import { crmCan } from './crm/permissions.js';
 import { InboxError, createSubmission, listSubmissions, reprocessSubmission } from './meetingInbox.js';
 import { applyMeetingEdit, isISODay as isMeetingDay } from './meetingEdit.js';
 import { teamDay } from './teamDay.js';
+import { MAX_OPS as BOARD_MAX_OPS, describeBoard, planOperations } from './boardPlan.js';
 
 export const router = Router();
 
@@ -345,6 +346,78 @@ router.post('/activities', needScope('read_create'), async (req, res, next) => {
   try {
     await syncCardEvents(pool, req.apiUser.id, result.next);
     res.status(201).json({ created: true, activity: result.activity });
+  } catch (e) { next(e); }
+});
+
+// ------------------------------------------------------------------ organizar o quadro pessoal (2026-10-30)
+// Leitura com ids (qualquer chave) e organização em lote com PRÉVIA: só chave "Ler e editar tudo" (write_all) de quem tem a Gestão de Atividades.
+// Gravar exige apply+confirm e o `digest` da prévia (o quadro não pode ter mudado entre as duas chamadas); o estado anterior vira uma cópia em
+// "Versões" (sempre, sem a regra dos 10 minutos); nada é apagado de vez (Lixeira/Concluídas). Operações e regras: server/boardPlan.js.
+router.get('/board', async (req, res, next) => {
+  try {
+    if (!req.apiUser.personalAccess) return res.status(403).json({ message: 'O dono do token não tem acesso à Gestão de Atividades.' });
+    const { rows } = await pool.query('SELECT data, updated_at FROM personal_boards WHERE user_id=$1', [req.apiUser.id]);
+    const data = rows[0] ? rows[0].data : blankPersonalBoard();
+    res.json({ today: todayInSp(), updatedAt: rows[0] ? new Date(rows[0].updated_at).toISOString() : null, ...describeBoard(data, { checklist: req.query.checklist === '1' }) });
+  } catch (e) { next(e); }
+});
+
+router.post('/board/plan', async (req, res, next) => {
+  if (req.apiToken.scope !== 'write_all') return res.status(403).json({ message: 'Organizar o quadro exige uma chave "Ler e editar tudo" (só administrador gera, em Meu perfil > Integrações).' });
+  if (!req.apiUser.personalAccess) return res.status(403).json({ message: 'O dono do token não tem acesso à Gestão de Atividades.' });
+  const body = req.body || {};
+  const ops = body.operations;
+  if (!Array.isArray(ops) || !ops.length) return res.status(400).json({ message: 'Envie operations (lista com pelo menos uma operação).' });
+  if (ops.length > BOARD_MAX_OPS) return res.status(400).json({ message: `No máximo ${BOARD_MAX_OPS} operações por chamada; divida em lotes.` });
+  if (bump(creates, `plan:${req.apiHash}`, 3600 * 1000, 60)) return res.status(429).json({ message: 'Limite de 60 chamadas de organização por hora nesta chave.' });
+  const apply = body.apply === true;
+  const client = await pool.connect();
+  let out;
+  try {
+    await client.query('BEGIN');
+    const cur = await client.query('SELECT data, updated_at FROM personal_boards WHERE user_id=$1 FOR UPDATE', [req.apiUser.id]);
+    const data = cur.rows[0] ? cur.rows[0].data : blankPersonalBoard();
+    const stamp = cur.rows[0] ? new Date(cur.rows[0].updated_at).toISOString() : '';
+    const when = new Date();
+    const plan = planOperations(data, ops, { now: when.toISOString(), who: `${req.apiUser.name} (via API)`, tokenName: req.apiToken.name, today: todayInSp() });
+    const digest = sha256(`${stamp}|${JSON.stringify(ops)}`);
+    const summary = { operations: ops.length, changed: plan.changed, counts: plan.counts, cardsTouched: plan.touched.length, errors: plan.errors, changes: plan.changes };
+    if (!apply) {
+      await client.query('ROLLBACK');
+      out = { status: 200, body: { preview: true, digest, boardUpdatedAt: stamp || null, ...summary, next: plan.errors.length ? 'Corrija os erros e refaça a prévia.' : plan.changed ? 'Para gravar, repita a mesma chamada com apply:true, confirm:true e este digest.' : 'Nada a alterar.' } };
+    } else if (body.confirm !== true) {
+      await client.query('ROLLBACK');
+      out = { status: 400, body: { applied: false, message: 'Para gravar envie apply:true e confirm:true, com o digest da prévia.' } };
+    } else if (body.digest !== digest) {
+      await client.query('ROLLBACK');
+      out = { status: 409, body: { applied: false, message: 'O quadro mudou depois da prévia (ou as operações são outras). Refaça a prévia e confirme de novo.', currentDigest: digest } };
+    } else if (plan.errors.length) {
+      await client.query('ROLLBACK');
+      out = { status: 422, body: { applied: false, message: 'Há operações com erro; nada foi gravado (tudo ou nada).', ...summary } };
+    } else if (!plan.changed) {
+      await client.query('ROLLBACK');
+      out = { status: 200, body: { applied: false, message: 'Nada a alterar.', ...summary } };
+    } else {
+      const reason = `antes de organização via API (chave "${clip(req.apiToken.name, 40)}"): ${plan.changed} ${plan.changed === 1 ? 'mudança' : 'mudanças'}`;
+      if (cur.rows[0]) await client.query('INSERT INTO personal_board_versions (user_id, data, reason) VALUES ($1,$2,$3)', [req.apiUser.id, JSON.stringify(cur.rows[0].data), reason]);
+      // updated_at = o mesmo instante gravado nos cartões criados (card.createdAt): o PATCH do painel reconhece cartões da API (mergeApiCards).
+      await client.query(
+        `INSERT INTO personal_boards (user_id, data, updated_at) VALUES ($1,$2,$3) ON CONFLICT (user_id) DO UPDATE SET data=$2, updated_at=$3`,
+        [req.apiUser.id, JSON.stringify(plan.next), when]);
+      await client.query('INSERT INTO api_token_actions (id, org_id, token_id, user_id, method, path, status) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [uid('act'), req.apiUser.orgId || null, req.apiToken.id, req.apiUser.id, 'POST', `/api/connect/board/plan (${plan.changed} mudanças)`, 200]);
+      await client.query('COMMIT');
+      out = { status: 200, body: { applied: true, updatedAt: when.toISOString(), backup: reason, undo: 'Gestão de Atividades › Versões: abra a cópia "antes de organização via API" para recuperar cartões ou restaurar o quadro.', ...summary }, next: plan.next };
+    }
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch { /* já encerrada */ }
+    client.release();
+    return next(e);
+  }
+  client.release();
+  try {
+    if (out.next) await syncCardEvents(pool, req.apiUser.id, out.next);
+    res.status(out.status).json(out.body);
   } catch (e) { next(e); }
 });
 

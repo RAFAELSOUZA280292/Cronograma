@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **322 rotas** em **29 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **324 rotas** em **29 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
@@ -158,34 +158,36 @@ Arquivos: `server/companyShare.js`.
 | POST | `/api/company-share/:projectId` | `requireAuth` `requireMasterOrPricetax` | Gera um link novo; o anterior (se houver) para de funcionar. | `server/companyShare.js:62` |
 | DELETE | `/api/company-share/:projectId` | `requireAuth` `requireMasterOrPricetax` |  | `server/companyShare.js:82` |
 
-## `/api/connect` — 21 rotas
+## `/api/connect` — 23 rotas
 
 Arquivos: `server/connect.js`. Proteção do grupo (`router.use` global): `server/connect.js`: `bearer`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/connect/tokens` | `requireAuth` |  | `server/connect.js:44` |
-| POST | `/api/connect/tokens` | `requireAuth` |  | `server/connect.js:52` |
-| GET | `/api/connect/actions` | `requireAuth` | O que o Claude Code alterou no CRM pelas chaves do próprio administrador (últimas 100 gravações). | `server/connect.js:78` |
-| DELETE | `/api/connect/tokens/:id` | `requireAuth` |  | `server/connect.js:89` |
-| GET | `/api/connect` |  |  | `server/connect.js:117` |
-| GET | `/api/connect/team-day` |  | ------------------------------------------------------------------ dia da equipe por chave (2026-10-29) Só leitura, só chave "Ler tudo"/"Ler e editar tudo" de um adminis… | `server/connect.js:186` |
-| USE | `/api/connect/crm` |  | monta: crmViaToken, createCrmRouter({ auth: [(req, res, next) => next()] })); | `server/connect.js:229` |
-| GET | `/api/connect/me` |  |  | `server/connect.js:231` |
-| GET | `/api/connect/activities` |  |  | `server/connect.js:275` |
-| POST | `/api/connect/activities` | `needScope('read_create')` |  | `server/connect.js:290` |
-| GET | `/api/connect/companies` |  |  | `server/connect.js:361` |
-| GET | `/api/connect/companies/:id` |  |  | `server/connect.js:384` |
-| GET | `/api/connect/companies/:id/meetings/:meetingId` |  |  | `server/connect.js:413` |
-| POST | `/api/connect/companies/:id/transcripts` | `needTranscripts` |  | `server/connect.js:456` |
-| GET | `/api/connect/companies/:id/transcripts` | `needTranscripts` |  | `server/connect.js:480` |
-| GET | `/api/connect/companies/:id/transcripts/:submissionId` | `needTranscripts` |  | `server/connect.js:488` |
-| POST | `/api/connect/companies/:id/transcripts/:submissionId/retry` | `needTranscripts` |  | `server/connect.js:504` |
-| PATCH | `/api/connect/companies/:id/meetings/:meetingId` | `needMeetingsEdit` |  | `server/connect.js:581` |
-| GET | `/api/connect/companies/:id/meetings/:meetingId/edits` | `needMeetingsEdit` |  | `server/connect.js:588` |
-| POST | `/api/connect/companies/:id/meetings/:meetingId/edits/:editId/undo` | `needMeetingsEdit` |  | `server/connect.js:597` |
-| GET | `/api/connect/agenda` |  |  | `server/connect.js:605` |
-| POST | `/api/connect/companies/:id/plan` | `needScope('read_write')` |  | `server/connect.js:804` |
+| GET | `/api/connect/tokens` | `requireAuth` |  | `server/connect.js:45` |
+| POST | `/api/connect/tokens` | `requireAuth` |  | `server/connect.js:53` |
+| GET | `/api/connect/actions` | `requireAuth` | O que o Claude Code alterou no CRM pelas chaves do próprio administrador (últimas 100 gravações). | `server/connect.js:79` |
+| DELETE | `/api/connect/tokens/:id` | `requireAuth` |  | `server/connect.js:90` |
+| GET | `/api/connect` |  |  | `server/connect.js:118` |
+| GET | `/api/connect/team-day` |  | ------------------------------------------------------------------ dia da equipe por chave (2026-10-29) Só leitura, só chave "Ler tudo"/"Ler e editar tudo" de um adminis… | `server/connect.js:187` |
+| USE | `/api/connect/crm` |  | monta: crmViaToken, createCrmRouter({ auth: [(req, res, next) => next()] })); | `server/connect.js:230` |
+| GET | `/api/connect/me` |  |  | `server/connect.js:232` |
+| GET | `/api/connect/activities` |  |  | `server/connect.js:276` |
+| POST | `/api/connect/activities` | `needScope('read_create')` |  | `server/connect.js:291` |
+| GET | `/api/connect/board` |  | Gravar exige apply+confirm e o `digest` da prévia (o quadro não pode ter mudado entre as duas chamadas); o estado anterior vira uma cópia em "Versões" (sempre, sem a reg… | `server/connect.js:356` |
+| POST | `/api/connect/board/plan` |  |  | `server/connect.js:365` |
+| GET | `/api/connect/companies` |  |  | `server/connect.js:434` |
+| GET | `/api/connect/companies/:id` |  |  | `server/connect.js:457` |
+| GET | `/api/connect/companies/:id/meetings/:meetingId` |  |  | `server/connect.js:486` |
+| POST | `/api/connect/companies/:id/transcripts` | `needTranscripts` |  | `server/connect.js:529` |
+| GET | `/api/connect/companies/:id/transcripts` | `needTranscripts` |  | `server/connect.js:553` |
+| GET | `/api/connect/companies/:id/transcripts/:submissionId` | `needTranscripts` |  | `server/connect.js:561` |
+| POST | `/api/connect/companies/:id/transcripts/:submissionId/retry` | `needTranscripts` |  | `server/connect.js:577` |
+| PATCH | `/api/connect/companies/:id/meetings/:meetingId` | `needMeetingsEdit` |  | `server/connect.js:654` |
+| GET | `/api/connect/companies/:id/meetings/:meetingId/edits` | `needMeetingsEdit` |  | `server/connect.js:661` |
+| POST | `/api/connect/companies/:id/meetings/:meetingId/edits/:editId/undo` | `needMeetingsEdit` |  | `server/connect.js:670` |
+| GET | `/api/connect/agenda` |  |  | `server/connect.js:678` |
+| POST | `/api/connect/companies/:id/plan` | `needScope('read_write')` |  | `server/connect.js:877` |
 
 ## `/api/crm` — 87 rotas
 

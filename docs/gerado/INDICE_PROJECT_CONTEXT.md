@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8472 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8483 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -153,3 +153,4 @@ O `PROJECT_CONTEXT.md` tem 8472 linhas (a memória cronológica de cada decisão
 | 8440 | 116v. Quadro pessoal no iPad: controles densos não inflam mais (2026-10-29, print do Rafael) | - Causa: a regra de tablet do index.html (768–1023 px ou pointer: coarse) dá min-height/min-width: 44px !important a TODO button. No iPad na horizont… |
 | 8453 | 116w. Foco de hoje: tela para o iPad como segunda/terceira tela (2026-10-29, pedido do Rafael) | - Pedido: a Daily é um relatório lateral por quadro, feito para a reunião e para exportar. O Rafael queria algo de relance, filtrável por dia, pessoa… |
 | 8462 | 116x. Dia da equipe: quem entrou, saiu, por onde passou e o que fez (2026-10-29, pedido do Rafael) | - Pedido: saber, por pessoa (Eduarda, Felipe) e por dia, quando entrou, quando saiu, quais telas navegou e o que fez, editou e incluiu. Antes só dava… |
+| 8472 | 116y. Organizar o quadro pessoal por API (2026-10-30, pedido do Rafael para a outra janela do Claude Code) | - Pedido: a outra janela (a que tem as transcrições das reuniões) diagnosticou o quadro (105 abertas, 19 atrasadas, cliente repetido em várias coluna… |

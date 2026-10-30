@@ -4,7 +4,7 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 152 arquivos
+## `server/` — 153 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -20,6 +20,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/assistantRetrieval.js` | 829 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `server/assistantSweep.js` | 122 | Varredura de reuniões de VÁRIAS empresas para a RENATA geral (Etapa 3 do plano, 2026-10-08; pedido do Felipe: "a RENATA faz |
 | `server/auth.js` | 199 |  |
+| `server/boardPlan.js` | 289 | Organização do quadro pessoal por API (2026-10-30, pedido do Rafael para a outra janela do Claude Code): uma lista de operações aplicada |
 | `server/clientError.js` | 35 | Erros de tela capturados pelos limites de erro do navegador (2026-10-16): uma linha JSON no log do servidor (Railway), para que uma tela |
 | `server/clientView.js` | 32 | Visão do usuário `cliente` sobre o JSON da empresa (A3/A4, 2026-10-29). A tela já escondia Log/Lixeira/Versões; aqui o SERVIDOR faz o mesmo: |
 | `server/cnpjLookup.js` | 230 |  |
@@ -27,7 +28,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/companyCalendar.js` | 158 | "Reservar na agenda" (2026-10-19): bloco de agenda por atividade do cronograma, convidando só os e-mails que a equipe digita (equipe PRICETAX; cliente nunca é convidado). |
 | `server/companyCalendarPlan.js` | 101 | Reservar na agenda (2026-10-19, pedido do Rafael): cada ATIVIDADE do cronograma da empresa vira UM bloco de agenda (padrão de call: 60 min) para a equipe PRICETAX. |
 | `server/companyShare.js` | 197 | Link público de acompanhamento da empresa (2026-10-19, pedido do Rafael): o cliente abre o link SEM login e vê Resumo, Cronograma (Gantt com subatividades) e Tabela, só leitura. |
-| `server/connect.js` | 829 | API de conectividade (2026-10-05, §80): permite que OUTRA janela do Claude Code (ou qualquer script) leia o painel e crie atividades |
+| `server/connect.js` | 902 | API de conectividade (2026-10-05, §80): permite que OUTRA janela do Claude Code (ou qualquer script) leia o painel e crie atividades |
 | `server/crm/activities.js` | 256 | CRM — atividades e follow-ups (Fase 3, 2026-09-20, PROJECT_CONTEXT.md §56). |
 | `server/crm/activityQueries.js` | 103 | CRM — consultas de atividades (Fase 3). Somente leitura. |
 | `server/crm/agendaFeed.js` | 23 | CRM — atividades em aberto do usuário como eventos da Agenda existente |

@@ -223,6 +223,7 @@ Quem vê: `GET /api/connect/actions` — administrador do CRM vê as gravações
 - `needScope` compara rank; `read_write` e `write_all` passam por `/plan`, mas a rota ainda exige master/super admin do dono (`req.apiUser`).
 - Chave **nunca** vale como a sessão inteira: a API é propositalmente estreita (não abre `/api/users`, `/api/auth`, organizações, versões do cronograma etc.).
 - `GET /api/connect/` (índice) é público e não traz segredo.
+- Organizar o quadro pessoal (`POST /api/connect/board/plan`): **só chave `write_all`**, com prévia obrigatória, `digest` amarrado ao estado do quadro, tudo ou nada, cópia em Versões antes de gravar e registro em `api_token_actions` (PROJECT_CONTEXT §116y; guia em `docs/IA_EXTERNA_ORGANIZAR_QUADRO.md`).
 
 ## Proteção de dados (LGPD)
 
