@@ -5,6 +5,7 @@ import { effectiveOrgId } from './routes.js';
 import { backfillCoords, deviceLabel } from './accessLog.js';
 import { RETENTION } from './usageLog.js';
 import { usagePolicy } from './usagePolicy.js';
+import { teamDay } from './teamDay.js';
 import { summary as experienceSummary } from './experience.js';
 import { BASIS, activityIndex, aggregateMap, combineDays, dayOf, detectAlerts, heatFromTimestamps, hourOf, maskIp, pctChange, sessionize, summarizeSlices } from '../shared/usageMetrics.js';
 
@@ -127,6 +128,14 @@ async function gather(req, q, period) {
   return { users, orgId, access, usage, evidence: ev.events, unmatchedLogs: ev.unmatchedLogs, projectNames: ev.projectNames };
 }
 
+// Dia da equipe (2026-10-29): quem entrou/saiu, por quais telas passou e o que fez, num dia de Brasília (padrão: hoje).
+router.get('/team-day', async (req, res, next) => {
+  try {
+    const orgId = effectiveOrgId(req);
+    res.json(await teamDay({ orgId, all: !!(req.user.isSuperAdmin && !orgId) }, ymd(req.query.date) || dayOf(Date.now()), { userId: String(req.query.userId || '').slice(0, 60) }));
+  } catch (e) { if (e && e.status === 400) return res.status(400).json({ message: e.message }); next(e); }
+});
+
 router.get('/experience', async (req, res, next) => {
   try {
     const p = parsePeriod(req.query);
@@ -208,7 +217,7 @@ router.get('/users/:id', async (req, res, next) => {
       const ts = [...p.presence.map((a) => a.at), ...p.evidence.map((e) => e.at)].filter((t) => dayOf(t) === r.date);
       return { date: r.date, basis: r.basis, connectedS: r.connectedS, activeS: r.activeS, activityIndex: r.basis === BASIS.real ? activityIndex(r.connectedS, r.activeS) : null, first: ts.length ? Math.min(...ts) : null, last: ts.length ? Math.max(...ts) : null, accesses: p.presence.filter((a) => dayOf(a.at) === r.date).length, sessions: sessionize(ts).length };
     }).reverse();
-    const KIND = { login: 'Entrou no sistema', visit: 'Voltou à sessão', first_use: 'Primeiro uso do dia', login_failed: 'Tentativa de login com senha errada' };
+    const KIND = { login: 'Entrou no sistema', visit: 'Voltou à sessão', first_use: 'Primeiro uso do dia', login_failed: 'Tentativa de login com senha errada', logout: 'Saiu do sistema (clicou em Sair)' };
     const ACTION = { export_pdf: 'Exportou PDF', export_excel: 'Exportou Excel', upload_transcript: 'Enviou uma transcrição', upload_file: 'Enviou um arquivo', share_link_create: 'Criou um link de compartilhamento', meeting_submit: 'Enviou uma reunião', search: 'Fez uma busca' };
     const timeline = [
       ...p.access.map((a) => ({ at: a.at, source: 'acesso', label: KIND[a.kind] || a.kind, detail: [a.city, a.region, a.country].filter(Boolean).join(', '), device: a.device })),

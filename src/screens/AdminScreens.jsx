@@ -169,7 +169,7 @@ function fmtAccessPlace(ev) {
   return country && country !== 'Brasil' ? [place, country].filter(Boolean).join(' · ') : place;
 }
 
-const ACCESS_KIND = { login: { label: 'Login', color: '#3ecf6e' }, first_use: { label: 'Primeiro uso do dia', color: '#5B8DEF' }, visit: { label: 'Voltou à sessão', color: 'var(--text-4)' }, login_failed: { label: 'Tentativa falha', color: '#e2574c' } };
+const ACCESS_KIND = { login: { label: 'Login', color: '#3ecf6e' }, first_use: { label: 'Primeiro uso do dia', color: '#5B8DEF' }, visit: { label: 'Voltou à sessão', color: 'var(--text-4)' }, login_failed: { label: 'Tentativa falha', color: '#e2574c' }, logout: { label: 'Saiu', color: 'var(--text-4)' } };
 
 function UserAccessHistory({ userId, summary }) {
   const [events, setEvents] = useState(null);

@@ -21,6 +21,7 @@ import { createCrmRouter } from './crm/routes.js';
 import { crmCan } from './crm/permissions.js';
 import { InboxError, createSubmission, listSubmissions, reprocessSubmission } from './meetingInbox.js';
 import { applyMeetingEdit, isISODay as isMeetingDay } from './meetingEdit.js';
+import { teamDay } from './teamDay.js';
 
 export const router = Router();
 
@@ -179,6 +180,21 @@ function needScope(scope) {
 }
 
 router.use(bearer);
+
+// ------------------------------------------------------------------ dia da equipe por chave (2026-10-29)
+// Só leitura, só chave "Ler tudo"/"Ler e editar tudo" de um administrador (a chave só do CRM não alcança). Dado de pessoa: cada leitura entra em api_token_actions.
+router.get('/team-day', async (req, res, next) => {
+  try {
+    if (!['read_all', 'write_all'].includes(req.apiToken.scope)) return res.status(403).json({ message: 'Esta chave não lê a atividade da equipe. Gere uma chave "Ler tudo" em Meu perfil > Integrações (só administrador).' });
+    if (!(req.apiUser.isSuperAdmin || req.apiUser.role === 'master')) return res.status(403).json({ message: 'Só o administrador lê a atividade da equipe.' });
+    const orgId = req.apiUser.orgId || null;
+    const date = String(req.query.date || '').trim() || todayInSp();
+    const out = await teamDay({ orgId, all: !!(req.apiUser.isSuperAdmin && !orgId) }, date, { userId: clip(req.query.userId, 60) });
+    pool.query('INSERT INTO api_token_actions (id, org_id, token_id, user_id, method, path, status) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+      [uid('act'), orgId, req.apiToken.id, req.apiUser.id, 'GET', clip(String(req.originalUrl || '').split('?')[0] + `?date=${date}`, 200), 200]).catch(() => {});
+    res.json(out);
+  } catch (e) { if (e && e.status === 400) return res.status(400).json({ message: e.message }); next(e); }
+});
 
 // ------------------------------------------------------------------ CRM por chave (§99)
 // O Claude Code opera o CRM com as MESMAS regras e rotas da tela (/api/crm), pelo perfil do dono da chave, mas toda gravação fica

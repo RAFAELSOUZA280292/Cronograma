@@ -210,7 +210,8 @@ router.post('/auth/change-password-login', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/auth/logout', (req, res) => {
+router.post('/auth/logout', optionalAuth, (req, res) => {
+  if (req.user && req.user.id) recordAccess(req.user.id, 'logout', req);
   clearAuthCookie(res);
   res.json({});
 });

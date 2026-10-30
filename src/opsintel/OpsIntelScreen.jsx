@@ -5,6 +5,7 @@ import { Button, Tabs } from '../ui/index.jsx';
 import { S } from '../styles/S.js';
 import { Basis, DailyBars, HBars, Heat, Kpi, ROLE_NAMES, VIEW_NAMES, dayLabel, fmtDur, fmtNum, modName } from './charts.jsx';
 
+const TeamDay = lazy(() => import('./TeamDay.jsx'));
 const AccessMap = lazy(() => import('./AccessMap.jsx').then((m) => ({ default: m.AccessMap })));
 
 // Central de Inteligência Operacional (2026-10-25). Só Master. Tudo vem de /api/ops-intel; cada número leva o selo da base
@@ -60,7 +61,7 @@ const todayIso = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao
 const addDays = (iso, n) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const fmtWhen = (ms) => (ms ? new Date(ms).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 const fmtHour = (ms) => (ms ? new Date(ms).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }) : '—');
-const KIND = { login: 'Entrou', visit: 'Voltou à sessão', first_use: 'Primeiro uso do dia', login_failed: 'Senha errada' };
+const KIND = { login: 'Entrou', visit: 'Voltou à sessão', first_use: 'Primeiro uso do dia', login_failed: 'Senha errada', logout: 'Saiu (clicou em Sair)' };
 const RULES = { novo_pais: 'País novo', nova_cidade: 'Cidade nova', novo_dispositivo: 'Dispositivo novo', viagem_impossivel: 'Viagem impossível', falhas_login: 'Falhas de login', varios_ips: 'Vários IPs', horario_atipico: 'Madrugada atípica', ip_varios_usuarios: 'IP em várias contas' };
 
 function useApi(path, deps) {
@@ -143,7 +144,7 @@ export function OpsIntelScreen({ currentUser, onClose }) {
         </div>
 
         <Tabs label="Seções da central" active={tab} onChange={setTab} tabs={[
-          { id: 'geral', label: 'Visão geral', icon: BarChart3 }, { id: 'pessoas', label: 'Pessoas', icon: UsersIcon }, { id: 'pessoa', label: 'Linha do tempo', icon: Clock },
+          { id: 'geral', label: 'Visão geral', icon: BarChart3 }, { id: 'pessoas', label: 'Pessoas', icon: UsersIcon }, { id: 'equipe', label: 'Dia da equipe', icon: Clock }, { id: 'pessoa', label: 'Linha do tempo', icon: Clock },
           { id: 'mapa', label: 'Mapa de acessos', icon: Globe }, { id: 'experiencia', label: 'Experiência de uso', icon: Smile }, { id: 'alertas', label: 'Alertas', icon: AlertTriangle, count: ov ? ov.alerts.high : 0 }, { id: 'metodo', label: 'Metodologia e privacidade', icon: ShieldCheck },
         ]} />
 
@@ -151,6 +152,7 @@ export function OpsIntelScreen({ currentUser, onClose }) {
           {overview.error && <div className="oi-err" role="alert">{overview.error}</div>}
           {tab === 'geral' && <Overview ov={ov} loading={overview.loading} heatSource={heatSource} setHeatSource={setHeatSource} onOpenUser={openUser} goAlerts={() => setTab('alertas')} />}
           {tab === 'pessoas' && <People ov={ov} loading={overview.loading} onOpenUser={openUser} />}
+          {tab === 'equipe' && <Suspense fallback={<div className="oi-empty">Carregando…</div>}><TeamDay /></Suspense>}
           {tab === 'pessoa' && <PersonTimeline qs={qs} userId={userId} people={people} peopleAll={peopleAll} onPick={setUserId} />}
           {tab === 'mapa' && <MapTab qs={qs} />}
           {tab === 'experiencia' && <ExperienceTab range={range} />}

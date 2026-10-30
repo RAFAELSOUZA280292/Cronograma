@@ -234,7 +234,7 @@ Quem vê: `GET /api/connect/actions` — administrador do CRM vê as gravações
 | Ações pontuais: exportar PDF/Excel, enviar transcrição/arquivo, criar link | Localização exata (cidade vem do IP) |
 | Experiência do CRM por **fluxo**, nunca por pessoa | Tempo de tela de **clientes** (só acessos de segurança) |
 
-Quem vê dado individual: **só Master da mesma organização** (`/api/ops-intel`, `requireMaster`). IP aparece mascarado (`maskIp`).
+Quem vê dado individual: **só Master da mesma organização** (`/api/ops-intel`, `requireMaster`). O resumo por pessoa e dia (`/api/ops-intel/team-day`) segue a mesma regra; por chave de API só `read_all`/`write_all` de administrador (`GET /api/connect/team-day`), nunca a chave só do CRM, e cada leitura entra em `api_token_actions` (PROJECT_CONTEXT §116x). IP aparece mascarado (`maskIp`).
 
 ### Retenção (apagamento automático)
 | Dado | Prazo | Variável de ambiente | Onde |

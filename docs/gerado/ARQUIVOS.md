@@ -4,7 +4,7 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 151 arquivos
+## `server/` — 152 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -27,7 +27,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/companyCalendar.js` | 158 | "Reservar na agenda" (2026-10-19): bloco de agenda por atividade do cronograma, convidando só os e-mails que a equipe digita (equipe PRICETAX; cliente nunca é convidado). |
 | `server/companyCalendarPlan.js` | 101 | Reservar na agenda (2026-10-19, pedido do Rafael): cada ATIVIDADE do cronograma da empresa vira UM bloco de agenda (padrão de call: 60 min) para a equipe PRICETAX. |
 | `server/companyShare.js` | 197 | Link público de acompanhamento da empresa (2026-10-19, pedido do Rafael): o cliente abre o link SEM login e vê Resumo, Cronograma (Gantt com subatividades) e Tabela, só leitura. |
-| `server/connect.js` | 813 | API de conectividade (2026-10-05, §80): permite que OUTRA janela do Claude Code (ou qualquer script) leia o painel e crie atividades |
+| `server/connect.js` | 829 | API de conectividade (2026-10-05, §80): permite que OUTRA janela do Claude Code (ou qualquer script) leia o painel e crie atividades |
 | `server/crm/activities.js` | 256 | CRM — atividades e follow-ups (Fase 3, 2026-09-20, PROJECT_CONTEXT.md §56). |
 | `server/crm/activityQueries.js` | 103 | CRM — consultas de atividades (Fase 3). Somente leitura. |
 | `server/crm/agendaFeed.js` | 23 | CRM — atividades em aberto do usuário como eventos da Agenda existente |
@@ -108,7 +108,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/notificationPrefs.js` | 51 | Quais notificações cada usuário quer ver (2026-10-06). Guardado por usuário em users.preferences.notifications |
 | `server/notifications.js` | 38 | Central de Notificações (2026-08) — helper de escrita compartilhado entre |
 | `server/officePreview.js` | 92 | Pré-visualização de texto de arquivos do Office abertos (docx, pptx, xlsx) — 2026-10-05, §78. Esses formatos são ZIPs de XML; |
-| `server/opsIntel.js` | 274 |  |
+| `server/opsIntel.js` | 283 |  |
 | `server/parecerScope.js` | 46 | Isolamento de pareceres por cliente (2026-10-04, §70): um parecer "Cliente específico" só pode ser usado — no |
 | `server/parecerStudy.js` | 542 | RENATA estuda os Pareceres PRICETAX (2026-10-04, pedido do Rafael) — ver PROJECT_CONTEXT.md §70. |
 | `server/pareceres.js` | 249 | Pareceres PRICETAX (2026-09-17, ver PROJECT_CONTEXT.md §48) — repositório |
@@ -137,7 +137,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/tools/reports.js` | 66 | Relatórios e visão da equipe (somente leitura) — §101: "o que a minha equipe fez hoje", atrasos por responsável e quem sou eu / quem é a equipe. |
 | `server/renata/validate.js` | 81 | Validador de parâmetros das ferramentas da RENATA (§101): subconjunto de JSON Schema suficiente para o catálogo. Rejeita campo desconhecido |
 | `server/richNote.js` | 55 | Descrição formatada dos cartões do quadro pessoal (2026-10-07): o campo `desc` continua sendo uma string — texto simples |
-| `server/routes.js` | 1409 |  |
+| `server/routes.js` | 1410 |  |
 | `server/scripts/reindexAllMeetings.js` | 30 | Backfill manual da memória do projeto (2026-09, Fase 1 do Assistente |
 | `server/secretBox.js` | 30 | Cofre simples para segredos guardados no banco (M2, 2026-10-29): AES-256-GCM com chave derivada de TOKEN_ENC_KEY (ou, na falta, do JWT_SECRET). |
 | `server/shareTokens.js` | 41 | Tokens de link público (A9, 2026-10-29). A tela gera o token com `crypto.getRandomValues` (48 hex = 192 bits), mas o servidor não pode confiar nisso: |
@@ -151,9 +151,10 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/taskLinkLearn.js` | 117 | Aprendizado do vínculo tarefa → atividade (Fase 3 do plano, 2026-10-13; docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). A matéria-prima é o |
 | `server/taskLinkSuggest.js` | 166 | Sugestão da atividade do cronograma para cada tarefa que sai de uma transcrição (Fase 2 do plano, 2026-10-13; |
 | `server/taskLinks.js` | 271 | Vínculo tarefa de reunião → atividade do cronograma (plano em docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md, Fase 1, 2026-10-13). |
+| `server/teamDay.js` | 177 | "Dia da equipe" (2026-10-29, pedido do Rafael): para cada pessoa da equipe (master e pricetax, as únicas medidas), num dia de Brasília: |
 | `server/todoNotifications.js` | 109 | Notificações das TAREFAS DE REUNIÃO (Onda 5, §81): atribuída, comentada e vencida. As tarefas vivem dentro do JSON do |
 | `server/usageLog.js` | 103 | Rastreador de uso (Central de Inteligência Operacional). Recebe fatias de tempo do app: quanto tempo a aba ficou visível |
-| `server/usagePolicy.js` | 32 | Transparência e finalidade (LGPD): texto único, exibido a toda a equipe (Meu perfil) e à liderança (Central). |
+| `server/usagePolicy.js` | 33 | Transparência e finalidade (LGPD): texto único, exibido a toda a equipe (Meu perfil) e à liderança (Central). |
 | `server/widget.js` | 120 | Widget do iPhone (Scriptable) — 2026-10-05, §76. O widget não faz login: usa um token secreto, só de leitura, |
 | `server/widgetSummary.js` | 120 | Resumo para o widget do iPhone (2026-10-05, §76). Funções puras: recebem o JSON do quadro pessoal, |
 | `server/xflow.js` | 877 |  |
@@ -176,7 +177,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/transcriptParser.js` | 84 | Funções puras de parsing de texto de reunião — SEM import de React, |
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 
-## `src/` — 184 arquivos
+## `src/` — 185 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -302,8 +303,9 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/modelos/Modelos.jsx` | 659 | Modelos de documentos (2026-10-05, §78) — aba irmã dos Pareceres: biblioteca de modelos para sócios e colaboradores. Um modelo |
 | `src/modelos/modelosMeta.js` | 124 | Modelos de documentos (2026-10-05, §78) — tipos, ícones e CSS próprio do módulo (prefixo mdl-, em cima do par- dos Pareceres). |
 | `src/opsintel/AccessMap.jsx` | 43 | Mapa interativo dos acessos. Cada ponto é o CENTRO DA CIDADE informado pelo IP (aproximado), com um círculo de margem de |
-| `src/opsintel/OpsIntelScreen.jsx` | 403 |  |
+| `src/opsintel/OpsIntelScreen.jsx` | 405 |  |
 | `src/opsintel/PrivacyNotice.jsx` | 31 | Transparência (LGPD): qualquer pessoa logada lê o que o app mede sobre o uso, para quê, quem vê e por quanto tempo. |
+| `src/opsintel/TeamDay.jsx` | 107 | Dia da equipe (2026-10-29): para cada pessoa medida, num dia de Brasília — entradas e saídas, telas e o que fez. Vem de /api/ops-intel/team-day. |
 | `src/opsintel/charts.jsx` | 102 | Gráficos em SVG/CSS puro (sem biblioteca): leves, imprimíveis e no tema do app. Cores via variáveis do tema. |
 | `src/pareceres/ModulePanel.jsx` | 30 | Gaveta lateral dos módulos Conhecimento/Pareceres/Modelos: mesma aparência do SidePanel do App, mas acessível |
 | `src/pareceres/Pareceres.jsx` | 618 | Pareceres PRICETAX (2026-09-17, ver PROJECT_CONTEXT.md §48) — repositório |
