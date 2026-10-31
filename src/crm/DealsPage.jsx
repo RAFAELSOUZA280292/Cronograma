@@ -15,7 +15,7 @@ import PipeRunMigration from './PipeRunMigration.jsx';
 import SavedViewsBar, { ViewDialogGuarded } from './SavedViews.jsx';
 import ContactLinks from './ContactLinks.jsx';
 import { InlineMoney, InlineDate, InlineSelect } from './InlineCells.jsx';
-import { fmtMoney, fmtDateBR, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor, cadenceNotice, tagColor, tagTint, avatarStyle } from './crmMeta.js';
+import { fmtMoney, fmtDateBR, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor, cadenceNotice, tagColor, tagRank, avatarStyle } from './crmMeta.js';
 import { trackFlow } from '../lib/experience.js';
 import TagFilter from './TagFilter.jsx';
 
@@ -61,11 +61,22 @@ const IS_TOUCH = typeof window !== 'undefined' && !!window.matchMedia && window.
 // memo: com centenas de cartões, arrastar não pode re-renderizar o quadro inteiro a cada passo (§119). As funções chegam estáveis (cardOpen, cardQuick…).
 const DealCard = React.memo(function DealCard({ deal, stages, canDrag, canWrite, onOpen, onMove, onQuick, onDragStart, onDragEnd }) {
   const closed = deal.status !== 'open';
-  const tone = !closed && deal.nextActivityOverdue ? ' tone-late' : (!closed && deal.noNextStep ? ' tone-warn' : '');
   const place = [deal.companyCity, deal.companyState].filter(Boolean).join('/');
+  const sortedTags = [...(deal.tags || [])].sort((x, y) => tagRank(x) - tagRank(y));
+  const shownTags = sortedTags.slice(0, 3);
+  const hiddenTags = sortedTags.slice(3);
+  const statusLines = [];
+  if (!closed) {
+    if (deal.nextActivityOverdue && deal.nextActivityDate) statusLines.push({ key: 'step', dot: 'var(--tg-risk)', title: deal.nextActivityTitle || undefined, text: `Passo atrasado ${fmtShort(deal.nextActivityDate)}${deal.nextActivityTime ? ` ${deal.nextActivityTime}` : ''}${deal.nextActivityTitle ? ` · ${deal.nextActivityTitle}` : ''}` });
+    if (deal.slaExceeded) statusLines.push({ key: 'sla', dot: 'var(--tg-risk)', title: `Prazo da etapa: ${deal.slaDays} dia(s)`, text: `Prazo da etapa estourado (${deal.daysInStage}/${deal.slaDays} d)` });
+    if (deal.overdue) statusLines.push({ key: 'due', dot: 'var(--tg-risk)', text: 'Previsão de fechamento vencida' });
+    if (deal.noNextStep) statusLines.push({ key: 'next', dot: 'var(--tg-warn)', text: 'Sem próximo passo' });
+    if (!deal.nextActivityOverdue && deal.nextActivityDate) statusLines.push({ key: 'step', dot: 'var(--text-6)', title: deal.nextActivityTitle || undefined, text: `Próx. ${fmtShort(deal.nextActivityDate)}${deal.nextActivityTime ? ` ${deal.nextActivityTime}` : ''}${deal.nextActivityTitle ? ` · ${deal.nextActivityTitle}` : ''}` });
+    if ((deal.daysInStage || 0) > 14) statusLines.push({ key: 'age', dot: deal.daysInStage > 30 ? 'var(--tg-risk)' : 'var(--tg-warn)', text: `${deal.daysInStage} dias parado` });
+  }
   return (
     // div (não button): o Firefox não inicia arrasto em <button>. Teclado abre com Enter/Espaço.
-    <div role="button" tabIndex={0} className={`crm-deal${tone}`} style={deal.stageColor ? { '--stage': deal.stageColor } : undefined} draggable={canDrag} onClick={() => onOpen(deal.id)}
+    <div role="button" tabIndex={0} className="crm-deal" style={deal.stageColor ? { '--stage': deal.stageColor } : undefined} draggable={canDrag} onClick={() => onOpen(deal.id)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(deal.id); } }}
       onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', deal.id); e.currentTarget.classList.add('dragging'); onDragStart(deal.id); }} onDragEnd={(e) => { e.currentTarget.classList.remove('dragging'); onDragEnd(); }}>
       <div className="crm-deal-top">
@@ -84,16 +95,19 @@ const DealCard = React.memo(function DealCard({ deal, stages, canDrag, canWrite,
         {!closed && <span>{deal.probability}%</span>}
       </div>
       {deal.mrr > 0 && <div className="crm-deal-line" title="Receita recorrente mensal">MRR {fmtMoney(deal.mrr)}</div>}
-      <div className="crm-tags">
-        {(deal.tags || []).map((t) => <span key={t} className="crm-tag" style={{ color: tagColor(t), background: tagTint(t) }}>{t}</span>)}
-        {!closed && deal.slaExceeded && <span className="crm-tag" title={`Prazo da etapa: ${deal.slaDays} dia(s)`} style={{ color: '#e2574c' }}>Prazo da etapa estourado ({deal.daysInStage}/{deal.slaDays} d)</span>}
-        {deal.dealType === 'upsell' && <span className="crm-tag" style={{ color: DEAL_TYPE_META.upsell.color }}>Upsell</span>}
-        {deal.status === 'lost' && <span className="crm-tag" style={{ color: DEAL_STATUS_META.lost.color }}>{deal.lostReasonLabel || 'Perdido'}</span>}
-        {deal.overdue && <span className="crm-tag" style={{ color: '#e2574c' }}>Previsão vencida</span>}
-        {deal.noNextStep && <span className="crm-tag" style={{ color: '#ff9f40' }}>Sem próximo passo</span>}
-        {!closed && deal.nextActivityDate && <span className="crm-tag" title={deal.nextActivityTitle || undefined} style={{ color: deal.nextActivityOverdue ? '#e2574c' : 'var(--text-5)' }}>{deal.nextActivityOverdue ? 'Passo atrasado ' : 'Próx. '}{fmtShort(deal.nextActivityDate)}{deal.nextActivityTime ? ` ${deal.nextActivityTime}` : ''}{deal.nextActivityTitle ? ` · ${deal.nextActivityTitle}` : ''}</span>}
-        {!closed && (deal.daysInStage || 0) > 14 && <span className="crm-tag" style={{ color: stageAgeColor(deal.daysInStage) }}>{deal.daysInStage} dias parado</span>}
-      </div>
+      {statusLines.length > 0 && (
+        <ul className="crm-deal-status">
+          {statusLines.map((l) => <li key={l.key} style={{ '--dot': l.dot }} title={l.title}>{l.text}</li>)}
+        </ul>
+      )}
+      {(shownTags.length > 0 || deal.dealType === 'upsell' || deal.status === 'lost') && (
+        <div className="crm-tags">
+          {shownTags.map((t) => <span key={t} className="crm-tg" style={{ '--dot': tagColor(t) }}>{t}</span>)}
+          {hiddenTags.length > 0 && <span className="crm-tg crm-tg-more" title={hiddenTags.join(', ')} aria-label={`Mais ${hiddenTags.length} tags: ${hiddenTags.join(', ')}`}>+{hiddenTags.length}</span>}
+          {deal.dealType === 'upsell' && <span className="crm-tg" style={{ '--dot': 'var(--tg-purple)' }}>Upsell</span>}
+          {deal.status === 'lost' && <span className="crm-tg" style={{ '--dot': 'var(--tg-risk)' }}>{deal.lostReasonLabel || 'Perdido'}</span>}
+        </div>
+      )}
       <div className="crm-deal-foot">{deal.ownerName ? deal.ownerName : <span className="crm-muted">Sem responsável</span>}<span className="crm-muted"> · criado {fmtDateBR(deal.createdAt)}</span></div>
       {canDrag && IS_TOUCH && (
         <div className="crm-deal-move" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
@@ -483,7 +497,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
                       <td>
                         <div className="crm-name">{d.title}</div>
                         <div className="crm-muted">{d.companyName}{d.dealType === 'upsell' ? ' · Upsell' : ''}{d.status === 'lost' ? ` · Perdido — ${d.lostReasonLabel}` : ''}{d.mrr > 0 ? ` · MRR ${fmtMoney(d.mrr)}` : ''}</div>
-                        {(d.tags || []).length > 0 && <div className="crm-tags" style={{ marginTop: 3 }}>{d.tags.slice(0, 3).map((t) => <span key={t} className="crm-tag" style={{ color: 'var(--text-4)' }}>{t}</span>)}{d.tags.length > 3 && <span className="crm-muted">+{d.tags.length - 3}</span>}</div>}
+                        {(d.tags || []).length > 0 && <div className="crm-tags" style={{ marginTop: 3 }}>{d.tags.slice(0, 3).map((t) => <span key={t} className="crm-tg" style={{ '--dot': tagColor(t) }}>{t}</span>)}{d.tags.length > 3 && <span className="crm-muted">+{d.tags.length - 3}</span>}</div>}
                       </td>
                       <td>{d.contactName && <div>{d.contactName}</div>}<ContactLinks phone={d.contactPhone} whatsapp={d.contactWhatsapp} email={d.contactEmail} compact /></td>
                       <td>

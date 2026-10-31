@@ -3,17 +3,16 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { autoUpdate, flip, offset, shift, size, useFloating } from '@floating-ui/react-dom';
 import { Check, Tag, X } from 'lucide-react';
-import { tagColor, tagTint } from './crmMeta.js';
+import { tagColor } from './crmMeta.js';
 
 export const splitTags = (v) => String(v || '').split('|').map((x) => x.trim()).filter(Boolean);
 export const joinTags = (list) => list.join('|');
 
 export function TagChip({ name, onRemove, count, active, onClick, title }) {
-  const c = tagColor(name);
-  const body = <>{name}{count != null && <b style={{ opacity: .8, fontWeight: 700 }}> {count}</b>}</>;
-  const style = { color: c, background: active || onRemove ? tagTint(name) : 'transparent', borderColor: c, ...(active ? { boxShadow: `0 0 0 2px ${c.startsWith('#') ? `${c}40` : 'transparent'}` } : null) };
+  const body = <>{name}{count != null && <b> {count}</b>}</>;
+  const style = { '--dot': tagColor(name) };
   if (onClick) return <button type="button" className="crm-tagbtn" style={style} aria-pressed={!!active} title={title} onClick={onClick}>{body}</button>;
-  return <span className="crm-tagbtn" style={style}>{body}{onRemove && <button type="button" className="crm-tagbtn-x" aria-label={`Tirar o filtro ${name}`} title="Tirar este filtro" onClick={onRemove}><X size={11} aria-hidden="true" /></button>}</span>;
+  return <span className={`crm-tagbtn${onRemove ? ' on' : ''}`} style={style}>{body}{onRemove && <button type="button" className="crm-tagbtn-x" aria-label={`Tirar o filtro ${name}`} title="Tirar este filtro" onClick={onRemove}><X size={11} aria-hidden="true" /></button>}</span>;
 }
 
 export default function TagFilter({ tagList, value, onChange }) {

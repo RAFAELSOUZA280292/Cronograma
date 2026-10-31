@@ -94,23 +94,37 @@ export const BILLING_LABELS = { one_time: 'Projeto (pontual)', recurring: 'Recor
 
 // Atividades (Fase 3). O ícone vem do componente (ActivityList) pra este arquivo não importar React.
 
-// Cor por tipo de tag (CRM com vida: a curva, o evento e o estande se reconhecem de longe). Devolve a cor do texto/borda; o fundo sai de `tagTint`.
+// Cor da BOLINHA da tag (a categoria se reconhece de longe, mas o texto é neutro: cor de texto sobre fundo claro reprovava no contraste).
+// Devolve uma variável CSS (`--tg-*`, com valor próprio para o tema claro e o escuro, definidas em CRM_CSS).
 export function tagColor(name) {
   const n = String(name || '');
-  if (/^Curva A\b/.test(n)) return '#2ecc8f';
-  if (/^Curva B\b/.test(n)) return '#3ea6ff';
-  if (/^Curva C\b/.test(n)) return '#f5a524';
-  if (/^Curva D\b/.test(n)) return '#9aa0ad';
-  if (/Ponto Fora da Curva|^Evento /.test(n)) return '#FEDB00';
-  if (/^Estande:/.test(n)) return '#b98af5';
-  if (/^Canal:/.test(n)) return '#2fc4c4';
-  if (/^Quente/.test(n)) return '#ff6b4a';
-  if (/^Brinde/.test(n)) return '#f06fb0';
-  if (/^(Venda|Fechamento)/.test(n)) return '#7bd66a';
-  if (/^Grupo/.test(n)) return '#ff9f40';
-  return 'var(--text-4)';
+  if (/^Curva A\b/.test(n)) return 'var(--tg-green)';
+  if (/^Curva B\b/.test(n)) return 'var(--tg-blue)';
+  if (/^Curva C\b/.test(n)) return 'var(--tg-amber)';
+  if (/^Curva D\b/.test(n)) return 'var(--tg-gray)';
+  if (/Ponto Fora da Curva|^Evento /.test(n)) return 'var(--tg-yellow)';
+  if (/^Estande:/.test(n)) return 'var(--tg-purple)';
+  if (/^Canal:/.test(n)) return 'var(--tg-teal)';
+  if (/^Quente/.test(n)) return 'var(--tg-red)';
+  if (/^Brinde/.test(n)) return 'var(--tg-pink)';
+  if (/^(Venda|Fechamento)/.test(n)) return 'var(--tg-lime)';
+  if (/^Grupo/.test(n)) return 'var(--tg-orange)';
+  return 'var(--text-6)';
 }
-export const tagTint = (name) => { const c = tagColor(name); return c.startsWith('#') ? `${c}1f` : 'transparent'; };
+// Ordem de importância no cartão: curva primeiro, o evento (igual em quase todos) por último.
+export function tagRank(name) {
+  const n = String(name || '');
+  if (/^Curva [A-D]\b/.test(n)) return 0;
+  if (/Ponto Fora da Curva/.test(n)) return 1;
+  if (/^Quente/.test(n)) return 2;
+  if (/^(Venda|Fechamento)/.test(n)) return 3;
+  if (/^Grupo/.test(n)) return 4;
+  if (/^Estande:/.test(n)) return 5;
+  if (/^Canal:/.test(n)) return 6;
+  if (/^Brinde/.test(n)) return 7;
+  if (/^Evento /.test(n)) return 9;
+  return 8;
+}
 
 export const ACTIVITY_COLORS = { task: '#8f9bb3', call: '#3ea6ff', email: '#b98af5', meeting: '#ff9f40', whatsapp: '#2ecc8f', visit: '#2fc4c4', followup: '#FEDB00' };
 // Avatar com cor própria por pessoa (a mesma pessoa sempre cai na mesma cor).
@@ -303,8 +317,6 @@ export const CRM_CSS = `
   .crm-step.end.won { background:#3ecf6e; color:#06240f; } .crm-step.end.lost { background:#e2574c; color:#fff; }
   .crm-nav-badge { margin-left:auto; min-width:18px; height:18px; padding:0 5px; border-radius:99px; background:#e2574c; color:#fff; font-size:10.5px; font-weight:800; display:inline-grid; place-items:center; }
   .crm-deal { position:relative; flex-shrink:0; }
-  .crm-deal.tone-late { background:color-mix(in srgb, #e2574c 9%, var(--bg-1)); border-color:color-mix(in srgb, #e2574c 40%, var(--border-1)); }
-  .crm-deal.tone-warn { background:color-mix(in srgb, #ff9f40 8%, var(--bg-1)); border-color:color-mix(in srgb, #ff9f40 35%, var(--border-1)); }
   .crm-deal-top { display:flex; justify-content:space-between; align-items:flex-start; gap:6px; }
   .crm-deal-tools { display:flex; align-items:center; gap:4px; flex-shrink:0; margin:-3px -4px 0 0; }
   .crm-avatar { width:22px; height:22px; border-radius:50%; background:var(--bg-4); border:1px solid var(--border-2); color:var(--text-2); font-size:9.5px; font-weight:800; display:inline-grid; place-items:center; }
@@ -324,9 +336,12 @@ export const CRM_CSS = `
   .crm-deal-value { font-weight:800; color:var(--text-1); font-variant-numeric:tabular-nums; font-size:12.5px; }
   .crm-tagfilter { display:inline-block; position:relative; }
   .crm-btn-on { border-color:#FEDB00; box-shadow:0 0 0 2px rgba(254,219,0,.22); }
-  .crm-tagbtn { display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:800; padding:3px 10px; border-radius:999px; border:1px solid currentColor; background:transparent; font-family:inherit; cursor:default; white-space:nowrap; }
+  .crm-tagbtn { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:3px 10px; border-radius:6px; border:1px solid var(--border-2); background:var(--bg-2); color:var(--text-2); font-family:inherit; cursor:default; white-space:nowrap; }
   button.crm-tagbtn { cursor:pointer; }
-  button.crm-tagbtn:hover { filter:brightness(1.15); }
+  .crm-tagbtn::before { content:''; width:8px; height:8px; border-radius:50%; background:var(--dot, var(--text-6)); flex-shrink:0; }
+  .crm-tagbtn b { font-weight:700; color:var(--text-1); font-variant-numeric:tabular-nums; }
+  button.crm-tagbtn:hover { background:var(--bg-3); border-color:var(--border-3); }
+  button.crm-tagbtn[aria-pressed="true"], .crm-tagbtn.on { background:var(--bg-4); border-color:var(--text-4); color:var(--text-1); }
   .crm-tagbtn-x { display:inline-flex; border:0; background:transparent; color:inherit; padding:0 0 0 2px; cursor:pointer; }
   .crm-quicktags { display:flex; flex-wrap:wrap; align-items:center; gap:6px; flex-basis:100%; margin-top:2px; }
   .crm-link-btn { border:0; background:none; color:var(--text-4); text-decoration:underline; font:inherit; font-size:12px; cursor:pointer; }
@@ -405,6 +420,16 @@ export const CRM_CSS = `
   .crm-btn:not(.crm-btn-primary):hover { border-color:#FEDB00; }
   @media (prefers-reduced-motion: reduce) { .crm-deal { transition:none; } .crm-deal:hover, .crm-deal:focus-visible { transform:none; } }
   .crm-tags { display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; }
+  :root { --tg-green:#2ecc8f; --tg-blue:#3ea6ff; --tg-amber:#f5a524; --tg-gray:#9aa0ad; --tg-yellow:#FEDB00; --tg-purple:#b98af5; --tg-teal:#2fc4c4; --tg-red:#ff6b4a; --tg-pink:#f06fb0; --tg-lime:#7bd66a; --tg-orange:#ff9f40; --tg-risk:#e2574c; --tg-warn:#ff9f40; }
+  html[data-theme="light"] { --tg-green:#0f8a5f; --tg-blue:#1d6fd6; --tg-amber:#a86400; --tg-gray:#6b7280; --tg-yellow:#9a7400; --tg-purple:#7c4dcc; --tg-teal:#0e7c86; --tg-red:#cf3f1f; --tg-pink:#c2347f; --tg-lime:#3a8f2c; --tg-orange:#b85c00; --tg-risk:#c0392b; --tg-warn:#b86e00; }
+  .crm-tg { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; line-height:1.3; padding:2px 8px; border-radius:6px; background:var(--bg-3); color:var(--text-2); border:1px solid var(--border-1); max-width:100%; }
+  .crm-tg::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--dot, var(--text-6)); flex-shrink:0; }
+  .crm-tg-more { cursor:help; font-variant-numeric:tabular-nums; }
+  .crm-tg-more::before { display:none; }
+  .crm-tg .crm-icon-btn { padding:0 0 0 2px; color:inherit; }
+  .crm-deal-status { list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:3px; }
+  .crm-deal-status li { display:flex; align-items:baseline; gap:7px; font-size:12px; line-height:1.35; color:var(--text-2); overflow-wrap:anywhere; }
+  .crm-deal-status li::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--dot, var(--text-6)); flex-shrink:0; transform:translateY(-1px); }
   .crm-tag { font-size:10px; font-weight:800; padding:1px 7px; border-radius:999px; border:1px solid currentColor; white-space:nowrap; }
   .crm-items-row { display:grid; grid-template-columns:minmax(0,1fr) 78px 118px 30px; gap:8px; align-items:center; margin-bottom:8px; }
   .crm-items-row input, .crm-items-row select { width:100%; padding:7px 9px; font-size:12.5px; border-radius:8px; }

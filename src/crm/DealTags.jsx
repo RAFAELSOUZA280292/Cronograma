@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Plus } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { notify } from '../ui/dialogs.jsx';
-import { tagColor, tagTint } from './crmMeta.js';
+import { tagColor } from './crmMeta.js';
 
 export default function DealTags({ dealId, tags, canEdit, onChanged }) {
   const [known, setKnown] = useState([]);
@@ -21,7 +21,7 @@ export default function DealTags({ dealId, tags, canEdit, onChanged }) {
       <h3 className="crm-section-title">Tags</h3>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         {(tags || []).map((t) => (
-          <span key={t} className="crm-pill" style={{ color: tagColor(t), background: tagTint(t), borderColor: tagColor(t) }}>{t}{canEdit && <button type="button" className="crm-icon-btn" disabled={busy} onClick={() => save(tags.filter((x) => x !== t))} aria-label={`Remover a tag ${t}`} title="Remover tag" style={{ marginLeft: 4, padding: 0 }}><X size={12} aria-hidden="true" /></button>}</span>
+          <span key={t} className="crm-tg" style={{ '--dot': tagColor(t) }}>{t}{canEdit && <button type="button" className="crm-icon-btn" disabled={busy} onClick={() => save(tags.filter((x) => x !== t))} aria-label={`Remover a tag ${t}`} title="Remover tag" style={{ marginLeft: 4, padding: 0 }}><X size={12} aria-hidden="true" /></button>}</span>
         ))}
         {!(tags || []).length && <span className="crm-muted">Nenhuma tag.</span>}
         {canEdit && (

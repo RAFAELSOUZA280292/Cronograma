@@ -51,7 +51,7 @@ Este documento descreve só o front. Servidor, rotas e banco: `docs/gerado/ROTAS
 | `src/knowledge/` | Central de Conhecimento (abas: Memórias, Pessoas/Empresas, Conflitos, Métricas, Biblioteca, Tarefas×atividades) | Conhecimento da RENATA |
 | `src/pareceres/` | `Pareceres`, `ModulePanel` (gaveta) | Pareceres PRICETAX |
 | `src/modelos/` | `Modelos`, `modelosMeta.js` | Modelos de documentos |
-| `src/crm/` | CRM inteiro (~40 arquivos): `CrmScreen` (casca), `DealsPage`, `DealDrawer`, `CompanyDrawer`, formulários, `crmApi.js`, `crmMeta.js` (rótulos+CSS), `boardMove.js` | Qualquer pedido de CRM | Visão geral: cartões com ícone e cor por significado, menu lateral azul-marinho (§116zb); listas com ponto + data + dias de atraso (§116zc).
+| `src/crm/` | CRM inteiro (~40 arquivos): `CrmScreen` (casca), `DealsPage`, `DealDrawer`, `CompanyDrawer`, formulários, `crmApi.js`, `crmMeta.js` (rótulos+CSS), `boardMove.js` | Qualquer pedido de CRM | Visão geral: cartões com ícone e cor por significado, menu lateral azul-marinho (§116zb); listas com ponto + data + dias de atraso (§116zc); tags neutras com bolinha e urgência em linhas (§116zd).
 | `src/assistant/` | RENATA do projeto (`ProjectAssistant`), RENATA geral (`RenataHome`), `ChatExport` + `chatExport.js`, `ParecerStudyModal` | Conversa com a RENATA |
 | `src/renata/` | `RenataChat` (RENATA operacional, executa ações) e `screenContext.js` (contexto da tela enviado a cada pedido) | RENATA que executa ações |
 | `src/opsintel/` | Central de Inteligência Operacional (só Master): `OpsIntelScreen`, `AccessMap`, `charts.jsx`, `PrivacyNotice` | Indicadores de uso |

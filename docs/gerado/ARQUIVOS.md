@@ -223,7 +223,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/DealForm.jsx` | 342 | Cadastro/edição de negócio (estado local + Salvar). A empresa é sempre |
 | `src/crm/DealImportWizard.jsx` | 207 | Importar negócios de planilha (feito pro export "Oportunidades" do PipeRun). Arquivo → colunas → |
 | `src/crm/DealTags.jsx` | 38 | Tags do negócio (vindas do PipeRun ou criadas aqui): chips com remoção e um campo que sugere as tags já existentes. |
-| `src/crm/DealsPage.jsx` | 520 | Negócios (PRD 12/13): quadro Kanban por etapa + lista. Arrastar o cartão move |
+| `src/crm/DealsPage.jsx` | 534 | Negócios (PRD 12/13): quadro Kanban por etapa + lista. Arrastar o cartão move |
 | `src/crm/FollowUpQueue.jsx` | 142 | Fila de follow-ups (§93): uma atividade por vez, da mais atrasada para a mais nova, com o contato a um toque (ligar / WhatsApp), |
 | `src/crm/FunnelsAdmin.jsx` | 161 | Configuração de funis e etapas (gestor+). A empresa pode ter vários funis (ex.: Empresas, |
 | `src/crm/GlobalSearch.jsx` | 59 | Busca global do CRM (PRD 38) — Fase 1: empresas e contatos. |
@@ -236,10 +236,10 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/RenataAsk.jsx` | 40 | "Perguntar à RENATA" nas fichas do CRM (Onda 5, §81). A RENATA é por PROJETO do cronograma (ProjectAssistant), |
 | `src/crm/RichNotes.jsx` | 318 | Notas do CRM com texto formatado (2026-10-30, pedido do Rafael para incentivar o time): títulos, negrito, itálico, sublinhado, tachado, listas, |
 | `src/crm/SavedViews.jsx` | 101 | Visões salvas de Negócios (§98): atalhos para uma combinação de filtros + modo (quadro/lista). |
-| `src/crm/TagFilter.jsx` | 71 | Filtro por VÁRIAS tags (o negócio precisa ter todas) — 2026-10-26. O valor é o texto "tag1\|tag2" (mesmo formato do servidor e das visões salvas). |
+| `src/crm/TagFilter.jsx` | 70 | Filtro por VÁRIAS tags (o negócio precisa ter todas) — 2026-10-26. O valor é o texto "tag1\|tag2" (mesmo formato do servidor e das visões salvas). |
 | `src/crm/boardMove.js` | 48 | Mover um negócio de etapa NA TELA, antes de o servidor responder (2026-10-27, §119). O quadro do funil é um objeto |
 | `src/crm/crmApi.js` | 94 | Cliente da API do CRM (/api/crm) — Fase 1. Só monta URL/corpo; regra de |
-| `src/crm/crmMeta.js` | 487 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
+| `src/crm/crmMeta.js` | 512 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
 | `src/crm/importMapping.js` | 51 | Reconhecimento automático das colunas da planilha (Import Wizard). Módulo puro, |
 | `src/crm/ui.jsx` | 127 | Peças de UI compartilhadas do CRM. |
 | `src/daily/DailyCards.jsx` | 254 |  |
