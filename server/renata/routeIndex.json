@@ -1,6 +1,6 @@
 {
  "geradoPor": "scripts/renata-route-index.mjs",
- "total": 330,
+ "total": 331,
  "routes": [
   {
    "method": "POST",
@@ -126,6 +126,11 @@
    "method": "POST",
    "path": "/api/client-error",
    "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/client360/project/:id",
+   "file": "client360.js"
   },
   {
    "method": "POST",

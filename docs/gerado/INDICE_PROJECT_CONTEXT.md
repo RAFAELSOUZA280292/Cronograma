@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8671 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8699 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -166,3 +166,5 @@ O `PROJECT_CONTEXT.md` tem 8671 linhas (a memória cronológica de cada decisão
 | 8598 | 116zi. Piloto da Onda 2: Visão geral do CRM com menos fricção (2026-10-31, aprovado pelo Rafael) | - Escopo (preservado): as 4 lentes (Meu dia, Time, Receita, Contas), todos os indicadores e cálculos, listas, links para listas filtradas, "Usar como… |
 | 8616 | 116zj. Onda 2: busca da paleta, ficha de contexto da RENATA e tokens de forma (2026-10-31, aprovado pelo Rafa… | - Escopo preservado: nomes de módulos, regras de negócio, campos, permissões, marca e cores. Nada de dependência nova. O piloto (Visão geral do CRM) … |
 | 8641 | 116zk. Onda 3: briefing diário, memória de preferências da RENATA, Cliente 360 e tabela profissional (2026-10… | - Escopo preservado: regras de negócio, permissões, marca e cores; nada de dependência nova; nenhuma mudança no que já existia além do aditivo abaixo… |
+| 8672 | 116zl. Onda 4: teste de fluxos críticos com Playwright e axe-core (2026-10-31, aprovado pelo Rafael: "Faz a O… | - O que o plano dizia: a Onda 4 era "só se os números pedirem" (E4 lista de empresas leve, E3 dividir arquivos, E2 teste de fluxos, N1 busca semântic… |
+| 8691 | 116zm. Busca da RENATA: o escopo sugerido pela IA deixou de ser filtro rígido (2026-10-31, pedido do Rafael: … | - Problema (medido): a etapa que interpreta a pergunta (resolveQuery, server/assistantRetrieval.js) propõe um tipo de trecho (kind) e uma reunião-alv… |

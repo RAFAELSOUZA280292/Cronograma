@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { searchProjectMemory, getMeetingTranscriptChunks } from './memoryRetrieval.js';
 import { buildProjectSnapshot, buildPersonLookupText, todayIso } from './assistantContext.js';
+import { hasScope, needsWidening, mergeScoped } from './retrievalScope.js';
 import { executeProposedAction } from './assistantActions.js';
 import { googleConfigured, getConnectionStatus, listEvents } from './googleCalendar.js';
 import { loadRelevantFacts } from './knowledgeFacts.js';
@@ -472,20 +473,25 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
 
       if (!cachedAnswer) {
         const retrievalStartedAt = Date.now();
-        const [chunksResult, factsResult, googleConn] = await Promise.all([
-          searchProjectMemory(pool, {
-            orgId, projectId,
-            query: scope.standaloneQuery,
-            participant: resolvedParticipant,
-            meetingId: searchMeetingId || undefined,
-            kind: scope.kind !== 'qualquer' ? scope.kind : undefined,
-            limit: 12,
-          }),
+        // O tipo de trecho e a reunião-alvo que a interpretação da pergunta propõe são DICAS, não filtros rígidos (server/retrievalScope.js): a busca com o escopo roda junto
+        // com a busca aberta e, quando o escopo traz pouco ou o tipo pode estar errado, a aberta completa o resultado.
+        const searchBase = { orgId, projectId, query: scope.standaloneQuery, participant: resolvedParticipant, limit: 12 };
+        const searchScope = { meetingId: searchMeetingId || undefined, kind: scope.kind !== 'qualquer' ? scope.kind : undefined };
+        const [scopedChunks, wideChunks, factsResult, googleConn] = await Promise.all([
+          searchProjectMemory(pool, { ...searchBase, ...searchScope }),
+          hasScope(searchScope) ? searchProjectMemory(pool, searchBase) : null,
           loadRelevantFacts(pool, orgId, projectId, conversationId, 30, { query: scope.standaloneQuery, isStaff: !!isStaff }),
           getConnectionStatus(userId),
         ]);
         if (trace) trace.retrievalLatencyMs = Date.now() - retrievalStartedAt;
-        chunks = chunksResult;
+        const widened = !!wideChunks && needsWidening(searchScope, scopedChunks.length);
+        chunks = widened ? mergeScoped(scopedChunks, wideChunks, 12) : scopedChunks;
+        // Quantos trechos do início da lista vieram do escopo: a transcrição da reunião-alvo (abaixo) entra logo depois deles, antes do preenchimento pela busca aberta.
+        const scopedIds = new Set(scopedChunks.map((c) => c.id));
+        let scopedHead = chunks.findIndex((c) => !scopedIds.has(c.id));
+        if (scopedHead < 0) scopedHead = chunks.length;
+        if (trace) { trace.scopeWidened = widened; trace.scopedChunkCount = scopedChunks.length; }
+        if (widened) logMetric(pool, { orgId, projectId, eventType: 'retrieval_scope_widened', metadata: { kind: searchScope.kind || null, meeting: !!searchScope.meetingId, scoped: scopedChunks.length } }).catch(() => {});
         // Orientação dos pareceres já associada às reuniões do projeto (só equipe; vazio quando nenhum parecer se aplicou).
         let adviceDigest = { text: '', factIds: [] };
         try { adviceDigest = await loadMeetingAdviceDigest(pool, orgId, projectId, { projectData, isStaff: !!isStaff }); } catch (e) { console.error('RENATA: orientação dos pareceres indisponível — seguindo sem ela.', e.message); }
@@ -542,9 +548,12 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
               idsToFetch.map((mid) => getMeetingTranscriptChunks(pool, orgId, projectId, mid)),
             );
             const existingIds = new Set(chunks.map((c) => c.id));
+            const transcriptAdds = [];
             transcriptChunksByMeeting.flat().forEach((c) => {
-              if (!existingIds.has(c.id)) { chunks.push(c); existingIds.add(c.id); }
+              if (!existingIds.has(c.id)) { transcriptAdds.push(c); existingIds.add(c.id); }
             });
+            // Com a busca aberta completando o resultado, a transcrição da reunião-alvo vai logo após o que o escopo trouxe (e não depois do preenchimento): é o que a pessoa pediu.
+            chunks = widened ? [...chunks.slice(0, scopedHead), ...transcriptAdds, ...chunks.slice(scopedHead)] : [...chunks, ...transcriptAdds];
           }
         }
 
@@ -827,3 +836,6 @@ export async function setMessageFeedback(pool, orgId, projectId, userId, message
   const conversationId = await getOrCreateConversation(pool, orgId, projectId, userId);
   await pool.query('UPDATE ai_messages SET feedback=$1 WHERE id=$2 AND conversation_id=$3', [feedback, messageId, conversationId]);
 }
+
+// Exportado para diagnóstico e testes de avaliação (server/evals, scripts de medição): permite medir o que a interpretação da pergunta decide sem rodar a síntese.
+export { resolveQuery };

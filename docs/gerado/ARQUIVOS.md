@@ -4,7 +4,7 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 165 arquivos
+## `server/` — 166 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -17,7 +17,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/assistantActions.js` | 294 | Agente executor do Assistente do Projeto (2026-09, pedido do Rafael: |
 | `server/assistantContext.js` | 281 | Perfil do projeto (2026-09) — resumo compacto e sempre atualizado da |
 | `server/assistantGeneral.js` | 187 | RENATA "geral" (2026-10-06): a assistente disponível de qualquer tela, sem estar presa a um projeto. Responde com o que a PESSOA |
-| `server/assistantRetrieval.js` | 830 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
+| `server/assistantRetrieval.js` | 842 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `server/assistantSweep.js` | 122 | Varredura de reuniões de VÁRIAS empresas para a RENATA geral (Etapa 3 do plano, 2026-10-08; pedido do Felipe: "a RENATA faz |
 | `server/auth.js` | 199 |  |
 | `server/boardPlan.js` | 289 | Organização do quadro pessoal por API (2026-10-30, pedido do Rafael para a outra janela do Claude Code): uma lista de operações aplicada |
@@ -81,10 +81,10 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/embeddings.js` | 63 | Embeddings pra busca semântica da RENATA (Fase 3, 2026-09 — ver |
 | `server/errorHandler.js` | 32 | Erros da API em português claro, com o que a pessoa pode fazer (§96). Função pura `describeError` (testada) + o middleware do Express. |
 | `server/evals/evalCases.js` | 343 | RENATA Eval Harness — Fase 1. Casos de teste controlados contra a |
-| `server/evals/evalMetrics.js` | 195 | RENATA Eval Harness — Fase 1. Funções PURAS de métrica — sem chamada de |
+| `server/evals/evalMetrics.js` | 216 | RENATA Eval Harness — Fase 1. Funções PURAS de métrica — sem chamada de |
 | `server/evals/evalReport.js` | 129 | RENATA Eval Harness — Fase 1. Formata os resultados de runEvalSuite num |
-| `server/evals/evalRunner.js` | 187 | RENATA Eval Harness — Fase 1. Orquestra UM caso de eval: prepara o estado |
-| `server/evals/evidenceKeys.js` | 66 | RENATA Eval Harness — Fase 1. Chunk ids e fact ids são gerados |
+| `server/evals/evalRunner.js` | 189 | RENATA Eval Harness — Fase 1. Orquestra UM caso de eval: prepara o estado |
+| `server/evals/evidenceKeys.js` | 78 | RENATA Eval Harness — Fase 1. Chunk ids e fact ids são gerados |
 | `server/evals/fixtures.js` | 366 | RENATA Eval Harness — Fase 1 (2026-09-13, ver docs/RENATA_P0_P1_IMPLEMENTATION_PLAN.md |
 | `server/evals/taskLinkEval.js` | 150 | Avaliação de qualidade da sugestão tarefa → atividade (Fase 5 do plano, 2026-10-13; docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). |
 | `server/experience.js` | 137 | Experiência de uso (§97): eventos de FLUXO (nome, resultado, duração, rota de erro) e nota de satisfação de 1 clique. Só equipe é medida |
@@ -149,6 +149,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/tools/plataforma.js` | 80 | Ferramentas de plataforma — §101: agenda, notificações, conhecimento, XFlow, pareceres/modelos e o ACESSO GENÉRICO às demais rotas do servidor (as mesmas da |
 | `server/renata/tools/reports.js` | 66 | Relatórios e visão da equipe (somente leitura) — §101: "o que a minha equipe fez hoje", atrasos por responsável e quem sou eu / quem é a equipe. |
 | `server/renata/validate.js` | 81 | Validador de parâmetros das ferramentas da RENATA (§101): subconjunto de JSON Schema suficiente para o catálogo. Rejeita campo desconhecido |
+| `server/retrievalScope.js` | 32 | Escopo da busca na memória do projeto (2026-10-31). A etapa que interpreta a pergunta (resolveQuery) PROPÕE um tipo de trecho (`kind`) e uma reunião-alvo; a busca os |
 | `server/richNote.js` | 70 | Descrição formatada dos cartões do quadro pessoal (2026-10-07): o campo `desc` continua sendo uma string — texto simples |
 | `server/routes.js` | 1416 |  |
 | `server/scripts/reindexAllMeetings.js` | 30 | Backfill manual da memória do projeto (2026-09, Fase 1 do Assistente |

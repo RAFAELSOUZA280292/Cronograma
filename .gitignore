@@ -4,3 +4,4 @@ dist
 .DS_Store
 .sourcemaps
 exports/
+server/evals/.last-run-failure-traces.md

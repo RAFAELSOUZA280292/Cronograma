@@ -6,7 +6,7 @@
 
 ## Resumo
 - **102 ferramentas estruturadas** em 11 módulos (36 de consulta, 47 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
-- **330 rotas** no servidor: 64 cobertas por ferramenta própria, 126 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 140 excluídas de propósito.
+- **331 rotas** no servidor: 64 cobertas por ferramenta própria, 127 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 140 excluídas de propósito.
 - **56 funcionalidades humanas mapeadas**: 35 ✅, 12 🟡, 4 ⬜, 5 🚫.
 - **Critério "100% das funcionalidades" NÃO está atendido ainda**: as linhas 🟡 e ⬜ abaixo são o que falta. As rotas "genéricas" já são alcançáveis (com confirmação), mas sem esquema de parâmetros; as ⬜ precisam de trabalho novo (arquivos, edição de documentos inteiros).
 
@@ -266,6 +266,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `PATCH /api/auth/me` | excluída | fora do alcance: Sessão e senha: a RENATA não lida com credenciais. |
 | `GET /api/briefing` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/client-error` | excluída | fora do alcance: Telemetria de uso e erros de tela: não é função operacional. |
+| `GET /api/client360/project/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/cnpj/lookup` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/company-calendar/:projectId/apply` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/company-calendar/:projectId` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |

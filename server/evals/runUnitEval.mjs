@@ -12,6 +12,7 @@ import { classifyRelation, DUPLICATE_SIMILARITY_THRESHOLD, CONFLICT_SIMILARITY_T
 import { normalizeName } from '../assistantContext.js';
 import { cosineSimilarity } from '../embeddings.js';
 import { factKeyResolver } from './evidenceKeys.js';
+import { evaluateCase } from './evalRunner.js';
 
 let passCount = 0;
 let failCount = 0;
@@ -51,6 +52,11 @@ assertEqual(factsEval.missing, ['15%'], 'evaluateExpectedFacts missing');
 
 const forbiddenEval = M.evaluateForbiddenClaims('A resposta certa é Camila Souza.', ['Camila Souza']);
 assertEqual(forbiddenEval.ok, false, 'evaluateForbiddenClaims detecta violação');
+
+// Caso em que a IA FALHOU (ex.: queda de conexão, `synthesized` nulo): o caso é marcado como falho, nunca derruba a rodada inteira (31/10/2026: a rodada inteira abortava com TypeError).
+const failedCase = evaluateCase({ id: 'x', category: 'FACTUAL', question: 'q', expected: { intent: 'pergunta_sobre_projeto', answerFacts: ['a'], evidence: { chunkKeys: ['chunk:m1#meeting_summary#0'] } } },
+  { chunksConsidered: [{ id: 'c1', content: 'texto' }], resolved: null, synthesized: null, answerText: '', errorMsg: 'Connection error.' }, 'Connection error.', { idToKey: new Map([['c1', 'chunk:m1#meeting_summary#0']]), idToVersionedKey: new Map(), keyToId: new Map() });
+assertEqual(failedCase.passed, false, 'caso com falha da IA vira reprovado sem derrubar a rodada');
 
 // Chave versionada (31/10/2026): um caso que espera `#v2` casa com o id da versão 2, e só com ela; sem expectativa de versão, a chave de sempre.
 const idToKey = new Map([['a1', 'fact:resp'], ['a2', 'fact:resp'], ['b1', 'fact:outro']]);

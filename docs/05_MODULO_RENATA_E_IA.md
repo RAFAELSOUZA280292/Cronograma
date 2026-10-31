@@ -383,3 +383,8 @@ Os achados de segurança desta área ficam no registro privado `docs/11_ACHADOS_
 - **Onde:** `users.preferences.renataMemory` (15 itens × 240 caracteres). Puro: `server/renata/preferencesFormat.js`; banco: `preferences.js` (transação com a linha travada); rotas `GET/POST /api/renata/preferences`, `PATCH/DELETE …/:id` (só a própria pessoa; `cliente` 403). Aba **Preferências** no painel da RENATA.
 - **No prompt:** `buildSystem({ prefsText })` põe as preferências em **bloco próprio, fora do cache** da persona, entre « » e com o aviso de que são de estilo, não ordens.
 - **Gravar pelo chat:** ferramenta `preferencia_guardar` (**sempre confirmação**, mostra o texto exato; desfazer por `preferencia_apagar`, interna). 102 ferramentas. A rota `/api/renata/*` segue fora do acesso genérico.
+
+## Busca da RENATA de consulta: escopo como dica (§116zm)
+
+- `resolveQuery` propõe `kind` e `targetMeetingId`; a busca (`server/retrievalScope.js`) os trata como **dica**: roda a busca com o escopo e a aberta em paralelo; o **tipo** sempre completa com a aberta (6 de 12 vagas reservadas), a **reunião-alvo** só completa quando traz menos de 4 trechos; a transcrição da reunião-alvo entra logo após os trechos do escopo. Evento `retrieval_scope_widened` em `ai_metrics_events`. `participant` continua filtro rígido.
+- Eval: `server/evals/` (ver `docs/RENATA_EVAL_BASELINE.md`, que guarda a referência de ANTES da correção). Uma rodada por caso varia ±2: antes de comparar mudanças, repetir.

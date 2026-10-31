@@ -100,7 +100,7 @@ function evaluateCase(testCase, trace, threwError, evidenceMaps) {
     // por JULGAMENTO SEMÂNTICO de verdade fica marcada como N/A aqui de
         // propósito (ver docs/RENATA_EVAL_BASELINE.md, seção de limitações).
     avgLexicalSupport: (() => {
-      const cited = chunksConsidered.filter((c) => (synthesized && (synthesized.citedChunkIds || [])).includes(c.id));
+      const cited = chunksConsidered.filter((c) => ((synthesized && synthesized.citedChunkIds) || []).includes(c.id));
       if (!cited.length) return null;
       const scores = cited.map((c) => M.lexicalSupportScore(answerText, c.content));
       return M.average(scores);
