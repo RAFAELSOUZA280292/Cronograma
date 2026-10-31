@@ -10,6 +10,7 @@ Só os **nomes** e onde são lidos; **nunca** valores. Os valores reais ficam no
 | `ANTHROPIC_API_KEY` | `server/assistant.js`, `server/assistantGeneral.js`, `server/dailyContent.js`, `server/evals/runFullEval.mjs` +8 | `if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ message: 'Assistente não configurado nesse ambiente (falta ANTHROPIC_API_KEY).' });` |
 | `APP_BASE_URL` | `server/companyCalendar.js`, `server/crm/googleSync.js`, `server/google.js`, `server/xflow.js` | `const appUrl = () => process.env.APP_BASE_URL \|\| '';` |
 | `DATABASE_URL` | `server/db.js`, `server/evals/runFullEval.mjs`, `server/renata/scriptedClient.js` | `connectionString: process.env.DATABASE_URL,` |
+| `DEV` | `src/dev/uiAudit.js`, `src/main.jsx` | `// `import.meta.env.DEV` e o Vite o tira do pacote de produção. Uso no console do navegador (ou por um robô de teste):` |
 | `GIT_COMMIT` | `server/evals/runFullEval.mjs` | ``eval-run-${Date.now()}`, EVAL_ORG_ID, process.env.GIT_COMMIT \|\| null, 'v1-fase1',` |
 | `GOOGLE_CLIENT_ID` | `server/googleCalendar.js` | `process.env.GOOGLE_CLIENT_ID,` |
 | `GOOGLE_CLIENT_SECRET` | `server/googleCalendar.js` | `process.env.GOOGLE_CLIENT_SECRET,` |

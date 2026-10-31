@@ -10,8 +10,8 @@ Não há fila externa (Redis etc.): tudo roda **dentro do processo do servidor**
 |---|---|---|
 | `startRun` | `server/crm/piperun/runs.js:6` | não (chamada em outro lugar) |
 | `startCrmScheduler` | `server/crm/scheduler.js:51` | sim |
-| `startDossier` | `server/dossier.js:396` | não (chamada em outro lugar) |
-| `startStudy` | `server/parecerStudy.js:303` | não (chamada em outro lugar) |
+| `startDossier` | `server/dossier.js:397` | não (chamada em outro lugar) |
+| `startStudy` | `server/parecerStudy.js:304` | não (chamada em outro lugar) |
 | `startVersionRetentionJob` | `server/projectVersions.js:189` | sim |
 | `startTodoScheduler` | `server/todoNotifications.js:102` | sim |
 | `startRetentionJob` | `server/usageLog.js:98` | sim |
@@ -25,7 +25,7 @@ Não há fila externa (Redis etc.): tudo roda **dentro do processo do servidor**
 | setInterval | `server/crm/scheduler.js:54` | INTERVAL_MS | `tick` |
 | setInterval | `server/projectVersions.js:192` | 24 * 3600 * 1000 | `run` |
 | setInterval | `server/renata/routes.js:15` |  | `() => { const now = Date.now(` |
-| setInterval | `server/routes.js:1300` |  | `() => { const now = Date.now(` |
+| setInterval | `server/routes.js:1301` |  | `() => { const now = Date.now(` |
 | setInterval | `server/todoNotifications.js:105` | 30 * 60 * 1000 | `tick` |
 | setInterval | `server/usageLog.js:101` | 24 * 3600 * 1000 | `run` |
 | setInterval | `server/widget.js:36` |  | `() => { const now = Date.now(` |

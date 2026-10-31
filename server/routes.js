@@ -26,6 +26,7 @@ import { syncCardEvents, getActivityStats, getDayDetail, cardEventsOf } from './
 import { enforceShareTokens, publicMeetingView } from './shareTokens.js';
 import { isClientUser, projectForClient, applyClientWrite } from './clientView.js';
 import { loginBlockedFor, noteLoginFailure, noteLoginSuccess, passwordTooShort, PASSWORD_MSG } from './loginLimit.js';
+import { payloadStats } from './payloadStats.js';
 
 function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
@@ -461,7 +462,7 @@ router.delete('/users/:id', requireAuth, requireMaster, async (req, res, next) =
 
 // ---------- Projects ----------
 
-router.get('/projects', requireAuth, async (req, res, next) => {
+router.get('/projects', requireAuth, payloadStats('GET /api/projects'), async (req, res, next) => {
   try {
     const orgId = effectiveOrgId(req);
     const sql = req.user.isSuperAdmin && !orgId
@@ -757,7 +758,7 @@ router.post('/_internal/memory-search', requireAuth, async (req, res, next) => {
 // O acesso à Gestão de Atividades (`personal_access`) é conferido no SERVIDOR também (B8, 2026-10-29): sem ele a tela já nem abre, mas as rotas aceitavam qualquer login.
 const requirePersonalAccess = (req, res, next) => (req.user && req.user.personalAccess ? next() : res.status(403).json({ message: 'Você não tem acesso à Gestão de Atividades.' }));
 
-router.get('/personal-board', requireAuth, async (req, res, next) => {
+router.get('/personal-board', requireAuth, payloadStats('GET /api/personal-board'), async (req, res, next) => {
   try {
     // Sem acesso: a tela carrega o quadro ao entrar, então responde um quadro vazio que NÃO é guardado (nada é criado no banco).
     if (!req.user.personalAccess) return res.json({ board: blankPersonalBoard(), updatedAt: null });
@@ -936,7 +937,7 @@ router.get('/personal-board/stats/day', requireAuth, requirePersonalAccess, asyn
 // de cada evento (server/xflow.js pra TASK, notifyActivityChanges() acima
 // pra atividade de empresa); aqui só é leitura/estado (lida/não lida).
 
-router.get('/notifications', requireAuth, async (req, res, next) => {
+router.get('/notifications', requireAuth, payloadStats('GET /api/notifications'), async (req, res, next) => {
   try {
     const muted = await loadMutedPatterns(pool, req.user.id);
     const { rows } = await pool.query(

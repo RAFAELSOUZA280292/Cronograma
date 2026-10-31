@@ -12,7 +12,7 @@ export const fmtNum = (n) => (n == null ? '—' : Number(n).toLocaleString('pt-B
 export const dayLabel = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
 // Selo da base de cada número: medido, estimado ou indisponível. Nunca mostrar número sem ele.
-const BASIS = { real: { t: 'Medido', c: 'var(--oi-ok)' }, estimado: { t: 'Estimado', c: 'var(--oi-warn)' }, indisponivel: { t: 'Indisponível', c: 'var(--oi-faint)' }, misto: { t: 'Misto', c: 'var(--oi-info)' } };
+const BASIS = { real: { t: 'Medido', c: 'var(--tg-green)' }, estimado: { t: 'Estimado', c: 'var(--tg-warn)' }, indisponivel: { t: 'Indisponível', c: 'var(--tg-gray)' }, misto: { t: 'Misto', c: 'var(--tg-blue)' } };
 export function Basis({ basis, title }) {
   const b = BASIS[basis] || BASIS.indisponivel;
   return <span className="oi-basis" style={{ '--c': b.c }} title={title || (basis === 'estimado' ? 'Calculado a partir de eventos que já existiam; não é medição direta.' : basis === 'real' ? 'Registrado pelo rastreador do app.' : basis === 'misto' ? 'Parte dos dias é medida e parte é estimada.' : 'Sem evidência confiável para este número.')}>{b.t}</span>;

@@ -17,6 +17,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { embedTexts } from './embeddings.js';
 import { logMetric } from './metrics.js';
 import { parecerUsableFor, loadProjectIdentity } from './parecerScope.js';
+import { guardSystem } from './promptGuard.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 const sha1 = (s) => crypto.createHash('sha1').update(String(s || '')).digest('hex');
@@ -113,7 +114,7 @@ async function studyAttempt(client, parecer, buffer, hint) {
   const response = await withRetry(() => client.messages.parse({
     model: STUDY_MODEL,
     max_tokens: STUDY_MAX_TOKENS,
-    system: [{ type: 'text', text: STUDY_SYSTEM, cache_control: { type: 'ephemeral', ttl: '1h' } }],
+    system: [{ type: 'text', text: guardSystem(STUDY_SYSTEM), cache_control: { type: 'ephemeral', ttl: '1h' } }],
     messages: [{
       role: 'user',
       content: [
@@ -387,7 +388,7 @@ function adviceAttempt({ studies, meeting, aiClient, hint }) {
   return withRetry(() => aiClient.messages.parse({
     model: ADVICE_MODEL,
     max_tokens: ADVICE_MAX_TOKENS,
-    system: [{ type: 'text', text: ADVICE_SYSTEM, cache_control: { type: 'ephemeral', ttl: '1h' } }],
+    system: [{ type: 'text', text: guardSystem(ADVICE_SYSTEM), cache_control: { type: 'ephemeral', ttl: '1h' } }],
     messages: [{ role: 'user', content: `PARECERES ESTUDADOS:\n${studies.map(studyIndexLine).join('\n\n')}\n\n---\n\n${meetingDigest(meeting)}\n\nIndique, se houver, os pareceres que se aplicam a esta reunião e os caminhos a seguir com o cliente.${hint}` }],
     output_config: { format: zodOutputFormat(AdviceSchema) },
   }));

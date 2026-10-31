@@ -22,6 +22,7 @@ import { loadMeetingAdviceDigest } from './parecerStudy.js';
 import { voyageConfigured, embedTexts } from './embeddings.js';
 import { computeFingerprint, lookupCachedAnswer, saveCachedAnswer } from './answerCache.js';
 import { logMetric } from './metrics.js';
+import { UNTRUSTED_TEXT_RULE_CHAT } from './promptGuard.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 
@@ -283,7 +284,7 @@ async function synthesizeAnswer({ question, chunks, history, projectSnapshot, fa
       'Excluir uma atividade do CRONOGRAMA OFICIAL (delete_schedule_activity) é mais sensível que excluir uma pendência de reunião — afeta um prazo que pode já estar visível pro cliente. Só proponha se o usuário pedir isso claramente (não sugira excluir por conta própria), e deixe isso explícito na resposta.',
       'Você recebe abaixo, em STATUS DO GOOGLE CALENDAR, se o usuário já conectou a agenda ou não. Só quando estiver conectado você pode propor create_calendar_event pra marcar/agendar um compromisso de verdade (não uma atividade do cronograma nem pendência de reunião, que são coisas diferentes) — preencha dueDate (obrigatório) e startTime se um horário for mencionado, e use PRÓXIMOS EVENTOS NA AGENDA (quando presente) pra responder perguntas tipo "o que tenho marcado essa semana" ou "tem conflito nesse horário". Quando NÃO estiver conectado, nunca proponha create_calendar_event — se o usuário pedir pra marcar algo na agenda, diga que ele precisa conectar o Google Calendar primeiro (tela Agenda).',
       'Seja objetiva e executiva: prefira uma resposta curta e direta quando ela resolver, priorizando clareza, ação, contexto e prioridade — evite textão quando não for necessário.',
-      ].join(' '),
+      ].join(' ') + `\n\n${UNTRUSTED_TEXT_RULE_CHAT}`,
       cache_control: { type: 'ephemeral', ttl: '1h' },
     }],
     messages: [{ role: 'user', content: `Perfil do projeto:\n${projectSnapshot}\n\nCONHECIMENTO ACUMULADO (fatos ensinados por usuários, deste projeto e da PRICETAX em geral):\n${factsText}\n\n${meetingContextText}\n\n${personLookupText || ''}\n\nSTATUS DO GOOGLE CALENDAR: ${googleConnected ? 'conectado' : 'não conectado'}\n${calendarContextText || ''}\n\nConversa até agora:\n${historyText}\n\nPergunta do usuário: ${question}\n\nTrechos recuperados da memória de reuniões:\n\n${chunksText}${compact ? COMPACT_HINT : ''}` }],

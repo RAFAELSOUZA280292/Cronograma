@@ -87,7 +87,7 @@ const ASSISTANT_CSS = `
   .asst-action-card-buttons { display:flex; gap:8px; margin-top:8px; }
   .asst-action-btn { display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; border-radius:7px; padding:6px 11px; cursor:pointer; border:1px solid; }
   .asst-action-confirm { background:#F5C400; border-color:#F5C400; color:#111; }
-  .asst-action-confirm.danger { background:#e2574c; border-color:#e2574c; color:#fff; }
+  .asst-action-confirm.danger { background:#c9392e; border-color:#c9392e; color:#fff; }
   .asst-action-reject { background:transparent; border-color:var(--border-3); color:var(--text-4); }
   .asst-action-btn:disabled { opacity:.55; cursor:default; }
   .asst-action-status { margin-top:8px; font-size:11.5px; font-weight:700; display:flex; align-items:center; gap:5px; }

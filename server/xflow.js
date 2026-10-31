@@ -7,6 +7,7 @@ import { checkTransition, XFLOW_TERMINAL_STATUSES } from './xflowTransitions.js'
 import { createNotification } from './notifications.js';
 import { cleanCommentExtras } from './commentExtras.js';
 import { syncTicketEvent, deleteTicketEvent } from './googleCalendar.js';
+import { payloadStats } from './payloadStats.js';
 
 function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
@@ -241,7 +242,7 @@ router.get('/affected-companies', requireAuth, requireXflowAccess, async (req, r
   } catch (e) { next(e); }
 });
 
-router.get('/tickets', requireAuth, requireXflowAccess, async (req, res, next) => {
+router.get('/tickets', requireAuth, requireXflowAccess, payloadStats('GET /api/xflow/tickets'), async (req, res, next) => {
   try {
     const wantsTrash = req.query.trash === '1';
     if (wantsTrash && !canDo('restaurar', req.user, null)) {

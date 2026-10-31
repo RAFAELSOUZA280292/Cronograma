@@ -618,6 +618,7 @@ function PersonalColumn({
           <input
             ref={nameInputRef}
             value={nameField.draft}
+            aria-label={`Nome da coluna ${column.name || ''}`.trim()}
             readOnly={readOnly || lockColumn}
             onChange={(e) => nameField.onChange(e.target.value)}
             onBlur={nameField.flush}
@@ -2319,13 +2320,13 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
           --pb-shadow-drag: 0 8px 20px rgba(15,15,15,.10);
           --pcol-gray-bg: #EDECE9; --pcol-gray-text: #55534E; --pcol-gray-container: #F7F7F6;
           --pcol-brown-bg: #EEE0DA; --pcol-brown-text: #64473A; --pcol-brown-container: #F8F2EF;
-          --pcol-orange-bg: #FADEC9; --pcol-orange-text: #D9730D; --pcol-orange-container: #FDF2E8;
-          --pcol-yellow-bg: #FDECC8; --pcol-yellow-text: #CB912F; --pcol-yellow-container: #FEF9EB;
-          --pcol-green-bg: #DBEDDB; --pcol-green-text: #448361; --pcol-green-container: #EFF8EF;
-          --pcol-blue-bg: #D3E5EF; --pcol-blue-text: #337EA9; --pcol-blue-container: #EFF5F9;
-          --pcol-purple-bg: #E8DEEE; --pcol-purple-text: #9065B0; --pcol-purple-container: #F6F2F9;
-          --pcol-pink-bg: #F5E0E9; --pcol-pink-text: #C14C8A; --pcol-pink-container: #FBF2F6;
-          --pcol-red-bg: #FFE2DD; --pcol-red-text: #D44C47; --pcol-red-container: #FFF3F1;
+          --pcol-orange-bg: #FADEC9; --pcol-orange-text: #985109; --pcol-orange-container: #FDF2E8;
+          --pcol-yellow-bg: #FDECC8; --pcol-yellow-text: #8a6320; --pcol-yellow-container: #FEF9EB;
+          --pcol-green-bg: #DBEDDB; --pcol-green-text: #3a7153; --pcol-green-container: #EFF8EF;
+          --pcol-blue-bg: #D3E5EF; --pcol-blue-text: #2a678b; --pcol-blue-container: #EFF5F9;
+          --pcol-purple-bg: #E8DEEE; --pcol-purple-text: #765390; --pcol-purple-container: #F6F2F9;
+          --pcol-pink-bg: #F5E0E9; --pcol-pink-text: #a24074; --pcol-pink-container: #FBF2F6;
+          --pcol-red-bg: #FFE2DD; --pcol-red-text: #b2403c; --pcol-red-container: #FFF3F1;
           --pcol-default-container: #F7F7F5;
         }
         .pb-card { transition: box-shadow .14s ease, transform .14s ease; }

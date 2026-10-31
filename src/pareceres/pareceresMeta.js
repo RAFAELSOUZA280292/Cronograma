@@ -59,7 +59,7 @@ export const PARECERES_CSS = `
   .par-btn-primary { background:#F5C400; border-color:#F5C400; color:#111; }
   .par-btn-primary:hover:not(:disabled) { background:#ffd21f; border-color:#ffd21f; }
   .par-btn-ghost { border-color:var(--border-2); color:var(--text-4); }
-  .par-btn-danger { background:#e2574c; border-color:#e2574c; color:#fff; }
+  .par-btn-danger { background:#c9392e; border-color:#c9392e; color:#fff; }
   .par-btn:disabled { opacity:.5; cursor:default; }
 
   .par-empty { text-align:center; color:var(--text-5); font-size:14px; padding:72px 12px; line-height:1.6; }

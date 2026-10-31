@@ -6,7 +6,7 @@
 
 ## Resumo
 - **101 ferramentas estruturadas** em 11 módulos (36 de consulta, 46 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
-- **306 rotas** no servidor: 64 cobertas por ferramenta própria, 121 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 121 excluídas de propósito.
+- **323 rotas** no servidor: 64 cobertas por ferramenta própria, 124 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 135 excluídas de propósito.
 - **56 funcionalidades humanas mapeadas**: 35 ✅, 12 🟡, 4 ⬜, 5 🚫.
 - **Critério "100% das funcionalidades" NÃO está atendido ainda**: as linhas 🟡 e ⬜ abaixo são o que falta. As rotas "genéricas" já são alcançáveis (com confirmação), mas sem esquema de parâmetros; as ⬜ precisam de trabalho novo (arquivos, edição de documentos inteiros).
 
@@ -234,7 +234,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `empresa_fase_atualizar` | escrita | sob medida | Renomeia uma fase ou altera a descrição. |
 | `empresa_fase_excluir` | crítica (confirma) | sob medida | Exclui uma fase; as atividades dela passam para outra fase (a primeira restante). Sempre pede confirmação. |
 | `empresa_criar` | escrita (confirma em certos casos) | POST /api/projects | Cria uma empresa (cliente) com o cronograma padrão da casa a partir da data de kickoff. Sempre pede confirmação (cria cronograma completo e libera o C |
-| `empresa_excluir` | crítica (confirma) | sob medida | EXCLUI DE VEZ uma empresa e todo o cronograma dela (não há lixeira). Exige que a pessoa digite o nome exato da empresa (nomeConfirmado) e sempre pede  |
+| `empresa_excluir` | crítica (confirma) | sob medida | EXCLUI uma empresa e todo o cronograma dela (some da lista; fica só uma cópia por 1 ano que apenas um Master recupera; links públicos, dossiê e reserv |
 
 ## 4. Todas as rotas do servidor e como a RENATA as alcança
 
@@ -274,11 +274,21 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `GET /api/connect/activities` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `POST /api/connect/activities` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `GET /api/connect/agenda` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
+| `POST /api/connect/board/plan` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
+| `GET /api/connect/board` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
+| `POST /api/connect/companies/:id/meetings/:meetingId/edits/:editId/undo` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
+| `GET /api/connect/companies/:id/meetings/:meetingId/edits` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `GET /api/connect/companies/:id/meetings/:meetingId` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
+| `PATCH /api/connect/companies/:id/meetings/:meetingId` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `POST /api/connect/companies/:id/plan` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
+| `POST /api/connect/companies/:id/transcripts/:submissionId/retry` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
+| `GET /api/connect/companies/:id/transcripts/:submissionId` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
+| `GET /api/connect/companies/:id/transcripts` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
+| `POST /api/connect/companies/:id/transcripts` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `GET /api/connect/companies/:id` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `GET /api/connect/companies` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `GET /api/connect/me` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
+| `GET /api/connect/team-day` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `DELETE /api/connect/tokens/:id` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `GET /api/connect/tokens` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `POST /api/connect/tokens` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
@@ -326,6 +336,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `DELETE /api/crm/deals/:id` | ferramenta | crm_excluir_negocio |
 | `GET /api/crm/deals/:id` | ferramenta | crm_ver_negocio |
 | `PATCH /api/crm/deals/:id` | ferramenta | crm_atualizar_negocio |
+| `GET /api/crm/deals/export.xlsx` | excluída | fora do alcance: Download de arquivo: não é operação de dados. |
 | `GET /api/crm/deals` | ferramenta | crm_listar_negocios |
 | `POST /api/crm/deals` | ferramenta | crm_criar_negocio |
 | `POST /api/crm/import/commit` | excluída | fora do alcance: Importações em massa por planilha: precisam do arquivo e da conferência na tela. |
@@ -398,6 +409,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `GET /api/knowledge-library/:id` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
 | `PATCH /api/knowledge-library/:id` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
 | `POST /api/knowledge-library/search` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
+| `POST /api/knowledge-library/suggest` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
 | `GET /api/knowledge-library` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
 | `POST /api/knowledge-library` | excluída | fora do alcance: Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar. |
 | `POST /api/knowledge/conflicts/resolve` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
@@ -427,7 +439,9 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `GET /api/ops-intel/experience` | excluída | fora do alcance: Telemetria de uso e erros de tela: não é função operacional. |
 | `GET /api/ops-intel/map` | excluída | fora do alcance: Telemetria de uso e erros de tela: não é função operacional. |
 | `GET /api/ops-intel/overview` | excluída | fora do alcance: Telemetria de uso e erros de tela: não é função operacional. |
+| `GET /api/ops-intel/payloads` | excluída | fora do alcance: Telemetria de uso e erros de tela: não é função operacional. |
 | `GET /api/ops-intel/policy` | excluída | fora do alcance: Telemetria de uso e erros de tela: não é função operacional. |
+| `GET /api/ops-intel/team-day` | excluída | fora do alcance: Telemetria de uso e erros de tela: não é função operacional. |
 | `GET /api/ops-intel/users/:id` | excluída | fora do alcance: Telemetria de uso e erros de tela: não é função operacional. |
 | `PATCH /api/organizations/:id` | excluída | fora do alcance: Organizações (super administrador): fora do alcance da IA. |
 | `GET /api/organizations` | excluída | fora do alcance: Organizações (super administrador): fora do alcance da IA. |
@@ -448,6 +462,9 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `GET /api/personal-board/stats/day` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/personal-board/stats` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/personal-board/version` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/personal-board/versions/:id/restore` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/personal-board/versions/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/personal-board/versions` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/personal-board` | excluída | fora do alcance: O quadro pessoal inteiro é regravado pela tela; a RENATA usa as ferramentas quadro_* (cartão a cartão). |
 | `PATCH /api/personal-board` | excluída | fora do alcance: O quadro pessoal inteiro é regravado pela tela; a RENATA usa as ferramentas quadro_* (cartão a cartão). |
 | `GET /api/personal-extras` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |

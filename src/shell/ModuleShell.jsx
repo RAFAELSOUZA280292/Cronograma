@@ -2,11 +2,13 @@
 // ← Início (com texto) · seletor de módulos · busca global (Ctrl/Cmd+K) · sino · menu da pessoa (perfil, tema, sair).
 // Os módulos mantêm só o que é deles (título, ações do módulo); Início/Sair/Tema/Sino/Perfil vivem aqui.
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown, Search, LogOut, UserCog, Sun, Moon, Check, Sparkles } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Search, LogOut, UserCog, Sun, Moon, Check, Sparkles, Keyboard } from 'lucide-react';
 import { NotificationBell, UserAvatar } from '../App.jsx';
 import CommandPalette from './CommandPalette.jsx';
 import { useEscClose } from '../lib/nav.js';
 import { GlobalSaveStatus } from '../ui/index.jsx';
+import ShortcutsHelp from './ShortcutsHelp.jsx';
+import { isTypingTarget } from './shortcuts.js';
 
 const CSS = `
 .shell-bar { position: sticky; top: 0; z-index: 45; display: flex; align-items: center; gap: 8px; height: var(--shell-h, 48px); padding: 0 14px;
@@ -95,8 +97,14 @@ export default function ModuleShell({
   onOpenProfile, theme, onToggleTheme, onLogout,
 }) {
   const [palette, setPalette] = useState(false);
+  const [help, setHelp] = useState(false);
   useEffect(() => {
     function onKey(e) {
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.defaultPrevented && !isTypingTarget(e.target) && !document.querySelector('[role="dialog"], [role="alertdialog"], .ui-modal')) {
+        e.preventDefault();
+        setHelp(true);
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         setPalette((v) => !v);
@@ -160,6 +168,7 @@ export default function ModuleShell({
           <div className="shell-menu-head"><b>{user.name || user.username}</b>{user.email || user.username}</div>
           <hr />
           <button type="button" role="menuitem" className="shell-menu-item" onClick={() => onOpenProfile()}><UserCog size={15} aria-hidden="true" /> Meu perfil</button>
+          <button type="button" role="menuitem" className="shell-menu-item" onClick={() => setHelp(true)}><Keyboard size={15} aria-hidden="true" /> Atalhos de teclado</button>
           <button type="button" role="menuitem" className="shell-menu-item" onClick={onToggleTheme}>
             {theme === 'light' ? <Moon size={15} aria-hidden="true" /> : <Sun size={15} aria-hidden="true" />} {theme === 'light' ? 'Modo escuro' : 'Modo claro'}
           </button>
@@ -167,6 +176,7 @@ export default function ModuleShell({
           <button type="button" role="menuitem" className="shell-menu-item" onClick={onLogout}><LogOut size={15} aria-hidden="true" /> Sair</button>
         </Menu>
       </header>
+      {help && <ShortcutsHelp isMac={isMac} onClose={() => setHelp(false)} />}
       {palette && <CommandPalette getItems={getSearchItems} getRemoteItems={getRemoteSearchItems} onAskRenata={onOpenRenata} onClose={() => setPalette(false)} />}
     </>
   );

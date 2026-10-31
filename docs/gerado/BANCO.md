@@ -994,7 +994,7 @@
 - `crm_timeline_company_idx`: `USING btree (company_id, occurred_at DESC)`
 
 **Gatilhos (triggers):**
-- `crm_timeline_events_append_only` (BEFORE DELETE/UPDATE): `EXECUTE FUNCTION crm_block_history_mutation()`
+- `crm_timeline_events_append_only` (BEFORE UPDATE/DELETE): `EXECUTE FUNCTION crm_block_history_mutation()`
 
 ## crm_view_defaults
 
@@ -1226,9 +1226,9 @@
 
 **Travas do banco:**
 - Regra (CHECK): `CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'done'::text, 'failed'::text])))`
-- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE`
-- Chave estrangeira: `FOREIGN KEY (submitted_by) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
+- Chave estrangeira: `FOREIGN KEY (submitted_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE`
 - Chave primária: `PRIMARY KEY (id)`
 
 ## notifications
@@ -1329,8 +1329,8 @@
 | `company_name` | text | não | ''::text |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (company_project_id) REFERENCES projects(id) ON DELETE SET NULL`
 - Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (company_project_id) REFERENCES projects(id) ON DELETE SET NULL`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
@@ -1494,8 +1494,8 @@
 | `finished_at` | timestamp with time zone | sim |  |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
+- Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
 - Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
 - Chave primária: `PRIMARY KEY (id)`
 

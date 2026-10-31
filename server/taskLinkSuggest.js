@@ -11,6 +11,7 @@ import { titleTokens, jaccard } from './gaps.js';
 import { STUDY_MODEL } from './parecerStudy.js';
 import { learnedSuggest, sameCompanyExamples } from './taskLinkLearn.js';
 import { dictPromptLine, keywordScore } from './activityDictionary.js';
+import { guardSystem } from './promptGuard.js';
 
 export const MIN_CONFIDENCE = 0.5;   // abaixo disso não sugere (mostra "escolher atividade")
 export const HIGH_CONFIDENCE = 0.8;  // acima disso entra no "confirmar todas"
@@ -138,7 +139,7 @@ export async function suggestActivityLinks({ client: clientIn, activities: activ
         const res = await client.messages.parse({
           model: STUDY_MODEL,
           max_tokens: 4000,
-          system: [{ type: 'text', text: SYSTEM }],
+          system: [{ type: 'text', text: guardSystem(SYSTEM) }],
           messages: [{ role: 'user', content: buildPrompt({ activities, phases, tasks: chunk, meeting, examples: learn && learn.data ? sameCompanyExamples(learn.data, chunk) : [] }) }],
           output_config: { format: zodOutputFormat(SuggestSchema) },
         });

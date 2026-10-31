@@ -16,6 +16,8 @@ const estrito = args.includes('--estrito');
 const so = args.includes('--so') ? args[args.indexOf('--so') + 1] : '';
 const read = (p) => fs.readFileSync(p, 'utf8');
 const exists = (p) => fs.existsSync(path.join(ROOT, p));
+// Arquivos que os textos públicos citam mas que NÃO vão ao repositório público de propósito (o clone de deploy os remove): não são erro.
+const PRIVADOS = new Set(['docs/11_ACHADOS_E_PENDENCIAS.md']);
 
 const docsDir = path.join(ROOT, 'docs');
 const files = fs.readdirSync(docsDir).filter((f) => /^(0\d|1\d)_.*\.md$/.test(f)).map((f) => path.join('docs', f));
@@ -57,7 +59,7 @@ for (const f of targets) {
     for (const m of l.matchAll(/`((?:server|src|scripts|docs|shared|public)\/[A-Za-z0-9_./\-]+?\.[A-Za-z0-9]+)(?::(\d+)(?:-(\d+))?)?`/g)) {
       const p = m[1];
       if (/[*<>{}]/.test(p)) continue;
-      if (!exists(p)) { local.paths.add(p); continue; }
+      if (!exists(p)) { if (!PRIVADOS.has(p)) local.paths.add(p); continue; }
       if (m[2]) { const n = read(path.join(ROOT, p)).split('\n').length; if (Number(m[2]) > n || (m[3] && Number(m[3]) > n)) local.lines.add(`${p}:${m[2]} (arquivo tem ${n} linhas)`); }
     }
     // rotas

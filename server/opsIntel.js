@@ -6,6 +6,8 @@ import { backfillCoords, deviceLabel } from './accessLog.js';
 import { RETENTION } from './usageLog.js';
 import { usagePolicy } from './usagePolicy.js';
 import { teamDay } from './teamDay.js';
+import { payloadSnapshot } from './payloadStats.js';
+const PROCESS_START = new Date().toISOString();
 import { summary as experienceSummary } from './experience.js';
 import { BASIS, activityIndex, aggregateMap, combineDays, dayOf, detectAlerts, heatFromTimestamps, hourOf, maskIp, pctChange, sessionize, summarizeSlices } from '../shared/usageMetrics.js';
 
@@ -144,6 +146,9 @@ router.get('/experience', async (req, res, next) => {
 });
 
 router.get('/policy', (req, res) => res.json({ policy: usagePolicy(), retention: RETENTION }));
+
+// Tamanho real das respostas pesadas (2026-10-30, Q4): decide se `GET /projects` precisa de lista leve. Em memória; zera a cada deploy.
+router.get('/payloads', (req, res) => res.json({ desde: PROCESS_START, observacao: 'Tamanho sem compressão (o gzip do proxy reduz o que trafega). Zera a cada reinício.', rotas: payloadSnapshot() }));
 
 router.get('/overview', async (req, res, next) => {
   try {

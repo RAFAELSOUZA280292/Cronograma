@@ -32,6 +32,7 @@ import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
 import { RecordSaveStatus, Button } from '../ui/index.jsx';
 import { useEscClose } from '../lib/nav.js';
 import { calendarDaysSince } from '../lib/dates.js';
+import { softDot } from '../ui/statusDot.js';
 
 const MAX_EVIDENCE_BYTES = 8 * 1024 * 1024;
 
@@ -594,8 +595,10 @@ function captureMetadata() {
 
 function Badge({ meta, small }) {
   if (!meta) return null;
+  // Texto neutro + bolinha na cor do status (cor neon como TEXTO reprovava no tema claro: 2,4:1; ver src/ui/statusDot.js).
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: small ? 10.5 : 11.5, fontWeight: 700, padding: small ? '2px 7px' : '3px 9px', borderRadius: 999, color: meta.color, background: meta.bg, border: `1px solid ${meta.border}`, whiteSpace: 'nowrap' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: small ? '2px 8px' : '3px 10px', borderRadius: 6, color: 'var(--text-2)', background: 'var(--bg-3)', border: '1px solid var(--border-1)', whiteSpace: 'nowrap' }}>
+      <i aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: softDot(meta.color), flexShrink: 0 }} />
       {meta.label}
     </span>
   );
@@ -3268,13 +3271,13 @@ export default function XFlowScreen({
         html[data-theme="light"] {
           --pcol-gray-bg: #EDECE9; --pcol-gray-text: #55534E; --pcol-gray-container: #F7F7F6;
           --pcol-brown-bg: #EEE0DA; --pcol-brown-text: #64473A; --pcol-brown-container: #F8F2EF;
-          --pcol-orange-bg: #FADEC9; --pcol-orange-text: #D9730D; --pcol-orange-container: #FDF2E8;
-          --pcol-yellow-bg: #FDECC8; --pcol-yellow-text: #CB912F; --pcol-yellow-container: #FEF9EB;
-          --pcol-green-bg: #DBEDDB; --pcol-green-text: #448361; --pcol-green-container: #EFF8EF;
-          --pcol-blue-bg: #D3E5EF; --pcol-blue-text: #337EA9; --pcol-blue-container: #EFF5F9;
-          --pcol-purple-bg: #E8DEEE; --pcol-purple-text: #9065B0; --pcol-purple-container: #F6F2F9;
-          --pcol-pink-bg: #F5E0E9; --pcol-pink-text: #C14C8A; --pcol-pink-container: #FBF2F6;
-          --pcol-red-bg: #FFE2DD; --pcol-red-text: #D44C47; --pcol-red-container: #FFF3F1;
+          --pcol-orange-bg: #FADEC9; --pcol-orange-text: #985109; --pcol-orange-container: #FDF2E8;
+          --pcol-yellow-bg: #FDECC8; --pcol-yellow-text: #8a6320; --pcol-yellow-container: #FEF9EB;
+          --pcol-green-bg: #DBEDDB; --pcol-green-text: #3a7153; --pcol-green-container: #EFF8EF;
+          --pcol-blue-bg: #D3E5EF; --pcol-blue-text: #2a678b; --pcol-blue-container: #EFF5F9;
+          --pcol-purple-bg: #E8DEEE; --pcol-purple-text: #765390; --pcol-purple-container: #F6F2F9;
+          --pcol-pink-bg: #F5E0E9; --pcol-pink-text: #a24074; --pcol-pink-container: #FBF2F6;
+          --pcol-red-bg: #FFE2DD; --pcol-red-text: #b2403c; --pcol-red-container: #FFF3F1;
           --pcol-default-container: #F7F7F5;
         }
       `}</style>

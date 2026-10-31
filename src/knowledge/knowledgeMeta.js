@@ -95,7 +95,7 @@ export const KNOWLEDGE_CSS = `
   .knw-btn { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; border-radius:8px; padding:8px 14px; cursor:pointer; border:1px solid; background:transparent; }
   .knw-btn-primary { background:#F5C400; border-color:#F5C400; color:#111; }
   .knw-btn-ghost { border-color:var(--border-2); color:var(--text-4); }
-  .knw-btn-danger { background:#e2574c; border-color:#e2574c; color:#fff; }
+  .knw-btn-danger { background:#c9392e; border-color:#c9392e; color:#fff; }
   .knw-btn:disabled { opacity:.5; cursor:default; }
   .knw-btn-row { display:flex; gap:8px; margin-top:16px; }
 

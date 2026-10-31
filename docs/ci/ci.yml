@@ -1,0 +1,30 @@
+# >>> ATIVAR: copie este arquivo para `.github/workflows/ci.yml` e faça o push. O GitHub só aceita arquivos de workflow de uma credencial com o escopo
+# >>> `workflow` (a do deploy automático não tem). Duas formas: (a) no site do GitHub › Add file › Create new file › `.github/workflows/ci.yml`, colando este
+# >>> texto; ou (b) no seu terminal, `gh auth refresh -h github.com -s workflow` (abre o navegador para você autorizar) e peça o push.
+# Verificação mínima a cada push na main e em pull requests (2026-10-30, Onda 1 / E1).
+# Não bloqueia o deploy da Railway (que acompanha a main por conta própria): serve de alarme rápido, com o mesmo
+# comando que roda localmente: `npm run build`, `npm run test:puro`, `npm run docs:conferir`.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:puro
+      - run: npm run docs:conferir

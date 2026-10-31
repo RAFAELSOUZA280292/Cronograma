@@ -25,7 +25,8 @@ const CSS = `
 .oi-kpi-top { display:flex; justify-content:space-between; gap:8px; align-items:center; } .oi-kpi-label { font-size:11.5px; color:var(--text-4); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
 .oi-kpi-value { font-size:28px; font-weight:800; margin:8px 0 4px; line-height:1.05; color:var(--text-1); } .oi-kpi-foot { font-size:11.5px; color:var(--text-4); }
 .oi-delta { font-weight:700; } .oi-delta em { font-weight:400; font-style:normal; color:var(--text-5); } .oi-delta.up { color:var(--oi-ok); } .oi-delta.down { color:var(--oi-bad); }
-.oi-basis { font-size:10px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; color:var(--c); border:1px solid var(--c); border-radius:99px; padding:1px 7px; white-space:nowrap; opacity:.95; }
+.oi-basis { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--text-2); border:1px solid var(--border-2); border-radius:6px; padding:1px 8px; white-space:nowrap; }
+.oi-basis::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--c); flex-shrink:0; }
 .oi-grid2 { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:14px; margin-bottom:14px; } .oi-grid3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; margin-bottom:14px; }
 @media (max-width:900px){ .oi-grid2 { grid-template-columns:1fr; } .oi-root { padding:14px 12px 50px; } }
 .oi-card { background:var(--bg-2); border:1px solid var(--border-1); border-radius:12px; padding:14px 16px; min-width:0; }

@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **324 rotas** em **29 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **326 rotas** em **29 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
@@ -49,67 +49,68 @@ Arquivos: `server/routes.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| POST | `/api/auth/login` |  |  | `server/routes.js:129` |
-| POST | `/api/auth/change-password-login` |  | primeiro e depois abrir "Meu perfil". Mesma checagem de bloqueio/ expiração do login normal antes de aceitar a troca. | `server/routes.js:170` |
-| POST | `/api/auth/logout` | `optionalAuth` |  | `server/routes.js:213` |
-| GET | `/api/auth/me` | `requireAuth` |  | `server/routes.js:219` |
-| POST | `/api/activity/ping` | `requireAuth` |  | `server/routes.js:224` |
-| POST | `/api/activity/usage` | `requireAuth` | Rastreador de uso (Central de Inteligência Operacional): fatias de tempo e ações pontuais, só da equipe. Nunca guarda conteúdo. | `server/routes.js:230` |
-| GET | `/api/activity/policy` | `requireAuth` | Transparência: toda a equipe pode ler como o uso é medido. | `server/routes.js:238` |
-| PATCH | `/api/auth/me` | `requireAuth` |  | `server/routes.js:240` |
-| POST | `/api/auth/change-password` | `requireAuth` |  | `server/routes.js:254` |
-| GET | `/api/mentions/users` | `requireAuth` | Pessoas que podem ser @mencionadas em comentários (Onda 3): só a equipe PRICETAX da org da pessoa; cliente não enxerga a equipe. | `server/routes.js:271` |
-| GET | `/api/users` | `requireAuth` `requireMaster` |  | `server/routes.js:283` |
-| GET | `/api/users/:id/access` | `requireAuth` `requireMaster` |  | `server/routes.js:295` |
-| POST | `/api/users` | `requireAuth` `requireMaster` |  | `server/routes.js:306` |
-| PATCH | `/api/users/:id` | `requireAuth` `requireMaster` |  | `server/routes.js:329` |
-| POST | `/api/users/:id/block` | `requireAuth` `requireMaster` |  | `server/routes.js:369` |
-| POST | `/api/users/:id/renew` | `requireAuth` `requireMaster` |  | `server/routes.js:387` |
-| POST | `/api/users/:id/reset-password` | `requireAuth` `requireMaster` |  | `server/routes.js:405` |
-| DELETE | `/api/users/:id` | `requireAuth` `requireMaster` |  | `server/routes.js:428` |
-| GET | `/api/projects` | `requireAuth` |  | `server/routes.js:464` |
-| GET | `/api/projects/versions` | `requireAuth` | segundos) sem servidor de WebSocket, sem pub/sub, sem dependência nova. | `server/routes.js:489` |
-| GET | `/api/projects/lite` | `requireAuth` | inteiro de cada projeto, que já é pesado (é por isso que Pareceres guarda o PDF numa tabela própria em vez de embutir em `projects.data`, ver PROJECT_CONTEXT.md §48). | `server/routes.js:505` |
-| POST | `/api/projects` | `requireAuth` `requireMasterOrPricetax` |  | `server/routes.js:518` |
-| POST | `/api/cnpj/lookup` | `requireAuth` `requireMasterOrPricetax` |  | `server/routes.js:564` |
-| DELETE | `/api/projects/:id` | `requireAuth` | Excluir empresa é físico (fica só a cópia `pre_delete` em project_versions por 1 ano): só administrador — Master ou Super Admin (M12, 2026-10-29). | `server/routes.js:573` |
-| GET | `/api/projects/:id/team-candidates` | `requireAuth` |  | `server/routes.js:587` |
-| PATCH | `/api/projects/:id` | `requireAuth` |  | `server/routes.js:606` |
-| POST | `/api/projects/:id/meetings` | `requireAuth` `requireMasterOrPricetax` | Reuniões à mão, mas numa transação travada (não pisa em quem está editando) e sem limite de tamanho prático no texto. Só equipe PRICETAX. Idempotente: mesma data + mesmo… | `server/routes.js:655` |
-| POST | `/api/projects/:id/plan` | `requireAuth` `requireMaster` | Ajustar o cronograma de uma empresa por operações (mesmo motor do /api/connect/companies/:id/plan, mas pela sessão — 2026-10-26): activity.set/add, sub.set/add/move/dele… | `server/routes.js:707` |
-| POST | `/api/_internal/memory-search` | `requireAuth` | recuperada corretamente, com o mesmo isolamento de acesso de qualquer outra rota de projeto. | `server/routes.js:739` |
-| GET | `/api/personal-board` | `requireAuth` |  | `server/routes.js:760` |
-| GET | `/api/personal-board/version` | `requireAuth` `requirePersonalAccess` | Versão barata do quadro (só o carimbo): o cliente consulta de tempos em tempos para saber se OUTRA origem (a API de conectividade, §80, ou o quadro público) alterou o qu… | `server/routes.js:774` |
-| PATCH | `/api/personal-board` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:825` |
-| GET | `/api/personal-board/versions` | `requireAuth` `requirePersonalAccess` | Histórico do quadro pessoal (M11): lista as fotos guardadas e restaura uma (a atual vira uma foto "antes de restaurar", então dá para voltar atrás). | `server/routes.js:872` |
-| GET | `/api/personal-board/versions/:id` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:879` |
-| POST | `/api/personal-board/versions/:id/restore` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:888` |
-| GET | `/api/personal-board/stats` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:908` |
-| GET | `/api/personal-board/stats/day` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:921` |
-| GET | `/api/notifications` | `requireAuth` |  | `server/routes.js:939` |
-| GET | `/api/notifications/preferences` | `requireAuth` | Quais categorias o usuário quer ver — por usuário, fica salvo até ele mudar (users.preferences.notifications). | `server/routes.js:951` |
-| PUT | `/api/notifications/preferences` | `requireAuth` |  | `server/routes.js:959` |
-| GET | `/api/personal-extras` | `requireAuth` | Anotações rápidas e atalhos da pessoa (users.preferences.personalExtras) — fora do quadro porque o quadro pode ter link público. | `server/routes.js:986` |
-| PUT | `/api/personal-extras` | `requireAuth` |  | `server/routes.js:993` |
-| POST | `/api/client-error` | `requireAuth` | Erro de tela capturado por um limite de erro do navegador → uma linha no log do servidor. Só com login, com limite por pessoa. | `server/routes.js:1007` |
-| PATCH | `/api/notifications/:id` | `requireAuth` |  | `server/routes.js:1016` |
-| POST | `/api/notifications/read-all` | `requireAuth` |  | `server/routes.js:1029` |
-| POST | `/api/notifications/mark-read-for-target` | `requireAuth` | atividade) — regra do Rafael: só sai do contador quando lida OU quando acessada, nunca só por abrir o painel do sino. | `server/routes.js:1040` |
-| GET | `/api/public-board/:token` | `optionalAuth` |  | `server/routes.js:1106` |
-| POST | `/api/personal-board/linked` | `requireAuth` |  | `server/routes.js:1166` |
-| PATCH | `/api/public-board/:token` | `requireAuth` |  | `server/routes.js:1209` |
-| GET | `/api/public-meeting/:token` | `optionalAuth` |  | `server/routes.js:1308` |
-| GET | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1351` |
-| POST | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1363` |
-| PATCH | `/api/organizations/:id` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1379` |
+| POST | `/api/auth/login` |  |  | `server/routes.js:130` |
+| POST | `/api/auth/change-password-login` |  | primeiro e depois abrir "Meu perfil". Mesma checagem de bloqueio/ expiração do login normal antes de aceitar a troca. | `server/routes.js:171` |
+| POST | `/api/auth/logout` | `optionalAuth` |  | `server/routes.js:214` |
+| GET | `/api/auth/me` | `requireAuth` |  | `server/routes.js:220` |
+| POST | `/api/activity/ping` | `requireAuth` |  | `server/routes.js:225` |
+| POST | `/api/activity/usage` | `requireAuth` | Rastreador de uso (Central de Inteligência Operacional): fatias de tempo e ações pontuais, só da equipe. Nunca guarda conteúdo. | `server/routes.js:231` |
+| GET | `/api/activity/policy` | `requireAuth` | Transparência: toda a equipe pode ler como o uso é medido. | `server/routes.js:239` |
+| PATCH | `/api/auth/me` | `requireAuth` |  | `server/routes.js:241` |
+| POST | `/api/auth/change-password` | `requireAuth` |  | `server/routes.js:255` |
+| GET | `/api/mentions/users` | `requireAuth` | Pessoas que podem ser @mencionadas em comentários (Onda 3): só a equipe PRICETAX da org da pessoa; cliente não enxerga a equipe. | `server/routes.js:272` |
+| GET | `/api/users` | `requireAuth` `requireMaster` |  | `server/routes.js:284` |
+| GET | `/api/users/:id/access` | `requireAuth` `requireMaster` |  | `server/routes.js:296` |
+| POST | `/api/users` | `requireAuth` `requireMaster` |  | `server/routes.js:307` |
+| PATCH | `/api/users/:id` | `requireAuth` `requireMaster` |  | `server/routes.js:330` |
+| POST | `/api/users/:id/block` | `requireAuth` `requireMaster` |  | `server/routes.js:370` |
+| POST | `/api/users/:id/renew` | `requireAuth` `requireMaster` |  | `server/routes.js:388` |
+| POST | `/api/users/:id/reset-password` | `requireAuth` `requireMaster` |  | `server/routes.js:406` |
+| DELETE | `/api/users/:id` | `requireAuth` `requireMaster` |  | `server/routes.js:429` |
+| GET | `/api/projects` | `requireAuth` `payloadStats('GET /api/projects')` |  | `server/routes.js:465` |
+| GET | `/api/projects/versions` | `requireAuth` | segundos) sem servidor de WebSocket, sem pub/sub, sem dependência nova. | `server/routes.js:490` |
+| GET | `/api/projects/lite` | `requireAuth` | inteiro de cada projeto, que já é pesado (é por isso que Pareceres guarda o PDF numa tabela própria em vez de embutir em `projects.data`, ver PROJECT_CONTEXT.md §48). | `server/routes.js:506` |
+| POST | `/api/projects` | `requireAuth` `requireMasterOrPricetax` |  | `server/routes.js:519` |
+| POST | `/api/cnpj/lookup` | `requireAuth` `requireMasterOrPricetax` |  | `server/routes.js:565` |
+| DELETE | `/api/projects/:id` | `requireAuth` | Excluir empresa é físico (fica só a cópia `pre_delete` em project_versions por 1 ano): só administrador — Master ou Super Admin (M12, 2026-10-29). | `server/routes.js:574` |
+| GET | `/api/projects/:id/team-candidates` | `requireAuth` |  | `server/routes.js:588` |
+| PATCH | `/api/projects/:id` | `requireAuth` |  | `server/routes.js:607` |
+| POST | `/api/projects/:id/meetings` | `requireAuth` `requireMasterOrPricetax` | Reuniões à mão, mas numa transação travada (não pisa em quem está editando) e sem limite de tamanho prático no texto. Só equipe PRICETAX. Idempotente: mesma data + mesmo… | `server/routes.js:656` |
+| POST | `/api/projects/:id/plan` | `requireAuth` `requireMaster` | Ajustar o cronograma de uma empresa por operações (mesmo motor do /api/connect/companies/:id/plan, mas pela sessão — 2026-10-26): activity.set/add, sub.set/add/move/dele… | `server/routes.js:708` |
+| POST | `/api/_internal/memory-search` | `requireAuth` | recuperada corretamente, com o mesmo isolamento de acesso de qualquer outra rota de projeto. | `server/routes.js:740` |
+| GET | `/api/personal-board` | `requireAuth` `payloadStats('GET /api/personal-board')` |  | `server/routes.js:761` |
+| GET | `/api/personal-board/version` | `requireAuth` `requirePersonalAccess` | Versão barata do quadro (só o carimbo): o cliente consulta de tempos em tempos para saber se OUTRA origem (a API de conectividade, §80, ou o quadro público) alterou o qu… | `server/routes.js:775` |
+| PATCH | `/api/personal-board` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:826` |
+| GET | `/api/personal-board/versions` | `requireAuth` `requirePersonalAccess` | Histórico do quadro pessoal (M11): lista as fotos guardadas e restaura uma (a atual vira uma foto "antes de restaurar", então dá para voltar atrás). | `server/routes.js:873` |
+| GET | `/api/personal-board/versions/:id` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:880` |
+| POST | `/api/personal-board/versions/:id/restore` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:889` |
+| GET | `/api/personal-board/stats` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:909` |
+| GET | `/api/personal-board/stats/day` | `requireAuth` `requirePersonalAccess` |  | `server/routes.js:922` |
+| GET | `/api/notifications` | `requireAuth` `payloadStats('GET /api/notifications')` |  | `server/routes.js:940` |
+| GET | `/api/notifications/preferences` | `requireAuth` | Quais categorias o usuário quer ver — por usuário, fica salvo até ele mudar (users.preferences.notifications). | `server/routes.js:952` |
+| PUT | `/api/notifications/preferences` | `requireAuth` |  | `server/routes.js:960` |
+| GET | `/api/personal-extras` | `requireAuth` | Anotações rápidas e atalhos da pessoa (users.preferences.personalExtras) — fora do quadro porque o quadro pode ter link público. | `server/routes.js:987` |
+| PUT | `/api/personal-extras` | `requireAuth` |  | `server/routes.js:994` |
+| POST | `/api/client-error` | `requireAuth` | Erro de tela capturado por um limite de erro do navegador → uma linha no log do servidor. Só com login, com limite por pessoa. | `server/routes.js:1008` |
+| PATCH | `/api/notifications/:id` | `requireAuth` |  | `server/routes.js:1017` |
+| POST | `/api/notifications/read-all` | `requireAuth` |  | `server/routes.js:1030` |
+| POST | `/api/notifications/mark-read-for-target` | `requireAuth` | atividade) — regra do Rafael: só sai do contador quando lida OU quando acessada, nunca só por abrir o painel do sino. | `server/routes.js:1041` |
+| GET | `/api/public-board/:token` | `optionalAuth` |  | `server/routes.js:1107` |
+| POST | `/api/personal-board/linked` | `requireAuth` |  | `server/routes.js:1167` |
+| PATCH | `/api/public-board/:token` | `requireAuth` |  | `server/routes.js:1210` |
+| GET | `/api/public-meeting/:token` | `optionalAuth` |  | `server/routes.js:1309` |
+| GET | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1352` |
+| POST | `/api/organizations` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1364` |
+| PATCH | `/api/organizations/:id` | `requireAuth` `requireSuperAdmin` |  | `server/routes.js:1380` |
 
-## `(sem prefixo conhecido)` — 2 rotas
+## `(sem prefixo conhecido)` — 3 rotas
 
-Arquivos: `server/index.js`, `server/xflowTransitions.js`.
+Arquivos: `server/index.js`, `server/payloadStats.js`, `server/xflowTransitions.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
 | GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:123` |
+| GET | `(sem prefixo conhecido)/projects` | `requireAuth` `payloadStats('GET /projects')` |  | `server/payloadStats.js:27` |
 | DELETE | `(sem prefixo conhecido)/tickets/:id` |  | arquivar) — um ticket aberto por engano também precisa poder ir pra Lixeira. purgar (apagar de vez) não passa por aqui — é DELETE direto, | `server/xflowTransitions.js:54` |
 
 ## `/api/agenda` — 3 rotas
@@ -389,24 +390,25 @@ Arquivos: `server/meetingInbox.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| POST | `/api/meeting-inbox` | `requireAuth` `requireMasterOrPricetax` |  | `server/meetingInbox.js:395` |
-| GET | `/api/meeting-inbox` | `requireAuth` |  | `server/meetingInbox.js:403` |
-| POST | `/api/meeting-inbox/retry-failed` | `requireAuth` `requireMasterOrPricetax` | já mostra "Na fila") e processa UMA POR VEZ, em sequência — em paralelo estouraria o rate limit da API justamente num lote grande. | `server/meetingInbox.js:416` |
-| POST | `/api/meeting-inbox/:id/retry` | `requireAuth` `requireMasterOrPricetax` |  | `server/meetingInbox.js:446` |
+| POST | `/api/meeting-inbox` | `requireAuth` `requireMasterOrPricetax` |  | `server/meetingInbox.js:396` |
+| GET | `/api/meeting-inbox` | `requireAuth` |  | `server/meetingInbox.js:404` |
+| POST | `/api/meeting-inbox/retry-failed` | `requireAuth` `requireMasterOrPricetax` | já mostra "Na fila") e processa UMA POR VEZ, em sequência — em paralelo estouraria o rate limit da API justamente num lote grande. | `server/meetingInbox.js:417` |
+| POST | `/api/meeting-inbox/:id/retry` | `requireAuth` `requireMasterOrPricetax` |  | `server/meetingInbox.js:447` |
 
-## `/api/ops-intel` — 7 rotas
+## `/api/ops-intel` — 8 rotas
 
 Arquivos: `server/opsIntel.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/ops-intel/team-day` |  | Dia da equipe (2026-10-29): quem entrou/saiu, por quais telas passou e o que fez, num dia de Brasília (padrão: hoje). | `server/opsIntel.js:132` |
-| GET | `/api/ops-intel/experience` |  |  | `server/opsIntel.js:139` |
-| GET | `/api/ops-intel/policy` |  |  | `server/opsIntel.js:146` |
-| GET | `/api/ops-intel/overview` |  |  | `server/opsIntel.js:148` |
-| GET | `/api/ops-intel/users/:id` |  |  | `server/opsIntel.js:208` |
-| GET | `/api/ops-intel/map` |  |  | `server/opsIntel.js:243` |
-| GET | `/api/ops-intel/alerts` |  |  | `server/opsIntel.js:268` |
+| GET | `/api/ops-intel/team-day` |  | Dia da equipe (2026-10-29): quem entrou/saiu, por quais telas passou e o que fez, num dia de Brasília (padrão: hoje). | `server/opsIntel.js:134` |
+| GET | `/api/ops-intel/experience` |  |  | `server/opsIntel.js:141` |
+| GET | `/api/ops-intel/policy` |  |  | `server/opsIntel.js:148` |
+| GET | `/api/ops-intel/payloads` |  | Tamanho real das respostas pesadas (2026-10-30, Q4): decide se `GET /projects` precisa de lista leve. Em memória; zera a cada deploy. | `server/opsIntel.js:151` |
+| GET | `/api/ops-intel/overview` |  |  | `server/opsIntel.js:153` |
+| GET | `/api/ops-intel/users/:id` |  |  | `server/opsIntel.js:213` |
+| GET | `/api/ops-intel/map` |  |  | `server/opsIntel.js:248` |
+| GET | `/api/ops-intel/alerts` |  |  | `server/opsIntel.js:273` |
 
 ## `/api/pareceres` — 12 rotas
 
@@ -554,14 +556,14 @@ Arquivos: `server/xflow.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/xflow/team` | `requireAuth` `requireXflowAccess` | rota própria porque GET /api/users exige requireMaster, e reporter/dev comuns não são master. | `server/xflow.js:214` |
-| GET | `/api/xflow/affected-companies` | `requireAuth` `requireXflowAccess` | por frequência de uso — quem aparece mais costuma ser quem o usuário mais quer digitar de novo. | `server/xflow.js:229` |
-| GET | `/api/xflow/tickets` | `requireAuth` `requireXflowAccess` |  | `server/xflow.js:244` |
-| GET | `/api/xflow/tickets/:id/events` | `requireAuth` `requireXflowAccess` |  | `server/xflow.js:261` |
-| POST | `/api/xflow/tickets/:id/view` | `requireAuth` `requireXflowAccess` | TASK (regra do Rafael: só some do contador quando lida OU quando o usuário efetivamente acessa a ocorrência). | `server/xflow.js:279` |
-| POST | `/api/xflow/tickets` | `requireAuth` `requireXflowAccess` |  | `server/xflow.js:301` |
-| PATCH | `/api/xflow/tickets/:id` | `requireAuth` `requireXflowAccess` |  | `server/xflow.js:335` |
-| DELETE | `/api/xflow/tickets/:id` | `requireAuth` `requireXflowAccess` | antes), e só admin (master/superAdmin do Cronograma com xflow_role) pode fazer isso — ver xflowPermissions.js. | `server/xflow.js:859` |
+| GET | `/api/xflow/team` | `requireAuth` `requireXflowAccess` | rota própria porque GET /api/users exige requireMaster, e reporter/dev comuns não são master. | `server/xflow.js:215` |
+| GET | `/api/xflow/affected-companies` | `requireAuth` `requireXflowAccess` | por frequência de uso — quem aparece mais costuma ser quem o usuário mais quer digitar de novo. | `server/xflow.js:230` |
+| GET | `/api/xflow/tickets` | `requireAuth` `requireXflowAccess` `payloadStats('GET /api/xflow/tickets')` |  | `server/xflow.js:245` |
+| GET | `/api/xflow/tickets/:id/events` | `requireAuth` `requireXflowAccess` |  | `server/xflow.js:262` |
+| POST | `/api/xflow/tickets/:id/view` | `requireAuth` `requireXflowAccess` | TASK (regra do Rafael: só some do contador quando lida OU quando o usuário efetivamente acessa a ocorrência). | `server/xflow.js:280` |
+| POST | `/api/xflow/tickets` | `requireAuth` `requireXflowAccess` |  | `server/xflow.js:302` |
+| PATCH | `/api/xflow/tickets/:id` | `requireAuth` `requireXflowAccess` |  | `server/xflow.js:336` |
+| DELETE | `/api/xflow/tickets/:id` | `requireAuth` `requireXflowAccess` | antes), e só admin (master/superAdmin do Cronograma com xflow_role) pode fazer isso — ver xflowPermissions.js. | `server/xflow.js:860` |
 
 ## `/d` — 1 rotas
 

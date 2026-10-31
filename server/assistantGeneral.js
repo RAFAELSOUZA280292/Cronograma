@@ -15,6 +15,7 @@ import { needsSweep, runSweep } from './assistantSweep.js';
 import { GAPS_HINT, gapsContextFor } from './gaps.js';
 import { logMetric } from './metrics.js';
 import { STUDY_MODEL } from './parecerStudy.js';
+import { guardSystem } from './promptGuard.js';
 
 const DONE_ACT = new Set(['concluido']);
 const DONE_TODO = new Set(['concluida', 'nao-relevante']);
@@ -159,7 +160,7 @@ export async function askGeneral({ pool, client, user, orgId, question, history,
   const ask = (extra = '') => client.messages.create({
     model: STUDY_MODEL,
     max_tokens: sweep ? 2500 : 1400,
-    system: [{ type: 'text', text: SYSTEM }, { type: 'text', text: `CONTEXTO:\n${ctx.text}${sweep ? `\n\n${sweep.text}` : ''}` }],
+    system: [{ type: 'text', text: guardSystem(SYSTEM, 'chat') }, { type: 'text', text: `CONTEXTO:\n${ctx.text}${sweep ? `\n\n${sweep.text}` : ''}` }],
     messages: [...msgs, { role: 'user', content: clip(question, 1500) + extra }],
   });
   let res = await ask();

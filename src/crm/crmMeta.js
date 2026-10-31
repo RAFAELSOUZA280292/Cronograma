@@ -111,9 +111,7 @@ export function tagColor(name) {
   if (/^Grupo/.test(n)) return 'var(--tg-orange)';
   return 'var(--text-6)';
 }
-// Cor de BOLINHA para os selos de status (`crm-pill` com `--dot`): troca o neon do tema escuro pela variável que também lê bem no claro.
-const SOFT_DOT = { '#3ea6ff': 'var(--tg-blue)', '#3ecf6e': 'var(--tg-green)', '#2ecc8f': 'var(--tg-green)', '#e2574c': 'var(--tg-risk)', '#b98af5': 'var(--tg-purple)', '#f5c400': 'var(--tg-yellow)', '#fedb00': 'var(--tg-yellow)', '#ff9f40': 'var(--tg-warn)', '#9a9a9a': 'var(--tg-gray)' };
-export const softDot = (c) => SOFT_DOT[String(c || '').toLowerCase()] || c || 'var(--text-6)';
+export { softDot } from '../ui/statusDot.js';
 // Ordem de importância no cartão: curva primeiro, o evento (igual em quase todos) por último.
 export function tagRank(name) {
   const n = String(name || '');
@@ -318,7 +316,7 @@ export const CRM_CSS = `
   .crm-step:disabled { cursor:default; }
   .crm-step:not(:disabled):hover, .crm-step:not(:disabled):focus-visible { filter:brightness(1.15); }
   .crm-step.end { flex:0 0 auto; padding:8px 18px; font-weight:800; cursor:default; }
-  .crm-step.end.won { background:#3ecf6e; color:#06240f; } .crm-step.end.lost { background:#e2574c; color:#fff; }
+  .crm-step.end.won { background:#3ecf6e; color:#06240f; } .crm-step.end.lost { background:#c9392e; color:#fff; }
   .crm-nav-badge { margin-left:auto; min-width:20px; height:20px; padding:0 5px; border-radius:99px; background:#c93a2b; color:#fff; font-size:12px; font-weight:800; display:inline-grid; place-items:center; }
   .crm-deal { position:relative; flex-shrink:0; }
   .crm-deal-top { display:flex; justify-content:space-between; align-items:flex-start; gap:6px; }

@@ -27,6 +27,7 @@ import { AREAS } from './areas.js';
 import { matchPerson } from './inventory.js';
 import { suggestActivityLinks, applySuggestions } from './taskLinkSuggest.js';
 import { loadLedgerExamples } from './taskLinkLearn.js';
+import { guardSystem } from './promptGuard.js';
 
 export const router = Router();
 
@@ -127,7 +128,7 @@ async function extractMeetingFromTranscript(transcript, clientCompanyName, roste
     // fingir o contrário.
     system: [{
       type: 'text',
-      text: 'Você extrai informações estruturadas de transcrições de reuniões de negócio em português do Brasil. Seja fiel ao conteúdo — nunca invente datas, nomes ou decisões que não estejam no texto. Quando algo não for mencionado explicitamente, deixe null (ou lista/string vazia). Preste atenção especial a quem fala cada trecho (os nomes de interlocutor na transcrição) para saber de que lado (PRICETAX ou cliente) vem cada compromisso assumido. Para "topics" e "highlights", cite timestamps e trechos exatamente como aparecem no texto bruto — nunca invente marcação de tempo que não esteja lá, e nunca copie a transcrição inteira nesses campos (eles são só um índice leve, o texto original já está preservado à parte). Em "actionItems", além das tarefas, registre como itens separados cada decisão explícita (kind "decisao"), cada risco levantado (kind "risco") e cada pendência em aberto (kind "pendencia"), sempre com uma frase curta no título; nunca invente itens que não estejam no texto e não duplique: uma mesma fala vira um único item.',
+      text: guardSystem('Você extrai informações estruturadas de transcrições de reuniões de negócio em português do Brasil. Seja fiel ao conteúdo — nunca invente datas, nomes ou decisões que não estejam no texto. Quando algo não for mencionado explicitamente, deixe null (ou lista/string vazia). Preste atenção especial a quem fala cada trecho (os nomes de interlocutor na transcrição) para saber de que lado (PRICETAX ou cliente) vem cada compromisso assumido. Para "topics" e "highlights", cite timestamps e trechos exatamente como aparecem no texto bruto — nunca invente marcação de tempo que não esteja lá, e nunca copie a transcrição inteira nesses campos (eles são só um índice leve, o texto original já está preservado à parte). Em "actionItems", além das tarefas, registre como itens separados cada decisão explícita (kind "decisao"), cada risco levantado (kind "risco") e cada pendência em aberto (kind "pendencia"), sempre com uma frase curta no título; nunca invente itens que não estejam no texto e não duplique: uma mesma fala vira um único item.'),
       cache_control: { type: 'ephemeral', ttl: '1h' },
     }],
     messages: [{ role: 'user', content: `${contexto}${equipe}${compact ? `${COMPACT_HINT}\n\n` : ''}Extraia as informações estruturadas desta transcrição de reunião:\n\n${transcript}` }],

@@ -16,6 +16,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { pool } from './db.js';
 import { embedTexts, voyageConfigured, cosineSimilarity } from './embeddings.js';
 import { chunkText } from './materialText.js';
+import { guardSystem } from './promptGuard.js';
 
 export const uid = (p) => `${p}-${crypto.randomBytes(5).toString('hex')}`;
 export const clip = (s, n) => { const t = String(s || '').trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
@@ -144,7 +145,7 @@ export async function studyMaterial({ title, topic, note, text }) {
     for (let i = 0; i < text.length; i += PART_CHARS) parts.push(text.slice(i, i + PART_CHARS));
     const notes = [];
     for (let i = 0; i < parts.length; i += 1) {
-      const r = await withRetry(() => client.messages.create({ model: STUDY_MODEL, max_tokens: 3500, system: [{ type: 'text', text: NOTES_SYSTEM }], messages: [{ role: 'user', content: `Material "${title}" — parte ${i + 1} de ${parts.length}:\n\n${parts[i]}` }] }));
+      const r = await withRetry(() => client.messages.create({ model: STUDY_MODEL, max_tokens: 3500, system: [{ type: 'text', text: guardSystem(NOTES_SYSTEM) }], messages: [{ role: 'user', content: `Material "${title}" — parte ${i + 1} de ${parts.length}:\n\n${parts[i]}` }] }));
       notes.push(`### Parte ${i + 1}\n${(r.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n')}`);
     }
     body = `(O material é longo; abaixo estão as anotações de cada parte, feitas a partir do texto completo.)\n\n${notes.join('\n\n')}`;
@@ -152,7 +153,7 @@ export async function studyMaterial({ title, topic, note, text }) {
   const ask = (compact) => withRetry(() => client.messages.parse({
     model: STUDY_MODEL,
     max_tokens: 16000,
-    system: [{ type: 'text', text: STUDY_SYSTEM, cache_control: { type: 'ephemeral', ttl: '1h' } }],
+    system: [{ type: 'text', text: guardSystem(STUDY_SYSTEM), cache_control: { type: 'ephemeral', ttl: '1h' } }],
     messages: [{ role: 'user', content: `Estude este material. Título no sistema: "${title}".${topic ? ` Tema indicado por quem enviou: ${topic}.` : ''}${note ? ` Orientação de uso dada por quem enviou: ${note}` : ''}${compact ? `\n\n${COMPACT_HINT}` : ''}\n\n=== MATERIAL ===\n${body}` }],
     output_config: { format: zodOutputFormat(MaterialStudySchema) },
   }));

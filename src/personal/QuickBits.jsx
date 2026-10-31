@@ -3,6 +3,7 @@
 // já existiam (`filters`), então nada muda no modelo do quadro nem no que é salvo.
 import React, { useEffect, useRef, useState } from 'react';
 import { Plus, CalendarClock, AlertTriangle, Flame, Play, Hourglass } from 'lucide-react';
+import { isTypingTarget } from '../shell/shortcuts.js';
 
 export const QUICK_CSS = `
   .qb-new { position:relative; display:inline-flex; }
@@ -27,11 +28,7 @@ export const QUICK_CSS = `
 `;
 
 // "N" abre a criação rápida, a não ser que a pessoa esteja digitando ou que haja um diálogo aberto.
-export function isTypingTarget(el) {
-  if (!el) return false;
-  const tag = el.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el.isContentEditable;
-}
+export { isTypingTarget };
 
 export function QuickNew({ columns, enabled, onCreate }) {
   const [open, setOpen] = useState(false);

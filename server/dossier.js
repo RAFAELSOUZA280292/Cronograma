@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { logMetric } from './metrics.js';
 import { todayIso } from './assistantContext.js';
+import { guardSystem } from './promptGuard.js';
 
 function uid(p) { return p + '-' + Math.random().toString(36).slice(2, 9); }
 const sha1 = (s) => crypto.createHash('sha1').update(String(s || '')).digest('hex');
@@ -213,7 +214,7 @@ async function digestTranscript(client, m) {
   const response = await client.messages.create({
     model: DIGEST_MODEL,
     max_tokens: 1800,
-    system: 'Você resume transcrições de reuniões de consultoria tributária (PRICETAX) em português, com fidelidade total: use só o que foi dito, nunca invente nomes, valores, datas ou compromissos. Estrutura (omita o que não houver): Contexto; Pontos discutidos; Decisões; Compromissos (quem, o quê, prazo se dito); Dúvidas em aberto. Seja denso e objetivo, no máximo ~400 palavras.',
+    system: guardSystem('Você resume transcrições de reuniões de consultoria tributária (PRICETAX) em português, com fidelidade total: use só o que foi dito, nunca invente nomes, valores, datas ou compromissos. Estrutura (omita o que não houver): Contexto; Pontos discutidos; Decisões; Compromissos (quem, o quê, prazo se dito); Dúvidas em aberto. Seja denso e objetivo, no máximo ~400 palavras.'),
     messages: [{ role: 'user', content: `Reunião: ${m.title || 'sem título'} (${fmtBR(m.date)})\nParticipantes: ${(m.participants || []).join(', ') || 'não informados'}\n\nTRANSCRIÇÃO:\n${t}` }],
   });
   const text = (response.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
@@ -228,7 +229,7 @@ async function consolidateOnce(client, { system, userText }) {
     // incidente real da RENATA em 2026-09-10). 16000 cobre com folga os limites do prompt e fica abaixo
     // do teto em que o SDK exige streaming.
     max_tokens: 16000,
-    system: [{ type: 'text', text: system }],
+    system: [{ type: 'text', text: guardSystem(system) }],
     messages: [{ role: 'user', content: userText }],
     output_config: { format: zodOutputFormat(DossierSchema) },
   });

@@ -4,7 +4,7 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 153 arquivos
+## `server/` — 155 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -16,8 +16,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/assistant.js` | 221 | Rotas do Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `server/assistantActions.js` | 294 | Agente executor do Assistente do Projeto (2026-09, pedido do Rafael: |
 | `server/assistantContext.js` | 281 | Perfil do projeto (2026-09) — resumo compacto e sempre atualizado da |
-| `server/assistantGeneral.js` | 186 | RENATA "geral" (2026-10-06): a assistente disponível de qualquer tela, sem estar presa a um projeto. Responde com o que a PESSOA |
-| `server/assistantRetrieval.js` | 829 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
+| `server/assistantGeneral.js` | 187 | RENATA "geral" (2026-10-06): a assistente disponível de qualquer tela, sem estar presa a um projeto. Responde com o que a PESSOA |
+| `server/assistantRetrieval.js` | 830 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `server/assistantSweep.js` | 122 | Varredura de reuniões de VÁRIAS empresas para a RENATA geral (Etapa 3 do plano, 2026-10-08; pedido do Felipe: "a RENATA faz |
 | `server/auth.js` | 199 |  |
 | `server/boardPlan.js` | 289 | Organização do quadro pessoal por API (2026-10-30, pedido do Rafael para a outra janela do Claude Code): uma lista de operações aplicada |
@@ -72,7 +72,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/dailyContent.js` | 222 | Conteúdo diário ("Meu dia", 2026-10-05, §77): evangelho, versículo, sabedoria, horóscopo, horóscopo chinês e inspiração. |
 | `server/db.js` | 1598 |  |
 | `server/documentTemplates.js` | 260 | Modelos de documentos (2026-10-05, §78) — irmã da aba Pareceres: biblioteca de modelos para sócios e colaboradores. Um MODELO |
-| `server/dossier.js` | 453 | Dossiê do cliente (2026-10-02, pedido da Amanda via Rafael: "um compilado de todas as reuniões |
+| `server/dossier.js` | 454 | Dossiê do cliente (2026-10-02, pedido da Amanda via Rafael: "um compilado de todas as reuniões |
 | `server/embeddings.js` | 63 | Embeddings pra busca semântica da RENATA (Fase 3, 2026-09 — ver |
 | `server/errorHandler.js` | 32 | Erros da API em português claro, com o que a pessoa pode fazer (§96). Função pura `describeError` (testada) + o middleware do Express. |
 | `server/evals/evalCases.js` | 343 | RENATA Eval Harness — Fase 1. Casos de teste controlados contra a |
@@ -94,7 +94,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/knowledgeCenter.js` | 575 | Central de Conhecimento — regra de negócio do admin (Fase 8, |
 | `server/knowledgeEntities.js` | 148 | Grafo de entidades da RENATA — versão relacional (Fase 8, 2026-09-11, |
 | `server/knowledgeFacts.js` | 451 | Memória de conhecimento em camadas da RENATA (Fase 7, 2026-09-11; |
-| `server/knowledgeLibrary.js` | 404 | Biblioteca de conhecimento da RENATA (2026-10-27, pedido do Rafael: "um local para dar input de conhecimento — material sobre Produtor Rural antes e |
+| `server/knowledgeLibrary.js` | 405 | Biblioteca de conhecimento da RENATA (2026-10-27, pedido do Rafael: "um local para dar input de conhecimento — material sobre Produtor Rural antes e |
 | `server/knowledgeLibraryRoutes.js` | 174 | Rotas da Biblioteca de conhecimento (2026-10-27, §116) — só master/pricetax; ver server/knowledgeLibrary.js. |
 | `server/linkPreview.js` | 146 | Pré-visualização de links (título, descrição, imagem) — 2026-10-05, §78. O servidor busca a página, então a defesa é contra |
 | `server/loginLimit.js` | 49 | Limite de tentativas de login (A2, 2026-10-29). Em memória: reinicia com o servidor, o que basta para barrar tentativa em série. |
@@ -102,23 +102,25 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/materialText.js` | 152 | Biblioteca de conhecimento da RENATA (2026-10-27, §116): leitura de arquivos em texto e fatiamento em trechos. |
 | `server/meetingEdit.js` | 172 | Correção de uma reunião já registrada pela API de conectividade (§116e, escopo `meetings_edit`). Função pura sobre o `data` do projeto: |
 | `server/meetingEditsSchema.js` | 20 | Histórico das correções de reunião feitas pela API (§116e). O versionamento do cronograma (`project_versions`, §83) só enxerga atividades, fases e equipe — não reuniões —, |
-| `server/meetingInbox.js` | 452 | Caixa de transcrições (2026-09, pedido do Rafael) — "eu e meus sócios e |
+| `server/meetingInbox.js` | 453 | Caixa de transcrições (2026-09, pedido do Rafael) — "eu e meus sócios e |
 | `server/memoryIngest.js` | 222 | Ingestão/chunking da memória do projeto (2026-09, Fase 1 do |
 | `server/memoryRetrieval.js` | 284 | Recuperação da memória do projeto (2026-09, Fases 1 e 3 do Assistente |
 | `server/metrics.js` | 15 | Métricas mensuráveis da RENATA (Fase 7.1, 2026-09-11, pedido do |
 | `server/notificationPrefs.js` | 51 | Quais notificações cada usuário quer ver (2026-10-06). Guardado por usuário em users.preferences.notifications |
 | `server/notifications.js` | 38 | Central de Notificações (2026-08) — helper de escrita compartilhado entre |
 | `server/officePreview.js` | 92 | Pré-visualização de texto de arquivos do Office abertos (docx, pptx, xlsx) — 2026-10-05, §78. Esses formatos são ZIPs de XML; |
-| `server/opsIntel.js` | 283 |  |
+| `server/opsIntel.js` | 288 |  |
 | `server/parecerScope.js` | 46 | Isolamento de pareceres por cliente (2026-10-04, §70): um parecer "Cliente específico" só pode ser usado — no |
-| `server/parecerStudy.js` | 542 | RENATA estuda os Pareceres PRICETAX (2026-10-04, pedido do Rafael) — ver PROJECT_CONTEXT.md §70. |
+| `server/parecerStudy.js` | 543 | RENATA estuda os Pareceres PRICETAX (2026-10-04, pedido do Rafael) — ver PROJECT_CONTEXT.md §70. |
 | `server/pareceres.js` | 249 | Pareceres PRICETAX (2026-09-17, ver PROJECT_CONTEXT.md §48) — repositório |
+| `server/payloadStats.js` | 49 | Tamanho real do que as telas baixam (2026-10-30, Onda 1 / Q4). Antes de decidir qualquer paginação de `GET /projects` (devolve o JSON inteiro de |
 | `server/permissions.js` | 18 | Central de Conhecimento — helper de permissão (Fase 8, 2026-09-11). |
 | `server/personalActivity.js` | 227 |  |
 | `server/personalExtras.js` | 67 | Anotações rápidas e atalhos de cada pessoa na Gestão de Atividades (2026-10-16, visão 5). Ficam em users.preferences.personalExtras — e NÃO no |
 | `server/projectAudit.js` | 47 | Quem fez cada gravação em `projects` (§83). O gatilho do banco só enxerga o SQL; aqui a identidade da requisição (AsyncLocalStorage, preenchida por requireAuth e pela API de |
 | `server/projectVersions.js` | 194 | Histórico de versões do cronograma (§83): consultar, comparar, criar ponto de restauração, restaurar (com backup automático do estado atual) e recuperar empresa excluída. |
 | `server/projectVersionsSchema.js` | 105 | Versionamento do cronograma (§83): tabela `project_versions` + gatilhos em `projects`. A captura mora no BANCO de propósito: `projects.data` é gravado inteiro por ~17 pontos do |
+| `server/promptGuard.js` | 25 | Regra "texto de terceiros é DADO, nunca instrução" (2026-10-30, Onda 1 / Q2). A RENATA operacional já tinha (regra 11 em renata/agent.js); |
 | `server/push.js` | 173 | Notificações push (2026-10-17). O sino já existia (tabela `notifications`); aqui cada notificação nova também vira um aviso no celular/computador de |
 | `server/renata/agent.js` | 206 | Agente da RENATA (§101): interpreta o pedido, escolhe as ferramentas do catálogo, executa pelo executor (que valida, confere permissão, pede confirmação, |
 | `server/renata/executor.js` | 188 | Executor de ferramentas da RENATA (§101). TODA operação passa por aqui: valida os parâmetros, checa permissão (as rotas do servidor decidem, em nome do |
@@ -138,7 +140,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/tools/reports.js` | 66 | Relatórios e visão da equipe (somente leitura) — §101: "o que a minha equipe fez hoje", atrasos por responsável e quem sou eu / quem é a equipe. |
 | `server/renata/validate.js` | 81 | Validador de parâmetros das ferramentas da RENATA (§101): subconjunto de JSON Schema suficiente para o catálogo. Rejeita campo desconhecido |
 | `server/richNote.js` | 70 | Descrição formatada dos cartões do quadro pessoal (2026-10-07): o campo `desc` continua sendo uma string — texto simples |
-| `server/routes.js` | 1410 |  |
+| `server/routes.js` | 1411 |  |
 | `server/scripts/reindexAllMeetings.js` | 30 | Backfill manual da memória do projeto (2026-09, Fase 1 do Assistente |
 | `server/secretBox.js` | 30 | Cofre simples para segredos guardados no banco (M2, 2026-10-29): AES-256-GCM com chave derivada de TOKEN_ENC_KEY (ou, na falta, do JWT_SECRET). |
 | `server/shareTokens.js` | 41 | Tokens de link público (A9, 2026-10-29). A tela gera o token com `crypto.getRandomValues` (48 hex = 192 bits), mas o servidor não pode confiar nisso: |
@@ -150,7 +152,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/standardTemplateStore.js` | 190 | Banco do cronograma padrão versionado (2026-10-19). Por organização: versões imutáveis (1.0, 2.0, 3.0…) e um rascunho compartilhado. |
 | `server/taskLinkBackfill.js` | 270 | Vínculo tarefa → atividade para os registros que JÁ EXISTEM na base (pedido do Rafael, 2026-10-13: "funcione já para reuniões, para |
 | `server/taskLinkLearn.js` | 117 | Aprendizado do vínculo tarefa → atividade (Fase 3 do plano, 2026-10-13; docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). A matéria-prima é o |
-| `server/taskLinkSuggest.js` | 166 | Sugestão da atividade do cronograma para cada tarefa que sai de uma transcrição (Fase 2 do plano, 2026-10-13; |
+| `server/taskLinkSuggest.js` | 167 | Sugestão da atividade do cronograma para cada tarefa que sai de uma transcrição (Fase 2 do plano, 2026-10-13; |
 | `server/taskLinks.js` | 271 | Vínculo tarefa de reunião → atividade do cronograma (plano em docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md, Fase 1, 2026-10-13). |
 | `server/teamDay.js` | 177 | "Dia da equipe" (2026-10-29, pedido do Rafael): para cada pessoa da equipe (master e pricetax, as únicas medidas), num dia de Brasília: |
 | `server/todoNotifications.js` | 109 | Notificações das TAREFAS DE REUNIÃO (Onda 5, §81): atribuída, comentada e vencida. As tarefas vivem dentro do JSON do |
@@ -158,7 +160,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/usagePolicy.js` | 33 | Transparência e finalidade (LGPD): texto único, exibido a toda a equipe (Meu perfil) e à liderança (Central). |
 | `server/widget.js` | 120 | Widget do iPhone (Scriptable) — 2026-10-05, §76. O widget não faz login: usa um token secreto, só de leitura, |
 | `server/widgetSummary.js` | 120 | Resumo para o widget do iPhone (2026-10-05, §76). Funções puras: recebem o JSON do quadro pessoal, |
-| `server/xflow.js` | 877 |  |
+| `server/xflow.js` | 878 |  |
 | `server/xflowPermissions.js` | 86 | Papel efetivo + regras de "quem pode fazer o quê" no XFlow. Regras vivem |
 | `server/xflowTransitions.js` | 116 | Matriz de transições de status do XFlow. Cada ação nomeada sabe de quais |
 
@@ -178,7 +180,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/transcriptParser.js` | 84 | Funções puras de parsing de texto de reunião — SEM import de React, |
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 
-## `src/` — 187 arquivos
+## `src/` — 192 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -239,13 +241,14 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/TagFilter.jsx` | 70 | Filtro por VÁRIAS tags (o negócio precisa ter todas) — 2026-10-26. O valor é o texto "tag1\|tag2" (mesmo formato do servidor e das visões salvas). |
 | `src/crm/boardMove.js` | 48 | Mover um negócio de etapa NA TELA, antes de o servidor responder (2026-10-27, §119). O quadro do funil é um objeto |
 | `src/crm/crmApi.js` | 94 | Cliente da API do CRM (/api/crm) — Fase 1. Só monta URL/corpo; regra de |
-| `src/crm/crmMeta.js` | 528 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
+| `src/crm/crmMeta.js` | 526 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
 | `src/crm/importMapping.js` | 51 | Reconhecimento automático das colunas da planilha (Import Wizard). Módulo puro, |
 | `src/crm/ui.jsx` | 127 | Peças de UI compartilhadas do CRM. |
 | `src/daily/DailyCards.jsx` | 250 |  |
 | `src/daily/DailyPrefs.jsx` | 69 |  |
 | `src/daily/WelcomeSetup.jsx` | 109 |  |
 | `src/daily/useWelcomeSetup.jsx` | 20 | As boas-vindas aparecem por cima de QUALQUER tela (o App tem dezenas de retornos por módulo), então vivem numa raiz |
+| `src/dev/uiAudit.js` | 150 | Auditor de leitura e acessibilidade de uma tela (2026-10-30, Onda 1 / Q1). SÓ para desenvolvimento: `main.jsx` o carrega apenas com |
 | `src/home/homeCss.js` | 37 | Layout da tela inicial (2026-10-30): uma única coluna de conteúdo de 1240 px; "Mensagem do dia" à esquerda e "Hoje" à direita, no |
 | `src/knowledge/ConflictsTab.jsx` | 118 | Aba Conflitos (Fase 8, item 6 do pedido do Rafael) — pares lado a |
 | `src/knowledge/EntitiesTab.jsx` | 89 | Aba Pessoas/Empresas (Fase 8, item 7 do pedido do Rafael) — lista + |
@@ -263,6 +266,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/lib/dateRipple.js` | 89 | Ajuste automático de datas (2026-10-19, pedido do Rafael: "se a caixinha estiver marcada e eu mudar o kickoff de 7 para 10, o fiscal que começava dia 8 vai para dia 11"). |
 | `src/lib/dates.js` | 16 | Dias de CALENDÁRIO entre um momento e agora, no fuso local (2026-10-05). Antes o app contava blocos de 24 h |
 | `src/lib/experience.js` | 51 | Medição de experiência (§97): fluxo, resultado e duração — nunca conteúdo, mouse nem tempo de tela; só a equipe é medida (decide o servidor). |
+| `src/lib/inkOn.js` | 31 | Cor de texto (preto ou branco) com mais contraste sobre um fundo colorido qualquer (2026-10-30). Para iniciais/selos pintados com a cor |
 | `src/lib/lazyRetry.jsx` | 22 | Carregamento sob demanda das telas pesadas (code-splitting, 2026-10-16). `lazyRetry` é um React.lazy que, se o pedaço (chunk) não puder ser |
 | `src/lib/nav.js` | 168 | Navegação por teclado e pelo botão Voltar do navegador (Onda 1, §81). Módulo puro de React, sem dependência do App. |
 | `src/lib/notifPrefs.js` | 60 | Quais categorias de notificação o usuário quer ver (2026-10-06). Estado único do app (sino, painel Hoje) e salvo |
@@ -287,7 +291,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/macro/StandardPlan.jsx` | 115 | Aba "Padrão" da Visão Geral (2026-10-15): aplica nas empresas que já existem o padrão de cronograma aprimorado (descrições melhores, subatividades e as |
 | `src/macro/StandardPlanBar.jsx` | 226 | Faixa do cronograma padrão (2026-10-19), no alto da tela de empresa quando o que está aberto é o padrão: versão atual, estado do rascunho, kickoff de referência, |
 | `src/macro/macro.css` | 172 | Visão Geral no celular (Onda 6, §81). Desktop idêntico ao de antes; o que muda está sob @media (max-width: 767px): |
-| `src/main.jsx` | 21 |  |
+| `src/main.jsx` | 24 |  |
 | `src/meetings/ActivityLink.jsx` | 300 | Vínculo tarefa de reunião → atividade do cronograma (Fase 1 do plano, 2026-10-13; docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). |
 | `src/meetings/ActivityRow.jsx` | 186 | Linha de atividade (item de TO_DO) — extraído de TodoBoard.jsx pra ser |
 | `src/meetings/DossierPanel.jsx` | 260 | Dossiê do cliente (2026-10-02, ver PROJECT_CONTEXT.md §63) — tela com o compilado de TODAS as |
@@ -306,7 +310,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/modelos/Modelos.jsx` | 659 | Modelos de documentos (2026-10-05, §78) — aba irmã dos Pareceres: biblioteca de modelos para sócios e colaboradores. Um modelo |
 | `src/modelos/modelosMeta.js` | 124 | Modelos de documentos (2026-10-05, §78) — tipos, ícones e CSS próprio do módulo (prefixo mdl-, em cima do par- dos Pareceres). |
 | `src/opsintel/AccessMap.jsx` | 43 | Mapa interativo dos acessos. Cada ponto é o CENTRO DA CIDADE informado pelo IP (aproximado), com um círculo de margem de |
-| `src/opsintel/OpsIntelScreen.jsx` | 405 |  |
+| `src/opsintel/OpsIntelScreen.jsx` | 406 |  |
 | `src/opsintel/PrivacyNotice.jsx` | 31 | Transparência (LGPD): qualquer pessoa logada lê o que o app mede sobre o uso, para quê, quem vê e por quanto tempo. |
 | `src/opsintel/TeamDay.jsx` | 107 | Dia da equipe (2026-10-29): para cada pessoa medida, num dia de Brasília — entradas e saídas, telas e o que fez. Vem de /api/ops-intel/team-day. |
 | `src/opsintel/charts.jsx` | 102 | Gráficos em SVG/CSS puro (sem biblioteca): leves, imprimíveis e no tema do app. Cores via variáveis do tema. |
@@ -320,7 +324,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/personal/DaySummary.jsx` | 165 | "Resumo do dia" no topo da Gestão de Atividades (2026-10-16, melhoria visual 3 do pedido do Rafael; inspirado no mockup "Mesa de Trabalho"). Faixa |
 | `src/personal/FocusScreen.jsx` | 250 |  |
 | `src/personal/PersonalStats.jsx` | 321 |  |
-| `src/personal/QuickBits.jsx` | 121 | Atalhos de uso do quadro pessoal (2026-10-16, melhorias visuais 1 e 2 do pedido do Rafael): botão global "Nova atividade" com a tecla N e |
+| `src/personal/QuickBits.jsx` | 118 | Atalhos de uso do quadro pessoal (2026-10-16, melhorias visuais 1 e 2 do pedido do Rafael): botão global "Nova atividade" com a tecla N e |
 | `src/personal/Waiting.jsx` | 84 | Marcador "Aguardando" do cartão (2026-10-16, visão 4 do pedido do Rafael): a atividade está parada esperando alguém (cliente, fornecedor, outro |
 | `src/personal/Workbench.jsx` | 361 | Painel "Calendário, anotações e atalhos" da Gestão de Atividades (2026-10-16, visões 5 e 6 do pedido do Rafael; inspirado no mockup "Mesa de |
 | `src/personal/boardAttention.js` | 43 | O que o quadro pessoal (Gestão de Atividades) tem de urgente hoje — usado pela RENATA da tela inicial |
@@ -337,17 +341,19 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/screens/CompanyCalendar.jsx` | 181 | Janela "Reservar na agenda" (2026-10-19): cada REUNIÃO do cronograma (atividade ou subatividade do tipo Reunião) vira UM bloco de agenda (padrão 60 min) para a equipe PRICETAX, com convite … |
 | `src/screens/CompanyShareLink.jsx` | 116 | Janela "Link para o cliente" (2026-10-19): gera, copia e desativa os links públicos da empresa. Só master e PRICETAX. |
 | `src/screens/CompanyTriage.jsx` | 509 | Aba "Triagem" (2026-10-20, pedido do Rafael, a partir do painel de classificação que usou na ALCAST): para cada atividade ("reunião mestre" ou frente) e cada subatividade, |
-| `src/screens/CompanyViews.jsx` | 2140 | Vistas de uma empresa: Resumo, Tabela, Fases, Quadro (kanban), Gantt/linha do tempo, impressão e detalhe da atividade. |
+| `src/screens/CompanyViews.jsx` | 2136 | Vistas de uma empresa: Resumo, Tabela, Fases, Quadro (kanban), Gantt/linha do tempo, impressão e detalhe da atividade. |
 | `src/screens/CompanyWorkspace.jsx` | 910 | Área de trabalho de uma empresa (cabeçalho, abas, vistas, modais e relatório de impressão). |
 | `src/screens/MapView.jsx` | 529 | Aba MAPA (2026-10-19, pedido do Rafael; nome final "Mapa", antes "Árvore"): mapa mental do cronograma de UMA empresa — empresa → grupos (fase, responsável ou situação) → atividades → |
 | `src/screens/PautaPicker.jsx` | 51 | Janela "Vincular itens à reunião" (2026-10-20): escolhe itens de trabalho de QUALQUER atividade (os "outros squads") para entrarem na pauta de uma reunião. |
-| `src/screens/PersonalBoard.jsx` | 2943 | Gestão de Atividades (quadro pessoal): quadro, colunas, cartões, lista, quadro público e painéis. |
+| `src/screens/PersonalBoard.jsx` | 2944 | Gestão de Atividades (quadro pessoal): quadro, colunas, cartões, lista, quadro público e painéis. |
 | `src/screens/PublicCompanyScreen.jsx` | 423 | Página pública de acompanhamento da empresa (2026-10-19): /acompanhamento/<token>. Só leitura, sem login; "Entrar para editar" leva ao login normal. |
 | `src/screens/ScreenSearch.jsx` | 48 | Busca da tela aberta (2026-10-19): campo na barra de abas da empresa e aviso "filtrando" no topo do conteúdo. A lógica de casar texto fica em src/lib/screenSearch.js. |
 | `src/screens/SubExtras.jsx` | 214 | Campos novos das subatividades (2026-10-19, fase 2 do plano do cronograma funcional): prioridade, executor, áreas envolvidas, aplicabilidade, recorrência, |
 | `src/shell/CommandPalette.jsx` | 160 | Busca global (Ctrl/Cmd+K): pula para um módulo, uma empresa, uma atividade ou uma reunião. Onda 1, §81. |
-| `src/shell/ModuleShell.jsx` | 174 | Casca única (Onda 1, §81): a MESMA barra no topo de todas as telas depois do login. |
+| `src/shell/ModuleShell.jsx` | 184 | Casca única (Onda 1, §81): a MESMA barra no topo de todas as telas depois do login. |
 | `src/shell/NotificationPrefs.jsx` | 115 | Escolher quais notificações ver (2026-10-06). Marcado = aparece; desmarcado = fica escondido (nada é apagado). |
+| `src/shell/ShortcutsHelp.jsx` | 37 | Ajuda de atalhos (tecla "?" ou Menu › Atalhos de teclado). Só leitura; a lista vem de shortcuts.js. |
+| `src/shell/shortcuts.js` | 39 | Atalhos de teclado que EXISTEM no sistema (2026-10-30, Onda 1 / Q7). A tela de ajuda ("?") lê esta lista: atalho novo entra aqui junto com o |
 | `src/styles/S.js` | 452 | Objeto de estilos compartilhado (inline styles do app). Extraído de src/App.jsx em 2026-10-17 ("dividir o AppScreens e o S"); o App.jsx continua |
 | `src/sw.js` | 85 | Service worker do PRICETAX (2026-10-17, PWA). Objetivo: o app ser instalável e abrir a casca mesmo sem rede. |
 | `src/today/ContinueStrip.jsx` | 47 | "Continuar de onde parou" (Onda 5, §81): até 4 itens recentes (empresa, atividade, reunião, módulo) clicáveis na tela |
@@ -364,8 +370,9 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/ui/dialog.jsx` | 49 | Modal/gaveta acessível (Onda 1, §81): troque `<div ... onClick={fechar}>` do overlay por <DialogOverlay onClose={fechar} ...>. |
 | `src/ui/dialogs.jsx` | 130 | Diálogos e avisos globais (Onda 2, §81) — o jeito único de confirmar, pedir um texto e avisar. |
 | `src/ui/index.jsx` | 278 | Peças visuais comuns (2026-10-04, §72) — ver ui.css. Só apresentação: nenhuma lógica de negócio aqui, quem usa |
+| `src/ui/statusDot.js` | 9 | Cor da BOLINHA de um selo de status (2026-10-30). Os selos mostram o texto em cor neutra e a categoria só na bolinha: cor neon como cor de TEXTO |
 | `src/ui/ui.css` | 266 | Peças visuais comuns do app (2026-10-04, §72). Antes cada módulo reinventava cartão, aba, etiqueta e botão |
 | `src/versions/VersionHistory.jsx` | 341 | Histórico de versões do cronograma (§83): consultar, comparar, criar ponto de restauração e restaurar (Master) com confirmação, backup automático e desfazer. |
 | `src/widget/WidgetSection.jsx` | 196 |  |
 | `src/widget/scriptableScript.js` | 190 | Script do Scriptable (iOS) colado pelo usuário — mostra atrasadas, vencem hoje e próxima reunião. |
-| `src/xflow/XFlow.jsx` | 3394 |  |
+| `src/xflow/XFlow.jsx` | 3397 |  |

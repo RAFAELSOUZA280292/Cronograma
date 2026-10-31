@@ -17,6 +17,7 @@ import { CLIENT_TYPE_META, ConfirmDiscardModal, MAX_ATTACHMENT_BYTES, PRIORITY_M
 import { S } from '../styles/S.js';
 import { SUB_EXTRAS_CSS, SubExtras, SubOutcome } from './SubExtras.jsx';
 import { ActivityGauge } from './ActivityGauge.jsx';
+import { inkOn } from '../lib/inkOn.js';
 
 const SUB_ROW_CSS = `
   .sub-row-card { transition:border-color .12s, box-shadow .12s; }
@@ -194,12 +195,7 @@ function StatusPill({ status, onClick }) {
 // bug de digitação do PROJECT_CONTEXT.md §45/§46 (não coberto pelo fix do
 // §45, que só tratou os 4 campos do nível principal da atividade).
 // Selo "#N" da atividade na Tabela (2026-10-19): botão que ABRE a atividade, com a cor da fase (texto preto ou branco conforme o contraste).
-const badgeInk = (hex) => {
-  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
-  if (!m) return '#111';
-  const n = parseInt(m[1], 16); const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
-  return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) > 0.4 ? '#111' : '#fff';
-};
+const badgeInk = inkOn; // texto preto ou branco, o que tiver mais contraste com a cor da fase (limite fixo de luminosidade errava nos tons médios: 2,6:1)
 function OrderBadge({ n, title, color, phaseName, onOpen }) {
   const bg = /^#/.test(color || '') ? color : '#F5C400';
   return (
@@ -1551,7 +1547,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                     </div>
                   </div>
                   <div style={{ width: 170, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ ...S.avatarDot, background: rowAccent }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>
+                    <span style={{ ...S.avatarDot, background: rowAccent, color: inkOn(rowAccent) }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>
                     <select value={a.responsible} onChange={(e) => updateActivity(rowPid, a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)} style={{ flex: 1, minWidth: 0 }}>
                       {rowTeam.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
                     </select>
@@ -1625,7 +1621,7 @@ export function TableView({ activities, orderMap, phases, team, pid, expanded, s
                       <div>
                         <div style={S.mobileFieldLabel}>Responsável</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ ...S.avatarDot, background: rowAccent }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>
+                          <span style={{ ...S.avatarDot, background: rowAccent, color: inkOn(rowAccent) }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>
                           <select aria-label={`Responsável por ${a.title}`} value={a.responsible} onChange={(e) => updateActivity(rowPid, a.id, { responsible: e.target.value }, `Responsável alterado em "${a.title}": ${e.target.value}`)} style={{ flex: 1, minWidth: 0, minHeight: 44 }}>
                             {rowTeam.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
                           </select>
@@ -1865,7 +1861,7 @@ export function PhasesView({ activities, orderMap, phases, pid, updateActivity, 
                       {onOpenTasks && <div><TaskCountChip counts={taskCounts && taskCounts[a.id]} onOpenTasks={() => onOpenTasks(a.id)} style={{ marginTop: 6 }} /></div>}
                       <div style={S.phaseCardFooter}>
                         <div style={S.phaseCardOwner}>
-                          <span style={{ ...S.avatarDot, background: accent }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>
+                          <span style={{ ...S.avatarDot, background: accent, color: inkOn(accent) }}>{(a.responsible || '?').slice(0, 1).toUpperCase()}</span>
                           {a.responsible}
                         </div>
                         <div style={S.phaseDate}>{fmtDate(a.date)}{a.endDate && a.endDate !== a.date ? ` – ${fmtDate(a.endDate)}` : ''}</div>
