@@ -54,7 +54,7 @@ function Reschedule({ activity, onPick }) {
   );
 }
 
-const CompleteDialog = guardedModal(CompleteDialogImpl, 'a conclusão da atividade', 'crm-complete-activity');
+export const CompleteDialog = guardedModal(CompleteDialogImpl, 'a conclusão da atividade', 'crm-complete-activity');
 
 export default function ActivityList({ activities, caps, options, currentUserId, onChanged, onOpenCompany, onOpenDeal, showCompany, emptyText, grouped }) {
   const [completing, setCompleting] = useState(null);

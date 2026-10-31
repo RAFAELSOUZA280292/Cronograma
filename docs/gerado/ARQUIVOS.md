@@ -180,7 +180,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/transcriptParser.js` | 84 | Funções puras de parsing de texto de reunião — SEM import de React, |
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 
-## `src/` — 192 arquivos
+## `src/` — 193 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -231,8 +231,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/GlobalSearch.jsx` | 59 | Busca global do CRM (PRD 38) — Fase 1: empresas e contatos. |
 | `src/crm/ImportWizard.jsx` | 175 | Importação de planilha Excel/CSV (PRD 48): arquivo -> mapeamento de colunas |
 | `src/crm/InlineCells.jsx` | 48 | Edição direta na célula (§94): clicar e digitar/escolher salva na hora, sem abrir formulário. Esc cancela. Não propaga o clique (a linha abre a ficha). |
-| `src/crm/OverviewLenses.jsx` | 295 | Painéis da Visão geral por função (§98): Meu dia, Time, Receita e Contas. Só números e listas que levam a uma ação; |
-| `src/crm/OverviewPage.jsx` | 90 | Visão Geral do CRM por função (§98). Cada pessoa abre no painel do seu perfil — Meu dia (vendedor/consultor), |
+| `src/crm/OverviewLenses.jsx` | 360 | Painéis da Visão geral por função (§98): Meu dia, Time, Receita e Contas. Só números e listas que levam a uma ação; |
+| `src/crm/OverviewPage.jsx` | 157 | Visão Geral do CRM por função (§98). Cada pessoa abre no painel do seu perfil — Meu dia (vendedor/consultor), |
 | `src/crm/PipeRunMigration.jsx` | 254 | Migração PipeRun → CRM (§84). Só o administrador do CRM. Quatro etapas: Extrair (API, só leitura) › Revisar (prévia, nada gravado) › Importar › Conferir (relatório de divergências). |
 | `src/crm/ProductsPage.jsx` | 117 | Catálogo de produtos/serviços (PRD 14). Todos veem; gestor+ mantém. Produto que |
 | `src/crm/RenataAsk.jsx` | 40 | "Perguntar à RENATA" nas fichas do CRM (Onda 5, §81). A RENATA é por PROJETO do cronograma (ProjectAssistant), |
@@ -241,8 +241,9 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/TagFilter.jsx` | 70 | Filtro por VÁRIAS tags (o negócio precisa ter todas) — 2026-10-26. O valor é o texto "tag1\|tag2" (mesmo formato do servidor e das visões salvas). |
 | `src/crm/boardMove.js` | 48 | Mover um negócio de etapa NA TELA, antes de o servidor responder (2026-10-27, §119). O quadro do funil é um objeto |
 | `src/crm/crmApi.js` | 94 | Cliente da API do CRM (/api/crm) — Fase 1. Só monta URL/corpo; regra de |
-| `src/crm/crmMeta.js` | 526 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
+| `src/crm/crmMeta.js` | 549 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
 | `src/crm/importMapping.js` | 51 | Reconhecimento automático das colunas da planilha (Import Wizard). Módulo puro, |
+| `src/crm/overviewLogic.js` | 68 | Prioridade do dia na Visão geral do CRM (piloto da Onda 2, 2026-10-31). Lógica pura: nada de IA, nada de rede — escolhe e ordena o que já veio do servidor |
 | `src/crm/ui.jsx` | 127 | Peças de UI compartilhadas do CRM. |
 | `src/daily/DailyCards.jsx` | 250 |  |
 | `src/daily/DailyPrefs.jsx` | 69 |  |
@@ -353,7 +354,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/shell/ModuleShell.jsx` | 184 | Casca única (Onda 1, §81): a MESMA barra no topo de todas as telas depois do login. |
 | `src/shell/NotificationPrefs.jsx` | 115 | Escolher quais notificações ver (2026-10-06). Marcado = aparece; desmarcado = fica escondido (nada é apagado). |
 | `src/shell/ShortcutsHelp.jsx` | 37 | Ajuda de atalhos (tecla "?" ou Menu › Atalhos de teclado). Só leitura; a lista vem de shortcuts.js. |
-| `src/shell/shortcuts.js` | 39 | Atalhos de teclado que EXISTEM no sistema (2026-10-30, Onda 1 / Q7). A tela de ajuda ("?") lê esta lista: atalho novo entra aqui junto com o |
+| `src/shell/shortcuts.js` | 45 | Atalhos de teclado que EXISTEM no sistema (2026-10-30, Onda 1 / Q7). A tela de ajuda ("?") lê esta lista: atalho novo entra aqui junto com o |
 | `src/styles/S.js` | 452 | Objeto de estilos compartilhado (inline styles do app). Extraído de src/App.jsx em 2026-10-17 ("dividir o AppScreens e o S"); o App.jsx continua |
 | `src/sw.js` | 85 | Service worker do PRICETAX (2026-10-17, PWA). Objetivo: o app ser instalável e abrir a casca mesmo sem rede. |
 | `src/today/ContinueStrip.jsx` | 47 | "Continuar de onde parou" (Onda 5, §81): até 4 itens recentes (empresa, atividade, reunião, módulo) clicáveis na tela |

@@ -1,9 +1,10 @@
 // Painéis da Visão geral por função (§98): Meu dia, Time, Receita e Contas. Só números e listas que levam a uma ação;
 // cor só para risco. Clicar num indicador abre Negócios já filtrado (preset) — o painel nunca é beco sem saída.
-import React from 'react';
-import { AlertTriangle, BadgeCheck, BarChart3, Building2, CalendarCheck, CalendarX, ChevronRight, CircleDollarSign, Clock, FileText, Hourglass, Layers, Mail, MapPin, MessageCircle, Percent, Phone, Repeat, CheckSquare, Target, TrendingUp, UserX, Users, Video, Wallet } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { AlertTriangle, BadgeCheck, BarChart3, Building2, CalendarCheck, CalendarPlus, CalendarX, Check, ChevronRight, ListChecks, CircleDollarSign, Clock, FileText, Hourglass, Layers, Mail, MapPin, MessageCircle, Percent, Phone, Repeat, CheckSquare, Target, TrendingUp, UserX, Users, Video, Wallet } from 'lucide-react';
 import { REL_META, ACTIVITY_COLORS, fmtDateTimeBR, fmtDateBR, fmtMoney, daysLabel, staleColor, stageAgeColor, activityTypeLabel } from './crmMeta.js';
 import { CompletenessBar } from './ui.jsx';
+import { RULE_TEXT, buildPriorities, sortDealsByPriority, todayBR } from './overviewLogic.js';
 
 const money = (n) => fmtMoney(n) || 'R$ 0';
 const RED = '#e2574c'; const AMBER = '#ff9f40'; const GREEN = '#3ecf6e';
@@ -47,15 +48,33 @@ function Kpi({ value, label, sub, tone, onClick, hint, icon: Icon, accent, featu
   return <button type="button" className="crm-card crm-kpi crm-kpi-click" title={hint} onClick={onClick}>{body}</button>;
 }
 
-function DealRow({ d, right, onOpenDeal }) {
+// Linha com ações ao lado (o botão principal abre; as ações resolvem sem sair da tela). Botão dentro de botão é inválido, por isso são irmãos.
+function RowX({ actions, children }) {
+  if (!actions) return children;
+  return <div className="crm-rowx">{children}<span className="crm-rowact">{actions}</span></div>;
+}
+
+function RowBtn({ icon: Icon, label, aria, onClick, keyHint }) {
   return (
-    <button type="button" className="crm-row-link" onClick={() => onOpenDeal(d.id)}>
-      <span className="crm-row-main">
-        <span className="crm-row-ico" aria-hidden="true"><Building2 size={15} /></span>
-        <span className="crm-row-text"><b>{d.title}</b> <span className="crm-muted">· {d.companyName}{d.stageName ? ` · ${d.stageName}` : ''}</span></span>
-      </span>
-      <span className="crm-row-right">{right}<ChevronRight size={15} className="crm-row-go" aria-hidden="true" /></span>
+    <button type="button" className="crm-rowbtn" onClick={onClick} aria-label={aria} title={keyHint ? `${aria} (tecla ${keyHint})` : aria}>
+      <Icon size={14} aria-hidden="true" />{label}
     </button>
+  );
+}
+
+function DealRow({ d, right, onOpenDeal, reason, actions }) {
+  return (
+    <RowX actions={actions}>
+      <button type="button" className="crm-row-link" data-deal-id={d.id} onClick={() => onOpenDeal(d.id)}>
+        <span className="crm-row-main">
+          <span className="crm-row-ico" aria-hidden="true"><Building2 size={15} /></span>
+          {reason
+            ? <span className="crm-row-text crm-row-two"><b>{d.title}</b><span className="crm-muted">{d.companyName}{d.stageName ? ` · ${d.stageName}` : ''}</span><span className="crm-reason">{reason}</span></span>
+            : <span className="crm-row-text"><b>{d.title}</b> <span className="crm-muted">· {d.companyName}{d.stageName ? ` · ${d.stageName}` : ''}</span></span>}
+        </span>
+        <span className="crm-row-right">{right}<ChevronRight size={15} className="crm-row-go" aria-hidden="true" /></span>
+      </button>
+    </RowX>
   );
 }
 
@@ -76,12 +95,56 @@ const Title = ({ icon: Icon, children, action }) => (
   <h3 className="crm-section-title crm-title" style={{ marginBottom: 10 }}><span className="crm-panel-t"><Icon size={14} aria-hidden="true" />{children}</span>{action}</h3>
 );
 
-export function MineLens({ data, onOpenCompany, onOpenDeal, onGoDeals, onGoAgenda }) {
+const readLS = (k, d) => { try { return window.localStorage.getItem(k) || d; } catch (e) { return d; } };
+const writeLS = (k, v) => { try { window.localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: vale só nesta visita */ } };
+
+export function MineLens({ data, onOpenCompany, onOpenDeal, onGoDeals, onGoAgenda, actions }) {
   const { activities: ac, deals: dl } = data;
   const mineDeals = (extra) => () => onGoDeals({ ownerId: 'me', view: 'list', ...extra });
+  const act = actions || {};
+  const [order, setOrder] = useState(() => readLS('crm-ov-order', 'padrao'));
+  const [prioOff, setPrioOff] = useState(() => readLS('crm-ov-prio', 'on') === 'off');
+  const pickOrder = (o) => { setOrder(o); writeLS('crm-ov-order', o); };
+  const togglePrio = () => { const off = !prioOff; setPrioOff(off); writeLS('crm-ov-prio', off ? 'off' : 'on'); };
+  const today = todayBR();
+  const prios = useMemo(() => buildPriorities(data, today, money, activityTypeLabel, 3), [data, today]);
+  const noStep = useMemo(() => (order === 'prioridade' ? sortDealsByPriority(dl.noNextStep, 'noNextStep', today, money) : dl.noNextStep), [dl.noNextStep, order, today]);
+  const lateDeals = useMemo(() => (order === 'prioridade' ? sortDealsByPriority(dl.late, 'late', today, money) : dl.late), [dl.late, order, today]);
+  const schedule = (d) => act.onSchedule && act.onSchedule({ dealId: d.dealId || d.id, companyId: d.companyId, companyName: d.companyName, title: d.title });
+  const orderSeg = (
+    <div className="crm-seg crm-ordseg" role="group" aria-label="Ordem das listas de negócios">
+      <button type="button" className={order === 'padrao' ? 'active' : ''} aria-pressed={order === 'padrao'} onClick={() => pickOrder('padrao')}>Ordem padrão</button>
+      <button type="button" className={order === 'prioridade' ? 'active' : ''} aria-pressed={order === 'prioridade'} onClick={() => pickOrder('prioridade')} title={RULE_TEXT}>Por prioridade</button>
+    </div>
+  );
   return (
     <div>
-      <Title icon={CalendarCheck} action={<button type="button" className="crm-btn" onClick={onGoAgenda}>Abrir a agenda</button>}>Para fazer agora</Title>
+      <Title icon={CalendarCheck} action={<span className="crm-title-acts">{orderSeg}<button type="button" className="crm-btn" onClick={onGoAgenda}>Abrir a agenda</button></span>}>Para fazer agora</Title>
+      {prios.length > 0 && (
+        <section className="crm-section crm-prio" aria-labelledby="crm-prio-t">
+          <h3 id="crm-prio-t" className="crm-section-title">
+            <span className="crm-panel-t"><ListChecks size={15} aria-hidden="true" />Prioridades do dia</span>
+            <button type="button" className="crm-more" onClick={togglePrio} aria-expanded={!prioOff}>{prioOff ? 'Mostrar' : 'Ocultar'}</button>
+          </h3>
+          {!prioOff && (
+            <>
+              <ol className="crm-prio-grid">
+                {prios.map((p) => (
+                  <li key={p.key} className="crm-prio-item">
+                    <button type="button" className="crm-prio-main" onClick={() => onOpenDeal(p.dealId)}>
+                      <b>{p.title}</b>
+                      <span className="crm-muted">{p.companyName}</span>
+                      <span className="crm-reason">{p.reason}</span>
+                    </button>
+                    {act.canWrite && <RowBtn icon={CalendarPlus} label="Preparar follow-up" aria={`Preparar follow-up de ${p.title}`} onClick={() => schedule(p)} />}
+                  </li>
+                ))}
+              </ol>
+              <p className="crm-prio-note"><b>Escolhidas por regra, sem IA.</b> {RULE_TEXT} “Preparar follow-up” só abre o formulário já preenchido: nada é enviado.</p>
+            </>
+          )}
+        </section>
+      )}
       <div className="crm-cards">
         <Kpi icon={CalendarCheck} accent={BLUE} value={ac.mineToday} label="Para hoje" onClick={onGoAgenda} hint="Abrir a agenda" />
         <Kpi icon={Clock} value={ac.mineOverdue} label="Atrasadas" tone={ac.mineOverdue ? RED : undefined} onClick={onGoAgenda} hint="Abrir a agenda" />
@@ -93,18 +156,20 @@ export function MineLens({ data, onOpenCompany, onOpenDeal, onGoDeals, onGoAgend
           {ac.myDue.map((a) => {
             const Ico = TYPE_ICON[a.activityType] || CheckSquare;
             return (
-              <button key={a.id} type="button" className="crm-row-link" onClick={() => onOpenCompany(a.companyId, 'activities')}>
-                <span className="crm-row-main">
-                  <span className="crm-row-ico" style={{ '--ico': ACTIVITY_COLORS[a.activityType] }} aria-hidden="true"><Ico size={15} /></span>
-                  <span className="crm-row-text crm-row-two"><b>{a.title}</b><span className="crm-muted">{activityTypeLabel(a.activityType)} · {a.companyName}</span></span>
-                </span>
-                <span className="crm-row-right">{a.bucket === 'overdue' ? <When color={RED} text={fmtDateBR(a.dueDate)} days={daysAgo(a.dueDate)} /> : <When color={AMBER} text={`hoje${a.dueTime ? ` ${a.dueTime}` : ''}`} />}<ChevronRight size={15} className="crm-row-go" aria-hidden="true" /></span>
-              </button>
+              <RowX key={a.id} actions={act.canWrite && <RowBtn icon={Check} label="Concluir" aria={`Concluir: ${a.title}`} keyHint="C" onClick={() => act.onComplete(a)} />}>
+                <button type="button" className="crm-row-link" data-activity-id={a.id} onClick={() => onOpenCompany(a.companyId, 'activities')}>
+                  <span className="crm-row-main">
+                    <span className="crm-row-ico" style={{ '--ico': ACTIVITY_COLORS[a.activityType] }} aria-hidden="true"><Ico size={15} /></span>
+                    <span className="crm-row-text crm-row-two"><b>{a.title}</b><span className="crm-muted">{activityTypeLabel(a.activityType)} · {a.companyName}</span></span>
+                  </span>
+                  <span className="crm-row-right">{a.bucket === 'overdue' ? <When color={RED} text={fmtDateBR(a.dueDate)} days={daysAgo(a.dueDate)} /> : <When color={AMBER} text={`hoje${a.dueTime ? ` ${a.dueTime}` : ''}`} />}<ChevronRight size={15} className="crm-row-go" aria-hidden="true" /></span>
+                </button>
+              </RowX>
             );
           })}
         </Panel>
         <Panel icon={Layers} title="Sem próximo passo" count={dl.noNextStep.length} empty="Todo negócio seu tem um próximo passo." more={{ label: 'Ver todos', onClick: mineDeals({ attention: 'nonext' }) }}>
-          {dl.noNextStep.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={<When color={AMBER} text="agendar" />} />)}
+          {noStep.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} reason={d._reason} right={<When color={AMBER} text="sem passo" />} actions={act.canWrite && <RowBtn icon={CalendarPlus} label="Agendar" aria={`Agendar o próximo passo de ${d.title}`} keyHint="A" onClick={() => schedule(d)} />} />)}
         </Panel>
       </div>
 
@@ -119,7 +184,7 @@ export function MineLens({ data, onOpenCompany, onOpenDeal, onGoDeals, onGoAgend
       </div>
       <div className="crm-two">
         <Panel icon={AlertTriangle} title="Com passo atrasado" count={dl.late.length} empty="Nenhum passo atrasado.">
-          {dl.late.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={<When color={RED} text={fmtDateBR(d.nextActivityDate)} days={daysAgo(d.nextActivityDate)} />} />)}
+          {lateDeals.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} reason={d._reason} right={<When color={RED} text={fmtDateBR(d.nextActivityDate)} days={daysAgo(d.nextActivityDate)} />} />)}
         </Panel>
         <Panel icon={CalendarX} title="A fechar nos próximos 30 dias" count={dl.closingSoon.length} empty="Nenhum negócio seu com previsão nesse período.">
           {dl.closingSoon.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={d.overdue ? <When color={RED} text={fmtDateBR(d.expectedCloseDate)} days={daysAgo(d.expectedCloseDate)} /> : <When text={fmtDateBR(d.expectedCloseDate)} />} />)}

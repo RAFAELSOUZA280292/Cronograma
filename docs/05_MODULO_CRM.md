@@ -65,7 +65,7 @@ Pedidos típicos do Rafael que mandam para este documento:
 | `DealDrawer.jsx`, `DealForm.jsx`, `CloseDealDialog.jsx`, `DealTags.jsx`, `InlineCells.jsx` | Ficha, formulário, diálogo de ganho/perda (motivo obrigatório), tags, edição direta na célula. |
 | `CompanyDrawer.jsx`, `CompanyForm.jsx`, `CompaniesPage.jsx`, `ContactForm.jsx`, `ContactsPage.jsx` | Ficha 360 da empresa, cadastro, listas. Aba Auditoria só se `caps.remove`. |
 | `AgendaPage.jsx`, `ActivityForm.jsx`, `ActivityList.jsx`, `FollowUpQueue.jsx` | Agenda (Atrasadas/Hoje/7 dias/Depois), formulário, lista, fila de follow-up (uma atividade por vez). |
-| `OverviewPage.jsx`, `OverviewLenses.jsx` | Visão geral por função (painéis Meu dia, Time, Receita, Contas). |
+| `OverviewPage.jsx`, `OverviewLenses.jsx`, `overviewLogic.js` | Visão geral por função (painéis Meu dia, Time, Receita, Contas). **Meu dia** tem ação dentro da linha (Agendar, Concluir), teclado (↑ ↓ A C), "Prioridades do dia" e ordem por prioridade com o motivo escrito (regra pura em `overviewLogic.js`, sem IA; `PROJECT_CONTEXT.md` §116zi). |
 | `SavedViews.jsx`, `TagFilter.jsx` | Visões salvas; filtro de várias tags (E). |
 | `FunnelsAdmin.jsx`, `CadenceEditor.jsx`, `ProductsPage.jsx` | Configuração de funis/etapas/automação, cadências, catálogo. |
 | `ImportWizard.jsx`, `DealImportWizard.jsx`, `importMapping.js`, `BootstrapDialog.jsx`, `PipeRunMigration.jsx` | Assistentes de importação e migração. |

@@ -393,7 +393,7 @@ export const CRM_CSS = `
   .crm-kpi-click:hover .crm-kpi-go { color:var(--text-2); }
   .crm-panel-t { display:inline-flex; align-items:center; gap:8px; }
   .crm-section-title { color:var(--text-3); }
-  .crm-more { display:inline-flex; align-items:center; gap:2px; border:none; background:transparent; color:var(--text-4); font:inherit; font-size:12.5px; font-weight:600; text-transform:none; letter-spacing:0; cursor:pointer; padding:2px 4px; border-radius:6px; }
+  .crm-more { display:inline-flex; align-items:center; gap:2px; border:none; background:transparent; color:var(--text-4); font:inherit; font-size:12.5px; font-weight:600; text-transform:none; letter-spacing:0; cursor:pointer; padding:4px 8px; min-height:28px; border-radius:6px; }
   .crm-more:hover { color:var(--text-1); background:var(--bg-3); }
   .crm-row-main { display:flex; align-items:center; gap:12px; min-width:0; flex:1; }
   .crm-row-ico { width:32px; height:32px; border-radius:9px; display:grid; place-items:center; flex-shrink:0; background:color-mix(in srgb, var(--ico, #8f9bb3) 14%, var(--bg-2)); color:var(--ico, var(--text-5)); }
@@ -440,6 +440,29 @@ export const CRM_CSS = `
   .crm-cl-mail span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .crm-cl-ico:focus-visible, .crm-cl-copy:focus-visible, .crm-cl-num:focus-visible, .crm-cl-mail:focus-visible { outline:2px solid #3ea6ff; outline-offset:2px; }
   @media (pointer: coarse) { .crm-cl-ico { width:44px; height:44px; } .crm-cl-copy { height:44px; padding:0 14px; } .crm-cl-num, .crm-cl-mail { min-height:44px; } .crm-cl { gap:2px 8px; } }
+  .crm-rowx { display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border-1); }
+  .crm-rowx:last-child { border-bottom:none; }
+  .crm-rowx .crm-row-link { flex:1; min-width:0; border-bottom:none; }
+  .crm-rowact { display:inline-flex; align-items:center; gap:6px; flex-shrink:0; }
+  .crm-rowbtn { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 10px; border-radius:8px; border:1px solid var(--border-2); background:var(--bg-2); color:var(--text-2); font:inherit; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  .crm-rowbtn:hover { background:var(--bg-3); border-color:var(--border-3); }
+  .crm-rowbtn:focus-visible, .crm-row-link:focus-visible, .crm-prio-main:focus-visible { outline:2px solid #3ea6ff; outline-offset:2px; }
+  .crm-reason { font-size:12px; color:var(--text-3); font-variant-numeric:tabular-nums; }
+  .crm-title-acts { display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .crm-ordseg button { font-size:12px; }
+  .crm-prio-grid { list-style:none; margin:4px 0 0; padding:0; display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
+  .crm-prio-item { display:flex; flex-direction:column; align-items:flex-start; gap:10px; border:1px solid var(--border-1); border-radius:10px; padding:12px 14px; background:var(--bg-1); }
+  .crm-prio-main { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; background:none; border:none; padding:0; text-align:left; font:inherit; color:var(--text-1); cursor:pointer; }
+  .crm-prio-main b { font-size:13.5px; }
+  .crm-prio-note { margin:12px 0 0; font-size:12px; color:var(--text-4); max-width:80ch; }
+  .crm-hint { margin:-4px 0 14px; font-size:12px; color:var(--text-4); }
+  .crm-hint kbd { min-width:20px; text-align:center; padding:1px 6px; border-radius:5px; border:1px solid var(--border-2); background:var(--bg-3); color:var(--text-1); font:600 12px/1.4 inherit; }
+  .crm-fresh { font-size:12px; color:var(--text-4); font-variant-numeric:tabular-nums; }
+  .crm-spin { animation:crm-spin 0.9s linear infinite; }
+  @keyframes crm-spin { to { transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .crm-spin { animation:none; } }
+  @media (pointer: coarse) { .crm-more { min-height:44px; } }
+  @media (max-width: 640px) { .crm-rowx { flex-wrap:wrap; } .crm-rowact { padding:0 6px 8px 46px; } .crm-rowbtn { height:44px; } }
   .crm-deal-status { list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:3px; }
   .crm-deal-status li { display:flex; align-items:baseline; gap:7px; font-size:12px; line-height:1.35; color:var(--text-2); overflow-wrap:anywhere; }
   .crm-deal-status li::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--dot, var(--text-6)); flex-shrink:0; transform:translateY(-1px); }

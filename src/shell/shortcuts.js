@@ -20,6 +20,12 @@ export const SHORTCUT_GROUPS = [
     { keys: ['Enter'], what: 'Abrir o resultado marcado' },
     { keys: ['Shift', 'Enter'], what: 'Favoritar ou desfavoritar o resultado marcado' },
   ] },
+  { title: 'Visão geral do CRM (Meu dia)', items: [
+    { keys: ['↑', '↓'], what: 'Percorrer as linhas de um painel (Home e End vão ao primeiro e ao último)' },
+    { keys: ['Enter'], what: 'Abrir o negócio, a empresa ou a atividade da linha' },
+    { keys: ['A'], what: 'Agendar o próximo passo do negócio da linha (abre o formulário já preenchido)' },
+    { keys: ['C'], what: 'Concluir a atividade da linha' },
+  ] },
   { title: 'Gestão de Atividades', items: [
     { keys: ['N'], what: 'Criar uma atividade rápida no quadro (fora de campos de texto e de janelas)' },
     { keys: ['Esc'], what: 'Sair do Foco de hoje' },
