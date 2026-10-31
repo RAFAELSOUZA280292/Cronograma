@@ -37,7 +37,7 @@ function ViewDialog({ initial, canShare, onSubmit, onCancel }) {
       </div>
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        {block && !busy && <span className="crm-muted" style={{ fontSize: 11.5, marginRight: 'auto' }}>{block}</span>}
+        {block && !busy && <span className="crm-muted" style={{ fontSize: 12, marginRight: 'auto' }}>{block}</span>}
         <CancelButton />
         <button type="button" className="crm-btn crm-btn-primary" disabled={!!block} title={block || undefined} onClick={save}>{busy ? 'Salvando…' : 'Salvar'}</button>
       </div>

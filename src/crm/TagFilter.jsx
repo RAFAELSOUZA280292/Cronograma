@@ -59,7 +59,7 @@ export default function TagFilter({ tagList, value, onChange }) {
       {sel.map((n) => <TagChip key={n} name={n} onRemove={() => toggle(n)} />)}
       {quick.length > 0 && (
         <div className="crm-quicktags" role="group" aria-label="Atalhos de tags do evento">
-          <span className="crm-muted" style={{ fontSize: 11.5, fontWeight: 700 }}>Evento e curva:</span>
+          <span className="crm-muted" style={{ fontSize: 12, fontWeight: 700 }}>Evento e curva:</span>
           {quick.map((t) => <TagChip key={t.id} name={t.name} count={t.deals} active={sel.includes(t.name)} title={sel.includes(t.name) ? 'Clique para tirar este filtro' : 'Clique para filtrar (soma com os outros atalhos: o negócio precisa ter todos)'} onClick={() => toggle(t.name)} />)}
           {sel.length > 0 && <button type="button" className="crm-link-btn" onClick={() => onChange('')}>limpar</button>}
         </div>

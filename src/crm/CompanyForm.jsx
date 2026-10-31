@@ -180,7 +180,7 @@ function CompanyForm({ initial, options, onSaved, onCancel, onOpenCompany, prefi
       <DuplicatesAlert duplicates={dup && dup.duplicates} blocking={dup && dup.blocking} onOpenCompany={onOpenCompany && ((id) => guardOpen(() => onOpenCompany(id))())} />
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        {blockReason && !busy && <span className="crm-muted" style={{ fontSize: 11.5, marginRight: 'auto' }}>{blockReason}</span>}
+        {blockReason && !busy && <span className="crm-muted" style={{ fontSize: 12, marginRight: 'auto' }}>{blockReason}</span>}
         <CancelButton />
         {canForce && <button type="button" className="crm-btn" disabled={busy} title={busy ? 'Aguarde terminar de salvar' : undefined} onClick={() => save(true)}>Salvar mesmo assim</button>}
         <button type="button" className="crm-btn crm-btn-primary" disabled={!!blockReason} title={blockReason || undefined} onClick={() => save(false)}>{busy ? 'Salvando…' : (editing ? 'Salvar' : 'Criar empresa')}</button>

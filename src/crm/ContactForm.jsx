@@ -105,7 +105,7 @@ function ContactForm({ initial, company, onSaved, onCancel }) {
       <DuplicatesAlert duplicates={dup && dup.duplicates} blocking={false} />
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        {blockReason && !busy && <span className="crm-muted" style={{ fontSize: 11.5, marginRight: 'auto' }}>{blockReason}</span>}
+        {blockReason && !busy && <span className="crm-muted" style={{ fontSize: 12, marginRight: 'auto' }}>{blockReason}</span>}
         <CancelButton />
         {dup && <button type="button" className="crm-btn" disabled={busy} title={busy ? 'Aguarde terminar de salvar' : undefined} onClick={() => save(true)}>Salvar mesmo assim</button>}
         <button type="button" className="crm-btn crm-btn-primary" disabled={!!blockReason} title={blockReason || undefined} onClick={() => save(false)}>{busy ? 'Salvando…' : (editing ? 'Salvar' : (company ? 'Adicionar contato' : 'Criar contato'))}</button>

@@ -139,7 +139,7 @@ async function exportDealsXlsx(f) {
   return { count, total };
 }
 
-const ATTENTION = [['late', 'Passo atrasado'], ['nonext', 'Sem próximo passo'], ['stalled', 'Parados +14 dias'], ['overdue', 'Previsão vencida']];
+const ATTENTION = [['late', 'Passo atrasado', 'var(--tg-risk)'], ['nonext', 'Sem próximo passo', 'var(--tg-warn)'], ['stalled', 'Parados +14 dias', 'var(--tg-warn)'], ['overdue', 'Previsão vencida', 'var(--tg-risk)']];
 
 const EMPTY_FILTERS = { type: '', ownerId: '', source: '', tag: '', attention: '' };
 const fieldsOf = (c) => ({ type: c.type || '', ownerId: c.ownerId || '', source: c.source || '', tag: c.tag || '', attention: c.attention || '', q: c.q || '', listStatus: c.listStatus || 'open' });
@@ -445,9 +445,9 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
 
       <div className="crm-filters" role="group" aria-label="Negócios que pedem atenção" style={{ marginTop: -4 }}>
         <span className="crm-muted" style={{ fontSize: 12 }}>Pedem atenção:</span>
-        {ATTENTION.map(([k, l]) => {
+        {ATTENTION.map(([k, l, dot]) => {
           const n = board && board.attention ? board.attention[k] : null;
-          return <button key={k} type="button" className={`crm-chip${filters.attention === k ? ' active' : ''}`} aria-pressed={filters.attention === k} onClick={() => setF('attention', filters.attention === k ? '' : k)}>{l}{view === 'board' && n != null ? ` (${n})` : ''}</button>;
+          return <button key={k} type="button" data-dot="1" style={{ '--dot': dot }} className={`crm-chip${filters.attention === k ? ' active' : ''}`} aria-pressed={filters.attention === k} onClick={() => setF('attention', filters.attention === k ? '' : k)}>{l}{view === 'board' && n != null ? ` (${n})` : ''}</button>;
         })}
       </div>
 
@@ -503,7 +503,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
                       <td>
                         <InlineSelect label={`Etapa de ${d.title}`} value={d.stageId} width={170} disabled={!can} disabledTitle={why}
                           options={pipeStages(d.pipelineId).length ? pipeStages(d.pipelineId) : [{ id: d.stageId, name: d.stageName }]} onSave={(id) => { const st = pipeStages(d.pipelineId).find((x) => x.id === id); if (st) moveDeal(d, st); }} />
-                        {d.status === 'open' && (d.daysInStage || 0) > 14 && <div style={{ color: stageAgeColor(d.daysInStage), fontSize: 11, fontWeight: 700 }}>{d.daysInStage} dias parado</div>}
+                        {d.status === 'open' && (d.daysInStage || 0) > 14 && <div style={{ color: stageAgeColor(d.daysInStage), fontSize: 12, fontWeight: 700 }}>{d.daysInStage} dias parado</div>}
                       </td>
                       <td className="crm-num"><InlineMoney value={d.value} label={d.title} disabled={!can} disabledTitle={why} onSave={(n) => patchDeal(d, { value: n })} /></td>
                       <td className="crm-num">{d.status === 'open' ? `${d.probability}%` : <span className="crm-muted">—</span>}</td>

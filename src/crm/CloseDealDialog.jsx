@@ -56,7 +56,7 @@ function CloseDealDialog({ deal, stage, reasons, onCancel, onDone }) {
       )}
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        {blockReason && !busy && <span className="crm-muted" style={{ fontSize: 11.5, marginRight: 'auto' }}>{blockReason}</span>}
+        {blockReason && !busy && <span className="crm-muted" style={{ fontSize: 12, marginRight: 'auto' }}>{blockReason}</span>}
         <CancelButton />
         <button type="button" className={`crm-btn ${won ? 'crm-btn-primary' : 'crm-btn-danger'}`} disabled={!!blockReason} title={blockReason || undefined} onClick={confirm}>
           {busy ? 'Salvando…' : won ? 'Ganhar' : 'Perder'}

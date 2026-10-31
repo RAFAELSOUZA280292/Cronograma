@@ -15,7 +15,7 @@ import DealTags from './DealTags.jsx';
 import ContactLinks from './ContactLinks.jsx';
 import { useDialog } from '../lib/nav.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
-import { fmtMoney, fmtDateBR, fmtDateTimeBR, DEAL_TYPE_META, DEAL_STATUS_META, TIMELINE_KIND, sourceLabel, stageAgeColor, cadenceNotice } from './crmMeta.js';
+import { fmtMoney, fmtDateBR, fmtDateTimeBR, DEAL_TYPE_META, DEAL_STATUS_META, TIMELINE_KIND, sourceLabel, stageAgeColor, cadenceNotice, softDot } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
 import { trackFlow } from '../lib/experience.js';
 
@@ -98,8 +98,8 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
                   <>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                       <h2 className="crm-h1" style={{ overflowWrap: 'anywhere' }}>{d.title}</h2>
-                      <span className="crm-pill" style={{ color: DEAL_TYPE_META[d.dealType].color }}>{DEAL_TYPE_META[d.dealType].label}</span>
-                      {d.status !== 'open' && <span className="crm-pill" style={{ color: DEAL_STATUS_META[d.status].color }}>{DEAL_STATUS_META[d.status].label}</span>}
+                      <span className="crm-pill" style={{ '--dot': softDot(DEAL_TYPE_META[d.dealType].color) }}>{DEAL_TYPE_META[d.dealType].label}</span>
+                      {d.status !== 'open' && <span className="crm-pill" style={{ '--dot': softDot(DEAL_STATUS_META[d.status].color) }}>{DEAL_STATUS_META[d.status].label}</span>}
                     </div>
                     <div className="crm-sub" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                       <button type="button" className="crm-btn" style={{ padding: '3px 9px' }} title={`Abrir a empresa ${d.companyName}`} onClick={guard(() => onOpenCompany(d.companyId))}><Building2 size={12} /> {d.companyName}</button>
@@ -161,7 +161,7 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
                 {(d.contactName || d.contactPhone || d.contactWhatsapp || d.contactEmail) && (
                   <div className="crm-section" style={{ marginTop: 10 }}>
                     <h3 className="crm-section-title">Contato</h3>
-                    {d.contactName && <div style={{ fontWeight: 700, marginBottom: 6 }}>{d.contactName}</div>}
+                    {d.contactName && <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--text-1)' }}>{d.contactName}</div>}
                     <ContactLinks phone={d.contactPhone} whatsapp={d.contactWhatsapp} email={d.contactEmail} />
                     {!d.contactPhone && !d.contactWhatsapp && !d.contactEmail && <span className="crm-muted">Sem telefone nem e-mail cadastrado — abra a empresa para completar.</span>}
                   </div>

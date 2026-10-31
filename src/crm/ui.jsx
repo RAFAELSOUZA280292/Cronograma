@@ -6,7 +6,7 @@ import { lazyRetry } from '../lib/lazyRetry.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { crm } from './crmApi.js';
 import { useDialog } from '../lib/nav.js';
-import { REL_META, completenessColor } from './crmMeta.js';
+import { REL_META, completenessColor, softDot } from './crmMeta.js';
 
 // Compara o estado atual do formulário com o do primeiro render: só quem mexeu em algo está "sujo".
 export function useDirty(value) {
@@ -70,7 +70,7 @@ export function Field({ label, children, full }) {
 
 export function RelPill({ value }) {
   const m = REL_META[value] || { label: value, color: 'var(--text-5)' };
-  return <span className="crm-pill" style={{ color: m.color }}>{m.label}</span>;
+  return <span className="crm-pill" style={{ '--dot': softDot(m.color) }}>{m.label}</span>;
 }
 
 export function CompletenessBar({ percent }) {
@@ -78,7 +78,7 @@ export function CompletenessBar({ percent }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
       <span className="crm-bar"><span style={{ width: `${percent}%`, background: c }} /></span>
-      <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', fontVariantNumeric: 'tabular-nums' }}>{percent}%</span>
+      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-4)', fontVariantNumeric: 'tabular-nums' }}>{percent}%</span>
     </span>
   );
 }

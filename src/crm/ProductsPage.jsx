@@ -6,7 +6,7 @@ import { Plus, Package, Pencil } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { Modal, Field, CancelButton, useDirty } from './ui.jsx';
-import { fmtMoney, BILLING_LABELS, moneyToNumber } from './crmMeta.js';
+import { fmtMoney, BILLING_LABELS, moneyToNumber, softDot } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
 
 
@@ -49,7 +49,7 @@ function ProductFormImpl({ initial, onSaved, onCancel }) {
       </div>
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        {!f.name.trim() && !busy && <span className="crm-muted" style={{ fontSize: 11.5, marginRight: 'auto' }}>Preencha o nome para salvar</span>}
+        {!f.name.trim() && !busy && <span className="crm-muted" style={{ fontSize: 12, marginRight: 'auto' }}>Preencha o nome para salvar</span>}
         <CancelButton />
         <button type="button" className="crm-btn crm-btn-primary" disabled={busy || !f.name.trim()} title={busy ? 'Aguarde terminar de salvar' : !f.name.trim() ? 'Preencha o nome para salvar' : undefined} onClick={save}>{busy ? 'Salvando…' : (editing ? 'Salvar' : 'Criar produto')}</button>
       </div>
@@ -92,7 +92,7 @@ export default function ProductsPage({ caps, onChanged }) {
                 <td>{p.category}</td>
                 <td>{BILLING_LABELS[p.billing]}</td>
                 <td className="crm-num">{p.listPrice != null ? fmtMoney(p.listPrice) : <span className="crm-muted">—</span>}</td>
-                <td><span className="crm-pill" style={{ color: p.active ? '#3ecf6e' : '#9a9a9a' }}>{p.active ? 'Ativo' : 'Inativo'}</span></td>
+                <td><span className="crm-pill" style={{ '--dot': softDot(p.active ? '#3ecf6e' : '#9a9a9a') }}>{p.active ? 'Ativo' : 'Inativo'}</span></td>
                 {caps.catalog && <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
                   <button type="button" className="crm-icon-btn" title="Editar produto" aria-label="Editar produto" onClick={() => setForm({ product: p })}><Pencil size={14} aria-hidden="true" /></button>
                   <button type="button" className="crm-btn crm-btn-danger" style={{ padding: '4px 9px' }} onClick={() => remove(p)}>Excluir</button>

@@ -11,6 +11,7 @@ import { guardedModal } from '../ui/SafeBoundary.jsx';
 
 
 const STATUS_LABEL = { new: 'Nova', duplicate: 'Duplicada', possible_duplicate: 'Possível duplicada', invalid: 'Inválida' };
+import { softDot } from './crmMeta.js';
 const STATUS_COLOR = { new: '#3ecf6e', duplicate: '#e2574c', possible_duplicate: '#ff9f40', invalid: '#e2574c' };
 
 function ImportWizard({ onClose, onDone }) {
@@ -125,7 +126,7 @@ function ImportWizard({ onClose, onDone }) {
         <>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
             {['new', 'possible_duplicate', 'duplicate', 'invalid'].map((k) => (
-              <span key={k} className="crm-pill" style={{ color: STATUS_COLOR[k] }}>{preview.counts[k]} {STATUS_LABEL[k].toLowerCase()}{preview.counts[k] === 1 ? '' : 's'}</span>
+              <span key={k} className="crm-pill" style={{ '--dot': softDot(STATUS_COLOR[k]) }}>{preview.counts[k]} {STATUS_LABEL[k].toLowerCase()}{preview.counts[k] === 1 ? '' : 's'}</span>
             ))}
           </div>
           {preview.counts.possible_duplicate > 0 && (

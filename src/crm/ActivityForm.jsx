@@ -116,7 +116,7 @@ function ActivityForm({ initial, company, prefill, options, currentUserId, onSav
       </div>
       {error && <div className="crm-err">{error}</div>}
       <div className="crm-form-foot">
-        {blockReason && !busy && <span className="crm-muted" style={{ fontSize: 11.5, marginRight: 'auto' }}>{blockReason}</span>}
+        {blockReason && !busy && <span className="crm-muted" style={{ fontSize: 12, marginRight: 'auto' }}>{blockReason}</span>}
         <CancelButton />
         <button type="button" className="crm-btn crm-btn-primary" disabled={!!blockReason} title={blockReason || undefined} onClick={save}>{busy ? 'Salvando…' : (done ? 'Registrar' : 'Salvar')}</button>
       </div>

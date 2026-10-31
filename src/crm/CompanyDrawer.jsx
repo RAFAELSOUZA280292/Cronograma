@@ -17,7 +17,7 @@ import { useDialog } from '../lib/nav.js';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import {
   fmtCnpj, fmtCep, fmtMoney, fmtDateBR, fmtDateTimeBR, daysLabel, staleColor, DECISION_ROLES, roleLabel, STRENGTH_META, INFLUENCE_LABELS,
-  sourceLabel, TIMELINE_KIND, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor, contactLabel } from './crmMeta.js';
+  sourceLabel, TIMELINE_KIND, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor, contactLabel, softDot } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
 
 
@@ -32,7 +32,7 @@ function Person({ c, onOpen }) {
       <span className="crm-dot" style={{ background: st ? st.color : 'var(--border-3)' }} />
       <div style={{ minWidth: 0 }}>
         <div className="crm-person-name">{contactLabel(c)}{c.isPrimary ? ' ★' : ''}</div>
-        <div className="crm-muted" style={{ fontSize: 11.5 }}>{c.jobTitle || c.department || c.email || ''}</div>
+        <div className="crm-muted" style={{ fontSize: 12 }}>{c.jobTitle || c.department || c.email || ''}</div>
       </div>
     </div>
   );
@@ -134,7 +134,7 @@ function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, on
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     <h2 className="crm-h1" style={{ overflowWrap: 'anywhere' }}>{co.legalName}</h2>
                     <RelPill value={co.relationship} />
-                    {co.deletedAt && <span className="crm-pill" style={{ color: '#e2574c' }}>Excluída</span>}
+                    {co.deletedAt && <span className="crm-pill" style={{ '--dot': softDot('#e2574c') }}>Excluída</span>}
                   </div>
                   <div className="crm-sub">{[co.tradeName, co.cnpj ? fmtCnpj(co.cnpj) : '', co.segment, [co.city, co.state].filter(Boolean).join('/'), co.ownerName ? `Responsável: ${co.ownerName}` : ''].filter(Boolean).join(' · ')}</div>
                 </>
@@ -271,10 +271,10 @@ function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, on
                       {data.deals.map((d) => (
                         <tr key={d.id} onClick={() => openDeal && openDeal(d.id)}>
                           <td><div className="crm-name">{d.title}</div><div className="crm-muted">{d.ownerName}</div></td>
-                          <td><span className="crm-pill" style={{ color: d.status === 'open' ? 'var(--text-4)' : DEAL_STATUS_META[d.status].color }}>{d.status === 'open' ? d.stageName : DEAL_STATUS_META[d.status].label}</span>{d.status === 'open' && (d.daysInStage || 0) > 14 && <div style={{ color: stageAgeColor(d.daysInStage), fontSize: 11 }}>{d.daysInStage} dias parado</div>}</td>
+                          <td><span className="crm-pill" style={{ '--dot': softDot(d.status === 'open' ? 'var(--text-6)' : DEAL_STATUS_META[d.status].color) }}>{d.status === 'open' ? d.stageName : DEAL_STATUS_META[d.status].label}</span>{d.status === 'open' && (d.daysInStage || 0) > 14 && <div style={{ color: stageAgeColor(d.daysInStage), fontSize: 12 }}>{d.daysInStage} dias parado</div>}</td>
                           <td className="crm-num">{d.value ? fmtMoney(d.value) : <span className="crm-muted">—</span>}</td>
                           <td style={{ color: d.overdue ? '#e2574c' : undefined }}>{fmtDateBR(d.expectedCloseDate) || <span className="crm-muted">—</span>}</td>
-                          <td><span className="crm-tag" style={{ color: DEAL_TYPE_META[d.dealType].color }}>{DEAL_TYPE_META[d.dealType].label}</span></td>
+                          <td><span className="crm-tg" style={{ '--dot': softDot(DEAL_TYPE_META[d.dealType].color) }}>{DEAL_TYPE_META[d.dealType].label}</span></td>
                         </tr>
                       ))}
                     </tbody>

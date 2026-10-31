@@ -9,6 +9,7 @@ import CadenceEditor from './CadenceEditor.jsx';
 import { Modal } from './ui.jsx';
 import { askConfirm } from '../ui/dialogs.jsx';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
+import { softDot } from './crmMeta.js';
 
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -86,7 +87,7 @@ function FunnelsAdmin({ initialId, onClose, onChanged }) {
               <input value={name} onChange={(e) => setName(e.target.value)} aria-label="Nome do funil" style={{ maxWidth: 300, fontWeight: 800, padding: '8px 10px', borderRadius: 8 }} />
               <button type="button" className="crm-btn" disabled={busy || !name.trim() || name.trim() === sel.name} title={busy ? 'Aguarde terminar de salvar' : !name.trim() ? 'Digite o nome do funil' : name.trim() === sel.name ? 'Altere o nome para renomear' : undefined} onClick={() => run(() => crm.updatePipeline(sel.id, { name }), sel.id, 'Nome atualizado.')}>Renomear</button>
               {sel.isDefault
-                ? <span className="crm-pill" style={{ color: '#F5C400' }}><Star size={11} /> Funil padrão</span>
+                ? <span className="crm-pill" style={{ '--dot': softDot('#F5C400') }}><Star size={11} /> Funil padrão</span>
                 : <button type="button" className="crm-btn" disabled={busy} title={busy ? 'Aguarde terminar de salvar' : undefined} onClick={() => run(() => crm.updatePipeline(sel.id, { isDefault: true }), sel.id, 'Definido como padrão (o que abre primeiro e recebe negócios novos).')}>Definir como padrão</button>}
               {!sel.isDefault && <button type="button" className="crm-btn crm-btn-danger" disabled={busy} title={busy ? 'Aguarde terminar de salvar' : undefined} onClick={async () => { if (await askConfirm({ title: `Arquivar o funil "${sel.name}"?`, message: 'Só é possível se ele não tiver negócios.', confirmLabel: 'Arquivar funil', danger: true })) run(() => crm.deletePipeline(sel.id), null, 'Funil arquivado.'); }}>Arquivar funil</button>}
             </div>

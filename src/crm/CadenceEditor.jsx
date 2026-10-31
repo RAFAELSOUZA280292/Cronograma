@@ -61,7 +61,7 @@ export default function CadenceEditor({ pipeline }) {
               <button type="button" className="crm-icon-btn" disabled={edit.steps.length <= 1} title="Remover passo" aria-label={`Remover o passo ${i + 1}`} onClick={() => setEdit((x) => ({ ...x, steps: x.steps.filter((_, k) => k !== i) }))}><Trash2 size={14} aria-hidden="true" /></button>
             </div>
           ))}
-          <div className="crm-muted" style={{ fontSize: 11.5 }}>Dias: no 1º passo contam da entrada na etapa; nos seguintes, da conclusão do passo anterior (0 = no mesmo dia).</div>
+          <div className="crm-muted" style={{ fontSize: 12 }}>Dias: no 1º passo contam da entrada na etapa; nos seguintes, da conclusão do passo anterior (0 = no mesmo dia).</div>
           {edit.steps.length < 8 && <div><button type="button" className="crm-btn" onClick={() => setEdit((x) => ({ ...x, steps: [...x.steps, { title: `${x.steps.length + 1}º Follow Up`, type: 'followup', days: '3' }] }))}><Plus size={14} /> Adicionar passo</button></div>}
           {error && <div className="crm-err">{error}</div>}
           <div style={{ display: 'flex', gap: 8 }}>

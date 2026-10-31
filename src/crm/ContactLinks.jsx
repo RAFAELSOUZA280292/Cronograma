@@ -6,9 +6,7 @@ import { fmtPhone, plainPhone, telHref, waHref } from './crmMeta.js';
 import { notify } from '../ui/dialogs.jsx';
 
 const stop = (e) => e.stopPropagation();
-const LINK = { color: 'inherit', textDecoration: 'none', fontWeight: 600 }; // sem o azul padrão de link: contraste ruim no tema escuro
-const BLUE = '#3ea6ff';
-const COPY = { color: BLUE, background: 'rgba(62,166,255,.14)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 };
+const LINK = { textDecoration: 'none' };
 
 async function writeClipboard(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* tenta o caminho antigo abaixo */ }
@@ -36,17 +34,9 @@ function CopyNumber({ value, compact }) {
   }
   const label = done ? 'Copiado' : (compact ? 'Copiar' : 'Copiar número');
   const status = <span role="status" aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{done ? `Número ${num} copiado` : ''}</span>;
-  if (compact) {
-    return (
-      <button type="button" className="crm-cl-copy" onClick={copy} title={`Copiar o número: ${num}`} aria-label={`Copiar o número ${num}`}>
-        {done ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}<span>{label}</span>{status}
-      </button>
-    );
-  }
   return (
-    <button type="button" className="crm-pill" style={COPY} onClick={copy} title={`Copiar o número: ${num}`} aria-label={`Copiar o número ${num}`}>
-      {done ? <Check size={11} aria-hidden="true" /> : <Copy size={11} aria-hidden="true" />} {label}
-      {status}
+    <button type="button" className="crm-cl-copy" onClick={copy} title={`Copiar o número: ${num}`} aria-label={`Copiar o número ${num}`}>
+      {done ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}<span>{label}</span>{status}
     </button>
   );
 }

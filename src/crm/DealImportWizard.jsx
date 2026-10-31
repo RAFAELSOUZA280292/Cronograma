@@ -10,6 +10,7 @@ import { guardedModal } from '../ui/SafeBoundary.jsx';
 
 
 const STATUS_LABEL = { new: 'Nova', already: 'Já importada', no_company: 'Sem empresa', company_not_found: 'Empresa não está no CRM', discarded: 'Lixeira', invalid: 'Inválida' };
+import { softDot } from './crmMeta.js';
 const STATUS_COLOR = { new: '#3ecf6e', already: '#9a9a9a', no_company: '#ff9f40', company_not_found: '#ff9f40', discarded: '#9a9a9a', invalid: '#e2574c' };
 const REQUIRED = ['externalId', 'title', 'pipelineName', 'stageName', 'situation'];
 
@@ -125,7 +126,7 @@ function DealImportWizard({ options, onClose, onDone }) {
       {step === 3 && preview && (
         <>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-            {Object.entries(preview.counts).filter(([, n]) => n > 0).map(([k, n]) => <span key={k} className="crm-pill" style={{ color: STATUS_COLOR[k] }}>{n} {STATUS_LABEL[k].toLowerCase()}</span>)}
+            {Object.entries(preview.counts).filter(([, n]) => n > 0).map(([k, n]) => <span key={k} className="crm-pill" style={{ '--dot': softDot(STATUS_COLOR[k]) }}>{n} {STATUS_LABEL[k].toLowerCase()}</span>)}
           </div>
 
           {preview.funnels.length > 0 && (
@@ -167,7 +168,7 @@ function DealImportWizard({ options, onClose, onDone }) {
                   <tr key={r.index} style={{ cursor: 'default' }}>
                     <td className="crm-num">{r.line}</td><td><div className="crm-name">{r.title}</div><div className="crm-muted">{r.companyName}</div></td>
                     <td>{r.pipeline}<div className="crm-muted">{r.stage}</div></td>
-                    <td><span className="crm-pill" style={{ color: STATUS_COLOR[r.status] }}>{STATUS_LABEL[r.status]}</span></td>
+                    <td><span className="crm-pill" style={{ '--dot': softDot(STATUS_COLOR[r.status]) }}>{STATUS_LABEL[r.status]}</span></td>
                     <td style={{ fontSize: 12 }}>{r.messages.join(' ')}</td>
                   </tr>
                 ))}

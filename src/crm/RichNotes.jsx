@@ -48,7 +48,7 @@ const CSS = `
 .crmrn-box { border:1px solid transparent; border-radius:12px; }
 .crmrn-box.drag { border-color:var(--ui-accent, #F5C400); background:rgba(245,196,0,.05); }
 .crmrn-foot { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:8px; }
-.crmrn-hint { font-size:11px; color:var(--text-5); margin-top:6px; }
+.crmrn-hint { font-size:12px; color:var(--text-5); margin-top:6px; }
 .crmrn-err { color:#e2574c; font-size:12.5px; margin-top:6px; }
 .crmrn-note { border:1px solid var(--border-1); border-radius:12px; padding:12px 14px; margin-bottom:10px; background:var(--bg-1); color:var(--text-1); }
 .crmrn-note-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:12.5px; }
@@ -162,7 +162,7 @@ function NoteEditor({ initialHtml, placeholder, onChange, onSubmitShortcut, onFi
               </React.Fragment>
             ))}
             <h4>Dica</h4>
-            <div style={{ fontSize: 11.5, color: 'var(--text-4)', padding: '0 4px 2px' }}>No Mac: Ctrl+Cmd+Espaço abre todos os emojis. No Windows: tecla Windows + ponto.</div>
+            <div style={{ fontSize: 12, color: 'var(--text-4)', padding: '0 4px 2px' }}>No Mac: Ctrl+Cmd+Espaço abre todos os emojis. No Windows: tecla Windows + ponto.</div>
           </div>
         )}
         {pop === 'tpl' && (

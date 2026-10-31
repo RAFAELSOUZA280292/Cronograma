@@ -22,9 +22,10 @@ const CSS = `
 .shell-save { display: inline-flex; align-items: center; margin-right: 6px; white-space: nowrap; }
 .shell-cur { color: var(--text-1); font-weight: 700; }
 .shell-renata { color: var(--ui-accent, #F5C400); }
+html[data-theme="light"] .shell-renata { color: #8a6500; }
 .shell-renata:hover { background: var(--ui-accent-bg, rgba(245,196,0,.14)); }
 .shell-search { min-width: 190px; justify-content: flex-start; color: var(--text-4); background: var(--bg-3); border-color: var(--border-1); font-weight: 500; }
-.shell-search kbd, .shell-pal kbd { margin-left: auto; font: inherit; font-size: 10.5px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-2); color: var(--text-4); background: var(--bg-1); }
+.shell-search kbd, .shell-pal kbd { margin-left: auto; font: inherit; font-size: 12px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-2); color: var(--text-4); background: var(--bg-1); }
 .shell-pop { position: relative; }
 .shell-menu { position: absolute; top: 38px; z-index: 46; min-width: 230px; max-height: 70vh; overflow-y: auto; padding: 6px; border-radius: 10px;
   background: var(--bg-2); border: 1px solid var(--border-2); box-shadow: 0 12px 32px rgba(0,0,0,.35); }

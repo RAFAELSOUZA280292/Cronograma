@@ -216,18 +216,18 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/CompanyDrawer.jsx` | 417 | Ficha 360º da empresa (PRD 8/9/11). Fase 1: Visão Geral, Contatos (com o |
 | `src/crm/CompanyForm.jsx` | 194 | Cadastro/edição de empresa. Estado local do formulário + botão Salvar (nada |
 | `src/crm/ContactForm.jsx` | 118 | Cadastro/edição de contato (estado local + Salvar). Sem empresa definida, o |
-| `src/crm/ContactLinks.jsx` | 90 | Telefone, WhatsApp e e-mail do contato como links de um toque (ligar, abrir conversa, escrever) e um botão azul que copia o número (só dígitos). |
+| `src/crm/ContactLinks.jsx` | 80 | Telefone, WhatsApp e e-mail do contato como links de um toque (ligar, abrir conversa, escrever) e um botão azul que copia o número (só dígitos). |
 | `src/crm/ContactsPage.jsx` | 74 | Lista de contatos (PRD 10). Papel na decisão e força do relacionamento à vista. |
 | `src/crm/CrmScreen.jsx` | 138 | CRM PRICETAX — shell do módulo (Fases 1-3, 2026-09-20, PROJECT_CONTEXT.md §54/§55/§56). |
 | `src/crm/DealDrawer.jsx` | 307 | Ficha do negócio (drawer). Resumo (valor, probabilidade, produtos), Histórico |
 | `src/crm/DealForm.jsx` | 342 | Cadastro/edição de negócio (estado local + Salvar). A empresa é sempre |
-| `src/crm/DealImportWizard.jsx` | 207 | Importar negócios de planilha (feito pro export "Oportunidades" do PipeRun). Arquivo → colunas → |
+| `src/crm/DealImportWizard.jsx` | 208 | Importar negócios de planilha (feito pro export "Oportunidades" do PipeRun). Arquivo → colunas → |
 | `src/crm/DealTags.jsx` | 38 | Tags do negócio (vindas do PipeRun ou criadas aqui): chips com remoção e um campo que sugere as tags já existentes. |
 | `src/crm/DealsPage.jsx` | 534 | Negócios (PRD 12/13): quadro Kanban por etapa + lista. Arrastar o cartão move |
 | `src/crm/FollowUpQueue.jsx` | 142 | Fila de follow-ups (§93): uma atividade por vez, da mais atrasada para a mais nova, com o contato a um toque (ligar / WhatsApp), |
-| `src/crm/FunnelsAdmin.jsx` | 161 | Configuração de funis e etapas (gestor+). A empresa pode ter vários funis (ex.: Empresas, |
+| `src/crm/FunnelsAdmin.jsx` | 162 | Configuração de funis e etapas (gestor+). A empresa pode ter vários funis (ex.: Empresas, |
 | `src/crm/GlobalSearch.jsx` | 59 | Busca global do CRM (PRD 38) — Fase 1: empresas e contatos. |
-| `src/crm/ImportWizard.jsx` | 174 | Importação de planilha Excel/CSV (PRD 48): arquivo -> mapeamento de colunas |
+| `src/crm/ImportWizard.jsx` | 175 | Importação de planilha Excel/CSV (PRD 48): arquivo -> mapeamento de colunas |
 | `src/crm/InlineCells.jsx` | 48 | Edição direta na célula (§94): clicar e digitar/escolher salva na hora, sem abrir formulário. Esc cancela. Não propaga o clique (a linha abre a ficha). |
 | `src/crm/OverviewLenses.jsx` | 295 | Painéis da Visão geral por função (§98): Meu dia, Time, Receita e Contas. Só números e listas que levam a uma ação; |
 | `src/crm/OverviewPage.jsx` | 90 | Visão Geral do CRM por função (§98). Cada pessoa abre no painel do seu perfil — Meu dia (vendedor/consultor), |
@@ -239,7 +239,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/TagFilter.jsx` | 70 | Filtro por VÁRIAS tags (o negócio precisa ter todas) — 2026-10-26. O valor é o texto "tag1\|tag2" (mesmo formato do servidor e das visões salvas). |
 | `src/crm/boardMove.js` | 48 | Mover um negócio de etapa NA TELA, antes de o servidor responder (2026-10-27, §119). O quadro do funil é um objeto |
 | `src/crm/crmApi.js` | 94 | Cliente da API do CRM (/api/crm) — Fase 1. Só monta URL/corpo; regra de |
-| `src/crm/crmMeta.js` | 525 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
+| `src/crm/crmMeta.js` | 530 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
 | `src/crm/importMapping.js` | 51 | Reconhecimento automático das colunas da planilha (Import Wizard). Módulo puro, |
 | `src/crm/ui.jsx` | 127 | Peças de UI compartilhadas do CRM. |
 | `src/daily/DailyCards.jsx` | 254 |  |
@@ -345,7 +345,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/screens/ScreenSearch.jsx` | 48 | Busca da tela aberta (2026-10-19): campo na barra de abas da empresa e aviso "filtrando" no topo do conteúdo. A lógica de casar texto fica em src/lib/screenSearch.js. |
 | `src/screens/SubExtras.jsx` | 214 | Campos novos das subatividades (2026-10-19, fase 2 do plano do cronograma funcional): prioridade, executor, áreas envolvidas, aplicabilidade, recorrência, |
 | `src/shell/CommandPalette.jsx` | 160 | Busca global (Ctrl/Cmd+K): pula para um módulo, uma empresa, uma atividade ou uma reunião. Onda 1, §81. |
-| `src/shell/ModuleShell.jsx` | 173 | Casca única (Onda 1, §81): a MESMA barra no topo de todas as telas depois do login. |
+| `src/shell/ModuleShell.jsx` | 174 | Casca única (Onda 1, §81): a MESMA barra no topo de todas as telas depois do login. |
 | `src/shell/NotificationPrefs.jsx` | 115 | Escolher quais notificações ver (2026-10-06). Marcado = aparece; desmarcado = fica escondido (nada é apagado). |
 | `src/styles/S.js` | 452 | Objeto de estilos compartilhado (inline styles do app). Extraído de src/App.jsx em 2026-10-17 ("dividir o AppScreens e o S"); o App.jsx continua |
 | `src/sw.js` | 85 | Service worker do PRICETAX (2026-10-17, PWA). Objetivo: o app ser instalável e abrir a casca mesmo sem rede. |
