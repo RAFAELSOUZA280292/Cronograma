@@ -274,6 +274,7 @@ export const CRM_CSS = `
   .crm-seg button { display:inline-flex; align-items:center; gap:5px; padding:6px 11px; font-size:12px; font-weight:700; background:transparent; color:var(--text-5); border:none; cursor:pointer; font-family:inherit; }
   .crm-seg button + button { border-left:1px solid var(--border-2); }
   .crm-seg button.active { background:var(--bg-3); color:var(--text-1); }
+  html[data-theme="light"] .crm-seg button.active { background:#0B0B1E; color:#fff; }
   .crm-board { display:flex; gap:12px; overflow-x:auto; padding-bottom:14px; align-items:flex-start; }
   .crm-col { flex:0 0 272px; background:var(--bg-2); border:1px solid var(--border-1); border-radius:12px; display:flex; flex-direction:column; max-height:calc(100vh - 260px); min-height:120px; }
   .crm-col.over { outline:2px dashed #F5C400; outline-offset:-3px; }
@@ -349,18 +350,43 @@ export const CRM_CSS = `
   .crm-avatar { border-width:1.5px; }
   .crm-act-ico { background:color-mix(in srgb, var(--act, #8f9bb3) 20%, var(--bg-3)); color:var(--act, var(--text-4)); }
   .crm-act.done .crm-act-ico { filter:grayscale(.7); opacity:.7; }
-  .crm-h1 { display:inline-block; padding-bottom:3px; border-bottom:3px solid #FEDB00; }
-  .crm-nav button svg { color:var(--nav, var(--text-5)); flex-shrink:0; }
-  .crm-nav button:nth-child(1) { --nav:#FEDB00; } .crm-nav button:nth-child(2) { --nav:#3ea6ff; } .crm-nav button:nth-child(3) { --nav:#2ecc8f; }
-  .crm-nav button:nth-child(4) { --nav:#b98af5; } .crm-nav button:nth-child(5) { --nav:#2fc4c4; } .crm-nav button:nth-child(6) { --nav:#ff9f40; }
-  .crm-nav button.active { background:color-mix(in srgb, var(--nav, #F5C400) 14%, var(--bg-3)); box-shadow:inset 3px 0 0 var(--nav, #F5C400); }
-  .crm-cards .crm-card { border-top:3px solid var(--kpi, var(--border-3)); background:linear-gradient(180deg, color-mix(in srgb, var(--kpi, transparent) 8%, var(--bg-2)), var(--bg-2) 70%); }
-  .crm-cards .crm-card:nth-child(6n+1) { --kpi:#3ea6ff; } .crm-cards .crm-card:nth-child(6n+2) { --kpi:#b98af5; } .crm-cards .crm-card:nth-child(6n+3) { --kpi:#2ecc8f; }
-  .crm-cards .crm-card:nth-child(6n+4) { --kpi:#FEDB00; } .crm-cards .crm-card:nth-child(6n+5) { --kpi:#ff6b4a; } .crm-cards .crm-card:nth-child(6n+6) { --kpi:#2fc4c4; }
-  .crm-section { border-top:2px solid color-mix(in srgb, #FEDB00 55%, var(--border-1)); }
-  .crm-btn-primary { box-shadow:0 2px 10px rgba(254,219,0,.22); }
+  .crm-h1 { font-size:28px; letter-spacing:-.02em; line-height:1.15; }
+  .crm-nav { background:#0B0B1E; border-right:none; padding:16px 10px; }
+  .crm-nav button { color:#c3c8dc; }
+  .crm-nav button svg { color:#8d93ad; flex-shrink:0; }
+  .crm-nav button:hover { background:rgba(255,255,255,.07); color:#fff; }
+  .crm-nav button.active { background:rgba(255,255,255,.1); color:#fff; box-shadow:inset 3px 0 0 #FEDB00; }
+  .crm-nav button.active svg { color:#FEDB00; }
+  .crm-cards { grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); }
+  .crm-cards-six { grid-template-columns:repeat(3, minmax(0,1fr)); }
+  @media (min-width: 1560px) { .crm-cards-six { grid-template-columns:repeat(6, minmax(0,1fr)); } }
+  @media (max-width: 760px) { .crm-cards-six { grid-template-columns:repeat(2, minmax(0,1fr)); } }
+  @media (max-width: 480px) { .crm-cards, .crm-cards-six { grid-template-columns:minmax(0,1fr); } }
+  .crm-kpi { display:flex; align-items:center; gap:14px; padding:16px 18px; font:inherit; color:inherit; text-align:left; width:100%; box-shadow:0 1px 2px rgba(11,11,30,.04); }
+  .crm-kpi-ico { width:44px; height:44px; border-radius:12px; display:grid; place-items:center; flex-shrink:0; background:color-mix(in srgb, var(--ico, #8f9bb3) 14%, var(--bg-2)); color:var(--ico, var(--text-5)); }
+  .crm-kpi-body { display:flex; flex-direction:column; min-width:0; flex:1; }
+  .crm-kpi .crm-kpi-value { font-size:26px; letter-spacing:-.02em; }
+  .crm-kpi .crm-kpi-value.featured { font-size:30px; }
+  .crm-kpi .crm-kpi-label { margin-top:3px; font-size:12.5px; font-weight:600; }
+  .crm-kpi .crm-kpi-sub { margin-top:2px; }
+  .crm-kpi-go { color:var(--text-6); flex-shrink:0; }
+  .crm-kpi-click { cursor:pointer; transition:border-color .12s ease, box-shadow .12s ease; }
+  .crm-kpi-click:hover { border-color:var(--border-3); box-shadow:0 4px 14px rgba(11,11,30,.10); }
+  .crm-kpi-click:hover .crm-kpi-go { color:var(--text-2); }
+  .crm-panel-t { display:inline-flex; align-items:center; gap:8px; }
+  .crm-section-title { color:var(--text-3); }
+  .crm-more { display:inline-flex; align-items:center; gap:2px; border:none; background:transparent; color:var(--text-4); font:inherit; font-size:12.5px; font-weight:600; text-transform:none; letter-spacing:0; cursor:pointer; padding:2px 4px; border-radius:6px; }
+  .crm-more:hover { color:var(--text-1); background:var(--bg-3); }
+  .crm-row-main { display:flex; align-items:center; gap:12px; min-width:0; flex:1; }
+  .crm-row-ico { width:32px; height:32px; border-radius:9px; display:grid; place-items:center; flex-shrink:0; background:color-mix(in srgb, var(--ico, #8f9bb3) 14%, var(--bg-2)); color:var(--ico, var(--text-5)); }
+  .crm-row-text { min-width:0; overflow-wrap:anywhere; line-height:1.4; }
+  .crm-row-two { display:flex; flex-direction:column; gap:1px; }
+  .crm-row-two b { font-size:13.5px; color:var(--text-1); }
+  .crm-row-right { display:inline-flex; align-items:center; gap:8px; white-space:nowrap; flex-shrink:0; }
+  .crm-row-go { color:var(--text-6); }
+  .crm-row-link:hover .crm-row-go { color:var(--text-2); }
+  .crm-section { box-shadow:0 1px 2px rgba(11,11,30,.04); }
   .crm-btn:not(.crm-btn-primary):hover { border-color:#FEDB00; }
-  .crm-topbar { background:linear-gradient(90deg, color-mix(in srgb, #FEDB00 7%, transparent), transparent 55%); }
   @media (prefers-reduced-motion: reduce) { .crm-deal { transition:none; } .crm-deal:hover, .crm-deal:focus-visible { transform:none; } }
   .crm-tags { display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; }
   .crm-tag { font-size:10px; font-weight:800; padding:1px 7px; border-radius:999px; border:1px solid currentColor; white-space:nowrap; }

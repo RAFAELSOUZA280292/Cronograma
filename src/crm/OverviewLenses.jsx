@@ -1,32 +1,52 @@
 // Painéis da Visão geral por função (§98): Meu dia, Time, Receita e Contas. Só números e listas que levam a uma ação;
 // cor só para risco. Clicar num indicador abre Negócios já filtrado (preset) — o painel nunca é beco sem saída.
 import React from 'react';
-import { AlertTriangle, CalendarCheck, Target, Users, Wallet, Clock } from 'lucide-react';
-import { REL_META, fmtDateTimeBR, fmtDateBR, fmtMoney, daysLabel, staleColor, stageAgeColor, activityTypeLabel } from './crmMeta.js';
+import { AlertTriangle, BadgeCheck, BarChart3, Building2, CalendarCheck, CalendarX, ChevronRight, CircleDollarSign, Clock, FileText, Hourglass, Layers, Mail, MapPin, MessageCircle, Percent, Phone, Repeat, CheckSquare, Target, TrendingUp, UserX, Users, Video, Wallet } from 'lucide-react';
+import { REL_META, ACTIVITY_COLORS, fmtDateTimeBR, fmtDateBR, fmtMoney, daysLabel, staleColor, stageAgeColor, activityTypeLabel } from './crmMeta.js';
 import { CompletenessBar } from './ui.jsx';
 
 const money = (n) => fmtMoney(n) || 'R$ 0';
 const RED = '#e2574c'; const AMBER = '#ff9f40'; const GREEN = '#3ecf6e';
 
-function Kpi({ value, label, sub, tone, onClick, hint }) {
-  const body = (<><div className="crm-kpi-value" style={{ color: tone || undefined }}>{value}</div><div className="crm-kpi-label">{label}</div>{sub && <div className="crm-kpi-sub">{sub}</div>}</>);
-  if (!onClick) return <div className="crm-card">{body}</div>;
-  return <button type="button" className="crm-card" style={{ textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit' }} title={hint} onClick={onClick}>{body}</button>;
+const BLUE = '#3b82f6'; const PURPLE = '#8b5cf6';
+const TYPE_ICON = { task: CheckSquare, call: Phone, email: Mail, meeting: Video, whatsapp: MessageCircle, visit: MapPin, followup: Repeat };
+
+function Kpi({ value, label, sub, tone, onClick, hint, icon: Icon, accent, featured }) {
+  const color = tone || accent;
+  const body = (
+    <>
+      {Icon && <span className="crm-kpi-ico" style={{ '--ico': color }} aria-hidden="true"><Icon size={20} /></span>}
+      <span className="crm-kpi-body">
+        <span className={`crm-kpi-value${featured ? ' featured' : ''}`} style={{ color: tone || undefined }}>{value}</span>
+        <span className="crm-kpi-label">{label}</span>
+        {sub && <span className="crm-kpi-sub">{sub}</span>}
+      </span>
+      {onClick && <ChevronRight size={16} className="crm-kpi-go" aria-hidden="true" />}
+    </>
+  );
+  if (!onClick) return <div className="crm-card crm-kpi">{body}</div>;
+  return <button type="button" className="crm-card crm-kpi crm-kpi-click" title={hint} onClick={onClick}>{body}</button>;
 }
 
 function DealRow({ d, right, rightColor, onOpenDeal }) {
   return (
     <button type="button" className="crm-row-link" onClick={() => onOpenDeal(d.id)}>
-      <span><b>{d.title}</b> <span className="crm-muted">· {d.companyName}{d.stageName ? ` · ${d.stageName}` : ''}</span></span>
-      <span style={{ color: rightColor, fontWeight: 700, whiteSpace: 'nowrap' }}>{right}</span>
+      <span className="crm-row-main">
+        <span className="crm-row-ico" aria-hidden="true"><Building2 size={15} /></span>
+        <span className="crm-row-text"><b>{d.title}</b> <span className="crm-muted">· {d.companyName}{d.stageName ? ` · ${d.stageName}` : ''}</span></span>
+      </span>
+      <span className="crm-row-right"><span style={{ color: rightColor, fontWeight: 700 }}>{right}</span><ChevronRight size={15} className="crm-row-go" aria-hidden="true" /></span>
     </button>
   );
 }
 
-function Panel({ title, empty, children, count }) {
+function Panel({ title, empty, children, count, icon: Icon, more }) {
   return (
     <div className="crm-section">
-      <h3 className="crm-section-title"><span>{title}{count > 0 ? <span className="crm-muted" style={{ fontWeight: 600 }}> · {count}</span> : null}</span></h3>
+      <h3 className="crm-section-title">
+        <span className="crm-panel-t">{Icon && <Icon size={15} aria-hidden="true" />}{title}{count > 0 ? <span className="crm-muted" style={{ fontWeight: 600 }}> · {count}</span> : null}</span>
+        {more && count > 0 && <button type="button" className="crm-more" onClick={more.onClick}>{more.label}<ChevronRight size={14} aria-hidden="true" /></button>}
+      </h3>
       {count === 0 && <div className="crm-muted">{empty}</div>}
       {children}
     </div>
@@ -34,7 +54,7 @@ function Panel({ title, empty, children, count }) {
 }
 
 const Title = ({ icon: Icon, children, action }) => (
-  <h3 className="crm-section-title" style={{ marginBottom: 10 }}><span><Icon size={13} style={{ verticalAlign: -2, marginRight: 5 }} />{children}</span>{action}</h3>
+  <h3 className="crm-section-title crm-title" style={{ marginBottom: 10 }}><span className="crm-panel-t"><Icon size={14} aria-hidden="true" />{children}</span>{action}</h3>
 );
 
 export function MineLens({ data, onOpenCompany, onOpenDeal, onGoDeals, onGoAgenda }) {
@@ -44,47 +64,53 @@ export function MineLens({ data, onOpenCompany, onOpenDeal, onGoDeals, onGoAgend
     <div>
       <Title icon={CalendarCheck} action={<button type="button" className="crm-btn" onClick={onGoAgenda}>Abrir a agenda</button>}>Para fazer agora</Title>
       <div className="crm-cards">
-        <Kpi value={ac.mineToday} label="Para hoje" tone={ac.mineToday ? AMBER : undefined} onClick={onGoAgenda} hint="Abrir a agenda" />
-        <Kpi value={ac.mineOverdue} label="Atrasadas" tone={ac.mineOverdue ? RED : undefined} onClick={onGoAgenda} hint="Abrir a agenda" />
-        <Kpi value={dl.noNextStepCount} label="Negócios sem próximo passo" sub="seus, em aberto, sem atividade agendada" tone={dl.noNextStepCount ? AMBER : undefined} onClick={mineDeals({ attention: 'nonext' })} hint="Ver na lista de negócios" />
-        <Kpi value={dl.lateStepCount} label="Com passo atrasado" tone={dl.lateStepCount ? RED : undefined} onClick={mineDeals({ attention: 'late' })} hint="Ver na lista de negócios" />
+        <Kpi icon={CalendarCheck} accent={BLUE} value={ac.mineToday} label="Para hoje" onClick={onGoAgenda} hint="Abrir a agenda" />
+        <Kpi icon={Clock} value={ac.mineOverdue} label="Atrasadas" tone={ac.mineOverdue ? RED : undefined} onClick={onGoAgenda} hint="Abrir a agenda" />
+        <Kpi icon={Layers} value={dl.noNextStepCount} label="Negócios sem próximo passo" sub="seus, em aberto, sem atividade agendada" tone={dl.noNextStepCount ? AMBER : undefined} onClick={mineDeals({ attention: 'nonext' })} hint="Ver na lista de negócios" />
+        <Kpi icon={AlertTriangle} value={dl.lateStepCount} label="Com passo atrasado" tone={dl.lateStepCount ? RED : undefined} onClick={mineDeals({ attention: 'late' })} hint="Ver na lista de negócios" />
       </div>
       <div className="crm-two">
-        <Panel title="Hoje e atrasadas" count={ac.myDue.length} empty="Nada vencendo para você. Bom sinal.">
-          {ac.myDue.map((a) => (
-            <button key={a.id} type="button" className="crm-row-link" onClick={() => onOpenCompany(a.companyId, 'activities')}>
-              <span><b>{a.title}</b> <span className="crm-muted">· {activityTypeLabel(a.activityType)} · {a.companyName}</span></span>
-              <span style={{ color: a.bucket === 'overdue' ? RED : AMBER, fontWeight: 700, whiteSpace: 'nowrap' }}>{a.bucket === 'overdue' ? `venceu ${fmtDateBR(a.dueDate)}` : `hoje${a.dueTime ? ` ${a.dueTime}` : ''}`}</span>
-            </button>
-          ))}
+        <Panel icon={CalendarCheck} title="Hoje e atrasadas" count={ac.myDue.length} empty="Nada vencendo para você. Bom sinal." more={{ label: 'Ver todas', onClick: onGoAgenda }}>
+          {ac.myDue.map((a) => {
+            const Ico = TYPE_ICON[a.activityType] || CheckSquare;
+            return (
+              <button key={a.id} type="button" className="crm-row-link" onClick={() => onOpenCompany(a.companyId, 'activities')}>
+                <span className="crm-row-main">
+                  <span className="crm-row-ico" style={{ '--ico': ACTIVITY_COLORS[a.activityType] }} aria-hidden="true"><Ico size={15} /></span>
+                  <span className="crm-row-text crm-row-two"><b>{a.title}</b><span className="crm-muted">{activityTypeLabel(a.activityType)} · {a.companyName}</span></span>
+                </span>
+                <span className="crm-row-right"><span style={{ color: a.bucket === 'overdue' ? RED : AMBER, fontWeight: 700 }}>{a.bucket === 'overdue' ? `venceu ${fmtDateBR(a.dueDate)}` : `hoje${a.dueTime ? ` ${a.dueTime}` : ''}`}</span><ChevronRight size={15} className="crm-row-go" aria-hidden="true" /></span>
+              </button>
+            );
+          })}
         </Panel>
-        <Panel title="Sem próximo passo" count={dl.noNextStep.length} empty="Todo negócio seu tem um próximo passo.">
+        <Panel icon={Layers} title="Sem próximo passo" count={dl.noNextStep.length} empty="Todo negócio seu tem um próximo passo." more={{ label: 'Ver todos', onClick: mineDeals({ attention: 'nonext' }) }}>
           {dl.noNextStep.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right="agendar" rightColor={AMBER} />)}
         </Panel>
       </div>
 
       <Title icon={Target} action={<button type="button" className="crm-btn" onClick={mineDeals({ listStatus: 'open' })}>Abrir meus negócios</button>}>Meu funil</Title>
-      <div className="crm-cards">
-        <Kpi value={money(dl.openValue)} label="Em aberto" sub={`${dl.openCount} ${dl.openCount === 1 ? 'negócio' : 'negócios'}`} />
-        <Kpi value={money(dl.weightedValue)} label="Valor ponderado" sub="valor × probabilidade da etapa" />
-        <Kpi value={money(dl.wonMonthValue)} label="Ganho no mês" tone={dl.wonMonthCount ? GREEN : undefined} sub={`${dl.wonMonthCount} ${dl.wonMonthCount === 1 ? 'negócio' : 'negócios'} · ${dl.lostMonthCount} perdido(s)`} />
-        <Kpi value={dl.conversion90 == null ? '—' : `${dl.conversion90}%`} label="Conversão (90 dias)" sub={dl.closed90 ? `${dl.closed90} negócios fechados` : 'ainda sem fechamentos'} />
-        <Kpi value={dl.slaCount} label="Prazo da etapa estourado" tone={dl.slaCount ? RED : undefined} onClick={dl.slaCount ? mineDeals({ attention: 'stalled' }) : undefined} hint="Ver os parados" />
-        <Kpi value={dl.overdueCount} label="Previsão vencida" tone={dl.overdueCount ? RED : undefined} onClick={dl.overdueCount ? mineDeals({ attention: 'overdue' }) : undefined} hint="Ver na lista de negócios" />
+      <div className="crm-cards crm-cards-six">
+        <Kpi featured icon={BarChart3} accent={BLUE} value={money(dl.openValue)} label="Em aberto" sub={`${dl.openCount} ${dl.openCount === 1 ? 'negócio' : 'negócios'}`} />
+        <Kpi featured icon={CircleDollarSign} accent={PURPLE} value={money(dl.weightedValue)} label="Valor ponderado" sub="valor × probabilidade da etapa" />
+        <Kpi icon={BadgeCheck} accent={GREEN} value={money(dl.wonMonthValue)} label="Ganho no mês" tone={dl.wonMonthCount ? GREEN : undefined} sub={`${dl.wonMonthCount} ${dl.wonMonthCount === 1 ? 'negócio' : 'negócios'} · ${dl.lostMonthCount} perdido(s)`} />
+        <Kpi icon={Percent} accent={AMBER} value={dl.conversion90 == null ? '—' : `${dl.conversion90}%`} label="Conversão (90 dias)" sub={dl.closed90 ? `${dl.closed90} negócios fechados` : 'ainda sem fechamentos'} />
+        <Kpi icon={Hourglass} value={dl.slaCount} label="Prazo da etapa estourado" tone={dl.slaCount ? RED : undefined} onClick={dl.slaCount ? mineDeals({ attention: 'stalled' }) : undefined} hint="Ver os parados" />
+        <Kpi icon={CalendarX} value={dl.overdueCount} label="Previsão vencida" tone={dl.overdueCount ? RED : undefined} onClick={dl.overdueCount ? mineDeals({ attention: 'overdue' }) : undefined} hint="Ver na lista de negócios" />
       </div>
       <div className="crm-two">
-        <Panel title="Com passo atrasado" count={dl.late.length} empty="Nenhum passo atrasado.">
+        <Panel icon={AlertTriangle} title="Com passo atrasado" count={dl.late.length} empty="Nenhum passo atrasado.">
           {dl.late.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={`venceu ${fmtDateBR(d.nextActivityDate)}`} rightColor={RED} />)}
         </Panel>
-        <Panel title="A fechar nos próximos 30 dias" count={dl.closingSoon.length} empty="Nenhum negócio seu com previsão nesse período.">
+        <Panel icon={CalendarX} title="A fechar nos próximos 30 dias" count={dl.closingSoon.length} empty="Nenhum negócio seu com previsão nesse período.">
           {dl.closingSoon.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={`${d.overdue ? 'venceu ' : ''}${fmtDateBR(d.expectedCloseDate)}`} rightColor={d.overdue ? RED : undefined} />)}
         </Panel>
       </div>
       <div className="crm-two">
-        <Panel title="Parados na etapa" count={dl.stalled.length} empty="Nada parado. Bom sinal.">
+        <Panel icon={Hourglass} title="Parados na etapa" count={dl.stalled.length} empty="Nada parado. Bom sinal.">
           {dl.stalled.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={`${d.daysInStage} dias`} rightColor={stageAgeColor(d.daysInStage)} />)}
         </Panel>
-        <Panel title="Onde estão meus negócios" count={dl.byStage.length} empty="Você não tem negócios em aberto.">
+        <Panel icon={Target} title="Onde estão meus negócios" count={dl.byStage.length} empty="Você não tem negócios em aberto.">
           {dl.byStage.map((s) => (
             <div key={`${s.pipeline}-${s.stage}`} className="crm-row-link" style={{ cursor: 'default' }}>
               <span>{s.stage} <span className="crm-muted">· {s.pipeline}</span></span>
@@ -104,13 +130,13 @@ export function TeamLens({ data, onOpenDeal, onGoDeals, onGoAgenda }) {
   return (
     <div>
       <Title icon={Target} action={<button type="button" className="crm-btn" onClick={() => onGoDeals({})}>Abrir o quadro</button>}>Funil do time</Title>
-      <div className="crm-cards">
-        <Kpi value={money(dl.openValue)} label="Em aberto" sub={`${dl.openCount} ${dl.openCount === 1 ? 'negócio' : 'negócios'}`} />
-        <Kpi value={money(dl.weightedValue)} label="Valor ponderado" sub="valor × probabilidade da etapa" />
-        <Kpi value={money(dl.wonMonthValue)} label="Ganho no mês" tone={dl.wonMonthCount ? GREEN : undefined} sub={`${dl.wonMonthCount} ${dl.wonMonthCount === 1 ? 'negócio' : 'negócios'} · ${dl.lostMonthCount} perdido(s)`} />
-        <Kpi value={dl.conversion90 == null ? '—' : `${dl.conversion90}%`} label="Conversão (90 dias)" sub={dl.closed90 ? `${dl.closed90} negócios fechados` : 'ainda sem fechamentos'} />
-        <Kpi value={ac.overdueCount} label="Atividades atrasadas" tone={ac.overdueCount ? RED : undefined} sub={`${ac.todayCount} para hoje · ${ac.openCount} em aberto`} onClick={onGoAgenda} hint="Abrir a agenda" />
-        <Kpi value={dl.unownedCount} label="Negócios sem responsável" tone={dl.unownedCount ? AMBER : undefined} sub={dl.unownedCount ? money(dl.unownedValue) : 'todos têm dono'} onClick={dl.unownedCount ? () => onGoDeals({ ownerId: 'none', view: 'list' }) : undefined} hint="Ver na lista de negócios" />
+      <div className="crm-cards crm-cards-six">
+        <Kpi featured icon={BarChart3} accent={BLUE} value={money(dl.openValue)} label="Em aberto" sub={`${dl.openCount} ${dl.openCount === 1 ? 'negócio' : 'negócios'}`} />
+        <Kpi featured icon={CircleDollarSign} accent={PURPLE} value={money(dl.weightedValue)} label="Valor ponderado" sub="valor × probabilidade da etapa" />
+        <Kpi icon={BadgeCheck} accent={GREEN} value={money(dl.wonMonthValue)} label="Ganho no mês" tone={dl.wonMonthCount ? GREEN : undefined} sub={`${dl.wonMonthCount} ${dl.wonMonthCount === 1 ? 'negócio' : 'negócios'} · ${dl.lostMonthCount} perdido(s)`} />
+        <Kpi icon={Percent} accent={AMBER} value={dl.conversion90 == null ? '—' : `${dl.conversion90}%`} label="Conversão (90 dias)" sub={dl.closed90 ? `${dl.closed90} negócios fechados` : 'ainda sem fechamentos'} />
+        <Kpi icon={Clock} value={ac.overdueCount} label="Atividades atrasadas" tone={ac.overdueCount ? RED : undefined} sub={`${ac.todayCount} para hoje · ${ac.openCount} em aberto`} onClick={onGoAgenda} hint="Abrir a agenda" />
+        <Kpi icon={UserX} value={dl.unownedCount} label="Negócios sem responsável" tone={dl.unownedCount ? AMBER : undefined} sub={dl.unownedCount ? money(dl.unownedValue) : 'todos têm dono'} onClick={dl.unownedCount ? () => onGoDeals({ ownerId: 'none', view: 'list' }) : undefined} hint="Ver na lista de negócios" />
       </div>
 
       <Title icon={Users}>Por responsável</Title>
@@ -136,7 +162,7 @@ export function TeamLens({ data, onOpenDeal, onGoDeals, onGoAgenda }) {
       </div>
 
       <div className="crm-two">
-        <Panel title="Parados na etapa" count={dl.stalledCount} empty="Nada parado. Bom sinal.">
+        <Panel icon={Hourglass} title="Parados na etapa" count={dl.stalledCount} empty="Nada parado. Bom sinal.">
           {dl.stalledDeals.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={`${d.daysInStage} dias`} rightColor={stageAgeColor(d.daysInStage)} />)}
         </Panel>
         <Panel title="Prazo da etapa estourado" count={dl.slaCount} empty="Nenhuma etapa com prazo estourado.">
@@ -158,13 +184,13 @@ export function RevenueLens({ data, onOpenDeal, onGoDeals }) {
   return (
     <div>
       <Title icon={Wallet}>Receita recorrente (MRR)</Title>
-      <div className="crm-cards">
-        <Kpi value={money(mrr.wonMrr)} label="MRR contratado" sub={`${mrr.wonCount} ${mrr.wonCount === 1 ? 'negócio ganho' : 'negócios ganhos'} com MRR`} />
-        <Kpi value={money(mrr.wonMonthMrr)} label="MRR ganho no mês" tone={mrr.wonMonthMrr ? GREEN : undefined} />
-        <Kpi value={money(mrr.openMrr)} label="MRR em negociação" sub="soma do MRR dos negócios em aberto" />
-        <Kpi value={money(dl.wonMonthValue)} label="Ganho no mês" tone={dl.wonMonthCount ? GREEN : undefined} sub={`${dl.wonMonthCount} ${dl.wonMonthCount === 1 ? 'negócio' : 'negócios'}`} />
-        <Kpi value={money(dl.won90Value)} label="Ganho em 90 dias" sub={`${dl.won90Count} negócios · conversão ${dl.conversion90 == null ? '—' : `${dl.conversion90}%`}`} />
-        <Kpi value={money(dl.weightedValue)} label="Valor ponderado" sub={`${money(dl.openValue)} em aberto`} />
+      <div className="crm-cards crm-cards-six">
+        <Kpi featured icon={Wallet} accent={BLUE} value={money(mrr.wonMrr)} label="MRR contratado" sub={`${mrr.wonCount} ${mrr.wonCount === 1 ? 'negócio ganho' : 'negócios ganhos'} com MRR`} />
+        <Kpi icon={TrendingUp} accent={GREEN} value={money(mrr.wonMonthMrr)} label="MRR ganho no mês" tone={mrr.wonMonthMrr ? GREEN : undefined} />
+        <Kpi icon={BarChart3} accent={PURPLE} value={money(mrr.openMrr)} label="MRR em negociação" sub="soma do MRR dos negócios em aberto" />
+        <Kpi icon={BadgeCheck} accent={GREEN} value={money(dl.wonMonthValue)} label="Ganho no mês" tone={dl.wonMonthCount ? GREEN : undefined} sub={`${dl.wonMonthCount} ${dl.wonMonthCount === 1 ? 'negócio' : 'negócios'}`} />
+        <Kpi icon={BadgeCheck} accent={GREEN} value={money(dl.won90Value)} label="Ganho em 90 dias" sub={`${dl.won90Count} negócios · conversão ${dl.conversion90 == null ? '—' : `${dl.conversion90}%`}`} />
+        <Kpi featured icon={CircleDollarSign} accent={PURPLE} value={money(dl.weightedValue)} label="Valor ponderado" sub={`${money(dl.openValue)} em aberto`} />
       </div>
       <Title icon={Clock}>Previsão de fechamento</Title>
       <div className="crm-table-wrap" style={{ marginBottom: 16 }}>
@@ -206,13 +232,13 @@ export function AccountsLens({ data, onOpenCompany }) {
   return (
     <div>
       <h3 className="crm-section-title" style={{ margin: '4px 0 10px' }}>Contas</h3>
-      <div className="crm-cards">
-        <Kpi value={data.totalCompanies} label="Empresas" sub={Object.entries(rel).map(([k, n]) => `${n} ${REL_META[k].label.toLowerCase()}`).join(' · ')} />
-        <Kpi value={data.totalContacts} label="Contatos" />
-        <div className="crm-card"><div className="crm-kpi-value" style={{ fontSize: 20 }}><CompletenessBar percent={data.avgCompleteness} /></div><div className="crm-kpi-label">Completude média</div></div>
-        <Kpi value={data.staleCount} label="Sem interação há +30 dias" sub="clientes e prospects" tone={data.staleCount ? AMBER : undefined} />
-        <Kpi value={data.noPrimaryContact} label="Sem contato principal" />
-        <Kpi value={data.noCnpj} label="Sem CNPJ" />
+      <div className="crm-cards crm-cards-six">
+        <Kpi icon={Building2} accent={BLUE} value={data.totalCompanies} label="Empresas" sub={Object.entries(rel).map(([k, n]) => `${n} ${REL_META[k].label.toLowerCase()}`).join(' · ')} />
+        <Kpi icon={Users} accent={PURPLE} value={data.totalContacts} label="Contatos" />
+        <div className="crm-card crm-kpi"><span className="crm-kpi-ico" style={{ '--ico': GREEN }} aria-hidden="true"><BadgeCheck size={20} /></span><span className="crm-kpi-body"><span className="crm-kpi-value" style={{ fontSize: 20 }}><CompletenessBar percent={data.avgCompleteness} /></span><span className="crm-kpi-label">Completude média</span></span></div>
+        <Kpi icon={Clock} value={data.staleCount} label="Sem interação há +30 dias" sub="clientes e prospects" tone={data.staleCount ? AMBER : undefined} />
+        <Kpi icon={UserX} value={data.noPrimaryContact} label="Sem contato principal" />
+        <Kpi icon={FileText} value={data.noCnpj} label="Sem CNPJ" />
       </div>
       <div className="crm-two">
         <div className="crm-section">

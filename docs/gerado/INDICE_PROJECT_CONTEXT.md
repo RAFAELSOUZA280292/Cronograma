@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8507 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8523 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -156,3 +156,4 @@ O `PROJECT_CONTEXT.md` tem 8507 linhas (a memória cronológica de cada decisão
 | 8472 | 116y. Organizar o quadro pessoal por API (2026-10-30, pedido do Rafael para a outra janela do Claude Code) | - Pedido: a outra janela (a que tem as transcrições das reuniões) diagnosticou o quadro (105 abertas, 19 atrasadas, cliente repetido em várias coluna… |
 | 8490 | 116z. CRM: botão azul "Copiar número" ao lado do WhatsApp (2026-10-30, pedido do Rafael para a Eduarda) | - Pedido: a Eduarda não usa o WhatsApp Web: copia o número, cola num grupo e depois chama. Botão azul ao lado do WhatsApp que põe na área de transfer… |
 | 8497 | 116za. Notas do CRM com texto formatado, emojis e modelos (2026-10-30, pedido do Rafael para incentivar a Edu… | - Pedido: as notas do negócio eram uma caixa de texto simples ("muito simples"). Querer biblioteca melhor, emoji e mais elementos para o time usar. |
+| 8508 | 116zb. Visão geral do CRM: visual menos "infantil" — Etapas 1 e 2 do plano (2026-10-30, pedido do Rafael, com… | - Pedido: o painel era "bom, funcional, mas com cara infantil". Plano proposto (diagnóstico + 5 etapas) e aprovado; feitas as Etapas 1 e 2 seguindo a… |
