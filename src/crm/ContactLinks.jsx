@@ -34,11 +34,39 @@ function CopyNumber({ value, compact }) {
     if (!ok) { notify(`Não foi possível copiar. O número é ${num}.`, { tone: 'error', ttlMs: 12000 }); return; }
     setDone(true); clearTimeout(timer.current); timer.current = setTimeout(() => setDone(false), 2000);
   }
+  const label = done ? 'Copiado' : (compact ? 'Copiar' : 'Copiar número');
+  const status = <span role="status" aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{done ? `Número ${num} copiado` : ''}</span>;
+  if (compact) {
+    return (
+      <button type="button" className="crm-cl-copy" onClick={copy} title={`Copiar o número: ${num}`} aria-label={`Copiar o número ${num}`}>
+        {done ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}<span>{label}</span>{status}
+      </button>
+    );
+  }
   return (
     <button type="button" className="crm-pill" style={COPY} onClick={copy} title={`Copiar o número: ${num}`} aria-label={`Copiar o número ${num}`}>
-      {done ? <Check size={11} aria-hidden="true" /> : <Copy size={11} aria-hidden="true" />} {done ? 'Copiado' : (compact ? 'Copiar' : 'Copiar número')}
-      <span role="status" aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{done ? `Número ${num} copiado` : ''}</span>
+      {done ? <Check size={11} aria-hidden="true" /> : <Copy size={11} aria-hidden="true" />} {label}
+      {status}
     </button>
+  );
+}
+
+// Versão compacta (cartão do quadro, lista, atividades): número como texto, WhatsApp só com ícone, "Copiar" azul pequeno e e-mail como texto.
+function CompactContact({ phone, whatsapp, email }) {
+  const wa = whatsapp || phone;
+  const main = phone || whatsapp;
+  const hasPhone = !!telHref(main);
+  const sameNumber = plainPhone(main) === plainPhone(wa);
+  return (
+    <div className="crm-cl" onClick={stop} onKeyDown={stop}>
+      {hasPhone && <a className="crm-cl-num" href={telHref(main)} title="Ligar" aria-label={`Ligar para ${fmtPhone(main)}`}><Phone size={13} aria-hidden="true" />{fmtPhone(main)}</a>}
+      {hasPhone && !sameNumber && <CopyNumber value={main} compact />}
+      {waHref(wa) && (
+        <a className="crm-cl-ico crm-cl-wa" href={waHref(wa)} target="_blank" rel="noopener noreferrer" title={`Abrir conversa no WhatsApp: ${fmtPhone(wa)}`} aria-label={`Abrir WhatsApp de ${fmtPhone(wa)}`}><MessageCircle size={15} aria-hidden="true" /></a>
+      )}
+      {waHref(wa) && <CopyNumber value={wa} compact />}
+      {email && <a className="crm-cl-mail" href={`mailto:${email}`} title="Escrever e-mail" aria-label={`Escrever para ${email}`}><Mail size={13} aria-hidden="true" /><span>{email}</span></a>}
+    </div>
   );
 }
 
@@ -46,6 +74,7 @@ export default function ContactLinks({ phone, whatsapp, email, compact = false }
   const wa = whatsapp || phone;
   const hasPhone = !!telHref(phone || whatsapp);
   if (!hasPhone && !email) return null;
+  if (compact) return <CompactContact phone={phone} whatsapp={whatsapp} email={email} />;
   const main = phone || whatsapp;
   const sameNumber = plainPhone(main) === plainPhone(wa);
   return (
