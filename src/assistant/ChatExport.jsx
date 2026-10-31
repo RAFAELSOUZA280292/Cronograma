@@ -115,7 +115,7 @@ export default function ChatExport({ getData, variant = 'bar' }) {
   return (
     <>
       <span className={icons ? undefined : 'cx-bar'} style={icons ? { display: 'contents' } : undefined}>
-        <button type="button" onClick={copyAll} aria-label="Copiar a conversa toda" title="Copiar a conversa toda"><Copy size={icons ? 16 : 13} aria-hidden="true" />{!icons && ' Copiar conversa'}</button>
+        <button type="button" onClick={copyAll} aria-label={icons ? 'Copiar a conversa toda' : undefined} title="Copiar a conversa toda"><Copy size={icons ? 16 : 13} aria-hidden="true" />{!icons && ' Copiar conversa'}</button>
         <span className="cx-pop" ref={wrapRef}>
           <button type="button" className={icons ? undefined : 'cx-menu-btn'} aria-haspopup="menu" aria-expanded={open} disabled={busy === 'xlsx'} onClick={() => setOpen((v) => !v)} aria-label="Exportar a conversa" title="Exportar a conversa (Word, PDF, Excel, texto…)">
             <Download size={icons ? 16 : 13} aria-hidden="true" />{!icons && ' Exportar'}

@@ -46,7 +46,7 @@ const SEGREDOS = [
 
 // Texto de todo o código-fonte: constantes em MAIÚSCULAS (ex.: MAX_STEPS) só são suspeitas se não existirem em lugar nenhum.
 const walk = (dir, acc = []) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { if (['node_modules', 'dist', '.sourcemaps', '.git'].includes(e.name)) continue; const p = path.join(dir, e.name); if (e.isDirectory()) walk(p, acc); else if (/\.(m?js|jsx|css|py|sh|json)$/.test(e.name)) acc.push(p); } return acc; };
-const CODE = ['server', 'src', 'shared', 'scripts'].filter((d) => fs.existsSync(path.join(ROOT, d))).flatMap((d) => walk(path.join(ROOT, d))).map((f) => read(f)).join('\n');
+const CODE = ['server', 'src', 'shared', 'scripts', 'e2e'].filter((d) => fs.existsSync(path.join(ROOT, d))).flatMap((d) => walk(path.join(ROOT, d))).map((f) => read(f)).join('\n');
 const ROTAS_QUE_NAO_EXISTEM_DE_PROPOSITO = new Set(['/api/health']);
 let secretHits = 0; let missingPaths = 0; let badLines = 0; let badRoutes = 0; let badEnvs = 0; let badIds = 0;
 const report = [];

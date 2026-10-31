@@ -22,7 +22,7 @@ export function InlineMoney({ value, disabled, disabledTitle, label, onSave }) {
     <span onClick={stop} onKeyDown={stop}>
       {edit
         ? <input ref={ref} inputMode="decimal" aria-label={`Valor — ${label}`} value={v} onChange={(e) => setV(e.target.value)} onBlur={commit} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEdit(false); }} style={{ width: 96, textAlign: 'right' }} />
-        : <button type="button" className="crm-inline" title="Clique para editar o valor" aria-label={`Editar o valor de ${label}`} onClick={() => { setV(value ? numStr(value) : ''); setEdit(true); }}>{value ? fmtMoney(value) : <span className="crm-muted">definir</span>}</button>}
+        : <button type="button" className="crm-inline" title="Clique para editar o valor" aria-label={`Editar o valor de ${label}: ${value ? fmtMoney(value) : 'definir'}`} onClick={() => { setV(value ? numStr(value) : ''); setEdit(true); }}>{value ? fmtMoney(value) : <span className="crm-muted">definir</span>}</button>}
     </span>
   );
 }

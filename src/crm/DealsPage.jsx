@@ -517,7 +517,7 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
                   const can = caps.write && (d.status === 'open' || caps.remove);
                   const why = !caps.write ? 'Você não tem permissão para editar' : 'Negócio fechado: só gestores editam';
                   return (
-                    <tr key={d.id} className={sel.isSelected(d.id) ? 'ui-tk-on' : undefined} aria-selected={caps.write ? sel.isSelected(d.id) : undefined} {...activateRow(() => onOpenDeal(d.id))}>
+                    <tr key={d.id} className={sel.isSelected(d.id) ? 'ui-tk-on' : undefined} {...activateRow(() => onOpenDeal(d.id))}>
                       {caps.write && <SelectCell checked={sel.isSelected(d.id)} onCheck={(e) => sel.onRowCheck(d.id, e)} label={`Selecionar ${d.title}`} />}
                       <td>
                         <div className="crm-name">{d.title}</div>

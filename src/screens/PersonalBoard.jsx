@@ -2401,7 +2401,7 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
               onClick={() => goToBoardPage(b.id)}
               style={{ ...S.personalTab, ...(b.id === activeBoardId && !activeLinkedToken ? S.personalTabActive : {}) }}
             >
-              <input value={b.name} onChange={(e) => renameBoard(b.id, e.target.value)} style={S.personalTabInput} />
+              <input value={b.name} onChange={(e) => renameBoard(b.id, e.target.value)} aria-label={`Nome do quadro ${b.name}`} style={S.personalTabInput} />
               {b.visibility === 'public' && <span style={S.publicBadge}><Globe size={11} /></span>}
               <button className="pb-dense" aria-label="Excluir quadro" title="Excluir quadro" style={S.chipX} onClick={(e) => { e.stopPropagation(); deleteBoard(b.id); }}><X aria-hidden="true" size={11} /></button>
             </div>

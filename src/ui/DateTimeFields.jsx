@@ -83,7 +83,7 @@ export function DatePopButton({ value, onPick, min, max, children, title = 'Esco
   const { refs, floatingStyles, wrapRef } = useFloatingPanel(open, close);
   return (
     <span className="dt-wrap dt-inline" ref={(el) => { wrapRef.current = el; refs.setReference(el); }}>
-      <button ref={btnRef} type="button" className={className} title={title} aria-label={ariaLabel || title} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? uid : undefined} onClick={() => setOpen((v) => !v)}>{children}</button>
+      <button ref={btnRef} type="button" className={className} title={title} aria-label={ariaLabel || title} role="combobox" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? uid : undefined} onClick={() => setOpen((v) => !v)}>{children}</button>
       {open && (
         <div id={uid} ref={refs.setFloating} style={floatingStyles} className="dt-pop" role="dialog" aria-label="Escolher data">
           <CalendarPanel value={value} min={min} max={max} onPick={(iso) => { onPick(iso); close(true); }} />
@@ -107,7 +107,7 @@ export function DateField({ value, onChange, min, max, disabled, placeholder = '
     <div className={`dt-wrap ${className}`} ref={(el) => { wrapRef.current = el; refs.setReference(el); }}>
       <div className={`dt-field ${disabled ? 'is-disabled' : ''}`}>
         <input ref={inputRef} id={id} className="dt-input" inputMode="numeric" autoComplete="off" disabled={disabled} placeholder={placeholder} aria-label={ariaLabel || 'Data'}
-          aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? uid : undefined} value={text}
+          role="combobox" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? uid : undefined} value={text}
           onChange={(e) => { const m = maskBr(e.target.value); setText(m); const iso = parseBr(m); if (iso && inRange(iso)) onChange(iso); else if (!m && allowClear) onChange(''); }}
           onBlur={() => { const iso = parseBr(text); if (!iso || !inRange(iso)) setText(brOf(value)); }}
           onKeyDown={(e) => { if (e.key === 'ArrowDown' || (e.key === 'Enter' && !open)) { e.preventDefault(); setOpen(true); } }} />

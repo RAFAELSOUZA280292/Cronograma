@@ -146,7 +146,7 @@ export default function ModuleShell({
         </Menu>
         <span className="shell-spacer" />
         <span className="shell-save"><GlobalSaveStatus /></span>
-        <button type="button" className="shell-btn shell-search" onClick={() => setPalette(true)} title="Buscar (Ctrl+K)" aria-label="Buscar">
+        <button type="button" className="shell-btn shell-search" onClick={() => setPalette(true)} title="Buscar (Ctrl+K)" aria-label={`Buscar… ${isMac ? '⌘K' : 'Ctrl K'}`}>
           <Search size={14} aria-hidden="true" /> <span>Buscar…</span> <kbd>{isMac ? '⌘K' : 'Ctrl K'}</kbd>
         </button>
         {onOpenRenata && (

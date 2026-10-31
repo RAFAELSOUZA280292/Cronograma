@@ -89,7 +89,7 @@ export default function CompaniesPage({ caps, options, refreshKey, onOpenCompany
           </tr></thead>
           <tbody>
             {data.items.map((c) => (
-              <tr key={c.id} className={sel.isSelected(c.id) ? 'ui-tk-on' : undefined} aria-selected={canBulk ? sel.isSelected(c.id) : undefined} {...activateRow(() => onOpenCompany(c.id))}>
+              <tr key={c.id} className={sel.isSelected(c.id) ? 'ui-tk-on' : undefined} {...activateRow(() => onOpenCompany(c.id))}>
                 {canBulk && <SelectCell checked={sel.isSelected(c.id)} onCheck={(e) => sel.onRowCheck(c.id, e)} label={`Selecionar ${c.legalName}`} />}
                 <td><div className="crm-name">{c.legalName}</div><div className="crm-muted">{[c.tradeName, c.cnpj ? fmtCnpj(c.cnpj) : ''].filter(Boolean).join(' · ')}</div></td>
                 {colOn('rel') && <td><RelPill value={c.relationship} /></td>}

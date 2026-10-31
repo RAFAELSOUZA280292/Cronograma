@@ -296,7 +296,7 @@ export default function PublicCompanyScreen({ token }) {
                   <div className="pc-muted">Cada passo com a data, quem responde e a situação. Os que já passaram da data aparecem primeiro.</div>
                   <div className="pc-who no-print" role="group" aria-label="Filtrar por quem responde">
                     {[['todos', 'Todos'], ['pricetax', 'PRICETAX'], ['empresa', `Equipe da ${state.data.company.name}`]].map(([id, label]) => (
-                      <button key={id} type="button" className="pc-tab" aria-pressed={who === id} aria-selected={who === id} onClick={() => setWho(id)} style={{ minHeight: 34, padding: '0 12px' }}>{label}</button>
+                      <button key={id} type="button" className="pc-tab" aria-pressed={who === id} onClick={() => setWho(id)} style={{ minHeight: 34, padding: '0 12px' }}>{label}</button>
                     ))}
                   </div>
                   {list.length === 0 && <div className="pc-muted">Nenhum passo pendente para este filtro.</div>}
