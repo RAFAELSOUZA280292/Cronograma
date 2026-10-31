@@ -2,44 +2,45 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **326 rotas** em **29 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **328 rotas** em **30 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
 | Prefixo | Arquivo | Linha |
 |---|---|---|
-| `/api` | `server/routes.js` | 68 |
-| `/api/xflow` | `server/xflow.js` | 69 |
-| `/api/google` | `server/google.js` | 70 |
-| `/api/agenda` | `server/agenda.js` | 71 |
-| `/api/macro` | `server/macro.js` | 72 |
-| `/api/inventory` | `server/inventory.js` | 73 |
-| `/api/inventory` | `server/inventoryEdit.js` | 74 |
-| `/api/gaps` | `server/gaps.js` | 75 |
-| `/api/task-links` | `server/taskLinks.js` | 76 |
-| `/api/task-links` | `server/taskLinkBackfill.js` | 77 |
-| `/api/standard-plan` | `server/standardPlanApi.js` | 78 |
-| `/api/meeting-inbox` | `server/meetingInbox.js` | 79 |
-| `/api/assistant` | `server/assistant.js` | 80 |
-| `/api/knowledge` | `server/knowledge.js` | 81 |
-| `/api/pareceres` | `server/pareceres.js` | 82 |
-| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 83 |
-| `/api/crm` | `server/crm/routes.js` | 84 |
-| `/api/renata` | `server/renata/routes.js` | 85 |
-| `/api/widget` | `server/widget.js` | 86 |
-| `/api/daily` | `server/daily.js` | 87 |
-| `/api/templates` | `server/documentTemplates.js` | 88 |
-| `/api/connect` | `server/connect.js` | 89 |
-| `/api/company-share` | `server/companyShare.js` | 90 |
-| `/api/company-calendar` | `server/companyCalendar.js` | 91 |
-| `/api/public-company` | `server/companyShare.js` | 92 |
-| `/d` | `server/companyShare.js` | 93 |
-| `/d` | `server/errorHandler.js` | 94 |
-| `/api/push` | `server/push.js` | 95 |
-| `/api/ops-intel` | `server/opsIntel.js` | 96 |
-| `/api/experience` | `server/experience.js` | 97 |
-| `/api/project-history` | `server/projectVersions.js` | 98 |
-| `/api` | `server/errorHandler.js` | 106 |
+| `/api` | `server/routes.js` | 69 |
+| `/api/xflow` | `server/xflow.js` | 70 |
+| `/api/google` | `server/google.js` | 71 |
+| `/api/agenda` | `server/agenda.js` | 72 |
+| `/api/macro` | `server/macro.js` | 73 |
+| `/api/inventory` | `server/inventory.js` | 74 |
+| `/api/inventory` | `server/inventoryEdit.js` | 75 |
+| `/api/gaps` | `server/gaps.js` | 76 |
+| `/api/task-links` | `server/taskLinks.js` | 77 |
+| `/api/task-links` | `server/taskLinkBackfill.js` | 78 |
+| `/api/standard-plan` | `server/standardPlanApi.js` | 79 |
+| `/api/meeting-inbox` | `server/meetingInbox.js` | 80 |
+| `/api/assistant` | `server/assistant.js` | 81 |
+| `/api/knowledge` | `server/knowledge.js` | 82 |
+| `/api/pareceres` | `server/pareceres.js` | 83 |
+| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 84 |
+| `/api/crm` | `server/crm/routes.js` | 85 |
+| `/api/renata` | `server/renata/routes.js` | 86 |
+| `/api/widget` | `server/widget.js` | 87 |
+| `/api/daily` | `server/daily.js` | 88 |
+| `/api/templates` | `server/documentTemplates.js` | 89 |
+| `/api/library-search` | `server/librarySearch.js` | 90 |
+| `/api/connect` | `server/connect.js` | 91 |
+| `/api/company-share` | `server/companyShare.js` | 92 |
+| `/api/company-calendar` | `server/companyCalendar.js` | 93 |
+| `/api/public-company` | `server/companyShare.js` | 94 |
+| `/d` | `server/companyShare.js` | 95 |
+| `/d` | `server/errorHandler.js` | 96 |
+| `/api/push` | `server/push.js` | 97 |
+| `/api/ops-intel` | `server/opsIntel.js` | 98 |
+| `/api/experience` | `server/experience.js` | 99 |
+| `/api/project-history` | `server/projectVersions.js` | 100 |
+| `/api` | `server/errorHandler.js` | 108 |
 
 Montagens extras (fora do `index.js`): `/api/connect/crm` = o roteador do CRM (`server/crm/routes.js`) reaproveitado por `server/connect.js` para a chave `crm_operate`/`write_all`/`read_all`; `/api/templates` tem limite de corpo próprio (45 MB) definido no `index.js`.
 
@@ -109,7 +110,7 @@ Arquivos: `server/index.js`, `server/payloadStats.js`, `server/xflowTransitions.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:123` |
+| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:125` |
 | GET | `(sem prefixo conhecido)/projects` | `requireAuth` `payloadStats('GET /projects')` |  | `server/payloadStats.js:27` |
 | DELETE | `(sem prefixo conhecido)/tickets/:id` |  | arquivar) — um ticket aberto por engano também precisa poder ir pra Lixeira. purgar (apagar de vez) não passa por aqui — é DELETE direto, | `server/xflowTransitions.js:54` |
 
@@ -376,6 +377,14 @@ Arquivos: `server/knowledgeLibraryRoutes.js`.
 | POST | `/api/knowledge-library/:id/restore` |  |  | `server/knowledgeLibraryRoutes.js:152` |
 | GET | `/api/knowledge-library/:id/file` |  |  | `server/knowledgeLibraryRoutes.js:162` |
 
+## `/api/library-search` — 1 rotas
+
+Arquivos: `server/librarySearch.js`.
+
+| Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
+|---|---|---|---|---|
+| GET | `/api/library-search` |  |  | `server/librarySearch.js:35` |
+
 ## `/api/macro` — 1 rotas
 
 Arquivos: `server/macro.js`.
@@ -462,20 +471,21 @@ Arquivos: `server/push.js`.
 | POST | `/api/push/unsubscribe` | `requireAuth` |  | `server/push.js:153` |
 | POST | `/api/push/test` | `requireAuth` |  | `server/push.js:162` |
 
-## `/api/renata` — 8 rotas
+## `/api/renata` — 9 rotas
 
 Arquivos: `server/renata/routes.js`. Proteção do grupo (`router.use` global): `server/renata/routes.js`: `requireAuth`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/renata/status` |  |  | `server/renata/routes.js:34` |
-| POST | `/api/renata/chat` |  |  | `server/renata/routes.js:38` |
-| POST | `/api/renata/conversations/:id/decide` |  | Confirma ou cancela ações pendentes: [{actionId, decision: 'confirm'\|'cancel'}] | `server/renata/routes.js:50` |
-| GET | `/api/renata/conversations/:id` |  | Conversa em formato de tela: mensagens (texto), passos executados com status, e cartões pendentes. | `server/renata/routes.js:58` |
-| GET | `/api/renata/conversations` |  |  | `server/renata/routes.js:79` |
-| GET | `/api/renata/actions` |  | Registro de auditoria: o seu; o administrador vê o da organização inteira (?scope=org). | `server/renata/routes.js:85` |
-| POST | `/api/renata/actions/:id/undo` |  |  | `server/renata/routes.js:96` |
-| GET | `/api/renata/catalog` |  | Transparência: o que a RENATA consegue fazer por este usuário e como cada rota da plataforma é coberta. | `server/renata/routes.js:102` |
+| GET | `/api/renata/status` |  |  | `server/renata/routes.js:35` |
+| GET | `/api/renata/context-card` |  | A ficha que a RENATA recebe do registro aberto, para a pessoa ver o que ela sabe (mesma função do chat; sem IA, sem custo). | `server/renata/routes.js:40` |
+| POST | `/api/renata/chat` |  |  | `server/renata/routes.js:46` |
+| POST | `/api/renata/conversations/:id/decide` |  | Confirma ou cancela ações pendentes: [{actionId, decision: 'confirm'\|'cancel'}] | `server/renata/routes.js:58` |
+| GET | `/api/renata/conversations/:id` |  | Conversa em formato de tela: mensagens (texto), passos executados com status, e cartões pendentes. | `server/renata/routes.js:66` |
+| GET | `/api/renata/conversations` |  |  | `server/renata/routes.js:87` |
+| GET | `/api/renata/actions` |  | Registro de auditoria: o seu; o administrador vê o da organização inteira (?scope=org). | `server/renata/routes.js:93` |
+| POST | `/api/renata/actions/:id/undo` |  |  | `server/renata/routes.js:104` |
+| GET | `/api/renata/catalog` |  | Transparência: o que a RENATA consegue fazer por este usuário e como cada rota da plataforma é coberta. | `server/renata/routes.js:110` |
 
 ## `/api/standard-plan` — 14 rotas
 

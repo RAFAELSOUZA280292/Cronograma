@@ -6,6 +6,7 @@ import { requireAuth } from '../auth.js';
 import { registry, executor, agent, aiConfigured, getClient } from './index.js';
 import { todayInSp } from '../widgetSummary.js';
 import { routeIndex, curatedSet, classify } from './policy.js';
+import { buildContextCard } from './contextCard.js';
 
 export const router = Router();
 router.use(requireAuth);
@@ -33,6 +34,13 @@ const wrap = (fn) => async (req, res, next) => {
 
 router.get('/status', wrap(async (req, res) => {
   res.json({ available: await aiConfigured(), tools: registry.forUser(req.user).length });
+}));
+
+// A ficha que a RENATA recebe do registro aberto, para a pessoa ver o que ela sabe (mesma função do chat; sem IA, sem custo).
+router.get('/context-card', wrap(async (req, res) => {
+  const type = String(req.query.type || '').slice(0, 30); const id = String(req.query.id || '').slice(0, 80);
+  const card = id ? await buildContextCard({ user: req.user, context: { entity: { type, id } }, today: todayInSp() }) : null;
+  res.json({ card: card ? { type: card.type, title: card.title, lines: card.lines } : null });
 }));
 
 router.post('/chat', wrap(async (req, res) => {

@@ -207,6 +207,12 @@ O estado do `AppScreens` (projetos, quadro, rascunhos do pai) é preservado quan
 - `S` (`src/styles/S.js`, objeto de estilos inline): importe `import { S } from '../styles/S.js'` (código novo); o `App.jsx` ainda reexporta `S` por compatibilidade. **Antes de renomear/remover uma chave de `S`, faça `grep` no projeto todo:** React ignora `style={undefined}` sem erro.
 - Peças novas usam classes `ui-*` de `src/ui/ui.css`; CSS de módulo tem prefixo próprio (`crm-`, `par-`, `mdl-`, `knw-`, `shell-`, `pb-`, `mtg2-`...) e vive no próprio módulo (`crmMeta.js`, `pareceresMeta.js`, `modelosMeta.js`, `agenda.css`, `macro.css`, `meetingsCss.js`).
 
+### Tokens de forma (§116zj)
+`index.html` define a escala de **raio** (`--r-xs/sm/md/lg/xl` = 4/6/8/10/12, `--r-pill`), **texto** (`--fs-xs/sm/md/lg/xl` = 12/13/14/16/20) e **espaço** (`--sp-1..4` = 4/8/12/16). Em CSS novo use o token; valor fora da escala (12.5px, 11px…) é desvio. `node scripts/tokens-migrar.mjs --report` mostra a adoção por módulo; `--apply <pasta>` troca só os valores exatos (sem mudança visual). **Migrados:** `src/ui`, `src/shell`, `src/renata`, `src/crm`, `src/home` (catraca em `scripts/design-tokens.test.mjs`). Camadas de `z-index`: painel/modal padrão 60, **`above` 100** (RENATA), CRM 80/90, confirmações 300.
+
+### Busca global (Ctrl+K)
+`CommandPalette.jsx` mistura itens locais (módulos, empresas, atividades, reuniões, quadro) com **remotos** (`REMOTE_GROUPS`): CRM (`/api/crm/search`) e, para a equipe PRICETAX, Pareceres/Modelos/Conhecimento (`/api/library-search`, `src/shell/libraryItems.js`). Uma fonte fora do ar não derruba a outra.
+
 ### Peças comuns (`src/ui/`)
 | Peça | Para quê | Regra |
 |---|---|---|

@@ -172,6 +172,10 @@ Método: script lê os literais SQL de `server/**/*.js` e lista os que citam uma
 - XFlow responde **403** (não 404) para ticket de outra org — confirma que o id existe (baixo).
 - `GET /api/users` e `GET /api/projects` do Super Admin sem `asOrg` devolvem **tudo de todas as bases** — seguro hoje porque só a tela de Organizações os chama assim (`PROJECT_CONTEXT.md` §7).
 
+## Onda 2: busca da paleta e ficha da RENATA (§116zj)
+- **`GET /api/library-search`**: só master/pricetax (`requireMasterOrPricetax`), mesma organização das telas; fatos do Conhecimento pela regra da Central (escopo `org`, ou projeto/conversa acessível); sem IA; o texto da pessoa só vira parâmetro SQL (regex escapado).
+- **Ficha da RENATA** (`server/renata/contextCard.js`): montada no servidor, nunca aceita texto do navegador; lê o CRM pelas rotas da tela com a identidade da pessoa e o cronograma por `canAccessProject`; `cliente`, outra organização, id malformado ou falha = sem ficha. Texto de terceiros entre « » em uma linha (dado, não instrução).
+
 ## API de conectividade
 
 ### Visão

@@ -25,10 +25,10 @@ export function DialogOverlay({ onClose, label, history, esc, children, ...rest 
 
 // Modal e Drawer únicos: cabeçalho (título + Fechar), corpo que rola, rodapé de ações. Mesmo Esc/Voltar/foco de DialogOverlay.
 // `error` aparece dentro (a ação que falhou não fecha a janela); `footer` recebe os botões (Cancelar à esquerda do primário).
-function Frame({ kind, title, subtitle, onClose, children, footer, error, size, width, history, busy, label }) {
+function Frame({ kind, title, subtitle, onClose, children, footer, error, size, width, history, busy, label, above }) {
   const close = () => { if (!busy) onClose(); };
   return (
-    <DialogOverlay onClose={close} history={history} label={label || title} className={`ui-frame-overlay ${kind}`}>
+    <DialogOverlay onClose={close} history={history} label={label || title} className={`ui-frame-overlay ${kind}${above ? ' above' : ''}`}>
       <div className={`ui-frame ${kind} ${size || ''}`} style={width ? { width } : undefined} onClick={(e) => e.stopPropagation()}>
         <div className="ui-frame-head">
           <div className="ui-frame-titles">

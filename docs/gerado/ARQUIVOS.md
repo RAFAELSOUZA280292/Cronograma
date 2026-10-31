@@ -4,7 +4,7 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 155 arquivos
+## `server/` — 158 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -86,7 +86,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/gaps.js` | 232 | Lacunas entre cronogramas (Etapa 4 do plano, 2026-10-08; pedido do Felipe: "levantamento de tudo que temos de atividades ... para |
 | `server/google.js` | 59 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
 | `server/googleCalendar.js` | 290 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
-| `server/index.js` | 170 |  |
+| `server/index.js` | 172 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
 | `server/inventory.js` | 373 | Levantamento de atividades de TODAS as empresas (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md; pedido do |
 | `server/inventoryEdit.js` | 194 | Passo 3 do caminho combinado (2026-10-07): organizar o que já existe a partir do Levantamento — padronizar o nome do |
@@ -96,6 +96,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/knowledgeFacts.js` | 451 | Memória de conhecimento em camadas da RENATA (Fase 7, 2026-09-11; |
 | `server/knowledgeLibrary.js` | 405 | Biblioteca de conhecimento da RENATA (2026-10-27, pedido do Rafael: "um local para dar input de conhecimento — material sobre Produtor Rural antes e |
 | `server/knowledgeLibraryRoutes.js` | 174 | Rotas da Biblioteca de conhecimento (2026-10-27, §116) — só master/pricetax; ver server/knowledgeLibrary.js. |
+| `server/librarySearch.js` | 67 | Busca da paleta (Ctrl+K) em Pareceres, Modelos e Conhecimento (Onda 2, U4). Só master/pricetax, como as três telas. |
 | `server/linkPreview.js` | 146 | Pré-visualização de links (título, descrição, imagem) — 2026-10-05, §78. O servidor busca a página, então a defesa é contra |
 | `server/loginLimit.js` | 49 | Limite de tentativas de login (A2, 2026-10-29). Em memória: reinicia com o servidor, o que basta para barrar tentativa em série. |
 | `server/macro.js` | 128 | Visão Macro (2026-08) — quadro de cronograma geral pra controle interno: |
@@ -122,14 +123,16 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/projectVersionsSchema.js` | 105 | Versionamento do cronograma (§83): tabela `project_versions` + gatilhos em `projects`. A captura mora no BANCO de propósito: `projects.data` é gravado inteiro por ~17 pontos do |
 | `server/promptGuard.js` | 25 | Regra "texto de terceiros é DADO, nunca instrução" (2026-10-30, Onda 1 / Q2). A RENATA operacional já tinha (regra 11 em renata/agent.js); |
 | `server/push.js` | 173 | Notificações push (2026-10-17). O sino já existia (tabela `notifications`); aqui cada notificação nova também vira um aviso no celular/computador de |
-| `server/renata/agent.js` | 206 | Agente da RENATA (§101): interpreta o pedido, escolhe as ferramentas do catálogo, executa pelo executor (que valida, confere permissão, pede confirmação, |
+| `server/renata/agent.js` | 214 | Agente da RENATA (§101): interpreta o pedido, escolhe as ferramentas do catálogo, executa pelo executor (que valida, confere permissão, pede confirmação, |
+| `server/renata/contextCard.js` | 44 | Ficha de contexto da RENATA (Onda 2, R1): quando a pessoa está com um negócio, uma empresa do CRM ou uma empresa do cronograma aberta, a RENATA |
+| `server/renata/contextCardFormat.js` | 96 | Formatadores puros da ficha de contexto da RENATA (Onda 2, R1): recebem os dados já lidos e devolvem as linhas da ficha. Sem banco, sem rede. |
 | `server/renata/executor.js` | 188 | Executor de ferramentas da RENATA (§101). TODA operação passa por aqui: valida os parâmetros, checa permissão (as rotas do servidor decidem, em nome do |
 | `server/renata/index.js` | 45 | Montagem da RENATA operacional (§101): catálogo de ferramentas + executor + agente + rotas. Módulo novo = um arquivo em tools/ registrado aqui. |
 | `server/renata/internalAuth.js` | 28 | Entrada interna da RENATA (§101): as ferramentas dela chamam as MESMAS rotas que a tela chama, por loopback (127.0.0.1) dentro do próprio |
 | `server/renata/internalCall.js` | 24 | Chamada interna (loopback) às rotas do próprio servidor, em nome de um usuário (§101). Devolve {status, json} — nunca lança por status HTTP: |
 | `server/renata/policy.js` | 62 | Política de acesso da RENATA às rotas do servidor (§101): o que NUNCA é por ela (credenciais, usuários, permissões, links públicos, telemetria de pessoas), |
 | `server/renata/registry.js` | 43 | Catálogo central de ferramentas da RENATA (§101). Cada ferramenta é uma operação estruturada: nome, módulo, descrição para a IA, esquema de parâmetros, |
-| `server/renata/routes.js` | 111 | Rotas da RENATA operacional (/api/renata) — §101. Conversa (uma por pessoa, continua entre telas), confirmação/cancelamento de ações pendentes, histórico de |
+| `server/renata/routes.js` | 119 | Rotas da RENATA operacional (/api/renata) — §101. Conversa (uma por pessoa, continua entre telas), confirmação/cancelamento de ações pendentes, histórico de |
 | `server/renata/schema.js` | 63 | Tabelas da RENATA operacional (§101): conversa (continua entre telas e sessões) e registro de auditoria de TODA ação (inclusive recusas e |
 | `server/renata/scriptedClient.js` | 33 | Modelo "roteirizado" SÓ para teste local (§101): em vez de chamar a IA, responde com o que um módulo .mjs decide a partir do estado da conversa. Serve para |
 | `server/renata/tools/biblioteca.js` | 26 | Biblioteca de conhecimento (2026-10-27, §116): a RENATA operacional consulta os materiais que a equipe ensinou (somente leitura, só equipe PRICETAX). |
@@ -180,11 +183,11 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/transcriptParser.js` | 84 | Funções puras de parsing de texto de reunião — SEM import de React, |
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 
-## `src/` — 193 arquivos
+## `src/` — 194 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
-| `src/App.jsx` | 3664 |  |
+| `src/App.jsx` | 3686 |  |
 | `src/agenda/Agenda.jsx` | 583 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/NewEventModal.jsx` | 225 | "Novo compromisso" da Agenda (Onda 5, §81). Cria no Google Calendar da pessoa (POST /api/agenda/events); |
 | `src/agenda/RenataAgendaBriefing.jsx` | 708 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
@@ -215,13 +218,13 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/CadenceEditor.jsx` | 76 | Cadência de follow-up por etapa do funil (§93): ao entrar na etapa agenda o 1º passo; ao concluir um passo agenda o seguinte. |
 | `src/crm/CloseDealDialog.jsx` | 70 | Fechar um negócio (ganhar/perder) ou movê-lo pra qualquer etapa pelo quadro. |
 | `src/crm/CompaniesPage.jsx` | 99 | Lista de empresas (PRD 7) — filtros, busca, paginação. Clique abre a ficha. |
-| `src/crm/CompanyDrawer.jsx` | 417 | Ficha 360º da empresa (PRD 8/9/11). Fase 1: Visão Geral, Contatos (com o |
+| `src/crm/CompanyDrawer.jsx` | 418 | Ficha 360º da empresa (PRD 8/9/11). Fase 1: Visão Geral, Contatos (com o |
 | `src/crm/CompanyForm.jsx` | 194 | Cadastro/edição de empresa. Estado local do formulário + botão Salvar (nada |
 | `src/crm/ContactForm.jsx` | 118 | Cadastro/edição de contato (estado local + Salvar). Sem empresa definida, o |
 | `src/crm/ContactLinks.jsx` | 80 | Telefone, WhatsApp e e-mail do contato como links de um toque (ligar, abrir conversa, escrever) e um botão azul que copia o número (só dígitos). |
 | `src/crm/ContactsPage.jsx` | 74 | Lista de contatos (PRD 10). Papel na decisão e força do relacionamento à vista. |
 | `src/crm/CrmScreen.jsx` | 138 | CRM PRICETAX — shell do módulo (Fases 1-3, 2026-09-20, PROJECT_CONTEXT.md §54/§55/§56). |
-| `src/crm/DealDrawer.jsx` | 307 | Ficha do negócio (drawer). Resumo (valor, probabilidade, produtos), Histórico |
+| `src/crm/DealDrawer.jsx` | 308 | Ficha do negócio (drawer). Resumo (valor, probabilidade, produtos), Histórico |
 | `src/crm/DealForm.jsx` | 342 | Cadastro/edição de negócio (estado local + Salvar). A empresa é sempre |
 | `src/crm/DealImportWizard.jsx` | 208 | Importar negócios de planilha (feito pro export "Oportunidades" do PipeRun). Arquivo → colunas → |
 | `src/crm/DealTags.jsx` | 38 | Tags do negócio (vindas do PipeRun ou criadas aqui): chips com remoção e um campo que sugere as tags já existentes. |
@@ -241,7 +244,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/TagFilter.jsx` | 70 | Filtro por VÁRIAS tags (o negócio precisa ter todas) — 2026-10-26. O valor é o texto "tag1\|tag2" (mesmo formato do servidor e das visões salvas). |
 | `src/crm/boardMove.js` | 48 | Mover um negócio de etapa NA TELA, antes de o servidor responder (2026-10-27, §119). O quadro do funil é um objeto |
 | `src/crm/crmApi.js` | 94 | Cliente da API do CRM (/api/crm) — Fase 1. Só monta URL/corpo; regra de |
-| `src/crm/crmMeta.js` | 549 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
+| `src/crm/crmMeta.js` | 550 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
 | `src/crm/importMapping.js` | 51 | Reconhecimento automático das colunas da planilha (Import Wizard). Módulo puro, |
 | `src/crm/overviewLogic.js` | 68 | Prioridade do dia na Visão geral do CRM (piloto da Onda 2, 2026-10-31). Lógica pura: nada de IA, nada de rede — escolhe e ordena o que já veio do servidor |
 | `src/crm/ui.jsx` | 127 | Peças de UI compartilhadas do CRM. |
@@ -254,7 +257,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/knowledge/ConflictsTab.jsx` | 118 | Aba Conflitos (Fase 8, item 6 do pedido do Rafael) — pares lado a |
 | `src/knowledge/EntitiesTab.jsx` | 89 | Aba Pessoas/Empresas (Fase 8, item 7 do pedido do Rafael) — lista + |
 | `src/knowledge/FactDrawer.jsx` | 219 | Card/drawer detalhado de um conhecimento (Fase 8, 2026-09-11, item 4 |
-| `src/knowledge/KnowledgeCenter.jsx` | 195 | Central de Conhecimento — "o cérebro da RENATA" (Fase 8, 2026-09-11, |
+| `src/knowledge/KnowledgeCenter.jsx` | 201 | Central de Conhecimento — "o cérebro da RENATA" (Fase 8, 2026-09-11, |
 | `src/knowledge/LibraryTab.jsx` | 380 | Aba Biblioteca da Central de Conhecimento (2026-10-27, §116): onde a equipe ENSINA a RENATA com material próprio (PDF, Word, PowerPoint, Excel, texto). |
 | `src/knowledge/LinksTab.jsx` | 221 | Aba "Tarefas × atividades" da Central de Conhecimento (Fase 4 do plano, 2026-10-13; docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md): |
 | `src/knowledge/MemoriesTab.jsx` | 105 | Aba Memórias (Fase 8, item 3 do pedido do Rafael) — busca real |
@@ -334,7 +337,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/personal/dailyExport.js` | 118 | Daily do Meu quadro (2026-10-26): filtro por prazo e exportação (Excel e PDF). Funções PURAS (sem React/DOM) para testar em Node. |
 | `src/personal/focus.js` | 140 | Foco de hoje (2026-10-29): tela para deixar aberta no iPad. Separa o que está em andamento (Agora), o que vence no dia (Próximos) |
 | `src/personal/workbenchUtils.js` | 81 | Funções puras do painel "Calendário, anotações e atalhos" (2026-10-16, visões 5 e 6). Sem React/DOM para poder testar em Node. |
-| `src/renata/RenataChat.jsx` | 285 | RENATA operacional (§101): o painel de conversa disponível em qualquer tela. Você pede, ela executa pelas ferramentas do sistema (com as suas permissões), |
+| `src/renata/RenataChat.jsx` | 322 | RENATA operacional (§101): o painel de conversa disponível em qualquer tela. Você pede, ela executa pelas ferramentas do sistema (com as suas permissões), |
 | `src/renata/screenContext.js` | 12 | Contexto da tela para a RENATA (§101): cada módulo informa onde a pessoa está (módulo, tela, registro aberto) e a RENATA recebe isso a cada pedido, para entender |
 | `src/screens/ActivityGauge.jsx` | 50 | Velocímetro da atividade (2026-10-19, pedido do Rafael): no detalhe de cada atividade, quanto das subatividades está feito, quanto foi pulado e quanto falta para |
 | `src/screens/AdminScreens.jsx` | 1525 | Telas de administração: gestão de usuários, organizações (Super Admin), escolha/cadastro de empresas e perfil. |
@@ -350,10 +353,11 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/screens/PublicCompanyScreen.jsx` | 423 | Página pública de acompanhamento da empresa (2026-10-19): /acompanhamento/<token>. Só leitura, sem login; "Entrar para editar" leva ao login normal. |
 | `src/screens/ScreenSearch.jsx` | 48 | Busca da tela aberta (2026-10-19): campo na barra de abas da empresa e aviso "filtrando" no topo do conteúdo. A lógica de casar texto fica em src/lib/screenSearch.js. |
 | `src/screens/SubExtras.jsx` | 214 | Campos novos das subatividades (2026-10-19, fase 2 do plano do cronograma funcional): prioridade, executor, áreas envolvidas, aplicabilidade, recorrência, |
-| `src/shell/CommandPalette.jsx` | 160 | Busca global (Ctrl/Cmd+K): pula para um módulo, uma empresa, uma atividade ou uma reunião. Onda 1, §81. |
+| `src/shell/CommandPalette.jsx` | 162 | Busca global (Ctrl/Cmd+K): pula para um módulo, uma empresa, uma atividade ou uma reunião. Onda 1, §81. |
 | `src/shell/ModuleShell.jsx` | 184 | Casca única (Onda 1, §81): a MESMA barra no topo de todas as telas depois do login. |
 | `src/shell/NotificationPrefs.jsx` | 115 | Escolher quais notificações ver (2026-10-06). Marcado = aparece; desmarcado = fica escondido (nada é apagado). |
 | `src/shell/ShortcutsHelp.jsx` | 37 | Ajuda de atalhos (tecla "?" ou Menu › Atalhos de teclado). Só leitura; a lista vem de shortcuts.js. |
+| `src/shell/libraryItems.js` | 21 | Itens da paleta (Ctrl+K) para Pareceres, Modelos e Conhecimento: resposta de GET /api/library-search → itens da lista. |
 | `src/shell/shortcuts.js` | 45 | Atalhos de teclado que EXISTEM no sistema (2026-10-30, Onda 1 / Q7). A tela de ajuda ("?") lê esta lista: atalho novo entra aqui junto com o |
 | `src/styles/S.js` | 452 | Objeto de estilos compartilhado (inline styles do app). Extraído de src/App.jsx em 2026-10-17 ("dividir o AppScreens e o S"); o App.jsx continua |
 | `src/sw.js` | 85 | Service worker do PRICETAX (2026-10-17, PWA). Objetivo: o app ser instalável e abrir a casca mesmo sem rede. |
@@ -372,7 +376,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/ui/dialogs.jsx` | 130 | Diálogos e avisos globais (Onda 2, §81) — o jeito único de confirmar, pedir um texto e avisar. |
 | `src/ui/index.jsx` | 278 | Peças visuais comuns (2026-10-04, §72) — ver ui.css. Só apresentação: nenhuma lógica de negócio aqui, quem usa |
 | `src/ui/statusDot.js` | 9 | Cor da BOLINHA de um selo de status (2026-10-30). Os selos mostram o texto em cor neutra e a categoria só na bolinha: cor neon como cor de TEXTO |
-| `src/ui/ui.css` | 266 | Peças visuais comuns do app (2026-10-04, §72). Antes cada módulo reinventava cartão, aba, etiqueta e botão |
+| `src/ui/ui.css` | 268 | Peças visuais comuns do app (2026-10-04, §72). Antes cada módulo reinventava cartão, aba, etiqueta e botão |
 | `src/versions/VersionHistory.jsx` | 341 | Histórico de versões do cronograma (§83): consultar, comparar, criar ponto de restauração e restaurar (Master) com confirmação, backup automático e desfazer. |
 | `src/widget/WidgetSection.jsx` | 196 |  |
 | `src/widget/scriptableScript.js` | 190 | Script do Scriptable (iOS) colado pelo usuário — mostra atrasadas, vencem hoje e próxima reunião. |

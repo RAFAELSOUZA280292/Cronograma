@@ -5,6 +5,7 @@ import { fitPeriods } from '../shared/period.js';
 import { loadPdfPrefs, mergePdfPrefs, savePdfPrefs } from './pdf/pdfTheme.js';
 import { Activity, Share2, ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen, History, ArchiveRestore, CalendarCheck, Users as UsersGlyph } from 'lucide-react';
 import { crm as crmClient } from './crm/crmApi.js';
+import { libraryItems } from './shell/libraryItems.js';
 
 import { loadXlsx } from './lib/xlsxLoader.js';
 import { lazyRetry } from './lib/lazyRetry.jsx';
@@ -531,6 +532,7 @@ function AppScreens({ shellRef, bump }) {
   const [pendingCrmOpen, setPendingCrmOpen] = useState(null); // {companyId, dealId} vindo de uma notificação do CRM
   const [pendingParecerOpen, setPendingParecerOpen] = useState(null); // id do parecer vindo de uma notificação de menção
   const [pendingModeloOpen, setPendingModeloOpen] = useState(null); // id do modelo vindo de uma notificação de menção
+  const [pendingFactOpen, setPendingFactOpen] = useState(null); // id do fato de conhecimento escolhido na busca (Ctrl+K)
   const [renataHome, setRenataHome] = useState(null); // {question, n}: painel da RENATA geral (barra do topo / busca)
   const [renataProjectId, setRenataProjectId] = useState(null); // RENATA de uma empresa aberta a partir da geral
   const [pendingTodoOpen, setPendingTodoOpen] = useState(null); // {pid, meetingId, itemId}: abre o drawer da tarefa dentro da reunião (notificação 'todo' / "Hoje")
@@ -1858,14 +1860,31 @@ function AppScreens({ shellRef, bump }) {
   // que os recentes/favoritos guardam); `run` é reconstruído aqui a cada vez, a partir dos dados atuais.
   // Negócios, empresas e contatos do CRM para a paleta (Ctrl+K): vêm do servidor, só a partir de 2 letras.
   async function buildRemoteSearchItems(q) {
-    if (!hasCrm || String(q || '').trim().length < 2) return [];
-    const r = await crmClient.search(q);
-    const open = (patch) => { goToWorkspace('crm'); setPendingCrmOpen(patch); };
-    return [
-      ...(r.deals || []).slice(0, 6).map((d) => ({ id: `crm-d-${d.id}`, group: 'Negócios (CRM)', label: d.title, hint: [d.companyName, d.stageName].filter(Boolean).join(' · '), icon: Briefcase, run: () => open({ dealId: d.id }) })),
-      ...(r.companies || []).slice(0, 4).map((c) => ({ id: `crm-c-${c.id}`, group: 'Empresas (CRM)', label: c.legalName, hint: [c.tradeName, c.cnpj].filter(Boolean).join(' · '), icon: Building2, run: () => open({ companyId: c.id }) })),
-      ...(r.contacts || []).slice(0, 4).map((c) => ({ id: `crm-k-${c.id}`, group: 'Contatos (CRM)', label: c.name || 'Contato', hint: [c.companyName, c.email].filter(Boolean).join(' · '), icon: UsersGlyph, run: () => open({ companyId: c.companyId }) })),
-    ];
+    const text = String(q || '').trim();
+    if (text.length < 2) return [];
+    const crmItems = async () => {
+      if (!hasCrm) return [];
+      const r = await crmClient.search(text);
+      const open = (patch) => { goToWorkspace('crm'); setPendingCrmOpen(patch); };
+      return [
+        ...(r.deals || []).slice(0, 6).map((d) => ({ id: `crm-d-${d.id}`, group: 'Negócios (CRM)', label: d.title, hint: [d.companyName, d.stageName].filter(Boolean).join(' · '), icon: Briefcase, run: () => open({ dealId: d.id }) })),
+        ...(r.companies || []).slice(0, 4).map((c) => ({ id: `crm-c-${c.id}`, group: 'Empresas (CRM)', label: c.legalName, hint: [c.tradeName, c.cnpj].filter(Boolean).join(' · '), icon: Building2, run: () => open({ companyId: c.id }) })),
+        ...(r.contacts || []).slice(0, 4).map((c) => ({ id: `crm-k-${c.id}`, group: 'Contatos (CRM)', label: c.name || 'Contato', hint: [c.companyName, c.email].filter(Boolean).join(' · '), icon: UsersGlyph, run: () => open({ companyId: c.companyId }) })),
+      ];
+    };
+    // Pareceres, Modelos e Conhecimento (só PRICETAX): uma busca textual no servidor, sem IA.
+    const libItems = async () => {
+      if (!hasPareceres) return [];
+      const r = await apiGet(`/api/library-search?q=${encodeURIComponent(text)}`);
+      return libraryItems(r, {
+        parecer: (id) => { setPendingParecerOpen(id); goToWorkspace('pareceres'); },
+        modelo: (id) => { setPendingModeloOpen(id); goToWorkspace('modelos'); },
+        fact: (id) => { setPendingFactOpen(id); goToWorkspace('knowledge'); },
+      }, { parecer: FileText, modelo: FolderOpen, fact: Sparkles });
+    };
+    // Uma fonte fora do ar não derruba a outra.
+    const settled = await Promise.allSettled([crmItems(), libItems()]);
+    return settled.flatMap((x) => (x.status === 'fulfilled' ? x.value : []));
   }
   function buildSearchItems() {
     const items = shellModes.map((m) => ({ id: `m-${m.key}`, kind: 'module', rid: m.key, group: 'Ir para', label: m.label, icon: m.icon, run: () => goToWorkspace(m.key) }));
@@ -2226,6 +2245,8 @@ function AppScreens({ shellRef, bump }) {
       <React.Suspense fallback={<LoadingScreen theme={theme} />}>
       <KnowledgeCenterScreen
         currentUser={currentUser}
+        pendingOpenId={pendingFactOpen}
+        onPendingOpenConsumed={() => setPendingFactOpen(null)}
         onExit={availableModes.length > 1 ? () => goToWorkspace(null) : null}
         onLogout={handleLogout}
         theme={theme}
@@ -2255,6 +2276,7 @@ function AppScreens({ shellRef, bump }) {
           onOpenNotification={goToNotificationTarget} onMarkNotificationRead={markNotificationRead} onMarkAllNotificationsRead={markAllNotificationsRead}
           pendingOpen={pendingCrmOpen} onPendingOpenConsumed={() => setPendingCrmOpen(null)}
           onOpenProject={(projectId) => openCompanyWorkspace([projectId])}
+          onOpenRenata={() => setRenataHome({ question: '', n: Date.now() })}
         />
       </React.Suspense>
     ));

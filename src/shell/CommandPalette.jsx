@@ -11,7 +11,9 @@ import { trackFlow } from '../lib/experience.js';
 
 const fold = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const MAX = 40;
-const GROUP_ORDER = ['Ações', 'Ir para', 'Negócios (CRM)', 'Empresas (CRM)', 'Contatos (CRM)', 'Empresas', 'Atividades', 'Reuniões', 'Meu quadro'];
+const GROUP_ORDER = ['Ações', 'Ir para', 'Negócios (CRM)', 'Empresas (CRM)', 'Contatos (CRM)', 'Empresas', 'Atividades', 'Reuniões', 'Meu quadro', 'Pareceres', 'Modelos', 'Conhecimento'];
+// Grupos que vêm do servidor (não estão carregados no app): teto menor e ranking do servidor.
+const REMOTE_GROUPS = new Set(['Negócios (CRM)', 'Empresas (CRM)', 'Contatos (CRM)', 'Pareceres', 'Modelos', 'Conhecimento']);
 
 function score(item, terms) {
   const label = fold(item.label);
@@ -64,7 +66,7 @@ export default function CommandPalette({ getItems, getRemoteItems, onClose, onAs
     // Agrupa na ordem fixa (cada título aparece uma vez), mantendo o ranking dentro do grupo e um teto por grupo.
     const out = [];
     const pool = [...ranked, ...remote];
-    for (const g of GROUP_ORDER) out.push(...(g.endsWith('(CRM)') ? pool.filter((i) => i.group === g).slice(0, 6) : ranked.filter((i) => i.group === g).slice(0, 10)));
+    for (const g of GROUP_ORDER) out.push(...(REMOTE_GROUPS.has(g) ? pool.filter((i) => i.group === g).slice(0, 6) : ranked.filter((i) => i.group === g).slice(0, 10)));
     // Com texto, a RENATA vem por ÚLTIMO: Enter continua abrindo o melhor resultado; sem resultado nenhum, Enter pergunta à RENATA.
     return [...out.slice(0, MAX), ...renata];
   }, [q, items, remote, favs, recents, favKeys, onAskRenata]);
@@ -78,7 +80,7 @@ export default function CommandPalette({ getItems, getRemoteItems, onClose, onAs
   function run(item) {
     if (!item) return;
     onClose();
-    if (String(item.id).startsWith('act-')) trackFlow('paleta.acao', 'ok'); else if (String(item.id).startsWith('crm-')) trackFlow('paleta.busca_crm', 'ok');
+    if (String(item.id).startsWith('act-')) trackFlow('paleta.acao', 'ok'); else if (String(item.id).startsWith('crm-')) trackFlow('paleta.busca_crm', 'ok'); else if (String(item.id).startsWith('lib-')) trackFlow('paleta.busca_biblioteca', 'ok');
     setTimeout(() => item.run(), 0);
   }
   function toggleFav(item) {
@@ -104,7 +106,7 @@ export default function CommandPalette({ getItems, getRemoteItems, onClose, onAs
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Buscar ou digitar um comando: criar negócio, fila de follow-ups, empresa, atividade…"
+            placeholder="Buscar ou digitar um comando: criar negócio, fila de follow-ups, empresa, atividade, parecer…"
             role="combobox"
             aria-expanded="true"
             aria-controls="shell-pal-list"

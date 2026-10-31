@@ -141,9 +141,11 @@ Em todos os módulos a barra de cima tem:
 
 **Busca global (Ctrl K):**
 1. Aperte Ctrl K (ou ⌘K). Digite parte do nome de uma empresa, atividade, reunião, cartão do seu quadro, ou (se tiver CRM, a partir de 2 letras) negócio, empresa ou contato do CRM.
+   Quem é da equipe PRICETAX também acha **Pareceres**, **Modelos** e itens do **Conhecimento** (a partir de 2 letras); Enter abre o próprio item.
 2. Use as setas ↑ ↓ e **Enter** para abrir. **Esc** fecha. **Shift+Enter** favorita o item.
 3. Também dá para digitar um comando (só aparecem para quem tem CRM): **Criar negócio**, **Criar atividade**, **Criar empresa**, **Criar contato**, **Abrir a fila de follow-ups**, **Agenda do CRM**, **Negócios do CRM**. Os formulários de criação só abrem para quem pode escrever no CRM.
 4. **Falar com a RENATA** aparece como opção; se você digitou algo, vira **Perguntar à RENATA: "…"**.
+5. Com um **negócio** ou uma **empresa do CRM** aberta, o botão **Pedir à RENATA** (no topo da ficha) abre a RENATA já olhando para aquele registro: aparece **"Em foco: …"** (clique para ver o que ela lê, sempre com as suas permissões) e os atalhos mudam para o registro. Em uma **empresa do cronograma** (abra a RENATA pelo botão da barra de cima) ela também mostra o que lê: as atividades atrasadas, as próximas e as reuniões.
 
 Outros atalhos: na Gestão de Atividades, a tecla **N** abre **Nova atividade**. **Esc** fecha janelas. **Ctrl+Enter** (ou ⌘+Enter) envia o comentário nas caixas de comentário e conclui o passo na **Fila de follow-ups** do CRM.
 

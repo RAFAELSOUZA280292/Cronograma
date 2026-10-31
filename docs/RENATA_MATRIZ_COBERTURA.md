@@ -6,7 +6,7 @@
 
 ## Resumo
 - **101 ferramentas estruturadas** em 11 módulos (36 de consulta, 46 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
-- **323 rotas** no servidor: 64 cobertas por ferramenta própria, 124 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 135 excluídas de propósito.
+- **325 rotas** no servidor: 64 cobertas por ferramenta própria, 125 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 136 excluídas de propósito.
 - **56 funcionalidades humanas mapeadas**: 35 ✅, 12 🟡, 4 ⬜, 5 🚫.
 - **Critério "100% das funcionalidades" NÃO está atendido ainda**: as linhas 🟡 e ⬜ abaixo são o que falta. As rotas "genéricas" já são alcançáveis (com confirmação), mas sem esquema de parâmetros; as ⬜ precisam de trabalho novo (arquivos, edição de documentos inteiros).
 
@@ -423,6 +423,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `GET /api/knowledge/facts` | ferramenta | conhecimento_buscar |
 | `GET /api/knowledge/metrics` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/knowledge/overview` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/library-search` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/macro` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/meeting-inbox/:id/retry` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/meeting-inbox/retry-failed` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
@@ -497,6 +498,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `GET /api/renata/actions` | excluída | fora do alcance: A própria RENATA: sem recursão. |
 | `GET /api/renata/catalog` | excluída | fora do alcance: A própria RENATA: sem recursão. |
 | `POST /api/renata/chat` | excluída | fora do alcance: A própria RENATA: sem recursão. |
+| `GET /api/renata/context-card` | excluída | fora do alcance: A própria RENATA: sem recursão. |
 | `POST /api/renata/conversations/:id/decide` | excluída | fora do alcance: A própria RENATA: sem recursão. |
 | `GET /api/renata/conversations/:id` | excluída | fora do alcance: A própria RENATA: sem recursão. |
 | `GET /api/renata/conversations` | excluída | fora do alcance: A própria RENATA: sem recursão. |

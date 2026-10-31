@@ -4,7 +4,7 @@
 // continua só conversando com a RENATA, nunca vê esta tela) — mesmo
 // padrão de módulo autocontido de src/xflow/XFlow.jsx, montado como um
 // novo workspaceMode em src/App.jsx.
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles, LayoutDashboard, Search, AlertTriangle, Users, Building2, BarChart3, CheckCircle2, TrendingUp, Link2, Library,
 } from 'lucide-react';
@@ -131,11 +131,17 @@ function OverviewTab({ onOpenFact, onGoTab, refreshKey }) {
   );
 }
 
-export default function KnowledgeCenterScreen({ currentUser, onExit, onNavigateToMeeting, onLogout, theme, onToggleTheme }) {
+export default function KnowledgeCenterScreen({ currentUser, onExit, onNavigateToMeeting, onLogout, theme, onToggleTheme, pendingOpenId, onPendingOpenConsumed }) {
   const [activeTab, setActiveTab] = useState(() => readHistoryValue('knowledgeTab', 'overview'));
   useHistoryValue('knowledgeTab', activeTab, setActiveTab, 'overview');
   const [drawerFactId, setDrawerFactId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  // Fato escolhido na busca global (Ctrl+K): abre a gaveta dele assim que a tela monta.
+  useEffect(() => {
+    if (!pendingOpenId) return;
+    setDrawerFactId(pendingOpenId);
+    if (onPendingOpenConsumed) onPendingOpenConsumed();
+  }, [pendingOpenId]);
 
   function openFact(id) { setDrawerFactId(id); }
   function closeFact() { setDrawerFactId(null); }

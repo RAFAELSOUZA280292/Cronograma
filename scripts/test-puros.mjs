@@ -9,7 +9,7 @@ const PUROS = [
   'scripts/daily-export.test.mjs', 'scripts/error-messages.test.mjs', 'scripts/focus.test.mjs', 'scripts/inspiration-quotes.test.mjs',
   'scripts/parecer-study-truncation.test.mjs', 'scripts/project-merge.test.mjs', 'scripts/renata-confirmacao-lote.test.mjs',
   'scripts/renata-general-ids.test.mjs', 'scripts/save-retry.test.mjs', 'scripts/schedule-version.test.mjs', 'scripts/team-day.test.mjs',
-  'scripts/usage-metrics.test.mjs', 'scripts/prompt-guard.test.mjs', 'scripts/ui-audit.test.mjs', 'scripts/payload-stats.test.mjs', 'scripts/shortcuts.test.mjs', 'scripts/status-dot.test.mjs', 'scripts/ink-on.test.mjs', 'scripts/crm-overview-priority.test.mjs',
+  'scripts/usage-metrics.test.mjs', 'scripts/prompt-guard.test.mjs', 'scripts/ui-audit.test.mjs', 'scripts/payload-stats.test.mjs', 'scripts/shortcuts.test.mjs', 'scripts/library-search.test.mjs', 'scripts/renata-context-card.test.mjs', 'scripts/design-tokens.test.mjs', 'scripts/status-dot.test.mjs', 'scripts/ink-on.test.mjs', 'scripts/crm-overview-priority.test.mjs',
   'server/evals/runUnitEval.mjs',
 ];
 

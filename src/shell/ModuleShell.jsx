@@ -11,11 +11,11 @@ import ShortcutsHelp from './ShortcutsHelp.jsx';
 import { isTypingTarget } from './shortcuts.js';
 
 const CSS = `
-.shell-bar { position: sticky; top: 0; z-index: 45; display: flex; align-items: center; gap: 8px; height: var(--shell-h, 48px); padding: 0 14px;
+.shell-bar { position: sticky; top: 0; z-index: 45; display: flex; align-items: center; gap: var(--sp-2); height: var(--shell-h, 48px); padding: 0 14px;
   background: var(--bg-1); border-bottom: 1px solid var(--border-1); font-family: 'Inter', sans-serif; color: var(--text-2); box-sizing: border-box; }
 .shell-bar * { box-sizing: border-box; }
-.shell-btn { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid transparent; background: transparent;
-  color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.shell-btn { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px; border-radius: var(--r-md); border: 1px solid transparent; background: transparent;
+  color: var(--text-2); font: inherit; font-size: var(--fs-sm); font-weight: 600; cursor: pointer; white-space: nowrap; }
 .shell-btn:hover { background: var(--bg-3); }
 .shell-btn:focus-visible, .shell-menu-item:focus-visible, .shell-pal-item:focus-visible { outline: 2px solid var(--ui-accent, #F5C400); outline-offset: 1px; }
 .shell-btn.icon { width: 32px; padding: 0; justify-content: center; }
@@ -27,18 +27,18 @@ const CSS = `
 html[data-theme="light"] .shell-renata { color: #8a6500; }
 .shell-renata:hover { background: var(--ui-accent-bg, rgba(245,196,0,.14)); }
 .shell-search { min-width: 190px; justify-content: flex-start; color: var(--text-4); background: var(--bg-3); border-color: var(--border-1); font-weight: 500; }
-.shell-search kbd, .shell-pal kbd { margin-left: auto; font: inherit; font-size: 12px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-2); color: var(--text-4); background: var(--bg-1); }
+.shell-search kbd, .shell-pal kbd { margin-left: auto; font: inherit; font-size: var(--fs-xs); padding: 1px 5px; border-radius: var(--r-xs); border: 1px solid var(--border-2); color: var(--text-4); background: var(--bg-1); }
 .shell-pop { position: relative; }
-.shell-menu { position: absolute; top: 38px; z-index: 46; min-width: 230px; max-height: 70vh; overflow-y: auto; padding: 6px; border-radius: 10px;
+.shell-menu { position: absolute; top: 38px; z-index: 46; min-width: 230px; max-height: 70vh; overflow-y: auto; padding: 6px; border-radius: var(--r-lg);
   background: var(--bg-2); border: 1px solid var(--border-2); box-shadow: 0 12px 32px rgba(0,0,0,.35); }
 .shell-menu.left { left: 0; } .shell-menu.right { right: 0; }
 .shell-menu-item { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text-2);
-  font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+  font: inherit; font-size: var(--fs-sm); text-align: left; cursor: pointer; }
 .shell-menu-item:hover { background: var(--bg-3); }
 .shell-menu-item[aria-current="true"] { color: var(--text-1); font-weight: 700; }
 .shell-menu-item .check { margin-left: auto; color: var(--ui-accent, #F5C400); }
-.shell-menu-head { padding: 8px 10px 6px; font-size: 12px; color: var(--text-4); }
-.shell-menu-head b { display: block; color: var(--text-1); font-size: 13px; }
+.shell-menu-head { padding: 8px 10px 6px; font-size: var(--fs-xs); color: var(--text-4); }
+.shell-menu-head b { display: block; color: var(--text-1); font-size: var(--fs-sm); }
 .shell-menu hr { border: 0; border-top: 1px solid var(--border-1); margin: 5px 0; }
 .shell-pal-overlay { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,.55); display: flex; align-items: flex-start; justify-content: center; padding: 12vh 16px 16px; font-family: 'Inter', sans-serif; }
 .shell-pal { width: min(620px, 100%); max-height: 70vh; display: flex; flex-direction: column; border-radius: 14px; background: var(--bg-1); border: 1px solid var(--border-2); box-shadow: 0 20px 60px rgba(0,0,0,.5); overflow: hidden; }
@@ -46,17 +46,17 @@ html[data-theme="light"] .shell-renata { color: #8a6500; }
 .shell-pal-input input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text-1); font: inherit; font-size: 15px; }
 .shell-pal-list { overflow-y: auto; padding: 6px; }
 .shell-pal-group { padding: 10px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-4); }
-.shell-pal-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; cursor: pointer; color: var(--text-2); font-size: 14px; }
+.shell-pal-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--r-md); cursor: pointer; color: var(--text-2); font-size: var(--fs-md); }
 .shell-pal-item[data-active="true"] { background: var(--bg-3); color: var(--text-1); }
 .shell-pal-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.shell-pal-hint { font-size: 12px; color: var(--text-4); max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-pal-hint { font-size: var(--fs-xs); color: var(--text-4); max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shell-pal-star { flex-shrink: 0; margin: -6px -4px -6px 0; color: var(--text-5); }
 .shell-pal-star[aria-pressed="true"] { color: var(--ui-accent, #F5C400); }
 .shell-pal-empty { padding: 22px 12px; text-align: center; color: var(--text-4); font-size: 13.5px; }
-.shell-pal-foot { display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--border-1); font-size: 11.5px; color: var(--text-4); }
+.shell-pal-foot { display: flex; gap: var(--sp-4); padding: 8px 14px; border-top: 1px solid var(--border-1); font-size: 11.5px; color: var(--text-4); }
 .shell-pal-foot kbd { margin: 0 3px 0 0; }
 @media (max-width: 720px) {
-  .shell-bar { gap: 4px; padding: 0 8px; }
+  .shell-bar { gap: var(--sp-1); padding: 0 8px; }
   .shell-bar button, .shell-bar .shell-btn { min-height: 44px; min-width: 44px; }
   .shell-btn.icon, .shell-search { width: 44px; }
   .shell-search { min-width: 0; width: 32px; padding: 0; justify-content: center; }

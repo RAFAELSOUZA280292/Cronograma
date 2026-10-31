@@ -12,11 +12,11 @@ import { noteToEditorHtml, sanitizeNote } from '../lib/richNote.js';
 const CSS = `
 .rn { font-family: inherit; }
 .rn-bar { display: flex; align-items: center; gap: 2px; padding: 4px; margin-bottom: 4px; border: 1px solid var(--border-2); border-radius: 9px; background: var(--bg-3); width: fit-content; max-width: 100%; flex-wrap: wrap; }
-.rn-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-3); cursor: pointer; }
+.rn-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--text-3); cursor: pointer; }
 .rn-btn:hover { background: var(--bg-4); color: var(--text-1); }
 .rn-btn.on { background: rgba(245,196,0,.18); color: var(--ui-accent-text); }
 .rn-btn:focus-visible { outline: 2px solid var(--ui-accent, #F5C400); outline-offset: 1px; }
-.rn-body .ProseMirror { min-height: 58px; max-height: 46vh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border-2); border-radius: 10px; background: var(--bg-2); color: var(--text-1); font-size: 13.5px; line-height: 1.5; outline: none; }
+.rn-body .ProseMirror { min-height: 58px; max-height: 46vh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--border-2); border-radius: var(--r-lg); background: var(--bg-2); color: var(--text-1); font-size: 13.5px; line-height: 1.5; outline: none; }
 .rn-body .ProseMirror:focus { border-color: var(--ui-accent, #F5C400); }
 .rn-body .ProseMirror p { margin: 0 0 4px; }
 .rn-body .ProseMirror p:last-child { margin-bottom: 0; }

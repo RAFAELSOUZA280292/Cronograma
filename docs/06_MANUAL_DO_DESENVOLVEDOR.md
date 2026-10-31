@@ -19,8 +19,9 @@ Passo a passo para as tarefas que mais se repetem (nova rota, nova tela, nova fe
 | `npm run dev` | Vite (:5173) + servidor com `--watch` (:3001; proxy de `/api`) |
 | `npm run build` | Build do front em `dist/` e move os sourcemaps para `.sourcemaps/` (fora do público) |
 | `npm start` | Produção (`node server/index.js`) |
-| `npm run test:puro` | **27 testes sem banco, servidor nem chave de IA** (os mesmos que o CI rodará a cada push, quando for ativado: o arquivo está em `docs/ci/ci.yml`, ver `PROJECT_CONTEXT.md` §116zh). Teste novo puro entra na lista de `scripts/test-puros.mjs` |
+| `npm run test:puro` | **31 testes sem banco, servidor nem chave de IA** (os mesmos que o CI rodará a cada push, quando for ativado: o arquivo está em `docs/ci/ci.yml`, ver `PROJECT_CONTEXT.md` §116zh). Teste novo puro entra na lista de `scripts/test-puros.mjs` |
 | `await window.__uiAudit({ themes:['light','dark'] })` | No console do navegador, **só em `npm run dev`**: mede contraste, fonte < 12 px, controle sem nome e alvo < 24 px da tela aberta (`src/dev/uiAudit.js`) |
+| `node scripts/tokens-migrar.mjs --report` / `--apply <pasta>` | Adoção dos tokens de forma por módulo; troca só valores exatos da escala (sem mudança visual). Módulos migrados têm catraca em `design-tokens.test.mjs` |
 | `npm run docs:gerar` | Regenera `docs/gerado/*` (rotas, banco, variáveis, testes, arquivos, índice, histórico). Passe `--git /caminho/do/clone` para o histórico de commits |
 | `node scripts/renata-route-index.mjs` | Atualiza `server/renata/routeIndex.json` (todas as rotas) — **obrigatório após criar/mudar rota** |
 | `node scripts/renata-coverage.mjs` | Valida o catálogo da RENATA contra o código e regrava `docs/RENATA_MATRIZ_COBERTURA.md` |

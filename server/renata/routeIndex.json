@@ -1,6 +1,6 @@
 {
  "geradoPor": "scripts/renata-route-index.mjs",
- "total": 323,
+ "total": 325,
  "routes": [
   {
    "method": "POST",
@@ -919,6 +919,11 @@
   },
   {
    "method": "GET",
+   "path": "/api/library-search",
+   "file": "librarySearch.js"
+  },
+  {
+   "method": "GET",
    "path": "/api/macro",
    "file": "macro.js"
   },
@@ -1285,6 +1290,11 @@
   {
    "method": "POST",
    "path": "/api/renata/chat",
+   "file": "renata/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/renata/context-card",
    "file": "renata/routes.js"
   },
   {

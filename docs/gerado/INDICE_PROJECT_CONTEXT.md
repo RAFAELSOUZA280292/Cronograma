@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8615 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8640 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -164,3 +164,4 @@ O `PROJECT_CONTEXT.md` tem 8615 linhas (a memória cronológica de cada decisão
 | 8569 | 116zg. Tela inicial: mensagem do dia à esquerda e "Hoje" à direita, no mesmo nível (2026-10-30, pedido do Raf… | - Pedido: ao logar, a tela inicial estava "descompassada": "Olá, Rafael" e a Mensagem do dia centralizadas (760 px), e logo abaixo o painel "Hoje" gi… |
 | 8580 | 116zh. Onda 1 do plano de evolução: rede de segurança, medição e prompts (2026-10-31, aprovada pelo Rafael) | - Origem: diagnóstico e plano em 4 ondas (artefato "Diagnóstico e plano PRICETAX", 30/10); Rafael aprovou a Onda 1 e o piloto. Esta seção cobre a Ond… |
 | 8598 | 116zi. Piloto da Onda 2: Visão geral do CRM com menos fricção (2026-10-31, aprovado pelo Rafael) | - Escopo (preservado): as 4 lentes (Meu dia, Time, Receita, Contas), todos os indicadores e cálculos, listas, links para listas filtradas, "Usar como… |
+| 8616 | 116zj. Onda 2: busca da paleta, ficha de contexto da RENATA e tokens de forma (2026-10-31, aprovado pelo Rafa… | - Escopo preservado: nomes de módulos, regras de negócio, campos, permissões, marca e cores. Nada de dependência nova. O piloto (Visão geral do CRM) … |

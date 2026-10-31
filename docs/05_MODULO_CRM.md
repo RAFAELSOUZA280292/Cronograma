@@ -297,6 +297,7 @@ Não existe ferramenta para: editar cadência existente, restaurar empresa, expo
 ## Front: leitura e gravação na tela
 - **Gravar**: ações em `crm.*` (`crmApi.js`) → recarregam a lista (`refreshKey` em `CrmScreen`). O quadro move o cartão **antes** do servidor responder (`boardMove.js`), mostra "Movido para …" com Desfazer, repete até 3 vezes em falha de rede/5xx (`src/lib/saveRetry.js`) e volta atrás se o servidor recusar.
 - **Edição direta**: na lista de Negócios as células (`InlineCells.jsx`) salvam ao sair do campo (etapa, valor, previsão, responsável…).
+- **Pedir à RENATA** (cabeçalho do negócio e da empresa): `onOpenRenata` (do `App.jsx`) abre a RENATA operacional por cima (`Drawer above`, z-index 100 > painéis do CRM em 80/90); ela recebe a ficha do registro (§116zj). Não é o `RenataAsk` (RENATA de consulta, que exige projeto vinculado).
 - **Aviso de descarte**: todos os modais editáveis usam `guardedModal` (avisa antes de perder alteração).
 - **Rotas do navegador**: `/crm` (`src/lib/routes.js`, exige `user.crmAccess`); link `…/crm?negocio=ID` ou `?empresa=ID` abre direto a ficha (usado pelo evento do Google e por "Copiar link").
 - **DateField/TimeField** (`src/ui/DateTimeFields.jsx`): digita `dd/mm/aaaa` ou abre calendário (react-day-picker, posição fixa); `TimeField` de 15 em 15 min.

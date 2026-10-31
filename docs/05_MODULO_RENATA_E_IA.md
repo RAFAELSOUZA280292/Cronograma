@@ -177,6 +177,7 @@ Regras de base (`org_id`): toda leitura de fatos, cache e memória filtra por `o
 
 ### RENATA operacional (`buildSystem` em `agent.js`)
 - **`system`** = bloco 1 (persona + regras numeradas + "Pessoa que está pedindo: nome (perfil)" + contexto da tela; `cache_control: ephemeral`, TTL padrão de 5 min) + bloco 2 opcional "PANORAMA ATUAL" (resultado de `buildGeneralContext`; **sem** cache).
+- **Bloco "ficha do registro aberto"** (R1, §116zj): quando há negócio, empresa do CRM ou empresa do cronograma em foco, `loop` monta a ficha (`server/renata/contextCard.js` + `contextCardFormat.js`) e `buildSystem({ cardText })` a põe como bloco próprio, **sem cache**. Montada **sempre no servidor** com a permissão da pessoa (CRM pelas rotas da tela via `callInternal`; cronograma por `canAccessProject`); sem acesso/falha = sem ficha. Texto de terceiros entra entre « » em uma linha, até 1.800 caracteres. `GET /api/renata/context-card?type=&id=` mostra a mesma ficha na tela ("Em foco").
 - **`tools`** = definições das ferramentas do usuário; a **última** recebe `cache_control` (as ~100 definições repetem em todo passo).
 - A data de hoje (`today`, fuso SP) e o dia da semana entram no texto da persona, então o bloco 1 muda a cada dia.
 - O horário de cada mensagem (`_at`) fica na conversa guardada, mas **nunca** vai para a API (`forApi` remove).

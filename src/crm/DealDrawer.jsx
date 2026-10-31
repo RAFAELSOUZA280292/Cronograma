@@ -3,7 +3,7 @@
 // etapa passa por aqui também — o select cobre teclado e celular, onde arrastar
 // no quadro não funciona.
 import React, { useCallback, useEffect, useState } from 'react';
-import { X, Pencil, Trash2, Trophy, ThumbsDown, StickyNote, Building2, Plus, AlertTriangle, Paperclip, Link2 } from 'lucide-react';
+import { X, Sparkles, Pencil, Trash2, Trophy, ThumbsDown, StickyNote, Building2, Plus, AlertTriangle, Paperclip, Link2 } from 'lucide-react';
 import { crm } from './crmApi.js';
 import DealForm from './DealForm.jsx';
 import CloseDealDialog from './CloseDealDialog.jsx';
@@ -28,7 +28,7 @@ function KV({ k, v }) {
   return <div><div className="k">{k}</div><div className="v">{v || <span className="crm-muted">—</span>}</div></div>;
 }
 
-function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, onOpenCompany, canAskRenata, closeRef }) {
+function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, onOpenCompany, canAskRenata, onOpenRenata, closeRef }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('summary');
@@ -109,6 +109,7 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
                 ) : <h2 className="crm-h1">{error ? 'Negócio' : 'Carregando…'}</h2>}
               </div>
               <div className="crm-actions">
+                {d && onOpenRenata && <button type="button" className="crm-btn" onClick={onOpenRenata} title="Abre a RENATA com este negócio em foco: ela já lê os dados dele"><Sparkles size={14} /> Pedir à RENATA</button>}
                 {d && <button type="button" className="crm-btn" onClick={copyLink} title="Copiar o link deste negócio — só abre para quem tem login e senha"><Link2 size={14} /> Copiar link</button>}
                 {canEdit && <button type="button" className="crm-btn" onClick={() => setEditing(true)}><Pencil size={14} /> Editar</button>}
                 {d && caps.remove && <button type="button" className="crm-btn crm-btn-danger" onClick={removeDeal}><Trash2 size={14} /> Excluir</button>}

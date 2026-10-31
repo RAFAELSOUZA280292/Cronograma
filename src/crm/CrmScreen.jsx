@@ -26,7 +26,7 @@ import BootstrapDialog from './BootstrapDialog.jsx';
 
 const NAV = [['overview', 'Visão geral', LayoutDashboard], ['agenda', 'Agenda', CalendarCheck], ['deals', 'Negócios', Kanban], ['companies', 'Empresas', Building2], ['contacts', 'Contatos', Users], ['products', 'Produtos', Package]];
 
-export default function CrmScreen({ currentUser, onExit, onLogout, theme, onToggleTheme, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead, pendingOpen, onPendingOpenConsumed, onOpenProject }) {
+export default function CrmScreen({ onOpenRenata, currentUser, onExit, onLogout, theme, onToggleTheme, notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead, pendingOpen, onPendingOpenConsumed, onOpenProject }) {
   const [page, setPage] = useState(() => readHistoryValue('crmPage', 'overview'));
   useHistoryValue('crmPage', page, setPage, 'overview');
   const [caps, setCaps] = useState(null);
@@ -123,8 +123,8 @@ export default function CrmScreen({ currentUser, onExit, onLogout, theme, onTogg
         </div>
       </div>
 
-      {drawer && <CompanyDrawer key={drawer.id} closeRef={drawerCloseRef} companyId={drawer.id} initialTab={drawer.tab} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDrawer(null)} onChanged={refresh} onOpenCompany={(id) => setDrawer({ id, tab: 'overview' })} onOpenDeal={openDeal} onOpenProject={onOpenProject} canAskRenata={canAskRenata} />}
-      {dealDrawer && <DealDrawer key={dealDrawer} closeRef={drawerCloseRef} dealId={dealDrawer} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDealDrawer(null)} onChanged={refresh} onOpenCompany={(id) => openCompany(id)} canAskRenata={canAskRenata} />}
+      {drawer && <CompanyDrawer key={drawer.id} closeRef={drawerCloseRef} companyId={drawer.id} initialTab={drawer.tab} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDrawer(null)} onChanged={refresh} onOpenCompany={(id) => setDrawer({ id, tab: 'overview' })} onOpenDeal={openDeal} onOpenProject={onOpenProject} canAskRenata={canAskRenata} onOpenRenata={onOpenRenata} />}
+      {dealDrawer && <DealDrawer key={dealDrawer} closeRef={drawerCloseRef} dealId={dealDrawer} caps={caps} options={options} currentUserId={currentUser && currentUser.id} onClose={() => setDealDrawer(null)} onChanged={refresh} onOpenCompany={(id) => openCompany(id)} canAskRenata={canAskRenata} onOpenRenata={onOpenRenata} />}
       {activityForm && <ActivityForm company={activityForm.company} prefill={activityForm.prefill} options={options} currentUserId={currentUser && currentUser.id} onCancel={() => setActivityForm(null)} onSaved={() => { setActivityForm(null); refresh(); }} />}
       {dealForm && <DealForm company={dealForm.company} defaultType={dealForm.type} defaultPipelineId={dealForm.pipelineId} options={options} currentUserId={currentUser && currentUser.id} onCancel={() => setDealForm(null)} onSaved={(d) => { setDealForm(null); refresh(); openAfterModal(() => openDeal(d.id)); }} />}
       {companyForm && <CompanyForm options={options} prefillOwnerId={currentUser && currentUser.id} onCancel={() => setCompanyForm(false)} onOpenCompany={(id) => { setCompanyForm(false); openAfterModal(() => openCompany(id)); }}

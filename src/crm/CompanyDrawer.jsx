@@ -38,7 +38,7 @@ function Person({ c, onOpen }) {
   );
 }
 
-function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, onClose, onChanged, onOpenCompany, onOpenDeal, onOpenProject, canAskRenata, closeRef }) {
+function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, onClose, onChanged, onOpenCompany, onOpenDeal, onOpenProject, canAskRenata, onOpenRenata, closeRef }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState(initialTab || 'overview');
@@ -142,6 +142,7 @@ function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, on
             </div>
             <div className="crm-actions">
               {co && !co.deletedAt && caps.write && co.relationship === 'client' && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'upsell' })}><Sparkles size={14} color="#b98af5" /> Criar oportunidade de upsell</button>}
+              {co && !co.deletedAt && onOpenRenata && <button type="button" className="crm-btn" onClick={onOpenRenata} title="Abre a RENATA com esta empresa em foco: ela já lê os dados dela"><Sparkles size={14} /> Pedir à RENATA</button>}
               {co && !co.deletedAt && caps.write && <button type="button" className="crm-btn" onClick={() => setActivityForm(true)}><Plus size={14} /> Criar atividade</button>}
               {co && !co.deletedAt && caps.write && <button type="button" className="crm-btn" onClick={() => setDealForm({ type: 'new' })}><Plus size={14} /> Criar negócio</button>}
               {co && !co.deletedAt && caps.write && <button type="button" className="crm-btn" onClick={() => setEditing(true)}><Pencil size={14} /> Editar</button>}
