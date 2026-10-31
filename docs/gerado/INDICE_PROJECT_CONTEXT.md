@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8568 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8579 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -161,3 +161,4 @@ O `PROJECT_CONTEXT.md` tem 8568 linhas (a memória cronológica de cada decisão
 | 8537 | 116zd. Quadro de Negócios: tags legíveis e urgência sem fundo colorido (2026-10-30, pedido do Rafael — "parec… | - Antes de fazer, consultei o skills.sh (regra nova do Rafael, memória feedback-skills-sh-antes-de-visual): li frontend-design (Anthropic), as regras… |
 | 8546 | 116ze. Quadro de Negócios: contatos enxutos e colunas sem degradê — itens 3 e 4 do plano (2026-10-30, pedido … | - Mesma regra do §116zd: skills do skills.sh lidas antes (alvo de toque, aria-label em botão só com ícone, ícone decorativo com aria-hidden, texto ≥ … |
 | 8555 | 116zf. CRM inteiro: texto mínimo de 12 px, selos neutros e contraste — fim do plano de visual (2026-10-30, pe… | - Método (regra do Rafael, memória feedback-skills-sh-antes-de-visual): reli as regras da web-design-guidelines (Vercel) antes de começar e, em vez d… |
+| 8569 | 116zg. Tela inicial: mensagem do dia à esquerda e "Hoje" à direita, no mesmo nível (2026-10-30, pedido do Raf… | - Pedido: ao logar, a tela inicial estava "descompassada": "Olá, Rafael" e a Mensagem do dia centralizadas (760 px), e logo abaixo o painel "Hoje" gi… |

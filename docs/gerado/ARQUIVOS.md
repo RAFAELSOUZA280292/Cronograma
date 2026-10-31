@@ -178,11 +178,11 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/transcriptParser.js` | 84 | Funções puras de parsing de texto de reunião — SEM import de React, |
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 
-## `src/` — 186 arquivos
+## `src/` — 187 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
-| `src/App.jsx` | 3649 |  |
+| `src/App.jsx` | 3664 |  |
 | `src/agenda/Agenda.jsx` | 583 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/NewEventModal.jsx` | 225 | "Novo compromisso" da Agenda (Onda 5, §81). Cria no Google Calendar da pessoa (POST /api/agenda/events); |
 | `src/agenda/RenataAgendaBriefing.jsx` | 708 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
@@ -239,13 +239,14 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/crm/TagFilter.jsx` | 70 | Filtro por VÁRIAS tags (o negócio precisa ter todas) — 2026-10-26. O valor é o texto "tag1\|tag2" (mesmo formato do servidor e das visões salvas). |
 | `src/crm/boardMove.js` | 48 | Mover um negócio de etapa NA TELA, antes de o servidor responder (2026-10-27, §119). O quadro do funil é um objeto |
 | `src/crm/crmApi.js` | 94 | Cliente da API do CRM (/api/crm) — Fase 1. Só monta URL/corpo; regra de |
-| `src/crm/crmMeta.js` | 530 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
+| `src/crm/crmMeta.js` | 528 | Rótulos, formatadores e CSS do CRM (Fase 1, 2026-09-20). Cor só indica |
 | `src/crm/importMapping.js` | 51 | Reconhecimento automático das colunas da planilha (Import Wizard). Módulo puro, |
 | `src/crm/ui.jsx` | 127 | Peças de UI compartilhadas do CRM. |
-| `src/daily/DailyCards.jsx` | 254 |  |
+| `src/daily/DailyCards.jsx` | 250 |  |
 | `src/daily/DailyPrefs.jsx` | 69 |  |
 | `src/daily/WelcomeSetup.jsx` | 109 |  |
 | `src/daily/useWelcomeSetup.jsx` | 20 | As boas-vindas aparecem por cima de QUALQUER tela (o App tem dezenas de retornos por módulo), então vivem numa raiz |
+| `src/home/homeCss.js` | 37 | Layout da tela inicial (2026-10-30): uma única coluna de conteúdo de 1240 px; "Mensagem do dia" à esquerda e "Hoje" à direita, no |
 | `src/knowledge/ConflictsTab.jsx` | 118 | Aba Conflitos (Fase 8, item 6 do pedido do Rafael) — pares lado a |
 | `src/knowledge/EntitiesTab.jsx` | 89 | Aba Pessoas/Empresas (Fase 8, item 7 do pedido do Rafael) — lista + |
 | `src/knowledge/FactDrawer.jsx` | 219 | Card/drawer detalhado de um conhecimento (Fase 8, 2026-09-11, item 4 |
@@ -350,7 +351,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/styles/S.js` | 452 | Objeto de estilos compartilhado (inline styles do app). Extraído de src/App.jsx em 2026-10-17 ("dividir o AppScreens e o S"); o App.jsx continua |
 | `src/sw.js` | 85 | Service worker do PRICETAX (2026-10-17, PWA). Objetivo: o app ser instalável e abrir a casca mesmo sem rede. |
 | `src/today/ContinueStrip.jsx` | 47 | "Continuar de onde parou" (Onda 5, §81): até 4 itens recentes (empresa, atividade, reunião, módulo) clicáveis na tela |
-| `src/today/TodayPanel.jsx` | 223 | "Hoje" da tela inicial (Onda 5, §81): o que está atrasado, o que vence hoje, as reuniões de hoje/amanhã e as notificações |
+| `src/today/TodayPanel.jsx` | 226 | "Hoje" da tela inicial (Onda 5, §81): o que está atrasado, o que vence hoje, as reuniões de hoje/amanhã e as notificações |
 | `src/today/WeekSummary.jsx` | 73 | "Sua semana" na tela inicial (Onda 5, §81): 3–4 números dos últimos 7 dias, vindos do mesmo endpoint dos Indicadores do |
 | `src/today/boardActions.js` | 70 | Ações do "Hoje" sobre o quadro pessoal (Onda 5, §81). Funções PURAS: recebem o JSON do quadro e devolvem o novo JSON, |
 | `src/today/todayItems.js` | 111 | "Hoje" da tela inicial (Onda 5, §81): junta num lugar só o que está atrasado ou vence hoje para UMA pessoa. |

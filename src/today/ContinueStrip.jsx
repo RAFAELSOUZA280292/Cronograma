@@ -7,16 +7,16 @@ const ICONS = { company: Building2, activity: ListChecks, meeting: Mic, card: Co
 const KIND_LABEL = { company: 'Empresa', activity: 'Atividade', meeting: 'Reunião', card: 'Cartão', module: 'Módulo' };
 
 const CSS = `
-.cs { font-family: 'Inter', sans-serif; margin: 0 0 18px; }
-.cs-title { margin: 0 0 8px; font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--text-4); }
-.cs-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.cs { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg-2); border: 1px solid var(--border-1); border-radius: 14px; padding: 18px 20px; box-shadow: 0 1px 2px rgba(11,11,30,.04); box-sizing: border-box; }
+.cs-title { margin: 0 0 10px; font-size: 15px; font-weight: 700; color: var(--text-1); }
+.cs-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
 .cs-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border-radius: 11px; border: 1px solid var(--border-1); background: var(--bg-2); color: var(--text-2); font: inherit; cursor: pointer; min-width: 0; }
 .cs-item:hover { border-color: var(--border-3); background: var(--bg-3); }
 .cs-item:focus-visible { outline: 2px solid var(--ui-accent, #F5C400); outline-offset: 2px; }
-.cs-ic { flex-shrink: 0; color: var(--ui-accent-text, #F5C400); }
+.cs-ic { flex-shrink: 0; color: var(--text-4); }
 .cs-txt { min-width: 0; display: block; }
 .cs-name { display: block; font-size: 13px; font-weight: 700; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cs-hint { display: block; font-size: 11.5px; color: var(--text-5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-hint { display: block; font-size: 12px; color: var(--text-5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
 
 export default function ContinueStrip({ items, onOpen }) {

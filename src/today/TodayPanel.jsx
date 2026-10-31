@@ -4,7 +4,7 @@
 // RENATA da tela inicial (RenataAgendaBriefing).
 import React, { useMemo, useState } from 'react';
 import { CheckCircle2, CalendarClock, ExternalLink, Mic, ListChecks, Columns3, Building2, Bell, ChevronDown } from 'lucide-react';
-import { Button, EmptyState } from '../ui/index.jsx';
+import { Button, EmptyState, IconButton } from '../ui/index.jsx';
 import { buildTodayItems } from './todayItems.js';
 import { useNotifPrefs, visibleNotifications, requestNotifSettings, hiddenTodaySources } from '../lib/notifPrefs.js';
 
@@ -12,33 +12,32 @@ const LIMIT = 8;
 const MAX_NOTIFS = 5;
 
 const CSS = `
-.tp { margin: 0 0 18px; font-family: 'Inter', sans-serif; align-self: stretch; width: 100%; box-sizing: border-box; }
-.tp-card { background: var(--bg-2); border: 1px solid var(--border-1); border-radius: 14px; padding: 16px 18px; }
+.tp { margin: 0; font-family: 'Inter', sans-serif; width: 100%; box-sizing: border-box; }
+.tp-card { background: var(--bg-2); border: 1px solid var(--border-1); border-radius: 14px; padding: 18px 20px; box-shadow: 0 1px 2px rgba(11,11,30,.04); box-sizing: border-box; }
 .tp-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
 .tp-prefs { margin-left: auto; }
 .tp-title { margin: 0; font-size: 16px; font-weight: 800; color: var(--text-1); }
-.tp-sub { font-size: 12.5px; color: var(--text-4); }
+.tp-sub { font-size: 13px; color: var(--text-4); }
 .tp-sec { margin-top: 14px; }
-.tp-sec-title { display: flex; align-items: center; gap: 7px; margin: 0 0 6px; font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--text-4); }
-.tp-sec-title.danger { color: var(--ui-danger, #ff7b70); }
+.tp-sec-title { display: flex; align-items: center; gap: 7px; margin: 0 0 4px; font-size: 13.5px; font-weight: 700; color: var(--text-2); }
+.tp-sec-title.danger { color: var(--text-2); }
 .tp-sec-toggle { display: flex; align-items: center; gap: 7px; width: 100%; padding: 6px 4px; margin: 0 -4px; background: transparent; border: 0; border-radius: 8px; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer; }
 .tp-sec-toggle:hover { background: var(--bg-3); }
 .tp-chev { margin-left: auto; flex-shrink: 0; transition: transform .15s ease; }
 .tp-sec.collapsed .tp-chev { transform: rotate(-90deg); }
 @media (prefers-reduced-motion: reduce) { .tp-chev { transition: none; } }
-.tp-n { min-width: 20px; text-align: center; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 800; background: var(--bg-4); color: var(--text-3); }
-.tp-sec-title.danger .tp-n { background: var(--ui-danger-bg, rgba(226,87,76,.15)); color: var(--ui-danger, #ff7b70); }
-.tp-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--border-1); }
+.tp-n { min-width: 20px; text-align: center; padding: 1px 7px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--bg-4); color: var(--text-2); }
+.tp-sec-title.danger .tp-n { background: var(--ui-danger-bg, rgba(226,87,76,.15)); color: var(--ui-danger); }
+.tp-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border-1); }
 .tp-row:first-of-type { border-top: 0; }
 .tp-main { flex: 1; min-width: 0; }
-.tp-name { font-size: 13.5px; font-weight: 700; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tp-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; font-size: 12px; color: var(--text-4); }
-.tp-meta .late { color: var(--ui-danger, #ff7b70); font-weight: 700; }
-.tp-meta .today { color: var(--ui-warn, #ffb066); font-weight: 700; }
-.tp-src { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 6px; background: var(--bg-3); color: var(--text-4); font-size: 11px; font-weight: 700; }
-.tp-prio { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; }
-.tp-prio.urgente, .tp-prio.alta { color: #e2574c; } .tp-prio.media { color: #ff9f40; } .tp-prio.baixa { color: var(--text-5); }
-.tp-acts { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.tp-name { font-size: 14px; font-weight: 700; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-meta { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; margin-top: 3px; font-size: 12px; color: var(--text-4); }
+.tp-flag { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--text-2); }
+.tp-flag::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--text-6)); flex-shrink: 0; }
+.tp-src { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 6px; background: var(--bg-3); color: var(--text-3); font-size: 12px; font-weight: 600; }
+
+.tp-acts { display: flex; align-items: center; gap: 6px; flex-shrink: 0; justify-content: flex-end; }
 .tp-more { margin-top: 6px; }
 .tp-none { font-size: 13px; color: var(--text-4); padding: 8px 0 2px; }
 @media (max-width: 720px) {
@@ -59,6 +58,8 @@ function lateText(days) {
   return days === 1 ? 'Venceu ontem' : `Venceu há ${days} dias`;
 }
 
+const PRIORITY_DOT = { urgente: 'var(--tg-risk)', alta: 'var(--tg-risk)', media: 'var(--tg-warn)', baixa: 'var(--tg-gray)' };
+
 function ItemRow({ item, actions }) {
   const src = SOURCE_LABEL[item.source];
   const SrcIcon = src.Icon;
@@ -67,16 +68,16 @@ function ItemRow({ item, actions }) {
       <div className="tp-main">
         <div className="tp-name" title={item.title}>{item.title}</div>
         <div className="tp-meta">
-          <span className="tp-src"><SrcIcon size={11} aria-hidden="true" /> {src.text}</span>
+          <span className="tp-src"><SrcIcon size={12} aria-hidden="true" /> {src.text}</span>
           <span>{item.hint}</span>
-          {item.priority && PRIORITY_LABEL[item.priority] && <span className={`tp-prio ${item.priority}`}>{PRIORITY_LABEL[item.priority]}</span>}
-          <span className={item.daysLate > 0 ? 'late' : 'today'}>{item.daysLate > 0 ? lateText(item.daysLate) : 'Vence hoje'}</span>
+          {item.priority && PRIORITY_LABEL[item.priority] && <span className="tp-flag" style={{ '--dot': PRIORITY_DOT[item.priority] }}>{PRIORITY_LABEL[item.priority]}</span>}
+          <span className="tp-flag" style={{ '--dot': item.daysLate > 0 ? 'var(--tg-risk)' : 'var(--tg-warn)' }}>{item.daysLate > 0 ? lateText(item.daysLate) : 'Vence hoje'}</span>
         </div>
       </div>
       <div className="tp-acts">
-        <Button size="sm" variant="primary" icon={CheckCircle2} onClick={() => actions.complete(item)} aria-label={`Concluir: ${item.title}`}>Concluir</Button>
-        <Button size="sm" icon={CalendarClock} onClick={() => actions.postpone(item)} aria-label={`Adiar para amanhã: ${item.title}`}>Adiar para amanhã</Button>
-        <Button size="sm" icon={ExternalLink} onClick={() => actions.open(item)} aria-label={`Abrir: ${item.title}`}>Abrir</Button>
+        <Button size="sm" icon={CheckCircle2} onClick={() => actions.complete(item)} aria-label={`Concluir: ${item.title}`}>Concluir</Button>
+        <IconButton icon={CalendarClock} label={`Adiar para amanhã: ${item.title}`} onClick={() => actions.postpone(item)} />
+        <IconButton icon={ExternalLink} label={`Abrir: ${item.title}`} onClick={() => actions.open(item)} />
       </div>
     </li>
   );
@@ -161,6 +162,7 @@ export default function TodayPanel({ projects, personalBoard, user, notification
           )}
         </div>
 
+        <div className="tp-scroll">
         {empty && (
           <EmptyState compact tone="ok" icon={CheckCircle2} title="Nada atrasado nem vencendo hoje." description="Reuniões de hoje e novidades aparecem aqui quando houver." />
         )}
@@ -216,6 +218,7 @@ export default function TodayPanel({ projects, personalBoard, user, notification
           </div>
           </section>
         )}
+        </div>
       </div>
     </section>
   );

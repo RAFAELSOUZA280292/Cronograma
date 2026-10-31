@@ -41,6 +41,7 @@ import NotificationPrefs from './shell/NotificationPrefs.jsx';
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
 import { setRecentsUser, recordRecent, getRecents, loadLastWorkspace, saveLastWorkspace } from './lib/recents.js';
 import TodayPanel from './today/TodayPanel.jsx';
+import { HOME_CSS } from './home/homeCss.js';
 import WeekSummary from './today/WeekSummary.jsx';
 import ContinueStrip from './today/ContinueStrip.jsx';
 import { buildTodayItems, addDaysIso } from './today/todayItems.js';
@@ -3399,6 +3400,12 @@ export function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }
 }
 
 
+function homeDate(iso) {
+  const d = /^\d{4}-\d{2}-\d{2}/.test(String(iso || '')) ? new Date(`${String(iso).slice(0, 10)}T12:00:00`) : new Date();
+  const t = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(d);
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
 function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMacro, onPickKnowledge, onPickPareceres, onPickModelos, onPickCrm, onPickUsers, onPickOps, onLogout, theme, onToggleTheme, onOpenProfile, onConfigureDaily, dailyReload, projects, notifications, todayIso, todayActions, showWeek, onOpenStats, continueItems }) {
   const todayPrefs = useNotifPrefs();
   const overdueNow = useMemo(() => buildTodayItems({ projects, personalBoard, user, todayIso, hiddenSources: hiddenTodaySources(todayPrefs.todaySources) }).overdue.length, [projects, personalBoard, user, todayIso, todayPrefs.todaySources]);
@@ -3426,43 +3433,51 @@ function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersona
   return (
     <div className="page-root" style={S.page}>
       <div style={S.companySelectorWrap}>
-        <div style={S.companySelectorHeader}>
-          <BrandLogo theme={theme} style={{ ...S.loginLogo, marginBottom: 0 }} />
+        <style>{HOME_CSS}</style>
+        <div className="home">
+          <header className="home-head">
+            <BrandLogo theme={theme} style={{ ...S.loginLogo, marginBottom: 0 }} />
+          </header>
+          <div className="home-hello">
+            <h1 className="home-title">Olá, {(user.name || '').split(' ')[0] || user.username}</h1>
+            <p className="home-date">{homeDate(todayIso)}</p>
+          </div>
+
+          <div className="home-hero">
+            <DailyCards onConfigure={onConfigureDaily} reloadKey={dailyReload} />
+            <TodayPanel projects={projects} personalBoard={personalBoard} user={user} notifications={notifications} todayIso={todayIso} actions={todayActions} />
+          </div>
+
+          <div className="home-row">
+            {showWeek && <WeekSummary overdueNow={overdueNow} onOpenStats={onOpenStats} />}
+            <ContinueStrip items={continueItems} onOpen={(it) => it.run()} />
+          </div>
+
+          <div className="home-agenda">
+            {/* O quadro pessoal NÃO vai para a RENATA aqui: o painel "Hoje" acima já lista os cartões atrasados/de hoje com ações. */}
+            <RenataAgendaBriefing user={user} onOpenAgenda={onPickAgenda} personalBoard={null} onOpenPersonal={onPickPersonal} />
+          </div>
+
+          <p className="home-ask">Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>
+          <div className="home-launch">
+            {gateGroups.map((g) => (
+              <section key={g.id} aria-labelledby={`gate-grp-${g.id}`}>
+                <h2 id={`gate-grp-${g.id}`} className="home-grp-title">{g.title}</h2>
+                <div className="home-grp-list">
+                  {g.items.map((it) => (
+                    <button key={it.id} className="gate-card" style={S.gateCard} onClick={it.onPick}>
+                      <it.Icon size={22} color="var(--ui-accent-text)" aria-hidden="true" style={{ flexShrink: 0 }} />
+                      <span style={S.gateCardText}>
+                        <span style={S.gateCardTitle}>{it.title}</span>
+                        <span style={S.gateCardDesc}>{it.desc}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
         </div>
-        <h1 style={{ ...S.loginTitle, marginBottom: 14 }}>Olá, {(user.name || '').split(' ')[0] || user.username}</h1>
-
-        <DailyCards onConfigure={onConfigureDaily} reloadKey={dailyReload} />
-
-        <TodayPanel projects={projects} personalBoard={personalBoard} user={user} notifications={notifications} todayIso={todayIso} actions={todayActions} />
-        {showWeek && <WeekSummary overdueNow={overdueNow} onOpenStats={onOpenStats} />}
-
-        {/* O quadro pessoal NÃO vai para a RENATA aqui: o painel "Hoje" acima já lista os cartões atrasados/de hoje com ações. */}
-        <RenataAgendaBriefing user={user} onOpenAgenda={onPickAgenda} personalBoard={null} onOpenPersonal={onPickPersonal} />
-
-        <ContinueStrip items={continueItems} onOpen={(it) => it.run()} />
-
-        <p style={{ ...S.loginSub, marginBottom: 14 }}>Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>
-
-        <style>{`
-          .gate-card:hover { border-color: #F5C400 !important; }
-          .gate-card:focus-visible { outline: 2px solid #F5C400; outline-offset: 2px; }
-        `}</style>
-        {gateGroups.map((g) => (
-          <section key={g.id} aria-labelledby={`gate-grp-${g.id}`} style={S.gateGroup}>
-            <h2 id={`gate-grp-${g.id}`} style={S.gateGroupTitle}>{g.title}</h2>
-            <div style={S.gateGrid}>
-              {g.items.map((it) => (
-                <button key={it.id} className="gate-card" style={S.gateCard} onClick={it.onPick}>
-                  <it.Icon size={22} color="#F5C400" aria-hidden="true" style={{ flexShrink: 0 }} />
-                  <span style={S.gateCardText}>
-                    <span style={S.gateCardTitle}>{it.title}</span>
-                    <span style={S.gateCardDesc}>{it.desc}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-        ))}
       </div>
     </div>
   );

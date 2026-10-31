@@ -4,46 +4,44 @@ import { apiGet } from '../lib/api.js';
 import { DialogOverlay } from '../ui/dialog.jsx';
 
 const CSS = `
-  .dcs { width:min(760px, 100%); margin:0 0 20px; font-family:'Inter', sans-serif; text-align:left; box-sizing:border-box; --gold:#F5C400; --gold-text:var(--ui-accent-text); }
-  .dcs-greet { text-align:center; font-size:14.5px; color:var(--text-4); margin:0; line-height:1.5; }
-  .dcs-rule { display:block; width:48px; height:3px; border-radius:99px; background:var(--gold); margin:12px auto 20px; }
-  .dcs-card { position:relative; border:1px solid var(--border-1); background:var(--bg-2); border-radius:22px; padding:20px 22px 20px; display:flex; flex-direction:column; gap:16px; min-width:0; overflow:hidden; box-shadow:0 12px 40px rgba(0,0,0,.10); }
+  .dcs { width:100%; height:100%; margin:0; font-family:'Inter', sans-serif; text-align:left; box-sizing:border-box; display:flex; flex-direction:column; --gold:#F5C400; --gold-text:var(--ui-accent-text); }
+  .dcs-card { position:relative; flex:1; border:1px solid var(--border-1); background:var(--bg-2); border-radius:14px; padding:20px 22px; display:flex; flex-direction:column; gap:16px; min-width:0; overflow:hidden; box-shadow:0 1px 2px rgba(11,11,30,.04); }
   .dcs-top { display:flex; align-items:center; justify-content:space-between; gap:12px; }
   .dcs-head { display:flex; align-items:center; gap:13px; min-width:0; }
   .dcs-badge { width:46px; height:46px; border-radius:50%; background:rgba(245,196,0,.18); color:var(--gold-text); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .dcs-kicker { font-size:13px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--gold-text); }
+  .dcs-kicker { font-size:15px; font-weight:700; color:var(--text-1); }
   .dcs-sub { font-size:14.5px; font-weight:800; color:var(--text-1); line-height:1.35; }
   .dcs-sub-h { font-size:13px; color:var(--text-4); margin-top:2px; line-height:1.4; }
-  .dcs-conf { display:inline-flex; align-items:center; gap:7px; font-family:inherit; font-size:13px; font-weight:700; color:var(--text-2); background:var(--bg-1); border:1px solid var(--border-2); border-radius:999px; padding:9px 16px; cursor:pointer; min-height:40px; flex-shrink:0; }
+  .dcs-conf { display:inline-flex; align-items:center; gap:7px; font-family:inherit; font-size:13px; font-weight:700; color:var(--text-2); background:var(--bg-1); border:1px solid var(--border-2); border-radius:10px; padding:9px 16px; cursor:pointer; min-height:40px; flex-shrink:0; }
   .dcs-conf:hover { background:var(--bg-3); color:var(--text-1); }
   .dcs-chips { display:flex; gap:8px; overflow-x:auto; padding:2px 0 4px; scrollbar-width:none; }
   .dcs-chips::-webkit-scrollbar { display:none; }
-  .dcs-chip { flex-shrink:0; display:inline-flex; align-items:center; gap:8px; font-family:inherit; font-size:13.5px; font-weight:700; color:var(--text-3); background:var(--bg-3); border:1px solid transparent; border-radius:999px; padding:9px 16px; cursor:pointer; min-height:40px; white-space:nowrap; }
+  .dcs-chip { flex-shrink:0; display:inline-flex; align-items:center; gap:8px; font-family:inherit; font-size:13.5px; font-weight:700; color:var(--text-3); background:var(--bg-3); border:1px solid transparent; border-radius:8px; padding:9px 16px; cursor:pointer; min-height:40px; white-space:nowrap; }
   .dcs-chip:hover { background:var(--bg-4); }
-  .dcs-chip[aria-pressed="true"] { color:#111; background:var(--gold); box-shadow:0 4px 14px rgba(245,196,0,.35); }
-  .dcs-main { display:grid; grid-template-columns:minmax(0,1fr) 250px; gap:22px; align-items:stretch; }
+  .dcs-chip[aria-pressed="true"] { color:var(--bg-1); background:var(--text-1); }
+  .dcs-main { display:grid; grid-template-columns:minmax(0,1fr) 210px; gap:20px; align-items:stretch; flex:1; }
   .dcs-body { display:flex; flex-direction:column; gap:10px; min-width:0; }
   .dcs-title { font-size:23px; font-weight:800; color:var(--text-1); line-height:1.25; letter-spacing:-.01em; overflow-wrap:anywhere; }
   .dcs-tag { align-self:flex-start; display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; color:var(--ui-ok); background:rgba(62,207,110,.15); border-radius:999px; padding:5px 12px; }
-  .dcs-ref { font-size:17px; font-weight:800; color:var(--gold-text); margin-top:2px; }
+  .dcs-ref { font-size:16px; font-weight:700; color:var(--text-3); margin-top:2px; }
   .dcs-text { font-size:14px; line-height:1.65; color:var(--text-3); white-space:pre-line; overflow-wrap:anywhere; }
   .dcs-text.clamp { display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
   .dcs-text.big { font-size:15px; color:var(--text-2); }
-  .dcs-quote { font-size:21px; font-weight:700; line-height:1.4; color:var(--text-1); letter-spacing:-.005em; overflow-wrap:anywhere; }
-  .dcs-author { font-size:14px; font-weight:700; color:var(--gold-text); }
+  .dcs-quote { font-size:20px; font-weight:700; line-height:1.4; color:var(--text-1); letter-spacing:-.005em; overflow-wrap:anywhere; }
+  .dcs-author { font-size:14px; font-weight:700; color:var(--text-3); }
   .dcs-actions { display:flex; align-items:center; gap:10px; margin-top:auto; padding-top:6px; flex-wrap:wrap; }
-  .dcs-read { display:inline-flex; align-items:center; gap:8px; font-family:inherit; font-size:14px; font-weight:800; color:#111; background:var(--gold); border:none; border-radius:999px; padding:11px 20px; cursor:pointer; min-height:44px; box-shadow:0 6px 18px rgba(245,196,0,.32); }
-  .dcs-read:hover { background:#ffd21f; }
-  .dcs-icon-btn { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:50%; border:1px solid var(--border-2); background:var(--bg-1); color:var(--text-3); cursor:pointer; }
+  .dcs-read { display:inline-flex; align-items:center; gap:8px; font-family:inherit; font-size:14px; font-weight:700; color:var(--text-1); background:var(--bg-1); border:1px solid var(--border-2); border-radius:10px; padding:10px 16px; cursor:pointer; min-height:44px; }
+  .dcs-read:hover { background:var(--bg-3); border-color:var(--border-3); }
+  .dcs-icon-btn { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:10px; border:1px solid var(--border-2); background:var(--bg-1); color:var(--text-3); cursor:pointer; }
   .dcs-icon-btn:hover { background:var(--bg-3); color:var(--text-1); }
   .dcs-more { align-self:flex-start; display:inline-flex; align-items:center; gap:4px; background:none; border:none; font-family:inherit; font-size:12.5px; font-weight:800; color:var(--text-1); cursor:pointer; padding:4px 0; min-height:32px; }
-  .dcs-art { position:relative; border-radius:18px; min-height:210px; overflow:hidden; display:flex; align-items:center; justify-content:center; color:#8a6205; background:radial-gradient(120% 90% at 85% 15%, #fff4cf 0%, #f6dc93 38%, #e9bd54 100%); }
+  .dcs-art { position:relative; border-radius:12px; min-height:150px; max-height:300px; align-self:center; width:100%; aspect-ratio:7/8; overflow:hidden; display:flex; align-items:center; justify-content:center; color:#8a6205; background:radial-gradient(120% 90% at 85% 15%, #fff4cf 0%, #f6dc93 38%, #e9bd54 100%); }
   .dcs-art::before { content:''; position:absolute; inset:0; background:linear-gradient(90deg, var(--bg-2) 0%, rgba(255,255,255,0) 38%); pointer-events:none; }
-  .dcs-art svg { position:relative; opacity:.9; filter:drop-shadow(0 8px 14px rgba(120,80,0,.25)); }
+  .dcs-art svg { position:relative; width:84px; height:84px; opacity:.9; filter:drop-shadow(0 8px 14px rgba(120,80,0,.25)); }
   .dcs-art i { position:absolute; border-radius:50%; background:rgba(255,255,255,.35); }
   html:not([data-theme="light"]) .dcs-art { color:#F5C400; background:radial-gradient(120% 90% at 85% 15%, #4a3a10 0%, #2a210b 45%, #17120a 100%); }
   html:not([data-theme="light"]) .dcs-art i { background:rgba(245,196,0,.10); }
-  .dcs-foot { font-size:11px; line-height:1.45; color:var(--text-5); white-space:pre-line; }
+  .dcs-foot { font-size:12px; line-height:1.45; color:var(--text-5); white-space:pre-line; }
   .dcs-foot a { color:inherit; }
   .dcs-muted { font-size:13px; color:var(--text-5); line-height:1.55; }
   .dcs-empty { border:1px dashed var(--border-3); border-radius:18px; padding:16px 18px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; background:var(--bg-2); }
@@ -53,7 +51,7 @@ const CSS = `
   @media (max-width:720px) {
     .dcs-main { grid-template-columns:minmax(0,1fr); }
     .dcs-art { display:none; }
-    .dcs-card { padding:16px 16px 16px; border-radius:18px; }
+    .dcs-card { padding:16px 16px 16px; border-radius:14px; }
     .dcs-badge { width:40px; height:40px; }
     .dcs-title { font-size:20px; } .dcs-quote { font-size:19px; }
     .dcs-conf span { display:none; } .dcs-conf { padding:9px 12px; }
@@ -192,15 +190,13 @@ export default function DailyCards({ onConfigure, reloadKey }) {
   return (
     <section className="dcs" aria-label="Mensagem do dia">
       <style>{CSS}</style>
-      <p className="dcs-greet">{meta.greet}</p>
-      <span className="dcs-rule" aria-hidden="true" />
       <div className="dcs-card">
         <div className="dcs-top">
           <div className="dcs-head">
             <div className="dcs-badge"><HeadIcon size={22} /></div>
             <div style={{ minWidth: 0 }}>
               <div className="dcs-kicker">Mensagem do dia</div>
-              <div className="dcs-sub-h">{meta.sub}</div>
+              <div className="dcs-sub-h">{meta.greet}</div>
             </div>
           </div>
           <button type="button" className="dcs-conf" onClick={onConfigure}><Settings2 size={15} /> <span>Personalizar</span></button>

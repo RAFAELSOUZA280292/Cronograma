@@ -249,16 +249,16 @@ function EventLine({ row, now, isToday, onRespond, busy }) {
 }
 
 const CSS = `
-  .rab-shell { width:min(820px,100%); display:flex; flex-direction:column; gap:14px; margin-bottom:18px; text-align:left; }
-  .rab-panel { background:var(--bg-2); border:1px solid var(--border-2); border-radius:16px; padding:20px 22px; box-shadow:0 1px 2px rgba(0,0,0,.05), 0 8px 22px rgba(0,0,0,.06); }
+  .rab-shell { width:100%; display:flex; flex-direction:column; gap:14px; margin-bottom:0; text-align:left; }
+  .rab-panel { background:var(--bg-2); border:1px solid var(--border-2); border-radius:14px; padding:20px 22px; box-shadow:0 1px 2px rgba(11,11,30,.04); }
   .rab-top { display:flex; align-items:center; gap:11px; margin-bottom:16px; }
   .rab-avatar { width:32px; height:32px; border-radius:50%; background:rgba(245,196,0,.16); color:var(--ui-accent-text); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .rab-name { font-size:10.5px; font-weight:800; letter-spacing:.09em; color:var(--ui-accent-text); }
+  .rab-name { font-size:12.5px; font-weight:800; letter-spacing:.06em; color:var(--ui-accent-text); }
   .rab-greet { font-size:13px; font-weight:700; color:var(--text-3); margin-top:1px; }
   .rab-spacer { flex:1; }
-  .rab-link { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:800; color:var(--text-3); background:var(--bg-2); border:1px solid var(--border-2); border-radius:999px; cursor:pointer; font-family:inherit; padding:8px 14px; }
+  .rab-link { display:inline-flex; white-space:nowrap; align-items:center; gap:5px; font-size:12px; font-weight:800; color:var(--text-3); background:var(--bg-2); border:1px solid var(--border-2); border-radius:10px; cursor:pointer; font-family:inherit; padding:8px 14px; }
   .rab-link:hover { color:var(--text-1); border-color:var(--border-3); }
-  .rab-eyebrow { font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--text-6); }
+  .rab-eyebrow { font-size:12.5px; font-weight:700; color:var(--text-4); }
   .rab-verdict { font-size:28px; line-height:1.15; font-weight:800; color:var(--text-1); margin:4px 0 0; letter-spacing:-.01em; }
   .rab-chips { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 0; }
   .rab-chip { display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700; color:var(--text-2); background:var(--bg-3); border:1px solid var(--border-1); border-radius:999px; padding:7px 13px; }
@@ -284,7 +284,7 @@ const CSS = `
   .rab-day { display:flex; flex-direction:column; align-items:center; gap:2px; padding:9px 2px 7px; border-radius:12px; border:1px solid var(--border-1); background:var(--bg-2); cursor:pointer; font-family:inherit; color:var(--text-3); min-width:0; box-shadow:0 1px 2px rgba(0,0,0,.04); }
   .rab-day:hover { background:var(--bg-3); }
   .rab-day.rab-sel { background:var(--bg-3); border-color:var(--border-3); }
-  .rab-dow { font-size:9.5px; font-weight:800; letter-spacing:.07em; color:var(--text-6); }
+  .rab-dow { font-size:12px; font-weight:800; letter-spacing:.07em; color:var(--text-6); }
   .rab-num { font-size:15px; font-weight:800; color:var(--text-1); width:26px; height:26px; line-height:26px; border-radius:50%; }
   .rab-today.rab-sel { background:rgba(245,196,0,.1); border-color:rgba(245,196,0,.45); }
   .rab-today .rab-num { background:#F5C400; color:#111; }
@@ -292,7 +292,7 @@ const CSS = `
   .rab-sel .rab-gauge { background:var(--bg-2); }
   .rab-gauge i { position:absolute; left:0; right:0; bottom:0; background:#5B8DEF; border-radius:4px; }
   .rab-gauge.rab-heavy i { background:#ff9f40; }
-  .rab-hrs { font-size:10.5px; font-weight:700; color:var(--text-5); font-variant-numeric:tabular-nums; height:13px; }
+  .rab-hrs { font-size:12px; font-weight:700; color:var(--text-5); font-variant-numeric:tabular-nums; height:13px; }
   .rab-flags { display:flex; gap:4px; height:8px; margin-top:1px; }
   .rab-flag { width:7px; height:7px; border-radius:50%; }
   .rab-flag-c { background:#e2574c; } .rab-flag-p { background:#ff9f40; }
@@ -301,28 +301,28 @@ const CSS = `
   .rab-sectitle-row { display:flex; align-items:center; gap:9px; }
   .rab-sectitle { font-size:15px; font-weight:800; color:var(--text-1); }
   .rab-secsub { font-size:12px; color:var(--text-5); margin-top:2px; font-variant-numeric:tabular-nums; }
-  .rab-count-badge { display:inline-flex; align-items:center; justify-content:center; min-width:21px; height:21px; padding:0 6px; border-radius:999px; background:var(--bg-3); border:1px solid var(--border-1); font-size:11px; font-weight:800; color:var(--text-3); }
-  .rab-col-label { font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--text-6); align-self:center; }
-  .rab-leg2 { display:flex; flex-wrap:wrap; gap:5px 16px; font-size:11.5px; color:var(--text-5); }
+  .rab-count-badge { display:inline-flex; align-items:center; justify-content:center; min-width:21px; height:21px; padding:0 6px; border-radius:999px; background:var(--bg-3); border:1px solid var(--border-1); font-size:12px; font-weight:800; color:var(--text-3); }
+  .rab-col-label { font-size:12px; font-weight:800; color:var(--text-6); align-self:center; }
+  .rab-leg2 { display:flex; flex-wrap:wrap; gap:5px 16px; font-size:12px; color:var(--text-5); }
   .rab-leg2 span { display:inline-flex; align-items:center; gap:6px; }
   .rab-leg2-dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
   .rab-leg2-acc { background:#5B8DEF; } .rab-leg2-pen { background:#ff9f40; } .rab-leg2-con { background:#e2574c; } .rab-leg2-free { background:#3ecf6e; }
   .rab-bar { margin-top:2px; }
   .rab-track { position:relative; }
-  .rab-free { position:absolute; top:0; bottom:0; background:rgba(62,207,110,.11); border:1.5px dashed rgba(47,158,99,.4); border-radius:8px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:800; color:var(--ui-ok); pointer-events:none; }
+  .rab-free { position:absolute; top:0; bottom:0; background:rgba(62,207,110,.11); border:1.5px dashed rgba(47,158,99,.4); border-radius:8px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:var(--ui-ok); pointer-events:none; }
   .rab-blk { position:absolute; border-radius:6px; background:color-mix(in srgb, var(--c) 24%, transparent); border-left:3px solid var(--c); padding:4px 7px; display:flex; align-items:center; overflow:hidden; box-sizing:border-box; }
-  .rab-blk span { font-size:10.5px; font-weight:700; color:var(--text-1); line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-overflow:ellipsis; word-break:break-word; }
+  .rab-blk span { font-size:12px; font-weight:700; color:var(--text-1); line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-overflow:ellipsis; word-break:break-word; }
   .rab-blk-pending { background:transparent; border:1.5px dashed var(--c); }
   .rab-blk-declined { opacity:.35; }
   .rab-blk-conflict { box-shadow:0 0 0 1.5px #e2574c inset; }
   .rab-blk-clipped { border-radius:6px 0 0 6px; }
   .rab-now { position:absolute; top:-3px; bottom:-3px; width:2px; background:#F5C400; border-radius:2px; box-shadow:0 0 0 2px rgba(245,196,0,.25); }
   .rab-ticks { position:relative; height:14px; margin-top:6px; }
-  .rab-ticks span { position:absolute; transform:translateX(-50%); font-size:10px; color:var(--text-6); font-variant-numeric:tabular-nums; }
+  .rab-ticks span { position:absolute; transform:translateX(-50%); font-size:12px; color:var(--text-6); font-variant-numeric:tabular-nums; }
   .rab-lunchrow { position:relative; height:38px; margin-top:6px; }
   .rab-lunchpill { position:absolute; top:0; transform:translateX(-50%); padding:5px 13px; border-radius:10px; background:rgba(47,158,99,.09); border:1px solid rgba(47,158,99,.35); text-align:center; white-space:nowrap; box-sizing:border-box; }
-  .rab-lunchpill b { display:block; font-size:10.5px; font-weight:800; color:var(--ui-ok); }
-  .rab-lunchpill i { display:block; font-style:normal; font-size:9.5px; color:var(--text-5); margin-top:1px; }
+  .rab-lunchpill b { display:block; font-size:12px; font-weight:800; color:var(--ui-ok); }
+  .rab-lunchpill i { display:block; font-style:normal; font-size:12px; color:var(--text-5); margin-top:1px; }
   .rab-lunchpill.rab-lunch-busy { background:rgba(226,87,76,.1); border-color:rgba(226,87,76,.5); }
   .rab-lunchpill.rab-lunch-busy b { color:var(--ui-danger); }
   .rab-cfg { margin-top:14px; padding:14px 16px; border:1px solid var(--border-2); border-radius:12px; background:var(--bg-1); }
@@ -333,7 +333,7 @@ const CSS = `
   .rab-cfg-act { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
   .rab-cfg-act .rab-btn { padding:7px 13px; }
   .rab-cfg-err { margin-top:9px; font-size:12px; color:var(--ui-danger); }
-  .rab-cfg-hint { margin-top:10px; font-size:11.5px; color:var(--text-6); line-height:1.45; }
+  .rab-cfg-hint { margin-top:10px; font-size:12px; color:var(--text-6); line-height:1.45; }
   .rab-att { display:flex; align-items:flex-start; gap:14px; }
   .rab-att-danger { background:rgba(226,87,76,.06); border-color:rgba(226,87,76,.22); }
   .rab-att-warn { background:rgba(255,159,64,.07); border-color:rgba(255,159,64,.22); }
@@ -354,22 +354,22 @@ const CSS = `
   .rab-mark { width:8px; height:8px; border-radius:50%; background:var(--c); margin-top:6px; box-sizing:border-box; }
   .rab-mark-pending { background:transparent; border:2px solid #ff9f40; }
   .rab-lt { font-size:13px; font-weight:800; color:var(--text-1); font-variant-numeric:tabular-nums; display:flex; flex-direction:column; line-height:1.2; }
-  .rab-lt i { font-style:normal; font-weight:600; font-size:11px; color:var(--text-6); }
+  .rab-lt i { font-style:normal; font-weight:600; font-size:12px; color:var(--text-6); }
   .rab-lb { min-width:0; display:flex; flex-direction:column; gap:2px; }
   .rab-lb b { font-size:13.5px; font-weight:700; color:var(--text-1); overflow-wrap:anywhere; }
-  .rab-lb small { font-size:11.5px; color:var(--text-6); display:flex; align-items:center; gap:4px; }
+  .rab-lb small { font-size:12px; color:var(--text-6); display:flex; align-items:center; gap:4px; }
   .rab-rsvp { grid-column:3 / -1; margin-top:8px; }
   .rab-lw { color:var(--ui-danger); margin-left:6px; vertical-align:-1px; }
-  .rab-pill-now { font-style:normal; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; background:#F5C400; color:#111; padding:1px 7px; border-radius:999px; margin-left:8px; }
+  .rab-pill-now { font-style:normal; font-size:12px; font-weight:800; background:#F5C400; color:#111; padding:1px 7px; border-radius:999px; margin-left:8px; }
   .rab-ld { font-size:12px; color:var(--text-5); font-variant-numeric:tabular-nums; white-space:nowrap; padding-top:1px; }
   .rab-past { opacity:.45; }
   .rab-declined .rab-lb b { font-weight:500; font-style:italic; color:var(--text-5); }
   .rab-declined .rab-mark { opacity:.4; }
-  .rab-foot { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--border-1); font-size:11px; color:var(--text-6); }
+  .rab-foot { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--border-1); font-size:12px; color:var(--text-6); }
   .rab-legend { display:inline-flex; align-items:center; gap:5px; }
   .rab-legend i { width:8px; height:8px; border-radius:50%; background:#5B8DEF; display:inline-block; box-sizing:border-box; }
   .rab-legend i.h { background:transparent; border:2px solid #ff9f40; }
-  .rab-toggle { background:none; border:none; padding:0; font-family:inherit; font-size:11.5px; font-weight:700; color:var(--text-5); cursor:pointer; text-decoration:underline; }
+  .rab-toggle { background:none; border:none; padding:0; font-family:inherit; font-size:12px; font-weight:700; color:var(--text-5); cursor:pointer; text-decoration:underline; }
   .rab-quiet { font-size:13.5px; color:var(--text-4); padding:2px 0 4px; }
   .rab-text { font-size:13px; color:var(--text-3); line-height:1.55; }
   .rab-actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }

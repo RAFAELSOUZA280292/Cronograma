@@ -51,7 +51,7 @@ Este documento descreve só o front. Servidor, rotas e banco: `docs/gerado/ROTAS
 | `src/knowledge/` | Central de Conhecimento (abas: Memórias, Pessoas/Empresas, Conflitos, Métricas, Biblioteca, Tarefas×atividades) | Conhecimento da RENATA |
 | `src/pareceres/` | `Pareceres`, `ModulePanel` (gaveta) | Pareceres PRICETAX |
 | `src/modelos/` | `Modelos`, `modelosMeta.js` | Modelos de documentos |
-| `src/crm/` | CRM inteiro (~40 arquivos): `CrmScreen` (casca), `DealsPage`, `DealDrawer`, `CompanyDrawer`, formulários, `crmApi.js`, `crmMeta.js` (rótulos+CSS), `boardMove.js` | Qualquer pedido de CRM | Visão geral: cartões com ícone e cor por significado, menu lateral azul-marinho (§116zb); listas com ponto + data + dias de atraso (§116zc); tags neutras com bolinha e urgência em linhas (§116zd); contatos compactos e colunas sem degradê (§116ze); texto mínimo de 12 px e selos neutros em todo o CRM (§116zf).
+| `src/crm/` | CRM inteiro (~40 arquivos): `CrmScreen` (casca), `DealsPage`, `DealDrawer`, `CompanyDrawer`, formulários, `crmApi.js`, `crmMeta.js` (rótulos+CSS), `boardMove.js` | Qualquer pedido de CRM | Visão geral: cartões com ícone e cor por significado, menu lateral azul-marinho (§116zb); listas com ponto + data + dias de atraso (§116zc); tags neutras com bolinha e urgência em linhas (§116zd); contatos compactos e colunas sem degradê (§116ze); texto mínimo de 12 px e selos neutros em todo o CRM (§116zf); tela inicial em grade (`src/home/homeCss.js`, §116zg).
 | `src/assistant/` | RENATA do projeto (`ProjectAssistant`), RENATA geral (`RenataHome`), `ChatExport` + `chatExport.js`, `ParecerStudyModal` | Conversa com a RENATA |
 | `src/renata/` | `RenataChat` (RENATA operacional, executa ações) e `screenContext.js` (contexto da tela enviado a cada pedido) | RENATA que executa ações |
 | `src/opsintel/` | Central de Inteligência Operacional (só Master): `OpsIntelScreen`, `AccessMap`, `charts.jsx`, `PrivacyNotice` | Indicadores de uso |
@@ -98,7 +98,7 @@ Regra de dependência importante: **40 arquivos importam de `../App.jsx`** (`S`,
 | `guard` / `guardModal` | ~2019 | `SafeBoundary` + `Suspense` em volta de cada tela/modal | Cada ramo de módulo |
 | `exportExcel` / `exportPdf` | 2409 / 2464 | Planilha da empresa / janela de PDF | Menu da empresa |
 | `OfflineScreen`, `LoadingScreen`, `LoginGate` | 2713, 2728, 2761 | Telas de estado do boot | `AppScreens` |
-| `WorkspaceGateScreen` | 3340 | Tela inicial: cartões de módulos + RENATA + "Hoje" | `effectiveMode == null` |
+| `WorkspaceGateScreen` | 3409 | Tela inicial em grade (`src/home/homeCss.js`): Mensagem do dia \| Hoje, Sua semana \| Continuar, agenda da RENATA, módulos em 4 colunas | `effectiveMode == null` |
 | `NoAccessScreen`, `SidePanel`, `NotificationBell` | 3446, 3470, 3493 | Sem acesso; gaveta lateral; sino | — |
 | `ShellHost`, `App` | 3550, 3573 | Barra do topo fora do `AppScreens` (via `shellRef`); raiz | `main.jsx` |
 

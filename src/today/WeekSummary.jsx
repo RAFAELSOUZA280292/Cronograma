@@ -8,16 +8,16 @@ import { Button, ErrorState, Skeleton } from '../ui/index.jsx';
 const WEEKDAY_LONG = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
 
 const CSS = `
-.ws { font-family: 'Inter', sans-serif; margin: 0 0 18px; align-self: stretch; width: 100%; box-sizing: border-box; }
-.ws-card { background: var(--bg-2); border: 1px solid var(--border-1); border-radius: 14px; padding: 14px 18px; }
+.ws { font-family: 'Inter', sans-serif; margin: 0; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
+.ws-card { flex: 1; background: var(--bg-2); border: 1px solid var(--border-1); border-radius: 14px; padding: 18px 20px; box-shadow: 0 1px 2px rgba(11,11,30,.04); box-sizing: border-box; }
 .ws-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-.ws-title { margin: 0; font-size: 14px; font-weight: 800; color: var(--text-1); }
-.ws-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.ws-title { margin: 0; font-size: 15px; font-weight: 700; color: var(--text-1); }
+.ws-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .ws-kpi { background: var(--bg-3); border: 1px solid var(--border-1); border-radius: 10px; padding: 10px 12px; min-width: 0; }
 .ws-num { font-size: 24px; font-weight: 800; line-height: 1.1; color: var(--text-1); font-variant-numeric: tabular-nums; }
 .ws-num.small { font-size: 16px; text-transform: capitalize; padding-top: 5px; }
-.ws-num.danger { color: var(--ui-danger, #ff7b70); }
-.ws-lab { margin-top: 3px; font-size: 11.5px; color: var(--text-4); line-height: 1.35; }
+.ws-num.danger { color: var(--ui-danger); }
+.ws-lab { margin-top: 3px; font-size: 12px; color: var(--text-4); line-height: 1.35; }
 `;
 
 function peak(arr) {

@@ -425,8 +425,6 @@ export const CRM_CSS = `
   .crm-btn:not(.crm-btn-primary):hover { border-color:#FEDB00; }
   @media (prefers-reduced-motion: reduce) { .crm-deal { transition:none; } .crm-deal:hover, .crm-deal:focus-visible { transform:none; } }
   .crm-tags { display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; }
-  :root { --tg-green:#2ecc8f; --tg-blue:#3ea6ff; --tg-amber:#f5a524; --tg-gray:#9aa0ad; --tg-yellow:#FEDB00; --tg-purple:#b98af5; --tg-teal:#2fc4c4; --tg-red:#ff6b4a; --tg-pink:#f06fb0; --tg-lime:#7bd66a; --tg-orange:#ff9f40; --tg-risk:#e2574c; --tg-warn:#ff9f40; --tg-blue-text:#7cc0ff; }
-  html[data-theme="light"] { --tg-green:#0f8a5f; --tg-blue:#1d6fd6; --tg-amber:#a86400; --tg-gray:#6b7280; --tg-yellow:#9a7400; --tg-purple:#7c4dcc; --tg-teal:#0e7c86; --tg-red:#cf3f1f; --tg-pink:#c2347f; --tg-lime:#3a8f2c; --tg-orange:#b85c00; --tg-risk:#c0392b; --tg-warn:#b86e00; --tg-blue-text:#1558b0; }
   .crm-tg { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; line-height:1.3; padding:2px 8px; border-radius:6px; background:var(--bg-3); color:var(--text-2); border:1px solid var(--border-1); max-width:100%; }
   .crm-tg::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--dot, var(--text-6)); flex-shrink:0; }
   .crm-tg-more { cursor:help; font-variant-numeric:tabular-nums; }
