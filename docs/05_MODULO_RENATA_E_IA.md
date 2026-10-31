@@ -388,3 +388,5 @@ Os achados de segurança desta área ficam no registro privado `docs/11_ACHADOS_
 
 - `resolveQuery` propõe `kind` e `targetMeetingId`; a busca (`server/retrievalScope.js`) os trata como **dica**: roda a busca com o escopo e a aberta em paralelo; o **tipo** sempre completa com a aberta (6 de 12 vagas reservadas), a **reunião-alvo** só completa quando traz menos de 4 trechos; a transcrição da reunião-alvo entra logo após os trechos do escopo. Evento `retrieval_scope_widened` em `ai_metrics_events`. `participant` continua filtro rígido.
 - Eval: `server/evals/` (ver `docs/RENATA_EVAL_BASELINE.md`, que guarda a referência de ANTES da correção). Uma rodada por caso varia ±2: antes de comparar mudanças, repetir.
+
+- Eval com repetição (`--repeat=3`) e a referência vigente: `docs/RENATA_EVAL_REFERENCIA.md` (94%, 21 de 23 estáveis). Use-a, e não uma rodada única, para comparar mudanças.

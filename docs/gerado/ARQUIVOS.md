@@ -4,7 +4,7 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 166 arquivos
+## `server/` — 167 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -82,8 +82,9 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/errorHandler.js` | 32 | Erros da API em português claro, com o que a pessoa pode fazer (§96). Função pura `describeError` (testada) + o middleware do Express. |
 | `server/evals/evalCases.js` | 343 | RENATA Eval Harness — Fase 1. Casos de teste controlados contra a |
 | `server/evals/evalMetrics.js` | 216 | RENATA Eval Harness — Fase 1. Funções PURAS de métrica — sem chamada de |
+| `server/evals/evalRepeat.js` | 45 | Repetição de casos (31/10/2026, `--repeat=N`): a IA varia entre chamadas e uma rodada por caso oscila ±2 casos (medido: 18/23, 18/23 com outros casos, 21/23, 23/23 sem mudar de |
 | `server/evals/evalReport.js` | 129 | RENATA Eval Harness — Fase 1. Formata os resultados de runEvalSuite num |
-| `server/evals/evalRunner.js` | 189 | RENATA Eval Harness — Fase 1. Orquestra UM caso de eval: prepara o estado |
+| `server/evals/evalRunner.js` | 192 | RENATA Eval Harness — Fase 1. Orquestra UM caso de eval: prepara o estado |
 | `server/evals/evidenceKeys.js` | 78 | RENATA Eval Harness — Fase 1. Chunk ids e fact ids são gerados |
 | `server/evals/fixtures.js` | 366 | RENATA Eval Harness — Fase 1 (2026-09-13, ver docs/RENATA_P0_P1_IMPLEMENTATION_PLAN.md |
 | `server/evals/taskLinkEval.js` | 150 | Avaliação de qualidade da sugestão tarefa → atividade (Fase 5 do plano, 2026-10-13; docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). |

@@ -169,18 +169,21 @@ function evaluateCase(testCase, trace, threwError, evidenceMaps) {
   };
 }
 
-export async function runEvalSuite(pool, cases, { cacheMode = 'without' } = {}) {
+export async function runEvalSuite(pool, cases, { cacheMode = 'without', repeat = 1 } = {}) {
   const { seedFixtures } = await import('./fixtures.js');
   const { projectData, projectUpdatedAt } = await seedFixtures(pool);
   const evidenceMaps = await buildEvidenceKeyMaps(pool, EVAL_PROJECT_ID);
 
   const results = [];
   for (const testCase of cases) {
-    // eslint-disable-next-line no-await-in-loop -- casos rodam em série de
-    // propósito: compartilham a mesma conversa/cache, ordem e isolamento
-    // importam mais aqui do que paralelismo.
-    const result = await runOneCase(pool, testCase, { evidenceMaps, projectData, projectUpdatedAt, cacheMode });
-    results.push(result);
+    // `repeat`: cada caso roda N vezes seguidas (a conversa e o cache são zerados a cada execução, ver runOneCase) — dá a taxa de acerto em vez de um sim/não.
+    for (let run = 1; run <= Math.max(1, repeat); run += 1) {
+      // eslint-disable-next-line no-await-in-loop -- casos rodam em série de
+      // propósito: compartilham a mesma conversa/cache, ordem e isolamento
+      // importam mais aqui do que paralelismo.
+      const result = await runOneCase(pool, testCase, { evidenceMaps, projectData, projectUpdatedAt, cacheMode });
+      results.push({ ...result, run });
+    }
   }
   return { results, evidenceMaps };
 }

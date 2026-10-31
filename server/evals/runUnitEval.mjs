@@ -13,6 +13,7 @@ import { normalizeName } from '../assistantContext.js';
 import { cosineSimilarity } from '../embeddings.js';
 import { factKeyResolver } from './evidenceKeys.js';
 import { evaluateCase } from './evalRunner.js';
+import { summarizeRepeats, renderRepeatSummary } from './evalRepeat.js';
 
 let passCount = 0;
 let failCount = 0;
@@ -57,6 +58,20 @@ assertEqual(forbiddenEval.ok, false, 'evaluateForbiddenClaims detecta violação
 const failedCase = evaluateCase({ id: 'x', category: 'FACTUAL', question: 'q', expected: { intent: 'pergunta_sobre_projeto', answerFacts: ['a'], evidence: { chunkKeys: ['chunk:m1#meeting_summary#0'] } } },
   { chunksConsidered: [{ id: 'c1', content: 'texto' }], resolved: null, synthesized: null, answerText: '', errorMsg: 'Connection error.' }, 'Connection error.', { idToKey: new Map([['c1', 'chunk:m1#meeting_summary#0']]), idToVersionedKey: new Map(), keyToId: new Map() });
 assertEqual(failedCase.passed, false, 'caso com falha da IA vira reprovado sem derrubar a rodada');
+
+// Repetição (`--repeat=N`, 31/10/2026): taxa por caso, estável / intermitente / falha, e motivos agregados.
+const reps = summarizeRepeats([
+  { id: 'a', category: 'X', passed: true }, { id: 'a', category: 'X', passed: true }, { id: 'a', category: 'X', passed: true },
+  { id: 'b', category: 'Y', passed: true }, { id: 'b', category: 'Y', passed: false, failReasons: ['recall baixo'] }, { id: 'b', category: 'Y', passed: false, failReasons: ['recall baixo', 'sem evidência'] },
+  { id: 'c', category: 'Z', passed: false, failReasons: ['x'] }, { id: 'c', category: 'Z', passed: false },
+]);
+assertEqual([reps.runs, reps.passes, reps.stable, reps.flaky, reps.failing], [8, 4, 1, 1, 1], 'repetição: totais por tipo de caso');
+assertEqual(reps.cases.map((c) => [c.id, c.status]), [['a', 'estável'], ['b', 'intermitente'], ['c', 'falha']], 'repetição: estável, intermitente e falha');
+assertEqual(reps.cases.find((c) => c.id === 'b').reasons, [{ reason: 'recall baixo', count: 2 }, { reason: 'sem evidência', count: 1 }], 'repetição: motivos agregados em ordem de frequência');
+assertEqual(reps.cases.find((c) => c.id === 'c').reasons[1].reason, 'falhou sem motivo registrado', 'repetição: falha sem motivo é dita como tal');
+assertEqual(summarizeRepeats([]).rate, 0, 'repetição: sem execuções, taxa 0');
+const txt = renderRepeatSummary(reps, 3);
+assertEqual([txt.includes('Repetição (3× por caso)'), txt.includes('**b**'), txt.includes('**a**')], [true, true, false], 'repetição: o relatório lista só quem não é estável');
 
 // Chave versionada (31/10/2026): um caso que espera `#v2` casa com o id da versão 2, e só com ela; sem expectativa de versão, a chave de sempre.
 const idToKey = new Map([['a1', 'fact:resp'], ['a2', 'fact:resp'], ['b1', 'fact:outro']]);

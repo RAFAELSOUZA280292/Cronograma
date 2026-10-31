@@ -5,7 +5,10 @@
 // server/evals/evalCases.js. Consome tokens de verdade (ANTHROPIC_API_KEY) —
 // por isso NUNCA roda sozinho em build/CI, só por comando explícito:
 //
-//   node server/evals/runFullEval.mjs [--cache=with|without] [--category=CONFLICT] [--case=temporal-02-hard] [--baseline] [--teardown]
+//   node server/evals/runFullEval.mjs [--cache=with|without] [--category=CONFLICT] [--case=temporal-02-hard] [--baseline] [--teardown] [--repeat=3]
+//
+// --repeat=N roda cada caso N vezes e mostra a taxa de acerto por caso (estável / intermitente / falha). A IA varia entre chamadas: uma rodada por caso oscila ±2 casos, então
+// use --repeat=3 antes de comparar duas versões do pipeline. Custo e tempo crescem linearmente (3× ≈ 3× os tokens e o tempo).
 //
 // --cache=without (padrão) limpa ai_answer_cache antes de CADA caso, pra
 // garantir que uma resposta antiga nunca mascare o comportamento atual.
@@ -21,6 +24,7 @@ import { EVAL_CASES } from './evalCases.js';
 import { runEvalSuite } from './evalRunner.js';
 import { buildReport, buildFailureTraces } from './evalReport.js';
 import { EVAL_ORG_ID, teardownFixtures } from './fixtures.js';
+import { summarizeRepeats, renderRepeatSummary } from './evalRepeat.js';
 
 function loadDotEnvIfPresent() {
   // Mesmo padrão do resto do projeto: sem dependência de `dotenv` (não é
@@ -36,7 +40,7 @@ function loadDotEnvIfPresent() {
 }
 
 function parseArgs(argv) {
-  const args = { cache: 'without', category: null, caseId: null, baseline: false, teardown: false };
+  const args = { cache: 'without', category: null, caseId: null, baseline: false, teardown: false, repeat: 1 };
   for (const raw of argv) {
     const [key, value] = raw.replace(/^--/, '').split('=');
     if (key === 'cache') args.cache = value;
@@ -44,6 +48,7 @@ function parseArgs(argv) {
     else if (key === 'case') args.caseId = value;
     else if (key === 'baseline') args.baseline = true;
     else if (key === 'teardown') args.teardown = true;
+    else if (key === 'repeat') args.repeat = Math.min(10, Math.max(1, parseInt(value, 10) || 1));
   }
   return args;
 }
@@ -79,10 +84,10 @@ async function main() {
     process.exit(2);
   }
 
-  console.log(`RENATA Eval Harness — FULL EVAL — ${cases.length} caso(s), cache=${args.cache}${args.baseline ? ' [BASELINE]' : ''}\n`);
+  console.log(`RENATA Eval Harness — FULL EVAL — ${cases.length} caso(s)${args.repeat > 1 ? ` × ${args.repeat} repetições` : ''}, cache=${args.cache}${args.baseline ? ' [BASELINE]' : ''}\n`);
 
   const startedAt = Date.now();
-  const { results } = await runEvalSuite(pool, cases, { cacheMode: args.cache });
+  const { results } = await runEvalSuite(pool, cases, { cacheMode: args.cache, repeat: args.repeat });
   const elapsedMs = Date.now() - startedAt;
 
   const label = args.baseline
@@ -92,6 +97,8 @@ async function main() {
   const traces = buildFailureTraces(results);
 
   console.log(report.text);
+  const repeatSummary = args.repeat > 1 ? summarizeRepeats(results) : null;
+  if (repeatSummary) console.log(`\n\n${renderRepeatSummary(repeatSummary, args.repeat)}`);
   console.log(`\n\nTempo total de execução do harness: ${(elapsedMs / 1000).toFixed(1)}s\n`);
 
   const totalTokens = results.reduce((sum, r) => sum + r.performance.tokensInput + r.performance.tokensOutput, 0);
@@ -99,7 +106,7 @@ async function main() {
 
   if (args.baseline) {
     const outPath = path.resolve(process.cwd(), 'docs/RENATA_EVAL_BASELINE.md');
-    const fullDoc = [report.text, '\n---\n', traces].join('\n');
+    const fullDoc = [report.text, repeatSummary ? `\n${renderRepeatSummary(repeatSummary, args.repeat)}` : '', '\n---\n', traces].join('\n');
     fs.writeFileSync(outPath, fullDoc, 'utf8');
     console.log(`\nBaseline gravado em ${outPath}`);
 
@@ -109,7 +116,7 @@ async function main() {
       [
         `eval-run-${Date.now()}`, EVAL_ORG_ID, process.env.GIT_COMMIT || null, 'v1-fase1',
         JSON.stringify(results.map((r) => ({ id: r.id, category: r.category, passed: r.passed, failReasons: r.failReasons }))),
-        JSON.stringify({ total: report.total, passed: report.passed, failed: report.failed, totalTokens, elapsedMs }),
+        JSON.stringify({ total: report.total, passed: report.passed, failed: report.failed, totalTokens, elapsedMs, repeat: args.repeat, stable: repeatSummary ? repeatSummary.stable : null, flaky: repeatSummary ? repeatSummary.flaky : null }),
       ],
     ).catch((e) => console.error('Aviso: falha ao gravar em ai_eval_runs (não bloqueia o baseline já salvo em docs/).', e.message));
   } else {
