@@ -11,6 +11,25 @@ const RED = '#e2574c'; const AMBER = '#ff9f40'; const GREEN = '#3ecf6e';
 const BLUE = '#3b82f6'; const PURPLE = '#8b5cf6';
 const TYPE_ICON = { task: CheckSquare, call: Phone, email: Mail, meeting: Video, whatsapp: MessageCircle, visit: MapPin, followup: Repeat };
 
+const daysAgo = (iso) => {
+  if (!iso) return 0;
+  const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+  const t = new Date();
+  return Math.round((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - Date.UTC(y, m - 1, d)) / 864e5);
+};
+const plural = (n) => `${n} ${n === 1 ? 'dia' : 'dias'}`;
+
+function When({ color, text, days }) {
+  const dot = color && !String(color).startsWith('var(');
+  return (
+    <span className="crm-when">
+      {dot && <i className="crm-when-dot" style={{ background: color }} aria-hidden="true" />}
+      <span className="crm-when-text">{text}</span>
+      {days > 0 && <b className="crm-when-days" title={`Atraso de ${plural(days)}`}>{plural(days)}</b>}
+    </span>
+  );
+}
+
 function Kpi({ value, label, sub, tone, onClick, hint, icon: Icon, accent, featured }) {
   const color = tone || accent;
   const body = (
@@ -28,14 +47,14 @@ function Kpi({ value, label, sub, tone, onClick, hint, icon: Icon, accent, featu
   return <button type="button" className="crm-card crm-kpi crm-kpi-click" title={hint} onClick={onClick}>{body}</button>;
 }
 
-function DealRow({ d, right, rightColor, onOpenDeal }) {
+function DealRow({ d, right, onOpenDeal }) {
   return (
     <button type="button" className="crm-row-link" onClick={() => onOpenDeal(d.id)}>
       <span className="crm-row-main">
         <span className="crm-row-ico" aria-hidden="true"><Building2 size={15} /></span>
         <span className="crm-row-text"><b>{d.title}</b> <span className="crm-muted">· {d.companyName}{d.stageName ? ` · ${d.stageName}` : ''}</span></span>
       </span>
-      <span className="crm-row-right"><span style={{ color: rightColor, fontWeight: 700 }}>{right}</span><ChevronRight size={15} className="crm-row-go" aria-hidden="true" /></span>
+      <span className="crm-row-right">{right}<ChevronRight size={15} className="crm-row-go" aria-hidden="true" /></span>
     </button>
   );
 }
@@ -70,7 +89,7 @@ export function MineLens({ data, onOpenCompany, onOpenDeal, onGoDeals, onGoAgend
         <Kpi icon={AlertTriangle} value={dl.lateStepCount} label="Com passo atrasado" tone={dl.lateStepCount ? RED : undefined} onClick={mineDeals({ attention: 'late' })} hint="Ver na lista de negócios" />
       </div>
       <div className="crm-two">
-        <Panel icon={CalendarCheck} title="Hoje e atrasadas" count={ac.myDue.length} empty="Nada vencendo para você. Bom sinal." more={{ label: 'Ver todas', onClick: onGoAgenda }}>
+        <Panel icon={CalendarCheck} title="Hoje e atrasadas" count={ac.myDue.length} empty="Nada vencendo hoje." more={{ label: 'Ver todas', onClick: onGoAgenda }}>
           {ac.myDue.map((a) => {
             const Ico = TYPE_ICON[a.activityType] || CheckSquare;
             return (
@@ -79,13 +98,13 @@ export function MineLens({ data, onOpenCompany, onOpenDeal, onGoDeals, onGoAgend
                   <span className="crm-row-ico" style={{ '--ico': ACTIVITY_COLORS[a.activityType] }} aria-hidden="true"><Ico size={15} /></span>
                   <span className="crm-row-text crm-row-two"><b>{a.title}</b><span className="crm-muted">{activityTypeLabel(a.activityType)} · {a.companyName}</span></span>
                 </span>
-                <span className="crm-row-right"><span style={{ color: a.bucket === 'overdue' ? RED : AMBER, fontWeight: 700 }}>{a.bucket === 'overdue' ? `venceu ${fmtDateBR(a.dueDate)}` : `hoje${a.dueTime ? ` ${a.dueTime}` : ''}`}</span><ChevronRight size={15} className="crm-row-go" aria-hidden="true" /></span>
+                <span className="crm-row-right">{a.bucket === 'overdue' ? <When color={RED} text={fmtDateBR(a.dueDate)} days={daysAgo(a.dueDate)} /> : <When color={AMBER} text={`hoje${a.dueTime ? ` ${a.dueTime}` : ''}`} />}<ChevronRight size={15} className="crm-row-go" aria-hidden="true" /></span>
               </button>
             );
           })}
         </Panel>
         <Panel icon={Layers} title="Sem próximo passo" count={dl.noNextStep.length} empty="Todo negócio seu tem um próximo passo." more={{ label: 'Ver todos', onClick: mineDeals({ attention: 'nonext' }) }}>
-          {dl.noNextStep.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right="agendar" rightColor={AMBER} />)}
+          {dl.noNextStep.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={<When color={AMBER} text="agendar" />} />)}
         </Panel>
       </div>
 
@@ -100,21 +119,21 @@ export function MineLens({ data, onOpenCompany, onOpenDeal, onGoDeals, onGoAgend
       </div>
       <div className="crm-two">
         <Panel icon={AlertTriangle} title="Com passo atrasado" count={dl.late.length} empty="Nenhum passo atrasado.">
-          {dl.late.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={`venceu ${fmtDateBR(d.nextActivityDate)}`} rightColor={RED} />)}
+          {dl.late.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={<When color={RED} text={fmtDateBR(d.nextActivityDate)} days={daysAgo(d.nextActivityDate)} />} />)}
         </Panel>
         <Panel icon={CalendarX} title="A fechar nos próximos 30 dias" count={dl.closingSoon.length} empty="Nenhum negócio seu com previsão nesse período.">
-          {dl.closingSoon.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={`${d.overdue ? 'venceu ' : ''}${fmtDateBR(d.expectedCloseDate)}`} rightColor={d.overdue ? RED : undefined} />)}
+          {dl.closingSoon.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={d.overdue ? <When color={RED} text={fmtDateBR(d.expectedCloseDate)} days={daysAgo(d.expectedCloseDate)} /> : <When text={fmtDateBR(d.expectedCloseDate)} />} />)}
         </Panel>
       </div>
       <div className="crm-two">
-        <Panel icon={Hourglass} title="Parados na etapa" count={dl.stalled.length} empty="Nada parado. Bom sinal.">
-          {dl.stalled.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={`${d.daysInStage} dias`} rightColor={stageAgeColor(d.daysInStage)} />)}
+        <Panel icon={Hourglass} title="Parados na etapa" count={dl.stalled.length} empty="Nada parado nas etapas.">
+          {dl.stalled.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={<When color={stageAgeColor(d.daysInStage)} text={plural(d.daysInStage)} />} />)}
         </Panel>
         <Panel icon={Target} title="Onde estão meus negócios" count={dl.byStage.length} empty="Você não tem negócios em aberto.">
           {dl.byStage.map((s) => (
             <div key={`${s.pipeline}-${s.stage}`} className="crm-row-link" style={{ cursor: 'default' }}>
               <span>{s.stage} <span className="crm-muted">· {s.pipeline}</span></span>
-              <span style={{ whiteSpace: 'nowrap' }}><b>{s.count}</b> <span className="crm-muted">· {money(s.value)}</span></span>
+              <span className="crm-stage-num"><b>{s.count}</b><span className="crm-muted">{money(s.value)}</span></span>
             </div>
           ))}
         </Panel>
@@ -162,16 +181,16 @@ export function TeamLens({ data, onOpenDeal, onGoDeals, onGoAgenda }) {
       </div>
 
       <div className="crm-two">
-        <Panel icon={Hourglass} title="Parados na etapa" count={dl.stalledCount} empty="Nada parado. Bom sinal.">
-          {dl.stalledDeals.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={`${d.daysInStage} dias`} rightColor={stageAgeColor(d.daysInStage)} />)}
+        <Panel icon={Hourglass} title="Parados na etapa" count={dl.stalledCount} empty="Nada parado nas etapas.">
+          {dl.stalledDeals.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={<When color={stageAgeColor(d.daysInStage)} text={plural(d.daysInStage)} />} />)}
         </Panel>
         <Panel title="Prazo da etapa estourado" count={dl.slaCount} empty="Nenhuma etapa com prazo estourado.">
-          {dl.slaDeals.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={`${d.daysInStage}/${d.slaDays} d`} rightColor={RED} />)}
+          {dl.slaDeals.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={<When color={RED} text={`${d.daysInStage}/${d.slaDays} d`} />} />)}
         </Panel>
       </div>
       <Panel title="Por que perdemos (90 dias)" count={data.lostReasons.length} empty="Nenhuma perda nos últimos 90 dias.">
         {data.lostReasons.map((r) => (
-          <div key={r.reason || 'none'} className="crm-row-link" style={{ cursor: 'default' }}><span>{r.label}</span><span style={{ whiteSpace: 'nowrap' }}><b>{r.count}</b> <span className="crm-muted">· {money(r.value)}</span></span></div>
+          <div key={r.reason || 'none'} className="crm-row-link" style={{ cursor: 'default' }}><span>{r.label}</span><span className="crm-stage-num"><b>{r.count}</b><span className="crm-muted">{money(r.value)}</span></span></div>
         ))}
       </Panel>
     </div>
@@ -215,11 +234,11 @@ export function RevenueLens({ data, onOpenDeal, onGoDeals }) {
       </div>
       <div className="crm-two">
         <Panel title="Maior peso no funil" count={data.topWeighted.length} empty="Nenhum negócio em aberto.">
-          {data.topWeighted.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={`${money(d.weightedValue)} · ${d.probability}%`} />)}
+          {data.topWeighted.map((d) => <DealRow key={d.id} d={d} onOpenDeal={onOpenDeal} right={<span className="crm-when"><span className="crm-when-text">{money(d.weightedValue)} · {d.probability}%</span></span>} />)}
         </Panel>
         <Panel title="Ganhos por origem (90 dias)" count={data.wonBySource.length} empty="Nenhum ganho nos últimos 90 dias.">
           {data.wonBySource.map((s) => (
-            <div key={s.source} className="crm-row-link" style={{ cursor: 'default' }}><span>{s.source}</span><span style={{ whiteSpace: 'nowrap' }}><b>{money(s.value)}</b> <span className="crm-muted">· {s.count}</span></span></div>
+            <div key={s.source} className="crm-row-link" style={{ cursor: 'default' }}><span>{s.source}</span><span className="crm-stage-num"><b>{money(s.value)}</b><span className="crm-muted">{s.count}</span></span></div>
           ))}
         </Panel>
       </div>
@@ -231,7 +250,7 @@ export function AccountsLens({ data, onOpenCompany }) {
   const rel = data.companiesByRelationship;
   return (
     <div>
-      <h3 className="crm-section-title" style={{ margin: '4px 0 10px' }}>Contas</h3>
+      <Title icon={Building2}>Contas</Title>
       <div className="crm-cards crm-cards-six">
         <Kpi icon={Building2} accent={BLUE} value={data.totalCompanies} label="Empresas" sub={Object.entries(rel).map(([k, n]) => `${n} ${REL_META[k].label.toLowerCase()}`).join(' · ')} />
         <Kpi icon={Users} accent={PURPLE} value={data.totalContacts} label="Contatos" />
@@ -242,18 +261,18 @@ export function AccountsLens({ data, onOpenCompany }) {
       </div>
       <div className="crm-two">
         <div className="crm-section">
-          <h3 className="crm-section-title"><span><AlertTriangle size={13} style={{ verticalAlign: -2, marginRight: 5 }} />Precisam de contato</span></h3>
-          {data.staleCompanies.length === 0 && <div className="crm-muted">Nenhuma conta parada. Bom sinal.</div>}
+          <h3 className="crm-section-title"><span className="crm-panel-t"><AlertTriangle size={15} aria-hidden="true" />Precisam de contato</span></h3>
+          {data.staleCompanies.length === 0 && <div className="crm-muted">Nenhuma conta parada.</div>}
           {data.staleCompanies.map((c) => (
             <button key={c.id} type="button" className="crm-row-link" onClick={() => onOpenCompany(c.id)}>
               <span><b>{c.legalName}</b> <span className="crm-muted">· {REL_META[c.relationship].label}</span></span>
-              <span style={{ color: staleColor(c.daysSinceInteraction), fontWeight: 700 }}>{daysLabel(c.daysSinceInteraction)}</span>
+              <span className="crm-row-right"><When color={staleColor(c.daysSinceInteraction)} text={daysLabel(c.daysSinceInteraction)} /><ChevronRight size={15} className="crm-row-go" aria-hidden="true" /></span>
             </button>
           ))}
         </div>
         <div className="crm-section">
           <h3 className="crm-section-title">Cadastros mais incompletos</h3>
-          {data.incompleteCompanies.length === 0 && <div className="crm-muted">Nada por aqui ainda.</div>}
+          {data.incompleteCompanies.length === 0 && <div className="crm-muted">Nenhum cadastro incompleto.</div>}
           {data.incompleteCompanies.map((c) => (
             <button key={c.id} type="button" className="crm-row-link" onClick={() => onOpenCompany(c.id)}>
               <span><b>{c.legalName}</b></span><CompletenessBar percent={c.completeness} />
@@ -263,7 +282,7 @@ export function AccountsLens({ data, onOpenCompany }) {
       </div>
       <div className="crm-section">
         <h3 className="crm-section-title">Atividade recente</h3>
-        {data.recentActivity.length === 0 && <div className="crm-muted">Nada registrado ainda.</div>}
+        {data.recentActivity.length === 0 && <div className="crm-muted">Nenhuma atividade registrada.</div>}
         {data.recentActivity.map((e) => (
           <button key={e.id} type="button" className="crm-row-link" onClick={() => onOpenCompany(e.companyId, 'history')}>
             <span>{e.summary} <span className="crm-muted">· {e.companyName}</span></span><span className="crm-muted">{fmtDateTimeBR(e.occurredAt)}</span>

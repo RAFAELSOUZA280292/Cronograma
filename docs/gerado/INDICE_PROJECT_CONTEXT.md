@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8523 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8536 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -157,3 +157,4 @@ O `PROJECT_CONTEXT.md` tem 8523 linhas (a memória cronológica de cada decisão
 | 8490 | 116z. CRM: botão azul "Copiar número" ao lado do WhatsApp (2026-10-30, pedido do Rafael para a Eduarda) | - Pedido: a Eduarda não usa o WhatsApp Web: copia o número, cola num grupo e depois chama. Botão azul ao lado do WhatsApp que põe na área de transfer… |
 | 8497 | 116za. Notas do CRM com texto formatado, emojis e modelos (2026-10-30, pedido do Rafael para incentivar a Edu… | - Pedido: as notas do negócio eram uma caixa de texto simples ("muito simples"). Querer biblioteca melhor, emoji e mais elementos para o time usar. |
 | 8508 | 116zb. Visão geral do CRM: visual menos "infantil" — Etapas 1 e 2 do plano (2026-10-30, pedido do Rafael, com… | - Pedido: o painel era "bom, funcional, mas com cara infantil". Plano proposto (diagnóstico + 5 etapas) e aprovado; feitas as Etapas 1 e 2 seguindo a… |
+| 8524 | 116zc. Visão geral do CRM: listas e textos — Etapas 3 e 4 do plano de visual (2026-10-30, pedido do Rafael) | - Continuação do §116zb. Só apresentação; escopo limitado à Visão geral por uma classe nova crm-ov na raiz de OverviewPage.jsx (os títulos e linhas d… |

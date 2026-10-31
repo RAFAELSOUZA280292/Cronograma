@@ -8,10 +8,10 @@ import { notify } from '../ui/dialogs.jsx';
 import { MineLens, TeamLens, RevenueLens, AccountsLens } from './OverviewLenses.jsx';
 
 const LENS_META = {
-  mine: ['Meu dia', 'O que você precisa fazer agora e como estão os seus negócios.'],
-  team: ['Time', 'O funil do time e onde cada pessoa precisa de ajuda.'],
+  mine: ['Meu dia', 'Atividades de hoje e atrasadas, negócios sem próximo passo e o seu funil.'],
+  team: ['Time', 'Funil do time, carga por responsável e negócios que precisam de ajuda.'],
   revenue: ['Receita', 'MRR, previsão de fechamento e o que mais pesa no funil.'],
-  accounts: ['Contas', 'O retrato das empresas e contatos cadastrados.'],
+  accounts: ['Contas', 'Empresas e contatos cadastrados: completude e quem precisa de contato.'],
 };
 
 let lastLens = ''; // lembra a escolha enquanto a pessoa navega pelo CRM nesta sessão
@@ -58,7 +58,7 @@ export default function OverviewPage({ caps, refreshKey, onOpenCompany, onOpenDe
   const meta = LENS_META[current] || LENS_META.accounts;
 
   return (
-    <div>
+    <div className="crm-ov">
       <div className="crm-page-head">
         <div><h1 className="crm-h1">Visão geral</h1><div className="crm-sub">{meta[1]}</div></div>
         <div className="crm-actions">

@@ -385,6 +385,22 @@ export const CRM_CSS = `
   .crm-row-right { display:inline-flex; align-items:center; gap:8px; white-space:nowrap; flex-shrink:0; }
   .crm-row-go { color:var(--text-6); }
   .crm-row-link:hover .crm-row-go { color:var(--text-2); }
+  .crm-two { align-items:start; }
+  .crm-ov .crm-section-title { text-transform:none; letter-spacing:0; font-size:13.5px; font-weight:600; color:var(--text-2); margin-bottom:6px; }
+  .crm-ov .crm-section-title .crm-muted { font-size:13px; }
+  .crm-ov .crm-row-link { padding:8px 6px; border-radius:8px; }
+  .crm-ov .crm-row-text .crm-muted { font-size:11.5px; }
+  .crm-ov .crm-row-two b { font-size:13px; }
+  .crm-ov .crm-row-main { gap:10px; }
+  .crm-ov .crm-row-ico { width:30px; height:30px; border-radius:8px; }
+  .crm-row-right { justify-content:flex-end; }
+  .crm-when { display:inline-flex; align-items:center; gap:7px; font-size:12px; color:var(--text-4); font-variant-numeric:tabular-nums; }
+  .crm-when-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .crm-when:has(.crm-when-days) { min-width:152px; justify-content:flex-end; }
+  .crm-when-days { font-weight:700; color:var(--text-2); min-width:50px; text-align:right; }
+  .crm-stage-num { display:inline-flex; gap:12px; align-items:baseline; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .crm-stage-num b { min-width:28px; text-align:right; }
+  @media (max-width: 640px) { .crm-when:has(.crm-when-days) { min-width:0; } .crm-when-days { min-width:0; } .crm-ov .crm-row-link { flex-wrap:wrap; row-gap:2px; } .crm-ov .crm-row-main { flex:1 1 100%; } .crm-ov .crm-row-right { flex:1 1 100%; justify-content:space-between; padding-left:40px; } }
   .crm-section { box-shadow:0 1px 2px rgba(11,11,30,.04); }
   .crm-btn:not(.crm-btn-primary):hover { border-color:#FEDB00; }
   @media (prefers-reduced-motion: reduce) { .crm-deal { transition:none; } .crm-deal:hover, .crm-deal:focus-visible { transform:none; } }
