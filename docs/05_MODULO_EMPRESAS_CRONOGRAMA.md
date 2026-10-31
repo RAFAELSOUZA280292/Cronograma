@@ -450,3 +450,7 @@ Não há runner (Jest). Verificação = `npm run build` limpo + scripts em `scri
 ## Achados de segurança
 Os achados de segurança desta área ficam no registro privado `docs/11_ACHADOS_E_PENDENCIAS.md` (não é publicado).
 
+
+## Cliente 360 na tela da empresa (§116zk, Onda 3)
+
+- `GET /api/client360/project/:id` (`server/client360.js`): exige acesso à empresa **e** leitura do CRM; devolve a empresa do CRM vinculada (responsável, negócios abertos, última interação) e os mesmos `alerts` da ficha do CRM; sem vínculo, sugere a de mesmo CNPJ. Faixa **"No CRM: …"** (`src/ui/Client360Strip.jsx`) em `CompanyWorkspace.jsx`, só empresa única (não em visão de várias), com **Abrir no CRM**.

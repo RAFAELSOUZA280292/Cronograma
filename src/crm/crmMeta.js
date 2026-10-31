@@ -223,7 +223,7 @@ export const CRM_CSS = `
   .crm-table tbody tr { cursor:pointer; }
   .crm-table tbody tr:hover td { background:var(--bg-3); }
   .crm-name { font-weight:800; color:var(--text-1); font-size:var(--fs-sm); }
-  .crm-inline { background:transparent; border:1px dashed transparent; border-radius:var(--r-sm); padding:2px 6px; color:inherit; font:inherit; cursor:text; }
+  .crm-inline { background:transparent; border:1px dashed transparent; border-radius:var(--r-sm); padding:2px 6px; min-height:24px; color:inherit; font:inherit; cursor:text; }
   .crm-inline:hover, .crm-inline:focus-visible { border-color:var(--border-3); background:var(--bg-3, rgba(255,255,255,.04)); }
   .crm-inline-input { background:transparent; border:1px solid transparent; border-radius:var(--r-sm); padding:3px 4px; color:inherit; font:inherit; font-size:var(--fs-xs); }
   .crm-inline-input:hover:not(:disabled), .crm-inline-input:focus-visible { border-color:var(--border-3); }

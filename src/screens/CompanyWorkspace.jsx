@@ -17,6 +17,7 @@ import { PdfExportModal } from '../pdf/PdfExportModal.jsx';
 import { AutoDatesToggle } from './AutoDates.jsx';
 import MapView from './MapView.jsx';
 import CompanyTriage from './CompanyTriage.jsx';
+import Client360Strip from '../ui/Client360Strip.jsx';
 import { ScreenSearchBox, ScreenSearchNote } from './ScreenSearch.jsx';
 import { countLiveItems, filterActivities, filterMeetings, filterTodoMeetings, queryTerms } from '../lib/screenSearch.js';
 
@@ -48,6 +49,7 @@ export function CompanyWorkspace({ ctx }) {
     appToasts,
     canLinkTasks,
     canPickCompanies,
+    openCrmCompany,
     closeActivityDetail,
     closeMeetingDetail,
     commitAreaRow,
@@ -359,6 +361,10 @@ export function CompanyWorkspace({ ctx }) {
         <SafeBoundary variant="block" resetKey="stdplan-bar" label="a faixa do cronograma padrão" where="stdplan-bar">
           <React.Suspense fallback={null}><StandardPlanBar info={stdInfo} project={activeProject} actions={stdPlanActions} /></React.Suspense>
         </SafeBoundary>
+      )}
+
+      {!isMulti && !isTpl && activeProject && openCrmCompany && (
+        <div className="no-print" style={{ padding: isMobile ? '10px 12px 0' : '12px 24px 0' }}><Client360Strip projectId={activeProject.id} onOpenCrm={openCrmCompany} /></div>
       )}
 
       <div className="no-print t44" style={S.tabs}>

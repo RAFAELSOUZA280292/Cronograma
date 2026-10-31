@@ -394,3 +394,8 @@ Não há test runner; os scripts em `scripts/` rodam contra servidor e Postgres 
 - Não rodei nenhum teste nem consultei o banco; "52 ferramentas" é a contagem de `add({ name: …` no arquivo (inclui a interna `crm_lote_restaurar_valores`).
 - Afirmei que `GET /overview` sem `lens` devolve dados da base inteira: confirmado em `routes.js` e `queries.js overview`, mas não testei por perfil.
 - Não confirmei se o front de Negócios esconde "Exportar Excel" por perfil (a rota só pede `read`).
+
+## Cliente 360, lista com seleção em massa (§116zk, Onda 3)
+
+- **`alerts` na ficha da empresa:** `getCompanyOverview` devolve `alerts` (`server/client360Alerts.js`, regra única usada também na tela da empresa do cronograma). A aba Visão geral mostra **"Pontos de atenção"** (`src/ui/ClientAlerts.jsx`).
+- **Listas de Negócios e de Empresas** usam o kit `src/ui/tableKit.jsx`: seleção em massa (Shift = intervalo), faixa de ações em lote, **alterar responsável** em lote (`BulkOwner.jsx`: cada linha vai pelo mesmo PATCH da tela, linhas sem permissão ficam de fora com aviso), colunas escolhidas por tabela (`ptx-cols:crm-deals`, `ptx-cols:crm-companies`), cabeçalho fixo, linha navegável por teclado.

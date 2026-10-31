@@ -4,6 +4,7 @@ import { CrmError } from './errors.js';
 import { onlyDigits, companyNameKey, personNameKey } from './text.js';
 import { companyCompleteness } from './completeness.js';
 import { projectSummary } from './projectSummary.js';
+import { clientAlerts } from '../client360Alerts.js';
 import { dealsForCompany, dealsOverview, searchDeals } from './dealQueries.js';
 import { activitiesForCompany, activitiesOverview } from './activityQueries.js';
 import { INTERACTION_TYPES } from './activities.js';
@@ -117,7 +118,8 @@ export async function getCompanyOverview(orgId, id) {
     overdueTodos: projects.reduce((n, p) => n + p.overdueTodos, 0),
     meetings: projects.reduce((n, p) => n + p.meetings.count, 0),
   };
-  return { company, contacts: contacts.items, projects, notes, deals, activities, kpis };
+  const alerts = clientAlerts({ relationship: company.relationship, deals, kpis, projects, today });
+  return { company, contacts: contacts.items, projects, notes, deals, activities, kpis, alerts };
 }
 
 export async function listNotes(orgId, companyId, { limit = 100 } = {}) {

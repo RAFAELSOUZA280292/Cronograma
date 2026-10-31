@@ -42,6 +42,7 @@ import NotificationPrefs from './shell/NotificationPrefs.jsx';
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
 import { setRecentsUser, recordRecent, getRecents, loadLastWorkspace, saveLastWorkspace } from './lib/recents.js';
 import TodayPanel from './today/TodayPanel.jsx';
+import BriefingCard from './today/BriefingCard.jsx';
 import { HOME_CSS } from './home/homeCss.js';
 import WeekSummary from './today/WeekSummary.jsx';
 import ContinueStrip from './today/ContinueStrip.jsx';
@@ -2012,6 +2013,10 @@ function AppScreens({ shellRef, bump }) {
     open: todayOpen,
     openMeeting: (m) => todayOpen({ source: 'meeting', ref: m.ref }),
     openNotification: goToNotificationTarget,
+    // Linha do briefing do dia → o mesmo caminho das notificações (cada tipo de item tem um alvo conhecido).
+    openBriefingItem: (it) => goToNotificationTarget({ target: it.kind === 'activity' ? { kind: 'activity', projectId: it.projectId, activityId: it.activityId }
+      : it.kind === 'meeting' ? { kind: 'meeting', projectId: it.projectId, meetingId: it.meetingId }
+      : { kind: 'crm_activity', companyId: it.companyId, dealId: it.dealId || null } }),
     markNotificationRead,
     openAllNotifications: () => setShowNotifications(true),
     markAllNotificationsRead: () => markAllNotificationsRead(),
@@ -2657,6 +2662,7 @@ function AppScreens({ shellRef, bump }) {
         addTodoComment,
         addTodoSubtask,
         appToasts,
+        openCrmCompany: (companyId) => goToNotificationTarget({ target: { kind: 'crm_activity', companyId, dealId: null } }),
         canLinkTasks,
         canPickCompanies,
         closeActivityDetail,
@@ -3467,6 +3473,7 @@ function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersona
 
           <div className="home-hero">
             <DailyCards onConfigure={onConfigureDaily} reloadKey={dailyReload} />
+            <BriefingCard onOpenItem={todayActions.openBriefingItem} onConfigure={todayActions.openAllNotifications} />
             <TodayPanel projects={projects} personalBoard={personalBoard} user={user} notifications={notifications} todayIso={todayIso} actions={todayActions} />
           </div>
 

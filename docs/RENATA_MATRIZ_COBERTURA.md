@@ -5,8 +5,8 @@
 **Legenda:** ✅ implementada e exercitada por teste ponta a ponta · 🟡 parcial/limitada (explicado) · ⬜ pendente · 🚫 fora do alcance de propósito (segurança)
 
 ## Resumo
-- **101 ferramentas estruturadas** em 11 módulos (36 de consulta, 46 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
-- **325 rotas** no servidor: 64 cobertas por ferramenta própria, 125 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 136 excluídas de propósito.
+- **102 ferramentas estruturadas** em 11 módulos (36 de consulta, 47 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
+- **330 rotas** no servidor: 64 cobertas por ferramenta própria, 126 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 140 excluídas de propósito.
 - **56 funcionalidades humanas mapeadas**: 35 ✅, 12 🟡, 4 ⬜, 5 🚫.
 - **Critério "100% das funcionalidades" NÃO está atendido ainda**: as linhas 🟡 e ⬜ abaixo são o que falta. As rotas "genéricas" já são alcançáveis (com confirmação), mas sem esquema de parâmetros; as ⬜ precisam de trabalho novo (arquivos, edição de documentos inteiros).
 
@@ -104,6 +104,16 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `notificacoes_listar` | consulta | GET /api/notifications | Notificações do usuário (as 200 mais recentes, nas categorias que ele escolheu ver). |
 | `notificacoes_marcar_todas_lidas` | escrita | POST /api/notifications/read-all | Marca todas as notificações do usuário como lidas. |
 
+### Plataforma
+| Ferramenta | Risco | Rota / execução | O que faz |
+|---|---|---|---|
+| `preferencia_guardar` | escrita (confirma em certos casos) | POST /api/renata/preferences | Guarda uma preferência de trabalho da PRÓPRIA pessoa para as próximas conversas (ex.: "respostas curtas", "me chame de Rafa", "resumo antes do detalhe |
+| `plataforma_rotas` | consulta | sob medida | Descobre as operações da plataforma que ainda não têm ferramenta própria: lista rotas (método e caminho) por módulo. Depois use plataforma_consultar ( |
+| `plataforma_consultar` | consulta | sob medida | Consulta (GET) qualquer rota liberada da plataforma, em nome do usuário e com as permissões dele. |
+| `plataforma_executar` | escrita (confirma em certos casos) | sob medida | Executa uma operação que ALTERA dados (POST, PUT, PATCH, DELETE) numa rota liberada que ainda não tem ferramenta própria. Sempre pede confirmação do u |
+| `plataforma_quem_sou_eu` | consulta | sob medida | Quem está pedindo: nome, perfil, acessos (Empresas, Gestão de Atividades, XFlow, CRM e perfil no CRM) e a data de hoje com o dia da semana. Use para r |
+| `plataforma_pessoas` | consulta | sob medida | Pessoas da equipe PRICETAX (id e nome) para traduzir "a Eduarda" em um usuário. Responsáveis de cronograma são nomes; responsáveis do CRM e de XFlow s |
+
 ### Conhecimento
 | Ferramenta | Risco | Rota / execução | O que faz |
 |---|---|---|---|
@@ -126,15 +136,6 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `xflow_listar` | consulta | GET /api/xflow/tickets | Lista os tickets (bugs/tarefas) do XFlow da organização. |
 | `xflow_criar` | escrita | POST /api/xflow/tickets | Abre um ticket no XFlow (bug ou tarefa). |
 | `xflow_acao` | escrita (confirma em certos casos) | PATCH /api/xflow/tickets/{id} | Executa uma ação sobre um ticket do XFlow (triagem, desenvolvimento, homologação, publicação, validação, bloqueio, pausa, fechamento, exclusão para a  |
-
-### Plataforma
-| Ferramenta | Risco | Rota / execução | O que faz |
-|---|---|---|---|
-| `plataforma_rotas` | consulta | sob medida | Descobre as operações da plataforma que ainda não têm ferramenta própria: lista rotas (método e caminho) por módulo. Depois use plataforma_consultar ( |
-| `plataforma_consultar` | consulta | sob medida | Consulta (GET) qualquer rota liberada da plataforma, em nome do usuário e com as permissões dele. |
-| `plataforma_executar` | escrita (confirma em certos casos) | sob medida | Executa uma operação que ALTERA dados (POST, PUT, PATCH, DELETE) numa rota liberada que ainda não tem ferramenta própria. Sempre pede confirmação do u |
-| `plataforma_quem_sou_eu` | consulta | sob medida | Quem está pedindo: nome, perfil, acessos (Empresas, Gestão de Atividades, XFlow, CRM e perfil no CRM) e a data de hoje com o dia da semana. Use para r |
-| `plataforma_pessoas` | consulta | sob medida | Pessoas da equipe PRICETAX (id e nome) para traduzir "a Eduarda" em um usuário. Responsáveis de cronograma são nomes; responsáveis do CRM e de XFlow s |
 
 ### Relatórios
 | Ferramenta | Risco | Rota / execução | O que faz |
@@ -263,6 +264,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `POST /api/auth/logout` | excluída | fora do alcance: Sessão e senha: a RENATA não lida com credenciais. |
 | `GET /api/auth/me` | excluída | fora do alcance: Sessão e senha: a RENATA não lida com credenciais. |
 | `PATCH /api/auth/me` | excluída | fora do alcance: Sessão e senha: a RENATA não lida com credenciais. |
+| `GET /api/briefing` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/client-error` | excluída | fora do alcance: Telemetria de uso e erros de tela: não é função operacional. |
 | `POST /api/cnpj/lookup` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/company-calendar/:projectId/apply` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
@@ -502,6 +504,10 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `POST /api/renata/conversations/:id/decide` | excluída | fora do alcance: A própria RENATA: sem recursão. |
 | `GET /api/renata/conversations/:id` | excluída | fora do alcance: A própria RENATA: sem recursão. |
 | `GET /api/renata/conversations` | excluída | fora do alcance: A própria RENATA: sem recursão. |
+| `DELETE /api/renata/preferences/:id` | excluída | fora do alcance: A própria RENATA: sem recursão. |
+| `PATCH /api/renata/preferences/:id` | excluída | fora do alcance: A própria RENATA: sem recursão. |
+| `GET /api/renata/preferences` | excluída | fora do alcance: A própria RENATA: sem recursão. |
+| `POST /api/renata/preferences` | excluída | fora do alcance: A própria RENATA: sem recursão. |
 | `GET /api/renata/status` | excluída | fora do alcance: A própria RENATA: sem recursão. |
 | `POST /api/standard-plan/apply` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/standard-plan/audit/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |

@@ -558,3 +558,13 @@ Todos os scripts abaixo recusam banco que não seja local e sobem/usam o servido
 - Conteúdo exato do `crm/dashboards.js`, `crm/extras.js` e `crm/piperun/*` além das rotas e `need(...)` listados; a varredura de SQL foi por palavra-chave, não por análise de fluxo — um SQL montado por pedaços fora de um único literal pode ter escapado.
 - Contrato de tratamento de dados com Anthropic/Voyage/ipwho.is (jurídico, fora do código).
 - Nenhuma gravação foi feita no banco nem no Railway; nenhum teste foi executado nesta sessão (documentação a partir da leitura do código).
+
+## Onda 3: briefing, preferências da RENATA e Cliente 360 (§116zk)
+
+| Rota / recurso | Quem | Trava |
+|---|---|---|
+| `GET /api/briefing` | qualquer logado (cliente recebe vazio) | só dados da própria pessoa (responsável = nome, negócios dela, empresas que ela acompanha); CRM só com leitura |
+| `renata_briefing` (aviso) | equipe | um por pessoa por dia (`briefing_runs`, gravada antes de enviar); sem itens não envia |
+| `/api/renata/preferences*` | só a própria pessoa, equipe | id da sessão (nunca do corpo); id alheio = 404; `cliente` 403; transação com linha travada; limite 15 × 240; a RENATA só grava com **confirmação** |
+| `GET /api/client360/project/:id` | acesso à empresa **e** leitura do CRM | `canAccessProject`; outra org = 404; sem CRM = `{available:false}`; só leitura |
+| Lote "alterar responsável" | quem pode gravar | cada linha pelo PATCH da tela (permissão e auditoria de sempre); linhas sem permissão ficam fora |

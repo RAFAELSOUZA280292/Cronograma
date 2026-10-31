@@ -7,6 +7,7 @@ import { registry, executor, agent, aiConfigured, getClient } from './index.js';
 import { todayInSp } from '../widgetSummary.js';
 import { routeIndex, curatedSet, classify } from './policy.js';
 import { buildContextCard } from './contextCard.js';
+import * as prefs from './preferences.js';
 
 export const router = Router();
 router.use(requireAuth);
@@ -41,6 +42,26 @@ router.get('/context-card', wrap(async (req, res) => {
   const type = String(req.query.type || '').slice(0, 30); const id = String(req.query.id || '').slice(0, 80);
   const card = id ? await buildContextCard({ user: req.user, context: { entity: { type, id } }, today: todayInSp() }) : null;
   res.json({ card: card ? { type: card.type, title: card.title, lines: card.lines } : null });
+}));
+
+// Minhas preferências (R2): só a própria pessoa (id da sessão), só equipe. A RENATA grava pela ferramenta preferencia_guardar, com confirmação.
+const staffOnly = (req, res) => { if (req.user.role === 'cliente') { res.status(403).json({ message: 'As preferências da RENATA são da equipe PRICETAX.' }); return false; } return true; };
+router.get('/preferences', wrap(async (req, res) => { if (staffOnly(req, res)) res.json({ items: await prefs.loadList(req.user.id) }); }));
+router.post('/preferences', wrap(async (req, res) => {
+  if (!staffOnly(req, res)) return;
+  const viaRenata = !!req.renataCommandId;
+  const out = await prefs.add(req.user.id, (req.body || {}).text, viaRenata ? 'renata' : 'pessoa');
+  res.status(201).json({ item: out.item, items: out.list });
+}));
+router.patch('/preferences/:id', wrap(async (req, res) => {
+  if (!staffOnly(req, res)) return;
+  const out = await prefs.edit(req.user.id, String(req.params.id).slice(0, 40), (req.body || {}).text);
+  res.json({ item: out.item, items: out.list });
+}));
+router.delete('/preferences/:id', wrap(async (req, res) => {
+  if (!staffOnly(req, res)) return;
+  const out = await prefs.remove(req.user.id, String(req.params.id).slice(0, 40));
+  res.json({ items: out.list });
 }));
 
 router.post('/chat', wrap(async (req, res) => {

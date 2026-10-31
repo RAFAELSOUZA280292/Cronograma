@@ -10,6 +10,7 @@ import { ensureCrmGoogleSchema } from './crm/googleSync.js';
 import { ensureKnowledgeLibrarySchema } from './knowledgeLibrary.js';
 import { ensureCrmExtrasSchema } from './crm/extras.js';
 import { ensureViewsSchema } from './crm/views.js';
+import { ensureBriefingSchema } from './briefingSchema.js';
 import { ensureRenataSchema } from './renata/schema.js';
 import { ensureExperienceSchema } from './experience.js';
 
@@ -1473,6 +1474,7 @@ export async function initDb() {
   try { await ensureExperienceSchema(pool); } catch (e) { console.error('ERRO: tabelas de experiência de uso NÃO foram instaladas:', e.message); }
   try { await ensureRenataSchema(pool); } catch (e) { console.error('ERRO: tabelas da RENATA operacional NÃO foram instaladas:', e.message); }
   try { await ensureViewsSchema(pool); } catch (e) { console.error('ERRO: visões salvas do CRM NÃO foram instaladas:', e.message); }
+  try { await ensureBriefingSchema(pool); } catch (e) { console.error('ERRO: tabela do briefing diário NÃO foi instalada:', e.message); }
   try { await ensureCrmExtrasSchema(pool); } catch (e) { console.error('ERRO: campos extras do CRM (MRR, tags, SLA) NÃO foram instalados:', e.message); }
   try { await ensureAutomationSchema(pool); } catch (e) { console.error('ERRO: automação ao ganhar NÃO foi instalada:', e.message); }
   try { await ensureKnowledgeLibrarySchema(pool); } catch (e) { console.error('ERRO: biblioteca de conhecimento da RENATA NÃO foi instalada:', e.message); }

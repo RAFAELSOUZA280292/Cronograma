@@ -18,7 +18,14 @@ import { InlineMoney, InlineDate, InlineSelect } from './InlineCells.jsx';
 import { fmtMoney, fmtDateBR, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor, cadenceNotice, tagColor, tagRank, avatarStyle } from './crmMeta.js';
 import { trackFlow } from '../lib/experience.js';
 import TagFilter from './TagFilter.jsx';
+import BulkOwner from './BulkOwner.jsx';
+import { activateRow } from '../ui/index.jsx';
+import { useRowSelection, useColumns, SelectHeadCell, SelectCell, BulkBar, ColumnPicker } from '../ui/tableKit.jsx';
 
+const DEAL_COLS = [
+  { key: 'deal', label: 'Negócio', hideable: false }, { key: 'contact', label: 'Contato' }, { key: 'stage', label: 'Etapa' }, { key: 'value', label: 'Valor' },
+  { key: 'prob', label: 'Probabilidade' }, { key: 'close', label: 'Previsão' }, { key: 'next', label: 'Próximo passo' }, { key: 'owner', label: 'Responsável' },
+];
 const VIEW_KEY = 'crm-deals-view';
 const PIPE_KEY = 'crm-deals-pipeline';
 function readPipe() { try { return window.localStorage.getItem(PIPE_KEY) || ''; } catch { return ''; } }
@@ -271,6 +278,9 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
   }, [ready, view, pipelineId, debouncedQ, filters, listStatus, refreshKey, localKey]);
 
   const owners = (options && options.owners) || [];
+  const sel = useRowSelection(list.items, (d) => d.id);
+  const cols = useColumns('crm-deals', DEAL_COLS);
+  const colOn = (k) => cols.visible.some((c) => c.key === k);
   const pipelines = (options && options.pipelines) || [];
   // Funil lembrado que não existe mais (arquivado, ou de outra conta): volta ao padrão em vez de mostrar uma lista vazia.
   useEffect(() => { if (options && options.pipelines && pipelineId && pipelineId !== 'all' && !options.pipelines.some((p) => p.id === pipelineId)) changePipeline(''); }, [options, pipelineId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -485,31 +495,46 @@ export default function DealsPage({ caps, options, refreshKey, currentUserId, pr
 
       {view === 'list' && (
         <>
-          <div className="crm-table-wrap">
+          <div className="crm-actions" style={{ justifyContent: 'flex-end', marginBottom: 'var(--sp-2)' }}>
+            <ColumnPicker columns={DEAL_COLS} hidden={cols.hidden} onToggle={cols.toggle} onReset={cols.reset} />
+          </div>
+          {caps.write && (
+            <BulkBar count={sel.count} noun={{ one: 'negócio selecionado', many: 'negócios selecionados' }} onClear={sel.clear}>
+              <BulkOwner rows={sel.selectedRows} owners={owners} noun={{ one: 'negócio', many: 'negócios' }} can={(d) => d.status === 'open' || caps.remove}
+                update={(d, ownerId) => crm.updateDeal(d.id, { ownerId })} onDone={() => { reload(); if (onChanged) onChanged(); }} />
+            </BulkBar>
+          )}
+          <div className="crm-table-wrap ui-tk-sticky">
             <table className="crm-table">
-              <thead><tr><th>Negócio</th><th>Contato</th><th>Etapa</th><th className="crm-num">Valor</th><th className="crm-num">Prob.</th><th>Previsão</th><th>Próximo passo</th><th>Responsável</th></tr></thead>
+              <thead><tr>
+                {caps.write && <SelectHeadCell state={sel.header} onToggle={sel.toggleAllRows} />}
+                <th>Negócio</th>
+                {colOn('contact') && <th>Contato</th>}{colOn('stage') && <th>Etapa</th>}{colOn('value') && <th className="crm-num">Valor</th>}{colOn('prob') && <th className="crm-num">Prob.</th>}
+                {colOn('close') && <th>Previsão</th>}{colOn('next') && <th>Próximo passo</th>}{colOn('owner') && <th>Responsável</th>}
+              </tr></thead>
               <tbody>
                 {list.items.map((d) => {
                   const can = caps.write && (d.status === 'open' || caps.remove);
                   const why = !caps.write ? 'Você não tem permissão para editar' : 'Negócio fechado: só gestores editam';
                   return (
-                    <tr key={d.id} onClick={() => onOpenDeal(d.id)}>
+                    <tr key={d.id} className={sel.isSelected(d.id) ? 'ui-tk-on' : undefined} aria-selected={caps.write ? sel.isSelected(d.id) : undefined} {...activateRow(() => onOpenDeal(d.id))}>
+                      {caps.write && <SelectCell checked={sel.isSelected(d.id)} onCheck={(e) => sel.onRowCheck(d.id, e)} label={`Selecionar ${d.title}`} />}
                       <td>
                         <div className="crm-name">{d.title}</div>
                         <div className="crm-muted">{d.companyName}{d.dealType === 'upsell' ? ' · Upsell' : ''}{d.status === 'lost' ? ` · Perdido — ${d.lostReasonLabel}` : ''}{d.mrr > 0 ? ` · MRR ${fmtMoney(d.mrr)}` : ''}</div>
                         {(d.tags || []).length > 0 && <div className="crm-tags" style={{ marginTop: 3 }}>{d.tags.slice(0, 3).map((t) => <span key={t} className="crm-tg" style={{ '--dot': tagColor(t) }}>{t}</span>)}{d.tags.length > 3 && <span className="crm-muted">+{d.tags.length - 3}</span>}</div>}
                       </td>
-                      <td>{d.contactName && <div>{d.contactName}</div>}<ContactLinks phone={d.contactPhone} whatsapp={d.contactWhatsapp} email={d.contactEmail} compact /></td>
-                      <td>
+                      {colOn('contact') && <td>{d.contactName && <div>{d.contactName}</div>}<ContactLinks phone={d.contactPhone} whatsapp={d.contactWhatsapp} email={d.contactEmail} compact /></td>}
+                      {colOn('stage') && <td>
                         <InlineSelect label={`Etapa de ${d.title}`} value={d.stageId} width={170} disabled={!can} disabledTitle={why}
                           options={pipeStages(d.pipelineId).length ? pipeStages(d.pipelineId) : [{ id: d.stageId, name: d.stageName }]} onSave={(id) => { const st = pipeStages(d.pipelineId).find((x) => x.id === id); if (st) moveDeal(d, st); }} />
                         {d.status === 'open' && (d.daysInStage || 0) > 14 && <div style={{ color: stageAgeColor(d.daysInStage), fontSize: 12, fontWeight: 700 }}>{d.daysInStage} dias parado</div>}
-                      </td>
-                      <td className="crm-num"><InlineMoney value={d.value} label={d.title} disabled={!can} disabledTitle={why} onSave={(n) => patchDeal(d, { value: n })} /></td>
-                      <td className="crm-num">{d.status === 'open' ? `${d.probability}%` : <span className="crm-muted">—</span>}</td>
-                      <td><InlineDate value={d.expectedCloseDate} label={d.title} overdue={d.overdue} disabled={!can} disabledTitle={why} onSave={(v) => patchDeal(d, { expectedCloseDate: v })} /></td>
-                      <td>{d.status === 'open' ? (d.nextActivityDate ? <span style={{ color: d.nextActivityOverdue ? '#e2574c' : undefined, fontWeight: d.nextActivityOverdue ? 700 : undefined }}>{d.nextActivityTitle || 'Atividade'} · {fmtDateBR(d.nextActivityDate)}</span> : <span style={{ color: '#ff9f40' }}>Sem próximo passo</span>) : <span className="crm-muted">—</span>}</td>
-                      <td><InlineSelect label={`Responsável de ${d.title}`} value={d.ownerId} empty="Sem responsável" options={owners} width={140} disabled={!can} disabledTitle={why} onSave={(v) => patchDeal(d, { ownerId: v || null })} /></td>
+                      </td>}
+                      {colOn('value') && <td className="crm-num"><InlineMoney value={d.value} label={d.title} disabled={!can} disabledTitle={why} onSave={(n) => patchDeal(d, { value: n })} /></td>}
+                      {colOn('prob') && <td className="crm-num">{d.status === 'open' ? `${d.probability}%` : <span className="crm-muted">—</span>}</td>}
+                      {colOn('close') && <td><InlineDate value={d.expectedCloseDate} label={d.title} overdue={d.overdue} disabled={!can} disabledTitle={why} onSave={(v) => patchDeal(d, { expectedCloseDate: v })} /></td>}
+                      {colOn('next') && <td>{d.status === 'open' ? (d.nextActivityDate ? <span style={{ color: d.nextActivityOverdue ? '#e2574c' : undefined, fontWeight: d.nextActivityOverdue ? 700 : undefined }}>{d.nextActivityTitle || 'Atividade'} · {fmtDateBR(d.nextActivityDate)}</span> : <span style={{ color: '#ff9f40' }}>Sem próximo passo</span>) : <span className="crm-muted">—</span>}</td>}
+                      {colOn('owner') && <td><InlineSelect label={`Responsável de ${d.title}`} value={d.ownerId} empty="Sem responsável" options={owners} width={140} disabled={!can} disabledTitle={why} onSave={(v) => patchDeal(d, { ownerId: v || null })} /></td>}
                     </tr>
                   );
                 })}

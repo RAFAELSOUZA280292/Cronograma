@@ -14,6 +14,7 @@ import { sanitizeBoardNotes } from './richNote.js';
 import { readExtras, buildExtrasPatch } from './personalExtras.js';
 import { allowReport, formatClientError } from './clientError.js';
 import { symbolicate, MAPS_DIR } from './sourcemaps.js';
+import { readBriefingOff, publicBriefingRules, isValidRuleKey } from './briefingRules.js';
 import { readMuted, publicCategories, loadMutedPatterns, NOTIFICATION_CATEGORIES, TODAY_SOURCES, readTodayHidden, publicTodaySources } from './notificationPrefs.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { CRM_ROLES } from './crm/permissions.js';
@@ -953,13 +954,13 @@ router.get('/notifications/preferences', requireAuth, async (req, res, next) => 
   try {
     const { rows } = await pool.query('SELECT preferences FROM users WHERE id=$1', [req.user.id]);
     const prefs = rows[0] && rows[0].preferences;
-    res.json({ categories: publicCategories(readMuted(prefs)), todaySources: publicTodaySources(readTodayHidden(prefs)) });
+    res.json({ categories: publicCategories(readMuted(prefs)), todaySources: publicTodaySources(readTodayHidden(prefs)), briefingRules: publicBriefingRules(readBriefingOff(prefs)) });
   } catch (e) { next(e); }
 });
 
 router.put('/notifications/preferences', requireAuth, async (req, res, next) => {
   try {
-    const { muted, todayHidden } = req.body || {};
+    const { muted, todayHidden, briefingOff } = req.body || {};
     const validCat = new Set(NOTIFICATION_CATEGORIES.map((c) => c.key));
     const validSrc = new Set(TODAY_SOURCES.map((x) => x.source));
     const patch = {};
@@ -971,6 +972,10 @@ router.put('/notifications/preferences', requireAuth, async (req, res, next) => 
       if (!Array.isArray(todayHidden) || todayHidden.some((k) => !validSrc.has(k))) return res.status(400).json({ message: 'Origem do painel Hoje desconhecida.' });
       patch.todayHidden = [...new Set(todayHidden)];
     }
+    if (briefingOff !== undefined) {
+      if (!Array.isArray(briefingOff) || briefingOff.some((k) => !isValidRuleKey(k))) return res.status(400).json({ message: 'Regra do briefing desconhecida.' });
+      patch.briefingOff = [...new Set(briefingOff)];
+    }
     if (!Object.keys(patch).length) return res.status(400).json({ message: 'Nada para salvar.' });
     // Mescla dentro de preferences.notifications (muted e todayHidden são independentes) e preserva o resto de preferences.
     const { rows } = await pool.query(
@@ -979,7 +984,7 @@ router.put('/notifications/preferences', requireAuth, async (req, res, next) => 
       [JSON.stringify(patch), req.user.id]
     );
     const prefs = rows[0] && rows[0].preferences;
-    res.json({ categories: publicCategories(readMuted(prefs)), todaySources: publicTodaySources(readTodayHidden(prefs)) });
+    res.json({ categories: publicCategories(readMuted(prefs)), todaySources: publicTodaySources(readTodayHidden(prefs)), briefingRules: publicBriefingRules(readBriefingOff(prefs)) });
   } catch (e) { next(e); }
 });
 

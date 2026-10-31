@@ -411,3 +411,9 @@ Desenvolvimento local: `npm run dev` (Vite em `:5173` com proxy de `/api` e `/d/
 - `src/lib/nav.js` (camadas de histórico) foi lido só no cabeçalho e nas primeiras funções.
 - Não testado em aparelho: PWA instalado, push, arrasto HTML5 em toque (quadro da empresa e CRM), Safari/Firefox (PROJECT_CONTEXT §88, §15).
 - `docs/PROJECT_MAP.md` e `PROJECT_CONTEXT §9/§16` ainda citam `savedStatusLabel` e dizem que `useIsCompact` é exportado do `App.jsx`: no código, o selo é `RecordSaveStatus` (`src/ui/index.jsx`) e `useIsCompact` está em `src/screens/CompanyViews.jsx`.
+
+### Peças novas da Onda 3 (§116zk)
+
+- `src/ui/tableKit.jsx` + `tableLogic.js` (puro, testado): `useRowSelection`, `SelectHeadCell/SelectCell`, `BulkBar`, `useColumns`/`ColumnPicker`, classes `.ui-tk-*` e `.ui-tk-sticky` em `ui.css`. Encaixam nas tabelas existentes; não substituem o `<table>` do módulo.
+- `src/ui/ClientAlerts.jsx` (faixa de alertas) e `src/ui/Client360Strip.jsx` (faixa "No CRM"). `src/today/BriefingCard.jsx` (briefing na tela inicial). Aba **Preferências** em `RenataChat.jsx`.
+- Selo de notificações do sino (`S.mentionBadge`): texto 12 px (era 9,5 px).

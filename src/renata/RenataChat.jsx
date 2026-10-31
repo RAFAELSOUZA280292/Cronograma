@@ -2,8 +2,8 @@
 // mostra o que fez, pede confirmação nas ações críticas/em lote e deixa tudo no registro de auditoria. A conversa fica no servidor e continua quando você
 // navega para outra tela ou volta depois; o painel sabe em que módulo/registro você está.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Sparkles, Send, Check, X, Undo2, ListChecks, MessageSquare, ShieldAlert, Loader2, MapPin, Trash2, RefreshCw } from 'lucide-react';
-import { apiGet, apiPost } from '../lib/api.js';
+import { Sparkles, Send, Check, X, Undo2, ListChecks, MessageSquare, ShieldAlert, Loader2, MapPin, Trash2, RefreshCw, SlidersHorizontal, Pencil, Plus } from 'lucide-react';
+import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import ChatExport, { CHAT_EXPORT_CSS, CopyMessageButton } from '../assistant/ChatExport.jsx';
 import { Drawer } from '../ui/dialog.jsx';
 import { fromSimpleMessages } from '../assistant/chatExport.js';
@@ -24,6 +24,15 @@ const CSS = `
 .rnc-focus[open] summary::before { content:'▾'; content:'▾' / ''; }
 .rnc-focus summary:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; border-radius:var(--r-lg); }
 .rnc-focus ul { margin:0; padding:0 12px 4px 28px; line-height:1.55; } .rnc-focus li { margin-bottom:5px; overflow-wrap:anywhere; }
+.rnc-pref-intro { margin:0; font-size:var(--fs-sm); line-height:1.5; color:var(--text-3); }
+.rnc-pref { display:flex; align-items:flex-start; gap:var(--sp-2); border:1px solid var(--border-1); background:var(--bg-2); border-radius:var(--r-lg); padding:var(--sp-2) var(--sp-3); }
+.rnc-pref-body { flex:1; min-width:0; font-size:var(--fs-sm); color:var(--text-1); line-height:1.45; overflow-wrap:anywhere; }
+.rnc-pref-body .meta { display:block; margin-top:2px; font-size:var(--fs-xs); color:var(--text-4); }
+.rnc-pref input, .rnc-pref-add input { flex:1; min-width:0; min-height:36px; padding:0 var(--sp-2); border-radius:var(--r-md); border:1px solid var(--border-2); background:var(--bg-1); color:var(--text-1); font:inherit; font-size:var(--fs-sm); }
+.rnc-pref-add { display:flex; gap:var(--sp-2); }
+.rnc-pref-acts { display:flex; gap:var(--sp-1); flex:none; }
+.rnc-pref-count { font-size:var(--fs-xs); color:var(--text-4); }
+@media (pointer:coarse) { .rnc-pref input, .rnc-pref-add input { min-height:44px; } }
 .rnc-focus-note { margin:0; padding:0 12px 10px; font-size:var(--fs-xs); color:var(--text-4); }
 @media (pointer:coarse) { .rnc-focus summary { min-height:44px; } }
 .rnc-hello { font-size:13.5px; line-height:1.55; color:var(--text-3); }
@@ -177,6 +186,55 @@ function ActionLog({ isAdmin }) {
   );
 }
 
+// Minhas preferências (R2): o que a RENATA lembra sobre como a pessoa gosta de trabalhar. Só a própria pessoa vê e muda; a RENATA só guarda algo novo com confirmação.
+function PreferencesPanel() {
+  const [items, setItems] = useState(null); const [err, setErr] = useState(''); const [text, setText] = useState(''); const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(null); const [draft, setDraft] = useState('');
+  const MAX = 15;
+  useEffect(() => { let off = false; apiGet('/api/renata/preferences').then((r) => { if (!off) setItems(r.items || []); }).catch((e) => { if (!off) setErr(e.message || 'Não consegui carregar as preferências.'); }); return () => { off = true; }; }, []);
+  async function run(fn) { setBusy(true); setErr(''); try { await fn(); } catch (e) { setErr(e.message || 'Não foi possível salvar. Tente de novo.'); } setBusy(false); }
+  const add = () => run(async () => { const r = await apiPost('/api/renata/preferences', { text }); setItems(r.items); setText(''); });
+  const save = (id) => run(async () => { const r = await apiPatch(`/api/renata/preferences/${id}`, { text: draft }); setItems(r.items); setEditing(null); });
+  async function del(it) {
+    if (!(await askConfirm({ title: 'Apagar esta preferência?', message: `“${it.text}” deixa de valer nas próximas conversas.`, confirmLabel: 'Apagar', danger: true }))) return;
+    run(async () => { const r = await apiDelete(`/api/renata/preferences/${it.id}`); setItems(r.items); });
+  }
+  if (!items) return err ? <div className="rnc-err" role="alert">{err}</div> : <div className="rnc-think" role="status"><Loader2 size={14} className="rnc-spin" /> Carregando…</div>;
+  return (
+    <div className="rnc-log">
+      <p className="rnc-pref-intro">O que a RENATA lembra sobre como você gosta de trabalhar. Só você vê isto. Ela lê estas preferências em toda conversa, mas elas só ajustam o jeito de responder: não mudam o que ela pode fazer nem as suas permissões. Para a RENATA guardar algo novo pelo chat, peça “lembre que…” e confirme o cartão.</p>
+      <div className="rnc-pref-add">
+        <input value={text} maxLength={240} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && text.trim() && !busy && !e.isComposing) add(); }} aria-label="Nova preferência" placeholder="Ex.: respostas curtas, com o resumo antes do detalhe" disabled={busy || items.length >= MAX} />
+        <Button variant="primary" icon={Plus} onClick={add} loading={busy} disabled={!text.trim() || items.length >= MAX} disabledReason={items.length >= MAX ? `Limite de ${MAX} preferências` : 'Escreva a preferência'}>Guardar</Button>
+      </div>
+      <span className="rnc-pref-count">{items.length} de {MAX}</span>
+      {err && <div className="rnc-err" role="alert">{err}</div>}
+      {items.length === 0 && <div className="rnc-hello">Nenhuma preferência guardada ainda.</div>}
+      {items.map((it) => (
+        <div key={it.id} className="rnc-pref">
+          {editing === it.id ? (
+            <>
+              <input value={draft} maxLength={240} autoFocus onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && draft.trim() && !busy && !e.isComposing) save(it.id); if (e.key === 'Escape') setEditing(null); }} aria-label="Editar preferência" />
+              <div className="rnc-pref-acts">
+                <Button size="sm" variant="primary" icon={Check} onClick={() => save(it.id)} loading={busy} disabled={!draft.trim()} disabledReason="Escreva a preferência">Salvar</Button>
+                <Button size="sm" icon={X} onClick={() => setEditing(null)} disabled={busy}>Cancelar</Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="rnc-pref-body">{it.text}<span className="meta">{it.source === 'renata' ? 'A RENATA guardou, com a sua confirmação' : 'Você escreveu'}</span></div>
+              <div className="rnc-pref-acts">
+                <Button size="sm" icon={Pencil} onClick={() => { setEditing(it.id); setDraft(it.text); }} disabled={busy}>Editar</Button>
+                <Button size="sm" icon={Trash2} onClick={() => del(it)} disabled={busy}>Apagar</Button>
+              </div>
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // O que a RENATA lê do registro aberto (mesma ficha que o servidor envia a ela): a pessoa confere antes de pedir.
 function FocusCard({ entity }) {
   const [card, setCard] = useState(null);
@@ -287,8 +345,10 @@ export default function RenataChat({ userId, userName, isAdmin, initialQuestion,
         <div className="rnc-tabs" role="tablist" aria-label="Seções da RENATA">
           <button type="button" role="tab" aria-selected={tab === 'chat'} className={`rnc-tab${tab === 'chat' ? ' on' : ''}`} onClick={() => setTab('chat')}><MessageSquare size={13} /> Conversa</button>
           <button type="button" role="tab" aria-selected={tab === 'log'} className={`rnc-tab${tab === 'log' ? ' on' : ''}`} onClick={() => setTab('log')}><ListChecks size={13} /> Registro de ações</button>
+          <button type="button" role="tab" aria-selected={tab === 'prefs'} className={`rnc-tab${tab === 'prefs' ? ' on' : ''}`} onClick={() => setTab('prefs')}><SlidersHorizontal size={13} /> Preferências</button>
         </div>
         {tab === 'log' && <ActionLog isAdmin={isAdmin} />}
+        {tab === 'prefs' && <PreferencesPanel />}
         {tab === 'chat' && (
           <>
             <div className="rnc-bar" role="toolbar" aria-label="Ações da conversa">

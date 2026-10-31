@@ -678,3 +678,10 @@ O app abre em tela cheia, continua logado e, sem internet, mostra **Sem conexão
 - **RENATA operacional criando atividade no cronograma:** ver 7.7.
 - A API de leitura de CRM (**Ler tudo**) expõe e-mail e telefone dos contatos (decisão registrada do Rafael).
 - Funcionalidades que só o Rafael consegue testar em produção: IA real da RENATA em pedidos complexos, Google Calendar de outras contas, push em aparelho real, widget, Excel do CRM aberto no Microsoft Excel.
+
+## Briefing do dia, preferências da RENATA e seleção em massa (Onda 3)
+
+- **Briefing do dia:** na tela inicial, o cartão "Seu dia: N pontos pedem atenção" reúne entregas vencidas, negócios parados, clientes sem interação e reuniões sem tarefa, cada linha com o motivo. Clique numa linha para abrir. "Escolher o que entra" liga e desliga cada regra. Depois das 8h você recebe **um** aviso por dia, só se houver algo.
+- **Preferências da RENATA:** no painel da RENATA, aba **Preferências**: escreva como você gosta que ela responda ("respostas curtas, resumo primeiro"). Só você vê. Pelo chat, diga "lembre que…" e confirme o cartão.
+- **Cliente no CRM:** na tela de uma empresa do cronograma, a faixa "No CRM" mostra negócios, responsável, última interação e pontos de atenção; a mesma lista aparece na ficha da empresa no CRM.
+- **Listas de Negócios e Empresas (CRM):** marque linhas (Shift marca um intervalo) e use "Alterar responsável" na faixa que aparece; "Colunas" escolhe o que mostrar (fica salvo no seu navegador).

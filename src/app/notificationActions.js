@@ -85,6 +85,16 @@ export function createNotificationActions({
       setView('meetings');
       setPendingTodoOpen({ pid: t.projectId, meetingId: t.meetingId, itemId: t.itemId });
       openMeetingDetail(t.projectId, t.meetingId);
+    } else if (t.kind === 'meeting') {
+      const pr = projects.find((x) => x.id === t.projectId);
+      if (!pr || !(pr.meetings || []).some((x) => x.id === t.meetingId && !x.deleted)) { gone(); return; }
+      if (!canOpenMode('company', currentUser)) { notify('Você não tem acesso a este módulo.', { tone: 'error' }); return; }
+      openCompanyWorkspace([t.projectId]);
+      setView('meetings');
+      openMeetingDetail(t.projectId, t.meetingId);
+    } else if (t.kind === 'briefing') {
+      markNotificationRead(n.id, true);
+      goToWorkspace(null);
     } else if (t.kind === 'crm_activity') {
       if (!enter('crm')) return;
       markNotificationsReadForTarget({ kind: 'crm_activity', activityId: t.activityId });

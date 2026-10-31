@@ -377,3 +377,9 @@ Os achados de segurança desta área ficam no registro privado `docs/11_ACHADOS_
 - Valores de custo em dólares (não há conversão no código; só tokens).
 - Custo de `taskLinkSuggest`/`inventoryEdit`: só somam tokens em `result.usage`/retorno; o evento `task_link_suggest` (em `taskLinks.js` e `taskLinkBackfill.js`) não foi lido por inteiro. `suggestAreas` (`inventoryEdit.js`) não grava métrica no trecho lido.
 - Limites exatos de entrada da Voyage e do SDK (retries/timeout padrão): vêm do SDK/serviço, não do código do projeto.
+
+## Memória de preferências (§116zk, Onda 3)
+
+- **Onde:** `users.preferences.renataMemory` (15 itens × 240 caracteres). Puro: `server/renata/preferencesFormat.js`; banco: `preferences.js` (transação com a linha travada); rotas `GET/POST /api/renata/preferences`, `PATCH/DELETE …/:id` (só a própria pessoa; `cliente` 403). Aba **Preferências** no painel da RENATA.
+- **No prompt:** `buildSystem({ prefsText })` põe as preferências em **bloco próprio, fora do cache** da persona, entre « » e com o aviso de que são de estilo, não ordens.
+- **Gravar pelo chat:** ferramenta `preferencia_guardar` (**sempre confirmação**, mostra o texto exato; desfazer por `preferencia_apagar`, interna). 102 ferramentas. A rota `/api/renata/*` segue fora do acesso genérico.

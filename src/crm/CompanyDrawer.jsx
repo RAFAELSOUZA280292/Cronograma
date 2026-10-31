@@ -19,6 +19,7 @@ import {
   fmtCnpj, fmtCep, fmtMoney, fmtDateBR, fmtDateTimeBR, daysLabel, staleColor, DECISION_ROLES, roleLabel, STRENGTH_META, INFLUENCE_LABELS,
   sourceLabel, TIMELINE_KIND, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor, contactLabel, softDot } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
+import ClientAlerts from '../ui/ClientAlerts.jsx';
 
 
 function KV({ k, v }) {
@@ -162,6 +163,7 @@ function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, on
 
           {data && tab === 'overview' && (
             <>
+              {data.alerts && data.alerts.length > 0 && <div className="crm-card" style={{ marginBottom: 'var(--sp-3)' }}><div className="crm-kpi-label" style={{ marginBottom: 'var(--sp-2)' }}>Pontos de atenção</div><ClientAlerts alerts={data.alerts} /></div>}
               <div className="crm-cards">
                 <div className="crm-card"><div className="crm-kpi-value" style={{ color: staleColor(data.kpis.daysSinceInteraction), fontSize: 18 }}>{daysLabel(data.kpis.daysSinceInteraction)}</div><div className="crm-kpi-label">Última interação</div><div className="crm-kpi-sub">nota, reunião ou interação concluída</div></div>
                 <div className="crm-card"><div className="crm-kpi-value">{data.kpis.contacts}</div><div className="crm-kpi-label">Contatos</div></div>

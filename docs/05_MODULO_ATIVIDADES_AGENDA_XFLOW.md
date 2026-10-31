@@ -397,3 +397,10 @@ Não há test runner; verificação = `npm run build` limpo + scripts descartáv
 - Não confirmei quais usuários têm `personal_access`, `xflow_role` ou push ativo em produção.
 - `docs/gerado/ROTAS.md` marca erradamente `DELETE /tickets/:id` como "(sem prefixo conhecido)" no grupo de `xflowTransitions.js` (o comentário do arquivo cita a rota); a rota real está em `server/xflow.js` 841.
 - O `PROJECT_CONTEXT.md` §20 detalha mais tipos de aviso do que os conferidos aqui; usei só o que achei no código (`grep` por `type:`).
+
+## Briefing diário (§116zk, Onda 3)
+
+- `server/briefingRules.js` (regras puras) + `server/briefing.js` (consultas, `GET /api/briefing`, agendador de 15 em 15 min, só depois das 8h de Brasília). **Um** aviso por pessoa por dia (`renata_briefing`), só se houver algo; anti-duplicação pela tabela `briefing_runs` (`server/briefingSchema.js`), gravada **antes** de enviar.
+- Quatro regras, cada uma desligável por pessoa (`users.preferences.notifications.briefingOff`, pela mesma tela "Escolher o que ver" e `PUT /api/notifications/preferences`): entregas vencidas, negócios parados (> 14 dias), clientes sem interação (> 30 dias e nada agendado), reuniões sem tarefa. Sem IA.
+- Cartão na tela inicial: `src/today/BriefingCard.jsx` (some sem nada a dizer). Alvos novos em `notificationActions.js`: `meeting` e `briefing`.
+- A categoria **RENATA** do sino agora envia aviso (`active: true`).

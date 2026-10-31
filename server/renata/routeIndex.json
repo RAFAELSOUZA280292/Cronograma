@@ -1,6 +1,6 @@
 {
  "geradoPor": "scripts/renata-route-index.mjs",
- "total": 325,
+ "total": 330,
  "routes": [
   {
    "method": "POST",
@@ -116,6 +116,11 @@
    "method": "PATCH",
    "path": "/api/auth/me",
    "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/briefing",
+   "file": "briefing.js"
   },
   {
    "method": "POST",
@@ -1310,6 +1315,26 @@
   {
    "method": "GET",
    "path": "/api/renata/conversations",
+   "file": "renata/routes.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/renata/preferences/:id",
+   "file": "renata/routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/renata/preferences/:id",
+   "file": "renata/routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/renata/preferences",
+   "file": "renata/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/renata/preferences",
    "file": "renata/routes.js"
   },
   {

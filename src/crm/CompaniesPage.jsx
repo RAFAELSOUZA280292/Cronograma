@@ -4,8 +4,15 @@ import { Plus, Upload, Building2 } from 'lucide-react';
 import { crm } from './crmApi.js';
 import { RelPill, CompletenessBar } from './ui.jsx';
 import { fmtCnpj, daysLabel, staleColor } from './crmMeta.js';
+import BulkOwner from './BulkOwner.jsx';
+import { activateRow } from '../ui/index.jsx';
+import { useRowSelection, useColumns, SelectHeadCell, SelectCell, BulkBar, ColumnPicker } from '../ui/tableKit.jsx';
 
 const PAGE = 50;
+const COLS = [
+  { key: 'name', label: 'Empresa', hideable: false }, { key: 'rel', label: 'Relação' }, { key: 'segment', label: 'Segmento' }, { key: 'city', label: 'Cidade / UF' },
+  { key: 'owner', label: 'Responsável' }, { key: 'contact', label: 'Contato principal' }, { key: 'last', label: 'Última interação' }, { key: 'complete', label: 'Completude' },
+];
 
 export default function CompaniesPage({ caps, options, refreshKey, onOpenCompany, onNewCompany, onImport }) {
   const [q, setQ] = useState('');
@@ -16,6 +23,7 @@ export default function CompaniesPage({ caps, options, refreshKey, onOpenCompany
   const [data, setData] = useState({ total: 0, items: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => { const t = setTimeout(() => { setDebouncedQ(q); setOffset(0); }, 300); return () => clearTimeout(t); }, [q]);
 
@@ -26,10 +34,14 @@ export default function CompaniesPage({ caps, options, refreshKey, onOpenCompany
       .then((r) => { if (!cancelled) { setData(r); setError(''); setLoading(false); } })
       .catch((e) => { if (!cancelled) { setError(e.message || 'Não foi possível carregar as empresas.'); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [debouncedQ, filters, showDeleted, offset, refreshKey]);
+  }, [debouncedQ, filters, showDeleted, offset, refreshKey, reloadTick]);
 
   const setF = (k, v) => { setFilters((f) => ({ ...f, [k]: v })); setOffset(0); };
   const owners = (options && options.owners) || [];
+  const sel = useRowSelection(data.items, (c) => c.id);
+  const cols = useColumns('crm-companies', COLS);
+  const colOn = (k) => cols.visible.some((c) => c.key === k);
+  const canBulk = caps.write && !showDeleted;
   const hasFilter = debouncedQ || Object.values(filters).some(Boolean);
 
   return (
@@ -59,20 +71,34 @@ export default function CompaniesPage({ caps, options, refreshKey, onOpenCompany
       </div>
 
       {error && <div className="crm-alert crm-alert-danger">{error}</div>}
-      <div className="crm-table-wrap">
+      <div className="crm-actions" style={{ justifyContent: 'flex-end', marginBottom: 'var(--sp-2)' }}>
+        <ColumnPicker columns={COLS} hidden={cols.hidden} onToggle={cols.toggle} onReset={cols.reset} />
+      </div>
+      {canBulk && (
+        <BulkBar count={sel.count} noun={{ one: 'empresa selecionada', many: 'empresas selecionadas' }} onClear={sel.clear}>
+          <BulkOwner rows={sel.selectedRows} owners={owners} noun={{ one: 'empresa', many: 'empresas' }} can={() => true}
+            update={(c, ownerId) => crm.updateCompany(c.id, { ownerId })} onDone={() => setReloadTick((n) => n + 1)} />
+        </BulkBar>
+      )}
+      <div className="crm-table-wrap ui-tk-sticky">
         <table className="crm-table">
-          <thead><tr><th>Empresa</th><th>Relação</th><th>Segmento</th><th>Cidade / UF</th><th>Responsável</th><th>Contato principal</th><th>Última interação</th><th>Completude</th></tr></thead>
+          <thead><tr>
+            {canBulk && <SelectHeadCell state={sel.header} onToggle={sel.toggleAllRows} />}
+            <th>Empresa</th>{colOn('rel') && <th>Relação</th>}{colOn('segment') && <th>Segmento</th>}{colOn('city') && <th>Cidade / UF</th>}{colOn('owner') && <th>Responsável</th>}
+            {colOn('contact') && <th>Contato principal</th>}{colOn('last') && <th>Última interação</th>}{colOn('complete') && <th>Completude</th>}
+          </tr></thead>
           <tbody>
             {data.items.map((c) => (
-              <tr key={c.id} onClick={() => onOpenCompany(c.id)}>
+              <tr key={c.id} className={sel.isSelected(c.id) ? 'ui-tk-on' : undefined} aria-selected={canBulk ? sel.isSelected(c.id) : undefined} {...activateRow(() => onOpenCompany(c.id))}>
+                {canBulk && <SelectCell checked={sel.isSelected(c.id)} onCheck={(e) => sel.onRowCheck(c.id, e)} label={`Selecionar ${c.legalName}`} />}
                 <td><div className="crm-name">{c.legalName}</div><div className="crm-muted">{[c.tradeName, c.cnpj ? fmtCnpj(c.cnpj) : ''].filter(Boolean).join(' · ')}</div></td>
-                <td><RelPill value={c.relationship} /></td>
-                <td>{c.segment}</td>
-                <td>{[c.city, c.state].filter(Boolean).join(' / ')}</td>
-                <td>{c.ownerName}</td>
-                <td>{c.stats.primaryContactName || <span className="crm-muted">—</span>}</td>
-                <td style={{ color: staleColor(c.stats.daysSinceInteraction), fontWeight: 600 }}>{daysLabel(c.stats.daysSinceInteraction)}</td>
-                <td><CompletenessBar percent={c.completeness.percent} /></td>
+                {colOn('rel') && <td><RelPill value={c.relationship} /></td>}
+                {colOn('segment') && <td>{c.segment}</td>}
+                {colOn('city') && <td>{[c.city, c.state].filter(Boolean).join(' / ')}</td>}
+                {colOn('owner') && <td>{c.ownerName}</td>}
+                {colOn('contact') && <td>{c.stats.primaryContactName || <span className="crm-muted">—</span>}</td>}
+                {colOn('last') && <td style={{ color: staleColor(c.stats.daysSinceInteraction), fontWeight: 600 }}>{daysLabel(c.stats.daysSinceInteraction)}</td>}
+                {colOn('complete') && <td><CompletenessBar percent={c.completeness.percent} /></td>}
               </tr>
             ))}
           </tbody>

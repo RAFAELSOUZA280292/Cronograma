@@ -1,7 +1,7 @@
 // Escolher quais notificações ver (2026-10-06). Marcado = aparece; desmarcado = fica escondido (nada é apagado).
 // Salva sozinho, por usuário.
 import React, { useEffect, useState } from 'react';
-import { useNotifPrefs, setCategoryMuted, setTodaySourceHidden } from '../lib/notifPrefs.js';
+import { useNotifPrefs, setCategoryMuted, setTodaySourceHidden, setBriefingRuleOff } from '../lib/notifPrefs.js';
 import { loadPushState, enablePush, disablePush, sendPushTest } from '../lib/push.js';
 
 const CSS = `
@@ -90,6 +90,17 @@ export default function NotificationPrefs() {
       {p.todaySources.map((x) => (
         <label key={x.source} className="np-row">
           <input type="checkbox" checked={!x.hidden} onChange={(e) => setTodaySourceHidden(x.source, !e.target.checked)} />
+          <span>
+            <span className="np-name">{x.label}</span>
+            <span className="np-desc" style={{ display: 'block' }}>{x.description}</span>
+          </span>
+        </label>
+      ))}
+      <h3 className="np-h">Briefing do dia (RENATA)</h3>
+      <p className="np-intro">Todo dia, depois das 8h, a RENATA reúne o que pede atenção e manda um único aviso — só quando há algo a dizer. Aparece também na tela inicial. Escolha o que entra:</p>
+      {p.briefingRules.map((x) => (
+        <label key={x.key} className="np-row">
+          <input type="checkbox" checked={!x.off} onChange={(e) => setBriefingRuleOff(x.key, !e.target.checked)} />
           <span>
             <span className="np-name">{x.label}</span>
             <span className="np-desc" style={{ display: 'block' }}>{x.description}</span>

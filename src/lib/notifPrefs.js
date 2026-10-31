@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import { apiGet, apiPut } from './api.js';
 
-let state = { categories: [], todaySources: [], loaded: false, saving: false, savedAt: null, error: '', wantSettings: false };
+let state = { categories: [], todaySources: [], briefingRules: [], loaded: false, saving: false, savedAt: null, error: '', wantSettings: false };
 const listeners = new Set();
 function set(patch) { state = { ...state, ...patch }; listeners.forEach((l) => l()); }
 function refreshNotifications() { try { window.dispatchEvent(new Event('notifications:refresh')); } catch (e) { /* ignora */ } }
@@ -13,9 +13,9 @@ export function useNotifPrefs() {
 }
 
 export function loadNotifPrefs() {
-  return apiGet('/api/notifications/preferences').then((r) => set({ categories: r.categories || [], todaySources: r.todaySources || [], loaded: true })).catch(() => {});
+  return apiGet('/api/notifications/preferences').then((r) => set({ categories: r.categories || [], todaySources: r.todaySources || [], briefingRules: r.briefingRules || [], loaded: true })).catch(() => {});
 }
-export function resetNotifPrefs() { set({ categories: [], todaySources: [], loaded: false, saving: false, savedAt: null, error: '', wantSettings: false }); }
+export function resetNotifPrefs() { set({ categories: [], todaySources: [], briefingRules: [], loaded: false, saving: false, savedAt: null, error: '', wantSettings: false }); }
 
 export function requestNotifSettings(v = true) { set({ wantSettings: v }); }
 
@@ -55,5 +55,19 @@ export async function setTodaySourceHidden(source, hidden) {
     set({ todaySources: r.todaySources || next, saving: false, savedAt: Date.now() });
   } catch (e) {
     set({ todaySources: before, saving: false, error: 'Não foi possível salvar. Tente de novo.' });
+  }
+}
+
+// Regras do briefing diário que a pessoa desligou (as quatro vêm ligadas).
+export async function setBriefingRuleOff(key, off) {
+  const before = state.briefingRules;
+  const next = before.map((x) => (x.key === key ? { ...x, off } : x));
+  set({ briefingRules: next, saving: true, error: '' });
+  try {
+    const r = await apiPut('/api/notifications/preferences', { briefingOff: next.filter((x) => x.off).map((x) => x.key) });
+    set({ briefingRules: r.briefingRules || next, saving: false, savedAt: Date.now() });
+    try { window.dispatchEvent(new Event('briefing:refresh')); } catch (e) { /* ignora */ }
+  } catch (e) {
+    set({ briefingRules: before, saving: false, error: 'Não foi possível salvar. Tente de novo.' });
   }
 }

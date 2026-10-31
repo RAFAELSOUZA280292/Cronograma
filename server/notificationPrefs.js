@@ -8,7 +8,7 @@ export const NOTIFICATION_CATEGORIES = [
   { key: 'xflow', label: 'XFlow', description: 'TASKs: responsável definido e menções em comentários.', prefixes: ['xflow_'], active: true },
   { key: 'crm', label: 'CRM', description: 'Atividades do CRM atribuídas ou vencendo e menções em notas.', prefixes: ['crm_'], active: true },
   { key: 'pareceres', label: 'Pareceres e Modelos', description: 'Menções em comentários de pareceres e de modelos de documentos.', prefixes: ['parecer_', 'modelo_'], active: true },
-  { key: 'renata', label: 'RENATA', description: 'Avisos da RENATA.', prefixes: ['renata_'], active: false },
+  { key: 'renata', label: 'RENATA', description: 'O briefing do dia (um aviso por manhã, só quando há algo a dizer).', prefixes: ['renata_'], active: true },
 ];
 
 export function readMuted(preferences) {

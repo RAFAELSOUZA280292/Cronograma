@@ -11,7 +11,7 @@ const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
 const sum = (list, k) => r2(list.reduce((n, d) => n + (d[k] || 0), 0));
 const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
-async function openDeals(orgId, ownerId = null) {
+export async function openDeals(orgId, ownerId = null) {
   const params = [orgId]; let own = '';
   if (ownerId) { params.push(ownerId); own = ' AND d.owner_id=$2'; }
   const { rows } = await pool.query(`SELECT ${DEAL_SELECT} FROM ${DEAL_FROM} WHERE d.org_id=$1 AND d.status='open' AND d.deleted_at IS NULL AND c.deleted_at IS NULL${own}`, params);
