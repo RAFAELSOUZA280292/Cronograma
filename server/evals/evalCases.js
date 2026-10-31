@@ -162,15 +162,14 @@ export const EVAL_CASES = [
     id: 'temporal-02-hard',
     category: 'TEMPORAL',
     difficulty: 'hard',
-    // Gap JÁ CONHECIDO (docs/RENATA_COGNITIVE_ARCHITECTURE_GAP_ANALYSIS.md,
-    // item 9): resolveQuery não extrai uma data-alvo da pergunta, então não
-    // existe hoje nenhum caminho pra responder "antes de X" corretamente —
-    // ESPERA-SE que este caso feche como FALHA. Isso é o objetivo da Fase 1:
-    // registrar o erro como baseline, nunca corrigir aqui.
+    // Gap conhecido (docs/RENATA_COGNITIVE_ARCHITECTURE_GAP_ANALYSIS.md, item 9): resolveQuery não extrai uma data-alvo da pergunta. Na rodada de 31/10/2026 a RENATA
+    // respondeu CERTO mesmo assim (os dois fatos chegam ao contexto com a vigência de cada um e a síntese raciocina sobre as datas); a reprovação da primeira rodada vinha do
+    // medidor, que contava o nome da sucessora citado depois da resposta. Por isso o proibido vale só na MANCHETE (`forbiddenScope`).
     question: 'Quem era o responsável fiscal da Fixture Corp antes de setembro de 2026?',
     expected: {
       intent: 'pergunta_sobre_projeto',
-      forbiddenClaims: ['Camila Souza'], // resposta correta seria Felipe — se disser Camila sem qualificar, é o erro temporal esperado
+      forbiddenClaims: ['Camila Souza'], // resposta correta é Felipe; citar Camila DEPOIS, como quem assumiu em setembro, é contexto correto
+      forbiddenScope: 'headline',
       answerFacts: ['Felipe Dal Santo'],
     },
   },
@@ -181,7 +180,8 @@ export const EVAL_CASES = [
     question: 'Qual era o markup da linha B antes da reunião de revisão de preços de 05/09?',
     expected: {
       intent: 'pergunta_sobre_projeto',
-      forbiddenClaims: ['12%'], // valor vigente APÓS a revisão — se a resposta usar esse valor pra "antes", é o mesmo gap temporal
+      forbiddenClaims: ['12%'], // valor vigente APÓS a revisão — errado se for a resposta ("antes era 12%"); citá-lo depois, como o que veio a seguir, é contexto correto
+      forbiddenScope: 'headline',
       answerFacts: ['8%'],
     },
   },

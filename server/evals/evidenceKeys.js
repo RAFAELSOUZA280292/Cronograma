@@ -43,11 +43,17 @@ export async function buildEvidenceKeyMaps(pool, projectId) {
     if (!bySubject.has(r.subject)) bySubject.set(r.subject, []);
     bySubject.get(r.subject).push(r.id);
   });
+  // id → chave versionada, só para assuntos com mais de uma versão. `idToKey` devolve a chave SEM versão (várias versões dividem a mesma), então um caso que espera
+  // `fact:<assunto>#v2` nunca batia com o que foi recuperado e o recall dava 0% mesmo com o fato certo no contexto (medido em 31/10/2026, temporal-01).
+  const idToVersionedKey = new Map();
   bySubject.forEach((ids, subject) => {
-    ids.forEach((id, i) => keyToId.set(`fact:${subject}#v${i + 1}`, id));
+    ids.forEach((id, i) => {
+      keyToId.set(`fact:${subject}#v${i + 1}`, id);
+      if (ids.length > 1) idToVersionedKey.set(id, `fact:${subject}#v${i + 1}`);
+    });
   });
 
-  return { idToKey, keyToId, chunkRows, factRows };
+  return { idToKey, idToVersionedKey, keyToId, chunkRows, factRows };
 }
 
 // Traduz uma lista de candidatos retornados pelo trace (chunks OU facts, já
@@ -62,4 +68,10 @@ export function toStableKeys(items, idToKey) {
 // citedFactIds, citedChunkIds) em vez de objetos com `.id`.
 export function toStableKeysFromIds(ids, idToKey) {
   return (ids || []).map((id) => idToKey.get(id) || `unknown:${id}`);
+}
+
+// Chave de um fato recuperado/citado: se o caso espera uma VERSÃO específica (`#vN`) e este id é essa versão, usa a chave versionada; senão, a chave de sempre.
+export function factKeyResolver(idToKey, idToVersionedKey, relevantFactKeys) {
+  const wanted = new Set(relevantFactKeys || []);
+  return { get: (id) => { const v = idToVersionedKey && idToVersionedKey.get(id); return v && wanted.has(v) ? v : idToKey.get(id); } };
 }

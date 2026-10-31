@@ -11,6 +11,7 @@ import * as M from './evalMetrics.js';
 import { classifyRelation, DUPLICATE_SIMILARITY_THRESHOLD, CONFLICT_SIMILARITY_THRESHOLD } from '../knowledgeFacts.js';
 import { normalizeName } from '../assistantContext.js';
 import { cosineSimilarity } from '../embeddings.js';
+import { factKeyResolver } from './evidenceKeys.js';
 
 let passCount = 0;
 let failCount = 0;
@@ -50,6 +51,29 @@ assertEqual(factsEval.missing, ['15%'], 'evaluateExpectedFacts missing');
 
 const forbiddenEval = M.evaluateForbiddenClaims('A resposta certa é Camila Souza.', ['Camila Souza']);
 assertEqual(forbiddenEval.ok, false, 'evaluateForbiddenClaims detecta violação');
+
+// Chave versionada (31/10/2026): um caso que espera `#v2` casa com o id da versão 2, e só com ela; sem expectativa de versão, a chave de sempre.
+const idToKey = new Map([['a1', 'fact:resp'], ['a2', 'fact:resp'], ['b1', 'fact:outro']]);
+const idToVersionedKey = new Map([['a1', 'fact:resp#v1'], ['a2', 'fact:resp#v2']]);
+const resolver = factKeyResolver(idToKey, idToVersionedKey, ['fact:resp#v2']);
+assertEqual(['a1', 'a2', 'b1'].map((i) => resolver.get(i)), ['fact:resp', 'fact:resp#v2', 'fact:outro'], 'resolver: só a versão esperada vira chave versionada');
+assertEqual(['a1', 'a2'].map((i) => factKeyResolver(idToKey, idToVersionedKey, []).get(i)), ['fact:resp', 'fact:resp'], 'resolver: sem versão esperada, chave de sempre');
+assertEqual(M.recallAtK(['fact:resp#v2'], ['fact:resp#v2'], 5), 1, 'recall com a chave versionada casa');
+
+// Recall por canal (31/10/2026): fato esperado conta mesmo depois de 12 trechos; trecho esperado fora do top-K do canal dele não conta (controle negativo).
+const chunks12 = Array.from({ length: 12 }, (_, i) => `chunk:x#y#${i}`);
+assertEqual(M.recallAtKByChannel({ chunkKeys: chunks12, factKeys: ['fact:a#v2'], relevantChunkKeys: [], relevantFactKeys: ['fact:a#v2'] }, 5), 1, 'recall por canal: fato esperado casa mesmo com 12 trechos antes');
+assertEqual(M.recallAtKByChannel({ chunkKeys: chunks12, factKeys: [], relevantChunkKeys: ['chunk:x#y#9'], relevantFactKeys: [] }, 5), 0, 'recall por canal: trecho fora do top-5 não conta');
+assertEqual(M.recallAtKByChannel({ chunkKeys: chunks12, factKeys: ['fact:a'], relevantChunkKeys: ['chunk:x#y#0'], relevantFactKeys: ['fact:a', 'fact:b'] }, 5), 2 / 3, 'recall por canal: soma os dois canais');
+assertEqual(M.recallAtKByChannel({ chunkKeys: [], factKeys: [], relevantChunkKeys: [], relevantFactKeys: [] }, 5), null, 'recall por canal: sem evidência esperada = null');
+
+// Manchete (31/10/2026): o proibido só conta na primeira frase quando o caso pede `scope: 'headline'`; sem scope, a resposta inteira (como antes).
+const okAnswer = 'Antes de setembro de 2026, o responsável fiscal era **Felipe Dal Santo**.\n\nDepois, a partir de 01/09, Camila Souza assumiu.';
+assertEqual(M.evaluateForbiddenClaims(okAnswer, ['Camila Souza'], { scope: 'headline' }).ok, true, 'manchete certa citando a sucessora depois NÃO viola');
+assertEqual(M.evaluateForbiddenClaims(okAnswer, ['Camila Souza']).ok, false, 'sem scope a resposta inteira continua valendo');
+assertEqual(M.evaluateForbiddenClaims('Antes de setembro de 2026, o responsável era Camila Souza.\n\nFelipe Dal Santo veio depois.', ['Camila Souza'], { scope: 'headline' }).ok, false, 'manchete ERRADA ainda viola (controle negativo)');
+assertEqual(M.headlineOf('Resposta curta demais.'), 'Resposta curta demais.', 'manchete de texto curto é o texto todo');
+assertEqual(M.headlineOf(''), '', 'manchete de texto vazio');
 
 assertEqual(M.noEvidenceVerdict({ hasEvidence: true, shouldHaveEvidence: false }), 'false_positive', 'noEvidenceVerdict false_positive');
 assertEqual(M.noEvidenceVerdict({ hasEvidence: false, shouldHaveEvidence: true }), 'false_negative', 'noEvidenceVerdict false_negative');

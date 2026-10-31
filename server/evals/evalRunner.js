@@ -14,7 +14,7 @@ import {
   EVAL_ORG_ID, EVAL_PROJECT_ID, EVAL_USER_ID,
   resetConversation, clearAnswerCache, seedPriorTurns,
 } from './fixtures.js';
-import { buildEvidenceKeyMaps, toStableKeys, toStableKeysFromIds } from './evidenceKeys.js';
+import { buildEvidenceKeyMaps, toStableKeys, toStableKeysFromIds, factKeyResolver } from './evidenceKeys.js';
 import * as M from './evalMetrics.js';
 
 // Limiares de aprovação — únicos números "de julgamento" deste arquivo,
@@ -52,7 +52,7 @@ async function runOneCase(pool, testCase, { evidenceMaps, projectData, projectUp
 
 function evaluateCase(testCase, trace, threwError, evidenceMaps) {
   const expected = testCase.expected || {};
-  const { idToKey, keyToId } = evidenceMaps;
+  const { idToKey, idToVersionedKey, keyToId } = evidenceMaps;
 
   const resolved = trace.resolved || null;
   const synthesized = trace.synthesized || null;
@@ -60,16 +60,18 @@ function evaluateCase(testCase, trace, threwError, evidenceMaps) {
   const answerText = trace.answerText || '';
 
   const retrievedChunkKeys = toStableKeys(chunksConsidered, idToKey);
-  const retrievedFactKeys = toStableKeysFromIds(trace.dependencyFactIds || [], idToKey);
   const relevantChunkKeys = (expected.evidence && expected.evidence.chunkKeys) || [];
   const relevantFactKeys = (expected.evidence && expected.evidence.factKeys) || [];
+  const factIdToKey = factKeyResolver(idToKey, idToVersionedKey, relevantFactKeys);
+  const retrievedFactKeys = toStableKeysFromIds(trace.dependencyFactIds || [], factIdToKey);
   const allRetrievedKeys = [...retrievedChunkKeys, ...retrievedFactKeys];
   const allRelevantKeys = [...relevantChunkKeys, ...relevantFactKeys];
 
+  const channels = { chunkKeys: retrievedChunkKeys, factKeys: retrievedFactKeys, relevantChunkKeys, relevantFactKeys };
   const retrieval = allRelevantKeys.length ? {
-    recallAt1: M.recallAtK(allRetrievedKeys, allRelevantKeys, 1),
-    recallAt3: M.recallAtK(allRetrievedKeys, allRelevantKeys, 3),
-    recallAt5: M.recallAtK(allRetrievedKeys, allRelevantKeys, 5),
+    recallAt1: M.recallAtKByChannel(channels, 1),
+    recallAt3: M.recallAtKByChannel(channels, 3),
+    recallAt5: M.recallAtKByChannel(channels, 5),
     precisionAt5: M.precisionAtK(allRetrievedKeys, allRelevantKeys, 5),
     mrr: M.meanReciprocalRank(allRetrievedKeys, allRelevantKeys),
     firstRelevantPosition: M.firstRelevantPosition(allRetrievedKeys, allRelevantKeys),
@@ -88,7 +90,7 @@ function evaluateCase(testCase, trace, threwError, evidenceMaps) {
   };
 
   const citedChunkKeys = toStableKeysFromIds((synthesized && synthesized.citedChunkIds) || [], idToKey);
-  const citedFactKeys = toStableKeysFromIds(trace.citedFactIds || [], idToKey);
+  const citedFactKeys = toStableKeysFromIds(trace.citedFactIds || [], factIdToKey);
   const consideredIds = chunksConsidered.map((c) => c.id);
   const citation = {
     chunkIdValidity: synthesized ? M.citationIdValidity(synthesized.citedChunkIds || [], consideredIds) : null,
@@ -107,7 +109,7 @@ function evaluateCase(testCase, trace, threwError, evidenceMaps) {
   };
 
   const expectedFacts = M.evaluateExpectedFacts(answerText, expected.answerFacts);
-  const forbidden = M.evaluateForbiddenClaims(answerText, expected.forbiddenClaims);
+  const forbidden = M.evaluateForbiddenClaims(answerText, expected.forbiddenClaims, { scope: expected.forbiddenScope });
   const noEvidence = M.noEvidenceVerdict({ hasEvidence: trace.hasEvidence, shouldHaveEvidence: expected.shouldHaveEvidence });
   const detectedConflict = !!(trace.proposedAction && trace.proposedAction.type === 'flag_knowledge_conflict')
     || !!(synthesized && (synthesized.sections || []).some((s) => s.type === 'warning' && /conflitant|divergent/i.test(s.title || '')));

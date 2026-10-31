@@ -15,6 +15,16 @@ export function recallAtK(retrievedKeys, relevantKeys, k) {
   return found.length / relevantKeys.length;
 }
 
+// Recall por canal: os trechos (chunks) e os fatos chegam à síntese por canais SEPARADOS (os fatos entram todos, na frente do prompt). Concatenar os dois e olhar o top-K
+// jogava todo fato para depois dos trechos, então um fato esperado nunca contava no recall@5 mesmo estando no contexto (medido em 31/10/2026, temporal-01 e causal-01).
+// Aqui o top-K vale dentro de cada canal e o recall é (achados nos dois canais) / (esperados nos dois canais).
+export function recallAtKByChannel({ chunkKeys, factKeys, relevantChunkKeys, relevantFactKeys }, k) {
+  const total = (relevantChunkKeys || []).length + (relevantFactKeys || []).length;
+  if (!total) return null;
+  const hit = (retrieved, relevant) => (relevant || []).filter((r) => (retrieved || []).slice(0, k).includes(r)).length;
+  return (hit(chunkKeys, relevantChunkKeys) + hit(factKeys, relevantFactKeys)) / total;
+}
+
 export function precisionAtK(retrievedKeys, relevantKeys, k) {
   const top = retrievedKeys.slice(0, k);
   if (!top.length) return null;
@@ -148,9 +158,20 @@ export function evaluateExpectedFacts(answerText, expectedAnswerFacts) {
   return { supported, missing, coverage: list.length ? supported.length / list.length : null };
 }
 
-export function evaluateForbiddenClaims(answerText, forbiddenClaims) {
+// A "manchete" da resposta: a primeira frase (até o primeiro ponto final ou quebra de linha depois de ~20 caracteres). É o que a pessoa lê como RESPOSTA;
+// o resto costuma ser contexto. Serve aos casos temporais, em que a resposta certa cita de propósito o valor de outra data ("antes era X; depois passou a Y").
+export function headlineOf(answerText) {
+  const t = String(answerText || '').trim();
+  const m = /^[\s\S]{20,}?(?:[.!?](?=\s|$)|\n)/.exec(t);
+  return (m ? m[0] : t).trim();
+}
+
+// `scope: 'headline'`: o termo proibido só conta se aparecer na manchete — citá-lo depois, como contexto de outra data, não é afirmar que ele responde à pergunta.
+// Padrão (sem scope): a resposta inteira, como antes — os demais casos não mudam.
+export function evaluateForbiddenClaims(answerText, forbiddenClaims, { scope } = {}) {
   const list = forbiddenClaims || [];
-  const violated = list.filter((f) => factAppearsInAnswer(f, answerText));
+  const text = scope === 'headline' ? headlineOf(answerText) : answerText;
+  const violated = list.filter((f) => factAppearsInAnswer(f, text));
   return { violated, ok: violated.length === 0 };
 }
 
