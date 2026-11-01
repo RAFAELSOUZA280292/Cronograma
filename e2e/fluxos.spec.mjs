@@ -109,3 +109,46 @@ test('link público: o cliente vê o acompanhamento sem login e um link revogado
   await expect(after.getByText(/não é válido|foi desativado/i)).toBeVisible();
   await ctx.close();
 });
+
+test('janelas do CRM (U2): uma só janela do app, rascunho protegido, clicar fora não fecha, foco preso, acima do painel', async ({ page }) => {
+  await loginUi(page, USERS.master);
+  const api = await apiAs(page, USERS.master);
+  const tag = stamp();
+  const co = await api.post('/api/crm/companies', { legalName: `Janela E2E ${tag} LTDA`, relationship: 'prospect' });
+  expect(co.status, JSON.stringify(co.body)).toBe(201);
+
+  await page.goto('/crm');
+  await page.getByRole('button', { name: 'Empresas' }).first().click();
+  const row = page.getByRole('row').filter({ hasText: `Janela E2E ${tag}` });
+  await row.focus();
+  await page.keyboard.press('Enter'); // abre a ficha (painel lateral)
+  await page.getByRole('button', { name: 'Editar' }).first().click();
+
+  const modal = page.locator('.ui-frame-overlay.over-drawer');
+  await expect(modal.getByRole('heading', { name: 'Editar empresa' })).toBeVisible();
+  // acima do painel da ficha: o elemento no centro da janela é da janela, não do painel
+  const noTopo = await modal.locator('.ui-frame').evaluate((el) => { const r = el.getBoundingClientRect(); return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + 40)); });
+  expect(noTopo).toBe(true);
+  await checkAxe(page, 'crm-janela');
+
+  // clicar fora não fecha
+  await page.mouse.click(5, 300);
+  await expect(modal).toBeVisible();
+  // foco preso: Tab além do último campo continua dentro da janela
+  for (let i = 0; i < 60; i += 1) await page.keyboard.press('Tab');
+  expect(await modal.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+
+  // rascunho: sujar o formulário e tentar fechar pede confirmação; "Continuar editando" mantém o texto
+  const nome = modal.getByRole('textbox', { name: /Razão social/ });
+  await nome.fill(`Nome alterado ${tag}`);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('heading', { name: 'Descartar alterações?' })).toBeVisible();
+  await page.getByRole('button', { name: 'Continuar editando' }).click();
+  await expect(modal).toBeVisible();
+  await expect(nome).toHaveValue(`Nome alterado ${tag}`);
+  // descartar fecha, e a ficha por trás continua aberta
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Descartar' }).click();
+  await expect(modal).toHaveCount(0);
+  await expect(page.locator('.crm-drawer')).toBeVisible();
+});

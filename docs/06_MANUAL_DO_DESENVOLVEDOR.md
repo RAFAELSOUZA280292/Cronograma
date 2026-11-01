@@ -130,7 +130,7 @@ O diretório de trabalho **não é repositório git**. O deploy usa um clone sep
 
 ## Teste de fluxos (E2E) e acessibilidade (§116zl, Onda 4)
 
-- `npm run test:e2e` (precisa de Postgres local): build + banco `cronograma_e2e` + servidor real em outra porta com a RENATA roteirizada + Playwright. Seis fluxos em `e2e/fluxos.spec.mjs`. **Não** entra no `npm run test:puro` (usa banco e navegador).
+- `npm run test:e2e` (precisa de Postgres local): build + banco `cronograma_e2e` + servidor real em outra porta com a RENATA roteirizada + Playwright. Sete fluxos em `e2e/fluxos.spec.mjs`. **Não** entra no `npm run test:puro` (usa banco e navegador).
 - Novo fluxo: copie um teste, use `loginUi`/`apiAs` de `e2e/helpers.mjs` para entrar e semear dados pela API, confira o que a pessoa vê e, se mudar dado, que ficou gravado.
 - Acessibilidade: `checkAxe(page, 'nome-da-tela')` falha se aparecer regra séria/crítica nova; as conhecidas ficam em `e2e/axe-baseline.json`. Corrigiu uma? Rode com `E2E_UPDATE_BASELINE=1` para encolher o arquivo (ele só deve diminuir).
 - O Chromium vem do cache do Playwright (`~/Library/Caches/ms-playwright`); `PW_CHROMIUM=/caminho` troca. Sem cache: `npx playwright install chromium` (baixa o navegador).

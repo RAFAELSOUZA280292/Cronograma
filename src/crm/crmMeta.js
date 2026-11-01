@@ -161,7 +161,7 @@ export function moneyToNumber(v) {
 }
 
 export const CRM_CSS = `
-  .crm-shell *, .crm-drawer *, .crm-modal * { box-sizing: border-box; }
+  .crm-shell *, .crm-drawer *, .crm-modal-frame * { box-sizing: border-box; }
   .crm-root, .crm-shell { font-family:'Inter', sans-serif; -webkit-font-smoothing:antialiased; }
   .crm-shell { display:flex; flex-direction:column; min-height:100vh; background:var(--bg-1); color:var(--text-2); }
   .crm-topbar { display:flex; align-items:center; gap:14px; padding:12px 20px; border-bottom:1px solid var(--border-1); flex-wrap:wrap; }
@@ -236,17 +236,14 @@ export const CRM_CSS = `
 
   .crm-renata-host .asst-fab { display:none !important; }
   .crm-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:80; display:flex; justify-content:flex-end; }
-  .crm-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:90; display:flex; align-items:center; justify-content:center; padding:16px; }
   .crm-drawer { width:min(900px, 100%); height:100%; background:var(--bg-1); border-left:1px solid var(--border-2); overflow-y:auto; }
-  .crm-drawer:focus, .crm-modal:focus { outline:none; }
+  .crm-drawer:focus { outline:none; }
   .crm-drawer-head { position:sticky; top:0; z-index:2; background:var(--bg-1); padding:16px 22px 0; border-bottom:1px solid var(--border-1); }
   .crm-drawer-body { padding:18px 22px 40px; }
   .crm-tabs { display:flex; gap:2px; margin-top:12px; overflow-x:auto; }
   .crm-tab { padding:9px 13px; font-size:12.5px; font-weight:700; color:var(--text-5); background:transparent; border:none; border-bottom:2px solid transparent; cursor:pointer; white-space:nowrap; font-family:inherit; }
   .crm-tab:hover { color:var(--text-2); }
   .crm-tab.active { color:var(--text-1); border-bottom-color:#F5C400; }
-  .crm-modal { width:min(760px, 100%); max-height:92vh; overflow-y:auto; background:var(--bg-2); border:1px solid var(--border-2); border-radius:14px; padding:20px 22px; }
-  .crm-modal-title { font-size:var(--fs-lg); font-weight:800; color:var(--text-1); margin:0 0 14px; display:flex; align-items:center; justify-content:space-between; }
   .crm-form-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px 14px; }
   @media (max-width: 640px) { .crm-form-grid { grid-template-columns:1fr; } }
   .crm-field label { display:block; font-size:var(--fs-xs); font-weight:800; color:var(--text-5); margin-bottom:4px; }
@@ -507,7 +504,6 @@ export const CRM_CSS = `
     .crm-note-input textarea { min-height:88px; }
     .crm-filters select, .crm-filters input { flex:1 1 140px; width:auto; min-width:0; }
     .crm-items-row { grid-template-columns:minmax(0,1fr) 64px 100px 44px; }
-    .crm-modal { padding:16px; }
     .crm-drawer-head { padding:14px 14px 0; }
     .crm-drawer-body { padding:14px 14px 32px; }
     .crm-form-foot { flex-wrap:wrap; }

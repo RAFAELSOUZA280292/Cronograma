@@ -1,11 +1,10 @@
 // Peças de UI compartilhadas do CRM.
 import React, { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react';
-import { X } from 'lucide-react';
 import { ConfirmDialog } from '../ui/index.jsx';
 import { lazyRetry } from '../lib/lazyRetry.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { crm } from './crmApi.js';
-import { useDialog } from '../lib/nav.js';
+import { Modal as UiModal } from '../ui/dialog.jsx';
 import { REL_META, completenessColor, softDot } from './crmMeta.js';
 
 // Compara o estado atual do formulário com o do primeiro render: só quem mexeu em algo está "sujo".
@@ -31,26 +30,25 @@ export function useDraftGuard(dirty, message) {
 const ModalCtx = createContext({ requestClose: () => {}, locked: false });
 
 // `dirty`: há alterações não salvas — Esc, X e Cancelar pedem confirmação. `locked`: operação em andamento — nada fecha.
-// Esc, Voltar do navegador e X passam todos por `requestClose` (respeita `dirty` e `locked`); useDialog cuida de foco preso e Esc em pilha.
+// Esc, Voltar do navegador e X passam todos por `requestClose` (respeita `dirty` e `locked`). A janela é a MESMA do resto do app (src/ui/dialog.jsx, Onda 3 / U2):
+// foco preso, Esc em pilha e Voltar do navegador vêm de lá; aqui ficam só as regras do CRM (guarda de rascunho, trava, clicar fora NÃO fecha, acima dos painéis).
 export function Modal({ title, onClose, children, width, dirty, locked }) {
   const { guard, dialog } = useDraftGuard(dirty);
   const requestClose = useCallback(() => { if (!locked) guard(onClose)(); }, [locked, guard, onClose]);
-  const dlg = useDialog(requestClose);
+  const mark = useRef(null);
   useEffect(() => {
-    const el = dlg.ref.current;
+    const el = mark.current && mark.current.closest('[role="dialog"]');
     const a = document.activeElement;
     if (!el || (a && a !== el && !(a.matches && a.matches('button')))) return;
-    const f = el.querySelector('input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled])');
+    const f = el.querySelector('.ui-frame-body input:not([type=hidden]):not([disabled]),.ui-frame-body select:not([disabled]),.ui-frame-body textarea:not([disabled])');
     if (f) { try { f.focus({ preventScroll: true }); } catch (e) { /* ignora */ } }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <ModalCtx.Provider value={{ requestClose, locked: !!locked }}>
-      <div className="crm-modal-overlay">
-        <div className="crm-modal" style={width ? { width } : undefined} {...dlg} aria-label={title}>
-          <h2 className="crm-modal-title"><span>{title}</span><button type="button" className="crm-icon-btn" onClick={requestClose} disabled={locked} title={locked ? 'Aguarde terminar' : 'Fechar'} aria-label="Fechar"><X size={16} aria-hidden="true" /></button></h2>
-          {children}
-        </div>
-      </div>
+      <UiModal title={title} onClose={requestClose} busy={!!locked} backdrop={false} layer="over-drawer" className="crm-modal-frame" width={width || 'min(760px, 100%)'}>
+        <span ref={mark} hidden />
+        {children}
+      </UiModal>
       {dialog}
     </ModalCtx.Provider>
   );

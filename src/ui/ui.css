@@ -187,6 +187,8 @@ html[data-theme="light"] .ui-empty-icon { color: #7a5f00; }
 .ui-frame-overlay.modal { align-items: center; justify-content: center; }
 /* `above`: janela global (RENATA) que precisa ficar por cima dos painéis e modais próprios dos módulos (CRM usa 80/90); confirmações ficam em 300. */
 .ui-frame-overlay.above { z-index: 100; }
+/* `over-drawer`: modais que abrem por cima dos painéis laterais do CRM (z-index 80) e abaixo da RENATA (100). */
+.ui-frame-overlay.over-drawer { z-index: 90; }
 .ui-frame-overlay.drawer { align-items: stretch; justify-content: flex-end; padding: 0; }
 .ui-frame { display: flex; flex-direction: column; max-height: 100%; background: var(--bg-1); color: var(--text-1); border: 1px solid var(--border-2); box-shadow: 0 20px 60px rgba(0,0,0,.4); }
 .ui-frame.modal { width: min(560px, 100%); border-radius: 16px; }

@@ -417,3 +417,5 @@ Desenvolvimento local: `npm run dev` (Vite em `:5173` com proxy de `/api` e `/d/
 - `src/ui/tableKit.jsx` + `tableLogic.js` (puro, testado): `useRowSelection`, `SelectHeadCell/SelectCell`, `BulkBar`, `useColumns`/`ColumnPicker`, classes `.ui-tk-*` e `.ui-tk-sticky` em `ui.css`. Encaixam nas tabelas existentes; não substituem o `<table>` do módulo.
 - `src/ui/ClientAlerts.jsx` (faixa de alertas) e `src/ui/Client360Strip.jsx` (faixa "No CRM"). `src/today/BriefingCard.jsx` (briefing na tela inicial). Aba **Preferências** em `RenataChat.jsx`.
 - Selo de notificações do sino (`S.mentionBadge`): texto 12 px (era 9,5 px).
+
+- **Janela única (§116zo, U2):** `Modal`/`Drawer` de `src/ui/dialog.jsx` são a única janela do app; o `Modal` do CRM (`src/crm/ui.jsx`) é um adaptador com guarda de rascunho e trava. Opções do `Frame`: `backdrop={false}`, `layer="over-drawer"` (z-index 90), `className`. Camadas: padrão 60, painéis do CRM 80, janelas do CRM 90, RENATA 100, confirmações 300.
