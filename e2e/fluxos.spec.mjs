@@ -244,6 +244,9 @@ test('janelas que sobraram (U2): usuários, perfil, notificações, editar e clo
   await page.keyboard.press('Escape');
   await expect(gaveta).toHaveCount(0);
 
+  const api = await apiAs(page, USERS.master);
+  const pr = await api.post('/api/projects', { company: { name: `Janela Empresa ${stamp()}`, cnpj: '11.222.333/0001-81' } });
+  expect(pr.status, JSON.stringify(pr.body)).toBeLessThan(300);
   await page.goto('/empresas');
   await page.getByRole('button', { name: 'Editar empresa' }).first().click();
   await expect(page.getByRole('dialog', { name: 'Editar empresa' })).toBeVisible();
