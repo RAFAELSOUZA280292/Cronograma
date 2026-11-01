@@ -7,7 +7,7 @@ import { CommentThread, ComposeBox } from '../ui/ComposeBox.jsx';
 import { ConfirmDialog, RecordSaveStatus, SaveStatus, activateRow } from '../ui/index.jsx';
 import DaySummary from '../personal/DaySummary.jsx';
 import { DateField } from '../ui/DateTimeFields.jsx';
-import { DialogOverlay } from '../ui/dialog.jsx';
+import { Modal as UiModal } from '../ui/dialog.jsx';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, closestCorners, useDroppable, useSensor, useSensors } from '@dnd-kit/core';
 import { DUE_FILTERS, dailyRows, dailySummary, dailyToHtml, dueFilterLabel, dueMatches } from '../personal/dailyExport.js';
@@ -759,9 +759,7 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
   const stale = staleTone(staleDays);
 
   return (
-    <DialogOverlay style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose} history={false}>
-      <div style={{ ...S.detailBox, width: 'min(760px, 100%)', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.detailTopBar}>
+    <UiModal label="Detalhes da tarefa" onClose={requestClose} history={false} width="min(760px, 100%)" header={(
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ ...S.fieldHint, display: 'flex', alignItems: 'center', gap: 4 }}>
               <span>{boardName} /</span>
@@ -779,8 +777,7 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
             </div>
             {!readOnly && <RecordSaveStatus hasDraft={hasDraft} lastSavedAt={lastSavedAt} />}
           </div>
-          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
-        </div>
+    )}>
 
         {readOnly && (
           <div style={{ ...S.fieldHint, background: 'var(--bg-3)', padding: '6px 10px', borderRadius: 6, marginBottom: 8 }}>
@@ -804,6 +801,7 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
               {card.completed ? <Check size={16} /> : <span style={S.personalCardCheckEmptyLg} />}
             </button>
             <input
+              aria-label="Título da tarefa"
               value={titleField.draft}
               readOnly={readOnly}
               onChange={(e) => titleField.onChange(e.target.value)}
@@ -824,7 +822,7 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
             </div>
             <div>
               <div style={S.fieldHint}>Prazo</div>
-              <input type="date" value={card.dueDate || ''} onChange={(e) => onUpdate({ dueDate: e.target.value }, e.target.value ? `Prazo alterado: ${fmtDate(e.target.value)}` : 'Prazo removido')} />
+              <input type="date" aria-label="Prazo da tarefa" value={card.dueDate || ''} onChange={(e) => onUpdate({ dueDate: e.target.value }, e.target.value ? `Prazo alterado: ${fmtDate(e.target.value)}` : 'Prazo removido')} />
               <button type="button" className="pb-ghost" style={{ ...S.pbGhostBtn, marginTop: 6, justifyContent: 'center', width: '100%', minHeight: 36 }}
                 disabled={card.dueDate === todayISOStr()} title={card.dueDate === todayISOStr() ? 'O prazo já é hoje.' : 'Define o prazo para a data de hoje.'}
                 onClick={() => { const t = todayISOStr(); onUpdate({ dueDate: t }, `Prazo alterado: ${fmtDate(t)}`); }}>Hoje</button>
@@ -846,7 +844,7 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
           <TagEditor tags={card.tags || []} onChange={(tags) => onUpdate({ tags }, 'Tags atualizadas')} suggestions={allTags} />
 
           <div style={S.subSectionLabel}>Descrição</div>
-          <React.Suspense fallback={<div style={{ minHeight: 96, border: '1px solid var(--border-2)', borderRadius: 8, background: 'var(--bg-1)' }} aria-busy="true" aria-label="Carregando o editor" />}>
+          <React.Suspense fallback={<div style={{ minHeight: 96, border: '1px solid var(--border-2)', borderRadius: 8, background: 'var(--bg-1)' }} role="status" aria-busy="true" aria-label="Carregando o editor" />}>
           <RichNote value={descField.draft} format={card.descFormat} readOnly={readOnly} onChange={descField.onChange} onBlur={descField.flush} placeholder="Descrição, anotações..." />
           </React.Suspense>
 
@@ -957,7 +955,6 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
         </div>
 
         {!readOnly && <button style={{ ...S.iconBtn, marginTop: 20, color: '#e2574c' }} onClick={onDelete}><Trash2 size={14} /> Excluir tarefa</button>}
-      </div>
       {showGuard && (
         <ConfirmDiscardModal
           onSaveAndExit={saveDraftsAndClose}
@@ -965,7 +962,7 @@ function PersonalCardDetailModal({ onMoveChecklistItem, onSetChecklistResponsibl
           onCancel={() => setShowGuard(false)}
         />
       )}
-    </DialogOverlay>
+    </UiModal>
   );
 }
 
@@ -1058,14 +1055,8 @@ function ReassignCardsModal({ column, otherColumns, onConfirm, onCancel }) {
   const [targetColId, setTargetColId] = useState(otherColumns[0] ? otherColumns[0].id : '');
   const [alsoDelete, setAlsoDelete] = useState(false);
   const activeCount = column.cards.filter((c) => !c.deleted).length;
-  const isMobile = useIsMobile();
   return (
-    <DialogOverlay style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={onCancel}>
-      <div className="t44" style={{ ...S.detailBox, width: 'min(460px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.detailTopBar}>
-          <div style={{ fontSize: 16, fontWeight: 800 }}>Excluir coluna "{column.name}"</div>
-          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={onCancel}><X aria-hidden="true" size={18} /></button>
-        </div>
+    <UiModal title={`Excluir coluna "${column.name}"`} onClose={onCancel} width="min(460px, 100%)" className="t44">
         <div style={S.fieldHint}>Esta coluna tem {activeCount} tarefa(s). Para onde deseja movê-las?</div>
         <select value={targetColId} onChange={(e) => setTargetColId(e.target.value)} style={{ marginTop: 10 }}>
           {otherColumns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -1078,8 +1069,7 @@ function ReassignCardsModal({ column, otherColumns, onConfirm, onCancel }) {
           <button style={S.iconBtn} onClick={onCancel}>Cancelar</button>
           <button title={!targetColId ? 'Escolha a coluna de destino' : undefined} style={S.primaryBtn} onClick={() => onConfirm(targetColId, alsoDelete)} disabled={!targetColId}>Mover e excluir coluna</button>
         </div>
-      </div>
-    </DialogOverlay>
+    </UiModal>
   );
 }
 
@@ -1135,12 +1125,7 @@ function BoardShareModal({ board, subject = 'página', backOptions, backValue, o
   }
 
   return (
-    <DialogOverlay style={S.detailOverlay} onClose={onClose}>
-      <div style={{ ...S.detailBox, width: 'min(480px, 100%)' }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.detailTopBar}>
-          <div style={S.subSectionLabel}>Visibilidade da {subject} "{board.name}"</div>
-          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={onClose}><X aria-hidden="true" size={18} /></button>
-        </div>
+    <UiModal title={`Visibilidade da ${subject} "${board.name}"`} onClose={onClose} width="min(480px, 100%)">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 }}>
           <label style={S.cnpjCheckRow}>
             <input type="radio" name="board-visibility" checked={!isPublic} onChange={() => onSetVisibility('private')} />
@@ -1183,8 +1168,7 @@ function BoardShareModal({ board, subject = 'página', backOptions, backValue, o
             </button>
           </>
         )}
-      </div>
-    </DialogOverlay>
+    </UiModal>
   );
 }
 

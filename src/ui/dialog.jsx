@@ -26,17 +26,24 @@ export function DialogOverlay({ onClose, label, history, esc, backdrop, children
 // Modal e Drawer únicos: cabeçalho (título + Fechar), corpo que rola, rodapé de ações. Mesmo Esc/Voltar/foco de DialogOverlay.
 // `error` aparece dentro (a ação que falhou não fecha a janela); `footer` recebe os botões (Cancelar à esquerda do primário).
 // `backdrop={false}`: clicar fora NÃO fecha (formulários com rascunho); `layer="over-drawer"`: fica acima dos painéis laterais do CRM (z-index 90); `className`: classe extra na janela.
-function Frame({ kind, title, subtitle, onClose, children, footer, error, size, width, history, busy, label, above, backdrop, layer, className }) {
+// `header`: conteúdo livre no lugar de título/subtítulo (janelas de detalhe com campo editável, status etc.; passe `label` para o nome acessível); `actions`: botões extras antes do Fechar;
+// `overlayClassName`: classe extra no fundo (quem estiliza por ele, como `.xf-modal`).
+function Frame({ kind, title, subtitle, header, actions, onClose, children, footer, error, size, width, history, busy, label, above, backdrop, layer, className, overlayClassName }) {
   const close = () => { if (!busy) onClose(); };
   return (
-    <DialogOverlay onClose={close} history={history} backdrop={backdrop} label={label || title} className={`ui-frame-overlay ${kind}${above ? ' above' : ''}${layer ? ` ${layer}` : ''}`}>
+    <DialogOverlay onClose={close} history={history} backdrop={backdrop} label={label || title} className={`ui-frame-overlay ${kind}${above ? ' above' : ''}${layer ? ` ${layer}` : ''}${overlayClassName ? ` ${overlayClassName}` : ''}`}>
       <div className={`ui-frame ${kind} ${size || ''}${className ? ` ${className}` : ''}`} style={width ? { width } : undefined} onClick={(e) => e.stopPropagation()}>
         <div className="ui-frame-head">
-          <div className="ui-frame-titles">
-            <h2 className="ui-frame-title">{title}</h2>
-            {subtitle && <div className="ui-frame-sub">{subtitle}</div>}
+          {header ? <div className="ui-frame-titles">{header}</div> : (
+            <div className="ui-frame-titles">
+              <h2 className="ui-frame-title">{title}</h2>
+              {subtitle && <div className="ui-frame-sub">{subtitle}</div>}
+            </div>
+          )}
+          <div className="ui-frame-head-acts">
+            {actions}
+            <IconButton label="Fechar" icon={X} onClick={close} disabled={busy} disabledReason="Aguarde terminar" />
           </div>
-          <IconButton label="Fechar" icon={X} onClick={close} disabled={busy} disabledReason="Aguarde terminar" />
         </div>
         <div className="ui-frame-body">{children}</div>
         {error && <div className="ui-frame-err" role="alert">{error}</div>}

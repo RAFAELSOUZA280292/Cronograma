@@ -14,7 +14,10 @@ export async function loginUi(page, username, password = PASS) {
   await page.goto('/');
   await page.getByRole('textbox', { name: 'Usuário' }).fill(username);
   await page.getByRole('textbox', { name: 'Senha' }).fill(password);
+  // Espera a resposta do login: sem isso, um `goto` logo em seguida podia cancelar o pedido e cair de volta na tela de entrada (intermitente).
+  const respondeu = page.waitForResponse((r) => r.url().includes('/api/auth/login') && r.request().method() === 'POST');
   await page.getByRole('button', { name: 'Entrar' }).click();
+  await respondeu;
 }
 
 // Entra pela API na MESMA sessão do navegador (o cookie fica no contexto) e devolve ajudantes que já levam o cookie.

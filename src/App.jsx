@@ -31,7 +31,8 @@ import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
 
 
 import ModuleShell from './shell/ModuleShell.jsx';
-import { DialogOverlay } from './ui/dialog.jsx';
+import { DialogOverlay, Modal as UiModal, Drawer as UiDrawer } from './ui/dialog.jsx';
+import { Button } from './ui/index.jsx';
 import { DialogHost, notify, pushToastCompat, dismissToast as dismissToastGlobal } from './ui/dialogs.jsx';
 import { useHistoryValue, readHistoryValue, withoutLayer } from './lib/nav.js';
 
@@ -297,21 +298,16 @@ export function useAutosaveTimestamp(record) {
 
 export function ConfirmDiscardModal({ onSaveAndExit, onDiscard, onCancel, saving }) {
   return (
-    <DialogOverlay style={{ ...S.detailOverlay, zIndex: 200 }} onClose={onCancel} history={false}>
-      <div style={{ ...S.detailBox, width: 'min(420px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontSize: 16, fontWeight: 800 }}>Você tem alterações não salvas</div>
-        <div style={{ ...S.fieldHint, marginTop: 8, fontSize: 12.5 }}>Deseja salvar antes de sair?</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 18 }}>
-          {onSaveAndExit && (
-            <button title={saving ? 'Aguarde terminar de salvar' : undefined} style={{ ...S.primaryBtn, justifyContent: 'center' }} onClick={onSaveAndExit} disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar e sair'}
-            </button>
-          )}
-          <button title={saving ? 'Aguarde terminar de salvar' : undefined} style={{ ...S.iconBtn, justifyContent: 'center' }} onClick={onDiscard} disabled={saving}>Sair sem salvar</button>
-          <button style={{ ...S.iconBtnGhost, justifyContent: 'center' }} onClick={onCancel}>Continuar editando</button>
-        </div>
-      </div>
-    </DialogOverlay>
+    <UiModal title="Você tem alterações não salvas" size="sm" layer="over-modal" history={false} onClose={onCancel} busy={!!saving}
+      footer={(
+        <>
+          <Button onClick={onCancel}>Continuar editando</Button>
+          <Button onClick={onDiscard} disabled={saving} disabledReason="Aguarde terminar de salvar">Sair sem salvar</Button>
+          {onSaveAndExit && <Button variant="primary" onClick={onSaveAndExit} loading={saving}>Salvar e sair</Button>}
+        </>
+      )}>
+      <div style={{ ...S.fieldHint, fontSize: 12.5 }}>Deseja salvar antes de sair?</div>
+    </UiModal>
   );
 }
 
@@ -3574,18 +3570,7 @@ function NoAccessScreen({ user, onLogout, onHome, theme, onToggleTheme }) {
 }
 
 export function SidePanel({ title, onClose, width, children }) {
-  const isMobile = useIsMobile();
-  return (
-    <DialogOverlay className="no-print" style={S.overlay} onClose={onClose}>
-      <div style={{ ...S.panel, ...(width ? { width } : null), ...(isMobile ? S.panelMobile : null) }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.panelHead}>
-          <div style={S.panelTitle}>{title}</div>
-          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={onClose}><X aria-hidden="true" size={16} /></button>
-        </div>
-        <div style={S.panelBody}>{children}</div>
-      </div>
-    </DialogOverlay>
-  );
+  return <UiDrawer title={title} onClose={onClose} overlayClassName="no-print" width={typeof width === 'number' ? `min(${width}px, 100%)` : (width || 'min(360px, 100%)')}>{children}</UiDrawer>;
 }
 
 // Central de Notificações (2026-08) — componente compartilhado, usado nas

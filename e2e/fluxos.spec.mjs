@@ -152,3 +152,63 @@ test('janelas do CRM (U2): uma só janela do app, rascunho protegido, clicar for
   await expect(modal).toHaveCount(0);
   await expect(page.locator('.crm-drawer')).toBeVisible();
 });
+
+test('janelas do XFlow (U2): Nova TASK e detalhe usam a janela única; rascunho protegido; Esc fecha e limpa o endereço', async ({ page }) => {
+  await loginUi(page, USERS.master);
+  const api = await apiAs(page, USERS.master);
+  const tag = stamp();
+  const tk = await api.post('/api/xflow/tickets', { title: `TASK e2e ${tag}`, description: 'descrição de teste', product: 'XPED', clientType: 'cliente', type: 'bug' });
+  expect(tk.status, JSON.stringify(tk.body)).toBeLessThan(300);
+  const num = tk.body.ticket.number;
+
+  await page.goto('/xflow');
+  await page.getByRole('button', { name: 'Nova TASK' }).click();
+  const nova = page.locator('.ui-frame-overlay.xf-modal').filter({ has: page.getByRole('heading', { name: 'Nova TASK' }) });
+  await expect(nova).toBeVisible();
+  await expect(nova.getByRole('button', { name: 'Abrir BUG' })).toBeDisabled(); // rodapé fixo da janela, com a trava de campos obrigatórios
+  await checkAxe(page, 'xflow-nova-task');
+  await nova.getByPlaceholder(/Erro ao calcular/).fill(`Rascunho ${tag}`);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('heading', { name: 'Você tem alterações não salvas' })).toBeVisible();
+  await page.getByRole('button', { name: 'Continuar editando' }).click();
+  await expect(nova).toBeVisible();
+  await expect(nova.getByPlaceholder(/Erro ao calcular/)).toHaveValue(`Rascunho ${tag}`);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Sair sem salvar' }).click();
+  await expect(nova).toHaveCount(0);
+
+  await page.getByText(`TASK e2e ${tag}`).first().click();
+  const det = page.locator('.ui-frame-overlay.xf-modal');
+  await expect(det.getByRole('textbox', { name: 'Título da TASK' })).toHaveValue(`TASK e2e ${tag}`);
+  await expect(det.getByRole('button', { name: 'Copiar link da TASK' })).toBeVisible();
+  expect(page.url()).toContain(`#${num}`);
+  await checkAxe(page, 'xflow-detalhe');
+  await page.keyboard.press('Escape');
+  await expect(det).toHaveCount(0);
+  expect(page.url()).not.toContain(`#${num}`);
+});
+
+test('janelas do quadro pessoal (U2): detalhe do cartão e gaveta da Lixeira pela janela única', async ({ page }) => {
+  await loginUi(page, USERS.master);
+  await page.goto('/gestao-atividades');
+  const title = `Cartão janela ${stamp()}`;
+  await page.locator('.pb-addbtn').first().click();
+  await page.getByPlaceholder('Digite o nome da atividade...').fill(title);
+  await page.keyboard.press('Enter');
+  await expect(page.getByText(title).first()).toBeVisible();
+
+  await page.getByText(title).first().click();
+  const frame = page.locator('.ui-frame-overlay .ui-frame').first();
+  await expect(frame).toBeVisible();
+  await expect(frame.getByRole('button', { name: 'Fechar' })).toBeVisible();
+  await expect(frame.locator('.ui-frame-head')).toContainText('/'); // quadro / coluna no cabeçalho
+  await checkAxe(page, 'quadro-detalhe-cartao');
+  await frame.getByRole('button', { name: 'Fechar' }).click();
+  await expect(page.locator('.ui-frame-overlay')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Lixeira' }).first().click();
+  const gaveta = page.locator('.ui-frame.drawer');
+  await expect(gaveta.getByRole('heading', { name: 'Lixeira' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(gaveta).toHaveCount(0);
+});

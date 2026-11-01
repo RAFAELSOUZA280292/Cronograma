@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8719 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8730 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -170,3 +170,4 @@ O `PROJECT_CONTEXT.md` tem 8719 linhas (a memória cronológica de cada decisão
 | 8691 | 116zm. Busca da RENATA: o escopo sugerido pela IA deixou de ser filtro rígido (2026-10-31, pedido do Rafael: … | - Problema (medido): a etapa que interpreta a pergunta (resolveQuery, server/assistantRetrieval.js) propõe um tipo de trecho (kind) e uma reunião-alv… |
 | 8702 | 116zn. E6: SDK da Anthropic 0.135 → 1.3 (2026-10-31, pedido do Rafael: "Faz o E6") | - O que muda de fundo: a major 1.0.0 do SDK passa a mandar a versão 2026-10-21 da API (antes 2023-06-01). Guia oficial: https://platform.claude.com/d… |
 | 8711 | 116zo. U2: os 14 modais do CRM passam a usar a janela única do app (2026-10-31, pedido do Rafael: "Faz o U2") | - O que existia: duas implementações da mesma coisa — Modal/Drawer em src/ui/dialog.jsx (usados por Atalhos, PDF, Pauta, Versões, Biblioteca…) e Moda… |
+| 8720 | 116zp. U2 (parte 2): janelas do XFlow e do quadro pessoal na janela única (2026-11-01, pedido do Rafael: "Faz… | - Escopo e o que migrou: XFlow: Nova TASK, detalhe da TASK e o pedido de campo do quadro (arrastar para bloquear/anotar). Quadro pessoal: detalhe do … |

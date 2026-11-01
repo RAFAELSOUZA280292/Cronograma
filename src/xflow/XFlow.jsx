@@ -25,7 +25,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { uid, fmtDate, fmtTs, useIsMobile, BrandLogo, useDirtyForm, useAutosaveTimestamp, ConfirmDiscardModal, COLUMN_COLOR_META } from '../App.jsx';
 import { S } from '../styles/S.js';
-import { DialogOverlay } from '../ui/dialog.jsx';
+import { DialogOverlay, Modal as UiModal } from '../ui/dialog.jsx';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
 import { ComposeBox, CommentThread, AddMenu } from '../ui/ComposeBox.jsx';
 import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
@@ -735,7 +735,7 @@ const TicketRefExtension = Extension.create({
 // `useEditor` só são lidas na criação do editor — sem isso, um `onChange`
 // novo a cada render (comum quando o pai passa uma arrow
 // function inline) ficaria "congelado" na primeira versão.
-function RichTextEditor({ value, onChange, onCommit, disabled, placeholder, ticketsByNumber, onOpenTicketRef }) {
+function RichTextEditor({ value, onChange, onCommit, disabled, placeholder, ticketsByNumber, onOpenTicketRef, ariaLabel }) {
   const onChangeRef = useRef(onChange);
   const onCommitRef = useRef(onCommit);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
@@ -785,7 +785,7 @@ function RichTextEditor({ value, onChange, onCommit, disabled, placeholder, tick
     editable: !disabled,
     shouldRerenderOnTransaction: true, // v3: a barra de formatação lê o estado do editor no render
     editorProps: {
-      attributes: { class: 'xflow-rte-body' },
+      attributes: { class: 'xflow-rte-body', 'aria-label': ariaLabel || 'Texto', 'aria-multiline': 'true' },
       handlePaste: (view, event) => {
         const items = Array.from((event.clipboardData && event.clipboardData.items) || []);
         const imageItem = items.find((it) => it.type && it.type.startsWith('image/'));
@@ -1093,24 +1093,21 @@ function NewTicketModalImpl({ onClose, onCreate, affectedCompanies }) {
 
   const padX = isMobile ? 16 : 30;
   return (
-    <DialogOverlay onClose={escClose} label="Nova TASK" className="xf-modal" style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }}>
-      <FlashToast message={pasteNote} />
-      <div
-        style={{
-          ...S.detailBox, width: 'min(1100px, 94vw)', height: 'auto', maxHeight: '90vh', padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
-          ...(isMobile ? { ...S.detailBoxMobile, padding: 0, height: '100dvh', maxHeight: '100dvh' } : null),
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ ...S.detailTopBar, alignItems: 'flex-start', marginBottom: 0, flex: 'none', padding: isMobile ? 'calc(12px + var(--safe-top)) 16px 8px' : '22px 30px 10px' }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800 }}>Nova TASK</h2>
-            <div style={{ fontSize: 12, color: 'var(--text-5)', marginTop: 3 }}>
-              Só o essencial pra abrir agora — o resto você completa depois.
-            </div>
+    <UiModal label="Nova TASK" title="Nova TASK" subtitle="Só o essencial pra abrir agora — o resto você completa depois." onClose={escClose} overlayClassName="xf-modal" className="flush" width="min(1100px, 94vw)"
+      footer={(
+        <div className="xf-foot" style={{ paddingLeft: isMobile ? undefined : padX, paddingRight: isMobile ? undefined : padX }}>
+          <div className={`xf-foot-msg${error ? ' err' : ''}`} role={error ? 'alert' : 'status'} aria-live="polite">
+            {error || createDisabledReason || 'Tudo certo para enviar.'}
           </div>
-          <button style={S.iconBtnGhost} aria-label="Fechar" title="Fechar" onClick={requestClose}><X size={18} aria-hidden="true" /></button>
+          <div className="xf-foot-btns">
+            <Button onClick={requestClose}>Cancelar</Button>
+            <Button variant="primary" onClick={submit} disabled={!requiredOk || saving} disabledReason={createDisabledReason}>
+              {saving ? 'Enviando...' : form.type === 'melhoria' ? 'Registrar melhoria' : 'Abrir BUG'}
+            </Button>
+          </div>
         </div>
+      )}>
+      <FlashToast message={pasteNote} />
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: `0 ${padX}px 16px` }}>
           <div style={S.subSectionLabel} id="xf-new-type">Tipo</div>
@@ -1167,6 +1164,7 @@ function NewTicketModalImpl({ onClose, onCreate, affectedCompanies }) {
               value={form.description}
               onChange={(html) => set({ description: html })}
               placeholder="O que aconteceu"
+              ariaLabel={form.type === 'melhoria' ? 'Descrição da melhoria' : 'Descrição do problema'}
             />
           </div>
 
@@ -1260,18 +1258,6 @@ function NewTicketModalImpl({ onClose, onCreate, affectedCompanies }) {
           </div>
         </div>
 
-        <div className="xf-foot" style={{ paddingLeft: isMobile ? undefined : padX, paddingRight: isMobile ? undefined : padX }}>
-          <div className={`xf-foot-msg${error ? ' err' : ''}`} role={error ? 'alert' : 'status'} aria-live="polite">
-            {error || createDisabledReason || 'Tudo certo para enviar.'}
-          </div>
-          <div className="xf-foot-btns">
-            <Button onClick={requestClose}>Cancelar</Button>
-            <Button variant="primary" onClick={submit} disabled={!requiredOk || saving} disabledReason={createDisabledReason}>
-              {saving ? 'Enviando...' : form.type === 'melhoria' ? 'Registrar melhoria' : 'Abrir BUG'}
-            </Button>
-          </div>
-        </div>
-      </div>
       {showGuard && (
         <div onClick={(e) => e.stopPropagation()}>
           <ConfirmDiscardModal
@@ -1282,7 +1268,7 @@ function NewTicketModalImpl({ onClose, onCreate, affectedCompanies }) {
           />
         </div>
       )}
-    </DialogOverlay>
+    </UiModal>
   );
 }
 
@@ -1684,10 +1670,8 @@ function TicketDetailModalImpl({ ticket, team, currentUser, onClose, onAction, o
   const timeline = [...structuredHistory, ...legacyHistory].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
   return (
-    <DialogOverlay onClose={escClose} label={`TASK #${ticket.number}`} history={false} className="xf-modal" style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }}>
-      <FlashToast message={attachNote} />
-      <div style={{ ...S.detailBox, width: 'min(1000px, 100%)', maxHeight: '92vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.detailTopBar}>
+    <UiModal label={`TASK #${ticket.number}`} onClose={escClose} history={false} overlayClassName="xf-modal" width="min(1000px, 100%)"
+      header={(
           <div>
             <h2 style={{ margin: 0, fontSize: 12, color: 'var(--text-5)', fontWeight: 700 }}>TASK #{ticket.number}</h2>
             <ContentField as="input" ariaLabel="Título da TASK" value={ticket.title} disabled={!canEditContent} onCommit={(v) => runAction('editar_campo', { field: 'title', value: v })} />
@@ -1696,7 +1680,9 @@ function TicketDetailModalImpl({ ticket, team, currentUser, onClose, onAction, o
             </div>
             <div style={{ marginTop: 2 }}><RecordSaveStatus hasDraft={hasDraft} lastSavedAt={lastSavedAt} /></div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      )}
+      actions={(
+        <>
             {linkCopied && <span style={{ fontSize: 11, color: 'var(--text-5)' }}>Link copiado!</span>}
             <button
               style={S.iconBtnGhost} aria-label="Copiar link da TASK" title="Copiar link permanente desta TASK"
@@ -1705,9 +1691,9 @@ function TicketDetailModalImpl({ ticket, team, currentUser, onClose, onAction, o
                 navigator.clipboard.writeText(url).then(() => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2500); });
               }}
             ><Link2 size={16} aria-hidden="true" /></button>
-            <button style={S.iconBtnGhost} aria-label="Fechar" title="Fechar" onClick={requestClose}><X size={18} aria-hidden="true" /></button>
-          </div>
-        </div>
+        </>
+      )}>
+      <FlashToast message={attachNote} />
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
           <Badge meta={XFLOW_TYPE_META[ticket.type] || XFLOW_TYPE_META.bug} />
@@ -1752,6 +1738,7 @@ function TicketDetailModalImpl({ ticket, team, currentUser, onClose, onAction, o
               ticketsByNumber={ticketsByNumber}
               onOpenTicketRef={openTicketRefByNumber}
               placeholder="O que aconteceu"
+              ariaLabel="Descrição da TASK"
             />
             </div>
 
@@ -2192,7 +2179,6 @@ function TicketDetailModalImpl({ ticket, team, currentUser, onClose, onAction, o
             </div>
           </div>
         </div>
-      </div>
       {showGuard && (
         <div onClick={(e) => e.stopPropagation()}>
           <ConfirmDiscardModal
@@ -2219,7 +2205,7 @@ function TicketDetailModalImpl({ ticket, team, currentUser, onClose, onAction, o
           </div>
         </DialogOverlay>
       )}
-    </DialogOverlay>
+    </UiModal>
   );
 }
 
@@ -2753,12 +2739,7 @@ function DragFieldPromptModalImpl({ title, field, saving, onConfirm, onCancel })
   const [value, setValue] = useState('');
   const valid = value.trim().length > 0;
   return (
-    <DialogOverlay onClose={onCancel} label={title} style={S.detailOverlay}>
-      <div style={{ ...S.detailBox, width: 'min(420px, 100%)' }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.detailTopBar}>
-          <div style={{ fontWeight: 700, fontSize: 13.5 }}>{title}</div>
-          <button style={S.iconBtnGhost} aria-label="Fechar" title="Fechar" onClick={onCancel}><X size={16} aria-hidden="true" /></button>
-        </div>
+    <UiModal title={title} onClose={onCancel} width="min(420px, 100%)" overlayClassName="xf-modal">
         <div style={S.subSectionLabel}>{field.label}</div>
         {field.type === 'select' ? (
           <select value={value} onChange={(e) => setValue(e.target.value)} autoFocus>
@@ -2772,8 +2753,7 @@ function DragFieldPromptModalImpl({ title, field, saving, onConfirm, onCancel })
           <button style={S.iconBtnGhost} onClick={onCancel} disabled={saving} title={saving ? 'Aguarde terminar' : undefined}>Cancelar</button>
           <button style={S.primaryBtn} onClick={() => valid && onConfirm(value)} disabled={!valid || saving} title={saving ? 'Aguarde terminar' : !valid ? (field.type === 'select' ? 'Selecione uma opção para continuar' : 'Preencha o campo para continuar') : undefined}>{saving ? 'Salvando...' : 'Confirmar'}</button>
         </div>
-      </div>
-    </DialogOverlay>
+    </UiModal>
   );
 }
 
@@ -2957,7 +2937,7 @@ function XflowBoardView({ tickets, currentUser, teamById, filters, setFilters, o
       <FilterBar filters={filters} setFilters={setFilters} teamById={teamById} tickets={tickets} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
         <span style={{ fontSize: 11.5, color: 'var(--text-5)', fontWeight: 600 }}>Ordenar por</span>
-        <select value={sortMode} onChange={(e) => setSortMode(e.target.value)} style={{ ...S.personalFilterSelect, width: 'auto' }}>
+        <select aria-label="Ordenar por" value={sortMode} onChange={(e) => setSortMode(e.target.value)} style={{ ...S.personalFilterSelect, width: 'auto' }}>
           {XFLOW_SORT_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
         {sortMode === 'manual' && <span style={S.fieldHint}>Arraste os cards dentro da coluna pra reorganizar.</span>}

@@ -189,6 +189,8 @@ html[data-theme="light"] .ui-empty-icon { color: #7a5f00; }
 .ui-frame-overlay.above { z-index: 100; }
 /* `over-drawer`: modais que abrem por cima dos painéis laterais do CRM (z-index 80) e abaixo da RENATA (100). */
 .ui-frame-overlay.over-drawer { z-index: 90; }
+/* `over-modal`: confirmação por cima de uma janela de detalhe (o ConfirmDialog compartilhado fica em 300). */
+.ui-frame-overlay.over-modal { z-index: 200; }
 .ui-frame-overlay.drawer { align-items: stretch; justify-content: flex-end; padding: 0; }
 .ui-frame { display: flex; flex-direction: column; max-height: 100%; background: var(--bg-1); color: var(--text-1); border: 1px solid var(--border-2); box-shadow: 0 20px 60px rgba(0,0,0,.4); }
 .ui-frame.modal { width: min(560px, 100%); border-radius: 16px; }
@@ -197,11 +199,15 @@ html[data-theme="light"] .ui-empty-icon { color: #7a5f00; }
 .ui-frame.drawer { width: min(520px, 100%); border-radius: 0; border-top: 0; border-bottom: 0; border-right: 0; }
 .ui-frame-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); padding: 16px 16px 12px 20px; border-bottom: 1px solid var(--border-1); }
 .ui-frame-title { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
+.ui-frame-titles { flex: 1; min-width: 0; }
+.ui-frame-head-acts { display: flex; align-items: center; gap: var(--sp-1); flex: none; }
+.ui-frame.flush > .ui-frame-body { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.ui-frame.flush > .ui-frame-foot { padding: 0; border-top: 0; display: block; }
 .ui-frame-sub { margin-top: 3px; font-size: 12.5px; color: var(--text-4); }
 .ui-frame-body { padding: 16px 20px; overflow-y: auto; flex: 1; min-height: 0; }
 .ui-frame-err { margin: 0 20px 4px; font-size: 12.5px; color: var(--ui-danger); line-height: 1.45; }
 .ui-frame-foot { display: flex; justify-content: flex-end; gap: var(--sp-2); flex-wrap: wrap; padding: 12px 20px 16px; border-top: 1px solid var(--border-1); }
-@media (max-width: 767px) { .ui-frame-overlay.modal { padding: 0; align-items: stretch; } .ui-frame.modal { width: 100%; border-radius: 0; } }
+@media (max-width: 767px) { .ui-frame-overlay.modal { padding: 0; align-items: stretch; } .ui-frame.modal { width: 100%; border-radius: 0; max-height: 100dvh; } .ui-frame.modal .ui-frame-head { padding-top: calc(16px + var(--safe-top, 0px)); } }
 
 /* ---------- ComposeBox / CommentThread — Onda 3 ---------- */
 .cmp-box { display: flex; flex-direction: column; gap: var(--sp-2); padding: 10px; border-radius: var(--r-xl); border: 1px solid var(--border-2); background: var(--bg-2); font-family: 'Inter', sans-serif; transition: border-color .12s ease; }

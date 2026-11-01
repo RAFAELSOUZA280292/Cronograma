@@ -6,5 +6,8 @@
   ],
   "crm-negocios-lista": [],
   "renata-confirmacao": [],
-  "link-publico": []
+  "link-publico": [],
+  "quadro-detalhe-cartao": [
+    "nested-interactive"
+  ]
 }

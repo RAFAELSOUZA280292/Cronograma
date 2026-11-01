@@ -196,7 +196,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
-| `src/App.jsx` | 3693 |  |
+| `src/App.jsx` | 3678 |  |
 | `src/agenda/Agenda.jsx` | 583 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/NewEventModal.jsx` | 225 | "Novo compromisso" da Agenda (Onda 5, §81). Cria no Google Calendar da pessoa (POST /api/agenda/events); |
 | `src/agenda/RenataAgendaBriefing.jsx` | 708 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
@@ -359,7 +359,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/screens/CompanyWorkspace.jsx` | 916 | Área de trabalho de uma empresa (cabeçalho, abas, vistas, modais e relatório de impressão). |
 | `src/screens/MapView.jsx` | 529 | Aba MAPA (2026-10-19, pedido do Rafael; nome final "Mapa", antes "Árvore"): mapa mental do cronograma de UMA empresa — empresa → grupos (fase, responsável ou situação) → atividades → |
 | `src/screens/PautaPicker.jsx` | 51 | Janela "Vincular itens à reunião" (2026-10-20): escolhe itens de trabalho de QUALQUER atividade (os "outros squads") para entrarem na pauta de uma reunião. |
-| `src/screens/PersonalBoard.jsx` | 2944 | Gestão de Atividades (quadro pessoal): quadro, colunas, cartões, lista, quadro público e painéis. |
+| `src/screens/PersonalBoard.jsx` | 2928 | Gestão de Atividades (quadro pessoal): quadro, colunas, cartões, lista, quadro público e painéis. |
 | `src/screens/PublicCompanyScreen.jsx` | 423 | Página pública de acompanhamento da empresa (2026-10-19): /acompanhamento/<token>. Só leitura, sem login; "Entrar para editar" leva ao login normal. |
 | `src/screens/ScreenSearch.jsx` | 48 | Busca da tela aberta (2026-10-19): campo na barra de abas da empresa e aviso "filtrando" no topo do conteúdo. A lógica de casar texto fica em src/lib/screenSearch.js. |
 | `src/screens/SubExtras.jsx` | 214 | Campos novos das subatividades (2026-10-19, fase 2 do plano do cronograma funcional): prioridade, executor, áreas envolvidas, aplicabilidade, recorrência, |
@@ -385,14 +385,14 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/ui/RichNote.jsx` | 100 | Campo de texto formatado e compacto (2026-10-07): começa com poucas linhas, cresce enquanto se escreve e só mostra a barra |
 | `src/ui/SafeBoundary.jsx` | 76 | Limite de erro (error boundary) do app (2026-10-16). Sem ele, qualquer falha ao desenhar uma tela deixa o app INTEIRO em branco. Três formas: |
 | `src/ui/datetime.css` | 47 | Campos de data e horário (DateTimeFields.jsx). Usa as variáveis de tema do app (claro/escuro) e o amarelo da marca. */ |
-| `src/ui/dialog.jsx` | 50 | Modal/gaveta acessível (Onda 1, §81): troque `<div ... onClick={fechar}>` do overlay por <DialogOverlay onClose={fechar} ...>. |
+| `src/ui/dialog.jsx` | 57 | Modal/gaveta acessível (Onda 1, §81): troque `<div ... onClick={fechar}>` do overlay por <DialogOverlay onClose={fechar} ...>. |
 | `src/ui/dialogs.jsx` | 130 | Diálogos e avisos globais (Onda 2, §81) — o jeito único de confirmar, pedir um texto e avisar. |
 | `src/ui/index.jsx` | 278 | Peças visuais comuns (2026-10-04, §72) — ver ui.css. Só apresentação: nenhuma lógica de negócio aqui, quem usa |
 | `src/ui/statusDot.js` | 9 | Cor da BOLINHA de um selo de status (2026-10-30). Os selos mostram o texto em cor neutra e a categoria só na bolinha: cor neon como cor de TEXTO |
 | `src/ui/tableKit.jsx` | 87 | Tabela profissional (Onda 3, U3): peças que se encaixam nas tabelas que já existem (o `<table>` e as células de cada módulo ficam como estão): |
 | `src/ui/tableLogic.js` | 75 | Tabela profissional (Onda 3, U3): lógica pura de seleção em massa, colunas escolhidas e resumo de lote. Sem React nem rede (testável em Node). |
-| `src/ui/ui.css` | 292 | Peças visuais comuns do app (2026-10-04, §72). Antes cada módulo reinventava cartão, aba, etiqueta e botão |
+| `src/ui/ui.css` | 298 | Peças visuais comuns do app (2026-10-04, §72). Antes cada módulo reinventava cartão, aba, etiqueta e botão |
 | `src/versions/VersionHistory.jsx` | 341 | Histórico de versões do cronograma (§83): consultar, comparar, criar ponto de restauração e restaurar (Master) com confirmação, backup automático e desfazer. |
 | `src/widget/WidgetSection.jsx` | 196 |  |
 | `src/widget/scriptableScript.js` | 190 | Script do Scriptable (iOS) colado pelo usuário — mostra atrasadas, vencem hoje e próxima reunião. |
-| `src/xflow/XFlow.jsx` | 3397 |  |
+| `src/xflow/XFlow.jsx` | 3377 |  |

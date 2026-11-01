@@ -419,3 +419,5 @@ Desenvolvimento local: `npm run dev` (Vite em `:5173` com proxy de `/api` e `/d/
 - Selo de notificações do sino (`S.mentionBadge`): texto 12 px (era 9,5 px).
 
 - **Janela única (§116zo, U2):** `Modal`/`Drawer` de `src/ui/dialog.jsx` são a única janela do app; o `Modal` do CRM (`src/crm/ui.jsx`) é um adaptador com guarda de rascunho e trava. Opções do `Frame`: `backdrop={false}`, `layer="over-drawer"` (z-index 90), `className`. Camadas: padrão 60, painéis do CRM 80, janelas do CRM 90, RENATA 100, confirmações 300.
+
+- **Janela única, parte 2 (§116zp):** XFlow (Nova TASK, detalhe, pedido de campo) e quadro pessoal (detalhe do cartão, excluir coluna, visibilidade) usam `Modal`/`Drawer` de `src/ui/dialog.jsx`; `ConfirmDiscardModal` e `SidePanel` (em `App.jsx`) são adaptadores sobre eles. Opções do `Frame`: `header`, `actions`, `overlayClassName`, `className="flush"` (a janela rola por conta própria; rodapé fixo), `layer="over-modal"` (200). Ainda fora: janelas de Empresas/Reuniões/Administração feitas à mão com `DialogOverlay` + `S.detailBox`.
