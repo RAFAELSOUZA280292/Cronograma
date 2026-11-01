@@ -16,7 +16,7 @@ import { fmtDate, useIsMobile, useAutosaveTimestamp, useDirtyForm, useDebouncedF
 import { S } from '../styles/S.js';
 import { apiGet } from '../lib/api.js';
 import { useDialog } from '../lib/nav.js';
-import { DialogOverlay } from '../ui/dialog.jsx';
+import { Modal as UiModal } from '../ui/dialog.jsx';
 import { RecordSaveStatus } from '../ui/index.jsx';
 import { TODO_STATUS_META, todoStatusMeta } from './todoStatus.js';
 import { ActivityRow, ACTIVITY_ROW_CSS } from './ActivityRow.jsx';
@@ -150,12 +150,7 @@ function MeetingShareModal({ meeting, onClose, onSetVisibility, onRegenerateLink
     navigator.clipboard.writeText(publicUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }).catch(() => {});
   }
   return (
-    <DialogOverlay style={S.detailOverlay} onClose={closeShare} label="Compartilhar reunião">
-      <div style={{ ...S.detailBox, width: 'min(480px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.detailTopBar}>
-          <div style={S.subSectionLabel}>Compartilhar "{meeting.title}"</div>
-          <button style={S.iconBtnGhost} onClick={onClose} aria-label="Fechar"><X size={18} /></button>
-        </div>
+    <UiModal label="Compartilhar reunião" title={`Compartilhar "${meeting.title}"`} onClose={closeShare} width="min(480px, 100%)">
         <label className="mtg2-share-visibility">
           <input type="radio" name="meeting-visibility" checked={!isPublic} onChange={() => onSetVisibility('private')} />
           <Lock size={13} /> Privado — só quem tem acesso à empresa pode ver
@@ -176,8 +171,7 @@ function MeetingShareModal({ meeting, onClose, onSetVisibility, onRegenerateLink
             <button type="button" style={{ ...S.iconBtn, marginTop: 8 }} onClick={onRegenerateLink}>Gerar novo link (invalida o anterior)</button>
           </>
         )}
-      </div>
-    </DialogOverlay>
+    </UiModal>
   );
 }
 

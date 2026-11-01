@@ -1,17 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BookOpen, X, Loader2, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Sparkles, Lock } from 'lucide-react';
 import { apiGet, apiPost } from '../lib/api.js';
-import { DialogOverlay } from '../ui/dialog.jsx';
+import { Modal as UiModal } from '../ui/dialog.jsx';
 
 const CSS = `
-  .pst-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:100; display:flex; align-items:center; justify-content:center; padding:20px; }
-  .pst-modal { width:680px; max-width:100%; max-height:92vh; background:var(--bg-1); border:1px solid var(--border-2); border-radius:16px; display:flex; flex-direction:column; overflow:hidden; font-family:'Inter', sans-serif; color:var(--text-1); }
-  .pst-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:18px 20px 12px; }
-  .pst-title { display:flex; align-items:center; gap:9px; font-size:17px; font-weight:800; letter-spacing:-.01em; }
-  .pst-sub { font-size:13px; line-height:1.55; color:var(--text-4); margin-top:6px; max-width:560px; }
-  .pst-x { background:transparent; border:none; color:var(--text-5); cursor:pointer; display:flex; padding:6px; border-radius:8px; }
-  .pst-x:hover { background:var(--bg-3); color:var(--text-2); }
-  .pst-body { padding:4px 20px 20px; overflow-y:auto; display:flex; flex-direction:column; gap:14px; }
+  .pst-title { display:flex; align-items:center; gap:9px; }
+  .pst-body { display:flex; flex-direction:column; gap:14px; }
   .pst-status { background:var(--bg-3); border-radius:12px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
   .pst-count { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; }
   .pst-count small { font-size:13px; font-weight:600; color:var(--text-4); margin-left:6px; }
@@ -42,8 +36,8 @@ const CSS = `
   .pst-spin { animation:pstspin 1s linear infinite; }
   @keyframes pstspin { to { transform:rotate(360deg); } }
 
-  .pst-btn:focus-visible, .pst-x:focus-visible, .pst-item-head:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
-  @media (max-width: 767px) { .pst-btn, .pst-item-head { min-height:44px; } .pst-x { min-width:44px; min-height:44px; align-items:center; justify-content:center; } }
+  .pst-btn:focus-visible, .pst-item-head:focus-visible { outline:2px solid var(--ui-accent, #F5C400); outline-offset:2px; }
+  @media (max-width: 767px) { .pst-btn, .pst-item-head { min-height:44px; } }
 `;
 
 function fmtDay(iso) { return iso ? new Date(iso).toLocaleDateString('pt-BR') : ''; }
@@ -121,16 +115,14 @@ export default function ParecerStudyModal({ onClose, projectId }) {
   const failed = state ? state.items.filter((i) => i.state === 'failed') : [];
 
   return (
-    <DialogOverlay className="pst-overlay" onClose={onClose} label="Estudar Pareceres">
-      <style>{CSS}</style>
-      <div className="pst-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="pst-head">
-          <div>
-            <div className="pst-title"><BookOpen size={20} color="#F5C400" /> Estudar Pareceres</div>
-            <div className="pst-sub">A RENATA lê cada parecer da PRICETAX uma única vez e guarda o que aprendeu: o que o parecer conclui, o que aconselhar ao cliente e onde usar. Depois disso ela sugere esses caminhos nas reuniões e nas respostas.</div>
-          </div>
-          <button className="pst-x" onClick={onClose} aria-label="Fechar" title="Fechar"><X size={18} aria-hidden="true" /></button>
+    <UiModal label="Estudar Pareceres" onClose={onClose} above width="min(680px, 100%)"
+      header={(
+        <div>
+          <h2 className="ui-frame-title pst-title"><BookOpen size={20} color="#F5C400" aria-hidden="true" /> Estudar Pareceres</h2>
+          <div className="ui-frame-sub">A RENATA lê cada parecer da PRICETAX uma única vez e guarda o que aprendeu: o que o parecer conclui, o que aconselhar ao cliente e onde usar. Depois disso ela sugere esses caminhos nas reuniões e nas respostas.</div>
         </div>
+      )}>
+      <style>{CSS}</style>
         <div className="pst-body">
           {!state && !error && <div className="pst-note">Carregando…</div>}
           {error && <div className="pst-error">{error}</div>}
@@ -186,7 +178,6 @@ export default function ParecerStudyModal({ onClose, projectId }) {
             </>
           )}
         </div>
-      </div>
-    </DialogOverlay>
+    </UiModal>
   );
 }

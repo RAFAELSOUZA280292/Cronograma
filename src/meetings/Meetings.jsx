@@ -15,7 +15,7 @@ import { apiGet, apiPost } from '../lib/api.js';
 import DossierPanel from './DossierPanel.jsx';
 import { MEETINGS_CSS } from './meetingsCss.js';
 import { activate, ConfirmDialog } from '../ui/index.jsx';
-import { DialogOverlay } from '../ui/dialog.jsx';
+import { Modal as UiModal } from '../ui/dialog.jsx';
 
 const SUBMISSION_STATUS_META = {
   pending: { label: 'Na fila', className: 'mtg-sub-pending' },
@@ -321,7 +321,13 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
   }
 
   return (
-    <DialogOverlay className="mtg-view" style={{ ...S.detailOverlay, zIndex: 120 }} onClose={requestClose} label="Enviar transcrição">
+    <UiModal label="Enviar transcrição" onClose={requestClose} busy={sending} layer="over-modal" overlayClassName="mtg-view" width="min(620px, 100%)"
+      header={(
+        <div>
+          <h2 className="ui-frame-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Sparkles size={16} aria-hidden="true" /> Enviar transcrição</h2>
+          <div className="ui-frame-sub">Cole a transcrição completa da reunião — o painel identifica participantes, resumo, decisões e tarefas automaticamente e cria a reunião pra você.</div>
+        </div>
+      )}>
       <style>{MEETINGS_CSS}</style>
       {askDiscard && (
         <ConfirmDialog
@@ -334,18 +340,6 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
           onCancel={() => setAskDiscard(false)}
         />
       )}
-      <div style={{ ...S.detailBox, width: 'min(620px, 100%)', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Sparkles size={16} /> Enviar transcrição
-            </div>
-            <div style={{ ...S.fieldHint, fontSize: 12, marginTop: 4 }}>
-              Cole a transcrição completa da reunião — o painel identifica participantes, resumo, decisões e tarefas automaticamente e cria a reunião pra você.
-            </div>
-          </div>
-          <button style={S.iconBtnGhost} onClick={requestClose} aria-label="Fechar"><X size={20} /></button>
-        </div>
 
         <div style={S.subSectionLabel}>Transcrição</div>
         <textarea aria-label="Transcrição da reunião"
@@ -378,7 +372,6 @@ function TranscriptSubmitModal({ pid, onClose, onSubmitted }) {
             {sending ? 'Enviando...' : 'Enviar'}
           </button>
         </div>
-      </div>
-    </DialogOverlay>
+    </UiModal>
   );
 }

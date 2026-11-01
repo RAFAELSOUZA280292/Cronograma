@@ -5,7 +5,7 @@
 import { AddMenu, AttachmentList, CommentThread, ComposeBox } from '../ui/ComposeBox.jsx';
 import { AlertTriangle, Building2, Check, ChevronDown, ChevronUp, ChevronsUp, GripVertical, History, Lock, Maximize2, MessageSquare, Mic, MoreHorizontal, Paperclip, Plus, SlidersHorizontal, Trash2, Upload, Users, X } from 'lucide-react';
 import { Button, IconButton, RecordSaveStatus, activate, activateRow } from '../ui/index.jsx';
-import { DialogOverlay } from '../ui/dialog.jsx';
+import { Modal as UiModal } from '../ui/dialog.jsx';
 import LinkedTasks from '../meetings/LinkedTasks.jsx';
 import { findSub, linkPatch, meetingAbove, pautaItems } from '../../shared/pauta.js';
 import PautaPicker from './PautaPicker.jsx';
@@ -374,17 +374,15 @@ export function ActivityDetailModal({ meetingConflicts = [], projectActivities, 
   }
 
   return (
-    <DialogOverlay className="no-print" style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose} history={false}>
-      <style>{SUB_ROW_CSS}</style>
-      <div style={{ ...S.detailBox, ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.detailTopBar}>
-          <div style={S.detailTopLeft}>
-            <span style={{ ...S.monthBadgeSm, background: phase?.color }}>#{orderMap[a.id]}</span>
-            <span style={S.detailPhaseTag}><span style={{ ...S.timelineLaneDot, background: phase?.color }} />{phase?.name}</span>
-            <RecordSaveStatus hasDraft={hasDraft} lastSavedAt={lastSavedAt} />
-          </div>
-          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={20} /></button>
+    <UiModal label={`Atividade ${a.title || ''}`.trim()} onClose={requestClose} history={false} overlayClassName="no-print" width="min(980px, 100%)"
+      header={(
+        <div style={S.detailTopLeft}>
+          <span style={{ ...S.monthBadgeSm, background: phase?.color }}>#{orderMap[a.id]}</span>
+          <span style={S.detailPhaseTag}><span style={{ ...S.timelineLaneDot, background: phase?.color }} />{phase?.name}</span>
+          <RecordSaveStatus hasDraft={hasDraft} lastSavedAt={lastSavedAt} />
         </div>
+      )}>
+      <style>{SUB_ROW_CSS}</style>
 
         <input
           type="text"
@@ -640,7 +638,6 @@ export function ActivityDetailModal({ meetingConflicts = [], projectActivities, 
             <button style={{ ...S.iconBtn, marginTop: 20, color: '#e2574c', borderColor: 'rgba(226,87,76,.35)' }} onClick={() => deleteActivity(pid, a.id)}><Trash2 size={14} /> Excluir atividade</button>
           </div>
         </div>
-      </div>
       {showGuard && (
         <ConfirmDiscardModal
           onSaveAndExit={saveDraftsAndClose}
@@ -649,7 +646,7 @@ export function ActivityDetailModal({ meetingConflicts = [], projectActivities, 
           saving={closing}
         />
       )}
-    </DialogOverlay>
+    </UiModal>
   );
 }
 

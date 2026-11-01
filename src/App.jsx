@@ -31,7 +31,7 @@ import RenataAgendaBriefing from './agenda/RenataAgendaBriefing.jsx';
 
 
 import ModuleShell from './shell/ModuleShell.jsx';
-import { DialogOverlay, Modal as UiModal, Drawer as UiDrawer } from './ui/dialog.jsx';
+import { Modal as UiModal, Drawer as UiDrawer } from './ui/dialog.jsx';
 import { Button } from './ui/index.jsx';
 import { DialogHost, notify, pushToastCompat, dismissToast as dismissToastGlobal } from './ui/dialogs.jsx';
 import { useHistoryValue, readHistoryValue, withoutLayer } from './lib/nav.js';
@@ -3080,7 +3080,7 @@ export function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmi
   }
 
   return (
-    <DialogOverlay style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose}>
+    <UiModal title={cloneSource ? 'Clonar empresa' : 'Cadastrar empresa'} onClose={requestClose} busy={!!saving} className="t44" width="min(560px, 100%)">
       <style>{`
         input[type=text], input[type=email], input[type=password], select, textarea {
           background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
@@ -3090,11 +3090,6 @@ export function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmi
           outline:none; border-color:#F5C400;
         }
       `}</style>
-      <div className="t44" style={{ ...S.detailBox, width: 'min(560px, 100%)', height: 'auto', maxHeight: '88vh', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.detailTopBar}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>{cloneSource ? 'Clonar empresa' : 'Cadastrar empresa'}</div>
-          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
-        </div>
 
         {cloneSource && (
           <div style={{ ...S.fieldHint, marginBottom: 12 }}>
@@ -3313,7 +3308,6 @@ export function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmi
             </button>
           </>
         )}
-      </div>
       {showGuard && (
         <ConfirmDiscardModal
           onSaveAndExit={form.name.trim() && form.clientType ? submit : undefined}
@@ -3322,7 +3316,7 @@ export function CreateCompanyModal({ onClose, onCreate, cloneSource, isSuperAdmi
           saving={saving}
         />
       )}
-    </DialogOverlay>
+    </UiModal>
   );
 }
 
@@ -3390,12 +3384,7 @@ export function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }
   }
 
   return (
-    <DialogOverlay style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose}>
-      <div className="t44" style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.detailTopBar}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>Nova atividade do grupo</div>
-          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
-        </div>
+    <UiModal title="Nova atividade do grupo" onClose={requestClose} className="t44" width="min(440px, 100%)">
 
         <div style={S.subSectionLabel}>Empresas envolvidas</div>
         <div style={{ ...S.fieldHint, marginTop: 0, marginBottom: 8 }}>
@@ -3411,7 +3400,6 @@ export function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }
         <button style={{ ...S.primaryBtn, marginTop: 20, width: '100%', justifyContent: 'center' }} onClick={confirm}>
           Criar atividade
         </button>
-      </div>
       {showGuard && (
         <ConfirmDiscardModal
           onSaveAndExit={confirm}
@@ -3419,7 +3407,7 @@ export function GroupActivityCompaniesModal({ groupChildren, onCreate, onClose }
           onCancel={() => setShowGuard(false)}
         />
       )}
-    </DialogOverlay>
+    </UiModal>
   );
 }
 
@@ -3596,17 +3584,14 @@ export function NotificationBell({ notifications: allNotifications, show, onTogg
         {unreadCount > 0 && <span style={S.mentionBadge}>{unreadCount > 9 ? '9+' : unreadCount}</span>}
       </button>
       {show && (
-        <DialogOverlay className="no-print" style={S.overlay} onClose={onToggle}>
-          <div style={S.panel} onClick={(e) => e.stopPropagation()}>
-            <div style={S.panelHead}>
-              <div style={S.panelTitle}>{settings ? 'O que ver no Hoje' : (unreadCount > 0 ? `${unreadCount} notifica${unreadCount === 1 ? 'ção' : 'ções'}` : 'Notificações')}</div>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                {!settings && unreadCount > 0 && <button style={S.filterClearBtn} onClick={onMarkAllRead}>Marcar todas como lidas</button>}
-                <button style={S.filterClearBtn} aria-pressed={settings} onClick={() => setSettings((v) => !v)}>{settings ? 'Voltar às notificações' : 'Escolher o que ver'}</button>
-                <button aria-label="Fechar notificações" title="Fechar notificações" style={S.iconBtnGhost} onClick={onToggle}><X aria-hidden="true" size={16} /></button>
-              </div>
-            </div>
-            <div style={S.panelBody}>
+        <UiDrawer title={settings ? 'O que ver no Hoje' : (unreadCount > 0 ? `${unreadCount} notifica${unreadCount === 1 ? 'ção' : 'ções'}` : 'Notificações')} label="Notificações" onClose={onToggle} overlayClassName="no-print"
+          actions={(
+            <>
+              {!settings && unreadCount > 0 && <button style={S.filterClearBtn} onClick={onMarkAllRead}>Marcar todas como lidas</button>}
+              <button style={S.filterClearBtn} aria-pressed={settings} onClick={() => setSettings((v) => !v)}>{settings ? 'Voltar às notificações' : 'Escolher o que ver'}</button>
+            </>
+          )}>
+            <div>
               {settings && <NotificationPrefs />}
               {!settings && notifications.length === 0 && <div style={S.emptyMuted}>{allNotifications.length > 0 || prefs.categories.some((c) => c.muted) ? 'Nenhuma notificação das categorias que você escolheu ver.' : 'Nenhuma notificação ainda.'}</div>}
               {!settings && notifications.map((n) => (
@@ -3627,8 +3612,7 @@ export function NotificationBell({ notifications: allNotifications, show, onTogg
                 </div>
               ))}
             </div>
-          </div>
-        </DialogOverlay>
+        </UiDrawer>
       )}
     </div>
   );

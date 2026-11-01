@@ -196,7 +196,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
-| `src/App.jsx` | 3678 |  |
+| `src/App.jsx` | 3662 |  |
 | `src/agenda/Agenda.jsx` | 583 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/NewEventModal.jsx` | 225 | "Novo compromisso" da Agenda (Onda 5, §81). Cria no Google Calendar da pessoa (POST /api/agenda/events); |
 | `src/agenda/RenataAgendaBriefing.jsx` | 708 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
@@ -213,7 +213,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/app/teamPhaseActions.js` | 116 | Ações do time, das áreas e das fases de uma empresa. |
 | `src/app/userOrgActions.js` | 195 | Ações de administração de usuários e organizações. |
 | `src/assistant/ChatExport.jsx` | 129 | Botões de copiar e exportar a conversa da RENATA (2026-10-27) — usados pelas três telas (do projeto, geral e operacional). |
-| `src/assistant/ParecerStudyModal.jsx` | 193 |  |
+| `src/assistant/ParecerStudyModal.jsx` | 184 |  |
 | `src/assistant/ProjectAssistant.jsx` | 560 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `src/assistant/RenataHome.jsx` | 161 | RENATA geral (2026-10-06): o painel de conversa disponível de QUALQUER tela (botão na barra do topo e item "Falar com a RENATA" na |
 | `src/assistant/chatExport.js` | 131 | Copiar e exportar conversas da RENATA (2026-10-27). Funções PURAS (sem React/DOM) para testar em Node. |
@@ -310,8 +310,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/meetings/ActivityRow.jsx` | 186 | Linha de atividade (item de TO_DO) — extraído de TodoBoard.jsx pra ser |
 | `src/meetings/DossierPanel.jsx` | 260 | Dossiê do cliente (2026-10-02, ver PROJECT_CONTEXT.md §63) — tela com o compilado de TODAS as |
 | `src/meetings/LinkedTasks.jsx` | 72 | Lista "Tarefas de reunião vinculadas" no detalhe da atividade (2026-10-16). Só LÊ `actionItems[].activityId` (mesma fonte do chip |
-| `src/meetings/MeetingDetail.jsx` | 639 | Tela de detalhe de uma Reunião — redesign 2026-09 ("AI Meeting |
-| `src/meetings/Meetings.jsx` | 385 | Reuniões (2026-09, pedido do Rafael) — central de acompanhamento de |
+| `src/meetings/MeetingDetail.jsx` | 633 | Tela de detalhe de uma Reunião — redesign 2026-09 ("AI Meeting |
+| `src/meetings/Meetings.jsx` | 378 | Reuniões (2026-09, pedido do Rafael) — central de acompanhamento de |
 | `src/meetings/ParecerAdviceBox.jsx` | 145 |  |
 | `src/meetings/TodoBoard.jsx` | 594 | Aba "Atividades" (ex-"TO DO", redesign 2026-09 — "Centro de Execução") |
 | `src/meetings/TodoDrawer.jsx` | 322 | Painel lateral de detalhe de uma atividade (2026-09, redesign "Centro de |
@@ -328,7 +328,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/opsintel/PrivacyNotice.jsx` | 31 | Transparência (LGPD): qualquer pessoa logada lê o que o app mede sobre o uso, para quê, quem vê e por quanto tempo. |
 | `src/opsintel/TeamDay.jsx` | 107 | Dia da equipe (2026-10-29): para cada pessoa medida, num dia de Brasília — entradas e saídas, telas e o que fez. Vem de /api/ops-intel/team-day. |
 | `src/opsintel/charts.jsx` | 102 | Gráficos em SVG/CSS puro (sem biblioteca): leves, imprimíveis e no tema do app. Cores via variáveis do tema. |
-| `src/pareceres/ModulePanel.jsx` | 30 | Gaveta lateral dos módulos Conhecimento/Pareceres/Modelos: mesma aparência do SidePanel do App, mas acessível |
+| `src/pareceres/ModulePanel.jsx` | 10 | Gaveta lateral dos módulos Conhecimento/Pareceres/Modelos: a mesma gaveta compartilhada do SidePanel do App (src/ui/dialog.jsx) — |
 | `src/pareceres/Pareceres.jsx` | 618 | Pareceres PRICETAX (2026-09-17, ver PROJECT_CONTEXT.md §48) — repositório |
 | `src/pareceres/pareceresMeta.js` | 157 | Pareceres PRICETAX (2026-09-17, ver PROJECT_CONTEXT.md §48) — CSS do |
 | `src/pdf/PdfExportModal.jsx` | 74 | Janela "Exportar PDF": tema escuro ou claro, orientação e o que entra no relatório. |
@@ -350,12 +350,12 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/renata/RenataChat.jsx` | 382 | RENATA operacional (§101): o painel de conversa disponível em qualquer tela. Você pede, ela executa pelas ferramentas do sistema (com as suas permissões), |
 | `src/renata/screenContext.js` | 12 | Contexto da tela para a RENATA (§101): cada módulo informa onde a pessoa está (módulo, tela, registro aberto) e a RENATA recebe isso a cada pedido, para entender |
 | `src/screens/ActivityGauge.jsx` | 50 | Velocímetro da atividade (2026-10-19, pedido do Rafael): no detalhe de cada atividade, quanto das subatividades está feito, quanto foi pulado e quanto falta para |
-| `src/screens/AdminScreens.jsx` | 1525 | Telas de administração: gestão de usuários, organizações (Super Admin), escolha/cadastro de empresas e perfil. |
+| `src/screens/AdminScreens.jsx` | 1504 | Telas de administração: gestão de usuários, organizações (Super Admin), escolha/cadastro de empresas e perfil. |
 | `src/screens/AutoDates.jsx` | 42 | Caixa "Ajustar datas automaticamente" (2026-10-19): fica no alto das vistas de atividades de uma empresa (e do cronograma padrão). Ligada, mudar uma data empurra as |
 | `src/screens/CompanyCalendar.jsx` | 181 | Janela "Reservar na agenda" (2026-10-19): cada REUNIÃO do cronograma (atividade ou subatividade do tipo Reunião) vira UM bloco de agenda (padrão 60 min) para a equipe PRICETAX, com convite … |
 | `src/screens/CompanyShareLink.jsx` | 116 | Janela "Link para o cliente" (2026-10-19): gera, copia e desativa os links públicos da empresa. Só master e PRICETAX. |
 | `src/screens/CompanyTriage.jsx` | 509 | Aba "Triagem" (2026-10-20, pedido do Rafael, a partir do painel de classificação que usou na ALCAST): para cada atividade ("reunião mestre" ou frente) e cada subatividade, |
-| `src/screens/CompanyViews.jsx` | 2136 | Vistas de uma empresa: Resumo, Tabela, Fases, Quadro (kanban), Gantt/linha do tempo, impressão e detalhe da atividade. |
+| `src/screens/CompanyViews.jsx` | 2133 | Vistas de uma empresa: Resumo, Tabela, Fases, Quadro (kanban), Gantt/linha do tempo, impressão e detalhe da atividade. |
 | `src/screens/CompanyWorkspace.jsx` | 916 | Área de trabalho de uma empresa (cabeçalho, abas, vistas, modais e relatório de impressão). |
 | `src/screens/MapView.jsx` | 529 | Aba MAPA (2026-10-19, pedido do Rafael; nome final "Mapa", antes "Árvore"): mapa mental do cronograma de UMA empresa — empresa → grupos (fase, responsável ou situação) → atividades → |
 | `src/screens/PautaPicker.jsx` | 51 | Janela "Vincular itens à reunião" (2026-10-20): escolhe itens de trabalho de QUALQUER atividade (os "outros squads") para entrarem na pauta de uma reunião. |

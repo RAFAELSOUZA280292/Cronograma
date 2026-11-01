@@ -212,3 +212,46 @@ test('janelas do quadro pessoal (U2): detalhe do cartão e gaveta da Lixeira pel
   await page.keyboard.press('Escape');
   await expect(gaveta).toHaveCount(0);
 });
+
+test('janelas que sobraram (U2): usuários, perfil, notificações, editar e clonar empresa pela janela única, com rascunho protegido', async ({ page }) => {
+  await loginUi(page, USERS.master);
+
+  await page.goto('/usuarios');
+  await page.getByRole('button', { name: 'Novo usuário' }).first().click();
+  const frame = page.locator('.ui-frame-overlay .ui-frame').first();
+  await expect(frame.getByRole('heading', { name: 'Novo usuário' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Novo usuário' })).toBeVisible();
+  await frame.getByPlaceholder('Nome completo').fill('Rascunho janela');
+  await page.keyboard.press('Escape'); // com rascunho, Esc pede confirmação em vez de fechar
+  await expect(page.getByRole('heading', { name: 'Você tem alterações não salvas' })).toBeVisible();
+  await page.getByRole('button', { name: 'Continuar editando' }).click();
+  await expect(frame.getByPlaceholder('Nome completo')).toHaveValue('Rascunho janela');
+  await page.getByRole('button', { name: 'Fechar' }).first().click();
+  await page.getByRole('button', { name: 'Sair sem salvar' }).click();
+  await expect(page.locator('.ui-frame-overlay')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Menu da conta' }).click();
+  await page.getByRole('menuitem', { name: 'Meu perfil' }).click();
+  await expect(page.getByRole('dialog', { name: 'Meu perfil' })).toBeVisible();
+  await checkAxe(page, 'janela-meu-perfil');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.ui-frame-overlay')).toHaveCount(0);
+
+  await page.getByRole('button', { name: /Notifica/ }).first().click();
+  const gaveta = page.locator('.ui-frame.drawer');
+  await expect(gaveta).toBeVisible();
+  await expect(gaveta.getByRole('button', { name: 'Escolher o que ver' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(gaveta).toHaveCount(0);
+
+  await page.goto('/empresas');
+  await page.getByRole('button', { name: 'Editar empresa' }).first().click();
+  await expect(page.getByRole('dialog', { name: 'Editar empresa' })).toBeVisible();
+  await page.keyboard.press('Escape'); // sem rascunho, Esc fecha direto
+  await expect(page.locator('.ui-frame-overlay')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Clonar atividades para uma nova empresa' }).first().click();
+  await expect(page.getByRole('dialog', { name: 'Clonar empresa' })).toBeVisible();
+  await page.mouse.click(5, 300); // clicar fora sem rascunho fecha
+  await expect(page.locator('.ui-frame-overlay')).toHaveCount(0);
+});

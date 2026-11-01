@@ -7,7 +7,7 @@ import { BulkOwnersModal, OWNERS_CSS, OwnerBadges, OwnersField, mergeOwners, own
 import { Button, ConfirmDialog, SaveStatus, Segmented, Tabs } from '../ui/index.jsx';
 import ConnectSection from '../connect/ConnectSection.jsx';
 import DailyPrefs from '../daily/DailyPrefs.jsx';
-import { DialogOverlay } from '../ui/dialog.jsx';
+import { Modal as UiModal } from '../ui/dialog.jsx';
 import PrivacyNotice from '../opsintel/PrivacyNotice.jsx';
 import WidgetSection from '../widget/WidgetSection.jsx';
 import { apiGet, apiPost, apiPut } from '../lib/api.js';
@@ -299,13 +299,13 @@ export function UsersManagementScreen({
 
       <div style={S.usersFilterRow}>
         <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome, usuário ou e-mail..." style={{ flex: 1 }} />
-        <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} style={{ width: 170, flexShrink: 0 }}>
+        <select aria-label="Filtrar por perfil" value={filterRole} onChange={(e) => setFilterRole(e.target.value)} style={{ width: 170, flexShrink: 0 }}>
           <option value="all">Todos os perfis</option>
           <option value="master">Master</option>
           <option value="pricetax">PRICETAX</option>
           <option value="cliente">Cliente</option>
         </select>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ width: 150, flexShrink: 0 }}>
+        <select aria-label="Filtrar por situação" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ width: 150, flexShrink: 0 }}>
           <option value="all">Todos os status</option>
           <option value="ativo">Ativo</option>
           <option value="bloqueado">Bloqueado</option>
@@ -504,12 +504,7 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations, register
   }
 
   return (
-    <DialogOverlay style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose}>
-      <div className="t44" style={{ ...S.detailBox, width: 'min(440px, 100%)', height: 'auto', maxHeight: '88vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.detailTopBar}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>Novo usuário</div>
-          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
-        </div>
+    <UiModal title="Novo usuário" onClose={requestClose} busy={!!creating} className="t44" width="min(440px, 100%)">
         <div style={S.subSectionLabel}>Nome</div>
         <input type="text" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} placeholder="Nome completo" />
         <div style={S.subSectionLabel}>Usuário (login)</div>
@@ -575,7 +570,6 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations, register
         </select>
         {formError && <div style={{ ...S.loginBlockedMsg, marginTop: 16, marginBottom: 0 }} role="alert">{formError}</div>}
         <button title={creating ? 'Aguarde terminar de criar' : undefined} style={{ ...S.primaryBtn, marginTop: formError ? 12 : 20, width: '100%', justifyContent: 'center' }} onClick={submit} disabled={creating}><Plus size={14} /> {creating ? 'Criando...' : 'Criar usuário'}</button>
-      </div>
       {showGuard && (
         <ConfirmDiscardModal
           onSaveAndExit={submit}
@@ -583,7 +577,7 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations, register
           onCancel={() => setShowGuard(false)}
         />
       )}
-    </DialogOverlay>
+    </UiModal>
   );
 }
 
@@ -596,15 +590,13 @@ function EditUserModal({ user: u, accessSummary, currentUser, registeredProjects
   const isMobile = useIsMobile();
 
   return (
-    <DialogOverlay style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={onClose}>
-      <div className="t44" style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '88vh', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.detailTopBar}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <UserAvatar user={u} size={30} />
-            <div style={{ fontSize: 17, fontWeight: 800 }}>{u.name}</div>
-          </div>
-          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={onClose}><X aria-hidden="true" size={18} /></button>
+    <UiModal label={`Usuário ${u.name}`} onClose={onClose} className="t44" width="min(520px, 100%)"
+      header={(
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <UserAvatar user={u} size={30} />
+          <h2 className="ui-frame-title">{u.name}</h2>
         </div>
+      )}>
 
         <div style={{ display: 'flex', gap: 6 }}>
           <div style={{ flex: 1 }}>
@@ -725,8 +717,7 @@ function EditUserModal({ user: u, accessSummary, currentUser, registeredProjects
         <button title={isSelf ? 'Você não pode excluir o próprio usuário' : undefined} style={{ ...S.iconBtnGhost, marginTop: 14 }} onClick={() => onDelete(u.id)} disabled={isSelf}>
           <Trash2 size={13} color={isSelf ? 'var(--text-8)' : 'var(--text-5)'} /> {isSelf ? ' (é você)' : ' Excluir usuário'}
         </button>
-      </div>
-    </DialogOverlay>
+    </UiModal>
   );
 }
 
@@ -793,12 +784,7 @@ export function MyProfileModal({ user, onClose, onAvatar, googleConnectResult, i
   }
 
   return (
-    <DialogOverlay style={{ ...S.detailOverlay, ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose}>
-      <div className="t44" style={{ ...S.detailBox, width: 'min(520px, 100%)', height: 'auto', maxHeight: '90vh', overflowY: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.detailTopBar}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>Meu perfil</div>
-          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
-        </div>
+    <UiModal title="Meu perfil" onClose={requestClose} className="t44" width="min(520px, 100%)">
 
         <div style={S.myProfilePreview}>
           <UserAvatar user={{ ...user, avatar }} size={64} />
@@ -879,7 +865,6 @@ export function MyProfileModal({ user, onClose, onAvatar, googleConnectResult, i
         {tab === 'iphone' && <WidgetSection />}
         {tab === 'privacidade' && <PrivacyNotice />}
         <div style={{ display: tab === 'conectar' ? 'block' : 'none' }}><ConnectSection onAtRiskChange={setTokenAtRisk} /></div>
-      </div>
       {showTokenGuard && (
         <ConfirmDialog
           title="Fechar sem copiar o token?"
@@ -891,7 +876,7 @@ export function MyProfileModal({ user, onClose, onAvatar, googleConnectResult, i
           onCancel={() => setShowTokenGuard(false)}
         />
       )}
-    </DialogOverlay>
+    </UiModal>
   );
 }
 
@@ -976,7 +961,7 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
   }
 
   return (
-    <DialogOverlay style={{ ...S.detailOverlay, fontFamily: "'Inter', sans-serif", ...(isMobile ? S.detailOverlayMobile : null) }} onClose={requestClose}>
+    <UiModal title="Editar empresa" onClose={requestClose} busy={!!saving} className="t44" width="min(480px, 100%)">
       <style>{`
         input[type=text], select, textarea {
           background:var(--bg-4); border:1px solid var(--border-3); color:var(--text-1); border-radius:6px;
@@ -984,11 +969,6 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
         }
         input[type=text]:focus { outline:none; border-color:#F5C400; }
       `}</style>
-      <div className="t44" style={{ ...S.detailBox, width: 'min(480px, 100%)', height: 'auto', ...(isMobile ? S.detailBoxMobile : null) }} onClick={(e) => e.stopPropagation()}>
-        <div style={S.detailTopBar}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>Editar empresa</div>
-          <button aria-label="Fechar" title="Fechar" style={S.iconBtnGhost} onClick={requestClose}><X aria-hidden="true" size={18} /></button>
-        </div>
 
         <div style={S.subSectionLabel}>CNPJ</div>
         <div style={{ ...S.fieldHint, marginTop: 0, marginBottom: 8 }}>{c.cnpj || 'Não informado'} (não editável aqui)</div>
@@ -1081,7 +1061,6 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
           {saving ? 'Salvando...' : 'Salvar'}
         </button>
         {!saving && !form.name.trim() && <div style={{ ...S.fieldHint, textAlign: 'center', marginTop: 6 }}>Preencha a razão social para salvar.</div>}
-      </div>
       {showGuard && (
         <ConfirmDiscardModal
           onSaveAndExit={form.name.trim() ? submit : undefined}
@@ -1090,7 +1069,7 @@ function EditCompanyModal({ project, projects, onClose, onSave }) {
           saving={saving}
         />
       )}
-    </DialogOverlay>
+    </UiModal>
   );
 }
 
