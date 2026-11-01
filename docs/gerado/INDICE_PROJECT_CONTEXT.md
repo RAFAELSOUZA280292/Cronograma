@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8701 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8710 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -168,3 +168,4 @@ O `PROJECT_CONTEXT.md` tem 8701 linhas (a memória cronológica de cada decisão
 | 8641 | 116zk. Onda 3: briefing diário, memória de preferências da RENATA, Cliente 360 e tabela profissional (2026-10… | - Escopo preservado: regras de negócio, permissões, marca e cores; nada de dependência nova; nenhuma mudança no que já existia além do aditivo abaixo… |
 | 8672 | 116zl. Onda 4: teste de fluxos críticos com Playwright e axe-core (2026-10-31, aprovado pelo Rafael: "Faz a O… | - O que o plano dizia: a Onda 4 era "só se os números pedirem" (E4 lista de empresas leve, E3 dividir arquivos, E2 teste de fluxos, N1 busca semântic… |
 | 8691 | 116zm. Busca da RENATA: o escopo sugerido pela IA deixou de ser filtro rígido (2026-10-31, pedido do Rafael: … | - Problema (medido): a etapa que interpreta a pergunta (resolveQuery, server/assistantRetrieval.js) propõe um tipo de trecho (kind) e uma reunião-alv… |
+| 8702 | 116zn. E6: SDK da Anthropic 0.135 → 1.3 (2026-10-31, pedido do Rafael: "Faz o E6") | - O que muda de fundo: a major 1.0.0 do SDK passa a mandar a versão 2026-10-21 da API (antes 2023-06-01). Guia oficial: https://platform.claude.com/d… |

@@ -6,6 +6,7 @@ Não há *test runner* (Jest etc.). A verificação é: `npm run build` limpo + 
 
 | Script | Como rodar / o que prova |
 |---|---|
+| `scripts/anthropic-sdk-contract.test.mjs` | Contrato com o SDK da Anthropic (E6, 2026-10-31): o que o pacote instalado de fato manda e entende, contra um servidor FALSO em localhost (sem rede, sem chave, sem banco). Protege a próxima troca de versão do SDK: versão da API, cabeçalho de autenticação, helper de saída estruturada (zod), parâmetros que a versão 2026-10-21 recusa e imports que o servidor usa. Rodar: node scripts/anthropic-sdk-contract.test.mjs |
 | `scripts/board-back-http.test.mjs` | Teste descartável (HTTP real, Postgres local) do "Voltar ao quadro anterior" da página pública (2026-10-27, §120). Restaura o quadro ao final. |
 | `scripts/board-column-share-http.test.mjs` | Teste descartável (HTTP real, Postgres local) do link público de UMA COLUNA (2026-10-27, §121). Restaura o quadro ao final. |
 | `scripts/board-conflict-http.test.mjs` | Teste descartável (HTTP real, Postgres local) do "fantasma" do quadro pessoal (2026-10-27, §117): duas abas do mesmo usuário. Uso: servidor local no :3001 com o usuário sbx_admin. Restaura o quadro ao final. |

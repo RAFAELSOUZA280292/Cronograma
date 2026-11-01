@@ -390,3 +390,5 @@ Os achados de segurança desta área ficam no registro privado `docs/11_ACHADOS_
 - Eval: `server/evals/` (ver `docs/RENATA_EVAL_BASELINE.md`, que guarda a referência de ANTES da correção). Uma rodada por caso varia ±2: antes de comparar mudanças, repetir.
 
 - Eval com repetição (`--repeat=3`) e a referência vigente: `docs/RENATA_EVAL_REFERENCIA.md` (94%, 21 de 23 estáveis). Use-a, e não uma rodada única, para comparar mudanças.
+
+- SDK da Anthropic: `@anthropic-ai/sdk` 1.3 (§116zn): manda a versão de API `2026-10-21` e a chave em `Authorization: Bearer`; `temperature`/`top_p`/`top_k` dão 400 e **não podem voltar** (`scripts/anthropic-sdk-contract.test.mjs` vigia).
