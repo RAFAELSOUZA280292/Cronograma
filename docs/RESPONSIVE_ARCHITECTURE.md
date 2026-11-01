@@ -24,14 +24,9 @@ desktop. Toda variante mobile é uma chave nova (`xMobile`) espalhada por
 
 ## Componentes globais tocados (afetam várias telas de uma vez)
 
-- **`S.detailBox` / `S.detailOverlay` / `S.panel`** (App.jsx, ~L5390) — usados
-  por ~9 modais (NewUserModal, EditUserModal, MyProfileModal,
-  CreateCompanyModal, EditCompanyModal, PersonalCardDetailModal,
-  ReassignCardsModal, ActivityDetailModal, SidePanel/Log/Lixeira/Menções).
-  Cada um ganhou `const isMobile = useIsMobile()` + spread de
-  `S.detailBoxMobile`/`S.detailOverlayMobile`/`S.panelMobile` — no mobile o
-  modal vira fullscreen (`100dvh`, sem `border-radius`, padding com
-  `env(safe-area-inset-*)`); no desktop nada mudou.
+- **Janelas e gavetas (atualizado em §116zr):** `S.detailBox`/`S.detailOverlay`/`S.panel*` foram **removidos** — todas as janelas
+  de formulário/detalhe usam `Modal`/`Drawer` de `src/ui/dialog.jsx`, que já vira tela cheia abaixo de 768 px (`100dvh`, safe-area).
+  O texto histórico (2026-10, ~9 modais com `isMobile` + spread de `S.detailBoxMobile`) não vale mais.
 - **Topbar principal** (dentro de `App()`, ~L1241) — os botões secundários
   (Empresa, Trocar empresas, Gestão de Atividades, Cadastrar empresa,
   Usuários, Fases, Log, Lixeira, Excel, PDF) somem no mobile e viram um único

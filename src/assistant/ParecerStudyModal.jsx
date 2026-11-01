@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BookOpen, X, Loader2, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Sparkles, Lock } from 'lucide-react';
+import { BookOpen, Loader2, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Sparkles, Lock } from 'lucide-react';
 import { apiGet, apiPost } from '../lib/api.js';
 import { Modal as UiModal } from '../ui/dialog.jsx';
 

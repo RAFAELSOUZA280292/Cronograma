@@ -46,3 +46,37 @@ export async function checkAxe(page, name) {
   expect(worse, `acessibilidade em "${name}" piorou:\n${res.violations.filter((v) => worse.some((w) => w.startsWith(v.id))).map((v) => `- ${v.id}: ${v.help}\n  ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join('\n  ')}`).join('\n')}`).toEqual([]);
   return found;
 }
+
+// Contraste do texto da janela aberta (WCAG AA: 4,5:1; 3:1 para texto grande) nos DOIS temas. Emojis ficam de fora (glifo colorido, a cor do texto não vale).
+// Existe porque o axe não mede o tema claro e os números coloridos do painel de subatividades ficavam ilegíveis nele (§116zr).
+const medirContraste = () => {
+  const parse = (c) => { const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
+  const lum = ({ r, g, b }) => { const f = (v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+  const bgOf = (el) => { let e = el; while (e) { const c = parse(getComputedStyle(e).backgroundColor); if (c && c.a >= 0.95) return c; e = e.parentElement; } return { r: 255, g: 255, b: 255, a: 1 }; };
+  const frames = [...document.querySelectorAll('.ui-frame')];
+  const root = frames[frames.length - 1];
+  const out = [];
+  if (!root) return { checked: 0, bad: ['nenhuma janela aberta'] };
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const seen = new Set();
+  while (w.nextNode()) {
+    const n = w.currentNode; const txt = n.nodeValue.trim(); if (!txt || /^[\p{Extended_Pictographic}\uFE0F\u200D]+$/u.test(txt)) continue;
+    const el = n.parentElement; if (!el || seen.has(el)) continue; seen.add(el);
+    const cs = getComputedStyle(el); const r = el.getBoundingClientRect();
+    if (cs.visibility === 'hidden' || cs.display === 'none' || r.width === 0 || r.height === 0 || el.closest('[disabled]')) continue;
+    const fg = parse(cs.color); if (!fg) continue; const bg = bgOf(el);
+    const mix = { r: fg.r * fg.a + bg.r * (1 - fg.a), g: fg.g * fg.a + bg.g * (1 - fg.a), b: fg.b * fg.a + bg.b * (1 - fg.a) };
+    const L1 = lum(mix); const L2 = lum(bg); const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+    const size = parseFloat(cs.fontSize); const large = size >= 24 || (size >= 18.66 && parseInt(cs.fontWeight, 10) >= 700);
+    if (ratio < (large ? 3 : 4.5)) out.push(`"${txt.slice(0, 30)}" ${Math.round(ratio * 100) / 100}:1`);
+  }
+  return { checked: seen.size, bad: out };
+};
+export async function checkContrast(page, name) {
+  for (const tema of ['light', 'dark']) {
+    await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), tema);
+    const res = await page.evaluate(medirContraste);
+    expect(res.checked, `contraste "${name}" (${tema}): a medição não achou texto`).toBeGreaterThan(0);
+    expect(res.bad, `contraste "${name}" no tema ${tema}`).toEqual([]);
+  }
+}

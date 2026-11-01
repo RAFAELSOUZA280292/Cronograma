@@ -13,7 +13,7 @@ export const GAUGE_CSS = `
   .ag-kpi { flex:1 1 90px; min-width:84px; border:1px solid var(--border-2); border-radius:10px; padding:7px 10px; }
   .ag-kpi b { display:block; font-size:22px; line-height:1.1; font-variant-numeric:tabular-nums; color:var(--text-1); }
   .ag-kpi span { display:block; margin-top:2px; font-size:11px; color:var(--text-4); }
-  .ag-kpi.done b { color:#3ecf6e; } .ag-kpi.skip b { color:#ff9f40; } .ag-kpi.left { border-color:rgba(245,196,0,.55); } .ag-kpi.left b { color:#F5C400; }
+  .ag-kpi.done b { color:var(--ui-ok); } .ag-kpi.skip b { color:var(--ui-warn); } .ag-kpi.left { border-color:rgba(245,196,0,.55); } .ag-kpi.left b { color:var(--ui-accent-text); }
   .ag-status { margin-left:auto; font-size:11px; font-weight:700; border-radius:999px; padding:2px 10px; border:1px solid; white-space:nowrap; }
   .ag-empty { font-size:12.5px; color:var(--text-4); }
   @media (max-width: 767px) { .ag { gap:10px; padding:10px; } .ag-kpi { min-width:76px; } }

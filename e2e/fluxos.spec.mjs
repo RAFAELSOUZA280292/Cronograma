@@ -1,7 +1,7 @@
 // Fluxos críticos de ponta a ponta (Onda 4, E2): login, quadro pessoal, negócio e nota no CRM, confirmação da RENATA e link público do cliente.
 // Cada fluxo confere o que a PESSOA vê e, quando muda dado, que ele ficou gravado. A acessibilidade (axe-core) é conferida nas telas principais.
 import { test, expect } from '@playwright/test';
-import { loginUi, apiAs, checkAxe, stamp } from './helpers.mjs';
+import { loginUi, apiAs, checkAxe, checkContrast, stamp } from './helpers.mjs';
 import { USERS } from './setup.mjs';
 
 
@@ -221,6 +221,7 @@ test('janelas que sobraram (U2): usuários, perfil, notificações, editar e clo
   const frame = page.locator('.ui-frame-overlay .ui-frame').first();
   await expect(frame.getByRole('heading', { name: 'Novo usuário' })).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Novo usuário' })).toBeVisible();
+  await checkContrast(page, 'janela-novo-usuario');
   await frame.getByPlaceholder('Nome completo').fill('Rascunho janela');
   await page.keyboard.press('Escape'); // com rascunho, Esc pede confirmação em vez de fechar
   await expect(page.getByRole('heading', { name: 'Você tem alterações não salvas' })).toBeVisible();
@@ -234,6 +235,7 @@ test('janelas que sobraram (U2): usuários, perfil, notificações, editar e clo
   await page.getByRole('menuitem', { name: 'Meu perfil' }).click();
   await expect(page.getByRole('dialog', { name: 'Meu perfil' })).toBeVisible();
   await checkAxe(page, 'janela-meu-perfil');
+  await checkContrast(page, 'janela-meu-perfil');
   await page.keyboard.press('Escape');
   await expect(page.locator('.ui-frame-overlay')).toHaveCount(0);
 
@@ -250,11 +252,49 @@ test('janelas que sobraram (U2): usuários, perfil, notificações, editar e clo
   await page.goto('/empresas');
   await page.getByRole('button', { name: 'Editar empresa' }).first().click();
   await expect(page.getByRole('dialog', { name: 'Editar empresa' })).toBeVisible();
+  await checkContrast(page, 'janela-editar-empresa');
   await page.keyboard.press('Escape'); // sem rascunho, Esc fecha direto
   await expect(page.locator('.ui-frame-overlay')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Clonar atividades para uma nova empresa' }).first().click();
   await expect(page.getByRole('dialog', { name: 'Clonar empresa' })).toBeVisible();
   await page.mouse.click(5, 300); // clicar fora sem rascunho fecha
+  await expect(page.locator('.ui-frame-overlay')).toHaveCount(0);
+});
+
+test('janelas da empresa (U2): detalhe da atividade e envio de transcrição, rascunho protegido e texto legível nos dois temas', async ({ page }) => {
+  await loginUi(page, USERS.master);
+  const api = await apiAs(page, USERS.master);
+  const nome = `Janela Atividade ${stamp()}`;
+  const pr = await api.post('/api/projects', { company: { name: nome, nomeFantasia: nome, cnpj: '11.222.333/0001-81' } });
+  expect(pr.status, JSON.stringify(pr.body)).toBeLessThan(300);
+  await page.goto('/empresas');
+  await page.getByText(nome).first().click();
+  await page.getByRole('button', { name: /Abrir em tela cheia a atividade/ }).first().click();
+  const frame = page.locator('.ui-frame-overlay .ui-frame').first();
+  await expect(frame).toBeVisible();
+  await expect(frame.locator('.ui-frame-head')).toContainText('#1');
+  await checkContrast(page, 'janela-atividade');
+  await frame.locator('input[type=text]').first().fill('Título alterado na janela');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('heading', { name: 'Você tem alterações não salvas' })).toBeVisible();
+  await page.getByRole('button', { name: 'Continuar editando' }).click();
+  await expect(frame.locator('input[type=text]').first()).toHaveValue('Título alterado na janela');
+  await frame.getByRole('button', { name: 'Fechar' }).click();
+  await page.getByRole('button', { name: 'Sair sem salvar' }).or(page.getByRole('button', { name: 'Salvar e sair' })).first().waitFor({ timeout: 2000 }).then(() => page.getByRole('button', { name: 'Sair sem salvar' }).click()).catch(() => {});
+  await expect(page.locator('.ui-frame-overlay')).toHaveCount(0);
+
+  await page.getByRole('tab', { name: 'Reuniões' }).or(page.getByRole('button', { name: 'Reuniões' })).first().click();
+  await page.getByRole('button', { name: /Enviar transcrição/ }).first().click();
+  const envio = page.getByRole('dialog', { name: 'Enviar transcrição' });
+  await expect(envio).toBeVisible();
+  await checkContrast(page, 'janela-transcricao');
+  await envio.getByLabel('Transcrição da reunião').fill('texto de teste');
+  await page.keyboard.press('Escape');
+  await expect(page.getByText('Descartar a transcrição?')).toBeVisible();
+  await page.getByRole('button', { name: 'Continuar editando' }).click();
+  await expect(envio).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Descartar' }).click();
   await expect(page.locator('.ui-frame-overlay')).toHaveCount(0);
 });

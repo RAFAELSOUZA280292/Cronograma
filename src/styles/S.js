@@ -280,20 +280,8 @@ export const S = {
   noDateList: { display: 'flex', flexWrap: 'wrap', gap: 6 },
   noDateChip: { fontSize: 11.5, background: 'var(--bg-4)', border: '1px solid var(--border-2)', color: 'var(--text-3)', padding: '5px 10px', borderRadius: 999 },
 
-  // panels
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', justifyContent: 'flex-end', zIndex: 50 },
-  detailOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24 },
-  detailOverlayMobile: { padding: 0, alignItems: 'stretch' },
-  detailBox: { width: 'min(980px, 100%)', height: '92vh', background: 'var(--bg-1)', border: '1px solid var(--border-2)', borderRadius: 14, overflowY: 'auto', padding: '20px 28px 32px 28px' },
-  // Aplicado via spread condicional (isMobile ? S.detailBoxMobile : {}) nos ~9 modais que usam detailBox —
-  // não altera detailBox em si, então o desktop fica byte-a-byte igual.
-  detailBoxMobile: {
-    width: '100%', maxWidth: '100%', height: '100dvh', maxHeight: '100dvh', borderRadius: 0,
-    padding: 'calc(14px + var(--safe-top)) 16px calc(20px + var(--safe-bottom)) 16px',
-  },
   detailMainMobile: { minWidth: '100%' },
   detailSideMobile: { minWidth: '100%' },
-  detailTopBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   detailTopLeft: { display: 'flex', alignItems: 'center', gap: 10 },
   detailPhaseTag: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-3)' },
   detailTitleInput: { fontSize: 22, fontWeight: 800, background: 'transparent', border: 'none', color: 'var(--text-1)', padding: '4px 0', marginBottom: 18, borderBottom: '1px solid var(--border-1)', borderRadius: 0, width: '100%' },
@@ -306,11 +294,6 @@ export const S = {
   commentMeta: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, fontSize: 10.5, color: 'var(--text-6)' },
   commentDel: { background: 'transparent', border: 'none', color: 'var(--text-7)', cursor: 'pointer', display: 'flex' },
   commentInputRow: { display: 'flex', gap: 8, alignItems: 'flex-end' },
-  panel: { width: 360, maxWidth: '92vw', height: '100%', background: 'var(--bg-2)', borderLeft: '1px solid var(--border-2)', overflowY: 'auto' },
-  panelMobile: { width: '100vw', maxWidth: '100vw' },
-  panelHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 18px', borderBottom: '1px solid var(--border-1)', position: 'sticky', top: 0, background: 'var(--bg-2)' },
-  panelTitle: { fontWeight: 800, fontSize: 14.5 },
-  panelBody: { padding: '18px' },
   emptyMuted: { fontSize: 12.5, color: 'var(--text-6)' },
   logRow: { padding: '9px 0', borderBottom: '1px solid var(--border-1)' },
   logTs: { fontSize: 10.5, color: 'var(--text-6)' },

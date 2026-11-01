@@ -2,7 +2,7 @@
 // Extraído de src/App.jsx (2026-10-16, "dividir o App.jsx"): carregado sob demanda (lazyRetry no App.jsx) para sair do pacote principal.
 // O código é o mesmo de antes; o que vem do App.jsx é importado de lá (e lá foi exportado).
 
-import { ArrowLeft, Building2, Check, ChevronDown, Copy, ListTree, Lock, Pause, Pencil, Play, Plus, Search, Trash2, Upload, UserCog, Users, X } from 'lucide-react';
+import { ArrowLeft, Building2, Check, ChevronDown, Copy, ListTree, Lock, Pause, Pencil, Play, Plus, Search, Trash2, Upload, UserCog, Users } from 'lucide-react';
 import { BulkOwnersModal, OWNERS_CSS, OwnerBadges, OwnersField, mergeOwners, ownerIdsOf, ownerInitials, principalOf, readCompanyView, saveCompanyView, shortName } from '../companies/CompanyOwners.jsx';
 import { Button, ConfirmDialog, SaveStatus, Segmented, Tabs } from '../ui/index.jsx';
 import ConnectSection from '../connect/ConnectSection.jsx';

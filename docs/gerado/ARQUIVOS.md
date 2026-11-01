@@ -369,7 +369,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/shell/ShortcutsHelp.jsx` | 37 | Ajuda de atalhos (tecla "?" ou Menu › Atalhos de teclado). Só leitura; a lista vem de shortcuts.js. |
 | `src/shell/libraryItems.js` | 21 | Itens da paleta (Ctrl+K) para Pareceres, Modelos e Conhecimento: resposta de GET /api/library-search → itens da lista. |
 | `src/shell/shortcuts.js` | 45 | Atalhos de teclado que EXISTEM no sistema (2026-10-30, Onda 1 / Q7). A tela de ajuda ("?") lê esta lista: atalho novo entra aqui junto com o |
-| `src/styles/S.js` | 452 | Objeto de estilos compartilhado (inline styles do app). Extraído de src/App.jsx em 2026-10-17 ("dividir o AppScreens e o S"); o App.jsx continua |
+| `src/styles/S.js` | 435 | Objeto de estilos compartilhado (inline styles do app). Extraído de src/App.jsx em 2026-10-17 ("dividir o AppScreens e o S"); o App.jsx continua |
 | `src/sw.js` | 85 | Service worker do PRICETAX (2026-10-17, PWA). Objetivo: o app ser instalável e abrir a casca mesmo sem rede. |
 | `src/today/BriefingCard.jsx` | 59 | Briefing do dia na tela inicial (Onda 3, R3): o que a RENATA reuniu por regra (GET /api/briefing) — cada linha diz o porquê em números e abre o item. |
 | `src/today/ContinueStrip.jsx` | 47 | "Continuar de onde parou" (Onda 5, §81): até 4 itens recentes (empresa, atividade, reunião, módulo) clicáveis na tela |

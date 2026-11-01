@@ -8,7 +8,7 @@
 
 import { trackAction } from '../lib/usageTracker.js';
 import React, { useEffect, useRef, useState } from 'react';
-import { Mic, Plus, X, Trash2, Undo2, Clock, Users, CalendarDays, ChevronDown, FileText, Sparkles, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
+import { Mic, Plus, Trash2, Undo2, Clock, Users, CalendarDays, ChevronDown, FileText, Sparkles, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
 import { fmtDate, fmtTs, useIsMobile, SidePanel, useDirtyForm } from '../App.jsx';
 import { S } from '../styles/S.js';
 import { apiGet, apiPost } from '../lib/api.js';
