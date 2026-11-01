@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8749 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8760 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -173,3 +173,4 @@ O `PROJECT_CONTEXT.md` tem 8749 linhas (a memória cronológica de cada decisão
 | 8720 | 116zp. U2 (parte 2): janelas do XFlow e do quadro pessoal na janela única (2026-11-01, pedido do Rafael: "Faz… | - Escopo e o que migrou: XFlow: Nova TASK, detalhe da TASK e o pedido de campo do quadro (arrastar para bloquear/anotar). Quadro pessoal: detalhe do … |
 | 8731 | 116zq. U2 (parte 3): as janelas que sobraram na janela única (2026-11-01, pedido do Rafael: "Faz o U2 das jan… | - Migrou para Modal/Drawer de src/ui/dialog.jsx: App.jsx — Cadastrar/Clonar empresa, Nova atividade do grupo e o painel de Notificações (agora Drawer… |
 | 8742 | 116zr. Faxina do U2 e contraste nos dois temas (2026-11-01, trabalho da noite autorizado pelo Rafael) | - Verificado no navegador real (banco cronogramae2e), o que ficou "não testado" no §116zq: Compartilhar reunião (Esc fecha só ela, a reunião continua… |
+| 8750 | 116zs. Vidro nas barras e botões (2026-11-01, pedido do Rafael) | - Pedido: "instala o expo-glass-effect e põe o vidro só nas barras e botões". Não instalado de propósito: o pacote é nativo de React Native/Expo (Liq… |

@@ -364,7 +364,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/screens/ScreenSearch.jsx` | 48 | Busca da tela aberta (2026-10-19): campo na barra de abas da empresa e aviso "filtrando" no topo do conteúdo. A lógica de casar texto fica em src/lib/screenSearch.js. |
 | `src/screens/SubExtras.jsx` | 214 | Campos novos das subatividades (2026-10-19, fase 2 do plano do cronograma funcional): prioridade, executor, áreas envolvidas, aplicabilidade, recorrência, |
 | `src/shell/CommandPalette.jsx` | 162 | Busca global (Ctrl/Cmd+K): pula para um módulo, uma empresa, uma atividade ou uma reunião. Onda 1, §81. |
-| `src/shell/ModuleShell.jsx` | 184 | Casca única (Onda 1, §81): a MESMA barra no topo de todas as telas depois do login. |
+| `src/shell/ModuleShell.jsx` | 185 | Casca única (Onda 1, §81): a MESMA barra no topo de todas as telas depois do login. |
 | `src/shell/NotificationPrefs.jsx` | 126 | Escolher quais notificações ver (2026-10-06). Marcado = aparece; desmarcado = fica escondido (nada é apagado). |
 | `src/shell/ShortcutsHelp.jsx` | 37 | Ajuda de atalhos (tecla "?" ou Menu › Atalhos de teclado). Só leitura; a lista vem de shortcuts.js. |
 | `src/shell/libraryItems.js` | 21 | Itens da paleta (Ctrl+K) para Pareceres, Modelos e Conhecimento: resposta de GET /api/library-search → itens da lista. |
@@ -391,7 +391,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/ui/statusDot.js` | 9 | Cor da BOLINHA de um selo de status (2026-10-30). Os selos mostram o texto em cor neutra e a categoria só na bolinha: cor neon como cor de TEXTO |
 | `src/ui/tableKit.jsx` | 87 | Tabela profissional (Onda 3, U3): peças que se encaixam nas tabelas que já existem (o `<table>` e as células de cada módulo ficam como estão): |
 | `src/ui/tableLogic.js` | 75 | Tabela profissional (Onda 3, U3): lógica pura de seleção em massa, colunas escolhidas e resumo de lote. Sem React nem rede (testável em Node). |
-| `src/ui/ui.css` | 298 | Peças visuais comuns do app (2026-10-04, §72). Antes cada módulo reinventava cartão, aba, etiqueta e botão |
+| `src/ui/ui.css` | 319 | Peças visuais comuns do app (2026-10-04, §72). Antes cada módulo reinventava cartão, aba, etiqueta e botão |
 | `src/versions/VersionHistory.jsx` | 341 | Histórico de versões do cronograma (§83): consultar, comparar, criar ponto de restauração e restaurar (Master) com confirmação, backup automático e desfazer. |
 | `src/widget/WidgetSection.jsx` | 196 |  |
 | `src/widget/scriptableScript.js` | 190 | Script do Scriptable (iOS) colado pelo usuário — mostra atrasadas, vencem hoje e próxima reunião. |

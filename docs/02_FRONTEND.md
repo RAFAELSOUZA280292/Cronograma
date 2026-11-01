@@ -205,6 +205,7 @@ O estado do `AppScreens` (projetos, quadro, rascunhos do pai) é preservado quan
 
 ### Estilos: `S` e classes
 - `S` (`src/styles/S.js`, objeto de estilos inline): importe `import { S } from '../styles/S.js'` (código novo); o `App.jsx` ainda reexporta `S` por compatibilidade. **Antes de renomear/remover uma chave de `S`, faça `grep` no projeto todo:** React ignora `style={undefined}` sem erro.
+- **Vidro (§116zs):** tokens `--glass-*` em `src/ui/ui.css`. Blur real só na barra do topo (`.shell-bar`); botões levam só fundo translúcido + borda + brilho (sem blur). Barra nova com blur precisa de teste de contraste sobre o pior fundo (modelo: fluxo 12 do e2e). `@supports`/`prefers-reduced-transparency` já voltam para sólido.
 - Peças novas usam classes `ui-*` de `src/ui/ui.css`; CSS de módulo tem prefixo próprio (`crm-`, `par-`, `mdl-`, `knw-`, `shell-`, `pb-`, `mtg2-`...) e vive no próprio módulo (`crmMeta.js`, `pareceresMeta.js`, `modelosMeta.js`, `agenda.css`, `macro.css`, `meetingsCss.js`).
 
 ### Tokens de forma (§116zj)

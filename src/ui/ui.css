@@ -18,6 +18,12 @@
   --ui-accent-text: #F5C400;
   --ui-shadow: 0 1px 2px rgba(0, 0, 0, .25);
   --ui-shadow-hover: 0 8px 24px rgba(0, 0, 0, .35);
+  --glass-bar: rgba(20, 20, 20, .9);
+  --glass-fill: rgba(255, 255, 255, .06);
+  --glass-fill-hover: rgba(255, 255, 255, .12);
+  --glass-edge: rgba(255, 255, 255, .14);
+  --glass-shine: inset 0 1px 0 rgba(255, 255, 255, .12);
+  --glass-blur: blur(18px) saturate(1.5);
 }
 html[data-theme="light"] {
   --ui-accent-text: #7a5f00;
@@ -28,9 +34,24 @@ html[data-theme="light"] {
   --ui-info2: #14659f;
   --ui-shadow: 0 1px 2px rgba(40, 32, 8, .05);
   --ui-shadow-hover: 0 8px 24px rgba(40, 32, 8, .10);
+  --glass-bar: rgba(255, 255, 255, .82);
+  --glass-fill: rgba(255, 255, 255, .6);
+  --glass-fill-hover: rgba(255, 255, 255, .9);
+  --glass-edge: rgba(40, 32, 8, .14);
+  --glass-shine: inset 0 1px 0 rgba(255, 255, 255, .95);
 }
 
 /* ---------- Cartão ---------- */
+/* Vidro (2026-11-01): só nas barras (blur real, porque o conteúdo rola por baixo) e nos botões (fundo translúcido + borda clara + brilho
+   interno, sem blur: o fundo deles é liso e blur em dezenas de botões só custaria desempenho). Sem suporte a backdrop-filter, ou com
+   "reduzir transparência" no sistema, a barra volta a ser sólida. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root, html[data-theme="light"] { --glass-bar: var(--bg-1); --glass-blur: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root, html[data-theme="light"] { --glass-bar: var(--bg-1); --glass-blur: none; --glass-fill: var(--bg-2); --glass-fill-hover: var(--bg-3); }
+}
+
 .ui-card { background: var(--bg-2); border: 1px solid var(--border-1); border-radius: 14px; padding: 16px 18px; box-shadow: var(--ui-shadow); min-width: 0; }
 .ui-card.interactive { cursor: pointer; transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
 .ui-card.interactive:hover { transform: translateY(-1px); border-color: var(--border-3); box-shadow: var(--ui-shadow-hover); }
@@ -39,12 +60,12 @@ html[data-theme="light"] {
 .ui-card-meta { font-size: var(--fs-xs); color: var(--text-5); margin-top: 4px; line-height: 1.5; }
 
 /* ---------- Botão ---------- */
-.ui-btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 8px 14px; border-radius: var(--r-lg); border: 1px solid var(--border-2); background: transparent; color: var(--text-3); font-family: inherit; font-size: var(--fs-sm); font-weight: 700; line-height: 1; white-space: nowrap; cursor: pointer; transition: background .12s ease, border-color .12s ease; }
-.ui-btn:hover:not(:disabled) { background: var(--bg-3); border-color: var(--border-3); }
+.ui-btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 8px 14px; border-radius: var(--r-lg); border: 1px solid var(--glass-edge); background: var(--glass-fill); box-shadow: var(--glass-shine); color: var(--text-3); font-family: inherit; font-size: var(--fs-sm); font-weight: 700; line-height: 1; white-space: nowrap; cursor: pointer; transition: background .12s ease, border-color .12s ease; }
+.ui-btn:hover:not(:disabled) { background: var(--glass-fill-hover); border-color: var(--border-3); }
 .ui-btn:disabled { opacity: .5; cursor: default; }
-.ui-btn.primary { background: var(--ui-accent); border-color: var(--ui-accent); color: var(--ui-accent-ink); }
+.ui-btn.primary { background: var(--ui-accent); border-color: var(--ui-accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .38); color: var(--ui-accent-ink); }
 .ui-btn.primary:hover:not(:disabled) { background: #ffd21f; border-color: #ffd21f; }
-.ui-btn.danger { background: #c9392e; border-color: #c9392e; color: #fff; }
+.ui-btn.danger { background: #c9392e; border-color: #c9392e; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22); color: #fff; }
 .ui-btn.danger:hover:not(:disabled) { background: #b3281d; border-color: #b3281d; }
 .ui-btn.sm { min-height: 30px; padding: 6px 11px; font-size: 12.5px; border-radius: var(--r-md); }
 
@@ -167,7 +188,7 @@ html[data-theme="light"] .ui-empty-icon { color: #7a5f00; }
 /* ---------- IconButton, ErrorState, SaveStatus, Modal/Drawer — Onda 2 ---------- */
 .ui-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .ui-iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: 9px; border: 1px solid transparent; background: transparent; color: var(--text-3); cursor: pointer; transition: background .12s ease, color .12s ease; }
-.ui-iconbtn:hover:not(:disabled) { background: var(--bg-3); color: var(--text-1); }
+.ui-iconbtn:hover:not(:disabled) { background: var(--glass-fill-hover); border-color: var(--glass-edge); box-shadow: var(--glass-shine); color: var(--text-1); }
 .ui-iconbtn:disabled { opacity: .45; cursor: default; }
 .ui-iconbtn.danger { color: var(--ui-danger); }
 .ui-iconbtn.danger:hover:not(:disabled) { background: var(--ui-danger-bg); }

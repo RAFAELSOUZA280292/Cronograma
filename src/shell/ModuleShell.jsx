@@ -12,11 +12,12 @@ import { isTypingTarget } from './shortcuts.js';
 
 const CSS = `
 .shell-bar { position: sticky; top: 0; z-index: 45; display: flex; align-items: center; gap: var(--sp-2); height: var(--shell-h, 48px); padding: 0 14px;
-  background: var(--bg-1); border-bottom: 1px solid var(--border-1); font-family: 'Inter', sans-serif; color: var(--text-2); box-sizing: border-box; }
+  background: var(--glass-bar); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); border-bottom: 1px solid var(--glass-edge); box-shadow: var(--glass-shine);
+  font-family: 'Inter', sans-serif; color: var(--text-2); box-sizing: border-box; }
 .shell-bar * { box-sizing: border-box; }
-.shell-btn { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px; border-radius: var(--r-md); border: 1px solid transparent; background: transparent;
+.shell-btn { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px; border-radius: var(--r-md); border: 1px solid var(--glass-edge); background: var(--glass-fill); box-shadow: var(--glass-shine);
   color: var(--text-2); font: inherit; font-size: var(--fs-sm); font-weight: 600; cursor: pointer; white-space: nowrap; }
-.shell-btn:hover { background: var(--bg-3); }
+.shell-btn:hover { background: var(--glass-fill-hover); }
 .shell-btn:focus-visible, .shell-menu-item:focus-visible, .shell-pal-item:focus-visible { outline: 2px solid var(--ui-accent, #F5C400); outline-offset: 1px; }
 .shell-btn.icon { width: 32px; padding: 0; justify-content: center; }
 .shell-sep { width: 1px; height: 20px; background: var(--border-1); margin: 0 2px; flex-shrink: 0; }
@@ -26,7 +27,7 @@ const CSS = `
 .shell-renata { color: var(--ui-accent, #F5C400); }
 html[data-theme="light"] .shell-renata { color: #8a6500; }
 .shell-renata:hover { background: var(--ui-accent-bg, rgba(245,196,0,.14)); }
-.shell-search { min-width: 190px; justify-content: flex-start; color: var(--text-4); background: var(--bg-3); border-color: var(--border-1); font-weight: 500; }
+.shell-search { min-width: 190px; justify-content: flex-start; color: var(--text-4); font-weight: 500; }
 .shell-search kbd, .shell-pal kbd { margin-left: auto; font: inherit; font-size: var(--fs-xs); padding: 1px 5px; border-radius: var(--r-xs); border: 1px solid var(--border-2); color: var(--text-4); background: var(--bg-1); }
 .shell-pop { position: relative; }
 .shell-menu { position: absolute; top: 38px; z-index: 46; min-width: 230px; max-height: 70vh; overflow-y: auto; padding: 6px; border-radius: var(--r-lg);

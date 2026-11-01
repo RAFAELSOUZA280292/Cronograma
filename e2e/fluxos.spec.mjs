@@ -298,3 +298,37 @@ test('janelas da empresa (U2): detalhe da atividade e envio de transcrição, ra
   await page.getByRole('button', { name: 'Descartar' }).click();
   await expect(page.locator('.ui-frame-overlay')).toHaveCount(0);
 });
+
+// Vidro (2026-11-01): a barra do topo é translúcida com blur. O texto dela precisa ler em qualquer coisa que passe por baixo, então o teste põe o PIOR fundo
+// possível atrás da barra (branco no escuro, preto no claro) e mede cada texto e ícone em cima dele: texto >= 4.5:1, ícone >= 3:1 (WCAG AA).
+for (const theme of ['dark', 'light']) {
+  test(`vidro: barra do topo legível sobre o pior fundo (${theme})`, async ({ page }) => {
+    await loginUi(page, USERS.master);
+    await page.goto('/gestao-atividades');
+    await page.waitForSelector('.shell-bar');
+    await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme);
+    const res = await page.evaluate((worst) => {
+      const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+      const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+      const parse = (s) => (s.match(/[\d.]+/g) || []).map(Number);
+      const over = (fg, bg) => { const a = fg[3] ?? 1; return [0, 1, 2].map((i) => fg[i] * a + bg[i] * (1 - a)); };
+      const bar = document.querySelector('.shell-bar');
+      const base = worst === 'white' ? [255, 255, 255] : [0, 0, 0];
+      const barSolid = over(parse(getComputedStyle(bar).backgroundColor), base);
+      const out = [];
+      for (const el of bar.querySelectorAll('button, .shell-search, .shell-cur, a')) {
+        const cs = getComputedStyle(el); if (!el.getBoundingClientRect().width) continue;
+        const text = (el.textContent || '').replace(/⌘K|Ctrl\+K/g, '').trim();
+        if (!text && !el.querySelector('svg')) continue;
+        const bgv = parse(cs.backgroundColor);
+        out.push({ name: text || '(ícone)', text: !!text, ratio: ratio(parse(cs.color), bgv.length ? over(bgv, barSolid) : barSolid) });
+      }
+      const f = getComputedStyle(bar);
+      return { out, blur: f.backdropFilter || f.webkitBackdropFilter };
+    }, theme === 'dark' ? 'white' : 'black');
+    expect(res.blur, 'a barra tem blur').not.toBe('none');
+    expect(res.out.length, 'mediu algum item da barra').toBeGreaterThan(3);
+    const ruins = res.out.filter((i) => i.ratio < (i.text ? 4.5 : 3)).map((i) => `${i.name} ${i.ratio.toFixed(2)}`);
+    expect(ruins, 'itens da barra abaixo do contraste mínimo').toEqual([]);
+  });
+}
