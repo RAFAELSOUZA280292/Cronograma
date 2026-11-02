@@ -1,6 +1,6 @@
 // Caixa de e-mail (Fase 1): leitura das partes MIME, endereços, pastas e higienização do HTML recebido. Puro.
 //   node scripts/mail-parse.test.mjs
-import { parseAddressList, walkParts, sanitizeMailHtml, folderQuery, threadSummary, decodeBody, textToHtml } from '../server/googleMail.js';
+import { parseAddressList, walkParts, sanitizeMailHtml, mailStyles, folderQuery, threadSummary, decodeBody, textToHtml } from '../server/googleMail.js';
 
 let failed = 0;
 const ok = (name, cond, extra) => { if (cond) console.log(`ok   ${name}`); else { failed += 1; console.log(`FAIL ${name}${extra !== undefined ? ` -> ${JSON.stringify(extra)}` : ''}`); } };
@@ -63,6 +63,19 @@ ok('resumo: assunto do primeiro, data do último', th.subject === 'Proposta' && 
 ok('resumo: não lido, estrela, anexo, contagem', th.unread && th.starred && th.hasAttachment && th.count === 3);
 ok('resumo: participantes sem repetir, "Eu" para enviados', th.from.length === 2 && th.from[1].name === 'Eu', th.from);
 ok('texto puro vira HTML escapado com link', textToHtml('<b> https://a.com/x').includes('&lt;b&gt;') && textToHtml('https://a.com/x').includes('href="https://a.com/x"'));
+
+// Folha de estilo do e-mail (Outlook/newsletter): entra na leitura, sem nada que busque coisa na rede.
+const outlook = '<html><head><style><!-- /* Style Definitions */ p.MsoNormal{margin:0cm;font-family:"Aptos",sans-serif} @font-face{font-family:X;src:url(https://x.com/f.woff)} --></style></head><body><p class="MsoNormal">Olá</p></body></html>';
+const lido = sanitizeMailHtml(outlook, { keepStyles: true }).html;
+ok('estilo do Outlook entra na leitura', lido.startsWith('<style>') && lido.includes('p.MsoNormal{margin:0cm') && lido.includes('class="MsoNormal"'), lido);
+ok('@font-face com url some', !/font-face|x\.com/.test(lido), lido);
+ok('sem keepStyles (citação) não leva <style>', !sanitizeMailHtml(outlook).html.includes('<style'));
+ok('url() de fundo vira none', mailStyles('<style>td{background:url("https://rastreio.com/p.gif")}</style>') === 'td{background:none}', mailStyles('<style>td{background:url("https://rastreio.com/p.gif")}</style>'));
+ok('@import derruba a folha', mailStyles('<style>@import "https://x.com/a.css"; p{color:red}</style>') === '');
+{ const esc = mailStyles('<style>td{background:u\\72l(https://rastreio.com/p.gif)}</style>'); ok('escape disfarçando url não vira url()', !esc.includes('\\') && !/url\s*\(/i.test(esc), esc); }
+ok('image-set derruba a folha', mailStyles('<style>p{background-image:image-set("https://x.com/a.png" 1x)}</style>') === '');
+ok('"<" não fecha a tag de estilo', !mailStyles('<style>p{color:red}</style ><style>a{x:"</style><script>alert(1)</script>"}</style>').includes('<'));
+ok('estilo inline com escape sai', !/style=/.test(sanitizeMailHtml('<p style="background:u\\72l(https://x.com/a.gif)">x</p>').html));
 
 console.log(failed ? `${failed} falharam` : 'todos passaram');
 process.exit(failed ? 1 : 0);

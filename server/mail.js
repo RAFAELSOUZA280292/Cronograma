@@ -88,7 +88,7 @@ router.get('/threads/:id', async (req, res) => {
         const a = parts.attachments.find((x) => x.contentId === cid && x.id && INLINE_IMAGE.test(x.mimeType));
         return a ? `/api/mail/messages/${m.id}/attachments/${encodeURIComponent(a.id)}?inline=1&type=${encodeURIComponent(a.mimeType)}` : null;
       };
-      const body = parts.html ? sanitizeMailHtml(parts.html, { cidUrl }) : { html: textToHtml(parts.text), remoteImages: 0 };
+      const body = parts.html ? sanitizeMailHtml(parts.html, { cidUrl, keepStyles: true }) : { html: textToHtml(parts.text), remoteImages: 0 };
       return {
         id: m.id,
         from: parseAddressList(h.from)[0] || { name: '', email: '' },

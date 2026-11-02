@@ -109,7 +109,23 @@ const MAIL_ATTRS = ['align', 'valign', 'width', 'height', 'bgcolor', 'border', '
 // Higieniza o HTML recebido (nada de script, formulário, iframe, evento ou CSS que busca coisa de fora) e prende as
 // imagens externas: o endereço vai para `data-pt-src` e só volta para `src` se a pessoa pedir ("Mostrar imagens"),
 // como no Outlook — abrir o e-mail não avisa ao remetente que foi lido. `cidUrl(cid)` resolve as imagens embutidas.
-export function sanitizeMailHtml(html, { cidUrl = () => null } = {}) {
+// Folha de estilo do próprio e-mail (<style> do Outlook e de newsletters, ex.: p.MsoNormal{margin:0}), para o desenho
+// sair como o remetente fez. Só vale dentro do iframe da leitura. Fica de fora tudo que busca coisa na rede (url(),
+// image-set(), @import, @font-face), os escapes "\" que disfarçariam isso e o "<" que fecharia a tag. Na dúvida, sai a folha toda.
+const REMOTE_CSS_RE = /url\s*\(|image-set\s*\(|image\s*\(|cross-fade\s*\(|element\s*\(|expression\s*\(|@import|behavior\s*:|-moz-binding|javascript:/i;
+export function mailStyles(html) {
+  const out = [];
+  for (const m of String(html || '').matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)) {
+    let css = m[1].replace(/<!--|-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/[\\<]/g, '');
+    css = css.replace(/@font-face\s*\{[^}]*\}/gi, '').replace(/@(charset|namespace)[^;]*;/gi, '');
+    css = css.replace(/url\s*\([^)]*\)/gi, 'none');
+    if (REMOTE_CSS_RE.test(css)) continue;
+    out.push(css.trim());
+  }
+  return out.filter(Boolean).join('\n').slice(0, 100_000);
+}
+
+export function sanitizeMailHtml(html, { cidUrl = () => null, keepStyles = false } = {}) {
   let remote = 0;
   const clean = sanitizeHtml(String(html || ''), {
     allowedTags: MAIL_TAGS,
@@ -136,8 +152,9 @@ export function sanitizeMailHtml(html, { cidUrl = () => null } = {}) {
     },
   });
   // CSS com url(), expression() ou @import puxaria coisa de fora (rastreio) — sai o atributo inteiro.
-  const noRemoteCss = clean.replace(/\sstyle="([^"]*)"/gi, (m, css) => (/url\s*\(|expression\s*\(|@import|behavior\s*:/i.test(css.replace(/&quot;|&#x27;|&#39;/g, '')) ? '' : m));
-  return { html: noRemoteCss, remoteImages: remote };
+  const noRemoteCss = clean.replace(/\sstyle="([^"]*)"/gi, (m, css) => { const c = css.replace(/&quot;|&#x27;|&#39;/g, ''); return REMOTE_CSS_RE.test(c) || c.includes('\\') ? '' : m; });
+  const sheet = keepStyles ? mailStyles(html) : '';
+  return { html: sheet ? `<style>${sheet}</style>${noRemoteCss}` : noRemoteCss, remoteImages: remote };
 }
 
 export function textToHtml(text) {
