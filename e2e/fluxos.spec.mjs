@@ -332,3 +332,54 @@ for (const theme of ['dark', 'light']) {
     expect(ruins, 'itens da barra abaixo do contraste mínimo').toEqual([]);
   });
 }
+
+test('quadro pessoal: mover uma coluna com as atividades para outra página, com desfazer, e continua assim depois de recarregar', async ({ page }) => {
+  await loginUi(page, USERS.master);
+  await page.goto('/gestao-atividades');
+  const title = `Coluna movida ${stamp()}`;
+  await page.locator('.pb-addbtn').first().click();
+  await page.getByPlaceholder('Digite o nome da atividade...').fill(title);
+  await page.keyboard.press('Enter');
+  await expect(page.getByText(title).first()).toBeVisible();
+  const tabs = page.locator('input[aria-label^="Nome do quadro"]');
+  const first = await tabs.first().inputValue();
+  const destino = `Destino ${stamp()}`;
+  await page.getByTitle('Nova página').click();
+  await tabs.last().fill(destino);
+  await expect(page.locator(`input[aria-label="Nome do quadro ${destino}"]`)).toBeVisible();
+  await page.locator(`input[aria-label="Nome do quadro ${first}"]`).click();
+  await expect(page.getByText(title).first()).toBeVisible();
+
+  await page.getByRole('button', { name: 'Nova coluna', exact: true }).click(); // a página precisa ter mais de uma coluna, senão a mudança é recusada de propósito
+  await page.waitForTimeout(800);
+  // a coluna é achada pela atividade que este teste criou (o banco local guarda páginas de execuções anteriores)
+  const colDaAtividade = () => page.getByText(title).first().locator('xpath=(ancestor::div[.//input[starts-with(@aria-label,"Nome da coluna")]])[last()]');
+  const colTitle = await colDaAtividade().locator('input[aria-label^="Nome da coluna"]').first().inputValue();
+  const colMenu = () => colDaAtividade().getByRole('button', { name: 'Mais ações', exact: true }).first();
+  const moverParaNovaPagina = async () => {
+    await colMenu().click();
+    await page.getByRole('button', { name: 'Mover para outra página...', exact: true }).click();
+    await page.locator('button').filter({ hasText: new RegExp(`^${destino}$`) }).click();
+  };
+
+  // mover e desfazer na hora: a coluna volta para a página de origem
+  await moverParaNovaPagina();
+  await expect(page.getByText(title)).toHaveCount(0);
+  await expect(page.getByText(new RegExp(`movida para a página "${destino}"`))).toBeVisible();
+  await page.getByRole('button', { name: 'Desfazer' }).click();
+  await expect(page.getByText(title).first()).toBeVisible();
+  await page.waitForTimeout(1500); // a gravação automática termina antes de abrir o menu de novo
+
+  // mover de novo: a coluna e a atividade aparecem na página nova e continuam lá depois de recarregar
+  await moverParaNovaPagina();
+  await expect(page.getByText(title)).toHaveCount(0);
+  await page.locator(`input[aria-label="Nome do quadro ${destino}"]`).click();
+  await expect(page.getByText(title).first()).toBeVisible();
+  await expect(page.locator(`input[aria-label="Nome da coluna ${colTitle}"]`).first()).toBeVisible();
+  await page.waitForTimeout(1500);
+  await page.reload();
+  await page.locator(`input[aria-label="Nome do quadro ${destino}"]`).click();
+  await expect(page.getByText(title).first()).toBeVisible();
+  await page.locator(`input[aria-label="Nome do quadro ${first}"]`).click();
+  await expect(page.getByText(title)).toHaveCount(0);
+});

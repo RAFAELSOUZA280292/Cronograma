@@ -123,13 +123,24 @@ function dedupeCards(pages, minePages) {
   }));
 }
 
+// Coluna movida de uma página para outra enquanto a outra aba ainda a editava: depois da fusão ela existe nas duas páginas e o dedupe dos cartões
+// esvazia a cópia antiga. Some só a cópia que ficou VAZIA e que não é onde quem está gravando a pôs (cartão novo da outra aba nunca se perde).
+function dropEmptyMovedColumns(pages, minePages) {
+  const where = new Map();
+  for (const p of minePages || []) for (const c of p.columns || []) where.set(c.id, p.id);
+  return pages.map((p) => ({
+    ...p,
+    columns: (p.columns || []).filter((c) => !(where.has(c.id) && where.get(c.id) !== p.id && (c.cards || []).length === 0)),
+  }));
+}
+
 // Quadro inteiro { boards: [páginas], linkedBoards, … }.
 export function mergeBoards(base, mine, theirs) {
   if (!theirs) return mine;
   if (!mine) return theirs;
   const out = merge(base || undefined, mine, theirs);
   if (!out || !Array.isArray(out.boards)) return out;
-  const pages = dedupeCards(out.boards, mine.boards);
+  const pages = dropEmptyMovedColumns(dedupeCards(out.boards, mine.boards), mine.boards);
   return deepEqual(pages, out.boards) ? out : { ...out, boards: pages };
 }
 

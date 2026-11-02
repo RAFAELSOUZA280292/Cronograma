@@ -233,7 +233,7 @@ function TagEditor({ tags, onChange, suggestions }) {
   );
 }
 
-function PersonalColumnMenu({ column, canMoveLeft, canMoveRight, onClose, onAddCard, onRename, onColorChange, onToggleHideCompleted, onMoveLeft, onMoveRight, onDuplicate, onSortNow, onDelete, onShare, onCopyLink }) {
+function PersonalColumnMenu({ column, canMoveLeft, canMoveRight, otherPages, onMoveToPage, onClose, onAddCard, onRename, onColorChange, onToggleHideCompleted, onMoveLeft, onMoveRight, onDuplicate, onSortNow, onDelete, onShare, onCopyLink }) {
   const [mode, setMode] = useState('root');
   return (
     <div style={S.dropdownMenu} onClick={(e) => e.stopPropagation()}>
@@ -245,6 +245,7 @@ function PersonalColumnMenu({ column, canMoveLeft, canMoveRight, onClose, onAddC
           <button style={S.dropdownItem} onClick={() => setMode('sort')}><ArrowLeftRight size={13} /> Ordenar</button>
           <button title={!canMoveLeft ? 'Esta coluna já é a primeira' : undefined} style={{ ...S.dropdownItem, opacity: canMoveLeft ? 1 : .4 }} disabled={!canMoveLeft} onClick={() => { onMoveLeft(); onClose(); }}>← Mover para esquerda</button>
           <button title={!canMoveRight ? 'Esta coluna já é a última' : undefined} style={{ ...S.dropdownItem, opacity: canMoveRight ? 1 : .4 }} disabled={!canMoveRight} onClick={() => { onMoveRight(); onClose(); }}>→ Mover para direita</button>
+          {otherPages.length > 0 && <button style={S.dropdownItem} onClick={() => setMode('page')}><ArrowLeftRight size={13} /> Mover para outra página...</button>}
           <button style={S.dropdownItem} onClick={() => { onDuplicate(); onClose(); }}><Copy size={13} /> Duplicar coluna</button>
           <label style={S.dropdownItem}>
             <input type="checkbox" checked={!!column.hideCompleted} onChange={onToggleHideCompleted} /> Ocultar concluídas
@@ -260,6 +261,17 @@ function PersonalColumnMenu({ column, canMoveLeft, canMoveRight, onClose, onAddC
         <>
           <button style={S.dropdownItem} onClick={() => setMode('root')}>← Voltar</button>
           <ColorSwatchGrid value={column.color} onChange={(c) => { onColorChange(c); onClose(); }} />
+        </>
+      )}
+      {mode === 'page' && (
+        <>
+          <button style={S.dropdownItem} onClick={() => setMode('root')}>← Voltar</button>
+          <div style={{ ...S.dropdownItem, cursor: 'default', fontSize: 11.5, color: 'var(--text-4)' }}>Mover esta coluna, com as atividades, para a página:</div>
+          <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+            {otherPages.map((pg) => (
+              <button key={pg.id} style={S.dropdownItem} onClick={() => { onMoveToPage(pg.id); onClose(); }}>{pg.name || 'Sem nome'}</button>
+            ))}
+          </div>
         </>
       )}
       {mode === 'sort' && (
@@ -575,7 +587,7 @@ function PersonalCard({ card, columnId, disabled, readOnly, otherColumns, onOpen
 }
 
 function PersonalColumn({
-  column, cardsToRender, totalVisibleCount, hiddenByFilter, hiddenCompleted, onClearFilters, dragDisabled, readOnly, canMoveLeft, canMoveRight, otherColumns,
+  column, cardsToRender, totalVisibleCount, hiddenByFilter, hiddenCompleted, onClearFilters, dragDisabled, readOnly, canMoveLeft, canMoveRight, otherColumns, otherPages, onMoveColumnToPage,
   onAddCard, onOpenCard, onToggleComplete, onDeleteCard, onDuplicateCard, onSetPriority, onSetStatus, onMoveCardTo,
   onRenameColumn, onColorChange, onToggleHideCompleted, onMoveLeft, onMoveRight, onDuplicateColumn, onSortColumnNow, onDeleteColumn, onShareColumn, onCopyColumnLink, lockColumn,
 }) {
@@ -639,6 +651,8 @@ function PersonalColumn({
                 column={column}
                 canMoveLeft={canMoveLeft}
                 canMoveRight={canMoveRight}
+                otherPages={otherPages || []}
+                onMoveToPage={onMoveColumnToPage}
                 onClose={() => setMenuOpen(false)}
                 onAddCard={() => setShowQuickAdd(true)}
                 onRename={() => nameInputRef.current && nameInputRef.current.focus()}
@@ -1757,6 +1771,43 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
     if (idx === -1 || newIdx < 0 || newIdx >= list.length) return;
     reorderColumns(colId, list[newIdx].id);
   }
+  // Leva a coluna INTEIRA (com as atividades) para o fim de outra página; o id da coluna e dos cartões não muda. Mesma trava da exclusão: a página
+  // de origem não fica sem coluna. O "Desfazer" devolve a coluna à posição de onde saiu.
+  function moveColumnToBoard(colId, targetBoardId) {
+    const src = activeBoard;
+    const col = src && src.columns.find((c) => c.id === colId);
+    const target = board.boards.find((b) => b.id === targetBoardId);
+    if (!col || !target || target.id === src.id) return;
+    if (src.columns.length <= 1) {
+      pushToast({ message: 'Esta é a única coluna da página. Crie outra coluna antes de movê-la.', ttlMs: 6000 });
+      return;
+    }
+    const srcIdx = src.columns.findIndex((c) => c.id === colId);
+    const entry = (action) => ({ ts: new Date().toISOString(), action, user: currentUser.name, col: col.id });
+    const withLog = (b, msg) => (b.visibility === 'public' || col.visibility === 'public' ? { ...b, log: [entry(msg), ...(b.log || [])].slice(0, 300) } : b);
+    onMutate((prev) => ({
+      ...prev,
+      boards: prev.boards.map((b) => {
+        if (b.id === src.id) return withLog({ ...b, columns: b.columns.filter((c) => c.id !== colId) }, `Coluna "${col.name}" movida para a página "${target.name}"`);
+        if (b.id === target.id) return withLog({ ...b, columns: [...b.columns.filter((c) => c.id !== colId), col] }, `Coluna "${col.name}" veio da página "${src.name}"`);
+        return b;
+      }),
+    }));
+    const n = col.cards.filter((cd) => !cd.deleted).length;
+    pushUndoToast(`Coluna "${col.name}" (${n} ${n === 1 ? 'atividade' : 'atividades'}) movida para a página "${target.name}".`, () => onMutate((prev) => {
+      const now = prev.boards.find((b) => b.id === target.id);
+      const cur = now && now.columns.find((c) => c.id === colId);
+      if (!cur || !prev.boards.some((b) => b.id === src.id)) return prev;
+      return {
+        ...prev,
+        boards: prev.boards.map((b) => {
+          if (b.id === target.id) return { ...b, columns: b.columns.filter((c) => c.id !== colId) };
+          if (b.id === src.id) { const l = b.columns.filter((c) => c.id !== colId); l.splice(Math.min(srcIdx, l.length), 0, cur); return { ...b, columns: l }; }
+          return b;
+        }),
+      };
+    }), 10000);
+  }
   function duplicateColumn(colId) {
     const col = activeBoard.columns.find((c) => c.id === colId);
     if (!col) return;
@@ -2545,6 +2596,8 @@ export function PersonalBoardScreen({ pendingOpen, onPendingOpenConsumed, todayM
                     canMoveLeft={idx > 0}
                     canMoveRight={idx < activeBoard.columns.length - 1}
                     otherColumns={activeBoard.columns.filter((c) => c.id !== col.id)}
+                    otherPages={board.boards.filter((b) => b.id !== activeBoard.id).map((b) => ({ id: b.id, name: b.name }))}
+                    onMoveColumnToPage={(targetId) => moveColumnToBoard(col.id, targetId)}
                     onAddCard={addCard}
                     onOpenCard={openCardDetail}
                     onToggleComplete={toggleCardComplete}

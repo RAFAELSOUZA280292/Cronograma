@@ -110,4 +110,29 @@ mergeBoards(base, tab1, serverAfterTab2);
 ok(JSON.stringify([base, tab1, serverAfterTab2]) === snapshot, 'entradas não são mutadas');
 ok(mergeBoards(base, same, same) === same, 'iguais → sem trabalho');
 
+// 11) Coluna movida de página (2026-11-01). Ids únicos como no app: p1 tem as colunas c-pessoal e c-resto; p2 tem c-outra.
+const moveBase = { boards: [page('p1', [col('c-pessoal', [card('a'), card('b')]), col('c-resto', [card('z')])]), page('p2', [col('c-outra', [card('x')])])] };
+const movedMine = clone(moveBase);
+const movedCol = movedMine.boards[0].columns.splice(0, 1)[0];
+movedMine.boards[1].columns.push(movedCol);
+const colIds = (mm, pid) => mm.boards.find((q) => q.id === pid).columns.map((c) => c.id).join();
+const allCols = (mm) => mm.boards.flatMap((q) => q.columns).map((c) => c.id).sort().join();
+
+// a) a outra aba só editou um cartão da coluna enquanto ela era movida
+const theirsEdit = clone(moveBase); theirsEdit.boards[0].columns[0].cards[0].title = 'a editado pela outra aba';
+m = mergeBoards(moveBase, movedMine, theirsEdit);
+ok(colIds(m, 'p1') === 'c-resto', 'a cópia vazia da coluna movida some da página antiga');
+ok(colIds(m, 'p2') === 'c-outra,c-pessoal', 'a coluna movida fica na página nova');
+ok(allCols(m) === 'c-outra,c-pessoal,c-resto', 'nenhuma coluna duplicada nem perdida');
+ok(ids(m.boards[1], 'c-pessoal').join() === 'a,b', 'os cartões da coluna movida continuam todos lá, uma vez cada');
+
+// b) a outra aba criou um cartão NOVO na coluna que estava sendo movida: a cópia antiga não é vazia, então o cartão não se perde
+const theirsNew = clone(moveBase); theirsNew.boards[0].columns[0].cards.push(card('novo-da-outra'));
+m = mergeBoards(moveBase, movedMine, theirsNew);
+ok(m.boards.flatMap((q) => q.columns).flatMap((c) => c.cards).filter((k) => k.id === 'novo-da-outra').length === 1, 'cartão novo da outra aba aparece uma vez e não se perde');
+
+// c) sem conflito nenhum: só a movimentação
+m = mergeBoards(moveBase, movedMine, clone(moveBase));
+ok(colIds(m, 'p1') === 'c-resto' && colIds(m, 'p2') === 'c-outra,c-pessoal', 'mover sem concorrência vale como está');
+
 console.log(`board-merge: ${n} checagens OK`);

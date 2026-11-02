@@ -343,7 +343,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/personal/Workbench.jsx` | 361 | Painel "Calendário, anotações e atalhos" da Gestão de Atividades (2026-10-16, visões 5 e 6 do pedido do Rafael; inspirado no mockup "Mesa de |
 | `src/personal/boardAttention.js` | 43 | O que o quadro pessoal (Gestão de Atividades) tem de urgente hoje — usado pela RENATA da tela inicial |
 | `src/personal/boardHistory.js` | 70 | Histórico do quadro pessoal (2026-10-29): compara uma foto antiga do quadro com o quadro de hoje e recoloca cartões. Funções puras, |
-| `src/personal/boardMerge.js` | 153 | Fusão de três vias do quadro pessoal (2026-10-27, §117). O painel grava o quadro INTEIRO; com duas abas (ou duas pessoas) abertas, a |
+| `src/personal/boardMerge.js` | 164 | Fusão de três vias do quadro pessoal (2026-10-27, §117). O painel grava o quadro INTEIRO; com duas abas (ou duas pessoas) abertas, a |
 | `src/personal/dailyExport.js` | 118 | Daily do Meu quadro (2026-10-26): filtro por prazo e exportação (Excel e PDF). Funções PURAS (sem React/DOM) para testar em Node. |
 | `src/personal/focus.js` | 140 | Foco de hoje (2026-10-29): tela para deixar aberta no iPad. Separa o que está em andamento (Agora), o que vence no dia (Próximos) |
 | `src/personal/workbenchUtils.js` | 81 | Funções puras do painel "Calendário, anotações e atalhos" (2026-10-16, visões 5 e 6). Sem React/DOM para poder testar em Node. |
@@ -359,7 +359,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/screens/CompanyWorkspace.jsx` | 916 | Área de trabalho de uma empresa (cabeçalho, abas, vistas, modais e relatório de impressão). |
 | `src/screens/MapView.jsx` | 529 | Aba MAPA (2026-10-19, pedido do Rafael; nome final "Mapa", antes "Árvore"): mapa mental do cronograma de UMA empresa — empresa → grupos (fase, responsável ou situação) → atividades → |
 | `src/screens/PautaPicker.jsx` | 51 | Janela "Vincular itens à reunião" (2026-10-20): escolhe itens de trabalho de QUALQUER atividade (os "outros squads") para entrarem na pauta de uma reunião. |
-| `src/screens/PersonalBoard.jsx` | 2928 | Gestão de Atividades (quadro pessoal): quadro, colunas, cartões, lista, quadro público e painéis. |
+| `src/screens/PersonalBoard.jsx` | 2981 | Gestão de Atividades (quadro pessoal): quadro, colunas, cartões, lista, quadro público e painéis. |
 | `src/screens/PublicCompanyScreen.jsx` | 423 | Página pública de acompanhamento da empresa (2026-10-19): /acompanhamento/<token>. Só leitura, sem login; "Entrar para editar" leva ao login normal. |
 | `src/screens/ScreenSearch.jsx` | 48 | Busca da tela aberta (2026-10-19): campo na barra de abas da empresa e aviso "filtrando" no topo do conteúdo. A lógica de casar texto fica em src/lib/screenSearch.js. |
 | `src/screens/SubExtras.jsx` | 214 | Campos novos das subatividades (2026-10-19, fase 2 do plano do cronograma funcional): prioridade, executor, áreas envolvidas, aplicabilidade, recorrência, |
