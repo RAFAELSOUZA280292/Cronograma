@@ -21,6 +21,7 @@ import { buildActivityOptions } from './meetings/ActivityLink.jsx';
 import DailyCards from './daily/DailyCards.jsx';
 
 import { useWelcomeSetup } from './daily/useWelcomeSetup.jsx';
+import { useLaunchTour } from './onboarding/useLaunchTour.jsx';
 import pricetaxLogoBranco from './assets/brand/pricetax-logo-branco.png';
 import pricetaxLogoPreto from './assets/brand/pricetax-logo-preto.png';
 
@@ -1502,6 +1503,8 @@ function AppScreens({ shellRef, bump }) {
     setCurrentUser((u) => (u ? { ...u, onboardingDone: true } : u));
     if (saved) setDailyReload((k) => k + 1);
   });
+  // Boas-vindas obrigatória das novidades (03/11/2026, shared/launchTour.js): sem pular; some quando a pessoa conclui.
+  useLaunchTour(currentUser, () => setCurrentUser((u) => (u ? { ...u, launchTour: null } : u)));
 
   // "Adicionar ao meu quadro" na página pública (/quadro/:token) deixa um
   // marcador em sessionStorage e volta pra "/": abre a Gestão de Atividades

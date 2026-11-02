@@ -4,7 +4,7 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 192 arquivos
+## `server/` — 193 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -20,7 +20,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/assistantGeneral.js` | 192 | RENATA "geral" (2026-10-06): a assistente disponível de qualquer tela, sem estar presa a um projeto. Responde com o que a PESSOA |
 | `server/assistantRetrieval.js` | 846 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `server/assistantSweep.js` | 122 | Varredura de reuniões de VÁRIAS empresas para a RENATA geral (Etapa 3 do plano, 2026-10-08; pedido do Felipe: "a RENATA faz |
-| `server/auth.js` | 203 |  |
+| `server/auth.js` | 207 |  |
 | `server/boardPlan.js` | 289 | Organização do quadro pessoal por API (2026-10-30, pedido do Rafael para a outra janela do Claude Code): uma lista de operações aplicada |
 | `server/briefing.js` | 113 | Briefing diário (Onda 3, R3): junta o que merece atenção da pessoa hoje (regras em briefingRules.js), mostra na tela inicial (GET /api/briefing) |
 | `server/briefingRules.js` | 107 | Briefing diário da RENATA (Onda 3, R3): regras que escolhem o que merece atenção hoje e texto escrito por modelo fixo — sem IA, sem custo |
@@ -99,7 +99,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/googleMail.js` | 299 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
 | `server/homePrefs.js` | 31 | Tela inicial personalizável e barra de favoritos (2026-11-02, §126): GET/PUT /api/home-prefs. Cada pessoa lê e grava só a |
 | `server/icalFeed.js` | 311 | Agenda por link iCal, só leitura (§128, 2026-11-02): o "endereço secreto no formato iCal" do Google Agenda, o "publicar agenda" do |
-| `server/index.js` | 203 |  |
+| `server/index.js` | 205 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
 | `server/inventory.js` | 373 | Levantamento de atividades de TODAS as empresas (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md; pedido do |
 | `server/inventoryEdit.js` | 194 | Passo 3 do caminho combinado (2026-10-07): organizar o que já existe a partir do Levantamento — padronizar o nome do |
@@ -146,7 +146,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/promptGuard.js` | 25 | Regra "texto de terceiros é DADO, nunca instrução" (2026-10-30, Onda 1 / Q2). A RENATA operacional já tinha (regra 11 em renata/agent.js); |
 | `server/proposalReview.js` | 443 | Revisão de proposta (2026-11-02, §131): checagens DETERMINÍSTICAS sobre o texto de um documento anexado ao CRM — valor em número × valor |
 | `server/push.js` | 174 | Notificações push (2026-10-17). O sino já existia (tabela `notifications`); aqui cada notificação nova também vira um aviso no celular/computador de |
-| `server/renata/agent.js` | 227 | Agente da RENATA (§101): interpreta o pedido, escolhe as ferramentas do catálogo, executa pelo executor (que valida, confere permissão, pede confirmação, |
+| `server/renata/agent.js` | 232 | Agente da RENATA (§101): interpreta o pedido, escolhe as ferramentas do catálogo, executa pelo executor (que valida, confere permissão, pede confirmação, |
 | `server/renata/contextCard.js` | 44 | Ficha de contexto da RENATA (Onda 2, R1): quando a pessoa está com um negócio, uma empresa do CRM ou uma empresa do cronograma aberta, a RENATA |
 | `server/renata/contextCardFormat.js` | 96 | Formatadores puros da ficha de contexto da RENATA (Onda 2, R1): recebem os dados já lidos e devolvem as linhas da ficha. Sem banco, sem rede. |
 | `server/renata/executor.js` | 192 | Executor de ferramentas da RENATA (§101). TODA operação passa por aqui: valida os parâmetros, checa permissão (as rotas do servidor decidem, em nome do |
@@ -190,6 +190,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/taskLinks.js` | 271 | Vínculo tarefa de reunião → atividade do cronograma (plano em docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md, Fase 1, 2026-10-13). |
 | `server/teamDay.js` | 177 | "Dia da equipe" (2026-10-29, pedido do Rafael): para cada pessoa da equipe (master e pricetax, as únicas medidas), num dia de Brasília: |
 | `server/todoNotifications.js` | 109 | Notificações das TAREFAS DE REUNIÃO (Onda 5, §81): atribuída, comentada e vencida. As tarefas vivem dentro do JSON do |
+| `server/tours.js` | 20 | Boas-vindas de lançamento (shared/launchTour.js): POST /api/tours/:id/done grava users.preferences.tours[id] = agora. |
 | `server/usageLog.js` | 103 | Rastreador de uso (Central de Inteligência Operacional). Recebe fatias de tempo do app: quanto tempo a aba ficou visível |
 | `server/usagePolicy.js` | 33 | Transparência e finalidade (LGPD): texto único, exibido a toda a equipe (Meu perfil) e à liderança (Central). |
 | `server/whatsapp.js` | 593 | WhatsApp (Fase 1, 2026-11-02): conversas do WhatsApp no painel pela API oficial da Meta (Cloud API). |
@@ -201,7 +202,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/xflowPermissions.js` | 86 | Papel efetivo + regras de "quem pode fazer o quê" no XFlow. Regras vivem |
 | `server/xflowTransitions.js` | 116 | Matriz de transições de status do XFlow. Cada ação nomeada sabe de quais |
 
-## `shared/` — 17 arquivos
+## `shared/` — 18 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -213,6 +214,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/cronogramaPadraoV4.js` | 293 | Proposta v4 do cronograma padrão — "modelo ideal do comitê de reforma tributária" (2026-10-19, decidido com o Rafael em telas de validação; ver PROJECT_CONTEXT §65). |
 | `shared/experienceFlows.js` | 25 | Fluxos que medimos para saber se o produto está ajudando (§97). Medimos o PRODUTO (fluxo, resultado, duração, erro), nunca a pessoa: |
 | `shared/homeLayout.js` | 206 | Tela inicial personalizável (2026-11-02, §126): ordem, largura e visibilidade dos blocos, blocos "Meu espaço" e a barra de |
+| `shared/launchTour.js` | 44 | Boas-vindas obrigatória de lançamento (03/11/2026, pedido do Rafael: "amanhã, quando o pessoal chegar… agora eles devem utilizar |
 | `shared/linkSync.js` | 231 | Sincronia de conclusão entre tarefa de reunião e atividade do cronograma (2026-10-19, pedido do Rafael: "uma vez que está vinculado e validado pelo usuário, concluiu em um, mata em outro"). |
 | `shared/mailAttachments.js` | 53 | Anexos que o Gmail bloqueia por segurança (pedido do Rafael em 2026-11-02: "anexar tudo que é possível" — e, quando não |
 | `shared/mailLabelColors.js` | 26 | Cores das pastas da Caixa de e-mail (2026-11-02, pacote de personalização). A pasta é um marcador do Gmail e o Gmail só |
@@ -223,11 +225,11 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 | `shared/workRoles.js` | 104 | Papéis de trabalho (2026-11-02, pedido do Rafael: valem a partir de 03/11). Convivem com o perfil técnico (`role`: master/pricetax/cliente), |
 
-## `src/` — 223 arquivos
+## `src/` — 226 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
-| `src/App.jsx` | 3750 |  |
+| `src/App.jsx` | 3753 |  |
 | `src/agenda/AccountsDialog.jsx` | 177 | "Minhas agendas" (§128, 2026-11-02): a agenda principal (Google) + as extras da pessoa — outra conta Google, Microsoft 365/Outlook.com |
 | `src/agenda/Agenda.jsx` | 630 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/EventDetail.jsx` | 206 | Detalhe do compromisso do Google dentro do painel (2026-11-02, "nunca mais abrir o Google Agenda"): Meet, participantes com a |
@@ -373,6 +375,9 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/meetings/todoUtils.js` | 56 | Utilitários pequenos e sem estado, compartilhados entre TodoBoard.jsx e |
 | `src/modelos/Modelos.jsx` | 659 | Modelos de documentos (2026-10-05, §78) — aba irmã dos Pareceres: biblioteca de modelos para sócios e colaboradores. Um modelo |
 | `src/modelos/modelosMeta.js` | 124 | Modelos de documentos (2026-10-05, §78) — tipos, ícones e CSS próprio do módulo (prefixo mdl-, em cima do par- dos Pareceres). |
+| `src/onboarding/LaunchTour.jsx` | 162 | Boas-vindas obrigatória de lançamento (03/11/2026, shared/launchTour.js). Quatro passos, sem "pular", sem Esc: |
+| `src/onboarding/launchTour.css` | 47 | Boas-vindas obrigatória de lançamento (src/onboarding/LaunchTour.jsx). Acima do app (250), abaixo dos diálogos (300) e avisos (400). */ |
+| `src/onboarding/useLaunchTour.jsx` | 20 | Mesma ideia de src/daily/useWelcomeSetup.jsx: raiz React própria, por cima de qualquer tela. Espera a boas-vindas do dia |
 | `src/opsintel/AccessMap.jsx` | 43 | Mapa interativo dos acessos. Cada ponto é o CENTRO DA CIDADE informado pelo IP (aproximado), com um círculo de margem de |
 | `src/opsintel/OpsIntelScreen.jsx` | 406 |  |
 | `src/opsintel/PrivacyNotice.jsx` | 31 | Transparência (LGPD): qualquer pessoa logada lê o que o app mede sobre o uso, para quê, quem vê e por quanto tempo. |

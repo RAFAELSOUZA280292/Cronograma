@@ -5,17 +5,19 @@
 ## Estado atual (2026-11-02)
 Seção curta de propósito: **atualize a cada entrega** (checklist em `docs/06_MANUAL_DO_DESENVOLVEDOR.md`), **trocando** a linha da área em vez de empilhar parágrafo novo. O detalhe completo de cada entrega fica no `PROJECT_CONTEXT.md` (seção citada) e o texto longo de 01–02/11 está em `docs/09_HISTORICO_E_DECISOES.md` › "Entregas de 01–02/11 em detalhe". O `npm run docs:conferir` falha se esta seção ficar mais velha que a última seção do `PROJECT_CONTEXT.md`.
 
-**No ar** (último deploy conferido: 02/11, 18h30, `ae34b24`). Por área:
+**No ar** (último deploy conferido: 02/11, ver `git log`; boas-vindas §132 publicada no fim do dia). Por área:
 - **Caixa de e-mail** (`/email`, mapa legível E-01…E-16 em `docs/09` › "Mapa da Caixa de e-mail"): ler, organizar, escrever, responder, encaminhar, anexos de tudo, rascunhos, regras, pastas em árvore sem "INBOX/", seleção e "Marcar todas como lidas" como no Gmail, estilo do e-mail preservado, imagens sempre à mostra (opção em Configurar), assinatura tipo **Imagem** (banner) ou **Texto** com "Atenciosamente," livre, pesquisa em **todas as pastas** e, ao pesquisar um endereço, **conversas da equipe** com a pessoa. Clicar num e-mail em qualquer tela abre a Caixa do painel (nunca Outlook/Mail). Confirmado pelo Rafael: Fase 1, regras após reconectar e o clique no e-mail do CRM.
 - **E-mail × CRM** (§130): selo Cliente/Lead/Parceiro na conversa, faixa "Empresa fora do CRM" (com "Parece ser <empresa> — vincular?" para empresa sem site nem e-mail), aba E-mails no negócio e na empresa com assinatura, imagens e anexos, bloco "Negócios fora do CRM" no cockpit.
 - **Agenda** (§116zzzzzzzz = E-10, §128): criar/editar com Meet e convidados, convite no e-mail com Sim/Talvez/Não e novo horário; agendas extras (Google externo, Microsoft, link iCal) numa grade só — Google externo e Microsoft só ligam com as chaves (pendências).
-- **RENATA** (§125, §131): lê o e-mail de quem conversa com ela e propõe o registro no CRM; revisa sozinha as propostas em PDF anexadas nos negócios (número × extenso, somas, datas, leis, CNPJ, linguagem); briefing diário ligado para todos.
+- **Boas-vindas das novidades** (§132): na 1ª entrada a partir de agora, toda a equipe passa por 4 passos **sem pular** (novidades, conectar e-mail e agenda, assinatura, como trabalhar); só some depois de concluir.
+- **RENATA** (§125, §131, §132): **ensina o caminho no painel** ("como faço…", guia em `shared/launchTour.js`); lê o e-mail de quem conversa com ela e propõe o registro no CRM; revisa sozinha as propostas em PDF anexadas nos negócios (número × extenso, somas, datas, leis, CNPJ, linguagem); briefing diário ligado para todos.
 - **Papéis e acesso** (§127): Sócio, Comercial, Operações (vale a partir de 03/11); Operações não alcança o CRM por nenhuma porta.
 - **Cofre do projeto** (§124), **tela inicial personalizável + favoritos** (§126, §126a), **API por chave à prova de IA** (§129).
 - **WhatsApp** (§123, §123a, §123b): publicado **desligado**; liga com as chaves da Meta e a Dualhook.
 - Base visual e qualidade: janela única (U2), contraste nos dois temas, teste de fluxos Playwright + axe no CI.
 
 **Depende do Rafael** (nenhum item depende de código):
+- **03/11:** acompanhar a equipe passando pela boas-vindas; quem travar no Google chama o Rafael (não há "pular").
 - **Testes de uso:** e-mail de teste do painel para um Outlook e para o celular (banner da assinatura, acentos, anexo, print colado); pedir à equipe que abra a Caixa de e-mail no painel (alimenta "Conversas da equipe"); proposta real do Canva num negócio (nota da RENATA); "o que trocamos com a Okubo?" na RENATA; cockpit no iPad/iPhone; Cofre com o X da Questão e um certificado real; aceitar o novo horário do convite "KUHN COM CEO" e criar uma reunião de teste com convidado.
 - **Agendas extras:** criar o usuário do Ronaldo (Sócio) e testar o link iCal; Microsoft Entra (`MS_CLIENT_ID`/`MS_CLIENT_SECRET`) e Google externo (`GOOGLE_EXT_CLIENT_ID`/`GOOGLE_EXT_CLIENT_SECRET`) na Railway; saber onde ficam BRASILPRICE e PETCONT.
 - **Papéis:** decidir o papel de Leonardo, Pamella, Priscila, Rafael Tavares e Samuel; Amanda ou Maiara recarregam e confirmam que o CRM sumiu.

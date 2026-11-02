@@ -5,6 +5,8 @@ import { pool } from './db.js';
 import { originOf, setActor } from './projectAudit.js';
 import { readInternal } from './renata/internalAuth.js';
 import { crmRoleOf } from './crm/permissions.js';
+import { LAUNCH_TOUR_ID, launchTourPending } from '../shared/launchTour.js';
+
 
 const COOKIE_NAME = 'cronograma_token';
 const TOKEN_TTL = '7d';
@@ -100,6 +102,8 @@ function rowToUser(row) {
     workRole: row.work_role || '',
   };
   user.crmAccess = !!crmRoleOf(user);
+  // Boas-vindas de lançamento ainda não concluída (shared/launchTour.js); a tela abre por cima de tudo e não deixa pular.
+  user.launchTour = launchTourPending({ role: row.role, preferences: row.preferences }) ? LAUNCH_TOUR_ID : null;
   return user;
 }
 
