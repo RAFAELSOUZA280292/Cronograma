@@ -64,6 +64,8 @@ app.use((req, res, next) => {
 });
 // Modelos de documentos aceitam arquivo de até 30 MB (base64 ≈ 40 MB): o parser maior precisa vir ANTES do global.
 app.use('/api/templates', express.json({ limit: '45mb' }));
+// E-mail com até 20 MB de anexos (base64 ≈ 27 MB) — limite conferido de novo na rota (server/mailCompose.js).
+app.use('/api/mail/send', express.json({ limit: '30mb' }));
 app.use(express.json({ limit: '15mb' }));
 // Express 5 deixa req.body indefinido quando a requisição não traz corpo JSON (no 4 era {}); os handlers desestruturam req.body.
 app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });

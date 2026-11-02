@@ -2,48 +2,48 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **340 rotas** em **33 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **346 rotas** em **33 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
 | Prefixo | Arquivo | Linha |
 |---|---|---|
-| `/api` | `server/routes.js` | 72 |
-| `/api/xflow` | `server/xflow.js` | 73 |
-| `/api/google` | `server/google.js` | 74 |
-| `/api/agenda` | `server/agenda.js` | 75 |
-| `/api/mail` | `server/mail.js` | 76 |
-| `/api/macro` | `server/macro.js` | 77 |
-| `/api/inventory` | `server/inventory.js` | 78 |
-| `/api/inventory` | `server/inventoryEdit.js` | 79 |
-| `/api/gaps` | `server/gaps.js` | 80 |
-| `/api/task-links` | `server/taskLinks.js` | 81 |
-| `/api/task-links` | `server/taskLinkBackfill.js` | 82 |
-| `/api/standard-plan` | `server/standardPlanApi.js` | 83 |
-| `/api/meeting-inbox` | `server/meetingInbox.js` | 84 |
-| `/api/assistant` | `server/assistant.js` | 85 |
-| `/api/knowledge` | `server/knowledge.js` | 86 |
-| `/api/pareceres` | `server/pareceres.js` | 87 |
-| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 88 |
-| `/api/crm` | `server/crm/routes.js` | 89 |
-| `/api/renata` | `server/renata/routes.js` | 90 |
-| `/api/widget` | `server/widget.js` | 91 |
-| `/api/daily` | `server/daily.js` | 92 |
-| `/api/templates` | `server/documentTemplates.js` | 93 |
-| `/api/library-search` | `server/librarySearch.js` | 94 |
-| `/api/briefing` | `server/briefing.js` | 95 |
-| `/api/client360` | `server/client360.js` | 96 |
-| `/api/connect` | `server/connect.js` | 97 |
-| `/api/company-share` | `server/companyShare.js` | 98 |
-| `/api/company-calendar` | `server/companyCalendar.js` | 99 |
-| `/api/public-company` | `server/companyShare.js` | 100 |
-| `/d` | `server/companyShare.js` | 101 |
-| `/d` | `server/errorHandler.js` | 102 |
-| `/api/push` | `server/push.js` | 103 |
-| `/api/ops-intel` | `server/opsIntel.js` | 104 |
-| `/api/experience` | `server/experience.js` | 105 |
-| `/api/project-history` | `server/projectVersions.js` | 106 |
-| `/api` | `server/errorHandler.js` | 114 |
+| `/api` | `server/routes.js` | 74 |
+| `/api/xflow` | `server/xflow.js` | 75 |
+| `/api/google` | `server/google.js` | 76 |
+| `/api/agenda` | `server/agenda.js` | 77 |
+| `/api/mail` | `server/mail.js` | 78 |
+| `/api/macro` | `server/macro.js` | 79 |
+| `/api/inventory` | `server/inventory.js` | 80 |
+| `/api/inventory` | `server/inventoryEdit.js` | 81 |
+| `/api/gaps` | `server/gaps.js` | 82 |
+| `/api/task-links` | `server/taskLinks.js` | 83 |
+| `/api/task-links` | `server/taskLinkBackfill.js` | 84 |
+| `/api/standard-plan` | `server/standardPlanApi.js` | 85 |
+| `/api/meeting-inbox` | `server/meetingInbox.js` | 86 |
+| `/api/assistant` | `server/assistant.js` | 87 |
+| `/api/knowledge` | `server/knowledge.js` | 88 |
+| `/api/pareceres` | `server/pareceres.js` | 89 |
+| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 90 |
+| `/api/crm` | `server/crm/routes.js` | 91 |
+| `/api/renata` | `server/renata/routes.js` | 92 |
+| `/api/widget` | `server/widget.js` | 93 |
+| `/api/daily` | `server/daily.js` | 94 |
+| `/api/templates` | `server/documentTemplates.js` | 95 |
+| `/api/library-search` | `server/librarySearch.js` | 96 |
+| `/api/briefing` | `server/briefing.js` | 97 |
+| `/api/client360` | `server/client360.js` | 98 |
+| `/api/connect` | `server/connect.js` | 99 |
+| `/api/company-share` | `server/companyShare.js` | 100 |
+| `/api/company-calendar` | `server/companyCalendar.js` | 101 |
+| `/api/public-company` | `server/companyShare.js` | 102 |
+| `/d` | `server/companyShare.js` | 103 |
+| `/d` | `server/errorHandler.js` | 104 |
+| `/api/push` | `server/push.js` | 105 |
+| `/api/ops-intel` | `server/opsIntel.js` | 106 |
+| `/api/experience` | `server/experience.js` | 107 |
+| `/api/project-history` | `server/projectVersions.js` | 108 |
+| `/api` | `server/errorHandler.js` | 116 |
 
 Montagens extras (fora do `index.js`): `/api/connect/crm` = o roteador do CRM (`server/crm/routes.js`) reaproveitado por `server/connect.js` para a chave `crm_operate`/`write_all`/`read_all`; `/api/templates` tem limite de corpo próprio (45 MB) definido no `index.js`.
 
@@ -113,7 +113,7 @@ Arquivos: `server/index.js`, `server/payloadStats.js`, `server/xflowTransitions.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:131` |
+| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:133` |
 | GET | `(sem prefixo conhecido)/projects` | `requireAuth` `payloadStats('GET /projects')` |  | `server/payloadStats.js:27` |
 | DELETE | `(sem prefixo conhecido)/tickets/:id` |  | arquivar) — um ticket aberto por engano também precisa poder ir pra Lixeira. purgar (apagar de vez) não passa por aqui — é DELETE direto, | `server/xflowTransitions.js:54` |
 
@@ -412,18 +412,24 @@ Arquivos: `server/macro.js`.
 |---|---|---|---|---|
 | GET | `/api/macro` | `requireAuth` |  | `server/macro.js:31` |
 
-## `/api/mail` — 6 rotas
+## `/api/mail` — 12 rotas
 
 Arquivos: `server/mail.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/mail/status` |  |  | `server/mail.js:29` |
-| GET | `/api/mail/labels` |  |  | `server/mail.js:36` |
-| GET | `/api/mail/threads` |  |  | `server/mail.js:55` |
-| GET | `/api/mail/threads/:id` |  |  | `server/mail.js:69` |
-| GET | `/api/mail/messages/:mid/attachments/:aid` |  |  | `server/mail.js:108` |
-| POST | `/api/mail/threads/modify` |  |  | `server/mail.js:141` |
+| GET | `/api/mail/status` |  |  | `server/mail.js:33` |
+| GET | `/api/mail/labels` |  |  | `server/mail.js:40` |
+| GET | `/api/mail/threads` |  |  | `server/mail.js:59` |
+| GET | `/api/mail/threads/:id` |  |  | `server/mail.js:73` |
+| GET | `/api/mail/messages/:mid/attachments/:aid` |  |  | `server/mail.js:112` |
+| POST | `/api/mail/threads/modify` |  |  | `server/mail.js:145` |
+| GET | `/api/mail/signature` |  |  | `server/mail.js:203` |
+| POST | `/api/mail/signature/preview` |  |  | `server/mail.js:214` |
+| PUT | `/api/mail/signature` |  |  | `server/mail.js:218` |
+| GET | `/api/mail/signature/logo.png` |  |  | `server/mail.js:229` |
+| GET | `/api/mail/compose` |  | Dados para abrir a janela de resposta/encaminhamento: destinatários, assunto, prévia da citação e anexos originais. | `server/mail.js:236` |
+| POST | `/api/mail/send` |  |  | `server/mail.js:254` |
 
 ## `/api/meeting-inbox` — 4 rotas
 

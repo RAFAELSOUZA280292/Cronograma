@@ -647,3 +647,4 @@ Referência completa dos scripts: `docs/gerado/TESTES.md`.
 - Não verifiquei se a `RAILWAY_API_TOKEN` atual funciona (não executei o script).
 - O estado atual de produção (se o estudo do parecer longo passou a funcionar depois do §116g; se `reuniao_ver` resolve a pergunta da KUHN) não foi visto: só o Rafael confirma.
 | Retorno do Google para um módulo perde o `#…` do aviso | a abertura direta por endereço (`App.jsx`, `initialPathDone`) faz `replaceState` para `pathForMode(mode)` e apaga o hash antes de a tela montar | §116zw | preservar o hash só para o módulo que o lê (`mode === 'mail'`) |
+| Mensagem de erro em português da rota nova nunca aparece (sai o texto genérico) | a rota respondia `{ error: … }`, mas `src/lib/api.js` (`friendlyMessage`) só lê `data.message` | §116zx | toda rota responde erro como `{ message }` (pode ter `code` junto); conferir no navegador o texto que a pessoa vê |

@@ -3,12 +3,15 @@
 // O corpo do e-mail é desenhado num iframe sem script (sandbox) com o HTML já higienizado no servidor; imagens externas
 // só carregam com "Mostrar imagens".
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Inbox, Star, Send, FileText, Archive, AlertOctagon, Trash2, Tag, RefreshCw, Search, Paperclip, ArrowLeft, MailOpen, Mail, Undo2, Image as ImageIcon, Download, Link2, AlertTriangle, X } from 'lucide-react';
+import { Inbox, Star, Send, FileText, Archive, AlertOctagon, Trash2, Tag, RefreshCw, Search, Paperclip, ArrowLeft, MailOpen, Mail, Undo2, Image as ImageIcon, Download, Link2, AlertTriangle, X, PenSquare, Reply, ReplyAll, Forward, Signature } from 'lucide-react';
 import { Callout, BusyBar, Button, IconButton, EmptyState, activateRow } from '../ui/index.jsx';
-import { notify } from '../ui/dialogs.jsx';
+import { notify, askConfirm } from '../ui/dialogs.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 import { BrandLogo, useIsMobile } from '../App.jsx';
 import { S } from '../styles/S.js';
+import MailFrame from './MailFrame.jsx';
+import Compose, { fmtSize } from './Compose.jsx';
+import SignatureDialog from './SignatureDialog.jsx';
 import './mail.css';
 
 const FOLDER_ICON = { INBOX: Inbox, STARRED: Star, SENT: Send, DRAFT: FileText, ARCHIVE: Archive, SPAM: AlertOctagon, TRASH: Trash2 };
@@ -28,13 +31,6 @@ function fmtFullDate(iso) {
   return new Date(iso).toLocaleString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function fmtSize(n) {
-  if (!n) return '';
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
-}
-
 const who = (p) => (p ? p.name || p.email : '');
 const initials = (p) => (who(p) || '?').replace(/[^\p{L}\s]/gu, '').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 
@@ -51,6 +47,10 @@ export default function MailScreen({ currentUser, theme }) {
   const [listError, setListError] = useState('');
   const [openId, setOpenId] = useState(null);
   const [selected, setSelected] = useState(() => new Set());
+  const [compose, setCompose] = useState(null);
+  const [signature, setSignature] = useState(null);
+  const [sigOpen, setSigOpen] = useState(false);
+  const [threadRev, setThreadRev] = useState(0);
   const reqRef = useRef(0);
 
   const loadStatus = useCallback(async (fresh) => {
@@ -95,6 +95,7 @@ export default function MailScreen({ currentUser, theme }) {
   }, [folder, search, nextPage, loadStatus]);
 
   useEffect(() => { if (ready) loadNav(); }, [ready, loadNav]);
+  useEffect(() => { if (ready) apiGet('/api/mail/signature').then(setSignature).catch(() => {}); }, [ready]);
   useEffect(() => {
     if (!ready) return;
     setSelected(new Set());
@@ -164,6 +165,18 @@ export default function MailScreen({ currentUser, theme }) {
     apiPost('/api/mail/threads/modify', { ids: [id], action: 'read' }).then(loadNav).catch(() => {});
   }, [loadNav]);
 
+  async function openCompose(next) {
+    if (compose && !(await askConfirm({ title: 'Trocar de mensagem?', message: 'Já existe uma mensagem sendo escrita. Ela será descartada.', confirmLabel: 'Descartar e abrir', danger: true }))) return;
+    setCompose({ ...next, key: Date.now() });
+  }
+
+  function onSent(r) {
+    setCompose(null);
+    if (r && r.threadId && r.threadId === openId) setThreadRev((n) => n + 1);
+    loadThreads({ quiet: true });
+    loadNav();
+  }
+
   const folderName = search ? `Resultados para “${search}”` : (nav.folders.find((f) => f.id === folder) || nav.labels.find((l) => l.id === folder) || { name: 'Caixa de entrada' }).name;
   const selIds = [...selected];
   const showList = !isMobile || !openId;
@@ -198,6 +211,7 @@ export default function MailScreen({ currentUser, theme }) {
         <div className={`mail-grid${isMobile ? ' mobile' : ''}`}>
           {!isMobile && (
             <nav className="mail-nav" aria-label="Pastas do e-mail">
+              <Button variant="primary" icon={PenSquare} className="mail-write" onClick={() => openCompose({ mode: 'new' })}>Escrever</Button>
               {(nav.folders.length ? nav.folders : [{ id: 'INBOX', name: 'Caixa de entrada' }]).map((f) => {
                 const Icon = FOLDER_ICON[f.id] || Tag;
                 const count = f.id === 'DRAFT' ? f.total : f.unread;
@@ -213,6 +227,10 @@ export default function MailScreen({ currentUser, theme }) {
                   <Tag size={14} aria-hidden="true" style={l.color ? { color: l.color } : undefined} /><span>{l.name}</span>{l.unread ? <b className="mail-count">{l.unread}</b> : null}
                 </button>
               ))}
+              <div className="mail-nav-title">Configurar</div>
+              <button type="button" className="mail-folder" onClick={() => setSigOpen(true)} disabled={!signature}>
+                <Signature size={14} aria-hidden="true" /><span>Assinatura</span>
+              </button>
             </nav>
           )}
 
@@ -236,7 +254,10 @@ export default function MailScreen({ currentUser, theme }) {
                 ) : (
                   <>
                     <span className="mail-list-title">{folderName}</span>
-                    <IconButton label="Atualizar" icon={RefreshCw} size="sm" onClick={() => { loadThreads(); loadNav(); }} />
+                    <div className="mail-actions">
+                      {isMobile && <IconButton label="Assinatura do e-mail" icon={Signature} size="sm" onClick={() => setSigOpen(true)} disabled={!signature} />}
+                      <IconButton label="Atualizar" icon={RefreshCw} size="sm" onClick={() => { loadThreads(); loadNav(); }} />
+                    </div>
                   </>
                 )}
               </div>
@@ -283,8 +304,9 @@ export default function MailScreen({ currentUser, theme }) {
             <section className="mail-reader" aria-label="Leitura do e-mail">
               {openId ? (
                 <ThreadView
-                  key={openId} id={openId} isMobile={isMobile} folder={folder}
+                  key={`${openId}-${threadRev}`} id={openId} isMobile={isMobile} folder={folder} myEmail={status && status.email}
                   onBack={() => setOpenId(null)} onOpened={onOpened} onAct={(a) => act([openId], a)}
+                  onCompose={(mode, messageId) => openCompose({ mode, messageId })}
                 />
               ) : (
                 <EmptyState icon={MailOpen} title="Escolha um e-mail para ler" description="Clique numa conversa da lista. Ela é marcada como lida ao abrir, como no Outlook." />
@@ -293,6 +315,16 @@ export default function MailScreen({ currentUser, theme }) {
           )}
         </div>
       )}
+      {ready && isMobile && !compose && (
+        <button type="button" className="mail-fab" aria-label="Escrever e-mail" title="Escrever e-mail" onClick={() => openCompose({ mode: 'new' })}><PenSquare size={22} aria-hidden="true" /></button>
+      )}
+      {compose && (
+        <Compose
+          key={compose.key} init={compose} signature={signature} isMobile={isMobile}
+          onClose={() => setCompose(null)} onSent={onSent} onEditSignature={() => setSigOpen(true)}
+        />
+      )}
+      {sigOpen && signature && <SignatureDialog value={signature} onClose={() => setSigOpen(false)} onSaved={(r) => { setSignature(r); setSigOpen(false); }} />}
     </div>
   );
 }
@@ -330,7 +362,7 @@ function BulkActions({ folder, onAct, onClear }) {
   );
 }
 
-function ThreadView({ id, isMobile, folder, onBack, onOpened, onAct }) {
+function ThreadView({ id, isMobile, folder, myEmail, onBack, onOpened, onAct, onCompose }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState(() => new Set());
@@ -359,6 +391,7 @@ function ThreadView({ id, isMobile, folder, onBack, onOpened, onAct }) {
       <div className="mail-thread-bar">
         {back}
         <div className="mail-actions">
+          {data.messages.length > 0 && <IconButton label="Responder" icon={Reply} size="sm" onClick={() => onCompose('reply', data.messages[data.messages.length - 1].id)} />}
           {data.inTrash ? <IconButton label="Restaurar" icon={Undo2} size="sm" onClick={() => onAct('untrash')} />
             : data.inInbox ? <IconButton label="Arquivar" icon={Archive} size="sm" onClick={() => onAct('archive')} />
               : <IconButton label="Mover para a Caixa de entrada" icon={Inbox} size="sm" onClick={() => { onAct('inbox'); setData((d) => ({ ...d, inInbox: true, inSpam: false })); }} />}
@@ -387,10 +420,22 @@ function ThreadView({ id, isMobile, folder, onBack, onOpened, onAct }) {
             <span className="mail-date" title={fmtFullDate(m.date)}><span className="mail-date-full">{fmtFullDate(m.date)}</span><span className="mail-date-short">{fmtListDate(m.date)}</span></span>
           </header>
           {expanded.has(m.id) && <MessageBody msg={m} />}
+          {expanded.has(m.id) && (
+            <div className="mail-reply-bar">
+              <Button size="sm" icon={Reply} onClick={() => onCompose('reply', m.id)}>Responder</Button>
+              {replyAllCount(m, myEmail) > 1 && <Button size="sm" icon={ReplyAll} onClick={() => onCompose('replyAll', m.id)}>Responder a todos</Button>}
+              <Button size="sm" icon={Forward} onClick={() => onCompose('forward', m.id)}>Encaminhar</Button>
+            </div>
+          )}
         </article>
       ))}
     </div>
   );
+}
+
+function replyAllCount(m, me) {
+  const mine = String(me || '').toLowerCase();
+  return new Set([m.from, ...m.to, ...m.cc].map((p) => String((p && p.email) || '').toLowerCase()).filter((e) => e && e !== mine)).size;
 }
 
 function MessageBody({ msg }) {
@@ -422,34 +467,4 @@ function MessageBody({ msg }) {
       )}
     </div>
   );
-}
-
-const FRAME_CSS = 'html,body{margin:0;padding:0;background:#fff;color:#1f2937}body{padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.45;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}blockquote{margin:0 0 0 6px;padding-left:10px;border-left:2px solid #d1d5db;color:#4b5563}a{color:#1d4ed8}';
-
-// iframe sem script: allow-same-origin só para medir a altura do conteúdo (sem allow-scripts nada roda lá dentro).
-function MailFrame({ html }) {
-  const ref = useRef(null);
-  const [height, setHeight] = useState(120);
-  const srcDoc = useMemo(() => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base target="_blank"><style>${FRAME_CSS}</style></head><body>${html}</body></html>`, [html]);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return undefined;
-    let ro;
-    const measure = () => {
-      const doc = el.contentDocument;
-      if (doc && doc.documentElement) setHeight(Math.min(Math.max(doc.documentElement.scrollHeight, 60), 20000));
-    };
-    const onLoad = () => {
-      measure();
-      const doc = el.contentDocument;
-      if (doc && doc.body && typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(measure); ro.observe(doc.body); }
-      if (doc) doc.querySelectorAll('img').forEach((img) => img.addEventListener('load', measure));
-    };
-    el.addEventListener('load', onLoad);
-    measure();
-    return () => { el.removeEventListener('load', onLoad); if (ro) ro.disconnect(); };
-  }, [srcDoc]);
-
-  return <iframe ref={ref} className="mail-frame" title="Conteúdo do e-mail" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcDoc={srcDoc} style={{ height }} />;
 }

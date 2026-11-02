@@ -9,21 +9,21 @@ Seção curta de propósito: **atualize a cada entrega** (checklist em `docs/06_
 
 **Confirmado pelo Rafael em 02/11:** mover coluna entre páginas do Meu quadro funciona no uso real dele.
 
-**Em andamento — Caixa de e-mail (§116zw):** Fase 1 (ler e organizar o Gmail em `/email`, só equipe) feita e publicada em 02/11; **o Rafael conectou o Gmail e confirmou que a caixa abriu** (Gmail API ativada e consentimento Interno conferidos no Google Cloud). Fase 2 (escrever, responder, encaminhar, anexos, assinatura compatível com Outlook/celular) e Fase 3 (CRM, aviso de e-mail novo, atalhos) vêm em conversas próprias.
+**Em andamento — Caixa de e-mail (§116zw–§116zx):** Fase 1 (ler e organizar o Gmail em `/email`, só equipe) no ar e confirmada pelo Rafael. **Fase 2 publicada em 02/11 (~01h20):** Escrever, Responder, Responder a todos, Encaminhar (com os anexos originais), anexos até 20 MB e assinatura por pessoa com logo embutido (E-mail › Assinatura), e-mail montado para Outlook/celular (`server/mailCompose.js`). Fase 3 (CRM, aviso de e-mail novo, atalhos, rascunhos) vem em conversa própria.
 
 **Pendências do Rafael** (nenhuma depende de código):
-- **Caixa de e-mail:** usar no dia a dia e apontar o que falta antes da Fase 2 (as outras pessoas da equipe conectam o próprio Gmail em `/email`).
+- **Caixa de e-mail:** conferir a assinatura em E-mail › Assinatura e mandar um e-mail de teste para um endereço **Outlook** e para o **celular** (logo, acentos no assunto, citação, anexo); as outras pessoas conectam o próprio Gmail em `/email`.
 - Revogar e recriar as chaves que apareceram em prints do `.env` (IA, Voyage, tokens `pxk_`, Google, Railway).
 - Testar o convite com Meet de verdade: Reunião com horário, contato com o e-mail dele e o campo de convite marcado.
 - Briefing diário: manter para todos (como está) ou pedir uma trava por pessoa para virar piloto; ouvir a Eduarda (15 min).
 - Letra de 12,5 px: padronizar em 13 px? Conferir na Railway se existe um proxy que lê `X-Api-Key`. Ler `GET /api/ops-intel/payloads` como Master em alguns dias (se `GET /api/projects` passar de ~1 MB, reabrir o item E4).
 - Resumo semanal (segunda-feira): **não existe**; só se o Rafael quiser, e antes uma proposta.
 
-**Não testado de verdade:** Caixa de e-mail além da abertura (ações, anexos, caixa grande e celular só com respostas simuladas); iPad/iPhone e Windows reais (só Chromium); Google real (Meet e e-mail do convite); IA real (busca por significado e estudo de pareceres: a chave local da Voyage é inválida).
+**Não testado de verdade:** Caixa de e-mail além da abertura (ações, anexos, caixa grande e celular só com respostas simuladas; **envio real, Outlook e celular recebendo** dependem do teste do Rafael); iPad/iPhone e Windows reais (só Chromium); Google real (Meet e e-mail do convite); IA real (busca por significado e estudo de pareceres: a chave local da Voyage é inválida).
 
 **Dívidas conhecidas:** botão dentro de botão nos cartões do quadro (axe `nested-interactive`, no baseline); Esc dentro do editor de descrição do cartão fecha só no segundo toque; imports sem uso antigos; `scripts/renata-tools.test.mjs` falha em `preferencia_guardar` (já falhava antes); `body` com a margem padrão de 8 px.
 
-**Últimas entregas:** §116zp–§116zw (01 e 02/11) e §116zh–§116zo (31/10). O "porquê" de cada uma: `docs/gerado/INDICE_PROJECT_CONTEXT.md`.
+**Últimas entregas:** §116zp–§116zx (01 e 02/11) e §116zh–§116zo (31/10). O "porquê" de cada uma: `docs/gerado/INDICE_PROJECT_CONTEXT.md`.
 
 **Servidor local:** `preview_start` com `cronograma-dev` (testado em 02/11: página 200 e API 401 sem login; detalhes e a armadilha do erro 126 em `docs/06_MANUAL_DO_DESENVOLVEDOR.md`).
 

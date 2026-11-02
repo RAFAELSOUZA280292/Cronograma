@@ -86,3 +86,50 @@
   .mail-date-full, .mail-addr-email { display: none; }
   .mail-date-short { display: inline; }
 }
+
+/* Fase 2 (2026-11-02): escrever. Janela no canto no computador; tela cheia no celular. */
+.mail-write { width: 100%; justify-content: center; margin-bottom: 10px; }
+.mail-reply-bar { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 16px 14px; }
+.mail-fab { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 150; width: 56px; height: 56px; border: 0; border-radius: 18px; background: var(--ui-accent, #F5C400); color: #111; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(0,0,0,.25); cursor: pointer; }
+.mc { position: fixed; right: 24px; bottom: 0; z-index: 200; width: min(640px, calc(100vw - 48px)); height: min(720px, calc(100dvh - 72px)); display: flex; flex-direction: column; background: var(--bg-1); color: var(--text-1); border: 1px solid var(--border-2); border-bottom: 0; border-radius: 14px 14px 0 0; box-shadow: 0 12px 48px rgba(0,0,0,.35); }
+.mc.mobile { inset: 0; width: auto; height: auto; border-radius: 0; border: 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.mc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px 8px 16px; border-bottom: 1px solid var(--border-1); background: var(--bg-2); border-radius: inherit; }
+.mc-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.mc-scroll > * { flex-shrink: 0; }
+.mc-field { display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--border-1); min-height: 42px; }
+.mc-field label { flex: 0 0 56px; font-size: 13px; color: var(--text-5); }
+.mc-field input { flex: 1; min-width: 0; height: 40px; border: 0; outline: 0; background: transparent; color: var(--text-1); font-size: 14px; }
+.mc-field:focus-within { border-bottom-color: var(--ui-info); }
+.mc-editor { display: flex; flex-direction: column; flex: 1 0 auto; min-height: 220px; }
+.mc-tools { display: flex; gap: 2px; padding: 6px 10px; border-bottom: 1px solid var(--border-1); flex-wrap: wrap; }
+.mc-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-sm, 6px); background: transparent; color: var(--text-3); cursor: pointer; }
+.mc-btn:hover { background: var(--bg-3); color: var(--text-1); }
+.mc-btn.on { background: rgba(245,196,0,.18); color: var(--ui-accent-text); }
+.mc-btn:focus-visible { outline: 2px solid var(--ui-accent, #F5C400); outline-offset: 1px; }
+.mc-body { flex: 1 0 auto; display: flex; }
+.mc-body .ProseMirror { flex: 1; min-height: 200px; padding: 12px 16px; outline: none; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.5; color: var(--text-1); }
+.mc-body .ProseMirror p { margin: 0; }
+.mc-body .ProseMirror ul, .mc-body .ProseMirror ol { margin: 0 0 0 24px; padding: 0; }
+.mc-body .ProseMirror blockquote { margin: 0 0 0 .8ex; padding-left: 1ex; border-left: 1px solid var(--border-2); color: var(--text-3); }
+.mc-body .ProseMirror a { color: var(--ui-info); text-decoration: underline; }
+.mc-body .ProseMirror p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; height: 0; pointer-events: none; color: var(--text-5); }
+.mc-atts { list-style: none; margin: 0; padding: 8px 14px; display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--border-1); }
+.mc-atts li { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 4px 4px 10px; border: 1px solid var(--border-2); border-radius: 8px; background: var(--bg-2); font-size: 12.5px; }
+.mc-atts li.off { opacity: .55; text-decoration: line-through; }
+.mc-atts li.mc-total { border: 0; background: transparent; color: var(--text-5); padding-left: 2px; }
+.mc-extra { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 8px 14px 4px; font-size: 13px; }
+.mc-check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.mc-preview { margin: 4px 14px 10px; border: 1px solid var(--border-1); border-radius: 8px; overflow: hidden; }
+.mc-error { margin: 8px 14px 0; padding: 8px 10px; border-radius: 8px; background: var(--ui-danger-bg, rgba(220,38,38,.12)); color: var(--ui-danger-text, #b91c1c); font-size: 13px; }
+.mc-foot { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border-1); }
+.mail-sig-dlg { width: 620px; max-height: calc(100dvh - 32px); overflow-y: auto; }
+.mail-sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin: 12px 0 4px; }
+.mail-sig-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--text-4); }
+.mail-sig-grid label.wide { grid-column: 1 / -1; }
+.mail-sig-grid input { height: 38px; padding: 0 10px; border: 1px solid var(--border-2); border-radius: 8px; background: var(--bg-2); color: var(--text-1); font-size: 14px; }
+.mail-sig-label { margin: 8px 0 0; font-size: 12px; font-weight: 700; color: var(--text-5); text-transform: uppercase; letter-spacing: .04em; }
+@media (max-width: 767px) {
+  .mail-sig-grid { grid-template-columns: 1fr; }
+  .mc-field input, .mail-sig-grid input { font-size: 16px; }
+  .mc-btn { width: 44px; height: 44px; }
+}

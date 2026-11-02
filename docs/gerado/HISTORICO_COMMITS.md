@@ -2,7 +2,14 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-533 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+537 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+
+## 2026-11-02 (4)
+
+- `2f471bf` 00:53 — Cérebro: caixa de e-mail aberta com o Gmail real do Rafael
+- `258ac58` 00:46 — Caixa de e-mail, Fase 1: ler e organizar o Gmail no painel (/email)
+- `1e97be8` 00:24 — Cérebro: servidor local que uma conversa nova consegue ligar, onde o vidro funciona e confirmação do Rafael
+- `3c9608d` 00:18 — Cérebro em dia: Estado atual, linha do tempo de 30/10 a 02/11, lições, travas e alarme de frescor
 
 ## 2026-11-01 (4)
 

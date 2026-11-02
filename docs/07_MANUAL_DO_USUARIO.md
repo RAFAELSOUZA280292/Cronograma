@@ -12,7 +12,7 @@ Este manual ensina a equipe da PRICETAX (e o cliente, na seção 13) a usar o pa
 - Quem mantém o código encontra o "onde" em `docs/PROJECT_MAP.md` e `docs/gerado/`. Aqui só há o "como usar".
 
 ## Índice
-1. Para quem é · 2. Entrar e sair · 3. A tela inicial · 4. A barra de cima, busca e atalhos · 5. Quem acessa o quê · 6. Módulos (6.1 a 6.9) · 7. RENATA · 8. Integrações (chaves de API) · 9. Widget do iPhone · 10. Notificações e push · 11. Glossário · 12. Problemas comuns · 13. Para o cliente · 14. Instalar no celular · 15. Não verificado
+1. Para quem é · 2. Entrar e sair · 3. A tela inicial · 4. A barra de cima, busca e atalhos · 5. Quem acessa o quê · 6. Módulos (6.1 a 6.10) · 7. RENATA · 8. Integrações (chaves de API) · 9. Widget do iPhone · 10. Notificações e push · 11. Glossário · 12. Problemas comuns · 13. Para o cliente · 14. Instalar no celular · 15. Não verificado
 
 ---
 
@@ -447,6 +447,15 @@ Endereço `/inteligencia`. Mostra como a plataforma é usada pela equipe: presen
 - Para a equipe, o texto de transparência está em **Meu perfil › Privacidade**. Tempo medido de clientes não existe (só acessos de segurança).
 
 ---
+
+### 6.10 E-mail (só equipe PRICETAX)
+O painel abre o **seu próprio Gmail** (nada é copiado para o painel): o que você lê, arquiva ou envia aqui aparece igual no Gmail e no celular.
+1. **Conectar:** em **E-mail**, clique em **Conectar o Gmail** e deixe marcada a permissão do Gmail na tela do Google.
+2. **Ler e organizar:** pastas à esquerda, lista no meio, leitura à direita. Abrir marca como lido. Arquivar, Lixeira, Spam, Não lido e Estrela têm **Desfazer** no aviso. Imagens externas só aparecem com **Mostrar imagens**.
+3. **Escrever:** botão **Escrever** (no celular, o botão amarelo no canto). Preencha **Para** (vários endereços separados por vírgula), **Cc/Cco** se precisar, **Assunto** e a mensagem. **Ctrl+Enter** envia.
+4. **Responder, Responder a todos, Encaminhar:** no pé de cada mensagem aberta. A mensagem original vai citada embaixo (dá para tirar ou ver antes em **Mostrar**). Encaminhar leva os anexos originais; clique no **×** para tirar algum.
+5. **Anexos:** clipe no rodapé ou arraste os arquivos para a janela. Limite de **20 MB** por e-mail; acima disso, mande um link do Google Drive.
+6. **Assinatura:** **E-mail › Assinatura** (no celular, o ícone ao lado de Atualizar). Preencha nome, cargo, telefones, e-mail e site; o logo da PriceTax entra sozinho. A prévia mostra como chega. Na janela de escrita, a caixa **Assinatura** liga ou desliga só naquele e-mail.
 
 ## 7. RENATA
 **O que é:** a assistente de IA do painel. Ela lê o que você pode ver e, se você pedir, **executa** no sistema com as **suas** permissões, deixando tudo registrado.
