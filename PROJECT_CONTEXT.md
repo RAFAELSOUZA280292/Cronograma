@@ -8853,3 +8853,17 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - Causa: o Outlook rotula as partes como `charset="iso-8859-1"`, e a API do Gmail (`format=full`) entrega `body.data` já convertido para UTF-8. O `decodeBody` (`server/googleMail.js`) decodificava de novo como latin1.
 - Correção: `decodeBody` tenta primeiro UTF-8 estrito (`fatal: true`) e só cai no charset declarado se não for UTF-8 válido. Teste novo em `scripts/mail-parse.test.mjs`.
 - Situação: commit 282135e, deploy concluído às 12h34 de Brasília. Suíte 42/42. Falta o Rafael reabrir o e-mail do Gerson para conferir.
+
+## 116zzzzz. Caixa de e-mail: leitura mantém o estilo do próprio e-mail (2026-11-02, revisão pedida pelo Rafael: "Sim, corrija")
+- Antes: `sanitizeMailHtml` descartava todo `<style>`. E-mail do Outlook de computador (`p.MsoNormal{margin:0}`) ficava com espaço a mais entre as linhas, e newsletter perdia a diagramação.
+- Agora: `mailStyles(html)` em `server/googleMail.js` traz a folha do remetente para a leitura. O ajuste vale só na rota `GET /api/mail/threads/:id` (`keepStyles: true`); citação e rascunho continuam sem `<style>`.
+- O que a folha perde, para nada buscar coisa na rede (abrir o e-mail não avisa ao remetente):
+  - `url()` vira `none`;
+  - `@font-face`, `@charset` e `@namespace` saem;
+  - as barras invertidas `\` saem, porque um escape poderia disfarçar um `url()`;
+  - `<` sai;
+  - se aparecer `@import`, `image-set()`, `expression()`, `behavior:` ou `-moz-binding`, a folha inteira sai.
+- O estilo inline segue a mesma lista, e escape em estilo inline também derruba o atributo. A folha fica dentro do iframe sem script, sem afetar o painel.
+- Testes: 9 verificações novas em `scripts/mail-parse.test.mjs`. Suíte 42/42.
+- Situação: commit 8fc59af, deploy às 13h09 de Brasília. Na caixa do Rafael não achei e-mail recente com `<style>` (o do Gerson veio do Outlook novo, só com estilo inline), então a conferência visual fica para o próximo e-mail do Outlook de computador ou de newsletter.
+- Fora do escopo: winmail.dat (TNEF) e convite .ics com botões.
