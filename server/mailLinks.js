@@ -13,7 +13,7 @@ import { canAccessProject } from './routes.js';
 import { gmailFor, mailStatus, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, mapLimit, friendlyMailError } from './googleMail.js';
 import { googleConfigured } from './googleCalendar.js';
 import { createNotification } from './notifications.js';
-import { buildDirectory, classifyThread, linkForViewer, threadFacts, keysOfCompany, groupRows, canReadContent, cleanKey, MARK_KINDS, prettyKey, keyOf, lowerEmail } from './mailLinksCore.js';
+import { buildDirectory, classifyThread, linkForViewer, threadFacts, keysOfCompany, groupRows, canReadContent, cleanKey, MARK_KINDS, prettyKey, keyOf, lowerEmail, domainResembles } from './mailLinksCore.js';
 
 const DIR_TTL = 2 * 60 * 1000;
 const dirCache = new Map(); // orgId -> { at, dir, projects: [{id, cnpj}] , pending }
@@ -236,7 +236,25 @@ router.get('/project/:id', h(async (req, res) => {
   const d = await directoryFor(rows[0].org_id);
   const p = d.src.projects.find((x) => x.id === id);
   let keys = keysOfCompany({ projectEmails: (p && p.emails) || [] });
-  if (p && p.crmCompanyId) keys = new Set([...keys, ...((await companyKeys(rows[0].org_id, p.crmCompanyId)) || [])]);
+  // Sem vínculo com o CRM, usa a empresa do CRM de MESMO CNPJ (a mesma que a faixa "No CRM" já sugere): sem isso a KUHN, com
+  // dezenas de e-mails trocados, aparecia vazia só porque ninguém tinha vinculado na ficha (02/11/2026).
+  let crmId = p && p.crmCompanyId;
+  if (!crmId) {
+    const cnpj = String((rows[0].data && rows[0].data.company && rows[0].data.company.cnpj) || '').replace(/\D/g, '');
+    if (cnpj.length === 14) {
+      const { rows: c } = await pool.query(`SELECT id FROM crm_companies WHERE org_id=$1 AND deleted_at IS NULL AND regexp_replace(cnpj,'\\D','','g')=$2 LIMIT 1`, [rows[0].org_id, cnpj]);
+      crmId = c[0] ? c[0].id : null;
+    }
+  }
+  if (crmId) keys = new Set([...keys, ...((await companyKeys(rows[0].org_id, crmId)) || [])]);
+  // Ainda sem nenhum endereço (empresa sem site, sem contato com e-mail): domínios do índice da equipe que se parecem com o nome
+  // da empresa (kuhn.com ← "KUHN DO BRASIL S/A"), a mesma regra do "Parece ser <empresa>" (§130). Provedor público nunca entra.
+  if (!keys.size) {
+    const co = (rows[0].data && rows[0].data.company) || {};
+    const names = { legalName: co.name || '', tradeName: co.nomeFantasia || '' };
+    const { rows: ks } = await pool.query(`SELECT DISTINCT k FROM mail_thread_index, unnest(keys) AS k WHERE org_id=$1 LIMIT 5000`, [rows[0].org_id]);
+    for (const { k } of ks) if (!k.includes('@') && k.split('.')[0].length >= 3 && domainResembles(k, names)) keys.add(k);
+  }
   res.json(await conversationsFor(req.user, keys));
 }));
 

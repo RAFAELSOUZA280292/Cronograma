@@ -2,10 +2,12 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-598 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+600 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (65)
+## 2026-11-02 (67)
 
+- `3aea519` 20:43 — Docs: linhas das rotas do agendamento (gerado)
+- `97c104c` 20:43 — Link de agendamento: faixas de horário no lugar de expediente + almoço fixo (§139)
 - `32c3951` 20:31 — Link público de agendamento: parceiro vê só livre/ocupado e marca na agenda (§139)
 - `9841104` 20:21 — Lista de empresas sem as transcrições das reuniões; a reunião busca o texto ao abrir e a gravação nunca o apaga (§138)
 - `950134b` 20:20 — Agenda: quadro de cores fecha com clique fora e Esc (§138)

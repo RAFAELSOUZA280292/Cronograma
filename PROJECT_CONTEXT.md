@@ -67,6 +67,7 @@ Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (
   - **Agenda como a do Google, parte 2**: menu lateral (Criar Evento/Tarefa/Ausente, mini-calendário, Reunião com…, Minhas e Outras agendas), cor livre, cor do compromisso, assinar agendas da equipe, busca e RENATA afiada na agenda (§138).
   - **Lista de empresas sem as transcrições** (7,5 MB a menos; a reunião busca o texto ao abrir, gravação protegida) (§138).
   - **Link público de agendamento** (`/agendar/:código`): parceiro vê só livre/ocupado e marca na agenda da pessoa, com e-mails obrigatórios e Meet escolhido (§139).
+  - **Aba E-mails da empresa** acha as conversas sem vínculo com o CRM (mesmo CNPJ ou domínio parecido com o nome) (§139).
   - Cérebro em dia e alarme de frescor (§116zv). **Estado atual e pendências: topo de `docs/00_COMECE_AQUI.md`.**
 
 **Em aberto** (lista única e atual: §15). **Armadilhas que mais pegam** (regras fixas: §16 e §16.1).
@@ -9164,3 +9165,9 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - **Não testado:** Google real (convite chegando aos participantes de fora, Meet criado, horário de verão de outros fusos — a página é sempre em Brasília), Safari/iPhone.
 - **Faixas de horário (20h43, Rafael: "permita editar o horário de almoço ou crie faixas de horários… de até, e de até"):** "Das/Até" + "Bloquear almoço" viraram **faixas** (`settings.ranges`, até 4, padrão 08:00–12:00 e 13:00–18:00); o intervalo entre faixas fica fechado (almoço em qualquer horário). `cleanRanges` ordena, junta as sobrepostas e descarta inválidas (fora de 05:00–23:00 ou com menos de 15 min); configuração antiga (`dayStart`/`dayEnd`/`lunch`) vira faixas na leitura. Cada horário oferecido cabe inteiro numa faixa. Na janela: "+ Adicionar faixa", ✕ para remover e aviso antes de salvar (fim antes do início, nenhuma faixa comporta a duração). Teste puro com 7 casos; HTTP descartável 16/16; navegador local (almoço 12h–13h30, faixa nova, faixa inválida bloqueia o Salvar).
 - **Observação de numeração:** existem duas seções "## 138." (a da Agenda parte 2 e a da lista de empresas sem transcrições, publicadas por sessões diferentes na mesma noite).
+
+## 139. Aba E-mails da empresa (cronograma) vazia sem vínculo com o CRM (2026-11-02, noite; Rafael: "já troquei mais de 20 e-mails com a KUHN, e minha caixa está conectada, pq esse erro bobo?")
+
+- Causa: `GET /api/mail-links/project/:id` só juntava os e-mails cadastrados no cronograma (Áreas/responsáveis/contatos externos) e, **se houvesse vínculo**, os da empresa do CRM. A KUHN do cronograma não tem e-mail cadastrado e não estava vinculada (a faixa "No CRM" mostrava o mesmo CNPJ, mas sem vínculo) → nenhuma chave → aba vazia.
+- Correção (`server/mailLinks.js`): sem vínculo, usa a empresa do CRM de **mesmo CNPJ** (mesma busca da faixa, `client360.js`); e, se ainda não houver chave nenhuma, os domínios do índice da equipe que **se parecem com o nome** da empresa (`domainResembles`, provedor público fora, base ≥ 3 letras).
+- Conferido no servidor local: empresa sem e-mail nem vínculo + conversa no índice com domínio parecido com o nome → a aba traz a conversa. Não visto com a KUHN real (depende de as conversas estarem no índice: abrir a Caixa ou a varredura de 20 em 20 min, 90 dias na 1ª vez).
