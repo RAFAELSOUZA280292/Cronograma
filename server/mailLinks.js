@@ -71,7 +71,7 @@ export async function annotateThreads(user, rawThreads) {
       if (!t) return null;
       const f = threadFacts(t, { headerMap, parseAddressList, hasAttachment: hasAttachmentOf(t) });
       const link = linkForViewer(classifyThread(f, d.dir), { crm, projectIds });
-      if (!link.badge && !link.nag) return null;
+      if (!link.badge && !link.nag && !link.partner) return null;
       return { ...link, nagName: link.nag ? prettyKey(link.nag) : '' };
     });
   } catch (e) {
@@ -330,14 +330,15 @@ export async function radarFor(orgId, { limit = 20 } = {}) {
   for (const r of rows) {
     const cls = classifyThread({ participants: r.participants || [], teamReplied: r.team_replied, hasAttachment: r.has_attachment, subject: r.subject }, d.dir);
     if (!cls.nag) continue;
-    const g = by.get(cls.nag) || { key: cls.nag, name: prettyKey(cls.nag), convs: new Set(), team: new Set(), lastAt: null, subject: '', contacts: [], rowId: null, threads: [] };
+    const g = by.get(cls.nag) || { key: cls.nag, name: prettyKey(cls.nag), convs: new Set(), team: new Set(), lastAt: null, subject: '', contacts: [], rowId: null, threads: [], partner: '' };
+    if (cls.partner && !g.partner) g.partner = cls.partner.name;
     g.convs.add(r.conv_key); g.team.add(r.user_name);
     if (!g.lastAt) { g.lastAt = r.last_at; g.subject = r.subject; g.rowId = String(r.id); }
     g.threads.push({ userId: r.user_id, threadId: r.thread_id });
     for (const p of r.participants || []) if (keyOf(p.email) === cls.nag && g.contacts.length < 3 && !g.contacts.some((c) => c.email === p.email)) g.contacts.push({ name: p.name || '', email: p.email });
     by.set(cls.nag, g);
   }
-  const items = [...by.values()].map((g) => ({ key: g.key, name: g.name, conversations: g.convs.size, team: [...g.team], lastAt: g.lastAt ? new Date(g.lastAt).toISOString() : null, subject: g.subject, contacts: g.contacts, reported: reported.get(g.key) || null, threads: g.threads }));
+  const items = [...by.values()].map((g) => ({ key: g.key, name: g.name, conversations: g.convs.size, team: [...g.team], lastAt: g.lastAt ? new Date(g.lastAt).toISOString() : null, subject: g.subject, contacts: g.contacts, partner: g.partner, reported: reported.get(g.key) || null, threads: g.threads }));
   return { count: items.length, items: items.slice(0, limit) };
 }
 

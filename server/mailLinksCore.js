@@ -180,8 +180,14 @@ export function classifyThread({ participants = [], teamReplied = false, hasAtta
   const order = { crm: 0, empresas: 1, mark: 2 };
   // Ligação "fraca" (domínio de contato que não lembra a empresa) só vale quando não há outro domínio desconhecido na conversa: com a
   // OKUBO desconhecida ao lado, o domínio da Tróia cadastrado na COPLACANA não pode dizer que a conversa é da COPLACANA.
+  // Parceiro (marca "parceiro" ou empresa do CRM com relacionamento Parceiro) em cópia é quem INDICOU, nunca o cliente da conversa: vira a
+  // etiqueta "Indicação · Tróia" e o selo fica com o cliente (ou, se ele ainda não está no CRM, com a faixa amarela dele).
+  const isPartner = (t) => (t.source === 'mark' && t.kind === 'parceiro') || (t.source === 'crm' && t.relationship === 'partner');
+  const partnerHit = known.find((x) => isPartner(x.target));
+  const partner = partnerHit ? { key: partnerHit.key, name: partnerHit.target.name, companyId: partnerHit.target.companyId || null } : null;
   const live = known.filter((x) => !(x.target.source === 'mark' && x.target.kind === 'ignorar'))
     .filter((x) => !(x.target.weak && unknown.length > 0))
+    .filter((x) => !(isPartner(x.target) && (unknown.length > 0 || known.some((y) => !isPartner(y.target) && y.target.source !== 'mark'))))
     .sort((a, b) => order[a.target.source] - order[b.target.source] || (a.target.weak ? 1 : 0) - (b.target.weak ? 1 : 0) || (b.target.dealId ? 1 : 0) - (a.target.dealId ? 1 : 0));
   const main = live[0] || null;
   const realExchange = !!(teamReplied || hasAttachment || PROPOSAL_RE.test(String(subject || '')));
@@ -192,6 +198,7 @@ export function classifyThread({ participants = [], teamReplied = false, hasAtta
   return {
     keys, known: known.map((x) => ({ key: x.key, source: x.target.source })), unknown,
     target: main ? main.target : null, badge: main ? badgeOf(main.target) : null, realExchange, nag,
+    partner: partner && !(main && isPartner(main.target)) ? partner : null,
     ignored: !main && known.length > 0 && known.every((x) => x.target.source === 'mark' && x.target.kind === 'ignorar'),
   };
 }
@@ -202,8 +209,9 @@ export function linkForViewer(cls, { crm = false, projectIds = null } = {}) {
   const t = cls.target;
   const projectId = t && t.projectId && (!projectIds || projectIds.has(t.projectId)) ? t.projectId : null;
   const badge = cls.badge && !crm && t && t.source === 'crm' && t.stage ? { ...cls.badge, text: `${cls.badge.label} · ${cls.badge.name}` } : cls.badge;
+  const partner = cls.partner ? { key: cls.partner.key, name: cls.partner.name, companyId: crm ? cls.partner.companyId : null } : null;
   return {
-    badge, nag: cls.nag, realExchange: cls.realExchange, ignored: cls.ignored,
+    badge, nag: cls.nag, realExchange: cls.realExchange, ignored: cls.ignored, partner,
     companyId: crm && t ? t.companyId || null : null, dealId: crm && t ? t.dealId || null : null, projectId,
   };
 }

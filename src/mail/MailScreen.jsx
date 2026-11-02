@@ -14,7 +14,7 @@ import InviteCard from './InviteCard.jsx';
 import Compose, { fmtSize } from './Compose.jsx';
 import SignatureDialog from './SignatureDialog.jsx';
 import { MoveDialog, RulesDialog, FolderDialog } from './Folders.jsx';
-import { LinkBadge, UnknownBanner, RegisterDeal, mailIntent } from './MailLinks.jsx';
+import { LinkBadge, PartnerTag, UnknownBanner, RegisterDeal, mailIntent } from './MailLinks.jsx';
 import { isTypingTarget } from '../shell/shortcuts.js';
 import { LIMITS, sanitizeView, viewKey, clampList, stepSize, mailKeyAction, neighborId, afterRemoval, removesFrom } from './mailView.js';
 import './mail.css';
@@ -680,7 +680,8 @@ function BulkActions({ folder, onAct, onMove, onClear }) {
 function RowLink({ link }) {
   if (!link) return null;
   if (link.badge && !link.badge.ignored) return <div><LinkBadge link={link} /></div>;
-  if (link.nag) return <div><span className="ml-row-unknown" title={`Empresa fora do CRM: ${link.nag}`}>Fora do CRM · {link.nag}</span></div>;
+  if (link.nag) return <div className="ml-badge-wrap"><span className="ml-row-unknown" title={`Empresa fora do CRM: ${link.nag}`}>Fora do CRM · {link.nag}</span><PartnerTag link={link} /></div>;
+  if (link.partner) return <div><LinkBadge link={link} /></div>;
   return null;
 }
 
@@ -750,7 +751,7 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
         </div>
       </div>
       <h2 className="mail-thread-subject">{data.subject}</h2>
-      {data.link && data.link.badge && !data.link.badge.ignored && <div className="ml-thread-link"><LinkBadge link={data.link} withAction onOpenCrm={onOpenCrm} onOpenProject={onOpenProject} /></div>}
+      {data.link && ((data.link.badge && !data.link.badge.ignored) || (data.link.partner && !data.link.nag)) && <div className="ml-thread-link"><LinkBadge link={data.link} withAction onOpenCrm={onOpenCrm} onOpenProject={onOpenProject} /></div>}
       <UnknownBanner link={data.link} subject={data.subject} messages={data.messages} crmWrite={crmWrite} myName={myName} onRegister={onRegister} onChanged={onLinkChanged} />
       {data.messages.map((m) => (
         <article key={m.id} className={`mail-msg${expanded.has(m.id) ? ' open' : ''}`}>

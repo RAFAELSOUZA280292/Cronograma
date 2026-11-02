@@ -75,7 +75,7 @@ ok('anexo conta como troca real', classifyThread({ participants: [{ email: 'x@no
 ok('palavra de proposta no assunto conta como troca real', classifyThread({ participants: [{ email: 'x@nova.com.br' }], subject: 'Orçamento de serviços' }, empty).nag === 'nova.com.br');
 ok('conversa só interna: nada', (() => { const r = classifyThread({ participants: [me, { email: 'eduarda.costa@pricetax.com.br' }], teamReplied: true }, empty); return !r.nag && !r.badge && r.keys.length === 0; })());
 const withTroia = classifyThread({ ...okuboThread, participants: [...okuboThread.participants, { email: 'joao@troiaconsultoria.onmicrosoft.com' }] }, buildDirectory({ marks }));
-ok('Tróia (parceiro) em cópia não cala a faixa da OKUBO', withTroia.nag === 'okubo.com.br' && withTroia.badge.text === 'Parceiro · Tróia', withTroia);
+ok('Tróia (parceiro) em cópia não cala a faixa da OKUBO', withTroia.nag === 'okubo.com.br' && !withTroia.badge && withTroia.partner.name === 'Tróia', withTroia);
 ok('domínio ignorado: sem faixa', classifyThread({ participants: [{ email: 'a@spam.com.br' }], teamReplied: true }, dir).nag === null && classifyThread({ participants: [{ email: 'a@spam.com.br' }], teamReplied: true }, dir).ignored === true);
 ok('cliente conhecido + desconhecido em cópia: sem faixa', classifyThread({ participants: [{ email: 'ana@kuhn.com.br' }, { email: 'auditor@outra.com.br' }], teamReplied: true }, dir).nag === null);
 
@@ -123,7 +123,15 @@ ok('super admin lê', canReadContent({ id: 'x', isSuperAdmin: true }, []));
   ok('sozinho, o contato ainda aponta a empresa em que está cadastrado', c2.badge && c2.badge.name === 'COPLACANA');
   const dirM = buildDirectory({ companies: [coplacana], contacts: [{ email: 'jhoni@troiaconsultoria.onmicrosoft.com', companyId: 'cop' }], marks: [{ key: 'troiaconsultoria.onmicrosoft.com', kind: 'parceiro', label: 'Tróia' }] });
   const c3 = classifyThread({ participants: parts, teamReplied: true, subject: 'Proposta' }, dirM);
-  ok('marca manual "parceiro" vence o contato do CRM e a OKUBO segue na faixa', c3.badge && c3.badge.text === 'Parceiro · Tróia' && c3.nag === 'okubo.com.br', c3);
+  ok('marca manual "parceiro" vence o contato do CRM e a OKUBO segue na faixa', c3.nag === 'okubo.com.br', c3);
+  ok('parceiro em cópia vira "Indicação", sem tomar o lugar do cliente desconhecido', !c3.badge && c3.partner?.name === 'Tróia' && c3.nag === 'okubo.com.br', c3);
+  const okubo = { id: 'ok', legalName: 'OKUBO MERCANTIL', tradeName: 'OKUBO', website: 'okubo.com.br', relationship: 'client' };
+  const dirO = buildDirectory({ companies: [okubo], marks: [{ key: 'troiaconsultoria.onmicrosoft.com', kind: 'parceiro', label: 'Tróia' }] });
+  const c4 = classifyThread({ participants: parts, teamReplied: true }, dirO);
+  ok('cliente no CRM + parceiro em cópia: selo do cliente e etiqueta da indicação', c4.badge?.text === 'Cliente · OKUBO' && c4.partner?.name === 'Tróia' && !c4.nag, c4);
+  const c5 = classifyThread({ participants: [{ email: 'nelio@troiaconsultoria.onmicrosoft.com' }], teamReplied: true }, dirO);
+  ok('conversa só com o parceiro: selo Parceiro, sem etiqueta repetida', c5.badge?.text === 'Parceiro · Tróia' && !c5.partner, c5);
+  ok('Operações vê a indicação sem id do CRM', linkForViewer(c4, { crm: false }).partner?.name === 'Tróia');
   const kuhn = { id: 'k', legalName: 'KUHN DO BRASIL S/A', tradeName: 'KUHN', relationship: 'client' };
   const dirK = buildDirectory({ companies: [kuhn], contacts: [{ email: 'ana@kuhn.com.br', companyId: 'k' }] });
   ok('domínio que lembra a empresa continua forte ao lado de desconhecido', classifyThread({ participants: [{ email: 'ana@kuhn.com.br' }, { email: 'x@outra.com.br' }], teamReplied: true }, dirK).badge?.name === 'KUHN');

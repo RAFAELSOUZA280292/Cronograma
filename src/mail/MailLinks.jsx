@@ -16,9 +16,16 @@ const DealForm = React.lazy(() => import('../crm/DealForm.jsx'));
 // Conversa a abrir quando a Caixa de e-mail montar (vindo do cockpit; a troca de módulo reescreve o endereço e perde o #conversa=).
 export const mailIntent = { threadId: null };
 
+// Parceiro em cópia (quem indicou): etiqueta ao lado do selo do cliente, nunca no lugar dele.
+export function PartnerTag({ link }) {
+  if (!link || !link.partner) return null;
+  return <span className="ml-badge tone-partner" title={`Indicação do parceiro ${link.partner.name} (${link.partner.key})`}>Indicação · {link.partner.name}</span>;
+}
+
 export function LinkBadge({ link, onOpenCrm, onOpenProject, withAction = false }) {
-  if (!link || !link.badge || link.badge.ignored) return null;
-  const b = link.badge;
+  if (!link) return null;
+  const b = link.badge && !link.badge.ignored ? link.badge : null;
+  if (!b) return link.partner ? <span className="ml-badge-wrap"><PartnerTag link={link} /></span> : null;
   const action = !withAction ? null
     : link.dealId && b.tone === 'lead' && onOpenCrm ? { label: 'Abrir negócio', icon: Briefcase, run: () => onOpenCrm({ dealId: link.dealId }) }
       : link.companyId && onOpenCrm ? { label: 'Abrir empresa', icon: Building2, run: () => onOpenCrm({ companyId: link.companyId }) }
@@ -26,6 +33,7 @@ export function LinkBadge({ link, onOpenCrm, onOpenProject, withAction = false }
   return (
     <span className="ml-badge-wrap">
       <span className={`ml-badge tone-${b.tone}`} title={b.text}>{b.text}</span>
+      <PartnerTag link={link} />
       {action && <Button size="sm" icon={action.icon} onClick={action.run}>{action.label}</Button>}
     </span>
   );
@@ -46,13 +54,13 @@ function peopleOf(messages, key) {
 
 const fmtDay = (iso) => (iso ? new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '');
 
-export function prefillFrom({ key, name, subject, messages, myName, contacts }) {
+export function prefillFrom({ key, name, subject, messages, myName, contacts, partner }) {
   const people = contacts || peopleOf(messages, key);
   const first = people[0] || { name: '', email: '' };
   const last = (messages || [])[messages ? messages.length - 1 : 0];
   return {
-    title: '', source: 'E-mail',
-    description: `Negócio registrado a partir da troca de e-mails "${subject || '(sem assunto)'}"${last && last.date ? `, última mensagem em ${fmtDay(last.date)}` : ''}, conduzida por ${myName || 'equipe PRICETAX'}. Contatos no e-mail: ${people.map((p) => (p.name ? `${p.name} <${p.email}>` : p.email)).join(', ') || key}.`,
+    title: '', source: partner ? 'parceiro' : 'E-mail',
+    description: `${partner ? `Indicação do parceiro ${partner}. ` : ''}Negócio registrado a partir da troca de e-mails "${subject || '(sem assunto)'}"${last && last.date ? `, última mensagem em ${fmtDay(last.date)}` : ''}, conduzida por ${myName || 'equipe PRICETAX'}. Contatos no e-mail: ${people.map((p) => (p.name ? `${p.name} <${p.email}>` : p.email)).join(', ') || key}.`,
     quick: { companyName: name || key, contactName: first.name, email: first.email, companyData: key.includes('@') ? undefined : { website: key } },
   };
 }
@@ -63,6 +71,7 @@ export function UnknownBanner({ link, subject, messages, crmWrite, myName, onReg
   if (!link || !link.nag) return null;
   const key = link.nag;
   const name = link.nagName || key;
+  const partnerName = link.partner ? link.partner.name : '';
 
   async function mark(kind) {
     let label = name;
@@ -89,7 +98,7 @@ export function UnknownBanner({ link, subject, messages, crmWrite, myName, onReg
 
   async function won() {
     const ok = await askConfirm({ title: 'Registrar direto como negócio ganho?', message: 'Não é o recomendado: o negócio pula as etapas do funil e a empresa passa a Cliente. Prefira "Registrar novo negócio" e avançar as etapas. Continuar mesmo assim?', confirmLabel: 'Registrar como ganho', cancelLabel: 'Voltar' });
-    if (ok) onRegister({ won: true, prefill: prefillFrom({ key, name, subject, messages, myName }) });
+    if (ok) onRegister({ won: true, prefill: prefillFrom({ key, name, subject, messages, myName, partner: partnerName }) });
   }
 
   return (
@@ -98,6 +107,7 @@ export function UnknownBanner({ link, subject, messages, crmWrite, myName, onReg
       <div className="ml-nag-body">
         <div className="ml-nag-title">Empresa fora do CRM: {key}</div>
         <div className="ml-nag-text">
+          {partnerName && <strong>Indicação de {partnerName}. </strong>}
           {crmWrite ? 'A equipe está trocando e-mails com uma empresa que não está no CRM nem no módulo Empresas. Registre para o negócio não se perder.'
             : reported ? 'Comercial avisado. A Eduarda e os sócios recebem o aviso e decidem o registro.'
               : 'A equipe está trocando e-mails com uma empresa que não está no CRM nem no módulo Empresas. Avise o comercial para registrar.'}
@@ -105,7 +115,7 @@ export function UnknownBanner({ link, subject, messages, crmWrite, myName, onReg
         <div className="ml-nag-actions">
           {crmWrite ? (
             <>
-              <Button size="sm" variant="primary" icon={Plus} onClick={() => onRegister({ won: false, prefill: prefillFrom({ key, name, subject, messages, myName }) })}>Registrar novo negócio</Button>
+              <Button size="sm" variant="primary" icon={Plus} onClick={() => onRegister({ won: false, prefill: prefillFrom({ key, name, subject, messages, myName, partner: partnerName }) })}>Registrar novo negócio</Button>
               <Button size="sm" icon={Trophy} onClick={won}>Registrar como negócio ganho</Button>
               <Button size="sm" icon={Handshake} loading={busy === 'parceiro'} onClick={() => mark('parceiro')}>É parceiro</Button>
               <Button size="sm" icon={Building2} loading={busy === 'fornecedor'} onClick={() => mark('fornecedor')}>É fornecedor</Button>
@@ -247,11 +257,12 @@ export function MailRadarBlock({ currentUserId, onOpenMail }) {
             <li key={it.key} className="ml-item">
               <div className="ml-item-main">
                 <div className="ml-item-top"><span className="ml-subject">{it.name} <span className="ml-meta">({it.key})</span></span><span className="ml-date">{fmtWhen(it.lastAt)}</span></div>
+                {it.partner && <div className="ml-meta">Indicação de {it.partner}</div>}
                 <div className="ml-meta">“{it.subject || '(sem assunto)'}” · {it.conversations} conversa{it.conversations === 1 ? '' : 's'} · {it.team.join(', ')}</div>
                 {it.reported && <div className="ml-meta">Avisado por {it.reported.by} em {fmtWhen(it.reported.at)}</div>}
               </div>
               <div className="ml-radar-actions">
-                <Button size="sm" variant="primary" icon={Plus} onClick={() => setRegister({ won: false, prefill: prefillFrom({ key: it.key, name: it.name, subject: it.subject, contacts: it.contacts, myName: it.team.join(', ') }) })}>Registrar</Button>
+                <Button size="sm" variant="primary" icon={Plus} onClick={() => setRegister({ won: false, prefill: prefillFrom({ key: it.key, name: it.name, subject: it.subject, contacts: it.contacts, myName: it.team.join(', '), partner: it.partner }) })}>Registrar</Button>
                 {it.myThreadId && onOpenMail && <Button size="sm" icon={Mail} onClick={() => { mailIntent.threadId = it.myThreadId; onOpenMail(); }}>Abrir e-mail</Button>}
                 <Button size="sm" icon={Handshake} onClick={() => partner(it)}>Parceiro</Button>
                 <Button size="sm" icon={X} onClick={() => ignore(it)}>Ignorar</Button>
