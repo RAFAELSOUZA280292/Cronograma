@@ -2,7 +2,7 @@
 // na prévia da citação e da assinatura (src/mail/Compose.jsx).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-const FRAME_CSS = 'html,body{margin:0;padding:0;background:#fff;color:#1f2937}body{padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.45;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}blockquote{margin:0 0 0 6px;padding-left:10px;border-left:2px solid #d1d5db;color:#4b5563}a{color:#1d4ed8}';
+const FRAME_CSS = 'html,body{margin:0;padding:0;background:#fff;color:#1f2937}body{padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.45;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}blockquote{margin:0 0 0 6px;padding-left:10px;border-left:2px solid #d1d5db;color:#4b5563}a{color:#1d4ed8}html,body{height:auto!important;min-height:0!important}';
 
 // iframe sem script: allow-same-origin só para medir a altura do conteúdo (sem allow-scripts nada roda lá dentro).
 export default function MailFrame({ html, title = 'Conteúdo do e-mail', minHeight = 60 }) {

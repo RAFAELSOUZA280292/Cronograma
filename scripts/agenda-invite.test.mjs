@@ -175,6 +175,14 @@ ok('responder com nota e proposta de novo horário', () => {
   assert.match(parseRange({ start: '2026-11-04T00:00:00Z', end: '2026-11-05T00:00:00Z' }).error, /12 horas/);
 });
 
+ok('editar mantém a sala reservada e quem editou (não estão no formulário)', () => {
+  const cur = { attendees: [{ email: 'sala-1@resource.calendar.google.com', resource: true, responseStatus: 'accepted' }, { email: 'eu@pricetax.com.br', self: true, responseStatus: 'accepted' }, { email: 'ana@x.com', responseStatus: 'accepted' }] };
+  const { requestBody } = composePatch(cur, { summary: 'Novo título', attendees: [{ email: 'ana@x.com' }, { email: 'bia@y.com' }] });
+  const emails = requestBody.attendees.map((x) => x.email);
+  assert.deepEqual(emails.sort(), ['ana@x.com', 'bia@y.com', 'eu@pricetax.com.br', 'sala-1@resource.calendar.google.com']);
+  assert.equal(requestBody.attendees.find((x) => x.email === 'ana@x.com').responseStatus, 'accepted');
+});
+
 // Prazo das leituras da Agenda (02/11/2026): fonte que não responde vira aviso, não tela girando para sempre.
 {
   let msg = '';

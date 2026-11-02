@@ -313,7 +313,7 @@ export function cleanSignature(input) {
 
 export function signatureHasContent(sig) {
   if (!sig) return false;
-  if (sig.mode === 'image') return !!(sig.image || sig.closing);
+  if (sig.mode === 'image' && sig.image) return true;
   return !!(sig.closing || SIGNATURE_FIELDS.some((k) => sig[k]) || sig.image);
 }
 
@@ -332,8 +332,9 @@ export function signatureHtml(sig, { logoSrc = `cid:${LOGO_CID}`, imageSrc = `ci
     rows.push(td('font-size:13px;line-height:18px;color:#222222;padding:0 0 8px 0',
       sig.closingBold ? `<strong style="${FONT};font-size:13px;color:#111111">${escapeHtml(sig.closing)}</strong>` : escapeHtml(sig.closing)));
   }
-  if (sig.mode === 'image') {
-    if (img) rows.push(img.replace('padding:0 0 8px 0', 'padding:0'));
+  // Tipo Imagem sem banner salvo cai no texto (nome e contatos): senão o e-mail saía só com "Atenciosamente,".
+  if (sig.mode === 'image' && img) {
+    rows.push(img.replace('padding:0 0 8px 0', 'padding:0'));
     return `<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;${FONT};color:#222222">${rows.join('')}</table>`;
   }
   if (img && sig.imagePos === 'top') rows.push(img);
@@ -357,7 +358,7 @@ export function signatureHtml(sig, { logoSrc = `cid:${LOGO_CID}`, imageSrc = `ci
 
 export function signatureText(sig) {
   if (!signatureHasContent(sig)) return '';
-  if (sig.mode === 'image') return [sig.closing, (sig.image && sig.image.alt) || ''].filter(Boolean).join('\n');
+  if (sig.mode === 'image' && sig.image) return [sig.closing, sig.image.alt || ''].filter(Boolean).join('\n');
   return [sig.closing, sig.name, sig.role, sig.logo !== false ? 'PriceTax' : '', [sig.phone && `Tel. ${sig.phone}`, sig.mobile && `Cel. ${sig.mobile}`].filter(Boolean).join(' | '),
     [sig.email, sig.site].filter(Boolean).join(' | '), sig.extra].filter(Boolean).join('\n');
 }
@@ -380,7 +381,7 @@ export function composeBody({ html, signature, quote }) {
   const sigText = signature ? signatureText(signature) : '';
   const text = [htmlToText(userHtml), sigText ? `-- \n${sigText}` : '', quote ? quote.text : ''].filter(Boolean).join('\n\n');
   const images = extracted.images.filter((i) => userHtml.includes(`cid:${i.cid}`));
-  return { html: doc, text, usesLogo: !!sigHtml && signature.mode !== 'image' && signature.logo !== false, usesSigImage: !!sigHtml && !!signature.image, images };
+  return { html: doc, text, usesLogo: !!sigHtml && !(signature.mode === 'image' && signature.image) && signature.logo !== false, usesSigImage: !!sigHtml && !!signature.image, images };
 }
 
 // --- MIME --------------------------------------------------------------------------

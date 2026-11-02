@@ -1429,8 +1429,8 @@ function AppScreens({ shellRef, bump }) {
           else if (uuid.test(q.get('empresa') || '')) setPendingCrmOpen({ companyId: q.get('empresa') });
         }
         setWorkspaceMode(mode);
-        // A Caixa de e-mail lê o #google-mail-connected/#google-mail-error do retorno do Google: o hash precisa sobreviver.
-        window.history.replaceState({ navTag: modeForTag(mode) }, '', pathForMode(mode) + (mode === 'mail' || mode === 'whatsapp' ? window.location.hash : ''));
+        // A Caixa de e-mail lê o #google-mail-connected/#google-mail-error e a Agenda o #agenda-account-… do retorno do login: o hash precisa sobreviver.
+        window.history.replaceState({ navTag: modeForTag(mode) }, '', pathForMode(mode) + (mode === 'mail' || mode === 'whatsapp' || mode === 'agenda' ? window.location.hash : ''));
       } else {
         window.history.replaceState({ navTag: 'gate' }, '', '/');
         notify('Você não tem acesso a essa área do painel. Se precisar, peça acesso a um administrador.', { tone: 'error', ttlMs: 9000 });

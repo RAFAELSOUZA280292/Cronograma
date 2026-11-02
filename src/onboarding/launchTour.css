@@ -44,3 +44,6 @@
   .lt-steps li span { font-size: 11px; }
   .lt-head, .lt-body, .lt-foot { padding-left: 16px; padding-right: 16px; }
 }
+.lt-foot-left { display: flex; align-items: center; gap: 14px; }
+.lt-logout { color: var(--text-5); font-weight: 500; text-decoration: none; }
+.lt-logout:hover { color: var(--text-2); text-decoration: underline; }

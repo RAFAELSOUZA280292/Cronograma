@@ -61,6 +61,7 @@ Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (
   - **Boas-vindas obrigatória das novidades** (4 passos sem pular: novidades, conectar e-mail e agenda, assinatura, como trabalhar) e **RENATA treinada no painel** (§132).
   - **Agenda nunca fica "carregando" para sempre**: prazo em cada leitura (Google, CRM) e na tela, com aviso do que não carregou (§133).
   - **Agenda travava a página** (cor do compromisso chamava a si mesma em atividade do CRM/TASK): corrigido (§134).
+  - **Checagem geral antes do 03/11**: 4 revisões de código, registros, testes; 11 defeitos corrigidos em Agenda, E-mail, CRM e boas-vindas (§135).
   - Cérebro em dia e alarme de frescor (§116zv). **Estado atual e pendências: topo de `docs/00_COMECE_AQUI.md`.**
 
 **Em aberto** (lista única e atual: §15). **Armadilhas que mais pegam** (regras fixas: §16 e §16.1).
@@ -9094,3 +9095,14 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - **Causa real** (a §133 tratou só a espera do servidor): em `src/agenda/Agenda.jsx`, desde as agendas extras (§128, `73b4cdf`), `const colorOf = (ev) => ev.color || colorOf(ev)` chamava a si mesma em todo item **sem cor própria** — atividade do CRM, TASK do XFlow, atividade de empresa. Com uma atividade do CRM na semana (Smart01, DeLaval), a grade estourava a pilha a cada desenho e o Safari dava "a página não está respondendo"; quem só tinha eventos do Google (que vêm com a cor da conta) não via o problema.
 - Correção: `ev.color || SOURCE_META[ev.source].color || '#999'` (a cor por origem que já existia). Varredura no projeto por outras funções `const f = (…) => … f(…)` sem caso de parada: nenhuma.
 - Conferido no navegador local com eventos simulados do Google, CRM e XFlow (dia inteiro, atravessando a meia-noite, fim antes do começo) nas visões Semana, Dia e Mês: tudo aparece, sem travar. **Confirmado pelo Rafael em produção** ("Abriu certinho", 02/11, ~19h).
+
+## 135. Checagem geral antes do 03/11 (2026-11-02, noite; Rafael: "amanhã o pau vai torar… preciso que funcione agenda, calendário, e-mail, painel de empresas, botão de gravar, consultar, editar… o que mais você implementou que pode quebrar?")
+
+- **Método:** lista das ~45 publicações de funcionamento desde 01/11 20h; registros da Railway (erros de servidor e `[client-error]`) das 10 últimas publicações; 4 revisões de código em paralelo (Agenda, E-mail, Empresas/app, CRM/RENATA) caçando só o que quebra em uso real; suíte inteira, auditorias e testes de fluxo (Playwright); telas principais abertas no navegador local.
+- **Registros:** nenhum erro de servidor nas 10 publicações. O travamento da Agenda (§134) **não** apareceu como `[client-error]` — o vigia atual não pega página travada. `GET /api/projects` está com **17,9 MB** por carga (1,3 s no servidor): risco de lentidão com a equipe toda e no celular (item E4 do §15).
+- **Corrigido agora:**
+  - Agenda: compromisso de dia inteiro não mostra mais "Editar" (salvar dava erro de duração ou virava evento no dia anterior); editar reunião do Google mantém a sala reservada e quem editou (`composePatch`); o aviso de "agenda conectada" volta a aparecer (o `#agenda-account-…` sobrevive no `App.jsx`).
+  - E-mail: nome com vírgula ("Souza, Rafael") vai entre aspas e não bloqueia mais responder/encaminhar; Enviar durante a gravação do rascunho usa o estado mais recente (sem rascunho sobrando); renomear pasta com cor do Gmail não manda a cor; assinatura de quem não salvou nasce Texto e tipo Imagem sem banner cai no texto (nunca só "Atenciosamente,"); newsletter com `body{height:100%}` não cresce mais até 20.000 px.
+  - CRM: a regra do convite com Meet só roda quando a edição mexe no convite (trocar o título de uma reunião antiga não é barrado); "Revisar com a RENATA" num arquivo ilegível responde 422 com o motivo.
+  - Boas-vindas (§132): ganhou **"Sair da conta"** (não pula: ela volta no próximo login) para quem travar no Google não ficar preso no painel.
+- **Ficou para depois (não quebra, registrado):** encaminhar não leva as imagens coladas no corpo do original; "Propor novo horário" em convite de dia inteiro vem com o dia anterior às 21h; falha de renovação da Microsoft numa ação responde 500 em vez de "reconecte"; Cofre muda o `updated_at` da empresa aberta (a fusão do navegador resolve); clique num e-mail dentro de formulário com edição não salva leva ao E-mail sem perguntar; coluna vazia movida em duas abas pode sumir (`boardMerge`).

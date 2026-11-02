@@ -141,7 +141,7 @@ ok('tamanho soma buffers e metadados', attachmentsSize([{ data: Buffer.alloc(10)
   ok('imagem: não anexa o logo', composeBody({ html: '<p>x</p>', signature: bi, quote: null }).usesLogo === false);
   const plain = signatureHtml(cleanSignature({ mode: 'image', closing: 'Abraço,', image: img }));
   ok('despedida sem negrito', /Abraço,/.test(plain) && !/<strong[^>]*>Abraço/.test(plain));
-  ok('imagem sem banner nem despedida = nada', signatureHtml(cleanSignature({ mode: 'image', name: 'Rafael' })) === '');
+  ok('tipo imagem sem banner cai no texto (nome aparece)', /Rafael/.test(signatureHtml(cleanSignature({ mode: 'image', name: 'Rafael' }))));
   const tx = signatureHtml(cleanSignature({ mode: 'text', closing: 'Att.,', name: 'Rafael' }));
   ok('texto: despedida antes do nome', tx.indexOf('Att.,') < tx.indexOf('Rafael'));
 }

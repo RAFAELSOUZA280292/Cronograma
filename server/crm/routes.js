@@ -254,8 +254,15 @@ export function createCrmRouter({ auth = [requireAuth] } = {}) {
   // Revisar com a RENATA um anexo do negócio (botão no anexo da nota): grava a revisão como nota no negócio (§131).
   router.post('/deals/:id/attachments/review', need('write'), h(async (req, res) => {
     S.requireUuid(req.params.id, 'Negócio');
-    const r = await reviewDealAttachment({ orgId: orgOf(req), dealId: req.params.id, anexoId: String((req.body || {}).anexoId || ''), withFiles: crmCan(req.user, 'export'), client: await renataClient(),
-      actor: { id: req.user.id, name: `RENATA (a pedido de ${req.user.name || req.user.username})`, viaApi: true } });
+    let r;
+    try {
+      r = await reviewDealAttachment({ orgId: orgOf(req), dealId: req.params.id, anexoId: String((req.body || {}).anexoId || ''), withFiles: crmCan(req.user, 'export'), client: await renataClient(),
+        actor: { id: req.user.id, name: `RENATA (a pedido de ${req.user.name || req.user.username})`, viaApi: true } });
+    } catch (e) {
+      // Arquivo que não dá para ler (escaneado sem IA disponível, grande demais, corrompido): explica em vez do 500 genérico.
+      if (e instanceof CrmError) throw e;
+      throw new CrmError(422, e && e.message ? `Não consegui ler este arquivo: ${e.message}` : 'Não consegui ler este arquivo.');
+    }
     if (r.status === 404) throw new CrmError(404, r.message);
     res.status(201).json({ noteId: r.noteId, erros: r.review.erros.length + r.language.filter((x) => x.certeza === 'erro').length, verificar: r.review.verificar.length + r.language.filter((x) => x.certeza !== 'erro').length, leitura: r.leitura, aviso: r.languageSkipped || '' });
   }));

@@ -37,7 +37,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/companyCalendarPlan.js` | 101 | Reservar na agenda (2026-10-19, pedido do Rafael): cada ATIVIDADE do cronograma da empresa vira UM bloco de agenda (padrão de call: 60 min) para a equipe PRICETAX. |
 | `server/companyShare.js` | 197 | Link público de acompanhamento da empresa (2026-10-19, pedido do Rafael): o cliente abre o link SEM login e vê Resumo, Cronograma (Gantt com subatividades) e Tabela, só leitura. |
 | `server/connect.js` | 977 | API de conectividade (2026-10-05, §80): permite que OUTRA janela do Claude Code (ou qualquer script) leia o painel e crie atividades |
-| `server/crm/activities.js` | 281 | CRM — atividades e follow-ups (Fase 3, 2026-09-20, PROJECT_CONTEXT.md §56). |
+| `server/crm/activities.js` | 283 | CRM — atividades e follow-ups (Fase 3, 2026-09-20, PROJECT_CONTEXT.md §56). |
 | `server/crm/activityQueries.js` | 103 | CRM — consultas de atividades (Fase 3). Somente leitura. |
 | `server/crm/agendaFeed.js` | 23 | CRM — atividades em aberto do usuário como eventos da Agenda existente |
 | `server/crm/attachmentReader.js` | 214 | Leitura dos anexos dos negócios do CRM pela RENATA e revisão de proposta (2026-11-02, §131). Só leitura do anexo: nada é alterado no arquivo. |
@@ -71,7 +71,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/crm/products.js` | 99 | CRM — catálogo de produtos/serviços (Fase 2). Sem timeline (não pertence a uma |
 | `server/crm/projectSummary.js` | 38 | Resumo SOMENTE-LEITURA de um projeto do cronograma pra ficha da empresa do |
 | `server/crm/queries.js` | 255 | CRM — consultas (somente leitura). Ver service.js pras escritas. |
-| `server/crm/routes.js` | 293 | CRM PRICETAX — rotas (/api/crm). Fase 1 (2026-09-20, PROJECT_CONTEXT.md §54). |
+| `server/crm/routes.js` | 300 | CRM PRICETAX — rotas (/api/crm). Fase 1 (2026-09-20, PROJECT_CONTEXT.md §54). |
 | `server/crm/scheduler.js` | 58 | CRM — agendador de lembretes (Fase 3, 2026-09-20, PROJECT_CONTEXT.md §56). |
 | `server/crm/service.js` | 693 | CRM PRICETAX — camada de serviço (Fase 1, 2026-09-20, PROJECT_CONTEXT.md §54). |
 | `server/crm/text.js` | 90 | Normalizações de texto compartilhadas pelo CRM (busca, duplicidade, import). |
@@ -95,7 +95,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/experience.js` | 137 | Experiência de uso (§97): eventos de FLUXO (nome, resultado, duração, rota de erro) e nota de satisfação de 1 clique. Só equipe é medida |
 | `server/gaps.js` | 232 | Lacunas entre cronogramas (Etapa 4 do plano, 2026-10-08; pedido do Felipe: "levantamento de tudo que temos de atividades ... para |
 | `server/google.js` | 91 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
-| `server/googleCalendar.js` | 474 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
+| `server/googleCalendar.js` | 477 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
 | `server/googleMail.js` | 299 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
 | `server/homePrefs.js` | 31 | Tela inicial personalizável e barra de favoritos (2026-11-02, §126): GET/PUT /api/home-prefs. Cada pessoa lê e grava só a |
 | `server/icalFeed.js` | 311 | Agenda por link iCal, só leitura (§128, 2026-11-02): o "endereço secreto no formato iCal" do Google Agenda, o "publicar agenda" do |
@@ -114,7 +114,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/loginLimit.js` | 49 | Limite de tentativas de login (A2, 2026-10-29). Em memória: reinicia com o servidor, o que basta para barrar tentativa em série. |
 | `server/macro.js` | 128 | Visão Macro (2026-08) — quadro de cronograma geral pra controle interno: |
 | `server/mail.js` | 684 | Rotas da Caixa de e-mail (2026-11-02, Fase 1). Só leitura e organização do Gmail da própria pessoa: cada chamada usa o |
-| `server/mailCompose.js` | 492 | Caixa de e-mail, Fase 2 (2026-11-02): montar o e-mail que SAI do painel. Tudo aqui é puro (testado em |
+| `server/mailCompose.js` | 493 | Caixa de e-mail, Fase 2 (2026-11-02): montar o e-mail que SAI do painel. Tudo aqui é puro (testado em |
 | `server/mailLinks.js` | 435 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras puras em server/mailLinksCore.js; tabelas em server/mailLinksSchema.js. |
 | `server/mailLinksCore.js` | 325 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras PURAS (sem banco, sem Gmail): de cada participante externo sai uma |
 | `server/mailLinksSchema.js` | 65 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Só aditivo; chamado por initDb(). O índice guarda SÓ metadados (ids, assunto, |
@@ -225,14 +225,14 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 | `shared/workRoles.js` | 104 | Papéis de trabalho (2026-11-02, pedido do Rafael: valem a partir de 03/11). Convivem com o perfil técnico (`role`: master/pricetax/cliente), |
 
-## `src/` — 226 arquivos
+## `src/` — 227 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
 | `src/App.jsx` | 3753 |  |
 | `src/agenda/AccountsDialog.jsx` | 177 | "Minhas agendas" (§128, 2026-11-02): a agenda principal (Google) + as extras da pessoa — outra conta Google, Microsoft 365/Outlook.com |
-| `src/agenda/Agenda.jsx` | 635 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
-| `src/agenda/EventDetail.jsx` | 206 | Detalhe do compromisso do Google dentro do painel (2026-11-02, "nunca mais abrir o Google Agenda"): Meet, participantes com a |
+| `src/agenda/Agenda.jsx` | 616 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
+| `src/agenda/EventDetail.jsx` | 207 | Detalhe do compromisso do Google dentro do painel (2026-11-02, "nunca mais abrir o Google Agenda"): Meet, participantes com a |
 | `src/agenda/NewEventModal.jsx` | 337 | "Novo compromisso" e "Editar" da Agenda (Onda 5, §81; edição, Meet, lembrete e sugestão de contatos em 2026-11-02). Grava no Google |
 | `src/agenda/RenataAgendaBriefing.jsx` | 708 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
 | `src/agenda/RsvpButtons.jsx` | 29 | Aceitar / Talvez / Recusar — botões compactos; a resposta atual aparece marcada (aria-pressed). `labels` troca os textos |
@@ -240,6 +240,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/agenda/agendaActions.js` | 90 | Ações da Agenda (Onda 5, §81): responder convite do Google e criar compromisso. Sem JSX; o servidor é |
 | `src/agenda/agendaPrefs.js` | 59 | Preferências pessoais da leitura da agenda (2026-09-20, pedido do Rafael): o EXPEDIENTE (padrão 08:00–18:00) |
 | `src/agenda/dayLoad.js` | 188 | Leitura da agenda (2026-09-20, pedido do Rafael): deixar claro o que ele ACEITOU, o que está |
+| `src/agenda/weekLayout.js` | 140 | Montagem da grade da Agenda no padrão do Google Agenda (03/11/2026, print do Rafael: "os eventos de um dia invadem o dia do outro"). |
 | `src/app/companyActivityActions.js` | 361 | Ações sobre as atividades de uma empresa (criar, editar, excluir, subatividades, anexos, comentários, links e participantes). |
 | `src/app/companyAdminActions.js` | 161 | Ações de administração de empresas (criar, criar grupo, clonar, excluir e editar campos). |
 | `src/app/meetingActions.js` | 402 | Ações sobre reuniões e tarefas de reunião (criar/editar, compartilhar, participantes, tarefas, vínculo com atividade, subtarefas, comentários e anexos). |
@@ -344,8 +345,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/macro/StandardPlan.jsx` | 115 | Aba "Padrão" da Visão Geral (2026-10-15): aplica nas empresas que já existem o padrão de cronograma aprimorado (descrições melhores, subatividades e as |
 | `src/macro/StandardPlanBar.jsx` | 226 | Faixa do cronograma padrão (2026-10-19), no alto da tela de empresa quando o que está aberto é o padrão: versão atual, estado do rascunho, kickoff de referência, |
 | `src/macro/macro.css` | 172 | Visão Geral no celular (Onda 6, §81). Desktop idêntico ao de antes; o que muda está sob @media (max-width: 767px): |
-| `src/mail/Compose.jsx` | 553 | Janela de escrita da Caixa de e-mail (2026-11-02, Fase 2): novo, responder, responder a todos e encaminhar. No computador |
-| `src/mail/Folders.jsx` | 177 | Pastas e regras da Caixa de e-mail (2026-11-02, pacote de produtividade). "Pasta" = marcador do Gmail: mover põe a pasta e |
+| `src/mail/Compose.jsx` | 558 | Janela de escrita da Caixa de e-mail (2026-11-02, Fase 2): novo, responder, responder a todos e encaminhar. No computador |
+| `src/mail/Folders.jsx` | 178 | Pastas e regras da Caixa de e-mail (2026-11-02, pacote de produtividade). "Pasta" = marcador do Gmail: mover põe a pasta e |
 | `src/mail/InviteCard.jsx` | 141 | Cartão de convite de reunião na leitura do e-mail (2026-11-02): convite novo ou alterado, cancelamento, resposta de alguém e |
 | `src/mail/MailFrame.jsx` | 34 | Corpo de e-mail desenhado num iframe sem script (sandbox), com o HTML já higienizado no servidor. Usado na leitura, |
 | `src/mail/MailLinks.jsx` | 344 | E-mail ligado ao CRM e às Empresas (§130). Selo da conversa ("Cliente · KUHN", "Lead · OKUBO · Proposta", "Parceiro · Tróia"), |
@@ -375,8 +376,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/meetings/todoUtils.js` | 56 | Utilitários pequenos e sem estado, compartilhados entre TodoBoard.jsx e |
 | `src/modelos/Modelos.jsx` | 659 | Modelos de documentos (2026-10-05, §78) — aba irmã dos Pareceres: biblioteca de modelos para sócios e colaboradores. Um modelo |
 | `src/modelos/modelosMeta.js` | 124 | Modelos de documentos (2026-10-05, §78) — tipos, ícones e CSS próprio do módulo (prefixo mdl-, em cima do par- dos Pareceres). |
-| `src/onboarding/LaunchTour.jsx` | 162 | Boas-vindas obrigatória de lançamento (03/11/2026, shared/launchTour.js). Quatro passos, sem "pular", sem Esc: |
-| `src/onboarding/launchTour.css` | 47 | Boas-vindas obrigatória de lançamento (src/onboarding/LaunchTour.jsx). Acima do app (250), abaixo dos diálogos (300) e avisos (400). */ |
+| `src/onboarding/LaunchTour.jsx` | 167 | Boas-vindas obrigatória de lançamento (03/11/2026, shared/launchTour.js). Quatro passos, sem "pular", sem Esc: |
+| `src/onboarding/launchTour.css` | 50 | Boas-vindas obrigatória de lançamento (src/onboarding/LaunchTour.jsx). Acima do app (250), abaixo dos diálogos (300) e avisos (400). */ |
 | `src/onboarding/useLaunchTour.jsx` | 20 | Mesma ideia de src/daily/useWelcomeSetup.jsx: raiz React própria, por cima de qualquer tela. Espera a boas-vindas do dia |
 | `src/opsintel/AccessMap.jsx` | 43 | Mapa interativo dos acessos. Cada ponto é o CENTRO DA CIDADE informado pelo IP (aproximado), com um círculo de margem de |
 | `src/opsintel/OpsIntelScreen.jsx` | 406 |  |

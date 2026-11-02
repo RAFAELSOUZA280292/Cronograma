@@ -78,6 +78,7 @@ export default function LaunchTour({ user, onDone }) {
 
   const first = (user.name || '').split(' ')[0] || user.username;
   const crm = !!user.crmAccess;
+  const logout = () => { apiPost('/api/auth/logout').catch(() => {}).finally(() => { window.location.href = '/'; }); };
   return (
     <div className="lt-overlay" {...dlg} aria-label="Boas-vindas às novidades do painel">
       <div className="lt">
@@ -148,7 +149,11 @@ export default function LaunchTour({ user, onDone }) {
         </div>
 
         <div className="lt-foot">
-          {step > 0 ? <button type="button" className="lt-btn ghost" onClick={() => setStep(step - 1)} disabled={busy} title={busy ? 'Aguarde terminar' : undefined}>Voltar</button> : <span />}
+          <div className="lt-foot-left">
+            {step > 0 && <button type="button" className="lt-btn ghost" onClick={() => setStep(step - 1)} disabled={busy} title={busy ? 'Aguarde terminar' : undefined}>Voltar</button>}
+            {/* Não é "pular": a boas-vindas volta no próximo login. É a saída de quem travou (Google recusou, sem internet) e precisa trocar de conta. */}
+            <button type="button" className="lt-link lt-logout" onClick={logout} disabled={busy} title={busy ? 'Aguarde terminar' : undefined}>Sair da conta</button>
+          </div>
           {step === 0 && <button type="button" className="lt-btn" onClick={() => setStep(1)}>Vamos lá <ArrowRight size={16} aria-hidden="true" /></button>}
           {step === 1 && <button type="button" className="lt-btn" onClick={() => setStep(2)} disabled={!connectedOk} title={connectedOk ? undefined : 'Conecte o e-mail e a agenda para continuar'}>Continuar <ArrowRight size={16} aria-hidden="true" /></button>}
           {step === 2 && <button type="button" className="lt-btn" onClick={() => setStep(3)} disabled={!sigOk} title={sigOk ? undefined : 'Salve a assinatura para continuar'}>Continuar <ArrowRight size={16} aria-hidden="true" /></button>}

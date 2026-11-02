@@ -267,7 +267,7 @@ async function readSignature(user) {
   const { rows } = await pool.query("SELECT preferences->'mail'->'signature' AS sig FROM users WHERE id=$1", [user.id]);
   const saved = rows[0] && rows[0].sig;
   if (saved) return { signature: cleanSignature(saved), saved: true };
-  return { signature: cleanSignature({ mode: 'image', closing: 'Atenciosamente,', name: user.name || '', email: user.email || '', site: 'www.pricetax.com.br' }), saved: false };
+  return { signature: cleanSignature({ mode: 'text', closing: 'Atenciosamente,', name: user.name || '', email: user.email || '', site: 'www.pricetax.com.br' }), saved: false };
 }
 
 const LOGO_URL = '/api/mail/signature/logo.png';

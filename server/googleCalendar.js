@@ -294,6 +294,9 @@ export function composePatch(cur, body, opts = {}) {
   if (!opts.keepGuests) {
     const keep = new Map(((cur && cur.attendees) || []).map((a) => [String(a.email || '').toLowerCase(), a]));
     requestBody.attendees = (body.attendees || []).map((a) => keep.get(String(a.email).toLowerCase()) || a);
+    // Sala reservada (resource) e a própria pessoa (self) não aparecem no formulário: sem isto, editar liberava a sala e tirava quem editou.
+    const sent = new Set(requestBody.attendees.map((a) => String(a.email || '').toLowerCase()));
+    for (const a of (cur && cur.attendees) || []) if ((a.resource || a.self) && !sent.has(String(a.email || '').toLowerCase())) requestBody.attendees.push(a);
   }
   return { requestBody, hasMeet };
 }

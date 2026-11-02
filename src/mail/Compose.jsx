@@ -31,7 +31,9 @@ export function fmtSize(n) {
 }
 
 const AUTOSAVE_MS = 3000;
-const addrText = (list) => (list || []).map((p) => (p.name ? `${p.name} <${p.email}>` : p.email)).join(', ');
+// Nome com vírgula, ponto e vírgula ou aspas vai entre aspas ("Souza, Rafael" <r@x>): sem isso a vírgula partia o destinatário em dois e o envio dava erro.
+const fmtAddr = (p) => (!p.name ? p.email : /[,;"]/.test(p.name) ? `"${p.name.replace(/"/g, '\\"')}" <${p.email}>` : `${p.name} <${p.email}>`);
+const addrText = (list) => (list || []).map(fmtAddr).join(', ');
 
 function readAsBase64(file) {
   return new Promise((resolve, reject) => {
@@ -59,7 +61,7 @@ function RecipientInput({ id, value, onChange, inputRef, placeholder }) {
   }, [token, open]);
   function pick(c) {
     const parts = value.split(',');
-    parts[parts.length - 1] = ` ${c.name ? `${c.name} <${c.email}>` : c.email}`;
+    parts[parts.length - 1] = ` ${fmtAddr(c)}`;
     onChange(`${parts.join(',').replace(/^\s+/, '')}, `);
     setItems([]);
     if (inputRef && inputRef.current) inputRef.current.focus();
@@ -419,17 +421,20 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
     setBusy(true);
     try {
       if (savingRef.current) await savingRef.current.catch(() => {});
+      // Depois de esperar a gravação do rascunho, usa o estado MAIS RECENTE (id do rascunho recém-criado, anexos que ficaram nele):
+      // com o do clique, o e-mail saía e o rascunho sobrava em Rascunhos, ou o envio apontava para uma versão substituída.
+      const L = latest.current;
       const r = await apiPost('/api/mail/send', {
-        draftId: draft.id || undefined, draftMessageId: draft.messageId || undefined, draftParts: [...draftKeep], threadId: draft.threadId || undefined,
-        mode, messageId: mode === 'new' ? undefined : origId,
-        to, cc, bcc, subject: subject.trim(), html,
-        includeQuote: mode !== 'new' && includeQuote,
-        signature: useSig,
-        attachments: files.map(({ filename, mimeType, data }) => ({ filename, mimeType, data })),
-        forwardParts: mode === 'forward' ? [...keepParts] : [],
+        draftId: L.draft.id || undefined, draftMessageId: L.draft.messageId || undefined, draftParts: [...L.draftKeep], threadId: L.draft.threadId || undefined,
+        mode: L.mode, messageId: L.mode === 'new' ? undefined : L.origId,
+        to: L.to, cc: L.cc, bcc: L.bcc, subject: L.subject.trim(), html: L.html,
+        includeQuote: L.mode !== 'new' && L.includeQuote,
+        signature: L.useSig,
+        attachments: L.files.map(({ filename, mimeType, data }) => ({ filename, mimeType, data })),
+        forwardParts: L.mode === 'forward' ? [...L.keepParts] : [],
       });
       notify('E-mail enviado.', { tone: 'success' });
-      if (draft.id && onDraftChange) onDraftChange();
+      if (L.draft.id && onDraftChange) onDraftChange();
       onSent(r);
     } catch (e) {
       setError(e.message);

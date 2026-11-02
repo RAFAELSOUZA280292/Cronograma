@@ -153,7 +153,8 @@ export default function EventDetailModal({ id, initial, conflicts, onClose, onRe
       footer={(
         <>
           {ev && ev.isOrganizer && ev.status !== 'cancelled' && <Button icon={Trash2} onClick={cancelIt} disabled={busy} disabledReason="Aguarde terminar">Cancelar reunião</Button>}
-          {ev && ev.canEdit && ev.status !== 'cancelled' && <Button icon={Pencil} onClick={() => onEdit(ev)} disabled={busy} disabledReason="Aguarde terminar">Editar</Button>}
+          {/* Dia inteiro não abre o formulário (ele só sabe horário: salvar dava erro de duração ou virava evento no dia anterior). */}
+          {ev && ev.canEdit && !base.allDay && ev.status !== 'cancelled' && <Button icon={Pencil} onClick={() => onEdit(ev)} disabled={busy} disabledReason="Aguarde terminar">Editar</Button>}
           <Button onClick={onClose}>Fechar</Button>
         </>
       )}

@@ -39,7 +39,8 @@ export function FolderDialog({ label, onClose, onSaved }) {
     if (label && n === label.name && (color || null) === (label.color || null)) { onClose(); return; }
     setBusy(true); setError('');
     try {
-      const body = { name: n, color };
+      // Cor só vai quando mudou: pasta colorida no próprio Gmail (fora das 12 cores daqui) não deixava renomear.
+      const body = label && (color || null) === (label.color || null) ? { name: n } : { name: n, color };
       const r = label ? await apiPatch(`/api/mail/labels/${encodeURIComponent(label.id)}`, body) : await apiPost('/api/mail/labels', body);
       notify(label ? 'Pasta atualizada.' : 'Pasta criada.', { tone: 'success' });
       onSaved(r);

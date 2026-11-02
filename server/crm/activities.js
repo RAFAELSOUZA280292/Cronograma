@@ -172,7 +172,9 @@ async function updateActivityCore(orgId, actor, id, input) {
     if ('contact_id' in values) await assertContactOfCompany(c, orgId, values.contact_id, row.company_id);
     const changes = diffApi(ACTIVITY_SPEC, before, after);
     if (!changes.length) return before;
-    await assertInvite(c, orgId, after);
+    // A regra do convite só vale quando a edição mexe nele (convite, contato, tipo ou horário): trocar só o título ou a data de uma
+    // reunião antiga não pode ser barrado porque o contato perdeu o e-mail depois.
+    if (changes.some((ch) => ['inviteMeet', 'contactId', 'activityType', 'dueTime'].includes(ch.field))) await assertInvite(c, orgId, after);
     const sets = [];
     const params = [];
     changes.forEach((ch) => {
