@@ -5,7 +5,7 @@ import { Router } from 'express';
 import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { unreadQuery, FOLDERS, folderQuery, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, gmailFor, mailStatus, friendlyMailError, forgetMailScope, mapLimit } from './googleMail.js';
+import { unreadQuery, labelTree, labelDisplay, FOLDERS, folderQuery, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, gmailFor, mailStatus, friendlyMailError, forgetMailScope, mapLimit } from './googleMail.js';
 import { parseRecipients, replyRecipients, replySubject, buildQuote, composeBody, buildMime, cleanSignature, signatureHtml, signatureHasContent, sizeError, attachmentsSize, LOGO_CID, MAX_RECIPIENTS, isEmail, sanitizeOutgoingHtml, DRAFT_HEADER, draftMeta, parseDraftMeta, draftBodyHtml, SIG_IMAGE_CID, signatureImageError, restoreInlineImages, BODY_IMAGE_PREFIX, rankContacts, contactRank, foldText, attachmentBlockReason } from './mailCompose.js';
 import { labelColorFor } from '../shared/mailLabelColors.js';
 import { isCalendarPart, parseIcs } from './calendarInvite.js';
@@ -49,7 +49,7 @@ router.get('/labels', async (req, res) => {
   const gmail = await withGmail(req, res); if (!gmail) return;
   try {
     const { data } = await gmail.users.labels.list({ userId: 'me' });
-    const user = (data.labels || []).filter((l) => l.type === 'user' && l.labelListVisibility !== 'labelHide').slice(0, 60);
+    const user = (data.labels || []).filter((l) => l.type === 'user' && l.labelListVisibility !== 'labelHide').slice(0, 200);
     const ids = ['INBOX', 'DRAFT', 'SPAM', ...user.map((l) => l.id)];
     const details = await mapLimit(ids, 8, (id) => gmail.users.labels.get({ userId: 'me', id }).then((r) => r.data).catch(() => null));
     const byId = Object.fromEntries(details.filter(Boolean).map((l) => [l.id, l]));
@@ -58,8 +58,7 @@ router.get('/labels', async (req, res) => {
       unread: id === 'INBOX' || id === 'SPAM' ? (byId[id] && byId[id].messagesUnread) || 0 : 0,
       total: id === 'DRAFT' ? (byId[id] && byId[id].messagesTotal) || 0 : null,
     }));
-    const labels = user.map((l) => ({ id: l.id, name: l.name, unread: (byId[l.id] && byId[l.id].threadsUnread) || 0, color: l.color ? l.color.backgroundColor : null, textColor: l.color ? l.color.textColor : null }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    const labels = labelTree(user.map((l) => ({ id: l.id, name: l.name, unread: (byId[l.id] && byId[l.id].threadsUnread) || 0, color: l.color ? l.color.backgroundColor : null, textColor: l.color ? l.color.textColor : null })));
     res.json({ folders, labels });
   } catch (e) { fail(res, e); }
 });
@@ -552,7 +551,7 @@ router.get('/rules', async (req, res) => {
       const add = ((x.action && x.action.addLabelIds) || []).find((id) => LABEL_RE.test(id));
       const from = x.criteria && x.criteria.from;
       if (!add || !from) return null;
-      return { id: x.id, from, labelId: add, labelName: names[add] || '(pasta apagada)', skipInbox: ((x.action && x.action.removeLabelIds) || []).includes('INBOX'), other: Object.keys(x.criteria).length > 1 };
+      return { id: x.id, from, labelId: add, labelName: names[add] ? labelDisplay(names[add]) : '(pasta apagada)', skipInbox: ((x.action && x.action.removeLabelIds) || []).includes('INBOX'), other: Object.keys(x.criteria).length > 1 };
     }).filter(Boolean);
     res.json({ rules });
   } catch (e) { rulesError(res, e); }

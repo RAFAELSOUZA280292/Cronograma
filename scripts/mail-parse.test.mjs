@@ -1,6 +1,6 @@
 // Caixa de e-mail (Fase 1): leitura das partes MIME, endereços, pastas e higienização do HTML recebido. Puro.
 //   node scripts/mail-parse.test.mjs
-import { parseAddressList, walkParts, sanitizeMailHtml, mailStyles, unreadQuery, folderQuery, threadSummary, decodeBody, textToHtml } from '../server/googleMail.js';
+import { parseAddressList, walkParts, sanitizeMailHtml, mailStyles, unreadQuery, labelTree, folderQuery, threadSummary, decodeBody, textToHtml } from '../server/googleMail.js';
 
 let failed = 0;
 const ok = (name, cond, extra) => { if (cond) console.log(`ok   ${name}`); else { failed += 1; console.log(`FAIL ${name}${extra !== undefined ? ` -> ${JSON.stringify(extra)}` : ''}`); } };
@@ -82,6 +82,15 @@ ok('lidas: Entrada vira INBOX+UNREAD', JSON.stringify(unreadQuery('INBOX').label
 ok('lidas: pasta própria', JSON.stringify(unreadQuery('Label_12').labelIds) === '["Label_12","UNREAD"]');
 ok('lidas: Arquivo usa a busca e só UNREAD', JSON.stringify(unreadQuery('ARCHIVE').labelIds) === '["UNREAD"]' && /-in:inbox/.test(unreadQuery('ARCHIVE').q));
 ok('lidas: pesquisa vale em todas as pastas', JSON.stringify(unreadQuery('', 'from:kuhn')) === JSON.stringify({ labelIds: ['UNREAD'], q: 'from:kuhn', includeSpamTrash: false }), unreadQuery('', 'from:kuhn'));
+
+// Pastas vindas do Outlook/IMAP ("INBOX/…") aparecem sem o prefixo e em árvore.
+{ const t = labelTree([{ id: 'a', name: 'INBOX/Clientes/KUHN' }, { id: 'b', name: 'INBOX/AH - Anderson' }, { id: 'c', name: 'INBOX/Clientes' }, { id: 'd', name: '[Gmail]/E-mails enviados/MONITOR' }, { id: 'e', name: 'INBOX/Clientes - antigos' }, { id: 'f', name: 'Projetos/2026/X' }]);
+  ok('pastas: ordem com mãe antes das filhas', t.map((l) => l.display).join('|') === 'AH - Anderson|Clientes|Clientes/KUHN|Clientes - antigos|E-mails enviados/MONITOR|Projetos/2026/X', t.map((l) => l.display));
+  const k = t.find((l) => l.id === 'a');
+  ok('pastas: filha mostra só o nome curto e fica recuada', k.short === 'KUHN' && k.depth === 1 && k.name === 'INBOX/Clientes/KUHN', k);
+  const p = t.find((l) => l.id === 'f');
+  ok('pastas: sem a pasta-mãe, mostra o caminho inteiro no 1º nível', p.short === 'Projetos/2026/X' && p.depth === 0, p);
+  ok('pastas: [Gmail]/ some', t.find((l) => l.id === 'd').display === 'E-mails enviados/MONITOR'); }
 
 console.log(failed ? `${failed} falharam` : 'todos passaram');
 process.exit(failed ? 1 : 0);

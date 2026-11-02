@@ -75,7 +75,7 @@ export function MoveDialog({ labels, count, sender, canRules, currentLabel, onCl
   const [always, setAlways] = useState(false);
   const [applyOld, setApplyOld] = useState(true);
   const [busy, setBusy] = useState(false);
-  const shown = labels.filter((l) => l.id !== currentLabel && l.name.toLowerCase().includes(filter.trim().toLowerCase()));
+  const shown = labels.filter((l) => l.id !== currentLabel && (l.display || l.name).toLowerCase().includes(filter.trim().toLowerCase()));
 
   async function go(label) {
     if (busy) return;
@@ -104,7 +104,7 @@ export function MoveDialog({ labels, count, sender, canRules, currentLabel, onCl
         {labels.length > 6 && <input className="mail-move-filter" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Procurar pasta" aria-label="Procurar pasta" autoFocus />}
         <ul className="mail-move-list">
           {shown.map((l) => (
-            <li key={l.id}><button type="button" className="mail-folder" onClick={() => go(l)} disabled={busy}>{l.color && <i className="mail-dot" style={{ background: l.color }} aria-hidden="true" />}<span>{l.name}</span></button></li>
+            <li key={l.id}><button type="button" className="mail-folder" onClick={() => go(l)} disabled={busy}>{l.color && <i className="mail-dot" style={{ background: l.color }} aria-hidden="true" />}<span>{l.display || l.name}</span></button></li>
           ))}
           {!shown.length && <li className="mail-move-empty">{labels.length ? 'Nenhuma pasta com esse nome.' : 'Você ainda não tem pastas. Crie a primeira abaixo.'}</li>}
         </ul>

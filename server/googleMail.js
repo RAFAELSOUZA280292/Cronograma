@@ -32,6 +32,36 @@ export function unreadQuery(folder, q) {
   return { ...f, labelIds: [...(f.labelIds || []), 'UNREAD'] };
 }
 
+// Pastas em árvore, como no Outlook. Quem migrou do Outlook/IMAP tem tudo como "INBOX/…" ou "[Gmail]/…": esse prefixo
+// some da tela (o nome no Gmail fica igual). Cada pasta ganha `display` (caminho limpo), `short` (último pedaço, quando a
+// pasta-mãe existe na lista) e `depth`; a ordem põe a mãe antes das filhas.
+const LABEL_PREFIX_RE = /^(INBOX|\[Gmail\]|\[Google Mail\]|Caixa de entrada)\//i;
+export const labelDisplay = (name) => String(name || '').replace(LABEL_PREFIX_RE, '') || String(name || '');
+export function labelTree(labels) {
+  const list = (labels || []).map((l) => ({ ...l, display: labelDisplay(l.name) }));
+  const paths = new Set(list.map((l) => l.display));
+  for (const l of list) {
+    const parts = l.display.split('/');
+    let depth = 0;
+    let short = l.display;
+    for (let i = parts.length - 1; i > 0; i -= 1) {
+      if (paths.has(parts.slice(0, i).join('/'))) { depth = i; short = parts.slice(i).join('/'); break; }
+    }
+    // profundidade = quantas mães existem acima (não quantas barras): "Clientes/KUHN" sem a pasta "Clientes" fica no 1º nível.
+    l.depth = depth ? parts.slice(0, depth).reduce((n, _, i) => n + (paths.has(parts.slice(0, i + 1).join('/')) ? 1 : 0), 0) : 0;
+    l.short = short;
+  }
+  const seg = (l) => l.display.split('/');
+  return list.sort((a, b) => {
+    const x = seg(a); const y = seg(b);
+    for (let i = 0; i < Math.min(x.length, y.length); i += 1) {
+      const c = x[i].localeCompare(y[i], 'pt-BR', { sensitivity: 'base', numeric: true });
+      if (c) return c;
+    }
+    return x.length - y.length;
+  });
+}
+
 export function headerMap(headers) {
   const out = {};
   for (const h of headers || []) {

@@ -210,7 +210,7 @@ export default function MailScreen({ currentUser, theme, onGoAgenda }) {
         } catch (e) { notify(e.message, { tone: 'error' }); }
       }
       const n = ids.length > 1 ? ` (${ids.length})` : '';
-      notify(`Movido para “${label.name}”${n}.${extra}`, { undo: async () => { await apiPost('/api/mail/threads/modify', { ids, action: 'labels', add: remove, remove: add }); loadThreads({ quiet: true }); loadNav(); } });
+      notify(`Movido para “${label.display || label.name}”${n}.${extra}`, { undo: async () => { await apiPost('/api/mail/threads/modify', { ids, action: 'labels', add: remove, remove: add }); loadThreads({ quiet: true }); loadNav(); } });
       loadNav();
     } catch (e) {
       setThreads(before);
@@ -371,7 +371,8 @@ export default function MailScreen({ currentUser, theme, onGoAgenda }) {
   const listBounds = () => ({ min: LIMITS.list[0], max: clampList(LIMITS.list[1], mainRef.current ? mainRef.current.clientWidth : 0), scale: 1 });
   const listHBounds = () => ({ min: LIMITS.listH[0], max: LIMITS.listH[1], scale: 1 / Math.max(1, mainRef.current ? mainRef.current.clientHeight : 600) });
 
-  const folderName = search ? `Resultados para “${search}”` : (nav.folders.find((f) => f.id === folder) || nav.labels.find((l) => l.id === folder) || { name: 'Caixa de entrada' }).name;
+  const curFolder = nav.folders.find((f) => f.id === folder) || nav.labels.find((l) => l.id === folder) || { name: 'Caixa de entrada' };
+  const folderName = search ? `Resultados para “${search}”` : (curFolder.display || curFolder.name);
   const selIds = [...selected];
   const showList = paneOn || !openId;
   const showReader = paneOn || !!openId;
@@ -448,10 +449,10 @@ export default function MailScreen({ currentUser, theme, onGoAgenda }) {
               </div>
               {nav.labels.map((l) => (
                 <div key={l.id} className="mail-folder-row" {...dropProps(l)}>
-                  <button type="button" className={`mail-folder${!search && folder === l.id ? ' on' : ''}`} onClick={() => pickFolder(l.id)} title={l.name} aria-current={!search && folder === l.id ? 'page' : undefined}>
-                    <Tag size={14} aria-hidden="true" style={l.color ? { color: l.color } : undefined} fill={l.color || 'none'} /><span>{l.name}</span>{l.unread ? <b className="mail-count">{l.unread}</b> : null}
+                  <button type="button" className={`mail-folder${!search && folder === l.id ? ' on' : ''}`} onClick={() => pickFolder(l.id)} title={l.display || l.name} aria-current={!search && folder === l.id ? 'page' : undefined} style={l.depth ? { paddingLeft: 10 + l.depth * 14 } : undefined}>
+                    <Tag size={14} aria-hidden="true" style={l.color ? { color: l.color } : undefined} fill={l.color || 'none'} /><span>{l.short || l.name}</span>{l.unread ? <b className="mail-count">{l.unread}</b> : null}
                   </button>
-                  <button type="button" className="mail-ic mail-folder-edit" aria-label={`Editar a pasta ${l.name} (nome e cor)`} title="Editar nome e cor" onClick={() => renameFolder(l)}><Pencil size={12} aria-hidden="true" /></button>
+                  <button type="button" className="mail-ic mail-folder-edit" aria-label={`Editar a pasta ${l.display || l.name} (nome e cor)`} title="Editar nome e cor" onClick={() => renameFolder(l)}><Pencil size={12} aria-hidden="true" /></button>
                 </div>
               ))}
               {!nav.labels.length && <button type="button" className="mail-folder mail-folder-hint" onClick={newFolder}><FolderPlus size={14} aria-hidden="true" /><span>Criar a primeira pasta</span></button>}
@@ -484,7 +485,7 @@ export default function MailScreen({ currentUser, theme, onGoAgenda }) {
                   <select value={search ? '' : folder} onChange={(e) => pickFolder(e.target.value)} aria-label="Pasta">
                     {search && <option value="">Resultados da pesquisa</option>}
                     {nav.folders.map((f) => <option key={f.id} value={f.id}>{f.name}{f.unread ? ` (${f.unread})` : ''}</option>)}
-                    {nav.labels.map((l) => <option key={l.id} value={l.id}>{l.name}{l.unread ? ` (${l.unread})` : ''}</option>)}
+                    {nav.labels.map((l) => <option key={l.id} value={l.id}>{'\u00a0\u00a0'.repeat(l.depth || 0)}{l.short || l.name}{l.unread ? ` (${l.unread})` : ''}</option>)}
                   </select>
                 </div>
               )}
