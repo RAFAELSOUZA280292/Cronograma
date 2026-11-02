@@ -60,6 +60,7 @@ Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (
   - **Papéis de trabalho** e CRM fechado para Operações (§127); **Cofre** (§124); **tela inicial personalizável + favoritos** (§126); **API por chave à prova de IA** (§129); **WhatsApp** desligado (§123).
   - **Boas-vindas obrigatória das novidades** (4 passos sem pular: novidades, conectar e-mail e agenda, assinatura, como trabalhar) e **RENATA treinada no painel** (§132).
   - **Agenda nunca fica "carregando" para sempre**: prazo em cada leitura (Google, CRM) e na tela, com aviso do que não carregou (§133).
+  - **Agenda travava a página** (cor do compromisso chamava a si mesma em atividade do CRM/TASK): corrigido (§134).
   - Cérebro em dia e alarme de frescor (§116zv). **Estado atual e pendências: topo de `docs/00_COMECE_AQUI.md`.**
 
 **Em aberto** (lista única e atual: §15). **Armadilhas que mais pegam** (regras fixas: §16 e §16.1).
@@ -9087,3 +9088,9 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - Correção: `withDeadline` (`server/agendaForm.js`) em cada leitura externa da rota — status do Google 10 s, Google Calendar 15 s (e `timeout` de 15 s no próprio `events.list`), atividades do CRM 10 s; as agendas extras já tinham 15 s. A que estourar ou falhar vira `warnings` na resposta e o resto aparece; conexão expirada (`invalid_grant`) pede para reconectar em vez de derrubar a tela.
 - Tela: prazo de 40 s no pedido; estourou → aviso "A agenda demorou demais…" (nova tentativa a cada 60 s, como já era); `warnings` aparecem num aviso amarelo "Parte da agenda não carregou".
 - Testes: `scripts/agenda-invite.test.mjs` (fonte que nunca responde estoura com aviso; rápida passa). Rota conferida no servidor local (200, `warnings: []`).
+
+## 134. Agenda travava a página: função de cor chamando a si mesma (2026-11-02, Rafael: "loop infinito, a barrinha amarela carregando, não consigo clicar nos botões… a página não está respondendo")
+
+- **Causa real** (a §133 tratou só a espera do servidor): em `src/agenda/Agenda.jsx`, desde as agendas extras (§128, `73b4cdf`), `const colorOf = (ev) => ev.color || colorOf(ev)` chamava a si mesma em todo item **sem cor própria** — atividade do CRM, TASK do XFlow, atividade de empresa. Com uma atividade do CRM na semana (Smart01, DeLaval), a grade estourava a pilha a cada desenho e o Safari dava "a página não está respondendo"; quem só tinha eventos do Google (que vêm com a cor da conta) não via o problema.
+- Correção: `ev.color || SOURCE_META[ev.source].color || '#999'` (a cor por origem que já existia). Varredura no projeto por outras funções `const f = (…) => … f(…)` sem caso de parada: nenhuma.
+- Conferido no navegador local com eventos simulados do Google, CRM e XFlow (dia inteiro, atravessando a meia-noite, fim antes do começo) nas visões Semana, Dia e Mês: tudo aparece, sem travar.

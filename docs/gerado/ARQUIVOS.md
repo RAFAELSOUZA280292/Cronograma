@@ -231,7 +231,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 |---|---|---|
 | `src/App.jsx` | 3753 |  |
 | `src/agenda/AccountsDialog.jsx` | 177 | "Minhas agendas" (§128, 2026-11-02): a agenda principal (Google) + as extras da pessoa — outra conta Google, Microsoft 365/Outlook.com |
-| `src/agenda/Agenda.jsx` | 634 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
+| `src/agenda/Agenda.jsx` | 635 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/EventDetail.jsx` | 206 | Detalhe do compromisso do Google dentro do painel (2026-11-02, "nunca mais abrir o Google Agenda"): Meet, participantes com a |
 | `src/agenda/NewEventModal.jsx` | 337 | "Novo compromisso" e "Editar" da Agenda (Onda 5, §81; edição, Meet, lembrete e sugestão de contatos em 2026-11-02). Grava no Google |
 | `src/agenda/RenataAgendaBriefing.jsx` | 708 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |

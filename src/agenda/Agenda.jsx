@@ -39,7 +39,8 @@ const SOURCE_META = {
 };
 
 // Cor do compromisso: a da agenda de origem (§128, cada conta tem a sua) ou a da origem no painel (TASK, atividade, CRM).
-const colorOf = (ev) => ev.color || colorOf(ev);
+// (Até 02/11/2026 era `ev.color || colorOf(ev)`: chamava a si mesma em todo item sem cor própria — TASK, atividade, CRM — e travava a página.)
+const colorOf = (ev) => ev.color || (SOURCE_META[ev.source] && SOURCE_META[ev.source].color) || '#999';
 
 // Agendas escondidas pelo filtro rápido (só neste aparelho; "Mostrar na Agenda" em Minhas agendas vale em todo lugar).
 const HIDDEN_KEY = 'agenda-hidden-accounts';
