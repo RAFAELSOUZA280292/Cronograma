@@ -36,7 +36,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/companyCalendar.js` | 158 | "Reservar na agenda" (2026-10-19): bloco de agenda por atividade do cronograma, convidando só os e-mails que a equipe digita (equipe PRICETAX; cliente nunca é convidado). |
 | `server/companyCalendarPlan.js` | 101 | Reservar na agenda (2026-10-19, pedido do Rafael): cada ATIVIDADE do cronograma da empresa vira UM bloco de agenda (padrão de call: 60 min) para a equipe PRICETAX. |
 | `server/companyShare.js` | 197 | Link público de acompanhamento da empresa (2026-10-19, pedido do Rafael): o cliente abre o link SEM login e vê Resumo, Cronograma (Gantt com subatividades) e Tabela, só leitura. |
-| `server/connect.js` | 905 | API de conectividade (2026-10-05, §80): permite que OUTRA janela do Claude Code (ou qualquer script) leia o painel e crie atividades |
+| `server/connect.js` | 977 | API de conectividade (2026-10-05, §80): permite que OUTRA janela do Claude Code (ou qualquer script) leia o painel e crie atividades |
 | `server/crm/activities.js` | 281 | CRM — atividades e follow-ups (Fase 3, 2026-09-20, PROJECT_CONTEXT.md §56). |
 | `server/crm/activityQueries.js` | 103 | CRM — consultas de atividades (Fase 3). Somente leitura. |
 | `server/crm/agendaFeed.js` | 23 | CRM — atividades em aberto do usuário como eventos da Agenda existente |
@@ -98,7 +98,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/googleMail.js` | 295 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
 | `server/homePrefs.js` | 31 | Tela inicial personalizável e barra de favoritos (2026-11-02, §126): GET/PUT /api/home-prefs. Cada pessoa lê e grava só a |
 | `server/icalFeed.js` | 311 | Agenda por link iCal, só leitura (§128, 2026-11-02): o "endereço secreto no formato iCal" do Google Agenda, o "publicar agenda" do |
-| `server/index.js` | 201 |  |
+| `server/index.js` | 198 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
 | `server/inventory.js` | 373 | Levantamento de atividades de TODAS as empresas (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md; pedido do |
 | `server/inventoryEdit.js` | 194 | Passo 3 do caminho combinado (2026-10-07): organizar o que já existe a partir do Levantamento — padronizar o nome do |
@@ -194,12 +194,13 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/xflowPermissions.js` | 86 | Papel efetivo + regras de "quem pode fazer o quê" no XFlow. Regras vivem |
 | `server/xflowTransitions.js` | 116 | Matriz de transições de status do XFlow. Cada ação nomeada sabe de quais |
 
-## `shared/` — 16 arquivos
+## `shared/` — 17 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
 | `shared/agendaConflicts.js` | 38 | Conflito de horário entre compromissos (§128, 2026-11-02): com várias agendas sobrepostas (PRICETAX, BRASILPRICE, PETCONT, |
 | `shared/calendarDays.js` | 62 | Reuniões no cronograma e dias de agenda (2026-10-19, regra do Rafael): ATIVIDADE e SUBATIVIDADE têm tipo — 'reuniao' (call, precisa de gente junto ao mesmo tempo) ou 'trabalho' (padrão). |
+| `shared/connectCatalog.js` | 401 | Catálogo único da API de conectividade (2026-11-02, §129): é daqui que saem a descoberta (`GET /api/connect` com a chave), a especificação |
 | `shared/cronogramaPadrao.js` | 2336 | Fonte das atividades da versão 2.0 do cronograma padrão (2026-10-19): as 87 ações do guia "Reforma Tributária 2027 · Guia por área" (texto limpo de casos de cliente), |
 | `shared/cronogramaPadraoV3.js` | 166 | Proposta v3 do cronograma padrão (2026-10-19): 91 itens em 22 atividades principais, em duas trilhas (A diagnóstico, B implementação). TODAS as datas contam do início do projeto |
 | `shared/cronogramaPadraoV4.js` | 293 | Proposta v4 do cronograma padrão — "modelo ideal do comitê de reforma tributária" (2026-10-19, decidido com o Rafael em telas de validação; ver PROJECT_CONTEXT §65). |
@@ -243,8 +244,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/assistant/RenataHome.jsx` | 161 | RENATA geral (2026-10-06): o painel de conversa disponível de QUALQUER tela (botão na barra do topo e item "Falar com a RENATA" na |
 | `src/assistant/chatExport.js` | 131 | Copiar e exportar conversas da RENATA (2026-10-27). Funções PURAS (sem React/DOM) para testar em Node. |
 | `src/companies/CompanyOwners.jsx` | 195 | Responsáveis por empresa (2026-10-09, pedido do Rafael): cada empresa tem um responsável PRINCIPAL e pode ter outros da equipe |
-| `src/connect/ConnectSection.jsx` | 191 |  |
-| `src/connect/guide.js` | 147 | Guia que o usuário cola na OUTRA janela do Claude Code (2026-10-05, §80). Não leva o token: ele vai pela variável de ambiente |
+| `src/connect/ConnectSection.jsx` | 214 |  |
+| `src/connect/guide.js` | 85 | Instruções que a pessoa cola na IA dela (Claude Code, ChatGPT, Gemini, Base44…) depois de gerar a chave (§80; reescrito em 2026-11-02, §129). |
 | `src/crm/ActivityForm.jsx` | 166 | Cadastro/edição de atividade (estado local + Salvar). A empresa é sempre |
 | `src/crm/ActivityList.jsx` | 141 | Lista de atividades reutilizável (Agenda, ficha da empresa, ficha do negócio). |
 | `src/crm/AgendaPage.jsx` | 92 | Agenda do CRM (PRD 16/17): o que cada pessoa precisa fazer, por urgência. |

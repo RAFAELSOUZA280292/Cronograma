@@ -64,7 +64,7 @@ async function cleanup() {
 process.on('exit', () => { try { app.kill('SIGTERM'); } catch { /* já encerrou */ } });
 try {
   // o servidor precisa estar de pé ANTES de criar os usuários: a migração do boot mexe em companies_access de quem já existe
-  for (let i = 0; i < 60; i += 1) { try { if ((await fetch(`${BASE}/api/connect`)).ok) break; } catch { /* ainda subindo */ } await sleep(500); if (i === 59) throw new Error(`servidor não subiu:\n${appLog.slice(-800)}`); }
+  for (let i = 0; i < 60; i += 1) { try { if ((await fetch(`${BASE}/api/connect/openapi.json`)).ok) break; } catch { /* ainda subindo */ } await sleep(500); if (i === 59) throw new Error(`servidor não subiu:\n${appLog.slice(-800)}`); }
   await sleep(1500);
   await cleanup();
   OTHER_ORG = (await pool.query('SELECT id FROM organizations WHERE id <> $1 ORDER BY id LIMIT 1', [ORG])).rows[0].id;
@@ -88,7 +88,7 @@ try {
   const nopeMint = await mint('nope', 'transcripts'); ok('quem NÃO tem acesso a Empresas não gera (403)', nopeMint.status === 403, { st: nopeMint.status, body: nopeMint.json, st: nopeMint.status });
   const list = await call(asCk('adm'), 'GET', '/api/connect/tokens'); ok('a tela sabe oferecer a opção (canTranscripts) e lista o escopo', list.json.canTranscripts === true && !!list.json.scopes.transcripts && (await call(asCk('nope'), 'GET', '/api/connect/tokens')).json.canTranscripts === false);
   const tRead = await mint('adm', 'read'); const tCreate = await mint('adm', 'read_create');
-  const idx = await call({}, 'GET', '/api/connect'); ok('o índice público lista as rotas de transcrição', idx.json.endpoints.filter((e) => /transcripts/.test(e.path)).length === 3);
+  const idx = await call({}, 'GET', '/api/connect/openapi.json'); ok('o OpenAPI público lista as rotas de transcrição', Object.keys(idx.json.paths).filter((p) => /transcripts/.test(p)).length === 3);
   const TR = tTr.json.token; const TR2 = TR; const P = `/api/connect/companies/${PID}/transcripts`;
   const text = `[00:00] Rafael Souza: Bom dia, Roberto. Hoje queremos entender como o caixa da ALCAST funciona.\n[00:12] Roberto Cassaniga: Hoje o prazo médio de recebimento é de 42 dias e o de pagamento de 38 dias.\n[01:05] Rafael Souza: Vou simular o impacto do split no capital de giro e voltar na próxima semana. ${'Texto de apoio da reunião. '.repeat(10)}`;
 

@@ -2,10 +2,14 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-563 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+567 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (30)
+## 2026-11-02 (34)
 
+- `cd80b72` 15:50 — docs: lição sem caminho de arquivo não publicado
+- `bd56346` 15:50 — Lição: conferir o clone (diff + subir o servidor) logo antes do push ao publicar parte da pasta
+- `1950d5e` 15:47 — Corrige o deploy: tira de server/index.js a importação de mailLinks (trabalho de outra sessão, não publicado)
+- `73b4cdf` 15:42 — Agenda: várias contas por pessoa numa grade só (Google, Microsoft, link iCal), com cor, conflitos e privacidade (§128)
 - `87f3d5a` 15:19 — Papéis: voltar no histórico para /crm respeita o acesso; documentação (§127)
 - `614e040` 15:17 — Papéis de trabalho (Sócio, Comercial, Operações) e CRM fechado para Operações
 - `6243e68` 15:18 — Tela inicial: arrastar o bloco de qualquer ponto e blocos baixos no Personalizar

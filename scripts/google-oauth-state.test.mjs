@@ -19,7 +19,7 @@ app.stdout.on('data', (d) => { log += d; }); app.stderr.on('data', (d) => { log 
 process.on('exit', () => { try { app.kill('SIGTERM'); } catch { /* já encerrou */ } });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 try {
-  for (let i = 0; i < 60; i += 1) { try { if ((await fetch(`${BASE}/api/connect`)).ok) break; } catch { /* subindo */ } await sleep(500); if (i === 59) throw new Error(`servidor não subiu:\n${log.slice(-600)}`); }
+  for (let i = 0; i < 60; i += 1) { try { if ((await fetch(`${BASE}/api/connect/openapi.json`)).ok) break; } catch { /* subindo */ } await sleep(500); if (i === 59) throw new Error(`servidor não subiu:\n${log.slice(-600)}`); }
   await pool.query(`DELETE FROM users WHERE id=$1`, [UID]);
   await pool.query(`INSERT INTO users (id,username,password_hash,name,role,org_id,companies_access,all_companies_access) VALUES ($1,$1,$2,$1,'pricetax','sandbox-edu',true,true)`, [UID, await bcrypt.hash(PASS, 10)]);
   const lr = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: UID, password: PASS }) });

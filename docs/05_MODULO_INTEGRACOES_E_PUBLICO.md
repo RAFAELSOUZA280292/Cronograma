@@ -21,9 +21,10 @@ Pedidos típicos do Rafael que mandam para este documento:
 
 | Arquivo | Função/componente (conferido) | O que faz | Quem chama / o que dispara |
 |---|---|---|---|
-| `server/connect.js` | `router`, `SCOPES`, `SCOPE_RANK`, `bearer`, `needScope`, `crmViaToken`, `applyPlanOps`, `runMeetingEdit`, `ENDPOINTS` | API de conectividade `/api/connect`: gera/revoga chaves (cookie) e atende chamadas com `Authorization: Bearer pxk_…` | Outra janela do Claude Code / IA externa; tela `ConnectSection` |
+| `server/connect.js` | `router`, `SCOPES`, `SCOPE_RANK`, `bearer`, `needScope`, `crmViaToken`, `applyPlanOps`, `runMeetingEdit`, `readBearer`, `baseUrlOf` | API de conectividade `/api/connect`: gera/revoga chaves (cookie) e atende chamadas com `Authorization: Bearer pxk_…` | Outra janela do Claude Code / IA externa; tela `ConnectSection` |
 | `src/connect/ConnectSection.jsx` | `ConnectSection` | Tela "Integrações (avançado)" em Meu perfil: gera chave, copia comando e guia, lista chaves, mostra gravações no CRM | Clique do usuário; chama `/api/connect/tokens` e `/actions` |
-| `src/connect/guide.js` | `buildGuide` | Monta o guia de uso colado na outra janela (sem o token) conforme o escopo | `ConnectSection` ao gerar a chave |
+| `shared/connectCatalog.js` | `CATALOG`, `capsFor`, `actionsFor`, `buildOpenApi`, `buildDocsMarkdown`, `RULES` | Catálogo único (§129): descoberta, OpenAPI 3.1 e guia saem daqui | `connect.js` e `guide.js` |
+| `src/connect/guide.js` | `buildGuide` | Instruções para colar na IA (com a chave no "Copiar tudo"), conforme a chave | `ConnectSection` ao gerar a chave |
 | `docs/CONECTIVIDADE_CLAUDE_CODE.md`, `docs/IA_EXTERNA_ENVIAR_TRANSCRICAO.md`, `docs/testar-conectividade.sh` | guias e teste | Referência humana; o `.sh` só lê e checa 401/404 | Rafael entrega à IA externa; teste manual |
 | `server/widget.js` | `router`, `encrypt`/`decrypt`, `limited` | Token `pxw_` do widget, visões, `GET /summary` público por Bearer | Script Scriptable no iPhone; tela `WidgetSection` |
 | `server/widgetSummary.js` | `buildSummary`, `boardItems`, `agendaItems`, `sanitizeViews`, `BLOCKS` | Funções puras: só títulos e horários | `widget.js`; `todayInSp` também é usado por `connect.js` e `companyShare.js` |
@@ -53,7 +54,7 @@ Pedidos típicos do Rafael que mandam para este documento:
 
 ## Como funciona (passo a passo)
 1. **Gerar a chave (tela, cookie).** Meu perfil > Integrações (avançado) > nome, permissão, validade > "Gerar chave" -> `POST /api/connect/tokens` (`requireAuth`). O servidor cria `pxk_` + 32 bytes aleatórios (base64url), grava **só o sha256** em `api_tokens.token_hash` e devolve o texto **uma vez** (`Cache-Control: no-store`). Não dá para recuperar depois.
-2. **Entregar à outra janela.** A tela dá dois botões: "comando da chave" (`export PRICETAX_URL=…; export PRICETAX_TOKEN=…`) e "guia de uso" (`buildGuide`, sem o token). O guia muda conforme o escopo (`canCreate`, `canWrite`, `canCrm`, `canTranscripts`, `canMeetingsEdit`, `readAll`).
+2. **Entregar à IA (§129).** Botão principal **Copiar tudo para a IA** (`buildGuide` com `token`: chave + instruções), **Copiar link do OpenAPI**, **Baixar OpenAPI desta chave** (filtrado) e, em "Outras formas", o comando do terminal e as instruções sem a chave. A IA faz primeiro `GET /api/connect`, que devolve quem é a chave e só as ações que ela pode usar (catálogo `shared/connectCatalog.js`, o mesmo do `/openapi.json` e do `/docs`).
 3. **Chamar a API.** Toda chamada leva `Authorization: Bearer pxk_…`. Token na URL não vale (dá 401). O middleware `bearer` (em `connect.js`) faz, nesta ordem: limite de 120/min pelo hash -> procura `api_tokens` -> recusa revogado/vencido (401) -> carrega o usuário -> recusa bloqueado/vencido (403) -> atualiza `last_used_at` (no máximo 1 vez por minuto) -> `setActor` (para o histórico de quem gravou: "<nome> (API, chave "<nome da chave>")").
 4. **A chave age como o dono.** Empresas: `canAccessProject` + mesma organização (`loadOne`/`loadProjects`). Atividades: só o quadro pessoal do dono. Agenda: só o Google do dono. CRM: perfil de CRM do dono (`crmCan`).
 5. **Gravação** (quando o escopo permite): cada rota valida, grava em transação (`FOR UPDATE`) quando mexe no projeto, escreve o Log da empresa e/ou `api_token_actions`, e dispara reindexação da memória da RENATA (plano e correção de reunião).

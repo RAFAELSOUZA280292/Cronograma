@@ -23,6 +23,7 @@ import { InboxError, createSubmission, listSubmissions, reprocessSubmission } fr
 import { applyMeetingEdit, isISODay as isMeetingDay } from './meetingEdit.js';
 import { teamDay } from './teamDay.js';
 import { MAX_OPS as BOARD_MAX_OPS, describeBoard, planOperations } from './boardPlan.js';
+import { ERRORS, ERROR_CODES, LIMITS, RULES, GROUPS, actionsFor, authHelp, buildDocsMarkdown, buildOpenApi, canWriteSomething, capsFor, describeAction, matchCatalog } from '../shared/connectCatalog.js';
 
 export const router = Router();
 
@@ -42,11 +43,41 @@ const clip = (v, n) => String(v == null ? '' : v).slice(0, n);
 
 // ------------------------------------------------------------------ gestão dos tokens (cookie, pelo painel)
 
+// Erro sempre no mesmo formato para a IA do outro lado: { error: <código>, message: <em português>, help }. Os handlers continuam
+// mandando só { message }; aqui se acrescenta o código e a dica de onde ver o que dá para fazer.
+router.use((req, res, next) => {
+  const json = res.json.bind(res);
+  res.json = (body) => {
+    if (res.statusCode >= 400 && body && typeof body === 'object' && !Array.isArray(body) && !body.error) {
+      body = { error: ERROR_CODES[res.statusCode] || (res.statusCode >= 500 ? 'server_error' : 'error'), ...body };
+      if (!body.help && res.statusCode !== 401) body.help = 'GET /api/connect lista o que esta chave pode fazer; GET /api/connect/docs traz o guia.';
+    }
+    return json(body);
+  };
+  next();
+});
+
+// CORS só para as rotas por chave (Base44, ChatGPT e afins chamam do navegador ou de outro servidor). Sem cookies (sem
+// Allow-Credentials): a gestão de chaves (/tokens, /actions), que usa a sessão do painel, fica de fora de propósito.
+const COOKIE_ONLY = /^\/(tokens|actions)(\/|$)/;
+router.use((req, res, next) => {
+  if (COOKIE_ONLY.test(req.path)) return next();
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Expose-Headers', 'Retry-After, X-Export-Count, X-Export-Total');
+  if (req.method === 'OPTIONS') {
+    res.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.set('Access-Control-Max-Age', '600');
+    return res.status(204).end();
+  }
+  next();
+});
+
 router.get('/tokens', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, scope, created_at, expires_at, last_used_at FROM api_tokens WHERE user_id=$1 AND revoked_at IS NULL ORDER BY created_at DESC`, [req.user.id]);
-    res.json({ tokens: rows.map((r) => ({ ...r, expired: new Date(r.expires_at) < new Date() })), scopes: SCOPES, legacyScopes: LEGACY_SCOPES, canAdmin: !!(req.user.isSuperAdmin || req.user.role === 'master'), canCrm: crmCan(req.user, 'admin'), canTranscripts: !!req.user.companiesAccess });
+    res.json({ tokens: rows.map((r) => ({ ...r, expired: new Date(r.expires_at) < new Date() })), scopes: SCOPES, legacyScopes: LEGACY_SCOPES, canAdmin: !!(req.user.isSuperAdmin || req.user.role === 'master'), canCrm: crmCan(req.user, 'admin'), canCrmRead: crmCan(req.user, 'read'), canTranscripts: !!req.user.companiesAccess });
   } catch (e) { next(e); }
 });
 
@@ -95,42 +126,6 @@ router.delete('/tokens/:id', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// ------------------------------------------------------------------ índice público (sem segredo) — o Claude Code pode ler isto primeiro
-
-export const ENDPOINTS = [
-  { method: 'GET', path: '/api/connect/me', scope: 'read', what: 'Quem é o dono do token, escopo, validade e a data de hoje (America/Sao_Paulo).' },
-  { method: 'GET', path: '/api/connect/activities', scope: 'read', what: 'Atividades do quadro pessoal. Query: status=open|overdue|today|urgent|done|all (padrão open), q=texto, limit (≤200, padrão 50).' },
-  { method: 'POST', path: '/api/connect/activities', scope: 'read_create', what: 'Cria uma atividade no quadro pessoal. Corpo: title (obrigatório), desc, dueDate (AAAA-MM-DD), priority (urgente|alta|media|baixa), board, column (nome ou id), ref (chave de idempotência).' },
-  { method: 'GET', path: '/api/connect/companies', scope: 'read', what: 'Empresas (cronogramas) que o dono do token pode ver. Query: q=texto.' },
-  { method: 'GET', path: '/api/connect/companies/:id', scope: 'read', what: 'Uma empresa: equipe, fases, atividades e lista de reuniões (sem transcrição).' },
-  { method: 'GET', path: '/api/connect/companies/:id/meetings/:meetingId', scope: 'read', what: 'Uma reunião: resumo, decisões, itens de ação (com id, vínculo sugerido/confirmado com o cronograma em activityLink), participantes. Query: transcript=1 inclui a transcrição (até 60.000 caracteres).' },
-  { method: 'POST', path: '/api/connect/companies/:id/plan', scope: 'read_write', what: 'Ajusta o cronograma de uma empresa (só administrador). Corpo: ops (até 200: activity.set, sub.set, sub.add (position top|end, kind, guide, pautaDe), sub.move, activity.add, pauta.link, activity.delete e sub.delete (exclusão com volta pela lixeira; activity.restore e sub.restore desfazem)), dryRun (padrão true: só mostra), note. Tudo ou nada, nada some de verdade, grava no Log da empresa.' },
-  { method: 'POST', path: '/api/connect/companies/:id/transcripts', scope: 'transcripts', what: 'Envia a transcrição de uma reunião para a RENATA do painel processar (igual ao botão "Enviar transcrição" da aba Reuniões). Corpo: transcript (obrigatório, texto bruto completo), date (AAAA-MM-DD), time (HH:MM). Responde 202 com submissionId; o MESMO texto não é processado duas vezes (duplicate:true). Limite: 30 envios por hora por chave.' },
-  { method: 'GET', path: '/api/connect/companies/:id/transcripts[/:submissionId]', scope: 'transcripts', what: 'Situação dos envios da empresa (pending, processing, done, failed). Quando done, traz meetingId e um resumo da reunião criada. Consulte a cada ~5 s.' },
-  { method: 'POST', path: '/api/connect/companies/:id/transcripts/:submissionId/retry', scope: 'transcripts', what: 'Reprocessa um envio que falhou.' },
-  { method: 'PATCH', path: '/api/connect/companies/:id/meetings/:meetingId', scope: 'meetings_edit', what: 'Corrige uma reunião já registrada. Corpo (só estes campos; qualquer outro dá 400): title, date, time, summary, decisions, participants (lista inteira ou {add,remove,rename}), actionItems (operações: {op:"set",id,set:{title,responsible,kind,dueDate,area,owner}}, {op:"add",title,…}, {op:"delete",id}, {op:"restore",id}), dryRun (true = mostra antes e depois sem gravar), note. Tudo ou nada; não mexe no vínculo tarefa→atividade; grava no Log da empresa e no histórico de correções; responde com editId e `undo` (corpo que desfaz).' },
-  { method: 'GET', path: '/api/connect/companies/:id/meetings/:meetingId/edits', scope: 'meetings_edit', what: 'Histórico das correções da reunião (quem, quando, antes e depois, se já foi desfeita).' },
-  { method: 'POST', path: '/api/connect/companies/:id/meetings/:meetingId/edits/:editId/undo', scope: 'meetings_edit', what: 'Desfaz uma correção (corpo opcional: dryRun, note). Dá 409 se já foi desfeita ou se a reunião mudou de forma que não dá para voltar.' },
-  { method: '*', path: '/api/connect/crm/…', scope: 'crm_operate', what: 'O CRM inteiro (mesmas rotas e regras de /api/crm: empresas, contatos, negócios, atividades, notas, produtos, funis, cadências), pelo perfil de administrador do dono da chave (com read_all, só GET, pelo acesso de leitura dele). Toda gravação fica registrada como "Claude Code (por <dono>)". Fora: escrita da migração do PipeRun.' },
-  { method: 'GET', path: '/api/connect/board', scope: 'read', what: 'O quadro pessoal inteiro COM IDS: páginas, colunas e cartões (status, prioridade, dueDate, tags, responsibles por nome, waiting, contagem de passos). Query: checklist=1 traz os passos de cada cartão. Use antes de organizar.' },
-  { method: 'POST', path: '/api/connect/board/plan', scope: 'write_all', what: 'Organiza o quadro pessoal em lote (só chave "Ler e editar tudo" de administrador). Corpo: operations (até 300; op = create_column, rename_column, create_card, move_card, update_card, add_checklist, merge_cards, trash_card, archive_card). SEM apply só mostra a prévia (changes, counts, errors, digest); para gravar repita o mesmo corpo com apply:true, confirm:true e o digest. Tudo ou nada; guarda cópia em Versões. Guia: docs/IA_EXTERNA_ORGANIZAR_QUADRO.md.' },
-  { method: 'GET', path: '/api/connect/team-day', scope: 'read_all', what: 'Dia da equipe (só administrador): por pessoa (master e pricetax), num dia de Brasília, entradas e saídas, telas por onde passou e o que fez/editou/incluiu. Query: date=AAAA-MM-DD (padrão hoje), userId opcional. Cada leitura fica registrada.' },
-  { method: 'GET', path: '/api/connect/agenda', scope: 'read', what: 'Compromissos do Google Calendar do dono. Query: days=1..14 (padrão 7). Só os aceitos ou próprios.' },
-];
-
-router.get('/', (req, res) => {
-  res.set('Cache-Control', 'no-store');
-  res.json({
-    name: 'PRICETAX — API de conectividade',
-    auth: 'Authorization: Bearer <token pxk_…> (gere em Meu perfil > Conectar). Nunca coloque o token na URL.',
-    scopes: SCOPES,
-    presets: 'Duas chaves cobrem tudo: read_all (lê tudo, inclusive o CRM; não altera nada) e write_all (lê e edita tudo o que o dono da chave pode; só administrador gera; validade padrão de 90 dias, máximo 180). Os escopos antigos (read, read_create, read_write, crm_operate, transcripts, meetings_edit) continuam valendo nas chaves já emitidas. Em `endpoints[].scope`, write_all vale para todo escopo que não seja de leitura e read_all para todo GET.',
-    endpoints: ENDPOINTS,
-    limits: '120 requisições por minuto por token; 60 atividades criadas por hora.',
-    errors: '401 token ausente/inválido/revogado/expirado · 403 escopo insuficiente ou usuário bloqueado · 404 não encontrado · 429 limite · 400 dado inválido.',
-  });
-});
-
 // ------------------------------------------------------------------ autenticação por token + limites
 
 const WINDOW_MS = 60 * 1000;
@@ -150,20 +145,39 @@ function bump(map, key, windowMs, max) {
   return rec.n > max;
 }
 
+// Endereço público do painel como o cliente o vê (Railway entrega por proxy: o protocolo real vem em X-Forwarded-Proto).
+export function baseUrlOf(req) {
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+  return `${proto}://${req.get('host')}`;
+}
+
+// Lê a chave do cabeçalho e, quando falta ou vem no lugar errado, diz exatamente como corrigir (é o erro mais comum de uma IA nova).
+export function readBearer(headers, query = {}) {
+  const header = String(headers.authorization || '').trim();
+  const m = /^bearer\s+(.+)$/i.exec(header);
+  const token = m ? m[1].trim() : '';
+  if (token) return token.startsWith(PREFIX) && token.length <= 200 ? { token } : { problem: 'A chave no cabeçalho não tem o formato pxk_…. Copie a chave inteira, como foi gerada no painel.' };
+  if (header.startsWith(PREFIX)) return { problem: 'Faltou a palavra Bearer: use o cabeçalho "Authorization: Bearer pxk_…".' };
+  if (headers['x-api-key'] || headers['api-key']) return { problem: 'Esta API não lê X-Api-Key: mande a chave em "Authorization: Bearer pxk_…".' };
+  if (['token', 'api_key', 'apikey', 'key', 'access_token'].some((k) => query && query[k])) return { problem: 'Não ponha a chave na URL (fica em log e histórico). Mande em "Authorization: Bearer pxk_…" e gere outra chave, porque esta vazou.' };
+  return { problem: header ? 'Cabeçalho Authorization em formato inesperado. Use "Authorization: Bearer pxk_…".' : 'Falta a chave. Mande o cabeçalho "Authorization: Bearer pxk_…" em toda chamada.' };
+}
+
+const unauthorized = (req, res, message) => res.status(401).json({ error: 'unauthorized', message, howToAuthenticate: authHelp(baseUrlOf(req)) });
+
 async function bearer(req, res, next) {
   try {
     res.set('Cache-Control', 'no-store');
-    const header = String(req.headers.authorization || '');
-    const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
-    if (!token.startsWith(PREFIX) || token.length > 200) return res.status(401).json({ message: 'Token ausente ou inválido.' });
+    const { token, problem } = readBearer(req.headers, req.query);
+    if (!token) return unauthorized(req, res, problem);
     const hash = sha256(token);
-    if (bump(hits, hash, WINDOW_MS, MAX_PER_WINDOW)) return res.status(429).json({ message: 'Muitas requisições. Espere um minuto.' });
+    if (bump(hits, hash, WINDOW_MS, MAX_PER_WINDOW)) { res.set('Retry-After', '60'); return res.status(429).json({ message: `Muitas requisições (limite de ${MAX_PER_WINDOW} por minuto). Espere um minuto.` }); }
     const { rows } = await pool.query(`SELECT * FROM api_tokens WHERE token_hash=$1`, [hash]);
     const t = rows[0];
-    if (!t || t.revoked_at || new Date(t.expires_at) < new Date()) return res.status(401).json({ message: 'Token inválido, revogado ou expirado. Gere outro em Meu perfil > Conectar.' });
+    if (!t || t.revoked_at || new Date(t.expires_at) < new Date()) return unauthorized(req, res, 'Chave inválida, revogada ou vencida. Peça uma nova a quem tem acesso ao painel (Meu perfil › Integrações).');
     const u = await pool.query('SELECT * FROM users WHERE id=$1', [t.user_id]);
     const row = u.rows[0];
-    if (!row) return res.status(401).json({ message: 'Token inválido.' });
+    if (!row) return unauthorized(req, res, 'Chave inválida.');
     if (row.blocked || (row.expires_at && new Date(row.expires_at) < new Date())) return res.status(403).json({ message: 'Acesso do usuário indisponível.' });
     if (!t.last_used_at || Date.now() - new Date(t.last_used_at).getTime() > 60000) pool.query('UPDATE api_tokens SET last_used_at=now() WHERE id=$1', [t.id]).catch(() => {});
     req.apiToken = t;
@@ -174,6 +188,53 @@ async function bearer(req, res, next) {
     next();
   } catch (e) { next(e); }
 }
+
+const capsOf = (req) => capsFor(req.apiToken.scope, req.apiUser, { read: crmCan(req.apiUser, 'read'), admin: crmCan(req.apiUser, 'admin') });
+// openapi.json e docs: sem cabeçalho = versão geral (sem dado nenhum, como o antigo índice público); com cabeçalho, a chave é conferida e a lista sai filtrada.
+const optionalBearer = (req, res, next) => (req.headers.authorization ? bearer(req, res, next) : next());
+
+router.get('/openapi.json', optionalBearer, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(buildOpenApi({ baseUrl: baseUrlOf(req), caps: req.apiToken ? capsOf(req) : null, who: req.apiToken ? req.apiToken.name : null }));
+});
+router.get('/docs', optionalBearer, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.type('text/markdown; charset=utf-8').send(buildDocsMarkdown({ baseUrl: baseUrlOf(req), caps: req.apiToken ? capsOf(req) : null, who: req.apiToken ? req.apiToken.name : null }));
+});
+
+// Descoberta (§129): a primeira chamada de qualquer IA. Sem chave = 401 com o jeito de autenticar; com chave = quem é, o que pode e como chamar cada ação.
+router.get('/', bearer, async (req, res, next) => {
+  try {
+    const u = req.apiUser;
+    const t = req.apiToken;
+    const baseUrl = baseUrlOf(req);
+    const caps = capsOf(req);
+    const actions = actionsFor(caps);
+    const org = u.orgId ? (await pool.query('SELECT id, name, display_name FROM organizations WHERE id=$1', [u.orgId])).rows[0] : null;
+    const canWrite = canWriteSomething(caps);
+    const hidden = [];
+    if (!caps.crmRead) hidden.push('CRM (o dono da chave não tem acesso ao CRM ou a chave não o inclui)');
+    if (!caps.companies) hidden.push('Empresas (o dono da chave não tem acesso)');
+    if (!caps.personal) hidden.push('Gestão de Atividades (o dono da chave não tem acesso)');
+    if (!canWrite) hidden.push('Todas as gravações (chave só de leitura)');
+    res.json({
+      api: 'PRICETAX — API de conectividade', version: '2026-11-02', baseUrl, today: todayInSp(), timezone: 'America/Sao_Paulo',
+      token: { name: t.name, scope: t.scope, scopeLabel: SCOPES[t.scope], canWrite, access: canWrite ? 'leitura e escrita' : 'só leitura', expiresAt: t.expires_at },
+      user: { name: u.name || u.username, role: u.role, workRole: u.workRole || null },
+      organization: org ? { id: org.id, name: org.display_name || org.name } : null,
+      index: actions.map((e) => `${e.method} ${e.path} — ${e.id}${e.writes ? ' (grava)' : ''}`),
+      auth: authHelp(baseUrl),
+      rules: RULES,
+      limits: LIMITS,
+      errors: ERRORS,
+      notAvailableToThisKey: hidden,
+      resources: Object.entries(GROUPS).map(([group, title]) => ({ group, title, actions: actions.filter((e) => e.group === group).map((e) => describeAction(e, baseUrl)) })).filter((g) => g.actions.length),
+      docs: `${baseUrl}/api/connect/docs`,
+      openapi: `${baseUrl}/api/connect/openapi.json`,
+      next: 'Escolha a ação em resources[].actions, use exatamente os params e body.fields indicados e leia o responseExample para saber o que volta.',
+    });
+  } catch (e) { next(e); }
+});
 
 function needScope(scope) {
   return (req, res, next) => {
@@ -437,14 +498,15 @@ const companyName = (d) => (d.company && (d.company.nomeFantasia || d.company.na
 router.get('/companies', async (req, res, next) => {
   try {
     if (!req.apiUser.companiesAccess) return res.status(403).json({ message: 'O dono do token não tem acesso a Empresas.' });
-    const q = String(req.query.q || '').trim().toLowerCase();
+    const fold = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const q = fold(String(req.query.q || '').trim());
     const list = (await loadProjects(req.apiUser)).map((r) => {
       const acts = alive(r.data.activities);
       return {
         id: r.id, name: companyName(r.data), legalName: (r.data.company && r.data.company.name) || '', cnpj: (r.data.company && r.data.company.cnpj) || '',
         status: (r.data.company && r.data.company.status) || '', activities: acts.length, activitiesDone: acts.filter((a) => a.status === 'concluido').length, meetings: alive(r.data.meetings).length,
       };
-    }).filter((c) => !q || `${c.name} ${c.legalName} ${c.cnpj}`.toLowerCase().includes(q)).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    }).filter((c) => !q || fold(`${c.name} ${c.legalName} ${c.cnpj}`).includes(q)).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
     res.json({ total: list.length, companies: list });
   } catch (e) { next(e); }
 });
@@ -901,4 +963,14 @@ router.post('/companies/:id/plan', needScope('read_write'), async (req, res, nex
     res.json({ dryRun: false, applied: out.results.length, results: out.results, created: out.created, undo: out.undo });
     syncProjectMemoryFromDiff(pool, r.org_id, r.id, r.data, out.next).catch((e) => console.error('Falha ao reindexar memória após ajuste por API', e.message));
   } catch (e) { try { await client.query('ROLLBACK'); } catch { /* conexão já encerrada */ } next(e); } finally { client.release(); }
+});
+
+// Rota que não existe (ou método errado): resposta que ensina, em vez do 404 genérico — a IA que errou o caminho volta para a descoberta.
+router.use((req, res) => {
+  const hits = matchCatalog(req.path.startsWith('/api/connect') ? req.path : `/api/connect${req.path}`);
+  if (hits.length) {
+    res.set('Allow', [...new Set(hits.map((e) => e.method))].join(', '));
+    return res.status(405).json({ message: `${req.method} não vale em ${req.originalUrl.split('?')[0]}. Métodos aceitos: ${[...new Set(hits.map((e) => e.method))].join(', ')}.`, allowed: hits.map((e) => `${e.method} ${e.path}`) });
+  }
+  res.status(404).json({ message: `Rota não existe: ${req.method} ${req.originalUrl.split('?')[0]}. Não adivinhe caminhos: GET /api/connect lista todas as ações desta chave.` });
 });

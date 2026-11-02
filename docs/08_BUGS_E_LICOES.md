@@ -636,6 +636,7 @@ Referência completa dos scripts: `docs/gerado/TESTES.md`.
 | Teste de `scripts/` falha em "Token ausente" ou em ferramenta sem cobertura | HTTP exige servidor e usuários do banco dev; `renata-tools` já falhava (`preferencia_guardar`) | §116zu | comparar com a versão publicada antes de culpar a mudança nova |
 | `preview_start` sai com código 126 ("Operation not permitted") | o sistema não deixa executar script de dentro de `~/Downloads` (o antigo funcionava por morar em `/private/tmp`, que some a cada reinício e é de uma conversa só) | §116zv | `launch.json` com `/usr/bin/env` + `npm --prefix`, sem script |
 | Produção fora do ar ~4 min (02/11, 15h44–15h48): "módulo não encontrado" (o mailLinks de outra sessão) | o `server/index.js` da pasta de trabalho ganhou, de outra sessão, a importação de um módulo ainda não publicado; foi copiado inteiro para o clone entre a conferência do `diff` e o `cp` | §128 | ao publicar só parte da pasta, **repita o `diff` contra o clone logo antes do commit** (não só antes do `cp`) e rode `node server/index.js` no clone (porta própria) antes do push: ele quebra na hora se faltar módulo |
+| Teste HTTP antigo "não sobe o servidor" / espera para sempre | o laço de espera usava `GET /api/connect` sem chave, que passou a dar 401 (§129) | §129 | esperar em `/api/connect/openapi.json` (público, 200); ao mudar resposta pública, procurar `api/connect` nos `scripts/*.test.mjs` |
 
 ---
 

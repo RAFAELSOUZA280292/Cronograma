@@ -2,54 +2,53 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **396 rotas** em **37 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **398 rotas** em **37 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
 | Prefixo | Arquivo | Linha |
 |---|---|---|
-| `/api` | `server/routes.js` | 85 |
-| `/api/xflow` | `server/xflow.js` | 86 |
-| `/api/google` | `server/google.js` | 87 |
-| `/api/microsoft` | `server/microsoft.js` | 88 |
-| `/api/agenda` | `server/agenda.js` | 89 |
-| `/api/mail` | `server/mail.js` | 90 |
-| `/api/mail-links` | `server/mailLinks.js` | 91 |
-| `/api/whatsapp` | `server/whatsapp.js` | 92 |
-| `/api/whatsapp` | `server/whatsapp.js` | 93 |
-| `/api/macro` | `server/macro.js` | 94 |
-| `/api/inventory` | `server/inventory.js` | 95 |
-| `/api/inventory` | `server/inventoryEdit.js` | 96 |
-| `/api/gaps` | `server/gaps.js` | 97 |
-| `/api/task-links` | `server/taskLinks.js` | 98 |
-| `/api/task-links` | `server/taskLinkBackfill.js` | 99 |
-| `/api/standard-plan` | `server/standardPlanApi.js` | 100 |
-| `/api/meeting-inbox` | `server/meetingInbox.js` | 101 |
-| `/api/assistant` | `server/assistant.js` | 102 |
-| `/api/knowledge` | `server/knowledge.js` | 103 |
-| `/api/pareceres` | `server/pareceres.js` | 104 |
-| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 105 |
-| `/api/crm` | `server/crm/routes.js` | 106 |
-| `/api/renata` | `server/renata/routes.js` | 107 |
-| `/api/widget` | `server/widget.js` | 108 |
-| `/api/daily` | `server/daily.js` | 109 |
-| `/api/home-prefs` | `server/homePrefs.js` | 110 |
-| `/api/templates` | `server/documentTemplates.js` | 111 |
-| `/api/library-search` | `server/librarySearch.js` | 112 |
-| `/api/briefing` | `server/briefing.js` | 113 |
-| `/api/client360` | `server/client360.js` | 114 |
-| `/api/connect` | `server/connect.js` | 115 |
-| `/api/company-share` | `server/companyShare.js` | 116 |
-| `/api/project-vault` | `server/projectVault.js` | 117 |
-| `/api/company-calendar` | `server/companyCalendar.js` | 118 |
-| `/api/public-company` | `server/companyShare.js` | 119 |
-| `/d` | `server/companyShare.js` | 120 |
-| `/d` | `server/errorHandler.js` | 121 |
-| `/api/push` | `server/push.js` | 122 |
-| `/api/ops-intel` | `server/opsIntel.js` | 123 |
-| `/api/experience` | `server/experience.js` | 124 |
-| `/api/project-history` | `server/projectVersions.js` | 125 |
-| `/api` | `server/errorHandler.js` | 133 |
+| `/api` | `server/routes.js` | 84 |
+| `/api/xflow` | `server/xflow.js` | 85 |
+| `/api/google` | `server/google.js` | 86 |
+| `/api/microsoft` | `server/microsoft.js` | 87 |
+| `/api/agenda` | `server/agenda.js` | 88 |
+| `/api/mail` | `server/mail.js` | 89 |
+| `/api/whatsapp` | `server/whatsapp.js` | 90 |
+| `/api/whatsapp` | `server/whatsapp.js` | 91 |
+| `/api/macro` | `server/macro.js` | 92 |
+| `/api/inventory` | `server/inventory.js` | 93 |
+| `/api/inventory` | `server/inventoryEdit.js` | 94 |
+| `/api/gaps` | `server/gaps.js` | 95 |
+| `/api/task-links` | `server/taskLinks.js` | 96 |
+| `/api/task-links` | `server/taskLinkBackfill.js` | 97 |
+| `/api/standard-plan` | `server/standardPlanApi.js` | 98 |
+| `/api/meeting-inbox` | `server/meetingInbox.js` | 99 |
+| `/api/assistant` | `server/assistant.js` | 100 |
+| `/api/knowledge` | `server/knowledge.js` | 101 |
+| `/api/pareceres` | `server/pareceres.js` | 102 |
+| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 103 |
+| `/api/crm` | `server/crm/routes.js` | 104 |
+| `/api/renata` | `server/renata/routes.js` | 105 |
+| `/api/widget` | `server/widget.js` | 106 |
+| `/api/daily` | `server/daily.js` | 107 |
+| `/api/home-prefs` | `server/homePrefs.js` | 108 |
+| `/api/templates` | `server/documentTemplates.js` | 109 |
+| `/api/library-search` | `server/librarySearch.js` | 110 |
+| `/api/briefing` | `server/briefing.js` | 111 |
+| `/api/client360` | `server/client360.js` | 112 |
+| `/api/connect` | `server/connect.js` | 113 |
+| `/api/company-share` | `server/companyShare.js` | 114 |
+| `/api/project-vault` | `server/projectVault.js` | 115 |
+| `/api/company-calendar` | `server/companyCalendar.js` | 116 |
+| `/api/public-company` | `server/companyShare.js` | 117 |
+| `/d` | `server/companyShare.js` | 118 |
+| `/d` | `server/errorHandler.js` | 119 |
+| `/api/push` | `server/push.js` | 120 |
+| `/api/ops-intel` | `server/opsIntel.js` | 121 |
+| `/api/experience` | `server/experience.js` | 122 |
+| `/api/project-history` | `server/projectVersions.js` | 123 |
+| `/api` | `server/errorHandler.js` | 131 |
 
 Montagens extras (fora do `index.js`): `/api/connect/crm` = o roteador do CRM (`server/crm/routes.js`) reaproveitado por `server/connect.js` para a chave `crm_operate`/`write_all`/`read_all`; `/api/templates` tem limite de corpo próprio (45 MB) definido no `index.js`.
 
@@ -120,7 +119,7 @@ Arquivos: `server/index.js`, `server/payloadStats.js`, `server/xflowTransitions.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:150` |
+| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:148` |
 | GET | `(sem prefixo conhecido)/projects` | `requireAuth` `payloadStats('GET /projects')` |  | `server/payloadStats.js:27` |
 | DELETE | `(sem prefixo conhecido)/tickets/:id` |  | arquivar) — um ticket aberto por engano também precisa poder ir pra Lixeira. purgar (apagar de vez) não passa por aqui — é DELETE direto, | `server/xflowTransitions.js:54` |
 
@@ -196,36 +195,38 @@ Arquivos: `server/companyShare.js`.
 | POST | `/api/company-share/:projectId` | `requireAuth` `requireMasterOrPricetax` | Gera um link novo; o anterior (se houver) para de funcionar. | `server/companyShare.js:62` |
 | DELETE | `/api/company-share/:projectId` | `requireAuth` `requireMasterOrPricetax` |  | `server/companyShare.js:82` |
 
-## `/api/connect` — 23 rotas
+## `/api/connect` — 25 rotas
 
 Arquivos: `server/connect.js`. Proteção do grupo (`router.use` global): `server/connect.js`: `bearer`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/connect/tokens` | `requireAuth` |  | `server/connect.js:45` |
-| POST | `/api/connect/tokens` | `requireAuth` |  | `server/connect.js:53` |
-| GET | `/api/connect/actions` | `requireAuth` | O que o Claude Code alterou no CRM pelas chaves do próprio administrador (últimas 100 gravações). | `server/connect.js:79` |
-| DELETE | `/api/connect/tokens/:id` | `requireAuth` |  | `server/connect.js:90` |
-| GET | `/api/connect` |  |  | `server/connect.js:121` |
-| GET | `/api/connect/team-day` |  | ------------------------------------------------------------------ dia da equipe por chave (2026-10-29) Só leitura, só chave "Ler tudo"/"Ler e editar tudo" de um adminis… | `server/connect.js:190` |
-| USE | `/api/connect/crm` |  | monta: crmViaToken, createCrmRouter({ auth: [(req, res, next) => next()] })); | `server/connect.js:233` |
-| GET | `/api/connect/me` |  |  | `server/connect.js:235` |
-| GET | `/api/connect/activities` |  |  | `server/connect.js:279` |
-| POST | `/api/connect/activities` | `needScope('read_create')` |  | `server/connect.js:294` |
-| GET | `/api/connect/board` |  | Gravar exige apply+confirm e o `digest` da prévia (o quadro não pode ter mudado entre as duas chamadas); o estado anterior vira uma cópia em "Versões" (sempre, sem a reg… | `server/connect.js:359` |
-| POST | `/api/connect/board/plan` |  |  | `server/connect.js:368` |
-| GET | `/api/connect/companies` |  |  | `server/connect.js:437` |
-| GET | `/api/connect/companies/:id` |  |  | `server/connect.js:460` |
-| GET | `/api/connect/companies/:id/meetings/:meetingId` |  |  | `server/connect.js:489` |
-| POST | `/api/connect/companies/:id/transcripts` | `needTranscripts` |  | `server/connect.js:532` |
-| GET | `/api/connect/companies/:id/transcripts` | `needTranscripts` |  | `server/connect.js:556` |
-| GET | `/api/connect/companies/:id/transcripts/:submissionId` | `needTranscripts` |  | `server/connect.js:564` |
-| POST | `/api/connect/companies/:id/transcripts/:submissionId/retry` | `needTranscripts` |  | `server/connect.js:580` |
-| PATCH | `/api/connect/companies/:id/meetings/:meetingId` | `needMeetingsEdit` |  | `server/connect.js:657` |
-| GET | `/api/connect/companies/:id/meetings/:meetingId/edits` | `needMeetingsEdit` |  | `server/connect.js:664` |
-| POST | `/api/connect/companies/:id/meetings/:meetingId/edits/:editId/undo` | `needMeetingsEdit` |  | `server/connect.js:673` |
-| GET | `/api/connect/agenda` |  |  | `server/connect.js:681` |
-| POST | `/api/connect/companies/:id/plan` | `needScope('read_write')` |  | `server/connect.js:880` |
+| GET | `/api/connect/tokens` | `requireAuth` |  | `server/connect.js:76` |
+| POST | `/api/connect/tokens` | `requireAuth` |  | `server/connect.js:84` |
+| GET | `/api/connect/actions` | `requireAuth` | O que o Claude Code alterou no CRM pelas chaves do próprio administrador (últimas 100 gravações). | `server/connect.js:110` |
+| DELETE | `/api/connect/tokens/:id` | `requireAuth` |  | `server/connect.js:121` |
+| GET | `/api/connect/openapi.json` | `optionalBearer` |  | `server/connect.js:196` |
+| GET | `/api/connect/docs` | `optionalBearer` |  | `server/connect.js:200` |
+| GET | `/api/connect` | `bearer` | Descoberta (§129): a primeira chamada de qualquer IA. Sem chave = 401 com o jeito de autenticar; com chave = quem é, o que pode e como chamar cada ação. | `server/connect.js:206` |
+| GET | `/api/connect/team-day` |  | ------------------------------------------------------------------ dia da equipe por chave (2026-10-29) Só leitura, só chave "Ler tudo"/"Ler e editar tudo" de um adminis… | `server/connect.js:251` |
+| USE | `/api/connect/crm` |  | monta: crmViaToken, createCrmRouter({ auth: [(req, res, next) => next()] })); | `server/connect.js:294` |
+| GET | `/api/connect/me` |  |  | `server/connect.js:296` |
+| GET | `/api/connect/activities` |  |  | `server/connect.js:340` |
+| POST | `/api/connect/activities` | `needScope('read_create')` |  | `server/connect.js:355` |
+| GET | `/api/connect/board` |  | Gravar exige apply+confirm e o `digest` da prévia (o quadro não pode ter mudado entre as duas chamadas); o estado anterior vira uma cópia em "Versões" (sempre, sem a reg… | `server/connect.js:420` |
+| POST | `/api/connect/board/plan` |  |  | `server/connect.js:429` |
+| GET | `/api/connect/companies` |  |  | `server/connect.js:498` |
+| GET | `/api/connect/companies/:id` |  |  | `server/connect.js:522` |
+| GET | `/api/connect/companies/:id/meetings/:meetingId` |  |  | `server/connect.js:551` |
+| POST | `/api/connect/companies/:id/transcripts` | `needTranscripts` |  | `server/connect.js:594` |
+| GET | `/api/connect/companies/:id/transcripts` | `needTranscripts` |  | `server/connect.js:618` |
+| GET | `/api/connect/companies/:id/transcripts/:submissionId` | `needTranscripts` |  | `server/connect.js:626` |
+| POST | `/api/connect/companies/:id/transcripts/:submissionId/retry` | `needTranscripts` |  | `server/connect.js:642` |
+| PATCH | `/api/connect/companies/:id/meetings/:meetingId` | `needMeetingsEdit` |  | `server/connect.js:719` |
+| GET | `/api/connect/companies/:id/meetings/:meetingId/edits` | `needMeetingsEdit` |  | `server/connect.js:726` |
+| POST | `/api/connect/companies/:id/meetings/:meetingId/edits/:editId/undo` | `needMeetingsEdit` |  | `server/connect.js:735` |
+| GET | `/api/connect/agenda` |  |  | `server/connect.js:743` |
+| POST | `/api/connect/companies/:id/plan` | `needScope('read_write')` |  | `server/connect.js:942` |
 
 ## `/api/crm` — 87 rotas
 

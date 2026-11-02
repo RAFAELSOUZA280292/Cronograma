@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Copy, Check, KeyRound, Trash2 } from 'lucide-react';
+import { Copy, Check, KeyRound, Trash2, Download, Link2 } from 'lucide-react';
 import { apiGet, apiPost, apiDelete } from '../lib/api.js';
 import { buildGuide } from './guide.js';
 import { askConfirm } from '../ui/dialogs.jsx';
@@ -56,6 +56,7 @@ const fmtTs = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle:
 export default function ConnectSection({ onAtRiskChange }) {
   const [tokens, setTokens] = useState(null);
   const [canCrm, setCanCrm] = useState(false);
+  const [canCrmRead, setCanCrmRead] = useState(false);
   const [canTranscripts, setCanTranscripts] = useState(false);
   const [actions, setActions] = useState([]);
   const [name, setName] = useState('');
@@ -70,7 +71,7 @@ export default function ConnectSection({ onAtRiskChange }) {
   const [everCopied, setEverCopied] = useState(false);
 
   async function load() {
-    try { const r = await apiGet('/api/connect/tokens'); setTokens(r.tokens); setCanCrm(!!r.canCrm); setCanTranscripts(!!r.canTranscripts); setCanAdmin(!!r.canAdmin); if (r.canCrm) apiGet('/api/connect/actions').then((a) => setActions(a.actions || [])).catch(() => {}); } catch { setTokens([]); }
+    try { const r = await apiGet('/api/connect/tokens'); setTokens(r.tokens); setCanCrm(!!r.canCrm); setCanCrmRead(!!r.canCrmRead); setCanTranscripts(!!r.canTranscripts); setCanAdmin(!!r.canAdmin); if (r.canCrm) apiGet('/api/connect/actions').then((a) => setActions(a.actions || [])).catch(() => {}); } catch { setTokens([]); }
   }
   useEffect(() => { load(); }, []);
   useEffect(() => { if (onAtRiskChange) onAtRiskChange(!!fresh && !everCopied); }, [fresh, everCopied]);
@@ -96,12 +97,28 @@ export default function ConnectSection({ onAtRiskChange }) {
 
   async function copy(kind, text) {
     setError('');
-    try { await navigator.clipboard.writeText(text); setCopied(kind); setManual(''); if (kind === 'token') setEverCopied(true); setTimeout(() => setCopied((c) => (c === kind ? '' : c)), 2500); } catch { setManual(text); }
+    try { await navigator.clipboard.writeText(text); setCopied(kind); setManual(''); if (kind === 'token' || kind === 'all') setEverCopied(true); setTimeout(() => setCopied((c) => (c === kind ? '' : c)), 2500); } catch { setManual(text); }
   }
 
   const baseUrl = window.location.origin;
   const exportLine = fresh ? `export PRICETAX_URL="${baseUrl}"\nexport PRICETAX_TOKEN="${fresh.token}"` : '';
-  const guide = buildGuide({ baseUrl, canCreate: !!fresh && ['read_create', 'read_write', 'write_all'].includes(fresh.scope), canWrite: !!fresh && ['read_write', 'write_all'].includes(fresh.scope), canCrm: !!fresh && ['crm_operate', 'write_all'].includes(fresh.scope), canTranscripts: !!fresh && ['transcripts', 'meetings_edit', 'read_write', 'write_all'].includes(fresh.scope), canMeetingsEdit: !!fresh && ['meetings_edit', 'write_all'].includes(fresh.scope), readAll: !!fresh && ['read_all', 'write_all'].includes(fresh.scope), canBoard: !!fresh && fresh.scope === 'write_all', canTeam: !!fresh && ['read_all', 'write_all'].includes(fresh.scope) });
+  const flags = fresh ? { scopeLabel: SCOPE_LABEL[fresh.scope] || '', canCreate: ['read_create', 'read_write', 'write_all'].includes(fresh.scope), canWrite: ['read_write', 'write_all'].includes(fresh.scope), canCrm: ['crm_operate', 'write_all'].includes(fresh.scope) && canCrm, canTranscripts: ['transcripts', 'meetings_edit', 'read_write', 'write_all'].includes(fresh.scope), canMeetingsEdit: ['meetings_edit', 'write_all'].includes(fresh.scope), readAll: ['read_all', 'write_all'].includes(fresh.scope) && canCrmRead, canBoard: fresh.scope === 'write_all', canTeam: ['read_all', 'write_all'].includes(fresh.scope) && canAdmin } : {};
+  const guide = buildGuide({ baseUrl, ...flags });
+  const guideWithKey = fresh ? buildGuide({ baseUrl, token: fresh.token, ...flags }) : '';
+  const openapiUrl = `${baseUrl}/api/connect/openapi.json`;
+
+  // OpenAPI filtrado para a chave recém-gerada (só o que ela pode usar), para importar no ChatGPT/Gemini sem rota que daria 403.
+  async function downloadOpenapi() {
+    setError('');
+    try {
+      const r = await fetch('/api/connect/openapi.json', { headers: { Authorization: `Bearer ${fresh.token}` } });
+      if (!r.ok) throw new Error();
+      const url = URL.createObjectURL(new Blob([JSON.stringify(await r.json(), null, 2)], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = 'pricetax-openapi.json'; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch { setError('Não foi possível baixar a especificação agora. Use o link do OpenAPI.'); }
+  }
 
   return (
     <div className="cnx">
@@ -113,12 +130,18 @@ export default function ConnectSection({ onAtRiskChange }) {
         <>
           <div className="cnx-warn">A chave aparece só uma vez — copie agora. Quem tiver a chave acessa o que ela permite até você revogar ou ela vencer em {fmt(fresh.expires_at)}.</div>
           <ol className="cnx-steps">
-            <li>Na outra ferramenta, cole o <b>comando da chave</b>.</li>
-            <li>Cole o <b>guia</b> na conversa dela (sem a chave dentro).</li>
-            <li>Peça: “leia o guia e faça o primeiro passo para confirmar a conexão”.</li>
+            <li>Toque em <b>Copiar tudo para a IA</b> e cole na conversa da ferramenta (Claude Code, ChatGPT, Gemini, Base44…).</li>
+            <li>Peça: “siga as instruções e faça a primeira chamada”. Ela confere a chave e recebe a lista de tudo o que pode fazer.</li>
+            <li>No ChatGPT (Ações) ou no Gemini, use também o <b>OpenAPI</b>: o link ou o arquivo abaixo.</li>
           </ol>
-          <button type="button" className="cnx-btn primary" style={{ marginTop: 10 }} title="Copiar o comando da chave" onClick={() => copy('token', exportLine)}>{copied === 'token' ? <><Check size={15} /> Copiado</> : <><Copy size={15} /> 1. Copiar comando da chave</>}</button>
-          <button type="button" className="cnx-btn" style={{ marginTop: 8 }} title="Copiar o guia de uso" onClick={() => copy('guide', guide)}>{copied === 'guide' ? <><Check size={15} /> Copiado</> : <><Copy size={15} /> 2. Copiar guia de uso</>}</button>
+          <button type="button" className="cnx-btn primary" style={{ marginTop: 10 }} title="Copiar a chave e as instruções juntas" onClick={() => copy('all', guideWithKey)}>{copied === 'all' ? <><Check size={15} /> Copiado</> : <><Copy size={15} /> Copiar tudo para a IA</>}</button>
+          <div className="cnx-warn" style={{ marginTop: 8 }}>Esse texto leva a chave: cole só na ferramenta que vai usá-la. Quem tiver o texto acessa o que a chave permite.</div>
+          <button type="button" className="cnx-btn" style={{ marginTop: 8 }} title="Copiar o endereço da especificação OpenAPI" onClick={() => copy('openapi', openapiUrl)}>{copied === 'openapi' ? <><Check size={15} /> Copiado</> : <><Link2 size={15} /> Copiar link do OpenAPI</>}</button>
+          <button type="button" className="cnx-btn" style={{ marginTop: 8 }} title="Baixar a especificação OpenAPI só com o que esta chave pode usar" onClick={downloadOpenapi}><Download size={15} /> Baixar OpenAPI desta chave (.json)</button>
+          <details className="cnx-adv" style={{ marginTop: 8 }}><summary>Outras formas de copiar</summary>
+            <button type="button" className="cnx-btn" style={{ marginTop: 4 }} title="Copiar o comando da chave para o terminal" onClick={() => copy('token', exportLine)}>{copied === 'token' ? <><Check size={15} /> Copiado</> : <><Copy size={15} /> Copiar só a chave (comando do terminal)</>}</button>
+            <button type="button" className="cnx-btn" style={{ marginTop: 8 }} title="Copiar as instruções sem a chave" onClick={() => copy('guide', guide)}>{copied === 'guide' ? <><Check size={15} /> Copiado</> : <><Copy size={15} /> Copiar instruções sem a chave</>}</button>
+          </details>
           {manual && <><div className="cnx-warn">Não foi possível copiar automaticamente. Toque no texto, selecione tudo e use Copiar.</div><textarea className="cnx-code" readOnly aria-label="Texto para copiar" value={manual} onFocus={(e) => e.target.select()} /></>}
           <button type="button" className="cnx-btn" style={{ marginTop: 8 }} onClick={() => { setFresh(null); setManual(''); setEverCopied(false); }}>Já copiei, fechar</button>
         </>
@@ -181,7 +204,7 @@ export default function ConnectSection({ onAtRiskChange }) {
       <details className="cnx-det">
         <summary>Detalhes para quem integra</summary>
         <div className="cnx-det-body">
-          <p>A chave vai no cabeçalho de cada chamada à API do painel, em <code>{baseUrl}/api/connect</code>. O comando da chave define duas variáveis de ambiente no terminal (<code>PRICETAX_URL</code> e <code>PRICETAX_TOKEN</code>) e o guia de uso traz os endpoints e exemplos prontos para a ferramenta que vai usar a chave.</p>
+          <p>A chave vai no cabeçalho <code>Authorization: Bearer pxk_…</code> de cada chamada. A primeira chamada, <code>GET {baseUrl}/api/connect</code>, devolve quem é a chave e todas as ações que ela pode usar, com exemplos. Especificação OpenAPI 3.1 em <code>{openapiUrl}</code> e guia legível em <code>{baseUrl}/api/connect/docs</code>.</p>
           <p>O guia completo, sem a chave, também está no repositório em <code>docs/CONECTIVIDADE_CLAUDE_CODE.md</code>.</p>
         </div>
       </details>

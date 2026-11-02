@@ -62,7 +62,7 @@ try {
 
   const R = rAdm.json.token; const W = wAdm.json.token;
   const RV = (await mint('vend', 'read_all')).json.token; const RN = (await mint('none', 'read_all')).json.token;
-  const idx = await call({}, 'GET', '/api/connect'); ok('o índice público lista as duas chaves e os escopos antigos', !!idx.json.scopes.read_all && !!idx.json.scopes.write_all && !!idx.json.scopes.read_write && /read_all/.test(idx.json.presets));
+  const idx = await call({}, 'GET', '/api/connect'); ok('sem chave, GET /api/connect dá 401 com o jeito de autenticar', idx.status === 401 && idx.json.error === 'unauthorized' && /Bearer/.test(idx.json.howToAuthenticate.header));
 
   // ---- Ler tudo: lê de tudo, não grava nada
   const rr = async (p) => (await call(bearer(R), 'GET', p)).status;

@@ -120,7 +120,7 @@ O diretório de trabalho **não é repositório git**. O deploy usa um clone sep
 2. `rsync -a --delete --exclude .git --exclude node_modules --exclude dist --exclude .sourcemaps --exclude .env --exclude .claude --exclude exports --exclude docs/11_ACHADOS_E_PENDENCIAS.md --exclude server/evals/.last-run-failure-traces.md ./ <clone>/` (e qualquer rascunho privado que esteja em `docs/` e não deva ir ao repositório público).
 3. No clone: `npm run build` (tem que sair limpo) e `git status --short` (conferir **cada** arquivo).
 4. `git add` **por caminho** (nunca `git add -A`: já subiu pasta de cliente para o repositório público), commit com mensagem clara (primeira linha = o quê; corpo = por quê) terminando com a linha de coautoria definida pela sessão, `git push origin main`.
-5. Railway publica sozinho (~2–3 min). **Verifique em produção**: `GET <PRICETAX_URL>/api/connect` (índice) responde JSON; o hash do bundle em `/` muda; rota nova responde 401/200 em JSON (não cai no `index.html`; `/api` desconhecido = 404 JSON; **não existe `/api/health`**); `node scripts/railway-logs.mjs "error" --limit 300` sem erro novo.
+5. Railway publica sozinho (~2–3 min). **Verifique em produção**: `GET <PRICETAX_URL>/api/connect` sem chave responde **401 em JSON** (`error: unauthorized`) e `/api/connect/openapi.json` responde 200; o hash do bundle em `/` muda; rota nova responde 401/200 em JSON (não cai no `index.html`; `/api` desconhecido = 404 JSON; **não existe `/api/health`**); `node scripts/railway-logs.mjs "error" --limit 300` sem erro novo.
 6. Registre a hora do deploy em Brasília no relato.
 
 ## Regras de ouro (resumo; lista completa em `PROJECT_CONTEXT.md` §16 e `docs/08_BUGS_E_LICOES.md`)

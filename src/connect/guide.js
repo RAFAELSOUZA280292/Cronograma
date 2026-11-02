@@ -1,146 +1,84 @@
-// Guia que o usuário cola na OUTRA janela do Claude Code (2026-10-05, §80). Não leva o token: ele vai pela variável de ambiente
-// PRICETAX_TOKEN, para não ficar em arquivo nem em histórico de conversa. Mantido em sincronia com `ENDPOINTS` de server/connect.js.
-export function buildGuide({ baseUrl, canCreate, canWrite = false, canCrm = false, canTranscripts = false, canMeetingsEdit = false, readAll = false, canBoard = false, canTeam = false }) {
-  const transcripts = canTranscripts
-    ? `
-### Enviar transcrição de reunião para a RENATA (esta chave pode)
-\`\`\`bash
-curl -s -X POST "$PRICETAX_URL/api/connect/companies/{id}/transcripts" -H "Authorization: Bearer $PRICETAX_TOKEN" -H "Content-Type: application/json" \\
-  -d '{"transcript":"<texto bruto COMPLETO da reunião>","date":"2026-10-28","time":"10:00"}'
-curl -s "$PRICETAX_URL/api/connect/companies/{id}/transcripts/{submissionId}" -H "Authorization: Bearer $PRICETAX_TOKEN"
-\`\`\`
-- É o mesmo caminho do botão **Enviar transcrição** da aba Reuniões: a **RENATA do painel** extrai título, participantes, resumo, decisões e atividades e registra a reunião na empresa. **Você só entrega o texto e acompanha**; não resuma, não extraia, não crie atividades por outra rota.
-- \`transcript\` = texto bruto completo (com quem fala e marcações de tempo, se houver; mínimo 200 caracteres). \`date\` (AAAA-MM-DD) e \`time\` (HH:MM) são os da reunião; o que você informar vale mais que o extraído do texto.
-- Responde 202 com \`submissionId\`; consulte a cada ~5 s até \`status\` = \`done\` (traz a reunião criada) ou \`failed\` (\`errorMessage\`; dá para \`POST …/transcripts/{submissionId}/retry\`). O mesmo texto na mesma empresa não é processado duas vezes (\`duplicate:true\`). Limite: 30 envios por hora.
-- Cada envio é uma chamada de IA paga: **só envie quando o Rafael pedir** e uma reunião por vez.
-${canMeetingsEdit ? `
-### Corrigir uma reunião já registrada (esta chave pode)
-\`\`\`bash
-curl -s "$PRICETAX_URL/api/connect/companies/{id}/meetings/{meetingId}" -H "Authorization: Bearer $PRICETAX_TOKEN"
-curl -s -X PATCH "$PRICETAX_URL/api/connect/companies/{id}/meetings/{meetingId}" -H "Authorization: Bearer $PRICETAX_TOKEN" -H "Content-Type: application/json" \\
-  -d '{"dryRun":true,"title":"…","actionItems":[{"op":"set","id":"mai-…","set":{"responsible":"…","kind":"decisao"}}]}'
-\`\`\`
-- Leia a reunião antes (cada tarefa vem com \`id\` e o vínculo com o cronograma em \`activityLink\`). Campos aceitos: \`title\`, \`date\`, \`time\`, \`summary\`, \`decisions\`, \`participants\` (lista inteira ou \`{add,remove,rename}\`) e \`actionItems\` por operações (\`set\`, \`add\`, \`delete\`, \`restore\`; nunca reenvie a lista toda). Qualquer outro campo dá 400.
-- **Sempre faça primeiro com \`"dryRun":true\`** (mostra antes e depois sem gravar), confira, e só então repita sem o dryRun. Tudo ou nada. A resposta traz \`editId\`: \`POST …/meetings/{meetingId}/edits/{editId}/undo\` desfaz a correção (\`GET …/edits\` lista o histórico). Não mexe no vínculo tarefa→atividade (isso é da tela). Cada correção vai para o Log da empresa.
-- Corrija **só o que o Rafael pediu**; não reescreva o que a RENATA acertou.
-` : ''}
-`
-    : '';
-  const crm = canCrm
-    ? `
-### Operar o CRM (esta chave pode; só administrador)
-\`\`\`bash
-curl -s "$PRICETAX_URL/api/connect/crm/pipelines" -H "Authorization: Bearer $PRICETAX_TOKEN"
-curl -s -X POST "$PRICETAX_URL/api/connect/crm/cadences" -H "Authorization: Bearer $PRICETAX_TOKEN" -H "Content-Type: application/json" -d '{"pipelineId":"…","stageId":"…","steps":[{"title":"1º Follow Up","type":"followup","days":1}]}'
-\`\`\`
-- São as MESMAS rotas e regras de \`/api/crm\` da tela (empresas, contatos, negócios, atividades, notas, produtos, funis, cadências): mesma validação, auditoria e linha do tempo; só o prefixo muda para \`/api/connect/crm\`.
-- Tudo que você grava fica registrado como **"Claude Code (por <dono da chave>)"** e entra no registro de ações (Meu perfil > Conectar). Excluir é exclusão lógica, como na tela.
-- **Extrair para Excel:** \`curl -s "$PRICETAX_URL/api/connect/crm/deals/export.xlsx?tag=NOME&status=open" -H "Authorization: Bearer $PRICETAX_TOKEN" -o negocios.xlsx\` — mesmos filtros da lista (\`q\`, \`tag\` (várias com \`|\`), \`ownerId\`, \`source\`, \`type\`, \`attention\`, \`status\`=open|won|lost|all, \`pipelineId\`); vem com e-mail, telefone e link do WhatsApp; o cabeçalho \`X-Export-Count\` diz quantos negócios. Para ler dados em JSON use \`GET /api/connect/crm/deals\` (até 200 por página, \`offset\` para a próxima) e \`/companies\`, \`/contacts\`.
-- Não opera a migração do PipeRun (escrita). Faça só o que o Rafael pediu; depois de gravar, confira lendo de volta e diga o que mudou.
-`
-    : '';
-  const crmRead = readAll && !canCrm
-    ? `
-### Ler o CRM (esta chave pode; só leitura)
-\`\`\`bash
-curl -s "$PRICETAX_URL/api/connect/crm/pipelines" -H "Authorization: Bearer $PRICETAX_TOKEN"
-curl -s "$PRICETAX_URL/api/connect/crm/deals?limit=50" -H "Authorization: Bearer $PRICETAX_TOKEN"
-\`\`\`
-- Mesmas rotas de leitura de \`/api/crm\` da tela (funis, negócios, empresas, contatos, atividades, notas, produtos), com o acesso de leitura do dono da chave; só o prefixo muda para \`/api/connect/crm\`. Qualquer gravação (POST, PUT, PATCH, DELETE) devolve 403. Os dados têm e-mail e telefone de contatos: não copie para arquivos do repositório.
-`
-    : '';
-  const write = canWrite
-    ? `
-### Ajustar o cronograma de uma empresa (este token pode; só administrador)
-\`\`\`bash
-curl -s -X POST "$PRICETAX_URL/api/connect/companies/{id}/plan" \\
-  -H "Authorization: Bearer $PRICETAX_TOKEN" -H "Content-Type: application/json" \\
-  -d '{"dryRun":true,"note":"por quê","ops":[{"op":"sub.set","activity":{"id":"…"},"sub":{"id":"…"},"set":{"done":true}}]}'
-\`\`\`
-- **\`dryRun\` é \`true\` por padrão**: só mostra o que faria. Mande \`"dryRun":false\` para gravar, e só depois de eu aprovar o que o dry-run mostrou.
-- Tudo ou nada (até 200 operações): se uma falhar, nada é gravado. Fica registrado no Log da empresa.
-- Operações: \`activity.set\`, \`sub.set\`, \`sub.add\` (\`position\` top|end, \`kind\`, \`guide\`, \`pautaDe\`), \`sub.move\`, \`activity.add\`, \`pauta.link\`, \`activity.delete\` / \`sub.delete\` (vão para a lixeira; \`activity.restore\` / \`sub.restore\` desfazem). A lista exata e os campos aceitos estão em \`$PRICETAX_URL/api/connect\`.
-- A resposta de uma gravação traz \`undo\`: mande esse array de volta como \`ops\` para desfazer.
-`
-    : '';
-  const board = canBoard
-    ? `
-### Organizar o quadro pessoal do Rafael (esta chave pode; só administrador)
-\`\`\`bash
-curl -s "$PRICETAX_URL/api/connect/board?checklist=1" -H "Authorization: Bearer $PRICETAX_TOKEN"
-curl -s -X POST "$PRICETAX_URL/api/connect/board/plan" -H "Authorization: Bearer $PRICETAX_TOKEN" -H "Content-Type: application/json" \\
-  -d '{"operations":[{"op":"update_card","card":"card-abc123","set":{"dueDate":"2026-11-09","responsibles":["Felipe"]}},{"op":"move_card","card":"card-abc123","column":"FELIPE"}]}'
-\`\`\`
-- **Leia primeiro** (\`GET /board\`): devolve páginas, colunas e cartões com **ids**. Use os ids nas operações.
-- **Sem \`apply\` nada é gravado**: a resposta é a **prévia** (\`changes\` com antes → depois por cartão, \`counts\`, \`errors\` com o índice da operação e o \`digest\`). Mostre a prévia ao Rafael.
-- **Para gravar**, só depois do OK dele: repita o MESMO corpo com \`"apply":true,"confirm":true,"digest":"<digest da prévia>"\`. 409 = o quadro mudou desde a prévia (refaça a prévia); 422 = há operação com erro e nada foi gravado (tudo ou nada).
-- Operações (\`op\`): \`create_column\` {page,name,after?,color?} · \`rename_column\` {page,column,name} · \`create_card\` {page?,column,title,desc?,priority?,dueDate?,status?,tags?,responsibles?,checklist?,waiting?,ref?} · \`move_card\` {card,column,page?,position?} · \`update_card\` {card,set:{title,desc,priority,dueDate,status,tags,addTags,removeTags,responsibles,addResponsibles,waiting}} · \`add_checklist\` {card,items} · \`merge_cards\` {into,from:[ids]} (os originais vão para a Lixeira) · \`trash_card\` {card,reason?} · \`archive_card\` {card} (vai para Concluídas; só para o que já foi feito). Até 300 por chamada, 60 chamadas por hora.
-- **Pessoa é o campo \`responsibles\` do cartão, não a coluna.** O Foco de hoje, a Daily e os filtros usam esse campo. O Foco só mostra o que está em andamento ou tem prazo: ponha \`dueDate\` e/ou \`status\`. "Aguardando cliente" = \`waiting\` \`{"who":"cliente"}\`. Todo \`create_card\` leva uma \`ref\` estável (repetir não duplica).
-- Antes de gravar o servidor guarda uma cópia do quadro em Gestão de Atividades › **Versões**: é por lá que o Rafael desfaz. Não existe apagar de vez nem concluir cartão por esta rota.
-- Guia completo no repositório: \`docs/IA_EXTERNA_ORGANIZAR_QUADRO.md\`.
-`
-    : '';
-  const team = canTeam
-    ? `
-### Dia da equipe: entradas, saídas, telas e o que cada pessoa fez (só leitura; só administrador)
-\`\`\`bash
-curl -s "$PRICETAX_URL/api/connect/team-day?date=2026-10-29" -H "Authorization: Bearer $PRICETAX_TOKEN"
-\`\`\`
-- Por pessoa da equipe (Master e PRICETAX), num dia de Brasília: \`sessions\` (entrada e saída; a saída é exata só se a pessoa clicou em Sair, senão é a última atividade registrada), \`screens\` (telas por onde passou) e \`operations\` (o que fez, editou e incluiu). \`date\` padrão = hoje; \`userId\` filtra uma pessoa.
-- Dado de pessoa: use só para o que o Rafael pediu, não copie para arquivos do repositório. **Cada leitura fica registrada** em Meu perfil › Integrações.
-`
-    : '';
-  const create = canCreate
-    ? `
-### Criar atividade (este token pode)
-\`\`\`bash
-curl -s -X POST "$PRICETAX_URL/api/connect/activities" \\
-  -H "Authorization: Bearer $PRICETAX_TOKEN" -H "Content-Type: application/json" \\
-  -d '{"title":"Revisar parecer 12/2026","desc":"contexto…","dueDate":"2026-10-20","priority":"alta","column":"A fazer","ref":"parecer-12-2026"}'
-\`\`\`
-- Só \`title\` é obrigatório. \`priority\`: urgente | alta | media | baixa. \`dueDate\`: AAAA-MM-DD. \`board\`/\`column\`: nome ou id (padrão: 1ª página, 1ª coluna).
-- **Sempre mande \`ref\`** (uma chave estável sua): repetir a chamada devolve a mesma atividade em vez de duplicar.
-- A atividade aparece no quadro do Rafael em até ~12 s, marcada "via API". **Só crie quando eu pedir.**
-`
-    : `
-> Este token é **só de leitura**: criar atividade devolve 403. Peça ao Rafael uma chave "Ler e editar tudo" se precisar.
-`;
-  return `# Painel PRICETAX — como se conectar (API de conectividade)
+// Instruções que a pessoa cola na IA dela (Claude Code, ChatGPT, Gemini, Base44…) depois de gerar a chave (§80; reescrito em 2026-11-02, §129).
+// Curto de propósito: a lista viva e completa do que a chave pode fazer vem de GET /api/connect (shared/connectCatalog.js), nunca daqui.
+// Com `token`, o texto já leva a chave (botão "Copiar tudo para a IA"); sem `token`, leva só o lugar dela.
+import { ERRORS, RULES } from '../../shared/connectCatalog.js';
 
-Você (Claude Code) tem acesso ao painel da PRICETAX do Rafael por uma API HTTP. Use \`curl\` (ou \`fetch\`); a resposta é JSON.
+const bash = (lines) => ['```bash', ...lines, '```'].join('\n');
+const H = '-H "Authorization: Bearer $PRICETAX_TOKEN"';
 
-## Configuração (uma vez por terminal)
-\`\`\`bash
-export PRICETAX_URL="${baseUrl}"
-export PRICETAX_TOKEN="<o token que o Rafael gerou — não escreva em arquivo, não imprima, não faça commit>"
-\`\`\`
-Toda chamada leva o cabeçalho \`Authorization: Bearer $PRICETAX_TOKEN\`. **Nunca** ponha o token na URL.
+export function buildGuide({ baseUrl, token = '', scopeLabel = '', canCreate = false, canWrite = false, canCrm = false, canTranscripts = false, canMeetingsEdit = false, readAll = false, canBoard = false, canTeam = false }) {
+  const writes = canCreate || canWrite || canCrm || canTranscripts || canMeetingsEdit || canBoard;
+  const crmReadable = canCrm || readAll;
+  const key = token || '<a chave pxk_… que você recebeu junto com este texto>';
 
-## Primeiro passo: confirmar
-\`\`\`bash
-curl -s "$PRICETAX_URL/api/connect/me" -H "Authorization: Bearer $PRICETAX_TOKEN"
-\`\`\`
-Mostra de quem é o token, o escopo, a validade e a data de hoje (America/Sao_Paulo). A lista viva de rotas está em \`$PRICETAX_URL/api/connect\` (sem token).
+  const examples = [
+    ['Quais atividades estão atrasadas?', [`curl -s "$PRICETAX_URL/api/connect/activities?status=overdue&limit=50" ${H}`], 'Responda com título, prazo e coluna de cada uma.'],
+    ['O que ficou decidido na última reunião da empresa X?', [
+      `curl -s "$PRICETAX_URL/api/connect/companies?q=X" ${H}`,
+      `curl -s "$PRICETAX_URL/api/connect/companies/{id}" ${H}`,
+      `curl -s "$PRICETAX_URL/api/connect/companies/{id}/meetings/{meetingId}" ${H}`,
+    ], 'O `id` vem da 1ª resposta e o `meetingId` da lista `meetings` da 2ª (a mais recente vem primeiro).'],
+  ];
+  if (canCreate) {
+    examples.push(['Crie a atividade "Enviar proposta revisada" para 06/11/2026, prioridade alta.', [
+      `curl -s -X POST "$PRICETAX_URL/api/connect/activities" ${H} -H "Content-Type: application/json" -d '{"title":"Enviar proposta revisada","dueDate":"2026-11-06","priority":"alta","ref":"proposta-revisada-2026-11"}'`,
+      `curl -s "$PRICETAX_URL/api/connect/activities?q=proposta%20revisada" ${H}`,
+    ], 'Sempre mande `ref` (uma chave estável sua): repetir a chamada não duplica. A segunda chamada confirma que a atividade foi criada.'] );
+  } else if (canCrm) {
+    examples.push(['Registre no CRM uma nota formal sobre a reunião com a empresa X.', [
+      `curl -s "$PRICETAX_URL/api/connect/crm/search?q=X" ${H}`,
+      `curl -s -X POST "$PRICETAX_URL/api/connect/crm/notes" ${H} -H "Content-Type: application/json" -d '{"entityType":"company","entityId":"<id da empresa>","body":"Reunião realizada em 03/11/2026. …"}'`,
+    ], 'Confirme o texto com a pessoa antes de gravar e, depois, leia a empresa de volta (`GET /api/connect/crm/companies/{id}`).'] );
+  } else if (crmReadable) {
+    examples.push(['Liste os negócios em aberto no CRM.', [
+      `curl -s "$PRICETAX_URL/api/connect/crm/deals?status=open&limit=50&offset=0" ${H}`,
+      `curl -s "$PRICETAX_URL/api/connect/crm/deals?status=open&limit=50&offset=50" ${H}`,
+    ], '`total` diz quantos existem; avance o `offset` de 50 em 50 até cobrir o total.'] );
+  } else {
+    examples.push(['Quais são os meus compromissos da semana?', [`curl -s "$PRICETAX_URL/api/connect/agenda?days=7" ${H}`], 'Se vier `connected:false`, o Google Calendar do dono da chave não está conectado.'] );
+  }
 
-## O que dá para ler
-| Rota | Para quê |
-|---|---|
-| \`GET /api/connect/activities?status=open\\|overdue\\|today\\|urgent\\|done\\|all&q=texto&limit=50\` | atividades do quadro pessoal do Rafael (atrasadas primeiro) |
-| \`GET /api/connect/companies?q=texto\` | empresas/cronogramas que ele pode ver |
-| \`GET /api/connect/companies/{id}\` | equipe, fases, atividades e lista de reuniões da empresa |
-| \`GET /api/connect/companies/{id}/meetings/{meetingId}?transcript=1\` | resumo, decisões, itens de ação (e transcrição, se pedir) |
-| \`GET /api/connect/agenda?days=7\` | compromissos aceitos do Google Calendar dele |
-| \`GET /api/connect/board?checklist=1\` | o quadro pessoal inteiro com ids (páginas, colunas, cartões, responsáveis, passos) |
+  const prevs = [
+    canWrite && '`POST …/companies/{id}/plan` (cronograma): `dryRun` é true por padrão; só mande `dryRun:false` depois do OK.',
+    canMeetingsEdit && '`PATCH …/meetings/{meetingId}` (corrigir reunião): primeiro com `"dryRun":true`.',
+    canBoard && '`POST …/board/plan` (organizar o quadro): sem `apply` é só a prévia; para gravar repita com `apply:true`, `confirm:true` e o `digest`.',
+    canTranscripts && '`POST …/companies/{id}/transcripts`: cada envio custa uma chamada de IA; uma reunião por vez e só quando pedirem.',
+    canTeam && '`GET …/team-day` traz dado de pessoas da equipe: use só para o que pedirem; cada leitura fica registrada.',
+  ].filter(Boolean);
 
-Exemplo:
-\`\`\`bash
-curl -s "$PRICETAX_URL/api/connect/activities?status=overdue" -H "Authorization: Bearer $PRICETAX_TOKEN"
-\`\`\`
-${create}${board}${write}${crm}${crmRead}${team}${transcripts}
+  return `# Painel PRICETAX — acesso por API (instruções para a IA)
+
+Você vai usar a API do painel da PRICETAX (consultoria tributária). É HTTP com respostas em JSON, em português. Siga estas instruções à risca.
+
+## Início rápido
+- **URL base:** \`${baseUrl}\`
+- **Chave:** \`${key}\`
+- **Cabeçalho em toda chamada:** \`Authorization: Bearer <chave>\` (nunca na URL)
+- **Permissão desta chave:** ${scopeLabel || (writes ? 'ler e editar' : 'ler')} — ${writes ? 'leitura e escrita' : '**só leitura**: qualquer gravação devolve 403'}
+- **Primeiro, sempre:** \`GET /api/connect\`
+
+${bash([`export PRICETAX_URL="${baseUrl}"`, `export PRICETAX_TOKEN="${key}"`, `curl -s "$PRICETAX_URL/api/connect" ${H}`])}
+
+Essa primeira resposta já traz tudo: quem é a chave (\`token\`, \`user\`, \`organization\`), as regras, os limites, os erros e, em \`resources[].actions\`, **todas as ações que esta chave pode usar** — cada uma com método, caminho, parâmetros, corpo de exemplo, resposta de exemplo e o \`curl\` pronto. O que não está lá esta chave não pode fazer.
+
+- **OpenAPI 3.1** (ChatGPT Actions, Gemini e afins): \`${baseUrl}/api/connect/openapi.json\` — com o cabeçalho da chave, vem só o que ela pode usar.
+- **Guia legível:** \`${baseUrl}/api/connect/docs\`
+
+## Em cada ferramenta
+- **Claude Code ou terminal:** rode as três linhas acima e siga pela descoberta. Não grave a chave em arquivo nem em commit.
+- **ChatGPT:** num GPT personalizado, em Configurar › Ações, importe o OpenAPI pela URL acima; em Autenticação escolha "Chave de API", tipo "Bearer", e cole a chave. Numa conversa comum, sem Ação, o ChatGPT não chama esta API sozinho.
+- **Gemini:** use o OpenAPI como declaração de funções (Gemini API, Vertex AI ou Agent Builder) e mande o cabeçalho Bearer pelo seu código. O app de conversa do Gemini não chama APIs externas por conta própria.
+- **Base44:** chame a API numa função de back-end e guarde a chave como segredo (variável de ambiente), nunca no código da página: no navegador ela fica visível para quem abrir a página.
+
 ## Regras
-- Os dados são do Rafael e de clientes dele: **não copie para arquivos do repositório, logs ou issues** mais do que o necessário para a tarefa.
-- Erros: 401 token inválido/revogado/expirado · 403 sem permissão (escopo ou acesso) · 404 não achou · 429 limite (120/min) · 400 dado inválido (a mensagem diz o quê).
-- Não faça varredura em massa nem laço sem fim; peça só o que precisa.
-- Se o token parar de funcionar, avise o Rafael: ele gera outro em *Meu perfil › Integrações (avançado)*.
+${RULES.map((r) => `- ${r}`).join('\n')}
+${writes ? '' : '- **Esta chave é só de leitura.** Não tente criar, editar nem apagar nada.\n'}${prevs.length ? `\n### Gravações com prévia (esta chave pode)\n${prevs.map((r) => `- ${r}`).join('\n')}\n` : ''}
+## Três tarefas de exemplo
+${examples.map(([ask, cmds, tip], i) => `${i + 1}. **Pedido:** "${ask}"\n\n${bash(cmds)}\n\n   ${tip}`).join('\n\n')}
+
+## Erros (sempre JSON: \`{ "error", "message" }\`)
+${Object.entries(ERRORS).map(([k, v]) => `- **${k}** ${v}`).join('\n')}
+
+Em caso de dúvida, chame \`GET /api/connect\` de novo e use só o que estiver lá. Se a chave parar de funcionar (401), avise a pessoa: ela gera outra no painel, em Meu perfil › Integrações.
 `;
 }

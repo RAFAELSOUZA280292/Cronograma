@@ -61,7 +61,7 @@ async function cleanup() {
 }
 process.on('exit', () => { try { app.kill('SIGTERM'); } catch { /* já encerrou */ } });
 try {
-  for (let i = 0; i < 60; i += 1) { try { if ((await fetch(`${BASE}/api/connect`)).ok) break; } catch { /* ainda subindo */ } await sleep(500); if (i === 59) throw new Error(`servidor não subiu:\n${appLog.slice(-800)}`); }
+  for (let i = 0; i < 60; i += 1) { try { if ((await fetch(`${BASE}/api/connect/openapi.json`)).ok) break; } catch { /* ainda subindo */ } await sleep(500); if (i === 59) throw new Error(`servidor não subiu:\n${appLog.slice(-800)}`); }
   await sleep(1500);
   await cleanup();
   OTHER_ORG = (await pool.query('SELECT id FROM organizations WHERE id <> $1 ORDER BY id LIMIT 1', [ORG])).rows[0].id;
@@ -100,7 +100,7 @@ try {
   const list = await call(asCk('adm'), 'GET', '/api/connect/tokens'); ok('a tela lista o escopo novo', !!list.json.scopes.meetings_edit && list.json.canTranscripts === true);
   const tTr = await mint('adm', 'transcripts'); const tRead = await mint('adm', 'read'); const tCreate = await mint('adm', 'read_create'); const tRw = await mint('adm', 'read_write');
   const ED = tEdit.json.token;
-  const idx = await call({}, 'GET', '/api/connect'); ok('o índice público lista PATCH, histórico e desfazer', idx.json.endpoints.filter((e) => e.scope === 'meetings_edit').length === 3 && idx.json.endpoints.some((e) => e.method === 'PATCH'));
+  const idx = await call({}, 'GET', '/api/connect/openapi.json'); ok('o OpenAPI público lista PATCH, histórico e desfazer', !!idx.json.paths['/api/connect/companies/{id}/meetings/{meetingId}'].patch && !!idx.json.paths['/api/connect/companies/{id}/meetings/{meetingId}/edits'].get && !!idx.json.paths['/api/connect/companies/{id}/meetings/{meetingId}/edits/{editId}/undo'].post);
 
   // ---- autorização
   const body0 = { title: 'Novo título' };
@@ -227,7 +227,7 @@ try {
   ok('o comando do .md (JSON por arquivo, com aspas e acentos) corrige a reunião de verdade', docRes.dryRun === false && docRes.applied === 3 && (await getMeeting()).title === docBody.title && (await getMeeting()).actionItems.find((x) => x.id === 'mai-b').kind === 'risco', docRes);
   fs.rmSync(tmp, { recursive: true, force: true });
   const guide = await import('../src/connect/guide.js');
-  ok('o guia que o painel gera para a chave de correção traz o passo de correção e o dryRun; o da chave de transcrições não', /Corrigir uma reunião já registrada/.test(guide.buildGuide({ baseUrl: BASE, canCreate: false, canTranscripts: true, canMeetingsEdit: true })) && !/Corrigir uma reunião já registrada/.test(guide.buildGuide({ baseUrl: BASE, canCreate: false, canTranscripts: true })) && /dryRun/.test(guide.buildGuide({ baseUrl: BASE, canCreate: false, canTranscripts: true, canMeetingsEdit: true })));
+  ok('o guia que o painel gera para a chave de correção traz o dryRun da correção; o da chave de transcrições não', /PATCH …\/meetings\/\{meetingId\}.*dryRun/.test(guide.buildGuide({ baseUrl: BASE, canCreate: false, canTranscripts: true, canMeetingsEdit: true })) && !/PATCH …\/meetings/.test(guide.buildGuide({ baseUrl: BASE, canCreate: false, canTranscripts: true })));
 
   // ---- extração cortada (max_tokens): 16.000 e uma nova tentativa automática
   const txt = `[00:00] Ana: Vamos revisar o contrato e os prazos de entrega com a Romanha, ponto a ponto. ${'Falas de apoio da reunião longa. '.repeat(12)}`;
