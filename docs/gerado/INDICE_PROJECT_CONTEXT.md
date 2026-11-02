@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8827 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8837 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -180,3 +180,4 @@ O `PROJECT_CONTEXT.md` tem 8827 linhas (a memória cronológica de cada decisão
 | 8796 | 116zw. Caixa de e-mail, Fase 1: ler e organizar o Gmail no painel (2026-11-02, pedido do Rafael: "uma caixa d… | - Desenho: o painel é um cliente do Gmail de cada pessoa (como o Outlook), pela API oficial; nada é copiado para o nosso banco e não há tabela nova. … |
 | 8807 | 116zx. Caixa de e-mail, Fase 2: escrever, responder, encaminhar, anexos e assinatura (2026-11-02, continuação… | - Desenho: o e-mail sai do Gmail da própria pessoa (users.messages.send, escopo gmail.modify que já estava concedido, upload como message/rfc822 — at… |
 | 8819 | 116zy. Caixa de e-mail: pacote de produtividade (2026-11-02, pedido do Rafael depois da comparação com o Outl… | - Mover para pasta e pastas: "pasta" = marcador do Gmail. Mover põe a pasta e tira da Entrada (e da pasta atual, se estiver numa), com Desfazer — POS… |
+| 8828 | 116zz. Caixa de e-mail: pacote visual (2026-11-02, continuação do §116zy, "como no Outlook") | - Larguras ajustáveis: divisórias arrastáveis entre pastas \| lista \| leitura (Splitter em src/mail/MailScreen.jsx, Pointer Events com captura: mouse,… |

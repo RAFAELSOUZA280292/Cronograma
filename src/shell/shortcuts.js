@@ -1,6 +1,8 @@
 // Atalhos de teclado que EXISTEM no sistema (2026-10-30, Onda 1 / Q7). A tela de ajuda ("?") lê esta lista: atalho novo entra aqui junto com o
 // código que o trata; nada de prometer o que não existe. `scripts/shortcuts.test.mjs` confere a forma da lista.
 
+import { MAIL_SHORTCUTS } from '../mail/mailView.js';
+
 // "N" e "?" não podem disparar enquanto a pessoa digita, nem por cima de uma janela aberta.
 export function isTypingTarget(el) {
   if (!el) return false;
@@ -30,6 +32,7 @@ export const SHORTCUT_GROUPS = [
     { keys: ['N'], what: 'Criar uma atividade rápida no quadro (fora de campos de texto e de janelas)' },
     { keys: ['Esc'], what: 'Sair do Foco de hoje' },
   ] },
+  { title: 'Caixa de e-mail', items: MAIL_SHORTCUTS.map(({ keys, what }) => ({ keys, what })) },
   { title: 'Escrever e confirmar', items: [
     { keys: ['Enter'], what: 'Enviar a pergunta à RENATA' },
     { keys: ['Shift', 'Enter'], what: 'Quebrar a linha na conversa com a RENATA' },

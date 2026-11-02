@@ -2,8 +2,8 @@
 // Gmail da própria pessoa (rotas /api/mail, server/mail.js). No celular vira uma coluna: lista → leitura → Voltar.
 // O corpo do e-mail é desenhado num iframe sem script (sandbox) com o HTML já higienizado no servidor; imagens externas
 // só carregam com "Mostrar imagens".
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Inbox, Star, Send, FileText, Archive, AlertOctagon, Trash2, Tag, RefreshCw, Search, Paperclip, ArrowLeft, MailOpen, Mail, Undo2, Image as ImageIcon, Download, Link2, AlertTriangle, X, PenSquare, Reply, ReplyAll, Forward, Signature, FolderInput, FolderPlus, Pencil, ListFilter, Bell, PencilLine } from 'lucide-react';
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { Inbox, Star, Send, FileText, Archive, AlertOctagon, Trash2, Tag, RefreshCw, Search, Paperclip, ArrowLeft, MailOpen, Mail, Undo2, Image as ImageIcon, Download, Link2, AlertTriangle, X, PenSquare, Reply, ReplyAll, Forward, Signature, FolderInput, FolderPlus, Pencil, ListFilter, Bell, PencilLine, PanelLeftClose, PanelLeftOpen, SlidersHorizontal } from 'lucide-react';
 import { Callout, BusyBar, Button, IconButton, EmptyState, activateRow } from '../ui/index.jsx';
 import { notify, askConfirm, askText } from '../ui/dialogs.jsx';
 import { apiGet, apiPost, apiPatch } from '../lib/api.js';
@@ -13,6 +13,8 @@ import MailFrame from './MailFrame.jsx';
 import Compose, { fmtSize } from './Compose.jsx';
 import SignatureDialog from './SignatureDialog.jsx';
 import { MoveDialog, RulesDialog } from './Folders.jsx';
+import { isTypingTarget } from '../shell/shortcuts.js';
+import { LIMITS, sanitizeView, viewKey, clampList, stepSize, mailKeyAction, neighborId, afterRemoval, removesFrom } from './mailView.js';
 import './mail.css';
 
 const FOLDER_ICON = { INBOX: Inbox, STARRED: Star, SENT: Send, DRAFT: FileText, ARCHIVE: Archive, SPAM: AlertOctagon, TRASH: Trash2 };
@@ -60,6 +62,17 @@ export default function MailScreen({ currentUser, theme }) {
   const reqRef = useRef(0);
   const composeRef = useRef(null);
   const seenUnread = useRef(null);
+  const [view, setView] = useState(() => { try { return sanitizeView(window.localStorage.getItem(viewKey(currentUser.id))); } catch { return sanitizeView(null); } });
+  const [cursor, setCursor] = useState(null);
+  const gridRef = useRef(null);
+  const mainRef = useRef(null);
+  const threadRef = useRef(null);
+  const searchRef = useRef(null);
+  const keyRef = useRef(null);
+  const paneOn = !isMobile && view.reading !== 'off';
+
+  useEffect(() => { try { window.localStorage.setItem(viewKey(currentUser.id), JSON.stringify(view)); } catch { /* sem storage: vale só nesta visita */ } }, [view, currentUser.id]);
+  const setV = (patch) => setView((v) => ({ ...v, ...patch }));
 
   const loadStatus = useCallback(async (fresh) => {
     try { setStatus(await apiGet(`/api/mail/status${fresh ? '?fresh=1' : ''}`)); } catch (e) { setStatus({ configured: true, connected: false, mail: false, error: e.message }); }
@@ -233,26 +246,29 @@ export default function MailScreen({ currentUser, theme }) {
   }, [folder, search, loadThreads, loadNav]);
 
   function pickFolder(id) {
-    setSearch(''); setQuery(''); setFolder(id); setOpenId(null);
+    setSearch(''); setQuery(''); setFolder(id); setOpenId(null); setCursor(null);
   }
 
   function submitSearch(e) {
     e.preventDefault();
-    setSearch(query.trim()); setOpenId(null);
+    setSearch(query.trim()); setOpenId(null); setCursor(null);
   }
 
   const patchThreads = (ids, fn) => setThreads((prev) => prev.map((t) => (ids.includes(t.id) ? { ...t, ...fn(t) } : t)));
+  // Tirou a conversa aberta da pasta: com o painel de leitura ligado abre a próxima (como no Outlook); sem ele, volta à lista nela.
   const dropThreads = (ids) => {
     setThreads((prev) => prev.filter((t) => !ids.includes(t.id)));
     setSelected(new Set());
-    if (ids.includes(openId)) setOpenId(null);
+    const at = ids.includes(openId) ? openId : ids.includes(cursor) ? cursor : null;
+    if (!at) return;
+    const nxt = afterRemoval(threads.filter((t) => !ids.includes(t.id) || t.id === at).map((t) => t.id), at);
+    setCursor(nxt);
+    if (ids.includes(openId)) setOpenId(paneOn && folder !== 'DRAFT' ? nxt : null);
   };
 
   async function act(ids, action, { silent } = {}) {
     if (!ids.length) return;
-    const removes = (action === 'archive' && folder === 'INBOX') || action === 'trash' || action === 'spam'
-      || (action === 'untrash' && folder === 'TRASH') || (action === 'inbox' && (folder === 'ARCHIVE' || folder === 'SPAM'))
-      || (action === 'unstar' && folder === 'STARRED');
+    const removes = removesFrom(action, folder);
     const before = threads;
     if (removes && !search) dropThreads(ids);
     else patchThreads(ids, () => ({
@@ -297,10 +313,66 @@ export default function MailScreen({ currentUser, theme }) {
     loadNav();
   }
 
+  const openThread = (id) => { setCursor(id); if (folder === 'DRAFT' && !search) openDraft(id); else setOpenId(id); };
+  const focusRow = (id) => setTimeout(() => {
+    const el = id && document.querySelector(`.mail-row[data-tid="${CSS.escape(id)}"]`);
+    if (el) { el.focus({ preventScroll: true }); el.scrollIntoView({ block: 'nearest' }); }
+  }, 0);
+
+  // Atalhos da lista e da leitura (mapa em mailView.js, ajuda "?" em shell/shortcuts.js). Nunca com o foco num campo, dentro da janela
+  // de escrita, numa divisória ou por cima de outra janela; Ctrl/⌘/Alt ficam para os atalhos do sistema.
+  keyRef.current = (e) => {
+    if (e.defaultPrevented || e.isComposing) return;
+    const action = mailKeyAction(e);
+    const t = e.target;
+    if (!action || isTypingTarget(t)) return;
+    if (t && t.closest && t.closest('.mc, [role="separator"], .mail-view-menu')) return;
+    if (document.querySelector('[role="dialog"]:not(.mc), [role="alertdialog"], .ui-modal')) return;
+    if (action === 'open' && t !== document.body && t.closest && t.closest('button, a, summary, [role="button"], .mail-row, .mail-msg-head')) return;
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && t.closest && t.closest('.mail-reader')) return;
+    const ids = threads.map((x) => x.id);
+    const cur = openId || cursor;
+    const targets = selected.size ? [...selected] : cur ? [cur] : [];
+    const th = openId && !selected.size ? threadRef.current : null;
+    const row = threads.find((x) => x.id === cur);
+    e.preventDefault();
+    if (action === 'next' || action === 'prev') {
+      const id = neighborId(ids, cur, action === 'next' ? 1 : -1);
+      if (!id) return;
+      if ((paneOn || openId) && !(folder === 'DRAFT' && !search)) setOpenId(id);
+      setCursor(id); focusRow(id);
+    } else if (action === 'open') { if (cur && !openId) openThread(cur); }
+    else if (action === 'close') {
+      if (openId) { const id = openId; setOpenId(null); setCursor(id); if (!paneOn) focusRow(id); } else if (selected.size) setSelected(new Set());
+    } else if (action === 'compose') openCompose({ mode: 'new' });
+    else if (action === 'search') { if (searchRef.current) { searchRef.current.focus(); searchRef.current.select(); } }
+    else if (action === 'reply' || action === 'replyAll' || action === 'forward') { if (th) th.compose(action); }
+    else if (th) th[action]();
+    else if (!targets.length || folder === 'DRAFT') return;
+    else if (action === 'move') { if (folder !== 'TRASH') setMoveFor({ ids: targets }); }
+    else if (action === 'star') act(targets, row && row.starred && !selected.size ? 'unstar' : 'star');
+    else if (action === 'archive') act(targets, folder === 'TRASH' ? 'untrash' : 'archive');
+    else if (action === 'trash') { if (folder !== 'TRASH') act(targets, 'trash'); }
+    else act(targets, action);
+  };
+  useEffect(() => {
+    if (!ready) return undefined;
+    const h = (e) => keyRef.current && keyRef.current(e);
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [ready]);
+
+  const live = (name, v) => { if (gridRef.current) gridRef.current.style.setProperty(name, v); };
+  const navBounds = () => ({ min: LIMITS.nav[0], max: LIMITS.nav[1], scale: 1 });
+  const listBounds = () => ({ min: LIMITS.list[0], max: clampList(LIMITS.list[1], mainRef.current ? mainRef.current.clientWidth : 0), scale: 1 });
+  const listHBounds = () => ({ min: LIMITS.listH[0], max: LIMITS.listH[1], scale: 1 / Math.max(1, mainRef.current ? mainRef.current.clientHeight : 600) });
+
   const folderName = search ? `Resultados para “${search}”` : (nav.folders.find((f) => f.id === folder) || nav.labels.find((l) => l.id === folder) || { name: 'Caixa de entrada' }).name;
   const selIds = [...selected];
-  const showList = !isMobile || !openId;
-  const showReader = !isMobile || !!openId;
+  const showList = paneOn || !openId;
+  const showReader = paneOn || !!openId;
+  const compact = view.density === 'compact';
+  const navFolders = nav.folders.length ? nav.folders : [{ id: 'INBOX', name: 'Caixa de entrada' }];
 
   return (
     <div style={S.page} className="mail-page">
@@ -316,7 +388,7 @@ export default function MailScreen({ currentUser, theme }) {
           <form className="mail-search" role="search" onSubmit={submitSearch}>
             <Search size={15} aria-hidden="true" />
             <input
-              type="search" value={query} onChange={(e) => setQuery(e.target.value)}
+              ref={searchRef} type="search" value={query} onChange={(e) => setQuery(e.target.value)}
               placeholder={isMobile ? 'Pesquisar e-mails' : 'Pesquisar e-mails (ex.: from:cliente@x.com has:attachment)'} aria-label="Pesquisar e-mails"
             />
             {search && <button type="button" className="mail-ic" aria-label="Limpar pesquisa" title="Limpar pesquisa" onClick={() => { setQuery(''); setSearch(''); }}><X size={14} aria-hidden="true" /></button>}
@@ -328,11 +400,36 @@ export default function MailScreen({ currentUser, theme }) {
       {status && !ready && <ConnectCard status={status} />}
 
       {ready && (
-        <div className={`mail-grid${isMobile ? ' mobile' : ''}`}>
-          {!isMobile && (
+        <div
+          ref={gridRef} className={`mail-grid${isMobile ? ' mobile' : ''}${!isMobile && view.navCollapsed ? ' nav-collapsed' : ''}`}
+          style={isMobile ? undefined : { '--mail-nav': `${view.navW}px`, '--mail-list': `${view.listW}px`, '--mail-list-h': `${Math.round(view.listH * 100)}%` }}
+        >
+          {!isMobile && view.navCollapsed && (
+            <nav className="mail-nav mail-rail" aria-label="Pastas do e-mail">
+              <IconButton label="Mostrar as pastas" icon={PanelLeftOpen} size="sm" onClick={() => setV({ navCollapsed: false })} />
+              <button type="button" className="mail-rail-write" aria-label="Escrever" title="Escrever" onClick={() => openCompose({ mode: 'new' })}><PenSquare size={17} aria-hidden="true" /></button>
+              {navFolders.map((f) => {
+                const Icon = FOLDER_ICON[f.id] || Tag;
+                const count = f.id === 'DRAFT' ? f.total : f.unread;
+                const on = !search && folder === f.id;
+                return (
+                  <button
+                    key={f.id} type="button" className={`mail-folder mail-rail-btn${on ? ' on' : ''}`} onClick={() => pickFolder(f.id)} aria-current={on ? 'page' : undefined}
+                    aria-label={`${f.name}${count ? ` (${count})` : ''}`} title={`${f.name}${count ? ` (${count})` : ''}`} {...(['INBOX', 'ARCHIVE', 'TRASH'].includes(f.id) ? dropProps(f.id) : {})}
+                  >
+                    <Icon size={17} aria-hidden="true" />{count ? <b className="mail-rail-count" aria-hidden="true">{count > 99 ? '99+' : count}</b> : null}
+                  </button>
+                );
+              })}
+            </nav>
+          )}
+          {!isMobile && !view.navCollapsed && (
             <nav className="mail-nav" aria-label="Pastas do e-mail">
-              <Button variant="primary" icon={PenSquare} className="mail-write" onClick={() => openCompose({ mode: 'new' })}>Escrever</Button>
-              {(nav.folders.length ? nav.folders : [{ id: 'INBOX', name: 'Caixa de entrada' }]).map((f) => {
+              <div className="mail-nav-top">
+                <Button variant="primary" icon={PenSquare} className="mail-write" onClick={() => openCompose({ mode: 'new' })}>Escrever</Button>
+                <IconButton label="Recolher as pastas" icon={PanelLeftClose} size="sm" onClick={() => setV({ navCollapsed: true })} />
+              </div>
+              {navFolders.map((f) => {
                 const Icon = FOLDER_ICON[f.id] || Tag;
                 const count = f.id === 'DRAFT' ? f.total : f.unread;
                 return (
@@ -368,7 +465,14 @@ export default function MailScreen({ currentUser, theme }) {
               )}
             </nav>
           )}
+          {!isMobile && !view.navCollapsed && (
+            <Splitter
+              label="Largura da coluna de pastas" value={view.navW} bounds={navBounds} fmt={(v) => `${Math.round(v)} px`}
+              onLive={(v) => live('--mail-nav', `${v}px`)} onCommit={(v) => setV({ navW: Math.round(v) })}
+            />
+          )}
 
+          <div ref={mainRef} className={`mail-main read-${isMobile ? 'mobile' : view.reading}`}>
           {showList && (
             <section className="mail-list" aria-label="Lista de e-mails">
               {isMobile && (
@@ -390,6 +494,7 @@ export default function MailScreen({ currentUser, theme }) {
                   <>
                     <span className="mail-list-title">{folderName}</span>
                     <div className="mail-actions">
+                      <ViewMenu view={view} isMobile={isMobile} onChange={setV} />
                       {isMobile && <IconButton label="Assinatura do e-mail" icon={Signature} size="sm" onClick={() => setSigOpen(true)} disabled={!signature} />}
                       {isMobile && <IconButton label="Regras do e-mail" icon={ListFilter} size="sm" onClick={() => setRulesOpen(true)} />}
                       <IconButton label="Atualizar" icon={RefreshCw} size="sm" onClick={() => { loadThreads(); loadNav(); }} />
@@ -402,12 +507,12 @@ export default function MailScreen({ currentUser, theme }) {
               {!loading && !listError && threads.length === 0 && (
                 <EmptyState icon={Inbox} title={search ? 'Nada encontrado' : 'Nenhum e-mail aqui'} description={search ? 'Tente outras palavras ou procure por remetente (from:).' : 'Quando chegar algo nesta pasta, aparece aqui.'} compact />
               )}
-              <ul className="mail-rows">
+              <ul className={`mail-rows${compact ? ' compact' : ''}`}>
                 {threads.map((t) => (
                   <li
-                    key={t.id}
-                    className={`mail-row${t.unread ? ' unread' : ''}${openId === t.id ? ' open' : ''}${selected.has(t.id) ? ' sel' : ''}`}
-                    {...activateRow(() => (folder === 'DRAFT' && !search ? openDraft(t.id) : setOpenId(t.id)))}
+                    key={t.id} data-tid={t.id}
+                    className={`mail-row${t.unread ? ' unread' : ''}${openId === t.id ? ' open' : ''}${selected.has(t.id) ? ' sel' : ''}${cursor === t.id && openId !== t.id ? ' cur' : ''}`}
+                    {...activateRow(() => openThread(t.id))}
                     draggable={!isMobile && folder !== 'DRAFT'}
                     onDragStart={(e) => { e.dataTransfer.setData('application/x-pt-threads', JSON.stringify(dragIds(t.id))); e.dataTransfer.effectAllowed = 'move'; }}
                     aria-label={`${t.unread ? 'Não lido. ' : ''}${t.from.map(who).join(', ')}: ${t.subject}`}
@@ -416,15 +521,24 @@ export default function MailScreen({ currentUser, theme }) {
                       type="checkbox" className="mail-check" checked={selected.has(t.id)} aria-label="Selecionar conversa"
                       onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} onChange={() => toggleSelect(t.id)}
                     />
-                    <div className="mail-row-main">
-                      <div className="mail-row-top">
+                    {compact ? (
+                      <div className="mail-row-main mail-row-line">
                         <span className="mail-from">{folder === 'SENT' && !search ? `Para: ${t.to.map(who).join(', ')}` : t.from.map(who).join(', ')}{t.count > 1 && <span className="mail-n">{t.count}</span>}</span>
+                        <span className="mail-line-text"><span className="mail-subject">{t.subject}</span>{view.snippet && t.snippet ? <span className="mail-snippet"> — {t.snippet}</span> : null}</span>
                         {t.hasAttachment && <Paperclip size={13} aria-label="Tem anexo" className="mail-clip" />}
                         <span className="mail-date">{fmtListDate(t.date)}</span>
                       </div>
-                      <div className="mail-subject">{t.subject}</div>
-                      <div className="mail-snippet">{t.snippet}</div>
-                    </div>
+                    ) : (
+                      <div className="mail-row-main">
+                        <div className="mail-row-top">
+                          <span className="mail-from">{folder === 'SENT' && !search ? `Para: ${t.to.map(who).join(', ')}` : t.from.map(who).join(', ')}{t.count > 1 && <span className="mail-n">{t.count}</span>}</span>
+                          {t.hasAttachment && <Paperclip size={13} aria-label="Tem anexo" className="mail-clip" />}
+                          <span className="mail-date">{fmtListDate(t.date)}</span>
+                        </div>
+                        <div className="mail-subject">{t.subject}</div>
+                        {view.snippet && <div className="mail-snippet">{t.snippet}</div>}
+                      </div>
+                    )}
                     <button
                       type="button" className={`mail-star${t.starred ? ' on' : ''}`} aria-label={t.starred ? 'Tirar estrela' : 'Marcar com estrela'} title={t.starred ? 'Tirar estrela' : 'Marcar com estrela'}
                       onClick={(e) => { e.stopPropagation(); act([t.id], t.starred ? 'unstar' : 'star'); }} onKeyDown={(e) => e.stopPropagation()}
@@ -437,13 +551,27 @@ export default function MailScreen({ currentUser, theme }) {
               {nextPage && !loading && <div className="mail-pad"><Button size="sm" onClick={() => loadThreads({ append: true })}>Carregar mais</Button></div>}
             </section>
           )}
+          {paneOn && showList && (
+            view.reading === 'bottom' ? (
+              <Splitter
+                horizontal label="Altura da lista de e-mails" value={view.listH} bounds={listHBounds} step={0.05}
+                fmt={(v) => `${Math.round(v * 100)}% da altura`} aria={(v) => Math.round(v * 100)}
+                onLive={(v) => live('--mail-list-h', `${Math.round(v * 100)}%`)} onCommit={(v) => setV({ listH: Math.round(v * 100) / 100 })}
+              />
+            ) : (
+              <Splitter
+                label="Largura da lista de e-mails" value={view.listW} bounds={listBounds} fmt={(v) => `${Math.round(v)} px`}
+                onLive={(v) => live('--mail-list', `${v}px`)} onCommit={(v) => setV({ listW: Math.round(v) })}
+              />
+            )
+          )}
 
           {showReader && (
             <section className="mail-reader" aria-label="Leitura do e-mail">
               {openId ? (
                 <ThreadView
-                  key={`${openId}-${threadRev}`} id={openId} isMobile={isMobile} folder={folder} myEmail={status && status.email}
-                  onBack={() => setOpenId(null)} onOpened={onOpened} onAct={(a) => act([openId], a)}
+                  ref={threadRef} key={`${openId}-${threadRev}`} id={openId} showBack={!paneOn} folder={folder} myEmail={status && status.email}
+                  onBack={() => { const id = openId; setOpenId(null); setCursor(id); focusRow(id); }} onOpened={onOpened} onAct={(a) => act([openId], a)}
                   onCompose={(mode, messageId) => openCompose({ mode, messageId })}
                   onMove={(sender) => setMoveFor({ ids: [openId], sender })} onOpenDraft={() => openDraft(openId)}
                 />
@@ -452,6 +580,7 @@ export default function MailScreen({ currentUser, theme }) {
               )}
             </section>
           )}
+          </div>
         </div>
       )}
       {ready && isMobile && !compose && (
@@ -510,7 +639,7 @@ function BulkActions({ folder, onAct, onMove, onClear }) {
   );
 }
 
-function ThreadView({ id, isMobile, folder, myEmail, onBack, onOpened, onAct, onCompose, onMove, onOpenDraft }) {
+function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAct, onCompose, onMove, onOpenDraft }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState(() => new Set());
@@ -528,7 +657,24 @@ function ThreadView({ id, isMobile, folder, myEmail, onBack, onOpened, onAct, on
     return () => { alive = false; };
   }, [id, onOpened]);
 
-  const back = isMobile ? <IconButton label="Voltar para a lista" icon={ArrowLeft} size="sm" onClick={onBack} /> : null;
+  const moveIt = () => { const last = [...data.messages].reverse().find((m) => !m.sent && m.from && m.from.email); onMove(last ? last.from : null); };
+  const starIt = () => { onAct(data.starred ? 'unstar' : 'star'); setData((d) => ({ ...d, starred: !d.starred })); };
+  // Mesmas ações da barra, para os atalhos de teclado (MailScreen chama pelo ref).
+  useImperativeHandle(ref, () => ({
+    compose: (mode) => {
+      const last = data && data.messages[data.messages.length - 1];
+      if (!last) return;
+      if (last.draft) { onOpenDraft(); return; }
+      onCompose(mode === 'replyAll' && replyAllCount(last, myEmail) <= 1 ? 'reply' : mode, last.id);
+    },
+    archive: () => { if (data && !data.inTrash && data.inInbox) onAct('archive'); else if (data && data.inTrash) onAct('untrash'); },
+    trash: () => { if (data && !data.inTrash) onAct('trash'); },
+    star: () => { if (data) starIt(); },
+    unread: () => { onAct('unread'); onBack(); },
+    move: () => { if (data && !data.inTrash) moveIt(); },
+  }));
+
+  const back = showBack ? <IconButton label="Voltar para a lista" icon={ArrowLeft} size="sm" onClick={onBack} /> : null;
   if (error) return <div className="mail-thread"><div className="mail-thread-bar">{back}</div><div style={{ marginTop: 14 }}><Callout tone="danger" icon={AlertTriangle} title="Não consegui abrir o e-mail">{error}</Callout></div></div>;
   if (!data) return <div className="mail-thread"><div className="mail-thread-bar">{back}</div><BusyBar active /></div>;
 
@@ -546,7 +692,7 @@ function ThreadView({ id, isMobile, folder, myEmail, onBack, onOpened, onAct, on
           {!data.inTrash && (
             <IconButton
               label="Mover para pasta" icon={FolderInput} size="sm"
-              onClick={() => { const last = [...data.messages].reverse().find((m) => !m.sent && m.from && m.from.email); onMove(last ? last.from : null); }}
+              onClick={moveIt}
             />
           )}
           {!data.inTrash && <IconButton label="Mover para a Lixeira" icon={Trash2} size="sm" onClick={() => onAct('trash')} />}
@@ -554,7 +700,7 @@ function ThreadView({ id, isMobile, folder, myEmail, onBack, onOpened, onAct, on
           <IconButton label="Marcar como não lido" icon={Mail} size="sm" onClick={() => { onAct('unread'); onBack(); }} />
           <IconButton
             label={data.starred ? 'Tirar estrela' : 'Marcar com estrela'} icon={Star} size="sm" className={data.starred ? 'mail-starred' : ''}
-            onClick={() => { onAct(data.starred ? 'unstar' : 'star'); setData((d) => ({ ...d, starred: !d.starred })); }}
+            onClick={starIt}
           />
         </div>
       </div>
@@ -621,6 +767,103 @@ function MessageBody({ msg }) {
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+// Divisória arrastável entre colunas (Pointer Events: mouse, caneta e toque). Durante o arrasto mexe só na variável CSS da grade
+// (`onLive`, sem redesenhar a tela); ao soltar grava a preferência (`onCommit`). Teclado: setas, Shift+setas, Home/End.
+function Splitter({ horizontal, label, value, bounds, onLive, onCommit, step = 16, fmt, aria = (v) => Math.round(v) }) {
+  const drag = useRef(null);
+  const b = bounds();
+  function down(e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    drag.current = { start: horizontal ? e.clientY : e.clientX, value, last: value, ...bounds() };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* sem ponteiro ativo (evento sintético): arrasta sem captura */ }
+    document.body.classList.add('mail-resizing', horizontal ? 'rows' : 'cols');
+  }
+  function move(e) {
+    const d = drag.current;
+    if (!d) return;
+    d.last = Math.min(d.max, Math.max(d.min, d.value + ((horizontal ? e.clientY : e.clientX) - d.start) * d.scale));
+    onLive(d.last);
+  }
+  function up(e) {
+    const d = drag.current;
+    if (!d) return;
+    drag.current = null;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* já solto */ }
+    document.body.classList.remove('mail-resizing', 'rows', 'cols');
+    if (d.last !== d.value) onCommit(d.last);
+  }
+  function key(e) {
+    const v = stepSize(value, e, { ...bounds(), step, vertical: horizontal });
+    if (v === null) return;
+    e.preventDefault(); e.stopPropagation();
+    onLive(v); onCommit(v);
+  }
+  return (
+    <div
+      role="separator" tabIndex={0} className={`mail-split${horizontal ? ' h' : ''}`} aria-label={label} aria-orientation={horizontal ? 'horizontal' : 'vertical'}
+      aria-valuenow={aria(value)} aria-valuemin={aria(b.min)} aria-valuemax={aria(b.max)} aria-valuetext={fmt(value)} title={`${label}: arraste ou use as setas`}
+      onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={key}
+    />
+  );
+}
+
+const READING_LABEL = { right: 'À direita', bottom: 'Embaixo da lista', off: 'Desligado (abre no lugar da lista)' };
+
+// "Exibir": painel de leitura, densidade da lista, trecho e coluna de pastas. A escolha fica guardada por pessoa (mailView.js).
+function ViewMenu({ view, isMobile, onChange }) {
+  const [open, setOpen] = useState(null);
+  const wrap = useRef(null);
+  // Posição fixa calculada pelo botão: a lista rola (overflow) e cortaria um menu absoluto.
+  const toggle = (e) => {
+    if (open) { setOpen(null); return; }
+    const r = e.currentTarget.getBoundingClientRect();
+    const w = Math.min(280, window.innerWidth - 32);
+    setOpen({ top: r.bottom + 6, left: Math.max(16, Math.min(r.right - w, window.innerWidth - w - 16)), width: w });
+  };
+  useEffect(() => {
+    if (!open) return undefined;
+    const out = (e) => { if (wrap.current && !wrap.current.contains(e.target)) setOpen(null); };
+    const esc = (e) => { if (e.key === 'Escape') { e.preventDefault(); setOpen(null); } };
+    document.addEventListener('pointerdown', out);
+    window.addEventListener('keydown', esc, true);
+    return () => { document.removeEventListener('pointerdown', out); window.removeEventListener('keydown', esc, true); };
+  }, [open]);
+  const radio = (name, value, cur, label, patch) => (
+    <label className="mc-check" key={value}>
+      <input type="radio" name={name} checked={cur === value} onChange={() => onChange(patch)} />{label}
+    </label>
+  );
+  return (
+    <div className="mail-view-wrap" ref={wrap}>
+      <IconButton label="Exibir: painel de leitura e densidade da lista" icon={SlidersHorizontal} size="sm" aria-expanded={!!open} aria-haspopup="true" onClick={toggle} />
+      {open && (
+        <div className="mail-view-menu" role="group" aria-label="Opções de exibição" style={{ top: open.top, left: open.left, width: open.width }}>
+          {!isMobile && (
+            <fieldset>
+              <legend>Painel de leitura</legend>
+              {['right', 'bottom', 'off'].map((r) => radio('mail-reading', r, view.reading, READING_LABEL[r], { reading: r }))}
+            </fieldset>
+          )}
+          <fieldset>
+            <legend>Lista</legend>
+            {radio('mail-density', 'comfortable', view.density, 'Confortável (duas linhas)', { density: 'comfortable' })}
+            {radio('mail-density', 'compact', view.density, 'Compacta (uma linha)', { density: 'compact' })}
+            <label className="mc-check"><input type="checkbox" checked={view.snippet} onChange={(e) => onChange({ snippet: e.target.checked })} />Mostrar o trecho do e-mail</label>
+          </fieldset>
+          {!isMobile && (
+            <fieldset>
+              <legend>Pastas</legend>
+              <label className="mc-check"><input type="checkbox" checked={view.navCollapsed} onChange={(e) => onChange({ navCollapsed: e.target.checked })} />Recolher a coluna de pastas</label>
+            </fieldset>
+          )}
+          {!isMobile && <p className="mail-view-hint">Arraste as divisórias entre as colunas para mudar a largura. Tecla <kbd>?</kbd> mostra os atalhos.</p>}
+        </div>
       )}
     </div>
   );
