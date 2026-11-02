@@ -1,5 +1,6 @@
 // Cria (uma vez) a organização e os usuários do teste de fluxos no banco local `cronograma_e2e`. Idempotente. Senha só de teste, local.
 import bcrypt from 'bcryptjs';
+import { LAUNCH_TOUR_ID } from '../shared/launchTour.js';
 export const ORG = 'e2e-org';
 export const PASS = 'E2e-senha-local-1';
 export const USERS = { master: 'e2e_master', vendedor: 'e2e_vendedor' };
@@ -17,5 +18,7 @@ export default async function setup() {
   await mk(USERS.vendedor, 'Vitor Vendas', 'pricetax', 'vendedor');
   // Estado de partida limpo: o teste da RENATA guarda uma preferência por rodada e o limite é de 15 por pessoa (sem isto, a 16ª rodada falhava).
   await pool.query("UPDATE users SET preferences = COALESCE(preferences, '{}'::jsonb) - 'renataMemory' WHERE org_id = $1", [ORG]);
+  // Boas-vindas obrigatória (§132) cobre a tela inteira: os usuários de teste já a concluíram (a própria tela tem teste em scripts/launch-tour.test.mjs).
+  await pool.query(`UPDATE users SET preferences = jsonb_set(COALESCE(preferences, '{}'::jsonb), '{tours}', COALESCE(preferences->'tours', '{}'::jsonb) || jsonb_build_object($2::text, to_jsonb(now())), true) WHERE org_id = $1`, [ORG, LAUNCH_TOUR_ID]);
   await pool.end();
 }
