@@ -109,6 +109,7 @@ Não existe "esqueci minha senha" por e-mail: quem redefine é um Master (`reset
 | Pareceres, Modelos, Conhecimento, Biblioteca da RENATA | sim | sim | não | `router.use(requireAuth, requireMasterOrPricetax)` em cada arquivo |
 | Dossiê do cliente | sim | sim | não | `canUseDossier` em `assistant.js` |
 | Inventário, Lacunas, Padrão de cronograma, vínculos tarefa→atividade, agenda de reservas | sim | sim | não | `requireMasterOrPricetax` em `inventory.js`, `gaps.js`, `standardPlanApi.js`, `taskLinks.js`, `companyCalendar.js` |
+| Cofre do projeto (`/api/project-vault`: ver, incluir, mostrar/copiar senha, baixar) | sim (com acesso à empresa) | sim (com acesso à empresa) | **não** | `staff` + `canAccessProject` em `projectVault.js`; a RENATA recebe 403 |
 | Link público de acompanhamento (criar/revogar) | sim | sim | não | `requireMasterOrPricetax` (`companyShare.js`) |
 | Histórico de versões: ver / criar ponto | sim | sim | não | `canView` (`projectVersions.js`) |
 | Histórico de versões: restaurar, recuperar empresa excluída | sim | não | não | `canRestore` (master ou super admin) |
@@ -261,7 +262,7 @@ A rotina roda 60 s após subir e a cada 24 h.
 Limitador do link da empresa: 90 consultas/min por IP (primeiro IP do `X-Forwarded-For`, anti-abuso, **não é segurança forte**). `X-Robots-Tag: noindex` e `Cache-Control: no-store` nas respostas públicas da empresa; no SPA, só `/acompanhamento/` e `/a/` recebem o cabeçalho (`index.js:111`).
 
 ### O usuário "cliente" nunca vê (confirmado no servidor)
-CRM; RENATA operacional; dossiê; Pareceres, Modelos, Conhecimento, Biblioteca; histórico de versões; telemetria; Central de Inteligência; criação de link público; inventário/lacunas/padrão; `@menções` (lista vazia); pareceres e materiais dentro do chat da RENATA da empresa (`isStaff`).
+CRM; RENATA operacional; dossiê; Cofre do projeto; Pareceres, Modelos, Conhecimento, Biblioteca; histórico de versões; telemetria; Central de Inteligência; criação de link público; inventário/lacunas/padrão; `@menções` (lista vazia); pareceres e materiais dentro do chat da RENATA da empresa (`isStaff`).
 **Não bloqueado no servidor** (só o front esconde): Log, Lixeira e Reuniões da empresa dentro do JSON do projeto, e a gravação do projeto inteiro (`PATCH /projects/:id`) — pendência registrada em `docs/11`.
 
 ### Outros pontos LGPD
@@ -297,6 +298,7 @@ Link com `javascript:` em comentário do XFlow ou de atividade: o servidor **nã
 | Modelos de documentos | lista fechada (`FILE_TYPES`: pdf, imagens, txt, html, csv, Office, odf, rtf, zip); **SVG recusado** | 30 MB | `Content-Type` decidido pelo servidor, `nosniff`, `Cache-Control: private, no-store`; **HTML só com CSP `sandbox`** (sem scripts e sem origem própria); só equipe | `documentTemplates.js` |
 | Biblioteca da RENATA | PDF/Word/PPT/Excel/texto (`SUPPORTED` em `materialText.js`) | 30 MB; texto colado a partir de 200 caracteres | sempre `attachment` + `nosniff` | `knowledgeLibraryRoutes.js` |
 | Anexo de comentário e nota do CRM | qualquer tipo em `data:`; no CRM a leitura só devolve imagem/PDF com o tipo certo, senão `octet-stream` | 3–5 arquivos por comentário, 3–4 MB cada (base64) | CRM: `nosniff` + `Content-Security-Policy: default-src 'none'; sandbox` | `cleanCommentExtras` (`commentExtras.js`) |
+| Cofre do projeto (§124) | arquivo: tudo menos programas, scripts, HTML e SVG; certificado: só `.pfx`/`.p12` | 10 MB (certificado 1 MB); 500 itens por empresa | sempre `attachment`, `nosniff`, CSP `sandbox`, `no-store`; conteúdo **cifrado** no banco (`sealBytes`) e cada download no Log | `parseVaultInput` (`projectVaultCore.js`) |
 | Anexo de ticket XFlow | imagem/arquivo em `data:` | sem validação própria além do limite de 15 MB do corpo | `<a download>`/`<img>` no front | **não validado no servidor** |
 | Transcrição (tela e API) | texto | até 400.000 caracteres pela API (mín. 200) | — | `connect.js`, `meetingInbox.js` |
 Links de comentário: só `http(s)`, até 10 por comentário (`cleanCommentExtras`). Prévia de link e busca de endereço externo passam por `linkPreview.js` (ver Segredos e infraestrutura).

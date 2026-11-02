@@ -2,10 +2,11 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-552 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+553 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (19)
+## 2026-11-02 (20)
 
+- `f024ca1` 14:18 — WhatsApp, Fase 1: caixa de conversas do número da PRICETAX (API oficial da Meta)
 - `99262d8` 14:17 — Agenda completa no painel e convites de reunião na Caixa de e-mail
 - `d258b16` 13:29 — Caixa de e-mail: seleção, Atualizar e ⋮ juntos à esquerda, como no Gmail
 - `b994230` 13:23 — Caixa de e-mail: menu ⋮ com Marcar todas como lidas (pasta ou pesquisa inteira)

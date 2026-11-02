@@ -68,6 +68,7 @@ Este documento **não** cobre (ver outros): CRM (`/api/crm`), RENATA (chat/ferra
 | `src/screens/CompanyViews.jsx` | `ResumoView` (l.884), `TableView` (l.1241), `PhasesView` (l.1752), `KanbanView` (l.1885), `TimelineView` (l.1974), `ActivityDetailModal` (l.285), `SubactivityRow` (l.210) | Abas Resumo/Tabela/Fases/Quadro/Gantt e o detalhe da atividade |
 | `src/screens/MapView.jsx` | `MapView` | Aba Mapa (mapa mental só leitura) |
 | `src/screens/CompanyTriage.jsx` | `CompanyTriage` | Aba Triagem: Reunião×Trabalho e datas (calendário/lista) |
+| `src/screens/ProjectVault.jsx` | `ProjectVault` | Aba Cofre (só equipe): acessos, certificado, arquivos, links e notas; servidor em `server/projectVault.js` (§124) |
 | `src/screens/CompanyCalendar.jsx` | `CompanyCalendarModal` | Janela "Reservar na agenda" |
 | `src/screens/AdminScreens.jsx` | `CompanySelectorScreen`, `EditCompanyModal` | Lista de empresas, pausar/clonar/editar/excluir |
 | `src/app/companyActivityActions.js` | `createCompanyActivityActions` | `addActivity`, `updateActivity`, `deleteActivity` (lógica), `updateSub`, comentários, anexos… |

@@ -219,6 +219,7 @@ Total conferido no código: **102 registradas, 1 interna** (`crm_lote_restaurar_
 | XFlow | 3 | `xflow_listar`, `xflow_criar`, `xflow_acao` (**sempre confirma**) | `xflowRole` |
 | Notificações | 2 | `notificacoes_listar`, `notificacoes_marcar_todas_lidas` | Todos |
 | Conhecimento / Pareceres / Modelos | 4 | `conhecimento_buscar`, `biblioteca_consultar`, `pareceres_listar`, `modelos_listar` (todas leitura) | Equipe |
+| Cofre do projeto (`tools/cofre.js`, §124) | 1 | `cofre_listar` (leitura: nome, tipo, pasta, validade; **nunca** usuário nem senha). A rota `/api/project-vault` é excluída e devolve 403 para a RENATA | Equipe |
 | Relatórios | 2 | `relatorio_equipe_dia`, `relatorio_atrasos` | Equipe |
 
 **Como uma ferramenta é definida** (`registry.add`): `name`, `module`, `summary` (vira a descrição para a IA), `params` (esquema), `risk` (`read|write|critical`), `route` (rota HTTP chamada) **ou** `run` (função própria), e opcionais `confirm` (`'always'` ou função), `bulk` (função que conta registros; >1 pede confirmação), `before` (estado anterior), `undo`, `describe` (texto do cartão), `creates` (dedupe), `visible`, `can`, `map`, `internal`. Ferramentas duplicadas ou sem execução quebram a subida do servidor.

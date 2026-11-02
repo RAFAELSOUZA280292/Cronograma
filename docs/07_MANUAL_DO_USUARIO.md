@@ -279,7 +279,8 @@ Se um Master/PRICETAX tem "empresas específicas", a empresa criada é liberada 
 | **Quadro** | Colunas por status (Não iniciado, Em andamento, Pausado, Concluído); arraste o cartão para mudar o status |
 | **Mapa** | Mapa mental só de leitura (empresa → grupos → atividades → subatividades), com zoom, filtros e tela cheia |
 | **Triagem** | Para cada atividade e subatividade, escolher **Reunião** ou **Trabalho** e a data (lista ou calendário) |
-Resumo, Reuniões, Tarefas, Mapa e Triagem só existem com **uma** empresa aberta. No canto da aba há a **busca da tela** (filtra a aba aberta).
+| **Cofre** | (só equipe) Guardar os acessos do cliente (login e senha, ex.: X da Questão), o certificado digital (.pfx com senha e validade), contratos, procurações, PDFs de entrega, links e notas. **Incluir** → escolha o tipo. A senha fica escondida: **Mostrar** (some em 30 s) ou **Copiar**; cada uso e cada download ficam no **Log**. O cliente nunca vê esta aba |
+Resumo, Reuniões, Tarefas, Mapa, Triagem e Cofre só existem com **uma** empresa aberta. No canto da aba há a **busca da tela** (filtra a aba aberta).
 Botões do alto: **Nova atividade**, **Excel**, **PDF** (abre **Exportar PDF**: tema escuro ou claro, orientação, o que entra), e (só equipe) **Fases**, **Link para o cliente**, **Reservar na agenda**, **Auditoria**, **Log**, **Versões**, **Lixeira**. No celular ficam no menu **Mais**. **Empresa** abre os dados e a equipe da empresa; **Abrir no CRM** leva à ficha no CRM.
 
 #### 6.2.4 Atividades e subatividades

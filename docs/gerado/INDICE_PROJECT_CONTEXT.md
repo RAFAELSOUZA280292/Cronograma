@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8914 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8923 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -188,3 +188,4 @@ O `PROJECT_CONTEXT.md` tem 8914 linhas (a memória cronológica de cada decisão
 | 8883 | 116zzzzzzz. Caixa de e-mail: ⋮ "Marcar todas como lidas" (2026-11-02, print do Rafael com a barra do Gmail: c… | - O cabeçalho da lista agora tem a mesma barra do Gmail: caixa com setinha (§116zzzzzz), Atualizar e ⋮ (MoreMenu em src/mail/MailScreen.jsx). |
 | 8891 | 116zzzzzzzz. Agenda completa no painel e convites ligados à Caixa de e-mail (2026-11-02, pedido do Rafael: "d… | - O que é: o Rafael não abre mais o Google Agenda nem o Gmail para reuniões. Os dados continuam no Google Workspace da PRICETAX (Calendar API e Gmail… |
 | 8902 | 123. WhatsApp, Fase 1: caixa de conversas do número da PRICETAX (2026-11-02, pedido do Rafael: "Fase 0 e Fase… | - Por quê: levar o atendimento do WhatsApp para o painel (como a Caixa de e-mail), pela API oficial da Meta (WhatsApp Cloud API). Provedores não ofic… |
+| 8915 | 124. Cofre do projeto: acessos, certificado digital, arquivos, links e notas por empresa (2026-11-02, pedido … | - Por quê: guardar no painel da empresa os acessos do cliente (login e senha do X da Questão, e-CAC, portais), o certificado digital A1 e os document… |

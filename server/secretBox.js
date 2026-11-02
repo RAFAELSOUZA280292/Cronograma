@@ -27,3 +27,20 @@ export function open(blob) {
     return Buffer.concat([d.update(data), d.final()]).toString('utf8');
   } catch { return null; }
 }
+
+// Arquivos (Cofre do projeto, §124): mesma chave e mesmo AES-256-GCM, em binário — iv(12) + tag(16) + dados. Adulterado ou chave trocada devolve null.
+export function sealBytes(buf) {
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', key(), iv);
+  const data = Buffer.concat([c.update(buf), c.final()]);
+  return Buffer.concat([iv, c.getAuthTag(), data]);
+}
+
+export function openBytes(blob) {
+  if (!blob || blob.length < 29) return null;
+  try {
+    const d = crypto.createDecipheriv('aes-256-gcm', key(), blob.subarray(0, 12));
+    d.setAuthTag(blob.subarray(12, 28));
+    return Buffer.concat([d.update(blob.subarray(28)), d.final()]);
+  } catch { return null; }
+}
