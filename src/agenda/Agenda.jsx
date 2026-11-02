@@ -15,6 +15,7 @@ import { Segmented, Callout, BusyBar, Button, activate } from '../ui/index.jsx';
 import { apiGet, apiPatch, apiPut } from '../lib/api.js';
 import AgendaSidebar from './AgendaSidebar.jsx';
 import { TaskModal, AwayModal, TaskDetail, TeamEventDetail, SearchResults } from './AgendaExtras.jsx';
+import BookingDialog from './BookingDialog.jsx';
 import { rsvpOf, isPendingRsvp, RSVP_META, summarizeDay, fmtDur, hhmm, CAL_SOURCES } from './dayLoad.js';
 import { layoutTopRow, timedSegments, layoutDay, eventsPerDay, hm } from './weekLayout.js';
 import { inkOn } from '../lib/inkOn.js';
@@ -151,6 +152,7 @@ export default function AgendaScreen({
   const [withEvents, setWithEvents] = useState([]);
   const [withStatus, setWithStatus] = useState([]);
   const [creating, setCreating] = useState(null); // 'task' | 'away'
+  const [showBooking, setShowBooking] = useState(false);
   const [taskOpen, setTaskOpen] = useState(null);
   const [teamOpen, setTeamOpen] = useState(null);
   const [searchQ, setSearchQ] = useState('');
@@ -171,10 +173,15 @@ export default function AgendaScreen({
 
   // "Ver na agenda" vindo da Caixa de e-mail: abre no dia do evento, com o detalhe aberto.
   useEffect(() => {
-    const want = takeAgendaOpen();
-    if (!want) return;
-    if (want.start && !Number.isNaN(Date.parse(want.start))) setAnchorDate(new Date(want.start));
-    setDetailId(want.id);
+    const go = () => {
+      const want = takeAgendaOpen();
+      if (!want) return;
+      if (want.start && !Number.isNaN(Date.parse(want.start))) setAnchorDate(new Date(want.start));
+      setDetailId(want.id);
+    };
+    go();
+    window.addEventListener('pt-agenda-open', go); // pedido vindo com a Agenda já aberta (aviso do sino, §139)
+    return () => window.removeEventListener('pt-agenda-open', go);
   }, []);
 
   const { start: rangeStart, end: rangeEnd } = useMemo(() => rangeForView(viewMode, anchorDate), [viewMode, anchorDate]);
@@ -382,7 +389,7 @@ export default function AgendaScreen({
           onPickDate={(d) => { setAnchorDate(d); setSearch(null); if (isMobile) setSideOpen(false); }}
           onCreate={onCreate} accounts={accounts} hidden={hidden} onToggleAccount={toggleHidden} onAccountColor={changeAccountColor} onManageAccounts={() => setShowAccounts(true)}
           team={team} teamStatus={[...teamStatus, ...withStatus]} onTeamChange={changeTeam} withPeople={withPeople} onWithChange={changeWith}
-          onScheduleWith={() => setNewEvent({ ...defaultSlot(), guests: withPeople.map((p) => p.email) })} colors={PICK_COLORS}
+          onScheduleWith={() => setNewEvent({ ...defaultSlot(), guests: withPeople.map((p) => p.email) })} colors={PICK_COLORS} onBooking={() => setShowBooking(true)}
         />
       )}
       <div className="agd-main" style={{ paddingTop: 10, paddingBottom: 24 }}>
@@ -456,6 +463,7 @@ export default function AgendaScreen({
       </div>
       </div>
 
+      {showBooking && <BookingDialog onClose={() => setShowBooking(false)} />}
       {creating === 'task' && <TaskModal initialDate={isoDateOnly(anchorDate)} onClose={() => setCreating(null)} onDone={() => { setCreating(null); setReloadTick((n) => n + 1); }} />}
       {creating === 'away' && <AwayModal initialDate={isoDateOnly(anchorDate)} onClose={() => setCreating(null)} onDone={() => { setCreating(null); setReloadTick((n) => n + 1); }} />}
       {taskOpen && <TaskDetail task={taskOpen} onClose={() => setTaskOpen(null)} onChanged={() => setReloadTick((n) => n + 1)} />}

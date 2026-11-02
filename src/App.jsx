@@ -100,6 +100,7 @@ const ActivityDetailModal = lazyRetry(() => import('./screens/CompanyViews.jsx')
 // Detalhe de reunião e assistente por empresa (2026-10-17): helpers de status saíram de Meetings.jsx (meetings/todoStatus.js), o que permitiu carregá-los sob demanda.
 const MeetingDetailModal = lazyRetry(() => import('./meetings/MeetingDetail.jsx').then((m) => ({ default: m.MeetingDetailModal })));
 const PublicCompanyScreen = lazyRetry(() => import('./screens/PublicCompanyScreen.jsx'));
+const PublicBookingScreen = lazyRetry(() => import('./agenda/PublicBooking.jsx'));
 const PublicMeetingScreen = lazyRetry(() => import('./meetings/MeetingDetail.jsx').then((m) => ({ default: m.PublicMeetingScreen })));
 const ProjectAssistant = lazyRetry(() => import('./assistant/ProjectAssistant.jsx').then((m) => ({ default: m.ProjectAssistant })));
 const CompanyWorkspace = lazyRetry(() => import('./screens/CompanyWorkspace.jsx').then((m) => ({ default: m.CompanyWorkspace })));
@@ -1425,7 +1426,7 @@ function AppScreens({ shellRef, bump }) {
       // /reuniao/:token e /acompanhamento/:token): os hooks rodam antes do `return` que desenha a tela pública, então reescrever a URL aqui
       // faria o link de quem está logado abrir a tela inicial em vez do quadro/reunião compartilhado.
       const p = window.location.pathname;
-      if (p !== '/' && !/^\/(quadro|reuniao|acompanhamento|a)\//.test(p)) { try { window.history.replaceState({ navTag: 'gate' }, '', '/'); } catch (e) { /* ignora */ } }
+      if (p !== '/' && !/^\/(quadro|reuniao|acompanhamento|a|agendar)\//.test(p)) { try { window.history.replaceState({ navTag: 'gate' }, '', '/'); } catch (e) { /* ignora */ } }
       return;
     }
     try {
@@ -1870,6 +1871,12 @@ function AppScreens({ shellRef, bump }) {
   const publicCompanyMatch = window.location.pathname.match(/^\/(?:acompanhamento|a)\/([A-Za-z0-9_-]+)/);
   if (publicCompanyMatch) {
     return <React.Suspense fallback={<LoadingScreen theme={theme} />}><PublicCompanyScreen token={publicCompanyMatch[1]} /></React.Suspense>;
+  }
+
+  // Link público de agendamento (§139): sem login; mostra só livre/ocupado da pessoa.
+  const publicBookingMatch = window.location.pathname.match(/^\/agendar\/([A-Za-z0-9_-]+)/);
+  if (publicBookingMatch) {
+    return <React.Suspense fallback={<LoadingScreen theme={theme} />}><PublicBookingScreen token={publicBookingMatch[1]} /></React.Suspense>;
   }
 
   const publicMeetingMatch = window.location.pathname.match(/^\/reuniao\/([A-Za-z0-9_-]+)/);

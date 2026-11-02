@@ -4,6 +4,7 @@
 import { apiPatch, apiPost } from '../lib/api.js';
 import { canOpenMode } from '../lib/routes.js';
 import { notify } from '../ui/dialogs.jsx';
+import { requestAgendaOpen } from '../agenda/agendaActions.js';
 
 export function createNotificationActions({
   currentUser,
@@ -99,6 +100,12 @@ export function createNotificationActions({
     } else if (t.kind === 'briefing') {
       markNotificationRead(n.id, true);
       goToWorkspace(null);
+    } else if (t.kind === 'agenda_event') {
+      // §139: alguém marcou pelo link de agendamento → Agenda no dia, com o compromisso aberto.
+      if (!canOpenMode('agenda', currentUser)) { notify('Você não tem acesso a este módulo.', { tone: 'error' }); return; }
+      markNotificationRead(n.id, true);
+      requestAgendaOpen(t.eventId, t.start);
+      if (workspaceMode === 'agenda') window.dispatchEvent(new Event('pt-agenda-open')); else goToWorkspace('agenda');
     } else if (t.kind === 'crm_activity') {
       if (!enter('crm')) return;
       markNotificationsReadForTarget({ kind: 'crm_activity', activityId: t.activityId });

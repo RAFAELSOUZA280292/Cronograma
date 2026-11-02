@@ -1,6 +1,6 @@
 {
  "geradoPor": "scripts/renata-route-index.mjs",
- "total": 422,
+ "total": 427,
  "routes": [
   {
    "method": "POST",
@@ -46,6 +46,16 @@
    "method": "GET",
    "path": "/api/agenda/accounts",
    "file": "agenda.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/agenda/booking",
+   "file": "agendaBooking.js"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/agenda/booking",
+   "file": "agendaBooking.js"
   },
   {
    "method": "GET",
@@ -1558,6 +1568,11 @@
    "file": "projectVault.js"
   },
   {
+   "method": "GET",
+   "path": "/api/projects/:id/meetings/:meetingId/transcript",
+   "file": "routes.js"
+  },
+  {
    "method": "POST",
    "path": "/api/projects/:id/meetings",
    "file": "routes.js"
@@ -1611,6 +1626,16 @@
    "method": "PATCH",
    "path": "/api/public-board/:token",
    "file": "routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/public-booking/:token/book",
+   "file": "agendaBooking.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/public-booking/:token",
+   "file": "agendaBooking.js"
   },
   {
    "method": "GET",

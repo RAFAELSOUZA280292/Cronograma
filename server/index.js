@@ -10,6 +10,7 @@ import { router as xflowRouter } from './xflow.js';
 import { router as googleRouter } from './google.js';
 import { router as microsoftRouter } from './microsoft.js';
 import { router as agendaRouter } from './agenda.js';
+import { router as bookingRouter, publicRouter as publicBookingRouter } from './agendaBooking.js';
 import { router as mailRouter } from './mail.js';
 import { router as mailLinksRouter, startMailIndexScheduler } from './mailLinks.js';
 import { router as whatsappRouter, publicRouter as whatsappPublicRouter, whatsappEnabled } from './whatsapp.js';
@@ -89,7 +90,9 @@ app.use('/api', apiRouter);
 app.use('/api/xflow', xflowRouter);
 app.use('/api/google', googleRouter);
 app.use('/api/microsoft', microsoftRouter);
+app.use('/api/agenda/booking', bookingRouter);
 app.use('/api/agenda', agendaRouter);
+app.use('/api/public-booking', publicBookingRouter);
 app.use('/api/mail', mailRouter);
 app.use('/api/mail-links', mailLinksRouter);
 app.use('/api/whatsapp', whatsappPublicRouter);
@@ -152,7 +155,7 @@ app.use(express.static(distDir, {
   },
 }));
 app.get('/{*splat}', (req, res) => {
-  if (req.path.startsWith('/acompanhamento/') || req.path.startsWith('/a/')) res.set('X-Robots-Tag', 'noindex, nofollow');
+  if (req.path.startsWith('/acompanhamento/') || req.path.startsWith('/a/') || req.path.startsWith('/agendar/')) res.set('X-Robots-Tag', 'noindex, nofollow');
   if (req.path.startsWith('/assets/')) return res.status(404).type('text/plain').send('Arquivo não encontrado.');
   res.sendFile(path.join(distDir, 'index.html'));
 });

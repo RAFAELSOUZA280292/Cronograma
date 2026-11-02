@@ -6,7 +6,7 @@
 
 ## Resumo
 - **120 ferramentas estruturadas** em 12 módulos (47 de consulta, 54 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
-- **422 rotas** no servidor: 73 cobertas por ferramenta própria, 159 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 190 excluídas de propósito.
+- **427 rotas** no servidor: 73 cobertas por ferramenta própria, 164 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 190 excluídas de propósito.
 - **56 funcionalidades humanas mapeadas**: 35 ✅, 12 🟡, 4 ⬜, 5 🚫.
 - **Critério "100% das funcionalidades" NÃO está atendido ainda**: as linhas 🟡 e ⬜ abaixo são o que falta. As rotas "genéricas" já são alcançáveis (com confirmação), mas sem esquema de parâmetros; as ⬜ precisam de trabalho novo (arquivos, edição de documentos inteiros).
 
@@ -272,6 +272,8 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `POST /api/agenda/accounts/ical` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `PATCH /api/agenda/accounts/principal` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/agenda/accounts` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/agenda/booking` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `PUT /api/agenda/booking` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/agenda/by-uid` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/agenda/colors` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/agenda/events/:id/reschedule` | ferramenta | agenda_mudar_horario |
@@ -574,6 +576,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `PATCH /api/project-vault/:projectId/:itemId` | excluída | fora do alcance: Cofre do projeto (senhas, certificado digital, arquivos): só a pessoa, na aba Cofre; a RENATA lista o que existe pela ferramenta cofre_listar e nunca lê senha. |
 | `GET /api/project-vault/:projectId` | excluída | fora do alcance: Cofre do projeto (senhas, certificado digital, arquivos): só a pessoa, na aba Cofre; a RENATA lista o que existe pela ferramenta cofre_listar e nunca lê senha. |
 | `POST /api/project-vault/:projectId` | excluída | fora do alcance: Cofre do projeto (senhas, certificado digital, arquivos): só a pessoa, na aba Cofre; a RENATA lista o que existe pela ferramenta cofre_listar e nunca lê senha. |
+| `GET /api/projects/:id/meetings/:meetingId/transcript` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/projects/:id/meetings` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/projects/:id/plan` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/projects/:id/team-candidates` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
@@ -585,6 +588,8 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `POST /api/projects` | ferramenta | empresa_criar |
 | `GET /api/public-board/:token` | excluída | fora do alcance: Links públicos e compartilhamento externo: são gerados pela pessoa na tela. |
 | `PATCH /api/public-board/:token` | excluída | fora do alcance: Links públicos e compartilhamento externo: são gerados pela pessoa na tela. |
+| `POST /api/public-booking/:token/book` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/public-booking/:token` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/public-company/:token` | excluída | fora do alcance: Links públicos e compartilhamento externo: são gerados pela pessoa na tela. |
 | `GET /api/public-meeting/:token` | excluída | fora do alcance: Links públicos e compartilhamento externo: são gerados pela pessoa na tela. |
 | `GET /api/push/config` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |

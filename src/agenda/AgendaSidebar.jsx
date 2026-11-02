@@ -3,7 +3,7 @@
 // cor livre, conectar outra) e Outras agendas (assinar a agenda de colegas e sócios; o Google decide se você vê detalhes ou só
 // livre/ocupado).
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, Plus, X, Users, CalendarPlus, ListTodo, Plane, Settings2 } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Plus, X, Users, CalendarPlus, ListTodo, Plane, Settings2, Link2 } from 'lucide-react';
 import { apiGet } from '../lib/api.js';
 import { ColorPicker } from './AgendaExtras.jsx';
 import './agenda.css';
@@ -153,13 +153,14 @@ function CalRow({ checked, color, label, note, onToggle, onColor, colors, action
 
 export default function AgendaSidebar({
   anchorDate, rangeStart, rangeEnd, onPickDate, onCreate, accounts, hidden, onToggleAccount, onAccountColor, onManageAccounts,
-  team, teamStatus, onTeamChange, withPeople, onWithChange, onScheduleWith, colors,
+  team, teamStatus, onTeamChange, withPeople, onWithChange, onScheduleWith, colors, onBooking,
 }) {
   const subs = team || [];
   const statusOf = (email) => (teamStatus || []).find((c) => c.email === email);
   return (
     <aside className="agd-side" aria-label="Menu da agenda">
       <CreateMenu onCreate={onCreate} />
+      {onBooking && <button type="button" className="agd-bk-open" onClick={onBooking} title="Link público: quem é de fora vê só livre/ocupado e marca um horário com você"><Link2 size={15} aria-hidden="true" /> Meu link de agendamento</button>}
       <MiniMonth anchorDate={anchorDate} rangeStart={rangeStart} rangeEnd={rangeEnd} onPick={onPickDate} />
 
       <section className="agd-side-sec" aria-labelledby="agd-with-h">
