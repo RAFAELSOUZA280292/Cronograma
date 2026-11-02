@@ -4,6 +4,7 @@
 //   3) toda rota `/api/…` citada existe em docs/gerado/ROTAS.md (ou é um prefixo montado);
 //   4) toda variável de AMBIENTE citada (NOME_EM_MAIUSCULAS) consta em docs/gerado/VARIAVEIS_DE_AMBIENTE.md ou na lista de exceções conhecidas;
 //   5) NENHUM segredo vazou (chave de API, token pxk_/pxw_ completo, senha em URL de banco, chave privada).
+//   6) FRESCOR (2026-11-02): a seção mais nova do PROJECT_CONTEXT.md não pode ser posterior ao "Estado atual" do docs/00 nem à última linha da linha do tempo do docs/09 (sai com código 1).
 //   node scripts/docs-check.mjs            # relatório; sai com código 1 só se achar SEGREDO ou caminho inexistente em excesso (--estrito: qualquer erro)
 //   node scripts/docs-check.mjs --so arquivo.md
 import fs from 'node:fs';
@@ -83,6 +84,19 @@ for (const f of targets) {
   if (local.envs.size) bits.push(`  nomes em MAIÚSCULAS que não existem no código (${local.envs.size}): ${[...local.envs].slice(0, 12).join(', ')}`);
   report.push(`${bits.length ? 'ATENÇÃO ' : 'ok       '}${f} (${lines.length} linhas)${bits.length ? `\n${bits.join('\n')}` : ''}`);
 }
+// 6) frescor: o registro detalhado novo sem o resumo novo é o jeito de o "cérebro" envelhecer sem ninguém perceber
+let frescor = 0;
+if (!so) {
+  const pc = read(path.join(ROOT, 'PROJECT_CONTEXT.md'));
+  const ultima = [...pc.matchAll(/^## .*?\((\d{4}-\d{2}-\d{2})/gm)].map((m) => m[1]).sort().pop();
+  const estado = (read(path.join(ROOT, 'docs/00_COMECE_AQUI.md')).match(/^## Estado atual \((\d{4}-\d{2}-\d{2})\)/m) || [])[1];
+  const linhas = [...read(path.join(ROOT, 'docs/09_HISTORICO_E_DECISOES.md')).matchAll(/^\| \*\*(\d{4}-\d{2}-\d{2})/gm)].map((m) => m[1]).sort();
+  const tempo = linhas[linhas.length - 1];
+  if (!estado) { frescor += 1; report.push('FRESCOR  docs/00_COMECE_AQUI.md: falta a seção "## Estado atual (AAAA-MM-DD)"'); }
+  else if (ultima && estado < ultima) { frescor += 1; report.push(`FRESCOR  docs/00_COMECE_AQUI.md: "Estado atual" é de ${estado}, mas o PROJECT_CONTEXT.md tem seção de ${ultima} — atualize o resumo`); }
+  if (!tempo || (ultima && tempo < ultima)) { frescor += 1; report.push(`FRESCOR  docs/09_HISTORICO_E_DECISOES.md: a linha do tempo termina em ${tempo || '(vazia)'}, mas o PROJECT_CONTEXT.md tem seção de ${ultima} — falta a linha do dia`); }
+  if (!frescor) report.push(`ok       frescor (última seção ${ultima}; Estado atual ${estado}; linha do tempo ${tempo})`);
+}
 console.log(report.join('\n'));
 console.log(`\nresumo: ${targets.length} documentos · segredos ${secretHits} · caminhos inexistentes ${missingPaths} · linhas inválidas ${badLines} · rotas fora do catálogo ${badRoutes} · variáveis fora do catálogo ${badEnvs} · identificadores inexistentes ${badIds}`);
-process.exit(secretHits || (estrito && (missingPaths || badLines || badRoutes || badEnvs || badIds)) ? 1 : 0);
+process.exit(secretHits || frescor || (estrito && (missingPaths || badLines || badRoutes || badEnvs || badIds)) ? 1 : 0);

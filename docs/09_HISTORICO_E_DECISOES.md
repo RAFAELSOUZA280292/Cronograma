@@ -1,6 +1,6 @@
 # Histórico do produto e decisões permanentes
 
-> Atualizado em 2026-10-29. O **porquê** detalhado de cada mudança está no `PROJECT_CONTEXT.md` (seção citada em cada linha; use `docs/gerado/INDICE_PROJECT_CONTEXT.md` para achar a linha). A lista **exata de commits** (do git) está em `docs/gerado/HISTORICO_COMMITS.md` (489 commits, de 2026-08-01 a 2026-10-29, gerados do clone de deploy).
+> Atualizado em 2026-11-02. O **porquê** detalhado de cada mudança está no `PROJECT_CONTEXT.md` (seção citada em cada linha; use `docs/gerado/INDICE_PROJECT_CONTEXT.md` para achar a linha). A lista **exata de commits** (do git) está em `docs/gerado/HISTORICO_COMMITS.md` (489 commits, de 2026-08-01 a 2026-10-29, gerados do clone de deploy).
 
 ## Em uma frase
 Em três meses o app virou de "cronograma de reforma tributária" para o **ecossistema de trabalho da PRICETAX**: cronogramas por cliente, quadro pessoal, agenda, XFlow (bugs do time de DEV), CRM, RENATA (IA que consulta e executa), pareceres/biblioteca e integrações por API.
@@ -25,6 +25,10 @@ Em três meses o app virou de "cronograma de reforma tributária" para o **ecoss
 | **2026-10-27** | Copiar/exportar conversa da RENATA, **Biblioteca de conhecimento**, correção do "fantasma" (duas abas), retentativa de salvamento, CRM arrastar etapa, quadro público e colunas compartilhadas | §116–§122 |
 | **2026-10-28** | Copiar link do negócio, Excel nativo no CRM, **IA externa envia transcrição** e **corrige reuniões** pela API | §116b–§116e |
 | **2026-10-29** | **Duas chaves de API** ("Ler tudo"/"Ler e editar tudo"), estudo de parecer cortado pela IA, ids internos fora da RENATA geral, **RENATA orienta com base nos pareceres** (por projeto e geral), RENATA operacional sem travar (resposta forçada, ler reunião, horário GMT-3, Atualizar/Limpar), esta documentação completa | §116f–§116j, `docs/` |
+| **2026-10-30** | CRM: botão **Copiar número**, notas com texto formatado/emojis/modelos, **plano de visual em 4 etapas** (menos "infantil": tags legíveis, urgência sem fundo colorido, contatos enxutos, texto mínimo de 12 px, selos neutros, contraste nos dois temas); tela inicial com mensagem do dia e "Hoje" no mesmo nível; organizar o quadro pessoal por API | §116y–§116zg |
+| **2026-10-31** | **Plano de evolução em 4 ondas**: Onda 1 (rede de segurança, medição, prompts) e piloto no CRM; Onda 2 (paleta Ctrl/⌘K nos módulos, ficha de contexto da RENATA, tokens de forma); Onda 3 (**briefing diário**, preferências da RENATA, Cliente 360, tabela profissional); Onda 4 (**teste de fluxos com Playwright + axe**); busca da RENATA sem filtro rígido; SDK da Anthropic 0.135 → 1.3; **U2 começa** (14 modais do CRM na janela única) | §116zh–§116zo |
+| **2026-11-01** | **U2 termina** (XFlow, quadro pessoal e as janelas que sobraram na janela única) + faxina e contraste nos dois temas; **vidro** na barra do topo e nos botões; **mover coluna do Meu quadro para outra página** (com Desfazer); **convite do Google com link do Meet** nas reuniões do CRM (só quando marcado); Railway ficou sem publicar até o Rafael corrigir | §116zp–§116zu |
+| **2026-11-02** | Cérebro posto em dia (linha do tempo, "Estado atual", lições, travas) e alarme de frescor no `docs:conferir` | §116zv |
 
 ## Políticas e decisões permanentes do Rafael (valem até ele mudar)
 
@@ -37,6 +41,9 @@ Em três meses o app virou de "cronograma de reforma tributária" para o **ecoss
 | **Não repetir perguntas já encerradas** | memória do dono | Conferir o histórico antes de perguntar |
 | **Ferramenta pública é tangível, sem captura** | memória do dono | Não pedir dados pessoais para entregar valor |
 | **Em material para cliente, "o motor estima" é recurso, não defeito** | memória do dono | Redação de materiais |
+| **Convite do Google com Meet só quando a pessoa marca** no formulário; padrão = ninguém recebe e-mail; convidado = e-mail do PRÓPRIO contato escolhido (decisão do Rafael, 2026-11-01, opção "a") | `PROJECT_CONTEXT.md` §116zu | Nunca ligar por padrão nem convidar o contato do negócio sem a pessoa escolher |
+| **Antes de qualquer visual: ler as skills de design do skills.sh (só o texto) e medir contraste nos DOIS temas** (Rafael, 2026-10-30) | memória do dono, §116zd | Contraste 4,5:1 medido, nunca cor como único sinal |
+| **Uma conversa por tarefa; começar pelo "Estado atual"** do `docs/00_COMECE_AQUI.md` (economia de token, Rafael 2026-11-02) | `PROJECT_CONTEXT.md` §116zv | Sessão longa carrega o histórico em toda resposta |
 | **Hora das mensagens/relatos em Brasília (GMT-3)**; logs do servidor estão em UTC | §116j, memória do dono | Converter sempre |
 | **Pareceres: parecer de um cliente nunca aparece em outro**; cliente (usuário) nunca recebe conteúdo de parecer no chat | §48, §70, `server/parecerScope.js` | Toda função nova que use pareceres passa por `parecerUsableFor` |
 | **Nada de esoterismo na RENATA**: orienta só com base em pareceres/materiais estudados; tema sem estudo "passa batido" | §116i | Ver `docs/05_MODULO_RENATA_E_IA.md` |

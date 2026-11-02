@@ -219,8 +219,9 @@ function genContextIndex() {
 
 // ============================================================================ 8) HISTÓRICO (git)
 function genHistory() {
-  const g = opt('--git', '');
-  if (!g || !fs.existsSync(path.join(g, '.git'))) { console.log('pulado: HISTORICO_COMMITS.md (passe --git /caminho/do/clone)'); return; }
+  // Esta pasta não é git: sem `--git`, usa o clone de deploy se ele existir (antes o arquivo ficava parado em silêncio e envelheceu 3 dias).
+  const g = opt('--git', '') || (fs.existsSync('/private/tmp/deploy-clone/.git') ? '/private/tmp/deploy-clone' : '');
+  if (!g || !fs.existsSync(path.join(g, '.git'))) { console.log('AVISO: HISTORICO_COMMITS.md NÃO foi atualizado (passe --git /caminho/do/clone)'); return; }
   const log = execFileSync('git', ['-C', g, 'log', '--date=format:%Y-%m-%d %H:%M', '--pretty=format:%ad\t%h\t%s'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).split('\n').filter(Boolean).map((l) => l.split('\t'));
   const byDay = new Map(); for (const [d, h, ...s] of log) { const day = d.slice(0, 10); if (!byDay.has(day)) byDay.set(day, []); byDay.get(day).push({ time: d.slice(11), h, s: s.join('\t') }); }
   const out = [`# Histórico de commits (gerado do git)\n\n${STAMP}\n`, `${log.length} commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no \`PROJECT_CONTEXT.md\`.\n`];

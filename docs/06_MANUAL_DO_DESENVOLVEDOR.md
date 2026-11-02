@@ -109,11 +109,12 @@ Procure o texto exato com `grep -rn "trecho" src server`. Mensagem de erro de re
 - [ ] `npm run build` limpo + teste descartável da área (HTTP real). O que não foi testado está **dito** e entrou em `PROJECT_CONTEXT.md` §15.
 - [ ] `node scripts/renata-route-index.mjs` e `renata-coverage.mjs` (se mexeu em rota/ferramenta).
 - [ ] `npm run docs:gerar` e documentação escrita (módulo + `PROJECT_CONTEXT.md` + `docs/PROJECT_MAP.md` se mudou arquitetura/regra).
+- [ ] **Cérebro em dia (4 lugares, curtos):** (1) seção nova no `PROJECT_CONTEXT.md`; (2) linha do dia em `docs/09_HISTORICO_E_DECISOES.md` e no §0; (3) "Estado atual" do `docs/00_COMECE_AQUI.md` (o que está no ar, pendências, não testado); (4) lição em `docs/08` se houve tropeço. O `npm run docs:conferir` **falha** se a seção mais nova do `PROJECT_CONTEXT.md` for posterior ao "Estado atual" ou à linha do tempo.
 
 ## Deploy (política vigente: commit + push sem pedir confirmação a cada vez)
 O diretório de trabalho **não é repositório git**. O deploy usa um clone separado (hoje `/private/tmp/deploy-clone`; refaça com `git clone` se sumir).
 1. `git -C <clone> fetch` e confira que não há divergência (`git status -sb`).
-2. `rsync -a --delete --exclude .git --exclude node_modules --exclude dist --exclude .sourcemaps --exclude .env --exclude .claude --exclude exports ./ <clone>/`
+2. `rsync -a --delete --exclude .git --exclude node_modules --exclude dist --exclude .sourcemaps --exclude .env --exclude .claude --exclude exports --exclude docs/11_ACHADOS_E_PENDENCIAS.md --exclude server/evals/.last-run-failure-traces.md ./ <clone>/` (e qualquer rascunho privado que esteja em `docs/` e não deva ir ao repositório público).
 3. No clone: `npm run build` (tem que sair limpo) e `git status --short` (conferir **cada** arquivo).
 4. `git add` **por caminho** (nunca `git add -A`: já subiu pasta de cliente para o repositório público), commit com mensagem clara (primeira linha = o quê; corpo = por quê) terminando com a linha de coautoria definida pela sessão, `git push origin main`.
 5. Railway publica sozinho (~2–3 min). **Verifique em produção**: `GET <PRICETAX_URL>/api/connect` (índice) responde JSON; o hash do bundle em `/` muda; rota nova responde 401/200 em JSON (não cai no `index.html`; `/api` desconhecido = 404 JSON; **não existe `/api/health`**); `node scripts/railway-logs.mjs "error" --limit 300` sem erro novo.

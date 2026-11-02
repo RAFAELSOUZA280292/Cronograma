@@ -1,5 +1,5 @@
 # Bugs já vividos e lições (catálogo por CLASSE)
-> Atualizado em 2026-10-29. Dono do assunto: Rafael Souza. Fonte da verdade: o código; este texto é o mapa.
+> Atualizado em 2026-11-02. Dono do assunto: Rafael Souza. Fonte da verdade: o código; este texto é o mapa.
 
 ## Em uma frase
 Catálogo dos TIPOS de bug que já aconteceram neste projeto, agrupados por classe (não por data), com o sintoma que o Rafael relata, a causa típica, onde já foi corrigido, qual script protege e o que conferir para não trazer o bug de volta.
@@ -625,6 +625,15 @@ Referência completa dos scripts: `docs/gerado/TESTES.md`.
 | RENATA citava parecer de cliente em outra empresa | escopo não filtrado | §70 | `parecerUsableFor` antes do prompt |
 | Item `pending` do lote órfão após reinício | recupero cobre só `processing` | §49 | limite conhecido; nova tentativa manual |
 | Criar/revogar link público sem registro no Log | `companyShare.js` sem `addLog` (corrigido em 25/10) | §15 | gravar no Log sem o token |
+| `npm run build` limpo, mas a tela quebra (`UiModal is not defined`) | o Vite não acusa identificador/import inexistente | §116zq | depois de trocar import: `grep` do nome e abrir a tela (o e2e cobre) |
+| Números ilegíveis só no tema claro (contraste 1,6:1) com o axe verde | o axe não mede cor fixa no tema claro | §116zr | `checkContrast` (e2e) mede texto nos dois temas |
+| Barra de vidro com texto fraco sobre fundo branco (busca 2,83:1) | opacidade escolhida sem medir o PIOR fundo | §116zs | medir sobre branco (escuro) e preto (claro); fluxo 12 do e2e |
+| Teste Playwright clica no elemento errado | `getByRole(name)` casa por TRECHO: o cabeçalho da coluna também termina em "Mais ações" | §116zt | `exact: true`; achar o bloco a partir do dado que o teste criou |
+| Teste passa no CI e falha local (empresa "some" da lista) | o banco e2e local acumula dados e a lista pagina em 50 | §116zt | cada teste cria dado com nome único; `npm run test:e2e` recria o banco |
+| Coluna movida entre páginas reaparece vazia na página antiga (duas abas) | a fusão de 3 vias mantém a cópia antiga | §116zt | `dropEmptyMovedColumns` (`boardMerge.js`); teste no item 11 |
+| Commit com CI verde e produção igual | a Railway parou de receber o aviso do push (3 commits parados por horas) | §116zs | depois do push, conferir o bundle servido e `gh api repos/:owner/:repo/deployments`; commit vazio reaciona |
+| `sed -i` falha com barra no texto / nada muda | o `sed` do macOS exige `''` e padrão sem `/` | §116zq | editar com Python ou com a ferramenta de edição, e conferir com `grep` |
+| Teste de `scripts/` falha em "Token ausente" ou em ferramenta sem cobertura | HTTP exige servidor e usuários do banco dev; `renata-tools` já falhava (`preferencia_guardar`) | §116zu | comparar com a versão publicada antes de culpar a mudança nova |
 
 ---
 

@@ -1,5 +1,5 @@
 # Segurança e travas do sistema
-> Atualizado em 2026-10-29. Dono do assunto: Rafael Souza. Fonte da verdade: o código; este texto é o mapa.
+> Atualizado em 2026-11-02. Dono do assunto: Rafael Souza. Fonte da verdade: o código; este texto é o mapa.
 > **Achados abertos desta revisão, com gravidade, status e plano de correção: `docs/11_ACHADOS_E_PENDENCIAS.md`** (o registro único; este documento descreve as travas e onde ficam).
 
 
@@ -478,6 +478,14 @@ O registro completo (gravidade, onde, como confirmar, plano de correção) fica 
 | Atividade do CRM só pelo responsável, criador ou gestão (editar/concluir/cancelar/reabrir) | vendedor mexer na atividade de outro | `crm/routes.js` `ownActivity` | 403 "Só o responsável pela atividade…" |
 | Empresa excluída do CRM só abre para o administrador; lead rápido desfaz o que criou se falhar | ver empresa excluída; empresa solta sem negócio | `crm/routes.js`, `crm/extras.js` `quickLead` | 404 |
 | XFlow: criação de ticket só com campos conhecidos | gravar comentários/histórico/agenda forjados | `xflow.js` `POST /tickets` | campos ignorados |
+
+### Travas novas de 2026-11-01 (convite do Google com Meet, §116zu)
+| Trava | O que impede | Onde |
+|---|---|---|
+| Convite com Meet só com `inviteMeet` marcado; padrão sem e-mail | o cliente receber e-mail do Google sem a pessoa pedir | `crm/activities.js`, `crm/googleSync.js` `wantsInvite` |
+| Convidado = e-mail do PRÓPRIO contato escolhido (nunca o do negócio); 400 se não for Reunião, sem horário, sem contato, contato sem e-mail ou atividade já realizada | convidar quem a pessoa não viu na tela | `crm/activities.js` `assertInvite` (tela, chave de API e RENATA passam por aqui) |
+| Concluir não manda e-mail (`sendUpdates:'none'`, `keepGuests`); editar nunca troca o Meet | e-mail a cada ✔; link novo a cada edição | `googleCalendar.js` `composePatch`, `upsertBlockEvent` |
+| O aviso de convite só diz "enviado" quando o Google confirmou | afirmar envio que não aconteceu | `crm/ActivityForm.jsx` `tellInvite`, resposta com `inviteStatus` |
 | Histórico do quadro pessoal (foto antes de encolher / a cada 10 min; restaurar) | um bug de tela apagar cartões sem volta | `routes.js` `snapshotBoardIfNeeded`; tabela `personal_board_versions` | `GET/POST /personal-board/versions`, tela **Versões** (§116t) |
 | Parecer e material: bytes conferidos com a extensão; excluir parecer só Master; reprocessar não reativa material arquivado | arquivo disfarçado; apagar sem cópia | `pareceres.js`, `materialText.js` `assertSignature`, `knowledgeLibraryRoutes.js` | 400 / 403 / 409 |
 | Resposta da IA cortada: repete uma vez em versão enxuta | resposta pela metade | `assistantRetrieval.js` `withRetry`, `assistantGeneral.js`, `renata/agent.js` | — |

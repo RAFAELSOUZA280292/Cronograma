@@ -1,6 +1,26 @@
 # COMECE AQUI — mapa da documentação e protocolo de leitura
 
-> Atualizado em 2026-10-29. Este é o **primeiro arquivo** a abrir depois do `CLAUDE.md`. Ele diz **qual documento ler para cada tipo de pedido**, para você não varrer o código nem ler arquivos gigantes.
+> Atualizado em 2026-11-02. Este é o **primeiro arquivo** a abrir depois do `CLAUDE.md`. Ele diz **qual documento ler para cada tipo de pedido**, para você não varrer o código nem ler arquivos gigantes.
+
+## Estado atual (2026-11-02)
+Seção curta de propósito: **atualize a cada entrega** (checklist em `docs/06_MANUAL_DO_DESENVOLVEDOR.md`). O `npm run docs:conferir` falha se ela ficar mais velha que a última seção do `PROJECT_CONTEXT.md`.
+
+**No ar** (deploy `8bc9cc6` de 02/11, inclui tudo até `303ea9c`): janela única do app em quase todas as telas (U2), contraste medido nos dois temas, vidro na barra do topo e nos botões, mover coluna do Meu quadro para outra página, convite do Google com Meet nas reuniões do CRM, briefing diário da RENATA (**já ligado para todos**), teste de fluxos Playwright + axe no CI (15 testes).
+
+**Pendências do Rafael** (nenhuma depende de código):
+- Revogar e recriar as chaves que apareceram em prints do `.env` (IA, Voyage, tokens `pxk_`, Google, Railway).
+- Testar o convite com Meet de verdade: Reunião com horário, contato com o e-mail dele e o campo de convite marcado.
+- Briefing diário: manter para todos (como está) ou pedir uma trava por pessoa para virar piloto; ouvir a Eduarda (15 min).
+- Letra de 12,5 px: padronizar em 13 px? Conferir na Railway se existe um proxy que lê `X-Api-Key`. Ler `GET /api/ops-intel/payloads` como Master em alguns dias (se `GET /api/projects` passar de ~1 MB, reabrir o item E4).
+- Resumo semanal (segunda-feira): **não existe**; só se o Rafael quiser, e antes uma proposta.
+
+**Não testado de verdade:** iPad/iPhone e Windows reais (só Chromium); Google real (Meet e e-mail do convite); IA real (busca por significado e estudo de pareceres: a chave local da Voyage é inválida).
+
+**Dívidas conhecidas:** botão dentro de botão nos cartões do quadro (axe `nested-interactive`, no baseline); Esc dentro do editor de descrição do cartão fecha só no segundo toque; imports sem uso antigos; `scripts/renata-tools.test.mjs` falha em `preferencia_guardar` (já falhava antes); `body` com a margem padrão de 8 px.
+
+**Últimas entregas:** §116zp–§116zv (01 e 02/11) e §116zh–§116zo (31/10). O "porquê" de cada uma: `docs/gerado/INDICE_PROJECT_CONTEXT.md`.
+
+**Economia de token:** uma conversa por tarefa (sessão longa carrega o histórico inteiro em toda resposta; a anterior chegou a ~400 mil tokens). Comece por `CLAUDE.md` → esta seção → só o documento do módulo. Rode primeiro só o teste que mudou e a suíte inteira uma vez antes de publicar; confira o deploy uma vez, sem ficar consultando em laço.
 
 ## Em uma frase
 O sistema (painel da PRICETAX) é um app React + Express + Postgres com IA (RENATA); esta pasta `docs/` é o seu "cérebro" organizado: **um índice (este), uma visão geral, um documento por módulo, segurança, bugs, manuais e tabelas geradas do próprio código**.

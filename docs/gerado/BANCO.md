@@ -529,7 +529,7 @@
 - `crm_audit_entity_idx`: `USING btree (org_id, entity_type, entity_id, created_at DESC)`
 
 **Gatilhos (triggers):**
-- `crm_audit_logs_append_only` (BEFORE UPDATE/DELETE): `EXECUTE FUNCTION crm_block_history_mutation()`
+- `crm_audit_logs_append_only` (BEFORE DELETE/UPDATE): `EXECUTE FUNCTION crm_block_history_mutation()`
 
 ## crm_cadences
 
@@ -1672,7 +1672,7 @@
 - `renata_actions_user_idx`: `USING btree (requester_id, requested_at DESC)`
 
 **Gatilhos (triggers):**
-- `renata_actions_guard_t` (BEFORE UPDATE/DELETE): `EXECUTE FUNCTION renata_actions_guard()`
+- `renata_actions_guard_t` (BEFORE DELETE/UPDATE): `EXECUTE FUNCTION renata_actions_guard()`
 
 ## renata_conversations
 
