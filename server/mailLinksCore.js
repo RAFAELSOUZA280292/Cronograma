@@ -92,6 +92,9 @@ export function buildDirectory({ companies = [], contacts = [], deals = [], proj
   };
   const put = (key, target) => { if (key && !byKey.has(key)) byKey.set(key, target); };
 
+  // Domínio marcado como parceiro/fornecedor não vira empresa só porque alguém cadastrou um contato dele dentro dela (o Jhoni da Tróia
+  // cadastrado na COPLACANA). Site, módulo Empresas e marca cliente/prospect seguem como antes.
+  const intermediary = new Set(marks.filter((m) => ['parceiro', 'fornecedor'].includes(m.kind)).map((m) => m.key));
   // 1) e-mail exato do contato do CRM (vale também para gmail/hotmail)
   for (const k of contacts) { const c = byId.get(k.companyId); if (c) put(keyOf(k.email) && isPublicProvider(domainOf(k.email)) ? lowerEmail(k.email) : null, crmTarget(c, 'contato')); }
   // 2) domínio corporativo dos contatos e o site da empresa (empresa com negócio aberto/ganho vence quando o domínio se repete)
@@ -102,9 +105,18 @@ export function buildDirectory({ companies = [], contacts = [], deals = [], proj
     const score = (x) => rank(bestDeal.get(x.id) || {}) * 10 + (x.relationship === 'client' ? 2 : 0);
     if (!cur || score(c) > score(cur.c)) domainHits.set(domain, { c, via });
   };
-  for (const k of contacts) { const c = byId.get(k.companyId); const key = keyOf(k.email); if (c && key && !isPublicProvider(domainOf(k.email))) offer(key, c, 'contato'); }
+  // Domínio de contato espalhado por 2+ empresas sem lembrar o nome de nenhuma é de intermediário (contador, consultoria): não identifica
+  // ninguém. Se lembra (grupo com vários CNPJs no mesmo domínio), vale entre as empresas que ele lembra.
+  const contactCompanies = new Map();
+  for (const k of contacts) { const key = keyOf(k.email); if (key && byId.has(k.companyId) && !isPublicProvider(domainOf(k.email))) (contactCompanies.get(key) || contactCompanies.set(key, new Set()).get(key)).add(k.companyId); }
+  for (const [key, ids] of contactCompanies) {
+    if (intermediary.has(key)) continue;
+    const list = [...ids].map((id) => byId.get(id));
+    for (const c of list.length === 1 ? list : list.filter((x) => domainResembles(key, x))) offer(key, c, 'contato');
+  }
   for (const c of companies) offer(siteDomain(c.website), c, 'site');
-  for (const [domain, { c, via }] of domainHits) put(domain, crmTarget(c, via));
+  // "Fraco": domínio que só veio de um contato e não lembra o nome da empresa (jhoni@troiaconsultoria… cadastrado na COPLACANA).
+  for (const [domain, { c, via }] of domainHits) put(domain, { ...crmTarget(c, via), weak: via === 'contato' && !domainResembles(domain, c) });
   // 3) módulo Empresas: e-mails das áreas e dos contatos externos do cronograma
   for (const p of projects) {
     const target = { source: 'empresas', via: 'empresas', projectId: p.id, name: String(p.name || '').trim() || 'Empresa', relationship: 'client', companyId: p.crmCompanyId || null, dealId: null, stage: '' };
@@ -116,6 +128,20 @@ export function buildDirectory({ companies = [], contacts = [], deals = [], proj
     put(m.key, { source: 'mark', via: 'marca', kind: m.kind, name: String(m.label || '').trim() || prettyKey(m.key), relationship: m.kind, companyId: null, dealId: null, projectId: null, stage: '' });
   }
   return { byKey };
+}
+
+const foldTxt = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const NAME_STOP = new Set(['ltda', 'eireli', 'brasil', 'brazil', 'industria', 'comercio', 'servicos', 'cooperativa', 'empresa', 'grupo', 'estado', 'paulo', 'distribuidora', 'transportes', 'alimentos', 'consultoria']);
+// O domínio lembra o nome da empresa? "kuhn.com.br" × "KUHN DO BRASIL" sim; "troiaconsultoria.onmicrosoft.com" × "COPLACANA" não.
+export function domainResembles(domain, c) {
+  const base = foldTxt(String(domain || '').split('.')[0]).replace(/[^a-z0-9]/g, '');
+  if (!base) return false;
+  const names = [c.tradeName, c.legalName].map(foldTxt);
+  if (names.some((n) => n.replace(/[^a-z0-9]/g, '').includes(base))) return true;
+  const words = names.flatMap((n) => n.split(/[^a-z0-9]+/)).filter((w) => w.length >= 4 && !NAME_STOP.has(w));
+  if (words.some((w) => base.includes(w))) return true;
+  // sigla: "cpfl" ← "Companhia Paulista de Força e Luz"
+  return names.some((n) => { const ini = n.split(/[^a-z0-9]+/).filter((w) => w.length > 2).map((w) => w[0]).join(''); return ini.length >= 3 && base.startsWith(ini); });
 }
 
 // "okubo.com.br" → "Okubo"; "fulano@gmail.com" → "fulano@gmail.com".
@@ -152,8 +178,11 @@ export function classifyThread({ participants = [], teamReplied = false, hasAtta
   const known = keys.filter((k) => byKey.has(k)).map((k) => ({ key: k, target: byKey.get(k) }));
   const unknown = keys.filter((k) => !byKey.has(k));
   const order = { crm: 0, empresas: 1, mark: 2 };
+  // Ligação "fraca" (domínio de contato que não lembra a empresa) só vale quando não há outro domínio desconhecido na conversa: com a
+  // OKUBO desconhecida ao lado, o domínio da Tróia cadastrado na COPLACANA não pode dizer que a conversa é da COPLACANA.
   const live = known.filter((x) => !(x.target.source === 'mark' && x.target.kind === 'ignorar'))
-    .sort((a, b) => order[a.target.source] - order[b.target.source] || (b.target.dealId ? 1 : 0) - (a.target.dealId ? 1 : 0));
+    .filter((x) => !(x.target.weak && unknown.length > 0))
+    .sort((a, b) => order[a.target.source] - order[b.target.source] || (a.target.weak ? 1 : 0) - (b.target.weak ? 1 : 0) || (b.target.dealId ? 1 : 0) - (a.target.dealId ? 1 : 0));
   const main = live[0] || null;
   const realExchange = !!(teamReplied || hasAttachment || PROPOSAL_RE.test(String(subject || '')));
   // Parceiro, fornecedor e ignorado não dizem QUEM é o cliente da conversa (a Tróia em cópia num e-mail da OKUBO): só CRM, Empresas e as

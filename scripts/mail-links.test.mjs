@@ -112,5 +112,26 @@ ok('quem participou lê', canReadContent({ id: 'u1', workRole: 'comercial' }, ['
 ok('comercial que não participou não lê', !canReadContent({ id: 'u3', workRole: 'comercial' }, ['u1']));
 ok('super admin lê', canReadContent({ id: 'x', isSuperAdmin: true }, []));
 
+// Caso real (02/11/2026): contato da Tróia cadastrado dentro da COPLACANA; conversa com a OKUBO e a Tróia em cópia.
+{
+  const coplacana = { id: 'cop', legalName: 'COOPERATIVA DOS PLANTADORES DE CANA DO ESTADO SAO PAULO', tradeName: 'COPLACANA', website: '', relationship: 'prospect' };
+  const parts = [{ email: 'gerson.turola@okubo.com.br' }, { email: 'nelio@troiaconsultoria.onmicrosoft.com' }, { email: 'rafael.souza@pricetax.com.br' }];
+  const dirT = buildDirectory({ companies: [coplacana], contacts: [{ email: 'jhoni@troiaconsultoria.onmicrosoft.com', companyId: 'cop' }] });
+  const c1 = classifyThread({ participants: parts, teamReplied: true, subject: 'Planilha para preenchimento -Proposta Comercial' }, dirT);
+  ok('Tróia cadastrada na COPLACANA não rotula a conversa da OKUBO como COPLACANA', !c1.badge && c1.nag === 'okubo.com.br', c1);
+  const c2 = classifyThread({ participants: [{ email: 'jhoni@troiaconsultoria.onmicrosoft.com' }], teamReplied: true }, dirT);
+  ok('sozinho, o contato ainda aponta a empresa em que está cadastrado', c2.badge && c2.badge.name === 'COPLACANA');
+  const dirM = buildDirectory({ companies: [coplacana], contacts: [{ email: 'jhoni@troiaconsultoria.onmicrosoft.com', companyId: 'cop' }], marks: [{ key: 'troiaconsultoria.onmicrosoft.com', kind: 'parceiro', label: 'Tróia' }] });
+  const c3 = classifyThread({ participants: parts, teamReplied: true, subject: 'Proposta' }, dirM);
+  ok('marca manual "parceiro" vence o contato do CRM e a OKUBO segue na faixa', c3.badge && c3.badge.text === 'Parceiro · Tróia' && c3.nag === 'okubo.com.br', c3);
+  const kuhn = { id: 'k', legalName: 'KUHN DO BRASIL S/A', tradeName: 'KUHN', relationship: 'client' };
+  const dirK = buildDirectory({ companies: [kuhn], contacts: [{ email: 'ana@kuhn.com.br', companyId: 'k' }] });
+  ok('domínio que lembra a empresa continua forte ao lado de desconhecido', classifyThread({ participants: [{ email: 'ana@kuhn.com.br' }, { email: 'x@outra.com.br' }], teamReplied: true }, dirK).badge?.name === 'KUHN');
+  const dirS = buildDirectory({ companies: [kuhn, coplacana], contacts: [{ email: 'a@contabil.com.br', companyId: 'k' }, { email: 'b@contabil.com.br', companyId: 'cop' }] });
+  ok('domínio de contato espalhado por 2 empresas não identifica nenhuma', !dirS.byKey.has('contabil.com.br'));
+  const dirG = buildDirectory({ companies: [{ id: 'v1', legalName: 'VELLORE INDUSTRIA LTDA' }, { id: 'v2', legalName: 'VELLORE COMERCIO LTDA', relationship: 'client' }], contacts: [{ email: 'a@vellore.com.br', companyId: 'v1' }, { email: 'b@vellore.com.br', companyId: 'v2' }] });
+  ok('grupo com vários CNPJs no mesmo domínio continua identificado', dirG.byKey.get('vellore.com.br')?.companyId === 'v2');
+}
+
 console.log(failed ? `\n${failed} falha(s)` : '\ntudo certo');
 process.exit(failed ? 1 : 0);

@@ -198,7 +198,8 @@ export async function companyKeys(orgId, companyId) {
   const projectEmails = d.src.projects.filter((p) => p.crmCompanyId === companyId).flatMap((p) => p.emails);
   const keys = keysOfCompany({ website: c[0].website, contactEmails: k.map((r) => r.email), projectEmails });
   // Só as chaves que o diretório liga a ESTA empresa (um gmail.com de outro contato com o mesmo domínio não entra).
-  for (const key of [...keys]) { const t = d.dir.byKey.get(key); if (t && t.companyId && t.companyId !== companyId) keys.delete(key); }
+  // Nem o domínio de parceiro/fornecedor/ignorado (o contato da Tróia cadastrado na COPLACANA não traz os e-mails da Tróia para ela).
+  for (const key of [...keys]) { const t = d.dir.byKey.get(key); if (!t || (t.companyId && t.companyId !== companyId) || (t.source === 'mark' && !['cliente', 'prospect'].includes(t.kind))) keys.delete(key); }
   return keys;
 }
 
