@@ -8,49 +8,49 @@ Total: **425 rotas** em **39 grupos**. Cada linha mostra o método, o endereço 
 
 | Prefixo | Arquivo | Linha |
 |---|---|---|
-| `/api` | `server/routes.js` | 87 |
-| `/api/xflow` | `server/xflow.js` | 88 |
-| `/api/google` | `server/google.js` | 89 |
-| `/api/microsoft` | `server/microsoft.js` | 90 |
-| `/api/agenda` | `server/agenda.js` | 91 |
-| `/api/mail` | `server/mail.js` | 92 |
-| `/api/mail-links` | `server/mailLinks.js` | 93 |
-| `/api/whatsapp` | `server/whatsapp.js` | 94 |
+| `/api` | `server/routes.js` | 88 |
+| `/api/xflow` | `server/xflow.js` | 89 |
+| `/api/google` | `server/google.js` | 90 |
+| `/api/microsoft` | `server/microsoft.js` | 91 |
+| `/api/agenda` | `server/agenda.js` | 92 |
+| `/api/mail` | `server/mail.js` | 93 |
+| `/api/mail-links` | `server/mailLinks.js` | 94 |
 | `/api/whatsapp` | `server/whatsapp.js` | 95 |
-| `/api/macro` | `server/macro.js` | 96 |
-| `/api/inventory` | `server/inventory.js` | 97 |
-| `/api/inventory` | `server/inventoryEdit.js` | 98 |
-| `/api/gaps` | `server/gaps.js` | 99 |
-| `/api/task-links` | `server/taskLinks.js` | 100 |
-| `/api/task-links` | `server/taskLinkBackfill.js` | 101 |
-| `/api/standard-plan` | `server/standardPlanApi.js` | 102 |
-| `/api/meeting-inbox` | `server/meetingInbox.js` | 103 |
-| `/api/assistant` | `server/assistant.js` | 104 |
-| `/api/knowledge` | `server/knowledge.js` | 105 |
-| `/api/pareceres` | `server/pareceres.js` | 106 |
-| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 107 |
-| `/api/crm` | `server/crm/routes.js` | 108 |
-| `/api/renata` | `server/renata/routes.js` | 109 |
-| `/api/widget` | `server/widget.js` | 110 |
-| `/api/daily` | `server/daily.js` | 111 |
-| `/api/home-prefs` | `server/homePrefs.js` | 112 |
-| `/api/tours` | `server/tours.js` | 113 |
-| `/api/templates` | `server/documentTemplates.js` | 114 |
-| `/api/library-search` | `server/librarySearch.js` | 115 |
-| `/api/briefing` | `server/briefing.js` | 116 |
-| `/api/client360` | `server/client360.js` | 117 |
-| `/api/connect` | `server/connect.js` | 118 |
-| `/api/company-share` | `server/companyShare.js` | 119 |
-| `/api/project-vault` | `server/projectVault.js` | 120 |
-| `/api/company-calendar` | `server/companyCalendar.js` | 121 |
-| `/api/public-company` | `server/companyShare.js` | 122 |
-| `/d` | `server/companyShare.js` | 123 |
-| `/d` | `server/errorHandler.js` | 124 |
-| `/api/push` | `server/push.js` | 125 |
-| `/api/ops-intel` | `server/opsIntel.js` | 126 |
-| `/api/experience` | `server/experience.js` | 127 |
-| `/api/project-history` | `server/projectVersions.js` | 128 |
-| `/api` | `server/errorHandler.js` | 136 |
+| `/api/whatsapp` | `server/whatsapp.js` | 96 |
+| `/api/macro` | `server/macro.js` | 97 |
+| `/api/inventory` | `server/inventory.js` | 98 |
+| `/api/inventory` | `server/inventoryEdit.js` | 99 |
+| `/api/gaps` | `server/gaps.js` | 100 |
+| `/api/task-links` | `server/taskLinks.js` | 101 |
+| `/api/task-links` | `server/taskLinkBackfill.js` | 102 |
+| `/api/standard-plan` | `server/standardPlanApi.js` | 103 |
+| `/api/meeting-inbox` | `server/meetingInbox.js` | 104 |
+| `/api/assistant` | `server/assistant.js` | 105 |
+| `/api/knowledge` | `server/knowledge.js` | 106 |
+| `/api/pareceres` | `server/pareceres.js` | 107 |
+| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 108 |
+| `/api/crm` | `server/crm/routes.js` | 109 |
+| `/api/renata` | `server/renata/routes.js` | 110 |
+| `/api/widget` | `server/widget.js` | 111 |
+| `/api/daily` | `server/daily.js` | 112 |
+| `/api/home-prefs` | `server/homePrefs.js` | 113 |
+| `/api/tours` | `server/tours.js` | 114 |
+| `/api/templates` | `server/documentTemplates.js` | 115 |
+| `/api/library-search` | `server/librarySearch.js` | 116 |
+| `/api/briefing` | `server/briefing.js` | 117 |
+| `/api/client360` | `server/client360.js` | 118 |
+| `/api/connect` | `server/connect.js` | 119 |
+| `/api/company-share` | `server/companyShare.js` | 120 |
+| `/api/project-vault` | `server/projectVault.js` | 121 |
+| `/api/company-calendar` | `server/companyCalendar.js` | 122 |
+| `/api/public-company` | `server/companyShare.js` | 123 |
+| `/d` | `server/companyShare.js` | 124 |
+| `/d` | `server/errorHandler.js` | 125 |
+| `/api/push` | `server/push.js` | 126 |
+| `/api/ops-intel` | `server/opsIntel.js` | 127 |
+| `/api/experience` | `server/experience.js` | 128 |
+| `/api/project-history` | `server/projectVersions.js` | 129 |
+| `/api` | `server/errorHandler.js` | 137 |
 
 Montagens extras (fora do `index.js`): `/api/connect/crm` = o roteador do CRM (`server/crm/routes.js`) reaproveitado por `server/connect.js` para a chave `crm_operate`/`write_all`/`read_all`; `/api/templates` tem limite de corpo próprio (45 MB) definido no `index.js`.
 
@@ -121,7 +121,7 @@ Arquivos: `server/index.js`, `server/payloadStats.js`, `server/xflowTransitions.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:153` |
+| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:154` |
 | GET | `(sem prefixo conhecido)/projects` | `requireAuth` `payloadStats('GET /projects')` |  | `server/payloadStats.js:27` |
 | DELETE | `(sem prefixo conhecido)/tickets/:id` |  | arquivar) — um ticket aberto por engano também precisa poder ir pra Lixeira. purgar (apagar de vez) não passa por aqui — é DELETE direto, | `server/xflowTransitions.js:54` |
 

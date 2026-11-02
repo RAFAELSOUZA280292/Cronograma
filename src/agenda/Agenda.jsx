@@ -10,9 +10,11 @@
 // UI grande e autocontido, com sua própria lógica de grade de horários.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Link2, Ban, AlertTriangle, Plus, Layers } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Link2, Ban, AlertTriangle, Plus, Menu, Search, X } from 'lucide-react';
 import { Segmented, Callout, BusyBar, Button, activate } from '../ui/index.jsx';
-import { apiGet } from '../lib/api.js';
+import { apiGet, apiPatch, apiPut } from '../lib/api.js';
+import AgendaSidebar from './AgendaSidebar.jsx';
+import { TaskModal, AwayModal, TaskDetail, TeamEventDetail, SearchResults } from './AgendaExtras.jsx';
 import { rsvpOf, isPendingRsvp, RSVP_META, summarizeDay, fmtDur, hhmm, CAL_SOURCES } from './dayLoad.js';
 import { layoutTopRow, timedSegments, layoutDay, eventsPerDay, hm } from './weekLayout.js';
 import { inkOn } from '../lib/inkOn.js';
@@ -38,10 +40,14 @@ const SOURCE_META = {
   xflow_ticket: { label: 'TASK do XFlow', color: '#b98af5' },
   activity: { label: 'Atividade PRICETAX', color: '#3ecf6e' },
   crm_activity: { label: 'Atividade do CRM', color: '#F5C400' },
+  gtask: { label: 'Tarefa do Google', color: '#4285F4' },
 };
 
 // Cor do compromisso: a da agenda de origem (§128, cada conta tem a sua) ou a da origem no painel (TASK, atividade, CRM).
 // (Até 02/11/2026 era `ev.color || colorOf(ev)`: chamava a si mesma em todo item sem cor própria — TASK, atividade, CRM — e travava a página.)
+// Cores sugeridas para as agendas (além delas, "Outra cor…" aceita qualquer uma).
+const PICK_COLORS = ['#5B8DEF', '#039BE5', '#3F51B5', '#7986CB', '#8E24AA', '#D50000', '#E67C73', '#F4511E', '#F6BF26', '#33B679', '#0B8043', '#795548', '#616161'];
+const NOT_MINE = new Set(['team', 'gtask']); // agenda de colega e tarefa não contam como compromisso seu (choque, "livre")
 const colorOf = (ev) => ev.color || (SOURCE_META[ev.source] && SOURCE_META[ev.source].color) || '#999';
 
 // Agendas escondidas pelo filtro rápido (só neste aparelho; "Mostrar na Agenda" em Minhas agendas vale em todo lugar).
@@ -50,6 +56,8 @@ function loadHidden() { try { return new Set(JSON.parse(window.localStorage.getI
 function saveHidden(set) { try { window.localStorage.setItem(HIDDEN_KEY, JSON.stringify([...set])); } catch { /* sem localStorage: vale só nesta visita */ } }
 // O que aparece na grade: convites sem resposta/talvez e recusados (lembrado neste aparelho).
 const SHOW_KEY = 'agenda-show-rsvp';
+const SIDE_KEY = 'agenda-side-open';
+function loadSide() { try { const v = window.localStorage.getItem(SIDE_KEY); return v === null ? !isMobileNow() : v === '1'; } catch { return !isMobileNow(); } }
 function loadShow() { try { return { pending: true, declined: true, ...JSON.parse(window.localStorage.getItem(SHOW_KEY) || '{}') }; } catch { return { pending: true, declined: true }; } }
 function saveShow(v) { try { window.localStorage.setItem(SHOW_KEY, JSON.stringify(v)); } catch { /* vale só nesta visita */ } }
 
@@ -136,6 +144,17 @@ export default function AgendaScreen({
   const [newEvent, setNewEvent] = useState(null); // { date, time } enquanto o "Novo compromisso" está aberto
   const [detailId, setDetailId] = useState(null);
   const [editing, setEditing] = useState(null); // detalhe do evento enquanto o "Editar compromisso" está aberto
+  const [sideOpen, setSideOpen] = useState(loadSide);
+  const [team, setTeam] = useState([]);
+  const [teamStatus, setTeamStatus] = useState([]);
+  const [withPeople, setWithPeople] = useState([]); // "Reunião com…": [{ email, name, color }]
+  const [withEvents, setWithEvents] = useState([]);
+  const [withStatus, setWithStatus] = useState([]);
+  const [creating, setCreating] = useState(null); // 'task' | 'away'
+  const [taskOpen, setTaskOpen] = useState(null);
+  const [teamOpen, setTeamOpen] = useState(null);
+  const [searchQ, setSearchQ] = useState('');
+  const [search, setSearch] = useState(null); // { q, results, loading, error }
   const { respond, respondingId } = useRespond((id, myResponse) => setEvents((list) => list.map((e) => (e.id === id ? { ...e, myResponse } : e))));
 
   useEffect(() => {
@@ -167,7 +186,7 @@ export default function AgendaScreen({
       // Prazo também na tela: se o servidor não responder em 40 s, mostra o aviso (a próxima tentativa sai em 60 s) em vez de girar para sempre.
       const slow = new Promise((_, rej) => setTimeout(() => rej(new Error('A agenda demorou demais para responder. Vou tentar de novo em 1 minuto; se continuar, avise o Rafael.')), 40000));
       Promise.race([apiGet(`/api/agenda?start=${rangeStart.toISOString()}&end=${rangeEnd.toISOString()}`), slow])
-        .then((res) => { if (!cancelled) { setConnected(res.connected); setEvents(res.events || []); setAccounts(res.accounts || []); setWarnings(res.warnings || []); setLoaded(true); setLoadError(''); } })
+        .then((res) => { if (!cancelled) { setConnected(res.connected); setEvents(res.events || []); setAccounts(res.accounts || []); setWarnings(res.warnings || []); if (res.team) { setTeam(res.team.subscriptions || []); setTeamStatus(res.team.calendars || []); } setLoaded(true); setLoadError(''); } })
         .catch((e) => { if (!cancelled) { setLoadError(e.message); setLoaded(true); } });
     }
     load();
@@ -178,6 +197,50 @@ export default function AgendaScreen({
     return () => { cancelled = true; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeKey, reloadTick]);
+
+  // "Reunião com…": traz a agenda das pessoas escolhidas para a grade (some ao tirar as pessoas).
+  const withKey = withPeople.map((p) => p.email).join(',');
+  useEffect(() => {
+    if (!withKey) { setWithEvents([]); setWithStatus([]); return undefined; }
+    let alive = true;
+    apiGet(`/api/agenda/with?emails=${encodeURIComponent(withKey)}&start=${rangeStart.toISOString()}&end=${rangeEnd.toISOString()}`)
+      .then((r) => { if (!alive) return; const colorBy = Object.fromEntries(withPeople.map((p) => [p.email, p.color])); const nameBy = Object.fromEntries(withPeople.map((p) => [p.email, p.name])); setWithEvents((r.events || []).map((e) => ({ ...e, id: `with-${e.id}`, color: colorBy[e.owner] || e.color, accountLabel: nameBy[e.owner] || e.accountLabel }))); setWithStatus(r.calendars || []); })
+      .catch((e) => { if (alive) { setWithEvents([]); notify((e && e.message) || 'Não consegui ler a agenda dessas pessoas.', { tone: 'error' }); } });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [withKey, rangeKey]);
+  function changeWith(list) {
+    const used = new Set(list.filter((p) => p.color).map((p) => p.color));
+    const free = ['#E67C73', '#8E24AA', '#0B8043', '#F4511E', '#3F51B5', '#795548'].filter((c) => !used.has(c));
+    setWithPeople(list.map((p) => (p.color ? p : { ...p, color: free.shift() || '#616161' })));
+  }
+  function toggleSide() { setSideOpen((v) => { try { window.localStorage.setItem(SIDE_KEY, v ? '0' : '1'); } catch { /* vale nesta visita */ } return !v; }); }
+  async function changeTeam(list) {
+    setTeam(list);
+    try { const r = await apiPut('/api/agenda/team', { subscriptions: list }); setTeam(r.subscriptions || []); setReloadTick((n) => n + 1); } catch (e) { notify((e && e.message) || 'Não foi possível salvar as agendas.', { tone: 'error' }); setReloadTick((n) => n + 1); }
+  }
+  async function changeAccountColor(a, color) {
+    setAccounts((list) => list.map((x) => (x.id === a.id ? { ...x, color } : x)));
+    setEvents((list) => list.map((e) => (e.account === a.id && !e.colorId ? { ...e, color } : e)));
+    try { await apiPatch(a.id === 'principal' ? '/api/agenda/accounts/principal' : `/api/agenda/accounts/${encodeURIComponent(a.id)}`, { color }); } catch (e) { notify((e && e.message) || 'Não foi possível salvar a cor.', { tone: 'error' }); setReloadTick((n) => n + 1); }
+  }
+  function onCreate(kind) {
+    if (kind === 'event') setNewEvent(defaultSlot());
+    else setCreating(kind);
+  }
+  async function runSearch(e) {
+    e.preventDefault();
+    const q = searchQ.trim();
+    if (q.length < 2) return;
+    setSearch({ q, results: [], loading: true, error: '' });
+    try { const r = await apiGet(`/api/agenda/search?q=${encodeURIComponent(q)}`); setSearch({ q, results: r.events || [], loading: false, error: '' }); } catch (err) { setSearch({ q, results: [], loading: false, error: (err && err.message) || 'Não consegui buscar agora.' }); }
+  }
+  function openSearchResult(ev) {
+    setSearch(null);
+    if (ev.start) setAnchorDate(new Date(String(ev.start).length === 10 ? `${ev.start}T12:00:00` : ev.start));
+    if (viewMode === 'month') setViewMode('week');
+    setDetailId(ev.id);
+  }
 
   function goToday() { setAnchorDate(new Date()); }
   function goPrev() {
@@ -195,9 +258,13 @@ export default function AgendaScreen({
     ? Array.from({ length: 7 }, (_, i) => addDays(rangeStart, i))
     : Array.from({ length: Math.round((rangeEnd - rangeStart) / 86400000) }, (_, i) => addDays(rangeStart, i));
 
-  const visibleEvents = useMemo(() => events.filter((e) => !e.account || !hidden.has(e.account)), [events, hidden]);
-  // Compromissos que se sobrepõem (em qualquer agenda): marcados com ⚠ e listados na dica.
-  const conflicts = useMemo(() => findConflicts(visibleEvents), [visibleEvents]);
+  const visibleEvents = useMemo(() => [
+    ...events.filter((e) => !e.account || !hidden.has(e.account)),
+    ...withEvents.filter((w) => !events.some((e) => e.source === 'team' && e.owner === w.owner)),
+  ], [events, hidden, withEvents]);
+  const myEvents = useMemo(() => visibleEvents.filter((e) => !NOT_MINE.has(e.source)), [visibleEvents]);
+  // Compromissos seus que se sobrepõem (em qualquer agenda sua; agenda de colega e tarefa não contam).
+  const conflicts = useMemo(() => findConflicts(myEvents), [myEvents]);
   // Na grade, a bolinha vermelha só marca choque de verdade: compromisso aceito com outro aceito (convite sem resposta não conta).
   const hasClash = (ev) => rsvpOf(ev) === 'accepted' && (conflicts.get(ev.id) || []).some((o) => rsvpOf(o) === 'accepted');
   const writableAccounts = accounts.filter((a) => !a.readOnly && a.status !== 'error' && (a.id !== 'principal' || a.connected));
@@ -218,15 +285,16 @@ export default function AgendaScreen({
     const out = {};
     for (const day of daysInView) {
       const key = isoDateOnly(day);
-      const list = visibleEvents.filter((e) => !e.allDay && isoDateOnly(new Date(e.start)) === key).map((e) => ({ ...e, startDate: new Date(e.start), endDate: new Date(e.end) }));
+      const list = myEvents.filter((e) => !e.allDay && isoDateOnly(new Date(e.start)) === key).map((e) => ({ ...e, startDate: new Date(e.start), endDate: new Date(e.end) }));
       if (list.length) out[key] = summarizeDay(list, key, { start: prefs.workStart, end: prefs.workEnd, lunchStart: prefs.lunchStart, lunchEnd: prefs.lunchEnd });
     }
     return out;
-  }, [visibleEvents, daysInView, prefs]);
+  }, [myEvents, daysInView, prefs]);
 
   // Título na grade (sem "?" ou "✕": a resposta aparece no desenho do bloco, como no Google) e o texto para leitor de tela.
   function eventLabel(ev) {
     if (hideDetails) return ev.status === 'cancelled' ? 'Ocupado (cancelado)' : 'Ocupado';
+    if (ev.source === 'gtask') return `${ev.done ? '☑' : '☐'} ${ev.title || '(sem título)'}`;
     return ev.title || '(sem título)';
   }
   function eventAria(ev) {
@@ -245,6 +313,8 @@ export default function AgendaScreen({
 
   function openEvent(ev) {
     if (ev.source === 'xflow_ticket' && ev.link) { window.location.hash = ev.link; return; }
+    if (ev.source === 'gtask' && !hideDetails) { setTaskOpen(ev); return; }
+    if (ev.source === 'team' && !hideDetails) { setTeamOpen(ev); return; }
     if (CAL_SOURCES.has(ev.source) && !hideDetails) setDetailId(ev.id);
   }
 
@@ -286,23 +356,36 @@ export default function AgendaScreen({
               options={[{ value: 'day', label: 'Dia' }, { value: 'week', label: 'Semana' }, { value: 'month', label: 'Mês' }]}
             />
           </div>
-          <button type="button" className="agd-tog" onClick={() => setShowAccounts(true)} title="Conectar outras agendas (Google, Microsoft, link iCal), cor e nome de cada uma">
-            <Layers size={13} aria-hidden="true" /> Minhas agendas
-          </button>
-          <Button className="agd-new" variant="primary" icon={Plus} onClick={() => setNewEvent(defaultSlot())}>Novo compromisso</Button>
+          {!sideOpen && <Button className="agd-new" variant="primary" icon={Plus} onClick={() => setNewEvent(defaultSlot())}>Novo compromisso</Button>}
         </div>
       </div>
 
       <div className="agd-nav">
+        <button type="button" className="agd-ic" aria-label={sideOpen ? 'Esconder o menu da agenda' : 'Mostrar o menu da agenda'} title={sideOpen ? 'Esconder o menu' : 'Menu: criar, mini-calendário, reunião com, agendas'} aria-expanded={sideOpen} onClick={toggleSide}><Menu size={18} aria-hidden="true" /></button>
         <button type="button" className="agd-ic" aria-label="Período anterior" title="Período anterior" onClick={goPrev}><ChevronLeft size={18} aria-hidden="true" /></button>
         <button type="button" className="agd-tog agd-today" onClick={goToday}>Hoje</button>
         <button type="button" className="agd-ic" aria-label="Próximo período" title="Próximo período" onClick={goNext}><ChevronRight size={18} aria-hidden="true" /></button>
         <div className="agd-nav-label" aria-live="polite">{rangeLabel(viewMode, anchorDate)}</div>
         {loaded && <RefreshCw size={12} aria-hidden="true" style={{ color: 'var(--text-6)', marginLeft: 4 }} />}
+        <form className="agd-searchbox" role="search" onSubmit={runSearch}>
+          <Search size={15} aria-hidden="true" />
+          <input value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="Buscar na agenda" aria-label="Buscar compromissos na agenda" maxLength={120} />
+          {searchQ && <button type="button" className="agd-ic" aria-label="Limpar a busca" title="Limpar" onClick={() => { setSearchQ(''); setSearch(null); }}><X size={14} aria-hidden="true" /></button>}
+        </form>
       </div>
       <div className="agd-pad" style={{ paddingTop: 10 }}><BusyBar active={!loaded} /></div>
 
-      <div className="agd-pad" style={{ paddingTop: 10, paddingBottom: 24 }}>
+      <div className={`agd-body${sideOpen ? ' side-open' : ''}`}>
+      {sideOpen && (
+        <AgendaSidebar
+          anchorDate={anchorDate} rangeStart={rangeStart} rangeEnd={rangeEnd}
+          onPickDate={(d) => { setAnchorDate(d); setSearch(null); if (isMobile) setSideOpen(false); }}
+          onCreate={onCreate} accounts={accounts} hidden={hidden} onToggleAccount={toggleHidden} onAccountColor={changeAccountColor} onManageAccounts={() => setShowAccounts(true)}
+          team={team} teamStatus={[...teamStatus, ...withStatus]} onTeamChange={changeTeam} withPeople={withPeople} onWithChange={changeWith}
+          onScheduleWith={() => setNewEvent({ ...defaultSlot(), guests: withPeople.map((p) => p.email) })} colors={PICK_COLORS}
+        />
+      )}
+      <div className="agd-main" style={{ paddingTop: 10, paddingBottom: 24 }}>
         {isMobile && viewMode === 'day' && (
           <div className="agd-mob-only" style={{ marginBottom: 10 }}>
             <Segmented
@@ -311,7 +394,7 @@ export default function AgendaScreen({
             />
           </div>
         )}
-        {accounts.length > 1 && (
+        {accounts.length > 1 && !sideOpen && (
           <div className="agd-filter" role="group" aria-label="Agendas mostradas">
             {accounts.map((a) => {
               const off = hidden.has(a.id) || a.calendarEnabled === false;
@@ -345,7 +428,9 @@ export default function AgendaScreen({
           </div>
         )}
 
-        {viewMode === 'month' ? (
+        {search ? (
+          <SearchResults q={search.q} results={search.results} loading={search.loading} error={search.error} onBack={() => setSearch(null)} onOpen={openSearchResult} />
+        ) : viewMode === 'month' ? (
           <MonthGrid daysInView={daysInView} eventsByDay={eventsByDay} anchorDate={anchorDate} hideDetails={hideDetails} eventLabel={eventLabel} eventTip={eventTip} onOpenEvent={openEvent} onPickDay={(d) => { setAnchorDate(d); setViewMode('day'); }} />
         ) : isMobile && viewMode === 'day' && dayLayout === 'list' ? (
           <DayList day={daysInView[0]} eventsByDay={eventsByDay} dayStats={dayStats} hideDetails={hideDetails} eventLabel={eventLabel} eventAria={eventAria} onOpenEvent={openEvent} />
@@ -353,7 +438,7 @@ export default function AgendaScreen({
           <WeekGrid daysInView={daysInView} events={shownEvents} dayStats={dayStats} hideDetails={hideDetails} hasClash={hasClash} eventLabel={eventLabel} eventAria={eventAria} eventTip={eventTip} onOpenEvent={openEvent} onPickSlot={pickSlot} />
         )}
 
-        {viewMode !== 'month' && !(isMobile && viewMode === 'day' && dayLayout === 'list') && <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--text-5)' }}>Dica: {isMobile ? 'toque' : 'clique'} num horário livre da grade para criar um compromisso nele.</div>}
+        {!search && viewMode !== 'month' && !(isMobile && viewMode === 'day' && dayLayout === 'list') && <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--text-5)' }}>Dica: {isMobile ? 'toque' : 'clique'} num horário livre da grade para criar um compromisso nele.</div>}
 
         <div style={{ display: 'flex', gap: 14, marginTop: 16, flexWrap: 'wrap' }}>
           {Object.entries(SOURCE_META).filter(([key]) => key !== 'google' || accounts.length <= 1).map(([key, meta]) => (
@@ -369,7 +454,12 @@ export default function AgendaScreen({
           <div className="agd-leg"><span className="agd-clash-dot" aria-hidden="true" /> Choca com outro compromisso</div>
         </div>
       </div>
+      </div>
 
+      {creating === 'task' && <TaskModal initialDate={isoDateOnly(anchorDate)} onClose={() => setCreating(null)} onDone={() => { setCreating(null); setReloadTick((n) => n + 1); }} />}
+      {creating === 'away' && <AwayModal initialDate={isoDateOnly(anchorDate)} onClose={() => setCreating(null)} onDone={() => { setCreating(null); setReloadTick((n) => n + 1); }} />}
+      {taskOpen && <TaskDetail task={taskOpen} onClose={() => setTaskOpen(null)} onChanged={() => setReloadTick((n) => n + 1)} />}
+      {teamOpen && <TeamEventDetail ev={teamOpen} onClose={() => setTeamOpen(null)} onSchedule={(email) => { setTeamOpen(null); setNewEvent({ ...defaultSlot(), guests: [email] }); }} />}
       {newEvent && (
         <NewEventModal
           initial={newEvent} connected={connected} accounts={writableAccounts} events={visibleEvents} onClose={() => setNewEvent(null)}
@@ -395,7 +485,7 @@ export default function AgendaScreen({
 
 // Só o que abre algo vira botão para teclado/leitor de tela (TASK do XFlow com link; compromisso do Google com detalhes visíveis).
 function openable(ev, hideDetails) {
-  return (ev.source === 'xflow_ticket' && !!ev.link) || (CAL_SOURCES.has(ev.source) && !hideDetails);
+  return (ev.source === 'xflow_ticket' && !!ev.link) || ((CAL_SOURCES.has(ev.source) || NOT_MINE.has(ev.source)) && !hideDetails);
 }
 
 // Desenho do bloco como no Google: aceito = cheio na cor da agenda (texto preto ou branco conforme o fundo); sem resposta/talvez =
@@ -404,6 +494,7 @@ function blockStyle(ev) {
   const c = colorOf(ev);
   const r = rsvpOf(ev);
   if (r === 'declined') return { background: 'var(--bg-1)', border: `1px solid ${c}`, color: 'var(--text-3)', opacity: 0.6, textDecoration: 'line-through' };
+  if (ev.source === 'gtask') return { background: 'var(--bg-1)', border: `1.5px solid ${c}`, color: 'var(--text-1)', ...(ev.done ? { opacity: 0.6, textDecoration: 'line-through' } : {}) };
   if (isPendingRsvp(r)) return { background: 'var(--bg-1)', border: `1.5px solid ${c}`, color: 'var(--text-1)' };
   return { background: c, border: `1px solid ${c}`, color: inkOn(c), ...(ev.status === 'cancelled' ? { opacity: 0.55, textDecoration: 'line-through' } : {}) };
 }

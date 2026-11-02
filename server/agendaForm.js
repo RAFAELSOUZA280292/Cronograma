@@ -38,8 +38,14 @@ export function parseEventForm(b) {
     reminderMinutes = Number(body.reminderMinutes);
     if (!REMINDERS.includes(reminderMinutes)) return { error: 'Lembrete inválido.' };
   }
+  let colorId;
+  if (body.colorId !== undefined && body.colorId !== null) {
+    colorId = String(body.colorId);
+    if (colorId && !/^(?:[1-9]|1[01])$/.test(colorId)) return { error: 'Cor inválida.' };
+  }
   return {
     fields: {
+      ...(colorId !== undefined ? { colorId } : {}),
       title,
       startISO: start.toISOString(),
       endISO: new Date(start.getTime() + minutes * 60000).toISOString(),

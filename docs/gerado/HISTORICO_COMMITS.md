@@ -2,10 +2,12 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-592 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+594 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (59)
+## 2026-11-02 (61)
 
+- `ad8182c` 20:08 — Raio-X do peso das empresas no log ao ligar (só tamanhos, nenhum conteúdo) — para enxugar GET /api/projects
+- `01b94c8` 20:01 — Carga de empresas mais leve: o BIP de 6 s lê só o CNPJ e a tela baixa só a empresa que mudou (§137)
 - `838a5aa` 19:14 — Agenda no padrão do Google: dias no lugar certo, faixas e filtro "Sem resposta" (§136)
 - `c46d962` 19:12 — Cérebro: resultado da checagem (fluxos 15/15) e lição da tela obrigatória nos testes
 - `cb84aaf` 19:12 — Testes de fluxo: usuários de teste já concluíram a boas-vindas (§132 cobria a tela e travava os 15 testes)

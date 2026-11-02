@@ -100,7 +100,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/googleMail.js` | 299 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
 | `server/homePrefs.js` | 31 | Tela inicial personalizável e barra de favoritos (2026-11-02, §126): GET/PUT /api/home-prefs. Cada pessoa lê e grava só a |
 | `server/icalFeed.js` | 311 | Agenda por link iCal, só leitura (§128, 2026-11-02): o "endereço secreto no formato iCal" do Google Agenda, o "publicar agenda" do |
-| `server/index.js` | 205 |  |
+| `server/index.js` | 207 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
 | `server/inventory.js` | 373 | Levantamento de atividades de TODAS as empresas (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md; pedido do |
 | `server/inventoryEdit.js` | 194 | Passo 3 do caminho combinado (2026-10-07): organizar o que já existe a partir do Levantamento — padronizar o nome do |
@@ -135,7 +135,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/parecerScope.js` | 46 | Isolamento de pareceres por cliente (2026-10-04, §70): um parecer "Cliente específico" só pode ser usado — no |
 | `server/parecerStudy.js` | 543 | RENATA estuda os Pareceres PRICETAX (2026-10-04, pedido do Rafael) — ver PROJECT_CONTEXT.md §70. |
 | `server/pareceres.js` | 249 | Pareceres PRICETAX (2026-09-17, ver PROJECT_CONTEXT.md §48) — repositório |
-| `server/payloadStats.js` | 49 | Tamanho real do que as telas baixam (2026-10-30, Onda 1 / Q4). Antes de decidir qualquer paginação de `GET /projects` (devolve o JSON inteiro de |
+| `server/payloadStats.js` | 68 | Tamanho real do que as telas baixam (2026-10-30, Onda 1 / Q4). Antes de decidir qualquer paginação de `GET /projects` (devolve o JSON inteiro de |
 | `server/permissions.js` | 18 | Central de Conhecimento — helper de permissão (Fase 8, 2026-09-11). |
 | `server/personalActivity.js` | 227 |  |
 | `server/personalExtras.js` | 67 | Anotações rápidas e atalhos de cada pessoa na Gestão de Atividades (2026-10-16, visão 5). Ficam em users.preferences.personalExtras — e NÃO no |
@@ -147,7 +147,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/promptGuard.js` | 25 | Regra "texto de terceiros é DADO, nunca instrução" (2026-10-30, Onda 1 / Q2). A RENATA operacional já tinha (regra 11 em renata/agent.js); |
 | `server/proposalReview.js` | 443 | Revisão de proposta (2026-11-02, §131): checagens DETERMINÍSTICAS sobre o texto de um documento anexado ao CRM — valor em número × valor |
 | `server/push.js` | 174 | Notificações push (2026-10-17). O sino já existia (tabela `notifications`); aqui cada notificação nova também vira um aviso no celular/computador de |
-| `server/renata/agent.js` | 232 | Agente da RENATA (§101): interpreta o pedido, escolhe as ferramentas do catálogo, executa pelo executor (que valida, confere permissão, pede confirmação, |
+| `server/renata/agent.js` | 233 | Agente da RENATA (§101): interpreta o pedido, escolhe as ferramentas do catálogo, executa pelo executor (que valida, confere permissão, pede confirmação, |
 | `server/renata/contextCard.js` | 44 | Ficha de contexto da RENATA (Onda 2, R1): quando a pessoa está com um negócio, uma empresa do CRM ou uma empresa do cronograma aberta, a RENATA |
 | `server/renata/contextCardFormat.js` | 96 | Formatadores puros da ficha de contexto da RENATA (Onda 2, R1): recebem os dados já lidos e devolvem as linhas da ficha. Sem banco, sem rede. |
 | `server/renata/executor.js` | 192 | Executor de ferramentas da RENATA (§101). TODA operação passa por aqui: valida os parâmetros, checa permissão (as rotas do servidor decidem, em nome do |
@@ -170,7 +170,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/tools/email.js` | 54 | E-mail (§125): a RENATA busca e lê, SÓ LEITURA, a caixa do Gmail de quem conversa com ela (o token é sempre o de ctx.user — nunca o de |
 | `server/renata/tools/emailLinks.js` | 70 | E-mail × CRM (§130): "e-mails com a OKUBO" → empresa, negócio (com link) e a lista das conversas de TODA a equipe com ela (só o |
 | `server/renata/tools/empresas.js` | 326 | Ferramentas de Empresas (cronogramas dos clientes) e tarefas de reunião — §101. Mesmo acesso da tela (canAccessProject) e, para alterar, só equipe (master/pricetax). |
-| `server/renata/tools/plataforma.js` | 85 | Ferramentas de plataforma — §101: agenda, notificações, conhecimento, XFlow, pareceres/modelos e o ACESSO GENÉRICO às demais rotas do servidor (as mesmas da |
+| `server/renata/tools/plataforma.js` | 106 | Ferramentas de plataforma — §101: agenda, notificações, conhecimento, XFlow, pareceres/modelos e o ACESSO GENÉRICO às demais rotas do servidor (as mesmas da |
 | `server/renata/tools/reports.js` | 66 | Relatórios e visão da equipe (somente leitura) — §101: "o que a minha equipe fez hoje", atrasos por responsável e quem sou eu / quem é a equipe. |
 | `server/renata/validate.js` | 81 | Validador de parâmetros das ferramentas da RENATA (§101): subconjunto de JSON Schema suficiente para o catálogo. Rejeita campo desconhecido |
 | `server/retrievalScope.js` | 32 | Escopo da busca na memória do projeto (2026-10-31). A etapa que interpreta a pergunta (resolveQuery) PROPÕE um tipo de trecho (`kind`) e uma reunião-alvo; a busca os |
@@ -232,14 +232,14 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 |---|---|---|
 | `src/App.jsx` | 3770 |  |
 | `src/agenda/AccountsDialog.jsx` | 177 | "Minhas agendas" (§128, 2026-11-02): a agenda principal (Google) + as extras da pessoa — outra conta Google, Microsoft 365/Outlook.com |
-| `src/agenda/Agenda.jsx` | 627 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
-| `src/agenda/AgendaExtras.jsx` | 200 | Peças da Agenda "como a do Google", parte 2 (2026-11-02, §137): Criar › Tarefa e Ausente, detalhe de tarefa e de compromisso de |
-| `src/agenda/AgendaSidebar.jsx` | 215 | Menu lateral da Agenda, como o do Google Agenda (2026-11-02, §137): Criar (Evento, Tarefa, Ausente), mini-calendário do mês, |
+| `src/agenda/Agenda.jsx` | 718 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
+| `src/agenda/AgendaExtras.jsx` | 200 | Peças da Agenda "como a do Google", parte 2 (2026-11-02, §138): Criar › Tarefa e Ausente, detalhe de tarefa e de compromisso de |
+| `src/agenda/AgendaSidebar.jsx` | 215 | Menu lateral da Agenda, como o do Google Agenda (2026-11-02, §138): Criar (Evento, Tarefa, Ausente), mini-calendário do mês, |
 | `src/agenda/EventDetail.jsx` | 207 | Detalhe do compromisso do Google dentro do painel (2026-11-02, "nunca mais abrir o Google Agenda"): Meet, participantes com a |
 | `src/agenda/NewEventModal.jsx` | 351 | "Novo compromisso" e "Editar" da Agenda (Onda 5, §81; edição, Meet, lembrete e sugestão de contatos em 2026-11-02). Grava no Google |
 | `src/agenda/RenataAgendaBriefing.jsx` | 708 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
 | `src/agenda/RsvpButtons.jsx` | 29 | Aceitar / Talvez / Recusar — botões compactos; a resposta atual aparece marcada (aria-pressed). `labels` troca os textos |
-| `src/agenda/agenda.css` | 218 | Agenda no celular (Onda 6, §81). Desktop idêntico ao de antes; tudo que muda está sob @media (max-width: 767px). |
+| `src/agenda/agenda.css` | 290 | Agenda no celular (Onda 6, §81). Desktop idêntico ao de antes; tudo que muda está sob @media (max-width: 767px). |
 | `src/agenda/agendaActions.js` | 90 | Ações da Agenda (Onda 5, §81): responder convite do Google e criar compromisso. Sem JSX; o servidor é |
 | `src/agenda/agendaPrefs.js` | 59 | Preferências pessoais da leitura da agenda (2026-09-20, pedido do Rafael): o EXPEDIENTE (padrão 08:00–18:00) |
 | `src/agenda/dayLoad.js` | 188 | Leitura da agenda (2026-09-20, pedido do Rafael): deixar claro o que ele ACEITOU, o que está |

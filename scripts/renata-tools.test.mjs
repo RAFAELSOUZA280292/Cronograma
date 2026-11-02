@@ -285,6 +285,21 @@ try {
   ok('agenda: evento COM convidados externos sempre pede confirmação (o Google envia o convite)', withGuests.pending.length === 1 && /CONVIDAR/.test(withGuests.pending[0].preview), withGuests.pending);
   await call(A, 'POST', `/api/renata/conversations/${(await rows(`SELECT conversation_id FROM renata_actions WHERE id=$1`, [withGuests.pending[0].actionId]))[0].conversation_id}/decide`, { decisions: [{ actionId: withGuests.pending[0].actionId, decision: 'cancel' }] });
 
+  // ---- agenda como a do Google (§138): leituras sem Google falham com mensagem clara; o que avisa convidados ou muda a agenda pede confirmação
+  const ag = await run('adm', [
+    { name: 'agenda_detalhe', input: { id: 'google-inexistente' } }, { name: 'agenda_buscar', input: { q: 'kuhn' } }, { name: 'agenda_pessoas', input: { q: 'adm' } },
+    { name: 'agenda_disponibilidade', input: { emails: 'alguem@exemplo.com', start: '2030-01-10T00:00:00Z', end: '2030-01-11T00:00:00Z' } },
+    { name: 'agenda_criar_tarefa', input: { title: 'Teste RENATA tarefa', date: '2030-01-10' } },
+    { name: 'agenda_editar_evento', input: { id: 'google-inexistente', title: 'X', date: '2030-01-10', startTime: '10:00' } },
+    { name: 'agenda_mudar_horario', input: { id: 'google-inexistente', start: '2030-01-10T13:00:00Z', end: '2030-01-10T14:00:00Z' } },
+    { name: 'agenda_cancelar_evento', input: { id: 'google-inexistente' } },
+    { name: 'agenda_propor_horario', input: { id: 'google-inexistente', propose: { start: '2030-01-10T13:00:00Z', end: '2030-01-10T14:00:00Z' } } },
+    { name: 'agenda_marcar_ausente', input: { start: '2030-01-10T11:00:00Z', end: '2030-01-11T21:00:00Z' } },
+  ], { confirm: false });
+  Object.keys(ag.byTool || {}).forEach((t) => exercised.add(t));
+  ok('agenda (§138): editar, mudar horário, cancelar, propor e ausente sempre pedem confirmação; leituras e tarefa respondem sem derrubar', ag.pending.length === 5 && ag.steps.every((x) => typeof x.summary === 'string' && x.summary.length > 3), { pending: ag.pending.map((x) => x.preview), steps: ag.steps.map((x) => x.summary) });
+  for (const pd of ag.pending) await call(A, 'POST', `/api/renata/conversations/${(await rows(`SELECT conversation_id FROM renata_actions WHERE id=$1`, [pd.actionId]))[0].conversation_id}/decide`, { decisions: [{ actionId: pd.actionId, decision: 'cancel' }] });
+
   // ---- cobertura do catálogo: todas as ferramentas visíveis ao administrador foram exercitadas
   const cat = (await call(A, 'GET', '/api/renata/catalog')).json;
   const names = cat.tools.map((t) => t.name);

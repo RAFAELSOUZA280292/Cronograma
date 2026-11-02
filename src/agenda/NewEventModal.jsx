@@ -15,6 +15,8 @@ import './agenda.css';
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_GUESTS = 30;
 const DURATIONS = [15, 30, 45, 60, 90, 120];
+// As 11 cores de compromisso do Google (colorId): a cor vale também no Google Agenda e no celular.
+export const EVENT_COLORS = [['1', '#7986CB', 'Lavanda'], ['2', '#33B679', 'Sálvia'], ['3', '#8E24AA', 'Uva'], ['4', '#E67C73', 'Flamingo'], ['5', '#F6BF26', 'Banana'], ['6', '#F4511E', 'Tangerina'], ['7', '#039BE5', 'Pavão'], ['8', '#616161', 'Grafite'], ['9', '#3F51B5', 'Mirtilo'], ['10', '#0B8043', 'Manjericão'], ['11', '#D50000', 'Tomate']];
 export const REMINDER_OPTIONS = [['', 'Padrão da agenda'], ['-1', 'Sem lembrete'], ['0', 'Na hora'], ['5', '5 min antes'], ['10', '10 min antes'], ['15', '15 min antes'], ['30', '30 min antes'], ['60', '1 hora antes'], ['120', '2 horas antes'], ['1440', '1 dia antes']];
 const SEPARATORS = /[,;\s]+/;
 
@@ -53,7 +55,7 @@ function ConnectNeeded({ onClose, message }) {
 
 // Valores iniciais: horário clicado (novo) ou o evento que está sendo editado.
 function startValues(initial, event) {
-  if (!event) return { title: initial.title || '', date: initial.date, time: initial.time, duration: '60', customMin: '', location: '', description: '', guests: initial.guests || [], meet: true, reminder: '' };
+  if (!event) return { title: initial.title || '', date: initial.date, time: initial.time, duration: '60', customMin: '', location: '', description: '', guests: initial.guests || [], meet: true, reminder: '', colorId: '' };
   const s = brParts(event.start);
   const mins = Math.round((new Date(event.end) - new Date(event.start)) / 60000);
   const preset = DURATIONS.includes(mins);
@@ -62,7 +64,7 @@ function startValues(initial, event) {
     duration: preset ? String(mins) : 'custom', customMin: preset ? '' : String(mins),
     location: event.location || '', description: event.description || '',
     guests: (event.attendees || []).filter((a) => !a.self).map((a) => a.email),
-    meet: !!event.meetLink, reminder: event.reminderMinutes === null || event.reminderMinutes === undefined ? '' : String(event.reminderMinutes),
+    colorId: event.colorId || '', meet: !!event.meetLink, reminder: event.reminderMinutes === null || event.reminderMinutes === undefined ? '' : String(event.reminderMinutes),
   };
 }
 
@@ -86,6 +88,7 @@ function NewEventForm({ initial, event, accounts, events, onClose, onCreated }) 
   const [guests, setGuests] = useState(v0.guests);
   const [meet, setMeet] = useState(v0.meet);
   const [reminder, setReminder] = useState(v0.reminder);
+  const [colorId, setColorId] = useState(v0.colorId || '');
   const [sugg, setSugg] = useState([]);
   const [suggActive, setSuggActive] = useState(0);
   const suggSeq = useRef(0);
@@ -96,7 +99,7 @@ function NewEventForm({ initial, event, accounts, events, onClose, onCreated }) 
   const asking = useRef(false);
   const guestInput = useRef(null);
 
-  const dirty = useDirtyForm({ title, date, time, duration, customMin, location, description, guests, guestDraft, meet, reminder });
+  const dirty = useDirtyForm({ title, date, time, duration, customMin, location, description, guests, guestDraft, meet, reminder, colorId });
   const minutes = duration === 'custom' ? Number(customMin) : Number(duration);
   // Conflito com o que já está em qualquer agenda visível (aviso, não impede).
   const clash = (() => {
@@ -179,7 +182,7 @@ function NewEventForm({ initial, event, accounts, events, onClose, onCreated }) 
     commitDraft();
     setError(''); setBusy(true);
     try {
-      const payload = { title: title.trim(), date, startTime: time, durationMinutes: minutes, location: location.trim(), description: description.trim(), attendees: all, meet: meet && meetKind !== 'none', reminderMinutes: reminder === '' ? null : Number(reminder), accountId };
+      const payload = { title: title.trim(), date, startTime: time, durationMinutes: minutes, location: location.trim(), description: description.trim(), attendees: all, meet: meet && meetKind !== 'none', reminderMinutes: reminder === '' ? null : Number(reminder), accountId, ...(accountId === 'principal' ? { colorId } : {}) };
       const res = editing ? await updateAgendaEvent(event.id, payload) : await createAgendaEvent(payload);
       const sent = all.length ? ' Os convidados receberam o convite por e-mail.' : '';
       notify(editing ? `Compromisso atualizado.${all.length ? ' Os convidados foram avisados.' : ''}` : `Compromisso criado.${sent}`, { tone: 'success' });
@@ -273,6 +276,17 @@ function NewEventForm({ initial, event, accounts, events, onClose, onCreated }) 
             </Select>
           </label>
         </div>
+        {accountId === 'principal' && (
+          <div style={label}>
+            <span id="agenda-color-lbl">Cor do compromisso</span>
+            <div className="agd-swatches" role="radiogroup" aria-labelledby="agenda-color-lbl">
+              <button type="button" role="radio" aria-checked={colorId === ''} className={`agd-swatch none${colorId === '' ? ' on' : ''}`} style={{ '--c': acc.color || '#5B8DEF' }} title="Cor da agenda" aria-label="Cor da agenda" onClick={() => setColorId('')} />
+              {EVENT_COLORS.map(([id, hex, name]) => (
+                <button key={id} type="button" role="radio" aria-checked={colorId === id} className={`agd-swatch${colorId === id ? ' on' : ''}`} style={{ '--c': hex }} title={name} aria-label={name} onClick={() => setColorId(id)} />
+              ))}
+            </div>
+          </div>
+        )}
         <label style={label}>
           Local <span style={{ fontWeight: 500, color: 'var(--text-5)' }}>(opcional)</span>
           <input className="ui-input" value={location} onChange={(e) => setLocation(e.target.value)} maxLength={300} placeholder={meet && meetKind !== 'none' ? 'Opcional: o link da reunião já vai no convite' : 'Endereço ou link da videochamada'} />

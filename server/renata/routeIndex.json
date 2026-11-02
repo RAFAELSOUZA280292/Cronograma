@@ -1,6 +1,6 @@
 {
  "geradoPor": "scripts/renata-route-index.mjs",
- "total": 331,
+ "total": 422,
  "routes": [
   {
    "method": "POST",
@@ -23,13 +23,113 @@
    "file": "routes.js"
   },
   {
+   "method": "DELETE",
+   "path": "/api/agenda/accounts/:id",
+   "file": "agenda.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/agenda/accounts/:id",
+   "file": "agenda.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/agenda/accounts/ical",
+   "file": "agenda.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/agenda/accounts/principal",
+   "file": "agenda.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/agenda/accounts",
+   "file": "agenda.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/agenda/by-uid",
+   "file": "agenda.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/agenda/colors",
+   "file": "agenda.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/agenda/events/:id/reschedule",
+   "file": "agenda.js"
+  },
+  {
    "method": "POST",
    "path": "/api/agenda/events/:id/respond",
    "file": "agenda.js"
   },
   {
+   "method": "DELETE",
+   "path": "/api/agenda/events/:id",
+   "file": "agenda.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/agenda/events/:id",
+   "file": "agenda.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/agenda/events/:id",
+   "file": "agenda.js"
+  },
+  {
    "method": "POST",
    "path": "/api/agenda/events",
+   "file": "agenda.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/agenda/out-of-office",
+   "file": "agenda.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/agenda/people",
+   "file": "agenda.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/agenda/search",
+   "file": "agenda.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/agenda/tasks/:id",
+   "file": "agenda.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/agenda/tasks/:id",
+   "file": "agenda.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/agenda/tasks",
+   "file": "agenda.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/agenda/team",
+   "file": "agenda.js"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/agenda/team",
+   "file": "agenda.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/agenda/with",
    "file": "agenda.js"
   },
   {
@@ -249,7 +349,17 @@
   },
   {
    "method": "GET",
+   "path": "/api/connect/docs",
+   "file": "connect.js"
+  },
+  {
+   "method": "GET",
    "path": "/api/connect/me",
+   "file": "connect.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/connect/openapi.json",
    "file": "connect.js"
   },
   {
@@ -456,6 +566,11 @@
    "method": "GET",
    "path": "/api/crm/deal-files/:fileId/download",
    "file": "crm/piperun/routes.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/crm/deals/:id/attachments/review",
+   "file": "crm/routes.js"
   },
   {
    "method": "GET",
@@ -788,6 +903,16 @@
    "file": "google.js"
   },
   {
+   "method": "GET",
+   "path": "/api/home-prefs",
+   "file": "homePrefs.js"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/home-prefs",
+   "file": "homePrefs.js"
+  },
+  {
    "method": "POST",
    "path": "/api/inventory/area",
    "file": "inventoryEdit.js"
@@ -938,6 +1063,206 @@
    "file": "macro.js"
   },
   {
+   "method": "GET",
+   "path": "/api/mail-links/company/:id",
+   "file": "mailLinks.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail-links/deal/:id",
+   "file": "mailLinks.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/mail-links/link",
+   "file": "mailLinks.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/mail-links/marks/:key",
+   "file": "mailLinks.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail-links/marks",
+   "file": "mailLinks.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/mail-links/marks",
+   "file": "mailLinks.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail-links/person",
+   "file": "mailLinks.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail-links/project/:id",
+   "file": "mailLinks.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail-links/radar",
+   "file": "mailLinks.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/mail-links/refresh",
+   "file": "mailLinks.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/mail-links/report",
+   "file": "mailLinks.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail-links/row/:rowId/messages/:mid/attachments/:aid",
+   "file": "mailLinks.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail-links/thread/:rowId",
+   "file": "mailLinks.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/compose",
+   "file": "mail.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/contacts",
+   "file": "mail.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/mail/drafts/:id",
+   "file": "mail.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/drafts/:id",
+   "file": "mail.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/drafts/by-thread/:threadId",
+   "file": "mail.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/mail/drafts",
+   "file": "mail.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/inbox-peek",
+   "file": "mail.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/mail/labels/:id",
+   "file": "mail.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/labels",
+   "file": "mail.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/mail/labels",
+   "file": "mail.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/messages/:mid/attachments/:aid",
+   "file": "mail.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/messages/:mid/invite",
+   "file": "mail.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/prefs",
+   "file": "mail.js"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/mail/prefs",
+   "file": "mail.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/mail/read-all",
+   "file": "mail.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/mail/rules/:id",
+   "file": "mail.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/rules",
+   "file": "mail.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/mail/rules",
+   "file": "mail.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/mail/send",
+   "file": "mail.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/signature/logo.png",
+   "file": "mail.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/mail/signature/preview",
+   "file": "mail.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/signature",
+   "file": "mail.js"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/mail/signature",
+   "file": "mail.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/status",
+   "file": "mail.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/threads/:id",
+   "file": "mail.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/mail/threads/modify",
+   "file": "mail.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/mail/threads",
+   "file": "mail.js"
+  },
+  {
    "method": "POST",
    "path": "/api/meeting-inbox/:id/retry",
    "file": "meetingInbox.js"
@@ -961,6 +1286,16 @@
    "method": "GET",
    "path": "/api/mentions/users",
    "file": "routes.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/microsoft/oauth/callback",
+   "file": "microsoft.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/microsoft/oauth/start",
+   "file": "microsoft.js"
   },
   {
    "method": "PATCH",
@@ -1191,6 +1526,36 @@
    "method": "GET",
    "path": "/api/project-history/deleted/list",
    "file": "projectVersions.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/project-vault/:projectId/:itemId/file",
+   "file": "projectVault.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/project-vault/:projectId/:itemId/reveal",
+   "file": "projectVault.js"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/project-vault/:projectId/:itemId",
+   "file": "projectVault.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/project-vault/:projectId/:itemId",
+   "file": "projectVault.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/project-vault/:projectId",
+   "file": "projectVault.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/project-vault/:projectId",
+   "file": "projectVault.js"
   },
   {
    "method": "POST",
@@ -1538,6 +1903,11 @@
    "file": "documentTemplates.js"
   },
   {
+   "method": "POST",
+   "path": "/api/tours/:id/done",
+   "file": "tours.js"
+  },
+  {
    "method": "GET",
    "path": "/api/users/:id/access",
    "file": "routes.js"
@@ -1569,6 +1939,11 @@
   },
   {
    "method": "GET",
+   "path": "/api/users/overview",
+   "file": "routes.js"
+  },
+  {
+   "method": "GET",
    "path": "/api/users",
    "file": "routes.js"
   },
@@ -1576,6 +1951,86 @@
    "method": "POST",
    "path": "/api/users",
    "file": "routes.js"
+  },
+  {
+   "method": "PATCH",
+   "path": "/api/whatsapp/admin/inboxes/:id",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/whatsapp/admin/inboxes",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/whatsapp/admin/inboxes",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/whatsapp/conversations/:id/archive",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/whatsapp/conversations/:id/messages",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/whatsapp/conversations/:id/read",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/whatsapp/conversations/:id",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/whatsapp/conversations",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/whatsapp/hook/:key",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/whatsapp/hook/:key",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/whatsapp/inboxes/:id/authorize",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/whatsapp/inboxes/:id/revoke",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/whatsapp/media/:id",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/whatsapp/status",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "GET",
+   "path": "/api/whatsapp/webhook",
+   "file": "whatsapp.js"
+  },
+  {
+   "method": "POST",
+   "path": "/api/whatsapp/webhook",
+   "file": "whatsapp.js"
   },
   {
    "method": "GET",

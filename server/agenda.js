@@ -19,6 +19,10 @@ import {
 } from './calendarAccounts.js';
 import { googleExtConfigured } from './googleCalendar.js';
 import { microsoftConfigured } from './microsoftGraph.js';
+import {
+  teamEvents, listSubscriptions, saveSubscriptions, teamPeople, searchEvents, listTasks, createTask, setTaskDone, deleteTask, createOutOfOffice,
+  eventColorOf, cleanSubscriptions, GOOGLE_EVENT_COLORS, TEAM_COLORS, MAX_PEOPLE, normEmail,
+} from './agendaTeam.js';
 
 export const router = Router();
 
@@ -41,7 +45,7 @@ router.get('/', requireAuth, async (req, res, next) => {
         const googleEvents = await withDeadline(listEvents(req.user.id, start, end), 15000, 'O Google Calendar');
         // Atividade do CRM espelhada no Google aparece UMA vez: some o evento do Google, fica a atividade (que abre o CRM).
         const mirrored = await linkedGoogleEventIds(req.user.id);
-        events.push(...googleEvents.filter((ev) => !mirrored.has(String(ev.id || '').replace(/^google-/, ''))).map((ev) => ({ ...ev, account: 'principal', color: principal.color })));
+        events.push(...googleEvents.filter((ev) => !mirrored.has(String(ev.id || '').replace(/^google-/, ''))).map((ev) => ({ ...ev, account: 'principal', color: eventColorOf(ev.colorId) || principal.color, ...(ev.colorId ? { calendarColor: principal.color } : {}) })));
       } catch (e) {
         console.error('Agenda: falha ao ler o Google Calendar (ignorado):', e.message);
         warnings.push(/invalid_grant/i.test(String(e.message)) ? 'A conexão com o Google expirou: reconecte em Meu perfil › Agenda.' : e.deadline ? e.message : 'Não consegui ler o seu Google Calendar agora; o resto da agenda está aqui.');
@@ -107,11 +111,27 @@ router.get('/', requireAuth, async (req, res, next) => {
     // se o CRM falhar, a Agenda continua igual à de antes.
     try { events.push(...await withDeadline(crmAgendaEvents(req.user, startDate, endDate), 10000, 'As atividades do CRM')); } catch (e) { console.error('Agenda: falha ao ler atividades do CRM (ignorado):', e.message); }
 
+    // Tarefas do Google com prazo no período (§138). Sem a API ligada ou sem o escopo, simplesmente não aparecem.
+    if (status.connected) {
+      try { events.push(...await withDeadline(listTasks(req.user.id, startDate, endDate), 8000, 'As Tarefas do Google')); } catch (e) { console.error('Agenda: tarefas (ignorado):', e.message); }
+    }
+    // Agendas da equipe assinadas (Outras agendas, §138): só o que o Google libera para a própria pessoa (detalhes ou livre/ocupado).
+    let team = { subscriptions: [], calendars: [] };
+    try {
+      const subscriptions = await listSubscriptions(req.user.id);
+      team.subscriptions = subscriptions;
+      if (status.connected && subscriptions.some((x) => x.show)) {
+        const t = await withDeadline(teamEvents(req.user.id, subscriptions, start, end), 15000, 'As agendas da equipe');
+        events.push(...t.events);
+        team.calendars = t.calendars;
+      }
+    } catch (e) { console.error('Agenda: agendas da equipe (ignorado):', e.message); warnings.push(e.deadline ? e.message : 'Não consegui ler as agendas da equipe agora.'); }
+
     const principalAccount = {
       id: 'principal', provider: 'google', providerLabel: 'Google', label: principal.label || 'Agenda principal (Google)', color: principal.color,
       calendarEnabled: principal.calendarEnabled, connected: status.connected, privacy: 'pricetax', readOnly: false, status: 'ok', error: '',
     };
-    res.json({ connected: status.connected, events, accounts: [principalAccount, ...extra.accounts], warnings });
+    res.json({ connected: status.connected, events, accounts: [principalAccount, ...extra.accounts], team, warnings });
   } catch (e) { next(e); }
 });
 
@@ -275,4 +295,83 @@ router.patch('/accounts/:id', requireAuth, async (req, res, next) => {
 
 router.delete('/accounts/:id', requireAuth, async (req, res, next) => {
   try { await removeAccount(req.user.id, String(req.params.id)); res.json({ ok: true }); } catch (e) { failGoogle(res, next, e); }
+});
+
+// ---------- Agenda como a do Google, parte 2 (§138): equipe, Reunião com…, busca, Tarefas e Ausente ----------
+const ISO_OK = (v) => typeof v === 'string' && !Number.isNaN(Date.parse(v));
+
+router.get('/colors', requireAuth, (req, res) => {
+  res.json({ event: Object.entries(GOOGLE_EVENT_COLORS).map(([id, [hex, name]]) => ({ id, hex, name })), team: TEAM_COLORS });
+});
+
+router.get('/people', requireAuth, async (req, res, next) => {
+  try { res.json({ people: await teamPeople(req.user, String(req.query.q || '').slice(0, 80)) }); } catch (e) { next(e); }
+});
+
+// "Reunião com…": agenda de até 6 pessoas no período, sem assinar (some ao fechar).
+router.get('/with', requireAuth, async (req, res, next) => {
+  try {
+    const emails = [...new Set(String(req.query.emails || '').split(',').map(normEmail).filter(Boolean))].slice(0, MAX_PEOPLE);
+    if (!emails.length) return res.status(400).json({ message: 'Escolha com quem.' });
+    if (!ISO_OK(req.query.start) || !ISO_OK(req.query.end)) return res.status(400).json({ message: 'Informe start e end (datas ISO).' });
+    if (!await ensureGoogle(req, res)) return;
+    const subs = cleanSubscriptions(emails.map((email, i) => ({ email, color: TEAM_COLORS[(i + 3) % TEAM_COLORS.length] })), '');
+    res.json(await withDeadline(teamEvents(req.user.id, subs, req.query.start, req.query.end), 15000, 'As agendas dessas pessoas'));
+  } catch (e) { if (e && e.deadline) return res.status(504).json({ message: e.message }); failGoogle(res, next, e); }
+});
+
+router.get('/team', requireAuth, async (req, res, next) => {
+  try { res.json({ subscriptions: await listSubscriptions(req.user.id) }); } catch (e) { next(e); }
+});
+router.put('/team', requireAuth, async (req, res, next) => {
+  try {
+    const list = (req.body || {}).subscriptions;
+    if (!Array.isArray(list)) return res.status(400).json({ message: 'Envie a lista de agendas.' });
+    res.json({ subscriptions: await saveSubscriptions(req.user.id, list) });
+  } catch (e) { next(e); }
+});
+
+// Busca nos seus compromissos do Google (um ano para trás e um para frente, como a lupa do Google Agenda).
+router.get('/search', requireAuth, async (req, res, next) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return res.status(400).json({ message: 'Digite pelo menos 2 letras.' });
+    if (!await ensureGoogle(req, res)) return;
+    res.json({ events: await withDeadline(searchEvents(req.user.id, q), 15000, 'A busca no Google') });
+  } catch (e) { if (e && e.deadline) return res.status(504).json({ message: e.message }); failGoogle(res, next, e); }
+});
+
+router.post('/tasks', requireAuth, async (req, res, next) => {
+  try {
+    const b = req.body || {};
+    const title = String(b.title || '').trim().slice(0, 200);
+    if (!title) return res.status(400).json({ message: 'Dê um título à tarefa.' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.date || ''))) return res.status(400).json({ message: 'Informe o prazo da tarefa.' });
+    if (!await ensureGoogle(req, res)) return;
+    res.status(201).json({ task: await createTask(req.user.id, { title, date: b.date, notes: String(b.notes || '').slice(0, 4000) }) });
+  } catch (e) { if (e && e.code && e.status) return res.status(e.status).json({ message: e.message, code: e.code }); failGoogle(res, next, e); }
+});
+const TASK_ID = /^gtask-([A-Za-z0-9_-]{1,200})$/;
+router.patch('/tasks/:id', requireAuth, async (req, res, next) => {
+  const m = TASK_ID.exec(String(req.params.id || '')); if (!m) return res.status(400).json({ message: 'Tarefa inválida.' });
+  try { res.json({ task: await setTaskDone(req.user.id, m[1], !!(req.body || {}).done) }); } catch (e) { if (e && e.code && e.status) return res.status(e.status).json({ message: e.message, code: e.code }); failGoogle(res, next, e); }
+});
+router.delete('/tasks/:id', requireAuth, async (req, res, next) => {
+  const m = TASK_ID.exec(String(req.params.id || '')); if (!m) return res.status(400).json({ message: 'Tarefa inválida.' });
+  try { await deleteTask(req.user.id, m[1]); res.json({ ok: true }); } catch (e) { if (e && e.code && e.status) return res.status(e.status).json({ message: e.message, code: e.code }); failGoogle(res, next, e); }
+});
+
+// Ausente: bloco "Fora do escritório" do Google, que recusa sozinho os convites no período (com a mensagem, se pedir).
+router.post('/out-of-office', requireAuth, async (req, res, next) => {
+  try {
+    const b = req.body || {};
+    const r = parseRange({ start: b.start, end: b.end });
+    if (r.error && !/12 horas/.test(r.error)) return res.status(400).json({ message: r.error });
+    const s = Date.parse(b.start); const e = Date.parse(b.end);
+    if (!(e > s)) return res.status(400).json({ message: 'O fim precisa ser depois do início.' });
+    if (e - s > 60 * 86400000) return res.status(400).json({ message: 'No máximo 60 dias de ausência de uma vez.' });
+    if (!await ensureGoogle(req, res)) return;
+    const ev = await createOutOfOffice(req.user.id, { startISO: new Date(s).toISOString(), endISO: new Date(e).toISOString(), autoDecline: b.autoDecline !== false, message: String(b.message || ''), title: String(b.title || '').trim().slice(0, 120) });
+    res.status(201).json({ event: ev });
+  } catch (e) { failGoogle(res, next, e); }
 });

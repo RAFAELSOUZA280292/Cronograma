@@ -5,8 +5,8 @@
 **Legenda:** ✅ implementada e exercitada por teste ponta a ponta · 🟡 parcial/limitada (explicado) · ⬜ pendente · 🚫 fora do alcance de propósito (segurança)
 
 ## Resumo
-- **102 ferramentas estruturadas** em 11 módulos (36 de consulta, 47 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
-- **331 rotas** no servidor: 64 cobertas por ferramenta própria, 127 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 140 excluídas de propósito.
+- **120 ferramentas estruturadas** em 12 módulos (47 de consulta, 54 de escrita de baixo risco/reversível, 19 críticas com confirmação obrigatória).
+- **422 rotas** no servidor: 73 cobertas por ferramenta própria, 159 por acesso genérico (consulta livre; qualquer alteração pede confirmação) e 190 excluídas de propósito.
 - **56 funcionalidades humanas mapeadas**: 35 ✅, 12 🟡, 4 ⬜, 5 🚫.
 - **Critério "100% das funcionalidades" NÃO está atendido ainda**: as linhas 🟡 e ⬜ abaixo são o que falta. As rotas "genéricas" já são alcançáveis (com confirmação), mas sem esquema de parâmetros; as ⬜ precisam de trabalho novo (arquivos, edição de documentos inteiros).
 
@@ -94,9 +94,19 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 ### Agenda
 | Ferramenta | Risco | Rota / execução | O que faz |
 |---|---|---|---|
-| `agenda_listar` | consulta | GET /api/agenda | Compromissos do Google Calendar do usuário entre duas datas (start e end em ISO, ex.: 2026-10-26 e 2026-11-02). |
-| `agenda_criar_evento` | escrita (confirma em certos casos) | POST /api/agenda/events | Cria um compromisso no Google Calendar do usuário. Com convidados (e-mails), pede confirmação, pois o Google envia convite a pessoas de fora. |
-| `agenda_responder_convite` | escrita | POST /api/agenda/events/{id}/respond | Responde a um convite do Google Calendar (accepted, declined ou tentative). O id vem de agenda_listar (começa com google-). |
+| `agenda_listar` | consulta | GET /api/agenda | Agenda do usuário entre duas datas (start e end em ISO, ex.: 2026-10-26 e 2026-11-02): compromissos do Google e das agendas extras, Tarefas do Google  |
+| `agenda_detalhe` | consulta | GET /api/agenda/events/{id} | Detalhe de um compromisso (id de agenda_listar ou agenda_buscar, começa com google- ou x:): participantes com a resposta de cada um, link do Meet, org |
+| `agenda_buscar` | consulta | GET /api/agenda/search | Busca compromissos do Google Calendar do usuário por texto (título, descrição, local, convidados), um ano para trás e um para frente. Use para "quando |
+| `agenda_pessoas` | consulta | GET /api/agenda/people | Acha pessoas da equipe PRICETAX pelo nome (devolve nome e e-mail) para ver a agenda delas ou convidar. |
+| `agenda_disponibilidade` | consulta | GET /api/agenda/with | Agenda de até 6 colegas num período (com o acesso do próprio usuário no Google: detalhes ou só "Ocupado"). Use para achar horário livre em comum antes |
+| `agenda_criar_evento` | escrita (confirma em certos casos) | POST /api/agenda/events | Cria um compromisso no Google Calendar do usuário (horário de Brasília), com convidados, link do Google Meet (meet: true), lembrete (minutos antes: 0, |
+| `agenda_editar_evento` | escrita (confirma em certos casos) | PATCH /api/agenda/events/{id} | Altera um compromisso do usuário (só se ele for o organizador). Envie TODOS os campos (título, data, hora, duração, convidados…), como no formulário:  |
+| `agenda_mudar_horario` | escrita (confirma em certos casos) | POST /api/agenda/events/{id}/reschedule | Muda só o horário de um compromisso que o usuário organizou (ex.: aceitar o novo horário que um convidado sugeriu). start e end em ISO. Os convidados  |
+| `agenda_cancelar_evento` | escrita (confirma em certos casos) | DELETE /api/agenda/events/{id} | Cancela um compromisso que o usuário organizou; os convidados recebem o cancelamento. Se ele só foi convidado, use agenda_responder_convite com declin |
+| `agenda_responder_convite` | escrita | POST /api/agenda/events/{id}/respond | Responde a um convite (accepted, declined ou tentative), com nota opcional ao organizador. O id vem de agenda_listar (começa com google- ou x:). |
+| `agenda_propor_horario` | escrita (confirma em certos casos) | POST /api/agenda/events/{id}/respond | Propõe outro horário para um convite recebido: responde "Talvez" com a nota "Proposta de novo horário: …" ao organizador (o Google não tem outra forma |
+| `agenda_criar_tarefa` | escrita | POST /api/agenda/tasks | Cria uma tarefa nas Tarefas do Google do usuário (aparece no Gmail, no celular e na Agenda do painel no dia do prazo). |
+| `agenda_marcar_ausente` | escrita (confirma em certos casos) | POST /api/agenda/out-of-office | Marca o usuário como Ausente (Fora do escritório do Google) de start a end (ISO, até 60 dias); com autoDecline os convites nesse período são recusados |
 
 ### Notificações
 | Ferramenta | Risco | Rota / execução | O que faz |
@@ -197,6 +207,10 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `crm_excluir_cadencia` | crítica (confirma) | DELETE /api/crm/cadences/{id} | Exclui uma cadência. |
 | `crm_lote_atualizar_negocios` | crítica (confirma) | sob medida | Aplica a MESMA alteração a vários negócios de uma vez (até 100): responsável, previsão ou origem. Sempre pede confirmação e informa quantos serão alte |
 | `crm_lote_atualizar_atividades` | crítica (confirma) | sob medida | Aplica a MESMA alteração a várias atividades do CRM (até 100): responsável, data, prioridade. Sempre pede confirmação. Reatribuição em lote não notifi |
+| `crm_listar_anexos` | consulta | sob medida | Lista os anexos (propostas em PDF, contratos, planilhas, imagens) de um NEGÓCIO do CRM: anexoId, nome, tipo, tamanho, quem enviou e quando. Use antes  |
+| `crm_ler_anexo` | consulta | sob medida | Lê o TEXTO de um anexo de negócio do CRM (PDF, Word, Excel, PowerPoint, texto; PDF escaneado ou montado só com imagem, como no Canva, e imagens são tr |
+| `crm_revisar_proposta` | consulta | sob medida | Revisa uma PROPOSTA (ou outro documento comercial) anexada a um negócio: confere de forma automática valor em número × valor por extenso, soma dos ite |
+| `crm_registrar_revisao` | escrita | sob medida | Grava no negócio uma NOTA formal com a revisão da proposta anexada (mesmas checagens de crm_revisar_proposta + revisão de linguagem pela IA), no padrã |
 
 ### Gestão de Atividades
 | Ferramenta | Risco | Rota / execução | O que faz |
@@ -236,6 +250,14 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `empresa_fase_excluir` | crítica (confirma) | sob medida | Exclui uma fase; as atividades dela passam para outra fase (a primeira restante). Sempre pede confirmação. |
 | `empresa_criar` | escrita (confirma em certos casos) | POST /api/projects | Cria uma empresa (cliente) com o cronograma padrão da casa a partir da data de kickoff. Sempre pede confirmação (cria cronograma completo e libera o C |
 | `empresa_excluir` | crítica (confirma) | sob medida | EXCLUI uma empresa e todo o cronograma dela (some da lista; fica só uma cópia por 1 ano que apenas um Master recupera; links públicos, dossiê e reserv |
+| `cofre_listar` | consulta | sob medida | Lista o COFRE de uma empresa (aba Cofre): acessos a sistemas (ex.: X da Questão, e-CAC, portal da prefeitura), certificado digital A1 com validade, co |
+
+### E-mail
+| Ferramenta | Risco | Rota / execução | O que faz |
+|---|---|---|---|
+| `email_buscar` | consulta | sob medida | Busca conversas na caixa do Gmail DA PRÓPRIA PESSOA que está pedindo (nunca de outra), com a pesquisa do Gmail: palavra ("okubo"), remetente ("from:@o |
+| `email_ler_conversa` | consulta | sob medida | Lê uma conversa (thread) do Gmail da própria pessoa, pelo conversaId de email_buscar: de, para, cc, data (Brasília), nomes dos anexos e o TEXTO LIMPO  |
+| `email_vinculos` | consulta | sob medida | Liga e-mails ao CRM: dado o nome da empresa ("OKUBO"), um domínio (okubo.com.br) ou um e-mail, diz se é cliente, lead (com o negócio e a etapa, e o li |
 
 ## 4. Todas as rotas do servidor e como a RENATA as alcança
 
@@ -245,8 +267,28 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `POST /api/activity/ping` | excluída | fora do alcance: Telemetria de uso e erros de tela: não é função operacional. |
 | `GET /api/activity/policy` | excluída | fora do alcance: Telemetria de uso e erros de tela: não é função operacional. |
 | `POST /api/activity/usage` | excluída | fora do alcance: Telemetria de uso e erros de tela: não é função operacional. |
-| `POST /api/agenda/events/:id/respond` | ferramenta | agenda_responder_convite |
+| `DELETE /api/agenda/accounts/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `PATCH /api/agenda/accounts/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/agenda/accounts/ical` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `PATCH /api/agenda/accounts/principal` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/agenda/accounts` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/agenda/by-uid` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/agenda/colors` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/agenda/events/:id/reschedule` | ferramenta | agenda_mudar_horario |
+| `POST /api/agenda/events/:id/respond` | ferramenta | agenda_propor_horario |
+| `DELETE /api/agenda/events/:id` | ferramenta | agenda_cancelar_evento |
+| `GET /api/agenda/events/:id` | ferramenta | agenda_detalhe |
+| `PATCH /api/agenda/events/:id` | ferramenta | agenda_editar_evento |
 | `POST /api/agenda/events` | ferramenta | agenda_criar_evento |
+| `POST /api/agenda/out-of-office` | ferramenta | agenda_marcar_ausente |
+| `GET /api/agenda/people` | ferramenta | agenda_pessoas |
+| `GET /api/agenda/search` | ferramenta | agenda_buscar |
+| `DELETE /api/agenda/tasks/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `PATCH /api/agenda/tasks/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/agenda/tasks` | ferramenta | agenda_criar_tarefa |
+| `GET /api/agenda/team` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `PUT /api/agenda/team` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/agenda/with` | ferramenta | agenda_disponibilidade |
 | `GET /api/agenda` | ferramenta | agenda_listar |
 | `POST /api/assistant/ask` | excluída | fora do alcance: A própria RENATA: sem recursão. |
 | `POST /api/assistant/conversation/clear` | excluída | fora do alcance: A própria RENATA: sem recursão. |
@@ -290,7 +332,9 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `POST /api/connect/companies/:id/transcripts` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `GET /api/connect/companies/:id` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `GET /api/connect/companies` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
+| `GET /api/connect/docs` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `GET /api/connect/me` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
+| `GET /api/connect/openapi.json` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `GET /api/connect/team-day` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `DELETE /api/connect/tokens/:id` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `GET /api/connect/tokens` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
@@ -332,6 +376,7 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `GET /api/crm/contacts` | ferramenta | crm_listar_contatos |
 | `POST /api/crm/contacts` | ferramenta | crm_criar_contato |
 | `GET /api/crm/deal-files/:fileId/download` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/crm/deals/:id/attachments/review` | excluída | fora do alcance: Download de arquivo: não é operação de dados. |
 | `GET /api/crm/deals/:id/audit` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/crm/deals/:id/files` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/crm/deals/:id/move` | ferramenta | crm_mover_negocio |
@@ -398,6 +443,8 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `GET /api/google/oauth/callback` | excluída | fora do alcance: Conexão OAuth com o Google: a pessoa autoriza na tela. |
 | `GET /api/google/oauth/start` | excluída | fora do alcance: Conexão OAuth com o Google: a pessoa autoriza na tela. |
 | `GET /api/google/status` | excluída | fora do alcance: Conexão OAuth com o Google: a pessoa autoriza na tela. |
+| `GET /api/home-prefs` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `PUT /api/home-prefs` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/inventory/area` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/inventory/areas` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/inventory/export.xlsx` | excluída | fora do alcance: Download de arquivo: não é operação de dados. |
@@ -428,11 +475,53 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `GET /api/knowledge/overview` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/library-search` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/macro` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/mail-links/company/:id` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail-links/deal/:id` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `POST /api/mail-links/link` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `DELETE /api/mail-links/marks/:key` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail-links/marks` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `POST /api/mail-links/marks` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail-links/person` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail-links/project/:id` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail-links/radar` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `POST /api/mail-links/refresh` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `POST /api/mail-links/report` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail-links/row/:rowId/messages/:mid/attachments/:aid` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail-links/thread/:rowId` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/compose` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/contacts` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `DELETE /api/mail/drafts/:id` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/drafts/:id` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/drafts/by-thread/:threadId` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `POST /api/mail/drafts` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/inbox-peek` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `PATCH /api/mail/labels/:id` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/labels` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `POST /api/mail/labels` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/messages/:mid/attachments/:aid` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/messages/:mid/invite` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/prefs` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `PUT /api/mail/prefs` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `POST /api/mail/read-all` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `DELETE /api/mail/rules/:id` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/rules` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `POST /api/mail/rules` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `POST /api/mail/send` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/signature/logo.png` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `POST /api/mail/signature/preview` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/signature` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `PUT /api/mail/signature` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/status` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/threads/:id` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `POST /api/mail/threads/modify` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
+| `GET /api/mail/threads` | excluída | fora do alcance: Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela. |
 | `POST /api/meeting-inbox/:id/retry` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/meeting-inbox/retry-failed` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/meeting-inbox` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/meeting-inbox` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/mentions/users` | ferramenta | ferramenta sob medida |
+| `GET /api/microsoft/oauth/callback` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/microsoft/oauth/start` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `PATCH /api/notifications/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/notifications/mark-read-for-target` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/notifications/preferences` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
@@ -479,6 +568,12 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `POST /api/project-history/:id/versions` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/project-history/deleted/:vid/restore` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/project-history/deleted/list` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/project-vault/:projectId/:itemId/file` | excluída | fora do alcance: Cofre do projeto (senhas, certificado digital, arquivos): só a pessoa, na aba Cofre; a RENATA lista o que existe pela ferramenta cofre_listar e nunca lê senha. |
+| `POST /api/project-vault/:projectId/:itemId/reveal` | excluída | fora do alcance: Cofre do projeto (senhas, certificado digital, arquivos): só a pessoa, na aba Cofre; a RENATA lista o que existe pela ferramenta cofre_listar e nunca lê senha. |
+| `DELETE /api/project-vault/:projectId/:itemId` | excluída | fora do alcance: Cofre do projeto (senhas, certificado digital, arquivos): só a pessoa, na aba Cofre; a RENATA lista o que existe pela ferramenta cofre_listar e nunca lê senha. |
+| `PATCH /api/project-vault/:projectId/:itemId` | excluída | fora do alcance: Cofre do projeto (senhas, certificado digital, arquivos): só a pessoa, na aba Cofre; a RENATA lista o que existe pela ferramenta cofre_listar e nunca lê senha. |
+| `GET /api/project-vault/:projectId` | excluída | fora do alcance: Cofre do projeto (senhas, certificado digital, arquivos): só a pessoa, na aba Cofre; a RENATA lista o que existe pela ferramenta cofre_listar e nunca lê senha. |
+| `POST /api/project-vault/:projectId` | excluída | fora do alcance: Cofre do projeto (senhas, certificado digital, arquivos): só a pessoa, na aba Cofre; a RENATA lista o que existe pela ferramenta cofre_listar e nunca lê senha. |
 | `POST /api/projects/:id/meetings` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `POST /api/projects/:id/plan` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/projects/:id/team-candidates` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
@@ -548,14 +643,32 @@ O botão **RENATA** fica na barra única do topo (ModuleShell), presente em todo
 | `PATCH /api/templates/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/templates` | ferramenta | modelos_listar |
 | `POST /api/templates` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/tours/:id/done` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/users/:id/access` | excluída | fora do alcance: Usuários, acessos, bloqueios e senhas: só o administrador, pela tela (segurança). |
 | `POST /api/users/:id/block` | excluída | fora do alcance: Usuários, acessos, bloqueios e senhas: só o administrador, pela tela (segurança). |
 | `POST /api/users/:id/renew` | excluída | fora do alcance: Usuários, acessos, bloqueios e senhas: só o administrador, pela tela (segurança). |
 | `POST /api/users/:id/reset-password` | excluída | fora do alcance: Usuários, acessos, bloqueios e senhas: só o administrador, pela tela (segurança). |
 | `DELETE /api/users/:id` | excluída | fora do alcance: Usuários, acessos, bloqueios e senhas: só o administrador, pela tela (segurança). |
 | `PATCH /api/users/:id` | excluída | fora do alcance: Usuários, acessos, bloqueios e senhas: só o administrador, pela tela (segurança). |
+| `GET /api/users/overview` | excluída | fora do alcance: Usuários, acessos, bloqueios e senhas: só o administrador, pela tela (segurança). |
 | `GET /api/users` | excluída | fora do alcance: Usuários, acessos, bloqueios e senhas: só o administrador, pela tela (segurança). |
 | `POST /api/users` | excluída | fora do alcance: Usuários, acessos, bloqueios e senhas: só o administrador, pela tela (segurança). |
+| `PATCH /api/whatsapp/admin/inboxes/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/whatsapp/admin/inboxes` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/whatsapp/admin/inboxes` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/whatsapp/conversations/:id/archive` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/whatsapp/conversations/:id/messages` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/whatsapp/conversations/:id/read` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/whatsapp/conversations/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/whatsapp/conversations` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/whatsapp/hook/:key` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/whatsapp/hook/:key` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/whatsapp/inboxes/:id/authorize` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/whatsapp/inboxes/:id/revoke` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/whatsapp/media/:id` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/whatsapp/status` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `GET /api/whatsapp/webhook` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
+| `POST /api/whatsapp/webhook` | genérica | acesso genérico (plataforma_consultar / plataforma_executar com confirmação) |
 | `GET /api/widget/status` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `GET /api/widget/summary` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |
 | `DELETE /api/widget/token` | excluída | fora do alcance: Chaves de API, widget e notificações push: credenciais e dispositivos da própria pessoa. |

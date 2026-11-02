@@ -8,7 +8,9 @@ import { google } from 'googleapis';
 import { pool } from './db.js';
 import { seal, open } from './secretBox.js';
 
-const SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
+// calendar.freebusy (livre/ocupado de colegas) e tasks (Tarefas do Google) entraram em 2026-11-02 (§138): quem já tinha conectado
+// reconecta uma vez para ganhar os dois; sem eles, o resto da agenda segue funcionando.
+const SCOPES = ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.freebusy', 'https://www.googleapis.com/auth/tasks'];
 // Caixa de e-mail (2026-11-02): o mesmo login do Google, com o Gmail acrescentado só quando a pessoa conecta pela tela de E-mail.
 export const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 // Regras "sempre mover e-mails de fulano para a pasta X" (filtros do Gmail): pedido junto com o e-mail desde 2026-11-02.
@@ -166,6 +168,7 @@ export function mapGoogleEvent(ev) {
     guests: attendees.length,
     organizer: ev.organizer && !ev.organizer.self ? (ev.organizer.displayName || ev.organizer.email || '') : '',
     eventType: ev.eventType || 'default',
+    colorId: ev.colorId || '',
   };
 }
 
@@ -390,6 +393,7 @@ export function buildPanelEventBody(f, requestId) {
   if (f.reminderMinutes === null || f.reminderMinutes === undefined) body.reminders = { useDefault: true };
   else if (f.reminderMinutes < 0) body.reminders = { useDefault: false, overrides: [] };
   else body.reminders = { useDefault: false, overrides: [{ method: 'popup', minutes: f.reminderMinutes }] };
+  if (f.colorId !== undefined) body.colorId = f.colorId || null;
   if (f.meet) body.conferenceData = { createRequest: { requestId: requestId || `pt-${Date.now().toString(36)}`, conferenceSolutionKey: { type: 'hangoutsMeet' } } };
   return body;
 }
@@ -430,6 +434,7 @@ export async function savePanelEvent(userId, eventId, fields) {
     const { requestBody } = composePatch(cur, body);
     data = (await calendar.events.patch({ calendarId: 'primary', eventId, requestBody, sendUpdates, conferenceDataVersion: 1 })).data;
   } else {
+    if (!body.colorId) delete body.colorId; // criar sem cor = cor da agenda (null só vale para tirar a cor numa edição)
     data = (await calendar.events.insert({ calendarId: 'primary', requestBody: body, sendUpdates, conferenceDataVersion: 1 })).data;
   }
   for (let i = 0; fields.meet && !meetLinkOf(data) && i < 3; i += 1) {

@@ -136,6 +136,67 @@
 .agd-m-title { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .agd-m-more2 { font-size: 10.5px; font-weight: 600; color: var(--text-5); padding: 0 4px; }
 
+/* ---------- Menu lateral como o do Google Agenda (§138): Criar, mini-calendário, Reunião com…, Minhas/Outras agendas, busca ---------- */
+.agd-body { display: flex; align-items: flex-start; gap: 18px; padding: 0 24px; }
+.agd-main { flex: 1 1 auto; min-width: 0; }
+.agd-side { flex: 0 0 248px; width: 248px; display: flex; flex-direction: column; gap: 16px; padding: 10px 0 24px; position: sticky; top: 8px; max-height: calc(100vh - 140px); overflow-y: auto; }
+.agd-create { position: relative; }
+.agd-create-btn { display: inline-flex; align-items: center; gap: 10px; padding: 14px 18px; border-radius: 16px; border: 1px solid var(--border-2); background: var(--bg-2); color: var(--text-1); font-family: inherit; font-size: 14.5px; font-weight: 700; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.18), 0 4px 10px rgba(0,0,0,.10); }
+.agd-create-btn:hover { background: var(--bg-3); }
+.agd-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; min-width: 190px; padding: 6px; border-radius: 10px; border: 1px solid var(--border-2); background: var(--bg-1); box-shadow: 0 10px 28px rgba(0,0,0,.25); display: flex; flex-direction: column; }
+.agd-menu button { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 0; border-radius: 7px; background: transparent; color: var(--text-1); font-family: inherit; font-size: 13.5px; font-weight: 600; text-align: left; cursor: pointer; }
+.agd-menu button:hover, .agd-menu button:focus-visible { background: var(--bg-3); }
+.agd-mini-head { display: flex; align-items: center; gap: 2px; font-size: 13px; font-weight: 700; color: var(--text-1); padding: 0 2px 4px; }
+.agd-mini-head span { flex: 1; }
+.agd-mini-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; text-align: center; }
+.agd-mini-dow { font-size: 10.5px; font-weight: 700; color: var(--text-5); padding: 3px 0; }
+.agd-mini-day { width: 28px; height: 28px; margin: 0 auto; border: 0; border-radius: 50%; background: transparent; color: var(--text-2); font-family: inherit; font-size: 11.5px; font-weight: 500; cursor: pointer; font-variant-numeric: tabular-nums; }
+.agd-mini-day:hover { background: var(--bg-3); }
+.agd-mini-day.out { color: var(--text-6); }
+.agd-mini-day.sel { background: rgba(245, 196, 0, .16); color: var(--text-1); font-weight: 700; }
+.agd-mini-day.today { background: #F5C400; color: #111; font-weight: 800; }
+.agd-side-sec { display: flex; flex-direction: column; gap: 6px; }
+.agd-side-sec h3 { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; font-weight: 700; color: var(--text-1); }
+.agd-side-sec h3 .agd-ic { margin-left: auto; }
+.agd-side-hint { font-size: 11.5px; color: var(--text-5); line-height: 1.4; }
+.agd-pp { position: relative; }
+.agd-pp-input { width: 100%; box-sizing: border-box; font-size: 13px; }
+.agd-pp .agd-sug { position: absolute; left: 0; right: 0; z-index: 30; }
+.agd-cals, .agd-with { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.agd-cal, .agd-with li { position: relative; display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 2px; border-radius: 6px; }
+.agd-cal:hover, .agd-with li:hover { background: var(--bg-2); }
+.agd-cal-main { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; cursor: pointer; font-size: 13px; color: var(--text-2); }
+.agd-cal-main input { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--c); }
+.agd-cal-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text-2); }
+.agd-cal-note { flex: none; width: 16px; height: 16px; border-radius: 50%; background: #F6BF26; color: #111; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.agd-cal-color { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--bg-1); box-shadow: 0 0 0 1px var(--border-3); cursor: pointer; padding: 0; }
+.agd-cal-x { opacity: .6; }
+.agd-cal-x:hover { opacity: 1; }
+.agd-with-go { align-self: flex-start; margin-top: 2px; }
+.agd-cpop { position: absolute; top: 100%; right: 0; z-index: 45; width: 214px; padding: 10px; border-radius: 10px; border: 1px solid var(--border-2); background: var(--bg-1); box-shadow: 0 10px 28px rgba(0,0,0,.25); display: flex; flex-direction: column; gap: 8px; }
+.agd-swatches { display: flex; flex-wrap: wrap; gap: 7px; }
+.agd-swatch { width: 24px; height: 24px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; background: var(--c); box-shadow: 0 0 0 1px rgba(0,0,0,.15); position: relative; }
+.agd-swatch.on::after { content: "✓"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 800; text-shadow: 0 0 2px rgba(0,0,0,.6); }
+.agd-swatch.none { background: transparent; box-shadow: inset 0 0 0 3px var(--c); }
+.agd-swatch.none.on::after { color: var(--text-1); text-shadow: none; }
+.agd-cfree { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+.agd-cfree input { width: 30px; height: 24px; padding: 0; border: 1px solid var(--border-2); border-radius: 6px; background: transparent; cursor: pointer; }
+.agd-searchbox { margin-left: auto; display: flex; align-items: center; gap: 6px; padding: 0 8px; height: 34px; border-radius: 9px; border: 1px solid var(--border-2); background: var(--bg-2); color: var(--text-4); min-width: 220px; }
+.agd-searchbox:focus-within { border-color: var(--ui-accent); }
+.agd-searchbox input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text-1); font-family: inherit; font-size: 13px; }
+.agd-search-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid var(--border-1); font-size: 13px; color: var(--text-3); }
+.agd-search-head span { display: inline-flex; align-items: center; gap: 6px; }
+.agd-sgroup { padding: 8px 12px; border-bottom: 1px solid var(--border-1); }
+.agd-sdate { font-size: 12px; font-weight: 800; color: var(--text-3); padding: 2px 0 4px; }
+.agd-sdate::first-letter { text-transform: uppercase; }
+.agd-sgroup ul { list-style: none; margin: 0; padding: 0; }
+.agd-sitem { width: 100%; display: flex; align-items: center; gap: 10px; padding: 7px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text-1); font-family: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.agd-sitem:hover, .agd-sitem:focus-visible { background: var(--bg-3); }
+.agd-stime { flex: none; width: 96px; color: var(--text-4); font-variant-numeric: tabular-nums; }
+.agd-stitle { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agd-sloc { flex: none; max-width: 30%; color: var(--text-5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agd-body .agd-pad { padding-left: 0; padding-right: 0; }
+
 @media (max-width: 767px) {
   /* Cabeçalho: título em cima; ações quebram em linhas; "Novo compromisso" ocupa a largura toda. */
   .agd-top { padding: 12px 16px !important; }
@@ -159,6 +220,17 @@
   .agd-showgrp .agd-tog { flex: 1 1 0; }
   .agd-dnum { width: 30px; height: 30px; font-size: 16px; }
   .agd-dstat { display: none; }
+  .agd-body { flex-direction: column; gap: 8px; padding: 0 16px; }
+  .agd-side { position: static; width: 100%; flex: none; max-height: none; overflow: visible; padding: 4px 0 8px; }
+  .agd-searchbox { flex: 1 1 100%; min-width: 0; order: 6; margin-left: 0; height: 44px; }
+  .agd-searchbox input { font-size: 16px; }
+  .agd-mini-day { width: 40px; height: 40px; font-size: 14px; }
+  .agd-cal, .agd-with li { min-height: 44px; }
+  .agd-cal-color { width: 22px; height: 22px; }
+  .agd-create-btn, .agd-menu button { min-height: 48px; }
+  .agd-swatch { width: 32px; height: 32px; }
+  .agd-sitem { min-height: 44px; flex-wrap: wrap; }
+  .agd-stime { width: auto; }
   .agd-grid { min-width: calc(56px + var(--cols, 1) * 104px); }
   .agd-hours { border-right: 1px solid var(--border-1); }
 
