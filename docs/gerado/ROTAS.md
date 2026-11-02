@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **384 rotas** em **35 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **386 rotas** em **35 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
@@ -622,26 +622,28 @@ Arquivos: `server/documentTemplates.js`.
 | PATCH | `/api/templates/:id/comments/:commentId` |  |  | `server/documentTemplates.js:235` |
 | DELETE | `/api/templates/:id/comments/:commentId` |  |  | `server/documentTemplates.js:250` |
 
-## `/api/whatsapp` — 14 rotas
+## `/api/whatsapp` — 16 rotas
 
 Arquivos: `server/whatsapp.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/whatsapp/webhook` |  |  | `server/whatsapp.js:160` |
-| POST | `/api/whatsapp/webhook` |  |  | `server/whatsapp.js:170` |
-| GET | `/api/whatsapp/status` |  |  | `server/whatsapp.js:239` |
-| GET | `/api/whatsapp/conversations` |  |  | `server/whatsapp.js:259` |
-| GET | `/api/whatsapp/conversations/:id` |  |  | `server/whatsapp.js:277` |
-| POST | `/api/whatsapp/conversations/:id/read` |  | Marca como lida no painel e manda a confirmação de leitura (os dois tiques azuis) da última mensagem do cliente. | `server/whatsapp.js:289` |
-| POST | `/api/whatsapp/conversations/:id/archive` |  |  | `server/whatsapp.js:304` |
-| POST | `/api/whatsapp/conversations/:id/messages` |  |  | `server/whatsapp.js:325` |
-| GET | `/api/whatsapp/media/:id` |  |  | `server/whatsapp.js:363` |
-| POST | `/api/whatsapp/inboxes/:id/authorize` |  |  | `server/whatsapp.js:394` |
-| POST | `/api/whatsapp/inboxes/:id/revoke` |  | Desautorizar: para de guardar e APAGA tudo o que foi guardado desta caixa (conversas, mensagens e arquivos, em cascata). | `server/whatsapp.js:403` |
-| GET | `/api/whatsapp/admin/inboxes` | `requireMaster` |  | `server/whatsapp.js:430` |
-| POST | `/api/whatsapp/admin/inboxes` | `requireMaster` |  | `server/whatsapp.js:467` |
-| PATCH | `/api/whatsapp/admin/inboxes/:id` | `requireMaster` |  | `server/whatsapp.js:493` |
+| GET | `/api/whatsapp/webhook` |  |  | `server/whatsapp.js:171` |
+| POST | `/api/whatsapp/webhook` |  |  | `server/whatsapp.js:181` |
+| GET | `/api/whatsapp/hook/:key` |  |  | `server/whatsapp.js:212` |
+| POST | `/api/whatsapp/hook/:key` |  |  | `server/whatsapp.js:221` |
+| GET | `/api/whatsapp/status` |  |  | `server/whatsapp.js:293` |
+| GET | `/api/whatsapp/conversations` |  |  | `server/whatsapp.js:313` |
+| GET | `/api/whatsapp/conversations/:id` |  |  | `server/whatsapp.js:331` |
+| POST | `/api/whatsapp/conversations/:id/read` |  | Marca como lida no painel e manda a confirmação de leitura (os dois tiques azuis) da última mensagem do cliente. | `server/whatsapp.js:343` |
+| POST | `/api/whatsapp/conversations/:id/archive` |  |  | `server/whatsapp.js:358` |
+| POST | `/api/whatsapp/conversations/:id/messages` |  |  | `server/whatsapp.js:379` |
+| GET | `/api/whatsapp/media/:id` |  |  | `server/whatsapp.js:417` |
+| POST | `/api/whatsapp/inboxes/:id/authorize` |  |  | `server/whatsapp.js:448` |
+| POST | `/api/whatsapp/inboxes/:id/revoke` |  | Desautorizar: para de guardar e APAGA tudo o que foi guardado desta caixa (conversas, mensagens e arquivos, em cascata). | `server/whatsapp.js:457` |
+| GET | `/api/whatsapp/admin/inboxes` | `requireMaster` |  | `server/whatsapp.js:485` |
+| POST | `/api/whatsapp/admin/inboxes` | `requireMaster` |  | `server/whatsapp.js:535` |
+| PATCH | `/api/whatsapp/admin/inboxes/:id` | `requireMaster` |  | `server/whatsapp.js:566` |
 
 ## `/api/widget` — 7 rotas
 

@@ -13,6 +13,7 @@ const env = Object.fromEntries(fs.readFileSync('.env', 'utf8').split('\n').map((
 const SECRET = 'segredo-teste'; const VERIFY = 'verifica-teste';
 const PHONE_C = '999000111'; const PHONE_P = '999000222';
 const TOKEN_C = 'token-teste-comercial-0001'; const TOKEN_P = 'token-teste-pessoal-00002';
+const PHONE_D = '999000333'; const WABA_D = '777000333'; const TOKEN_D = 'dh_live_teste_felipe_000000000003';
 const BASE = 'http://127.0.0.1:3091'; const META = 'http://127.0.0.1:3092';
 const CUSTOMER = '5541999990001'; const FAILS = '5541999990002'; const FAMILY = '5541999990003';
 const USERS = { rafael: 'master', felipe: 'master', duda: 'pricetax', outro: 'pricetax', cliente: 'cliente' };
@@ -24,6 +25,15 @@ const meta = http.createServer(async (req, res) => {
   for await (const ch of req) body = Buffer.concat([body, ch]);
   const json = (code, o) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
   const auth = req.headers.authorization;
+  // Dualhook falsa: mesmo formato da Graph API, base /dh/v25.0, chave dh_live_; arquivo em /<id>/content.
+  if (req.url.startsWith('/dh/v25.0/')) {
+    if (auth !== `Bearer ${TOKEN_D}`) return json(401, { error: { code: 190 } });
+    const path = req.url.slice('/dh/v25.0'.length);
+    if (req.method === 'POST' && path === `/${PHONE_D}/messages`) { const b = JSON.parse(body.toString()); sent.push({ phone: PHONE_D, via: 'dualhook', ...b }); return json(200, { messages: [{ id: `wamid.dh-${sent.length}` }] }); }
+    if (req.method === 'GET' && path === '/MEDIA2') return json(200, { url: `${META}/dh/v25.0/MEDIA2/content`, mime_type: 'image/jpeg', file_size: 9 });
+    if (req.method === 'GET' && path === '/MEDIA2/content') { res.writeHead(200, { 'Content-Type': 'image/jpeg' }); return res.end('JPEGBYTES'); }
+    return json(404, { error: { code: 100 } });
+  }
   if (auth !== `Bearer ${TOKEN_C}` && auth !== `Bearer ${TOKEN_P}`) return json(401, { error: { code: 190 } });
   const m = /^\/v24\.0\/(\d+)\/(messages|media)$/.exec(req.url);
   if (req.method === 'POST' && m) {
@@ -41,7 +51,7 @@ const meta = http.createServer(async (req, res) => {
 await new Promise((r) => meta.listen(3092, '127.0.0.1', r));
 
 const srv = spawn(process.execPath, ['server/index.js'], {
-  env: { ...process.env, ...env, PORT: '3091', NODE_ENV: '', WHATSAPP_APP_SECRET: SECRET, WHATSAPP_VERIFY_TOKEN: VERIFY, WHATSAPP_GRAPH_BASE: META, VAPID_PUBLIC_KEY: '', VAPID_PRIVATE_KEY: '' },
+  env: { ...process.env, ...env, PORT: '3091', NODE_ENV: '', WHATSAPP_APP_SECRET: SECRET, WHATSAPP_VERIFY_TOKEN: VERIFY, WHATSAPP_GRAPH_BASE: META, WHATSAPP_DUALHOOK_BASE: `${META}/dh/v25.0`, APP_BASE_URL: 'https://painel.teste', VAPID_PUBLIC_KEY: '', VAPID_PRIVATE_KEY: '' },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let log = ''; srv.stdout.on('data', (d) => { log += d; }); srv.stderr.on('data', (d) => { log += d; });
@@ -67,7 +77,7 @@ const text = (id, body, ago = 0) => ({ id, timestamp: now(ago), type: 'text', te
 const ids = Object.keys(USERS).map((k) => `wa_tmp_${k}`);
 const cleanup = async () => {
   await pool.query(`DELETE FROM notifications WHERE user_id = ANY($1)`, [ids]);
-  await pool.query(`DELETE FROM wa_inboxes WHERE phone_number_id IN ($1,$2)`, [PHONE_C, PHONE_P]);
+  await pool.query(`DELETE FROM wa_inboxes WHERE phone_number_id IN ($1,$2,$3) OR created_by = ANY($4)`, [PHONE_C, PHONE_P, PHONE_D, ids]);
   await pool.query(`DELETE FROM users WHERE id = ANY($1)`, [ids]);
 };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -193,6 +203,46 @@ try {
   ok((await pool.query(`SELECT count(*)::int AS n FROM wa_messages m JOIN wa_conversations c ON c.id = m.conversation_id WHERE c.inbox_id = $1`, [pessoal.id])).rows[0].n === 0, 'nenhuma mensagem pessoal sobra no banco');
   await hook(msgHook(PHONE_P, FAMILY, [{ from: FAMILY, ...text('wamid.p3', 'Depois de desligar') }], 'Mãe'));
   ok((await pool.query(`SELECT count(*)::int AS n FROM wa_conversations WHERE inbox_id = $1`, [pessoal.id])).rows[0].n === 0, 'depois de desligar, nada volta a ser guardado');
+
+  // ---- Dualhook: número pessoal do Felipe por coexistência ----
+  r = await S.felipe('POST', '/api/whatsapp/admin/inboxes', { kind: 'personal', provider: 'dualhook', name: 'Felipe (pessoal)', ownerId: 'wa_tmp_felipe', token: 'token-sem-prefixo-0000000000' });
+  ok(r.status === 400 && /dh_live_/.test(r.data.message), 'chave da Dualhook sem dh_live_ é recusada');
+  r = await S.felipe('POST', '/api/whatsapp/admin/inboxes', { kind: 'personal', provider: 'dualhook', name: 'Felipe (pessoal)', ownerId: 'wa_tmp_felipe', token: TOKEN_D });
+  ok(r.status === 200 && r.data.hook && r.data.hook.url.startsWith('https://painel.teste/api/whatsapp/hook/'), 'caixa Dualhook criada sem número, com endereço secreto mostrado uma vez');
+  const dh = r.data.inboxes.find((i) => i.provider === 'dualhook');
+  ok(dh.phonePending && dh.hookSet, 'número pendente e endereço cadastrado');
+  const key = r.data.hook.verifyToken; const hookPath = `/api/whatsapp/hook/${key}`;
+  ok(!JSON.stringify((await S.felipe('GET', '/api/whatsapp/admin/inboxes')).data).includes(key), 'o segredo do endereço não volta na listagem');
+  ok((await pool.query('SELECT hook_hash FROM wa_inboxes WHERE id = $1', [dh.id])).rows[0].hook_hash !== key, 'no banco fica só o hash do endereço');
+  r = await fetch(`${BASE}${hookPath}?hub.mode=subscribe&hub.verify_token=${key}&hub.challenge=777`);
+  ok(r.status === 200 && (await r.text()) === '777', 'a Dualhook/Meta valida o endereço com a senha de verificação');
+  ok((await fetch(`${BASE}${hookPath}?hub.mode=subscribe&hub.verify_token=errada&hub.challenge=1`)).status === 403, 'senha de verificação errada é recusada');
+  ok((await fetch(`${BASE}/api/whatsapp/hook/${'x'.repeat(43)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status === 404, 'endereço inventado não existe');
+  const dhPost = (payload) => fetch(`${BASE}${hookPath}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const dhMsg = (messages, phone = PHONE_D, waba = WABA_D) => ({ object: 'whatsapp_business_account', entry: [{ id: waba, changes: [{ field: 'messages', value: { metadata: { phone_number_id: phone }, contacts: [{ wa_id: FAMILY, profile: { name: 'Irmão' } }], messages } }] }] });
+  ok((await dhPost(dhMsg([{ from: FAMILY, ...text('wamid.d0', 'antes de autorizar') }]))).status === 200, 'primeiro evento chega');
+  const learned = (await pool.query('SELECT phone_number_id, waba_id FROM wa_inboxes WHERE id = $1', [dh.id])).rows[0];
+  ok(learned.phone_number_id === PHONE_D && learned.waba_id === WABA_D, 'o painel aprendeu o número e a conta no primeiro evento');
+  ok((await pool.query('SELECT count(*)::int AS n FROM wa_conversations WHERE inbox_id = $1', [dh.id])).rows[0].n === 0, 'mas não guardou nada antes de o Felipe autorizar');
+  ok((await S.felipe('POST', `/api/whatsapp/inboxes/${dh.id}/authorize`)).status === 200, 'Felipe autoriza a própria caixa');
+  await dhPost(dhMsg([{ from: FAMILY, id: 'wamid.d1', timestamp: now(), type: 'image', image: { id: 'MEDIA2', mime_type: 'image/jpeg', caption: 'foto do almoço' } }]));
+  await dhPost(dhMsg([{ from: FAMILY, ...text('wamid.d2', 'de outro número') }], '999000999'));
+  await dhPost(dhMsg([{ from: FAMILY, ...text('wamid.d3', 'de outra conta') }], PHONE_D, '111111111'));
+  await hook(msgHook(PHONE_D, FAMILY, [{ from: FAMILY, ...text('wamid.d4', 'pelo webhook da Meta direto') }]));
+  await wait(800);
+  const dlist = (await S.felipe('GET', `/api/whatsapp/conversations?inbox=${dh.id}`)).data.conversations;
+  ok(dlist.length === 1 && dlist[0].name === 'Irmão', 'Felipe vê a conversa da caixa Dualhook');
+  const dmsgs = (await S.felipe('GET', `/api/whatsapp/conversations/${dlist[0].id}`)).data.messages;
+  ok(dmsgs.length === 1 && dmsgs[0].kind === 'image' && dmsgs[0].body === 'foto do almoço', 'só entrou a mensagem do número e da conta certos (outro número, outra conta e o webhook da Meta direto foram ignorados)');
+  ok(dmsgs[0].media.stored, 'a foto foi baixada pela rota /content da Dualhook');
+  const img = await fetch(`${BASE}/api/whatsapp/media/${dmsgs[0].id}`, { headers: { Cookie: '' } });
+  ok(img.status === 401, 'foto exige login');
+  ok(!(await S.rafael('GET', '/api/whatsapp/status')).data.inboxes.some((i) => i.id === dh.id), 'Rafael (master) não vê a caixa pessoal do Felipe');
+  r = await S.felipe('POST', `/api/whatsapp/conversations/${dlist[0].id}/messages`, { text: 'Chego às 13h.' });
+  ok(r.status === 200 && sent.some((x) => x.via === 'dualhook' && x.text && x.text.body === 'Chego às 13h.' && x.to === FAMILY), 'resposta sai pela Dualhook com a chave dh_live_');
+  r = await S.felipe('PATCH', `/api/whatsapp/admin/inboxes/${dh.id}`, { rotateHook: true });
+  ok(r.status === 200 && r.data.hook && r.data.hook.verifyToken !== key, 'gerar novo endereço');
+  ok((await dhPost(dhMsg([{ from: FAMILY, ...text('wamid.d5', 'no endereço velho') }]))).status === 404, 'o endereço antigo para de funcionar na hora');
 
   // ---- Membros mudam ----
   r = await S.rafael('PATCH', `/api/whatsapp/admin/inboxes/${comercial.id}`, { memberIds: ['wa_tmp_duda'] });

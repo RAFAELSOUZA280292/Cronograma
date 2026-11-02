@@ -19,6 +19,14 @@ export async function ensureWhatsappSchema(db) {
       created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+  // Intermediário (2026-11-02, decisão do Rafael: testar a Dualhook com o número pessoal dele). 'meta' = API da Meta direto;
+  // 'dualhook' = runtime da Dualhook (mesmo formato da Graph API, chave dh_live_). Na Dualhook a assinatura do webhook é do app DELES e não
+  // pode ser conferida: cada caixa recebe num endereço secreto próprio (hook_hash = sha256 da chave) e o painel confere conta e número.
+  // O identificador do número só é conhecido depois do cadastro na Meta: pode ficar vazio e é aprendido no 1º evento do endereço secreto.
+  await db.query(`ALTER TABLE wa_inboxes ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'meta'`);
+  await db.query(`ALTER TABLE wa_inboxes ADD COLUMN IF NOT EXISTS waba_id TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE wa_inboxes ADD COLUMN IF NOT EXISTS hook_hash TEXT UNIQUE`);
+  await db.query(`ALTER TABLE wa_inboxes ALTER COLUMN phone_number_id DROP NOT NULL`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS wa_inbox_members (
       inbox_id TEXT NOT NULL REFERENCES wa_inboxes(id) ON DELETE CASCADE,

@@ -180,9 +180,9 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/todoNotifications.js` | 109 | Notificações das TAREFAS DE REUNIÃO (Onda 5, §81): atribuída, comentada e vencida. As tarefas vivem dentro do JSON do |
 | `server/usageLog.js` | 103 | Rastreador de uso (Central de Inteligência Operacional). Recebe fatias de tempo do app: quanto tempo a aba ficou visível |
 | `server/usagePolicy.js` | 33 | Transparência e finalidade (LGPD): texto único, exibido a toda a equipe (Meu perfil) e à liderança (Central). |
-| `server/whatsapp.js` | 517 | WhatsApp (Fase 1, 2026-11-02): conversas do WhatsApp no painel pela API oficial da Meta (Cloud API). |
-| `server/whatsappCore.js` | 196 | WhatsApp (Fase 1, 2026-11-02): funções puras da integração com a API oficial da Meta (WhatsApp Cloud API). |
-| `server/whatsappSchema.js` | 82 | Tabelas do WhatsApp (Fase 1, 2026-11-02) — ver server/whatsapp.js. Só aditivo; chamado por initDb(). |
+| `server/whatsapp.js` | 593 | WhatsApp (Fase 1, 2026-11-02): conversas do WhatsApp no painel pela API oficial da Meta (Cloud API). |
+| `server/whatsappCore.js` | 197 | WhatsApp (Fase 1, 2026-11-02): funções puras da integração com a API oficial da Meta (WhatsApp Cloud API). |
+| `server/whatsappSchema.js` | 90 | Tabelas do WhatsApp (Fase 1, 2026-11-02) — ver server/whatsapp.js. Só aditivo; chamado por initDb(). |
 | `server/widget.js` | 120 | Widget do iPhone (Scriptable) — 2026-10-05, §76. O widget não faz login: usa um token secreto, só de leitura, |
 | `server/widgetSummary.js` | 120 | Resumo para o widget do iPhone (2026-10-05, §76). Funções puras: recebem o JSON do quadro pessoal, |
 | `server/xflow.js` | 878 |  |
@@ -419,8 +419,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/ui/tableLogic.js` | 75 | Tabela profissional (Onda 3, U3): lógica pura de seleção em massa, colunas escolhidas e resumo de lote. Sem React nem rede (testável em Node). |
 | `src/ui/ui.css` | 319 | Peças visuais comuns do app (2026-10-04, §72). Antes cada módulo reinventava cartão, aba, etiqueta e botão |
 | `src/versions/VersionHistory.jsx` | 341 | Histórico de versões do cronograma (§83): consultar, comparar, criar ponto de restauração e restaurar (Master) com confirmação, backup automático e desfazer. |
-| `src/whatsapp/WhatsAppScreen.jsx` | 541 | WhatsApp (2026-11-02, Fase 1): caixa de conversas do número da PRICETAX, compartilhada pela equipe. Duas colunas — |
-| `src/whatsapp/whatsapp.css` | 101 | WhatsApp (2026-11-02). Duas colunas no computador; uma no celular (abaixo de 768 px). Mesmos tokens da Caixa de e-mail. */ |
+| `src/whatsapp/WhatsAppScreen.jsx` | 572 | WhatsApp (2026-11-02, Fase 1): caixa de conversas do número da PRICETAX, compartilhada pela equipe. Duas colunas — |
+| `src/whatsapp/whatsapp.css` | 104 | WhatsApp (2026-11-02). Duas colunas no computador; uma no celular (abaixo de 768 px). Mesmos tokens da Caixa de e-mail. */ |
 | `src/widget/WidgetSection.jsx` | 196 |  |
 | `src/widget/scriptableScript.js` | 190 | Script do Scriptable (iOS) colado pelo usuário — mostra atrasadas, vencem hoje e próxima reunião. |
 | `src/xflow/XFlow.jsx` | 3377 |  |

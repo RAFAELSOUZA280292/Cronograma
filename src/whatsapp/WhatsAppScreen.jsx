@@ -255,7 +255,21 @@ function AuthorizeCard({ inbox, onDone }) {
   );
 }
 
-const blankInbox = { name: '', kind: 'shared', ownerId: '', phoneNumberId: '', displayPhone: '', token: '', active: true, memberIds: [] };
+// Endereço secreto da caixa na Dualhook: aparece uma vez só (no banco fica só o hash).
+function HookInfo({ hook, onDone }) {
+  const copy = (t) => { try { navigator.clipboard.writeText(t); notify('Copiado.', { tone: 'success' }); } catch { notify('Não consegui copiar; selecione e copie.', { tone: 'error' }); } };
+  return (
+    <div className="wa-hook">
+      <strong>Cole estes dois dados na Dualhook antes de conectar o número</strong>
+      <div className="wa-sub">Eles aparecem só agora. Se perder, gere um novo endereço na edição da caixa.</div>
+      <label className="wa-field"><span>Endereço do webhook (Webhook URL)</span><div className="wa-copy"><input readOnly value={hook.url} onFocus={(e) => e.target.select()} /><Button size="sm" onClick={() => copy(hook.url)}>Copiar</Button></div></label>
+      <label className="wa-field"><span>Senha de verificação (Verify token)</span><div className="wa-copy"><input readOnly value={hook.verifyToken} onFocus={(e) => e.target.select()} /><Button size="sm" onClick={() => copy(hook.verifyToken)}>Copiar</Button></div></label>
+      <div className="ui-dlg-actions"><Button variant="primary" onClick={onDone}>Já copiei</Button></div>
+    </div>
+  );
+}
+
+const blankInbox = { name: '', kind: 'shared', provider: 'meta', ownerId: '', phoneNumberId: '', wabaId: '', displayPhone: '', token: '', active: true, memberIds: [] };
 
 // Configurar caixas (master): número, chave da Meta (só gravada, nunca mostrada), tipo e quem vê. Não mostra conversa nenhuma.
 function InboxAdmin({ onClose, onSaved }) {
@@ -267,6 +281,7 @@ function InboxAdmin({ onClose, onSaved }) {
   const [error, setError] = useState('');
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [base, setBase] = useState(blankInbox);
+  const [hookInfo, setHookInfo] = useState(null);
   const dirty = editing !== null && JSON.stringify(form) !== JSON.stringify(base);
   useDirtyForm(dirty);
 
@@ -274,20 +289,23 @@ function InboxAdmin({ onClose, onSaved }) {
 
   function requestClose() { if (dirty) setConfirmDiscard(true); else onClose(); }
   const edit = (i) => {
-    const f = i ? { name: i.name, kind: i.kind, ownerId: i.ownerId || '', phoneNumberId: i.phoneNumberId, displayPhone: i.displayPhone, token: '', active: i.active, memberIds: i.members.map((m) => m.id) } : blankInbox;
+    const f = i ? { name: i.name, kind: i.kind, provider: i.provider, ownerId: i.ownerId || '', phoneNumberId: i.phoneNumberId || '', wabaId: i.wabaId || '', displayPhone: i.displayPhone, token: '', active: i.active, memberIds: i.members.map((m) => m.id) } : blankInbox;
     setEditing(i ? i.id : 'new'); setForm(f); setBase(f); setError('');
   };
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const toggleMember = (id) => set('memberIds', form.memberIds.includes(id) ? form.memberIds.filter((x) => x !== id) : [...form.memberIds, id]);
 
-  async function save(e) {
+  async function save(e, extra) {
     if (e) e.preventDefault();
     setBusy(true); setError('');
     try {
-      const body = { ...form };
+      const body = { ...form, ...(extra || {}) };
       if (!body.token) delete body.token;
+      if (editing !== 'new') { delete body.provider; delete body.kind; delete body.ownerId; }
+      if (editing !== 'new' && !body.phoneNumberId) delete body.phoneNumberId;
       const r = editing === 'new' ? await apiPost('/api/whatsapp/admin/inboxes', body) : await apiPatch(`/api/whatsapp/admin/inboxes/${editing}`, body);
       setData((d) => ({ ...d, inboxes: r.inboxes }));
+      if (r.hook) setHookInfo(r.hook);
       notify('Caixa salva.', { tone: 'success' });
       setEditing(null); setForm(blankInbox); setBase(blankInbox);
       onSaved();
@@ -306,6 +324,7 @@ function InboxAdmin({ onClose, onSaved }) {
         </div>
         <BusyBar active={!data || busy} />
         {data && !data.webhookReady && <div className="ui-dlg-msg">O servidor ainda não tem as chaves do app da Meta (WHATSAPP_APP_SECRET e WHATSAPP_VERIFY_TOKEN). Dá para cadastrar as caixas; elas recebem quando as chaves entrarem.</div>}
+        {hookInfo && editing === null && <HookInfo hook={hookInfo} onDone={() => setHookInfo(null)} />}
         {data && editing === null && (
           <>
             <ul className="wa-admin-list">
@@ -317,6 +336,7 @@ function InboxAdmin({ onClose, onSaved }) {
                     <strong>{i.name}</strong>{!i.active && <span className="wa-sub"> · desligada</span>}
                     <div className="wa-sub">
                       {i.kind === 'personal' ? `Pessoal de ${i.ownerName} · ${i.authorized ? 'autorizada pelo dono' : 'aguardando o dono autorizar'}` : `Compartilhada · ${i.members.map((m) => m.name).join(', ') || 'sem membros'}`}
+                      {i.provider === 'dualhook' ? ' · Dualhook' : ' · Meta direto'}{i.phonePending ? ' · número ainda não conectado' : ''}
                       {i.displayPhone ? ` · ${i.displayPhone}` : ''}{i.tokenSet ? '' : ' · sem chave de acesso'}
                     </div>
                   </div>
@@ -331,6 +351,10 @@ function InboxAdmin({ onClose, onSaved }) {
         )}
         {data && editing !== null && (
           <form onSubmit={save} className="wa-admin-form">
+            {editing === 'new' && (
+              <Segmented label="Por onde o número se liga" value={form.provider} onChange={(v) => set('provider', v)} options={[{ value: 'meta', label: 'Meta direto' }, { value: 'dualhook', label: 'Dualhook (coexistência)' }]} />
+            )}
+            {form.provider === 'dualhook' && <div className="ui-dlg-msg">Dualhook: ao salvar, o painel mostra um endereço e uma senha de verificação para colar na Dualhook ANTES de conectar o número. O identificador do número pode ficar vazio: o painel aprende sozinho na primeira mensagem.</div>}
             {editing === 'new' && (
               <Segmented label="Tipo da caixa" value={form.kind} onChange={(v) => set('kind', v)} options={[{ value: 'shared', label: 'Compartilhada' }, { value: 'personal', label: 'Pessoal' }]} />
             )}
@@ -350,8 +374,15 @@ function InboxAdmin({ onClose, onSaved }) {
             )}
             {form.kind === 'personal' && current && <div className="wa-sub">Dono: {current.ownerName} (não muda; para outro dono, crie outra caixa).</div>}
             <label className="wa-field"><span>Número exibido</span><input value={form.displayPhone} onChange={(e) => set('displayPhone', e.target.value)} maxLength={30} placeholder="+55 (41) 99999-0000" /></label>
-            <label className="wa-field"><span>Identificador do número na Meta (Phone number ID)</span><input value={form.phoneNumberId} onChange={(e) => set('phoneNumberId', e.target.value.replace(/\D/g, ''))} inputMode="numeric" maxLength={25} /></label>
-            <label className="wa-field"><span>Chave de acesso da Meta {current && current.tokenSet ? '(já guardada; preencha só para trocar)' : ''}</span><input type="password" value={form.token} onChange={(e) => set('token', e.target.value)} autoComplete="off" /></label>
+            <label className="wa-field"><span>Identificador do número (Phone number ID){form.provider === 'dualhook' ? ' — opcional' : ''}</span><input value={form.phoneNumberId} onChange={(e) => set('phoneNumberId', e.target.value.replace(/\D/g, ''))} inputMode="numeric" maxLength={25} /></label>
+            {form.provider === 'dualhook' && <label className="wa-field"><span>Identificador da conta (WABA ID) — opcional</span><input value={form.wabaId} onChange={(e) => set('wabaId', e.target.value.replace(/\D/g, ''))} inputMode="numeric" maxLength={25} /></label>}
+            <label className="wa-field"><span>{form.provider === 'dualhook' ? 'Chave da Dualhook (dh_live_…)' : 'Chave de acesso da Meta'} {current && current.tokenSet ? '(já guardada; preencha só para trocar)' : ''}</span><input type="password" value={form.token} onChange={(e) => set('token', e.target.value)} autoComplete="off" /></label>
+            {current && current.provider === 'dualhook' && (
+              <div className="wa-sub">
+                Endereço de recebimento {current.hookSet ? 'cadastrado' : 'ausente'}.{' '}
+                <button type="button" className="mail-link" disabled={busy} onClick={async () => { if (await askConfirm({ title: 'Gerar novo endereço?', message: 'O endereço atual para de funcionar na hora. Você terá de colar o novo na Dualhook.', confirmLabel: 'Gerar novo' })) save(null, { rotateHook: true }); }}>Gerar novo endereço</button>
+              </div>
+            )}
             {form.kind === 'shared' && (
               <fieldset className="wa-field wa-members">
                 <legend>Quem vê e responde</legend>

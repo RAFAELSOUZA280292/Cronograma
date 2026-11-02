@@ -98,3 +98,6 @@ a.wa-file:hover { border-color: var(--ui-info); color: var(--text-1); }
   .wa-inbox-pick, .wa-inbox-pick select { width: 100%; max-width: none; }
   .wa-inbox-pick select, .wa-field input, .wa-field select { height: 44px; font-size: 16px; }
 }
+.wa-hook { margin: 12px 0; padding: 12px; border: 1px solid var(--ui-warn); border-radius: 10px; background: var(--ui-warn-bg); }
+.wa-copy { display: flex; gap: 8px; align-items: center; }
+.wa-copy input { flex: 1; min-width: 0; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }

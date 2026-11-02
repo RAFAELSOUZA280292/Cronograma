@@ -8,7 +8,7 @@ Só os **nomes** e onde são lidos; **nunca** valores. Os valores reais ficam no
 |---|---|---|
 | `ACCESS_RETENTION_DAYS` | `server/usageLog.js` | `accessDays: Math.max(90, Number(process.env.ACCESS_RETENTION_DAYS) \|\| 730),` |
 | `ANTHROPIC_API_KEY` | `server/assistant.js`, `server/assistantGeneral.js`, `server/dailyContent.js`, `server/evals/runFullEval.mjs` +8 | `if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ message: 'Assistente não configurado nesse ambiente (falta ANTHROPIC_API_KEY).' });` |
-| `APP_BASE_URL` | `server/companyCalendar.js`, `server/crm/googleSync.js`, `server/google.js`, `server/xflow.js` | `const appUrl = () => process.env.APP_BASE_URL \|\| '';` |
+| `APP_BASE_URL` | `server/companyCalendar.js`, `server/crm/googleSync.js`, `server/google.js`, `server/whatsapp.js` +1 | `const appUrl = () => process.env.APP_BASE_URL \|\| '';` |
 | `DATABASE_URL` | `server/db.js`, `server/evals/runFullEval.mjs`, `server/renata/scriptedClient.js` | `connectionString: process.env.DATABASE_URL,` |
 | `DEV` | `src/dev/uiAudit.js`, `src/main.jsx` | `// `import.meta.env.DEV` e o Vite o tira do pacote de produção. Uso no console do navegador (ou por um robô de teste):` |
 | `GIT_COMMIT` | `server/evals/runFullEval.mjs` | ``eval-run-${Date.now()}`, EVAL_ORG_ID, process.env.GIT_COMMIT \|\| null, 'v1-fase1',` |
@@ -37,6 +37,6 @@ Só os **nomes** e onde são lidos; **nunca** valores. Os valores reais ficam no
 | `VERSIONS_KEEP_DAYS` | `server/projectVersions.js` | `keepDays: Math.max(90, Number(process.env.VERSIONS_KEEP_DAYS) \|\| 730),` |
 | `VOYAGE_API_KEY` | `server/embeddings.js` | `return !!process.env.VOYAGE_API_KEY;` |
 | `WHATSAPP_APP_SECRET` | `server/whatsapp.js` | `appSecret: process.env.WHATSAPP_APP_SECRET \|\| '',` |
-| `WHATSAPP_GRAPH_BASE` | `server/whatsapp.js` | `const graphBase = () => (process.env.NODE_ENV !== 'production' && process.env.WHATSAPP_GRAPH_BASE) \|\| 'https://graph.facebook.com';` |
+| `WHATSAPP_GRAPH_BASE` | `server/whatsapp.js` | `if (process.env.NODE_ENV !== 'production' && process.env.WHATSAPP_GRAPH_BASE && url.origin === new URL(process.env.WHATSAPP_GRAPH_BASE).origin) retur…` |
 | `WHATSAPP_GRAPH_VERSION` | `server/whatsapp.js` | `version: /^v\d{2}\.\d$/.test(process.env.WHATSAPP_GRAPH_VERSION \|\| '') ? process.env.WHATSAPP_GRAPH_VERSION : 'v24.0',` |
 | `WHATSAPP_VERIFY_TOKEN` | `server/whatsapp.js` | `verifyToken: process.env.WHATSAPP_VERIFY_TOKEN \|\| '',` |

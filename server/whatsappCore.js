@@ -132,6 +132,7 @@ export function parseWebhook(body, allowed) {
   const events = [];
   if (!body || body.object !== 'whatsapp_business_account' || !Array.isArray(body.entry)) return events;
   for (const entry of body.entry) {
+    const wabaId = String((entry && entry.id) || '');
     for (const ch of (entry && entry.changes) || []) {
       const v = (ch && ch.value) || {};
       const meta = v.metadata || {};
@@ -142,18 +143,18 @@ export function parseWebhook(body, allowed) {
         for (const m of v.messages || []) {
           const waId = normalizeWaId(m.from);
           if (!waId || !m.id) continue;
-          events.push({ type: 'message', phoneNumberId, direction: 'in', waId, profileName: names[waId] || '', ...mapMessage(m, 'in') });
+          events.push({ type: 'message', phoneNumberId, wabaId, direction: 'in', waId, profileName: names[waId] || '', ...mapMessage(m, 'in') });
         }
         for (const s of v.statuses || []) {
           if (!s.id) continue;
           const err = (s.errors || [])[0];
-          events.push({ type: 'status', phoneNumberId, waMessageId: String(s.id), status: String(s.status || ''), at: tsToIso(s.timestamp), error: err ? friendlyGraphError({ error: err }) : '' });
+          events.push({ type: 'status', phoneNumberId, wabaId, waMessageId: String(s.id), status: String(s.status || ''), at: tsToIso(s.timestamp), error: err ? friendlyGraphError({ error: err }) : '' });
         }
       } else if (ch.field === 'smb_message_echoes') {
         for (const m of v.message_echoes || []) {
           const waId = normalizeWaId(m.to);
           if (!waId || !m.id) continue;
-          events.push({ type: 'message', phoneNumberId, direction: 'out', via: 'celular', waId, profileName: '', ...mapMessage(m, 'out') });
+          events.push({ type: 'message', phoneNumberId, wabaId, direction: 'out', via: 'celular', waId, profileName: '', ...mapMessage(m, 'out') });
         }
       }
     }

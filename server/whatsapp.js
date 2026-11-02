@@ -4,8 +4,10 @@
 //   - pessoal: número pessoal de um sócio em coexistência com o app do celular; só o DONO vê, nunca outra pessoa (nem o master),
 //     e nada é guardado até o próprio dono clicar em "Autorizo" no painel. Desautorizar apaga o que foi guardado.
 // A Meta avisa por webhook (mensagem recebida, status de entrega, eco do celular); o conteúdo vai cifrado para o banco (secretBox).
-// Liga com WHATSAPP_APP_SECRET e WHATSAPP_VERIFY_TOKEN (um app da Meta); cada caixa guarda o próprio identificador do número e a chave
-// de acesso (cifrada), cadastrados pelo master em "Configurar caixas". Regras puras em server/whatsappCore.js.
+// Dois caminhos por caixa (`provider`): 'meta' (API da Meta direto; webhook único /webhook assinado com WHATSAPP_APP_SECRET) e
+// 'dualhook' (intermediário com coexistência; envia pelo runtime deles com chave dh_live_ e recebe num endereço secreto da caixa,
+// /hook/<chave>, porque a assinatura é do app da Dualhook e não pode ser conferida aqui). Cada caixa guarda número e chave (cifrada),
+// cadastrados pelo master em "Configurar caixas". Regras puras em server/whatsappCore.js.
 
 import { Router } from 'express';
 import crypto from 'node:crypto';
@@ -25,8 +27,15 @@ const cfg = () => ({
   version: /^v\d{2}\.\d$/.test(process.env.WHATSAPP_GRAPH_VERSION || '') ? process.env.WHATSAPP_GRAPH_VERSION : 'v24.0',
 });
 export const whatsappEnabled = () => ENV_KEYS.every((k) => !!process.env[k]);
-// Só para teste local (servidor falso da Meta); em produção é sempre a Graph API.
-const graphBase = () => (process.env.NODE_ENV !== 'production' && process.env.WHATSAPP_GRAPH_BASE) || 'https://graph.facebook.com';
+// Só para teste local (servidores falsos); em produção são sempre a Graph API e o runtime da Dualhook.
+const testBase = (k) => (process.env.NODE_ENV !== 'production' && process.env[k]) || '';
+const graphBase = () => testBase('WHATSAPP_GRAPH_BASE') || 'https://graph.facebook.com';
+const dualhookBase = () => testBase('WHATSAPP_DUALHOOK_BASE') || 'https://api.dualhook.com/v25.0';
+const apiBase = (inbox) => (inbox.provider === 'dualhook' ? dualhookBase() : `${graphBase()}/${cfg().version}`);
+// Caixa que consegue enviar: tem número e chave; a da Meta direto ainda depende das chaves do app no servidor.
+const sendable = (inbox) => !!(inbox.token_enc && inbox.phone_number_id && (inbox.provider === 'dualhook' || whatsappEnabled()));
+const hookHash = (key) => crypto.createHash('sha256').update(`wa-hook|${key}`).digest('hex');
+const publicBase = () => (process.env.APP_BASE_URL || 'https://painel.pricetax.com.br').replace(/\/+$/, '');
 
 const uid = (p) => `${p}-${crypto.randomBytes(8).toString('hex')}`;
 const ID_RE = /^wa[cmi]-[a-f0-9]{16}$/;
@@ -36,7 +45,7 @@ const plain = (v) => { const t = open(v); return t === null ? '[conteúdo ilegí
 async function graph(inbox, path, { method = 'GET', json, form } = {}) {
   const token = open(inbox.token_enc);
   if (!token) { const e = new Error('Esta caixa está sem a chave de acesso da Meta. Avise o administrador.'); e.graph = { code: 190 }; e.status = 409; throw e; }
-  const res = await fetch(`${graphBase()}/${cfg().version}/${path}`, {
+  const res = await fetch(`${apiBase(inbox)}/${path}`, {
     method,
     headers: { Authorization: `Bearer ${token}`, ...(json ? { 'Content-Type': 'application/json' } : {}) },
     body: json ? JSON.stringify(json) : form,
@@ -58,12 +67,14 @@ function mediaUrlAllowed(u) {
 async function downloadMedia(inbox, messageRowId, media) {
   try {
     const info = await graph(inbox, encodeURIComponent(media.id));
-    if (!info.url || !mediaUrlAllowed(info.url)) throw new Error('endereço de arquivo inesperado');
     if (Number(info.file_size) > MAX_MEDIA_BYTES) {
       await pool.query(`UPDATE wa_messages SET media = media || '{"tooBig":true}'::jsonb WHERE id = $1`, [messageRowId]);
       return;
     }
-    const res = await fetch(info.url, { headers: { Authorization: `Bearer ${open(inbox.token_enc)}` }, redirect: 'error', signal: AbortSignal.timeout(60000) });
+    // Dualhook: os bytes vêm da rota /<id>/content do próprio runtime (nunca do CDN da Meta). Meta direto: o endereço devolvido.
+    const url = inbox.provider === 'dualhook' ? `${dualhookBase()}/${encodeURIComponent(media.id)}/content` : info.url;
+    if (!url || (inbox.provider !== 'dualhook' && !mediaUrlAllowed(url))) throw new Error('endereço de arquivo inesperado');
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${open(inbox.token_enc)}` }, redirect: 'error', signal: AbortSignal.timeout(60000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length > MAX_MEDIA_BYTES) throw new Error('arquivo grande demais');
@@ -176,13 +187,56 @@ publicRouter.post('/webhook', async (req, res) => {
     const all = parseWebhook(body);
     const ids = [...new Set(all.map((e) => e.phoneNumberId))];
     if (ids.length) {
-      const { rows } = await pool.query('SELECT * FROM wa_inboxes WHERE phone_number_id = ANY($1)', [ids]);
+      const { rows } = await pool.query(`SELECT * FROM wa_inboxes WHERE phone_number_id = ANY($1) AND provider = 'meta'`, [ids]);
       if (rows.length) await ingestEvents(all, new Map(rows.map((r) => [r.phone_number_id, r])));
     }
     res.sendStatus(200);
   } catch (e) {
     console.error('WhatsApp: falha ao gravar o webhook', e.message);
     res.status(500).json({ message: 'Falha ao gravar.' }); // a Meta tenta de novo
+  }
+});
+
+// ---- Endereço secreto da caixa (Dualhook) ----
+// A Meta entrega aqui pela "Webhook Override" que a Dualhook aplica na conta do número. Sem assinatura conferível: autentica pelo segredo
+// do endereço (sha256 no banco, nunca a chave) e confere conta (entry.id) e número (metadata.phone_number_id). Primeiro evento com o número
+// ainda vazio ensina o número e a conta à caixa. Exceção consciente à regra "credencial nunca na URL" (§16.1): é o formato do intermediário;
+// o servidor não registra requisições.
+
+async function inboxByHook(key) {
+  if (!/^[A-Za-z0-9_-]{32,128}$/.test(String(key || ''))) return null;
+  const { rows } = await pool.query('SELECT * FROM wa_inboxes WHERE hook_hash = $1', [hookHash(key)]);
+  return rows[0] || null;
+}
+
+publicRouter.get('/hook/:key', async (req, res, next) => {
+  try {
+    const inbox = await inboxByHook(req.params.key);
+    const token = String(req.query['hub.verify_token'] || '');
+    if (!inbox || req.query['hub.mode'] !== 'subscribe' || hookHash(token) !== inbox.hook_hash) return res.status(403).json({ message: 'Verificação recusada.' });
+    res.type('text/plain').send(String(req.query['hub.challenge'] || ''));
+  } catch (e) { next(e); }
+});
+
+publicRouter.post('/hook/:key', async (req, res) => {
+  try {
+    let inbox = await inboxByHook(req.params.key);
+    if (!inbox) return res.status(404).json({ message: 'Endereço desconhecido.' });
+    const events = parseWebhook(req.body);
+    if (!inbox.phone_number_id && events[0]) {
+      const { rows } = await pool.query(
+        `UPDATE wa_inboxes SET phone_number_id = $2, waba_id = CASE WHEN waba_id = '' THEN $3 ELSE waba_id END
+         WHERE id = $1 AND phone_number_id IS NULL AND NOT EXISTS (SELECT 1 FROM wa_inboxes x WHERE x.phone_number_id = $2) RETURNING *`,
+        [inbox.id, events[0].phoneNumberId, events[0].wabaId]
+      );
+      if (rows[0]) inbox = rows[0];
+    }
+    const mine = events.filter((e) => e.phoneNumberId === inbox.phone_number_id && (!inbox.waba_id || e.wabaId === inbox.waba_id));
+    if (mine.length) await ingestEvents(mine, new Map([[inbox.phone_number_id, inbox]]));
+    res.sendStatus(200);
+  } catch (e) {
+    console.error('WhatsApp: falha ao gravar o webhook da caixa', e.message);
+    res.status(500).json({ message: 'Falha ao gravar.' });
   }
 });
 
@@ -245,12 +299,12 @@ router.get('/status', async (req, res, next) => {
     )).rows : [];
     const by = Object.fromEntries(unread.map((u) => [u.inbox_id, u.n]));
     res.json({
-      enabled: whatsappEnabled(),
+      enabled: whatsappEnabled() || inboxes.some((i) => i.provider === 'dualhook'),
       isMaster: req.user.role === 'master',
       missing: req.user.role === 'master' ? ENV_KEYS.filter((k) => !process.env[k]) : [],
       inboxes: inboxes.map((i) => ({
         id: i.id, name: i.name, kind: i.kind, displayPhone: i.display_phone, unread: by[i.id] || 0,
-        authorized: i.kind === 'shared' || !!i.authorized_at, ready: !!i.token_enc,
+        authorized: i.kind === 'shared' || !!i.authorized_at, ready: sendable(i),
       })),
     });
   } catch (e) { next(e); }
@@ -292,7 +346,7 @@ router.post('/conversations/:id/read', async (req, res, next) => {
     const { conv, inbox } = found;
     await pool.query('UPDATE wa_conversations SET unread = 0 WHERE id = $1', [conv.id]);
     await pool.query(`UPDATE notifications SET read = true WHERE user_id = $1 AND type = 'whatsapp_message' AND target->>'conversationId' = $2`, [req.user.id, conv.id]).catch(() => {});
-    if (conv.unread > 0 && whatsappEnabled()) {
+    if (conv.unread > 0 && sendable(inbox)) {
       const { rows } = await pool.query(`SELECT wa_message_id FROM wa_messages WHERE conversation_id = $1 AND direction = 'in' ORDER BY created_at DESC LIMIT 1`, [conv.id]);
       if (rows[0]) graph(inbox, `${inbox.phone_number_id}/messages`, { method: 'POST', json: { messaging_product: 'whatsapp', status: 'read', message_id: rows[0].wa_message_id } })
         .catch((e) => console.error('WhatsApp: confirmação de leitura falhou', e.message));
@@ -324,9 +378,9 @@ async function recordOutgoing(conv, user, { waMessageId, kind, body, media }) {
 
 router.post('/conversations/:id/messages', async (req, res, next) => {
   try {
-    if (!whatsappEnabled()) return res.status(503).json({ message: 'O WhatsApp ainda não foi ligado ao painel.' });
     const found = await loadConv(req, res); if (!found) return;
     const { conv, inbox } = found;
+    if (!sendable(inbox)) return res.status(503).json({ message: 'Esta caixa ainda não está pronta para enviar (falta número ou chave).' });
     if (!windowOpen(conv.last_inbound_at)) return res.status(409).json({ message: 'Passaram mais de 24 horas desde a última mensagem do cliente. Agora só é possível enviar um modelo aprovado pela Meta (Fase 3).', code: 'window_closed' });
     const att = req.body.attachment;
     const text = String(req.body.text || '').trim();
@@ -423,6 +477,7 @@ async function adminList(orgId) {
   return rows.map((i) => ({
     id: i.id, name: i.name, kind: i.kind, ownerId: i.owner_id, ownerName: i.owner_name || '', phoneNumberId: i.phone_number_id,
     displayPhone: i.display_phone, active: i.active, tokenSet: !!i.token_enc, authorized: i.kind === 'shared' || !!i.authorized_at,
+    provider: i.provider, wabaId: i.waba_id, hookSet: !!i.hook_hash, phonePending: !i.phone_number_id,
     members: i.kind === 'shared' ? i.members : [],
   }));
 }
@@ -437,7 +492,7 @@ router.get('/admin/inboxes', requireMaster, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-function inboxInput(b, creating) {
+function inboxInput(b, creating, provider) {
   const out = {};
   if (creating || b.name !== undefined) {
     out.name = String(b.name || '').trim().slice(0, 60);
@@ -445,16 +500,29 @@ function inboxInput(b, creating) {
   }
   if (creating || b.phoneNumberId !== undefined) {
     out.phoneNumberId = String(b.phoneNumberId || '').trim();
-    if (!PHONE_ID_RE.test(out.phoneNumberId)) return { error: 'O identificador do número (Phone number ID) tem só dígitos; copie do painel da Meta.' };
+    // Na Dualhook o número pode ficar vazio: é aprendido no primeiro evento que chega ao endereço secreto.
+    if (!out.phoneNumberId && provider === 'dualhook') out.phoneNumberId = null;
+    else if (!PHONE_ID_RE.test(out.phoneNumberId)) return { error: 'O identificador do número (Phone number ID) tem só dígitos; copie do painel da Meta.' };
+  }
+  if (b.wabaId !== undefined) {
+    out.wabaId = String(b.wabaId || '').trim();
+    if (out.wabaId && !PHONE_ID_RE.test(out.wabaId)) return { error: 'O identificador da conta (WABA ID) tem só dígitos.' };
   }
   if (b.displayPhone !== undefined) out.displayPhone = String(b.displayPhone || '').trim().slice(0, 30);
   if (b.token !== undefined && String(b.token).trim()) {
     const t = String(b.token).trim();
-    if (t.length < 20 || t.length > 2000 || /\s/.test(t)) return { error: 'A chave de acesso parece incompleta. Copie de novo do painel da Meta.' };
+    if (t.length < 20 || t.length > 2000 || /\s/.test(t)) return { error: 'A chave de acesso parece incompleta. Copie de novo.' };
+    if (provider === 'dualhook' && !t.startsWith('dh_live_')) return { error: 'A chave da Dualhook começa com dh_live_ (Overview da conexão, mostrada uma vez só).' };
     out.token = t;
   }
   if (b.active !== undefined) out.active = !!b.active;
   return out;
+}
+
+// Endereço secreto + senha de verificação para colar na Dualhook. Mostrado uma vez; no banco fica só o hash.
+function newHook() {
+  const key = crypto.randomBytes(32).toString('base64url');
+  return { hash: hookHash(key), out: { url: `${publicBase()}/api/whatsapp/hook/${key}`, verifyToken: key } };
 }
 
 async function setMembers(client, inboxId, orgId, ids) {
@@ -468,7 +536,8 @@ router.post('/admin/inboxes', requireMaster, async (req, res, next) => {
   const client = await pool.connect();
   try {
     const kind = req.body.kind === 'personal' ? 'personal' : 'shared';
-    const v = inboxInput(req.body, true);
+    const provider = req.body.provider === 'dualhook' ? 'dualhook' : 'meta';
+    const v = inboxInput(req.body, true, provider);
     if (v.error) return res.status(400).json({ message: v.error });
     let ownerId = null;
     if (kind === 'personal') {
@@ -476,17 +545,21 @@ router.post('/admin/inboxes', requireMaster, async (req, res, next) => {
       if (!rows[0]) return res.status(400).json({ message: 'Escolha o dono do número pessoal.' });
       ownerId = rows[0].id;
     }
-    const dup = await pool.query('SELECT 1 FROM wa_inboxes WHERE phone_number_id = $1', [v.phoneNumberId]);
-    if (dup.rows[0]) return res.status(409).json({ message: 'Este número já está cadastrado em outra caixa.' });
+    if (v.phoneNumberId) {
+      const dup = await pool.query('SELECT 1 FROM wa_inboxes WHERE phone_number_id = $1', [v.phoneNumberId]);
+      if (dup.rows[0]) return res.status(409).json({ message: 'Este número já está cadastrado em outra caixa.' });
+    }
     const id = uid('wai');
+    const hook = provider === 'dualhook' ? newHook() : null;
     await client.query('BEGIN');
     await client.query(
-      `INSERT INTO wa_inboxes (id, org_id, name, kind, owner_id, phone_number_id, display_phone, token_enc, active, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [id, req.user.orgId, v.name, kind, ownerId, v.phoneNumberId, v.displayPhone || '', v.token ? seal(v.token) : '', v.active !== false, req.user.id]
+      `INSERT INTO wa_inboxes (id, org_id, name, kind, owner_id, phone_number_id, display_phone, token_enc, active, created_by, provider, waba_id, hook_hash)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [id, req.user.orgId, v.name, kind, ownerId, v.phoneNumberId, v.displayPhone || '', v.token ? seal(v.token) : '', v.active !== false, req.user.id, provider, v.wabaId || '', hook ? hook.hash : null]
     );
     if (kind === 'shared') await setMembers(client, id, req.user.orgId, req.body.memberIds);
     await client.query('COMMIT');
-    res.json({ ok: true, id, inboxes: await adminList(req.user.orgId) });
+    res.json({ ok: true, id, inboxes: await adminList(req.user.orgId), ...(hook ? { hook: hook.out } : {}) });
   } catch (e) { await client.query('ROLLBACK').catch(() => {}); next(e); } finally { client.release(); }
 });
 
@@ -497,7 +570,7 @@ router.patch('/admin/inboxes/:id', requireMaster, async (req, res, next) => {
     const { rows } = await pool.query('SELECT * FROM wa_inboxes WHERE id = $1 AND org_id = $2', [req.params.id, req.user.orgId]);
     const inbox = rows[0];
     if (!inbox) return res.status(404).json({ message: 'Caixa não encontrada.' });
-    const v = inboxInput(req.body, false);
+    const v = inboxInput(req.body, false, inbox.provider);
     if (v.error) return res.status(400).json({ message: v.error });
     if (v.phoneNumberId && v.phoneNumberId !== inbox.phone_number_id) {
       const dup = await pool.query('SELECT 1 FROM wa_inboxes WHERE phone_number_id = $1', [v.phoneNumberId]);
@@ -506,11 +579,14 @@ router.patch('/admin/inboxes/:id', requireMaster, async (req, res, next) => {
     await client.query('BEGIN');
     await client.query(
       `UPDATE wa_inboxes SET name = COALESCE($2, name), phone_number_id = COALESCE($3, phone_number_id), display_phone = COALESCE($4, display_phone),
-         token_enc = COALESCE($5, token_enc), active = COALESCE($6, active) WHERE id = $1`,
-      [inbox.id, v.name ?? null, v.phoneNumberId ?? null, v.displayPhone ?? null, v.token ? seal(v.token) : null, v.active ?? null]
+         token_enc = COALESCE($5, token_enc), active = COALESCE($6, active), waba_id = COALESCE($7, waba_id) WHERE id = $1`,
+      [inbox.id, v.name ?? null, v.phoneNumberId ?? null, v.displayPhone ?? null, v.token ? seal(v.token) : null, v.active ?? null, v.wabaId ?? null]
     );
+    // Novo endereço secreto (Dualhook): o antigo para de funcionar na hora; o novo aparece uma vez só.
+    const hook = inbox.provider === 'dualhook' && req.body.rotateHook ? newHook() : null;
+    if (hook) await client.query('UPDATE wa_inboxes SET hook_hash = $2 WHERE id = $1', [inbox.id, hook.hash]);
     if (inbox.kind === 'shared' && req.body.memberIds !== undefined) await setMembers(client, inbox.id, req.user.orgId, req.body.memberIds);
     await client.query('COMMIT');
-    res.json({ ok: true, inboxes: await adminList(req.user.orgId) });
+    res.json({ ok: true, inboxes: await adminList(req.user.orgId), ...(hook ? { hook: hook.out } : {}) });
   } catch (e) { await client.query('ROLLBACK').catch(() => {}); next(e); } finally { client.release(); }
 });
