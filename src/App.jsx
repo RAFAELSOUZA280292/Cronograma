@@ -1012,7 +1012,7 @@ function AppScreens({ shellRef, bump }) {
   goToWorkspaceRef.current = goToWorkspace;
   useEffect(() => {
     function onMailto(e) {
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
       if (!a || !/^mailto:/i.test(a.getAttribute('href') || '')) return;
       const u = currentUserRef.current;
@@ -1023,8 +1023,9 @@ function AppScreens({ shellRef, bump }) {
       goToWorkspaceRef.current('mail');
       requestCompose(target);
     }
-    document.addEventListener('click', onMailto);
-    return () => document.removeEventListener('click', onMailto);
+    // Captura: os cartões do CRM (ContactLinks) param a propagação do clique; na fase de bolha o link escapava para o Mail do Mac.
+    document.addEventListener('click', onMailto, true);
+    return () => document.removeEventListener('click', onMailto, true);
   }, []);
   useEffect(() => {
     try { window.history.replaceState({ navTag: locationTag(workspaceMode, showUsers, showOrgAdmin, companySelectionConfirmed) }, '', window.location.href); } catch (e) { /* ignora */ }
