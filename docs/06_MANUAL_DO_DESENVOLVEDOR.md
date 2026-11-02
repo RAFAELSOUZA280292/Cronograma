@@ -98,6 +98,9 @@ Procure o texto exato com `grep -rn "trecho" src server`. Mensagem de erro de re
 4. Reproduza com teste descartável local; corrija na causa; rode os testes da área e `npm run build`.
 5. Documente (§ novo no `PROJECT_CONTEXT.md`), faça deploy e **verifique em produção**.
 
+## Servidor local
+`preview_start` com o nome `cronograma-dev` (em `.claude/launch.json`, arquivo local que não vai ao repositório) roda `/usr/bin/env PORT=3001 DATABASE_URL=postgres://localhost:5432/cronograma_dev JWT_SECRET=<brinquedo> npm --prefix <pasta do projeto> run dev`. `PORT=3001` é obrigatório (senão o Express colide com o Vite na 5173). **Não use script**: o sistema recusa executar arquivos de dentro de `~/Downloads` (erro 126, "Operation not permitted"), por isso o comando é só `env` + `npm --prefix`. Testes de tela: `npm run test:e2e` (recria o banco `cronograma_e2e` e roda tudo). Os testes de `scripts/` que usam HTTP precisam desse servidor ligado e de usuários que o banco de desenvolvimento pode não ter.
+
 ## Checklist de "pronto" (toda mudança)
 - [ ] Li o código envolvido (não só a documentação).
 - [ ] Permissão conferida **no servidor**; isolamento por `org_id`; 404 para registro de outra base.

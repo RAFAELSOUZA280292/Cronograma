@@ -7,6 +7,8 @@ Seção curta de propósito: **atualize a cada entrega** (checklist em `docs/06_
 
 **No ar** (deploy `8bc9cc6` de 02/11, inclui tudo até `303ea9c`): janela única do app em quase todas as telas (U2), contraste medido nos dois temas, vidro na barra do topo e nos botões, mover coluna do Meu quadro para outra página, convite do Google com Meet nas reuniões do CRM, briefing diário da RENATA (**já ligado para todos**), teste de fluxos Playwright + axe no CI (15 testes).
 
+**Confirmado pelo Rafael em 02/11:** mover coluna entre páginas do Meu quadro funciona no uso real dele.
+
 **Pendências do Rafael** (nenhuma depende de código):
 - Revogar e recriar as chaves que apareceram em prints do `.env` (IA, Voyage, tokens `pxk_`, Google, Railway).
 - Testar o convite com Meet de verdade: Reunião com horário, contato com o e-mail dele e o campo de convite marcado.
@@ -19,6 +21,8 @@ Seção curta de propósito: **atualize a cada entrega** (checklist em `docs/06_
 **Dívidas conhecidas:** botão dentro de botão nos cartões do quadro (axe `nested-interactive`, no baseline); Esc dentro do editor de descrição do cartão fecha só no segundo toque; imports sem uso antigos; `scripts/renata-tools.test.mjs` falha em `preferencia_guardar` (já falhava antes); `body` com a margem padrão de 8 px.
 
 **Últimas entregas:** §116zp–§116zv (01 e 02/11) e §116zh–§116zo (31/10). O "porquê" de cada uma: `docs/gerado/INDICE_PROJECT_CONTEXT.md`.
+
+**Servidor local:** `preview_start` com `cronograma-dev` (testado em 02/11: página 200 e API 401 sem login; detalhes e a armadilha do erro 126 em `docs/06_MANUAL_DO_DESENVOLVEDOR.md`).
 
 **Economia de token:** uma conversa por tarefa (sessão longa carrega o histórico inteiro em toda resposta; a anterior chegou a ~400 mil tokens). Comece por `CLAUDE.md` → esta seção → só o documento do módulo. Rode primeiro só o teste que mudou e a suíte inteira uma vez antes de publicar; confira o deploy uma vez, sem ficar consultando em laço.
 

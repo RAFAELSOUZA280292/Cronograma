@@ -634,6 +634,7 @@ Referência completa dos scripts: `docs/gerado/TESTES.md`.
 | Commit com CI verde e produção igual | a Railway parou de receber o aviso do push (3 commits parados por horas) | §116zs | depois do push, conferir o bundle servido e `gh api repos/:owner/:repo/deployments`; commit vazio reaciona |
 | `sed -i` falha com barra no texto / nada muda | o `sed` do macOS exige `''` e padrão sem `/` | §116zq | editar com Python ou com a ferramenta de edição, e conferir com `grep` |
 | Teste de `scripts/` falha em "Token ausente" ou em ferramenta sem cobertura | HTTP exige servidor e usuários do banco dev; `renata-tools` já falhava (`preferencia_guardar`) | §116zu | comparar com a versão publicada antes de culpar a mudança nova |
+| `preview_start` sai com código 126 ("Operation not permitted") | o sistema não deixa executar script de dentro de `~/Downloads` (o antigo funcionava por morar em `/private/tmp`, que some a cada reinício e é de uma conversa só) | §116zv | `launch.json` com `/usr/bin/env` + `npm --prefix`, sem script |
 
 ---
 
