@@ -9,17 +9,17 @@ Seção curta de propósito: **atualize a cada entrega** (checklist em `docs/06_
 
 **Confirmado pelo Rafael em 02/11:** mover coluna entre páginas do Meu quadro funciona no uso real dele.
 
-**Em andamento — Caixa de e-mail (§116zw):** Fase 1 (ler e organizar o Gmail em `/email`, só equipe) feita e publicada em 02/11. Fase 2 (escrever, responder, encaminhar, anexos, assinatura compatível com Outlook/celular) e Fase 3 (CRM, aviso de e-mail novo, atalhos) vêm em conversas próprias.
+**Em andamento — Caixa de e-mail (§116zw):** Fase 1 (ler e organizar o Gmail em `/email`, só equipe) feita e publicada em 02/11; **o Rafael conectou o Gmail e confirmou que a caixa abriu** (Gmail API ativada e consentimento Interno conferidos no Google Cloud). Fase 2 (escrever, responder, encaminhar, anexos, assinatura compatível com Outlook/celular) e Fase 3 (CRM, aviso de e-mail novo, atalhos) vêm em conversas próprias.
 
 **Pendências do Rafael** (nenhuma depende de código):
-- **Caixa de e-mail:** no Google Cloud (projeto do OAuth "Cronograma PRICETAX"), ligar a **Gmail API** e conferir que a tela de consentimento está como **Interno**; depois clicar em "Conectar o Gmail" em `/email` e conferir a própria caixa.
+- **Caixa de e-mail:** usar no dia a dia e apontar o que falta antes da Fase 2 (as outras pessoas da equipe conectam o próprio Gmail em `/email`).
 - Revogar e recriar as chaves que apareceram em prints do `.env` (IA, Voyage, tokens `pxk_`, Google, Railway).
 - Testar o convite com Meet de verdade: Reunião com horário, contato com o e-mail dele e o campo de convite marcado.
 - Briefing diário: manter para todos (como está) ou pedir uma trava por pessoa para virar piloto; ouvir a Eduarda (15 min).
 - Letra de 12,5 px: padronizar em 13 px? Conferir na Railway se existe um proxy que lê `X-Api-Key`. Ler `GET /api/ops-intel/payloads` como Master em alguns dias (se `GET /api/projects` passar de ~1 MB, reabrir o item E4).
 - Resumo semanal (segunda-feira): **não existe**; só se o Rafael quiser, e antes uma proposta.
 
-**Não testado de verdade:** Caixa de e-mail com Gmail real (só com respostas simuladas); iPad/iPhone e Windows reais (só Chromium); Google real (Meet e e-mail do convite); IA real (busca por significado e estudo de pareceres: a chave local da Voyage é inválida).
+**Não testado de verdade:** Caixa de e-mail além da abertura (ações, anexos, caixa grande e celular só com respostas simuladas); iPad/iPhone e Windows reais (só Chromium); Google real (Meet e e-mail do convite); IA real (busca por significado e estudo de pareceres: a chave local da Voyage é inválida).
 
 **Dívidas conhecidas:** botão dentro de botão nos cartões do quadro (axe `nested-interactive`, no baseline); Esc dentro do editor de descrição do cartão fecha só no segundo toque; imports sem uso antigos; `scripts/renata-tools.test.mjs` falha em `preferencia_guardar` (já falhava antes); `body` com a margem padrão de 8 px.
 
