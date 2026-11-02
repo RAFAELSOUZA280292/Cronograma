@@ -164,8 +164,8 @@ Arquivos: `server/agendaBooking.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/agenda/booking` | `requireAuth` |  | `server/agendaBooking.js:147` |
-| PUT | `/api/agenda/booking` | `requireAuth` |  | `server/agendaBooking.js:150` |
+| GET | `/api/agenda/booking` | `requireAuth` |  | `server/agendaBooking.js:168` |
+| PUT | `/api/agenda/booking` | `requireAuth` |  | `server/agendaBooking.js:171` |
 
 ## `/api/assistant` — 10 rotas
 
@@ -604,8 +604,8 @@ Arquivos: `server/agendaBooking.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/public-booking/:token` |  |  | `server/agendaBooking.js:169` |
-| POST | `/api/public-booking/:token/book` |  |  | `server/agendaBooking.js:183` |
+| GET | `/api/public-booking/:token` |  |  | `server/agendaBooking.js:190` |
+| POST | `/api/public-booking/:token/book` |  |  | `server/agendaBooking.js:204` |
 
 ## `/api/public-company` — 1 rotas
 
