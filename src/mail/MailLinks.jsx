@@ -2,8 +2,8 @@
 // faixa amarela "Empresa fora do CRM" (não some sozinha; a resposta vale para o domínio, para sempre), cadastro do negócio já
 // preenchido sem sair do e-mail e a aba "E-mails" (negócio e empresa do CRM, empresa do cronograma). Regras no servidor:
 // server/mailLinksCore.js e server/mailLinks.js. Operações (sem CRM) vê o selo sem link e, na faixa, só "Avisar o comercial".
-import React, { useCallback, useEffect, useState } from 'react';
-import { Building2, Briefcase, AlertTriangle, Plus, Trophy, Handshake, EyeOff, Megaphone, Mail, Paperclip, ArrowLeft, X, Link2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Building2, Briefcase, AlertTriangle, Plus, Trophy, Handshake, EyeOff, Megaphone, Mail, Paperclip, ArrowLeft, X, Link2, Download, Image as ImageIcon } from 'lucide-react';
 import { Button, Callout, BusyBar, EmptyState } from '../ui/index.jsx';
 import { notify, askConfirm, askText } from '../ui/dialogs.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
@@ -157,6 +157,41 @@ export function UnknownBanner({ link, subject, messages, crmWrite, myName, onReg
   );
 }
 
+// Corpo de uma mensagem na aba E-mails: assinatura e imagens embutidas já vêm do Gmail de quem trocou; remotas só com "Mostrar imagens"
+// (igual à Caixa de e-mail); anexos baixam pela mesma regra de leitura.
+function ReaderBody({ m }) {
+  const [images, setImages] = useState(false);
+  const html = useMemo(() => (images ? m.html.replace(/ data-pt-src="/g, ' src="') : m.html), [m.html, images]);
+  return (
+    <div className="ml-msg-body">
+      {m.remoteImages > 0 && !images && (
+        <div className="ml-images">
+          <ImageIcon size={14} aria-hidden="true" />
+          <span>As imagens deste e-mail foram bloqueadas para proteger sua privacidade.</span>
+          <button type="button" className="ml-link" onClick={() => setImages(true)}>Mostrar imagens</button>
+        </div>
+      )}
+      <MailFrame html={html} />
+      {m.attachments.length > 0 && (
+        <ul className="ml-atts" aria-label="Anexos">
+          {m.attachments.map((a) => (
+            <li key={a.url}>
+              <a className="ml-att" href={a.url} download={a.filename}>
+                <Paperclip size={14} aria-hidden="true" />
+                <span className="ml-att-name">{a.filename}</span>
+                {a.size > 0 && <span className="ml-meta">{fmtSize(a.size)}</span>}
+                <Download size={14} aria-hidden="true" />
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+
 // Cadastro do negócio sem sair do e-mail. Ganho = cria e move para a etapa "ganho" do mesmo funil (a empresa vira Cliente no servidor).
 export function RegisterDeal({ prefill, won, currentUserId, onClose, onDone }) {
   const [options, setOptions] = useState(null);
@@ -242,9 +277,8 @@ function ThreadReader({ rowId, onBack }) {
               <header className="ml-msg-head">
                 <strong>{who(m.from)}</strong> <span className="ml-meta">&lt;{m.from.email}&gt; · {fmtWhen(m.date)}</span>
                 <div className="ml-meta">Para: {m.to.map(who).join(', ') || '—'}{m.cc.length ? ` · Cc: ${m.cc.map(who).join(', ')}` : ''}</div>
-                {m.attachments.length > 0 && <div className="ml-meta"><Paperclip size={12} aria-hidden="true" /> {m.attachments.join(', ')}</div>}
               </header>
-              <MailFrame html={m.html} />
+              <ReaderBody m={m} />
             </article>
           ))}
         </>

@@ -236,7 +236,7 @@ router.get('/thread/:rowId', h(async (req, res) => {
   const { rows } = await pool.query('SELECT conv_key FROM mail_thread_index WHERE id=$1 AND org_id=$2', [req.params.rowId, req.user.orgId]);
   if (!rows[0]) return res.status(404).json({ message: 'Conversa não encontrada.' });
   const { rows: all } = await pool.query(
-    `SELECT i.user_id, i.thread_id, u.name FROM mail_thread_index i JOIN users u ON u.id = i.user_id WHERE i.org_id=$1 AND i.conv_key=$2 ORDER BY (i.user_id = $3) DESC, i.last_at DESC`,
+    `SELECT i.id, i.user_id, i.thread_id, u.name FROM mail_thread_index i JOIN users u ON u.id = i.user_id WHERE i.org_id=$1 AND i.conv_key=$2 ORDER BY (i.user_id = $3) DESC, i.last_at DESC`,
     [req.user.orgId, rows[0].conv_key, req.user.id]);
   if (!canReadContent(req.user, all.map((r) => r.user_id))) return res.status(403).json({ message: 'O texto desta conversa abre para os sócios e para quem participou dela.' });
   let lastErr = null;
@@ -249,17 +249,55 @@ router.get('/thread/:rowId', h(async (req, res) => {
       const messages = (data.messages || []).filter((m) => !(m.labelIds || []).includes('DRAFT')).map((m) => {
         const hd = headerMap(m.payload && m.payload.headers);
         const parts = walkParts(m.payload);
-        const body = parts.html ? sanitizeMailHtml(parts.html, { keepStyles: false }) : { html: textToHtml(parts.text) };
+        // Imagens embutidas (assinatura, cid:) e anexos vêm pela rota abaixo, do Gmail de quem trocou; remotas só com "Mostrar imagens".
+        const att = (a, inline) => `/api/mail-links/row/${src.id}/messages/${m.id}/attachments/${encodeURIComponent(a.id)}?${inline ? `inline=1&type=${encodeURIComponent(a.mimeType)}` : `name=${encodeURIComponent(a.filename)}`}`;
+        const cidUrl = (cid) => { const a = parts.attachments.find((x) => x.contentId === cid && x.id && INLINE_IMAGE.test(x.mimeType)); return a ? att(a, true) : null; };
+        const body = parts.html ? sanitizeMailHtml(parts.html, { cidUrl, keepStyles: true }) : { html: textToHtml(parts.text), remoteImages: 0 };
         return {
           id: m.id, from: parseAddressList(hd.from)[0] || { name: '', email: '' }, to: parseAddressList(hd.to), cc: parseAddressList(hd.cc),
-          date: m.internalDate ? new Date(Number(m.internalDate)).toISOString() : null, html: body.html,
-          attachments: parts.attachments.filter((a) => !a.inline && a.filename).map((a) => a.filename).slice(0, 20),
+          date: m.internalDate ? new Date(Number(m.internalDate)).toISOString() : null, html: body.html, remoteImages: body.remoteImages || 0,
+          attachments: parts.attachments.filter((a) => a.id && !a.inline && a.filename).slice(0, 20).map((a) => ({ filename: a.filename, size: a.size || 0, url: att(a, false) })),
         };
       });
       return res.json({ subject: threadSummary(data).subject, owner: src.name, ownerIsMe: src.user_id === req.user.id, messages });
     } catch (e) { lastErr = e; }
   }
   res.status(lastErr ? 502 : 409).json({ message: lastErr ? friendlyMailError(lastErr) : 'Quem trocou esta conversa desconectou o Gmail; o texto não está disponível agora.' });
+}));
+
+// Imagem embutida ou anexo de uma conversa da aba E-mails, lido no Gmail de quem trocou (a linha do índice diz de quem). Mesma regra do
+// texto (sócio ou participante) e a mensagem precisa ser DESSA conversa: não abre outra mensagem da caixa da pessoa. Download de anexo
+// fica registrado em mail_index_reads; imagem da assinatura não (já contou ao abrir a conversa).
+const INLINE_IMAGE = /^image\/(png|jpe?g|gif|webp)$/;
+const GMAIL_ID = /^[A-Za-z0-9_-]{6,64}$/;
+router.get('/row/:rowId/messages/:mid/attachments/:aid', h(async (req, res) => {
+  const { rowId, mid, aid } = req.params;
+  if (!/^\d{1,18}$/.test(rowId) || !GMAIL_ID.test(mid) || !/^[A-Za-z0-9_-]{10,1200}$/.test(aid)) return res.status(400).json({ message: 'Anexo inválido.' });
+  const { rows } = await pool.query('SELECT user_id, thread_id, conv_key FROM mail_thread_index WHERE id=$1 AND org_id=$2', [rowId, req.user.orgId]);
+  if (!rows[0]) return res.status(404).json({ message: 'Conversa não encontrada.' });
+  const { rows: all } = await pool.query('SELECT user_id FROM mail_thread_index WHERE org_id=$1 AND conv_key=$2', [req.user.orgId, rows[0].conv_key]);
+  if (!canReadContent(req.user, all.map((r) => r.user_id))) return res.status(403).json({ message: 'Os anexos desta conversa abrem para os sócios e para quem participou dela.' });
+  const g = await gmailFor(rows[0].user_id);
+  if (!g) return res.status(409).json({ message: 'Quem trocou esta conversa desconectou o Gmail; o anexo não está disponível agora.' });
+  try {
+    const { data: msg } = await g.gmail.users.messages.get({ userId: 'me', id: mid, format: 'minimal' });
+    if (msg.threadId !== rows[0].thread_id) return res.status(404).json({ message: 'Anexo não encontrado nesta conversa.' });
+    const { data } = await g.gmail.users.messages.attachments.get({ userId: 'me', messageId: mid, id: aid });
+    const buf = Buffer.from(data.data || '', 'base64url');
+    const type = String(req.query.type || '').toLowerCase();
+    const name = String(req.query.name || 'anexo').replace(/[\r\n"\\/]/g, '_').slice(0, 180);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    if (req.query.inline === '1' && INLINE_IMAGE.test(type)) {
+      res.setHeader('Content-Type', type);
+      res.setHeader('Content-Disposition', 'inline');
+    } else {
+      if (rows[0].user_id !== req.user.id) await pool.query('INSERT INTO mail_index_reads (org_id, reader_id, owner_id, thread_id) VALUES ($1,$2,$3,$4)', [req.user.orgId, req.user.id, rows[0].user_id, rows[0].thread_id]);
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+    }
+    res.send(buf);
+  } catch (e) { res.status(502).json({ message: friendlyMailError(e) }); }
 }));
 
 router.get('/marks', needCrm, h(async (req, res) => {

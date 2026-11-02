@@ -33,6 +33,13 @@
 .ml-reader-subject { margin: 4px 0 0; font-size: 16px; color: var(--text-1); }
 .ml-msg { border: 1px solid var(--border-1); border-radius: 10px; overflow: hidden; background: var(--bg-1); }
 .ml-msg-head { padding: 10px 12px; border-bottom: 1px solid var(--border-1); color: var(--text-1); }
+.ml-msg-body { display: flex; flex-direction: column; }
+.ml-images { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; font-size: 12.5px; color: var(--text-2); background: var(--bg-2); border-bottom: 1px solid var(--border-1); }
+.ml-link { padding: 0; border: 0; background: none; color: var(--ui-info); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.ml-atts { list-style: none; margin: 0; padding: 8px 12px 12px; display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--border-1); }
+.ml-att { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 10px; border: 1px solid var(--border-2); border-radius: 8px; font-size: 12.5px; color: var(--text-1); text-decoration: none; background: var(--bg-1); }
+.ml-att:hover { background: var(--bg-3); }
+.ml-att-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 
 .ml-radar { display: flex; flex-direction: column; gap: 8px; color: var(--text-1); }
 .ml-radar-head { display: flex; align-items: center; gap: 8px; }
