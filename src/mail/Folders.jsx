@@ -1,11 +1,71 @@
 // Pastas e regras da Caixa de e-mail (2026-11-02, pacote de produtividade). "Pasta" = marcador do Gmail: mover põe a pasta e
 // tira da Entrada (como no Outlook); a regra é um filtro do Gmail, então vale com o painel fechado, no Gmail e no celular.
 import React, { useEffect, useState } from 'react';
-import { FolderPlus, Trash2, Link2 } from 'lucide-react';
+import { FolderPlus, Trash2, Link2, Check, Ban } from 'lucide-react';
 import { Button, BusyBar } from '../ui/index.jsx';
 import { notify, askConfirm } from '../ui/dialogs.jsx';
-import { apiGet, apiPost, apiDelete } from '../lib/api.js';
+import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api.js';
 import { useDialog } from '../lib/nav.js';
+import { LABEL_COLORS } from '../../shared/mailLabelColors.js';
+
+// Paleta de cores (só as que o Gmail aceita, shared/mailLabelColors.js). value = cor de fundo ou null (sem cor).
+export function LabelColorPicker({ value, onChange }) {
+  return (
+    <div className="mail-colors" role="radiogroup" aria-label="Cor da pasta">
+      <button type="button" role="radio" aria-checked={!value} className={`mail-color none${!value ? ' on' : ''}`} title="Sem cor" aria-label="Sem cor" onClick={() => onChange(null)}>
+        <Ban size={14} aria-hidden="true" />
+      </button>
+      {LABEL_COLORS.map((c) => (
+        <button key={c.bg} type="button" role="radio" aria-checked={value === c.bg} className={`mail-color${value === c.bg ? ' on' : ''}`} title={c.name} aria-label={c.name} style={{ background: c.bg, color: c.text }} onClick={() => onChange(c.bg)}>
+          {value === c.bg && <Check size={14} aria-hidden="true" />}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Criar pasta ou editar (nome e cor). `label` vazio = nova pasta. Devolve a pasta gravada em onSaved.
+export function FolderDialog({ label, onClose, onSaved }) {
+  const trap = useDialog(onClose);
+  const [name, setName] = useState(label ? label.name : '');
+  const [color, setColor] = useState(label ? label.color || null : null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function save(e) {
+    e.preventDefault();
+    const n = name.trim();
+    if (!n || busy) return;
+    if (label && n === label.name && (color || null) === (label.color || null)) { onClose(); return; }
+    setBusy(true); setError('');
+    try {
+      const body = { name: n, color };
+      const r = label ? await apiPatch(`/api/mail/labels/${encodeURIComponent(label.id)}`, body) : await apiPost('/api/mail/labels', body);
+      notify(label ? 'Pasta atualizada.' : 'Pasta criada.', { tone: 'success' });
+      onSaved(r);
+    } catch (err) { setError(err.message); setBusy(false); }
+  }
+
+  return (
+    <div className="ui-dlg-overlay" onClick={onClose}>
+      <form className="ui-dlg mail-move-dlg" role="dialog" aria-modal="true" aria-label={label ? 'Editar pasta' : 'Nova pasta'} ref={trap.ref} tabIndex={-1} onClick={(e) => e.stopPropagation()} onSubmit={save}>
+        <h2 className="ui-dlg-title">{label ? 'Editar pasta' : 'Nova pasta'}</h2>
+        <BusyBar active={busy} />
+        <label className="mail-folder-field">
+          <span>Nome da pasta (use / para subpasta, ex.: Clientes/KUHN)</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoFocus />
+        </label>
+        <div className="mail-folder-field"><span>Cor</span><LabelColorPicker value={color} onChange={setColor} /></div>
+        <div className="ui-dlg-msg">A cor também aparece no Gmail e no celular.</div>
+        {error && <div className="mc-error" role="alert">{error}</div>}
+        <div className="ui-dlg-actions">
+          <button type="button" className="ui-btn" onClick={onClose} disabled={busy} title={busy ? 'Aguarde: gravando a pasta' : undefined}>Cancelar</button>
+          <Button variant="primary" type="submit" loading={busy} disabled={!name.trim()} title={!name.trim() ? 'Dê um nome para a pasta' : undefined}>{label ? 'Salvar' : 'Criar pasta'}</Button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
 // Mover para pasta: lista as pastas, cria uma nova na hora e, para um remetente só, oferece "sempre mover os e-mails dele".
 export function MoveDialog({ labels, count, sender, canRules, currentLabel, onClose, onMove, onCreated }) {
@@ -44,7 +104,7 @@ export function MoveDialog({ labels, count, sender, canRules, currentLabel, onCl
         {labels.length > 6 && <input className="mail-move-filter" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Procurar pasta" aria-label="Procurar pasta" autoFocus />}
         <ul className="mail-move-list">
           {shown.map((l) => (
-            <li key={l.id}><button type="button" className="mail-folder" onClick={() => go(l)} disabled={busy}><span>{l.name}</span></button></li>
+            <li key={l.id}><button type="button" className="mail-folder" onClick={() => go(l)} disabled={busy}>{l.color && <i className="mail-dot" style={{ background: l.color }} aria-hidden="true" />}<span>{l.name}</span></button></li>
           ))}
           {!shown.length && <li className="mail-move-empty">{labels.length ? 'Nenhuma pasta com esse nome.' : 'Você ainda não tem pastas. Crie a primeira abaixo.'}</li>}
         </ul>

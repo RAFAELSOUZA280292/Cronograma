@@ -455,7 +455,10 @@ O painel abre o **seu próprio Gmail** (nada é copiado para o painel): o que vo
 3. **Escrever:** botão **Escrever** (no celular, o botão amarelo no canto). Preencha **Para** (vários endereços separados por vírgula), **Cc/Cco** se precisar, **Assunto** e a mensagem. **Ctrl+Enter** envia.
 4. **Responder, Responder a todos, Encaminhar:** no pé de cada mensagem aberta. A mensagem original vai citada embaixo (dá para tirar ou ver antes em **Mostrar**). Encaminhar leva os anexos originais; clique no **×** para tirar algum.
 5. **Anexos:** clipe no rodapé ou arraste os arquivos para a janela. Limite de **20 MB** por e-mail; acima disso, mande um link do Google Drive.
-6. **Assinatura:** **E-mail › Assinatura** (no celular, o ícone ao lado de Atualizar). Preencha nome, cargo, telefones, e-mail e site; o logo da PriceTax entra sozinho. A prévia mostra como chega. Na janela de escrita, a caixa **Assinatura** liga ou desliga só naquele e-mail.
+6. **Assinatura:** **E-mail › Assinatura** (no celular, o ícone ao lado de Atualizar). Preencha nome, cargo, telefones, e-mail e site; o logo da PriceTax entra sozinho. A prévia mostra como chega. Na janela de escrita, a caixa **Assinatura** liga ou desliga só naquele e-mail. Para pôr uma **imagem sua** (foto, banner ou selo): **Escolher imagem**, depois a **Largura** (em px; fica igual no Outlook) e a **Posição** (antes do nome ou depois dos contatos). Até 200 KB; a tela reduz a imagem sozinha.
+7. **Formatação:** na barra da mensagem, além de negrito, itálico e listas, há **cor do texto** (o "A" sublinhado), **tamanho** (Pequeno, Normal, Grande) e **imagem no texto** (botão de imagem, **colar um print** com Ctrl+V ou arrastar a imagem para dentro do texto; arrastada para fora do texto ela vira anexo).
+8. **Pastas com cor:** o ícone de pasta (ao lado de **Pastas**) cria uma pasta; o lápis ao lado de cada pasta muda **nome e cor**. A cor também aparece no Gmail e no celular. Só existem as cores que o Gmail aceita.
+9. **Destinatários:** ao digitar no **Para**, aparecem primeiro as pessoas cujo nome ou e-mail **começa** com o que você digitou (ex.: "ra" traz os Rafaéis), depois as outras.
 
 ## 7. RENATA
 **O que é:** a assistente de IA do painel. Ela lê o que você pode ver e, se você pedir, **executa** no sistema com as **suas** permissões, deixando tudo registrado.

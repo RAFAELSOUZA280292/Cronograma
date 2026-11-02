@@ -4,15 +4,20 @@
 // aqui só aparece a prévia de ambos.
 // Pacote de produtividade (2026-11-02): rascunho salvo sozinho no Gmail (3 s depois de parar de digitar, e ao fechar), reabrir
 // rascunho (init.draftId) e sugestão de destinatários (para quem você mais escreve + contatos do CRM).
+// Pacote de personalização (2026-11-02): cor e tamanho do texto e imagem colada, arrastada ou escolhida no corpo (vai embutida
+// por Content-ID, ver server/mailCompose.js; preparo e limites em mailImage.js).
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
-import { Bold, Italic, Underline, List, ListOrdered, Link2, Quote, Paperclip, Send, Trash2, X, PenLine, ChevronDown, ChevronUp } from 'lucide-react';
+import { TextStyle, Color, FontSize } from '@tiptap/extension-text-style';
+import ImageExt from '@tiptap/extension-image';
+import { Bold, Italic, Underline, List, ListOrdered, Link2, Quote, Paperclip, Send, Trash2, X, PenLine, ChevronDown, ChevronUp, Baseline, ImagePlus, Check } from 'lucide-react';
 import { Button, IconButton, BusyBar } from '../ui/index.jsx';
 import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
 import { apiGet, apiPost, apiDelete } from '../lib/api.js';
 import MailFrame from './MailFrame.jsx';
+import { prepareImage, isImageFile, htmlImageBytes } from './mailImage.js';
 
 export const MAX_ATTACH_BYTES = 20 * 1024 * 1024;
 const TITLES = { new: 'Nova mensagem', reply: 'Responder', replyAll: 'Responder a todos', forward: 'Encaminhar' };
@@ -93,17 +98,89 @@ function RecipientInput({ id, value, onChange, inputRef, placeholder }) {
   );
 }
 
+export const TEXT_COLORS = [
+  ['#000000', 'Preto'], ['#666666', 'Cinza'], ['#cc0000', 'Vermelho'], ['#e69138', 'Laranja'],
+  ['#38761d', 'Verde'], ['#1155cc', 'Azul'], ['#0b5394', 'Azul-escuro'], ['#674ea7', 'Roxo'],
+];
+const SIZES = [['12px', 'Pequeno'], ['', 'Normal'], ['18px', 'Grande']];
+const imageFiles = (list) => [...(list || [])].filter(isImageFile);
+
+// Cor do texto: menu com a paleta (fecha com Esc ou clique fora).
+function ColorMenu({ editor }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef(null);
+  const current = editor.getAttributes('textStyle').color || '';
+  useEffect(() => {
+    if (!open) return undefined;
+    const away = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [open]);
+  const pick = (hex) => { const ch = editor.chain().focus(); (hex ? ch.setColor(hex) : ch.unsetColor()).run(); setOpen(false); };
+  return (
+    <div className="mc-menu" ref={box} onKeyDown={(e) => { if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); } }}>
+      <button type="button" className={`mc-btn${current ? ' on' : ''}`} aria-label="Cor do texto" title="Cor do texto" aria-haspopup="true" aria-expanded={open} onMouseDown={(e) => e.preventDefault()} onClick={() => setOpen((v) => !v)}>
+        <Baseline size={15} aria-hidden="true" /><i className="mc-color-bar" style={{ background: current || 'currentColor' }} aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="mc-pop" role="group" aria-label="Cores do texto">
+          <button type="button" className="mc-swatch auto" title="Automática" aria-label="Cor automática" onMouseDown={(e) => e.preventDefault()} onClick={() => pick('')}>A</button>
+          {TEXT_COLORS.map(([hex, name]) => (
+            <button key={hex} type="button" className="mc-swatch" style={{ background: hex }} title={name} aria-label={name} aria-pressed={current.toLowerCase() === hex} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(hex)}>
+              {current.toLowerCase() === hex && <Check size={12} aria-hidden="true" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MailEditor({ onReady, onChange }) {
+  const imgRef = useRef(null);
+  const editorRef = useRef(null);
+  // Põe as imagens no corpo (na posição `at` quando arrastadas). Erro de uma imagem não impede as outras.
+  const insertImages = useCallback(async (files, at) => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    for (const f of files) {
+      try {
+        const img = await prepareImage(f);
+        const node = { type: 'image', attrs: { src: `data:${img.mimeType};base64,${img.data}`, alt: f.name || 'imagem', width: img.width || null, height: img.height || null } };
+        if (typeof at === 'number') ed.chain().focus().insertContentAt(at, node).run();
+        else ed.chain().focus().insertContent(node).run();
+      } catch (e) { notify(e.message, { tone: 'error' }); }
+    }
+  }, []);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: false, codeBlock: false, code: false, horizontalRule: false, link: { openOnClick: false, autolink: true } }),
       Placeholder.configure({ placeholder: 'Escreva a mensagem…' }),
+      TextStyle, Color, FontSize,
+      ImageExt.configure({ allowBase64: true, inline: false }),
     ],
     shouldRerenderOnTransaction: true,
-    editorProps: { attributes: { 'aria-label': 'Mensagem', role: 'textbox', 'aria-multiline': 'true' } },
+    editorProps: {
+      attributes: { 'aria-label': 'Mensagem', role: 'textbox', 'aria-multiline': 'true' },
+      // Print colado ou imagem copiada: entra como imagem embutida (não como link para fora).
+      handlePaste: (view, event) => {
+        const imgs = imageFiles(event.clipboardData && event.clipboardData.files);
+        if (!imgs.length) return false;
+        insertImages(imgs);
+        return true;
+      },
+      // Imagem arrastada para dentro do texto vai no ponto onde caiu; outros arquivos seguem para os anexos.
+      handleDrop: (view, event, slice, moved) => {
+        const imgs = moved ? [] : imageFiles(event.dataTransfer && event.dataTransfer.files);
+        if (!imgs.length) return false;
+        const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
+        insertImages(imgs, pos ? pos.pos : undefined);
+        return true;
+      },
+    },
     onUpdate: ({ editor: ed }) => onChange(ed.isEmpty ? '' : ed.getHTML()),
   }, []);
-  useEffect(() => { if (editor) onReady(editor); }, [editor, onReady]);
+  useEffect(() => { editorRef.current = editor; if (editor) onReady(editor); }, [editor, onReady]);
   if (!editor) return null;
   const keep = (e) => e.preventDefault();
   async function setLink() {
@@ -118,16 +195,24 @@ function MailEditor({ onReady, onChange }) {
     <button type="button" className={`mc-btn${on ? ' on' : ''}`} aria-label={name} aria-pressed={on} title={name} onMouseDown={keep} onClick={onClick}>{React.createElement(icon, { size: 15, 'aria-hidden': 'true' })}</button>
   );
   const c = () => editor.chain().focus();
+  const size = editor.getAttributes('textStyle').fontSize || '';
   return (
     <div className="mc-editor">
       <div className="mc-tools" role="toolbar" aria-label="Formatação do texto">
         {btn(editor.isActive('bold'), 'Negrito (Ctrl+B)', () => c().toggleBold().run(), Bold)}
         {btn(editor.isActive('italic'), 'Itálico (Ctrl+I)', () => c().toggleItalic().run(), Italic)}
         {btn(editor.isActive('underline'), 'Sublinhado (Ctrl+U)', () => c().toggleUnderline().run(), Underline)}
+        <ColorMenu editor={editor} />
+        <select className="mc-size" aria-label="Tamanho do texto" title="Tamanho do texto" value={SIZES.some(([v]) => v === size) ? size : ''} onChange={(e) => { const v = e.target.value; (v ? c().setFontSize(v) : c().unsetFontSize()).run(); }}>
+          {SIZES.map(([v, label]) => <option key={label} value={v}>{label}</option>)}
+        </select>
+        <span className="mc-sep" aria-hidden="true" />
         {btn(editor.isActive('bulletList'), 'Lista com marcadores', () => c().toggleBulletList().run(), List)}
         {btn(editor.isActive('orderedList'), 'Lista numerada', () => c().toggleOrderedList().run(), ListOrdered)}
         {btn(editor.isActive('blockquote'), 'Citação', () => c().toggleBlockquote().run(), Quote)}
         {btn(editor.isActive('link'), 'Link', setLink, Link2)}
+        {btn(false, 'Inserir imagem no texto (ou cole/arraste)', () => imgRef.current && imgRef.current.click(), ImagePlus)}
+        <input ref={imgRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden onChange={(e) => { insertImages(imageFiles(e.target.files)); e.target.value = ''; }} />
       </div>
       <EditorContent editor={editor} className="mc-body" />
     </div>
@@ -211,7 +296,7 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
   const forwardList = (ctx && ctx.attachments) || [];
   const keptForward = forwardList.filter((a) => keepParts.has(a.partId));
   const keptDraft = draftAtts.filter((a) => draftKeep.has(a.partId));
-  const totalBytes = files.reduce((n, f) => n + f.size, 0) + keptForward.reduce((n, a) => n + (a.size || 0), 0) + keptDraft.reduce((n, a) => n + (a.size || 0), 0);
+  const totalBytes = files.reduce((n, f) => n + f.size, 0) + htmlImageBytes(html) + keptForward.reduce((n, a) => n + (a.size || 0), 0) + keptDraft.reduce((n, a) => n + (a.size || 0), 0);
   // "Impressão" do que a pessoa escreveu/anexou. Anexos entram por nome+tamanho: depois de gravar eles passam para o rascunho
   // e a impressão não muda (senão regravaria à toa). O rascunho grava quando a impressão difere da última gravada/carregada.
   const sig = JSON.stringify([to.trim(), cc.trim(), bcc.trim(), subject, html,
@@ -338,7 +423,7 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
   return (
     <section className={`mc${isMobile ? ' mobile' : ''}`} role="dialog" aria-label={TITLES[mode]} onKeyDown={onKeyDown}
       onDragOver={(e) => { if (ctx && e.dataTransfer.types.includes('Files')) e.preventDefault(); }}
-      onDrop={(e) => { if (!ctx || !e.dataTransfer.files.length) return; e.preventDefault(); addFiles(e.dataTransfer.files); }}
+      onDrop={(e) => { if (!ctx || e.defaultPrevented || !e.dataTransfer.files.length) return; e.preventDefault(); addFiles(e.dataTransfer.files); }}
     >
       <header className="mc-head">
         <strong>{TITLES[mode]}</strong>

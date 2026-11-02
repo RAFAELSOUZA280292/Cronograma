@@ -66,6 +66,8 @@ app.use((req, res, next) => {
 app.use('/api/templates', express.json({ limit: '45mb' }));
 // E-mail com até 20 MB de anexos (base64 ≈ 27 MB) — limite conferido de novo na rota (server/mailCompose.js).
 app.use('/api/mail/send', express.json({ limit: '30mb' }));
+// O rascunho leva os mesmos anexos e as imagens coladas no corpo (pacote de personalização, 2026-11-02).
+app.use('/api/mail/drafts', express.json({ limit: '30mb' }));
 app.use(express.json({ limit: '15mb' }));
 // Express 5 deixa req.body indefinido quando a requisição não traz corpo JSON (no 4 era {}); os handlers desestruturam req.body.
 app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });

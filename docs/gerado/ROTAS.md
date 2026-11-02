@@ -8,42 +8,42 @@ Total: **357 rotas** em **33 grupos**. Cada linha mostra o método, o endereço 
 
 | Prefixo | Arquivo | Linha |
 |---|---|---|
-| `/api` | `server/routes.js` | 74 |
-| `/api/xflow` | `server/xflow.js` | 75 |
-| `/api/google` | `server/google.js` | 76 |
-| `/api/agenda` | `server/agenda.js` | 77 |
-| `/api/mail` | `server/mail.js` | 78 |
-| `/api/macro` | `server/macro.js` | 79 |
-| `/api/inventory` | `server/inventory.js` | 80 |
-| `/api/inventory` | `server/inventoryEdit.js` | 81 |
-| `/api/gaps` | `server/gaps.js` | 82 |
-| `/api/task-links` | `server/taskLinks.js` | 83 |
-| `/api/task-links` | `server/taskLinkBackfill.js` | 84 |
-| `/api/standard-plan` | `server/standardPlanApi.js` | 85 |
-| `/api/meeting-inbox` | `server/meetingInbox.js` | 86 |
-| `/api/assistant` | `server/assistant.js` | 87 |
-| `/api/knowledge` | `server/knowledge.js` | 88 |
-| `/api/pareceres` | `server/pareceres.js` | 89 |
-| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 90 |
-| `/api/crm` | `server/crm/routes.js` | 91 |
-| `/api/renata` | `server/renata/routes.js` | 92 |
-| `/api/widget` | `server/widget.js` | 93 |
-| `/api/daily` | `server/daily.js` | 94 |
-| `/api/templates` | `server/documentTemplates.js` | 95 |
-| `/api/library-search` | `server/librarySearch.js` | 96 |
-| `/api/briefing` | `server/briefing.js` | 97 |
-| `/api/client360` | `server/client360.js` | 98 |
-| `/api/connect` | `server/connect.js` | 99 |
-| `/api/company-share` | `server/companyShare.js` | 100 |
-| `/api/company-calendar` | `server/companyCalendar.js` | 101 |
-| `/api/public-company` | `server/companyShare.js` | 102 |
-| `/d` | `server/companyShare.js` | 103 |
-| `/d` | `server/errorHandler.js` | 104 |
-| `/api/push` | `server/push.js` | 105 |
-| `/api/ops-intel` | `server/opsIntel.js` | 106 |
-| `/api/experience` | `server/experience.js` | 107 |
-| `/api/project-history` | `server/projectVersions.js` | 108 |
-| `/api` | `server/errorHandler.js` | 116 |
+| `/api` | `server/routes.js` | 76 |
+| `/api/xflow` | `server/xflow.js` | 77 |
+| `/api/google` | `server/google.js` | 78 |
+| `/api/agenda` | `server/agenda.js` | 79 |
+| `/api/mail` | `server/mail.js` | 80 |
+| `/api/macro` | `server/macro.js` | 81 |
+| `/api/inventory` | `server/inventory.js` | 82 |
+| `/api/inventory` | `server/inventoryEdit.js` | 83 |
+| `/api/gaps` | `server/gaps.js` | 84 |
+| `/api/task-links` | `server/taskLinks.js` | 85 |
+| `/api/task-links` | `server/taskLinkBackfill.js` | 86 |
+| `/api/standard-plan` | `server/standardPlanApi.js` | 87 |
+| `/api/meeting-inbox` | `server/meetingInbox.js` | 88 |
+| `/api/assistant` | `server/assistant.js` | 89 |
+| `/api/knowledge` | `server/knowledge.js` | 90 |
+| `/api/pareceres` | `server/pareceres.js` | 91 |
+| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 92 |
+| `/api/crm` | `server/crm/routes.js` | 93 |
+| `/api/renata` | `server/renata/routes.js` | 94 |
+| `/api/widget` | `server/widget.js` | 95 |
+| `/api/daily` | `server/daily.js` | 96 |
+| `/api/templates` | `server/documentTemplates.js` | 97 |
+| `/api/library-search` | `server/librarySearch.js` | 98 |
+| `/api/briefing` | `server/briefing.js` | 99 |
+| `/api/client360` | `server/client360.js` | 100 |
+| `/api/connect` | `server/connect.js` | 101 |
+| `/api/company-share` | `server/companyShare.js` | 102 |
+| `/api/company-calendar` | `server/companyCalendar.js` | 103 |
+| `/api/public-company` | `server/companyShare.js` | 104 |
+| `/d` | `server/companyShare.js` | 105 |
+| `/d` | `server/errorHandler.js` | 106 |
+| `/api/push` | `server/push.js` | 107 |
+| `/api/ops-intel` | `server/opsIntel.js` | 108 |
+| `/api/experience` | `server/experience.js` | 109 |
+| `/api/project-history` | `server/projectVersions.js` | 110 |
+| `/api` | `server/errorHandler.js` | 118 |
 
 Montagens extras (fora do `index.js`): `/api/connect/crm` = o roteador do CRM (`server/crm/routes.js`) reaproveitado por `server/connect.js` para a chave `crm_operate`/`write_all`/`read_all`; `/api/templates` tem limite de corpo próprio (45 MB) definido no `index.js`.
 
@@ -113,7 +113,7 @@ Arquivos: `server/index.js`, `server/payloadStats.js`, `server/xflowTransitions.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:133` |
+| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:135` |
 | GET | `(sem prefixo conhecido)/projects` | `requireAuth` `payloadStats('GET /projects')` |  | `server/payloadStats.js:27` |
 | DELETE | `(sem prefixo conhecido)/tickets/:id` |  | arquivar) — um ticket aberto por engano também precisa poder ir pra Lixeira. purgar (apagar de vez) não passa por aqui — é DELETE direto, | `server/xflowTransitions.js:54` |
 
@@ -418,29 +418,29 @@ Arquivos: `server/mail.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/mail/status` |  |  | `server/mail.js:38` |
-| GET | `/api/mail/labels` |  |  | `server/mail.js:45` |
-| GET | `/api/mail/threads` |  |  | `server/mail.js:64` |
-| GET | `/api/mail/threads/:id` |  |  | `server/mail.js:78` |
-| GET | `/api/mail/messages/:mid/attachments/:aid` |  |  | `server/mail.js:118` |
-| POST | `/api/mail/threads/modify` |  |  | `server/mail.js:151` |
-| GET | `/api/mail/signature` |  |  | `server/mail.js:217` |
-| POST | `/api/mail/signature/preview` |  |  | `server/mail.js:228` |
-| PUT | `/api/mail/signature` |  |  | `server/mail.js:232` |
-| GET | `/api/mail/signature/logo.png` |  |  | `server/mail.js:243` |
-| GET | `/api/mail/compose` |  | Dados para abrir a janela de resposta/encaminhamento: destinatários, assunto, prévia da citação e anexos originais. | `server/mail.js:250` |
-| POST | `/api/mail/send` |  |  | `server/mail.js:325` |
-| POST | `/api/mail/drafts` |  | Salva (cria ou atualiza) o rascunho no Gmail e devolve o id da mensagem nova e os anexos que ficaram nele. | `server/mail.js:347` |
-| GET | `/api/mail/drafts/by-thread/:threadId` |  | Acha o rascunho de uma conversa (a lista de Rascunhos mostra conversas; o Gmail guarda o rascunho com id próprio). | `server/mail.js:365` |
-| GET | `/api/mail/drafts/:id` |  | Dados para reabrir o rascunho na janela de escrita. | `server/mail.js:382` |
-| DELETE | `/api/mail/drafts/:id` |  | Descartar rascunho (o Gmail não tem lixeira para rascunho; a tela confirma antes). | `server/mail.js:407` |
-| POST | `/api/mail/labels` |  |  | `server/mail.js:418` |
-| PATCH | `/api/mail/labels/:id` |  |  | `server/mail.js:431` |
-| GET | `/api/mail/rules` |  |  | `server/mail.js:455` |
-| POST | `/api/mail/rules` |  |  | `server/mail.js:470` |
-| DELETE | `/api/mail/rules/:id` |  |  | `server/mail.js:489` |
-| GET | `/api/mail/contacts` |  |  | `server/mail.js:530` |
-| GET | `/api/mail/inbox-peek` |  | Aviso de e-mail novo: as 10 conversas não lidas mais recentes da Entrada (a tela compara com as que já conhecia). | `server/mail.js:556` |
+| GET | `/api/mail/status` |  |  | `server/mail.js:39` |
+| GET | `/api/mail/labels` |  |  | `server/mail.js:46` |
+| GET | `/api/mail/threads` |  |  | `server/mail.js:65` |
+| GET | `/api/mail/threads/:id` |  |  | `server/mail.js:79` |
+| GET | `/api/mail/messages/:mid/attachments/:aid` |  |  | `server/mail.js:119` |
+| POST | `/api/mail/threads/modify` |  |  | `server/mail.js:152` |
+| GET | `/api/mail/signature` |  |  | `server/mail.js:221` |
+| POST | `/api/mail/signature/preview` |  |  | `server/mail.js:232` |
+| PUT | `/api/mail/signature` |  |  | `server/mail.js:236` |
+| GET | `/api/mail/signature/logo.png` |  |  | `server/mail.js:250` |
+| GET | `/api/mail/compose` |  | Dados para abrir a janela de resposta/encaminhamento: destinatários, assunto, prévia da citação e anexos originais. | `server/mail.js:257` |
+| POST | `/api/mail/send` |  |  | `server/mail.js:338` |
+| POST | `/api/mail/drafts` |  | Salva (cria ou atualiza) o rascunho no Gmail e devolve o id da mensagem nova e os anexos que ficaram nele. | `server/mail.js:360` |
+| GET | `/api/mail/drafts/by-thread/:threadId` |  | Acha o rascunho de uma conversa (a lista de Rascunhos mostra conversas; o Gmail guarda o rascunho com id próprio). | `server/mail.js:378` |
+| GET | `/api/mail/drafts/:id` |  | Dados para reabrir o rascunho na janela de escrita. | `server/mail.js:395` |
+| DELETE | `/api/mail/drafts/:id` |  | Descartar rascunho (o Gmail não tem lixeira para rascunho; a tela confirma antes). | `server/mail.js:431` |
+| POST | `/api/mail/labels` |  |  | `server/mail.js:445` |
+| PATCH | `/api/mail/labels/:id` |  | Renomear e/ou mudar a cor. Tirar a cor (color: null) usa labels.update sem o campo color: o patch não apaga campo. | `server/mail.js:461` |
+| GET | `/api/mail/rules` |  |  | `server/mail.js:494` |
+| POST | `/api/mail/rules` |  |  | `server/mail.js:509` |
+| DELETE | `/api/mail/rules/:id` |  |  | `server/mail.js:528` |
+| GET | `/api/mail/contacts` |  |  | `server/mail.js:567` |
+| GET | `/api/mail/inbox-peek` |  | Aviso de e-mail novo: as 10 conversas não lidas mais recentes da Entrada (a tela compara com as que já conhecia). | `server/mail.js:595` |
 
 ## `/api/meeting-inbox` — 4 rotas
 

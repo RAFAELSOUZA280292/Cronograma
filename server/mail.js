@@ -6,7 +6,8 @@ import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { FOLDERS, folderQuery, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, gmailFor, mailStatus, friendlyMailError, forgetMailScope, mapLimit } from './googleMail.js';
-import { parseRecipients, replyRecipients, replySubject, buildQuote, composeBody, buildMime, cleanSignature, signatureHtml, signatureHasContent, sizeError, attachmentsSize, LOGO_CID, MAX_RECIPIENTS, isEmail, sanitizeOutgoingHtml, DRAFT_HEADER, draftMeta, parseDraftMeta, draftBodyHtml } from './mailCompose.js';
+import { parseRecipients, replyRecipients, replySubject, buildQuote, composeBody, buildMime, cleanSignature, signatureHtml, signatureHasContent, sizeError, attachmentsSize, LOGO_CID, MAX_RECIPIENTS, isEmail, sanitizeOutgoingHtml, DRAFT_HEADER, draftMeta, parseDraftMeta, draftBodyHtml, SIG_IMAGE_CID, signatureImageError, restoreInlineImages, BODY_IMAGE_PREFIX, rankContacts, contactRank, foldText } from './mailCompose.js';
+import { labelColorFor } from '../shared/mailLabelColors.js';
 import { crmRoleOf } from './crm/permissions.js';
 import { pool } from './db.js';
 
@@ -55,7 +56,7 @@ router.get('/labels', async (req, res) => {
       unread: id === 'INBOX' || id === 'SPAM' ? (byId[id] && byId[id].messagesUnread) || 0 : 0,
       total: id === 'DRAFT' ? (byId[id] && byId[id].messagesTotal) || 0 : null,
     }));
-    const labels = user.map((l) => ({ id: l.id, name: l.name, unread: (byId[l.id] && byId[l.id].threadsUnread) || 0, color: l.color ? l.color.backgroundColor : null }))
+    const labels = user.map((l) => ({ id: l.id, name: l.name, unread: (byId[l.id] && byId[l.id].threadsUnread) || 0, color: l.color ? l.color.backgroundColor : null, textColor: l.color ? l.color.textColor : null }))
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
     res.json({ folders, labels });
   } catch (e) { fail(res, e); }
@@ -196,6 +197,7 @@ async function loadOriginal(gmail, messageId) {
     messageIdHeader: h['message-id'] || '', references: h.references || '',
     html: parts.html, text: parts.text,
     attachments: parts.attachments.filter((a) => !a.inline && a.partId),
+    inline: parts.attachments.filter((a) => a.inline && a.partId && a.contentId),
   };
 }
 
@@ -213,6 +215,8 @@ async function readSignature(user) {
 }
 
 const LOGO_URL = '/api/mail/signature/logo.png';
+// Prévia na tela: a imagem própria vai como data: (no e-mail ela vai embutida por Content-ID).
+const previewOf = (sig) => signatureHtml(sig, { logoSrc: LOGO_URL, imageSrc: sig.image ? `data:${sig.image.mimeType};base64,${sig.image.data}` : '' });
 
 router.get('/signature', async (req, res, next) => {
   try {
@@ -221,22 +225,25 @@ router.get('/signature', async (req, res, next) => {
       const st = await mailStatus(req.user.id).catch(() => null);
       if (st && st.email) r.signature.email = st.email;
     }
-    res.json({ ...r, previewHtml: signatureHtml(r.signature, { logoSrc: LOGO_URL }) });
+    res.json({ ...r, previewHtml: previewOf(r.signature) });
   } catch (e) { next(e); }
 });
 
 router.post('/signature/preview', (req, res) => {
-  res.json({ previewHtml: signatureHtml(cleanSignature(req.body && req.body.signature), { logoSrc: LOGO_URL }) });
+  res.json({ previewHtml: previewOf(cleanSignature(req.body && req.body.signature)) });
 });
 
 router.put('/signature', async (req, res, next) => {
   try {
-    const sig = cleanSignature(req.body && req.body.signature);
+    const raw = (req.body && req.body.signature) || {};
+    const imgErr = signatureImageError(raw.image);
+    if (imgErr) return res.status(400).json({ message: imgErr });
+    const sig = cleanSignature(raw);
     await pool.query(
       "UPDATE users SET preferences = COALESCE(preferences, '{}'::jsonb) || jsonb_build_object('mail', COALESCE(preferences->'mail', '{}'::jsonb) || jsonb_build_object('signature', $1::jsonb)) WHERE id=$2",
       [JSON.stringify(sig), req.user.id],
     );
-    res.json({ signature: sig, saved: true, previewHtml: signatureHtml(sig, { logoSrc: LOGO_URL }) });
+    res.json({ signature: sig, saved: true, previewHtml: previewOf(sig) });
   } catch (e) { next(e); }
 });
 
@@ -305,7 +312,9 @@ async function buildOutgoing(req, gmail, b, { draft = false } = {}) {
   const { signature } = b.signature === false ? { signature: null } : await readSignature(req.user);
   const sig = signature && signature.enabled && signatureHasContent(signature) ? signature : null;
   const quote = orig && b.includeQuote !== false ? buildQuote(orig, mode === 'forward' ? 'forward' : 'reply') : null;
-  const body = composeBody({ html: String(b.html || '').slice(0, 2_000_000), signature: sig, quote });
+  const body = composeBody({ html: String(b.html || ''), signature: sig, quote });
+  const imgErr = sizeError(attachmentsSize(uploads) + attachmentsSize(forwarded) + attachmentsSize(fromDraft) + attachmentsSize(body.images));
+  if (imgErr) return { status: 413, message: imgErr.replace('Os anexos somam', 'Anexos e imagens somam') };
   const threaded = orig && mode !== 'forward';
   const raw = buildMime({
     from: { name: (sig && sig.name) || req.user.name || '', email: me },
@@ -314,7 +323,11 @@ async function buildOutgoing(req, gmail, b, { draft = false } = {}) {
     html: body.html, text: body.text,
     inReplyTo: threaded ? orig.messageIdHeader : '',
     references: threaded ? `${orig.references} ${orig.messageIdHeader}` : '',
-    inline: body.usesLogo ? [{ cid: LOGO_CID, mimeType: 'image/png', data: LOGO }] : [],
+    inline: [
+      ...(body.usesLogo ? [{ cid: LOGO_CID, mimeType: 'image/png', data: LOGO }] : []),
+      ...(body.usesSigImage ? [{ cid: SIG_IMAGE_CID, mimeType: sig.image.mimeType, data: Buffer.from(sig.image.data, 'base64') }] : []),
+      ...body.images,
+    ],
     attachments: [...fromDraft, ...forwarded, ...uploads],
     headers: draft ? [[DRAFT_HEADER, draftMeta({ mode, messageId: b.messageId, includeQuote: b.includeQuote, signature: b.signature })]] : [],
   });
@@ -394,7 +407,18 @@ router.get('/drafts/:id', async (req, res) => {
       if (orig) quotePreview = sanitizeMailHtml(buildQuote(orig, meta.mode === 'forward' ? 'forward' : 'reply').html).html;
       else meta.mode = 'new';
     }
-    const bodyHtml = msg.html ? draftBodyHtml(msg.html) : (msg.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>');
+    let bodyHtml = msg.html ? draftBodyHtml(msg.html) : (msg.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>');
+    // Imagens coladas no corpo (cid:img-…) voltam como data: para aparecer no editor; ao gravar de novo viram cid outra vez.
+    const bodyImgs = msg.inline.filter((a) => a.contentId.startsWith(BODY_IMAGE_PREFIX) && bodyHtml.includes(`cid:${a.contentId}`)).slice(0, 20);
+    if (bodyImgs.length) {
+      const parts = await mapLimit(bodyImgs, 4, async (a) => {
+        const part = findPart(msg.payload, a.partId) || {};
+        const pb = part.body || {};
+        const data = pb.attachmentId ? (await gmail.users.messages.attachments.get({ userId: 'me', messageId: msg.id, id: pb.attachmentId })).data.data : pb.data;
+        return { cid: a.contentId, mimeType: a.mimeType, data: Buffer.from(data || '', 'base64url') };
+      });
+      bodyHtml = restoreInlineImages(bodyHtml, parts);
+    }
     res.json({
       draftId: data.id, draftMessageId: data.message.id, threadId: ours ? null : data.message.threadId, ...meta, ours,
       to: msg.to, cc: msg.cc, bcc: parseAddressList(h.bcc), subject: msg.subject,
@@ -415,27 +439,42 @@ router.delete('/drafts/:id', async (req, res) => {
 
 const cleanLabelName = (v) => String(v || '').replace(/[\u0000-\u001f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80);
 
+const COLOR_ERROR = 'Escolha uma das cores da lista (o Gmail só aceita a paleta dele).';
+const labelOut = (d) => ({ id: d.id, name: d.name, color: d.color ? d.color.backgroundColor : null, textColor: d.color ? d.color.textColor : null });
+
 router.post('/labels', async (req, res) => {
   const name = cleanLabelName(req.body && req.body.name);
+  const color = labelColorFor(req.body && req.body.color);
   if (!name) return res.status(400).json({ message: 'Dê um nome para a pasta.' });
+  if (color === false) return res.status(400).json({ message: COLOR_ERROR });
   const gmail = await withGmail(req, res); if (!gmail) return;
   try {
-    const { data } = await gmail.users.labels.create({ userId: 'me', requestBody: { name, labelListVisibility: 'labelShow', messageListVisibility: 'show' } });
-    res.json({ id: data.id, name: data.name });
+    const { data } = await gmail.users.labels.create({ userId: 'me', requestBody: { name, labelListVisibility: 'labelShow', messageListVisibility: 'show', ...(color ? { color } : {}) } });
+    res.json(labelOut(data));
   } catch (e) {
     if ((e.code === 409 || (e.response && e.response.status === 409))) return res.status(409).json({ message: `Já existe uma pasta chamada “${name}”.` });
     fail(res, e);
   }
 });
 
+// Renomear e/ou mudar a cor. Tirar a cor (color: null) usa labels.update sem o campo color: o patch não apaga campo.
 router.patch('/labels/:id', async (req, res) => {
-  const name = cleanLabelName(req.body && req.body.name);
-  if (!LABEL_RE.test(req.params.id)) return res.status(400).json({ message: 'Só dá para renomear pastas criadas por você.' });
-  if (!name) return res.status(400).json({ message: 'Dê um nome para a pasta.' });
+  const b = req.body || {};
+  const name = b.name === undefined ? undefined : cleanLabelName(b.name);
+  const color = labelColorFor(b.color);
+  if (!LABEL_RE.test(req.params.id)) return res.status(400).json({ message: 'Só dá para mudar pastas criadas por você.' });
+  if (name === '' || (name === undefined && color === undefined)) return res.status(400).json({ message: 'Dê um nome para a pasta.' });
+  if (color === false) return res.status(400).json({ message: COLOR_ERROR });
   const gmail = await withGmail(req, res); if (!gmail) return;
   try {
-    const { data } = await gmail.users.labels.patch({ userId: 'me', id: req.params.id, requestBody: { name } });
-    res.json({ id: data.id, name: data.name });
+    let data;
+    if (color === null) {
+      const cur = (await gmail.users.labels.get({ userId: 'me', id: req.params.id })).data;
+      ({ data } = await gmail.users.labels.update({ userId: 'me', id: req.params.id, requestBody: { id: cur.id, name: name || cur.name, labelListVisibility: cur.labelListVisibility, messageListVisibility: cur.messageListVisibility } }));
+    } else {
+      ({ data } = await gmail.users.labels.patch({ userId: 'me', id: req.params.id, requestBody: { ...(name ? { name } : {}), ...(color ? { color } : {}) } }));
+    }
+    res.json(labelOut(data));
   } catch (e) {
     if ((e.code === 409 || (e.response && e.response.status === 409))) return res.status(409).json({ message: `Já existe uma pasta chamada “${name}”.` });
     fail(res, e);
@@ -525,29 +564,29 @@ async function sentContacts(userId, gmail) {
   try { return await pending; } catch (e) { sentCache.delete(userId); throw e; }
 }
 
-const fold = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-
 router.get('/contacts', async (req, res) => {
-  const q = fold(String(req.query.q || '').trim()).slice(0, 80);
+  const q = foldText(String(req.query.q || '').trim()).slice(0, 80);
   const gmail = await withGmail(req, res); if (!gmail) return;
   try {
     const sent = await sentContacts(req.user.id, gmail).catch(() => []);
     if (!q) return res.json({ contacts: [] });
-    const out = sent.filter((c) => fold(c.name).includes(q) || c.email.includes(q)).slice(0, 8).map((c) => ({ name: c.name, email: c.email, source: 'gmail' }));
-    if (out.length < 8 && crmRoleOf(req.user) && req.user.orgId) {
-      const like = `%${String(req.query.q).trim().slice(0, 80).replace(/[%_\\]/g, '')}%`;
+    // Gmail (por frequência) e CRM entram juntos e a ordem final é a de rankContacts: quem começa com o que foi digitado vem antes.
+    const cands = sent.filter((c) => contactRank(c, q) < 3).slice(0, 40).map((c) => ({ name: c.name, email: c.email, source: 'gmail' }));
+    if (crmRoleOf(req.user) && req.user.orgId) {
+      const typed = String(req.query.q).trim().slice(0, 80).replace(/[%_\\]/g, '');
       const { rows } = await pool.query(
         `SELECT first_name, last_name, email FROM crm_contacts WHERE org_id=$1 AND deleted_at IS NULL AND email <> ''
-           AND (first_name ILIKE $2 OR last_name ILIKE $2 OR (first_name || ' ' || last_name) ILIKE $2 OR email ILIKE $2) ORDER BY first_name LIMIT 8`,
-        [req.user.orgId, like],
+           AND (first_name ILIKE $2 OR last_name ILIKE $2 OR (first_name || ' ' || last_name) ILIKE $2 OR email ILIKE $2)
+         ORDER BY (first_name ILIKE $3 OR email ILIKE $3) DESC, first_name LIMIT 20`,
+        [req.user.orgId, `%${typed}%`, `${typed}%`],
       );
       for (const r of rows) {
         const email = String(r.email).trim().toLowerCase();
-        if (!isEmail(email) || out.some((c) => c.email === email)) continue;
-        out.push({ name: `${r.first_name} ${r.last_name}`.trim(), email, source: 'crm' });
-        if (out.length >= 8) break;
+        if (!isEmail(email) || cands.some((c) => c.email === email)) continue;
+        cands.push({ name: `${r.first_name} ${r.last_name}`.trim(), email, source: 'crm' });
       }
     }
+    const out = rankContacts(cands, q);
     res.json({ contacts: out });
   } catch (e) { fail(res, e); }
 });

@@ -81,8 +81,8 @@ export const base64Lines = (buf) => Buffer.from(buf).toString('base64').replace(
 
 // --- HTML de saída ---------------------------------------------------------------
 
-// O editor (Tiptap) produz <p>, <strong>, <em>, <u>, <s>, listas, links e citação. Aqui sai qualquer outra coisa e cada
-// tag ganha o estilo inline que o Outlook respeita; parágrafo sem margem (Enter = linha nova, como no Gmail).
+// O editor (Tiptap) produz <p>, <strong>, <em>, <u>, <s>, listas, links, citação, <span> com cor/tamanho e <img>. Aqui sai
+// qualquer outra coisa e cada tag ganha o estilo inline que o Outlook respeita; parágrafo sem margem (Enter = linha nova).
 const OUT_STYLE = {
   p: 'margin:0;padding:0',
   ul: 'margin:0 0 0 24px;padding:0',
@@ -91,20 +91,83 @@ const OUT_STYLE = {
   blockquote: QUOTE_STYLE,
   a: 'color:#1155cc;text-decoration:underline',
 };
+export const FONT_SIZES = { small: '12px', large: '18px' };
+export const MAX_IMAGE_WIDTH = 600;
+const hex2 = (n) => Math.max(0, Math.min(255, Number(n) || 0)).toString(16).padStart(2, '0');
+
+// Pacote de personalização (2026-11-02): do estilo do <span> só passam cor (#hex ou rgb(), que o navegador devolve ao
+// reabrir o rascunho) e tamanho de 10 a 32 px; o resto (fundo, posição, fonte de fora…) é descartado.
+export function cleanSpanStyle(style) {
+  const out = [];
+  const css = String(style || '');
+  const color = css.match(/(?:^|;)\s*color\s*:\s*([^;]+)/i);
+  if (color) {
+    const v = color[1].trim().toLowerCase();
+    const rgb = v.match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/);
+    if (/^#[0-9a-f]{6}$/.test(v)) out.push(`color:${v}`);
+    else if (/^#[0-9a-f]{3}$/.test(v)) out.push(`color:#${v.slice(1).split('').map((c) => c + c).join('')}`);
+    else if (rgb) out.push(`color:#${hex2(rgb[1])}${hex2(rgb[2])}${hex2(rgb[3])}`);
+  }
+  const size = css.match(/(?:^|;)\s*font-size\s*:\s*(\d{1,2})px/i);
+  if (size && Number(size[1]) >= 10 && Number(size[1]) <= 32) out.push(`font-size:${Number(size[1])}px;line-height:1.4`);
+  return out.join(';');
+}
+
+const IMG_SRC = /^(cid:[A-Za-z0-9._@-]{1,120}|data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+)$/;
+// Imagem do corpo: só embutida (cid: no envio; data: na janela de escrita) e com largura em atributo, que o Outlook respeita.
+function outImage(tagName, attribs) {
+  const src = String(attribs.src || '').trim();
+  if (!IMG_SRC.test(src)) return { tagName: 'span', attribs: {} };
+  const w = Math.round(Number(attribs.width) || 0);
+  const width = w > 0 ? Math.min(w, MAX_IMAGE_WIDTH) : 0;
+  const h = Math.round(Number(attribs.height) || 0);
+  const height = width && h > 0 && w > 0 ? Math.round((h * width) / w) : 0;
+  const out = { src, alt: oneLine(attribs.alt).slice(0, 200) || 'imagem', style: `display:block;border:0;outline:none;max-width:100%;height:auto${width ? `;width:${width}px` : ''}` };
+  if (width) out.width = String(width);
+  if (height) out.height = String(height);
+  return { tagName, attribs: out };
+}
+
 export function sanitizeOutgoingHtml(html) {
   const styled = Object.fromEntries(Object.entries(OUT_STYLE).map(([tag, style]) => [tag, (tagName, attribs) => ({
     tagName, attribs: tag === 'a' ? { href: attribs.href, target: '_blank', style } : { style },
   })]));
   const bare = (tagName) => ({ tagName, attribs: {} });
+  const span = (tagName, attribs) => { const style = cleanSpanStyle(attribs.style); return { tagName, attribs: style ? { style } : {} }; };
   const clean = sanitizeHtml(String(html || ''), {
-    allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'a', 'ul', 'ol', 'li', 'blockquote', 'span', 'div'],
-    allowedAttributes: { a: ['href', 'target', 'style'], p: ['style'], ul: ['style'], ol: ['style'], li: ['style'], blockquote: ['style'] },
+    allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'a', 'ul', 'ol', 'li', 'blockquote', 'span', 'div', 'img'],
+    allowedAttributes: { a: ['href', 'target', 'style'], p: ['style'], ul: ['style'], ol: ['style'], li: ['style'], blockquote: ['style'], span: ['style'], img: ['src', 'alt', 'width', 'height', 'style'] },
     allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+    allowedSchemesByTag: { img: ['cid', 'data'] },
     allowProtocolRelative: false,
     nonTextTags: ['style', 'script', 'textarea', 'option', 'noscript', 'title', 'head'],
-    transformTags: { ...styled, span: bare, div: bare },
+    transformTags: { ...styled, span, div: bare, img: outImage },
   });
   return clean.replace(/<p style="margin:0;padding:0"><\/p>/g, '<p style="margin:0;padding:0"><br></p>');
+}
+
+// Imagens coladas/arrastadas no corpo chegam como data: (base64). No e-mail elas viram partes embutidas (multipart/related,
+// Content-ID), como o logo: link externo vem bloqueado no Outlook e data: não abre no Gmail nem no Outlook.
+export const BODY_IMAGE_PREFIX = 'img-';
+export const MAX_BODY_IMAGES = 20;
+export function extractInlineImages(html) {
+  const images = [];
+  const out = String(html || '').replace(/(<img\b[^>]*?\bsrc=")data:image\/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)(")/gi, (m, pre, type, b64, post) => {
+    if (images.length >= MAX_BODY_IMAGES) return `${pre}${post}`;
+    const cid = `${BODY_IMAGE_PREFIX}${images.length + 1}-${crypto.randomBytes(6).toString('hex')}@pricetax.com.br`;
+    images.push({ cid, mimeType: `image/${type.toLowerCase()}`, data: Buffer.from(b64, 'base64') });
+    return `${pre}cid:${cid}${post}`;
+  });
+  return { html: out, images };
+}
+
+// Reabrir rascunho: as imagens do corpo (cid:) voltam a ser data: para aparecer no editor. `parts` = [{ cid, mimeType, data }].
+export function restoreInlineImages(html, parts) {
+  const byCid = new Map((parts || []).map((p) => [p.cid, p]));
+  return String(html || '').replace(/(<img\b[^>]*?\bsrc=")cid:([^"]+)(")/gi, (m, pre, cid, post) => {
+    const p = byCid.get(cid);
+    return p ? `${pre}data:${p.mimeType};base64,${Buffer.from(p.data).toString('base64')}${post}` : m;
+  });
 }
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'", '#x27': "'", nbsp: ' ' };
@@ -204,24 +267,59 @@ export function replyRecipients(original, me, mode) {
 export const LOGO_CID = 'logo-pricetax@pricetax.com.br';
 export const SIGNATURE_FIELDS = ['name', 'role', 'phone', 'mobile', 'email', 'site', 'extra'];
 
+// Imagem própria da assinatura (foto, banner ou selo; pacote de personalização, 2026-11-02). Fica no
+// users.preferences.mail.signature junto com os campos, por isso o limite é pequeno; a tela já reduz antes de subir.
+export const SIG_IMAGE_CID = 'assinatura-pricetax@pricetax.com.br';
+export const SIG_IMAGE_MAX_BYTES = 200 * 1024;
+export const SIG_IMAGE_WIDTH = [40, 600];
+const SIG_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif'];
+
+export function cleanSignatureImage(img) {
+  if (!img || typeof img !== 'object') return null;
+  const mimeType = String(img.mimeType || '').toLowerCase();
+  const data = String(img.data || '').replace(/\s+/g, '');
+  if (!SIG_IMAGE_TYPES.includes(mimeType) || !/^[A-Za-z0-9+/=]+$/.test(data)) return null;
+  const bytes = Buffer.from(data, 'base64');
+  if (!bytes.length || bytes.length > SIG_IMAGE_MAX_BYTES) return null;
+  const width = Math.round(Number(img.width) || 0);
+  const height = Math.round(Number(img.height) || 0);
+  if (width < SIG_IMAGE_WIDTH[0] || width > SIG_IMAGE_WIDTH[1] || height < 10 || height > 600) return null;
+  return { mimeType, data: bytes.toString('base64'), width, height, alt: oneLine(img.alt).slice(0, 80) };
+}
+
+// Mensagem para a tela quando a imagem foi recusada (a limpeza acima só devolve null).
+export function signatureImageError(img) {
+  if (!img || typeof img !== 'object') return null;
+  if (!SIG_IMAGE_TYPES.includes(String(img.mimeType || '').toLowerCase())) return 'A imagem da assinatura precisa ser PNG, JPG ou GIF.';
+  if (Buffer.byteLength(String(img.data || ''), 'base64') > SIG_IMAGE_MAX_BYTES) return 'A imagem da assinatura passou de 200 KB. Use uma imagem menor ou diminua a largura.';
+  return cleanSignatureImage(img) ? null : `A largura da imagem precisa ficar entre ${SIG_IMAGE_WIDTH[0]} e ${SIG_IMAGE_WIDTH[1]} px.`;
+}
+
 export function cleanSignature(input) {
   const s = input && typeof input === 'object' ? input : {};
   const out = { enabled: s.enabled !== false, logo: s.logo !== false };
   for (const k of SIGNATURE_FIELDS) out[k] = oneLine(s[k]).slice(0, k === 'extra' ? 200 : 120);
+  out.image = cleanSignatureImage(s.image);
+  out.imagePos = s.imagePos === 'top' ? 'top' : 'bottom';
   return out;
 }
 
 export function signatureHasContent(sig) {
-  return !!sig && SIGNATURE_FIELDS.some((k) => sig[k]);
+  return !!sig && (SIGNATURE_FIELDS.some((k) => sig[k]) || !!sig.image);
 }
 
 const siteHref = (site) => (/^https?:\/\//i.test(site) ? site : `https://${site}`);
 
-// Tabela de uma coluna, tudo inline, Arial. O logo vai com width/height fixos (o Outlook ignora o max-width).
-export function signatureHtml(sig, { logoSrc = `cid:${LOGO_CID}` } = {}) {
+// Tabela de uma coluna, tudo inline, Arial. Logo e imagem própria vão com width/height fixos (o Outlook ignora o max-width).
+// `imageSrc` padrão = cid da imagem própria; a prévia na tela usa data: (nada sai do painel).
+export function signatureHtml(sig, { logoSrc = `cid:${LOGO_CID}`, imageSrc = `cid:${SIG_IMAGE_CID}` } = {}) {
   if (!signatureHasContent(sig)) return '';
   const td = (style, inner) => `<tr><td style="${FONT};${style}">${inner}</td></tr>`;
   const rows = [];
+  const img = sig.image && imageSrc
+    ? td('padding:0 0 8px 0', `<img src="${escapeHtml(imageSrc)}" width="${sig.image.width}" height="${sig.image.height}" alt="${escapeHtml(sig.image.alt || sig.name || 'Assinatura')}" style="display:block;border:0;outline:none;text-decoration:none;width:${sig.image.width}px;height:${sig.image.height}px">`)
+    : '';
+  if (img && sig.imagePos === 'top') rows.push(img);
   if (sig.name || sig.role) {
     rows.push(td('font-size:13px;line-height:18px;color:#222222;padding:0 0 8px 0',
       [sig.name ? `<strong style="${FONT};font-size:14px;color:#111111">${escapeHtml(sig.name)}</strong>` : '', sig.role ? `<span style="${FONT};color:#555555">${escapeHtml(sig.role)}</span>` : ''].filter(Boolean).join('<br>')));
@@ -236,6 +334,7 @@ export function signatureHtml(sig, { logoSrc = `cid:${LOGO_CID}` } = {}) {
   ].filter(Boolean).join(' &nbsp;|&nbsp; ');
   const contact = [phones, links, sig.extra ? escapeHtml(sig.extra) : ''].filter(Boolean).join('<br>');
   if (contact) rows.push(td('font-size:12px;line-height:18px;color:#555555', contact));
+  if (img && sig.imagePos !== 'top') rows.push(img.replace('padding:0 0 8px 0', 'padding:8px 0 0 0'));
   return `<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;${FONT};color:#222222">${rows.join('')}</table>`;
 }
 
@@ -248,8 +347,10 @@ export function signatureText(sig) {
 // --- corpo completo -----------------------------------------------------------------
 
 // Junta o que a pessoa escreveu + assinatura + citação num HTML (documento inteiro, sem <style>) e no texto puro.
+// `images` = imagens do corpo que viram partes embutidas (extractInlineImages); o texto da pessoa é cortado em 2 MB sem elas.
 export function composeBody({ html, signature, quote }) {
-  const userHtml = sanitizeOutgoingHtml(html);
+  const extracted = extractInlineImages(html);
+  const userHtml = sanitizeOutgoingHtml(extracted.html.slice(0, 2_000_000));
   const sigHtml = signature ? signatureHtml(signature) : '';
   // Os marcadores em comentário deixam reabrir o rascunho com só o texto da pessoa (sem assinatura e citação), ver `draftBodyHtml`.
   const parts = [`<div style="${TEXT_STYLE}"><!--pt-body-->${userHtml || '<br>'}<!--/pt-body--></div>`];
@@ -260,7 +361,8 @@ export function composeBody({ html, signature, quote }) {
     + `<body style="margin:0;padding:0;${TEXT_STYLE}">${parts.join('')}</body></html>`;
   const sigText = signature ? signatureText(signature) : '';
   const text = [htmlToText(userHtml), sigText ? `-- \n${sigText}` : '', quote ? quote.text : ''].filter(Boolean).join('\n\n');
-  return { html: doc, text, usesLogo: !!sigHtml && signature.logo !== false };
+  const images = extracted.images.filter((i) => userHtml.includes(`cid:${i.cid}`));
+  return { html: doc, text, usesLogo: !!sigHtml && signature.logo !== false, usesSigImage: !!sigHtml && !!signature.image, images };
 }
 
 // --- MIME --------------------------------------------------------------------------
@@ -343,4 +445,25 @@ export function draftBodyHtml(html) {
   if (m) return m[1] === '<br>' ? '' : m[1];
   const body = s.match(/<body[^>]*>([\s\S]*)<\/body>/i);
   return body ? body[1] : s;
+}
+
+// --- Sugestão de destinatário (pacote de personalização, 2026-11-02) ----------------------------------------------------
+// "ra" traz primeiro quem COMEÇA com ra (Rafael, rafael@…), depois quem tem uma palavra do nome começando com ra (Ana Ramos)
+// e só então quem apenas contém (Clara). Dentro de cada grupo vale a ordem recebida (quem você mais escreve vem antes).
+export const foldText = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+export function contactRank(c, q) {
+  const name = foldText(c.name);
+  const email = String(c.email || '').toLowerCase();
+  if (!q) return 3;
+  if (name.startsWith(q) || email.startsWith(q)) return 0;
+  if (name.split(/[\s.'-]+/).some((w) => w.startsWith(q)) || email.split(/[@._-]+/).some((w) => w.startsWith(q))) return 1;
+  if (name.includes(q) || email.includes(q)) return 2;
+  return 3;
+}
+
+export function rankContacts(list, query, limit = 8) {
+  const q = foldText(query).trim();
+  return (list || []).map((c, i) => ({ c, i, r: contactRank(c, q) })).filter((x) => x.r < 3)
+    .sort((a, b) => a.r - b.r || a.i - b.i).slice(0, limit).map((x) => x.c);
 }

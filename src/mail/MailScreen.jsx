@@ -5,14 +5,14 @@
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Inbox, Star, Send, FileText, Archive, AlertOctagon, Trash2, Tag, RefreshCw, Search, Paperclip, ArrowLeft, MailOpen, Mail, Undo2, Image as ImageIcon, Download, Link2, AlertTriangle, X, PenSquare, Reply, ReplyAll, Forward, Signature, FolderInput, FolderPlus, Pencil, ListFilter, Bell, PencilLine, PanelLeftClose, PanelLeftOpen, SlidersHorizontal } from 'lucide-react';
 import { Callout, BusyBar, Button, IconButton, EmptyState, activateRow } from '../ui/index.jsx';
-import { notify, askConfirm, askText } from '../ui/dialogs.jsx';
-import { apiGet, apiPost, apiPatch } from '../lib/api.js';
+import { notify, askConfirm } from '../ui/dialogs.jsx';
+import { apiGet, apiPost } from '../lib/api.js';
 import { BrandLogo, useIsMobile } from '../App.jsx';
 import { S } from '../styles/S.js';
 import MailFrame from './MailFrame.jsx';
 import Compose, { fmtSize } from './Compose.jsx';
 import SignatureDialog from './SignatureDialog.jsx';
-import { MoveDialog, RulesDialog } from './Folders.jsx';
+import { MoveDialog, RulesDialog, FolderDialog } from './Folders.jsx';
 import { isTypingTarget } from '../shell/shortcuts.js';
 import { LIMITS, sanitizeView, viewKey, clampList, stepSize, mailKeyAction, neighborId, afterRemoval, removesFrom } from './mailView.js';
 import './mail.css';
@@ -58,6 +58,7 @@ export default function MailScreen({ currentUser, theme }) {
   const [threadRev, setThreadRev] = useState(0);
   const [moveFor, setMoveFor] = useState(null);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [folderEdit, setFolderEdit] = useState(null);
   const [notifPerm, setNotifPerm] = useState(() => (canNotify() ? Notification.permission : 'unsupported'));
   const reqRef = useRef(0);
   const composeRef = useRef(null);
@@ -206,17 +207,9 @@ export default function MailScreen({ currentUser, theme }) {
     }
   }
 
-  async function newFolder() {
-    const name = await askText({ title: 'Nova pasta', label: 'Nome da pasta (use / para subpasta, ex.: Clientes/KUHN)', confirmLabel: 'Criar' });
-    if (!name || !name.trim()) return;
-    try { await apiPost('/api/mail/labels', { name: name.trim() }); notify('Pasta criada.', { tone: 'success' }); loadNav(); } catch (e) { notify(e.message, { tone: 'error' }); }
-  }
-
-  async function renameFolder(l) {
-    const name = await askText({ title: 'Renomear pasta', label: 'Novo nome', defaultValue: l.name, confirmLabel: 'Renomear' });
-    if (!name || !name.trim() || name.trim() === l.name) return;
-    try { await apiPatch(`/api/mail/labels/${encodeURIComponent(l.id)}`, { name: name.trim() }); notify('Pasta renomeada.', { tone: 'success' }); loadNav(); } catch (e) { notify(e.message, { tone: 'error' }); }
-  }
+  // Nova pasta / editar pasta (nome e cor): Folders.jsx, FolderDialog. folderEdit = { label } (label null = nova).
+  const newFolder = () => setFolderEdit({ label: null });
+  const renameFolder = (l) => setFolderEdit({ label: l });
 
   // Arrastar conversas da lista para uma pasta (as selecionadas, se a arrastada estiver entre elas).
   const dragIds = (id) => (selected.has(id) ? [...selected] : [id]);
@@ -445,9 +438,9 @@ export default function MailScreen({ currentUser, theme }) {
               {nav.labels.map((l) => (
                 <div key={l.id} className="mail-folder-row" {...dropProps(l)}>
                   <button type="button" className={`mail-folder${!search && folder === l.id ? ' on' : ''}`} onClick={() => pickFolder(l.id)} title={l.name} aria-current={!search && folder === l.id ? 'page' : undefined}>
-                    <Tag size={14} aria-hidden="true" style={l.color ? { color: l.color } : undefined} /><span>{l.name}</span>{l.unread ? <b className="mail-count">{l.unread}</b> : null}
+                    <Tag size={14} aria-hidden="true" style={l.color ? { color: l.color } : undefined} fill={l.color || 'none'} /><span>{l.name}</span>{l.unread ? <b className="mail-count">{l.unread}</b> : null}
                   </button>
-                  <button type="button" className="mail-ic mail-folder-edit" aria-label={`Renomear a pasta ${l.name}`} title="Renomear" onClick={() => renameFolder(l)}><Pencil size={12} aria-hidden="true" /></button>
+                  <button type="button" className="mail-ic mail-folder-edit" aria-label={`Editar a pasta ${l.name} (nome e cor)`} title="Editar nome e cor" onClick={() => renameFolder(l)}><Pencil size={12} aria-hidden="true" /></button>
                 </div>
               ))}
               {!nav.labels.length && <button type="button" className="mail-folder mail-folder-hint" onClick={newFolder}><FolderPlus size={14} aria-hidden="true" /><span>Criar a primeira pasta</span></button>}
@@ -599,6 +592,7 @@ export default function MailScreen({ currentUser, theme }) {
           onCreated={(l) => setNav((n) => ({ ...n, labels: [...n.labels, { ...l, unread: 0 }].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')) }))}
         />
       )}
+      {folderEdit && <FolderDialog label={folderEdit.label} onClose={() => setFolderEdit(null)} onSaved={() => { setFolderEdit(null); loadNav(); }} />}
       {rulesOpen && <RulesDialog canRules={!!(status && status.rules)} onClose={() => setRulesOpen(false)} />}
       {sigOpen && signature && <SignatureDialog value={signature} onClose={() => setSigOpen(false)} onSaved={(r) => { setSignature(r); setSigOpen(false); }} />}
     </div>
