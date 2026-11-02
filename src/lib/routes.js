@@ -66,7 +66,7 @@ export function canOpenMode(mode, user) {
     case 'knowledge': return isStaff;
     case 'pareceres': return isStaff;
     case 'modelos': return isStaff;
-    case 'crm': return !!user.crmAccess;
+    case 'crm': return !!user.crmAccess && (user.workRole !== 'operacoes' || !!user.isSuperAdmin);
     case 'users': return user.role === 'master';
     case 'ops': return user.role === 'master';
     default: return false;

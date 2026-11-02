@@ -238,6 +238,8 @@ function decodeEntities(s) {
 const scopeCache = new Map(); // userId -> { ok, email, at }
 
 export function forgetMailScope(userId) { scopeCache.delete(userId); }
+// Gmail liberado segundo a última conferência feita nesta instância (true/false), ou null se ninguém conferiu ainda (tela de usuários).
+export function knownMailScope(userId) { const hit = scopeCache.get(userId); return hit ? !!hit.ok : null; }
 
 export async function gmailFor(userId) {
   if (!googleConfigured()) return null;

@@ -17,6 +17,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMentionUsers } from '../ui/ComposeBox.jsx';
 import { BrandLogo, CLIENT_TYPE_META, CLIENT_TYPE_ORDER, COMPANY_STATUS_META, ConfirmDiscardModal, PHASE_COLORS, ROLE_META, UserAvatar, fmtDate, fmtTs, groupMembers, todayISOStr, useDirtyForm, useIsMobile } from '../App.jsx';
 import { S } from '../styles/S.js';
+import { AccessMatrix, GmailCell, RoleCards, RoleHistory, USERS_ROLES_CSS, WorkRoleBadge, WorkRoleConfirm, WorkRoleSelect, useUsersOverview } from '../users/UserRoles.jsx';
+import { WORK_ROLES, workRoleLabel } from '../../shared/workRoles.js';
 
 // Fica aqui (e não em crm/crmMeta.js) pra o CSS do CRM não entrar no pacote principal.
 const CRM_ROLE_OPTIONS = [
@@ -211,8 +213,13 @@ export function UsersManagementScreen({
   theme, onToggleTheme,
 }) {
   const [search, setSearch] = useState('');
-  const [filterRole, setFilterRole] = useState('all');
+  const [filterWork, setFilterWork] = useState('all');
+  const [filterTeam, setFilterTeam] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterGmail, setFilterGmail] = useState('all');
+  const [tab, setTab] = useState('people');
+  const [pendingRole, setPendingRole] = useState(null);
+  const [overview, reloadOverview] = useUsersOverview();
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [confirmUser, setConfirmUser] = useState(null);
@@ -233,16 +240,29 @@ export function UsersManagementScreen({
     else { setConfirmUser(null); setEditingId(null); }
   }
 
+  const isInactive = (u) => u.blocked || isExpiredNotYetFlagged(u);
   const total = users.length;
-  const blocked = users.filter((u) => u.blocked).length;
+  const blocked = users.filter(isInactive).length;
   const active = total - blocked;
-  const admins = users.filter((u) => u.role === 'master').length;
+  const byWork = (r) => users.filter((u) => !isInactive(u) && u.role !== 'cliente' && (u.workRole || '') === r).length;
   const editingUser = users.find((u) => u.id === editingId) || null;
+  const gmailOf = (u) => overview.google[u.id];
+  const requestRole = (u, role) => { if ((u.workRole || '') !== role) setPendingRole({ user: u, role }); };
+  async function saveRole(id, workRole) {
+    const err = await onUpdateUser(id, { workRole });
+    reloadOverview();
+    return err || '';
+  }
 
   const filtered = users.filter((u) => {
-    if (filterRole !== 'all' && u.role !== filterRole) return false;
-    if (filterStatus === 'ativo' && u.blocked) return false;
-    if (filterStatus === 'bloqueado' && !u.blocked) return false;
+    if (filterWork !== 'all' && (u.workRole || '') !== filterWork) return false;
+    if (filterTeam === 'equipe' && u.role === 'cliente') return false;
+    if (filterTeam === 'cliente' && u.role !== 'cliente') return false;
+    if (filterTeam === 'master' && u.role !== 'master') return false;
+    if (filterStatus === 'ativo' && isInactive(u)) return false;
+    if (filterStatus === 'inativo' && !isInactive(u)) return false;
+    if (filterGmail === 'sim' && !(gmailOf(u) && gmailOf(u).connected)) return false;
+    if (filterGmail === 'nao' && gmailOf(u) && gmailOf(u).connected) return false;
     if (search.trim()) {
       const s = search.trim().toLowerCase();
       return (u.name || '').toLowerCase().includes(s) || (u.username || '').toLowerCase().includes(s) || (u.email || '').toLowerCase().includes(s);
@@ -262,6 +282,7 @@ export function UsersManagementScreen({
         input[type=text]:focus, input[type=date]:focus, input[type=email]:focus, input[type=password]:focus, select:focus, textarea:focus {
           outline:none; border-color:#F5C400;
         }
+        ${USERS_ROLES_CSS}
       `}</style>
 
       <div style={S.usersHeader}>
@@ -289,30 +310,51 @@ export function UsersManagementScreen({
         </div>
         <div style={S.usersStatCard}>
           <div style={{ ...S.usersStatValue, color: '#e2574c' }}>{blocked}</div>
-          <div style={S.usersStatLabel}>Bloqueados</div>
+          <div style={S.usersStatLabel}>Inativos</div>
         </div>
-        <div style={S.usersStatCard}>
-          <div style={{ ...S.usersStatValue, color: '#F5C400' }}>{admins}</div>
-          <div style={S.usersStatLabel}>Admins</div>
-        </div>
+        {WORK_ROLES.map((r) => (
+          <div key={r} style={S.usersStatCard}>
+            <div style={S.usersStatValue}>{byWork(r)}</div>
+            <div style={S.usersStatLabel}>{workRoleLabel(r)}</div>
+          </div>
+        ))}
       </div>
 
-      <div style={S.usersFilterRow}>
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome, usuário ou e-mail..." style={{ flex: 1 }} />
-        <select aria-label="Filtrar por perfil" value={filterRole} onChange={(e) => setFilterRole(e.target.value)} style={{ width: 170, flexShrink: 0 }}>
-          <option value="all">Todos os perfis</option>
-          <option value="master">Master</option>
-          <option value="pricetax">PRICETAX</option>
-          <option value="cliente">Cliente</option>
-        </select>
-        <select aria-label="Filtrar por situação" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ width: 150, flexShrink: 0 }}>
-          <option value="all">Todos os status</option>
-          <option value="ativo">Ativo</option>
-          <option value="bloqueado">Bloqueado</option>
-        </select>
+      <div className="ur-tabs">
+        <Tabs label="Seções da gestão de usuários" active={tab} onChange={setTab}
+          tabs={[{ id: 'people', label: 'Pessoas' }, { id: 'matrix', label: 'Quem acessa o quê' }, { id: 'history', label: 'Histórico', count: overview.history.length }]} />
       </div>
 
       {usersPanelError && <div style={{ ...S.loginBlockedMsg, margin: '0 24px 16px 24px' }}>{usersPanelError}</div>}
+
+      {tab === 'matrix' && <><RoleCards /><AccessMatrix users={users} /></>}
+      {tab === 'history' && <RoleHistory history={overview.history} error={overview.error} />}
+
+      {tab === 'people' && (<>
+      <div className="ur-filters">
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome, usuário ou e-mail..." aria-label="Buscar usuário" />
+        <select aria-label="Filtrar por papel" value={filterWork} onChange={(e) => setFilterWork(e.target.value)}>
+          <option value="all">Todos os papéis</option>
+          {WORK_ROLES.map((r) => <option key={r} value={r}>{workRoleLabel(r)}</option>)}
+          <option value="">Sem papel</option>
+        </select>
+        <select aria-label="Filtrar por equipe" value={filterTeam} onChange={(e) => setFilterTeam(e.target.value)}>
+          <option value="all">Equipe e clientes</option>
+          <option value="equipe">Equipe PRICETAX</option>
+          <option value="master">Só administradores (Master)</option>
+          <option value="cliente">Clientes</option>
+        </select>
+        <select aria-label="Filtrar por situação" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+          <option value="all">Ativos e inativos</option>
+          <option value="ativo">Ativos</option>
+          <option value="inativo">Inativos (bloqueados ou vencidos)</option>
+        </select>
+        <select aria-label="Filtrar por Gmail conectado" value={filterGmail} onChange={(e) => setFilterGmail(e.target.value)}>
+          <option value="all">Gmail: todos</option>
+          <option value="sim">Gmail conectado</option>
+          <option value="nao">Gmail não conectado</option>
+        </select>
+      </div>
 
       <div style={S.usersTableOuter}>
         <div style={S.usersTableWrap}>
@@ -320,9 +362,10 @@ export function UsersManagementScreen({
           <div style={S.usersTableHeaderRow}>
             <div style={{ ...S.th, flex: 2 }}>Nome / Usuário</div>
             <div style={{ ...S.th, flex: 2 }}>E-mail</div>
-            <div style={{ ...S.th, width: 148 }}>Perfil</div>
-            <div style={{ ...S.th, width: 100 }}>Status</div>
-            <div style={{ ...S.th, width: 110 }}>Licença até</div>
+            <div style={{ ...S.th, width: 140 }}>Papel</div>
+            <div style={{ ...S.th, width: 110 }}>Perfil</div>
+            <div style={{ ...S.th, width: 110 }}>Status</div>
+            <div style={{ ...S.th, width: 92 }}>Gmail</div>
             <div style={{ ...S.th, width: 190 }}>Último acesso</div>
             <div style={{ ...S.th, width: 56, textAlign: 'right' }}>Acessos</div>
             <div style={{ ...S.th, width: 80, textAlign: 'right' }}>Ações</div>
@@ -339,15 +382,17 @@ export function UsersManagementScreen({
                 </div>
               </div>
               <div style={S.usersRowEmail}>{u.email || '—'}</div>
-              <div style={{ width: 148 }}>
+              <div style={{ width: 140 }} onClick={(e) => e.stopPropagation()}>
+                <WorkRoleSelect user={u} onRequest={requestRole} compact />
+              </div>
+              <div style={{ width: 110 }}>
                 <span style={{ ...S.roleTag, color: ROLE_META[u.role].color, borderColor: ROLE_META[u.role].color }}>{ROLE_META[u.role].label}</span>
               </div>
-              <div style={{ width: 100 }}>
-                {u.blocked ? <span style={S.usersStatusBlocked}>Bloqueado</span> : <span style={S.usersStatusActive}>Ativo</span>}
+              <div style={{ width: 110 }}>
+                {u.blocked ? <span style={S.usersStatusBlocked}>Bloqueado</span> : isExpiredNotYetFlagged(u) ? <span style={S.usersStatusBlocked}>Vencido</span> : <span style={S.usersStatusActive}>Ativo</span>}
+                <div style={{ fontSize: 11, marginTop: 3, color: isExpiredNotYetFlagged(u) ? '#e2574c' : 'var(--text-6)' }}>{u.expiresAt ? `Até ${fmtDate(u.expiresAt)}` : 'Sem limite'}</div>
               </div>
-              <div style={{ width: 110, fontSize: 12.5, color: isExpiredNotYetFlagged(u) ? '#e2574c' : 'var(--text-3)' }}>
-                {u.expiresAt ? fmtDate(u.expiresAt) : 'Sem limite'}
-              </div>
+              <div style={{ width: 92 }}><GmailCell info={gmailOf(u)} /></div>
               <div style={{ width: 190, minWidth: 0 }}>
                 {access && access[u.id] && access[u.id].last ? (
                   <>
@@ -387,6 +432,8 @@ export function UsersManagementScreen({
                 </div>
               </div>
               <div style={S.usersMobileBadgeRow}>
+                <WorkRoleBadge role={u.workRole || ''} />
+                <GmailCell info={gmailOf(u)} />
                 <span style={{ ...S.roleTag, color: ROLE_META[u.role].color, borderColor: ROLE_META[u.role].color }}>{ROLE_META[u.role].label}</span>
                 {u.blocked ? <span style={S.usersStatusBlocked}>Bloqueado</span> : <span style={S.usersStatusActive}>Ativo</span>}
                 <span style={{ fontSize: 12, color: isExpiredNotYetFlagged(u) ? '#e2574c' : 'var(--text-5)' }}>
@@ -416,6 +463,9 @@ export function UsersManagementScreen({
           {filtered.length === 0 && <div style={{ ...S.emptyMuted, padding: 24 }}>Nenhum usuário encontrado.</div>}
         </div>
       </div>
+      </>)}
+
+      <WorkRoleConfirm key={pendingRole ? `${pendingRole.user.id}-${pendingRole.role}` : 'none'} pending={pendingRole} onSave={saveRole} onClose={() => setPendingRole(null)} />
 
       {showCreate && (
         <NewUserModal
@@ -446,6 +496,7 @@ export function UsersManagementScreen({
           onRenew={onRenew}
           onResetPassword={onResetPassword}
           onToggleCnpj={onToggleCnpj}
+          onRequestRole={requestRole}
           onDelete={(id) => { const u = users.find((x) => x.id === id); if (u) setConfirmUser({ kind: 'delete', user: u, busy: false, error: '' }); }}
         />
       )}
@@ -581,7 +632,7 @@ function NewUserModal({ onCreate, onClose, isSuperAdmin, organizations, register
   );
 }
 
-function EditUserModal({ user: u, accessSummary, currentUser, registeredProjects, onClose, onUpdate, onToggleBlock, onRenew, onResetPassword, onToggleCnpj, onDelete }) {
+function EditUserModal({ user: u, accessSummary, currentUser, registeredProjects, onClose, onUpdate, onToggleBlock, onRenew, onResetPassword, onToggleCnpj, onDelete, onRequestRole }) {
   const isSelf = u.id === currentUser.id;
   const [draftName, setDraftName] = useState(u.name);
   const [draftUsername, setDraftUsername] = useState(u.username);
@@ -612,6 +663,9 @@ function EditUserModal({ user: u, accessSummary, currentUser, registeredProjects
             </select>
           </div>
         </div>
+        <div style={S.subSectionLabel}>Papel de trabalho</div>
+        <WorkRoleSelect user={u} onRequest={onRequestRole} />
+        <div style={S.fieldHint}>Sócio, Comercial ou Operações. Trocar pede confirmação e fica no Histórico. Operações não acessa o CRM.</div>
         <div style={S.subSectionLabel}>Usuário (login)</div>
         <input type="text" value={draftUsername} onChange={(e) => setDraftUsername(e.target.value)} onBlur={() => draftUsername !== u.username && onUpdate(u.id, { username: draftUsername })} placeholder="Usuário (login)" />
         <div style={S.subSectionLabel}>E-mail</div>
@@ -682,9 +736,15 @@ function EditUserModal({ user: u, accessSummary, currentUser, registeredProjects
 
         <div style={{ marginTop: 12 }}>
           <div style={S.subSectionLabel}>Acesso ao CRM</div>
+          {u.workRole === 'operacoes' && !u.isSuperAdmin ? (
+            <div style={S.fieldHint}>Sem acesso: o papel Operações não acessa o CRM (tela, busca, cockpit, RENATA e sugestão de contatos).</div>
+          ) : ['socio', 'comercial'].includes(u.workRole) && u.role !== 'cliente' ? (
+            <div style={S.fieldHint}>Administrador (automático — papel {workRoleLabel(u.workRole)}).</div>
+          ) : (
           <select value={u.crmRole || ''} onChange={(e) => onUpdate(u.id, { crmRole: e.target.value })} disabled={u.role === 'cliente' || u.role === 'master'}>
             {CRM_ROLE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{u.role === 'master' ? 'Administrador (automático — Master)' : (u.role === 'cliente' && v === '' ? 'Sem acesso (usuários cliente nunca acessam)' : l)}</option>)}
           </select>
+          )}
         </div>
 
         <div style={S.accessBlock}>

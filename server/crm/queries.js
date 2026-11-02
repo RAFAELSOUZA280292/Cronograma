@@ -208,7 +208,7 @@ export async function search(orgId, qRaw) {
 export async function options(orgId) {
   const { rows: segs } = await pool.query(`SELECT DISTINCT segment FROM crm_companies WHERE org_id=$1 AND deleted_at IS NULL AND segment <> '' ORDER BY segment LIMIT 100`, [orgId]);
   const { rows: owners } = await pool.query(
-    `SELECT id, name FROM users WHERE org_id=$1 AND role <> 'cliente' AND blocked = false AND (role = 'master' OR is_super_admin OR crm_role <> '') ORDER BY lower(name)`, [orgId]);
+    `SELECT id, name FROM users WHERE org_id=$1 AND role <> 'cliente' AND blocked = false AND (is_super_admin OR (COALESCE(work_role, '') <> 'operacoes' AND (role = 'master' OR crm_role <> '' OR work_role IN ('socio', 'comercial')))) ORDER BY lower(name)`, [orgId]);
   const { rows: dsrc } = await pool.query(`SELECT source, count(*)::int AS n FROM crm_deals WHERE org_id=$1 AND deleted_at IS NULL AND source <> '' GROUP BY source ORDER BY count(*) DESC, source LIMIT 60`, [orgId]);
   return {
     dealSources: dsrc.map((r) => r.source),

@@ -1025,6 +1025,46 @@ export async function initDb() {
   // máximo uma empresa do CRM). Lead NÃO é estado da empresa (Fase 2: é a
   // 1ª etapa de um negócio) — `relationship` é só a relação com a PRICETAX.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS crm_role TEXT NOT NULL DEFAULT ''`);
+  // Papéis de trabalho (2026-11-02, pedido do Rafael: valem a partir de 03/11; shared/workRoles.js). Vazio = sem papel (regra antiga).
+  // user_role_changes = histórico de quem mudou papel/perfil/acesso ao CRM de quem (tela Usuários › Histórico).
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS work_role TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_role_changes (
+      id              TEXT PRIMARY KEY,
+      org_id          TEXT,
+      user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      field           TEXT NOT NULL,
+      old_value       TEXT NOT NULL DEFAULT '',
+      new_value       TEXT NOT NULL DEFAULT '',
+      changed_by      TEXT,
+      changed_by_name TEXT NOT NULL DEFAULT '',
+      note            TEXT NOT NULL DEFAULT '',
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS user_role_changes_org_idx ON user_role_changes (org_id, created_at DESC)`);
+  // Papel inicial da equipe PRICETAX (conferido na tabela de usuários de produção em 02/11/2026). Roda uma vez por pessoa: só grava se ela
+  // ainda não tem papel nem histórico de papel (trocar ou tirar pela tela depois não é desfeito por aqui). Ids inexistentes (local) não fazem nada.
+  const INITIAL_WORK_ROLES = [
+    ['user-qkijg64', 'socio'], ['user-j0eorn9', 'socio'], // Rafael Souza, Felipe Dal Santo
+    ['user-9vlbbkt', 'comercial'], // Eduarda Costa
+    ['user-9bcr37y', 'operacoes'], ['user-vglu9g5', 'operacoes'], // Amanda Pereira, Maiara Morais
+  ];
+  for (const [userId, role] of INITIAL_WORK_ROLES) {
+    await pool.query(
+      `WITH t AS (
+         UPDATE users SET work_role = $2,
+           companies_access = companies_access OR $2 = 'socio', all_companies_access = all_companies_access OR $2 = 'socio',
+           personal_access = personal_access OR $2 IN ('socio', 'operacoes'), updated_at = now()
+         WHERE id = $1 AND work_role = '' AND role <> 'cliente'
+           AND NOT (role = 'master' AND $2 = 'operacoes')
+           AND NOT EXISTS (SELECT 1 FROM user_role_changes WHERE user_id = $1 AND field = 'work_role')
+         RETURNING id, org_id)
+       INSERT INTO user_role_changes (id, org_id, user_id, field, old_value, new_value, changed_by_name, note)
+       SELECT $3, org_id, id, 'work_role', '', $2, 'Sistema', 'Papel inicial (pedido do Rafael em 02/11/2026)' FROM t`,
+      [userId, role, uid('urc')],
+    );
+  }
   // Widget do iPhone (2026-10-05, §76): só o hash do token secreto fica no banco.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_token_hash TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS widget_token_created_at TIMESTAMPTZ`);

@@ -24,9 +24,9 @@ export function registerReports(registry) {
   registry.add({ ...base, name: 'plataforma_pessoas', module: 'Plataforma', summary: 'Pessoas da equipe PRICETAX (id e nome) para traduzir "a Eduarda" em um usuário. Responsáveis de cronograma são nomes; responsáveis do CRM e de XFlow são ids.',
     visible: staff, params: T.obj({ q: T.str('Parte do nome') }),
     run: async (ctx, i) => {
-      const { rows } = await pool.query(`SELECT id, name, role, crm_role FROM users WHERE org_id=$1 AND role IN ('master','pricetax') AND blocked=false AND (expires_at IS NULL OR expires_at > now()) ORDER BY name`, [ctx.orgId]);
+      const { rows } = await pool.query(`SELECT id, name, role, crm_role, work_role, is_super_admin FROM users WHERE org_id=$1 AND role IN ('master','pricetax') AND blocked=false AND (expires_at IS NULL OR expires_at > now()) ORDER BY name`, [ctx.orgId]);
       const q = String(i.q || '').toLowerCase();
-      return { status: 200, json: { pessoas: rows.filter((r) => !q || r.name.toLowerCase().includes(q)).map((r) => ({ id: r.id, nome: r.name, perfil: r.role, perfilCrm: r.crm_role || null })) } };
+      return { status: 200, json: { pessoas: rows.filter((r) => !q || r.name.toLowerCase().includes(q)).map((r) => ({ id: r.id, nome: r.name, perfil: r.role, perfilCrm: crmRoleOf({ role: r.role, crmRole: r.crm_role, workRole: r.work_role, isSuperAdmin: r.is_super_admin }) || null })) } };
     } });
   registry.add({ ...base, name: 'relatorio_equipe_dia', summary: 'O que a equipe fez em um dia (padrão hoje): ações registradas nos Logs das empresas e na linha do tempo do CRM, agrupadas por pessoa, com exemplos. Só equipe PRICETAX.', visible: staff,
     params: T.obj({ data: T.date('Dia (AAAA-MM-DD); padrão hoje') }),

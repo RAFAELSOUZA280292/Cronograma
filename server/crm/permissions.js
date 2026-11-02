@@ -3,6 +3,8 @@
 // independentes de Empresas/Atividades/XFlow — o `role` do usuário só decide
 // que master/super admin são administradores do CRM automaticamente e que
 // 'cliente' NUNCA acessa, mesmo com crm_role preenchido.
+import { CRM_BLOCKED_MSG, crmBlockedByWorkRole, workRoleOf } from '../../shared/workRoles.js';
+
 export const CRM_ROLES = ['admin', 'diretor', 'gestor', 'vendedor', 'consultor', 'financeiro', 'visualizacao'];
 
 export const CRM_ROLE_LABELS = {
@@ -24,10 +26,19 @@ const CAPABILITIES = {
   funnel: ['admin', 'diretor', 'gestor'],
 };
 
+// Papel de trabalho (2026-11-02, shared/workRoles.js): Operações nunca entra no CRM (nem master, que nem pode receber esse papel; só o
+// Super Administrador escapa); Sócio e Comercial são administradores do CRM. Sem papel = regra antiga.
 export function crmRoleOf(user) {
   if (!user || user.role === 'cliente') return '';
-  if (user.role === 'master' || user.isSuperAdmin) return 'admin';
+  if (user.isSuperAdmin) return 'admin';
+  if (crmBlockedByWorkRole(user)) return '';
+  if (user.role === 'master') return 'admin';
+  if (['socio', 'comercial'].includes(workRoleOf(user))) return 'admin';
   return CRM_ROLES.includes(user.crmRole) ? user.crmRole : '';
+}
+
+export function crmDeniedMessage(user) {
+  return crmBlockedByWorkRole(user) ? CRM_BLOCKED_MSG : 'Você não tem permissão pra isso no CRM.';
 }
 
 export function crmCan(user, capability) {

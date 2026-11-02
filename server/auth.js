@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { pool } from './db.js';
 import { originOf, setActor } from './projectAudit.js';
 import { readInternal } from './renata/internalAuth.js';
+import { crmRoleOf } from './crm/permissions.js';
 
 const COOKIE_NAME = 'cronograma_token';
 const TOKEN_TTL = '7d';
@@ -72,7 +73,7 @@ export function toISODateSafe(val) {
 
 function rowToUser(row) {
   if (!row) return null;
-  return {
+  const user = {
     id: row.id,
     username: row.username,
     name: row.name,
@@ -94,9 +95,12 @@ function rowToUser(row) {
     onboardingDone: !!row.onboarding_done_at,
     // CRM (2026-09-20): master/super admin têm acesso de administrador
     // automaticamente; os demais precisam de crm_role; 'cliente' nunca.
+    // Papel de trabalho (2026-11-02): Operações nunca; Sócio e Comercial sempre (regra única em crmRoleOf).
     crmRole: row.crm_role || '',
-    crmAccess: row.role !== 'cliente' && (row.role === 'master' || !!row.is_super_admin || !!row.crm_role),
+    workRole: row.work_role || '',
   };
+  user.crmAccess = !!crmRoleOf(user);
+  return user;
 }
 
 export { rowToUser };

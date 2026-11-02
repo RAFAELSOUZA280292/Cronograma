@@ -106,8 +106,10 @@ export function createUserOrgActions({
       const res = await apiPatch(`/api/users/${id}`, patch);
       setUsers((prev) => prev.map((u) => (u.id === id ? res.user : u)));
       setUsersPanelError('');
+      return '';
     } catch (e) {
       setUsersPanelError(e.message);
+      return e.message;
     }
   }
 

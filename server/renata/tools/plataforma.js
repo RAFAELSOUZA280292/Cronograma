@@ -5,8 +5,12 @@ import { T } from '../validate.js';
 import { callInternal } from '../internalCall.js';
 import { routeIndex, matchRoute, excludedReason, curatedSet, classify } from '../policy.js';
 import { XFLOW_TRANSITIONS } from '../../xflowTransitions.js';
+import { CRM_BLOCKED_MSG, crmBlockedByWorkRole } from '../../../shared/workRoles.js';
 
 const staff = (u) => !!u && (u.isSuperAdmin || u.role === 'master' || u.role === 'pricetax');
+// Operações (papel de trabalho, 2026-11-02) não alcança o CRM nem pelo acesso genérico: nem lista as rotas, nem chama.
+const CRM_PATH = /^\/api\/(connect\/)?crm(\/|$)/;
+const crmOff = (u, path) => crmBlockedByWorkRole(u) && CRM_PATH.test(String(path || ''));
 
 export function registerPlataforma(registry) {
   const mod = (module, extra = {}) => ({ module, ...extra });
@@ -49,13 +53,14 @@ export function registerPlataforma(registry) {
     params: T.obj({ q: T.str('Filtra por parte do caminho (ex.: xflow, pareceres, inventory)') }),
     run: async (ctx, i) => {
       const cur = curatedSet(registry); const q = String(i.q || '').toLowerCase();
-      const list = routeIndex().filter((r) => !excludedReason(r.method, r.path) && classify(r, cur).kind === 'generic' && (!q || r.path.toLowerCase().includes(q)));
+      const list = routeIndex().filter((r) => !excludedReason(r.method, r.path) && !crmOff(ctx.user, r.path) && classify(r, cur).kind === 'generic' && (!q || r.path.toLowerCase().includes(q)));
       return { status: 200, json: { total: list.length, rotas: list.slice(0, 80).map((r) => `${r.method} ${r.path}`), dica: 'Caminhos com :id pedem o id real. O corpo esperado aparece na mensagem de erro (400) se faltar algo.' } };
     } });
-  const checkPath = (method, p, registryRef) => {
+  const checkPath = (method, p, registryRef, user) => {
     // Só letras, números e `_ - . / : @` no caminho (sem `%` nem barra invertida): nada de `%2e%2e`, `..`, `//` ou outro truque para sair do que foi liberado (B9).
     const pathOnly = String(p).split('?')[0];
     if (!/^\/api\/[A-Za-z0-9_\-./:@]+$/.test(pathOnly) || pathOnly.includes('..') || pathOnly.includes('//')) return 'Caminho inválido (use /api/…).';
+    if (crmOff(user, pathOnly)) return CRM_BLOCKED_MSG;
     const r = matchRoute(method, p);
     if (!r) return `Não existe a rota ${method} ${p}. Use plataforma_rotas para ver as disponíveis.`;
     const why = excludedReason(r.method, r.path);
@@ -66,14 +71,14 @@ export function registerPlataforma(registry) {
   registry.add({ ...mod('Plataforma'), name: 'plataforma_consultar', summary: 'Consulta (GET) qualquer rota liberada da plataforma, em nome do usuário e com as permissões dele.', risk: 'read',
     params: T.obj({ path: T.str('Caminho, ex.: /api/xflow/tickets'), query: { type: 'object', description: 'Parâmetros de consulta', additionalProperties: true, properties: {} } }, ['path']),
     run: async (ctx, i) => {
-      const bad = checkPath('GET', i.path, registry); if (bad) return { status: 400, json: { message: bad } };
+      const bad = checkPath('GET', i.path, registry, ctx.user); if (bad) return { status: 400, json: { message: bad } };
       return callInternal({ userId: ctx.user.id, commandId: ctx.actionId, method: 'GET', path: i.path.split('?')[0], query: i.query });
     } });
   registry.add({ ...mod('Plataforma'), name: 'plataforma_executar', summary: 'Executa uma operação que ALTERA dados (POST, PUT, PATCH, DELETE) numa rota liberada que ainda não tem ferramenta própria. Sempre pede confirmação do usuário antes.', risk: 'write', confirm: 'always',
     params: T.obj({ method: T.enm('Método', ['POST', 'PUT', 'PATCH', 'DELETE']), path: T.str('Caminho com o id real'), body: { type: 'object', description: 'Corpo JSON', additionalProperties: true, properties: {} }, descricao: T.str('O que isto faz, em português, para o usuário confirmar', { maxLength: 300 }) }, ['method', 'path', 'descricao']),
     describe: (i) => `${i.descricao} (${i.method} ${i.path})`,
     run: async (ctx, i) => {
-      const bad = checkPath(i.method, i.path, registry); if (bad) return { status: 400, json: { message: bad } };
+      const bad = checkPath(i.method, i.path, registry, ctx.user); if (bad) return { status: 400, json: { message: bad } };
       return callInternal({ userId: ctx.user.id, commandId: ctx.actionId, method: i.method, path: i.path.split('?')[0], body: i.body || {} });
     } });
 }

@@ -9,7 +9,7 @@ import { requireAuth } from '../auth.js';
 import { effectiveOrgId } from '../routes.js';
 import { lookupCnpj } from '../cnpjLookup.js';
 import { CrmError } from './errors.js';
-import { crmCan, crmCapabilities, crmLenses } from './permissions.js';
+import { crmCan, crmCapabilities, crmDeniedMessage, crmLenses } from './permissions.js';
 import { onlyDigits } from './text.js';
 import { isValidCnpj } from './cnpj.js';
 import { findCompanyDuplicates, findContactDuplicates } from './duplicates.js';
@@ -33,7 +33,7 @@ import { mapCnpjSuggestion } from './cnpjSuggestion.js';
 import { registerPiperunRoutes } from './piperun/routes.js';
 
 const need = (cap) => (req, res, next) => {
-  if (!crmCan(req.user, cap)) return res.status(403).json({ message: 'Você não tem permissão pra isso no CRM.' });
+  if (!crmCan(req.user, cap)) return res.status(403).json({ message: crmDeniedMessage(req.user) });
   return next();
 };
 

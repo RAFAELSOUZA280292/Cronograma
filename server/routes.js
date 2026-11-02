@@ -18,6 +18,8 @@ import { readBriefingOff, publicBriefingRules, isValidRuleKey } from './briefing
 import { readMuted, publicCategories, loadMutedPatterns, NOTIFICATION_CATEGORIES, TODAY_SOURCES, readTodayHidden, publicTodaySources } from './notificationPrefs.js';
 import { syncProjectMemoryFromDiff } from './memoryIngest.js';
 import { CRM_ROLES } from './crm/permissions.js';
+import { WORK_ROLES, workRoleProblem, workRoleSideEffects } from '../shared/workRoles.js';
+import { knownMailScope } from './googleMail.js';
 import { searchProjectMemory } from './memoryRetrieval.js';
 import { clientIp, recordAccess, noteVisit, noteFirstUse, accessSummary, recentAccess } from './accessLog.js';
 import { recordUsage } from './usageLog.js';
@@ -302,28 +304,73 @@ router.get('/users/:id/access', requireAuth, requireMaster, async (req, res, nex
   } catch (e) { next(e); }
 });
 
+// Histórico de papéis e acessos (2026-11-02): cada mudança feita pela tela de usuários (ou pela configuração inicial) vira uma linha.
+const TRACKED_FIELDS = [
+  ['work_role', 'Papel de trabalho'], ['role', 'Perfil técnico'], ['crm_role', 'Acesso ao CRM'], ['companies_access', 'Acesso a Empresas'],
+  ['all_companies_access', 'Todas as empresas'], ['personal_access', 'Gestão de Atividades'], ['xflow_role', 'Papel no XFlow'], ['blocked', 'Bloqueado'],
+];
+const asText = (v) => (v === null || v === undefined ? '' : typeof v === 'boolean' ? (v ? 'sim' : 'não') : String(v));
+async function logUserChanges(req, before, after, fields = TRACKED_FIELDS.map(([f]) => f)) {
+  for (const field of fields) {
+    if (asText(before[field]) === asText(after[field])) continue;
+    await pool.query(
+      'INSERT INTO user_role_changes (id, org_id, user_id, field, old_value, new_value, changed_by, changed_by_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+      [uid('urc'), after.org_id || null, after.id, field, asText(before[field]), asText(after[field]), req.user.id, req.user.name || req.user.username],
+    );
+  }
+}
+
+// Visão da tela de usuários: Google/Gmail conectado por pessoa e o histórico de mudanças de papel (últimas 200).
+router.get('/users/overview', requireAuth, requireMaster, async (req, res, next) => {
+  try {
+    const orgId = effectiveOrgId(req);
+    const all = req.user.isSuperAdmin && !orgId;
+    const { rows: users } = await pool.query(all ? 'SELECT id FROM users' : 'SELECT id FROM users WHERE org_id=$1', all ? [] : [orgId]);
+    const ids = users.map((u) => u.id);
+    const { rows: conns } = await pool.query('SELECT user_id, connected_at FROM google_calendar_connections WHERE user_id = ANY($1)', [ids]);
+    const google = {};
+    for (const c of conns) google[c.user_id] = { connected: true, connectedAt: c.connected_at, gmail: knownMailScope(c.user_id) };
+    const { rows: hist } = await pool.query(
+      `SELECT h.*, u.name AS user_name FROM user_role_changes h JOIN users u ON u.id = h.user_id
+       WHERE h.user_id = ANY($1) ORDER BY h.created_at DESC LIMIT 200`, [ids]);
+    const label = Object.fromEntries(TRACKED_FIELDS);
+    res.json({
+      google,
+      history: hist.map((h) => ({
+        id: h.id, userId: h.user_id, userName: h.user_name, field: h.field, fieldLabel: label[h.field] || h.field,
+        oldValue: h.old_value, newValue: h.new_value, changedBy: h.changed_by_name || 'Sistema', note: h.note, at: h.created_at,
+      })),
+    });
+  } catch (e) { next(e); }
+});
+
 // Valores aceitos (B4): papel inválido virava erro 500 e o papel do XFlow era texto livre.
 const USER_ROLES = ['master', 'pricetax', 'cliente'];
 const XFLOW_ROLES = ['', 'reporter', 'dev', 'gestao']; // 'admin' no XFlow é automático para Master/Super Admin, nunca atribuído à mão
 router.post('/users', requireAuth, requireMaster, async (req, res, next) => {
   try {
     const { username, password, name, email, role, cnpj, allowedCnpjs, avatar, personalOnly, xflowRole, companiesAccess, allCompaniesAccess, personalAccess } = req.body || {};
+    const workRole = String((req.body && req.body.workRole) || '');
     if (!username || !password || !name || !role) {
       return res.status(400).json({ message: 'Usuário, senha, nome e papel são obrigatórios.' });
     }
     if (passwordTooShort(password)) return res.status(400).json({ message: PASSWORD_MSG });
     if (!USER_ROLES.includes(role)) return res.status(400).json({ message: 'Papel inválido.' });
     if (xflowRole !== undefined && xflowRole !== null && !XFLOW_ROLES.includes(xflowRole)) return res.status(400).json({ message: 'Papel do XFlow inválido.' });
+    const workProblem = workRoleProblem(workRole, { role });
+    if (workProblem) return res.status(400).json({ message: workProblem });
+    const fx = workRoleSideEffects(workRole);
     const existing = await findUserByUsername(username);
     if (existing) return res.status(409).json({ message: 'Usuário já existe.' });
 
     const hash = await hashPassword(password);
     const id = uid('user');
     const { rows } = await pool.query(
-      `INSERT INTO users (id, username, password_hash, name, email, role, cnpj, allowed_cnpjs, avatar, personal_only, org_id, xflow_role, companies_access, all_companies_access, personal_access)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
-      [id, username, hash, name, email || '', role, cnpj || '', JSON.stringify(allowedCnpjs || []), avatar || '', !!personalOnly, effectiveOrgId(req), xflowRole || '', !!companiesAccess, !!allCompaniesAccess, personalAccess !== undefined ? !!personalAccess : true]
+      `INSERT INTO users (id, username, password_hash, name, email, role, cnpj, allowed_cnpjs, avatar, personal_only, org_id, xflow_role, companies_access, all_companies_access, personal_access, work_role)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+      [id, username, hash, name, email || '', role, cnpj || '', JSON.stringify(allowedCnpjs || []), avatar || '', !!personalOnly, effectiveOrgId(req), xflowRole || '', !!companiesAccess || !!fx.companiesAccess, !!allCompaniesAccess || !!fx.allCompaniesAccess, personalAccess !== undefined ? !!personalAccess || !!fx.personalAccess : true, workRole]
     );
+    await logUserChanges(req, { work_role: '' }, rows[0], ['work_role']);
     res.status(201).json({ user: rowToUser(rows[0]) });
   } catch (e) { next(e); }
 });
@@ -337,6 +384,13 @@ router.patch('/users/:id', requireAuth, requireMaster, async (req, res, next) =>
     const target = await findUserById(id);
     if (!target || !sameOrg(req, target.org_id)) return res.status(404).json({ message: 'Usuário não encontrado.' });
     if (target.is_super_admin && !req.user.isSuperAdmin) return res.status(403).json({ message: 'Só o Super Administrador altera outro Super Administrador.' });
+    const workRole = patch.workRole !== undefined ? String(patch.workRole || '') : (target.work_role || '');
+    const workProblem = workRoleProblem(workRole, { role: patch.role ?? target.role, isSuperAdmin: !!target.is_super_admin });
+    if (workProblem) return res.status(400).json({ message: workProblem });
+    if (patch.workRole !== undefined && workRole !== (target.work_role || '')) {
+      const fx = workRoleSideEffects(workRole);
+      for (const k of Object.keys(fx)) if (patch[k] === undefined) patch[k] = fx[k];
+    }
 
     if (patch.username && patch.username !== target.username) {
       const dup = await findUserByUsername(patch.username);
@@ -358,12 +412,14 @@ router.patch('/users/:id', requireAuth, requireMaster, async (req, res, next) =>
       all_companies_access: patch.allCompaniesAccess !== undefined ? !!patch.allCompaniesAccess : target.all_companies_access,
       personal_access: patch.personalAccess !== undefined ? !!patch.personalAccess : target.personal_access,
       crm_role: patch.crmRole !== undefined ? (CRM_ROLES.includes(patch.crmRole) ? patch.crmRole : '') : (target.crm_role || ''),
+      work_role: WORK_ROLES.includes(workRole) ? workRole : '',
     };
     const { rows } = await pool.query(
-      `UPDATE users SET username=$1, name=$2, email=$3, role=$4, cnpj=$5, allowed_cnpjs=$6, expires_at=$7, avatar=$8, personal_only=$9, xflow_role=$10, companies_access=$11, all_companies_access=$12, personal_access=$13, crm_role=$14, updated_at=now()
-       WHERE id=$15 RETURNING *`,
-      [next_.username, next_.name, next_.email, next_.role, next_.cnpj, next_.allowed_cnpjs, next_.expires_at, next_.avatar, next_.personal_only, next_.xflow_role, next_.companies_access, next_.all_companies_access, next_.personal_access, next_.crm_role, id]
+      `UPDATE users SET username=$1, name=$2, email=$3, role=$4, cnpj=$5, allowed_cnpjs=$6, expires_at=$7, avatar=$8, personal_only=$9, xflow_role=$10, companies_access=$11, all_companies_access=$12, personal_access=$13, crm_role=$14, work_role=$15, updated_at=now()
+       WHERE id=$16 RETURNING *`,
+      [next_.username, next_.name, next_.email, next_.role, next_.cnpj, next_.allowed_cnpjs, next_.expires_at, next_.avatar, next_.personal_only, next_.xflow_role, next_.companies_access, next_.all_companies_access, next_.personal_access, next_.crm_role, next_.work_role, id]
     );
+    await logUserChanges(req, target, rows[0]);
     res.json({ user: rowToUser(rows[0]) });
   } catch (e) { next(e); }
 });
@@ -382,6 +438,7 @@ router.post('/users/:id/block', requireAuth, requireMaster, async (req, res, nex
       `UPDATE users SET blocked=$1, block_reason=$2, updated_at=now() WHERE id=$3 RETURNING *`,
       [!!blocked, blocked ? (blockReason || 'Bloqueado manualmente') : '', id]
     );
+    await logUserChanges(req, target, rows[0]);
     res.json({ user: rowToUser(rows[0]) });
   } catch (e) { next(e); }
 });
