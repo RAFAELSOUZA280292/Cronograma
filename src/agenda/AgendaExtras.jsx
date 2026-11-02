@@ -1,6 +1,6 @@
 // Peças da Agenda "como a do Google", parte 2 (2026-11-02, §138): Criar › Tarefa e Ausente, detalhe de tarefa e de compromisso de
 // colega, seletor de cor livre das agendas e resultados da busca. Tudo grava no Google da própria pessoa (rotas /api/agenda/*).
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Check, RotateCcw, Trash2, Search, ArrowLeft, Plane, ListTodo } from 'lucide-react';
 import { Modal } from '../ui/dialog.jsx';
 import { Button, Callout } from '../ui/index.jsx';
@@ -146,6 +146,18 @@ export function TeamEventDetail({ ev, onClose, onSchedule }) {
 
 // Cor livre de uma agenda: as sugeridas + "Outra cor…" (qualquer cor).
 export function ColorPicker({ value, colors, onPick, onClose, title }) {
+  // "Outra cor…": o seletor do sistema muda a cor a cada movimento; grava só quando para por um instante.
+  const [free, setFree] = useState(/^#[0-9a-f]{6}$/i.test(value || '') ? value : '#5B8DEF');
+  const timer = useRef(null);
+  const pending = useRef(null);
+  const pickRef = useRef(onPick);
+  pickRef.current = onPick;
+  // Fechou antes de gravar (clique fora logo depois de escolher)? Grava na hora.
+  useEffect(() => () => { clearTimeout(timer.current); if (pending.current) pickRef.current(pending.current); }, []);
+  const pickFree = (c) => {
+    setFree(c); pending.current = c; clearTimeout(timer.current);
+    timer.current = setTimeout(() => { pending.current = null; onPick(c); }, 350);
+  };
   return (
     <div className="agd-cpop" role="dialog" aria-label={title || 'Escolher cor'} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
       <div className="agd-swatches">
@@ -154,7 +166,7 @@ export function ColorPicker({ value, colors, onPick, onClose, title }) {
         ))}
       </div>
       <label className="agd-cfree">
-        <input type="color" value={/^#[0-9a-f]{6}$/i.test(value || '') ? value : '#5B8DEF'} onChange={(e) => onPick(e.target.value)} />
+        <input type="color" value={free} onChange={(e) => pickFree(e.target.value)} />
         <span>Outra cor…</span>
       </label>
     </div>

@@ -125,8 +125,18 @@ function PersonPicker({ placeholder, exclude, onPick, ariaLabel }) {
 // Linha de agenda: caixinha (mostrar), bolinha de cor (abre a cor livre), nome; ações à direita.
 function CalRow({ checked, color, label, note, onToggle, onColor, colors, actions }) {
   const [picking, setPicking] = useState(false);
+  const rowRef = useRef(null);
+  // Clique fora (ou Esc) fecha as cores, como no Google (03/11/2026: o Rafael escolhia a cor e o quadro ficava aberto).
+  useEffect(() => {
+    if (!picking) return undefined;
+    const off = (e) => { if (rowRef.current && !rowRef.current.contains(e.target)) setPicking(false); };
+    const esc = (e) => { if (e.key === 'Escape') setPicking(false); };
+    document.addEventListener('pointerdown', off);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('pointerdown', off); document.removeEventListener('keydown', esc); };
+  }, [picking]);
   return (
-    <li className="agd-cal">
+    <li className="agd-cal" ref={rowRef}>
       <label className="agd-cal-main" title={note || label}>
         <input type="checkbox" checked={checked} onChange={onToggle} style={{ '--c': color }} />
         <span className="agd-cal-name">{label}</span>
