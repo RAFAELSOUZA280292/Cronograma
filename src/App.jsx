@@ -2219,7 +2219,7 @@ function AppScreens({ shellRef, bump }) {
   }
 
   if (effectiveMode === 'mail') {
-    return guard('mail', 'o E-mail', <MailScreen currentUser={currentUser} theme={theme} />);
+    return guard('mail', 'o E-mail', <MailScreen currentUser={currentUser} theme={theme} onGoAgenda={hasAgenda ? () => goToWorkspace('agenda') : undefined} />);
   }
 
   if (effectiveMode === 'macro') {

@@ -1,17 +1,20 @@
-// "Novo compromisso" da Agenda (Onda 5, §81). Cria no Google Calendar da pessoa (POST /api/agenda/events);
-// os convidados recebem o convite do Google por e-mail. Horário de Brasília. Falha mantém o que foi digitado.
-import React, { useRef, useState } from 'react';
-import { Link2, X } from 'lucide-react';
+// "Novo compromisso" e "Editar" da Agenda (Onda 5, §81; edição, Meet, lembrete e sugestão de contatos em 2026-11-02). Grava no Google
+// Calendar da pessoa (POST/PATCH /api/agenda/events); os convidados recebem o convite (ou a alteração) por e-mail. Horário de Brasília.
+// Falha mantém o que foi digitado.
+import React, { useEffect, useRef, useState } from 'react';
+import { Link2, Video, X } from 'lucide-react';
 import { Modal } from '../ui/dialog.jsx';
 import { Button, Callout, Select } from '../ui/index.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { useDirtyForm } from '../App.jsx';
-import { createAgendaEvent } from './agendaActions.js';
+import { apiGet } from '../lib/api.js';
+import { createAgendaEvent, updateAgendaEvent, brParts } from './agendaActions.js';
 import './agenda.css';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_GUESTS = 30;
 const DURATIONS = [15, 30, 45, 60, 90, 120];
+export const REMINDER_OPTIONS = [['', 'Padrão do Google'], ['-1', 'Sem lembrete'], ['0', 'Na hora'], ['5', '5 min antes'], ['10', '10 min antes'], ['15', '15 min antes'], ['30', '30 min antes'], ['60', '1 hora antes'], ['120', '2 horas antes'], ['1440', '1 dia antes']];
 const SEPARATORS = /[,;\s]+/;
 
 const pad2 = (n) => String(n).padStart(2, '0');
@@ -47,15 +50,37 @@ function ConnectNeeded({ onClose, message }) {
   );
 }
 
-function NewEventForm({ initial, onClose, onCreated }) {
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState(initial.date);
-  const [time, setTime] = useState(initial.time);
-  const [duration, setDuration] = useState('60');
-  const [customMin, setCustomMin] = useState('');
-  const [location, setLocation] = useState('');
-  const [description, setDescription] = useState('');
-  const [guests, setGuests] = useState([]);
+// Valores iniciais: horário clicado (novo) ou o evento que está sendo editado.
+function startValues(initial, event) {
+  if (!event) return { title: initial.title || '', date: initial.date, time: initial.time, duration: '60', customMin: '', location: '', description: '', guests: initial.guests || [], meet: true, reminder: '' };
+  const s = brParts(event.start);
+  const mins = Math.round((new Date(event.end) - new Date(event.start)) / 60000);
+  const preset = DURATIONS.includes(mins);
+  return {
+    title: event.title || '', date: s.date, time: s.time,
+    duration: preset ? String(mins) : 'custom', customMin: preset ? '' : String(mins),
+    location: event.location || '', description: event.description || '',
+    guests: (event.attendees || []).filter((a) => !a.self).map((a) => a.email),
+    meet: !!event.meetLink, reminder: event.reminderMinutes === null || event.reminderMinutes === undefined ? '' : String(event.reminderMinutes),
+  };
+}
+
+function NewEventForm({ initial, event, onClose, onCreated }) {
+  const v0 = useRef(startValues(initial, event)).current;
+  const editing = !!event;
+  const [title, setTitle] = useState(v0.title);
+  const [date, setDate] = useState(v0.date);
+  const [time, setTime] = useState(v0.time);
+  const [duration, setDuration] = useState(v0.duration);
+  const [customMin, setCustomMin] = useState(v0.customMin);
+  const [location, setLocation] = useState(v0.location);
+  const [description, setDescription] = useState(v0.description);
+  const [guests, setGuests] = useState(v0.guests);
+  const [meet, setMeet] = useState(v0.meet);
+  const [reminder, setReminder] = useState(v0.reminder);
+  const [sugg, setSugg] = useState([]);
+  const [suggActive, setSuggActive] = useState(0);
+  const suggSeq = useRef(0);
   const [guestDraft, setGuestDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -63,7 +88,7 @@ function NewEventForm({ initial, onClose, onCreated }) {
   const asking = useRef(false);
   const guestInput = useRef(null);
 
-  const dirty = useDirtyForm({ title, date, time, duration, customMin, location, description, guests, guestDraft });
+  const dirty = useDirtyForm({ title, date, time, duration, customMin, location, description, guests, guestDraft, meet, reminder });
   const minutes = duration === 'custom' ? Number(customMin) : Number(duration);
 
   function addGuests(tokens) {
@@ -76,6 +101,23 @@ function NewEventForm({ initial, onClose, onCreated }) {
     });
     setError('');
   }
+  // Sugestão de contatos (Gmail + CRM, a mesma da Caixa de e-mail). Sem Gmail conectado a lista fica vazia, sem aviso.
+  useEffect(() => {
+    const q = guestDraft.trim();
+    if (q.length < 2) { setSugg([]); return undefined; }
+    const n = ++suggSeq.current;
+    const t = setTimeout(() => {
+      apiGet(`/api/mail/contacts?q=${encodeURIComponent(q)}`)
+        .then((d) => { if (n === suggSeq.current) { setSugg((d.contacts || []).filter((c) => !guests.includes(c.email)).slice(0, 8)); setSuggActive(0); } })
+        .catch(() => { if (n === suggSeq.current) setSugg([]); });
+    }, 180);
+    return () => clearTimeout(t);
+  }, [guestDraft, guests]);
+  function pickSugg(c) {
+    addGuests([c.email]); setGuestDraft(''); setSugg([]);
+    if (guestInput.current) guestInput.current.focus();
+  }
+
   function onGuestChange(v) {
     if (!SEPARATORS.test(v)) { setGuestDraft(v); return; }
     const parts = v.split(SEPARATORS);
@@ -88,6 +130,10 @@ function NewEventForm({ initial, onClose, onCreated }) {
     if (guestDraft.trim()) { addGuests([guestDraft]); setGuestDraft(''); }
   }
   function onGuestKey(e) {
+    if (sugg.length && e.key === 'ArrowDown') { e.preventDefault(); setSuggActive((a) => (a + 1) % sugg.length); return; }
+    if (sugg.length && e.key === 'ArrowUp') { e.preventDefault(); setSuggActive((a) => (a - 1 + sugg.length) % sugg.length); return; }
+    if (sugg.length && (e.key === 'Enter' || e.key === 'Tab')) { e.preventDefault(); pickSugg(sugg[suggActive]); return; }
+    if (sugg.length && e.key === 'Escape') { e.stopPropagation(); setSugg([]); return; }
     if (e.key === 'Enter') { e.preventDefault(); commitDraft(); }
     else if (e.key === 'Backspace' && !guestDraft && guests.length) setGuests((cur) => cur.slice(0, -1));
   }
@@ -96,7 +142,7 @@ function NewEventForm({ initial, onClose, onCreated }) {
     if (busy || asking.current) return;
     if (dirty) {
       asking.current = true;
-      const ok = await askConfirm({ title: 'Descartar o compromisso?', message: 'O que você preencheu será perdido.', confirmLabel: 'Descartar', cancelLabel: 'Continuar editando', danger: true });
+      const ok = await askConfirm({ title: editing ? 'Descartar as alterações?' : 'Descartar o compromisso?', message: editing ? 'O que você mudou não será salvo.' : 'O que você preencheu será perdido.', confirmLabel: 'Descartar', cancelLabel: 'Continuar editando', danger: true });
       asking.current = false;
       if (!ok) return;
     }
@@ -119,11 +165,13 @@ function NewEventForm({ initial, onClose, onCreated }) {
     commitDraft();
     setError(''); setBusy(true);
     try {
-      await createAgendaEvent({ title: title.trim(), date, startTime: time, durationMinutes: minutes, location: location.trim(), description: description.trim(), attendees: all });
-      notify('Compromisso criado.', { tone: 'success' });
-      onCreated();
+      const payload = { title: title.trim(), date, startTime: time, durationMinutes: minutes, location: location.trim(), description: description.trim(), attendees: all, meet, reminderMinutes: reminder === '' ? null : Number(reminder) };
+      const res = editing ? await updateAgendaEvent(event.id, payload) : await createAgendaEvent(payload);
+      const sent = all.length ? ' Os convidados receberam o convite por e-mail.' : '';
+      notify(editing ? `Compromisso atualizado.${all.length ? ' Os convidados foram avisados.' : ''}` : `Compromisso criado.${sent}`, { tone: 'success' });
+      onCreated(res && res.event);
     } catch (err) {
-      setError((err && err.message) || 'Não foi possível criar o compromisso.');
+      setError((err && err.message) || (editing ? 'Não foi possível salvar o compromisso.' : 'Não foi possível criar o compromisso.'));
       if (err && err.status === 409 && /conecte/i.test(err.message || '')) setNeedsConnect(true);
       setBusy(false);
     }
@@ -135,11 +183,11 @@ function NewEventForm({ initial, onClose, onCreated }) {
 
   return (
     <Modal
-      title="Novo compromisso" onClose={requestClose} busy={busy} error={error}
+      title={editing ? 'Editar compromisso' : 'Novo compromisso'} onClose={requestClose} busy={busy} error={error}
       footer={(
         <>
           <Button onClick={requestClose} disabled={busy} disabledReason="Aguarde terminar">Cancelar</Button>
-          <Button type="submit" form="agenda-new-event" variant="primary" loading={busy} disabled={!!reason} disabledReason={reason}>Criar compromisso</Button>
+          <Button type="submit" form="agenda-new-event" variant="primary" loading={busy} disabled={!!reason} disabledReason={reason}>{editing ? 'Salvar' : 'Criar compromisso'}</Button>
         </>
       )}
     >
@@ -177,9 +225,22 @@ function NewEventForm({ initial, onClose, onCreated }) {
           </label>
         )}
         <div style={hint}>Horário de Brasília{end ? ` · termina às ${end}` : ''}.</div>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label className="agd-check" style={{ flex: '1 1 220px' }}>
+            <input type="checkbox" checked={meet} disabled={editing && !!event.meetLink} onChange={(e) => setMeet(e.target.checked)} />
+            <Video size={15} aria-hidden="true" />
+            <span>{editing && event.meetLink ? 'Já tem link do Google Meet' : 'Criar link do Google Meet'}</span>
+          </label>
+          <label style={{ ...label, flex: '1 1 180px' }}>
+            Lembrete
+            <Select value={reminder} onChange={(e) => setReminder(e.target.value)}>
+              {REMINDER_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </Select>
+          </label>
+        </div>
         <label style={label}>
           Local <span style={{ fontWeight: 500, color: 'var(--text-5)' }}>(opcional)</span>
-          <input className="ui-input" value={location} onChange={(e) => setLocation(e.target.value)} maxLength={300} placeholder="Endereço ou link da videochamada" />
+          <input className="ui-input" value={location} onChange={(e) => setLocation(e.target.value)} maxLength={300} placeholder={meet ? 'Opcional: o link do Meet já vai no convite' : 'Endereço ou link da videochamada'} />
         </label>
         <label style={label}>
           Descrição <span style={{ fontWeight: 500, color: 'var(--text-5)' }}>(opcional)</span>
@@ -203,11 +264,27 @@ function NewEventForm({ initial, onClose, onCreated }) {
             <input
               id="agenda-guests" ref={guestInput} className="agd-guest-input" type="text" inputMode="email" autoComplete="off" value={guestDraft}
               onChange={(e) => onGuestChange(e.target.value)} onKeyDown={onGuestKey} onBlur={commitDraft}
-              placeholder={guests.length ? '' : 'nome@empresa.com.br'}
+              placeholder={guests.length ? '' : 'Nome ou e-mail'}
+              role="combobox" aria-expanded={sugg.length > 0} aria-controls="agenda-guests-sug" aria-autocomplete="list"
+              aria-activedescendant={sugg.length ? `agenda-guests-sug-${suggActive}` : undefined}
             />
           </div>
+          {sugg.length > 0 && (
+            <ul className="agd-sug" id="agenda-guests-sug" role="listbox" aria-label="Sugestões de convidado">
+              {sugg.map((c, i) => (
+                <li
+                  key={c.email} id={`agenda-guests-sug-${i}`} role="option" aria-selected={i === suggActive} className={i === suggActive ? 'on' : ''}
+                  onMouseDown={(e) => { e.preventDefault(); pickSugg(c); }} onMouseEnter={() => setSuggActive(i)}
+                >
+                  <span className="agd-sug-name">{c.name || c.email}</span>
+                  {c.name && <span className="agd-sug-mail">{c.email}</span>}
+                  {c.source === 'crm' && <span className="agd-sug-tag">CRM</span>}
+                </li>
+              ))}
+            </ul>
+          )}
           <div style={hint}>
-            Separe os e-mails por vírgula ou Enter. Os convidados recebem o convite do Google por e-mail.
+            Digite o nome ou o e-mail; separe por vírgula ou Enter. Os convidados recebem o convite por e-mail{editing ? ' (e a alteração, se você mudar algo)' : ''}.
             {guests.length > 0 && <> {guests.length}/{MAX_GUESTS}.</>}
           </div>
           {invalidCount > 0 && <div style={{ ...hint, color: 'var(--ui-danger)' }} role="status">{invalidCount === 1 ? '1 e-mail parece inválido' : `${invalidCount} e-mails parecem inválidos`}: corrija ou remova antes de criar.</div>}
@@ -218,7 +295,7 @@ function NewEventForm({ initial, onClose, onCreated }) {
   );
 }
 
-export default function NewEventModal({ initial, connected, onClose, onCreated }) {
+export default function NewEventModal({ initial, event, connected, onClose, onCreated }) {
   if (connected === false) return <ConnectNeeded onClose={onClose} />;
-  return <NewEventForm initial={initial || defaultSlot()} onClose={onClose} onCreated={onCreated} />;
+  return <NewEventForm initial={initial || defaultSlot()} event={event} onClose={onClose} onCreated={onCreated} />;
 }

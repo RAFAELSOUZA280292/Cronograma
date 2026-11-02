@@ -4,13 +4,14 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 170 arquivos
+## `server/` — 172 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
 | `server/accessLog.js` | 163 |  |
 | `server/activityDictionary.js` | 182 | Dicionário de atividades (2026-10-19, pedido do Rafael: "um mega dicionário de todas as atividades"; ver PROJECT_CONTEXT.md §80). |
-| `server/agenda.js` | 139 | Agenda (2026-08) — junta, num só feed, o Google Calendar conectado do |
+| `server/agenda.js` | 201 | Agenda (2026-08) — junta, num só feed, o Google Calendar conectado do |
+| `server/agendaForm.js` | 70 | Regras do formulário de compromisso da Agenda (criar e editar) e da proposta de novo horário — puras, testadas em |
 | `server/answerCache.js` | 165 | Cache semântico de perguntas/respostas da RENATA (Fase 7, 2026-09-11) |
 | `server/areas.js` | 11 | Áreas (2026-10-07, Passo 3 do caminho combinado): lista fechada para classificar atividades e tarefas de reunião por tema. |
 | `server/assistant.js` | 221 | Rotas do Assistente do Projeto (2026-09, Fase 2 do Assistente |
@@ -24,6 +25,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/briefing.js` | 113 | Briefing diário (Onda 3, R3): junta o que merece atenção da pessoa hoje (regras em briefingRules.js), mostra na tela inicial (GET /api/briefing) |
 | `server/briefingRules.js` | 107 | Briefing diário da RENATA (Onda 3, R3): regras que escolhem o que merece atenção hoje e texto escrito por modelo fixo — sem IA, sem custo |
 | `server/briefingSchema.js` | 12 | Tabela do briefing diário (Onda 3, R3): uma linha por pessoa por dia, gravada ANTES de enviar — é o que impede aviso duplicado (mesmo com duas instâncias). |
+| `server/calendarInvite.js` | 189 | Convite de reunião dentro de um e-mail (2026-11-02): lê a parte text/calendar (ou o anexo .ics) e devolve o que o cartão da |
 | `server/client360.js` | 45 | Cliente 360 (Onda 3, I1), o caminho inverso: da empresa do CRONOGRAMA para o CRM. A ficha do CRM já mostra os projetos vinculados; aqui a tela da empresa |
 | `server/client360Alerts.js` | 48 | Cliente 360 (Onda 3, I1): alertas e sugestões do cliente, escritos por regra a partir do que o CRM e o cronograma JÁ calculam (sem IA, sem consulta nova). |
 | `server/clientError.js` | 35 | Erros de tela capturados pelos limites de erro do navegador (2026-10-16): uma linha JSON no log do servidor (Railway), para que uma tela |
@@ -91,8 +93,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/experience.js` | 137 | Experiência de uso (§97): eventos de FLUXO (nome, resultado, duração, rota de erro) e nota de satisfação de 1 clique. Só equipe é medida |
 | `server/gaps.js` | 232 | Lacunas entre cronogramas (Etapa 4 do plano, 2026-10-08; pedido do Felipe: "levantamento de tudo que temos de atividades ... para |
 | `server/google.js` | 70 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
-| `server/googleCalendar.js` | 329 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
-| `server/googleMail.js` | 237 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
+| `server/googleCalendar.js` | 458 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
+| `server/googleMail.js` | 263 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
 | `server/index.js` | 183 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
 | `server/inventory.js` | 373 | Levantamento de atividades de TODAS as empresas (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md; pedido do |
@@ -107,7 +109,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/linkPreview.js` | 146 | Pré-visualização de links (título, descrição, imagem) — 2026-10-05, §78. O servidor busca a página, então a defesa é contra |
 | `server/loginLimit.js` | 49 | Limite de tentativas de login (A2, 2026-10-29). Em memória: reinicia com o servidor, o que basta para barrar tentativa em série. |
 | `server/macro.js` | 128 | Visão Macro (2026-08) — quadro de cronograma geral pra controle interno: |
-| `server/mail.js` | 605 | Rotas da Caixa de e-mail (2026-11-02, Fase 1). Só leitura e organização do Gmail da própria pessoa: cada chamada usa o |
+| `server/mail.js` | 655 | Rotas da Caixa de e-mail (2026-11-02, Fase 1). Só leitura e organização do Gmail da própria pessoa: cada chamada usa o |
 | `server/mailCompose.js` | 476 | Caixa de e-mail, Fase 2 (2026-11-02): montar o e-mail que SAI do painel. Tudo aqui é puro (testado em |
 | `server/materialText.js` | 152 | Biblioteca de conhecimento da RENATA (2026-10-27, §116): leitura de arquivos em texto e fatiamento em trechos. |
 | `server/meetingEdit.js` | 172 | Correção de uma reunião já registrada pela API de conectividade (§116e, escopo `meetings_edit`). Função pura sobre o `data` do projeto: |
@@ -197,17 +199,18 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/transcriptParser.js` | 84 | Funções puras de parsing de texto de reunião — SEM import de React, |
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 
-## `src/` — 208 arquivos
+## `src/` — 210 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
 | `src/App.jsx` | 3675 |  |
-| `src/agenda/Agenda.jsx` | 583 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
-| `src/agenda/NewEventModal.jsx` | 225 | "Novo compromisso" da Agenda (Onda 5, §81). Cria no Google Calendar da pessoa (POST /api/agenda/events); |
+| `src/agenda/Agenda.jsx` | 562 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
+| `src/agenda/EventDetail.jsx` | 188 | Detalhe do compromisso do Google dentro do painel (2026-11-02, "nunca mais abrir o Google Agenda"): Meet, participantes com a |
+| `src/agenda/NewEventModal.jsx` | 302 | "Novo compromisso" e "Editar" da Agenda (Onda 5, §81; edição, Meet, lembrete e sugestão de contatos em 2026-11-02). Grava no Google |
 | `src/agenda/RenataAgendaBriefing.jsx` | 708 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
-| `src/agenda/RsvpButtons.jsx` | 28 | Aceitar / Talvez / Recusar — botões compactos; a resposta atual aparece marcada (aria-pressed). |
-| `src/agenda/agenda.css` | 93 | Agenda no celular (Onda 6, §81). Desktop idêntico ao de antes; tudo que muda está sob @media (max-width: 767px). |
-| `src/agenda/agendaActions.js` | 48 | Ações da Agenda (Onda 5, §81): responder convite do Google e criar compromisso. Sem JSX; o servidor é |
+| `src/agenda/RsvpButtons.jsx` | 29 | Aceitar / Talvez / Recusar — botões compactos; a resposta atual aparece marcada (aria-pressed). `labels` troca os textos |
+| `src/agenda/agenda.css` | 135 | Agenda no celular (Onda 6, §81). Desktop idêntico ao de antes; tudo que muda está sob @media (max-width: 767px). |
+| `src/agenda/agendaActions.js` | 90 | Ações da Agenda (Onda 5, §81): responder convite do Google e criar compromisso. Sem JSX; o servidor é |
 | `src/agenda/agendaPrefs.js` | 59 | Preferências pessoais da leitura da agenda (2026-09-20, pedido do Rafael): o EXPEDIENTE (padrão 08:00–18:00) |
 | `src/agenda/dayLoad.js` | 186 | Leitura da agenda (2026-09-20, pedido do Rafael): deixar claro o que ele ACEITOU, o que está |
 | `src/app/companyActivityActions.js` | 361 | Ações sobre as atividades de uma empresa (criar, editar, excluir, subatividades, anexos, comentários, links e participantes). |
@@ -312,10 +315,11 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/macro/macro.css` | 172 | Visão Geral no celular (Onda 6, §81). Desktop idêntico ao de antes; o que muda está sob @media (max-width: 767px): |
 | `src/mail/Compose.jsx` | 553 | Janela de escrita da Caixa de e-mail (2026-11-02, Fase 2): novo, responder, responder a todos e encaminhar. No computador |
 | `src/mail/Folders.jsx` | 177 | Pastas e regras da Caixa de e-mail (2026-11-02, pacote de produtividade). "Pasta" = marcador do Gmail: mover põe a pasta e |
+| `src/mail/InviteCard.jsx` | 141 | Cartão de convite de reunião na leitura do e-mail (2026-11-02): convite novo ou alterado, cancelamento, resposta de alguém e |
 | `src/mail/MailFrame.jsx` | 34 | Corpo de e-mail desenhado num iframe sem script (sandbox), com o HTML já higienizado no servidor. Usado na leitura, |
-| `src/mail/MailScreen.jsx` | 865 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). Três colunas como no Outlook — pastas, lista, leitura — sobre o |
+| `src/mail/MailScreen.jsx` | 963 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). Três colunas como no Outlook — pastas, lista, leitura — sobre o |
 | `src/mail/SignatureDialog.jsx` | 120 | Assinatura do e-mail por pessoa (2026-11-02, Fase 2). Campos simples em vez de HTML livre: o servidor monta a tabela |
-| `src/mail/mail.css` | 262 | Caixa de e-mail (2026-11-02). Três colunas no computador; uma no celular (abaixo de 768 px). */ |
+| `src/mail/mail.css` | 293 | Caixa de e-mail (2026-11-02). Três colunas no computador; uma no celular (abaixo de 768 px). */ |
 | `src/mail/mailImage.js` | 94 | Imagens da Caixa de e-mail (pacote de personalização, 2026-11-02): imagem colada/arrastada no corpo e imagem própria da |
 | `src/mail/mailView.js` | 97 | Caixa de e-mail, pacote visual (2026-11-02): preferências de exibição (largura das colunas, painel de leitura, densidade) e o mapa |
 | `src/main.jsx` | 24 |  |

@@ -61,6 +61,26 @@
 .mail-images { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; padding: 8px 10px; border-radius: 8px; background: var(--bg-2); font-size: 12.5px; color: var(--text-4); }
 .mail-link { border: 0; background: transparent; padding: 0; color: var(--ui-info); font-weight: 700; font-size: 12.5px; cursor: pointer; text-decoration: underline; }
 .mail-frame { display: block; width: 100%; border: 1px solid var(--border-1); border-radius: 8px; background: #fff; }
+/* Convite de reunião no e-mail (InviteCard.jsx, 2026-11-02). */
+.mail-invite { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; padding: 12px 14px; border: 1px solid var(--border-2); border-left: 4px solid #5B8DEF; border-radius: 10px; background: var(--bg-2); font-size: 13px; color: var(--text-2); }
+.mail-invite.cancelled { border-left-color: var(--ui-danger); }
+.mail-invite.cancelled .mail-invite-title { text-decoration: line-through; }
+.mail-invite-head { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--text-3); }
+.mail-invite-title { font-size: 15px; font-weight: 800; color: var(--text-1); overflow-wrap: anywhere; }
+.mail-invite-when { font-weight: 600; color: var(--text-1); display: flex; flex-direction: column; gap: 2px; }
+.mail-invite-sub { font-size: 12.5px; font-weight: 500; color: var(--text-4); overflow-wrap: anywhere; }
+.mail-invite-note { margin-top: 2px; }
+.mail-invite-meet { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }
+.mail-invite-people summary { cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--text-3); padding: 2px 0; }
+.mail-invite-people .agd-people { margin-top: 6px; }
+.mail-invite-people .agd-people-head { display: none; }
+.mail-invite-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; }
+.mail-invite .agd-propose { margin-top: 4px; background: var(--bg-1); }
+@media (max-width: 767px) {
+  .mail-invite-actions .ui-btn, .mail-invite-meet { min-height: 44px; }
+  .mail-invite-actions .agd-rsvp { flex: 1 1 100%; }
+  .mail-invite-people summary { min-height: 44px; display: flex; align-items: center; }
+}
 .mail-atts { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; padding: 0; }
 .mail-att { display: inline-flex; align-items: center; gap: 8px; max-width: 320px; padding: 8px 10px; border: 1px solid var(--border-2); border-radius: 8px; background: var(--bg-2); color: var(--text-2); font-size: 12.5px; text-decoration: none; }
 .mail-att:hover { border-color: var(--ui-info); color: var(--text-1); }

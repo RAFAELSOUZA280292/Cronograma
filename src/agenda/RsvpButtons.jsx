@@ -1,4 +1,5 @@
-// Aceitar / Talvez / Recusar — botões compactos; a resposta atual aparece marcada (aria-pressed).
+// Aceitar / Talvez / Recusar — botões compactos; a resposta atual aparece marcada (aria-pressed). `labels` troca os textos
+// (o cartão de convite do e-mail usa Sim / Talvez / Não, como o Google).
 import React from 'react';
 import { Check, CircleHelp, X } from 'lucide-react';
 import { Button } from '../ui/index.jsx';
@@ -10,16 +11,16 @@ const OPTIONS = [
   { value: 'declined', label: 'Recusar', Icon: X },
 ];
 
-export default function RsvpButtons({ ev, onRespond, busy }) {
+export default function RsvpButtons({ ev, onRespond, busy, labels }) {
   return (
     <div role="group" aria-label={`Responder ao convite: ${ev.title || 'compromisso'}`} className="agd-rsvp">
       {OPTIONS.map(({ value, label, Icon }) => (
         <Button
           key={value} size="sm" icon={Icon} variant={ev.myResponse === value ? 'primary' : undefined}
           aria-pressed={ev.myResponse === value} disabled={busy} disabledReason="Enviando a sua resposta…"
-          onClick={() => onRespond(ev, value)}
+          title={labels ? `${label} o convite` : undefined} onClick={() => onRespond(ev, value)}
         >
-          {label}
+          {(labels && labels[value]) || label}
         </Button>
       ))}
     </div>

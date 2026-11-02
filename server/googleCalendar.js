@@ -326,3 +326,132 @@ export async function removeBlockEvent(userId, eventId) {
   const calendar = google.calendar({ version: 'v3', auth: client });
   try { await calendar.events.delete({ calendarId: 'primary', eventId, sendUpdates: 'all' }); } catch (e) { if (e.code !== 404 && e.code !== 410) throw e; }
 }
+
+// ---------- Agenda completa no painel (2026-11-02): detalhe, criar/editar com Meet e lembrete, responder com nota, mudar horário ----------
+const RSVP = new Set(['accepted', 'declined', 'tentative', 'needsAction']);
+
+// Tudo que a tela de detalhe mostra: participantes com a resposta de cada um, link do Meet, lembrete e se você pode editar.
+export function mapEventDetail(ev) {
+  const base = mapGoogleEvent(ev);
+  const attendees = (Array.isArray(ev.attendees) ? ev.attendees : []).filter((a) => a && !a.resource).map((a) => ({
+    email: String(a.email || '').toLowerCase(),
+    name: a.displayName || '',
+    response: RSVP.has(a.responseStatus) ? a.responseStatus : 'needsAction',
+    organizer: !!a.organizer,
+    self: !!a.self,
+    optional: !!a.optional,
+    comment: a.comment || '',
+  }));
+  const isOrganizer = !!(ev.organizer && ev.organizer.self);
+  const overrides = (ev.reminders && Array.isArray(ev.reminders.overrides)) ? ev.reminders.overrides : [];
+  const popup = overrides.find((r) => r && r.method === 'popup') || overrides[0];
+  return {
+    ...base,
+    eventId: ev.id,
+    iCalUID: ev.iCalUID || '',
+    attendees,
+    organizerEmail: ev.organizer ? String(ev.organizer.email || '').toLowerCase() : '',
+    organizerName: ev.organizer ? (ev.organizer.displayName || ev.organizer.email || '') : '',
+    isOrganizer,
+    canEdit: isOrganizer || !!ev.guestsCanModify,
+    recurring: !!ev.recurringEventId || (Array.isArray(ev.recurrence) && ev.recurrence.length > 0),
+    meetLink: meetLinkOf(ev),
+    reminderMinutes: ev.reminders && ev.reminders.useDefault ? null : (popup ? popup.minutes : -1),
+    myComment: (attendees.find((a) => a.self) || {}).comment || '',
+  };
+}
+
+// Corpo do evento a partir do formulário do painel. `reminderMinutes`: null = padrão do Google, -1 = sem lembrete, n = n minutos antes.
+export function buildPanelEventBody(f, requestId) {
+  const body = {
+    summary: f.title,
+    description: f.description || '',
+    location: f.location || '',
+    start: { dateTime: f.startISO, timeZone: 'America/Sao_Paulo' },
+    end: { dateTime: f.endISO, timeZone: 'America/Sao_Paulo' },
+    attendees: (f.attendees || []).map((email) => ({ email })),
+  };
+  if (f.reminderMinutes === null || f.reminderMinutes === undefined) body.reminders = { useDefault: true };
+  else if (f.reminderMinutes < 0) body.reminders = { useDefault: false, overrides: [] };
+  else body.reminders = { useDefault: false, overrides: [{ method: 'popup', minutes: f.reminderMinutes }] };
+  if (f.meet) body.conferenceData = { createRequest: { requestId: requestId || `pt-${Date.now().toString(36)}`, conferenceSolutionKey: { type: 'hangoutsMeet' } } };
+  return body;
+}
+
+async function calendarFor(userId) {
+  const client = await getAuthedClientForUser(userId);
+  if (!client) throw Object.assign(new Error('Conecte o seu Google Calendar (Meu perfil › Agenda) para usar a agenda do painel.'), { status: 409 });
+  return google.calendar({ version: 'v3', auth: client });
+}
+
+export async function getEventDetail(userId, eventId) {
+  const calendar = await calendarFor(userId);
+  const { data } = await calendar.events.get({ calendarId: 'primary', eventId });
+  return mapEventDetail(data);
+}
+
+// O evento do convite na SUA agenda, pelo UID do arquivo .ics (o Google põe o convite recebido na agenda sozinho).
+export async function findEventByICalUID(userId, iCalUID) {
+  if (!iCalUID) return null;
+  const calendar = await calendarFor(userId);
+  const { data } = await calendar.events.list({ calendarId: 'primary', iCalUID, showDeleted: false, maxResults: 5 });
+  const items = (data.items || []).filter((e) => e.status !== 'cancelled');
+  return items[0] ? mapEventDetail(items[0]) : null;
+}
+
+// Cria (eventId vazio) ou edita. Editar preserva a resposta de quem já estava convidado e nunca troca um Meet existente.
+export async function savePanelEvent(userId, eventId, fields) {
+  const calendar = await calendarFor(userId);
+  const body = buildPanelEventBody(fields);
+  const sendUpdates = body.attendees.length || eventId ? 'all' : 'none';
+  let data;
+  if (eventId) {
+    const cur = (await calendar.events.get({ calendarId: 'primary', eventId })).data;
+    if (!(cur.organizer && cur.organizer.self) && !cur.guestsCanModify) throw Object.assign(new Error('Só quem organizou a reunião pode alterá-la.'), { status: 403 });
+    const { requestBody } = composePatch(cur, body);
+    data = (await calendar.events.patch({ calendarId: 'primary', eventId, requestBody, sendUpdates, conferenceDataVersion: 1 })).data;
+  } else {
+    data = (await calendar.events.insert({ calendarId: 'primary', requestBody: body, sendUpdates, conferenceDataVersion: 1 })).data;
+  }
+  for (let i = 0; fields.meet && !meetLinkOf(data) && i < 3; i += 1) {
+    await new Promise((r) => setTimeout(r, 700));
+    data = (await calendar.events.get({ calendarId: 'primary', eventId: data.id })).data;
+  }
+  return mapEventDetail(data);
+}
+
+// Sua resposta + nota opcional (é por ela que vai a proposta de novo horário: a API do Google não tem "propor horário").
+export function applySelfRsvp(attendees, response, comment) {
+  const list = applySelfResponse(attendees, response);
+  if (!list || comment === undefined) return list;
+  return list.map((a) => (a && a.self ? { ...a, comment: String(comment).slice(0, 500) } : a));
+}
+
+export async function respondWithNote(userId, eventId, response, comment) {
+  const calendar = await calendarFor(userId);
+  const cur = (await calendar.events.get({ calendarId: 'primary', eventId })).data;
+  const attendees = applySelfRsvp(cur.attendees, response, comment);
+  if (!attendees) throw Object.assign(new Error('Você não é convidado deste evento — não há convite para responder.'), { status: 400 });
+  const { data } = await calendar.events.patch({ calendarId: 'primary', eventId, requestBody: { attendees }, sendUpdates: 'all' });
+  return mapEventDetail(data);
+}
+
+// Aceitar o novo horário sugerido: só o organizador muda o horário; todos recebem a alteração.
+export async function rescheduleEvent(userId, eventId, startISO, endISO) {
+  const calendar = await calendarFor(userId);
+  const cur = (await calendar.events.get({ calendarId: 'primary', eventId })).data;
+  if (!(cur.organizer && cur.organizer.self) && !cur.guestsCanModify) throw Object.assign(new Error('Só quem organizou a reunião pode mudar o horário.'), { status: 403 });
+  const { data } = await calendar.events.patch({
+    calendarId: 'primary', eventId, sendUpdates: 'all',
+    requestBody: { start: { dateTime: startISO, timeZone: 'America/Sao_Paulo' }, end: { dateTime: endISO, timeZone: 'America/Sao_Paulo' } },
+  });
+  return mapEventDetail(data);
+}
+
+// Cancelar (organizador): os convidados recebem o cancelamento.
+export async function cancelPanelEvent(userId, eventId) {
+  const calendar = await calendarFor(userId);
+  const cur = (await calendar.events.get({ calendarId: 'primary', eventId })).data;
+  if (!(cur.organizer && cur.organizer.self)) throw Object.assign(new Error('Só quem organizou pode cancelar. Para sair da reunião, recuse o convite.'), { status: 403 });
+  try { await calendar.events.delete({ calendarId: 'primary', eventId, sendUpdates: 'all' }); } catch (e) { if (e.code !== 404 && e.code !== 410) throw e; }
+}

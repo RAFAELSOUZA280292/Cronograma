@@ -2,10 +2,18 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-543 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+551 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (10)
+## 2026-11-02 (18)
 
+- `d258b16` 13:29 — Caixa de e-mail: seleção, Atualizar e ⋮ juntos à esquerda, como no Gmail
+- `b994230` 13:23 — Caixa de e-mail: menu ⋮ com Marcar todas como lidas (pasta ou pesquisa inteira)
+- `41cf03a` 13:18 — Caixa de e-mail: selecionar como no Gmail (todos, nenhum, lidas, não lidas, com e sem estrela)
+- `0e658b4` 13:11 — Docs: estilo do e-mail na leitura (§116zzzzz)
+- `8fc59af` 13:07 — Caixa de e-mail: leitura mantém o estilo do próprio e-mail (Outlook/newsletter), sem nada que busque coisa na rede
+- `d73fc6f` 12:49 — Docs: lição dos acentos em e-mail do Outlook (§116zzzz)
+- `282135e` 12:32 — Caixa de e-mail: acentos certos em e-mail do Outlook (Gmail entrega UTF-8 com rótulo iso-8859-1)
+- `4678ae5` 11:40 — Caixa de e-mail: colar e arrastar qualquer anexo, com aviso dos tipos que o Gmail bloqueia
 - `ea587b4` 11:36 — Caixa de e-mail: pacote de personalização (cor da pasta, formatação, imagens e sugestão de destinatário)
 - `da6e998` 01:44 — Caixa de e-mail: pacote visual (colunas ajustáveis, modos de leitura, lista compacta, atalhos)
 - `d912fd5` 01:31 — Cérebro: pacote de produtividade do e-mail confirmado pelo Rafael

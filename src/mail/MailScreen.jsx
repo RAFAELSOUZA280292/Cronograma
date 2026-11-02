@@ -10,6 +10,7 @@ import { apiGet, apiPost } from '../lib/api.js';
 import { BrandLogo, useIsMobile } from '../App.jsx';
 import { S } from '../styles/S.js';
 import MailFrame from './MailFrame.jsx';
+import InviteCard from './InviteCard.jsx';
 import Compose, { fmtSize } from './Compose.jsx';
 import SignatureDialog from './SignatureDialog.jsx';
 import { MoveDialog, RulesDialog, FolderDialog } from './Folders.jsx';
@@ -39,7 +40,7 @@ function fmtFullDate(iso) {
 const who = (p) => (p ? p.name || p.email : '');
 const initials = (p) => (who(p) || '?').replace(/[^\p{L}\s]/gu, '').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 
-export default function MailScreen({ currentUser, theme }) {
+export default function MailScreen({ currentUser, theme, onGoAgenda }) {
   const isMobile = useIsMobile();
   const [status, setStatus] = useState(null);
   const [nav, setNav] = useState({ folders: [], labels: [] });
@@ -585,7 +586,7 @@ export default function MailScreen({ currentUser, theme }) {
                   ref={threadRef} key={`${openId}-${threadRev}`} id={openId} showBack={!paneOn} folder={folder} myEmail={status && status.email}
                   onBack={() => { const id = openId; setOpenId(null); setCursor(id); focusRow(id); }} onOpened={onOpened} onAct={(a) => act([openId], a)}
                   onCompose={(mode, messageId) => openCompose({ mode, messageId })}
-                  onMove={(sender) => setMoveFor({ ids: [openId], sender })} onOpenDraft={() => openDraft(openId)}
+                  onMove={(sender) => setMoveFor({ ids: [openId], sender })} onOpenDraft={() => openDraft(openId)} onGoAgenda={onGoAgenda}
                 />
               ) : (
                 <EmptyState icon={MailOpen} title="Escolha um e-mail para ler" description="Clique numa conversa da lista. Ela é marcada como lida ao abrir, como no Outlook." />
@@ -652,7 +653,7 @@ function BulkActions({ folder, onAct, onMove, onClear }) {
   );
 }
 
-function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAct, onCompose, onMove, onOpenDraft }) {
+function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAct, onCompose, onMove, onOpenDraft, onGoAgenda }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState(() => new Set());
@@ -732,7 +733,7 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
             </div>
             <span className="mail-date" title={fmtFullDate(m.date)}><span className="mail-date-full">{fmtFullDate(m.date)}</span><span className="mail-date-short">{fmtListDate(m.date)}</span></span>
           </header>
-          {expanded.has(m.id) && <MessageBody msg={m} />}
+          {expanded.has(m.id) && <MessageBody msg={m} onReply={() => onCompose('reply', m.id)} onGoAgenda={onGoAgenda} />}
           {expanded.has(m.id) && m.draft && (
             <div className="mail-reply-bar"><Button size="sm" variant="primary" icon={PencilLine} onClick={onOpenDraft}>Continuar rascunho</Button></div>
           )}
@@ -754,7 +755,7 @@ function replyAllCount(m, me) {
   return new Set([m.from, ...m.to, ...m.cc].map((p) => String((p && p.email) || '').toLowerCase()).filter((e) => e && e !== mine)).size;
 }
 
-function MessageBody({ msg }) {
+function MessageBody({ msg, onReply, onGoAgenda }) {
   const [images, setImages] = useState(false);
   const html = useMemo(() => (images ? msg.html.replace(/ data-pt-src="/g, ' src="') : msg.html), [msg.html, images]);
   return (
@@ -766,6 +767,7 @@ function MessageBody({ msg }) {
           <button type="button" className="mail-link" onClick={() => setImages(true)}>Mostrar imagens</button>
         </div>
       )}
+      {msg.invite && !msg.draft && <InviteCard messageId={msg.id} onReply={onReply} onGoAgenda={onGoAgenda} />}
       <MailFrame html={html} />
       {msg.attachments.length > 0 && (
         <ul className="mail-atts" aria-label="Anexos">

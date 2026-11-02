@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-**73 tabelas.** Sem ORM: SQL direto com `pg`. O esquema nasce em `server/db.js` (função `initDb`, com `CREATE TABLE IF NOT EXISTS` e `ALTER … ADD COLUMN IF NOT EXISTS`, sempre aditivo) e em módulos próprios (`server/crm/`, `server/renata/schema.js`, `server/meetingEditsSchema.js`, `server/projectVersionsSchema.js`). Colunas `jsonb` guardam estruturas flexíveis (a principal: `projects.data`, o cronograma inteiro da empresa).
+**77 tabelas.** Sem ORM: SQL direto com `pg`. O esquema nasce em `server/db.js` (função `initDb`, com `CREATE TABLE IF NOT EXISTS` e `ALTER … ADD COLUMN IF NOT EXISTS`, sempre aditivo) e em módulos próprios (`server/crm/`, `server/renata/schema.js`, `server/meetingEditsSchema.js`, `server/projectVersionsSchema.js`). Colunas `jsonb` guardam estruturas flexíveis (a principal: `projects.data`, o cronograma inteiro da empresa).
 
 ## Índice das tabelas
 
@@ -68,6 +68,7 @@
 | [`project_dossiers`](#project_dossiers) | 12 | `progress`, `content`, `sources` |
 | [`project_meeting_digests`](#project_meeting_digests) | 6 |  |
 | [`project_memory_chunks`](#project_memory_chunks) | 16 | `participants`, `source_ref`, `embedding` |
+| [`project_vault_items`](#project_vault_items) | 22 |  |
 | [`project_versions`](#project_versions) | 15 | `snapshot`, `stats`, `touched` |
 | [`projects`](#projects) | 5 | `data` |
 | [`push_subscriptions`](#push_subscriptions) | 9 |  |
@@ -79,6 +80,9 @@
 | [`user_access_events`](#user_access_events) | 10 |  |
 | [`user_usage_events`](#user_usage_events) | 11 |  |
 | [`users`](#users) | 29 | `allowed_cnpjs`, `widget_views`, `preferences` |
+| [`wa_conversations`](#wa_conversations) | 11 |  |
+| [`wa_media`](#wa_media) | 5 |  |
+| [`wa_messages`](#wa_messages) | 14 | `media` |
 | [`xflow_events`](#xflow_events) | 10 |  |
 | [`xflow_tickets`](#xflow_tickets) | 31 | `data`, `time_breakdown` |
 
@@ -127,9 +131,9 @@
 | `updated_at` | timestamp with time zone | não | now() |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
 - Chave estrangeira: `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
+- Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -171,9 +175,9 @@
 
 **Travas do banco:**
 - Regra (CHECK): `CHECK ((type = ANY (ARRAY['PERSON'::text, 'COMPANY'::text, 'PROJECT'::text, 'LAW'::text, 'PRODUCT'::text, 'TOPIC'::text])))`
+- Chave estrangeira: `FOREIGN KEY (linked_user_id) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (linked_project_id) REFERENCES projects(id) ON DELETE SET NULL`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
-- Chave estrangeira: `FOREIGN KEY (linked_user_id) REFERENCES users(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -190,8 +194,8 @@
 | `created_at` | timestamp with time zone | não | now() |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (fact_id) REFERENCES ai_knowledge_facts(id) ON DELETE CASCADE`
 - Chave estrangeira: `FOREIGN KEY (entity_id) REFERENCES ai_knowledge_entities(id) ON DELETE CASCADE`
+- Chave estrangeira: `FOREIGN KEY (fact_id) REFERENCES ai_knowledge_facts(id) ON DELETE CASCADE`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -230,17 +234,17 @@
 | `content_tsv` | tsvector | sim |  |
 
 **Travas do banco:**
+- Regra (CHECK): `CHECK ((status = ANY (ARRAY['active'::text, 'disputed'::text, 'superseded'::text, 'pending_validation'::text, 'archived'::text])))`
 - Regra (CHECK): `CHECK ((scope = ANY (ARRAY['conversation'::text, 'project'::text, 'org'::text, 'global'::text])))`
 - Regra (CHECK): `CHECK ((knowledge_type = ANY (ARRAY['FACT'::text, 'DECISION'::text, 'PREFERENCE'::text, 'RULE'::text, 'HYPOTHESIS'::text, 'PROCEDURE'::text, 'DEFINITION'::text])))`
-- Regra (CHECK): `CHECK ((status = ANY (ARRAY['active'::text, 'disputed'::text, 'superseded'::text, 'pending_validation'::text, 'archived'::text])))`
 - Regra (CHECK): `CHECK ((origin = ANY (ARRAY['conversation'::text, 'legislation'::text, 'internal_document'::text, 'methodology'::text, 'best_practice'::text, 'other'::text])))`
-- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
-- Chave estrangeira: `FOREIGN KEY (disputed_reviewed_by) REFERENCES users(id)`
-- Chave estrangeira: `FOREIGN KEY (conflicts_with) REFERENCES ai_knowledge_facts(id)`
-- Chave estrangeira: `FOREIGN KEY (source_conversation_id) REFERENCES ai_conversations(id)`
-- Chave estrangeira: `FOREIGN KEY (source_user_id) REFERENCES users(id)`
-- Chave estrangeira: `FOREIGN KEY (superseded_by) REFERENCES ai_knowledge_facts(id)`
 - Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
+- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
+- Chave estrangeira: `FOREIGN KEY (superseded_by) REFERENCES ai_knowledge_facts(id)`
+- Chave estrangeira: `FOREIGN KEY (source_user_id) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (source_conversation_id) REFERENCES ai_conversations(id)`
+- Chave estrangeira: `FOREIGN KEY (conflicts_with) REFERENCES ai_knowledge_facts(id)`
+- Chave estrangeira: `FOREIGN KEY (disputed_reviewed_by) REFERENCES users(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -277,8 +281,8 @@
 | `prompt_cache_creation_tokens` | integer | não | 0 |
 
 **Travas do banco:**
-- Regra (CHECK): `CHECK ((role = ANY (ARRAY['user'::text, 'assistant'::text])))`
 - Regra (CHECK): `CHECK ((feedback = ANY (ARRAY['up'::text, 'down'::text])))`
+- Regra (CHECK): `CHECK ((role = ANY (ARRAY['user'::text, 'assistant'::text])))`
 - Regra (CHECK): `CHECK ((action_status = ANY (ARRAY['pending'::text, 'executed'::text, 'rejected'::text])))`
 - Chave estrangeira: `FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE`
 - Chave primária: `PRIMARY KEY (id)`
@@ -317,8 +321,8 @@
 | `created_at` | timestamp with time zone | não | now() |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
 - Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
+- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -470,18 +474,18 @@
 | `invite_meet` | boolean | não | false |
 
 **Travas do banco:**
-- Regra (CHECK): `CHECK ((priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text])))`
 - Regra (CHECK): `CHECK ((activity_type = ANY (ARRAY['task'::text, 'call'::text, 'email'::text, 'meeting'::text, 'whatsapp'::text, 'visit'::text, 'followup'::text])))`
+- Regra (CHECK): `CHECK ((priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text])))`
 - Regra (CHECK): `CHECK ((status = ANY (ARRAY['open'::text, 'done'::text, 'cancelled'::text])))`
-- Chave estrangeira: `FOREIGN KEY (contact_id) REFERENCES crm_contacts(id)`
+- Chave estrangeira: `FOREIGN KEY (updated_by) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
-- Chave estrangeira: `FOREIGN KEY (updated_by) REFERENCES users(id)`
-- Chave estrangeira: `FOREIGN KEY (deleted_by) REFERENCES users(id)`
-- Chave estrangeira: `FOREIGN KEY (deal_id) REFERENCES crm_deals(id)`
 - Chave estrangeira: `FOREIGN KEY (company_id) REFERENCES crm_companies(id)`
+- Chave estrangeira: `FOREIGN KEY (deal_id) REFERENCES crm_deals(id)`
+- Chave estrangeira: `FOREIGN KEY (contact_id) REFERENCES crm_contacts(id)`
 - Chave estrangeira: `FOREIGN KEY (owner_id) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (completed_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (deleted_by) REFERENCES users(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -604,11 +608,11 @@
 
 **Travas do banco:**
 - Regra (CHECK): `CHECK ((relationship = ANY (ARRAY['prospect'::text, 'client'::text, 'former_client'::text, 'partner'::text])))`
-- Chave estrangeira: `FOREIGN KEY (owner_id) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
 - Chave estrangeira: `FOREIGN KEY (updated_by) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (deleted_by) REFERENCES users(id)`
-- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
+- Chave estrangeira: `FOREIGN KEY (owner_id) REFERENCES users(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -626,9 +630,9 @@
 | `linked_by` | text | sim |  |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
-- Chave estrangeira: `FOREIGN KEY (linked_by) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (company_id) REFERENCES crm_companies(id)`
+- Chave estrangeira: `FOREIGN KEY (linked_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
 - Chave primária: `PRIMARY KEY (company_id, project_id)`
 
 **Índices:**
@@ -663,10 +667,10 @@
 
 **Travas do banco:**
 - Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (updated_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (deleted_by) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
 - Chave estrangeira: `FOREIGN KEY (company_id) REFERENCES crm_companies(id)`
-- Chave estrangeira: `FOREIGN KEY (deleted_by) REFERENCES users(id)`
-- Chave estrangeira: `FOREIGN KEY (updated_by) REFERENCES users(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -692,9 +696,9 @@
 | `deleted_at` | timestamp with time zone | sim |  |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (company_id) REFERENCES crm_companies(id)`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
 - Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (company_id) REFERENCES crm_companies(id)`
 - Chave estrangeira: `FOREIGN KEY (deal_id) REFERENCES crm_deals(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
@@ -716,9 +720,9 @@
 | `position` | integer | não | 0 |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
-- Chave estrangeira: `FOREIGN KEY (deal_id) REFERENCES crm_deals(id)`
 - Chave estrangeira: `FOREIGN KEY (product_id) REFERENCES crm_products(id)`
+- Chave estrangeira: `FOREIGN KEY (deal_id) REFERENCES crm_deals(id)`
+- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -742,12 +746,12 @@
 | `moved_at` | timestamp with time zone | não | now() |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (to_stage_id) REFERENCES crm_pipeline_stages(id)`
+- Chave estrangeira: `FOREIGN KEY (from_stage_id) REFERENCES crm_pipeline_stages(id)`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
-- Chave estrangeira: `FOREIGN KEY (deal_id) REFERENCES crm_deals(id)`
 - Chave estrangeira: `FOREIGN KEY (actor_id) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (company_id) REFERENCES crm_companies(id)`
-- Chave estrangeira: `FOREIGN KEY (from_stage_id) REFERENCES crm_pipeline_stages(id)`
+- Chave estrangeira: `FOREIGN KEY (deal_id) REFERENCES crm_deals(id)`
+- Chave estrangeira: `FOREIGN KEY (to_stage_id) REFERENCES crm_pipeline_stages(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -765,8 +769,8 @@
 | `tag_id` | uuid | não |  |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (deal_id) REFERENCES crm_deals(id)`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
+- Chave estrangeira: `FOREIGN KEY (deal_id) REFERENCES crm_deals(id)`
 - Chave estrangeira: `FOREIGN KEY (tag_id) REFERENCES crm_tags(id)`
 - Chave primária: `PRIMARY KEY (deal_id, tag_id)`
 
@@ -809,17 +813,17 @@
 
 **Travas do banco:**
 - Regra (CHECK): `CHECK ((deal_type = ANY (ARRAY['new'::text, 'upsell'::text])))`
-- Regra (CHECK): `CHECK ((status = ANY (ARRAY['open'::text, 'won'::text, 'lost'::text])))`
 - Regra (CHECK): `CHECK (((probability_override IS NULL) OR ((probability_override >= 0) AND (probability_override <= 100))))`
+- Regra (CHECK): `CHECK ((status = ANY (ARRAY['open'::text, 'won'::text, 'lost'::text])))`
 - Chave estrangeira: `FOREIGN KEY (deleted_by) REFERENCES users(id)`
-- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
-- Chave estrangeira: `FOREIGN KEY (updated_by) REFERENCES users(id)`
-- Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (primary_contact_id) REFERENCES crm_contacts(id)`
 - Chave estrangeira: `FOREIGN KEY (owner_id) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (stage_id) REFERENCES crm_pipeline_stages(id)`
 - Chave estrangeira: `FOREIGN KEY (pipeline_id) REFERENCES crm_pipelines(id)`
 - Chave estrangeira: `FOREIGN KEY (company_id) REFERENCES crm_companies(id)`
+- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
+- Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (updated_by) REFERENCES users(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -851,10 +855,10 @@
 
 **Travas do banco:**
 - Chave estrangeira: `FOREIGN KEY (updated_by) REFERENCES users(id)`
-- Chave estrangeira: `FOREIGN KEY (company_id) REFERENCES crm_companies(id)`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
-- Chave estrangeira: `FOREIGN KEY (deleted_by) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (deleted_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (company_id) REFERENCES crm_companies(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -877,10 +881,10 @@
 | `sla_days` | integer | sim |  |
 
 **Travas do banco:**
-- Regra (CHECK): `CHECK (((probability >= 0) AND (probability <= 100)))`
 - Regra (CHECK): `CHECK ((kind = ANY (ARRAY['open'::text, 'won'::text, 'lost'::text])))`
-- Chave estrangeira: `FOREIGN KEY (pipeline_id) REFERENCES crm_pipelines(id)`
+- Regra (CHECK): `CHECK (((probability >= 0) AND (probability <= 100)))`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
+- Chave estrangeira: `FOREIGN KEY (pipeline_id) REFERENCES crm_pipelines(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -902,9 +906,9 @@
 
 **Travas do banco:**
 - Chave estrangeira: `FOREIGN KEY (on_won_from_stage_id) REFERENCES crm_pipeline_stages(id)`
-- Chave estrangeira: `FOREIGN KEY (on_won_stage_id) REFERENCES crm_pipeline_stages(id)`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
 - Chave estrangeira: `FOREIGN KEY (on_won_pipeline_id) REFERENCES crm_pipelines(id)`
+- Chave estrangeira: `FOREIGN KEY (on_won_stage_id) REFERENCES crm_pipeline_stages(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -932,8 +936,8 @@
 **Travas do banco:**
 - Regra (CHECK): `CHECK ((billing = ANY (ARRAY['one_time'::text, 'recurring'::text])))`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
-- Chave estrangeira: `FOREIGN KEY (updated_by) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (updated_by) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (deleted_by) REFERENCES users(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
@@ -1002,8 +1006,8 @@
 
 **Travas do banco:**
 - Chave estrangeira: `FOREIGN KEY (actor_id) REFERENCES users(id)`
-- Chave estrangeira: `FOREIGN KEY (company_id) REFERENCES crm_companies(id)`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
+- Chave estrangeira: `FOREIGN KEY (company_id) REFERENCES crm_companies(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -1086,8 +1090,8 @@
 | `updated_at` | timestamp with time zone | não | now() |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
 - Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -1200,8 +1204,8 @@
 | `created_at` | timestamp with time zone | não | now() |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE`
 - Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
+- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -1219,8 +1223,8 @@
 | `generated_at` | timestamp with time zone | não | now() |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
+- Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
 - Chave primária: `PRIMARY KEY (project_id, meeting_id)`
 
 ## meeting_submissions
@@ -1242,9 +1246,9 @@
 
 **Travas do banco:**
 - Regra (CHECK): `CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'done'::text, 'failed'::text])))`
-- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE`
-- Chave estrangeira: `FOREIGN KEY (submitted_by) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
+- Chave estrangeira: `FOREIGN KEY (submitted_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE`
 - Chave primária: `PRIMARY KEY (id)`
 
 ## notifications
@@ -1316,8 +1320,8 @@
 | `studied_at` | timestamp with time zone | sim |  |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (parecer_id) REFERENCES pareceres(id) ON DELETE CASCADE`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
+- Chave estrangeira: `FOREIGN KEY (parecer_id) REFERENCES pareceres(id) ON DELETE CASCADE`
 - Chave primária: `PRIMARY KEY (parecer_id)`
 
 **Índices:**
@@ -1346,8 +1350,8 @@
 
 **Travas do banco:**
 - Chave estrangeira: `FOREIGN KEY (company_project_id) REFERENCES projects(id) ON DELETE SET NULL`
-- Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
+- Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -1510,9 +1514,9 @@
 | `finished_at` | timestamp with time zone | sim |  |
 
 **Travas do banco:**
+- Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
-- Chave estrangeira: `FOREIGN KEY (created_by) REFERENCES users(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**
@@ -1565,6 +1569,42 @@
 - `project_memory_chunks_org_date_idx`: `USING btree (org_id, project_id, meeting_date)`
 - `project_memory_chunks_participants_idx`: `USING gin (participants jsonb_path_ops)`
 - `project_memory_chunks_tsv_idx`: `USING gin (content_tsv)`
+
+## project_vault_items
+
+| Coluna | Tipo | Nulo? | Padrão |
+|---|---|---|---|
+| `id` | text | não |  |
+| `org_id` | text | não |  |
+| `project_id` | text | não |  |
+| `kind` | text | não |  |
+| `title` | text | não |  |
+| `folder` | text | não | ''::text |
+| `tags` | _text[] | não | '{}'::text[] |
+| `notes` | text | não | ''::text |
+| `url` | text | não | ''::text |
+| `username` | text | não | ''::text |
+| `secret_enc` | text | sim |  |
+| `cert_holder` | text | não | ''::text |
+| `cert_valid_until` | date | sim |  |
+| `file_name` | text | sim |  |
+| `file_size` | integer | sim |  |
+| `file_enc` | bytea | sim |  |
+| `created_by` | text | não | ''::text |
+| `created_by_name` | text | não | ''::text |
+| `created_at` | timestamp with time zone | não | now() |
+| `updated_by_name` | text | não | ''::text |
+| `updated_at` | timestamp with time zone | não | now() |
+| `deleted_at` | timestamp with time zone | sim |  |
+
+**Travas do banco:**
+- Regra (CHECK): `CHECK ((kind = ANY (ARRAY['credential'::text, 'certificate'::text, 'file'::text, 'link'::text, 'note'::text])))`
+- Chave estrangeira: `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
+- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE`
+- Chave primária: `PRIMARY KEY (id)`
+
+**Índices:**
+- `project_vault_items_project_idx`: `USING btree (project_id, deleted_at, created_at DESC)`
 
 ## project_versions
 
@@ -1672,7 +1712,7 @@
 - `renata_actions_user_idx`: `USING btree (requester_id, requested_at DESC)`
 
 **Gatilhos (triggers):**
-- `renata_actions_guard_t` (BEFORE DELETE/UPDATE): `EXECUTE FUNCTION renata_actions_guard()`
+- `renata_actions_guard_t` (BEFORE UPDATE/DELETE): `EXECUTE FUNCTION renata_actions_guard()`
 
 ## renata_conversations
 
@@ -1841,6 +1881,74 @@
 - `idx_users_widget_token`: `UNIQUE USING btree (widget_token_hash) WHERE (widget_token_hash IS NOT NULL)`
 - `users_username_key`: `UNIQUE USING btree (username)`
 
+## wa_conversations
+
+| Coluna | Tipo | Nulo? | Padrão |
+|---|---|---|---|
+| `id` | text | não |  |
+| `org_id` | text | não |  |
+| `wa_id` | text | não |  |
+| `profile_name` | text | não | ''::text |
+| `last_message_at` | timestamp with time zone | sim |  |
+| `last_inbound_at` | timestamp with time zone | sim |  |
+| `last_preview` | text | não | ''::text |
+| `last_direction` | text | não | ''::text |
+| `unread` | integer | não | 0 |
+| `archived_at` | timestamp with time zone | sim |  |
+| `created_at` | timestamp with time zone | não | now() |
+
+**Travas do banco:**
+- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE`
+- Chave primária: `PRIMARY KEY (id)`
+- Único: `UNIQUE (org_id, wa_id)`
+
+**Índices:**
+- `wa_conversations_list_idx`: `USING btree (org_id, last_message_at DESC)`
+- `wa_conversations_org_id_wa_id_key`: `UNIQUE USING btree (org_id, wa_id)`
+
+## wa_media
+
+| Coluna | Tipo | Nulo? | Padrão |
+|---|---|---|---|
+| `message_id` | text | não |  |
+| `mime` | text | não | ''::text |
+| `filename` | text | não | ''::text |
+| `size` | integer | não | 0 |
+| `data` | bytea | não |  |
+
+**Travas do banco:**
+- Chave estrangeira: `FOREIGN KEY (message_id) REFERENCES wa_messages(id) ON DELETE CASCADE`
+- Chave primária: `PRIMARY KEY (message_id)`
+
+## wa_messages
+
+| Coluna | Tipo | Nulo? | Padrão |
+|---|---|---|---|
+| `id` | text | não |  |
+| `conversation_id` | text | não |  |
+| `wa_message_id` | text | sim |  |
+| `direction` | text | não |  |
+| `kind` | text | não | 'text'::text |
+| `body` | text | não | ''::text |
+| `media` | jsonb | sim |  |
+| `status` | text | não | ''::text |
+| `error` | text | não | ''::text |
+| `via` | text | não | ''::text |
+| `sent_by` | text | sim |  |
+| `sent_by_name` | text | não | ''::text |
+| `reply_to` | text | não | ''::text |
+| `created_at` | timestamp with time zone | não | now() |
+
+**Travas do banco:**
+- Regra (CHECK): `CHECK ((direction = ANY (ARRAY['in'::text, 'out'::text])))`
+- Chave estrangeira: `FOREIGN KEY (conversation_id) REFERENCES wa_conversations(id) ON DELETE CASCADE`
+- Chave primária: `PRIMARY KEY (id)`
+- Único: `UNIQUE (wa_message_id)`
+
+**Índices:**
+- `wa_messages_conv_idx`: `USING btree (conversation_id, created_at)`
+- `wa_messages_wa_message_id_key`: `UNIQUE USING btree (wa_message_id)`
+
 ## xflow_events
 
 | Coluna | Tipo | Nulo? | Padrão |
@@ -1857,8 +1965,8 @@
 | `created_at` | timestamp with time zone | não | now() |
 
 **Travas do banco:**
-- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
 - Chave estrangeira: `FOREIGN KEY (user_id) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
 - Chave estrangeira: `FOREIGN KEY (ticket_id) REFERENCES xflow_tickets(id) ON DELETE CASCADE`
 - Chave primária: `PRIMARY KEY (id)`
 
@@ -1904,10 +2012,10 @@
 
 **Travas do banco:**
 - Chave estrangeira: `FOREIGN KEY (org_id) REFERENCES organizations(id)`
-- Chave estrangeira: `FOREIGN KEY (reporter_id) REFERENCES users(id)`
-- Chave estrangeira: `FOREIGN KEY (ball_holder_user_id) REFERENCES users(id)`
-- Chave estrangeira: `FOREIGN KEY (assignee_id) REFERENCES users(id)`
 - Chave estrangeira: `FOREIGN KEY (deleted_by) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (assignee_id) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (ball_holder_user_id) REFERENCES users(id)`
+- Chave estrangeira: `FOREIGN KEY (reporter_id) REFERENCES users(id)`
 - Chave primária: `PRIMARY KEY (id)`
 
 **Índices:**

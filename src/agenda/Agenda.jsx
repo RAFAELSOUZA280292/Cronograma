@@ -3,7 +3,8 @@
 // atividade de empresa) numa visão só de dia/semana/mês, com um toggle de
 // privacidade pra apresentar disponibilidade sem expor assunto/nome de
 // evento (útil numa call com cliente). Leitura + (Onda 5, §81) criar compromisso
-// no Google e responder convite — ver PROJECT_CONTEXT.md §22 pro desenho completo.
+// no Google e responder convite; desde 2026-11-02 também editar, cancelar, Meet, participantes e propor horário (EventDetail.jsx),
+// sem precisar abrir o Google Agenda — ver PROJECT_CONTEXT.md §22 pro desenho completo.
 //
 // Arquivo próprio (não em App.jsx) pelo mesmo motivo do XFlow: bloco de
 // UI grande e autocontido, com sua própria lógica de grade de horários.
@@ -11,13 +12,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Link2, Ban, AlertTriangle, Plus } from 'lucide-react';
 import { Segmented, Callout, BusyBar, Button, activate } from '../ui/index.jsx';
-import { Modal } from '../ui/dialog.jsx';
 import { apiGet } from '../lib/api.js';
 import { rsvpOf, isPendingRsvp, RSVP_META, summarizeDay, fmtDur, hhmm } from './dayLoad.js';
 import { loadPrefs } from './agendaPrefs.js';
 import NewEventModal, { defaultSlot } from './NewEventModal.jsx';
-import RsvpButtons from './RsvpButtons.jsx';
-import { canRespond, useRespond } from './agendaActions.js';
+import EventDetailModal from './EventDetail.jsx';
+import { useRespond, takeAgendaOpen } from './agendaActions.js';
 import { BrandLogo } from '../App.jsx';
 import { S } from '../styles/S.js';
 import { useHistoryValue, readHistoryValue } from '../lib/nav.js';
@@ -119,7 +119,16 @@ export default function AgendaScreen({
   const [reloadTick, setReloadTick] = useState(0);
   const [newEvent, setNewEvent] = useState(null); // { date, time } enquanto o "Novo compromisso" está aberto
   const [detailId, setDetailId] = useState(null);
+  const [editing, setEditing] = useState(null); // detalhe do evento enquanto o "Editar compromisso" está aberto
   const { respond, respondingId } = useRespond((id, myResponse) => setEvents((list) => list.map((e) => (e.id === id ? { ...e, myResponse } : e))));
+
+  // "Ver na agenda" vindo da Caixa de e-mail: abre no dia do evento, com o detalhe aberto.
+  useEffect(() => {
+    const want = takeAgendaOpen();
+    if (!want) return;
+    if (want.start && !Number.isNaN(Date.parse(want.start))) setAnchorDate(new Date(want.start));
+    setDetailId(want.id);
+  }, []);
 
   const { start: rangeStart, end: rangeEnd } = useMemo(() => rangeForView(viewMode, anchorDate), [viewMode, anchorDate]);
   const rangeKey = `${isoDateOnly(rangeStart)}_${isoDateOnly(rangeEnd)}`;
@@ -317,7 +326,18 @@ export default function AgendaScreen({
           onCreated={() => { setNewEvent(null); setReloadTick((n) => n + 1); }}
         />
       )}
-      {detailEv && <EventDetailModal ev={detailEv} onClose={() => setDetailId(null)} onRespond={respond} busy={respondingId === detailEv.id} />}
+      {detailId && !editing && (
+        <EventDetailModal
+          key={detailId} id={detailId} initial={detailEv} onClose={() => setDetailId(null)} onRespond={respond} respondBusy={respondingId === detailId}
+          onEdit={(ev) => setEditing(ev)} onChanged={() => setReloadTick((n) => n + 1)}
+        />
+      )}
+      {editing && (
+        <NewEventModal
+          event={editing} connected={connected} onClose={() => setEditing(null)}
+          onCreated={() => { setEditing(null); setReloadTick((n) => n + 1); }}
+        />
+      )}
     </div>
   );
 }
@@ -325,47 +345,6 @@ export default function AgendaScreen({
 // Só o que abre algo vira botão para teclado/leitor de tela (TASK do XFlow com link; compromisso do Google com detalhes visíveis).
 function openable(ev, hideDetails) {
   return (ev.source === 'xflow_ticket' && !!ev.link) || (ev.source === 'google' && !hideDetails);
-}
-
-function fmtWhen(ev) {
-  const s = new Date(ev.start);
-  const e = new Date(ev.end || ev.start);
-  const day = `${WEEKDAY_LABEL[s.getDay()]}, ${s.getDate()} de ${MONTH_LABEL[s.getMonth()]}`;
-  if (ev.allDay) return `${day} · dia inteiro`;
-  const hm = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-  return `${day} · ${hm(s)}–${hm(e)}`;
-}
-
-// Detalhe do compromisso do Google: dados, resposta ao convite (se for convidado) e atalho para o Google Calendar.
-function EventDetailModal({ ev, onClose, onRespond, busy }) {
-  const r = rsvpOf(ev);
-  const invited = canRespond(ev);
-  return (
-    <Modal
-      title={ev.title} subtitle={fmtWhen(ev)} onClose={onClose}
-      footer={(
-        <>
-          {ev.htmlLink && <a className="ui-btn" href={ev.htmlLink} target="_blank" rel="noopener noreferrer">Abrir no Google Calendar</a>}
-          <Button onClick={onClose}>Fechar</Button>
-        </>
-      )}
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13.5, color: 'var(--text-2)' }}>
-        {ev.status === 'cancelled' && <Callout tone="danger" icon={Ban}>Este compromisso foi cancelado.</Callout>}
-        {ev.location && <div><b>Local:</b> {ev.location}</div>}
-        {ev.organizer && <div><b>Convite de:</b> {ev.organizer}</div>}
-        {ev.guests > 0 && <div><b>Convidados:</b> {ev.guests}</div>}
-        {!invited && ev.myResponse === 'organizer' && <div style={{ color: 'var(--text-4)' }}>Compromisso seu: você é o organizador.</div>}
-        {ev.description && <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-3)' }}>{ev.description}</div>}
-        {invited && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 12, borderTop: '1px solid var(--border-1)' }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)' }}>Sua resposta: {RSVP_META[r].label}</div>
-            <RsvpButtons ev={ev} onRespond={onRespond} busy={busy} />
-          </div>
-        )}
-      </div>
-    </Modal>
-  );
 }
 
 // Estilo por resposta ao convite: aceito = cheio; sem resposta/talvez = contorno tracejado (como no Google);

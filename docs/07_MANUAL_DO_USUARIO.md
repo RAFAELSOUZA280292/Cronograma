@@ -352,11 +352,12 @@ Botão **Reservar na agenda**: cria blocos no Google Calendar da conta @pricetax
 **Para que serve:** ver os seus compromissos do Google Calendar junto com TASKs do XFlow, atividades da PRICETAX e atividades do CRM. Endereço: `/agenda`. **Quem vê:** todos.
 1. **Conectar:** se aparecer **Seu Google Calendar ainda não está conectado** → **Conectar Google Calendar** (ou em **Meu perfil › Agenda**). Escolha a conta do Google certa.
 2. Escolha **Dia**, **Semana** ou **Mês**; setas e **Hoje** navegam. No celular o dia tem **Lista** ou **Horários**.
-3. Clique no compromisso para abrir: local, convidados, **Abrir no Google Calendar**. Convite seu tem **Aceitar**, **Talvez**, **Recusar** (responde no Google).
-4. **Novo compromisso**: título, data, hora de início, duração (5 min a 12 h; **Outra duração…**), local ou link de videochamada, **Convidados** (e-mails; até o limite da tela). **Criar compromisso**.
-5. **Ocultar recusados** deixa a grade só com o que você aceitou ou ainda não respondeu (recusados aparecem riscados). **Ocultar detalhes** troca os títulos por "Ocupado", para mostrar disponibilidade sem expor com quem/sobre o quê.
-6. A RENATA da tela inicial e da Agenda conta como "livre" o tempo sem reunião **aceita** dentro do seu expediente. **Expediente e almoço** (horário de trabalho e pausa) ficam salvos **neste navegador**.
-**Não dá para:** editar ou excluir compromisso existente por aqui (use o Google); ver a agenda de outra pessoa.
+3. Clique no compromisso para abrir: **Entrar no Google Meet**, local, organizador e cada participante com a resposta (**Sim**, **Talvez**, **Não**, **Sem resposta**) e o comentário. Convite de outra pessoa tem **Aceitar**, **Talvez**, **Recusar** e **Propor novo horário** (data, início, duração e uma mensagem: vai ao organizador junto com a resposta "Talvez"). Reunião sua tem **Editar** e **Cancelar reunião** (os convidados recebem o aviso). Não é preciso abrir o Google Agenda.
+4. **Novo compromisso**: título, data, hora de início, duração (5 min a 12 h; **Outra duração…**), **Criar link do Google Meet** (já vem marcado), **Lembrete**, local, descrição e **Convidados** (digite o nome ou o e-mail: aparecem sugestões do seu e-mail e do CRM). **Criar compromisso** manda o convite por e-mail.
+5. **Na Caixa de e-mail**, o e-mail de convite mostra um cartão com data, hora, local, link da reunião e participantes: **Sim**, **Talvez**, **Não**, **Propor novo horário** e **Ver na agenda**. Quando alguém sugere outro horário para uma reunião sua, o cartão traz **Aceitar novo horário** (muda a reunião e avisa todos) e **Manter e responder**.
+6. **Ocultar recusados** deixa a grade só com o que você aceitou ou ainda não respondeu (recusados aparecem riscados). **Ocultar detalhes** troca os títulos por "Ocupado", para mostrar disponibilidade sem expor com quem/sobre o quê.
+7. A RENATA da tela inicial e da Agenda conta como "livre" o tempo sem reunião **aceita** dentro do seu expediente. **Expediente e almoço** (horário de trabalho e pausa) ficam salvos **neste navegador**.
+**Não dá para:** editar reunião de outra pessoa (só responder ou propor horário); ver a agenda de outra pessoa; mudar a série inteira de uma reunião que se repete (a alteração vale só para a data aberta).
 **Dúvida:** *Agenda vazia.* Conecte o Google ou use as setas; **Não consegui carregar a agenda** pede **Tentar de novo** ou **Reconectar**.
 
 ### 6.4 XFlow (TASKs de BUG e melhoria dos produtos internos)

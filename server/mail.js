@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { unreadQuery, FOLDERS, folderQuery, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, gmailFor, mailStatus, friendlyMailError, forgetMailScope, mapLimit } from './googleMail.js';
 import { parseRecipients, replyRecipients, replySubject, buildQuote, composeBody, buildMime, cleanSignature, signatureHtml, signatureHasContent, sizeError, attachmentsSize, LOGO_CID, MAX_RECIPIENTS, isEmail, sanitizeOutgoingHtml, DRAFT_HEADER, draftMeta, parseDraftMeta, draftBodyHtml, SIG_IMAGE_CID, signatureImageError, restoreInlineImages, BODY_IMAGE_PREFIX, rankContacts, contactRank, foldText, attachmentBlockReason } from './mailCompose.js';
 import { labelColorFor } from '../shared/mailLabelColors.js';
+import { isCalendarPart, parseIcs } from './calendarInvite.js';
+import { findEventByICalUID, googleConfigured } from './googleCalendar.js';
 import { crmRoleOf } from './crm/permissions.js';
 import { pool } from './db.js';
 
@@ -104,6 +106,7 @@ router.get('/threads/:id', async (req, res) => {
         html: body.html,
         remoteImages: body.remoteImages,
         attachments: parts.attachments.filter((a) => a.id && !a.inline).map(({ id, partId, filename, mimeType, size }) => ({ id, partId, filename, mimeType, size })),
+        invite: parts.attachments.some(isCalendarPart),
       };
     });
     const labels = new Set((data.messages || []).flatMap((m) => m.labelIds || []));
@@ -135,6 +138,32 @@ router.get('/messages/:mid/attachments/:aid', async (req, res) => {
       res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
     }
     res.send(buf);
+  } catch (e) { fail(res, e); }
+});
+
+// Convite de reunião no e-mail (2026-11-02): lê o text/calendar (ou o .ics) e acha o evento na agenda da pessoa pelo UID, para o
+// cartão com Sim/Talvez/Não, proposta de novo horário e "Ver na agenda". Agenda indisponível não derruba o cartão (event: null).
+router.get('/messages/:mid/invite', async (req, res) => {
+  if (!ID_RE.test(req.params.mid)) return res.status(400).json({ message: 'Mensagem inválida.' });
+  const gmail = await withGmail(req, res); if (!gmail) return;
+  try {
+    const { data } = await gmail.users.messages.get({ userId: 'me', id: req.params.mid, format: 'full' });
+    const cal = walkParts(data.payload).attachments.filter(isCalendarPart)
+      .sort((a, b) => (a.mimeType === 'text/calendar' ? 0 : 1) - (b.mimeType === 'text/calendar' ? 0 : 1))[0];
+    if (!cal) return res.status(404).json({ message: 'Este e-mail não traz convite de reunião.' });
+    const part = cal.partId ? findPart(data.payload, cal.partId) : null;
+    let raw = part && part.body && part.body.data;
+    if (!raw && cal.id) raw = (await gmail.users.messages.attachments.get({ userId: 'me', messageId: data.id, id: cal.id })).data.data;
+    const invite = raw ? parseIcs(Buffer.from(raw, 'base64url').toString('utf8')) : null;
+    if (!invite) return res.status(422).json({ message: 'Não consegui ler o convite deste e-mail.' });
+    let event = null; let calendarError = '';
+    if (googleConfigured() && invite.uid) {
+      try { event = await findEventByICalUID(req.user.id, invite.uid); } catch (e) {
+        calendarError = e && e.status === 409 ? 'Conecte a sua agenda do Google para responder por aqui.' : 'Não consegui consultar a sua agenda agora.';
+        if (!(e && e.status)) console.error('Convite: falha ao buscar o evento na agenda', String(e && e.message).slice(0, 200));
+      }
+    }
+    res.json({ invite, event, calendarError, me: await myAddress(req, gmail).catch(() => '') });
   } catch (e) { fail(res, e); }
 });
 
