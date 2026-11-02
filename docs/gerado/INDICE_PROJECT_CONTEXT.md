@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8968 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8969 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -189,8 +189,8 @@ O `PROJECT_CONTEXT.md` tem 8968 linhas (a memória cronológica de cada decisão
 | 8889 | 116zzzzzzzz. Agenda completa no painel e convites ligados à Caixa de e-mail (2026-11-02, pedido do Rafael: "d… | - O que é: o Rafael não abre mais o Google Agenda nem o Gmail para reuniões. Os dados continuam no Google Workspace da PRICETAX (Calendar API e Gmail… |
 | 8900 | 123. WhatsApp, Fase 1: caixa de conversas do número da PRICETAX (2026-11-02, pedido do Rafael: "Fase 0 e Fase… | - Por quê: levar o atendimento do WhatsApp para o painel (como a Caixa de e-mail), pela API oficial da Meta (WhatsApp Cloud API). Provedores não ofic… |
 | 8913 | 124. Cofre do projeto: acessos, certificado digital, arquivos, links e notas por empresa (2026-11-02, pedido … | - Por quê: guardar no painel da empresa os acessos do cliente (login e senha do X da Questão, e-CAC, portais), o certificado digital A1 e os document… |
-| 8922 | 116zzzzzzzz. Caixa de e-mail: pastas sem "INBOX/" e em árvore (2026-11-02, pedido do Rafael: "Todas as minhas… | - Causa: as pastas vieram do Outlook/IMAP como marcadores INBOX/… e [Gmail]/…, e a lista também cortava em 60 pastas. |
-| 8932 | 123a. WhatsApp: caixas por número, pessoal privada e Comercial compartilhada (2026-11-02, decisão do Rafael) | - Pedido: "Para eu + Felipe + Ronaldo vamos de Opção B; para a Duda (Eduarda), número novo e dedicado, na API oficial, numa caixa Comercial". Os sóci… |
-| 8943 | 125. RENATA lê o e-mail de quem conversa com ela e propõe o registro no CRM (2026-11-02, pedido do Rafael: "a… | - Por quê: a RENATA respondia "não tenho acesso ao seu e-mail" e só achava o cartão OKUBO no quadro; as negociações (proposta, planilha, cobrança de … |
-| 8953 | 123b. WhatsApp: intermediário Dualhook para os números pessoais (2026-11-02, decisão do Rafael: "Dualhook (te… | - Por quê: número pessoal no painel só por coexistência, e a Meta só libera coexistência pelo cadastro de um provedor técnico. Comparação feita (Dual… |
-| 8959 | 126. Tela inicial personalizável e barra de favoritos (2026-11-02, pedido do Rafael: "tem gente que gosta de … | - Por quê: a partir de 03/11 os funcionários trabalham no painel; a tela do Rafael é widescreen e a deles é quadrada, e cada um quer a "Mensagem do d… |
+| 8923 | 116zzzzzzzz. Caixa de e-mail: pastas sem "INBOX/" e em árvore (2026-11-02, pedido do Rafael: "Todas as minhas… | - Causa: as pastas vieram do Outlook/IMAP como marcadores INBOX/… e [Gmail]/…, e a lista também cortava em 60 pastas. |
+| 8933 | 123a. WhatsApp: caixas por número, pessoal privada e Comercial compartilhada (2026-11-02, decisão do Rafael) | - Pedido: "Para eu + Felipe + Ronaldo vamos de Opção B; para a Duda (Eduarda), número novo e dedicado, na API oficial, numa caixa Comercial". Os sóci… |
+| 8944 | 125. RENATA lê o e-mail de quem conversa com ela e propõe o registro no CRM (2026-11-02, pedido do Rafael: "a… | - Por quê: a RENATA respondia "não tenho acesso ao seu e-mail" e só achava o cartão OKUBO no quadro; as negociações (proposta, planilha, cobrança de … |
+| 8954 | 123b. WhatsApp: intermediário Dualhook para os números pessoais (2026-11-02, decisão do Rafael: "Dualhook (te… | - Por quê: número pessoal no painel só por coexistência, e a Meta só libera coexistência pelo cadastro de um provedor técnico. Comparação feita (Dual… |
+| 8960 | 126. Tela inicial personalizável e barra de favoritos (2026-11-02, pedido do Rafael: "tem gente que gosta de … | - Por quê: a partir de 03/11 os funcionários trabalham no painel; a tela do Rafael é widescreen e a deles é quadrada, e cada um quer a "Mensagem do d… |

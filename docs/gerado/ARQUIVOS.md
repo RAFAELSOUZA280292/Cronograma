@@ -132,7 +132,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/personalExtras.js` | 67 | Anotações rápidas e atalhos de cada pessoa na Gestão de Atividades (2026-10-16, visão 5). Ficam em users.preferences.personalExtras — e NÃO no |
 | `server/projectAudit.js` | 47 | Quem fez cada gravação em `projects` (§83). O gatilho do banco só enxerga o SQL; aqui a identidade da requisição (AsyncLocalStorage, preenchida por requireAuth e pela API de |
 | `server/projectVault.js` | 168 | Cofre do projeto (§124, pedido do Rafael em 02/11/2026): acessos (login e senha), certificado digital A1, arquivos, links e notas de UMA empresa. |
-| `server/projectVaultCore.js` | 125 | Cofre do projeto (§124): regras puras (sem banco), compartilhadas pelas rotas, pela ferramenta da RENATA e pelo teste. |
+| `server/projectVaultCore.js` | 132 | Cofre do projeto (§124): regras puras (sem banco), compartilhadas pelas rotas, pela ferramenta da RENATA e pelo teste. |
 | `server/projectVersions.js` | 194 | Histórico de versões do cronograma (§83): consultar, comparar, criar ponto de restauração, restaurar (com backup automático do estado atual) e recuperar empresa excluída. |
 | `server/projectVersionsSchema.js` | 105 | Versionamento do cronograma (§83): tabela `project_versions` + gatilhos em `projects`. A captura mora no BANCO de propósito: `projects.data` é gravado inteiro por ~17 pontos do |
 | `server/promptGuard.js` | 25 | Regra "texto de terceiros é DADO, nunca instrução" (2026-10-30, Onda 1 / Q2). A RENATA operacional já tinha (regra 11 em renata/agent.js); |
@@ -154,7 +154,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/scriptedClient.js` | 33 | Modelo "roteirizado" SÓ para teste local (§101): em vez de chamar a IA, responde com o que um módulo .mjs decide a partir do estado da conversa. Serve para |
 | `server/renata/tools/biblioteca.js` | 26 | Biblioteca de conhecimento (2026-10-27, §116): a RENATA operacional consulta os materiais que a equipe ensinou (somente leitura, só equipe PRICETAX). |
 | `server/renata/tools/board.js` | 252 | Ferramentas da Gestão de Atividades (quadro pessoal) — §101. O quadro é um documento por usuário: a RENATA só mexe no quadro de QUEM PEDIU, na mesma estrutura |
-| `server/renata/tools/cofre.js` | 29 | Cofre do projeto (§124): a RENATA só LISTA o que existe (nome, tipo, pasta, validade do certificado) para orientar a pessoa e sugerir o que arquivar. |
+| `server/renata/tools/cofre.js` | 30 | Cofre do projeto (§124): a RENATA só LISTA o que existe (nome, tipo, pasta, validade do certificado) para orientar a pessoa e sugerir o que arquivar. |
 | `server/renata/tools/crm.js` | 210 | Ferramentas do CRM (§101): TODAS as operações do CRM (empresas, contatos, negócios, atividades, notas, produtos, funis, cadências, tags) como ferramentas |
 | `server/renata/tools/email.js` | 54 | E-mail (§125): a RENATA busca e lê, SÓ LEITURA, a caixa do Gmail de quem conversa com ela (o token é sempre o de ctx.user — nunca o de |
 | `server/renata/tools/empresas.js` | 326 | Ferramentas de Empresas (cronogramas dos clientes) e tarefas de reunião — §101. Mesmo acesso da tela (canAccessProject) e, para alterar, só equipe (master/pricetax). |
@@ -213,7 +213,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
-| `src/App.jsx` | 3699 |  |
+| `src/App.jsx` | 3715 |  |
 | `src/agenda/Agenda.jsx` | 562 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/EventDetail.jsx` | 188 | Detalhe do compromisso do Google dentro do painel (2026-11-02, "nunca mais abrir o Google Agenda"): Meet, participantes com a |
 | `src/agenda/NewEventModal.jsx` | 302 | "Novo compromisso" e "Editar" da Agenda (Onda 5, §81; edição, Meet, lembrete e sugestão de contatos em 2026-11-02). Grava no Google |
@@ -387,11 +387,11 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/screens/CompanyShareLink.jsx` | 116 | Janela "Link para o cliente" (2026-10-19): gera, copia e desativa os links públicos da empresa. Só master e PRICETAX. |
 | `src/screens/CompanyTriage.jsx` | 509 | Aba "Triagem" (2026-10-20, pedido do Rafael, a partir do painel de classificação que usou na ALCAST): para cada atividade ("reunião mestre" ou frente) e cada subatividade, |
 | `src/screens/CompanyViews.jsx` | 2133 | Vistas de uma empresa: Resumo, Tabela, Fases, Quadro (kanban), Gantt/linha do tempo, impressão e detalhe da atividade. |
-| `src/screens/CompanyWorkspace.jsx` | 924 | Área de trabalho de uma empresa (cabeçalho, abas, vistas, modais e relatório de impressão). |
+| `src/screens/CompanyWorkspace.jsx` | 925 | Área de trabalho de uma empresa (cabeçalho, abas, vistas, modais e relatório de impressão). |
 | `src/screens/MapView.jsx` | 529 | Aba MAPA (2026-10-19, pedido do Rafael; nome final "Mapa", antes "Árvore"): mapa mental do cronograma de UMA empresa — empresa → grupos (fase, responsável ou situação) → atividades → |
 | `src/screens/PautaPicker.jsx` | 51 | Janela "Vincular itens à reunião" (2026-10-20): escolhe itens de trabalho de QUALQUER atividade (os "outros squads") para entrarem na pauta de uma reunião. |
 | `src/screens/PersonalBoard.jsx` | 2981 | Gestão de Atividades (quadro pessoal): quadro, colunas, cartões, lista, quadro público e painéis. |
-| `src/screens/ProjectVault.jsx` | 296 | Aba "Cofre" da empresa (§124): acessos (login e senha), certificado digital A1, arquivos, links e notas do projeto. Só equipe. |
+| `src/screens/ProjectVault.jsx` | 316 | Aba "Cofre" da empresa (§124): acessos (login e senha), certificado digital A1, arquivos, links e notas do projeto. Só equipe. |
 | `src/screens/PublicCompanyScreen.jsx` | 423 | Página pública de acompanhamento da empresa (2026-10-19): /acompanhamento/<token>. Só leitura, sem login; "Entrar para editar" leva ao login normal. |
 | `src/screens/ScreenSearch.jsx` | 48 | Busca da tela aberta (2026-10-19): campo na barra de abas da empresa e aviso "filtrando" no topo do conteúdo. A lógica de casar texto fica em src/lib/screenSearch.js. |
 | `src/screens/SubExtras.jsx` | 214 | Campos novos das subatividades (2026-10-19, fase 2 do plano do cronograma funcional): prioridade, executor, áreas envolvidas, aplicabilidade, recorrência, |

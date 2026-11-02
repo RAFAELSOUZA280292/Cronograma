@@ -2,7 +2,7 @@
 // A senha nunca vem na listagem: "Mostrar"/"Copiar" pedem ao servidor na hora (POST) e cada uso entra no Log da empresa.
 // A senha mostrada some sozinha em 30 s e não fica em nenhum armazenamento do navegador.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Award, Copy, Download, ExternalLink, Eye, EyeOff, FileText, KeyRound, Link2, Lock, Pencil, Plus, StickyNote, Trash2 } from 'lucide-react';
+import { Award, Copy, Share2, Download, ExternalLink, Eye, EyeOff, FileText, KeyRound, Link2, Lock, Pencil, Plus, StickyNote, Trash2 } from 'lucide-react';
 import { apiDelete, apiGet, apiPatch, apiPost } from '../lib/api.js';
 import { Modal } from '../ui/dialog.jsx';
 import { Button, Callout, Chip, ChipRow, EmptyState, ErrorState, IconButton, Segmented, SkeletonCards } from '../ui/index.jsx';
@@ -71,6 +71,12 @@ function SecretField({ projectId, item }) {
   );
 }
 
+// Link interno (§124): só abre com login, para a equipe com acesso à empresa; nunca leva a senha.
+const vaultUrl = (projectId, itemId) => `${window.location.origin}/empresas?${new URLSearchParams({ cofre: projectId, ...(itemId ? { item: itemId } : {}) })}`;
+async function copyLink(projectId, item) {
+  notify((await copyText(vaultUrl(projectId, item && item.id))) ? 'Link copiado. Só abre para quem tem login da equipe e acesso a esta empresa.' : `Não foi possível copiar. Link: ${vaultUrl(projectId, item && item.id)}`, { ttlMs: 7000 });
+}
+
 async function download(projectId, item) {
   try {
     const res = await fetch(`/api/project-vault/${projectId}/${item.id}/file`, { credentials: 'include' });
@@ -83,17 +89,18 @@ async function download(projectId, item) {
   } catch (e) { notify(e.message, { tone: 'error' }); }
 }
 
-function VaultCard({ projectId, item, onEdit, onDelete }) {
+function VaultCard({ projectId, item, onEdit, onDelete, highlighted }) {
   const K = KIND[item.kind] || KIND.note;
   const Icon = K.icon;
   return (
-    <div style={st.card}>
+    <div id={`cofre-${item.id}`} style={highlighted ? { ...st.card, ...st.cardHi } : st.card}>
       <div style={st.cardHead}>
         <span style={st.kindIcon} title={K.label}><Icon size={16} /></span>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={st.title}>{item.title}</div>
           <div style={st.meta}>{K.label}{item.tags.length ? ` · ${item.tags.join(', ')}` : ''}</div>
         </div>
+        <IconButton size="sm" label="Copiar link (só abre com login)" icon={Share2} onClick={() => copyLink(projectId, item)} />
         <IconButton size="sm" label="Editar" icon={Pencil} onClick={() => onEdit(item)} />
         <IconButton size="sm" label="Excluir" icon={Trash2} onClick={() => onDelete(item)} />
       </div>
@@ -179,13 +186,14 @@ function VaultForm({ projectId, item, folders, onClose, onSaved }) {
   );
 }
 
-export default function ProjectVault({ projectId, companyName }) {
+export default function ProjectVault({ projectId, companyName, focus }) {
   const [items, setItems] = useState(null);
   const [error, setError] = useState('');
   const [q, setQ] = useState('');
   const [kind, setKind] = useState('');
   const [folder, setFolder] = useState('');
   const [editing, setEditing] = useState(undefined);
+  const [hi, setHi] = useState('');
   const load = () => { setError(''); apiGet(`/api/project-vault/${projectId}`).then((r) => setItems(r.items)).catch((e) => setError(e.message)); };
   useEffect(() => { setItems(null); load(); }, [projectId]);
 
@@ -200,6 +208,14 @@ export default function ProjectVault({ projectId, companyName }) {
     for (const i of shown) { const k = i.folder || 'Sem pasta'; if (!m.has(k)) m.set(k, []); m.get(k).push(i); }
     return [...m.entries()].sort(([a], [b]) => (a === 'Sem pasta') - (b === 'Sem pasta') || a.localeCompare(b, 'pt-BR'));
   }, [shown]);
+  useEffect(() => {
+    if (!focus || !focus.item || !items) return;
+    if (!items.some((i) => i.id === focus.item)) { notify('O item do link não está mais no cofre (pode ter sido excluído).', { tone: 'error' }); return; }
+    setQ(''); setKind(''); setFolder(''); setHi(focus.item);
+    const t1 = setTimeout(() => { const el = document.getElementById(`cofre-${focus.item}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 80);
+    const t2 = setTimeout(() => setHi(''), 6000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [focus && focus.n, !!items]);
   const certAlerts = (items || []).filter((i) => i.cert && i.cert.state !== 'ok');
 
   const remove = async (item) => {
@@ -219,7 +235,10 @@ export default function ProjectVault({ projectId, companyName }) {
           <h2 style={st.h2}><Lock size={18} /> Cofre do projeto</h2>
           <div style={st.sub}>Acessos, certificado digital, contratos, procurações e entregas de {companyName || 'esta empresa'}. Só a equipe PRICETAX vê; o link do cliente não mostra o cofre. Senhas e arquivos ficam cifrados, e mostrar, copiar ou baixar fica registrado no Log.</div>
         </div>
-        <Button variant="primary" icon={Plus} onClick={() => setEditing(null)}>Incluir</Button>
+        <div className="ui-field-row">
+          <Button icon={Share2} onClick={() => copyLink(projectId, null)} title="Link para este cofre; só abre com login da equipe">Copiar link do cofre</Button>
+          <Button variant="primary" icon={Plus} onClick={() => setEditing(null)}>Incluir</Button>
+        </div>
       </div>
 
       {certAlerts.map((i) => (
@@ -253,7 +272,7 @@ export default function ProjectVault({ projectId, companyName }) {
       {groups.map(([name, list]) => (
         <section key={name} style={{ marginTop: 18 }}>
           <h3 style={st.h3}>{name} <span style={st.count}>{list.length}</span></h3>
-          <div style={st.grid}>{list.map((i) => <VaultCard key={i.id} projectId={projectId} item={i} onEdit={setEditing} onDelete={remove} />)}</div>
+          <div style={st.grid}>{list.map((i) => <VaultCard key={i.id} projectId={projectId} item={i} highlighted={hi === i.id} onEdit={setEditing} onDelete={remove} />)}</div>
         </section>
       ))}
 
@@ -272,6 +291,7 @@ const st = {
   count: { fontSize: 12, fontWeight: 700, color: 'var(--text-4)' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: 12 },
   card: { display: 'flex', flexDirection: 'column', background: 'var(--bg-2)', border: '1px solid var(--border-2)', borderRadius: 12, padding: 14, minWidth: 0 },
+  cardHi: { borderColor: 'var(--ui-accent)', boxShadow: '0 0 0 3px rgba(245, 196, 0, .35)' },
   cardHead: { display: 'flex', alignItems: 'center', gap: 8 },
   kindIcon: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, background: 'var(--bg-3)', color: 'var(--text-2)', flexShrink: 0 },
   title: { fontSize: 14, fontWeight: 800, color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },

@@ -2,10 +2,11 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-558 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+559 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (25)
+## 2026-11-02 (26)
 
+- `bfb6608` 15:11 — Tela inicial personalizável e barra de favoritos, salvas por pessoa no servidor
 - `541ec52` 14:52 — WhatsApp: intermediário Dualhook para os números pessoais (coexistência)
 - `b0c33ab` 14:48 — RENATA lê o e-mail de quem conversa com ela e propõe o registro no CRM
 - `fa861e2` 14:36 — WhatsApp: caixas por número (pessoal privada e Comercial compartilhada)

@@ -1386,7 +1386,13 @@ function AppScreens({ shellRef, bump }) {
     try {
       if (canOpenMode(mode, currentUser)) {
         if (mode === 'personal' && /^\/foco\/?$/i.test(window.location.pathname)) { try { window.sessionStorage.setItem('pb-open-focus', '1'); } catch (e) { /* ignora */ } }
-        if (mode === 'company') restoreCompanyPending.current = true;
+        if (mode === 'company') {
+          restoreCompanyPending.current = true;
+          // Link interno do Cofre (§124): /empresas?cofre=<empresa>&item=<item> abre a empresa direto na aba Cofre, com o item em destaque.
+          const q = new URLSearchParams(window.location.search);
+          const okId = (v) => /^[\w-]{1,80}$/.test(v || '');
+          if (okId(q.get('cofre'))) pendingVaultOpen.current = { pid: q.get('cofre'), item: okId(q.get('item')) ? q.get('item') : '' };
+        }
         if (mode === 'crm') {
           // Link vindo da agenda do Google (…/crm?negocio=ID ou ?empresa=ID): abre direto o negócio ou a empresa.
           const q = new URLSearchParams(window.location.search);
@@ -1416,9 +1422,18 @@ function AppScreens({ shellRef, bump }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectsLoaded, currentUser?.id]);
   const restoreCompanyPending = useRef(false);
+  const pendingVaultOpen = useRef(null);
+  const [vaultFocus, setVaultFocus] = useState(null);
   useEffect(() => {
     if (!restoreCompanyPending.current || !projectsLoaded || !currentUser || workspaceMode !== 'company') return;
     restoreCompanyPending.current = false;
+    const pv = pendingVaultOpen.current;
+    pendingVaultOpen.current = null;
+    if (pv) {
+      const staff = currentUser.isSuperAdmin || currentUser.role === 'master' || currentUser.role === 'pricetax';
+      if (staff && projects.some((p) => p.id === pv.pid)) { confirmCompanySelection([pv.pid]); setView('cofre'); setVaultFocus({ ...pv, n: Date.now() }); return; }
+      notify('Este link do cofre é de uma empresa que você não pode abrir. Peça acesso a quem enviou.', { tone: 'error', ttlMs: 9000 });
+    }
     restoreLastCompanies();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectsLoaded, workspaceMode, currentUser?.id]);
@@ -2673,6 +2688,7 @@ function AppScreens({ shellRef, bump }) {
   return (
     <React.Suspense fallback={<LoadingScreen theme={theme} />}>
       <CompanyWorkspace ctx={{
+        vaultFocus,
         actingOrg,
         activeProject,
         activitiesSorted,

@@ -98,8 +98,14 @@ export function publicItem(r, today) {
   };
 }
 
+// Link interno de um item (ou do cofre inteiro): só abre com login, para a equipe com acesso à empresa. Não leva senha nem chave nenhuma.
+export function vaultLink(base, projectId, itemId) {
+  const q = new URLSearchParams({ cofre: projectId, ...(itemId ? { item: itemId } : {}) });
+  return `${String(base || '').replace(/\/+$/, '')}/empresas?${q}`;
+}
+
 // Resumo para a RENATA: só nome, tipo, pasta, etiquetas, endereço e validade. Sem usuário, sem senha, sem observação.
-export function renataItem(r, today) {
+export function renataItem(r, today, base) {
   const p = publicItem(r, today);
   return {
     nome: p.title, tipo: KIND_LABEL[p.kind], pasta: p.folder, etiquetas: p.tags,
@@ -107,6 +113,7 @@ export function renataItem(r, today) {
     ...(p.kind === 'credential' || p.kind === 'certificate' ? { senhaGuardada: p.hasSecret ? 'sim (só a pessoa vê, na aba Cofre)' : 'não' } : {}),
     ...(p.cert ? { validade: p.certValidUntil, situacao: p.cert.state.replace(/_/g, ' '), dias: p.cert.days } : {}),
     incluidoPor: p.createdBy, em: p.createdAt,
+    ...(base ? { linkNoPainel: vaultLink(base, r.project_id, r.id) } : {}),
   };
 }
 

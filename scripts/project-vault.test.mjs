@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'teste-local';
 const { open, openBytes, isSealed } = await import('../server/secretBox.js');
-const { parseVaultInput, publicItem, renataItem, vaultLogText, certStatus, MAX_FILE_BYTES } = await import('../server/projectVaultCore.js');
+const { parseVaultInput, publicItem, renataItem, vaultLogText, certStatus, vaultLink, MAX_FILE_BYTES } = await import('../server/projectVaultCore.js');
 let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
 const SENHA = 'Senh@-Secreta-123';
 const b64 = (s) => Buffer.from(s).toString('base64');
@@ -50,4 +50,8 @@ for (const v of [cred, cert]) {
 }
 ok(publicItem(row(cert), today).cert.state === 'vence_em_breve' && publicItem(row(cert), today).certValidUntil === '2026-11-20', 'validade na listagem');
 ok(vaultLogText('show', row(cred)) === 'Cofre: mostrou a senha de acesso "X da Questão".', 'texto do Log');
+ok(vaultLink('https://painel.pricetax.com.br/', 'proj-kuhn', 'vlt-1') === 'https://painel.pricetax.com.br/empresas?cofre=proj-kuhn&item=vlt-1', 'link interno do item');
+ok(vaultLink('https://painel.pricetax.com.br', 'proj-kuhn') === 'https://painel.pricetax.com.br/empresas?cofre=proj-kuhn', 'link do cofre inteiro');
+const ri = renataItem(row(cred, { project_id: 'proj-kuhn' }), today, 'https://painel.pricetax.com.br');
+ok(ri.linkNoPainel.endsWith('cofre=proj-kuhn&item=vlt-1') && !JSON.stringify(ri).includes(SENHA), 'RENATA entrega o link, sem senha');
 console.log(`project-vault: ${n} checagens OK`);

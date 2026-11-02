@@ -203,6 +203,7 @@ export function CompanyWorkspace({ ctx }) {
     : perCompanySorted;
   const shownMeetings = !isMulti && activeProject && view === 'meetings' ? filterMeetings(activeProject.meetings || [], searchQ) : (activeProject ? activeProject.meetings || [] : []);
   const shownTodoMeetings = !isMulti && activeProject && view === 'todo' ? filterTodoMeetings(activeProject.meetings || [], searchQ) : (activeProject ? activeProject.meetings || [] : []);
+  const { vaultFocus } = ctx;
   const isStaff = !!currentUser && (currentUser.isSuperAdmin || currentUser.role === 'master' || currentUser.role === 'pricetax');
   React.useEffect(() => { if (view === 'cofre' && !isStaff) setView('resumo'); }, [view, isStaff]);
   const searchInfo = (() => {
@@ -527,7 +528,7 @@ export function CompanyWorkspace({ ctx }) {
         )}
 
         {!isMulti && !isTpl && isStaff && view === 'cofre' && (
-          <React.Suspense fallback={null}><ProjectVault projectId={activeProject.id} companyName={activeProject.company.nomeFantasia || activeProject.company.name} /></React.Suspense>
+          <React.Suspense fallback={null}><ProjectVault projectId={activeProject.id} focus={vaultFocus && vaultFocus.pid === activeProject.id ? vaultFocus : null} companyName={activeProject.company.nomeFantasia || activeProject.company.name} /></React.Suspense>
         )}
 
         {!isMulti && view === 'mapa' && (
