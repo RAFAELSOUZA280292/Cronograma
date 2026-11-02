@@ -524,10 +524,14 @@ router.delete('/users/:id', requireAuth, requireMaster, async (req, res, next) =
 router.get('/projects', requireAuth, payloadStats('GET /api/projects'), async (req, res, next) => {
   try {
     const orgId = effectiveOrgId(req);
-    const sql = req.user.isSuperAdmin && !orgId
-      ? 'SELECT data, org_id, updated_at FROM projects ORDER BY created_at ASC'
-      : 'SELECT data, org_id, updated_at FROM projects WHERE org_id=$1 ORDER BY created_at ASC';
-    const params = req.user.isSuperAdmin && !orgId ? [] : [orgId];
+    // ?ids=a,b (até 50): só essas empresas — a tela usa quando o "BIP" de sincronização vê que poucas mudaram, em vez de
+    // baixar todas de novo (02/11/2026: a lista inteira passou de 17 MB). Mesma regra de acesso e mesmo formato da lista completa.
+    const ids = typeof req.query.ids === 'string' ? req.query.ids.split(',').map((s) => s.trim()).filter((s) => /^[\w-]{1,80}$/.test(s)).slice(0, 50) : null;
+    if (ids && !ids.length) return res.json({ projects: [], stamps: {} });
+    const conds = []; const params = [];
+    if (!(req.user.isSuperAdmin && !orgId)) { params.push(orgId); conds.push(`org_id=$${params.length}`); }
+    if (ids) { params.push(ids); conds.push(`id = ANY($${params.length})`); }
+    const sql = `SELECT data, org_id, updated_at FROM projects${conds.length ? ` WHERE ${conds.join(' AND ')}` : ''} ORDER BY created_at ASC`;
     const { rows } = await pool.query(sql, params);
     const asClient = isClientUser(req.user);
     const allowed = rows.filter((r) => canAccessProject(req.user, r.data, r.org_id));
@@ -549,9 +553,12 @@ router.get('/projects', requireAuth, payloadStats('GET /api/projects'), async (r
 router.get('/projects/versions', requireAuth, async (req, res, next) => {
   try {
     const orgId = effectiveOrgId(req);
+    // Só o CNPJ sai do JSONB (é o que canAccessProject usa): este "BIP" roda a cada 6 s por pessoa e lia o documento inteiro de
+    // todas as empresas (17 MB) só para conferir o acesso.
+    const lite = "jsonb_build_object('company', jsonb_build_object('cnpj', data->'company'->'cnpj')) AS data";
     const sql = req.user.isSuperAdmin && !orgId
-      ? 'SELECT id, data, org_id, updated_at FROM projects'
-      : 'SELECT id, data, org_id, updated_at FROM projects WHERE org_id=$1';
+      ? `SELECT id, ${lite}, org_id, updated_at FROM projects`
+      : `SELECT id, ${lite}, org_id, updated_at FROM projects WHERE org_id=$1`;
     const params = req.user.isSuperAdmin && !orgId ? [] : [orgId];
     const { rows } = await pool.query(sql, params);
     const visible = rows.filter((r) => canAccessProject(req.user, r.data, r.org_id));

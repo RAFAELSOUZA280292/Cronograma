@@ -1124,8 +1124,10 @@ function AppScreens({ shellRef, bump }) {
   // resposta) — os dois únicos jeitos de "o servidor ainda não sabe o que eu digitei".
   async function reloadProjects(opts) {
     const background = !!(opts && opts.background);
+    // `ids`: só as empresas que mudaram (o BIP abaixo); as outras ficam como estão na tela.
+    const ids = background && opts && Array.isArray(opts.ids) && opts.ids.length ? opts.ids : null;
     try {
-      const res = await apiGet(withActingOrg('/api/projects'));
+      const res = await apiGet(withActingOrg(ids ? `/api/projects?ids=${encodeURIComponent(ids.join(','))}` : '/api/projects'));
       const fresh = res.projects.map(normalizeProject);
       // Guarda o que o servidor tem (documento + carimbo). Empresa com edição agendada ou em voo mantém a base antiga: é a versão da qual a edição partiu.
       const stamps = (res && res.stamps) || {};
@@ -1134,6 +1136,15 @@ function AppScreens({ shellRef, bump }) {
         if (stamps[p.id] && (!background || !pend || !projectBaseRef.current[p.id])) projectBaseRef.current[p.id] = { doc: p, updatedAt: stamps[p.id] };
       }
       if (!background) { setProjects((prev) => [...fresh, ...prev.filter((x) => x.id === STD_PLAN_ID)]); return; }
+      if (ids) {
+        const byId = new Map(fresh.map((p) => [p.id, p]));
+        setProjects((prev) => prev.map((p) => {
+          const f = byId.get(p.id);
+          if (!f) return p;
+          return saveTimers.current[p.id] || inFlightProjectSaves.current[p.id] ? p : f;
+        }));
+        return;
+      }
       setProjects((prev) => [...fresh.map((p) => {
         const pending = saveTimers.current[p.id] || inFlightProjectSaves.current[p.id];
         if (!pending) return p;
@@ -1175,13 +1186,19 @@ function AppScreens({ shellRef, bump }) {
         const res = await apiGet(withActingOrg('/api/projects/versions'));
         if (cancelled) return;
         const versions = res.versions || [];
-        let changed = false;
+        const known = knownProjectVersionsRef.current;
+        const first = known.size === 0;
+        const changedIds = [];
+        let added = false;
         versions.forEach((v) => {
-          const prev = knownProjectVersionsRef.current.get(v.id);
-          if (prev !== undefined && prev !== v.updatedAt) changed = true;
-          knownProjectVersionsRef.current.set(v.id, v.updatedAt);
+          const prev = known.get(v.id);
+          if (prev === undefined) { if (!first) added = true; } else if (prev !== v.updatedAt) changedIds.push(v.id);
         });
-        if (changed) reloadProjects({ background: true });
+        const removed = !first && [...known.keys()].some((id) => !versions.some((v) => v.id === id));
+        knownProjectVersionsRef.current = new Map(versions.map((v) => [v.id, v.updatedAt]));
+        // Empresa nova ou que saiu (ou mudança em muitas): lista completa, como antes. Poucas mudaram: só elas.
+        if (added || removed || changedIds.length > 20) reloadProjects({ background: true });
+        else if (changedIds.length) reloadProjects({ background: true, ids: changedIds });
       } catch (e) {
         // Silencioso de propósito — é só um heartbeat, uma falha
         // pontual (rede instável, etc.) não deve virar erro visível.

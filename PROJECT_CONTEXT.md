@@ -63,6 +63,7 @@ Central de Notificações (§20), Google Calendar (§21), auditoria de acessos (
   - **Agenda travava a página** (cor do compromisso chamava a si mesma em atividade do CRM/TASK): corrigido (§134).
   - **Checagem geral antes do 03/11**: 4 revisões de código, registros, testes; 11 defeitos corrigidos em Agenda, E-mail, CRM e boas-vindas (§135).
   - **Grade da Agenda no padrão do Google** (faixas de dia inteiro e de vários dias no dia certo, colunas só onde há choque, 0h–24h, filtro "Sem resposta") (§136).
+  - **Carga de empresas mais leve**: o BIP de 6 s lê só o CNPJ e a tela baixa só a empresa que mudou (§137).
   - Cérebro em dia e alarme de frescor (§116zv). **Estado atual e pendências: topo de `docs/00_COMECE_AQUI.md`.**
 
 **Em aberto** (lista única e atual: §15). **Armadilhas que mais pegam** (regras fixas: §16 e §16.1).
@@ -9119,3 +9120,11 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - **Código:** `src/agenda/weekLayout.js` (puro: `layoutTopRow`, `timedSegments`, `layoutDay`, `eventsPerDay`, `allDaySpan`, `isLong`), `WeekGrid`/`MonthGrid`/filtro em `src/agenda/Agenda.jsx`, estilos `.agd-block`, `.agd-bar`, `.agd-sticky`, `.agd-vscroll`… em `agenda.css`. Teste puro `scripts/agenda-layout.test.mjs` (11, com os casos do print), na suíte do CI.
 - **Testado:** suíte 54/54; build; `ui-audit` (nenhum aviso nos arquivos da Agenda) e `scope-check`; navegador local com a semana do print simulada (49 compromissos): Smart01 só na terça, DELAVAL só na quinta, ATRINCA faixa de quinta a sábado, desligar "Sem resposta" tira os 14 convites e fica gravado, Mês com cabeçalho certo, celular 390 px (grade rola dentro, sem rolagem lateral da página, cabeçalho fixo), tema claro (menor contraste 5,02:1).
 - **Não testado:** com a agenda real do Rafael (cores das agendas extras, série recorrente real), Safari/iPhone.
+
+## 137. Carga de empresas mais leve: o "BIP" não lê mais o documento inteiro e só baixa o que mudou (2026-11-02, noite; risco apontado na checagem §135: `GET /api/projects` com 17,9 MB)
+
+- **Servidor:** `GET /api/projects/versions` (roda a cada 6 s por pessoa) lia o JSONB inteiro de todas as empresas só para conferir o acesso; agora tira do banco só `company.cnpj` (o que `canAccessProject` usa). `GET /api/projects?ids=a,b` (até 50, mesma regra de acesso, mesmo formato com `stamps`) devolve só essas empresas.
+- **Tela** (`App.jsx`): o BIP compara as versões; poucas mudaram (até 20) → `reloadProjects({ background, ids })` baixa só elas e troca no lugar (empresa com gravação pendente fica como está, igual à recarga completa); empresa nova, empresa que saiu ou mais de 20 mudanças → lista completa como antes. Antes, empresa nova não disparava recarga nenhuma.
+- A Railway já comprime (gzip): os 17,9 MB viajam como ~2–3 MB; o ganho é o banco não ler 17 MB a cada 6 s por pessoa e a tela não baixar e reprocessar tudo a cada alteração de qualquer colega.
+- Testes: rotas no servidor local (completa, `?ids=`, ids inválidos → vazio, versions leve, 401 sem login) e na tela (alteração simulada no banco → só `GET /api/projects?ids=<a alterada>`). Suíte 54/54; testes de fluxo 14/15 — a falha ("janelas do CRM", Voltar do navegador fechando a ficha) é intermitente e acontece igual na versão publicada sem esta mudança (2 em 5).
+- **Ainda não feito:** a primeira carga continua trazendo tudo (17,9 MB); enxugar de vez = não mandar reuniões/transcrições/log na lista (exige carregar sob demanda ao abrir a empresa).
