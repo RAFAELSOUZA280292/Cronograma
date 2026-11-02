@@ -27,6 +27,7 @@ export const EXCLUDED = [
   { re: /^\/api\/crm\/(import|bootstrap)\b/, why: 'Importações em massa por planilha: precisam do arquivo e da conferência na tela.' },
   { re: /^\/api\/(personal-board)$|^\/api\/(public-board)/, why: 'O quadro pessoal inteiro é regravado pela tela; a RENATA usa as ferramentas quadro_* (cartão a cartão).' },
   { re: /^\/api\/projects\/:id$/, methods: ['PATCH'], why: 'O projeto inteiro é regravado pela tela; a RENATA usa cronograma_*/tarefa_reuniao_* (operação a operação, com log).' },
+  { re: /^\/api\/mail\b/, why: 'Caixa de e-mail: a RENATA só busca e lê a caixa da própria pessoa pelas ferramentas email_buscar e email_ler_conversa; enviar, mover, apagar e regras são feitos pela pessoa na tela.' },
   { re: /^\/api\/project-vault\b/, why: 'Cofre do projeto (senhas, certificado digital, arquivos): só a pessoa, na aba Cofre; a RENATA lista o que existe pela ferramenta cofre_listar e nunca lê senha.' },
   { re: /^\/api\/knowledge-library\b/, why: 'Biblioteca de conhecimento: envio de arquivo, edição e arquivamento são feitos pela tela (Conhecimento › Biblioteca); a RENATA consulta pela ferramenta biblioteca_consultar.' },
   { re: /\/file$|\/export\.xlsx$|\/attachments\//, why: 'Download de arquivo: não é operação de dados.' },

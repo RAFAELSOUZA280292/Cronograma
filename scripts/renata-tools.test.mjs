@@ -289,7 +289,8 @@ try {
   const cat = (await call(A, 'GET', '/api/renata/catalog')).json;
   const names = cat.tools.map((t) => t.name);
   const dispensadas = { crm_consultar_cnpj: 'consulta serviço externo (Receita); não há como testar offline', plataforma_executar: 'testada em scripts/renata.test.mjs (T10)', plataforma_pessoas: 'exercitada na leitura',
-    crm_criar_empresa: 'testada em scripts/renata.test.mjs (T1, T11 duplicidade)', crm_criar_negocio: 'testada em scripts/renata.test.mjs (T1)', crm_excluir_negocio: 'testada em scripts/renata.test.mjs (T2, T12)', crm_lote_atualizar_atividades: 'testada em scripts/renata.test.mjs (T5)' };
+    crm_criar_empresa: 'testada em scripts/renata.test.mjs (T1, T11 duplicidade)', crm_criar_negocio: 'testada em scripts/renata.test.mjs (T1)', crm_excluir_negocio: 'testada em scripts/renata.test.mjs (T2, T12)', crm_lote_atualizar_atividades: 'testada em scripts/renata.test.mjs (T5)',
+    email_buscar: 'Gmail real da pessoa; testada com Gmail simulado em scripts/renata-email.test.mjs', email_ler_conversa: 'Gmail real da pessoa; testada com Gmail simulado em scripts/renata-email.test.mjs' };
   const faltam = names.filter((n) => !exercised.has(n) && !dispensadas[n]);
   const usedBefore = new Set((await rows(`SELECT DISTINCT tool FROM renata_actions WHERE requester_id=$1`, [ADM])).map((r) => r.tool));
   const faltam2 = faltam.filter((n) => !usedBefore.has(n));

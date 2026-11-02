@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8942 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8952 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -191,3 +191,4 @@ O `PROJECT_CONTEXT.md` tem 8942 linhas (a memória cronológica de cada decisão
 | 8913 | 124. Cofre do projeto: acessos, certificado digital, arquivos, links e notas por empresa (2026-11-02, pedido … | - Por quê: guardar no painel da empresa os acessos do cliente (login e senha do X da Questão, e-CAC, portais), o certificado digital A1 e os document… |
 | 8922 | 116zzzzzzzz. Caixa de e-mail: pastas sem "INBOX/" e em árvore (2026-11-02, pedido do Rafael: "Todas as minhas… | - Causa: as pastas vieram do Outlook/IMAP como marcadores INBOX/… e [Gmail]/…, e a lista também cortava em 60 pastas. |
 | 8932 | 123a. WhatsApp: caixas por número, pessoal privada e Comercial compartilhada (2026-11-02, decisão do Rafael) | - Pedido: "Para eu + Felipe + Ronaldo vamos de Opção B; para a Duda (Eduarda), número novo e dedicado, na API oficial, numa caixa Comercial". Os sóci… |
+| 8943 | 125. RENATA lê o e-mail de quem conversa com ela e propõe o registro no CRM (2026-11-02, pedido do Rafael: "a… | - Por quê: a RENATA respondia "não tenho acesso ao seu e-mail" e só achava o cartão OKUBO no quadro; as negociações (proposta, planilha, cobrança de … |

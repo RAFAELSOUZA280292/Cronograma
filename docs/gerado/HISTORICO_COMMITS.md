@@ -2,10 +2,11 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-555 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+556 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (22)
+## 2026-11-02 (23)
 
+- `fa861e2` 14:36 — WhatsApp: caixas por número (pessoal privada e Comercial compartilhada)
 - `db03fc5` 14:31 — Caixa de e-mail: pastas sem o prefixo INBOX/ e em árvore (até 200 pastas)
 - `df5166d` 14:23 — Cofre do projeto: acessos, certificado digital, arquivos, links e notas por empresa
 - `f024ca1` 14:18 — WhatsApp, Fase 1: caixa de conversas do número da PRICETAX (API oficial da Meta)

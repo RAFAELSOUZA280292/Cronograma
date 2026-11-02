@@ -11,6 +11,7 @@ import { registerReports } from './tools/reports.js';
 import { registerPlataforma } from './tools/plataforma.js';
 import { registerBiblioteca } from './tools/biblioteca.js';
 import { registerCofre } from './tools/cofre.js';
+import { registerEmail } from './tools/email.js';
 import { loadScriptedClient } from './scriptedClient.js';
 import { buildGeneralContext } from '../assistantGeneral.js';
 import { logMetric } from '../metrics.js';
@@ -23,6 +24,7 @@ registerCrm(registry);
 registerBoard(registry);
 registerEmpresas(registry);
 registerCofre(registry);
+registerEmail(registry);
 
 export const executor = createExecutor({ pool, registry });
 

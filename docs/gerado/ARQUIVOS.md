@@ -4,7 +4,7 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 178 arquivos
+## `server/` — 180 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -136,14 +136,15 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/projectVersionsSchema.js` | 105 | Versionamento do cronograma (§83): tabela `project_versions` + gatilhos em `projects`. A captura mora no BANCO de propósito: `projects.data` é gravado inteiro por ~17 pontos do |
 | `server/promptGuard.js` | 25 | Regra "texto de terceiros é DADO, nunca instrução" (2026-10-30, Onda 1 / Q2). A RENATA operacional já tinha (regra 11 em renata/agent.js); |
 | `server/push.js` | 174 | Notificações push (2026-10-17). O sino já existia (tabela `notifications`); aqui cada notificação nova também vira um aviso no celular/computador de |
-| `server/renata/agent.js` | 223 | Agente da RENATA (§101): interpreta o pedido, escolhe as ferramentas do catálogo, executa pelo executor (que valida, confere permissão, pede confirmação, |
+| `server/renata/agent.js` | 225 | Agente da RENATA (§101): interpreta o pedido, escolhe as ferramentas do catálogo, executa pelo executor (que valida, confere permissão, pede confirmação, |
 | `server/renata/contextCard.js` | 44 | Ficha de contexto da RENATA (Onda 2, R1): quando a pessoa está com um negócio, uma empresa do CRM ou uma empresa do cronograma aberta, a RENATA |
 | `server/renata/contextCardFormat.js` | 96 | Formatadores puros da ficha de contexto da RENATA (Onda 2, R1): recebem os dados já lidos e devolvem as linhas da ficha. Sem banco, sem rede. |
-| `server/renata/executor.js` | 188 | Executor de ferramentas da RENATA (§101). TODA operação passa por aqui: valida os parâmetros, checa permissão (as rotas do servidor decidem, em nome do |
-| `server/renata/index.js` | 47 | Montagem da RENATA operacional (§101): catálogo de ferramentas + executor + agente + rotas. Módulo novo = um arquivo em tools/ registrado aqui. |
+| `server/renata/executor.js` | 192 | Executor de ferramentas da RENATA (§101). TODA operação passa por aqui: valida os parâmetros, checa permissão (as rotas do servidor decidem, em nome do |
+| `server/renata/index.js` | 49 | Montagem da RENATA operacional (§101): catálogo de ferramentas + executor + agente + rotas. Módulo novo = um arquivo em tools/ registrado aqui. |
 | `server/renata/internalAuth.js` | 28 | Entrada interna da RENATA (§101): as ferramentas dela chamam as MESMAS rotas que a tela chama, por loopback (127.0.0.1) dentro do próprio |
 | `server/renata/internalCall.js` | 24 | Chamada interna (loopback) às rotas do próprio servidor, em nome de um usuário (§101). Devolve {status, json} — nunca lança por status HTTP: |
-| `server/renata/policy.js` | 63 | Política de acesso da RENATA às rotas do servidor (§101): o que NUNCA é por ela (credenciais, usuários, permissões, links públicos, telemetria de pessoas), |
+| `server/renata/mailRead.js` | 104 | Leitura do e-mail pela RENATA (§125): só a caixa do Gmail de QUEM conversa com ela, só leitura, texto limpo e cortado. |
+| `server/renata/policy.js` | 64 | Política de acesso da RENATA às rotas do servidor (§101): o que NUNCA é por ela (credenciais, usuários, permissões, links públicos, telemetria de pessoas), |
 | `server/renata/preferences.js` | 30 | Memória de preferências da RENATA (Onda 3, R2): leitura/escrita em users.preferences.renataMemory, sempre só da PRÓPRIA pessoa (id vem da sessão). |
 | `server/renata/preferencesFormat.js` | 53 | Memória de preferências da RENATA por pessoa (Onda 3, R2): hábitos de trabalho que a própria pessoa quer que a RENATA lembre ("respostas curtas", "me chame de Rafa"). |
 | `server/renata/registry.js` | 43 | Catálogo central de ferramentas da RENATA (§101). Cada ferramenta é uma operação estruturada: nome, módulo, descrição para a IA, esquema de parâmetros, |
@@ -154,6 +155,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/tools/board.js` | 252 | Ferramentas da Gestão de Atividades (quadro pessoal) — §101. O quadro é um documento por usuário: a RENATA só mexe no quadro de QUEM PEDIU, na mesma estrutura |
 | `server/renata/tools/cofre.js` | 29 | Cofre do projeto (§124): a RENATA só LISTA o que existe (nome, tipo, pasta, validade do certificado) para orientar a pessoa e sugerir o que arquivar. |
 | `server/renata/tools/crm.js` | 210 | Ferramentas do CRM (§101): TODAS as operações do CRM (empresas, contatos, negócios, atividades, notas, produtos, funis, cadências, tags) como ferramentas |
+| `server/renata/tools/email.js` | 54 | E-mail (§125): a RENATA busca e lê, SÓ LEITURA, a caixa do Gmail de quem conversa com ela (o token é sempre o de ctx.user — nunca o de |
 | `server/renata/tools/empresas.js` | 326 | Ferramentas de Empresas (cronogramas dos clientes) e tarefas de reunião — §101. Mesmo acesso da tela (canAccessProject) e, para alterar, só equipe (master/pricetax). |
 | `server/renata/tools/plataforma.js` | 80 | Ferramentas de plataforma — §101: agenda, notificações, conhecimento, XFlow, pareceres/modelos e o ACESSO GENÉRICO às demais rotas do servidor (as mesmas da |
 | `server/renata/tools/reports.js` | 66 | Relatórios e visão da equipe (somente leitura) — §101: "o que a minha equipe fez hoje", atrasos por responsável e quem sou eu / quem é a equipe. |

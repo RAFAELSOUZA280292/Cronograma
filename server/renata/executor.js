@@ -5,6 +5,8 @@ import crypto from 'node:crypto';
 import { validate } from './validate.js';
 import { callInternal } from './internalCall.js';
 
+// Marca, no mesmo pedido, que a RENATA leu conteúdo de terceiros (e-mail): dali em diante toda escrita do pedido vira cartão de confirmação.
+export const UNTRUSTED_READ = '__leu_conteudo_externo';
 const uid = (p) => `${p}-${crypto.randomBytes(7).toString('base64url')}`;
 const CONFIRM_TTL_MS = 30 * 60 * 1000;
 const DEDUPE_MS = 10 * 60 * 1000;
@@ -108,11 +110,12 @@ export function createExecutor({ pool, registry, call = callInternal, now = () =
 
     // Contenção de "lote disfarçado": mais de 5 escritas da MESMA ferramenta no mesmo pedido, uma a uma, passam a pedir confirmação.
     const turnN = ctx.turnWrites && tool.risk !== 'read' ? (ctx.turnWrites.get(tool.name) || 0) : 0;
-    if (!confirm && (needsConfirmation(tool, input) || turnN >= 5)) {
+    const afterUntrusted = !confirm && tool.risk !== 'read' && !!(ctx.turnWrites && ctx.turnWrites.get(UNTRUSTED_READ));
+    if (!confirm && (needsConfirmation(tool, input) || turnN >= 5 || afterUntrusted)) {
       // O que o usuário confirma é executado DEPOIS a partir do que ficou guardado: aqui o pedido vai INTEIRO (sem `compact`, que cortava listas e textos — M16).
       if (JSON.stringify(input).length > 300000) return { ok: false, status: 'failed', error: 'O pedido é grande demais para confirmar de uma vez. Divida em partes menores.' };
       const id = await insertRow(ctx, tool, { input, before, status: 'pending', summary: preview, authorization: { mode: 'aguardando confirmação', pedidoEm: now().toISOString() } });
-      return { ok: true, status: 'needs_confirmation', actionId: id, tool: tool.name, risk: tool.risk, preview: turnN >= 5 && !needsConfirmation(tool, input) ? `${preview} (já foram ${turnN} alterações iguais neste pedido: confirme o conjunto)` : preview, before: before === undefined ? undefined : compact(before, 2500), input };
+      return { ok: true, status: 'needs_confirmation', actionId: id, tool: tool.name, risk: tool.risk, preview: afterUntrusted && !needsConfirmation(tool, input) ? `${preview} (proposta a partir de e-mail lido agora: confira antes de gravar)` : turnN >= 5 && !needsConfirmation(tool, input) ? `${preview} (já foram ${turnN} alterações iguais neste pedido: confirme o conjunto)` : preview, before: before === undefined ? undefined : compact(before, 2500), input };
     }
 
     const idemKey = tool.creates ? crypto.createHash('sha1').update(`${tool.name}|${stable(input)}`).digest('hex') : '';
@@ -136,10 +139,11 @@ export function createExecutor({ pool, registry, call = callInternal, now = () =
     const resultBody = out.json;
     const undo = ok && tool.undo ? (tool.undo(input, before, resultBody) || null) : null;
     const summary = ok && tool.summarize ? tool.summarize(input, resultBody, before) : (ok ? preview : `${preview} — ${errMsg}`);
+    if (ok && ctx.turnWrites && tool.untrusted) ctx.turnWrites.set(UNTRUSTED_READ, true);
     if (ok && ctx.turnWrites && tool.risk !== 'read') ctx.turnWrites.set(tool.name, (ctx.turnWrites.get(tool.name) || 0) + 1);
-    await closeRow(id, { status, after: ok ? resultBody : { erro: errMsg, detalhes: out.json && out.json.duplicates ? { duplicates: out.json.duplicates } : undefined }, error: errMsg, summary, undo, authorization, before });
+    await closeRow(id, { status, after: ok ? (tool.auditAfter ? tool.auditAfter(resultBody) : resultBody) : { erro: errMsg, detalhes: out.json && out.json.duplicates ? { duplicates: out.json.duplicates } : undefined }, error: errMsg, summary, undo, authorization, before });
     if (!ok) return { ok: false, status, actionId: id, error: errMsg, details: out.json && (out.json.duplicates || out.json.errors) ? { duplicates: out.json.duplicates, errors: out.json.errors } : undefined };
-    return { ok: true, status, actionId: id, summary, data: compact(resultBody, tool.risk === 'read' ? 12000 : 4000), undoable: !!undo };
+    return { ok: true, status, actionId: id, summary, data: tool.fullResult ? resultBody : compact(resultBody, tool.risk === 'read' ? 12000 : 4000), undoable: !!undo };
   }
 
   async function loadAction(id, user) {
