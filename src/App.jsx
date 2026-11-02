@@ -480,6 +480,9 @@ function AppScreens({ shellRef, bump }) {
   const [bootOffline, setBootOffline] = useState(false);
   const bootOfflineRef = useRef(false);
   const [currentUser, setCurrentUser] = useState(null);
+  // O tratador do Voltar (popstate) é registrado uma vez só; lê o usuário daqui para não ficar com o null da 1ª renderização.
+  const currentUserRef = useRef(null);
+  currentUserRef.current = currentUser;
   const [projects, setProjects] = useState([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   // Cronograma padrão versionado (2026-10-19): enquanto está aberto, entra em `projects` como um projeto de id fixo (STD_PLAN_ID); `stdInfo` guarda versão atual e se há rascunho.
@@ -796,7 +799,7 @@ function AppScreens({ shellRef, bump }) {
     else if (tag === 'mail') { setWorkspaceMode('mail'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'whatsapp') { setWorkspaceMode('whatsapp'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'macro') { setWorkspaceMode('macro'); setShowUsers(false); setShowOrgAdmin(false); }
-    else if (tag === 'crm') { setWorkspaceMode(canOpenMode('crm', currentUser) ? 'crm' : null); setShowUsers(false); setShowOrgAdmin(false); }
+    else if (tag === 'crm') { setWorkspaceMode(canOpenMode('crm', currentUserRef.current) ? 'crm' : null); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'users') { setWorkspaceMode('users'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'ops') { setWorkspaceMode('ops'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'knowledge') { setWorkspaceMode('knowledge'); setShowUsers(false); setShowOrgAdmin(false); }

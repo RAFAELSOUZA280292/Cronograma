@@ -151,6 +151,10 @@ test('janelas do CRM (U2): uma só janela do app, rascunho protegido, clicar for
   await page.getByRole('button', { name: 'Descartar' }).click();
   await expect(modal).toHaveCount(0);
   await expect(page.locator('.crm-drawer')).toBeVisible();
+  // Voltar do navegador fecha a ficha e continua no CRM (não cai na tela inicial com o endereço /crm)
+  await page.goBack();
+  await expect(page.locator('.crm-drawer')).toHaveCount(0);
+  await expect(page.getByRole('row').filter({ hasText: `Janela E2E ${tag}` })).toBeVisible();
 });
 
 test('janelas do XFlow (U2): Nova TASK e detalhe usam a janela única; rascunho protegido; Esc fecha e limpa o endereço', async ({ page }) => {
