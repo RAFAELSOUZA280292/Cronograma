@@ -18,6 +18,7 @@ import { buildProjectSnapshot, buildPersonLookupText, todayIso } from './assista
 import { hasScope, needsWidening, mergeScoped } from './retrievalScope.js';
 import { executeProposedAction } from './assistantActions.js';
 import { googleConfigured, getConnectionStatus, listEvents } from './googleCalendar.js';
+import { extraEventsForRenata } from './calendarAccounts.js';
 import { loadRelevantFacts } from './knowledgeFacts.js';
 import { loadMeetingAdviceDigest } from './parecerStudy.js';
 import { voyageConfigured, embedTexts } from './embeddings.js';
@@ -512,13 +513,15 @@ export async function askProjectAssistant({ pool, orgId, projectId, userId, ques
             const now = new Date();
             const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
             const events = await listEvents(userId, now.toISOString(), in14Days.toISOString());
+            // Agendas extras (§128): particular sem permissão do dono chega só como "Ocupado (agenda particular)".
+            try { events.push(...await extraEventsForRenata(userId, now.toISOString(), in14Days.toISOString())); events.sort((a, b) => String(a.start).localeCompare(String(b.start))); } catch { /* segue só com a principal */ }
             // Só o que o usuário ACEITOU (ou é dele) é compromisso; sem resposta/talvez são convites
             // ainda não confirmados e os recusados não contam — a IA não pode tratá-los como agenda cheia.
             const RSVP_TAG = { needsAction: ' [SEM RESPOSTA — não confirmado]', tentative: ' [TALVEZ — não confirmado]', declined: ' [RECUSADO — não é compromisso]' };
             const usable = events.filter((e) => !e.transparent);
             const ordered = [...usable.filter((e) => e.myResponse !== 'declined'), ...usable.filter((e) => e.myResponse === 'declined')];
             calendarContextText = ordered.length
-              ? `PRÓXIMOS EVENTOS NA AGENDA (Google Calendar do usuário, próximos 14 dias; só os sem marcação foram aceitos):\n${ordered.slice(0, 15).map((e) => `- "${e.title}" — ${e.start}${e.allDay ? ' (dia inteiro)' : ''}${RSVP_TAG[e.myResponse] || ''}`).join('\n')}`
+              ? `PRÓXIMOS EVENTOS NA AGENDA (agendas do usuário, próximos 14 dias; só os sem marcação foram aceitos; "Ocupado (agenda particular)" é compromisso numa agenda particular dele, sem detalhes — não pergunte nem invente o assunto):\n${ordered.slice(0, 15).map((e) => `- "${e.title}" — ${e.start}${e.allDay ? ' (dia inteiro)' : ''}${RSVP_TAG[e.myResponse] || ''}`).join('\n')}`
               : 'PRÓXIMOS EVENTOS NA AGENDA: nenhum evento marcado nos próximos 14 dias.';
           } catch (e) {
             console.error('Assistente do Projeto: falha ao buscar eventos do Google Calendar', e.message);

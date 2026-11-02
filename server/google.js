@@ -5,8 +5,9 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
 import { requireAuth } from './auth.js';
-import { forgetMailScope } from './googleMail.js';
+import { forgetMailScope, mailStatus } from './googleMail.js';
 import { getAuthUrl, exchangeCodeForTokens, saveConnection, disconnectUser, getConnectionStatus, googleConfigured } from './googleCalendar.js';
+import { googleExtraAuthUrl, saveGoogleExtra } from './calendarAccounts.js';
 
 export const router = Router();
 const STATE_COOKIE = 'g_oauth_state';
@@ -25,6 +26,13 @@ router.get('/oauth/start', requireAuth, (req, res) => {
   if (!googleConfigured()) return res.status(400).send('Integração com Google Calendar não configurada no servidor.');
   // `state` aleatório guardado em cookie: o retorno só vale se vier do mesmo navegador que começou (impede alguém vincular a agenda DELE à conta de outra pessoa).
   // Prefixo do state: 'm' = veio da Caixa de e-mail (pede também o Gmail e volta para /email); 'c' = agenda.
+  // 'a' + 'e'|'i' = outra conta Google só para a Agenda (§128): cliente "Externo" se configurado, senão o de sempre.
+  if (req.query.extra === '1') {
+    const { kind, url } = googleExtraAuthUrl('pending');
+    const state = `a${kind === 'ext' ? 'e' : 'i'}${crypto.randomBytes(24).toString('hex')}`;
+    res.cookie(STATE_COOKIE, state, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 10 * 60 * 1000, path: '/api/google' });
+    return res.redirect(url.replace('state=pending', `state=${state}`));
+  }
   const mail = req.query.mail === '1';
   const state = (mail ? 'm' : 'c') + crypto.randomBytes(24).toString('hex');
   res.cookie(STATE_COOKIE, state, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 10 * 60 * 1000, path: '/api/google' });
@@ -43,6 +51,18 @@ router.get('/oauth/callback', requireAuth, async (req, res) => {
     if (!expected || typeof state !== 'string' || state.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(state), Buffer.from(expected))) {
       return res.redirect(`${base}/#google-calendar-error`);
     }
+    if (state[0] === 'a') {
+      if (error || !code) return res.redirect(`${base}/agenda#agenda-account-error`);
+      const st = await mailStatus(req.user.id).catch(() => ({}));
+      try {
+        await saveGoogleExtra(req.user.id, code, state[1] === 'e' ? 'ext' : 'int', { principalEmail: st.email });
+      } catch (e) {
+        if (e.code === 'principal') return res.redirect(`${base}/agenda#agenda-account-principal`);
+        if (e.status === 400 && /No máximo/.test(e.message)) return res.redirect(`${base}/agenda#agenda-account-limit`);
+        throw e;
+      }
+      return res.redirect(`${base}/agenda#agenda-account-connected`);
+    }
     if (state[0] === 'm') {
       if (error || !code) return res.redirect(`${base}/email#google-mail-error`);
       await saveConnection(req.user.id, await exchangeCodeForTokens(code));
@@ -56,6 +76,7 @@ router.get('/oauth/callback', requireAuth, async (req, res) => {
     res.redirect(`${base}/#google-calendar-connected`);
   } catch (e) {
     console.error('Falha no callback OAuth do Google', e.message);
+    if (typeof req.query.state === 'string' && req.query.state[0] === 'a') return res.redirect(`${base}/agenda#agenda-account-error`);
     res.redirect(`${base}/#google-calendar-error`);
   }
 });

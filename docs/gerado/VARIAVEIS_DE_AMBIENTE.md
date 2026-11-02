@@ -8,15 +8,21 @@ Só os **nomes** e onde são lidos; **nunca** valores. Os valores reais ficam no
 |---|---|---|
 | `ACCESS_RETENTION_DAYS` | `server/usageLog.js` | `accessDays: Math.max(90, Number(process.env.ACCESS_RETENTION_DAYS) \|\| 730),` |
 | `ANTHROPIC_API_KEY` | `server/assistant.js`, `server/assistantGeneral.js`, `server/dailyContent.js`, `server/evals/runFullEval.mjs` +8 | `if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ message: 'Assistente não configurado nesse ambiente (falta ANTHROPIC_API_KEY).' });` |
-| `APP_BASE_URL` | `server/companyCalendar.js`, `server/crm/googleSync.js`, `server/google.js`, `server/renata/tools/cofre.js` +2 | `const appUrl = () => process.env.APP_BASE_URL \|\| '';` |
+| `APP_BASE_URL` | `server/companyCalendar.js`, `server/crm/googleSync.js`, `server/google.js`, `server/microsoft.js` +4 | `const appUrl = () => process.env.APP_BASE_URL \|\| '';` |
 | `DATABASE_URL` | `server/db.js`, `server/evals/runFullEval.mjs`, `server/renata/scriptedClient.js` | `connectionString: process.env.DATABASE_URL,` |
 | `DEV` | `src/dev/uiAudit.js`, `src/main.jsx` | `// `import.meta.env.DEV` e o Vite o tira do pacote de produção. Uso no console do navegador (ou por um robô de teste):` |
 | `GIT_COMMIT` | `server/evals/runFullEval.mjs` | ``eval-run-${Date.now()}`, EVAL_ORG_ID, process.env.GIT_COMMIT \|\| null, 'v1-fase1',` |
-| `GOOGLE_CLIENT_ID` | `server/googleCalendar.js` | `process.env.GOOGLE_CLIENT_ID,` |
+| `GOOGLE_CLIENT_ID` | `server/calendarAccounts.js`, `server/googleCalendar.js` | `const ticket = await client.verifyIdToken({ idToken: tokens.id_token, audience: kind === 'ext' && googleExtConfigured() ? process.env.GOOGLE_EXT_CLIE…` |
 | `GOOGLE_CLIENT_SECRET` | `server/googleCalendar.js` | `process.env.GOOGLE_CLIENT_SECRET,` |
+| `GOOGLE_EXT_CLIENT_ID` | `server/calendarAccounts.js`, `server/googleCalendar.js` | `const ticket = await client.verifyIdToken({ idToken: tokens.id_token, audience: kind === 'ext' && googleExtConfigured() ? process.env.GOOGLE_EXT_CLIE…` |
+| `GOOGLE_EXT_CLIENT_SECRET` | `server/googleCalendar.js` | `export const googleExtConfigured = () => !!(process.env.GOOGLE_EXT_CLIENT_ID && process.env.GOOGLE_EXT_CLIENT_SECRET);` |
+| `GOOGLE_EXT_REDIRECT_URI` | `server/googleCalendar.js` | `return new google.auth.OAuth2(process.env.GOOGLE_EXT_CLIENT_ID, process.env.GOOGLE_EXT_CLIENT_SECRET, process.env.GOOGLE_EXT_REDIRECT_URI \|\| process.…` |
 | `GOOGLE_REDIRECT_URI` | `server/googleCalendar.js` | `process.env.GOOGLE_REDIRECT_URI` |
 | `JWT_SECRET` | `server/auth.js`, `server/secretBox.js` | `const secret = process.env.JWT_SECRET;` |
-| `NODE_ENV` | `server/auth.js`, `server/google.js`, `server/index.js`, `server/renata/scriptedClient.js` +1 | `secure: process.env.NODE_ENV === 'production',` |
+| `MS_CLIENT_ID` | `server/microsoftGraph.js` | `export const microsoftConfigured = () => !!(process.env.MS_CLIENT_ID && process.env.MS_CLIENT_SECRET);` |
+| `MS_CLIENT_SECRET` | `server/microsoftGraph.js` | `export const microsoftConfigured = () => !!(process.env.MS_CLIENT_ID && process.env.MS_CLIENT_SECRET);` |
+| `MS_REDIRECT_URI` | `server/microsoftGraph.js` | `const redirectUri = () => process.env.MS_REDIRECT_URI \|\| `${process.env.APP_BASE_URL \|\| ''}/api/microsoft/oauth/callback`;` |
+| `NODE_ENV` | `server/auth.js`, `server/google.js`, `server/index.js`, `server/microsoft.js` +2 | `secure: process.env.NODE_ENV === 'production',` |
 | `PORT` | `server/index.js`, `server/renata/internalCall.js` | `const port = process.env.PORT \|\| 3001;` |
 | `PROD` | `src/main.jsx` | `if (import.meta.env.PROD && 'serviceWorker' in navigator) {` |
 | `PUSH_EXTRA_HOSTS` | `server/push.js` | `const extra = (process.env.PUSH_EXTRA_HOSTS \|\| '').split(',').map((s) => s.trim()).filter(Boolean);` |

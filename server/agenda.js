@@ -13,6 +13,12 @@ import { getConnectionStatus, listEvents, respondToEvent, googleConfigured, getE
 import { brInstant, parseEventForm, parseRange, proposalComment } from './agendaForm.js';
 import { crmAgendaEvents } from './crm/agendaFeed.js';
 import { linkedGoogleEventIds } from './crm/googleSync.js';
+import {
+  extraEvents, listAccounts, addIcalAccount, updateAccount, removeAccount, principalPrefs, savePrincipalPrefs, parseEventId,
+  extraDetail, extraSave, extraRespond, extraReschedule, extraCancel, PRINCIPAL_COLOR, MAX_ACCOUNTS, ACCOUNT_COLORS,
+} from './calendarAccounts.js';
+import { googleExtConfigured } from './googleCalendar.js';
+import { microsoftConfigured } from './microsoftGraph.js';
 
 export const router = Router();
 
@@ -26,13 +32,19 @@ router.get('/', requireAuth, async (req, res, next) => {
 
     const status = await getConnectionStatus(req.user.id);
     const events = [];
+    const principal = await principalPrefs(req.user.id);
 
-    if (status.connected) {
+    if (status.connected && principal.calendarEnabled) {
       const googleEvents = await listEvents(req.user.id, start, end);
       // Atividade do CRM espelhada no Google aparece UMA vez: some o evento do Google, fica a atividade (que abre o CRM).
       const mirrored = await linkedGoogleEventIds(req.user.id);
-      events.push(...googleEvents.filter((ev) => !mirrored.has(String(ev.id || '').replace(/^google-/, ''))));
+      events.push(...googleEvents.filter((ev) => !mirrored.has(String(ev.id || '').replace(/^google-/, ''))).map((ev) => ({ ...ev, account: 'principal', color: principal.color })));
     }
+
+    // Agendas extras da pessoa (§128): outra conta Google, Microsoft, link iCal. Só as dela; uma com problema não derruba a tela.
+    let extra = { events: [], accounts: [] };
+    try { extra = await extraEvents(req.user.id, start, end); } catch (e) { console.error('Agenda: falha ao ler agendas extras (ignorado):', e.message); }
+    events.push(...extra.events);
 
     const { rows: ticketRows } = await pool.query(
       `SELECT ticket_number, title, data FROM xflow_tickets WHERE org_id=$1 AND assignee_id=$2 AND deleted=false`,
@@ -88,7 +100,11 @@ router.get('/', requireAuth, async (req, res, next) => {
     // se o CRM falhar, a Agenda continua igual à de antes.
     try { events.push(...await crmAgendaEvents(req.user, startDate, endDate)); } catch (e) { console.error('Agenda: falha ao ler atividades do CRM (ignorado):', e.message); }
 
-    res.json({ connected: status.connected, events });
+    const principalAccount = {
+      id: 'principal', provider: 'google', providerLabel: 'Google', label: principal.label || 'Agenda principal (Google)', color: principal.color,
+      calendarEnabled: principal.calendarEnabled, connected: status.connected, privacy: 'pricetax', readOnly: false, status: 'ok', error: '',
+    };
+    res.json({ connected: status.connected, events, accounts: [principalAccount, ...extra.accounts] });
   } catch (e) { next(e); }
 });
 
@@ -100,11 +116,14 @@ export { brInstant };
 const GID = /^google-([A-Za-z0-9_@.-]{4,1024})$/;
 function googleId(req, res) {
   const m = GID.exec(String(req.params.id || ''));
-  if (!m) { res.status(400).json({ message: 'Só é possível abrir eventos do Google Calendar.' }); return null; }
+  if (!m) { res.status(400).json({ message: 'Só é possível abrir eventos do Google Calendar ou das suas agendas conectadas.' }); return null; }
   return m[1];
 }
+// Evento de agenda extra ("x:<conta>:<id>")? Então a ação vai para a conta dele (calendarAccounts.js), sempre do próprio usuário.
+const extraOf = (req) => (String(req.params.id || '').length <= 2100 ? parseEventId(req.params.id) : null);
 function failGoogle(res, next, e) {
   if (e && e.status) return res.status(e.status).json({ message: e.message });
+  if (e && e.graphCode) return res.status(e.code === 404 ? 404 : e.code === 403 ? 403 : 502).json({ message: e.code === 404 ? 'Evento não encontrado nesta agenda.' : `A Microsoft recusou: ${String(e.message).slice(0, 200)}` });
   const code = e && (e.code || (e.response && e.response.status));
   if (code === 404 || code === 410) return res.status(404).json({ message: 'Evento não encontrado no seu Google Calendar.' });
   if (code === 403) return res.status(403).json({ message: 'O Google não permitiu esta alteração neste evento.' });
@@ -122,6 +141,8 @@ router.post('/events', requireAuth, async (req, res, next) => {
   try {
     const { error, fields } = parseEventForm(req.body);
     if (error) return res.status(400).json({ message: error });
+    const accountId = String((req.body || {}).accountId || 'principal');
+    if (accountId !== 'principal') return res.status(201).json({ event: await extraSave(req.user.id, accountId, null, fields) });
     if (!await ensureGoogle(req, res)) return;
     const ev = await savePanelEvent(req.user.id, null, fields);
     res.status(201).json({ event: ev });
@@ -139,6 +160,7 @@ router.get('/by-uid', requireAuth, async (req, res, next) => {
 });
 
 router.get('/events/:id', requireAuth, async (req, res, next) => {
+  if (extraOf(req)) { try { return res.json({ event: await extraDetail(req.user.id, req.params.id) }); } catch (e) { return failGoogle(res, next, e); } }
   const id = googleId(req, res); if (!id) return;
   try {
     if (!await ensureGoogle(req, res)) return;
@@ -147,16 +169,19 @@ router.get('/events/:id', requireAuth, async (req, res, next) => {
 });
 
 router.patch('/events/:id', requireAuth, async (req, res, next) => {
-  const id = googleId(req, res); if (!id) return;
+  const x = extraOf(req);
+  const id = x ? x.rawId : googleId(req, res); if (!id) return;
   try {
     const { error, fields } = parseEventForm(req.body);
     if (error) return res.status(400).json({ message: error });
+    if (x) return res.json({ event: await extraSave(req.user.id, x.accountId, x.rawId, fields) });
     if (!await ensureGoogle(req, res)) return;
     res.json({ event: await savePanelEvent(req.user.id, id, fields) });
   } catch (e) { failGoogle(res, next, e); }
 });
 
 router.delete('/events/:id', requireAuth, async (req, res, next) => {
+  if (extraOf(req)) { try { await extraCancel(req.user.id, req.params.id); return res.json({ ok: true }); } catch (e) { return failGoogle(res, next, e); } }
   const id = googleId(req, res); if (!id) return;
   try {
     if (!await ensureGoogle(req, res)) return;
@@ -167,18 +192,25 @@ router.delete('/events/:id', requireAuth, async (req, res, next) => {
 
 // Sim / Talvez / Não, com nota opcional; `propose: {start, end}` manda a proposta de novo horário na nota (resposta "Talvez" se nada vier).
 router.post('/events/:id/respond', requireAuth, async (req, res, next) => {
-  const id = googleId(req, res); if (!id) return;
+  const x = extraOf(req);
+  const id = x ? req.params.id : googleId(req, res); if (!id) return;
   try {
     const b = req.body || {};
     let response = String(b.response || '');
     let comment = b.comment === undefined ? undefined : String(b.comment).slice(0, 500);
+    let propose = null;
     if (b.propose) {
       const r = parseRange(b.propose);
       if (r.error) return res.status(400).json({ message: r.error });
       if (!response) response = 'tentative';
+      propose = r;
       comment = proposalComment(r.startISO, r.endISO, b.comment);
     }
     if (!['accepted', 'declined', 'tentative'].includes(response)) return res.status(400).json({ message: 'Resposta inválida (aceitar, recusar ou talvez).' });
+    if (x) {
+      const ev = await extraRespond(req.user.id, id, response, comment, propose);
+      return res.json({ id, myResponse: (ev && ev.myResponse) || response, event: ev && ev.title ? ev : undefined });
+    }
     if (comment === undefined) {
       const out = await respondToEvent(req.user.id, id, response);
       return res.json(out);
@@ -190,11 +222,50 @@ router.post('/events/:id/respond', requireAuth, async (req, res, next) => {
 
 // Aceitar o novo horário sugerido por um convidado (ou mudar o horário direto): só o organizador.
 router.post('/events/:id/reschedule', requireAuth, async (req, res, next) => {
-  const id = googleId(req, res); if (!id) return;
+  const x = extraOf(req);
+  const id = x ? req.params.id : googleId(req, res); if (!id) return;
   try {
     const r = parseRange(req.body);
     if (r.error) return res.status(400).json({ message: r.error });
+    if (x) return res.json({ event: await extraReschedule(req.user.id, id, r.startISO, r.endISO) });
     if (!await ensureGoogle(req, res)) return;
     res.json({ event: await rescheduleEvent(req.user.id, id, r.startISO, r.endISO) });
   } catch (e) { failGoogle(res, next, e); }
+});
+
+// ---------- Minhas agendas (§128): contas extras da própria pessoa. Ninguém mais lista, lê ou altera as agendas de outra pessoa. ----------
+
+router.get('/accounts', requireAuth, async (req, res, next) => {
+  try {
+    const [principal, status, accounts] = await Promise.all([principalPrefs(req.user.id), getConnectionStatus(req.user.id), listAccounts(req.user.id)]);
+    res.json({
+      principal: { ...principal, label: principal.label || 'Agenda principal (Google)', connected: status.connected, defaultColor: PRINCIPAL_COLOR },
+      accounts,
+      colors: ACCOUNT_COLORS,
+      max: MAX_ACCOUNTS,
+      can: { google: googleConfigured(), googleExternal: googleExtConfigured(), microsoft: microsoftConfigured(), ical: true },
+    });
+  } catch (e) { next(e); }
+});
+
+router.patch('/accounts/principal', requireAuth, async (req, res, next) => {
+  try { res.json({ principal: await savePrincipalPrefs(req.user.id, req.body || {}) }); } catch (e) { failGoogle(res, next, e); }
+});
+
+router.post('/accounts/ical', requireAuth, async (req, res, next) => {
+  try {
+    const out = await addIcalAccount(req.user.id, req.body || {});
+    res.status(201).json({ ...out, accounts: await listAccounts(req.user.id) });
+  } catch (e) {
+    if (e && e.status) return res.status(e.status).json({ message: e.message });
+    res.status(400).json({ message: e && e.code === 'PRIVATE_ADDRESS' ? 'Endereço interno recusado.' : `Não consegui ler a agenda nesse endereço: ${String((e && e.message) || '').slice(0, 160)}` });
+  }
+});
+
+router.patch('/accounts/:id', requireAuth, async (req, res, next) => {
+  try { res.json({ account: await updateAccount(req.user.id, String(req.params.id), req.body || {}) }); } catch (e) { failGoogle(res, next, e); }
+});
+
+router.delete('/accounts/:id', requireAuth, async (req, res, next) => {
+  try { await removeAccount(req.user.id, String(req.params.id)); res.json({ ok: true }); } catch (e) { failGoogle(res, next, e); }
 });

@@ -461,6 +461,30 @@ export async function initDb() {
     );
   `);
 
+  // Agendas extras da pessoa (2026-11-02, Fase 1 do pedido do Rafael para o Ronaldo: "logar com todas essas contas e ter gestão de
+  // agenda em um único lugar"). A conexão principal continua em google_calendar_connections; aqui ficam as OUTRAS: Google, Microsoft
+  // ou link iCal (só leitura). `privacy` vem do domínio (pricetax.com.br = 'pricetax'; o resto = 'particular') e só o dono enxerga a
+  // conta. `secret` é JSON cifrado (tokens ou o link). Ver server/calendarAccounts.js e PROJECT_CONTEXT §128.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_accounts (
+      id               TEXT PRIMARY KEY,
+      user_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider         TEXT NOT NULL,
+      email            TEXT NOT NULL DEFAULT '',
+      label            TEXT NOT NULL DEFAULT '',
+      color            TEXT NOT NULL DEFAULT '',
+      privacy          TEXT NOT NULL DEFAULT 'particular',
+      calendar_enabled BOOLEAN NOT NULL DEFAULT true,
+      renata_calendar  BOOLEAN NOT NULL DEFAULT false,
+      secret           TEXT,
+      status           TEXT NOT NULL DEFAULT 'ok',
+      last_error       TEXT NOT NULL DEFAULT '',
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS user_accounts_user_idx ON user_accounts(user_id)');
+
   // Caixa de transcrições (2026-09, pedido do Rafael) — "eu e meus sócios e
   // funcionários vão mandar transcrição, e o painel faz o input pra nós".
   // Fica de fora do JSONB do projeto de propósito: precisa existir com

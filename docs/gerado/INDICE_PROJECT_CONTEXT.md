@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8984 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8997 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -196,3 +196,4 @@ O `PROJECT_CONTEXT.md` tem 8984 linhas (a memória cronológica de cada decisão
 | 8960 | 126. Tela inicial personalizável e barra de favoritos (2026-11-02, pedido do Rafael: "tem gente que gosta de … | - Por quê: a partir de 03/11 os funcionários trabalham no painel; a tela do Rafael é widescreen e a deles é quadrada, e cada um quer a "Mensagem do d… |
 | 8970 | 126a. Tela inicial: arrastar de qualquer ponto e blocos baixos no modo Personalizar (2026-11-02, pedido do Ra… | - Por quê: no modo Personalizar os blocos tinham a altura de verdade (a tela chegava a ~2.000 px numa janela de 1.000) e só a alça pequena pegava o b… |
 | 8975 | 127. Papéis de trabalho (Sócio, Comercial, Operações) e CRM fechado para Operações (2026-11-02, pedido do Raf… | - Plano em 4 fases combinado com o Rafael: (1) papéis e tela de usuários (esta seção); (2) termo de uso + conta de serviço do Workspace para os sócio… |
+| 8985 | 128. Agendas extras: várias contas por pessoa numa grade só (Google, Microsoft, link iCal), com cor, conflito… | - Por quê: o Ronaldo tem e-mail da PRICETAX, da BRASILPRICE (empresa só dele), agenda da PETCONT (também só dele), do Gmail pessoal e da Microsoft. P… |

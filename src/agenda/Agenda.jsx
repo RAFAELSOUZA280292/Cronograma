@@ -10,10 +10,13 @@
 // UI grande e autocontido, com sua própria lógica de grade de horários.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Link2, Ban, AlertTriangle, Plus } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Eye, EyeOff, RefreshCw, Link2, Ban, AlertTriangle, Plus, Layers } from 'lucide-react';
 import { Segmented, Callout, BusyBar, Button, activate } from '../ui/index.jsx';
 import { apiGet } from '../lib/api.js';
-import { rsvpOf, isPendingRsvp, RSVP_META, summarizeDay, fmtDur, hhmm } from './dayLoad.js';
+import { rsvpOf, isPendingRsvp, RSVP_META, summarizeDay, fmtDur, hhmm, CAL_SOURCES } from './dayLoad.js';
+import AccountsDialog from './AccountsDialog.jsx';
+import { findConflicts } from '../../shared/agendaConflicts.js';
+import { notify } from '../ui/dialogs.jsx';
 import { loadPrefs } from './agendaPrefs.js';
 import NewEventModal, { defaultSlot } from './NewEventModal.jsx';
 import EventDetailModal from './EventDetail.jsx';
@@ -35,7 +38,29 @@ const SOURCE_META = {
   crm_activity: { label: 'Atividade do CRM', color: '#F5C400' },
 };
 
+// Cor do compromisso: a da agenda de origem (§128, cada conta tem a sua) ou a da origem no painel (TASK, atividade, CRM).
+const colorOf = (ev) => ev.color || colorOf(ev);
+
+// Agendas escondidas pelo filtro rápido (só neste aparelho; "Mostrar na Agenda" em Minhas agendas vale em todo lugar).
+const HIDDEN_KEY = 'agenda-hidden-accounts';
+function loadHidden() { try { return new Set(JSON.parse(window.localStorage.getItem(HIDDEN_KEY) || '[]')); } catch { return new Set(); } }
+function saveHidden(set) { try { window.localStorage.setItem(HIDDEN_KEY, JSON.stringify([...set])); } catch { /* sem localStorage: vale só nesta visita */ } }
+
+// Volta do login de outra conta (Google/Microsoft): o servidor redireciona para /agenda#agenda-account-…
+const ACCOUNT_HASH = {
+  'agenda-account-connected': ['Agenda conectada. Escolha a cor e o nome dela em Minhas agendas.', 'success'],
+  'agenda-account-error': ['Não foi possível conectar a agenda. Tente de novo.', 'error'],
+  'agenda-account-principal': ['Essa conta já é a sua agenda principal do Google.', 'info'],
+  'agenda-account-limit': ['Você já tem o máximo de agendas extras.', 'error'],
+  'agenda-account-admin': ['A empresa dessa conta exige a aprovação do administrador da Microsoft para liberar o painel. Peça a ele o consentimento (o Rafael tem o link).', 'error'],
+};
+
 function pad2(n) { return String(n).padStart(2, '0'); }
+// "2026-11-02" (dia inteiro) é lido como meia-noite LOCAL: new Date('2026-11-02') seria meia-noite UTC = dia 1º às 21h em Brasília.
+function startDateOf(ev) {
+  const v = String(ev.start || '');
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00`) : new Date(v);
+}
 function isoDateOnly(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
@@ -114,6 +139,9 @@ export default function AgendaScreen({
   const [hideDeclined, setHideDeclined] = useState(false);
   const [connected, setConnected] = useState(null);
   const [events, setEvents] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [showAccounts, setShowAccounts] = useState(false);
+  const [hidden, setHidden] = useState(loadHidden);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [reloadTick, setReloadTick] = useState(0);
@@ -121,6 +149,18 @@ export default function AgendaScreen({
   const [detailId, setDetailId] = useState(null);
   const [editing, setEditing] = useState(null); // detalhe do evento enquanto o "Editar compromisso" está aberto
   const { respond, respondingId } = useRespond((id, myResponse) => setEvents((list) => list.map((e) => (e.id === id ? { ...e, myResponse } : e))));
+
+  useEffect(() => {
+    const key = String(window.location.hash || '').replace(/^#/, '');
+    if (!ACCOUNT_HASH[key]) return;
+    const [msg, tone] = ACCOUNT_HASH[key];
+    notify(msg, { tone });
+    if (key === 'agenda-account-connected') setShowAccounts(true);
+    try { window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search); } catch { /* ignora */ }
+  }, []);
+  function toggleHidden(id) {
+    setHidden((cur) => { const next = new Set(cur); if (next.has(id)) next.delete(id); else next.add(id); saveHidden(next); return next; });
+  }
 
   // "Ver na agenda" vindo da Caixa de e-mail: abre no dia do evento, com o detalhe aberto.
   useEffect(() => {
@@ -137,7 +177,7 @@ export default function AgendaScreen({
     let cancelled = false;
     function load() {
       apiGet(`/api/agenda?start=${rangeStart.toISOString()}&end=${rangeEnd.toISOString()}`)
-        .then((res) => { if (!cancelled) { setConnected(res.connected); setEvents(res.events || []); setLoaded(true); setLoadError(''); } })
+        .then((res) => { if (!cancelled) { setConnected(res.connected); setEvents(res.events || []); setAccounts(res.accounts || []); setLoaded(true); setLoadError(''); } })
         .catch((e) => { if (!cancelled) { setLoadError(e.message); setLoaded(true); } });
     }
     load();
@@ -165,12 +205,18 @@ export default function AgendaScreen({
     ? Array.from({ length: 7 }, (_, i) => addDays(rangeStart, i))
     : Array.from({ length: Math.round((rangeEnd - rangeStart) / 86400000) }, (_, i) => addDays(rangeStart, i));
 
+  const visibleEvents = useMemo(() => events.filter((e) => !e.account || !hidden.has(e.account)), [events, hidden]);
+  // Compromissos que se sobrepõem (em qualquer agenda): marcados com ⚠ e listados na dica.
+  const conflicts = useMemo(() => findConflicts(visibleEvents), [visibleEvents]);
+  const writableAccounts = accounts.filter((a) => !a.readOnly && a.status !== 'error' && (a.id !== 'principal' || a.connected));
+  const extraConnected = accounts.some((a) => a.id !== 'principal');
+
   const eventsByDay = useMemo(() => {
     const map = {};
     for (const day of daysInView) map[isoDateOnly(day)] = { allDay: [], timed: [] };
-    for (const ev of events) {
+    for (const ev of visibleEvents) {
       if (hideDeclined && rsvpOf(ev) === 'declined') continue;
-      const s = new Date(ev.start);
+      const s = startDateOf(ev);
       const key = isoDateOnly(s);
       if (!map[key]) continue;
       if (ev.allDay) map[key].allDay.push(ev);
@@ -180,7 +226,7 @@ export default function AgendaScreen({
       }
     }
     return map;
-  }, [events, daysInView, hideDeclined]);
+  }, [visibleEvents, daysInView, hideDeclined]);
 
   // Resumo do dia (aceitos, tempo ocupado, livre) — só com eventos com horário; recusados/pendentes não ocupam.
   const prefs = useMemo(() => loadPrefs(), []);
@@ -188,29 +234,30 @@ export default function AgendaScreen({
     const out = {};
     for (const day of daysInView) {
       const key = isoDateOnly(day);
-      const list = events.filter((e) => !e.allDay && isoDateOnly(new Date(e.start)) === key).map((e) => ({ ...e, startDate: new Date(e.start), endDate: new Date(e.end) }));
+      const list = visibleEvents.filter((e) => !e.allDay && isoDateOnly(new Date(e.start)) === key).map((e) => ({ ...e, startDate: new Date(e.start), endDate: new Date(e.end) }));
       if (list.length) out[key] = summarizeDay(list, key, { start: prefs.workStart, end: prefs.workEnd, lunchStart: prefs.lunchStart, lunchEnd: prefs.lunchEnd });
     }
     return out;
-  }, [events, daysInView, prefs]);
+  }, [visibleEvents, daysInView, prefs]);
 
   function eventLabel(ev) {
     if (hideDetails) return ev.status === 'cancelled' ? 'Ocupado (cancelado)' : 'Ocupado';
     const r = rsvpOf(ev);
-    const mark = r === 'declined' ? '✕ ' : isPendingRsvp(r) ? '? ' : '';
+    const mark = `${conflicts.has(ev.id) ? '⚠ ' : ''}${r === 'declined' ? '✕ ' : isPendingRsvp(r) ? '? ' : ''}`;
     return `${mark}${ev.status === 'cancelled' ? `${ev.title} (cancelado)` : ev.title}`;
   }
   // Dica ao passar o mouse: resposta ao convite + descrição.
   function eventTip(ev) {
     if (hideDetails) return '';
     const r = rsvpOf(ev);
-    const head = ev.source === 'google' ? `${RSVP_META[r].label}${r === 'accepted' && ev.myResponse === 'organizer' ? ' (evento seu)' : ''}${ev.organizer ? ` · convite de ${ev.organizer}` : ''}` : '';
-    return [head, ev.description].filter(Boolean).join('\n');
+    const head = CAL_SOURCES.has(ev.source) && ev.source !== 'ical' ? `${RSVP_META[r].label}${r === 'accepted' && ev.myResponse === 'organizer' ? ' (evento seu)' : ''}${ev.organizer ? ` · convite de ${ev.organizer}` : ''}` : '';
+    const clash = (conflicts.get(ev.id) || []).map((o) => `⚠ Choca com: ${o.title}${o.accountLabel ? ` (${o.accountLabel})` : ''}`);
+    return [ev.accountLabel ? `Agenda: ${ev.accountLabel}` : '', head, ...clash, ev.description].filter(Boolean).join('\n');
   }
 
   function openEvent(ev) {
     if (ev.source === 'xflow_ticket' && ev.link) { window.location.hash = ev.link; return; }
-    if (ev.source === 'google' && !hideDetails) setDetailId(ev.id);
+    if (CAL_SOURCES.has(ev.source) && !hideDetails) setDetailId(ev.id);
   }
 
   function pickSlot(day, minutes) {
@@ -249,6 +296,9 @@ export default function AgendaScreen({
               options={[{ value: 'day', label: 'Dia' }, { value: 'week', label: 'Semana' }, { value: 'month', label: 'Mês' }]}
             />
           </div>
+          <button type="button" className="agd-tog" onClick={() => setShowAccounts(true)} title="Conectar outras agendas (Google, Microsoft, link iCal), cor e nome de cada uma">
+            <Layers size={13} aria-hidden="true" /> Minhas agendas
+          </button>
           <Button className="agd-new" variant="primary" icon={Plus} onClick={() => setNewEvent(defaultSlot())}>Novo compromisso</Button>
         </div>
       </div>
@@ -271,7 +321,23 @@ export default function AgendaScreen({
             />
           </div>
         )}
-        {connected === false && (
+        {accounts.length > 1 && (
+          <div className="agd-filter" role="group" aria-label="Agendas mostradas">
+            {accounts.map((a) => {
+              const off = hidden.has(a.id) || a.calendarEnabled === false;
+              return (
+                <button
+                  key={a.id} type="button" className={`agd-fchip${off ? ' off' : ''}${a.status === 'error' ? ' err' : ''}`} aria-pressed={!off}
+                  title={a.status === 'error' ? `${a.label}: ${a.error}` : a.calendarEnabled === false ? `${a.label}: desligada em Minhas agendas` : `${off ? 'Mostrar' : 'Esconder'} ${a.label}`}
+                  onClick={() => (a.calendarEnabled === false ? setShowAccounts(true) : toggleHidden(a.id))}
+                >
+                  <span className="agd-acc-dot" style={{ background: a.color }} aria-hidden="true" />{a.label}{a.status === 'error' ? ' ⚠' : ''}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {connected === false && !extraConnected && (
           <div style={{ marginBottom: 14 }}>
             <Callout
               tone="info" icon={Link2} title="Seu Google Calendar ainda não está conectado"
@@ -299,7 +365,7 @@ export default function AgendaScreen({
         {viewMode !== 'month' && !(isMobile && viewMode === 'day' && dayLayout === 'list') && <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--text-5)' }}>Dica: {isMobile ? 'toque' : 'clique'} num horário livre da grade para criar um compromisso nele.</div>}
 
         <div style={{ display: 'flex', gap: 14, marginTop: 16, flexWrap: 'wrap' }}>
-          {Object.entries(SOURCE_META).map(([key, meta]) => (
+          {Object.entries(SOURCE_META).filter(([key]) => key !== 'google' || accounts.length <= 1).map(([key, meta]) => (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-5)' }}>
               <span style={{ width: 10, height: 10, borderRadius: 3, background: meta.color, display: 'inline-block' }} />
               {meta.label}
@@ -317,24 +383,26 @@ export default function AgendaScreen({
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-6)' }}>
             <Ban size={12} /> Cancelado
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-5)' }}>⚠ Choca com outro compromisso</div>
         </div>
       </div>
 
       {newEvent && (
         <NewEventModal
-          initial={newEvent} connected={connected} onClose={() => setNewEvent(null)}
+          initial={newEvent} connected={connected} accounts={writableAccounts} events={visibleEvents} onClose={() => setNewEvent(null)}
           onCreated={() => { setNewEvent(null); setReloadTick((n) => n + 1); }}
         />
       )}
       {detailId && !editing && (
         <EventDetailModal
-          key={detailId} id={detailId} initial={detailEv} onClose={() => setDetailId(null)} onRespond={respond} respondBusy={respondingId === detailId}
+          key={detailId} id={detailId} initial={detailEv} conflicts={detailEv ? conflicts.get(detailEv.id) : null} onClose={() => setDetailId(null)} onRespond={respond} respondBusy={respondingId === detailId}
           onEdit={(ev) => setEditing(ev)} onChanged={() => setReloadTick((n) => n + 1)}
         />
       )}
+      {showAccounts && <AccountsDialog onClose={() => setShowAccounts(false)} onChanged={() => setReloadTick((n) => n + 1)} />}
       {editing && (
         <NewEventModal
-          event={editing} connected={connected} onClose={() => setEditing(null)}
+          event={editing} connected={connected} accounts={writableAccounts} events={visibleEvents} onClose={() => setEditing(null)}
           onCreated={() => { setEditing(null); setReloadTick((n) => n + 1); }}
         />
       )}
@@ -344,7 +412,7 @@ export default function AgendaScreen({
 
 // Só o que abre algo vira botão para teclado/leitor de tela (TASK do XFlow com link; compromisso do Google com detalhes visíveis).
 function openable(ev, hideDetails) {
-  return (ev.source === 'xflow_ticket' && !!ev.link) || (ev.source === 'google' && !hideDetails);
+  return (ev.source === 'xflow_ticket' && !!ev.link) || (CAL_SOURCES.has(ev.source) && !hideDetails);
 }
 
 // Estilo por resposta ao convite: aceito = cheio; sem resposta/talvez = contorno tracejado (como no Google);
@@ -390,9 +458,9 @@ function WeekGrid({ daysInView, eventsByDay, dayStats, hideDetails, eventLabel, 
                 key={ev.id} className="agd-ev"
                 {...(openable(ev, hideDetails) ? { ...activate(() => onOpenEvent(ev)), 'aria-label': eventLabel(ev) } : {})}
                 title={eventTip(ev)}
-                style={rsvpBox(ev, SOURCE_META[ev.source]?.color || '#999', {
-                  fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 5, cursor: ev.link || ev.source === 'google' ? 'pointer' : 'default',
-                  background: `${SOURCE_META[ev.source]?.color || '#999'}22`, color: SOURCE_META[ev.source]?.color || 'var(--text-2)',
+                style={rsvpBox(ev, colorOf(ev), {
+                  fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 5, cursor: ev.link || CAL_SOURCES.has(ev.source) ? 'pointer' : 'default',
+                  background: `${colorOf(ev)}22`, color: ev.color || SOURCE_META[ev.source]?.color || 'var(--text-2)',
                   textDecoration: ev.status === 'cancelled' ? 'line-through' : 'none', opacity: ev.status === 'cancelled' ? 0.6 : 1,
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 })}
@@ -441,11 +509,11 @@ function WeekGrid({ daysInView, eventsByDay, dayStats, hideDetails, eventLabel, 
                     key={ev.id} data-ev="1" className="agd-ev"
                     {...(openable(ev, hideDetails) ? { ...activate(() => onOpenEvent(ev)), 'aria-label': `${hhmm(ev.startMin)}–${hhmm(ev.endMin)} ${eventLabel(ev)}` } : { onClick: () => onOpenEvent(ev) })}
                     title={eventTip(ev)}
-                    style={rsvpBox(ev, SOURCE_META[ev.source]?.color || '#999', {
+                    style={rsvpBox(ev, colorOf(ev), {
                       position: 'absolute', top, height: Math.max(16, bottom - top), left: `${ev.lane * width}%`, width: `${width}%`,
-                      background: `${SOURCE_META[ev.source]?.color || '#999'}33`, borderLeft: `3px solid ${SOURCE_META[ev.source]?.color || '#999'}`,
+                      background: `${colorOf(ev)}33`, borderLeft: `3px solid ${colorOf(ev)}`,
                       borderRadius: 4, padding: '2px 5px', fontSize: 10.5, fontWeight: 600, color: 'var(--text-1)', overflow: 'hidden',
-                      cursor: ev.link || ev.source === 'google' ? 'pointer' : 'default', zIndex: ev.behind ? 1 : 2,
+                      cursor: ev.link || CAL_SOURCES.has(ev.source) ? 'pointer' : 'default', zIndex: ev.behind ? 1 : 2,
                       textDecoration: ev.status === 'cancelled' ? 'line-through' : 'none', opacity: ev.status === 'cancelled' ? 0.55 : 1,
                     })}
                   >
@@ -473,8 +541,8 @@ function DayList({ day, eventsByDay, dayStats, hideDetails, eventLabel, onOpenEv
   const card = (ev, when) => {
     const r = rsvpOf(ev);
     const pending = isPendingRsvp(r);
-    const color = SOURCE_META[ev.source]?.color || '#999';
-    const sub = hideDetails ? '' : [SOURCE_META[ev.source]?.label, ev.location].filter(Boolean).join(' · ');
+    const color = colorOf(ev);
+    const sub = hideDetails ? '' : [ev.accountLabel || SOURCE_META[ev.source]?.label, ev.location].filter(Boolean).join(' · ');
     const props = openable(ev, hideDetails) ? { ...activate(() => onOpenEvent(ev)), 'aria-label': `${when} ${eventLabel(ev)}` } : {};
     return (
       <div
@@ -484,7 +552,7 @@ function DayList({ day, eventsByDay, dayStats, hideDetails, eventLabel, onOpenEv
       >
         <div className="agd-card-top">
           <span>{when}</span>
-          {!hideDetails && ev.source === 'google' && (pending || r === 'declined') && <span className="agd-card-tag" style={{ color: RSVP_META[r].color }}>{RSVP_META[r].label}</span>}
+          {!hideDetails && CAL_SOURCES.has(ev.source) && (pending || r === 'declined') && <span className="agd-card-tag" style={{ color: RSVP_META[r].color }}>{RSVP_META[r].label}</span>}
         </div>
         <div className="agd-card-title">{eventLabel(ev)}</div>
         {sub && <div className="agd-card-sub">{sub}</div>}
@@ -531,7 +599,7 @@ function MonthGrid({ daysInView, eventsByDay, anchorDate, hideDetails, eventLabe
                 <div style={{ fontSize: 11.5, fontWeight: key === today ? 800 : 600, color: key === today ? '#F5C400' : 'var(--text-2)' }}>{d.getDate()}</div>
                 {dayEvents.length > 0 && (
                   <div className="agd-m-dots" aria-hidden="true">
-                    {dayEvents.slice(0, 4).map((ev) => <span key={ev.id} className="agd-m-dot" style={{ background: SOURCE_META[ev.source]?.color || '#999' }} />)}
+                    {dayEvents.slice(0, 4).map((ev) => <span key={ev.id} className="agd-m-dot" style={{ background: colorOf(ev) }} />)}
                     {dayEvents.length > 4 && <span className="agd-m-more">+{dayEvents.length - 4}</span>}
                   </div>
                 )}
@@ -540,9 +608,9 @@ function MonthGrid({ daysInView, eventsByDay, anchorDate, hideDetails, eventLabe
                     <div
                       key={ev.id} onClick={(e) => { e.stopPropagation(); onOpenEvent(ev); }}
                       title={eventTip(ev)}
-                      style={rsvpBox(ev, SOURCE_META[ev.source]?.color || '#999', {
+                      style={rsvpBox(ev, colorOf(ev), {
                         fontSize: 9.5, fontWeight: 600, padding: '1px 4px', borderRadius: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        background: `${SOURCE_META[ev.source]?.color || '#999'}22`, color: SOURCE_META[ev.source]?.color || 'var(--text-2)',
+                        background: `${colorOf(ev)}22`, color: ev.color || SOURCE_META[ev.source]?.color || 'var(--text-2)',
                         textDecoration: ev.status === 'cancelled' ? 'line-through' : 'none',
                       })}
                     >

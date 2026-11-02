@@ -132,3 +132,33 @@
   .agd-propose .ui-input, .agd-propose .ui-select { font-size: 16px; min-height: 44px; }
   .agd-propose-actions .ui-btn, .agd-answer > .ui-btn { min-height: 44px; }
 }
+
+/* Minhas agendas e filtro por conta (§128) */
+.agd-accs { display: flex; flex-direction: column; gap: 12px; }
+.agd-acc { border: 1px solid var(--border-1); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.agd-acc-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.agd-acc-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.agd-acc-name { flex: 1 1 180px; min-width: 0; font-weight: 700; }
+.agd-acc-tag { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--surface-2, rgba(127,127,127,.12)); color: var(--text-3); display: inline-flex; align-items: center; gap: 4px; }
+.agd-acc-tag.private { color: var(--text-2); }
+.agd-acc-sub { font-size: 12px; color: var(--text-5); overflow-wrap: anywhere; }
+.agd-acc-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.agd-sw { display: flex; gap: 6px; flex-wrap: wrap; }
+.agd-sw-dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.agd-sw-dot.on { border-color: var(--text-1); box-shadow: 0 0 0 2px var(--surface-1, #fff) inset; }
+.agd-sw-dot:focus-visible { outline: 2px solid var(--text-1); outline-offset: 2px; }
+.agd-ical { display: flex; flex-direction: column; gap: 8px; }
+.agd-ical label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 700; color: var(--text-3); }
+.agd-filter { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.agd-fchip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border-1); background: transparent; color: var(--text-2); cursor: pointer; }
+.agd-fchip .agd-acc-dot { width: 10px; height: 10px; }
+.agd-fchip.off { opacity: .5; text-decoration: line-through; }
+.agd-fchip.err { border-color: var(--ui-danger); }
+.agd-conflict { font-size: 12px; color: var(--ui-danger); display: flex; gap: 6px; align-items: flex-start; }
+.agd-acc-pick { display: flex; align-items: center; gap: 8px; }
+@media (max-width: 767px) {
+  .agd-sw-dot { width: 32px; height: 32px; }
+  .agd-fchip { min-height: 40px; padding: 6px 12px; }
+}
+.agd-acc > .ui-btn, .agd-acc > div > .ui-btn { align-self: flex-start; }
+.agd-acc .agd-check { align-self: stretch; }

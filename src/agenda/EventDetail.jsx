@@ -2,7 +2,7 @@
 // resposta de cada um, responder (Sim/Talvez/Não), propor outro horário, editar e cancelar. As peças `AttendeeList` e `ProposeTimeForm`
 // também servem o cartão de convite da Caixa de e-mail (src/mail/InviteCard.jsx).
 import React, { useEffect, useState } from 'react';
-import { Ban, CalendarClock, Pencil, Repeat, Trash2, Video } from 'lucide-react';
+import { AlertTriangle, Ban, CalendarClock, Lock, Pencil, Repeat, Trash2, Video } from 'lucide-react';
 import { Modal } from '../ui/dialog.jsx';
 import { Button, Callout, Select, Skeleton } from '../ui/index.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
@@ -88,18 +88,23 @@ export function ProposeTimeForm({ start, end, onSubmit, onCancel, busy, submitLa
   );
 }
 
-export default function EventDetailModal({ id, initial, onClose, onRespond, respondBusy, onEdit, onChanged }) {
-  const [ev, setEv] = useState(initial && initial.attendees ? initial : null);
+const meetLabel = (url) => (/meet\.google\.com/i.test(url) ? 'Entrar no Google Meet' : /teams\.(microsoft|live)\.com/i.test(url) ? 'Entrar no Microsoft Teams' : 'Entrar na reunião');
+
+export default function EventDetailModal({ id, initial, conflicts, onClose, onRespond, respondBusy, onEdit, onChanged }) {
+  // Link iCal (§128) é só leitura: não há detalhe no provedor para buscar, o que veio na lista é tudo.
+  const readOnly = !!(initial && initial.readOnly);
+  const [ev, setEv] = useState(initial && (initial.attendees || readOnly) ? initial : null);
   const [error, setError] = useState('');
   const [proposing, setProposing] = useState(false);
   const [busy, setBusy] = useState(false);
   const base = ev || initial;
 
   useEffect(() => {
+    if (readOnly) return undefined;
     let alive = true;
     getAgendaEvent(id).then((d) => { if (alive) { setEv(d); setError(''); } }).catch((e) => { if (alive) setError((e && e.message) || 'Não consegui abrir o compromisso.'); });
     return () => { alive = false; };
-  }, [id]);
+  }, [id, readOnly]);
 
   // A resposta otimista da lista (RsvpButtons) também vale aqui.
   useEffect(() => {
@@ -154,11 +159,23 @@ export default function EventDetailModal({ id, initial, onClose, onRespond, resp
       )}
     >
       <div className="agd-detail">
+        {base.accountLabel && (
+          <div className="agd-acc-pick agd-muted">
+            <span className="agd-acc-dot" style={{ background: base.color || '#999' }} aria-hidden="true" />
+            Agenda: <b>{base.accountLabel}</b>{base.privacy === 'particular' && <><Lock size={12} aria-hidden="true" /> particular</>}{readOnly && ' · só leitura (link iCal)'}
+          </div>
+        )}
+        {conflicts && conflicts.length > 0 && (
+          <div className="agd-conflict" role="status">
+            <AlertTriangle size={14} aria-hidden="true" style={{ flex: 'none', marginTop: 1 }} />
+            <span>Choca com {conflicts.slice(0, 3).map((c) => `“${c.title}”${c.accountLabel ? ` (${c.accountLabel})` : ''}`).join(', ')}{conflicts.length > 3 ? ` e mais ${conflicts.length - 3}` : ''}.</span>
+          </div>
+        )}
         {base.status === 'cancelled' && <Callout tone="danger" icon={Ban}>Este compromisso foi cancelado.</Callout>}
         {error && <Callout tone="danger" icon={Ban}>{error}</Callout>}
         {ev && ev.meetLink && (
           <a className="ui-btn primary agd-meet" href={ev.meetLink} target="_blank" rel="noopener noreferrer">
-            <Video size={16} aria-hidden="true" /> Entrar no Google Meet
+            <Video size={16} aria-hidden="true" /> {meetLabel(ev.meetLink)}
           </a>
         )}
         {ev && ev.meetLink && <div className="agd-hint">{ev.meetLink.replace(/^https:\/\//, '')}</div>}
@@ -167,7 +184,8 @@ export default function EventDetailModal({ id, initial, onClose, onRespond, resp
         {ev && ev.isOrganizer && <div className="agd-muted">Você é o organizador.</div>}
         {ev && ev.recurring && <div className="agd-muted"><Repeat size={13} aria-hidden="true" /> Reunião que se repete: o que você mudar aqui vale só para esta data.</div>}
         {base.description && <div className="agd-desc">{base.description}</div>}
-        {ev ? <AttendeeList attendees={ev.attendees} organizerEmail={ev.organizerEmail} /> : <Skeleton height={60} />}
+        {readOnly && base.organizer && <div><b>Organizador:</b> {base.organizer}</div>}
+        {readOnly ? null : ev ? <AttendeeList attendees={ev.attendees} organizerEmail={ev.organizerEmail} /> : <Skeleton height={60} />}
         {invited && (
           <div className="agd-answer">
             <div className="agd-answer-head">Sua resposta: {RSVP_META[base.myResponse === 'needsAction' ? 'pending' : base.myResponse] ? RSVP_META[base.myResponse === 'needsAction' ? 'pending' : base.myResponse].label : 'Sem resposta'}</div>
@@ -176,7 +194,7 @@ export default function EventDetailModal({ id, initial, onClose, onRespond, resp
             {proposing && (
               <ProposeTimeForm
                 start={base.start} end={base.end} busy={busy} onCancel={() => setProposing(false)} onSubmit={propose}
-                hint="O organizador recebe a sua proposta por e-mail, junto com a resposta “Talvez”."
+                hint={base.source === 'microsoft' ? 'O organizador recebe a proposta de novo horário pelo Outlook, junto com a resposta “Talvez”.' : 'O organizador recebe a sua proposta por e-mail, junto com a resposta “Talvez”.'}
               />
             )}
           </div>

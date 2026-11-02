@@ -6,10 +6,10 @@ import { askConfirm, notify } from '../ui/dialogs.jsx';
 
 // Só convite do Google em que a pessoa é convidada (dono do evento e "desconhecido" não têm o que responder).
 export function canRespond(ev) {
-  return !!ev && ev.source === 'google' && ev.status !== 'cancelled'
+  return !!ev && (ev.source === 'google' || ev.source === 'microsoft') && !ev.readOnly && ev.status !== 'cancelled'
     && ['needsAction', 'tentative', 'accepted', 'declined'].includes(ev.myResponse);
 }
-export const isUnanswered = (ev) => !!ev && ev.source === 'google' && (ev.myResponse === 'needsAction' || ev.myResponse === 'tentative');
+export const isUnanswered = (ev) => !!ev && (ev.source === 'google' || ev.source === 'microsoft') && !ev.readOnly && (ev.myResponse === 'needsAction' || ev.myResponse === 'tentative');
 
 const DONE = { accepted: 'Convite aceito.', tentative: 'Resposta enviada: talvez.', declined: 'Convite recusado.' };
 

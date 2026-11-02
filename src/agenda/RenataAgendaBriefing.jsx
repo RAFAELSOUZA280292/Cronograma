@@ -61,7 +61,7 @@ export function normalizeEvent(ev) {
     const startDay = dayFromIso(ev.start);
     const rawEnd = dayFromIso(ev.end || ev.start);
     // Google devolve o fim de evento de dia inteiro como exclusivo.
-    const endDay = ev.source === 'google' && rawEnd > startDay ? dayMinusOne(rawEnd) : rawEnd;
+    const endDay = ['google', 'microsoft', 'ical'].includes(ev.source) && rawEnd > startDay ? dayMinusOne(rawEnd) : rawEnd;
     return { ...ev, allDay: true, startDay, endDay: endDay < startDay ? startDay : endDay };
   }
   const startDate = new Date(ev.start);

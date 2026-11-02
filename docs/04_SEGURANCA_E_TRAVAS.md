@@ -178,6 +178,13 @@ Método: script lê os literais SQL de `server/**/*.js` e lista os que citam uma
 - **`GET /api/library-search`**: só master/pricetax (`requireMasterOrPricetax`), mesma organização das telas; fatos do Conhecimento pela regra da Central (escopo `org`, ou projeto/conversa acessível); sem IA; o texto da pessoa só vira parâmetro SQL (regex escapado).
 - **Ficha da RENATA** (`server/renata/contextCard.js`): montada no servidor, nunca aceita texto do navegador; lê o CRM pelas rotas da tela com a identidade da pessoa e o cronograma por `canAccessProject`; `cliente`, outra organização, id malformado ou falha = sem ficha. Texto de terceiros entre « » em uma linha (dado, não instrução).
 
+## Agendas extras e agenda particular (§128)
+- `user_accounts` é sempre lida com `user_id = req.user.id` (`accountRow`): conta de outra pessoa = 404, inclusive para Master. Nenhuma rota lista contas de terceiros.
+- Conta fora do pricetax.com.br = `particular` (decidido pelo domínio, não editável). A RENATA recebe a agenda particular só como "Ocupado (agenda particular)" até o dono ligar `renata_calendar`.
+- Segredo (tokens ou link iCal) cifrado com `seal`; nunca volta na resposta. Desconectar apaga o segredo e, no Google, revoga o token.
+- Link iCal: só https, porta 443, sem usuário na URL, IP público conferido na própria conexão (`lookup` próprio, contra DNS rebinding), até 3 redirecionamentos, 5 MB, 15 s.
+- OAuth: `state` em cookie próprio (`g_oauth_state` com prefixo `a`; `ms_oauth_state`), comparação em tempo constante.
+
 ## API de conectividade
 
 ### Visão

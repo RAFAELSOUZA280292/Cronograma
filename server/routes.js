@@ -506,6 +506,7 @@ router.delete('/users/:id', requireAuth, requireMaster, async (req, res, next) =
         [id, REMOVED_REASON, randomHash]);
       await client.query('UPDATE api_tokens SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL', [id]);
       await client.query('DELETE FROM google_calendar_connections WHERE user_id=$1', [id]);
+      await client.query('DELETE FROM user_accounts WHERE user_id=$1', [id]);
       await client.query('DELETE FROM push_subscriptions WHERE user_id=$1', [id]);
       await client.query('COMMIT');
     } catch (e) {

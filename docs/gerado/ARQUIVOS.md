@@ -4,27 +4,28 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 181 arquivos
+## `server/` — 185 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
 | `server/accessLog.js` | 163 |  |
 | `server/activityDictionary.js` | 182 | Dicionário de atividades (2026-10-19, pedido do Rafael: "um mega dicionário de todas as atividades"; ver PROJECT_CONTEXT.md §80). |
-| `server/agenda.js` | 201 | Agenda (2026-08) — junta, num só feed, o Google Calendar conectado do |
+| `server/agenda.js` | 272 | Agenda (2026-08) — junta, num só feed, o Google Calendar conectado do |
 | `server/agendaForm.js` | 70 | Regras do formulário de compromisso da Agenda (criar e editar) e da proposta de novo horário — puras, testadas em |
 | `server/answerCache.js` | 165 | Cache semântico de perguntas/respostas da RENATA (Fase 7, 2026-09-11) |
 | `server/areas.js` | 11 | Áreas (2026-10-07, Passo 3 do caminho combinado): lista fechada para classificar atividades e tarefas de reunião por tema. |
 | `server/assistant.js` | 221 | Rotas do Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `server/assistantActions.js` | 294 | Agente executor do Assistente do Projeto (2026-09, pedido do Rafael: |
 | `server/assistantContext.js` | 281 | Perfil do projeto (2026-09) — resumo compacto e sempre atualizado da |
-| `server/assistantGeneral.js` | 187 | RENATA "geral" (2026-10-06): a assistente disponível de qualquer tela, sem estar presa a um projeto. Responde com o que a PESSOA |
-| `server/assistantRetrieval.js` | 843 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
+| `server/assistantGeneral.js` | 192 | RENATA "geral" (2026-10-06): a assistente disponível de qualquer tela, sem estar presa a um projeto. Responde com o que a PESSOA |
+| `server/assistantRetrieval.js` | 846 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `server/assistantSweep.js` | 122 | Varredura de reuniões de VÁRIAS empresas para a RENATA geral (Etapa 3 do plano, 2026-10-08; pedido do Felipe: "a RENATA faz |
 | `server/auth.js` | 203 |  |
 | `server/boardPlan.js` | 289 | Organização do quadro pessoal por API (2026-10-30, pedido do Rafael para a outra janela do Claude Code): uma lista de operações aplicada |
 | `server/briefing.js` | 113 | Briefing diário (Onda 3, R3): junta o que merece atenção da pessoa hoje (regras em briefingRules.js), mostra na tela inicial (GET /api/briefing) |
 | `server/briefingRules.js` | 107 | Briefing diário da RENATA (Onda 3, R3): regras que escolhem o que merece atenção hoje e texto escrito por modelo fixo — sem IA, sem custo |
 | `server/briefingSchema.js` | 12 | Tabela do briefing diário (Onda 3, R3): uma linha por pessoa por dia, gravada ANTES de enviar — é o que impede aviso duplicado (mesmo com duas instâncias). |
+| `server/calendarAccounts.js` | 336 | Agendas extras por pessoa (§128, 2026-11-02 — Fase 1 do plano do Ronaldo: "logar com todas essas contas e ter gestão de agenda em |
 | `server/calendarInvite.js` | 189 | Convite de reunião dentro de um e-mail (2026-11-02): lê a parte text/calendar (ou o anexo .ics) e devolve o que o cartão da |
 | `server/client360.js` | 45 | Cliente 360 (Onda 3, I1), o caminho inverso: da empresa do CRONOGRAMA para o CRM. A ficha do CRM já mostra os projetos vinculados; aqui a tela da empresa |
 | `server/client360Alerts.js` | 48 | Cliente 360 (Onda 3, I1): alertas e sugestões do cliente, escritos por regra a partir do que o CRM e o cronograma JÁ calculam (sem IA, sem consulta nova). |
@@ -77,7 +78,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/crm/xlsxExport.js` | 114 | Exportação nativa para Excel (2026-10-28, §116c): planilha .xlsx com visual (cabeçalho, linhas alternadas, filtro, cabeçalho fixo, links clicáveis). |
 | `server/daily.js` | 75 | "Meu dia" (2026-10-05, §77): preferências de conteúdo diário + boas-vindas na primeira entrada. Só o próprio usuário |
 | `server/dailyContent.js` | 222 | Conteúdo diário ("Meu dia", 2026-10-05, §77): evangelho, versículo, sabedoria, horóscopo, horóscopo chinês e inspiração. |
-| `server/db.js` | 1642 |  |
+| `server/db.js` | 1666 |  |
 | `server/documentTemplates.js` | 260 | Modelos de documentos (2026-10-05, §78) — irmã da aba Pareceres: biblioteca de modelos para sócios e colaboradores. Um MODELO |
 | `server/dossier.js` | 454 | Dossiê do cliente (2026-10-02, pedido da Amanda via Rafael: "um compilado de todas as reuniões |
 | `server/embeddings.js` | 63 | Embeddings pra busca semântica da RENATA (Fase 3, 2026-09 — ver |
@@ -92,11 +93,12 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/evals/taskLinkEval.js` | 150 | Avaliação de qualidade da sugestão tarefa → atividade (Fase 5 do plano, 2026-10-13; docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). |
 | `server/experience.js` | 137 | Experiência de uso (§97): eventos de FLUXO (nome, resultado, duração, rota de erro) e nota de satisfação de 1 clique. Só equipe é medida |
 | `server/gaps.js` | 232 | Lacunas entre cronogramas (Etapa 4 do plano, 2026-10-08; pedido do Felipe: "levantamento de tudo que temos de atividades ... para |
-| `server/google.js` | 70 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
-| `server/googleCalendar.js` | 458 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
+| `server/google.js` | 91 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
+| `server/googleCalendar.js` | 474 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
 | `server/googleMail.js` | 295 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
 | `server/homePrefs.js` | 31 | Tela inicial personalizável e barra de favoritos (2026-11-02, §126): GET/PUT /api/home-prefs. Cada pessoa lê e grava só a |
-| `server/index.js` | 196 |  |
+| `server/icalFeed.js` | 311 | Agenda por link iCal, só leitura (§128, 2026-11-02): o "endereço secreto no formato iCal" do Google Agenda, o "publicar agenda" do |
+| `server/index.js` | 201 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
 | `server/inventory.js` | 373 | Levantamento de atividades de TODAS as empresas (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md; pedido do |
 | `server/inventoryEdit.js` | 194 | Passo 3 do caminho combinado (2026-10-07): organizar o que já existe a partir do Levantamento — padronizar o nome do |
@@ -119,6 +121,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/memoryIngest.js` | 222 | Ingestão/chunking da memória do projeto (2026-09, Fase 1 do |
 | `server/memoryRetrieval.js` | 284 | Recuperação da memória do projeto (2026-09, Fases 1 e 3 do Assistente |
 | `server/metrics.js` | 15 | Métricas mensuráveis da RENATA (Fase 7.1, 2026-09-11, pedido do |
+| `server/microsoft.js` | 44 | Login da Microsoft (Microsoft 365 / Outlook.com) para a Agenda (§128, 2026-11-02). Mesmo desenho do server/google.js: `state` |
+| `server/microsoftGraph.js` | 213 | Agenda da Microsoft (Microsoft 365 e Outlook.com) pelo Microsoft Graph (§128, 2026-11-02). Login OAuth por conta (aplicativo |
 | `server/notificationPrefs.js` | 52 | Quais notificações cada usuário quer ver (2026-10-06). Guardado por usuário em users.preferences.notifications |
 | `server/notifications.js` | 38 | Central de Notificações (2026-08) — helper de escrita compartilhado entre |
 | `server/officePreview.js` | 92 | Pré-visualização de texto de arquivos do Office abertos (docx, pptx, xlsx) — 2026-10-05, §78. Esses formatos são ZIPs de XML; |
@@ -163,7 +167,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/validate.js` | 81 | Validador de parâmetros das ferramentas da RENATA (§101): subconjunto de JSON Schema suficiente para o catálogo. Rejeita campo desconhecido |
 | `server/retrievalScope.js` | 32 | Escopo da busca na memória do projeto (2026-10-31). A etapa que interpreta a pergunta (resolveQuery) PROPÕE um tipo de trecho (`kind`) e uma reunião-alvo; a busca os |
 | `server/richNote.js` | 70 | Descrição formatada dos cartões do quadro pessoal (2026-10-07): o campo `desc` continua sendo uma string — texto simples |
-| `server/routes.js` | 1473 |  |
+| `server/routes.js` | 1474 |  |
 | `server/scripts/reindexAllMeetings.js` | 30 | Backfill manual da memória do projeto (2026-09, Fase 1 do Assistente |
 | `server/secretBox.js` | 47 | Cofre simples para segredos guardados no banco (M2, 2026-10-29): AES-256-GCM com chave derivada de TOKEN_ENC_KEY (ou, na falta, do JWT_SECRET). |
 | `server/shareTokens.js` | 41 | Tokens de link público (A9, 2026-10-29). A tela gera o token com `crypto.getRandomValues` (48 hex = 192 bits), mas o servidor não pode confiar nisso: |
@@ -190,10 +194,11 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/xflowPermissions.js` | 86 | Papel efetivo + regras de "quem pode fazer o quê" no XFlow. Regras vivem |
 | `server/xflowTransitions.js` | 116 | Matriz de transições de status do XFlow. Cada ação nomeada sabe de quais |
 
-## `shared/` — 15 arquivos
+## `shared/` — 16 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
+| `shared/agendaConflicts.js` | 38 | Conflito de horário entre compromissos (§128, 2026-11-02): com várias agendas sobrepostas (PRICETAX, BRASILPRICE, PETCONT, |
 | `shared/calendarDays.js` | 62 | Reuniões no cronograma e dias de agenda (2026-10-19, regra do Rafael): ATIVIDADE e SUBATIVIDADE têm tipo — 'reuniao' (call, precisa de gente junto ao mesmo tempo) ou 'trabalho' (padrão). |
 | `shared/cronogramaPadrao.js` | 2336 | Fonte das atividades da versão 2.0 do cronograma padrão (2026-10-19): as 87 ações do guia "Reforma Tributária 2027 · Guia por área" (texto limpo de casos de cliente), |
 | `shared/cronogramaPadraoV3.js` | 166 | Proposta v3 do cronograma padrão (2026-10-19): 91 itens em 22 atividades principais, em duas trilhas (A diagnóstico, B implementação). TODAS as datas contam do início do projeto |
@@ -210,20 +215,21 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 | `shared/workRoles.js` | 104 | Papéis de trabalho (2026-11-02, pedido do Rafael: valem a partir de 03/11). Convivem com o perfil técnico (`role`: master/pricetax/cliente), |
 
-## `src/` — 218 arquivos
+## `src/` — 219 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
 | `src/App.jsx` | 3715 |  |
-| `src/agenda/Agenda.jsx` | 562 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
-| `src/agenda/EventDetail.jsx` | 188 | Detalhe do compromisso do Google dentro do painel (2026-11-02, "nunca mais abrir o Google Agenda"): Meet, participantes com a |
-| `src/agenda/NewEventModal.jsx` | 302 | "Novo compromisso" e "Editar" da Agenda (Onda 5, §81; edição, Meet, lembrete e sugestão de contatos em 2026-11-02). Grava no Google |
+| `src/agenda/AccountsDialog.jsx` | 177 | "Minhas agendas" (§128, 2026-11-02): a agenda principal (Google) + as extras da pessoa — outra conta Google, Microsoft 365/Outlook.com |
+| `src/agenda/Agenda.jsx` | 630 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
+| `src/agenda/EventDetail.jsx` | 206 | Detalhe do compromisso do Google dentro do painel (2026-11-02, "nunca mais abrir o Google Agenda"): Meet, participantes com a |
+| `src/agenda/NewEventModal.jsx` | 337 | "Novo compromisso" e "Editar" da Agenda (Onda 5, §81; edição, Meet, lembrete e sugestão de contatos em 2026-11-02). Grava no Google |
 | `src/agenda/RenataAgendaBriefing.jsx` | 708 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
 | `src/agenda/RsvpButtons.jsx` | 29 | Aceitar / Talvez / Recusar — botões compactos; a resposta atual aparece marcada (aria-pressed). `labels` troca os textos |
-| `src/agenda/agenda.css` | 135 | Agenda no celular (Onda 6, §81). Desktop idêntico ao de antes; tudo que muda está sob @media (max-width: 767px). |
+| `src/agenda/agenda.css` | 165 | Agenda no celular (Onda 6, §81). Desktop idêntico ao de antes; tudo que muda está sob @media (max-width: 767px). |
 | `src/agenda/agendaActions.js` | 90 | Ações da Agenda (Onda 5, §81): responder convite do Google e criar compromisso. Sem JSX; o servidor é |
 | `src/agenda/agendaPrefs.js` | 59 | Preferências pessoais da leitura da agenda (2026-09-20, pedido do Rafael): o EXPEDIENTE (padrão 08:00–18:00) |
-| `src/agenda/dayLoad.js` | 186 | Leitura da agenda (2026-09-20, pedido do Rafael): deixar claro o que ele ACEITOU, o que está |
+| `src/agenda/dayLoad.js` | 188 | Leitura da agenda (2026-09-20, pedido do Rafael): deixar claro o que ele ACEITOU, o que está |
 | `src/app/companyActivityActions.js` | 361 | Ações sobre as atividades de uma empresa (criar, editar, excluir, subatividades, anexos, comentários, links e participantes). |
 | `src/app/companyAdminActions.js` | 161 | Ações de administração de empresas (criar, criar grupo, clonar, excluir e editar campos). |
 | `src/app/meetingActions.js` | 402 | Ações sobre reuniões e tarefas de reunião (criar/editar, compartilhar, participantes, tarefas, vínculo com atividade, subtarefas, comentários e anexos). |

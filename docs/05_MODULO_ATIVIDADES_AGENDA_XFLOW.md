@@ -175,6 +175,8 @@ A tela repete a leitura a cada 60 s enquanto aberta (não há webhook do Google)
 4. `upsertBlockEvent` cria ou atualiza o MESMO evento; `fingerprint` evita reenviar o que não mudou (`action:'igual'`); a reserva fica em `company_calendar_events` (fora do JSON do projeto, de propósito). Cancelar = `removeBlockEvent` + apagar a linha.
 5. O organizador é a conta Google de quem reservou; quem mexer depois usa a conexão **do organizador original** (`organizer_user_id`).
 
+**2.7 Agendas extras (§128, 2026-11-02).** Além da principal (Google de `google_calendar_connections`), cada pessoa liga até 8 agendas em **Minhas agendas**: outra conta Google (`/api/google/oauth/start?extra=1`), Microsoft (`/api/microsoft/oauth/start`, Graph) ou link iCal (só leitura, `POST /api/agenda/accounts/ical`). Tabela `user_accounts` (segredo cifrado; `privacy` pelo domínio). `GET /api/agenda` soma os eventos de todas, cada um com `account`, `accountLabel`, `color`; id `x:<conta>:<id>` e as ações de `/events/:id` vão para a conta certa (`server/calendarAccounts.js`). Conflito: `shared/agendaConflicts.js`. Particular = só o dono; a RENATA vê "Ocupado" sem a permissão dele. Receita: "o Ronaldo quer ver a agenda X" → se a empresa permitir login, conectar a conta; se não, link iCal.
+
 ### 3. XFlow
 
 **3.1 Acesso.** `users.xflow_role` (`''` sem acesso; `reporter`, `dev`, `gestao`). `admin` é o papel efetivo de quem tem `xflow_role` E é `master` ou super admin (`effectiveXflowRole`). Todas as rotas passam por `requireAuth` + `requireXflowAccess` (`server/auth.js`). **Todo mundo da base vê todas as TASKs** (decisão do Rafael); o que é restrito é a AÇÃO.

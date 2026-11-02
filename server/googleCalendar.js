@@ -22,6 +22,16 @@ function oauthClient() {
   );
 }
 
+// Agendas extras (§128): 'ext' = segundo cliente OAuth, "Externo", para contas de fora do pricetax.com.br (GOOGLE_EXT_*); sem ele,
+// o cliente de sempre ('int'), que é "Interno" e só aceita contas do domínio.
+export const googleExtConfigured = () => !!(process.env.GOOGLE_EXT_CLIENT_ID && process.env.GOOGLE_EXT_CLIENT_SECRET);
+export function oauthClientOf(kind) {
+  if (kind === 'ext' && googleExtConfigured()) {
+    return new google.auth.OAuth2(process.env.GOOGLE_EXT_CLIENT_ID, process.env.GOOGLE_EXT_CLIENT_SECRET, process.env.GOOGLE_EXT_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI);
+  }
+  return oauthClient();
+}
+
 export function googleConfigured() {
   return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI);
 }
@@ -109,7 +119,10 @@ export async function listEvents(userId, timeMinISO, timeMaxISO) {
   if (!googleConfigured()) return [];
   const client = await getAuthedClientForUser(userId);
   if (!client) return [];
-  const calendar = google.calendar({ version: 'v3', auth: client });
+  return listEventsWith(google.calendar({ version: 'v3', auth: client }), timeMinISO, timeMaxISO);
+}
+
+export async function listEventsWith(calendar, timeMinISO, timeMaxISO) {
   const res = await calendar.events.list({
     calendarId: 'primary',
     timeMin: new Date(timeMinISO).toISOString(),
@@ -378,7 +391,10 @@ export function buildPanelEventBody(f, requestId) {
   return body;
 }
 
-async function calendarFor(userId) {
+// `who` = id do usuário (conta principal) ou o cliente do Calendar já pronto (agenda extra, server/calendarAccounts.js).
+async function calendarFor(who) {
+  if (who && typeof who === 'object') return who;
+  const userId = who;
   const client = await getAuthedClientForUser(userId);
   if (!client) throw Object.assign(new Error('Conecte o seu Google Calendar (Meu perfil › Agenda) para usar a agenda do painel.'), { status: 409 });
   return google.calendar({ version: 'v3', auth: client });

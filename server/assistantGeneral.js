@@ -8,6 +8,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { canAccessProject } from './routes.js';
 import { boardItems, todayInSp } from './widgetSummary.js';
 import { listEvents, getConnectionStatus, googleConfigured } from './googleCalendar.js';
+import { extraEventsForRenata } from './calendarAccounts.js';
 import { loadRelevantFacts } from './knowledgeFacts.js';
 import { loadGeneralAdviceDigest } from './parecerStudy.js';
 import { loadInventoryItems, inventoryContextText } from './inventory.js';
@@ -103,6 +104,10 @@ export async function buildGeneralContext({ pool, user, orgId, question, isStaff
       const st = await getConnectionStatus(user.id);
       if (st.connected) {
         const evs = await listEventsFn(user.id, now.toISOString(), new Date(now.getTime() + 7 * 86400000).toISOString());
+        // Agendas extras (§128): particular sem permissão do dono chega só como "Ocupado (agenda particular)".
+        if (listEventsFn === listEvents) {
+          try { evs.push(...await extraEventsForRenata(user.id, now.toISOString(), new Date(now.getTime() + 7 * 86400000).toISOString())); evs.sort((a, b) => String(a.start).localeCompare(String(b.start))); } catch { /* segue só com a principal */ }
+        }
         const live = evs.filter((e) => e.status !== 'cancelled' && !e.allDay && (e.myResponse || 'accepted') !== 'declined').slice(0, 15);
         agenda = live.length ? live.map((e) => `- ${new Date(e.start).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} — ${clip(e.title, 90)}${e.myResponse === 'needsAction' ? ' (sem resposta)' : ''}`).join('\n') : '- nenhum compromisso nos próximos 7 dias.';
       }

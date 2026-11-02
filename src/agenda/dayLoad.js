@@ -24,8 +24,10 @@ export const RSVP_META = {
 
 // accepted | pending | tentative | declined. Só eventos do Google têm resposta; TASK do XFlow,
 // atividades e atividades do CRM são do próprio usuário (sempre "aceitos").
+// Origens que são agenda de verdade (têm resposta a convite e abrem o detalhe): a principal e as extras do §128.
+export const CAL_SOURCES = new Set(['google', 'microsoft', 'ical']);
 export function rsvpOf(ev) {
-  if (!ev || ev.source !== 'google') return 'accepted';
+  if (!ev || !CAL_SOURCES.has(ev.source)) return 'accepted';
   if (ev.myResponse === 'declined') return 'declined';
   if (ev.myResponse === 'needsAction') return 'pending';
   if (ev.myResponse === 'tentative') return 'tentative';

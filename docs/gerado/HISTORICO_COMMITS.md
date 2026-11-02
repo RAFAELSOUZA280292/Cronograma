@@ -2,10 +2,12 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-561 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+563 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (28)
+## 2026-11-02 (30)
 
+- `87f3d5a` 15:19 — Papéis: voltar no histórico para /crm respeita o acesso; documentação (§127)
+- `614e040` 15:17 — Papéis de trabalho (Sócio, Comercial, Operações) e CRM fechado para Operações
 - `6243e68` 15:18 — Tela inicial: arrastar o bloco de qualquer ponto e blocos baixos no Personalizar
 - `20be3fa` 15:12 — Cofre: link interno para compartilhar um item ou o cofre (só abre com login)
 - `bfb6608` 15:11 — Tela inicial personalizável e barra de favoritos, salvas por pessoa no servidor
