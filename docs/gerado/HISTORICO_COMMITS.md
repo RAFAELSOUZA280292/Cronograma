@@ -2,10 +2,11 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-582 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+583 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (49)
+## 2026-11-02 (50)
 
+- `ae34b24` 18:29 — Caixa de e-mail: conversas da equipe com a pessoa pesquisada (§116zzzzzzzzzzzzz)
 - `718f15e` 18:24 — Caixa de e-mail: pesquisa olha todas as pastas (folder vazio virava Caixa de entrada) (§116zzzzzzzzzzzz)
 - `d57e284` 18:21 — Cérebro: e-mail do CRM abrindo a Caixa do painel confirmado pelo Rafael em produção
 - `1ae80fc` 18:19 — E-mail no CRM: ouvinte do mailto: na fase de captura (cartões paravam o clique e o Mail do Mac abria)

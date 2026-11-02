@@ -112,7 +112,7 @@ Procure o texto exato com `grep -rn "trecho" src server`. Mensagem de erro de re
 - [ ] `npm run build` limpo + teste descartável da área (HTTP real). O que não foi testado está **dito** e entrou em `PROJECT_CONTEXT.md` §15.
 - [ ] `node scripts/renata-route-index.mjs` e `renata-coverage.mjs` (se mexeu em rota/ferramenta).
 - [ ] `npm run docs:gerar` e documentação escrita (módulo + `PROJECT_CONTEXT.md` + `docs/PROJECT_MAP.md` se mudou arquitetura/regra).
-- [ ] **Cérebro em dia (4 lugares, curtos):** (1) seção nova no `PROJECT_CONTEXT.md`; (2) linha do dia em `docs/09_HISTORICO_E_DECISOES.md` e no §0; (3) "Estado atual" do `docs/00_COMECE_AQUI.md` (o que está no ar, pendências, não testado); (4) lição em `docs/08` se houve tropeço. O `npm run docs:conferir` **falha** se a seção mais nova do `PROJECT_CONTEXT.md` for posterior ao "Estado atual" ou à linha do tempo.
+- [ ] **Cérebro em dia (4 lugares, curtos):** (1) seção nova no `PROJECT_CONTEXT.md`; (2) linha do dia em `docs/09_HISTORICO_E_DECISOES.md` e no §0; (3) "Estado atual" do `docs/00_COMECE_AQUI.md` (o que está no ar, pendências, não testado) — **trocar a linha da área**, nunca empilhar parágrafo novo; seção nova ganha número próprio (nada de mais um "z") e, se for do e-mail, o próximo código E-nn do mapa em `docs/09`; (4) lição em `docs/08` se houve tropeço. O `npm run docs:conferir` **falha** se a seção mais nova do `PROJECT_CONTEXT.md` for posterior ao "Estado atual" ou à linha do tempo.
 
 ## Deploy (política vigente: commit + push sem pedir confirmação a cada vez)
 O diretório de trabalho **não é repositório git**. O deploy usa um clone separado (hoje `/private/tmp/deploy-clone`; refaça com `git clone` se sumir).
