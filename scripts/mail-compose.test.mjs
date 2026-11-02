@@ -127,5 +127,25 @@ ok('limite: 20 MB passa', sizeError(MAX_ATTACH_BYTES) === null);
 ok('limite: acima dá erro em português', /limite é 20 MB/.test(sizeError(MAX_ATTACH_BYTES + 1)));
 ok('tamanho soma buffers e metadados', attachmentsSize([{ data: Buffer.alloc(10) }, { size: 5 }]) === 15);
 
+// Tipo Imagem × Texto e despedida livre (§116zzzzzzzzzz)
+{
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64').toString('base64');
+  const img = { mimeType: 'image/png', data: png, width: 480, height: 144, alt: 'Rafael Souza' };
+  const old = cleanSignature({ name: 'Rafael' });
+  ok('assinatura antiga continua texto', old.mode === 'text' && old.closing === '' && old.closingBold === false);
+  const bi = cleanSignature({ mode: 'image', closing: 'Atenciosamente,', closingBold: true, name: 'Rafael', role: 'Sócio', image: img });
+  const h = signatureHtml(bi);
+  ok('imagem: despedida em negrito antes do banner', /<strong[^>]*>Atenciosamente,<\/strong>/.test(h) && h.indexOf('Atenciosamente,') < h.indexOf('cid:assinatura'));
+  ok('imagem: sem campos nem logo', !/Rafael<\/strong>|Sócio|cid:logo/.test(h), h);
+  ok('imagem: texto puro só despedida + alt', signatureText(bi) === 'Atenciosamente,\nRafael Souza');
+  ok('imagem: não anexa o logo', composeBody({ html: '<p>x</p>', signature: bi, quote: null }).usesLogo === false);
+  const plain = signatureHtml(cleanSignature({ mode: 'image', closing: 'Abraço,', image: img }));
+  ok('despedida sem negrito', /Abraço,/.test(plain) && !/<strong[^>]*>Abraço/.test(plain));
+  ok('imagem sem banner nem despedida = nada', signatureHtml(cleanSignature({ mode: 'image', name: 'Rafael' })) === '');
+  const tx = signatureHtml(cleanSignature({ mode: 'text', closing: 'Att.,', name: 'Rafael' }));
+  ok('texto: despedida antes do nome', tx.indexOf('Att.,') < tx.indexOf('Rafael'));
+}
+
 console.log(failed ? `\n${failed} verificação(ões) falharam.` : '\nTodas as verificações passaram.');
+
 process.exit(failed ? 1 : 0);

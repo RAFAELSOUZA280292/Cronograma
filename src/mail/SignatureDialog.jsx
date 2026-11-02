@@ -2,6 +2,8 @@
 // compatível com Outlook/celular (server/mailCompose.js, signatureHtml) e guarda em users.preferences.mail.signature.
 // Pacote de personalização (2026-11-02): imagem própria (foto, banner ou selo) com largura fixa em px — o Outlook ignora
 // max-width, então a largura escolhida vai no atributo; a tela reduz a imagem antes de subir (até 200 KB).
+// Tipo Imagem × Texto e despedida livre em cima (02/11/2026): na PriceTax a assinatura é um banner pronto; os campos ficam
+// para quem quiser assinatura em texto.
 import React, { useEffect, useRef, useState } from 'react';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import { Button } from '../ui/index.jsx';
@@ -36,6 +38,7 @@ export default function SignatureDialog({ value, onClose, onSaved }) {
   }, [sig]);
 
   const set = (k, v) => setSig((s) => ({ ...s, [k]: v }));
+  const isImage = sig.mode === 'image';
 
   // Reduz para 2× a largura mostrada (fica nítida em tela de alta resolução) e até 200 KB.
   async function takeImage(file, width) {
@@ -68,17 +71,28 @@ export default function SignatureDialog({ value, onClose, onSaved }) {
     <div className="ui-dlg-overlay" onClick={onClose}>
       <div className="ui-dlg mail-sig-dlg" role="dialog" aria-modal="true" aria-label="Assinatura do e-mail" ref={trap.ref} tabIndex={-1} onClick={(e) => e.stopPropagation()}>
         <h2 className="ui-dlg-title">Assinatura do e-mail</h2>
-        <div className="ui-dlg-msg">Vai no fim dos e-mails novos e das respostas, com o logo da PriceTax e, se quiser, uma imagem sua. Ela é montada em tabela simples para aparecer igual no Outlook, no Gmail e no celular.</div>
+        <div className="ui-dlg-msg">Vai no fim dos e-mails novos e das respostas. Ela é montada em tabela simples para aparecer igual no Outlook, no Gmail e no celular.</div>
+        <div className="mail-sig-mode" role="radiogroup" aria-label="Tipo de assinatura">
+          <label className="mc-check"><input type="radio" name="sig-mode" checked={isImage} onChange={() => set('mode', 'image')} /><span><b>Imagem</b> — banner pronto (padrão PriceTax)</span></label>
+          <label className="mc-check"><input type="radio" name="sig-mode" checked={!isImage} onChange={() => set('mode', 'text')} /><span><b>Texto</b> — nome, cargo e contatos, com o logo</span></label>
+        </div>
         <div className="mail-sig-grid">
+          <label className="wide">
+            <span>Texto antes da assinatura (opcional)</span>
+            <input value={sig.closing || ''} onChange={(e) => set('closing', e.target.value)} placeholder="Atenciosamente," maxLength={120} />
+          </label>
+          <label className="mc-check mail-sig-bold"><input type="checkbox" checked={sig.closingBold === true} onChange={(e) => set('closingBold', e.target.checked)} /><span>Em negrito</span></label>
+        </div>
+        {!isImage && <div className="mail-sig-grid">
           {FIELDS.map(([k, label, ph]) => (
             <label key={k} className={k === 'extra' ? 'wide' : ''}>
               <span>{label}</span>
               <input value={sig[k] || ''} onChange={(e) => set(k, e.target.value)} placeholder={ph} maxLength={k === 'extra' ? 200 : 120} />
             </label>
           ))}
-        </div>
+        </div>}
         <div className="mail-sig-img">
-          <div className="mail-sig-label">Imagem própria (foto, banner ou selo)</div>
+          <div className="mail-sig-label">{isImage ? 'Imagem da assinatura (banner)' : 'Imagem própria (foto, banner ou selo)'}</div>
           {sig.image ? (
             <div className="mail-sig-img-row">
               <img src={`data:${sig.image.mimeType};base64,${sig.image.data}`} alt="" width={Math.min(sig.image.width, 120)} />
@@ -87,12 +101,12 @@ export default function SignatureDialog({ value, onClose, onSaved }) {
                   {[...new Set([...SIG_IMAGE_WIDTHS, sig.image.width])].sort((a, b) => a - b).map((w) => <option key={w} value={w}>{w} px</option>)}
                 </select>
               </label>
-              <label><span>Posição</span>
+              {!isImage && <label><span>Posição</span>
                 <select value={sig.imagePos === 'top' ? 'top' : 'bottom'} onChange={(e) => set('imagePos', e.target.value)}>
                   <option value="top">Antes do nome</option>
                   <option value="bottom">Depois dos contatos</option>
                 </select>
-              </label>
+              </label>}
               <span className="mail-sig-img-size">{Math.round(base64Bytes(sig.image.data) / 1024)} KB de 200 KB</span>
               <button type="button" className="mail-link" onClick={() => fileRef.current && fileRef.current.click()}>Trocar</button>
               <button type="button" className="mail-ic" aria-label="Tirar a imagem da assinatura" title="Tirar a imagem" onClick={() => { set('image', null); setSrcFile(null); }}><Trash2 size={14} aria-hidden="true" /></button>
@@ -100,15 +114,15 @@ export default function SignatureDialog({ value, onClose, onSaved }) {
           ) : (
             <button type="button" className="ui-btn mail-sig-img-add" onClick={() => fileRef.current && fileRef.current.click()}><ImagePlus size={15} aria-hidden="true" /> Escolher imagem</button>
           )}
-          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/gif" hidden onChange={(e) => { const f = e.target.files[0]; e.target.value = ''; if (f) takeImage(f, sig.image ? sig.image.width : 200); }} />
+          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/gif" hidden onChange={(e) => { const f = e.target.files[0]; e.target.value = ''; if (f) takeImage(f, sig.image ? sig.image.width : (isImage ? 480 : 200)); }} />
           {imgError && <div className="mc-error" role="alert">{imgError}</div>}
         </div>
         <div className="mc-extra">
-          <label className="mc-check"><input type="checkbox" checked={sig.logo !== false} onChange={(e) => set('logo', e.target.checked)} /><span>Mostrar o logo</span></label>
+          {!isImage && <label className="mc-check"><input type="checkbox" checked={sig.logo !== false} onChange={(e) => set('logo', e.target.checked)} /><span>Mostrar o logo</span></label>}
           <label className="mc-check"><input type="checkbox" checked={sig.enabled !== false} onChange={(e) => set('enabled', e.target.checked)} /><span>Já vir marcada ao escrever</span></label>
         </div>
         <div className="mail-sig-label">Prévia</div>
-        <div className="mc-preview">{preview ? <MailFrame html={preview} title="Prévia da assinatura" minHeight={40} /> : <div className="mail-pad">Preencha ao menos um campo.</div>}</div>
+        <div className="mc-preview">{preview ? <MailFrame html={preview} title="Prévia da assinatura" minHeight={40} /> : <div className="mail-pad">{isImage ? 'Escolha a imagem da assinatura.' : 'Preencha ao menos um campo.'}</div>}</div>
         <div className="ui-dlg-actions">
           <button type="button" className="ui-btn" onClick={onClose} disabled={busy}>Cancelar</button>
           <Button variant="primary" onClick={save} loading={busy}>Salvar assinatura</Button>

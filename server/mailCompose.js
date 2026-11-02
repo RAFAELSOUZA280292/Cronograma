@@ -297,9 +297,14 @@ export function signatureImageError(img) {
   return cleanSignatureImage(img) ? null : `A largura da imagem precisa ficar entre ${SIG_IMAGE_WIDTH[0]} e ${SIG_IMAGE_WIDTH[1]} px.`;
 }
 
+// Dois tipos (pedido do Rafael, 02/11/2026: "as assinaturas na PriceTax não são texto escrito, são imagens"): `image` = só o
+// banner pronto; `text` = campos (nome, cargo, contatos) com logo. Os dois aceitam a despedida livre (`closing`, ex.:
+// "Atenciosamente,") acima, com negrito opcional. Assinatura salva antes disso não tem `mode` e continua como texto.
 export function cleanSignature(input) {
   const s = input && typeof input === 'object' ? input : {};
-  const out = { enabled: s.enabled !== false, logo: s.logo !== false };
+  const out = { enabled: s.enabled !== false, logo: s.logo !== false, mode: s.mode === 'image' ? 'image' : 'text' };
+  out.closing = oneLine(s.closing).slice(0, 120);
+  out.closingBold = s.closingBold === true;
   for (const k of SIGNATURE_FIELDS) out[k] = oneLine(s[k]).slice(0, k === 'extra' ? 200 : 120);
   out.image = cleanSignatureImage(s.image);
   out.imagePos = s.imagePos === 'top' ? 'top' : 'bottom';
@@ -307,7 +312,9 @@ export function cleanSignature(input) {
 }
 
 export function signatureHasContent(sig) {
-  return !!sig && (SIGNATURE_FIELDS.some((k) => sig[k]) || !!sig.image);
+  if (!sig) return false;
+  if (sig.mode === 'image') return !!(sig.image || sig.closing);
+  return !!(sig.closing || SIGNATURE_FIELDS.some((k) => sig[k]) || sig.image);
 }
 
 const siteHref = (site) => (/^https?:\/\//i.test(site) ? site : `https://${site}`);
@@ -321,6 +328,14 @@ export function signatureHtml(sig, { logoSrc = `cid:${LOGO_CID}`, imageSrc = `ci
   const img = sig.image && imageSrc
     ? td('padding:0 0 8px 0', `<img src="${escapeHtml(imageSrc)}" width="${sig.image.width}" height="${sig.image.height}" alt="${escapeHtml(sig.image.alt || sig.name || 'Assinatura')}" style="display:block;border:0;outline:none;text-decoration:none;width:${sig.image.width}px;height:${sig.image.height}px">`)
     : '';
+  if (sig.closing) {
+    rows.push(td('font-size:13px;line-height:18px;color:#222222;padding:0 0 8px 0',
+      sig.closingBold ? `<strong style="${FONT};font-size:13px;color:#111111">${escapeHtml(sig.closing)}</strong>` : escapeHtml(sig.closing)));
+  }
+  if (sig.mode === 'image') {
+    if (img) rows.push(img.replace('padding:0 0 8px 0', 'padding:0'));
+    return `<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;${FONT};color:#222222">${rows.join('')}</table>`;
+  }
   if (img && sig.imagePos === 'top') rows.push(img);
   if (sig.name || sig.role) {
     rows.push(td('font-size:13px;line-height:18px;color:#222222;padding:0 0 8px 0',
@@ -342,7 +357,8 @@ export function signatureHtml(sig, { logoSrc = `cid:${LOGO_CID}`, imageSrc = `ci
 
 export function signatureText(sig) {
   if (!signatureHasContent(sig)) return '';
-  return [sig.name, sig.role, sig.logo !== false ? 'PriceTax' : '', [sig.phone && `Tel. ${sig.phone}`, sig.mobile && `Cel. ${sig.mobile}`].filter(Boolean).join(' | '),
+  if (sig.mode === 'image') return [sig.closing, (sig.image && sig.image.alt) || ''].filter(Boolean).join('\n');
+  return [sig.closing, sig.name, sig.role, sig.logo !== false ? 'PriceTax' : '', [sig.phone && `Tel. ${sig.phone}`, sig.mobile && `Cel. ${sig.mobile}`].filter(Boolean).join(' | '),
     [sig.email, sig.site].filter(Boolean).join(' | '), sig.extra].filter(Boolean).join('\n');
 }
 
@@ -364,7 +380,7 @@ export function composeBody({ html, signature, quote }) {
   const sigText = signature ? signatureText(signature) : '';
   const text = [htmlToText(userHtml), sigText ? `-- \n${sigText}` : '', quote ? quote.text : ''].filter(Boolean).join('\n\n');
   const images = extracted.images.filter((i) => userHtml.includes(`cid:${i.cid}`));
-  return { html: doc, text, usesLogo: !!sigHtml && signature.logo !== false, usesSigImage: !!sigHtml && !!signature.image, images };
+  return { html: doc, text, usesLogo: !!sigHtml && signature.mode !== 'image' && signature.logo !== false, usesSigImage: !!sigHtml && !!signature.image, images };
 }
 
 // --- MIME --------------------------------------------------------------------------
