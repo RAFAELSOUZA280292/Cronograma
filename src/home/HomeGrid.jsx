@@ -7,7 +7,7 @@ import React, { useMemo, useState } from 'react';
 import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
-import { GripVertical, ChevronUp, ChevronDown, EyeOff, Eye, Plus, RotateCcw, Check, Trash2, SlidersHorizontal } from 'lucide-react';
+import { GripVertical, ChevronUp, ChevronDown, ArrowUpToLine, EyeOff, Eye, Plus, RotateCcw, Check, Trash2, SlidersHorizontal } from 'lucide-react';
 import { Button, IconButton, Segmented } from '../ui/index.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { useHomePrefs, updateHomePrefs } from './homePrefs.js';
@@ -24,8 +24,11 @@ export const GRID_CSS = `
 .hb-body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .hb-body > * { flex: 1; margin: 0 !important; }
 .hb[data-id="week"], .hb[data-id="continue"] { align-self: start; }
-.hb.edit { border-radius: 16px; outline: 2px dashed var(--border-3); outline-offset: 4px; }
-.hb.edit .hb-body { pointer-events: none; user-select: none; opacity: .82; }
+.hb.edit { border-radius: 16px; outline: 2px dashed var(--border-3); outline-offset: 4px; cursor: grab; touch-action: manipulation; align-self: start; }
+.hb.edit.dragging { cursor: grabbing; }
+/* No modo Personalizar cada bloco vira uma miniatura baixa: a tela inteira cabe na janela e dá para levar um bloco do fim ao topo sem rolar. */
+.hb.edit .hb-body { flex: none; height: 90px; min-height: 0 !important; overflow: hidden; pointer-events: none; user-select: none; opacity: .82;
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent); mask-image: linear-gradient(to bottom, #000 55%, transparent); }
 .hb.edit .hb-body:empty::before { content: 'Sem conteúdo agora: aparece quando houver.'; display: block; padding: 18px 20px; border-radius: 14px; border: 1px dashed var(--border-2); color: var(--text-4); font-size: var(--fs-sm); }
 .hb.dragging { z-index: 5; opacity: .9; outline-color: var(--ui-accent); }
 .hb-bar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); margin: 0 0 8px; padding: 6px 8px; border-radius: var(--r-lg); background: var(--bg-3); border: 1px solid var(--border-2); }
@@ -59,15 +62,23 @@ const WIDTH_OPTIONS = WIDTHS.map((w) => ({ value: w, label: WIDTH_LABEL[w] }));
 const spaceTitle = (t) => (!t || t === 'Meu espaço' ? 'Meu espaço' : `${t} (Meu espaço)`);
 const titleOf = (id, spaces) => (isSpaceId(id) ? spaceTitle(spaces[id] && spaces[id].title) : (BLOCKS.find((b) => b.id === id) || {}).title || id);
 
-function Block({ item, index, total, edit, title, children, onMove, onWidth, onHide, onDelete }) {
+// Pega o bloco em qualquer ponto, menos nos botões e campos da faixa (clique neles continua sendo clique).
+const fromControl = (e) => e.target.closest && e.target.closest('button:not(.hb-grip), input, select, textarea, a');
+
+function Block({ item, index, total, edit, title, children, onMove, onMoveTop, onWidth, onHide, onDelete }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: item.id, disabled: !edit });
   const style = edit ? { transform: DndCSS.Translate.toString(transform), transition } : undefined;
+  const grab = edit && listeners ? {
+    onMouseDown: (e) => { if (!fromControl(e)) listeners.onMouseDown(e); },
+    onTouchStart: (e) => { if (!fromControl(e)) listeners.onTouchStart(e); },
+  } : null;
   return (
-    <div ref={setNodeRef} style={style} className={`hb${edit ? ' edit' : ''}${isDragging ? ' dragging' : ''}`} data-id={isSpaceId(item.id) ? 'space' : item.id} data-w={item.w}>
+    <div ref={setNodeRef} style={style} {...grab} className={`hb${edit ? ' edit' : ''}${isDragging ? ' dragging' : ''}`} data-id={isSpaceId(item.id) ? 'space' : item.id} data-w={item.w}>
       {edit && (
         <div className="hb-bar">
-          <button type="button" ref={setActivatorNodeRef} className="hb-grip" {...attributes} {...listeners} aria-roledescription="alça" aria-label={`Mover ${title}: arraste, ou use as setas`} title="Arraste para mover (ou setas do teclado)"
+          <button type="button" ref={setActivatorNodeRef} className="hb-grip" {...attributes} aria-roledescription="alça" aria-label={`Mover ${title}: arraste, ou use as setas (Home leva ao topo)`} title="Arraste o bloco para mover (ou setas do teclado)"
             onKeyDown={(e) => {
+              if (e.key === 'Home') { e.preventDefault(); onMoveTop(item.id); return; }
               const d = e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : 0;
               if (d) { e.preventDefault(); onMove(item.id, d); }
             }}>
@@ -76,6 +87,7 @@ function Block({ item, index, total, edit, title, children, onMove, onWidth, onH
           <span className="hb-name">{title}</span>
           <span className="hb-width"><Segmented label={`Largura de ${title}`} value={item.w} onChange={(w) => onWidth(item.id, w)} options={WIDTH_OPTIONS} /></span>
           <span className="hb-acts">
+            <IconButton size="sm" icon={ArrowUpToLine} label={`Levar ${title} para o topo`} disabled={index === 0} disabledReason="Já é o primeiro" onClick={() => onMoveTop(item.id)} />
             <IconButton size="sm" icon={ChevronUp} label={`Subir ${title}`} disabled={index === 0} disabledReason="Já é o primeiro" onClick={() => onMove(item.id, -1)} />
             <IconButton size="sm" icon={ChevronDown} label={`Descer ${title}`} disabled={index === total - 1} disabledReason="Já é o último" onClick={() => onMove(item.id, 1)} />
             {onDelete
@@ -118,6 +130,10 @@ export default function HomeGrid({ blocks, edit, onEditChange }) {
     const next = moveBlockTo(layout, id, target);
     apply(next, `${tt(id)} agora é o ${posOf(next, id)}º de ${visible.length}.`);
   };
+  const onMoveTop = (id) => {
+    if (!visible.length || visible[0].id === id) return;
+    apply(moveBlockTo(layout, id, visible[0].id), `${tt(id)} agora é o primeiro.`);
+  };
   const onWidth = (id, w) => apply(setBlockWidth(layout, id, w), `${tt(id)}: largura ${WIDTH_LABEL[w]}.`);
   const onHide = (id, h) => apply(setBlockHidden(layout, id, h), h ? `${tt(id)} escondido. Ele fica na bandeja "Escondidos".` : `${tt(id)} de volta à tela.`);
   async function onDelete(id) {
@@ -158,7 +174,7 @@ export default function HomeGrid({ blocks, edit, onEditChange }) {
   const grid = (
     <div className="hg">
       {visible.map((it, i) => (
-        <Block key={it.id} item={it} index={i} total={visible.length} edit={edit} title={tt(it.id)} onMove={onMove} onWidth={onWidth} onHide={onHide} onDelete={isSpaceId(it.id) ? onDelete : null}>
+        <Block key={it.id} item={it} index={i} total={visible.length} edit={edit} title={tt(it.id)} onMove={onMove} onMoveTop={onMoveTop} onWidth={onWidth} onHide={onHide} onDelete={isSpaceId(it.id) ? onDelete : null}>
           {isSpaceId(it.id) ? <MySpace id={it.id} space={prefs.spaces[it.id]} spaces={prefs.spaces} editingLayout={edit} /> : blocks[it.id]}
         </Block>
       ))}
@@ -170,7 +186,7 @@ export default function HomeGrid({ blocks, edit, onEditChange }) {
       <style>{GRID_CSS}</style>
       {edit && (
         <div className="hg-tools" role="region" aria-label="Personalizar a tela inicial">
-          <p>Arraste pela alça <GripVertical size={13} aria-hidden="true" style={{ verticalAlign: '-2px' }} /> ou use Subir/Descer (ou as setas, com a alça em foco). A largura vale na tela larga; no celular fica um bloco por linha. Salva sozinho, na sua conta.</p>
+          <p>Pegue o bloco em qualquer ponto e arraste, ou use Para o topo / Subir / Descer (ou as setas, com a alça <GripVertical size={13} aria-hidden="true" style={{ verticalAlign: '-2px' }} /> em foco). A largura vale na tela larga; no celular fica um bloco por linha. Salva sozinho, na sua conta.</p>
           <Button icon={Plus} onClick={addSpace} disabled={spaceCount >= MAX_SPACES} disabledReason={`No máximo ${MAX_SPACES} blocos "Meu espaço"`}>Meu espaço</Button>
           <Button icon={RotateCcw} onClick={restore} disabled={!prefs.layout || isDefaultLayout(layout)} disabledReason="Já está no padrão">Restaurar padrão</Button>
           <Button variant="primary" icon={Check} onClick={() => onEditChange(false)}>Concluir</Button>

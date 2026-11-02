@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8969 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8974 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -194,3 +194,4 @@ O `PROJECT_CONTEXT.md` tem 8969 linhas (a memória cronológica de cada decisão
 | 8944 | 125. RENATA lê o e-mail de quem conversa com ela e propõe o registro no CRM (2026-11-02, pedido do Rafael: "a… | - Por quê: a RENATA respondia "não tenho acesso ao seu e-mail" e só achava o cartão OKUBO no quadro; as negociações (proposta, planilha, cobrança de … |
 | 8954 | 123b. WhatsApp: intermediário Dualhook para os números pessoais (2026-11-02, decisão do Rafael: "Dualhook (te… | - Por quê: número pessoal no painel só por coexistência, e a Meta só libera coexistência pelo cadastro de um provedor técnico. Comparação feita (Dual… |
 | 8960 | 126. Tela inicial personalizável e barra de favoritos (2026-11-02, pedido do Rafael: "tem gente que gosta de … | - Por quê: a partir de 03/11 os funcionários trabalham no painel; a tela do Rafael é widescreen e a deles é quadrada, e cada um quer a "Mensagem do d… |
+| 8970 | 126a. Tela inicial: arrastar de qualquer ponto e blocos baixos no modo Personalizar (2026-11-02, pedido do Ra… | - Por quê: no modo Personalizar os blocos tinham a altura de verdade (a tela chegava a ~2.000 px numa janela de 1.000) e só a alça pequena pegava o b… |

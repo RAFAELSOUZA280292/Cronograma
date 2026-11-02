@@ -282,7 +282,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/daily/useWelcomeSetup.jsx` | 20 | As boas-vindas aparecem por cima de QUALQUER tela (o App tem dezenas de retornos por módulo), então vivem numa raiz |
 | `src/dev/uiAudit.js` | 150 | Auditor de leitura e acessibilidade de uma tela (2026-10-30, Onda 1 / Q1). SÓ para desenvolvimento: `main.jsx` o carrega apenas com |
 | `src/home/FavoritesBar.jsx` | 138 | Barra de favoritos (2026-11-02, §126) na barra do topo, em todas as telas: atalhos para módulos, empresas, atividades, |
-| `src/home/HomeGrid.jsx` | 197 | Grade da tela inicial (2026-11-02, §126). Fora do modo "Personalizar" só desenha os blocos na ordem/largura da pessoa. |
+| `src/home/HomeGrid.jsx` | 213 | Grade da tela inicial (2026-11-02, §126). Fora do modo "Personalizar" só desenha os blocos na ordem/largura da pessoa. |
 | `src/home/MySpace.jsx` | 99 | Bloco "Meu espaço" da tela inicial (2026-11-02, §126): título, anotação em texto simples e links próprios. A pessoa pode ter |
 | `src/home/homeCss.js` | 29 | Layout da tela inicial (2026-10-30): uma única coluna de conteúdo de 1240 px. Desde 02/11/2026 (§126) os blocos ficam na grade |
 | `src/home/homePrefs.js` | 94 | Preferências da tela inicial e favoritos (2026-11-02, §126), guardadas no servidor (GET/PUT /api/home-prefs) para valerem em |
