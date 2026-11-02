@@ -20,7 +20,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/assistantGeneral.js` | 187 | RENATA "geral" (2026-10-06): a assistente disponível de qualquer tela, sem estar presa a um projeto. Responde com o que a PESSOA |
 | `server/assistantRetrieval.js` | 843 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
 | `server/assistantSweep.js` | 122 | Varredura de reuniões de VÁRIAS empresas para a RENATA geral (Etapa 3 do plano, 2026-10-08; pedido do Felipe: "a RENATA faz |
-| `server/auth.js` | 199 |  |
+| `server/auth.js` | 203 |  |
 | `server/boardPlan.js` | 289 | Organização do quadro pessoal por API (2026-10-30, pedido do Rafael para a outra janela do Claude Code): uma lista de operações aplicada |
 | `server/briefing.js` | 113 | Briefing diário (Onda 3, R3): junta o que merece atenção da pessoa hoje (regras em briefingRules.js), mostra na tela inicial (GET /api/briefing) |
 | `server/briefingRules.js` | 107 | Briefing diário da RENATA (Onda 3, R3): regras que escolhem o que merece atenção hoje e texto escrito por modelo fixo — sem IA, sem custo |
@@ -55,7 +55,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/crm/funnels.js` | 184 | CRM — funis e etapas (Fase 2b, 2026-09-20, PROJECT_CONTEXT.md §58). A Fase 2 nasceu com um funil |
 | `server/crm/googleSync.js` | 132 | Atividade do CRM ↔ Google Calendar do RESPONSÁVEL (2026-10-26, pedido do Rafael: "quando a Eduarda criar uma atividade para ela, já adicione na |
 | `server/crm/importer.js` | 234 | Importação de planilha Excel/CSV (PRD 48) — a leitura do arquivo e o |
-| `server/crm/permissions.js` | 56 | Permissões do CRM (2026-09-20, ver PROJECT_CONTEXT.md §54). Coluna própria |
+| `server/crm/permissions.js` | 67 | Permissões do CRM (2026-09-20, ver PROJECT_CONTEXT.md §54). Coluna própria |
 | `server/crm/pipeline.js` | 84 | CRM — pipeline (Fase 2, 2026-09-20, PROJECT_CONTEXT.md §55). |
 | `server/crm/piperun/client.js` | 49 | Cliente da API do PipeRun (§84) — SÓ LEITURA (GET). O token vem de quem pediu a extração, fica na memória durante a execução e nunca é gravado nem registrado em log. |
 | `server/crm/piperun/extract.js` | 77 | Extração PipeRun → cópia bruta (§84). Só leitura na API; grava em piperun_raw (um registro por id, atualizado se rodar de novo). O token fica só na memória desta execução. |
@@ -77,7 +77,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/crm/xlsxExport.js` | 114 | Exportação nativa para Excel (2026-10-28, §116c): planilha .xlsx com visual (cabeçalho, linhas alternadas, filtro, cabeçalho fixo, links clicáveis). |
 | `server/daily.js` | 75 | "Meu dia" (2026-10-05, §77): preferências de conteúdo diário + boas-vindas na primeira entrada. Só o próprio usuário |
 | `server/dailyContent.js` | 222 | Conteúdo diário ("Meu dia", 2026-10-05, §77): evangelho, versículo, sabedoria, horóscopo, horóscopo chinês e inspiração. |
-| `server/db.js` | 1602 |  |
+| `server/db.js` | 1642 |  |
 | `server/documentTemplates.js` | 260 | Modelos de documentos (2026-10-05, §78) — irmã da aba Pareceres: biblioteca de modelos para sócios e colaboradores. Um MODELO |
 | `server/dossier.js` | 454 | Dossiê do cliente (2026-10-02, pedido da Amanda via Rafael: "um compilado de todas as reuniões |
 | `server/embeddings.js` | 63 | Embeddings pra busca semântica da RENATA (Fase 3, 2026-09 — ver |
@@ -94,7 +94,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/gaps.js` | 232 | Lacunas entre cronogramas (Etapa 4 do plano, 2026-10-08; pedido do Felipe: "levantamento de tudo que temos de atividades ... para |
 | `server/google.js` | 70 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
 | `server/googleCalendar.js` | 458 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
-| `server/googleMail.js` | 293 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
+| `server/googleMail.js` | 295 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
 | `server/homePrefs.js` | 31 | Tela inicial personalizável e barra de favoritos (2026-11-02, §126): GET/PUT /api/home-prefs. Cada pessoa lê e grava só a |
 | `server/index.js` | 196 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
@@ -158,12 +158,12 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/tools/crm.js` | 210 | Ferramentas do CRM (§101): TODAS as operações do CRM (empresas, contatos, negócios, atividades, notas, produtos, funis, cadências, tags) como ferramentas |
 | `server/renata/tools/email.js` | 54 | E-mail (§125): a RENATA busca e lê, SÓ LEITURA, a caixa do Gmail de quem conversa com ela (o token é sempre o de ctx.user — nunca o de |
 | `server/renata/tools/empresas.js` | 326 | Ferramentas de Empresas (cronogramas dos clientes) e tarefas de reunião — §101. Mesmo acesso da tela (canAccessProject) e, para alterar, só equipe (master/pricetax). |
-| `server/renata/tools/plataforma.js` | 80 | Ferramentas de plataforma — §101: agenda, notificações, conhecimento, XFlow, pareceres/modelos e o ACESSO GENÉRICO às demais rotas do servidor (as mesmas da |
+| `server/renata/tools/plataforma.js` | 85 | Ferramentas de plataforma — §101: agenda, notificações, conhecimento, XFlow, pareceres/modelos e o ACESSO GENÉRICO às demais rotas do servidor (as mesmas da |
 | `server/renata/tools/reports.js` | 66 | Relatórios e visão da equipe (somente leitura) — §101: "o que a minha equipe fez hoje", atrasos por responsável e quem sou eu / quem é a equipe. |
 | `server/renata/validate.js` | 81 | Validador de parâmetros das ferramentas da RENATA (§101): subconjunto de JSON Schema suficiente para o catálogo. Rejeita campo desconhecido |
 | `server/retrievalScope.js` | 32 | Escopo da busca na memória do projeto (2026-10-31). A etapa que interpreta a pergunta (resolveQuery) PROPÕE um tipo de trecho (`kind`) e uma reunião-alvo; a busca os |
 | `server/richNote.js` | 70 | Descrição formatada dos cartões do quadro pessoal (2026-10-07): o campo `desc` continua sendo uma string — texto simples |
-| `server/routes.js` | 1416 |  |
+| `server/routes.js` | 1473 |  |
 | `server/scripts/reindexAllMeetings.js` | 30 | Backfill manual da memória do projeto (2026-09, Fase 1 do Assistente |
 | `server/secretBox.js` | 47 | Cofre simples para segredos guardados no banco (M2, 2026-10-29): AES-256-GCM com chave derivada de TOKEN_ENC_KEY (ou, na falta, do JWT_SECRET). |
 | `server/shareTokens.js` | 41 | Tokens de link público (A9, 2026-10-29). A tela gera o token com `crypto.getRandomValues` (48 hex = 192 bits), mas o servidor não pode confiar nisso: |
@@ -190,7 +190,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/xflowPermissions.js` | 86 | Papel efetivo + regras de "quem pode fazer o quê" no XFlow. Regras vivem |
 | `server/xflowTransitions.js` | 116 | Matriz de transições de status do XFlow. Cada ação nomeada sabe de quais |
 
-## `shared/` — 14 arquivos
+## `shared/` — 15 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -208,8 +208,9 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/scheduleVersion.js` | 246 | Versionamento do cronograma (2026-10-25, §83). Funções PURAS (sem banco, sem rede): usadas pelo servidor (comparar, restaurar, validar) e testadas à parte. |
 | `shared/transcriptParser.js` | 84 | Funções puras de parsing de texto de reunião — SEM import de React, |
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
+| `shared/workRoles.js` | 104 | Papéis de trabalho (2026-11-02, pedido do Rafael: valem a partir de 03/11). Convivem com o perfil técnico (`role`: master/pricetax/cliente), |
 
-## `src/` — 217 arquivos
+## `src/` — 218 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -229,7 +230,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/app/notificationActions.js` | 132 | Ações das notificações (marcar como lida e abrir o destino de uma notificação). |
 | `src/app/standardPlanActions.js` | 98 | Ações do cronograma padrão versionado (2026-10-19). É uma FÁBRICA chamada a cada render (mesmo padrão de src/app/*.js): abrir/fechar a edição do padrão, |
 | `src/app/teamPhaseActions.js` | 116 | Ações do time, das áreas e das fases de uma empresa. |
-| `src/app/userOrgActions.js` | 195 | Ações de administração de usuários e organizações. |
+| `src/app/userOrgActions.js` | 197 | Ações de administração de usuários e organizações. |
 | `src/assistant/ChatExport.jsx` | 129 | Botões de copiar e exportar a conversa da RENATA (2026-10-27) — usados pelas três telas (do projeto, geral e operacional). |
 | `src/assistant/ParecerStudyModal.jsx` | 184 |  |
 | `src/assistant/ProjectAssistant.jsx` | 560 | RENATA — Assistente do Projeto (2026-09, Fase 2 do Assistente |
@@ -381,7 +382,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/renata/RenataChat.jsx` | 382 | RENATA operacional (§101): o painel de conversa disponível em qualquer tela. Você pede, ela executa pelas ferramentas do sistema (com as suas permissões), |
 | `src/renata/screenContext.js` | 12 | Contexto da tela para a RENATA (§101): cada módulo informa onde a pessoa está (módulo, tela, registro aberto) e a RENATA recebe isso a cada pedido, para entender |
 | `src/screens/ActivityGauge.jsx` | 50 | Velocímetro da atividade (2026-10-19, pedido do Rafael): no detalhe de cada atividade, quanto das subatividades está feito, quanto foi pulado e quanto falta para |
-| `src/screens/AdminScreens.jsx` | 1504 | Telas de administração: gestão de usuários, organizações (Super Admin), escolha/cadastro de empresas e perfil. |
+| `src/screens/AdminScreens.jsx` | 1564 | Telas de administração: gestão de usuários, organizações (Super Admin), escolha/cadastro de empresas e perfil. |
 | `src/screens/AutoDates.jsx` | 42 | Caixa "Ajustar datas automaticamente" (2026-10-19): fica no alto das vistas de atividades de uma empresa (e do cronograma padrão). Ligada, mudar uma data empurra as |
 | `src/screens/CompanyCalendar.jsx` | 181 | Janela "Reservar na agenda" (2026-10-19): cada REUNIÃO do cronograma (atividade ou subatividade do tipo Reunião) vira UM bloco de agenda (padrão 60 min) para a equipe PRICETAX, com convite … |
 | `src/screens/CompanyShareLink.jsx` | 116 | Janela "Link para o cliente" (2026-10-19): gera, copia e desativa os links públicos da empresa. Só master e PRICETAX. |
@@ -424,6 +425,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/ui/tableKit.jsx` | 87 | Tabela profissional (Onda 3, U3): peças que se encaixam nas tabelas que já existem (o `<table>` e as células de cada módulo ficam como estão): |
 | `src/ui/tableLogic.js` | 75 | Tabela profissional (Onda 3, U3): lógica pura de seleção em massa, colunas escolhidas e resumo de lote. Sem React nem rede (testável em Node). |
 | `src/ui/ui.css` | 319 | Peças visuais comuns do app (2026-10-04, §72). Antes cada módulo reinventava cartão, aba, etiqueta e botão |
+| `src/users/UserRoles.jsx` | 177 | Papéis de trabalho na tela de usuários (2026-11-02): seletor com confirmação, matriz "quem acessa o quê" e histórico de mudanças. |
 | `src/versions/VersionHistory.jsx` | 341 | Histórico de versões do cronograma (§83): consultar, comparar, criar ponto de restauração e restaurar (Master) com confirmação, backup automático e desfazer. |
 | `src/whatsapp/WhatsAppScreen.jsx` | 572 | WhatsApp (2026-11-02, Fase 1): caixa de conversas do número da PRICETAX, compartilhada pela equipe. Duas colunas — |
 | `src/whatsapp/whatsapp.css` | 104 | WhatsApp (2026-11-02). Duas colunas no computador; uma no celular (abaixo de 768 px). Mesmos tokens da Caixa de e-mail. */ |

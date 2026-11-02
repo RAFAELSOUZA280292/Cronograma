@@ -290,7 +290,7 @@ Quem decide o quê: o **front esconde** (cartão da tela inicial, item da barra,
 | Conhecimento (`knowledge`) | `master` ou `pricetax` | `router.use(requireAuth, requireMasterOrPricetax)` em `server/knowledge.js` (e `knowledgeLibraryRoutes.js`) |
 | Pareceres (`pareceres`) | `master` ou `pricetax` | Idem em `server/pareceres.js` |
 | Modelos (`modelos`) | `master` ou `pricetax` | Idem em `server/documentTemplates.js` (`/api/templates`) |
-| CRM (`crm`) | `crmAccess` (master/Super Admin sempre; demais só com `crm_role`; `cliente` nunca) | `crmCan(user, capacidade)` em `server/crm/permissions.js` e `need(...)` em `server/crm/routes.js` (403 "Você não tem permissão pra isso no CRM.") |
+| CRM (`crm`) | `crmAccess` (master/Super Admin sempre; Sócio/Comercial sempre; **Operações nunca**; demais só com `crm_role`; `cliente` nunca) | `crmCan(user, capacidade)` em `server/crm/permissions.js` e `need(...)` em `server/crm/routes.js` (403 "Você não tem permissão pra isso no CRM.") |
 | Usuários (`users`) | `master` | `requireMaster` em `/api/users*` |
 | Inteligência (`ops`) | `master` | `router.use(requireAuth, requireMaster)` em `server/opsIntel.js` |
 | Organizações (Super Admin) | `isSuperAdmin` | `requireSuperAdmin` em `/api/organizations*` |

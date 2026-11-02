@@ -17,6 +17,7 @@ Cada termo abaixo diz **o que é**, **como aparece no código** e **onde ler mai
 | **pricetax** (papel) | Equipe PRICETAX (não-administrador) | `role = 'pricetax'` |
 | **cliente** (papel) | Pessoa de uma empresa cliente; só vê o que é dela; **nunca** vê conteúdo interno | `role = 'cliente'` |
 | **Acessos independentes** | Empresas, Gestão de Atividades e XFlow liberados **separadamente** do papel | colunas `companies_access`, `personal_access`, `xflow_role` |
+| **work_role (papel de trabalho)** | Sócio, Comercial ou Operações (vazio = sem papel); Operações não acessa o CRM (§127) | `shared/workRoles.js` |
 | **crm_role** | Papel dentro do CRM (admin, diretor, gestor, vendedor, consultor, financeiro, visualizacao) | `server/crm/permissions.js` |
 | **Módulo** | Uma área do painel com endereço próprio (Empresas, CRM, Agenda…) | `src/lib/routes.js` (`MODE_PATHS`) |
 | **Modo** (`mode`) | O nome interno do módulo aberto no front | `canOpenMode` |

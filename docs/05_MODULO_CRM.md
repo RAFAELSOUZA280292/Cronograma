@@ -211,7 +211,7 @@ Colunas no `users`: `crm_role` (vazio = sem acesso).
 - **Duplicidade**: empresa com mesmo CNPJ = bloqueia (409 `blocking:true`); nome com similaridade ≥ 0,85 = só avisa (409 `blocking:false`, repetir com `force:true`). Contato: mesmo e-mail ou últimos 9 dígitos do telefone/WhatsApp = aviso.
 
 ## Permissões por perfil (`crm_role`)
-Fonte: `server/crm/permissions.js`. `master` e super admin viram **admin do CRM** sozinhos; `role='cliente'` **nunca** acessa, mesmo com `crm_role`. Quem define o `crm_role` de um usuário é um **master**, na tela Usuários (`PATCH /users/:id`, `requireMaster`, `routes.js`).
+Fonte: `server/crm/permissions.js`. **Papel de trabalho (§127) manda primeiro:** Operações nunca entra (403 com mensagem própria em todas as rotas); Sócio e Comercial são admin do CRM. `master` e super admin viram **admin do CRM** sozinhos; `role='cliente'` **nunca** acessa, mesmo com `crm_role`. Quem define o `crm_role` de um usuário é um **master**, na tela Usuários (`PATCH /users/:id`, `requireMaster`, `routes.js`).
 
 | Capacidade | admin | diretor | gestor | vendedor | consultor | financeiro | visualizacao |
 |---|---|---|---|---|---|---|---|

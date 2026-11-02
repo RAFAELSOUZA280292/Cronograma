@@ -795,7 +795,7 @@ function AppScreens({ shellRef, bump }) {
     else if (tag === 'mail') { setWorkspaceMode('mail'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'whatsapp') { setWorkspaceMode('whatsapp'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'macro') { setWorkspaceMode('macro'); setShowUsers(false); setShowOrgAdmin(false); }
-    else if (tag === 'crm') { setWorkspaceMode('crm'); setShowUsers(false); setShowOrgAdmin(false); }
+    else if (tag === 'crm') { setWorkspaceMode(canOpenMode('crm', currentUser) ? 'crm' : null); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'users') { setWorkspaceMode('users'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'ops') { setWorkspaceMode('ops'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'knowledge') { setWorkspaceMode('knowledge'); setShowUsers(false); setShowOrgAdmin(false); }

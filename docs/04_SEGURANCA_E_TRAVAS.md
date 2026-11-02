@@ -94,6 +94,7 @@ Não existe "esqueci minha senha" por e-mail: quem redefine é um Master (`reset
 | Acesso à Gestão de Atividades | `personal_access` | libera o módulo; **o servidor também confere** (2026-10-29): sem ele `GET /personal-board` devolve um quadro vazio sem gravar nada e as demais rotas do quadro dão 403 (`requirePersonalAccess`) |
 | Acesso ao XFlow | `xflow_role` (`reporter`/`dev`/`gestao`/`admin` ou vazio) | `requireXflowAccess` + `canDo` |
 | Acesso ao CRM | `crm_role` (vazio = sem acesso) | `crmCan`; master e super admin viram `admin` do CRM; `cliente` **nunca** |
+| Papel de trabalho (§127) | `work_role` (`socio`/`comercial`/`operacoes`/vazio) | `crmRoleOf`: **Operações nunca tem CRM** (só o Super Admin escapa); Sócio e Comercial = `admin` do CRM; master não pode ser Operações; histórico em `user_role_changes` |
 | `personal_only` | `users.personal_only` | legado do modelo antigo; hoje o acesso vem das colunas acima |
 
 ### Quem pode o quê (resumo)
@@ -400,6 +401,7 @@ Chaves externas de IA (`ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`) ficam só no ambie
 | 16 | `canDo` (negado por padrão) | ação de ticket sem papel ou sem ser dono/responsável | `xflowPermissions.js`, `xflow.js` | 403 "Você não tem permissão para fazer isso." |
 | 17 | Apagar de vez só da Lixeira e só `admin` | perda irreversível de ticket | `xflow.js` `DELETE /tickets/:id` | 400/403 com mensagem |
 | 18 | `crmCan(capacidade)` por rota | perfil sem direito criar/excluir/importar | `crm/permissions.js`, `crm/routes.js` `need` | 403 "Você não tem permissão pra isso no CRM." |
+| 19b | Operações nunca tem CRM | alguém de Operações chegar ao CRM por tela, URL, busca, chave de API ou RENATA | `crmRoleOf` + `canOpenMode` + `plataforma.js` (`crmOff`) | 403 "O CRM não faz parte do papel Operações…"; `scripts/work-roles.test.mjs` |
 | 19 | `cliente` nunca tem CRM | cliente abrir o CRM mesmo com `crm_role` preenchido | `crmRoleOf` | módulo não aparece; 403 |
 | 20 | Painel da Visão geral só do perfil | ver painel de outra função | `crmLenses` em `/overview` | 403 "Este painel não faz parte do seu perfil." |
 | 21 | Chave `pxk_` com hash, escopo, validade e revogação | vazamento do banco expor chave; chave eterna | `connect.js` | 401 "Token inválido, revogado ou expirado." |
