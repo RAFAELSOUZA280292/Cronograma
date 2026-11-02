@@ -9,6 +9,8 @@
 import crypto from 'node:crypto';
 import sanitizeHtml from 'sanitize-html';
 import { parseAddressList, sanitizeMailHtml } from './googleMail.js';
+import { blockReason, zipEntryNames } from '../shared/mailAttachments.js';
+export { zipEntryNames };
 
 export const MAX_ATTACH_BYTES = 20 * 1024 * 1024;
 export const MAX_RECIPIENTS = 100;
@@ -467,3 +469,7 @@ export function rankContacts(list, query, limit = 8) {
   return (list || []).map((c, i) => ({ c, i, r: contactRank(c, q) })).filter((x) => x.r < 3)
     .sort((a, b) => a.r - b.r || a.i - b.i).slice(0, limit).map((x) => x.c);
 }
+
+// --- Anexos bloqueados pelo Gmail (2026-11-02) -------------------------------------------------------------------------
+// Motivo (frase pronta) para recusar um anexo antes de mandar ao Gmail, ou null. a = { filename, data:Buffer }.
+export const attachmentBlockReason = (a) => blockReason(String((a && a.filename) || ''), a && a.data);

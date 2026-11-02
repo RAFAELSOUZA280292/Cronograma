@@ -17,7 +17,8 @@ import { Button, IconButton, BusyBar } from '../ui/index.jsx';
 import { askConfirm, askText, notify } from '../ui/dialogs.jsx';
 import { apiGet, apiPost, apiDelete } from '../lib/api.js';
 import MailFrame from './MailFrame.jsx';
-import { prepareImage, isImageFile, htmlImageBytes } from './mailImage.js';
+import { prepareImage, isImageFile, htmlImageBytes, clipboardFiles } from './mailImage.js';
+import { blockReason } from '../../shared/mailAttachments.js';
 
 export const MAX_ATTACH_BYTES = 20 * 1024 * 1024;
 const TITLES = { new: 'Nova mensagem', reply: 'Responder', replyAll: 'Responder a todos', forward: 'Encaminhar' };
@@ -105,6 +106,23 @@ export const TEXT_COLORS = [
 const SIZES = [['12px', 'Pequeno'], ['', 'Normal'], ['18px', 'Grande']];
 const imageFiles = (list) => [...(list || [])].filter(isImageFile);
 
+// Põe imagens no corpo (na posição `at` quando arrastadas). Erro de uma imagem não impede as outras.
+async function insertImageFiles(ed, files, at) {
+  if (!ed) return;
+  for (const f of files) {
+    try {
+      const img = await prepareImage(f);
+      const node = { type: 'image', attrs: { src: `data:${img.mimeType};base64,${img.data}`, alt: f.name || 'imagem', width: img.width || null, height: img.height || null } };
+      // Imagem recém-posta fica selecionada; a próxima vai depois dela (senão a substituiria).
+      const sel = ed.state.selection;
+      const pos = typeof at === 'number' ? at : sel.node ? sel.to : null;
+      if (pos !== null) ed.chain().focus().insertContentAt(pos, node).run();
+      else ed.chain().focus().insertContent(node).run();
+      at = undefined;
+    } catch (e) { notify(e.message, { tone: 'error' }); }
+  }
+}
+
 // Cor do texto: menu com a paleta (fecha com Esc ou clique fora).
 function ColorMenu({ editor }) {
   const [open, setOpen] = useState(false);
@@ -136,22 +154,12 @@ function ColorMenu({ editor }) {
   );
 }
 
-function MailEditor({ onReady, onChange }) {
+function MailEditor({ onReady, onChange, onFiles }) {
   const imgRef = useRef(null);
   const editorRef = useRef(null);
-  // Põe as imagens no corpo (na posição `at` quando arrastadas). Erro de uma imagem não impede as outras.
-  const insertImages = useCallback(async (files, at) => {
-    const ed = editorRef.current;
-    if (!ed) return;
-    for (const f of files) {
-      try {
-        const img = await prepareImage(f);
-        const node = { type: 'image', attrs: { src: `data:${img.mimeType};base64,${img.data}`, alt: f.name || 'imagem', width: img.width || null, height: img.height || null } };
-        if (typeof at === 'number') ed.chain().focus().insertContentAt(at, node).run();
-        else ed.chain().focus().insertContent(node).run();
-      } catch (e) { notify(e.message, { tone: 'error' }); }
-    }
-  }, []);
+  const filesRef = useRef(onFiles);
+  filesRef.current = onFiles;
+  const insertImages = useCallback((files, at) => insertImageFiles(editorRef.current, files, at), []);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: false, codeBlock: false, code: false, horizontalRule: false, link: { openOnClick: false, autolink: true } }),
@@ -162,11 +170,15 @@ function MailEditor({ onReady, onChange }) {
     shouldRerenderOnTransaction: true,
     editorProps: {
       attributes: { 'aria-label': 'Mensagem', role: 'textbox', 'aria-multiline': 'true' },
-      // Print colado ou imagem copiada: entra como imagem embutida (não como link para fora).
+      // Print colado (macOS ⌘⇧4/⌘⇧Ctrl+4, Windows PrtSc/Win+Shift+S) ou imagem copiada: entra no corpo, embutida.
+      // Arquivo copiado no Finder/Explorer que não é imagem (PDF, zip, rar…): vira anexo.
       handlePaste: (view, event) => {
-        const imgs = imageFiles(event.clipboardData && event.clipboardData.files);
-        if (!imgs.length) return false;
-        insertImages(imgs);
+        const files = clipboardFiles(event.clipboardData);
+        if (!files.length) return false;
+        const imgs = imageFiles(files);
+        const others = files.filter((f) => !isImageFile(f));
+        if (imgs.length) insertImages(imgs);
+        if (others.length && filesRef.current) filesRef.current(others);
         return true;
       },
       // Imagem arrastada para dentro do texto vai no ponto onde caiu; outros arquivos seguem para os anexos.
@@ -379,7 +391,13 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
   useImperativeHandle(ref, () => ({ close }));
 
   async function addFiles(list) {
-    const picked = [...list];
+    let picked = [...list];
+    if (!picked.length) return;
+    // Tipos que o Gmail bloqueia (.exe, .js… ou .zip com um deles dentro): avisa já, em vez de falhar no envio.
+    const reasons = await Promise.all(picked.map(async (f) => blockReason(f.name, /\.zip$/i.test(f.name) ? await f.arrayBuffer().catch(() => null) : null)));
+    const refused = reasons.filter(Boolean);
+    if (refused.length) notify(refused.length === 1 ? refused[0] : `${refused[0]} Também ficaram de fora: ${picked.filter((f, i) => reasons[i]).slice(1).map((f) => f.name).join(', ')}.`, { tone: 'error' });
+    picked = picked.filter((f, i) => !reasons[i]);
     if (!picked.length) return;
     const sum = totalBytes + picked.reduce((n, f) => n + f.size, 0);
     if (sum > MAX_ATTACH_BYTES) {
@@ -424,6 +442,17 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
     <section className={`mc${isMobile ? ' mobile' : ''}`} role="dialog" aria-label={TITLES[mode]} onKeyDown={onKeyDown}
       onDragOver={(e) => { if (ctx && e.dataTransfer.types.includes('Files')) e.preventDefault(); }}
       onDrop={(e) => { if (!ctx || e.defaultPrevented || !e.dataTransfer.files.length) return; e.preventDefault(); addFiles(e.dataTransfer.files); }}
+      onPaste={(e) => {
+        // Colar arquivo fora do texto (Para, Assunto…): imagem vai para o corpo, o resto vira anexo. Dentro do texto, quem cuida é o editor.
+        if (!ctx || e.defaultPrevented) return;
+        const files = clipboardFiles(e.clipboardData);
+        if (!files.length) return;
+        e.preventDefault();
+        const imgs = imageFiles(files);
+        if (imgs.length) insertImageFiles(editorRef.current, imgs);
+        const others = files.filter((f) => !isImageFile(f));
+        if (others.length) addFiles(others);
+      }}
     >
       <header className="mc-head">
         <strong>{TITLES[mode]}</strong>
@@ -445,9 +474,9 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
           )}
           <div className="mc-field"><label htmlFor="mc-subject">Assunto</label><input id="mc-subject" value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={500} /></div>
 
-          <MailEditor onReady={(ed) => { editorRef.current = ed; }} onChange={setHtml} />
+          <MailEditor onReady={(ed) => { editorRef.current = ed; }} onChange={setHtml} onFiles={addFiles} />
 
-          {(files.length > 0 || forwardList.length > 0 || draftAtts.length > 0) && (
+          {(files.length > 0 || forwardList.length > 0 || draftAtts.length > 0 || htmlImageBytes(html) > 0) && (
             <ul className="mc-atts" aria-label="Anexos">
               {draftAtts.map((a) => (
                 <li key={`d-${a.partId}`} className={draftKeep.has(a.partId) ? '' : 'off'}>
@@ -475,7 +504,7 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
                   <button type="button" className="mail-ic" aria-label={`Remover ${f.filename}`} title="Remover" onClick={() => setFiles((prev) => prev.filter((x) => x.key !== f.key))}><X size={13} aria-hidden="true" /></button>
                 </li>
               ))}
-              <li className="mc-total">{fmtSize(totalBytes)} de 20 MB</li>
+              <li className="mc-total">{fmtSize(totalBytes)} de 20 MB{htmlImageBytes(html) > 0 ? ' (anexos + imagens no texto)' : ''}</li>
             </ul>
           )}
 

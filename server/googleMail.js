@@ -216,6 +216,10 @@ export function friendlyMailError(e) {
   if (status === 403 && /has not been used|disabled/i.test(msg)) return 'A API do Gmail não está ligada no Google Cloud do painel. Avise o Rafael.';
   if (status === 429 || /rate limit|quota/i.test(msg)) return 'O Google pediu uma pausa (muitas leituras seguidas). Espere alguns segundos e tente de novo.';
   if (status === 413 || /too large|exceeds/i.test(msg)) return 'O Gmail recusou o e-mail por ser grande demais. Tire algum anexo ou mande um link do Google Drive.';
+  // Gmail recusa tipo de anexo perigoso (.exe, .js…, ou .zip/.rar com um deles dentro): a frase do Google vira orientação.
+  if ((status === 400 || status === 403) && /blocked|security|virus|executable|attachment/i.test(msg) && !/insufficient|scope/i.test(msg)) {
+    return 'O Gmail bloqueou um dos anexos por segurança (programas e scripts como .exe, .bat, .js, ou .zip/.rar com um deles dentro). Suba o arquivo no Google Drive e mande o link.';
+  }
   if (status === 400 && /invalid (to|cc|bcc|from) header|recipient address/i.test(msg)) return 'O Gmail recusou algum destinatário. Confira os endereços e tente de novo.';
   if (status === 404) return 'Esse e-mail não existe mais (foi apagado ou movido em outro lugar). Atualize a lista.';
   return 'Não consegui falar com o Gmail agora. Tente de novo em instantes.';

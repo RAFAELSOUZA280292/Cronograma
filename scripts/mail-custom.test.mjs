@@ -6,7 +6,24 @@ import {
   cleanSpanStyle, sanitizeOutgoingHtml, extractInlineImages, restoreInlineImages, composeBody, buildMime, BODY_IMAGE_PREFIX,
   cleanSignature, cleanSignatureImage, signatureImageError, signatureHtml, SIG_IMAGE_CID, SIG_IMAGE_MAX_BYTES, rankContacts, MAX_IMAGE_WIDTH,
 } from '../server/mailCompose.js';
-import { fitSize, base64Bytes, htmlImageBytes } from '../src/mail/mailImage.js';
+import { fitSize, base64Bytes, htmlImageBytes, clipboardFiles, isImageFile } from '../src/mail/mailImage.js';
+import { isBlockedName, zipEntryNames, blockReason, fileExtension } from '../shared/mailAttachments.js';
+import { attachmentBlockReason } from '../server/mailCompose.js';
+import { friendlyMailError } from '../server/googleMail.js';
+
+// .zip mínimo (sem compressão) com os nomes dados — para conferir a leitura do diretório central sem ferramenta de fora.
+function makeZip(names) {
+  const locals = []; const centrals = []; let off = 0;
+  for (const name of names) {
+    const n = Buffer.from(name); const data = Buffer.from('x');
+    const lh = Buffer.alloc(30); lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(n.length, 26); lh.writeUInt32LE(1, 18); lh.writeUInt32LE(1, 22);
+    const ch = Buffer.alloc(46); ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(n.length, 28); ch.writeUInt32LE(off, 42);
+    locals.push(lh, n, data); centrals.push(ch, n); off += 30 + n.length + 1;
+  }
+  const cd = Buffer.concat(centrals);
+  const end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(names.length, 8); end.writeUInt16LE(names.length, 10); end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(off, 16);
+  return Buffer.concat([...locals, cd, end]);
+}
 
 let n = 0;
 const ok = (name, fn) => { fn(); n += 1; console.log('ok  ', name); };
@@ -117,6 +134,38 @@ ok('imagens na tela: proporção, bytes do base64 e soma das imagens do texto', 
   assert.equal(base64Bytes(Buffer.alloc(11).toString('base64')), 11);
   const b64 = Buffer.alloc(1000).toString('base64');
   assert.equal(htmlImageBytes(`<p>x</p><img src="data:image/png;base64,${b64}"><img src="data:image/jpeg;base64,${b64}">`), 2000);
+});
+
+ok('anexos: PDF, zip, rar e planilha passam; .exe/.js/.bat e .zip com programa dentro são recusados com frase clara', () => {
+  for (const f of ['proposta.pdf', 'base.zip', 'notas.rar', 'planilha.xlsx', 'foto.HEIC', 'arquivo.7z', 'sem-extensao']) assert.equal(isBlockedName(f), false, f);
+  for (const f of ['setup.exe', 'SCRIPT.JS', 'roda.bat', 'instalar.msi', 'x.ps1']) assert.equal(isBlockedName(f), true, f);
+  assert.equal(fileExtension('a.tar.gz'), 'gz');
+  assert.match(blockReason('setup.exe'), /bloqueia arquivos \.exe.*Google Drive/);
+  const ok = makeZip(['docs/contrato.pdf', 'notas.xml']);
+  assert.deepEqual(zipEntryNames(ok), ['docs/contrato.pdf', 'notas.xml']);
+  assert.equal(blockReason('pacote.zip', ok), null);
+  const bad = makeZip(['leia.txt', 'bin/instalador.exe']);
+  assert.match(blockReason('pacote.zip', new Uint8Array(bad)), /“pacote.zip” tem “instalador.exe” dentro.*Google Drive/);
+  assert.match(attachmentBlockReason({ filename: 'pacote.zip', data: bad }), /instalador\.exe/);
+  assert.equal(attachmentBlockReason({ filename: 'notas.rar', data: Buffer.from('Rar!') }), null);
+  assert.deepEqual(zipEntryNames(Buffer.from('não é zip')), []);
+  assert.deepEqual(zipEntryNames(bad.subarray(0, 40)), [], 'zip cortado não quebra');
+});
+
+ok('erro do Gmail por anexo bloqueado vira orientação em português; falta de permissão continua sendo "conectar"', () => {
+  assert.match(friendlyMailError({ code: 400, message: 'Message blocked: attachment contains a potential security issue' }), /bloqueou um dos anexos.*Google Drive/);
+  assert.match(friendlyMailError({ code: 403, message: 'Request had insufficient authentication scopes.' }), /Conectar o Gmail/);
+  assert.match(friendlyMailError({ code: 413, message: 'Request too large' }), /grande demais/);
+});
+
+ok('colar: arquivos vêm de `files` ou, se vazio, dos itens do tipo arquivo; print é imagem, PDF não', () => {
+  const png = { name: 'image.png', type: 'image/png' }; const pdf = { name: 'a.pdf', type: 'application/pdf' };
+  assert.deepEqual(clipboardFiles({ files: [png, pdf], items: [] }), [png, pdf]);
+  assert.deepEqual(clipboardFiles({ files: [], items: [{ kind: 'string' }, { kind: 'file', getAsFile: () => png }] }), [png]);
+  assert.deepEqual(clipboardFiles(null), []);
+  assert.equal(isImageFile(png), true);
+  assert.equal(isImageFile(pdf), false);
+  assert.equal(isImageFile({ type: 'image/svg+xml' }), false, 'SVG não entra no corpo (vira anexo)');
 });
 
 console.log(`\n${n} verificações do pacote de personalização passaram.`);

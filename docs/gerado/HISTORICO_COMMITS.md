@@ -2,10 +2,11 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-542 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+543 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (9)
+## 2026-11-02 (10)
 
+- `ea587b4` 11:36 — Caixa de e-mail: pacote de personalização (cor da pasta, formatação, imagens e sugestão de destinatário)
 - `da6e998` 01:44 — Caixa de e-mail: pacote visual (colunas ajustáveis, modos de leitura, lista compacta, atalhos)
 - `d912fd5` 01:31 — Cérebro: pacote de produtividade do e-mail confirmado pelo Rafael
 - `d1a533b` 01:27 — Caixa de e-mail: pastas, regras, rascunhos, sugestão de contatos e aviso de e-mail novo

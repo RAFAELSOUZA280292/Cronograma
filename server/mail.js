@@ -6,7 +6,7 @@ import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { FOLDERS, folderQuery, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, gmailFor, mailStatus, friendlyMailError, forgetMailScope, mapLimit } from './googleMail.js';
-import { parseRecipients, replyRecipients, replySubject, buildQuote, composeBody, buildMime, cleanSignature, signatureHtml, signatureHasContent, sizeError, attachmentsSize, LOGO_CID, MAX_RECIPIENTS, isEmail, sanitizeOutgoingHtml, DRAFT_HEADER, draftMeta, parseDraftMeta, draftBodyHtml, SIG_IMAGE_CID, signatureImageError, restoreInlineImages, BODY_IMAGE_PREFIX, rankContacts, contactRank, foldText } from './mailCompose.js';
+import { parseRecipients, replyRecipients, replySubject, buildQuote, composeBody, buildMime, cleanSignature, signatureHtml, signatureHasContent, sizeError, attachmentsSize, LOGO_CID, MAX_RECIPIENTS, isEmail, sanitizeOutgoingHtml, DRAFT_HEADER, draftMeta, parseDraftMeta, draftBodyHtml, SIG_IMAGE_CID, signatureImageError, restoreInlineImages, BODY_IMAGE_PREFIX, rankContacts, contactRank, foldText, attachmentBlockReason } from './mailCompose.js';
 import { labelColorFor } from '../shared/mailLabelColors.js';
 import { crmRoleOf } from './crm/permissions.js';
 import { pool } from './db.js';
@@ -288,6 +288,8 @@ async function buildOutgoing(req, gmail, b, { draft = false } = {}) {
   }));
   const tooBig = sizeError(attachmentsSize(uploads));
   if (tooBig) return { status: 413, message: tooBig };
+  const blocked = uploads.map(attachmentBlockReason).find(Boolean);
+  if (blocked) return { status: 400, message: blocked };
 
   const me = await myAddress(req, gmail);
   const orig = mode === 'new' ? null : await loadOriginal(gmail, b.messageId);

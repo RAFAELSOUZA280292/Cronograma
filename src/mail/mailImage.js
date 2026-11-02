@@ -11,6 +11,15 @@ const OK_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 
 export const isImageFile = (f) => !!f && OK_TYPES.includes(String(f.type || '').toLowerCase());
 
+// Arquivos da área de transferência: `files` (Chrome, Safari, Edge) ou, se vier vazio, os itens do tipo arquivo
+// (alguns prints do Windows chegam só em `items`).
+export function clipboardFiles(dt) {
+  if (!dt) return [];
+  const files = [...(dt.files || [])];
+  if (files.length) return files;
+  return [...(dt.items || [])].filter((i) => i.kind === 'file').map((i) => i.getAsFile()).filter(Boolean);
+}
+
 // Cabe a imagem numa largura máxima mantendo a proporção (nunca aumenta).
 export function fitSize(w, h, maxW) {
   if (!(w > 0) || !(h > 0)) return { width: 0, height: 0 };
