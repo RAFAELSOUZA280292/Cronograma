@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **409 rotas** em **38 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **414 rotas** em **38 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
@@ -441,7 +441,7 @@ Arquivos: `server/macro.js`.
 |---|---|---|---|---|
 | GET | `/api/macro` | `requireAuth` |  | `server/macro.js:31` |
 
-## `/api/mail` — 25 rotas
+## `/api/mail` — 27 rotas
 
 Arquivos: `server/mail.js`.
 
@@ -458,37 +458,42 @@ Arquivos: `server/mail.js`.
 | GET | `/api/mail/signature` |  |  | `server/mail.js:277` |
 | POST | `/api/mail/signature/preview` |  |  | `server/mail.js:288` |
 | PUT | `/api/mail/signature` |  |  | `server/mail.js:292` |
-| GET | `/api/mail/signature/logo.png` |  |  | `server/mail.js:306` |
-| GET | `/api/mail/compose` |  | Dados para abrir a janela de resposta/encaminhamento: destinatários, assunto, prévia da citação e anexos originais. | `server/mail.js:313` |
-| POST | `/api/mail/send` |  |  | `server/mail.js:396` |
-| POST | `/api/mail/drafts` |  | Salva (cria ou atualiza) o rascunho no Gmail e devolve o id da mensagem nova e os anexos que ficaram nele. | `server/mail.js:418` |
-| GET | `/api/mail/drafts/by-thread/:threadId` |  | Acha o rascunho de uma conversa (a lista de Rascunhos mostra conversas; o Gmail guarda o rascunho com id próprio). | `server/mail.js:436` |
-| GET | `/api/mail/drafts/:id` |  | Dados para reabrir o rascunho na janela de escrita. | `server/mail.js:453` |
-| DELETE | `/api/mail/drafts/:id` |  | Descartar rascunho (o Gmail não tem lixeira para rascunho; a tela confirma antes). | `server/mail.js:489` |
-| POST | `/api/mail/labels` |  |  | `server/mail.js:503` |
-| PATCH | `/api/mail/labels/:id` |  | Renomear e/ou mudar a cor. Tirar a cor (color: null) usa labels.update sem o campo color: o patch não apaga campo. | `server/mail.js:519` |
-| GET | `/api/mail/rules` |  |  | `server/mail.js:552` |
-| POST | `/api/mail/rules` |  |  | `server/mail.js:567` |
-| DELETE | `/api/mail/rules/:id` |  |  | `server/mail.js:586` |
-| GET | `/api/mail/contacts` |  |  | `server/mail.js:625` |
-| GET | `/api/mail/inbox-peek` |  | Aviso de e-mail novo: as 10 conversas não lidas mais recentes da Entrada (a tela compara com as que já conhecia). | `server/mail.js:653` |
+| GET | `/api/mail/prefs` |  |  | `server/mail.js:310` |
+| PUT | `/api/mail/prefs` |  |  | `server/mail.js:317` |
+| GET | `/api/mail/signature/logo.png` |  |  | `server/mail.js:329` |
+| GET | `/api/mail/compose` |  | Dados para abrir a janela de resposta/encaminhamento: destinatários, assunto, prévia da citação e anexos originais. | `server/mail.js:336` |
+| POST | `/api/mail/send` |  |  | `server/mail.js:419` |
+| POST | `/api/mail/drafts` |  | Salva (cria ou atualiza) o rascunho no Gmail e devolve o id da mensagem nova e os anexos que ficaram nele. | `server/mail.js:441` |
+| GET | `/api/mail/drafts/by-thread/:threadId` |  | Acha o rascunho de uma conversa (a lista de Rascunhos mostra conversas; o Gmail guarda o rascunho com id próprio). | `server/mail.js:459` |
+| GET | `/api/mail/drafts/:id` |  | Dados para reabrir o rascunho na janela de escrita. | `server/mail.js:476` |
+| DELETE | `/api/mail/drafts/:id` |  | Descartar rascunho (o Gmail não tem lixeira para rascunho; a tela confirma antes). | `server/mail.js:512` |
+| POST | `/api/mail/labels` |  |  | `server/mail.js:526` |
+| PATCH | `/api/mail/labels/:id` |  | Renomear e/ou mudar a cor. Tirar a cor (color: null) usa labels.update sem o campo color: o patch não apaga campo. | `server/mail.js:542` |
+| GET | `/api/mail/rules` |  |  | `server/mail.js:575` |
+| POST | `/api/mail/rules` |  |  | `server/mail.js:590` |
+| DELETE | `/api/mail/rules/:id` |  |  | `server/mail.js:609` |
+| GET | `/api/mail/contacts` |  |  | `server/mail.js:648` |
+| GET | `/api/mail/inbox-peek` |  | Aviso de e-mail novo: as 10 conversas não lidas mais recentes da Entrada (a tela compara com as que já conhecia). | `server/mail.js:676` |
 
-## `/api/mail-links` — 10 rotas
+## `/api/mail-links` — 13 rotas
 
 Arquivos: `server/mailLinks.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/mail-links/company/:id` | `needCrm` |  | `server/mailLinks.js:205` |
-| GET | `/api/mail-links/deal/:id` | `needCrm` |  | `server/mailLinks.js:212` |
-| GET | `/api/mail-links/project/:id` |  |  | `server/mailLinks.js:219` |
-| GET | `/api/mail-links/thread/:rowId` |  | Texto da conversa, sob demanda, do Gmail de quem trocou (o da própria pessoa quando ela participou). Imagens embutidas e anexos não vêm (só o nome do anexo); cada leitur… | `server/mailLinks.js:232` |
-| GET | `/api/mail-links/marks` | `needCrm` |  | `server/mailLinks.js:263` |
-| POST | `/api/mail-links/marks` | `needWrite` |  | `server/mailLinks.js:270` |
-| DELETE | `/api/mail-links/marks/:key` | `needWrite` |  | `server/mailLinks.js:284` |
-| POST | `/api/mail-links/report` |  | Operações (ou qualquer pessoa da equipe) avisa o comercial: notificação para a Eduarda (Comercial) e os sócios, uma vez por domínio a cada 24 h. | `server/mailLinks.js:293` |
-| POST | `/api/mail-links/refresh` |  |  | `server/mailLinks.js:318` |
-| GET | `/api/mail-links/radar` | `needCrm` |  | `server/mailLinks.js:343` |
+| GET | `/api/mail-links/person` | `needCrm` | Conversas de toda a equipe com um endereço (Caixa de e-mail, ao pesquisar ou clicar num e-mail do painel): a pesquisa da Caixa só vê o Gmail da própria pessoa; aqui entr… | `server/mailLinks.js:211` |
+| GET | `/api/mail-links/company/:id` | `needCrm` |  | `server/mailLinks.js:218` |
+| GET | `/api/mail-links/deal/:id` | `needCrm` |  | `server/mailLinks.js:225` |
+| GET | `/api/mail-links/project/:id` |  |  | `server/mailLinks.js:232` |
+| GET | `/api/mail-links/thread/:rowId` |  | Texto da conversa, sob demanda, do Gmail de quem trocou (o da própria pessoa quando ela participou). Imagens embutidas e anexos não vêm (só o nome do anexo); cada leitur… | `server/mailLinks.js:245` |
+| GET | `/api/mail-links/row/:rowId/messages/:mid/attachments/:aid` |  |  | `server/mailLinks.js:284` |
+| GET | `/api/mail-links/marks` | `needCrm` |  | `server/mailLinks.js:314` |
+| POST | `/api/mail-links/marks` | `needWrite` |  | `server/mailLinks.js:321` |
+| POST | `/api/mail-links/link` | `needWrite` | "Parece ser INDEMIL — vincular?": liga o domínio à empresa do CRM para sempre (marca com company_id), preenche o site da empresa quando está vazio e, se pedido, cadastra… | `server/mailLinks.js:337` |
+| DELETE | `/api/mail-links/marks/:key` | `needWrite` |  | `server/mailLinks.js:369` |
+| POST | `/api/mail-links/report` |  | Operações (ou qualquer pessoa da equipe) avisa o comercial: notificação para a Eduarda (Comercial) e os sócios, uma vez por domínio a cada 24 h. | `server/mailLinks.js:378` |
+| POST | `/api/mail-links/refresh` |  |  | `server/mailLinks.js:403` |
+| GET | `/api/mail-links/radar` | `needCrm` |  | `server/mailLinks.js:430` |
 
 ## `/api/meeting-inbox` — 4 rotas
 

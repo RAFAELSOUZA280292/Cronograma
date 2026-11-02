@@ -13,7 +13,7 @@ import { canAccessProject } from './routes.js';
 import { gmailFor, mailStatus, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, mapLimit, friendlyMailError } from './googleMail.js';
 import { googleConfigured } from './googleCalendar.js';
 import { createNotification } from './notifications.js';
-import { buildDirectory, classifyThread, linkForViewer, threadFacts, keysOfCompany, groupRows, canReadContent, cleanKey, MARK_KINDS, prettyKey, keyOf } from './mailLinksCore.js';
+import { buildDirectory, classifyThread, linkForViewer, threadFacts, keysOfCompany, groupRows, canReadContent, cleanKey, MARK_KINDS, prettyKey, keyOf, lowerEmail } from './mailLinksCore.js';
 
 const DIR_TTL = 2 * 60 * 1000;
 const dirCache = new Map(); // orgId -> { at, dir, projects: [{id, cnpj}] , pending }
@@ -168,14 +168,16 @@ const h = (fn) => async (req, res, next) => { try { await fn(req, res); } catch 
 const needCrm = (req, res, next) => (hasCrm(req.user) ? next() : res.status(403).json({ message: 'Esta lista faz parte do CRM, que não está no seu papel.' }));
 const needWrite = (req, res, next) => (req.user && crmCan(req.user, 'write') ? next() : res.status(403).json({ message: 'Só quem cadastra no CRM pode classificar domínios.' }));
 
-export async function conversationsFor(user, keys) {
+// `person`: só as conversas em que aquele endereço participa (Caixa de e-mail → "Conversas da equipe com esta pessoa").
+export async function conversationsFor(user, keys, { person = '' } = {}) {
   const req = { user };
   if (!keys.size) return { conversations: [], keys: [] };
   const { rows } = await pool.query(
     `SELECT i.id, i.user_id, u.name AS user_name, i.thread_id, i.conv_key, i.subject, i.participants, i.msg_count, i.last_at, i.has_attachment
      FROM mail_thread_index i JOIN users u ON u.id = i.user_id WHERE i.org_id=$1 AND i.keys && $2::text[] ORDER BY i.last_at DESC NULLS LAST LIMIT 400`,
     [req.user.orgId, [...keys]]);
-  const groups = groupRows(rows.map((r) => ({ id: String(r.id), userId: r.user_id, userName: r.user_name, convKey: r.conv_key, subject: r.subject, participants: r.participants || [], msgCount: r.msg_count, lastAt: r.last_at ? new Date(r.last_at).toISOString() : null, hasAttachment: r.has_attachment })));
+  const hit = person ? rows.filter((r) => (r.participants || []).some((p) => lowerEmail(p && p.email) === person)) : rows;
+  const groups = groupRows(hit.map((r) => ({ id: String(r.id), userId: r.user_id, userName: r.user_name, convKey: r.conv_key, subject: r.subject, participants: r.participants || [], msgCount: r.msg_count, lastAt: r.last_at ? new Date(r.last_at).toISOString() : null, hasAttachment: r.has_attachment })));
   return {
     keys: [...keys],
     conversations: groups.slice(0, 150).map((g) => {
@@ -203,6 +205,15 @@ export async function companyKeys(orgId, companyId) {
   for (const key of [...keys]) { const t = d.dir.byKey.get(key); if (!t || (t.companyId && t.companyId !== companyId) || (t.source === 'mark' && !['cliente', 'prospect'].includes(t.kind))) keys.delete(key); }
   return keys;
 }
+
+// Conversas de toda a equipe com um endereço (Caixa de e-mail, ao pesquisar ou clicar num e-mail do painel): a pesquisa da
+// Caixa só vê o Gmail da própria pessoa; aqui entra o que a Eduarda trocou sem copiar ninguém (pedido do Rafael, 02/11/2026).
+router.get('/person', needCrm, h(async (req, res) => {
+  const email = lowerEmail(req.query.email);
+  const key = keyOf(email);
+  if (!key || !/^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(email)) return res.status(400).json({ message: 'Informe um e-mail válido.' });
+  res.json({ ...(await conversationsFor(req.user, new Set([key]), { person: email })), keys: [email] });
+}));
 
 router.get('/company/:id', needCrm, h(async (req, res) => {
   if (!UUID.test(req.params.id)) return res.status(400).json({ message: 'Empresa inválida.' });

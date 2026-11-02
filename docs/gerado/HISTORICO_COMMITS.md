@@ -2,10 +2,24 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-568 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+582 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (35)
+## 2026-11-02 (49)
 
+- `718f15e` 18:24 — Caixa de e-mail: pesquisa olha todas as pastas (folder vazio virava Caixa de entrada) (§116zzzzzzzzzzzz)
+- `d57e284` 18:21 — Cérebro: e-mail do CRM abrindo a Caixa do painel confirmado pelo Rafael em produção
+- `1ae80fc` 18:19 — E-mail no CRM: ouvinte do mailto: na fase de captura (cartões paravam o clique e o Mail do Mac abria)
+- `aaee1a1` 18:14 — E-mail clicado no painel abre a Caixa do painel com escrita e conversas, não o Outlook/Mail (§116zzzzzzzzzzz)
+- `4e9314e` 18:08 — Assinatura do e-mail: tipo Imagem (banner) ou Texto e despedida livre em cima (§116zzzzzzzzzz)
+- `967f023` 18:03 — Cérebro: imagens sempre à mostra na Caixa de e-mail (§116zzzzzzzzz)
+- `de1fa27` 17:52 — Caixa de e-mail: imagens sempre à mostra por padrão, com opção em Configurar (§116zzzzzzzzz)
+- `61a0834` 17:48 — E-mail × CRM: assinatura, imagens e anexos na aba E-mails do negócio e da empresa (§130)
+- `75150e3` 17:40 — E-mail × CRM: "Parece ser INDEMIL — vincular?" para empresa do CRM sem site nem e-mail (§130)
+- `94862bf` 17:35 — E-mail × CRM: parceiro em cópia vira "Indicação", o selo fica com o cliente (§130)
+- `3068504` 17:29 — E-mail × CRM: contato de parceiro cadastrado em cliente não rotula mais a conversa (§130)
+- `fdb8325` 17:29 — CRM: Voltar do navegador não joga mais para a tela inicial com /crm no endereço
+- `fd7c3f9` 16:02 — RENATA lê e revisa as propostas anexadas nos negócios do CRM (§131)
+- `856969b` 15:53 — E-mail ligado ao CRM e às Empresas: selo, "Empresa fora do CRM", aba E-mails, RENATA e radar no cockpit (§130)
 - `0ecb374` 15:53 — API por chave à prova de IA: descoberta, OpenAPI 3.1, guia e "Copiar tudo para a IA" (§129)
 - `cd80b72` 15:50 — docs: lição sem caminho de arquivo não publicado
 - `bd56346` 15:50 — Lição: conferir o clone (diff + subir o servidor) logo antes do push ao publicar parte da pasta

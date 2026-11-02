@@ -96,7 +96,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/gaps.js` | 232 | Lacunas entre cronogramas (Etapa 4 do plano, 2026-10-08; pedido do Felipe: "levantamento de tudo que temos de atividades ... para |
 | `server/google.js` | 91 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
 | `server/googleCalendar.js` | 474 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
-| `server/googleMail.js` | 295 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
+| `server/googleMail.js` | 299 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
 | `server/homePrefs.js` | 31 | Tela inicial personalizável e barra de favoritos (2026-11-02, §126): GET/PUT /api/home-prefs. Cada pessoa lê e grava só a |
 | `server/icalFeed.js` | 311 | Agenda por link iCal, só leitura (§128, 2026-11-02): o "endereço secreto no formato iCal" do Google Agenda, o "publicar agenda" do |
 | `server/index.js` | 203 |  |
@@ -113,11 +113,11 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/linkPreview.js` | 146 | Pré-visualização de links (título, descrição, imagem) — 2026-10-05, §78. O servidor busca a página, então a defesa é contra |
 | `server/loginLimit.js` | 49 | Limite de tentativas de login (A2, 2026-10-29). Em memória: reinicia com o servidor, o que basta para barrar tentativa em série. |
 | `server/macro.js` | 128 | Visão Macro (2026-08) — quadro de cronograma geral pra controle interno: |
-| `server/mail.js` | 661 | Rotas da Caixa de e-mail (2026-11-02, Fase 1). Só leitura e organização do Gmail da própria pessoa: cada chamada usa o |
-| `server/mailCompose.js` | 476 | Caixa de e-mail, Fase 2 (2026-11-02): montar o e-mail que SAI do painel. Tudo aqui é puro (testado em |
-| `server/mailLinks.js` | 348 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras puras em server/mailLinksCore.js; tabelas em server/mailLinksSchema.js. |
-| `server/mailLinksCore.js` | 245 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras PURAS (sem banco, sem Gmail): de cada participante externo sai uma |
-| `server/mailLinksSchema.js` | 63 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Só aditivo; chamado por initDb(). O índice guarda SÓ metadados (ids, assunto, |
+| `server/mail.js` | 684 | Rotas da Caixa de e-mail (2026-11-02, Fase 1). Só leitura e organização do Gmail da própria pessoa: cada chamada usa o |
+| `server/mailCompose.js` | 492 | Caixa de e-mail, Fase 2 (2026-11-02): montar o e-mail que SAI do painel. Tudo aqui é puro (testado em |
+| `server/mailLinks.js` | 435 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras puras em server/mailLinksCore.js; tabelas em server/mailLinksSchema.js. |
+| `server/mailLinksCore.js` | 325 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras PURAS (sem banco, sem Gmail): de cada participante externo sai uma |
+| `server/mailLinksSchema.js` | 65 | E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Só aditivo; chamado por initDb(). O índice guarda SÓ metadados (ids, assunto, |
 | `server/materialText.js` | 152 | Biblioteca de conhecimento da RENATA (2026-10-27, §116): leitura de arquivos em texto e fatiamento em trechos. |
 | `server/meetingEdit.js` | 172 | Correção de uma reunião já registrada pela API de conectividade (§116e, escopo `meetings_edit`). Função pura sobre o `data` do projeto: |
 | `server/meetingEditsSchema.js` | 20 | Histórico das correções de reunião feitas pela API (§116e). O versionamento do cronograma (`project_versions`, §83) só enxerga atividades, fases e equipe — não reuniões —, |
@@ -223,11 +223,11 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 | `shared/workRoles.js` | 104 | Papéis de trabalho (2026-11-02, pedido do Rafael: valem a partir de 03/11). Convivem com o perfil técnico (`role`: master/pricetax/cliente), |
 
-## `src/` — 221 arquivos
+## `src/` — 223 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
-| `src/App.jsx` | 3724 |  |
+| `src/App.jsx` | 3750 |  |
 | `src/agenda/AccountsDialog.jsx` | 177 | "Minhas agendas" (§128, 2026-11-02): a agenda principal (Google) + as extras da pessoa — outra conta Google, Microsoft 365/Outlook.com |
 | `src/agenda/Agenda.jsx` | 630 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/EventDetail.jsx` | 206 | Detalhe do compromisso do Google dentro do painel (2026-11-02, "nunca mais abrir o Google Agenda"): Meet, participantes com a |
@@ -346,12 +346,14 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/mail/Folders.jsx` | 177 | Pastas e regras da Caixa de e-mail (2026-11-02, pacote de produtividade). "Pasta" = marcador do Gmail: mover põe a pasta e |
 | `src/mail/InviteCard.jsx` | 141 | Cartão de convite de reunião na leitura do e-mail (2026-11-02): convite novo ou alterado, cancelamento, resposta de alguém e |
 | `src/mail/MailFrame.jsx` | 34 | Corpo de e-mail desenhado num iframe sem script (sandbox), com o HTML já higienizado no servidor. Usado na leitura, |
-| `src/mail/MailLinks.jsx` | 267 | E-mail ligado ao CRM e às Empresas (§130). Selo da conversa ("Cliente · KUHN", "Lead · OKUBO · Proposta", "Parceiro · Tróia"), |
-| `src/mail/MailScreen.jsx` | 996 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). Três colunas como no Outlook — pastas, lista, leitura — sobre o |
-| `src/mail/SignatureDialog.jsx` | 120 | Assinatura do e-mail por pessoa (2026-11-02, Fase 2). Campos simples em vez de HTML livre: o servidor monta a tabela |
-| `src/mail/mail.css` | 293 | Caixa de e-mail (2026-11-02). Três colunas no computador; uma no celular (abaixo de 768 px). */ |
+| `src/mail/MailLinks.jsx` | 344 | E-mail ligado ao CRM e às Empresas (§130). Selo da conversa ("Cliente · KUHN", "Lead · OKUBO · Proposta", "Parceiro · Tróia"), |
+| `src/mail/MailScreen.jsx` | 1036 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). Três colunas como no Outlook — pastas, lista, leitura — sobre o |
+| `src/mail/SignatureDialog.jsx` | 134 | Assinatura do e-mail por pessoa (2026-11-02, Fase 2). Campos simples em vez de HTML livre: o servidor monta a tabela |
+| `src/mail/mail.css` | 302 | Caixa de e-mail (2026-11-02). Três colunas no computador; uma no celular (abaixo de 768 px). */ |
 | `src/mail/mailImage.js` | 94 | Imagens da Caixa de e-mail (pacote de personalização, 2026-11-02): imagem colada/arrastada no corpo e imagem própria da |
-| `src/mail/mailLinks.css` | 47 | E-mail ligado ao CRM (§130): selo, faixa "Empresa fora do CRM", aba E-mails e bloco do cockpit. Só tokens do tema. */ |
+| `src/mail/mailIntent.js` | 22 | Pedidos de outras telas para a Caixa de e-mail (sem prop drilling): abrir uma conversa (§130) ou escrever para alguém já |
+| `src/mail/mailLinks.css` | 55 | E-mail ligado ao CRM (§130): selo, faixa "Empresa fora do CRM", aba E-mails e bloco do cockpit. Só tokens do tema. */ |
+| `src/mail/mailPrefs.js` | 26 | Preferências da caixa de e-mail da pessoa (GET/PUT /api/mail/prefs), lidas uma vez e divididas entre a Caixa de e-mail e a |
 | `src/mail/mailView.js` | 97 | Caixa de e-mail, pacote visual (2026-11-02): preferências de exibição (largura das colunas, painel de leitura, densidade) e o mapa |
 | `src/main.jsx` | 24 |  |
 | `src/meetings/ActivityLink.jsx` | 300 | Vínculo tarefa de reunião → atividade do cronograma (Fase 1 do plano, 2026-10-13; docs/PLANO_VINCULO_TAREFA_ATIVIDADE.md). |

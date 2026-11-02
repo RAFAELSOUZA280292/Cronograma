@@ -15,7 +15,7 @@ import InviteCard from './InviteCard.jsx';
 import Compose, { fmtSize } from './Compose.jsx';
 import SignatureDialog from './SignatureDialog.jsx';
 import { MoveDialog, RulesDialog, FolderDialog } from './Folders.jsx';
-import { LinkBadge, PartnerTag, UnknownBanner, RegisterDeal, mailIntent } from './MailLinks.jsx';
+import { LinkBadge, PartnerTag, UnknownBanner, RegisterDeal, MailLinksTab, mailIntent } from './MailLinks.jsx';
 import { MAIL_INTENT_EVENT } from './mailIntent.js';
 import { isTypingTarget } from '../shell/shortcuts.js';
 import { LIMITS, sanitizeView, viewKey, clampList, stepSize, mailKeyAction, neighborId, afterRemoval, removesFrom } from './mailView.js';
@@ -71,6 +71,9 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, 
   const [folderEdit, setFolderEdit] = useState(null);
   const [register, setRegister] = useState(null); // { won, prefill }: cadastro do negócio a partir da faixa "Empresa fora do CRM" (§130)
   const crmAccess = !!currentUser.crmAccess;
+  // Pesquisa por um endereço (digitada ou vinda do clique num e-mail do painel): a leitura vazia mostra as conversas da EQUIPE
+  // com a pessoa (índice do §130), porque a pesquisa só vê o Gmail de quem está logado.
+  const personEmail = crmAccess && /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(search.trim()) ? search.trim().toLowerCase() : '';
   const crmWrite = crmAccess && (currentUser.isSuperAdmin || currentUser.role === 'master' || ['socio', 'comercial'].includes(currentUser.workRole) || CRM_WRITE.includes(currentUser.crmRole));
   const [notifPerm, setNotifPerm] = useState(() => (canNotify() ? Notification.permission : 'unsupported'));
   const reqRef = useRef(0);
@@ -558,7 +561,7 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, 
               <BusyBar active={loading} />
               {listError && <div className="mail-pad"><Callout tone="danger" icon={AlertTriangle} title="Não consegui carregar os e-mails">{listError}</Callout></div>}
               {!loading && !listError && threads.length === 0 && (
-                <EmptyState icon={Inbox} title={search ? 'Nada encontrado' : 'Nenhum e-mail aqui'} description={search ? 'Tente outras palavras ou procure por remetente (from:).' : 'Quando chegar algo nesta pasta, aparece aqui.'} compact />
+                <EmptyState icon={Inbox} title={search ? 'Nada encontrado' : 'Nenhum e-mail aqui'} description={personEmail ? 'Nada na sua caixa com este endereço. Ao lado, as conversas da equipe com esta pessoa.' : search ? 'Tente outras palavras ou procure por remetente (from:).' : 'Quando chegar algo nesta pasta, aparece aqui.'} compact />
               )}
               <ul className={`mail-rows${compact ? ' compact' : ''}`}>
                 {threads.map((t) => (
@@ -632,7 +635,15 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, 
                   onRegister={setRegister} onLinkChanged={() => { setThreadRev((r) => r + 1); loadThreads({ quiet: true }); }}
                 />
               ) : (
-                <EmptyState icon={MailOpen} title="Escolha um e-mail para ler" description="Clique numa conversa da lista. Ela é marcada como lida ao abrir, como no Outlook." />
+                personEmail ? (
+                  <div className="mail-team">
+                    <h3 className="mail-team-title">Conversas da equipe com {personEmail}</h3>
+                    <p className="mail-team-hint">De todas as caixas da PRICETAX, inclusive as que não passaram pela sua. O texto abre para os sócios e para quem participou; cada leitura da caixa de outra pessoa fica registrada.</p>
+                    <MailLinksTab key={personEmail} url={`/api/mail-links/person?email=${encodeURIComponent(personEmail)}`} empty="Ninguém da equipe trocou e-mail com esta pessoa ainda (o índice cobre as caixas de quem já abriu a Caixa de e-mail e a varredura a cada 6 h)." />
+                  </div>
+                ) : (
+                  <EmptyState icon={MailOpen} title="Escolha um e-mail para ler" description="Clique numa conversa da lista. Ela é marcada como lida ao abrir, como no Outlook." />
+                )
               )}
             </section>
           )}
