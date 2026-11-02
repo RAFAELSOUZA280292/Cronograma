@@ -94,10 +94,11 @@ function CnpjCard({ info, onUseExisting, onUseData }) {
   );
 }
 
-function DealForm({ initial, company, defaultType, defaultPipelineId, options, currentUserId, onSaved, onCancel }) {
+// `prefill` (§130, vindo da Caixa de e-mail): título, origem, descrição e o lead rápido já preenchidos (empresa, contato, e-mail, site).
+function DealForm({ initial, company, defaultType, defaultPipelineId, options, currentUserId, onSaved, onCancel, prefill }) {
   const editing = !!(initial && initial.id);
   const [form, setForm] = useState(() => (editing ? fromDeal(initial) : {
-    title: '', dealType: defaultType || 'new', value: '', mrr: '', expectedCloseDate: '', probabilityOverride: '', ownerId: currentUserId || '', primaryContactId: '', source: '', description: '',
+    title: (prefill && prefill.title) || '', dealType: defaultType || 'new', value: '', mrr: '', expectedCloseDate: '', probabilityOverride: '', ownerId: currentUserId || '', primaryContactId: '', source: (prefill && prefill.source) || '', description: (prefill && prefill.description) || '',
   }));
   const [items, setItems] = useState(() => (editing && initial.items ? initial.items.map((i) => ({ productId: i.productId || CUSTOM, name: i.name, quantity: String(i.quantity), unitPrice: numStr(i.unitPrice) })) : []));
   const [picked, setPicked] = useState(company || (editing ? { id: initial.companyId, legalName: initial.companyName, relationship: initial.companyRelationship } : null));
@@ -107,9 +108,9 @@ function DealForm({ initial, company, defaultType, defaultPipelineId, options, c
     const pick = [defaultPipelineId, remembered].find((id) => id && pipelines.some((p) => p.id === id));
     return pick || ((pipelines.find((p) => p.isDefault) || pipelines[0] || {}).id || '');
   });
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(() => (prefill && prefill.quick && prefill.quick.companyName) || '');
   const t0 = useRef(Date.now());
-  const [quick, setQuick] = useState(null); // lead rápido: { contactName, phone, email, companyName, cnpj, companyData, dups }
+  const [quick, setQuick] = useState(() => (prefill && prefill.quick ? { contactName: '', phone: '', email: '', ...prefill.quick } : null)); // lead rápido: { contactName, phone, email, companyName, cnpj, companyData, dups }
   const [cnpjInfo, setCnpjInfo] = useState(null);
   const [ctForm, setCtForm] = useState(null); // { contact? } → formulário do contato principal
   const [pendingContact, setPendingContact] = useState('');
@@ -182,7 +183,7 @@ function DealForm({ initial, company, defaultType, defaultPipelineId, options, c
     setBusy(true);
     try {
       if (!editing && !picked && quick) {
-        const r = await crm.quickLead({ companyName: (quick.companyName || q.trim()), cnpj: quick.cnpj || '', companyData: quick.companyData || undefined, contactName: quick.contactName, phone: quick.phone, email: quick.email, title: form.title, pipelineId, source: form.source.trim(), force: !!quick.force });
+        const r = await crm.quickLead({ companyName: (quick.companyName || q.trim()), cnpj: quick.cnpj || '', companyData: quick.companyData || undefined, contactName: quick.contactName, phone: quick.phone, email: quick.email, title: form.title, pipelineId, source: form.source.trim(), description: form.description, force: !!quick.force });
         trackFlow('crm.lead_rapido', 'ok', Date.now() - t0.current);
         onSaved(r.deal);
         return;

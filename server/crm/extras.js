@@ -119,6 +119,7 @@ export async function quickLead(orgId, actor, input) {
     deal = await createDeal(orgId, actor, {
       companyId: company.id, title: String(src.title || '').trim() || companyName, pipelineId: src.pipelineId || null, stageId: src.stageId || undefined,
       primaryContactId: contact ? contact.id : undefined, source: String(src.source || '').slice(0, 200), value: 0,
+      ...(src.description ? { description: String(src.description).slice(0, 4000) } : {}),
     });
   } catch (e) {
     if (contact) await deleteContact(orgId, actor, contact.id).catch((err) => console.error('quickLead: falha ao desfazer o contato', err.message));

@@ -1,0 +1,46 @@
+/* E-mail ligado ao CRM (§130): selo, faixa "Empresa fora do CRM", aba E-mails e bloco do cockpit. Só tokens do tema. */
+.ml-badge-wrap { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.ml-badge { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 18px; border: 1px solid transparent; }
+.ml-badge.tone-client { background: var(--ui-ok-bg); color: var(--ui-ok); border-color: color-mix(in srgb, var(--ui-ok) 35%, transparent); }
+.ml-badge.tone-lead { background: var(--ui-info-bg); color: var(--ui-info); border-color: color-mix(in srgb, var(--ui-info) 35%, transparent); }
+.ml-badge.tone-partner { background: var(--ui-accent-bg); color: var(--ui-accent-text); border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent); }
+.ml-badge.tone-supplier, .ml-badge.tone-former { background: var(--bg-3); color: var(--text-2); border-color: var(--border-2); }
+.mail-row .ml-badge { margin-top: 4px; font-size: 11.5px; line-height: 16px; padding: 1px 7px; }
+.ml-row-unknown { display: inline-block; margin-top: 4px; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 700; line-height: 16px; background: var(--ui-warn-bg); color: var(--ui-warn); }
+.ml-thread-link { margin: 4px 0 10px; }
+
+.ml-nag { display: flex; gap: 10px; margin: 6px 0 14px; padding: 12px 14px; border-radius: 10px; background: var(--ui-warn-bg); border: 1px solid color-mix(in srgb, var(--ui-warn) 45%, transparent); color: var(--text-1); }
+.ml-nag-icon { flex: 0 0 auto; color: var(--ui-warn); margin-top: 1px; }
+.ml-nag-body { flex: 1; min-width: 0; }
+.ml-nag-title { font-weight: 800; font-size: 14px; overflow-wrap: anywhere; }
+.ml-nag-text { margin-top: 2px; font-size: 13px; color: var(--text-2); }
+.ml-nag-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+.ml-tab { display: flex; flex-direction: column; gap: 8px; color: var(--text-1); }
+.ml-tab-head { font-size: 12.5px; color: var(--text-5); overflow-wrap: anywhere; }
+.ml-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ml-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border-1); border-radius: 10px; background: var(--bg-1); }
+.ml-item-main { flex: 1; min-width: 0; }
+.ml-item-top { display: flex; align-items: center; gap: 6px; }
+.ml-subject { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: 13.5px; color: var(--text-1); }
+.ml-date { flex: 0 0 auto; font-size: 12px; color: var(--text-5); }
+.ml-meta { font-size: 12.5px; color: var(--text-5); overflow-wrap: anywhere; }
+.ml-locked { flex: 0 0 auto; font-size: 12px; color: var(--text-5); max-width: 140px; text-align: right; }
+
+.ml-reader { display: flex; flex-direction: column; gap: 10px; color: var(--text-1); }
+.ml-reader-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ml-reader-subject { margin: 4px 0 0; font-size: 16px; color: var(--text-1); }
+.ml-msg { border: 1px solid var(--border-1); border-radius: 10px; overflow: hidden; background: var(--bg-1); }
+.ml-msg-head { padding: 10px 12px; border-bottom: 1px solid var(--border-1); color: var(--text-1); }
+
+.ml-radar { display: flex; flex-direction: column; gap: 8px; color: var(--text-1); }
+.ml-radar-head { display: flex; align-items: center; gap: 8px; }
+.ml-radar-title { margin: 0; font-size: 15px; font-weight: 800; }
+.ml-radar-count { min-width: 22px; padding: 0 7px; border-radius: 999px; text-align: center; font-size: 12px; font-weight: 800; line-height: 20px; background: var(--bg-3); color: var(--text-2); }
+.ml-radar-count.on { background: var(--ui-warn-bg); color: var(--ui-warn); }
+.ml-radar-actions { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; max-width: 50%; }
+@media (max-width: 720px) {
+  .ml-item { flex-direction: column; }
+  .ml-radar-actions { max-width: none; justify-content: flex-start; }
+  .ml-locked { text-align: left; max-width: none; }
+}

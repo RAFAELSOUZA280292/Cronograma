@@ -18,6 +18,7 @@ import { askConfirm, notify } from '../ui/dialogs.jsx';
 import { fmtMoney, fmtDateBR, fmtDateTimeBR, DEAL_TYPE_META, DEAL_STATUS_META, TIMELINE_KIND, sourceLabel, stageAgeColor, cadenceNotice, softDot } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
 import { trackFlow } from '../lib/experience.js';
+import { MailLinksTab } from '../mail/MailLinks.jsx';
 
 
 // A auditoria guarda os valores crus (new/open/won…); na tela vão em português.
@@ -83,7 +84,7 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
 
   const d = data && data.deal;
   const canEdit = d && caps.write && (d.status === 'open' || caps.remove);
-  const tabs = [['summary', 'Resumo'], ['history', 'Histórico']];
+  const tabs = [['summary', 'Resumo'], ['history', 'Histórico'], ['emails', 'E-mails']];
   if (caps.remove) tabs.push(['audit', 'Auditoria']);
   const stageOf = (kind) => data && data.stages.find((s) => s.kind === kind);
 
@@ -261,6 +262,8 @@ function DealDrawer({ dealId, caps, options, currentUserId, onClose, onChanged, 
                 </div>
               </>
             )}
+
+            {data && tab === 'emails' && <MailLinksTab url={`/api/mail-links/deal/${dealId}`} empty="Nenhuma conversa da equipe com os contatos desta empresa no índice ainda. Elas entram quando cada pessoa abre a Caixa de e-mail (e numa varredura a cada 6 h)." />}
 
             {data && tab === 'audit' && (
               <>

@@ -2,10 +2,11 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-567 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+568 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (34)
+## 2026-11-02 (35)
 
+- `0ecb374` 15:53 — API por chave à prova de IA: descoberta, OpenAPI 3.1, guia e "Copiar tudo para a IA" (§129)
 - `cd80b72` 15:50 — docs: lição sem caminho de arquivo não publicado
 - `bd56346` 15:50 — Lição: conferir o clone (diff + subir o servidor) logo antes do push ao publicar parte da pasta
 - `1950d5e` 15:47 — Corrige o deploy: tira de server/index.js a importação de mailLinks (trabalho de outra sessão, não publicado)

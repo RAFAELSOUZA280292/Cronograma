@@ -92,6 +92,10 @@ export function createNotificationActions({
       openCompanyWorkspace([t.projectId]);
       setView('meetings');
       openMeetingDetail(t.projectId, t.meetingId);
+    } else if (t.kind === 'mail_radar') {
+      // §130: "Empresa fora do CRM" avisada por alguém da equipe → tela inicial, bloco "Negócios fora do CRM".
+      markNotificationRead(n.id, true);
+      goToWorkspace(null);
     } else if (t.kind === 'briefing') {
       markNotificationRead(n.id, true);
       goToWorkspace(null);

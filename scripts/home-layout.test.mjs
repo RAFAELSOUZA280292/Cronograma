@@ -14,14 +14,15 @@ t('quem nunca mexeu vê o padrão, igual à tela de antes', () => {
   const m = mergeLayout(null, {});
   assert.deepEqual(m, DEFAULT_LAYOUT);
   assert.equal(isDefaultLayout(m), true);
-  assert.deepEqual(ids(m), ['daily', 'briefing', 'today', 'week', 'continue', 'agenda', 'modules']);
+  // §130: 'mailRadar' (Negócios fora do CRM) só existe para quem tem CRM; para os demais a grade o esconde e a tela fica como antes.
+  assert.deepEqual(ids(m), ['daily', 'briefing', 'today', 'week', 'continue', 'agenda', 'mailRadar', 'modules']);
   assert.deepEqual(m.items.find((x) => x.id === 'agenda'), { id: 'agenda', w: 6 });
 });
 
 t('layout salvo antigo ganha os blocos novos logo depois do vizinho do padrão', () => {
   const saved = { items: [{ id: 'today', w: 6 }, { id: 'daily', w: 2 }, { id: 'modules', w: 6 }] };
   const m = mergeLayout(saved, {});
-  assert.deepEqual(ids(m), ['today', 'week', 'continue', 'agenda', 'daily', 'briefing', 'modules']);
+  assert.deepEqual(ids(m), ['today', 'week', 'continue', 'agenda', 'mailRadar', 'daily', 'briefing', 'modules']);
   assert.equal(m.items[0].w, 6, 'largura salva fica');
   assert.equal(m.items.find((x) => x.id === 'week').w, 3, 'bloco novo entra com a largura padrão');
   assert.equal(new Set(ids(m)).size, m.items.length, 'sem repetidos');

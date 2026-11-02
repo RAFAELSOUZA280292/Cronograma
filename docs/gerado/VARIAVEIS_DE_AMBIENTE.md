@@ -19,6 +19,7 @@ Só os **nomes** e onde são lidos; **nunca** valores. Os valores reais ficam no
 | `GOOGLE_EXT_REDIRECT_URI` | `server/googleCalendar.js` | `return new google.auth.OAuth2(process.env.GOOGLE_EXT_CLIENT_ID, process.env.GOOGLE_EXT_CLIENT_SECRET, process.env.GOOGLE_EXT_REDIRECT_URI \|\| process.…` |
 | `GOOGLE_REDIRECT_URI` | `server/googleCalendar.js` | `process.env.GOOGLE_REDIRECT_URI` |
 | `JWT_SECRET` | `server/auth.js`, `server/secretBox.js` | `const secret = process.env.JWT_SECRET;` |
+| `MAIL_INDEX_SCAN` | `server/mailLinks.js` | `if (scanTimer \|\| process.env.MAIL_INDEX_SCAN === 'off') return;` |
 | `MS_CLIENT_ID` | `server/microsoftGraph.js` | `export const microsoftConfigured = () => !!(process.env.MS_CLIENT_ID && process.env.MS_CLIENT_SECRET);` |
 | `MS_CLIENT_SECRET` | `server/microsoftGraph.js` | `export const microsoftConfigured = () => !!(process.env.MS_CLIENT_ID && process.env.MS_CLIENT_SECRET);` |
 | `MS_REDIRECT_URI` | `server/microsoftGraph.js` | `const redirectUri = () => process.env.MS_REDIRECT_URI \|\| `${process.env.APP_BASE_URL \|\| ''}/api/microsoft/oauth/callback`;` |

@@ -74,6 +74,7 @@ const CrmScreen = lazyRetry(() => import('./crm/CrmScreen.jsx'));
 const XFlowScreen = lazyRetry(() => import('./xflow/XFlow.jsx'));
 const AgendaScreen = lazyRetry(() => import('./agenda/Agenda.jsx'));
 const MailScreen = lazyRetry(() => import('./mail/MailScreen.jsx'));
+const MailRadarBlock = lazyRetry(() => import('./mail/MailLinks.jsx').then((m) => ({ default: m.MailRadarBlock })));
 const WhatsAppScreen = lazyRetry(() => import('./whatsapp/WhatsAppScreen.jsx'));
 const MacroOverviewScreen = lazyRetry(() => import('./macro/MacroOverview.jsx'));
 const KnowledgeCenterScreen = lazyRetry(() => import('./knowledge/KnowledgeCenter.jsx'));
@@ -460,8 +461,8 @@ const SHELL_MODES = [
 ];
 
 // Abas do workspace de empresa; as 3 primeiras só existem para UMA empresa (a visão de várias não as tem).
-const COMPANY_VIEW_IDS = ['resumo', 'meetings', 'todo', 'timeline', 'table', 'phases', 'kanban', 'mapa', 'triagem', 'cofre'];
-const SINGLE_ONLY_VIEWS = ['resumo', 'meetings', 'todo', 'mapa', 'triagem', 'cofre'];
+const COMPANY_VIEW_IDS = ['resumo', 'meetings', 'todo', 'timeline', 'table', 'phases', 'kanban', 'mapa', 'triagem', 'cofre', 'emails'];
+const SINGLE_ONLY_VIEWS = ['resumo', 'meetings', 'todo', 'mapa', 'triagem', 'cofre', 'emails'];
 
 function AppScreens({ shellRef, bump }) {
   const [theme, setTheme] = useState(() => {
@@ -2250,7 +2251,13 @@ function AppScreens({ shellRef, bump }) {
   }
 
   if (effectiveMode === 'mail') {
-    return guard('mail', 'o E-mail', <MailScreen currentUser={currentUser} theme={theme} onGoAgenda={hasAgenda ? () => goToWorkspace('agenda') : undefined} />);
+    return guard('mail', 'o E-mail', (
+      <MailScreen
+        currentUser={currentUser} theme={theme} onGoAgenda={hasAgenda ? () => goToWorkspace('agenda') : undefined}
+        onOpenCrm={canOpenMode('crm', currentUser) ? (patch) => { goToWorkspace('crm'); setPendingCrmOpen(patch); } : undefined}
+        onOpenProject={(pid) => { if (canOpenMode('company', currentUser) && projects.some((p) => p.id === pid)) openCompanyWorkspace([pid]); else notify('Você não tem acesso a esta empresa.', { tone: 'error' }); }}
+      />
+    ));
   }
 
   if (effectiveMode === 'whatsapp') {
@@ -3518,6 +3525,8 @@ function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersona
             continue: <ContinueStrip items={continueItems} onOpen={(it) => it.run()} />,
             // O quadro pessoal NÃO vai para a RENATA aqui: o painel "Hoje" já lista os cartões atrasados/de hoje com ações.
             agenda: <RenataAgendaBriefing user={user} onOpenAgenda={onPickAgenda} personalBoard={null} onOpenPersonal={onPickPersonal} />,
+            // §130: só quem tem CRM (Sócio e Comercial); para os demais o bloco não existe (a grade o esconde).
+            ...(user.crmAccess ? { mailRadar: <React.Suspense fallback={null}><MailRadarBlock currentUserId={user.id} onOpenMail={onPickMail} /></React.Suspense> } : {}),
             modules: (
               <div className="home-mods">
                 <p className="home-ask">Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>

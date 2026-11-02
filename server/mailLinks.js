@@ -1,0 +1,347 @@
+// E-mail ligado ao CRM e às Empresas (§130, 2026-11-02). Regras puras em server/mailLinksCore.js; tabelas em server/mailLinksSchema.js.
+// - diretório (CRM + Empresas + marcas) por organização, em memória por 2 min (limpo na hora quando alguém marca/registra);
+// - selo e faixa na lista/leitura da Caixa de e-mail (annotateThreads, chamado por server/mail.js);
+// - índice só de metadados (mail_thread_index), alimentado quando a pessoa abre a caixa e por uma varredura leve a cada 6 h com o
+//   token Google DE CADA PESSOA (90 dias na primeira vez). Sem conta de serviço;
+// - rotas /api/mail-links: aba E-mails (negócio, empresa do CRM, empresa do cronograma), texto sob demanda (sócio ou quem participou),
+//   marcas por domínio, "Avisar o comercial" (Operações) e o radar "Negócios fora do CRM" do cockpit.
+import { Router } from 'express';
+import { requireAuth, requireMasterOrPricetax } from './auth.js';
+import { pool } from './db.js';
+import { crmCan } from './crm/permissions.js';
+import { canAccessProject } from './routes.js';
+import { gmailFor, mailStatus, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, mapLimit, friendlyMailError } from './googleMail.js';
+import { googleConfigured } from './googleCalendar.js';
+import { createNotification } from './notifications.js';
+import { buildDirectory, classifyThread, linkForViewer, threadFacts, keysOfCompany, groupRows, canReadContent, cleanKey, MARK_KINDS, prettyKey, keyOf } from './mailLinksCore.js';
+
+const DIR_TTL = 2 * 60 * 1000;
+const dirCache = new Map(); // orgId -> { at, dir, projects: [{id, cnpj}] , pending }
+
+export function invalidateMailDirectory(orgId) { if (orgId) dirCache.delete(orgId); else dirCache.clear(); }
+
+async function loadSources(orgId) {
+  const [co, ct, de, pr, mk] = await Promise.all([
+    pool.query('SELECT id, legal_name, trade_name, website, relationship FROM crm_companies WHERE org_id=$1 AND deleted_at IS NULL', [orgId]),
+    pool.query(`SELECT k.email, k.company_id FROM crm_contacts k WHERE k.org_id=$1 AND k.deleted_at IS NULL AND k.email <> ''`, [orgId]),
+    pool.query(`SELECT d.id, d.company_id, d.title, d.status, d.updated_at, s.name AS stage_name FROM crm_deals d JOIN crm_pipeline_stages s ON s.id = d.stage_id
+                WHERE d.org_id=$1 AND d.deleted_at IS NULL AND d.status IN ('open','won')`, [orgId]),
+    pool.query(`SELECT p.id, COALESCE(NULLIF(p.data->'company'->>'nomeFantasia',''), p.data->'company'->>'name') AS name, p.data->'company'->>'cnpj' AS cnpj,
+                       (SELECT array_agg(e) FROM (
+                          SELECT a->>'email' AS e FROM jsonb_array_elements(CASE WHEN jsonb_typeof(p.data->'company'->'areas') = 'array' THEN p.data->'company'->'areas' ELSE '[]'::jsonb END) a
+                          UNION SELECT x->>'email' FROM jsonb_array_elements(CASE WHEN jsonb_typeof(p.data->'externalContacts') = 'array' THEN p.data->'externalContacts' ELSE '[]'::jsonb END) x
+                        ) s WHERE e IS NOT NULL AND e <> '') AS emails,
+                       (SELECT cp.company_id FROM crm_company_projects cp WHERE cp.project_id = p.id LIMIT 1) AS crm_company_id
+                FROM projects p WHERE p.org_id=$1`, [orgId]),
+    pool.query('SELECT key, kind, label FROM mail_domain_marks WHERE org_id=$1 AND kind IS NOT NULL', [orgId]),
+  ]);
+  return {
+    companies: co.rows.map((r) => ({ id: r.id, legalName: r.legal_name, tradeName: r.trade_name, website: r.website, relationship: r.relationship })),
+    contacts: ct.rows.map((r) => ({ email: r.email, companyId: r.company_id })),
+    deals: de.rows.map((r) => ({ id: r.id, companyId: r.company_id, title: r.title, status: r.status, stageName: r.stage_name, updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : '' })),
+    projects: pr.rows.map((r) => ({ id: r.id, name: r.name, cnpj: r.cnpj || '', emails: r.emails || [], crmCompanyId: r.crm_company_id || null })),
+    marks: mk.rows,
+  };
+}
+
+export async function directoryFor(orgId) {
+  const hit = dirCache.get(orgId);
+  if (hit && hit.dir && Date.now() - hit.at < DIR_TTL) return hit;
+  if (hit && hit.pending) return hit.pending;
+  const pending = loadSources(orgId).then((src) => {
+    const out = { at: Date.now(), dir: buildDirectory(src), projects: src.projects.map((p) => ({ id: p.id, company: { cnpj: p.cnpj } })), src };
+    dirCache.set(orgId, out);
+    return out;
+  });
+  dirCache.set(orgId, { at: 0, pending });
+  try { return await pending; } catch (e) { dirCache.delete(orgId); throw e; }
+}
+
+const hasCrm = (user) => !!user && crmCan(user, 'read');
+const projectIdsFor = (user, d) => new Set(d.projects.filter((p) => canAccessProject(user, p, user.orgId)).map((p) => p.id));
+
+// Selo/faixa de cada conversa da lista (metadata) ou da leitura (full). Falha no diretório nunca derruba a caixa: devolve sem selo.
+export async function annotateThreads(user, rawThreads) {
+  if (!user || !user.orgId) return rawThreads.map(() => null);
+  try {
+    const d = await directoryFor(user.orgId);
+    const crm = hasCrm(user);
+    const projectIds = projectIdsFor(user, d);
+    return rawThreads.map((t) => {
+      if (!t) return null;
+      const f = threadFacts(t, { headerMap, parseAddressList, hasAttachment: hasAttachmentOf(t) });
+      const link = linkForViewer(classifyThread(f, d.dir), { crm, projectIds });
+      if (!link.badge && !link.nag) return null;
+      return { ...link, nagName: link.nag ? prettyKey(link.nag) : '' };
+    });
+  } catch (e) {
+    console.error('E-mail × CRM: falha ao montar o diretório', String(e && e.message).slice(0, 200));
+    return rawThreads.map(() => null);
+  }
+}
+
+const hasAttachmentOf = (t) => ((t && t.messages) || []).some((m) => walkParts(m.payload).attachments.some((a) => !a.inline));
+
+// Grava/atualiza o índice (só metadados) das conversas que a pessoa acabou de ver. Nunca bloqueia a resposta da caixa.
+export async function indexThreads(user, rawThreads) {
+  if (!user || !user.orgId || !rawThreads.length) return 0;
+  let n = 0;
+  for (const t of rawThreads) {
+    if (!t || !t.id) continue;
+    const labels = new Set((t.messages || []).flatMap((m) => m.labelIds || []));
+    if (labels.has('SPAM') || labels.has('TRASH') || (labels.size && [...labels].every((l) => l === 'DRAFT'))) continue;
+    const f = threadFacts(t, { headerMap, parseAddressList, hasAttachment: hasAttachmentOf(t) });
+    const keys = [...new Set(f.participants.map((p) => keyOf(p.email)).filter(Boolean))];
+    if (!keys.length) continue;
+    await pool.query(
+      `INSERT INTO mail_thread_index (org_id, user_id, thread_id, conv_key, subject, participants, keys, team_replied, has_attachment, msg_count, first_at, last_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
+       ON CONFLICT (user_id, thread_id) DO UPDATE SET conv_key=EXCLUDED.conv_key, subject=EXCLUDED.subject, participants=EXCLUDED.participants, keys=EXCLUDED.keys,
+         team_replied=EXCLUDED.team_replied, has_attachment=EXCLUDED.has_attachment OR mail_thread_index.has_attachment, msg_count=EXCLUDED.msg_count,
+         first_at=LEAST(EXCLUDED.first_at, mail_thread_index.first_at), last_at=GREATEST(EXCLUDED.last_at, mail_thread_index.last_at), updated_at=now()`,
+      [user.orgId, user.id, t.id, f.convKey, f.subject, JSON.stringify(f.participants), keys, f.teamReplied, f.hasAttachment, f.msgCount, f.firstAt, f.lastAt]);
+    n += 1;
+  }
+  return n;
+}
+export function indexInBackground(user, rawThreads) {
+  indexThreads(user, rawThreads.filter(Boolean)).catch((e) => console.error('E-mail × CRM: falha ao indexar', String(e && e.message).slice(0, 200)));
+}
+
+// ---- varredura periódica leve ------------------------------------------------------------------------------------------------
+const META = ['From', 'To', 'Cc', 'Subject', 'Date', 'Message-ID'];
+const SCAN_EVERY = 6 * 60 * 60 * 1000;
+
+export async function scanUser(user, { full = false } = {}) {
+  const g = await gmailFor(user.id);
+  if (!g) return 0;
+  const st = await mailStatus(user.id);
+  if (!st || !st.mail) return 0;
+  const q = `${full ? 'newer_than:90d' : 'newer_than:8d'} -in:spam -in:trash -in:drafts -in:chats`;
+  const ids = [];
+  let pageToken;
+  do {
+    const { data } = await g.gmail.users.threads.list({ userId: 'me', q, maxResults: 100, pageToken });
+    for (const t of data.threads || []) ids.push(t.id);
+    pageToken = data.nextPageToken;
+  } while (pageToken && ids.length < (full ? 600 : 200));
+  let done = 0;
+  for (let i = 0; i < ids.length; i += 25) {
+    const chunk = await mapLimit(ids.slice(i, i + 25), 4, (id) => g.gmail.users.threads.get({ userId: 'me', id, format: 'metadata', metadataHeaders: META }).then((r) => r.data).catch(() => null));
+    done += await indexThreads(user, chunk.filter(Boolean));
+  }
+  return done;
+}
+
+async function scanTick() {
+  if (!googleConfigured()) return;
+  const { rows } = await pool.query(
+    `SELECT u.id, u.org_id, u.name, s.full_at FROM google_calendar_connections c JOIN users u ON u.id = c.user_id
+       LEFT JOIN mail_index_state s ON s.user_id = u.id
+     WHERE u.blocked = false AND u.role IN ('master','pricetax') AND u.org_id IS NOT NULL AND (s.scan_at IS NULL OR s.scan_at < now() - interval '${SCAN_EVERY / 1000} seconds')
+     ORDER BY s.scan_at NULLS FIRST LIMIT 3`);
+  for (const r of rows) {
+    const user = { id: r.id, orgId: r.org_id, name: r.name };
+    let err = '';
+    try { await scanUser(user, { full: !r.full_at }); } catch (e) { err = friendlyMailError(e).slice(0, 300); }
+    await pool.query(
+      `INSERT INTO mail_index_state (user_id, full_at, scan_at, last_error) VALUES ($1, CASE WHEN $2 = '' THEN now() END, now(), $2)
+       ON CONFLICT (user_id) DO UPDATE SET scan_at=now(), last_error=$2, full_at=COALESCE(mail_index_state.full_at, CASE WHEN $2 = '' THEN now() END)`, [r.id, err]);
+  }
+}
+
+let scanTimer = null;
+export function startMailIndexScheduler() {
+  if (scanTimer || process.env.MAIL_INDEX_SCAN === 'off') return;
+  const run = () => scanTick().catch((e) => console.error('E-mail × CRM: varredura falhou', String(e && e.message).slice(0, 200)));
+  setTimeout(run, 90 * 1000);
+  scanTimer = setInterval(run, 20 * 60 * 1000);
+  if (scanTimer.unref) scanTimer.unref();
+}
+
+// ---- rotas ---------------------------------------------------------------------------------------------------------------------
+export const router = Router();
+router.use(requireAuth, requireMasterOrPricetax);
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const h = (fn) => async (req, res, next) => { try { await fn(req, res); } catch (e) { next(e); } };
+const needCrm = (req, res, next) => (hasCrm(req.user) ? next() : res.status(403).json({ message: 'Esta lista faz parte do CRM, que não está no seu papel.' }));
+const needWrite = (req, res, next) => (req.user && crmCan(req.user, 'write') ? next() : res.status(403).json({ message: 'Só quem cadastra no CRM pode classificar domínios.' }));
+
+export async function conversationsFor(user, keys) {
+  const req = { user };
+  if (!keys.size) return { conversations: [], keys: [] };
+  const { rows } = await pool.query(
+    `SELECT i.id, i.user_id, u.name AS user_name, i.thread_id, i.conv_key, i.subject, i.participants, i.msg_count, i.last_at, i.has_attachment
+     FROM mail_thread_index i JOIN users u ON u.id = i.user_id WHERE i.org_id=$1 AND i.keys && $2::text[] ORDER BY i.last_at DESC NULLS LAST LIMIT 400`,
+    [req.user.orgId, [...keys]]);
+  const groups = groupRows(rows.map((r) => ({ id: String(r.id), userId: r.user_id, userName: r.user_name, convKey: r.conv_key, subject: r.subject, participants: r.participants || [], msgCount: r.msg_count, lastAt: r.last_at ? new Date(r.last_at).toISOString() : null, hasAttachment: r.has_attachment })));
+  return {
+    keys: [...keys],
+    conversations: groups.slice(0, 150).map((g) => {
+      const owners = g.team.map((x) => x.userId);
+      const mine = g.team.find((x) => x.userId === req.user.id);
+      return {
+        id: (mine || g.team[0]).rowId, subject: g.subject || '(sem assunto)', lastAt: g.lastAt, msgCount: g.msgCount, hasAttachment: !!g.hasAttachment,
+        participants: g.participants.filter((p) => keyOf(p.email)).slice(0, 8), team: g.team.map((x) => x.userName),
+        canRead: canReadContent(req.user, owners), mine: !!mine,
+      };
+    }),
+  };
+}
+
+export async function companyKeys(orgId, companyId) {
+  const { rows: c } = await pool.query('SELECT website FROM crm_companies WHERE id=$1 AND org_id=$2 AND deleted_at IS NULL', [companyId, orgId]);
+  if (!c[0]) return null;
+  const { rows: k } = await pool.query(`SELECT email FROM crm_contacts WHERE company_id=$1 AND org_id=$2 AND deleted_at IS NULL AND email <> ''`, [companyId, orgId]);
+  const d = await directoryFor(orgId);
+  const projectEmails = d.src.projects.filter((p) => p.crmCompanyId === companyId).flatMap((p) => p.emails);
+  const keys = keysOfCompany({ website: c[0].website, contactEmails: k.map((r) => r.email), projectEmails });
+  // Só as chaves que o diretório liga a ESTA empresa (um gmail.com de outro contato com o mesmo domínio não entra).
+  for (const key of [...keys]) { const t = d.dir.byKey.get(key); if (t && t.companyId && t.companyId !== companyId) keys.delete(key); }
+  return keys;
+}
+
+router.get('/company/:id', needCrm, h(async (req, res) => {
+  if (!UUID.test(req.params.id)) return res.status(400).json({ message: 'Empresa inválida.' });
+  const keys = await companyKeys(req.user.orgId, req.params.id);
+  if (!keys) return res.status(404).json({ message: 'Empresa não encontrada.' });
+  res.json(await conversationsFor(req.user, keys));
+}));
+
+router.get('/deal/:id', needCrm, h(async (req, res) => {
+  if (!UUID.test(req.params.id)) return res.status(400).json({ message: 'Negócio inválido.' });
+  const { rows } = await pool.query('SELECT company_id FROM crm_deals WHERE id=$1 AND org_id=$2 AND deleted_at IS NULL', [req.params.id, req.user.orgId]);
+  if (!rows[0]) return res.status(404).json({ message: 'Negócio não encontrado.' });
+  res.json(await conversationsFor(req.user, (await companyKeys(req.user.orgId, rows[0].company_id)) || new Set()));
+}));
+
+router.get('/project/:id', h(async (req, res) => {
+  const id = String(req.params.id).slice(0, 80);
+  const { rows } = await pool.query('SELECT data, org_id FROM projects WHERE id=$1', [id]);
+  if (!rows[0] || !canAccessProject(req.user, rows[0].data, rows[0].org_id)) return res.status(404).json({ message: 'Empresa não encontrada.' });
+  const d = await directoryFor(rows[0].org_id);
+  const p = d.src.projects.find((x) => x.id === id);
+  let keys = keysOfCompany({ projectEmails: (p && p.emails) || [] });
+  if (p && p.crmCompanyId) keys = new Set([...keys, ...((await companyKeys(rows[0].org_id, p.crmCompanyId)) || [])]);
+  res.json(await conversationsFor(req.user, keys));
+}));
+
+// Texto da conversa, sob demanda, do Gmail de quem trocou (o da própria pessoa quando ela participou). Imagens embutidas e anexos não
+// vêm (só o nome do anexo); cada leitura da caixa de outra pessoa fica registrada em mail_index_reads.
+router.get('/thread/:rowId', h(async (req, res) => {
+  if (!/^\d{1,18}$/.test(req.params.rowId)) return res.status(400).json({ message: 'Conversa inválida.' });
+  const { rows } = await pool.query('SELECT conv_key FROM mail_thread_index WHERE id=$1 AND org_id=$2', [req.params.rowId, req.user.orgId]);
+  if (!rows[0]) return res.status(404).json({ message: 'Conversa não encontrada.' });
+  const { rows: all } = await pool.query(
+    `SELECT i.user_id, i.thread_id, u.name FROM mail_thread_index i JOIN users u ON u.id = i.user_id WHERE i.org_id=$1 AND i.conv_key=$2 ORDER BY (i.user_id = $3) DESC, i.last_at DESC`,
+    [req.user.orgId, rows[0].conv_key, req.user.id]);
+  if (!canReadContent(req.user, all.map((r) => r.user_id))) return res.status(403).json({ message: 'O texto desta conversa abre para os sócios e para quem participou dela.' });
+  let lastErr = null;
+  for (const src of all) {
+    const g = await gmailFor(src.user_id);
+    if (!g) continue;
+    try {
+      const { data } = await g.gmail.users.threads.get({ userId: 'me', id: src.thread_id, format: 'full' });
+      if (src.user_id !== req.user.id) await pool.query('INSERT INTO mail_index_reads (org_id, reader_id, owner_id, thread_id) VALUES ($1,$2,$3,$4)', [req.user.orgId, req.user.id, src.user_id, src.thread_id]);
+      const messages = (data.messages || []).filter((m) => !(m.labelIds || []).includes('DRAFT')).map((m) => {
+        const hd = headerMap(m.payload && m.payload.headers);
+        const parts = walkParts(m.payload);
+        const body = parts.html ? sanitizeMailHtml(parts.html, { keepStyles: false }) : { html: textToHtml(parts.text) };
+        return {
+          id: m.id, from: parseAddressList(hd.from)[0] || { name: '', email: '' }, to: parseAddressList(hd.to), cc: parseAddressList(hd.cc),
+          date: m.internalDate ? new Date(Number(m.internalDate)).toISOString() : null, html: body.html,
+          attachments: parts.attachments.filter((a) => !a.inline && a.filename).map((a) => a.filename).slice(0, 20),
+        };
+      });
+      return res.json({ subject: threadSummary(data).subject, owner: src.name, ownerIsMe: src.user_id === req.user.id, messages });
+    } catch (e) { lastErr = e; }
+  }
+  res.status(lastErr ? 502 : 409).json({ message: lastErr ? friendlyMailError(lastErr) : 'Quem trocou esta conversa desconectou o Gmail; o texto não está disponível agora.' });
+}));
+
+router.get('/marks', needCrm, h(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT m.key, m.kind, m.label, m.set_at, s.name AS set_by, m.reported_at, r.name AS reported_by FROM mail_domain_marks m
+     LEFT JOIN users s ON s.id = m.set_by LEFT JOIN users r ON r.id = m.reported_by WHERE m.org_id=$1 ORDER BY COALESCE(m.set_at, m.reported_at) DESC`, [req.user.orgId]);
+  res.json({ marks: rows });
+}));
+
+router.post('/marks', needWrite, h(async (req, res) => {
+  const b = req.body || {};
+  const key = cleanKey(b.key);
+  if (!key) return res.status(400).json({ message: 'Informe um domínio (ex.: okubo.com.br) ou o e-mail inteiro de um provedor público.' });
+  if (!MARK_KINDS[b.kind]) return res.status(400).json({ message: 'Escolha: cliente, prospect, parceiro, fornecedor ou ignorar.' });
+  const label = String(b.label || '').replace(/\s+/g, ' ').trim().slice(0, 80) || prettyKey(key);
+  await pool.query(
+    `INSERT INTO mail_domain_marks (org_id, key, kind, label, set_by, set_at) VALUES ($1,$2,$3,$4,$5, now())
+     ON CONFLICT (org_id, key) DO UPDATE SET kind=EXCLUDED.kind, label=EXCLUDED.label, set_by=EXCLUDED.set_by, set_at=now()`,
+    [req.user.orgId, key, b.kind, label, req.user.id]);
+  invalidateMailDirectory(req.user.orgId);
+  res.json({ key, kind: b.kind, label });
+}));
+
+router.delete('/marks/:key', needWrite, h(async (req, res) => {
+  const key = cleanKey(req.params.key);
+  if (!key) return res.status(400).json({ message: 'Domínio inválido.' });
+  await pool.query('UPDATE mail_domain_marks SET kind=NULL, label=\'\', set_by=$3, set_at=now() WHERE org_id=$1 AND key=$2', [req.user.orgId, key, req.user.id]);
+  invalidateMailDirectory(req.user.orgId);
+  res.json({ ok: true });
+}));
+
+// Operações (ou qualquer pessoa da equipe) avisa o comercial: notificação para a Eduarda (Comercial) e os sócios, uma vez por domínio a cada 24 h.
+router.post('/report', h(async (req, res) => {
+  const b = req.body || {};
+  const key = cleanKey(b.key);
+  if (!key) return res.status(400).json({ message: 'Domínio inválido.' });
+  const subject = String(b.subject || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  const { rows: cur } = await pool.query('SELECT reported_at FROM mail_domain_marks WHERE org_id=$1 AND key=$2', [req.user.orgId, key]);
+  const recent = cur[0] && cur[0].reported_at && Date.now() - new Date(cur[0].reported_at).getTime() < 24 * 3600 * 1000;
+  await pool.query(
+    `INSERT INTO mail_domain_marks (org_id, key, reported_by, reported_at, reported_note) VALUES ($1,$2,$3, now(), $4)
+     ON CONFLICT (org_id, key) DO UPDATE SET reported_by=EXCLUDED.reported_by, reported_at=now(), reported_note=EXCLUDED.reported_note`,
+    [req.user.orgId, key, req.user.id, JSON.stringify({ subject })]);
+  let sent = 0;
+  if (!recent) {
+    const { rows: to } = await pool.query(
+      `SELECT id FROM users WHERE org_id=$1 AND blocked=false AND role <> 'cliente' AND work_role IN ('socio','comercial') AND id <> $2`, [req.user.orgId, req.user.id]);
+    for (const u of to) {
+      await createNotification(pool, { orgId: req.user.orgId, userId: u.id, type: 'crm_mail_unknown', title: `Empresa fora do CRM: ${key}`,
+        body: `${req.user.name || 'Alguém da equipe'} está trocando e-mails com ${key}${subject ? ` (“${subject}”)` : ''} e a empresa não está no CRM nem no módulo Empresas. Veja o bloco "Negócios fora do CRM" na tela inicial.`,
+        actorName: req.user.name || '', target: { kind: 'mail_radar', key } });
+      sent += 1;
+    }
+  }
+  res.json({ ok: true, key, notified: sent, already: !!recent });
+}));
+
+router.post('/refresh', h(async (req, res) => { invalidateMailDirectory(req.user.orgId); res.json({ ok: true }); }));
+
+// Radar do cockpit: domínios com troca real nos últimos 90 dias que ninguém identificou (nem CRM, nem Empresas, nem marca).
+export async function radarFor(orgId, { limit = 20 } = {}) {
+  const d = await directoryFor(orgId);
+  const { rows } = await pool.query(
+    `SELECT i.id, i.user_id, u.name AS user_name, i.thread_id, i.conv_key, i.subject, i.participants, i.team_replied, i.has_attachment, i.last_at
+     FROM mail_thread_index i JOIN users u ON u.id = i.user_id WHERE i.org_id=$1 AND i.last_at > now() - interval '90 days' ORDER BY i.last_at DESC LIMIT 4000`, [orgId]);
+  const { rows: rep } = await pool.query(`SELECT m.key, m.reported_at, u.name FROM mail_domain_marks m LEFT JOIN users u ON u.id = m.reported_by WHERE m.org_id=$1 AND m.kind IS NULL AND m.reported_at IS NOT NULL`, [orgId]);
+  const reported = new Map(rep.map((r) => [r.key, { at: r.reported_at, by: r.name || '' }]));
+  const by = new Map();
+  for (const r of rows) {
+    const cls = classifyThread({ participants: r.participants || [], teamReplied: r.team_replied, hasAttachment: r.has_attachment, subject: r.subject }, d.dir);
+    if (!cls.nag) continue;
+    const g = by.get(cls.nag) || { key: cls.nag, name: prettyKey(cls.nag), convs: new Set(), team: new Set(), lastAt: null, subject: '', contacts: [], rowId: null, threads: [] };
+    g.convs.add(r.conv_key); g.team.add(r.user_name);
+    if (!g.lastAt) { g.lastAt = r.last_at; g.subject = r.subject; g.rowId = String(r.id); }
+    g.threads.push({ userId: r.user_id, threadId: r.thread_id });
+    for (const p of r.participants || []) if (keyOf(p.email) === cls.nag && g.contacts.length < 3 && !g.contacts.some((c) => c.email === p.email)) g.contacts.push({ name: p.name || '', email: p.email });
+    by.set(cls.nag, g);
+  }
+  const items = [...by.values()].map((g) => ({ key: g.key, name: g.name, conversations: g.convs.size, team: [...g.team], lastAt: g.lastAt ? new Date(g.lastAt).toISOString() : null, subject: g.subject, contacts: g.contacts, reported: reported.get(g.key) || null, threads: g.threads }));
+  return { count: items.length, items: items.slice(0, limit) };
+}
+
+router.get('/radar', needCrm, h(async (req, res) => {
+  const out = await radarFor(req.user.orgId);
+  // Abrir no e-mail só faz sentido para quem tem a conversa na própria caixa.
+  res.json({ count: out.count, items: out.items.map(({ threads, ...it }) => ({ ...it, myThreadId: (threads.find((t) => t.userId === req.user.id) || {}).threadId || null })) });
+}));

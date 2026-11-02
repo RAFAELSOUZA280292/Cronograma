@@ -16,6 +16,7 @@ export const BLOCKS = [
   { id: 'week', title: 'Sua semana', w: 3 },
   { id: 'continue', title: 'Continuar de onde parou', w: 3 },
   { id: 'agenda', title: 'Agenda', w: 6 },
+  { id: 'mailRadar', title: 'Negócios fora do CRM', w: 6 },
   { id: 'modules', title: 'Onde você quer trabalhar', w: 6 },
 ];
 const BLOCK_IDS = new Set(BLOCKS.map((b) => b.id));

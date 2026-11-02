@@ -13,6 +13,7 @@ import { ensureViewsSchema } from './crm/views.js';
 import { ensureBriefingSchema } from './briefingSchema.js';
 import { ensureRenataSchema } from './renata/schema.js';
 import { ensureWhatsappSchema } from './whatsappSchema.js';
+import { ensureMailLinksSchema } from './mailLinksSchema.js';
 import { ensureExperienceSchema } from './experience.js';
 
 const { Pool } = pg;
@@ -1550,6 +1551,7 @@ export async function initDb() {
   try { await ensureProjectVersionsSchema(pool); } catch (e) { console.error('ERRO: versionamento do cronograma NÃO foi instalado:', e.message); }
   try { await ensureMeetingEditsSchema(pool); } catch (e) { console.error('ERRO: histórico de correções de reunião NÃO foi instalado:', e.message); }
   try { await ensureWhatsappSchema(pool); } catch (e) { console.error('ERRO: tabelas do WhatsApp NÃO foram instaladas:', e.message); }
+  try { await ensureMailLinksSchema(pool); } catch (e) { console.error('ERRO: índice de e-mails × CRM NÃO foi instalado:', e.message); }
 }
 
 // Migração one-shot (Fase 7, 2026-09-11) — copia os aprendizados já

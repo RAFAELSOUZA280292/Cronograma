@@ -12,6 +12,7 @@ import { isCalendarPart, parseIcs } from './calendarInvite.js';
 import { findEventByICalUID, googleConfigured } from './googleCalendar.js';
 import { crmRoleOf } from './crm/permissions.js';
 import { pool } from './db.js';
+import { annotateThreads, indexInBackground } from './mailLinks.js';
 
 export const router = Router();
 router.use(requireAuth, requireMasterOrPricetax);
@@ -71,9 +72,13 @@ router.get('/threads', async (req, res) => {
     const { data } = await gmail.users.threads.list({ userId: 'me', labelIds, q, includeSpamTrash, maxResults: 30, pageToken });
     const list = data.threads || [];
     const full = await mapLimit(list, 6, (t) => gmail.users.threads.get({
-      userId: 'me', id: t.id, format: 'metadata', metadataHeaders: ['From', 'To', 'Subject', 'Date'],
+      userId: 'me', id: t.id, format: 'metadata', metadataHeaders: ['From', 'To', 'Cc', 'Subject', 'Date', 'Message-ID'],
     }).then((r) => r.data).catch(() => null));
-    res.json({ threads: full.filter(Boolean).map(threadSummary), nextPageToken: data.nextPageToken || null, estimate: data.resultSizeEstimate || 0 });
+    const raw = full.filter(Boolean);
+    // Selo "Cliente · KUHN" / faixa "Empresa fora do CRM" (§130) e índice só de metadados para a aba E-mails do CRM.
+    const links = await annotateThreads(req.user, raw);
+    indexInBackground(req.user, raw);
+    res.json({ threads: raw.map((t, i) => ({ ...threadSummary(t), link: links[i] })), nextPageToken: data.nextPageToken || null, estimate: data.resultSizeEstimate || 0 });
   } catch (e) { fail(res, e); }
 });
 
@@ -109,8 +114,10 @@ router.get('/threads/:id', async (req, res) => {
       };
     });
     const labels = new Set((data.messages || []).flatMap((m) => m.labelIds || []));
+    const [link] = await annotateThreads(req.user, [data]);
+    indexInBackground(req.user, [data]);
     res.json({
-      id: data.id,
+      id: data.id, link,
       subject: (messages[0] && messages[0].subject) || '(sem assunto)',
       starred: labels.has('STARRED'), inInbox: labels.has('INBOX'), inTrash: labels.has('TRASH'), inSpam: labels.has('SPAM'),
       messages,

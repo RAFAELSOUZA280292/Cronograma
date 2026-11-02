@@ -1,7 +1,7 @@
 // Área de trabalho de uma empresa (cabeçalho, abas, vistas, modais e relatório de impressão).
 // Extraído do `return` final de AppScreens (src/App.jsx) em 2026-10-17 ("dividir o AppScreens e o S"): carregado sob demanda. O JSX é o mesmo de antes;
 // tudo o que ele usava do AppScreens (estado, funções, valores calculados) chega no objeto `ctx`, montado a cada render com os valores atuais.
-import { Lock, ArchiveRestore, History, CalendarCheck, Share2, ShieldCheck, Briefcase, Building2, CalendarDays, Clock, Columns3, FileSpreadsheet, FileText, Gauge, LayoutGrid, List, ListChecks, Mic, MoreHorizontal, Network, Pause, Plus, Settings, Trash2, Undo2, Upload, X } from 'lucide-react';
+import { Lock, Mail, ArchiveRestore, History, CalendarCheck, Share2, ShieldCheck, Briefcase, Building2, CalendarDays, Clock, Columns3, FileSpreadsheet, FileText, Gauge, LayoutGrid, List, ListChecks, Mic, MoreHorizontal, Network, Pause, Plus, Settings, Trash2, Undo2, Upload, X } from 'lucide-react';
 import { MeetingPrintReport } from '../meetings/MeetingDetail.jsx';
 import { MeetingsView } from '../meetings/Meetings.jsx';
 import { ProjectAssistant } from '../assistant/ProjectAssistant.jsx';
@@ -18,6 +18,7 @@ import { AutoDatesToggle } from './AutoDates.jsx';
 import MapView from './MapView.jsx';
 import CompanyTriage from './CompanyTriage.jsx';
 const ProjectVault = lazyRetry(() => import('./ProjectVault.jsx'));
+const MailLinksTab = lazyRetry(() => import('../mail/MailLinks.jsx').then((m) => ({ default: m.MailLinksTab })));
 import Client360Strip from '../ui/Client360Strip.jsx';
 import { ScreenSearchBox, ScreenSearchNote } from './ScreenSearch.jsx';
 import { countLiveItems, filterActivities, filterMeetings, filterTodoMeetings, queryTerms } from '../lib/screenSearch.js';
@@ -205,7 +206,7 @@ export function CompanyWorkspace({ ctx }) {
   const shownTodoMeetings = !isMulti && activeProject && view === 'todo' ? filterTodoMeetings(activeProject.meetings || [], searchQ) : (activeProject ? activeProject.meetings || [] : []);
   const { vaultFocus } = ctx;
   const isStaff = !!currentUser && (currentUser.isSuperAdmin || currentUser.role === 'master' || currentUser.role === 'pricetax');
-  React.useEffect(() => { if (view === 'cofre' && !isStaff) setView('resumo'); }, [view, isStaff]);
+  React.useEffect(() => { if ((view === 'cofre' || view === 'emails') && !isStaff) setView('resumo'); }, [view, isStaff]);
   const searchInfo = (() => {
     if (view === 'meetings') return { placeholder: 'Buscar reuniões', noun: { one: 'reunião', many: 'reuniões', fem: true }, total: (activeProject?.meetings || []).filter((m) => !m.deleted).length, shown: shownMeetings.filter((m) => !m.deleted).length };
     if (view === 'todo') return { placeholder: 'Buscar tarefas', noun: { one: 'tarefa', many: 'tarefas', fem: true }, total: countLiveItems(activeProject?.meetings), shown: countLiveItems(shownTodoMeetings) };
@@ -383,6 +384,7 @@ export function CompanyWorkspace({ ctx }) {
           !isMulti && { id: 'mapa', label: 'Mapa', icon: Network },
           !isMulti && !isTpl && { id: 'triagem', label: 'Triagem', icon: CalendarCheck },
           !isMulti && !isTpl && isStaff && { id: 'cofre', label: 'Cofre', icon: Lock },
+          !isMulti && !isTpl && isStaff && { id: 'emails', label: 'E-mails', icon: Mail },
         ].filter(Boolean).map((t) => {
           const Icon = t.icon;
           return (
@@ -391,9 +393,9 @@ export function CompanyWorkspace({ ctx }) {
             </button>
           );
         })}
-        {wideTabs && view !== 'cofre' && <div style={{ marginLeft: 'auto', paddingLeft: 12, alignSelf: 'center' }}><ScreenSearchBox value={searchQ} onChange={setSearchQ} placeholder={searchInfo.placeholder} /></div>}
+        {wideTabs && view !== 'cofre' && view !== 'emails' && <div style={{ marginLeft: 'auto', paddingLeft: 12, alignSelf: 'center' }}><ScreenSearchBox value={searchQ} onChange={setSearchQ} placeholder={searchInfo.placeholder} /></div>}
       </div>
-      {!wideTabs && view !== 'cofre' && <div className="no-print" style={{ padding: isMobile ? '10px 12px 0' : '10px 24px 0', display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end' }}><ScreenSearchBox value={searchQ} onChange={setSearchQ} placeholder={searchInfo.placeholder} /></div>}
+      {!wideTabs && view !== 'cofre' && view !== 'emails' && <div className="no-print" style={{ padding: isMobile ? '10px 12px 0' : '10px 24px 0', display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end' }}><ScreenSearchBox value={searchQ} onChange={setSearchQ} placeholder={searchInfo.placeholder} /></div>}
 
       <main className="no-print" style={{ ...S.main, ...(isMobile ? { padding: `14px 12px ${isMulti ? 0 : 64}px 12px` } : null) }}>
         <ScreenSearchNote value={searchQ} shown={searchInfo.shown} total={searchInfo.total} noun={searchInfo.noun} onClear={() => setSearchQ('')} />
@@ -529,6 +531,10 @@ export function CompanyWorkspace({ ctx }) {
 
         {!isMulti && !isTpl && isStaff && view === 'cofre' && (
           <React.Suspense fallback={null}><ProjectVault projectId={activeProject.id} focus={vaultFocus && vaultFocus.pid === activeProject.id ? vaultFocus : null} companyName={activeProject.company.nomeFantasia || activeProject.company.name} /></React.Suspense>
+        )}
+
+        {!isMulti && !isTpl && isStaff && view === 'emails' && (
+          <div style={{ padding: '16px 24px', maxWidth: 980 }}><React.Suspense fallback={null}><MailLinksTab url={`/api/mail-links/project/${encodeURIComponent(activeProject.id)}`} empty="Nenhuma conversa da equipe com os e-mails desta empresa no índice ainda. Entram aqui os e-mails das Áreas e responsáveis e dos contatos externos (e, se a empresa estiver no CRM, os contatos e o site de lá), quando cada pessoa abre a Caixa de e-mail e numa varredura a cada 6 h." /></React.Suspense></div>
         )}
 
         {!isMulti && view === 'mapa' && (

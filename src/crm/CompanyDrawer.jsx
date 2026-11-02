@@ -20,6 +20,7 @@ import {
   sourceLabel, TIMELINE_KIND, DEAL_TYPE_META, DEAL_STATUS_META, stageAgeColor, contactLabel, softDot } from './crmMeta.js';
 import { guardedModal } from '../ui/SafeBoundary.jsx';
 import ClientAlerts from '../ui/ClientAlerts.jsx';
+import { MailLinksTab } from '../mail/MailLinks.jsx';
 
 
 function KV({ k, v }) {
@@ -120,7 +121,7 @@ function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, on
   }
 
   const co = data && data.company;
-  const tabs = [['overview', 'Visão geral'], ['contacts', `Contatos${data ? ` (${data.contacts.length})` : ''}`], ['deals', `Negócios${data ? ` (${data.deals.length})` : ''}`], ['activities', `Atividades${data && data.kpis.openActivities ? ` (${data.kpis.openActivities})` : ''}`], ['history', 'Histórico'], ['projects', `Projetos${data ? ` (${data.projects.length})` : ''}`]];
+  const tabs = [['overview', 'Visão geral'], ['contacts', `Contatos${data ? ` (${data.contacts.length})` : ''}`], ['deals', `Negócios${data ? ` (${data.deals.length})` : ''}`], ['activities', `Atividades${data && data.kpis.openActivities ? ` (${data.kpis.openActivities})` : ''}`], ['history', 'Histórico'], ['emails', 'E-mails'], ['projects', `Projetos${data ? ` (${data.projects.length})` : ''}`]];
   if (caps.remove) tabs.push(['audit', 'Auditoria']);
 
   return (
@@ -339,6 +340,7 @@ function CompanyDrawer({ companyId, caps, options, initialTab, currentUserId, on
             </>
           )}
 
+          {data && tab === 'emails' && <MailLinksTab url={`/api/mail-links/company/${companyId}`} />}
           {data && tab === 'projects' && (
             <>
               <div className="crm-sub" style={{ marginBottom: 12 }}>Projetos do painel ligados a esta empresa. O CRM só lê — o cronograma continua sendo editado onde sempre foi.</div>

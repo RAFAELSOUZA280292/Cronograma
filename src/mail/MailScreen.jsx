@@ -14,6 +14,7 @@ import InviteCard from './InviteCard.jsx';
 import Compose, { fmtSize } from './Compose.jsx';
 import SignatureDialog from './SignatureDialog.jsx';
 import { MoveDialog, RulesDialog, FolderDialog } from './Folders.jsx';
+import { LinkBadge, UnknownBanner, RegisterDeal, mailIntent } from './MailLinks.jsx';
 import { isTypingTarget } from '../shell/shortcuts.js';
 import { LIMITS, sanitizeView, viewKey, clampList, stepSize, mailKeyAction, neighborId, afterRemoval, removesFrom } from './mailView.js';
 import './mail.css';
@@ -40,7 +41,9 @@ function fmtFullDate(iso) {
 const who = (p) => (p ? p.name || p.email : '');
 const initials = (p) => (who(p) || '?').replace(/[^\p{L}\s]/gu, '').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 
-export default function MailScreen({ currentUser, theme, onGoAgenda }) {
+const CRM_WRITE = ['admin', 'diretor', 'gestor', 'vendedor', 'consultor'];
+
+export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, onOpenProject }) {
   const isMobile = useIsMobile();
   const [status, setStatus] = useState(null);
   const [nav, setNav] = useState({ folders: [], labels: [] });
@@ -60,6 +63,9 @@ export default function MailScreen({ currentUser, theme, onGoAgenda }) {
   const [moveFor, setMoveFor] = useState(null);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [folderEdit, setFolderEdit] = useState(null);
+  const [register, setRegister] = useState(null); // { won, prefill }: cadastro do negócio a partir da faixa "Empresa fora do CRM" (§130)
+  const crmAccess = !!currentUser.crmAccess;
+  const crmWrite = crmAccess && (currentUser.isSuperAdmin || currentUser.role === 'master' || ['socio', 'comercial'].includes(currentUser.workRole) || CRM_WRITE.includes(currentUser.crmRole));
   const [notifPerm, setNotifPerm] = useState(() => (canNotify() ? Notification.permission : 'unsupported'));
   const reqRef = useRef(0);
   const composeRef = useRef(null);
@@ -89,6 +95,13 @@ export default function MailScreen({ currentUser, theme, onGoAgenda }) {
       loadStatus(true);
     } else loadStatus(false);
   }, [loadStatus]);
+
+  // Vindo do cockpit ("Abrir e-mail" no bloco Negócios fora do CRM, §130) ou de /email#conversa=<id>: abre a conversa.
+  useEffect(() => {
+    const m = /^#conversa=([A-Za-z0-9_-]{6,64})$/.exec(window.location.hash);
+    if (m) { setOpenId(m[1]); window.history.replaceState(window.history.state, '', window.location.pathname); }
+    else if (mailIntent.threadId) { setOpenId(mailIntent.threadId); mailIntent.threadId = null; }
+  }, []);
 
   const ready = !!(status && status.mail);
 
@@ -551,6 +564,7 @@ export default function MailScreen({ currentUser, theme, onGoAgenda }) {
                         </div>
                         <div className="mail-subject">{t.subject}</div>
                         {view.snippet && <div className="mail-snippet">{t.snippet}</div>}
+                        <RowLink link={t.link} />
                       </div>
                     )}
                     <button
@@ -588,6 +602,8 @@ export default function MailScreen({ currentUser, theme, onGoAgenda }) {
                   onBack={() => { const id = openId; setOpenId(null); setCursor(id); focusRow(id); }} onOpened={onOpened} onAct={(a) => act([openId], a)}
                   onCompose={(mode, messageId) => openCompose({ mode, messageId })}
                   onMove={(sender) => setMoveFor({ ids: [openId], sender })} onOpenDraft={() => openDraft(openId)} onGoAgenda={onGoAgenda}
+                  crmWrite={crmWrite} myName={currentUser.name} onOpenCrm={crmAccess ? onOpenCrm : undefined} onOpenProject={onOpenProject}
+                  onRegister={setRegister} onLinkChanged={() => { setThreadRev((r) => r + 1); loadThreads({ quiet: true }); }}
                 />
               ) : (
                 <EmptyState icon={MailOpen} title="Escolha um e-mail para ler" description="Clique numa conversa da lista. Ela é marcada como lida ao abrir, como no Outlook." />
@@ -615,6 +631,12 @@ export default function MailScreen({ currentUser, theme, onGoAgenda }) {
       )}
       {folderEdit && <FolderDialog label={folderEdit.label} onClose={() => setFolderEdit(null)} onSaved={() => { setFolderEdit(null); loadNav(); }} />}
       {rulesOpen && <RulesDialog canRules={!!(status && status.rules)} onClose={() => setRulesOpen(false)} />}
+      {register && (
+        <RegisterDeal
+          prefill={register.prefill} won={register.won} currentUserId={currentUser.id} onClose={() => setRegister(null)}
+          onDone={() => { setRegister(null); setThreadRev((r) => r + 1); loadThreads({ quiet: true }); }}
+        />
+      )}
       {sigOpen && signature && <SignatureDialog value={signature} onClose={() => setSigOpen(false)} onSaved={(r) => { setSignature(r); setSigOpen(false); }} />}
     </div>
   );
@@ -654,7 +676,15 @@ function BulkActions({ folder, onAct, onMove, onClear }) {
   );
 }
 
-function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAct, onCompose, onMove, onOpenDraft, onGoAgenda }) {
+// Selo/aviso discreto na linha da lista (sem botão: a linha inteira já abre a conversa).
+function RowLink({ link }) {
+  if (!link) return null;
+  if (link.badge && !link.badge.ignored) return <div><LinkBadge link={link} /></div>;
+  if (link.nag) return <div><span className="ml-row-unknown" title={`Empresa fora do CRM: ${link.nag}`}>Fora do CRM · {link.nag}</span></div>;
+  return null;
+}
+
+function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAct, onCompose, onMove, onOpenDraft, onGoAgenda, crmWrite, myName, onOpenCrm, onOpenProject, onRegister, onLinkChanged }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState(() => new Set());
@@ -720,6 +750,8 @@ function ThreadView({ ref, id, showBack, folder, myEmail, onBack, onOpened, onAc
         </div>
       </div>
       <h2 className="mail-thread-subject">{data.subject}</h2>
+      {data.link && data.link.badge && !data.link.badge.ignored && <div className="ml-thread-link"><LinkBadge link={data.link} withAction onOpenCrm={onOpenCrm} onOpenProject={onOpenProject} /></div>}
+      <UnknownBanner link={data.link} subject={data.subject} messages={data.messages} crmWrite={crmWrite} myName={myName} onRegister={onRegister} onChanged={onLinkChanged} />
       {data.messages.map((m) => (
         <article key={m.id} className={`mail-msg${expanded.has(m.id) ? ' open' : ''}`}>
           <header className="mail-msg-head" {...activateRow(() => toggle(m.id))} aria-expanded={expanded.has(m.id)}>
