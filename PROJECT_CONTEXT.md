@@ -8867,3 +8867,11 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - Testes: 9 verificações novas em `scripts/mail-parse.test.mjs`. Suíte 42/42.
 - Situação: commit 8fc59af, deploy às 13h09 de Brasília. Na caixa do Rafael não achei e-mail recente com `<style>` (o do Gerson veio do Outlook novo, só com estilo inline), então a conferência visual fica para o próximo e-mail do Outlook de computador ou de newsletter.
 - Fora do escopo: winmail.dat (TNEF) e convite .ics com botões.
+
+## 116zzzzzz. Caixa de e-mail: selecionar como no Gmail (2026-11-02, print do Rafael: "Disponibilize essa opção")
+- No cabeçalho da lista, `SelectMenu` (`src/mail/MailScreen.jsx`):
+  - a caixa marca ou desmarca todas as conversas carregadas e fica parcial quando só parte está marcada;
+  - a setinha abre Todos, Nenhum, Lidas, Não lidas, Com estrela e Sem estrela, e a escolha substitui a seleção atual.
+- Vale só para as conversas já carregadas na lista (como o Gmail sem "selecionar todas as conversas da pesquisa").
+- Menu `position: fixed` (lição do §116zz); estilos `.mail-selall*`/`.mail-sel-*` em `mail.css`.
+- Conferido no navegador local com Gmail simulado: as 6 opções e o clique na caixa deram a seleção certa. Suíte 42/42.

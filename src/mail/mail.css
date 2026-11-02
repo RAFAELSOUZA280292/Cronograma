@@ -259,3 +259,13 @@ body.mail-resizing iframe { pointer-events: none; }
 @media (max-width: 767px) {
   .mail-view-menu .mc-check { min-height: 40px; font-size: 15px; }
 }
+
+/* Selecionar como no Gmail (caixa + setinha) */
+.mail-selall { display: flex; align-items: center; flex: none; margin-right: -2px; }
+.mail-selall-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-4); cursor: pointer; }
+.mail-selall-btn:hover, .mail-selall-btn[aria-expanded="true"] { background: var(--bg-3); color: var(--text-2); }
+.mail-sel-menu { width: 180px; padding: 6px 0; }
+.mail-sel-item { display: block; width: 100%; padding: 8px 16px; border: 0; background: transparent; color: var(--text-2); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.mail-sel-item:hover, .mail-sel-item:focus-visible { background: var(--bg-3); outline: none; }
+@media (max-width: 767px) { .mail-sel-item { min-height: 44px; } .mail-selall-btn { width: 32px; height: 40px; } }
+.mail-list-head .mail-list-title { flex: 1; min-width: 0; }

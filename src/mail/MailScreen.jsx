@@ -3,7 +3,7 @@
 // O corpo do e-mail é desenhado num iframe sem script (sandbox) com o HTML já higienizado no servidor; imagens externas
 // só carregam com "Mostrar imagens".
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { Inbox, Star, Send, FileText, Archive, AlertOctagon, Trash2, Tag, RefreshCw, Search, Paperclip, ArrowLeft, MailOpen, Mail, Undo2, Image as ImageIcon, Download, Link2, AlertTriangle, X, PenSquare, Reply, ReplyAll, Forward, Signature, FolderInput, FolderPlus, Pencil, ListFilter, Bell, PencilLine, PanelLeftClose, PanelLeftOpen, SlidersHorizontal } from 'lucide-react';
+import { Inbox, Star, Send, FileText, Archive, AlertOctagon, Trash2, Tag, RefreshCw, Search, Paperclip, ArrowLeft, MailOpen, Mail, Undo2, Image as ImageIcon, Download, Link2, AlertTriangle, X, PenSquare, Reply, ReplyAll, Forward, Signature, FolderInput, FolderPlus, Pencil, ListFilter, Bell, PencilLine, PanelLeftClose, PanelLeftOpen, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { Callout, BusyBar, Button, IconButton, EmptyState, activateRow } from '../ui/index.jsx';
 import { notify, askConfirm } from '../ui/dialogs.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
@@ -478,6 +478,7 @@ export default function MailScreen({ currentUser, theme }) {
                 </div>
               )}
               <div className="mail-list-head">
+                {threads.length > 0 && <SelectMenu threads={threads} selected={selected} onSelect={setSelected} />}
                 {selIds.length ? (
                   <>
                     <span className="mail-list-title">{selIds.length} selecionada{selIds.length > 1 ? 's' : ''}</span>
@@ -810,6 +811,51 @@ function Splitter({ horizontal, label, value, bounds, onLive, onCommit, step = 1
 const READING_LABEL = { right: 'À direita', bottom: 'Embaixo da lista', off: 'Desligado (abre no lugar da lista)' };
 
 // "Exibir": painel de leitura, densidade da lista, trecho e coluna de pastas. A escolha fica guardada por pessoa (mailView.js).
+// Seleção como no Gmail: a caixa marca/desmarca todas as conversas carregadas e a setinha escolhe por estado.
+const SELECT_OPTIONS = [
+  ['all', 'Todos', () => true], ['none', 'Nenhum', () => false],
+  ['read', 'Lidas', (t) => !t.unread], ['unread', 'Não lidas', (t) => !!t.unread],
+  ['starred', 'Com estrela', (t) => !!t.starred], ['unstarred', 'Sem estrela', (t) => !t.starred],
+];
+function SelectMenu({ threads, selected, onSelect }) {
+  const [open, setOpen] = useState(null);
+  const wrap = useRef(null);
+  const box = useRef(null);
+  const count = threads.filter((t) => selected.has(t.id)).length;
+  const all = count > 0 && count === threads.length;
+  useEffect(() => { if (box.current) box.current.indeterminate = count > 0 && !all; }, [count, all]);
+  const toggle = (e) => {
+    if (open) { setOpen(null); return; }
+    const r = e.currentTarget.getBoundingClientRect();
+    setOpen({ top: r.bottom + 6, left: Math.max(16, Math.min(r.left - 28, window.innerWidth - 200)) });
+  };
+  useEffect(() => {
+    if (!open) return undefined;
+    const out = (e) => { if (wrap.current && !wrap.current.contains(e.target)) setOpen(null); };
+    const esc = (e) => { if (e.key === 'Escape') { e.preventDefault(); setOpen(null); } };
+    document.addEventListener('pointerdown', out);
+    window.addEventListener('keydown', esc, true);
+    return () => { document.removeEventListener('pointerdown', out); window.removeEventListener('keydown', esc, true); };
+  }, [open]);
+  const pick = (fn) => { onSelect(new Set(threads.filter(fn).map((t) => t.id))); setOpen(null); };
+  return (
+    <div className="mail-selall" ref={wrap}>
+      <input ref={box} type="checkbox" className="mail-check" checked={all} onChange={() => pick(all ? () => false : () => true)}
+        aria-label={all ? 'Desmarcar todas' : 'Selecionar todas'} title={all ? 'Desmarcar todas' : 'Selecionar todas'} />
+      <button type="button" className="mail-selall-btn" aria-label="Selecionar por tipo" title="Selecionar" aria-haspopup="menu" aria-expanded={!!open} onClick={toggle}>
+        <ChevronDown size={14} aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="mail-view-menu mail-sel-menu" role="menu" aria-label="Selecionar" style={{ top: open.top, left: open.left }}>
+          {SELECT_OPTIONS.map(([key, label, fn]) => (
+            <button key={key} type="button" role="menuitem" className="mail-sel-item" onClick={() => pick(fn)}>{label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ViewMenu({ view, isMobile, onChange }) {
   const [open, setOpen] = useState(null);
   const wrap = useRef(null);
