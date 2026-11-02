@@ -8,6 +8,7 @@ import { Button, Callout, BusyBar, EmptyState } from '../ui/index.jsx';
 import { notify, askConfirm, askText } from '../ui/dialogs.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 import MailFrame from './MailFrame.jsx';
+import { useMailPrefs } from './mailPrefs.js';
 import { CRM_CSS } from '../crm/crmMeta.js';
 import './mailLinks.css';
 
@@ -157,10 +158,12 @@ export function UnknownBanner({ link, subject, messages, crmWrite, myName, onReg
   );
 }
 
-// Corpo de uma mensagem na aba E-mails: assinatura e imagens embutidas já vêm do Gmail de quem trocou; remotas só com "Mostrar imagens"
-// (igual à Caixa de e-mail); anexos baixam pela mesma regra de leitura.
+// Corpo de uma mensagem na aba E-mails: assinatura e imagens embutidas já vêm do Gmail de quem trocou; remotas seguem a preferência
+// da Caixa de e-mail (padrão: sempre mostrar; quem bloqueou vê "Mostrar imagens"); anexos baixam pela mesma regra de leitura.
 function ReaderBody({ m }) {
-  const [images, setImages] = useState(false);
+  const { showImages } = useMailPrefs();
+  const [asked, setImages] = useState(false);
+  const images = showImages || asked;
   const html = useMemo(() => (images ? m.html.replace(/ data-pt-src="/g, ' src="') : m.html), [m.html, images]);
   return (
     <div className="ml-msg-body">

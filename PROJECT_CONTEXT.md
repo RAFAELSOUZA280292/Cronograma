@@ -8930,6 +8930,13 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - Tela: recuo por profundidade na lateral e no seletor do celular; título, "Mover para…" e aviso de "Movido para" usam `display`. Editar a pasta continua mostrando o nome completo no Gmail.
 - Sem chave nova: é só exibição. 4 verificações novas em `scripts/mail-parse.test.mjs`; conferido no navegador local com pastas simuladas. Suíte 42/42.
 
+
+## 116zzzzzzzzz. Caixa de e-mail: imagens sempre à mostra, com opção em Configurar (2026-11-02, pedido do Rafael: "não quero saber de privacidade… para todos os usuários, deixa para sempre mostrar as imagens")
+
+- Preferência por pessoa em `users.preferences.mail.showImages`; **ausente = ligada** (todos passam a ver as imagens sem migrar nada). Rotas `GET/PUT /api/mail/prefs` em `server/mail.js` (PUT exige booleano).
+- Front: `src/mail/mailPrefs.js` (`useMailPrefs` lê uma vez e divide entre telas; `saveMailPrefs`). Usado no `MessageBody` da Caixa (`MailScreen.jsx`) e no `ReaderBody` da aba E-mails do CRM (`MailLinks.jsx`): com a preferência ligada o HTML já sai com `data-pt-src`→`src`; desligada volta a faixa "Mostrar imagens".
+- Configurar (coluna das pastas, abaixo de Regras): botão "Imagens: sempre mostrar / perguntar" alterna e avisa.
+- O servidor continua higienizando igual (as remotas seguem em `data-pt-src`); só a decisão de carregar mudou.
 ## 123a. WhatsApp: caixas por número, pessoal privada e Comercial compartilhada (2026-11-02, decisão do Rafael)
 - **Pedido:** "Para eu + Felipe + Ronaldo vamos de Opção B; para a Duda (Eduarda), número novo e dedicado, na API oficial, numa caixa Comercial". Os sócios querem o WhatsApp **pessoal** no painel sem expor conversas de família ("exclusivamente com o usuário que autorizar"); a Eduarda ganha número profissional que os sócios também acompanham.
 - **Desenho:** cada número vira uma **caixa** (`wa_inboxes`): `shared` (membros em `wa_inbox_members`) ou `personal` (`owner_id`). Conversa passa a ser única por (caixa, cliente) (`wa_conversations.inbox_id`; a restrição antiga por organização saiu — tabela vazia, nunca ligada). O webhook escolhe a caixa pelo `phone_number_id` do evento (`parseWebhook` devolve `phoneNumberId` em cada evento).

@@ -1,7 +1,7 @@
 // Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). Três colunas como no Outlook — pastas, lista, leitura — sobre o
 // Gmail da própria pessoa (rotas /api/mail, server/mail.js). No celular vira uma coluna: lista → leitura → Voltar.
 // O corpo do e-mail é desenhado num iframe sem script (sandbox) com o HTML já higienizado no servidor; imagens externas
-// só carregam com "Mostrar imagens".
+// carregam direto (padrão desde 02/11/2026) ou, para quem desligar em Configurar → Imagens, só com "Mostrar imagens".
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Inbox, Star, Send, FileText, Archive, AlertOctagon, Trash2, Tag, RefreshCw, Search, Paperclip, ArrowLeft, MailOpen, Mail, Undo2, Image as ImageIcon, Download, Link2, AlertTriangle, X, PenSquare, Reply, ReplyAll, Forward, Signature, FolderInput, FolderPlus, Pencil, ListFilter, Bell, PencilLine, PanelLeftClose, PanelLeftOpen, SlidersHorizontal, ChevronDown, MoreVertical } from 'lucide-react';
 import { Callout, BusyBar, Button, IconButton, EmptyState, activateRow } from '../ui/index.jsx';
@@ -10,6 +10,7 @@ import { apiGet, apiPost } from '../lib/api.js';
 import { BrandLogo, useIsMobile } from '../App.jsx';
 import { S } from '../styles/S.js';
 import MailFrame from './MailFrame.jsx';
+import { useMailPrefs, saveMailPrefs } from './mailPrefs.js';
 import InviteCard from './InviteCard.jsx';
 import Compose, { fmtSize } from './Compose.jsx';
 import SignatureDialog from './SignatureDialog.jsx';
@@ -59,6 +60,10 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, 
   const [compose, setCompose] = useState(null);
   const [signature, setSignature] = useState(null);
   const [sigOpen, setSigOpen] = useState(false);
+  const mailPrefs = useMailPrefs();
+  const toggleImages = () => saveMailPrefs({ showImages: !mailPrefs.showImages })
+    .then((p) => notify(p.showImages ? 'As imagens dos e-mails passam a carregar direto.' : 'Imagens externas bloqueadas até clicar em Mostrar imagens.', { tone: 'success' }))
+    .catch((e) => notify(e.message || 'Não foi possível salvar.', { tone: 'error' }));
   const [threadRev, setThreadRev] = useState(0);
   const [moveFor, setMoveFor] = useState(null);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -476,6 +481,10 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, 
               <button type="button" className="mail-folder" onClick={() => setRulesOpen(true)}>
                 <ListFilter size={14} aria-hidden="true" /><span>Regras</span>
               </button>
+              <button type="button" className="mail-folder" onClick={toggleImages} aria-pressed={mailPrefs.showImages}
+                title={mailPrefs.showImages ? 'Imagens dos e-mails carregam direto. Clique para bloquear até pedir.' : 'Imagens externas bloqueadas até clicar em Mostrar imagens. Clique para sempre mostrar.'}>
+                <ImageIcon size={14} aria-hidden="true" /><span>Imagens: {mailPrefs.showImages ? 'sempre mostrar' : 'perguntar'}</span>
+              </button>
               {notifPerm === 'default' && (
                 <button type="button" className="mail-folder" onClick={askNotifications} title="Alerta do computador quando chegar e-mail (com o painel aberto)">
                   <Bell size={14} aria-hidden="true" /><span>Ativar avisos</span>
@@ -790,7 +799,9 @@ function replyAllCount(m, me) {
 }
 
 function MessageBody({ msg, onReply, onGoAgenda }) {
-  const [images, setImages] = useState(false);
+  const { showImages } = useMailPrefs();
+  const [asked, setImages] = useState(false);
+  const images = showImages || asked;
   const html = useMemo(() => (images ? msg.html.replace(/ data-pt-src="/g, ' src="') : msg.html), [msg.html, images]);
   return (
     <div className="mail-msg-body">

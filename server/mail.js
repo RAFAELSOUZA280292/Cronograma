@@ -303,6 +303,29 @@ router.put('/signature', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Preferências da caixa por pessoa (users.preferences.mail). showImages: imagens externas carregam direto, sem "Mostrar imagens";
+// padrão ligado para todos (pedido do Rafael, 02/11/2026) — quem quiser volta a bloquear em Configurar → Imagens.
+const readPrefs = (raw) => ({ showImages: !(raw && raw.showImages === false) });
+
+router.get('/prefs', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query("SELECT preferences->'mail' AS m FROM users WHERE id=$1", [req.user.id]);
+    res.json(readPrefs(rows[0] && rows[0].m));
+  } catch (e) { next(e); }
+});
+
+router.put('/prefs', async (req, res, next) => {
+  try {
+    const b = req.body || {};
+    if (typeof b.showImages !== 'boolean') return res.status(400).json({ message: 'Informe showImages (verdadeiro ou falso).' });
+    await pool.query(
+      "UPDATE users SET preferences = COALESCE(preferences, '{}'::jsonb) || jsonb_build_object('mail', COALESCE(preferences->'mail', '{}'::jsonb) || jsonb_build_object('showImages', $1::boolean)) WHERE id=$2",
+      [b.showImages, req.user.id],
+    );
+    res.json(readPrefs({ showImages: b.showImages }));
+  } catch (e) { next(e); }
+});
+
 router.get('/signature/logo.png', (req, res) => {
   res.setHeader('Content-Type', 'image/png');
   res.setHeader('Cache-Control', 'private, max-age=86400');
