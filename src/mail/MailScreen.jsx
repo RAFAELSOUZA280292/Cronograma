@@ -3,7 +3,7 @@
 // O corpo do e-mail é desenhado num iframe sem script (sandbox) com o HTML já higienizado no servidor; imagens externas
 // só carregam com "Mostrar imagens".
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { Inbox, Star, Send, FileText, Archive, AlertOctagon, Trash2, Tag, RefreshCw, Search, Paperclip, ArrowLeft, MailOpen, Mail, Undo2, Image as ImageIcon, Download, Link2, AlertTriangle, X, PenSquare, Reply, ReplyAll, Forward, Signature, FolderInput, FolderPlus, Pencil, ListFilter, Bell, PencilLine, PanelLeftClose, PanelLeftOpen, SlidersHorizontal, ChevronDown } from 'lucide-react';
+import { Inbox, Star, Send, FileText, Archive, AlertOctagon, Trash2, Tag, RefreshCw, Search, Paperclip, ArrowLeft, MailOpen, Mail, Undo2, Image as ImageIcon, Download, Link2, AlertTriangle, X, PenSquare, Reply, ReplyAll, Forward, Signature, FolderInput, FolderPlus, Pencil, ListFilter, Bell, PencilLine, PanelLeftClose, PanelLeftOpen, SlidersHorizontal, ChevronDown, MoreVertical } from 'lucide-react';
 import { Callout, BusyBar, Button, IconButton, EmptyState, activateRow } from '../ui/index.jsx';
 import { notify, askConfirm } from '../ui/dialogs.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
@@ -94,6 +94,16 @@ export default function MailScreen({ currentUser, theme }) {
   const loadNav = useCallback(async () => {
     try { setNav(await apiGet('/api/mail/labels')); } catch { /* a lista mostra o erro; as pastas ficam como estavam */ }
   }, []);
+
+  // ⋮ → Marcar todas como lidas: vale para a pasta (ou pesquisa) inteira no Gmail, não só para o que está carregado.
+  async function markAllRead() {
+    try {
+      const r = await apiPost('/api/mail/read-all', { folder: search ? '' : folder, q: search || undefined });
+      setThreads((list) => list.map((t) => (t.unread ? { ...t, unread: false } : t)));
+      loadNav();
+      notify(r.count ? `${r.count} ${r.count > 1 ? 'mensagens marcadas' : 'mensagem marcada'} como lida${r.count > 1 ? 's' : ''}.${r.more ? ' Ainda há mais; clique de novo para continuar.' : ''}` : 'Não havia nada não lido aqui.', { tone: 'success' });
+    } catch (e) { notify(e.message, { tone: 'error' }); }
+  }
 
   const loadThreads = useCallback(async ({ append = false, quiet = false } = {}) => {
     const id = ++reqRef.current;
@@ -492,6 +502,7 @@ export default function MailScreen({ currentUser, theme }) {
                       {isMobile && <IconButton label="Assinatura do e-mail" icon={Signature} size="sm" onClick={() => setSigOpen(true)} disabled={!signature} />}
                       {isMobile && <IconButton label="Regras do e-mail" icon={ListFilter} size="sm" onClick={() => setRulesOpen(true)} />}
                       <IconButton label="Atualizar" icon={RefreshCw} size="sm" onClick={() => { loadThreads(); loadNav(); }} />
+                      <MoreMenu items={[{ key: 'read-all', label: search ? 'Marcar todas da pesquisa como lidas' : 'Marcar todas como lidas', onClick: markAllRead }]} />
                     </div>
                   </>
                 )}
@@ -811,6 +822,38 @@ function Splitter({ horizontal, label, value, bounds, onLive, onCommit, step = 1
 const READING_LABEL = { right: 'À direita', bottom: 'Embaixo da lista', off: 'Desligado (abre no lugar da lista)' };
 
 // "Exibir": painel de leitura, densidade da lista, trecho e coluna de pastas. A escolha fica guardada por pessoa (mailView.js).
+// ⋮ da lista (como no Gmail): ações que valem para a pasta inteira.
+function MoreMenu({ items }) {
+  const [open, setOpen] = useState(null);
+  const wrap = useRef(null);
+  const toggle = (e) => {
+    if (open) { setOpen(null); return; }
+    const r = e.currentTarget.getBoundingClientRect();
+    const w = Math.min(260, window.innerWidth - 32);
+    setOpen({ top: r.bottom + 6, left: Math.max(16, Math.min(r.right - w, window.innerWidth - w - 16)), width: w });
+  };
+  useEffect(() => {
+    if (!open) return undefined;
+    const out = (e) => { if (wrap.current && !wrap.current.contains(e.target)) setOpen(null); };
+    const esc = (e) => { if (e.key === 'Escape') { e.preventDefault(); setOpen(null); } };
+    document.addEventListener('pointerdown', out);
+    window.addEventListener('keydown', esc, true);
+    return () => { document.removeEventListener('pointerdown', out); window.removeEventListener('keydown', esc, true); };
+  }, [open]);
+  return (
+    <div className="mail-view-wrap" ref={wrap}>
+      <IconButton label="Mais opções" icon={MoreVertical} size="sm" aria-haspopup="menu" aria-expanded={!!open} onClick={toggle} />
+      {open && (
+        <div className="mail-view-menu mail-sel-menu" role="menu" aria-label="Mais opções" style={{ top: open.top, left: open.left, width: open.width }}>
+          {items.map((it) => (
+            <button key={it.key} type="button" role="menuitem" className="mail-sel-item" onClick={() => { setOpen(null); it.onClick(); }}>{it.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Seleção como no Gmail: a caixa marca/desmarca todas as conversas carregadas e a setinha escolhe por estado.
 const SELECT_OPTIONS = [
   ['all', 'Todos', () => true], ['none', 'Nenhum', () => false],

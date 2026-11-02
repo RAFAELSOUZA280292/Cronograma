@@ -8875,3 +8875,10 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - Vale só para as conversas já carregadas na lista (como o Gmail sem "selecionar todas as conversas da pesquisa").
 - Menu `position: fixed` (lição do §116zz); estilos `.mail-selall*`/`.mail-sel-*` em `mail.css`.
 - Conferido no navegador local com Gmail simulado: as 6 opções e o clique na caixa deram a seleção certa. Suíte 42/42.
+
+## 116zzzzzzz. Caixa de e-mail: ⋮ "Marcar todas como lidas" (2026-11-02, print do Rafael com a barra do Gmail: caixa, atualizar, ⋮)
+- O cabeçalho da lista agora tem a mesma barra do Gmail: caixa com setinha (§116zzzzzz), Atualizar e ⋮ (`MoreMenu` em `src/mail/MailScreen.jsx`).
+- No ⋮ fica "Marcar todas como lidas"; com uma pesquisa aberta, o texto é "Marcar todas da pesquisa como lidas".
+- Servidor: `POST /api/mail/read-all` `{ folder, q }` usa `unreadQuery` (`server/googleMail.js`, que é `folderQuery` + `UNREAD`). Depois faz `messages.list` paginado e `messages.batchModify` removendo `UNREAD`, em lotes de 1.000.
+- Vale para a pasta inteira no Gmail, não só para o que está na tela. O limite é 5.000 mensagens por clique; acima disso, o aviso diz para clicar de novo.
+- Teste: 4 verificações em `scripts/mail-parse.test.mjs`. Conferido no navegador local com Gmail simulado (pedido certo, linhas ficam lidas, aviso aparece). Suíte 42/42.

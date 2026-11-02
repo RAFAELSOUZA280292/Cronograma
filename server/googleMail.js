@@ -26,6 +26,12 @@ export function folderQuery(folder, q) {
   return { labelIds: text ? undefined : ['INBOX'], q: text || undefined, includeSpamTrash: false };
 }
 
+// "Marcar todas como lidas": a mesma pasta/pesquisa da lista, só com as não lidas (users.messages.list soma os marcadores com E).
+export function unreadQuery(folder, q) {
+  const f = folderQuery(folder, q);
+  return { ...f, labelIds: [...(f.labelIds || []), 'UNREAD'] };
+}
+
 export function headerMap(headers) {
   const out = {};
   for (const h of headers || []) {

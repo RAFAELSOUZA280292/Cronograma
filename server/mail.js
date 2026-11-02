@@ -5,7 +5,7 @@ import { Router } from 'express';
 import { requireAuth, requireMasterOrPricetax } from './auth.js';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { FOLDERS, folderQuery, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, gmailFor, mailStatus, friendlyMailError, forgetMailScope, mapLimit } from './googleMail.js';
+import { unreadQuery, FOLDERS, folderQuery, headerMap, parseAddressList, walkParts, sanitizeMailHtml, textToHtml, threadSummary, gmailFor, mailStatus, friendlyMailError, forgetMailScope, mapLimit } from './googleMail.js';
 import { parseRecipients, replyRecipients, replySubject, buildQuote, composeBody, buildMime, cleanSignature, signatureHtml, signatureHasContent, sizeError, attachmentsSize, LOGO_CID, MAX_RECIPIENTS, isEmail, sanitizeOutgoingHtml, DRAFT_HEADER, draftMeta, parseDraftMeta, draftBodyHtml, SIG_IMAGE_CID, signatureImageError, restoreInlineImages, BODY_IMAGE_PREFIX, rankContacts, contactRank, foldText, attachmentBlockReason } from './mailCompose.js';
 import { labelColorFor } from '../shared/mailLabelColors.js';
 import { crmRoleOf } from './crm/permissions.js';
@@ -168,6 +168,27 @@ router.post('/threads/modify', async (req, res) => {
       : action === 'untrash' ? gmail.users.threads.untrash({ userId: 'me', id })
         : gmail.users.threads.modify({ userId: 'me', id, requestBody: labelBody || ACTIONS[action] })));
     res.json({ ok: true, count: ids.length });
+  } catch (e) { fail(res, e); }
+});
+
+// Marcar todas como lidas (como o ⋮ do Gmail): todas as mensagens não lidas da pasta/pesquisa aberta, não só as
+// carregadas na tela. Até 5.000 por clique (batchModify aceita 1.000 por chamada); o que passar disso fica para o próximo clique.
+router.post('/read-all', async (req, res) => {
+  const gmail = await withGmail(req, res); if (!gmail) return;
+  try {
+    const { labelIds, q, includeSpamTrash } = unreadQuery(String((req.body && req.body.folder) || 'INBOX'), req.body && req.body.q);
+    const ids = [];
+    let pageToken;
+    do {
+      const { data } = await gmail.users.messages.list({ userId: 'me', labelIds, q, includeSpamTrash, maxResults: 500, pageToken });
+      for (const m of data.messages || []) ids.push(m.id);
+      pageToken = data.nextPageToken;
+    } while (pageToken && ids.length < 5000);
+    const todo = ids.slice(0, 5000);
+    for (let i = 0; i < todo.length; i += 1000) {
+      await gmail.users.messages.batchModify({ userId: 'me', requestBody: { ids: todo.slice(i, i + 1000), removeLabelIds: ['UNREAD'] } });
+    }
+    res.json({ ok: true, count: todo.length, more: ids.length > 5000 || !!pageToken });
   } catch (e) { fail(res, e); }
 });
 

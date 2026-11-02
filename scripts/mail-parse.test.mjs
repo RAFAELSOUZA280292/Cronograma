@@ -1,6 +1,6 @@
 // Caixa de e-mail (Fase 1): leitura das partes MIME, endereços, pastas e higienização do HTML recebido. Puro.
 //   node scripts/mail-parse.test.mjs
-import { parseAddressList, walkParts, sanitizeMailHtml, mailStyles, folderQuery, threadSummary, decodeBody, textToHtml } from '../server/googleMail.js';
+import { parseAddressList, walkParts, sanitizeMailHtml, mailStyles, unreadQuery, folderQuery, threadSummary, decodeBody, textToHtml } from '../server/googleMail.js';
 
 let failed = 0;
 const ok = (name, cond, extra) => { if (cond) console.log(`ok   ${name}`); else { failed += 1; console.log(`FAIL ${name}${extra !== undefined ? ` -> ${JSON.stringify(extra)}` : ''}`); } };
@@ -76,6 +76,12 @@ ok('@import derruba a folha', mailStyles('<style>@import "https://x.com/a.css"; 
 ok('image-set derruba a folha', mailStyles('<style>p{background-image:image-set("https://x.com/a.png" 1x)}</style>') === '');
 ok('"<" não fecha a tag de estilo', !mailStyles('<style>p{color:red}</style ><style>a{x:"</style><script>alert(1)</script>"}</style>').includes('<'));
 ok('estilo inline com escape sai', !/style=/.test(sanitizeMailHtml('<p style="background:u\\72l(https://x.com/a.gif)">x</p>').html));
+
+// Marcar todas como lidas: mesma pasta/pesquisa da lista, só não lidas.
+ok('lidas: Entrada vira INBOX+UNREAD', JSON.stringify(unreadQuery('INBOX').labelIds) === '["INBOX","UNREAD"]');
+ok('lidas: pasta própria', JSON.stringify(unreadQuery('Label_12').labelIds) === '["Label_12","UNREAD"]');
+ok('lidas: Arquivo usa a busca e só UNREAD', JSON.stringify(unreadQuery('ARCHIVE').labelIds) === '["UNREAD"]' && /-in:inbox/.test(unreadQuery('ARCHIVE').q));
+ok('lidas: pesquisa vale em todas as pastas', JSON.stringify(unreadQuery('', 'from:kuhn')) === JSON.stringify({ labelIds: ['UNREAD'], q: 'from:kuhn', includeSpamTrash: false }), unreadQuery('', 'from:kuhn'));
 
 console.log(failed ? `${failed} falharam` : 'todos passaram');
 process.exit(failed ? 1 : 0);
