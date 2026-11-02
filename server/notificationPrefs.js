@@ -9,6 +9,7 @@ export const NOTIFICATION_CATEGORIES = [
   { key: 'crm', label: 'CRM', description: 'Atividades do CRM atribuídas ou vencendo e menções em notas.', prefixes: ['crm_'], active: true },
   { key: 'pareceres', label: 'Pareceres e Modelos', description: 'Menções em comentários de pareceres e de modelos de documentos.', prefixes: ['parecer_', 'modelo_'], active: true },
   { key: 'renata', label: 'RENATA', description: 'O briefing do dia (um aviso por manhã, só quando há algo a dizer).', prefixes: ['renata_'], active: true },
+  { key: 'whatsapp', label: 'WhatsApp', description: 'Mensagem nova de cliente no WhatsApp da empresa (um aviso por conversa, até alguém ler).', prefixes: ['whatsapp_'], active: true },
 ];
 
 export function readMuted(preferences) {

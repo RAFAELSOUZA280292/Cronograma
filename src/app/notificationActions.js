@@ -99,6 +99,11 @@ export function createNotificationActions({
       if (!enter('crm')) return;
       markNotificationsReadForTarget({ kind: 'crm_activity', activityId: t.activityId });
       setPendingCrmOpen({ companyId: t.companyId, dealId: t.dealId || null });
+    } else if (t.kind === 'whatsapp') {
+      if (!canOpenMode('whatsapp', currentUser)) { notify('Você não tem acesso a este módulo.', { tone: 'error' }); return; }
+      markNotificationRead(n.id, true);
+      window.location.hash = `conversa=${encodeURIComponent(t.conversationId || '')}`;
+      if (workspaceMode !== 'whatsapp') goToWorkspace('whatsapp');
     } else if (t.kind === 'parecer') {
       if (!enter('pareceres')) return;
       markNotificationRead(n.id, true);
@@ -109,7 +114,7 @@ export function createNotificationActions({
       setPendingModeloOpen(t.id);
     } else {
       const prefix = String((n && n.type) || '').split('_')[0];
-      const mode = { xflow: 'xflow', crm: 'crm', parecer: 'pareceres', modelo: 'modelos', activity: 'company', todo: 'company' }[prefix];
+      const mode = { xflow: 'xflow', crm: 'crm', parecer: 'pareceres', modelo: 'modelos', activity: 'company', todo: 'company', whatsapp: 'whatsapp' }[prefix];
       if (n && n.id) markNotificationRead(n.id, true);
       if (mode) enter(mode);
       else notify('Esta notificação não aponta para um item específico.');

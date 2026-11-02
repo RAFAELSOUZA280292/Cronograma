@@ -130,6 +130,8 @@ Fonte da verdade: `.env` local (não commitado, `.gitignore`) + Railway env vars
 | `VAPID_SUBJECT` | Contato do push (padrão `https://painel.pricetax.com.br`) | Não |
 | `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_APP_SECRET` / `WHATSAPP_VERIFY_TOKEN` | WhatsApp (§123): as quatro ou tudo fica desligado | Não |
 | `WHATSAPP_DISPLAY_PHONE` / `WHATSAPP_GRAPH_VERSION` | Número exibido na tela do WhatsApp; versão da Graph API (padrão `v24.0`) | Não |
+| `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_APP_SECRET` / `WHATSAPP_VERIFY_TOKEN` | WhatsApp (§123): as quatro ou tudo fica desligado | Não |
+| `WHATSAPP_DISPLAY_PHONE` / `WHATSAPP_GRAPH_VERSION` | Número exibido na tela do WhatsApp; versão da Graph API (padrão `v24.0`) | Não |
 | `PUSH_EXTRA_HOSTS` | Hosts extras aceitos como endpoint de push — SÓ para teste local | Não |
 | `TASK_LINK_MODE` | Vínculo tarefa→atividade (§87): `off` desliga sugestões e a varredura; `sem-ia` só usa o aprendido + regra | Não |
 | `TASK_LINK_AUTO` | `off` = a RENATA só sugere, nunca vincula sozinha (§87) | Não |

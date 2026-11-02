@@ -48,6 +48,7 @@ export function urlForNotification(type, target) {
   const t = String(type || '');
   if (t.startsWith('xflow_')) return '/xflow';
   if (t.startsWith('crm_')) return '/crm';
+  if (t.startsWith('whatsapp_')) return '/whatsapp';
   if (t.startsWith('parecer_')) return '/pareceres';
   if (t.startsWith('modelo_')) return '/modelos';
   if (t.startsWith('personal_')) return '/gestao-atividades';

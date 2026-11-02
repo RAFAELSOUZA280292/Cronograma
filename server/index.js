@@ -10,6 +10,7 @@ import { router as xflowRouter } from './xflow.js';
 import { router as googleRouter } from './google.js';
 import { router as agendaRouter } from './agenda.js';
 import { router as mailRouter } from './mail.js';
+import { router as whatsappRouter, publicRouter as whatsappPublicRouter, whatsappEnabled } from './whatsapp.js';
 import { router as macroRouter } from './macro.js';
 import { router as inventoryRouter } from './inventory.js';
 import { router as inventoryEditRouter } from './inventoryEdit.js';
@@ -68,6 +69,10 @@ app.use('/api/templates', express.json({ limit: '45mb' }));
 app.use('/api/mail/send', express.json({ limit: '30mb' }));
 // O rascunho leva os mesmos anexos e as imagens coladas no corpo (pacote de personalização, 2026-11-02).
 app.use('/api/mail/drafts', express.json({ limit: '30mb' }));
+// Webhook do WhatsApp: corpo cru, porque a assinatura da Meta (X-Hub-Signature-256) é sobre os bytes exatos.
+app.use('/api/whatsapp/webhook', express.raw({ type: '*/*', limit: '3mb' }));
+// Arquivo enviado pelo WhatsApp: até 20 MB (base64 ≈ 27 MB), conferido de novo na rota.
+app.use('/api/whatsapp/conversations', express.json({ limit: '30mb' }));
 app.use(express.json({ limit: '15mb' }));
 // Express 5 deixa req.body indefinido quando a requisição não traz corpo JSON (no 4 era {}); os handlers desestruturam req.body.
 app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });
@@ -78,6 +83,8 @@ app.use('/api/xflow', xflowRouter);
 app.use('/api/google', googleRouter);
 app.use('/api/agenda', agendaRouter);
 app.use('/api/mail', mailRouter);
+app.use('/api/whatsapp', whatsappPublicRouter);
+app.use('/api/whatsapp', whatsappRouter);
 app.use('/api/macro', macroRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/inventory', inventoryEditRouter);
@@ -168,6 +175,7 @@ async function start() {
     console.log(`Cronograma server ouvindo na porta ${port}`);
     countMaps().then((n) => console.log(`sourcemaps (só para o log de erros): ${n} arquivo(s) disponíveis`));
     console.log(pushEnabled() ? 'notificações push: ATIVADAS (chaves VAPID presentes)' : 'notificações push: desativadas (sem chaves VAPID)');
+    console.log(whatsappEnabled() ? 'WhatsApp: ATIVADO' : 'WhatsApp: desativado (faltam as chaves WHATSAPP_*)');
     startCrmScheduler();
     startTodoScheduler();
     startBriefingScheduler();

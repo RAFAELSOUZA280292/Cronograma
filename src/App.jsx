@@ -3,7 +3,7 @@ import { revertLinkedSync, syncLinkedStatus } from '../shared/linkSync.js';
 import { meetingConflicts } from '../shared/calendarDays.js';
 import { fitPeriods } from '../shared/period.js';
 import { loadPdfPrefs, mergePdfPrefs, savePdfPrefs } from './pdf/pdfTheme.js';
-import { Activity, Share2, ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen, History, ArchiveRestore, CalendarCheck, Mail, Users as UsersGlyph } from 'lucide-react';
+import { Activity, Share2, ShieldCheck, Plus, Trash2, Upload, Clock, LayoutGrid, Columns3, Building2, X, FileSpreadsheet, FileText, Settings, GripVertical, CalendarDays, Mic, LogOut, UserCog, Sun, Moon, Bell, ListChecks, Globe, Bug, Home, Sparkles, Briefcase, FolderOpen, History, ArchiveRestore, CalendarCheck, Mail, MessageCircle, Users as UsersGlyph } from 'lucide-react';
 import { crm as crmClient } from './crm/crmApi.js';
 import { libraryItems } from './shell/libraryItems.js';
 
@@ -72,6 +72,7 @@ const CrmScreen = lazyRetry(() => import('./crm/CrmScreen.jsx'));
 const XFlowScreen = lazyRetry(() => import('./xflow/XFlow.jsx'));
 const AgendaScreen = lazyRetry(() => import('./agenda/Agenda.jsx'));
 const MailScreen = lazyRetry(() => import('./mail/MailScreen.jsx'));
+const WhatsAppScreen = lazyRetry(() => import('./whatsapp/WhatsAppScreen.jsx'));
 const MacroOverviewScreen = lazyRetry(() => import('./macro/MacroOverview.jsx'));
 const KnowledgeCenterScreen = lazyRetry(() => import('./knowledge/KnowledgeCenter.jsx'));
 const PareceresScreen = lazyRetry(() => import('./pareceres/Pareceres.jsx'));
@@ -446,6 +447,7 @@ const SHELL_MODES = [
   { key: 'xflow', label: 'XFlow', icon: Bug },
   { key: 'agenda', label: 'Agenda', icon: CalendarDays },
   { key: 'mail', label: 'E-mail', icon: Mail },
+  { key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { key: 'macro', label: 'Visão Geral', icon: Globe },
   { key: 'knowledge', label: 'Conhecimento', icon: Sparkles },
   { key: 'crm', label: 'CRM', icon: Briefcase },
@@ -708,6 +710,7 @@ function AppScreens({ shellRef, bump }) {
     if (mode === 'xflow') return 'xflow';
     if (mode === 'agenda') return 'agenda';
     if (mode === 'mail') return 'mail';
+    if (mode === 'whatsapp') return 'whatsapp';
     if (mode === 'macro') return 'macro';
     if (mode === 'crm') return 'crm';
     if (mode === 'personal') return 'personal';
@@ -787,6 +790,7 @@ function AppScreens({ shellRef, bump }) {
     else if (tag === 'xflow') { setWorkspaceMode('xflow'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'agenda') { setWorkspaceMode('agenda'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'mail') { setWorkspaceMode('mail'); setShowUsers(false); setShowOrgAdmin(false); }
+    else if (tag === 'whatsapp') { setWorkspaceMode('whatsapp'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'macro') { setWorkspaceMode('macro'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'crm') { setWorkspaceMode('crm'); setShowUsers(false); setShowOrgAdmin(false); }
     else if (tag === 'users') { setWorkspaceMode('users'); setShowUsers(false); setShowOrgAdmin(false); }
@@ -1389,7 +1393,7 @@ function AppScreens({ shellRef, bump }) {
         }
         setWorkspaceMode(mode);
         // A Caixa de e-mail lê o #google-mail-connected/#google-mail-error do retorno do Google: o hash precisa sobreviver.
-        window.history.replaceState({ navTag: modeForTag(mode) }, '', pathForMode(mode) + (mode === 'mail' ? window.location.hash : ''));
+        window.history.replaceState({ navTag: modeForTag(mode) }, '', pathForMode(mode) + (mode === 'mail' || mode === 'whatsapp' ? window.location.hash : ''));
       } else {
         window.history.replaceState({ navTag: 'gate' }, '', '/');
         notify('Você não tem acesso a essa área do painel. Se precisar, peça acesso a um administrador.', { tone: 'error', ttlMs: 9000 });
@@ -1847,9 +1851,11 @@ function AppScreens({ shellRef, bump }) {
   const hasModelos = hasPareceres;
   // Caixa de e-mail (2026-11-02): Gmail da própria pessoa; equipe PRICETAX (master/pricetax), nunca 'cliente'.
   const hasMail = hasPareceres;
+  // WhatsApp (2026-11-02): número da empresa, caixa compartilhada pela equipe PRICETAX (master/pricetax).
+  const hasWhatsapp = hasPareceres;
   // CRM (2026-09-20): master/super admin sempre; demais só com crm_role definido em "Usuários"; 'cliente' nunca (regra vem pronta do servidor em crmAccess).
   const hasCrm = !!currentUser.crmAccess;
-  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda', hasMail && 'mail', hasMacro && 'macro', hasKnowledge && 'knowledge', hasPareceres && 'pareceres', hasModelos && 'modelos', hasCrm && 'crm'].filter(Boolean);
+  const availableModes = [hasCompanies && 'company', hasPersonal && 'personal', hasXflow && 'xflow', hasAgenda && 'agenda', hasMail && 'mail', hasWhatsapp && 'whatsapp', hasMacro && 'macro', hasKnowledge && 'knowledge', hasPareceres && 'pareceres', hasModelos && 'modelos', hasCrm && 'crm'].filter(Boolean);
   const effectiveMode = workspaceMode || (availableModes.length === 1 ? availableModes[0] : null);
   // Home = tela "Olá, Nome" (WorkspaceGateScreen). Só faz sentido oferecer o
   // atalho se houver mais de 1 workspace pra escolher — com só 1, a tela
@@ -2128,6 +2134,7 @@ function AppScreens({ shellRef, bump }) {
         onPickXFlow={hasXflow ? () => goToWorkspace('xflow') : undefined}
         onPickAgenda={hasAgenda ? () => goToWorkspace('agenda') : undefined}
         onPickMail={hasMail ? () => goToWorkspace('mail') : undefined}
+        onPickWhatsapp={hasWhatsapp ? () => goToWorkspace('whatsapp') : undefined}
         onPickMacro={hasMacro ? () => goToWorkspace('macro') : undefined}
         onPickKnowledge={hasKnowledge ? () => goToWorkspace('knowledge') : undefined}
         onPickPareceres={hasPareceres ? () => goToWorkspace('pareceres') : undefined}
@@ -2220,6 +2227,10 @@ function AppScreens({ shellRef, bump }) {
 
   if (effectiveMode === 'mail') {
     return guard('mail', 'o E-mail', <MailScreen currentUser={currentUser} theme={theme} onGoAgenda={hasAgenda ? () => goToWorkspace('agenda') : undefined} />);
+  }
+
+  if (effectiveMode === 'whatsapp') {
+    return guard('whatsapp', 'o WhatsApp', <WhatsAppScreen currentUser={currentUser} theme={theme} />);
   }
 
   if (effectiveMode === 'macro') {
@@ -3430,7 +3441,7 @@ function homeDate(iso) {
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
-function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMail, onPickMacro, onPickKnowledge, onPickPareceres, onPickModelos, onPickCrm, onPickUsers, onPickOps, onLogout, theme, onToggleTheme, onOpenProfile, onConfigureDaily, dailyReload, projects, notifications, todayIso, todayActions, showWeek, onOpenStats, continueItems }) {
+function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMail, onPickWhatsapp, onPickMacro, onPickKnowledge, onPickPareceres, onPickModelos, onPickCrm, onPickUsers, onPickOps, onLogout, theme, onToggleTheme, onOpenProfile, onConfigureDaily, dailyReload, projects, notifications, todayIso, todayActions, showWeek, onOpenStats, continueItems }) {
   const todayPrefs = useNotifPrefs();
   const overdueNow = useMemo(() => buildTodayItems({ projects, personalBoard, user, todayIso, hiddenSources: hiddenTodaySources(todayPrefs.todaySources) }).overdue.length, [projects, personalBoard, user, todayIso, todayPrefs.todaySources]);
   const gateGroups = [
@@ -3438,6 +3449,7 @@ function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersona
       onPickPersonal && { id: 'personal', Icon: Columns3, title: 'Gestão de Atividades', desc: 'Seu quadro pessoal de tarefas e prazos.', onPick: onPickPersonal },
       onPickAgenda && { id: 'agenda', Icon: CalendarDays, title: 'Agenda', desc: 'Seus compromissos e horários livres.', onPick: onPickAgenda },
       onPickMail && { id: 'mail', Icon: Mail, title: 'E-mail', desc: 'Sua caixa do Gmail, lida e organizada aqui.', onPick: onPickMail },
+      onPickWhatsapp && { id: 'whatsapp', Icon: MessageCircle, title: 'WhatsApp', desc: 'Conversas do WhatsApp da PRICETAX, respondidas pela equipe.', onPick: onPickWhatsapp },
       onPickXFlow && { id: 'xflow', Icon: Bug, title: 'XFlow', desc: 'TASKs dos produtos internos, do relato à validação.', onPick: onPickXFlow },
     ] },
     { id: 'clientes', title: 'Clientes', items: [

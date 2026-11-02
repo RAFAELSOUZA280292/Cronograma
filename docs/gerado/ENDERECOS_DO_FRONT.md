@@ -11,6 +11,7 @@ O app **não tem roteador de páginas**: a navegação interna é por estado (`m
 | `xflow` | `/xflow` |
 | `agenda` | `/agenda` |
 | `mail` | `/email` |
+| `whatsapp` | `/whatsapp` |
 | `macro` | `/visao-geral` |
 | `knowledge` | `/conhecimento` |
 | `pareceres` | `/pareceres` |
