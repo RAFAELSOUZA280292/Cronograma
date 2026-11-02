@@ -95,6 +95,8 @@ export function buildDirectory({ companies = [], contacts = [], deals = [], proj
   // Domínio marcado como parceiro/fornecedor não vira empresa só porque alguém cadastrou um contato dele dentro dela (o Jhoni da Tróia
   // cadastrado na COPLACANA). Site, módulo Empresas e marca cliente/prospect seguem como antes.
   const intermediary = new Set(marks.filter((m) => ['parceiro', 'fornecedor'].includes(m.kind)).map((m) => m.key));
+  // 0) domínio vinculado à mão a uma empresa do CRM ("Parece ser INDEMIL — vincular?") vale como o site dela.
+  for (const m of marks) { const c = m.companyId && byId.get(m.companyId); if (c) put(m.key, crmTarget(c, 'vinculo')); }
   // 1) e-mail exato do contato do CRM (vale também para gmail/hotmail)
   for (const k of contacts) { const c = byId.get(k.companyId); if (c) put(keyOf(k.email) && isPublicProvider(domainOf(k.email)) ? lowerEmail(k.email) : null, crmTarget(c, 'contato')); }
   // 2) domínio corporativo dos contatos e o site da empresa (empresa com negócio aberto/ganho vence quando o domínio se repete)
@@ -124,10 +126,49 @@ export function buildDirectory({ companies = [], contacts = [], deals = [], proj
   }
   // 4) classificação manual por domínio
   for (const m of marks) {
-    if (!MARK_KINDS[m.kind]) continue;
+    if (!MARK_KINDS[m.kind] || m.companyId) continue;
     put(m.key, { source: 'mark', via: 'marca', kind: m.kind, name: String(m.label || '').trim() || prettyKey(m.key), relationship: m.kind, companyId: null, dealId: null, projectId: null, stage: '' });
   }
-  return { byKey };
+  // Para a sugestão "Parece ser…": empresas do CRM e o negócio de cada uma (só usados quando o domínio não achou nada).
+  return { byKey, companies, bestDeal, suggestCache: new Map() };
+}
+
+// Domínio fora do CRM cujo nome lembra uma empresa do CRM sem site nem contato com e-mail (importadas do PipeRun): "indemil.com" →
+// INDEMIL INDUSTRIA E COMERCIO S/A. Melhor parecença primeiro (domínio inteiro dentro do nome > palavra > sigla); empate → negócio
+// aberto/ganho, cliente. Só sugere: o vínculo só vale quando alguém confirma.
+const GENERIC_BASE = new Set(['grupo', 'conta', 'contabil', 'contabilidade', 'brasil', 'brazil', 'consultoria', 'assessoria', 'empresa', 'empresas', 'industria',
+  'comercio', 'servicos', 'solucoes', 'tech', 'tecnologia', 'engenharia', 'transportes', 'alimentos', 'agro', 'cooperativa', 'coop', 'mail', 'email',
+  'contato', 'financeiro', 'fiscal', 'gestao', 'online', 'digital', 'group', 'global', 'nacional', 'sistemas', 'distribuidora', 'logistica', 'energia']);
+const NAME_LEAD = new Set(['grupo', 'group', 'cooperativa', 'coop', 'cia', 'companhia', 'the', 'empresa', 'industria', 'ind', 'comercio', 'distribuidora']);
+// 4 = o domínio é exatamente o começo do nome, palavra a palavra ("indemil" ← INDEMIL INDUSTRIA…; "garciamonteiro" ← Garcia Monteiro - …;
+// "vellore" ← Grupo Vellore). Palavra genérica sozinha (grupo, contabil, brasil…) nunca sugere.
+export function resemblanceScore(domain, c) {
+  const base = foldTxt(String(domain || '').split('.')[0]).replace(/[^a-z0-9]/g, '');
+  if (base.length < 4 || GENERIC_BASE.has(base)) return 0;
+  for (const n of [c.tradeName, c.legalName].map(foldTxt)) {
+    const words = n.split(/[^a-z0-9]+/).filter(Boolean);
+    for (let i = 0; i < words.length && (i === 0 || NAME_LEAD.has(words[i - 1])); i++) {
+      let acc = '';
+      for (let j = i; j < words.length && acc.length < base.length; j++) { acc += words[j]; if (acc === base) return 4; }
+    }
+  }
+  return 0;
+}
+
+export function suggestCompany(key, directory) {
+  if (!key || key.includes('@') || !directory || !directory.companies) return null;
+  if (directory.suggestCache && directory.suggestCache.has(key)) return directory.suggestCache.get(key);
+  const rank = (d) => (!d ? 0 : d.status === 'open' ? 2 : d.status === 'won' ? 1 : 0);
+  let best = null;
+  for (const c of directory.companies) {
+    const sc = resemblanceScore(key, c);
+    if (sc < 4) continue;
+    const tie = rank(directory.bestDeal && directory.bestDeal.get(c.id)) * 10 + (c.relationship === 'client' ? 2 : 0);
+    if (!best || sc > best.sc || (sc === best.sc && tie > best.tie)) best = { sc, tie, c };
+  }
+  const out = best ? { companyId: best.c.id, name: companyName(best.c) } : null;
+  if (directory.suggestCache) directory.suggestCache.set(key, out);
+  return out;
 }
 
 const foldTxt = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -199,6 +240,7 @@ export function classifyThread({ participants = [], teamReplied = false, hasAtta
     keys, known: known.map((x) => ({ key: x.key, source: x.target.source })), unknown,
     target: main ? main.target : null, badge: main ? badgeOf(main.target) : null, realExchange, nag,
     partner: partner && !(main && isPartner(main.target)) ? partner : null,
+    suggest: nag ? suggestCompany(nag, directory) : null,
     ignored: !main && known.length > 0 && known.every((x) => x.target.source === 'mark' && x.target.kind === 'ignorar'),
   };
 }
@@ -212,6 +254,7 @@ export function linkForViewer(cls, { crm = false, projectIds = null } = {}) {
   const partner = cls.partner ? { key: cls.partner.key, name: cls.partner.name, companyId: crm ? cls.partner.companyId : null } : null;
   return {
     badge, nag: cls.nag, realExchange: cls.realExchange, ignored: cls.ignored, partner,
+    suggest: cls.suggest ? { name: cls.suggest.name, companyId: crm ? cls.suggest.companyId : null } : null,
     companyId: crm && t ? t.companyId || null : null, dealId: crm && t ? t.dealId || null : null, projectId,
   };
 }

@@ -680,7 +680,7 @@ function BulkActions({ folder, onAct, onMove, onClear }) {
 function RowLink({ link }) {
   if (!link) return null;
   if (link.badge && !link.badge.ignored) return <div><LinkBadge link={link} /></div>;
-  if (link.nag) return <div className="ml-badge-wrap"><span className="ml-row-unknown" title={`Empresa fora do CRM: ${link.nag}`}>Fora do CRM · {link.nag}</span><PartnerTag link={link} /></div>;
+  if (link.nag) return <div className="ml-badge-wrap"><span className="ml-row-unknown" title={link.suggest ? `Parece ser ${link.suggest.name}: confirme o vínculo` : `Empresa fora do CRM: ${link.nag}`}>{link.suggest ? `Parece ${link.suggest.name}? · ${link.nag}` : `Fora do CRM · ${link.nag}`}</span><PartnerTag link={link} /></div>;
   if (link.partner) return <div><LinkBadge link={link} /></div>;
   return null;
 }

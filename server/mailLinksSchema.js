@@ -40,6 +40,8 @@ export async function ensureMailLinksSchema(db) {
       PRIMARY KEY (org_id, key)
     )
   `);
+  // Domínio vinculado à mão a uma empresa do CRM ("Parece ser INDEMIL — vincular?"), 2026-11-02.
+  await db.query('ALTER TABLE mail_domain_marks ADD COLUMN IF NOT EXISTS company_id TEXT');
   await db.query(`
     CREATE TABLE IF NOT EXISTS mail_index_state (
       user_id    TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

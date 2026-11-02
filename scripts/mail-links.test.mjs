@@ -1,7 +1,7 @@
 // E-mail ligado ao CRM e às Empresas (§130): chave por domínio × provedor público, @pricetax ignorado, prioridade das fontes,
 // selo, faixa "Empresa fora do CRM", Operações sem ids do CRM, agrupamento e quem lê o texto. Puro (sem banco, sem Gmail).
 //   node scripts/mail-links.test.mjs
-import { keyOf, cleanKey, siteDomain, buildDirectory, classifyThread, linkForViewer, badgeOf, keysOfCompany, groupRows, threadFacts, canReadContent, prettyKey, isRobot } from '../server/mailLinksCore.js';
+import { suggestCompany, keyOf, cleanKey, siteDomain, buildDirectory, classifyThread, linkForViewer, badgeOf, keysOfCompany, groupRows, threadFacts, canReadContent, prettyKey, isRobot } from '../server/mailLinksCore.js';
 import { headerMap, parseAddressList } from '../server/googleMail.js';
 
 let failed = 0;
@@ -139,6 +139,23 @@ ok('super admin lê', canReadContent({ id: 'x', isSuperAdmin: true }, []));
   ok('domínio de contato espalhado por 2 empresas não identifica nenhuma', !dirS.byKey.has('contabil.com.br'));
   const dirG = buildDirectory({ companies: [{ id: 'v1', legalName: 'VELLORE INDUSTRIA LTDA' }, { id: 'v2', legalName: 'VELLORE COMERCIO LTDA', relationship: 'client' }], contacts: [{ email: 'a@vellore.com.br', companyId: 'v1' }, { email: 'b@vellore.com.br', companyId: 'v2' }] });
   ok('grupo com vários CNPJs no mesmo domínio continua identificado', dirG.byKey.get('vellore.com.br')?.companyId === 'v2');
+}
+
+// Caso real (02/11/2026): INDEMIL no CRM sem site nem contato com e-mail; conversa com wellen.silva@indemil.com.
+{
+  const indemil = { id: 'ind', legalName: 'INDEMIL INDUSTRIA E COMERCIO S/A', tradeName: '', website: '', relationship: 'client' };
+  const gm = { id: 'gm', legalName: 'Garcia Monteiro - Nayara N Menegolo - +50MM', tradeName: '', relationship: 'client' };
+  const mg = { id: 'mg', legalName: 'Moreira & Garcia Contabilidade', tradeName: '', relationship: 'prospect' };
+  const dirI = buildDirectory({ companies: [indemil, gm, mg], deals: [{ id: 'di', companyId: 'ind', status: 'open', stageName: 'Contrato' }] });
+  const ci = classifyThread({ participants: [{ email: 'wellen.silva@indemil.com' }], teamReplied: true, subject: 'Documentação Extra Indemil' }, dirI);
+  ok('domínio sem vínculo sugere a empresa de nome parecido (INDEMIL)', ci.nag === 'indemil.com' && ci.suggest?.companyId === 'ind', ci);
+  ok('garciamonteiro.com.br sugere Garcia Monteiro, não Moreira & Garcia', suggestCompany('garciamonteiro.com.br', dirI)?.companyId === 'gm');
+  ok('okubo.com.br sem empresa parecida: sem sugestão', suggestCompany('okubo.com.br', dirI) === null);
+  ok('provedor público nunca sugere', suggestCompany('wellen@gmail.com', dirI) === null);
+  ok('Operações vê a sugestão sem id do CRM', linkForViewer(ci, { crm: false }).suggest?.name === 'INDEMIL INDUSTRIA E COMERCIO S/A' && linkForViewer(ci, { crm: false }).suggest.companyId === null);
+  const dirL = buildDirectory({ companies: [indemil], deals: [{ id: 'di', companyId: 'ind', status: 'open', stageName: 'Contrato' }], marks: [{ key: 'indemil.com', kind: 'cliente', label: 'INDEMIL', companyId: 'ind' }] });
+  const cl = classifyThread({ participants: [{ email: 'wellen.silva@indemil.com' }], teamReplied: true }, dirL);
+  ok('depois de vincular: selo da empresa do CRM com o negócio, sem faixa', cl.target?.companyId === 'ind' && cl.target.dealId === 'di' && !cl.nag, cl);
 }
 
 console.log(failed ? `\n${failed} falha(s)` : '\ntudo certo');

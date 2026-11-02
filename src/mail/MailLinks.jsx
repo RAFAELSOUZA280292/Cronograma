@@ -3,7 +3,7 @@
 // preenchido sem sair do e-mail e a aba "E-mails" (negócio e empresa do CRM, empresa do cronograma). Regras no servidor:
 // server/mailLinksCore.js e server/mailLinks.js. Operações (sem CRM) vê o selo sem link e, na faixa, só "Avisar o comercial".
 import React, { useCallback, useEffect, useState } from 'react';
-import { Building2, Briefcase, AlertTriangle, Plus, Trophy, Handshake, EyeOff, Megaphone, Mail, Paperclip, ArrowLeft, X } from 'lucide-react';
+import { Building2, Briefcase, AlertTriangle, Plus, Trophy, Handshake, EyeOff, Megaphone, Mail, Paperclip, ArrowLeft, X, Link2 } from 'lucide-react';
 import { Button, Callout, BusyBar, EmptyState } from '../ui/index.jsx';
 import { notify, askConfirm, askText } from '../ui/dialogs.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
@@ -68,10 +68,23 @@ export function prefillFrom({ key, name, subject, messages, myName, contacts, pa
 export function UnknownBanner({ link, subject, messages, crmWrite, myName, onRegister, onChanged }) {
   const [busy, setBusy] = useState('');
   const [reported, setReported] = useState(null);
+  const [notHer, setNotHer] = useState(false);
+  const [withContacts, setWithContacts] = useState(true);
   if (!link || !link.nag) return null;
   const key = link.nag;
   const name = link.nagName || key;
   const partnerName = link.partner ? link.partner.name : '';
+  const suggest = link.suggest && !notHer ? link.suggest : null;
+  const people = peopleOf(messages, key);
+
+  async function linkCompany() {
+    setBusy('link');
+    try {
+      const r = await apiPost('/api/mail-links/link', { key, companyId: suggest.companyId, contacts: withContacts ? people : [] });
+      notify(`${key} vinculado à ${r.name}${r.contacts.length ? ` e ${r.contacts.length} contato${r.contacts.length > 1 ? 's' : ''} cadastrado${r.contacts.length > 1 ? 's' : ''}` : ''}.`, { tone: 'success' });
+      onChanged();
+    } catch (e) { notify(e.message, { tone: 'error' }); } finally { setBusy(''); }
+  }
 
   async function mark(kind) {
     let label = name;
@@ -105,15 +118,29 @@ export function UnknownBanner({ link, subject, messages, crmWrite, myName, onReg
     <div className="ml-nag" role="status">
       <AlertTriangle size={18} aria-hidden="true" className="ml-nag-icon" />
       <div className="ml-nag-body">
-        <div className="ml-nag-title">Empresa fora do CRM: {key}</div>
+        <div className="ml-nag-title">{suggest ? `Parece ser ${suggest.name}: ${key}` : `Empresa fora do CRM: ${key}`}</div>
         <div className="ml-nag-text">
           {partnerName && <strong>Indicação de {partnerName}. </strong>}
-          {crmWrite ? 'A equipe está trocando e-mails com uma empresa que não está no CRM nem no módulo Empresas. Registre para o negócio não se perder.'
+          {suggest ? (crmWrite ? `O domínio ${key} ainda não está ligado a nenhuma empresa do CRM, mas o nome lembra ${suggest.name}. Confirme para ligar de vez: as conversas passam a aparecer nela.`
+            : reported ? 'Comercial avisado. A Eduarda e os sócios recebem o aviso e confirmam o vínculo.'
+              : `O domínio ${key} ainda não está ligado a nenhuma empresa do CRM, mas o nome lembra ${suggest.name}. Avise o comercial para confirmar.`)
+          : crmWrite ? 'A equipe está trocando e-mails com uma empresa que não está no CRM nem no módulo Empresas. Registre para o negócio não se perder.'
             : reported ? 'Comercial avisado. A Eduarda e os sócios recebem o aviso e decidem o registro.'
               : 'A equipe está trocando e-mails com uma empresa que não está no CRM nem no módulo Empresas. Avise o comercial para registrar.'}
         </div>
         <div className="ml-nag-actions">
-          {crmWrite ? (
+          {crmWrite && suggest ? (
+            <>
+              <Button size="sm" variant="primary" icon={Link2} loading={busy === 'link'} onClick={linkCompany}>Vincular à {suggest.name}</Button>
+              <Button size="sm" icon={X} onClick={() => setNotHer(true)}>Não é ela</Button>
+              {people.length > 0 && (
+                <label className="ml-nag-check">
+                  <input type="checkbox" checked={withContacts} onChange={(e) => setWithContacts(e.target.checked)} />
+                  Cadastrar {people.map((p) => p.name || p.email).join(', ')} como contato{people.length > 1 ? 's' : ''}
+                </label>
+              )}
+            </>
+          ) : crmWrite ? (
             <>
               <Button size="sm" variant="primary" icon={Plus} onClick={() => onRegister({ won: false, prefill: prefillFrom({ key, name, subject, messages, myName, partner: partnerName }) })}>Registrar novo negócio</Button>
               <Button size="sm" icon={Trophy} onClick={won}>Registrar como negócio ganho</Button>
@@ -257,6 +284,7 @@ export function MailRadarBlock({ currentUserId, onOpenMail }) {
             <li key={it.key} className="ml-item">
               <div className="ml-item-main">
                 <div className="ml-item-top"><span className="ml-subject">{it.name} <span className="ml-meta">({it.key})</span></span><span className="ml-date">{fmtWhen(it.lastAt)}</span></div>
+                {it.suggest && <div className="ml-meta">Parece ser {it.suggest} (já no CRM): abra o e-mail e confirme o vínculo</div>}
                 {it.partner && <div className="ml-meta">Indicação de {it.partner}</div>}
                 <div className="ml-meta">“{it.subject || '(sem assunto)'}” · {it.conversations} conversa{it.conversations === 1 ? '' : 's'} · {it.team.join(', ')}</div>
                 {it.reported && <div className="ml-meta">Avisado por {it.reported.by} em {fmtWhen(it.reported.at)}</div>}

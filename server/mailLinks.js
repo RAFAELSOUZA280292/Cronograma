@@ -33,14 +33,14 @@ async function loadSources(orgId) {
                         ) s WHERE e IS NOT NULL AND e <> '') AS emails,
                        (SELECT cp.company_id FROM crm_company_projects cp WHERE cp.project_id = p.id LIMIT 1) AS crm_company_id
                 FROM projects p WHERE p.org_id=$1`, [orgId]),
-    pool.query('SELECT key, kind, label FROM mail_domain_marks WHERE org_id=$1 AND kind IS NOT NULL', [orgId]),
+    pool.query('SELECT key, kind, label, company_id FROM mail_domain_marks WHERE org_id=$1 AND kind IS NOT NULL', [orgId]),
   ]);
   return {
     companies: co.rows.map((r) => ({ id: r.id, legalName: r.legal_name, tradeName: r.trade_name, website: r.website, relationship: r.relationship })),
     contacts: ct.rows.map((r) => ({ email: r.email, companyId: r.company_id })),
     deals: de.rows.map((r) => ({ id: r.id, companyId: r.company_id, title: r.title, status: r.status, stageName: r.stage_name, updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : '' })),
     projects: pr.rows.map((r) => ({ id: r.id, name: r.name, cnpj: r.cnpj || '', emails: r.emails || [], crmCompanyId: r.crm_company_id || null })),
-    marks: mk.rows,
+    marks: mk.rows.map((r) => ({ key: r.key, kind: r.kind, label: r.label, companyId: r.company_id || null })),
   };
 }
 
@@ -197,6 +197,7 @@ export async function companyKeys(orgId, companyId) {
   const d = await directoryFor(orgId);
   const projectEmails = d.src.projects.filter((p) => p.crmCompanyId === companyId).flatMap((p) => p.emails);
   const keys = keysOfCompany({ website: c[0].website, contactEmails: k.map((r) => r.email), projectEmails });
+  for (const m of d.src.marks) if (m.companyId === companyId) keys.add(m.key);
   // Só as chaves que o diretório liga a ESTA empresa (um gmail.com de outro contato com o mesmo domínio não entra).
   // Nem o domínio de parceiro/fornecedor/ignorado (o contato da Tróia cadastrado na COPLACANA não traz os e-mails da Tróia para ela).
   for (const key of [...keys]) { const t = d.dir.byKey.get(key); if (!t || (t.companyId && t.companyId !== companyId) || (t.source === 'mark' && !['cliente', 'prospect'].includes(t.kind))) keys.delete(key); }
@@ -282,10 +283,44 @@ router.post('/marks', needWrite, h(async (req, res) => {
   res.json({ key, kind: b.kind, label });
 }));
 
+// "Parece ser INDEMIL — vincular?": liga o domínio à empresa do CRM para sempre (marca com company_id), preenche o site da empresa
+// quando está vazio e, se pedido, cadastra quem escreveu como contato dela.
+router.post('/link', needWrite, h(async (req, res) => {
+  const b = req.body || {};
+  const key = cleanKey(b.key);
+  if (!key || key.includes('@')) return res.status(400).json({ message: 'Informe o domínio da empresa (ex.: indemil.com).' });
+  if (!UUID.test(String(b.companyId || ''))) return res.status(400).json({ message: 'Empresa inválida.' });
+  const { rows } = await pool.query('SELECT id, legal_name, trade_name, website FROM crm_companies WHERE id=$1 AND org_id=$2 AND deleted_at IS NULL', [b.companyId, req.user.orgId]);
+  const c = rows[0];
+  if (!c) return res.status(404).json({ message: 'Empresa não encontrada.' });
+  const name = String(c.trade_name || c.legal_name || '').trim() || prettyKey(key);
+  await pool.query(
+    `INSERT INTO mail_domain_marks (org_id, key, kind, label, company_id, set_by, set_at) VALUES ($1,$2,'cliente',$3,$4,$5, now())
+     ON CONFLICT (org_id, key) DO UPDATE SET kind='cliente', label=EXCLUDED.label, company_id=EXCLUDED.company_id, set_by=EXCLUDED.set_by, set_at=now()`,
+    [req.user.orgId, key, name.slice(0, 80), c.id, req.user.id]);
+  const S = await import('./crm/service.js');
+  const actor = { id: req.user.id, name: req.user.name || req.user.username };
+  let website = false;
+  if (!String(c.website || '').trim()) {
+    try { await S.updateCompany(req.user.orgId, actor, c.id, { website: key }); website = true; } catch (e) { console.error('E-mail × CRM: site não gravado', String(e && e.message).slice(0, 200)); }
+  }
+  const contacts = [];
+  for (const p of (Array.isArray(b.contacts) ? b.contacts : []).slice(0, 5)) {
+    const email = String((p && p.email) || '').trim().toLowerCase();
+    if (keyOf(email) !== key) continue;
+    const full = String((p && p.name) || '').replace(/\s+/g, ' ').trim() || email.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (x) => x.toUpperCase());
+    const [firstName, ...rest] = full.split(' ');
+    try { await S.createContact(req.user.orgId, actor, { companyId: c.id, firstName, lastName: rest.join(' '), email }); contacts.push(email); }
+    catch (e) { if (!(e && e.status === 409)) console.error('E-mail × CRM: contato não cadastrado', String(e && e.message).slice(0, 200)); }
+  }
+  invalidateMailDirectory(req.user.orgId);
+  res.json({ key, companyId: c.id, name, website, contacts });
+}));
+
 router.delete('/marks/:key', needWrite, h(async (req, res) => {
   const key = cleanKey(req.params.key);
   if (!key) return res.status(400).json({ message: 'Domínio inválido.' });
-  await pool.query('UPDATE mail_domain_marks SET kind=NULL, label=\'\', set_by=$3, set_at=now() WHERE org_id=$1 AND key=$2', [req.user.orgId, key, req.user.id]);
+  await pool.query('UPDATE mail_domain_marks SET kind=NULL, label=\'\', company_id=NULL, set_by=$3, set_at=now() WHERE org_id=$1 AND key=$2', [req.user.orgId, key, req.user.id]);
   invalidateMailDirectory(req.user.orgId);
   res.json({ ok: true });
 }));
@@ -332,13 +367,14 @@ export async function radarFor(orgId, { limit = 20 } = {}) {
     if (!cls.nag) continue;
     const g = by.get(cls.nag) || { key: cls.nag, name: prettyKey(cls.nag), convs: new Set(), team: new Set(), lastAt: null, subject: '', contacts: [], rowId: null, threads: [], partner: '' };
     if (cls.partner && !g.partner) g.partner = cls.partner.name;
+    if (cls.suggest && !g.suggest) g.suggest = cls.suggest.name;
     g.convs.add(r.conv_key); g.team.add(r.user_name);
     if (!g.lastAt) { g.lastAt = r.last_at; g.subject = r.subject; g.rowId = String(r.id); }
     g.threads.push({ userId: r.user_id, threadId: r.thread_id });
     for (const p of r.participants || []) if (keyOf(p.email) === cls.nag && g.contacts.length < 3 && !g.contacts.some((c) => c.email === p.email)) g.contacts.push({ name: p.name || '', email: p.email });
     by.set(cls.nag, g);
   }
-  const items = [...by.values()].map((g) => ({ key: g.key, name: g.name, conversations: g.convs.size, team: [...g.team], lastAt: g.lastAt ? new Date(g.lastAt).toISOString() : null, subject: g.subject, contacts: g.contacts, partner: g.partner, reported: reported.get(g.key) || null, threads: g.threads }));
+  const items = [...by.values()].map((g) => ({ key: g.key, name: g.name, conversations: g.convs.size, team: [...g.team], lastAt: g.lastAt ? new Date(g.lastAt).toISOString() : null, subject: g.subject, contacts: g.contacts, partner: g.partner, suggest: g.suggest || '', reported: reported.get(g.key) || null, threads: g.threads }));
   return { count: items.length, items: items.slice(0, limit) };
 }
 
