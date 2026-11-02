@@ -12,6 +12,7 @@ ok('endereços: só e-mail', a[1].name === '' && a[1].email === 'ana@x.com');
 ok('endereços: vazio', parseAddressList('').length === 0);
 
 ok('charset latin1 (comum em e-mail brasileiro)', decodeBody(b64('Atenção', 'latin1'), 'iso-8859-1') === 'Atenção');
+ok('Outlook: cabeçalho diz iso-8859-1 mas o Gmail já entregou UTF-8 (não vira Ã§Ã£)', decodeBody(b64('atualização à definição'), 'iso-8859-1') === 'atualização à definição');
 ok('charset desconhecido cai em utf-8', decodeBody(b64('ação'), 'x-nada') === 'ação');
 
 const payload = {

@@ -67,6 +67,9 @@ function charsetOf(part) {
 export function decodeBody(data, charset = 'utf-8') {
   if (!data) return '';
   const buf = Buffer.from(data, 'base64url');
+  // A API do Gmail costuma entregar o texto já convertido para UTF-8, mesmo quando o cabeçalho segue dizendo iso-8859-1
+  // (padrão do Outlook). Por isso tenta UTF-8 estrito primeiro; texto latin1 de verdade com acento quase nunca é UTF-8 válido.
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch { /* não é UTF-8: usa o charset declarado */ }
   try { return new TextDecoder(charset === 'us-ascii' ? 'utf-8' : charset).decode(buf); } catch { return new TextDecoder('utf-8').decode(buf); }
 }
 
