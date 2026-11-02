@@ -269,3 +269,4 @@ body.mail-resizing iframe { pointer-events: none; }
 .mail-sel-item:hover, .mail-sel-item:focus-visible { background: var(--bg-3); outline: none; }
 @media (max-width: 767px) { .mail-sel-item { min-height: 44px; } .mail-selall-btn { width: 32px; height: 40px; } }
 .mail-list-head .mail-list-title { flex: 1; min-width: 0; }
+.mail-list-tools { display: flex; align-items: center; gap: 2px; flex: none; }

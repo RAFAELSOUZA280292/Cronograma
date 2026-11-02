@@ -8882,3 +8882,4 @@ Pergunta do Rafael depois de compartilhar a coluna: quem recebe o link deve pode
 - Servidor: `POST /api/mail/read-all` `{ folder, q }` usa `unreadQuery` (`server/googleMail.js`, que é `folderQuery` + `UNREAD`). Depois faz `messages.list` paginado e `messages.batchModify` removendo `UNREAD`, em lotes de 1.000.
 - Vale para a pasta inteira no Gmail, não só para o que está na tela. O limite é 5.000 mensagens por clique; acima disso, o aviso diz para clicar de novo.
 - Teste: 4 verificações em `scripts/mail-parse.test.mjs`. Conferido no navegador local com Gmail simulado (pedido certo, linhas ficam lidas, aviso aparece). Suíte 42/42.
+- Ajuste (13h3x): os três botões ficam juntos à esquerda do título (`.mail-list-tools`), como no Gmail. O Rafael não os achou com Atualizar e ⋮ no canto direito.

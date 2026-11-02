@@ -488,7 +488,16 @@ export default function MailScreen({ currentUser, theme }) {
                 </div>
               )}
               <div className="mail-list-head">
-                {threads.length > 0 && <SelectMenu threads={threads} selected={selected} onSelect={setSelected} />}
+                {/* Como no Gmail: caixa de seleção, Atualizar e ⋮ juntos, à esquerda. */}
+                <div className="mail-list-tools">
+                  {threads.length > 0 && <SelectMenu threads={threads} selected={selected} onSelect={setSelected} />}
+                  {!selIds.length && (
+                    <>
+                      <IconButton label="Atualizar" icon={RefreshCw} size="sm" onClick={() => { loadThreads(); loadNav(); }} />
+                      <MoreMenu items={[{ key: 'read-all', label: search ? 'Marcar todas da pesquisa como lidas' : 'Marcar todas como lidas', onClick: markAllRead }]} />
+                    </>
+                  )}
+                </div>
                 {selIds.length ? (
                   <>
                     <span className="mail-list-title">{selIds.length} selecionada{selIds.length > 1 ? 's' : ''}</span>
@@ -501,8 +510,6 @@ export default function MailScreen({ currentUser, theme }) {
                       <ViewMenu view={view} isMobile={isMobile} onChange={setV} />
                       {isMobile && <IconButton label="Assinatura do e-mail" icon={Signature} size="sm" onClick={() => setSigOpen(true)} disabled={!signature} />}
                       {isMobile && <IconButton label="Regras do e-mail" icon={ListFilter} size="sm" onClick={() => setRulesOpen(true)} />}
-                      <IconButton label="Atualizar" icon={RefreshCw} size="sm" onClick={() => { loadThreads(); loadNav(); }} />
-                      <MoreMenu items={[{ key: 'read-all', label: search ? 'Marcar todas da pesquisa como lidas' : 'Marcar todas como lidas', onClick: markAllRead }]} />
                     </div>
                   </>
                 )}
