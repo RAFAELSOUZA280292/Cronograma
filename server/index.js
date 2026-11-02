@@ -33,6 +33,7 @@ import { router as widgetRouter } from './widget.js';
 import { router as dailyRouter } from './daily.js';
 import { router as homePrefsRouter } from './homePrefs.js';
 import { router as toursRouter } from './tours.js';
+import { logProjectsBreakdown } from './payloadStats.js';
 import { router as templatesRouter } from './documentTemplates.js';
 import { router as librarySearchRouter } from './librarySearch.js';
 import { router as briefingRouter, startBriefingScheduler } from './briefing.js';
@@ -195,6 +196,7 @@ async function start() {
     startBriefingScheduler();
     startRetentionJob();
     startVersionRetentionJob();
+    setTimeout(() => { logProjectsBreakdown(pool); }, 20000).unref();
   });
 }
 

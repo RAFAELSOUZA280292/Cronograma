@@ -46,3 +46,22 @@ export function payloadSnapshot() {
 }
 
 export function resetPayloadStats() { stats.clear(); }
+
+// Raio-X do peso das empresas (02/11/2026, §138): ao ligar, uma linha no log com o tamanho de cada parte do JSONB de `projects`
+// (só tamanhos, nenhum conteúdo) — para decidir o que tirar da lista de GET /api/projects. Nunca derruba o boot.
+export async function logProjectsBreakdown(pool) {
+  try {
+    const { rows } = await pool.query(`
+      SELECT k, round(sum(octet_length(v::text)) / 1024.0)::int AS kb FROM projects, jsonb_each(data) AS e(k, v) GROUP BY k ORDER BY 2 DESC LIMIT 12`);
+    const { rows: m } = await pool.query(`
+      SELECT round(sum(octet_length(COALESCE(x->>'transcript', ''))) / 1024.0)::int AS transcript_kb,
+             round(sum(octet_length(x::text)) / 1024.0)::int AS meetings_kb, count(*)::int AS n
+        FROM projects, jsonb_array_elements(CASE WHEN jsonb_typeof(data->'meetings') = 'array' THEN data->'meetings' ELSE '[]'::jsonb END) AS x`);
+    const { rows: a } = await pool.query(`
+      SELECT round(sum(octet_length(COALESCE(x->>'transcript', ''))) / 1024.0)::int AS transcript_kb, round(sum(octet_length(COALESCE(x->'comments', '[]'::jsonb)::text)) / 1024.0)::int AS comments_kb,
+             round(sum(octet_length(x::text)) / 1024.0)::int AS activities_kb, count(*)::int AS n
+        FROM projects, jsonb_array_elements(CASE WHEN jsonb_typeof(data->'activities') = 'array' THEN data->'activities' ELSE '[]'::jsonb END) AS x`);
+    console.log('[payload-raio-x] projects por chave (KB, como vai na resposta):', rows.map((r) => `${r.k}=${r.kb}`).join(' '),
+      '| reuniões:', JSON.stringify(m[0]), '| atividades:', JSON.stringify(a[0]));
+  } catch (e) { console.error('[payload-raio-x] não consegui medir:', e.message); }
+}
