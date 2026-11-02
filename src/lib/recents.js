@@ -1,4 +1,4 @@
-// Recentes, favoritos e "onde eu parei" (Onda 5, §81). Tudo por PESSOA, no localStorage do navegador (chave com o id do
+// Recentes e "onde eu parei" (Onda 5, §81). Tudo por PESSOA, no localStorage do navegador (chave com o id do
 // usuário), sempre com try/catch: sem storage (janela privada, bloqueio) o app funciona igual, só não lembra.
 // Guarda só o que identifica o item (kind/id + rótulo para exibir); QUEM reabre reconstrói a ação a partir dos dados
 // atuais — item que não existe mais é ignorado. Módulo puro (sem React), testável em Node.
@@ -6,7 +6,6 @@
 // kind: 'module' (id = chave do módulo) · 'company' (id = projectId) · 'activity' (id = "pid/activityId")
 //       · 'meeting' (id = "pid/meetingId") · 'card' (id = id do cartão pessoal)
 const MAX_RECENTS = 12;
-const MAX_FAVORITES = 40;
 
 let currentUserId = '';
 export function setRecentsUser(userId) { currentUserId = userId ? String(userId) : ''; }
@@ -36,7 +35,7 @@ function clean(item) {
 }
 
 export function getRecents() { return read('recents'); }
-export function getFavorites() { return read('favorites'); }
+// Favoritos: desde 02/11/2026 (§126) ficam no servidor, em src/home/homePrefs.js (os antigos deste navegador sobem uma vez).
 
 // Registra no topo, sem duplicar (o mesmo item sobe, não aparece duas vezes).
 export function recordRecent(item) {
@@ -45,21 +44,6 @@ export function recordRecent(item) {
   const k = itemKey(next);
   const list = [next, ...read('recents').filter((x) => itemKey(x) !== k)].slice(0, MAX_RECENTS);
   write('recents', list);
-}
-
-export function isFavorite(item) {
-  const k = itemKey(item);
-  return read('favorites').some((x) => itemKey(x) === k);
-}
-
-// Devolve true se o item ficou favoritado, false se saiu dos favoritos.
-export function toggleFavorite(item) {
-  if (!item || !item.kind || !item.id) return false;
-  const k = itemKey(item);
-  const list = read('favorites');
-  if (list.some((x) => itemKey(x) === k)) { write('favorites', list.filter((x) => itemKey(x) !== k)); return false; }
-  write('favorites', [clean(item), ...list].slice(0, MAX_FAVORITES));
-  return true;
 }
 
 // ---------- Última empresa(s) e aba da empresa ----------

@@ -4,7 +4,7 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 180 arquivos
+## `server/` — 181 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -95,7 +95,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/google.js` | 70 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
 | `server/googleCalendar.js` | 458 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
 | `server/googleMail.js` | 293 | Caixa de e-mail (2026-11-02, Fase 1: ler e organizar). O painel é só um "cliente" do Gmail da pessoa, como o |
-| `server/index.js` | 194 |  |
+| `server/homePrefs.js` | 31 | Tela inicial personalizável e barra de favoritos (2026-11-02, §126): GET/PUT /api/home-prefs. Cada pessoa lê e grava só a |
+| `server/index.js` | 196 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
 | `server/inventory.js` | 373 | Levantamento de atividades de TODAS as empresas (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md; pedido do |
 | `server/inventoryEdit.js` | 194 | Passo 3 do caminho combinado (2026-10-07): organizar o que já existe a partir do Levantamento — padronizar o nome do |
@@ -189,7 +190,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/xflowPermissions.js` | 86 | Papel efetivo + regras de "quem pode fazer o quê" no XFlow. Regras vivem |
 | `server/xflowTransitions.js` | 116 | Matriz de transições de status do XFlow. Cada ação nomeada sabe de quais |
 
-## `shared/` — 13 arquivos
+## `shared/` — 14 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -198,6 +199,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/cronogramaPadraoV3.js` | 166 | Proposta v3 do cronograma padrão (2026-10-19): 91 itens em 22 atividades principais, em duas trilhas (A diagnóstico, B implementação). TODAS as datas contam do início do projeto |
 | `shared/cronogramaPadraoV4.js` | 293 | Proposta v4 do cronograma padrão — "modelo ideal do comitê de reforma tributária" (2026-10-19, decidido com o Rafael em telas de validação; ver PROJECT_CONTEXT §65). |
 | `shared/experienceFlows.js` | 25 | Fluxos que medimos para saber se o produto está ajudando (§97). Medimos o PRODUTO (fluxo, resultado, duração, erro), nunca a pessoa: |
+| `shared/homeLayout.js` | 205 | Tela inicial personalizável (2026-11-02, §126): ordem, largura e visibilidade dos blocos, blocos "Meu espaço" e a barra de |
 | `shared/linkSync.js` | 231 | Sincronia de conclusão entre tarefa de reunião e atividade do cronograma (2026-10-19, pedido do Rafael: "uma vez que está vinculado e validado pelo usuário, concluiu em um, mata em outro"). |
 | `shared/mailAttachments.js` | 53 | Anexos que o Gmail bloqueia por segurança (pedido do Rafael em 2026-11-02: "anexar tudo que é possível" — e, quando não |
 | `shared/mailLabelColors.js` | 26 | Cores das pastas da Caixa de e-mail (2026-11-02, pacote de personalização). A pasta é um marcador do Gmail e o Gmail só |
@@ -207,11 +209,11 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/transcriptParser.js` | 84 | Funções puras de parsing de texto de reunião — SEM import de React, |
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 
-## `src/` — 213 arquivos
+## `src/` — 217 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
-| `src/App.jsx` | 3687 |  |
+| `src/App.jsx` | 3699 |  |
 | `src/agenda/Agenda.jsx` | 562 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/EventDetail.jsx` | 188 | Detalhe do compromisso do Google dentro do painel (2026-11-02, "nunca mais abrir o Google Agenda"): Meet, participantes com a |
 | `src/agenda/NewEventModal.jsx` | 302 | "Novo compromisso" e "Editar" da Agenda (Onda 5, §81; edição, Meet, lembrete e sugestão de contatos em 2026-11-02). Grava no Google |
@@ -279,7 +281,11 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/daily/WelcomeSetup.jsx` | 109 |  |
 | `src/daily/useWelcomeSetup.jsx` | 20 | As boas-vindas aparecem por cima de QUALQUER tela (o App tem dezenas de retornos por módulo), então vivem numa raiz |
 | `src/dev/uiAudit.js` | 150 | Auditor de leitura e acessibilidade de uma tela (2026-10-30, Onda 1 / Q1). SÓ para desenvolvimento: `main.jsx` o carrega apenas com |
-| `src/home/homeCss.js` | 37 | Layout da tela inicial (2026-10-30): uma única coluna de conteúdo de 1240 px; "Mensagem do dia" à esquerda e "Hoje" à direita, no |
+| `src/home/FavoritesBar.jsx` | 138 | Barra de favoritos (2026-11-02, §126) na barra do topo, em todas as telas: atalhos para módulos, empresas, atividades, |
+| `src/home/HomeGrid.jsx` | 197 | Grade da tela inicial (2026-11-02, §126). Fora do modo "Personalizar" só desenha os blocos na ordem/largura da pessoa. |
+| `src/home/MySpace.jsx` | 99 | Bloco "Meu espaço" da tela inicial (2026-11-02, §126): título, anotação em texto simples e links próprios. A pessoa pode ter |
+| `src/home/homeCss.js` | 29 | Layout da tela inicial (2026-10-30): uma única coluna de conteúdo de 1240 px. Desde 02/11/2026 (§126) os blocos ficam na grade |
+| `src/home/homePrefs.js` | 94 | Preferências da tela inicial e favoritos (2026-11-02, §126), guardadas no servidor (GET/PUT /api/home-prefs) para valerem em |
 | `src/knowledge/ConflictsTab.jsx` | 118 | Aba Conflitos (Fase 8, item 6 do pedido do Rafael) — pares lado a |
 | `src/knowledge/EntitiesTab.jsx` | 89 | Aba Pessoas/Empresas (Fase 8, item 7 do pedido do Rafael) — lista + |
 | `src/knowledge/FactDrawer.jsx` | 219 | Card/drawer detalhado de um conhecimento (Fase 8, 2026-09-11, item 4 |
@@ -302,7 +308,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/lib/notifPrefs.js` | 74 | Quais categorias de notificação o usuário quer ver (2026-10-06). Estado único do app (sino, painel Hoje) e salvo |
 | `src/lib/push.js` | 56 | Notificações push no navegador (2026-10-17): ativar/desativar neste aparelho e enviar um teste. Nada daqui roda sozinho: o pedido de permissão só |
 | `src/lib/pushPayload.js` | 32 | Funções puras do aviso push (2026-10-17), usadas pelo service worker (src/sw.js) e testáveis em Node. |
-| `src/lib/recents.js` | 84 | Recentes, favoritos e "onde eu parei" (Onda 5, §81). Tudo por PESSOA, no localStorage do navegador (chave com o id do |
+| `src/lib/recents.js` | 68 | Recentes e "onde eu parei" (Onda 5, §81). Tudo por PESSOA, no localStorage do navegador (chave com o id do |
 | `src/lib/richNote.js` | 46 | Descrição formatada do cartão (2026-10-07): a string é texto simples (cartões antigos) ou HTML curto do editor — quem diz |
 | `src/lib/routes.js` | 75 | Endereços de cada módulo (2026-10-05, pedido do Rafael: "não consigo favoritar direto minha Gestão de |
 | `src/lib/saveRetry.js` | 18 | Retentativa automática de gravação (2026-10-27, §118): quando o salvamento falha por causa de rede ou do servidor, a edição fica na |
@@ -389,8 +395,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/screens/PublicCompanyScreen.jsx` | 423 | Página pública de acompanhamento da empresa (2026-10-19): /acompanhamento/<token>. Só leitura, sem login; "Entrar para editar" leva ao login normal. |
 | `src/screens/ScreenSearch.jsx` | 48 | Busca da tela aberta (2026-10-19): campo na barra de abas da empresa e aviso "filtrando" no topo do conteúdo. A lógica de casar texto fica em src/lib/screenSearch.js. |
 | `src/screens/SubExtras.jsx` | 214 | Campos novos das subatividades (2026-10-19, fase 2 do plano do cronograma funcional): prioridade, executor, áreas envolvidas, aplicabilidade, recorrência, |
-| `src/shell/CommandPalette.jsx` | 162 | Busca global (Ctrl/Cmd+K): pula para um módulo, uma empresa, uma atividade ou uma reunião. Onda 1, §81. |
-| `src/shell/ModuleShell.jsx` | 185 | Casca única (Onda 1, §81): a MESMA barra no topo de todas as telas depois do login. |
+| `src/shell/CommandPalette.jsx` | 163 | Busca global (Ctrl/Cmd+K): pula para um módulo, uma empresa, uma atividade ou uma reunião. Onda 1, §81. |
+| `src/shell/ModuleShell.jsx` | 187 | Casca única (Onda 1, §81): a MESMA barra no topo de todas as telas depois do login. |
 | `src/shell/NotificationPrefs.jsx` | 126 | Escolher quais notificações ver (2026-10-06). Marcado = aparece; desmarcado = fica escondido (nada é apagado). |
 | `src/shell/ShortcutsHelp.jsx` | 37 | Ajuda de atalhos (tecla "?" ou Menu › Atalhos de teclado). Só leitura; a lista vem de shortcuts.js. |
 | `src/shell/libraryItems.js` | 21 | Itens da paleta (Ctrl+K) para Pareceres, Modelos e Conhecimento: resposta de GET /api/library-search → itens da lista. |

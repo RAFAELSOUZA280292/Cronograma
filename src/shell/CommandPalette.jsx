@@ -6,7 +6,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Star, Sparkles } from 'lucide-react';
 import { useDialog } from '../lib/nav.js';
 import { IconButton } from '../ui/index.jsx';
-import { getFavorites, getRecents, toggleFavorite } from '../lib/recents.js';
+import { getRecents } from '../lib/recents.js';
+import { getFavorites, toggleFavorite } from '../home/homePrefs.js';
 import { trackFlow } from '../lib/experience.js';
 
 const fold = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');

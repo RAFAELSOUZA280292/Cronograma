@@ -2,51 +2,52 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **386 rotas** em **35 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **388 rotas** em **36 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
 | Prefixo | Arquivo | Linha |
 |---|---|---|
-| `/api` | `server/routes.js` | 82 |
-| `/api/xflow` | `server/xflow.js` | 83 |
-| `/api/google` | `server/google.js` | 84 |
-| `/api/agenda` | `server/agenda.js` | 85 |
-| `/api/mail` | `server/mail.js` | 86 |
-| `/api/whatsapp` | `server/whatsapp.js` | 87 |
+| `/api` | `server/routes.js` | 83 |
+| `/api/xflow` | `server/xflow.js` | 84 |
+| `/api/google` | `server/google.js` | 85 |
+| `/api/agenda` | `server/agenda.js` | 86 |
+| `/api/mail` | `server/mail.js` | 87 |
 | `/api/whatsapp` | `server/whatsapp.js` | 88 |
-| `/api/macro` | `server/macro.js` | 89 |
-| `/api/inventory` | `server/inventory.js` | 90 |
-| `/api/inventory` | `server/inventoryEdit.js` | 91 |
-| `/api/gaps` | `server/gaps.js` | 92 |
-| `/api/task-links` | `server/taskLinks.js` | 93 |
-| `/api/task-links` | `server/taskLinkBackfill.js` | 94 |
-| `/api/standard-plan` | `server/standardPlanApi.js` | 95 |
-| `/api/meeting-inbox` | `server/meetingInbox.js` | 96 |
-| `/api/assistant` | `server/assistant.js` | 97 |
-| `/api/knowledge` | `server/knowledge.js` | 98 |
-| `/api/pareceres` | `server/pareceres.js` | 99 |
-| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 100 |
-| `/api/crm` | `server/crm/routes.js` | 101 |
-| `/api/renata` | `server/renata/routes.js` | 102 |
-| `/api/widget` | `server/widget.js` | 103 |
-| `/api/daily` | `server/daily.js` | 104 |
-| `/api/templates` | `server/documentTemplates.js` | 105 |
-| `/api/library-search` | `server/librarySearch.js` | 106 |
-| `/api/briefing` | `server/briefing.js` | 107 |
-| `/api/client360` | `server/client360.js` | 108 |
-| `/api/connect` | `server/connect.js` | 109 |
-| `/api/company-share` | `server/companyShare.js` | 110 |
-| `/api/project-vault` | `server/projectVault.js` | 111 |
-| `/api/company-calendar` | `server/companyCalendar.js` | 112 |
-| `/api/public-company` | `server/companyShare.js` | 113 |
-| `/d` | `server/companyShare.js` | 114 |
-| `/d` | `server/errorHandler.js` | 115 |
-| `/api/push` | `server/push.js` | 116 |
-| `/api/ops-intel` | `server/opsIntel.js` | 117 |
-| `/api/experience` | `server/experience.js` | 118 |
-| `/api/project-history` | `server/projectVersions.js` | 119 |
-| `/api` | `server/errorHandler.js` | 127 |
+| `/api/whatsapp` | `server/whatsapp.js` | 89 |
+| `/api/macro` | `server/macro.js` | 90 |
+| `/api/inventory` | `server/inventory.js` | 91 |
+| `/api/inventory` | `server/inventoryEdit.js` | 92 |
+| `/api/gaps` | `server/gaps.js` | 93 |
+| `/api/task-links` | `server/taskLinks.js` | 94 |
+| `/api/task-links` | `server/taskLinkBackfill.js` | 95 |
+| `/api/standard-plan` | `server/standardPlanApi.js` | 96 |
+| `/api/meeting-inbox` | `server/meetingInbox.js` | 97 |
+| `/api/assistant` | `server/assistant.js` | 98 |
+| `/api/knowledge` | `server/knowledge.js` | 99 |
+| `/api/pareceres` | `server/pareceres.js` | 100 |
+| `/api/knowledge-library` | `server/knowledgeLibraryRoutes.js` | 101 |
+| `/api/crm` | `server/crm/routes.js` | 102 |
+| `/api/renata` | `server/renata/routes.js` | 103 |
+| `/api/widget` | `server/widget.js` | 104 |
+| `/api/daily` | `server/daily.js` | 105 |
+| `/api/home-prefs` | `server/homePrefs.js` | 106 |
+| `/api/templates` | `server/documentTemplates.js` | 107 |
+| `/api/library-search` | `server/librarySearch.js` | 108 |
+| `/api/briefing` | `server/briefing.js` | 109 |
+| `/api/client360` | `server/client360.js` | 110 |
+| `/api/connect` | `server/connect.js` | 111 |
+| `/api/company-share` | `server/companyShare.js` | 112 |
+| `/api/project-vault` | `server/projectVault.js` | 113 |
+| `/api/company-calendar` | `server/companyCalendar.js` | 114 |
+| `/api/public-company` | `server/companyShare.js` | 115 |
+| `/d` | `server/companyShare.js` | 116 |
+| `/d` | `server/errorHandler.js` | 117 |
+| `/api/push` | `server/push.js` | 118 |
+| `/api/ops-intel` | `server/opsIntel.js` | 119 |
+| `/api/experience` | `server/experience.js` | 120 |
+| `/api/project-history` | `server/projectVersions.js` | 121 |
+| `/api` | `server/errorHandler.js` | 129 |
 
 Montagens extras (fora do `index.js`): `/api/connect/crm` = o roteador do CRM (`server/crm/routes.js`) reaproveitado por `server/connect.js` para a chave `crm_operate`/`write_all`/`read_all`; `/api/templates` tem limite de corpo próprio (45 MB) definido no `index.js`.
 
@@ -116,7 +117,7 @@ Arquivos: `server/index.js`, `server/payloadStats.js`, `server/xflowTransitions.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:144` |
+| GET | `(sem prefixo conhecido)/{*splat}` |  |  | `server/index.js:146` |
 | GET | `(sem prefixo conhecido)/projects` | `requireAuth` `payloadStats('GET /projects')` |  | `server/payloadStats.js:27` |
 | DELETE | `(sem prefixo conhecido)/tickets/:id` |  | arquivar) — um ticket aberto por engano também precisa poder ir pra Lixeira. purgar (apagar de vez) não passa por aqui — é DELETE direto, | `server/xflowTransitions.js:54` |
 
@@ -354,6 +355,15 @@ Arquivos: `server/google.js`.
 | GET | `/api/google/oauth/start` | `requireAuth` | GET (não POST) de propósito — é pra ser um redirect direto de window.location.href, não uma chamada fetch(). | `server/google.js:24` |
 | GET | `/api/google/oauth/callback` | `requireAuth` | Google numa navegação de topo (GET), então req.user já está disponível aqui; o `state` (cookie próprio) prova que o retorno é do fluxo que ESTE navegador iniciou. | `server/google.js:37` |
 | POST | `/api/google/disconnect` | `requireAuth` |  | `server/google.js:63` |
+
+## `/api/home-prefs` — 2 rotas
+
+Arquivos: `server/homePrefs.js`.
+
+| Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
+|---|---|---|---|---|
+| GET | `/api/home-prefs` | `requireAuth` |  | `server/homePrefs.js:11` |
+| PUT | `/api/home-prefs` | `requireAuth` | Grava só as chaves enviadas (layout, spaces, favorites); as outras ficam como estão. | `server/homePrefs.js:19` |
 
 ## `/api/inventory` — 7 rotas
 

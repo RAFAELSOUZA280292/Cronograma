@@ -9,6 +9,7 @@ import { useEscClose } from '../lib/nav.js';
 import { GlobalSaveStatus } from '../ui/index.jsx';
 import ShortcutsHelp from './ShortcutsHelp.jsx';
 import { isTypingTarget } from './shortcuts.js';
+import FavoritesBar from '../home/FavoritesBar.jsx';
 
 const CSS = `
 .shell-bar { position: sticky; top: 0; z-index: 45; display: flex; align-items: center; gap: var(--sp-2); height: var(--shell-h, 48px); padding: 0 14px;
@@ -95,7 +96,7 @@ function Menu({ label, align = 'left', trigger, children }) {
 export default function ModuleShell({
   user, current, modes, onGo, onHome, getSearchItems, getRemoteSearchItems, onOpenRenata,
   notifications, showNotifications, onToggleNotifications, onOpenNotification, onMarkNotificationRead, onMarkAllNotificationsRead,
-  onOpenProfile, theme, onToggleTheme, onLogout,
+  onOpenProfile, theme, onToggleTheme, onLogout, favoriteItem,
 }) {
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState(false);
@@ -145,6 +146,7 @@ export default function ModuleShell({
             );
           })}
         </Menu>
+        <FavoritesBar getSearchItems={getSearchItems} currentItem={favoriteItem} />
         <span className="shell-spacer" />
         <span className="shell-save"><GlobalSaveStatus /></span>
         <button type="button" className="shell-btn shell-search" onClick={() => setPalette(true)} title="Buscar (Ctrl+K)" aria-label={`Buscar… ${isMac ? '⌘K' : 'Ctrl K'}`}>

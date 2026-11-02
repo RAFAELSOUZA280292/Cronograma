@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8958 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8968 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -193,3 +193,4 @@ O `PROJECT_CONTEXT.md` tem 8958 linhas (a memória cronológica de cada decisão
 | 8932 | 123a. WhatsApp: caixas por número, pessoal privada e Comercial compartilhada (2026-11-02, decisão do Rafael) | - Pedido: "Para eu + Felipe + Ronaldo vamos de Opção B; para a Duda (Eduarda), número novo e dedicado, na API oficial, numa caixa Comercial". Os sóci… |
 | 8943 | 125. RENATA lê o e-mail de quem conversa com ela e propõe o registro no CRM (2026-11-02, pedido do Rafael: "a… | - Por quê: a RENATA respondia "não tenho acesso ao seu e-mail" e só achava o cartão OKUBO no quadro; as negociações (proposta, planilha, cobrança de … |
 | 8953 | 123b. WhatsApp: intermediário Dualhook para os números pessoais (2026-11-02, decisão do Rafael: "Dualhook (te… | - Por quê: número pessoal no painel só por coexistência, e a Meta só libera coexistência pelo cadastro de um provedor técnico. Comparação feita (Dual… |
+| 8959 | 126. Tela inicial personalizável e barra de favoritos (2026-11-02, pedido do Rafael: "tem gente que gosta de … | - Por quê: a partir de 03/11 os funcionários trabalham no painel; a tela do Rafael é widescreen e a deles é quadrada, e cada um quer a "Mensagem do d… |

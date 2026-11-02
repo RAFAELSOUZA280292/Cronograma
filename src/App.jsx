@@ -42,6 +42,8 @@ import NotificationPrefs from './shell/NotificationPrefs.jsx';
 
 import { pathForTag, modeForPath, modeForTag, pathForMode, canOpenMode } from './lib/routes.js';
 import { setRecentsUser, recordRecent, getRecents, loadLastWorkspace, saveLastWorkspace } from './lib/recents.js';
+import { loadHomePrefs, useHomePrefs } from './home/homePrefs.js';
+import HomeGrid, { PersonalizeButton } from './home/HomeGrid.jsx';
 import TodayPanel from './today/TodayPanel.jsx';
 import BriefingCard from './today/BriefingCard.jsx';
 import { HOME_CSS } from './home/homeCss.js';
@@ -538,6 +540,7 @@ function AppScreens({ shellRef, bump }) {
   const [renataProjectId, setRenataProjectId] = useState(null); // RENATA de uma empresa aberta a partir da geral
   const [pendingTodoOpen, setPendingTodoOpen] = useState(null); // {pid, meetingId, itemId}: abre o drawer da tarefa dentro da reunião (notificação 'todo' / "Hoje")
   setRecentsUser(currentUser ? currentUser.id : '');
+  useEffect(() => { loadHomePrefs(currentUser ? currentUser.id : ''); }, [currentUser ? currentUser.id : '']);
   const [showSettings, setShowSettings] = useState(false);
   const [showPhases, setShowPhases] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
@@ -2036,10 +2039,16 @@ function AppScreens({ shellRef, bump }) {
     const live = getRecents().map((r) => byKey.get(`${r.kind}:${r.id}`)).filter(Boolean).map((i) => ({ kind: i.kind, id: i.rid, label: i.label, hint: i.kind === 'module' ? '' : (i.hint || ''), run: i.run }));
     return [...live.filter((i) => i.kind !== 'module'), ...live.filter((i) => i.kind === 'module')].slice(0, 4);
   }
+  // Estrela da barra de favoritos (§126): a empresa aberta (uma só) ou o módulo atual; na tela inicial não há estrela.
+  const favProject = shellCurrent === 'company' && selectedProjectIds.length === 1 ? projects.find((p) => p.id === selectedProjectIds[0] && p.id !== STD_PLAN_ID) : null;
+  const shellMode = shellModes.find((m) => m.key === shellCurrent);
+  const favoriteItem = favProject ? { kind: 'company', id: favProject.id, label: favProject.company.nomeFantasia || favProject.company.name || 'Sem nome', hint: favProject.company.cnpj || '' }
+    : shellMode ? { kind: 'module', id: shellMode.key, label: shellMode.label } : null;
   shellRef.current = {
-    sig: [currentUser.id, currentUser.avatar, currentUser.name, shellCurrent, shellModeKeys.join(','), theme, showNotifications, showMyProfile, profileTab, googleConnectResult ? 1 : 0, renataHome ? renataHome.n : 0, renataProjectId || '',
+    sig: [favoriteItem ? `${favoriteItem.kind}:${favoriteItem.id}:${favoriteItem.label}` : '', currentUser.id, currentUser.avatar, currentUser.name, shellCurrent, shellModeKeys.join(','), theme, showNotifications, showMyProfile, profileTab, googleConnectResult ? 1 : 0, renataHome ? renataHome.n : 0, renataProjectId || '',
       notifications.map((n) => `${n.id}${n.read ? 1 : 0}`).join(',')].join('|'),
     user: currentUser, current: shellCurrent, modes: shellModes, theme, notifications, showNotifications,
+    favoriteItem,
     onGo: (k) => goToWorkspace(k),
     onHome: goHome ? () => goToWorkspace(null) : null,
     getSearchItems: buildSearchItems,
@@ -3443,6 +3452,8 @@ function homeDate(iso) {
 
 function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersonal, onPickXFlow, onPickAgenda, onPickMail, onPickWhatsapp, onPickMacro, onPickKnowledge, onPickPareceres, onPickModelos, onPickCrm, onPickUsers, onPickOps, onLogout, theme, onToggleTheme, onOpenProfile, onConfigureDaily, dailyReload, projects, notifications, todayIso, todayActions, showWeek, onOpenStats, continueItems }) {
   const todayPrefs = useNotifPrefs();
+  const homePrefs = useHomePrefs();
+  const [personalizing, setPersonalizing] = useState(false);
   const overdueNow = useMemo(() => buildTodayItems({ projects, personalBoard, user, todayIso, hiddenSources: hiddenTodaySources(todayPrefs.todaySources) }).overdue.length, [projects, personalBoard, user, todayIso, todayPrefs.todaySources]);
   const gateGroups = [
     { id: 'diario', title: 'Trabalho diário', items: [
@@ -3476,45 +3487,45 @@ function WorkspaceGateScreen({ user, personalBoard, onPickCompany, onPickPersona
             <BrandLogo theme={theme} style={{ ...S.loginLogo, marginBottom: 0 }} />
           </header>
           <div className="home-hello">
-            <h1 className="home-title">Olá, {(user.name || '').split(' ')[0] || user.username}</h1>
-            <p className="home-date">{homeDate(todayIso)}</p>
+            <div style={{ minWidth: 0 }}>
+              <h1 className="home-title">Olá, {(user.name || '').split(' ')[0] || user.username}</h1>
+              <p className="home-date">{homeDate(todayIso)}</p>
+            </div>
+            {!personalizing && <PersonalizeButton onClick={() => setPersonalizing(true)} disabled={!homePrefs.loaded} />}
           </div>
 
-          <div className="home-hero">
-            <DailyCards onConfigure={onConfigureDaily} reloadKey={dailyReload} />
-            <BriefingCard onOpenItem={todayActions.openBriefingItem} onConfigure={todayActions.openAllNotifications} />
-            <TodayPanel projects={projects} personalBoard={personalBoard} user={user} notifications={notifications} todayIso={todayIso} actions={todayActions} />
-          </div>
-
-          <div className="home-row">
-            {showWeek && <WeekSummary overdueNow={overdueNow} onOpenStats={onOpenStats} />}
-            <ContinueStrip items={continueItems} onOpen={(it) => it.run()} />
-          </div>
-
-          <div className="home-agenda">
-            {/* O quadro pessoal NÃO vai para a RENATA aqui: o painel "Hoje" acima já lista os cartões atrasados/de hoje com ações. */}
-            <RenataAgendaBriefing user={user} onOpenAgenda={onPickAgenda} personalBoard={null} onOpenPersonal={onPickPersonal} />
-          </div>
-
-          <p className="home-ask">Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>
-          <div className="home-launch">
-            {gateGroups.map((g) => (
-              <section key={g.id} aria-labelledby={`gate-grp-${g.id}`}>
-                <h2 id={`gate-grp-${g.id}`} className="home-grp-title">{g.title}</h2>
-                <div className="home-grp-list">
-                  {g.items.map((it) => (
-                    <button key={it.id} className="gate-card" style={S.gateCard} onClick={it.onPick}>
-                      <it.Icon size={22} color="var(--ui-accent-text)" aria-hidden="true" style={{ flexShrink: 0 }} />
-                      <span style={S.gateCardText}>
-                        <span style={S.gateCardTitle}>{it.title}</span>
-                        <span style={S.gateCardDesc}>{it.desc}</span>
-                      </span>
-                    </button>
+          <HomeGrid edit={personalizing} onEditChange={setPersonalizing} blocks={{
+            daily: <DailyCards onConfigure={onConfigureDaily} reloadKey={dailyReload} />,
+            briefing: <BriefingCard onOpenItem={todayActions.openBriefingItem} onConfigure={todayActions.openAllNotifications} />,
+            today: <TodayPanel projects={projects} personalBoard={personalBoard} user={user} notifications={notifications} todayIso={todayIso} actions={todayActions} />,
+            ...(showWeek ? { week: <WeekSummary overdueNow={overdueNow} onOpenStats={onOpenStats} /> } : {}),
+            continue: <ContinueStrip items={continueItems} onOpen={(it) => it.run()} />,
+            // O quadro pessoal NÃO vai para a RENATA aqui: o painel "Hoje" já lista os cartões atrasados/de hoje com ações.
+            agenda: <RenataAgendaBriefing user={user} onOpenAgenda={onPickAgenda} personalBoard={null} onOpenPersonal={onPickPersonal} />,
+            modules: (
+              <div className="home-mods">
+                <p className="home-ask">Onde você quer trabalhar agora? Dá pra trocar a qualquer momento.</p>
+                <div className="home-launch">
+                  {gateGroups.map((g) => (
+                    <section key={g.id} aria-labelledby={`gate-grp-${g.id}`}>
+                      <h2 id={`gate-grp-${g.id}`} className="home-grp-title">{g.title}</h2>
+                      <div className="home-grp-list">
+                        {g.items.map((it) => (
+                          <button key={it.id} className="gate-card" style={S.gateCard} onClick={it.onPick}>
+                            <it.Icon size={22} color="var(--ui-accent-text)" aria-hidden="true" style={{ flexShrink: 0 }} />
+                            <span style={S.gateCardText}>
+                              <span style={S.gateCardTitle}>{it.title}</span>
+                              <span style={S.gateCardDesc}>{it.desc}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
                   ))}
                 </div>
-              </section>
-            ))}
-          </div>
+              </div>
+            ),
+          }} />
         </div>
       </div>
     </div>
@@ -3660,6 +3671,7 @@ function ShellHost({ shellRef }) {
         onToggleNotifications={call('onToggleNotifications')} onOpenNotification={call('onOpenNotification')}
         onMarkNotificationRead={call('onMarkNotificationRead')} onMarkAllNotificationsRead={call('onMarkAllNotificationsRead')}
         onOpenProfile={call('onOpenProfile')} onOpenRenata={call('onOpenRenata')} onToggleTheme={call('onToggleTheme')} onLogout={call('onLogout')}
+        favoriteItem={p.favoriteItem}
       />
       {p.profileNode}
       {p.renataNode}
