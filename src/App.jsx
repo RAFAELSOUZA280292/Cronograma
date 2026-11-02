@@ -859,7 +859,7 @@ function AppScreens({ shellRef, bump }) {
       && !(a.subactivities || []).length && !(a.attachments || []).length && !(a.comments || []).length && !(a.links || []).length;
   }
   function isUntouchedNewMeeting(m) {
-    return !m.deleted && m.title === 'Nova reunião' && m.date === todayISOStr() && !m.time && !m.transcript && !m.summary && !m.decisions
+    return !m.deleted && m.title === 'Nova reunião' && m.date === todayISOStr() && !m.time && !m.transcript && !m.transcriptLen && !m.summary && !m.decisions
       && !(m.participants || []).length && !(m.actionItems || []).some((it) => !it.deleted);
   }
   useEffect(() => {
@@ -1000,7 +1000,7 @@ function AppScreens({ shellRef, bump }) {
         onViewActivities={(meetingId) => { closeMeetingDetail(); setView('todo'); setTodoFocusMeetingId(meetingId); }}
         onSetShareVisibility={(visibility) => toggleMeetingShare(project.id, meeting.id, visibility)}
         onRegenerateShareLink={() => regenerateMeetingShareLink(project.id, meeting.id)}
-        onExportPdf={() => exportMeetingPdf(meeting, project.company && project.company.name)}
+        onExportPdf={(full) => exportMeetingPdf(full || meeting, project.company && project.company.name)}
         initialOpenItemId={pendingTodoOpen && pendingTodoOpen.pid === project.id && pendingTodoOpen.meetingId === meeting.id ? pendingTodoOpen.itemId : null}
         onInitialOpenItemConsumed={() => setPendingTodoOpen(null)}
       />

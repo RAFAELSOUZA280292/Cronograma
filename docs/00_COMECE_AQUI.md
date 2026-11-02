@@ -16,7 +16,7 @@ Seção curta de propósito: **atualize a cada entrega** (checklist em `docs/06_
 - **WhatsApp** (§123, §123a, §123b): publicado **desligado**; liga com as chaves da Meta e a Dualhook.
 - Base visual e qualidade: janela única (U2), contraste nos dois temas, teste de fluxos Playwright + axe no CI.
 
-**Checagem de 02/11 à noite (§135):** 11 defeitos corrigidos antes do lançamento; pendentes sem quebra listados no §135; `GET /api/projects` com 17,9 MB: o BIP e as recargas ficaram leves (§137), a **primeira carga** continua pesada. Teste de fluxo "janelas do CRM" (Voltar fecha a ficha) é **intermitente** (2 em 5, já na versão publicada).
+**Checagem de 02/11 à noite (§135):** 11 defeitos corrigidos antes do lançamento; pendentes sem quebra listados no §135; `GET /api/projects` com 17,9 MB: o BIP e as recargas ficaram leves (§137) e a lista foi sem as transcrições (§138, ~7,5 MB a menos; a reunião busca o texto ao abrir). Teste de fluxo "janelas do CRM" (Voltar fecha a ficha) é **intermitente** (2 em 5, já na versão publicada).
 
 **Depende do Rafael** (nenhum item depende de código):
 - **03/11:** acompanhar a equipe passando pela boas-vindas; quem travar no Google chama o Rafael (não há "pular").

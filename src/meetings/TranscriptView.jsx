@@ -59,7 +59,7 @@ function highlightText(text, query, matchCounterRef) {
   });
 }
 
-export function TranscriptView({ meeting }) {
+export function TranscriptView({ meeting, loading = false, error = '' }) {
   const [mode, setMode] = useState('completa');
   const [search, setSearch] = useState('');
   const [activeMatch, setActiveMatch] = useState(0);
@@ -122,6 +122,8 @@ export function TranscriptView({ meeting }) {
 
   function renderCompleta() {
     if (entries) return renderBubbles(entries);
+    if (loading) return <div className="mtg-transcript-empty">Carregando a transcrição…</div>;
+    if (error) return <div className="mtg-transcript-empty">{error}</div>;
     if (!meeting.transcript) return <div className="mtg-transcript-empty">Esta reunião ainda não possui transcrição.</div>;
     return <div className="mtg-transcript-plain">{highlightText(meeting.transcript, search, matchCounter)}</div>;
   }

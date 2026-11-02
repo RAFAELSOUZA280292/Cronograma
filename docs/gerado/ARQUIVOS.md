@@ -4,7 +4,7 @@
 
 Cada arquivo com o número de linhas e a **primeira frase do comentário de cabeçalho** (quase todos têm uma). Use para achar "onde mora" algo antes de abrir arquivos grandes. Arquivos acima de 1.000 linhas: leia com `offset`/`limit` ou `grep`.
 
-## `server/` — 194 arquivos
+## `server/` — 195 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -140,6 +140,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/personalActivity.js` | 227 |  |
 | `server/personalExtras.js` | 67 | Anotações rápidas e atalhos de cada pessoa na Gestão de Atividades (2026-10-16, visão 5). Ficam em users.preferences.personalExtras — e NÃO no |
 | `server/projectAudit.js` | 47 | Quem fez cada gravação em `projects` (§83). O gatilho do banco só enxerga o SQL; aqui a identidade da requisição (AsyncLocalStorage, preenchida por requireAuth e pela API de |
+| `server/projectSlim.js` | 41 | Lista de empresas mais leve (02/11/2026, §138): a transcrição das reuniões era 7,5 MB dos 17,9 MB de GET /api/projects |
 | `server/projectVault.js` | 168 | Cofre do projeto (§124, pedido do Rafael em 02/11/2026): acessos (login e senha), certificado digital A1, arquivos, links e notas de UMA empresa. |
 | `server/projectVaultCore.js` | 132 | Cofre do projeto (§124): regras puras (sem banco), compartilhadas pelas rotas, pela ferramenta da RENATA e pelo teste. |
 | `server/projectVersions.js` | 194 | Histórico de versões do cronograma (§83): consultar, comparar, criar ponto de restauração, restaurar (com backup automático do estado atual) e recuperar empresa excluída. |
@@ -175,7 +176,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/renata/validate.js` | 81 | Validador de parâmetros das ferramentas da RENATA (§101): subconjunto de JSON Schema suficiente para o catálogo. Rejeita campo desconhecido |
 | `server/retrievalScope.js` | 32 | Escopo da busca na memória do projeto (2026-10-31). A etapa que interpreta a pergunta (resolveQuery) PROPÕE um tipo de trecho (`kind`) e uma reunião-alvo; a busca os |
 | `server/richNote.js` | 70 | Descrição formatada dos cartões do quadro pessoal (2026-10-07): o campo `desc` continua sendo uma string — texto simples |
-| `server/routes.js` | 1481 |  |
+| `server/routes.js` | 1496 |  |
 | `server/scripts/reindexAllMeetings.js` | 30 | Backfill manual da memória do projeto (2026-09, Fase 1 do Assistente |
 | `server/secretBox.js` | 47 | Cofre simples para segredos guardados no banco (M2, 2026-10-29): AES-256-GCM com chave derivada de TOKEN_ENC_KEY (ou, na falta, do JWT_SECRET). |
 | `server/shareTokens.js` | 41 | Tokens de link público (A9, 2026-10-29). A tela gera o token com `crypto.getRandomValues` (48 hex = 192 bits), mas o servidor não pode confiar nisso: |
@@ -226,7 +227,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `shared/usageMetrics.js` | 214 | Núcleo de cálculo da Central de Inteligência Operacional. Funções PURAS (sem banco, sem relógio global), testadas em |
 | `shared/workRoles.js` | 104 | Papéis de trabalho (2026-11-02, pedido do Rafael: valem a partir de 03/11). Convivem com o perfil técnico (`role`: master/pricetax/cliente), |
 
-## `src/` — 229 arquivos
+## `src/` — 230 arquivos
 
 | Arquivo | Linhas | O que é |
 |---|---|---|
@@ -366,17 +367,18 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/meetings/ActivityRow.jsx` | 186 | Linha de atividade (item de TO_DO) — extraído de TodoBoard.jsx pra ser |
 | `src/meetings/DossierPanel.jsx` | 260 | Dossiê do cliente (2026-10-02, ver PROJECT_CONTEXT.md §63) — tela com o compilado de TODAS as |
 | `src/meetings/LinkedTasks.jsx` | 72 | Lista "Tarefas de reunião vinculadas" no detalhe da atividade (2026-10-16). Só LÊ `actionItems[].activityId` (mesma fonte do chip |
-| `src/meetings/MeetingDetail.jsx` | 633 | Tela de detalhe de uma Reunião — redesign 2026-09 ("AI Meeting |
+| `src/meetings/MeetingDetail.jsx` | 637 | Tela de detalhe de uma Reunião — redesign 2026-09 ("AI Meeting |
 | `src/meetings/Meetings.jsx` | 378 | Reuniões (2026-09, pedido do Rafael) — central de acompanhamento de |
 | `src/meetings/ParecerAdviceBox.jsx` | 145 |  |
 | `src/meetings/TodoBoard.jsx` | 594 | Aba "Atividades" (ex-"TO DO", redesign 2026-09 — "Centro de Execução") |
 | `src/meetings/TodoDrawer.jsx` | 322 | Painel lateral de detalhe de uma atividade (2026-09, redesign "Centro de |
-| `src/meetings/TranscriptView.jsx` | 228 | Card "Transcrição da reunião" — 3 modos de leitura (Completa/Por |
+| `src/meetings/TranscriptView.jsx` | 230 | Card "Transcrição da reunião" — 3 modos de leitura (Completa/Por |
 | `src/meetings/dossierExport.js` | 119 | Exportação do Dossiê do cliente (2026-10-02, ver PROJECT_CONTEXT.md §63) — funções PURAS (sem |
 | `src/meetings/meetingUtils.js` | 61 | Utilitários puros pra tela de detalhe de Reunião (2026-09, redesign |
 | `src/meetings/meetingsCss.js` | 32 | CSS compartilhado das telas de reunião (Meetings.jsx e TodoBoard.jsx) — arquivo sem dependências para o TodoBoard não puxar `Meetings.jsx` (2026-10-17, §65). |
 | `src/meetings/todoStatus.js` | 18 | Status do TO_DO da reunião — arquivo pequeno e sem dependências para ser importado de qualquer lugar sem arrastar `Meetings.jsx` (2026-10-17, §65). |
 | `src/meetings/todoUtils.js` | 56 | Utilitários pequenos e sem estado, compartilhados entre TodoBoard.jsx e |
+| `src/meetings/useMeetingTranscript.js` | 27 | Transcrição da reunião sob demanda (§138): a lista de empresas vem sem ela (`transcriptStripped` + `transcriptLen`) e a reunião |
 | `src/modelos/Modelos.jsx` | 659 | Modelos de documentos (2026-10-05, §78) — aba irmã dos Pareceres: biblioteca de modelos para sócios e colaboradores. Um modelo |
 | `src/modelos/modelosMeta.js` | 124 | Modelos de documentos (2026-10-05, §78) — tipos, ícones e CSS próprio do módulo (prefixo mdl-, em cima do par- dos Pareceres). |
 | `src/onboarding/LaunchTour.jsx` | 167 | Boas-vindas obrigatória de lançamento (03/11/2026, shared/launchTour.js). Quatro passos, sem "pular", sem Esc: |

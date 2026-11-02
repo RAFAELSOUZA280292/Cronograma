@@ -25,6 +25,7 @@ import { TodoDrawer } from './TodoDrawer.jsx';
 import { TranscriptView } from './TranscriptView.jsx';
 import { initials, avatarColor } from './todoUtils.js';
 import { buildMeetingText, downloadTextFile } from './meetingUtils.js';
+import { useMeetingTranscript } from './useMeetingTranscript.js';
 import { splitDecisionLines } from '../../shared/transcriptParser.js';
 
 const MEETING_DETAIL_CSS = `
@@ -186,6 +187,9 @@ export function MeetingDetailModal({
 }) {
   const isMobile = useIsMobile();
   const isStaff = !!currentUser && (currentUser.isSuperAdmin || currentUser.role === 'master' || currentUser.role === 'pricetax');
+  // Transcrição chega sob demanda (§138): `mFull` = a reunião com o texto, para a aba, o .txt e o PDF.
+  const tx = useMeetingTranscript(pid, m);
+  const mFull = tx.meeting;
   const [participantDraft, setParticipantDraft] = useState('');
   const [participantEmailDraft, setParticipantEmailDraft] = useState('');
   const lastSavedAt = useAutosaveTimestamp(m);
@@ -271,7 +275,7 @@ export function MeetingDetailModal({
   const openItem = openItemId ? activeItems.find((it) => it.id === openItemId) : null;
 
   function exportText() {
-    downloadTextFile(`reuniao-${(m.title || 'sem-titulo').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.txt`, buildMeetingText(m, clientName));
+    downloadTextFile(`reuniao-${(m.title || 'sem-titulo').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.txt`, buildMeetingText(mFull, clientName));
     setShowMoreMenu(false);
   }
 
@@ -304,7 +308,7 @@ export function MeetingDetailModal({
               <button type="button" style={S.iconBtn} onClick={() => setShowMoreMenu((v) => !v)}><Download size={14} /> Exportar <ChevronDown size={12} /></button>
               {showMoreMenu && (
                 <div className="mtg2-more-menu">
-                  <button type="button" className="mtg2-more-item" onClick={() => { onExportPdf(); setShowMoreMenu(false); }}><FileDown size={14} /> Exportar PDF</button>
+                  <button type="button" className="mtg2-more-item" onClick={() => { onExportPdf(mFull); setShowMoreMenu(false); }}><FileDown size={14} /> Exportar PDF</button>
                   <button type="button" className="mtg2-more-item" onClick={exportText}><FileText size={14} /> Exportar Texto (.txt)</button>
                 </div>
               )}
@@ -416,7 +420,7 @@ export function MeetingDetailModal({
               renderRead={DecisionsRead}
             />
 
-            <TranscriptView meeting={m} />
+            <TranscriptView meeting={mFull} loading={tx.loading} error={tx.error} />
           </div>
 
           <div className="mtg2-side">

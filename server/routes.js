@@ -30,6 +30,7 @@ import { enforceShareTokens, publicMeetingView } from './shareTokens.js';
 import { isClientUser, projectForClient, applyClientWrite } from './clientView.js';
 import { loginBlockedFor, noteLoginFailure, noteLoginSuccess, passwordTooShort, PASSWORD_MSG } from './loginLimit.js';
 import { payloadStats } from './payloadStats.js';
+import { slimProject, restoreStripped, meetingTranscript } from './projectSlim.js';
 
 function uid(p) {
   return p + '-' + Math.random().toString(36).slice(2, 9);
@@ -536,7 +537,7 @@ router.get('/projects', requireAuth, payloadStats('GET /api/projects'), async (r
     const asClient = isClientUser(req.user);
     const allowed = rows.filter((r) => canAccessProject(req.user, r.data, r.org_id));
     // `stamps` = carimbo de versão de cada empresa (o mesmo de GET /projects/versions): a tela devolve o carimbo ao gravar e o servidor avisa (409) se mudou (A3).
-    res.json({ projects: allowed.map((r) => (asClient ? projectForClient(r.data) : r.data)), stamps: Object.fromEntries(allowed.map((r) => [r.data.id, r.updated_at])) });
+    res.json({ projects: allowed.map((r) => (asClient ? projectForClient(r.data) : slimProject(r.data))), stamps: Object.fromEntries(allowed.map((r) => [r.data.id, r.updated_at])) });
   } catch (e) { next(e); }
 });
 
@@ -670,6 +671,18 @@ router.get('/projects/:id/team-candidates', requireAuth, async (req, res, next) 
   } catch (e) { next(e); }
 });
 
+// Transcrição de uma reunião, sob demanda (a lista de empresas vai sem ela, §138). Mesma regra de acesso da empresa; cliente nunca vê.
+router.get('/projects/:id/meetings/:meetingId/transcript', requireAuth, async (req, res, next) => {
+  try {
+    if (isClientUser(req.user)) return res.status(403).json({ message: 'A transcrição não fica disponível para o cliente.' });
+    const { rows } = await pool.query('SELECT data, org_id FROM projects WHERE id=$1', [req.params.id]);
+    if (!rows[0] || !canAccessProject(req.user, rows[0].data, rows[0].org_id)) return res.status(404).json({ message: 'Empresa não encontrada.' });
+    const transcript = meetingTranscript(rows[0].data, req.params.meetingId);
+    if (transcript === null) return res.status(404).json({ message: 'Reunião não encontrada.' });
+    res.json({ transcript });
+  } catch (e) { next(e); }
+});
+
 router.patch('/projects/:id', requireAuth, async (req, res, next) => {
   const { id } = req.params;
   const incoming = req.body && req.body.project;
@@ -691,9 +704,11 @@ router.patch('/projects/:id', requireAuth, async (req, res, next) => {
     if (req.body.mergeable === true && base && !sameStamp(rows[0].updated_at, base)) {
       await client.query('ROLLBACK');
       release();
-      return res.status(409).json({ message: 'A empresa foi alterada em outro lugar.', conflict: true, project: isClientUser(req.user) ? projectForClient(current) : current, updatedAt: rows[0].updated_at });
+      return res.status(409).json({ message: 'A empresa foi alterada em outro lugar.', conflict: true, project: isClientUser(req.user) ? projectForClient(current) : slimProject(current), updatedAt: rows[0].updated_at });
     }
-    next_ = isClientUser(req.user) ? applyClientWrite(current, incoming) : incoming;
+    // Reunião que veio sem a transcrição (lista leve, §138) recupera a guardada antes de qualquer outra regra.
+    const restored = restoreStripped(current, incoming);
+    next_ = isClientUser(req.user) ? applyClientWrite(current, restored) : restored;
     enforceShareTokens(current, next_); // token de link de reunião novo só com formato forte (A9)
     const up = await client.query('UPDATE projects SET data=$1, updated_at=now() WHERE id=$2 RETURNING updated_at', [JSON.stringify(next_), id]);
     updatedAt = up.rows[0].updated_at;
@@ -709,7 +724,7 @@ router.patch('/projects/:id', requireAuth, async (req, res, next) => {
     const projectName = (next_.company && (next_.company.nomeFantasia || next_.company.name)) || 'Empresa';
     await notifyActivityChanges(req, id, projectName, current, next_);
     await notifyTodoChanges(req, id, projectName, current, next_);
-    res.json({ project: isClientUser(req.user) ? projectForClient(next_) : next_, updatedAt });
+    res.json({ project: isClientUser(req.user) ? projectForClient(next_) : slimProject(next_), updatedAt });
     // Reindexação da memória do projeto (Assistente Inteligente de Projetos, Fase 1) — só SQL local, fire-and-forget depois da resposta.
     syncProjectMemoryFromDiff(pool, orgId, id, current, next_)
       .catch((e) => console.error('Falha ao reindexar memória do projeto', e.message));
