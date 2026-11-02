@@ -2,10 +2,13 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-588 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
+591 commits, do mais recente ao mais antigo. Horário do commit **como gravado pelo git na máquina de deploy** (use com cuidado: pode estar em UTC ou Brasília). O "porquê" detalhado de cada mudança está no `PROJECT_CONTEXT.md`.
 
-## 2026-11-02 (55)
+## 2026-11-02 (58)
 
+- `c46d962` 19:12 — Cérebro: resultado da checagem (fluxos 15/15) e lição da tela obrigatória nos testes
+- `cb84aaf` 19:12 — Testes de fluxo: usuários de teste já concluíram a boas-vindas (§132 cobria a tela e travava os 15 testes)
+- `c8d02a7` 19:08 — Checagem antes do 03/11: 11 defeitos corrigidos em Agenda, E-mail, CRM e boas-vindas (§135)
 - `5863a51` 19:00 — Cérebro: correção da Agenda (§134) confirmada pelo Rafael em produção
 - `7f7ecf4` 18:56 — Agenda: cor do compromisso chamava a si mesma e travava a página com atividade do CRM na semana (§134)
 - `34a9d11` 18:51 — Agenda nunca fica carregando para sempre: prazo em cada leitura e aviso do que não carregou (§133)

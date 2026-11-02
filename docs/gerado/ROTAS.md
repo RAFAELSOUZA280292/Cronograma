@@ -314,16 +314,16 @@ Arquivos: `server/crm/piperun/routes.js`, `server/crm/routes.js`. Proteção do 
 | DELETE | `/api/crm/products/:id` | `need('catalog')` |  | `server/crm/routes.js:246` |
 | POST | `/api/crm/notes` | `need('write')` | ---- notas | `server/crm/routes.js:249` |
 | POST | `/api/crm/deals/:id/attachments/review` | `need('write')` | Revisar com a RENATA um anexo do negócio (botão no anexo da nota): grava a revisão como nota no negócio (§131). | `server/crm/routes.js:255` |
-| PATCH | `/api/crm/notes/:id` | `need('write')` |  | `server/crm/routes.js:262` |
-| DELETE | `/api/crm/notes/:id` | `need('write')` |  | `server/crm/routes.js:263` |
-| GET | `/api/crm/import/fields` | `need('import')` | ---- importação (planilha) e clientes atuais do painel | `server/crm/routes.js:266` |
-| POST | `/api/crm/import/preview` | `need('import')` |  | `server/crm/routes.js:267` |
-| POST | `/api/crm/import/commit` | `need('import')` |  | `server/crm/routes.js:271` |
-| GET | `/api/crm/import/deals/fields` | `need('import')` |  | `server/crm/routes.js:275` |
-| POST | `/api/crm/import/deals/preview` | `need('import')` |  | `server/crm/routes.js:276` |
-| POST | `/api/crm/import/deals/commit` | `need('import')` |  | `server/crm/routes.js:277` |
-| GET | `/api/crm/bootstrap/preview` | `need('import')` |  | `server/crm/routes.js:281` |
-| POST | `/api/crm/bootstrap/commit` | `need('import')` |  | `server/crm/routes.js:282` |
+| PATCH | `/api/crm/notes/:id` | `need('write')` |  | `server/crm/routes.js:269` |
+| DELETE | `/api/crm/notes/:id` | `need('write')` |  | `server/crm/routes.js:270` |
+| GET | `/api/crm/import/fields` | `need('import')` | ---- importação (planilha) e clientes atuais do painel | `server/crm/routes.js:273` |
+| POST | `/api/crm/import/preview` | `need('import')` |  | `server/crm/routes.js:274` |
+| POST | `/api/crm/import/commit` | `need('import')` |  | `server/crm/routes.js:278` |
+| GET | `/api/crm/import/deals/fields` | `need('import')` |  | `server/crm/routes.js:282` |
+| POST | `/api/crm/import/deals/preview` | `need('import')` |  | `server/crm/routes.js:283` |
+| POST | `/api/crm/import/deals/commit` | `need('import')` |  | `server/crm/routes.js:284` |
+| GET | `/api/crm/bootstrap/preview` | `need('import')` |  | `server/crm/routes.js:288` |
+| POST | `/api/crm/bootstrap/commit` | `need('import')` |  | `server/crm/routes.js:289` |
 
 ## `/api/daily` — 5 rotas
 

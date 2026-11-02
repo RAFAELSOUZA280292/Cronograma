@@ -231,12 +231,12 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 |---|---|---|
 | `src/App.jsx` | 3753 |  |
 | `src/agenda/AccountsDialog.jsx` | 177 | "Minhas agendas" (§128, 2026-11-02): a agenda principal (Google) + as extras da pessoa — outra conta Google, Microsoft 365/Outlook.com |
-| `src/agenda/Agenda.jsx` | 616 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
+| `src/agenda/Agenda.jsx` | 627 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/EventDetail.jsx` | 207 | Detalhe do compromisso do Google dentro do painel (2026-11-02, "nunca mais abrir o Google Agenda"): Meet, participantes com a |
 | `src/agenda/NewEventModal.jsx` | 337 | "Novo compromisso" e "Editar" da Agenda (Onda 5, §81; edição, Meet, lembrete e sugestão de contatos em 2026-11-02). Grava no Google |
 | `src/agenda/RenataAgendaBriefing.jsx` | 708 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
 | `src/agenda/RsvpButtons.jsx` | 29 | Aceitar / Talvez / Recusar — botões compactos; a resposta atual aparece marcada (aria-pressed). `labels` troca os textos |
-| `src/agenda/agenda.css` | 165 | Agenda no celular (Onda 6, §81). Desktop idêntico ao de antes; tudo que muda está sob @media (max-width: 767px). |
+| `src/agenda/agenda.css` | 218 | Agenda no celular (Onda 6, §81). Desktop idêntico ao de antes; tudo que muda está sob @media (max-width: 767px). |
 | `src/agenda/agendaActions.js` | 90 | Ações da Agenda (Onda 5, §81): responder convite do Google e criar compromisso. Sem JSX; o servidor é |
 | `src/agenda/agendaPrefs.js` | 59 | Preferências pessoais da leitura da agenda (2026-09-20, pedido do Rafael): o EXPEDIENTE (padrão 08:00–18:00) |
 | `src/agenda/dayLoad.js` | 188 | Leitura da agenda (2026-09-20, pedido do Rafael): deixar claro o que ele ACEITOU, o que está |
