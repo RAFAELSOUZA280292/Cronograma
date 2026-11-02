@@ -1,7 +1,7 @@
 // "Meu link de agendamento" (§139): a própria pessoa liga, configura, copia, troca e desliga o link público da SUA agenda.
 // Quem abre o link vê só livre/ocupado e marca na agenda dela. Servidor: GET/PUT /api/agenda/booking.
 import React, { useEffect, useState } from 'react';
-import { Copy, Link2, RefreshCw } from 'lucide-react';
+import { Copy, Link2, Plus, RefreshCw, X } from 'lucide-react';
 import { Modal } from '../ui/dialog.jsx';
 import { Button, Callout, Select } from '../ui/index.jsx';
 import { askConfirm, notify } from '../ui/dialogs.jsx';
@@ -9,6 +9,18 @@ import { apiGet, apiPut } from '../lib/api.js';
 import './agenda.css';
 
 const label = { display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12.5, fontWeight: 700, color: 'var(--text-3)' };
+const MAX_RANGES = 4;
+const toMin = (v) => { const m = /^(\d{2}):(\d{2})$/.exec(String(v || '')); return m ? Number(m[1]) * 60 + Number(m[2]) : NaN; };
+// Faixas na tela: mostra o problema antes de salvar (o servidor também limpa).
+export function rangeProblem(ranges, duration) {
+  const r = (ranges || []).map((x) => [toMin(x.start), toMin(x.end)]);
+  if (!r.length) return 'Inclua pelo menos uma faixa de horário.';
+  if (r.some(([a, z]) => !Number.isFinite(a) || !Number.isFinite(z))) return 'Preencha o início e o fim de cada faixa.';
+  if (r.some(([a, z]) => z <= a)) return 'Em cada faixa, o fim precisa ser depois do início.';
+  if (r.some(([a, z]) => a < 5 * 60 || z > 23 * 60)) return 'As faixas precisam ficar entre 05:00 e 23:00.';
+  if (r.every(([a, z]) => z - a < duration)) return `Nenhuma faixa comporta uma reunião de ${duration} min.`;
+  return '';
+}
 const DAYS = [[1, 'Seg'], [2, 'Ter'], [3, 'Qua'], [4, 'Qui'], [5, 'Sex'], [6, 'Sáb'], [0, 'Dom']];
 
 export default function BookingDialog({ onClose }) {
@@ -32,6 +44,14 @@ export default function BookingDialog({ onClose }) {
     put({ regenerate: true, enabled: true }, 'Link novo gerado; o antigo não funciona mais.');
   };
   const upd = (k, v) => setS((cur) => ({ ...cur, [k]: v }));
+  const setRange = (i, k, v) => setS((cur) => ({ ...cur, ranges: cur.ranges.map((r, j) => (j === i ? { ...r, [k]: v } : r)) }));
+  const addRange = () => setS((cur) => {
+    const last = cur.ranges[cur.ranges.length - 1];
+    const a = last ? Math.min(toMin(last.end) + 60, 21 * 60) : 8 * 60;
+    const f = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    return { ...cur, ranges: [...cur.ranges, { start: f(a), end: f(Math.min(a + 120, 23 * 60)) }] };
+  });
+  const problem = s ? rangeProblem(s.ranges, s.duration) : '';
 
   return (
     <Modal
@@ -39,7 +59,7 @@ export default function BookingDialog({ onClose }) {
       footer={data && (
         <>
           {data.enabled && <Button onClick={() => put({ enabled: false }, 'Link desligado. Quem tiver o endereço não consegue mais marcar.')} disabled={busy} disabledReason="Aguarde terminar">Desligar o link</Button>}
-          <Button variant="primary" onClick={() => put({ enabled: true, settings: s }, data.enabled ? 'Configuração salva.' : 'Link ligado. Copie e mande para quem vai marcar.')} loading={busy}>{data.enabled ? 'Salvar' : 'Ligar o link'}</Button>
+          <Button variant="primary" onClick={() => put({ enabled: true, settings: s }, data.enabled ? 'Configuração salva.' : 'Link ligado. Copie e mande para quem vai marcar.')} loading={busy} disabled={!!problem} disabledReason={problem}>{data.enabled ? 'Salvar' : 'Ligar o link'}</Button>
         </>
       )}
     >
@@ -58,12 +78,25 @@ export default function BookingDialog({ onClose }) {
               </div>
             </div>
           )}
-          <div className="agd-propose-row">
-            <label style={label}>Duração
-              <Select value={String(s.duration)} onChange={(e) => upd('duration', Number(e.target.value))}>{[15, 30, 45, 60, 90].map((m) => <option key={m} value={m}>{m} min</option>)}</Select>
-            </label>
-            <label style={label}>Das<input className="ui-input" type="time" step="1800" value={s.dayStart} onChange={(e) => upd('dayStart', e.target.value)} /></label>
-            <label style={label}>Até<input className="ui-input" type="time" step="1800" value={s.dayEnd} onChange={(e) => upd('dayEnd', e.target.value)} /></label>
+          <label style={{ ...label, maxWidth: 220 }}>Duração de cada reunião
+            <Select value={String(s.duration)} onChange={(e) => upd('duration', Number(e.target.value))}>{[15, 30, 45, 60, 90].map((m) => <option key={m} value={m}>{m} min</option>)}</Select>
+          </label>
+          <div style={label}>
+            <span id="bk-ranges">Horários em que aceita reuniões</span>
+            <div className="agd-bk-ranges" role="group" aria-labelledby="bk-ranges">
+              {s.ranges.map((r, i) => (
+                <div key={i} className="agd-bk-range">
+                  <span>das</span>
+                  <input className="ui-input" type="time" step="900" value={r.start} aria-label={`Faixa ${i + 1}: início`} onChange={(e) => setRange(i, 'start', e.target.value)} />
+                  <span>às</span>
+                  <input className="ui-input" type="time" step="900" value={r.end} aria-label={`Faixa ${i + 1}: fim`} onChange={(e) => setRange(i, 'end', e.target.value)} />
+                  <button type="button" className="agd-ic" aria-label={`Remover a faixa ${i + 1}`} title={s.ranges.length === 1 ? 'Precisa de pelo menos uma faixa' : 'Remover esta faixa'} disabled={s.ranges.length === 1} onClick={() => upd('ranges', s.ranges.filter((_, j) => j !== i))}><X size={15} aria-hidden="true" /></button>
+                </div>
+              ))}
+              {s.ranges.length < MAX_RANGES && <Button size="sm" icon={Plus} onClick={addRange}>Adicionar faixa</Button>}
+            </div>
+            <span className="agd-opt" style={{ fontSize: 12 }}>O intervalo entre duas faixas fica fechado (ex.: almoço das 12h às 13h30). Até {MAX_RANGES} faixas.</span>
+            {problem && <span role="alert" style={{ fontSize: 12, color: 'var(--ui-danger)' }}>{problem}</span>}
           </div>
           <div style={label}>
             <span id="bk-days">Dias da semana</span>
@@ -82,7 +115,6 @@ export default function BookingDialog({ onClose }) {
               <Select value={String(s.daysAhead)} onChange={(e) => upd('daysAhead', Number(e.target.value))}>{[7, 14, 30, 60].map((v) => <option key={v} value={v}>{v} dias</option>)}</Select>
             </label>
           </div>
-          <label className="agd-check"><input type="checkbox" checked={s.lunch} onChange={(e) => upd('lunch', e.target.checked)} /><span>Bloquear o almoço (12h–13h)</span></label>
           <label style={label}>Começo do título <span className="agd-opt">(opcional, ex.: PRICETAX)</span><input className="ui-input" value={s.title} maxLength={80} onChange={(e) => upd('title', e.target.value)} /></label>
           <div className="agd-hint" style={{ marginTop: 0 }}>Horário de Brasília. Até 5 marcações por hora vindas do mesmo endereço e 30 por dia no seu link.</div>
         </div>

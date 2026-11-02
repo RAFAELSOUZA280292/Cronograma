@@ -1,7 +1,7 @@
 // Link público de agendamento (§139): horários livres em Brasília, almoço, aviso mínimo, dias da semana, o que ocupa a agenda (sem
 // vazar título) e o pedido de quem marca (e-mails obrigatórios, Meet escolhido). Puro. Rodar: node scripts/agenda-booking.test.mjs
 import assert from 'node:assert/strict';
-import { computeSlots, busyFromEvents, parseBooking, cleanSettings, newBookingToken, brDay, DEFAULTS } from '../server/agendaBooking.js';
+import { computeSlots, busyFromEvents, parseBooking, cleanSettings, cleanRanges, newBookingToken, brDay, DEFAULTS, MAX_RANGES } from '../server/agendaBooking.js';
 
 let n = 0;
 const ok = (name, fn) => { fn(); n += 1; console.log('ok  ', name); };
@@ -11,9 +11,23 @@ const NOW = br('2026-11-02T07:00:00'); // segunda, 7h de Brasília
 ok('configuração: fora do permitido volta ao padrão', () => {
   assert.deepEqual(cleanSettings({}), DEFAULTS);
   const s = cleanSettings({ duration: 45, dayStart: '09:00', dayEnd: '17:00', lunch: false, daysAhead: 30, minNoticeHours: 24, weekdays: [1, 3, 9], title: ' PRICETAX ' });
-  assert.deepEqual([s.duration, s.dayStart, s.dayEnd, s.lunch, s.daysAhead, s.minNoticeHours, s.weekdays, s.title], [45, '09:00', '17:00', false, 30, 24, [1, 3], 'PRICETAX']);
+  assert.deepEqual([s.duration, s.ranges, s.daysAhead, s.minNoticeHours, s.weekdays, s.title], [45, [{ start: '09:00', end: '17:00' }], 30, 24, [1, 3], 'PRICETAX'], 'configuração antiga sem almoço = uma faixa');
+  assert.deepEqual(cleanSettings({ dayStart: '07:00', dayEnd: '19:00', lunch: true }).ranges, [{ start: '07:00', end: '12:00' }, { start: '13:00', end: '19:00' }], 'configuração antiga com almoço = duas faixas');
   const bad = cleanSettings({ duration: 7, dayStart: '18:00', dayEnd: '09:00', daysAhead: 999, weekdays: [] });
   assert.deepEqual([bad.duration, bad.dayStart, bad.dayEnd, bad.daysAhead, bad.weekdays], [30, '08:00', '18:00', 14, [1, 2, 3, 4, 5]]);
+});
+
+ok('faixas de horário: almoço em qualquer horário, sobrepostas juntadas, ordem, limite e inválidas fora', () => {
+  assert.deepEqual(cleanRanges([{ start: '14:00', end: '18:00' }, { start: '08:30', end: '11:30' }]), [{ start: '08:30', end: '11:30' }, { start: '14:00', end: '18:00' }]);
+  assert.deepEqual(cleanRanges([{ start: '08:00', end: '12:00' }, { start: '11:00', end: '13:00' }]), [{ start: '08:00', end: '13:00' }]);
+  assert.deepEqual(cleanRanges([{ start: '10:00', end: '09:00' }, { start: '04:00', end: '06:00' }, { start: 'x', end: '10:00' }, { start: '10:00', end: '10:10' }]), []);
+  assert.equal(cleanRanges(Array.from({ length: 6 }, (_, i) => ({ start: `${String(8 + 2 * i).padStart(2, '0')}:00`, end: `${String(9 + 2 * i).padStart(2, '0')}:00` }))).length, MAX_RANGES);
+  assert.deepEqual(cleanSettings({ ranges: [] }).ranges, DEFAULTS.ranges, 'nenhuma faixa válida = padrão');
+  const s = cleanSettings({ ranges: [{ start: '09:00', end: '11:30' }, { start: '14:00', end: '17:00' }] });
+  assert.deepEqual([s.dayStart, s.dayEnd], ['09:00', '17:00']);
+  const seg = computeSlots({ busy: [], settings: { ...s, duration: 60, minNoticeHours: 0 }, now: NOW }).days.find((d) => d.date === '2026-11-02');
+  const iso = (h) => new Date(br(`2026-11-02T${h}:00`)).toISOString();
+  assert.deepEqual(seg.slots, [iso('09:00'), iso('09:30'), iso('10:00'), iso('10:30'), iso('14:00'), iso('14:30'), iso('15:00'), iso('15:30'), iso('16:00')], 'cada horário cabe inteiro numa faixa; 12h–14h fora');
 });
 
 ok('horários livres: expediente, almoço fora, aviso mínimo de 2 h, só dias úteis', () => {

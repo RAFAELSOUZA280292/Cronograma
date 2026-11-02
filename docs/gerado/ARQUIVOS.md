@@ -11,7 +11,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/accessLog.js` | 163 |  |
 | `server/activityDictionary.js` | 182 | Dicionário de atividades (2026-10-19, pedido do Rafael: "um mega dicionário de todas as atividades"; ver PROJECT_CONTEXT.md §80). |
 | `server/agenda.js` | 378 | Agenda (2026-08) — junta, num só feed, o Google Calendar conectado do |
-| `server/agendaBooking.js` | 223 | Link público de agendamento (2026-11-02, noite; Rafael: "um link público para minha agenda… parceiros sem ler o nome do |
+| `server/agendaBooking.js` | 244 | Link público de agendamento (2026-11-02, noite; Rafael: "um link público para minha agenda… parceiros sem ler o nome do |
 | `server/agendaForm.js` | 84 | Regras do formulário de compromisso da Agenda (criar e editar) e da proposta de novo horário — puras, testadas em |
 | `server/agendaTeam.js` | 220 | Agenda como a do Google, parte 2 (2026-11-02, noite; Rafael: "me inscrever na agenda dos meus funcionários e dos meus sócios", |
 | `server/answerCache.js` | 165 | Cache semântico de perguntas/respostas da RENATA (Fase 7, 2026-09-11) |
@@ -237,13 +237,13 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/agenda/Agenda.jsx` | 726 | Agenda (2026-08, pedido do Rafael) — junta o Google Calendar conectado |
 | `src/agenda/AgendaExtras.jsx` | 212 | Peças da Agenda "como a do Google", parte 2 (2026-11-02, §138): Criar › Tarefa e Ausente, detalhe de tarefa e de compromisso de |
 | `src/agenda/AgendaSidebar.jsx` | 226 | Menu lateral da Agenda, como o do Google Agenda (2026-11-02, §138): Criar (Evento, Tarefa, Ausente), mini-calendário do mês, |
-| `src/agenda/BookingDialog.jsx` | 93 | "Meu link de agendamento" (§139): a própria pessoa liga, configura, copia, troca e desliga o link público da SUA agenda. |
+| `src/agenda/BookingDialog.jsx` | 125 | "Meu link de agendamento" (§139): a própria pessoa liga, configura, copia, troca e desliga o link público da SUA agenda. |
 | `src/agenda/EventDetail.jsx` | 207 | Detalhe do compromisso do Google dentro do painel (2026-11-02, "nunca mais abrir o Google Agenda"): Meet, participantes com a |
 | `src/agenda/NewEventModal.jsx` | 351 | "Novo compromisso" e "Editar" da Agenda (Onda 5, §81; edição, Meet, lembrete e sugestão de contatos em 2026-11-02). Grava no Google |
 | `src/agenda/PublicBooking.jsx` | 142 | Página pública de agendamento (/agendar/:token, §139). Sem login. Quem abre vê só os horários livres e os blocos "Ocupado" da |
 | `src/agenda/RenataAgendaBriefing.jsx` | 708 | Painel da RENATA na tela inicial (2026-09-20). Logo após o login, quem conectou o Google |
 | `src/agenda/RsvpButtons.jsx` | 29 | Aceitar / Talvez / Recusar — botões compactos; a resposta atual aparece marcada (aria-pressed). `labels` troca os textos |
-| `src/agenda/agenda.css` | 335 | Agenda no celular (Onda 6, §81). Desktop idêntico ao de antes; tudo que muda está sob @media (max-width: 767px). |
+| `src/agenda/agenda.css` | 340 | Agenda no celular (Onda 6, §81). Desktop idêntico ao de antes; tudo que muda está sob @media (max-width: 767px). |
 | `src/agenda/agendaActions.js` | 90 | Ações da Agenda (Onda 5, §81): responder convite do Google e criar compromisso. Sem JSX; o servidor é |
 | `src/agenda/agendaPrefs.js` | 59 | Preferências pessoais da leitura da agenda (2026-09-20, pedido do Rafael): o EXPEDIENTE (padrão 08:00–18:00) |
 | `src/agenda/dayLoad.js` | 188 | Leitura da agenda (2026-09-20, pedido do Rafael): deixar claro o que ele ACEITOU, o que está |

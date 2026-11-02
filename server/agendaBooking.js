@@ -18,7 +18,27 @@ const BR_OFFSET = '-03:00';
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TOKEN_RE = /^[A-Za-z0-9_-]{16,64}$/;
 export const DURATIONS = [15, 30, 45, 60, 90];
-export const DEFAULTS = { duration: 30, dayStart: '08:00', dayEnd: '18:00', lunch: true, daysAhead: 14, minNoticeHours: 2, weekdays: [1, 2, 3, 4, 5], title: '' };
+// Faixas de horário em que se pode marcar (02/11/2026, pedido do Rafael: "permitir agendamento de até de, e de de até de"). O intervalo
+// entre duas faixas é o almoço (ou qualquer pausa). Configuração antiga (dayStart/dayEnd + lunch) vira faixas na leitura.
+export const MAX_RANGES = 4;
+export const DEFAULTS = { duration: 30, ranges: [{ start: '08:00', end: '12:00' }, { start: '13:00', end: '18:00' }], dayStart: '08:00', dayEnd: '18:00', daysAhead: 14, minNoticeHours: 2, weekdays: [1, 2, 3, 4, 5], title: '' };
+const fmtMin = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+// Faixas limpas: HH:MM entre 05:00 e 23:00, início antes do fim (mín. 15 min), em ordem, sobrepostas juntadas, no máximo MAX_RANGES.
+export function cleanRanges(list) {
+  const r = (Array.isArray(list) ? list : []).map((x) => ({ a: hhmmToMin(x && x.start), z: hhmmToMin(x && x.end) }))
+    .filter((x) => Number.isFinite(x.a) && Number.isFinite(x.z) && x.a >= 5 * 60 && x.z <= 23 * 60 && x.z - x.a >= 15)
+    .sort((x, y) => x.a - y.a);
+  const out = [];
+  for (const x of r) { const last = out[out.length - 1]; if (last && x.a <= last.z) last.z = Math.max(last.z, x.z); else out.push({ ...x }); }
+  return out.slice(0, MAX_RANGES).map((x) => ({ start: fmtMin(x.a), end: fmtMin(x.z) }));
+}
+function legacyRanges(b) {
+  const a = hhmmToMin(b.dayStart); const z = hhmmToMin(b.dayEnd);
+  if (!(Number.isFinite(a) && Number.isFinite(z) && z > a)) return null;
+  if (b.lunch === false || a >= 13 * 60 || z <= 12 * 60) return cleanRanges([{ start: b.dayStart, end: b.dayEnd }]);
+  return cleanRanges([{ start: b.dayStart, end: '12:00' }, { start: '13:00', end: b.dayEnd }]);
+}
 export const MAX_GUESTS = 20;
 export const newBookingToken = () => crypto.randomBytes(18).toString('base64url'); // 24 caracteres, 144 bits
 
@@ -33,11 +53,11 @@ const brInstant = (dayKey, min) => Date.parse(`${dayKey}T${pad2(Math.floor(min /
 
 // Configuração do link, sempre limpa (o que vier fora do permitido volta ao padrão).
 export function cleanSettings(b = {}) {
-  const s = { ...DEFAULTS };
+  const s = { ...DEFAULTS, ranges: DEFAULTS.ranges.map((x) => ({ ...x })) };
   if (DURATIONS.includes(Number(b.duration))) s.duration = Number(b.duration);
-  const a = hhmmToMin(b.dayStart); const z = hhmmToMin(b.dayEnd);
-  if (Number.isFinite(a) && Number.isFinite(z) && a >= 5 * 60 && z <= 23 * 60 && z - a >= 60) { s.dayStart = b.dayStart; s.dayEnd = b.dayEnd; }
-  if (b.lunch !== undefined) s.lunch = !!b.lunch;
+  const ranges = b.ranges !== undefined ? cleanRanges(b.ranges) : legacyRanges(b);
+  if (ranges && ranges.length) s.ranges = ranges;
+  s.dayStart = s.ranges[0].start; s.dayEnd = s.ranges[s.ranges.length - 1].end;
   if ([7, 14, 30, 60].includes(Number(b.daysAhead))) s.daysAhead = Number(b.daysAhead);
   if ([0, 1, 2, 4, 12, 24, 48].includes(Number(b.minNoticeHours))) s.minNoticeHours = Number(b.minNoticeHours);
   if (Array.isArray(b.weekdays)) { const w = [...new Set(b.weekdays.map(Number).filter((d) => d >= 0 && d <= 6))].sort(); if (w.length) s.weekdays = w; }
@@ -51,22 +71,23 @@ export function computeSlots({ busy, settings, now }) {
   const dur = s.duration * 60000;
   const step = Math.min(30, s.duration) * 60000;
   const earliest = now + s.minNoticeHours * 3600000;
-  const startMin = hhmmToMin(s.dayStart); const endMin = hhmmToMin(s.dayEnd);
+  const ranges = s.ranges.map((r) => [hhmmToMin(r.start), hhmmToMin(r.end)]);
   const days = [];
   for (let i = 0; i <= s.daysAhead; i += 1) {
     const { key, dow } = brDay(now + i * DAY);
     if (!s.weekdays.includes(dow)) continue;
     const dayBusy = (busy || []).filter((b) => b.end > brInstant(key, 0) && b.start < brInstant(key, 24 * 60));
     const slots = [];
-    for (let t = brInstant(key, startMin); t + dur <= brInstant(key, endMin); t += step) {
-      if (t < earliest) continue;
-      if (s.lunch && t < brInstant(key, 13 * 60) && t + dur > brInstant(key, 12 * 60)) continue;
-      if (dayBusy.some((b) => b.start < t + dur && b.end > t)) continue;
-      slots.push(new Date(t).toISOString());
+    for (const [a, z] of ranges) {
+      for (let t = brInstant(key, a); t + dur <= brInstant(key, z); t += step) {
+        if (t < earliest) continue;
+        if (dayBusy.some((b) => b.start < t + dur && b.end > t)) continue;
+        slots.push(new Date(t).toISOString());
+      }
     }
     days.push({ date: key, dow, slots, busy: dayBusy.map((b) => ({ start: new Date(Math.max(b.start, brInstant(key, 0))).toISOString(), end: new Date(Math.min(b.end, brInstant(key, 24 * 60))).toISOString() })) });
   }
-  return { duration: s.duration, dayStart: s.dayStart, dayEnd: s.dayEnd, days };
+  return { duration: s.duration, dayStart: s.dayStart, dayEnd: s.dayEnd, ranges: s.ranges, days };
 }
 
 // O que ocupa a agenda do dono, a partir dos eventos do Google: só início e fim. Livre ("Mostrar como: livre"), cancelado e convite

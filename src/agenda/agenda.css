@@ -203,6 +203,9 @@
 .agd-bk-url { display: flex; gap: 6px; align-items: center; }
 .agd-bk-url .ui-input { flex: 1; min-width: 0; font-size: 12.5px; }
 .agd-bk-days { display: flex; gap: 6px; flex-wrap: wrap; }
+.agd-bk-ranges { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.agd-bk-range { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text-3); }
+.agd-bk-range .ui-input { width: 120px; }
 .agd-bk-days .agd-tog[aria-pressed="true"] { background: #F5C400; color: #111; border-color: #F5C400; }
 .pbk-page { min-height: 100vh; box-sizing: border-box; background: var(--bg-0, var(--bg-1)); color: var(--text-1); display: flex; flex-direction: column; align-items: center; padding: 32px 16px; font-family: inherit; }
 .pbk-card { width: 100%; max-width: 640px; box-sizing: border-box; background: var(--bg-1); border: 1px solid var(--border-2); border-radius: 14px; padding: 22px 22px 26px; box-shadow: 0 6px 24px rgba(0,0,0,.12); }
@@ -275,6 +278,8 @@
   .agd-create-btn, .agd-menu button { min-height: 48px; }
   .agd-swatch { width: 32px; height: 32px; }
   .agd-sitem { min-height: 44px; flex-wrap: wrap; }
+  .agd-bk-range .ui-input { width: 112px; font-size: 16px; min-height: 44px; }
+  .agd-bk-range .agd-ic { min-width: 44px; min-height: 44px; }
   .agd-stime { width: auto; }
   .agd-grid { min-width: calc(56px + var(--cols, 1) * 104px); }
   .agd-hours { border-right: 1px solid var(--border-1); }
