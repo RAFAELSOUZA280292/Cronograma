@@ -15,7 +15,8 @@ import './mailLinks.css';
 const DealForm = React.lazy(() => import('../crm/DealForm.jsx'));
 
 // Conversa a abrir quando a Caixa de e-mail montar (vindo do cockpit; a troca de módulo reescreve o endereço e perde o #conversa=).
-export const mailIntent = { threadId: null };
+import { mailIntent } from './mailIntent.js';
+export { mailIntent };
 
 // Parceiro em cópia (quem indicou): etiqueta ao lado do selo do cliente, nunca no lugar dele.
 export function PartnerTag({ link }) {

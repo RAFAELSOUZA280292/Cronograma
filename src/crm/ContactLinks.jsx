@@ -55,7 +55,7 @@ function CompactContact({ phone, whatsapp, email }) {
         <a className="crm-cl-ico crm-cl-wa" href={waHref(wa)} target="_blank" rel="noopener noreferrer" title={`Abrir conversa no WhatsApp: ${fmtPhone(wa)}`} aria-label={`Abrir WhatsApp de ${fmtPhone(wa)}`}><MessageCircle size={15} aria-hidden="true" /></a>
       )}
       {waHref(wa) && <CopyNumber value={wa} compact />}
-      {email && <a className="crm-cl-mail" href={`mailto:${email}`} title="Escrever e-mail" aria-label={`Escrever para ${email}`}><Mail size={13} aria-hidden="true" /><span>{email}</span></a>}
+      {email && <a className="crm-cl-mail" href={`mailto:${email}`} title="Escrever pela Caixa de e-mail do painel e ver as conversas" aria-label={`Escrever para ${email}`}><Mail size={13} aria-hidden="true" /><span>{email}</span></a>}
     </div>
   );
 }
@@ -73,7 +73,7 @@ export default function ContactLinks({ phone, whatsapp, email, compact = false }
       {hasPhone && !sameNumber && <CopyNumber value={main} compact={compact} />}
       {waHref(wa) && <a className="crm-pill" style={LINK} href={waHref(wa)} target="_blank" rel="noopener noreferrer" title="Abrir conversa no WhatsApp" aria-label={`Abrir WhatsApp de ${fmtPhone(wa)}`}><MessageCircle size={11} aria-hidden="true" /> {compact ? 'WhatsApp' : `WhatsApp ${fmtPhone(wa)}`}</a>}
       {waHref(wa) && <CopyNumber value={wa} compact={compact} />}
-      {email && <a className="crm-pill" style={LINK} href={`mailto:${email}`} title="Escrever e-mail" aria-label={`Escrever para ${email}`}><Mail size={11} aria-hidden="true" /> {email}</a>}
+      {email && <a className="crm-pill" style={LINK} href={`mailto:${email}`} title="Escrever pela Caixa de e-mail do painel e ver as conversas" aria-label={`Escrever para ${email}`}><Mail size={11} aria-hidden="true" /> {email}</a>}
     </div>
   );
 }

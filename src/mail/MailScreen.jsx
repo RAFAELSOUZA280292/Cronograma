@@ -16,6 +16,7 @@ import Compose, { fmtSize } from './Compose.jsx';
 import SignatureDialog from './SignatureDialog.jsx';
 import { MoveDialog, RulesDialog, FolderDialog } from './Folders.jsx';
 import { LinkBadge, PartnerTag, UnknownBanner, RegisterDeal, mailIntent } from './MailLinks.jsx';
+import { MAIL_INTENT_EVENT } from './mailIntent.js';
 import { isTypingTarget } from '../shell/shortcuts.js';
 import { LIMITS, sanitizeView, viewKey, clampList, stepSize, mailKeyAction, neighborId, afterRemoval, removesFrom } from './mailView.js';
 import './mail.css';
@@ -327,6 +328,22 @@ export default function MailScreen({ currentUser, theme, onGoAgenda, onOpenCrm, 
     if (compose && composeRef.current && !(await composeRef.current.close())) return;
     setCompose({ ...next, key: Date.now() });
   }
+  const openComposeRef = useRef(openCompose);
+  openComposeRef.current = openCompose;
+
+  // E-mail clicado em outra tela (CRM, atividade, nota): escrever para a pessoa e já listar as conversas com ela (mailIntent.js).
+  useEffect(() => {
+    const take = () => {
+      const it = mailIntent.compose;
+      if (!it) return;
+      mailIntent.compose = null;
+      setQuery(it.search); setSearch(it.search); setOpenId(null); setCursor(null);
+      openComposeRef.current({ mode: 'new', to: it.to, subject: it.subject });
+    };
+    take();
+    window.addEventListener(MAIL_INTENT_EVENT, take);
+    return () => window.removeEventListener(MAIL_INTENT_EVENT, take);
+  }, []);
 
   function onSent(r) {
     setCompose(null);

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { parseMailto, requestCompose } from './mail/mailIntent.js';
 import { revertLinkedSync, syncLinkedStatus } from '../shared/linkSync.js';
 import { meetingConflicts } from '../shared/calendarDays.js';
 import { fitPeriods } from '../shared/period.js';
@@ -1004,6 +1005,27 @@ function AppScreens({ shellRef, bump }) {
       />
     );
   }
+  // Clique num e-mail em qualquer tela (link mailto: do CRM, atividades, notas): abre a Caixa de e-mail do painel com a escrita
+  // para a pessoa e a pesquisa das conversas com ela, nunca o Outlook/Mail do computador (Rafael, 02/11/2026). Ctrl/⌘ e quem
+  // não tem Caixa (cliente) seguem o mailto: normal.
+  const goToWorkspaceRef = useRef(goToWorkspace);
+  goToWorkspaceRef.current = goToWorkspace;
+  useEffect(() => {
+    function onMailto(e) {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+      if (!a || !/^mailto:/i.test(a.getAttribute('href') || '')) return;
+      const u = currentUserRef.current;
+      if (!u || (u.role !== 'master' && u.role !== 'pricetax')) return;
+      const target = parseMailto(a.getAttribute('href'));
+      if (!target) return;
+      e.preventDefault();
+      goToWorkspaceRef.current('mail');
+      requestCompose(target);
+    }
+    document.addEventListener('click', onMailto);
+    return () => document.removeEventListener('click', onMailto);
+  }, []);
   useEffect(() => {
     try { window.history.replaceState({ navTag: locationTag(workspaceMode, showUsers, showOrgAdmin, companySelectionConfirmed) }, '', window.location.href); } catch (e) { /* ignora */ }
     function onPopState(e) {

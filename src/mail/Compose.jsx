@@ -235,13 +235,13 @@ const Compose = forwardRef(function Compose({ init, signature, isMobile, onClose
   const fromDraft = !!init.draftId;
   const [mode, setMode] = useState(init.mode || 'new');
   const [origId, setOrigId] = useState(init.messageId || '');
-  const [ctx, setCtx] = useState(mode === 'new' && !fromDraft ? { to: init.to || [], cc: [], subject: '', attachments: [] } : null);
+  const [ctx, setCtx] = useState(mode === 'new' && !fromDraft ? { to: init.to || [], cc: [], subject: init.subject || '', attachments: [] } : null);
   const [loadError, setLoadError] = useState('');
   const [to, setTo] = useState(addrText(init.to));
   const [cc, setCc] = useState('');
   const [bcc, setBcc] = useState('');
   const [showCc, setShowCc] = useState(false);
-  const [subject, setSubject] = useState('');
+  const [subject, setSubject] = useState(init.subject || '');
   const [html, setHtml] = useState('');
   const [files, setFiles] = useState([]);
   const [keepParts, setKeepParts] = useState(() => new Set());
