@@ -30,7 +30,7 @@ const hook = {
       ],
       statuses: [{ id: 'wamid.out1', status: 'read', timestamp: '1793621000', recipient_id: '5541999998888' }],
     } },
-    { field: 'messages', value: { metadata: { phone_number_id: 'OUTRO' }, messages: [{ from: '5511', id: 'x', type: 'text', text: { body: 'de outro número' } }] } },
+    { field: 'messages', value: { metadata: { phone_number_id: 'OUTRO' }, messages: [{ from: '5511988887777', id: 'x', type: 'text', text: { body: 'de outro número' } }] } },
     { field: 'smb_message_echoes', value: { metadata: { phone_number_id: PHONE }, message_echoes: [{ from: '554130000000', to: '5541999998888', id: 'wamid.echo', timestamp: '1793621100', type: 'text', text: { body: 'Respondido pelo celular' } }] } },
   ] }],
 };
@@ -47,6 +47,8 @@ const st = ev.find((e) => e.type === 'status');
 ok('webhook: status de leitura', st && st.waMessageId === 'wamid.out1' && st.status === 'read');
 ok('webhook: objeto errado é ignorado', parseWebhook({ object: 'page', entry: [] }, PHONE).length === 0);
 ok('webhook: corpo vazio não quebra', parseWebhook(null, PHONE).length === 0);
+ok('webhook: cada evento diz o número da empresa', ev.every((e) => e.phoneNumberId === PHONE));
+ok('webhook: filtro por conjunto de caixas', parseWebhook(hook, new Set(['OUTRO'])).length === 1 && parseWebhook(hook).length === 7);
 
 ok('status: read não volta para delivered', nextStatus('read', 'delivered') === 'read');
 ok('status: sent → delivered', nextStatus('sent', 'delivered') === 'delivered');

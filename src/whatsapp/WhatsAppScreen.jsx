@@ -3,11 +3,12 @@
 // Responder texto ou arquivo só dentro da janela de 24 h da última mensagem do cliente (regra da Meta); fora dela, só
 // modelo aprovado (Fase 3). Atualiza sozinha: lista a cada 15 s e conversa aberta a cada 5 s, só com a aba visível.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Search, X, ArrowLeft, Archive, Inbox, Paperclip, Send, Check, CheckCheck, AlertTriangle, Clock, Download, FileText, MessageCircle, Smartphone } from 'lucide-react';
+import { Search, X, ArrowLeft, Archive, Inbox, Paperclip, Send, Check, CheckCheck, AlertTriangle, Clock, Download, FileText, MessageCircle, Smartphone, Settings, Lock, ShieldCheck, ShieldOff, Users, Plus } from 'lucide-react';
 import { Callout, BusyBar, Button, IconButton, EmptyState, Segmented, activateRow } from '../ui/index.jsx';
-import { notify } from '../ui/dialogs.jsx';
-import { apiGet, apiPost } from '../lib/api.js';
-import { BrandLogo, useIsMobile } from '../App.jsx';
+import { notify, askConfirm } from '../ui/dialogs.jsx';
+import { apiGet, apiPost, apiPatch } from '../lib/api.js';
+import { useDialog } from '../lib/nav.js';
+import { BrandLogo, useIsMobile, useDirtyForm, ConfirmDiscardModal } from '../App.jsx';
 import { S } from '../styles/S.js';
 import './whatsapp.css';
 
@@ -51,9 +52,14 @@ function readFile(file) {
   });
 }
 
+const INBOX_KEY = 'pt.whatsapp.inbox';
+const savedInbox = () => { try { return localStorage.getItem(INBOX_KEY) || ''; } catch { return ''; } };
+const saveInbox = (id) => { try { localStorage.setItem(INBOX_KEY, id); } catch { /* sem armazenamento: só não lembra */ } };
+
 export default function WhatsAppScreen({ currentUser, theme }) {
   const isMobile = useIsMobile();
   const [status, setStatus] = useState(null);
+  const [inboxId, setInboxId] = useState(savedInbox);
   const [archived, setArchived] = useState(false);
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
@@ -61,28 +67,35 @@ export default function WhatsAppScreen({ currentUser, theme }) {
   const [loading, setLoading] = useState(false);
   const [listError, setListError] = useState('');
   const [openId, setOpenId] = useState(hashConv);
+  const [adminOpen, setAdminOpen] = useState(false);
 
-  useEffect(() => {
-    apiGet('/api/whatsapp/status').then(setStatus).catch(() => setStatus({ enabled: false, missing: [] }));
-  }, []);
+  const loadStatus = useCallback(() => apiGet('/api/whatsapp/status').then(setStatus).catch(() => setStatus({ enabled: false, missing: [], inboxes: [] })), []);
+  useEffect(() => { loadStatus(); }, [loadStatus]);
+
+  const inboxes = (status && status.inboxes) || [];
+  const inbox = inboxes.find((i) => i.id === inboxId) || inboxes.find((i) => i.authorized) || inboxes[0] || null;
+  const usable = !!inbox && inbox.authorized;
+
+  const pickInbox = (id) => { setInboxId(id); saveInbox(id); setArchived(false); setSearch(''); setQuery(''); open(null); };
 
   const loadList = useCallback(async (quiet) => {
+    if (!inbox || !inbox.authorized) { setConvs([]); return; }
     if (!quiet) setLoading(true);
     try {
-      const qs = new URLSearchParams({ ...(archived ? { archived: '1' } : {}), ...(search ? { q: search } : {}) }).toString();
-      const data = await apiGet(`/api/whatsapp/conversations${qs ? `?${qs}` : ''}`);
+      const qs = new URLSearchParams({ inbox: inbox.id, ...(archived ? { archived: '1' } : {}), ...(search ? { q: search } : {}) }).toString();
+      const data = await apiGet(`/api/whatsapp/conversations?${qs}`);
       setConvs(data.conversations || []);
       setListError('');
     } catch (e) {
       if (!quiet) setListError(e.message || 'Não consegui carregar as conversas.');
     } finally { if (!quiet) setLoading(false); }
-  }, [archived, search]);
+  }, [inbox && inbox.id, inbox && inbox.authorized, archived, search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { loadList(false); }, [loadList]);
   useEffect(() => {
-    const t = setInterval(() => { if (visible()) loadList(true); }, LIST_MS);
+    const t = setInterval(() => { if (visible()) { loadList(true); loadStatus(); } }, LIST_MS);
     return () => clearInterval(t);
-  }, [loadList]);
+  }, [loadList, loadStatus]);
 
   useEffect(() => {
     const onHash = () => { const id = hashConv(); if (id) setOpenId(id); };
@@ -90,9 +103,27 @@ export default function WhatsAppScreen({ currentUser, theme }) {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  const open = (id) => {
+  function open(id) {
     setOpenId(id);
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${id ? `#conversa=${id}` : ''}`);
+  }
+
+  const refresh = useCallback(() => { loadList(true); loadStatus(); }, [loadList, loadStatus]);
+  // Conversa aberta por aviso de outra caixa: a lista acompanha.
+  const onConvInbox = useCallback((id) => { if (id && inbox && id !== inbox.id) { setInboxId(id); saveInbox(id); } }, [inbox && inbox.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const revoke = async () => {
+    const ok = await askConfirm({
+      title: 'Desligar o seu WhatsApp do painel?',
+      message: 'O painel para de receber as suas conversas e APAGA tudo o que já guardou desta caixa (mensagens e arquivos). No celular nada muda. Para voltar, é só autorizar de novo.',
+      confirmLabel: 'Desligar e apagar', danger: true,
+    });
+    if (!ok) return;
+    try {
+      const r = await apiPost(`/api/whatsapp/inboxes/${inbox.id}/revoke`);
+      notify(`Desligado. ${r.removed} conversa(s) apagada(s) do painel.`, { tone: 'success' });
+      open(null); setConvs([]); loadStatus();
+    } catch (e) { notify(e.message, { tone: 'error' }); }
   };
 
   const submitSearch = (e) => { e.preventDefault(); setSearch(query.trim()); };
@@ -106,77 +137,247 @@ export default function WhatsAppScreen({ currentUser, theme }) {
           <BrandLogo theme={theme} style={S.logoImg} />
           <div>
             <div style={{ fontWeight: 800 }}>WhatsApp</div>
-            <div style={{ fontSize: 12, color: 'var(--text-5)' }}>{(status && status.phone) || 'Número da PRICETAX'}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-5)' }}>{inbox ? `${inbox.name}${inbox.displayPhone ? ` · ${inbox.displayPhone}` : ''}` : 'Conversas no painel'}</div>
           </div>
         </div>
-        <form className="wa-search" role="search" onSubmit={submitSearch}>
-          <Search size={15} aria-hidden="true" />
-          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Pesquisar por nome ou número" aria-label="Pesquisar conversas" />
-          {search && <button type="button" className="wa-ic" aria-label="Limpar pesquisa" title="Limpar pesquisa" onClick={() => { setQuery(''); setSearch(''); }}><X size={14} aria-hidden="true" /></button>}
-        </form>
+        {inboxes.length > 1 && (
+          <label className="wa-inbox-pick">
+            <span className="ui-sr">Caixa</span>
+            <select value={inbox ? inbox.id : ''} onChange={(e) => pickInbox(e.target.value)}>
+              {inboxes.map((i) => <option key={i.id} value={i.id}>{i.kind === 'personal' ? '🔒 ' : ''}{i.name}{i.unread ? ` (${i.unread})` : ''}</option>)}
+            </select>
+          </label>
+        )}
+        {usable && (
+          <form className="wa-search" role="search" onSubmit={submitSearch}>
+            <Search size={15} aria-hidden="true" />
+            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Pesquisar por nome ou número" aria-label="Pesquisar conversas" />
+            {search && <button type="button" className="wa-ic" aria-label="Limpar pesquisa" title="Limpar pesquisa" onClick={() => { setQuery(''); setSearch(''); }}><X size={14} aria-hidden="true" /></button>}
+          </form>
+        )}
+        {status && status.isMaster && <Button icon={Settings} size="sm" onClick={() => setAdminOpen(true)}>Configurar caixas</Button>}
       </div>
 
       {status === null && <div className="wa-pad"><BusyBar active /></div>}
-      {status && !status.enabled && <SetupCard status={status} currentUser={currentUser} />}
+      {status && !status.enabled && <SetupCard status={status} />}
+      {status && inboxes.length === 0 && (
+        <EmptyState
+          icon={MessageCircle} title="Você ainda não tem caixa de WhatsApp"
+          description={status.isMaster ? 'Cadastre um número em "Configurar caixas": compartilhado (com as pessoas escolhidas) ou pessoal (só o dono vê).' : 'Quando o master incluir você numa caixa, ou cadastrar o seu número pessoal, ela aparece aqui.'}
+        />
+      )}
+      {inbox && !inbox.authorized && <AuthorizeCard inbox={inbox} onDone={loadStatus} />}
 
-      <div className={`wa-grid${isMobile ? ' mobile' : ''}`}>
-        {showList && (
-          <section className="wa-list" aria-label="Conversas">
-            <div className="wa-list-head">
-              <Segmented
-                label="Quais conversas" value={archived ? 'arch' : 'open'} onChange={(v) => { setArchived(v === 'arch'); open(null); }}
-                options={[{ value: 'open', label: 'Conversas' }, { value: 'arch', label: 'Arquivadas' }]}
-              />
-            </div>
-            <BusyBar active={loading} />
-            {listError && <div className="wa-pad"><Callout tone="danger" icon={AlertTriangle} title="Não consegui carregar as conversas">{listError}</Callout></div>}
-            {!loading && !listError && convs.length === 0 && (
-              <EmptyState
-                icon={MessageCircle} compact
-                title={search ? 'Nada encontrado' : archived ? 'Nenhuma conversa arquivada' : 'Nenhuma conversa ainda'}
-                description={search ? 'Tente outro nome ou parte do número.' : archived ? '' : 'Quando um cliente escrever para o WhatsApp da PRICETAX, a conversa aparece aqui.'}
-              />
-            )}
-            <ul className="wa-rows">
-              {convs.map((c) => (
-                <li key={c.id} className={`wa-row${openId === c.id ? ' open' : ''}${c.unread ? ' unread' : ''}`} {...activateRow(() => open(c.id))} aria-current={openId === c.id ? 'true' : undefined}>
-                  <span className="wa-avatar" aria-hidden="true">{initials(c)}</span>
-                  <div className="wa-row-main">
-                    <div className="wa-row-top">
-                      <span className="wa-name">{label(c)}</span>
-                      <span className="wa-date">{fmtListDate(c.lastMessageAt)}</span>
+      {usable && (
+        <div className={`wa-grid${isMobile ? ' mobile' : ''}`}>
+          {showList && (
+            <section className="wa-list" aria-label="Conversas">
+              <div className="wa-list-head">
+                <Segmented
+                  label="Quais conversas" value={archived ? 'arch' : 'open'} onChange={(v) => { setArchived(v === 'arch'); open(null); }}
+                  options={[{ value: 'open', label: 'Conversas' }, { value: 'arch', label: 'Arquivadas' }]}
+                />
+                {inbox.kind === 'personal' && <IconButton label="Desligar o meu WhatsApp do painel" icon={ShieldOff} size="sm" onClick={revoke} />}
+              </div>
+              {inbox.kind === 'personal' && <div className="wa-private"><Lock size={12} aria-hidden="true" /> Caixa pessoal: só você vê.</div>}
+              <BusyBar active={loading} />
+              {listError && <div className="wa-pad"><Callout tone="danger" icon={AlertTriangle} title="Não consegui carregar as conversas">{listError}</Callout></div>}
+              {!loading && !listError && convs.length === 0 && (
+                <EmptyState
+                  icon={MessageCircle} compact
+                  title={search ? 'Nada encontrado' : archived ? 'Nenhuma conversa arquivada' : 'Nenhuma conversa ainda'}
+                  description={search ? 'Tente outro nome ou parte do número.' : archived ? '' : 'As conversas novas deste número aparecem aqui.'}
+                />
+              )}
+              <ul className="wa-rows">
+                {convs.map((c) => (
+                  <li key={c.id} className={`wa-row${openId === c.id ? ' open' : ''}${c.unread ? ' unread' : ''}`} {...activateRow(() => open(c.id))} aria-current={openId === c.id ? 'true' : undefined}>
+                    <span className="wa-avatar" aria-hidden="true">{initials(c)}</span>
+                    <div className="wa-row-main">
+                      <div className="wa-row-top">
+                        <span className="wa-name">{label(c)}</span>
+                        <span className="wa-date">{fmtListDate(c.lastMessageAt)}</span>
+                      </div>
+                      <div className="wa-row-bottom">
+                        <span className="wa-preview">{c.lastDirection === 'out' ? 'Você: ' : ''}{c.lastPreview}</span>
+                        {c.unread > 0 && <b className="wa-badge" aria-label={`${c.unread} não lidas`}>{c.unread > 99 ? '99+' : c.unread}</b>}
+                      </div>
                     </div>
-                    <div className="wa-row-bottom">
-                      <span className="wa-preview">{c.lastDirection === 'out' ? 'Você: ' : ''}{c.lastPreview}</span>
-                      {c.unread > 0 && <b className="wa-badge" aria-label={`${c.unread} não lidas`}>{c.unread > 99 ? '99+' : c.unread}</b>}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-        {showChat && (
-          <section className="wa-chat" aria-label="Conversa aberta">
-            {openId
-              ? <Conversation key={openId} id={openId} enabled={!!(status && status.enabled)} isMobile={isMobile} onBack={() => open(null)} onChanged={() => loadList(true)} />
-              : <EmptyState icon={MessageCircle} title="Escolha uma conversa" description="As mensagens aparecem aqui. Toda a equipe vê as mesmas conversas e quem respondeu cada uma." />}
-          </section>
-        )}
-      </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {showChat && (
+            <section className="wa-chat" aria-label="Conversa aberta">
+              {openId
+                ? <Conversation key={openId} id={openId} enabled={!!status.enabled && inbox.ready} isMobile={isMobile} onBack={() => open(null)} onChanged={refresh} onInbox={onConvInbox} />
+                : <EmptyState icon={MessageCircle} title="Escolha uma conversa" description={inbox.kind === 'personal' ? 'As mensagens do seu número aparecem aqui, só para você.' : 'Todos os membros desta caixa veem as mesmas conversas e quem respondeu cada uma.'} />}
+            </section>
+          )}
+        </div>
+      )}
+      {adminOpen && <InboxAdmin onClose={() => setAdminOpen(false)} onSaved={loadStatus} />}
     </div>
   );
 }
 
-function SetupCard({ status, currentUser }) {
+function SetupCard({ status }) {
   return (
     <div className="wa-pad">
       <Callout tone="info" icon={Smartphone} title="O WhatsApp ainda não foi ligado ao painel">
-        A tela já está pronta. Ela começa a receber mensagens quando a conta da PRICETAX na Meta (WhatsApp Business Platform) estiver verificada e as chaves forem cadastradas no servidor.
-        {currentUser.role === 'master' && status.missing && status.missing.length > 0 && (
-          <> Faltam: {status.missing.join(', ')}.</>
-        )}
+        A tela está pronta. Ela começa a receber mensagens quando o app da PRICETAX na Meta (WhatsApp Business Platform) estiver aprovado e as chaves forem cadastradas no servidor.
+        {status.isMaster && status.missing && status.missing.length > 0 && <> Faltam: {status.missing.join(', ')}.</>}
       </Callout>
+    </div>
+  );
+}
+
+// Número pessoal: nada é guardado até o PRÓPRIO dono autorizar aqui.
+function AuthorizeCard({ inbox, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const authorize = async () => {
+    setBusy(true);
+    try { await apiPost(`/api/whatsapp/inboxes/${inbox.id}/authorize`); notify('Autorizado. As próximas mensagens do seu número aparecem aqui, só para você.', { tone: 'success' }); onDone(); } catch (e) { notify(e.message, { tone: 'error' }); setBusy(false); }
+  };
+  return (
+    <div className="wa-pad wa-auth">
+      <Callout tone="info" icon={Lock} title={`Autorizar o seu WhatsApp pessoal${inbox.displayPhone ? ` (${inbox.displayPhone})` : ''} no painel?`}>
+        <ul className="wa-auth-list">
+          <li>Só você vê estas conversas. Ninguém mais tem acesso, nem o master do painel.</li>
+          <li>O conteúdo fica cifrado no banco da PRICETAX. Grupos não aparecem (a Meta não os envia).</li>
+          <li>O celular continua igual; o que você responder lá também aparece aqui.</li>
+          <li>Você pode desligar quando quiser: o painel para de receber e apaga tudo o que guardou.</li>
+        </ul>
+        <Button variant="primary" icon={ShieldCheck} loading={busy} onClick={authorize}>Autorizo</Button>
+      </Callout>
+    </div>
+  );
+}
+
+const blankInbox = { name: '', kind: 'shared', ownerId: '', phoneNumberId: '', displayPhone: '', token: '', active: true, memberIds: [] };
+
+// Configurar caixas (master): número, chave da Meta (só gravada, nunca mostrada), tipo e quem vê. Não mostra conversa nenhuma.
+function InboxAdmin({ onClose, onSaved }) {
+  const trap = useDialog(() => requestClose());
+  const [data, setData] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(blankInbox);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [base, setBase] = useState(blankInbox);
+  const dirty = editing !== null && JSON.stringify(form) !== JSON.stringify(base);
+  useDirtyForm(dirty);
+
+  useEffect(() => { apiGet('/api/whatsapp/admin/inboxes').then(setData).catch((e) => setError(e.message)); }, []);
+
+  function requestClose() { if (dirty) setConfirmDiscard(true); else onClose(); }
+  const edit = (i) => {
+    const f = i ? { name: i.name, kind: i.kind, ownerId: i.ownerId || '', phoneNumberId: i.phoneNumberId, displayPhone: i.displayPhone, token: '', active: i.active, memberIds: i.members.map((m) => m.id) } : blankInbox;
+    setEditing(i ? i.id : 'new'); setForm(f); setBase(f); setError('');
+  };
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const toggleMember = (id) => set('memberIds', form.memberIds.includes(id) ? form.memberIds.filter((x) => x !== id) : [...form.memberIds, id]);
+
+  async function save(e) {
+    if (e) e.preventDefault();
+    setBusy(true); setError('');
+    try {
+      const body = { ...form };
+      if (!body.token) delete body.token;
+      const r = editing === 'new' ? await apiPost('/api/whatsapp/admin/inboxes', body) : await apiPatch(`/api/whatsapp/admin/inboxes/${editing}`, body);
+      setData((d) => ({ ...d, inboxes: r.inboxes }));
+      notify('Caixa salva.', { tone: 'success' });
+      setEditing(null); setForm(blankInbox); setBase(blankInbox);
+      onSaved();
+      return true;
+    } catch (err) { setError(err.message); return false; } finally { setBusy(false); }
+  }
+
+  const current = data && editing && editing !== 'new' ? data.inboxes.find((i) => i.id === editing) : null;
+  return (
+    <div className="ui-dlg-overlay" onClick={requestClose}>
+      <div className="ui-dlg wa-admin" role="dialog" aria-modal="true" aria-label="Configurar caixas do WhatsApp" ref={trap.ref} tabIndex={-1} onClick={(e) => e.stopPropagation()}>
+        <div className="wa-admin-head">
+          <h2 className="ui-dlg-title">Caixas do WhatsApp</h2>
+          {dirty && <span className="wa-dirty">Alterações não salvas</span>}
+          <IconButton label="Fechar" icon={X} size="sm" onClick={requestClose} />
+        </div>
+        <BusyBar active={!data || busy} />
+        {data && !data.webhookReady && <div className="ui-dlg-msg">O servidor ainda não tem as chaves do app da Meta (WHATSAPP_APP_SECRET e WHATSAPP_VERIFY_TOKEN). Dá para cadastrar as caixas; elas recebem quando as chaves entrarem.</div>}
+        {data && editing === null && (
+          <>
+            <ul className="wa-admin-list">
+              {data.inboxes.length === 0 && <li className="wa-sub">Nenhuma caixa cadastrada.</li>}
+              {data.inboxes.map((i) => (
+                <li key={i.id} className="wa-admin-row">
+                  {i.kind === 'personal' ? <Lock size={14} aria-hidden="true" /> : <Users size={14} aria-hidden="true" />}
+                  <div className="wa-admin-main">
+                    <strong>{i.name}</strong>{!i.active && <span className="wa-sub"> · desligada</span>}
+                    <div className="wa-sub">
+                      {i.kind === 'personal' ? `Pessoal de ${i.ownerName} · ${i.authorized ? 'autorizada pelo dono' : 'aguardando o dono autorizar'}` : `Compartilhada · ${i.members.map((m) => m.name).join(', ') || 'sem membros'}`}
+                      {i.displayPhone ? ` · ${i.displayPhone}` : ''}{i.tokenSet ? '' : ' · sem chave de acesso'}
+                    </div>
+                  </div>
+                  <Button size="sm" onClick={() => edit(i)}>Editar</Button>
+                </li>
+              ))}
+            </ul>
+            <div className="ui-dlg-actions">
+              <Button icon={Plus} variant="primary" onClick={() => edit(null)}>Nova caixa</Button>
+            </div>
+          </>
+        )}
+        {data && editing !== null && (
+          <form onSubmit={save} className="wa-admin-form">
+            {editing === 'new' && (
+              <Segmented label="Tipo da caixa" value={form.kind} onChange={(v) => set('kind', v)} options={[{ value: 'shared', label: 'Compartilhada' }, { value: 'personal', label: 'Pessoal' }]} />
+            )}
+            <div className="ui-dlg-msg">
+              {form.kind === 'personal'
+                ? 'Número pessoal de um sócio (coexistência com o app do celular). Só o dono vê; nada é guardado até ele autorizar no próprio painel. Você não terá acesso às conversas.'
+                : 'Número profissional. Só os membros marcados abaixo veem e respondem as conversas.'}
+            </div>
+            <label className="wa-field"><span>Nome da caixa</span><input value={form.name} onChange={(e) => set('name', e.target.value)} maxLength={60} placeholder={form.kind === 'personal' ? 'Ex.: Rafael (pessoal)' : 'Ex.: Comercial'} /></label>
+            {form.kind === 'personal' && editing === 'new' && (
+              <label className="wa-field"><span>Dono do número</span>
+                <select value={form.ownerId} onChange={(e) => set('ownerId', e.target.value)}>
+                  <option value="">Escolha…</option>
+                  {data.users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </label>
+            )}
+            {form.kind === 'personal' && current && <div className="wa-sub">Dono: {current.ownerName} (não muda; para outro dono, crie outra caixa).</div>}
+            <label className="wa-field"><span>Número exibido</span><input value={form.displayPhone} onChange={(e) => set('displayPhone', e.target.value)} maxLength={30} placeholder="+55 (41) 99999-0000" /></label>
+            <label className="wa-field"><span>Identificador do número na Meta (Phone number ID)</span><input value={form.phoneNumberId} onChange={(e) => set('phoneNumberId', e.target.value.replace(/\D/g, ''))} inputMode="numeric" maxLength={25} /></label>
+            <label className="wa-field"><span>Chave de acesso da Meta {current && current.tokenSet ? '(já guardada; preencha só para trocar)' : ''}</span><input type="password" value={form.token} onChange={(e) => set('token', e.target.value)} autoComplete="off" /></label>
+            {form.kind === 'shared' && (
+              <fieldset className="wa-field wa-members">
+                <legend>Quem vê e responde</legend>
+                {data.users.map((u) => (
+                  <label key={u.id} className="wa-check"><input type="checkbox" checked={form.memberIds.includes(u.id)} onChange={() => toggleMember(u.id)} /> {u.name}</label>
+                ))}
+              </fieldset>
+            )}
+            {editing !== 'new' && <label className="wa-check"><input type="checkbox" checked={form.active} onChange={(e) => set('active', e.target.checked)} /> Caixa ligada</label>}
+            {error && <div className="mc-error" role="alert">{error}</div>}
+            <div className="ui-dlg-actions">
+              <button type="button" className="ui-btn" onClick={() => (dirty ? setConfirmDiscard(true) : setEditing(null))} disabled={busy}>Voltar</button>
+              <Button variant="primary" type="submit" loading={busy}>Salvar</Button>
+            </div>
+          </form>
+        )}
+        {error && editing === null && <div className="mc-error" role="alert">{error}</div>}
+      </div>
+      {confirmDiscard && (
+        <ConfirmDiscardModal
+          saving={busy}
+          onSaveAndExit={async () => { if (await save()) { setConfirmDiscard(false); } }}
+          onDiscard={() => { setConfirmDiscard(false); setEditing(null); setForm(blankInbox); setBase(blankInbox); }}
+          onCancel={() => setConfirmDiscard(false)}
+        />
+      )}
     </div>
   );
 }
@@ -209,7 +410,7 @@ function Media({ m }) {
   );
 }
 
-function Conversation({ id, enabled, isMobile, onBack, onChanged }) {
+function Conversation({ id, enabled, isMobile, onBack, onChanged, onInbox }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [text, setText] = useState('');
@@ -224,11 +425,12 @@ function Conversation({ id, enabled, isMobile, onBack, onChanged }) {
       const d = await apiGet(`/api/whatsapp/conversations/${id}`);
       setData(d);
       setError('');
+      onInbox(d.conversation.inboxId);
       if (d.conversation.unread > 0) apiPost(`/api/whatsapp/conversations/${id}/read`).then(onChanged).catch(() => {});
     } catch (e) {
       if (!quiet) setError(e.message || 'Não consegui abrir a conversa.');
     }
-  }, [id, onChanged]);
+  }, [id, onChanged, onInbox]);
 
   useEffect(() => { load(false); }, [load]);
   useEffect(() => {

@@ -1,6 +1,31 @@
 // Tabelas do WhatsApp (Fase 1, 2026-11-02) — ver server/whatsapp.js. Só aditivo; chamado por initDb().
+// Caixas (2026-11-02, decisão do Rafael): cada número é uma caixa — "compartilhada" (lista de membros, ex.: Comercial da Eduarda)
+// ou "pessoal" (só o dono vê; número pessoal em coexistência com o app do celular). Conteúdo das mensagens cifrado (server/secretBox.js).
 
 export async function ensureWhatsappSchema(db) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS wa_inboxes (
+      id              TEXT PRIMARY KEY,
+      org_id          TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      name            TEXT NOT NULL,
+      kind            TEXT NOT NULL CHECK (kind IN ('shared','personal')),
+      owner_id        TEXT REFERENCES users(id) ON DELETE CASCADE,
+      phone_number_id TEXT NOT NULL UNIQUE,
+      display_phone   TEXT NOT NULL DEFAULT '',
+      token_enc       TEXT NOT NULL DEFAULT '',
+      active          BOOLEAN NOT NULL DEFAULT true,
+      authorized_at   TIMESTAMPTZ,
+      created_by      TEXT NOT NULL DEFAULT '',
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS wa_inbox_members (
+      inbox_id TEXT NOT NULL REFERENCES wa_inboxes(id) ON DELETE CASCADE,
+      user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      PRIMARY KEY (inbox_id, user_id)
+    )
+  `);
   await db.query(`
     CREATE TABLE IF NOT EXISTS wa_conversations (
       id              TEXT PRIMARY KEY,
@@ -13,11 +38,17 @@ export async function ensureWhatsappSchema(db) {
       last_direction  TEXT NOT NULL DEFAULT '',
       unread          INT  NOT NULL DEFAULT 0,
       archived_at     TIMESTAMPTZ,
-      created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-      UNIQUE (org_id, wa_id)
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
-  await db.query(`CREATE INDEX IF NOT EXISTS wa_conversations_list_idx ON wa_conversations(org_id, last_message_at DESC)`);
+  await db.query(`ALTER TABLE wa_conversations ADD COLUMN IF NOT EXISTS inbox_id TEXT REFERENCES wa_inboxes(id) ON DELETE CASCADE`);
+  // A 1ª versão (mesmo dia, nunca ligada em produção: sem as chaves o webhook respondia 404) tinha UMA conversa por número de cliente na
+  // organização. Com várias caixas, o mesmo cliente pode falar com duas caixas: a chave passa a ser (caixa, cliente). A tabela estava
+  // vazia; só a restrição antiga sai.
+  await db.query(`ALTER TABLE wa_conversations DROP CONSTRAINT IF EXISTS wa_conversations_org_id_wa_id_key`);
+  await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS wa_conversations_inbox_wa_idx ON wa_conversations(inbox_id, wa_id)`);
+  await db.query(`DROP INDEX IF EXISTS wa_conversations_list_idx`);
+  await db.query(`CREATE INDEX IF NOT EXISTS wa_conversations_inbox_list_idx ON wa_conversations(inbox_id, last_message_at DESC)`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS wa_messages (
       id              TEXT PRIMARY KEY,
@@ -37,7 +68,7 @@ export async function ensureWhatsappSchema(db) {
     )
   `);
   await db.query(`CREATE INDEX IF NOT EXISTS wa_messages_conv_idx ON wa_messages(conversation_id, created_at)`);
-  // Arquivo recebido: a Meta só guarda por 30 dias, então baixamos assim que chega (até 25 MB).
+  // Arquivo recebido: a Meta só guarda por 30 dias, então baixamos assim que chega (até 25 MB), cifrado (sealBytes).
   await db.query(`
     CREATE TABLE IF NOT EXISTS wa_media (
       message_id TEXT PRIMARY KEY REFERENCES wa_messages(id) ON DELETE CASCADE,

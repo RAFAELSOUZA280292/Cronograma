@@ -122,33 +122,38 @@ export function previewOf(kind, body) {
   return (b ? `${label}: ${b}` : label).slice(0, 140);
 }
 
-// Corpo do webhook → lista de eventos, só do número configurado. Campos aceitos: "messages" (mensagens recebidas e status)
-// e "smb_message_echoes" (o que alguém respondeu pelo app do celular, quando o número está em coexistência).
-export function parseWebhook(body, phoneNumberId) {
+// Corpo do webhook → lista de eventos, cada um com o `phoneNumberId` (número da empresa) que recebeu. `allowed` (Set, lista ou um id)
+// filtra os números cadastrados como caixa; sem `allowed`, devolve todos. Campos aceitos: "messages" (mensagens recebidas e status)
+// e "smb_message_echoes" (o que o dono respondeu pelo app do celular, quando o número está em coexistência).
+export function parseWebhook(body, allowed) {
+  const ok = allowed === undefined ? () => true
+    : allowed instanceof Set ? (id) => allowed.has(id)
+      : Array.isArray(allowed) ? (id) => allowed.includes(id) : (id) => id === String(allowed);
   const events = [];
   if (!body || body.object !== 'whatsapp_business_account' || !Array.isArray(body.entry)) return events;
   for (const entry of body.entry) {
     for (const ch of (entry && entry.changes) || []) {
       const v = (ch && ch.value) || {};
       const meta = v.metadata || {};
-      if (phoneNumberId && String(meta.phone_number_id || '') !== String(phoneNumberId)) continue;
+      const phoneNumberId = String(meta.phone_number_id || '');
+      if (!phoneNumberId || !ok(phoneNumberId)) continue;
       if (ch.field === 'messages') {
         const names = Object.fromEntries((v.contacts || []).map((c) => [normalizeWaId(c.wa_id), (c.profile && c.profile.name) || '']));
         for (const m of v.messages || []) {
           const waId = normalizeWaId(m.from);
           if (!waId || !m.id) continue;
-          events.push({ type: 'message', direction: 'in', waId, profileName: names[waId] || '', ...mapMessage(m, 'in') });
+          events.push({ type: 'message', phoneNumberId, direction: 'in', waId, profileName: names[waId] || '', ...mapMessage(m, 'in') });
         }
         for (const s of v.statuses || []) {
           if (!s.id) continue;
           const err = (s.errors || [])[0];
-          events.push({ type: 'status', waMessageId: String(s.id), status: String(s.status || ''), at: tsToIso(s.timestamp), error: err ? friendlyGraphError({ error: err }) : '' });
+          events.push({ type: 'status', phoneNumberId, waMessageId: String(s.id), status: String(s.status || ''), at: tsToIso(s.timestamp), error: err ? friendlyGraphError({ error: err }) : '' });
         }
       } else if (ch.field === 'smb_message_echoes') {
         for (const m of v.message_echoes || []) {
           const waId = normalizeWaId(m.to);
           if (!waId || !m.id) continue;
-          events.push({ type: 'message', direction: 'out', via: 'celular', waId, profileName: '', ...mapMessage(m, 'out') });
+          events.push({ type: 'message', phoneNumberId, direction: 'out', via: 'celular', waId, profileName: '', ...mapMessage(m, 'out') });
         }
       }
     }

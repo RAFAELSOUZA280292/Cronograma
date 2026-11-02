@@ -37,9 +37,6 @@ Só os **nomes** e onde são lidos; **nunca** valores. Os valores reais ficam no
 | `VERSIONS_KEEP_DAYS` | `server/projectVersions.js` | `keepDays: Math.max(90, Number(process.env.VERSIONS_KEEP_DAYS) \|\| 730),` |
 | `VOYAGE_API_KEY` | `server/embeddings.js` | `return !!process.env.VOYAGE_API_KEY;` |
 | `WHATSAPP_APP_SECRET` | `server/whatsapp.js` | `appSecret: process.env.WHATSAPP_APP_SECRET \|\| '',` |
-| `WHATSAPP_DISPLAY_PHONE` | `server/whatsapp.js` | `res.json({ enabled, phone: enabled ? process.env.WHATSAPP_DISPLAY_PHONE \|\| '' : '', missing: req.user.role === 'master' ? ENV_KEYS.filter((k) => !pro…` |
 | `WHATSAPP_GRAPH_BASE` | `server/whatsapp.js` | `const graphBase = () => (process.env.NODE_ENV !== 'production' && process.env.WHATSAPP_GRAPH_BASE) \|\| 'https://graph.facebook.com';` |
 | `WHATSAPP_GRAPH_VERSION` | `server/whatsapp.js` | `version: /^v\d{2}\.\d$/.test(process.env.WHATSAPP_GRAPH_VERSION \|\| '') ? process.env.WHATSAPP_GRAPH_VERSION : 'v24.0',` |
-| `WHATSAPP_PHONE_NUMBER_ID` | `server/whatsapp.js` | `phoneId: process.env.WHATSAPP_PHONE_NUMBER_ID \|\| '',` |
-| `WHATSAPP_TOKEN` | `server/whatsapp.js` | `token: process.env.WHATSAPP_TOKEN \|\| '',` |
 | `WHATSAPP_VERIFY_TOKEN` | `server/whatsapp.js` | `verifyToken: process.env.WHATSAPP_VERIFY_TOKEN \|\| '',` |

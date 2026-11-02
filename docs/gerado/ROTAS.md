@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-Total: **379 rotas** em **35 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
+Total: **384 rotas** em **35 grupos**. Cada linha mostra o método, o endereço completo, a proteção que aparece na própria linha da rota (`requireAuth`, etc.) e onde fica o código. A coluna "Proteção" vem do código: se estiver vazia, **olhe o arquivo** — a proteção pode estar em `router.use(...)` no topo do arquivo (ver "Proteção do grupo" abaixo de cada título).
 
 ## Como o servidor monta os grupos (`server/index.js`)
 
@@ -428,29 +428,29 @@ Arquivos: `server/mail.js`.
 |---|---|---|---|---|
 | GET | `/api/mail/status` |  |  | `server/mail.js:41` |
 | GET | `/api/mail/labels` |  |  | `server/mail.js:48` |
-| GET | `/api/mail/threads` |  |  | `server/mail.js:67` |
-| GET | `/api/mail/threads/:id` |  |  | `server/mail.js:81` |
-| GET | `/api/mail/messages/:mid/attachments/:aid` |  |  | `server/mail.js:122` |
-| GET | `/api/mail/messages/:mid/invite` |  | Convite de reunião no e-mail (2026-11-02): lê o text/calendar (ou o .ics) e acha o evento na agenda da pessoa pelo UID, para o cartão com Sim/Talvez/Não, proposta de nov… | `server/mail.js:146` |
-| POST | `/api/mail/threads/modify` |  |  | `server/mail.js:181` |
-| POST | `/api/mail/read-all` |  | Marcar todas como lidas (como o ⋮ do Gmail): todas as mensagens não lidas da pasta/pesquisa aberta, não só as carregadas na tela. Até 5.000 por clique (batchModify aceit… | `server/mail.js:205` |
-| GET | `/api/mail/signature` |  |  | `server/mail.js:271` |
-| POST | `/api/mail/signature/preview` |  |  | `server/mail.js:282` |
-| PUT | `/api/mail/signature` |  |  | `server/mail.js:286` |
-| GET | `/api/mail/signature/logo.png` |  |  | `server/mail.js:300` |
-| GET | `/api/mail/compose` |  | Dados para abrir a janela de resposta/encaminhamento: destinatários, assunto, prévia da citação e anexos originais. | `server/mail.js:307` |
-| POST | `/api/mail/send` |  |  | `server/mail.js:390` |
-| POST | `/api/mail/drafts` |  | Salva (cria ou atualiza) o rascunho no Gmail e devolve o id da mensagem nova e os anexos que ficaram nele. | `server/mail.js:412` |
-| GET | `/api/mail/drafts/by-thread/:threadId` |  | Acha o rascunho de uma conversa (a lista de Rascunhos mostra conversas; o Gmail guarda o rascunho com id próprio). | `server/mail.js:430` |
-| GET | `/api/mail/drafts/:id` |  | Dados para reabrir o rascunho na janela de escrita. | `server/mail.js:447` |
-| DELETE | `/api/mail/drafts/:id` |  | Descartar rascunho (o Gmail não tem lixeira para rascunho; a tela confirma antes). | `server/mail.js:483` |
-| POST | `/api/mail/labels` |  |  | `server/mail.js:497` |
-| PATCH | `/api/mail/labels/:id` |  | Renomear e/ou mudar a cor. Tirar a cor (color: null) usa labels.update sem o campo color: o patch não apaga campo. | `server/mail.js:513` |
-| GET | `/api/mail/rules` |  |  | `server/mail.js:546` |
-| POST | `/api/mail/rules` |  |  | `server/mail.js:561` |
-| DELETE | `/api/mail/rules/:id` |  |  | `server/mail.js:580` |
-| GET | `/api/mail/contacts` |  |  | `server/mail.js:619` |
-| GET | `/api/mail/inbox-peek` |  | Aviso de e-mail novo: as 10 conversas não lidas mais recentes da Entrada (a tela compara com as que já conhecia). | `server/mail.js:647` |
+| GET | `/api/mail/threads` |  |  | `server/mail.js:66` |
+| GET | `/api/mail/threads/:id` |  |  | `server/mail.js:80` |
+| GET | `/api/mail/messages/:mid/attachments/:aid` |  |  | `server/mail.js:121` |
+| GET | `/api/mail/messages/:mid/invite` |  | Convite de reunião no e-mail (2026-11-02): lê o text/calendar (ou o .ics) e acha o evento na agenda da pessoa pelo UID, para o cartão com Sim/Talvez/Não, proposta de nov… | `server/mail.js:145` |
+| POST | `/api/mail/threads/modify` |  |  | `server/mail.js:180` |
+| POST | `/api/mail/read-all` |  | Marcar todas como lidas (como o ⋮ do Gmail): todas as mensagens não lidas da pasta/pesquisa aberta, não só as carregadas na tela. Até 5.000 por clique (batchModify aceit… | `server/mail.js:204` |
+| GET | `/api/mail/signature` |  |  | `server/mail.js:270` |
+| POST | `/api/mail/signature/preview` |  |  | `server/mail.js:281` |
+| PUT | `/api/mail/signature` |  |  | `server/mail.js:285` |
+| GET | `/api/mail/signature/logo.png` |  |  | `server/mail.js:299` |
+| GET | `/api/mail/compose` |  | Dados para abrir a janela de resposta/encaminhamento: destinatários, assunto, prévia da citação e anexos originais. | `server/mail.js:306` |
+| POST | `/api/mail/send` |  |  | `server/mail.js:389` |
+| POST | `/api/mail/drafts` |  | Salva (cria ou atualiza) o rascunho no Gmail e devolve o id da mensagem nova e os anexos que ficaram nele. | `server/mail.js:411` |
+| GET | `/api/mail/drafts/by-thread/:threadId` |  | Acha o rascunho de uma conversa (a lista de Rascunhos mostra conversas; o Gmail guarda o rascunho com id próprio). | `server/mail.js:429` |
+| GET | `/api/mail/drafts/:id` |  | Dados para reabrir o rascunho na janela de escrita. | `server/mail.js:446` |
+| DELETE | `/api/mail/drafts/:id` |  | Descartar rascunho (o Gmail não tem lixeira para rascunho; a tela confirma antes). | `server/mail.js:482` |
+| POST | `/api/mail/labels` |  |  | `server/mail.js:496` |
+| PATCH | `/api/mail/labels/:id` |  | Renomear e/ou mudar a cor. Tirar a cor (color: null) usa labels.update sem o campo color: o patch não apaga campo. | `server/mail.js:512` |
+| GET | `/api/mail/rules` |  |  | `server/mail.js:545` |
+| POST | `/api/mail/rules` |  |  | `server/mail.js:560` |
+| DELETE | `/api/mail/rules/:id` |  |  | `server/mail.js:579` |
+| GET | `/api/mail/contacts` |  |  | `server/mail.js:618` |
+| GET | `/api/mail/inbox-peek` |  | Aviso de e-mail novo: as 10 conversas não lidas mais recentes da Entrada (a tela compara com as que já conhecia). | `server/mail.js:646` |
 
 ## `/api/meeting-inbox` — 4 rotas
 
@@ -622,21 +622,26 @@ Arquivos: `server/documentTemplates.js`.
 | PATCH | `/api/templates/:id/comments/:commentId` |  |  | `server/documentTemplates.js:235` |
 | DELETE | `/api/templates/:id/comments/:commentId` |  |  | `server/documentTemplates.js:250` |
 
-## `/api/whatsapp` — 9 rotas
+## `/api/whatsapp` — 14 rotas
 
 Arquivos: `server/whatsapp.js`.
 
 | Método | Endereço | Proteção na linha | Para que serve (comentário do código) | Onde |
 |---|---|---|---|---|
-| GET | `/api/whatsapp/webhook` |  |  | `server/whatsapp.js:146` |
-| POST | `/api/whatsapp/webhook` |  |  | `server/whatsapp.js:156` |
-| GET | `/api/whatsapp/status` |  |  | `server/whatsapp.js:202` |
-| GET | `/api/whatsapp/conversations` |  |  | `server/whatsapp.js:207` |
-| GET | `/api/whatsapp/conversations/:id` |  |  | `server/whatsapp.js:223` |
-| POST | `/api/whatsapp/conversations/:id/read` |  | Marca como lida no painel e manda a confirmação de leitura (os dois tiques azuis) da última mensagem do cliente. | `server/whatsapp.js:235` |
-| POST | `/api/whatsapp/conversations/:id/archive` |  |  | `server/whatsapp.js:248` |
-| POST | `/api/whatsapp/conversations/:id/messages` |  |  | `server/whatsapp.js:269` |
-| GET | `/api/whatsapp/media/:id` |  |  | `server/whatsapp.js:305` |
+| GET | `/api/whatsapp/webhook` |  |  | `server/whatsapp.js:160` |
+| POST | `/api/whatsapp/webhook` |  |  | `server/whatsapp.js:170` |
+| GET | `/api/whatsapp/status` |  |  | `server/whatsapp.js:239` |
+| GET | `/api/whatsapp/conversations` |  |  | `server/whatsapp.js:259` |
+| GET | `/api/whatsapp/conversations/:id` |  |  | `server/whatsapp.js:277` |
+| POST | `/api/whatsapp/conversations/:id/read` |  | Marca como lida no painel e manda a confirmação de leitura (os dois tiques azuis) da última mensagem do cliente. | `server/whatsapp.js:289` |
+| POST | `/api/whatsapp/conversations/:id/archive` |  |  | `server/whatsapp.js:304` |
+| POST | `/api/whatsapp/conversations/:id/messages` |  |  | `server/whatsapp.js:325` |
+| GET | `/api/whatsapp/media/:id` |  |  | `server/whatsapp.js:363` |
+| POST | `/api/whatsapp/inboxes/:id/authorize` |  |  | `server/whatsapp.js:394` |
+| POST | `/api/whatsapp/inboxes/:id/revoke` |  | Desautorizar: para de guardar e APAGA tudo o que foi guardado desta caixa (conversas, mensagens e arquivos, em cascata). | `server/whatsapp.js:403` |
+| GET | `/api/whatsapp/admin/inboxes` | `requireMaster` |  | `server/whatsapp.js:430` |
+| POST | `/api/whatsapp/admin/inboxes` | `requireMaster` |  | `server/whatsapp.js:467` |
+| PATCH | `/api/whatsapp/admin/inboxes/:id` | `requireMaster` |  | `server/whatsapp.js:493` |
 
 ## `/api/widget` — 7 rotas
 
