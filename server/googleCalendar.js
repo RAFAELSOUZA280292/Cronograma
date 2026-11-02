@@ -257,27 +257,60 @@ export async function deleteTicketEvent(userId, googleEventId) {
   }
 }
 
+// Link do Google Meet de um evento (o Google devolve em `hangoutLink` ou nos pontos de entrada de vídeo da conferência).
+export function meetLinkOf(ev) {
+  if (!ev) return '';
+  if (ev.hangoutLink) return ev.hangoutLink;
+  const eps = (ev.conferenceData && ev.conferenceData.entryPoints) || [];
+  const v = eps.find((e) => e && e.entryPointType === 'video' && e.uri);
+  return v ? v.uri : '';
+}
+
+// Corpo do patch de um evento que já existe: mantém o Meet que ele já tem (conferenceData do corpo só vale se ainda não houver link), preserva a resposta
+// (aceitou/recusou) de quem já estava convidado e, com `keepGuests`, nem mexe na lista (patch só muda o que é enviado).
+export function composePatch(cur, body, opts = {}) {
+  const { conferenceData, ...rest } = body;
+  const hasMeet = !!meetLinkOf(cur);
+  const requestBody = { ...rest, ...(conferenceData && !hasMeet ? { conferenceData } : {}) };
+  if (!opts.keepGuests) {
+    const keep = new Map(((cur && cur.attendees) || []).map((a) => [String(a.email || '').toLowerCase(), a]));
+    requestBody.attendees = (body.attendees || []).map((a) => keep.get(String(a.email).toLowerCase()) || a);
+  }
+  return { requestBody, hasMeet };
+}
+
 // Bloco de agenda de uma atividade do cronograma (2026-10-19, "Reservar na agenda"). Cria o evento ou, se `eventId` já existe, atualiza o MESMO evento
 // preservando a resposta (aceitou/recusou) de quem já estava convidado. Convidados recebem e-mail do Google (sendUpdates 'all').
-export async function upsertBlockEvent(userId, eventId, body) {
+// `opts.sendUpdates` ('all' por padrão; 'none' para mexer no evento sem mandar e-mail) e `opts.keepGuests` (não toca na lista de convidados: o
+// patch só muda os campos enviados). Se o evento já tem Meet, `conferenceData` do corpo é ignorado — editar uma reunião nunca troca o link.
+export async function upsertBlockEvent(userId, eventId, body, opts = {}) {
   const client = await getAuthedClientForUser(userId);
   if (!client) throw Object.assign(new Error('A conta do Google desta pessoa não está conectada.'), { status: 409 });
   const calendar = google.calendar({ version: 'v3', auth: client });
+  const sendUpdates = opts.sendUpdates || 'all';
+  // O Meet pode ser criado de forma assíncrona: se o link ainda não veio, relê o evento algumas vezes antes de desistir.
+  const withMeet = async (data) => {
+    let link = meetLinkOf(data);
+    for (let i = 0; !link && body.conferenceData && i < 3; i += 1) {
+      await new Promise((r) => setTimeout(r, 700));
+      link = meetLinkOf((await calendar.events.get({ calendarId: 'primary', eventId: data.id })).data);
+    }
+    return link;
+  };
   if (eventId) {
     try {
       const cur = await calendar.events.get({ calendarId: 'primary', eventId });
       if (cur.data.status !== 'cancelled') {
-        const keep = new Map((cur.data.attendees || []).map((a) => [String(a.email || '').toLowerCase(), a]));
-        const attendees = (body.attendees || []).map((a) => keep.get(String(a.email).toLowerCase()) || a);
-        const res = await calendar.events.patch({ calendarId: 'primary', eventId, requestBody: { ...body, attendees }, sendUpdates: 'all' });
-        return { id: res.data.id, htmlLink: res.data.htmlLink || '', created: false };
+        const { requestBody, hasMeet } = composePatch(cur.data, body, opts);
+        const res = await calendar.events.patch({ calendarId: 'primary', eventId, requestBody, sendUpdates, conferenceDataVersion: 1 });
+        return { id: res.data.id, htmlLink: res.data.htmlLink || '', created: false, meetLink: hasMeet ? meetLinkOf(cur.data) : await withMeet(res.data) };
       }
     } catch (e) {
       if (e.code !== 404 && e.code !== 410) throw e;
     }
   }
-  const res = await calendar.events.insert({ calendarId: 'primary', requestBody: body, sendUpdates: 'all' });
-  return { id: res.data.id, htmlLink: res.data.htmlLink || '', created: true };
+  const res = await calendar.events.insert({ calendarId: 'primary', requestBody: body, sendUpdates, conferenceDataVersion: 1 });
+  return { id: res.data.id, htmlLink: res.data.htmlLink || '', created: true, meetLink: await withMeet(res.data) };
 }
 
 // Cancela o bloco (os convidados recebem o cancelamento). Evento que já não existe no Google não é erro.

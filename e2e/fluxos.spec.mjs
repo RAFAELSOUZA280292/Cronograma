@@ -383,3 +383,58 @@ test('quadro pessoal: mover uma coluna com as atividades para outra página, com
   await page.locator(`input[aria-label="Nome do quadro ${first}"]`).click();
   await expect(page.getByText(title)).toHaveCount(0);
 });
+
+test('CRM: convite do Google com Meet só aparece para reunião, só vale com horário e contato com e-mail, e o aviso diz a verdade quando não sai', async ({ page }) => {
+  await loginUi(page, USERS.master);
+  const api = await apiAs(page, USERS.master);
+  const tag = stamp();
+  const co = await api.post('/api/crm/companies', { legalName: `Convite E2E ${tag} LTDA`, relationship: 'prospect' });
+  expect(co.status, JSON.stringify(co.body)).toBe(201);
+  const companyId = co.body.company.id;
+  const comEmail = await api.post('/api/crm/contacts', { companyId, firstName: 'Fernanda', lastName: `Com${tag}`, email: `fernanda.${tag}@cliente.test`, force: true });
+  const semEmail = await api.post('/api/crm/contacts', { companyId, firstName: 'Paulo', lastName: `Sem${tag}`, phone: '41999990000', force: true });
+  expect(comEmail.status, JSON.stringify(comEmail.body)).toBe(201);
+  expect(semEmail.status, JSON.stringify(semEmail.body)).toBe(201);
+
+  await page.goto('/crm');
+  await page.getByRole('button', { name: 'Criar atividade' }).click();
+  await page.getByPlaceholder('Digite o nome ou CNPJ da empresa').fill(`Convite E2E ${tag}`);
+  await page.getByRole('button', { name: new RegExp(`Convite E2E ${tag}`) }).first().click();
+  await page.getByPlaceholder('Ex.: Ligar para o financeiro sobre a proposta').fill(`Reunião e2e ${tag}`);
+  const invite = page.getByRole('checkbox', { name: /Convidar o contato por e-mail e criar link do Google Meet/ });
+
+  await expect(invite).toHaveCount(0); // tipo padrão é Tarefa: sem campo de convite
+  await page.getByLabel('Tipo', { exact: true }).selectOption('meeting');
+  await expect(invite).toBeVisible();
+  await expect(invite).toBeDisabled();
+  await expect(page.getByText(/Informe o horário da reunião/)).toBeVisible();
+  await page.getByLabel('Horário da atividade').fill('10:00');
+  await expect(page.getByText(/Escolha o contato que vai receber o convite/)).toBeVisible();
+  await expect(page.getByLabel('Contato', { exact: true }).locator('option', { hasText: 'Fernanda' })).toHaveCount(1);
+  const contato = page.getByLabel('Contato', { exact: true });
+  const escolher = async (nome) => contato.selectOption(await contato.locator('option', { hasText: nome }).getAttribute('value'));
+  await escolher(`Paulo Sem${tag}`);
+  await expect(page.getByText(/O contato escolhido não tem e-mail cadastrado/)).toBeVisible();
+  await expect(invite).toBeDisabled();
+  await escolher(`Fernanda Com${tag}`);
+  await expect(invite).toBeEnabled();
+  await expect(invite).not.toBeChecked(); // por padrão NÃO convida ninguém
+  await expect(page.getByText(/Só sai e-mail se você marcar/)).toBeVisible();
+  await invite.check();
+  await expect(page.getByText(new RegExp(`O Google envia o convite para fernanda\\.${tag}@cliente\\.test`))).toBeVisible();
+  await checkAxe(page, 'crm-atividade-convite');
+
+  await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+  // o usuário do teste não conectou o Google: a atividade é salva e o aviso diz com todas as letras que o convite NÃO saiu
+  await expect(page.getByText(/o convite NÃO foi enviado/)).toBeVisible();
+  const lista = await api.get(`/api/crm/activities?companyId=${companyId}`);
+  const salva = (lista.body.items || []).find((a) => a.title === `Reunião e2e ${tag}`);
+  expect(salva, JSON.stringify(lista.body).slice(0, 300)).toBeTruthy();
+  expect(salva.inviteMeet).toBe(true);
+  expect(salva.meetLink).toBe('');
+
+  // mudar para Ligação some com o campo (e o servidor recusa convite em outro tipo)
+  const recusa = await api.post('/api/crm/activities', { companyId, title: 'Ligação com convite', activityType: 'call', dueDate: '2030-01-10', dueTime: '10:00', contactId: comEmail.body.contact.id, inviteMeet: true });
+  expect(recusa.status).toBe(400);
+  expect(JSON.stringify(recusa.body)).toMatch(/tipo Reunião/);
+});

@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { CrmError } from './errors.js';
 import { realName } from './text.js';
 import { createNotification } from '../notifications.js';
+import { pool } from '../db.js';
 import {
   sanitize, tx, addAudit, addTimeline, diffApi, mapBySpec, loadCompany, requireUuid, assertUserInOrg, changeSummary, changeSummaryNamed, todayBR,
 } from './service.js';
@@ -26,17 +27,18 @@ export const ACTIVITY_SPEC = [
   { key: 'ownerId', col: 'owner_id', label: 'Responsável', type: 'user' },
   { key: 'contactId', col: 'contact_id', label: 'Contato', type: 'user' },
   { key: 'dealId', col: 'deal_id', label: 'Negócio', type: 'user' },
+  { key: 'inviteMeet', col: 'invite_meet', label: 'Convidar o contato e criar link do Meet', type: 'bool' },
 ];
 
 export const ACTIVITY_SELECT = `a.id, a.org_id, a.company_id, a.deal_id, a.contact_id, a.activity_type, a.title, a.description,
   to_char(a.due_date,'YYYY-MM-DD') AS due_date, a.due_time, a.priority, a.status, a.owner_id, a.completed_at, a.completed_by, a.outcome,
-  a.created_at, a.updated_at, a.deleted_at,
+  a.created_at, a.updated_at, a.deleted_at, a.invite_meet, g.meet_link, NULLIF(k.email,'') AS contact_own_email,
   c.legal_name AS company_name, d.title AS deal_title, trim(k.first_name || ' ' || k.last_name) AS contact_name,
   COALESCE(NULLIF(k.phone,''), NULLIF(pk.phone,'')) AS contact_phone, COALESCE(NULLIF(k.whatsapp,''), NULLIF(pk.whatsapp,'')) AS contact_whatsapp, COALESCE(NULLIF(k.email,''), NULLIF(pk.email,'')) AS contact_email,
   u.name AS owner_name, cu.name AS completed_by_name`;
 export const ACTIVITY_FROM = `crm_activities a JOIN crm_companies c ON c.id = a.company_id
   LEFT JOIN crm_deals d ON d.id = a.deal_id AND d.deleted_at IS NULL LEFT JOIN crm_contacts k ON k.id = a.contact_id LEFT JOIN crm_contacts pk ON pk.id = d.primary_contact_id
-  LEFT JOIN users u ON u.id = a.owner_id LEFT JOIN users cu ON cu.id = a.completed_by`;
+  LEFT JOIN users u ON u.id = a.owner_id LEFT JOIN users cu ON cu.id = a.completed_by LEFT JOIN crm_activity_google g ON g.activity_id = a.id`;
 
 function addDaysISO(dateStr, n) { return new Date(new Date(`${dateStr}T12:00:00Z`).getTime() + n * 86400000).toISOString().slice(0, 10); }
 const brDate = (d) => `${String(d).slice(8, 10)}/${String(d).slice(5, 7)}/${String(d).slice(0, 4)}`;
@@ -55,6 +57,7 @@ export function mapActivity(row) {
     id: row.id, ...mapBySpec(ACTIVITY_SPEC, row), companyId: row.company_id, companyName: row.company_name || '', dealTitle: row.deal_title || '',
     contactName: realName(row.contact_name), contactPhone: row.contact_phone || '', contactWhatsapp: row.contact_whatsapp || '', contactEmail: row.contact_email || '', ownerName: row.owner_name || '', status: row.status, bucket: dueBucket(row.status, row.due_date),
     completedAt: row.completed_at || null, completedByName: row.completed_by_name || '', outcome: row.outcome || '',
+    meetLink: row.meet_link || '', inviteEmail: row.invite_meet ? (row.contact_own_email || '') : '',
     createdAt: row.created_at, updatedAt: row.updated_at,
   };
 }
@@ -95,6 +98,18 @@ async function notifyAssigned(c, orgId, actor, api, ownerId) {
 
 const lc = (s) => String(s).toLowerCase();
 
+// "Convidar o contato e criar link do Meet": só reunião, com horário, ainda não realizada, e com um contato que tenha e-mail (o e-mail que aparece
+// na tela é exatamente o que recebe o convite do Google). Regra no servidor porque a tela, a chave de API e a RENATA passam por aqui.
+async function assertInvite(c, orgId, a, { alreadyDone = false } = {}) {
+  if (!a.inviteMeet) return;
+  if (alreadyDone) throw new CrmError(400, 'Uma atividade já realizada não envia convite.');
+  if (a.activityType !== 'meeting') throw new CrmError(400, 'O convite com link do Meet só vale para atividade do tipo Reunião.');
+  if (!/^\d{2}:\d{2}$/.test(a.dueTime || '')) throw new CrmError(400, 'Informe o horário da reunião para enviar o convite.');
+  if (!a.contactId) throw new CrmError(400, 'Escolha o contato que vai receber o convite.');
+  const { rows } = await c.query('SELECT email FROM crm_contacts WHERE id=$1 AND org_id=$2 AND deleted_at IS NULL', [a.contactId, orgId]);
+  if (!rows[0] || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(rows[0].email || '').trim())) throw new CrmError(400, 'O contato escolhido não tem e-mail cadastrado. Cadastre o e-mail ou desmarque o convite.');
+}
+
 async function createActivityCore(orgId, actor, input, { alreadyDone = false } = {}) {
   const src = input || {};
   const { values, errors } = sanitize(ACTIVITY_SPEC, src);
@@ -110,6 +125,7 @@ async function createActivityCore(orgId, actor, input, { alreadyDone = false } =
     if (!company) throw new CrmError(404, 'Empresa não encontrada.');
     await assertDealOfCompany(c, orgId, values.deal_id, company.id);
     await assertContactOfCompany(c, orgId, values.contact_id, company.id);
+    await assertInvite(c, orgId, { inviteMeet: values.invite_meet, activityType: values.activity_type, dueTime: values.due_time, contactId: values.contact_id }, { alreadyDone });
     if (src.ownerId === undefined) values.owner_id = await actorInOrg(c, orgId, actor); else await assertUserInOrg(c, orgId, values.owner_id);
     const outcome = alreadyDone ? String(src.outcome || '').trim().slice(0, 3000) : '';
     // Já vencida/de hoje na criação: quem criou sabe — não precisa do lembrete do agendador.
@@ -125,7 +141,7 @@ async function createActivityCore(orgId, actor, input, { alreadyDone = false } =
       [id, orgId, company.id, ...names.map((k) => values[k]), alreadyDone ? 'done' : 'open', values.due_date, actor.id || null, outcome]);
     const api = mapActivity(await loadActivity(c, orgId, id));
     await addAudit(c, { orgId, entityType: 'activity', entityId: id, action: 'create', actor,
-      changes: [...ACTIVITY_SPEC.filter((f) => api[f.key] != null && api[f.key] !== '').map((f) => ({ field: f.key, label: f.label, from: null, to: api[f.key] })), ...(alreadyDone ? [{ field: 'status', label: 'Situação', from: null, to: 'done' }] : [])] });
+      changes: [...ACTIVITY_SPEC.filter((f) => api[f.key] != null && api[f.key] !== '' && api[f.key] !== false).map((f) => ({ field: f.key, label: f.label, from: null, to: api[f.key] })), ...(alreadyDone ? [{ field: 'status', label: 'Situação', from: null, to: 'done' }] : [])] });
     const type = lc(ACTIVITY_TYPES[api.activityType]);
     const summary = alreadyDone
       ? `${actor.name} registrou ${type} realizada: "${api.title}" (${brDate(api.dueDate)})${outcome ? ` — ${outcome.length > 140 ? `${outcome.slice(0, 140)}…` : outcome}` : ''}.`
@@ -156,6 +172,7 @@ async function updateActivityCore(orgId, actor, id, input) {
     if ('contact_id' in values) await assertContactOfCompany(c, orgId, values.contact_id, row.company_id);
     const changes = diffApi(ACTIVITY_SPEC, before, after);
     if (!changes.length) return before;
+    await assertInvite(c, orgId, after);
     const sets = [];
     const params = [];
     changes.forEach((ch) => {
@@ -244,11 +261,19 @@ async function deleteActivityCore(orgId, actor, id) {
 // Gancho depois de cada mudança numa atividade (hoje: espelho no Google Calendar do responsável — googleSync.js registra aqui). Nunca derruba a operação.
 export const activityHooks = { after: null };
 async function after(orgId, actor, id) {
-  if (!activityHooks.after) return;
-  try { await activityHooks.after(orgId, id, actor); } catch (e) { console.error('Gancho de atividade:', e.message); }
+  if (!activityHooks.after) return null;
+  try { return await activityHooks.after(orgId, id, actor); } catch (e) { console.error('Gancho de atividade:', e.message); return null; }
 }
-export async function createActivity(orgId, actor, input, opts) { const r = await createActivityCore(orgId, actor, input, opts); await after(orgId, actor, r.id); return r; }
-export async function updateActivity(orgId, actor, id, input) { const r = await updateActivityCore(orgId, actor, id, input); await after(orgId, actor, id); return r; }
+// Atividade com convite: depois do espelho no Google a resposta já leva o link do Meet e o estado do envio ('created'/'updated' = enviado;
+// 'not-connected' = o Google do responsável não está conectado; 'error'/'off' = não saiu), para a tela avisar com honestidade.
+async function afterWithInvite(orgId, actor, r) {
+  const res = await after(orgId, actor, r.id);
+  if (!r.inviteMeet) return r;
+  const { rows } = await pool.query('SELECT meet_link FROM crm_activity_google WHERE activity_id=$1', [r.id]);
+  return { ...r, meetLink: (rows[0] && rows[0].meet_link) || '', inviteStatus: (res && res.status) || 'off' };
+}
+export async function createActivity(orgId, actor, input, opts) { const r = await createActivityCore(orgId, actor, input, opts); return afterWithInvite(orgId, actor, r); }
+export async function updateActivity(orgId, actor, id, input) { const r = await updateActivityCore(orgId, actor, id, input); return afterWithInvite(orgId, actor, r); }
 export async function completeActivity(orgId, actor, id, input) { const r = await completeActivityCore(orgId, actor, id, input); await after(orgId, actor, id); return r; }
 export async function cancelActivity(orgId, actor, id) { const r = await cancelActivityCore(orgId, actor, id); await after(orgId, actor, id); return r; }
 export async function reopenActivity(orgId, actor, id) { const r = await reopenActivityCore(orgId, actor, id); await after(orgId, actor, id); return r; }

@@ -34,7 +34,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/companyCalendarPlan.js` | 101 | Reservar na agenda (2026-10-19, pedido do Rafael): cada ATIVIDADE do cronograma da empresa vira UM bloco de agenda (padrão de call: 60 min) para a equipe PRICETAX. |
 | `server/companyShare.js` | 197 | Link público de acompanhamento da empresa (2026-10-19, pedido do Rafael): o cliente abre o link SEM login e vê Resumo, Cronograma (Gantt com subatividades) e Tabela, só leitura. |
 | `server/connect.js` | 905 | API de conectividade (2026-10-05, §80): permite que OUTRA janela do Claude Code (ou qualquer script) leia o painel e crie atividades |
-| `server/crm/activities.js` | 256 | CRM — atividades e follow-ups (Fase 3, 2026-09-20, PROJECT_CONTEXT.md §56). |
+| `server/crm/activities.js` | 281 | CRM — atividades e follow-ups (Fase 3, 2026-09-20, PROJECT_CONTEXT.md §56). |
 | `server/crm/activityQueries.js` | 103 | CRM — consultas de atividades (Fase 3). Somente leitura. |
 | `server/crm/agendaFeed.js` | 23 | CRM — atividades em aberto do usuário como eventos da Agenda existente |
 | `server/crm/automation.js` | 48 | Automação "ao ganhar" (§84): reproduz a única automação ativa do PipeRun da PRICETAX ("Ganhos - Iniciar Operação": ao ganhar um negócio do funil Empresas na etapa Contrato, |
@@ -51,7 +51,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/crm/errors.js` | 8 |  |
 | `server/crm/extras.js` | 238 | CRM — campos que o PipeRun tinha e o CRM não: MRR do negócio, tags e prazo (SLA) por etapa (§85). Só colunas/tabelas NOVAS e aditivas. |
 | `server/crm/funnels.js` | 184 | CRM — funis e etapas (Fase 2b, 2026-09-20, PROJECT_CONTEXT.md §58). A Fase 2 nasceu com um funil |
-| `server/crm/googleSync.js` | 114 | Atividade do CRM ↔ Google Calendar do RESPONSÁVEL (2026-10-26, pedido do Rafael: "quando a Eduarda criar uma atividade para ela, já adicione na |
+| `server/crm/googleSync.js` | 132 | Atividade do CRM ↔ Google Calendar do RESPONSÁVEL (2026-10-26, pedido do Rafael: "quando a Eduarda criar uma atividade para ela, já adicione na |
 | `server/crm/importer.js` | 234 | Importação de planilha Excel/CSV (PRD 48) — a leitura do arquivo e o |
 | `server/crm/permissions.js` | 56 | Permissões do CRM (2026-09-20, ver PROJECT_CONTEXT.md §54). Coluna própria |
 | `server/crm/pipeline.js` | 84 | CRM — pipeline (Fase 2, 2026-09-20, PROJECT_CONTEXT.md §55). |
@@ -91,7 +91,7 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `server/experience.js` | 137 | Experiência de uso (§97): eventos de FLUXO (nome, resultado, duração, rota de erro) e nota de satisfação de 1 clique. Só equipe é medida |
 | `server/gaps.js` | 232 | Lacunas entre cronogramas (Etapa 4 do plano, 2026-10-08; pedido do Felipe: "levantamento de tudo que temos de atividades ... para |
 | `server/google.js` | 59 | Rotas de conexão com o Google Calendar (2026-08) — cada usuário conecta a |
-| `server/googleCalendar.js` | 290 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
+| `server/googleCalendar.js` | 323 | Sincronização com Google Calendar (2026-08) — cada usuário conecta a |
 | `server/index.js` | 177 |  |
 | `server/inspirationQuotes.js` | 281 | Frases de inspiração (2026-10-05, §77): base CURADA, não gerada por IA. Duas camadas de comprovação, que nunca se misturam: |
 | `server/inventory.js` | 373 | Levantamento de atividades de TODAS as empresas (2026-10-07, Etapa 1 de docs/PLANO_RENATA_CONSULTAS_GERAIS.md; pedido do |
@@ -220,8 +220,8 @@ Cada arquivo com o número de linhas e a **primeira frase do comentário de cabe
 | `src/companies/CompanyOwners.jsx` | 195 | Responsáveis por empresa (2026-10-09, pedido do Rafael): cada empresa tem um responsável PRINCIPAL e pode ter outros da equipe |
 | `src/connect/ConnectSection.jsx` | 191 |  |
 | `src/connect/guide.js` | 147 | Guia que o usuário cola na OUTRA janela do Claude Code (2026-10-05, §80). Não leva o token: ele vai pela variável de ambiente |
-| `src/crm/ActivityForm.jsx` | 128 | Cadastro/edição de atividade (estado local + Salvar). A empresa é sempre |
-| `src/crm/ActivityList.jsx` | 139 | Lista de atividades reutilizável (Agenda, ficha da empresa, ficha do negócio). |
+| `src/crm/ActivityForm.jsx` | 166 | Cadastro/edição de atividade (estado local + Salvar). A empresa é sempre |
+| `src/crm/ActivityList.jsx` | 141 | Lista de atividades reutilizável (Agenda, ficha da empresa, ficha do negócio). |
 | `src/crm/AgendaPage.jsx` | 92 | Agenda do CRM (PRD 16/17): o que cada pessoa precisa fazer, por urgência. |
 | `src/crm/BootstrapDialog.jsx` | 81 | Traz pro CRM os clientes que já existem no painel (projetos do cronograma). |
 | `src/crm/BulkOwner.jsx` | 45 | Alterar o responsável de várias linhas de uma vez (Onda 3, U3), dentro da faixa de ações em lote das listas do CRM. |

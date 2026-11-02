@@ -3,7 +3,10 @@
 // - criar/editar/reagendar → cria ou atualiza O MESMO evento (id guardado em crm_activity_google);
 // - concluir → título ganha "✔" (o evento fica como registro); cancelar/excluir → o evento é apagado;
 // - trocar o responsável → apaga da agenda de quem saiu e cria na de quem entrou.
-// Nunca derruba a ação do CRM: qualquer falha do Google só vai para o log. O convite NÃO leva convidados (ninguém recebe e-mail).
+// Nunca derruba a ação do CRM: qualquer falha do Google só vai para o log. Por padrão o evento NÃO leva convidados (ninguém recebe e-mail).
+// Exceção, só quando a pessoa marca "Convidar o contato e criar link do Meet" na atividade (invite_meet, 2026-11-01, opção "a" do Rafael): reunião com
+// horário ganha um link do Google Meet e o contato escolhido (e-mail do PRÓPRIO contato, nunca o do negócio) recebe o convite do Google. Concluir
+// mexe no evento sem mandar e-mail; cancelar/excluir manda o cancelamento ao convidado, como o Google faz.
 import { pool } from '../db.js';
 import * as gcal from '../googleCalendar.js';
 import { ACTIVITY_SELECT, ACTIVITY_FROM, ACTIVITY_TYPES, activityHooks } from './activities.js';
@@ -17,11 +20,13 @@ export async function ensureCrmGoogleSchema(db) {
       html_link       TEXT NOT NULL DEFAULT '',
       synced_at       TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
+  await db.query(`ALTER TABLE crm_activity_google ADD COLUMN IF NOT EXISTS meet_link TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE crm_activities ADD COLUMN IF NOT EXISTS invite_meet BOOLEAN NOT NULL DEFAULT false`);
 }
 
 // Troca em teste; em produção são as funções reais de googleCalendar.js.
 export const deps = {
-  upsert: (userId, eventId, body) => gcal.upsertBlockEvent(userId, eventId, body),
+  upsert: (userId, eventId, body, opts) => gcal.upsertBlockEvent(userId, eventId, body, opts),
   remove: (userId, eventId) => gcal.removeBlockEvent(userId, eventId),
   configured: () => gcal.googleConfigured(),
   baseUrl: () => process.env.APP_BASE_URL || 'https://painel.pricetax.com.br',
@@ -36,6 +41,12 @@ function plusMinutes(date, time, min) {
   const r = ((t % 1440) + 1440) % 1440;
   const d = dayShift ? new Date(new Date(`${date}T12:00:00Z`).getTime() + dayShift * 86400000).toISOString().slice(0, 10) : date;
   return `${d}T${String(Math.floor(r / 60)).padStart(2, '0')}:${String(r % 60).padStart(2, '0')}:00-03:00`;
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Convite com Meet só vale para reunião COM horário, ainda em aberto, e marcada pela pessoa.
+export function wantsInvite(a) {
+  return !!a.invite_meet && a.activity_type === 'meeting' && a.status === 'open' && /^\d{2}:\d{2}$/.test(a.due_time || '');
 }
 
 export function buildEventBody(a, baseUrl) {
@@ -59,6 +70,10 @@ export function buildEventBody(a, baseUrl) {
     source: { title: 'CRM PRICETAX', url: link },
     colorId: done ? '8' : '5',
     extendedProperties: { private: { crmActivityId: a.id } },
+    ...(wantsInvite(a) ? {
+      conferenceData: { createRequest: { requestId: `${a.id}-meet`, conferenceSolutionKey: { type: 'hangoutsMeet' } } },
+      ...(EMAIL_RE.test(a.contact_own_email || '') ? { attendees: [{ email: a.contact_own_email.trim() }] } : {}),
+    } : {}),
     ...(timed
       ? { start: { dateTime: `${date}T${a.due_time}:00-03:00`, timeZone: 'America/Sao_Paulo' }, end: { dateTime: plusMinutes(date, a.due_time, 30), timeZone: 'America/Sao_Paulo' } }
       : { start: { date }, end: { date: addDay(date) } }),
@@ -86,15 +101,18 @@ export async function syncActivity(orgId, activityId, opts = {}) {
     }
     const cur = link && link.user_id === a.owner_id ? link : null;
     let res;
-    try { res = await deps.upsert(a.owner_id, cur ? cur.google_event_id : null, buildEventBody(a, deps.baseUrl())); } catch (e) {
+    // Concluída/reaberta não manda e-mail ao convidado só por trocar o ✔ do título; reagendar e editar mandam (o Google avisa quem foi convidado).
+    const quiet = a.status === 'done' ? { sendUpdates: 'none', keepGuests: true } : {};
+    try { res = await deps.upsert(a.owner_id, cur ? cur.google_event_id : null, buildEventBody(a, deps.baseUrl()), quiet); } catch (e) {
       if (e.status === 409) return { status: 'not-connected' };      // dono não conectou o Google: normal, silencioso
       throw e;
     }
     await pool.query(
-      `INSERT INTO crm_activity_google (activity_id, user_id, google_event_id, html_link) VALUES ($1,$2,$3,$4)
-       ON CONFLICT (activity_id) DO UPDATE SET user_id=EXCLUDED.user_id, google_event_id=EXCLUDED.google_event_id, html_link=EXCLUDED.html_link, synced_at=now()`,
-      [activityId, a.owner_id, res.id, res.htmlLink || '']);
-    return { status: res.created === false ? 'updated' : 'created', eventId: res.id };
+      `INSERT INTO crm_activity_google (activity_id, user_id, google_event_id, html_link, meet_link) VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (activity_id) DO UPDATE SET user_id=EXCLUDED.user_id, google_event_id=EXCLUDED.google_event_id, html_link=EXCLUDED.html_link,
+         meet_link=CASE WHEN EXCLUDED.meet_link <> '' THEN EXCLUDED.meet_link ELSE crm_activity_google.meet_link END, synced_at=now()`,
+      [activityId, a.owner_id, res.id, res.htmlLink || '', res.meetLink || '']);
+    return { status: res.created === false ? 'updated' : 'created', eventId: res.id, meetLink: res.meetLink || '' };
   } catch (e) {
     console.error('CRM→Google Calendar:', e.message);
     return { status: 'error', error: e.message };

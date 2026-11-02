@@ -154,7 +154,7 @@ export function TimeField({ value, onChange, disabled, placeholder = '--:--', ar
     <div className={`dt-wrap ${className}`} ref={(el) => { wrapRef.current = el; refs.setReference(el); }}>
       <div className={`dt-field ${disabled ? 'is-disabled' : ''}`}>
         <input ref={inputRef} id={id} className="dt-input" inputMode="numeric" autoComplete="off" disabled={disabled} placeholder={placeholder} aria-label={ariaLabel || 'Horário'}
-          aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? uid : undefined} value={text}
+          role="combobox" aria-autocomplete="none" aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? uid : undefined} value={text}
           onChange={(e) => { const m = maskTime(e.target.value); setText(m); const t = parseTime(m); if (m.length === 5 && t) onChange(t); else if (!m && allowClear) onChange(''); }}
           onBlur={() => { const t = parseTime(text); if (t && t !== value) onChange(t); else if (!t) setText(value || ''); else setText(t); }}
           onKeyDown={(e) => { if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); } }} />

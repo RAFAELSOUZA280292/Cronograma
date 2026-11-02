@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `scripts/docs-gen.mjs` a partir do código. **Não edite à mão** — rode `npm run docs:gerar`.
 
-O `PROJECT_CONTEXT.md` tem 8768 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
+O `PROJECT_CONTEXT.md` tem 8781 linhas (a memória cronológica de cada decisão e bug). **Não leia inteiro**: ache a seção aqui e leia só o trecho (`Read` com `offset`/`limit`).
 
 | Linha | Seção | Primeira frase |
 |---|---|---|
@@ -175,3 +175,4 @@ O `PROJECT_CONTEXT.md` tem 8768 linhas (a memória cronológica de cada decisão
 | 8742 | 116zr. Faxina do U2 e contraste nos dois temas (2026-11-01, trabalho da noite autorizado pelo Rafael) | - Verificado no navegador real (banco cronogramae2e), o que ficou "não testado" no §116zq: Compartilhar reunião (Esc fecha só ela, a reunião continua… |
 | 8750 | 116zs. Vidro nas barras e botões (2026-11-01, pedido do Rafael) | - Pedido: "instala o expo-glass-effect e põe o vidro só nas barras e botões". Não instalado de propósito: o pacote é nativo de React Native/Expo (Liq… |
 | 8760 | 116zt. Mover coluna do Meu quadro para outra página (2026-11-01, pedido do Rafael) | - Pedido: a coluna "PESSOAL" (com LIVRO RONALDO, LIVO AUTOBIOGRAFICO e Cirurgia) estava dentro da página "PRICETAX"; ele queria levá-la para a aba "P… |
+| 8768 | 116zu. Convite do Google com link do Meet nas reuniões do CRM (2026-11-01, pedido do sócio do Rafael; opção "… | - Pergunta do sócio: "dá para marcar reunião direto do CRM?" (sim: atividade do tipo Reunião com data e horário vira evento de 30 min na agenda Googl… |

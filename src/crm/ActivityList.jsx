@@ -88,6 +88,8 @@ export default function ActivityList({ activities, caps, options, currentUserId,
             {showCompany && (onOpenCompany ? <button type="button" title={`Abrir a empresa ${a.companyName}`} onClick={() => onOpenCompany(a.companyId)}>{a.companyName}</button> : <span>{a.companyName}</span>)}
             {a.dealTitle && (onOpenDeal && a.dealId ? <button type="button" title={`Abrir o negócio ${a.dealTitle}`} onClick={() => onOpenDeal(a.dealId)}>Negócio: {a.dealTitle}</button> : <span>Negócio: {a.dealTitle}</span>)}
             {a.contactName && <span>com {a.contactName}</span>}
+            {open && a.meetLink && <a href={a.meetLink} target="_blank" rel="noopener noreferrer" title={a.inviteEmail ? `Convite enviado a ${a.inviteEmail}` : 'Link do Google Meet'} style={{ color: 'var(--ui-info)', fontWeight: 700 }}>Entrar no Meet</a>}
+            {open && a.inviteMeet && !a.meetLink && <span title="O link do Meet aparece quando o Google confirmar o convite">Convite com Meet pendente</span>}
             {a.ownerName && <span>Resp.: {a.ownerName}</span>}
             {a.status === 'done' && a.completedAt && <span>Concluída em {fmtDateTimeBR(a.completedAt)}{a.completedByName ? ` por ${a.completedByName}` : ''}</span>}
             {a.status === 'cancelled' && <span>Cancelada</span>}
